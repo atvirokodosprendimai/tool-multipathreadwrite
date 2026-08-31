@@ -18,9 +18,44 @@ refuses to reproduce.
 
 ## Install
 
+Download a released binary — raw, so there is nothing to unpack:
+
+```sh
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')   # linux | darwin
+ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+curl -fsSL -o mrw \
+  "https://github.com/atvirokodosprendimai/tool-multipathreadwrite/releases/latest/download/mrw-${OS}-${ARCH}"
+chmod +x mrw && ./mrw --version
+```
+
+Windows: `mrw-windows-amd64.exe`. Every release also carries conventional
+archives (`mrw_<os>_<arch>.tar.gz` / `.zip`) and a `SHA256SUMS.txt` covering
+every asset.
+
+From source:
+
 ```sh
 go build -o bin/mrw ./cmd/mrw
 ```
+
+## Releasing
+
+`.github/workflows/ci.yml` runs gofmt, `go vet`, `go test ./...` and
+`go test -race ./...` on every push and PR. Pushing a **strict** `vX.Y.Z` tag
+additionally cross-compiles five targets and publishes them:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The tag filter on `push` is a glob and cannot express "digits only", so a
+`check` job re-matches the tag with a regex and everything downstream gates on
+it — `v1.2.3-rc1` builds nothing. Binaries publish only after the tests and the
+race detector are green.
+
+The build stamps `-X main.version=<tag>`; `cmd/mrw/version_test.go` keeps that
+symbol reachable, because the linker discards a `-X` for a symbol that no
+longer exists and says nothing.
 
 ## Read
 

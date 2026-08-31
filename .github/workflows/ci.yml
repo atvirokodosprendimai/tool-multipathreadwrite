@@ -1,0 +1,191 @@
+name: ci
+
+# One workflow, because mrw is one binary from ./cmd/mrw with no container
+# image. (agentsmemory splits build.yml from release.yml only because a tag
+# there also publishes a multi-arch image and two separate binaries.)
+#
+# Every push and PR runs the gates. Only a strict version tag publishes.
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+
+# Least privilege by default: the gates only read the repo. Only the release
+# job escalates to contents:write, at job scope.
+permissions:
+  contents: read
+
+jobs:
+  # The tag filter on `push` is a GLOB, and GitHub Actions supports no regex
+  # there. 'v*.*.*' already excludes v1 and v1.2 because it requires two dots,
+  # but a glob cannot assert "digits only, exactly three parts" — so a
+  # pre-release like v1.2.3-rc1 would still match. This job does the strict
+  # match and every publishing job gates on its output.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.semver.outputs.release }}
+    steps:
+      - id: semver
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_REF}" == refs/tags/* && "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "Building release for $tag"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=skipped::$tag is not a strict vX.Y.Z tag; skipping the binary build."
+          fi
+
+  # The project's declared check (.quality-harness.json) plus formatting and
+  # vet. Runs on every push and PR, independent of the tag gate — this is the
+  # safety net for branches, and `build` depends on it.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # test -z rather than a bare `gofmt -l`: gofmt exits 0 even when it lists
+      # unformatted files, so the naked command is a gate that cannot fail.
+      - name: Format
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error title=gofmt::these files are not formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+  # The race detector is its own job, running BESIDE `test` rather than after
+  # it. Both are required by `build`, so the bar is unchanged; splitting them
+  # means a red run says which question failed. mrw's apply path writes files
+  # from concurrent tests via t.TempDir, so this is not ceremonial.
+  race:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Race
+        run: go test -race ./...
+
+  # Cross-compile every target. CGO_ENABLED=0 makes each one static and lets
+  # the single linux runner build them all — mrw has no cgo dependency.
+  build:
+    needs: [check, test, race]
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      # fail-fast off: if darwin/arm64 breaks, still learn whether the others
+      # do. A partial matrix result is more useful than a cancelled one.
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    env:
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # -trimpath strips local filesystem paths so the build is reproducible;
+      # -s -w drop the symbol table and DWARF. -X main.version stamps the tag,
+      # which cmd/mrw/version_test.go keeps reachable — the linker discards a
+      # -X for a symbol that no longer exists, silently.
+      #
+      # Two asset shapes, deliberately:
+      #   mrw-<goos>-<goarch>[.exe]        raw, so `curl -L ... -o mrw` works
+      #   mrw_<goos>_<goarch>.tar.gz|.zip  conventional archive
+      # The raw one exists because an archive makes the one-line install a
+      # download AND an unpack; the archive exists because that is what people
+      # expect to find on a release page.
+      - name: Build
+        id: build
+        run: |
+          raw="mrw-${{ matrix.goos }}-${{ matrix.goarch }}"
+          bin=mrw
+          if [ "${{ matrix.goos }}" = windows ]; then
+            raw="${raw}.exe"
+            bin=mrw.exe
+          fi
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build -trimpath \
+              -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
+              -o "$bin" ./cmd/mrw
+          cp "$bin" "$raw"
+          echo "raw=$raw" >> "$GITHUB_OUTPUT"
+
+          name="mrw_${{ matrix.goos }}_${{ matrix.goarch }}"
+          if [ "${{ matrix.goos }}" = windows ]; then
+            zip "$name.zip" "$bin" README.md
+            echo "archive=$name.zip" >> "$GITHUB_OUTPUT"
+          else
+            tar -czf "$name.tar.gz" "$bin" README.md
+            echo "archive=$name.tar.gz" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Each target's assets become a run artifact so the single release job can
+      # regather them. The whole job is tag-gated, so these exist only for
+      # version tags.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mrw_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: |
+            ${{ steps.build.outputs.raw }}
+            ${{ steps.build.outputs.archive }}
+          retention-days: 14
+
+  # One dedicated job owns the Release, so concurrent matrix jobs never race to
+  # create-or-update it. It inherits the tag gate through `build` but asserts it
+  # again so the intent is readable locally.
+  release:
+    needs: [check, build]
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create/update the Release and upload assets
+    steps:
+      # merge-multiple flattens every per-target artifact into one dist/.
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # One checksum file over every asset, so a downloader can verify what
+      # they fetched. Generated before the upload and shipped alongside.
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # softprops creates the Release if the pushed tag has none (a tag push
+      # does not auto-create one). fail_on_unmatched_files turns a vanished
+      # asset into a red release rather than a quietly incomplete one — the
+      # failure that matters once anything points at fixed asset names.
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          files: |
+            dist/mrw-*
+            dist/mrw_*
+            dist/SHA256SUMS.txt

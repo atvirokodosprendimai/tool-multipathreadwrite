@@ -46,8 +46,11 @@ const (
 // version is stamped at build time with -ldflags "-X main.version=...".
 var version = "dev"
 
-func main() {
-	root := &cli.Command{
+// rootCommand builds the CLI. It is a function rather than inline in main so a
+// test can run the real command — the --version wiring is otherwise reachable
+// only by launching the process.
+func rootCommand() *cli.Command {
+	return &cli.Command{
 		Name:    "mrw",
 		Usage:   "read and write many file ranges in one call",
 		Version: version,
@@ -61,7 +64,10 @@ func main() {
 		},
 		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd()},
 	}
-	if err := root.Run(context.Background(), os.Args); err != nil {
+}
+
+func main() {
+	if err := rootCommand().Run(context.Background(), os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, "mrw:", err)
 		os.Exit(exitCode(err))
 	}
