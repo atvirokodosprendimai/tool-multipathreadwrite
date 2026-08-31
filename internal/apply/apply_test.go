@@ -119,6 +119,65 @@ func TestOneBadHunkAbortsEverythingAndSaysWhich(t *testing.T) {
 	}
 }
 
+// The receipt must name every file the plan ADDRESSED, not only the ones that
+// survived validation. A file whose hunk failed used to vanish from Files
+// entirely — so a two-file plan reported "1 file(s)" and --json's files[] left
+// the failing one out, under-reporting how much the run was about to touch.
+func TestFailedFilesStillAppearInTheReceipt(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "good.txt", abcde)
+	write(t, root, "bad.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "good.txt", Start: 1, End: 1, Op: "replace", Body: []string{"G"}, Lines: -1, Index: 0},
+		{Path: "bad.txt", Start: 1, End: 1, Op: "replace", Body: []string{"B"}, Anchor: "zzz", Lines: -1, Index: 1},
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed=%d, want 1", res.Failed)
+	}
+	if len(res.Files) != 2 {
+		t.Fatalf("got %d file result(s), want 2 — every addressed file must be reported: %+v", len(res.Files), res.Files)
+	}
+	// Plan order, so the receipt reads in the order the caller wrote it.
+	if res.Files[0].Path != "good.txt" || res.Files[1].Path != "bad.txt" {
+		t.Errorf("files out of plan order: %q, %q", res.Files[0].Path, res.Files[1].Path)
+	}
+	for _, f := range res.Files {
+		if f.Written {
+			t.Errorf("%s reported as written after a failed run", f.Path)
+		}
+	}
+	// The failing file still carries what was observed about it, so a caller
+	// can tell "could not validate" from "was never looked at".
+	if res.Files[1].SHABefore == "" || res.Files[1].LinesFrom != 5 {
+		t.Errorf("the failing file lost its observed state: %+v", res.Files[1])
+	}
+}
+
+// A file addressed by several hunks, one of which fails, is reported once.
+func TestAFailedFileIsReportedOnceNotPerHunk(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0},
+		{Path: "f.txt", Start: 2, End: 2, Op: "replace", Body: []string{"B"}, Anchor: "zzz", Lines: -1, Index: 1},
+		{Path: "f.txt", Start: 3, End: 3, Op: "replace", Body: []string{"C"}, Anchor: "qqq", Lines: -1, Index: 2},
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Files) != 1 {
+		t.Errorf("got %d file result(s), want 1: %+v", len(res.Files), res.Files)
+	}
+	if res.Failed != 2 {
+		t.Errorf("failed=%d, want 2 — every bad hunk is reported, not just the first", res.Failed)
+	}
+}
+
 func TestPreconditions(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "f.txt", abcde)

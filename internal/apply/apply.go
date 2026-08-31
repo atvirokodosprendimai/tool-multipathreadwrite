@@ -139,8 +139,14 @@ func Apply(root string, in []Input, dryRun bool) (Result, error) {
 		out  []string
 		nl   bool
 	}
-	var writes []pending
-	results := map[int]HunkResult{}
+	var (
+		writes []pending
+		// failed holds files the plan addressed but could not validate. They
+		// are reported alongside the rest so the receipt names every file the
+		// run was about to touch, not only the survivors.
+		failed  []FileResult
+		results = map[int]HunkResult{}
+	)
 
 	for _, path := range order {
 		hs := byPath[path]
@@ -157,6 +163,11 @@ func Apply(root string, in []Input, dryRun bool) (Result, error) {
 
 		out, ok := planFile(path, hs, orig, existed, fr.SHABefore, results)
 		if !ok {
+			// The plan ADDRESSED this file even though nothing will be written
+			// to it. Dropping it here is how a two-file plan reported one file
+			// and left the failing one out of --json's files[] — the caller
+			// then under-reads how much the run was about to touch.
+			failed = append(failed, fr)
 			continue
 		}
 		fr.Created = !existed
@@ -185,9 +196,21 @@ func Apply(root string, in []Input, dryRun bool) (Result, error) {
 				res.Hunks[i].Status = StatusSkipped
 			}
 		}
+		// Report every addressed file, written or not, in plan order: the
+		// ones that failed validation alongside the ones that would have been
+		// written had their siblings passed.
+		byPath := make(map[string]FileResult, len(writes)+len(failed))
 		for _, w := range writes {
-			w.file.Written = false
-			res.Files = append(res.Files, w.file)
+			byPath[w.file.Path] = w.file
+		}
+		for _, f := range failed {
+			byPath[f.Path] = f
+		}
+		for _, p := range order {
+			if f, ok := byPath[p]; ok {
+				f.Written = false
+				res.Files = append(res.Files, f)
+			}
 		}
 		return res, nil
 	}

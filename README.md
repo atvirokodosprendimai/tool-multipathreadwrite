@@ -203,7 +203,7 @@ about your change.
 | 0 | everything asked for succeeded | — |
 | 1 | a hunk failed, or a range could not be served; **nothing written** | fix the plan |
 | 2 | usage, parse or I/O error | fix the call |
-| 3 | the write applied but the check did not pass | read the test output |
+| 3 | a check ran and did not pass | read the test output |
 
 ## A note on hooks
 

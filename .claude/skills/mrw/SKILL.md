@@ -187,10 +187,12 @@ not about your change. Say which you had.
 | 0 | everything asked for succeeded | — |
 | 1 | a hunk failed / a range could not be served; **nothing written** | fix the plan |
 | 2 | usage, parse or I/O error | fix the call |
-| 3 | the write applied but the check did not pass | read the test output |
+| 3 | a check ran and did not pass | read the test output |
 
-⚠ 1 and 3 are opposite situations. 1 means the tree is untouched; 3 means it is
-changed and unverified. Never collapse them into "it failed".
+⚠ Never collapse 1 and 3 into "it failed". 1 promises an UNTOUCHED tree — fix
+the plan and retry. 3 says a check ran and failed, and what that implies about
+the tree depends on which command: after `write --check` the edit IS applied and
+now unverified; after a bare `check` nothing was written.
 
 ## Habits
 

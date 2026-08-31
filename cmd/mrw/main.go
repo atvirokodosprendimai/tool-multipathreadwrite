@@ -35,8 +35,14 @@ import (
 )
 
 // Exit statuses. They are distinguished because the caller's next move differs:
-// nothing-written means fix the plan and retry, written-but-red means look at
-// the test output, and a usage error means neither.
+// nothing-written means fix the plan and retry, a failed check means read the
+// test output, and a usage error means neither.
+//
+// ⚠ exitCheckFailed says a check RAN AND FAILED; it says nothing about whether
+// anything was written. After `write --check` the edit IS applied and now
+// unverified; after a bare `check` the tree was never touched. Both are 3
+// because both mean "go read the output", and neither is exitNotApplied, which
+// promises an untouched tree.
 const (
 	exitNotApplied  = 1
 	exitUsage       = 2
@@ -280,8 +286,13 @@ visible to whatever hooks watch file writes.`,
 			switch {
 			case res.Failed > 0:
 				return cli.Exit(fmt.Sprintf("%d hunk(s) failed — nothing was written", res.Failed), exitNotApplied)
+			case receipt.Check != nil && !receipt.Check.Ran:
+				// The write stands. Say so first — the caller's tree changed
+				// even though the verification never happened.
+				return cli.Exit("the write applied but no check could run: "+receipt.Check.Skipped+
+					" — declare one in .quality-harness.json", exitUsage)
 			case receipt.Check != nil && !receipt.Check.OK():
-				return cli.Exit("the write applied but the check did not pass", exitCheckFailed)
+				return cli.Exit("the write applied but the check did not pass — the tree is changed and unverified", exitCheckFailed)
 			}
 			return nil
 		},
@@ -421,6 +432,13 @@ touched, which is a finding about the machine and not about your change.`,
 				}
 			} else {
 				reportCheck(os.Stdout, &res)
+			}
+			if !res.Ran {
+				// Not exit 3: nothing ran, so nothing failed. Reporting this as
+				// a failing check would tell the caller to go read output that
+				// does not exist.
+				return cli.Exit("no check could run: "+res.Skipped+
+					" — declare one in .quality-harness.json", exitUsage)
 			}
 			if !res.OK() {
 				return cli.Exit("check did not pass", exitCheckFailed)
