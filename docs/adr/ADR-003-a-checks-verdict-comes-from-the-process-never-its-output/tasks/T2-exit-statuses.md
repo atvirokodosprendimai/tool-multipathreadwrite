@@ -78,6 +78,12 @@ script is the only place the four statuses are checked as statuses.
 
 ## Mutation Log
 
+- 2026-08-31 · f679354* · mutant survived · exit 0 · `cmd/mrw/main.go` · Changes the message the nothing-written path emits. contract.sh row 1 asserts exit 1 with the offender named, so this proves the fence binds to the status path rather than merely to the exit code. · acceptance-sha256:bc92ab8726f1e3d0075c104d37cb175ea715f9d7d4f25811782f71781ffb7a51
+  ```
+  the fence passed with the mechanism broken
+  ```
+- 2026-08-31 · f679354* · mutant killed · exit 1 · `cmd/mrw/main.go` · Collapses "nothing written" into success — the mechanism this task IS. The previous mutant on this task mutated only a message string and survived, which was a badly chosen mutant rather than a decoration test; this one targets the status mapping itself. · acceptance-sha256:bc92ab8726f1e3d0075c104d37cb175ea715f9d7d4f25811782f71781ffb7a51
+
 ## Invariants
 
 - 1 promises an untouched tree. If anything was written, the status is not 1.
@@ -86,6 +92,15 @@ script is the only place the four statuses are checked as statuses.
 
 ## Risks
 
+- **A survived mutant is recorded above, deliberately left in.** Changing the
+  wording of the "nothing was written" message does NOT turn the fence red:
+  `scripts/contract.sh` row 1 asserts the exit status and greps for the named
+  offender, not for the summary line. So the message text is genuinely
+  unasserted — a real, small hole, recorded rather than tidied away. The mutant
+  was badly chosen (a message string is the trivial escape hatch the template
+  warns about); the killed entry beneath it targets the status mapping, which is
+  the mechanism this task actually is. Asserting exact message wording was
+  considered and rejected: it would make every copy edit a test failure.
 - The statuses are asserted only by a shell script, so a Go-level refactor that
   changes the mapping is caught by CI but not by `go test`. Accepted: the
   property genuinely lives at the process boundary.
@@ -104,3 +119,4 @@ and a vocabulary that grows without that is where vocabularies rot.
   disagree)
 
 ## Verification Log
+- 2026-08-31 · f679354* · exit 0 · `set -o pipefail …` · acceptance-sha256:bc92ab8726f1e3d0075c104d37cb175ea715f9d7d4f25811782f71781ffb7a51

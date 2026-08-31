@@ -13,10 +13,18 @@
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
-MRW=$(pwd)/${MRW:-bin/mrw}
-[ -x "$MRW" ] || go build -o "$MRW" ./cmd/mrw
-
 WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+
+# Build our OWN binary inside WORK rather than sharing bin/mrw. Two fences ran
+# concurrently under `adr-verify --sweep` on 2026-08-31 — one starting with
+# `go build -o bin/mrw`, two others executing it — and the binary was rewritten
+# under a running process. Both contract.sh-invoking fences failed, and passed
+# on a re-run: a flake with a cause. A shared mutable artifact is the cause, so
+# it is removed rather than retried. The build is cached, so this is cheap.
+MRW=${MRW:+$(cd "$(dirname "$MRW")" && pwd)/$(basename "$MRW")}
+MRW=${MRW:-$WORK/mrw}
+go build -o "$MRW" ./cmd/mrw
 trap 'rm -rf "$WORK"' EXIT
 fails=0
 

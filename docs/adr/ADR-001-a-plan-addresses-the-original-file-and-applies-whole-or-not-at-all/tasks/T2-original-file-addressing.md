@@ -43,7 +43,7 @@ depends on what the hunks before it did.
 
 ```bash
 set -o pipefail
-go test ./internal/apply/ -run 'TestEarlierHunksNeverShiftLaterAddresses|TestAddressesResolveAgainstTheOriginalFile|TestEOFAddressing|TestOverlappingHunksAreRejected' -v 2>&1 | tee /tmp/adr001t2.out \
+go test ./internal/apply/ -run 'TestEarlierHunksNeverShiftLaterAddresses|TestAddressesResolveAgainstTheOriginalFile|TestEOFAddressing|TestOverlappingHunksAreRejected|TestTrailingNewlineIsPreserved|TestFilePermissionsSurvive|TestMultipleFilesInOneRun' -v 2>&1 | tee /tmp/adr001t2.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr001t2.out \
   && go test ./internal/apply/
 ```
@@ -71,6 +71,9 @@ go test ./internal/apply/ -run 'TestEarlierHunksNeverShiftLaterAddresses|TestAdd
 
 ## Mutation Log
 
+- 2026-08-31 · f679354* · mutant killed · exit 1 · `internal/apply/apply.go` · Off-by-one in the cursor walk. If the no-shift tests do not bind to the splice arithmetic, this survives and every multi-hunk edit drops a line. · acceptance-sha256:2aeb304873631a58f1652db1b9ca6b3d8ba28e5f1fba51db927a5ffa6c0cf5d3
+- 2026-08-31 · f679354* · mutant killed · exit 1 · `internal/apply/apply.go` · Off-by-one in the cursor walk. If the no-shift tests do not bind to the splice arithmetic, this survives and every multi-hunk edit drops a line. Re-recorded after the Acceptance filter was widened, which invalidated the prior digest. · acceptance-sha256:968937937de36696feb3d9b891d9859d44c51286165144273b1756e3f83ddb07
+
 ## Invariants
 
 - `internal/apply` does not import `internal/plan` — the engine is testable with
@@ -96,3 +99,5 @@ decision point, and it needs its own record.
 - Running the project's tests after a write — that is ADR-003.
 
 ## Verification Log
+- 2026-08-31 · f679354* · exit 0 · `set -o pipefail …` · acceptance-sha256:2aeb304873631a58f1652db1b9ca6b3d8ba28e5f1fba51db927a5ffa6c0cf5d3
+- 2026-08-31 · f679354* · exit 0 · `set -o pipefail …` · acceptance-sha256:968937937de36696feb3d9b891d9859d44c51286165144273b1756e3f83ddb07

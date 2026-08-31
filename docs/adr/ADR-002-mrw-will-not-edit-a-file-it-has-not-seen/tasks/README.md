@@ -8,8 +8,8 @@ the parent ADR for the decision.
 file, the task file wins and the README must be regenerated.
 
 **This ADR is a retrofit.** Both tasks describe behaviour that shipped in
-`829aae7` and released as v0.0.2. They are `pending` because this corpus holds
-no tool-written evidence for them, not because the code is missing.
+`829aae7` and released as v0.0.2. They are `done` as of 2026-08-31: each carries a tool-written exit-0
+Verification Log entry and a killed mutant.
 
 ## Execution Order
 
@@ -22,8 +22,8 @@ no tool-written evidence for them, not because the code is missing.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | A ledger records what mrw last observed each file to hold | pending | — | `go test ./internal/seen/ -v … && go test ./internal/seen/ ./internal/read/ ./cmd/mrw/` |
-| T2 | An edit to an unseen or externally-changed file is refused, naming both SHAs | pending | — | `go test ./internal/apply/ -run 'TestAFileNeverSeen…' … && ./scripts/contract.sh` |
+| T1 | A ledger records what mrw last observed each file to hold | done | — | `go test ./internal/seen/ -v … && go test ./internal/seen/ ./internal/read/ ./cmd/mrw/` |
+| T2 | An edit to an unseen or externally-changed file is refused, naming both SHAs | done | — | `go test ./internal/apply/ -run 'TestAFileNeverSeen…' … && ./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

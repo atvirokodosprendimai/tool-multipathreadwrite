@@ -76,6 +76,8 @@ go test ./internal/check/ -v 2>&1 | tee /tmp/adr003t1.out \
 
 ## Mutation Log
 
+- 2026-08-31 · f679354* · mutant killed · exit 1 · `internal/check/check.go` · Stops reading the process status and hardcodes success. This is the exact failure ADR-003 rule 1 exists to prevent: a check that reports PASS whatever the runner actually did. · acceptance-sha256:98349103d0e99e0bb610d63d6194a3dab6b49cacdfbe2348d2efe4227b79b442
+
 ## Invariants
 
 - No pipe, ever, between the checked process and its recorded exit code.
@@ -103,3 +105,4 @@ it needs a superseding record.
 - Scope derivation for languages other than Go (deferred: docs/adr/BACKLOG.md)
 
 ## Verification Log
+- 2026-08-31 · f679354* · exit 0 · `set -o pipefail …` · acceptance-sha256:98349103d0e99e0bb610d63d6194a3dab6b49cacdfbe2348d2efe4227b79b442

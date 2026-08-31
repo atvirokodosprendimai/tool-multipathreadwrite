@@ -1,6 +1,6 @@
 # ADR-003: A check's verdict comes from the process, never its output
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-31
 **Owner:** M
 **Spec:** None — no spec stage

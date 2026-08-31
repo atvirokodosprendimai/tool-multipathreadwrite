@@ -8,10 +8,9 @@ applies whole or not at all. See the parent ADR for the decision.
 file, the task file wins and the README must be regenerated.
 
 **This ADR is a retrofit.** All three tasks describe behaviour that already
-shipped (v0.0.1, v0.0.2). They are `pending` because *this corpus* holds no
-tool-written evidence for them, not because the code is missing. Executing them
-means running each Acceptance fence and recording a killed mutant — which
-retro-proves the shipped implementation rather than rebuilding it.
+shipped (v0.0.1, v0.0.2). They are `done` as of 2026-08-31: each carries a tool-written exit-0
+Verification Log entry and a killed mutant, which retro-proves the shipped
+implementation rather than rebuilding it.
 
 ## Execution Order
 
@@ -25,9 +24,9 @@ retro-proves the shipped implementation rather than rebuilding it.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The plan document parses into hunks, and reports every syntax error at once | pending | — | `go test ./internal/plan/ -run 'TestParse\|TestQuoted\|TestExplicitBody' …` |
-| T2 | Every address resolves against the original file, so earlier hunks never shift later ones | pending | — | `go test ./internal/apply/ -run 'TestEarlierHunksNeverShiftLaterAddresses\|…' …` |
-| T3 | One failed hunk aborts the run, and every hunk and every addressed file is reported | pending | — | `go test ./internal/apply/ -run 'TestOneBadHunkAborts…' … && ./scripts/contract.sh` |
+| T1 | The plan document parses into hunks, and reports every syntax error at once | done | — | `go test ./internal/plan/ -run 'TestParse\|TestQuoted\|TestExplicitBody' …` |
+| T2 | Every address resolves against the original file, so earlier hunks never shift later ones | done | — | `go test ./internal/apply/ -run 'TestEarlierHunksNeverShiftLaterAddresses\|…' …` |
+| T3 | One failed hunk aborts the run, and every hunk and every addressed file is reported | done | — | `go test ./internal/apply/ -run 'TestOneBadHunkAborts…' … && ./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

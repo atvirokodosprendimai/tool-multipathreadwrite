@@ -78,6 +78,8 @@ already-passing sibling — then the package, then the end-to-end assertions.
 
 ## Mutation Log
 
+- 2026-08-31 · f679354* · mutant killed · exit 1 · `internal/apply/apply.go` · Disables the read-before-modify guard entirely. A security control that cannot fail is worse than none, and this is the exact mutation performed by hand on 2026-08-31 — recorded here by the tool instead. · acceptance-sha256:1a164fa00b6b0a3cafe657d5e120f4917184af27b7678ef7452d851a2daf6897
+
 ## Invariants
 
 - A nil `Seen` map disables the check; an EMPTY map enforces it against nothing
@@ -106,3 +108,4 @@ a flag flip.
 - `mrw forget <path>` to drop an entry (deferred: docs/adr/BACKLOG.md)
 
 ## Verification Log
+- 2026-08-31 · f679354* · exit 0 · `set -o pipefail …` · acceptance-sha256:1a164fa00b6b0a3cafe657d5e120f4917184af27b7678ef7452d851a2daf6897

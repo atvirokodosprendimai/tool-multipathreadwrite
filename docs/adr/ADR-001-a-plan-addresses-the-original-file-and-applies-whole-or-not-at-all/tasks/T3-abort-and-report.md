@@ -45,7 +45,7 @@ in the receipt whether or not it was written.
 
 ```bash
 set -o pipefail
-go test ./internal/apply/ -run 'TestOneBadHunkAbortsEverythingAndSaysWhich|TestFailedFilesStillAppearInTheReceipt|TestAFailedFileIsReportedOnceNotPerHunk|TestDryRunWritesNothingButReportsTheOutcome' -v 2>&1 | tee /tmp/adr001t3.out \
+go test ./internal/apply/ -run 'TestOneBadHunkAbortsEverythingAndSaysWhich|TestFailedFilesStillAppearInTheReceipt|TestAFailedFileIsReportedOnceNotPerHunk|TestDryRunWritesNothingButReportsTheOutcome|TestPreconditions' -v 2>&1 | tee /tmp/adr001t3.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr001t3.out \
   && go test ./internal/apply/ \
   && ./scripts/contract.sh
@@ -75,6 +75,9 @@ script — chained with `&&` so none can carry the verdict alone.
 
 ## Mutation Log
 
+- 2026-08-31 · f679354* · mutant killed · exit 1 · `internal/apply/apply.go` · Drops the addressed-but-failed file from the receipt. This is the defect found in review on 2026-08-31: a two-file plan reported one file and --json omitted the failing one, under-reporting blast radius. · acceptance-sha256:a238f1be1299a9e7197c07858dc5cb53d98d31c5413aa610ceb0c033cf203635
+- 2026-08-31 · f679354* · mutant killed · exit 1 · `internal/apply/apply.go` · Drops the addressed-but-failed file from the receipt — the defect found in review on 2026-08-31. Re-recorded after the Acceptance filter was widened, which invalidated the prior digest. · acceptance-sha256:0e5796d88bde0be19d848ca0689963c885d8b33547904ebbff29147f90a32c7b
+
 ## Invariants
 
 - `Applied` is false whenever any hunk failed.
@@ -101,3 +104,5 @@ not a flag.
 - Refusing to edit an unseen file — ADR-002.
 
 ## Verification Log
+- 2026-08-31 · f679354* · exit 0 · `set -o pipefail …` · acceptance-sha256:a238f1be1299a9e7197c07858dc5cb53d98d31c5413aa610ceb0c033cf203635
+- 2026-08-31 · f679354* · exit 0 · `set -o pipefail …` · acceptance-sha256:0e5796d88bde0be19d848ca0689963c885d8b33547904ebbff29147f90a32c7b

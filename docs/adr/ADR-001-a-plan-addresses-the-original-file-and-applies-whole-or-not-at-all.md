@@ -1,6 +1,6 @@
 # ADR-001: A plan addresses the original file, and applies whole or not at all
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-31
 **Owner:** M
 **Spec:** None — no spec stage

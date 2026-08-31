@@ -71,6 +71,8 @@ neither can carry the verdict by itself.
 
 ## Mutation Log
 
+- 2026-08-31 · f679354* · mutant killed · exit 1 · `internal/plan/plan.go` · An unknown op must be an error, never a silently accepted hunk. Accepting it as a delete is the worst plausible drift: the plan applies and removes lines. · acceptance-sha256:638effa2f91d310039de24e53f88144c583c95157f9527d37ea04dace05788ef
+
 ## Invariants
 
 - An unknown op is an error, never a silently ignored hunk.
@@ -96,3 +98,4 @@ and belongs in a new ADR, not in this task.
   belongs to the working-set decision, not to the format.
 
 ## Verification Log
+- 2026-08-31 · f679354* · exit 0 · `set -o pipefail …` · acceptance-sha256:638effa2f91d310039de24e53f88144c583c95157f9527d37ea04dace05788ef

@@ -72,6 +72,8 @@ go test ./internal/seen/ -v 2>&1 | tee /tmp/adr002t1.out \
 
 ## Mutation Log
 
+- 2026-08-31 · f679354* · mutant killed · exit 1 · `internal/seen/seen.go` · Makes Record REPLACE rather than merge. One command observing two files would erase what another observed about a third, silently disarming the guard for every unmentioned path. · acceptance-sha256:3dd0b63fd21ca2002df1c34bb30401d1abcf6f43cb6fa79c427f15d4b19ded56
+
 ## Invariants
 
 - `Record` never drops a path it was not asked about.
@@ -97,3 +99,4 @@ what staleness means, and belongs in a record rather than in a field.
 - Pruning entries for deleted files (deferred: docs/adr/BACKLOG.md)
 
 ## Verification Log
+- 2026-08-31 · f679354* · exit 0 · `set -o pipefail …` · acceptance-sha256:3dd0b63fd21ca2002df1c34bb30401d1abcf6f43cb6fa79c427f15d4b19ded56

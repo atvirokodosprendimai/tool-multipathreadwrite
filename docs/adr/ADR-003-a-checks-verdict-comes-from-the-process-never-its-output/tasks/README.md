@@ -8,8 +8,9 @@ never its output. See the parent ADR for the decision.
 file, the task file wins and the README must be regenerated.
 
 **This ADR is a retrofit.** Both tasks describe behaviour shipped in `f0e12a9`
-and corrected in `6655113`, released as v0.0.1 and v0.0.2. They are `pending`
-because this corpus holds no tool-written evidence for them.
+and corrected in `6655113`, released as v0.0.1 and v0.0.2. They are `done` as of
+2026-08-31: each carries a tool-written exit-0 Verification Log entry and a
+killed mutant.
 
 ## Execution Order
 
@@ -22,8 +23,8 @@ because this corpus holds no tool-written evidence for them.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The check runs scoped to what changed, and its verdict is the process's real exit code | pending | — | `go test ./internal/check/ -v … && go test ./internal/check/` |
-| T2 | Four exit statuses, each meaning a different next move | pending | — | `go build -o bin/mrw ./cmd/mrw && ./scripts/contract.sh … && go test ./cmd/mrw/` |
+| T1 | The check runs scoped to what changed, and its verdict is the process's real exit code | done | — | `go test ./internal/check/ -v … && go test ./internal/check/` |
+| T2 | Four exit statuses, each meaning a different next move | done | — | `go build -o bin/mrw ./cmd/mrw && ./scripts/contract.sh … && go test ./cmd/mrw/` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

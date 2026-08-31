@@ -1,6 +1,6 @@
 # ADR-002: mrw will not edit a file it has not seen
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-31
 **Owner:** M
 **Spec:** None — no spec stage
