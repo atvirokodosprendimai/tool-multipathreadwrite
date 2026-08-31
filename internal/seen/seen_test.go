@@ -56,7 +56,11 @@ func TestRecordOverwritesTheSamePath(t *testing.T) {
 		t.Errorf("a.go = %q, want the newer observation", l["a.go"])
 	}
 	// And exactly one line, not two.
-	b, err := os.ReadFile(filepath.Join(root, File))
+	lp, err := ReadPath(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(lp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,5 +94,65 @@ func TestSHAIsStable(t *testing.T) {
 	}
 	if SHA([]byte("hello")) == SHA([]byte("hellp")) {
 		t.Error("SHA collides on a one-byte difference")
+	}
+}
+
+// TestMain isolates the whole package from the user's real state directory.
+// Without it these tests would write into ~/.local/state/mrw — a test suite
+// that leaves state on the machine it ran on is its own small version of the
+// bug ADR-004 fixes.
+func TestMain(m *testing.M) {
+	base, err := os.MkdirTemp("", "mrw-state-*")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("XDG_STATE_HOME", base)
+	code := m.Run()
+	os.RemoveAll(base)
+	os.Exit(code)
+}
+
+// The reported bug, as a test: a Record must leave the working tree untouched.
+func TestLedgerIsNotWrittenIntoTheRoot(t *testing.T) {
+	root := t.TempDir()
+	if err := Record(root, map[string]string{"a.go": "aaa"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".mrw")); err == nil {
+		t.Error("Record created .mrw/ in the working tree — the defect ADR-004 fixes")
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("the root holds %d entry/entries after Record, want 0", len(entries))
+	}
+}
+
+// A pre-ADR-004 ledger is still read, so nobody loses data by upgrading.
+func TestLegacyInTreeLedgerIsStillRead(t *testing.T) {
+	root := t.TempDir()
+	legacy := filepath.Join(root, ".mrw")
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, Name), []byte("abc123  old.go\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	l, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l["old.go"] != "abc123" {
+		t.Errorf("a legacy in-tree ledger was ignored: %v", l)
+	}
+	// And a subsequent write goes to the state dir, never back into the tree.
+	if err := Record(root, map[string]string{"new.go": "def456"}); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(legacy, Name))
+	if strings.Contains(string(b), "new.go") {
+		t.Error("Record wrote into the legacy in-tree ledger")
 	}
 }

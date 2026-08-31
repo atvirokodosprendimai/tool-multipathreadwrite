@@ -75,11 +75,13 @@ func TestPathsStripsRangesAndDeduplicates(t *testing.T) {
 
 func TestLoadIgnoresBlanksAndKeepsTheFirstComment(t *testing.T) {
 	root := t.TempDir()
+	// Written to the LEGACY in-tree path on purpose: this also pins that a
+	// pre-ADR-004 working set is still read when the state directory has none.
 	if err := os.MkdirAll(filepath.Join(root, ".mrw"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	body := "# first note\n\na.go\n# later comment\nb.go\na.go\n"
-	if err := os.WriteFile(filepath.Join(root, File), []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, ".mrw", Name), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s, err := Load(root)
@@ -173,5 +175,33 @@ func TestPath(t *testing.T) {
 		if got := Path(spec); got != want {
 			t.Errorf("Path(%q) = %q, want %q", spec, got, want)
 		}
+	}
+}
+
+// TestMain isolates the whole package from the user's real state directory.
+// Without it these tests would write into ~/.local/state/mrw — a test suite
+// that leaves state on the machine it ran on is its own small version of the
+// bug ADR-004 fixes.
+func TestMain(m *testing.M) {
+	base, err := os.MkdirTemp("", "mrw-state-*")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("XDG_STATE_HOME", base)
+	code := m.Run()
+	os.RemoveAll(base)
+	os.Exit(code)
+}
+
+// The same guarantee for the working set.
+func TestWorkingSetIsNotWrittenIntoTheRoot(t *testing.T) {
+	root := t.TempDir()
+	var s Set
+	s.Add("a.go")
+	if err := Save(root, s); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".mrw")); err == nil {
+		t.Error("Save created .mrw/ in the working tree")
 	}
 }

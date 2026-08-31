@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/urfave/cli/v3"
@@ -33,6 +34,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
 // Exit statuses. They are distinguished because the caller's next move differs:
@@ -69,14 +71,70 @@ func rootCommand() *cli.Command {
 				Usage:   "resolve every path relative to `DIR`",
 			},
 		},
-		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd()},
+		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd()},
 	}
 }
 
 func main() {
+	// One-time, additive migration of any pre-ADR-004 in-tree state. Announced
+	// on stderr because a tool that quietly moves your files is the sibling of
+	// the tool that quietly created them.
+	if moved, err := state.Migrate("."); err == nil && len(moved) > 0 {
+		if dir, err := state.Dir("."); err == nil {
+			fmt.Fprintf(os.Stderr, "mrw: moved %s from ./%s/ to %s — the copy in your working tree is "+
+				"untouched and can now be deleted\n", strings.Join(moved, " and "), state.LegacyDir, dir)
+		}
+	}
 	if err := rootCommand().Run(context.Background(), os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, "mrw:", err)
 		os.Exit(exitCode(err))
+	}
+}
+
+// seenCmd answers "where is my state, and what does mrw think it saw" — the
+// inspectability an in-tree file gave away for free, bought back deliberately.
+func seenCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "seen",
+		Usage: "print the state directory and the read-before-modify ledger",
+		Description: `mrw keeps per-checkout state OUTSIDE the working tree, under
+$XDG_STATE_HOME/mrw/<key>/ (or ~/.local/state/mrw/<key>/). This prints where that
+is for the current root, and what the ledger currently holds.
+
+A path listed here is one mrw has seen; one that is not listed must be read
+before it can be edited. A sha that disagrees with the file on disk means it
+changed since mrw last looked, and the next write to it is refused.`,
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			root := cmd.Root().String("root")
+			dir, err := state.Dir(root)
+			if err != nil {
+				return cli.Exit(err, exitUsage)
+			}
+			// Location first: "where is it" is the question that brought you here.
+			fmt.Println(dir)
+
+			path, err := seen.ReadPath(root)
+			if err != nil {
+				return cli.Exit(err, exitUsage)
+			}
+			if path != filepath.Join(dir, seen.Name) {
+				fmt.Printf("# reading a legacy in-tree ledger: %s\n", path)
+			}
+			ledger, err := seen.Load(root)
+			if err != nil {
+				return cli.Exit(err, exitUsage)
+			}
+			paths := make([]string, 0, len(ledger))
+			for p := range ledger {
+				paths = append(paths, p)
+			}
+			sort.Strings(paths)
+			for _, p := range paths {
+				fmt.Printf("%s  %s\n", short(ledger[p]), p)
+			}
+			fmt.Printf("%d file(s) seen\n", len(paths))
+			return nil
+		},
 	}
 }
 
@@ -348,7 +406,7 @@ type receipt struct {
 func iterCmd() *cli.Command {
 	return &cli.Command{
 		Name:      "iter",
-		Usage:     "show or edit the working set (" + iter.File + ")",
+		Usage:     "show or edit the working set (stored outside the tree; see `mrw seen`)",
 		ArgsUsage: "[add|rm|clear|note] [SPEC...]",
 		Description: `With no arguments, prints the working set.
 

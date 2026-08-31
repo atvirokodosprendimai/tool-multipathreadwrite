@@ -25,11 +25,15 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
-// File is the ledger's location, relative to the repository root. Per-developer
-// state, like the working set beside it — not project configuration.
-const File = ".mrw/seen"
+// Name is the ledger's filename inside the state directory. The DIRECTORY is
+// resolved by internal/state and is deliberately outside the working tree —
+// mrw used to write this beside your source, where nothing ignored it and one
+// copy was committed by accident. See ADR-004.
+const Name = "seen"
 
 // Ledger maps a path to the SHA-256 mrw last observed it to hold.
 type Ledger map[string]string
@@ -38,7 +42,11 @@ type Ledger map[string]string
 // observations yet is the normal starting state.
 func Load(root string) (Ledger, error) {
 	l := Ledger{}
-	f, err := os.Open(filepath.Join(root, File))
+	path, err := ReadPath(root)
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(path)
 	if os.IsNotExist(err) {
 		return l, nil
 	}
@@ -72,7 +80,11 @@ func Record(root string, obs map[string]string) error {
 		l[path] = sha
 	}
 
-	dir := filepath.Join(root, filepath.Dir(File))
+	path, err := writePath(root)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -87,7 +99,7 @@ func Record(root string, obs map[string]string) error {
 	for _, p := range paths {
 		fmt.Fprintf(&b, "%s  %s\n", l[p], p)
 	}
-	return os.WriteFile(filepath.Join(root, File), []byte(b.String()), 0o644)
+	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
 
 // Forget drops paths from the ledger, so the next write must observe them
@@ -108,7 +120,11 @@ func Forget(root string, paths []string) (int, error) {
 		return 0, nil
 	}
 	// Record cannot express a deletion, so rewrite the whole file here.
-	dir := filepath.Join(root, filepath.Dir(File))
+	path, err := writePath(root)
+	if err != nil {
+		return 0, err
+	}
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return 0, err
 	}
@@ -121,7 +137,7 @@ func Forget(root string, paths []string) (int, error) {
 	for _, p := range keys {
 		fmt.Fprintf(&b, "%s  %s\n", l[p], p)
 	}
-	return n, os.WriteFile(filepath.Join(root, File), []byte(b.String()), 0o644)
+	return n, os.WriteFile(path, []byte(b.String()), 0o600)
 }
 
 // SHA is the ledger's hash of a byte slice, and the one every other package
@@ -130,4 +146,34 @@ func Forget(root string, paths []string) (int, error) {
 func SHA(b []byte) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+// ReadPath is where this root's ledger is READ from: the state directory,
+// falling back to a legacy in-tree file when the state directory holds none, so
+// a caller who has not run a migrating command still sees data they already
+// have. Writes never use this — see writePath.
+func ReadPath(root string) (string, error) {
+	p, err := state.Path(root, Name)
+	if err != nil {
+		return "", err
+	}
+	if _, err := os.Stat(p); err == nil {
+		return p, nil
+	}
+	if legacy := state.LegacyPath(root, Name); fileExists(legacy) {
+		return legacy, nil
+	}
+	return p, nil
+}
+
+// writePath is where the ledger is WRITTEN: always the state directory, never
+// the legacy in-tree file. Reading a file a caller already has is compatibility;
+// writing it again would be re-creating the bug ADR-004 fixes.
+func writePath(root string) (string, error) {
+	return state.Path(root, Name)
+}
+
+func fileExists(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && !fi.IsDir()
 }

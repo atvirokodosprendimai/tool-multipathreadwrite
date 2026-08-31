@@ -46,6 +46,20 @@ here.
   check. A Python or Rust project gets the full command every time, which is
   correct but slow.
 
+## From ADR-004 (mrw leaves nothing in the working tree)
+
+- **Pruning orphaned state directories.** Moving or deleting a checkout leaves
+  its `$XDG_STATE_HOME/mrw/<key>/` behind. Each is a few hundred bytes and
+  carries a `root` file naming the checkout it belonged to, so a human can see
+  what is dead:
+  `grep -r . "${XDG_STATE_HOME:-$HOME/.local/state}/mrw"/*/root`. No automatic
+  reaper — deciding a directory is dead means deciding a path will never come
+  back, and a tool should not decide that.
+
+- **Windows conventions.** The state path is XDG-shaped; Windows would want
+  `%LOCALAPPDATA%`. Nothing currently builds or tests mrw on Windows beyond
+  cross-compiling the binary in CI, so this is unexercised rather than broken.
+
 ## Not tied to a record
 
 - **The `human-decisions` amendment on shell file-writers.** Drafted 2026-08-31,

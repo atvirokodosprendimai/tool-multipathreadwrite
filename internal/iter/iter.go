@@ -20,12 +20,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
-// File is the working set's location, relative to the repository root. It is a
-// plain text file on purpose: reviewable, diffable, and editable by hand or by
-// mrw itself.
-const File = ".mrw/iteration"
+// Name is the working set's filename inside the state directory. The DIRECTORY
+// is resolved by internal/state and sits outside the working tree — this used
+// to be written beside your source, where nothing ignored it. See ADR-004.
+// The file itself is still plain text: reviewable, and editable by hand.
+const Name = "iteration"
 
 // Set is an ordered, de-duplicated list of read specs. Order is the order the
 // caller added them, because that is usually the order they think in.
@@ -38,7 +41,11 @@ type Set struct {
 // having no iteration is the normal starting state, not a fault.
 func Load(root string) (Set, error) {
 	var s Set
-	f, err := os.Open(filepath.Join(root, File))
+	path, err := ReadPath(root)
+	if err != nil {
+		return s, err
+	}
+	f, err := os.Open(path)
 	if os.IsNotExist(err) {
 		return s, nil
 	}
@@ -70,7 +77,11 @@ func Load(root string) (Set, error) {
 
 // Save writes the working set back, creating .mrw/ if needed.
 func Save(root string, s Set) error {
-	dir := filepath.Join(root, filepath.Dir(File))
+	path, err := state.Path(root, Name)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -82,7 +93,7 @@ func Save(root string, s Set) error {
 		b.WriteString(e)
 		b.WriteByte('\n')
 	}
-	return os.WriteFile(filepath.Join(root, File), []byte(b.String()), 0o644)
+	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
 
 // Add appends entries that are not already present and reports how many were
@@ -247,4 +258,22 @@ func Path(spec string) string {
 		return spec[:j]
 	}
 	return spec[:i]
+}
+
+// ReadPath is where the working set is READ from: the state directory, falling
+// back to a legacy in-tree file when the state directory holds none. Writes
+// always go to the state directory — see Save.
+func ReadPath(root string) (string, error) {
+	p, err := state.Path(root, Name)
+	if err != nil {
+		return "", err
+	}
+	if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+		return p, nil
+	}
+	legacy := state.LegacyPath(root, Name)
+	if fi, err := os.Stat(legacy); err == nil && !fi.IsDir() {
+		return legacy, nil
+	}
+	return p, nil
 }

@@ -169,6 +169,19 @@ write, which is the point:
 | `lines=N` | the addressed range covers exactly N lines |
 | `anchor=<substring>` | it appears in the range's first line |
 
+⚠ **`anchor=` is a plain substring. There is no escape processing.** `\t` and
+`\"` are searched for as those literal characters, not as a tab and a quote.
+Quote the whole value if it contains spaces, keep it short, and prefer a
+distinctive fragment of the line over the whole line:
+
+    @@ page.templ 12 replace anchor="class=\"muted\""   ← searches for backslashes
+    @@ page.templ 12 replace anchor="class="            ← what you meant
+
+A wrong anchor fails loudly and prints your anchor beside the real line, so it
+costs one attempt rather than a bad write. (This very edit needed `body=14`,
+because those two example lines begin with `@@ ` and would otherwise be read as
+headers — the escape hatch documented above.)
+
 `body=N` takes exactly N following lines as the body, so a body may itself
 contain lines starting with `@@ `.
 
@@ -192,7 +205,9 @@ less: `replace 42-58` means nothing without the version of the file those line
 numbers were counted in.
 
 `mrw read` and `mrw write` both record what each file now holds, in
-`.mrw/seen`. So:
+a per-checkout state directory **outside the working tree** — mrw creates
+nothing in your repository. `mrw seen` prints where it is and what it holds.
+So:
 
 | you do | result |
 |---|---|
@@ -270,6 +285,23 @@ The command comes from `.quality-harness.json`:
   "tail_lines": 30
 }
 ```
+
+**A codegen step belongs inside the check.** `check` is arbitrary shell, so a
+stack with a generate step between edit and test chains it there rather than
+losing `--check` entirely:
+
+```json
+{"check": "templ generate && go test ./...",
+ "scoped_check": "templ generate && go test {packages}"}
+```
+
+It composes: editing a `.templ` is not a `.go` path, so the scope falls back to
+the full command — which is what you want after regenerating anyway.
+
+**Where state lives.** `mrw seen` prints the per-checkout state directory
+(`$XDG_STATE_HOME/mrw/<key>/`, or `~/.local/state/mrw/<key>/`) and the ledger.
+mrw writes nothing into your repository; a pre-existing `.mrw/` from an older
+version is copied across once, announced, and never deleted.
 
 `{packages}` expands to the Go packages containing the changed files, `{files}`
 to the paths. If any changed path is not a Go file the scoped form is abandoned
