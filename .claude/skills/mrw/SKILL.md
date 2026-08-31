@@ -2,19 +2,45 @@
 name: mrw
 description: >-
   Read many file ranges and apply many edits in ONE call, with a per-hunk
-  verdict and the project's own tests chained to the write. Use when you are
-  about to make 3+ edits, edits across 2+ files, or read several ranges — that
-  is where Edit (one replacement per call) and Write (whole file, cannot say
-  which change missed) both cost you. One or two targeted edits stay on Edit; a
-  new file stays on Write. Also covers reading line ranges cheaply instead of
-  whole files, a saved working set addressed by @N pointers, and running the
-  project's check scoped to what just changed. NOT a licence to use shell for
-  ordinary file edits.
+  verdict, a read-before-modify guard, and the project's own tests chained to
+  the write. FIRST CHECK IT EXISTS — `command -v mrw || ls ./bin/mrw`; if
+  neither resolves the binary is not installed, so abandon this skill silently
+  and use Read/Edit/Write rather than installing it or improvising with shell.
+  When it does exist, use it for 3+ edits, edits across 2+ files, or several
+  ranges read — where Edit (one replacement per call) and Write (whole file,
+  cannot say which change missed) both cost you. One or two targeted edits stay
+  on Edit; a new file stays on Write; one site in a file you need whole is
+  measurably worse in mrw. NOT a licence to use shell for ordinary file edits.
 ---
 
 # mrw — multi-path read and write
 
-`go build -o bin/mrw ./cmd/mrw`. Intended to become part of the quality harness.
+## ⚠ STEP 0 — DOES IT EXIST? IF NOT, THIS SKILL DOES NOT APPLY
+
+```sh
+command -v mrw || ls ./bin/mrw
+```
+
+**If neither resolves, stop and use Read / Edit / Write.** Say nothing about
+mrw — a tool the machine does not have is not a fallback the user needs
+narrated. Do NOT install it, and do NOT hand-roll a substitute out of
+`sed`/`awk`/`python -`: reaching for shell because the nice tool is missing is
+how the file-edit ban gets broken by a good intention.
+
+Three ways it may be present, in the order to prefer:
+
+1. **On PATH** (`command -v mrw`) — a released binary. Use `mrw`.
+2. **`./bin/mrw`** in the repo you are in. Use `./bin/mrw`.
+3. **You are in the mrw repo itself** and `bin/mrw` is missing:
+   `go build -o bin/mrw ./cmd/mrw` is fine — you are building the project you
+   were asked to work on. Nowhere else.
+
+⚠ **Version matters for one thing**: the read-before-modify guard arrived in
+**v0.0.2**. `mrw --version` reporting older means that guard is absent, so
+`sha=` on each hunk is your only staleness protection.
+
+Releases carry `mrw-<os>-<arch>`, archives and `SHA256SUMS.txt`:
+https://github.com/atvirokodosprendimai/tool-multipathreadwrite
 
 ## ⚠ READ THIS FIRST — it does NOT replace Edit and Write
 
@@ -240,9 +266,12 @@ now unverified; after a bare `check` nothing was written.
 
 ## Known limits
 
-- `cmd/mrw` has no tests; the five engine packages do.
-- Nobody has measured how often multi-hunk edits actually occur across sessions.
-  The claim that this pays for itself is reasoned, not measured — say so.
-- This file is the authoritative copy. A centralised `mrw` skill of the same
-  content also exists in agentsmemory (v1, filed 2026-08-31). Two live copies
-  can drift: when you change one, change the other or retire it.
+- `cmd/mrw` has only `version_test.go`; the CLI wiring (pointer resolution in a
+  hunk path, exit-status selection) is covered end-to-end by
+  `./scripts/contract.sh` rather than by Go tests.
+- The payoff IS measured now — `./scripts/measure.sh`, three shapes including
+  the one where mrw loses. Quote that script, not a remembered number: the
+  ratio is a property of the task shape.
+- This file and the centralised `mrw` skill in agentsmemory (v2) carry the same
+  content and were updated together on 2026-08-31. Two live copies drift: when
+  you change one, change the other in the same breath, or retire one.
