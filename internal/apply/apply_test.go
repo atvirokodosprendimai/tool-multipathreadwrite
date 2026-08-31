@@ -38,7 +38,7 @@ func TestAddressesResolveAgainstTheOriginalFile(t *testing.T) {
 	res, err := Apply(root, []Input{
 		{Path: "f.txt", Start: 3, End: 6, Op: "replace", Body: []string{"NEW"}, Lines: -1, Index: 0},
 		{Path: "f.txt", Start: 2, End: 2, Op: "insert-after", Body: []string{"INS"}, Lines: -1, Index: 1},
-	}, false)
+	}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestEarlierHunksNeverShiftLaterAddresses(t *testing.T) {
 		{Path: "f.txt", Start: 5, End: 6, Op: "delete", Lines: -1, Index: 1},
 		{Path: "f.txt", Start: 10, End: 10, Op: "insert-after", Body: []string{"B"}, Lines: -1, Index: 2},
 		{Path: "f.txt", Start: 15, End: 15, Op: "replace", Body: []string{"C"}, Anchor: "line15", Lines: -1, Index: 3},
-	}, false)
+	}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestMultipleFilesInOneRun(t *testing.T) {
 		{Path: "a.txt", Start: 2, End: 3, Op: "delete", Lines: -1, Index: 0},
 		{Path: "sub/b.txt", Start: 0, End: 0, Op: "insert-after", Body: []string{"top"}, Lines: -1, Index: 1},
 		{Path: "sub/c.txt", Op: "create", Body: []string{"made"}, Lines: -1, Index: 2},
-	}, false)
+	}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestOneBadHunkAbortsEverythingAndSaysWhich(t *testing.T) {
 		{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0},
 		{Path: "a.txt", Start: 2, End: 2, Op: "replace", Body: []string{"B"}, Anchor: "zzz", Lines: -1, Index: 1},
 		{Path: "b.txt", Start: 1, End: 1, Op: "replace", Body: []string{"C"}, Lines: -1, Index: 2},
-	}, false)
+	}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestFailedFilesStillAppearInTheReceipt(t *testing.T) {
 	res, err := Apply(root, []Input{
 		{Path: "good.txt", Start: 1, End: 1, Op: "replace", Body: []string{"G"}, Lines: -1, Index: 0},
 		{Path: "bad.txt", Start: 1, End: 1, Op: "replace", Body: []string{"B"}, Anchor: "zzz", Lines: -1, Index: 1},
-	}, false)
+	}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestAFailedFileIsReportedOnceNotPerHunk(t *testing.T) {
 		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0},
 		{Path: "f.txt", Start: 2, End: 2, Op: "replace", Body: []string{"B"}, Anchor: "zzz", Lines: -1, Index: 1},
 		{Path: "f.txt", Start: 3, End: 3, Op: "replace", Body: []string{"C"}, Anchor: "qqq", Lines: -1, Index: 2},
-	}, false)
+	}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,6 +236,134 @@ func TestAFailedFileIsReportedOnceNotPerHunk(t *testing.T) {
 	}
 	if res.Failed != 2 {
 		t.Errorf("failed=%d, want 2 — every bad hunk is reported, not just the first", res.Failed)
+	}
+}
+
+// shaOfFile is what the ledger would hold for a file on disk.
+func shaOfFile(t *testing.T, root, name string) string {
+	t.Helper()
+	lines, nl, _, err := readLines(filepath.Join(root, name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return shaOf(lines, nl)
+}
+
+// Read before modify: a range address only means something in the version of
+// the file those line numbers were counted in, so editing a file mrw has never
+// seen is writing against a picture that may already be wrong.
+func TestAFileNeverSeenCannotBeEdited(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
+	}, Options{Seen: map[string]string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("an unseen file was edited: %+v", res.Hunks)
+	}
+	if !strings.Contains(res.Hunks[0].Reason, "has not been read") {
+		t.Errorf("reason = %q", res.Hunks[0].Reason)
+	}
+	if read(t, root, "f.txt") != abcde {
+		t.Error("the file was written")
+	}
+}
+
+// The case the ledger exists for: mrw saw the file, something else changed it,
+// and the caller's line numbers now point somewhere else in a file they have
+// not looked at.
+func TestAFileChangedBehindMrwsBackCannotBeEdited(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+	recorded := shaOfFile(t, root, "f.txt")
+
+	write(t, root, "f.txt", "totally\ndifferent\n") // someone else edits it
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
+	}, Options{Seen: map[string]string{"f.txt": recorded}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("a changed file was edited: %+v", res.Hunks)
+	}
+	if !strings.Contains(res.Hunks[0].Reason, "changed since") {
+		t.Errorf("reason = %q", res.Hunks[0].Reason)
+	}
+	if read(t, root, "f.txt") != "totally\ndifferent\n" {
+		t.Error("the file was written")
+	}
+}
+
+func TestASeenFileIsEditable(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
+	}, Options{Seen: map[string]string{"f.txt": shaOfFile(t, root, "f.txt")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("%+v", res.Hunks)
+	}
+	if got := read(t, root, "f.txt"); got != "X\nb\nc\nd\ne\n" {
+		t.Errorf("got %q", got)
+	}
+}
+
+// create is exempt: there is no existing content to have a stale picture of.
+func TestCreateNeedsNoPriorObservation(t *testing.T) {
+	root := t.TempDir()
+	res, err := Apply(root, []Input{
+		{Path: "new.txt", Op: "create", Body: []string{"hello"}, Lines: -1, Index: 0},
+	}, Options{Seen: map[string]string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("create was blocked by the guard: %+v", res.Hunks)
+	}
+	if read(t, root, "new.txt") != "hello\n" {
+		t.Error("the file was not created")
+	}
+}
+
+func TestForceBypassesTheGuard(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
+	}, Options{Seen: map[string]string{}, Force: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("--force did not bypass the guard: %+v", res.Hunks)
+	}
+}
+
+// A nil ledger means the caller is not using the guard at all — distinct from
+// an empty one, which means "I have seen nothing".
+func TestNilLedgerDisablesTheGuard(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("a nil ledger enforced the guard: %+v", res.Hunks)
 	}
 }
 
@@ -251,7 +379,7 @@ func TestPreconditions(t *testing.T) {
 		"missing file":  {Path: "gone.txt", Start: 1, End: 1, Op: "delete", Lines: -1},
 		"create exists": {Path: "f.txt", Op: "create", Body: []string{"x"}, Lines: -1},
 	} {
-		res, err := Apply(root, []Input{in}, false)
+		res, err := Apply(root, []Input{in}, Options{})
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
@@ -268,7 +396,7 @@ func TestGoodShaAndCountsPass(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "f.txt", abcde)
 
-	probe, err := Apply(root, []Input{{Path: "f.txt", Start: 1, End: 1, Op: "delete", Lines: -1}}, true)
+	probe, err := Apply(root, []Input{{Path: "f.txt", Start: 1, End: 1, Op: "delete", Lines: -1}}, Options{DryRun: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,7 +404,7 @@ func TestGoodShaAndCountsPass(t *testing.T) {
 
 	res, err := Apply(root, []Input{
 		{Path: "f.txt", Start: 2, End: 3, Op: "replace", Body: []string{"X"}, SHA: sha[:12], Lines: 2, Anchor: "b", Index: 0},
-	}, false)
+	}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +426,7 @@ func TestOverlappingHunksAreRejected(t *testing.T) {
 	res, err := Apply(root, []Input{
 		{Path: "f.txt", Start: 1, End: 3, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
 		{Path: "f.txt", Start: 2, End: 4, Op: "replace", Body: []string{"Y"}, Lines: -1, Index: 1},
-	}, false)
+	}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +447,7 @@ func TestDryRunWritesNothingButReportsTheOutcome(t *testing.T) {
 
 	res, err := Apply(root, []Input{
 		{Path: "f.txt", Start: 1, End: 5, Op: "delete", Lines: -1, Index: 0},
-	}, true)
+	}, Options{DryRun: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,7 +473,7 @@ func TestEOFAddressing(t *testing.T) {
 
 	res, err := Apply(root, []Input{
 		{Path: "f.txt", Start: EOF, End: EOF, Op: "insert-after", Body: []string{"last"}, Lines: -1, Index: 0},
-	}, false)
+	}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,7 +492,7 @@ func TestTrailingNewlineIsPreserved(t *testing.T) {
 
 	if _, err := Apply(root, []Input{
 		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0},
-	}, false); err != nil {
+	}, Options{}); err != nil {
 		t.Fatal(err)
 	}
 	if got := read(t, root, "f.txt"); got != "A\nb" {
@@ -380,7 +508,7 @@ func TestFilePermissionsSurvive(t *testing.T) {
 	}
 	if _, err := Apply(root, []Input{
 		{Path: "f.sh", Start: 1, End: 1, Op: "replace", Body: []string{"b"}, Lines: -1, Index: 0},
-	}, false); err != nil {
+	}, Options{}); err != nil {
 		t.Fatal(err)
 	}
 	fi, err := os.Stat(filepath.Join(root, "f.sh"))

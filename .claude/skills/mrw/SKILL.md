@@ -111,6 +111,40 @@ wrong lines and reports success.
 ⚠ If any hunk fails, **every** hunk is reported and **nothing** is written.
 Siblings report `skipped`, never `ok`.
 
+## ⚠ Read before modify — mrw refuses to edit what it has not seen
+
+`mrw` will not edit a file whose current contents it has not observed. Same
+guarantee the harness's `Write` has, and a RANGE edit needs it more, not less:
+`replace 42-58` means nothing without the version those numbers were counted in.
+
+`read` (including `--stat`) and `write` both record each file's sha in
+`.mrw/seen`.
+
+| you do | result |
+|---|---|
+| edit a file never read | refused — `mrw read <path>` first |
+| read it, then edit | applies |
+| edit again straight after | applies — mrw knows what it just wrote |
+| something else changed it, then you edit | **refused** — changed since mrw last saw it |
+| `--force` | applies regardless |
+| `create` | applies — nothing existing to be stale about |
+
+★ The fourth row is the point. Because the ledger is written on WRITE too, a
+chain of edits needs no re-read between steps, while anything that changed the
+file behind mrw's back is caught:
+
+```
+FAIL f.txt 1 replace: f.txt changed since mrw last saw it
+(recorded 4b7a79c7, now 58ae9445): re-read it before editing, or pass --force
+```
+
+⚠ This catches edits made by ANY other route — another agent, a `git checkout`,
+a `cp`, your editor. If you changed a file outside mrw, re-read it.
+
+★ `mrw read --stat <path>` re-authorises a file for the price of one line: it
+hashes without printing content, so confirming "nothing moved" is nearly free.
+Use it when you already know the content and only need the staleness check.
+
 ## The working set — write once, use many
 
 ```sh

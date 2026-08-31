@@ -123,6 +123,49 @@ contain lines starting with `@@ `.
 If any hunk fails, **every** hunk is reported and nothing is written. Siblings
 report `skipped`, never `ok`.
 
+## Read before modify
+
+`mrw` refuses to edit a file whose current contents it has not seen.
+
+```
+$ mrw write plan.mrw
+FAIL f.txt 2 replace (plan line 1): f.txt has not been read: mrw does not know
+what it currently holds, and a line address means nothing without that.
+Run `mrw read f.txt` first, or pass --force
+```
+
+This is the guarantee the harness's own `Write` tool has — it will not
+overwrite a file you have not `Read` — and a *range* edit needs it more, not
+less: `replace 42-58` means nothing without the version of the file those line
+numbers were counted in.
+
+`mrw read` and `mrw write` both record what each file now holds, in
+`.mrw/seen`. So:
+
+| you do | result |
+|---|---|
+| edit a file never read | refused — read it first |
+| read it, then edit | applies |
+| edit again straight after | applies — mrw knows what it just wrote |
+| something else changes the file, then you edit | **refused** — changed since mrw last saw it |
+| `mrw write --force` | applies regardless |
+| `create` a new file | applies — no existing content to be stale about |
+
+The fourth row is the one that matters. Because the ledger is written on
+**write** as well as on read, a chain of edits needs no re-read between steps,
+while an edit made behind mrw's back leaves the recorded sha and the real one
+disagreeing:
+
+```
+FAIL f.txt 1 replace: f.txt changed since mrw last saw it
+(recorded 4b7a79c7, now 58ae9445): re-read it before editing,
+or pass --force to overwrite blind
+```
+
+A per-hunk `sha=` guard is still available and is stronger where you want it
+pinned in the plan itself; the ledger is the ambient default that costs no
+tokens to use.
+
 ## The working set — write once, use many
 
 ```sh

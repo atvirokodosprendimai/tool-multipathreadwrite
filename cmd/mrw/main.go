@@ -32,6 +32,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
 // Exit statuses. They are distinguished because the caller's next move differs:
@@ -140,12 +141,17 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			out := bufio.NewWriter(os.Stdout)
 			defer out.Flush()
 
-			problems := read.Run(out, root, specs, read.Options{
+			observed, problems := read.Run(out, root, specs, read.Options{
 				Numbers:  !cmd.Bool("no-numbers"),
 				Stat:     cmd.Bool("stat"),
 				Context:  cmd.Int("context"),
 				MaxLines: cmd.Int("max-lines"),
 			})
+			// Reading a file is how mrw learns what it holds; recording that is
+			// what lets a later write know whether its picture is still current.
+			if err := seen.Record(root, observed); err != nil {
+				return cli.Exit(err, exitUsage)
+			}
 			if problems > 0 {
 				out.Flush()
 				return cli.Exit(fmt.Sprintf("%d range(s) could not be served", problems), 1)
@@ -182,6 +188,11 @@ visible to whatever hooks watch file writes.`,
 				Name:    "dry-run",
 				Aliases: []string{"n"},
 				Usage:   "validate and report, write nothing",
+			},
+			&cli.BoolFlag{
+				Name: "force",
+				Usage: "edit files mrw has not read, or that changed since it last saw them " +
+					"(the escape hatch, not the habit)",
 			},
 			&cli.BoolFlag{
 				Name:  "json",
@@ -246,7 +257,15 @@ visible to whatever hooks watch file writes.`,
 				})
 			}
 
-			res, err := apply.Apply(root, in, cmd.Bool("dry-run"))
+			ledger, err := seen.Load(root)
+			if err != nil {
+				return cli.Exit(err, exitUsage)
+			}
+			res, err := apply.Apply(root, in, apply.Options{
+				DryRun: cmd.Bool("dry-run"),
+				Seen:   ledger,
+				Force:  cmd.Bool("force"),
+			})
 			if err != nil {
 				return cli.Exit(err, exitUsage)
 			}
@@ -254,6 +273,22 @@ visible to whatever hooks watch file writes.`,
 			// The check runs only on a real, successful write: verifying a tree
 			// the plan did not touch would attribute someone else's red suite
 			// to this edit.
+			// Record what the files now hold. This is why a chain of edits needs
+			// no re-read between steps — mrw knows what it just produced — while
+			// a change made behind its back still leaves the ledger disagreeing
+			// with the disk, and the next write refused.
+			if res.Applied {
+				wrote := map[string]string{}
+				for _, f := range res.Files {
+					if f.Written {
+						wrote[f.Path] = f.SHAAfter
+					}
+				}
+				if err := seen.Record(root, wrote); err != nil {
+					return cli.Exit(err, exitUsage)
+				}
+			}
+
 			receipt := receipt{Result: res}
 			if cmd.Bool("check") && res.Applied && res.Failed == 0 {
 				var written []string

@@ -114,11 +114,35 @@ type Input struct {
 // how long the file actually is.
 const EOF = -1
 
+// Options controls one Apply run.
+type Options struct {
+	// DryRun validates and computes the result without writing.
+	DryRun bool
+
+	// Seen maps a path to the SHA-256 mrw last observed it to hold. When it is
+	// non-nil, a hunk touching an EXISTING file is refused unless mrw has seen
+	// that file's current contents — either because the path is absent from the
+	// ledger, or because what is on disk no longer matches what was recorded.
+	//
+	// This is the read-before-modify guarantee. A range address like "42-58"
+	// only means something in the version of the file those numbers were
+	// counted in, so editing a file mrw has not seen is writing against a
+	// picture that may already be wrong.
+	//
+	// A nil ledger disables the check entirely, which is what the engine's own
+	// tests use — they construct the file and the hunks in the same breath.
+	Seen map[string]string
+
+	// Force bypasses the Seen check. The escape hatch, not the habit.
+	Force bool
+}
+
 // Apply validates every hunk against the working tree rooted at root and, if
-// all of them pass and dryRun is false, writes the results. It returns a
+// all of them pass and opt.DryRun is false, writes the results. It returns a
 // receipt in every case; err is non-nil only for an I/O failure that made the
 // verdict itself unknowable.
-func Apply(root string, in []Input, dryRun bool) (Result, error) {
+func Apply(root string, in []Input, opt Options) (Result, error) {
+	dryRun := opt.DryRun
 	res := Result{Root: root, DryRun: dryRun}
 
 	byPath := map[string][]hunk{}
@@ -161,7 +185,7 @@ func Apply(root string, in []Input, dryRun bool) (Result, error) {
 			fr.SHABefore = shaOf(orig, hadNewline)
 		}
 
-		out, ok := planFile(path, hs, orig, existed, fr.SHABefore, results)
+		out, ok := planFile(path, hs, orig, existed, fr.SHABefore, opt, results)
 		if !ok {
 			// The plan ADDRESSED this file even though nothing will be written
 			// to it. Dropping it here is how a two-file plan reported one file
@@ -230,7 +254,7 @@ func Apply(root string, in []Input, dryRun bool) (Result, error) {
 
 // planFile validates one file's hunks and splices its new content. It records a
 // verdict for every hunk and returns ok=false if any of them failed.
-func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore string, out map[int]HunkResult) ([]string, bool) {
+func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore string, opt Options, out map[int]HunkResult) ([]string, bool) {
 	total := len(orig)
 	ok := true
 	fail := func(h hunk, format string, a ...any) {
@@ -239,6 +263,29 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 			Status: StatusFailed, Reason: fmt.Sprintf(format, a...),
 		}
 		ok = false
+	}
+
+	// READ BEFORE MODIFY. An existing file may only be edited if mrw has seen
+	// what it currently holds. Checked once per file, before any hunk, because
+	// it is a fact about the file rather than about a hunk — but reported
+	// THROUGH the first hunk so it travels in the same receipt as every other
+	// verdict, and still aborts the whole run.
+	if existed && opt.Seen != nil && !opt.Force {
+		switch recorded, known := opt.Seen[path]; {
+		case !known:
+			fail(hs[0], "%s has not been read: mrw does not know what it currently holds, and a "+
+				"line address means nothing without that. Run `mrw read %s` first, or pass --force", path, path)
+		case recorded != shaBefore:
+			// The dangerous case, and the reason the ledger is written on WRITE
+			// as well as on read: mrw produced or read this file, something else
+			// changed it since, and the caller's line numbers now point
+			// somewhere else in a file they have not seen.
+			fail(hs[0], "%s changed since mrw last saw it (recorded %s, now %s): re-read it before "+
+				"editing, or pass --force to overwrite blind", path, short(recorded), short(shaBefore))
+		}
+		if !ok {
+			return nil, false
+		}
 	}
 
 	// Resolve EOF sentinels and check each hunk in isolation.
@@ -445,4 +492,12 @@ func trim(s string) string {
 		return s[:57] + "..."
 	}
 	return s
+}
+
+// short renders a sha for a message: enough to identify, short enough to read.
+func short(sha string) string {
+	if len(sha) > 8 {
+		return sha[:8]
+	}
+	return sha
 }

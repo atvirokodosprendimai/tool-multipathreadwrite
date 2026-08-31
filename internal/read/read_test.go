@@ -58,7 +58,7 @@ func run(t *testing.T, root string, opt Options, specs ...string) (string, int) 
 		parsed = append(parsed, sp)
 	}
 	var sb strings.Builder
-	n := Run(&sb, root, parsed, opt)
+	_, n := Run(&sb, root, parsed, opt)
 	return sb.String(), n
 }
 

@@ -179,10 +179,13 @@ func parseRange(s string) (Range, error) {
 	return Range{Start: start, End: end, Text: s}, nil
 }
 
-// Run renders every spec to w. It returns the number of specs that could not be
-// served; a missing file is reported in the output rather than aborting the
-// batch, because the other N-1 answers are still worth having.
-func Run(w io.Writer, root string, specs []Spec, opt Options) (problems int) {
+// Run renders every spec to w. It returns the SHA-256 of every file it actually
+// served — reading a file is how mrw learns what that file currently holds, and
+// that observation is what later authorises an edit to it — plus the number of
+// specs it could not serve. A missing file is reported in the output rather
+// than aborting the batch, because the other N-1 answers are still worth having.
+func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[string]string, problems int) {
+	observed = map[string]string{}
 	for _, sp := range specs {
 		b, err := os.ReadFile(filepath.Join(root, sp.Path))
 		if err != nil {
@@ -191,6 +194,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (problems int) {
 			continue
 		}
 		lines, sha := split(b)
+		observed[sp.Path] = sha
 		fmt.Fprintf(w, "==> %s  %dL  %dB  sha %s\n", sp.Path, len(lines), len(b), sha[:8])
 		if opt.Stat {
 			continue
@@ -227,7 +231,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (problems int) {
 			budget -= n
 		}
 	}
-	return problems
+	return observed, problems
 }
 
 type span struct{ start, end int }
