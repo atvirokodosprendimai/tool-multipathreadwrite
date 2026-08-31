@@ -1,4 +1,8 @@
-bin/
-mrw
-bin/
-.mrw/
+# Build output. Anchored with a leading slash: a bare "mrw" would match any
+# path component of that name and silently exclude cmd/mrw/ — it did, for two
+# commits.
+/bin/
+/mrw
+
+# The working set is per-developer state, not project config.
+/.mrw/
