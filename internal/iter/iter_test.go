@@ -94,6 +94,75 @@ func TestLoadIgnoresBlanksAndKeepsTheFirstComment(t *testing.T) {
 	}
 }
 
+func TestResolvePointers(t *testing.T) {
+	var s Set
+	s.Add("a.go", "b.go:10-20", "c.go")
+
+	for name, tc := range map[string]struct {
+		tok  string
+		want []string
+	}{
+		"literal passes through": {"d.go:1-2", []string{"d.go:1-2"}},
+		"single":                 {"@2", []string{"b.go:10-20"}},
+		"range":                  {"@1-2", []string{"a.go", "b.go:10-20"}},
+		"all":                    {"@*", []string{"a.go", "b.go:10-20", "c.go"}},
+		"override replaces the entry's own range": {"@2:5", []string{"b.go:5"}},
+	} {
+		got, err := s.Resolve(tc.tok)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: Resolve(%q) = %q, want %q", name, tc.tok, got, tc.want)
+		}
+	}
+}
+
+// An out-of-range pointer must error, not resolve to nothing: a batch that
+// quietly does less than it was asked to is the failure this tool exists for.
+func TestOutOfRangePointerIsAnError(t *testing.T) {
+	var s Set
+	s.Add("a.go")
+	for _, tok := range []string{"@2", "@0", "@x", "@1-9", "@3-1"} {
+		if got, err := s.Resolve(tok); err == nil {
+			t.Errorf("Resolve(%q) = %q, want an error", tok, got)
+		}
+	}
+	var empty Set
+	if _, err := empty.Resolve("@*"); err == nil {
+		t.Error("@* on an empty set succeeded")
+	}
+}
+
+// A bare number is a legal filename, so only the sigil may mean "pointer".
+func TestBareNumberIsAPathNotAPointer(t *testing.T) {
+	var s Set
+	s.Add("a.go")
+	got, err := s.Resolve("1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, []string{"1"}) {
+		t.Errorf("Resolve(\"1\") = %q, want it treated as a path", got)
+	}
+	if IsPointer("1") || IsPointer("@") || !IsPointer("@1") {
+		t.Error("IsPointer disagrees with the sigil rule")
+	}
+}
+
+func TestResolveAllFlattens(t *testing.T) {
+	var s Set
+	s.Add("a.go", "b.go", "c.go")
+	got, err := s.ResolveAll([]string{"@1-2", "d.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, []string{"a.go", "b.go", "d.go"}) {
+		t.Errorf("ResolveAll = %q", got)
+	}
+}
+
 func TestPath(t *testing.T) {
 	for spec, want := range map[string]string{
 		"a.go":               "a.go",

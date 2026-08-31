@@ -1,0 +1,6 @@
+{
+  "check": "go test ./...",
+  "scoped_check": "go test {packages}",
+  "timeout_seconds": 300,
+  "tail_lines": 30
+}
