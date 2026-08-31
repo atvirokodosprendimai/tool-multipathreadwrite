@@ -1,6 +1,7 @@
 package apply
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,6 +48,66 @@ func TestAddressesResolveAgainstTheOriginalFile(t *testing.T) {
 	if got, want := read(t, root, "f.txt"), "1\n2\nINS\nNEW\n7\n"; got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
+}
+
+// The property that removes the classic edit-shifting problem: with sed or a
+// hand-rolled script, inserting at line 10 pushes line 100 down, so edits must
+// be applied bottom-to-top or every later address is wrong. Here every address
+// names the ORIGINAL file, so a plan is written top-to-bottom and no hunk cares
+// what the ones before it did — including a delete ABOVE a later insert, which
+// is the case that actually shifts things.
+func TestEarlierHunksNeverShiftLaterAddresses(t *testing.T) {
+	root := t.TempDir()
+	var sb strings.Builder
+	for i := 1; i <= 20; i++ {
+		fmt.Fprintf(&sb, "line%02d\n", i)
+	}
+	write(t, root, "f.txt", sb.String())
+
+	// Deliberately ascending, with a delete between two inserts.
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 2, Op: "insert-after", Body: []string{"A"}, Lines: -1, Index: 0},
+		{Path: "f.txt", Start: 5, End: 6, Op: "delete", Lines: -1, Index: 1},
+		{Path: "f.txt", Start: 10, End: 10, Op: "insert-after", Body: []string{"B"}, Lines: -1, Index: 2},
+		{Path: "f.txt", Start: 15, End: 15, Op: "replace", Body: []string{"C"}, Anchor: "line15", Lines: -1, Index: 3},
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("%+v", res.Hunks)
+	}
+
+	got := strings.Split(strings.TrimSuffix(read(t, root, "f.txt"), "\n"), "\n")
+	// Each insert must sit directly after the ORIGINAL line it named, even
+	// though two lines were removed above the later ones.
+	for _, tc := range []struct{ after, want string }{
+		{"line02", "A"},
+		{"line10", "B"},
+	} {
+		i := indexOf(got, tc.after)
+		if i < 0 || i+1 >= len(got) || got[i+1] != tc.want {
+			t.Errorf("%q is not directly after %q:\n%v", tc.want, tc.after, got)
+		}
+	}
+	if indexOf(got, "line05") >= 0 || indexOf(got, "line06") >= 0 {
+		t.Errorf("the delete did not remove original lines 5-6:\n%v", got)
+	}
+	if indexOf(got, "line15") >= 0 || indexOf(got, "C") < 0 {
+		t.Errorf("the replace did not land on original line 15:\n%v", got)
+	}
+	if len(got) != 20+2-2-1+1 { // 20 original, +2 inserted, -2 deleted, 1 replaced by 1
+		t.Errorf("got %d lines, want 20:\n%v", len(got), got)
+	}
+}
+
+func indexOf(lines []string, want string) int {
+	for i, l := range lines {
+		if l == want {
+			return i
+		}
+	}
+	return -1
 }
 
 func TestMultipleFilesInOneRun(t *testing.T) {

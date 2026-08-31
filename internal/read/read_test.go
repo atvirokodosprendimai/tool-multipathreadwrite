@@ -114,6 +114,46 @@ func TestOverlappingRangesAreMergedNotRepeated(t *testing.T) {
 	}
 }
 
+// Ranges given out of order must come back ordered and merged. Ascending input
+// hid a bug here for a while: the old hand-rolled insertion sort was correct but
+// O(n^2), and only unsorted input made that visible (1.83s at 30,000 descending
+// ranges, 0.03s after moving to sort.Slice).
+func TestDescendingRangesAreSortedAndMerged(t *testing.T) {
+	root, opt := fixture(t)
+	out, problems := run(t, root, opt, "a.go:9,7-8,3-4,1")
+	if problems != 0 {
+		t.Fatalf("problems=%d\n%s", problems, out)
+	}
+	// 7-8 and 9 are adjacent, so they merge into 7-9.
+	for _, want := range []string{"@@ 1-1", "@@ 3-4", "@@ 7-9"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	if i, j := strings.Index(out, "@@ 1-1"), strings.Index(out, "@@ 7-9"); i > j {
+		t.Errorf("spans emitted out of order:\n%s", out)
+	}
+}
+
+// The merge must stay correct at a size where an O(n^2) sort would be visible,
+// and the result must be exactly one span when every range overlaps its
+// neighbour. This is a correctness test, not a benchmark: it would still pass
+// slowly, and a timing assertion on CI is a flake waiting to happen.
+func TestManyUnsortedRangesMergeCorrectly(t *testing.T) {
+	const n = 20000
+	in := make([]span, 0, n)
+	for i := n; i > 0; i-- { // descending: worst case for insertion sort
+		in = append(in, span{start: i, end: i + 1})
+	}
+	got := merge(in)
+	if len(got) != 1 {
+		t.Fatalf("got %d spans, want 1 (every range touches its neighbour)", len(got))
+	}
+	if got[0] != (span{1, n + 1}) {
+		t.Errorf("merged span = %+v, want {1 %d}", got[0], n+1)
+	}
+}
+
 func TestManyFilesOneCall(t *testing.T) {
 	root, opt := fixture(t)
 	if err := os.WriteFile(filepath.Join(root, "b.go"), []byte("one\ntwo\n"), 0o644); err != nil {
