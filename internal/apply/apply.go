@@ -70,16 +70,29 @@ type Result struct {
 // apply does not import plan: the engine is testable with hand-built hunks, and
 // the plan format can change without touching the write path.
 type hunk struct {
-	Path    string
-	Start   int // resolved, 1-based
-	End     int // resolved, 1-based inclusive; equals Start-1 for insertions
-	Op      string
-	Body    []string
-	SHA     string
-	Lines   int
-	Anchor  string
+	Path   string
+	Start  int // resolved, 1-based
+	End    int // resolved, 1-based inclusive; equals Start-1 for insertions
+	Op     string
+	Body   []string
+	SHA    string
+	Lines  int
+	Anchor string
+
+	// SrcOp and SrcAddr are the op and address exactly as the caller wrote
+	// them. Every verdict echoes these rather than the resolved form, so a
+	// report line can be matched back to the plan line that produced it.
+	SrcOp   string
+	SrcAddr string
 	SrcLine int
 	Index   int
+}
+
+// resolveTo returns a copy of h with its address and op rewritten to the form
+// the splicer works in, keeping the caller's own wording for the verdict.
+func (h hunk) resolveTo(start, end int, op string) hunk {
+	h.Start, h.End, h.Op = start, end, op
+	return h
 }
 
 // Input is one hunk as the caller describes it, with addresses still unresolved
@@ -116,7 +129,8 @@ func Apply(root string, in []Input, dryRun bool) (Result, error) {
 		}
 		byPath[i.Path] = append(byPath[i.Path], hunk{
 			Path: i.Path, Start: i.Start, End: i.End, Op: i.Op, Body: i.Body,
-			SHA: i.SHA, Lines: i.Lines, Anchor: i.Anchor, SrcLine: i.SrcLine, Index: i.Index,
+			SHA: i.SHA, Lines: i.Lines, Anchor: i.Anchor,
+			SrcOp: i.Op, SrcAddr: addrString(i.Start, i.End), SrcLine: i.SrcLine, Index: i.Index,
 		})
 	}
 
@@ -198,7 +212,7 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 	ok := true
 	fail := func(h hunk, format string, a ...any) {
 		out[h.Index] = HunkResult{
-			Path: path, Addr: addrString(h.Start, h.End), Op: h.Op, SrcLine: h.SrcLine,
+			Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine,
 			Status: StatusFailed, Reason: fmt.Sprintf(format, a...),
 		}
 		ok = false
@@ -223,7 +237,7 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 				fail(h, "create: %s already exists (%d lines) — use replace or delete", path, total)
 				continue
 			}
-			resolved = append(resolved, hunk{Path: path, Start: 1, End: 0, Op: "insert", Body: h.Body, SrcLine: h.SrcLine, Index: h.Index})
+			resolved = append(resolved, h.resolveTo(1, 0, "insert"))
 			continue
 		}
 		if !existed {
@@ -245,13 +259,13 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 				fail(h, "line %d is out of range (file has %d lines)", start, total)
 				continue
 			}
-			resolved = append(resolved, hunk{Path: path, Start: start + 1, End: start, Op: "insert", Body: h.Body, SrcLine: h.SrcLine, Index: h.Index})
+			resolved = append(resolved, h.resolveTo(start+1, start, "insert"))
 		case "insert-before":
 			if start < 1 || start > total+1 {
 				fail(h, "line %d is out of range (file has %d lines)", start, total)
 				continue
 			}
-			resolved = append(resolved, hunk{Path: path, Start: start, End: start - 1, Op: "insert", Body: h.Body, SrcLine: h.SrcLine, Index: h.Index})
+			resolved = append(resolved, h.resolveTo(start, start-1, "insert"))
 		case "replace", "delete":
 			if start < 1 || end > total || end < start {
 				fail(h, "range %s is out of range (file has %d lines)", addrString(start, end), total)
@@ -265,7 +279,7 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 				fail(h, "anchor %q not in line %d: %s", h.Anchor, start, trim(orig[start-1]))
 				continue
 			}
-			resolved = append(resolved, hunk{Path: path, Start: start, End: end, Op: h.Op, Body: h.Body, SrcLine: h.SrcLine, Index: h.Index})
+			resolved = append(resolved, h.resolveTo(start, end, h.Op))
 		default:
 			fail(h, "unsupported op %q", h.Op)
 		}
@@ -302,12 +316,11 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 		res = append(res, orig[cursor-1:h.Start-1]...)
 		cursor = h.Start
 
-		r := HunkResult{Path: path, Addr: addrString(h.Start, h.End), Op: h.Op, SrcLine: h.SrcLine, Status: StatusOK}
+		r := HunkResult{Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine, Status: StatusOK}
 		switch h.Op {
 		case "insert":
 			res = append(res, h.Body...)
 			r.Added = len(h.Body)
-			r.Addr = fmt.Sprintf("@%d", h.Start)
 		case "replace":
 			res = append(res, h.Body...)
 			r.Removed, r.Added = h.End-h.Start+1, len(h.Body)
