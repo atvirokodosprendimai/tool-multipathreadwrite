@@ -16,6 +16,58 @@ write that changes nothing is not.** Batching four replacements into one script
 and getting "success" while one of them silently matched nothing is the bug this
 refuses to reproduce.
 
+## Does it actually save anything?
+
+Measured on this repository, by a script you can re-run — a number nobody can
+reproduce is a claim, not a measurement:
+
+```sh
+./scripts/measure.sh
+```
+
+| shape | | Read+Edit | mrw | |
+|---|---|---|---|---|
+| **A.** 4 sites, 4 large files | bytes in | 50,163 | 2,916 | **17.2× less** |
+| | tool calls | 8 | 2 | **4× fewer** |
+| **B.** 2 sites, most of 2 small files | bytes in | 10,827 | 1,790 | 6.0× less |
+| | tool calls | 4 | 2 | 2× fewer |
+| **C.** 1 site, whole small file | bytes in | 3,895 | 4,888 | **1.2× MORE** |
+| | tool calls | 2 | 2 | no change |
+
+**Shape C is in the table on purpose.** When you need a whole file and there is
+one site, mrw prints *more* than the file holds — it adds a header and a line
+number per line — and saves no round trips. Use Read + Edit there. The saving
+scales with how much of each file you *don't* need, and with N.
+
+The method, and its biases: the Read+Edit column counts each file's **raw**
+bytes, which understates it, because the real Read tool numbers every line. The
+mrw column counts its **actual** output, headers and line numbers included.
+Output tokens are not measured — the plan you emit for mrw and the
+old_string/new_string pairs Edit needs are the same order of magnitude — so
+this is an input-side and round-trip result, not a total-cost one.
+
+## Does the contract hold under abuse?
+
+Every row below is asserted by a script, against the real binary in a throwaway
+repo, by making each promise go wrong on purpose:
+
+```sh
+./scripts/contract.sh      # 19 assertions; exit 0 only if all hold
+```
+
+| test | result |
+|---|---|
+| 3 hunks, 1 bad anchor | offender FAILs naming the line, siblings `skip` (never `ok`), nothing written, exit 1 |
+| 3 hunks / 2 files valid, `--check` | applied, scoped `go test .` PASS, exit 0 |
+| good write + deliberately red test | write **kept**, no revert, exit 3, failing tail in `--json` |
+| `@1`, `@3`, `@1:1-2` pointers | resolve; `@9` errors with the entry count, exit 2 — never an empty result |
+| check whose output says `PASS` but exits 1 | reported FAIL, exit 3 — the process is believed, never the text |
+
+The last row is the one worth staring at. The check printed `PASS` and returned
+1; mrw reported failure, because output goes to a file and the verdict comes
+from the process's real status. A tail in the pipeline would have believed the
+word.
+
 ## Install
 
 Download a released binary — raw, so there is nothing to unpack:

@@ -66,6 +66,13 @@ jobs:
       - name: Test
         run: go test ./...
 
+      # The contract script drives the real binary through a real shell and
+      # asserts every promise the README makes, by making each one go wrong on
+      # purpose. It is not a go test because exit statuses are half of what it
+      # checks, and a caller meets this tool through a shell.
+      - name: Contract
+        run: ./scripts/contract.sh
+
   # The race detector is its own job, running BESIDE `test` rather than after
   # it. Both are required by `build`, so the bar is unchanged; splitting them
   # means a red run says which question failed. mrw's apply path writes files
