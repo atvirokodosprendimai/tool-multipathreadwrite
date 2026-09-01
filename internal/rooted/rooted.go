@@ -13,6 +13,7 @@ package rooted
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -48,4 +49,53 @@ func Resolve(root, path string) (string, error) {
 // separator matters: without it, "/repo-backup" counts as inside "/repo".
 func Contains(absRoot, p string) bool {
 	return p == absRoot || strings.HasPrefix(p, absRoot+string(filepath.Separator))
+}
+
+// Descendable reports whether a walk may go INTO path, an entry found inside
+// absRoot. absRoot must already be canonical — Resolve produces it, and a walk
+// resolves its root once before it starts.
+//
+// A symlinked DIRECTORY is refused, by rule 3 of ADR-007 and by that rule
+// alone: following one can leave the tree and can loop, and a link pointing at
+// its own parent is a walk that never ends. Nothing is lost by refusing —
+// whatever it points at inside the root is reached by its real name anyway,
+// and a symlinked FILE is still served, because that question is asked after
+// Resolve rather than here.
+//
+// Anything that is not a directory answers false with no error: a regular file
+// is not this function's question, and saying yes would send a walk into
+// something that cannot be walked.
+func Descendable(absRoot, path string) (bool, error) {
+	// Ask the two questions separately, and in this order, so that rule 3 is
+	// the thing that refuses a symlinked directory rather than an accident of
+	// Lstat's semantics. Lstat reports a symlink's own mode, whose IsDir is
+	// FALSE even when the target is a directory — so a single Lstat would
+	// refuse the link on "not a directory" and the rule would be unreachable
+	// dead code that no test could distinguish from the rule working.
+	lst, err := os.Lstat(path)
+	if err != nil {
+		return false, err
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		// A broken link, or an entry that vanished mid-walk. Not descendable,
+		// and not an error worth aborting a batch for.
+		return false, nil
+	}
+	if !st.IsDir() {
+		return false, nil
+	}
+	if lst.Mode()&os.ModeSymlink != 0 {
+		return false, nil
+	}
+	// Safe to resolve now: the entry itself is a real directory, so this
+	// canonicalises the path it was reached by rather than following it
+	// somewhere new. It matters because a caller's path may run through a
+	// symlinked ancestor — /var on macOS — and the comparison below is against
+	// a canonical root.
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return false, err
+	}
+	return Contains(absRoot, real), nil
 }
