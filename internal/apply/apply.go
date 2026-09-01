@@ -147,14 +147,22 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 
 	byPath := map[string][]hunk{}
 	var order []string
-	for _, i := range in {
-		if _, seen := byPath[i.Path]; !seen {
-			order = append(order, i.Path)
+	// The hunk's identity is its POSITION in the plan, not the Index the caller
+	// filled in: two inputs sharing an Index would share a slot in the verdict
+	// map, and one hunk's report would silently become another's.
+	for n, i := range in {
+		// One file, one key. The path is cleaned so that two spellings of the
+		// same file — "a.go" and "./a.go" — are one entry here and one entry
+		// in the seen ledger, which is keyed the same way. Without it a file
+		// read under one spelling is refused as unread under the other.
+		p := filepath.Clean(i.Path)
+		if _, seen := byPath[p]; !seen {
+			order = append(order, p)
 		}
-		byPath[i.Path] = append(byPath[i.Path], hunk{
-			Path: i.Path, Start: i.Start, End: i.End, Op: i.Op, Body: i.Body,
+		byPath[p] = append(byPath[p], hunk{
+			Path: p, Start: i.Start, End: i.End, Op: i.Op, Body: i.Body,
 			SHA: i.SHA, Lines: i.Lines, Anchor: i.Anchor,
-			SrcOp: i.Op, SrcAddr: addrString(i.Start, i.End), SrcLine: i.SrcLine, Index: i.Index,
+			SrcOp: i.Op, SrcAddr: addrString(i.Start, i.End), SrcLine: i.SrcLine, Index: n,
 		})
 	}
 
@@ -203,8 +211,8 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		writes = append(writes, pending{file: fr, out: out, nl: nl})
 	}
 
-	for _, i := range in {
-		r, ok := results[i.Index]
+	for n, i := range in {
+		r, ok := results[n]
 		if !ok {
 			r = HunkResult{Path: i.Path, Op: i.Op, SrcLine: i.SrcLine, Status: StatusOK}
 			r.Addr = addrString(i.Start, i.End)
@@ -323,16 +331,48 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 			end = total
 		}
 
+		// A guard the caller wrote is checked whatever the op. An insertion
+		// addresses exactly one line, so lines= must be 1 and anchor= must
+		// appear in that line: an insertion at a drifted address puts the
+		// right text in the wrong place exactly as a replacement does, and a
+		// guard that is parsed and then discarded is worse than no guard,
+		// because the caller believes the edit is pinned.
+		guard := func(at int) bool {
+			if h.Lines >= 0 && h.Lines != 1 {
+				fail(h, "lines=%d but %s addresses a single line", h.Lines, addrString(start, start))
+				return false
+			}
+			if h.Anchor == "" {
+				return true
+			}
+			if at < 1 || at > total {
+				fail(h, "anchor %q cannot be checked: %s addresses no line of the file (it has %d)",
+					h.Anchor, addrString(start, start), total)
+				return false
+			}
+			if !strings.Contains(orig[at-1], h.Anchor) {
+				fail(h, "anchor %q not in line %d: %s", h.Anchor, at, trim(orig[at-1]))
+				return false
+			}
+			return true
+		}
+
 		switch h.Op {
 		case "insert-after":
 			if start < 0 || start > total {
 				fail(h, "line %d is out of range (file has %d lines)", start, total)
 				continue
 			}
+			if !guard(start) {
+				continue
+			}
 			resolved = append(resolved, h.resolveTo(start+1, start, "insert"))
 		case "insert-before":
 			if start < 1 || start > total+1 {
 				fail(h, "line %d is out of range (file has %d lines)", start, total)
+				continue
+			}
+			if !guard(start) {
 				continue
 			}
 			resolved = append(resolved, h.resolveTo(start, start-1, "insert"))

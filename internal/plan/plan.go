@@ -103,15 +103,23 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		errs  []string
 		cur   *Hunk
 		body  []string
-		want  int // remaining explicit body lines, -1 when scanning to next @@
+		want  int  // remaining explicit body lines, -1 when scanning to next @@
+		fixed bool // whether this hunk declared body=N at all
 	)
 	flush := func() {
 		if cur == nil {
 			return
 		}
+		// body=N is a count, and a count the document does not honour means the
+		// caller's picture of their own plan is wrong — the same class of
+		// mistake as a drifted line number, which this format refuses.
+		if fixed && want > 0 {
+			errs = append(errs, fmt.Sprintf("line %d: body= asked for %d more line(s) than the plan contains",
+				cur.SrcLine, want))
+		}
 		cur.Body = body
 		hunks = append(hunks, *cur)
-		cur, body, want = nil, nil, -1
+		cur, body, want, fixed = nil, nil, -1, false
 	}
 
 	sc := bufio.NewScanner(r)
@@ -124,6 +132,15 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		if cur != nil && want > 0 {
 			body = append(body, line)
 			want--
+			continue
+		}
+		// An exhausted count means the hunk is complete. Anything before the
+		// next header is text the caller did not account for; absorbing it
+		// silently is what made body=0 mean "unbounded" instead of "empty".
+		if cur != nil && fixed && want == 0 && !strings.HasPrefix(line, "@@ ") {
+			if t := strings.TrimSpace(line); t != "" {
+				errs = append(errs, fmt.Sprintf("line %d: body= is satisfied; %q is not part of any hunk", n, line))
+			}
 			continue
 		}
 		if !strings.HasPrefix(line, "@@ ") {
@@ -144,7 +161,7 @@ func Parse(r io.Reader) ([]Hunk, error) {
 			continue
 		}
 		h.Index = len(hunks)
-		cur, body, want = &h, nil, explicit
+		cur, body, want, fixed = &h, nil, explicit, explicit >= 0
 	}
 	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("reading plan: %w", err)
@@ -203,6 +220,11 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 				return Hunk{}, 0, fmt.Errorf("lines= wants a non-negative integer, got %q", v)
 			}
 		case "anchor":
+			// An empty anchor asserts nothing while reading exactly like an
+			// assertion, and apply reads an empty Anchor as "no anchor given".
+			if v == "" {
+				return Hunk{}, 0, fmt.Errorf("anchor= needs a value")
+			}
 			h.Anchor = v
 		case "body":
 			if explicit, err = strconv.Atoi(v); err != nil || explicit < 0 {
@@ -224,8 +246,18 @@ func splitHeader(s string) ([]string, error) {
 		inTok bool
 		inQ   bool
 	)
-	for _, r := range s {
+	rs := []rune(s)
+	for i := 0; i < len(rs); i++ {
+		r := rs[i]
 		switch {
+		case r == '\\' && i+1 < len(rs) && (rs[i+1] == '"' || rs[i+1] == '\\'):
+			// A backslash escapes a quote or another backslash, so an anchor
+			// can name code that itself contains a quote. Without this the
+			// quote toggles the quoting state and the backslash survives into
+			// the value, producing a guard that matches nothing.
+			cur.WriteRune(rs[i+1])
+			inTok = true
+			i++
 		case r == '"':
 			inQ, inTok = !inQ, true
 		case (r == ' ' || r == '\t') && !inQ:

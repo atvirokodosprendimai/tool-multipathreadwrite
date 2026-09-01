@@ -1,0 +1,16 @@
+// Package adversarial holds tests whose only goal is to make mrw fail loudly,
+// and to prove it when it does not.
+//
+// It is deliberately separate from each package's own tests. Those are written
+// by the author of the behaviour and ask "does this do what I meant"; these are
+// written against the promises the README and the ADRs make to a caller, and
+// ask the opposite question — where can a caller be told everything went well
+// while something did not.
+//
+// The rule every test here follows: assert the PROMISE, never the current
+// behaviour. A test that documents a defect by expecting it goes green on the
+// day the defect is fixed and green on the day it gets worse, which is the
+// silent-success failure this whole tool exists to refuse. Where a gap is
+// deliberate rather than a defect, the test is renamed TestKnownGap_… and says
+// in its own body what it is holding still and who decided.
+package adversarial
