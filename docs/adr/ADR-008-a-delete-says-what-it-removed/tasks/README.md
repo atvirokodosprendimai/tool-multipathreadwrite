@@ -20,7 +20,7 @@ actually needed, and the expected body is the stronger, opt-in form.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | A delete receipt names the first and last line it removed | done | — | `go test ./internal/apply/ -run 'TestDeleteRecordsItsBounds'` |
-| T2 | A delete may say which lines it expects to remove | pending | — | `go test ./internal/plan/ ./internal/apply/ ./internal/adversarial/ -run 'DeleteBody\|ExpectedRemoval'` |
+| T1 | A delete receipt names the first and last line it removed | done | — | `go test ./internal/apply/ -run 'Delete.*Bounds\|OneLineDelete'` |
+| T2 | A delete may say which lines it expects to remove | done | — | `go test ./internal/plan/ ./internal/apply/ ./internal/adversarial/ -run 'DeleteBody\|ExpectedRemoval\|BodylessDelete\|StillRejected'` |
 
 Status: `pending` | `partial` | `blocked` | `done`.

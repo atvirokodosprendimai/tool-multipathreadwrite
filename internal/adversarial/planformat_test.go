@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 )
 
@@ -218,13 +219,49 @@ func TestAReplaceWithAnExplicitlyEmptyBodyIsRejected(t *testing.T) {
 	}
 }
 
-// The mirror image keeps working, and so does an ordinary replace: this check
-// must not make `delete` or a real replacement harder to write.
-func TestDeleteWithABodyStaysAnErrorAndAReplaceWithOneStaysLegal(t *testing.T) {
-	if _, err := plan.Parse(strings.NewReader("@@ f.txt 2 delete\nx\n")); err == nil {
-		t.Error("delete with a body is no longer an error")
+// ADR-008. A `delete` may now carry the lines the caller expects to remove, and
+// a mismatch must abandon the WHOLE plan, not just its own hunk. A partially
+// applied plan is the worst outcome this tool has (ADR-001), and a guard that
+// fails safe on its own hunk while its siblings land would produce exactly one.
+func TestADeleteWhoseExpectedRemovalDiffersWritesNothing(t *testing.T) {
+	root := tree(t, map[string]string{
+		"a.go": goFile,
+		"b.go": "package p\n\nvar X = 1\n",
+	})
+
+	res, err := apply.Apply(root, []apply.Input{
+		// This one is fine, and must NOT land.
+		{Path: "b.go", Start: 3, End: 3, Op: "replace", Body: []string{"var X = 2"}, Lines: unset, Index: 0},
+		// The caller believes lines 4-5 are the body and the brace. They are
+		// the body, the brace — and nothing else, because the range is right;
+		// what is wrong is the picture, which is the case only a body catches.
+		{Path: "a.go", Start: 4, End: 5, Op: "delete", Body: []string{"\treturn a - b", "}"}, Lines: unset, Index: 1},
+	}, apply.Options{})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := plan.Parse(strings.NewReader("@@ f.txt 2 replace\nnew line\n")); err != nil {
-		t.Errorf("an ordinary replace was rejected: %v", err)
+	if res.Failed != 1 {
+		t.Fatalf("a delete whose expected removal was wrong did not fail: %+v", res.Hunks)
+	}
+	if res.Applied {
+		t.Error("the run reported applied")
+	}
+	if got := readFile(t, root, "b.go"); got != "package p\n\nvar X = 1\n" {
+		t.Errorf("the innocent sibling hunk landed anyway: %q", got)
+	}
+	if got := readFile(t, root, "a.go"); got != goFile {
+		t.Errorf("a.go was written: %q", got)
+	}
+}
+
+// The rule ADR-006 installed is the mirror image of this one and must survive
+// it: `replace` with no body is still refused, because it deletes while
+// reporting a replacement. Only the delete direction changed meaning.
+func TestAReplaceWithNoBodyIsStillRejectedNowThatDeleteTakesOne(t *testing.T) {
+	if _, err := plan.Parse(strings.NewReader("@@ f.txt 2 replace\n")); err == nil {
+		t.Error("an empty-bodied replace parsed clean")
+	}
+	if _, err := plan.Parse(strings.NewReader("@@ f.txt 2 delete\nx\n")); err != nil {
+		t.Errorf("a delete with an expected body was rejected: %v", err)
 	}
 }

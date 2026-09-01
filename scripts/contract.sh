@@ -351,6 +351,27 @@ grep -qF '"removed_first": "}"' <<<"$out" && grep -qF '"removed_last": "var _ = 
   && ok "--json carries removed_first and removed_last" \
   || bad "--json is missing the bounds: $out"
 
+# 17. ADR-008: a delete may carry the lines the caller EXPECTS to remove. A
+#     match applies; a mismatch refuses the whole plan and names the line.
+fixture
+printf 'package demo\n\nfunc E() int {\n\treturn 5\n}\n\nvar _ = 1\nvar _ = 2\n' > "$R/c.go"
+m read c.go >/dev/null
+out=$(printf '@@ c.go 7-8 delete\nvar _ = 1\nvar _ = 2\n' | m write --dry-run - 2>&1)
+rc=$?
+want 0 "$rc" "a delete whose expected removal matches applies"
+out=$(printf '@@ c.go 7-8 delete\nvar _ = 1\nvar _ = 3\n' | m write - 2>&1)
+rc=$?
+want 1 "$rc" "a delete whose expected removal differs is refused"
+grep -q 'expected removal differs at line 8' <<<"$out" \
+  && ok "and the refusal names the line that differed" \
+  || bad "the refusal does not name the line: $out"
+grep -qF 'var _ = 2' <<<"$out" && grep -qF 'var _ = 3' <<<"$out" \
+  && ok "printing what the plan said beside what the file holds" \
+  || bad "the refusal shows only one side: $out"
+grep -qF 'var _ = 1' "$R/c.go" \
+  && ok "and nothing was written" \
+  || bad "the file was modified despite the refusal"
+
 echo
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

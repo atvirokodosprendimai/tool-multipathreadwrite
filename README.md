@@ -240,6 +240,38 @@ two — each trimmed to 60 characters the way a failed `anchor=` trims the line 
 prints. In `--json` they are `removed_first` and `removed_last`, present on
 delete hunks only.
 
+### A delete may say which lines it expects to remove
+
+The receipt tells you afterwards. To be told *before* anything is written, give
+the `delete` a body: the lines you expect it to remove.
+
+```
+@@ internal/read/walk.go 201-204 delete
+	}
+	return out, nil
+}
+var _ = fmt.Sprintf
+```
+
+If those lines are not exactly what the range holds, the hunk fails, the message
+names the first line that differed — your text beside the file's — and, as
+always, **nothing in the plan is written**. A `delete` with no body is unchanged
+and still the right thing to write for a two-line removal.
+
+This is the fourth guard, and the only one you cannot get wrong by accident:
+
+| guard | asserts | who computes it |
+|---|---|---|
+| `sha=`, `lines=`, `anchor=` | the file, the range, the line | you, from what you read |
+| a body on `delete` | every line the range holds | you, from what you *believe* it holds |
+
+The distinction is the whole point. mrw can check a range against the file it
+just served you, but any guard it derives for you is computed from the same
+bytes it would check against, so it always passes. What the caller believed
+lines 201-204 contained is the one fact not already in the system — which is
+also why writing the body by copying it back out of `mrw read` asserts nothing.
+Write it from your intent, or leave it off.
+
 ## Read before modify
 
 `mrw` refuses to edit a file whose current contents it has not seen.

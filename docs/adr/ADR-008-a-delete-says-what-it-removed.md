@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-001 (defines `delete` and the guards this extends), ADR-006 (the mirror image: a `replace` with an empty body must say `delete`), ADR-002 (the ledger, which already answers the half of this problem that can be automatic)
 **Governs:** `internal/plan/plan.go`, `internal/apply/apply.go`, `README.md`, `scripts/contract.sh`
-**Enforced-by:** None — nothing enforces this yet, because nothing is built. The tests that will are named in T1 and T2 and this header is updated when they exist, which is the Follow-up below.
+**Enforced-by:** `internal/apply/apply_test.go::TestDeleteRecordsItsBounds`, `internal/apply/apply_test.go::TestOnlyDeleteRecordsBounds`, `internal/adversarial/planformat_test.go::TestADeleteWhoseExpectedRemovalDiffersWritesNothing`
 **Invalidates:** none — checked. Grepped every accepted record for `delete`, `body=` and `anchor=`: ADR-001 defines the op and its guards and is extended rather than changed; ADR-006 rejects an empty-bodied `replace` and is the symmetric case, unaffected.
 **Served-path change:** a `delete` hunk's receipt names the first and last line it removed, both trimmed, in the human output and in `--json`; and `delete` accepts a body, which is currently a hard parse error, meaning "these are the lines I expect to remove" — a mismatch refuses the whole plan.
 
@@ -186,4 +186,4 @@ before stays legal. No persistent state and no ledger format change.
 
 ## Follow-ups
 
-- [ ] Replace `Enforced-by` with the tests T1 and T2 introduce, once they exist
+- [x] Replace `Enforced-by` with the tests T1 and T2 introduce, once they exist

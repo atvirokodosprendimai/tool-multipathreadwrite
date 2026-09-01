@@ -454,6 +454,35 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 				fail(h, "anchor %q not in line %d: %s", h.Anchor, start, trim(orig[start-1]))
 				continue
 			}
+			// A delete is the only op with no body, so a body on one is not
+			// content to write: it is the caller's expectation of what the
+			// range holds, and it is the one guard mrw cannot compute for them
+			// — everything it could derive here comes from the same bytes it
+			// would check against (ADR-008). A mismatch fails the hunk, which
+			// by ADR-001 abandons the whole plan.
+			if h.Op == "delete" && len(h.Body) > 0 {
+				if covers := end - start + 1; len(h.Body) != covers {
+					fail(h, "expected removal is %d line(s) but %s covers %d",
+						len(h.Body), addrString(start, end), covers)
+					continue
+				}
+				differs := false
+				for i, want := range h.Body {
+					if orig[start-1+i] == want {
+						continue
+					}
+					// Named the way an anchor failure is: the expectation
+					// beside the line actually there, so one attempt is enough
+					// to see which of the two is wrong.
+					fail(h, "expected removal differs at line %d: plan says %q, file has %q",
+						start+i, trim(want), trim(orig[start-1+i]))
+					differs = true
+					break
+				}
+				if differs {
+					continue
+				}
+			}
 			if !covered(h, start, end) {
 				continue
 			}

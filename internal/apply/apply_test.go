@@ -612,3 +612,90 @@ func TestOnlyDeleteRecordsBounds(t *testing.T) {
 		}
 	}
 }
+
+// ADR-008 T2. The body of a delete is the caller's expectation of what the
+// range holds. When it matches, the delete applies exactly as a bodyless one.
+func TestADeleteWhoseExpectedRemovalMatchesApplies(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "delete", Body: []string{"b", "c"}, Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("a matching expected removal was rejected: %+v", res.Hunks)
+	}
+	if got, want := read(t, root, "f.txt"), "a\nd\ne\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// The comparison is line for line, and a mismatch says WHICH line differed —
+// the same shape as the anchor failure, which prints the anchor beside the real
+// line. A refusal that does not say where it disagreed is barely better than no
+// guard at all.
+func TestADeleteWhoseExpectedRemovalDiffersNamesTheLine(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "delete", Body: []string{"b", "NOT-C"}, Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("a mismatched expected removal was accepted: %+v", res.Hunks)
+	}
+	reason := res.Hunks[0].Reason
+	if !strings.Contains(reason, "3") || !strings.Contains(reason, "NOT-C") || !strings.Contains(reason, "c") {
+		t.Errorf("the refusal does not name the line, the expectation and what is there: %q", reason)
+	}
+	if got := read(t, root, "f.txt"); got != abcde {
+		t.Errorf("the file changed: %q", got)
+	}
+}
+
+// A body of the wrong LENGTH is the miscounted range this whole record is
+// about, so it must fail rather than compare only as far as the shorter of the
+// two.
+func TestAnExpectedRemovalOfTheWrongLengthIsRejected(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 4, Op: "delete", Body: []string{"b", "c"}, Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("a 2-line expectation was accepted for a 3-line range: %+v", res.Hunks)
+	}
+	if got := read(t, root, "f.txt"); got != abcde {
+		t.Errorf("the file changed: %q", got)
+	}
+}
+
+// The opt-in stays opt-in: a delete with no body behaves exactly as it did
+// before this task, guards and all.
+func TestABodylessDeleteIsUnchanged(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("a bodyless delete failed: %+v", res.Hunks)
+	}
+	if got, want := read(t, root, "f.txt"), "a\nd\ne\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

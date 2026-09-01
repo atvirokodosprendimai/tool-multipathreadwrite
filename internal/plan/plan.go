@@ -360,9 +360,11 @@ func ParseAddr(s string) (Addr, error) {
 func validate(h *Hunk) error {
 	switch h.Op {
 	case OpDelete:
-		if len(h.Body) > 0 {
-			return fmt.Errorf("delete takes no body, got %d line(s)", len(h.Body))
-		}
+		// A body on a delete used to be a hard parse error. It now means "these
+		// are the lines I expect to remove" — the caller's own picture of the
+		// range, which is the one assertion mrw cannot derive for them. Whether
+		// it HOLDS needs the file, so it is checked in internal/apply; there is
+		// nothing to check here (ADR-008).
 	case OpCreate:
 		if h.Addr.Start != 0 || h.Addr.End != 0 {
 			return fmt.Errorf("create takes no address, use %q", "-")

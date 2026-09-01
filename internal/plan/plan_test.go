@@ -94,7 +94,6 @@ func TestParseRejectsBadPlans(t *testing.T) {
 		"empty":            "",
 		"unknown op":       "@@ a.go 1 frobnicate\n",
 		"short header":     "@@ a.go 1\n",
-		"delete with body": "@@ a.go 1-2 delete\nnope\n",
 		"create with addr": "@@ a.go 1 create\nx\n",
 		"insert range":     "@@ a.go 1-3 insert-after\nx\n",
 		"empty insert":     "@@ a.go 1 insert-after\n",
@@ -129,5 +128,36 @@ func TestQuotedFieldsSurvive(t *testing.T) {
 	}
 	if hunks[0].Path != "my file.go" || hunks[0].Anchor != "func Foo(" {
 		t.Errorf("hunk = %+v", hunks[0])
+	}
+}
+
+// ADR-008 T2. A body on a `delete` used to be a hard parse error. It now means
+// "these are the lines I expect to remove" — the one assertion only the caller
+// can make, because it is their picture of the file rather than the file's own
+// bytes.
+func TestDeleteBodyIsNoLongerAParseError(t *testing.T) {
+	hunks, err := Parse(strings.NewReader("@@ f.txt 2-3 delete\nb\nc\n"))
+	if err != nil {
+		t.Fatalf("a delete with an expected body was rejected: %v", err)
+	}
+	if len(hunks) != 1 {
+		t.Fatalf("want 1 hunk, got %d", len(hunks))
+	}
+	if got, want := hunks[0].Body, []string{"b", "c"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("body = %q, want %q", got, want)
+	}
+}
+
+// The rest of validate's rules are untouched: this task removes one rejection,
+// not the section it lived in.
+func TestDeleteBodyDoesNotWeakenTheOtherOps(t *testing.T) {
+	for _, doc := range []string{
+		"@@ f.txt 2 replace\n",      // ADR-006: an empty replace is a delete in disguise
+		"@@ f.txt 2 insert-after\n", // an insertion with nothing to insert
+		"@@ f.txt 2 create\nx\n",    // create takes no address
+	} {
+		if _, err := Parse(strings.NewReader(doc)); err == nil {
+			t.Errorf("still-invalid plan parsed clean: %q", doc)
+		}
 	}
 }
