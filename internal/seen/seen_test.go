@@ -156,3 +156,33 @@ func TestLegacyInTreeLedgerIsStillRead(t *testing.T) {
 		t.Error("Record wrote into the legacy in-tree ledger")
 	}
 }
+
+// A legacy path may itself contain a double space, which is also the separator
+// the current three-field line uses. "<sha>  my  file.go" is one path, not
+// spans plus a path — and reading it as spans would silently record "nothing
+// served" for a file the caller had read whole.
+func TestALegacyPathContainingADoubleSpaceIsOnePath(t *testing.T) {
+	root := t.TempDir()
+	lp, err := ReadPath(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(lp), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lp, []byte("abc123  my  file.go\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	obs, ok := l["my  file.go"]
+	if !ok {
+		t.Fatalf("the path was mis-split: %v", l)
+	}
+	if !obs.Whole() {
+		t.Errorf("a legacy line must read as a whole-file observation, got %s", obs.Served())
+	}
+}

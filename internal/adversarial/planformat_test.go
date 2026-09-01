@@ -142,3 +142,43 @@ func TestABodyMayContainLinesThatMerelyLookLikeHeaders(t *testing.T) {
 		t.Errorf("want one hunk with a 2-line body, got %d hunk(s) with %v", len(hunks), hunks[0].Body)
 	}
 }
+
+// The escape hatch body= exists for, restored: a plan may write a REAL header
+// as content when it says so. Without this, mrw could not apply a plan editing
+// its own documentation or a contract fixture — the self-hosting cost the
+// review named.
+func TestARawBodyMayContainARealHeader(t *testing.T) {
+	doc := "@@ doc.md 1 replace body=2 raw=true\n@@ a.go 1 replace\n@@ b.go 2-3 delete\n"
+
+	hunks, err := plan.Parse(strings.NewReader(doc))
+	if err != nil {
+		t.Fatalf("raw=true did not permit a real header in the body: %v", err)
+	}
+	if len(hunks) != 1 {
+		t.Fatalf("want one hunk, got %d — the body was not taken whole", len(hunks))
+	}
+	if got := hunks[0].Body; len(got) != 2 || got[0] != "@@ a.go 1 replace" {
+		t.Errorf("body = %q", got)
+	}
+}
+
+// And the guard still bites without it: the same document, unmarked, is the
+// overcount that loses a hunk.
+func TestTheSameBodyWithoutRawIsRefused(t *testing.T) {
+	doc := "@@ doc.md 1 replace body=2\n@@ a.go 1 replace\n@@ b.go 2-3 delete\n"
+
+	if _, err := plan.Parse(strings.NewReader(doc)); err == nil {
+		t.Error("a counted body swallowed two valid headers without raw=true")
+	}
+}
+
+// raw= is deliberately not a general switch: it takes one value, so a typo is
+// a parse error rather than a guard silently left on.
+func TestRawTakesOnlyTrue(t *testing.T) {
+	for _, v := range []string{"false", "1", "yes", ""} {
+		doc := "@@ a.go 1 replace body=1 raw=" + v + "\nx\n"
+		if _, err := plan.Parse(strings.NewReader(doc)); err == nil {
+			t.Errorf("raw=%q was accepted", v)
+		}
+	}
+}

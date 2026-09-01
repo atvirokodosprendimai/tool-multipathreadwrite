@@ -155,3 +155,51 @@ func TestAnUnreadFileIsStillRefused(t *testing.T) {
 		t.Errorf("the refusal still wrote the file:\n%s", got)
 	}
 }
+
+// The reviewer's finding, as a test: --max-lines is the flag a caller reaches
+// for on a big file, which is exactly when they cannot count the lines they
+// were not shown. A truncated read must observe what it PRINTED, not what it
+// was asked for — the request shape says nothing about what the caller saw.
+func TestATruncatedReadLicensesOnlyTheLinesItPrinted(t *testing.T) {
+	root := tree(t, map[string]string{"big.go": long()})
+
+	observed, _ := read.Run(io.Discard, root,
+		[]read.Spec{{Path: "big.go"}}, read.Options{MaxLines: 5})
+
+	res, err := apply.Apply(root, []apply.Input{{
+		Path: "big.go", Start: 40, End: 40, Op: "replace",
+		Body: []string{"rewritten"}, Lines: unset,
+	}}, apply.Options{Seen: observed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("a read that withheld 35 lines authorised an edit to line 40: failed=%d, applied=%v",
+			res.Failed, res.Applied)
+	}
+	if got := readFile(t, root, "big.go"); got != long() {
+		t.Error("the file was written despite the refusal")
+	}
+}
+
+// And the other direction: reading a file WHOLE and then reading part of it
+// again must not downgrade the observation. Reading more thoroughly cannot
+// observe less.
+func TestAWholeReadIsNotDowngradedByALaterRangedRead(t *testing.T) {
+	root := tree(t, map[string]string{"big.go": long()})
+
+	observed, _ := read.Run(io.Discard, root,
+		[]read.Spec{{Path: "big.go"}, {Path: "big.go", Ranges: []read.Range{{Start: 1, End: 2}}}},
+		read.Options{})
+
+	res, err := apply.Apply(root, []apply.Input{{
+		Path: "big.go", Start: 40, End: 40, Op: "replace",
+		Body: []string{"rewritten"}, Lines: unset,
+	}}, apply.Options{Seen: observed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("reading the whole file and then part of it refused line 40: %s", res.Hunks[0].Reason)
+	}
+}
