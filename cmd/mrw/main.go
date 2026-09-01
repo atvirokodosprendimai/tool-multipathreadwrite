@@ -386,13 +386,16 @@ visible to whatever hooks watch file writes.`,
 			}
 
 			receipt := receipt{Result: res}
-			// --check with --dry-run is a contradiction the caller has to be
-			// told about: there is nothing to verify, and silently dropping the
-			// flag returns exit 0 to someone who believes their preview was
-			// checked. Say it, rather than refusing — the plan validation they
-			// also asked for did happen and is worth having.
+			// --check with --dry-run asks for a verdict on a tree that will not
+			// be written, so no check can run — and ADR-003 rule 2 already
+			// decides what that is worth: a check that did not run is not a
+			// pass, and its exit table lists a missing check under 2 alongside
+			// usage. Warning and exiting 0 (the first version of this fix)
+			// handed success to a caller who asked for verification and got
+			// none, which is the exact shape rule 2 exists to refuse.
 			if cmd.Bool("check") && cmd.Bool("dry-run") {
-				fmt.Fprintln(os.Stderr, "mrw: --check does nothing under --dry-run — nothing was written, so there is nothing to verify")
+				return cli.Exit("--check cannot run under --dry-run: nothing is written, so there is "+
+					"nothing to verify. Drop one of the two — a check that did not run is not a pass", exitUsage)
 			}
 			if cmd.Bool("check") && res.Applied && res.Failed == 0 {
 				var written []string

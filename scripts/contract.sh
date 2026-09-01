@@ -402,11 +402,15 @@ grep -q 'write' <<<"$out" && ok "and lists the real ones" || bad "does not list 
 
 # 19b. --check under --dry-run cannot verify anything, and silently dropping it
 #      returned exit 0 to a caller who believed their preview had been checked.
+#      ADR-003 rule 2 already decides what that is worth: a check that did not
+#      run is not a pass, and its exit table files a missing check under 2.
 printf '{"check":"echo THE-CHECK-RAN"}\n' > "$R/.quality-harness.json"
 out=$(printf '@@ a.go 3 delete\n' | m write --dry-run --check - 2>&1)
-grep -q 'does nothing under --dry-run' <<<"$out" \
-  && ok "--check under --dry-run says it did nothing" \
-  || bad "the dropped flag was silent: $out"
+rc=$?
+want 2 "$rc" "--check under --dry-run is refused, not silently dropped"
+grep -q 'cannot run under --dry-run' <<<"$out" \
+  && ok "and the refusal says why" \
+  || bad "unclear refusal: $out"
 grep -q 'THE-CHECK-RAN' <<<"$out" && bad "the check ran against an unwritten tree" || ok "and no check was run"
 
 echo

@@ -46,6 +46,31 @@ here.
   check. A Python or Rust project gets the full command every time, which is
   correct but slow.
 
+- **`--check` under `--dry-run`: settled as exit 2, recorded here because the
+  question is ADR-003's and the answer was reached in a PR about ADR-008.**
+  Nothing is written under `--dry-run`, so no check can run. Two readings, both
+  defensible:
+
+  *Exit 0 with a warning* — nothing was written, so there is nothing to verify,
+  and that is materially different from a configured check going missing. Rule 2
+  is about "no evidence" where evidence was possible. The caller also still gets
+  the plan validation they asked for. **This is what shipped first, and it is
+  wrong.**
+
+  *Exit 2* — the caller asked for verification and received none. Rule 2 says a
+  check that did not run is not a pass, and ADR-003's own exit table files a
+  missing check under `2 | usage, parse, missing check, bad pointer`. The flag
+  combination is also a plain contradiction, which is what exit 2 is for. **This
+  is what ships now.**
+
+  Exit 2 wins because rule 2 is already decided and this is an instance of it,
+  not a new question — applying an accepted rule is conformance. The reason it
+  is written down anyway: the first version returned exit 0, and a reader who
+  found that in the tree could reasonably conclude rule 2 had been abandoned.
+  If the opposite reading is ever preferred, it is a change to ADR-003 and wants
+  a record, because a caller scripting `write --dry-run --check` now gets a hard
+  failure where they got success.
+
 ## From ADR-004 (mrw leaves nothing in the working tree)
 
 - **Pruning orphaned state directories.** Moving or deleting a checkout leaves
