@@ -655,18 +655,23 @@ func exitCode(err error) int {
 // the message names the directory it looked in and says so — the difference
 // between "your plan is wrong" and "your plan is somewhere else" is the whole
 // of what the caller needs.
-func planOpenError(path, root string, err error) string {
+//
+// It returns an error rather than a string, like every other failure in this
+// file: a caller that wants to wrap or inspect it should not have to reach
+// back through cli.Exit's conversion to do so. The original is wrapped, so
+// errors.Is still sees fs.ErrNotExist.
+func planOpenError(path, root string, err error) error {
 	if filepath.IsAbs(path) {
-		return err.Error()
+		return err
 	}
 	wd, wdErr := os.Getwd()
 	if wdErr != nil {
-		return err.Error()
+		return err
 	}
 	absRoot, rootErr := filepath.Abs(root)
 	if rootErr != nil || absRoot == wd {
-		return err.Error()
+		return err
 	}
-	return fmt.Sprintf("%v — looked in the working directory %s, because --root (%s) moves the paths "+
+	return fmt.Errorf("%w — looked in the working directory %s, because --root (%s) moves the paths "+
 		"INSIDE a plan and not the plan file itself", err, wd, absRoot)
 }

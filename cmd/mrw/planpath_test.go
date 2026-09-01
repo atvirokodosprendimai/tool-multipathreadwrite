@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,5 +95,29 @@ func TestAPlanIsReadRelativeToTheWorkingDirectory(t *testing.T) {
 	}
 	if string(got) != "ONE\n" {
 		t.Errorf("the plan did not edit the tree at --root: %q", got)
+	}
+}
+
+// The explanation WRAPS the original, so a caller can still ask what went
+// wrong rather than matching on prose. Flagged in review: every other failure
+// in main.go is an error, and this one was a string only because cli.Exit
+// happened to accept both.
+func TestThePlanErrorWrapsTheCause(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := planOpenError("plan.mrw", filepath.Join(wd, "elsewhere"), fs.ErrNotExist)
+
+	if !errors.Is(got, fs.ErrNotExist) {
+		t.Errorf("the cause was flattened into prose: %v", got)
+	}
+	if !strings.Contains(got.Error(), "working directory") {
+		t.Errorf("the explanation was lost: %v", got)
+	}
+	// And the branches that have nothing to explain hand the cause straight
+	// back, so an ordinary `mrw write plan.mrw` gains no paragraph.
+	if plain := planOpenError("/abs/plan.mrw", wd, fs.ErrNotExist); plain != fs.ErrNotExist {
+		t.Errorf("an absolute path was given an explanation it does not need: %v", plain)
 	}
 }
