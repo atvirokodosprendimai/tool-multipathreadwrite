@@ -53,6 +53,15 @@ func TestLoadOnABareDirectoryHasNoCheck(t *testing.T) {
 }
 
 func TestScopeDerivation(t *testing.T) {
+	// A root with real directories in it, because a path that is not a Go file
+	// is a package only if it actually is a directory — which is what tells
+	// `mrw check internal/apply` from `mrw check internal/aply`.
+	root := t.TempDir()
+	for _, d := range []string{"internal/apply", "cmd/mrw"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	cfg := Config{Check: "FULL", ScopedCheck: "go test {packages}"}
 	for name, tc := range map[string]struct {
 		paths []string
@@ -64,8 +73,17 @@ func TestScopeDerivation(t *testing.T) {
 		"root package":      {[]string{"main.go"}, "go test ."},
 		"non-Go falls back": {[]string{"internal/apply/a.go", "README.md"}, "FULL"},
 		"no paths":          {nil, "FULL"},
+
+		// The bug this table was one row short of catching: the README spells
+		// the scoped form with a DIRECTORY, and a directory has no .go suffix.
+		"a directory":              {[]string{"internal/apply"}, "go test ./internal/apply"},
+		"the ./dir form we print":  {[]string{"./internal/apply"}, "go test ./internal/apply"},
+		"a directory and a file":   {[]string{"internal/apply", "cmd/mrw/main.go"}, "go test ./cmd/mrw ./internal/apply"},
+		"a directory twice over":   {[]string{"internal/apply", "internal/apply/a.go"}, "go test ./internal/apply"},
+		"a path that is not there": {[]string{"internal/aply"}, "FULL"},
+		"a directory and a non-Go": {[]string{"internal/apply", "README.md"}, "FULL"},
 	} {
-		if got, _ := command(cfg, tc.paths); got != tc.want {
+		if got, _ := command(root, cfg, tc.paths); got != tc.want {
 			t.Errorf("%s: got %q, want %q", name, got, tc.want)
 		}
 	}
@@ -73,7 +91,7 @@ func TestScopeDerivation(t *testing.T) {
 
 func TestFilesPlaceholder(t *testing.T) {
 	cfg := Config{ScopedCheck: "lint {files}"}
-	got, _ := command(cfg, []string{"a.go", "b.go"})
+	got, _ := command(t.TempDir(), cfg, []string{"a.go", "b.go"})
 	if got != "lint a.go b.go" {
 		t.Errorf("got %q", got)
 	}

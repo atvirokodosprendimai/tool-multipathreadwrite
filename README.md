@@ -360,9 +360,11 @@ mrw writes nothing into your repository; a pre-existing `.mrw/` from an older
 version is copied across once, announced, and never deleted.
 
 `{packages}` expands to the Go packages containing the changed files, `{files}`
-to the paths. If any changed path is not a Go file the scoped form is abandoned
-for the full one — a scoped run that quietly omits a changed file is worse than
-a slow complete one.
+to the paths. A path you name that is a **directory** is a package too, so the
+scope mrw prints can be handed straight back to it. Anything else — a `.md`, a
+`.templ`, a path that is not there — abandons the scoped form for the full one:
+a scoped run that quietly omits a changed file is worse than a slow complete
+one, and a run scoped to nothing that reports PASS is worse than both.
 
 Three rules it will not bend, each from a check that lied:
 
