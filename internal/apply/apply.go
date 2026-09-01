@@ -338,8 +338,18 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 		// guard that is parsed and then discarded is worse than no guard,
 		// because the caller believes the edit is pinned.
 		guard := func(at int) bool {
-			if h.Lines >= 0 && h.Lines != 1 {
-				fail(h, "lines=%d but %s addresses a single line", h.Lines, addrString(start, start))
+			// lines= is "the addressed range covers exactly N lines", and an
+			// insertion's address is a POSITION, not a span. A position that
+			// names a real line covers one; the two boundary positions —
+			// insert-after 0, and insert-before one past the last line — name
+			// no line and cover zero. Accepting lines=1 at a position where
+			// there is no line would let a guard assert something false.
+			covers := 1
+			if at < 1 || at > total {
+				covers = 0
+			}
+			if h.Lines >= 0 && h.Lines != covers {
+				fail(h, "lines=%d but %s addresses %d line(s)", h.Lines, addrString(start, start), covers)
 				return false
 			}
 			if h.Anchor == "" {

@@ -2,6 +2,7 @@ package adversarial
 
 import (
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
@@ -48,9 +49,18 @@ func TestKnownGap_AStatOnlyReadLicensesAnEdit(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Asserted in BOTH directions: a refusal is the change worth noticing, and
+	// so is a silent no-op that reports success — this project's defining
+	// failure mode, which a bare Failed==0 would pass.
 	if res.Failed != 0 {
 		t.Errorf("a --stat read no longer licenses an edit — that is arguably the better rule, "+
 			"but ADR-002 and the CLI's own help text still describe the old one: %s", res.Hunks[0].Reason)
+	}
+	if !res.Applied {
+		t.Error("the run reported no failure and did not apply either")
+	}
+	if got := readFile(t, root, "big.go"); !strings.Contains(got, "rewritten") {
+		t.Errorf("the edit reported ok but line 20 is unchanged:\n%s", got)
 	}
 }
 
@@ -71,6 +81,12 @@ func TestKnownGap_AOneLineReadLicensesAnEditElsewhereInTheFile(t *testing.T) {
 
 	if res.Failed != 0 {
 		t.Errorf("reading line 1 no longer licenses an edit to line 40: %s", res.Hunks[0].Reason)
+	}
+	if !res.Applied {
+		t.Error("the run reported no failure and did not apply either")
+	}
+	if got := readFile(t, root, "big.go"); !strings.Contains(got, "rewritten") {
+		t.Errorf("the edit reported ok but line 40 is unchanged:\n%s", got)
 	}
 }
 
@@ -93,6 +109,9 @@ func TestTwoSpellingsOfOnePathAreOneFile(t *testing.T) {
 	if res.Failed != 0 {
 		t.Errorf("read as %q then written as %q was refused as unseen: %s", "a.go", "./a.go", res.Hunks[0].Reason)
 	}
+	if got := readFile(t, root, "a.go"); !strings.HasPrefix(got, "package q") {
+		t.Errorf("the write reported ok but the file is unchanged:\n%s", got)
+	}
 }
 
 // And the guard itself still has to bite: a file mrw has never read is refused,
@@ -109,5 +128,8 @@ func TestAnUnreadFileIsStillRefused(t *testing.T) {
 	}
 	if res.Failed != 1 {
 		t.Errorf("an unread file was edited: failed=%d, applied=%v", res.Failed, res.Applied)
+	}
+	if got := readFile(t, root, "a.go"); got != goFile {
+		t.Errorf("the refusal still wrote the file:\n%s", got)
 	}
 }

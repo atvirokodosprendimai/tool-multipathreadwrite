@@ -136,3 +136,52 @@ func TestAnAnchorOnABoundaryAddressIsRefusedRatherThanIgnored(t *testing.T) {
 		})
 	}
 }
+
+// lines= counts what the address covers, and an insertion's address is a
+// POSITION. At a real line it covers one; at the two positions that name no
+// line — insert-after 0, and insert-before one past the last — it covers zero.
+// Both directions matter: rejecting the legal lines=0 costs a caller a guard
+// they are entitled to, and accepting lines=1 where there is no line lets them
+// assert something false.
+func TestLinesCountsWhatAnInsertionAddressActuallyCovers(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		op    string
+		start int
+		lines int
+		fails bool
+	}{
+		{"at a real line, lines=1 holds", "insert-after", 2, 1, false},
+		{"at a real line, lines=0 is false", "insert-after", 2, 0, true},
+		{"before the first line, lines=0 holds", "insert-after", 0, 0, false},
+		{"before the first line, lines=1 is false", "insert-after", 0, 1, true},
+		{"past the last line, lines=0 holds", "insert-before", 6, 0, false},
+		{"past the last line, lines=1 is false", "insert-before", 6, 1, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := tree(t, map[string]string{"a.go": goFile})
+
+			res, err := apply.Apply(root, []apply.Input{{
+				Path: "a.go", Start: tc.start, End: tc.start, Op: tc.op,
+				Body: []string{"// x"}, Lines: tc.lines,
+			}}, apply.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.fails && res.Failed != 1 {
+				t.Fatalf("lines=%d was accepted at %s %d: applied=%v", tc.lines, tc.op, tc.start, res.Applied)
+			}
+			if !tc.fails && res.Failed != 0 {
+				t.Fatalf("lines=%d was refused at %s %d: %s", tc.lines, tc.op, tc.start, res.Hunks[0].Reason)
+			}
+			// The file follows the verdict, in both directions.
+			got := readFile(t, root, "a.go")
+			if tc.fails && got != goFile {
+				t.Errorf("a refused hunk still wrote the file:\n%s", got)
+			}
+			if !tc.fails && !strings.Contains(got, "// x") {
+				t.Errorf("an accepted hunk did not write its body:\n%s", got)
+			}
+		})
+	}
+}
