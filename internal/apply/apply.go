@@ -76,7 +76,13 @@ type HunkResult struct {
 // one delete whose bounds are least self-evident.
 func (h HunkResult) MarshalJSON() ([]byte, error) {
 	type wire HunkResult // no methods, so no recursion
-	if h.Op == "delete" {
+	// AND applied. The bounds are only ever populated in the splice, which
+	// runs for hunks that landed — so a failed or skipped delete would
+	// otherwise marshal the pair as "" and be indistinguishable from a
+	// successful delete of blank lines, which is the one case this exists to
+	// make legible. Presence now means "this delete removed these lines" on
+	// both surfaces (PR #11 review, N3).
+	if h.Op == "delete" && h.Status == StatusOK {
 		return json.Marshal(wire(h))
 	}
 	return json.Marshal(struct {
@@ -398,6 +404,15 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 			continue
 		}
 		if !existed {
+			// An ABSOLUTE path in a plan is joined to the root, so it names
+			// something under the root that is almost never there — and "does
+			// not exist" then sends the caller looking for a file they can see
+			// with their own eyes. Say what actually happened instead.
+			if filepath.IsAbs(h.Path) {
+				fail(h, "%s is absolute, and every path in a plan is relative to the root: it named %s, "+
+					"which does not exist", h.Path, path)
+				continue
+			}
 			fail(h, "%s does not exist", path)
 			continue
 		}
@@ -466,7 +481,15 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 			}
 			resolved = append(resolved, h.resolveTo(start, start-1, "insert"))
 		case "replace", "delete":
-			if start < 1 || end > total || end < start {
+			// A reversed range is caught at PARSE time when both ends are
+			// literal, but $ resolves here — so `$-1` on a 5-line file arrived
+			// as 5-1 and was reported as "out of range", which it is not. The
+			// caller needs to be told the ends are the wrong way round.
+			if end < start {
+				fail(h, "range %s ends before it starts (it resolved to %d-%d)", h.SrcAddr, start, end)
+				continue
+			}
+			if start < 1 || end > total {
 				fail(h, "range %s is out of range (file has %d lines)", addrString(start, end), total)
 				continue
 			}

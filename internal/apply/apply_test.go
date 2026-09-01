@@ -860,3 +860,83 @@ func TestADeleteOfBlankLinesStillRecordsBounds(t *testing.T) {
 		}
 	}
 }
+
+// An ABSOLUTE path in a plan is joined to the root, so it names something under
+// the root that is almost never there. Reporting a bare "does not exist" sent
+// the caller looking for a file they can see with their own eyes; the message
+// has to say the path was reinterpreted.
+func TestAnAbsolutePathSaysItWasResolvedAgainstTheRoot(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "/etc/hosts", Start: 1, End: 1, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("an absolute path was accepted: %+v", res.Hunks)
+	}
+	if reason := res.Hunks[0].Reason; !strings.Contains(reason, "absolute") ||
+		!strings.Contains(reason, "relative to the root") {
+		t.Errorf("reason = %q, want it to say the path was resolved against the root", reason)
+	}
+}
+
+// `$` resolves in this package, so a reversed range built from it escapes the
+// parser's own check and used to be reported as "out of range" — which it is
+// not. `$-1` on a 5-line file is 5-1: the ends are the wrong way round.
+func TestAReversedRangeFromEOFSaysSo(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: EOF, End: 1, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("a reversed range was accepted: %+v", res.Hunks)
+	}
+	reason := res.Hunks[0].Reason
+	if !strings.Contains(reason, "ends before it starts") {
+		t.Errorf("reason = %q, want the reversed-range message", reason)
+	}
+	if strings.Contains(reason, "out of range") {
+		t.Errorf("a reversed range is not an out-of-range one: %q", reason)
+	}
+}
+
+// The bounds are populated in the splice, which runs only for hunks that land.
+// Keying --json presence on the op alone therefore marshalled `""` for a failed
+// or skipped delete, making it indistinguishable from a successful delete of
+// blank lines — the one case the fields exist to make legible.
+func TestAFailedOrSkippedDeleteRecordsNoBounds(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 99, End: 99, Op: "replace", Body: []string{"x"}, Lines: -1, Index: 0},
+		{Path: "f.txt", Start: 3, End: 3, Op: "delete", Lines: -1, Index: 1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed == 0 {
+		t.Fatalf("expected the out-of-range replace to fail: %+v", res.Hunks)
+	}
+	for _, h := range res.Hunks {
+		if h.Status == StatusOK {
+			continue
+		}
+		b, err := json.Marshal(h)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(b), "removed_first") || strings.Contains(string(b), "removed_last") {
+			t.Errorf("a %s %s hunk carries bounds it never recorded: %s", h.Status, h.Op, b)
+		}
+	}
+}

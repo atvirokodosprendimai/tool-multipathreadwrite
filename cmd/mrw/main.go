@@ -77,6 +77,20 @@ func rootCommand() *cli.Command {
 				Usage:   "resolve every path relative to `DIR`",
 			},
 		},
+		// An unknown subcommand is a USAGE error. Without this the framework
+		// falls through to its help machinery, which returns "No help topic
+		// for 'x'" carrying exit 3 — the status this tool documents as "a check
+		// ran and did not pass". A hook branching on 3 would read a typo'd
+		// command as a landed write with a red suite, which is the most
+		// expensive possible misreading (probed 2026-09-01).
+		CommandNotFound: func(_ context.Context, cmd *cli.Command, name string) {
+			names := make([]string, 0, len(cmd.Commands))
+			for _, c := range cmd.Commands {
+				names = append(names, c.Name)
+			}
+			cmd.Metadata = map[string]any{"notFound": cli.Exit(
+				fmt.Sprintf("unknown command %q (want %s)", name, strings.Join(names, ", ")), exitUsage)}
+		},
 		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd()},
 	}
 }
@@ -91,7 +105,17 @@ func main() {
 				"untouched and can now be deleted\n", strings.Join(moved, " and "), state.LegacyDir, dir)
 		}
 	}
-	if err := rootCommand().Run(context.Background(), os.Args); err != nil {
+	root := rootCommand()
+	err := root.Run(context.Background(), os.Args)
+	// An unknown subcommand cannot be reported by returning an error: the
+	// framework's CommandNotFound hook returns nothing, so it leaves its
+	// verdict on the command and main is what turns that into a status.
+	if err == nil {
+		if notFound, ok := root.Metadata["notFound"].(error); ok {
+			err = notFound
+		}
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "mrw:", err)
 		os.Exit(exitCode(err))
 	}
@@ -362,6 +386,14 @@ visible to whatever hooks watch file writes.`,
 			}
 
 			receipt := receipt{Result: res}
+			// --check with --dry-run is a contradiction the caller has to be
+			// told about: there is nothing to verify, and silently dropping the
+			// flag returns exit 0 to someone who believes their preview was
+			// checked. Say it, rather than refusing — the plan validation they
+			// also asked for did happen and is worth having.
+			if cmd.Bool("check") && cmd.Bool("dry-run") {
+				fmt.Fprintln(os.Stderr, "mrw: --check does nothing under --dry-run — nothing was written, so there is nothing to verify")
+			}
 			if cmd.Bool("check") && res.Applied && res.Failed == 0 {
 				var written []string
 				for _, f := range res.Files {

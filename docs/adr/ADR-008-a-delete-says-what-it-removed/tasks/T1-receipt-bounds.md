@@ -63,6 +63,7 @@ go test ./internal/apply/ -run 'Delete.*Bounds|OneLineDelete' -v 2>&1 | tee /tmp
 | `TestOnlyDeleteRecordsBounds` | `internal/apply/apply_test.go` | replace and the insertions carry the fields nowhere in `--json` — absence, not emptiness | — | S1, S2 |
 | `TestDeleteBoundsAreTrimmedOnARuneBoundary` | `internal/apply/apply_test.go` | the 60-character cut does not split a multi-byte rune into invalid UTF-8 | — | S2 |
 | `TestADeleteOfBlankLinesStillRecordsBounds` | `internal/apply/apply_test.go` | `--json` presence is keyed on the op, so a delete of blank lines still reports its bounds | — | S2, S3 |
+| `TestAFailedOrSkippedDeleteRecordsNoBounds` | `internal/apply/apply_test.go` | the fields are populated in the splice, so a hunk that did not land carries none — presence means "this delete removed these lines" | — | S2, S3 |
 
 ## Reachability
 
@@ -80,6 +81,7 @@ go test ./internal/apply/ -run 'Delete.*Bounds|OneLineDelete' -v 2>&1 | tee /tmp
 - 2026-09-01 · 6ac0c91* · mutant killed · exit 1 · `internal/apply/apply.go` · without omitempty a replace carries "removed_first": "" — the wiring table promises these fields on a delete hunk only · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306
 - 2026-09-01 · c8147c7* · mutant killed · exit 1 · `internal/apply/apply.go` · clip counting runes instead of bytes puts the receipt back over its 60-byte bound · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306
 - 2026-09-01 · c8147c7* · mutant killed · exit 1 · `internal/apply/apply.go` · MarshalJSON keying on the op is what puts removed_first on a delete of blank lines; omitempty alone drops it · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306
+- 2026-09-01 · 9ea8a95* · mutant killed · exit 1 · `internal/apply/apply.go` · N3: without the status check a failed or skipped delete marshals empty bounds, indistinguishable from a successful delete of blank lines · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306
 
 ## Invariants
 
@@ -123,3 +125,4 @@ answer.
 - 2026-09-01 · 6ac0c91* · exit 0 · `set -o pipefail …` · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306 · ms:2048
 - 2026-09-01 · c8147c7* · exit 0 · `set -o pipefail …` · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306 · ms:2610
 - 2026-09-01 · c8147c7* · exit 0 · `set -o pipefail …` · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306 · ms:2070
+- 2026-09-01 · 9ea8a95* · exit 0 · `set -o pipefail …` · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306 · ms:2037

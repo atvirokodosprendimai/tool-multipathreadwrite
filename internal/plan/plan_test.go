@@ -161,3 +161,20 @@ func TestDeleteBodyDoesNotWeakenTheOtherOps(t *testing.T) {
 		}
 	}
 }
+
+// sha= promised "hex" in its own error message while checking only the length,
+// so sha=zzzzzzzz parsed and failed later as a CONTENT mismatch — sending the
+// caller to look at their file instead of at their plan.
+func TestShaMustActuallyBeHexadecimal(t *testing.T) {
+	for _, v := range []string{"zzzzzzzz", "deadbeeg", "abcdefg1", "12345 78"} {
+		if _, err := Parse(strings.NewReader("@@ f.txt 1 delete sha=" + v + "\n")); err == nil {
+			t.Errorf("sha=%s parsed clean", v)
+		}
+	}
+	// Case is not part of the alphabet question: a sha is hex either way.
+	for _, v := range []string{"deadbeef", "DEADBEEF", "DeadBeef00"} {
+		if _, err := Parse(strings.NewReader("@@ f.txt 1 delete sha=" + v + "\n")); err != nil {
+			t.Errorf("sha=%s was rejected: %v", v, err)
+		}
+	}
+}

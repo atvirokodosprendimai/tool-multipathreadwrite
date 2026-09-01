@@ -134,3 +134,50 @@ here.
   one-line move plus the fixture that proves it — a fixture whose FIRST version
   must be checked against a mutant, because the obvious one trips the
   whole-file gate instead and passes with the ordering reversed.
+
+## Found by probing the built binary (2026-09-01)
+
+Four of these are behaviour changes rather than bugs — each makes something
+currently legal illegal — so they are recorded rather than fixed in passing. The
+bugs found in the same pass (an unknown subcommand exiting 3, an absolute path
+reported as "does not exist", `sha=` accepting non-hex, `$-1` reported as out of
+range, `--check` silently dropped under `--dry-run`) were fixed and carry
+contract rows.
+
+- **A DUPLICATED guard key silently discards the earlier one.** This is the
+  most serious of the four, because it is the codebase's own stated principle
+  turned inside out — `internal/apply/apply.go` says "a guard that is parsed and
+  then discarded is worse than no guard, because the caller believes the edit is
+  pinned", and the parser does exactly that. Reproduced: a hunk written
+  `anchor="NOPE" anchor="a"` applies with exit 0, the false guard gone. It holds
+  for `sha=`, `lines=`, `body=` and `raw=` too — last occurrence wins, silently.
+  Fix is a parse error on a repeated key. It is a behaviour change because a
+  plan that applies today would stop applying, which is why it is here and not
+  in that commit.
+
+- **`create` with an EMPTY body succeeds and reports `ok`.** ADR-006 refuses an
+  empty-bodied `replace` because a body lost in transit — a truncated emission,
+  an editor eating the last line — deletes code while the receipt says it
+  worked. The same truncation on a `create` at the end of a plan produces an
+  empty file and exits 0. The counter-argument is real: an empty file is a
+  legitimate thing to create, and `touch` is not a mistake. So this is a genuine
+  decision rather than an oversight, and it wants ADR-006's reasoning applied to
+  it explicitly — probably `create` with no body being legal only when written
+  as such deliberately, which the format has no way to say today.
+
+- **An ABSOLUTE path is silently reinterpreted as root-relative, and every
+  surface prints the original.** `mrw -C /root read /etc/hosts` serves
+  `/root/etc/hosts` under the header `==> /etc/hosts`. The containment is
+  correct and was verified — nothing outside the root is reachable — but the
+  receipt names a path the tool did not touch, so a reader (or a hook parsing
+  the output) concludes the system file was read. The write path now says the
+  path was resolved against the root when the target is missing; the READ path,
+  and a write that happens to find a file there, still display the original.
+  Refusing an absolute path outright is the clean answer — joining one is never
+  useful, since `-C /repo read /repo/f.go` already resolves to `/repo/repo/f.go`
+  — but it is a behaviour change.
+
+- **`raw=true` without `body=` is accepted and does nothing.** `raw=` exists to
+  switch off the header check inside a COUNTED body, so without `body=` it is a
+  guard the caller wrote that cannot fire. Harmless, and the same class as the
+  duplicate key: a caller believing something is pinned when nothing is.

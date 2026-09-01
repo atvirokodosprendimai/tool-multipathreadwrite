@@ -389,6 +389,26 @@ grep -qF '"removed_first": ""' <<<"$out" && grep -qF '"removed_last": ""' <<<"$o
   && ok "a delete of blank lines still carries its bounds in --json" \
   || bad "--json dropped the bounds for a blank-line delete: $out"
 
+# 19. Found by probing the built binary with wrong input rather than by a test.
+#     A typo'd subcommand used to exit 3 — the status this tool documents as
+#     "a check ran and did not pass" — because the framework fell through to
+#     its help machinery. A hook branching on 3 would read a typo as a landed
+#     write with a red suite.
+fixture
+out=$(m frobnicate 2>&1); rc=$?
+want 2 "$rc" "an unknown subcommand is a usage error, not a failed check"
+grep -q 'unknown command "frobnicate"' <<<"$out" && ok "and it names what was typed" || bad "does not name the command: $out"
+grep -q 'write' <<<"$out" && ok "and lists the real ones" || bad "does not list the alternatives: $out"
+
+# 19b. --check under --dry-run cannot verify anything, and silently dropping it
+#      returned exit 0 to a caller who believed their preview had been checked.
+printf '{"check":"echo THE-CHECK-RAN"}\n' > "$R/.quality-harness.json"
+out=$(printf '@@ a.go 3 delete\n' | m write --dry-run --check - 2>&1)
+grep -q 'does nothing under --dry-run' <<<"$out" \
+  && ok "--check under --dry-run says it did nothing" \
+  || bad "the dropped flag was silent: $out"
+grep -q 'THE-CHECK-RAN' <<<"$out" && bad "the check ran against an unwritten tree" || ok "and no check was run"
+
 echo
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

@@ -242,8 +242,15 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 		}
 		switch k {
 		case "sha":
+			// Length AND alphabet. The message has always promised "hex", and
+			// checking only the length let sha=zzzzzzzz through to fail later
+			// as a content mismatch — which sends the caller looking at their
+			// file instead of at their plan (probed 2026-09-01).
 			if len(v) < 8 {
 				return Hunk{}, 0, fmt.Errorf("sha= needs at least 8 hex characters, got %q", v)
+			}
+			if strings.TrimLeft(strings.ToLower(v), "0123456789abcdef") != "" {
+				return Hunk{}, 0, fmt.Errorf("sha= is not hexadecimal: %q", v)
 			}
 			h.SHA = strings.ToLower(v)
 		case "lines":
