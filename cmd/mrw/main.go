@@ -130,7 +130,7 @@ changed since mrw last looked, and the next write to it is refused.`,
 			}
 			sort.Strings(paths)
 			for _, p := range paths {
-				fmt.Printf("%s  %s\n", short(ledger[p]), p)
+				fmt.Printf("%s  %-24s  %s\n", short(ledger[p].SHA), ledger[p].Served(), p)
 			}
 			fmt.Printf("%d file(s) seen\n", len(paths))
 			return nil
@@ -336,10 +336,13 @@ visible to whatever hooks watch file writes.`,
 			// a change made behind its back still leaves the ledger disagreeing
 			// with the disk, and the next write refused.
 			if res.Applied {
-				wrote := map[string]string{}
+				// A file mrw just wrote is one it knows WHOLLY: it produced
+				// every line, so the observation covers the whole file and a
+				// chain of edits needs no re-read between steps.
+				wrote := map[string]seen.Observation{}
 				for _, f := range res.Files {
 					if f.Written {
-						wrote[f.Path] = f.SHAAfter
+						wrote[f.Path] = seen.Observation{SHA: f.SHAAfter}
 					}
 				}
 				if err := seen.Record(root, wrote); err != nil {

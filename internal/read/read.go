@@ -22,6 +22,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
 // Spec is one request: a path plus the ranges wanted from it. No ranges means
@@ -182,13 +184,29 @@ func parseRange(s string) (Range, error) {
 	return Range{Start: start, End: end, Text: s}, nil
 }
 
-// Run renders every spec to w. It returns the SHA-256 of every file it actually
-// served — reading a file is how mrw learns what that file currently holds, and
-// that observation is what later authorises an edit to it — plus the number of
-// specs it could not serve. A missing file is reported in the output rather
-// than aborting the batch, because the other N-1 answers are still worth having.
-func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[string]string, problems int) {
-	observed = map[string]string{}
+// Run renders every spec to w. It returns what it OBSERVED of every file it
+// served — the whole-file sha, and the line spans actually printed — plus the
+// number of specs it could not serve. A missing file is reported in the output
+// rather than aborting the batch, because the other N-1 answers are still worth
+// having.
+//
+// The spans are the point, not a detail. Reading a file is how mrw learns what
+// it holds, and that observation is what later authorises an edit — so what is
+// recorded has to be what the CALLER saw, not what mrw hashed. A --stat read
+// prints no content and therefore observes nothing; a ranged read observes its
+// ranges; a withheld span is not observed at all.
+func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[string]seen.Observation, problems int) {
+	observed = map[string]seen.Observation{}
+	note := func(path, sha string, spans [][2]int) {
+		key := filepath.Clean(path)
+		// Keyed the same way apply keys its hunks, so "a.go" read and "./a.go"
+		// written are one file rather than two ledger entries.
+		prev, ok := observed[key]
+		if ok && prev.SHA == sha && spans != nil && prev.Spans != nil {
+			spans = append(prev.Spans, spans...)
+		}
+		observed[key] = seen.Observation{SHA: sha, Spans: spans}
+	}
 	for _, sp := range specs {
 		b, err := os.ReadFile(filepath.Join(root, sp.Path))
 		if err != nil {
@@ -197,14 +215,19 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			continue
 		}
 		lines, sha := split(b)
-		// Keyed the same way apply keys its hunks, so "a.go" read and "./a.go"
-		// written are one file rather than two ledger entries.
-		observed[filepath.Clean(sp.Path)] = sha
 		fmt.Fprintf(w, "==> %s  %dL  %dB  sha %s\n", sp.Path, len(lines), len(b), sha[:8])
 		if opt.Stat {
+			// The fact, not the artifact — and a fact the caller cannot count
+			// lines in. Recording an empty span set says exactly that: mrw has
+			// hashed this file and shown you none of it.
+			note(sp.Path, sha, [][2]int{})
 			continue
 		}
 		spans, missed := resolve(sp.Ranges, lines, opt.Context)
+		// served accumulates only what is actually PRINTED below, so a withheld
+		// span never counts as seen.
+		var served [][2]int
+		whole := len(sp.Ranges) == 0
 		for _, m := range missed {
 			fmt.Fprintf(w, "!! no match for %s\n", m)
 			problems++
@@ -222,6 +245,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				cut, n = n-budget, budget
 			}
 			fmt.Fprintf(w, "@@ %d-%d\n", sn.start, sn.start+n-1)
+			served = append(served, [2]int{sn.start, sn.start + n - 1})
 			for i := 0; i < n; i++ {
 				if opt.Numbers {
 					fmt.Fprintf(w, "%5d| %s\n", sn.start+i, lines[sn.start+i-1])
@@ -234,6 +258,11 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				problems++
 			}
 			budget -= n
+		}
+		if whole {
+			note(sp.Path, sha, nil)
+		} else {
+			note(sp.Path, sha, served)
 		}
 	}
 	return observed, problems

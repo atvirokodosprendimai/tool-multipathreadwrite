@@ -100,37 +100,45 @@ func TestAnUnaccountedBlockIsReportedOncePerHunk(t *testing.T) {
 	}
 }
 
-// KNOWN GAP, and the sharpest one left in the plan format: body=N that
-// OVERCOUNTS silently eats the next hunk. An undercount is caught (the flush
-// check) and a satisfied count followed by stray text is caught (the stray
-// check), but a count two too large simply consumes the following header and
-// its body as if they were content the caller meant to write.
+// An OVERCOUNTED body=N is the last silent way to lose a hunk. An undercount is
+// caught by the flush check and stray text after a satisfied count is caught by
+// the stray check, but a count two too large simply consumes the following
+// header and its body as content the caller meant to write — and the plan then
+// applies, correctly by its own rules, missing an edit nobody will notice.
 //
 // It bit the author of the body= fix, in the commit that made it: a README hunk
-// declared body=32 for a 30-line body and swallowed the next hunk's header,
-// which then landed IN the README as literal text. The write reported "2
-// hunk(s), 2 file(s)" and was, by the format's own rules, correct.
+// declared body=32 for a 30-line body, ate the next hunk's header, and the
+// header landed IN the README as literal text.
 //
-// Detecting it needs a heuristic — "a body line that looks like a header is
-// suspicious" — and a heuristic that fires on a plan editing THIS project's own
-// documentation would be a false alarm on exactly the document that explains
-// the escape hatch. So it is pinned rather than fixed, and the mitigation is
-// the one the README already gives: count the body, or let --dry-run show you
-// the hunk that went missing.
-func TestKnownGap_AnOvercountedBodySwallowsTheNextHunk(t *testing.T) {
-	// body=4 takes two real lines, then the NEXT hunk's header and its body.
-	// The hunk after that parses normally, so nothing is left over and no
-	// stray-line check fires: the plan is silently two hunks, not three.
+// The rule that catches it without breaking the escape hatch: a counted body
+// line is refused only when it parses as a COMPLETE, VALID header. Prose about
+// the format does not — see the test below, which is the README's own example.
+func TestAnOvercountedBodyIsRejected(t *testing.T) {
 	doc := "@@ a.go 1 replace body=4\none\ntwo\n@@ b.go 1 replace\nswallowed\n@@ c.go 1 replace\nc body\n"
+
+	_, err := plan.Parse(strings.NewReader(doc))
+	if err == nil {
+		t.Fatal("body=4 swallowed the next hunk's header and its body without a word")
+	}
+	if !strings.Contains(err.Error(), "b.go") {
+		t.Errorf("the error does not name the hunk that was swallowed: %v", err)
+	}
+}
+
+// The escape hatch has to keep working, and it is not hypothetical: the README
+// documents anchor= with two example lines that begin with "@@ ", inside a hunk
+// that edits the README. Those lines are not valid headers — the trailing prose
+// is not key=value — so a body may still contain them.
+func TestABodyMayContainLinesThatMerelyLookLikeHeaders(t *testing.T) {
+	doc := "@@ README.md 1 replace body=2\n" +
+		"@@ page.templ 12 replace anchor=\"class=\" ← what you meant\n" +
+		"@@ page.templ 12 replace lines=1 ← and this\n"
 
 	hunks, err := plan.Parse(strings.NewReader(doc))
 	if err != nil {
-		t.Fatalf("an overcounted body is now reported: %v — good; delete this gap and say so in the README", err)
+		t.Fatalf("a body of documentation about the format was rejected: %v", err)
 	}
-	if len(hunks) != 2 {
-		t.Fatalf("want b.go swallowed into a.go, leaving 2 hunks, got %d", len(hunks))
-	}
-	if got := hunks[0].Body; len(got) != 4 || got[2] != "@@ b.go 1 replace" {
-		t.Errorf("the swallowed body changed shape: %q", got)
+	if len(hunks) != 1 || len(hunks[0].Body) != 2 {
+		t.Errorf("want one hunk with a 2-line body, got %d hunk(s) with %v", len(hunks), hunks[0].Body)
 	}
 }

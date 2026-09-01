@@ -9,14 +9,14 @@ import (
 
 func TestRoundTrip(t *testing.T) {
 	root := t.TempDir()
-	if err := Record(root, map[string]string{"a.go": "aaa", "b.go": "bbb"}); err != nil {
+	if err := Record(root, map[string]Observation{"a.go": {SHA: "aaa"}, "b.go": {SHA: "bbb"}}); err != nil {
 		t.Fatal(err)
 	}
 	l, err := Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if l["a.go"] != "aaa" || l["b.go"] != "bbb" {
+	if l["a.go"].SHA != "aaa" || l["b.go"].SHA != "bbb" {
 		t.Errorf("ledger = %v", l)
 	}
 }
@@ -35,25 +35,25 @@ func TestMissingLedgerIsEmptyNotAnError(t *testing.T) {
 // third: a read of b.go cannot invalidate an earlier read of a.go.
 func TestRecordMergesRatherThanReplaces(t *testing.T) {
 	root := t.TempDir()
-	if err := Record(root, map[string]string{"a.go": "aaa"}); err != nil {
+	if err := Record(root, map[string]Observation{"a.go": {SHA: "aaa"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := Record(root, map[string]string{"b.go": "bbb"}); err != nil {
+	if err := Record(root, map[string]Observation{"b.go": {SHA: "bbb"}}); err != nil {
 		t.Fatal(err)
 	}
 	l, _ := Load(root)
-	if len(l) != 2 || l["a.go"] != "aaa" {
+	if len(l) != 2 || l["a.go"].SHA != "aaa" {
 		t.Errorf("the second record dropped the first: %v", l)
 	}
 }
 
 func TestRecordOverwritesTheSamePath(t *testing.T) {
 	root := t.TempDir()
-	_ = Record(root, map[string]string{"a.go": "old"})
-	_ = Record(root, map[string]string{"a.go": "new"})
+	_ = Record(root, map[string]Observation{"a.go": {SHA: "old"}})
+	_ = Record(root, map[string]Observation{"a.go": {SHA: "new"}})
 	l, _ := Load(root)
-	if l["a.go"] != "new" {
-		t.Errorf("a.go = %q, want the newer observation", l["a.go"])
+	if l["a.go"].SHA != "new" {
+		t.Errorf("a.go = %+v, want the newer observation", l["a.go"])
 	}
 	// And exactly one line, not two.
 	lp, err := ReadPath(root)
@@ -64,14 +64,14 @@ func TestRecordOverwritesTheSamePath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := len(strings.Fields(strings.TrimSpace(string(b)))); n != 2 {
-		t.Errorf("ledger holds %d fields, want 2 (one sha + one path):\n%s", n, b)
+	if n := len(strings.Fields(strings.TrimSpace(string(b)))); n != 3 {
+		t.Errorf("ledger holds %d fields, want 3 (sha, spans, path):\n%s", n, b)
 	}
 }
 
 func TestForget(t *testing.T) {
 	root := t.TempDir()
-	_ = Record(root, map[string]string{"a.go": "aaa", "b.go": "bbb"})
+	_ = Record(root, map[string]Observation{"a.go": {SHA: "aaa"}, "b.go": {SHA: "bbb"}})
 	n, err := Forget(root, []string{"a.go", "never-recorded.go"})
 	if err != nil {
 		t.Fatal(err)
@@ -83,7 +83,7 @@ func TestForget(t *testing.T) {
 	if _, ok := l["a.go"]; ok {
 		t.Error("a.go survived Forget")
 	}
-	if l["b.go"] != "bbb" {
+	if l["b.go"].SHA != "bbb" {
 		t.Error("Forget removed a path it was not asked to")
 	}
 }
@@ -115,7 +115,7 @@ func TestMain(m *testing.M) {
 // The reported bug, as a test: a Record must leave the working tree untouched.
 func TestLedgerIsNotWrittenIntoTheRoot(t *testing.T) {
 	root := t.TempDir()
-	if err := Record(root, map[string]string{"a.go": "aaa"}); err != nil {
+	if err := Record(root, map[string]Observation{"a.go": {SHA: "aaa"}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(root, ".mrw")); err == nil {
@@ -144,11 +144,11 @@ func TestLegacyInTreeLedgerIsStillRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if l["old.go"] != "abc123" {
+	if l["old.go"].SHA != "abc123" {
 		t.Errorf("a legacy in-tree ledger was ignored: %v", l)
 	}
 	// And a subsequent write goes to the state dir, never back into the tree.
-	if err := Record(root, map[string]string{"new.go": "def456"}); err != nil {
+	if err := Record(root, map[string]Observation{"new.go": {SHA: "def456"}}); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(filepath.Join(legacy, Name))
