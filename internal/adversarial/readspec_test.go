@@ -89,6 +89,13 @@ func TestAPatternThatMatchesNothingSaysSo(t *testing.T) {
 // machine-readable half of visible. "Some of what you asked for is missing" is
 // true of a withheld span and of an unreadable file alike.
 //
+// The case that argues hardest FOR the current rule came from outside, in
+// review: `mrw read 'a.txt:/nosuchpattern/'` exited 1, and the reader had to
+// look at the output to learn whether the file was missing or the pattern
+// simply matched nothing. Exit 1 is what sent them to look. So the complaint is
+// narrower than it first appeared — it is about ONE flag, and its fix is a
+// distinct code or a flag-scoped exemption, not flattening exit 1.
+//
 // Left as it is, because changing it is a served-path change to the exit
 // contract and that is M's call, not mine. These tests hold the current answer
 // in BOTH directions so it cannot drift unnoticed while the question is open.
