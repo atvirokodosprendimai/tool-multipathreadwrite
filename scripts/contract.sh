@@ -372,6 +372,23 @@ grep -qF 'var _ = 1' "$R/c.go" \
   && ok "and nothing was written" \
   || bad "the file was modified despite the refusal"
 
+# 18. ADR-008, found by probing the built binary rather than by a test: a
+#     whitespace-only mismatch must not be reported as two identical strings,
+#     and a delete of BLANK lines still reports its bounds in --json.
+fixture
+printf 'alpha\n\tindented\nomega\n\n\ndone\n' > "$R/w.txt"
+m read w.txt >/dev/null
+out=$(printf '@@ w.txt 2 delete\n    indented\n' | m write - 2>&1)
+rc=$?
+want 1 "$rc" "a tab-against-spaces expected removal is refused"
+grep -qF '\tindented' <<<"$out" \
+  && ok "and the refusal shows the tab instead of trimming it away" \
+  || bad "the whitespace difference was trimmed out of the message: $out"
+out=$(printf '@@ w.txt 4-5 delete\n' | m write --dry-run --json - 2>&1)
+grep -qF '"removed_first": ""' <<<"$out" && grep -qF '"removed_last": ""' <<<"$out" \
+  && ok "a delete of blank lines still carries its bounds in --json" \
+  || bad "--json dropped the bounds for a blank-line delete: $out"
+
 echo
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

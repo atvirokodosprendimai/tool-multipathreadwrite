@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func write(t *testing.T, root, name, body string) {
@@ -713,27 +714,149 @@ func TestABodylessDeleteIsUnchanged(t *testing.T) {
 }
 
 // The expected-removal comparison quotes the line the file actually holds, so
-// it must not run before the ledger check: a caller who has not read the file
-// would otherwise get a line of it read back inside a refusal, which is exactly
-// the disclosure ADR-002 and ADR-005 draw the boundary around. The refusal a
-// caller sees for an unseen file is still "has not been read".
+// it must run BELOW covered(): a caller served lines 3-3 who addresses line 1
+// would otherwise get line 1 read back inside a refusal, which is exactly the
+// disclosure ADR-002 and ADR-005 draw the boundary around.
+//
+// The fixture is the whole point, and the first version of this test got it
+// wrong: it passed an EMPTY Seen map, so the file was not `known` and the
+// WHOLE-FILE gate answered ~130 lines earlier — the body comparison was never
+// reached in either arrangement, and the test passed with the ordering
+// reversed. A reviewer proved that by putting the defect back and watching the
+// whole suite stay green. Here the file IS known and its sha matches; only the
+// addressed RANGE was never served, so covered() is the gate under test.
 func TestAnExpectedRemovalIsNotCheckedAgainstAnUnseenFile(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "f.txt", abcde)
 
 	res, err := Apply(root, []Input{
-		{Path: "f.txt", Start: 2, End: 3, Op: "delete", Body: []string{"WRONG", "ALSO-WRONG"}, Lines: -1, Index: 0},
-	}, Options{Seen: map[string]Seen{}})
+		{Path: "f.txt", Start: 1, End: 1, Op: "delete", Body: []string{"GUESS"}, Lines: -1, Index: 0},
+	}, Options{Seen: map[string]Seen{
+		// Served line 3 and nothing else. The hunk addresses line 1.
+		"f.txt": {SHA: shaOfFile(t, root, "f.txt"), Spans: [][2]int{{3, 3}}},
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.Failed != 1 {
-		t.Fatalf("an unseen file was edited: %+v", res.Hunks)
+		t.Fatalf("a hunk addressing an unserved line was accepted: %+v", res.Hunks)
 	}
-	if reason := res.Hunks[0].Reason; !strings.Contains(reason, "has not been read") {
-		t.Errorf("reason = %q, want the read-before-modify refusal", reason)
+	reason := res.Hunks[0].Reason
+	if !strings.Contains(reason, "has not been read") {
+		t.Errorf("reason = %q, want the range-level ledger refusal", reason)
 	}
-	if reason := res.Hunks[0].Reason; strings.Contains(reason, "expected removal") {
-		t.Errorf("the body was compared against a file the caller never read: %q", reason)
+	if strings.Contains(reason, "expected removal") {
+		t.Errorf("the body was compared before the ledger check: %q", reason)
+	}
+	// The line itself must not appear. abcde's line 1 is "a", too short to
+	// search for, so assert on the shape instead: a refusal naming the
+	// comparison is the only way that line could have reached the caller.
+	if strings.Contains(reason, "GUESS") {
+		t.Errorf("the refusal quoted the unserved line back: %q", reason)
+	}
+}
+
+// The commonest mismatch a hand-written expected removal produces is
+// whitespace: a tab where the caller typed spaces, a dropped trailing space, a
+// stray CR. Trimming both sides before printing them made the refusal say
+// `plan says "indented", file has "indented"` — two identical strings and no
+// way to act on it, which is the outcome T2's Stop Condition names as worse
+// than having no guard.
+func TestAnExpectedRemovalDiffersOnlyInWhitespace(t *testing.T) {
+	for _, c := range []struct{ name, file, body string }{
+		{"tab against spaces", "\tindented", "    indented"},
+		{"dropped trailing space", "beta ", "beta"},
+		{"stray carriage return", "x\r", "x"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			root := t.TempDir()
+			write(t, root, "f.txt", "a\n"+c.file+"\nc\n")
+
+			res, err := Apply(root, []Input{
+				{Path: "f.txt", Start: 2, End: 2, Op: "delete", Body: []string{c.body}, Lines: -1, Index: 0},
+			}, Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Failed != 1 {
+				t.Fatalf("a whitespace mismatch was accepted: %+v", res.Hunks)
+			}
+			// The two halves of the message must not be the same string. %q
+			// renders a tab as \t and holds a trailing space inside the
+			// quotes, so the difference survives — as long as nothing trimmed
+			// it away first.
+			reason := res.Hunks[0].Reason
+			plan, file, found := strings.Cut(reason, ", file has ")
+			if !found {
+				t.Fatalf("unexpected message shape: %q", reason)
+			}
+			_, plan, _ = strings.Cut(plan, "plan says ")
+			if plan == file {
+				t.Errorf("the refusal shows two identical strings: %q", reason)
+			}
+		})
+	}
+}
+
+// trim used to slice at 57 BYTES, which splits a multi-byte rune. ADR-008 put
+// its output into --json, where an invalid UTF-8 fragment is re-encoded as
+// U+FFFD — a silently corrupted machine-readable field.
+func TestDeleteBoundsAreTrimmedOnARuneBoundary(t *testing.T) {
+	root := t.TempDir()
+	long := strings.Repeat("x", 55) + "😀😀😀"
+	write(t, root, "f.txt", long+"\nb\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 2, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := res.Hunks[0].RemovedFirst
+	if !utf8.ValidString(got) {
+		t.Errorf("RemovedFirst is not valid UTF-8: %q", got)
+	}
+	if strings.ContainsRune(got, utf8.RuneError) {
+		t.Errorf("RemovedFirst carries a replacement rune: %q", got)
+	}
+	if len(got) > 60 {
+		t.Errorf("RemovedFirst is %d bytes; the receipt must stay bounded", len(got))
+	}
+}
+
+// A delete of blank lines removed something, and both surfaces must say so.
+// `omitempty` keys on the VALUE, so it dropped the fields for exactly this
+// delete while the human receipt line — keyed on the op — printed
+// `from "" to ""`. Presence in --json is the op, not the value.
+func TestADeleteOfBlankLinesStillRecordsBounds(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "a\n\n\nb\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed=%d: %+v", res.Failed, res.Hunks)
+	}
+	b, err := json.Marshal(res.Hunks[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]any
+	if err := json.Unmarshal(b, &wire); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"removed_first", "removed_last"} {
+		v, present := wire[k]
+		if !present {
+			t.Errorf("%s is absent on a delete hunk: %s", k, b)
+			continue
+		}
+		if v != "" {
+			t.Errorf("%s = %v, want the empty line it removed", k, v)
+		}
 	}
 }

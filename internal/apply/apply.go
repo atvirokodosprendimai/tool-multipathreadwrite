@@ -14,6 +14,7 @@ package apply
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,8 +59,31 @@ type HunkResult struct {
 	// about what the range held; two bounded strings — the same two whatever
 	// the size of the range — are what make a wrong range visible in the
 	// receipt instead of in the next build (ADR-008).
-	RemovedFirst string `json:"removed_first,omitempty"`
-	RemovedLast  string `json:"removed_last,omitempty"`
+	//
+	// Their PRESENCE in --json is keyed on the op, not on these being
+	// non-empty: see MarshalJSON.
+	RemovedFirst string `json:"removed_first"`
+	RemovedLast  string `json:"removed_last"`
+}
+
+// MarshalJSON emits removed_first/removed_last on a delete hunk and on no
+// other, which is what the contract promises.
+//
+// `omitempty` cannot express that. It keys on the VALUE, so a delete that
+// removed blank lines — a common edit — marshalled with neither field, leaving
+// a consumer unable to tell it from a replace, while the human receipt line
+// (keyed on the op) said `from "" to ""`. The two surfaces disagreed for the
+// one delete whose bounds are least self-evident.
+func (h HunkResult) MarshalJSON() ([]byte, error) {
+	type wire HunkResult // no methods, so no recursion
+	if h.Op == "delete" {
+		return json.Marshal(wire(h))
+	}
+	return json.Marshal(struct {
+		wire
+		RemovedFirst string `json:"removed_first,omitempty"`
+		RemovedLast  string `json:"removed_last,omitempty"`
+	}{wire: wire(h)})
 }
 
 // FileResult reports one file's outcome, including the SHA-256 it had before
@@ -483,8 +507,17 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 					// Named the way an anchor failure is: the expectation
 					// beside the line actually there, so one attempt is enough
 					// to see which of the two is wrong.
+					//
+					// clip, NOT trim. The commonest mismatch a hand-written
+					// body produces is whitespace — a tab against four spaces,
+					// a dropped trailing space, a stray CR — and trimming both
+					// sides before printing them renders the two IDENTICAL on
+					// screen, which is the refusal this task's Stop Condition
+					// names as worse than no guard. %q makes what is left
+					// legible: a tab as \t, a CR as \r, a trailing space held
+					// inside the quotes.
 					fail(h, "expected removal differs at line %d: plan says %q, file has %q",
-						start+i, trim(want), trim(orig[start-1+i]))
+						start+i, clip(want), clip(orig[start-1+i]))
 					differs = true
 					break
 				}
@@ -682,11 +715,33 @@ func addrString(start, end int) string {
 }
 
 func trim(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) > 60 {
-		return s[:57] + "..."
+	return clip(strings.TrimSpace(s))
+}
+
+// clip bounds a line for a message WITHOUT trimming it. It is what trim is
+// built on, and the difference matters in exactly one place: a message that
+// reports two lines DIFFER must not first remove the whitespace they differ in.
+// A caller who typed four spaces where the file has a tab was, before this,
+// told `plan says "indented", file has "indented"`.
+//
+// The cut is on a rune boundary. `trim`'s old byte slice split multi-byte runes
+// and, since ADR-008 put trimmed lines into `--json`, encoding one produced
+// U+FFFD in a machine-readable field.
+func clip(s string) string {
+	if len(s) <= 60 {
+		return s
 	}
-	return s
+	out := make([]rune, 0, 57)
+	n := 0
+	for _, r := range s {
+		w := len(string(r))
+		if n+w > 57 {
+			break
+		}
+		out = append(out, r)
+		n += w
+	}
+	return string(out) + "..."
 }
 
 // short renders a sha for a message: enough to identify, short enough to read.

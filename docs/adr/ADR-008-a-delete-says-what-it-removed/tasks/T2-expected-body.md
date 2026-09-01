@@ -60,6 +60,7 @@ go test ./internal/plan/ ./internal/apply/ ./internal/adversarial/ -run 'DeleteB
 | `TestABodylessDeleteIsUnchanged` | `internal/apply/apply_test.go` | the opt-in stays opt-in | — | S1, S3 |
 | `TestDeleteBodyDoesNotWeakenTheOtherOps` | `internal/plan/plan_test.go` | S2 removes one rejection, not the section it lived in | — | S1, S2 |
 | `TestADeleteWhoseExpectedRemovalDiffersNamesTheLine` | `internal/apply/apply_test.go` | the refusal names the line, the expectation and what is there | — | S1, S3 |
+| `TestAnExpectedRemovalDiffersOnlyInWhitespace` | `internal/apply/apply_test.go` | a whitespace-only mismatch is reported as two DIFFERENT strings, not two identical ones | — | S3 |
 | `TestAnExpectedRemovalOfTheWrongLengthIsRejected` | `internal/apply/apply_test.go` | a body of the wrong length is the miscounted range this record is about | — | S1, S3 |
 | `TestAReplaceWithNoBodyIsStillRejectedNowThatDeleteTakesOne` | `internal/adversarial/planformat_test.go` | ADR-006's mirror-image rule survives this change | — | S1, S2 |
 
@@ -77,6 +78,8 @@ go test ./internal/plan/ ./internal/apply/ ./internal/adversarial/ -run 'DeleteB
 - 2026-09-01 · 9d3e013* · mutant killed · exit 1 · `internal/apply/apply.go` · the expected-removal comparison is what refuses a wrong body; without it a mismatched delete applies silently · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b
 - 2026-09-01 · 9d3e013* · mutant killed · exit 1 · `internal/apply/apply.go` · a body shorter than the range would otherwise compare only as far as it goes — the miscounted range this record is about · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b
 - 2026-09-01 · 91d4268* · mutant killed · exit 1 · `internal/apply/apply.go` · re-recorded after the comparison moved below the ledger check: it is still what refuses a wrong body · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b
+- 2026-09-01 · c8147c7* · mutant killed · exit 1 · `internal/apply/apply.go` · trimming both sides renders a whitespace-only mismatch as two identical strings — the exact defect probing found · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b
+- 2026-09-01 · c8147c7* · mutant killed · exit 1 · `internal/apply/apply.go` · B2: with the range-level ledger gate gone the body comparison answers first and quotes an unserved line — this is the ordering the fixed fixture pins · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b
 
 ## Invariants
 
@@ -120,3 +123,5 @@ the guard being absent.
   ```
 - 2026-09-01 · 9d3e013* · exit 0 · `set -o pipefail …` · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b · ms:2522
 - 2026-09-01 · 91d4268* · exit 0 · `set -o pipefail …` · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b · ms:2227
+- 2026-09-01 · c8147c7* · exit 0 · `set -o pipefail …` · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b · ms:2084
+- 2026-09-01 · c8147c7* · exit 0 · `set -o pipefail …` · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b · ms:1768

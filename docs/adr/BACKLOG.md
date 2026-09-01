@@ -109,3 +109,28 @@ here.
   worth it for a delete worth pinning and not for a two-line one. If plans in
   practice omit it exactly where it would have helped, that judgement is wrong
   and the default should move.
+
+- **`anchor=` reports its failure above the ledger check, so a failed anchor
+  reads one line of a range the caller was never served.** ADR-008 moved its own
+  expected-removal comparison BELOW `covered()` for exactly this reason and
+  pinned it with a test; its sibling one line up was noticed at the same time
+  and deliberately left, so this entry exists to stop the asymmetry reading as
+  an oversight. Reproduced 2026-09-01, `internal/apply/apply.go:453-456` — with
+  `f.txt` served at line 3 only:
+
+      FAIL f.txt 1 replace (plan line 1): anchor "nope" not in line 1: SECRET-LINE-ALPHA
+
+  It fires on `replace` and `delete` alike, and is repeatable per address, so it
+  is bounded by `clip`'s 60 characters per failed hunk rather than by one line
+  in total. Two corrections to the reasoning that first justified leaving it,
+  both from the PR #11 re-review. The gloss "the anchor is the caller's own
+  text" does not hold for the half that matters: the anchor is theirs, the
+  PRINTED LINE is the file's, and that is the part never served. In the other
+  direction the blast radius is smaller than it looks — `--root` still refuses
+  first, so nothing outside the tree mrw was pointed at is reachable. So this is
+  a contract violation against ADR-002 and ADR-005's "mrw does not tell you what
+  it has not shown you", not a privilege boundary: the caller could read the
+  file directly. Fix by moving the anchor check below `covered()`, which is a
+  one-line move plus the fixture that proves it — a fixture whose FIRST version
+  must be checked against a mutant, because the obvious one trips the
+  whole-file gate instead and passes with the ordering reversed.
