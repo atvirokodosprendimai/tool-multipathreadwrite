@@ -166,19 +166,31 @@ write, which is the point:
 | guard | asserts |
 |---|---|
 | `sha=<8+ hex>` | the whole file is what you read |
-| `lines=N` | the addressed range covers exactly N lines |
-| `anchor=<substring>` | it appears in the range's first line |
+| `lines=N` | the addressed range covers exactly N lines — and an insertion addresses one line, so `lines=1` is the only value it accepts |
+| `anchor=<substring>` | it appears in the addressed range's first line |
 
-⚠ **`anchor=` is a plain substring. There is no escape processing.** `\t` and
-`\"` are searched for as those literal characters, not as a tab and a quote.
-Quote the whole value if it contains spaces, keep it short, and prefer a
-distinctive fragment of the line over the whole line:
+All three are checked on **every** op, insertions included. An insertion at a
+drifted address puts the right text in the wrong place exactly as a replacement
+does, so a guard that is parsed and then discarded would be worse than no guard
+at all — the caller believes the edit is pinned.
 
-    @@ page.templ 12 replace anchor="class=\"muted\""   ← searches for backslashes
-    @@ page.templ 12 replace anchor="class="            ← what you meant
+The two boundary addresses have no line to check, and say so rather than
+passing: `insert-after 0` (before the first line) and `insert-before` one past
+the last line **refuse** an `anchor=`, because there is nothing there for it to
+appear in. Prepend and append are the two edits an anchor cannot guard.
+
+`anchor=` is matched as a substring, and a backslash escapes a quote or another
+backslash — an anchor names a line of source, and source contains quotes:
+
+    @@ page.templ 12 replace anchor="class=\"muted\""   ← searches for class="muted"
+    @@ page.templ 12 replace anchor="class="            ← shorter, and usually better
+
+Nothing else is escape-processed: `\t` is still the two characters backslash and
+`t`, not a tab. Quote the whole value if it contains spaces, keep it short, and
+prefer a distinctive fragment of the line over the whole line.
 
 A wrong anchor fails loudly and prints your anchor beside the real line, so it
-costs one attempt rather than a bad write. (This very edit needed `body=14`,
+costs one attempt rather than a bad write. (This very edit needed `body=30`,
 because those two example lines begin with `@@ ` and would otherwise be read as
 headers — the escape hatch documented above.)
 

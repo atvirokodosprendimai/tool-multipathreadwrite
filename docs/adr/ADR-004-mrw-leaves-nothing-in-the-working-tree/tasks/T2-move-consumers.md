@@ -45,6 +45,10 @@ resolved location and the ledger.
    substring with no escape processing, and that a codegen step belongs inside
    the declared `check` command (`templ generate && go test {packages}`).
 
+   > **Superseded on 2026-09-01**: `anchor=` now processes `\"` and `\\`, so the
+   > README documents escaping rather than its absence. The rest of this item
+   > stands. Kept as written because a task record is history, not instruction.
+
 ## Acceptance
 
 ```bash

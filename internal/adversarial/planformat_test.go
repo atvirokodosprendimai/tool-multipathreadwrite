@@ -84,3 +84,53 @@ func TestAnAnchorCanContainAQuote(t *testing.T) {
 		t.Errorf("anchor parsed as %q, want %q", hunks[0].Anchor, want)
 	}
 }
+
+// One mistake, one error. A satisfied body= count followed by a block of text
+// is a single accounting mistake, and one error per line would bury every other
+// hunk's diagnostic in the same report.
+func TestAnUnaccountedBlockIsReportedOncePerHunk(t *testing.T) {
+	doc := "@@ a.go 1 replace body=1\nthe body\nstray one\nstray two\nstray three\n"
+
+	_, err := plan.Parse(strings.NewReader(doc))
+	if err == nil {
+		t.Fatal("three unaccounted lines parsed clean")
+	}
+	if n := strings.Count(err.Error(), "is not part of any hunk"); n != 1 {
+		t.Errorf("three stray lines produced %d error(s), want 1:\n%s", n, err)
+	}
+}
+
+// KNOWN GAP, and the sharpest one left in the plan format: body=N that
+// OVERCOUNTS silently eats the next hunk. An undercount is caught (the flush
+// check) and a satisfied count followed by stray text is caught (the stray
+// check), but a count two too large simply consumes the following header and
+// its body as if they were content the caller meant to write.
+//
+// It bit the author of the body= fix, in the commit that made it: a README hunk
+// declared body=32 for a 30-line body and swallowed the next hunk's header,
+// which then landed IN the README as literal text. The write reported "2
+// hunk(s), 2 file(s)" and was, by the format's own rules, correct.
+//
+// Detecting it needs a heuristic — "a body line that looks like a header is
+// suspicious" — and a heuristic that fires on a plan editing THIS project's own
+// documentation would be a false alarm on exactly the document that explains
+// the escape hatch. So it is pinned rather than fixed, and the mitigation is
+// the one the README already gives: count the body, or let --dry-run show you
+// the hunk that went missing.
+func TestKnownGap_AnOvercountedBodySwallowsTheNextHunk(t *testing.T) {
+	// body=4 takes two real lines, then the NEXT hunk's header and its body.
+	// The hunk after that parses normally, so nothing is left over and no
+	// stray-line check fires: the plan is silently two hunks, not three.
+	doc := "@@ a.go 1 replace body=4\none\ntwo\n@@ b.go 1 replace\nswallowed\n@@ c.go 1 replace\nc body\n"
+
+	hunks, err := plan.Parse(strings.NewReader(doc))
+	if err != nil {
+		t.Fatalf("an overcounted body is now reported: %v — good; delete this gap and say so in the README", err)
+	}
+	if len(hunks) != 2 {
+		t.Fatalf("want b.go swallowed into a.go, leaving 2 hunks, got %d", len(hunks))
+	}
+	if got := hunks[0].Body; len(got) != 4 || got[2] != "@@ b.go 1 replace" {
+		t.Errorf("the swallowed body changed shape: %q", got)
+	}
+}

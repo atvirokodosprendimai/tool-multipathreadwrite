@@ -214,7 +214,7 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 	for n, i := range in {
 		r, ok := results[n]
 		if !ok {
-			r = HunkResult{Path: i.Path, Op: i.Op, SrcLine: i.SrcLine, Status: StatusOK}
+			r = HunkResult{Path: filepath.Clean(i.Path), Op: i.Op, SrcLine: i.SrcLine, Status: StatusOK}
 			r.Addr = addrString(i.Start, i.End)
 		}
 		if r.Status == StatusFailed {

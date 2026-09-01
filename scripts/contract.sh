@@ -124,6 +124,21 @@ after=$(ls -A "$R" | sort | tr '\n' ' ')
 [ -d "$R/.mrw" ] && bad "mrw created .mrw/ in the working tree" \
   || ok "no .mrw/ in the working tree"
 
+# 8. Guards are checked on every op, and a body= count is honoured. Each row
+#    here is a README claim that used to be false in silence: anchor= and
+#    lines= were consulted only on replace/delete, and body= was never counted.
+fixture
+out=$(printf '@@ a.go 3 insert-after anchor="NOPE"\nx\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "a false anchor on an insertion -> refused"
+out=$(printf '@@ a.go 3 insert-after lines=9\nx\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "lines=9 on an insertion -> refused"
+out=$(printf '@@ a.go 3 replace body=5\nx\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "body= asking for more lines than the plan holds -> parse error"
+printf 'package demo\n\nvar S = "muted"\n' > "$R/q.go"
+m read --stat q.go >/dev/null
+out=$(printf '@@ q.go 3 replace anchor="= \\"muted\\""\nvar S = "MUTED"\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "an anchor may contain an escaped quote"
+
 echo
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
