@@ -329,8 +329,8 @@ out=$(m check . 2>&1); rc=$?
 want 3 "$rc" "check . fails on a broken package one level down"
 grep -q 'TestBroken' <<<"$out" && ok "and the failure it reports is that package's" || bad "did not reach it: $out"
 
-# 16. ADR-008: a delete is the only op with no body, so the receipt is the only
-#     place the caller can see what a range actually held. This is the incident
+# 16. ADR-008: a bodyless delete consumes a range while asserting nothing about
+#     it, so the receipt is where a wrong range first becomes visible. This is
 #     that produced the record, reproduced: a range one line too long takes the
 #     closing brace of the function above, and the old receipt said `-4 +0  ok`.
 fixture
