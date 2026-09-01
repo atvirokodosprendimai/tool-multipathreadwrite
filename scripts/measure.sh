@@ -83,10 +83,12 @@ measure "A. Scattered sites, large files" \
   'internal/read/read.go:/^func merge/,/^}/' \
   'internal/check/check.go:/^func command/,/^}/'
 
-# Shape B: mrw's advantage scales with (file size / needed size) and with N.
-# Two sites in two files, where each site is most of its file — the saving is
-# real but much smaller.
-measure "B. Two sites, most of each small file wanted" \
+# Shape B: the same shape as A with half the sites — which is what isolates the
+# two axes, since the round-trip saving halves with N while the byte saving does
+# not. It was chosen in 2026-08-31 as "most of each small file wanted"; seen.go
+# and iter.go outgrew that description as features landed, and the label follows
+# what the script now measures rather than what it was picked for.
+measure "B. Two sites, mid-sized files" \
   'internal/seen/seen.go:/^func Record/,/^}/' \
   'internal/iter/iter.go:/^func Load/,/^}/'
 
