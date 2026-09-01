@@ -248,27 +248,86 @@ out=$(m read --max-lines 2 'big.txt:1-2,10-12,30-32' 2>&1); rc=$?
 want 1 "$rc" "a span withheld whole -> exit 1"
 grep -q 'WITHHELD' <<<"$out" && ok "and prints WITHHELD" || bad "wrong word: $out"
 
-# 15. `mrw check <dir>` scopes to that package. The README spells it exactly
-#     that way — `mrw check internal/apply # scoped to these paths` — and it ran
-#     the WHOLE-project command instead, because a directory has no .go
-#     extension and the scope derivation keyed on the extension alone. A typo'd
-#     path has no extension either, so that case must still fall back rather
-#     than scope to nothing and report PASS.
+# 15. `mrw check <dir>` scopes to that package AND EVERYTHING UNDER IT. The
+#     README spells the scoped form with a directory — `mrw check
+#     internal/apply` — and it ran the WHOLE-project command instead, because a
+#     directory has no .go extension. Fixing that with `./dir` alone bought a
+#     second silent failure: go's `./dir` is the package at the top, so
+#     `mrw check .` reported PASS with a failing package one level down. A path
+#     mrw cannot place as a package — a typo, a directory of prose, one named
+#     testdata, one outside the root — must still fall back rather than scope
+#     to nothing.
 fixture
-mkdir -p "$R/internal/apply"
+mkdir -p "$R/internal/apply/testdata" "$R/docs"
 printf 'package apply\n\nfunc A() int { return 1 }\n' > "$R/internal/apply/a.go"
+printf 'package testdata\n'                          > "$R/internal/apply/testdata/t.go"
+printf '# prose\n'                                   > "$R/docs/guide.md"
+# The directory outside the root holds a REAL package: pointed at /etc these two
+# rows passed with the boundary check removed, because /etc has no Go files in
+# it. A row that cannot fail asserts nothing.
+mkdir -p "$WORK/outside"
+printf 'package outside\n' > "$WORK/outside/o.go"
+ln -s "$WORK/outside" "$R/link"
 printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
 out=$(m check internal/apply 2>&1); rc=$?
 want 0 "$rc" "check on a directory runs"
-grep -q 'SCOPED ./internal/apply' <<<"$out" && ok "and scopes to that package" || bad "not scoped: $out"
+grep -qF 'SCOPED ./internal/apply/...' <<<"$out" && ok "and scopes to that package and its subtree" || bad "not scoped recursively: $out"
 out=$(m check ./internal/apply 2>&1)
-grep -q 'SCOPED ./internal/apply' <<<"$out" && ok "the ./dir form we print scopes too" || bad "not scoped: $out"
+grep -qF 'SCOPED ./internal/apply/...' <<<"$out" && ok "the ./dir form scopes too" || bad "not scoped: $out"
+out=$(m check ./internal/apply/... 2>&1)
+grep -qF 'SCOPED ./internal/apply/...' <<<"$out" && ok "the ./dir/... form we print round-trips" || bad "no round trip: $out"
 out=$(m check internal/apply/a.go 2>&1)
-grep -q 'SCOPED ./internal/apply' <<<"$out" && ok "a .go file still scopes" || bad "not scoped: $out"
+grep -qF 'SCOPED ./internal/apply' <<<"$out" && ok "a .go file still scopes to its own package" || bad "not scoped: $out"
+out=$(m check . 2>&1)
+grep -qF 'SCOPED ./...' <<<"$out" && ok "the root scopes to every package, not just the top one" || bad "not recursive: $out"
 out=$(m check internal/aply 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "a mistyped path falls back, not scopes to nothing" || bad "scoped to nothing: $out"
+out=$(m check docs 2>&1)
+grep -q 'echo FULL' <<<"$out" && ok "a directory with no package falls back" || bad "scoped to a non-package: $out"
+out=$(m check internal/apply/testdata 2>&1)
+grep -q 'echo FULL' <<<"$out" && ok "testdata holds nothing the ... form matches, so it falls back" || bad "scoped to testdata: $out"
+out=$(m check ../outside 2>&1)
+grep -q 'echo FULL' <<<"$out" && ok "a path outside the root falls back, as read and write refuse it" || bad "scoped outside the root: $out"
+out=$(m check link 2>&1)
+# Not a second boundary row: WalkDir does not follow a symlink, so this one
+# falls back whether or not rooted.Resolve refuses it. It is here because the
+# symlink is the spelling a caller actually reaches for.
+grep -q 'echo FULL' <<<"$out" && ok "a symlinked directory is not scoped either" || bad "scoped through a symlink: $out"
 out=$(m check --full 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "--full still ignores every scope" || bad "not full: $out"
+
+# 15c. A .go path that is not there falls back, like the directory typo it is.
+#      Placing `filepath.Dir` without asking whether the FILE exists let a
+#      mistyped name at a module root scope to `.`, run the root package and
+#      report PASS — the silent omission section 15 exists to prevent, wearing
+#      the one hat that still fitted.
+fixture
+mkdir -p "$R/pkg"
+printf 'package pkg\n' > "$R/pkg/p.go"
+# The fixture root already holds a package, which is what makes these rows able
+# to fail: without the existence check a phantom .go name places `.` and scopes
+# to the root package, so the run is green and covers nothing the caller named.
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
+out=$(m check chek.go 2>&1)
+grep -qF 'FULL' <<<"$out" && ! grep -qF 'SCOPED' <<<"$out" && ok "a mistyped .go file at the root is not scoped" || bad "scoped a phantom: $out"
+out=$(m check nosuchdir/nope.go 2>&1)
+grep -qF 'FULL' <<<"$out" && ! grep -qF 'SCOPED' <<<"$out" && ok "a .go file in a missing directory is not scoped" || bad "scoped a phantom dir: $out"
+out=$(m check a.go 2>&1)
+grep -qF 'SCOPED .' <<<"$out" && ok "a .go file that IS there still scopes" || bad "did not scope a real file: $out"
+out=$(m check pkg/p.go 2>&1)
+grep -qF 'SCOPED ./pkg' <<<"$out" && ok "and so does one in a subpackage" || bad "did not scope a real subpackage file: $out"
+
+# 15b. The row the ./dir form could not fail: a REAL check, on a tree whose
+#      failing package is one level below the one the scope names. With
+#      `go test .` this exits 0 and reports PASS.
+fixture
+mkdir -p "$R/sub"
+printf 'package sub\n'                                                                      > "$R/sub/s.go"
+printf 'package sub\n\nimport "testing"\n\nfunc TestBroken(t *testing.T) {\n\tt.Fatal("BROKEN")\n}\n' > "$R/sub/s_test.go"
+printf '{"check":"echo NOT-SCOPED","scoped_check":"go test {packages}"}\n' > "$R/.quality-harness.json"
+out=$(m check . 2>&1); rc=$?
+want 3 "$rc" "check . fails on a broken package one level down"
+grep -q 'TestBroken' <<<"$out" && ok "and the failure it reports is that package's" || bad "did not reach it: $out"
 
 echo
 if [ "$fails" -eq 0 ]; then
