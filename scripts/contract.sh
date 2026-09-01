@@ -222,13 +222,12 @@ want 2 "$rc" "a replace with no body -> parse error, not a deletion"
 grep -q 'say delete' <<<"$out" && ok "the error names the op that means it" || bad "unclear reason: $out"
 grep -q 'func A' "$R/a.go" && ok "the line is still there" || bad "the line was deleted"
 
-
 # 14. The README lists four reasons `read` exits 1 and names the word each one
 #     prints. That table is only useful if the words are the binary's, so each
 #     row is driven here — this is the same drift that let the README describe
 #     anchor= escaping backwards for a whole PR.
 fixture
-printf 'SECRET\n' > "$WORK/outside.txt"
+printf 'SECRET\n' > "$(dirname "$R")/outside.txt"
 : > "$R/big.txt"; for i in $(seq 1 40); do echo "line $i" >> "$R/big.txt"; done
 out=$(m read nosuch.txt 2>&1); rc=$?
 want 1 "$rc" "an unreadable file -> exit 1"
@@ -242,6 +241,13 @@ grep -q 'no match for' <<<"$out" && ok "and prints no match for" || bad "wrong w
 out=$(m read --max-lines 5 big.txt 2>&1); rc=$?
 want 1 "$rc" "a --max-lines cap -> exit 1"
 grep -q 'withheld' <<<"$out" && ok "and says what it withheld" || bad "wrong word: $out"
+# The row names two spellings and the case above reaches only the lowercase one:
+# a whole-file cap cuts a span in half, while WITHHELD needs a span dropped
+# entirely, which needs several ranges in one spec.
+out=$(m read --max-lines 2 'big.txt:1-2,10-12,30-32' 2>&1); rc=$?
+want 1 "$rc" "a span withheld whole -> exit 1"
+grep -q 'WITHHELD' <<<"$out" && ok "and prints WITHHELD" || bad "wrong word: $out"
+
 echo
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

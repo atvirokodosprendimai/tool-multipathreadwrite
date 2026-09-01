@@ -95,5 +95,10 @@ replace fails identically, so the check cannot be sidestepped by spelling.
 - `mrw read` gains a third reason to exit 1 (refused, alongside unreadable and
   no-match). The output distinguishes them; the exit status does not, which is
   the open question ADR-003's exit table already carries.
+  **Amended 2026-09-01:** four, not three. This bullet omitted `--max-lines`,
+  which already withheld lines and exited 1 when ADR-006 was written — contract
+  section 10 drove it while this record's own rows were section 13. Annotated
+  rather than rewritten, because a decision record is history; the current list
+  lives in README "Exit status" and is pinned by `scripts/contract.sh` §14.
 - The boundary is now testable in isolation, which is how the shared-prefix trap
   (`/repo-backup` counting as inside `/repo`) got a test rather than a comment.
