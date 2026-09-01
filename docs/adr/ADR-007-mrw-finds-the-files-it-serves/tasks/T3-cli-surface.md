@@ -22,7 +22,7 @@ whether or not `--grep` survives its go/no-go.
 | `cmd/mrw/main.go` | edit | the three flags, the precedence table, the "no file matched" line, and the call to `read.Walk` — this is what SELECTS the walk |
 | `cmd/mrw/planpath_test.go` | edit | CLI-level tests, possible here because #4 unwired the framework's exit handler |
 | `README.md` | edit | the flags, the precedence table, the exclusion algorithm, one worked example, and the go/no-go cost measurement from T2 |
-| `scripts/contract.sh` | edit | section 15 — every flag and every usage error driven through the real binary |
+| `scripts/contract.sh` | edit | section 16 — every flag and every usage error driven through the real binary |
 
 ## Ordered Steps
 
@@ -48,7 +48,7 @@ whether or not `--grep` survives its go/no-go.
    `--max-lines N` caps "per file", which rule 4 shows is false for two
    hand-written specs naming one file; it caps per SPEC, and the walk
    deduplicates so it is per file for everything the walk produces. [proof: acceptance]
-7. [S7] Add contract section 15 driving each flag, each usage error, and the
+7. [S7] Add contract section 16 driving each flag, each usage error, and the
    empty-result case. [proof: acceptance]
 
 ## Acceptance
@@ -57,7 +57,7 @@ whether or not `--grep` survives its go/no-go.
 set -o pipefail
 go test ./cmd/mrw/ -run 'TestGrep|TestFilesFrom|TestExclude' -v 2>&1 | tee /tmp/adr007-t3.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr007-t3.out \
-  && grep -q '^# 15\.' scripts/contract.sh \
+  && grep -q '^# 16\.' scripts/contract.sh \
   && grep -q '\-\-files-from' README.md && grep -q '\-\-exclude' README.md \
   && grep -qE 'measured 2026-[0-9]{2}-[0-9]{2}' README.md \
   && ! grep -q 'cap per file' README.md \
@@ -86,7 +86,7 @@ rows — an unchanged `contract.sh` exits 0 on its own.
 |------|------------------------|
 | 1 — exists | the seven tests above |
 | 2 — something selects it | `cmd/mrw/main.go`'s flag registration; deleting the `--grep` case makes `TestGrepWithNoPathsWalksTheRoot` fail |
-| 3 — the caller can discover it | `mrw read --help` lists all three, the README carries the precedence table, and `scripts/contract.sh` §15 drives them through the real binary — the acceptance fence asserts both documents changed |
+| 3 — the caller can discover it | `mrw read --help` lists all three, the README carries the precedence table, and `scripts/contract.sh` §16 drives them through the real binary — the acceptance fence asserts both documents changed |
 | 4 — it is used | nothing measures this yet |
 
 ## Mutation Log
