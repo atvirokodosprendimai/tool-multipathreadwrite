@@ -412,6 +412,20 @@ grep -q 'cannot run under --dry-run' <<<"$out" \
   && ok "and the refusal says why" \
   || bad "unclear refusal: $out"
 grep -q 'THE-CHECK-RAN' <<<"$out" && bad "the check ran against an unwritten tree" || ok "and no check was run"
+#      The PRECEDENCE, not just the refusal: a usage error must preempt every
+#      kind of plan error, or it preempts inconsistently. With this test below
+#      the parse, an unparseable plan beat the flag pair while a plan whose
+#      HUNK failed lost to it — so the caller was told about their flags and
+#      never learned their address was out of range, and exit 1 (which promises
+#      an untouched tree) became exit 2.
+printf '@@ a.go 99 delete\n'        > "$R/fail.mrw"
+printf '@@ a.go notanaddr delete\n' > "$R/parse.mrw"
+out=$(m write --dry-run "$R/fail.mrw" 2>&1); rc=$?
+want 1 "$rc" "a failing hunk alone is exit 1, and says which address"
+grep -q 'out of range' <<<"$out" && ok "the caller learns the real problem" || bad "no diagnosis: $out"
+m write --dry-run --check "$R/fail.mrw"  >/dev/null 2>&1; want 2 "$?" "the flag pair preempts a failing hunk"
+m write --dry-run --check "$R/parse.mrw" >/dev/null 2>&1; want 2 "$?" "and preempts a parse error the same way"
+m write --dry-run --check "$R/nope.mrw"  >/dev/null 2>&1; want 2 "$?" "and preempts a missing plan file"
 
 echo
 if [ "$fails" -eq 0 ]; then

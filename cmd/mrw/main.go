@@ -297,6 +297,19 @@ visible to whatever hooks watch file writes.`,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args().Slice()
+			// Flag contradictions are settled BEFORE the plan is read. A usage
+			// error means "fix the call", and it has to preempt everything or
+			// it preempts inconsistently: with the check below the parse, an
+			// unparseable plan won against this pair while a plan whose HUNK
+			// failed lost to it — the caller was told about their flags and
+			// never learned their address was out of range, and exit 1, which
+			// promises an untouched tree, became exit 2. Both are "your plan is
+			// wrong" and they ranked differently only because of where the test
+			// sat (PR #11 review, F3).
+			if cmd.Bool("check") && cmd.Bool("dry-run") {
+				return cli.Exit("--check cannot run under --dry-run: nothing is written, so there is "+
+					"nothing to verify. Drop one of the two — a check that did not run is not a pass", exitUsage)
+			}
 			if len(args) > 1 {
 				return cli.Exit("write takes at most one plan file", exitUsage)
 			}
@@ -386,17 +399,6 @@ visible to whatever hooks watch file writes.`,
 			}
 
 			receipt := receipt{Result: res}
-			// --check with --dry-run asks for a verdict on a tree that will not
-			// be written, so no check can run — and ADR-003 rule 2 already
-			// decides what that is worth: a check that did not run is not a
-			// pass, and its exit table lists a missing check under 2 alongside
-			// usage. Warning and exiting 0 (the first version of this fix)
-			// handed success to a caller who asked for verification and got
-			// none, which is the exact shape rule 2 exists to refuse.
-			if cmd.Bool("check") && cmd.Bool("dry-run") {
-				return cli.Exit("--check cannot run under --dry-run: nothing is written, so there is "+
-					"nothing to verify. Drop one of the two — a check that did not run is not a pass", exitUsage)
-			}
 			if cmd.Bool("check") && res.Applied && res.Failed == 0 {
 				var written []string
 				for _, f := range res.Files {
