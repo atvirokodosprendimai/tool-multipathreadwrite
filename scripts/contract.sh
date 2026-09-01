@@ -200,6 +200,28 @@ grep -q '^mrw: ' <<<"$out" && ok "the error carries mrw's own prefix" || bad "no
 out=$(cd "$R" && "$MRW" -C "$R" write --dry-run plan.mrw 2>&1); rc=$?
 want 0 "$rc" "the same plan, run from beside it, applies"
 
+# 13. The root confines READS as well as writes, and a replace with no body is
+#     refused rather than deleting the line it addresses. Both were reported
+#     from outside: `read ../outside.txt` served the file at exit 0 and a
+#     symlink out of the tree was followed, while the identical path in a plan
+#     was refused; and an empty-bodied replace deleted a line while the receipt
+#     said ok.
+fixture
+printf 'SECRET\n' > "$WORK/outside.txt"
+ln -sf /etc/hosts "$R/hosts.link"
+out=$(m read ../outside.txt 2>&1); rc=$?
+want 1 "$rc" "reading outside the root -> refused"
+grep -q 'SECRET' <<<"$out" && bad "the file outside the root was printed" \
+  || ok "nothing outside the root was printed"
+out=$(m read hosts.link 2>&1); rc=$?
+want 1 "$rc" "a symlink out of the root -> refused"
+out=$(m read a.go 2>&1); rc=$?
+want 0 "$rc" "an ordinary read still works"
+out=$(printf '@@ a.go 3 replace\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "a replace with no body -> parse error, not a deletion"
+grep -q 'say delete' <<<"$out" && ok "the error names the op that means it" || bad "unclear reason: $out"
+grep -q 'func A' "$R/a.go" && ok "the line is still there" || bad "the line was deleted"
+
 echo
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

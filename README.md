@@ -216,7 +216,7 @@ a test fixture — say `raw=true` and the check stands down for that hunk:
     @@ a.go 1 replace
 
 If any hunk fails, **every** hunk is reported and nothing is written. Siblings
-report `skipped`, never `ok`.
+report `skip` in the human output and `"skipped"` in `--json`, never `ok`.
 
 ## Read before modify
 
