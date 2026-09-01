@@ -57,7 +57,7 @@ Every row below is asserted by a script, against the real binary in a throwaway
 repo, by making each promise go wrong on purpose:
 
 ```sh
-./scripts/contract.sh      # 64 assertions; exit 0 only if all hold
+./scripts/contract.sh      # 72 assertions; exit 0 only if all hold
 ```
 
 | test | result |
@@ -331,8 +331,9 @@ result. Entries live in `.mrw/iteration` — plain text, diffable, hand-editable
 
 ```sh
 mrw check                # scoped to the working set
-mrw check internal/apply # scoped to these paths
-mrw check --full         # the whole project
+mrw check internal/apply # that package and everything under it
+mrw check .              # every package in the tree, scoped
+mrw check --full         # the whole project, unscoped
 mrw write --check plan.mrw
 ```
 
@@ -364,12 +365,20 @@ the full command — which is what you want after regenerating anyway.
 mrw writes nothing into your repository; a pre-existing `.mrw/` from an older
 version is copied across once, announced, and never deleted.
 
-`{packages}` expands to the Go packages containing the changed files, `{files}`
-to the paths. A path you name that is a **directory** is a package too, so the
-scope mrw prints can be handed straight back to it. Anything else — a `.md`, a
-`.templ`, a path that is not there — abandons the scoped form for the full one:
-a scoped run that quietly omits a changed file is worse than a slow complete
-one, and a run scoped to nothing that reports PASS is worse than both.
+`{packages}` expands to the Go packages your paths cover, `{files}` to the paths
+themselves. A **file** maps to its own package, `./dir`. A **directory** maps to
+its subtree, `./dir/...` — because `mrw check .` is how you say "check
+everything here", and go's `./dir` is the one package at the top: scoping a
+directory that way reported PASS with a failing package one level down. The
+trailing `/...` is stripped before a path is placed, so the scope mrw prints can
+be handed straight back to it.
+
+Anything mrw cannot place as a package abandons the scoped form for the full
+one: a `.md` or a `.templ`, a path that is not there, a directory holding no
+package go will build (prose, or one named `testdata`), and a path resolving
+outside the root, which `read` and `write` refuse outright. A scoped run that
+quietly omits a changed file is worse than a slow complete one, and a run scoped
+to nothing that reports PASS is worse than both.
 
 Three rules it will not bend, each from a check that lied:
 

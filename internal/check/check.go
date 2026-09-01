@@ -21,12 +21,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
 // Config is the project's declared verification, read from
@@ -168,55 +171,169 @@ func command(root string, cfg Config, paths []string) (cmdline string, scoped bo
 	return cfg.Check, false
 }
 
-// packages maps paths to ./dir form, or returns "" if any of them is neither a
-// Go file nor a directory in the tree — in which case the caller must fall back
-// to the full check.
+// packages maps paths to the go patterns that cover them, or returns "" when
+// any of them is a path this package cannot place — in which case the caller
+// falls back to the full check.
 //
-// A DIRECTORY counts because naming one is how a caller asks for a package
-// directly: `mrw check internal/apply` is the documented spelling, and ./dir is
-// the form this function itself emits, so a scope mrw printed can be handed
-// straight back to it. Paths reaching here from a write are always files, so
-// that path is unaffected.
+// A .go FILE maps to its own directory, ./dir. That is the package the edit
+// touched, and nothing below it was touched by naming it.
 //
-// Only an EXISTING directory qualifies, and that is the whole reason root is a
-// parameter. A mistyped path has no extension either, and scoping to it would
-// run a check that covers nothing and then report PASS — falling back to the
-// full command is the honest reading of a path we cannot place.
+// A DIRECTORY maps to ./dir/..., recursively. Naming one is how a caller asks
+// for a subtree — `mrw check .` is the most natural way to say "check
+// everything here" — and go's ./dir is the one package at the top: scoping a
+// directory that way reported PASS with a failing package one level down,
+// which is the same silent omission this fallback exists to prevent. The
+// trailing /... is stripped before a path is placed, so a scope mrw printed
+// can be handed straight back to it.
+//
+// Three kinds of path are refused, and they are one rule: a scope that covers
+// less than the caller asked for is worse than a slow complete run.
+//
+//  1. A path that is not there. A typo has no extension either, and scoping to
+//     it runs a check covering nothing that then reports PASS.
+//  2. A directory holding no package go will build — a directory of prose, or
+//     one named testdata, which the ... form excludes by design. Both make
+//     `go test` exit 1 for a reason that is not about the code.
+//  3. A path that resolves outside the root. read and write both refuse one
+//     (ADR-006); a scoped command naming a directory the caller never scoped
+//     is the same escape on a third path.
+//
+// Paths reaching here from a write are always files, so `write --check` meets
+// none of this.
 func packages(root string, paths []string) string {
-	seen := map[string]bool{}
+	trees := map[string]bool{} // a named directory, covered recursively
+	pkgs := map[string]bool{}  // the directory of a named .go file
 	for _, p := range paths {
-		var dir string
-		switch {
-		case filepath.Ext(p) == ".go":
-			dir = filepath.Dir(p)
-		case isDir(root, p):
-			dir = p
-		default:
+		if filepath.Ext(p) == ".go" {
+			dir, ok := placed(root, filepath.Dir(p))
+			if !ok {
+				return ""
+			}
+			pkgs[dir] = true
+			continue
+		}
+		dir, ok := placed(root, strings.TrimSuffix(p, "/..."))
+		if !ok || !holdsPackage(filepath.Join(root, dir)) {
 			return ""
 		}
-		dir = filepath.ToSlash(filepath.Clean(dir))
-		if dir == "." {
-			dir = ""
+		trees[dir] = true
+	}
+	out := make([]string, 0, len(trees)+len(pkgs))
+	for d := range trees {
+		if covered(trees, d, false) {
+			continue
 		}
-		seen["./"+dir] = true
+		out = append(out, treePattern(d))
 	}
-	if len(seen) == 0 {
+	for d := range pkgs {
+		if covered(trees, d, true) {
+			continue
+		}
+		out = append(out, pkgPattern(d))
+	}
+	if len(out) == 0 {
 		return ""
-	}
-	out := make([]string, 0, len(seen))
-	for d := range seen {
-		out = append(out, strings.TrimSuffix(d, "/"))
 	}
 	sort.Strings(out)
 	return strings.Join(out, " ")
 }
 
-// isDir reports whether p names a directory under root. It is the only question
-// this package asks the filesystem about a path, and it is asked only to tell a
-// package from a typo.
-func isDir(root, p string) bool {
-	fi, err := os.Stat(filepath.Join(root, p))
-	return err == nil && fi.IsDir()
+// placed returns p as a cleaned, slash-separated path relative to root, and
+// reports whether it stays inside it. Existence is not asked about here: a .go
+// file named by a write is placed without touching the filesystem, and a
+// directory's existence is settled by holdsPackage, which has to walk it
+// anyway.
+func placed(root, p string) (string, bool) {
+	full, err := rooted.Resolve(root, p)
+	if err != nil {
+		return "", false
+	}
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return "", false
+	}
+	if real, err := filepath.EvalSymlinks(absRoot); err == nil {
+		absRoot = real
+	}
+	rel, err := filepath.Rel(absRoot, full)
+	if err != nil {
+		return "", false
+	}
+	return filepath.ToSlash(rel), true
+}
+
+// holdsPackage reports whether dir is a directory that `go test ./dir/...`
+// would find at least one package in. It is the only question this package
+// asks the filesystem about a path, and it is asked to tell a package from a
+// typo and from a directory of prose.
+//
+// The exclusions are go's own, applied to the NAMED directory as well as to
+// what is under it: a directory called testdata, or one beginning with "." or
+// "_", holds nothing the ... form matches, and neither does a file with those
+// prefixes. Verified 2026-09-01: `go test ./testdata/...` exits 1 with
+// "matched no packages", so scoping to one fails loudly for a reason that has
+// nothing to do with the caller's edit.
+func holdsPackage(dir string) bool {
+	if excluded(filepath.Base(dir)) {
+		return false
+	}
+	found := false
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if p == dir {
+				return err
+			}
+			return fs.SkipDir
+		}
+		if d.IsDir() {
+			if p != dir && excluded(d.Name()) {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(d.Name(), ".go") && !excluded(d.Name()) {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
+}
+
+// excluded reports whether go's package loader ignores an entry with this name.
+func excluded(name string) bool {
+	return name == "testdata" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")
+}
+
+// covered reports whether dir already falls inside one of the recursively
+// scoped trees. A tree covers itself only for the pkgs set, where naming a
+// file inside a named directory would otherwise print the same package twice.
+func covered(trees map[string]bool, dir string, includeSelf bool) bool {
+	for t := range trees {
+		switch {
+		case t == dir:
+			if includeSelf {
+				return true
+			}
+		case t == "." || strings.HasPrefix(dir, t+"/"):
+			return true
+		}
+	}
+	return false
+}
+
+func pkgPattern(dir string) string {
+	if dir == "." {
+		return "."
+	}
+	return "./" + dir
+}
+
+func treePattern(dir string) string {
+	if dir == "." {
+		return "./..."
+	}
+	return "./" + dir + "/..."
 }
 
 // lastLines returns the final n lines of a file plus how many it left out, so a

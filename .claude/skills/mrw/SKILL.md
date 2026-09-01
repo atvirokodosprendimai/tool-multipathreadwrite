@@ -56,7 +56,7 @@ how the file-edit ban gets broken by a good intention.
   project you were asked to work on. Not elsewhere.
 - `./scripts/measure.sh` — what mrw saves, three shapes, including the one where
   it loses. Quote the script, never a remembered number.
-- `./scripts/contract.sh` — 64 assertions against the real binary, each made by
+- `./scripts/contract.sh` — 72 assertions against the real binary, each made by
   breaking a promise on purpose. Mutation-verified; runs in CI.
 - `.quality-harness.json` declares the check: `go test ./...`.
 - The read-before-modify guard arrived in **v0.0.2**. A `bin/mrw` built from a

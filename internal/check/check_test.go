@@ -53,12 +53,23 @@ func TestLoadOnABareDirectoryHasNoCheck(t *testing.T) {
 }
 
 func TestScopeDerivation(t *testing.T) {
-	// A root with real directories in it, because a path that is not a Go file
-	// is a package only if it actually is a directory — which is what tells
-	// `mrw check internal/apply` from `mrw check internal/aply`.
+	// A root with real packages in it, because a path that is not a Go file is
+	// a scope only if it resolves to at least one package — which is what tells
+	// `mrw check internal/apply` from `mrw check internal/aply`, and both of
+	// those from `mrw check docs`.
 	root := t.TempDir()
-	for _, d := range []string{"internal/apply", "cmd/mrw"} {
-		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+	for path, body := range map[string]string{
+		"internal/apply/apply.go":      "package apply\n",
+		"internal/apply/sub/sub.go":    "package sub\n",
+		"internal/apply/testdata/x.go": "package testdata\n",
+		"cmd/mrw/main.go":              "package main\n",
+		"docs/guide.md":                "# prose\n",
+	} {
+		full := filepath.Join(root, path)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -74,14 +85,35 @@ func TestScopeDerivation(t *testing.T) {
 		"non-Go falls back": {[]string{"internal/apply/a.go", "README.md"}, "FULL"},
 		"no paths":          {nil, "FULL"},
 
-		// The bug this table was one row short of catching: the README spells
-		// the scoped form with a DIRECTORY, and a directory has no .go suffix.
-		"a directory":              {[]string{"internal/apply"}, "go test ./internal/apply"},
-		"the ./dir form we print":  {[]string{"./internal/apply"}, "go test ./internal/apply"},
-		"a directory and a file":   {[]string{"internal/apply", "cmd/mrw/main.go"}, "go test ./cmd/mrw ./internal/apply"},
-		"a directory twice over":   {[]string{"internal/apply", "internal/apply/a.go"}, "go test ./internal/apply"},
+		// The bug the first round was one row short of catching: the README
+		// spells the scoped form with a DIRECTORY, and a directory has no .go
+		// extension.
+		"a directory":              {[]string{"internal/apply"}, "go test ./internal/apply/..."},
+		"the ./dir form":           {[]string{"./internal/apply"}, "go test ./internal/apply/..."},
+		"a directory and a file":   {[]string{"internal/apply", "cmd/mrw/main.go"}, "go test ./cmd/mrw ./internal/apply/..."},
+		"a directory twice over":   {[]string{"internal/apply", "internal/apply/a.go"}, "go test ./internal/apply/..."},
 		"a path that is not there": {[]string{"internal/aply"}, "FULL"},
 		"a directory and a non-Go": {[]string{"internal/apply", "README.md"}, "FULL"},
+
+		// And what THAT round was one row short of: a named directory must
+		// cover its SUBTREE. Go's `.` is the root package alone, so `mrw check
+		// .` reported PASS with a failing package one directory down.
+		"the whole tree":              {[]string{"."}, "go test ./..."},
+		"the ./... form we print":     {[]string{"./..."}, "go test ./..."},
+		"the ./dir/... form we print": {[]string{"./internal/apply/..."}, "go test ./internal/apply/..."},
+		"a nested directory as well":  {[]string{"internal/apply", "internal/apply/sub"}, "go test ./internal/apply/..."},
+
+		// A directory holding no package go will build scopes to nothing, and
+		// `go test` on it exits 1 for a reason that is not about the code. That
+		// is the typo case wearing a second hat, so it gets the same answer.
+		"a directory of prose":      {[]string{"docs"}, "FULL"},
+		"prose beside a package":    {[]string{"internal/apply", "docs"}, "FULL"},
+		"testdata holds no package": {[]string{"internal/apply/testdata"}, "FULL"},
+
+		// read and write both refuse a path that leaves the root. A scope that
+		// names one is the same escape wearing a third hat.
+		"a directory outside the root": {[]string{".."}, "FULL"},
+		"a file outside the root":      {[]string{"../elsewhere/x.go"}, "FULL"},
 	} {
 		if got, _ := command(root, cfg, tc.paths); got != tc.want {
 			t.Errorf("%s: got %q, want %q", name, got, tc.want)
