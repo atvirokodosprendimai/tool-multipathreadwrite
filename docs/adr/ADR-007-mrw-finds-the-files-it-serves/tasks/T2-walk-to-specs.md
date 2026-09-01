@@ -57,7 +57,7 @@ makes it reachable.
 7. [S7] Measure the go/no-go cost condition from the ADR. Both halves must see
    the SAME FILES, which is harder than it looks and was got wrong once already:
 
-       baseline: grep -rl EvalSymlinks . | <compose specs> | mrw read -C 3
+       baseline: grep -rl --exclude-dir=.git EvalSymlinks . | <compose specs> | mrw read -C 3
        walk:     mrw read --grep EvalSymlinks -C 3 .
 
    Compare the two MATCH SETS, not a remembered number, and record the count
@@ -71,6 +71,16 @@ makes it reachable.
 
    Record both wall-clock numbers, the match set, the machine and the date in
    the verification log. Over 2× and the ADR says `--grep` is withdrawn. [proof: human: a wall-clock ratio is a claim about one machine and one corpus; a test can pin behaviour but not a number, and the go/no-go needs the number]
+
+   `--exclude-dir=.git` is load-bearing rather than tidy: rule 6 has the walk
+   skip `.git/` unconditionally and a plain recursive grep does not, so a
+   pattern appearing in a commit message or a reflog puts a file in the
+   baseline's set that the walk can never return. Not hypothetical — measured
+   2026-09-01 on the authoring machine, `/usr/bin/grep -rl EvalSymlinks .`
+   returned 10 files and one of them was `.git/COMMIT_EDITMSG`, put there by the
+   commit that wrote this step. Same shape as the corpus problem above, one
+   directory further out.
+
 ## Acceptance
 
 ```bash
