@@ -262,7 +262,12 @@ mkdir -p "$R/internal/apply/testdata" "$R/docs"
 printf 'package apply\n\nfunc A() int { return 1 }\n' > "$R/internal/apply/a.go"
 printf 'package testdata\n'                          > "$R/internal/apply/testdata/t.go"
 printf '# prose\n'                                   > "$R/docs/guide.md"
-ln -s /etc "$R/link"
+# The directory outside the root holds a REAL package: pointed at /etc these two
+# rows passed with the boundary check removed, because /etc has no Go files in
+# it. A row that cannot fail asserts nothing.
+mkdir -p "$WORK/outside"
+printf 'package outside\n' > "$WORK/outside/o.go"
+ln -s "$WORK/outside" "$R/link"
 printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
 out=$(m check internal/apply 2>&1); rc=$?
 want 0 "$rc" "check on a directory runs"
@@ -281,10 +286,13 @@ out=$(m check docs 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "a directory with no package falls back" || bad "scoped to a non-package: $out"
 out=$(m check internal/apply/testdata 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "testdata holds nothing the ... form matches, so it falls back" || bad "scoped to testdata: $out"
-out=$(m check ../etc 2>&1)
+out=$(m check ../outside 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "a path outside the root falls back, as read and write refuse it" || bad "scoped outside the root: $out"
 out=$(m check link 2>&1)
-grep -q 'echo FULL' <<<"$out" && ok "and so does a symlink pointing out of the tree" || bad "followed a symlink out: $out"
+# Not a second boundary row: WalkDir does not follow a symlink, so this one
+# falls back whether or not rooted.Resolve refuses it. It is here because the
+# symlink is the spelling a caller actually reaches for.
+grep -q 'echo FULL' <<<"$out" && ok "a symlinked directory is not scoped either" || bad "scoped through a symlink: $out"
 out=$(m check --full 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "--full still ignores every scope" || bad "not full: $out"
 
