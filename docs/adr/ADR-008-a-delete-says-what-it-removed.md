@@ -1,6 +1,6 @@
 # ADR-008: A delete says what it removed, and may say what it expected
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-01
 **Owner:** M
 **Spec:** None — no spec stage
