@@ -166,7 +166,7 @@ write, which is the point:
 | guard | asserts |
 |---|---|
 | `sha=<8+ hex>` | the whole file is what you read |
-| `lines=N` | the addressed range covers exactly N lines — and an insertion addresses one line, so `lines=1` is the only value it accepts |
+| `lines=N` | the addressed range covers exactly N lines — an insertion's address is a position, so it covers `1` at a real line and `0` at the two boundary positions below |
 | `anchor=<substring>` | it appears in the addressed range's first line |
 
 All three are checked on **every** op, insertions included. An insertion at a

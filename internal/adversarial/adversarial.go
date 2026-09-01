@@ -10,7 +10,12 @@
 // The rule every test here follows: assert the PROMISE, never the current
 // behaviour. A test that documents a defect by expecting it goes green on the
 // day the defect is fixed and green on the day it gets worse, which is the
-// silent-success failure this whole tool exists to refuse. Where a gap is
-// deliberate rather than a defect, the test is renamed TestKnownGap_… and says
-// in its own body what it is holding still and who decided.
+// silent-success failure this whole tool exists to refuse.
+//
+// TestKnownGap_… is the exception, and it is deliberately narrow. It is for a
+// behaviour NO promise settles yet: the test pins today's answer, fails in
+// EITHER direction, and its failure message names the decision that has to be
+// made and says to delete the test once it is. It is a tripwire on an open
+// question, not an endorsement of the behaviour — a gap pinned this way must
+// never be read as "this is how it should work".
 package adversarial

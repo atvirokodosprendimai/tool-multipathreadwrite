@@ -36,9 +36,16 @@ func TestKnownGap_APlanCanWriteOutsideTheRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, statErr := os.Stat(filepath.Join(outer, "escaped.txt")); statErr != nil {
-		t.Errorf("mrw now refuses a hunk that leaves the root (failed=%d) — good, but the README, "+
+	// The BYTES, not merely the existence: a file created outside the root with
+	// the wrong contents is a different bug, and would pass a stat.
+	escaped := filepath.Join(outer, "escaped.txt")
+	b, statErr := os.ReadFile(escaped)
+	if statErr != nil {
+		t.Fatalf("mrw now refuses a hunk that leaves the root (failed=%d) — good, but the README, "+
 			"the CLI help for -C and this test all describe the old behaviour", res.Failed)
+	}
+	if string(b) != "written outside the root\n" {
+		t.Errorf("wrote outside the root, and with unexpected contents: %q", b)
 	}
 }
 
@@ -100,6 +107,9 @@ func TestKnownGap_EditingThroughASymlinkReplacesTheLink(t *testing.T) {
 	if fi.Mode()&os.ModeSymlink != 0 {
 		t.Error("symlinks are now followed on write — good, but say so where writeFile documents the rename")
 	}
+	if got := readFile(t, root, "link.go"); !strings.HasPrefix(got, "package q") {
+		t.Errorf("the link was replaced by a regular file that does not hold the edit:\n%s", got)
+	}
 	if got := readFile(t, root, "real.go"); got != goFile {
 		t.Errorf("the target of the link changed, so the write is no longer link-replacing:\n%s", got)
 	}
@@ -123,6 +133,12 @@ func TestKnownGap_ACRTerminatedFileIsOneLine(t *testing.T) {
 	}
 	if res.Failed != 1 {
 		t.Error("line 2 of a CR-terminated file is now addressable; CR handling changed")
+	}
+	if res.Applied {
+		t.Error("the run refused a hunk and applied anyway")
+	}
+	if got := readFile(t, root, "cr.txt"); got != "one\rtwo\rthree\r" {
+		t.Errorf("the refused run still rewrote the file: %q", got)
 	}
 	if !strings.Contains(res.Hunks[0].Reason, "file has 1 lines") {
 		t.Errorf("the refusal no longer says the file is one line: %s", res.Hunks[0].Reason)
