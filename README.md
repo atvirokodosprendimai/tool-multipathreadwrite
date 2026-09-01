@@ -341,6 +341,16 @@ rather than by reading it:
   at. (Writing by rename is what makes a crash mid-write safe; renaming over
   the link would leave the edit in a new regular file and the real one
   untouched.)
+- **It will not half-apply a plan because the filesystem said no.** Every file
+  is staged beside its target first, and only then are they all renamed into
+  place. A write phase that wrote each file and moved on left the earlier ones
+  already applied when a later one could not be written — with no receipt, and
+  with the ledger still holding the pre-write hash, so the next edit to a file
+  mrw had itself changed was refused as "changed since mrw last saw it". An
+  unwritable directory, a read-only mount and a full disk all fail during
+  staging, when nothing has been renamed. If a *rename* fails after earlier
+  renames succeeded, the tree really is partial and the error says which files
+  are already written.
 - **It will not change your line endings.** A CRLF file comes back CRLF, an LF
   file LF, and a file that mixes them is left mixed — the lines a hunk did not
   address survive byte for byte. A file terminated with lone `\r` has

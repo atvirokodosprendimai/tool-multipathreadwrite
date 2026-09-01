@@ -2,6 +2,7 @@ package apply
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -941,5 +942,85 @@ func TestAFailedOrSkippedDeleteRecordsNoBounds(t *testing.T) {
 		if strings.Contains(string(b), "removed_first") || strings.Contains(string(b), "removed_last") {
 			t.Errorf("a %s %s hunk carries bounds it never recorded: %s", h.Status, h.Op, b)
 		}
+	}
+}
+
+// A plan aborts on a filesystem failure with the tree UNTOUCHED. The write
+// phase used to write each file and move on, so a later file that could not be
+// written left the earlier ones already renamed into place — a partially
+// applied plan, which ADR-001 rule 2 calls worse than no change. Three things
+// went wrong at once and each is asserted here: the tree was changed, no
+// receipt was produced, and the ledger (recorded from that receipt) then held
+// the pre-write hash, so mrw refused the caller's NEXT edit to a file it had
+// modified itself.
+//
+// The trigger is forced through the stageFileFn seam rather than through an
+// unwritable directory, because `chmod 0555` is a no-op for uid 0: a
+// permission-based test exercises nothing when CI runs as root, and a row that
+// cannot fail is exactly the defect this guard is about. scripts/contract.sh
+// carries the real-permissions version, skipped when the bits are not enforced.
+func TestAFailedStageLeavesTheTreeUntouched(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "one.txt", abcde)
+	write(t, root, "two.txt", abcde)
+
+	real := stageFileFn
+	t.Cleanup(func() { stageFileFn = real })
+	calls := 0
+	stageFileFn = func(path string, tx text) (string, string, error) {
+		calls++
+		if calls == 2 {
+			return "", "", errors.New("staging refused")
+		}
+		return real(path, tx)
+	}
+
+	res, err := Apply(root, []Input{
+		{Path: "one.txt", Start: 1, End: 1, Op: "replace", Body: []string{"CHANGED"}, Lines: -1, Index: 0},
+		{Path: "two.txt", Start: 1, End: 1, Op: "replace", Body: []string{"CHANGED"}, Lines: -1, Index: 1},
+	}, Options{Force: true})
+	if err == nil {
+		t.Fatalf("a failed stage was reported as success: %+v", res)
+	}
+	if res.Applied {
+		t.Error("Applied is true after an aborted write")
+	}
+	// The substance: the FIRST file, staged before the failure, must not have
+	// been renamed into place. Asserting only on the error would pass while
+	// the tree was half-written, which is the whole defect.
+	for _, name := range []string{"one.txt", "two.txt"} {
+		got, rerr := os.ReadFile(filepath.Join(root, name))
+		if rerr != nil {
+			t.Fatal(rerr)
+		}
+		if strings.Contains(string(got), "CHANGED") {
+			t.Errorf("%s was written despite the plan aborting", name)
+		}
+	}
+	// ADR-004: nothing left in the working tree. A staged temp that is never
+	// renamed has to be unlinked, or an aborted plan litters .mrw-* beside
+	// every target it reached.
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".mrw-") {
+			t.Errorf("staging left %s behind", e.Name())
+		}
+	}
+}
+
+// The residual case staging cannot remove: a rename that fails after earlier
+// renames succeeded really does leave a partial tree, so the error has to name
+// what is already on disk. A caller told only "permission denied" cannot tell
+// an untouched tree from a half-written one.
+func TestAPartialWriteNamesWhatWasAlreadyWritten(t *testing.T) {
+	if got := writtenSoFar(nil); !strings.Contains(got, "nothing was written") {
+		t.Errorf("empty case = %q", got)
+	}
+	got := writtenSoFar([]FileResult{{Path: "a.go"}, {Path: "b.go"}})
+	if !strings.Contains(got, "a.go") || !strings.Contains(got, "b.go") {
+		t.Errorf("a partial write did not name its files: %q", got)
 	}
 }
