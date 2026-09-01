@@ -27,12 +27,17 @@ reproduce is a claim, not a measurement:
 
 | shape | | Read+Edit | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes in | 50,163 | 2,916 | **17.2× less** |
+| **A.** 4 sites, 4 large files | bytes in | 64,934 | 2,944 | **22.0× less** |
 | | tool calls | 8 | 2 | **4× fewer** |
-| **B.** 2 sites, most of 2 small files | bytes in | 10,827 | 1,790 | 6.0× less |
+| **B.** 2 sites, 2 mid-sized files | bytes in | 17,866 | 1,329 | 13.4× less |
 | | tool calls | 4 | 2 | 2× fewer |
-| **C.** 1 site, whole small file | bytes in | 3,895 | 4,888 | **1.2× MORE** |
+| **C.** 1 site, whole small file | bytes in | 10,117 | 12,553 | **1.2× MORE** |
 | | tool calls | 2 | 2 | no change |
+
+Measured at `07a673a`; the script stamps the commit it ran at. **Re-run it
+rather than quoting this table** — the figures it replaced were one day old and
+already understated shape A by nearly a third, because the ratios climb as the
+files grow. Only shape C is drift-proof: it reads a whole file either way.
 
 **Shape C is in the table on purpose.** When you need a whole file and there is
 one site, mrw prints *more* than the file holds — it adds a header and a line
@@ -52,7 +57,7 @@ Every row below is asserted by a script, against the real binary in a throwaway
 repo, by making each promise go wrong on purpose:
 
 ```sh
-./scripts/contract.sh      # 19 assertions; exit 0 only if all hold
+./scripts/contract.sh      # 64 assertions; exit 0 only if all hold
 ```
 
 | test | result |
