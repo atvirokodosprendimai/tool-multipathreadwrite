@@ -60,8 +60,11 @@ type Options struct {
 }
 
 // ParseSpec reads "path", "path:3-6", "path:1-8,100-130" or
-// "path:/func Foo/,/^}/". The path is everything before the LAST colon that is
-// followed by something range-shaped, so a path containing a colon still works.
+// "path:/func Foo/,/^}/". Everything after the LAST colon is the range, and it
+// must parse as one: a path that itself contains a colon is NOT supported, and
+// is reported as a bad range rather than read as a filename. That is deliberate
+// — reading an unparseable tail as part of the path would turn a typo'd range
+// into a missing file, and a typo is the likelier of the two by far.
 func ParseSpec(s string) (Spec, error) {
 	spec := Spec{Path: s, Raw: s}
 	i := strings.LastIndex(s, ":")
@@ -194,7 +197,9 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			continue
 		}
 		lines, sha := split(b)
-		observed[sp.Path] = sha
+		// Keyed the same way apply keys its hunks, so "a.go" read and "./a.go"
+		// written are one file rather than two ledger entries.
+		observed[filepath.Clean(sp.Path)] = sha
 		fmt.Fprintf(w, "==> %s  %dL  %dB  sha %s\n", sp.Path, len(lines), len(b), sha[:8])
 		if opt.Stat {
 			continue
