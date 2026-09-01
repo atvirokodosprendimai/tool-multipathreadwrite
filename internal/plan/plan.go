@@ -381,6 +381,17 @@ func validate(h *Hunk) error {
 		if h.Addr.Start == 0 {
 			return fmt.Errorf("replace needs a real line range, got %s", h.Addr)
 		}
+		// A replace with no body DELETES the addressed lines while reporting
+		// "ok". A plan whose body was lost in transit — a truncated emission,
+		// an editor eating the last line — would remove code and hand back a
+		// receipt saying it succeeded, which is the failure this whole format
+		// exists to refuse. The mirror image was already policed: `delete` with
+		// a body is an error. Nothing is lost by refusing this one, because
+		// deleting lines is what `delete` is for.
+		if len(h.Body) == 0 {
+			return fmt.Errorf("replace with an empty body would delete %s — say delete if that is "+
+				"what you mean, and check the body did not go missing if it is not", h.Addr)
+		}
 	}
 	if h.Op != OpInsertBefore && h.Addr.Start != EOF && h.Addr.End != EOF &&
 		h.Addr.End < h.Addr.Start {

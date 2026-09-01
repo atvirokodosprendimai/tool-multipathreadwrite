@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
@@ -654,30 +655,13 @@ func short(sha string) string {
 // resolve turns a hunk's path into the absolute file it names, and refuses one
 // that leaves the root.
 //
-// -C/--root is documented as "resolve every path relative to DIR", which a
-// caller reads as the scope of what mrw may change. A "../" climbed straight
-// out of it, creating directories on the way, and the receipt printed the
-// relative path — so the escape did not appear in the output either. Symlinks
-// are resolved first, because following one out of the tree is the same escape
-// wearing a different hat.
+// The boundary itself lives in internal/rooted, because it was implemented here
+// first and therefore held only on the write path: a read served ../outside.txt
+// happily while this refused it by name.
 func resolve(root, path string) (string, error) {
-	absRoot, err := filepath.Abs(root)
+	full, err := rooted.Resolve(root, path)
 	if err != nil {
-		return "", err
-	}
-	if real, err := filepath.EvalSymlinks(absRoot); err == nil {
-		absRoot = real
-	}
-	full := filepath.Join(absRoot, path)
-	// EvalSymlinks fails on a path that does not exist yet, which `create` is
-	// entitled to: fall back to the lexical form, already cleaned by Join.
-	check := full
-	if real, err := filepath.EvalSymlinks(full); err == nil {
-		check = real
-	}
-	if check != absRoot && !strings.HasPrefix(check, absRoot+string(filepath.Separator)) {
-		return "", fmt.Errorf("%s resolves to %s, which is outside the root %s: a plan may only "+
-			"change files under the directory mrw was pointed at", path, check, absRoot)
+		return "", fmt.Errorf("%w: a plan may only change files under the directory mrw was pointed at", err)
 	}
 	return full, nil
 }

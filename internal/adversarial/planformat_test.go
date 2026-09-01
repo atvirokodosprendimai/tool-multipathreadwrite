@@ -182,3 +182,49 @@ func TestRawTakesOnlyTrue(t *testing.T) {
 		}
 	}
 }
+
+// A `replace` with no body deletes the addressed lines, reports status "ok" and
+// exits 0 — so a plan whose body was lost in transit (a truncated emission, an
+// editor eating the last line) removes code while the receipt a hook reads says
+// it succeeded. That is the exact shape this tool exists to refuse.
+//
+// The parser already polices the mirror image: `delete` WITH a body is a hard
+// parse error. It policed one direction and not the other.
+//
+// Nothing is lost by refusing it: deleting lines is what `delete` is for.
+func TestAReplaceWithNoBodyIsRejected(t *testing.T) {
+	for _, name := range []string{"last hunk in the plan", "mid-plan"} {
+		doc := "@@ f.txt 2 replace\n"
+		if name == "mid-plan" {
+			doc += "@@ g.txt 1 replace\nreplacement\n"
+		}
+		t.Run(name, func(t *testing.T) {
+			_, err := plan.Parse(strings.NewReader(doc))
+			if err == nil {
+				t.Fatal("an empty-bodied replace parsed clean; it silently deletes the line")
+			}
+			if !strings.Contains(err.Error(), "delete") {
+				t.Errorf("the error does not point at the op that means this: %v", err)
+			}
+		})
+	}
+}
+
+// body=0 is the same hunk written with an explicit count, and must fail the
+// same way — otherwise the check is one spelling away from being bypassed.
+func TestAReplaceWithAnExplicitlyEmptyBodyIsRejected(t *testing.T) {
+	if _, err := plan.Parse(strings.NewReader("@@ f.txt 2 replace body=0\n@@ g.txt 1 delete\n")); err == nil {
+		t.Error("replace body=0 parsed clean")
+	}
+}
+
+// The mirror image keeps working, and so does an ordinary replace: this check
+// must not make `delete` or a real replacement harder to write.
+func TestDeleteWithABodyStaysAnErrorAndAReplaceWithOneStaysLegal(t *testing.T) {
+	if _, err := plan.Parse(strings.NewReader("@@ f.txt 2 delete\nx\n")); err == nil {
+		t.Error("delete with a body is no longer an error")
+	}
+	if _, err := plan.Parse(strings.NewReader("@@ f.txt 2 replace\nnew line\n")); err != nil {
+		t.Errorf("an ordinary replace was rejected: %v", err)
+	}
+}

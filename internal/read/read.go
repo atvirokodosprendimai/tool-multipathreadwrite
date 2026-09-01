@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
@@ -217,7 +218,17 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		observed[key] = seen.Observation{SHA: sha, Spans: spans}
 	}
 	for _, sp := range specs {
-		b, err := os.ReadFile(filepath.Join(root, sp.Path))
+		full, err := rooted.Resolve(root, sp.Path)
+		if err != nil {
+			// The same boundary the write path enforces. Serving a file the
+			// caller did not scope is a smaller harm than writing one, and it
+			// is the same mistake: mrw is pointed at a tree, and ../ and a
+			// symlink are the two ways out of it.
+			fmt.Fprintf(w, "==> %s  REFUSED  %v: read it with --root pointed where you mean\n", sp.Path, err)
+			problems++
+			continue
+		}
+		b, err := os.ReadFile(full)
 		if err != nil {
 			fmt.Fprintf(w, "==> %s  UNREADABLE  %v\n", sp.Path, err)
 			problems++

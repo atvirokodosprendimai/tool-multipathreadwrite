@@ -1,12 +1,14 @@
 package adversarial
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 )
 
 // --root/-C is documented as "resolve every path relative to DIR". A caller
@@ -225,5 +227,75 @@ func TestOneBadHunkLeavesEveryFileUntouched(t *testing.T) {
 	}
 	if len(res.Files) != 2 {
 		t.Errorf("the receipt names %d file(s); the plan addressed 2", len(res.Files))
+	}
+}
+
+// --root confines writes and must confine reads. It served ../outside.txt at
+// exit 0, and followed a symlink out of the tree — /etc/hosts was read through
+// one — while the identical path in a write plan was refused by name. A
+// boundary that holds on one path and not the other is not a boundary; it is a
+// coincidence of which code you happened to call.
+func TestAReadCannotLeaveTheRoot(t *testing.T) {
+	outer := t.TempDir()
+	root := filepath.Join(outer, "repo")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outer, "outside.txt"), []byte("SECRET\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	observed, problems := read.Run(&buf, root, []read.Spec{{Path: "../outside.txt"}}, read.Options{})
+
+	if problems == 0 {
+		t.Error("a path outside the root was served without being counted as a problem")
+	}
+	if strings.Contains(buf.String(), "SECRET") {
+		t.Errorf("the contents of a file outside the root were printed:\n%s", buf.String())
+	}
+	if len(observed) != 0 {
+		t.Errorf("a file outside the root was recorded as observed: %v", observed)
+	}
+	if !strings.Contains(buf.String(), "outside the root") {
+		t.Errorf("the refusal does not say why:\n%s", buf.String())
+	}
+}
+
+// A symlink is the other way out, and the write path already refuses it.
+func TestAReadCannotFollowASymlinkOutOfTheRoot(t *testing.T) {
+	outer := t.TempDir()
+	root := filepath.Join(outer, "repo")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(outer, "secret.txt")
+	if err := os.WriteFile(target, []byte("SECRET\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(root, "link.txt")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	var buf bytes.Buffer
+	_, problems := read.Run(&buf, root, []read.Spec{{Path: "link.txt"}}, read.Options{})
+
+	if problems == 0 || strings.Contains(buf.String(), "SECRET") {
+		t.Errorf("a symlink carried a read out of the root:\n%s", buf.String())
+	}
+}
+
+// And the ordinary case is untouched, including a path that climbs and returns.
+func TestAReadInsideTheRootStillWorks(t *testing.T) {
+	root := tree(t, map[string]string{"sub/a.go": goFile})
+
+	var buf bytes.Buffer
+	_, problems := read.Run(&buf, root, []read.Spec{{Path: "sub/../sub/a.go"}}, read.Options{})
+
+	if problems != 0 {
+		t.Errorf("a path inside the root was refused:\n%s", buf.String())
+	}
+	if !strings.Contains(buf.String(), "package p") {
+		t.Errorf("the file was not served:\n%s", buf.String())
 	}
 }
