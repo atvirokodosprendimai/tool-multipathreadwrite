@@ -64,20 +64,20 @@ here.
   is what ships now.**
 
   Exit 2 wins because rule 2 is already decided and this is an instance of it,
-
-  A refusal also has to be POSITIONED, which the exit-0 version hid: the first
-  version of the refusal sat after the plan was parsed and applied, so an
-  unparseable plan preempted it while a plan whose HUNK failed lost to it. Both
-  are "your plan is wrong" and they ranked differently only because of where the
-  test sat — and exit 1, which promises an untouched tree, became exit 2. It is
-  now settled before the plan is read, so a usage error preempts everything,
-  which is what exit 2 means. Pinned by the precedence rows in `contract.sh`.
   not a new question — applying an accepted rule is conformance. The reason it
   is written down anyway: the first version returned exit 0, and a reader who
   found that in the tree could reasonably conclude rule 2 had been abandoned.
   If the opposite reading is ever preferred, it is a change to ADR-003 and wants
   a record, because a caller scripting `write --dry-run --check` now gets a hard
   failure where they got success.
+
+  A refusal also has to be POSITIONED, and the exit-0 version hid that: the
+  first refusal sat after the plan was parsed and applied, so an unparseable
+  plan preempted it while a plan whose HUNK failed lost to it. Both are "your
+  plan is wrong" and they ranked differently only because of where the test sat
+  — and exit 1, which promises an untouched tree, became exit 2. It is settled
+  before the plan is read now, so a usage error preempts everything, which is
+  what exit 2 means. Pinned by the precedence rows in `contract.sh`.
 
 ## From ADR-004 (mrw leaves nothing in the working tree)
 

@@ -128,3 +128,4 @@ the guard being absent.
 - 2026-09-01 · 9ea8a95* · exit 0 · `set -o pipefail …` · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b · ms:1672
 - 2026-09-01 · 09d3ee5* · exit 0 · `set -o pipefail …` · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b · ms:1479
 - 2026-09-01 · bfcd8d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b · ms:1484
+- 2026-09-01 · 4a92d82* · exit 0 · `set -o pipefail …` · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b · ms:1373

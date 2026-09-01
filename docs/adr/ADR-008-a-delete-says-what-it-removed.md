@@ -186,6 +186,20 @@ receipt bounds, then the expected body.
 - Requiring a guard on every `delete` (deferred: docs/adr/BACKLOG.md)
 - Any language-aware validation inside mrw (permanent: boundary: mrw edits six file types in a single session and a validator covering one of them reads as a complete guarantee; "does the result compile" is ADR-003's question, answered by the project's own declared check)
 - Echoing removed content in full, or on ops other than `delete` (permanent: boundary: `replace` and the insertions already carry a body the caller wrote, which is the check this adds to the one op that has none)
+
+  **Amended 2026-09-01, on evidence produced while executing this record.** The
+  boundary stands, but the sentence justifying it is too strong for the
+  insertions. A body proves the caller knew WHAT to write; it does not prove
+  they knew WHERE. Measured: an `insert-after` into `BACKLOG.md`, aimed one
+  paragraph too early, applied cleanly and reported `ok` — a correct body at a
+  wrong address, which is this record's own incident on a different op. For
+  `replace` the argument holds, because its body is the addressed lines'
+  replacement and writing it means reading them. For an insertion the address
+  is a POSITION and the body says nothing about it; `anchor=` is the guard for
+  where, and it was simply not written. That is a caller's omission rather than
+  a gap in the tool, which is why this stays out of scope — but "the body is
+  itself a check that you know what you are addressing" is only true of two of
+  the three ops it was claimed for.
 - A `removed_sha` in the receipt (permanent: boundary: a hash is informative only against an expectation the miscounting caller does not have, and where an expectation exists `sha=` and the ledger already carry it)
 
 ## Risks
