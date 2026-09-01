@@ -242,11 +242,11 @@ func TestAFailedFileIsReportedOnceNotPerHunk(t *testing.T) {
 // shaOfFile is what the ledger would hold for a file on disk.
 func shaOfFile(t *testing.T, root, name string) string {
 	t.Helper()
-	lines, nl, _, err := readLines(filepath.Join(root, name))
+	t2, _, err := readLines(filepath.Join(root, name))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return shaOf(lines, nl)
+	return shaOf(t2)
 }
 
 // Read before modify: a range address only means something in the version of
@@ -258,7 +258,7 @@ func TestAFileNeverSeenCannotBeEdited(t *testing.T) {
 
 	res, err := Apply(root, []Input{
 		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
-	}, Options{Seen: map[string]string{}})
+	}, Options{Seen: map[string]Seen{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +285,7 @@ func TestAFileChangedBehindMrwsBackCannotBeEdited(t *testing.T) {
 
 	res, err := Apply(root, []Input{
 		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
-	}, Options{Seen: map[string]string{"f.txt": recorded}})
+	}, Options{Seen: map[string]Seen{"f.txt": {SHA: recorded}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +306,7 @@ func TestASeenFileIsEditable(t *testing.T) {
 
 	res, err := Apply(root, []Input{
 		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
-	}, Options{Seen: map[string]string{"f.txt": shaOfFile(t, root, "f.txt")}})
+	}, Options{Seen: map[string]Seen{"f.txt": {SHA: shaOfFile(t, root, "f.txt")}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,7 +323,7 @@ func TestCreateNeedsNoPriorObservation(t *testing.T) {
 	root := t.TempDir()
 	res, err := Apply(root, []Input{
 		{Path: "new.txt", Op: "create", Body: []string{"hello"}, Lines: -1, Index: 0},
-	}, Options{Seen: map[string]string{}})
+	}, Options{Seen: map[string]Seen{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +341,7 @@ func TestForceBypassesTheGuard(t *testing.T) {
 
 	res, err := Apply(root, []Input{
 		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
-	}, Options{Seen: map[string]string{}, Force: true})
+	}, Options{Seen: map[string]Seen{}, Force: true})
 	if err != nil {
 		t.Fatal(err)
 	}

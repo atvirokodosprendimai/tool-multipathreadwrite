@@ -19,21 +19,12 @@ func long() string {
 	return s
 }
 
-// SCOPE FINDING, for M rather than a defect to fix here.
-//
-// ADR-002 says "mrw will not edit a file it has not seen", and its reason is
-// that "a range address like 42-58 only means something in the version of the
-// file those numbers were counted in". The ledger implements the first
-// sentence: read.Run records the whole-file sha for every spec it serves,
-// BEFORE deciding how much of the file to render. So --stat — documented as
-// "ask for the fact, not the artifact", and printing no content at all — marks
-// the file seen, and an edit to any line is then authorised.
-//
-// mrw has indeed seen the file. The CALLER has not, and the caller is who
-// counts lines. Whether that gap matters is a decision about what the ledger is
-// for, so this test pins today's answer rather than asserting a new one: it
-// fails the day the behaviour changes, in either direction.
-func TestKnownGap_AStatOnlyReadLicensesAnEdit(t *testing.T) {
+// ADR-002 says mrw will not edit a file it has not seen, and its REASON is that
+// "a range address like 42-58 only means something in the version of the file
+// those numbers were counted in". --stat renders no content at all — it is
+// documented as "ask for the fact, not the artifact" — so after one, mrw holds
+// a hash and the caller has counted nothing. It must license no edit.
+func TestAStatOnlyReadLicensesNothing(t *testing.T) {
 	root := tree(t, map[string]string{"big.go": long()})
 
 	observed, problems := read.Run(io.Discard, root, []read.Spec{{Path: "big.go"}}, read.Options{Stat: true})
@@ -49,27 +40,62 @@ func TestKnownGap_AStatOnlyReadLicensesAnEdit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Asserted in BOTH directions: a refusal is the change worth noticing, and
-	// so is a silent no-op that reports success — this project's defining
-	// failure mode, which a bare Failed==0 would pass.
-	if res.Failed != 0 {
-		t.Errorf("a --stat read no longer licenses an edit — that is arguably the better rule, "+
-			"but ADR-002 and the CLI's own help text still describe the old one: %s", res.Hunks[0].Reason)
+	if res.Failed != 1 {
+		t.Fatalf("a --stat read authorised an edit to line 20: failed=%d, applied=%v", res.Failed, res.Applied)
 	}
-	if !res.Applied {
-		t.Error("the run reported no failure and did not apply either")
-	}
-	if got := readFile(t, root, "big.go"); !strings.Contains(got, "rewritten") {
-		t.Errorf("the edit reported ok but line 20 is unchanged:\n%s", got)
+	if got := readFile(t, root, "big.go"); got != long() {
+		t.Error("the file was written despite the refusal")
 	}
 }
 
-// The same gap, narrower: one line served, an edit thirty-nine lines away.
-func TestKnownGap_AOneLineReadLicensesAnEditElsewhereInTheFile(t *testing.T) {
+// A ranged read licenses the lines it SERVED, and no others. Reading line 1
+// tells the caller nothing about line 40, so an address there is written
+// against a picture they do not have.
+func TestARangedReadLicensesOnlyTheLinesItServed(t *testing.T) {
 	root := tree(t, map[string]string{"big.go": long()})
 
 	observed, _ := read.Run(io.Discard, root,
-		[]read.Spec{{Path: "big.go", Ranges: []read.Range{{Start: 1, End: 1}}}}, read.Options{})
+		[]read.Spec{{Path: "big.go", Ranges: []read.Range{{Start: 1, End: 5}}}}, read.Options{})
+
+	inside, err := apply.Apply(root, []apply.Input{{
+		Path: "big.go", Start: 3, End: 3, Op: "replace",
+		Body: []string{"rewritten"}, Lines: unset,
+	}}, apply.Options{Seen: observed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inside.Failed != 0 {
+		t.Errorf("an edit inside the served range was refused: %s", inside.Hunks[0].Reason)
+	}
+
+	root2 := tree(t, map[string]string{"big.go": long()})
+	observed2, _ := read.Run(io.Discard, root2,
+		[]read.Spec{{Path: "big.go", Ranges: []read.Range{{Start: 1, End: 5}}}}, read.Options{})
+
+	outside, err := apply.Apply(root2, []apply.Input{{
+		Path: "big.go", Start: 40, End: 40, Op: "replace",
+		Body: []string{"rewritten"}, Lines: unset,
+	}}, apply.Options{Seen: observed2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outside.Failed != 1 {
+		t.Fatalf("reading lines 1-5 authorised an edit to line 40: failed=%d", outside.Failed)
+	}
+	if !strings.Contains(outside.Hunks[0].Reason, "has not been read") {
+		t.Errorf("the refusal does not say the lines were never read: %s", outside.Hunks[0].Reason)
+	}
+	if got := readFile(t, root2, "big.go"); got != long() {
+		t.Error("the file was written despite the refusal")
+	}
+}
+
+// A whole-file read licenses the whole file, which is the ordinary case and
+// must not become expensive to express.
+func TestAWholeFileReadLicensesTheWholeFile(t *testing.T) {
+	root := tree(t, map[string]string{"big.go": long()})
+
+	observed, _ := read.Run(io.Discard, root, []read.Spec{{Path: "big.go"}}, read.Options{})
 
 	res, err := apply.Apply(root, []apply.Input{{
 		Path: "big.go", Start: 40, End: 40, Op: "replace",
@@ -78,15 +104,11 @@ func TestKnownGap_AOneLineReadLicensesAnEditElsewhereInTheFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if res.Failed != 0 {
-		t.Errorf("reading line 1 no longer licenses an edit to line 40: %s", res.Hunks[0].Reason)
-	}
-	if !res.Applied {
-		t.Error("the run reported no failure and did not apply either")
+		t.Fatalf("a whole-file read did not license line 40: %s", res.Hunks[0].Reason)
 	}
 	if got := readFile(t, root, "big.go"); !strings.Contains(got, "rewritten") {
-		t.Errorf("the edit reported ok but line 40 is unchanged:\n%s", got)
+		t.Error("the run reported ok and wrote nothing")
 	}
 }
 
@@ -122,7 +144,7 @@ func TestAnUnreadFileIsStillRefused(t *testing.T) {
 	res, err := apply.Apply(root, []apply.Input{{
 		Path: "a.go", Start: 1, End: 1, Op: "replace",
 		Body: []string{"package q"}, Lines: unset,
-	}}, apply.Options{Seen: map[string]string{}})
+	}}, apply.Options{Seen: map[string]apply.Seen{}})
 	if err != nil {
 		t.Fatal(err)
 	}

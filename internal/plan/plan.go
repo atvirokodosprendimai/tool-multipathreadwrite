@@ -131,6 +131,19 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		// An explicit body= count takes precedence over header detection, so a
 		// body may contain lines that themselves start with "@@ ".
 		if cur != nil && want > 0 {
+			// An OVERCOUNTED body= is the last silent way to lose a hunk: the
+			// count runs past this hunk's text and eats the next header and
+			// its body as content, after which the plan applies — correctly by
+			// its own rules — missing an edit nobody will notice. A body line
+			// is refused only when it is a COMPLETE, VALID header, so prose
+			// about the format (the README's own examples, whose trailing text
+			// is not key=value) still passes through.
+			if strings.HasPrefix(line, "@@ ") {
+				if _, _, err := parseHeader(line, n); err == nil {
+					errs = append(errs, fmt.Sprintf("line %d: body= still owes %d line(s), but %q is a "+
+						"valid header — an overcounted body= would swallow that hunk", n, want, line))
+				}
+			}
 			body = append(body, line)
 			want--
 			continue

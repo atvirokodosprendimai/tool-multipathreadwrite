@@ -9,19 +9,12 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 )
 
-// KNOWN GAP — for M, because it changes what a served plan may do.
-//
-// --root/-C is documented as "resolve every path relative to DIR", which reads
-// as a boundary and is not one: apply joins the hunk's path onto root and a
-// "../" climbs straight out, creating directories on the way. Nothing marks
-// such a hunk in the plan, and the receipt prints the relative path, so the
-// escape is invisible in the output too.
-//
-// It is not a privilege boundary — the caller could have written the path
-// directly — but it is a scope one, and mrw is a tool an agent points at a
-// checkout. This test pins today's behaviour; deciding to refuse it is a
-// served-path change and belongs in an ADR.
-func TestKnownGap_APlanCanWriteOutsideTheRoot(t *testing.T) {
+// --root/-C is documented as "resolve every path relative to DIR". A caller
+// pointing mrw at a checkout is naming the thing it may change, so a hunk that
+// climbs out with ../ is editing a file the caller never scoped — and nothing
+// in the plan format marks it, while the receipt prints the relative path, so
+// the escape is invisible in the output too.
+func TestAPlanCannotWriteOutsideTheRoot(t *testing.T) {
 	outer := t.TempDir()
 	root := filepath.Join(outer, "repo")
 	if err := os.MkdirAll(root, 0o755); err != nil {
@@ -36,31 +29,43 @@ func TestKnownGap_APlanCanWriteOutsideTheRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The BYTES, not merely the existence: a file created outside the root with
-	// the wrong contents is a different bug, and would pass a stat.
-	escaped := filepath.Join(outer, "escaped.txt")
-	b, statErr := os.ReadFile(escaped)
-	if statErr != nil {
-		t.Fatalf("mrw now refuses a hunk that leaves the root (failed=%d) — good, but the README, "+
-			"the CLI help for -C and this test all describe the old behaviour", res.Failed)
+	if res.Failed != 1 {
+		t.Errorf("a hunk addressing %q was accepted: failed=%d, applied=%v",
+			"../escaped.txt", res.Failed, res.Applied)
 	}
-	if string(b) != "written outside the root\n" {
-		t.Errorf("wrote outside the root, and with unexpected contents: %q", b)
+	if _, statErr := os.Stat(filepath.Join(outer, "escaped.txt")); statErr == nil {
+		t.Error("mrw wrote outside the root it was given")
+	}
+	if res.Failed == 1 && !strings.Contains(res.Hunks[0].Reason, "outside the root") {
+		t.Errorf("the refusal does not say why: %s", res.Hunks[0].Reason)
 	}
 }
 
-// KNOWN GAP — a CRLF file comes back mixed.
-//
-// readLines splits on "\n" only, so every untouched line keeps its trailing
-// "\r" while a body line from the plan has none. The edit lands correctly and
-// the file now has two conventions in it, which shows up as a bigger diff than
-// the change asked for.
-//
-// The fix is not a one-liner: shaOf must reproduce the file's ORIGINAL bytes,
-// because internal/seen hashes raw bytes and the two hashes have to agree or
-// every CRLF file reads as "changed since mrw last saw it". So a line-ending
-// mode has to be threaded from readLines through shaOf and writeFile together.
-func TestKnownGap_ACRLFFileComesBackMixed(t *testing.T) {
+// A path that stays inside the root after cleaning is fine, including one that
+// climbs and comes back. Refusing that would be a false alarm.
+func TestAPathThatClimbsAndReturnsIsStillInsideTheRoot(t *testing.T) {
+	root := tree(t, map[string]string{"sub/a.go": goFile})
+
+	res, err := apply.Apply(root, []apply.Input{{
+		Path: "sub/../sub/a.go", Start: 1, End: 1, Op: "replace",
+		Body: []string{"package q"}, Lines: unset,
+	}}, apply.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("a path inside the root was refused: %s", res.Hunks[0].Reason)
+	}
+	if got := readFile(t, root, "sub/a.go"); !strings.HasPrefix(got, "package q") {
+		t.Errorf("the edit did not land:\n%s", got)
+	}
+}
+
+// A CRLF file must come back using CRLF. Every untouched line keeps whatever it
+// had, and a body line supplied by the plan takes the file's own convention —
+// otherwise one edit leaves two conventions in the file, and the diff is bigger
+// and stranger than the change asked for.
+func TestACRLFFileKeepsItsLineEndings(t *testing.T) {
 	root := tree(t, map[string]string{"crlf.txt": "alpha\r\nbeta\r\ngamma\r\n"})
 
 	if _, err := apply.Apply(root, []apply.Input{{
@@ -71,22 +76,52 @@ func TestKnownGap_ACRLFFileComesBackMixed(t *testing.T) {
 	}
 
 	got := readFile(t, root, "crlf.txt")
-	if got == "alpha\r\nBETA\r\ngamma\r\n" {
-		t.Error("CRLF is now preserved — delete this test and add the positive one to internal/apply")
-	}
-	if want := "alpha\r\nBETA\ngamma\r\n"; got != want {
-		t.Errorf("CRLF handling changed to something else again:\n got %q\nwant %q", got, want)
+	if want := "alpha\r\nBETA\r\ngamma\r\n"; got != want {
+		t.Errorf("CRLF was not preserved:\n got %q\nwant %q", got, want)
 	}
 }
 
-// KNOWN GAP — editing through a symlink replaces the link.
-//
-// writeFile creates a temp file beside the target and renames over it, which is
-// what makes a crash mid-write leave the original intact. The cost is that the
-// rename replaces the LINK rather than following it: the edit lands in a new
-// regular file, the file the link pointed at is untouched, and the receipt says
-// nothing about the tree's shape having changed.
-func TestKnownGap_EditingThroughASymlinkReplacesTheLink(t *testing.T) {
+// An LF file must stay one: the line-ending fix must not start writing CRLF
+// into files that never had it.
+func TestAnLFFileKeepsItsLineEndings(t *testing.T) {
+	root := tree(t, map[string]string{"lf.txt": "alpha\nbeta\ngamma\n"})
+
+	if _, err := apply.Apply(root, []apply.Input{{
+		Path: "lf.txt", Start: 2, End: 2, Op: "replace",
+		Body: []string{"BETA"}, Lines: unset,
+	}}, apply.Options{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := readFile(t, root, "lf.txt"), "alpha\nBETA\ngamma\n"; got != want {
+		t.Errorf("LF file changed convention:\n got %q\nwant %q", got, want)
+	}
+}
+
+// A file that mixes conventions is not converted either way. mrw is an editor,
+// not a formatter: lines it did not touch survive byte for byte, which is also
+// what keeps its sha equal to the one internal/seen records.
+func TestAMixedEndingFileIsNotNormalised(t *testing.T) {
+	root := tree(t, map[string]string{"mixed.txt": "alpha\r\nbeta\ngamma\r\n"})
+
+	if _, err := apply.Apply(root, []apply.Input{{
+		Path: "mixed.txt", Start: 2, End: 2, Op: "replace",
+		Body: []string{"BETA"}, Lines: unset,
+	}}, apply.Options{}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := readFile(t, root, "mixed.txt")
+	if !strings.HasPrefix(got, "alpha\r\n") || !strings.HasSuffix(got, "gamma\r\n") {
+		t.Errorf("untouched lines lost their endings: %q", got)
+	}
+}
+
+// Editing through a symlink must edit the file the link points at. Writing by
+// rename is what makes a crash mid-write safe, but renaming over the link
+// replaces it with a regular file: the edit lands somewhere new, the real file
+// is untouched, and the receipt says nothing about the tree's shape changing.
+func TestEditingThroughASymlinkKeepsTheSymlink(t *testing.T) {
 	root := tree(t, map[string]string{"real.go": goFile})
 	link := filepath.Join(root, "link.go")
 	if err := os.Symlink("real.go", link); err != nil {
@@ -104,24 +139,51 @@ func TestKnownGap_EditingThroughASymlinkReplacesTheLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fi.Mode()&os.ModeSymlink != 0 {
-		t.Error("symlinks are now followed on write — good, but say so where writeFile documents the rename")
+	if fi.Mode()&os.ModeSymlink == 0 {
+		t.Error("link.go was a symlink and is now a regular file")
 	}
-	if got := readFile(t, root, "link.go"); !strings.HasPrefix(got, "package q") {
-		t.Errorf("the link was replaced by a regular file that does not hold the edit:\n%s", got)
-	}
-	if got := readFile(t, root, "real.go"); got != goFile {
-		t.Errorf("the target of the link changed, so the write is no longer link-replacing:\n%s", got)
+	if got := readFile(t, root, "real.go"); !strings.HasPrefix(got, "package q") {
+		t.Errorf("the edit did not reach the file the link pointed at:\n%s", got)
 	}
 }
 
-// KNOWN GAP — a file terminated with lone "\r" is one line to mrw.
-//
-// readLines splits on "\n", so old-Mac text, and any file where a generator
-// emitted bare carriage returns, is a single unaddressable line. The failure is
-// at least loud: the address is reported out of range rather than applied
-// somewhere wrong.
-func TestKnownGap_ACRTerminatedFileIsOneLine(t *testing.T) {
+// And a symlink is not a way around the boundary: following one must not write
+// where the caller did not scope.
+func TestASymlinkCannotCarryAWriteOutsideTheRoot(t *testing.T) {
+	outer := t.TempDir()
+	root := filepath.Join(outer, "repo")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(outer, "outside.go")
+	if err := os.WriteFile(target, []byte(goFile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(root, "link.go")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	res, err := apply.Apply(root, []apply.Input{{
+		Path: "link.go", Start: 1, End: 1, Op: "replace",
+		Body: []string{"package q"}, Lines: unset,
+	}}, apply.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res.Failed != 1 {
+		t.Errorf("a symlink pointing out of the root was followed: failed=%d", res.Failed)
+	}
+	if b, _ := os.ReadFile(target); string(b) != goFile {
+		t.Error("the file outside the root was rewritten through a symlink")
+	}
+}
+
+// A file terminated with lone "\r" — old-Mac text, and what a generator
+// emitting bare carriage returns leaves behind — has lines like any other file,
+// and its interior must be addressable rather than the whole file counting as
+// one unsplittable line.
+func TestACRTerminatedFileHasAddressableLines(t *testing.T) {
 	root := tree(t, map[string]string{"cr.txt": "one\rtwo\rthree\r"})
 
 	res, err := apply.Apply(root, []apply.Input{{
@@ -131,17 +193,11 @@ func TestKnownGap_ACRTerminatedFileIsOneLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Failed != 1 {
-		t.Error("line 2 of a CR-terminated file is now addressable; CR handling changed")
+	if res.Failed != 0 {
+		t.Fatalf("line 2 of a three-line CR-terminated file was unaddressable: %s", res.Hunks[0].Reason)
 	}
-	if res.Applied {
-		t.Error("the run refused a hunk and applied anyway")
-	}
-	if got := readFile(t, root, "cr.txt"); got != "one\rtwo\rthree\r" {
-		t.Errorf("the refused run still rewrote the file: %q", got)
-	}
-	if !strings.Contains(res.Hunks[0].Reason, "file has 1 lines") {
-		t.Errorf("the refusal no longer says the file is one line: %s", res.Hunks[0].Reason)
+	if got, want := readFile(t, root, "cr.txt"), "one\rTWO\rthree\r"; got != want {
+		t.Errorf("CR termination was not preserved:\n got %q\nwant %q", got, want)
 	}
 }
 

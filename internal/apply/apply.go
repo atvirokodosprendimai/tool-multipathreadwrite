@@ -19,6 +19,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
 // Status is a hunk's verdict.
@@ -31,6 +33,12 @@ const (
 	StatusFailed  Status = "failed"
 	StatusSkipped Status = "skipped"
 )
+
+// Seen is one file's entry in the read-before-modify ledger: the sha mrw last
+// observed, and the line spans it actually served. It is internal/seen's own
+// type, aliased so a caller can pass a ledger straight through without a
+// conversion that could only ever be the identity.
+type Seen = seen.Observation
 
 // HunkResult is the per-hunk report. Reason is empty unless Status is failed.
 type HunkResult struct {
@@ -119,19 +127,21 @@ type Options struct {
 	// DryRun validates and computes the result without writing.
 	DryRun bool
 
-	// Seen maps a path to the SHA-256 mrw last observed it to hold. When it is
-	// non-nil, a hunk touching an EXISTING file is refused unless mrw has seen
-	// that file's current contents — either because the path is absent from the
-	// ledger, or because what is on disk no longer matches what was recorded.
+	// Seen maps a path to what mrw last OBSERVED of it: the whole-file sha, and
+	// the line spans actually served to the caller. When it is non-nil, a hunk
+	// touching an EXISTING file is refused unless mrw has seen that file's
+	// current contents — because the path is absent from the ledger, because
+	// what is on disk no longer matches what was recorded, or because the lines
+	// the hunk addresses were never rendered.
 	//
 	// This is the read-before-modify guarantee. A range address like "42-58"
 	// only means something in the version of the file those numbers were
-	// counted in, so editing a file mrw has not seen is writing against a
-	// picture that may already be wrong.
+	// counted in, and only to a caller who counted them — so a read that
+	// printed nothing, or printed somewhere else, licenses nothing here.
 	//
 	// A nil ledger disables the check entirely, which is what the engine's own
 	// tests use — they construct the file and the hunks in the same breath.
-	Seen map[string]string
+	Seen map[string]Seen
 
 	// Force bypasses the Seen check. The escape hatch, not the habit.
 	Force bool
@@ -168,8 +178,8 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 
 	type pending struct {
 		file FileResult
-		out  []string
-		nl   bool
+		out  text
+		full string // the resolved absolute path this text is written to
 	}
 	var (
 		writes []pending
@@ -182,18 +192,30 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 
 	for _, path := range order {
 		hs := byPath[path]
-		full := filepath.Join(root, path)
-		orig, hadNewline, existed, err := readLines(full)
+		full, err := resolve(root, path)
+		if err != nil {
+			// A path that leaves the root is refused per hunk rather than
+			// aborting the run, so the receipt still reports every other file.
+			for _, h := range hs {
+				results[h.Index] = HunkResult{
+					Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine,
+					Status: StatusFailed, Reason: err.Error(),
+				}
+			}
+			failed = append(failed, FileResult{Path: path})
+			continue
+		}
+		orig, existed, err := readLines(full)
 		if err != nil {
 			return res, fmt.Errorf("%s: %w", path, err)
 		}
 
-		fr := FileResult{Path: path, LinesFrom: len(orig)}
+		fr := FileResult{Path: path, LinesFrom: len(orig.lines)}
 		if existed {
-			fr.SHABefore = shaOf(orig, hadNewline)
+			fr.SHABefore = shaOf(orig)
 		}
 
-		out, ok := planFile(path, hs, orig, existed, fr.SHABefore, opt, results)
+		out, ok := planFile(path, hs, orig.lines, existed, fr.SHABefore, opt, results)
 		if !ok {
 			// The plan ADDRESSED this file even though nothing will be written
 			// to it. Dropping it here is how a two-file plan reported one file
@@ -205,10 +227,12 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		fr.Created = !existed
 		// A file created by a plan always ends with a newline; an edited file
 		// keeps whatever it had, so mrw never silently adds or strips one.
-		nl := hadNewline || !existed
+		final := orig
+		final.final = orig.final || !existed
+		final = final.with(out)
 		fr.LinesTo = len(out)
-		fr.SHAAfter = shaOf(out, nl)
-		writes = append(writes, pending{file: fr, out: out, nl: nl})
+		fr.SHAAfter = shaOf(final)
+		writes = append(writes, pending{file: fr, out: final, full: full})
 	}
 
 	for n, i := range in {
@@ -249,7 +273,7 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 
 	for _, w := range writes {
 		if !dryRun {
-			if err := writeFile(filepath.Join(root, w.file.Path), w.out, w.nl); err != nil {
+			if err := writeFile(w.full, w.out); err != nil {
 				return res, fmt.Errorf("%s: %w", w.file.Path, err)
 			}
 			w.file.Written = true
@@ -283,17 +307,38 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 		case !known:
 			fail(hs[0], "%s has not been read: mrw does not know what it currently holds, and a "+
 				"line address means nothing without that. Run `mrw read %s` first, or pass --force", path, path)
-		case recorded != shaBefore:
+		case recorded.SHA != shaBefore:
 			// The dangerous case, and the reason the ledger is written on WRITE
 			// as well as on read: mrw produced or read this file, something else
 			// changed it since, and the caller's line numbers now point
 			// somewhere else in a file they have not seen.
 			fail(hs[0], "%s changed since mrw last saw it (recorded %s, now %s): re-read it before "+
-				"editing, or pass --force to overwrite blind", path, short(recorded), short(shaBefore))
+				"editing, or pass --force to overwrite blind", path, short(recorded.SHA), short(shaBefore))
 		}
 		if !ok {
 			return nil, false
 		}
+	}
+
+	// A hunk may only address lines the caller has actually BEEN SHOWN. The
+	// ledger records what each read served, so a --stat read (which renders no
+	// content) licenses nothing, and a read of lines 1-5 licenses an edit to
+	// lines 1-5 and not to line 40. Whoever counted the line numbers is the
+	// caller, and an address counted in lines they never saw is exactly the
+	// stale picture ADR-002 exists to refuse — the same failure as an edited
+	// file, one level finer.
+	obs, haveObs := opt.Seen[path]
+	covered := func(h hunk, from, to int) bool {
+		if !haveObs || opt.Force || obs.Whole() {
+			return true
+		}
+		if obs.Covers(from, to) {
+			return true
+		}
+		fail(h, "%s of %s has not been read: mrw served %s. A line address means nothing in lines "+
+			"you have not seen — read them, or pass --force",
+			addrString(from, to), path, obs.Served())
+		return false
 	}
 
 	// Resolve EOF sentinels and check each hunk in isolation.
@@ -373,7 +418,7 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 				fail(h, "line %d is out of range (file has %d lines)", start, total)
 				continue
 			}
-			if !guard(start) {
+			if !guard(start) || !covered(h, min(max(start, 1), total), min(max(start, 1), total)) {
 				continue
 			}
 			resolved = append(resolved, h.resolveTo(start+1, start, "insert"))
@@ -382,7 +427,7 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 				fail(h, "line %d is out of range (file has %d lines)", start, total)
 				continue
 			}
-			if !guard(start) {
+			if !guard(start) || !covered(h, min(max(start, 1), total), min(max(start, 1), total)) {
 				continue
 			}
 			resolved = append(resolved, h.resolveTo(start, start-1, "insert"))
@@ -397,6 +442,9 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 			}
 			if h.Anchor != "" && !strings.Contains(orig[start-1], h.Anchor) {
 				fail(h, "anchor %q not in line %d: %s", h.Anchor, start, trim(orig[start-1]))
+				continue
+			}
+			if !covered(h, start, end) {
 				continue
 			}
 			resolved = append(resolved, h.resolveTo(start, end, h.Op))
@@ -458,34 +506,89 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 	return res, true
 }
 
-// readLines splits a file into lines, reporting whether it ended with a newline
-// and whether it existed at all. A missing file is not an error here — create
-// needs to know, and so does a hunk that must fail loudly.
-func readLines(path string) (lines []string, hadNewline, existed bool, err error) {
+// text is a file's contents split for editing: its lines with their terminator
+// removed, the terminator itself, and whether the last line had one.
+//
+// The terminator is carried rather than assumed because mrw is an editor, not a
+// formatter: a CRLF file must come back CRLF, and — just as important — join()
+// must reproduce the ORIGINAL bytes exactly, since internal/seen hashes the raw
+// file and a disagreement would make every CRLF file read as "changed behind
+// mrw's back".
+type text struct {
+	lines []string
+	eol   string
+	final bool // the file ended with a terminator
+}
+
+// join renders the text back to the bytes it came from.
+func (t text) join() string {
+	body := strings.Join(t.lines, t.eol)
+	if t.final && len(t.lines) > 0 {
+		body += t.eol
+	}
+	return body
+}
+
+// with returns a copy holding different lines and the same conventions.
+func (t text) with(lines []string) text { t.lines = lines; return t }
+
+// readLines splits a file into lines, reporting the conventions it used and
+// whether it existed at all. A missing file is not an error here — create needs
+// to know, and so does a hunk that must fail loudly.
+//
+// Three terminators are recognised, in the order that makes each unambiguous:
+// a file whose every line ends "\r\n" is CRLF; a file with no "\n" at all but
+// containing "\r" is the old-Mac form, whose interior would otherwise be one
+// unaddressable line; anything else is LF, including a file that MIXES them —
+// there a stray "\r" stays part of its line's content, which is what keeps the
+// untouched lines byte-identical.
+func readLines(path string) (t text, existed bool, err error) {
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return nil, false, false, nil
+		return text{eol: "\n"}, false, nil
 	}
 	if err != nil {
-		return nil, false, false, err
+		return text{eol: "\n"}, false, err
 	}
 	if len(b) == 0 {
-		return nil, false, true, nil
+		return text{eol: "\n"}, true, nil
 	}
+
 	s := string(b)
-	hadNewline = strings.HasSuffix(s, "\n")
-	if hadNewline {
-		s = s[:len(s)-1]
+	t.eol = eolOf(s)
+	t.final = strings.HasSuffix(s, t.eol)
+	if t.final {
+		s = s[:len(s)-len(t.eol)]
 	}
-	return strings.Split(s, "\n"), hadNewline, true, nil
+	t.lines = strings.Split(s, t.eol)
+	return t, true, nil
+}
+
+func eolOf(s string) string {
+	if !strings.Contains(s, "\n") {
+		if strings.Contains(s, "\r") {
+			return "\r"
+		}
+		return "\n"
+	}
+	// CRLF only when EVERY newline is one: a mixed file is left alone.
+	if strings.Contains(s, "\r\n") &&
+		strings.Count(s, "\r\n") == strings.Count(s, "\n") {
+		return "\r\n"
+	}
+	return "\n"
 }
 
 // writeFile replaces a file atomically: a crash mid-write leaves the original,
 // never a half-written source file.
-func writeFile(path string, lines []string, trailingNewline bool) error {
-	body := strings.Join(lines, "\n")
-	if trailingNewline && len(lines) > 0 {
-		body += "\n"
+//
+// The temp file is created beside the RESOLVED target. A symlink is followed
+// rather than replaced — renaming over the link would leave the edit in a new
+// regular file while the file the caller meant stayed untouched, and nothing in
+// the receipt would say the tree's shape had changed.
+func writeFile(path string, t text) error {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
 	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -501,7 +604,7 @@ func writeFile(path string, lines []string, trailingNewline bool) error {
 	if fi, err := os.Stat(path); err == nil {
 		perm = fi.Mode().Perm()
 	}
-	if _, err := tmp.WriteString(body); err != nil {
+	if _, err := tmp.WriteString(t.join()); err != nil {
 		tmp.Close()
 		return err
 	}
@@ -514,12 +617,8 @@ func writeFile(path string, lines []string, trailingNewline bool) error {
 	return os.Rename(tmp.Name(), path)
 }
 
-func shaOf(lines []string, trailingNewline bool) string {
-	body := strings.Join(lines, "\n")
-	if trailingNewline && len(lines) > 0 {
-		body += "\n"
-	}
-	sum := sha256.Sum256([]byte(body))
+func shaOf(t text) string {
+	sum := sha256.Sum256([]byte(t.join()))
 	return hex.EncodeToString(sum[:])
 }
 
@@ -550,4 +649,35 @@ func short(sha string) string {
 		return sha[:8]
 	}
 	return sha
+}
+
+// resolve turns a hunk's path into the absolute file it names, and refuses one
+// that leaves the root.
+//
+// -C/--root is documented as "resolve every path relative to DIR", which a
+// caller reads as the scope of what mrw may change. A "../" climbed straight
+// out of it, creating directories on the way, and the receipt printed the
+// relative path — so the escape did not appear in the output either. Symlinks
+// are resolved first, because following one out of the tree is the same escape
+// wearing a different hat.
+func resolve(root, path string) (string, error) {
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	if real, err := filepath.EvalSymlinks(absRoot); err == nil {
+		absRoot = real
+	}
+	full := filepath.Join(absRoot, path)
+	// EvalSymlinks fails on a path that does not exist yet, which `create` is
+	// entitled to: fall back to the lexical form, already cleaned by Join.
+	check := full
+	if real, err := filepath.EvalSymlinks(full); err == nil {
+		check = real
+	}
+	if check != absRoot && !strings.HasPrefix(check, absRoot+string(filepath.Separator)) {
+		return "", fmt.Errorf("%s resolves to %s, which is outside the root %s: a plan may only "+
+			"change files under the directory mrw was pointed at", path, check, absRoot)
+	}
+	return full, nil
 }
