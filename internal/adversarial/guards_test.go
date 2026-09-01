@@ -3,6 +3,7 @@ package adversarial
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
@@ -99,5 +100,39 @@ func TestLinesGuardIsNotDiscardedOnAnInsert(t *testing.T) {
 	if res.Failed != 1 {
 		t.Errorf("lines=99 on a single-line insertion was accepted: failed=%d, applied=%v",
 			res.Failed, res.Applied)
+	}
+}
+
+// The two boundary addresses have no line to check an anchor against:
+// insert-after 0 is before the first line, and insert-before one past the last
+// is after everything. mrw refuses rather than passing them vacuously, which
+// means prepend and append are the two edits an anchor cannot guard. README
+// says so; this holds the pair together.
+func TestAnAnchorOnABoundaryAddressIsRefusedRatherThanIgnored(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		op    string
+		start int
+	}{
+		{"insert-after 0", "insert-after", 0},
+		{"insert-before past the end", "insert-before", 6},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := tree(t, map[string]string{"a.go": goFile})
+
+			res, err := apply.Apply(root, []apply.Input{{
+				Path: "a.go", Start: tc.start, End: tc.start, Op: tc.op,
+				Body: []string{"// x"}, Anchor: "package p", Lines: unset,
+			}}, apply.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Failed != 1 {
+				t.Fatalf("an anchor at %s was ignored: failed=%d, applied=%v", tc.name, res.Failed, res.Applied)
+			}
+			if !strings.Contains(res.Hunks[0].Reason, "cannot be checked") {
+				t.Errorf("the refusal does not say why: %s", res.Hunks[0].Reason)
+			}
+		})
 	}
 }

@@ -105,6 +105,7 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		body  []string
 		want  int  // remaining explicit body lines, -1 when scanning to next @@
 		fixed bool // whether this hunk declared body=N at all
+		stray bool // whether this hunk already reported an unaccounted line
 	)
 	flush := func() {
 		if cur == nil {
@@ -119,7 +120,7 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		}
 		cur.Body = body
 		hunks = append(hunks, *cur)
-		cur, body, want, fixed = nil, nil, -1, false
+		cur, body, want, fixed, stray = nil, nil, -1, false, false
 	}
 
 	sc := bufio.NewScanner(r)
@@ -138,8 +139,13 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		// next header is text the caller did not account for; absorbing it
 		// silently is what made body=0 mean "unbounded" instead of "empty".
 		if cur != nil && fixed && want == 0 && !strings.HasPrefix(line, "@@ ") {
-			if t := strings.TrimSpace(line); t != "" {
-				errs = append(errs, fmt.Sprintf("line %d: body= is satisfied; %q is not part of any hunk", n, line))
+			// Reported once per hunk, not once per line: a satisfied count
+			// followed by a hundred lines is one mistake, and a hundred
+			// identical errors would bury the other hunks' diagnostics.
+			if t := strings.TrimSpace(line); t != "" && !stray {
+				errs = append(errs, fmt.Sprintf("line %d: body= is satisfied; %q is not part of any hunk "+
+					"(further lines before the next @@ header are not reported)", n, line))
+				stray = true
 			}
 			continue
 		}
@@ -161,7 +167,7 @@ func Parse(r io.Reader) ([]Hunk, error) {
 			continue
 		}
 		h.Index = len(hunks)
-		cur, body, want, fixed = &h, nil, explicit, explicit >= 0
+		cur, body, want, fixed, stray = &h, nil, explicit, explicit >= 0, false
 	}
 	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("reading plan: %w", err)
