@@ -56,7 +56,11 @@ report its verdict, under three rules:
    is no pipe between the process and its verdict.
 2. **A check that did not run is not a pass.** `OK()` is false when `Ran` is
    false. "No evidence" and "evidence of success" are different answers, and a
-   missing check is exit 2 — a configuration problem — not exit 3.
+   missing check is exit 2 — a configuration problem — not exit 3. A check that
+   ran on something *other* than what was named is the same answer wearing a
+   verdict: a scope resolving outside the root is refused at exit 2 rather than
+   falling back to the whole-project run, which by construction covers nothing
+   the caller named (see ADR-006; `read` and `write` already refuse one).
 3. **A red check never reverts.** The caller is told, with a distinct status.
    Undoing an edit for someone can destroy work they wanted to inspect.
 
