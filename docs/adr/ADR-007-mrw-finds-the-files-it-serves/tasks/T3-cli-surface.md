@@ -60,6 +60,7 @@ go test ./cmd/mrw/ -run 'TestGrep|TestFilesFrom|TestExclude' -v 2>&1 | tee /tmp/
   && grep -q '^# 15\.' scripts/contract.sh \
   && grep -q '\-\-files-from' README.md && grep -q '\-\-exclude' README.md \
   && grep -qE 'measured 2026-[0-9]{2}-[0-9]{2}' README.md \
+  && ! grep -q 'cap per file' README.md \
   && go test ./... && ./scripts/contract.sh
 ```
 

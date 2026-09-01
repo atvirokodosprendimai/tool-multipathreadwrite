@@ -54,20 +54,23 @@ makes it reachable.
    observation: `read.Run`'s read is the authoritative one, and a file that
    stops matching between the walk and the serve prints nothing and observes
    nothing.
-7. [S7] Measure the go/no-go cost condition from the ADR with these exact
-   commands, so the two halves are comparable — the Context table's 25.6× was
-   measured over NON-TEST files only, and a walk sees the tests too:
+7. [S7] Measure the go/no-go cost condition from the ADR. Both halves must see
+   the SAME FILES, which is harder than it looks and was got wrong once already:
 
-       baseline: grep -rl EvalSymlinks --include='*.go' . | <compose specs> | mrw read -C 3
+       baseline: grep -rl EvalSymlinks . | <compose specs> | mrw read -C 3
        walk:     mrw read --grep EvalSymlinks -C 3 .
 
-   The baseline matches 5 files at 2026-09-01 (`internal/apply/apply.go`,
-   `internal/state/state.go`, `internal/rooted/rooted.go`, and the two
-   `_test.go` files); the walk must match the same 5 for the numbers to mean
-   anything, and a differing count is itself the finding. Record both
-   wall-clock numbers, the match count, the machine and the date in the
-   verification log. Over 2× and the ADR says `--grep` is withdrawn. [proof: human: a wall-clock ratio is a claim about one machine and one corpus; a test can pin behaviour but not a number, and the go/no-go needs the number]
+   Compare the two MATCH SETS, not a remembered number, and record the count
+   observed rather than asserting one. The first draft of this step named a
+   fixed 5 and filtered the baseline with `--include='*.go'` while the walk has
+   no such filter — and by then the ADR and two task files had written
+   `EvalSymlinks` into themselves, so the real counts were 5 against 8. A
+   measurement whose corpus a document can change by describing it is not a
+   measurement; the sets matching is the precondition, and if they differ that
+   is the finding rather than the ratio.
 
+   Record both wall-clock numbers, the match set, the machine and the date in
+   the verification log. Over 2× and the ADR says `--grep` is withdrawn. [proof: human: a wall-clock ratio is a claim about one machine and one corpus; a test can pin behaviour but not a number, and the go/no-go needs the number]
 ## Acceptance
 
 ```bash

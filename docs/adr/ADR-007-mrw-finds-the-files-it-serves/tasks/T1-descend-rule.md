@@ -59,7 +59,7 @@ go test ./internal/rooted/ -run 'TestDescend' -v 2>&1 | tee /tmp/adr007-t1.out \
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestDescendableAcceptsADirectoryInsideTheRoot` | `internal/rooted/rooted_test.go` | the ordinary case | — | S1, S2 |
-| `TestDescendableRefusesASymlinkedDirectory` | `internal/rooted/rooted_test.go` | rule 2 of the Decision | — | S1, S2 |
+| `TestDescendableRefusesASymlinkedDirectory` | `internal/rooted/rooted_test.go` | rule 3 of the Decision — a symlinked DIRECTORY is never descended | — | S1, S2 |
 | `TestDescendableRefusesADirectoryOutsideTheRoot` | `internal/rooted/rooted_test.go` | the ADR-006 boundary applies to descent | — | S1, S2 |
 | `TestDescendableTerminatesOnASelfReferentialLink` | `internal/rooted/rooted_test.go` | a loop cannot hang a walk | — | S1, S2 |
 | `TestASymlinkedRootIsStillUsable` | `internal/rooted/rooted_test.go` | the root itself is canonicalised, not refused | — | S1, S2 |

@@ -217,9 +217,17 @@ not a token — it is two `*`, neither of which crosses either. Verified
 
 None of those is `ErrBadPattern`, so the parse-time guard sees nothing wrong: a
 caller writing `--exclude '*_test.go'` against the full path alone would get no
-error and every test file. Matching the basename too makes each of those work as
-written. A caller who means a path rather than a name writes one —
-`internal/read/testdata` matches the path form.
+error and every test file. Matching the basename too makes the FIRST THREE work
+as written. The fourth has no working spelling: `**/*.go` matches neither the
+path nor the basename, because `**` is two `*` and neither crosses a separator —
+a caller who wants every Go file writes `*.go`, and one who means a path writes
+one, as `internal/read/testdata` matches the path form.
+
+Matching the basename also means an exclusion is no longer anchored by depth:
+`--exclude read` prunes a directory named `read` at any level, where the path
+form matched only a top-level one. That is what a caller means by naming it, and
+it is written down here because this paragraph is where a reader comes to learn
+what a glob does.
 
 A glob `path.Match` rejects is a usage error at parse time, not a pattern that
 silently matches nothing. Matching is case-sensitive on every platform, so a
