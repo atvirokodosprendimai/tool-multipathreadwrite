@@ -1,6 +1,7 @@
 package apply
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -609,6 +610,17 @@ func TestOnlyDeleteRecordsBounds(t *testing.T) {
 	for _, h := range res.Hunks {
 		if h.RemovedFirst != "" || h.RemovedLast != "" {
 			t.Errorf("%s recorded bounds %q..%q; only delete records them", h.Op, h.RemovedFirst, h.RemovedLast)
+		}
+		// Emptiness is not enough. HunkResult is one struct for all five ops,
+		// so without `omitempty` a replace would carry `"removed_first": ""`
+		// and still satisfy the check above — while breaking the contract,
+		// which promises these fields ON A DELETE HUNK. Assert ABSENCE.
+		b, err := json.Marshal(h)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(b), "removed_first") || strings.Contains(string(b), "removed_last") {
+			t.Errorf("%s carries the delete-only fields in --json: %s", h.Op, b)
 		}
 	}
 }

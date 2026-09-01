@@ -5,7 +5,7 @@
 **Estimated scope:** M (multi-file)
 **Owner:** unassigned
 **Produces:** `delete` with a body, meaning the expected removal
-**Consumes:** `Hunk.Body` legal for `OpDelete` (T1)
+**Consumes:** none — T2's S2 removes the `delete takes no body` rejection itself
 **Data dependency:** hermetic
 **Proof map:** v1
 

@@ -21,7 +21,7 @@ visible at write time rather than at build time.
 | `internal/apply/apply.go` | edit | record the bounds on a delete verdict; reuse the existing `trim` |
 | `internal/apply/apply_test.go` | edit | its tests |
 | `cmd/mrw/main.go` | edit | print the bounds on the human receipt line — this is what SELECTS the new fields |
-| `README.md` | edit | the receipt example in the write section |
+| `README.md` | edit | the Write section carries no receipt example at all, so ADD one showing a delete with its bounds, and name `removed_first`/`removed_last` as the `--json` spelling — the fence asserts the latter |
 | `scripts/contract.sh` | edit | a row driving the real binary, printing the bounds of the incident that produced this ADR |
 
 ## Ordered Steps
@@ -29,14 +29,19 @@ visible at write time rather than at build time.
 1. [S1] Write the failing tests first (TDD red): a delete records the trimmed
    first and last line it removed; a one-line delete records the same line in
    both; `replace` and the insertions record neither.
-2. [S2] Add `RemovedFirst`/`RemovedLast` to `HunkResult`, populated in the
-   `delete` branch of the splice from `orig[start-1]` and `orig[end-1]`, both
-   through the existing `trim`.
+2. [S2] Add `RemovedFirst`/`RemovedLast` to `HunkResult`, both `omitempty` so a
+   replace or an insertion carries no empty field — the wiring table promises
+   these on a DELETE hunk, and `"removed_first": ""` everywhere would break that
+   promise while satisfying an emptiness assertion. Populate them in the
+   `delete` branch of the splice from `orig[h.Start-1]` and `orig[h.End-1]`
+   (`start`/`end` are locals of the earlier resolution loop, not in scope
+   there), both through the existing `trim`.
 3. [S3] Print them on the human receipt line for a delete hunk, and only for a
-   delete — the field is empty elsewhere and an empty `from "" to ""` is noise.
-   The contract row in S4 is what proves this reached the CLI: a unit test on
-   `HunkResult` cannot see whether anything prints it. [proof: acceptance]
-4. [S4] Update the README's receipt example, and add the contract row. [proof: acceptance]
+   delete — keyed on the OP, not on the strings being non-empty, so a delete of
+   blank lines still says what it took. The contract row in S4 is what proves
+   this reached the CLI: a unit test on `HunkResult` cannot see whether anything
+   prints it. [proof: acceptance]
+4. [S4] Add the README receipt example and the `--json` field names, and add the contract rows. [proof: acceptance]
 
 ## Acceptance
 
@@ -70,6 +75,7 @@ go test ./internal/apply/ -run 'Delete.*Bounds|OneLineDelete' -v 2>&1 | tee /tmp
 
 - 2026-09-01 · 7b31d36* · mutant killed · exit 1 · `cmd/mrw/main.go` · nothing prints the bounds: proves the CLI receipt line, not just HunkResult, is what selects the new fields · acceptance-sha256:99ef9465fd24d520dade9618b79b62212565818e2680cd69fb7be4c9571a3c02
 - 2026-09-01 · 7b31d36* · mutant killed · exit 1 · `cmd/mrw/main.go` · nothing prints the bounds: proves the CLI receipt line, not just HunkResult, is what selects the new fields · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306
+- 2026-09-01 · 6ac0c91* · mutant killed · exit 1 · `internal/apply/apply.go` · without omitempty a replace carries "removed_first": "" — the wiring table promises these fields on a delete hunk only · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306
 
 ## Invariants
 
@@ -110,3 +116,4 @@ answer.
   ```
 - 2026-09-01 · 7b31d36* · exit 0 · `set -o pipefail …` · acceptance-sha256:99ef9465fd24d520dade9618b79b62212565818e2680cd69fb7be4c9571a3c02 · ms:3346
 - 2026-09-01 · 7b31d36* · exit 0 · `set -o pipefail …` · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306 · ms:2654
+- 2026-09-01 · 6ac0c91* · exit 0 · `set -o pipefail …` · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306 · ms:2048

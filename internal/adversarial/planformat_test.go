@@ -189,8 +189,11 @@ func TestRawTakesOnlyTrue(t *testing.T) {
 // editor eating the last line) removes code while the receipt a hook reads says
 // it succeeded. That is the exact shape this tool exists to refuse.
 //
-// The parser already polices the mirror image: `delete` WITH a body is a hard
-// parse error. It policed one direction and not the other.
+// When this test was written the parser policed the mirror image by refusing a
+// `delete` WITH a body outright — one direction checked, the other not. ADR-008
+// gave the other direction a meaning instead: a body on a `delete` is now the
+// lines the caller expects to remove, checked against the file. The asymmetry
+// this test was named for is gone; the rule it asserts is not.
 //
 // Nothing is lost by refusing it: deleting lines is what `delete` is for.
 func TestAReplaceWithNoBodyIsRejected(t *testing.T) {

@@ -36,6 +36,13 @@ The tell that it was an oversight rather than a design: the parser already
 polices the mirror image. `delete` WITH a body is a hard parse error. One
 direction was checked and the other was not.
 
+> **Amended 2026-09-01 by ADR-008.** A body on a `delete` is no longer a parse
+> error — it now means "these are the lines I expect to remove", checked against
+> the addressed range. The argument above is unaffected: the asymmetry was real
+> when this was written, and ADR-008 closed it by giving the other direction a
+> meaning rather than by weakening this one. A `replace` with no body is still
+> refused.
+
 ## Decision
 
 **1. `--root` confines reads.** A spec whose path resolves outside the root is

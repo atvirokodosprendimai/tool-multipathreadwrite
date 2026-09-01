@@ -13,8 +13,10 @@ headers. This README is a derived index.
 | 1 | T1 | none |
 | 2 | T2 | T1 |
 
-T1 ships alone if T2 is never built: the receipt bounds are what the incident
-actually needed, and the expected body is the stronger, opt-in form.
+T1 ships alone if T2 is never built — it makes a wrong delete legible, though
+only T2 refuses one. With T1 alone the incident replays: the wrong range still
+applies, still exits 0, still reports `ok`, and the two extra strings go past in
+output the caller was not reading. T1 is the diagnostic; T2 is the refusal.
 
 ## Task Index
 

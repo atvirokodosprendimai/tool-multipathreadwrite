@@ -7,7 +7,7 @@
 **Cross-references:** ADR-001 (defines `delete` and the guards this extends), ADR-006 (the mirror image: a `replace` with an empty body must say `delete`), ADR-002 (the ledger, which already answers the half of this problem that can be automatic)
 **Governs:** `internal/plan/plan.go`, `internal/apply/apply.go`, `README.md`, `scripts/contract.sh`
 **Enforced-by:** `internal/apply/apply_test.go::TestDeleteRecordsItsBounds`, `internal/apply/apply_test.go::TestOnlyDeleteRecordsBounds`, `internal/adversarial/planformat_test.go::TestADeleteWhoseExpectedRemovalDiffersWritesNothing`
-**Invalidates:** none — checked. Grepped every accepted record for `delete`, `body=` and `anchor=`: ADR-001 defines the op and its guards and is extended rather than changed; ADR-006 rejects an empty-bodied `replace` and is the symmetric case, unaffected.
+**Invalidates:** ADR-006, in its Context only, and amended in place rather than superseded. That record's tell — "the parser already polices the mirror image: `delete` WITH a body is a hard parse error" (ADR-006:35-37) — is a present-tense statement about the tool that T2 makes false, as is the same sentence in the doc comment on `internal/adversarial/planformat_test.go::TestAReplaceWithNoBodyIsRejected`. Both are restated by T2; neither argument is weakened, because ADR-008 closes the asymmetry by giving the other direction a meaning rather than by relaxing ADR-006's rule. ADR-001 defines the op and its guards and is extended rather than changed. The first pass of this check reported `none`; it was wrong, and a reviewer found both surfaces.
 **Served-path change:** a `delete` hunk's receipt names the first and last line it removed, both trimmed, in the human output and in `--json`; and `delete` accepts a body, which is currently a hard parse error, meaning "these are the lines I expect to remove" — a mismatch refuses the whole plan.
 
 ## Context
@@ -139,9 +139,15 @@ is wrong rather than the idea.
 
 ## Inter-task Contracts
 
-| Contract | Producing task | Consuming task(s) | Breaking? |
-|----------|----------------|-------------------|-----------|
-| `Hunk.Body` legal for `OpDelete` (T1) | T1 | T2 | No — T2 reads a field T1 stops rejecting |
+None — the tasks share no contract.
+
+
+T2 does not consume anything T1 produces: the `delete takes no body` rejection
+lives in `internal/plan/plan.go` and T2's own S2 removes it. The ordering is not
+a dependency, it is conflict avoidance — both tasks edit the delete path in
+`internal/apply/apply.go`, and serialising them keeps the diffs readable. An
+earlier version of this table credited T1 with producing the relaxed `validate`,
+which sent an executor looking for a change T1 never makes.
 
 ## Implementation
 
