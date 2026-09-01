@@ -519,3 +519,96 @@ func TestFilePermissionsSurvive(t *testing.T) {
 		t.Errorf("perm = %v, want 0755", fi.Mode().Perm())
 	}
 }
+
+// ADR-008 T1. `delete` is the only op with no body, so the caller asserts
+// nothing about what a range holds and the receipt reports only a count. The
+// bounds are what makes a wrong range visible at write time: the incident that
+// produced the ADR was a 4-line delete that took a closing brace and reported
+// `-4 +0  ok`.
+func TestDeleteRecordsItsBounds(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "a\nb\nc\nd\ne\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 4, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed=%d: %+v", res.Failed, res.Hunks)
+	}
+	if got, want := res.Hunks[0].RemovedFirst, "b"; got != want {
+		t.Errorf("RemovedFirst = %q, want %q", got, want)
+	}
+	if got, want := res.Hunks[0].RemovedLast, "d"; got != want {
+		t.Errorf("RemovedLast = %q, want %q", got, want)
+	}
+}
+
+// The bounds go through the same `trim` the anchor-failure message uses, so one
+// convention covers both: leading and trailing space gone, 60 characters at
+// most. A receipt line that wraps is a receipt line a reader skips.
+func TestDeleteBoundsAreTrimmed(t *testing.T) {
+	root := t.TempDir()
+	long := strings.Repeat("x", 80)
+	write(t, root, "f.txt", "\t  indented  \n"+long+"\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 2, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := res.Hunks[0].RemovedFirst, "indented"; got != want {
+		t.Errorf("RemovedFirst = %q, want %q", got, want)
+	}
+	if got, want := res.Hunks[0].RemovedLast, trim(long); got != want {
+		t.Errorf("RemovedLast = %q, want %q", got, want)
+	}
+	if len(res.Hunks[0].RemovedLast) > 60 {
+		t.Errorf("RemovedLast is %d characters; the receipt must stay bounded", len(res.Hunks[0].RemovedLast))
+	}
+}
+
+// The degenerate range: one line removed is both the first and the last, and
+// saying so twice is better than a special case the reader has to learn.
+func TestAOneLineDeleteRecordsTheSameLineTwice(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 3, End: 3, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Hunks[0].RemovedFirst != "c" || res.Hunks[0].RemovedLast != "c" {
+		t.Errorf("got from %q to %q, want both %q", res.Hunks[0].RemovedFirst, res.Hunks[0].RemovedLast, "c")
+	}
+}
+
+// No other op gains fields. `replace` and the insertions already carry a body
+// the caller wrote, which is the assertion this adds to the one op that has
+// none — and an empty `from "" to ""` on every other receipt line is noise.
+func TestOnlyDeleteRecordsBounds(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0},
+		{Path: "f.txt", Start: 2, End: 2, Op: "insert-after", Body: []string{"INS"}, Lines: -1, Index: 1},
+		{Path: "f.txt", Start: 3, End: 3, Op: "insert-before", Body: []string{"PRE"}, Lines: -1, Index: 2},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed=%d: %+v", res.Failed, res.Hunks)
+	}
+	for _, h := range res.Hunks {
+		if h.RemovedFirst != "" || h.RemovedLast != "" {
+			t.Errorf("%s recorded bounds %q..%q; only delete records them", h.Op, h.RemovedFirst, h.RemovedLast)
+		}
+	}
+}

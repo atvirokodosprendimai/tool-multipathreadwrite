@@ -51,6 +51,15 @@ type HunkResult struct {
 	Removed int    `json:"removed"`
 	Added   int    `json:"added"`
 	SrcLine int    `json:"plan_line"`
+
+	// RemovedFirst and RemovedLast are the first and last line a DELETE took,
+	// both through trim, and empty for every other op. A delete is the only op
+	// with no body, so it is the only one where the caller asserts nothing
+	// about what the range held; two bounded strings — the same two whatever
+	// the size of the range — are what make a wrong range visible in the
+	// receipt instead of in the next build (ADR-008).
+	RemovedFirst string `json:"removed_first,omitempty"`
+	RemovedLast  string `json:"removed_last,omitempty"`
 }
 
 // FileResult reports one file's outcome, including the SHA-256 it had before
@@ -496,6 +505,7 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 			cursor = h.End + 1
 		case "delete":
 			r.Removed = h.End - h.Start + 1
+			r.RemovedFirst, r.RemovedLast = trim(orig[h.Start-1]), trim(orig[h.End-1])
 			cursor = h.End + 1
 		}
 		out[h.Index] = r

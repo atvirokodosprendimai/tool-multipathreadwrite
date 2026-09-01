@@ -42,7 +42,7 @@ visible at write time rather than at build time.
 
 ```bash
 set -o pipefail
-go test ./internal/apply/ -run 'TestDeleteRecordsItsBounds' -v 2>&1 | tee /tmp/adr008-t1.out \
+go test ./internal/apply/ -run 'Delete.*Bounds|OneLineDelete' -v 2>&1 | tee /tmp/adr008-t1.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr008-t1.out \
   && grep -q 'removed_first' README.md \
   && go test ./... && ./scripts/contract.sh
@@ -53,6 +53,7 @@ go test ./internal/apply/ -run 'TestDeleteRecordsItsBounds' -v 2>&1 | tee /tmp/a
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestDeleteRecordsItsBounds` | `internal/apply/apply_test.go` | the first and last removed line are recorded and trimmed | — | S1, S2 |
+| `TestDeleteBoundsAreTrimmed` | `internal/apply/apply_test.go` | the bounds go through the existing `trim`, so the receipt stays bounded | — | S1, S2 |
 | `TestAOneLineDeleteRecordsTheSameLineTwice` | `internal/apply/apply_test.go` | the degenerate range | — | S1, S2 |
 | `TestOnlyDeleteRecordsBounds` | `internal/apply/apply_test.go` | replace and the insertions leave the fields empty | — | S1, S2 |
 
@@ -66,6 +67,9 @@ go test ./internal/apply/ -run 'TestDeleteRecordsItsBounds' -v 2>&1 | tee /tmp/a
 | 4 — it is used | nothing measures this yet |
 
 ## Mutation Log
+
+- 2026-09-01 · 7b31d36* · mutant killed · exit 1 · `cmd/mrw/main.go` · nothing prints the bounds: proves the CLI receipt line, not just HunkResult, is what selects the new fields · acceptance-sha256:99ef9465fd24d520dade9618b79b62212565818e2680cd69fb7be4c9571a3c02
+- 2026-09-01 · 7b31d36* · mutant killed · exit 1 · `cmd/mrw/main.go` · nothing prints the bounds: proves the CLI receipt line, not just HunkResult, is what selects the new fields · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306
 
 ## Invariants
 
@@ -90,3 +94,19 @@ answer.
 - Requiring a guard on every delete (deferred: docs/adr/BACKLOG.md)
 
 ## Verification Log
+- 2026-09-01 · 7b31d36* · exit 1 · `set -o pipefail …` · acceptance-sha256:99ef9465fd24d520dade9618b79b62212565818e2680cd69fb7be4c9571a3c02 · ms:202
+  ```
+  --- last 10 line(s) of stdout (of 14 after folding 14 raw)
+  internal/apply/apply_test.go:566:31: res.Hunks[0].RemovedLast undefined (type HunkResult has no field or method RemovedLast)
+  internal/apply/apply_test.go:569:22: res.Hunks[0].RemovedLast undefined (type HunkResult has no field or method RemovedLast)
+  internal/apply/apply_test.go:570:92: res.Hunks[0].RemovedLast undefined (type HunkResult has no field or method RemovedLast)
+  internal/apply/apply_test.go:586:18: res.Hunks[0].RemovedFirst undefined (type HunkResult has no field or method RemovedFirst)
+  internal/apply/apply_test.go:586:54: res.Hunks[0].RemovedLast undefined (type HunkResult has no field or method RemovedLast)
+  internal/apply/apply_test.go:587:60: res.Hunks[0].RemovedFirst undefined (type HunkResult has no field or method RemovedFirst)
+  internal/apply/apply_test.go:587:87: res.Hunks[0].RemovedLast undefined (type HunkResult has no field or method RemovedLast)
+  internal/apply/apply_test.go:587:87: too many errors
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply [build failed]
+  FAIL
+  ```
+- 2026-09-01 · 7b31d36* · exit 0 · `set -o pipefail …` · acceptance-sha256:99ef9465fd24d520dade9618b79b62212565818e2680cd69fb7be4c9571a3c02 · ms:3346
+- 2026-09-01 · 7b31d36* · exit 0 · `set -o pipefail …` · acceptance-sha256:67ac8151714a48d72624f4063e59c052dad1688b0d7f83cdbdea424d1c447306 · ms:2654

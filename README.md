@@ -223,6 +223,23 @@ a test fixture — say `raw=true` and the check stands down for that hunk:
 If any hunk fails, **every** hunk is reported and nothing is written. Siblings
 report `skip` in the human output and `"skipped"` in `--json`, never `ok`.
 
+### A delete says what it removed
+
+Every other op carries a body you wrote, and writing the replacement is itself
+proof you looked at what you were addressing. `delete` has no body, so it is
+the one op where a range that is a line too long removes something you never
+saw. The receipt closes that gap: a delete names the first and last line it
+took.
+
+```
+ok   internal/read/walk.go 201-204 delete  -4 +0 from "}" to "var _ = fmt.Sprintf"
+```
+
+Two strings, whatever the size of the range — a 500-line delete prints the same
+two — each trimmed to 60 characters the way a failed `anchor=` trims the line it
+prints. In `--json` they are `removed_first` and `removed_last`, present on
+delete hunks only.
+
 ## Read before modify
 
 `mrw` refuses to edit a file whose current contents it has not seen.

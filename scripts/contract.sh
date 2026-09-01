@@ -329,6 +329,28 @@ out=$(m check . 2>&1); rc=$?
 want 3 "$rc" "check . fails on a broken package one level down"
 grep -q 'TestBroken' <<<"$out" && ok "and the failure it reports is that package's" || bad "did not reach it: $out"
 
+# 16. ADR-008: a delete is the only op with no body, so the receipt is the only
+#     place the caller can see what a range actually held. This is the incident
+#     that produced the record, reproduced: a range one line too long takes the
+#     closing brace of the function above, and the old receipt said `-4 +0  ok`.
+fixture
+printf 'package demo\n\nfunc E() int {\n\treturn 5\n}\n\nvar _ = 1\nvar _ = 2\n' > "$R/c.go"
+m read c.go >/dev/null
+out=$(printf '@@ c.go 5-8 delete\n' | m write --dry-run - 2>&1)
+rc=$?
+want 0 "$rc" "the ADR-008 delete applies"
+grep -qF 'from "}" to "var _ = 2"' <<<"$out" \
+  && ok "a delete receipt names the first and last line it removed" \
+  || bad "the delete receipt carries no bounds: $out"
+out=$(printf '@@ c.go 3 replace\nfunc E() int { return 5 }\n' | m write --dry-run --json - 2>&1)
+grep -qF 'removed_first' <<<"$out" \
+  && bad "a replace reported removed_first: $out" \
+  || ok "and no other op reports them"
+out=$(printf '@@ c.go 5-8 delete\n' | m write --json - 2>&1)
+grep -qF '"removed_first": "}"' <<<"$out" && grep -qF '"removed_last": "var _ = 2"' <<<"$out" \
+  && ok "--json carries removed_first and removed_last" \
+  || bad "--json is missing the bounds: $out"
+
 echo
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

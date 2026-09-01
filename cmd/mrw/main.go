@@ -605,7 +605,18 @@ func report(w *os.File, res apply.Result, quiet bool) {
 		case h.Status == apply.StatusSkipped:
 			fmt.Fprintf(out, "skip %s %s %s\n", h.Path, h.Addr, h.Op)
 		default:
-			fmt.Fprintf(out, "ok   %s %s %s  -%d +%d\n", h.Path, h.Addr, h.Op, h.Removed, h.Added)
+			// A delete says what it removed. Only a delete: every other op
+			// carries a body the caller wrote, so `from "" to ""` there would
+			// be noise on every line of every receipt (ADR-008).
+			// Keyed on the op, not on the strings being non-empty: a delete
+			// that removes blank lines removed something, and a receipt that
+			// went quiet about it would be indistinguishable from one where
+			// nothing recorded the bounds at all.
+			bounds := ""
+			if h.Op == "delete" {
+				bounds = fmt.Sprintf(" from %q to %q", h.RemovedFirst, h.RemovedLast)
+			}
+			fmt.Fprintf(out, "ok   %s %s %s  -%d +%d%s\n", h.Path, h.Addr, h.Op, h.Removed, h.Added, bounds)
 		}
 	}
 	if !quiet {
