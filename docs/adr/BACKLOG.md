@@ -94,3 +94,18 @@ here.
   go/no-go cost measurement comes back close to the 2× threshold, parallelism is
   the first thing to reach for — and it needs its own answer to whether output
   order stays deterministic, which the receipt format assumes.
+
+## From ADR-008 (a delete says what it removed)
+
+- **Requiring a guard on every `delete`.** ADR-008 makes a delete REPORT its
+  bounds and lets it DECLARE an expected body, but leaves an unguarded
+  `@@ f.go 5-8 delete` legal. Requiring `lines=` or `anchor=` was the runner-up
+  and is genuinely close: it taxes every correct two-line delete to catch the
+  rare wrong one. Revisit once the receipt bounds have been in use — if a wrong
+  range still reaches a build after ADR-008, the tax is worth paying.
+
+- **Requiring the expected body rather than accepting it.** The body is opt-in
+  because it costs the caller the tokens of the lines being removed, which is
+  worth it for a delete worth pinning and not for a two-line one. If plans in
+  practice omit it exactly where it would have helped, that judgement is wrong
+  and the default should move.
