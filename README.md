@@ -195,7 +195,25 @@ because those two example lines begin with `@@ ` and would otherwise be read as
 headers — the escape hatch documented above.)
 
 `body=N` takes exactly N following lines as the body, so a body may itself
-contain lines starting with `@@ `.
+contain lines starting with `@@ `. The count is checked in both directions: a
+plan that ends before it is satisfied is refused, and so is text after it is
+satisfied.
+
+One case is checked more closely, because it is the only way left to lose a
+hunk in silence. If a counted body line is a **complete, valid header**, an
+overcount would swallow that hunk and the plan would still apply — so it is
+refused, and the message names the hunk. Prose about the format is unaffected:
+these two lines are not valid headers, because their trailing text is not
+`key=value`.
+
+    @@ page.templ 12 replace anchor="class="  ← what you meant
+    @@ page.templ 12 replace lines=1          ← and this
+
+When a body really does contain a real header — a plan editing this README, or
+a test fixture — say `raw=true` and the check stands down for that hunk:
+
+    @@ docs/example.md 4 replace body=1 raw=true
+    @@ a.go 1 replace
 
 If any hunk fails, **every** hunk is reported and nothing is written. Siblings
 report `skipped`, never `ok`.

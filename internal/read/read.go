@@ -202,7 +202,16 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		// Keyed the same way apply keys its hunks, so "a.go" read and "./a.go"
 		// written are one file rather than two ledger entries.
 		prev, ok := observed[key]
-		if ok && prev.SHA == sha && spans != nil && prev.Spans != nil {
+		if ok && prev.SHA == sha {
+			// A whole-file observation is never downgraded by a later partial
+			// one: reading a file MORE thoroughly cannot leave the caller
+			// having seen less. seen.merge says the same thing about the
+			// ledger on disk; this is the same rule one step earlier, before
+			// Record ever sees it.
+			if prev.Spans == nil || spans == nil {
+				observed[key] = seen.Observation{SHA: sha}
+				return
+			}
 			spans = append(prev.Spans, spans...)
 		}
 		observed[key] = seen.Observation{SHA: sha, Spans: spans}
@@ -225,7 +234,10 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		}
 		spans, missed := resolve(sp.Ranges, lines, opt.Context)
 		// served accumulates only what is actually PRINTED below, so a withheld
-		// span never counts as seen.
+		// span never counts as seen. whole starts as a fact about the REQUEST
+		// and is demoted the moment anything is withheld: --max-lines is the
+		// flag a caller reaches for on a big file, which is precisely when they
+		// cannot count the lines they were not shown.
 		var served [][2]int
 		whole := len(sp.Ranges) == 0
 		for _, m := range missed {
@@ -238,11 +250,13 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			if opt.MaxLines > 0 && budget <= 0 {
 				fmt.Fprintf(w, "@@ %d-%d  WITHHELD %d line(s): --max-lines reached\n", sn.start, sn.end, n)
 				problems++
+				whole = false
 				continue
 			}
 			cut := 0
 			if opt.MaxLines > 0 && n > budget {
 				cut, n = n-budget, budget
+				whole = false
 			}
 			fmt.Fprintf(w, "@@ %d-%d\n", sn.start, sn.start+n-1)
 			served = append(served, [2]int{sn.start, sn.start + n - 1})

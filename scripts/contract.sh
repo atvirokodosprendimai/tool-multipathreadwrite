@@ -162,6 +162,30 @@ want 1 "$rc" "a hunk that leaves the root -> refused"
 [ -e "$(dirname "$R")/escaped.txt" ] && bad "mrw wrote outside the root" \
   || ok "nothing was written outside the root"
 
+# 10. --max-lines withholds, and what is withheld is not observed. This is the
+#     same gap as --stat wearing a different hat, and it is the one a caller
+#     reaches for on a big file — exactly when they cannot count what they were
+#     not shown.
+R=$(mktemp -d "$WORK/withheld-XXXXXX")
+: > "$R/big.txt"
+for i in $(seq 1 40); do echo "line $i" >> "$R/big.txt"; done
+m read --max-lines 5 big.txt >/dev/null 2>&1
+out=$(printf '@@ big.txt 40 replace\nREWRITTEN\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "a truncated read does not license an edit to a withheld line"
+grep -q 'has not been read' <<<"$out" && ok "the reason names the unseen lines" || bad "unclear reason"
+m read big.txt >/dev/null
+out=$(printf '@@ big.txt 40 replace\nREWRITTEN\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "reading it whole afterwards licenses the edit"
+
+# 11. body= may contain a real header when the plan says raw=true, and may not
+#     when it does not.
+fixture
+out=$(printf '@@ a.go 3 replace body=1\n@@ b.go 3 replace\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "a valid header inside a counted body -> parse error"
+out=$(printf '@@ a.go 3 replace body=1 raw=true\n@@ b.go 3 replace\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "raw=true writes that header as content"
+grep -q '@@ b.go 3 replace' "$R/a.go" && ok "the header landed as text" || bad "the body was not written"
+
 echo
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

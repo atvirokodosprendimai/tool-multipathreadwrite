@@ -59,15 +59,14 @@ type Observation struct {
 func (o Observation) Whole() bool { return o.Spans == nil }
 
 // Covers reports whether every line in [start,end] was served. A whole-file
-// observation covers everything; an empty range (an insertion at a position
-// rather than a line) covers trivially.
+// observation covers everything, and an empty span set covers nothing.
 func (o Observation) Covers(start, end int) bool {
 	if o.Whole() {
 		return true
 	}
-	if end < start {
-		return true
-	}
+	// A range whose end precedes its start iterates zero times below and is
+	// covered trivially. That is left to the loop rather than special-cased,
+	// so nothing here has to claim which caller produces such a range.
 	for line := start; line <= end; line++ {
 		if !o.coversLine(line) {
 			return false
@@ -143,13 +142,30 @@ func parseLine(text string) (string, Observation, bool) {
 		return "", Observation{}, false
 	}
 	spans, path, ok := strings.Cut(rest, "  ")
-	if !ok {
+	// Two shapes have to be told apart, and a legacy PATH may itself contain a
+	// double space: "<sha>  my  file.go" is one path, not spans plus a path.
+	// The middle field is only spans when it is shaped like spans.
+	if !ok || !spanShaped(spans) {
 		return rest, Observation{SHA: sha}, true // legacy: whole file
 	}
 	if path == "" {
 		return "", Observation{}, false
 	}
 	return path, Observation{SHA: sha, Spans: parseSpans(spans)}, true
+}
+
+// spanShaped reports whether s is the spans field rather than the first half of
+// a path: "-" for whole, "" for nothing served, else digits, commas and dashes.
+func spanShaped(s string) bool {
+	if s == "-" || s == "" {
+		return true
+	}
+	for _, r := range s {
+		if (r < '0' || r > '9') && r != ',' && r != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 // parseSpans reads "-" (whole file), "" (nothing served) or "1-5,20-30".
