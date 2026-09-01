@@ -44,7 +44,9 @@ fixture() {
   printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
   printf 'package demo\n\nfunc D() int { return 4 }\n'               > "$R/b.go"
   printf 'package demo\n\nimport "testing"\n\nfunc TestAll(t *testing.T) {\n\tif A()+B()+C()+D() != 10 {\n\t\tt.Fatal("bad")\n\t}\n}\n' > "$R/a_test.go"
-  "$MRW" -C "$R" read --stat a.go b.go a_test.go >/dev/null
+  # A REAL read, not --stat: since the ledger records what was actually
+  # SERVED, a stat prints no content and licenses no edit.
+  "$MRW" -C "$R" read a.go b.go a_test.go >/dev/null
 }
 m() { "$MRW" -C "$R" "$@"; }
 
@@ -104,7 +106,7 @@ printf 'package demo\n\nfunc A() int { return 1 }\n' > "$R/a.go"
 out=$(printf '@@ a.go 3 replace anchor="func A"\nx\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "editing a file mrw has never read -> refused"
 grep -q 'has not been read' <<<"$out" && ok "the reason names the cause" || bad "unclear reason"
-m read --stat a.go >/dev/null
+m read a.go >/dev/null
 printf 'package demo\n\nfunc A() int { return 99 }\n' > "$R/a.go"   # changed elsewhere
 out=$(printf '@@ a.go 3 replace anchor="func A"\nx\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "editing a file changed behind mrw's back -> refused"
@@ -135,9 +137,30 @@ want 1 "$rc" "lines=9 on an insertion -> refused"
 out=$(printf '@@ a.go 3 replace body=5\nx\n' | m write - 2>&1); rc=$?
 want 2 "$rc" "body= asking for more lines than the plan holds -> parse error"
 printf 'package demo\n\nvar S = "muted"\n' > "$R/q.go"
-m read --stat q.go >/dev/null
+m read q.go >/dev/null
 out=$(printf '@@ q.go 3 replace anchor="= \\"muted\\""\nvar S = "MUTED"\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "an anchor may contain an escaped quote"
+
+# 9. The ledger records what the caller was SHOWN, and the root is a boundary.
+#    Both were silent before: a --stat read licensed an edit to a file whose
+#    content had never been printed, and a ../ path walked straight out of the
+#    directory mrw was pointed at.
+R=$(mktemp -d "$WORK/shown-XXXXXX")
+printf 'package demo\n\nfunc A() int { return 1 }\n' > "$R/a.go"
+m read --stat a.go >/dev/null
+out=$(printf '@@ a.go 3 replace anchor="func A"\nx\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "--stat prints no content, so it licenses no edit"
+grep -q 'has not been read' <<<"$out" && ok "the reason names what was not shown" || bad "unclear reason"
+m read a.go:1-1 >/dev/null
+out=$(printf '@@ a.go 3 replace anchor="func A"\nx\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "reading line 1 does not license an edit to line 3"
+m read a.go >/dev/null
+out=$(printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 2 }\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "reading the whole file licenses the whole file"
+out=$(printf '@@ ../escaped.txt - create\nx\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "a hunk that leaves the root -> refused"
+[ -e "$(dirname "$R")/escaped.txt" ] && bad "mrw wrote outside the root" \
+  || ok "nothing was written outside the root"
 
 echo
 if [ "$fails" -eq 0 ]; then

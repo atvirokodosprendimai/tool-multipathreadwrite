@@ -219,18 +219,27 @@ numbers were counted in.
 `mrw read` and `mrw write` both record what each file now holds, in
 a per-checkout state directory **outside the working tree** — mrw creates
 nothing in your repository. `mrw seen` prints where it is and what it holds.
-So:
+
+What is recorded is **what you were shown**, not what mrw hashed. A read that
+printed no content observes nothing, and a read of lines 1-5 observes lines
+1-5: you are the one counting line numbers, so an address in lines you never
+saw is exactly the stale picture this refuses.
 
 | you do | result |
 |---|---|
 | edit a file never read | refused — read it first |
 | read it, then edit | applies |
-| edit again straight after | applies — mrw knows what it just wrote |
+| `mrw read f.go --stat`, then edit | **refused** — a stat prints no content |
+| `mrw read f.go:1-5`, then edit line 40 | **refused** — you have not seen line 40 |
+| `mrw read f.go:1-5`, then edit line 3 | applies |
+| edit again straight after | applies — mrw knows what it just wrote, all of it |
 | something else changes the file, then you edit | **refused** — changed since mrw last saw it |
 | `mrw write --force` | applies regardless |
 | `create` a new file | applies — no existing content to be stale about |
+| `mrw write --force` | applies regardless |
+| `create` a new file | applies — no existing content to be stale about |
 
-The fourth row is the one that matters. Because the ledger is written on
+The "changed since" row is the one that matters. Because the ledger is written on
 **write** as well as on read, a chain of edits needs no re-read between steps,
 while an edit made behind mrw's back leaves the recorded sha and the real one
 disagreeing:
@@ -244,6 +253,23 @@ or pass --force to overwrite blind
 A per-hunk `sha=` guard is still available and is stronger where you want it
 pinned in the plan itself; the ledger is the ambient default that costs no
 tokens to use.
+
+## What a write will not do
+
+Three boundaries, each one a bug that was found by trying to break the tool
+rather than by reading it:
+
+- **It will not write outside `--root`.** A `../` in a hunk's path is refused,
+  and so is a symlink whose target leaves the tree. `-C` names the scope of
+  what a plan may change, and used to only name where paths start from.
+- **It will not replace a symlink.** The write goes to the file the link points
+  at. (Writing by rename is what makes a crash mid-write safe; renaming over
+  the link would leave the edit in a new regular file and the real one
+  untouched.)
+- **It will not change your line endings.** A CRLF file comes back CRLF, an LF
+  file LF, and a file that mixes them is left mixed — the lines a hunk did not
+  address survive byte for byte. A file terminated with lone `\r` has
+  addressable lines like any other.
 
 ## The working set — write once, use many
 

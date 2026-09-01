@@ -10,10 +10,17 @@
 // like "replace 42-58" means nothing without the version of the file those line
 // numbers were counted in.
 //
+// So the record is not "mrw hashed this file" but "mrw SERVED these lines of
+// it". A read that rendered no content — `--stat` — observes nothing, and a
+// read of lines 1-5 licenses an edit to lines 1-5 and not to line 40. Whoever
+// counted the line numbers is the caller, and the caller has only seen what was
+// printed to them.
+//
 // The ledger is updated on READ and on WRITE, recording what the file is after
 // each. So a chain of edits flows without re-reading — mrw already knows what it
-// just produced — while anything that changed the file BEHIND mrw's back leaves
-// the recorded sha and the real one disagreeing, and the next write is refused.
+// just produced, and knows all of it — while anything that changed the file
+// BEHIND mrw's back leaves the recorded sha and the real one disagreeing, and
+// the next write is refused.
 package seen
 
 import (
@@ -24,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
@@ -35,8 +43,69 @@ import (
 // copy was committed by accident. See ADR-004.
 const Name = "seen"
 
-// Ledger maps a path to the SHA-256 mrw last observed it to hold.
-type Ledger map[string]string
+// Observation is what mrw last saw one file to be: the whole-file SHA-256, and
+// the line spans it actually served to the caller.
+//
+// A nil Spans means the WHOLE file — what a plain `mrw read path` observes, and
+// what a write observes about the file it just produced. An empty-but-non-nil
+// Spans means the file was hashed and nothing was shown, which licenses no
+// edit at all.
+type Observation struct {
+	SHA   string
+	Spans [][2]int
+}
+
+// Whole reports whether this observation covers the entire file.
+func (o Observation) Whole() bool { return o.Spans == nil }
+
+// Covers reports whether every line in [start,end] was served. A whole-file
+// observation covers everything; an empty range (an insertion at a position
+// rather than a line) covers trivially.
+func (o Observation) Covers(start, end int) bool {
+	if o.Whole() {
+		return true
+	}
+	if end < start {
+		return true
+	}
+	for line := start; line <= end; line++ {
+		if !o.coversLine(line) {
+			return false
+		}
+	}
+	return true
+}
+
+func (o Observation) coversLine(line int) bool {
+	for _, s := range o.Spans {
+		if line >= s[0] && line <= s[1] {
+			return true
+		}
+	}
+	return false
+}
+
+// Served renders the spans the way a diagnostic should quote them.
+func (o Observation) Served() string {
+	if o.Whole() {
+		return "the whole file"
+	}
+	if len(o.Spans) == 0 {
+		return "no lines"
+	}
+	parts := make([]string, 0, len(o.Spans))
+	for _, s := range o.Spans {
+		if s[0] == s[1] {
+			parts = append(parts, strconv.Itoa(s[0]))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%d-%d", s[0], s[1]))
+	}
+	return "lines " + strings.Join(parts, ",")
+}
+
+// Ledger maps a path to the observation mrw last made of it.
+type Ledger map[string]Observation
 
 // Load reads the ledger. A missing file is an empty ledger, not an error: no
 // observations yet is the normal starting state.
@@ -57,18 +126,73 @@ func Load(root string) (Ledger, error) {
 
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
-		sha, path, ok := strings.Cut(strings.TrimSpace(sc.Text()), "  ")
-		if ok && sha != "" && path != "" {
-			l[path] = sha
+		if p, obs, ok := parseLine(sc.Text()); ok {
+			l[p] = obs
 		}
 	}
 	return l, sc.Err()
 }
 
+// parseLine reads one ledger line. Two shapes are accepted: the current
+// "<sha>  <spans>  <path>" and the pre-span "<sha>  <path>", which is read as a
+// whole-file observation — a ledger written by an older mrw stays usable rather
+// than reading as "never seen".
+func parseLine(text string) (string, Observation, bool) {
+	sha, rest, ok := strings.Cut(strings.TrimSpace(text), "  ")
+	if !ok || sha == "" || rest == "" {
+		return "", Observation{}, false
+	}
+	spans, path, ok := strings.Cut(rest, "  ")
+	if !ok {
+		return rest, Observation{SHA: sha}, true // legacy: whole file
+	}
+	if path == "" {
+		return "", Observation{}, false
+	}
+	return path, Observation{SHA: sha, Spans: parseSpans(spans)}, true
+}
+
+// parseSpans reads "-" (whole file), "" (nothing served) or "1-5,20-30".
+func parseSpans(s string) [][2]int {
+	if s == "-" {
+		return nil
+	}
+	out := [][2]int{}
+	for _, part := range strings.Split(s, ",") {
+		lo, hi, ok := strings.Cut(part, "-")
+		if !ok {
+			hi = lo
+		}
+		a, errA := strconv.Atoi(lo)
+		b, errB := strconv.Atoi(hi)
+		if errA != nil || errB != nil {
+			continue
+		}
+		out = append(out, [2]int{a, b})
+	}
+	return out
+}
+
+func formatSpans(o Observation) string {
+	if o.Whole() {
+		return "-"
+	}
+	parts := make([]string, 0, len(o.Spans))
+	for _, s := range o.Spans {
+		parts = append(parts, fmt.Sprintf("%d-%d", s[0], s[1]))
+	}
+	return strings.Join(parts, ",")
+}
+
 // Record merges observations into the ledger on disk and saves it. Paths absent
 // from obs keep whatever was recorded for them: one command observing two files
 // must not erase what another observed about a third.
-func Record(root string, obs map[string]string) error {
+//
+// Within one path the observations ACCUMULATE while the file is unchanged: two
+// reads of different ranges leave the caller having seen both. A different SHA
+// replaces the record outright, because spans counted in one version of a file
+// say nothing about another.
+func Record(root string, obs map[string]Observation) error {
 	if len(obs) == 0 {
 		return nil
 	}
@@ -76,30 +200,43 @@ func Record(root string, obs map[string]string) error {
 	if err != nil {
 		return err
 	}
-	for path, sha := range obs {
-		l[path] = sha
+	for path, o := range obs {
+		l[path] = merge(l[path], o)
 	}
+	return save(root, l)
+}
 
-	path, err := writePath(root)
-	if err != nil {
-		return err
+// merge combines a new observation with what was already recorded for the same
+// path. Anything about a different version of the file is discarded.
+func merge(old, new Observation) Observation {
+	if old.SHA != new.SHA || new.Whole() {
+		return new
 	}
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
+	if old.Whole() {
+		return old
 	}
-	paths := make([]string, 0, len(l))
-	for p := range l {
-		paths = append(paths, p)
-	}
-	// Sorted so the file diffs cleanly and two runs produce the same bytes.
-	sort.Strings(paths)
+	return Observation{SHA: new.SHA, Spans: mergeSpans(append(append([][2]int{}, old.Spans...), new.Spans...))}
+}
 
-	var b strings.Builder
-	for _, p := range paths {
-		fmt.Fprintf(&b, "%s  %s\n", l[p], p)
+// mergeSpans sorts and coalesces overlapping or touching spans, so a ledger
+// entry cannot grow without bound as a file is read range by range.
+func mergeSpans(in [][2]int) [][2]int {
+	if len(in) == 0 {
+		return [][2]int{}
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o600)
+	sort.Slice(in, func(i, j int) bool { return in[i][0] < in[j][0] })
+	out := [][2]int{in[0]}
+	for _, s := range in[1:] {
+		last := &out[len(out)-1]
+		if s[0] <= last[1]+1 {
+			if s[1] > last[1] {
+				last[1] = s[1]
+			}
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
 }
 
 // Forget drops paths from the ledger, so the next write must observe them
@@ -120,24 +257,31 @@ func Forget(root string, paths []string) (int, error) {
 		return 0, nil
 	}
 	// Record cannot express a deletion, so rewrite the whole file here.
+	return n, save(root, l)
+}
+
+// save writes the whole ledger, sorted so the file diffs cleanly and two runs
+// produce the same bytes.
+func save(root string, l Ledger) error {
 	path, err := writePath(root)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return 0, err
+		return err
 	}
-	keys := make([]string, 0, len(l))
+	paths := make([]string, 0, len(l))
 	for p := range l {
-		keys = append(keys, p)
+		paths = append(paths, p)
 	}
-	sort.Strings(keys)
+	sort.Strings(paths)
+
 	var b strings.Builder
-	for _, p := range keys {
-		fmt.Fprintf(&b, "%s  %s\n", l[p], p)
+	for _, p := range paths {
+		fmt.Fprintf(&b, "%s  %s  %s\n", l[p].SHA, formatSpans(l[p]), p)
 	}
-	return n, os.WriteFile(path, []byte(b.String()), 0o600)
+	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
 
 // SHA is the ledger's hash of a byte slice, and the one every other package
