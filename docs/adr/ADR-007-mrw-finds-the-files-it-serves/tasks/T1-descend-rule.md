@@ -68,7 +68,7 @@ go test ./internal/rooted/ -run 'TestDescend' -v 2>&1 | tee /tmp/adr007-t1.out \
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | the four tests above |
+| 1 — exists | the five tests above |
 | 2 — something selects it | nothing yet — T2 is the caller, and its mutation proves the walk consults this |
 | 3 — the caller can discover it | n/a: no declared interface, internal package |
 | 4 — it is used | nothing measures this yet |

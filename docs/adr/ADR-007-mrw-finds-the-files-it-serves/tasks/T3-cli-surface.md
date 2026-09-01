@@ -42,8 +42,12 @@ whether or not `--grep` survives its go/no-go.
 5. [S5] Report a pattern that matched no file, naming the pattern — silence is
    the one output this project refuses.
 6. [S6] Document in the README: the three flags, the precedence table, the
-   exclusion algorithm, a worked example of the pipeline, and T2's go/no-go
-   measurement with its date and machine. [proof: acceptance]
+   exclusion algorithm including the basename rule and the separator example,
+   a worked example of the pipeline, and T2's go/no-go measurement with its
+   date and machine. Correct `README.md:129` in the same step — it says
+   `--max-lines N` caps "per file", which rule 4 shows is false for two
+   hand-written specs naming one file; it caps per SPEC, and the walk
+   deduplicates so it is per file for everything the walk produces. [proof: acceptance]
 7. [S7] Add contract section 15 driving each flag, each usage error, and the
    empty-result case. [proof: acceptance]
 

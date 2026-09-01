@@ -5,8 +5,8 @@
 **Owner:** M
 **Spec:** None — no spec stage
 **Cross-references:** ADR-006 (the root boundary this walk must obey), ADR-005 (the ledger rule this must not weaken — a span withheld is not observed), ADR-004 (the no-git-dependency premise the `.gitignore` non-goal rests on)
-**Governs:** `internal/read/**`, `internal/rooted/**`
-**Enforced-by:** `internal/adversarial/filesystem_test.go::TestAReadCannotLeaveTheRoot`
+**Governs:** `internal/read/**`, `internal/rooted/**`, `cmd/mrw/main.go`, `scripts/contract.sh`, `README.md`
+**Enforced-by:** None — nothing enforces this yet, because nothing is built. Naming ADR-006's read-confinement test here would have been worse than naming none: it is green on the merge-base and would stay green if no part of this decision were ever implemented. T2 introduces the walk's own boundary and observation tests; this header is updated to name them when they exist, which is the Follow-up below.
 **Invalidates:** none — checked. Grepped every accepted record for `read`, `--max-lines`, `spec` and `Spec{`: ADR-005 defines what an observation records and ADR-006 defines the boundary; this record adds a way to NAME files and changes neither rule. `read.Spec` gains no field.
 **Served-path change:** `mrw read --grep PATTERN <paths...>` walks the given paths (recursively, for a directory) and serves the ranges matching PATTERN, where today the caller must run a searcher first and compose one `path:/PATTERN/` spec per hit on the command line.
 
@@ -74,12 +74,20 @@ rather than about serving or changing them.
 recursively; with no paths and `--grep` given, the walk starts at `--root`.
 Without `--grep`, no-argument `mrw read` keeps reading the working set.
 
-**2. What is a candidate.** A DISCOVERED candidate is a regular file. A FIFO, a
-device, a socket or a directory entry that is none of these is skipped silently
-during a walk, because the caller did not name it and mrw would otherwise block
-on a pipe or stream a device without end. A file the caller names EXPLICITLY is
-served if it is regular and refused by name if it is not — naming something mrw
-will not read must produce a line, not silence.
+**2. What is a candidate.** A candidate must resolve to a REGULAR FILE, and the
+question is asked AFTER `rooted.Resolve`, which already follows symlinks. So a
+symlink to a file inside the root is a candidate — `mrw read link.txt` serves it
+today and `--grep` must not start refusing it — while a FIFO, a device, a socket
+or a symlink whose target is one of those is not. A non-candidate found by
+WALKING is skipped silently, because the caller did not name it and mrw would
+otherwise block on a pipe or stream a device without end. One the caller names
+EXPLICITLY is refused by name: naming something mrw will not read must produce a
+line, not silence.
+
+This is stated as "resolve, then ask" rather than "`os.Lstat` reports regular"
+because the two differ on exactly the case rule 4 depends on. An `Lstat` check
+would refuse every symlink, contradicting rule 4's promise that an in-root
+symlink is a candidate of its own, and would regress a served path.
 
 **3. The boundary, and what is authoritative.** Every candidate passes
 `rooted.Resolve`; a symlinked DIRECTORY is never descended, because following
@@ -185,19 +193,38 @@ serve. A separate package would have one caller and one consumer.
 | `--grep P` + `--files-from` | usage error — two sources of specs |
 | `--files-from` + positional paths | usage error — same reason |
 | `--exclude` without `--grep` | usage error — nothing to exclude from |
+| `--grep P` + no paths + a non-empty working set | walk `--root`, NOT the working set — `iter` is a set of read specs and `--grep` supplies its own; a caller who wants both writes `mrw read --grep P @1 @2` |
 | `--grep P` + `--stat` | allowed: the matching files' headers, no content, observing nothing (ADR-005) |
 | no `--grep`, no paths | unchanged: the working set |
 
 ### The exclusion algorithm
 
-`--exclude GLOB` is matched with `path.Match` against each candidate's cleaned
-root-relative path, always with `/` separators. Matching a DIRECTORY prunes it
-and everything under it. An EXPLICITLY named path is never pruned — the caller
-named it — and neither is `.git/` when named explicitly, though it is always
-skipped during a walk. A glob `path.Match` rejects is a usage error at parse
-time, not a pattern that silently matches nothing. Matching is case-sensitive
-on every platform, so a case-insensitive filesystem may hold a file an exclusion
-does not catch; that is stated rather than special-cased.
+`--exclude GLOB` is matched with `path.Match` against BOTH a candidate's cleaned
+root-relative path AND its basename, and a match on either excludes it. Matching
+a DIRECTORY prunes it and everything under it. An EXPLICITLY named path is never
+pruned — the caller named it — and neither is `.git/` when named explicitly,
+though it is always skipped during a walk.
+
+The basename half is not a convenience, it is the difference between the flag
+working and doing nothing. `path.Match`'s `*` does not cross `/`, and `**` is
+not a token — it is two `*`, neither of which crosses either. Verified
+2026-09-01 against `path.Match`:
+
+    glob "*.go"      vs "internal/read/walk.go"      -> false
+    glob "*_test.go" vs "internal/read/read_test.go" -> false
+    glob "testdata"  vs "internal/read/testdata"     -> false
+    glob "**/*.go"   vs "internal/read/walk.go"      -> false
+
+None of those is `ErrBadPattern`, so the parse-time guard sees nothing wrong: a
+caller writing `--exclude '*_test.go'` against the full path alone would get no
+error and every test file. Matching the basename too makes each of those work as
+written. A caller who means a path rather than a name writes one —
+`internal/read/testdata` matches the path form.
+
+A glob `path.Match` rejects is a usage error at parse time, not a pattern that
+silently matches nothing. Matching is case-sensitive on every platform, so a
+case-insensitive filesystem may hold a file an exclusion does not catch; that is
+stated rather than special-cased.
 
 ## Inter-task Contracts
 
@@ -259,4 +286,4 @@ identically by the old one. No persistent state migrates.
 
 ## Follow-ups
 
-- [ ] Record the go/no-go cost measurement in the README once T2 has it
+- [ ] Replace `Enforced-by` with the tests T2 introduces, once they exist

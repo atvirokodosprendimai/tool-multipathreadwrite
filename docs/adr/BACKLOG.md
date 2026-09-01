@@ -77,3 +77,20 @@ here.
   mapping are covered end-to-end by `scripts/contract.sh` instead. Noted in
   ADR-003-T2 as a stated limitation rather than an oversight, but a Go test that
   execs the built binary would close it.
+
+## From ADR-007 (mrw finds the files it serves)
+
+- **A cross-file `--max-lines` budget.** The cap is per SPEC today — `read.Run`
+  resets `budget := opt.MaxLines` for each one — and ADR-007's walk deduplicates
+  so that it is per file for everything the walk produces. What nobody has
+  decided is whether `mrw read --grep PAT .` over a large tree should have a
+  budget for the WHOLE answer rather than per file, which is the number an agent
+  paying for context actually cares about. No measurement taken; the shape of
+  the answer probably depends on what T2's cost measurement says.
+
+- **Parallel walking or searching.** ADR-007's walk reads every candidate to
+  match it and then `read.Run` reads the matching ones again, serially. That is
+  the price of `Run` staying the only reader that observes (ADR-005). If T2's
+  go/no-go cost measurement comes back close to the 2× threshold, parallelism is
+  the first thing to reach for — and it needs its own answer to whether output
+  order stays deterministic, which the receipt format assumes.

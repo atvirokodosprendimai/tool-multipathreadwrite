@@ -36,9 +36,12 @@ makes it reachable.
 2. [S2] Implement the walk: serve a named path directly if it is a regular file,
    otherwise walk it, consulting `rooted.Descendable` before descending and
    `rooted.Resolve` before reading. Skip `.git/` during a walk.
-3. [S3] Apply rule 2 — a DISCOVERED candidate must be a regular file
-   (`os.Lstat` mode check); a FIFO, device or socket found by walking is skipped
-   silently, and one named EXPLICITLY becomes a `Problem` rather than silence.
+3. [S3] Apply rule 2 — a candidate must RESOLVE to a regular file, asked after
+   `rooted.Resolve` so a symlink to a file inside the root is a candidate and
+   `mrw read link.txt` keeps working. An `os.Lstat` check would refuse every
+   symlink and contradict rule 4; use `os.Stat` on the resolved path. A FIFO,
+   device or socket found by walking is skipped silently, and one named
+   EXPLICITLY becomes a `Problem` rather than silence.
 4. [S4] Apply rule 5 — a refused path, an unreadable file or an unlistable
    directory becomes a `Problem` and the walk CONTINUES; only an unresolvable
    root returns the error.
@@ -51,11 +54,19 @@ makes it reachable.
    observation: `read.Run`'s read is the authoritative one, and a file that
    stops matching between the walk and the serve prints nothing and observes
    nothing.
-7. [S7] Measure the go/no-go cost condition from the ADR — `--grep` over this
-   repository for a pattern matching about three files, against the `grep -rl` +
-   `mrw read` baseline measured 2026-09-01 — and record the command, the two
-   numbers, the machine and the date in the task's verification log. If it
-   exceeds 2×, stop: the ADR says `--grep` is withdrawn. [proof: human: a wall-clock ratio is a claim about one machine and one corpus; a test can pin behaviour but not a number, and the go/no-go needs the number]
+7. [S7] Measure the go/no-go cost condition from the ADR with these exact
+   commands, so the two halves are comparable — the Context table's 25.6× was
+   measured over NON-TEST files only, and a walk sees the tests too:
+
+       baseline: grep -rl EvalSymlinks --include='*.go' . | <compose specs> | mrw read -C 3
+       walk:     mrw read --grep EvalSymlinks -C 3 .
+
+   The baseline matches 5 files at 2026-09-01 (`internal/apply/apply.go`,
+   `internal/state/state.go`, `internal/rooted/rooted.go`, and the two
+   `_test.go` files); the walk must match the same 5 for the numbers to mean
+   anything, and a differing count is itself the finding. Record both
+   wall-clock numbers, the match count, the machine and the date in the
+   verification log. Over 2× and the ADR says `--grep` is withdrawn. [proof: human: a wall-clock ratio is a claim about one machine and one corpus; a test can pin behaviour but not a number, and the go/no-go needs the number]
 
 ## Acceptance
 
@@ -82,6 +93,7 @@ go test ./internal/read/ -run 'TestWalk' -v 2>&1 | tee /tmp/adr007-t2.out \
 | `TestWalkReportsEveryBadPathAndServesTheGoodOnes` | `internal/read/walk_test.go` | rule 5 — a mixed valid/refused/unreadable set | — | S1, S4 |
 | `TestWalkDeduplicatesAPathNamedTwiceOrCoveredTwice` | `internal/read/walk_test.go` | rule 4, including a `--max-lines` budget that stays per file | — | S1, S5 |
 | `TestWalkKeepsTwoNamesForOneInode` | `internal/read/walk_test.go` | rule 4's second half — a hardlink is two addresses | — | S1, S5 |
+| `TestWalkServesASymlinkToAFileInsideTheRoot` | `internal/read/walk_test.go` | rule 2 — resolve then ask, so a served path does not regress | — | S1, S3 |
 | `TestAWalkedSpecObservesOnlyWhatItPrinted` | `internal/adversarial/filesystem_test.go` | ADR-005's ledger rule is unchanged by this path | — | S1, S6 |
 | `TestAWalkedFileThatStopsMatchingServesAndObservesNothing` | `internal/adversarial/filesystem_test.go` | rule 3 — the scan-to-serve window is visible, not silent | — | S1, S6 |
 
@@ -89,7 +101,7 @@ go test ./internal/read/ -run 'TestWalk' -v 2>&1 | tee /tmp/adr007-t2.out \
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | the twelve tests above |
+| 1 — exists | the thirteen tests above |
 | 2 — something selects it | `TestWalkDoesNotDescendASymlinkedDirectory` fails when the `Descendable` call is removed — that is the mutation proving T1 is reached from here |
 | 3 — the caller can discover it | n/a: no declared interface until T3 adds the flag |
 | 4 — it is used | nothing measures this yet |
