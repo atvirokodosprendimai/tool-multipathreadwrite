@@ -699,3 +699,29 @@ func TestABodylessDeleteIsUnchanged(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+// The expected-removal comparison quotes the line the file actually holds, so
+// it must not run before the ledger check: a caller who has not read the file
+// would otherwise get a line of it read back inside a refusal, which is exactly
+// the disclosure ADR-002 and ADR-005 draw the boundary around. The refusal a
+// caller sees for an unseen file is still "has not been read".
+func TestAnExpectedRemovalIsNotCheckedAgainstAnUnseenFile(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "delete", Body: []string{"WRONG", "ALSO-WRONG"}, Lines: -1, Index: 0},
+	}, Options{Seen: map[string]Seen{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("an unseen file was edited: %+v", res.Hunks)
+	}
+	if reason := res.Hunks[0].Reason; !strings.Contains(reason, "has not been read") {
+		t.Errorf("reason = %q, want the read-before-modify refusal", reason)
+	}
+	if reason := res.Hunks[0].Reason; strings.Contains(reason, "expected removal") {
+		t.Errorf("the body was compared against a file the caller never read: %q", reason)
+	}
+}

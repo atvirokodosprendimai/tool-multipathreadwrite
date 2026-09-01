@@ -56,6 +56,7 @@ go test ./internal/plan/ ./internal/apply/ ./internal/adversarial/ -run 'DeleteB
 | `TestDeleteBodyIsNoLongerAParseError` | `internal/plan/plan_test.go` | S2 | — | S1, S2 |
 | `TestADeleteWhoseExpectedRemovalMatchesApplies` | `internal/apply/apply_test.go` | the match path | — | S1, S3 |
 | `TestADeleteWhoseExpectedRemovalDiffersWritesNothing` | `internal/adversarial/planformat_test.go` | the refusal, and that the whole plan is abandoned | — | S1, S3 |
+| `TestAnExpectedRemovalIsNotCheckedAgainstAnUnseenFile` | `internal/apply/apply_test.go` | the comparison runs after the ledger check, so a refusal never quotes a file the caller has not read | — | S3 |
 | `TestABodylessDeleteIsUnchanged` | `internal/apply/apply_test.go` | the opt-in stays opt-in | — | S1, S3 |
 | `TestDeleteBodyDoesNotWeakenTheOtherOps` | `internal/plan/plan_test.go` | S2 removes one rejection, not the section it lived in | — | S1, S2 |
 | `TestADeleteWhoseExpectedRemovalDiffersNamesTheLine` | `internal/apply/apply_test.go` | the refusal names the line, the expectation and what is there | — | S1, S3 |
@@ -75,6 +76,7 @@ go test ./internal/plan/ ./internal/apply/ ./internal/adversarial/ -run 'DeleteB
 
 - 2026-09-01 · 9d3e013* · mutant killed · exit 1 · `internal/apply/apply.go` · the expected-removal comparison is what refuses a wrong body; without it a mismatched delete applies silently · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b
 - 2026-09-01 · 9d3e013* · mutant killed · exit 1 · `internal/apply/apply.go` · a body shorter than the range would otherwise compare only as far as it goes — the miscounted range this record is about · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b
+- 2026-09-01 · 91d4268* · mutant killed · exit 1 · `internal/apply/apply.go` · re-recorded after the comparison moved below the ledger check: it is still what refuses a wrong body · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b
 
 ## Invariants
 
@@ -117,3 +119,4 @@ the guard being absent.
   FAIL
   ```
 - 2026-09-01 · 9d3e013* · exit 0 · `set -o pipefail …` · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b · ms:2522
+- 2026-09-01 · 91d4268* · exit 0 · `set -o pipefail …` · acceptance-sha256:997fd705940f19b0bd74a6af8f7e71ee26916c58c65e4c07661541b0e0fd4d7b · ms:2227

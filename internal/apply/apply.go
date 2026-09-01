@@ -454,12 +454,21 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 				fail(h, "anchor %q not in line %d: %s", h.Anchor, start, trim(orig[start-1]))
 				continue
 			}
+			if !covered(h, start, end) {
+				continue
+			}
 			// A delete is the only op with no body, so a body on one is not
 			// content to write: it is the caller's expectation of what the
 			// range holds, and it is the one guard mrw cannot compute for them
 			// — everything it could derive here comes from the same bytes it
 			// would check against (ADR-008). A mismatch fails the hunk, which
 			// by ADR-001 abandons the whole plan.
+			//
+			// Checked AFTER covered() on purpose: the mismatch message quotes
+			// the line the file actually holds, and only the ledger check
+			// establishes that the caller was served that line (ADR-005). A
+			// guard must not become the one thing that reads a file back to
+			// someone who never read it.
 			if h.Op == "delete" && len(h.Body) > 0 {
 				if covers := end - start + 1; len(h.Body) != covers {
 					fail(h, "expected removal is %d line(s) but %s covers %d",
@@ -482,9 +491,6 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 				if differs {
 					continue
 				}
-			}
-			if !covered(h, start, end) {
-				continue
 			}
 			resolved = append(resolved, h.resolveTo(start, end, h.Op))
 		default:
