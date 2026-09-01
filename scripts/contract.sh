@@ -329,6 +329,104 @@ out=$(m check . 2>&1); rc=$?
 want 3 "$rc" "check . fails on a broken package one level down"
 grep -q 'TestBroken' <<<"$out" && ok "and the failure it reports is that package's" || bad "did not reach it: $out"
 
+# 16. ADR-008: a delete is the only op with no body, so the receipt is the only
+#     place the caller can see what a range actually held. This is the incident
+#     that produced the record, reproduced: a range one line too long takes the
+#     closing brace of the function above, and the old receipt said `-4 +0  ok`.
+fixture
+printf 'package demo\n\nfunc E() int {\n\treturn 5\n}\n\nvar _ = 1\nvar _ = 2\n' > "$R/c.go"
+m read c.go >/dev/null
+out=$(printf '@@ c.go 5-8 delete\n' | m write --dry-run - 2>&1)
+rc=$?
+want 0 "$rc" "the ADR-008 delete applies"
+grep -qF 'from "}" to "var _ = 2"' <<<"$out" \
+  && ok "a delete receipt names the first and last line it removed" \
+  || bad "the delete receipt carries no bounds: $out"
+out=$(printf '@@ c.go 3 replace\nfunc E() int { return 5 }\n' | m write --dry-run --json - 2>&1)
+grep -qF 'removed_first' <<<"$out" \
+  && bad "a replace reported removed_first: $out" \
+  || ok "and no other op reports them"
+out=$(printf '@@ c.go 5-8 delete\n' | m write --json - 2>&1)
+grep -qF '"removed_first": "}"' <<<"$out" && grep -qF '"removed_last": "var _ = 2"' <<<"$out" \
+  && ok "--json carries removed_first and removed_last" \
+  || bad "--json is missing the bounds: $out"
+
+# 17. ADR-008: a delete may carry the lines the caller EXPECTS to remove. A
+#     match applies; a mismatch refuses the whole plan and names the line.
+fixture
+printf 'package demo\n\nfunc E() int {\n\treturn 5\n}\n\nvar _ = 1\nvar _ = 2\n' > "$R/c.go"
+m read c.go >/dev/null
+out=$(printf '@@ c.go 7-8 delete\nvar _ = 1\nvar _ = 2\n' | m write --dry-run - 2>&1)
+rc=$?
+want 0 "$rc" "a delete whose expected removal matches applies"
+out=$(printf '@@ c.go 7-8 delete\nvar _ = 1\nvar _ = 3\n' | m write - 2>&1)
+rc=$?
+want 1 "$rc" "a delete whose expected removal differs is refused"
+grep -q 'expected removal differs at line 8' <<<"$out" \
+  && ok "and the refusal names the line that differed" \
+  || bad "the refusal does not name the line: $out"
+grep -qF 'var _ = 2' <<<"$out" && grep -qF 'var _ = 3' <<<"$out" \
+  && ok "printing what the plan said beside what the file holds" \
+  || bad "the refusal shows only one side: $out"
+grep -qF 'var _ = 1' "$R/c.go" \
+  && ok "and nothing was written" \
+  || bad "the file was modified despite the refusal"
+
+# 18. ADR-008, found by probing the built binary rather than by a test: a
+#     whitespace-only mismatch must not be reported as two identical strings,
+#     and a delete of BLANK lines still reports its bounds in --json.
+fixture
+printf 'alpha\n\tindented\nomega\n\n\ndone\n' > "$R/w.txt"
+m read w.txt >/dev/null
+out=$(printf '@@ w.txt 2 delete\n    indented\n' | m write - 2>&1)
+rc=$?
+want 1 "$rc" "a tab-against-spaces expected removal is refused"
+grep -qF '\tindented' <<<"$out" \
+  && ok "and the refusal shows the tab instead of trimming it away" \
+  || bad "the whitespace difference was trimmed out of the message: $out"
+out=$(printf '@@ w.txt 4-5 delete\n' | m write --dry-run --json - 2>&1)
+grep -qF '"removed_first": ""' <<<"$out" && grep -qF '"removed_last": ""' <<<"$out" \
+  && ok "a delete of blank lines still carries its bounds in --json" \
+  || bad "--json dropped the bounds for a blank-line delete: $out"
+
+# 19. Found by probing the built binary with wrong input rather than by a test.
+#     A typo'd subcommand used to exit 3 — the status this tool documents as
+#     "a check ran and did not pass" — because the framework fell through to
+#     its help machinery. A hook branching on 3 would read a typo as a landed
+#     write with a red suite.
+fixture
+out=$(m frobnicate 2>&1); rc=$?
+want 2 "$rc" "an unknown subcommand is a usage error, not a failed check"
+grep -q 'unknown command "frobnicate"' <<<"$out" && ok "and it names what was typed" || bad "does not name the command: $out"
+grep -q 'write' <<<"$out" && ok "and lists the real ones" || bad "does not list the alternatives: $out"
+
+# 19b. --check under --dry-run cannot verify anything, and silently dropping it
+#      returned exit 0 to a caller who believed their preview had been checked.
+#      ADR-003 rule 2 already decides what that is worth: a check that did not
+#      run is not a pass, and its exit table files a missing check under 2.
+printf '{"check":"echo THE-CHECK-RAN"}\n' > "$R/.quality-harness.json"
+out=$(printf '@@ a.go 3 delete\n' | m write --dry-run --check - 2>&1)
+rc=$?
+want 2 "$rc" "--check under --dry-run is refused, not silently dropped"
+grep -q 'cannot run under --dry-run' <<<"$out" \
+  && ok "and the refusal says why" \
+  || bad "unclear refusal: $out"
+grep -q 'THE-CHECK-RAN' <<<"$out" && bad "the check ran against an unwritten tree" || ok "and no check was run"
+#      The PRECEDENCE, not just the refusal: a usage error must preempt every
+#      kind of plan error, or it preempts inconsistently. With this test below
+#      the parse, an unparseable plan beat the flag pair while a plan whose
+#      HUNK failed lost to it — so the caller was told about their flags and
+#      never learned their address was out of range, and exit 1 (which promises
+#      an untouched tree) became exit 2.
+printf '@@ a.go 99 delete\n'        > "$R/fail.mrw"
+printf '@@ a.go notanaddr delete\n' > "$R/parse.mrw"
+out=$(m write --dry-run "$R/fail.mrw" 2>&1); rc=$?
+want 1 "$rc" "a failing hunk alone is exit 1, and says which address"
+grep -q 'out of range' <<<"$out" && ok "the caller learns the real problem" || bad "no diagnosis: $out"
+m write --dry-run --check "$R/fail.mrw"  >/dev/null 2>&1; want 2 "$?" "the flag pair preempts a failing hunk"
+m write --dry-run --check "$R/parse.mrw" >/dev/null 2>&1; want 2 "$?" "and preempts a parse error the same way"
+m write --dry-run --check "$R/nope.mrw"  >/dev/null 2>&1; want 2 "$?" "and preempts a missing plan file"
+
 echo
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

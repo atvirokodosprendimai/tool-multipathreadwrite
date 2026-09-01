@@ -14,6 +14,7 @@ package apply
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -51,6 +52,44 @@ type HunkResult struct {
 	Removed int    `json:"removed"`
 	Added   int    `json:"added"`
 	SrcLine int    `json:"plan_line"`
+
+	// RemovedFirst and RemovedLast are the first and last line a DELETE took,
+	// both through trim, and empty for every other op. A delete is the only op
+	// with no body, so it is the only one where the caller asserts nothing
+	// about what the range held; two bounded strings — the same two whatever
+	// the size of the range — are what make a wrong range visible in the
+	// receipt instead of in the next build (ADR-008).
+	//
+	// Their PRESENCE in --json is keyed on the op, not on these being
+	// non-empty: see MarshalJSON.
+	RemovedFirst string `json:"removed_first"`
+	RemovedLast  string `json:"removed_last"`
+}
+
+// MarshalJSON emits removed_first/removed_last on a delete hunk and on no
+// other, which is what the contract promises.
+//
+// `omitempty` cannot express that. It keys on the VALUE, so a delete that
+// removed blank lines — a common edit — marshalled with neither field, leaving
+// a consumer unable to tell it from a replace, while the human receipt line
+// (keyed on the op) said `from "" to ""`. The two surfaces disagreed for the
+// one delete whose bounds are least self-evident.
+func (h HunkResult) MarshalJSON() ([]byte, error) {
+	type wire HunkResult // no methods, so no recursion
+	// AND applied. The bounds are only ever populated in the splice, which
+	// runs for hunks that landed — so a failed or skipped delete would
+	// otherwise marshal the pair as "" and be indistinguishable from a
+	// successful delete of blank lines, which is the one case this exists to
+	// make legible. Presence now means "this delete removed these lines" on
+	// both surfaces (PR #11 review, N3).
+	if h.Op == "delete" && h.Status == StatusOK {
+		return json.Marshal(wire(h))
+	}
+	return json.Marshal(struct {
+		wire
+		RemovedFirst string `json:"removed_first,omitempty"`
+		RemovedLast  string `json:"removed_last,omitempty"`
+	}{wire: wire(h)})
 }
 
 // FileResult reports one file's outcome, including the SHA-256 it had before
@@ -365,6 +404,15 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 			continue
 		}
 		if !existed {
+			// An ABSOLUTE path in a plan is joined to the root, so it names
+			// something under the root that is almost never there — and "does
+			// not exist" then sends the caller looking for a file they can see
+			// with their own eyes. Say what actually happened instead.
+			if filepath.IsAbs(h.Path) {
+				fail(h, "%s is absolute, and every path in a plan is relative to the root: it named %s, "+
+					"which does not exist", h.Path, path)
+				continue
+			}
 			fail(h, "%s does not exist", path)
 			continue
 		}
@@ -433,7 +481,15 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 			}
 			resolved = append(resolved, h.resolveTo(start, start-1, "insert"))
 		case "replace", "delete":
-			if start < 1 || end > total || end < start {
+			// A reversed range is caught at PARSE time when both ends are
+			// literal, but $ resolves here — so `$-1` on a 5-line file arrived
+			// as 5-1 and was reported as "out of range", which it is not. The
+			// caller needs to be told the ends are the wrong way round.
+			if end < start {
+				fail(h, "range %s ends before it starts (it resolved to %d-%d)", h.SrcAddr, start, end)
+				continue
+			}
+			if start < 1 || end > total {
 				fail(h, "range %s is out of range (file has %d lines)", addrString(start, end), total)
 				continue
 			}
@@ -447,6 +503,50 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 			}
 			if !covered(h, start, end) {
 				continue
+			}
+			// A delete is the only op with no body, so a body on one is not
+			// content to write: it is the caller's expectation of what the
+			// range holds, and it is the one guard mrw cannot compute for them
+			// — everything it could derive here comes from the same bytes it
+			// would check against (ADR-008). A mismatch fails the hunk, which
+			// by ADR-001 abandons the whole plan.
+			//
+			// Checked AFTER covered() on purpose: the mismatch message quotes
+			// the line the file actually holds, and only the ledger check
+			// establishes that the caller was served that line (ADR-005). A
+			// guard must not become the one thing that reads a file back to
+			// someone who never read it.
+			if h.Op == "delete" && len(h.Body) > 0 {
+				if covers := end - start + 1; len(h.Body) != covers {
+					fail(h, "expected removal is %d line(s) but %s covers %d",
+						len(h.Body), addrString(start, end), covers)
+					continue
+				}
+				differs := false
+				for i, want := range h.Body {
+					if orig[start-1+i] == want {
+						continue
+					}
+					// Named the way an anchor failure is: the expectation
+					// beside the line actually there, so one attempt is enough
+					// to see which of the two is wrong.
+					//
+					// clip, NOT trim. The commonest mismatch a hand-written
+					// body produces is whitespace — a tab against four spaces,
+					// a dropped trailing space, a stray CR — and trimming both
+					// sides before printing them renders the two IDENTICAL on
+					// screen, which is the refusal this task's Stop Condition
+					// names as worse than no guard. %q makes what is left
+					// legible: a tab as \t, a CR as \r, a trailing space held
+					// inside the quotes.
+					fail(h, "expected removal differs at line %d: plan says %q, file has %q",
+						start+i, clip(want), clip(orig[start-1+i]))
+					differs = true
+					break
+				}
+				if differs {
+					continue
+				}
 			}
 			resolved = append(resolved, h.resolveTo(start, end, h.Op))
 		default:
@@ -496,6 +596,7 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 			cursor = h.End + 1
 		case "delete":
 			r.Removed = h.End - h.Start + 1
+			r.RemovedFirst, r.RemovedLast = trim(orig[h.Start-1]), trim(orig[h.End-1])
 			cursor = h.End + 1
 		}
 		out[h.Index] = r
@@ -637,11 +738,33 @@ func addrString(start, end int) string {
 }
 
 func trim(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) > 60 {
-		return s[:57] + "..."
+	return clip(strings.TrimSpace(s))
+}
+
+// clip bounds a line for a message WITHOUT trimming it. It is what trim is
+// built on, and the difference matters in exactly one place: a message that
+// reports two lines DIFFER must not first remove the whitespace they differ in.
+// A caller who typed four spaces where the file has a tab was, before this,
+// told `plan says "indented", file has "indented"`.
+//
+// The cut is on a rune boundary. `trim`'s old byte slice split multi-byte runes
+// and, since ADR-008 put trimmed lines into `--json`, encoding one produced
+// U+FFFD in a machine-readable field.
+func clip(s string) string {
+	if len(s) <= 60 {
+		return s
 	}
-	return s
+	out := make([]rune, 0, 57)
+	n := 0
+	for _, r := range s {
+		w := len(string(r))
+		if n+w > 57 {
+			break
+		}
+		out = append(out, r)
+		n += w
+	}
+	return string(out) + "..."
 }
 
 // short renders a sha for a message: enough to identify, short enough to read.

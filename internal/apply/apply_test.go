@@ -1,11 +1,13 @@
 package apply
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func write(t *testing.T, root, name, body string) {
@@ -517,5 +519,424 @@ func TestFilePermissionsSurvive(t *testing.T) {
 	}
 	if fi.Mode().Perm() != 0o755 {
 		t.Errorf("perm = %v, want 0755", fi.Mode().Perm())
+	}
+}
+
+// ADR-008 T1. `delete` is the only op with no body, so the caller asserts
+// nothing about what a range holds and the receipt reports only a count. The
+// bounds are what makes a wrong range visible at write time: the incident that
+// produced the ADR was a 4-line delete that took a closing brace and reported
+// `-4 +0  ok`.
+func TestDeleteRecordsItsBounds(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "a\nb\nc\nd\ne\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 4, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed=%d: %+v", res.Failed, res.Hunks)
+	}
+	if got, want := res.Hunks[0].RemovedFirst, "b"; got != want {
+		t.Errorf("RemovedFirst = %q, want %q", got, want)
+	}
+	if got, want := res.Hunks[0].RemovedLast, "d"; got != want {
+		t.Errorf("RemovedLast = %q, want %q", got, want)
+	}
+}
+
+// The bounds go through the same `trim` the anchor-failure message uses, so one
+// convention covers both: leading and trailing space gone, 60 characters at
+// most. A receipt line that wraps is a receipt line a reader skips.
+func TestDeleteBoundsAreTrimmed(t *testing.T) {
+	root := t.TempDir()
+	long := strings.Repeat("x", 80)
+	write(t, root, "f.txt", "\t  indented  \n"+long+"\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 2, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := res.Hunks[0].RemovedFirst, "indented"; got != want {
+		t.Errorf("RemovedFirst = %q, want %q", got, want)
+	}
+	if got, want := res.Hunks[0].RemovedLast, trim(long); got != want {
+		t.Errorf("RemovedLast = %q, want %q", got, want)
+	}
+	if len(res.Hunks[0].RemovedLast) > 60 {
+		t.Errorf("RemovedLast is %d characters; the receipt must stay bounded", len(res.Hunks[0].RemovedLast))
+	}
+}
+
+// The degenerate range: one line removed is both the first and the last, and
+// saying so twice is better than a special case the reader has to learn.
+func TestAOneLineDeleteRecordsTheSameLineTwice(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 3, End: 3, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Hunks[0].RemovedFirst != "c" || res.Hunks[0].RemovedLast != "c" {
+		t.Errorf("got from %q to %q, want both %q", res.Hunks[0].RemovedFirst, res.Hunks[0].RemovedLast, "c")
+	}
+}
+
+// No other op gains fields. `replace` and the insertions already carry a body
+// the caller wrote, which is the assertion this adds to the one op that has
+// none — and an empty `from "" to ""` on every other receipt line is noise.
+func TestOnlyDeleteRecordsBounds(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0},
+		{Path: "f.txt", Start: 2, End: 2, Op: "insert-after", Body: []string{"INS"}, Lines: -1, Index: 1},
+		{Path: "f.txt", Start: 3, End: 3, Op: "insert-before", Body: []string{"PRE"}, Lines: -1, Index: 2},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed=%d: %+v", res.Failed, res.Hunks)
+	}
+	for _, h := range res.Hunks {
+		if h.RemovedFirst != "" || h.RemovedLast != "" {
+			t.Errorf("%s recorded bounds %q..%q; only delete records them", h.Op, h.RemovedFirst, h.RemovedLast)
+		}
+		// Emptiness is not enough. HunkResult is one struct for all five ops,
+		// so without `omitempty` a replace would carry `"removed_first": ""`
+		// and still satisfy the check above — while breaking the contract,
+		// which promises these fields ON A DELETE HUNK. Assert ABSENCE.
+		b, err := json.Marshal(h)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(b), "removed_first") || strings.Contains(string(b), "removed_last") {
+			t.Errorf("%s carries the delete-only fields in --json: %s", h.Op, b)
+		}
+	}
+}
+
+// ADR-008 T2. The body of a delete is the caller's expectation of what the
+// range holds. When it matches, the delete applies exactly as a bodyless one.
+func TestADeleteWhoseExpectedRemovalMatchesApplies(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "delete", Body: []string{"b", "c"}, Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("a matching expected removal was rejected: %+v", res.Hunks)
+	}
+	if got, want := read(t, root, "f.txt"), "a\nd\ne\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// The comparison is line for line, and a mismatch says WHICH line differed —
+// the same shape as the anchor failure, which prints the anchor beside the real
+// line. A refusal that does not say where it disagreed is barely better than no
+// guard at all.
+func TestADeleteWhoseExpectedRemovalDiffersNamesTheLine(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "delete", Body: []string{"b", "NOT-C"}, Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("a mismatched expected removal was accepted: %+v", res.Hunks)
+	}
+	reason := res.Hunks[0].Reason
+	if !strings.Contains(reason, "3") || !strings.Contains(reason, "NOT-C") || !strings.Contains(reason, "c") {
+		t.Errorf("the refusal does not name the line, the expectation and what is there: %q", reason)
+	}
+	if got := read(t, root, "f.txt"); got != abcde {
+		t.Errorf("the file changed: %q", got)
+	}
+}
+
+// A body of the wrong LENGTH is the miscounted range this whole record is
+// about, so it must fail rather than compare only as far as the shorter of the
+// two.
+func TestAnExpectedRemovalOfTheWrongLengthIsRejected(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 4, Op: "delete", Body: []string{"b", "c"}, Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("a 2-line expectation was accepted for a 3-line range: %+v", res.Hunks)
+	}
+	if got := read(t, root, "f.txt"); got != abcde {
+		t.Errorf("the file changed: %q", got)
+	}
+}
+
+// The opt-in stays opt-in: a delete with no body behaves exactly as it did
+// before this task, guards and all.
+func TestABodylessDeleteIsUnchanged(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("a bodyless delete failed: %+v", res.Hunks)
+	}
+	if got, want := read(t, root, "f.txt"), "a\nd\ne\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// The expected-removal comparison quotes the line the file actually holds, so
+// it must run BELOW covered(): a caller served lines 3-3 who addresses line 1
+// would otherwise get line 1 read back inside a refusal, which is exactly the
+// disclosure ADR-002 and ADR-005 draw the boundary around.
+//
+// The fixture is the whole point, and the first version of this test got it
+// wrong: it passed an EMPTY Seen map, so the file was not `known` and the
+// WHOLE-FILE gate answered ~130 lines earlier — the body comparison was never
+// reached in either arrangement, and the test passed with the ordering
+// reversed. A reviewer proved that by putting the defect back and watching the
+// whole suite stay green. Here the file IS known and its sha matches; only the
+// addressed RANGE was never served, so covered() is the gate under test.
+func TestAnExpectedRemovalIsNotCheckedAgainstAnUnseenFile(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 1, Op: "delete", Body: []string{"GUESS"}, Lines: -1, Index: 0},
+	}, Options{Seen: map[string]Seen{
+		// Served line 3 and nothing else. The hunk addresses line 1.
+		"f.txt": {SHA: shaOfFile(t, root, "f.txt"), Spans: [][2]int{{3, 3}}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("a hunk addressing an unserved line was accepted: %+v", res.Hunks)
+	}
+	reason := res.Hunks[0].Reason
+	if !strings.Contains(reason, "has not been read") {
+		t.Errorf("reason = %q, want the range-level ledger refusal", reason)
+	}
+	if strings.Contains(reason, "expected removal") {
+		t.Errorf("the body was compared before the ledger check: %q", reason)
+	}
+	// The line itself must not appear. abcde's line 1 is "a", too short to
+	// search for, so assert on the shape instead: a refusal naming the
+	// comparison is the only way that line could have reached the caller.
+	if strings.Contains(reason, "GUESS") {
+		t.Errorf("the refusal quoted the unserved line back: %q", reason)
+	}
+}
+
+// The commonest mismatch a hand-written expected removal produces is
+// whitespace: a tab where the caller typed spaces, a dropped trailing space, a
+// stray CR. Trimming both sides before printing them made the refusal say
+// `plan says "indented", file has "indented"` — two identical strings and no
+// way to act on it, which is the outcome T2's Stop Condition names as worse
+// than having no guard.
+func TestAnExpectedRemovalDiffersOnlyInWhitespace(t *testing.T) {
+	for _, c := range []struct{ name, file, body string }{
+		{"tab against spaces", "\tindented", "    indented"},
+		{"dropped trailing space", "beta ", "beta"},
+		{"stray carriage return", "x\r", "x"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			root := t.TempDir()
+			write(t, root, "f.txt", "a\n"+c.file+"\nc\n")
+
+			res, err := Apply(root, []Input{
+				{Path: "f.txt", Start: 2, End: 2, Op: "delete", Body: []string{c.body}, Lines: -1, Index: 0},
+			}, Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Failed != 1 {
+				t.Fatalf("a whitespace mismatch was accepted: %+v", res.Hunks)
+			}
+			// The two halves of the message must not be the same string. %q
+			// renders a tab as \t and holds a trailing space inside the
+			// quotes, so the difference survives — as long as nothing trimmed
+			// it away first.
+			reason := res.Hunks[0].Reason
+			plan, file, found := strings.Cut(reason, ", file has ")
+			if !found {
+				t.Fatalf("unexpected message shape: %q", reason)
+			}
+			_, plan, _ = strings.Cut(plan, "plan says ")
+			if plan == file {
+				t.Errorf("the refusal shows two identical strings: %q", reason)
+			}
+		})
+	}
+}
+
+// trim used to slice at 57 BYTES, which splits a multi-byte rune. ADR-008 put
+// its output into --json, where an invalid UTF-8 fragment is re-encoded as
+// U+FFFD — a silently corrupted machine-readable field.
+func TestDeleteBoundsAreTrimmedOnARuneBoundary(t *testing.T) {
+	root := t.TempDir()
+	long := strings.Repeat("x", 55) + "😀😀😀"
+	write(t, root, "f.txt", long+"\nb\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 1, End: 2, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := res.Hunks[0].RemovedFirst
+	if !utf8.ValidString(got) {
+		t.Errorf("RemovedFirst is not valid UTF-8: %q", got)
+	}
+	if strings.ContainsRune(got, utf8.RuneError) {
+		t.Errorf("RemovedFirst carries a replacement rune: %q", got)
+	}
+	if len(got) > 60 {
+		t.Errorf("RemovedFirst is %d bytes; the receipt must stay bounded", len(got))
+	}
+}
+
+// A delete of blank lines removed something, and both surfaces must say so.
+// `omitempty` keys on the VALUE, so it dropped the fields for exactly this
+// delete while the human receipt line — keyed on the op — printed
+// `from "" to ""`. Presence in --json is the op, not the value.
+func TestADeleteOfBlankLinesStillRecordsBounds(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "a\n\n\nb\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed=%d: %+v", res.Failed, res.Hunks)
+	}
+	b, err := json.Marshal(res.Hunks[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]any
+	if err := json.Unmarshal(b, &wire); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"removed_first", "removed_last"} {
+		v, present := wire[k]
+		if !present {
+			t.Errorf("%s is absent on a delete hunk: %s", k, b)
+			continue
+		}
+		if v != "" {
+			t.Errorf("%s = %v, want the empty line it removed", k, v)
+		}
+	}
+}
+
+// An ABSOLUTE path in a plan is joined to the root, so it names something under
+// the root that is almost never there. Reporting a bare "does not exist" sent
+// the caller looking for a file they can see with their own eyes; the message
+// has to say the path was reinterpreted.
+func TestAnAbsolutePathSaysItWasResolvedAgainstTheRoot(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "/etc/hosts", Start: 1, End: 1, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("an absolute path was accepted: %+v", res.Hunks)
+	}
+	if reason := res.Hunks[0].Reason; !strings.Contains(reason, "absolute") ||
+		!strings.Contains(reason, "relative to the root") {
+		t.Errorf("reason = %q, want it to say the path was resolved against the root", reason)
+	}
+}
+
+// `$` resolves in this package, so a reversed range built from it escapes the
+// parser's own check and used to be reported as "out of range" — which it is
+// not. `$-1` on a 5-line file is 5-1: the ends are the wrong way round.
+func TestAReversedRangeFromEOFSaysSo(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: EOF, End: 1, Op: "delete", Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("a reversed range was accepted: %+v", res.Hunks)
+	}
+	reason := res.Hunks[0].Reason
+	if !strings.Contains(reason, "ends before it starts") {
+		t.Errorf("reason = %q, want the reversed-range message", reason)
+	}
+	if strings.Contains(reason, "out of range") {
+		t.Errorf("a reversed range is not an out-of-range one: %q", reason)
+	}
+}
+
+// The bounds are populated in the splice, which runs only for hunks that land.
+// Keying --json presence on the op alone therefore marshalled `""` for a failed
+// or skipped delete, making it indistinguishable from a successful delete of
+// blank lines — the one case the fields exist to make legible.
+func TestAFailedOrSkippedDeleteRecordsNoBounds(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 99, End: 99, Op: "replace", Body: []string{"x"}, Lines: -1, Index: 0},
+		{Path: "f.txt", Start: 3, End: 3, Op: "delete", Lines: -1, Index: 1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed == 0 {
+		t.Fatalf("expected the out-of-range replace to fail: %+v", res.Hunks)
+	}
+	for _, h := range res.Hunks {
+		if h.Status == StatusOK {
+			continue
+		}
+		b, err := json.Marshal(h)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(b), "removed_first") || strings.Contains(string(b), "removed_last") {
+			t.Errorf("a %s %s hunk carries bounds it never recorded: %s", h.Status, h.Op, b)
+		}
 	}
 }

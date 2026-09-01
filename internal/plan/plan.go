@@ -242,8 +242,15 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 		}
 		switch k {
 		case "sha":
+			// Length AND alphabet. The message has always promised "hex", and
+			// checking only the length let sha=zzzzzzzz through to fail later
+			// as a content mismatch — which sends the caller looking at their
+			// file instead of at their plan (probed 2026-09-01).
 			if len(v) < 8 {
 				return Hunk{}, 0, fmt.Errorf("sha= needs at least 8 hex characters, got %q", v)
+			}
+			if strings.TrimLeft(strings.ToLower(v), "0123456789abcdef") != "" {
+				return Hunk{}, 0, fmt.Errorf("sha= is not hexadecimal: %q", v)
 			}
 			h.SHA = strings.ToLower(v)
 		case "lines":
@@ -360,9 +367,11 @@ func ParseAddr(s string) (Addr, error) {
 func validate(h *Hunk) error {
 	switch h.Op {
 	case OpDelete:
-		if len(h.Body) > 0 {
-			return fmt.Errorf("delete takes no body, got %d line(s)", len(h.Body))
-		}
+		// A body on a delete used to be a hard parse error. It now means "these
+		// are the lines I expect to remove" — the caller's own picture of the
+		// range, which is the one assertion mrw cannot derive for them. Whether
+		// it HOLDS needs the file, so it is checked in internal/apply; there is
+		// nothing to check here (ADR-008).
 	case OpCreate:
 		if h.Addr.Start != 0 || h.Addr.End != 0 {
 			return fmt.Errorf("create takes no address, use %q", "-")

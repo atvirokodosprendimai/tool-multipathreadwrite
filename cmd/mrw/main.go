@@ -77,6 +77,20 @@ func rootCommand() *cli.Command {
 				Usage:   "resolve every path relative to `DIR`",
 			},
 		},
+		// An unknown subcommand is a USAGE error. Without this the framework
+		// falls through to its help machinery, which returns "No help topic
+		// for 'x'" carrying exit 3 — the status this tool documents as "a check
+		// ran and did not pass". A hook branching on 3 would read a typo'd
+		// command as a landed write with a red suite, which is the most
+		// expensive possible misreading (probed 2026-09-01).
+		CommandNotFound: func(_ context.Context, cmd *cli.Command, name string) {
+			names := make([]string, 0, len(cmd.Commands))
+			for _, c := range cmd.Commands {
+				names = append(names, c.Name)
+			}
+			cmd.Metadata = map[string]any{"notFound": cli.Exit(
+				fmt.Sprintf("unknown command %q (want %s)", name, strings.Join(names, ", ")), exitUsage)}
+		},
 		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd()},
 	}
 }
@@ -91,7 +105,17 @@ func main() {
 				"untouched and can now be deleted\n", strings.Join(moved, " and "), state.LegacyDir, dir)
 		}
 	}
-	if err := rootCommand().Run(context.Background(), os.Args); err != nil {
+	root := rootCommand()
+	err := root.Run(context.Background(), os.Args)
+	// An unknown subcommand cannot be reported by returning an error: the
+	// framework's CommandNotFound hook returns nothing, so it leaves its
+	// verdict on the command and main is what turns that into a status.
+	if err == nil {
+		if notFound, ok := root.Metadata["notFound"].(error); ok {
+			err = notFound
+		}
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "mrw:", err)
 		os.Exit(exitCode(err))
 	}
@@ -273,6 +297,19 @@ visible to whatever hooks watch file writes.`,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args().Slice()
+			// Flag contradictions are settled BEFORE the plan is read. A usage
+			// error means "fix the call", and it has to preempt everything or
+			// it preempts inconsistently: with the check below the parse, an
+			// unparseable plan won against this pair while a plan whose HUNK
+			// failed lost to it — the caller was told about their flags and
+			// never learned their address was out of range, and exit 1, which
+			// promises an untouched tree, became exit 2. Both are "your plan is
+			// wrong" and they ranked differently only because of where the test
+			// sat (PR #11 review, F3).
+			if cmd.Bool("check") && cmd.Bool("dry-run") {
+				return cli.Exit("--check cannot run under --dry-run: nothing is written, so there is "+
+					"nothing to verify. Drop one of the two — a check that did not run is not a pass", exitUsage)
+			}
 			if len(args) > 1 {
 				return cli.Exit("write takes at most one plan file", exitUsage)
 			}
@@ -605,7 +642,18 @@ func report(w *os.File, res apply.Result, quiet bool) {
 		case h.Status == apply.StatusSkipped:
 			fmt.Fprintf(out, "skip %s %s %s\n", h.Path, h.Addr, h.Op)
 		default:
-			fmt.Fprintf(out, "ok   %s %s %s  -%d +%d\n", h.Path, h.Addr, h.Op, h.Removed, h.Added)
+			// A delete says what it removed. Only a delete: every other op
+			// carries a body the caller wrote, so `from "" to ""` there would
+			// be noise on every line of every receipt (ADR-008).
+			// Keyed on the op, not on the strings being non-empty: a delete
+			// that removes blank lines removed something, and a receipt that
+			// went quiet about it would be indistinguishable from one where
+			// nothing recorded the bounds at all.
+			bounds := ""
+			if h.Op == "delete" {
+				bounds = fmt.Sprintf(" from %q to %q", h.RemovedFirst, h.RemovedLast)
+			}
+			fmt.Fprintf(out, "ok   %s %s %s  -%d +%d%s\n", h.Path, h.Addr, h.Op, h.Removed, h.Added, bounds)
 		}
 	}
 	if !quiet {
