@@ -86,6 +86,12 @@ type Hunk struct {
 	// This is the property Edit has and Write lacks — a wrong address fails
 	// loudly instead of overwriting the wrong lines.
 	Anchor string
+	// Raw suppresses the check that refuses a counted body line which parses as
+	// a valid header. It is the escape hatch for the one thing body= exists to
+	// make possible and the overcount check would otherwise forbid: writing a
+	// REAL hunk header as content, which any plan editing this project's own
+	// documentation or test fixtures has to do.
+	Raw bool
 
 	// SrcLine is the plan's own line number, for diagnostics.
 	SrcLine int
@@ -134,14 +140,20 @@ func Parse(r io.Reader) ([]Hunk, error) {
 			// An OVERCOUNTED body= is the last silent way to lose a hunk: the
 			// count runs past this hunk's text and eats the next header and
 			// its body as content, after which the plan applies — correctly by
-			// its own rules — missing an edit nobody will notice. A body line
-			// is refused only when it is a COMPLETE, VALID header, so prose
-			// about the format (the README's own examples, whose trailing text
-			// is not key=value) still passes through.
-			if strings.HasPrefix(line, "@@ ") {
+			// its own rules — missing an edit nobody will notice.
+			//
+			// A body line is refused only when it is a COMPLETE, VALID header,
+			// so prose about the format still passes through, and `raw=true`
+			// turns the check off for a body that means to contain one. The
+			// narrower rule of "fire only when the count runs past the end of
+			// the document" was weighed and rejected: the incident that
+			// produced this check did not run past the end — the count landed
+			// exactly on a header boundary and the plan parsed clean.
+			if strings.HasPrefix(line, "@@ ") && !cur.Raw {
 				if _, _, err := parseHeader(line, n); err == nil {
 					errs = append(errs, fmt.Sprintf("line %d: body= still owes %d line(s), but %q is a "+
-						"valid header — an overcounted body= would swallow that hunk", n, want, line))
+						"valid header — an overcounted body= would swallow that hunk. If the body really "+
+						"contains a header, say raw=true", n, want, line))
 				}
 			}
 			body = append(body, line)
@@ -245,12 +257,17 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 				return Hunk{}, 0, fmt.Errorf("anchor= needs a value")
 			}
 			h.Anchor = v
+		case "raw":
+			if v != "true" {
+				return Hunk{}, 0, fmt.Errorf("raw= takes only %q, got %q", "true", v)
+			}
+			h.Raw = true
 		case "body":
 			if explicit, err = strconv.Atoi(v); err != nil || explicit < 0 {
 				return Hunk{}, 0, fmt.Errorf("body= wants a non-negative integer, got %q", v)
 			}
 		default:
-			return Hunk{}, 0, fmt.Errorf("unknown option %q (want sha, lines, anchor or body)", k)
+			return Hunk{}, 0, fmt.Errorf("unknown option %q (want sha, lines, anchor, body or raw)", k)
 		}
 	}
 	return h, explicit, nil
