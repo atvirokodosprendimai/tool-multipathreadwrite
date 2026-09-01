@@ -313,17 +313,74 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		return res, nil
 	}
 
-	for _, w := range writes {
-		if !dryRun {
-			if err := writeFile(w.full, w.out); err != nil {
-				return res, fmt.Errorf("%s: %w", w.file.Path, err)
-			}
-			w.file.Written = true
+	if dryRun {
+		for _, w := range writes {
+			res.Files = append(res.Files, w.file)
 		}
+		res.Applied = false
+		return res, nil
+	}
+
+	// TWO PHASES: stage every file beside its target, then rename them all.
+	//
+	// A write-then-next-file loop left the tree PARTIALLY APPLIED when a later
+	// file could not be written: the files before it were already renamed into
+	// place, the caller saw a bare "permission denied" and no receipt at all,
+	// and — because the ledger is recorded from the returned receipt — mrw then
+	// refused the next edit to a file it had changed itself, reporting it as
+	// "changed since mrw last saw it". ADR-001 rule 2 says one failure aborts
+	// the run; staging is what makes that hold against a FILESYSTEM failure and
+	// not only a validation one.
+	//
+	// Staging is where the realistic failures land — an unwritable directory,
+	// a read-only mount, ENOSPC — and at that point nothing has been renamed,
+	// so the abort really is a no-op on the tree. Only the rename loop can
+	// still leave it partial, and a rename that fails says which files were
+	// already written rather than leaving the caller to find out.
+	type stagedFile struct{ tmp, target string }
+	staged := make([]stagedFile, 0, len(writes))
+	// ADR-004: mrw leaves nothing in the working tree. An abort must unlink
+	// what it staged, or a failed plan litters .mrw-* beside every target it
+	// got to.
+	discard := func(from int) {
+		for _, sf := range staged[from:] {
+			os.Remove(sf.tmp)
+		}
+	}
+	for _, w := range writes {
+		tmp, target, err := stageFileFn(w.full, w.out)
+		if err != nil {
+			discard(0)
+			return res, fmt.Errorf("%s: %w", w.file.Path, err)
+		}
+		staged = append(staged, stagedFile{tmp: tmp, target: target})
+	}
+	for i, w := range writes {
+		if err := os.Rename(staged[i].tmp, staged[i].target); err != nil {
+			discard(i)
+			return res, fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files))
+		}
+		w.file.Written = true
 		res.Files = append(res.Files, w.file)
 	}
-	res.Applied = !dryRun
+	res.Applied = true
 	return res, nil
+}
+
+// writtenSoFar names the files already renamed into place when a later rename
+// fails, because the tree is then partially applied and the caller cannot see
+// it from the error alone. Staging makes this path rare; it does not make it
+// impossible, and an unreported partial write is the thing ADR-001 rule 2
+// calls worse than no change.
+func writtenSoFar(files []FileResult) string {
+	if len(files) == 0 {
+		return "nothing was written"
+	}
+	names := make([]string, len(files))
+	for i, f := range files {
+		names[i] = f.Path
+	}
+	return "ALREADY WRITTEN: " + strings.Join(names, ", ")
 }
 
 // planFile validates one file's hunks and splices its new content. It records a
@@ -683,26 +740,38 @@ func eolOf(s string) string {
 	return "\n"
 }
 
-// writeFile replaces a file atomically: a crash mid-write leaves the original,
-// never a half-written source file.
+// stageFileFn is the seam the staging phase is driven through. A test swaps it
+// to fail on a chosen file, because the realistic trigger — an unwritable
+// directory — is not one a test can rely on: `chmod 0555` is a no-op for uid 0,
+// so a permission-based test silently exercises nothing when CI runs as root,
+// which is the defect class this whole guard exists to catch.
+var stageFileFn = stageFile
+
+// stageFile writes t to a temp file beside the RESOLVED target, leaving the
+// target untouched. It returns the temp file AND the resolved path to rename
+// it onto — both, because resolving here and renaming onto the unresolved path
+// would drop the edit onto the symlink itself, which is the case the split of
+// this function first got wrong and TestEditingThroughASymlinkKeepsTheSymlink
+// caught. Renaming is the caller's second phase; until then nothing in the
+// tree has changed.
 //
-// The temp file is created beside the RESOLVED target. A symlink is followed
-// rather than replaced — renaming over the link would leave the edit in a new
-// regular file while the file the caller meant stayed untouched, and nothing in
-// the receipt would say the tree's shape had changed.
-func writeFile(path string, t text) error {
+// The temp file is created beside the target rather than in TMPDIR so the
+// rename is same-filesystem, which is what makes it atomic. A symlink is
+// followed rather than replaced — renaming over the link would leave the edit
+// in a new regular file while the file the caller meant stayed untouched, and
+// nothing in the receipt would say the tree's shape had changed.
+func stageFile(path string, t text) (tmpPath, target string, err error) {
 	if resolved, err := filepath.EvalSymlinks(path); err == nil {
 		path = resolved
 	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
+		return "", "", err
 	}
 	tmp, err := os.CreateTemp(dir, ".mrw-*")
 	if err != nil {
-		return err
+		return "", "", err
 	}
-	defer os.Remove(tmp.Name())
 
 	perm := os.FileMode(0o644)
 	if fi, err := os.Stat(path); err == nil {
@@ -710,15 +779,18 @@ func writeFile(path string, t text) error {
 	}
 	if _, err := tmp.WriteString(t.join()); err != nil {
 		tmp.Close()
-		return err
+		os.Remove(tmp.Name())
+		return "", "", err
 	}
 	if err := tmp.Close(); err != nil {
-		return err
+		os.Remove(tmp.Name())
+		return "", "", err
 	}
 	if err := os.Chmod(tmp.Name(), perm); err != nil {
-		return err
+		os.Remove(tmp.Name())
+		return "", "", err
 	}
-	return os.Rename(tmp.Name(), path)
+	return tmp.Name(), path, nil
 }
 
 func shaOf(t text) string {
