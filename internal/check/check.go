@@ -72,6 +72,14 @@ func Load(root string) (Config, error) {
 		if err := json.Unmarshal(b, &c); err != nil {
 			return c, fmt.Errorf(".quality-harness.json: %w", err)
 		}
+		// A value that is only whitespace is one nobody typed on purpose — a
+		// stray space, a truncated edit, a template that expanded to nothing.
+		// Untrimmed it read as DECLARED, ran as an empty shell command, exited
+		// 0 and reported `check PASS`: a check that did not run reporting a
+		// pass, which is precisely what ADR-003 rule 2 refuses. Normalising
+		// here makes every `== ""` test downstream mean what it says, and
+		// sends this config down the same path an empty value already took.
+		c.Check, c.ScopedCheck = strings.TrimSpace(c.Check), strings.TrimSpace(c.ScopedCheck)
 		c.declared = c.Check != "" || c.ScopedCheck != ""
 	case !os.IsNotExist(err):
 		return c, err

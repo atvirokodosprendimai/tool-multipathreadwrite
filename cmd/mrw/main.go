@@ -226,6 +226,19 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				}
 				specs = append(specs, sp)
 			}
+			// A negative -C produced a REVERSED header — `@@ 5-3`, an address
+			// mrw's own parser refuses — carrying no content, at exit 0. The
+			// README promises "output ranges print as `@@ 3-6`, which is
+			// exactly the address a write plan takes", and a silently empty
+			// result is the failure this tool exists to refuse. A negative
+			// --max-lines was ignored outright, so a caller who asked for a cap
+			// got none and was never told (probed 2026-09-01).
+			if n := cmd.Int("context"); n < 0 {
+				return cli.Exit(fmt.Sprintf("-C %d: context cannot be negative", n), exitUsage)
+			}
+			if n := cmd.Int("max-lines"); n < 0 {
+				return cli.Exit(fmt.Sprintf("--max-lines %d: a cap cannot be negative", n), exitUsage)
+			}
 			out := bufio.NewWriter(os.Stdout)
 			defer out.Flush()
 

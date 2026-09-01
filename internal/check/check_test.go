@@ -232,3 +232,59 @@ func TestTimeoutIsReportedAsAFailureNotAPass(t *testing.T) {
 	}
 	os.Remove(res.OutputFile)
 }
+
+// A check command that is only whitespace is one nobody typed on purpose — a
+// stray space, a truncated edit, a template that expanded to nothing. Before
+// this was trimmed it read as DECLARED, ran as an empty shell command, exited 0
+// and reported `check PASS`. That is a check which did not run reporting a
+// pass, which ADR-003 rule 2 exists to refuse, and it would have held for as
+// long as the typo did — every gate downstream believing the suite was green.
+func TestAWhitespaceOnlyCheckIsNotDeclared(t *testing.T) {
+	for _, v := range []string{`"   "`, `"\t"`, `"\n"`, `" \t \n "`} {
+		t.Run(v, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, ".quality-harness.json"),
+				[]byte(`{"check":`+v+`}`), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := Load(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Declared() {
+				t.Errorf("check=%s reads as declared: %+v", v, cfg)
+			}
+			// The decisive assertion: whatever it falls back to, it must not
+			// be able to report success without running anything. With no
+			// go.mod there is nothing to infer, so the run is Skipped — and
+			// Skipped is not OK().
+			res, err := Run(context.Background(), root, cfg, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.OK() {
+				t.Errorf("check=%s reported a pass: %+v", v, res)
+			}
+			if res.Ran {
+				t.Errorf("check=%s ran something: %+v", v, res)
+			}
+		})
+	}
+}
+
+// The trim must not eat a real command, including one whose declared form has
+// incidental padding.
+func TestAPaddedCheckIsStillTheDeclaredCheck(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".quality-harness.json"),
+		[]byte(`{"check":"  make verify  "}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Declared() || cfg.Check != "make verify" {
+		t.Errorf("cfg = %+v", cfg)
+	}
+}

@@ -432,6 +432,45 @@ m write --dry-run --check "$R/fail.mrw"  >/dev/null 2>&1; want 2 "$?" "the flag 
 m write --dry-run --check "$R/parse.mrw" >/dev/null 2>&1; want 2 "$?" "and preempts a parse error the same way"
 m write --dry-run --check "$R/nope.mrw"  >/dev/null 2>&1; want 2 "$?" "and preempts a missing plan file"
 
+# 20. Probing round two. A check command that is only WHITESPACE read as
+#     declared, ran as an empty shell command, exited 0 and reported PASS —
+#     a check that did not run reporting a pass, which is what ADR-003 rule 2
+#     refuses, and it would hold for as long as the typo did.
+#     The decisive fixture has NO go.mod, so there is nothing to infer either:
+#     the only way to report PASS would be to run the empty command.
+R=$(mktemp -d "$WORK/nogomod-XXXXXX")
+printf 'hello\n' > "$R/a.txt"
+printf '{"check":"   "}\n' > "$R/.quality-harness.json"
+out=$(m check --full 2>&1); rc=$?
+grep -q 'check PASS' <<<"$out" && bad "a whitespace-only check reported PASS: $out" \
+  || ok "a whitespace-only check cannot report PASS"
+grep -q 'no check declared' <<<"$out" && ok "it is reported as no check at all" || bad "not skipped: $out"
+#     And in a Go tree it falls back the way an EMPTY value already did.
+fixture
+printf '{"check":"   "}\n' > "$R/.quality-harness.json"
+out=$(m check --full 2>&1)
+grep -q 'inferred' <<<"$out" && ok "in a Go tree it falls back to the inferred check" || bad "did not fall back: $out"
+grep -q 'declared' <<<"$out" && bad "it still reads as declared: $out" \
+  || ok "and never reads as declared"
+printf '{"check":"  echo REAL; exit 1  "}\n' > "$R/.quality-harness.json"
+out=$(m check --full 2>&1); rc=$?
+want 3 "$rc" "a padded REAL check still runs and still fails"
+grep -q 'REAL' <<<"$out" && ok "and the padding did not eat the command" || bad "command lost: $out"
+
+# 20b. A negative -C printed `@@ 5-3` — an address mrw's own parser refuses —
+#      with no content, at exit 0. The README promises the header is exactly
+#      the address a write plan takes, and a silently empty result is the
+#      failure this tool exists to refuse. A negative --max-lines was ignored.
+fixture
+out=$(m read -C -1 "a.go:/func A/" 2>&1); rc=$?
+want 2 "$rc" "a negative -C is refused"
+grep -qE '@@ [0-9]+-[0-9]+' <<<"$out" && bad "it still emitted a range header: $out" \
+  || ok "and emits no address at all"
+out=$(m read --max-lines -5 a.go 2>&1); rc=$?
+want 2 "$rc" "a negative --max-lines is refused"
+out=$(m read -C 1 "a.go:/func B/" 2>&1)
+grep -qE '@@ 3-5' <<<"$out" && ok "a positive -C still widens the range" || bad "-C broke: $out"
+
 echo
 
 # 16. A plan aborts with the tree UNTOUCHED when a file cannot be written.

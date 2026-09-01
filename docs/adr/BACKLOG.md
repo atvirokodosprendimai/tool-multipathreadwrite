@@ -214,3 +214,35 @@ contract rows.
   switch off the header check inside a COUNTED body, so without `body=` it is a
   guard the caller wrote that cannot fire. Harmless, and the same class as the
   duplicate key: a caller believing something is pinned when nothing is.
+
+- **`--max-lines 0` means UNLIMITED, and this repository decided the opposite
+  question the other way once already.** A cap of zero is currently
+  indistinguishable from no cap, so there is no way to say "serve me the header
+  and nothing else" — and nothing is reported as withheld, though the README
+  promises "whatever is withheld is always reported". The precedent cuts
+  against the current behaviour: `body=0` in a plan means an EMPTY body, not an
+  unbounded one, and `TestBodyZeroMeansAnEmptyBody` exists because treating an
+  exhausted count as "keep scanning" silently handed a hunk lines the caller
+  wrote for something else. `lines=0` is likewise a real assertion, not a
+  disabled one. Against changing it: 0-means-unlimited is a widespread CLI
+  convention, and `--stat` already serves the "header only" need. Either way it
+  is a behaviour change, which is why it is here — negative values, which were
+  silently ignored, are now a usage error and shipped with this round.
+
+### Probed and found correct (2026-09-01, round two)
+
+Recorded so the next probing round starts somewhere new rather than
+re-measuring these. Each was driven at the built binary, not read:
+
+- **A corrupt or truncated ledger fails CLOSED.** Garbage in the `seen` file
+  leaves every write refused with "has not been read", including for files that
+  genuinely were read. It never silently degrades into "no ledger, so no guard".
+- **Two concurrent writes to one file cannot both land.** The second is refused
+  with "changed since mrw last saw it (recorded …, now …)" — the sha guard is
+  what makes the race safe, not luck about timing.
+- **A chain of writes needs no re-read between steps**, and a hunk addressing a
+  line that only exists after the earlier writes resolves correctly.
+- Pattern addresses, `/start/,/end/` pairs, pointer resolution (`@0`, `@-1`,
+  `@abc`, `@N` out of range), overlapping and descending range lists, filenames
+  with spaces, unicode and a leading dash, and a missing `$HOME` with no
+  `XDG_STATE_HOME` — all correct, all with the right exit status.
