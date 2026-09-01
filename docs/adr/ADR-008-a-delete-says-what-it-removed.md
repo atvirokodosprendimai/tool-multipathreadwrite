@@ -43,6 +43,15 @@ that the caller knows what they are addressing — you cannot write the new line
 without looking at the old ones. For `delete`, the caller asserts nothing and
 removes N lines sight unseen, and the receipt reports a count.
 
+> **Amended 2026-09-01, while executing this record.** The paragraph above is
+> true of `replace` and too strong for the insertions, and the correction is
+> written out under Out of Scope below. A body proves the caller knew WHAT to
+> write, not WHERE: `replace`'s body is the addressed lines' replacement, so
+> writing it means reading them, but an insertion's address is a POSITION the
+> body says nothing about. Measured — an `insert-after` into `BACKLOG.md`,
+> aimed one paragraph too early, applied cleanly and reported `ok`. `delete`
+> is still the op this record is about, because it has neither.
+
 **What cannot be fixed by inference.** A guard mrw derives from the file it just
 read is computed from the same bytes it would be checked against, so it always
 passes: an auto-`anchor=` asserts nothing, and `lines=` is arithmetic on the

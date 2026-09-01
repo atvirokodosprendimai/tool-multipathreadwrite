@@ -225,9 +225,12 @@ report `skip` in the human output and `"skipped"` in `--json`, never `ok`.
 
 ### A delete says what it removed
 
-Every other op carries a body you wrote, and writing the replacement is itself
-proof you looked at what you were addressing. `delete` has no body, so it is
-the one op where a range that is a line too long removes something you never
+Every other op carries a body you wrote. For `replace` that body is itself
+proof you looked at what you were addressing — you cannot write the new lines
+without reading the old ones. An insertion's body proves less than it appears
+to: its address is a position, so the body says what to add and nothing about
+where, and `anchor=` is what pins that. `delete` has neither, so it is the one
+op where a range that is a line too long removes something you never
 saw. The receipt closes that gap: a delete names the first and last line it
 took.
 
