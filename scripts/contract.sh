@@ -186,6 +186,20 @@ out=$(printf '@@ a.go 3 replace body=1 raw=true\n@@ b.go 3 replace\n' | m write 
 want 0 "$rc" "raw=true writes that header as content"
 grep -q '@@ b.go 3 replace' "$R/a.go" && ok "the header landed as text" || bad "the body was not written"
 
+# 12. A plan file is a SHELL argument: -C moves the paths INSIDE it, not the
+#     file itself. The split is defensible and invisible, so the refusal has to
+#     say where it looked — and the framework must not swallow the error, which
+#     it did until the exit handler was unwired (main's "mrw:" prefix was dead
+#     code and nothing printed it).
+fixture
+printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 7 }\n' > "$R/plan.mrw"
+out=$(cd "$WORK" && "$MRW" -C "$R" write --dry-run plan.mrw 2>&1); rc=$?
+want 2 "$rc" "a plan file is not looked for under --root"
+grep -q 'working directory' <<<"$out" && ok "the refusal says where it looked" || bad "bare error: $out"
+grep -q '^mrw: ' <<<"$out" && ok "the error carries mrw's own prefix" || bad "no mrw: prefix: $out"
+out=$(cd "$R" && "$MRW" -C "$R" write --dry-run plan.mrw 2>&1); rc=$?
+want 0 "$rc" "the same plan, run from beside it, applies"
+
 echo
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

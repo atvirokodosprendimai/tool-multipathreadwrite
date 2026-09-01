@@ -384,9 +384,20 @@ about your change.
 | code | meaning | what to do |
 |---|---|---|
 | 0 | everything asked for succeeded | — |
-| 1 | a hunk failed, or a range could not be served; **nothing written** | fix the plan |
+| 1 | a hunk failed, or the answer is incomplete; **nothing written** | fix the plan, or read the output |
 | 2 | usage, parse or I/O error | fix the call |
 | 3 | a check ran and did not pass | read the test output |
+
+Exit 1 on `read` means **incomplete**, not necessarily wrong: an unreadable
+file, a pattern that matched nothing, and a `--max-lines` cap you asked for all
+produce it, because a partial answer that looks whole is the failure this tool
+is built around. Read the output to tell them apart — the withheld lines are
+always named.
+
+`--root`/`-C` moves the paths **inside** a plan. The plan file itself is a shell
+argument like any other and resolves against your working directory, so
+`mrw -C repo write plan.mrw` looks for `plan.mrw` beside you and not in `repo`.
+A miss says which directory it looked in.
 
 ## A note on hooks
 
