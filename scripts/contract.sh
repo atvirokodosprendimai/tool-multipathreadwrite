@@ -248,6 +248,28 @@ out=$(m read --max-lines 2 'big.txt:1-2,10-12,30-32' 2>&1); rc=$?
 want 1 "$rc" "a span withheld whole -> exit 1"
 grep -q 'WITHHELD' <<<"$out" && ok "and prints WITHHELD" || bad "wrong word: $out"
 
+# 15. `mrw check <dir>` scopes to that package. The README spells it exactly
+#     that way — `mrw check internal/apply # scoped to these paths` — and it ran
+#     the WHOLE-project command instead, because a directory has no .go
+#     extension and the scope derivation keyed on the extension alone. A typo'd
+#     path has no extension either, so that case must still fall back rather
+#     than scope to nothing and report PASS.
+fixture
+mkdir -p "$R/internal/apply"
+printf 'package apply\n\nfunc A() int { return 1 }\n' > "$R/internal/apply/a.go"
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
+out=$(m check internal/apply 2>&1); rc=$?
+want 0 "$rc" "check on a directory runs"
+grep -q 'SCOPED ./internal/apply' <<<"$out" && ok "and scopes to that package" || bad "not scoped: $out"
+out=$(m check ./internal/apply 2>&1)
+grep -q 'SCOPED ./internal/apply' <<<"$out" && ok "the ./dir form we print scopes too" || bad "not scoped: $out"
+out=$(m check internal/apply/a.go 2>&1)
+grep -q 'SCOPED ./internal/apply' <<<"$out" && ok "a .go file still scopes" || bad "not scoped: $out"
+out=$(m check internal/aply 2>&1)
+grep -q 'echo FULL' <<<"$out" && ok "a mistyped path falls back, not scopes to nothing" || bad "scoped to nothing: $out"
+out=$(m check --full 2>&1)
+grep -q 'echo FULL' <<<"$out" && ok "--full still ignores every scope" || bad "not full: $out"
+
 echo
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

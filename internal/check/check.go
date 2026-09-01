@@ -101,7 +101,7 @@ func (r Result) OK() bool { return r.Ran && r.ExitCode == 0 }
 
 // Run picks a command for the edited paths and executes it in root.
 func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Result, error) {
-	cmdline, scoped := command(cfg, editedPaths)
+	cmdline, scoped := command(root, cfg, editedPaths)
 	if cmdline == "" {
 		return Result{Declared: cfg.declared, Skipped: "no check declared and no go.mod found"}, nil
 	}
@@ -154,11 +154,13 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 }
 
 // command chooses between the scoped and whole-project forms. It returns the
-// scoped one only when every edited path maps to a Go package, because a scoped
-// run that quietly omits a changed file is worse than a slow complete one.
-func command(cfg Config, paths []string) (cmdline string, scoped bool) {
+// scoped one only when every path maps to a Go package, because a scoped run
+// that quietly omits a changed file is worse than a slow complete one.
+//
+// root is needed to tell a directory from a typo; see packages.
+func command(root string, cfg Config, paths []string) (cmdline string, scoped bool) {
 	if cfg.ScopedCheck != "" {
-		if pkgs := packages(paths); pkgs != "" {
+		if pkgs := packages(root, paths); pkgs != "" {
 			r := strings.NewReplacer("{packages}", pkgs, "{files}", strings.Join(paths, " "))
 			return r.Replace(cfg.ScopedCheck), true
 		}
@@ -166,15 +168,33 @@ func command(cfg Config, paths []string) (cmdline string, scoped bool) {
 	return cfg.Check, false
 }
 
-// packages maps edited files to ./dir form, or returns "" if any edited path is
-// not a Go file — in which case the caller must fall back to the full check.
-func packages(paths []string) string {
+// packages maps paths to ./dir form, or returns "" if any of them is neither a
+// Go file nor a directory in the tree — in which case the caller must fall back
+// to the full check.
+//
+// A DIRECTORY counts because naming one is how a caller asks for a package
+// directly: `mrw check internal/apply` is the documented spelling, and ./dir is
+// the form this function itself emits, so a scope mrw printed can be handed
+// straight back to it. Paths reaching here from a write are always files, so
+// that path is unaffected.
+//
+// Only an EXISTING directory qualifies, and that is the whole reason root is a
+// parameter. A mistyped path has no extension either, and scoping to it would
+// run a check that covers nothing and then report PASS — falling back to the
+// full command is the honest reading of a path we cannot place.
+func packages(root string, paths []string) string {
 	seen := map[string]bool{}
 	for _, p := range paths {
-		if filepath.Ext(p) != ".go" {
+		var dir string
+		switch {
+		case filepath.Ext(p) == ".go":
+			dir = filepath.Dir(p)
+		case isDir(root, p):
+			dir = p
+		default:
 			return ""
 		}
-		dir := filepath.ToSlash(filepath.Dir(p))
+		dir = filepath.ToSlash(filepath.Clean(dir))
 		if dir == "." {
 			dir = ""
 		}
@@ -189,6 +209,14 @@ func packages(paths []string) string {
 	}
 	sort.Strings(out)
 	return strings.Join(out, " ")
+}
+
+// isDir reports whether p names a directory under root. It is the only question
+// this package asks the filesystem about a path, and it is asked only to tell a
+// package from a typo.
+func isDir(root, p string) bool {
+	fi, err := os.Stat(filepath.Join(root, p))
+	return err == nil && fi.IsDir()
 }
 
 // lastLines returns the final n lines of a file plus how many it left out, so a
