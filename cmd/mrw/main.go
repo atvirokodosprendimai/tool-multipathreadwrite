@@ -63,6 +63,12 @@ func rootCommand() *cli.Command {
 		Name:    "mrw",
 		Usage:   "read and write many file ranges in one call",
 		Version: version,
+		// The framework's default handler PRINTS the error and calls os.Exit
+		// itself, which made main's own reporting dead code — the "mrw:" prefix
+		// never appeared, and no test could drive a failing command without
+		// taking the test binary down with it. Errors come back to main, which
+		// already prints them and maps the status.
+		ExitErrHandler: func(context.Context, *cli.Command, error) {},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "root",
@@ -274,7 +280,12 @@ visible to whatever hooks watch file writes.`,
 			if len(args) == 1 && args[0] != "-" {
 				f, err := os.Open(args[0])
 				if err != nil {
-					return cli.Exit(err, 2)
+					// -C moves the paths INSIDE the plan; the plan file itself
+					// is a shell argument like any other and resolves against
+					// the working directory. That split is defensible and
+					// invisible, so a miss says where it looked rather than
+					// leaving the caller to doubt the plan instead of the path.
+					return cli.Exit(planOpenError(args[0], cmd.String("root"), err), exitUsage)
 				}
 				defer f.Close()
 				src, name = f, args[0]
@@ -637,4 +648,25 @@ func exitCode(err error) int {
 		return ec.ExitCode()
 	}
 	return 2
+}
+
+// planOpenError explains a plan file that could not be opened. A relative path
+// resolves against the working directory even when --root points elsewhere, so
+// the message names the directory it looked in and says so — the difference
+// between "your plan is wrong" and "your plan is somewhere else" is the whole
+// of what the caller needs.
+func planOpenError(path, root string, err error) string {
+	if filepath.IsAbs(path) {
+		return err.Error()
+	}
+	wd, wdErr := os.Getwd()
+	if wdErr != nil {
+		return err.Error()
+	}
+	absRoot, rootErr := filepath.Abs(root)
+	if rootErr != nil || absRoot == wd {
+		return err.Error()
+	}
+	return fmt.Sprintf("%v — looked in the working directory %s, because --root (%s) moves the paths "+
+		"INSIDE a plan and not the plan file itself", err, wd, absRoot)
 }

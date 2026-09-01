@@ -2,6 +2,7 @@ package adversarial
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 
@@ -72,5 +73,74 @@ func TestAPatternThatMatchesNothingSaysSo(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "NoSuchFunction") {
 		t.Errorf("the output does not name the pattern that matched nothing:\n%s", buf.String())
+	}
+}
+
+// DECISION POINT, pinned rather than changed: `read` exits 1 whenever its
+// answer is incomplete — including when a --max-lines cap the caller ASKED FOR
+// fires. internal/read/read_test.go::TestMaxLinesReportsWhatItWithheld already
+// asserts that, so it is the project's stated intent and not an accident.
+//
+// The argument against it is real and worth writing down: an agent that runs
+// `mrw read --max-lines 200 …` routinely gets a non-zero status on every
+// ordinary call, and a status that cries wolf is one people learn to ignore —
+// the exact harm this tool is built around. The argument FOR it is the tool's
+// own thesis: an incomplete answer must be visible, and the exit code is the
+// machine-readable half of visible. "Some of what you asked for is missing" is
+// true of a withheld span and of an unreadable file alike.
+//
+// Left as it is, because changing it is a served-path change to the exit
+// contract and that is M's call, not mine. These tests hold the current answer
+// in BOTH directions so it cannot drift unnoticed while the question is open.
+func TestKnownGap_ARequestedCapCountsAsAProblem(t *testing.T) {
+	root := tree(t, map[string]string{"big.txt": strings.Repeat("line\n", 40)})
+
+	var buf bytes.Buffer
+	_, problems := read.Run(&buf, root, []read.Spec{{Path: "big.txt"}}, read.Options{MaxLines: 5})
+
+	if problems == 0 {
+		t.Error("a fired --max-lines cap no longer counts as a problem — if that is deliberate, " +
+			"say so in the README's exit table and delete this test")
+	}
+	if !strings.Contains(buf.String(), "withheld") {
+		t.Errorf("the cap fired without saying so:\n%s", buf.String())
+	}
+}
+
+// The same for a span withheld whole rather than cut in half — the other branch
+// of the budget check, and the one a multi-range read hits first.
+func TestKnownGap_AWhollyWithheldSpanCountsAsAProblem(t *testing.T) {
+	root := tree(t, map[string]string{"big.txt": strings.Repeat("line\n", 40)})
+
+	spec, err := read.ParseSpec("big.txt:1-3,20-25")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	_, problems := read.Run(&buf, root, []read.Spec{spec}, read.Options{MaxLines: 3})
+
+	if problems == 0 {
+		t.Error("a wholly withheld span no longer counts as a problem")
+	}
+	if !strings.Contains(buf.String(), "WITHHELD") {
+		t.Errorf("the withheld span was not reported:\n%s", buf.String())
+	}
+}
+
+// Whatever is decided above, these two must keep their verdict: the answer the
+// caller asked for does not exist at all.
+func TestAnUnreadableFileAndAnUnmatchedPatternStayProblems(t *testing.T) {
+	root := tree(t, map[string]string{"a.go": goFile})
+
+	if _, problems := read.Run(io.Discard, root, []read.Spec{{Path: "nosuch.go"}}, read.Options{}); problems == 0 {
+		t.Error("an unreadable file is not a problem any more")
+	}
+
+	spec, err := read.ParseSpec("a.go:/func NoSuchFunction/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, problems := read.Run(io.Discard, root, []read.Spec{spec}, read.Options{}); problems == 0 {
+		t.Error("a pattern matching nothing is not a problem any more")
 	}
 }
