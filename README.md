@@ -428,7 +428,10 @@ mrw writes nothing into your repository; a pre-existing `.mrw/` from an older
 version is copied across once, announced, and never deleted.
 
 `{packages}` expands to the Go packages your paths cover, `{files}` to the paths
-themselves. A **file** maps to its own package, `./dir`. A **directory** maps to
+themselves. **Write the placeholder unquoted**: each value arrives already
+quoted as one shell argument, so a path holding a space, a `;` or a `$(…)` is
+one argument and not shell syntax — `go test {packages}` is right, `go test
+"{packages}"` nests the quotes inside the argument. A **file** maps to its own package, `./dir`. A **directory** maps to
 its subtree, `./dir/...` — because `mrw check .` is how you say "check
 everything here", and go's `./dir` is the one package at the top: scoping a
 directory that way reported PASS with a failing package one level down. The
