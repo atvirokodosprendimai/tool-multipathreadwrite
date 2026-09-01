@@ -442,13 +442,22 @@ R=$(mktemp -d "$WORK/nogomod-XXXXXX")
 printf 'hello\n' > "$R/a.txt"
 printf '{"check":"   "}\n' > "$R/.quality-harness.json"
 out=$(m check --full 2>&1); rc=$?
+want 2 "$rc" "a whitespace-only check with nothing to infer exits 2, not 0"
 grep -q 'check PASS' <<<"$out" && bad "a whitespace-only check reported PASS: $out" \
   || ok "a whitespace-only check cannot report PASS"
 grep -q 'no check declared' <<<"$out" && ok "it is reported as no check at all" || bad "not skipped: $out"
+#     Same for scoped_check, which nothing else covers: untrimmed it reads as
+#     declared and suppresses the fallback.
+printf '{"scoped_check":"   "}\n' > "$R/.quality-harness.json"
+out=$(m check --full 2>&1); rc=$?
+want 2 "$rc" "a whitespace-only scoped_check exits 2 too"
+grep -q 'check PASS' <<<"$out" && bad "a whitespace-only scoped_check reported PASS: $out" \
+  || ok "and cannot report PASS"
 #     And in a Go tree it falls back the way an EMPTY value already did.
 fixture
 printf '{"check":"   "}\n' > "$R/.quality-harness.json"
-out=$(m check --full 2>&1)
+out=$(m check --full 2>&1); rc=$?
+want 0 "$rc" "in a Go tree the fallback runs and passes"
 grep -q 'inferred' <<<"$out" && ok "in a Go tree it falls back to the inferred check" || bad "did not fall back: $out"
 grep -q 'declared' <<<"$out" && bad "it still reads as declared: $out" \
   || ok "and never reads as declared"
@@ -470,6 +479,19 @@ out=$(m read --max-lines -5 a.go 2>&1); rc=$?
 want 2 "$rc" "a negative --max-lines is refused"
 out=$(m read -C 1 "a.go:/func B/" 2>&1)
 grep -qE '@@ 3-5' <<<"$out" && ok "a positive -C still widens the range" || bad "-C broke: $out"
+#      PRECEDENCE, not just the value: a usage error must preempt every other
+#      kind of bad input, or which error the caller sees depends on which OTHER
+#      mistake they made. Placed after the parse, these reported the range and
+#      the pointer instead.
+out=$(m read -C -1 "a.go:" 2>&1); rc=$?
+want 2 "$rc" "a negative -C preempts a bad range spec"
+grep -q 'context cannot be negative' <<<"$out" && ok "and the flag is what it names" || bad "named the range: $out"
+out=$(m read --max-lines -5 @999 2>&1); rc=$?
+want 2 "$rc" "a negative --max-lines preempts a bad pointer"
+grep -q 'cap cannot be negative' <<<"$out" && ok "and the flag is what it names" || bad "named the pointer: $out"
+out=$(m read "a.go:" 2>&1); rc=$?
+want 2 "$rc" "and a bad range alone is still reported as itself"
+grep -q 'empty range' <<<"$out" && ok "with its own diagnosis intact" || bad "lost the range diagnosis: $out"
 
 echo
 

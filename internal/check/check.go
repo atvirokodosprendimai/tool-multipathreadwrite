@@ -116,7 +116,13 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	if cmdline == "" {
 		return Result{Declared: cfg.declared, Skipped: "no check declared and no go.mod found"}, nil
 	}
-	res := Result{Ran: true, Declared: cfg.declared, Command: cmdline}
+	// Ran is NOT set here. It is set once a ProcessState exists, because this
+	// type's whole job is to distinguish "no evidence" from "evidence of
+	// success" (ADR-003 rule 2) and a process that never STARTED produced
+	// neither. Set optimistically, an unresolvable `sh`, an already-cancelled
+	// context or an overflowed timeout reported exit 3 — "a check ran and did
+	// not pass" — about a process that never existed.
+	res := Result{Declared: cfg.declared, Command: cmdline}
 	_ = scoped
 
 	timeout := defaultTimeout
@@ -145,11 +151,17 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 
 	switch {
 	case runErr == nil:
-		res.ExitCode = 0
+		res.Ran, res.ExitCode = true, 0
 	case c.ProcessState != nil:
-		res.ExitCode = c.ProcessState.ExitCode()
+		// It started and exited badly. That is a real verdict, and exit 3's
+		// meaning: the tree is changed and unverified.
+		res.Ran, res.ExitCode = true, c.ProcessState.ExitCode()
 	default:
+		// It never started. Ran stays false, so this routes to "no check could
+		// run" and exit 2 — the configuration problem ADR-003's table files a
+		// missing check under, not a failed verdict.
 		res.ExitCode = -1
+		res.Skipped = "could not start: " + runErr.Error()
 	}
 	if ctx.Err() == context.DeadlineExceeded {
 		res.ExitCode = -1

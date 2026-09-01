@@ -288,3 +288,74 @@ func TestAPaddedCheckIsStillTheDeclaredCheck(t *testing.T) {
 		t.Errorf("cfg = %+v", cfg)
 	}
 }
+
+// The trim covers ScopedCheck as well, and nothing else asserted it: removing
+// only ScopedCheck from the trim assignment left every other test in this file
+// and every contract row green (PR #13 review, Codex). A whitespace-only
+// scoped_check would otherwise read as declared, suppressing the fallback.
+func TestAWhitespaceOnlyScopedCheckIsNotDeclared(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".quality-harness.json"),
+		[]byte(`{"scoped_check":"   "}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Declared() {
+		t.Errorf("a whitespace-only scoped_check reads as declared: %+v", cfg)
+	}
+	if cfg.ScopedCheck != "" {
+		t.Errorf("ScopedCheck = %q, want it trimmed to empty", cfg.ScopedCheck)
+	}
+	res, err := Run(context.Background(), root, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.OK() || res.Ran {
+		t.Errorf("it reported a pass: %+v", res)
+	}
+}
+
+// A padded scoped_check is a real one and must survive the trim.
+func TestAPaddedScopedCheckIsStillDeclared(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".quality-harness.json"),
+		[]byte(`{"check":"make v","scoped_check":"  make v PKG={packages}  "}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Declared() || cfg.ScopedCheck != "make v PKG={packages}" {
+		t.Errorf("cfg = %+v", cfg)
+	}
+}
+
+// ADR-003 rule 2, in the direction nothing asserted: a process that never
+// STARTED did not run. Ran was set before exec, so an unresolvable command
+// reported exit 3 — "a check ran and did not pass" — about a process that
+// never existed. Exit 3 promises a verdict; this has none, and a caller
+// branching on 3 would go looking for test output that was never produced.
+func TestACheckThatCannotStartDidNotRun(t *testing.T) {
+	root := t.TempDir()
+	// An already-cancelled context: exec refuses before the process exists.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	res, err := Run(ctx, root, Config{Check: "true"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Ran {
+		t.Errorf("a process that never started is recorded as having run: %+v", res)
+	}
+	if res.OK() {
+		t.Errorf("it reported a pass: %+v", res)
+	}
+	if res.Skipped == "" {
+		t.Errorf("nothing says why it could not run: %+v", res)
+	}
+}

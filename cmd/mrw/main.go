@@ -199,6 +199,26 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
+			// Flag domains are settled FIRST, before the working set is loaded
+			// or a single spec is parsed. A usage error means "fix the call"
+			// and has to preempt everything, or it preempts inconsistently:
+			// placed after the parse, `read -C -1 'a.go:'` reported the bad
+			// range and `--max-lines -5 @999` reported the pointer, so which
+			// error the caller saw depended on which OTHER mistake they made.
+			// iter.Load can also create state before a refusal. The identical
+			// defect was fixed once already for `write --dry-run --check`; it
+			// was reintroduced here (PR #13 review, Codex).
+			//
+			// A negative -C printed a REVERSED header — `@@ 5-3`, an address
+			// mrw's own parser refuses — with no content at exit 0, against a
+			// README that promises the header is exactly what a write plan
+			// takes. A negative --max-lines was ignored outright.
+			if n := cmd.Int("context"); n < 0 {
+				return cli.Exit(fmt.Sprintf("-C %d: context cannot be negative", n), exitUsage)
+			}
+			if n := cmd.Int("max-lines"); n < 0 {
+				return cli.Exit(fmt.Sprintf("--max-lines %d: a cap cannot be negative", n), exitUsage)
+			}
 			root := cmd.Root().String("root")
 			set, err := iter.Load(root)
 			if err != nil {
@@ -225,19 +245,6 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					return cli.Exit(err, 2)
 				}
 				specs = append(specs, sp)
-			}
-			// A negative -C produced a REVERSED header — `@@ 5-3`, an address
-			// mrw's own parser refuses — carrying no content, at exit 0. The
-			// README promises "output ranges print as `@@ 3-6`, which is
-			// exactly the address a write plan takes", and a silently empty
-			// result is the failure this tool exists to refuse. A negative
-			// --max-lines was ignored outright, so a caller who asked for a cap
-			// got none and was never told (probed 2026-09-01).
-			if n := cmd.Int("context"); n < 0 {
-				return cli.Exit(fmt.Sprintf("-C %d: context cannot be negative", n), exitUsage)
-			}
-			if n := cmd.Int("max-lines"); n < 0 {
-				return cli.Exit(fmt.Sprintf("--max-lines %d: a cap cannot be negative", n), exitUsage)
 			}
 			out := bufio.NewWriter(os.Stdout)
 			defer out.Flush()
