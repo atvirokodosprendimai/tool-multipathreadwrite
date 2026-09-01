@@ -591,10 +591,12 @@ func TestAOneLineDeleteRecordsTheSameLineTwice(t *testing.T) {
 }
 
 // No other op gains fields. `replace` and the insertions already carry a body
-// the caller wrote — weaker than a `delete` body, which is checked against the
-// range it addresses and so asserts WHAT and WHERE, while an insertion's
-// asserts only what. Enough, though, that a bounds field would be noise here:
-// an empty `from "" to ""` on every other receipt line says nothing.
+// the caller wrote, and the two are not equally strong: writing a `replace`
+// body means reading the lines it replaces, while an insertion's body says
+// what to add and nothing about WHERE — `anchor=` is what pins that. Only a
+// `delete` body is machine-checked against the range it addresses. Either way
+// a bounds field here would be noise: an empty `from "" to ""` on every other
+// receipt line says nothing.
 func TestOnlyDeleteRecordsBounds(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "f.txt", abcde)
