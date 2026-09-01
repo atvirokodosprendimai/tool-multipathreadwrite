@@ -296,6 +296,27 @@ grep -q 'echo FULL' <<<"$out" && ok "a symlinked directory is not scoped either"
 out=$(m check --full 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "--full still ignores every scope" || bad "not full: $out"
 
+# 15c. A .go path that is not there falls back, like the directory typo it is.
+#      Placing `filepath.Dir` without asking whether the FILE exists let a
+#      mistyped name at a module root scope to `.`, run the root package and
+#      report PASS — the silent omission section 15 exists to prevent, wearing
+#      the one hat that still fitted.
+fixture
+mkdir -p "$R/pkg"
+printf 'package pkg\n' > "$R/pkg/p.go"
+# The fixture root already holds a package, which is what makes these rows able
+# to fail: without the existence check a phantom .go name places `.` and scopes
+# to the root package, so the run is green and covers nothing the caller named.
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
+out=$(m check chek.go 2>&1)
+grep -qF 'FULL' <<<"$out" && ! grep -qF 'SCOPED' <<<"$out" && ok "a mistyped .go file at the root is not scoped" || bad "scoped a phantom: $out"
+out=$(m check nosuchdir/nope.go 2>&1)
+grep -qF 'FULL' <<<"$out" && ! grep -qF 'SCOPED' <<<"$out" && ok "a .go file in a missing directory is not scoped" || bad "scoped a phantom dir: $out"
+out=$(m check a.go 2>&1)
+grep -qF 'SCOPED .' <<<"$out" && ok "a .go file that IS there still scopes" || bad "did not scope a real file: $out"
+out=$(m check pkg/p.go 2>&1)
+grep -qF 'SCOPED ./pkg' <<<"$out" && ok "and so does one in a subpackage" || bad "did not scope a real subpackage file: $out"
+
 # 15b. The row the ./dir form could not fail: a REAL check, on a tree whose
 #      failing package is one level below the one the scope names. With
 #      `go test .` this exits 0 and reports PASS.

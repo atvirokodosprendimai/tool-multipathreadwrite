@@ -60,9 +60,12 @@ func TestScopeDerivation(t *testing.T) {
 	root := t.TempDir()
 	for path, body := range map[string]string{
 		"internal/apply/apply.go":      "package apply\n",
+		"internal/apply/a.go":          "package apply\n",
+		"internal/apply/b.go":          "package apply\n",
 		"internal/apply/sub/sub.go":    "package sub\n",
 		"internal/apply/testdata/x.go": "package testdata\n",
 		"cmd/mrw/main.go":              "package main\n",
+		"main.go":                      "package probe\n",
 		"docs/guide.md":                "# prose\n",
 	} {
 		full := filepath.Join(root, path)
@@ -114,6 +117,15 @@ func TestScopeDerivation(t *testing.T) {
 		// names one is the same escape wearing a third hat.
 		"a directory outside the root": {[]string{".."}, "FULL"},
 		"a file outside the root":      {[]string{"../elsewhere/x.go"}, "FULL"},
+
+		// A .go path is refused when it is not there, for the same reason a
+		// directory is. The extension is not evidence the file exists, and at a
+		// module root a mistyped one places `.` — a check that runs, passes,
+		// and never looks at what the caller named.
+		"a .go file that is not there":  {[]string{"internal/apply/nope.go"}, "FULL"},
+		"a .go file in a missing dir":   {[]string{"nosuchdir/nope.go"}, "FULL"},
+		"a mistyped .go file at a root": {[]string{"chek.go"}, "FULL"},
+		"a real file beside a phantom":  {[]string{"internal/apply/apply.go", "internal/apply/nope.go"}, "FULL"},
 	} {
 		if got, _ := command(root, cfg, tc.paths); got != tc.want {
 			t.Errorf("%s: got %q, want %q", name, got, tc.want)
@@ -122,8 +134,17 @@ func TestScopeDerivation(t *testing.T) {
 }
 
 func TestFilesPlaceholder(t *testing.T) {
+	// The files have to be real: {files} is still reached through packages,
+	// which now refuses a .go path that is not there, so a fixture naming
+	// phantoms would exercise the fallback rather than the placeholder.
+	root := t.TempDir()
+	for _, name := range []string{"a.go", "b.go"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("package probe\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	cfg := Config{ScopedCheck: "lint {files}"}
-	got, _ := command(t.TempDir(), cfg, []string{"a.go", "b.go"})
+	got, _ := command(root, cfg, []string{"a.go", "b.go"})
 	if got != "lint a.go b.go" {
 		t.Errorf("got %q", got)
 	}

@@ -189,8 +189,11 @@ func command(root string, cfg Config, paths []string) (cmdline string, scoped bo
 // Three kinds of path are refused, and they are one rule: a scope that covers
 // less than the caller asked for is worse than a slow complete run.
 //
-//  1. A path that is not there. A typo has no extension either, and scoping to
-//     it runs a check covering nothing that then reports PASS.
+//  1. A path that is not there — a directory OR a .go file. A typo has no
+//     extension either, and scoping to it runs a check covering nothing that
+//     then reports PASS. The .go form is the worse half: `mrw check chek.go`
+//     at a module root places `.`, runs the root package and exits 0, so the
+//     file the caller named is never looked at and the answer is success.
 //  2. A directory holding no package go will build — a directory of prose, or
 //     one named testdata, which the ... form excludes by design. Both make
 //     `go test` exit 1 for a reason that is not about the code.
@@ -205,6 +208,9 @@ func packages(root string, paths []string) string {
 	pkgs := map[string]bool{}  // the directory of a named .go file
 	for _, p := range paths {
 		if filepath.Ext(p) == ".go" {
+			if !isFile(root, p) {
+				return ""
+			}
 			dir, ok := placed(root, filepath.Dir(p))
 			if !ok {
 				return ""
@@ -239,10 +245,9 @@ func packages(root string, paths []string) string {
 }
 
 // placed returns p as a cleaned, slash-separated path relative to root, and
-// reports whether it stays inside it. Existence is not asked about here: a .go
-// file named by a write is placed without touching the filesystem, and a
-// directory's existence is settled by holdsPackage, which has to walk it
-// anyway.
+// reports whether it stays inside it. Existence is not asked about here: a
+// directory's is settled by holdsPackage, which has to walk it anyway, and a
+// .go file's by isFile before this is called.
 func placed(root, p string) (string, bool) {
 	full, err := rooted.Resolve(root, p)
 	if err != nil {
@@ -260,6 +265,26 @@ func placed(root, p string) (string, bool) {
 		return "", false
 	}
 	return filepath.ToSlash(rel), true
+}
+
+// isFile reports whether p names an existing regular file inside root.
+//
+// It is asked of a .go path for the same reason holdsPackage is asked of a
+// directory: a path that is not there cannot be placed. Without it a mistyped
+// .go name still yields its parent directory, and at a module root that
+// directory is the root package — a scope that runs, passes, and covers
+// nothing the caller asked about.
+//
+// Paths reaching packages from a write always exist, since a write creates or
+// edits them and `delete` removes lines rather than files, so `write --check`
+// is unaffected.
+func isFile(root, p string) bool {
+	full, err := rooted.Resolve(root, p)
+	if err != nil {
+		return false
+	}
+	fi, err := os.Stat(full)
+	return err == nil && fi.Mode().IsRegular()
 }
 
 // holdsPackage reports whether dir is a directory that `go test ./dir/...`
