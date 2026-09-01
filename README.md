@@ -388,11 +388,19 @@ about your change.
 | 2 | usage, parse or I/O error | fix the call |
 | 3 | a check ran and did not pass | read the test output |
 
-Exit 1 on `read` means **incomplete**, not necessarily wrong: an unreadable
-file, a pattern that matched nothing, and a `--max-lines` cap you asked for all
+Exit 1 on `read` means **incomplete**, not necessarily wrong. Four things
 produce it, because a partial answer that looks whole is the failure this tool
-is built around. Read the output to tell them apart — the withheld lines are
-always named.
+is built around:
+
+| the output says | what happened |
+|---|---|
+| `UNREADABLE` | the file could not be opened |
+| `REFUSED` | the path resolves outside `--root` (ADR-006) |
+| `no match for …` | a pattern matched nothing |
+| `WITHHELD` / `more line(s) withheld` | a `--max-lines` cap you asked for |
+
+The exit status does not tell them apart; the output always does, and each one
+names what is missing.
 
 `--root`/`-C` moves the paths **inside** a plan. The plan file itself is a shell
 argument like any other and resolves against your working directory, so
