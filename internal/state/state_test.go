@@ -57,6 +57,27 @@ func TestRelativeXDGStateHomeIsRejected(t *testing.T) {
 	}
 }
 
+// The refusal has to leave NOTHING behind, which is the half a "want an error"
+// assertion does not cover. Before the guard existed, a relative
+// XDG_STATE_HOME resolved against the process's working directory — the
+// package's own source directory under `go test` — and wrote
+// internal/state/relative/path/mrw/<key>/root. That file was committed, in the
+// commit titled "mrw leaves nothing in the working tree".
+func TestRelativeXDGStateHomeLeavesNothingBehind(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", "relative/path")
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Dir(t.TempDir()); err == nil {
+		t.Fatal("Dir accepted a relative XDG_STATE_HOME")
+	}
+	if _, err := os.Stat(filepath.Join(wd, "relative")); !os.IsNotExist(err) {
+		t.Errorf("a refused XDG_STATE_HOME still created %s/relative", wd)
+	}
+}
+
 func TestDirIsStableAndPerCheckout(t *testing.T) {
 	xdg(t)
 	a, b := t.TempDir(), t.TempDir()

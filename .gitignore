@@ -6,3 +6,17 @@
 
 # The working set is per-developer state, not project config.
 /.mrw/
+
+# Two artifacts were committed under `git add -A` before ADR-004 landed, and
+# neither was noticed because nothing here excluded them:
+#   internal/state/relative/...  a state directory a pre-guard mrw resolved
+#                               from a RELATIVE XDG_STATE_HOME, against the
+#                               package's own working directory
+#   tmp/claude-501/.../mrw-mutant  a Mach-O binary from another machine's
+#                               scratchpad
+# The first is impossible now (state.stateHome refuses a relative value and
+# TestRelativeXDGStateHomeLeavesNothingBehind holds it); the second was never
+# possible to prevent in code. Both paths are excluded so a stray copy cannot
+# come back the same way.
+/tmp/
+/internal/state/relative/
