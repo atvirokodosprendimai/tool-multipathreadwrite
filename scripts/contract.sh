@@ -320,6 +320,13 @@ printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.
 # exist and they say so, and a check has no such tell.
 m check /etc >/dev/null 2>&1; rc=$?
 want 2 "$rc" "an absolute path outside the root is refused, not silently re-rooted"
+# The machine-readable surface is the one a refusal must not leak a shape into:
+# a consumer reading exit_code out of a document has no way to tell a verdict
+# from a refusal, and unlike a human it never sees the message on stderr.
+out=$(m check --json ../outside 2>/dev/null); rc=$?
+want 2 "$rc" "--json refuses the same scope"
+grep -q 'exit_code' <<<"$out" && bad "a refusal emitted a result document: $out" \
+  || ok "and emits no result document to read a verdict out of"
 out=$(m check --full 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "--full still ignores every scope" || bad "not full: $out"
 
