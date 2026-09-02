@@ -95,8 +95,14 @@ Three properties are the decision, and each is load-bearing:
    filesystem failure and this record does not close it. Only a failing *rename*
    can still leave the tree partial, and it names the files already written
    rather than reporting the bare error.
-3. **Every hunk carries its own verdict.** ⚠ Open for a filesystem failure, as
-   rule 2 records: that path returns an error and renders no receipt at all.
+   **Both are closed as of 2026-09-02** — see the amendment under rule 3. The
+   paragraph above is left as written because it records what was true while it
+   stood, but "only one of them is closed" and "remains OPEN" are stated in the
+   present tense, and a reader who arrives here and never reaches rule 3 would
+   otherwise be told something false about the code in front of them.
+3. **Every hunk carries its own verdict.** ⚠ Was open for a filesystem failure —
+   that path returned an error and rendered no receipt at all — until 2026-09-02;
+   see the amendment below, which closed it.
    Siblings of a failed hunk report
    `skipped`, never `ok` — "ok but not written" is precisely the lie being
    avoided. Every file the plan *addressed* appears in the receipt, written or
