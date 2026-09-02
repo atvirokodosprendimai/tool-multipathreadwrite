@@ -158,6 +158,27 @@ grep -q 'has not been read' <<<"$out" && ok "the reason names what was not shown
 m read a.go:1-1 >/dev/null
 out=$(printf '@@ a.go 3 replace anchor="func A"\nx\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "reading line 1 does not license an edit to line 3"
+# THE POSITIVE HALF, and it is the remedy ADR-002's risk table now names.
+# Before ADR-005 the cheap way back from a refusal was `--stat`; a stat licenses
+# nothing now, so the record would leave a caller with no remedy at all unless
+# the RANGED re-read is asserted to work. One call, only the lines the edit
+# addresses. Without this row the two above pin only that things are REFUSED,
+# which a build that refused everything would also satisfy.
+#
+# Its OWN checkout, because unlike its neighbours this row's write SUCCEEDS —
+# run in the shared one it left a.go modified and broke a later row that reads
+# the whole file. The file says every fixture is its own checkout for exactly
+# this reason and the first draft of this row ignored it.
+# R is SAVED and RESTORED, not just reassigned: the rows after this one belong
+# to section 9's own checkout, and leaving them in this one carried a written
+# a.go into them — the second way the same shared-state trap bit this row.
+PREV_R=$R
+R=$(mktemp -d "$WORK/remedy-XXXXXX")
+printf 'package demo\n\nfunc A() int { return 1 }\n' > "$R/a.go"
+m read a.go:3 >/dev/null
+printf '@@ a.go 3 replace anchor="func A"\nx\n' | m write - >/dev/null 2>&1; rc=$?
+want 0 "$rc" "but re-reading line 3 licenses line 3 — one ranged call is the remedy"
+R=$PREV_R
 m read a.go >/dev/null
 out=$(printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 2 }\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "reading the whole file licenses the whole file"
