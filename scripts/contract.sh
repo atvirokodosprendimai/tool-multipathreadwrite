@@ -1131,6 +1131,34 @@ else
   ok "and no line names the root and the absolute path glued together"
 fi
 
+
+# --- 32. the plan surface names the path that is actually missing ----------
+# Section 31 fixed the read surface; review of it found the same misdirection
+# one surface over. apply refuses an absolute path in a plan — correctly, a
+# plan is a document whose paths are relative by design — and then said "it
+# named <the caller's own path>, which does not exist". That file DOES exist;
+# it is the path the join produced that does not, and it was never shown. The
+# clause written to stop a caller hunting for a file they can see was telling
+# them exactly that.
+fixture
+mkdir -p "$R/sub"; printf 'a\nb\nc\n' > "$R/sub/real.go"
+m read sub/real.go >/dev/null 2>&1
+out=$(printf '@@ %s 2 replace\nB\n' "$R/sub/real.go" | m write - 2>&1); rc=$?
+want 1 "$rc" "an absolute path in a PLAN is still refused"
+grep -q 'is absolute, and every path in a plan is relative to the root' <<<"$out" \
+  && ok "and still says why, by name" \
+  || bad "lost the absolute-path diagnosis: $(head -1 <<<"$out")"
+# THE ROW: the path reported missing must be the JOINED one, which contains the
+# root twice. A message naming only the caller's path is the bug.
+if grep -qF "$R$R/sub/real.go" <<<"$out"; then
+  ok "and names the joined path it actually looked for"
+else
+  bad "does not name the joined path: $(head -1 <<<"$out")"
+fi
+[ -f "$R/sub/real.go" ] \
+  && ok "and the file it called missing is still right there, untouched" \
+  || bad "the fixture file vanished"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

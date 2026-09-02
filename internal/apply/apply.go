@@ -282,7 +282,7 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 			fr.SHABefore = shaOf(orig)
 		}
 
-		out, ok := planFile(path, hs, orig.lines, existed, fr.SHABefore, opt, results)
+		out, ok := planFile(path, full, hs, orig.lines, existed, fr.SHABefore, opt, results)
 		if !ok {
 			// The plan ADDRESSED this file even though nothing will be written
 			// to it. Dropping it here is how a two-file plan reported one file
@@ -436,7 +436,7 @@ func writtenSoFar(files []FileResult) string {
 
 // planFile validates one file's hunks and splices its new content. It records a
 // verdict for every hunk and returns ok=false if any of them failed.
-func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore string, opt Options, out map[int]HunkResult) ([]string, bool) {
+func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefore string, opt Options, out map[int]HunkResult) ([]string, bool) {
 	total := len(orig)
 	ok := true
 	fail := func(h hunk, format string, a ...any) {
@@ -518,9 +518,14 @@ func planFile(path string, hs []hunk, orig []string, existed bool, shaBefore str
 			// something under the root that is almost never there — and "does
 			// not exist" then sends the caller looking for a file they can see
 			// with their own eyes. Say what actually happened instead.
+			//
+			// The path named here must be the JOINED one. Naming the caller's
+			// own path told them their real, present file did not exist, which
+			// is the same misdirection this clause was written to prevent —
+			// caught in review of the read-side fix for the identical bug.
 			if filepath.IsAbs(h.Path) {
-				fail(h, "%s is absolute, and every path in a plan is relative to the root: it named %s, "+
-					"which does not exist", h.Path, path)
+				fail(h, "%s is absolute, and every path in a plan is relative to the root: mrw looked for %s, "+
+					"which does not exist", h.Path, full)
 				continue
 			}
 			fail(h, "%s does not exist", path)
