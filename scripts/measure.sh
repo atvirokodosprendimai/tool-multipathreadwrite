@@ -43,7 +43,12 @@ measure() {
 
   for s in "${specs[@]}"; do
     f=${s%%:*}
-    case " ${files[*]} " in *" $f "*) ;; *) files+=("$f") ;; esac
+    # ${files[*]-} , not ${files[*]} : under `set -u` bash 3.2 — still the
+    # default /bin/bash on macOS — treats an EMPTY array's expansion as unbound
+    # and aborts. files IS empty on the first spec, every time, so this script
+    # could not run at all on the platform it is developed on. bash 4.4+ allows
+    # the bare form, which is why CI never saw it.
+    case " ${files[*]-} " in *" $f "*) ;; *) files+=("$f") ;; esac
   done
   for f in "${files[@]}"; do
     whole=$(( whole + $(wc -c < "$f") ))
