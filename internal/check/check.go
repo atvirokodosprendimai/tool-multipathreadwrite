@@ -58,7 +58,11 @@ func (c Config) Declared() bool { return c.declared }
 
 const (
 	defaultTimeout = 5 * time.Minute
-	defaultTail    = 30
+	// A day, and far below the overflow point of an int64 nanosecond count.
+	// Anything larger is indistinguishable from it for a check a caller is
+	// waiting on.
+	maxTimeoutSeconds = 24 * 60 * 60
+	defaultTail       = 30
 )
 
 // Load reads .quality-harness.json from root. A missing file is not an error:
@@ -127,7 +131,23 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 
 	timeout := defaultTimeout
 	if cfg.TimeoutSeconds > 0 {
-		timeout = time.Duration(cfg.TimeoutSeconds) * time.Second
+		// Bounded before it is multiplied. time.Duration is int64 NANOseconds,
+		// so a seconds value above maxTimeoutSeconds overflows: 9999999999
+		// wrapped to a deadline ~2.3 million hours in the PAST, exec refused
+		// before the process existed, and the run was reported as one that
+		// could not start. Worse, it was not monotonic — 99999999999 wrapped
+		// back to positive and the check ran normally, so a bigger number
+		// meant a working timeout again.
+		//
+		// This is the same rule as the whitespace check command one file over:
+		// a value that does not survive being used is one nobody typed on
+		// purpose. Clamped rather than refused, because every value in range
+		// here means "do not run forever" and the ceiling still means that.
+		secs := cfg.TimeoutSeconds
+		if secs > maxTimeoutSeconds {
+			secs = maxTimeoutSeconds
+		}
+		timeout = time.Duration(secs) * time.Second
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

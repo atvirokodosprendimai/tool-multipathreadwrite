@@ -359,3 +359,33 @@ func TestACheckThatCannotStartDidNotRun(t *testing.T) {
 		t.Errorf("nothing says why it could not run: %+v", res)
 	}
 }
+
+// A timeout_seconds that does not survive being used is a value nobody typed
+// on purpose — the same rule as the whitespace-only check command, one field
+// over.
+//
+// time.Duration is an int64 NANOsecond count, so a large seconds value
+// overflows when multiplied. 9999999999 produced a deadline ~2.3 million hours
+// in the PAST: exec refused before the process existed and the run was
+// reported as one that could not start. It was not even monotonic —
+// 99999999999 wrapped back to positive and the check ran normally, so a bigger
+// number meant a working timeout again. Both are pinned here, because a fix
+// that only handled the first value would leave the wrap.
+func TestAnOverlargeTimeoutIsClampedNotOverflowed(t *testing.T) {
+	root := t.TempDir()
+	for _, secs := range []int{9999999999, 99999999999, maxTimeoutSeconds + 1} {
+		cfg := Config{Check: "exit 0", TimeoutSeconds: secs, declared: true}
+		res, err := Run(context.Background(), root, cfg, nil)
+		if err != nil {
+			t.Fatalf("timeout_seconds=%d: %v", secs, err)
+		}
+		// The check is trivial and instant, so the ONLY way it fails here is a
+		// deadline that was already in the past when the run started.
+		if !res.OK() {
+			t.Errorf("timeout_seconds=%d: %+v", secs, res)
+		}
+		if res.Skipped != "" {
+			t.Errorf("timeout_seconds=%d reported %q", secs, res.Skipped)
+		}
+	}
+}

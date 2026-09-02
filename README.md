@@ -57,7 +57,7 @@ Every row below is asserted by a script, against the real binary in a throwaway
 repo, by making each promise go wrong on purpose:
 
 ```sh
-./scripts/contract.sh      # 119 assertions; exit 0 only if all hold
+./scripts/contract.sh      # 76 assertions; exit 0 only if all hold
 ```
 
 | test | result |
