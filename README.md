@@ -25,24 +25,41 @@ reproduce is a claim, not a measurement:
 ./scripts/measure.sh
 ```
 
-| shape | | Read+Edit | mrw | |
+**Round trips are the claim that survives every reading: 2 calls, for any N.**
+Bytes depend entirely on what you compare against, so the table gives both
+baselines rather than the flattering one.
+
+| shape | | baseline | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes in | 96,871 | 2,951 | **32.8× less** |
-| | tool calls | 8 | 2 | **4× fewer** |
-| **B.** 2 sites, 2 mid-sized files | bytes in | 20,630 | 1,329 | 15.5× less |
-| | tool calls | 4 | 2 | 2× fewer |
-| **C.** 1 site, whole small file | bytes in | 12,881 | 15,765 | **1.2× MORE** |
-| | tool calls | 2 | 2 | no change |
+| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 96,871 | 2,951 | **32.8× less** |
+| | bytes vs a **windowed** `offset`/`limit` read | 2,289 | 2,951 | **1.2× MORE** |
+| | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
+| | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
+| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 20,630 | 1,329 | 15.5× less |
+| | bytes vs windowed | 866 | 1,329 | 1.5× MORE |
+| | calls | 4 / 5 | 2 | 2.0–2.5× fewer |
+| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 12,881 | 15,765 | **1.2× MORE** |
+| | calls | 2 / 3 | 2 | 1.0–1.5× fewer |
 
-Measured at `8e7ab77`; the script stamps the commit it ran at. **Re-run it
-rather than quoting this table** — and this table is the second demonstration of
-why. The figures it replaces claimed 22.0× for shape A; the same script on the
-same shape now measures **32.8×**, because these ratios track how large this
-repository's own files are and they grew. Understated by a third, twice running.
+Measured at `f70a3d6`; the script stamps the commit it ran at.
 
-The ROUND TRIPS are the stable claim: 2 calls for any N, whatever the file
-sizes do. Only shape C is drift-proof on bytes, because it reads a whole file
-either way — and it is the shape where mrw LOSES, which is why it is here.
+**Read the two byte rows together or neither.** `Read` takes `offset`/`limit`, so
+the windowed reader is the documented interface, not a strawman — and against it
+mrw costs *more* bytes, because it adds a header and a line number per line. The
+32.8× is real for the case an agent is usually in: it does not yet know where to
+look, so it reads whole files. Once it knows, the byte advantage is gone and the
+round trips are what is left.
+
+That is also why the calls row splits. Reading whole files needs no search — the
+file reveals the site. Reading windows presupposes knowing where the window is,
+and finding it costs a call. mrw needs neither: these specs are regexes, so the
+finding happens inside the read.
+
+**Re-run it rather than quoting this table.** The figures it replaced claimed
+22.0× for shape A and were understated by a third within a day — these ratios
+track how large this repository's own files are. Shape C is the only byte figure
+that is drift-proof, because it reads a whole file either way, and it is the
+shape where mrw LOSES, which is why it is here.
 
 **Shape C is in the table on purpose.** When you need a whole file and there is
 one site, mrw prints *more* than the file holds — it adds a header and a line

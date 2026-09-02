@@ -35,6 +35,22 @@ against 2,916 bytes over 2. For one site in a file you need whole, mrw costs
 1.2× *more* and saves no round trips — the saving is a property of the task
 shape, not of the tool.
 
+**Amended 2026-09-02:** that byte figure has an unstated baseline, and it was
+unstated here as well as in the README. It compares mrw against reading each
+file WHOLE. `Read` takes `offset`/`limit`, so an agent that already knows the
+line ranges reads only those, and against THAT baseline mrw costs about 1.2×
+more bytes, not less — it adds a header and a line number per line. Re-measured
+2026-09-02: 96,871 whole / 2,289 windowed / 2,951 mrw for the same four sites.
+
+This does not disturb the decision, and it is worth saying why rather than
+leaving it to be re-derived. The decision rests on ROUND TRIPS and on
+all-or-nothing application, and round trips survive both baselines — they get
+better under the windowed one, because a windowed read must first FIND the
+range and mrw's regex specs do that inside the same call (9 calls versus 2,
+where the whole-file path is 8 versus 2). What is conditional is the byte
+saving, and the condition is "the agent does not yet know where to look" —
+which is the common case, and the case regex specs exist for.
+
 ## Existing Primitives Audit
 
 - **The harness `Edit` tool** — one replacement per call, fails loudly on a bad
