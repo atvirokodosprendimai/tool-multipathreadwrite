@@ -44,8 +44,9 @@ whether or not `--grep` survives its go/no-go.
 6. [S6] Document in the README: the three flags, the precedence table, the
    exclusion algorithm including the basename rule and the separator example,
    a worked example of the pipeline, and T2's go/no-go measurement with its
-   date and machine. Correct `README.md:129` in the same step — it says
-   `--max-lines N` caps "per file", which rule 4 shows is false for two
+   date and machine. Correct the README's flag table row in the same step — the
+   row reading `` `--max-lines N` | cap per file `` says it caps "per file",
+   which rule 4 shows is false for two
    hand-written specs naming one file; it caps per SPEC, and the walk
    deduplicates so it is per file for everything the walk produces. [proof: acceptance]
 7. [S7] Add contract section 15 driving each flag, each usage error, and the

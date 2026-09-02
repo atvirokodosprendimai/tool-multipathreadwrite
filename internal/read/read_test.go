@@ -318,7 +318,7 @@ func TestARangeAgainstAnEmptyFileIsReported(t *testing.T) {
 // request, which is the round trip mrw exists to remove, and the ledger then
 // recorded every one of them as seen.
 //
-// README:164 says `$` is the last line, and the WRITE path agrees — plan's
+// The README says "`$` is the last line", and the WRITE path agrees — plan's
 // ParseAddr maps `$` to {EOF, EOF} and `@@ f.txt $ replace` touches one line.
 // read was the only reader of `$` that disagreed, and nothing asserted it.
 //
