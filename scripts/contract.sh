@@ -333,6 +333,39 @@ out=$(m check . 2>&1); rc=$?
 want 3 "$rc" "check . fails on a broken package one level down"
 grep -q 'TestBroken' <<<"$out" && ok "and the failure it reports is that package's" || bad "did not reach it: $out"
 
+# 15d. A derived path reaches `sh -c`, so an unquoted one is shell SYNTAX. A
+#      directory named `pkg; true #` turned `go test {packages}` into
+#      `go test ./pkg; true #`: the package was never tested, sh exited 0, and
+#      mrw reported PASS. Same silent pass as section 15, one layer down.
+fixture
+mkdir -p "$R/pkg; true #" "$R/two words" "$R/plain"
+printf 'package x\n' > "$R/pkg; true #/x.go"
+printf 'package y\n' > "$R/two words/y.go"
+printf 'package plain\n' > "$R/plain/p.go"
+# printf one line PER ARGUMENT, so the output says how many arguments the shell
+# saw and what each held. An `echo` row could not fail: mrw prints the command
+# it built above the output, and unquoted that line holds the very characters
+# the row was grepping for.
+printf '{"check":"echo FULL","scoped_check":"printf A:%%s:Z {packages}"}\n' > "$R/.quality-harness.json"
+out=$(m check 'pkg; true #/x.go' 2>&1)
+grep -qF 'A:./pkg; true #:Z' <<<"$out" && ok "a semicolon in a path is one argument, not a second command" || bad "the shell ate the path: $out"
+out=$(m check 'two words/y.go' 2>&1)
+grep -qF 'A:./two words:Z' <<<"$out" && ok "a space in a path is one argument, not two scopes" || bad "split on the space: $out"
+# The negative control. An ordinary scope must reach the shell exactly as it
+# always has, or these rows would pass while quoting was applied to everything.
+out=$(m check plain/p.go 2>&1)
+grep -qF 'A:./plain:Z' <<<"$out" && ! grep -qF "'" <<<"$out" && ok "an ordinary scope is still unquoted" || bad "quoted a safe path: $out"
+
+# 15e. The verdict, not the string: a REAL check whose only package is behind
+#      the injected name. Unquoted this exits 0 with nothing tested.
+fixture
+mkdir -p "$R/pkg; true #"
+printf 'package x\n\nfunc F() { undefinedSymbol() }\n' > "$R/pkg; true #/x.go"
+printf '{"check":"echo NOT-SCOPED","scoped_check":"go test {packages}"}\n' > "$R/.quality-harness.json"
+out=$(m check 'pkg; true #/x.go' 2>&1); rc=$?
+want 3 "$rc" "a scope naming a broken package behind a semicolon still fails"
+grep -qF 'FAIL	demo/pkg; true #' <<<"$out" && ok "and the failure it reports is that package's" || bad "did not reach it: $out"
+
 # 16. ADR-008: a bodyless delete consumes a range while asserting nothing about
 #     it, so the receipt is where a wrong range first becomes visible. This is
 #     the incident that produced the record, reproduced: a range one line too
@@ -495,7 +528,7 @@ grep -q 'empty range' <<<"$out" && ok "with its own diagnosis intact" || bad "lo
 
 echo
 
-# 16. A plan aborts with the tree UNTOUCHED when a file cannot be written.
+# 21. A plan aborts with the tree UNTOUCHED when a file cannot be written.
 #     The write phase used to write each file and move on, so a file that could
 #     not be written left the EARLIER ones already renamed into place: a
 #     partially applied plan, no receipt at all, and — since the ledger is

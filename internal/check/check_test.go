@@ -389,3 +389,79 @@ func TestAnOverlargeTimeoutIsClampedNotOverflowed(t *testing.T) {
 		}
 	}
 }
+
+// TestSubstitutedPathsAreOneShellArgumentEach pins the quoting of the values
+// mrw puts into the scoped command. The command is a shell line, so an
+// unquoted path is syntax: a space splits it, and `;` ends the command.
+func TestSubstitutedPathsAreOneShellArgumentEach(t *testing.T) {
+	root := t.TempDir()
+	// Built at runtime, never committed: a checked-in path holding `;` or `#`
+	// is miserable for every tool that walks the tree.
+	for _, dir := range []string{"pkg; true #", "two words", "d$(touch owned)", "quo'te"} {
+		full := filepath.Join(root, dir)
+		if err := os.MkdirAll(full, 0o755); err != nil {
+			t.Skipf("filesystem will not hold %q: %v", dir, err)
+		}
+		if err := os.WriteFile(filepath.Join(full, "x.go"), []byte("package x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "plain.go"), []byte("package probe\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Config{Check: "FULL", ScopedCheck: "go test {packages}"}
+	for name, tc := range map[string]struct {
+		paths []string
+		want  string
+	}{
+		"a semicolon ends the command": {[]string{"pkg; true #/x.go"}, `go test './pkg; true #'`},
+		"a space splits the argument":  {[]string{"two words/x.go"}, `go test './two words'`},
+		"a subshell runs":              {[]string{"d$(touch owned)/x.go"}, `go test './d$(touch owned)'`},
+		"a quote closes the quoting":   {[]string{"quo'te/x.go"}, `go test './quo'\''te'`},
+
+		// The negative control. An ordinary scope must stay byte-identical, or
+		// this test would pass while quoting everything indiscriminately.
+		"an ordinary path is untouched": {[]string{"plain.go"}, "go test ."},
+	} {
+		if got, _ := command(root, cfg, tc.paths); got != tc.want {
+			t.Errorf("%s: got %q, want %q", name, got, tc.want)
+		}
+	}
+
+	// {files} is substituted from the caller's paths rather than derived ones,
+	// and reaches the same shell.
+	filesCfg := Config{ScopedCheck: "lint {files}"}
+	got, _ := command(root, filesCfg, []string{"two words/x.go", "plain.go"})
+	if want := `lint 'two words/x.go' plain.go`; got != want {
+		t.Errorf("{files}: got %q, want %q", got, want)
+	}
+}
+
+// TestAShellInjectedScopeStillFails runs the real command. The unit rows above
+// pin the string; this pins the verdict, because the defect was not a wrong
+// string — it was PASS at exit 0 with the package never tested.
+func TestAShellInjectedScopeStillFails(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "pkg; true #")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Skipf("filesystem will not hold the directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module probe\n\ngo 1.26\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A package that does not compile: `go test` on it exits non-zero, so a
+	// scope that really covers it cannot report success.
+	if err := os.WriteFile(filepath.Join(dir, "x.go"), []byte("package x\n\nfunc F() { undefinedSymbol() }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Config{Check: "false", ScopedCheck: "go test {packages}", declared: true}
+	res, err := Run(t.Context(), root, cfg, []string{"pkg; true #/x.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.OK() {
+		t.Errorf("a scope naming a broken package reported OK: command %q, exit %d", res.Command, res.ExitCode)
+	}
+}

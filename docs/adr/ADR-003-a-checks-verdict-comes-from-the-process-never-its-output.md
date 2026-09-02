@@ -63,7 +63,12 @@ report its verdict, under three rules:
 The scope is derived from the written paths: `{packages}` expands to the Go
 packages containing them, `{files}` to the paths. **If any changed path is not a
 Go file the scoped form is abandoned for the full one** — a scoped run that
-quietly omits a changed file is worse than a slow complete one.
+quietly omits a changed file is worse than a slow complete one. **Each value is
+substituted quoted, as one shell argument**, so the placeholder is written
+unquoted in the template: the scoped command is a shell line, and a path
+holding a space, a `;` or a `$(…)` reached it as syntax rather than as a path —
+`go test ./pkg; true #` never tested the package and exited 0, which is rule 2
+broken through the shell.
 
 The four exit statuses are a contract, because the caller's next move differs:
 

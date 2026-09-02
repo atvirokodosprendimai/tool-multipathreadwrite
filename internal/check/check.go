@@ -40,6 +40,10 @@ type Config struct {
 	Check string `json:"check"`
 	// ScopedCheck is the narrow command. {packages} expands to the Go packages
 	// containing the edited files, {files} to the edited paths themselves.
+	//
+	// Write the placeholder UNQUOTED. Each value is substituted already quoted
+	// as one shell argument (see shellArgs), so quoting it again in the
+	// template nests the quotes into the argument instead of ending them.
 	ScopedCheck string `json:"scoped_check"`
 	// TimeoutSeconds bounds the run. Zero means the built-in default.
 	TimeoutSeconds int `json:"timeout_seconds"`
@@ -196,6 +200,52 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	return res, nil
 }
 
+// shellArgs renders values as a single space-separated fragment of a shell
+// command line, each one quoted so the shell reads it as exactly one argument.
+//
+// The scoped command is a shell line, so every character of a value mrw
+// substitutes into it is syntax there: a path with a space becomes two
+// arguments, and one holding `;`, `$(…)` or a glob is executed. A directory
+// named "pkg; true #" turned `go test {packages}` into `go test ./pkg; true #`
+// — the package was never tested, sh exited 0, and the report said PASS. That
+// is the silent pass ADR-003 rule 2 forbids, reached through the shell.
+//
+// Only the substituted VALUES are quoted. The template around them is the
+// project's own shell — `make verify PKG={packages}`, pipelines, `&&` — and is
+// meant to be interpreted, so the placeholder must appear unquoted in it.
+func shellArgs(vals []string) string {
+	out := make([]string, len(vals))
+	for i, v := range vals {
+		out[i] = shellArg(v)
+	}
+	return strings.Join(out, " ")
+}
+
+// shellArg quotes one value. A value made only of characters no shell treats
+// specially is returned unchanged, so an ordinary scope like ./internal/check
+// reads the same in the printed command as it always has.
+func shellArg(v string) string {
+	if v != "" && !strings.ContainsFunc(v, needsQuoting) {
+		return v
+	}
+	// Single quotes suspend every shell meaning except their own, which cannot
+	// be escaped inside them — so a literal quote closes, escapes, reopens.
+	return "'" + strings.ReplaceAll(v, "'", `'\''`) + "'"
+}
+
+// needsQuoting reports whether r is outside the set that is inert in every
+// POSIX shell context. The set is deliberately small: anything not certainly
+// safe is quoted.
+func needsQuoting(r rune) bool {
+	switch {
+	case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		return false
+	case r == '.' || r == '_' || r == '-' || r == '/' || r == '=' || r == ':' || r == ',' || r == '+' || r == '@':
+		return false
+	}
+	return true
+}
+
 // command chooses between the scoped and whole-project forms. It returns the
 // scoped one only when every path maps to a Go package, because a scoped run
 // that quietly omits a changed file is worse than a slow complete one.
@@ -203,8 +253,8 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 // root is needed to tell a directory from a typo; see packages.
 func command(root string, cfg Config, paths []string) (cmdline string, scoped bool) {
 	if cfg.ScopedCheck != "" {
-		if pkgs := packages(root, paths); pkgs != "" {
-			r := strings.NewReplacer("{packages}", pkgs, "{files}", strings.Join(paths, " "))
+		if pkgs := packages(root, paths); len(pkgs) > 0 {
+			r := strings.NewReplacer("{packages}", shellArgs(pkgs), "{files}", shellArgs(paths))
 			return r.Replace(cfg.ScopedCheck), true
 		}
 	}
@@ -243,24 +293,24 @@ func command(root string, cfg Config, paths []string) (cmdline string, scoped bo
 //
 // Paths reaching here from a write are always files, so `write --check` meets
 // none of this.
-func packages(root string, paths []string) string {
+func packages(root string, paths []string) []string {
 	trees := map[string]bool{} // a named directory, covered recursively
 	pkgs := map[string]bool{}  // the directory of a named .go file
 	for _, p := range paths {
 		if filepath.Ext(p) == ".go" {
 			if !isFile(root, p) {
-				return ""
+				return nil
 			}
 			dir, ok := placed(root, filepath.Dir(p))
 			if !ok {
-				return ""
+				return nil
 			}
 			pkgs[dir] = true
 			continue
 		}
 		dir, ok := placed(root, strings.TrimSuffix(p, "/..."))
 		if !ok || !holdsPackage(filepath.Join(root, dir)) {
-			return ""
+			return nil
 		}
 		trees[dir] = true
 	}
@@ -278,10 +328,10 @@ func packages(root string, paths []string) string {
 		out = append(out, pkgPattern(d))
 	}
 	if len(out) == 0 {
-		return ""
+		return nil
 	}
 	sort.Strings(out)
-	return strings.Join(out, " ")
+	return out
 }
 
 // placed returns p as a cleaned, slash-separated path relative to root, and
