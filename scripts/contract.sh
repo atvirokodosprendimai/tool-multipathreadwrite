@@ -855,6 +855,42 @@ out=$(m check seen-dir 2>&1)
 grep -qF 'SCOPED ./seen-dir/...' <<<"$out" && ok "while a readable directory still scopes" || bad "readable dir broke: $out"
 out=$(m check nosuchdir 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "and a mistyped path still falls back" || bad "a typo no longer falls back: $out"
+
+# 26. `iter add` is the FOURTH way into the tree — after read, write and check —
+#     and it was the one that did not enforce the root boundary. It validated
+#     with filepath.Join, which CLEANS `../outside/x` into a path that exists,
+#     so the entry was accepted. Nothing leaked, because read refuses it when
+#     serving — but the working set is what `mrw check` scopes to by default, so
+#     one accepted entry made every later check refuse until it was removed.
+#     ADR-006 rule 2: the boundary lives in one place, and this was the caller
+#     that did not use it.
+fixture
+mkdir -p "$WORK/beyond"
+printf 'secret\n' > "$WORK/beyond/s.txt"
+ln -s "$WORK/beyond" "$R/wayout"
+m iter add ../beyond/s.txt >/dev/null 2>&1; rc=$?
+want 2 "$rc" "iter add refuses a path outside the root"
+out=$(m iter add ../beyond/s.txt 2>&1)
+grep -q 'outside the root' <<<"$out" && ok "and says so, rather than 'no such file'" || bad "wrong reason: $out"
+m iter add wayout/s.txt >/dev/null 2>&1; rc=$?
+want 2 "$rc" "and refuses it through a symlink too"
+# THE CONSEQUENCE, which is what makes this more than a tidiness fix: the set is
+# what `mrw check` scopes to, so an accepted entry wedged every later check.
+out=$(m iter 2>&1)
+grep -q 'beyond' <<<"$out" && bad "the out-of-root entry landed in the working set: $out" \
+  || ok "so nothing out-of-root reaches the working set"
+m iter add a.go >/dev/null 2>&1
+m check >/dev/null 2>&1; rc=$?
+want 0 "$rc" "and a set-scoped check still runs"
+# CONTROLS: ordinary specs must still be accepted, and a MISSING in-root path
+# keeps its own message — a different mistake with a different remedy.
+m iter add b.go >/dev/null 2>&1; rc=$?
+want 0 "$rc" "an in-root file is still added"
+m iter add 'a.go:1-2' >/dev/null 2>&1; rc=$?
+want 0 "$rc" "and so is a ranged spec"
+out=$(m iter add nosuch.go 2>&1); rc=$?
+want 2 "$rc" "a missing in-root path is still refused"
+grep -q 'no such file' <<<"$out" && ok "and still says 'no such file', not 'outside the root'" || bad "wrong reason: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
