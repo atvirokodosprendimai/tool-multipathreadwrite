@@ -223,3 +223,84 @@ func TestALegacyPathContainingADoubleSpaceIsOnePath(t *testing.T) {
 		t.Errorf("a legacy line must read as a whole-file observation, got %s", obs.Served())
 	}
 }
+
+// The header's VALUE is pinned here, deliberately with a literal rather than
+// with the constant.
+//
+// Found by mutation: changing `header` from "#mrw-seen v2" to "#mrw-seen v3"
+// SURVIVED the whole suite. Every other test writes and reads through the same
+// constant, so a bump is self-consistent and invisible to them — while for a
+// real user it silently discards a ledger that was never poisoned, on upgrade,
+// with the notice firing for no reason.
+//
+// A test that used `header` here would survive the same mutation, which is the
+// point: this fixture is the recorded fact that v2 is the format v0.0.12
+// shipped. Bumping the constant now breaks it, and that is the intent — the
+// bump is only correct when the meaning of an old file has ACTUALLY changed,
+// and this test is where you say so on purpose.
+func TestAV2LedgerIsAcceptedAndTheBumpIsDeliberate(t *testing.T) {
+	root := t.TempDir()
+	lp, err := ReadPath(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(lp), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Literal, byte for byte, as a v0.0.12 mrw writes it. Two records, because
+	// Load consumes line 1 as the header either way and a single record could
+	// not tell acceptance from discard.
+	body := "#mrw-seen v2\nabc123  -  kept.go\ndef456  2-4  partial.go\n"
+	if err := os.WriteFile(lp, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(l) != 2 {
+		t.Fatalf("a v2 ledger was not accepted: %v", l)
+	}
+	if o := l["kept.go"]; !o.Whole() || o.SHA != "abc123" {
+		t.Errorf("whole-file record did not survive: %+v", o)
+	}
+	if o := l["partial.go"]; o.Whole() || !o.Covers(3, 3) || o.Covers(5, 5) {
+		t.Errorf("span record did not survive intact: %+v", o)
+	}
+	if stale, _ := IsStale(root); stale {
+		t.Error("a v2 ledger was reported stale")
+	}
+}
+
+// And the round trip: what this build WRITES, this build must read back. The
+// mutation above also passes a suite that never checks its own output is
+// loadable — the two halves are only pinned together by asserting both.
+func TestALedgerThisBuildWroteLoadsBack(t *testing.T) {
+	root := t.TempDir()
+	want := map[string]Observation{
+		"whole.go":   {SHA: "aaa"},
+		"partial.go": {SHA: "bbb", Spans: [][2]int{{2, 4}}},
+		"nothing.go": {SHA: "ccc", Spans: [][2]int{}},
+	}
+	if err := Record(root, want); err != nil {
+		t.Fatal(err)
+	}
+	if stale, _ := IsStale(root); stale {
+		t.Fatal("this build wrote a ledger it considers stale")
+	}
+	got, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, w := range want {
+		g, ok := got[path]
+		if !ok {
+			t.Errorf("%s did not survive the round trip", path)
+			continue
+		}
+		if g.SHA != w.SHA || g.Whole() != w.Whole() || g.Served() != w.Served() {
+			t.Errorf("%s = %+v (%s), want %+v (%s)", path, g, g.Served(), w, w.Served())
+		}
+	}
+}
