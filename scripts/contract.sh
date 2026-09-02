@@ -713,6 +713,55 @@ out=$(m read stale.txt:2 2>&1 >/dev/null)
 grep -q 'written by an older mrw' <<<"$out" && bad "the notice repeats after healing" || ok "and the notice does not repeat once healed"
 printf '@@ stale.txt 2 replace\nBBB\n' | m write - >/dev/null 2>&1; rc=$?
 want 0 "$rc" "and the healed ledger licenses exactly the line that was re-read"
+# 23. `$` is the LAST LINE on the read path too. read kept one sentinel for
+#     `$` and for an omitted end, and downstream that sentinel means unbounded
+#     in whichever direction it appears — so `f.txt:$` resolved to 1-total and
+#     served the WHOLE file for a one-line request, while `@@ f.txt $ replace`
+#     on the write path correctly touched one line and README:164 said "the
+#     last line". Nothing asserted the read side, which is why it drifted.
+fixture
+printf 'a\nb\nc\nd\ne\n' > "$R/five.txt"
+seq 1 10 > "$R/ten.txt"
+m read five.txt ten.txt >/dev/null
+# The HEADER is derived from the resolved range so it is fair evidence, but the
+# LINE COUNT is what a header alone could not fake: 1-5 and 5-5 differ by four
+# printed lines.
+out=$(m read 'five.txt:$' 2>&1)
+grep -qF '@@ 5-5' <<<"$out" && ok '`$` resolves to the last line' || bad "not the last line: $out"
+n=$(grep -cE '^ +[0-9]+\|' <<<"$out")
+[ "$n" = 1 ] && ok "and serves exactly one line" || bad "served $n lines for a one-line address"
+out=$(m read 'five.txt:$-$' 2>&1)
+grep -qF '@@ 5-5' <<<"$out" && ok '`$-$` is that same one line' || bad "wrong: $out"
+# The control: `$` as an END was already correct, by accident. If this moves,
+# the fix has traded one wrong reading of `$` for another.
+out=$(m read 'five.txt:3-$' 2>&1)
+grep -qF '@@ 3-5' <<<"$out" && ok '`3-$` still runs to EOF' || bad "the end form moved: $out"
+# A range written with `$` can only be judged reversed once the length is
+# known: `$-5` is fine on a five-line file and reversed on a ten-line one.
+# Before this it was neither — it SERVED lines 1-5 at exit 0.
+out=$(m read 'ten.txt:$-5' 2>&1); rc=$?
+want 1 "$rc" 'a `$` range that ends before it starts is refused'
+grep -q 'ends before it starts' <<<"$out" && ok "and says so" || bad "no reason given: $out"
+grep -qE '^ +[0-9]+\|' <<<"$out" && bad "served content for an unsatisfiable range: $out" \
+  || ok "and serves no content for it"
+out=$(m read 'five.txt:$-5' 2>&1)
+grep -qF '@@ 5-5' <<<"$out" && ok 'while the same address on a shorter file is satisfiable' || bad "wrong: $out"
+
+# THE ASSERTION NO HEADER TEXT CAN SATISFY: the ledger records what was SERVED,
+# so it is independent of anything printed above the content. Before the fix a
+# one-line request recorded the whole file as seen. It needs its OWN checkout,
+# because the reads above already recorded these files whole — and it goes LAST
+# for that reason: an earlier fixture call here left the files the rows below
+# it were using in a previous root, and `ten.txt:$-5` then "passed" on an
+# UNREADABLE rather than on the reversed range. A row that passes for the wrong
+# reason is the thing this file exists to catch.
+fixture
+printf 'a\nb\nc\nd\ne\n' > "$R/led.txt"
+m read 'led.txt:$' >/dev/null
+out=$(m seen 2>&1)
+grep -E 'led\.txt' <<<"$out" | grep -qE 'lines 5( |$)' \
+  && ok "and the ledger records only the line that was served" \
+  || bad "ledger over-records: $(grep led.txt <<<"$out")"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

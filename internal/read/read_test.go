@@ -310,3 +310,68 @@ func TestARangeAgainstAnEmptyFileIsReported(t *testing.T) {
 		t.Errorf("an unsatisfiable range on an empty file observed the whole file: %+v", o)
 	}
 }
+
+// `$` is the LAST LINE, not "unbounded". read shared one sentinel (0) between
+// `$` and an omitted end, and downstream 0 means unbounded in whichever
+// direction it appears — so a bare `a.go:$` resolved to 1-total and served the
+// WHOLE file. On a 2,000-line file that is 2,000 lines returned for a one-line
+// request, which is the round trip mrw exists to remove, and the ledger then
+// recorded every one of them as seen.
+//
+// README:164 says `$` is the last line, and the WRITE path agrees — plan's
+// ParseAddr maps `$` to {EOF, EOF} and `@@ f.txt $ replace` touches one line.
+// read was the only reader of `$` that disagreed, and nothing asserted it.
+//
+// Counting the served lines is the assertion that matters: the `@@ 5-5` header
+// is derived from the resolved range, so it is fair evidence, but a row that
+// checked only the header would not notice content leaking past it.
+func TestDollarIsTheLastLineNotTheWholeFile(t *testing.T) {
+	root, opt := fixture(t)
+	for _, spec := range []string{"a.go:$", "a.go:$-$"} {
+		out, problems := run(t, root, opt, spec)
+		if problems != 0 {
+			t.Fatalf("%s: problems=%d\n%s", spec, problems, out)
+		}
+		if !strings.Contains(out, "@@ 9-9") {
+			t.Errorf("%s did not resolve to the last line:\n%s", spec, out)
+		}
+		if n := strings.Count(out, "|"); n != 1 {
+			t.Errorf("%s served %d lines, want 1:\n%s", spec, n, out)
+		}
+		if strings.Contains(out, "package p") {
+			t.Errorf("%s served the first line of the file:\n%s", spec, out)
+		}
+	}
+}
+
+// The control: `$` as an END was already right, by accident — an omitted end
+// and `$` both meant "to EOF" there, so they agreed. It must stay right, or
+// the fix has traded one wrong reading of `$` for another.
+func TestDollarAsAnEndStillRunsToEOF(t *testing.T) {
+	root, opt := fixture(t)
+	out, problems := run(t, root, opt, "a.go:7-$")
+	if problems != 0 {
+		t.Fatalf("problems=%d\n%s", problems, out)
+	}
+	if !strings.Contains(out, "@@ 7-9") {
+		t.Errorf("7-$ did not run to EOF:\n%s", out)
+	}
+}
+
+// A range written with `$` can only be judged reversed once the file's length
+// is known: `$-5` is fine on a five-line file and reversed on a longer one.
+// Before this it was neither — `$` became 0, 0 became 1, and `$-5` SERVED
+// lines 1-5 at exit 0. Content for an address that cannot be satisfied.
+func TestAReversedRangeWrittenWithDollarIsNotServed(t *testing.T) {
+	root, opt := fixture(t) // a.go is 9 lines, so $-5 is 9-5
+	out, problems := run(t, root, opt, "a.go:$-5")
+	if problems != 1 {
+		t.Fatalf("problems=%d, want 1\n%s", problems, out)
+	}
+	if !strings.Contains(out, "ends before it starts") {
+		t.Errorf("the reason was not reported:\n%s", out)
+	}
+	if strings.Contains(out, "|") {
+		t.Errorf("served content for an unsatisfiable range:\n%s", out)
+	}
+}
