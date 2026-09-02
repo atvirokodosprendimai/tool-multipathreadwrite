@@ -331,7 +331,7 @@ grep -q 'TestBroken' <<<"$out" && ok "and the failure it reports is that package
 
 # 16. ADR-008: a bodyless delete consumes a range while asserting nothing about
 #     it, so the receipt is where a wrong range first becomes visible. This is
-#     that produced the record, reproduced: a range one line too long takes the
+#     the incident that produced the record, reproduced: a range one line too long takes the
 #     closing brace of the function above, and the old receipt said `-4 +0  ok`.
 fixture
 printf 'package demo\n\nfunc E() int {\n\treturn 5\n}\n\nvar _ = 1\nvar _ = 2\n' > "$R/c.go"
