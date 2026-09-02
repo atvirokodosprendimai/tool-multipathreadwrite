@@ -57,7 +57,7 @@ Every row below is asserted by a script, against the real binary in a throwaway
 repo, by making each promise go wrong on purpose:
 
 ```sh
-./scripts/contract.sh      # 165 assertions; exit 0 only if all hold
+./scripts/contract.sh      # 168 assertions; exit 0 only if all hold
 ```
 
 | test | result |
@@ -297,6 +297,13 @@ numbers were counted in.
 `mrw read` and `mrw write` both record what each file now holds, in
 a per-checkout state directory **outside the working tree** — mrw creates
 nothing in your repository. `mrw seen` prints where it is and what it holds.
+
+Run mrw **one call at a time** against a checkout. Each read rewrites the whole
+ledger for that checkout, and parallel invocations overwrite one another's
+entries — 40 racing reads kept 5. Nothing is corrupted and nothing is wrongly
+written; the cost is that a file whose entry was lost has to be read again.
+Naming every path in ONE `mrw read` is both faster and unaffected, which is the
+call shape the tool is built around anyway.
 
 What is recorded is **what you were shown**, not what mrw hashed. A read that
 printed no content observes nothing, and a read of lines 1-5 observes lines

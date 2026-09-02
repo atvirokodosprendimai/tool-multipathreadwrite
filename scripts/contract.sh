@@ -762,6 +762,43 @@ out=$(m seen 2>&1)
 grep -E 'led\.txt' <<<"$out" | grep -qE 'lines 5( |$)' \
   && ok "and the ledger records only the line that was served" \
   || bad "ledger over-records: $(grep led.txt <<<"$out")"
+
+# 24. CONCURRENT invocations lose ledger entries, and the loss must stay SAFE.
+#     Every `mrw read` rewrites the whole ledger (load, merge, save) with no
+#     lock — ADR-002 puts locking permanently out of scope — so parallel reads
+#     clobber each other: 40 racing reads kept 1 entry here, while the same 40
+#     sequentially, or named in ONE call, keep all 40.
+#
+#     The lost entries are ACCEPTED. What must hold is the failure DIRECTION
+#     ADR-004 leans on: a missing entry costs a re-read and never licenses a
+#     wrong write. So the assertion is that the files still IN the ledger are
+#     exactly the ones that can be written — not merely that some writes were
+#     refused, which would pass on a build that refused everything, and not
+#     that changed == applied, which would pass on a build that failed OPEN.
+fixture
+N=40
+for i in $(seq 1 $N); do printf 'a\nb\nc\n' > "$R/r$i.txt"; done
+for i in $(seq 1 $N); do m read "r$i.txt" >/dev/null 2>&1 & done
+wait
+kept=$(m seen 2>/dev/null | grep -cE '(^| )r[0-9]+\.txt$')
+if [ "$kept" -ge "$N" ]; then
+  # The race did not reproduce — a fast or serialising machine. Asserting the
+  # safety property here would assert nothing, so it is skipped and said out
+  # loud rather than reported as a pass.
+  skip "concurrent reads lose ledger entries (no race observed here: $kept/$N kept)"
+else
+  ok "concurrent reads lose ledger entries ($kept/$N kept), as ADR-002 accepts"
+  applied=0
+  for i in $(seq 1 $N); do
+    printf '@@ r%s.txt 2 replace\nB\n' "$i" | m write - >/dev/null 2>&1 && applied=$((applied + 1))
+  done
+  # THE ASSERTION: writability follows the ledger exactly. Fail-open makes this
+  # 40; refuse-everything makes it 0; only honouring the surviving entries
+  # makes it equal to what survived.
+  want "$kept" "$applied" "and exactly the files still in the ledger are writable"
+  changed=$(grep -lx 'B' "$R"/r*.txt 2>/dev/null | wc -l | tr -d ' ')
+  want "$applied" "$changed" "and no file changed that was not applied"
+fi
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
