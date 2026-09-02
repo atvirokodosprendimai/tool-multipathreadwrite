@@ -465,3 +465,84 @@ func TestAShellInjectedScopeStillFails(t *testing.T) {
 		t.Errorf("a scope naming a broken package reported OK: command %q, exit %d", res.Command, res.ExitCode)
 	}
 }
+
+// A scope outside the root is refused, not fallen back on. The fallback is
+// what makes the other unplaceable paths safe — a typo, a prose directory —
+// because the whole-project run still covers them. Outside the root it covers
+// nothing the caller named, so the verdict it produces is about a different
+// tree entirely.
+//
+// The root's own check is `exit 0` here, so a fallback would report a PASS.
+// Asserting on the error alone would not catch that: the row has to show that
+// NOTHING ran, which is what an empty Command and Ran=false say.
+func TestAScopeOutsideTheRootIsRefusedNotFallenBackTo(t *testing.T) {
+	outer := t.TempDir()
+	root := filepath.Join(outer, "repo")
+	if err := os.MkdirAll(filepath.Join(root, "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(outer, "outside")
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "o.go"), []byte("package outside\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "link")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	cfg := Config{Check: "exit 0", ScopedCheck: "exit 0", declared: true}
+	for _, scope := range []string{"../outside", "../outside/...", outside, "link"} {
+		res, err := Run(context.Background(), root, cfg, []string{scope})
+		if err == nil {
+			t.Errorf("%s: accepted, result %+v", scope, res)
+			continue
+		}
+		if res.Ran || res.Command != "" || res.OK() {
+			t.Errorf("%s: refused but a result was filled in: %+v", scope, res)
+		}
+		if !strings.Contains(err.Error(), "--root") {
+			t.Errorf("%s: error does not say where to point --root: %v", scope, err)
+		}
+	}
+}
+
+// The discriminating half: the old fallback answered about the ROOT, so its
+// verdict tracked the root's own tests and never the argument. A failing root
+// made `check ../outside` report a failure — right code, wrong subject — and a
+// row asserting only "not zero" would have passed throughout.
+func TestARefusedScopeDoesNotInheritTheRootsVerdict(t *testing.T) {
+	outer := t.TempDir()
+	root := filepath.Join(outer, "repo")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{Check: "exit 1", declared: true}
+	res, err := Run(context.Background(), root, cfg, []string{"../elsewhere"})
+	if err == nil {
+		t.Fatalf("accepted: %+v", res)
+	}
+	if res.ExitCode != 0 || res.Ran {
+		t.Errorf("the root's failing check reached a refused scope: %+v", res)
+	}
+}
+
+// An in-root path that cannot be placed must still fall back: that is the
+// behaviour the refusal above is carved out of, and breaking it would trade
+// one silent omission for a wall of refusals on ordinary typos.
+func TestAnUnplaceableInRootScopeStillFallsBack(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{Check: "exit 0", ScopedCheck: "exit 7", declared: true}
+	res, err := Run(context.Background(), root, cfg, []string{"nosuchdir"})
+	if err != nil {
+		t.Fatalf("an in-root typo was refused: %v", err)
+	}
+	if !res.OK() || res.Command != "exit 0" {
+		t.Errorf("did not fall back to the whole-project command: %+v", res)
+	}
+}

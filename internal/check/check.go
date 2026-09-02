@@ -119,7 +119,22 @@ type Result struct {
 func (r Result) OK() bool { return r.Ran && r.ExitCode == 0 }
 
 // Run picks a command for the edited paths and executes it in root.
+//
+// A path resolving outside root is refused before anything runs. Every other
+// unplaceable path falls back to the whole-project command, and that fallback
+// is sound only inside the root, where the complete run covers what the caller
+// named. Outside it the complete run covers nothing they named, so its verdict
+// is about a different tree: `mrw check ../other` answered PASS at exit 0 while
+// ../other did not compile, and exit 3 when the root's own tests went red —
+// the answer tracked the root and never the argument. read and write refuse
+// such a path (ADR-006); reporting a pass for a scope that never ran is the
+// silent pass ADR-003 rule 2 forbids, reached through the fallback.
 func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Result, error) {
+	if err := confine(root, editedPaths); err != nil {
+		// Nothing runs and no fields are filled in: a refusal must not hand
+		// back a shape a caller could read a verdict out of.
+		return Result{Declared: cfg.declared}, err
+	}
 	cmdline, scoped := command(root, cfg, editedPaths)
 	if cmdline == "" {
 		return Result{Declared: cfg.declared, Skipped: "no check declared and no go.mod found"}, nil
@@ -246,6 +261,38 @@ func needsQuoting(r rune) bool {
 	return true
 }
 
+// confine reports the first path that resolves outside root. The trailing
+// /... of a subtree scope is stripped first, so a scope mrw printed can be
+// handed straight back to it — the same normalisation packages does.
+//
+// rooted.Resolve is the one implementation of the boundary (ADR-006 rule 2);
+// this is its third caller, after read and apply.
+func confine(root string, paths []string) error {
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return err
+	}
+	if real, err := filepath.EvalSymlinks(absRoot); err == nil {
+		absRoot = real
+	}
+	for _, p := range paths {
+		p = strings.TrimSuffix(p, "/...")
+		// An absolute path is JOINED onto the root rather than honoured, which
+		// is deliberate and tested. read and apply survive it because the
+		// reinterpreted path then fails to exist and they say so; a check has
+		// no such tell — the joined path places no package, the run falls back
+		// and the answer is a pass. So check refuses what it cannot honour.
+		if filepath.IsAbs(p) && !rooted.Contains(absRoot, filepath.Clean(p)) {
+			return fmt.Errorf("%s is absolute and would be read relative to the root %s, "+
+				"which is not where it points: check it with --root pointed where you mean", p, absRoot)
+		}
+		if _, err := rooted.Resolve(root, p); err != nil {
+			return fmt.Errorf("%v: check it with --root pointed where you mean", err)
+		}
+	}
+	return nil
+}
+
 // command chooses between the scoped and whole-project forms. It returns the
 // scoped one only when every path maps to a Go package, because a scoped run
 // that quietly omits a changed file is worse than a slow complete one.
@@ -276,7 +323,7 @@ func command(root string, cfg Config, paths []string) (cmdline string, scoped bo
 // trailing /... is stripped before a path is placed, so a scope mrw printed
 // can be handed straight back to it.
 //
-// Three kinds of path are refused, and they are one rule: a scope that covers
+// Two kinds of path are refused, and they are one rule: a scope that covers
 // less than the caller asked for is worse than a slow complete run.
 //
 //  1. A path that is not there — a directory OR a .go file. A typo has no
@@ -287,9 +334,11 @@ func command(root string, cfg Config, paths []string) (cmdline string, scoped bo
 //  2. A directory holding no package go will build — a directory of prose, or
 //     one named testdata, which the ... form excludes by design. Both make
 //     `go test` exit 1 for a reason that is not about the code.
-//  3. A path that resolves outside the root. read and write both refuse one
-//     (ADR-006); a scoped command naming a directory the caller never scoped
-//     is the same escape on a third path.
+//
+// Both are safe to answer with the full run, because the full run covers the
+// root and both paths are inside it. A path OUTSIDE the root is not, and is
+// not refused here at all — Run refuses it before this is reached, because
+// falling back would answer about a tree the caller never named.
 //
 // Paths reaching here from a write are always files, so `write --check` meets
 // none of this.

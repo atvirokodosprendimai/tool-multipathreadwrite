@@ -57,7 +57,7 @@ Every row below is asserted by a script, against the real binary in a throwaway
 repo, by making each promise go wrong on purpose:
 
 ```sh
-./scripts/contract.sh      # 76 assertions; exit 0 only if all hold
+./scripts/contract.sh      # 140 assertions; exit 0 only if all hold
 ```
 
 | test | result |
@@ -440,10 +440,20 @@ be handed straight back to it.
 
 Anything mrw cannot place as a package abandons the scoped form for the full
 one: a `.md` or a `.templ`, a path that is not there, a directory holding no
-package go will build (prose, or one named `testdata`), and a path resolving
-outside the root, which `read` and `write` refuse outright. A scoped run that
+package go will build (prose, or one named `testdata`). A scoped run that
 quietly omits a changed file is worse than a slow complete one, and a run scoped
 to nothing that reports PASS is worse than both.
+
+A path resolving **outside the root** is the one exception, and is refused (exit
+2). The fallback is what makes every case above safe, because the whole-project
+run still covers a typo — but it covers nothing you named when the name pointed
+elsewhere, so the verdict it printed was about a different tree. `mrw check
+../other` answered PASS at exit 0 while `../other` did not compile, and answered
+3 when this repository's own tests went red: it tracked the root and never the
+argument. `read` and `write` refuse such a path already; so does `check` now. An
+absolute path is the same escape in the spelling that hides it — it is joined
+onto the root rather than honoured, so it lands inside, places nothing and fell
+back — and it is refused for the same reason.
 
 Three rules it will not bend, each from a check that lied:
 

@@ -259,8 +259,12 @@ grep -q 'WITHHELD' <<<"$out" && ok "and prints WITHHELD" || bad "wrong word: $ou
 #     second silent failure: go's `./dir` is the package at the top, so
 #     `mrw check .` reported PASS with a failing package one level down. A path
 #     mrw cannot place as a package — a typo, a directory of prose, one named
-#     testdata, one outside the root — must still fall back rather than scope
-#     to nothing.
+#     testdata — must still fall back rather than scope to nothing. A path
+#     OUTSIDE the root is the exception and is refused: the fallback runs the
+#     whole project, which covers a typo but covers nothing the caller named
+#     when the name pointed elsewhere, so the PASS it printed was about a
+#     different tree. These rows used to assert that fallback, under the name
+#     "as read and write refuse it".
 fixture
 mkdir -p "$R/internal/apply/testdata" "$R/docs"
 printf 'package apply\n\nfunc A() int { return 1 }\n' > "$R/internal/apply/a.go"
@@ -290,13 +294,39 @@ out=$(m check docs 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "a directory with no package falls back" || bad "scoped to a non-package: $out"
 out=$(m check internal/apply/testdata 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "testdata holds nothing the ... form matches, so it falls back" || bad "scoped to testdata: $out"
-out=$(m check ../outside 2>&1)
-grep -q 'echo FULL' <<<"$out" && ok "a path outside the root falls back, as read and write refuse it" || bad "scoped outside the root: $out"
-out=$(m check link 2>&1)
-# Not a second boundary row: WalkDir does not follow a symlink, so this one
-# falls back whether or not rooted.Resolve refuses it. It is here because the
-# symlink is the spelling a caller actually reaches for.
-grep -q 'echo FULL' <<<"$out" && ok "a symlinked directory is not scoped either" || bad "scoped through a symlink: $out"
+# The root's own check is `echo FULL`, which exits 0. So a row asserting only a
+# non-zero exit would not distinguish a refusal from anything; what says the
+# check never ran is that FULL was not printed. Both halves are asserted.
+for spelling in ../outside "$WORK/outside" link; do
+  out=$(m check "$spelling" 2>&1); rc=$?
+  want 2 "$rc" "a scope outside the root ($spelling) is refused, as read and write refuse one"
+  grep -q 'FULL' <<<"$out" && bad "fell back and answered about the root: $out" \
+    || ok "and nothing ran under it ($spelling)"
+done
+# The discriminator. The fallback answered about the ROOT, so its verdict moved
+# with the root's own tests and never with the argument: point the root's check
+# at a failure and the old code reported 3 — the right shape of wrongness for a
+# row that only checks "not zero" to sail through.
+printf '{"check":"echo FULL; exit 1"}\n' > "$R/.quality-harness.json"
+m check ../outside >/dev/null 2>&1; rc=$?
+want 2 "$rc" "a refused scope does not inherit the root's failing verdict"
+m check . >/dev/null 2>&1; rc=$?
+want 3 "$rc" "while the root itself still reports its own failure"
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
+# An ABSOLUTE path outside the root is the same escape in the spelling that
+# hides it: it is JOINED onto the root rather than honoured (deliberate, and
+# tested in internal/rooted), so it lands inside, places no package and fell
+# back — read and apply survive that because the joined path then fails to
+# exist and they say so, and a check has no such tell.
+m check /etc >/dev/null 2>&1; rc=$?
+want 2 "$rc" "an absolute path outside the root is refused, not silently re-rooted"
+# The machine-readable surface is the one a refusal must not leak a shape into:
+# a consumer reading exit_code out of a document has no way to tell a verdict
+# from a refusal, and unlike a human it never sees the message on stderr.
+out=$(m check --json ../outside 2>/dev/null); rc=$?
+want 2 "$rc" "--json refuses the same scope"
+grep -q 'exit_code' <<<"$out" && bad "a refusal emitted a result document: $out" \
+  || ok "and emits no result document to read a verdict out of"
 out=$(m check --full 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "--full still ignores every scope" || bad "not full: $out"
 

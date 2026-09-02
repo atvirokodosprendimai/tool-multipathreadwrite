@@ -51,8 +51,12 @@ content printed. The message names both paths and says to point `--root` where
 you mean.
 
 **2. The boundary lives in one place.** `internal/rooted.Resolve` is the single
-implementation, used by both `internal/apply` and `internal/read`. Duplicating
-it would have re-created the divergence in a slower form.
+implementation, used by `internal/apply`, `internal/read` and — since the check
+path was found answering PASS for a scope outside the root — `internal/check`.
+Duplicating it would have re-created the divergence in a slower form. What
+differs per surface is only the response: read and apply report the path they
+could not serve, while a check must refuse outright, because its fallback
+produces a verdict about the root instead (ADR-003 rule 2).
 
 **3. A `replace` needs a body.** An empty one is a parse error naming `delete`,
 which is what the caller meant if the emptiness was deliberate. `body=0` on a
