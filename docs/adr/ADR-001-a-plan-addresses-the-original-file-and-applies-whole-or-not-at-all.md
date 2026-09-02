@@ -102,6 +102,34 @@ Three properties are the decision, and each is load-bearing:
    avoided. Every file the plan *addressed* appears in the receipt, written or
    not.
 
+   **Amended 2026-09-02 — rule 3 is now CLOSED on the filesystem path, and the
+   ⚠ above is retired.** The original text is kept because it records what was
+   true for as long as it stood. What changed is the code, not the reading: the
+   staging abort now assigns every hunk a verdict before it returns — the hunks
+   of the file that could not be staged report `failed` with the filesystem
+   error as their reason, every sibling reports `skipped` — fills the receipt
+   with every file the plan addressed, none of them written, and renders it
+   before exiting. `--json` renders a receipt too; on this path it previously
+   emitted a bare `mrw: …: permission denied` and nothing parseable at all,
+   which is the half a programmatic caller felt.
+
+   The exit code is deliberately unchanged. A filesystem failure stays 2,
+   distinct from a failing hunk's 1: they are different conditions and a caller
+   that distinguishes them is doing something correct.
+
+   Rule 2 is untouched by this. The abort was always correct — nothing was
+   written, no temp survived, no directory staging created was left behind —
+   and only the *reporting* was missing. The rename path is also untouched and
+   is deliberately different in kind: a failing rename can leave the tree
+   genuinely partial, so it names the files already written rather than
+   pretending nothing happened.
+
+   Pinned by `scripts/contract.sh`: the unstageable hunk reports FAIL, its
+   sibling reports skip, the summary names *both* addressed files, and `--json`
+   parses under `jq -e`. Four of those six rows go red if the receipt render is
+   removed from the error path; the other two are nested behind the parse row
+   and are guarded by it rather than independently proven.
+
 Optional per-hunk guards make a batch safe to trust and are cheap to emit:
 `sha=` (whole file), `lines=` (range size), `anchor=` (substring in the range's
 first line).

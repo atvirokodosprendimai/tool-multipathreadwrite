@@ -609,6 +609,40 @@ else
   [ -z "$(find "$R" -name '.mrw-*')" ] \
     && ok "and no staged temp file was left in the tree (ADR-004)" \
     || bad "staging littered: $(find "$R" -name '.mrw-*')"
+  # ADR-001 RULE 3 ON THE FILESYSTEM PATH — OPEN until 2026-09-02. The abort
+  # above was always correct; what was missing is the receipt. The run returned
+  # the error and rendered nothing, so a caller learned which error occurred and
+  # nothing about which hunks it affected or which files the plan addressed.
+  # Rule 3 says every hunk carries its own verdict and every addressed file
+  # appears, written or not.
+  chmod 555 "$R/locked"
+  out=$(printf '@@ a.go 3 replace\nfunc A() int { return 99 }\n@@ locked/f.go 3 replace\nfunc F() int { return 99 }\n' \
+    | m write - 2>&1)
+  jout=$(printf '@@ a.go 3 replace\nfunc A() int { return 99 }\n@@ locked/f.go 3 replace\nfunc F() int { return 99 }\n' \
+    | m write --json - 2>/dev/null)
+  chmod 755 "$R/locked"
+  grep -qE '^FAIL locked/f\.go ' <<<"$out" \
+    && ok "a filesystem failure gives the unstageable hunk a FAIL verdict" \
+    || bad "no FAIL verdict for the unstageable hunk: $(head -1 <<<"$out")"
+  grep -qE '^skip a\.go ' <<<"$out" \
+    && ok "and its sibling reports skip, never ok" \
+    || bad "the sibling hunk got no skip verdict: $(head -2 <<<"$out" | tr '\n' ' ')"
+  # "2 file(s)" IS the rule-3 claim. Asserting only on the FAIL line would pass
+  # on a receipt that forgot the sibling file entirely.
+  grep -qE '2 hunk\(s\), 2 file\(s\), 1 failed — NOTHING WRITTEN' <<<"$out" \
+    && ok "and the summary names every file the plan addressed" \
+    || bad "summary does not name both addressed files: $(grep 'hunk(s)' <<<"$out")"
+  # --json used to emit a bare error and no JSON at all. jq -e is the assertion
+  # because "looks like JSON" and "parses" are different claims.
+  if jq -e . <<<"$jout" >/dev/null 2>&1; then
+    ok "and --json emits a receipt that PARSES on a filesystem failure"
+    n=$(jq -r '[.hunks[] | select(.status != null)] | length' <<<"$jout")
+    [ "$n" = 2 ] && ok "and every hunk in it carries a status" || bad "$n hunk(s) carry a status, want 2"
+    n=$(jq -r '[.files[] | select(.written == false)] | length' <<<"$jout")
+    [ "$n" = 2 ] && ok "and both addressed files appear, neither written" || bad "$n unwritten file(s) in the JSON receipt, want 2"
+  else
+    bad "--json emitted nothing parseable on a filesystem failure"
+  fi
   # The ledger consequence: a.go is unchanged, so the recorded hash still
   # matches and an ordinary edit to it still applies. When a.go had been
   # written behind the receipt, this refused.

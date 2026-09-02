@@ -460,6 +460,22 @@ visible to whatever hooks watch file writes.`,
 				Force:  cmd.Bool("force"),
 			})
 			if err != nil {
+				// ADR-001 rule 3: every hunk carries its own verdict, and a
+				// filesystem failure is not an exception. Apply now fills the
+				// receipt before returning the error, so render it on whichever
+				// surface the caller asked for — a --json caller that got a
+				// bare "mrw: …: permission denied" had nothing to parse — and
+				// only then exit. The exit code is unchanged: a filesystem
+				// failure stays 2, distinct from a failing hunk's 1.
+				if len(res.Hunks) > 0 {
+					if cmd.Bool("json") {
+						enc := json.NewEncoder(os.Stdout)
+						enc.SetIndent("", "  ")
+						_ = enc.Encode(receipt{Result: res})
+					} else {
+						report(os.Stdout, res, cmd.Bool("quiet"))
+					}
+				}
 				return cli.Exit(err, exitUsage)
 			}
 
