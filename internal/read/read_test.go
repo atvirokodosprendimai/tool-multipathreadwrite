@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
 func TestParseSpec(t *testing.T) {
@@ -207,5 +209,104 @@ func TestContextAroundSinglePattern(t *testing.T) {
 	out, _ := run(t, root, opt, "a.go:/doThing/")
 	if !strings.Contains(out, "@@ 3-5") {
 		t.Errorf("context not applied:\n%s", out)
+	}
+}
+
+// runObserved is run() plus the ledger observations, which is where the
+// licence a read grants actually lives — the printed output is what the caller
+// SEES, the observation is what mrw will later let them EDIT, and those two
+// went out of step.
+func runObserved(t *testing.T, root string, opt Options, specs ...string) (map[string]seen.Observation, int) {
+	t.Helper()
+	var parsed []Spec
+	for _, s := range specs {
+		sp, err := ParseSpec(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed = append(parsed, sp)
+	}
+	var sb strings.Builder
+	return Run(&sb, root, parsed, opt)
+}
+
+// A ranged read that serves NOTHING must license nothing.
+//
+// seen.Observation already draws the distinction — a nil Spans is "the whole
+// file", an empty-but-non-nil one is "hashed, and none of it shown" — but Run
+// declared `served` as a NIL slice, so a range that printed nothing recorded
+// the WHOLE FILE. `mrw read a.go:/nomatch/` served no lines, exited 1, and then
+// licensed an edit to a line the caller had never seen: a FAILED read granted
+// strictly more than a successful partial one, inverting ADR-005.
+//
+// Asserting Whole() is the assertion that matters. Both the broken and the
+// fixed version print the same thing for these specs — nothing, plus a `!!`
+// line — so no assertion on the OUTPUT could tell them apart.
+func TestARangeThatMatchesNothingObservesNothing(t *testing.T) {
+	root, opt := fixture(t)
+	for _, spec := range []string{"a.go:/nomatch/", "a.go:99"} {
+		observed, problems := runObserved(t, root, opt, spec)
+		if problems == 0 {
+			t.Errorf("%s: reported no problem", spec)
+		}
+		o, ok := observed["a.go"]
+		if !ok {
+			t.Fatalf("%s: nothing observed at all", spec)
+		}
+		if o.Whole() {
+			t.Errorf("%s: recorded the WHOLE FILE for a range that served nothing", spec)
+		}
+		if len(o.Spans) != 0 {
+			t.Errorf("%s: recorded spans %v, want none", spec, o.Spans)
+		}
+		if o.Covers(3, 3) {
+			t.Errorf("%s: licenses an edit to line 3, which was never shown", spec)
+		}
+	}
+}
+
+// The two controls. Either breaking would trade a permissive bug for a
+// restrictive one, and a guard that refuses ordinary work is a guard people
+// turn off.
+func TestWholeAndPartialObservationsAreUnchanged(t *testing.T) {
+	root, opt := fixture(t)
+
+	observed, _ := runObserved(t, root, opt, "a.go")
+	if o := observed["a.go"]; !o.Whole() || !o.Covers(3, 3) {
+		t.Errorf("a plain read no longer observes the whole file: %+v", o)
+	}
+
+	observed, _ = runObserved(t, root, opt, "a.go:3-5")
+	o := observed["a.go"]
+	if o.Whole() {
+		t.Error("a partial read observed the whole file")
+	}
+	if len(o.Spans) != 1 || o.Spans[0] != [2]int{3, 5} {
+		t.Errorf("partial read observed %v, want [[3 5]]", o.Spans)
+	}
+	if !o.Covers(3, 5) || o.Covers(6, 6) {
+		t.Errorf("a partial read licenses the wrong lines: %+v", o)
+	}
+}
+
+// An empty file cannot satisfy any range, and saying nothing about it reported
+// success for a request that served nothing: `read empty.txt:1` exited 0 in
+// silence while `read a.go:99` on a real file correctly said so. Same rule,
+// and the empty file was the one place it was not applied.
+func TestARangeAgainstAnEmptyFileIsReported(t *testing.T) {
+	root, opt := fixture(t)
+	if err := os.WriteFile(filepath.Join(root, "empty.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, problems := run(t, root, opt, "empty.txt:1")
+	if problems != 1 {
+		t.Errorf("problems=%d, want 1\n%s", problems, out)
+	}
+	if !strings.Contains(out, "file has 0 lines") {
+		t.Errorf("the reason was not reported:\n%s", out)
+	}
+	observed, _ := runObserved(t, root, opt, "empty.txt:1")
+	if o := observed["empty.txt"]; o.Whole() {
+		t.Errorf("an unsatisfiable range on an empty file observed the whole file: %+v", o)
 	}
 }

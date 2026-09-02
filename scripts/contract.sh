@@ -611,6 +611,67 @@ else
     && ok "while a directory that predated the run is left alone" \
     || bad "the cleanup removed a pre-existing directory"
 fi
+
+# 22. A ranged read that serves NOTHING must license NOTHING. seen.Observation
+#     draws the distinction already — a nil span list is "the whole file", an
+#     empty one is "hashed, and none of it shown" — but read left it nil when a
+#     range printed nothing, so `mrw read f.txt:/nomatch/` served no lines,
+#     exited 1, and then licensed a write to a line the caller had never seen.
+#     A FAILED read granted strictly more than a successful partial one, which
+#     is ADR-005 inverted. Shipped in v0.0.11.
+#
+#     The WRITE is the assertion here. Both the broken and the fixed binary
+#     print the same thing for this read — nothing, plus a `!!` line — so no
+#     row grepping the read's output could tell them apart, and `mrw seen` is
+#     one more rendering of the same record. Only trying the edit settles it.
+#
+#     Each case gets its OWN checkout: state is keyed on the absolute root, so
+#     a shared path carries the previous case's ledger into the next one. That
+#     is not hypothetical — it is how this defect first looked four times worse
+#     than it is, with the correct rows appearing broken too.
+fixture
+printf 'a\nb\nc\nd\ne\n' > "$R/led.txt"
+m read 'led.txt:/nomatch/' >/dev/null 2>&1; rc=$?
+want 1 "$rc" "a range that matches nothing is reported, not served"
+printf '@@ led.txt 3 replace\nCCC\n' | m write - >/dev/null 2>&1; rc=$?
+want 1 "$rc" "and licenses NO edit — the line was never shown"
+grep -q '^c$' "$R/led.txt" && ok "and the file is untouched" || bad "the write landed: $(sed -n 3p "$R/led.txt")"
+
+fixture
+printf 'a\nb\nc\nd\ne\n' > "$R/oob.txt"
+m read 'oob.txt:99' >/dev/null 2>&1; rc=$?
+want 1 "$rc" "a line past the end is reported the same way"
+printf '@@ oob.txt 3 replace\nCCC\n' | m write - >/dev/null 2>&1; rc=$?
+want 1 "$rc" "and licenses no edit either"
+
+# CONTROL A: a whole-file read still licenses the whole file. Breaking this
+# trades a permissive bug for a restrictive one, and a guard that refuses
+# ordinary work is a guard people turn off with --force.
+fixture
+printf 'a\nb\nc\nd\ne\n' > "$R/whole.txt"
+m read whole.txt >/dev/null
+printf '@@ whole.txt 3 replace\nCCC\n' | m write - >/dev/null 2>&1; rc=$?
+want 0 "$rc" "while a whole-file read still licenses the whole file"
+
+# CONTROL B: a partial read still licenses exactly its own lines — the line it
+# showed, and not the one it did not.
+fixture
+printf 'a\nb\nc\nd\ne\n' > "$R/part.txt"
+m read 'part.txt:2' >/dev/null
+printf '@@ part.txt 2 replace\nBBB\n' | m write - >/dev/null 2>&1; rc=$?
+want 0 "$rc" "and a partial read still licenses the line it showed"
+fixture
+printf 'a\nb\nc\nd\ne\n' > "$R/part2.txt"
+m read 'part2.txt:2' >/dev/null
+printf '@@ part2.txt 3 replace\nCCC\n' | m write - >/dev/null 2>&1; rc=$?
+want 1 "$rc" "and still refuses the line it did not"
+
+# An empty file cannot satisfy a range either, and used to say so by staying
+# silent at exit 0.
+fixture
+: > "$R/none.txt"
+m read 'none.txt:1' >/dev/null 2>&1; rc=$?
+want 1 "$rc" "a range against an empty file is reported, not silently fine"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
