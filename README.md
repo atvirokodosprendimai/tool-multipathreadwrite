@@ -31,7 +31,7 @@ baselines rather than the flattering one.
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 96,871 | 2,951 | **32.8× less** |
+| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 98,921 | 2,951 | **33.5× less** |
 | | bytes vs a **windowed** `offset`/`limit` read | 2,289 | 2,951 | **1.2× MORE** |
 | | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
 | | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
@@ -41,7 +41,7 @@ baselines rather than the flattering one.
 | **C.** 1 site, whole small file | bytes (window *is* the whole file) | 12,881 | 15,765 | **1.2× MORE** |
 | | calls | 2 / 3 | 2 | 1.0–1.5× fewer |
 
-Measured at `f70a3d6`; the script stamps the commit it ran at.
+Measured at `7df758b`; the script builds the binary it stamps.
 
 **Read the two byte rows together or neither.** `Read` takes `offset`/`limit`, so
 the windowed reader is the documented interface, not a strawman — and against it

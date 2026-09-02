@@ -29,8 +29,19 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-MRW=${MRW:-./bin/mrw}
-[ -x "$MRW" ] || go build -o "$MRW" ./cmd/mrw
+# Build a FRESH binary unless the caller named one. Reusing ./bin/mrw meant the
+# stamp printed below could name a commit while the NUMBERS came from whatever
+# binary happened to be lying there: a ./bin/mrw a day old measured as though it
+# were HEAD, and nothing said so. contract.sh builds its own for the same reason
+# — a shared mutable artifact is the bug, not the sharing.
+if [ -n "${MRW:-}" ]; then
+  MRW=$(cd "$(dirname "$MRW")" && pwd)/$(basename "$MRW")
+else
+  MRWDIR=$(mktemp -d)
+  trap 'rm -rf "$MRWDIR"' EXIT
+  MRW="$MRWDIR/mrw"
+  go build -o "$MRW" ./cmd/mrw
+fi
 
 rule() { printf '%s\n' "------------------------------------------------------------"; }
 
