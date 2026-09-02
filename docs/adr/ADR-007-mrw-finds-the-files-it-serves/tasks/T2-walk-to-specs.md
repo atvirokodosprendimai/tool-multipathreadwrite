@@ -153,3 +153,13 @@ whole answer.
   authoritative instead.
 
 ## Verification Log
+- 2026-09-01 · e56fb3d* · exit 1 · `set -o pipefail …` · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd · ms:139
+  ```
+  --- last 6 line(s) of stdout
+  # github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read [github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read.test]
+  internal/read/walk_test.go:38:97: undefined: Problem
+  internal/read/walk_test.go:44:23: undefined: Walk
+  internal/read/walk_test.go:44:38: undefined: WalkOptions
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read [build failed]
+  FAIL
+  ```

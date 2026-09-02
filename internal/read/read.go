@@ -249,7 +249,13 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		// and is demoted the moment anything is withheld: --max-lines is the
 		// flag a caller reaches for on a big file, which is precisely when they
 		// cannot count the lines they were not shown.
-		var served [][2]int
+		// Non-nil from the start. A nil Spans means WHOLE FILE to
+		// seen.Observation, so leaving it nil when nothing is printed records
+		// that the caller saw everything — measured 2026-09-01: a read of
+		// f.txt:/nomatch/ printed "no match" and then licensed an edit to line
+		// 40. That is ADR-005's own rule broken on a third path, after --stat
+		// and --max-lines were closed.
+		served := [][2]int{}
 		whole := len(sp.Ranges) == 0
 		for _, m := range missed {
 			fmt.Fprintf(w, "!! no match for %s\n", m)
