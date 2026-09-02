@@ -249,7 +249,15 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		// and is demoted the moment anything is withheld: --max-lines is the
 		// flag a caller reaches for on a big file, which is precisely when they
 		// cannot count the lines they were not shown.
-		var served [][2]int
+		// EMPTY, not nil. seen.Observation reads a nil Spans as "the whole
+		// file" and an empty-but-non-nil one as "hashed, and none of it
+		// shown" — two different licences. A ranged read that printed nothing
+		// left this nil and so recorded the WHOLE FILE as seen:
+		// `mrw read f.txt:/nomatch/` served no lines, exited 1, and then
+		// licensed `@@ f.txt 3 replace` on a line the caller was never shown.
+		// A FAILED read granted strictly more than a successful partial one,
+		// which inverts ADR-005.
+		served := [][2]int{}
 		whole := len(sp.Ranges) == 0
 		for _, m := range missed {
 			fmt.Fprintf(w, "!! no match for %s\n", m)
@@ -299,17 +307,24 @@ type span struct{ start, end int }
 // patterns matched nothing. Merging matters: overlapping context windows would
 // otherwise print the same lines twice and pay for them twice.
 func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
+	var missed []string
 	total := len(lines)
 	if total == 0 {
-		return nil, nil
+		// An empty file cannot satisfy any range, and saying nothing about it
+		// reported success for a request that served nothing: `read
+		// empty.txt:1` exited 0 in silence while `read f.txt:6` on a five-line
+		// file correctly said so.
+		for _, r := range ranges {
+			missed = append(missed, fmt.Sprintf("%s (file has 0 lines)", r.Text))
+		}
+		return nil, missed
 	}
 	if len(ranges) == 0 {
 		return []span{{1, total}}, nil
 	}
 
 	var (
-		spans  []span
-		missed []string
+		spans []span
 	)
 	for _, r := range ranges {
 		switch {

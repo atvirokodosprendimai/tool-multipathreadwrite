@@ -57,7 +57,7 @@ Every row below is asserted by a script, against the real binary in a throwaway
 repo, by making each promise go wrong on purpose:
 
 ```sh
-./scripts/contract.sh      # 140 assertions; exit 0 only if all hold
+./scripts/contract.sh      # 156 assertions; exit 0 only if all hold
 ```
 
 | test | result |
@@ -307,10 +307,9 @@ saw is exactly the stale picture this refuses.
 | `mrw read f.go --stat`, then edit | **refused** — a stat prints no content |
 | `mrw read f.go:1-5`, then edit line 40 | **refused** — you have not seen line 40 |
 | `mrw read f.go:1-5`, then edit line 3 | applies |
+| `mrw read f.go:/nomatch/`, then edit | **refused** — it printed nothing, so it observed nothing |
 | edit again straight after | applies — mrw knows what it just wrote, all of it |
 | something else changes the file, then you edit | **refused** — changed since mrw last saw it |
-| `mrw write --force` | applies regardless |
-| `create` a new file | applies — no existing content to be stale about |
 | `mrw write --force` | applies regardless |
 | `create` a new file | applies — no existing content to be stale about |
 

@@ -58,7 +58,15 @@ identifiable rather than an anonymous hash.
 `mrw seen` prints the resolved directory and the ledger's contents, which is how
 the inspectability of an in-tree file is preserved.
 
-**Migration is one-time, additive, and never deletes.** When a legacy
+**Migration is one-time, additive, and never deletes.** It is not, however,
+trusted to carry the ledger's CONTENTS across a version that changed what they
+mean: the `seen` file now opens with a version header, and a file without the
+current one is discarded on load rather than parsed. Up to v0.0.11 a ranged
+read that served nothing recorded the whole file, and on disk that entry is
+byte-identical to a legitimate whole-file read — so no parse-time rule can
+separate them, and carrying the file across would carry the poisoned licences
+with it. Nothing is deleted by this: `.mrw/` stays where it is, the notice
+still fires, the working set is untouched, and the cost is one re-read. When a legacy
 `.mrw/seen` or `.mrw/iteration` exists and the new location has none, its
 contents are copied across and a notice tells the caller they may now remove
 `.mrw/`. Deleting a user's files to tidy up is not this tool's business, and a

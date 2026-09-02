@@ -108,6 +108,13 @@ type Ledger map[string]Observation
 
 // Load reads the ledger. A missing file is an empty ledger, not an error: no
 // observations yet is the normal starting state.
+// header is the ledger's first line. Its VERSION is bumped whenever an older
+// file's contents can no longer be trusted — not merely when the format
+// changes — because the whole point is to discard a ledger whose entries mean
+// something different from what they say. v2 exists because of the
+// served-nothing bug described in Load.
+const header = "#mrw-seen v2"
+
 func Load(root string) (Ledger, error) {
 	l := Ledger{}
 	path, err := ReadPath(root)
@@ -124,6 +131,31 @@ func Load(root string) (Ledger, error) {
 	defer f.Close()
 
 	sc := bufio.NewScanner(f)
+	if !sc.Scan() {
+		return l, sc.Err()
+	}
+	// A ledger without the current header is DISCARDED, not parsed.
+	//
+	// Up to v0.0.11 a ranged read that served nothing recorded the whole file,
+	// and on disk that entry is byte-identical to a legitimate whole-file
+	// read: `<sha>  -  <path>` either way. No parse-time rule can tell a
+	// poisoned entry from a good one, so the fixed binary would honour the
+	// poisoned licence and silently permit an edit to lines the caller was
+	// never shown — for the people who upgraded, which is the moment they
+	// would assume they were safe.
+	//
+	// Dropping it is cheap and cannot lose data: the ledger is a cache of
+	// observations, so the worst it costs is one re-read, and the failure
+	// direction is a refusal rather than a wrong write.
+	if sc.Text() != header {
+		// EMPTY and nil, not an error. A stale ledger is a recoverable
+		// condition: Record calls Load first, so returning an error here would
+		// stop save from ever running, the v2 header would never be written,
+		// and every later run would hit the same stale file. The ledger could
+		// never heal itself. Staleness travels out of band instead — see
+		// IsStale, which the CLI consults to say so once.
+		return Ledger{}, nil
+	}
 	for sc.Scan() {
 		if p, obs, ok := parseLine(sc.Text()); ok {
 			l[p] = obs
@@ -131,6 +163,37 @@ func Load(root string) (Ledger, error) {
 	}
 	return l, sc.Err()
 }
+
+// IsStale reports whether a ledger exists on disk that this mrw will not
+// trust. It is separate from Load because the two answers have different
+// consequences: Load must hand back an empty ledger and no error so the next
+// write can heal the file, while the CLI wants to SAY so once — a refusal the
+// caller cannot account for looks like a bug, and "read it again" is the whole
+// remedy.
+func IsStale(root string) (bool, error) {
+	path, err := ReadPath(root)
+	if err != nil {
+		return false, err
+	}
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	if !sc.Scan() {
+		return false, sc.Err() // an empty file is not a stale one
+	}
+	return sc.Text() != header, nil
+}
+
+// StaleNotice is what the CLI prints when IsStale reports true.
+const StaleNotice = "mrw: the read ledger was written by an older mrw and has been discarded — " +
+	"up to v0.0.11 a read that served nothing recorded the whole file, and such an entry cannot be " +
+	"told from a real one. Read the files you mean to edit again."
 
 // parseLine reads one ledger line. Two shapes are accepted: the current
 // "<sha>  <spans>  <path>" and the pre-span "<sha>  <path>", which is read as a
@@ -294,6 +357,7 @@ func save(root string, l Ledger) error {
 	sort.Strings(paths)
 
 	var b strings.Builder
+	b.WriteString(header + "\n")
 	for _, p := range paths {
 		fmt.Fprintf(&b, "%s  %s  %s\n", l[p].SHA, formatSpans(l[p]), p)
 	}
