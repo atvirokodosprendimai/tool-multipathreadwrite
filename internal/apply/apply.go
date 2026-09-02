@@ -365,6 +365,12 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 	for _, w := range writes {
 		sf, err := stageFileFn(w.full, w.out)
 		if err != nil {
+			// The FAILING stage counts too. It may have created directories
+			// before it failed — MkdirAll succeeds, then WriteString, Close or
+			// Chmod hits ENOSPC or EIO — and dropping sf here would leave
+			// exactly the directories the comment above says an abort takes
+			// back. ENOSPC is one of the three failures that comment names.
+			staged = append(staged, sf)
 			discard(0)
 			return res, fmt.Errorf("%s: %w", w.file.Path, err)
 		}
@@ -789,7 +795,9 @@ func stageFile(path string, t text) (staged, error) {
 	// was already there is not this run's to take away.
 	missing := missingDirs(dir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return staged{}, err
+		// It may have created part of the chain before failing, so the list
+		// goes back even here.
+		return staged{dirs: missing}, err
 	}
 	tmp, err := os.CreateTemp(dir, ".mrw-*")
 	if err != nil {
