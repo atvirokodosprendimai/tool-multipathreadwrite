@@ -95,12 +95,46 @@ Three properties are the decision, and each is load-bearing:
    filesystem failure and this record does not close it. Only a failing *rename*
    can still leave the tree partial, and it names the files already written
    rather than reporting the bare error.
-3. **Every hunk carries its own verdict.** ⚠ Open for a filesystem failure, as
-   rule 2 records: that path returns an error and renders no receipt at all.
+   **Both are closed as of 2026-09-02** — see the amendment under rule 3. The
+   paragraph above is left as written because it records what was true while it
+   stood, but "only one of them is closed" and "remains OPEN" are stated in the
+   present tense, and a reader who arrives here and never reaches rule 3 would
+   otherwise be told something false about the code in front of them.
+3. **Every hunk carries its own verdict.** ⚠ Was open for a filesystem failure —
+   that path returned an error and rendered no receipt at all — until 2026-09-02;
+   see the amendment below, which closed it.
    Siblings of a failed hunk report
    `skipped`, never `ok` — "ok but not written" is precisely the lie being
    avoided. Every file the plan *addressed* appears in the receipt, written or
    not.
+
+   **Amended 2026-09-02 — rule 3 is now CLOSED on the filesystem path, and the
+   ⚠ above is retired.** The original text is kept because it records what was
+   true for as long as it stood. What changed is the code, not the reading: the
+   staging abort now assigns every hunk a verdict before it returns — the hunks
+   of the file that could not be staged report `failed` with the filesystem
+   error as their reason, every sibling reports `skipped` — fills the receipt
+   with every file the plan addressed, none of them written, and renders it
+   before exiting. `--json` renders a receipt too; on this path it previously
+   emitted a bare `mrw: …: permission denied` and nothing parseable at all,
+   which is the half a programmatic caller felt.
+
+   The exit code is deliberately unchanged. A filesystem failure stays 2,
+   distinct from a failing hunk's 1: they are different conditions and a caller
+   that distinguishes them is doing something correct.
+
+   Rule 2 is untouched by this. The abort was always correct — nothing was
+   written, no temp survived, no directory staging created was left behind —
+   and only the *reporting* was missing. The rename path is also untouched and
+   is deliberately different in kind: a failing rename can leave the tree
+   genuinely partial, so it names the files already written rather than
+   pretending nothing happened.
+
+   Pinned by `scripts/contract.sh`: the unstageable hunk reports FAIL, its
+   sibling reports skip, the summary names *both* addressed files, and `--json`
+   parses under `jq -e`. Four of those six rows go red if the receipt render is
+   removed from the error path; the other two are nested behind the parse row
+   and are guarded by it rather than independently proven.
 
 Optional per-hunk guards make a batch safe to trust and are cheap to emit:
 `sha=` (whole file), `lines=` (range size), `anchor=` (substring in the range's

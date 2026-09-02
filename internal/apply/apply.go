@@ -232,6 +232,31 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		results = map[int]HunkResult{}
 	)
 
+	// reportAddressed fills res.Files with every file the plan addressed, in
+	// plan order, none of them marked written.
+	//
+	// Both abort paths need it and for the same reason: ADR-001 rule 3 says
+	// every file the plan addressed appears in the receipt, written or not. A
+	// receipt naming only the files that validated — or only the one whose
+	// staging failed — is a narrower promise than the rule makes, and leaves
+	// the caller unable to tell an untouched sibling from a file the plan
+	// never mentioned.
+	reportAddressed := func() {
+		addressed := make(map[string]FileResult, len(writes)+len(failed))
+		for _, w := range writes {
+			addressed[w.file.Path] = w.file
+		}
+		for _, f := range failed {
+			addressed[f.Path] = f
+		}
+		for _, p := range order {
+			if f, ok := addressed[p]; ok {
+				f.Written = false
+				res.Files = append(res.Files, f)
+			}
+		}
+	}
+
 	for _, path := range order {
 		hs := byPath[path]
 		full, err := resolve(root, path)
@@ -294,22 +319,7 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 				res.Hunks[i].Status = StatusSkipped
 			}
 		}
-		// Report every addressed file, written or not, in plan order: the
-		// ones that failed validation alongside the ones that would have been
-		// written had their siblings passed.
-		byPath := make(map[string]FileResult, len(writes)+len(failed))
-		for _, w := range writes {
-			byPath[w.file.Path] = w.file
-		}
-		for _, f := range failed {
-			byPath[f.Path] = f
-		}
-		for _, p := range order {
-			if f, ok := byPath[p]; ok {
-				f.Written = false
-				res.Files = append(res.Files, f)
-			}
-		}
+		reportAddressed()
 		return res, nil
 	}
 
@@ -372,6 +382,23 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 			// back. ENOSPC is one of the three failures that comment names.
 			staged = append(staged, sf)
 			discard(0)
+			// ADR-001 rule 3 stayed OPEN on exactly this path: a filesystem
+			// failure returned here with no receipt at all, so a caller learned
+			// which error occurred but not which hunks it affected or which
+			// files the plan had addressed. The verdicts are assigned here
+			// rather than by the validation loop above, which has already run
+			// by the time staging begins — every hunk was still StatusOK, and
+			// "ok but not written" is the one lie this format exists to avoid.
+			for i := range res.Hunks {
+				if res.Hunks[i].Path == w.file.Path {
+					res.Hunks[i].Status = StatusFailed
+					res.Hunks[i].Reason = err.Error()
+					res.Failed++
+					continue
+				}
+				res.Hunks[i].Status = StatusSkipped
+			}
+			reportAddressed()
 			return res, fmt.Errorf("%s: %w", w.file.Path, err)
 		}
 		staged = append(staged, sf)
