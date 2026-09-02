@@ -27,17 +27,22 @@ reproduce is a claim, not a measurement:
 
 | shape | | Read+Edit | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes in | 64,934 | 2,944 | **22.0× less** |
+| **A.** 4 sites, 4 large files | bytes in | 96,871 | 2,951 | **32.8× less** |
 | | tool calls | 8 | 2 | **4× fewer** |
-| **B.** 2 sites, 2 mid-sized files | bytes in | 17,866 | 1,329 | 13.4× less |
+| **B.** 2 sites, 2 mid-sized files | bytes in | 20,630 | 1,329 | 15.5× less |
 | | tool calls | 4 | 2 | 2× fewer |
-| **C.** 1 site, whole small file | bytes in | 10,117 | 12,553 | **1.2× MORE** |
+| **C.** 1 site, whole small file | bytes in | 12,881 | 15,765 | **1.2× MORE** |
 | | tool calls | 2 | 2 | no change |
 
-Measured at `07a673a`; the script stamps the commit it ran at. **Re-run it
-rather than quoting this table** — the figures it replaced were one day old and
-already understated shape A by nearly a third, because the ratios climb as the
-files grow. Only shape C is drift-proof: it reads a whole file either way.
+Measured at `8e7ab77`; the script stamps the commit it ran at. **Re-run it
+rather than quoting this table** — and this table is the second demonstration of
+why. The figures it replaces claimed 22.0× for shape A; the same script on the
+same shape now measures **32.8×**, because these ratios track how large this
+repository's own files are and they grew. Understated by a third, twice running.
+
+The ROUND TRIPS are the stable claim: 2 calls for any N, whatever the file
+sizes do. Only shape C is drift-proof on bytes, because it reads a whole file
+either way — and it is the shape where mrw LOSES, which is why it is here.
 
 **Shape C is in the table on purpose.** When you need a whole file and there is
 one site, mrw prints *more* than the file holds — it adds a header and a line
@@ -238,7 +243,7 @@ saw. The receipt closes that gap: a delete names the first and last line it
 took.
 
 ```
-ok   internal/read/walk.go 201-204 delete  -4 +0 from "}" to "var _ = fmt.Sprintf"
+ok   a.go 201-204 delete  -4 +0 from "}" to "var _ = fmt.Sprintf"
 ```
 
 Two strings, whatever the size of the range — a 500-line delete prints the same
@@ -252,7 +257,7 @@ The receipt tells you afterwards. To be told *before* anything is written, give
 the `delete` a body: the lines you expect it to remove.
 
 ```
-@@ internal/read/walk.go 201-204 delete
+@@ a.go 201-204 delete
 	}
 	return out, nil
 }
