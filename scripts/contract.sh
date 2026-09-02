@@ -891,6 +891,63 @@ want 0 "$rc" "and so is a ranged spec"
 out=$(m iter add nosuch.go 2>&1); rc=$?
 want 2 "$rc" "a missing in-root path is still refused"
 grep -q 'no such file' <<<"$out" && ok "and still says 'no such file', not 'outside the root'" || bad "wrong reason: $out"
+
+# 27. THE SCALE PEOPLE ACTUALLY USE. Every row above this one edits 1-3 hunks,
+#     and the README's examples total six `@@` headers. Observed in real use on
+#     2026-09-02: THIRTEEN hunks in one `mrw write`, and a read naming EIGHT
+#     comma-separated ranges of one file — several times the size of anything the
+#     corpus exercised. awk's own bug history says defects cluster at input
+#     SHAPES rather than at missing assertions, and scale is a shape.
+#
+#     The load-bearing assertion is not that the 13 land: it is that the 987
+#     lines nobody addressed come back BYTE-IDENTICAL. A batch edit that
+#     disturbs a neighbour is the failure this tool exists to refuse, and it is
+#     invisible if you only check the lines you meant to change.
+fixture
+awk 'BEGIN{for(i=1;i<=1000;i++) print "line " i}' > "$R/big.css"
+cp "$R/big.css" "$WORK/big.css.orig"
+SITES="40,80,102-103,126,244,446,500,600,700,800,900,978"
+out=$(m read "big.css:$SITES" 2>&1); rc=$?
+want 0 "$rc" "a read naming 12 ranges of one file in ONE call"
+# TWELVE ranges covering THIRTEEN lines — 102-103 is one range, two lines. The
+# first draft of this row asserted 13 spans and went red: mrw was right and the
+# arithmetic was mine. Worth keeping as written, because "count the sites" and
+# "count the ranges" are exactly the confusion a comma-separated spec invites.
+n=$(grep -cE '^@@ ' <<<"$out")
+[ "$n" = 12 ] && ok "and serves 12 separate spans, not one merged blur" || bad "served $n span(s), want 12"
+grep -qE '^@@ 102-103$' <<<"$out" && ok "keeping 102-103 as one span covering two lines" || bad "the two-line range was split or lost"
+
+# One command, thirteen hunks. Built with printf, which is how the plan was
+# generated in the wild — nothing in the docs showed that, so every caller
+# reinvents it.
+{ for i in 40 80 102 126 244 446 500 600 700 800 900 978; do
+    printf '@@ big.css %d replace\nCHANGED-%d\n' "$i" "$i"
+  done
+  printf '@@ big.css 103 replace\nCHANGED-103\n'
+} > "$WORK/13.plan"
+out=$(m write "$WORK/13.plan" 2>&1); rc=$?
+want 0 "$rc" "and 13 hunks in ONE write command"
+n=$(grep -cE '^ok ' <<<"$out")
+[ "$n" = 13 ] && ok "with a verdict for every one of the 13" || bad "$n verdict(s), want 13"
+n=$(grep -c '^CHANGED-' "$R/big.css")
+[ "$n" = 13 ] && ok "and all 13 sites changed" || bad "$n site(s) changed, want 13"
+
+# THE ROW THAT MATTERS. Strip the 13 addressed lines from both files and compare
+# the rest byte for byte: a batch that quietly moved or ate a neighbour fails
+# here and nowhere else.
+ADDR='^(40|80|102|103|126|244|446|500|600|700|800|900|978)$'
+awk -v a="$ADDR" 'NR !~ a' "$WORK/big.css.orig" > "$WORK/before.rest" 2>/dev/null || true
+awk 'BEGIN{split("40 80 102 103 126 244 446 500 600 700 800 900 978",k," ");for(i in k)skip[k[i]]=1} !(FNR in skip)' \
+  "$WORK/big.css.orig" > "$WORK/before.rest"
+awk 'BEGIN{split("40 80 102 103 126 244 446 500 600 700 800 900 978",k," ");for(i in k)skip[k[i]]=1} !(FNR in skip)' \
+  "$R/big.css" > "$WORK/after.rest"
+if cmp -s "$WORK/before.rest" "$WORK/after.rest"; then
+  ok "and the 987 lines nobody addressed are byte-identical"
+else
+  bad "a 13-hunk write disturbed lines it did not address: $(diff "$WORK/before.rest" "$WORK/after.rest" | head -3 | tr '\n' ' ')"
+fi
+n=$(wc -l < "$R/big.css" | tr -d ' ')
+[ "$n" = 1000 ] && ok "and the file is still 1000 lines" || bad "line count moved to $n"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

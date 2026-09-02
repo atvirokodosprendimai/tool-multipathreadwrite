@@ -79,7 +79,7 @@ Every row below is asserted by a script, against the real binary in a throwaway
 repo, by making each promise go wrong on purpose:
 
 ```sh
-./scripts/contract.sh      # 183 assertions; exit 0 only if all hold
+./scripts/contract.sh      # 191 assertions; exit 0 only if all hold
 ```
 
 | test | result |
@@ -179,6 +179,24 @@ mrw write --check plan.mrw    # apply, then run the tests for what changed
 mrw write --json plan.mrw     # machine-readable receipt
 mrw write -                   # read the plan from stdin
 ```
+
+**Generate the plan when there are many sites.** A plan is line-oriented text,
+so anything that prints lines can build one — and at real scale that is how it
+is done. Observed in use: thirteen hunks in a single `mrw write`, from a plan
+built by a one-liner.
+
+```sh
+# thirteen replacements, one read, one write — 2 round trips instead of 14
+mrw read 'app.css:40,80,102-103,126,244,446,500,600,700,800,900,978'
+for n in 40 80 102 126 244 446 500 600 700 800 900 978; do
+  printf '@@ app.css %d replace\nCHANGED-%d\n' "$n" "$n"
+done | mrw write --check -
+```
+
+The read comes first because of the guard, not as a courtesy: a hunk addressing
+a line mrw has not served you is refused, and refused as a whole — so a plan
+whose sites you only partly read applies none of itself, and says which hunks
+were short. That is the intended loop, not an obstacle to route around.
 
 **Every address resolves against the original file.** Read once, note several
 ranges, edit them all — no offset arithmetic between hunks.
