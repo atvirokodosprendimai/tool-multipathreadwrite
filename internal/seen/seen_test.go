@@ -153,7 +153,14 @@ func TestAPreV2InTreeLedgerIsDiscardedNotTrusted(t *testing.T) {
 	if err := os.MkdirAll(legacy, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(legacy, Name), []byte("abc123  old.go\n"), 0o644); err != nil {
+	// TWO entries, and the count is the assertion's whole strength. Load
+	// consumes line 1 as the header ALWAYS, before deciding whether it is one,
+	// so a ONE-entry headerless ledger has its only record eaten either way —
+	// the ledger comes back empty whether or not the discard runs, and this
+	// test passed with the version check disabled. The second entry is what
+	// the discard has to remove.
+	body := []byte("abc123  old.go\ndef456  older.go\n")
+	if err := os.WriteFile(filepath.Join(legacy, Name), body, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	l, err := Load(root)
@@ -162,6 +169,11 @@ func TestAPreV2InTreeLedgerIsDiscardedNotTrusted(t *testing.T) {
 	}
 	if len(l) != 0 {
 		t.Errorf("a pre-v2 ledger was trusted: %v", l)
+	}
+	// Named explicitly: older.go is the entry that survives the header-line
+	// consumption, so it is the one that proves the discard ran.
+	if _, ok := l["older.go"]; ok {
+		t.Error("the second entry survived, so nothing discarded the ledger")
 	}
 	stale, err := IsStale(root)
 	if err != nil {

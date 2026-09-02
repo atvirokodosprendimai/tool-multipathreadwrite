@@ -691,7 +691,13 @@ SD=$(m seen | head -1 | sed 's/.*: //')
 # exactly what a v0.0.11 failed read left behind. No header line.
 m forget stale.txt >/dev/null 2>&1 || true
 FULLSHA=$(shasum -a 256 "$R/stale.txt" | cut -d' ' -f1)
-printf '%s  -  stale.txt\n' "$FULLSHA" > "$SD/seen"
+# TWO entries, and the count is the assertion's whole strength. Load consumes
+# line 1 as the header ALWAYS, before deciding whether it is one — so a
+# ONE-entry headerless ledger has its only record eaten either way, the ledger
+# is empty whether or not the discard runs, and the write is refused for the
+# wrong reason. With one entry this row passed with the version check disabled.
+# The second entry is what the discard has to remove.
+printf '%s  -  first.txt\n%s  -  stale.txt\n' "$FULLSHA" "$FULLSHA" > "$SD/seen"
 grep -qv '^#mrw-seen' "$SD/seen" && ok "a pre-v2 ledger has no header, as v0.0.11 wrote it" || bad "fixture is wrong"
 out=$(m write - <<<"$(printf '@@ stale.txt 3 replace\nCCC\n')" 2>&1); rc=$?
 want 1 "$rc" "a pre-v2 whole-file licence is NOT honoured after upgrading"
