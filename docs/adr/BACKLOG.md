@@ -256,6 +256,29 @@ re-measuring these. Each was driven at the built binary, not read:
   against the same original and both rename, last writer winning. The sha guard
   makes the race UNLIKELY and loud when it loses, not impossible. Closing it
   needs a lock plus an under-lock sha recheck.
+
+  **Observed 2026-09-02, and one clause above is now false.** The race is no
+  longer theoretical: 20 concurrent `mrw write` invocations against one 100-line
+  file, each replacing a different line, three trials. Surviving edits varied
+  1, 17 and 20 of 20 — so the loss reproduces easily on this machine. What the
+  clause above gets wrong is "loud when it loses". It is not loud. A writer that
+  lost printed a full success receipt and exited 0:
+
+      ok   f.txt 24 replace  -1 +1
+      wrote f.txt  100L -> 100L  sha 01a5e658
+      1 hunk(s), 1 file(s), 0 failed — applied
+      exit=0
+      (W-8 absent from f.txt)
+
+  The mechanism is last-writer-wins, confirmed by sha rather than inferred: each
+  writer prints the sha of the file it wrote, and only the final writer's sha
+  matches the file afterwards (writer 20 printed `b5db03f3`, which is what `mrw
+  read` then reports). A losing writer's rename DID land and was superseded by a
+  later one. The sha guard is racy, not absent — in the same run 6 of 20 were
+  refused loudly with an explicit mismatch. So the accurate statement is: the
+  guard makes the race unlikely, and SOMETIMES loud; when it loses it can lose
+  silently, with a receipt that says applied. Locking stays permanently out of
+  scope (ADR-002); this only sharpens the risk that scope accepts.
   line that only exists after the earlier writes resolves correctly.
 - Pattern addresses, `/start/,/end/` pairs, pointer resolution (`@0`, `@-1`,
   `@abc`, `@N` out of range), overlapping and descending range lists, filenames

@@ -1015,6 +1015,50 @@ else
   ok "and the CR did not leak into the LF file"
 fi
 
+
+# --- 30. concurrent WRITES lose edits, and the loss must stay SAFE ----------
+# Section 24 covers concurrent READS. Nothing covered concurrent writes, and
+# docs/adr/BACKLOG.md now records what they actually do: 20 writers racing on
+# one file kept 1, 17 and 20 of 20 edits across three trials, and a writer that
+# LOST still printed "applied" and exited 0. That silent loss is accepted (ADR-002
+# puts locking permanently out of scope) and is deliberately NOT asserted here:
+# it is nondeterministic, so a row for it would skip on a serialising machine
+# and assert nothing.
+#
+# What IS asserted are the three invariants that held in every trial, because
+# they are what makes the accepted loss survivable: a racing write may be
+# discarded whole, but it must never leave the file TORN, the wrong LENGTH, or
+# a temp file behind. Those are unconditional — no skip guard, no race needed.
+#
+# HONESTY NOTE, and it is a limitation of these three rows: they are NOT
+# mutation-proven. Replacing the atomic rename with a non-atomic in-place write
+# (truncate, write half, sleep 3ms, write the rest) did NOT turn any of them
+# red. The reason is nameable rather than mysterious: under that mutant the
+# file changes visibly mid-flight, so the sha guard REFUSES more writers, not
+# fewer — exit-0 writers dropped from 17/20 to 6/20 — and the writers that
+# would have had to overlap were serialised by the very corruption meant to be
+# detected. Process startup also dwarfs the tear window.
+#
+# So these rows currently assert a property nothing has been shown to break.
+# They are kept because they are unconditional and cost nothing, and because a
+# future refactor of the write path is exactly what they exist to catch — but
+# do not read a green here as evidence the invariant is protected.
+fixture
+seq 1 100 > "$R/race.txt"
+m read race.txt >/dev/null 2>&1
+for i in $(seq 1 20); do
+  printf '@@ race.txt %d replace\nW-%d\n' $((i * 3)) "$i" | m write - >/dev/null 2>&1 &
+done
+wait
+n=$(wc -l < "$R/race.txt" | tr -d ' ')
+[ "$n" = 100 ] && ok "20 racing writers leave the file its original 100 lines" || bad "line count moved to $n under concurrent writes"
+# Every line must be either an untouched original number or a complete marker.
+# Anything else is interleaved output — two writers' bytes in one file.
+torn=$(grep -cvE '^([0-9]+|W-[0-9]+)$' "$R/race.txt" || true)
+[ "$torn" = 0 ] && ok "and no line is torn between two writers" || bad "$torn torn line(s): $(grep -vE '^([0-9]+|W-[0-9]+)$' "$R/race.txt" | head -2 | tr '\n' ' ')"
+strays=$(find "$R" -name '.mrw-*' 2>/dev/null | wc -l | tr -d ' ')
+[ "$strays" = 0 ] && ok "and no staging temp survives the race (ADR-004)" || bad "$strays stray temp(s) left by concurrent writers"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
