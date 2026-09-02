@@ -98,8 +98,9 @@ changed on disk.
 - **It refuses to edit a file it has not shown you.** If the file changed behind
   its back, it stops and says so instead of overwriting your colleague's work.
 - **It can run your tests for you.** `mrw write --check plan.mrw` applies the
-  edits and then runs the project's own test command, in the same call, and
-  reports whether it passed.
+  edits and then runs your project's tests for the code you just changed, in the
+  same call, and reports whether they passed. (`mrw check --full` runs
+  everything.)
 
 ## What it is not
 
