@@ -894,7 +894,7 @@ grep -q 'no such file' <<<"$out" && ok "and still says 'no such file', not 'outs
 
 # 27. THE SCALE PEOPLE ACTUALLY USE. Every row above this one edits 1-3 hunks,
 #     and the README's examples total six `@@` headers. Observed in real use on
-#     2026-09-02: THIRTEEN hunks in one `mrw write`, and a read naming EIGHT
+#     2026-09-02: THIRTEEN hunks in one `mrw write`, and a read naming TWELVE
 #     comma-separated ranges of one file — several times the size of anything the
 #     corpus exercised. awk's own bug history says defects cluster at input
 #     SHAPES rather than at missing assertions, and scale is a shape.
@@ -903,6 +903,18 @@ grep -q 'no such file' <<<"$out" && ok "and still says 'no such file', not 'outs
 #     lines nobody addressed come back BYTE-IDENTICAL. A batch edit that
 #     disturbs a neighbour is the failure this tool exists to refuse, and it is
 #     invisible if you only check the lines you meant to change.
+#
+#     THE MUTATION THAT PRODUCES A SILENT DISTURBANCE, named because it is the
+#     one a reader will try to reproduce and the guard is what makes it silent:
+#
+#       res = append(res, orig[cursor-1:max(cursor-1, h.Start-2)]...)
+#
+#     WITHOUT the max() the slice goes invalid on the first hunk and the write
+#     fails outright, exit 2, no verdicts — a different bug, loudly. WITH it the
+#     write SUCCEEDS, reports 13 ok verdicts, and eats the line before each
+#     hunk. Four rows go red: these two, and two earlier ones whose chained
+#     check fails. Those two say only "the check did not pass"; the rows below
+#     are what NAME the disturbance.
 fixture
 awk 'BEGIN{for(i=1;i<=1000;i++) print "line " i}' > "$R/big.css"
 cp "$R/big.css" "$WORK/big.css.orig"
