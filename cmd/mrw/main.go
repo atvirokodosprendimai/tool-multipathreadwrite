@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strings"
 
@@ -53,8 +54,56 @@ const (
 	exitCheckFailed = 3
 )
 
-// version is stamped at build time with -ldflags "-X main.version=...".
+// version is stamped at build time with -ldflags "-X main.version=...". A
+// LOCAL build gets no stamp and reports "dev", which is why versionString
+// exists: two local builds a day apart are otherwise indistinguishable, and a
+// stale one silently kept the read-before-modify bypass alive on this machine.
 var version = "dev"
+
+// versionString reports the version plus the commit the binary was BUILT from.
+//
+// Go records vcs.revision, vcs.time and vcs.modified in every build made inside
+// a git checkout — no -ldflags needed, and the release stamp is unaffected. mrw
+// simply never read them, so `mrw --version` said "dev" whether the binary was
+// minutes or a day old. That is not cosmetic: a day-old ./bin/mrw still had the
+// bypass ADR-005 exists to prevent, and nothing it printed could say so.
+//
+// Falls back to the bare version when the information is absent — a binary
+// built from a tarball, or with -buildvcs=false, is not a liar, it is just
+// unstamped.
+func versionString() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return version
+	}
+	return versionFrom(version, info.Settings)
+}
+
+// versionFrom is the composition, split out because it is the half that can be
+// TESTED. A test binary carries no vcs.revision — `go test` does not stamp one
+// — so a test that read the real build info could only ever SKIP, which is a
+// row that never runs dressed as a row that passes. This one takes the settings
+// as an argument and always executes.
+func versionFrom(v string, settings []debug.BuildSetting) string {
+	var rev, dirty string
+	for _, s := range settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			if s.Value == "true" {
+				dirty = ", dirty"
+			}
+		}
+	}
+	if rev == "" {
+		return v
+	}
+	if len(rev) > 7 {
+		rev = rev[:7]
+	}
+	return fmt.Sprintf("%s (%s%s)", v, rev, dirty)
+}
 
 // rootCommand builds the CLI. It is a function rather than inline in main so a
 // test can run the real command — the --version wiring is otherwise reachable
@@ -63,7 +112,7 @@ func rootCommand() *cli.Command {
 	return &cli.Command{
 		Name:    "mrw",
 		Usage:   "read and write many file ranges in one call",
-		Version: version,
+		Version: versionString(),
 		// The framework's default handler PRINTS the error and calls os.Exit
 		// itself, which made main's own reporting dead code — the "mrw:" prefix
 		// never appeared, and no test could drive a failing command without
