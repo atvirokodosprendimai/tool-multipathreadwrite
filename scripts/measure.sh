@@ -43,35 +43,66 @@ measure() {
 
   for s in "${specs[@]}"; do
     f=${s%%:*}
-    case " ${files[*]} " in *" $f "*) ;; *) files+=("$f") ;; esac
+    # ${files[*]-} , not ${files[*]} : under `set -u` bash 3.2 — still the
+    # default /bin/bash on macOS — treats an EMPTY array's expansion as unbound
+    # and aborts. files IS empty on the first spec, every time, so this script
+    # could not run at all on the platform it is developed on. bash 4.4+ allows
+    # the bare form, which is why CI never saw it.
+    case " ${files[*]-} " in *" $f "*) ;; *) files+=("$f") ;; esac
   done
   for f in "${files[@]}"; do
     whole=$(( whole + $(wc -c < "$f") ))
   done
 
-  local ranged
+  local ranged out
+  out=$("$MRW" read "${specs[@]}")
   ranged=$("$MRW" read "${specs[@]}" | wc -c | tr -d ' ')
 
+  # The SECOND baseline, and the one that decides whether the byte claim means
+  # anything: Read takes offset/limit, so an agent that already knows the line
+  # ranges reads only those lines. That is not hypothetical, it is the
+  # documented interface. Sum the raw bytes of exactly the spans mrw served —
+  # parsed from mrw's own `==>` and `@@` lines so the two sides cover the same
+  # content by construction rather than by assertion.
+  local windowed=0 cur="" ln a b
+  while IFS= read -r ln; do
+    case $ln in
+      '==> '*) cur=${ln#'==> '}; cur=${cur%% *} ;;
+      '@@ '*)  a=${ln#'@@ '}; b=${a#*-}; a=${a%%-*}
+               [ -n "$cur" ] && windowed=$(( windowed + $(sed -n "${a},${b}p" "$cur" | wc -c) )) ;;
+    esac
+  done <<EOF
+$out
+EOF
+
   local nsites=${#specs[@]} nfiles=${#files[@]}
-  local editcalls=$(( nfiles + nsites ))   # M Reads + one Edit per site
-  local mrwcalls=2                         # one read, one write
+  # Two Read strategies, two call counts. Reading files WHOLE needs no search —
+  # the file reveals the site. Reading WINDOWS presupposes knowing where the
+  # window is, which costs a search first. mrw needs neither: the specs here are
+  # regexes, so the finding happens inside the read.
+  local wholecalls=$(( nfiles + nsites ))       # M Reads + one Edit per site
+  local windowcalls=$(( 1 + nfiles + nsites ))  # + the search that windowing needs
+  local mrwcalls=2                              # one read, one write
+
+  # Report a loss as a loss. "0.8x less input" is a sentence that hides which
+  # way the comparison went.
+  ratio() {
+    if [ "$2" -le "$1" ]; then echo "$(echo "scale=1; $1 / $2" | bc)x LESS"
+    else echo "$(echo "scale=1; $2 / $1" | bc)x MORE"; fi
+  }
 
   rule
   printf '%s\n' "$label"
   printf '  %d site(s) across %d file(s)\n\n' "$nsites" "$nfiles"
-  printf '  %-14s %12s %12s\n' ""            "Read+Edit"  "mrw"
-  printf '  %-14s %12s %12s\n' "bytes in"    "$whole"     "$ranged"
-  printf '  %-14s %12s %12s\n' "tool calls"  "$editcalls" "$mrwcalls"
-  # Report a loss as a loss. "0.8x less input" is a sentence that hides which
-  # way the comparison went.
-  local verdict
-  if [ "$ranged" -le "$whole" ]; then
-    verdict="$(echo "scale=1; $whole / $ranged" | bc)x LESS input"
-  else
-    verdict="$(echo "scale=1; $ranged / $whole" | bc)x MORE input"
-  fi
-  printf '\n  %s, %sx fewer round trips\n' "$verdict" \
-    "$(echo "scale=1; $editcalls / $mrwcalls" | bc)"
+  printf '  %-38s %10s %10s   %s\n' ""                          "baseline" "mrw" ""
+  printf '  %-38s %10s %10s   %s\n' "bytes, vs reading files WHOLE" \
+    "$whole" "$ranged" "$(ratio "$whole" "$ranged") input"
+  printf '  %-38s %10s %10s   %s\n' "bytes, vs a WINDOWED read" \
+    "$windowed" "$ranged" "$(ratio "$windowed" "$ranged") input"
+  printf '  %-38s %10s %10s   %s\n' "calls, whole-file (reads+edits)" \
+    "$wholecalls" "$mrwcalls" "$(echo "scale=1; $wholecalls / $mrwcalls" | bc)x fewer"
+  printf '  %-38s %10s %10s   %s\n' "calls, windowed (search+reads+edits)" \
+    "$windowcalls" "$mrwcalls" "$(echo "scale=1; $windowcalls / $mrwcalls" | bc)x fewer"
 }
 
 echo "mrw measurement — $(git rev-parse --short HEAD)$(git diff --quiet || echo ' (dirty tree)')"
