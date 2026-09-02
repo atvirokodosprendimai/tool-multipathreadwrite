@@ -309,3 +309,28 @@ re-measuring these. Each was driven at the built binary, not read:
   happened once. Worth a record if it happens twice, or if read's grammar stops
   being the larger one. No decision needed yet.
 
+## From the README citation drift (2026-09-02, no ADR)
+
+- **Cite the README by QUOTATION, not by line number.** Four places pin a README
+  line as the source of a claim, and all four are already wrong:
+
+      scripts/contract.sh:720     README:164   claim is at 165 on main, 170 here
+      internal/read/read.go:169   README:164   same
+      internal/read/read_test.go:321  README:164   same
+      ADR-007:61                  README.md:311  points at unrelated prose, and at
+                                                 DIFFERENT unrelated prose after #21
+
+  Verified independently 2026-09-02: `$ is the last line` sits at README:165 on
+  main and README:170 after the measurement table was rewritten. The citations
+  were off by one before that and are off by six after.
+
+  Nothing executes them, so nothing fails — which is the whole problem. A line
+  number cannot be checked without opening the file and cannot go red. A quoted
+  phrase (`README says "$ is the last line"`) survives every edit above it, can
+  be grepped, and a sweep for the phrase finds every copy. This is the same
+  content-over-position discipline the ADR corpus already applies to code
+  anchors.
+
+  Deferred rather than done: it touches three files no PR needed to open, and
+  the drift is harmless while all four are comments. Do it during the next
+  README restructure, or whenever someone is in those files anyway.
