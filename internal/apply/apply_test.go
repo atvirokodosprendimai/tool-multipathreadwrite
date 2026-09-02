@@ -967,10 +967,10 @@ func TestAFailedStageLeavesTheTreeUntouched(t *testing.T) {
 	real := stageFileFn
 	t.Cleanup(func() { stageFileFn = real })
 	calls := 0
-	stageFileFn = func(path string, tx text) (string, string, error) {
+	stageFileFn = func(path string, tx text) (staged, error) {
 		calls++
 		if calls == 2 {
-			return "", "", errors.New("staging refused")
+			return staged{}, errors.New("staging refused")
 		}
 		return real(path, tx)
 	}
@@ -1022,5 +1022,64 @@ func TestAPartialWriteNamesWhatWasAlreadyWritten(t *testing.T) {
 	got := writtenSoFar([]FileResult{{Path: "a.go"}, {Path: "b.go"}})
 	if !strings.Contains(got, "a.go") || !strings.Contains(got, "b.go") {
 		t.Errorf("a partial write did not name its files: %q", got)
+	}
+}
+
+// An aborted staging takes its DIRECTORIES back too, and only its own.
+//
+// Staging a create into a new path calls os.MkdirAll, so an abort that
+// unlinked only the temp files left `newdir/deep` standing — a change to the
+// working tree made by a run that reported writing nothing, which is what
+// ADR-004 forbids and what the comment above the discard path claims cannot
+// happen. Found in review of #16; the fix is only honest if it removes what
+// this run created WITHOUT touching a directory that was already there, so
+// both halves are asserted.
+func TestAnAbortedStageTakesBackOnlyTheDirectoriesItMade(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "one.txt", abcde)
+	// A directory that predates the run. Removing this would be the opposite
+	// failure and no less wrong: the abort is a no-op on the tree, not a tidy.
+	if err := os.MkdirAll(filepath.Join(root, "existing"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	real := stageFileFn
+	t.Cleanup(func() { stageFileFn = real })
+	calls := 0
+	stageFileFn = func(path string, tx text) (staged, error) {
+		calls++
+		if calls == 3 {
+			return staged{}, errors.New("staging refused")
+		}
+		return real(path, tx)
+	}
+
+	res, err := Apply(root, []Input{
+		{Path: "new/deep/n.txt", Op: "create", Body: []string{"NEW"}, Lines: -1, Index: 0},
+		{Path: "existing/e.txt", Op: "create", Body: []string{"E"}, Lines: -1, Index: 1},
+		{Path: "one.txt", Start: 1, End: 1, Op: "replace", Body: []string{"CHANGED"}, Lines: -1, Index: 2},
+	}, Options{Force: true})
+	if err == nil {
+		t.Fatalf("a failed stage was reported as success: %+v", res)
+	}
+
+	for _, gone := range []string{"new/deep", "new"} {
+		if _, err := os.Stat(filepath.Join(root, gone)); !os.IsNotExist(err) {
+			t.Errorf("%s was created by the aborted run and left behind", gone)
+		}
+	}
+	// The other half. os.Remove refuses a non-empty directory, so an empty
+	// pre-existing one is exactly the case a careless cleanup would eat.
+	if _, err := os.Stat(filepath.Join(root, "existing")); err != nil {
+		t.Errorf("a directory that predated the run was removed: %v", err)
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".mrw-") {
+			t.Errorf("staging left %s behind", e.Name())
+		}
 	}
 }

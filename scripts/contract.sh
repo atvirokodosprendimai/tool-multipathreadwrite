@@ -468,6 +468,23 @@ else
   # written behind the receipt, this refused.
   printf '@@ a.go 3 replace\nfunc A() int { return 5 }\n' | m write - >/dev/null 2>&1; rc=$?
   want 0 "$rc" "and the ledger still matches the tree, so the next edit applies"
+
+  # Staging a create calls MkdirAll, so an abort that unlinked only the temp
+  # files left the DIRECTORY standing — a change to the tree made by a run that
+  # wrote nothing, which is what ADR-004 forbids. Both halves are asserted,
+  # because a cleanup that ate a pre-existing directory would be no less wrong.
+  mkdir -p "$R/already"
+  chmod 555 "$R/locked"
+  printf '@@ fresh/deep/n.go - create\npackage n\n@@ already/e.go - create\npackage e\n@@ locked/f.go 3 replace\nfunc F() int { return 99 }\n' \
+    | m write - >/dev/null 2>&1; rc=$?
+  chmod 755 "$R/locked"
+  want 2 "$rc" "a create into a new directory aborts with the rest of the plan"
+  [ ! -e "$R/fresh" ] \
+    && ok "and the directories staging created are taken back" \
+    || bad "left behind: $(find "$R/fresh" 2>/dev/null | tr '\n' ' ')"
+  [ -d "$R/already" ] \
+    && ok "while a directory that predated the run is left alone" \
+    || bad "the cleanup removed a pre-existing directory"
 fi
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

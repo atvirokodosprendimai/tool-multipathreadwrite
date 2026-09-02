@@ -334,26 +334,41 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 	//
 	// Staging is where the realistic failures land — an unwritable directory,
 	// a read-only mount, ENOSPC — and at that point nothing has been renamed,
-	// so the abort really is a no-op on the tree. Only the rename loop can
-	// still leave it partial, and a rename that fails says which files were
-	// already written rather than leaving the caller to find out.
-	type stagedFile struct{ tmp, target string }
-	staged := make([]stagedFile, 0, len(writes))
+	// so the abort leaves the tree as it found it: temp files unlinked and
+	// any directories staging created removed with them. Only the rename loop
+	// can still leave it partial, and a rename that fails says which files
+	// were already written rather than leaving the caller to find out.
+	staged := make([]staged, 0, len(writes))
 	// ADR-004: mrw leaves nothing in the working tree. An abort must unlink
 	// what it staged, or a failed plan litters .mrw-* beside every target it
-	// got to.
+	// got to — and it must take the DIRECTORIES back too. Staging a create
+	// into a new path calls MkdirAll, so an abort that removed only the temp
+	// files left `newdir/deep` standing: a change to the tree made by a run
+	// that reported writing nothing, four lines under a comment quoting
+	// ADR-004. Removing them deepest-first is what makes the abort the no-op
+	// this claims it is.
+	//
+	// os.Remove refuses a non-empty directory, and that refusal is the guard:
+	// a directory something else has put a file into is left alone rather
+	// than fought over.
 	discard := func(from int) {
+		var dirs []string
 		for _, sf := range staged[from:] {
 			os.Remove(sf.tmp)
+			dirs = append(dirs, sf.dirs...)
+		}
+		sort.Slice(dirs, func(i, j int) bool { return len(dirs[i]) > len(dirs[j]) })
+		for _, d := range dirs {
+			os.Remove(d)
 		}
 	}
 	for _, w := range writes {
-		tmp, target, err := stageFileFn(w.full, w.out)
+		sf, err := stageFileFn(w.full, w.out)
 		if err != nil {
 			discard(0)
 			return res, fmt.Errorf("%s: %w", w.file.Path, err)
 		}
-		staged = append(staged, stagedFile{tmp: tmp, target: target})
+		staged = append(staged, sf)
 	}
 	for i, w := range writes {
 		if err := os.Rename(staged[i].tmp, staged[i].target); err != nil {
@@ -374,6 +389,9 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 // calls worse than no change.
 func writtenSoFar(files []FileResult) string {
 	if len(files) == 0 {
+		// The i == 0 case: the FIRST rename failed, so nothing reached the
+		// tree. Correct, and the only way this branch is reached — res.Files
+		// grows one entry per successful rename.
 		return "nothing was written"
 	}
 	names := make([]string, len(files))
@@ -760,17 +778,22 @@ var stageFileFn = stageFile
 // followed rather than replaced — renaming over the link would leave the edit
 // in a new regular file while the file the caller meant stayed untouched, and
 // nothing in the receipt would say the tree's shape had changed.
-func stageFile(path string, t text) (tmpPath, target string, err error) {
+func stageFile(path string, t text) (staged, error) {
 	if resolved, err := filepath.EvalSymlinks(path); err == nil {
 		path = resolved
 	}
 	dir := filepath.Dir(path)
+	// Record the directories that are about to come into existence, before
+	// creating them, because MkdirAll cannot say afterwards which ones were
+	// its doing. Only these are ever removed on an abort — an ancestor that
+	// was already there is not this run's to take away.
+	missing := missingDirs(dir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", "", err
+		return staged{}, err
 	}
 	tmp, err := os.CreateTemp(dir, ".mrw-*")
 	if err != nil {
-		return "", "", err
+		return staged{dirs: missing}, err
 	}
 
 	perm := os.FileMode(0o644)
@@ -780,17 +803,45 @@ func stageFile(path string, t text) (tmpPath, target string, err error) {
 	if _, err := tmp.WriteString(t.join()); err != nil {
 		tmp.Close()
 		os.Remove(tmp.Name())
-		return "", "", err
+		return staged{dirs: missing}, err
 	}
 	if err := tmp.Close(); err != nil {
 		os.Remove(tmp.Name())
-		return "", "", err
+		return staged{dirs: missing}, err
 	}
 	if err := os.Chmod(tmp.Name(), perm); err != nil {
 		os.Remove(tmp.Name())
-		return "", "", err
+		return staged{dirs: missing}, err
 	}
-	return tmp.Name(), path, nil
+	return staged{tmp: tmp.Name(), target: path, dirs: missing}, nil
+}
+
+// staged is one file written but not yet renamed into place, and the
+// directories that had to be created to hold it.
+type staged struct {
+	tmp    string   // the temp file, beside target, awaiting its rename
+	target string   // the RESOLVED path to rename onto; see stageFile
+	dirs   []string // directories this run created, to be taken back on abort
+}
+
+// missingDirs returns dir and each of its ancestors that does not exist yet,
+// nearest first. It is called BEFORE MkdirAll, which is the only moment the
+// answer is knowable: afterwards every one of them exists and nothing records
+// which were already there.
+func missingDirs(dir string) []string {
+	var missing []string
+	for d := dir; ; {
+		if _, err := os.Stat(d); err == nil {
+			break
+		}
+		missing = append(missing, d)
+		parent := filepath.Dir(d)
+		if parent == d {
+			break
+		}
+		d = parent
+	}
+	return missing
 }
 
 func shaOf(t text) string {
