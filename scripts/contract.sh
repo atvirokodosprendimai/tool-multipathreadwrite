@@ -799,6 +799,41 @@ else
   changed=$(grep -lx 'B' "$R"/r*.txt 2>/dev/null | wc -l | tr -d ' ')
   want "$applied" "$changed" "and no file changed that was not applied"
 fi
+
+# 25. A directory that EXISTS and cannot be READ is refused, not read as one
+#     holding no package. holdsPackage walks the directory and discarded the
+#     walk's error, so a permission failure came back indistinguishable from a
+#     directory of prose — and the scope then fell back to the whole-project
+#     command. That is sound for a typo, where the full run covers the root,
+#     and vacuous here: the caller named a directory, mrw could not open it,
+#     and the answer was PASS at exit 0.
+fixture
+mkdir -p "$R/blind" "$R/seen-dir"
+printf 'package blind\n' > "$R/blind/b.go"
+printf 'package seendir\n' > "$R/seen-dir/s.go"
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
+chmod 000 "$R/blind"
+if [ -r "$R/blind" ] || ls "$R/blind" >/dev/null 2>&1; then
+  chmod 755 "$R/blind"
+  skip "an unreadable scope is refused (permission bits not enforced here — running as root?)"
+else
+  out=$(m check blind 2>&1); rc=$?
+  chmod 755 "$R/blind"
+  want 2 "$rc" "a directory that cannot be read is refused, not scoped to nothing"
+  grep -q 'cannot be read' <<<"$out" && ok "and the reason names the path" || bad "no reason given: $out"
+  # The declared check is `echo FULL` and exits 0, so a row asserting only a
+  # non-zero exit would not separate a refusal from the fallback it replaces.
+  # What says nothing ran is that FULL was never printed.
+  grep -q 'FULL' <<<"$out" && bad "fell back and answered about the whole project: $out" \
+    || ok "and nothing ran under it"
+fi
+# CONTROLS: a readable directory still scopes, and a path that is not there
+# still falls back — the decided behaviour for a typo, which this must not trade
+# away for a refusal.
+out=$(m check seen-dir 2>&1)
+grep -qF 'SCOPED ./seen-dir/...' <<<"$out" && ok "while a readable directory still scopes" || bad "readable dir broke: $out"
+out=$(m check nosuchdir 2>&1)
+grep -q 'echo FULL' <<<"$out" && ok "and a mistyped path still falls back" || bad "a typo no longer falls back: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

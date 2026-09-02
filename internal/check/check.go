@@ -292,8 +292,25 @@ func confine(root string, paths []string) error {
 			return fmt.Errorf("%s is absolute and would be read relative to the root %s, "+
 				"which is not where it points: check it with --root pointed where you mean", p, absRoot)
 		}
-		if _, err := rooted.Resolve(root, p); err != nil {
+		full, err := rooted.Resolve(root, p)
+		if err != nil {
 			return fmt.Errorf("%v: check it with --root pointed where you mean", err)
+		}
+		// A directory that EXISTS and cannot be READ is refused for the same
+		// reason an out-of-root one is: mrw cannot place a package it cannot
+		// look at, and holdsPackage reports that as "no package here" — a read
+		// error returned as an absence. The scope then falls back to the
+		// whole-project command, which is sound for a typo (the full run covers
+		// the root) and vacuous here: the caller named a directory, mrw could
+		// not open it, and the answer was PASS.
+		//
+		// Only an EXISTING directory. A path that is not there is still a typo
+		// and still falls back, which is the decided behaviour.
+		if fi, statErr := os.Stat(full); statErr == nil && fi.IsDir() {
+			if _, readErr := os.ReadDir(full); readErr != nil {
+				return fmt.Errorf("%s cannot be read (%v), so mrw cannot tell whether it holds a "+
+					"package: fix the permissions or scope somewhere readable", p, readErr)
+			}
 		}
 	}
 	return nil

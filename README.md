@@ -79,7 +79,7 @@ Every row below is asserted by a script, against the real binary in a throwaway
 repo, by making each promise go wrong on purpose:
 
 ```sh
-./scripts/contract.sh      # 168 assertions; exit 0 only if all hold
+./scripts/contract.sh      # 173 assertions; exit 0 only if all hold
 ```
 
 | test | result |
@@ -471,7 +471,10 @@ be handed straight back to it.
 
 Anything mrw cannot place as a package abandons the scoped form for the full
 one: a `.md` or a `.templ`, a path that is not there, a directory holding no
-package go will build (prose, or one named `testdata`). A scoped run that
+package go will build (prose, or one named `testdata`). A directory that exists
+and **cannot be read** is refused instead — mrw cannot tell a package it cannot
+look at from an absent one, and falling back would answer about the whole
+project for a scope it never opened. A scoped run that
 quietly omits a changed file is worse than a slow complete one, and a run scoped
 to nothing that reports PASS is worse than both.
 
