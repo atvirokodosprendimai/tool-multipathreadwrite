@@ -25,13 +25,28 @@ import (
 // is the same escape wearing a different hat. A path that does not exist yet is
 // checked lexically — `create` is entitled to name a file that is not there,
 // and filepath.Join has already cleaned it.
-func Resolve(root, path string) (string, error) {
+
+// Abs is the root as the boundary compares it: absolute, and with symlinks
+// resolved so a root reached through one — /var on macOS — is the same string
+// as the paths it is compared against.
+//
+// Exported because every caller that pre-screens a path needs the identical
+// root, and three hand-rolled copies of these four lines is how the two
+// spellings drift apart.
+func Abs(root string) (string, error) {
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return "", err
 	}
 	if real, err := filepath.EvalSymlinks(absRoot); err == nil {
 		absRoot = real
+	}
+	return absRoot, nil
+}
+func Resolve(root, path string) (string, error) {
+	absRoot, err := Abs(root)
+	if err != nil {
+		return "", err
 	}
 
 	full := filepath.Join(absRoot, path)

@@ -241,6 +241,43 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		observed[key] = seen.Observation{SHA: sha, Spans: spans}
 	}
 	for _, sp := range specs {
+		// An ABSOLUTE path is honoured on this surface, not joined onto the
+		// root. A plan is a document whose paths are relative by design, and
+		// apply refuses an absolute one by name — but a command-line argument
+		// is shell-produced, tab completion emits absolute paths, and
+		// `mrw read /repo/x.go` is a reasonable thing to type. That is an input
+		// CONVENTION differing per surface, not a boundary holding on one path
+		// and not another: the result still goes through Resolve below, so
+		// containment is decided in exactly one place.
+		//
+		// Joining it was the bug a user hit: `mrw -C repo read /elsewhere/x.md`
+		// looked for `repo/elsewhere/x.md` and reported "no such file" about a
+		// path nobody wrote, while the header above echoed the path they did.
+		// They read it as a defect in the tool that called mrw. check already
+		// pre-screens this way and says its comment expects read to "say so" —
+		// this is read saying so.
+		argPath := sp.Path
+		if filepath.IsAbs(argPath) {
+			absRoot, absErr := rooted.Abs(root)
+			if absErr != nil {
+				fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, absErr)
+				problems++
+				continue
+			}
+			cleaned := filepath.Clean(argPath)
+			if real, evalErr := filepath.EvalSymlinks(cleaned); evalErr == nil {
+				cleaned = real
+			}
+			if !rooted.Contains(absRoot, cleaned) {
+				fmt.Fprintf(w, "==> %s  REFUSED  %s is outside the root %s: "+
+					"read it with --root pointed where you mean\n", sp.Path, sp.Path, absRoot)
+				problems++
+				continue
+			}
+			if rel, relErr := filepath.Rel(absRoot, cleaned); relErr == nil {
+				sp.Path = rel
+			}
+		}
 		full, err := rooted.Resolve(root, sp.Path)
 		if err != nil {
 			// The same boundary the write path enforces. Serving a file the

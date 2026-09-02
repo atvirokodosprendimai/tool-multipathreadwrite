@@ -1093,6 +1093,44 @@ torn=$(grep -cvE '^([0-9]+|W-[0-9]+)$' "$R/race.txt" || true)
 strays=$(find "$R" -name '.mrw-*' 2>/dev/null | wc -l | tr -d ' ')
 [ "$strays" = 0 ] && ok "and no staging temp survives the race (ADR-004)" || bad "$strays stray temp(s) left by concurrent writers"
 
+
+# --- 31. an ABSOLUTE path given as a command-line argument -----------------
+# Reported by a user running mrw on another project: `mrw -C repo read
+# /elsewhere/x.md` joined the absolute path onto the root, looked for
+# `repo/elsewhere/x.md`, and reported "no such file" about a path nobody wrote
+# — while the `==>` header above it echoed the path they DID write. They read
+# that as a defect in the tool that called mrw.
+#
+# Joining stays correct for a PLAN, which is a document whose paths are
+# relative by design, and section 26 pins apply refusing an absolute one by
+# name. A command-line argument is the other convention: tab completion emits
+# absolute paths. Containment is still decided in one place — the argument is
+# made root-relative and goes through the same Resolve.
+fixture
+out=$(m read "$R/a.go" 2>&1); rc=$?
+want 0 "$rc" "an absolute path INSIDE the root is served, not joined"
+grep -qE '^==> a\.go ' <<<"$out" \
+  && ok "and the receipt names it by its root-relative path" \
+  || bad "header is not the root-relative path: $(head -1 <<<"$out")"
+
+# The shape the user actually hit. $WORK is a second mktemp dir, so this is a
+# real path that exists and is genuinely outside the root — not a missing file
+# dressed up as a boundary case.
+printf 'outside\n' > "$WORK/outside.txt"
+out=$(m read "$WORK/outside.txt" 2>&1); rc=$?
+want 1 "$rc" "an absolute path OUTSIDE the root is refused"
+grep -q 'is outside the root' <<<"$out" \
+  && ok "and says so, rather than 'no such file'" \
+  || bad "wrong diagnosis: $(head -1 <<<"$out")"
+# THE ROW THAT MATTERS: no line of the output may name root+absolute glued
+# together. That concatenation is what sent the user looking for a file they
+# could see with their own eyes.
+if grep -qF "$R$WORK" <<<"$out"; then
+  bad "the receipt still names a concatenated path: $(grep -oF "$R$WORK" <<<"$out" | head -1)"
+else
+  ok "and no line names the root and the absolute path glued together"
+fi
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
