@@ -100,6 +100,20 @@ today, and this record does not claim it has been measured.
 - **A single global ledger keyed by absolute path:** rejected — one file that
   every checkout writes is a concurrency problem the current design does not
   have.
+
+  **Amended 2026-09-02, measured:** the contrast is right and the absolute
+  clause is not. Per-checkout files remove CROSS-checkout contention, which is
+  what this alternative would have created. They do not remove contention
+  WITHIN one checkout: every `mrw read` rewrites that checkout's whole ledger
+  (load, merge, save, no lock), so parallel invocations clobber each other —
+  40 racing reads kept 5 of 40 entries, while the same 40 run sequentially, or
+  named in one call, keep all 40. So the problem is NARROWER here, not absent.
+
+  It is not a defect to fix: ADR-002 puts locking permanently out of scope, and
+  the failure direction is the safe one this record leans on — a lost entry
+  costs a re-read and never licenses a wrong write. `scripts/contract.sh`
+  section 24 pins that direction by asserting the files still in the ledger are
+  EXACTLY the ones that can be written.
 - **Do nothing; document the gitignore line:** rejected. It puts the burden on
   every user of every repository, and the failure is silent until something is
   committed.
