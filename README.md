@@ -1,20 +1,113 @@
 # mrw — multi-path read and write
 
-One binary that reads many file ranges and applies many edits in one call, with
-a verdict per hunk and the project's own tests chained to the write.
+Read many parts of many files, and make many edits across them, in one command
+instead of a dozen — and be told, for every single edit, whether it landed.
 
-It exists because of a gap between two primitives an agent already has:
+It is an ordinary command-line tool. It was built for AI coding agents, which
+are the ones doing hundreds of small edits a day, but nothing about it requires
+one.
 
-| | batches | fails loudly |
-|---|---|---|
-| `Edit` | no — one replacement per call | yes, on a bad anchor |
-| `Write` | yes — whole file | no, it cannot say which change did not land |
-| `mrw` | yes — N hunks across M files | yes, per hunk, and writes nothing on any failure |
+Install it with one command — see [Install](#install) for the details:
 
-The failure it is built around: **a read that returns nothing is visible; a
-write that changes nothing is not.** Batching four replacements into one script
-and getting "success" while one of them silently matched nothing is the bug this
-refuses to reproduce.
+```sh
+curl -fsSL -o mrw "https://github.com/atvirokodosprendimai/tool-multipathreadwrite/releases/latest/download/mrw-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')" && chmod +x mrw
+```
+
+## The problem it solves
+
+Say you need to change four things, in four different files.
+
+The usual way is eight steps: open each file, then edit each file. The tedium is
+not the real problem. The real problem is this:
+
+> **An edit that changes nothing usually still reports success.**
+
+If your third replacement matched no text — the line moved, someone renamed the
+function, you had a typo — most tools still say "done". You find out later, when
+something breaks, that one of your four changes never happened.
+
+It is worth seeing why that asymmetry exists. A *read* that finds nothing is
+obvious: you get an empty result and you know immediately. A *write* that
+changes nothing looks exactly like a write that worked. That is the bug mrw is
+built to make impossible.
+
+## How you use it
+
+Two commands: look, then change.
+
+You have to look before you change. That is not a style suggestion — mrw
+enforces it, and will refuse to edit a file it has not shown you. The reason is
+in the list further down: it is how it can tell "the file is as you last saw it"
+from "someone else changed it while you were working".
+
+**Look** — several places in several files, one call:
+
+```sh
+mrw read config.go:3 'server.go:/func Start/'
+```
+
+```
+==> config.go  4L  51B  sha f5cad94e
+@@ 3-3
+    3| const timeout = 30
+==> server.go  5L  49B  sha 075a39fa
+@@ 3-3
+    3| func Start() error {
+```
+
+You asked for one line by number and one line by a search pattern, in two files,
+and got back exactly those lines — not the whole files.
+
+**Change** — write a short plan listing every edit, then apply it in one call:
+
+```
+@@ config.go 3 replace
+const timeout = 60
+@@ server.go 99 replace
+	panic("x")
+```
+
+```sh
+mrw write plan.mrw
+```
+
+```
+skip config.go 3 replace
+FAIL server.go 99 replace (plan line 3): range 99 is out of range (file has 5 lines)
+2 hunk(s), 2 file(s), 1 failed — NOTHING WRITTEN
+```
+
+The second edit was wrong — line 99 does not exist in a 5-line file. So:
+
+- **Every edit gets its own line.** Nothing is summarised into one "success".
+- **One bad edit means nothing is written at all.** `config.go` was not touched.
+  You never end up with a half-changed set of files, which is worse than no
+  change, because it looks finished.
+- **The exit status says so too** (`1` here), so a script notices without
+  reading the text.
+
+Fix the plan, run it again, and you get a verdict per edit and a summary of what
+changed on disk.
+
+## What you get
+
+- **One call instead of many.** Two round trips, whatever N is.
+- **A verdict for every edit** — `ok`, `FAIL` with a reason, or `skip` because a
+  sibling failed. Never a bare "success".
+- **All-or-nothing.** Any failure and the files are left exactly as they were.
+- **It refuses to edit a file it has not shown you.** If the file changed behind
+  its back, it stops and says so instead of overwriting your colleague's work.
+- **It can run your tests for you.** `mrw write --check plan.mrw` applies the
+  edits and then runs the project's own test command, in the same call, and
+  reports whether it passed.
+
+## What it is not
+
+It is not a replacement for ordinary editing tools. If you need one change in
+one file, use whatever you already use — see the honest measurement below, where
+mrw *loses* on that shape. It pays off when there are many edits, many files, or
+both.
+
 
 ## Does it actually save anything?
 
@@ -72,6 +165,24 @@ mrw column counts its **actual** output, headers and line numbers included.
 Output tokens are not measured — the plan you emit for mrw and the
 old_string/new_string pairs Edit needs are the same order of magnitude — so
 this is an input-side and round-trip result, not a total-cost one.
+
+## Why it exists — the design gap
+
+This section is the technical version of the problem described at the top.
+Skip it if the top was enough.
+
+mrw sits in a gap between two primitives an agent already has:
+
+| | batches | fails loudly |
+|---|---|---|
+| `Edit` | no — one replacement per call | yes, on a bad anchor |
+| `Write` | yes — whole file | no, it cannot say which change did not land |
+| `mrw` | yes — N hunks across M files | yes, per hunk, and writes nothing on any failure |
+
+The failure it is built around, stated exactly: **a read that returns nothing is
+visible; a write that changes nothing is not.** Batching four replacements into
+one script and getting "success" while one of them silently matched nothing is
+the bug this refuses to reproduce.
 
 ## Does the contract hold under abuse?
 
