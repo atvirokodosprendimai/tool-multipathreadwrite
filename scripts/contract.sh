@@ -432,6 +432,67 @@ m write --dry-run --check "$R/fail.mrw"  >/dev/null 2>&1; want 2 "$?" "the flag 
 m write --dry-run --check "$R/parse.mrw" >/dev/null 2>&1; want 2 "$?" "and preempts a parse error the same way"
 m write --dry-run --check "$R/nope.mrw"  >/dev/null 2>&1; want 2 "$?" "and preempts a missing plan file"
 
+# 20. Probing round two. A check command that is only WHITESPACE read as
+#     declared, ran as an empty shell command, exited 0 and reported PASS —
+#     a check that did not run reporting a pass, which is what ADR-003 rule 2
+#     refuses, and it would hold for as long as the typo did.
+#     The decisive fixture has NO go.mod, so there is nothing to infer either:
+#     the only way to report PASS would be to run the empty command.
+R=$(mktemp -d "$WORK/nogomod-XXXXXX")
+printf 'hello\n' > "$R/a.txt"
+printf '{"check":"   "}\n' > "$R/.quality-harness.json"
+out=$(m check --full 2>&1); rc=$?
+want 2 "$rc" "a whitespace-only check with nothing to infer exits 2, not 0"
+grep -q 'check PASS' <<<"$out" && bad "a whitespace-only check reported PASS: $out" \
+  || ok "a whitespace-only check cannot report PASS"
+grep -q 'no check declared' <<<"$out" && ok "it is reported as no check at all" || bad "not skipped: $out"
+#     Same for scoped_check, which nothing else covers: untrimmed it reads as
+#     declared and suppresses the fallback.
+printf '{"scoped_check":"   "}\n' > "$R/.quality-harness.json"
+out=$(m check --full 2>&1); rc=$?
+want 2 "$rc" "a whitespace-only scoped_check exits 2 too"
+grep -q 'check PASS' <<<"$out" && bad "a whitespace-only scoped_check reported PASS: $out" \
+  || ok "and cannot report PASS"
+#     And in a Go tree it falls back the way an EMPTY value already did.
+fixture
+printf '{"check":"   "}\n' > "$R/.quality-harness.json"
+out=$(m check --full 2>&1); rc=$?
+want 0 "$rc" "in a Go tree the fallback runs and passes"
+grep -q 'inferred' <<<"$out" && ok "in a Go tree it falls back to the inferred check" || bad "did not fall back: $out"
+grep -q 'declared' <<<"$out" && bad "it still reads as declared: $out" \
+  || ok "and never reads as declared"
+printf '{"check":"  echo REAL; exit 1  "}\n' > "$R/.quality-harness.json"
+out=$(m check --full 2>&1); rc=$?
+want 3 "$rc" "a padded REAL check still runs and still fails"
+grep -q 'REAL' <<<"$out" && ok "and the padding did not eat the command" || bad "command lost: $out"
+
+# 20b. A negative -C printed `@@ 5-3` — an address mrw's own parser refuses —
+#      with no content, at exit 0. The README promises the header is exactly
+#      the address a write plan takes, and a silently empty result is the
+#      failure this tool exists to refuse. A negative --max-lines was ignored.
+fixture
+out=$(m read -C -1 "a.go:/func A/" 2>&1); rc=$?
+want 2 "$rc" "a negative -C is refused"
+grep -qE '@@ [0-9]+-[0-9]+' <<<"$out" && bad "it still emitted a range header: $out" \
+  || ok "and emits no address at all"
+out=$(m read --max-lines -5 a.go 2>&1); rc=$?
+want 2 "$rc" "a negative --max-lines is refused"
+out=$(m read -C 1 "a.go:/func B/" 2>&1)
+grep -qE '@@ 3-5' <<<"$out" && ok "a positive -C still widens the range" || bad "-C broke: $out"
+#      PRECEDENCE, not just the value: a usage error must preempt every other
+#      kind of bad input, or which error the caller sees depends on which OTHER
+#      mistake they made. Placed after the parse, these reported the range and
+#      the pointer instead.
+out=$(m read -C -1 "a.go:" 2>&1); rc=$?
+want 2 "$rc" "a negative -C preempts a bad range spec"
+grep -q 'context cannot be negative' <<<"$out" && ok "and the flag is what it names" || bad "named the range: $out"
+out=$(m read --max-lines -5 @999 2>&1); rc=$?
+want 2 "$rc" "a negative --max-lines preempts a bad pointer"
+grep -q 'cap cannot be negative' <<<"$out" && ok "and the flag is what it names" || bad "named the pointer: $out"
+out=$(m read "a.go:" 2>&1); rc=$?
+want 2 "$rc" "and a bad range alone is still reported as itself"
+grep -q 'empty range' <<<"$out" && ok "with its own diagnosis intact" || bad "lost the range diagnosis: $out"
+
 echo
 
 # 16. A plan aborts with the tree UNTOUCHED when a file cannot be written.

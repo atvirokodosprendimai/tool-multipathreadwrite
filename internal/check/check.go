@@ -58,7 +58,11 @@ func (c Config) Declared() bool { return c.declared }
 
 const (
 	defaultTimeout = 5 * time.Minute
-	defaultTail    = 30
+	// A day, and far below the overflow point of an int64 nanosecond count.
+	// Anything larger is indistinguishable from it for a check a caller is
+	// waiting on.
+	maxTimeoutSeconds = 24 * 60 * 60
+	defaultTail       = 30
 )
 
 // Load reads .quality-harness.json from root. A missing file is not an error:
@@ -72,6 +76,14 @@ func Load(root string) (Config, error) {
 		if err := json.Unmarshal(b, &c); err != nil {
 			return c, fmt.Errorf(".quality-harness.json: %w", err)
 		}
+		// A value that is only whitespace is one nobody typed on purpose — a
+		// stray space, a truncated edit, a template that expanded to nothing.
+		// Untrimmed it read as DECLARED, ran as an empty shell command, exited
+		// 0 and reported `check PASS`: a check that did not run reporting a
+		// pass, which is precisely what ADR-003 rule 2 refuses. Normalising
+		// here makes every `== ""` test downstream mean what it says, and
+		// sends this config down the same path an empty value already took.
+		c.Check, c.ScopedCheck = strings.TrimSpace(c.Check), strings.TrimSpace(c.ScopedCheck)
 		c.declared = c.Check != "" || c.ScopedCheck != ""
 	case !os.IsNotExist(err):
 		return c, err
@@ -108,12 +120,34 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	if cmdline == "" {
 		return Result{Declared: cfg.declared, Skipped: "no check declared and no go.mod found"}, nil
 	}
-	res := Result{Ran: true, Declared: cfg.declared, Command: cmdline}
+	// Ran is NOT set here. It is set once a ProcessState exists, because this
+	// type's whole job is to distinguish "no evidence" from "evidence of
+	// success" (ADR-003 rule 2) and a process that never STARTED produced
+	// neither. Set optimistically, an unresolvable `sh`, an already-cancelled
+	// context or an overflowed timeout reported exit 3 — "a check ran and did
+	// not pass" — about a process that never existed.
+	res := Result{Declared: cfg.declared, Command: cmdline}
 	_ = scoped
 
 	timeout := defaultTimeout
 	if cfg.TimeoutSeconds > 0 {
-		timeout = time.Duration(cfg.TimeoutSeconds) * time.Second
+		// Bounded before it is multiplied. time.Duration is int64 NANOseconds,
+		// so a seconds value above maxTimeoutSeconds overflows: 9999999999
+		// wrapped to a deadline ~2.3 million hours in the PAST, exec refused
+		// before the process existed, and the run was reported as one that
+		// could not start. Worse, it was not monotonic — 99999999999 wrapped
+		// back to positive and the check ran normally, so a bigger number
+		// meant a working timeout again.
+		//
+		// This is the same rule as the whitespace check command one file over:
+		// a value that does not survive being used is one nobody typed on
+		// purpose. Clamped rather than refused, because every value in range
+		// here means "do not run forever" and the ceiling still means that.
+		secs := cfg.TimeoutSeconds
+		if secs > maxTimeoutSeconds {
+			secs = maxTimeoutSeconds
+		}
+		timeout = time.Duration(secs) * time.Second
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -137,11 +171,17 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 
 	switch {
 	case runErr == nil:
-		res.ExitCode = 0
+		res.Ran, res.ExitCode = true, 0
 	case c.ProcessState != nil:
-		res.ExitCode = c.ProcessState.ExitCode()
+		// It started and exited badly. That is a real verdict, and exit 3's
+		// meaning: the tree is changed and unverified.
+		res.Ran, res.ExitCode = true, c.ProcessState.ExitCode()
 	default:
+		// It never started. Ran stays false, so this routes to "no check could
+		// run" and exit 2 — the configuration problem ADR-003's table files a
+		// missing check under, not a failed verdict.
 		res.ExitCode = -1
+		res.Skipped = "could not start: " + runErr.Error()
 	}
 	if ctx.Err() == context.DeadlineExceeded {
 		res.ExitCode = -1

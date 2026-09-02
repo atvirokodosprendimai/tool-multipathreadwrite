@@ -232,3 +232,160 @@ func TestTimeoutIsReportedAsAFailureNotAPass(t *testing.T) {
 	}
 	os.Remove(res.OutputFile)
 }
+
+// A check command that is only whitespace is one nobody typed on purpose — a
+// stray space, a truncated edit, a template that expanded to nothing. Before
+// this was trimmed it read as DECLARED, ran as an empty shell command, exited 0
+// and reported `check PASS`. That is a check which did not run reporting a
+// pass, which ADR-003 rule 2 exists to refuse, and it would have held for as
+// long as the typo did — every gate downstream believing the suite was green.
+func TestAWhitespaceOnlyCheckIsNotDeclared(t *testing.T) {
+	for _, v := range []string{`"   "`, `"\t"`, `"\n"`, `" \t \n "`} {
+		t.Run(v, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, ".quality-harness.json"),
+				[]byte(`{"check":`+v+`}`), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := Load(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Declared() {
+				t.Errorf("check=%s reads as declared: %+v", v, cfg)
+			}
+			// The decisive assertion: whatever it falls back to, it must not
+			// be able to report success without running anything. With no
+			// go.mod there is nothing to infer, so the run is Skipped — and
+			// Skipped is not OK().
+			res, err := Run(context.Background(), root, cfg, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.OK() {
+				t.Errorf("check=%s reported a pass: %+v", v, res)
+			}
+			if res.Ran {
+				t.Errorf("check=%s ran something: %+v", v, res)
+			}
+		})
+	}
+}
+
+// The trim must not eat a real command, including one whose declared form has
+// incidental padding.
+func TestAPaddedCheckIsStillTheDeclaredCheck(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".quality-harness.json"),
+		[]byte(`{"check":"  make verify  "}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Declared() || cfg.Check != "make verify" {
+		t.Errorf("cfg = %+v", cfg)
+	}
+}
+
+// The trim covers ScopedCheck as well, and nothing else asserted it: removing
+// only ScopedCheck from the trim assignment left every other test in this file
+// and every contract row green (PR #13 review, Codex). A whitespace-only
+// scoped_check would otherwise read as declared, suppressing the fallback.
+func TestAWhitespaceOnlyScopedCheckIsNotDeclared(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".quality-harness.json"),
+		[]byte(`{"scoped_check":"   "}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Declared() {
+		t.Errorf("a whitespace-only scoped_check reads as declared: %+v", cfg)
+	}
+	if cfg.ScopedCheck != "" {
+		t.Errorf("ScopedCheck = %q, want it trimmed to empty", cfg.ScopedCheck)
+	}
+	res, err := Run(context.Background(), root, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.OK() || res.Ran {
+		t.Errorf("it reported a pass: %+v", res)
+	}
+}
+
+// A padded scoped_check is a real one and must survive the trim.
+func TestAPaddedScopedCheckIsStillDeclared(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".quality-harness.json"),
+		[]byte(`{"check":"make v","scoped_check":"  make v PKG={packages}  "}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Declared() || cfg.ScopedCheck != "make v PKG={packages}" {
+		t.Errorf("cfg = %+v", cfg)
+	}
+}
+
+// ADR-003 rule 2, in the direction nothing asserted: a process that never
+// STARTED did not run. Ran was set before exec, so an unresolvable command
+// reported exit 3 — "a check ran and did not pass" — about a process that
+// never existed. Exit 3 promises a verdict; this has none, and a caller
+// branching on 3 would go looking for test output that was never produced.
+func TestACheckThatCannotStartDidNotRun(t *testing.T) {
+	root := t.TempDir()
+	// An already-cancelled context: exec refuses before the process exists.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	res, err := Run(ctx, root, Config{Check: "true"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Ran {
+		t.Errorf("a process that never started is recorded as having run: %+v", res)
+	}
+	if res.OK() {
+		t.Errorf("it reported a pass: %+v", res)
+	}
+	if res.Skipped == "" {
+		t.Errorf("nothing says why it could not run: %+v", res)
+	}
+}
+
+// A timeout_seconds that does not survive being used is a value nobody typed
+// on purpose — the same rule as the whitespace-only check command, one field
+// over.
+//
+// time.Duration is an int64 NANOsecond count, so a large seconds value
+// overflows when multiplied. 9999999999 produced a deadline ~2.3 million hours
+// in the PAST: exec refused before the process existed and the run was
+// reported as one that could not start. It was not even monotonic —
+// 99999999999 wrapped back to positive and the check ran normally, so a bigger
+// number meant a working timeout again. Both are pinned here, because a fix
+// that only handled the first value would leave the wrap.
+func TestAnOverlargeTimeoutIsClampedNotOverflowed(t *testing.T) {
+	root := t.TempDir()
+	for _, secs := range []int{9999999999, 99999999999, maxTimeoutSeconds + 1} {
+		cfg := Config{Check: "exit 0", TimeoutSeconds: secs, declared: true}
+		res, err := Run(context.Background(), root, cfg, nil)
+		if err != nil {
+			t.Fatalf("timeout_seconds=%d: %v", secs, err)
+		}
+		// The check is trivial and instant, so the ONLY way it fails here is a
+		// deadline that was already in the past when the run started.
+		if !res.OK() {
+			t.Errorf("timeout_seconds=%d: %+v", secs, res)
+		}
+		if res.Skipped != "" {
+			t.Errorf("timeout_seconds=%d reported %q", secs, res.Skipped)
+		}
+	}
+}

@@ -214,3 +214,81 @@ contract rows.
   switch off the header check inside a COUNTED body, so without `body=` it is a
   guard the caller wrote that cannot fire. Harmless, and the same class as the
   duplicate key: a caller believing something is pinned when nothing is.
+
+- **`--max-lines 0` means UNLIMITED, and this repository decided the opposite
+  question the other way once already.** A cap of zero is currently
+  indistinguishable from no cap, so there is no way to say "serve me the header
+  and nothing else" — and nothing is reported as withheld, though the README
+  promises "whatever is withheld is always reported". The precedent cuts
+  against the current behaviour: `body=0` in a plan means an EMPTY body, not an
+  unbounded one, and `TestBodyZeroMeansAnEmptyBody` exists because treating an
+  exhausted count as "keep scanning" silently handed a hunk lines the caller
+  wrote for something else. `lines=0` is likewise a real assertion, not a
+  disabled one. Against changing it: 0-means-unlimited is a widespread CLI
+  convention, and `--stat` already serves the "header only" need. Either way it
+  is a behaviour change, which is why it is here — negative values, which were
+  silently ignored, are now a usage error and shipped with this round.
+
+### Probed and found correct (2026-09-01, round two)
+
+Recorded so the next probing round starts somewhere new rather than
+re-measuring these. Each was driven at the built binary, not read:
+
+- **A WHOLLY unparseable ledger fails closed.** Garbage written over the entire
+  `seen` file leaves every write refused with "has not been read", including
+  for files that genuinely were read. **Corrected 2026-09-01 after a Codex
+  review**: the first version of this entry said "a corrupt or truncated
+  ledger", which the measurement does not support. `internal/seen/seen.go`
+  parses line by line and silently SKIPS malformed lines while keeping the
+  valid ones, so a ledger holding a good record for `a.go` plus corrupt data
+  still authorizes `a.go`. The fixture happened to corrupt every line. Whether
+  a partially unparseable ledger should be an error rather than a silent
+  partial read is an open question, and this entry is the only place it is
+  written down.
+
+- **Two concurrent writes to one file were not observed to both land, and that
+  is weaker than a guarantee.** Racing two writes, the second was refused with
+  "changed since mrw last saw it (recorded …, now …)". **Corrected 2026-09-01
+  after a Codex review**: the first version claimed they "cannot both land",
+  which the code does not promise. `internal/apply/apply.go` reads and
+  validates the prior sha, then writes later, and `writeFile` renames
+  atomically without a lock or compare-and-swap — so two processes can validate
+  against the same original and both rename, last writer winning. The sha guard
+  makes the race UNLIKELY and loud when it loses, not impossible. Closing it
+  needs a lock plus an under-lock sha recheck.
+  line that only exists after the earlier writes resolves correctly.
+- Pattern addresses, `/start/,/end/` pairs, pointer resolution (`@0`, `@-1`,
+  `@abc`, `@N` out of range), overlapping and descending range lists, filenames
+  with spaces, unicode and a leading dash, and a missing `$HOME` with no
+  `XDG_STATE_HOME` — all correct, all with the right exit status.
+
+## From a Codex review of PR #13 (2026-09-01)
+
+- **`{packages}` and `{files}` are substituted into `sh -c` WITHOUT quoting.**
+  `internal/check/check.go`'s `command()` builds the scoped command with a
+  plain `strings.NewReplacer`, so every character of a derived path reaches the
+  shell as syntax. A path containing a space splits into two arguments; one
+  containing `;`, `$(…)` or a glob is executed. The reviewer's case: a file
+  named `pkg; true #/x.go` with `scoped_check: "go test {packages}"` produces
+  `go test ./pkg; true #` — the package is never tested, the shell exits 0, and
+  both `mrw check` and `write --check` report PASS at exit 0. **This is the
+  silent-PASS class again, one layer down**, and it is not hypothetical for
+  spaces alone. It is HIGH and it is pre-existing, so it gets its own record
+  and its own change rather than riding along in the PR that found it. The fix
+  is to shell-quote each substituted token before joining, plus contract rows
+  driving the real binary with spaces, semicolons, `$()` and glob characters.
+
+- **A declared check can be inert, and mrw cannot tell.** `"check": "true"`,
+  `":"`, `"# comment"`, `"$UNSET"`, `"VERIFY="`, or `"exit 7 | true"` all make
+  `sh -c` return 0 without verifying anything, so `Ran` is true, `OK()` is
+  true, and the verdict is PASS. The reviewer offered this as a gap in ADR-003
+  rule 2; it is recorded here rather than fixed, because **it is a different
+  question from the one that rule answers.** Rule 2 forbids mrw from inventing
+  a pass for a check that did not run. It cannot make mrw judge whether a
+  command the project declared does useful work — `make verify` may be empty
+  too, and `internal/check/check_test.go::TestRunPasses` deliberately requires
+  `true` to be OK. The whitespace case was a defect because nobody DECLARES
+  `"   "`; it is an accident being read as a declaration. `"true"` is a
+  declaration. What would change this is an enforceable check protocol — a
+  command required to emit a signed or structured result — which is a much
+  larger decision than a trim, and nothing here needs it yet.
