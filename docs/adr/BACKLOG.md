@@ -292,3 +292,20 @@ re-measuring these. Each was driven at the built binary, not read:
   declaration. What would change this is an enforceable check protocol — a
   command required to emit a signed or structured result — which is a much
   larger decision than a trim, and nothing here needs it yet.
+
+## From the `$` divergence (2026-09-02, no ADR)
+
+- **One address parser, not two.** `internal/plan.ParseAddr` and the range
+  parser inside `internal/read` both read the same address grammar and drifted:
+  `$` meant the last line to one and "unbounded" to the other, so `mrw read
+  f.go:$` served the whole file while `@@ f.go $ replace` changed one line.
+  Fixed inside `read` rather than by unifying them, because read's grammar is
+  strictly richer — `/re/`, `/re/,/re2/`, comma-separated spans — and folding
+  that into `ParseAddr` grows a second grammar inside it.
+
+  This is ADR-006 rule 2's argument ("the boundary lives in one place;
+  duplicating it would have re-created the divergence in a slower form") applied
+  to addresses instead of the root, and the divergence it predicts has now
+  happened once. Worth a record if it happens twice, or if read's grammar stops
+  being the larger one. No decision needed yet.
+

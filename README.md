@@ -57,7 +57,7 @@ Every row below is asserted by a script, against the real binary in a throwaway
 repo, by making each promise go wrong on purpose:
 
 ```sh
-./scripts/contract.sh      # 156 assertions; exit 0 only if all hold
+./scripts/contract.sh      # 165 assertions; exit 0 only if all hold
 ```
 
 | test | result |
@@ -163,7 +163,10 @@ ranges, edit them all — no offset arithmetic between hunks.
 
 Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`.
 Addresses are 1-based and inclusive; `$` is the last line, `0` is before the
-first, `N-` runs to EOF.
+first, `N-` runs to EOF. The same address means the same thing to `read` and to
+`write` — `mrw read f.go:$` prints one line and `@@ f.go $ replace` changes one.
+`read` used to disagree, because it shared one sentinel between `$` and an
+omitted end and so served the whole file for `f.go:$`.
 
 Three optional guards make a batch safe to trust, and all three are cheap to
 write, which is the point:

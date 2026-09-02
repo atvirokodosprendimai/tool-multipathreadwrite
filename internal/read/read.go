@@ -27,6 +27,15 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
+// Sentinels for an address end that is not a plain line number. They are
+// distinct because they resolve differently: an omitted end is unbounded in
+// whichever direction it appears, while `$` is one specific line — the last.
+// Sharing 0 for both is what made `f.txt:$` serve the whole file.
+const (
+	unbounded = 0
+	lastLine  = -1
+)
+
 // Spec is one request: a path plus the ranges wanted from it. No ranges means
 // the whole file.
 type Spec struct {
@@ -154,9 +163,18 @@ func parseRange(s string) (Range, error) {
 		}
 		return r, nil
 	}
+	// `$` and an OMITTED end are different addresses and used to share the
+	// sentinel 0. Downstream 0 means "unbounded in whichever direction you
+	// find it" — 1 at the start, EOF at the end — so `$` inherited that and a
+	// bare `f.txt:$` served the WHOLE file. README:164 says `$` is the last
+	// line, and `plan.ParseAddr` on the write path agrees: `@@ f.txt $
+	// replace` touches one line. read was the only reader of `$` that did not.
 	num := func(t string) (int, error) {
-		if t == "$" || t == "" {
-			return 0, nil
+		switch t {
+		case "":
+			return unbounded, nil
+		case "$":
+			return lastLine, nil
 		}
 		n, err := strconv.Atoi(t)
 		if err != nil || n < 1 {
@@ -176,10 +194,15 @@ func parseRange(s string) (Range, error) {
 	if err != nil {
 		return Range{}, err
 	}
-	if start == 0 {
+	if start == unbounded {
 		start = 1
 	}
-	if end != 0 && end < start {
+	// Only a range whose ends are both PLAIN numbers can be judged reversed
+	// here. One written with `$` depends on how long the file turns out to be
+	// — `$-5` is fine on a five-line file and reversed on a ten-line one — so
+	// that verdict waits for resolve, which is the first place the length is
+	// known.
+	if start > 0 && end > 0 && end < start {
 		return Range{}, fmt.Errorf("range %q ends before it starts", s)
 	}
 	return Range{Start: start, End: end, Text: s}, nil
@@ -362,14 +385,28 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 			}
 		default:
 			start, end := r.Start, r.End
-			if start == 0 {
+			if start == lastLine {
+				start = total
+			}
+			if end == lastLine {
+				end = total
+			}
+			if start == unbounded {
 				start = 1
 			}
-			if end == 0 || end > total {
+			if end == unbounded || end > total {
 				end = total
 			}
 			if start > total {
 				missed = append(missed, fmt.Sprintf("%s (file has %d lines)", r.Text, total))
+				continue
+			}
+			// Reachable only once the length is known, and only for a range
+			// written with `$`: `$-5` resolves to 10-5 on a ten-line file.
+			// Served, it printed lines 1-5 at exit 0 — content for an address
+			// that cannot be satisfied.
+			if end < start {
+				missed = append(missed, fmt.Sprintf("%s ends before it starts (file has %d lines)", r.Text, total))
 				continue
 			}
 			spans = append(spans, span{start, end})
