@@ -1083,3 +1083,37 @@ func TestAnAbortedStageTakesBackOnlyTheDirectoriesItMade(t *testing.T) {
 		}
 	}
 }
+
+// A stage that fails AFTER creating its directories still gives them back.
+//
+// stageFile calls MkdirAll and only then writes; ENOSPC or EIO in between
+// leaves directories behind and returns an error. The caller used to drop that
+// return value on the floor, so those directories survived an abort whose own
+// comment names ENOSPC as one of the three failures it handles. Found in
+// review of #16, in the round that added the directory cleanup — the cleanup
+// was right and the one path that could not reach it was the error path.
+func TestAStageThatFailsAfterMakingDirectoriesGivesThemBack(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "one.txt", abcde)
+
+	real := stageFileFn
+	t.Cleanup(func() { stageFileFn = real })
+	stageFileFn = func(path string, tx text) (staged, error) {
+		// Stand in for ENOSPC: the directories exist, nothing else does.
+		dir := filepath.Join(root, "half", "made")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return staged{dirs: []string{dir, filepath.Join(root, "half")}},
+			errors.New("no space left on device")
+	}
+
+	if res, err := Apply(root, []Input{
+		{Path: "one.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
+	}, Options{Force: true}); err == nil {
+		t.Fatalf("a failed stage was reported as success: %+v", res)
+	}
+	if _, err := os.Stat(filepath.Join(root, "half")); !os.IsNotExist(err) {
+		t.Error("directories made by the failing stage were left behind")
+	}
+}
