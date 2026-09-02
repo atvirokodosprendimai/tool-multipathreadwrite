@@ -65,8 +65,23 @@ Three properties are the decision, and each is load-bearing:
    batching safe rather than merely convenient.
 2. **Validate every hunk before writing anything; one failure aborts the run.**
    A partially applied plan is worse than no change, because the caller believes
-   it succeeded.
-3. **Every hunk carries its own verdict.** Siblings of a failed hunk report
+   it succeeded. This holds against a FILESYSTEM failure as well as a validation
+   one: every file is staged beside its target before any is renamed into place,
+   so an unwritable directory, a read-only mount or a full disk aborts while the
+   tree is still untouched — temp files unlinked, and any directories staging
+   had to create removed with them. A write phase that wrote each file and moved
+   on satisfied this rule against bad hunks and broke it against bad permissions.
+   Two things followed from that, and **only one of them is closed.** The ledger
+   is recorded from the receipt, so it used to disagree with files mrw had just
+   written; it no longer can, because nothing is written. But the receipt itself
+   is **still not rendered on this path** — the error returns before it, on the
+   text and `--json` surfaces alike — so rule 3 below remains OPEN for a
+   filesystem failure and this record does not close it. Only a failing *rename*
+   can still leave the tree partial, and it names the files already written
+   rather than reporting the bare error.
+3. **Every hunk carries its own verdict.** ⚠ Open for a filesystem failure, as
+   rule 2 records: that path returns an error and renders no receipt at all.
+   Siblings of a failed hunk report
    `skipped`, never `ok` — "ok but not written" is precisely the lie being
    avoided. Every file the plan *addressed* appears in the receipt, written or
    not.

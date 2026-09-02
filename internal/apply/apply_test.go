@@ -2,6 +2,7 @@ package apply
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -941,5 +942,178 @@ func TestAFailedOrSkippedDeleteRecordsNoBounds(t *testing.T) {
 		if strings.Contains(string(b), "removed_first") || strings.Contains(string(b), "removed_last") {
 			t.Errorf("a %s %s hunk carries bounds it never recorded: %s", h.Status, h.Op, b)
 		}
+	}
+}
+
+// A plan aborts on a filesystem failure with the tree UNTOUCHED. The write
+// phase used to write each file and move on, so a later file that could not be
+// written left the earlier ones already renamed into place — a partially
+// applied plan, which ADR-001 rule 2 calls worse than no change. Three things
+// went wrong at once and each is asserted here: the tree was changed, no
+// receipt was produced, and the ledger (recorded from that receipt) then held
+// the pre-write hash, so mrw refused the caller's NEXT edit to a file it had
+// modified itself.
+//
+// The trigger is forced through the stageFileFn seam rather than through an
+// unwritable directory, because `chmod 0555` is a no-op for uid 0: a
+// permission-based test exercises nothing when CI runs as root, and a row that
+// cannot fail is exactly the defect this guard is about. scripts/contract.sh
+// carries the real-permissions version, skipped when the bits are not enforced.
+func TestAFailedStageLeavesTheTreeUntouched(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "one.txt", abcde)
+	write(t, root, "two.txt", abcde)
+
+	real := stageFileFn
+	t.Cleanup(func() { stageFileFn = real })
+	calls := 0
+	stageFileFn = func(path string, tx text) (staged, error) {
+		calls++
+		if calls == 2 {
+			return staged{}, errors.New("staging refused")
+		}
+		return real(path, tx)
+	}
+
+	res, err := Apply(root, []Input{
+		{Path: "one.txt", Start: 1, End: 1, Op: "replace", Body: []string{"CHANGED"}, Lines: -1, Index: 0},
+		{Path: "two.txt", Start: 1, End: 1, Op: "replace", Body: []string{"CHANGED"}, Lines: -1, Index: 1},
+	}, Options{Force: true})
+	if err == nil {
+		t.Fatalf("a failed stage was reported as success: %+v", res)
+	}
+	if res.Applied {
+		t.Error("Applied is true after an aborted write")
+	}
+	// The substance: the FIRST file, staged before the failure, must not have
+	// been renamed into place. Asserting only on the error would pass while
+	// the tree was half-written, which is the whole defect.
+	for _, name := range []string{"one.txt", "two.txt"} {
+		got, rerr := os.ReadFile(filepath.Join(root, name))
+		if rerr != nil {
+			t.Fatal(rerr)
+		}
+		if strings.Contains(string(got), "CHANGED") {
+			t.Errorf("%s was written despite the plan aborting", name)
+		}
+	}
+	// ADR-004: nothing left in the working tree. A staged temp that is never
+	// renamed has to be unlinked, or an aborted plan litters .mrw-* beside
+	// every target it reached.
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".mrw-") {
+			t.Errorf("staging left %s behind", e.Name())
+		}
+	}
+}
+
+// The residual case staging cannot remove: a rename that fails after earlier
+// renames succeeded really does leave a partial tree, so the error has to name
+// what is already on disk. A caller told only "permission denied" cannot tell
+// an untouched tree from a half-written one.
+func TestAPartialWriteNamesWhatWasAlreadyWritten(t *testing.T) {
+	if got := writtenSoFar(nil); !strings.Contains(got, "nothing was written") {
+		t.Errorf("empty case = %q", got)
+	}
+	got := writtenSoFar([]FileResult{{Path: "a.go"}, {Path: "b.go"}})
+	if !strings.Contains(got, "a.go") || !strings.Contains(got, "b.go") {
+		t.Errorf("a partial write did not name its files: %q", got)
+	}
+}
+
+// An aborted staging takes its DIRECTORIES back too, and only its own.
+//
+// Staging a create into a new path calls os.MkdirAll, so an abort that
+// unlinked only the temp files left `newdir/deep` standing — a change to the
+// working tree made by a run that reported writing nothing, which is what
+// ADR-004 forbids and what the comment above the discard path claims cannot
+// happen. Found in review of #16; the fix is only honest if it removes what
+// this run created WITHOUT touching a directory that was already there, so
+// both halves are asserted.
+func TestAnAbortedStageTakesBackOnlyTheDirectoriesItMade(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "one.txt", abcde)
+	// A directory that predates the run. Removing this would be the opposite
+	// failure and no less wrong: the abort is a no-op on the tree, not a tidy.
+	if err := os.MkdirAll(filepath.Join(root, "existing"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	real := stageFileFn
+	t.Cleanup(func() { stageFileFn = real })
+	calls := 0
+	stageFileFn = func(path string, tx text) (staged, error) {
+		calls++
+		if calls == 3 {
+			return staged{}, errors.New("staging refused")
+		}
+		return real(path, tx)
+	}
+
+	res, err := Apply(root, []Input{
+		{Path: "new/deep/n.txt", Op: "create", Body: []string{"NEW"}, Lines: -1, Index: 0},
+		{Path: "existing/e.txt", Op: "create", Body: []string{"E"}, Lines: -1, Index: 1},
+		{Path: "one.txt", Start: 1, End: 1, Op: "replace", Body: []string{"CHANGED"}, Lines: -1, Index: 2},
+	}, Options{Force: true})
+	if err == nil {
+		t.Fatalf("a failed stage was reported as success: %+v", res)
+	}
+
+	for _, gone := range []string{"new/deep", "new"} {
+		if _, err := os.Stat(filepath.Join(root, gone)); !os.IsNotExist(err) {
+			t.Errorf("%s was created by the aborted run and left behind", gone)
+		}
+	}
+	// The other half. os.Remove refuses a non-empty directory, so an empty
+	// pre-existing one is exactly the case a careless cleanup would eat.
+	if _, err := os.Stat(filepath.Join(root, "existing")); err != nil {
+		t.Errorf("a directory that predated the run was removed: %v", err)
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".mrw-") {
+			t.Errorf("staging left %s behind", e.Name())
+		}
+	}
+}
+
+// A stage that fails AFTER creating its directories still gives them back.
+//
+// stageFile calls MkdirAll and only then writes; ENOSPC or EIO in between
+// leaves directories behind and returns an error. The caller used to drop that
+// return value on the floor, so those directories survived an abort whose own
+// comment names ENOSPC as one of the three failures it handles. Found in
+// review of #16, in the round that added the directory cleanup — the cleanup
+// was right and the one path that could not reach it was the error path.
+func TestAStageThatFailsAfterMakingDirectoriesGivesThemBack(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "one.txt", abcde)
+
+	real := stageFileFn
+	t.Cleanup(func() { stageFileFn = real })
+	stageFileFn = func(path string, tx text) (staged, error) {
+		// Stand in for ENOSPC: the directories exist, nothing else does.
+		dir := filepath.Join(root, "half", "made")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return staged{dirs: []string{dir, filepath.Join(root, "half")}},
+			errors.New("no space left on device")
+	}
+
+	if res, err := Apply(root, []Input{
+		{Path: "one.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
+	}, Options{Force: true}); err == nil {
+		t.Fatalf("a failed stage was reported as success: %+v", res)
+	}
+	if _, err := os.Stat(filepath.Join(root, "half")); !os.IsNotExist(err) {
+		t.Error("directories made by the failing stage were left behind")
 	}
 }

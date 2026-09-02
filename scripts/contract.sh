@@ -29,6 +29,10 @@ trap 'rm -rf "$WORK"' EXIT
 fails=0
 
 ok()   { printf '  PASS  %s\n' "$1"; }
+# A skip is honest; a silent pass is not. Used where the trigger is a
+# permission bit, which uid 0 ignores — under root the row would go green
+# without exercising anything, which is the defect class this file exists for.
+skip() { printf '  SKIP  %s\n' "$1"; }
 bad()  { printf '  FAIL  %s\n' "$1"; fails=$((fails + 1)); }
 # want <expected-exit> <actual-exit> <description>
 want() { [ "$1" = "$2" ] && ok "$3" || bad "$3 (exit $2, want $1)"; }
@@ -429,6 +433,60 @@ m write --dry-run --check "$R/parse.mrw" >/dev/null 2>&1; want 2 "$?" "and preem
 m write --dry-run --check "$R/nope.mrw"  >/dev/null 2>&1; want 2 "$?" "and preempts a missing plan file"
 
 echo
+
+# 16. A plan aborts with the tree UNTOUCHED when a file cannot be written.
+#     The write phase used to write each file and move on, so a file that could
+#     not be written left the EARLIER ones already renamed into place: a
+#     partially applied plan, no receipt at all, and — since the ledger is
+#     recorded from that receipt — mrw then refused the caller's next edit to a
+#     file it had modified itself, reporting it as "changed since mrw last saw
+#     it". Staging every file before renaming any is what makes ADR-001 rule 2
+#     hold against a filesystem failure and not only a validation one.
+fixture
+mkdir -p "$R/locked"
+printf 'package locked\n\nfunc F() int { return 1 }\n' > "$R/locked/f.go"
+m read a.go locked/f.go >/dev/null
+chmod 555 "$R/locked"
+# uid 0 ignores the permission bits, so PROVE they bite before asserting on
+# them. A row that cannot fail asserts nothing, and under root this one cannot.
+if touch "$R/locked/.probe" 2>/dev/null; then
+  rm -f "$R/locked/.probe"; chmod 755 "$R/locked"
+  skip "an unwritable directory aborts the plan (permission bits not enforced here — running as root?)"
+else
+  before=$(cat "$R/a.go")
+  printf '@@ a.go 3 replace\nfunc A() int { return 99 }\n@@ locked/f.go 3 replace\nfunc F() int { return 99 }\n' \
+    | m write - >/dev/null 2>&1; rc=$?
+  chmod 755 "$R/locked"
+  want 2 "$rc" "a plan naming an unwritable file fails"
+  [ "$(cat "$R/a.go")" = "$before" ] \
+    && ok "and the file that COULD be written was left untouched" \
+    || bad "partially applied: a.go was written while the plan failed"
+  [ -z "$(find "$R" -name '.mrw-*')" ] \
+    && ok "and no staged temp file was left in the tree (ADR-004)" \
+    || bad "staging littered: $(find "$R" -name '.mrw-*')"
+  # The ledger consequence: a.go is unchanged, so the recorded hash still
+  # matches and an ordinary edit to it still applies. When a.go had been
+  # written behind the receipt, this refused.
+  printf '@@ a.go 3 replace\nfunc A() int { return 5 }\n' | m write - >/dev/null 2>&1; rc=$?
+  want 0 "$rc" "and the ledger still matches the tree, so the next edit applies"
+
+  # Staging a create calls MkdirAll, so an abort that unlinked only the temp
+  # files left the DIRECTORY standing — a change to the tree made by a run that
+  # wrote nothing, which is what ADR-004 forbids. Both halves are asserted,
+  # because a cleanup that ate a pre-existing directory would be no less wrong.
+  mkdir -p "$R/already"
+  chmod 555 "$R/locked"
+  printf '@@ fresh/deep/n.go - create\npackage n\n@@ already/e.go - create\npackage e\n@@ locked/f.go 3 replace\nfunc F() int { return 99 }\n' \
+    | m write - >/dev/null 2>&1; rc=$?
+  chmod 755 "$R/locked"
+  want 2 "$rc" "a create into a new directory aborts with the rest of the plan"
+  [ ! -e "$R/fresh" ] \
+    && ok "and the directories staging created are taken back" \
+    || bad "left behind: $(find "$R/fresh" 2>/dev/null | tr '\n' ' ')"
+  [ -d "$R/already" ] \
+    && ok "while a directory that predated the run is left alone" \
+    || bad "the cleanup removed a pre-existing directory"
+fi
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
