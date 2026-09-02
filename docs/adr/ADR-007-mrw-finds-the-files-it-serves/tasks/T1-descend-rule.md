@@ -75,6 +75,17 @@ go test ./internal/rooted/ -run 'TestDescend' -v 2>&1 | tee /tmp/adr007-t1.out \
 
 ## Mutation Log
 
+- 2026-09-01 · d8550be* · mutant survived · exit 0 · `internal/rooted/rooted.go` · rule 3: a symlinked directory must never be descended · acceptance-sha256:2706ef7f57006313f833e1d89c345b4e04d29d524ee4e0840a33c55703cfac93
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-01 · d8550be* · mutant inconclusive · exit 1 · `internal/rooted/rooted.go` · rule 3: a symlinked directory is never descended, and the refusal must be the rule rather than Lstat semantics · acceptance-sha256:2706ef7f57006313f833e1d89c345b4e04d29d524ee4e0840a33c55703cfac93
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
+- 2026-09-01 · d8550be* · mutant killed · exit 1 · `internal/rooted/rooted.go` · rule 3: a symlinked directory is never descended — the mutant keeps lst used and compiles, so only the rule itself is disabled · acceptance-sha256:2706ef7f57006313f833e1d89c345b4e04d29d524ee4e0840a33c55703cfac93
+- 2026-09-02 · f25d93c · mutant killed · exit 1 · `internal/rooted/rooted.go` · rule 3, RE-VERIFIED on main before landing: the same compiling mutant (`if false && lst.Mode()&os.ModeSymlink != 0`) turns TWO tests red, `TestDescendableRefusesASymlinkedDirectory` and `TestDescendableTerminatesOnASelfReferentialLink`
+
 ## Invariants
 
 - `Resolve`'s behaviour is unchanged: this task adds a function and edits none.
@@ -99,3 +110,19 @@ runner-up (`--files-from`) is the decision and this ADR should be withdrawn.
 - Any change to `Resolve`.
 
 ## Verification Log
+- 2026-09-01 · d8550be* · exit 1 · `set -o pipefail …` · acceptance-sha256:2706ef7f57006313f833e1d89c345b4e04d29d524ee4e0840a33c55703cfac93 · ms:217
+  ```
+  --- last 9 line(s) of stdout
+  # github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted [github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted.test]
+  internal/rooted/rooted_test.go:102:14: undefined: Descendable
+  internal/rooted/rooted_test.go:121:16: undefined: Descendable
+  internal/rooted/rooted_test.go:138:14: undefined: Descendable
+  internal/rooted/rooted_test.go:152:14: undefined: Descendable
+  internal/rooted/rooted_test.go:169:14: undefined: Descendable
+  internal/rooted/rooted_test.go:192:13: undefined: Descendable
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted [build failed]
+  FAIL
+  ```
+- 2026-09-01 · d8550be* · exit 0 · `set -o pipefail …` · acceptance-sha256:2706ef7f57006313f833e1d89c345b4e04d29d524ee4e0840a33c55703cfac93 · ms:656
+- 2026-09-01 · d8550be* · exit 0 · `set -o pipefail …` · acceptance-sha256:2706ef7f57006313f833e1d89c345b4e04d29d524ee4e0840a33c55703cfac93 · ms:485
+- 2026-09-01 · d8550be* · exit 0 · `set -o pipefail …` · acceptance-sha256:2706ef7f57006313f833e1d89c345b4e04d29d524ee4e0840a33c55703cfac93 · ms:332
