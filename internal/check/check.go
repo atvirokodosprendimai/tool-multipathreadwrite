@@ -163,6 +163,12 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		// purpose. Clamped rather than refused, because every value in range
 		// here means "do not run forever" and the ceiling still means that.
 		secs := cfg.TimeoutSeconds
+		// `>` and `>=` are EQUIVALENT here and no test can separate them: at
+		// secs == maxTimeoutSeconds, `>` leaves it alone and `>=` assigns the
+		// value it already has. A mutation run flagged this boundary as
+		// unasserted; it is unassertable, which is a different thing. Recorded
+		// so the next sweep does not spend a cycle writing a test that cannot
+		// fail — the classic equivalent-mutant case.
 		if secs > maxTimeoutSeconds {
 			secs = maxTimeoutSeconds
 		}
