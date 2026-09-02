@@ -64,8 +64,13 @@ func TestRecordOverwritesTheSamePath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := len(strings.Fields(strings.TrimSpace(string(b)))); n != 3 {
-		t.Errorf("ledger holds %d fields, want 3 (sha, spans, path):\n%s", n, b)
+	// The header line, then exactly one record — not two records.
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	if len(lines) != 2 || lines[0] != header {
+		t.Fatalf("ledger is not a header plus one record:\n%s", b)
+	}
+	if n := len(strings.Fields(lines[1])); n != 3 {
+		t.Errorf("record holds %d fields, want 3 (sha, spans, path):\n%s", n, b)
 	}
 }
 
@@ -130,8 +135,19 @@ func TestLedgerIsNotWrittenIntoTheRoot(t *testing.T) {
 	}
 }
 
-// A pre-ADR-004 ledger is still read, so nobody loses data by upgrading.
-func TestLegacyInTreeLedgerIsStillRead(t *testing.T) {
+// A pre-ADR-004 ledger is found, and its CONTENTS ARE DISCARDED.
+//
+// ADR-004's migration is "one-time, additive, and never deletes", and it still
+// is: nothing is removed from the tree, `.mrw/` stays where it is, and the
+// working set is untouched. What changed is what the migration is TRUSTED TO
+// CARRY. Up to v0.0.11 a ranged read that served nothing recorded the whole
+// file, and on disk that entry is byte-identical to a legitimate whole-file
+// read — so no parse-time rule can separate them, and carrying the file across
+// would carry the poisoned licences with it.
+//
+// Discarding costs one re-read and never data: a ledger is a cache of
+// observations, and its failure direction is a refusal, not a wrong write.
+func TestAPreV2InTreeLedgerIsDiscardedNotTrusted(t *testing.T) {
 	root := t.TempDir()
 	legacy := filepath.Join(root, ".mrw")
 	if err := os.MkdirAll(legacy, 0o755); err != nil {
@@ -142,15 +158,32 @@ func TestLegacyInTreeLedgerIsStillRead(t *testing.T) {
 	}
 	l, err := Load(root)
 	if err != nil {
+		t.Fatalf("a stale ledger must not be an error, or Record can never heal it: %v", err)
+	}
+	if len(l) != 0 {
+		t.Errorf("a pre-v2 ledger was trusted: %v", l)
+	}
+	stale, err := IsStale(root)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if l["old.go"].SHA != "abc123" {
-		t.Errorf("a legacy in-tree ledger was ignored: %v", l)
+	if !stale {
+		t.Error("IsStale did not report the pre-v2 ledger, so nothing tells the caller why")
 	}
-	// And a subsequent write goes to the state dir, never back into the tree.
+
+	// It must HEAL: Record calls Load, so a stale ledger returning an error
+	// would stop save from ever running and the file would be stale forever.
 	if err := Record(root, map[string]Observation{"new.go": {SHA: "def456"}}); err != nil {
 		t.Fatal(err)
 	}
+	if stale, _ := IsStale(root); stale {
+		t.Error("the ledger did not heal: still stale after a write")
+	}
+	l, _ = Load(root)
+	if l["new.go"].SHA != "def456" {
+		t.Errorf("the healed ledger lost the new observation: %v", l)
+	}
+	// And a subsequent write goes to the state dir, never back into the tree.
 	b, _ := os.ReadFile(filepath.Join(legacy, Name))
 	if strings.Contains(string(b), "new.go") {
 		t.Error("Record wrote into the legacy in-tree ledger")
@@ -161,26 +194,18 @@ func TestLegacyInTreeLedgerIsStillRead(t *testing.T) {
 // the current three-field line uses. "<sha>  my  file.go" is one path, not
 // spans plus a path — and reading it as spans would silently record "nothing
 // served" for a file the caller had read whole.
+//
+// Asserted against parseLine directly. It used to go through Load with a
+// header-less file, which a v2 mrw now discards before parsing — so that route
+// would have passed for the wrong reason, testing the discard rather than the
+// split.
 func TestALegacyPathContainingADoubleSpaceIsOnePath(t *testing.T) {
-	root := t.TempDir()
-	lp, err := ReadPath(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Dir(lp), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(lp, []byte("abc123  my  file.go\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	l, err := Load(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	obs, ok := l["my  file.go"]
+	path, obs, ok := parseLine("abc123  my  file.go")
 	if !ok {
-		t.Fatalf("the path was mis-split: %v", l)
+		t.Fatal("the line was not parsed at all")
+	}
+	if path != "my  file.go" {
+		t.Errorf("path = %q, want %q", path, "my  file.go")
 	}
 	if !obs.Whole() {
 		t.Errorf("a legacy line must read as a whole-file observation, got %s", obs.Served())

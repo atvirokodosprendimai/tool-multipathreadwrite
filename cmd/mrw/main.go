@@ -83,6 +83,22 @@ func rootCommand() *cli.Command {
 		// ran and did not pass". A hook branching on 3 would read a typo'd
 		// command as a landed write with a red suite, which is the most
 		// expensive possible misreading (probed 2026-09-01).
+		// A ledger this mrw will not trust is announced for the same reason
+		// the migration is: the consequence is a refusal ("has not been read")
+		// on a file the caller believes they read, and a refusal nobody can
+		// account for looks like a bug rather than like the guard working.
+		//
+		// In Before, not in main, because main runs before --root is parsed —
+		// the ledger that matters is the one for the root being operated on,
+		// and checking "." reported on whichever directory mrw was launched
+		// from. That read the wrong ledger under `-C`, which is precisely how
+		// a contract row here first passed for the wrong reason.
+		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			if stale, err := seen.IsStale(cmd.String("root")); err == nil && stale {
+				fmt.Fprintln(os.Stderr, seen.StaleNotice)
+			}
+			return ctx, nil
+		},
 		CommandNotFound: func(_ context.Context, cmd *cli.Command, name string) {
 			names := make([]string, 0, len(cmd.Commands))
 			for _, c := range cmd.Commands {
@@ -105,6 +121,7 @@ func main() {
 				"untouched and can now be deleted\n", strings.Join(moved, " and "), state.LegacyDir, dir)
 		}
 	}
+
 	root := rootCommand()
 	err := root.Run(context.Background(), os.Args)
 	// An unknown subcommand cannot be reported by returning an error: the

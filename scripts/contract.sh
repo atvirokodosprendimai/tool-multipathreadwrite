@@ -672,6 +672,41 @@ fixture
 : > "$R/none.txt"
 m read 'none.txt:1' >/dev/null 2>&1; rc=$?
 want 1 "$rc" "a range against an empty file is reported, not silently fine"
+
+# 22b. UPGRADING DOES NOT HEAL A LEDGER v0.0.11 ALREADY POISONED. Section 22
+#      stops new bad entries; it does nothing about the ones already on disk,
+#      and the fixed binary would honour them — because a poisoned entry and a
+#      legitimate whole-file read are the SAME BYTES, `<sha>  -  <path>`. No
+#      parse-time rule can separate them, so the ledger carries a version
+#      header and a file without it is discarded rather than parsed.
+#
+#      The pre-v2 file is written directly here rather than produced by an old
+#      binary: what matters is the on-disk shape a v0.0.11 mrw left behind, and
+#      writing it is the honest way to have it without shipping an old build.
+fixture
+printf 'a\nb\nc\nd\ne\n' > "$R/stale.txt"
+SHA=$(m read stale.txt 2>/dev/null | sed -n 's/.*sha \([0-9a-f]*\).*/\1/p' | head -1)
+SD=$(m seen | head -1 | sed 's/.*: //')
+# A whole-file licence for a file this checkout has NOT read in this state —
+# exactly what a v0.0.11 failed read left behind. No header line.
+m forget stale.txt >/dev/null 2>&1 || true
+FULLSHA=$(shasum -a 256 "$R/stale.txt" | cut -d' ' -f1)
+printf '%s  -  stale.txt\n' "$FULLSHA" > "$SD/seen"
+grep -qv '^#mrw-seen' "$SD/seen" && ok "a pre-v2 ledger has no header, as v0.0.11 wrote it" || bad "fixture is wrong"
+out=$(m write - <<<"$(printf '@@ stale.txt 3 replace\nCCC\n')" 2>&1); rc=$?
+want 1 "$rc" "a pre-v2 whole-file licence is NOT honoured after upgrading"
+grep -q '^c$' "$R/stale.txt" && ok "and the file is untouched" || bad "the poisoned licence applied: $(sed -n 3p "$R/stale.txt")"
+grep -q 'written by an older mrw' <<<"$out" && ok "and the caller is told why, not just refused" || bad "silent refusal: $out"
+
+# It must HEAL, or every later run repeats the refusal: Record loads before it
+# saves, so a stale ledger that returned an error would stop the header ever
+# being written.
+m read stale.txt:2 >/dev/null 2>&1
+head -1 "$SD/seen" | grep -q '^#mrw-seen' && ok "and the next read rewrites the ledger with a header" || bad "the ledger never heals: $(head -1 "$SD/seen")"
+out=$(m read stale.txt:2 2>&1 >/dev/null)
+grep -q 'written by an older mrw' <<<"$out" && bad "the notice repeats after healing" || ok "and the notice does not repeat once healed"
+printf '@@ stale.txt 2 replace\nBBB\n' | m write - >/dev/null 2>&1; rc=$?
+want 0 "$rc" "and the healed ledger licenses exactly the line that was re-read"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
