@@ -960,6 +960,61 @@ else
 fi
 n=$(wc -l < "$R/big.css" | tr -d ' ')
 [ "$n" = 1000 ] && ok "and the file is still 1000 lines" || bad "line count moved to $n"
+
+# --- 28. hunk ORDER does not change the result (ADR-001 rule 1) ------------
+# The rule says a plan's hunks are applied to the ORIGINAL file, so their order
+# in the plan cannot matter. Nothing pinned that until now: every plan the suite
+# writes happens to be in ascending line order, which is exactly the arrangement
+# a naive sequential implementation also gets right. Two identical files, the
+# same five edits, opposite orders, compared byte for byte.
+seq 1 20 > "$R/ord-a.txt"; cp "$R/ord-a.txt" "$R/ord-b.txt"
+m read ord-a.txt ord-b.txt >/dev/null 2>&1
+# The ops must SHIFT lines, or the row cannot fail: a plan of nothing but
+# `replace` leaves every later line number valid, so a naive implementation that
+# walks the plan top-to-bottom against a mutating buffer passes it too. Mixing
+# insert-after and delete is what makes order observable at all.
+ord_plan() { # $1 = file
+  printf '@@ %s 3 insert-after\nINS-3\n'  "$1"
+  printf '@@ %s 7 delete\n'                "$1"
+  printf '@@ %s 11 replace\nX-11\n'       "$1"
+  printf '@@ %s 15 insert-after\nINS-15\n' "$1"
+  printf '@@ %s 19 delete\n'               "$1"
+}
+ord_plan ord-a.txt > "$WORK/asc.plan"
+# Reversed by HUNK, not by line: a hunk is a header plus its body, so reversing
+# the plan's lines would put each body above its own header.
+{ printf '@@ ord-b.txt 19 delete\n'
+  printf '@@ ord-b.txt 15 insert-after\nINS-15\n'
+  printf '@@ ord-b.txt 11 replace\nX-11\n'
+  printf '@@ ord-b.txt 7 delete\n'
+  printf '@@ ord-b.txt 3 insert-after\nINS-3\n'
+} > "$WORK/desc.plan"
+m write "$WORK/asc.plan"  >/dev/null 2>&1; want 0 "$?" "five hunks in ascending line order apply"
+m write "$WORK/desc.plan" >/dev/null 2>&1; want 0 "$?" "and the same five in descending order apply too"
+if cmp -s "$R/ord-a.txt" "$R/ord-b.txt"; then
+  ok "and both orders produce a byte-identical file"
+else
+  bad "hunk order changed the result: $(diff "$R/ord-a.txt" "$R/ord-b.txt" | head -3 | tr '\n' ' ')"
+fi
+n=$(wc -l < "$R/ord-b.txt" | tr -d ' ')
+[ "$n" = 20 ] && ok "and the descending write did not shift the file (still 20 lines)" || bad "line count moved to $n"
+
+# --- 29. a plan file with CRLF line endings --------------------------------
+# A plan is often written by an editor, and an editor on Windows writes CRLF.
+# Two ways to get this wrong: reject the plan because the op parses as
+# "replace\r", or accept it and carry the CR into the body, silently giving an
+# LF file one CRLF line. The second is the dangerous one, so it gets its own row.
+printf 'a\nb\nc\n' > "$R/crlf-plan.txt"
+m read crlf-plan.txt >/dev/null 2>&1
+printf '@@ crlf-plan.txt 2 replace\r\nBBB\r\n' > "$WORK/crlf.plan"
+m write "$WORK/crlf.plan" >/dev/null 2>&1; want 0 "$?" "a plan file written with CRLF endings still parses"
+[ "$(sed -n 2p "$R/crlf-plan.txt")" = "BBB" ] && ok "and line 2 is the intended content" || bad "line 2 is $(sed -n 2p "$R/crlf-plan.txt" | od -c | head -1)"
+if LC_ALL=C grep -q $'\r' "$R/crlf-plan.txt"; then
+  bad "the plan's CR leaked into an LF file"
+else
+  ok "and the CR did not leak into the LF file"
+fi
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
