@@ -69,6 +69,19 @@ other route leaves the recorded hash and the real one disagreeing.
 rather than the whole file: the hash is the staleness proof, and content is not
 needed to establish it.
 
+**Retired 2026-09-02 by ADR-005, which narrowed the ledger from files to LINES.**
+A `--stat` prints no content, so it now observes an empty span set and licenses
+no edit at all: *"`mrw read --stat` is now purely informational"* (ADR-005
+Consequences). Verified against the binary — after a stat, a write is refused
+with *"2 of f.txt has not been read: mrw served no lines"*.
+
+The sentence above is preserved because it is the reasoning this record was
+decided on, and because a hash-is-enough argument is exactly the one a future
+session would re-derive. What replaced it is not "re-read the whole file": a
+RANGED re-read of only the lines the edit addresses licenses those lines and
+nothing else, so the cheap remedy still exists — it is one call, and it is now
+`mrw read <path>:<range>` rather than `--stat`.
+
 **What would falsify this:** if the refusal fired mostly on false positives —
 files that had changed in ways that did not invalidate the caller's addresses —
 the guard would cost more than it saves. It cannot distinguish those cases and
@@ -139,7 +152,10 @@ tasks: the ledger, and the refusal that uses it.
   for it. That is deliberate; a guard with no escape hatch gets worked around in
   worse ways.
 - **Neutral:** `mrw read --stat` is now load-bearing for authorisation, not only
-  for cheap inspection.
+  for cheap inspection. **Retired 2026-09-02 by ADR-005:** a stat prints no
+  content, observes an empty span set, and is purely informational again. The
+  consequence reversed rather than lapsed — the thing this bullet called
+  load-bearing is now the one read that carries no authority at all.
 
 ## Out of Scope
 
@@ -156,10 +172,10 @@ tasks: the ledger, and the refusal that uses it.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Callers reflexively add `--force` after the first refusal, and the guard stops meaning anything | Med | High | The refusal message names the cheap remedy (`mrw read --stat`) before it names `--force`; the skill documents `--force` as "the escape hatch, not the habit" |
+| Callers reflexively add `--force` after the first refusal, and the guard stops meaning anything | Med | High | The refusal message names the cheap remedy before it names `--force`; the skill documents `--force` as "the escape hatch, not the habit". **Corrected 2026-09-02:** the control holds but its example was retired by ADR-005 — the message says *"read them, or pass `--force`"*, so the remedy it names is a re-read, not `--stat`. The score is unchanged because what mitigates the risk is the ORDER (remedy before escape hatch), which is intact |
 | `.mrw/seen` is committed by accident and one developer's state becomes everyone's | Low | Med | `/.mrw/` is gitignored; the entry is anchored so it cannot be swallowed by a path component of the same name |
 | The ledger grows without bound as files are read | Low | Low | One short line per path; pruning deferred to BACKLOG |
-| A stale ledger entry after an external revert makes an ordinary edit refuse | Med | Low | Correct behaviour, and the remedy is one `--stat` call; documented in the skill |
+| A stale ledger entry after an external revert makes an ordinary edit refuse | Med | Low | Correct behaviour, and the remedy is one call. **Corrected 2026-09-02:** no longer `--stat`, which licenses nothing since ADR-005 — it is one RANGED read, `mrw read <path>:<range>`, which re-observes exactly the lines the edit addresses. Still one call, so the score is unchanged |
 
 ## Rollback
 
