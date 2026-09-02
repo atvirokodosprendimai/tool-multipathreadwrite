@@ -51,8 +51,11 @@ content printed. The message names both paths and says to point `--root` where
 you mean.
 
 **2. The boundary lives in one place.** `internal/rooted.Resolve` is the single
-implementation, used by `internal/apply`, `internal/read` and — since the check
-path was found answering PASS for a scope outside the root — `internal/check`.
+implementation, used by `internal/apply`, `internal/read`, `internal/check`
+(added when that path was found answering PASS for a scope outside the root) and
+`iter add` (added 2026-09-02, the fourth and last way in — it validated with
+`filepath.Join`, which cleans `../outside/x` into a path that exists, so the
+entry was accepted and every later set-scoped `mrw check` then refused).
 Duplicating it would have re-created the divergence in a slower form. What
 differs per surface is only the response: read and apply report the path they
 could not serve, while a check must refuse outright, because its fallback

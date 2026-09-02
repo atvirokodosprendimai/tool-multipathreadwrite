@@ -33,6 +33,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
@@ -522,15 +523,37 @@ ranges, and "mrw check" runs the project's check scoped to these files.`,
 				if len(args) == 0 {
 					return cli.Exit("iter add needs at least one SPEC", exitUsage)
 				}
-				// Refuse the whole add if any path is missing. An unquoted spec
-				// containing a space arrives as several arguments, and the
-				// fragments look like plausible relative paths — so the only
-				// thing that catches it is asking the filesystem.
-				var missing []string
+				// Refuse the whole add if any path is missing OR leaves the
+				// root. An unquoted spec containing a space arrives as several
+				// arguments, and the fragments look like plausible relative
+				// paths — so the only thing that catches it is asking the
+				// filesystem.
+				//
+				// rooted.Resolve, not filepath.Join: the working set is the
+				// FOURTH way into the tree, after read, write and check, and it
+				// was the one that did not enforce the boundary. Join cleans
+				// `../outside/x` into a path that exists, so the entry was
+				// accepted — and every later `mrw check`, which scopes to the
+				// set, then refused at exit 2 until someone removed it. The
+				// same Join re-rooted an ABSOLUTE path onto the root, where it
+				// did not exist, so those were refused as "no such file": the
+				// right answer for the wrong reason, which is why the two
+				// spellings disagreed.
+				var missing, outside []string
 				for _, a := range args {
-					if _, err := os.Stat(filepath.Join(root, iter.Path(a))); err != nil {
+					full, err := rooted.Resolve(root, iter.Path(a))
+					if err != nil {
+						outside = append(outside, a)
+						continue
+					}
+					if _, err := os.Stat(full); err != nil {
 						missing = append(missing, a)
 					}
+				}
+				if len(outside) > 0 {
+					return cli.Exit(fmt.Sprintf("outside the root: %s — the working set feeds "+
+						"`mrw read` and `mrw check`, which refuse a path that leaves `--root`, so an "+
+						"entry like this could never be served", strings.Join(outside, ", ")), exitUsage)
 				}
 				if len(missing) > 0 {
 					return cli.Exit(fmt.Sprintf("no such file: %s (quote a spec containing spaces)",
