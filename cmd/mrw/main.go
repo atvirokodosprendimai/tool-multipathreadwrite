@@ -642,9 +642,26 @@ func report(w *os.File, res apply.Result, quiet bool) {
 		case h.Status == apply.StatusSkipped:
 			fmt.Fprintf(out, "skip %s %s %s\n", h.Path, h.Addr, h.Op)
 		default:
-			// A delete says what it removed. Only a delete: every other op
-			// carries a body the caller wrote, so `from "" to ""` there would
-			// be noise on every line of every receipt (ADR-008).
+			// A delete says what it removed, and only a delete: it is the
+			// only op that CONSUMES A RANGE and can be written without a
+			// body. Two ops consume one, and replace refuses an empty body;
+			// create and the insertions consume no range to report bounds
+			// for. So a delete's plan may carry no account of what it took,
+			// and the receipt is then the caller's only account of it, while
+			// a replace's body is their own account of those lines — which
+			// is why `from "" to ""` elsewhere would be noise on every line
+			// of every receipt (ADR-008).
+			//
+			// The criterion is the PLAN's body over a CONSUMED RANGE, and
+			// neither half is spare. Four rewrites of this comment each
+			// replaced the previous overstatement and asserted something new
+			// that did not survive being run — the third claiming a replace
+			// receipt prints the caller's body, when it prints `-2 +2`, the
+			// bare count the same sentence had just called delete's alone;
+			// the fourth claiming delete is the only bodyless op, when
+			// `create` with an empty body exits 0 and writes a zero-byte
+			// file. Check a rewrite against what it newly asserts, on all
+			// five ops, not against the claim it replaces.
 			// Keyed on the op, not on the strings being non-empty: a delete
 			// that removes blank lines removed something, and a receipt that
 			// went quiet about it would be indistinguishable from one where

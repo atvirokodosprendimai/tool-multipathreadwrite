@@ -522,11 +522,10 @@ func TestFilePermissionsSurvive(t *testing.T) {
 	}
 }
 
-// ADR-008 T1. `delete` is the only op with no body, so the caller asserts
-// nothing about what a range holds and the receipt reports only a count. The
-// bounds are what makes a wrong range visible at write time: the incident that
-// produced the ADR was a 4-line delete that took a closing brace and reported
-// `-4 +0  ok`.
+// ADR-008 T1. A bodyless `delete` consumes a range while asserting nothing
+// about it, and its receipt reported only a count. The bounds are what make a
+// wrong range visible at write time: the incident that produced the ADR was a
+// 4-line delete that took a closing brace and reported `-4 +0  ok`.
 func TestDeleteRecordsItsBounds(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "f.txt", "a\nb\nc\nd\ne\n")
@@ -591,8 +590,12 @@ func TestAOneLineDeleteRecordsTheSameLineTwice(t *testing.T) {
 }
 
 // No other op gains fields. `replace` and the insertions already carry a body
-// the caller wrote, which is the assertion this adds to the one op that has
-// none — and an empty `from "" to ""` on every other receipt line is noise.
+// the caller wrote, and the two are not equally strong: writing a `replace`
+// body means reading the lines it replaces, while an insertion's body says
+// what to add and nothing about WHERE — `anchor=` is what pins that. Only a
+// `delete` body is machine-checked against the range it addresses. Either way
+// a bounds field here would be noise: an empty `from "" to ""` on every other
+// receipt line says nothing.
 func TestOnlyDeleteRecordsBounds(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "f.txt", abcde)

@@ -178,3 +178,44 @@ func TestShaMustActuallyBeHexadecimal(t *testing.T) {
 		}
 	}
 }
+
+// `delete` is the only op that CONSUMES A RANGE and can be written without a
+// body. That is the criterion the receipt's bounds field rests on
+// (cmd/mrw/main.go, ADR-008), and until now it lived only in a comment.
+//
+// Four consecutive rewrites of that comment each asserted something new that
+// did not survive being run — the last of them "delete is the only op that can
+// be written without a body", which `create` falsifies: an empty one is
+// accepted and writes a zero-byte file. A claim gated by nothing goes stale
+// exactly this way, so it is enumerated here over EVERY op instead. A new op
+// that takes an empty body will fail this test rather than quietly make the
+// comment wrong.
+func TestDeleteIsTheOnlyRangeConsumingOpThatNeedsNoBody(t *testing.T) {
+	for _, tc := range []struct {
+		op            string
+		addr          string
+		consumesRange bool
+		emptyBodyOK   bool
+	}{
+		{op: "create", addr: "-", consumesRange: false, emptyBodyOK: true},
+		{op: "replace", addr: "2", consumesRange: true, emptyBodyOK: false},
+		{op: "delete", addr: "2", consumesRange: true, emptyBodyOK: true},
+		{op: "insert-after", addr: "2", consumesRange: false, emptyBodyOK: false},
+		{op: "insert-before", addr: "2", consumesRange: false, emptyBodyOK: false},
+	} {
+		t.Run(tc.op, func(t *testing.T) {
+			_, err := Parse(strings.NewReader("@@ f.txt " + tc.addr + " " + tc.op + "\n"))
+			if tc.emptyBodyOK && err != nil {
+				t.Errorf("an empty body was refused: %v", err)
+			}
+			if !tc.emptyBodyOK && err == nil {
+				t.Error("an empty body was accepted")
+			}
+			// The conjunction is the claim. Either half alone is false of
+			// some op: create takes an empty body, replace consumes a range.
+			if only := tc.consumesRange && tc.emptyBodyOK; only != (tc.op == "delete") {
+				t.Errorf("%s satisfies both halves; the receipt's bounds field is keyed on delete alone", tc.op)
+			}
+		})
+	}
+}

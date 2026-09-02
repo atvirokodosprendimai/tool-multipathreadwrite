@@ -54,11 +54,13 @@ type HunkResult struct {
 	SrcLine int    `json:"plan_line"`
 
 	// RemovedFirst and RemovedLast are the first and last line a DELETE took,
-	// both through trim, and empty for every other op. A delete is the only op
-	// with no body, so it is the only one where the caller asserts nothing
-	// about what the range held; two bounded strings — the same two whatever
-	// the size of the range — are what make a wrong range visible in the
-	// receipt instead of in the next build (ADR-008).
+	// both through trim, and empty for every other op. A BODYLESS delete is
+	// the one edit that consumes a range while asserting nothing about it: a
+	// replace's body is those lines' replacement, and an insertion consumes no
+	// range at all. Two bounded strings — the same two whatever the size of
+	// the range — are what make a wrong range visible in the receipt instead
+	// of in the next build. A delete that carries an expected body (T2) has
+	// already said what it believed was there; these report what was (ADR-008).
 	//
 	// Their PRESENCE in --json is keyed on the op, not on these being
 	// non-empty: see MarshalJSON.
