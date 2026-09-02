@@ -546,3 +546,74 @@ func TestAnUnplaceableInRootScopeStillFallsBack(t *testing.T) {
 		t.Errorf("did not fall back to the whole-project command: %+v", res)
 	}
 }
+
+// A directory that exists and cannot be READ is refused, not treated as one
+// that holds no package.
+//
+// holdsPackage walks the directory and discards the walk's error, so a
+// permission failure came back as `found = false` — indistinguishable from a
+// directory of prose. The scope then fell back to the whole-project command,
+// which is sound for a typo (the full run covers the root) and vacuous here:
+// the caller named a directory, mrw could not open it, and answered PASS.
+//
+// Found by sweeping wing_craft's "a zero that meant I could not look" against
+// this repository — a read error reported as an absence.
+func TestADirectoryThatCannotBeReadIsRefusedNotTreatedAsEmpty(t *testing.T) {
+	root := t.TempDir()
+	blind := filepath.Join(root, "blind")
+	if err := os.MkdirAll(blind, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(blind, "b.go"), []byte("package blind\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(blind, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(blind, 0o755) })
+	// chmod is a no-op for uid 0, so PROVE the bits bite before asserting on
+	// them. Under root this test would otherwise pass having exercised the
+	// happy path — the shape scripts/contract.sh guards the same way.
+	if _, err := os.ReadDir(blind); err == nil {
+		t.Skip("permission bits not enforced here (running as root?)")
+	}
+
+	// The check itself exits 0, so a row asserting only "not OK" would not
+	// separate a refusal from a passing run. The refusal is an ERROR from Run,
+	// before anything executes.
+	cfg := Config{Check: "exit 0", ScopedCheck: "exit 0", declared: true}
+	res, err := Run(context.Background(), root, cfg, []string{"blind"})
+	if err == nil {
+		t.Fatalf("an unreadable directory was accepted: %+v", res)
+	}
+	if res.Ran || res.Command != "" {
+		t.Errorf("something ran for a scope mrw could not read: %+v", res)
+	}
+	if !strings.Contains(err.Error(), "cannot be read") {
+		t.Errorf("the reason was not reported: %v", err)
+	}
+}
+
+// The two controls. A readable directory still scopes, and a path that is NOT
+// THERE still falls back — that is the decided behaviour for a typo, and
+// trading it for a refusal would break every ordinary mistyped scope.
+func TestReadableAndMissingScopesAreUnchanged(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "good"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "good", "g.go"), []byte("package good\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{Check: "exit 0", ScopedCheck: "exit 0", declared: true}
+
+	if res, err := Run(context.Background(), root, cfg, []string{"good"}); err != nil || !res.OK() {
+		t.Errorf("a readable directory was refused: %v %+v", err, res)
+	}
+	if res, err := Run(context.Background(), root, cfg, []string{"nosuchdir"}); err != nil || !res.OK() {
+		t.Errorf("a missing path no longer falls back: %v %+v", err, res)
+	}
+}
