@@ -166,8 +166,8 @@ func parseRange(s string) (Range, error) {
 	// `$` and an OMITTED end are different addresses and used to share the
 	// sentinel 0. Downstream 0 means "unbounded in whichever direction you
 	// find it" — 1 at the start, EOF at the end — so `$` inherited that and a
-	// bare `f.txt:$` served the WHOLE file. README:164 says `$` is the last
-	// line, and `plan.ParseAddr` on the write path agrees: `@@ f.txt $
+	// bare `f.txt:$` served the WHOLE file. The README says "`$` is the last
+	// line" and `plan.ParseAddr` on the write path agrees: `@@ f.txt $
 	// replace` touches one line. read was the only reader of `$` that did not.
 	num := func(t string) (int, error) {
 		switch t {

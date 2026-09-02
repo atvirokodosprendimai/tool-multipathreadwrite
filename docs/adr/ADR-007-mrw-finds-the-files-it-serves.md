@@ -58,7 +58,8 @@ rather than about serving or changing them.
   The budget is per SPEC and is reset for each one (`internal/read/read.go:258`),
   which is why deduplication below is a correctness rule and not a tidiness one.
 - **`iter`, the working set:** `mrw read` with no arguments reads it today
-  (`README.md:311`). **Untouched** — `--grep` with no paths walks `--root`, and
+  (the README's working-set section: `mrw read  # the whole working set, at its
+  recorded ranges`). **Untouched** — `--grep` with no paths walks `--root`, and
   without `--grep` the no-argument behaviour is exactly what it is now.
 - **`grep`, `rg`, `git grep`:** the tools that do this today. **Reused as the
   runner-up** (`--files-from -`, below), not reimplemented: mrw gains a walk and

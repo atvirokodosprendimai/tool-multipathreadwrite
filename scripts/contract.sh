@@ -717,7 +717,7 @@ want 0 "$rc" "and the healed ledger licenses exactly the line that was re-read"
 #     `$` and for an omitted end, and downstream that sentinel means unbounded
 #     in whichever direction it appears — so `f.txt:$` resolved to 1-total and
 #     served the WHOLE file for a one-line request, while `@@ f.txt $ replace`
-#     on the write path correctly touched one line and README:164 said "the
+#     on the write path correctly touched one line and the README said "the
 #     last line". Nothing asserted the read side, which is why it drifted.
 fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/five.txt"
