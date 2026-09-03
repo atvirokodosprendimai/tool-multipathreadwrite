@@ -30,6 +30,8 @@ const (
 	codeParse          = -32700
 	codeInvalidRequest = -32600
 	codeMethodNotFound = -32601
+	codeInvalidParams  = -32602
+	codeInternal       = -32603
 )
 
 // request is one incoming message. ID is a RawMessage rather than a concrete
@@ -76,7 +78,9 @@ type tool struct {
 // plan and no git — a server that cannot say hello without touching the tree
 // has coupled the wire to the filesystem.
 func Serve(in io.Reader, out io.Writer, root string) error {
-	_ = root // T2's handlers are what will need it; see ADR-010.
+	// root binds the tool handlers to this checkout: the ledger they read and
+	// write is the one the CLI uses for the same tree, which is what makes a
+	// file read over MCP editable from a shell and the reverse.
 
 	// A bufio.Reader rather than a bufio.Scanner: Scanner caps a token at 64 KB
 	// by default, and a write plan travelling as a JSON string inside one
@@ -89,7 +93,7 @@ func Serve(in io.Reader, out io.Writer, root string) error {
 	for {
 		line, err := r.ReadString('\n')
 		if line != "" {
-			if resp, answer := handle(line); answer {
+			if resp, answer := handle(line, root); answer {
 				if err := write(w, resp); err != nil {
 					return err
 				}
@@ -128,7 +132,7 @@ func write(w *bufio.Writer, resp response) error {
 // handle turns one input line into at most one response. The bool reports
 // whether anything should be written at all, which is how notifications stay
 // silent — the distinction a plain "return a response" signature cannot make.
-func handle(line string) (response, bool) {
+func handle(line string, serveRoot string) (response, bool) {
 	line = strings.TrimRight(line, "\r\n")
 	if strings.TrimSpace(line) == "" {
 		// A blank line carries no message. Answering it with an error would
@@ -158,6 +162,14 @@ func handle(line string) (response, bool) {
 	switch req.Method {
 	case "initialize":
 		return resultResponse(req.ID, initializeResult())
+	case "tools/call":
+		// The handlers are adapters over the same engine functions cmd/mrw
+		// calls; the root is what binds them to this checkout.
+		res, rpcErr := callTool(serveRoot, req.Params)
+		if rpcErr != nil {
+			return response{JSONRPC: "2.0", ID: req.ID, Error: rpcErr}, true
+		}
+		return resultResponse(req.ID, res)
 	case "tools/list":
 		return resultResponse(req.ID, map[string]any{"tools": tools()})
 	default:

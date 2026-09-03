@@ -1604,6 +1604,87 @@ grep -qi 'no plans recorded' <<<"$(m stats 2>&1)" \
   && ok "and the tally is empty afterwards" \
   || bad "the tally survived --reset"
 
+# 38. ADR-010 T2: the MCP server is the SAME engine, driven through a real pipe.
+#
+# A handler-level test would pass on a frame no host sends — which is exactly
+# what happened while this task's own spec said `Content-Length`, the Language
+# Server Protocol's framing rather than MCP's. So this row starts the real
+# binary as a subprocess and speaks newline-delimited JSON-RPC down its stdin.
+#
+# The claim being checked is ADR-010's whole thesis: the verdict a caller gets
+# over MCP is the value the CLI would have produced for the same plan. Two
+# identical checkouts, one plan, both transports, compared field by field.
+fixture
+R_CLI=$R
+PLAN='@@ a.go 3 replace
+func A() int { return 11 }
+'
+cli=$(printf '%s' "$PLAN" | "$MRW" -C "$R_CLI" write --json - 2>/dev/null); rc=$?
+want 0 "$rc" "the CLI applies the plan and emits a receipt"
+
+fixture
+R_MCP=$R
+req=$(printf '%s' "$PLAN" | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
+mcpout=$(printf '%s\n' "$req" | "$MRW" -C "$R_MCP" mcp 2>"$WORK/mcp.err"); rc=$?
+want 0 "$rc" "mrw mcp applies the same plan over a real pipe"
+
+# The spec: a server MUST NOT write anything to stdout that is not a valid MCP
+# message. This binary prints to stdout everywhere else, so the rule is live.
+python3 - "$mcpout" <<'PY'
+import json,sys
+lines=[l for l in sys.argv[1].splitlines() if l.strip()]
+if not lines:
+    print("the server wrote nothing at all"); sys.exit(1)
+for l in lines:
+    m=json.loads(l)
+    assert m.get("jsonrpc")=="2.0", l
+PY
+[ $? -eq 0 ] && ok "every stdout line is a valid MCP message" \
+             || bad "the server wrote something to stdout that is not an MCP message"
+[ ! -s "$WORK/mcp.err" ] && ok "and nothing was written to stderr" \
+                         || bad "the server wrote to stderr: $(head -1 "$WORK/mcp.err")"
+
+# THE ROW: one engine, one answer. Root differs by construction (two temp
+# dirs); every other field of the receipt must be identical.
+python3 - "$cli" "$mcpout" <<'PY'
+import json,sys
+cli=json.loads(sys.argv[1])
+mcp=json.loads(sys.argv[2].splitlines()[0])["result"]["structuredContent"]
+cli.pop("root",None); cli.pop("check",None); mcp.pop("root",None)
+if cli!=mcp:
+    print("MCP:",json.dumps(mcp,sort_keys=True)); print("CLI:",json.dumps(cli,sort_keys=True)); sys.exit(1)
+PY
+[ $? -eq 0 ] && ok "the MCP receipt equals the CLI receipt for the same plan" \
+             || bad "the two transports disagree about what happened"
+grep -q 'return 11 }' "$R_MCP/a.go" && ok "and the file really changed" || bad "the receipt claimed a write that did not happen"
+
+# Recovery — ADR-001's original objection, tested rather than argued. Killing
+# the server mid-session must lose nothing: the ledger is on disk, so a NEW
+# server and the CLI are both still licensed to write what the dead one read.
+fixture
+R_KILL=$R
+rm -f "$WORK/in" "$WORK/out"; mkfifo "$WORK/in" "$WORK/out"
+"$MRW" -C "$R_KILL" mcp < "$WORK/in" > "$WORK/out" 2>/dev/null &
+srv=$!
+exec 9>"$WORK/in"; exec 8<"$WORK/out"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}' >&9
+IFS= read -r -t 10 line <&8
+[ -n "${line:-}" ] && ok "a live server answers a read over a real pipe" || bad "the server did not answer within 10s"
+kill -9 "$srv" 2>/dev/null; wait "$srv" 2>/dev/null
+exec 9>&-; exec 8<&-
+kill -0 "$srv" 2>/dev/null && bad "the server survived SIGKILL" || ok "the server is killed mid-session"
+
+# A NEW server completes a write the dead one licensed.
+req=$(printf '@@ a.go 3 replace\nfunc A() int { return 12 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
+out=$(printf '%s\n' "$req" | "$MRW" -C "$R_KILL" mcp 2>/dev/null)
+grep -q '"applied":true' <<<"$out" \
+  && ok "a NEW server completes a write the killed one licensed" \
+  || bad "the ledger did not survive the kill: $(head -c 200 <<<"$out")"
+
+# And so is the CLI: one ledger, not one per transport.
+out=$(printf '@@ a.go 4 replace\nfunc B() int { return 22 }\n' | "$MRW" -C "$R_KILL" write - 2>&1); rc=$?
+want 0 "$rc" "and a CLI write after the killed server is licensed too"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
