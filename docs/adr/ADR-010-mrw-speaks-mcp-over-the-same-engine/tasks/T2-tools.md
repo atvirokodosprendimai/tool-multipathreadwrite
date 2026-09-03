@@ -64,18 +64,29 @@ go test ./internal/mcp/ -v 2>&1 | tee /tmp/adr010-t2.out \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ] \
   && grep -q '^require github.com/urfave/cli/v3 ' go.mod \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check internal/state)" ] \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check internal/state \
   && go test ./... \
   && ./scripts/contract.sh
 ```
 
 Two clauses ARE the go/no-go conditions rather than descriptions of them: exactly one requirement in
 `go.mod`, and a clean working tree across the six engine directories. Neither consults a remote ref.
-An earlier draft diffed both against `git merge-base HEAD origin/main`, which is right in intent and
-wrong in practice — it exits 128 in a clone that lacks the ref, and CI checks out at `fetch-depth: 1`.
+An earlier draft used ONLY `git merge-base HEAD origin/main`, which is right in intent and
+incomplete in practice — it exits 128 in a clone that lacks the ref, and CI checks out at
+`fetch-depth: 1`.
 
 `git status --porcelain --untracked-files=all` rather than `git diff` because the diff form does not
 see an UNTRACKED file: `internal/read/new.go` added by this task passes a diff and is exactly how an
 engine grows a second answer. Verified 2026-09-03 — the diff form exits 0 with such a file present.
+
+**Both forms are here because each has the blind spot the other closes**, measured 2026-09-03 by a
+reviewer and reproduced: commit a one-line change to `internal/seen/seen.go` and the porcelain
+clause returns EMPTY and passes, while the merge-base diff returns 1 and catches it; add an
+untracked `internal/read/new.go` and the merge-base diff exits 0 while the porcelain clause catches
+it. A working-tree gate cannot see a committed change and a commit-range gate cannot see an
+untracked file, so "no engine change" needs both sentences or it is not the claim the ADR makes.
+The merge-base clause is the one that fails in a shallow checkout; when it does, it fails LOUDLY
+with 128 rather than passing, which is the right direction for a go/no-go to break in.
 
 What neither clause proves is that a change already COMMITTED did not touch the engine; this is a
 working-tree gate, run before the commit it gates. The review diff and the SHA in the verification
