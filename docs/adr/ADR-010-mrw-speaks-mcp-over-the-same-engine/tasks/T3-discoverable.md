@@ -92,6 +92,8 @@ than it holds.
 
 ## Mutation Log
 
+- 2026-09-03 · fae3f88 · mutant killed · exit 1 · `cmd/mrw/main.go` · rename the subcommand so the README config block names a command the binary no longer has — the dangling-pointer defect §39 exists to catch · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17
+
 ## Invariants
 
 - The README states that the MCP path serializes calls made through the server, and that a CLI
@@ -119,3 +121,4 @@ than in a paragraph warning readers about it.
 
 ## Verification Log
 - 2026-09-03 · f46617a · exit 0 · `set -o pipefail …` · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17 · ms:10066
+- 2026-09-03 · fae3f88 · exit 0 · `set -o pipefail …` · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17 · ms:9078
