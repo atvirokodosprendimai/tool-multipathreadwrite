@@ -24,9 +24,9 @@ something we do not say.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Bind the server to the checkout the host meant | pending | — | 4 named `--- PASS:` lines, `# 40.` in `contract.sh`, `CLAUDE_PROJECT_DIR` in README, both engine clauses, `./scripts/contract.sh` |
-| T2 | Declare what each tool is, and what it returns | pending | — | 5 named `--- PASS:` lines, `# 41.` in `contract.sh`, both engine clauses, `./scripts/contract.sh` |
 | T1 | Bind the server to the checkout the host meant | done | — | 4 named `--- PASS:` lines, `# 40.` in `contract.sh`, `CLAUDE_PROJECT_DIR` in README, both engine clauses, `./scripts/contract.sh` |
+| T2 | Declare what each tool is, and what it returns | pending | — | 5 named `--- PASS:` lines, `# 41.` in `contract.sh`, both engine clauses, `./scripts/contract.sh` |
+| T3 | Refuse a read that would not fit, instead of buffering it | pending | — | 4 named `--- PASS:` lines, `# 42.` in `contract.sh`, `bounded` in README, both engine clauses, `./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done` | `withdrawn`.
 
