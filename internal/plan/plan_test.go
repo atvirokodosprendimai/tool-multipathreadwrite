@@ -268,3 +268,34 @@ func TestRawWithoutBodyIsRefused(t *testing.T) {
 		t.Errorf("body= with raw=true was refused: %v", err)
 	}
 }
+
+// Windows PowerShell 5.1 — the powershell.exe that ships with Windows — writes
+// a UTF-8 BOM for `-Encoding utf8` and has no BOM-less option (utf8NoBOM
+// arrived in PowerShell 7). So the most obvious way to author a plan in the
+// native Windows shell produced a file mrw refused, with a message that said
+// "text before the first @@ header" about a line that IS a header.
+func TestAUTF8BOMDoesNotDisqualifyTheFirstHeader(t *testing.T) {
+	hunks, err := Parse(strings.NewReader("\ufeff@@ f.txt 1 replace\nX\n"))
+	if err != nil {
+		t.Fatalf("a plan with a UTF-8 BOM was refused: %v", err)
+	}
+	if len(hunks) != 1 || hunks[0].Path != "f.txt" {
+		t.Fatalf("got %+v, want one hunk for f.txt", hunks)
+	}
+	if len(hunks[0].Body) != 1 || hunks[0].Body[0] != "X" {
+		t.Errorf("body = %q, want [X] — the body must not absorb the header", hunks[0].Body)
+	}
+}
+
+// Only at offset 0. A BOM anywhere else is real content: stripping it there
+// would silently edit a caller's body, which is the class of thing this format
+// refuses to do.
+func TestABOMInsideAPlanIsContentNotSyntax(t *testing.T) {
+	hunks, err := Parse(strings.NewReader("@@ f.txt 1 replace\n\ufeffX\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hunks) != 1 || len(hunks[0].Body) != 1 || hunks[0].Body[0] != "\ufeffX" {
+		t.Errorf("body = %q, want the BOM preserved as content", hunks[0].Body)
+	}
+}

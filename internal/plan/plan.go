@@ -133,6 +133,26 @@ func Parse(r io.Reader) ([]Hunk, error) {
 	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	for n := 1; sc.Scan(); n++ {
 		line := sc.Text()
+		// Strip a UTF-8 BOM from the FIRST line. Windows PowerShell 5.1 —
+		// the powershell.exe that ships with Windows — writes one for
+		// `-Encoding utf8` and has no BOM-less option (utf8NoBOM arrived in
+		// PowerShell 7), so the most obvious way to author a plan in the
+		// native Windows shell produced a file mrw refused to read.
+		//
+		// The refusal was also misleading twice over: it reported "text
+		// before the first @@ header" about a line that IS a header, and
+		// then reported the body line as a second error, so a reader saw
+		// two errors and concluded the plan FORMAT was wrong rather than
+		// that one invisible byte at offset 0 disqualified the header.
+		//
+		// Stripped rather than diagnosed: a BOM is a legitimate UTF-8
+		// artifact, the rest of the file is a valid plan, and refusing it
+		// would ask the caller to fix their editor rather than mrw to read
+		// what every other tool reads. Only at offset 0 — a BOM anywhere
+		// else is real content and stays.
+		if n == 1 {
+			line = strings.TrimPrefix(line, "\ufeff")
+		}
 
 		// An explicit body= count takes precedence over header detection, so a
 		// body may contain lines that themselves start with "@@ ".

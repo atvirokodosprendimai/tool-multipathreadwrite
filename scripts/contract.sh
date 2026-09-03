@@ -1347,6 +1347,48 @@ m read a.go >/dev/null 2>&1
 out=$(printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 9 }\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "one anchor= still guards an edit"
 
+# 32. A UTF-8 BOM does not disqualify the first header (issue #46). Windows
+# PowerShell 5.1 — the powershell.exe that ships with Windows — writes one for
+# `-Encoding utf8` and has no BOM-less option, so the most obvious way to
+# author a plan in the native Windows shell produced a file mrw refused. The
+# refusal was misleading twice: it said "text before the first @@ header" about
+# a line that IS a header, then reported the body as a SECOND error, so the
+# reader concluded the plan format was wrong.
+#
+# Driven through a shell because that is where the bytes come from. Stripped
+# only at offset 0 — a BOM anywhere else is content, and editing a caller's
+# body would be the silent-corruption class this project refuses.
+fixture
+m read a.go >/dev/null 2>&1
+printf '\357\273\277@@ a.go 3 replace\nfunc A() int { return 7 }\n' > "$WORK/bom.mrw"
+out=$(m write "$WORK/bom.mrw" 2>&1); rc=$?
+want 0 "$rc" "a plan with a UTF-8 BOM applies"
+grep -q 'return 7' "$R/a.go" \
+  && ok "and the edit actually landed" \
+  || bad "exit 0 but the file is unchanged: $(sed -n 3p "$R/a.go")"
+
+# The same bytes without the BOM must still apply — the control that proves the
+# BOM was the whole difference.
+fixture
+m read a.go >/dev/null 2>&1
+printf '@@ a.go 3 replace\nfunc A() int { return 7 }\n' > "$WORK/nobom.mrw"
+m write "$WORK/nobom.mrw" >/dev/null 2>&1
+want 0 $? "and the same plan without a BOM still applies"
+
+# A BOM in the BODY is content, not syntax.
+fixture
+m read a.go >/dev/null 2>&1
+printf '@@ a.go 3 replace\n\357\273\277KEEP\n' > "$WORK/inner.mrw"
+m write "$WORK/inner.mrw" >/dev/null 2>&1
+want 0 $? "a BOM inside a body is accepted"
+# tr -s: od on macOS separates bytes with TWO spaces and on GNU with one, so a
+# literal 'ef bb bf' matches on Linux and silently never matches here.
+if sed -n 3p "$R/a.go" | od -An -tx1 | tr -s ' ' | head -1 | grep -q 'ef bb bf'; then
+  ok "and preserved as content rather than stripped"
+else
+  bad "a BOM in the body was eaten — that is a silent edit to the caller's text"
+fi
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
