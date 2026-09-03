@@ -425,10 +425,11 @@ re-measuring these. Each was driven at the built binary, not read:
   This entry said a cap "is a behaviour divergence from the CLI, which
   ADR-010's whole thesis is careful about", and left the decision open on that
   ground. Claude Code caps MCP tool output at 25,000 tokens by default and
-  offers a per-tool override up to 500,000 characters. The host truncates
-  regardless of what mrw does, so the choice was never cap-versus-fidelity; it
-  was refuse legibly, or be truncated by someone else after paying the memory
-  to build the result.
+  offers a per-tool override up to 500,000 characters; an oversized result is
+  "persisted to disk and replaced with a file reference in the conversation",
+  so the model never receives it as the file either way. The choice was never
+  cap-versus-fidelity; it was refuse legibly, or pay the memory to build a
+  result the host then takes out of the conversation.
 
   Worth keeping as a lesson about deferrals: the reason recorded here was
   plausible, internally consistent and unchecked, and it deferred the work for

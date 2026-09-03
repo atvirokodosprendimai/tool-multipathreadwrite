@@ -110,7 +110,8 @@ these files instead of asserted. The engine clauses matter more here
 
 - The limit enforced here is the constant T2 advertises; there is one constant and two readers.
 - A read under the limit returns exactly what it returned before this task.
-- No file under the six engine directories changes: `read.Options` already carries the bound.
+- No file under the six engine directories changes: the bound is a capped writer in the transport,
+  not an option handed to the engine.
 - A refusal writes nothing and observes nothing — a refused read must not leave a ledger entry
   claiming the caller saw a file they did not.
 
@@ -124,8 +125,10 @@ these files instead of asserted. The engine clauses matter more here
 
 ## Stop Condition
 
-Stop if bounding the read requires a change under `internal/read`. `read.Options.MaxLines` exists and
-this task sets it; if it turns out not to be sufficient, that is an ADR-007 question and a different
+Stop if bounding the read requires a change under `internal/read`. It did not: the bound is a capped
+`io.Writer` this package owns, and the engine is not asked to bound anything. `read.Options.MaxLines`
+was the planned mechanism and was rejected during execution for the per-file reason S2 records; if a
+future bound genuinely needs engine support, that is an ADR-007 question and a different
 record, not a quiet edit to the engine — and the fence's two engine clauses will say so before the
 commit lands.
 

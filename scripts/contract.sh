@@ -1829,11 +1829,15 @@ import json,sys
 r=json.loads(sys.argv[1])["result"]
 c=r["content"]
 assert len(c)>=2, "want two content blocks, got %d" % len(c)
-first=json.loads(c[0]["text"])          # must parse: the spec's SHOULD
-assert first==r["structuredContent"], "content[0] and structuredContent disagree"
-assert c[1]["text"].strip(), "the human-readable report did not survive"
+# The spec asks for the serialized JSON in "a TextContent block", not the first.
+# The report stays at content[0] because for mrw_read that block is where the
+# FILE CONTENT lives, and a caller already reading content[0] must not silently
+# start receiving a receipt instead.
+assert c[0]["text"].strip(), "the human-readable report is missing from content[0]"
+second=json.loads(c[1]["text"])         # must parse: the spec's SHOULD
+assert second==r["structuredContent"], "content[1] and structuredContent disagree"
 PY
-[ $? -eq 0 ] && ok "and content[0] is the serialized structuredContent, with the report after it" \
+[ $? -eq 0 ] && ok "and content[1] is the serialized structuredContent, with the report first" \
              || bad "the result does not carry the serialized JSON the spec asks for"
 
 # 42. ADR-011 T3: a read too large for the wire is REFUSED, cheaply, and only

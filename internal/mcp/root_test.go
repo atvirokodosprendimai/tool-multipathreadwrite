@@ -40,12 +40,12 @@ func TestTheProjectDirEnvironmentIsUsedWhenNoRootIsGiven(t *testing.T) {
 		t.Errorf("source = %q, want %q", src, SourceProjectDir)
 	}
 
-	// "." is the flag's default, and it means "nothing was asked for" here —
-	// treating it as an explicit choice would make the environment unreachable
-	// through the documented config block, which passes no --root at all.
-	got, src = ResolveRoot(".", lookup(map[string]string{projectDirEnv: dir}))
+	// And "" is how the caller says "no --root was given". The caller decides
+	// that with IsSet, never by comparing against the flag default — see the
+	// next test for why.
+	got, src = ResolveRoot("", lookup(map[string]string{projectDirEnv: dir}))
 	if got != dir || src != SourceProjectDir {
-		t.Errorf(`ResolveRoot(".") = %q/%q, want %q/%q — "." is the default, not a choice`, got, src, dir, SourceProjectDir)
+		t.Errorf(`ResolveRoot("") = %q/%q, want %q/%q`, got, src, dir, SourceProjectDir)
 	}
 }
 
@@ -105,5 +105,34 @@ func TestResolveRootReportsWhichSourceItUsed(t *testing.T) {
 		if s.String() == "" {
 			t.Errorf("source %v has no description", s)
 		}
+	}
+}
+
+func TestAnExplicitDotIsAChoiceNotADefault(t *testing.T) {
+	// `--root .` typed on purpose and `--root` omitted both arrive as "." from
+	// the flag parser. An earlier version of ResolveRoot compared against the
+	// default and treated them as the same, so a deliberate `--root .` beside a
+	// CLAUDE_PROJECT_DIR served the environment's tree — silently, and the
+	// opposite of what was asked. The caller now distinguishes them with IsSet
+	// and passes "" for absent, so "." reaching here IS a choice.
+	dir := t.TempDir()
+	got, src := ResolveRoot(".", lookup(map[string]string{projectDirEnv: dir}))
+	if got != "." || src != SourceFlag {
+		t.Errorf(`ResolveRoot(".") = %q/%q, want "."/%q — an explicit dot must win`, got, src, SourceFlag)
+	}
+}
+
+func TestAProjectDirEndingInSpaceIsNotRewritten(t *testing.T) {
+	// Trimming decides whether anything was SAID; it must not change the path.
+	// A directory whose name really ends in a space is legal, and trimming it
+	// resolves to a different directory than the host named.
+	base := t.TempDir()
+	odd := filepath.Join(base, "trailing ")
+	if err := os.Mkdir(odd, 0o755); err != nil {
+		t.Skipf("this filesystem will not hold a trailing space: %v", err)
+	}
+	got, src := ResolveRoot("", lookup(map[string]string{projectDirEnv: odd}))
+	if got != odd || src != SourceProjectDir {
+		t.Errorf("root = %q, want the untrimmed %q", got, odd)
 	}
 }

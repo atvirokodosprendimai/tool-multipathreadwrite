@@ -57,17 +57,25 @@ func (s Source) String() string {
 // that sets the variable to something stale should get a working server bound
 // somewhere honest, not a dead one; the startup line is what makes the choice
 // visible either way.
+// The caller passes "" when --root was NOT given. It must not decide that by
+// comparing against the flag's default: `--root .` typed deliberately and
+// `--root` omitted both arrive as "." from the flag parser, and an earlier
+// version of this treated the pair as identical — so `--root .` beside a
+// CLAUDE_PROJECT_DIR served the environment's tree instead of the working
+// directory, silently, which is the opposite of what the user asked for.
+// cmd/mrw already learned this once; see the IsSet comment in main.go.
 func ResolveRoot(explicit string, lookup func(string) (string, bool)) (string, Source) {
-	// "." is the flag's default value, which means nobody asked. Treating it as
-	// a choice would make the environment unreachable through the documented
-	// config block, which passes no --root at all.
-	if explicit != "" && explicit != "." {
+	if explicit != "" {
 		return explicit, SourceFlag
 	}
 	if lookup != nil {
 		if v, ok := lookup(projectDirEnv); ok {
-			if dir := strings.TrimSpace(v); isUsableDir(dir) {
-				return dir, SourceProjectDir
+			// Trimmed only to decide whether anything was said. The path itself
+			// is used UNTRIMMED: a directory whose name really ends in a space
+			// is legal, and silently trimming it would resolve to a different
+			// directory than the host named.
+			if strings.TrimSpace(v) != "" && isUsableDir(v) {
+				return v, SourceProjectDir
 			}
 		}
 	}

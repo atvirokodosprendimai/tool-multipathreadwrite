@@ -217,7 +217,16 @@ this subcommand is not useful to run by hand.`,
 			// A host launches this without --root and expects the project it is
 			// working in. The working directory it happens to inherit is not
 			// that, so the environment the host sets is consulted first.
-			root, src := mcp.ResolveRoot(cmd.Root().String("root"), os.LookupEnv)
+			// IsSet, not != ".": `--root .` typed on purpose and `--root`
+			// omitted both arrive as "." from the parser, and only IsSet tells
+			// them apart. Without it a deliberate `--root .` loses to the
+			// host's environment — measured, and the same lesson this file
+			// already learned for --grep/--files-from below.
+			explicitRoot := ""
+			if cmd.Root().IsSet("root") {
+				explicitRoot = cmd.Root().String("root")
+			}
+			root, src := mcp.ResolveRoot(explicitRoot, os.LookupEnv)
 			// Announced on STDERR: the spec forbids anything on stdout that is
 			// not an MCP message, and a server silently bound to the wrong tree
 			// is this subcommand's worst failure — every refusal it then gives

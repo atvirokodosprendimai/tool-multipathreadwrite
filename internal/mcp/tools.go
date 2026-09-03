@@ -71,9 +71,15 @@ func result(structured any, report string, isErr bool) (callToolResult, *rpcErro
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: "encoding the result: " + err.Error()}
 	}
 	return callToolResult{
+		// THE REPORT FIRST, the JSON second. The spec asks for the serialized
+		// structured content in "a TextContent block", not in the first one,
+		// and for mrw_read the first block is where the FILE CONTENT lives —
+		// which is the entire payload a caller asked for. Putting the receipt
+		// there instead would hand a model metadata where it expected the file,
+		// and would change what content[0] meant for anyone already reading it.
 		Content: []contentBlock{
-			{Type: "text", Text: string(b)},
 			{Type: "text", Text: report},
+			{Type: "text", Text: string(b)},
 		},
 		StructuredContent: json.RawMessage(b),
 		IsError:           isErr,
@@ -149,26 +155,18 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-007's own cap reports itself when it fires, which is right for a
 	// person reading a terminal. Over MCP the consumer is a model, and a
 	// truncated file that arrives looking like the file is exactly the silent
-	// wrong answer this project exists to refuse. The host truncates at its own
-	// limit regardless — Claude Code's default is 25,000 tokens — so the choice
-	// was never "cap or stay faithful to the CLI"; it was refuse legibly, or be
-	// truncated by someone else after paying the memory to build it.
+	// wrong answer this project exists to refuse. An oversized result does not
+	// reach the model as the file anyway — the host persists it to disk and
+	// replaces it with a file reference — so the choice was never "cap or stay
+	// faithful to the CLI"; it was refuse legibly, or pay the memory to build a
+	// result the host then takes out of the conversation.
 	//
 	// The ledger is deliberately NOT written here: a refused read showed the
 	// caller nothing, and an entry claiming otherwise would license a later
 	// write against a file they never saw. That is ADR-002's guarantee, and it
 	// is the one thing a size limit must not quietly spend.
 	if cw.over {
-		// The per-line average comes from the CAPPED buffer — its own chars
-		// over its own lines. Dividing the FULL byte count by the capped line
-		// count mixes two samples and suggested "giant.go:1-2" for a 193 MB
-		// file: a hint that wastes the retry it exists to save.
-		return errorResult(fmt.Sprintf(
-			"that read is over the %d character limit — it reached %d and was stopped there.\n"+
-				"Nothing was read and nothing was recorded, so no write is licensed by it.\n"+
-				"Ask for a range instead — for example %s:1-%d — or name fewer files in one call.",
-			MaxResultChars, cw.written, a.Specs[0],
-			suggestLines(cw.buf.Len(), countLines(&cw.buf)))), nil
+		return errorResult(overflowMessage(a.Specs, cw)), nil
 	}
 
 	// Reading is how mrw learns what a file holds; recording that is what lets
@@ -345,5 +343,37 @@ func (c *capped) Write(p []byte) (int, error) {
 	}
 	// Always report a full write: an io.Writer that short-writes makes its
 	// caller error, and read.Run's job is not to know it is being bounded.
+	//
+	// THE TRADE this makes explicit: the refusal is cheap in MEMORY and not in
+	// TIME. read.Run keeps reading and keeps offering bytes we discard, so a
+	// 40 x 18 MB request takes seconds to refuse. Short-writing would stop it
+	// sooner and would surface inside the engine's own report as a per-file
+	// problem, which is a worse answer than a slow correct one — the caller
+	// would be told their FILE failed rather than their REQUEST was too large.
 	return len(p), nil
+}
+
+// overflowMessage explains a refused read and, where it honestly can, names the
+// narrower request to make instead.
+//
+// The example range is only offered when the FIRST spec is a bare path. A spec
+// that already carries a range would produce "small.txt:1-2:1-N", which is not
+// valid syntax, and with several specs the one that crossed the limit may not be
+// the first — so in those cases the message says what to do without inventing a
+// spec that might be wrong. A hint that has to be debugged is worse than none.
+func overflowMessage(specs []string, cw *capped) string {
+	// The per-line average comes from the CAPPED buffer — its own bytes over
+	// its own lines. Dividing the FULL byte count by the capped line count
+	// mixes two samples and suggested "giant.go:1-2" for a 193 MB file.
+	var b strings.Builder
+	fmt.Fprintf(&b, "that read would have returned about %d bytes and the limit is %d.\n", cw.written, cw.limit)
+	b.WriteString("Nothing was read and nothing was recorded, so no write is licensed by it.\n")
+	if len(specs) == 1 && !strings.Contains(specs[0], ":") {
+		fmt.Fprintf(&b, "Ask for a range instead — for example %s:1-%d.",
+			specs[0], suggestLines(cw.buf.Len(), countLines(&cw.buf)))
+	} else {
+		fmt.Fprintf(&b, "Ask for narrower ranges — around %d lines per file at this file's line length — or name fewer files in one call.",
+			suggestLines(cw.buf.Len(), countLines(&cw.buf)))
+	}
+	return b.String()
 }

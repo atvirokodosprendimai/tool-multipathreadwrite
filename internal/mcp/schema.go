@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -34,10 +35,25 @@ func SchemaOf(v any) (map[string]any, error) {
 		return nil, fmt.Errorf("mcp: %s serializes no fields; a property-less object schema validates anything", t)
 	}
 	s := map[string]any{"type": "object", "properties": props}
-	if len(required) > 0 {
+	if len(required) > 0 && !hasCustomMarshal(t) {
 		s["required"] = required
 	}
 	return s, nil
+}
+
+// hasCustomMarshal reports whether a type marshals itself. Reflection cannot see
+// through MarshalJSON, so for such a type the FIELD NAMES are still a useful
+// description while the presence of any of them is a guess.
+//
+// This is not hypothetical: apply.HunkResult emits removed_first and
+// removed_last only for a successful delete, so a schema built from its struct
+// tags required two fields an ordinary replace response does not carry —
+// measured 2026-09-03, and missed by a conformance test that only compared
+// top-level keys. Declaring a field required is a promise about the payload,
+// and this is exactly where that promise cannot be kept.
+func hasCustomMarshal(t reflect.Type) bool {
+	marshaler := reflect.TypeOf((*json.Marshaler)(nil)).Elem()
+	return t.Implements(marshaler) || reflect.PointerTo(t).Implements(marshaler)
 }
 
 // fieldsOf walks a struct's exported fields, honouring json tags. Embedded
@@ -84,9 +100,35 @@ func fieldsOf(t reflect.Type) (map[string]any, []string) {
 // results are made of. ADR-011's Stop Condition says to say so rather than
 // reach for a JSON Schema library if the types outgrow it.
 func typeSchema(t reflect.Type) map[string]any {
+	nullable := t.Kind() == reflect.Pointer
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
+	s := baseSchema(t)
+	if nullable {
+		s = orNull(s)
+	}
+	return s
+}
+
+// orNull widens a schema to admit null, for the Go shapes that marshal as null
+// rather than as their zero value: a nil pointer, a nil slice, a nil map.
+//
+// Declaring only "array" for a nil slice makes a strict validator reject an
+// ordinary response — seen.Observation.Spans is nil for a whole-file read,
+// which is the COMMON case, and a schema that rejects the common case is worse
+// than no schema at all.
+func orNull(s map[string]any) map[string]any {
+	switch v := s["type"].(type) {
+	case string:
+		s["type"] = []string{v, "null"}
+	case nil:
+		// An unconstrained schema already admits null.
+	}
+	return s
+}
+
+func baseSchema(t reflect.Type) map[string]any {
 	switch t.Kind() {
 	case reflect.String:
 		return map[string]any{"type": "string"}
@@ -97,21 +139,26 @@ func typeSchema(t reflect.Type) map[string]any {
 		return map[string]any{"type": "integer"}
 	case reflect.Float32, reflect.Float64:
 		return map[string]any{"type": "number"}
-	case reflect.Slice, reflect.Array:
+	case reflect.Slice:
+		return orNull(map[string]any{"type": "array", "items": typeSchema(t.Elem())})
+	case reflect.Array:
+		// A fixed-size array is never nil.
 		return map[string]any{"type": "array", "items": typeSchema(t.Elem())}
 	case reflect.Map:
 		// A map's keys are data, so its properties cannot be enumerated. This
 		// is the one place a property-less object is honest, and it is marked
 		// so a reader does not mistake it for the permissive form SchemaOf
 		// refuses at the top level.
-		return map[string]any{"type": "object", "additionalProperties": typeSchema(t.Elem())}
+		return orNull(map[string]any{"type": "object", "additionalProperties": typeSchema(t.Elem())})
 	case reflect.Struct:
 		props, required := fieldsOf(t)
 		if len(props) == 0 {
 			return map[string]any{"type": "object"}
 		}
 		s := map[string]any{"type": "object", "properties": props}
-		if len(required) > 0 {
+		// Reflection cannot see through a custom MarshalJSON, so requiredness
+		// is a promise this cannot keep for such a type. See hasCustomMarshal.
+		if len(required) > 0 && !hasCustomMarshal(t) {
 			s["required"] = required
 		}
 		return s
@@ -123,10 +170,16 @@ func typeSchema(t reflect.Type) map[string]any {
 	}
 }
 
-// MaxResultChars is the largest tool result this server will produce, in
-// characters. It is advertised in each tool's `_meta` and enforced on the read
-// path — ONE constant with two readers, so the advertised limit and the enforced
-// limit cannot drift.
+// MaxResultChars is the largest tool result this server will produce. It is
+// advertised in each tool's `_meta` and enforced on the read path — ONE
+// constant with two readers, so the advertised limit and the enforced limit
+// cannot drift.
+//
+// It is enforced in BYTES while the host's key is named in characters. That is
+// deliberate and conservative in the safe direction: a UTF-8 character is at
+// least one byte, so bounding bytes at N guarantees at most N characters, and
+// the server can only ever come in UNDER what it advertised. The refusal
+// message says bytes, because that is what was counted.
 //
 // The value is Claude Code's per-tool ceiling. Its global default is 25,000
 // tokens (`MAX_MCP_OUTPUT_TOKENS`), and a tool may declare up to 500,000

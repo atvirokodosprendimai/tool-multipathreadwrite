@@ -403,3 +403,31 @@ func TestTheCappedWriterRetainsNoMoreThanItsLimit(t *testing.T) {
 		t.Errorf("written = %d, want 1000000 — the refusal reports how far over the caller was", cw.written)
 	}
 }
+
+func TestTheRefusalDoesNotInventAnInvalidSpec(t *testing.T) {
+	// "small.txt:1-2" + ":1-N" is not valid syntax, and with several specs the
+	// one that crossed the limit may not be the first. In both cases the
+	// message must say what to do without inventing a spec that would fail.
+	root, big := bigCheckout(t, MaxResultChars/40)
+	if err := os.WriteFile(filepath.Join(root, "small.txt"), []byte("a\nb\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for name, specs := range map[string][]any{
+		"first spec already ranged": {"small.txt:1-2", big},
+		"several specs":             {big, "small.txt"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			res := call(t, root, "mrw_read", map[string]any{"specs": specs})
+			txt, _ := res["content"].([]any)[0].(map[string]any)["text"].(string)
+			if strings.Contains(txt, ":1-2:1-") {
+				t.Errorf("the refusal invented an invalid spec:\n%s", txt)
+			}
+			if !strings.Contains(txt, "narrower ranges") {
+				t.Errorf("the refusal gives no usable advice:\n%s", txt)
+			}
+			if !strings.Contains(txt, fmt.Sprint(MaxResultChars)) {
+				t.Errorf("the refusal does not name the limit:\n%s", txt)
+			}
+		})
+	}
+}

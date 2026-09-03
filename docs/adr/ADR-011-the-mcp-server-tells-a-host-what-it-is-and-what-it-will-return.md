@@ -51,9 +51,13 @@ argues that a host seeing a closed pipe cannot tell a crash from a refusal.
 cap would be "a behaviour divergence from the CLI, which ADR-010's whole thesis is careful about",
 and left the decision open on that ground. Claude Code caps MCP tool output at **25,000 tokens** by
 default (`MAX_MCP_OUTPUT_TOKENS`) and offers a per-tool override up to 500,000 characters via
-`_meta["anthropic/maxResultSizeChars"]`. The host truncates regardless of what mrw does. So the
-choice was never "cap or stay faithful to the CLI"; it was "refuse legibly, or be truncated by
-someone else after paying the memory". Reading `cmd/mrw/main.go` over MCP already returns ~13,000
+`_meta["anthropic/maxResultSizeChars"]`. What the host does with an oversized result is not
+truncation in place: the documentation says *"results that exceed the default threshold are persisted
+to disk and replaced with a file reference in the conversation."* The conclusion is unchanged and
+slightly stronger — either way the model never receives the oversized result as the file; it gets a
+pointer it must spend another call to read. So the choice was never "cap or stay faithful to the
+CLI"; it was "refuse legibly, or have the result taken out of the conversation by someone else after
+paying the memory to build it". Reading `cmd/mrw/main.go` over MCP already returns ~13,000
 tokens, so two such files exceed the default today.
 
 ## Existing Primitives Audit
@@ -61,10 +65,12 @@ tokens, so two such files exceed the default today.
 - **`internal/mcp/mcp.go` and `tools.go` (ADR-010):** the transport and the two adapters. **Extended,
   not replaced.** Every change here is additive to the handshake and the tool descriptors; no tool
   gains a verdict of its own, which is ADR-010-T2's Stop Condition and still binds.
-- **`read.Options.MaxLines` (ADR-007):** **reused as the cap mechanism.** The read path already has a
-  bound that reports itself when it fires — "a cap that fires is always reported: a silent truncation
-  reads as 'that was the whole file'". This ADR sets it on the MCP path rather than inventing a
-  second limiter, which is the difference between a bound and a divergence.
+- **`read.Options.MaxLines` (ADR-007):** audited and **NOT taken.** It was the planned mechanism and
+  it is the wrong one: `MaxLines` bounds each FILE, so N specs naming one large file are still N
+  times the cap — which is the exact shape of the request that motivated this ADR. The cap that
+  shipped is a capped `io.Writer` on the transport side. `internal/read` is untouched not because
+  the bound lives in an Option it already had, but because the transport is the right place to bound
+  a transport's result.
 - **`rooted` and ADR-006's boundary:** **reused unchanged.** T1 changes which root is passed in, never
   what confinement means.
 - **`apply.Result` / `seen.Observation`:** **reused as the payload.** The schemas T2 declares are
@@ -131,7 +137,7 @@ task is withdrawn rather than shipped:**
 |---|---|---|
 | `internal/mcp` | The wire protocol, the tool descriptors and the result envelope. Still knows JSON-RPC, not the filesystem | Yes — changes when the protocol or the declared surface changes |
 | `cmd/mrw` | Flag surface, and now the root resolution the `mcp` subcommand hands in | Yes |
-| `internal/read` | Unchanged. The cap is an Option it already has | Untouched |
+| `internal/read` | Unchanged, and not because the cap lives in it — the bound is a transport-side writer | Untouched |
 
 ## Wiring & Contract Changes
 
@@ -197,5 +203,5 @@ changes meaning, and a tree touched under this ADR is served identically by the 
 
 ## Follow-ups
 
-- [ ] Re-read `BACKLOG.md`'s read-buffering entry once T3 lands and replace it with a pointer here, since its stated reason for deferring — that a cap diverges from the CLI — is the thing this record corrects
+- [x] `BACKLOG.md`'s read-buffering entry is replaced, in T3 S5, by an entry recording that its stated reason for deferring — that a cap diverges from the CLI — was the thing this record corrects
 - [ ] Revisit `roots/list` if a second host needs it, or if `CLAUDE_PROJECT_DIR` proves host-specific in a way that matters
