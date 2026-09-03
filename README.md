@@ -350,11 +350,14 @@ only MCP messages to stdout.
 **What the server does not change.** It is the same engine: the same read-before-write
 ledger, shared with the CLI so a file read over MCP can be edited from a shell
 and the reverse; the same plan format; the same per-hunk verdict, carried in the
-tool result's `structuredContent` and byte-identical to what `mrw write --json`
-prints; and the same meanings for every exit status when you go back to the
-shell. There is nothing to choose between the two paths and no behaviour to
+tool result's `structuredContent` and identical field for field to what
+`mrw write --json` prints, apart from `root` — the CLI reports the root you gave
+it and the server reports the checkout it was bound to; and the same meanings for
+every exit status when you go back to the shell. There is nothing to choose
+between the two paths and no behaviour to
 learn twice — the server is a second caller of one engine, not a second product.
 The single difference is the concurrency note above.
+
 ### ⚠ Git Bash on Windows mangles a regex address
 
 `mrw read 'f.go:/^func main/'` **fails in Git Bash**, and the error names a line

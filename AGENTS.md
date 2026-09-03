@@ -88,6 +88,7 @@ tools instead of the shell recipes below. The arguments are the same strings —
 `specs` is what you would pass to `mrw read`, `plan` is the file you would pass
 to `mrw write` — and every rule in this section applies unchanged, because it is
 the same engine and the same ledger.
+
 ### 1. Read many ranges in one call, and let the read do the finding
 
 Addresses are line numbers, `N-M` ranges, `$` for the last line, or a **regex**
