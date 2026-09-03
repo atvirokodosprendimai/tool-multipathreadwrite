@@ -150,6 +150,13 @@ jobs:
       # The raw one exists because an archive makes the one-line install a
       # download AND an unpack; the archive exists because that is what people
       # expect to find on a release page.
+      #
+      # The archive carries LICENSE and AGENTS.md alongside the README. LICENSE
+      # because a distributed binary without its licence terms is the gap the
+      # repository just closed, and shipping archives that omit it would reopen
+      # it one directory down. AGENTS.md because it is the agent-facing guidance,
+      # and someone who downloads a release has neither this repository nor the
+      # centralised skill — they are the case both of those structurally miss.
       - name: Build
         id: build
         run: |
@@ -168,10 +175,10 @@ jobs:
 
           name="mrw_${{ matrix.goos }}_${{ matrix.goarch }}"
           if [ "${{ matrix.goos }}" = windows ]; then
-            zip "$name.zip" "$bin" README.md
+            zip "$name.zip" "$bin" README.md AGENTS.md LICENSE
             echo "archive=$name.zip" >> "$GITHUB_OUTPUT"
           else
-            tar -czf "$name.tar.gz" "$bin" README.md
+            tar -czf "$name.tar.gz" "$bin" README.md AGENTS.md LICENSE
             echo "archive=$name.tar.gz" >> "$GITHUB_OUTPUT"
           fi
 
