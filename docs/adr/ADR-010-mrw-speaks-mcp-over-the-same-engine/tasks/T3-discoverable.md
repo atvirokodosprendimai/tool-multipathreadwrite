@@ -118,3 +118,4 @@ than in a paragraph warning readers about it.
 - Measuring adoption (permanent: boundary: it needs telemetry, which ADR-009 refused on the premise that this tool acquires no dependencies it can avoid and does not phone home)
 
 ## Verification Log
+- 2026-09-03 · f46617a · exit 0 · `set -o pipefail …` · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17 · ms:10066
