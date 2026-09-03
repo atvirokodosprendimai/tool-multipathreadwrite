@@ -360,8 +360,98 @@ Output ranges print as `@@ 3-6`, which is exactly the address a write plan takes
 |---|---|
 | `--stat` | length, bytes and sha only — no content |
 | `-C N` | context lines around a single-pattern match |
-| `--max-lines N` | cap per file; whatever is withheld is always reported |
+| `--max-lines N` | cap per SPEC; whatever is withheld is always reported. Two hand-written specs naming one file therefore get two budgets — `--max-lines 2 f.txt f.txt` prints four lines. `--grep` deduplicates, so it is per file for everything the walk produces. |
 | `-N` | drop line numbers |
+| `--grep PATTERN` | serve every matching range in the files under the given paths; a directory is walked, and with no paths the walk starts at `--root` |
+| `--exclude GLOB` | skip paths matching GLOB (repeatable); needs `--grep` |
+| `--files-from FILE\|-` | read one spec per line from a file, or from stdin |
+
+### mrw finds the files it serves
+
+Without `--grep`, `mrw read` has to be **told** which files to serve, so every
+use of it is a searcher followed by a read — two calls, and a spec list composed
+in a shell. That composition is where it broke on first contact: a
+newline-separated list from `grep -rl` collapses into a single argument under
+ordinary word splitting, and mrw then faithfully reports a file named
+`"a.go\nb.go\nc.go"` as unreadable.
+
+```sh
+mrw read --grep 'func Handle' -C 3 --exclude vendor --exclude '*_test.go' internal/
+```
+
+One call. The walk serves the same `@@` ranges a hand-written
+`path:/func Handle/` spec would, for every file that matches.
+
+**`--files-from` is the same idea for a searcher you already trust**, and it
+ships whether or not you use `--grep`:
+
+```sh
+rg -l 'func Handle' | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
+```
+
+Blank lines are skipped and a leading `#` is a comment, so a generated list can
+carry its own provenance.
+
+**What it does not do:** it does not read `.gitignore` — mrw has no git
+dependency, and `--exclude` is the control — and it does not sniff for binary
+files. A regular file is a candidate, so a build artifact in the tree is served
+like anything else; exclude it by name. `.git/` is always skipped.
+
+#### Precedence
+
+| combination | behaviour |
+|---|---|
+| `--grep P`, no paths | walk `--root` |
+| `--grep P` with paths | walk those paths |
+| `--grep P` + a positional spec carrying its own `:RANGE` | usage error — two answers to one question |
+| `--grep P` + `--files-from` | usage error — two sources of specs |
+| `--files-from` + positional paths | usage error — same reason |
+| `--exclude` without `--grep` | usage error — nothing to exclude from |
+| `--grep P`, no paths, non-empty working set | walks `--root`, **not** the working set — `iter` holds its own specs; write `mrw read --grep P @1 @2` for both |
+| `--grep P` + `--stat` | allowed: the matching files' headers, no content, observing nothing |
+| no `--grep`, no paths | unchanged — the working set |
+
+A pattern that matches no file is **reported by name** and exits 1. A path the
+walk cannot serve is printed with its reason and counts as a problem, while
+every valid sibling is still served.
+
+#### What `--exclude` matches
+
+Each glob is matched with `path.Match` against **both** the cleaned
+root-relative path **and** the basename, and a match on either excludes.
+Matching a directory prunes everything under it. An explicitly named path is
+never pruned.
+
+The basename half is not a convenience — it is the difference between the flag
+working and doing nothing. `path.Match`'s `*` does not cross `/`, and `**` is
+not a token, it is two `*`, neither of which crosses either:
+
+    glob "*.go"      vs "internal/read/walk.go"      -> false
+    glob "*_test.go" vs "internal/read/read_test.go" -> false
+    glob "**/*.go"   vs "internal/read/walk.go"      -> false
+
+None of those is a bad pattern, so nothing would warn you: `--exclude
+'*_test.go'` matched against the full path alone gives you every test file.
+Matching the basename makes the first two work as written. The third has no
+working spelling — write `*.go` for every Go file, or a path like
+`internal/read/testdata`. A glob `path.Match` rejects is a usage error, not a
+pattern that silently matches nothing. Matching is case-sensitive everywhere.
+
+#### Is the walk worth it?
+
+The concern was that `--grep` reads each candidate twice — once to match, once
+to serve — where `grep -rl` reads it once. This was measured 2026-09-03 on this
+repository, on an Apple M5 (darwin/arm64), pattern `EvalSymlinks`, with both
+sides verified to select the **same 12 files** before any ratio was taken:
+
+| | best of 5 |
+|---|---|
+| `grep -rl --exclude-dir=.git … \| mrw read -C 3 --files-from -` | 38 ms |
+| `mrw read --grep EvalSymlinks -C 3 .` | **29 ms** |
+
+**0.76×** — the walk is *faster*, because it spawns no second process and moves
+nothing through a pipe. The decision that introduced it set 2× as the point at
+which `--grep` would be withdrawn.
 
 ## Write
 

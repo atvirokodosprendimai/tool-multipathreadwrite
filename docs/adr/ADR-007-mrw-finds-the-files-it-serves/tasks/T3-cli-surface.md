@@ -56,9 +56,9 @@ whether or not `--grep` survives its go/no-go.
 
 ```bash
 set -o pipefail
-go test ./cmd/mrw/ -run 'TestGrep|TestFilesFrom|TestExclude' -v 2>&1 | tee /tmp/adr007-t3.out \
+go test ./cmd/mrw/ -run 'TestGrep|TestFilesFrom|TestExclude|TestNoArguments|TestTheDocumented' -v 2>&1 | tee /tmp/adr007-t3.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr007-t3.out \
-  && grep -q '^# 15\.' scripts/contract.sh \
+  && grep -q '^# 28\.' scripts/contract.sh \
   && grep -q '\-\-files-from' README.md && grep -q '\-\-exclude' README.md \
   && grep -qE 'measured 2026-[0-9]{2}-[0-9]{2}' README.md \
   && ! grep -q 'cap per file' README.md \
@@ -92,6 +92,24 @@ rows — an unchanged `contract.sh` exits 0 on its own.
 
 ## Mutation Log
 
+Two corrections to the fence above, both found by running it on 2026-09-03:
+
+- It said `grep -q '^# 15\.' scripts/contract.sh`. **Section 15 has existed
+  since the `check` work**, so that clause was satisfied by an UNTOUCHED
+  `contract.sh` from the moment this task was written — the exact failure the
+  note under the fence warns about, in the fence itself. The new rows are §28
+  and the clause now names it.
+- The `-run` regex covered five of this task's seven named tests;
+  `TestNoArgumentsWithoutGrepStillReadsTheWorkingSet` and
+  `TestTheDocumentedUsageErrorsAreErrors` matched nothing and would have been
+  reported as passing by never running. Both are now in the pattern.
+
+- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · `case pattern != "":` → `case false:`, so `--grep` never selects the walk · killed by `TestGrepWithNoPathsWalksTheRoot`
+- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · remove the empty-result report, restoring silence for a pattern that matched nothing · killed by `TestGrepReportsAPatternThatMatchedNoFile`
+- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · never render `read.Problem` values · killed by `TestGrepReportsARefusedPathAndServesTheRest`
+- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · pass `Exclude: nil` to `read.Walk`, dropping every `--exclude` on the floor · killed by `TestExcludeDropsAMatchingFileAndPrunesADirectory`
+- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · ignore `--files-from` · killed by `TestFilesFromReadsSpecsFromStdin`
+
 ## Invariants
 
 - `mrw read <specs...>` without `--grep` behaves exactly as it does today,
@@ -122,3 +140,27 @@ this task ships `--files-from` alone.
   Out of Scope.
 
 ## Verification Log
+
+**2026-09-03 · acceptance · exit 0**, with the fence corrected as recorded
+above. `go test ./cmd/mrw/ -run 'TestGrep|TestFilesFrom|TestExclude|TestNoArguments|TestTheDocumented' -v`
+→ 7 tests, all PASS, no "no tests to run"; `go test ./...` → ok;
+`./scripts/contract.sh` → **235 PASS, 0 FAIL, exit 0** (216 before this task, so
+19 new rows in §28); `gofmt -l .` silent; `go vet ./...` clean;
+`go test -race ./...` exit 0. Darwin/arm64, Apple M5.
+
+The five mutations above were each run against the built binary's own package
+and each killed by exactly one named test, so rung 2 is met by every flag this
+task adds rather than by the flag registration alone.
+
+**Driven through the real binary** as well as through Go tests, because a flag
+surface is met through a shell: `--grep` with and without paths, `--exclude`
+pruning a directory and dropping a basename match, `--files-from -` fed from a
+`grep -rl` pipe and from a list carrying `#` comments, a pattern matching
+nothing (exit 1, names the pattern), a refused path beside a served one, and
+all six documented usage errors (exit 2 each).
+
+One behaviour worth stating because it surprised the author: `mrw read --grep X .`
+in this repository serves `bin/mrw`, a 7 MB build artifact, because a regular
+file is a candidate and the walk does not read `.gitignore`. Both are permanent
+ADR decisions and `--exclude bin` is the answer, but the README example now
+carries an `--exclude` for that reason rather than for decoration.
