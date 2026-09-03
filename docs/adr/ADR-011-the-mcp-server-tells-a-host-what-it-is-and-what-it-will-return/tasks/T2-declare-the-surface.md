@@ -144,3 +144,4 @@ the conformance test as the guard — but do not add the dependency quietly.
   FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp [build failed]
   FAIL
   ```
+- 2026-09-03 · 4483490 · exit 0 · `set -o pipefail …` · acceptance-sha256:d8a387f152fd5f68916a77e1436298653048500fc611b3eb941f5a4bae78c055 · ms:9868
