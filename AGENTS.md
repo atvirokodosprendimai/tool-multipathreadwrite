@@ -93,6 +93,38 @@ mrw read 'internal/apply/apply.go:/^func Apply/,/^}/' \
          'cmd/mrw/main.go:$'
 ```
 
+**And when you do not know which files to name, do not enumerate them —
+`--grep` walks and serves in one call:**
+
+```sh
+mrw read --grep 'func Handle' -C 3 --exclude vendor --exclude '*_test.go' internal/
+```
+
+A named directory is walked; with no paths at all the walk starts at `--root`.
+`--exclude GLOB` is repeatable and matches against **both** the root-relative
+path and the basename — the basename half is what makes `'*_test.go'` work at
+any depth, because `path.Match`'s `*` does not cross `/`. A pattern that matches
+no file is reported by name and exits 1.
+
+It does **not** read `.gitignore` and does not sniff for binary files: a regular
+file is a candidate, so exclude build artifacts by name (`--exclude bin`).
+`.git/` is always skipped.
+
+**`--files-from` is the same idea for a searcher you already trust:**
+
+```sh
+rg -l 'func Handle' | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
+```
+
+Blank lines are skipped and a leading `#` is a comment. Use it when your own
+index is better than a walk, or when `--grep` is not what you want.
+
+⚠ **In Git Bash on Windows, MSYS rewrites a regex address before mrw is
+started** — `f.go:/^func main/` arrives as `f.go;C:\…\Git\^func main\` and the
+error names a line number you never typed. Quoting does not help; it happens in
+the process-spawn layer, after the shell. Export `MSYS2_ARG_CONV_EXCL='*'`, or
+use PowerShell or WSL. Line-number and `$` addresses are unaffected.
+
 ### 2. One plan, not N writes
 
 Every hunk gets a verdict. If any hunk fails, **nothing is written at all** and
