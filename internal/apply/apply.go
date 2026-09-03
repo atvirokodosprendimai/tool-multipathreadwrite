@@ -453,7 +453,26 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 	// THROUGH the first hunk so it travels in the same receipt as every other
 	// verdict, and still aborts the whole run.
 	if existed && opt.Seen != nil && !opt.Force {
-		switch recorded, known := opt.Seen[path]; {
+		recorded, known := opt.Seen[path]
+		if !known {
+			// On a case-insensitive filesystem — NTFS, and APFS by default —
+			// two spellings name ONE file, and the ledger keyed on the string.
+			// So a file that HAD been read was refused as unread, the refusal
+			// asserted something false, and the remedy it suggested added a
+			// third spelling rather than resolving the mismatch (issue #47).
+			//
+			// Resolved with os.SameFile rather than by folding case or asking
+			// what kind of filesystem this is: SameFile is the filesystem's
+			// OWN answer, so on Linux — where a.txt and A.TXT really are two
+			// files — it says no and nothing changes. Separator normalisation
+			// already worked; this is the other axis of the same equivalence.
+			//
+			// Only on the failure path, so the ordinary case pays nothing.
+			if alias, found := sameFileEntry(full, path, opt.Seen); found {
+				recorded, known = alias, true
+			}
+		}
+		switch {
 		case !known:
 			fail(hs[0], "%s has not been read: mrw does not know what it currently holds, and a "+
 				"line address means nothing without that. Run `mrw read %s` first, or pass --force", path, path)
@@ -955,4 +974,36 @@ func resolve(root, path string) (string, error) {
 		return "", fmt.Errorf("%w: a plan may only change files under the directory mrw was pointed at", err)
 	}
 	return full, nil
+}
+
+// sameFileEntry finds a ledger entry that names the SAME FILE as full under a
+// different spelling, which happens on any case-insensitive filesystem.
+//
+// The ledger is keyed by root-relative path, and root is recovered from full by
+// removing the relative part — full is built by joining the two, so this is
+// exact rather than a guess.
+//
+// os.SameFile is deliberate: it asks the filesystem instead of encoding a
+// belief about it. A caller on ext4 who genuinely has both a.txt and A.TXT gets
+// false and keeps two independent entries, which is correct there and would not
+// be if this folded case.
+func sameFileEntry(full, path string, ledger map[string]Seen) (Seen, bool) {
+	want, err := os.Stat(full)
+	if err != nil {
+		return Seen{}, false
+	}
+	root := strings.TrimSuffix(full, filepath.FromSlash(path))
+	for key, obs := range ledger {
+		if key == path {
+			continue
+		}
+		got, err := os.Stat(filepath.Join(root, filepath.FromSlash(key)))
+		if err != nil {
+			continue
+		}
+		if os.SameFile(want, got) {
+			return obs, true
+		}
+	}
+	return Seen{}, false
 }
