@@ -114,6 +114,7 @@ the `tools/call` routing and §38 must go red.
 ## Mutation Log
 
 - 2026-09-03 · 1eaffaa · mutant killed · exit 1 · `internal/mcp/mcp.go` · rung 2: unroute tools/call so the handlers are unreachable — the Enforced-by test and contract §38 must both go red · acceptance-sha256:ef6aefdb5fb626df7d515fc315fc58bf58c63ea7e07fe346e6b1f8f6454d8141
+- 2026-09-03 · 86dab85 · mutant killed · exit 1 · `internal/mcp/tools.go` · S4: stop sharing the ledger — an MCP read no longer licenses a CLI write, so ADR-002 would hold per transport instead of once · acceptance-sha256:ef6aefdb5fb626df7d515fc315fc58bf58c63ea7e07fe346e6b1f8f6454d8141
 
 ## Invariants
 
@@ -160,3 +161,4 @@ than shipping a second engine behind a protocol.
   ```
 - 2026-09-03 · 21323d9* · exit 0 · `set -o pipefail …` · acceptance-sha256:ef6aefdb5fb626df7d515fc315fc58bf58c63ea7e07fe346e6b1f8f6454d8141 · ms:10107
 - 2026-09-03 · 1eaffaa · exit 0 · `set -o pipefail …` · acceptance-sha256:ef6aefdb5fb626df7d515fc315fc58bf58c63ea7e07fe346e6b1f8f6454d8141 · ms:9401
+- 2026-09-03 · 86dab85 · exit 0 · `set -o pipefail …` · acceptance-sha256:ef6aefdb5fb626df7d515fc315fc58bf58c63ea7e07fe346e6b1f8f6454d8141 · ms:8072
