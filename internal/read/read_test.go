@@ -406,3 +406,39 @@ func TestAnOrdinaryBadSpecGetsNoMSYSHint(t *testing.T) {
 		}
 	}
 }
+
+// An absolute path is a whole path, on whichever platform is running. On
+// Windows a drive letter carries a colon, and ParseSpec looked for the range
+// separator with LastIndex over the entire string — so `C:\dir\f.go` parsed as
+// the path "C" with the range `\dir\f.go`, and every absolute Windows path was
+// unparseable with a "bad line number" naming most of the path.
+//
+// Written to be meaningful on both platforms rather than skipped off Windows:
+// it builds the platform's OWN absolute path, so on Linux and macOS it pins
+// that nothing regressed and on Windows it is the regression itself. Found by
+// the windows CI job, 2026-09-03.
+func TestAnAbsolutePathIsAWholePathOnThisPlatform(t *testing.T) {
+	abs, err := filepath.Abs(filepath.Join("dir", "f.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp, err := ParseSpec(abs)
+	if err != nil {
+		t.Fatalf("ParseSpec(%q) failed: %v", abs, err)
+	}
+	if sp.Path != abs {
+		t.Errorf("Path = %q, want the whole path %q — the volume's colon was read as a range separator", sp.Path, abs)
+	}
+	if len(sp.Ranges) != 0 {
+		t.Errorf("Ranges = %+v, want none", sp.Ranges)
+	}
+
+	// And a range still attaches to an absolute path.
+	sp, err = ParseSpec(abs + ":2-4")
+	if err != nil {
+		t.Fatalf("ParseSpec(%q) failed: %v", abs+":2-4", err)
+	}
+	if sp.Path != abs || len(sp.Ranges) != 1 {
+		t.Errorf("Path = %q with %d range(s), want %q with 1", sp.Path, len(sp.Ranges), abs)
+	}
+}
