@@ -25,8 +25,8 @@ deleted unused on 2026-09-03.
 **T2 is the one that can withdraw the ADR.** Its Stop Condition is the decision itself — the tools
 are adapters over `read.Run` and `apply.Apply`, and the moment either needs to compute a verdict of
 its own there are two answers to "did this apply?", which is the defect class this project exists to
-refuse. Its fence enforces that mechanically: `git diff --quiet` over the four engine directories,
-and a `go.mod` module count.
+refuse. Its fence enforces that mechanically: `git diff --quiet` against the branch's merge-base
+over the four engine directories, and the same diff over `go.mod` / `go.sum`.
 
 ## Task Index
 
@@ -54,6 +54,6 @@ Status: `pending` | `partial` | `blocked` | `done`.
   about the fence does not substitute for running it.
 - **Confirm §38 and §39 are unused** before relying on those clauses. The highest section is 37 as
   of `a714ae5`.
-- **The go/no-go conditions live in T2's fence, not in prose.** `go.mod` must require exactly one
-  module and the engine directories must be byte-identical. If either fails, `mrw mcp` is withdrawn
+- **The go/no-go conditions live in T2's fence, not in prose.** Neither `go.mod`/`go.sum` nor the
+  engine directories may differ from the branch's merge-base with `main`. If either fails, `mrw mcp` is withdrawn
   and the binary is the whole answer — that is a real outcome, not a formality.

@@ -37,11 +37,15 @@ return the same per-hunk verdict — so the two transports cannot disagree about
    transports start to drift. [proof: mutation]
 4. [S4] Share the ledger. A file read over MCP licenses a CLI write and the reverse — one guarantee,
    not one per transport. This is what makes ADR-002 hold across both. [proof: mutation]
-5. [S5] Serialize `tools/call` in-process with a mutex, so the README's "one call at a time" applies
-   to the CLI path only. One server is one writer; this is the concurrency gap closing for free,
-   and it is three lines rather than a ledger redesign. [proof: acceptance]
-6. [S6] Add contract §38: start `mrw mcp` as a real subprocess, speak framed JSON-RPC down its
-   stdin, and compare the write receipt against the one `mrw write --json` produces for the same
+5. [S5] Serialize `tools/call` in-process with a mutex, so calls made THROUGH the server no longer
+   race. This does not make the README's "one call at a time" obsolete: a CLI process running beside
+   the server is still a second writer of the same ledger file, and that is still the CLI
+   limitation. One server is one writer; this is three lines rather than a ledger redesign.
+   [proof: acceptance]
+6. [S6] Add contract §38: start `mrw mcp` as a real subprocess, speak newline-delimited JSON-RPC
+   down its stdin, and compare the write receipt against the one `mrw write --json` produces for the
+   same plan. Assert too that every line the server wrote to stdout parses as JSON — the spec's
+   stdout rule, tested. Kill it mid-session and assert the ledger still licenses the next CLI write
    plan. Kill it mid-session and assert the ledger still licenses the next CLI write — that is
    ADR-001's original objection, tested. [proof: acceptance]
 
@@ -52,15 +56,18 @@ set -o pipefail
 go test ./internal/mcp/ -v 2>&1 | tee /tmp/adr010-t2.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr010-t2.out \
   && grep -q '^# 38\.' scripts/contract.sh \
-  && [ "$(grep -c '^	' go.mod)" = "1" ] \
-  && git diff --quiet -- internal/read internal/apply internal/plan internal/seen \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen \
   && go test ./... \
   && ./scripts/contract.sh
 ```
 
-Two clauses ARE the go/no-go conditions rather than descriptions of them: the `go.mod` count, and
-`git diff --quiet` over the engine directories. If this task changed the engine, the fence goes red
-— which is the ADR's "one engine, one answer" made mechanical instead of aspirational.
+Two clauses ARE the go/no-go conditions rather than descriptions of them: no change to `go.mod` /
+`go.sum`, and no change to the engine directories. Both are diffed against the branch's merge-base
+with `main` rather than against the working tree, because a working-tree diff goes green the moment
+the offending change is committed — which is precisely when it stops being visible. If this task
+changed the engine, the fence goes red — the ADR's "one engine, one answer" made mechanical instead
+of aspirational.
 
 Confirm `# 38.` is unused before relying on that clause. ADR-007-T3's fence named `# 15.`, which
 already existed, and so passed on an untouched `contract.sh` from the day it was written.
@@ -88,8 +95,8 @@ already existed, and so passed on an untouched `contract.sh` from the day it was
 
 ## Invariants
 
-- `internal/read`, `internal/apply`, `internal/plan` and `internal/seen` are byte-identical after
-  this task.
+- `internal/read`, `internal/apply`, `internal/plan` and `internal/seen` are byte-identical to the
+  branch's merge-base with `main` after this task.
 - A verdict returned over MCP is the same `apply.Result` value the CLI would return, serialized by
   the same code.
 - The ledger is one file, shared, and neither transport can license an edit the other would refuse.

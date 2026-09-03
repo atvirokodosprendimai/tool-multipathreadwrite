@@ -15,8 +15,10 @@
 **ADR-001 rejected an MCP server in one sentence, and that sentence has aged.**
 It reads: *"a server binds at session start and is unrecoverable mid-session; a binary is
 re-invoked per call and cannot enter that state."* That was a fair description of early stdio MCP.
-Hosts reconnect now, and the reasoning was never re-examined — it was written when the alternative
-was "server INSTEAD OF binary", which is not the choice on the table.
+Hosts commonly restart a dead stdio server now — host behaviour, not a spec guarantee, so it is
+recorded here as context rather than load-bearing; the Recovery go/no-go below holds either way. The
+reasoning was never re-examined, and it was written when the alternative was "server INSTEAD OF
+binary", which is not the choice on the table.
 
 **mrw is not alone, and the closest competitor is an MCP server.** Surveyed 2026-09-03:
 
@@ -37,8 +39,16 @@ for it. `AGENTS.md` is a documentation fix for what is a distribution problem.
 parallel invocations overwrite one another's entries — 40 racing reads kept 5."* That is not a
 ledger defect. It is a consequence of being a per-invocation binary: read-before-write must persist
 to disk because nothing else survives between calls, so every read rewrites the whole file and
-parallel PROCESSES race. A server is one process and can serialize in-process — **the concurrency
-limitation dissolves on the MCP path without changing the ledger format at all.**
+parallel PROCESSES race. A server is one process and can serialize its own calls in-process — **the
+concurrency limitation dissolves between calls made through the server**, without changing the
+ledger format at all. It does not dissolve between a CLI invocation and a server running beside it:
+those are still two processes rewriting one ledger file, and that remains the CLI limitation.
+
+**The plan text arrives JSON-escaped on this path, and that is not a reversal.** ADR-001 rejected
+JSON as the PLAN FORMAT because it would make an author escape every newline and quote in a code
+body. Here the plan is authored in the same line-oriented format and carried as one string inside
+the tool call, so the escaping is done by the transport's encoder and undone by its decoder, and no
+human or model ever writes an escape. The format ADR-001 chose is unchanged.
 
 ## Existing Primitives Audit
 
@@ -52,7 +62,9 @@ limitation dissolves on the MCP path without changing the ledger format at all.*
 - **`internal/state` + the ledger:** **reused unchanged.** The server shares the same per-checkout
   ledger, which is what keeps a CLI write after an MCP read licensed. A session-only in-memory
   ledger was considered and rejected below.
-- **An MCP SDK as a dependency:** audited and NOT taken. mrw has exactly one dependency today
+- **An MCP SDK as a dependency — specifically `github.com/mark3labs/mcp-go`, which this team's
+  centralised `effective-go` skill names as the default for MCP work:** audited and NOT taken. mrw
+  has exactly one dependency today
   (`urfave/cli/v3`). MCP over stdio is JSON-RPC 2.0 with a handful of methods; the subset needed —
   `initialize`, `tools/list`, `tools/call` — is small enough to own. ADR-004 refused a git
   dependency on the same premise, and a protocol SDK is a larger surface than the protocol subset.
@@ -109,8 +121,12 @@ flag changes. A caller who never runs `mrw mcp` cannot tell this shipped.
 - **Shell out to `mrw` from a generic filesystem MCP server.** Zero code here. Rejected because the
   receipt would then be parsed from text by something that did not run the write, which is the
   arrangement `--json` exists to replace.
-- **Adopt an MCP SDK.** Less code to own. Rejected on ADR-004's premise: mrw has one dependency, the
-  needed subset is three methods, and an SDK's surface is larger than the protocol's.
+- **Adopt `github.com/mark3labs/mcp-go`.** Less code to own, and it is the standing team default —
+  the centralised `effective-go` skill says "for mcp use github.com/mark3labs/mcp-go". Declining a
+  convention is a choice that has to be made knowingly rather than by omission, so it is named here
+  rather than left as "an SDK". Rejected on ADR-004's premise: mrw has one dependency, the needed
+  subset is three methods, and the SDK's surface is larger than that subset. If the subset grows —
+  resources, sampling, progress — this is the first thing to revisit, and the Risks table says so.
 
 ## Component / Boundary Impact
 
@@ -166,7 +182,7 @@ pipe.
 - Removing or deprecating any CLI subcommand (permanent: boundary: the binary working with no server and no host is the differentiator, and it is what ADR-001 was right to protect)
 - A network-listening or hosted server — stdio only (permanent: boundary: a listening socket is a security surface this tool has no reason to open, and every MCP host speaks stdio)
 - MCP resources, prompts, sampling, or any capability beyond `tools` (permanent: boundary: the tools ARE the product; a resource surface would be a second way to read, and two ways to read is two answers to what the caller saw)
-- Adopting an MCP SDK (permanent: fact: mrw has exactly one module dependency and the needed protocol subset is three methods; citation: file `go.mod:5`)
+- Adopting an MCP SDK, including the team default `github.com/mark3labs/mcp-go` (permanent: fact: mrw has exactly one module dependency and the needed protocol subset is three methods; citation: file `go.mod:5`)
 - A stateless hash-in-request mode, as `mcp-text-editor` uses (deferred: docs/adr/BACKLOG.md)
 - Exposing `check`, `iter`, `seen` or `stats` as MCP tools (deferred: docs/adr/BACKLOG.md)
 - Fixing the CLI path's parallel-read limitation (deferred: docs/adr/BACKLOG.md)
@@ -177,7 +193,7 @@ pipe.
 |------|------------|--------|------------|
 | The server grows semantics the CLI does not have | Med | High — it is the whole thesis | T2's Stop Condition: the tools call the same functions or the ADR is wrong. The go/no-go "no engine change" is checked as a diff |
 | ADR-001's original concern is real — a wedged server | Low | Med | A go/no-go condition: killing it mid-session must lose nothing, asserted through a real pipe rather than assumed |
-| Hand-rolled JSON-RPC has a framing bug a host trips over | Med | Med | §38 drives the server through a real pipe with real frames; the alternative (an SDK) is recorded and can be adopted if the subset grows |
+| Hand-rolled JSON-RPC has a framing bug a host trips over | Med | Med | The first draft of T1 specified `Content-Length` framing, which is LSP and not MCP; a real-pipe test written to the same mistake passes, so §38 is NOT the mitigation on its own. T1 S2 cites the spec's stdio section for the frame, the stdout rule and the stderr rule, and the alternative (`mark3labs/mcp-go`) is recorded and can be adopted if the subset grows |
 | Two transports drift on the receipt shape | Med | Med | The MCP tool returns the same `apply.Result` the `--json` receipt carries, serialized once |
 | It becomes a second product with its own roadmap | Med | High | Out of Scope refuses resources, prompts and the other subcommands; each is a separate decision |
 
@@ -190,3 +206,4 @@ served identically by the previous binary. An MCP host loses a tool; every CLI c
 ## Follow-ups
 
 - [ ] Re-read ADR-001's Alternatives clause once this ships and confirm it points here, so a future reader does not re-derive the rejection
+- [ ] `adr-lint` passes with five advice lines, named here so nobody re-derives them: `Enforced-by` points at a test that does not exist yet and `Governs:` matches no tracked file — both resolve when T1 and T2 land, and both would be wrong to silence before then. The other three count Acceptance-fence segments against `Rests-on:` names; the fences rest on what is declared, and the extra segments are the `go test ./...` and `contract.sh` runs every task in this repository ends with

@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the frame's Content-Length parsing`, `the absence of a new go.mod requirement`, `the subcommand registration`
+**Rests-on:** `the newline-delimited framing`, `the absence of a new go.mod requirement`, `the subcommand registration`
 
 ## Goal
 
@@ -29,9 +29,16 @@ tools, with no new module dependency.
 1. [S1] Write the failing tests first (TDD red): a framed `initialize` request gets a framed
    response carrying a protocol version; `tools/list` names both tools; a malformed frame is
    answered with a JSON-RPC error rather than a panic or a silent close.
-2. [S2] Implement the frame — `Content-Length: <n>\r\n\r\n<body>` — reading and writing. This is the
-   part a host trips over, and it is why S6 drives it through a real pipe rather than calling the
-   handler. [proof: acceptance]
+2. [S2] Implement the framing the MCP stdio transport actually specifies: **one JSON-RPC message per
+   line, delimited by newlines, and no embedded newline inside a message.** There is no
+   `Content-Length` header in MCP stdio — that is Language Server Protocol, and a server that speaks
+   it fails every host's `initialize` while passing any test written to the same mistake. Source:
+   https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#stdio — *"Messages are
+   delimited by newlines, and MUST NOT contain embedded newlines."* The same page carries two rules
+   that bind mrw specifically, because this binary prints to stdout everywhere else: the server
+   *"MUST NOT write anything to its `stdout` that is not a valid MCP message"*, and it *"MAY write
+   UTF-8 strings to its standard error"* for logging. A stray `fmt.Println` on the server path is a
+   protocol violation, not a cosmetic one. [proof: acceptance]
 3. [S3] Implement the JSON-RPC envelope: `id`, `method`, `params`, and an error object with a code.
    A request with an unknown method is an error RESPONSE, never a dropped connection — a host that
    sees a closed pipe cannot tell a crash from a refusal.
@@ -39,8 +46,10 @@ tools, with no new module dependency.
    land in T2, so `tools/list` is honest from the first commit rather than growing later.
 5. [S5] Add `mcpCmd()` and **register it** in the `Commands` slice, so `mrw mcp` resolves and
    `mrw --help` lists it. [proof: mutation]
-6. [S6] Assert `go.mod` is unchanged — the go/no-go condition. A dependency added by accident is
-   exactly what this project's one-dependency posture loses quietly. [proof: acceptance]
+6. [S6] Assert no dependency was added — the go/no-go condition. The fence diffs `go.mod` and
+   `go.sum` against this branch's merge-base with `main`, so it is red when and only when the branch
+   changed what mrw requires. A dependency added by accident is exactly what this project's
+   one-dependency posture loses quietly. [proof: acceptance]
 
 ## Acceptance
 
@@ -48,7 +57,7 @@ tools, with no new module dependency.
 set -o pipefail
 go test ./internal/mcp/ -v 2>&1 | tee /tmp/adr010-t1.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr010-t1.out \
-  && [ "$(grep -c '^	' go.mod)" = "1" ] \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum \
   && go build -o /tmp/mrw-t1 ./cmd/mrw \
   && /tmp/mrw-t1 --help 2>&1 | grep -q 'mcp' \
   && go test ./...
@@ -59,15 +68,18 @@ observed to exit non-zero — `internal/mcp` does not compile, so it fails at th
 check is not optional: three fences in the 2026-09-03 session were green on an untouched tree
 because nobody ran them, including one that named a `contract.sh` section which already existed.
 
-The `go.mod` clause counts required modules and is the go/no-go condition made mechanical. The
-`--help` clause is rung 3 — a subcommand a caller cannot discover is not shipped.
+The `go.mod` clause is the go/no-go condition made mechanical. It was written first as
+`[ "$(grep -c '^\t' go.mod)" = "1" ]`, which counts tab-indented lines rather than requirements and
+returns **0** on this repository — a fence red on an untouched tree, which is the same defect as a
+fence green on one. The diff form is red when and only when the branch changed what mrw requires.
+The `--help` clause is rung 3 — a subcommand a caller cannot discover is not shipped.
 
 ## Tests
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestInitializeCompletesTheHandshake` | `internal/mcp/mcp_test.go` | S4 — a host can connect | — | S1, S4 |
-| `TestFramingRoundTrips` | `internal/mcp/mcp_test.go` | S2 — Content-Length in and out | — | S1, S2 |
+| `TestOneMessagePerLineRoundTrips` | `internal/mcp/mcp_test.go` | S2 — newline-delimited framing, and that no message carries an embedded newline | — | S1, S2 |
 | `TestAMalformedFrameIsAnErrorNotAClose` | `internal/mcp/mcp_test.go` | S3 — a host can tell a refusal from a crash | — | S1, S3 |
 | `TestToolsListNamesBothTools` | `internal/mcp/mcp_test.go` | S4 — the surface is declared before it is implemented | — | S1, S4 |
 | `TestAnUnknownMethodIsAnErrorResponse` | `internal/mcp/mcp_test.go` | S3 | — | S1, S3 |
@@ -85,13 +97,16 @@ The `go.mod` clause counts required modules and is the go/no-go condition made m
 
 ## Invariants
 
-- `go.mod` requires exactly one module.
+- `go.mod` and `go.sum` are unchanged against the branch's merge-base with `main`.
+- Everything the server writes to stdout is a valid MCP message; anything else goes to stderr.
+- No message written to stdout contains an embedded newline.
 - No file under `internal/read`, `internal/apply`, `internal/plan` or `internal/seen` is touched.
 - A malformed or unknown request produces a JSON-RPC error response; the connection stays open.
 
 ## Risks
-
-- Framing is where hosts differ in practice. Mitigated by T3 driving a real pipe; a handler-level
+- Framing is where hosts differ in practice, and the first draft of this task specified LSP framing
+  outright. Mitigated by T2's §38 driving a real pipe; note that a real-pipe test written against
+  the wrong frame passes too, so the spec citation in S2 is the actual mitigation.
   test would pass on a frame no host sends.
 - A long-running mode is new to this binary. Nothing else about it changes, and T2 owns the
   behaviour that touches files.

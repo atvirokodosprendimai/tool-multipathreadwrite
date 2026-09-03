@@ -81,7 +81,8 @@ the parallel-read paragraph, rather than leaving a limitation stated more broadl
 
 ## Invariants
 
-- The README states the MCP path lifts the parallel-read limitation and the CLI path does not.
+- The README states that the MCP path serializes calls made through the server, and that a CLI
+  invocation running beside it is still subject to the CLI limitation.
 - No claim is made about the server that the CLI does not also satisfy.
 - `measure.sh` and the existing measurement sections are untouched.
 
