@@ -318,27 +318,6 @@ func mergeSpans(in [][2]int) [][2]int {
 	return out
 }
 
-// Forget drops paths from the ledger, so the next write must observe them
-// afresh. Used by `mrw forget` when a caller knows their picture is stale.
-func Forget(root string, paths []string) (int, error) {
-	l, err := Load(root)
-	if err != nil {
-		return 0, err
-	}
-	n := 0
-	for _, p := range paths {
-		if _, ok := l[p]; ok {
-			delete(l, p)
-			n++
-		}
-	}
-	if n == 0 {
-		return 0, nil
-	}
-	// Record cannot express a deletion, so rewrite the whole file here.
-	return n, save(root, l)
-}
-
 // save writes the whole ledger, sorted so the file diffs cleanly and two runs
 // produce the same bytes.
 func save(root string, l Ledger) error {

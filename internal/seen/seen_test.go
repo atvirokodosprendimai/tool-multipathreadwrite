@@ -74,25 +74,6 @@ func TestRecordOverwritesTheSamePath(t *testing.T) {
 	}
 }
 
-func TestForget(t *testing.T) {
-	root := t.TempDir()
-	_ = Record(root, map[string]Observation{"a.go": {SHA: "aaa"}, "b.go": {SHA: "bbb"}})
-	n, err := Forget(root, []string{"a.go", "never-recorded.go"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 1 {
-		t.Errorf("Forget returned %d, want 1 — an unrecorded path is not a removal", n)
-	}
-	l, _ := Load(root)
-	if _, ok := l["a.go"]; ok {
-		t.Error("a.go survived Forget")
-	}
-	if l["b.go"].SHA != "bbb" {
-		t.Error("Forget removed a path it was not asked to")
-	}
-}
-
 func TestSHAIsStable(t *testing.T) {
 	if SHA([]byte("hello")) != SHA([]byte("hello")) {
 		t.Error("SHA is not deterministic")

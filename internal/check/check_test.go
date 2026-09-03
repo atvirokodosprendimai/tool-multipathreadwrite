@@ -617,3 +617,43 @@ func TestReadableAndMissingScopesAreUnchanged(t *testing.T) {
 		t.Errorf("a missing path no longer falls back: %v %+v", err, res)
 	}
 }
+
+// Every `mrw write --check` used to leave a mrw-check-*.log in the system temp
+// directory forever. A passing check that withheld nothing has no readers, so
+// its log goes and the field is cleared rather than naming a deleted file.
+func TestAPassingCheckLeavesNoLogBehind(t *testing.T) {
+	res, err := Run(context.Background(), t.TempDir(), Config{Check: "true"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.OK() {
+		t.Fatalf("`true` did not pass: %+v", res)
+	}
+	if res.OutputFile != "" {
+		t.Errorf("OutputFile = %q; a passing check should clear it", res.OutputFile)
+		os.Remove(res.OutputFile)
+	}
+}
+
+// A FAILING check keeps its log: the tail is a summary and the file is the
+// evidence, which is exactly when the caller needs it.
+func TestAFailingCheckKeepsItsLog(t *testing.T) {
+	res, err := Run(context.Background(), t.TempDir(), Config{Check: "echo boom; false"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.OK() {
+		t.Fatal("`false` reported OK")
+	}
+	if res.OutputFile == "" {
+		t.Fatal("a failed check deleted the evidence")
+	}
+	b, err := os.ReadFile(res.OutputFile)
+	if err != nil {
+		t.Fatalf("the log a failed check points at is not readable: %v", err)
+	}
+	if !strings.Contains(string(b), "boom") {
+		t.Errorf("the kept log does not hold the output: %q", b)
+	}
+	os.Remove(res.OutputFile)
+}

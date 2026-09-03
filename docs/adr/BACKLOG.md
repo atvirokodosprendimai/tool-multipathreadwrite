@@ -25,21 +25,49 @@ here.
 
 ## From ADR-002 (mrw will not edit a file it has not seen)
 
-- **`mrw forget <path>`.** `seen.Forget` is implemented and tested but has no
-  CLI caller — dead code until wired. Either wire it or delete it; leaving an
-  unreachable exported function is the "finished and unreachable" shape this
-  workspace keeps finding.
+- ~~**`mrw forget <path>`.**~~ **CLOSED 2026-09-03 — `seen.Forget` deleted.**
+  It had no CLI caller and its doc comment described one ("Used by `mrw forget`
+  when a caller knows their picture is stale") that never existed. Wiring it
+  would have added a public subcommand, which needs an ADR; deleting removed
+  dead code and a comment that read as evidence of a caller. `--force` remains
+  the escape hatch for a stale picture. This was the second instance that day
+  of "finished and unreachable" — `rooted.Descendable` was the first.
 
-- **Pruning ledger entries for deleted files.** `.mrw/seen` grows by one short
-  line per path read and nothing removes entries for files that no longer
-  exist. Harmless at current sizes; no measurement taken.
+- ~~**Pruning ledger entries for deleted files.**~~ **MEASURED 2026-09-03 and
+  DECLINED.** The entry said "harmless at current sizes; no measurement taken",
+  so the measurement was taken:
+
+  | | |
+  |---|---|
+  | this repo's ledger | 45 entries, 4,496 B, **1 stale** |
+  | largest ledger on the authoring machine | 505 entries, **41 KB** |
+  | every ledger on that machine, together | 13,819 entries, 935 KB |
+
+  41 KB is not a problem, and the fix is not free. Sweeping inside `Record`
+  couples a persistence function to the filesystem, and an implementation that
+  stat'ed every entry broke two legitimate unit tests that use synthetic paths
+  — `Record(obs)` followed by `Load()` no longer returned what was recorded.
+  A narrower version (sweep only entries the caller did NOT just record) works
+  and is written down here rather than shipped, because it buys 41 KB.
+
+  **Reopen with a number.** If a ledger reaches a size where load or save is
+  measurable, that is the trigger. Growth alone is not.
 
 ## From ADR-003 (a check's verdict comes from the process)
 
-- **Cleaning up the temp output files.** Each `--check` run leaves a
-  `mrw-check-*.log` in the system temp directory. It is named in the report so
-  the caller can read it, and nothing deletes it. Options: delete on success and
-  keep on failure, or move them under `.mrw/`.
+- ~~**Cleaning up the temp output files.**~~ **CLOSED 2026-09-03 — delete on
+  success, keep on failure.** Measured before the fix on the authoring machine:
+  **11,129 `mrw-check-*.log` files totalling 43 MB**, one per `--check` run ever
+  made, none ever removed. The "harmless" reading was wrong and only a count
+  showed it.
+
+  Two conditions guard the delete, not one. A FAILING check keeps its log,
+  because the tail is a summary and the file is the evidence. A truncated report
+  keeps it even on success, because the report says "N earlier line(s) in
+  <file>" and deleting a file the report points at is worse than leaving it.
+  `Result.OutputFile` is cleared when the file is removed, so nothing ever names
+  a path that is not there. Asserted by `scripts/contract.sh` §29, and by
+  `TestAPassingCheckLeavesNoLogBehind` / `TestAFailingCheckKeepsItsLog`.
 
 - **Scope derivation for languages other than Go.** `{packages}` is derived by
   mapping `.go` files to their directories; any non-Go path forces the full

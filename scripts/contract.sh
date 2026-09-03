@@ -1230,6 +1230,72 @@ m read --grep '('                          >/dev/null 2>&1; want 2 $? "a pattern
 # working set, and an empty one is still the same usage error it always was.
 m read >/dev/null 2>&1; want 2 $? "no arguments and no --grep still means the working set"
 
+# 29. A PASSING check leaves no log behind, and a FAILING one keeps its
+# evidence. Measured 2026-09-03 before the fix: 11,129 mrw-check-*.log files
+# totalling 43 MB in one machine's temp directory, one per --check run ever
+# made, none ever removed.
+#
+# Two conditions, not one. The tail is a summary and the file is the evidence,
+# so a failure keeps it; and a truncated report NAMES the file, so a pass that
+# withheld lines keeps it too — deleting a file the report points at would be
+# worse than leaving it.
+fixture
+before=$(ls ${TMPDIR:-/tmp}/mrw-check-*.log 2>/dev/null | wc -l | tr -d ' ')
+
+m read a.go >/dev/null 2>&1
+out=$(printf '@@ a.go 3 replace\nfunc A() int { return 1 }\n' | m write --check - 2>&1); rc=$?
+want 0 "$rc" "a passing --check exits 0"
+grep -q 'full output:' <<<"$out" \
+  && bad "a passing check still names a log file: $(grep 'full output:' <<<"$out")" \
+  || ok "and names no log file, because there is none to name"
+
+after=$(ls ${TMPDIR:-/tmp}/mrw-check-*.log 2>/dev/null | wc -l | tr -d ' ')
+[ "$after" -le "$before" ] \
+  && ok "and left no mrw-check log behind ($before -> $after)" \
+  || bad "a passing check leaked $((after - before)) log file(s)"
+
+# The other half: a FAILING check must keep the file it points at, or the
+# caller is told to read evidence that has been deleted.
+fixture
+printf 'package demo\n\nimport "testing"\n\nfunc TestNo(t *testing.T) { t.Fatal("red") }\n' > "$R/a_test.go"
+m read a.go >/dev/null 2>&1
+out=$(printf '@@ a.go 3 replace\nfunc A() int { return 1 }\n' | m write --check - 2>&1); rc=$?
+want 3 "$rc" "a failing --check still exits 3, tree changed and unverified"
+logf=$(grep -o '/[^ ]*mrw-check-[^ ]*\.log' <<<"$out" | head -1)
+if [ -n "$logf" ] && [ -f "$logf" ]; then
+  ok "and the log it names is still there to read"
+  rm -f "$logf"
+else
+  bad "a failing check named no readable log: $(tail -1 <<<"$out")"
+fi
+
+# 30. THE DOCUMENTED EXAMPLE IS EXECUTED, not admired. AGENTS.md carries the
+# plan-generation loop — the one that turns N calls into 2 — and it is the
+# highest-leverage thing the docs teach. A worked example that has drifted from
+# the tool teaches the drift, confidently.
+#
+# The block is EXTRACTED from AGENTS.md and run, so this row fails when the doc
+# changes and the code does not, or the reverse. Verified by hand on 2026-09-03
+# and now on every CI run.
+SRC=$(cd "$(dirname "$0")/.." && pwd)
+fixture
+awk '/^```bash$/{f=1;next} /^```$/{f=0} f' "$SRC/AGENTS.md" > "$WORK/example.sh"
+[ -s "$WORK/example.sh" ] \
+  && ok "AGENTS.md still carries a runnable bash example" \
+  || bad "no fenced bash block found in AGENTS.md — the example was renamed or removed"
+
+# The example walks git-tracked *.go files, so give it a git repo with some.
+( cd "$R" && git init -q . && git add -A >/dev/null 2>&1 && git -c user.email=t@t -c user.name=t commit -qm x >/dev/null 2>&1 )
+out=$(cd "$R" && PATH="$(dirname "$MRW"):$PATH" bash "$WORK/example.sh" 2>&1); rc=$?
+if [ "$rc" -eq 0 ] || grep -q 'hunk(s)' <<<"$out"; then
+  ok "and it runs against the real binary"
+else
+  bad "the documented example no longer works: $(head -2 <<<"$out")"
+fi
+grep -q 'package fresh' "$R/a.go" \
+  && ok "and it actually rewrote the files it claims to" \
+  || bad "the example ran but changed nothing — a write that changes nothing is the bug mrw exists to prevent"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
