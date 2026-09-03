@@ -32,7 +32,15 @@ them` on all 13 tasks of ADR-001..008. It is last because a reading needs someth
 |----|-------|--------|--------|------------|
 | T1 | Record the outcome of every plan, in counts only | done | — | `go test ./internal/authoring/ -run 'TestTally\|TestTheTally' … && ./scripts/contract.sh` |
 | T2 | `mrw stats` prints the tally, sample size beside the rate | done | — | `go test ./cmd/mrw/ -run 'TestStats' … && ./scripts/contract.sh` |
-| T3 | Publish the first reading, and say what it does not cover | pending | — | `grep -qE 'measured 2026-[0-9]{2}-[0-9]{2}' README.md && grep -qE 'of [0-9]+ plans' README.md && …` |
+| T3 | Publish the first reading, and say what it does not cover | partial | — | `grep -qE 'measured 2026-[0-9]{2}-[0-9]{2}' README.md && grep -qE 'of [0-9]+ plans' README.md && …` |
+
+**T3 is `partial`, and that is the Stop Condition working rather than a
+shortfall.** The reading was taken — 9 plans, 9 applied, 0 refused, 2026-09-03 —
+and 9 is below the 30-plan floor this task sets for publishing a RATE. So the
+README carries the count and an admission instead of "100%", and the task stays
+open until a real sample exists. A flattering number on nine samples, authored
+by one model in one session that had just written the format's documentation, is
+exactly what that floor was written to refuse.
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
