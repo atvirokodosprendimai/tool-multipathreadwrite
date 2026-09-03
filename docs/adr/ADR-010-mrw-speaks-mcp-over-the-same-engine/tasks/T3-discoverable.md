@@ -41,26 +41,39 @@ the server lifts and which it does not.
    reading it over MCP should not be told to shell out. [proof: acceptance]
 6. [S6] Add contract §39 asserting the documented block names a subcommand `mrw --help` lists — a
    config example that names a command the binary does not have is the documentation equivalent of
-   a dangling pointer, and this repository shipped one of those on 2026-09-03. [proof: acceptance]
+   a dangling pointer, and this repository shipped one of those on 2026-09-03. The fence's
+   `grep -q '^# 39\.'` proves only that the section exists; that it ASSERTS anything is proved by
+   this task's `adr-verify --mutant` entry — rename the subcommand and §39 must go red.
+   [proof: acceptance]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
 grep -q '### Use it from an MCP host' README.md \
-  && grep -q '"mrw"' README.md \
-  && grep -q 'one call at a time' README.md \
+  && grep -q '"command": "mrw"' README.md \
+  && grep -q 'through the server' README.md \
   && grep -q 'CLI path' README.md \
-  && grep -q 'mcp' AGENTS.md \
+  && grep -q 'mrw mcp' AGENTS.md \
   && grep -q '^# 39\.' scripts/contract.sh \
   && ./scripts/contract.sh \
   && go test ./...
 ```
 
-Every clause names something only this task writes — checked by grepping for each BEFORE writing
-any of them and requiring zero hits, which is the step whose absence produced three vacuous fences
-on 2026-09-03. `grep -q 'CLI path'` is the one that matters: it fails unless S3 actually qualified
-the parallel-read paragraph, rather than leaving a limitation stated more broadly than it holds.
+Every clause names something only this task writes, and each was grepped for BEFORE this fence was
+written and returned **zero hits** — `### Use it from an MCP host`, `"command": "mrw"`,
+`through the server` and `CLI path` in `README.md`, `mrw mcp` in `AGENTS.md`, `# 39.` in
+`contract.sh`. That sentence was here before the greps were, and two of the clauses it covered were
+already matching: `grep -q '"mrw"'` hits `README.md:133` and `grep -q 'one call at a time'` hits
+`README.md:727`, both written by unrelated work. The fence stayed red overall, so nothing failed
+loudly — which is the point. A vacuous clause inside a red fence is invisible until the day the
+other clauses go green, and then it is a clause that was never going to fail. Both are replaced
+with strings this task must write: the config block's `"command": "mrw"`, and the qualifier
+`through the server` that S3 has to add to the parallel-read paragraph.
+
+`grep -q 'CLI path'` and `grep -q 'through the server'` are the two that matter: together they fail
+unless S3 actually qualified the paragraph, rather than leaving a limitation stated more broadly
+than it holds.
 
 ## Tests
 

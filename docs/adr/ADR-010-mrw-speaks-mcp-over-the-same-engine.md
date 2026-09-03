@@ -92,14 +92,27 @@ flag changes. A caller who never runs `mrw mcp` cannot tell this shipped.
 **Go/no-go, checked during execution and recorded in the task's verification log. If any fails,
 `mrw mcp` is withdrawn and the binary is the whole answer:**
 
-- **No new dependency.** `go.mod` still requires exactly `urfave/cli/v3`.
-- **No engine change.** `git diff` over `internal/read`, `internal/apply`, `internal/plan` and
-  `internal/seen` is empty for this ADR's tasks.
+- **No new dependency.** `go.mod` still declares exactly one requirement and it is `urfave/cli/v3`,
+  checked by counting requirement lines rather than by diffing against a remote ref — a fence that
+  needs `origin/main` fetched is a fence that fails in a shallow CI checkout for a reason unrelated
+  to what it is asking.
+- **No engine change.** `git status --porcelain --untracked-files=all` over `internal/read`,
+  `internal/apply`, `internal/plan`, `internal/seen`, `internal/check` and `internal/state` is
+  empty for this ADR's tasks. Untracked is the operative word: a `git diff` form passes while a NEW
+  engine file sits beside the old ones, which is exactly how an engine grows. This is a
+  working-tree gate and it proves nothing about a change already committed — that is what the diff
+  in review is for, and the task's verification log records the SHA it ran against.
 - **The transport is asserted through a real pipe**, not in-process — a server tested by calling its
   handler is not a server, for the same reason `contract.sh` exists rather than more Go tests.
 - **Recovery.** ADR-001's original concern was a server that is unrecoverable mid-session. Killing
   the server mid-session must lose nothing a CLI invocation would not: the ledger is on disk, the
   host restarts the process, and the next call proceeds. Asserted, not assumed.
+- **The tool result is the protocol's envelope with mrw's verdict inside it.** `tools/call` returns
+  a `CallToolResult`, not a bare `apply.Result`: the spec requires a `content` array, and a host is
+  entitled to reject or hide a tool that answers with something else. The verdict travels in
+  `structuredContent`, serialized by the same code that writes the `--json` receipt, and the
+  identity test compares the DECODED `structuredContent` against that receipt. "One answer" is a
+  claim about the verdict, never about the envelope carrying it.
 
 ## Alternatives Considered
 
@@ -180,7 +193,7 @@ pipe.
 ## Out of Scope
 
 - Removing or deprecating any CLI subcommand (permanent: boundary: the binary working with no server and no host is the differentiator, and it is what ADR-001 was right to protect)
-- A network-listening or hosted server — stdio only (permanent: boundary: a listening socket is a security surface this tool has no reason to open, and every MCP host speaks stdio)
+- A network-listening or hosted server — stdio only (permanent: boundary: a listening socket is a security surface this tool has no reason to open, and stdio is the transport every host this decision is aimed at already speaks; the specification defines a second standard transport and says a client SHOULD support stdio, so this is a scoping choice rather than a claim about every host)
 - MCP resources, prompts, sampling, or any capability beyond `tools` (permanent: boundary: the tools ARE the product; a resource surface would be a second way to read, and two ways to read is two answers to what the caller saw)
 - Adopting an MCP SDK, including the team default `github.com/mark3labs/mcp-go` (permanent: fact: mrw has exactly one module dependency and the needed protocol subset is three methods; citation: file `go.mod:5`)
 - A stateless hash-in-request mode, as `mcp-text-editor` uses (deferred: docs/adr/BACKLOG.md)

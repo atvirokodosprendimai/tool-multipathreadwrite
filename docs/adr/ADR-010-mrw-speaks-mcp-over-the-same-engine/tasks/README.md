@@ -25,15 +25,15 @@ deleted unused on 2026-09-03.
 **T2 is the one that can withdraw the ADR.** Its Stop Condition is the decision itself — the tools
 are adapters over `read.Run` and `apply.Apply`, and the moment either needs to compute a verdict of
 its own there are two answers to "did this apply?", which is the defect class this project exists to
-refuse. Its fence enforces that mechanically: `git diff --quiet` against the branch's merge-base
-over the four engine directories, and the same diff over `go.mod` / `go.sum`.
+refuse. Its fence enforces that mechanically: exactly one requirement in `go.mod`, and a clean
+working tree across the six engine directories including untracked files.
 
 ## Task Index
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | A stdio JSON-RPC transport, hand-rolled, reachable | pending | — | `go test ./internal/mcp/ -v … && mrw --help \| grep mcp` |
-| T2 | Two tools over the unchanged engine, one answer | pending | — | `go test ./internal/mcp/ -v … && git diff --quiet -- internal/read … && ./scripts/contract.sh` |
+| T1 | A stdio JSON-RPC transport, hand-rolled, reachable | pending | — | `go test ./internal/mcp/ -v …` + 7 named `--- PASS:` lines, one requirement in `go.mod`, clean engine tree, `mrw --help \| grep mcp` |
+| T2 | Two tools over the unchanged engine, one answer | pending | — | `go test ./internal/mcp/ -v …` + 6 named `--- PASS:` lines, `# 38.` in `contract.sh`, one requirement in `go.mod`, clean engine tree, `./scripts/contract.sh` |
 | T3 | Make it installable, and say what it does not change | pending | — | `grep -q '### Use it from an MCP host' README.md && … && ./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
@@ -54,6 +54,7 @@ Status: `pending` | `partial` | `blocked` | `done`.
   about the fence does not substitute for running it.
 - **Confirm §38 and §39 are unused** before relying on those clauses. The highest section is 37 as
   of `a714ae5`.
-- **The go/no-go conditions live in T2's fence, not in prose.** Neither `go.mod`/`go.sum` nor the
-  engine directories may differ from the branch's merge-base with `main`. If either fails, `mrw mcp` is withdrawn
+- **The go/no-go conditions live in T2's fence, not in prose.** `go.mod` must declare exactly one
+  requirement, and `internal/read`, `internal/apply`, `internal/plan`, `internal/seen`,
+  `internal/check` and `internal/state` must carry no change and no new file. If either fails, `mrw mcp` is withdrawn
   and the binary is the whole answer — that is a real outcome, not a formality.
