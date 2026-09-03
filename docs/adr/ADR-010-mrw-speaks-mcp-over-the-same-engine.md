@@ -1,6 +1,6 @@
 # ADR-010: mrw speaks MCP over the same engine, and stays a binary
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-03
 **Owner:** M
 **Spec:** None — no spec stage
