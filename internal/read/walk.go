@@ -77,6 +77,36 @@ type walker struct {
 // difference between silence and a Problem: something found by walking was not
 // asked for, and something named was.
 func (w *walker) consider(p string, named bool) {
+	// An ABSOLUTE path is honoured, not joined — the same command-line
+	// convention read.Run already applies (see its argPath block). Without
+	// this, `mrw read --grep P /repo/sub` refused a directory that plain
+	// `mrw read /repo/sub/f.go` serves, because Resolve joined it onto the
+	// root and looked for /repo/repo/sub. One surface honoured the convention
+	// and its sibling did not, which is the asymmetry nobody expects.
+	//
+	// Found by an independent review, 2026-09-03.
+	if rooted.IsRooted(p) {
+		absRoot, absErr := rooted.Abs(w.root)
+		if absErr != nil {
+			w.problems = append(w.problems, Problem{Path: p, Reason: absErr.Error()})
+			return
+		}
+		cleaned := filepath.Clean(p)
+		if real, evalErr := filepath.EvalSymlinks(cleaned); evalErr == nil {
+			cleaned = real
+		}
+		if !rooted.Contains(absRoot, cleaned) {
+			// Named, so it is reported rather than skipped: rule 5.
+			w.problems = append(w.problems, Problem{
+				Path:   p,
+				Reason: "is outside the root " + absRoot + ": walk it with --root pointed where you mean",
+			})
+			return
+		}
+		if rel, relErr := filepath.Rel(absRoot, cleaned); relErr == nil {
+			p = rel
+		}
+	}
 	full, err := rooted.Resolve(w.root, p)
 	if err != nil {
 		w.problems = append(w.problems, Problem{Path: p, Reason: err.Error()})

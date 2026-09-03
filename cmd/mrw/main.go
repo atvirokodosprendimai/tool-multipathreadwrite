@@ -306,18 +306,36 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// settled HERE, with the other flag domains, because every one of
 			// them is a usage error and those preempt everything — the reason
 			// is the comment above, and it applies identically.
+			// IsSet, not != "": precedence must depend on whether a flag was
+			// SUPPLIED, not on whether its value happens to be non-empty.
+			// Testing the value let `--grep "" --files-from F` through as a
+			// files-from read (the table says two sources is a usage error),
+			// let `--files-from "" a.go` through the same way, and made
+			// `--grep ""` read the working set instead of walking --root.
+			// Found by an independent review, 2026-09-03.
+			grepSet := cmd.IsSet("grep")
+			filesFromSet := cmd.IsSet("files-from")
 			pattern := cmd.String("grep")
 			excludes := cmd.StringSlice("exclude")
 			filesFrom := cmd.String("files-from")
 			posArgs := cmd.Args().Slice()
 
-			if len(excludes) > 0 && pattern == "" {
+			// An empty value is accepted or refused explicitly rather than
+			// silently meaning "not given". An empty PATTERN matches every
+			// line of every file, which is a real request and not obviously a
+			// mistake, so it is allowed; an empty --files-from names no file
+			// and cannot be honoured.
+			if filesFromSet && filesFrom == "" {
+				return cli.Exit("--files-from needs a FILE or -", exitUsage)
+			}
+
+			if len(excludes) > 0 && !grepSet {
 				return cli.Exit("--exclude without --grep: there is nothing to exclude from", exitUsage)
 			}
-			if pattern != "" && filesFrom != "" {
+			if grepSet && filesFromSet {
 				return cli.Exit("--grep and --files-from are two sources of specs; use one", exitUsage)
 			}
-			if filesFrom != "" && len(posArgs) > 0 {
+			if filesFromSet && len(posArgs) > 0 {
 				return cli.Exit("--files-from and positional paths are two sources of specs; use one", exitUsage)
 			}
 			// A glob path.Match rejects is refused at parse time rather than
@@ -335,8 +353,27 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				refusals []read.Problem
 			)
 
+			// Working-set pointers resolve here too. The ADR's precedence
+			// table documents `mrw read --grep P @1 @2` as how a caller
+			// asks for both, and without this `@1` was walked as a LITERAL
+			// filename — refused as missing, or worse, matching a real file
+			// actually named `@1`. Found by an independent review,
+			// 2026-09-03.
+			//
+			// Loaded only when paths were given: `--grep P` with none walks
+			// --root and must not consult the working set, which is the row
+			// immediately above it in the same table.
+			if len(posArgs) > 0 {
+				set, err := iter.Load(root)
+				if err != nil {
+					return cli.Exit(err, exitUsage)
+				}
+				if posArgs, err = set.ResolveAll(posArgs); err != nil {
+					return cli.Exit(err, exitUsage)
+				}
+			}
 			switch {
-			case pattern != "":
+			case grepSet:
 				for _, a := range posArgs {
 					sp, err := read.ParseSpec(a)
 					if err != nil {
@@ -360,7 +397,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				}
 			default:
 				args := posArgs
-				if filesFrom != "" {
+				if filesFromSet {
 					list, err := specList(filesFrom)
 					if err != nil {
 						return cli.Exit(err, exitUsage)
@@ -407,7 +444,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// pattern. read.Run over an empty spec list prints nothing at all,
 			// which is byte-for-byte the output of a successful read that
 			// happened to serve nothing — the one ambiguity worth a line.
-			if pattern != "" && len(specs) == 0 {
+			if grepSet && len(specs) == 0 {
 				out.Flush()
 				return cli.Exit(fmt.Sprintf("no file matched /%s/", pattern), 1)
 			}
