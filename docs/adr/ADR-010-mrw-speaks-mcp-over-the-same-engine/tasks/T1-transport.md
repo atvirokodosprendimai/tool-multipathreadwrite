@@ -135,6 +135,8 @@ The `--help` clause is rung 3 — a subcommand a caller cannot discover is not s
 
 ## Mutation Log
 
+- 2026-09-03 · ddc21f9 · mutant killed · exit 1 · `cmd/mrw/main.go` · rung 2: unregister the subcommand, so mrw --help no longer lists mcp and the call site is proved to be what makes the package reachable · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59
+
 ## Invariants
 
 - `go.mod` declares exactly one requirement and it is `urfave/cli/v3`.
@@ -192,3 +194,4 @@ place that coupling belongs.
   PASS
   ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	(cached)
   ```
+- 2026-09-03 · ddc21f9 · exit 0 · `set -o pipefail …` · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59 · ms:1630
