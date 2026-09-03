@@ -35,7 +35,11 @@ func TestDirIsUnderXDGStateHome(t *testing.T) {
 func TestDirFallsBackToLocalState(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", "")
 	home := t.TempDir()
+	// os.UserHomeDir reads $HOME on POSIX and %USERPROFILE% on Windows, so
+	// setting only HOME left this test reading the runner's REAL home on
+	// Windows — where it then asserted about a directory no test created.
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 
 	dir, err := Dir(t.TempDir())
 	if err != nil {

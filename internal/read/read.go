@@ -257,7 +257,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		// pre-screens this way and says its comment expects read to "say so" —
 		// this is read saying so.
 		argPath := sp.Path
-		if filepath.IsAbs(argPath) {
+		if rooted.IsRooted(argPath) {
 			absRoot, absErr := rooted.Abs(root)
 			if absErr != nil {
 				fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, absErr)

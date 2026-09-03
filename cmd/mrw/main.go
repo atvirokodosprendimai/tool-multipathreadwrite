@@ -851,7 +851,7 @@ func exitCode(err error) int {
 // back through cli.Exit's conversion to do so. The original is wrapped, so
 // errors.Is still sees fs.ErrNotExist.
 func planOpenError(path, root string, err error) error {
-	if filepath.IsAbs(path) {
+	if rooted.IsRooted(path) {
 		return err
 	}
 	wd, wdErr := os.Getwd()

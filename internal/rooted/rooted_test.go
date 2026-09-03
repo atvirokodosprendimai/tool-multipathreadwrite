@@ -81,11 +81,39 @@ func TestResolveRefusesASymlinkOutOfTheRoot(t *testing.T) {
 // The separator in the prefix check is load-bearing: without it a sibling whose
 // name merely STARTS with the root's counts as inside.
 func TestASiblingWithASharedPrefixIsOutside(t *testing.T) {
-	if Contains("/repo", "/repo-backup/secret") {
-		t.Error(`"/repo-backup/secret" was judged to be inside "/repo"`)
+	// Built with the platform's own separator. The hardcoded POSIX literals
+	// this test used to carry made it assert the opposite of its name on
+	// Windows: "/repo/a.go" has no `\repo\` prefix, so a real child read as
+	// outside and the test failed for a reason that was not the boundary's.
+	root := filepath.Join(string(filepath.Separator), "repo")
+	sibling := root + "-backup" + string(filepath.Separator) + "secret"
+	if Contains(root, sibling) {
+		t.Errorf("%q was judged to be inside %q", sibling, root)
 	}
-	if !Contains("/repo", "/repo/a.go") || !Contains("/repo", "/repo") {
+	if !Contains(root, filepath.Join(root, "a.go")) || !Contains(root, root) {
 		t.Error("a real child, or the root itself, was judged to be outside")
+	}
+}
+
+// IsRooted is what every caller asks before deciding whether a path is theirs
+// to resolve. The case it exists for cannot be REACHED on POSIX — a backslash
+// is an ordinary filename character there — so half this table is asserted
+// against the running platform rather than against a constant.
+func TestIsRootedAnswersForTheRunningPlatform(t *testing.T) {
+	if !IsRooted("/etc/hosts") {
+		t.Error(`IsRooted("/etc/hosts") = false; a slash-rooted path is never root-relative, on any platform`)
+	}
+	for _, p := range []string{"", "a/b", "a", filepath.Join("sub", "f.go")} {
+		if IsRooted(p) {
+			t.Errorf("IsRooted(%q) = true; that is an ordinary relative path", p)
+		}
+	}
+	windows := filepath.Separator == '\\'
+	for _, p := range []string{`\etc\hosts`, `C:\etc`, `C:etc`} {
+		if got := IsRooted(p); got != windows {
+			t.Errorf("IsRooted(%q) = %v here; want %v — a leading backslash or a drive "+
+				"letter names a location on Windows and is an ordinary relative path elsewhere", p, got, windows)
+		}
 	}
 }
 

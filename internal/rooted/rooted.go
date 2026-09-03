@@ -66,6 +66,33 @@ func Contains(absRoot, p string) bool {
 	return p == absRoot || strings.HasPrefix(p, absRoot+string(filepath.Separator))
 }
 
+// IsRooted reports whether p names a location of its own, rather than one to be
+// resolved relative to a root.
+//
+// filepath.IsAbs is not enough, and the gap is Windows-only. There, `\etc\hosts`
+// and `/etc/hosts` are ROOTED — they name the root of the current drive — but
+// IsAbs is FALSE for both, because neither carries a volume. `C:etc` is
+// drive-relative and equally not root-relative, and IsAbs is false for that too.
+// So every caller asking "did the caller hand me a path that is not relative to
+// my root?" answered no on Windows and joined it on.
+//
+// In read and apply that only misdirects a message. In check it is a silent
+// PASS: the joined path places no package, the run falls back to the full check
+// and the verdict is green, which is the failure class this project exists to
+// refuse. Found by the windows CI job on its first run, 2026-09-03.
+//
+// A leading backslash is rooted on Windows and an ordinary filename character on
+// POSIX, so it counts only where it means something.
+func IsRooted(p string) bool {
+	if p == "" {
+		return false
+	}
+	if filepath.IsAbs(p) || filepath.VolumeName(p) != "" {
+		return true
+	}
+	return p[0] == '/' || (filepath.Separator == '\\' && p[0] == '\\')
+}
+
 // Descendable reports whether a walk may go INTO path, an entry found inside
 // absRoot. absRoot must already be canonical — Resolve produces it, and a walk
 // resolves its root once before it starts.
