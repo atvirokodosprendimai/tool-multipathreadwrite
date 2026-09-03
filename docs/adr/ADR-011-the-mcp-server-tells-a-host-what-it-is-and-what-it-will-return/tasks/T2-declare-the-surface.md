@@ -100,6 +100,8 @@ against the code that wrote it is a mirror.
 
 ## Mutation Log
 
+- 2026-09-03 · a4897b6 · mutant killed · exit 1 · `internal/mcp/schema.go` · S2: allow the permissive schema back — a property-less object validates anything and tells a caller nothing, which is the peer-measured failure this generator exists to make unrepresentable · acceptance-sha256:d8a387f152fd5f68916a77e1436298653048500fc611b3eb941f5a4bae78c055
+
 ## Invariants
 
 - Every tool that declares an `outputSchema` returns `structuredContent` that validates against it.
@@ -145,3 +147,4 @@ the conformance test as the guard — but do not add the dependency quietly.
   FAIL
   ```
 - 2026-09-03 · 4483490 · exit 0 · `set -o pipefail …` · acceptance-sha256:d8a387f152fd5f68916a77e1436298653048500fc611b3eb941f5a4bae78c055 · ms:9868
+- 2026-09-03 · a4897b6 · exit 0 · `set -o pipefail …` · acceptance-sha256:d8a387f152fd5f68916a77e1436298653048500fc611b3eb941f5a4bae78c055 · ms:9153
