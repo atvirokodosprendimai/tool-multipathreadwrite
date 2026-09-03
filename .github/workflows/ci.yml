@@ -93,9 +93,18 @@ jobs:
   # touch OS-specific behaviour, so "it builds" was never the question.
   #
   # It does NOT run scripts/contract.sh. That script is POSIX shell driving a
-  # real binary through a real shell, and running it under Git Bash would assert
-  # a shell layer no Windows user of the binary goes through — a green row
-  # proving something nobody relies on. The Go tests are the portable half.
+  # real binary through a real shell, and running it under Git Bash would
+  # assert a shell layer no Windows user of the binary goes through — a green
+  # row proving something nobody relies on. The Go tests are the portable half.
+  #
+  # What DOES assert the Windows shell boundary is cmd/mrw/shell_windows_test.go
+  # (issue #48): a small suite that builds the real exe and drives it through
+  # PowerShell, so exit statuses, drive-letter paths and a plan file the SHELL
+  # wrote are checked where a Windows caller actually meets them. It is
+  # deliberately smaller than contract.sh — only the promises the shell takes
+  # part in — and it FAILS rather than skips when no shell is found, because a
+  # skip here is indistinguishable from a pass and that invisibility is what
+  # cost three defects before it existed.
   windows:
     runs-on: windows-latest
     steps:
