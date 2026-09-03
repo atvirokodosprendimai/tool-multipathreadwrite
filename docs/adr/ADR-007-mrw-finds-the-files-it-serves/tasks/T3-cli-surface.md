@@ -164,4 +164,3 @@ in this repository serves `bin/mrw`, a 7 MB build artifact, because a regular
 file is a candidate and the walk does not read `.gitignore`. Both are permanent
 ADR decisions and `--exclude bin` is the answer, but the README example now
 carries an `--exclude` for that reason rather than for decoration.
-- 2026-09-03 · 9e132f9 · exit 0 · `set -o pipefail …` · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9 · ms:7843
