@@ -81,12 +81,20 @@ go test ./internal/rooted/ -run 'TestDescend' -v 2>&1 | tee /tmp/adr007-t1.out \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestDescendableAcceptsADirectoryInsideTheRoot` | `internal/rooted/rooted_test.go` | the ordinary case | — | S1, S2 |
-| `TestDescendableRefusesASymlinkedDirectory` | `internal/rooted/rooted_test.go` | rule 3 of the Decision — a symlinked DIRECTORY is never descended | — | S1, S2 |
-| `TestDescendableRefusesADirectoryOutsideTheRoot` | `internal/rooted/rooted_test.go` | the ADR-006 boundary applies to descent | — | S1, S2 |
-| `TestDescendableTerminatesOnASelfReferentialLink` | `internal/rooted/rooted_test.go` | a loop cannot hang a walk | — | S1, S2 |
+| ~~`TestDescendableAcceptsADirectoryInsideTheRoot`~~ | — | REMOVED 2026-09-03 with `rooted.Descendable` | — | S1, S2 |
+| ~~`TestDescendableRefusesASymlinkedDirectory`~~ | — | REMOVED 2026-09-03 with `rooted.Descendable` | — | S1, S2 |
+| ~~`TestDescendableRefusesADirectoryOutsideTheRoot`~~ | — | REMOVED 2026-09-03 with `rooted.Descendable` | — | S1, S2 |
+| ~~`TestDescendableTerminatesOnASelfReferentialLink`~~ | — | REMOVED 2026-09-03 with `rooted.Descendable` | — | S1, S2 |
 | `TestASymlinkedRootIsStillUsable` | `internal/rooted/rooted_test.go` | the root itself is canonicalised, not refused | — | S1, S2 |
 
+
+The four struck rows named tests for `rooted.Descendable`, which this task's own Mutation Log shows
+could not be killed: `filepath.WalkDir` already prevented the descent, so the function was
+unreachable and it was deleted in `8a73748`. Its tests went with it. `TestASymlinkedRootIsStillUsable`
+survives because canonicalising the root is a separate property that outlived the withdrawal.
+
+They are struck rather than deleted: a withdrawn task whose Tests table is quietly emptied reads
+like a task that never had tests, which is the opposite of what happened here.
 ## Reachability
 
 | Rung | How this task shows it |
