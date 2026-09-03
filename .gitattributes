@@ -1,0 +1,5 @@
+# mrw is line-oriented: it addresses files by line and its tests compare exact
+# bytes. Git for Windows converts LF to CRLF on checkout by default, which would
+# rewrite every fixture on the way out of git and fail tests for a reason that
+# has nothing to do with mrw. Pin the working tree to LF on every platform.
+* text=auto eol=lf
