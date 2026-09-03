@@ -119,13 +119,23 @@ reproduce is a claim, not a measurement:
 ./scripts/measure.sh
 ```
 
+> **Windows:** the two reproduction scripts are `bash`, so run them under **WSL**
+> or **Git Bash** — they are POSIX shell, not PowerShell. The binary itself is
+> native; only these scripts need a shell. See [Prerequisites](#from-source).
+
+**This is the only benchmark in the repository, and it measures input bytes and
+round trips — not time.** There are no `go test -bench` benchmarks, on purpose:
+the cost mrw exists to cut is context and round trips, and a CPU figure for a
+tool that spends its life blocked on a file read would measure nothing anyone is
+paying.
+
 **Round trips are the claim that survives every reading: 2 calls, for any N.**
 Bytes depend entirely on what you compare against, so the table gives both
 baselines rather than the flattering one.
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 98,921 | 2,951 | **33.5× less** |
+| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 104,486 | 2,951 | **35.4× less** |
 | | bytes vs a **windowed** `offset`/`limit` read | 2,289 | 2,951 | **1.2× MORE** |
 | | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
 | | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
@@ -135,12 +145,12 @@ baselines rather than the flattering one.
 | **C.** 1 site, whole small file | bytes (window *is* the whole file) | 12,881 | 15,765 | **1.2× MORE** |
 | | calls | 2 / 3 | 2 | 1.0–1.5× fewer |
 
-Measured at `7df758b`; the script builds the binary it stamps.
+Measured at `0251bca`; the script builds the binary it stamps.
 
 **Read the two byte rows together or neither.** `Read` takes `offset`/`limit`, so
 the windowed reader is the documented interface, not a strawman — and against it
 mrw costs *more* bytes, because it adds a header and a line number per line. The
-32.8× is real for the case an agent is usually in: it does not yet know where to
+35.4× is real for the case an agent is usually in: it does not yet know where to
 look, so it reads whole files. Once it knows, the byte advantage is gone and the
 round trips are what is left.
 
@@ -191,8 +201,12 @@ Every row below is asserted by a script, against the real binary in a throwaway
 repo, by making each promise go wrong on purpose:
 
 ```sh
-./scripts/contract.sh      # 216 assertions; exit 0 only if all hold
+./scripts/contract.sh      # exit 0 only if every assertion holds (216 today)
 ```
+
+The count moves as rows are added, so the script prints its own total rather
+than being trusted to match a number written here. Same shell requirement as
+above: **WSL or Git Bash** on Windows.
 
 | test | result |
 |---|---|
@@ -223,17 +237,30 @@ Windows: `mrw-windows-amd64.exe`. Every release also carries conventional
 archives (`mrw_<os>_<arch>.tar.gz` / `.zip`) and a `SHA256SUMS.txt` covering
 every asset.
 
-From source:
+### From source
+
+Prerequisites: **Go 1.26.6 or newer** — the version in `go.mod` — and nothing
+else. mrw has one dependency and no cgo, so the build is one command anywhere
+Go runs:
 
 ```sh
-go build -o bin/mrw ./cmd/mrw
+go build -o bin/mrw ./cmd/mrw          # Linux, macOS
+go build -o bin/mrw.exe ./cmd/mrw      # Windows
 ```
+
+Running the tests needs only Go (`go test ./...`). Running the two reproduction
+scripts additionally needs **bash**, **git** and **bc** on `PATH`. `bc` is *not*
+present on Alpine or most slim container images — `apk add bc` — and on Windows
+they need WSL or Git Bash.
 
 ## Releasing
 
 `.github/workflows/ci.yml` runs gofmt, `go vet`, `go test ./...` and
-`go test -race ./...` on every push and PR. Pushing a **strict** `vX.Y.Z` tag
-additionally cross-compiles five targets and publishes them:
+`go test -race ./...` on every push and PR — on **Linux and Windows**, because
+this project ships a windows/amd64 binary and cross-compiling one proves only
+that it links. `scripts/contract.sh` runs on Linux, being POSIX shell. Pushing a
+**strict** `vX.Y.Z` tag additionally cross-compiles five targets and publishes
+them:
 
 ```sh
 git tag v0.1.0 && git push origin v0.1.0

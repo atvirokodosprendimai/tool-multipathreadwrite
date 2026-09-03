@@ -87,10 +87,37 @@ jobs:
       - name: Race
         run: go test -race ./...
 
+  # Windows, running the same Go gates as `test`. It exists because this project
+  # SHIPS a windows/amd64 binary: cross-compiling one proves it links, not that
+  # it works. Path handling, the read-before-modify ledger and `mrw check` all
+  # touch OS-specific behaviour, so "it builds" was never the question.
+  #
+  # It does NOT run scripts/contract.sh. That script is POSIX shell driving a
+  # real binary through a real shell, and running it under Git Bash would assert
+  # a shell layer no Windows user of the binary goes through — a green row
+  # proving something nobody relies on. The Go tests are the portable half.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      # `.gitattributes` pins every file to LF, so Git for Windows does not
+      # rewrite line endings on the way out. mrw is line-oriented and its tests
+      # compare exact bytes; a CRLF checkout would fail for a reason that is not
+      # mrw's, and the fix belongs in the repo rather than in this one job.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./...
+      - name: Race
+        run: go test -race ./...
+
   # Cross-compile every target. CGO_ENABLED=0 makes each one static and lets
   # the single linux runner build them all — mrw has no cgo dependency.
   build:
-    needs: [check, test, race]
+    needs: [check, test, race, windows]
     if: needs.check.outputs.release == 'true'
     runs-on: ubuntu-latest
     strategy:

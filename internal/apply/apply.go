@@ -523,7 +523,10 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 			// own path told them their real, present file did not exist, which
 			// is the same misdirection this clause was written to prevent —
 			// caught in review of the read-side fix for the identical bug.
-			if filepath.IsAbs(h.Path) {
+			// IsRooted, not IsAbs: on Windows `/etc/hosts` carries no volume,
+			// so IsAbs is false and this clause used to be skipped there —
+			// restoring the very "does not exist" misdirection it prevents.
+			if rooted.IsRooted(h.Path) {
 				fail(h, "%s is absolute, and every path in a plan is relative to the root: mrw looked for %s, "+
 					"which does not exist", h.Path, full)
 				continue

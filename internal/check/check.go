@@ -288,7 +288,7 @@ func confine(root string, paths []string) error {
 		// reinterpreted path then fails to exist and they say so; a check has
 		// no such tell — the joined path places no package, the run falls back
 		// and the answer is a pass. So check refuses what it cannot honour.
-		if filepath.IsAbs(p) && !rooted.Contains(absRoot, filepath.Clean(p)) {
+		if rooted.IsRooted(p) && !rooted.Contains(absRoot, filepath.Clean(p)) {
 			return fmt.Errorf("%s is absolute and would be read relative to the root %s, "+
 				"which is not where it points: check it with --root pointed where you mean", p, absRoot)
 		}

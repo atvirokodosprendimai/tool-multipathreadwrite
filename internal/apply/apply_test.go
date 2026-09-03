@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -504,6 +505,12 @@ func TestTrailingNewlineIsPreserved(t *testing.T) {
 }
 
 func TestFilePermissionsSurvive(t *testing.T) {
+	// Windows has no POSIX mode bits: os.Chmod there toggles the read-only
+	// attribute and nothing else, so 0o755 is read back as -rw-rw-rw- and this
+	// would assert the platform rather than Apply preserving what it found.
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits do not exist on Windows")
+	}
 	root := t.TempDir()
 	write(t, root, "f.sh", "a\n")
 	if err := os.Chmod(filepath.Join(root, "f.sh"), 0o755); err != nil {

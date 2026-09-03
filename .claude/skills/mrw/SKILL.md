@@ -56,8 +56,15 @@ how the file-edit ban gets broken by a good intention.
   project you were asked to work on. Not elsewhere.
 - `./scripts/measure.sh` — what mrw saves, three shapes, including the one where
   it loses. Quote the script, never a remembered number.
-- `./scripts/contract.sh` — 76 assertions against the real binary, each made by
-  breaking a promise on purpose. Mutation-verified; runs in CI.
+- `./scripts/contract.sh` — every promise the README makes, asserted against the
+  real binary by breaking each one on purpose. Mutation-verified; runs in CI on
+  Linux only, because it drives a POSIX shell. It prints its own assertion count;
+  do not repeat one here, because a number written beside the script drifts from
+  it silently — this line claimed 76 for weeks while the script asserted 216.
+- `go test ./...` runs in CI on **Linux and Windows**. The windows job found a
+  real defect on its first run: `filepath.IsAbs` is false there for `/etc/hosts`,
+  so four root-relative guards were skipped — use `rooted.IsRooted`, never
+  `filepath.IsAbs`, to ask whether a caller's path is relative to the root.
 - `.quality-harness.json` declares the check: `go test ./...`.
 - The read-before-modify guard arrived in **v0.0.2**. A `bin/mrw` built from a
   working tree reports `dev`, which is newer than any tag, not older.
