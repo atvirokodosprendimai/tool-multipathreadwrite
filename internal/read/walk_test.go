@@ -205,3 +205,59 @@ func TestWalkKeepsTwoNamesForOneInode(t *testing.T) {
 		t.Errorf("walked %v; a hardlink is two addresses", got)
 	}
 }
+
+// A symlink INSIDE the root pointing at a file OUTSIDE it must not be read,
+// matched, or distinguishable from a file that simply does not match.
+//
+// Found by an independent review on 2026-09-03, not by these tests: the
+// existing boundary cases covered an explicit `../outside` (which `consider`
+// resolves) and an in-root symlink (which is legitimately served), so the
+// DISCOVERED out-of-root symlink fell between them. The walk called os.Stat and
+// os.ReadFile on the path it built, never through rooted.Resolve, so it read
+// the outside file to match against it. read.Run refused to SERVE the result,
+// but the two outcomes differed — a match printed a REFUSED line naming the
+// resolved outside path, a non-match printed "no file matched" — which is a
+// pattern oracle over files outside the root.
+func TestWalkNeitherReadsNorRevealsAnOutOfRootSymlinkTarget(t *testing.T) {
+	outside := t.TempDir()
+	secret := filepath.Join(outside, "secret.txt")
+	if err := os.WriteFile(secret, []byte("SECRET-TOKEN\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	root := tree(t, map[string]string{"sub/ordinary.go": "package a\n"})
+	if err := os.Symlink(secret, filepath.Join(root, "sub", "link.txt")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	hit, hitProblems := walk(t, root, "SECRET-TOKEN", nil)
+	miss, missProblems := walk(t, root, "NOT-PRESENT-ANYWHERE", nil)
+
+	if len(hit) != 0 {
+		t.Errorf("a file outside the root was turned into a spec: %v", paths(hit))
+	}
+	// The oracle is the DIFFERENCE, so assert the two answers are the same
+	// shape rather than merely that the match was refused.
+	if len(hit) != len(miss) || len(hitProblems) != len(missProblems) {
+		t.Errorf("matching and non-matching differ (%d specs/%d problems vs %d/%d): "+
+			"that difference tells a caller whether a file outside the root contains the pattern",
+			len(hit), len(hitProblems), len(miss), len(missProblems))
+	}
+	for _, p := range append(append([]Problem{}, hitProblems...), missProblems...) {
+		if strings.Contains(p.Reason, outside) || strings.Contains(p.Path, "link.txt") {
+			t.Errorf("a problem names the out-of-root target: %+v", p)
+		}
+	}
+}
+
+// And the legitimate case must not regress: a symlink to a file INSIDE the root
+// is a candidate of its own, because mrw addresses files by path (rule 4).
+func TestWalkStillServesAnInRootSymlinkAfterTheBoundaryFix(t *testing.T) {
+	root := tree(t, map[string]string{"sub/real.go": "package t\nINROOT\n"})
+	if err := os.Symlink(filepath.Join(root, "sub", "real.go"), filepath.Join(root, "sub", "alias.go")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	got := paths(mustSpecs(t, root, "INROOT"))
+	if len(got) != 2 {
+		t.Errorf("got %v, want both sub/real.go and sub/alias.go — two names for one inode are two addresses", got)
+	}
+}
