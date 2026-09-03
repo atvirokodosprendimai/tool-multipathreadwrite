@@ -16,15 +16,20 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
-// gate serializes tool calls. The ledger is a whole-file rewrite, so parallel
-// writers lose entries — the README's "one call at a time" limitation. One
-// server is one writer, and this is where that becomes true: calls made THROUGH
-// the server no longer race. A CLI process running beside it still does, which
-// is still the CLI limitation and not something a mutex here can fix.
+// gate serializes tool calls, and it is worth being exact about what it does
+// and does not buy. `Serve` reads one line, handles it fully, and only then
+// reads the next — so a SINGLE server never has two tool calls in flight, and
+// "calls through the server do not race" rests on that sequential loop, not on
+// this mutex. What the mutex covers is several `Serve` instances sharing one
+// process, which is what the concurrency test builds.
 //
-// It is package-level rather than per-Serve because two Serve calls in one
-// process share the same ledger file, and it is the FILE that is being
-// protected, not the session.
+// Keep it, and keep this note: if anyone ever dispatches lines concurrently to
+// get parallelism, the loop stops being the guarantee and the mutex becomes
+// the only thing standing between two callers and a lost ledger entry.
+//
+// It is package-level rather than per-Serve because it is the ledger FILE being
+// protected, not the session. A CLI process running beside the server is a
+// different process and races regardless — still the CLI limitation.
 var gate sync.Mutex
 
 // callToolResult is the protocol's envelope. The spec requires a content array;
@@ -115,6 +120,15 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 
 	return callToolResult{
 		Content: text(buf.String()),
+		// NOTE the shape difference between the two tools, which is real and
+		// currently undeclared. mrw_write returns apply.Result, whose json tags
+		// make it snake_case (sha_after, lines_before). This returns
+		// seen.Observation as-is, and that struct carries no json tags, so its keys
+		// are the Go field names — SHA, Spans. Neither tool declares an
+		// outputSchema, so a caller discovers both shapes by looking. The day
+		// seen.Observation gains tags, this payload changes silently for every
+		// MCP caller; that is the reason this comment exists rather than a
+		// preference about casing.
 		StructuredContent: map[string]any{
 			"observed": observed,
 			"problems": problems,
