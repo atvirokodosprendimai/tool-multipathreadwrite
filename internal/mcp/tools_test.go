@@ -378,3 +378,28 @@ func TestTheCLIReadIsUnaffectedByTheMCPLimit(t *testing.T) {
 		t.Fatalf("the fixture is not over the limit: %d <= %d", buf.Len(), MaxResultChars)
 	}
 }
+
+func TestTheCappedWriterRetainsNoMoreThanItsLimit(t *testing.T) {
+	// A survived mutant on 2026-09-03 showed why this test has to exist:
+	// unbounding the writer left every other test green, because the refusal
+	// still FIRES — cw.written still exceeds the limit — while the whole point
+	// of the capped writer is that refusing is CHEAP. Nothing asserted the
+	// cheapness, so nothing noticed. The measured cost of that gap was 2.4 GB.
+	cw := &capped{limit: 1000}
+	for i := 0; i < 100; i++ {
+		chunk := bytes.Repeat([]byte("x"), 10_000)
+		n, err := cw.Write(chunk)
+		if err != nil || n != len(chunk) {
+			t.Fatalf("Write returned %d, %v; a short write would make read.Run error", n, err)
+		}
+	}
+	if cw.buf.Len() > cw.limit {
+		t.Errorf("retained %d bytes with a limit of %d — the refusal costs the whole read", cw.buf.Len(), cw.limit)
+	}
+	if !cw.over {
+		t.Error("the writer did not record that it went over")
+	}
+	if cw.written != 1_000_000 {
+		t.Errorf("written = %d, want 1000000 — the refusal reports how far over the caller was", cw.written)
+	}
+}

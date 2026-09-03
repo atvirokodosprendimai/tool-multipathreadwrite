@@ -100,6 +100,10 @@ these files instead of asserted. The engine clauses matter more here
 ## Mutation Log
 
 - 2026-09-03 · efda9ad · mutant killed · exit 1 · `internal/mcp/tools.go` · S3: stop refusing, so an oversized read is served truncated — the silent wrong answer, a partial file that arrives looking like the whole one · acceptance-sha256:34f309cf886a15dd899f79d63023563ee54f583da444da7b4005f3f731ce7604
+- 2026-09-03 · 5a774d4 · mutant survived · exit 0 · `internal/mcp/tools.go` · S2: unbound the writer so it keeps everything — the refusal still fires but costs the whole read, which is the defect the post-hoc version left in place · acceptance-sha256:34f309cf886a15dd899f79d63023563ee54f583da444da7b4005f3f731ce7604
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
 
 ## Invariants
 
@@ -147,3 +151,4 @@ commit lands.
   ```
 - 2026-09-03 · 3a0bbc4 · exit 0 · `set -o pipefail …` · acceptance-sha256:34f309cf886a15dd899f79d63023563ee54f583da444da7b4005f3f731ce7604 · ms:15735
 - 2026-09-03 · efda9ad · exit 0 · `set -o pipefail …` · acceptance-sha256:34f309cf886a15dd899f79d63023563ee54f583da444da7b4005f3f731ce7604 · ms:9255
+- 2026-09-03 · 5a774d4 · exit 0 · `set -o pipefail …` · acceptance-sha256:34f309cf886a15dd899f79d63023563ee54f583da444da7b4005f3f731ce7604 · ms:10960
