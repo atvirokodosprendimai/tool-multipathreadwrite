@@ -32,7 +32,7 @@ working tree across the six engine directories including untracked files.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | A stdio JSON-RPC transport, hand-rolled, reachable | done | — | `go test ./internal/mcp/ -v …` + 7 named `--- PASS:` lines, one requirement in `go.mod`, clean engine tree, `mrw --help` lists the `mcp` row |
+| T1 | A stdio JSON-RPC transport, hand-rolled, reachable | done | — | `go test ./internal/mcp/ -v …` + 9 named `--- PASS:` lines, one requirement in `go.mod`, clean engine tree, `mrw --help` lists the `mcp` row |
 | T2 | Two tools over the unchanged engine, one answer | done | — | `go test ./internal/mcp/ -v …` + 6 named `--- PASS:` lines, `# 38.` in `contract.sh`, one requirement in `go.mod`, clean engine tree, `./scripts/contract.sh` |
 | T3 | Make it installable, and say what it does not change | pending | — | `grep -q '### Use it from an MCP host' README.md && … && ./scripts/contract.sh` |
 
