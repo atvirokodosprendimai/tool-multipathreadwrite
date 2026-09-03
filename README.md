@@ -640,6 +640,40 @@ lines 201-204 contained is the one fact not already in the system — which is
 also why writing the body by copying it back out of `mrw read` asserts nothing.
 Write it from your intent, or leave it off.
 
+## Stats — can a caller actually author a plan?
+
+```sh
+mrw stats            # what became of the plans this checkout has been given
+mrw stats --json     # the same numbers, machine-readable
+mrw stats --reset    # empty the tally, saying how many records it discarded
+```
+
+Every number this project publishes about mrw — the byte savings, the round
+trips — assumes the plan was authored correctly. Nothing measured that. `mrw
+stats` does:
+
+```
+  applied           1 of 3 plan(s) (33.3%)
+  refused_apply     1 of 3 plan(s) (33.3%)
+  refused_parse     1 of 3 plan(s) (33.3%)
+```
+
+**`refused_parse` is the one that matters.** It is the only outcome that says
+the FORMAT was the problem rather than your picture of a file. ADR-009
+pre-registers the reading: above **5% of plans**, the format is what needs
+changing, not the caller.
+
+**Counts only.** No plan text, no paths, no anchors, no SHAs, no command lines —
+the tally is something you can read in full and find nothing of your work in,
+and a test reads the written bytes to keep it that way. Nothing is ever
+transmitted; it lives beside the ledger in the directory `mrw seen` names, and
+this command is the only reader.
+
+A rate always carries its denominator, because a percentage without its sample
+size is the form that gets quoted out of the population it was measured on. An
+empty tally says so in words rather than printing zeros — nothing measured is
+not the same as nothing failed.
+
 ## Read before modify
 
 `mrw` refuses to edit a file whose current contents it has not seen.

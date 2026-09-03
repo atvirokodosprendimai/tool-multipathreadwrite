@@ -78,6 +78,9 @@ is one the caller cannot discover, and the fence is the only thing that notices.
 
 ## Mutation Log
 
+- 2026-09-03 · bd7f4a6* · mutant killed · exit 1 · `cmd/mrw/main.go` · rung 2: the stats command is no longer registered, so TestStatsCountsARecordedWrite and contract 37 must go red · acceptance-sha256:6e0c3debac319a7eb1c918e77278435aa7eb036e7351f80643e44b5ac9278113
+- 2026-09-03 · bd7f4a6* · mutant killed · exit 1 · `cmd/mrw/main.go` · the denominator row: a rate printed without its true sample size must turn contract 37 red · acceptance-sha256:6e0c3debac319a7eb1c918e77278435aa7eb036e7351f80643e44b5ac9278113
+
 ## Invariants
 
 - `stats` reads and never writes, except under `--reset`.
@@ -103,3 +106,20 @@ it to other state would make a reporting surface into a second source of truth a
 - Counting invocations of `stats` itself (permanent: boundary: counting the counter has no reader)
 
 ## Verification Log
+- 2026-09-03 · bd7f4a6* · exit 1 · `set -o pipefail …` · acceptance-sha256:6e0c3debac319a7eb1c918e77278435aa7eb036e7351f80643e44b5ac9278113 · ms:1001
+  ```
+  --- last 10 line(s) of stdout (of 18 after folding 18 raw)
+  --- FAIL: TestStatsCountsARecordedWrite (0.00s)
+  === RUN   TestStatsResetEmptiesAndReportsWhatItDiscarded
+      planpath_test.go:476: --reset failed: flag provided but not defined: -reset
+  --- FAIL: TestStatsResetEmptiesAndReportsWhatItDiscarded (0.00s)
+  === RUN   TestStatsJSONParses
+      planpath_test.go:500: --json failed: flag provided but not defined: -json
+  --- FAIL: TestStatsJSONParses (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.270s
+  FAIL
+  ```
+- 2026-09-03 · bd7f4a6* · exit 0 · `set -o pipefail …` · acceptance-sha256:6e0c3debac319a7eb1c918e77278435aa7eb036e7351f80643e44b5ac9278113 · ms:8655
+- 2026-09-03 · bd7f4a6* · exit 0 · `set -o pipefail …` · acceptance-sha256:6e0c3debac319a7eb1c918e77278435aa7eb036e7351f80643e44b5ac9278113 · ms:7755
+- 2026-09-03 · bd7f4a6* · exit 0 · `set -o pipefail …` · acceptance-sha256:6e0c3debac319a7eb1c918e77278435aa7eb036e7351f80643e44b5ac9278113 · ms:8601

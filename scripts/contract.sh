@@ -1561,6 +1561,49 @@ fi
 # so a row here would grade the ledger and report it as the tally. It is proved
 # where it can be isolated: TestRecordNeverFailsAWrite.
 
+# 37. ADR-009 T2: `mrw stats` reads the tally, and never prints a rate without
+# its denominator.
+#
+# The denominator row is the one worth having. A bare percentage is the form
+# that gets quoted out of the population it was measured on, and ADR-009's
+# criterion is explicitly valid FOR a population — so the shape of the output
+# is part of the decision, not presentation.
+fixture
+
+out=$(m stats 2>&1); rc=$?
+want 0 "$rc" "stats on a checkout with no tally exits 0"
+grep -qi 'no plans recorded' <<<"$out" \
+  && ok "and says nothing is recorded rather than printing zeros" \
+  || bad "an empty tally did not announce itself: $(head -1 <<<"$out")"
+
+m read a.go >/dev/null 2>&1
+printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' | m write - >/dev/null 2>&1
+printf '@@ a.go 3 frobnicate\nx\n' | m write - >/dev/null 2>&1
+
+out=$(m stats 2>&1); rc=$?
+want 0 "$rc" "stats after two plans exits 0"
+grep -q 'applied' <<<"$out"       && ok "and counts the applied plan"        || bad "applied missing: $out"
+grep -q 'refused_parse' <<<"$out" && ok "and counts the unparseable one"     || bad "refused_parse missing: $out"
+# THE ROW: every rate carries its sample size.
+grep -qE 'of [0-9]+ plan' <<<"$out" \
+  && ok "and every rate carries its denominator" \
+  || bad "a rate was printed without its sample size: $out"
+
+out=$(m stats --json 2>&1); rc=$?
+want 0 "$rc" "stats --json exits 0"
+grep -q '"plans"' <<<"$out" && grep -q '"counts"' <<<"$out" \
+  && ok "and emits the plans/counts shape" \
+  || bad "--json shape wrong: $(head -3 <<<"$out"|tr '\n' ' ')"
+
+out=$(m stats --reset 2>&1); rc=$?
+want 0 "$rc" "stats --reset exits 0"
+grep -qE '[0-9]+ plan' <<<"$out" \
+  && ok "and says how many records it discarded" \
+  || bad "a silent reset is indistinguishable from a no-op: $out"
+grep -qi 'no plans recorded' <<<"$(m stats 2>&1)" \
+  && ok "and the tally is empty afterwards" \
+  || bad "the tally survived --reset"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

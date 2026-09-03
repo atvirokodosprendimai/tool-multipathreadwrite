@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
@@ -389,4 +390,139 @@ func TestPrecedenceUsesFlagPresenceNotEmptiness(t *testing.T) {
 	if !strings.Contains(out, "a.go") {
 		t.Errorf(`--grep "" did not walk the root:\n%s`, out)
 	}
+}
+
+// ── ADR-009 T2: `mrw stats` ────────────────────────────────────────────────
+
+// statsIn runs `mrw -C root stats <args...>` and returns everything printed.
+func statsIn(t *testing.T, root string, args ...string) (string, error) {
+	t.Helper()
+	if os.Getenv("XDG_STATE_HOME") == "" {
+		t.Setenv("XDG_STATE_HOME", t.TempDir())
+	}
+	argv := append([]string{"mrw", "-C", root, "stats"}, args...)
+	return captureStdout(t, func() error {
+		cmd := rootCommand()
+		var sink bytes.Buffer
+		cmd.Writer, cmd.ErrWriter = &sink, &sink
+		return cmd.Run(context.Background(), argv)
+	})
+}
+
+// A zero tally means nothing has been RECORDED, not that nothing has failed.
+// An empty measurement that reads like a good result is the silent-success
+// shape this project refuses.
+func TestStatsOnAFreshCheckoutSaysNothingIsRecordedYet(t *testing.T) {
+	root := grepTree(t, map[string]string{"a.go": "package a\n"})
+	out, err := statsIn(t, root)
+	if err != nil {
+		t.Fatalf("stats on a fresh checkout failed: %v\n%s", err, out)
+	}
+	low := strings.ToLower(out)
+	if !strings.Contains(low, "no plans recorded") && !strings.Contains(low, "nothing recorded") {
+		t.Errorf("a zero tally must SAY it is empty rather than print zeros:\n%s", out)
+	}
+}
+
+// A rate is never printed without its denominator. ADR-009's criterion is valid
+// for the population that produced it, and a bare percentage is the form that
+// gets quoted out of that context.
+func TestStatsPrintsTheDenominatorBesideTheRate(t *testing.T) {
+	root := grepTree(t, map[string]string{"a.go": "package a\nfunc A() {}\n"})
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if _, err := readIn(t, root, "a.go"); err != nil {
+		t.Fatal(err)
+	}
+	writePlan(t, root, "@@ a.go 2 replace\nfunc A() { _ = 1 }\n")
+
+	out, err := statsIn(t, root)
+	if err != nil {
+		t.Fatalf("stats failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "of 1 plan") {
+		t.Errorf("no denominator in the output — a rate without its sample size must not ship:\n%s", out)
+	}
+}
+
+func TestStatsCountsARecordedWrite(t *testing.T) {
+	root := grepTree(t, map[string]string{"a.go": "package a\nfunc A() {}\n"})
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if _, err := readIn(t, root, "a.go"); err != nil {
+		t.Fatal(err)
+	}
+	writePlan(t, root, "@@ a.go 2 replace\nfunc A() { _ = 1 }\n")
+
+	out, err := statsIn(t, root)
+	if err != nil {
+		t.Fatalf("stats failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "applied") {
+		t.Errorf("the applied plan was not counted:\n%s", out)
+	}
+}
+
+// A reset that reports nothing is indistinguishable from a reset that did
+// nothing.
+func TestStatsResetEmptiesAndReportsWhatItDiscarded(t *testing.T) {
+	root := grepTree(t, map[string]string{"a.go": "package a\nfunc A() {}\n"})
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if _, err := readIn(t, root, "a.go"); err != nil {
+		t.Fatal(err)
+	}
+	writePlan(t, root, "@@ a.go 2 replace\nfunc A() { _ = 1 }\n")
+
+	out, err := statsIn(t, root, "--reset")
+	if err != nil {
+		t.Fatalf("--reset failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "1") {
+		t.Errorf("--reset did not say how many records it discarded:\n%s", out)
+	}
+	after, err := statsIn(t, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.ToLower(after), "no plans recorded") {
+		t.Errorf("the tally survived --reset:\n%s", after)
+	}
+}
+
+func TestStatsJSONParses(t *testing.T) {
+	root := grepTree(t, map[string]string{"a.go": "package a\nfunc A() {}\n"})
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if _, err := readIn(t, root, "a.go"); err != nil {
+		t.Fatal(err)
+	}
+	writePlan(t, root, "@@ a.go 2 replace\nfunc A() { _ = 1 }\n")
+
+	out, err := statsIn(t, root, "--json")
+	if err != nil {
+		t.Fatalf("--json failed: %v\n%s", err, out)
+	}
+	var got struct {
+		Plans  int            `json:"plans"`
+		Counts map[string]int `json:"counts"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("--json did not parse: %v\n%s", err, out)
+	}
+	if got.Plans != 1 || got.Counts["applied"] != 1 {
+		t.Errorf("json = %+v, want plans 1 and applied 1", got)
+	}
+}
+
+// writePlan applies a plan through the real command, so the tally is written by
+// the same path a caller uses.
+func writePlan(t *testing.T, root, doc string) {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "p.mrw")
+	if err := os.WriteFile(p, []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = captureStdout(t, func() error {
+		cmd := rootCommand()
+		var sink bytes.Buffer
+		cmd.Writer, cmd.ErrWriter = &sink, &sink
+		return cmd.Run(context.Background(), []string{"mrw", "-C", root, "write", p})
+	})
 }

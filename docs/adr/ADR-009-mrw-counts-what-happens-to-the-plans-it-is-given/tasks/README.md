@@ -31,7 +31,7 @@ them` on all 13 tasks of ADR-001..008. It is last because a reading needs someth
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | Record the outcome of every plan, in counts only | done | — | `go test ./internal/authoring/ -run 'TestTally\|TestTheTally' … && ./scripts/contract.sh` |
-| T2 | `mrw stats` prints the tally, sample size beside the rate | pending | — | `go test ./cmd/mrw/ -run 'TestStats' … && ./scripts/contract.sh` |
+| T2 | `mrw stats` prints the tally, sample size beside the rate | done | — | `go test ./cmd/mrw/ -run 'TestStats' … && ./scripts/contract.sh` |
 | T3 | Publish the first reading, and say what it does not cover | pending | — | `grep -qE 'measured 2026-[0-9]{2}-[0-9]{2}' README.md && grep -qE 'of [0-9]+ plans' README.md && …` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
