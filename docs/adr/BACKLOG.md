@@ -156,6 +156,28 @@ here.
   the first thing to reach for — and it needs its own answer to whether output
   order stays deterministic, which the receipt format assumes.
 
+## From ADR-010 (mrw speaks MCP over the same engine)
+
+- **A stateless hash-in-request mode, as `mcp-text-editor` uses.** The caller passes back the SHA it
+  read, so the tool holds no ledger and has no concurrency limit on any transport. It is the
+  cheapest fix for the parallel-read limitation and ADR-010 rejected it for one reason: it moves the
+  read-before-write guarantee INTO the caller, and a caller that echoes a SHA it never read has
+  licensed itself. ADR-002 exists so the tool holds that fact. **This is the fallback if the server
+  path fails its go/no-go** — recorded here so it is not re-derived from scratch.
+
+- **Exposing `check`, `iter`, `seen` and `stats` as MCP tools.** ADR-010 ships two tools because
+  read and write are the product. Each of the others is a separate decision with its own answer to
+  "what did the caller see": `check` runs a subprocess, `seen` exposes the ledger, `stats` exposes
+  the tally. None is obviously wrong; none is free.
+
+- **The CLI path's parallel-read limitation.** ADR-010 lifts it for MCP callers for free — one
+  server is one writer — and deliberately does not touch the CLI path, where parallel PROCESSES
+  race on a whole-file ledger rewrite. Measured: 40 racing reads kept 5. Fixing it there means
+  per-entry locking or an append-only ledger, which is a format change ADR-002 governs.
+
+- **Publishing to an MCP registry or directory.** Deferred from ADR-010-T3. The config block in the
+  README is the install path; a registry listing is distribution work with its own review surface.
+
 ## From ADR-009 (mrw counts what happens to the plans it is given)
 
 - **A live-model benchmark: ask a model for a plan, grade whether it parses.** The direct answer to
