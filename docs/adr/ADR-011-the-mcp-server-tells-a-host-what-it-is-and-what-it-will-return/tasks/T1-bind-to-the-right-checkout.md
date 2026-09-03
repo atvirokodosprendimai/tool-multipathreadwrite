@@ -142,3 +142,4 @@ lookup that fails should fall back, never negotiate.
 - 2026-09-03 · 78d7c83 · exit 0 · `set -o pipefail …` · acceptance-sha256:0fb76ff0f239719fbbdb7704f6047d06f82649f17fcf15ce9e9f026ce6a2ea65 · ms:20209
 - 2026-09-03 · 7cfe742 · exit 0 · `set -o pipefail …` · acceptance-sha256:0fb76ff0f239719fbbdb7704f6047d06f82649f17fcf15ce9e9f026ce6a2ea65 · ms:11602
 - 2026-09-03 · dfcc2d8 · exit 0 · `set -o pipefail …` · acceptance-sha256:0fb76ff0f239719fbbdb7704f6047d06f82649f17fcf15ce9e9f026ce6a2ea65 · ms:12216
+- 2026-09-03 · 2f984b9 · exit 0 · `set -o pipefail …` · acceptance-sha256:0fb76ff0f239719fbbdb7704f6047d06f82649f17fcf15ce9e9f026ce6a2ea65 · ms:11495
