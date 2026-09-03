@@ -105,8 +105,22 @@ func msysHint(s string) string {
 // into a missing file, and a typo is the likelier of the two by far.
 func ParseSpec(s string) (Spec, error) {
 	spec := Spec{Path: s, Raw: s}
-	i := strings.LastIndex(s, ":")
-	if i <= 0 {
+	// Skip the VOLUME before looking for the range separator. On Windows a
+	// drive letter carries a colon — `C:\dir\f.go` — and LastIndex found it,
+	// so the path became "C" and the range became "\dir\f.go": every absolute
+	// Windows path was unparseable, with a "bad line number" naming most of
+	// the path. Not a --grep problem: plain `mrw read C:\dir\f.go` could not
+	// work either, on the platform this project ships a binary for.
+	//
+	// filepath.VolumeName returns "" on POSIX, so this is a no-op there. Found
+	// by the windows CI job, 2026-09-03 — its third real finding.
+	vol := len(filepath.VolumeName(s))
+	i := strings.LastIndex(s[vol:], ":")
+	if i < 0 {
+		return spec, nil
+	}
+	i += vol
+	if i == 0 {
 		return spec, nil
 	}
 	path, rest := s[:i], s[i+1:]
@@ -114,8 +128,8 @@ func ParseSpec(s string) (Spec, error) {
 		return Spec{}, fmt.Errorf("%q: empty range after ':'%s", s, msysHint(s))
 	}
 	// A colon inside a regexp range is part of the pattern, not a separator.
-	if j := strings.Index(s, ":/"); j > 0 && j < i {
-		path, rest = s[:j], s[j+1:]
+	if j := strings.Index(s[vol:], ":/"); j >= 0 && j+vol > 0 && j+vol < i {
+		path, rest = s[:j+vol], s[j+vol+1:]
 	}
 	spec.Path = path
 	for _, part := range splitRanges(rest) {

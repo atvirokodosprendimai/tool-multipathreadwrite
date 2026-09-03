@@ -149,7 +149,13 @@ func captureStdout(t *testing.T, fn func() error) (string, error) {
 // readIn runs `mrw -C root read <args...>` and returns everything printed.
 func readIn(t *testing.T, root string, args ...string) (string, error) {
 	t.Helper()
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	// Only when the test has not already pinned one. A test that runs two
+	// commands sharing state — `iter add` then `read` — needs them to see the
+	// SAME state directory, and re-setting it here silently gave the second
+	// command an empty working set.
+	if os.Getenv("XDG_STATE_HOME") == "" {
+		t.Setenv("XDG_STATE_HOME", t.TempDir())
+	}
 	argv := append([]string{"mrw", "-C", root, "read"}, args...)
 	return captureStdout(t, func() error {
 		cmd := rootCommand()
@@ -304,5 +310,83 @@ func TestTheDocumentedUsageErrorsAreErrors(t *testing.T) {
 		if err == nil {
 			t.Errorf("%s: exited 0, want a usage error\n%s", tc.why, out)
 		}
+	}
+}
+
+// ── Findings from an independent Codex review of v0.0.15..main, 2026-09-03 ──
+
+// The ADR's precedence table documents `mrw read --grep P @1 @2` as how a
+// caller asks for the walk AND their working set. `@1` was walked as a literal
+// filename instead: refused as missing, or — worse — matching a real file
+// actually named `@1`.
+func TestGrepResolvesWorkingSetPointers(t *testing.T) {
+	root := grepTree(t, map[string]string{"sub/a.go": "package a\nWANTED\n", "b.go": "package b\nWANTED\n"})
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if _, err := readIn(t, root, "--grep", "WANTED"); err != nil {
+		t.Fatalf("baseline walk failed: %v", err)
+	}
+	// Put one file in the working set, then name it by pointer under --grep.
+	cmd := rootCommand()
+	var sink bytes.Buffer
+	cmd.Writer, cmd.ErrWriter = &sink, &sink
+	if err := cmd.Run(context.Background(), []string{"mrw", "-C", root, "iter", "add", "sub/a.go"}); err != nil {
+		t.Skipf("iter add unavailable: %v", err)
+	}
+	out, err := readIn(t, root, "--grep", "WANTED", "@1")
+	if err != nil {
+		t.Fatalf("--grep with a working-set pointer failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "sub/a.go") {
+		t.Errorf("@1 did not resolve to the working-set entry:\n%s", out)
+	}
+	if strings.Contains(out, "@1") {
+		t.Errorf("@1 was walked as a literal filename:\n%s", out)
+	}
+}
+
+// An absolute path inside the root is honoured on the ordinary read path, so
+// --grep must honour it too. It was joined onto the root instead, so
+// `--grep P /repo/sub` looked for /repo/repo/sub and refused a directory that
+// plain `read` serves. One surface honoured the convention, its sibling did not.
+func TestGrepHonoursAnAbsolutePathInsideTheRoot(t *testing.T) {
+	root := grepTree(t, map[string]string{"sub/a.go": "package a\nWANTED\n"})
+	out, err := readIn(t, root, "--grep", "WANTED", filepath.Join(root, "sub"))
+	if err != nil {
+		t.Fatalf("an absolute path inside the root was refused under --grep: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "sub/a.go") {
+		t.Errorf("nothing served:\n%s", out)
+	}
+}
+
+// Precedence must depend on whether a flag was SUPPLIED, not on whether its
+// value is non-empty. Testing the value let three documented usage errors
+// through, and made `--grep ""` read the working set instead of walking --root.
+func TestPrecedenceUsesFlagPresenceNotEmptiness(t *testing.T) {
+	root := grepTree(t, map[string]string{"a.go": "package a\nX\n"})
+	list := filepath.Join(t.TempDir(), "l.txt")
+	if err := os.WriteFile(list, []byte("a.go:/X/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		why  string
+		args []string
+	}{
+		{`--grep "" with --files-from is still two sources`, []string{"--grep", "", "--files-from", list}},
+		{`--files-from "" with a positional path is still two sources`, []string{"--files-from", "", "a.go"}},
+		{`--exclude with --grep "" is still --exclude with a grep`, []string{"--exclude", "*.go", "--files-from", list}},
+	} {
+		if out, err := readIn(t, root, tc.args...); err == nil {
+			t.Errorf("%s: exited 0\n%s", tc.why, out)
+		}
+	}
+	// And an empty pattern is a real request — every line of every file — so it
+	// WALKS rather than falling back to the working set.
+	out, err := readIn(t, root, "--grep", "")
+	if err != nil {
+		t.Fatalf(`--grep "" should walk the root: %v\n%s`, err, out)
+	}
+	if !strings.Contains(out, "a.go") {
+		t.Errorf(`--grep "" did not walk the root:\n%s`, out)
 	}
 }
