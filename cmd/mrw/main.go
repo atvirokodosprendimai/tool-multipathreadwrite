@@ -36,6 +36,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -161,7 +162,7 @@ func rootCommand() *cli.Command {
 			cmd.Metadata = map[string]any{"notFound": cli.Exit(
 				fmt.Sprintf("unknown command %q (want %s)", name, strings.Join(names, ", ")), exitUsage)}
 		},
-		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd()},
+		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd()},
 	}
 }
 
@@ -193,6 +194,38 @@ func main() {
 }
 
 // seenCmd answers "where is my state, and what does mrw think it saw" — the
+// mcpCmd starts a Model Context Protocol server on stdio, so an agent that
+// speaks MCP reaches the same engine as the CLI without shell access.
+//
+// ADR-010. The binary is unchanged by this: every subcommand, exit status, plan
+// format and ledger entry means what it meant before, and the server is one
+// more caller of the same functions rather than a second engine.
+func mcpCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "mcp",
+		Usage: "serve mrw over the Model Context Protocol on stdio",
+		Description: `Speaks newline-delimited JSON-RPC 2.0 on stdin and stdout, which is
+what an MCP host connects to. There is no socket and nothing listens on a port.
+
+Add it to a host's config as the command ` + "`mrw`" + ` with the argument ` + "`mcp`" + `. The
+server shares this checkout's ledger with the CLI, so a file read over MCP may
+be edited from a shell and the reverse.
+
+Stdout carries MCP messages and nothing else — diagnostics go to stderr — so
+this subcommand is not useful to run by hand.`,
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			root := cmd.Root().String("root")
+			// The wire reports the same version the binary does, so a host
+			// showing "mrw 0.0.14" is never talking to a different build.
+			mcp.Version = versionString()
+			if err := mcp.Serve(os.Stdin, os.Stdout, root); err != nil {
+				return cli.Exit(err, exitUsage)
+			}
+			return nil
+		},
+	}
+}
+
 // statsCmd prints what became of the plans this checkout has been given.
 //
 // ADR-009: mrw's plan format is bespoke and nothing measured whether a caller

@@ -73,7 +73,8 @@ go test ./internal/mcp/ -v 2>&1 | tee /tmp/adr010-t1.out \
   && grep -q '^require github.com/urfave/cli/v3 ' go.mod \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check internal/state)" ] \
   && go build -o /tmp/mrw-t1 ./cmd/mrw \
-  && /tmp/mrw-t1 --help 2>&1 | grep -q 'mcp' \
+  && /tmp/mrw-t1 --help > /tmp/adr010-t1-help.out 2>&1 \
+  && grep -q '^   mcp ' /tmp/adr010-t1-help.out \
   && go test ./...
 ```
 
@@ -81,6 +82,19 @@ Every clause names something this task creates, and the fence was RUN before any
 observed to exit non-zero — `internal/mcp` does not compile, so it fails at the first clause. That
 check is not optional: three fences in the 2026-09-03 session were green on an untouched tree
 because nobody ran them, including one that named a `contract.sh` section which already existed.
+
+**The `--help` clause was rewritten DURING execution, because it could never have gone green.** It
+was `/tmp/mrw-t1 --help 2>&1 | grep -q 'mcp'`. Under the `set -o pipefail` on line 1, `grep -q` exits
+the moment it matches, `--help` gets SIGPIPE writing the rest of its output, and the pipeline reports
+**141**. Measured 2026-09-03: ten runs, ten 141s — deterministic, not a race. So the fence passed its
+"run it before you write the code" check for the compile error while carrying a second clause that
+was red before the work and would have stayed red after it. Verifying a fence is red BEFORE is
+necessary and does not establish that it can go green AFTER; the two need separate checks, and the
+first hides the second whenever an earlier clause fails for an honest reason.
+
+The replacement redirects to a file and greps the file, so nothing short-circuits a writer. It also
+anchors on `^   mcp ` — the command row `--help` prints — rather than the bare substring `mcp`,
+which would match this task's own tool names or any future line mentioning the protocol.
 
 **The named-test count is what makes "green" mean something.** `go test` on a package with no test
 files prints `[no test files]` and exits **0**, and `no test files` is not the same string as `no
@@ -156,3 +170,25 @@ place that coupling belongs.
 - README documentation — T3's job.
 
 ## Verification Log
+- 2026-09-03 · 71aa42f* · exit 1 · `set -o pipefail …` · acceptance-sha256:eecd865509376c9fc8b9d3c136714cff0266fd43eee03225454169f021fbd545 · ms:196
+  ```
+  --- last 4 line(s) of stdout
+  # github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp [github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp.test]
+  internal/mcp/mcp_test.go:17:12: undefined: Serve
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp [build failed]
+  FAIL
+  ```
+- 2026-09-03 · 71aa42f* · exit 141 · `set -o pipefail …` · acceptance-sha256:eecd865509376c9fc8b9d3c136714cff0266fd43eee03225454169f021fbd545 · ms:816
+  ```
+  --- last 10 line(s) of stdout (of 16 after folding 16 raw)
+  === RUN   TestToolsListNamesBothTools
+  --- PASS: TestToolsListNamesBothTools (0.00s)
+  === RUN   TestAnUnknownMethodIsAnErrorResponse
+  --- PASS: TestAnUnknownMethodIsAnErrorResponse (0.00s)
+  === RUN   TestTheInitializedNotificationGetsNoResponse
+  --- PASS: TestTheInitializedNotificationGetsNoResponse (0.00s)
+  === RUN   TestOnlyMCPMessagesReachStdout
+  --- PASS: TestOnlyMCPMessagesReachStdout (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	(cached)
+  ```
