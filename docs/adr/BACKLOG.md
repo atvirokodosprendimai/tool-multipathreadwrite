@@ -156,6 +156,36 @@ here.
   the first thing to reach for — and it needs its own answer to whether output
   order stays deterministic, which the receipt format assumes.
 
+## From ADR-009 (mrw counts what happens to the plans it is given)
+
+- **A live-model benchmark: ask a model for a plan, grade whether it parses.** The direct answer to
+  "can a model author this format", and deferred as the second move rather than the first. It needs
+  an API key, costs money per run, cannot run in CI, and measures the model available on the day
+  rather than the format. ADR-009's tally answers the same question from production for nothing;
+  build this when the tally says WHICH parse failures dominate, so the benchmark knows what to probe.
+
+- **A fixture corpus of recorded model-authored plans, graded hermetically.** Better than a live
+  benchmark — repeatable, no key, runs in CI — and blocked on the same thing: somebody has to
+  collect the corpus, and the honest source is the production signal ADR-009 adds. The tally tells
+  us what the corpus should contain.
+
+- **Shortening the per-hunk receipt for large plans.** SWE-agent's ACI work (arXiv:2405.15793) states
+  "feedback should be informative yet concise to respect context limitations", and mrw prints one
+  `ok`/`FAIL` line per hunk plus a summary — about 30 lines for a 27-hunk plan, on a tool whose whole
+  pitch is context economy. Not obviously wrong: the per-hunk verdict IS the product, and collapsing
+  it would be the silent-success shape this project refuses. What is missing is a measurement of what
+  the receipt costs at scale before anyone trims it. Undecided, and ADR-009 explicitly does not
+  decide it.
+
+- **A cross-model comparison of authoring success.** Which models can emit the plan format and which
+  cannot. Deferred from ADR-009-T3: one repository's tally is one population, and the parent record
+  says so — a comparison needs several, which needs the fixture corpus above.
+
+- **Changing the plan format in response to the reading.** ADR-009 pre-registers the criterion
+  (parse refusals over 5% means the format is the problem, not the caller) and deliberately stops
+  there. What to CHANGE is a separate decision, and making it before the number exists would be the
+  formality the criterion was written to avoid.
+
 ## From ADR-008 (a delete says what it removed)
 
 - **Requiring a guard on every `delete`.** ADR-008 makes a delete REPORT its
