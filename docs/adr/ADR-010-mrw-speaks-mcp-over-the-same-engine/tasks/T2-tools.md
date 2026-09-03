@@ -175,3 +175,17 @@ than shipping a second engine behind a protocol.
 - 2026-09-03 · 1eaffaa · exit 0 · `set -o pipefail …` · acceptance-sha256:ef6aefdb5fb626df7d515fc315fc58bf58c63ea7e07fe346e6b1f8f6454d8141 · ms:9401
 - 2026-09-03 · 86dab85 · exit 0 · `set -o pipefail …` · acceptance-sha256:ef6aefdb5fb626df7d515fc315fc58bf58c63ea7e07fe346e6b1f8f6454d8141 · ms:8072
 - 2026-09-03 · a10d3a7 · exit 0 · `set -o pipefail …` · acceptance-sha256:ef6aefdb5fb626df7d515fc315fc58bf58c63ea7e07fe346e6b1f8f6454d8141 · ms:8033
+- 2026-09-03 · 517c285 · exit 1 · `set -o pipefail …` · acceptance-sha256:d425240fd07a542d44e74114d4f395d158c62b38624ef73798e40e7f40ae57d6 · ms:12310
+  ```
+  --- last 10 line(s) of stdout (of 348 after folding 348 raw)
+    PASS  mrw mcp applies the same plan over a real pipe
+    PASS  every stdout line is a valid MCP message
+    PASS  and nothing was written to stderr
+    PASS  the MCP receipt equals the CLI receipt for the same plan
+    PASS  and the file really changed
+    PASS  a live server answers a read over a real pipe
+    PASS  the server is killed mid-session
+    PASS  a NEW server completes a write the killed one licensed
+    PASS  and a CLI write after the killed server is licensed too
+  1 assertion(s) FAILED
+  ```
