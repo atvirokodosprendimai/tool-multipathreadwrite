@@ -44,6 +44,19 @@ These are decided, recorded in `docs/adr/`, and asserted by
 The failure the whole design exists to prevent: *a read that returns nothing is
 visible; a write that changes nothing is not.*
 
+## Portability — one trap, learned the hard way
+
+**Never ask `filepath.IsAbs` whether a caller's path is relative to the root.
+Ask `rooted.IsRooted`.** On Windows `/etc/hosts` and `\etc\hosts` are *rooted* —
+they name the root of the current drive — but carry no volume, so `IsAbs` is
+false for both, and `C:etc` is drive-relative and equally not root-relative.
+Four guards were skipped on Windows because of this. In `check` it produced a
+silent PASS: the joined path placed no package, the run fell back, and the
+verdict was green. The `windows` CI job found it on its first run.
+
+Go tests run on Linux **and** Windows in CI. `scripts/contract.sh` runs on Linux
+only — it drives a POSIX shell.
+
 ## Exit codes are the contract
 
 `0` fine · `1` a hunk failed and nothing was written · `2` usage or filesystem
