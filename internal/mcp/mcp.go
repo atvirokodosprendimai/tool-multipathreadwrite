@@ -141,6 +141,13 @@ func handle(line string) (response, bool) {
 		// The id is unknowable in a message that did not parse, so it is null
 		// per JSON-RPC. This is answered rather than dropped: a host that sees
 		// a closed pipe cannot tell a crash from a refusal.
+		// A JSON array IS valid JSON and is not a message: the 2025-06-18
+		// revision dropped batching, so it is refused — but as an invalid
+		// REQUEST, because calling it a parse error misdescribes the input.
+		if strings.HasPrefix(strings.TrimSpace(line), "[") {
+			return errorResponse(json.RawMessage("null"), codeInvalidRequest,
+				"invalid request: a JSON array is not a message — this protocol revision does not batch"), true
+		}
 		return errorResponse(json.RawMessage("null"), codeParse, "parse error: the line is not valid JSON"), true
 	}
 
@@ -158,6 +165,14 @@ func handle(line string) (response, bool) {
 	switch req.Method {
 	case "initialize":
 		return resultResponse(req.ID, initializeResult())
+	case "ping":
+		// The spec's ping utility: "The receiver MUST respond promptly with an
+		// empty response". Hosts send these on a timer to check connection
+		// health, and a server that errors every health check is one a host is
+		// entitled to drop — so this is a base-protocol obligation, not a
+		// capability the ADR chose not to implement.
+		// https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/ping
+		return resultResponse(req.ID, map[string]any{})
 	case "tools/list":
 		return resultResponse(req.ID, map[string]any{"tools": tools()})
 	default:

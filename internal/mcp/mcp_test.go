@@ -212,3 +212,44 @@ func TestOnlyMCPMessagesReachStdout(t *testing.T) {
 		}
 	}
 }
+
+func TestPingIsAnsweredWithAnEmptyResult(t *testing.T) {
+	// The spec's ping utility: "The receiver MUST respond promptly with an
+	// empty response". Hosts send these on a timer, and a server that errors
+	// every health check is one a host is entitled to drop — so this is a
+	// base-protocol obligation, not an optional capability.
+	lines := serve(t, `{"jsonrpc":"2.0","id":5,"method":"ping"}`)
+	if len(lines) != 1 {
+		t.Fatalf("got %d response line(s), want 1: %q", len(lines), lines)
+	}
+	got := decode(t, lines[0])
+	if got["id"] != float64(5) {
+		t.Errorf("id = %v, want 5", got["id"])
+	}
+	if _, isErr := got["error"]; isErr {
+		t.Fatalf("ping was answered with an error: %s", lines[0])
+	}
+	res, ok := got["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("ping has no result object: %s", lines[0])
+	}
+	if len(res) != 0 {
+		t.Errorf("result = %v, want an empty object", res)
+	}
+}
+
+func TestAJSONArrayIsAnInvalidRequestNotAParseError(t *testing.T) {
+	// An array is valid JSON and is not a message. Refusing it is right — this
+	// revision dropped batching — but "parse error" misdescribes the input.
+	lines := serve(t, `[{"jsonrpc":"2.0","id":1,"method":"ping"}]`)
+	if len(lines) != 1 {
+		t.Fatalf("got %d response line(s), want 1: %q", len(lines), lines)
+	}
+	e, ok := decode(t, lines[0])["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("an array was not refused: %s", lines[0])
+	}
+	if e["code"] != float64(-32600) {
+		t.Errorf("code = %v, want -32600 (invalid request), not a parse error", e["code"])
+	}
+}
