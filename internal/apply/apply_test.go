@@ -1124,3 +1124,51 @@ func TestAStageThatFailsAfterMakingDirectoriesGivesThemBack(t *testing.T) {
 		t.Error("directories made by the failing stage were left behind")
 	}
 }
+
+// caseInsensitiveFS reports whether this filesystem treats two spellings of one
+// name as one file. Asked rather than assumed: macOS is usually but not always
+// case-insensitive, Linux is usually but not always case-sensitive, and the
+// behaviour under test depends on the answer rather than on the OS.
+func caseInsensitiveFS(t *testing.T, dir string) bool {
+	t.Helper()
+	p := filepath.Join(dir, "CaseProbe.tmp")
+	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(p)
+	_, err := os.Stat(filepath.Join(dir, "caseprobe.tmp"))
+	return err == nil
+}
+
+// The ledger keys on the path STRING, so on a case-insensitive filesystem one
+// file became two entries and a file that WAS read was refused as unread — the
+// refusal asserting something false, and its suggested remedy adding a third
+// spelling rather than resolving the mismatch (issue #47).
+//
+// os.SameFile is the fix because it asks the filesystem instead of encoding a
+// belief about it: where the two spellings really are two files, it says so and
+// the guard still refuses, which is correct there.
+func TestAReadUnderOneSpellingLicensesTheSameFileUnderAnother(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "one\ntwo\nthree\n")
+	ledger := map[string]Seen{"f.txt": {SHA: shaOfFile(t, root, "f.txt")}}
+	res, err := Apply(root, []Input{
+		{Path: "F.TXT", Start: 3, End: 3, Op: "replace", Body: []string{"THIRD"}, Lines: -1, Index: 0},
+	}, Options{Seen: ledger})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if caseInsensitiveFS(t, root) {
+		if res.Failed != 0 {
+			t.Errorf("a file read as f.txt was refused as F.TXT on a case-INSENSITIVE filesystem: %s",
+				res.Hunks[0].Reason)
+		}
+	} else {
+		// Here they really are two files, so the guard must still refuse — and
+		// for the right reason, since F.TXT does not exist at all.
+		if res.Failed == 0 {
+			t.Error("on a case-SENSITIVE filesystem F.TXT is a different file and must not inherit f.txt's licence")
+		}
+	}
+}
