@@ -4,7 +4,7 @@
 **Covers:** none — no spec
 **Estimated scope:** M (multi-file)
 **Owner:** unassigned
-**Produces:** `authoring.Outcome` (closed vocabulary), `authoring.Record(root string, o Outcome, cat Category) error`, `authoring.Load(root string) (Tally, error)`, `authoring.Tally`
+**Produces:** `authoring.Outcome` (closed vocabulary), `authoring.Record(root string, o Outcome) error`, `authoring.Load(root string) (Tally, error)`, `authoring.Tally`
 **Consumes:** `state.Path` (ADR-004, existing)
 **Data dependency:** hermetic
 **Proof map:** v1
@@ -30,10 +30,13 @@ caller's work.
 1. [S1] Write the failing tests first (TDD red): a recorded outcome round-trips through `Load`; an
    unreadable tally yields an empty `Tally` and no error; the written file contains no substring of
    a plan body, path or anchor fed to `Record`.
-2. [S2] Define `Outcome` and `Category` as **typed constants, not strings** — `applied`,
-   `refused_parse`, `refused_guard`, `refused_unseen`, `refused_boundary`, `failed_check`; categories
-   drawn from what `plan.Parse` already distinguishes. A closed type is what makes the boundary
-   checkable rather than a promise.
+2. [S2] Define `Outcome` as **typed constants, not strings** — `applied`, `refused_parse`,
+   `refused_apply`, `check_not_run`, `failed_check`. A closed type is what makes the boundary
+   checkable rather than a promise. ⚠ AMENDED DURING EXECUTION: this asked for `refused_guard` /
+   `refused_unseen` / `refused_boundary` and a per-error Category, and the Stop Condition below
+   caught it — `apply.HunkResult.Reason` is a free-form string, so any of those would mean matching
+   message text that changes. The five kept are exactly what `cmd/mrw` already computes for the
+   exit status. See the parent ADR's amendment.
 3. [S3] Implement `Record` and `Load` over `state.Path(root, "authoring")`, following `internal/seen`'s
    shape: load whole, rewrite whole, one short line per counter.
 4. [S4] Make the read FAIL OPEN — an unreadable or malformed tally is discarded and `Record` still
@@ -49,7 +52,7 @@ caller's work.
 
 ```bash
 set -o pipefail
-go test ./internal/authoring/ -run 'TestTally|TestTheTally' -v 2>&1 | tee /tmp/adr009-t1.out \
+go test ./internal/authoring/ -v 2>&1 | tee /tmp/adr009-t1.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr009-t1.out \
   && go test ./... \
   && grep -q '^# 36\.' scripts/contract.sh \
@@ -81,6 +84,11 @@ it, so that fence passed on an untouched `contract.sh` from the day it was writt
 
 ## Mutation Log
 
+- 2026-09-03 · 8a73748* · mutant killed · exit 1 · `cmd/mrw/main.go` · rung 2: the call site in mrw write no longer records an applied plan, so contract §36 must go red · acceptance-sha256:81060b957ca25d94eeef916a313d886a759a94740fc3298a8a9348933a45f7c8
+- 2026-09-03 · 8a73748* · mutant killed · exit 1 · `internal/authoring/authoring.go` · the boundary: a path is written into the tally, so TestTheTallyNeverRecordsPlanContentOrPaths and contract 36 must both go red · acceptance-sha256:81060b957ca25d94eeef916a313d886a759a94740fc3298a8a9348933a45f7c8
+- 2026-09-03 · 8a73748* · mutant killed · exit 1 · `cmd/mrw/main.go` · rung 2 under the corrected fence: the call site no longer records an applied plan, so contract 36 must go red · acceptance-sha256:1aea2c9573a6dd5d527d5ffe4b18c47d2f6a961c3e270ee20e07688bd4c300e5
+- 2026-09-03 · 8a73748* · mutant killed · exit 1 · `internal/authoring/authoring.go` · the boundary under the corrected fence: a path reaches the tally, so the Enforced-by test and contract 36 must both go red · acceptance-sha256:1aea2c9573a6dd5d527d5ffe4b18c47d2f6a961c3e270ee20e07688bd4c300e5
+
 ## Invariants
 
 - `Record` never returns an error that a caller would act on, and never fails a write.
@@ -107,3 +115,22 @@ about what happened — two answers to "did this apply?" is the defect class thi
 - Any content beyond counts and category names (permanent: boundary: stated in the parent ADR)
 
 ## Verification Log
+- 2026-09-03 · 8a73748* · exit 1 · `set -o pipefail …` · acceptance-sha256:81060b957ca25d94eeef916a313d886a759a94740fc3298a8a9348933a45f7c8 · ms:1021
+  ```
+  --- last 10 line(s) of stdout (of 19 after folding 19 raw)
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/adversarial	(cached)
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply	(cached)
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring	0.185s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check	(cached)
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter	(cached)
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan	(cached)
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	(cached)
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted	(cached)
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen	(cached)
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state	(cached)
+  ```
+- 2026-09-03 · 8a73748* · exit 0 · `set -o pipefail …` · acceptance-sha256:81060b957ca25d94eeef916a313d886a759a94740fc3298a8a9348933a45f7c8 · ms:9059
+- 2026-09-03 · 8a73748* · exit 0 · `set -o pipefail …` · acceptance-sha256:81060b957ca25d94eeef916a313d886a759a94740fc3298a8a9348933a45f7c8 · ms:9399
+- 2026-09-03 · 8a73748* · exit 0 · `set -o pipefail …` · acceptance-sha256:1aea2c9573a6dd5d527d5ffe4b18c47d2f6a961c3e270ee20e07688bd4c300e5 · ms:10650
+- 2026-09-03 · 8a73748* · exit 0 · `set -o pipefail …` · acceptance-sha256:1aea2c9573a6dd5d527d5ffe4b18c47d2f6a961c3e270ee20e07688bd4c300e5 · ms:10441
+- 2026-09-03 · 8a73748* · exit 0 · `set -o pipefail …` · acceptance-sha256:1aea2c9573a6dd5d527d5ffe4b18c47d2f6a961c3e270ee20e07688bd4c300e5 · ms:9052
