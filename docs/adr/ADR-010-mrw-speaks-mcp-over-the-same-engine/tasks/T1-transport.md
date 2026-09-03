@@ -148,6 +148,7 @@ The `--help` clause is rung 3 — a subcommand a caller cannot discover is not s
 - 2026-09-03 · ddc21f9 · mutant killed · exit 1 · `cmd/mrw/main.go` · rung 2: unregister the subcommand, so mrw --help no longer lists mcp and the call site is proved to be what makes the package reachable · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59
 - 2026-09-03 · da9caba · mutant killed · exit 1 · `internal/mcp/mcp.go` · answer notifications instead of staying silent: notifications/initialized has no id and answering it is a protocol violation some hosts treat as fatal · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59
 - 2026-09-03 · e5e30f0 · mutant killed · exit 1 · `internal/mcp/mcp.go` · drop the newline delimiter: two responses share one line, which is the framing the whole task is named for and which no host can parse · acceptance-sha256:4cac0f7fa998c80b55c98480cfa79411e79e29034080711b3c586d03301c85bc
+- 2026-09-03 · ff9b67f · mutant killed · exit 1 · `cmd/mrw/main.go` · rung 2: unregister the subcommand so mrw --help no longer lists mcp · acceptance-sha256:4cac0f7fa998c80b55c98480cfa79411e79e29034080711b3c586d03301c85bc
 
 ## Invariants
 
@@ -209,3 +210,4 @@ place that coupling belongs.
 - 2026-09-03 · ddc21f9 · exit 0 · `set -o pipefail …` · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59 · ms:1630
 - 2026-09-03 · da9caba · exit 0 · `set -o pipefail …` · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59 · ms:2409
 - 2026-09-03 · e5e30f0 · exit 0 · `set -o pipefail …` · acceptance-sha256:4cac0f7fa998c80b55c98480cfa79411e79e29034080711b3c586d03301c85bc · ms:1904
+- 2026-09-03 · ff9b67f · exit 0 · `set -o pipefail …` · acceptance-sha256:4cac0f7fa998c80b55c98480cfa79411e79e29034080711b3c586d03301c85bc · ms:1538
