@@ -136,3 +136,4 @@ lookup that fails should fall back, never negotiate.
   FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp [build failed]
   FAIL
   ```
+- 2026-09-03 · 78d7c83 · exit 0 · `set -o pipefail …` · acceptance-sha256:0fb76ff0f239719fbbdb7704f6047d06f82649f17fcf15ce9e9f026ce6a2ea65 · ms:20209
