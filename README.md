@@ -135,7 +135,7 @@ baselines rather than the flattering one.
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 104,486 | 2,951 | **35.4× less** |
+| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 104,697 | 2,951 | **35.4× less** |
 | | bytes vs a **windowed** `offset`/`limit` read | 2,289 | 2,951 | **1.2× MORE** |
 | | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
 | | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
@@ -145,7 +145,10 @@ baselines rather than the flattering one.
 | **C.** 1 site, whole small file | bytes (window *is* the whole file) | 12,881 | 15,765 | **1.2× MORE** |
 | | calls | 2 / 3 | 2 | 1.0–1.5× fewer |
 
-Measured at `0251bca`; the script builds the binary it stamps.
+Measured at `87b43d4`; the script builds the binary it stamps. Shape A's
+whole-file baseline moves whenever the four files it reads do — it went from
+104,486 to 104,697 bytes between two commits a day apart, and the ratio did not
+budge. That is the drift this note exists for, and why the stamp is here.
 
 **Read the two byte rows together or neither.** `Read` takes `offset`/`limit`, so
 the windowed reader is the documented interface, not a strawman — and against it
