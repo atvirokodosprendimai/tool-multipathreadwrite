@@ -133,27 +133,32 @@ func Parse(r io.Reader) ([]Hunk, error) {
 	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	for n := 1; sc.Scan(); n++ {
 		line := sc.Text()
-		// Strip a UTF-8 BOM from the FIRST line. Windows PowerShell 5.1 —
-		// the powershell.exe that ships with Windows — writes one for
-		// `-Encoding utf8` and has no BOM-less option (utf8NoBOM arrived in
-		// PowerShell 7), so the most obvious way to author a plan in the
-		// native Windows shell produced a file mrw refused to read.
+		// Strip a UTF-8 BOM before deciding whether this line is a HEADER, on
+		// EVERY line — not just the first.
 		//
-		// The refusal was also misleading twice over: it reported "text
-		// before the first @@ header" about a line that IS a header, and
-		// then reported the body line as a second error, so a reader saw
-		// two errors and concluded the plan FORMAT was wrong rather than
-		// that one invisible byte at offset 0 disqualified the header.
+		// Windows PowerShell 5.1, the powershell.exe that ships with Windows,
+		// writes a BOM for `-Encoding utf8` and has no BOM-less option
+		// (utf8NoBOM arrived in PowerShell 7). So the obvious way to author a
+		// plan there produced a file mrw refused, with a message that said
+		// "text before the first @@ header" about a line that IS a header.
 		//
-		// Stripped rather than diagnosed: a BOM is a legitimate UTF-8
-		// artifact, the rest of the file is a valid plan, and refusing it
-		// would ask the caller to fix their editor rather than mrw to read
-		// what every other tool reads. Only at offset 0 — a BOM anywhere
-		// else is real content and stays.
-		if n == 1 {
-			line = strings.TrimPrefix(line, "\ufeff")
-		}
-
+		// ⚠ THE FIRST VERSION OF THIS FIX STRIPPED ONLY LINE 1, AND THAT WAS A
+		// SILENT WRONG-WRITE. A PowerShell user builds a plan by concatenating
+		// fragments, and every fragment carries its own BOM — so the SECOND
+		// header arrived as "<BOM>@@ f.txt 3 replace", was not recognised as a
+		// header, and became BODY TEXT of the first hunk. Two hunks applied as
+		// one, at exit 0, writing the swallowed header into the caller's source
+		// file. The same input was REFUSED before that fix: it made a loud
+		// failure into a quiet corruption, which is the exact defect class this
+		// format exists to prevent. Found in review, 2026-09-03.
+		//
+		// The strip is for the HEADER TEST ONLY. `line` keeps its original
+		// bytes, so a BOM inside a body is still content and is written back
+		// verbatim — stripping there would silently edit the caller's text,
+		// which is the same sin one layer down. A body line that IS a valid
+		// header after the strip is treated exactly as an un-BOM'd one would
+		// be: as a header, unless raw= or a body= count says otherwise.
+		hdr := strings.TrimPrefix(line, "\ufeff")
 		// An explicit body= count takes precedence over header detection, so a
 		// body may contain lines that themselves start with "@@ ".
 		if cur != nil && want > 0 {
@@ -169,8 +174,8 @@ func Parse(r io.Reader) ([]Hunk, error) {
 			// the document" was weighed and rejected: the incident that
 			// produced this check did not run past the end — the count landed
 			// exactly on a header boundary and the plan parsed clean.
-			if strings.HasPrefix(line, "@@ ") && !cur.Raw {
-				if _, _, err := parseHeader(line, n); err == nil {
+			if strings.HasPrefix(hdr, "@@ ") && !cur.Raw {
+				if _, _, err := parseHeader(hdr, n); err == nil {
 					errs = append(errs, fmt.Sprintf("line %d: body= still owes %d line(s), but %q is a "+
 						"valid header — an overcounted body= would swallow that hunk. If the body really "+
 						"contains a header, say raw=true", n, want, line))
@@ -183,7 +188,7 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		// An exhausted count means the hunk is complete. Anything before the
 		// next header is text the caller did not account for; absorbing it
 		// silently is what made body=0 mean "unbounded" instead of "empty".
-		if cur != nil && fixed && want == 0 && !strings.HasPrefix(line, "@@ ") {
+		if cur != nil && fixed && want == 0 && !strings.HasPrefix(hdr, "@@ ") {
 			// Reported once per hunk, not once per line: a satisfied count
 			// followed by a hundred lines is one mistake, and a hundred
 			// identical errors would bury the other hunks' diagnostics.
@@ -194,7 +199,7 @@ func Parse(r io.Reader) ([]Hunk, error) {
 			}
 			continue
 		}
-		if !strings.HasPrefix(line, "@@ ") {
+		if !strings.HasPrefix(hdr, "@@ ") {
 			if cur != nil {
 				body = append(body, line)
 				continue
@@ -206,7 +211,7 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		}
 
 		flush()
-		h, explicit, err := parseHeader(line, n)
+		h, explicit, err := parseHeader(hdr, n)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("line %d: %v", n, err))
 			continue

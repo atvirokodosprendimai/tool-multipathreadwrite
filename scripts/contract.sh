@@ -1444,6 +1444,34 @@ if ln -s "$R/sub/real.go" "$R/sub/alias.go" 2>/dev/null; then
 else
   skip "symlinks unavailable — in-root symlink serving not exercised"
 fi
+# 34. CONCATENATED BOM-CARRYING FRAGMENTS STAY SEPARATE HUNKS.
+#
+# ⚠ This row exists because §32's fix caused a SILENT WRONG-WRITE. Stripping
+# the BOM only from line 1 meant a PowerShell user — who builds a plan by
+# concatenating fragments, each BOMed by the shell that wrote it — got the
+# SECOND header treated as BODY TEXT of the first hunk. Two hunks applied as
+# ONE, at exit 0, writing the swallowed header into their source file. The
+# same input was REFUSED before §32: a loud failure became a quiet corruption,
+# which is the precise defect this whole project is built to refuse.
+#
+# The assertion is on the FILE, not the exit code. Exit 0 was the bug.
+fixture
+m read a.go >/dev/null 2>&1
+printf '\357\273\277@@ a.go 3 replace\nfunc A() int { return 7 }\n' >  "$WORK/f1.mrw"
+printf '\357\273\277@@ a.go 4 replace\nfunc B() int { return 8 }\n' >  "$WORK/f2.mrw"
+cat "$WORK/f1.mrw" "$WORK/f2.mrw" > "$WORK/both.mrw"
+out=$(m write "$WORK/both.mrw" 2>&1); rc=$?
+want 0 "$rc" "two BOM-carrying fragments apply"
+[ "$(grep -c 'ok  ' <<<"$out")" = "2" ] \
+  && ok "as TWO hunks, not one" \
+  || bad "got $(grep -c 'ok  ' <<<"$out") hunk(s): a header was swallowed into a body"
+grep -q 'return 7' "$R/a.go" && grep -q 'return 8' "$R/a.go" \
+  && ok "and both edits landed" \
+  || bad "an edit is missing: $(sed -n '3,4p' "$R/a.go" | tr '\n' '|')"
+# THE ROW THAT WOULD HAVE CAUGHT IT: no plan header may survive INTO the file.
+grep -q '@@ a.go' "$R/a.go" \
+  && bad "a plan header was written into the caller's source file — the silent wrong-write" \
+  || ok "and no plan header leaked into the source"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
