@@ -126,15 +126,36 @@ func (w *walker) walkDir(named string, full string) {
 			}
 			return nil
 		}
-		// A symlink reports itself here, so ask about what it resolves to
-		// rather than about the link: rule 2 is "resolve, then ask".
-		if st, err := os.Stat(p); err != nil || !st.Mode().IsRegular() {
+		// THE BOUNDARY, on the discovered path. `consider` resolves a NAMED
+		// path, so an explicit `../outside` was always refused — but an entry
+		// found by WALKING reached os.Stat and os.ReadFile with the path the
+		// walk built, never through rooted.Resolve. A symlink inside the root
+		// pointing at a file outside it was therefore READ to match against,
+		// and although read.Run refused to SERVE it afterwards, the two
+		// outcomes differ: a pattern that matched printed a REFUSED line
+		// naming the resolved out-of-root path, one that did not printed "no
+		// file matched". That is a pattern oracle over files outside the root,
+		// paid for with a real read of their bytes.
+		//
+		// ADR-007 rule 3 already said every candidate passes rooted.Resolve;
+		// this is that sentence being true on both paths. Found by an
+		// independent review, 2026-09-03 — the existing boundary tests covered
+		// an explicit ../ and an IN-root symlink, so nothing failed.
+		full, err := rooted.Resolve(w.root, rel)
+		if err != nil {
+			// Discovered, not named: skipped in silence, per rule 2. Reporting
+			// it would re-create the oracle in the problem list.
+			return nil
+		}
+		// Resolve, THEN ask what it is: a symlink to an in-root regular file
+		// is a candidate, a FIFO or device is not.
+		if st, err := os.Stat(full); err != nil || !st.Mode().IsRegular() {
 			return nil // a discovered non-file is skipped in silence
 		}
 		if w.excluded(rel) {
 			return nil
 		}
-		w.offer(rel, p)
+		w.offer(rel, full)
 		return nil
 	})
 	if err != nil {

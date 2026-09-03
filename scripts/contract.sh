@@ -1389,6 +1389,62 @@ else
   bad "a BOM in the body was eaten — that is a silent edit to the caller's text"
 fi
 
+# 33. A DISCOVERED symlink out of the root is neither read nor revealed.
+#
+# `consider` resolves a NAMED path, so an explicit ../outside was always
+# refused. An entry found by WALKING went to os.Stat and os.ReadFile with the
+# path the walk built, never through rooted.Resolve — so mrw READ a file
+# outside the root to match against it. read.Run refused to SERVE the result,
+# but the two outcomes differed: a match printed a REFUSED line naming the
+# resolved outside path, a non-match printed "no file matched". That
+# difference is a pattern oracle over files outside the root.
+#
+# THE ROW THAT MATTERS is the last one: the two answers must be the same
+# except for the caller's own pattern text. Asserting only "the match was
+# refused" would have passed on the broken build.
+#
+# Found by an independent review 2026-09-03, not by the suite: the existing
+# cases covered an explicit ../ and an IN-root symlink, and this fell between.
+fixture
+mkdir -p "$R/sub"
+OUTSIDE=$(mktemp -d "$WORK/outside-XXXXXX")
+printf 'SECRET-TOKEN-abc123\n' > "$OUTSIDE/secret.txt"
+printf 'package demo\n' > "$R/sub/ordinary.go"
+if ln -s "$OUTSIDE/secret.txt" "$R/sub/link.txt" 2>/dev/null; then
+  hit=$(m read --grep 'SECRET-TOKEN' . 2>&1)
+  miss=$(m read --grep 'ABSENT-EVERYWHERE' . 2>&1)
+
+  grep -qE 'REFUSED|secret\.txt' <<<"$hit" \
+    && bad "a match against an out-of-root file was announced: $(head -1 <<<"$hit")" \
+    || ok "a discovered out-of-root symlink produces no REFUSED line and names no target"
+
+  # Normalise the caller's own pattern out of both, then compare. What is left
+  # must be identical, or the output distinguishes 'matched outside the root'
+  # from 'did not match' — which is the oracle.
+  h=$(sed 's|/SECRET-TOKEN/|/P/|' <<<"$hit")
+  ms=$(sed 's|/ABSENT-EVERYWHERE/|/P/|' <<<"$miss")
+  [ "$h" = "$ms" ] \
+    && ok "and matching is indistinguishable from not matching" \
+    || bad "the answers differ, which is the oracle: [$h] vs [$ms]"
+else
+  skip "symlinks unavailable — out-of-root walk boundary not exercised"
+  skip "symlinks unavailable — the oracle comparison not exercised"
+fi
+
+# The legitimate case must not regress: a symlink to a file INSIDE the root is
+# a candidate of its own, because mrw addresses files by path.
+fixture
+mkdir -p "$R/sub"
+printf 'package t\nINROOT-MATCH\n' > "$R/sub/real.go"
+if ln -s "$R/sub/real.go" "$R/sub/alias.go" 2>/dev/null; then
+  n=$(m read --grep 'INROOT-MATCH' . 2>&1 | grep -c '^==> ')
+  [ "$n" = "2" ] \
+    && ok "an IN-root symlink is still served beside its target (two names, two addresses)" \
+    || bad "expected 2 served files, got $n — the boundary fix broke rule 4"
+else
+  skip "symlinks unavailable — in-root symlink serving not exercised"
+fi
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
