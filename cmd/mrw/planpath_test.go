@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -119,5 +120,189 @@ func TestThePlanErrorWrapsTheCause(t *testing.T) {
 	// back, so an ordinary `mrw write plan.mrw` gains no paragraph.
 	if plain := planOpenError("/abs/plan.mrw", wd, fs.ErrNotExist); plain != fs.ErrNotExist {
 		t.Errorf("an absolute path was given an explanation it does not need: %v", plain)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ADR-007 T3: --grep, --exclude and --files-from at the command line.
+//
+// `read` writes to os.Stdout directly rather than to cmd.Writer, so these
+// capture the real thing. That is deliberate: the flags are a public surface
+// and what a caller sees is what a pipe sees.
+
+func captureStdout(t *testing.T, fn func() error) (string, error) {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	runErr := fn()
+	_ = w.Close()
+	os.Stdout = old
+	b, _ := io.ReadAll(r)
+	_ = r.Close()
+	return string(b), runErr
+}
+
+// readIn runs `mrw -C root read <args...>` and returns everything printed.
+func readIn(t *testing.T, root string, args ...string) (string, error) {
+	t.Helper()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	argv := append([]string{"mrw", "-C", root, "read"}, args...)
+	return captureStdout(t, func() error {
+		cmd := rootCommand()
+		var sink bytes.Buffer
+		cmd.Writer, cmd.ErrWriter = &sink, &sink
+		return cmd.Run(context.Background(), argv)
+	})
+}
+
+func grepTree(t *testing.T, files map[string]string) string {
+	t.Helper()
+	root := t.TempDir()
+	for name, body := range files {
+		p := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+// --grep with no paths walks --root. This is the ADR's headline: the caller
+// stops running a searcher first and composing one spec per hit.
+func TestGrepWithNoPathsWalksTheRoot(t *testing.T) {
+	root := grepTree(t, map[string]string{
+		"a.go":     "package a\nWANTED here\n",
+		"sub/b.go": "package b\nalso WANTED\n",
+		"c.go":     "package c\nnothing\n",
+	})
+	out, err := readIn(t, root, "--grep", "WANTED")
+	if err != nil {
+		t.Fatalf("walk failed: %v\n%s", err, out)
+	}
+	for _, want := range []string{"a.go", "sub/b.go"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("%s was not served:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "c.go") {
+		t.Errorf("c.go has no match and was served anyway:\n%s", out)
+	}
+}
+
+// The no-argument behaviour is untouched: without --grep it is still the
+// working set, which is what `mrw read` has always meant.
+func TestNoArgumentsWithoutGrepStillReadsTheWorkingSet(t *testing.T) {
+	root := grepTree(t, map[string]string{"a.go": "package a\nWANTED\n"})
+	out, err := readIn(t, root)
+	if err == nil {
+		t.Fatalf("an empty working set with no arguments should be a usage error:\n%s", out)
+	}
+	if !strings.Contains(err.Error(), "working set") {
+		t.Errorf("the refusal does not mention the working set: %v", err)
+	}
+}
+
+// Silence is the one output this project refuses: a pattern that matched no
+// file says so, and names the pattern.
+func TestGrepReportsAPatternThatMatchedNoFile(t *testing.T) {
+	root := grepTree(t, map[string]string{"a.go": "package a\n"})
+	out, err := readIn(t, root, "--grep", "zzz-absent")
+	if err == nil {
+		t.Fatalf("a pattern matching nothing exited 0:\n%s", out)
+	}
+	if !strings.Contains(err.Error(), "zzz-absent") {
+		t.Errorf("the report does not name the pattern: %v", err)
+	}
+}
+
+// Rule 5: one bad path never costs the caller the answers about the good ones,
+// and is never silent about itself either.
+func TestGrepReportsARefusedPathAndServesTheRest(t *testing.T) {
+	root := grepTree(t, map[string]string{"good.go": "package good\nWANTED\n"})
+	out, _ := readIn(t, root, "--grep", "WANTED", "good.go", "absent.go")
+	if !strings.Contains(out, "good.go") {
+		t.Errorf("the good path was not served:\n%s", out)
+	}
+	if !strings.Contains(out, "absent.go") || !strings.Contains(out, "REFUSED") {
+		t.Errorf("the refused path was not reported:\n%s", out)
+	}
+}
+
+// The runner-up: any searcher composes with mrw in one call, and the specs
+// arrive on a pipe rather than through argv quoting.
+func TestFilesFromReadsSpecsFromStdin(t *testing.T) {
+	root := grepTree(t, map[string]string{"a.go": "package a\nfunc Target() {}\n"})
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		_, _ = w.WriteString("# provenance line, skipped\n\na.go:/func Target/\n")
+		_ = w.Close()
+	}()
+	old := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = old })
+
+	out, err := readIn(t, root, "--files-from", "-")
+	if err != nil {
+		t.Fatalf("--files-from failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "func Target") {
+		t.Errorf("the spec from stdin was not served:\n%s", out)
+	}
+}
+
+// The exclusion algorithm at the CLI: a glob drops a matching file, and naming
+// a directory prunes it and everything under it.
+func TestExcludeDropsAMatchingFileAndPrunesADirectory(t *testing.T) {
+	root := grepTree(t, map[string]string{
+		"keep.txt":       "WANTED\n",
+		"drop.go":        "WANTED\n",
+		"vendor/deep.md": "WANTED\n",
+	})
+	out, err := readIn(t, root, "--grep", "WANTED", "--exclude", "*.go", "--exclude", "vendor")
+	if err != nil {
+		t.Fatalf("exclude failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "keep.txt") {
+		t.Errorf("keep.txt was excluded and should not have been:\n%s", out)
+	}
+	if strings.Contains(out, "drop.go") {
+		t.Errorf("--exclude '*.go' did not drop drop.go — the basename half of the match is what makes it work:\n%s", out)
+	}
+	if strings.Contains(out, "deep.md") {
+		t.Errorf("--exclude vendor did not prune the directory:\n%s", out)
+	}
+}
+
+// Every row of the ADR's precedence table that says "usage error" is one. This
+// test fails if any of them stops being an error — the precedence table is
+// where a caller's mental model breaks, so it is pinned rather than described.
+func TestTheDocumentedUsageErrorsAreErrors(t *testing.T) {
+	root := grepTree(t, map[string]string{"a.go": "package a\n"})
+	for _, tc := range []struct {
+		why  string
+		args []string
+	}{
+		{"--exclude without --grep", []string{"--exclude", "*.go"}},
+		{"--grep with --files-from", []string{"--grep", "X", "--files-from", "-"}},
+		{"--files-from with positional paths", []string{"--files-from", "-", "a.go"}},
+		{"--grep with a positional spec carrying a range", []string{"--grep", "X", "a.go:1-2"}},
+		{"a glob path.Match rejects", []string{"--grep", "X", "--exclude", "["}},
+		{"a pattern regexp rejects", []string{"--grep", "("}},
+	} {
+		out, err := readIn(t, root, tc.args...)
+		if err == nil {
+			t.Errorf("%s: exited 0, want a usage error\n%s", tc.why, out)
+		}
 	}
 }

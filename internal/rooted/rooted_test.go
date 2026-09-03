@@ -117,88 +117,6 @@ func TestIsRootedAnswersForTheRunningPlatform(t *testing.T) {
 	}
 }
 
-// Descendable answers the one question Resolve does not: may a walk go INTO
-// this directory entry? It is asked about entries found inside a root, never
-// about the root itself.
-
-func TestDescendableAcceptsADirectoryInsideTheRoot(t *testing.T) {
-	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "sub", "deep"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for _, p := range []string{"sub", "sub/deep", "."} {
-		ok, err := Descendable(realRoot(t, root), filepath.Join(root, p))
-		if err != nil {
-			t.Errorf("Descendable(%q): %v", p, err)
-			continue
-		}
-		if !ok {
-			t.Errorf("Descendable(%q) = false; a plain directory inside the root is descendable", p)
-		}
-	}
-}
-
-// A regular file is not this function's question, and answering "yes" would
-// send a walk into something that cannot be walked.
-func TestDescendableRefusesARegularFile(t *testing.T) {
-	root := t.TempDir()
-	f := filepath.Join(root, "a.go")
-	if err := os.WriteFile(f, []byte("package p\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if ok, err := Descendable(realRoot(t, root), f); ok || err != nil {
-		t.Errorf("Descendable(a regular file) = %v, %v; want false, nil", ok, err)
-	}
-}
-
-// Rule 3 of ADR-007: a symlinked DIRECTORY is never descended, because
-// following one can leave the tree and can loop. Refusing it costs nothing —
-// whatever it points at inside the root is reached by its real name anyway.
-func TestDescendableRefusesASymlinkedDirectory(t *testing.T) {
-	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "real"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	link := filepath.Join(root, "link")
-	if err := os.Symlink(filepath.Join(root, "real"), link); err != nil {
-		t.Skipf("symlinks unavailable: %v", err)
-	}
-	if ok, _ := Descendable(realRoot(t, root), link); ok {
-		t.Error("a symlinked directory was judged descendable, even though its target is inside the root")
-	}
-}
-
-func TestDescendableRefusesADirectoryOutsideTheRoot(t *testing.T) {
-	outer := t.TempDir()
-	root := filepath.Join(outer, "repo")
-	if err := os.MkdirAll(filepath.Join(outer, "secret"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if ok, _ := Descendable(realRoot(t, root), filepath.Join(outer, "secret")); ok {
-		t.Error("a directory outside the root was judged descendable")
-	}
-}
-
-// The loop case, which is why rule 3 refuses rather than resolving and
-// checking: a link pointing at its own parent is a walk that never ends. The
-// test asserts termination by completing at all.
-func TestDescendableTerminatesOnASelfReferentialLink(t *testing.T) {
-	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "sub"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	loop := filepath.Join(root, "sub", "loop")
-	if err := os.Symlink(filepath.Join(root, "sub"), loop); err != nil {
-		t.Skipf("symlinks unavailable: %v", err)
-	}
-	if ok, _ := Descendable(realRoot(t, root), loop); ok {
-		t.Error("a self-referential symlink was judged descendable")
-	}
-}
-
 // The root is exempt: Resolve already canonicalises it, so a checkout reached
 // through a symlink is usable and its entries are compared against the real
 // path. Without this, a walk of /tmp-on-macOS would refuse its own root.
@@ -213,12 +131,12 @@ func TestASymlinkedRootIsStillUsable(t *testing.T) {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 
-	absRoot, err := filepath.EvalSymlinks(link)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ok, err := Descendable(absRoot, filepath.Join(real, "sub"))
-	if err != nil || !ok {
-		t.Errorf("a subdirectory of a symlinked root was refused: %v, %v", ok, err)
+	// Through Resolve, because Resolve is what canonicalises — an earlier
+	// version of this compared a raw t.TempDir() path against an EvalSymlinks'd
+	// root and failed on macOS, where /var is a symlink to /private/var. The
+	// point of the test is the ROOT being symlinked, not the caller doing the
+	// resolving by hand.
+	if _, err := Resolve(link, "sub"); err != nil {
+		t.Errorf("a subdirectory of a symlinked root was refused: %v", err)
 	}
 }

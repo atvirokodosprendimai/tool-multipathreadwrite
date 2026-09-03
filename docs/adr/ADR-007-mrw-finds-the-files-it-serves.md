@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-006 (the root boundary this walk must obey), ADR-005 (the ledger rule this must not weaken — a span withheld is not observed), ADR-004 (the no-git-dependency premise the `.gitignore` non-goal rests on)
 **Governs:** `internal/read/**`, `internal/rooted/**`, `cmd/mrw/main.go`, `scripts/contract.sh`, `README.md`
-**Enforced-by:** None — nothing enforces this yet, because nothing is built. Naming ADR-006's read-confinement test here would have been worse than naming none: it is green on the merge-base and would stay green if no part of this decision were ever implemented. T2 introduces the walk's own boundary and observation tests; this header is updated to name them when they exist, which is the Follow-up below.
+**Enforced-by:** `internal/read/walk_test.go` (`TestWalk*`, eleven cases), `internal/adversarial/filesystem_test.go` (`TestAWalkedSpecObservesOnlyWhatItPrinted`, `TestAWalkedFileThatStopsMatchingServesAndObservesNothing`), `cmd/mrw/planpath_test.go` (`TestGrep*`, `TestFilesFrom*`, `TestExclude*`, `TestTheDocumentedUsageErrorsAreErrors`) and `scripts/contract.sh` §28. Ten mutations were run against these on 2026-09-03 and nine were killed; the one that survived is recorded in the Amendment below, because it is the reason T1 was withdrawn.
 **Invalidates:** none — checked. Grepped every accepted record for `read`, `--max-lines`, `spec` and `Spec{`: ADR-005 defines what an observation records and ADR-006 defines the boundary; this record adds a way to NAME files and changes neither rule. `read.Spec` gains no field.
 **Served-path change:** `mrw read --grep PATTERN <paths...>` walks the given paths (recursively, for a directory) and serves the ranges matching PATTERN, where today the caller must run a searcher first and compose one `path:/PATTERN/` spec per hit on the command line.
 
@@ -51,9 +51,9 @@ rather than about serving or changing them.
 - **`rooted.Resolve`** (`internal/rooted/rooted.go`): the boundary from ADR-006.
   It already canonicalises the root once with `EvalSymlinks`, so a symlinked
   root is accepted and everything is compared against its real path.
-  **Reused, and extended by one function** — a walk needs to know whether to
-  DESCEND into a directory, which is the same question about a different kind of
-  path.
+  **Reused unchanged.** An earlier version of this record extended it with a
+  `Descendable` function for the walk; that was withdrawn on 2026-09-03 — see
+  the Amendment at the end.
 - **`read.Run`'s span merging and `--max-lines` budget:** **reused unchanged.**
   The budget is per SPEC and is reset for each one (`internal/read/read.go:258`),
   which is why deduplication below is a correctness rule and not a tidiness one.
@@ -92,7 +92,11 @@ symlink is a candidate of its own, and would regress a served path.
 
 **3. The boundary, and what is authoritative.** Every candidate passes
 `rooted.Resolve`; a symlinked DIRECTORY is never descended, because following
-one can leave the tree and can loop. The walk's own reads are for MATCHING only
+one can leave the tree and can loop. **What enforces this is the walk itself:**
+`filepath.WalkDir` does not follow symlinks, so a symlinked directory arrives as
+a non-directory entry and rule 2's regular-file test declines it. The record
+originally assigned this to a `rooted.Descendable` guard; see the Amendment.
+The walk's own reads are for MATCHING only
 and record nothing: `read.Run`'s read is the authoritative one and the only one
 that observes. A file that changes between the walk and the serve is served as
 `Run` finds it — if it no longer matches, nothing is printed and nothing is
@@ -164,7 +168,7 @@ withdrawn and `--files-from` — which T3 ships regardless — is the whole answ
 
 | Component | Ownership after change | One reason to change? |
 |---|---|---|
-| `internal/rooted` | What "inside the root" means, and now what may be DESCENDED into | Yes — both are the same question about a path |
+| `internal/rooted` | What "inside the root" means | Yes |
 | `internal/read` | Turning a request into files and ranges, and serving them | Yes — it already owns the second half |
 | `cmd/mrw` | Flag surface, precedence, and help text | Yes |
 
@@ -181,7 +185,6 @@ serve. A separate package would have one caller and one consumer.
 | `mrw read --files-from FILE\|-` | new public flag | `cmd/mrw` | callers, pipelines |
 | `read.Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, error)` | new internal API | `internal/read` | `cmd/mrw` |
 | `read.Problem{Path, Reason string}` | new internal type | `internal/read` | `cmd/mrw` |
-| `rooted.Descendable(absRoot, path string) (bool, error)` | new internal API | `internal/read` | `internal/read` |
 | `mrw read` with no arguments | unchanged (reads the working set) unless `--grep` is given, in which case it walks `--root` | `cmd/mrw` | callers |
 
 ### Flag precedence
@@ -239,14 +242,14 @@ stated rather than special-cased.
 
 | Contract | Producing task | Consuming task(s) | Breaking? |
 |----------|----------------|-------------------|-----------|
-| `rooted.Descendable` (T1) | T1 | T2 | No — new function, no existing caller |
 | `read.Walk`, `read.WalkOptions`, `read.Problem` (T2) | T2 | T3 | No — new API |
 
 ## Implementation
 
-See `ADR-007-mrw-finds-the-files-it-serves/tasks/README.md`. Three tasks: the
-descend rule, the walk that produces specs, and the CLI surface plus the
-runner-up `--files-from`.
+See `ADR-007-mrw-finds-the-files-it-serves/tasks/README.md`. Two tasks as
+shipped: the walk that produces specs (T2) and the CLI surface plus the
+runner-up `--files-from` (T3). A third, T1, produced a descend rule and was
+withdrawn — see the Amendment.
 
 ## Consequences
 
@@ -295,4 +298,53 @@ identically by the old one. No persistent state migrates.
 
 ## Follow-ups
 
-- [ ] Replace `Enforced-by` with the tests T2 introduces, once they exist
+- [x] Replace `Enforced-by` with the tests T2 introduces — done 2026-09-03
+
+## Amendment, 2026-09-03: T1 withdrawn, `rooted.Descendable` deleted
+
+**What changed.** The record assigned rule 3 to a new function,
+`rooted.Descendable`, consulted by the walk before entering a directory. T1
+built it, with tests and a mutation log. It is now deleted, and rule 3 above is
+restated to name what actually enforces it.
+
+**Why.** `Descendable`'s central clause — refuse a symlinked DIRECTORY — is
+**unreachable from its only intended caller**, and no test can tell it working
+from it being absent. `filepath.WalkDir` builds each `DirEntry` from the LINK's
+own mode, so a symlinked directory has `IsDir() == false` and never reaches the
+branch that asks. It is declined one line further down, by rule 2's
+regular-file test, having never been asked about.
+
+The irony is exact and worth keeping: T1's own doc comment identified this trap
+and avoided it *inside* the function —
+
+> Lstat reports a symlink's own mode, whose IsDir is FALSE even when the target
+> is a directory — so a single Lstat would refuse the link on "not a directory"
+> and the rule would be unreachable dead code that no test could distinguish
+> from the rule working.
+
+— and the caller then reintroduced it one level up.
+
+**How it was found, and what was tried.** T2's Reachability rung 2 required
+`TestWalkDoesNotDescendASymlinkedDirectory` to fail when the `Descendable` call
+is removed. On 2026-09-03 that mutation was run and **survived**: with the
+answer ignored, every walk test stayed green. A fix was then implemented —
+consult `Descendable` for symlink entries that resolve to directories, and
+descend when it permits — and the mutant **survived that too**, because the
+property is over-determined three ways: `WalkDir` does not follow the link,
+rule 2 declines it, and rule 4 deduplicates on the root-relative path so
+descending the real target yields a path already served. Making the guard
+observable would have meant threading a logical link-relative name through the
+walker purely so a branch that can never execute could be seen to execute.
+That is building unreachable code to make a gate green, so it was not done.
+
+**Consequence.** The property rule 3 states still holds, and is now enforced by
+the walk rather than by a guard. `TestWalkDoesNotDescendASymlinkedDirectory` is
+kept as a regression test on the BEHAVIOUR, with the standing caveat that it
+asserts a property of `filepath.WalkDir` and cannot fail for any change to mrw's
+own code. Rung 2 for T2 is instead satisfied by three mutations that do kill:
+the `.git` skip, the dedup, and the exclusion filter.
+
+**What would reopen this.** A walk that follows symlinks — a hand-rolled
+recursion, or `WalkDir` replaced by something that resolves entries before
+reporting them. Then the property stops being free and needs a guard again, and
+this Amendment is the record of what that guard looked like.

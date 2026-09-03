@@ -1,5 +1,28 @@
 # Task ADR-007-T1: Decide what a walk may descend into
 
+> ## ⚠ WITHDRAWN — 2026-09-03
+>
+> **`rooted.Descendable` and its tests are deleted.** This task shipped
+> (`37ab11a`) and its work was correct in isolation; what it could not be was
+> REACHED. Its central clause — refuse a symlinked directory — is unreachable
+> from the walk that was to consume it, because `filepath.WalkDir` builds each
+> `DirEntry` from the link's own mode, so a symlinked directory never arrives
+> as a directory and the guard is never asked.
+>
+> The trap is the one this task's own doc comment identified and avoided
+> *inside* the function; the caller reintroduced it one level up.
+>
+> Two mutations were run on 2026-09-03 to try to prove reachability and both
+> SURVIVED, including one against an implementation written specifically to
+> make the guard observable. The property is over-determined three ways.
+>
+> **Do not reintroduce a descend guard without reading the Amendment at the end
+> of the parent ADR**, which records what was tried and what would make it
+> necessary again (a walk that follows symlinks).
+>
+> Everything below is kept as the record of what was built and why. It is
+> history, not instruction.
+
 **Depends-on:** none
 **Covers:** none — no spec
 **Estimated scope:** S (single file)

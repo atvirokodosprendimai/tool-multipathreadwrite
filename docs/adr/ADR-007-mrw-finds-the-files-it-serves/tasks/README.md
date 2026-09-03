@@ -9,27 +9,35 @@ file, the task file wins and the README must be regenerated.
 
 ## Execution Order
 
-| Order | Task | Depends-on |
-|-------|------|------------|
-| 1 | T1 | none |
-| 2 | T2 | T1 |
-| 3 | T3 | T2 |
+| Order | Task | Depends-on | Outcome |
+|-------|------|------------|---------|
+| 1 | T1 | none | **withdrawn 2026-09-03** — see the ADR's Amendment |
+| 2 | T2 | none (was T1) | done |
+| 3 | T3 | T2 | done |
 
-The order is forced rather than chosen: T2 consumes `rooted.Descendable` from
-T1, and T3 consumes `read.Walk` from T2. T3 is last and is the only task that
-changes the served path, so nothing a caller can see moves until the walk it
-depends on is proved.
+T3 consumes `read.Walk` from T2, so T3 is last and is the only task that changes
+the served path: nothing a caller can see moves until the walk it depends on is
+proved.
+
+T1 produced `rooted.Descendable` and was withdrawn after T2's own reachability
+mutation showed the function unreachable from its only caller. The function and
+its tests are deleted. The full reasoning, including the two mutation attempts
+that failed to make it observable, is the Amendment at the end of the parent
+ADR — read that before reintroducing a descend guard.
 
 T2 also carries the ADR's go/no-go conditions. If it records a failing one, T3
 ships `--files-from` alone and `--grep` is withdrawn — which is why the runner-up
-is inside this ADR rather than deferred to another.
+is inside this ADR rather than deferred to another. **Measured 2026-09-03: 0.76×
+against the baseline, threshold 2×. `--grep` ships.**
 
 ## Task Index
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Decide what a walk may descend into | pending | — | `go test ./internal/rooted/ -run 'TestDescend'` |
-| T2 | Turn a walk and a pattern into specs | pending | — | `go test ./internal/read/ -run 'TestWalk'` |
-| T3 | Make the walk reachable, and ship the runner-up | pending | — | `go test ./cmd/mrw/ -run 'TestGrep\|TestFilesFrom\|TestExclude'` |
+| T1 | Decide what a walk may descend into | withdrawn | — | n/a — the deliverable is deleted |
+| T2 | Turn a walk and a pattern into specs | done | — | `go test ./internal/read/ -run 'TestWalk'` |
+| T3 | Make the walk reachable, and ship the runner-up | done | — | `go test ./cmd/mrw/ -run 'TestGrep\|TestFilesFrom\|TestExclude\|TestNoArguments\|TestTheDocumented'` |
+
+Status: `pending` | `partial` | `blocked` | `done` | `withdrawn`.
 
 Status: `pending` | `partial` | `blocked` | `done`.

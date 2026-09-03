@@ -1159,6 +1159,77 @@ fi
   && ok "and the file it called missing is still right there, untouched" \
   || bad "the fixture file vanished"
 
+# 28. ADR-007: mrw FINDS the files it serves. Every flag and every documented
+# usage error, driven through the real binary — because the precedence table is
+# where a caller's mental model breaks, and a table is only a promise until
+# something exits non-zero over it.
+#
+# Numbered 28 and not 15. T3's acceptance fence says `grep -q '^# 15\.'`, and
+# section 15 has existed since the check work — so that clause was satisfied by
+# an UNTOUCHED contract.sh from the moment it was written. The fence built to
+# prove new rows exist could not fail. Found 2026-09-03 while adding the rows;
+# the fence now names this section.
+fixture
+mkdir -p "$R/pkg" "$R/vendor"
+printf 'package demo\n\n// NEEDLE lives here\nfunc E() int { return 5 }\n' > "$R/pkg/e.go"
+printf 'package demo\n\n// NEEDLE again\n'                                 > "$R/pkg/f.txt"
+printf 'NEEDLE in a vendored file\n'                                       > "$R/vendor/v.md"
+
+out=$(m read --grep NEEDLE 2>&1); rc=$?
+want 0 "$rc" "--grep with no paths walks the root"
+grep -q 'pkg/e.go' <<<"$out" && grep -q 'vendor/v.md' <<<"$out" \
+  && ok "and serves every matching file it found" \
+  || bad "the walk missed a match: $(head -3 <<<"$out")"
+
+out=$(m read --grep NEEDLE --exclude vendor --exclude '*.txt' 2>&1); rc=$?
+want 0 "$rc" "--exclude prunes a directory and drops a basename match"
+grep -q 'pkg/e.go' <<<"$out" \
+  && ! grep -q 'vendor/v.md' <<<"$out" \
+  && ! grep -q 'f.txt' <<<"$out" \
+  && ok "and keeps exactly what was not excluded" \
+  || bad "exclusion served the wrong set: $(head -3 <<<"$out")"
+
+# The basename half is the difference between the flag working and doing
+# nothing: path.Match's * does not cross a separator, so '*.txt' against the
+# root-relative path alone would match no file at any depth.
+out=$(m read --grep NEEDLE --exclude '*.txt' 2>&1)
+grep -q 'f.txt' <<<"$out" \
+  && bad "--exclude '*.txt' did not drop a nested .txt — the basename match is gone" \
+  || ok "--exclude matches the basename, not only the root-relative path"
+
+out=$(m read --grep 'no-such-needle-anywhere' 2>&1); rc=$?
+want 1 "$rc" "a pattern that matched nothing exits 1"
+grep -q 'no-such-needle-anywhere' <<<"$out" \
+  && ok "and names the pattern rather than printing nothing" \
+  || bad "silence, or a report that does not name the pattern: $(head -1 <<<"$out")"
+
+out=$(m read --grep NEEDLE pkg/e.go absent.go 2>&1); rc=$?
+want 1 "$rc" "a refused path during a walk exits 1"
+grep -q 'pkg/e.go' <<<"$out" && grep -q 'absent.go' <<<"$out" \
+  && ok "and the good path is still served beside the refusal" \
+  || bad "rule 5 broken — one bad path cost the good one: $(head -3 <<<"$out")"
+
+out=$(printf '# a comment\n\npkg/e.go:/NEEDLE/\n' | m read --files-from - 2>&1); rc=$?
+want 0 "$rc" "--files-from - reads specs from stdin, skipping blanks and comments"
+grep -q 'NEEDLE lives here' <<<"$out" \
+  && ok "and serves them" \
+  || bad "--files-from served nothing: $(head -3 <<<"$out")"
+
+out=$(printf '\n#only comments\n' | m read --files-from - 2>&1); rc=$?
+want 2 "$rc" "--files-from with no specs is a usage error, not silence"
+
+# Every row of the precedence table that says "usage error". Each is exit 2.
+m read --exclude '*.go'                    >/dev/null 2>&1; want 2 $? "--exclude without --grep is a usage error"
+m read --grep X --files-from -             >/dev/null 2>&1; want 2 $? "--grep with --files-from is a usage error"
+m read --files-from - a.go                 >/dev/null 2>&1; want 2 $? "--files-from with positional paths is a usage error"
+m read --grep X a.go:1-2                   >/dev/null 2>&1; want 2 $? "--grep with a positional range is a usage error"
+m read --grep X --exclude '['              >/dev/null 2>&1; want 2 $? "a glob path.Match rejects is a usage error"
+m read --grep '('                          >/dev/null 2>&1; want 2 $? "a pattern regexp rejects is a usage error"
+
+# The no-argument behaviour is UNCHANGED: without --grep it is still the
+# working set, and an empty one is still the same usage error it always was.
+m read >/dev/null 2>&1; want 2 $? "no arguments and no --grep still means the working set"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

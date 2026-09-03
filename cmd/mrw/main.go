@@ -21,8 +21,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 	"runtime/debug"
 	"sort"
 	"strings"
@@ -264,6 +267,18 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "max-lines",
 				Usage: "stop after `N` lines per file; whatever is withheld is always reported",
 			},
+			&cli.StringFlag{
+				Name:  "grep",
+				Usage: "serve every range matching `PATTERN` in the files under the given paths (a directory is walked)",
+			},
+			&cli.StringSliceFlag{
+				Name:  "exclude",
+				Usage: "skip paths matching `GLOB`, matched against the root-relative path AND the basename (repeatable)",
+			},
+			&cli.StringFlag{
+				Name:  "files-from",
+				Usage: "read specs from `FILE`, or from stdin when it is -",
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			// Flag domains are settled FIRST, before the working set is loaded
@@ -286,35 +301,116 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if n := cmd.Int("max-lines"); n < 0 {
 				return cli.Exit(fmt.Sprintf("--max-lines %d: a cap cannot be negative", n), exitUsage)
 			}
+			// ADR-007: --grep and --files-from are two further ways of arriving
+			// at the same []Spec read.Run has always served. Their domains are
+			// settled HERE, with the other flag domains, because every one of
+			// them is a usage error and those preempt everything — the reason
+			// is the comment above, and it applies identically.
+			pattern := cmd.String("grep")
+			excludes := cmd.StringSlice("exclude")
+			filesFrom := cmd.String("files-from")
+			posArgs := cmd.Args().Slice()
+
+			if len(excludes) > 0 && pattern == "" {
+				return cli.Exit("--exclude without --grep: there is nothing to exclude from", exitUsage)
+			}
+			if pattern != "" && filesFrom != "" {
+				return cli.Exit("--grep and --files-from are two sources of specs; use one", exitUsage)
+			}
+			if filesFrom != "" && len(posArgs) > 0 {
+				return cli.Exit("--files-from and positional paths are two sources of specs; use one", exitUsage)
+			}
+			// A glob path.Match rejects is refused at parse time rather than
+			// silently matching nothing. ErrBadPattern is its only error, so
+			// any subject answers the question — "x" is not special.
+			for _, g := range excludes {
+				if _, err := path.Match(g, "x"); err != nil {
+					return cli.Exit(fmt.Sprintf("--exclude %q: %v", g, err), exitUsage)
+				}
+			}
+
 			root := cmd.Root().String("root")
-			set, err := iter.Load(root)
-			if err != nil {
-				return cli.Exit(err, exitUsage)
-			}
-			args := cmd.Args().Slice()
-			if len(args) == 0 {
-				// No arguments means "what I am working on": the working set
-				// was emitted once and costs nothing to name again.
-				if len(set.Entries) == 0 {
-					return cli.Exit("read needs a PATH[:RANGE] or @N, or a working set (see: mrw iter add)", exitUsage)
+			var (
+				specs    []read.Spec
+				refusals []read.Problem
+			)
+
+			switch {
+			case pattern != "":
+				for _, a := range posArgs {
+					sp, err := read.ParseSpec(a)
+					if err != nil {
+						return cli.Exit(err, exitUsage)
+					}
+					if len(sp.Ranges) > 0 {
+						return cli.Exit(fmt.Sprintf("%s: a range and --grep are two answers to one question", a), exitUsage)
+					}
 				}
-				args = set.Entries
-				if set.Note != "" {
-					fmt.Printf("# iteration: %s\n", set.Note)
-				}
-			} else if args, err = set.ResolveAll(args); err != nil {
-				return cli.Exit(err, exitUsage)
-			}
-			specs := make([]read.Spec, 0, len(args))
-			for _, a := range args {
-				sp, err := read.ParseSpec(a)
+				re, err := regexp.Compile(pattern)
 				if err != nil {
-					return cli.Exit(err, 2)
+					return cli.Exit(fmt.Sprintf("--grep %q: %v", pattern, err), exitUsage)
 				}
-				specs = append(specs, sp)
+				// Walk starts at the root when given no paths. The working set
+				// is deliberately NOT consulted: iter holds read specs and
+				// --grep supplies its own, so a caller who wants both writes
+				// them out (mrw read --grep P @1 @2).
+				specs, refusals, err = read.Walk(root, posArgs, read.WalkOptions{Pattern: re, Exclude: excludes})
+				if err != nil {
+					return cli.Exit(err, exitUsage)
+				}
+			default:
+				args := posArgs
+				if filesFrom != "" {
+					list, err := specList(filesFrom)
+					if err != nil {
+						return cli.Exit(err, exitUsage)
+					}
+					args = list
+				}
+				set, err := iter.Load(root)
+				if err != nil {
+					return cli.Exit(err, exitUsage)
+				}
+				if len(args) == 0 {
+					// No arguments means "what I am working on": the working set
+					// was emitted once and costs nothing to name again.
+					if len(set.Entries) == 0 {
+						return cli.Exit("read needs a PATH[:RANGE] or @N, or a working set (see: mrw iter add)", exitUsage)
+					}
+					args = set.Entries
+					if set.Note != "" {
+						fmt.Printf("# iteration: %s\n", set.Note)
+					}
+				} else if args, err = set.ResolveAll(args); err != nil {
+					return cli.Exit(err, exitUsage)
+				}
+				specs = make([]read.Spec, 0, len(args))
+				for _, a := range args {
+					sp, err := read.ParseSpec(a)
+					if err != nil {
+						return cli.Exit(err, 2)
+					}
+					specs = append(specs, sp)
+				}
 			}
+
 			out := bufio.NewWriter(os.Stdout)
 			defer out.Flush()
+
+			// Every path the walk could not serve reaches the caller with its
+			// reason, and counts. Rule 5: one bad path never costs the caller
+			// the answers about the good ones, but it is never silent either.
+			for _, p := range refusals {
+				fmt.Fprintf(out, "==> %s  REFUSED  %s\n", p.Path, p.Reason)
+			}
+			// A pattern that matched no file is said out loud, naming the
+			// pattern. read.Run over an empty spec list prints nothing at all,
+			// which is byte-for-byte the output of a successful read that
+			// happened to serve nothing — the one ambiguity worth a line.
+			if pattern != "" && len(specs) == 0 {
+				out.Flush()
+				return cli.Exit(fmt.Sprintf("no file matched /%s/", pattern), 1)
+			}
 
 			observed, problems := read.Run(out, root, specs, read.Options{
 				Numbers:  !cmd.Bool("no-numbers"),
@@ -327,6 +423,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if err := seen.Record(root, observed); err != nil {
 				return cli.Exit(err, exitUsage)
 			}
+			problems += len(refusals)
 			if problems > 0 {
 				out.Flush()
 				return cli.Exit(fmt.Sprintf("%d range(s) could not be served", problems), 1)
@@ -864,4 +961,46 @@ func planOpenError(path, root string, err error) error {
 	}
 	return fmt.Errorf("%w — looked in the working directory %s, because --root (%s) moves the paths "+
 		"INSIDE a plan and not the plan file itself", err, wd, absRoot)
+}
+
+// specList reads a spec per line from a file, or from stdin when name is "-".
+//
+// It exists so any searcher composes with mrw in one call: `rg -l PAT | sed
+// 's|$|:/PAT/|' | mrw read --files-from -`. The shell quoting that a composed
+// argv needs is the failure this avoids — a newline-separated list from `grep
+// -rl` collapses into ONE argument under ordinary word splitting, and mrw then
+// faithfully reports a file named "a.go\nb.go" as unreadable.
+//
+// Blank lines are skipped and a leading '#' is a comment, so a generated list
+// can carry provenance without the reader stripping it. Nothing else is
+// interpreted: each remaining line is a spec, parsed exactly as an argv one is.
+func specList(name string) ([]string, error) {
+	var r io.Reader
+	if name == "-" {
+		r = os.Stdin
+	} else {
+		f, err := os.Open(name)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		r = f
+	}
+	var out []string
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		out = append(out, line)
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("--files-from %s: no specs (blank lines and # comments are skipped)", name)
+	}
+	return out, nil
 }

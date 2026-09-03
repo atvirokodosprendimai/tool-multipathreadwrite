@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -297,5 +298,67 @@ func TestAReadInsideTheRootStillWorks(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "package p") {
 		t.Errorf("the file was not served:\n%s", buf.String())
+	}
+}
+
+// ADR-005 is unchanged by the walk: what is OBSERVED is what read.Run printed,
+// and Walk's own reads — which exist only to decide whether a file matches —
+// record nothing. If Walk observed, a --grep over a tree would license edits to
+// every file it merely looked at.
+func TestAWalkedSpecObservesOnlyWhatItPrinted(t *testing.T) {
+	root := tree(t, map[string]string{"a.go": goFile, "b.go": "package p\n"})
+
+	re := regexp.MustCompile("func Add")
+	specs, probs, err := read.Walk(root, nil, read.WalkOptions{Pattern: re})
+	if err != nil || len(probs) != 0 {
+		t.Fatalf("walk: %v %v", probs, err)
+	}
+	if len(specs) != 1 {
+		t.Fatalf("want one matching spec, got %d", len(specs))
+	}
+
+	var buf bytes.Buffer
+	observed, _ := read.Run(&buf, root, specs, read.Options{})
+	if _, ok := observed["b.go"]; ok {
+		t.Error("a file the walk read but did not serve was recorded as observed")
+	}
+	obs, ok := observed["a.go"]
+	if !ok {
+		t.Fatal("the served file was not observed at all")
+	}
+	if obs.Whole() {
+		t.Error("a pattern range observed the whole file; only the printed spans count")
+	}
+}
+
+// The scan-to-serve window, made visible rather than closed: Walk decides a
+// file matches, the file changes, and Run finds nothing to print. The honest
+// answer is nothing printed and nothing observed — not a stale span from the
+// version the walk saw.
+func TestAWalkedFileThatStopsMatchingServesAndObservesNothing(t *testing.T) {
+	root := tree(t, map[string]string{"a.go": goFile})
+
+	re := regexp.MustCompile("func Add")
+	specs, _, err := read.Walk(root, nil, read.WalkOptions{Pattern: re})
+	if err != nil || len(specs) != 1 {
+		t.Fatalf("walk: %v %v", specs, err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package p\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	observed, problems := read.Run(&buf, root, specs, read.Options{})
+	// Assert on PRINTED CONTENT, not on the whole buffer: the diagnostic line
+	// "!! no match for /func Add/" contains the pattern, so a buffer-wide
+	// Contains matches mrw's own explanation of having printed nothing.
+	if strings.Contains(buf.String(), "func Add(a, b int)") {
+		t.Errorf("Run printed content from the version the walk saw:\n%s", buf.String())
+	}
+	if problems == 0 {
+		t.Error("a pattern that now matches nothing was not reported")
+	}
+	if obs, ok := observed["a.go"]; ok && !obs.Covers(1, 1) == false {
+		t.Errorf("observed %s after printing nothing", obs.Served())
 	}
 }

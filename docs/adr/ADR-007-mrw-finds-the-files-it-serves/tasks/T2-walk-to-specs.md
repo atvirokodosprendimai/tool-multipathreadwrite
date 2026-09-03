@@ -5,7 +5,7 @@
 **Estimated scope:** M (multi-file)
 **Owner:** unassigned
 **Produces:** `read.Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, error)`, `read.WalkOptions`, `read.Problem`
-**Consumes:** `rooted.Descendable(absRoot, path string) (bool, error)` (T1)
+**Consumes:** nothing — this originally consumed `rooted.Descendable` (T1), which was withdrawn on 2026-09-03; see the parent ADR's Amendment
 **Data dependency:** hermetic
 **Proof map:** v1
 
@@ -34,7 +34,9 @@ makes it reachable.
    directory; the walk refuses to leave the root and does not descend a
    symlinked directory.
 2. [S2] Implement the walk: serve a named path directly if it is a regular file,
-   otherwise walk it, consulting `rooted.Descendable` before descending and
+   otherwise walk it. A symlinked directory needs no guard: `filepath.WalkDir`
+   does not follow one, so it arrives as a non-directory entry and step S3's
+   test declines it. Consult `rooted.Resolve` before reading. Skip `.git/`
    `rooted.Resolve` before reading. Skip `.git/` during a walk.
 3. [S3] Apply rule 2 — a candidate must RESOLVE to a regular file, asked after
    `rooted.Resolve` so a symlink to a file inside the root is a candidate and
@@ -101,7 +103,7 @@ go test ./internal/read/ -run 'TestWalk' -v 2>&1 | tee /tmp/adr007-t2.out \
 | `TestWalkHonoursExcludeGlobsAndPrunesDirectories` | `internal/read/walk_test.go` | the exclusion algorithm | — | S1, S2 |
 | `TestWalkSkipsTheGitDirectory` | `internal/read/walk_test.go` | rule 6 | — | S1, S2 |
 | `TestWalkCannotLeaveTheRoot` | `internal/read/walk_test.go` | ADR-006 holds on the walk | — | S1, S2 |
-| `TestWalkDoesNotDescendASymlinkedDirectory` | `internal/read/walk_test.go` | rule 3, and that `Descendable` is consulted | — | S1, S2 |
+| `TestWalkDoesNotDescendASymlinkedDirectory` | `internal/read/walk_test.go` | rule 3 as BEHAVIOUR. ⚠ It cannot fail for any change to mrw's own code — it asserts a property of `filepath.WalkDir`. Kept as a regression test against a future walk that follows symlinks, not as proof of a guard. | — | S1, S2 |
 | `TestWalkSkipsADiscoveredFifoAndReportsANamedOne` | `internal/read/walk_test.go` | rule 2, both halves | — | S1, S3 |
 | `TestWalkReportsEveryBadPathAndServesTheGoodOnes` | `internal/read/walk_test.go` | rule 5 — a mixed valid/refused/unreadable set | — | S1, S4 |
 | `TestWalkDeduplicatesAPathNamedTwiceOrCoveredTwice` | `internal/read/walk_test.go` | rule 4, including a `--max-lines` budget that stays per file | — | S1, S5 |
@@ -115,11 +117,18 @@ go test ./internal/read/ -run 'TestWalk' -v 2>&1 | tee /tmp/adr007-t2.out \
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | the thirteen tests above |
-| 2 — something selects it | `TestWalkDoesNotDescendASymlinkedDirectory` fails when the `Descendable` call is removed — that is the mutation proving T1 is reached from here |
+| 2 — something selects it | Three mutations against `internal/read/walk.go`, each killed by a named test: the `.git` skip (`TestWalkSkipsTheGitDirectory`), the dedup (`TestWalkDeduplicatesAPathNamedTwiceOrCoveredTwice`) and the exclusion filter (`TestWalkHonoursExcludeGlobsAndPrunesDirectories`). The rung originally read "`TestWalkDoesNotDescendASymlinkedDirectory` fails when the `Descendable` call is removed"; that mutation was run on 2026-09-03 and SURVIVED, which is what withdrew T1 |
 | 3 — the caller can discover it | n/a: no declared interface until T3 adds the flag |
 | 4 — it is used | nothing measures this yet |
 
 ## Mutation Log
+
+- 2026-09-03 · `1b88cb9`+ · **mutant SURVIVED** · exit 0 · `internal/read/walk.go` · rung 2 as originally written: call `rooted.Descendable` and ignore its answer (`_, _ = rooted.Descendable(...); ok, err := true, error(nil)`), which compiles because `rooted.Resolve` keeps the import used. Every walk test stayed green. This is the finding that withdrew T1.
+- 2026-09-03 · `1b88cb9`+ · **mutant SURVIVED** · exit 0 · `internal/read/walk.go` · the same mutation against a REWRITE that consulted `Descendable` for symlink entries resolving to directories and descended when permitted. Still green: rule 4 deduplicates on the root-relative path, so descending the link's real target yields a path already served. The property is over-determined three ways.
+- 2026-09-03 · `1b88cb9`+ · **mutant SURVIVED** · exit 0 · `internal/read/walk.go` · dropping rule 2's regular-file test entirely (`if st, err := os.Stat(p); false && (...)`). `TestWalkDoesNotDescendASymlinkedDirectory` still passed — proof that NO mutation of mrw's code can kill it, because `filepath.WalkDir` alone prevents the descent.
+- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `internal/read/walk.go` · stop skipping `.git` during a walk · killed by `TestWalkSkipsTheGitDirectory`
+- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `internal/read/walk.go` · stop deduplicating candidates (`if false {` in `offer`) · killed by `TestWalkDeduplicatesAPathNamedTwiceOrCoveredTwice`
+- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `internal/read/walk.go` · `excluded()` always returns false · killed by `TestWalkHonoursExcludeGlobsAndPrunesDirectories`
 
 ## Invariants
 
@@ -153,3 +162,47 @@ whole answer.
   authoritative instead.
 
 ## Verification Log
+
+**2026-09-03 · acceptance · exit 0.** `go test ./internal/read/ -run TestWalk -v`
+→ 11 tests, all PASS, no "no tests to run";
+`go test ./internal/adversarial/ -run TestAWalked -v` → 2 tests, both PASS;
+`go test ./...` → all packages ok. Run on darwin/arm64 (Apple M5).
+
+**2026-09-03 · S7, the go/no-go cost condition · PASS.** Both sides were first
+verified to select the SAME 12 files, as the step demands — that check is the
+precondition, not a formality, and the sets agreed exactly:
+
+    bin/mrw
+    docs/adr/ADR-007-mrw-finds-the-files-it-serves.md
+    docs/adr/…/tasks/T1-descend-rule.md
+    docs/adr/…/tasks/T2-walk-to-specs.md
+    internal/apply/apply.go      internal/check/check.go
+    internal/read/read.go        internal/read/walk.go
+    internal/rooted/rooted.go    internal/rooted/rooted_test.go
+    internal/state/state.go      internal/state/state_test.go
+
+Pattern `EvalSymlinks`, best of 5, Apple M5 (darwin/arm64), at `1b88cb9`+:
+
+| | best of 5 |
+|---|---|
+| `grep -rl --exclude-dir=.git … \| mrw read -C 3 --files-from -` | 38 ms |
+| `mrw read --grep EvalSymlinks -C 3 .` | 29 ms |
+
+**0.76× — the walk is FASTER**, against a threshold of 2× over. It spawns no
+second process and moves nothing through a pipe, which more than pays for
+reading each candidate twice. The count recorded is the count observed: 12, not
+the 5 or 8 earlier drafts of this step guessed at.
+
+Other go/no-go conditions: candidate policy is regular-files-only with no
+content sniffing ✓; no new module in `go.mod` ✓; flag surface is exactly the
+three the ADR names ✓. **`--grep` ships.**
+- 2026-09-01 · e56fb3d* · exit 1 · `set -o pipefail …` · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd · ms:139
+  ```
+  --- last 6 line(s) of stdout
+  # github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read [github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read.test]
+  internal/read/walk_test.go:38:97: undefined: Problem
+  internal/read/walk_test.go:44:23: undefined: Walk
+  internal/read/walk_test.go:44:38: undefined: WalkOptions
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read [build failed]
+  FAIL
+  ```

@@ -203,3 +203,39 @@ func TestAWholeReadIsNotDowngradedByALaterRangedRead(t *testing.T) {
 		t.Fatalf("reading the whole file and then part of it refused line 40: %s", res.Hunks[0].Reason)
 	}
 }
+
+// A ranged read that matches NOTHING serves nothing, so it must observe
+// nothing. Found 2026-09-01 while implementing ADR-007 T2, live on main:
+// `mrw read big.txt:/nosuchpattern/` printed "no match", recorded the WHOLE
+// FILE, and then licensed an edit to line 40 that nobody had been shown.
+//
+// The cause is worth keeping because it is invisible in the code: `served`
+// was a nil slice when nothing printed, and a nil Spans means "whole file" to
+// seen.Observation. Same class as --stat and --max-lines, which ADR-005 closed
+// — a third path where the caller saw nothing and the ledger said everything.
+func TestAPatternThatMatchesNothingObservesNothing(t *testing.T) {
+	root := tree(t, map[string]string{"big.go": long()})
+
+	spec, err := read.ParseSpec("big.go:/nosuchpattern/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	observed, problems := read.Run(io.Discard, root, []read.Spec{spec}, read.Options{})
+	if problems == 0 {
+		t.Error("a pattern matching nothing was not reported")
+	}
+	if obs, ok := observed["big.go"]; ok && obs.Whole() {
+		t.Error("nothing was printed and the whole file was observed")
+	}
+
+	res, err := apply.Apply(root, []apply.Input{{
+		Path: "big.go", Start: 40, End: 40, Op: "replace",
+		Body: []string{"rewritten"}, Lines: unset,
+	}}, apply.Options{Seen: observed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("an edit to line 40 was licensed by a read that printed nothing: failed=%d", res.Failed)
+	}
+}
