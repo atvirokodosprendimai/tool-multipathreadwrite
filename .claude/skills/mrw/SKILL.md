@@ -13,28 +13,33 @@ description: >-
   on Write. NOT a licence to use shell for ordinary file edits.
 ---
 
-# mrw — pointer, not the record
+# mrw — pointer to AGENTS.md
 
-**The authoritative copy is the centralised team skill.** Load it:
+**The guidance lives in [`AGENTS.md`](../../../AGENTS.md), section "Using mrw".**
+Read it there. It is trigger-first, carries the plan-generation loop that turns
+54 calls into 2, and is the same text every other agent in this repository sees.
 
-```
-am_load_skill("mrw")
-```
+## Why it moved here from the memory server
 
-## Why it lives there and not here
+This file used to say the authoritative copy was a centralised team skill,
+loaded with `am_load_skill("mrw")`. **That skill does not exist.** Checked on
+2026-09-03: `am_load_skill("mrw")` returns `skill: not found`, and
+`am_list_skills` returns nine skills, none of them mrw. The pointer had been
+dangling for an unknown period, and a dangling pointer reads exactly like a
+working one until someone follows it.
 
-`mrw` is installed globally (`/usr/local/bin/mrw`), so it is used from
-repositories that never see this file. A copy discoverable only inside its own
-repo is missing from every place the tool is actually reached for.
+The reasoning that put it there was sound and still is: mrw is installed
+globally, so it is reached for from repositories that never see this file, and a
+copy discoverable only inside its own repo is missing from most of the places
+the tool is used. That problem is **not solved here** — the repo-local answer
+serves anyone who clones this repository or runs an agent inside it, and nobody
+else. Shipping the text inside the binary (`mrw instructions`) is the option
+that would reach every repository; it was considered on 2026-09-03 and not
+taken, because it makes a new public contract and this file was the cheaper fix.
 
-This file was a second full copy until 2026-08-31. Two live copies of the same
-guidance drift, and the stale one is indistinguishable from the current one at
-the moment you read it — so this one was reduced to a pointer rather than kept
-in sync by hope.
-
-**Do not re-expand it.** If the guidance needs changing, change the centralised
-skill with `am_update_skill`. The only things that belong here are facts about
-*this repository*, below.
+**One authored copy, in AGENTS.md.** Do not expand this file back into a second
+one, and do not point it at a skill without loading that skill first to see
+whether it answers.
 
 ## ⚠ Step 0 — does the binary exist?
 
