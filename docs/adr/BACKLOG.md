@@ -417,28 +417,28 @@ re-measuring these. Each was driven at the built binary, not read:
   happened once. Worth a record if it happens twice, or if read's grammar stops
   being the larger one. No decision needed yet.
 
-- **A read over MCP buffers what the CLI streams, and nothing bounds it.**
-  Measured 2026-09-03 against `46d2e2d` with a stress harness, not inferred.
-  Same work, two transports, peak RSS: an 18 MB file is 44 MB via the CLI and
-  169 MB over MCP; **ten** 18 MB reads in one call are **5.9 MB** via the CLI and
-  **1268 MB** over MCP, a 215x gap. A single 193 MB file answers correctly in
-  1.2 s at 1.56 GB peak, emitting one 241 MB JSON line.
+- **A read over MCP buffered what the CLI streams — TAKEN, and the reason this
+  entry gave for deferring it was wrong.** Superseded by ADR-011-T3.
 
-  The CLI streams through `bufio` to stdout, so its footprint stays flat as the
-  read grows. `readTool` renders the whole thing into a `bytes.Buffer`, takes
-  `String()`, marshals that into the tool result and marshals the response
-  again — several full copies live at once. It is NOT a leak: 500 sequential
-  calls sit at 13 MB and 0.2 ms each, and the WRITE path is fine (2000 hunks
-  across 2000 files is 17 MB and 0.45 s). The cost is per-call peak, set by the
-  largest single response.
+  The measurement stands: an 18 MB file cost 44 MB via the CLI and 169 MB over
+  MCP; ten of them cost 5.9 MB and 1268 MB. What was wrong was the conclusion.
+  This entry said a cap "is a behaviour divergence from the CLI, which
+  ADR-010's whole thesis is careful about", and left the decision open on that
+  ground. Claude Code caps MCP tool output at 25,000 tokens by default and
+  offers a per-tool override up to 500,000 characters; an oversized result is
+  "persisted to disk and replaced with a file reference in the conversation",
+  so the model never receives it as the file either way. The choice was never
+  cap-versus-fidelity; it was refuse legibly, or pay the memory to build a
+  result the host then takes out of the conversation.
 
-  Why it matters beyond tidiness: the amplification is unbounded, so a large
-  enough read gets the server OOM-killed, which closes the pipe — and ADR-010-T1
-  argues a host that sees a closed pipe cannot tell a crash from a refusal. The
-  failure mode is the one the transport was designed to avoid.
+  Worth keeping as a lesson about deferrals: the reason recorded here was
+  plausible, internally consistent and unchecked, and it deferred the work for
+  as long as nobody read the host's documentation. A deferral's REASON deserves
+  the same scepticism as a claim in a record, because it is one.
 
-  No decision made, because the obvious fix is a cap and any cap is a behaviour
-  divergence from the CLI, which ADR-010's whole thesis is careful about. The
-  shape worth considering is a bounded read that returns a clean tool error
-  naming the limit, since MCP cannot stream — one call, one message. Needs a
-  record if it is taken.
+- **The copy amplification itself.** ADR-011-T3 bounds the RESULT, which fixed
+  the memory (2617 MB to 87 MB on the 40-file case, measured 2026-09-03), but
+  a read still renders into a buffer, is marshalled into the result and
+  marshalled again into the response. For anything under the limit that is a
+  few hundred kilobytes and not worth the complexity of a streaming encoder.
+  Revisit only if the limit rises far enough for the constant factor to matter.

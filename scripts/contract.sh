@@ -1641,8 +1641,17 @@ for l in lines:
 PY
 [ $? -eq 0 ] && ok "every stdout line is a valid MCP message" \
              || bad "the server wrote something to stdout that is not an MCP message"
-[ ! -s "$WORK/mcp.err" ] && ok "and nothing was written to stderr" \
-                         || bad "the server wrote to stderr: $(head -1 "$WORK/mcp.err")"
+# stderr is where the spec says diagnostics go — "MAY write UTF-8 strings to its
+# standard error for logging purposes" — so this asserts stderr carries ONLY the
+# startup announcement ADR-011-T1 added, not that it is empty. It was `-s` until
+# 2026-09-03, and the announcement turned that row red the day it landed: an
+# assertion of "nothing" is the wrong shape for a channel the spec permits.
+# NOT `grep -cv ... || echo 0`: grep prints 0 AND exits 1 when nothing is
+# selected, so the `||` fires and the substitution captures "0\n0". That form
+# was written here on 2026-09-03 and failed for exactly that reason.
+[ -z "$(grep -v '^mrw mcp: serving ' "$WORK/mcp.err" | tr -d '[:space:]')" ] \
+  && ok "and stderr carried only the startup announcement" \
+  || bad "the server wrote something unexpected to stderr: $(grep -v '^mrw mcp: serving ' "$WORK/mcp.err" | head -1)"
 
 # THE ROW: one engine, one answer. Root differs by construction (two temp
 # dirs); every other field of the receipt must be identical.
@@ -1729,6 +1738,150 @@ grep -q 'mrw_write' <<<"$out" \
   && ok "which advertises the tools the README says it does" \
   || bad "the server started but did not advertise mrw_write: $(head -c 120 <<<"$out")"
 
+
+# 40. ADR-011 T1: the server binds to the checkout the HOST meant, not to the
+# working directory it happened to inherit.
+#
+# Measured 2026-09-03 before this row existed: launched with cwd /tmp and
+# CLAUDE_PROJECT_DIR naming a repository, `mrw mcp` served /private/tmp. Every
+# ADR-006 refusal it gave was correct and about a tree nobody asked about, and
+# the ADR-002 ledger is keyed per checkout, so a wrong root silently starts a
+# second one. This drives the REAL binary from a foreign cwd, which is the only
+# place the defect is visible.
+fixture
+R_HOST=$R
+fixture
+R_CWD=$R
+printf 'package demo\n\nfunc Only() int { return 7 }\n' > "$R_HOST/only-in-host.go"
+
+# No --root: the environment must decide, not the working directory.
+out=$(cd "$R_CWD" && CLAUDE_PROJECT_DIR="$R_HOST" printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["only-in-host.go"]}}}' \
+  | CLAUDE_PROJECT_DIR="$R_HOST" "$MRW" mcp 2>"$WORK/root.err"); rc=$?
+want 0 "$rc" "mrw mcp starts with no --root"
+grep -q 'func Only' <<<"$out" \
+  && ok "and serves the tree CLAUDE_PROJECT_DIR names, not its own cwd" \
+  || bad "the server bound to its working directory: $(head -c 160 <<<"$out")"
+
+# THE ANNOUNCEMENT: stderr names the tree and the reason, stdout stays clean.
+grep -q 'CLAUDE_PROJECT_DIR' "$WORK/root.err" \
+  && ok "and says on stderr which tree it chose and why" \
+  || bad "the server did not announce its root: $(head -c 120 "$WORK/root.err")"
+python3 -c "
+import json,sys
+for l in open(sys.argv[1]) if False else sys.argv[1].splitlines():
+    if l.strip(): json.loads(l)
+" "$out" && ok "and stdout carried only MCP messages" || bad "stdout was polluted by the announcement"
+
+# An explicit --root beats the host: a user overriding on purpose must win.
+out=$(printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["only-in-host.go"]}}}' \
+  | CLAUDE_PROJECT_DIR="$R_HOST" "$MRW" --root "$R_CWD" mcp 2>/dev/null)
+grep -q 'UNREADABLE\|REFUSED' <<<"$out" \
+  && ok "and an explicit --root overrides the host's environment" \
+  || bad "--root did not win over CLAUDE_PROJECT_DIR: $(head -c 160 <<<"$out")"
+
+# 41. ADR-011 T2: the tool surface declares what a host needs to protect a user,
+# and the declaration is true.
+#
+# A host shows annotations to a person before asking them to approve a call, so
+# a readOnlyHint on a tool that writes is a lie that person acts on. This row
+# therefore checks read-only-ness BY OBSERVATION — it runs the tool and looks at
+# the tree — rather than by reading the field back out of the descriptor.
+fixture
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+want 0 $? "tools/list answers"
+python3 - "$out" <<'PY'
+import json,sys
+tools={t["name"]: t for t in json.loads(sys.argv[1])["result"]["tools"]}
+for name in ("mrw_read","mrw_write"):
+    t=tools[name]
+    for field in ("title","annotations","outputSchema","_meta"):
+        assert field in t, "%s has no %s" % (name, field)
+    props=t["outputSchema"].get("properties") or {}
+    assert props, "%s declares a property-less schema, which validates anything" % name
+    assert t["_meta"]["anthropic/maxResultSizeChars"] > 0, "%s declares no size limit" % name
+assert tools["mrw_read"]["annotations"]["readOnlyHint"] is True
+assert tools["mrw_write"]["annotations"]["readOnlyHint"] is False
+assert tools["mrw_write"]["annotations"]["destructiveHint"] is True
+PY
+[ $? -eq 0 ] && ok "both tools declare title, annotations, outputSchema and _meta" \
+             || bad "the declared tool surface is incomplete or dishonest"
+
+# THE ROW: mrw_read says readOnlyHint, so running it must leave the tree alone.
+before=$(cd "$R" && find . -type f -newer go.mod -o -type f | sort | xargs shasum -a 256 | shasum -a 256)
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}\n' \
+  | m mcp >/dev/null 2>&1
+after=$(cd "$R" && find . -type f -newer go.mod -o -type f | sort | xargs shasum -a 256 | shasum -a 256)
+[ "$before" = "$after" ] \
+  && ok "and mrw_read really is read-only, as its annotation claims" \
+  || bad "mrw_read is annotated readOnlyHint and changed the tree"
+
+# Both content blocks, with the first one machine-readable.
+m read a.go >/dev/null 2>&1
+# The plan's newlines must reach mrw as the two-character escape \n INSIDE the
+# JSON string, not as real newlines — a real one would split the message across
+# two lines and the server would see two malformed frames. Hence \\n here.
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\\nfunc A() int { return 41 }\\n"}}}\n' | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+c=r["content"]
+assert len(c)>=2, "want two content blocks, got %d" % len(c)
+# The spec asks for the serialized JSON in "a TextContent block", not the first.
+# The report stays at content[0] because for mrw_read that block is where the
+# FILE CONTENT lives, and a caller already reading content[0] must not silently
+# start receiving a receipt instead.
+assert c[0]["text"].strip(), "the human-readable report is missing from content[0]"
+second=json.loads(c[1]["text"])         # must parse: the spec's SHOULD
+assert second==r["structuredContent"], "content[1] and structuredContent disagree"
+PY
+[ $? -eq 0 ] && ok "and content[1] is the serialized structuredContent, with the report first" \
+             || bad "the result does not carry the serialized JSON the spec asks for"
+
+# 42. ADR-011 T3: a read too large for the wire is REFUSED, cheaply, and only
+# over MCP.
+#
+# ADR-007's cap reports itself when it fires, which is right for a person at a
+# terminal. Over MCP the consumer is a model, and a truncated file that arrives
+# looking like the whole file is the silent wrong answer this project exists to
+# refuse. The host truncates at 25,000 tokens regardless, so refusing legibly is
+# the only option that does not spend memory to be overruled.
+fixture
+python3 -c "
+with open('$R/wide.go','w') as f:
+    f.write('package demo\n')
+    for i in range(60000): f.write('// padding padding padding padding padding %d\n' % i)
+"
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["wide.go"]}}}\n' | m mcp 2>/dev/null)
+want 0 $? "the server answers a read that is too large"
+python3 - "$out" <<'PY'
+import json,re,sys
+r=json.loads(sys.argv[1])["result"]
+assert r.get("isError") is True, "an oversized read was not refused"
+t=r["content"][0]["text"]
+assert "200000" in t, "the refusal does not name the limit: %s" % t[:120]
+assert "wide.go" in t, "the refusal does not name the file"
+m=re.search(r"wide\.go:1-(\d+)", t)
+assert m, "the refusal shows no range to retry with: %s" % t[:160]
+assert int(m.group(1)) >= 100, "the suggested range %s is too small to be a useful retry" % m.group(1)
+assert "padding padding" not in t, "the refusal carries file content; it truncated rather than refused"
+PY
+[ $? -eq 0 ] && ok "and refuses it, naming the limit and a range to retry with" \
+             || bad "the oversized read was not refused legibly"
+
+# A refused read must license NOTHING: no ledger entry claiming the caller saw it.
+out=$(printf '@@ wide.go 2 replace\n// changed\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "and a write to the refused file is still refused as unread"
+
+# THE GO/NO-GO: one transport is bounded, the engine is not.
+out=$(m read wide.go 2>&1); rc=$?
+want 0 "$rc" "and the same file still reads whole on the CLI"
+[ "$(wc -c <<<"$out")" -gt 200000 ] \
+  && ok "and the CLI answer is larger than the MCP limit, so only the transport is capped" \
+  || bad "the CLI read was also bounded; the engine was changed"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

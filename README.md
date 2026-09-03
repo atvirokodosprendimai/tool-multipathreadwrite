@@ -339,8 +339,26 @@ same engine without shell access. Add one block to your host's config:
 ```
 
 Use an absolute path for `command` if `mrw` is not on the host's `PATH` — a host
-does not always inherit your shell's. Pass `--root` before `mcp` to bind the
-server to one checkout: `"args": ["--root", "/path/to/repo", "mcp"]`.
+does not always inherit your shell's.
+
+**Which checkout it serves.** With no `--root`, the server uses `CLAUDE_PROJECT_DIR`
+when the host sets it — Claude Code does, naming the project you are working in —
+and falls back to its working directory otherwise. That fallback is why the
+variable matters: a host does not guarantee the working directory a server
+inherits, so before this the block above could bind the server to the wrong tree
+and every refusal it gave would be correct about a repository nobody asked about.
+Pass `--root` to override the host: `"args": ["--root", "/path/to/repo", "mcp"]`.
+Whichever wins, the server prints the tree it chose and the reason to stderr at
+startup, so a host log answers "which checkout is this?" without guessing.
+
+**A read over MCP is bounded; the CLI is not.** `mrw_read` will not return more
+than 200,000 characters in one call, and a request over that is REFUSED rather
+than truncated — a truncated file that arrives looking like the whole file is
+the silent wrong answer this tool exists to refuse. The refusal names the limit,
+how far over the request was, and a range that would fit, so the next call is
+obvious: ask for a narrower range, or name fewer files. The limit is also
+declared in `tools/list` as `_meta["anthropic/maxResultSizeChars"]`, so a host
+knows it before it hits it. `mrw read` on the command line has no such limit.
 
 Two tools are exposed. `mrw_read` takes `specs` — the same range syntax the CLI
 takes — and `mrw_write` takes `plan`, the same plan text. Nothing listens on a

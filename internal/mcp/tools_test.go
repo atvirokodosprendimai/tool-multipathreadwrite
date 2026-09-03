@@ -3,14 +3,18 @@ package mcp
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
@@ -259,5 +263,171 @@ func TestConcurrentToolCallsDoNotLoseALedgerEntry(t *testing.T) {
 	}
 	if len(missing) > 0 {
 		t.Errorf("%d of %d reads left no ledger entry: %v", len(missing), n, missing)
+	}
+}
+
+// bigCheckout writes a file of n lines and returns the root and its name.
+func bigCheckout(t *testing.T, n int) (root, path string) {
+	t.Helper()
+	root = t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	var b strings.Builder
+	for i := 0; i < n; i++ {
+		b.WriteString("// padding padding padding padding padding padding padding\n")
+	}
+	path = "big.txt"
+	if err := os.WriteFile(filepath.Join(root, path), []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root, path
+}
+
+func TestAReadOverTheLimitIsRefusedNotTruncated(t *testing.T) {
+	// The whole point. ADR-007's cap reports itself, which is right for a human
+	// reading a terminal; over MCP the consumer is a model, and a truncated file
+	// that arrives looking like the file is the silent wrong answer.
+	root, path := bigCheckout(t, MaxResultChars/40)
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+
+	if isErr, _ := res["isError"].(bool); !isErr {
+		t.Fatalf("a read over the limit was not refused: isError=%v", res["isError"])
+	}
+	content, _ := res["content"].([]any)
+	if len(content) == 0 {
+		t.Fatal("the refusal carries no content")
+	}
+	txt, _ := content[0].(map[string]any)["text"].(string)
+	if len(txt) > MaxResultChars {
+		t.Errorf("the refusal itself is %d chars, over the %d limit", len(txt), MaxResultChars)
+	}
+	// It must not have served a truncated prefix dressed as the file.
+	if strings.Count(txt, "padding") > 2 {
+		t.Errorf("the refusal carries file content; it truncated rather than refused:\n%.200s", txt)
+	}
+	// And a refused read must leave no ledger entry claiming the caller saw it.
+	ledger, err := seen.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := ledger[path]; ok {
+		t.Error("a refused read recorded a ledger entry; the caller did not see this file")
+	}
+}
+
+func TestTheRefusalNamesTheLimitAndARangeToRetry(t *testing.T) {
+	// A refusal a caller cannot act on turns one bad call into a loop of them.
+	root, path := bigCheckout(t, MaxResultChars/40)
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	content, _ := res["content"].([]any)
+	txt, _ := content[0].(map[string]any)["text"].(string)
+
+	if !strings.Contains(txt, fmt.Sprint(MaxResultChars)) {
+		t.Errorf("the refusal does not name the limit %d:\n%s", MaxResultChars, txt)
+	}
+	if !strings.Contains(txt, path) {
+		t.Errorf("the refusal does not name the file:\n%s", txt)
+	}
+	// The range form that would fit — the caller's next move, spelled out.
+	// The NUMBER matters, not just the shape: an early version derived the
+	// per-line average from two different samples and suggested "big.txt:1-2"
+	// for a 193 MB file, which passed a prefix check and wasted the retry it
+	// exists to save.
+	m := regexp.MustCompile(regexp.QuoteMeta(path) + `:1-(\d+)`).FindStringSubmatch(txt)
+	if m == nil {
+		t.Fatalf("the refusal does not show a range to retry with:\n%s", txt)
+	}
+	n, _ := strconv.Atoi(m[1])
+	if n < 100 {
+		t.Errorf("the suggested range is %s:1-%d, which is too small to be a useful retry", path, n)
+	}
+}
+
+func TestAReadUnderTheLimitIsUnchanged(t *testing.T) {
+	root, path := checkout(t, "a.txt", "one\ntwo\nthree\n")
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	if isErr, _ := res["isError"].(bool); isErr {
+		t.Fatalf("an ordinary read was refused: %v", res["content"])
+	}
+	sc := structured(t, res)
+	if p, _ := sc["problems"].(float64); p != 0 {
+		t.Errorf("problems = %v, want 0", p)
+	}
+	ledger, err := seen.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := ledger[path]; !ok {
+		t.Error("an ordinary read left no ledger entry")
+	}
+}
+
+func TestTheCLIReadIsUnaffectedByTheMCPLimit(t *testing.T) {
+	// One transport is bounded; the engine is not. This calls read.Run the way
+	// cmd/mrw calls it and asserts the whole file still comes back.
+	root, path := bigCheckout(t, MaxResultChars/40)
+	spec, err := read.ParseSpec(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	_, problems := read.Run(&buf, root, []read.Spec{spec}, read.Options{Numbers: true})
+	if problems != 0 {
+		t.Fatalf("the CLI path reported %d problems for a file the MCP path refuses", problems)
+	}
+	if buf.Len() <= MaxResultChars {
+		t.Fatalf("the fixture is not over the limit: %d <= %d", buf.Len(), MaxResultChars)
+	}
+}
+
+func TestTheCappedWriterRetainsNoMoreThanItsLimit(t *testing.T) {
+	// A survived mutant on 2026-09-03 showed why this test has to exist:
+	// unbounding the writer left every other test green, because the refusal
+	// still FIRES — cw.written still exceeds the limit — while the whole point
+	// of the capped writer is that refusing is CHEAP. Nothing asserted the
+	// cheapness, so nothing noticed. The measured cost of that gap was 2.4 GB.
+	cw := &capped{limit: 1000}
+	for i := 0; i < 100; i++ {
+		chunk := bytes.Repeat([]byte("x"), 10_000)
+		n, err := cw.Write(chunk)
+		if err != nil || n != len(chunk) {
+			t.Fatalf("Write returned %d, %v; a short write would make read.Run error", n, err)
+		}
+	}
+	if cw.buf.Len() > cw.limit {
+		t.Errorf("retained %d bytes with a limit of %d — the refusal costs the whole read", cw.buf.Len(), cw.limit)
+	}
+	if !cw.over {
+		t.Error("the writer did not record that it went over")
+	}
+	if cw.written != 1_000_000 {
+		t.Errorf("written = %d, want 1000000 — the refusal reports how far over the caller was", cw.written)
+	}
+}
+
+func TestTheRefusalDoesNotInventAnInvalidSpec(t *testing.T) {
+	// "small.txt:1-2" + ":1-N" is not valid syntax, and with several specs the
+	// one that crossed the limit may not be the first. In both cases the
+	// message must say what to do without inventing a spec that would fail.
+	root, big := bigCheckout(t, MaxResultChars/40)
+	if err := os.WriteFile(filepath.Join(root, "small.txt"), []byte("a\nb\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for name, specs := range map[string][]any{
+		"first spec already ranged": {"small.txt:1-2", big},
+		"several specs":             {big, "small.txt"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			res := call(t, root, "mrw_read", map[string]any{"specs": specs})
+			txt, _ := res["content"].([]any)[0].(map[string]any)["text"].(string)
+			if strings.Contains(txt, ":1-2:1-") {
+				t.Errorf("the refusal invented an invalid spec:\n%s", txt)
+			}
+			if !strings.Contains(txt, "narrower ranges") {
+				t.Errorf("the refusal gives no usable advice:\n%s", txt)
+			}
+			if !strings.Contains(txt, fmt.Sprint(MaxResultChars)) {
+				t.Errorf("the refusal does not name the limit:\n%s", txt)
+			}
+		})
 	}
 }

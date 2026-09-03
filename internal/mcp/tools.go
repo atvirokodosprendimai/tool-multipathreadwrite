@@ -54,7 +54,37 @@ type callParams struct {
 	Arguments json.RawMessage `json:"arguments"`
 }
 
+// text renders one text block.
 func text(s string) []contentBlock { return []contentBlock{{Type: "text", Text: s}} }
+
+// result assembles a CallToolResult with the two content blocks the spec asks
+// for: the serialized structured content FIRST — "a tool that returns
+// structured content SHOULD also return the serialized JSON in a TextContent
+// block" — and the human-readable report second.
+//
+// The JSON is marshalled ONCE here and the same value is handed back as
+// structuredContent, so the two halves cannot disagree. Marshalling twice from
+// the same value is how they start to.
+func result(structured any, report string, isErr bool) (callToolResult, *rpcError) {
+	b, err := json.Marshal(structured)
+	if err != nil {
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: "encoding the result: " + err.Error()}
+	}
+	return callToolResult{
+		// THE REPORT FIRST, the JSON second. The spec asks for the serialized
+		// structured content in "a TextContent block", not in the first one,
+		// and for mrw_read the first block is where the FILE CONTENT lives —
+		// which is the entire payload a caller asked for. Putting the receipt
+		// there instead would hand a model metadata where it expected the file,
+		// and would change what content[0] meant for anyone already reading it.
+		Content: []contentBlock{
+			{Type: "text", Text: report},
+			{Type: "text", Text: string(b)},
+		},
+		StructuredContent: json.RawMessage(b),
+		IsError:           isErr,
+	}, nil
+}
 
 // callTool routes one tools/call. Both tools are adapters: they parse what the
 // CLI parses, call the function the CLI calls, and return what it returned. The
@@ -106,11 +136,38 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		}
 		specs = append(specs, sp)
 	}
-
-	var buf bytes.Buffer
-	w := bufio.NewWriter(&buf)
+	// A CAPPED writer, not a size check afterwards. The first version of this
+	// buffered the whole read and then measured it. That refused correctly and
+	// left the actual defect in place: 40 x 18 MB still peaked at 2.4 GB, barely
+	// under the 2.6 GB it cost with no limit at all. A refusal has to be cheap,
+	// or it is only a better error message on the way to the same OOM.
+	//
+	// capped discards past the limit and remembers that it did, so peak memory
+	// is the limit plus one write however large the request was. Measured
+	// 2026-09-03: the same 40 x 18 MB request now peaks at 87 MB.
+	cw := &capped{limit: MaxResultChars}
+	w := bufio.NewWriter(cw)
 	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true})
 	w.Flush()
+
+	// A result over the declared limit is REFUSED, not truncated.
+	//
+	// ADR-007's own cap reports itself when it fires, which is right for a
+	// person reading a terminal. Over MCP the consumer is a model, and a
+	// truncated file that arrives looking like the file is exactly the silent
+	// wrong answer this project exists to refuse. An oversized result does not
+	// reach the model as the file anyway — the host persists it to disk and
+	// replaces it with a file reference — so the choice was never "cap or stay
+	// faithful to the CLI"; it was refuse legibly, or pay the memory to build a
+	// result the host then takes out of the conversation.
+	//
+	// The ledger is deliberately NOT written here: a refused read showed the
+	// caller nothing, and an entry claiming otherwise would license a later
+	// write against a file they never saw. That is ADR-002's guarantee, and it
+	// is the one thing a size limit must not quietly spend.
+	if cw.over {
+		return errorResult(overflowMessage(a.Specs, cw)), nil
+	}
 
 	// Reading is how mrw learns what a file holds; recording that is what lets
 	// a later write know whether its picture is still current.
@@ -118,23 +175,16 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the ledger: " + err.Error()}
 	}
 
-	return callToolResult{
-		Content: text(buf.String()),
-		// NOTE the shape difference between the two tools, which is real and
-		// currently undeclared. mrw_write returns apply.Result, whose json tags
-		// make it snake_case (sha_after, lines_before). This returns
-		// seen.Observation as-is, and that struct carries no json tags, so its keys
-		// are the Go field names — SHA, Spans. Neither tool declares an
-		// outputSchema, so a caller discovers both shapes by looking. The day
-		// seen.Observation gains tags, this payload changes silently for every
-		// MCP caller; that is the reason this comment exists rather than a
-		// preference about casing.
-		StructuredContent: map[string]any{
-			"observed": observed,
-			"problems": problems,
-		},
-		IsError: problems > 0,
-	}, nil
+	// The two tools' structuredContent shapes differ and are now DECLARED:
+	// mrw_write returns apply.Result, whose json tags make it snake_case; this
+	// returns seen.Observation, which carries no tags, so its keys are the Go
+	// field names. Both are generated into the outputSchema each tool
+	// advertises, so the day seen.Observation gains tags the schema follows it
+	// and the conformance test catches any response that does not.
+	return result(map[string]any{
+		"observed": observed,
+		"problems": problems,
+	}, cw.buf.String(), problems > 0)
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the
@@ -228,11 +278,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		fmt.Fprintf(&report, "error: %v\n", applyErr)
 	}
 
-	return callToolResult{
-		Content:           text(report.String()),
-		StructuredContent: res,
-		IsError:           applyErr != nil || res.Failed > 0,
-	}, nil
+	return result(res, report.String(), applyErr != nil || res.Failed > 0)
 }
 
 // errorResult reports a failure the CALLER caused, inside a normal tool result.
@@ -241,4 +287,93 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 // transport fault.
 func errorResult(msg string) callToolResult {
 	return callToolResult{Content: text(msg), IsError: true}
+}
+
+// countLines reports how many lines a rendered read produced, so a refusal can
+// suggest a range in the units the caller actually addresses — line numbers.
+func countLines(buf *bytes.Buffer) int {
+	return bytes.Count(buf.Bytes(), []byte{'\n'})
+}
+
+// suggestLines picks a line count whose output would fit, from what the full
+// read actually measured. It is derived rather than guessed: dividing the real
+// size by the real line count gives this file's own average, which beats any
+// constant for a file of long lines or short ones.
+func suggestLines(chars, lines int) int {
+	if lines <= 0 || chars <= 0 {
+		return 500
+	}
+	perLine := chars / lines
+	if perLine < 1 {
+		perLine = 1
+	}
+	// Three quarters of the limit, so the suggestion has room to be wrong.
+	n := (MaxResultChars * 3 / 4) / perLine
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
+// capped is an io.Writer that keeps at most limit bytes and records that it
+// stopped. It exists so a refusal costs the limit rather than the whole read:
+// bounding AFTER buffering refuses correctly and still pays the memory, which
+// is the failure that made this necessary — measured 2026-09-03 at 2.4 GB for a
+// request that was refused.
+//
+// written counts everything offered, not everything kept, so the refusal can
+// tell a caller how far over they were rather than only that they were over.
+type capped struct {
+	buf     bytes.Buffer
+	limit   int
+	written int
+	over    bool
+}
+
+func (c *capped) Write(p []byte) (int, error) {
+	c.written += len(p)
+	if room := c.limit - c.buf.Len(); room > 0 {
+		if room > len(p) {
+			room = len(p)
+		}
+		c.buf.Write(p[:room])
+	}
+	if c.written > c.limit {
+		c.over = true
+	}
+	// Always report a full write: an io.Writer that short-writes makes its
+	// caller error, and read.Run's job is not to know it is being bounded.
+	//
+	// THE TRADE this makes explicit: the refusal is cheap in MEMORY and not in
+	// TIME. read.Run keeps reading and keeps offering bytes we discard, so a
+	// 40 x 18 MB request takes seconds to refuse. Short-writing would stop it
+	// sooner and would surface inside the engine's own report as a per-file
+	// problem, which is a worse answer than a slow correct one — the caller
+	// would be told their FILE failed rather than their REQUEST was too large.
+	return len(p), nil
+}
+
+// overflowMessage explains a refused read and, where it honestly can, names the
+// narrower request to make instead.
+//
+// The example range is only offered when the FIRST spec is a bare path. A spec
+// that already carries a range would produce "small.txt:1-2:1-N", which is not
+// valid syntax, and with several specs the one that crossed the limit may not be
+// the first — so in those cases the message says what to do without inventing a
+// spec that might be wrong. A hint that has to be debugged is worse than none.
+func overflowMessage(specs []string, cw *capped) string {
+	// The per-line average comes from the CAPPED buffer — its own bytes over
+	// its own lines. Dividing the FULL byte count by the capped line count
+	// mixes two samples and suggested "giant.go:1-2" for a 193 MB file.
+	var b strings.Builder
+	fmt.Fprintf(&b, "that read would have returned about %d bytes and the limit is %d.\n", cw.written, cw.limit)
+	b.WriteString("Nothing was read and nothing was recorded, so no write is licensed by it.\n")
+	if len(specs) == 1 && !strings.Contains(specs[0], ":") {
+		fmt.Fprintf(&b, "Ask for a range instead — for example %s:1-%d.",
+			specs[0], suggestLines(cw.buf.Len(), countLines(&cw.buf)))
+	} else {
+		fmt.Fprintf(&b, "Ask for narrower ranges — around %d lines per file at this file's line length — or name fewer files in one call.",
+			suggestLines(cw.buf.Len(), countLines(&cw.buf)))
+	}
+	return b.String()
 }
