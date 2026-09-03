@@ -321,6 +321,43 @@ scripts additionally needs **bash**, **git** and **bc** on `PATH`. `bc` is *not*
 present on Alpine or most slim container images — `apk add bc` — and on Windows
 they need WSL or Git Bash.
 
+
+### Use it from an MCP host
+
+`mrw mcp` speaks the Model Context Protocol on stdio, so an agent reaches the
+same engine without shell access. Add one block to your host's config:
+
+```json
+{
+  "mcpServers": {
+    "mrw": {
+      "command": "mrw",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Use an absolute path for `command` if `mrw` is not on the host's `PATH` — a host
+does not always inherit your shell's. Pass `--root` before `mcp` to bind the
+server to one checkout: `"args": ["--root", "/path/to/repo", "mcp"]`.
+
+Two tools are exposed. `mrw_read` takes `specs` — the same range syntax the CLI
+takes — and `mrw_write` takes `plan`, the same plan text. Nothing listens on a
+port; the server speaks over the pipe the host already opened, and it writes
+only MCP messages to stdout.
+
+**What the server does not change.** It is the same engine: the same read-before-write
+ledger, shared with the CLI so a file read over MCP can be edited from a shell
+and the reverse; the same plan format; the same per-hunk verdict, carried in the
+tool result's `structuredContent` and identical field for field to what
+`mrw write --json` prints, apart from `root` — the CLI reports the root you gave
+it and the server reports the checkout it was bound to; and the same meanings for
+every exit status when you go back to the shell. There is nothing to choose
+between the two paths and no behaviour to
+learn twice — the server is a second caller of one engine, not a second product.
+The single difference is the concurrency note above.
+
 ### ⚠ Git Bash on Windows mangles a regex address
 
 `mrw read 'f.go:/^func main/'` **fails in Git Bash**, and the error names a line
@@ -724,12 +761,19 @@ numbers were counted in.
 a per-checkout state directory **outside the working tree** — mrw creates
 nothing in your repository. `mrw seen` prints where it is and what it holds.
 
-Run mrw **one call at a time** against a checkout. Each read rewrites the whole
-ledger for that checkout, and parallel invocations overwrite one another's
-entries — 40 racing reads kept 5. Nothing is corrupted and nothing is wrongly
-written; the cost is that a file whose entry was lost has to be read again.
-Naming every path in ONE `mrw read` is both faster and unaffected, which is the
-call shape the tool is built around anyway.
+Run mrw **one call at a time** against a checkout — this is the CLI path's
+limitation, and after `mrw mcp` it is no longer the whole story. Each read
+rewrites the whole ledger for that checkout, and parallel invocations overwrite
+one another's entries — 40 racing reads kept 5. Nothing is corrupted and nothing
+is wrongly written; the cost is that a file whose entry was lost has to be read
+again. Naming every path in ONE `mrw read` is both faster and unaffected, which
+is the call shape the tool is built around anyway.
+
+Calls made **through the server** do not race: one server is one process and
+serializes its own calls in-process, so an agent speaking MCP can fan out
+freely. A `mrw` invocation running *beside* a server is still a second process
+rewriting the same ledger file, so that pairing is still subject to the
+paragraph above.
 
 What is recorded is **what you were shown**, not what mrw hashed. A read that
 printed no content observes nothing, and a read of lines 1-5 observes lines

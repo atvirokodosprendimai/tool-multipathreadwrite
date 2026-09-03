@@ -92,6 +92,8 @@ than it holds.
 
 ## Mutation Log
 
+- 2026-09-03 · fae3f88 · mutant killed · exit 1 · `cmd/mrw/main.go` · rename the subcommand so the README config block names a command the binary no longer has — the dangling-pointer defect §39 exists to catch · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17
+
 ## Invariants
 
 - The README states that the MCP path serializes calls made through the server, and that a CLI
@@ -118,3 +120,8 @@ than in a paragraph warning readers about it.
 - Measuring adoption (permanent: boundary: it needs telemetry, which ADR-009 refused on the premise that this tool acquires no dependencies it can avoid and does not phone home)
 
 ## Verification Log
+- 2026-09-03 · f46617a · exit 0 · `set -o pipefail …` · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17 · ms:10066
+- 2026-09-03 · fae3f88 · exit 0 · `set -o pipefail …` · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17 · ms:9078
+- 2026-09-03 · human-observed · S4 read back on 2026-09-03: the README's 'What the server does not change' paragraph names the engine, the shared ledger, the plan format, the per-hunk verdict and the exit statuses, and states the one real difference (concurrency through the server). No test can assert the absence of a misunderstanding, which is why this step carried [proof: human].
+- 2026-09-03 · 3ce932c · exit 0 · `set -o pipefail …` · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17 · ms:9103
+- 2026-09-03 · 4a69e5c · exit 0 · `set -o pipefail …` · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17 · ms:8251

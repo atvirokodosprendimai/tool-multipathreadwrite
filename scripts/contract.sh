@@ -1684,6 +1684,51 @@ grep -q '"applied":true' <<<"$out" \
 # And so is the CLI: one ledger, not one per transport.
 out=$(printf '@@ a.go 4 replace\nfunc B() int { return 22 }\n' | "$MRW" -C "$R_KILL" write - 2>&1); rc=$?
 want 0 "$rc" "and a CLI write after the killed server is licensed too"
+# 39. ADR-010 T3: the documented host config names a subcommand this binary has.
+#
+# A config example naming a command the binary does not have is the
+# documentation equivalent of a dangling pointer, and this repository shipped
+# one on 2026-09-03. The README block is the install path for every MCP user, so
+# it is checked against the binary rather than against a reader's patience.
+#
+# This drives `--help` and greps the README; it does not restate what the block
+# should say, because a copy of the answer beside the answer is not a check.
+args=$(python3 - "$(cat README.md)" <<'PY'
+import json,re,sys
+m=re.search(r'### Use it from an MCP host.*?```json\n(.*?)```', sys.argv[1], re.S)
+if not m: print("NO-BLOCK"); sys.exit(0)
+cfg=json.loads(m.group(1))
+srv=cfg["mcpServers"]["mrw"]
+print(srv["command"], " ".join(srv["args"]))
+PY
+)
+[ "$args" != "NO-BLOCK" ] \
+  && ok "the README carries a parseable MCP host config block" \
+  || bad "the documented config block is missing or is not valid JSON"
+
+cmdname=${args%% *}
+subcmd=$(printf '%s' "${args#* }" | awk '{print $NF}')
+[ "$cmdname" = "mrw" ] \
+  && ok "and it invokes the binary by name" \
+  || bad "the block invokes '$cmdname', not mrw"
+
+# Redirect before grepping. Under this file's `set -o pipefail`, `grep -q` exits
+# on its first match, `--help` takes SIGPIPE writing the rest, and the pipeline
+# reports 141 — a row that fails for a reason having nothing to do with what it
+# asks. The same trap ate ADR-010-T1's fence earlier the same day.
+"$MRW" --help > "$WORK/help.out" 2>&1
+grep -qE "^[[:space:]]+$subcmd[[:space:]]" "$WORK/help.out" \
+  && ok "and names a subcommand mrw --help lists ($subcmd)" \
+  || bad "the documented block names '$subcmd', which this binary does not have"
+
+# And it must actually start: a subcommand that exists but rejects the args the
+# README prints is the same dangling pointer one step later.
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | "$MRW" "$subcmd" 2>&1); rc=$?
+want 0 "$rc" "and the documented invocation actually starts a server"
+grep -q 'mrw_write' <<<"$out" \
+  && ok "which advertises the tools the README says it does" \
+  || bad "the server started but did not advertise mrw_write: $(head -c 120 <<<"$out")"
+
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
