@@ -218,6 +218,20 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		tail = defaultTail
 	}
 	res.Tail, res.Truncated = lastLines(res.OutputFile, tail)
+	// A PASSING check that withheld nothing has no readers left, so its log is
+	// removed and the field cleared rather than left naming a file nobody will
+	// open. Every `mrw write --check` was leaving one behind in the system temp
+	// directory for the rest of the machine's life.
+	//
+	// Two conditions, not one. A FAILING check keeps its log because the tail
+	// is a summary and the file is the evidence. A truncated one keeps it even
+	// on success, because the report says "N earlier line(s) in <file>" and
+	// deleting a file the report points at is worse than leaving it.
+	if res.Ran && res.ExitCode == 0 && res.Truncated == 0 {
+		if err := os.Remove(res.OutputFile); err == nil {
+			res.OutputFile = ""
+		}
+	}
 	return res, nil
 }
 

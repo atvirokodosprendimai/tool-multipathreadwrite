@@ -847,6 +847,12 @@ func reportCheck(w *os.File, r *check.Result) {
 		fmt.Fprintf(out, "check %s (exit %d, %dms) — %s\n", verdict, r.ExitCode, r.DurationMS, r.Skipped)
 		return
 	}
+	if r.OutputFile == "" {
+		// Cleaned up: the check passed and withheld nothing, so there is no
+		// file to point at and naming an empty path would read as a bug.
+		fmt.Fprintf(out, "check %s (exit %d, %dms)\n", verdict, r.ExitCode, r.DurationMS)
+		return
+	}
 	fmt.Fprintf(out, "check %s (exit %d, %dms) — full output: %s\n", verdict, r.ExitCode, r.DurationMS, r.OutputFile)
 }
 
