@@ -1836,6 +1836,49 @@ PY
 [ $? -eq 0 ] && ok "and content[0] is the serialized structuredContent, with the report after it" \
              || bad "the result does not carry the serialized JSON the spec asks for"
 
+# 42. ADR-011 T3: a read too large for the wire is REFUSED, cheaply, and only
+# over MCP.
+#
+# ADR-007's cap reports itself when it fires, which is right for a person at a
+# terminal. Over MCP the consumer is a model, and a truncated file that arrives
+# looking like the whole file is the silent wrong answer this project exists to
+# refuse. The host truncates at 25,000 tokens regardless, so refusing legibly is
+# the only option that does not spend memory to be overruled.
+fixture
+python3 -c "
+with open('$R/wide.go','w') as f:
+    f.write('package demo\n')
+    for i in range(60000): f.write('// padding padding padding padding padding %d\n' % i)
+"
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["wide.go"]}}}\n' | m mcp 2>/dev/null)
+want 0 $? "the server answers a read that is too large"
+python3 - "$out" <<'PY'
+import json,re,sys
+r=json.loads(sys.argv[1])["result"]
+assert r.get("isError") is True, "an oversized read was not refused"
+t=r["content"][0]["text"]
+assert "200000" in t, "the refusal does not name the limit: %s" % t[:120]
+assert "wide.go" in t, "the refusal does not name the file"
+m=re.search(r"wide\.go:1-(\d+)", t)
+assert m, "the refusal shows no range to retry with: %s" % t[:160]
+assert int(m.group(1)) >= 100, "the suggested range %s is too small to be a useful retry" % m.group(1)
+assert "padding padding" not in t, "the refusal carries file content; it truncated rather than refused"
+PY
+[ $? -eq 0 ] && ok "and refuses it, naming the limit and a range to retry with" \
+             || bad "the oversized read was not refused legibly"
+
+# A refused read must license NOTHING: no ledger entry claiming the caller saw it.
+out=$(printf '@@ wide.go 2 replace\n// changed\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "and a write to the refused file is still refused as unread"
+
+# THE GO/NO-GO: one transport is bounded, the engine is not.
+out=$(m read wide.go 2>&1); rc=$?
+want 0 "$rc" "and the same file still reads whole on the CLI"
+[ "$(wc -c <<<"$out")" -gt 200000 ] \
+  && ok "and the CLI answer is larger than the MCP limit, so only the transport is capped" \
+  || bad "the CLI read was also bounded; the engine was changed"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

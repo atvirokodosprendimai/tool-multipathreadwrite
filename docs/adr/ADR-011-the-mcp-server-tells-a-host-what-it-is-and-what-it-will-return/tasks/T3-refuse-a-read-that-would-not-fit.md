@@ -19,7 +19,7 @@ the narrower request to make, rather than buffered to gigabytes and then truncat
 
 | File | Change | Why |
 |------|--------|-----|
-| `internal/mcp/tools.go` | edit | bound the read and refuse over the limit, using `read.Options.MaxLines` rather than a second limiter |
+| `internal/mcp/tools.go` | edit | bound the read at a capped `io.Writer` and refuse over the limit, so the refusal costs the limit rather than the whole read |
 | `internal/mcp/tools_test.go` | edit | its tests |
 | `README.md` | edit | say the MCP read is bounded, what the limit is, and how to ask for less |
 | `docs/adr/BACKLOG.md` | edit | replace the read-buffering entry, whose stated reason for deferring is what this ADR corrects |
@@ -30,9 +30,17 @@ the narrower request to make, rather than buffered to gigabytes and then truncat
 1. [S1] Write the failing tests first (TDD red): a read under the limit is served unchanged; a read
    over it comes back `isError: true` with a message naming the limit; the refusal names the range
    syntax to retry with; the CLI path for the same file is UNAFFECTED. [proof: acceptance]
-2. [S2] Bound the read. Use `read.Options.MaxLines`, which ADR-007 already defines and which "is
-   always reported: a silent truncation reads as 'that was the whole file'". The engine keeps its
-   semantics; this task chooses a value for one transport. [proof: mutation]
+2. [S2] Bound the read AT THE WRITER, so the refusal is cheap. **This step was written as "use
+   `read.Options.MaxLines`" and that was wrong on two counts**, both found during execution and both
+   recorded here rather than quietly re-planned. `MaxLines` bounds each FILE, so N specs of a large
+   file are still N times the cap — and the stress case that motivated this ADR was exactly that
+   shape. Worse, a size check applied after the read has already been rendered refuses correctly and
+   pays the whole cost anyway: measured, the post-hoc form peaked at **2.4 GB** on the 40-file
+   request, against 2.6 GB with no limit at all. A refusal has to be cheap or it is only a better
+   error message on the way to the same OOM. The implemented form is a capped `io.Writer` that
+   discards past the limit and remembers that it did, which bounds peak memory at the limit plus one
+   write however large the request is — the same request now peaks at **87 MB**. `internal/read` is
+   untouched either way, which is what the Stop Condition cares about. [proof: mutation]
 3. [S3] Refuse rather than truncate when the bound is hit. ADR-007's cap reports itself, and that is
    right for a human reading a terminal; over MCP the consumer is a model, and a truncated file that
    arrives looking like the file is the silent wrong answer this project exists to refuse.
@@ -56,7 +64,7 @@ go test ./internal/mcp/ -v 2>&1 | tee /tmp/adr011-t3.out \
   && ! grep -qE 'no tests to run|no test files|^FAIL|^--- FAIL' /tmp/adr011-t3.out \
   && [ "$(grep -cE '^--- PASS: (TestAReadOverTheLimitIsRefusedNotTruncated|TestTheRefusalNamesTheLimitAndARangeToRetry|TestAReadUnderTheLimitIsUnchanged|TestTheCLIReadIsUnaffectedByTheMCPLimit)\b' /tmp/adr011-t3.out)" = "4" ] \
   && grep -q '^# 42\.' scripts/contract.sh \
-  && grep -q 'bounded' README.md \
+  && grep -q 'ask for a narrower range' README.md \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ] \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check internal/state)" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check internal/state \
@@ -65,9 +73,11 @@ go test ./internal/mcp/ -v 2>&1 | tee /tmp/adr011-t3.out \
 ```
 
 Every clause was grepped for BEFORE this fence was written and returned **zero hits**: the four test
-names, `# 42.` in `contract.sh`, and `bounded` in `README.md`. The engine clauses matter more here
-than anywhere else in this ADR: this task is the one that could plausibly reach into `internal/read`,
-and both forms of the check are present because each sees what the other misses.
+names, `# 42.` in `contract.sh`, and `ask for a narrower range` in `README.md`. The last of those was
+originally `bounded`, which **already matched** `README.md:952` — a line about `tail` output in an
+unrelated section. That is the FIFTH near-miss of this kind in this repository, and the first one
+caught by counting rather than after the fact, which is the whole reason the counts are recorded in
+these files instead of asserted. The engine clauses matter more here
 
 ## Tests
 
@@ -119,3 +129,17 @@ commit lands.
 - Reducing the copy amplification itself (deferred: docs/adr/BACKLOG.md)
 
 ## Verification Log
+- 2026-09-03 · 7317c6f* · exit 1 · `set -o pipefail …` · acceptance-sha256:34f309cf886a15dd899f79d63023563ee54f583da444da7b4005f3f731ce7604 · ms:1029
+  ```
+  --- last 10 line(s) of stdout (of 76 after folding 76 raw)
+      tools_test.go:330: the refusal does not show a range to retry with:
+          {"observed":{"big.txt":{"SHA":"104eb6d2d7eb30ac01d739a11620943c4de0a35e151c59948aed4aea59a165be","Spans":null}},"problems":0}
+  --- FAIL: TestTheRefusalNamesTheLimitAndARangeToRetry (0.00s)
+  === RUN   TestAReadUnderTheLimitIsUnchanged
+  --- PASS: TestAReadUnderTheLimitIsUnchanged (0.00s)
+  === RUN   TestTheCLIReadIsUnaffectedByTheMCPLimit
+  --- PASS: TestTheCLIReadIsUnaffectedByTheMCPLimit (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.420s
+  FAIL
+  ```

@@ -130,11 +130,46 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		}
 		specs = append(specs, sp)
 	}
-
-	var buf bytes.Buffer
-	w := bufio.NewWriter(&buf)
+	// A CAPPED writer, not a size check afterwards. The first version of this
+	// buffered the whole read and then measured it. That refused correctly and
+	// left the actual defect in place: 40 x 18 MB still peaked at 2.4 GB, barely
+	// under the 2.6 GB it cost with no limit at all. A refusal has to be cheap,
+	// or it is only a better error message on the way to the same OOM.
+	//
+	// capped discards past the limit and remembers that it did, so peak memory
+	// is the limit plus one write however large the request was. Measured
+	// 2026-09-03: the same 40 x 18 MB request now peaks at 87 MB.
+	cw := &capped{limit: MaxResultChars}
+	w := bufio.NewWriter(cw)
 	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true})
 	w.Flush()
+
+	// A result over the declared limit is REFUSED, not truncated.
+	//
+	// ADR-007's own cap reports itself when it fires, which is right for a
+	// person reading a terminal. Over MCP the consumer is a model, and a
+	// truncated file that arrives looking like the file is exactly the silent
+	// wrong answer this project exists to refuse. The host truncates at its own
+	// limit regardless — Claude Code's default is 25,000 tokens — so the choice
+	// was never "cap or stay faithful to the CLI"; it was refuse legibly, or be
+	// truncated by someone else after paying the memory to build it.
+	//
+	// The ledger is deliberately NOT written here: a refused read showed the
+	// caller nothing, and an entry claiming otherwise would license a later
+	// write against a file they never saw. That is ADR-002's guarantee, and it
+	// is the one thing a size limit must not quietly spend.
+	if cw.over {
+		// The per-line average comes from the CAPPED buffer — its own chars
+		// over its own lines. Dividing the FULL byte count by the capped line
+		// count mixes two samples and suggested "giant.go:1-2" for a 193 MB
+		// file: a hint that wastes the retry it exists to save.
+		return errorResult(fmt.Sprintf(
+			"that read is over the %d character limit — it reached %d and was stopped there.\n"+
+				"Nothing was read and nothing was recorded, so no write is licensed by it.\n"+
+				"Ask for a range instead — for example %s:1-%d — or name fewer files in one call.",
+			MaxResultChars, cw.written, a.Specs[0],
+			suggestLines(cw.buf.Len(), countLines(&cw.buf)))), nil
+	}
 
 	// Reading is how mrw learns what a file holds; recording that is what lets
 	// a later write know whether its picture is still current.
@@ -143,15 +178,15 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	}
 
 	// The two tools' structuredContent shapes differ and are now DECLARED:
-	// mrw_write returns apply.Result, whose json tags make it snake_case;
-	// this returns seen.Observation, which carries no tags, so its keys are the
-	// Go field names. Both shapes are generated into the outputSchema each tool
+	// mrw_write returns apply.Result, whose json tags make it snake_case; this
+	// returns seen.Observation, which carries no tags, so its keys are the Go
+	// field names. Both are generated into the outputSchema each tool
 	// advertises, so the day seen.Observation gains tags the schema follows it
 	// and the conformance test catches any response that does not.
 	return result(map[string]any{
 		"observed": observed,
 		"problems": problems,
-	}, buf.String(), problems > 0)
+	}, cw.buf.String(), problems > 0)
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the
@@ -254,4 +289,61 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 // transport fault.
 func errorResult(msg string) callToolResult {
 	return callToolResult{Content: text(msg), IsError: true}
+}
+
+// countLines reports how many lines a rendered read produced, so a refusal can
+// suggest a range in the units the caller actually addresses — line numbers.
+func countLines(buf *bytes.Buffer) int {
+	return bytes.Count(buf.Bytes(), []byte{'\n'})
+}
+
+// suggestLines picks a line count whose output would fit, from what the full
+// read actually measured. It is derived rather than guessed: dividing the real
+// size by the real line count gives this file's own average, which beats any
+// constant for a file of long lines or short ones.
+func suggestLines(chars, lines int) int {
+	if lines <= 0 || chars <= 0 {
+		return 500
+	}
+	perLine := chars / lines
+	if perLine < 1 {
+		perLine = 1
+	}
+	// Three quarters of the limit, so the suggestion has room to be wrong.
+	n := (MaxResultChars * 3 / 4) / perLine
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
+// capped is an io.Writer that keeps at most limit bytes and records that it
+// stopped. It exists so a refusal costs the limit rather than the whole read:
+// bounding AFTER buffering refuses correctly and still pays the memory, which
+// is the failure that made this necessary — measured 2026-09-03 at 2.4 GB for a
+// request that was refused.
+//
+// written counts everything offered, not everything kept, so the refusal can
+// tell a caller how far over they were rather than only that they were over.
+type capped struct {
+	buf     bytes.Buffer
+	limit   int
+	written int
+	over    bool
+}
+
+func (c *capped) Write(p []byte) (int, error) {
+	c.written += len(p)
+	if room := c.limit - c.buf.Len(); room > 0 {
+		if room > len(p) {
+			room = len(p)
+		}
+		c.buf.Write(p[:room])
+	}
+	if c.written > c.limit {
+		c.over = true
+	}
+	// Always report a full write: an io.Writer that short-writes makes its
+	// caller error, and read.Run's job is not to know it is being bounded.
+	return len(p), nil
 }
