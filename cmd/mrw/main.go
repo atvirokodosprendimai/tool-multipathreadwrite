@@ -214,7 +214,19 @@ be edited from a shell and the reverse.
 Stdout carries MCP messages and nothing else — diagnostics go to stderr — so
 this subcommand is not useful to run by hand.`,
 		Action: func(_ context.Context, cmd *cli.Command) error {
-			root := cmd.Root().String("root")
+			// A host launches this without --root and expects the project it is
+			// working in. The working directory it happens to inherit is not
+			// that, so the environment the host sets is consulted first.
+			root, src := mcp.ResolveRoot(cmd.Root().String("root"), os.LookupEnv)
+			// Announced on STDERR: the spec forbids anything on stdout that is
+			// not an MCP message, and a server silently bound to the wrong tree
+			// is this subcommand's worst failure — every refusal it then gives
+			// is correct and about a repository nobody asked about.
+			if abs, err := filepath.Abs(root); err == nil {
+				fmt.Fprintf(os.Stderr, "mrw mcp: serving %s (from %s)\n", abs, src)
+			} else {
+				fmt.Fprintf(os.Stderr, "mrw mcp: serving %s (from %s)\n", root, src)
+			}
 			// The wire reports the same version the binary does, so a host
 			// showing "mrw 0.0.14" is never talking to a different build.
 			mcp.Version = versionString()

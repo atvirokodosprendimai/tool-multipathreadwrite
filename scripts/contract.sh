@@ -1641,8 +1641,17 @@ for l in lines:
 PY
 [ $? -eq 0 ] && ok "every stdout line is a valid MCP message" \
              || bad "the server wrote something to stdout that is not an MCP message"
-[ ! -s "$WORK/mcp.err" ] && ok "and nothing was written to stderr" \
-                         || bad "the server wrote to stderr: $(head -1 "$WORK/mcp.err")"
+# stderr is where the spec says diagnostics go — "MAY write UTF-8 strings to its
+# standard error for logging purposes" — so this asserts stderr carries ONLY the
+# startup announcement ADR-011-T1 added, not that it is empty. It was `-s` until
+# 2026-09-03, and the announcement turned that row red the day it landed: an
+# assertion of "nothing" is the wrong shape for a channel the spec permits.
+# NOT `grep -cv ... || echo 0`: grep prints 0 AND exits 1 when nothing is
+# selected, so the `||` fires and the substitution captures "0\n0". That form
+# was written here on 2026-09-03 and failed for exactly that reason.
+[ -z "$(grep -v '^mrw mcp: serving ' "$WORK/mcp.err" | tr -d '[:space:]')" ] \
+  && ok "and stderr carried only the startup announcement" \
+  || bad "the server wrote something unexpected to stderr: $(grep -v '^mrw mcp: serving ' "$WORK/mcp.err" | head -1)"
 
 # THE ROW: one engine, one answer. Root differs by construction (two temp
 # dirs); every other field of the receipt must be identical.
@@ -1729,6 +1738,48 @@ grep -q 'mrw_write' <<<"$out" \
   && ok "which advertises the tools the README says it does" \
   || bad "the server started but did not advertise mrw_write: $(head -c 120 <<<"$out")"
 
+
+# 40. ADR-011 T1: the server binds to the checkout the HOST meant, not to the
+# working directory it happened to inherit.
+#
+# Measured 2026-09-03 before this row existed: launched with cwd /tmp and
+# CLAUDE_PROJECT_DIR naming a repository, `mrw mcp` served /private/tmp. Every
+# ADR-006 refusal it gave was correct and about a tree nobody asked about, and
+# the ADR-002 ledger is keyed per checkout, so a wrong root silently starts a
+# second one. This drives the REAL binary from a foreign cwd, which is the only
+# place the defect is visible.
+fixture
+R_HOST=$R
+fixture
+R_CWD=$R
+printf 'package demo\n\nfunc Only() int { return 7 }\n' > "$R_HOST/only-in-host.go"
+
+# No --root: the environment must decide, not the working directory.
+out=$(cd "$R_CWD" && CLAUDE_PROJECT_DIR="$R_HOST" printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["only-in-host.go"]}}}' \
+  | CLAUDE_PROJECT_DIR="$R_HOST" "$MRW" mcp 2>"$WORK/root.err"); rc=$?
+want 0 "$rc" "mrw mcp starts with no --root"
+grep -q 'func Only' <<<"$out" \
+  && ok "and serves the tree CLAUDE_PROJECT_DIR names, not its own cwd" \
+  || bad "the server bound to its working directory: $(head -c 160 <<<"$out")"
+
+# THE ANNOUNCEMENT: stderr names the tree and the reason, stdout stays clean.
+grep -q 'CLAUDE_PROJECT_DIR' "$WORK/root.err" \
+  && ok "and says on stderr which tree it chose and why" \
+  || bad "the server did not announce its root: $(head -c 120 "$WORK/root.err")"
+python3 -c "
+import json,sys
+for l in open(sys.argv[1]) if False else sys.argv[1].splitlines():
+    if l.strip(): json.loads(l)
+" "$out" && ok "and stdout carried only MCP messages" || bad "stdout was polluted by the announcement"
+
+# An explicit --root beats the host: a user overriding on purpose must win.
+out=$(printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["only-in-host.go"]}}}' \
+  | CLAUDE_PROJECT_DIR="$R_HOST" "$MRW" --root "$R_CWD" mcp 2>/dev/null)
+grep -q 'UNREADABLE\|REFUSED' <<<"$out" \
+  && ok "and an explicit --root overrides the host's environment" \
+  || bad "--root did not win over CLAUDE_PROJECT_DIR: $(head -c 160 <<<"$out")"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

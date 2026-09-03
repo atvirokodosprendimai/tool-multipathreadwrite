@@ -122,3 +122,17 @@ lookup that fails should fall back, never negotiate.
 - Any change to what confinement means inside a root (permanent: boundary: ADR-006 owns that, and this task must not have an opinion about it)
 
 ## Verification Log
+- 2026-09-03 · 4e8f9ea* · exit 1 · `set -o pipefail …` · acceptance-sha256:0fb76ff0f239719fbbdb7704f6047d06f82649f17fcf15ce9e9f026ce6a2ea65 · ms:222
+  ```
+  --- last 10 line(s) of stdout (of 14 after folding 14 raw)
+  internal/mcp/root_test.go:26:12: undefined: SourceFlag
+  internal/mcp/root_test.go:27:41: undefined: SourceFlag
+  internal/mcp/root_test.go:35:14: undefined: ResolveRoot
+  internal/mcp/root_test.go:35:55: undefined: projectDirEnv
+  internal/mcp/root_test.go:37:52: undefined: projectDirEnv
+  internal/mcp/root_test.go:39:12: undefined: SourceProjectDir
+  internal/mcp/root_test.go:40:41: undefined: SourceProjectDir
+  internal/mcp/root_test.go:40:41: too many errors
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp [build failed]
+  FAIL
+  ```
