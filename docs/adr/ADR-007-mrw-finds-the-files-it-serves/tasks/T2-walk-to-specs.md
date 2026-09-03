@@ -206,3 +206,4 @@ three the ADR names ✓. **`--grep` ships.**
   FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read [build failed]
   FAIL
   ```
+- 2026-09-03 · 8aaafc3 · exit 0 · `set -o pipefail …` · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd · ms:487
