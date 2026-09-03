@@ -152,3 +152,4 @@ the conformance test as the guard — but do not add the dependency quietly.
 - 2026-09-03 · a4897b6 · exit 0 · `set -o pipefail …` · acceptance-sha256:d8a387f152fd5f68916a77e1436298653048500fc611b3eb941f5a4bae78c055 · ms:9153
 - 2026-09-03 · 711cf00 · exit 0 · `set -o pipefail …` · acceptance-sha256:d8a387f152fd5f68916a77e1436298653048500fc611b3eb941f5a4bae78c055 · ms:9050
 - 2026-09-03 · c6f31e8 · exit 0 · `set -o pipefail …` · acceptance-sha256:d8a387f152fd5f68916a77e1436298653048500fc611b3eb941f5a4bae78c055 · ms:9225
+- 2026-09-03 · a34a5d1 · exit 0 · `set -o pipefail …` · acceptance-sha256:d8a387f152fd5f68916a77e1436298653048500fc611b3eb941f5a4bae78c055 · ms:11629
