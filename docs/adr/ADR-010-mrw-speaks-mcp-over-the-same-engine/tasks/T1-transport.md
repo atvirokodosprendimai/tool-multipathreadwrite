@@ -136,6 +136,7 @@ The `--help` clause is rung 3 — a subcommand a caller cannot discover is not s
 ## Mutation Log
 
 - 2026-09-03 · ddc21f9 · mutant killed · exit 1 · `cmd/mrw/main.go` · rung 2: unregister the subcommand, so mrw --help no longer lists mcp and the call site is proved to be what makes the package reachable · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59
+- 2026-09-03 · da9caba · mutant killed · exit 1 · `internal/mcp/mcp.go` · answer notifications instead of staying silent: notifications/initialized has no id and answering it is a protocol violation some hosts treat as fatal · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59
 
 ## Invariants
 
@@ -195,3 +196,4 @@ place that coupling belongs.
   ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	(cached)
   ```
 - 2026-09-03 · ddc21f9 · exit 0 · `set -o pipefail …` · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59 · ms:1630
+- 2026-09-03 · da9caba · exit 0 · `set -o pipefail …` · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59 · ms:2409
