@@ -99,6 +99,8 @@ these files instead of asserted. The engine clauses matter more here
 
 ## Mutation Log
 
+- 2026-09-03 · efda9ad · mutant killed · exit 1 · `internal/mcp/tools.go` · S3: stop refusing, so an oversized read is served truncated — the silent wrong answer, a partial file that arrives looking like the whole one · acceptance-sha256:34f309cf886a15dd899f79d63023563ee54f583da444da7b4005f3f731ce7604
+
 ## Invariants
 
 - The limit enforced here is the constant T2 advertises; there is one constant and two readers.
@@ -144,3 +146,4 @@ commit lands.
   FAIL
   ```
 - 2026-09-03 · 3a0bbc4 · exit 0 · `set -o pipefail …` · acceptance-sha256:34f309cf886a15dd899f79d63023563ee54f583da444da7b4005f3f731ce7604 · ms:15735
+- 2026-09-03 · efda9ad · exit 0 · `set -o pipefail …` · acceptance-sha256:34f309cf886a15dd899f79d63023563ee54f583da444da7b4005f3f731ce7604 · ms:9255
