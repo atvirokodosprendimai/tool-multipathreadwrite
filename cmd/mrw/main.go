@@ -161,7 +161,7 @@ func rootCommand() *cli.Command {
 			cmd.Metadata = map[string]any{"notFound": cli.Exit(
 				fmt.Sprintf("unknown command %q (want %s)", name, strings.Join(names, ", ")), exitUsage)}
 		},
-		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd()},
+		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd()},
 	}
 }
 
@@ -193,6 +193,67 @@ func main() {
 }
 
 // seenCmd answers "where is my state, and what does mrw think it saw" — the
+// statsCmd prints what became of the plans this checkout has been given.
+//
+// ADR-009: mrw's plan format is bespoke and nothing measured whether a caller
+// can author it. This is the reader for that measurement — the tally itself is
+// written by `write`, and holds counts only.
+func statsCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "stats",
+		Usage: "print what became of the plans this checkout has been given",
+		Description: `Counts only — no plan text, no paths, no anchors, and nothing
+is ever transmitted. The tally lives beside the ledger in the state directory
+that ` + "`mrw seen`" + ` names.
+
+A rate is always printed with its denominator: a percentage without its sample
+size is the form that gets quoted out of the population it was measured on.`,
+		Flags: []cli.Flag{
+			&cli.BoolFlag{Name: "json", Usage: "emit the same numbers as JSON"},
+			&cli.BoolFlag{Name: "reset", Usage: "empty the tally, reporting how many records were discarded"},
+		},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			root := cmd.Root().String("root")
+			t, err := authoring.Load(root)
+			if err != nil {
+				return cli.Exit(err, exitUsage)
+			}
+			if cmd.Bool("reset") {
+				n := t.Plans()
+				if err := authoring.Reset(root); err != nil {
+					return cli.Exit(err, exitUsage)
+				}
+				// Say what was discarded. A reset that reports nothing is
+				// indistinguishable from a reset that did nothing.
+				fmt.Printf("tally reset: %d plan(s) discarded\n", n)
+				return nil
+			}
+			if cmd.Bool("json") {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(struct {
+					Plans  int            `json:"plans"`
+					Counts map[string]int `json:"counts"`
+				}{Plans: t.Plans(), Counts: t})
+			}
+			total := t.Plans()
+			if total == 0 {
+				// NOT "0%". An empty measurement that reads like a good result
+				// is the silent-success shape this project refuses.
+				fmt.Println("no plans recorded yet — this says nothing has been MEASURED, not that nothing has failed")
+				return nil
+			}
+			for _, name := range t.Names() {
+				n := t[name]
+				fmt.Printf("  %-14s %4d of %d plan(s) (%.1f%%)\n", name, n, total, 100*float64(n)/float64(total))
+			}
+			fmt.Printf("\n%d plan(s) recorded in this checkout. The rate is valid for THIS population;\n"+
+				"a number from one repository and one family of callers is not a general one.\n", total)
+			return nil
+		},
+	}
+}
+
 // inspectability an in-tree file gave away for free, bought back deliberately.
 func seenCmd() *cli.Command {
 	return &cli.Command{

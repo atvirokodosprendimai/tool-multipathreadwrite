@@ -170,3 +170,17 @@ func Load(root string) (Tally, error) {
 	}
 	return t, nil
 }
+
+// Reset empties the tally. Unlike Record it DOES report failure: a caller who
+// asked to discard their counts needs to know it did not happen, where a
+// caller who merely wrote a plan does not need the tally's problems.
+func Reset(root string) error {
+	p, err := state.Path(root, file)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
