@@ -25,6 +25,15 @@ go test -race ./...
 Go builds and tests run on **Linux and Windows** in CI; `contract.sh` runs on
 Linux, because it drives a POSIX shell.
 
+The Windows shell boundary has its own small suite,
+`cmd/mrw/shell_windows_test.go`: it builds the real binary and drives it through
+PowerShell, so exit statuses, drive-letter paths and a plan file the *shell*
+wrote are asserted where a Windows caller meets them. It is deliberately
+narrower than `contract.sh` — only the promises the shell takes part in — and it
+**fails rather than skips** when no shell is found, because a skip there is
+indistinguishable from a pass, and that invisibility is what cost three defects
+before it existed.
+
 **Never read an exit code through a pipe.** `./scripts/contract.sh | tail -5`
 reports `tail`'s status, not the script's — a red run reads as green. Capture the
 output and check `$?`, or let the command stand alone.
