@@ -1473,6 +1473,45 @@ grep -q '@@ a.go' "$R/a.go" \
   && bad "a plan header was written into the caller's source file — the silent wrong-write" \
   || ok "and no plan header leaked into the source"
 
+# 35. THE MSYS DIAGNOSTIC, driven through the real binary (issue #45).
+#
+# Added because a reviewer pointed out that AGENTS.md says "a new promise needs
+# a row in scripts/contract.sh that makes it go wrong on purpose" and carves
+# out nothing for diagnostics — and I had argued the Go tests were enough. They
+# do bite, but a MESSAGE is exactly the kind of promise that rots quietly: a
+# reworded hint breaks nothing, compiles, and passes any test that greps for a
+# substring the same edit happened to change. The suite already asserts message
+# text elsewhere, so diagnostics were never conventionally exempt here.
+#
+# BOTH HALVES. The quiet one is the one that matters: a hint appended to every
+# parse failure would be read once and ignored forever.
+fixture
+
+# The mangled spec exactly as MSYS2 hands it over: the ':' became ';' and the
+# /pattern/ was expanded against the Git install prefix.
+out=$(m read 'cmd\mrw\main.go;C:\Program Files\Git\^func main\' 2>&1); rc=$?
+want 2 "$rc" "a spec MSYS mangled is a usage error"
+grep -q 'MSYS2 argument conversion' <<<"$out" \
+  && ok "and the diagnostic names MSYS2 rather than blaming a line number" \
+  || bad "no MSYS diagnosis: $(head -1 <<<"$out")"
+grep -q 'MSYS2_ARG_CONV_EXCL' <<<"$out" \
+  && ok "and names the environment variable that fixes it" \
+  || bad "diagnosed without a remedy: $(head -1 <<<"$out")"
+
+# THE QUIET HALF. An ordinary bad range must NOT collect the hint.
+out=$(m read 'a.go:notanumber' 2>&1); rc=$?
+want 2 "$rc" "an ordinary bad range is still a usage error"
+grep -q 'MSYS' <<<"$out" \
+  && bad "the MSYS hint fired on an ordinary mistake — noise on every bad spec" \
+  || ok "and carries no MSYS hint"
+
+# The signature is the PAIR. A backslash alone is an ordinary filename
+# character on POSIX and must not trigger it either.
+out=$(m read 'weird\name.go:notanumber' 2>&1)
+grep -q 'MSYS' <<<"$out" \
+  && bad "a backslash alone triggered the hint; the pair is ';' AND a Windows path" \
+  || ok "and a backslash without a ';' does not trigger it"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
