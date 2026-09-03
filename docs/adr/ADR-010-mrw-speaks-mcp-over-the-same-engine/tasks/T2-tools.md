@@ -193,3 +193,4 @@ than shipping a second engine behind a protocol.
   ```
 - 2026-09-03 · 71eef3e · exit 0 · `set -o pipefail …` · acceptance-sha256:d425240fd07a542d44e74114d4f395d158c62b38624ef73798e40e7f40ae57d6 · ms:10977
 - 2026-09-03 · fbc5c0d · exit 0 · `set -o pipefail …` · acceptance-sha256:d425240fd07a542d44e74114d4f395d158c62b38624ef73798e40e7f40ae57d6 · ms:11733
+- 2026-09-03 · a679d3b · exit 0 · `set -o pipefail …` · acceptance-sha256:d425240fd07a542d44e74114d4f395d158c62b38624ef73798e40e7f40ae57d6 · ms:11081
