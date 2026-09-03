@@ -1296,6 +1296,57 @@ grep -q 'package fresh' "$R/a.go" \
   && ok "and it actually rewrote the files it claims to" \
   || bad "the example ran but changed nothing — a write that changes nothing is the bug mrw exists to prevent"
 
+# 31. A GUARD THE CALLER WROTE MUST BE ABLE TO FIRE. Two ways it could not,
+# both found by probing on 2026-09-01 and both still true on 2026-09-03:
+#
+#   * a REPEATED key was last-wins and SILENT. `anchor="NOPE" anchor="a"`
+#     applied at exit 0 with the false guard gone. That is internal/apply's own
+#     stated principle inverted — "a guard that is parsed and then discarded
+#     would be worse than no guard at all, the caller believes the edit is
+#     pinned".
+#   * `raw=true` without `body=` was accepted and did nothing, because raw=
+#     only switches off the header check INSIDE a counted body.
+#
+# Both are refused at parse time now. Refused rather than resolved: two guards
+# on one hunk are two different claims about one edit, and picking either
+# silently is how the caller keeps believing the other.
+fixture
+m read a.go >/dev/null 2>&1
+
+out=$(printf '@@ a.go 3 replace anchor="NOPE" anchor="func A"\nX\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "a repeated guard key is a usage error, not last-wins"
+grep -q 'given twice' <<<"$out" \
+  && ok "and says which key was given twice" \
+  || bad "refused without naming the repetition: $(head -2 <<<"$out"|tail -1)"
+grep -q 'func A() int { return 1 }' "$R/a.go" \
+  && ok "and nothing was written" \
+  || bad "the file changed despite the refusal"
+
+# Every key, not just anchor — sha= and lines= are the ones that matter most.
+for pair in 'sha=aaaaaaaa sha=bbbbbbbb' 'lines=1 lines=2' 'body=1 body=2'; do
+  printf '@@ a.go 3 replace %s\nX\n' "$pair" | m write - >/dev/null 2>&1
+  want 2 $? "a repeated key is refused for: $pair"
+done
+
+out=$(printf '@@ a.go 3 replace raw=true\nX\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "raw=true without body= is a usage error"
+grep -q 'without body=' <<<"$out" \
+  && ok "and says why it guards nothing" \
+  || bad "refused without explaining: $(head -2 <<<"$out"|tail -1)"
+
+# The LEGITIMATE pairing must still work, or this row has broken the escape
+# hatch that lets a plan carry a line beginning with @@.
+out=$(printf '@@ a.go 3 replace body=1 raw=true\n@@ still just a body line\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "body= with raw=true still applies — the escape hatch is intact"
+
+# And a single guard of each kind is untouched. FRESH fixture: the hunk above
+# rewrote line 3, so reusing the file here would fail on the anchor for a
+# reason that has nothing to do with guards.
+fixture
+m read a.go >/dev/null 2>&1
+out=$(printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 9 }\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "one anchor= still guards an edit"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

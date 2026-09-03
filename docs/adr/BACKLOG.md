@@ -198,24 +198,28 @@ here.
 
 ## Found by probing the built binary (2026-09-01)
 
-Four of these are behaviour changes rather than bugs — each makes something
-currently legal illegal — so they are recorded rather than fixed in passing. The
-bugs found in the same pass (an unknown subcommand exiting 3, an absolute path
-reported as "does not exist", `sha=` accepting non-hex, `$-1` reported as out of
-range, `--check` silently dropped under `--dry-run`) were fixed and carry
-contract rows.
+Five were recorded here rather than fixed in passing, because each makes
+something currently legal illegal. **Three are now closed — 2026-09-03 — and
+are struck through below**; the two that remain are genuine either-way
+decisions rather than defects. The bugs found in the same pass (an unknown
+subcommand exiting 3, an absolute path reported as "does not exist", `sha=`
+accepting non-hex, `$-1` reported as out of range, `--check` silently dropped
+under `--dry-run`) were fixed then and carry contract rows.
+- ~~**A DUPLICATED guard key silently discards the earlier one.**~~ **CLOSED
+  2026-09-03 — refused at parse time.** It was the codebase's own principle
+  turned inside out: `internal/apply/apply.go` says "a guard that is parsed and
+  then discarded would be worse than no guard at all — the caller believes the
+  edit is pinned", and the parser did exactly that. Re-probed 2026-09-03 and
+  still true, so it was fixed rather than re-recorded: `anchor="NOPE"
+  anchor="a"` applied at exit 0 with the false guard gone.
 
-- **A DUPLICATED guard key silently discards the earlier one.** This is the
-  most serious of the four, because it is the codebase's own stated principle
-  turned inside out — `internal/apply/apply.go` says "a guard that is parsed and
-  then discarded is worse than no guard, because the caller believes the edit is
-  pinned", and the parser does exactly that. Reproduced: a hunk written
-  `anchor="NOPE" anchor="a"` applies with exit 0, the false guard gone. It holds
-  for `sha=`, `lines=`, `body=` and `raw=` too — last occurrence wins, silently.
-  Fix is a parse error on a repeated key. It is a behaviour change because a
-  plan that applies today would stop applying, which is why it is here and not
-  in that commit.
-
+  **Refused, not resolved.** Two guards on one hunk are two different claims
+  about one edit; picking either silently is how the caller keeps believing the
+  other. Holds for `sha=`, `lines=`, `anchor=`, `body=` and `raw=`. It is a
+  behaviour change — a plan that applied yesterday now fails — and the plan in
+  question is one carrying a guard that was never checked. Asserted by
+  `scripts/contract.sh` §31 and `TestARepeatedGuardKeyIsRefused`;
+  `TestDistinctGuardKeysStillParse` pins that one of each is still fine.
 - **`create` with an EMPTY body succeeds and reports `ok`.** ADR-006 refuses an
   empty-bodied `replace` because a body lost in transit — a truncated emission,
   an editor eating the last line — deletes code while the receipt says it
@@ -226,23 +230,24 @@ contract rows.
   it explicitly — probably `create` with no body being legal only when written
   as such deliberately, which the format has no way to say today.
 
-- **An ABSOLUTE path is silently reinterpreted as root-relative, and every
-  surface prints the original.** `mrw -C /root read /etc/hosts` serves
-  `/root/etc/hosts` under the header `==> /etc/hosts`. The containment is
-  correct and was verified — nothing outside the root is reachable — but the
-  receipt names a path the tool did not touch, so a reader (or a hook parsing
-  the output) concludes the system file was read. The write path now says the
-  path was resolved against the root when the target is missing; the READ path,
-  and a write that happens to find a file there, still display the original.
-  Refusing an absolute path outright is the clean answer — joining one is never
-  useful, since `-C /repo read /repo/f.go` already resolves to `/repo/repo/f.go`
-  — but it is a behaviour change.
+- ~~**An ABSOLUTE path is silently reinterpreted as root-relative, and every
+  surface prints the original.**~~ **CLOSED 2026-09-03 — fixed on every
+  surface, verified by probe.** The write path gained the diagnosis in #36/#37;
+  the READ path was closed by `rooted.IsRooted` (#38), which also fixed the
+  Windows case where `filepath.IsAbs` is false for `/etc/hosts`.
 
-- **`raw=true` without `body=` is accepted and does nothing.** `raw=` exists to
-  switch off the header check inside a COUNTED body, so without `body=` it is a
-  guard the caller wrote that cannot fire. Harmless, and the same class as the
-  duplicate key: a caller believing something is pinned when nothing is.
-
+  Verified 2026-09-03 against the built binary: `mrw read /etc/hosts` from a
+  temp root now exits 1 with `==> /etc/hosts  REFUSED  /etc/hosts is outside
+  the root <root>: read it with --root pointed where you mean`. The receipt no
+  longer names a path the tool did not touch, and nothing outside the root was
+  ever reachable. Asserted by `scripts/contract.sh` §26 and §27.
+- ~~**`raw=true` without `body=` is accepted and does nothing.**~~ **CLOSED
+  2026-09-03 — a usage error.** `raw=` only switches off the valid-header check
+  INSIDE a counted body, so without `body=` it is a guard that cannot fire —
+  the same class as the duplicate key above and fixed in the same change. The
+  legitimate pairing (`body=N raw=true`, the escape hatch for a plan whose body
+  contains a real `@@` header) is pinned by its own contract row, because
+  refusing the useless form must not break the useful one.
 - **`--max-lines 0` means UNLIMITED, and this repository decided the opposite
   question the other way once already.** A cap of zero is currently
   indistinguishable from no cap, so there is no way to say "serve me the header

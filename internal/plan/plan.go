@@ -235,11 +235,27 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 	}
 
 	explicit := -1
+	// A REPEATED key was last-wins and silent, which is this file's own stated
+	// principle inverted: apply.go says "a guard that is parsed and then
+	// discarded would be worse than no guard at all — the caller believes the
+	// edit is pinned". A hunk written `anchor="NOPE" anchor="a"` applied at
+	// exit 0 with the false guard gone (probed 2026-09-01, still true
+	// 2026-09-03). Every key is affected, sha= and lines= included.
+	//
+	// Refused rather than resolved, because there is no correct winner: two
+	// guards on one hunk are two different claims about the same edit, and
+	// picking either one silently is how the caller keeps believing the other.
+	seen := map[string]bool{}
 	for _, opt := range fields[3:] {
 		k, v, ok := strings.Cut(opt, "=")
 		if !ok {
 			return Hunk{}, 0, fmt.Errorf("option %q is not key=value", opt)
 		}
+		if seen[k] {
+			return Hunk{}, 0, fmt.Errorf("%s= given twice: two guards on one hunk are two "+
+				"different claims about the same edit, and mrw will not pick one for you", k)
+		}
+		seen[k] = true
 		switch k {
 		case "sha":
 			// Length AND alphabet. The message has always promised "hex", and
@@ -276,6 +292,14 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 		default:
 			return Hunk{}, 0, fmt.Errorf("unknown option %q (want sha, lines, anchor, body or raw)", k)
 		}
+	}
+	// raw= switches off the valid-header check INSIDE a counted body, so
+	// without body= there is no body for it to act on and the caller has
+	// written a guard that cannot fire — the same class as the duplicate key
+	// above, and refused for the same reason.
+	if h.Raw && explicit < 0 {
+		return Hunk{}, 0, fmt.Errorf("raw=true without body=: raw= only switches off the header " +
+			"check inside a counted body, so on its own it guards nothing")
 	}
 	return h, explicit, nil
 }
