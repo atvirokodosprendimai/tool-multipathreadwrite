@@ -69,9 +69,23 @@ to.
 `mrw write` records the outcome of every plan it is handed, into `<state-dir>/authoring`, and
 `mrw stats` prints the tallies.
 
-**What is recorded, exactly:** a count per outcome — `applied`, `refused_parse`, `refused_guard`,
-`refused_unseen`, `refused_boundary`, `failed_check` — plus, for parse refusals only, a count per
-error CATEGORY drawn from a closed vocabulary that `internal/authoring` owns. Counts and category
+**What is recorded, exactly:** a count per outcome — `applied`, `refused_parse`, `refused_apply`,
+`check_not_run`, `failed_check`. Counts and vocabulary names. Nothing else.
+
+**Amended during execution, 2026-09-03 (T1).** This first read `refused_guard`, `refused_unseen`,
+`refused_boundary` and a per-error CATEGORY for parse refusals. T1's Stop Condition — *"stop if
+recording the outcome requires `cmd/mrw` to compute anything it does not already compute for the
+exit status"* — caught it before any of that was built. `apply.HunkResult.Reason` is a free-form
+string and mrw has no typed error kinds anywhere, so splitting a refusal three ways, or classifying
+a parse error, would mean matching on message text that changes — several of those messages were
+rewritten earlier the same day. That is a SECOND opinion about what happened, beside the one the
+exit status already carries, and it is the defect class this project refuses.
+
+The five outcomes above are exactly the five `cmd/mrw` already distinguishes to choose an exit
+status, so the tally is a projection of a decision made rather than a new judgement. **The headline
+criterion is unaffected:** it needs `refused_parse` against the total, and both survive. Categories
+would sharpen the diagnosis once `internal/plan` has typed errors — a change ADR-001 governs, filed
+in BACKLOG.md rather than smuggled in here.
 names. Nothing else.
 
 **What is never recorded, and this is the boundary rather than a default:** no plan text, no file
@@ -135,7 +149,7 @@ without the command.
 | `mrw stats --json` | new flag | `cmd/mrw` | scripts, hooks |
 | `mrw stats --reset` | new flag | `cmd/mrw` | callers |
 | `<state-dir>/authoring` | new state file | `internal/authoring` | `internal/authoring` |
-| `authoring.Outcome` (closed vocabulary), `authoring.Record`, `authoring.Load`, `authoring.Tally` | new internal API | `internal/authoring` | `cmd/mrw` |
+| `authoring.Outcome` (closed vocabulary), `authoring.Record(root, Outcome) error`, `authoring.Load`, `authoring.Tally` | new internal API | `internal/authoring` | `cmd/mrw` |
 
 ## Inter-task Contracts
 
@@ -193,5 +207,6 @@ ignores an unknown file there, and a tree written by this version is served iden
 previous one. No format, exit status or ledger entry changes, so nothing migrates.
 
 ## Follow-ups
+- [ ] Typed error kinds in `internal/plan` and `internal/apply`, so a refusal can be classified without matching message text — the thing T1's Stop Condition blocked (deferred: docs/adr/BACKLOG.md)
 
 - [ ] Publish a second reading once the tally has a larger sample, and say whether the 5% criterion held

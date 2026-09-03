@@ -1512,6 +1512,55 @@ grep -q 'MSYS' <<<"$out" \
   && bad "a backslash alone triggered the hint; the pair is ';' AND a Windows path" \
   || ok "and a backslash without a ';' does not trigger it"
 
+# 36. ADR-009: mrw COUNTS what happens to the plans it is given, and the tally
+# holds nothing of the caller's work.
+#
+# The last row is the one that matters. A tally is a standing temptation to
+# record "just the path", and a test that only checks the counts would pass on
+# the day somebody adds one — so this greps the written file for the things a
+# plan is made of and fails if any reached disk.
+fixture
+m read a.go >/dev/null 2>&1
+
+printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' | m write - >/dev/null 2>&1
+want 0 $? "a plan that applies exits 0"
+printf '@@ a.go 3 frobnicate\nx\n' | m write - >/dev/null 2>&1
+want 2 $? "a plan that does not parse is a usage error"
+printf '@@ a.go 3 replace anchor="NOPE"\nx\n' | m write - >/dev/null 2>&1
+want 1 $? "a plan that parses but does not apply exits 1"
+
+# mrw's own answer for where this checkout's state lives, rather than guessing
+# at XDG layout — contract.sh does not pin XDG_STATE_HOME, it isolates by
+# giving every fixture a fresh root.
+tally="$(m seen | head -1)/authoring"
+if [ -f "$tally" ]; then
+  ok "a tally is written"
+  grep -q '^applied 1$'       "$tally" && ok "and counts the applied plan"     || bad "applied not counted: $(tr '\n' '|' < "$tally")"
+  grep -q '^refused_parse 1$' "$tally" && ok "and counts the unparseable one"  || bad "refused_parse not counted: $(tr '\n' '|' < "$tally")"
+  grep -q '^refused_apply 1$' "$tally" && ok "and counts the one that did not apply" || bad "refused_apply not counted: $(tr '\n' '|' < "$tally")"
+
+  # THE BOUNDARY ROW. Nothing of the caller's work may be in this file.
+  if grep -qE '/|\\|@@|\.go|anchor|sha=|replace|insert|delete|create' "$tally"; then
+    bad "the tally holds a plan fragment, path or address: $(tr '\n' '|' < "$tally")"
+  else
+    ok "and holds nothing of the caller's plan, paths or anchors"
+  fi
+
+  # Every line is 'name count'. A field nobody anticipated fails here.
+  if [ -z "$(grep -vE '^[a-z_]+ [0-9]+$' "$tally")" ]; then
+    ok "and every line is a counter, not a record"
+  else
+    bad "a non-counter line reached the tally: $(grep -vE '^[a-z_]+ [0-9]+$' "$tally" | head -1)"
+  fi
+else
+  bad "no tally was written — the call site in mrw write is not reached"
+fi
+
+# "Record never fails a write" is NOT asserted here. An unusable state home
+# fails the LEDGER first (seen.Record returns an error and the write exits 2),
+# so a row here would grade the ledger and report it as the tally. It is proved
+# where it can be isolated: TestRecordNeverFailsAWrite.
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

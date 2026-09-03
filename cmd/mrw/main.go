@@ -33,6 +33,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
@@ -551,6 +552,12 @@ visible to whatever hooks watch file writes.`,
 
 			hunks, err := plan.Parse(src)
 			if err != nil {
+				// A plan that did not PARSE is the outcome ADR-009 exists to
+				// count: the only one that says the FORMAT was the problem
+				// rather than the caller's picture of a file. Recorded here,
+				// at the site that already decided it, so the tally is a
+				// projection of that decision and never a second opinion.
+				_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 				return cli.Exit(fmt.Sprintf("%s: %v", name, err), 2)
 			}
 
@@ -663,6 +670,20 @@ visible to whatever hooks watch file writes.`,
 			} else {
 				report(os.Stdout, res, cmd.Bool("quiet"))
 				reportCheck(os.Stdout, receipt.Check)
+			}
+			// ADR-009: record what became of this plan, from the SAME facts the
+			// switch below uses to choose an exit status. Never fails a write —
+			// Record swallows every error, because measurement that can break
+			// the tool it measures is worse than no measurement.
+			switch {
+			case res.Failed > 0:
+				_ = authoring.Record(root, authoring.RefusedApply)
+			case receipt.Check != nil && !receipt.Check.Ran:
+				_ = authoring.Record(root, authoring.CheckNotRun)
+			case receipt.Check != nil && !receipt.Check.OK():
+				_ = authoring.Record(root, authoring.FailedCheck)
+			default:
+				_ = authoring.Record(root, authoring.Applied)
 			}
 			switch {
 			case res.Failed > 0:
