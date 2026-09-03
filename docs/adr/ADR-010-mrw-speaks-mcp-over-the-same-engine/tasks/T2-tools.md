@@ -128,6 +128,7 @@ the `tools/call` routing and §38 must go red.
 - 2026-09-03 · 86dab85 · mutant killed · exit 1 · `internal/mcp/tools.go` · S4: stop sharing the ledger — an MCP read no longer licenses a CLI write, so ADR-002 would hold per transport instead of once · acceptance-sha256:ef6aefdb5fb626df7d515fc315fc58bf58c63ea7e07fe346e6b1f8f6454d8141
 - 2026-09-03 · a10d3a7 · mutant killed · exit 1 · `internal/mcp/tools.go` · S3: drop the verdict from the envelope — the transports would still both "work" while only one of them says what happened · acceptance-sha256:ef6aefdb5fb626df7d515fc315fc58bf58c63ea7e07fe346e6b1f8f6454d8141
 - 2026-09-03 · 71eef3e · mutant killed · exit 1 · `internal/mcp/tools.go` · S3: drop the verdict from the envelope, so only one transport says what happened · acceptance-sha256:d425240fd07a542d44e74114d4f395d158c62b38624ef73798e40e7f40ae57d6
+- 2026-09-03 · fbc5c0d · mutant killed · exit 1 · `internal/mcp/mcp.go` · rung 2 re-minted against the dual-clause fence: unroute tools/call so the handlers are unreachable · acceptance-sha256:d425240fd07a542d44e74114d4f395d158c62b38624ef73798e40e7f40ae57d6
 
 ## Invariants
 
@@ -191,3 +192,4 @@ than shipping a second engine behind a protocol.
   1 assertion(s) FAILED
   ```
 - 2026-09-03 · 71eef3e · exit 0 · `set -o pipefail …` · acceptance-sha256:d425240fd07a542d44e74114d4f395d158c62b38624ef73798e40e7f40ae57d6 · ms:10977
+- 2026-09-03 · fbc5c0d · exit 0 · `set -o pipefail …` · acceptance-sha256:d425240fd07a542d44e74114d4f395d158c62b38624ef73798e40e7f40ae57d6 · ms:11733
