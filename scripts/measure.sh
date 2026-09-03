@@ -142,6 +142,26 @@ measure "B. Two sites, mid-sized files" \
 measure "C. One site, whole small file needed (mrw loses)" \
   'internal/seen/seen.go'
 
+# Shape D: the shape the tool is actually FOR, at the scale it is actually met.
+# One site in every Go file in the repository — the codebase-wide rename, the
+# added build tag, the changed import. The file list comes from git rather than
+# being written out here, so this row grows with the repository instead of
+# quietly measuring a subset somebody typed once.
+#
+# READ THIS ROW FOR THE CALLS, NOT THE BYTES. mrw loses the byte comparison
+# against a windowed read here, badly and by construction: each site is one
+# line, and mrw adds a header per file and a number per line, so it is paying
+# overhead on the smallest possible payload. The calls column is the whole
+# point — M reads plus N edits, versus 2, for any N.
+mapfile -t GOFILES < <(git ls-files '*.go') 2>/dev/null || {
+  # bash 3.2 — still the default /bin/bash on macOS — has no mapfile.
+  GOFILES=()
+  while IFS= read -r f; do GOFILES+=("$f"); done < <(git ls-files '*.go')
+}
+DSPECS=()
+for f in "${GOFILES[@]}"; do DSPECS+=("$f:/^package /"); done
+measure "D. One site in every Go file — the shape mrw is for" "${DSPECS[@]}"
+
 rule
 echo "Round trips are the floor: mrw is 2 calls for any N. Bytes depend on how"
 echo "much of each file the task needs — measure YOUR shape before quoting a number."
