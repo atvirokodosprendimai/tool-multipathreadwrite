@@ -96,12 +96,15 @@ flag changes. A caller who never runs `mrw mcp` cannot tell this shipped.
   checked by counting requirement lines rather than by diffing against a remote ref — a fence that
   needs `origin/main` fetched is a fence that fails in a shallow CI checkout for a reason unrelated
   to what it is asking.
-- **No engine change.** `git status --porcelain --untracked-files=all` over `internal/read`,
-  `internal/apply`, `internal/plan`, `internal/seen`, `internal/check` and `internal/state` is
-  empty for this ADR's tasks. Untracked is the operative word: a `git diff` form passes while a NEW
-  engine file sits beside the old ones, which is exactly how an engine grows. This is a
-  working-tree gate and it proves nothing about a change already committed — that is what the diff
-  in review is for, and the task's verification log records the SHA it ran against.
+- **No engine change**, checked TWO ways over `internal/read`, `internal/apply`, `internal/plan`,
+  `internal/seen`, `internal/check` and `internal/state`, because each way has the blind spot the
+  other closes. `git status --porcelain --untracked-files=all` must be empty: it sees an untracked
+  NEW engine file, which is exactly how an engine grows a second answer, and which a `git diff`
+  form passes straight over. `git diff` against the merge-base with `main` must also be empty: it
+  sees a change that has already been COMMITTED, which the working-tree form reports as clean.
+  Measured 2026-09-03 — a committed one-line edit to `internal/seen` passes the first and fails the
+  second; an untracked file in `internal/read` fails the first and passes the second. Either clause
+  alone is a weaker statement than this decision makes.
 - **The transport is asserted through a real pipe**, not in-process — a server tested by calling its
   handler is not a server, for the same reason `contract.sh` exists rather than more Go tests.
 - **Recovery.** ADR-001's original concern was a server that is unrecoverable mid-session. Killing
