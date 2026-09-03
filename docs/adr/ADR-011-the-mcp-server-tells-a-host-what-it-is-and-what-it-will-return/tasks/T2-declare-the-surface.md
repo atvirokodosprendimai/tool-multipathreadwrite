@@ -130,3 +130,17 @@ the conformance test as the guard — but do not add the dependency quietly.
 - Schemas for anything other than the two tool results (permanent: boundary: the tools ARE the product)
 
 ## Verification Log
+- 2026-09-03 · 7f38b05* · exit 1 · `set -o pipefail …` · acceptance-sha256:d8a387f152fd5f68916a77e1436298653048500fc611b3eb941f5a4bae78c055 · ms:161
+  ```
+  --- last 10 line(s) of stdout (of 14 after folding 14 raw)
+  internal/mcp/conformance_test.go:120:9: tl.Annotations undefined (type tool has no field or method Annotations)
+  internal/mcp/conformance_test.go:123:9: tl.Title undefined (type tool has no field or method Title)
+  internal/mcp/conformance_test.go:143:33: byName["mrw_write"].Annotations undefined (type tool has no field or method Annotations)
+  internal/mcp/conformance_test.go:150:14: tl.Annotations undefined (type tool has no field or method Annotations)
+  internal/mcp/schema_test.go:12:12: undefined: SchemaOf
+  internal/mcp/schema_test.go:46:15: undefined: SchemaOf
+  internal/mcp/schema_test.go:56:15: undefined: SchemaOf
+  internal/mcp/schema_test.go:56:15: too many errors
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp [build failed]
+  FAIL
+  ```

@@ -1781,6 +1781,61 @@ grep -q 'UNREADABLE\|REFUSED' <<<"$out" \
   && ok "and an explicit --root overrides the host's environment" \
   || bad "--root did not win over CLAUDE_PROJECT_DIR: $(head -c 160 <<<"$out")"
 
+# 41. ADR-011 T2: the tool surface declares what a host needs to protect a user,
+# and the declaration is true.
+#
+# A host shows annotations to a person before asking them to approve a call, so
+# a readOnlyHint on a tool that writes is a lie that person acts on. This row
+# therefore checks read-only-ness BY OBSERVATION — it runs the tool and looks at
+# the tree — rather than by reading the field back out of the descriptor.
+fixture
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+want 0 $? "tools/list answers"
+python3 - "$out" <<'PY'
+import json,sys
+tools={t["name"]: t for t in json.loads(sys.argv[1])["result"]["tools"]}
+for name in ("mrw_read","mrw_write"):
+    t=tools[name]
+    for field in ("title","annotations","outputSchema","_meta"):
+        assert field in t, "%s has no %s" % (name, field)
+    props=t["outputSchema"].get("properties") or {}
+    assert props, "%s declares a property-less schema, which validates anything" % name
+    assert t["_meta"]["anthropic/maxResultSizeChars"] > 0, "%s declares no size limit" % name
+assert tools["mrw_read"]["annotations"]["readOnlyHint"] is True
+assert tools["mrw_write"]["annotations"]["readOnlyHint"] is False
+assert tools["mrw_write"]["annotations"]["destructiveHint"] is True
+PY
+[ $? -eq 0 ] && ok "both tools declare title, annotations, outputSchema and _meta" \
+             || bad "the declared tool surface is incomplete or dishonest"
+
+# THE ROW: mrw_read says readOnlyHint, so running it must leave the tree alone.
+before=$(cd "$R" && find . -type f -newer go.mod -o -type f | sort | xargs shasum -a 256 | shasum -a 256)
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}\n' \
+  | m mcp >/dev/null 2>&1
+after=$(cd "$R" && find . -type f -newer go.mod -o -type f | sort | xargs shasum -a 256 | shasum -a 256)
+[ "$before" = "$after" ] \
+  && ok "and mrw_read really is read-only, as its annotation claims" \
+  || bad "mrw_read is annotated readOnlyHint and changed the tree"
+
+# Both content blocks, with the first one machine-readable.
+m read a.go >/dev/null 2>&1
+# The plan's newlines must reach mrw as the two-character escape \n INSIDE the
+# JSON string, not as real newlines — a real one would split the message across
+# two lines and the server would see two malformed frames. Hence \\n here.
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\\nfunc A() int { return 41 }\\n"}}}\n' | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+c=r["content"]
+assert len(c)>=2, "want two content blocks, got %d" % len(c)
+first=json.loads(c[0]["text"])          # must parse: the spec's SHOULD
+assert first==r["structuredContent"], "content[0] and structuredContent disagree"
+assert c[1]["text"].strip(), "the human-readable report did not survive"
+PY
+[ $? -eq 0 ] && ok "and content[0] is the serialized structuredContent, with the report after it" \
+             || bad "the result does not carry the serialized JSON the spec asks for"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

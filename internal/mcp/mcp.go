@@ -65,8 +65,21 @@ type rpcError struct {
 // source, so a tool without an inputSchema is a tool it cannot call.
 type tool struct {
 	Name        string `json:"name"`
+	Title       string `json:"title,omitempty"`
 	Description string `json:"description"`
 	InputSchema any    `json:"inputSchema"`
+	// OutputSchema is generated from the type the handler returns, never
+	// written beside it — see SchemaOf for the measured reason.
+	OutputSchema any `json:"outputSchema,omitempty"`
+	// Annotations tell a host what the tool DOES, and a host shows them to a
+	// user before asking them to approve a call. An annotation that flatters
+	// the tool is a lie the user acts on, so they are asserted by observation
+	// in TestTheAnnotationsMatchWhatTheToolDoes rather than by reading them.
+	Annotations any `json:"annotations,omitempty"`
+	// Meta carries host-specific hints. `anthropic/maxResultSizeChars` tells
+	// Claude Code how large a result may get; it is the SAME constant the read
+	// path enforces, so the advertised limit and the enforced one cannot drift.
+	Meta any `json:"_meta,omitempty"`
 }
 
 // Serve reads newline-delimited JSON-RPC from in and writes it to out until in
@@ -222,7 +235,17 @@ var Version = "dev"
 func tools() []tool {
 	return []tool{
 		{
-			Name: "mrw_read",
+			Name:         "mrw_read",
+			Title:        "Read file ranges",
+			OutputSchema: readSchema(),
+			Annotations: map[string]any{
+				"title":           "Read file ranges",
+				"readOnlyHint":    true,
+				"destructiveHint": false,
+				"idempotentHint":  true,
+				"openWorldHint":   false,
+			},
+			Meta: map[string]any{"anthropic/maxResultSizeChars": MaxResultChars},
 			Description: "Read many ranges across many files in one call, recording each as seen " +
 				"so it may later be edited. Specs use mrw's own syntax: path, path:10-20, " +
 				"path:/regexp/ or path:$ for the last line.",
@@ -239,7 +262,21 @@ func tools() []tool {
 			},
 		},
 		{
-			Name: "mrw_write",
+			Name:         "mrw_write",
+			Title:        "Apply an edit plan",
+			OutputSchema: writeSchema(),
+			Annotations: map[string]any{
+				"title": "Apply an edit plan",
+				// It writes files. A host shows this before asking a user to
+				// approve the call, so understating it is a lie they act on.
+				"readOnlyHint":    false,
+				"destructiveHint": true,
+				// A plan addresses the ORIGINAL file (ADR-001), so applying it
+				// twice does not apply it twice — the second run refuses.
+				"idempotentHint": false,
+				"openWorldHint":  false,
+			},
+			Meta: map[string]any{"anthropic/maxResultSizeChars": MaxResultChars},
 			Description: "Apply an edit plan across one or more files, all or nothing, returning a " +
 				"verdict for every hunk. Every address resolves against the ORIGINAL file, so " +
 				"several hunks in one file need no offset arithmetic.",

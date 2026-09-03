@@ -54,7 +54,31 @@ type callParams struct {
 	Arguments json.RawMessage `json:"arguments"`
 }
 
+// text renders one text block.
 func text(s string) []contentBlock { return []contentBlock{{Type: "text", Text: s}} }
+
+// result assembles a CallToolResult with the two content blocks the spec asks
+// for: the serialized structured content FIRST — "a tool that returns
+// structured content SHOULD also return the serialized JSON in a TextContent
+// block" — and the human-readable report second.
+//
+// The JSON is marshalled ONCE here and the same value is handed back as
+// structuredContent, so the two halves cannot disagree. Marshalling twice from
+// the same value is how they start to.
+func result(structured any, report string, isErr bool) (callToolResult, *rpcError) {
+	b, err := json.Marshal(structured)
+	if err != nil {
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: "encoding the result: " + err.Error()}
+	}
+	return callToolResult{
+		Content: []contentBlock{
+			{Type: "text", Text: string(b)},
+			{Type: "text", Text: report},
+		},
+		StructuredContent: json.RawMessage(b),
+		IsError:           isErr,
+	}, nil
+}
 
 // callTool routes one tools/call. Both tools are adapters: they parse what the
 // CLI parses, call the function the CLI calls, and return what it returned. The
@@ -118,23 +142,16 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the ledger: " + err.Error()}
 	}
 
-	return callToolResult{
-		Content: text(buf.String()),
-		// NOTE the shape difference between the two tools, which is real and
-		// currently undeclared. mrw_write returns apply.Result, whose json tags
-		// make it snake_case (sha_after, lines_before). This returns
-		// seen.Observation as-is, and that struct carries no json tags, so its keys
-		// are the Go field names — SHA, Spans. Neither tool declares an
-		// outputSchema, so a caller discovers both shapes by looking. The day
-		// seen.Observation gains tags, this payload changes silently for every
-		// MCP caller; that is the reason this comment exists rather than a
-		// preference about casing.
-		StructuredContent: map[string]any{
-			"observed": observed,
-			"problems": problems,
-		},
-		IsError: problems > 0,
-	}, nil
+	// The two tools' structuredContent shapes differ and are now DECLARED:
+	// mrw_write returns apply.Result, whose json tags make it snake_case;
+	// this returns seen.Observation, which carries no tags, so its keys are the
+	// Go field names. Both shapes are generated into the outputSchema each tool
+	// advertises, so the day seen.Observation gains tags the schema follows it
+	// and the conformance test catches any response that does not.
+	return result(map[string]any{
+		"observed": observed,
+		"problems": problems,
+	}, buf.String(), problems > 0)
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the
@@ -228,11 +245,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		fmt.Fprintf(&report, "error: %v\n", applyErr)
 	}
 
-	return callToolResult{
-		Content:           text(report.String()),
-		StructuredContent: res,
-		IsError:           applyErr != nil || res.Failed > 0,
-	}, nil
+	return result(res, report.String(), applyErr != nil || res.Failed > 0)
 }
 
 // errorResult reports a failure the CALLER caused, inside a normal tool result.
