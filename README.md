@@ -110,6 +110,36 @@ mrw *loses* on that shape. It pays off when there are many edits, many files, or
 both.
 
 
+## Where it fits — the QAM stack
+
+mrw is one of three tools in the **[QAM stack](https://atvirokodosprendimai.github.io/qamstack/)**:
+
+> Three tools that make Claude's work checkable: gates that exit non-zero, memory
+> that outlives the session, edits that come back with a receipt.
+
+| | | |
+|---|---|---|
+| **Quality Harness** | *Gates, not vibes* | a Claude Code plugin whose gates report through exit codes rather than assertions |
+| **AI Agent Memory** | *The reasoning survives* | an MCP server letting agents read and write shared memory across sessions, decisions and rejected alternatives included |
+| **mrw** | *Edits with a receipt* | this: batched edits applied atomically, with a verdict per hunk |
+
+**mrw stands alone and needs neither of them.** It is an ordinary binary; nothing
+here depends on a plugin or a server, and `AGENTS.md` carries everything an agent
+needs to drive it from a plain checkout.
+
+**With AI Agent Memory it gets a memory.** The same guidance is mirrored as a
+centralised `mrw` skill, so a session working in a *different* repository — where
+this README is not visible, but the globally installed binary is — loads it with
+`am_load_skill("mrw")`. More usefully, corrections accumulate: two facts in that
+guidance were learned the hard way in one session and now reach every project
+rather than being rediscovered per repo.
+
+The three overlap on one conviction, which is why they are a stack rather than a
+bundle: **a report that cannot fail is not a report.** A gate that cannot exit
+non-zero, a decision nobody wrote down, and an edit that matched nothing but said
+"done" are the same bug wearing three hats.
+
+
 ## Does it actually save anything?
 
 **The unit is agent turns, not seconds.** mrw does not make anything faster to
