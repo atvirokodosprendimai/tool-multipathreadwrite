@@ -55,6 +55,10 @@ tools, with no new module dependency.
    rather than growing later.
 5. [S5] Add `mcpCmd()` and **register it** in the `Commands` slice, so `mrw mcp` resolves and
    `mrw --help` lists it. [proof: mutation]
+   Answer `ping` too: the spec's ping utility says the receiver MUST respond promptly with an empty
+   result, and hosts send them on a timer to check connection health — a server that errors every
+   health check is one a host is entitled to drop. It is a base-protocol obligation beside
+   `initialize`, not a capability this ADR chose not to implement.
 6. [S6] Assert no dependency was added, and that the engine is untouched — the go/no-go conditions.
    The dependency clause counts requirement lines in `go.mod` and checks the one that remains names
    `urfave/cli/v3`; it needs no remote ref, so it answers the same question in a shallow CI checkout
@@ -68,12 +72,13 @@ tools, with no new module dependency.
 set -o pipefail
 go test ./internal/mcp/ -v 2>&1 | tee /tmp/adr010-t1.out \
   && ! grep -qE 'no tests to run|no test files|^FAIL|^--- FAIL' /tmp/adr010-t1.out \
-  && [ "$(grep -cE '^--- PASS: (TestInitializeCompletesTheHandshake|TestOneMessagePerLineRoundTrips|TestAMalformedFrameIsAnErrorNotAClose|TestToolsListNamesBothTools|TestAnUnknownMethodIsAnErrorResponse|TestTheInitializedNotificationGetsNoResponse|TestOnlyMCPMessagesReachStdout)\b' /tmp/adr010-t1.out)" = "7" ] \
+  && [ "$(grep -cE '^--- PASS: (TestInitializeCompletesTheHandshake|TestOneMessagePerLineRoundTrips|TestAMalformedFrameIsAnErrorNotAClose|TestToolsListNamesBothTools|TestAnUnknownMethodIsAnErrorResponse|TestTheInitializedNotificationGetsNoResponse|TestOnlyMCPMessagesReachStdout|TestPingIsAnsweredWithAnEmptyResult|TestAJSONArrayIsAnInvalidRequestNotAParseError)\b' /tmp/adr010-t1.out)" = "9" ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ] \
   && grep -q '^require github.com/urfave/cli/v3 ' go.mod \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check internal/state)" ] \
   && go build -o /tmp/mrw-t1 ./cmd/mrw \
-  && /tmp/mrw-t1 --help 2>&1 | grep -q 'mcp' \
+  && /tmp/mrw-t1 --help > /tmp/adr010-t1-help.out 2>&1 \
+  && grep -q '^   mcp ' /tmp/adr010-t1-help.out \
   && go test ./...
 ```
 
@@ -82,10 +87,27 @@ observed to exit non-zero — `internal/mcp` does not compile, so it fails at th
 check is not optional: three fences in the 2026-09-03 session were green on an untouched tree
 because nobody ran them, including one that named a `contract.sh` section which already existed.
 
+**The `--help` clause was rewritten DURING execution, because it could never have gone green.** It
+was `/tmp/mrw-t1 --help 2>&1 | grep -q 'mcp'`. Under the `set -o pipefail` on line 1, `grep -q` exits
+the moment it matches, `--help` gets SIGPIPE writing the rest of its output, and the pipeline reports
+**141**. Measured 2026-09-03 **on darwin**: ten runs, ten 141s. It is NOT deterministic everywhere —
+a reviewer measured the same construct exiting 0 three times out of three on Linux, because whether
+the writer takes SIGPIPE depends on whether `grep -q` has exited before `--help` finished writing.
+That makes the original form worse than merely wrong: it is a fence whose verdict depends on the
+machine. The redirect is correct on every platform. So the fence passed its
+"run it before you write the code" check for the compile error while carrying a second clause that
+was red before the work and would have stayed red after it. Verifying a fence is red BEFORE is
+necessary and does not establish that it can go green AFTER; the two need separate checks, and the
+first hides the second whenever an earlier clause fails for an honest reason.
+
+The replacement redirects to a file and greps the file, so nothing short-circuits a writer. It also
+anchors on `^   mcp ` — the command row `--help` prints — rather than the bare substring `mcp`,
+which would match this task's own tool names or any future line mentioning the protocol.
+
 **The named-test count is what makes "green" mean something.** `go test` on a package with no test
 files prints `[no test files]` and exits **0**, and `no test files` is not the same string as `no
 tests to run` — so the filter above was passable by an empty package. Counting `--- PASS:` lines
-for the seven tests by name cannot be satisfied by a package that compiles, by an unrelated test,
+for the nine tests by name cannot be satisfied by a package that compiles, by an unrelated test,
 or by a test that was skipped. It is deliberately not `-run`: a `-run` regex silently drops any
 name it does not match, which is how an ADR-009 fence claimed five tests and ran three.
 
@@ -109,6 +131,8 @@ The `--help` clause is rung 3 — a subcommand a caller cannot discover is not s
 | `TestAnUnknownMethodIsAnErrorResponse` | `internal/mcp/mcp_test.go` | S3 — the error object carries a `code` AND a `message` | — | S1, S3 |
 | `TestTheInitializedNotificationGetsNoResponse` | `internal/mcp/mcp_test.go` | S3 — a notification has no `id` and must not be answered | — | S1, S3 |
 | `TestOnlyMCPMessagesReachStdout` | `internal/mcp/mcp_test.go` | S2 — every line written to stdout parses as an MCP message; diagnostics go to stderr | — | S1, S2 |
+| `TestPingIsAnsweredWithAnEmptyResult` | `internal/mcp/mcp_test.go` | S3 — the spec's ping utility: the receiver MUST respond with an empty result, and hosts send these on a timer | — | S1, S3 |
+| `TestAJSONArrayIsAnInvalidRequestNotAParseError` | `internal/mcp/mcp_test.go` | S3 — an array is valid JSON and is not a message; refusing it is right, calling it a parse error is not | — | S1, S3 |
 
 ## Reachability
 
@@ -120,6 +144,11 @@ The `--help` clause is rung 3 — a subcommand a caller cannot discover is not s
 | 4 — it is used | nothing measures this yet — `mrw stats` counts plans, not transports, and counting the transport is not this ADR's question |
 
 ## Mutation Log
+
+- 2026-09-03 · ddc21f9 · mutant killed · exit 1 · `cmd/mrw/main.go` · rung 2: unregister the subcommand, so mrw --help no longer lists mcp and the call site is proved to be what makes the package reachable · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59
+- 2026-09-03 · da9caba · mutant killed · exit 1 · `internal/mcp/mcp.go` · answer notifications instead of staying silent: notifications/initialized has no id and answering it is a protocol violation some hosts treat as fatal · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59
+- 2026-09-03 · e5e30f0 · mutant killed · exit 1 · `internal/mcp/mcp.go` · drop the newline delimiter: two responses share one line, which is the framing the whole task is named for and which no host can parse · acceptance-sha256:4cac0f7fa998c80b55c98480cfa79411e79e29034080711b3c586d03301c85bc
+- 2026-09-03 · ff9b67f · mutant killed · exit 1 · `cmd/mrw/main.go` · rung 2: unregister the subcommand so mrw --help no longer lists mcp · acceptance-sha256:4cac0f7fa998c80b55c98480cfa79411e79e29034080711b3c586d03301c85bc
 
 ## Invariants
 
@@ -156,3 +185,30 @@ place that coupling belongs.
 - README documentation — T3's job.
 
 ## Verification Log
+- 2026-09-03 · 71aa42f* · exit 1 · `set -o pipefail …` · acceptance-sha256:eecd865509376c9fc8b9d3c136714cff0266fd43eee03225454169f021fbd545 · ms:196
+  ```
+  --- last 4 line(s) of stdout
+  # github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp [github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp.test]
+  internal/mcp/mcp_test.go:17:12: undefined: Serve
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp [build failed]
+  FAIL
+  ```
+- 2026-09-03 · 71aa42f* · exit 141 · `set -o pipefail …` · acceptance-sha256:eecd865509376c9fc8b9d3c136714cff0266fd43eee03225454169f021fbd545 · ms:816
+  ```
+  --- last 10 line(s) of stdout (of 16 after folding 16 raw)
+  === RUN   TestToolsListNamesBothTools
+  --- PASS: TestToolsListNamesBothTools (0.00s)
+  === RUN   TestAnUnknownMethodIsAnErrorResponse
+  --- PASS: TestAnUnknownMethodIsAnErrorResponse (0.00s)
+  === RUN   TestTheInitializedNotificationGetsNoResponse
+  --- PASS: TestTheInitializedNotificationGetsNoResponse (0.00s)
+  === RUN   TestOnlyMCPMessagesReachStdout
+  --- PASS: TestOnlyMCPMessagesReachStdout (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	(cached)
+  ```
+- 2026-09-03 · ddc21f9 · exit 0 · `set -o pipefail …` · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59 · ms:1630
+- 2026-09-03 · da9caba · exit 0 · `set -o pipefail …` · acceptance-sha256:20f770bdf61525ab802d8bed88c3512009c7ed28cf28d200025d74cf2b861f59 · ms:2409
+- 2026-09-03 · e5e30f0 · exit 0 · `set -o pipefail …` · acceptance-sha256:4cac0f7fa998c80b55c98480cfa79411e79e29034080711b3c586d03301c85bc · ms:1904
+- 2026-09-03 · ff9b67f · exit 0 · `set -o pipefail …` · acceptance-sha256:4cac0f7fa998c80b55c98480cfa79411e79e29034080711b3c586d03301c85bc · ms:1538
+- 2026-09-03 · 4694162 · exit 0 · `set -o pipefail …` · acceptance-sha256:4cac0f7fa998c80b55c98480cfa79411e79e29034080711b3c586d03301c85bc · ms:1966
