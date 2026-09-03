@@ -375,3 +375,34 @@ func TestAReversedRangeWrittenWithDollarIsNotServed(t *testing.T) {
 		t.Errorf("served content for an unsatisfiable range:\n%s", out)
 	}
 }
+
+// MSYS2 rewrites a regex address BEFORE mrw starts, so the README's own quoted
+// example fails in Git Bash and the parse error names a line number the caller
+// never typed. mrw cannot prevent the mangling — it happens in the process-spawn
+// layer — but it can recognise the wreckage and say so (issue #45).
+func TestAMangledMSYSSpecSaysWhatHappened(t *testing.T) {
+	mangled := `cmd\mrw\main.go;C:\Users\me\AppData\Local\Programs\Git\^func main\`
+	_, err := ParseSpec(mangled)
+	if err == nil {
+		t.Fatal("a mangled spec parsed cleanly")
+	}
+	for _, want := range []string{"MSYS2", "MSYS2_ARG_CONV_EXCL"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the error does not mention %s:\n%v", want, err)
+		}
+	}
+}
+
+// And the hint must stay quiet on an ordinary mistake, or it becomes noise on
+// every bad spec and stops being read.
+func TestAnOrdinaryBadSpecGetsNoMSYSHint(t *testing.T) {
+	for _, s := range []string{"a.go:notanumber", "a.go:", "a.go:5-x"} {
+		_, err := ParseSpec(s)
+		if err == nil {
+			continue
+		}
+		if strings.Contains(err.Error(), "MSYS") {
+			t.Errorf("%q got an MSYS hint it should not have:\n%v", s, err)
+		}
+	}
+}
