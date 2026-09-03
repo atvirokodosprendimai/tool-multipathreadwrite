@@ -7,6 +7,7 @@
 | building and testing | **Go 1.26.6 or newer** (the version in `go.mod`). One dependency, no cgo. |
 | `scripts/measure.sh`, `scripts/contract.sh` | **bash**, **git**, **bc**. `bc` is absent from Alpine and most slim images: `apk add bc`. |
 | either script on Windows | **WSL** or **Git Bash**. They are POSIX shell, not PowerShell. The binary itself is native. |
+| a **regex address** in Git Bash | `MSYS2_ARG_CONV_EXCL='*'`, or PowerShell/WSL. MSYS rewrites `f.go:/re/` before mrw starts and quoting does not stop it — see the README's "Git Bash on Windows mangles a regex address". |
 
 ## The gates
 

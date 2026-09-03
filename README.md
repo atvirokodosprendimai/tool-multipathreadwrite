@@ -321,6 +321,31 @@ scripts additionally needs **bash**, **git** and **bc** on `PATH`. `bc` is *not*
 present on Alpine or most slim container images — `apk add bc` — and on Windows
 they need WSL or Git Bash.
 
+### ⚠ Git Bash on Windows mangles a regex address
+
+`mrw read 'f.go:/^func main/'` **fails in Git Bash**, and the error names a line
+number you never typed:
+
+```
+mrw: "cmd\mrw\main.go;C:\...\Git\^func main\": bad line number "\Users\..."
+```
+
+MSYS2 rewrites the argument *before* mrw is started: it reads `a:b` as a POSIX
+path list so the `:` becomes `;`, and `/^func main/` looks root-relative so it is
+expanded against the Git installation prefix. **Quoting does not prevent this** —
+it happens in the process-spawn layer, after the shell has finished.
+
+| environment | regex addresses |
+|---|---|
+| Git Bash / MSYS2 | **fail** |
+| Git Bash with `MSYS2_ARG_CONV_EXCL='*'` | work |
+| PowerShell | work |
+| WSL | work (a Linux environment; no MSYS layer) |
+
+Line-number, range and `$` addresses are unaffected — they carry no leading `/`.
+mrw recognises the wreckage and says so, but it cannot undo it: the bytes it
+receives are already the mangled ones.
+
 ## Releasing
 
 `.github/workflows/ci.yml` runs gofmt, `go vet`, `go test ./...` and

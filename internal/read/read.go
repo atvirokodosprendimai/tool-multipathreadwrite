@@ -71,6 +71,32 @@ type Options struct {
 	MaxLines int
 }
 
+// msysHint recognises MSYS2 argument conversion, which rewrites a spec BEFORE
+// mrw is started. In Git Bash `f.go:/^func main/` arrives as
+// `f.go;C:\...\Git\^func main\`: MSYS reads `a:b` as a POSIX path LIST and
+// converts it, and `/^func main/` looks root-relative so it is expanded against
+// the Git installation prefix.
+//
+// Quoting does not prevent it — the conversion happens in the process-spawn
+// layer, after the shell has finished — so the README's own quoted example
+// fails verbatim on the shell the docs recommend for Windows, and the parse
+// error names a line number the caller never typed (issue #45).
+//
+// The signature is the PAIR: a ';' where the caller wrote ':', and a Windows
+// path. Neither alone is enough — a ';' can sit inside a regex and a drive
+// letter is legitimate. A regex containing both could still trip it, and that
+// is acceptable: the hint is only ever appended to an error that was already
+// going to be returned, so the worst case is one extra sentence on a spec that
+// failed anyway.
+func msysHint(s string) string {
+	if !strings.Contains(s, ";") || !strings.Contains(s, `\`) {
+		return ""
+	}
+	return " — this looks like MSYS2 argument conversion (Git Bash): your ':' became ';' " +
+		"and a /pattern/ was expanded against the Git install prefix. Quoting does not stop it. " +
+		"Set MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL"
+}
+
 // ParseSpec reads "path", "path:3-6", "path:1-8,100-130" or
 // "path:/func Foo/,/^}/". Everything after the LAST colon is the range, and it
 // must parse as one: a path that itself contains a colon is NOT supported, and
@@ -85,7 +111,7 @@ func ParseSpec(s string) (Spec, error) {
 	}
 	path, rest := s[:i], s[i+1:]
 	if rest == "" {
-		return Spec{}, fmt.Errorf("%q: empty range after ':'", s)
+		return Spec{}, fmt.Errorf("%q: empty range after ':'%s", s, msysHint(s))
 	}
 	// A colon inside a regexp range is part of the pattern, not a separator.
 	if j := strings.Index(s, ":/"); j > 0 && j < i {
@@ -95,7 +121,7 @@ func ParseSpec(s string) (Spec, error) {
 	for _, part := range splitRanges(rest) {
 		r, err := parseRange(part)
 		if err != nil {
-			return Spec{}, fmt.Errorf("%q: %w", s, err)
+			return Spec{}, fmt.Errorf("%q: %w%s", s, err, msysHint(s))
 		}
 		spec.Ranges = append(spec.Ranges, r)
 	}
