@@ -663,6 +663,36 @@ the FORMAT was the problem rather than your picture of a file. ADR-009
 pre-registers the reading: above **5% of plans**, the format is what needs
 changing, not the caller.
 
+### The first reading — and why it is not a rate
+
+Taken 2026-09-03 on this repository, on an Apple M5, from the tally this
+repository's own development produced:
+
+```
+  applied           9 of 9 plans (100.0%)
+```
+
+**Do not read that as 100%.** Nine is below the floor ADR-009-T3 sets for
+publishing a rate at all — thirty — and a percentage on nine samples is noise
+wearing a decimal point. It is printed here as a COUNT, with its floor stated,
+because an admission is worth more than a figure nobody should act on.
+
+**The population is the narrowest one possible.** Nine plans, one repository,
+one model, one session, authored by someone who had just written the format's
+documentation. That is the best case for the format and the worst case for
+generalising from it. ADR-009's criterion — parse refusals above 5% mean the
+FORMAT is the problem — is not yet testable against this.
+
+**What the tally cannot show, at any sample size.** It counts parse refusals,
+and only those are about the format. It cannot distinguish a model that could
+not author a plan from a model that authored a correct plan for a file that had
+moved — that shows up as `refused_apply`, which is about the caller's picture of
+the tree rather than about the document. And it says nothing about plans that
+were never attempted because the author reached for a different tool.
+
+Re-run `mrw stats` in your own checkout rather than quoting this. A second
+reading, once the sample is real, is a follow-up on ADR-009.
+
 **Counts only.** No plan text, no paths, no anchors, no SHAs, no command lines —
 the tally is something you can read in full and find nothing of your work in,
 and a test reads the written bytes to keep it that way. Nothing is ever

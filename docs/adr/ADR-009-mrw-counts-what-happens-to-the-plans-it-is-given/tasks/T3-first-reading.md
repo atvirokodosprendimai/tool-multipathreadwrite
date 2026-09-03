@@ -48,11 +48,20 @@ size, its date, and an explicit statement of the population it came from.
 
 ```bash
 set -o pipefail
-grep -qE 'measured 2026-[0-9]{2}-[0-9]{2}' README.md \
+grep -q '### The first reading' README.md \
+  && grep -qi 'below the floor' README.md \
   && grep -qE 'of [0-9]+ plans' README.md \
   && ./scripts/contract.sh \
   && go test ./...
 ```
+
+⚠ EVERY CLAUSE NAMES SOMETHING ONLY THIS TASK ADDS, and it did not at first. The
+fence originally read `grep -qE 'measured 2026-[0-9]{2}-[0-9]{2}' README.md` —
+satisfied by a line the MSYS work wrote earlier, so it would have passed on an
+untouched README. That is the THIRD fence found in one session asserting
+pre-existing content, after ADR-007-T3's `^# 15\.` and T1's filter that skipped
+two of its own named tests. The mutation below binds the fence to this task's
+own section: rename the heading and it goes red.
 
 `of <N> plans` is the denominator clause: it fails on a bare percentage, which is the one form of
 this reading that must never ship. The fence cannot check the number is TRUE — that is what the
@@ -74,6 +83,8 @@ non-hermetic data dependency and the sign-off line are for, and saying so here i
 | 4 — it is used | **this task closes rung 4 for ADR-001..008.** The reading is the first evidence that the plan format is authorable, which is the thing 13 tasks left as "nothing measures this yet" |
 
 ## Mutation Log
+
+- 2026-09-03 · 2b71e2a* · mutant killed · exit 1 · `README.md` · T3 adds this section; without it the fence must go red — proving the fence binds to what this task wrote rather than to pre-existing README text · acceptance-sha256:cc5afe5fffc3779e0a1e9071003d8c0356d0e1f82cae58542e6dbff15860f086
 
 ## Invariants
 
@@ -100,3 +111,7 @@ the sample size recorded. A number nobody should act on is worse than an admissi
 - Changing the plan format in response to the reading (deferred: docs/adr/BACKLOG.md)
 
 ## Verification Log
+- 2026-09-03 · 2b71e2a* · exit 0 · `set -o pipefail …` · acceptance-sha256:05ca3a48793b523a5d9bee3743f77ea6a2dbdeffc0bdf6bbb222b60fb5f5b27d · ms:10670
+- 2026-09-03 · human-observed · sample taken 2026-09-03 on this repository, Apple M5 (darwin/arm64): 9 plans, 9 applied, 0 refused. BELOW the 30-plan floor this task sets, so the README publishes a count and an admission rather than a rate, and this task stays partial. Population is one repository, one model, one session — the narrowest possible.
+- 2026-09-03 · 2b71e2a* · exit 0 · `set -o pipefail …` · acceptance-sha256:cc5afe5fffc3779e0a1e9071003d8c0356d0e1f82cae58542e6dbff15860f086 · ms:9599
+- 2026-09-03 · 2b71e2a* · exit 0 · `set -o pipefail …` · acceptance-sha256:cc5afe5fffc3779e0a1e9071003d8c0356d0e1f82cae58542e6dbff15860f086 · ms:8493
