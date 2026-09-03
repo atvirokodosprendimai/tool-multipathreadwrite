@@ -299,3 +299,43 @@ func TestABOMInsideAPlanIsContentNotSyntax(t *testing.T) {
 		t.Errorf("body = %q, want the BOM preserved as content", hunks[0].Body)
 	}
 }
+
+// ⚠ THE REGRESSION THAT MATTERS, and it was mine: stripping the BOM only from
+// line 1 turned a loud refusal into a quiet corruption.
+//
+// A PowerShell 5.1 user builds a plan by concatenating fragments, and that
+// shell BOMs every file it writes. So the SECOND header arrived BOM-prefixed,
+// was not recognised as a header, and became BODY TEXT of the first hunk: two
+// hunks applied as one, at exit 0, writing the swallowed header into the
+// caller's source file. The same input was REFUSED before the BOM fix.
+func TestConcatenatedBOMFragmentsStayTwoHunks(t *testing.T) {
+	doc := "\ufeff@@ f.txt 1 replace\nFIRST\n" + "\ufeff@@ f.txt 3 replace\nTHIRD\n"
+	hunks, err := Parse(strings.NewReader(doc))
+	if err != nil {
+		t.Fatalf("two BOM-carrying fragments were refused: %v", err)
+	}
+	if len(hunks) != 2 {
+		t.Fatalf("got %d hunk(s), want 2 — the second header was swallowed into the first body: %+v", len(hunks), hunks)
+	}
+	for i, want := range []string{"FIRST", "THIRD"} {
+		if len(hunks[i].Body) != 1 || hunks[i].Body[0] != want {
+			t.Errorf("hunk %d body = %q, want [%s]; a header leaked into a body", i, hunks[i].Body, want)
+		}
+	}
+	if hunks[1].Addr.Start != 3 {
+		t.Errorf("second hunk addresses line %d, want 3", hunks[1].Addr.Start)
+	}
+}
+
+// The strip is for the header TEST only. A BOM inside a body is the caller's
+// bytes and is written back verbatim — stripping it there would silently edit
+// their text, which is the same sin one layer down.
+func TestABOMInABodyIsWrittenBackVerbatim(t *testing.T) {
+	hunks, err := Parse(strings.NewReader("@@ f.txt 1 replace\n\ufeffKEEP\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hunks) != 1 || len(hunks[0].Body) != 1 || hunks[0].Body[0] != "\ufeffKEEP" {
+		t.Errorf("body = %q, want the BOM preserved", hunks[0].Body)
+	}
+}
