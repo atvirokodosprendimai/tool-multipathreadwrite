@@ -246,6 +246,11 @@ func tools() []tool {
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"dry_run": map[string]any{
+						"type": "boolean",
+						"description": "Validate and report without writing anything. The receipt is the " +
+							"same shape, with dry_run true and no file written.",
+					},
 					"plan": map[string]any{
 						"type":        "string",
 						"description": "The plan text: @@ <path> <addr> <op> [guards] followed by body lines.",
