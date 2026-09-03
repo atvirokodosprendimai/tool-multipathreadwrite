@@ -142,3 +142,18 @@ than shipping a second engine behind a protocol.
 - MCP resources or prompts (permanent: boundary: stated in the parent ADR)
 
 ## Verification Log
+- 2026-09-03 · 916188b* · exit 1 · `set -o pipefail …` · acceptance-sha256:ef6aefdb5fb626df7d515fc315fc58bf58c63ea7e07fe346e6b1f8f6454d8141 · ms:639
+  ```
+  --- last 10 line(s) of stdout (of 35 after folding 35 raw)
+  --- FAIL: TestAnMCPReadLicensesACLIWrite (0.00s)
+  === RUN   TestAWriteToAnUnreadFileIsRefusedOverMCP
+      tools_test.go:200: tools/call returned a JSON-RPC error: map[code:-32601 message:method not found: tools/call]
+  --- FAIL: TestAWriteToAnUnreadFileIsRefusedOverMCP (0.00s)
+  === RUN   TestConcurrentToolCallsDoNotLoseALedgerEntry
+      tools_test.go:261: 12 of 12 reads left no ledger entry: [fa.txt fb.txt fc.txt fd.txt fe.txt ff.txt fg.txt fh.txt fi.txt fj.txt fk.txt fl.txt]
+  --- FAIL: TestConcurrentToolCallsDoNotLoseALedgerEntry (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.377s
+  FAIL
+  ```
+- 2026-09-03 · 21323d9* · exit 0 · `set -o pipefail …` · acceptance-sha256:ef6aefdb5fb626df7d515fc315fc58bf58c63ea7e07fe346e6b1f8f6454d8141 · ms:10107
