@@ -1,9 +1,9 @@
 ---
 name: mrw
 description: >-
-  Pointer to the authoritative mrw skill, which lives centrally in agentsmemory
-  because mrw is installed globally and is used from repositories that cannot
-  see this file. Load it with am_load_skill("mrw"). FIRST CHECK THE BINARY
+  The mrw guidance for THIS repository lives in AGENTS.md, section "Using mrw" —
+  that is the authored source. A centralised agentsmemory skill mirrors it for
+  sessions in other repositories: am_load_skill("mrw"). FIRST CHECK THE BINARY
   EXISTS — `command -v mrw || ls ./bin/mrw`; if neither resolves, mrw is not
   installed: use Read/Edit/Write, and do not install it or improvise a
   substitute with sed/awk/python. In short, mrw reads many file ranges and
@@ -13,33 +13,46 @@ description: >-
   on Write. NOT a licence to use shell for ordinary file edits.
 ---
 
-# mrw — pointer to AGENTS.md
+# mrw — AGENTS.md is the source, the AAM skill is the copy
 
 **The guidance lives in [`AGENTS.md`](../../../AGENTS.md), section "Using mrw".**
-Read it there. It is trigger-first, carries the plan-generation loop that turns
-54 calls into 2, and is the same text every other agent in this repository sees.
+That is the authored source: trigger-first, carrying the plan-generation loop
+that turns 54 calls into 2, and it is the same text every other agent in this
+repository sees — with or without a memory server.
 
-## Why it moved here from the memory server
+A **centralised agentsmemory skill mirrors it** for sessions working in *other*
+repositories, where this file is not visible:
 
-This file used to say the authoritative copy was a centralised team skill,
-loaded with `am_load_skill("mrw")`. **That skill does not exist.** Checked on
-2026-09-03: `am_load_skill("mrw")` returns `skill: not found`, and
-`am_list_skills` returns nine skills, none of them mrw. The pointer had been
-dangling for an unknown period, and a dangling pointer reads exactly like a
-working one until someone follows it.
+```
+am_load_skill("mrw")
+```
 
-The reasoning that put it there was sound and still is: mrw is installed
-globally, so it is reached for from repositories that never see this file, and a
-copy discoverable only inside its own repo is missing from most of the places
-the tool is used. That problem is **not solved here** — the repo-local answer
-serves anyone who clones this repository or runs an agent inside it, and nobody
-else. Shipping the text inside the binary (`mrw instructions`) is the option
-that would reach every repository; it was considered on 2026-09-03 and not
-taken, because it makes a new public contract and this file was the cheaper fix.
+## Which one wins, and how they stay together
 
-**One authored copy, in AGENTS.md.** Do not expand this file back into a second
-one, and do not point it at a skill without loading that skill first to see
-whether it answers.
+`AGENTS.md` is authored; the skill is a mirror of it. **Correct AGENTS.md first,
+then push the same change with `am_update_skill`** — and if you find yourself
+correcting the skill first, back-port it here in the same session. Two live
+copies drift, and the stale one is indistinguishable from the current one at the
+moment you read it.
+
+The reason the mirror exists at all: mrw is installed globally and is reached for
+from repositories that never see this file, so a copy discoverable only inside
+its own repo is missing from most of the places the tool is used. Shipping the
+text inside the binary (`mrw instructions`) is the option that needs no memory
+server and reaches every repository; it was considered on 2026-09-03 and not
+taken, because it makes a new public contract.
+
+## What this file used to claim, and why the correction is here
+
+Until 2026-09-03 this file said the authoritative copy was that centralised
+skill — and **the skill did not exist**. `am_load_skill("mrw")` returned
+`skill: not found`, and `am_list_skills` returned nine skills, none of them mrw.
+The pointer had been dangling for an unknown period, because nobody followed it.
+
+It was then created, on the same day, from the AGENTS.md text. Both halves of
+that story are kept because the lesson is not "the skill was missing" but **a
+pointer reads exactly like a working one until someone follows it** — so follow
+one when you write it, and again when you cite it.
 
 ## ⚠ Step 0 — does the binary exist?
 
