@@ -94,6 +94,7 @@ match. Both engine clauses are present because each sees what the other misses (
 ## Mutation Log
 
 - 2026-09-03 · 7cfe742 · mutant killed · exit 1 · `internal/mcp/root.go` · S2: ignore the host environment, restoring the bug — the server binds to its inherited working directory and §40 must go red · acceptance-sha256:0fb76ff0f239719fbbdb7704f6047d06f82649f17fcf15ce9e9f026ce6a2ea65
+- 2026-09-03 · dfcc2d8 · mutant killed · exit 1 · `cmd/mrw/main.go` · rung 2: bypass the call site so ResolveRoot is unreachable — the package would be built, tested and unused, which is how rooted.Descendable shipped dead · acceptance-sha256:0fb76ff0f239719fbbdb7704f6047d06f82649f17fcf15ce9e9f026ce6a2ea65
 
 ## Invariants
 
@@ -140,3 +141,4 @@ lookup that fails should fall back, never negotiate.
   ```
 - 2026-09-03 · 78d7c83 · exit 0 · `set -o pipefail …` · acceptance-sha256:0fb76ff0f239719fbbdb7704f6047d06f82649f17fcf15ce9e9f026ce6a2ea65 · ms:20209
 - 2026-09-03 · 7cfe742 · exit 0 · `set -o pipefail …` · acceptance-sha256:0fb76ff0f239719fbbdb7704f6047d06f82649f17fcf15ce9e9f026ce6a2ea65 · ms:11602
+- 2026-09-03 · dfcc2d8 · exit 0 · `set -o pipefail …` · acceptance-sha256:0fb76ff0f239719fbbdb7704f6047d06f82649f17fcf15ce9e9f026ce6a2ea65 · ms:12216
