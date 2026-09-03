@@ -219,3 +219,52 @@ func TestDeleteIsTheOnlyRangeConsumingOpThatNeedsNoBody(t *testing.T) {
 		})
 	}
 }
+
+// apply.go states the principle this enforces: "a guard that is parsed and then
+// discarded would be worse than no guard at all — the caller believes the edit
+// is pinned". The parser was doing exactly that: a repeated key was last-wins
+// and silent, so `anchor="NOPE" anchor="a"` applied at exit 0 with the false
+// guard gone. Refused rather than resolved — two guards on one hunk are two
+// different claims, and picking one silently is how the caller keeps believing
+// the other.
+func TestARepeatedGuardKeyIsRefused(t *testing.T) {
+	for _, opts := range []string{
+		`anchor="NOPE" anchor="a"`,
+		`sha=aaaaaaaa sha=bbbbbbbb`,
+		`lines=1 lines=2`,
+		`body=1 body=2`,
+		`raw=true raw=true`,
+	} {
+		_, err := Parse(strings.NewReader("@@ f.txt 1 replace " + opts + "\nX\n"))
+		if err == nil {
+			t.Errorf("%s: accepted, want a parse error", opts)
+			continue
+		}
+		if !strings.Contains(err.Error(), "given twice") {
+			t.Errorf("%s: refused for the wrong reason: %v", opts, err)
+		}
+	}
+}
+
+// One of each is still fine — the check must refuse repetition, not guards.
+func TestDistinctGuardKeysStillParse(t *testing.T) {
+	if _, err := Parse(strings.NewReader(`@@ f.txt 1 replace sha=aaaaaaaa lines=1 anchor="a"` + "\nX\n")); err != nil {
+		t.Errorf("three DIFFERENT guards were refused: %v", err)
+	}
+}
+
+// raw= only switches off the valid-header check inside a COUNTED body, so
+// without body= the caller has written a guard that cannot fire.
+func TestRawWithoutBodyIsRefused(t *testing.T) {
+	_, err := Parse(strings.NewReader("@@ f.txt 1 replace raw=true\nX\n"))
+	if err == nil {
+		t.Fatal("raw=true without body= was accepted; it guards nothing")
+	}
+	if !strings.Contains(err.Error(), "without body=") {
+		t.Errorf("refused for the wrong reason: %v", err)
+	}
+	// And the legitimate pairing still parses.
+	if _, err := Parse(strings.NewReader("@@ f.txt 1 replace body=1 raw=true\n@@ not a header\n")); err != nil {
+		t.Errorf("body= with raw=true was refused: %v", err)
+	}
+}
