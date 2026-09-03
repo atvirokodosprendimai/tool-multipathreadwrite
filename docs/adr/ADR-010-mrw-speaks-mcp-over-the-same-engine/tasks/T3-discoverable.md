@@ -124,3 +124,4 @@ than in a paragraph warning readers about it.
 - 2026-09-03 · fae3f88 · exit 0 · `set -o pipefail …` · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17 · ms:9078
 - 2026-09-03 · human-observed · S4 read back on 2026-09-03: the README's 'What the server does not change' paragraph names the engine, the shared ledger, the plan format, the per-hunk verdict and the exit statuses, and states the one real difference (concurrency through the server). No test can assert the absence of a misunderstanding, which is why this step carried [proof: human].
 - 2026-09-03 · 3ce932c · exit 0 · `set -o pipefail …` · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17 · ms:9103
+- 2026-09-03 · 4a69e5c · exit 0 · `set -o pipefail …` · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17 · ms:8251
