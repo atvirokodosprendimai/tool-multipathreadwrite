@@ -51,8 +51,12 @@ output and check `$?`, or let the command stand alone.
 It builds its own binary from the working tree and stamps the commit, so the
 figures always name what produced them. **Re-run it rather than quoting the
 table** — the ratios track how large this repository's own files are, and they
-have moved by a third within a day. It measures input bytes and round trips, not
-time; there are no `go test -bench` benchmarks.
+have moved by a third within a day.
+
+**The unit is agent turns, not seconds.** It measures round trips and input
+bytes; nothing here is a wall-clock figure and there are no `go test -bench`
+benchmarks. Shape D — one site in every Go file, from `git ls-files` — is the
+row that carries the claim: M reads plus N edits versus 2 calls, for any N.
 
 ## Releasing
 

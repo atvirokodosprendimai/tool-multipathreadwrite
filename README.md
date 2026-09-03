@@ -112,6 +112,12 @@ both.
 
 ## Does it actually save anything?
 
+**The unit is agent turns, not seconds.** mrw does not make anything faster to
+execute, and no figure here is a wall-clock figure. What it removes is *steps* —
+the read-edit-read-edit round trips an agent spends to change N places, each one
+a full model turn with its own latency, its own context, and its own chance to
+lose track. Two calls, for any N. That is the whole product.
+
 Measured on this repository, by a script you can re-run — a number nobody can
 reproduce is a claim, not a measurement:
 
@@ -123,15 +129,15 @@ reproduce is a claim, not a measurement:
 > or **Git Bash** — they are POSIX shell, not PowerShell. The binary itself is
 > native; only these scripts need a shell. See [Prerequisites](#from-source).
 
-**This is the only benchmark in the repository, and it measures input bytes and
-round trips — not time.** There are no `go test -bench` benchmarks, on purpose:
-the cost mrw exists to cut is context and round trips, and a CPU figure for a
-tool that spends its life blocked on a file read would measure nothing anyone is
-paying.
+**This is the only benchmark in the repository, and it measures round trips and
+input bytes — not time.** There are no `go test -bench` benchmarks, on purpose: a
+CPU figure for a tool that spends its life blocked on a file read would measure
+nothing anyone is paying, and it is not the axis the tool competes on.
 
 **Round trips are the claim that survives every reading: 2 calls, for any N.**
 Bytes depend entirely on what you compare against, so the table gives both
-baselines rather than the flattering one.
+baselines rather than the flattering one — including the two shapes where mrw
+sends MORE bytes than the thing it replaces.
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
@@ -144,11 +150,40 @@ baselines rather than the flattering one.
 | | calls | 4 / 5 | 2 | 2.0–2.5× fewer |
 | **C.** 1 site, whole small file | bytes (window *is* the whole file) | 12,881 | 15,765 | **1.2× MORE** |
 | | calls | 2 / 3 | 2 | 1.0–1.5× fewer |
+| **D.** 1 site in **every** Go file — 27 sites, 27 files | calls (reads + edits) | 54 | 2 | **27.0× fewer** |
+| | bytes vs whole | 324,256 | 2,421 | 133.9× less |
+| | bytes vs windowed | 410 | 2,421 | **5.9× MORE** |
 
 Measured at `87b43d4`; the script builds the binary it stamps. Shape A's
 whole-file baseline moves whenever the four files it reads do — it went from
 104,486 to 104,697 bytes between two commits a day apart, and the ratio did not
 budge. That is the drift this note exists for, and why the stamp is here.
+
+**Shape D is the one to read.** It is the change every codebase gets eventually —
+a renamed symbol, an added build tag, a changed import — one site in each of 27
+files, and the file list comes from `git ls-files` so it grows with the
+repository instead of measuring a subset somebody typed once.
+
+The arithmetic is the product, and it does not depend on this repository:
+
+| sites across files | Read + Edit | mrw | |
+|---|---|---|---|
+| 4 in 4 | 8 calls | 2 | 4× fewer |
+| 13 in 1 | 14 calls | 2 | 7× fewer |
+| 27 in 27 | 54 calls | 2 | **27× fewer** |
+| 36 in 36 | 72 calls | 2 | **36× fewer** |
+| N in M | M + N | **2** | — |
+
+Each of those calls is a **full model turn**: a request, a response, a result
+block read back, and one more opportunity to lose the thread between site 19 and
+site 20. That is the cost mrw removes, and it is why the floor is 2 rather than
+"fewer".
+
+**Shape D also sends 5.9× MORE bytes than a windowed reader, and that is fine.**
+Each site is a single line, so mrw is paying a per-file header and a per-line
+number on the smallest possible payload — the worst byte case there is. It is in
+the table at its worst because the calls column is the claim, and a table that
+hid the row where the other axis loses would not be worth reading.
 
 **Read the two byte rows together or neither.** `Read` takes `offset`/`limit`, so
 the windowed reader is the documented interface, not a strawman — and against it
