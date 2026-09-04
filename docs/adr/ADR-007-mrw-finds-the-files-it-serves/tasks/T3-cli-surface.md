@@ -150,9 +150,16 @@ above. `go test ./cmd/mrw/ -run 'TestGrep|TestFilesFrom|TestExclude|TestNoArgume
 19 new rows in §28); `gofmt -l .` silent; `go vet ./...` clean;
 `go test -race ./...` exit 0. Darwin/arm64, Apple M5.
 
-The five mutations above were each run against the built binary's own package
-and each killed by exactly one named test, so rung 2 is met by every flag this
-task adds rather than by the flag registration alone.
+The mutations above were each run against the built binary's own package and each killed by exactly
+one named test, so rung 2 is met by every flag this task adds rather than by the flag registration
+alone.
+
+Five were recorded originally and four are here. The fifth broke `--grep`'s selection with
+`case pattern != "":` → `case false:`, and that shape no longer exists in `cmd/mrw/main.go` — the
+selection was restructured after this task shipped. It is named here rather than replaced by a
+different mutation chosen to make the count five: a mutant picked to satisfy a number is the failure
+this pipeline exists to refuse, and a count that no longer matches the code is worth more as a note
+than as a round figure.
 
 **Driven through the real binary** as well as through Go tests, because a flag
 surface is met through a shell: `--grep` with and without paths, `--exclude`
