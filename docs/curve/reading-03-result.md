@@ -32,6 +32,30 @@ All 45 trials used **zero** search-tool calls and read `served.txt` **whole** �
 unioning each read call's offset and limit against the served row count, and equal to it in every
 trial (47/47 at 2 KB up to 3,643/3,643 at 200 KB). No trial was void.
 
+## Some evidence about mechanism, which reading 2 could not offer at all
+
+Reading 2's central open question — why its three misses landed at `target+2` — was undecidable
+partly because its clients reported a bare line number and nothing else. Reading 3's clients did not
+all do that. Counted from the trials' own replies, unprompted and not asked for:
+
+| Volunteered in the reply | Trials |
+|---|---|
+| mentions `retries` at all | 23 of 45 |
+| names TWO different `retries` values — the odd one and the common one | 14 of 45 |
+| names the service it picked | 15 of 45 |
+
+Fourteen clients stated the comparison they had performed: *"the only service with retries=5, all
+others have retries=8"*, *"retries = 6, while svc-nofdh/svc-zofvs/svc-juxpk all have retries = 3"*.
+Naming both sides of the relation is not something a client that found the line another way would
+produce by accident.
+
+**This is self-report, not a trace, and it is a minority of trials.** It says nothing about the other
+31, and a client can narrate a comparison it did not do. What it is good for is the negative claim it
+makes cheap: nothing here suggests the task was solved by a shortcut, and 14 of 45 volunteered a
+description of doing it the hard way. The corpus's own method note is the reason for the hedge — do
+not ask an agent whether it complied, count what it did — and a volunteered narration sits between
+the two.
+
 ## The comparison is paired, which makes the null sharper
 
 Readings 2 and 3 share sizes, positions, seeds and distractor count; only the SELECTOR differs. The
@@ -103,6 +127,6 @@ results and `docs/curve/reading-03-tally.json` is `curve tally` over them.
 - **The paired comparison: yes.** All 45 planted lines are identical between
   `reading-02-scores/` and `reading-03-scores/`, which is what makes the comparison paired rather
   than merely aligned by cell name.
-- **The compliance counts: no.** Zero search calls and full coverage were computed from each trial's
+- **The compliance counts, and the mechanism table: no.** Both were computed from each trial's
   transcript, and transcripts are not committed — they are large and hold the clients' own text. So
-  compliance is **reported here rather than reproducible from this tree**, exactly as in reading 2.
+  they are **reported here rather than reproducible from this tree**, exactly as in reading 2.
