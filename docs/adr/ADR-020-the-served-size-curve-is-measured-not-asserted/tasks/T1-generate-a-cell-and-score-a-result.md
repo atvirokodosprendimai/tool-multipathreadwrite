@@ -119,6 +119,9 @@ sequence with a good plan and a wrong one.
 - 2026-09-04 · 2ab8d9a* · mutant killed · exit 1 · `internal/curve/cell.go` · S2: make the inert padding emit the distractor line. TestDistractorCountDoesNotVaryWithSize fails: the 40,000-byte cell carried hundreds of candidates against the 4,000-byte cell's five — size and distractor count moving together, the confound the pre-registration names · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1
 - 2026-09-04 · 2ab8d9a* · mutant killed · exit 1 · `internal/curve/cell.go` · S7: put every cell's state home at one shared temp path. TestEachCellGetsItsOwnLedger fails: two cells named the same directory, outside either cell · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1
 - 2026-09-04 · 2ab8d9a* · mutant killed · exit 1 · `internal/curve/score.go` · S6: count a refused plan in the cell's N. TestARefusedPlanIsNotCountedAsALocalisationMiss fails: N became 3 and the rate moved with the refusal. S6 is [proof: acceptance] in this task; the mutant was cheap and the denominator rule is the one a reader would question, so it is logged · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1
+- 2026-09-04 · 4569f4f · mutant killed · exit 1 · `internal/curve/cell.go` · S9: give the manifest a `position` field. TestTheManifestCarriesNoGroundTruth fails: with the stratum in the client's hands the target's block follows by arithmetic. The first cut leaked both the stratum and the count; found by review of #85 · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1
+- 2026-09-04 · 4569f4f · mutant killed · exit 1 · `internal/curve/cell.go` · S10: key the cell on the MEASURED bytes instead of the requested size. TestRepeatsOfOneCellTallyTogether fails: five seeds at one 6,000-byte cell became five cells of one, every interval the interval of a single observation. The first cut did exactly this; found by review of #85 · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1
+- 2026-09-04 · 4569f4f · mutant killed · exit 1 · `internal/curve/score.go` · S11: drop the no-other-file-written clause from the hit rule. TestAPlanThatAlsoWritesElsewhereIsNotAHit fails: a plan that fixed the planted line and also created a file scored a clean hit. The first cut diffed only the target file; found by review of #85 · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1
 
 ## Invariants
 
@@ -171,3 +174,4 @@ measuring something else and the record should say so rather than the branch qui
   1 assertion(s) FAILED
   ```
 - 2026-09-04 · a282c6e* · exit 0 · `set -o pipefail …` · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1 · ms:19917
+- 2026-09-04 · 4e8fe98* · exit 0 · `set -o pipefail …` · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1 · ms:20668
