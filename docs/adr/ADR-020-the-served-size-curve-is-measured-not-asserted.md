@@ -248,7 +248,8 @@ byte-identical, so the revert is a deletion.
 - [x] **The relational fixture is NOT measurably harder, and the prediction that it would be is
       refuted.** Reading 3 (`docs/curve/reading-03-result.md`) ran the same 45 cells under the
       `odd-retries` selector and returned **45 of 45**, against reading 2's 42 of 45 on the named
-      one — every trial compliant and reading the window whole. The plan predicted a LOWER rate and
+      one — every trial compliant on both halves and reading the window whole, which is reported from
+      the transcripts and is not recomputable from this tree. The plan predicted a LOWER rate and
       said in advance that a higher one would mean T2 and T3 bought nothing measurable; that is the
       reported outcome. The three trials that missed in reading 2 all hit in reading 3, and two
       readings of five repeats cannot separate "the relational task removed an addressing error"

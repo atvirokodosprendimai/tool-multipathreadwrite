@@ -75,6 +75,11 @@ cannot separate "the relational task removed an addressing error" from "three mi
 noise that fell in reading 2". **This reading does not claim the first**, and the second is at least
 as consistent with the data.
 
+Put a number on it, since the pairing makes one available: **three discordant pairs, all favouring
+reading 3, is p = 0.25 on an exact two-sided matched test.** That establishes neither superiority nor
+equivalence — it is what three of anything looks like. The figure comes from the review of PR #96,
+which computed it independently and reached the same reading of the data this document already had.
+
 ## Cost
 
 Same accounting as reading 2: duplicates collapsed by message id, **spend** is
@@ -127,6 +132,8 @@ results and `docs/curve/reading-03-tally.json` is `curve tally` over them.
 - **The paired comparison: yes.** All 45 planted lines are identical between
   `reading-02-scores/` and `reading-03-scores/`, which is what makes the comparison paired rather
   than merely aligned by cell name.
-- **The compliance counts, and the mechanism table: no.** Both were computed from each trial's
-  transcript, and transcripts are not committed — they are large and hold the clients' own text. So
-  they are **reported here rather than reproducible from this tree**, exactly as in reading 2.
+- **The compliance counts, the mechanism table and the COST table: no.** The first two come from each
+  trial's transcript and the third from its request records, and neither is committed — they are
+  large and hold the clients' own text. All three are **reported here rather than reproducible from
+  this tree**. Found by review of PR #96, which noted the first draft of this section disclosed the
+  compliance half and left the cost half reading as though it were checkable.
