@@ -421,11 +421,19 @@ func readJSON(path string, v any) error {
 // a determined client could enumerate them. ADR-020-T3 says so rather than
 // claiming more.
 func retryPair(seed int64) (common, odd string) {
+	const alternatives = 7 // budgets 2..8
 	rng := rand.New(rand.NewSource(seed ^ 0x0ddba11))
-	c := 2 + rng.Intn(7)
-	o := c
-	for o == c {
-		o = 2 + rng.Intn(7)
+	c := rng.Intn(alternatives)
+	// The odd budget is drawn as an index into the alternatives EXCLUDING the
+	// common one, then shifted past it. Inequality and termination are
+	// structural rather than probabilistic: a rejection loop would be correct
+	// too, but deleting it leaves a generator that produces a cell with no odd
+	// block at all — and only at some seeds, so a test that exercises a few
+	// would still pass. Found by review of PR #94: seeds 13, 18, 23 and 24
+	// collide on the first draw, and none of them was exercised.
+	o := rng.Intn(alternatives - 1)
+	if o >= c {
+		o++
 	}
-	return fmt.Sprintf("retries = %d", c), fmt.Sprintf("retries = %d", o)
+	return fmt.Sprintf("retries = %d", c+2), fmt.Sprintf("retries = %d", o+2)
 }

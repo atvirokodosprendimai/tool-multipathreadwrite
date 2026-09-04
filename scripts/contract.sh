@@ -3180,25 +3180,57 @@ PY
 # "retries = 5", so a client that had seen one cell could search for it in every
 # other at a cost independent of served size — the single-match shortcut the
 # selector exists to remove, surviving inside its own fixture. Found by review of
-# PR #93. This row drives the BUILT binary at two seeds because the defect was
-# invisible at one: any single cell looks fine, and only comparing two shows the
-# value never moves. The pair is two NAMED cells, whose retries lines must be
-# IDENTICAL across seeds — a draw that leaked into the named fixture would change
-# ids recorded in a committed reading, and would pass the first half.
+# PR #93.
+#
+# FOUR relational seeds, and BOTH values checked separately. Review of PR #94
+# found the first version of this row comparing whole multisets, which passes
+# when the common value is fixed and only the odd one moves — the same shortcut
+# one level removed, and exactly what the row claims to exclude. It also parsed
+# with grep -oE, so "retries = 5x" matched "retries = 5", and an empty parse on
+# both sides compared equal. The parsing is exact and in python now, which is
+# this script's convention for anything with structure.
+#
+# The pair is two NAMED cells, whose retries lines must be IDENTICAL across
+# seeds. That is checked here rather than left to the id: trialID hashes the
+# PARAMETERS and never the rendered file, so drifted fixture bytes reuse the
+# recorded id in silence. TestTheNamedFixtureMatchesItsGoldenBytes pins the
+# bytes; this row pins the shape through the built binary.
 R59=$(mktemp -d)
-for s in 1 2; do
+for s in 1 2 3 4; do
   "$CURVE" generate -out "$R59/rel$s" -bytes 2500 -position middle -distractors 3 -seed $s -selector odd-retries > /dev/null 2>&1
   want 0 "$?" "the built binary generates relational cell seed $s"
+done
+for s in 1 2; do
   "$CURVE" generate -out "$R59/named$s" -bytes 2500 -position middle -distractors 3 -seed $s > /dev/null 2>&1
   want 0 "$?" "and named cell seed $s"
 done
-sig () { grep -oE '^retries = [0-9]+' "$1/tree/services.conf" | sort | uniq -c | tr -s ' ' | tr '\n' ';'; }
-[ "$(sig "$R59/rel1")" != "$(sig "$R59/rel2")" ] \
-  && ok "two relational seeds render different retry budgets, so no value is a signature to carry between cells" \
-  || bad "every relational seed renders the same budgets ($(sig "$R59/rel1")): one look at any cell teaches a search that works on all of them"
-[ "$(sig "$R59/named1")" = "$(sig "$R59/named2")" ] \
-  && ok "and the named fixture still renders the same constant at every seed, so its recorded trial ids regenerate" \
-  || bad "the draw reached the named fixture: seed 1 is $(sig "$R59/named1") and seed 2 is $(sig "$R59/named2")"
+python3 - "$R59" <<'PY'
+import re,sys
+d=sys.argv[1]
+def retries(name, blocks=4):
+    lines=open(d+"/"+name+"/tree/services.conf").read().split("\n")
+    vals=[l for l in lines if re.fullmatch(r"retries = \d+", l)]
+    assert len(vals)==blocks, "%s has %d retries lines, want %d" % (name, len(vals), blocks)
+    return sorted(vals)
+def relational(name, blocks=4):
+    vals=retries(name, blocks)
+    counts={v:vals.count(v) for v in set(vals)}
+    assert sorted(counts.values())==[1,blocks-1], "%s has multiplicities %s, want [1, %d] — a relational cell with no singleton is unanswerable" % (name, sorted(counts.values()), blocks-1)
+    odd=[v for v,n in counts.items() if n==1][0]
+    common=[v for v,n in counts.items() if n==blocks-1][0]
+    return odd, common
+rel=[relational("rel%d"%s) for s in (1,2,3,4)]
+odds={o for o,_ in rel}; commons={c for _,c in rel}
+assert len(odds)>1, "the odd budget is %s at every seed: one look at any cell teaches a search that works on all of them" % odds
+assert len(commons)>1, "the common budget is %s at every seed, which identifies the odd block by elimination" % commons
+# The named fixture has NO singleton by design — every block carries the same
+# budget — so it is compared as a whole, not through the relational shape.
+n1, n2 = retries("named1"), retries("named2")
+assert n1==n2, "the draw reached the named fixture: seed 1 is %s and seed 2 is %s" % (n1, n2)
+assert len(set(n1))==1, "the named fixture no longer renders one constant budget: %s" % n1
+PY
+[ $? -eq 0 ] && ok "four relational seeds move BOTH budgets, and the named fixture renders the same constant at every seed" \
+             || bad "the relational fixture carries a constant signature, or the draw reached the named fixture"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

@@ -8,7 +8,7 @@
 **Consumes:** `render`, `Selector` (T2, otherwise unchanged)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the odd value varies across seeds`, `the named fixture is untouched`, `the built binary draws it`
+**Rests-on:** `the odd value varies across seeds`, `the named fixture is untouched`, `the drawn pair is stable across the fit`, `the built binary draws it`
 
 ## Goal
 
@@ -63,6 +63,7 @@ test -z "$(gofmt -l .)" \
   && go test ./internal/curve/ -v 2>&1 | tee /tmp/adr020-t3.out \
   && ! grep -qE 'no tests to run|no test files|^FAIL|^--- FAIL' /tmp/adr020-t3.out \
   && [ "$(grep -cE '^--- PASS: (TestTheOddRetryBudgetIsNotAFixedSignature)\b' /tmp/adr020-t3.out)" = "1" ] \
+  && [ "$(grep -cE '^--- PASS: (TestTheNamedFixtureMatchesItsGoldenBytes|TestTheDrawIsStableAcrossThePaddingFit)\b' /tmp/adr020-t3.out)" = "2" ] \
   && [ "$(grep -cE '^--- PASS: (TestALegacyTrialIDStillRegenerates)\b' /tmp/adr020-t3.out)" = "1" ] \
   && grep -q '^# 59\.' scripts/contract.sh \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ] \
@@ -73,17 +74,21 @@ test -z "$(gofmt -l .)" \
 
 Every clause was run BEFORE this fence was written and returned **zero hits**: the test name, `# 59.`
 and the Go identifier `retryPair`. **§59**: 58 is the highest on `main`.
-
-The legacy-id clause is in the fence deliberately. This task changes the renderer, and the cheapest
-way to get a drawn value wrong is to let it reach the NAMED fixture too — which would change ids
-recorded in a committed reading. T2's regression test is the one that catches it, so this fence names
-it rather than trusting the package-wide clause to notice.
+The legacy-id clause is in the fence deliberately, but it is NOT what protects the named fixture, and
+an earlier version of this paragraph said it was. `trialID` hashes the PARAMETERS and never the
+rendered file, so drifted bytes reuse the recorded id in silence — the opposite of a guard. What
+protects the bytes is `TestTheNamedFixtureMatchesItsGoldenBytes`, which pins digests taken from the
+binary at `origin/main`, and §59, which checks the shape through the built binary. The id clause
+stays because it is cheap and pins a different thing. **Corrected after review of PR #94 named the
+rationale as backwards.**
 
 ## Tests
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestTheOddRetryBudgetIsNotAFixedSignature` | `internal/curve/cell_test.go` | **the task's Enforced-by** — across seeds the odd budget takes more than one value, the pair always differs, and a named cell still renders the constant in every block | — | S1, S2, S3 |
+| `TestTheNamedFixtureMatchesItsGoldenBytes` | `internal/curve/cell_test.go` | the named fixture, served rendering and answer hash to digests taken from `origin/main`'s binary — the guard the trial id cannot be, since it hashes parameters | — | S3 |
+| `TestTheDrawIsStableAcrossThePaddingFit` | `internal/curve/cell_test.go` | one cell rendered at five padding widths keeps the same budgets, so the cell measured is the cell generated | — | S2 |
 
 ## Reachability
 
@@ -100,19 +105,26 @@ it rather than trusting the package-wide clause to notice.
 - 2026-09-05 · e96504a* · mutant killed · exit 1 · `internal/curve/cell.go` · S3: let the relational fixture keep the constant common budget while only the odd one is drawn. The test fails on the common-value clause and contract 59 still passes its first assertion, which is the point: the signature would be half removed and every cell would still say retries = 3 for three of four blocks. · acceptance-sha256:a2120bdd34197aa1e77f41cc72443fca6614f9a7998b453c6dfc1fa3c975ba2e · covers:the odd value varies across seeds
 - 2026-09-05 · e96504a* · mutant killed · exit 1 · `internal/curve/cell.go` · S3: let the draw reach the NAMED fixture. TestALegacyTrialIDStillRegenerates still passes — the id does not depend on the rendered text — but TestTheNamedSelectorIsUnchangedByTheRelationalOne and contract 59 both fail, because a named cell would render a drawn budget and stop being byte-identical to the fixture a committed reading was collected against. This is the risk the task names first and the reason 59 pairs the relational check with two named cells. · acceptance-sha256:a2120bdd34197aa1e77f41cc72443fca6614f9a7998b453c6dfc1fa3c975ba2e · covers:the named fixture is untouched
 - 2026-09-05 · e96504a* · mutant killed · exit 1 · `internal/curve/cell.go` · S2: draw from a constant rather than from the trial seed. Every seed gets the same pair again, so TestTheOddRetryBudgetIsNotAFixedSignature fails on both clauses and contract 59 fails — the signature returns while the code still LOOKS drawn, which is the shape most likely to survive a reading of the diff. · acceptance-sha256:a2120bdd34197aa1e77f41cc72443fca6614f9a7998b453c6dfc1fa3c975ba2e · covers:the built binary draws it
+- 2026-09-05 · 6de05a4* · mutant killed · exit 1 · `internal/curve/cell.go` · S2: draw the odd budget without excluding the common one, which is the rejection-free version a reviewer would write. TestTheOddRetryBudgetIsNotAFixedSignature fails and §59 fails: at seeds 13, 18, 23 and 24 the two draws collide and the cell has NO odd block, so the instruction describes a property the fixture lacks. Found by review of PR #94, which noted the first version of the test exercised seeds 1-8 and none of the colliding ones — the sweep is now 1-30 and the range is as much of the assertion as the clauses are. · acceptance-sha256:ace36100f2b6c7d2be3c6856e68118bd6fc47cc508f551f420fb65b2b2e62c1e · covers:the odd value varies across seeds
+- 2026-09-05 · 6de05a4* · mutant killed · exit 1 · `internal/curve/cell.go` · S2: fix the COMMON budget and draw only the odd one. This is the half of the defect that looks fixed, and the first version of §59 passed it: comparing whole multisets, a fixed common with a varying odd still gives two different signatures. §59 now checks both values separately across four seeds and fails, as does the test. A constant common value identifies the odd block by elimination. · acceptance-sha256:ace36100f2b6c7d2be3c6856e68118bd6fc47cc508f551f420fb65b2b2e62c1e · covers:the odd value varies across seeds
+- 2026-09-05 · 6de05a4* · mutant killed · exit 1 · `internal/curve/cell.go` · S3: let the draw reach the NAMED fixture. TestTheNamedFixtureMatchesItsGoldenBytes fails on digests taken from origin/main, and §59 fails on the named pair. TestALegacyTrialIDStillRegenerates does NOT fail — the id hashes parameters, so drifted bytes reuse it in silence, which is why the golden test exists and why the task no longer claims the id protects this. · acceptance-sha256:ace36100f2b6c7d2be3c6856e68118bd6fc47cc508f551f420fb65b2b2e62c1e · covers:the named fixture is untouched
+- 2026-09-05 · 6de05a4* · mutant killed · exit 1 · `internal/curve/cell.go` · S4: draw from a constant rather than from the trial seed. Every seed gets the same pair, so the signature returns while the code still LOOKS drawn — the shape most likely to survive a reading of the diff. The test fails on both clauses and §59 fails on both budget sets. · acceptance-sha256:ace36100f2b6c7d2be3c6856e68118bd6fc47cc508f551f420fb65b2b2e62c1e · covers:the built binary draws it
+- 2026-09-05 · 6de05a4* · mutant killed · exit 1 · `internal/curve/cell.go` · S2: draw from a package-level generator that ADVANCES instead of from the seed. It does not compile alone, so this row is the paired half of the mutation whose compiling form was run by hand: with a var statefulRNG added, TestTheDrawIsStableAcrossThePaddingFit fails because render is called repeatedly while the padding is fitted and the budgets move between steps. Nothing else notices: every budget 2..8 is one digit, so the fit still converges — on a different cell from the one measured. · acceptance-sha256:ace36100f2b6c7d2be3c6856e68118bd6fc47cc508f551f420fb65b2b2e62c1e · covers:the drawn pair is stable across the fit
+- 2026-09-05 · 6de05a4* · mutant killed · exit 1 · `internal/curve/cell.go` · S2, and this one COMPILES, unlike the previous row for the same mechanism which failed at build and is therefore inconclusive rather than killed. Make the draw depend on the padding width, so it moves between the repeated render calls Generate makes while fitting the size cell. TestTheDrawIsStableAcrossThePaddingFit fails; nothing else does, because every budget 2..8 is one digit so the fit still converges — on a different cell from the one measured. · acceptance-sha256:ace36100f2b6c7d2be3c6856e68118bd6fc47cc508f551f420fb65b2b2e62c1e · covers:the drawn pair is stable across the fit
 
 ## Invariants
 
 - Under `ByOddRetries` the odd budget takes more than one value across seeds, and the pair always differs.
-- Under `ByName` every block renders the constant, so named cells stay byte-identical and their recorded trial ids still regenerate.
+- Under `ByName` every block renders the constant, and the fixture, served rendering and answer are byte-identical to what `origin/main` generates — pinned by golden digests, not inferred from the trial id.
+- The drawn pair is stable across every call `render` makes while the padding is fitted.
 - Every engine directory is byte-identical; `go.mod` declares exactly one requirement.
 
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| The draw reaches the named fixture | Low | **High** | It would change ids in a committed reading. The fence names `TestALegacyTrialIDStillRegenerates` explicitly, and §59 pairs the relational check with two named cells that must be identical |
-| The draw is unstable across the padding-fit loop | Med | High | `render` is called repeatedly while fitting; `retryPair` derives from the seed, not from a generator that advances, and the fit loop would otherwise never converge — which the existing tests would show as a generate error |
+| The draw reaches the named fixture | Low | **High** | Reading 2's 45 results were collected against those bytes. `TestTheNamedFixtureMatchesItsGoldenBytes` pins digests from `origin/main`'s binary and §59 checks the shape through the built one. **NOT** the trial id: it hashes parameters, so drifted bytes would reuse it silently |
+| The draw is unstable across the padding-fit loop | Med | High | `retryPair` derives from the seed, not from a generator that advances, and `TestTheDrawIsStableAcrossThePaddingFit` renders one cell at five padding widths. An earlier version of this row claimed the fit loop would fail to converge and so catch it; that is false — every budget 2..8 is one digit, so the rendered length does not change and an unstable draw would converge on a different cell in silence |
 | A drawn pair still leaks a signature | Low | Low | The values are small integers, so a client could still enumerate them. This removes the CONSTANT, not the alphabet, and the record says so rather than claiming more |
 
 ## Stop Condition
@@ -132,3 +144,9 @@ variable's other half and T2 fixed it; a task that rewrites it is changing two t
 - 2026-09-05 · e96504a* · exit 0 · `set -o pipefail …` · acceptance-sha256:a2120bdd34197aa1e77f41cc72443fca6614f9a7998b453c6dfc1fa3c975ba2e · ms:25591
 - 2026-09-05 · e96504a* · exit 0 · `set -o pipefail …` · acceptance-sha256:a2120bdd34197aa1e77f41cc72443fca6614f9a7998b453c6dfc1fa3c975ba2e · ms:25668
 - 2026-09-05 · e96504a* · exit 0 · `set -o pipefail …` · acceptance-sha256:a2120bdd34197aa1e77f41cc72443fca6614f9a7998b453c6dfc1fa3c975ba2e · ms:25938
+- 2026-09-05 · 6de05a4* · exit 0 · `set -o pipefail …` · acceptance-sha256:ace36100f2b6c7d2be3c6856e68118bd6fc47cc508f551f420fb65b2b2e62c1e · ms:26362
+- 2026-09-05 · 6de05a4* · exit 0 · `set -o pipefail …` · acceptance-sha256:ace36100f2b6c7d2be3c6856e68118bd6fc47cc508f551f420fb65b2b2e62c1e · ms:25664
+- 2026-09-05 · 6de05a4* · exit 0 · `set -o pipefail …` · acceptance-sha256:ace36100f2b6c7d2be3c6856e68118bd6fc47cc508f551f420fb65b2b2e62c1e · ms:26079
+- 2026-09-05 · 6de05a4* · exit 0 · `set -o pipefail …` · acceptance-sha256:ace36100f2b6c7d2be3c6856e68118bd6fc47cc508f551f420fb65b2b2e62c1e · ms:26042
+- 2026-09-05 · 6de05a4* · exit 0 · `set -o pipefail …` · acceptance-sha256:ace36100f2b6c7d2be3c6856e68118bd6fc47cc508f551f420fb65b2b2e62c1e · ms:25675
+- 2026-09-05 · 6de05a4* · exit 0 · `set -o pipefail …` · acceptance-sha256:ace36100f2b6c7d2be3c6856e68118bd6fc47cc508f551f420fb65b2b2e62c1e · ms:25603

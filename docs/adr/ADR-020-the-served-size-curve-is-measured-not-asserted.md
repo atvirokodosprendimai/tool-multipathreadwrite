@@ -171,13 +171,17 @@ guide gate stays true without documenting a benchmark to callers who will never 
 | Contract | Produced by | Consumed by | Breaking? |
 |---|---|---|---|
 | the generator, the manifest shape, and the scorer | T1 | the first reading, which is a follow-up and not a task here | No |
+| a second target selector, and a trial id that tells the two apart | T2 | a later reading, which is a follow-up and not a task here | No |
+| a relational fixture with no constant signature | T3 | a later reading, which is a follow-up and not a task here | No |
 
 ## Implementation
 
-Two tasks. **T1** built the harness, its self-test with known-wrong answers, and the contract row that
-drives the built binary end to end. **T2** adds a second way to pick the target — by a relation
+Three tasks. **T1** built the harness, its self-test with known-wrong answers, and the contract row
+that drives the built binary end to end. **T2** adds a second way to pick the target — by a relation
 between blocks rather than by a unique name — because the first reading came back at ceiling and a
-curve cannot bend against a task nobody fails. T2 builds the fixture and does not spend the trials.
+curve cannot bend against a task nobody fails. **T3** draws the relational fixture's retry budgets
+from the trial seed, because T2 removed the unique NAME and left a constant VALUE that a client could
+have carried between cells. None of the three spends trials.
 
 **The first reading is deliberately NOT a task in this record.** It needs N trials across cells
 against a real client, which is a budget decision and a scheduling decision rather than an
