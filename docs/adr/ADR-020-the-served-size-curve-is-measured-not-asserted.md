@@ -227,10 +227,11 @@ byte-identical, so the revert is a deletion.
       `docs/curve/reading-02-result.md`: 42 correct addresses in 45 trials, flat from 2,000 to
       200,000 served bytes, which is the flat curve the pre-registration accepts as an answer. The
       search arm stands at 18 observations and is not pooled with it.
-- [ ] **The failure mode the reading did find is address transcription, not retrieval.** All three
-      misses addressed the line two below the target — the count of the two unnumbered header lines
-      in a served read — and every one of them would have applied silently without a guard. Whether
-      the read format should make that harder to get wrong belongs to the record that owns the
-      format, not to this one.
+- [ ] **The failure mode the reading did find is addressing, not retrieval.** All three misses named
+      the line exactly two below the target, with the replacement text correct, and every one of them
+      applied silently without a guard and was refused with `anchor=`. Why it is two is not settled:
+      every cell serves `@@ 1-N`, so a row count in the served rendering and the line number plus two
+      are the same integer everywhere in this reading. **A cell whose served window does not begin at
+      line 1 would discriminate**, and building one is a generator change here.
 - [ ] If the reading bends, the cap becomes a measured number and ADR-011-T3's value is revisited by
       the record that owns it.

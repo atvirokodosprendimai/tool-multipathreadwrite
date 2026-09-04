@@ -30,7 +30,7 @@ The honest statement is narrow: at this difficulty, with a target that carries a
 name, a hundredfold increase in served bytes did not measurably change whether the client addressed
 the right line.
 
-## The three misses have one cause, and it is not retrieval
+## The three misses land two lines below the target, every time
 
 Every miss addressed a line exactly **two below** the planted one, at three different file sizes and
 two different positions:
@@ -42,18 +42,31 @@ two different positions:
 | 200000-late-5 | 2917 | 2919 |
 
 In all three the replacement text was correct. The client found the right service block and the
-right setting; it got the address wrong.
+right setting; it got the address wrong, and it got it wrong by the same amount every time.
 
 `served.txt` opens with two lines that carry no line number — the `==>` header naming the file and
-the `@@` line naming the served range — and then renders each line as `   N| text`. In all three
-misses, the number the client wrote is the target's **row** in that rendering, not the `N` printed
-in front of it. Two header lines, an error of exactly two, three times out of three.
+the `@@` line naming the served range — and then renders each line as `   N| text`. Counting rows in
+that rendering instead of reading the `N` printed in front of each one produces an address exactly
+two too high. That is the most economical explanation of the data.
 
-So retrieval did not degrade. Transcription did, and the two header lines are the whole of it.
+**It is not, however, a demonstrated mechanism, and this reading cannot make it one.** Every cell
+serves the whole file as `@@ 1-N`, so a target's row in the rendering and its line number plus two
+are the same integer in all forty-five trials. Any account that adds two predicts what was observed
+equally well. The three transcripts do not settle it either: each client reported its answer as a
+bare number with no reasoning recorded.
+
+**The experiment that would discriminate**: a cell whose served window does not begin at line 1.
+With a window of `@@ 500-900`, a row count and a line-number-plus-two differ by 498, and the two
+accounts stop predicting the same answer. None of the forty-five cells has such a window, and adding
+one is a generator change, so it belongs to a later reading rather than to this one.
+
+What the data does support without qualification is the shape of the failure: **retrieval did not
+degrade with served size; addressing did, and the error was constant.**
 
 ## Why this matters more than the curve
 
-Under mrw with no guard, that plan applies and the receipt says so:
+Run against each cell's own fixture, the client's plan applies and the receipt says so. For
+`2000-late-3`:
 
 ```
 ok   services.conf 41 replace  -1 +1
@@ -63,34 +76,35 @@ wrote services.conf  45L -> 45L  sha fe18f9ce
 
 Line 41 was a comment. It now reads `timeout = 45`, and the setting the caller meant to change is
 untouched two lines above. That is the failure the tool exists to prevent, arriving through a green
-receipt.
+receipt. All three misses behave this way: exit 0, one hunk `ok`, the wrong line rewritten.
 
-The same address with an anchor guard is refused instead:
+The same three addresses with an anchor guard are refused, all three at exit 1, nothing written:
 
 ```
 FAIL services.conf 41 replace (plan line 1): anchor "timeout = 30" not in line 41: # each can an registry service block the and without
 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN
 ```
 
-Three of forty-five plans authored by an unaided client would have written the wrong line silently,
-and `anchor=` catches every one of them by construction, because the guard is checked against the
-content the client actually read.
+Three of forty-five plans authored by an unaided client would have written the wrong line silently.
+All three were run both ways against the real fixture, and `anchor=` caught all three.
 
 ## Cost
 
-Token cost per trial, summed over each subagent's requests as input plus cache-creation plus output.
-This accounting is about 1.7× the figure the harness reports as a subagent's own total, so read the
-ratios rather than the absolute numbers.
+Two numbers per trial, both taken from the client's own request records with duplicate records
+collapsed by message id. **Spend** is input plus cache-creation plus output summed over requests.
+**Peak** is the largest single request's input, which is the figure the harness reports as a
+subagent's own token total: for `200000-early-5` this method gives 138,142 against the harness's
+138,234.
 
-| Served bytes | median | min | max |
-|---|---|---|---|
-| 2,000 | 93,935 | 91,402 | 130,288 |
-| 20,000 | 110,972 | 100,752 | 151,753 |
-| 200,000 | 239,696 | 234,959 | 329,432 |
+| Served bytes | median spend | vs 2 KB | median peak | vs 2 KB |
+|---|---|---|---|---|
+| 2,000 | 48,680 | 1.00× | 72,176 | 1.00× |
+| 20,000 | 54,412 | 1.12× | 77,972 | 1.08× |
+| 200,000 | 118,879 | 2.44× | 142,577 | 1.98× |
 
-A hundredfold increase in served bytes costs about 2.6× the tokens and buys no measurable loss of
-accuracy. Serving a large window in one read is not where the money goes; the fixed cost of a
-session dominates until the served bytes are very large.
+A hundredfold increase in served bytes costs about 2.4× the spend and 2.0× the peak context, and
+buys no measurable loss of accuracy. Cost grows far sublinearly in served bytes, because the fixed
+cost of a session dominates until the window is very large.
 
 ## What this reading does not say
 
