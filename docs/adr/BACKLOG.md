@@ -492,6 +492,16 @@ re-measuring these. Each was driven at the built binary, not read:
   actually means "the easy thing was measured". They are recorded as secondary
   and are not the claim.
 
+
+  ⚠ AND "FREE FROM THE TALLY" NEEDED CHECKING, because ADR-012's Context
+  records that tally as per-checkout and unable to ATTRIBUTE. Verified
+  2026-09-04 before the design was allowed to depend on it: with a fresh
+  `XDG_STATE_HOME` per trial, `mrw stats` reports that trial alone —
+  `applied 1 of 1 plan(s)`, one plan recorded. So the secondary DVs are
+  per-cell readable, and the isolation is the state dir rather than the
+  checkout. If that ever stops holding, the fallback is parsing each
+  `mrw_write` result directly, which is a different code path and should be
+  named as such rather than quietly substituted.
   **PRIMARY DV: did the plan address the line it was supposed to address?**
   This is the failure mode that matters and the one every other gate is blind
   to — an edit that parses, applies cleanly, reports `ok`, and changed the
@@ -513,9 +523,24 @@ re-measuring these. Each was driven at the built binary, not read:
   differing in the detail the instruction names — or the curve will be flat for
   a reason that has nothing to do with context size.
 
-  IV: served bytes, varied by padding the same task with more surrounding file.
-  The TASK IS HELD FIXED across sizes; only the volume of non-target content
-  moves, or size and difficulty are confounded and the result says nothing.
+  IV: served bytes, varied by padding around the target on both sides.
+
+  ⚠ "THE TASK IS HELD FIXED" WAS FALSE AS FIRST WRITTEN, and the correction
+  matters because it is the difference between a clean manipulation and two
+  variables moving at once. Padding adds LINES, so the line-number space grows
+  and the address the model must produce changes by construction. It cannot be
+  held fixed while size varies — the honest statement is that the INSTRUCTION
+  and the target CONTENT are identical across cells, the address is not, and
+  target position is a stratum rather than a nuisance.
+
+  ⚠ DISTRACTOR COUNT IS A SECOND IV HIDING INSIDE THE FIRST, and this is the
+  one that would make a real curve uninterpretable rather than merely absent.
+  If the padding IS near-identical distractors, then larger cells have more
+  near-misses and "more context" cannot be separated from "more candidates".
+  So: the number of near-identical distractors is HELD CONSTANT across size
+  cells, and the remaining padding is inert content that is obviously not a
+  candidate. Distractor density is a legitimate second experiment; it is not
+  this one, and one curve answers one question.
 
   STRATIFY BY TARGET POSITION rather than randomising it away. Position within
   the served window is the best-documented effect in the long-context
