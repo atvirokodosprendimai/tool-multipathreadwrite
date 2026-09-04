@@ -88,6 +88,10 @@ first field of every
 header-shaped plan line the tokeniser can split); served paths from every `==> path  NL  NB  sha …`
 header in the tool result, the path read back from that suffix so any run of spaces inside it survives.
 A grep, a working-set read, a no-argument read — anything whose input names no file — is still
+Every field of a tool input is read for its SHAPE as well as its value: a `command` that arrives as a
+list, `specs` as a string, a `plan` as an object cost the paths that input names and nothing more,
+because the result's own headers may still name files the call served. Losing those to a `TypeError`
+would be a silence, which is the one thing this record refuses.
 delivered for the files it served. **Every named path is a guess that a file was read**, and a wrong
 guess — `echo docs/adr/x.md` names the record without reading it — delivers a rule one call early.
 That is the side the hook errs on throughout: an early delivery puts the rule in context; a path the

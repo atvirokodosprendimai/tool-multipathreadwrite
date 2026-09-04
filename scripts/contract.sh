@@ -2637,6 +2637,21 @@ ctx=$(hook55 s6 Read '{"file_path":"docs/adr/x.md"}' | ctx55)
 [ -z "$ctx" ] && ok "the Read tool is left to the harness, so nothing arrives twice" || bad "the hook fired on Read: $ctx"
 ctx=$(hook55 s7 Write "{\"file_path\":\"$R55/proj/docs/adr/x.md\"}" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "an absolute path inside the project is matched" || bad "absolute path not matched: $ctx"
+# A tool_input of the wrong SHAPE costs the paths the input names, and nothing
+# more: the result's own `==>` headers still deliver. Found in self-review —
+# a `command` that arrived as a list raised inside shlex, and main()'s
+# catch-all then delivered nothing at all, which is a silence rather than the
+# early delivery this record prefers.
+for bad_input in '{"command":["mrw","read"]}' '{"command":null}'; do
+  ctx=$(hook55 "sh${RANDOM}" Bash "$bad_input" '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n"}' | ctx55)
+  grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+    && ok "a Bash command of the wrong shape still delivers for the file its result served: ${bad_input:0:26}…" \
+    || bad "a malformed command lost the served header: $ctx"
+done
+ctx=$(hook55 "sh${RANDOM}" mcp__mrw__mrw_read '{"specs":"docs/adr/x.md:1"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "and specs given as a string instead of a list" || bad "malformed specs lost the served header: $ctx"
+ctx=$(hook55 "sh${RANDOM}" mcp__mrw__mrw_write '{"plan":{"not":"a string"}}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "and a plan given as an object instead of a string" || bad "malformed plan lost the served header: $ctx"
 ctx=$(hook55 s8 Bash '{"command":"mrw read --grep record docs/"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "a grep whose served files appear only in the result still delivers their rules" \

@@ -149,6 +149,7 @@ and touches no engine code.
 - 2026-09-04 · fddfb55 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: drop the composite token from the candidates. §55's quoted `semi;colon.md` row fails: splitting the operator loses the filename · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · c4fd825 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: offer every `--chdir` against every directory so far, the exponential first cut. §55's forty-flag row fails on the alarm (exit 142) and the rule is lost · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · c4fd825 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: take the FIRST `--chdir` of an invocation instead of the last, which is not what env does. §55's `-C /nowhere -C docs` and forty-flag rows both fail · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 97f322f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: read `command` without the shape guard, as `inp.get("command") or ""`. §55's malformed-shape rows fail: a command that arrives as a list raises inside `shlex`, main()'s catch-all swallows it, and the served header delivers nothing. Found in SELF-review after the external rounds ended · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 
 ## Invariants
 
@@ -207,3 +208,4 @@ build. That is a different tool, and the record's Alternatives say why it was no
 - 2026-09-04 · 0a46d2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:32990
 - 2026-09-04 · fddfb55* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:32437
 - 2026-09-04 · c4fd825* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:83902
+- 2026-09-04 · 97f322f* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:26657

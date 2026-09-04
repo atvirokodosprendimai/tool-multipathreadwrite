@@ -122,7 +122,7 @@ def run(data):
     # the command was given. For every other tool the project root, which is
     # what the server serves.
     if tool == "Bash":
-        dirs, mrw_roots, cands = bash_paths(inp.get("command") or "")
+        dirs, mrw_roots, cands = bash_paths(text(inp.get("command")))
         bases = list(dict.fromkeys(os.path.join(cwd, d) for d in dirs))
         served_bases = bases + [os.path.join(b, r) for b in bases for r in mrw_roots]
     else:
@@ -168,14 +168,28 @@ def project_root(cwd):
 
 
 def candidates(tool, inp):
-    """The paths a non-Bash tool call NAMED, as the caller wrote them."""
+    """The paths a non-Bash tool call NAMED, as the caller wrote them. Every
+    field is read defensively: a tool_input of the wrong SHAPE must cost the
+    paths the input names and nothing more, because the result's own `==>`
+    headers may still name files the call served, and losing those to a
+    TypeError would be a silence — the class this record is about. Found in
+    self-review: a `command` that arrived as a list raised inside shlex, and
+    the catch-all in main() then delivered nothing at all."""
     if tool == "Write":
-        return [inp.get("file_path") or ""]
+        return [text(inp.get("file_path"))]
     if tool == "mcp__mrw__mrw_read":
-        return [_SPEC_SPLIT.split(s, 1)[0] for s in (inp.get("specs") or []) if isinstance(s, str)]
+        specs = inp.get("specs")
+        if not isinstance(specs, list):
+            return []
+        return [_SPEC_SPLIT.split(s, 1)[0] for s in specs if isinstance(s, str)]
     if tool == "mcp__mrw__mrw_write":
-        return plan_paths(inp.get("plan") or "")
+        return plan_paths(text(inp.get("plan")))
     return []
+
+
+def text(v):
+    """A string field as a string, and anything else as empty."""
+    return v if isinstance(v, str) else ""
 
 
 def bash_paths(cmd):
