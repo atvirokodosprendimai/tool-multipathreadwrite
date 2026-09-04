@@ -71,6 +71,7 @@ The row is struck rather than deleted for the same reason as ADR-007-T1's: a Tes
 shortened reads like a task that had fewer tests, which is the opposite of what happened. Everything
 ADR-002 actually decides — that a write to an unseen file is refused — is still covered by the rows
 above and by `TestAFileChangedBehindMrwsBackCannotBeEdited`, this record's `Enforced-by`.
+
 ## Reachability
 
 | Rung | How this task shows it |

@@ -41,8 +41,17 @@ func TestEveryTestNamedByARecordExists(t *testing.T) {
 
 	// | `TestName` | `path/to/file_test.go` | ... — both backticked, and the
 	// row not struck through.
+	// A struck NAME: | ~~`TestX`~~ | ... — the first cell only.
+	struckName := regexp.MustCompile(`^\|\s*~~`)
+
 	row := regexp.MustCompile(`^\|\s*` + "`" + `(Test\w+)` + "`" + `\s*\|\s*` + "`" + `([^` + "`" + `]+_test\.go)` + "`")
 
+	// A floor, not a presence check. `checked > 0` passed while 128 of 129 rows
+	// drifted to an unrecognised syntax — a guard that reports "checked 1" and
+	// goes green is the vacuity this repository keeps rediscovering. The floor
+	// is deliberately well under the current count so ordinary editing does not
+	// trip it, and far above the number a syntax drift would leave.
+	const floor = 100
 	checked := 0
 	for _, task := range tasks {
 		b, err := os.ReadFile(task)
@@ -51,8 +60,12 @@ func TestEveryTestNamedByARecordExists(t *testing.T) {
 		}
 		rel, _ := filepath.Rel(repo, task)
 		for i, line := range strings.Split(string(b), "\n") {
-			if strings.Contains(line, "~~") {
-				continue // struck through: removed on purpose, and said so
+			// The strikethrough exemption is FIRST-CELL ONLY. `strings.Contains`
+			// over the whole line exempted any row whose description cell struck
+			// a word, with its test name unchecked — no such row exists today,
+			// which is exactly when to close it.
+			if struckName.MatchString(line) {
+				continue // the NAME is struck: removed on purpose, and said so
 			}
 			m := row.FindStringSubmatch(line)
 			if m == nil {
@@ -73,8 +86,9 @@ func TestEveryTestNamedByARecordExists(t *testing.T) {
 			}
 		}
 	}
-	if checked == 0 {
-		t.Error("matched no Tests rows at all; the pattern has drifted from the table format")
+	if checked < floor {
+		t.Errorf("matched only %d Tests rows, below the floor of %d — the table syntax has drifted "+
+			"and this guard is reading almost nothing", checked, floor)
 	}
 	t.Logf("checked %d test names across %d task files", checked, len(tasks))
 }

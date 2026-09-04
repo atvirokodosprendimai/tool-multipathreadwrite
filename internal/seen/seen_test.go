@@ -288,16 +288,22 @@ func TestALedgerThisBuildWroteLoadsBack(t *testing.T) {
 
 func TestLegacyInTreeLedgerIsStillRead(t *testing.T) {
 	// ADR-004 moved state out of the working tree and kept READING the old
-	// in-tree location, so an upgrade does not silently lose every observation
-	// and force a re-read of the whole checkout.
+	// in-tree location. state.go still implements that fallback and its comment
+	// still says "It is still READ", and between #19 and 2026-09-04 nothing
+	// tested it — no test file so much as referenced LegacyDir, while ADR-004's
+	// Tests table went on naming this test, which is what adr-lint reported.
 	//
-	// This test existed, was deleted in #19, and stayed deleted for the wrong
-	// reason: #19 introduced the v2 header and DISCARDED any ledger without it,
-	// which made this test's fixture invalid. The fixture was the problem, not
-	// the behaviour — state.go still implements the fallback and its comment
-	// still says "It is still READ". Between #19 and now, nothing tested it:
-	// no test file so much as referenced LegacyDir, while ADR-004's Tests table
-	// went on naming this test, which is what adr-lint was reporting.
+	// WHAT THIS DOES AND DOES NOT COVER, because the distinction is easy to
+	// overstate. It covers the LOCATION fallback: with an empty state directory,
+	// Load reads .mrw/seen, and Record writes the state directory instead of
+	// writing back into the tree. It does NOT reconstruct a genuine
+	// pre-ADR-004 ledger: state moved out of the tree in v0.0.5 and the v2
+	// header arrived in v0.0.12, so a real in-tree ledger has no header and
+	// today's Load discards it deliberately (seen.go, the header check). An
+	// upgrade from that era therefore loses its observations and re-reads —
+	// which is a decision ADR-002's stale-ledger rule already made on purpose,
+	// not a gap this test hides. The fixture carries a v2 header because a
+	// headerless one would test the discard, not the fallback.
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	legacy := filepath.Join(root, ".mrw")
@@ -308,6 +314,12 @@ func TestLegacyInTreeLedgerIsStillRead(t *testing.T) {
 		[]byte(header+"\nabc123  -  old.go\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
+	beforeBytes, err := os.ReadFile(filepath.Join(legacy, Name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := string(beforeBytes)
 
 	l, err := Load(root)
 	if err != nil {
@@ -325,11 +337,22 @@ func TestLegacyInTreeLedgerIsStillRead(t *testing.T) {
 	if err := Record(root, map[string]Observation{"new.go": {SHA: "def456"}}); err != nil {
 		t.Fatal(err)
 	}
-	b, _ := os.ReadFile(filepath.Join(legacy, Name))
-	if strings.Contains(string(b), "new.go") {
-		t.Error("Record wrote into the legacy in-tree ledger")
+	// Byte-for-byte, not "does it still mention old.go": the claim is that the
+	// legacy file is never written or deleted, and a substring check would pass
+	// on a file that had been rewritten around it.
+	after, err := os.ReadFile(filepath.Join(legacy, Name))
+	if err != nil {
+		t.Fatalf("Record deleted the legacy ledger: %v", err)
 	}
-	if !strings.Contains(string(b), "old.go") {
-		t.Error("Record modified the legacy ledger; it must never be written or deleted")
+	if string(after) != before {
+		t.Errorf("Record modified the legacy in-tree ledger.\n before: %q\n  after: %q", before, after)
+	}
+	// And the new observation really did land in the state directory.
+	reloaded, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded["new.go"].SHA != "def456" {
+		t.Errorf("the recorded observation is not readable back: %v", reloaded)
 	}
 }
