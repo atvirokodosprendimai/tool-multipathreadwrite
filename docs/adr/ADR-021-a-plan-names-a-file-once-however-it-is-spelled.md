@@ -56,9 +56,10 @@ case-folding bug with a macOS-only fix; it is a missing identity check with a po
   so the comparison sees the target. No new path handling.
 - **`os.SameFile`:** taken over folding case or comparing resolved strings. `filepath.EvalSymlinks`
   does not canonicalise case, so two strings can differ and name one file; a stat comparison cannot.
-- **The per-hunk refusal path (ADR-001 rule 3):** a file that fails validation reports the failure
-  through its first hunk and aborts the run with nothing written. **Reused unchanged** — this is one
-  more reason a file can fail, not a new way to fail.
+- **The file-level precondition convention (ADR-001 rule 3):** the unread-file and changed-file
+  checks refuse a whole file through its FIRST hunk and skip its siblings. **Reused unchanged** for
+  this file-level refusal. It is a convention, not a universal rule: an outside-root path is refused
+  per hunk, because every hunk independently carries a bad path, and that stays as it is.
 
 ## Decision
 
@@ -155,7 +156,7 @@ with the plan from the Context.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | The check is written and the CLI never exercises it | Low | **High** | §56 drives the BUILT binary with the Context's plan and requires exit 1, nothing written, both spellings in the refusal |
-| The test passes on a case-sensitive filesystem without reaching the branch | High if unhandled | **High** | The test uses a symlink alias, which is one inode on every filesystem, and additionally the two-spelling case guarded by a runtime probe — the symlink half cannot be skipped |
+| The test passes on a case-sensitive filesystem without reaching the branch | High if unhandled | **High** | The case-fold half runs first, outside any skip, where the filesystem folds case; the symlink half — one inode on every filesystem — runs everywhere symlinks can be created, and skips only where they cannot (a Windows runner without developer mode), which the CI matrix covers with the case-fold half on NTFS |
 | A legitimate plan naming two genuinely different files is refused | Low | Med | `os.SameFile` is false for two inodes; the test asserts two real files under near-identical names still apply |
 | Performance on very large plans | Low | Low | One stat per distinct path; the scale campaign's 500-file plan would pay 500 stats |
 

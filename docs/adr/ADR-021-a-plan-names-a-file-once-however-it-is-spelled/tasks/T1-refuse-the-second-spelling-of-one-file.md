@@ -98,7 +98,7 @@ a caller runs, with the exact plan from the Context.
 
 ## Risks
 
-- The test passes on Linux CI because case never folds there. Mitigated: the symlink half is one inode on every filesystem and is not skippable.
+- The test passes on Linux CI because case never folds there. Mitigated: the symlink half is one inode on every filesystem and runs wherever a symlink can be created; it skips only where one cannot, and the Windows runner covers the case-fold half natively.
 - The check refuses `a.go` and `./a.go`. Mitigated: both clean to one key before the loop and never reach the check; the existing test for that spelling stays green.
 
 ## Stop Condition
@@ -119,3 +119,4 @@ would be a different record.
 - 2026-09-04 · 7a1c206* · exit 0 · `set -o pipefail …` · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002 · ms:30252
 - 2026-09-04 · 6d00059* · exit 0 · `set -o pipefail …` · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002 · ms:55064
 - 2026-09-04 · f30f4b0* · exit 0 · `set -o pipefail …` · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002 · ms:56407
+- 2026-09-04 · 78573a1* · exit 0 · `set -o pipefail …` · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002 · ms:21876

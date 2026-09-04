@@ -1453,7 +1453,8 @@ func TestAPlanThatNamesOneFileTwiceIsRefusedWhicheverTheSpelling(t *testing.T) {
 	}
 
 	// The symlink half is one inode on every filesystem, so a case-sensitive
-	// runner cannot pass this test without reaching the branch.
+	// runner reaches the branch wherever a symlink can be created; it skips
+	// only where one cannot, and the case-fold half above covers NTFS.
 	t.Run("symlink alias", func(t *testing.T) {
 		if err := os.Symlink("real.txt", filepath.Join(root, "link.txt")); err != nil {
 			t.Skipf("cannot create a symlink here: %v", err)
