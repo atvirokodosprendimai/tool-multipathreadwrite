@@ -2621,8 +2621,9 @@ grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
 # Whether mrw ACCEPTS a plan is not mirrored. The mirror built in the third
 # round could only add silence — every case where it was stricter than mrw (a
 # pattern it would not compile, an integer Go rejects and Python accepts) was
-# a successful write that delivered nothing — so every header-shaped line's
-# first field is a candidate, counted and raw bodies included, and a plan mrw
+# a successful write that delivered nothing — so the first field of every
+# header-shaped line the tokeniser can split is a candidate, counted and raw
+# bodies included, and a plan mrw
 # refuses delivers early for the files it names. Early beats silent.
 ctx=$(hook55 s5 mcp__mrw__mrw_write '{"plan":"@@ README.md 1 replace body=1 raw=true\n@@ docs/adr/x.md 1 replace\n"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a header-shaped line inside a raw counted body delivers early for the file it names" || bad "a raw body line was suppressed: $ctx"
@@ -2656,6 +2657,18 @@ ctx=$(hook55 s9d Bash '{"command":"env FOO=1 mrw -C .. read docs/adr/x.md:1"}' '
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "and an mrw reached behind env and an assignment is still the mrw whose root moves the header" \
   || bad "a prefixed mrw lost the served header: $ctx"
+# mrw is found by NAME, so no wrapper's own flags can hide it: an absolute
+# path, a flag-bearing wrapper, `exec -a`, and the words no vocabulary would
+# have listed — `sudo`, `timeout` — all still name mrw.
+for w in '/usr/bin/env FOO=1' 'nice -n 5' 'command -p' 'time -p' 'exec -a custom' 'nohup' 'sudo -u nobody' 'timeout 30'; do
+  ctx=$(hook55 "s9d${w//[^a-z]/}" Bash "{\"command\":\"$w mrw -C .. read docs/adr/x.md:1\"}" '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' "$R55/proj/pkg" | ctx55)
+  grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+    && ok "and behind '$w', where a positional reading of the command loses it" \
+    || bad "wrapper '$w' hid mrw from the root scan: $ctx"
+done
+# env's own --chdir moves where the command RAN, so it moves the operands too.
+ctx=$(hook55 s9g Bash '{"command":"env -C docs cat adr/x.md"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "env --chdir moves the base the operands resolve against, as a leading cd does" || bad "env -C did not move the base: $ctx"
 ctx=$(hook55 s9e Bash '{"command":"mrw -C /nowhere --root .. read docs/adr/x.md:1"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' "$R55/proj/pkg" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "and a root given twice takes the last, as the CLI does" \
@@ -2800,6 +2813,16 @@ two=$(mk55 s16 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG
 grep -q 'SCOPED RULE BODY 55' <<<"$one" && grep -q 'SCOPED RULE BODY 55' <<<"$two" \
   && ok "an unusable state directory delivers on every call: once per session holds only while a claim can be filed" \
   || bad "an unusable state directory suppressed a delivery: first=$([ -n "$one" ] && echo yes || echo no) second=$([ -n "$two" ] && echo yes || echo no)"
+# The state DIRECTORY's own path being a regular file raises FileExistsError,
+# which is an OSError — and reading that as "another hook holds the claim"
+# suppressed every rule for the session. Only the O_EXCL create may be read
+# that way, so this pair must deliver twice.
+mkdir -p "$R55/filecache"; printf 'not a directory\n' > "$R55/filecache/claude-rules-on-read"
+one=$(mk55 s16b Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/filecache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+two=$(mk55 s16b Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/filecache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$one" && grep -q 'SCOPED RULE BODY 55' <<<"$two" \
+  && ok "a regular file where the claim directory belongs delivers on every call, not none: FileExistsError from makedirs is not a claim" \
+  || bad "a file at the state directory's path suppressed a delivery: first=$([ -n "$one" ] && echo yes || echo no) second=$([ -n "$two" ] && echo yes || echo no)"
 # Without CLAUDE_PROJECT_DIR the walk up from cwd takes the nearest
 # .claude/rules, and stops at the first .git it meets: a nested repository
 # does not inherit the enclosing one's rules.

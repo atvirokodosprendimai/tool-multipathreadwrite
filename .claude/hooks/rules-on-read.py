@@ -60,11 +60,12 @@ _SERVED = re.compile(r"^==> (.+)  \d+L  \d+B  sha [0-9a-f]+$", re.M)
 # mrw's own global root flag, which comes BEFORE the subcommand (after it, -C
 # is the integer context flag). The paths mrw prints are relative to it.
 _MRW_ROOT = re.compile(r"^(?:--root|-C)(?:=(.*))?$")
-# A command may reach mrw behind assignments and one of these words, and the
-# root flag counts only for mrw itself: -C means something else to git, make
-# and tar, so a program this hook does not recognise gets no root at all.
+# `env`'s own --chdir moves where the command runs, exactly as a leading `cd`
+# does, so it moves both bases.
+_ENV_CHDIR = re.compile(r"^(?:--chdir|-C)(?:=(.*))?$")
+_ENV_NAMES = {"env"}
+# A leading NAME=VALUE is an assignment, not the command and not a path.
 _ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-_PREFIX = {"env", "command", "exec", "nohup", "time", "nice"}
 _MRW_NAMES = {"mrw", "mrw.exe"}
 _BOM = "\ufeff"
 _STATE_MAX_AGE = 7 * 24 * 3600
@@ -174,12 +175,22 @@ def candidates(tool, inp):
 
 
 def bash_paths(cmd):
-    """The directory a leading `cd DIR &&` (or `;`) moved into, the root an
-    mrw call gave its own `--root`/`-C` flag, and every other token of the
-    command. Existence decides later which tokens are paths; there is no token
-    cap, because a cap is a silent way to lose the last operand. The two
-    directories are returned rather than joined in: an operand is relative to
-    where the command ran, and a path mrw PRINTED is relative to mrw's root."""
+    """The directory the command ran in relative to cwd (a leading `cd DIR &&`,
+    and `env --chdir`), the root an mrw call gave its own `--root`/`-C` flag,
+    and every other token of the command. Existence decides later which tokens
+    are paths; there is no token cap, because a cap is a silent way to lose the
+    last operand. The two directories are returned rather than joined in: an
+    operand is relative to where the command ran, and a path mrw PRINTED is
+    relative to mrw's root.
+
+    mrw is found by NAME anywhere in the command rather than by position. The
+    positional reading this replaced had to know every wrapper — `env`,
+    `command`, `nice` — and every wrapper's own flags, and a review found
+    eight valid shapes it still missed (`command --`, `time -p`, `nice -n 5`,
+    `/usr/bin/env`, …), each of them a silently missing rule. Finding the name
+    needs no vocabulary at all. A stray token that merely SPELLS mrw (`grep -C 3
+    mrw f`) is harmless: the tokens after it are read as flags only until the
+    first bare word, so nothing that follows a filename is taken as a root."""
     try:
         toks = shlex.split(cmd)
     except ValueError:
@@ -187,38 +198,48 @@ def bash_paths(cmd):
     cd = ""
     if len(toks) >= 3 and toks[0] == "cd" and toks[2] in ("&&", ";"):
         cd, toks = toks[1], toks[3:]
-    mrw_root, taken = "", set()
-    # Find the program: assignments and a wrapper word may come first, and
-    # `env` carries flags of its own (-i, -u NAME) before the command.
-    i = 0
-    while i < len(toks):
-        if _ASSIGN.match(toks[i]):
-            i += 1
-        elif toks[i] in _PREFIX:
-            was_env, i = toks[i] == "env", i + 1
-            while was_env and i < len(toks) and (toks[i].startswith("-") or _ASSIGN.match(toks[i])):
-                if toks[i] in ("-u", "--unset") and i + 1 < len(toks):
-                    i += 1
-                i += 1
-        else:
+    taken = set()
+
+    def flag_value(j, pat):
+        """(value, index consumed) for `--flag=V` or `--flag V` at j."""
+        m = pat.match(toks[j])
+        if not m:
+            return None, j
+        taken.add(j)
+        if m.group(1) is not None:
+            return m.group(1), j
+        if j + 1 < len(toks):
+            taken.add(j + 1)
+            return toks[j + 1], j + 1
+        return None, j
+
+    def scan(names, pat):
+        """The last value of `pat` given to the first program called one of
+        `names`, reading only its own flags — a bare word ends them, because
+        that is the subcommand or the wrapped command."""
+        found = ""
+        for n, t in enumerate(toks):
+            if os.path.basename(t) not in names:
+                continue
+            j = n + 1
+            while j < len(toks):
+                v, j = flag_value(j, pat)
+                if v is not None:
+                    found = v
+                elif not toks[j].startswith("-") and not _ASSIGN.match(toks[j]):
+                    break
+                j += 1
             break
-    # Only mrw's own flags are read as a root, and only before the subcommand:
-    # after `read`, the same -C is the integer context flag. A root given twice
-    # is last-wins, as the CLI's own string flag is.
-    if i < len(toks) and os.path.basename(toks[i]) in _MRW_NAMES:
-        j = i + 1
-        while j < len(toks):
-            m = _MRW_ROOT.match(toks[j])
-            if m:
-                taken.add(j)
-                if m.group(1) is not None:
-                    mrw_root = m.group(1)
-                elif j + 1 < len(toks):
-                    mrw_root, j = toks[j + 1], j + 1
-                    taken.add(j)
-            elif not toks[j].startswith("-"):
-                break  # the subcommand
-            j += 1
+        return found
+
+    # env --chdir runs the command elsewhere, so it moves the base for the
+    # operands too; mrw's --root moves only the paths mrw prints. Both are read
+    # only for the program that owns the flag: -C means something else to git,
+    # make and tar, and a program this hook does not recognise gets neither.
+    chdir = scan(_ENV_NAMES, _ENV_CHDIR)
+    if chdir:
+        cd = os.path.join(cd, chdir)
+    mrw_root = scan(_MRW_NAMES, _MRW_ROOT)
     out = []
     for n, t in enumerate(toks):
         if n in taken:
@@ -535,13 +556,23 @@ def claim(session, agent, root, rel):
     session holds only while a claim can be filed. A state directory that
     cannot be used — no absolute base, a base in the tree, a file where the
     directory should be — delivers on EVERY call rather than on none, with no
-    file to withdraw: a repeat costs context, a silence costs the rule."""
+    file to withdraw: a repeat costs context, a silence costs the rule.
+
+    ⚠ The two `try` blocks are one finding, not style. FileExistsError is an
+    OSError, and `os.makedirs` raises it when the state DIRECTORY's path is
+    already a regular file — so a single block that read that exception as
+    "another hook holds the claim" suppressed every rule for the whole session,
+    which is the silence Decision 6 forbids. Only the O_EXCL create may be read
+    that way."""
     try:
         d = state_dir(root)
         sweep(d)
-        key = hashlib.sha1("\0".join((session, agent, root, rel)).encode()).hexdigest()
-        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
-        path = os.path.join(d, key)
+    except OSError:
+        return True, None
+    key = hashlib.sha1("\0".join((session, agent, root, rel)).encode()).hexdigest()
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
+    path = os.path.join(d, key)
+    try:
         os.close(os.open(path, flags, 0o600))
         return True, path
     except FileExistsError:

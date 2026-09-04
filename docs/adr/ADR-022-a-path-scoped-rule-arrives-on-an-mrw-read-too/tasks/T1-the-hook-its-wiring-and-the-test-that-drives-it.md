@@ -34,10 +34,10 @@ never take the turn down.
    looks for rules under `cwd` and delivers nothing. [proof: acceptance]
 2. [S2] Read the project root from `$CLAUDE_PROJECT_DIR`, else walk up from `cwd` to the nearest
    `.claude/rules`, stopping at the first `.git`; resolve a Bash command's operands from where the
-   command ran (`cwd`, moved by a leading `cd`) and the headers mrw printed for it from the root mrw
-   used — its global `--root`/`-C`, read only for mrw, only before the subcommand, through
-   assignments and a wrapper word, last-wins — every other tool's paths from the project root, and
-   relativise to the root. [proof: mutation]
+   command ran (`cwd`, moved by a leading `cd` and by `env --chdir`) and the headers mrw printed for
+   it from the root mrw used — its global `--root`/`-C`, read by finding mrw's NAME anywhere in the
+   command, only before the subcommand, last-wins — every other tool's paths from the project root,
+   and relativise to the root. [proof: mutation]
 3. [S3] Take served paths from every `==> path  NL  NB  sha …` header in the tool result as well as
    the named ones, the path read back from that suffix, so a grep delivers and any spaces survive.
    [proof: mutation]
@@ -53,8 +53,9 @@ never take the turn down.
    counts. [proof: mutation]
 6. [S6] Dedup by an atomic claim — `O_CREAT|O_EXCL|O_NOFOLLOW` under a `0700` cache directory keyed
    by session, agent, root and rule — swept after seven days; the base absolute and outside the
-   project, else no claim and a delivery; a claim withdrawn when the envelope cannot be written;
-   two racing hooks deliver once. [proof: mutation]
+   project, else no claim and a delivery; `FileExistsError` read as a claim ONLY from the create, never
+   from the directory; a claim withdrawn when the envelope cannot be written; two racing hooks deliver
+   once. [proof: mutation]
 7. [S7] Exit 0 unconditionally, closed stdout included; stdin read whole. [proof: acceptance]
 8. [S8] §55: decode the JSON envelope exactly; take the hook from the settings entry (exactly the
    four tools, the command resolved through `CLAUDE_PROJECT_DIR`) and drive that file; compare path
@@ -136,6 +137,9 @@ and touches no engine code.
 - 2026-09-04 · 8c1e33e · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: keep the FIRST root when the flag is given twice. §55's `-C /nowhere --root ..` row fails, where the CLI itself takes the last · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 8c1e33e · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: read `-C` as a root for any program. §55's `git -C .. log` row fails: a base moves for a program whose `-C` means something else · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 8c1e33e · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: make every slash-less pattern root-only, the bare `**` included. §55's `paths: ["**"]` row fails on a file two directories deep · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 0817274 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: look for mrw at token zero again instead of by name. §55's wrapper loop fails for `/usr/bin/env FOO=1`, `nice -n 5` and the rest · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 0817274 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: ignore `env --chdir`. §55's `env -C docs cat adr/x.md` row fails: the operand resolves from the wrong base · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 0817274 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S6: put the directory and the create back in ONE try block, so `FileExistsError` from `makedirs` reads as a claim. §55's file-at-the-claim-directory row fails: both calls deliver nothing · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 
 ## Invariants
 
@@ -169,3 +173,6 @@ build. That is a different tool, and the record's Alternatives say why it was no
 - 2026-09-04 · 8a8b137* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:35773
 - 2026-09-04 · d6e8c95* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:49058
 - 2026-09-04 · 8c1e33e* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:33581
+- 2026-09-04 · 0817274* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:33053
+- 2026-09-04 · 0817274* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:31943
+- 2026-09-04 · 0817274* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:32504

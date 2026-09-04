@@ -96,9 +96,13 @@ the walk stops at the first `.git` it meets** — a nested repository does not i
 one's rules. A Bash command's operands resolve from where the command ran — `cwd`, moved by a leading
 `cd DIR &&`; the `==>` headers mrw printed for it resolve from the root MRW used, which its own
 `--root`/`-C` moves. That flag is read only for mrw itself, because `git`, `make` and `tar` all spell
-a different meaning the same way; only before the subcommand, since after `read` the same `-C` is the
-integer context flag; through assignments and a wrapper word, so `env FOO=1 mrw -C ..` is still mrw;
-and last-wins when given twice, as the CLI's own string flag is. A Write's path, an MCP spec and an
+integer context flag; and last-wins when given twice, as the CLI's own string flag is. **mrw is found
+by NAME anywhere in the command, not by position**: the positional reading this replaced had to know
+every wrapper and every wrapper's own flags, and a review found eight valid shapes it still missed —
+`command --`, `time -p`, `nice -n 5`, `/usr/bin/env`, `exec -a` — each of them a silently missing
+rule, with `sudo` and `timeout` outside the list altogether. A name needs no vocabulary. `env`'s own
+`--chdir` is read the same way and moves where the command RAN, so it moves the operands too, exactly
+as a leading `cd` does.
 MCP result resolve from the project root. One base per kind, never retried against another: a session
 that has `cd`-ed into `internal/` still gets `../scripts/contract.sh`'s rule, `cd docs && mrw read
 --grep` delivers for the `adr/…` headers it printed, `mrw -C .. read docs/adr/x.md` from `pkg/`
@@ -141,7 +145,11 @@ made `0700` (a chmod that fails on a directory that already existed is ignored; 
 `0600` regardless), swept after seven days. The base must be absolute and outside the project — a
 relative one would land under whatever `cwd` the hook was given, one inside the tree would break
 ADR-004 — and a state directory that cannot be used, for those reasons or any other, delivers on
-every call rather than on none. A claim is filed before the envelope is written, so when the write
+every call rather than on none. ⚠ `FileExistsError` is an `OSError`, and `os.makedirs` raises it when
+the state directory's own path is already a regular file, so the single `try` this started as read
+that as "another hook holds the claim" and suppressed every rule for the whole session — the silence
+this decision forbids, reached through its own dedup. Only the `O_EXCL` create may be read that way.
+A claim is filed before the envelope is written, so when the write
 fails — a closed stdout — the claims this call filed are withdrawn; otherwise the next real read would
 be silent for a week. So: exactly once while a claim can be filed and the envelope reaches the
 harness; two hooks that race for one rule, one delivers; and the failure mode is a repeat, never a
