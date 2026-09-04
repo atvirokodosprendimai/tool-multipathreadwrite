@@ -14,6 +14,15 @@ cell id, because both arms use the same ids.
 
 **All 45 trials were compliant: zero search-tool calls.**
 
+That compliance was achieved against a competing instruction, which is worth stating because it was
+not designed in. Partway through, the harness injected a reminder into trial clients telling them to
+prefer `Bash` for reading and editing files. `Bash` is one of the four tools this arm forbids and one
+of the four the compliance check counts, so a client that had followed it would have voided its own
+trial. Three clients said in their transcripts that they had received the reminder and were
+disregarding it in favour of the task's explicit restriction; the reminder's own text is not
+preserved in a transcript, so how many of the 45 received it cannot be counted. What can be counted
+is the outcome: **no trial called `Bash`, or any other search tool, at all.**
+
 ## The curve
 
 | Served bytes | early | middle | late |
