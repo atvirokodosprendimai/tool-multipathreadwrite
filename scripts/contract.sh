@@ -2594,12 +2594,16 @@ ctx=$(hook55 s4 mcp__mrw__mrw_write '{"plan":"@@ pkg/new_test.go - create\npacka
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "a file an mrw_write plan just created is matched: the hook runs after the write" \
   || bad "create op not matched: $ctx"
+# Whether mrw ACCEPTS a plan is not mirrored. The mirror built in the third
+# round could only add silence — every case where it was stricter than mrw (a
+# pattern it would not compile, an integer Go rejects and Python accepts) was
+# a successful write that delivered nothing — so every header-shaped line's
+# first field is a candidate, counted and raw bodies included, and a plan mrw
+# refuses delivers early for the files it names. Early beats silent.
 ctx=$(hook55 s5 mcp__mrw__mrw_write '{"plan":"@@ README.md 1 replace body=1 raw=true\n@@ docs/adr/x.md 1 replace\n"}' | ctx55)
-! grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a raw body line beginning with @@ is not read as a header" || bad "a raw body was read as a header: $ctx"
-ctx=$(hook55 s5b mcp__mrw__mrw_write '{"plan":"@@ README.md 1 replace body=1\n@@ docs/adr/x.md 1 replace\n"}' | ctx55)
-! grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a counted body line is skipped without raw=true, as mrw skips it" || bad "a counted body was read as a header: $ctx"
-ctx=$(hook55 s5c mcp__mrw__mrw_write '{"plan":"@@ README.md 1 replace raw=true\n@@ docs/adr/x.md 1 replace\n"}' | ctx55)
-[ -z "$ctx" ] && ok "raw=true without body= is a plan mrw refuses, and delivers nothing" || bad "delivered for a plan mrw refuses: $ctx"
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a header-shaped line inside a raw counted body delivers early for the file it names" || bad "a raw body line was suppressed: $ctx"
+ctx=$(hook55 s5c mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md 1 replace raw=true\nX\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "raw=true without body= is a plan mrw refuses, and it still delivers early for the file it names" || bad "a refused plan was suppressed: $ctx"
 ctx=$(hook55 s5d mcp__mrw__mrw_write '{"plan":"﻿@@ \"docs/adr/my file.md\" 1 replace\nX\n"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "a quoted path with a space behind a BOM is read as mrw reads it" \
@@ -2614,13 +2618,20 @@ grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   || bad "grep result headers were not read: $ctx"
 ctx=$(hook55 s9 Bash '{"command":"cd docs/adr && cat x.md"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a leading cd moves the base the later tokens resolve against" || bad "cd-relative read not matched: $ctx"
+ctx=$(hook55 s9b Bash '{"command":"cd docs && mrw read --grep record adr/"}' '{"stdout":"==> adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "and the same cd moves the base the served ==> headers resolve against, so a grep after a cd delivers" || bad "served headers after a cd were resolved from the wrong base: $ctx"
 ctx=$(hook55 s10 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/pkg" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "with cwd in a subdirectory, the project root still comes from CLAUDE_PROJECT_DIR and ../ resolves" \
   || bad "a subdirectory cwd lost the rules: $ctx"
+many55=$(printf 'README.md %.0s' $(seq 1 600))
+ctx=$(hook55 s10c Bash "{\"command\":\"cat ${many55}docs/adr/x.md\"}" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "the 601st operand of a command is still a candidate: there is no token cap" || bad "a long command lost its last operand: $ctx"
 out=$(printf 'not json' | env HOME="$R55/home" python3 "$HOOK"); want 0 "$?" "malformed stdin exits 0: a broken hook must not take the turn down"
 [ -z "$out" ] && ok "and prints nothing" || bad "printed on malformed stdin: $out"
 ( hook55 s11 Bash '{"command":"cat docs/adr/x.md"}' >&- 2>/dev/null ); want 0 "$?" "a closed stdout still exits 0"
+ctx=$(hook55 s11 Bash '{"command":"cat docs/adr/x.md"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "and the claim that call filed was withdrawn, so the next read in the same session still delivers" || bad "a claim outlived an envelope that never reached the harness: $ctx"
 hook55 s12 Bash '{"command":"cat docs/adr/x.md"}' > "$R55/race1" & hook55 s12 Bash '{"command":"cat docs/adr/x.md"}' > "$R55/race2" & wait
 n=$( { ctx55 < "$R55/race1"; echo; ctx55 < "$R55/race2"; } | grep -c 'SCOPED RULE BODY 55')
 [ "$n" = 1 ] && ok "two hooks racing for one rule in one session deliver it exactly once" || bad "raced delivery count is $n, want 1"
@@ -2642,25 +2653,48 @@ mkdir -p "$R55/proj/docs/adr/$deep55" && printf 'deep\n' > "$R55/proj/docs/adr/$
 ( perl -e 'alarm shift; exec @ARGV' 1 bash -c "$(declare -f mk55 hook55); R55='$R55'; HOOK='$HOOK'; hook55 s13b Bash '{\"command\":\"cat docs/adr/${deep55}deep.txt\"}'" > "$R55/deep.out" ); want 0 "$?" "a 300-globstar rule against a file 400 directories deep that it does not match still answers inside a 1 s alarm"
 ctx=$(ctx55 < "$R55/deep.out")
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ! grep -q 'BOMB' <<<"$ctx" && ok "and docs/adr/** matched it while the *.md rules did not: ** stands for 400 directories as it does for none" || bad "deep path: $(head -c 200 <<<"$ctx")"
+# `*` inside one segment is matched by a two-pointer walk, not by a regex of
+# `[^/]*` runs, which backtracks: sixteen stars in one segment took the regex
+# over 2 s on a non-match. Twenty-four here, against a 200-character name,
+# inside the same 1 s alarm.
+printf -- '---\npaths:\n  - "docs/adr/%sz.md"\n---\n\nSTARS RULE BODY 55\n' "$(printf '*a%.0s' $(seq 1 24))" > "$R55/proj/.claude/rules/stars.md"
+long55=$(printf 'a%.0s' $(seq 1 200)).md
+printf 'long\n' > "$R55/proj/docs/adr/$long55"
+( perl -e 'alarm shift; exec @ARGV' 1 bash -c "$(declare -f mk55 hook55); R55='$R55'; HOOK='$HOOK'; hook55 s13c Bash '{\"command\":\"cat docs/adr/$long55\"}'" > "$R55/stars.out" ); want 0 "$?" "a segment of 24 stars against a 200-character name it does not match answers inside a 1 s alarm"
+ctx=$(ctx55 < "$R55/stars.out")
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ! grep -q 'STARS' <<<"$ctx" && ok "and docs/adr/** matched it while the star rule did not" || bad "star segment: $(head -c 200 <<<"$ctx")"
+# The grammar's edges do what Decision 5 says: a trailing `dir/` names no
+# file, and a pattern with nested braces is taken literally.
+printf -- '---\npaths: ["README.md/"]\n---\n\nSLASH RULE BODY 55\n' > "$R55/proj/.claude/rules/slash.md"
+ctx=$(hook55 s19 Bash '{"command":"cat README.md"}' | ctx55)
+! grep -q 'SLASH RULE BODY 55' <<<"$ctx" && ok "a pattern ending in / names no file, so README.md/ does not match README.md" || bad "a trailing slash matched a file: $ctx"
+printf -- '---\npaths: ["src/{a,{b,c}}/*.tsx"]\n---\n\nNESTED RULE BODY 55\n' > "$R55/proj/.claude/rules/nested.md"
+mkdir -p "$R55/proj/src/{a,{b,c}}"; printf 'lit\n' > "$R55/proj/src/{a,{b,c}}/q.tsx"
+ctx=$(hook55 s20 Bash '{"command":"cat src/a/b.tsx"}' | ctx55)
+! grep -q 'NESTED RULE BODY 55' <<<"$ctx" && ok "nested braces are literal, so src/{a,{b,c}}/*.tsx does not match src/a/b.tsx" || bad "nested braces were expanded: $ctx"
+ctx=$(hook55 s20 Bash '{"command":"cat \"src/{a,{b,c}}/q.tsx\""}' | ctx55)
+grep -q 'NESTED RULE BODY 55' <<<"$ctx" && ok "and it does match the path spelled with those braces" || bad "literal nested braces did not match: $ctx"
 # A served path with a space in it. mrw's header is `==> path  NL  NB  sha …`,
 # two spaces after the path, and for a grep the header is the only place the
 # path appears at all.
 ctx=$(hook55 s8b Bash '{"command":"mrw read --grep spaced docs/"}' '{"stdout":"==> docs/adr/my file.md  1L  7B  sha 1234abcd\n    1| spaced\n"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a served path containing a space is read whole from its ==> header" || bad "spaced header path lost: $ctx"
+printf 'twice\n' > "$R55/proj/docs/adr/my  file.md"
+ctx=$(hook55 s8c Bash '{"command":"mrw read --grep twice docs/"}' '{"stdout":"==> docs/adr/my  file.md  1L  6B  sha 1234abcd\n    1| twice\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "and one holding two consecutive spaces: the path is read back from the NL  NB  sha suffix, not forward to the first gap" || bad "consecutive-space header path lost: $ctx"
 # Plan headers are tokenised as internal/plan tokenises them — double quotes
-# only, a /pattern/ address one token with its spaces — and a plan mrw refuses
-# (an unterminated quote, an unknown op, a guard given twice) wrote nothing
-# and delivers nothing.
+# only, a /pattern/ address one token with its spaces — because the tokeniser
+# decides WHICH string is the path. Nothing after that is mirrored.
 ctx=$(hook55 s5e mcp__mrw__mrw_write "{\"plan\":\"@@ 'docs/adr/x.md' 1 replace\\nX\\n\"}" | ctx55)
 [ -z "$ctx" ] && ok "a single-quoted path is literal to mrw, names no file, and delivers nothing" || bad "single quotes were stripped, which mrw does not do: $ctx"
 ctx=$(hook55 s5f mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md /^func (s *Store) Get/,/^}/ replace\nX\n"}' | ctx55)
-grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a pattern address with spaces is one token, so the op is still the third field" || bad "a pattern address split the header: $ctx"
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a pattern address with spaces is one token, and the path before it delivers" || bad "a pattern address split the header: $ctx"
 ctx=$(hook55 s5g mcp__mrw__mrw_write '{"plan":"@@ \"docs/adr/x.md 1 replace\nX\n@@ README.md 1 replace\nY\n"}' | ctx55)
-[ -z "$ctx" ] && ok "an unterminated quote refuses the whole plan, so a later valid header delivers nothing" || bad "delivered for a plan mrw refuses (unterminated quote): $ctx"
+! grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && grep -q 'INLINE RULE BODY 55' <<<"$ctx" && ok "an unterminated quote yields no path from that line, and the next header still delivers early" || bad "unterminated quote: $ctx"
 ctx=$(hook55 s5h mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md 1 replace anchor=\"a\" anchor=\"b\"\nX\n"}' | ctx55)
-[ -z "$ctx" ] && ok "a guard given twice is a plan mrw refuses, and delivers nothing" || bad "delivered for a plan mrw refuses (duplicate guard): $ctx"
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a guard given twice is a plan mrw refuses, and it delivers early for the file it names" || bad "a refused plan (duplicate guard) was suppressed: $ctx"
 ctx=$(hook55 s5i mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md 1 frobnicate\nX\n"}' | ctx55)
-[ -z "$ctx" ] && ok "an unknown op is a plan mrw refuses, and delivers nothing" || bad "delivered for a plan mrw refuses (unknown op): $ctx"
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "an unknown op is a plan mrw refuses, and it delivers early for the file it names" || bad "a refused plan (unknown op) was suppressed: $ctx"
 # A Bash operand is relative to where the command ran, and to nothing else:
 # mrw's own --root defaults to ".", so a spelling that names no file from cwd
 # read no file.

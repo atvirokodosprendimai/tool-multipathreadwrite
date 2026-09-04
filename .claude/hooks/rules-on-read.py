@@ -13,14 +13,17 @@ behaviour, extended to the reads it does not follow.
 
 Decisions the record makes and this file keeps:
 - the project root is $CLAUDE_PROJECT_DIR, else the nearest .claude/rules above
-  cwd, stopping at the first .git; a Bash command's paths resolve from cwd,
-  because that is where the command ran, and every other tool's from the root;
-- plan headers are tokenised as internal/plan tokenises them, and a plan mrw
-  refuses delivers nothing, because it wrote nothing;
+  cwd, stopping at the first .git; a Bash command's paths, and the headers mrw
+  printed for it, resolve from where the command ran — cwd, moved by a leading
+  `cd` — and every other tool's from the root;
+- plan headers are tokenised as internal/plan tokenises them, and whether mrw
+  accepts the plan is not mirrored: every header-shaped line's first field is
+  a candidate;
 - globs match by segment in a table sized (pattern segments x path segments),
-  so nothing backtracks and the cost is that product;
+  each segment by a two-pointer walk, so nothing backtracks;
 - dedup is an atomic O_EXCL claim per rule under a 0700 cache directory that
-  is never inside the project; a claim that cannot be filed delivers anyway;
+  is never inside the project; a claim that cannot be filed delivers anyway,
+  and a claim whose envelope never reached the harness is withdrawn;
 - exit 0 is unconditional, closed stdout included: a hook must never take
   the turn down.
 
@@ -28,7 +31,10 @@ An early delivery is never a silence. Every path the hook takes from a call is
 a guess that a file was read — `echo docs/adr/x.md` names the record without
 reading it — and a guess that is wrong puts a rule in context a call sooner
 than the harness would have. That costs context; a path the hook fails to see
-costs the rule. The code below errs on the first side throughout.
+costs the rule. The code below errs on the first side throughout, and the
+third-round mirror of mrw's plan acceptance was removed for exactly that
+reason: everywhere it was stricter than mrw, a successful write delivered
+nothing.
 
 The matcher in .claude/settings.json names the MCP tools as mcp__mrw__*, which
 assumes the server is registered as `mrw`. Another registration name gets the
@@ -46,21 +52,18 @@ HANDLED = {"Bash", "Write", "mcp__mrw__mrw_read", "mcp__mrw__mrw_write"}
 # An mrw spec is PATH[:RANGE[,RANGE...]]; the range starts with a digit, "-",
 # "$" or "/" after the FIRST colon followed by one of those.
 _SPEC_SPLIT = re.compile(r":(?=[0-9$/-])")
-# mrw prints one header per file it looked at: "==> path  12L  340B  sha ...",
-# "==> path  REFUSED ..." or "==> path  UNREADABLE ...". Two spaces end the
-# path, so a path with a space in it is read whole.
-_SERVED = re.compile(r"^==> (.+?)  \S", re.M)
+# mrw prints one header per file it SERVED: "==> path  12L  340B  sha abcd1234".
+# The path is read back from that suffix, greedily, so any run of spaces inside
+# it survives; a REFUSED or UNREADABLE header served nothing and names nothing.
+_SERVED = re.compile(r"^==> (.+)  \d+L  \d+B  sha [0-9a-f]+$", re.M)
 _BOM = "\ufeff"
 _STATE_MAX_AGE = 7 * 24 * 3600
-_MAX_TOKENS = 500
-_OPS = {"replace", "insert-after", "insert-before", "delete", "create"}
-_INT = re.compile(r"[+-]?[0-9]+")  # what strconv.Atoi accepts
 
 
 def main():
-    out = None
+    out, claimed = None, []
     try:
-        out = run(json.loads(sys.stdin.read()))
+        out, claimed = run(json.loads(sys.stdin.read()))
     except Exception:  # noqa: BLE001 - see the module comment
         out = None
     if out:
@@ -68,43 +71,62 @@ def main():
             sys.stdout.write(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": out}}))
             sys.stdout.flush()
         except Exception:  # noqa: BLE001 - a closed stdout is not our turn to end
-            pass
+            # The envelope never reached the harness, so the claims this call
+            # filed would suppress the next real read for seven days. Withdraw
+            # them: a repeat, never a silence.
+            for p in claimed:
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
     # No interpreter-shutdown flush, which is what turned a closed pipe into
     # exit 120 in the first cut.
     os._exit(0)
 
 
 def run(data):
+    """The additionalContext to deliver (or None) and the claim files this
+    call created, so main() can withdraw them if the delivery fails."""
     if data.get("hook_event_name") != "PostToolUse":
-        return None
+        return None, []
     tool = data.get("tool_name", "")
     if tool not in HANDLED:
-        return None
+        return None, []
     cwd = os.path.realpath(data.get("cwd") or os.getcwd())
     root = project_root(cwd)
     if not root:
-        return None
+        return None, []
     rules = load_rules(root)
     if not rules:
-        return None
-    cands = candidates(tool, data.get("tool_input") or {}) + served_paths(data.get("tool_response"))
+        return None, []
+    inp = data.get("tool_input") or {}
     # One base per call. A Bash command's operands, and the headers mrw printed
-    # for it, are relative to where the command ran (mrw's own --root defaults
-    # to "."); a Write's path, an MCP spec and an MCP result are relative to the
-    # project the server serves. A path retried against the other base names a
-    # file the call never touched.
-    paths = resolve(root, cwd if tool == "Bash" else root, cands)
+    # for it, are relative to where the command ran — cwd, moved by a leading
+    # `cd` (mrw's own --root defaults to "."); a Write's path, an MCP spec and
+    # an MCP result are relative to the project the server serves. A path
+    # retried against the other base names a file the call never touched.
+    if tool == "Bash":
+        cd, cands = bash_paths(inp.get("command") or "")
+        base = os.path.join(cwd, cd)
+    else:
+        cands, base = candidates(tool, inp), root
+    paths = resolve(root, base, cands + served_paths(data.get("tool_response")))
     if not paths:
-        return None
+        return None, []
     session = data.get("session_id") or "nosession"
     agent = data.get("agent_id") or ""
-    parts = []
+    parts, claimed = [], []
     for rule in rules:
         matched = sorted(p for p in paths if rule.matches(p))
-        if matched and claim(session, agent, root, rule.rel):
+        if not matched:
+            continue
+        deliver, path = claim(session, agent, root, rule.rel)
+        if deliver:
+            if path:
+                claimed.append(path)
             parts.append("<!-- %s, delivered by .claude/hooks/rules-on-read.py because %s read %s -->\n%s"
                          % (rule.rel, tool, ", ".join(matched), rule.body.rstrip()))
-    return "\n\n".join(parts) if parts else None
+    return ("\n\n".join(parts) if parts else None), claimed
 
 
 def project_root(cwd):
@@ -128,37 +150,35 @@ def project_root(cwd):
 
 
 def candidates(tool, inp):
-    """The paths a tool call NAMED, as the caller wrote them."""
+    """The paths a non-Bash tool call NAMED, as the caller wrote them."""
     if tool == "Write":
         return [inp.get("file_path") or ""]
     if tool == "mcp__mrw__mrw_read":
         return [_SPEC_SPLIT.split(s, 1)[0] for s in (inp.get("specs") or []) if isinstance(s, str)]
     if tool == "mcp__mrw__mrw_write":
         return plan_paths(inp.get("plan") or "")
-    if tool == "Bash":
-        return bash_paths(inp.get("command") or "")
     return []
 
 
 def bash_paths(cmd):
-    """Every token of a shell command; existence decides later which are
-    paths. A leading `cd DIR &&` (or `;`) moves the base later tokens resolve
-    against, because the command's own reads happened there."""
+    """The directory a leading `cd DIR &&` (or `;`) moved into, and every
+    other token of the command. Existence decides later which tokens are
+    paths; there is no token cap, because a cap is a silent way to lose the
+    last operand. The cd directory is returned rather than joined in, since
+    the headers mrw printed for the command are relative to it too."""
     try:
         toks = shlex.split(cmd)
     except ValueError:
         toks = cmd.split()
-    toks = toks[:_MAX_TOKENS]
-    base = ""
+    cd = ""
     if len(toks) >= 3 and toks[0] == "cd" and toks[2] in ("&&", ";"):
-        base, toks = toks[1], toks[3:]
+        cd, toks = toks[1], toks[3:]
     out = []
     for t in toks:
         t = _SPEC_SPLIT.split(t, 1)[0]
-        if not t or t.startswith("-"):
-            continue
-        out.append(t if (os.path.isabs(t) or not base) else os.path.join(base, t))
-    return out
+        if t and not t.startswith("-"):
+            out.append(t)
+    return cd, out
 
 
 def served_paths(resp):
@@ -177,129 +197,29 @@ def served_paths(resp):
 
 
 def plan_paths(plan):
-    """Paths named by a plan's headers, read as internal/plan reads the plan.
-
-    The tokeniser is splitHeader ported line for line: double quotes only, a
-    backslash escapes a quote or a backslash, a /pattern/ address is one token
-    with its spaces. The document rules are Parse's: one BOM stripped before
-    the header test on every line, a counted body= honoured, a valid header
-    inside a counted body refused unless raw=true, text outside any hunk
-    refused. The header rules are parseHeader's: at least path, address and
-    op; a known op; options key=value, each key once, from the five mrw knows;
-    raw=true only with body=. A plan mrw refuses wrote nothing and delivers
-    nothing.
-
-    One thing is not mirrored: a pattern address is checked for shape, never
-    compiled, because Go's regexp and Python's are not one language. A plan
-    mrw refuses for a bad pattern delivers for its paths — early, not silently.
-    """
+    """The first field of every header-shaped line of a plan, tokenised as
+    internal/plan tokenises a header (split_header decides WHICH string is the
+    path). Whether mrw would ACCEPT the plan is not mirrored — not a counted
+    body, not an op, not a guard, not an address: a body line that looks like
+    a header delivers early for a file the plan did not touch, and a plan mrw
+    refuses delivers early for the files it names. The mirror this replaced
+    could only add silence: everywhere it was stricter than mrw, a successful
+    write delivered nothing. A BOM is stripped once, as mrw strips it."""
     out = []
-    cur, want, fixed, raw = False, -1, False, False
     for line in plan.splitlines():
         hdr = line[1:] if line.startswith(_BOM) else line
-        is_hdr = hdr.startswith("@@ ")
-        if cur and want > 0:
-            if is_hdr and not raw and parse_header(hdr) is not None:
-                return []  # an overcounted body= would swallow that hunk
-            want -= 1
-            continue
-        if cur and fixed and want == 0 and not is_hdr:
-            if line.strip():
-                return []  # body= is satisfied; this line is in no hunk
-            continue
-        if not is_hdr:
-            t = line.strip()
-            if not cur and t and not t.startswith("#"):
-                return []  # text before the first header
-            continue
-        h = parse_header(hdr)
-        if h is None:
-            return []
-        path, explicit, raw = h
-        out.append(path)
-        cur, want, fixed = True, explicit, explicit >= 0
-    if cur and fixed and want > 0:
-        return []  # body= asked for more lines than the plan holds
+        if hdr.startswith("@@ "):
+            fields = split_header(hdr[3:])
+            if fields:
+                out.append(fields[0])
     return out
-
-
-def parse_header(hdr):
-    """(path, declared body count or -1, raw) for a header parseHeader
-    accepts, else None."""
-    fields = split_header(hdr[3:])
-    if fields is None or len(fields) < 3 or fields[2] not in _OPS or not valid_addr(fields[1]):
-        return None
-    explicit, raw, seen = -1, False, set()
-    for opt in fields[3:]:
-        k, eq, v = opt.partition("=")
-        if not eq or k in seen:
-            return None
-        seen.add(k)
-        if k == "sha":
-            if len(v) < 8 or v.lower().strip("0123456789abcdef"):
-                return None
-        elif k == "lines":
-            if nonneg(v) is None:
-                return None
-        elif k == "anchor":
-            if v == "":
-                return None
-        elif k == "raw":
-            if v != "true":
-                return None
-            raw = True
-        elif k == "body":
-            explicit = nonneg(v)
-            if explicit is None:
-                return None
-        else:
-            return None
-    if raw and explicit < 0:
-        return None
-    return fields[0], explicit, raw
-
-
-def nonneg(v):
-    """An integer strconv.Atoi would return, if it is not negative."""
-    if not _INT.fullmatch(v) or int(v) < 0:
-        return None
-    return int(v)
-
-
-def valid_addr(s):
-    """ParseAddr's shapes: "-", "$", N, N-, N-M (either end may be $), or a
-    /pattern/ or /from/,/to/ that is closed and non-empty."""
-    if s in ("-", "$"):
-        return True
-    if s.startswith("/"):
-        return pattern_shape(s, 0)
-    lo, dash, hi = s.partition("-")
-    return linenum(lo) and (not dash or hi == "" or linenum(hi))
-
-
-def linenum(t):
-    return t == "$" or nonneg(t) is not None
-
-
-def pattern_shape(s, depth):
-    end = -1
-    for i in range(1, len(s)):
-        if s[i] == "/" and s[i - 1] != "\\":
-            end = i
-            break
-    if end <= 1:  # never closed, or the empty pattern //
-        return False
-    rest = s[end + 1:]
-    if rest == "":
-        return True
-    if rest.startswith(",/") and depth == 0:
-        return pattern_shape(rest[1:], 1)
-    return False
 
 
 def split_header(s):
     """internal/plan's splitHeader, ported: the fields of a header after
-    `@@ `, or None for an unterminated quote."""
+    `@@ `, or None for an unterminated quote. Double quotes only; a backslash
+    escapes a quote or a backslash; a /pattern/ address is one token with its
+    spaces, and /a/,/b/ is one address."""
     out, cur = [], []
     in_tok = in_q = in_pat = False
     i, n = 0, len(s)
@@ -442,39 +362,62 @@ def split_list(s):
 
 def expand_braces(pat):
     """Flat `{a,b}` alternation, expanded before matching so an alternative
-    may hold a glob or a slash. One level only: the grammar ADR-022 promises
-    has no nested braces, and a `{` inside a group is literal."""
+    may hold a glob or a slash. One level only, as ADR-022 promises: a group
+    that holds another group, or one never closed, leaves the whole pattern
+    literal."""
     i = pat.find("{")
-    j = pat.find("}", i + 1) if i >= 0 else -1
-    if j < 0:
+    if i < 0:
+        return [pat]
+    depth, j = 0, -1
+    for k in range(i, len(pat)):
+        if pat[k] == "{":
+            depth += 1
+        elif pat[k] == "}":
+            depth -= 1
+            if depth == 0:
+                j = k
+                break
+    if j < 0 or "{" in pat[i + 1:j]:
         return [pat]
     head, alts, tail = pat[:i], pat[i + 1:j].split(","), pat[j + 1:]
     return [head + a + t for a in alts for t in expand_braces(tail)]
 
 
-_SEG = {}
-
-
-def seg_re(seg):
-    """One path segment as a regexp: * and ? never cross a slash. A `**`
-    inside a segment is two stars, as Git specifies; braces were expanded
-    before the pattern was split, so here they are literal."""
-    r = _SEG.get(seg)
-    if r is None:
-        out = []
-        for c in seg:
-            out.append("[^/]*" if c == "*" else "[^/]" if c == "?" else re.escape(c))
-        r = _SEG[seg] = re.compile("^" + "".join(out) + "$")
-    return r
+def seg_match(pat, s):
+    """`*` and `?` inside one path segment, by the two-pointer walk: a failed
+    literal falls back to the last `*` and lets it swallow one more character.
+    The cost is bounded by len(pat) x len(s); a regex of `[^/]*` runs, which
+    this replaced, backtracked past a 2 s alarm on sixteen stars. Braces were
+    expanded before the pattern was split, so `{` and `}` are literal here,
+    and a `**` inside a segment is two stars, as Git specifies."""
+    p = i = 0
+    star = mark = -1
+    while i < len(s):
+        if p < len(pat) and pat[p] == "*":
+            star, mark = p, i
+            p += 1
+        elif p < len(pat) and (pat[p] == "?" or pat[p] == s[i]):
+            p += 1
+            i += 1
+        elif star >= 0:
+            mark += 1
+            p, i = star + 1, mark
+        else:
+            return False
+    while p < len(pat) and pat[p] == "*":
+        p += 1
+    return p == len(pat)
 
 
 def glob_match(pattern, path):
     """Match by segment. A `**` segment stands for zero or more directories;
-    `*` and `?` stay inside one; a slash-less pattern names a root file. One
-    row per pattern segment over the path positions, so the cost is the
-    product of the two counts and nothing is rescanned. (Git is borrowed for
-    the `**` boundary rule and for nothing else: a trailing `dir/` names no
-    file here — write `dir/**`.)"""
+    `*` and `?` stay inside one; a slash-less pattern names a root file; a
+    pattern ending in `/` names a directory and so no file. One row per
+    pattern segment over the path positions, so the cost is the product of
+    the two counts and nothing is rescanned. (Git is borrowed for the `**`
+    boundary rule and for nothing else.)"""
+    if pattern.endswith("/"):
+        return False
     pseg = [s for s in pattern.split("/") if s]
     ps = path.split("/")
     n = len(ps)
@@ -487,9 +430,8 @@ def glob_match(pattern, path):
                 reach = reach or ok[j]
                 nxt[j] = reach
         else:
-            r = seg_re(seg)
             for j in range(n):
-                if ok[j] and r.match(ps[j]):
+                if ok[j] and seg_match(seg, ps[j]):
                     nxt[j + 1] = True
         ok = nxt
     return ok[n]
@@ -527,24 +469,25 @@ def sweep(d):
 
 
 def claim(session, agent, root, rel):
-    """True when this hook is the first in (session, agent, project) to reach
-    this rule: an O_EXCL create is the atomic claim two concurrent hooks race
-    for, and one loses. Once per session holds only while a claim can be
-    filed. A state directory that cannot be used — no absolute base, a base
-    in the tree, a file where the directory should be — delivers on EVERY
-    call rather than on none: a repeat costs context, a silence costs the
-    rule."""
+    """(deliver, claim file). Deliver is True when this hook is the first in
+    (session, agent, project) to reach this rule: an O_EXCL create is the
+    atomic claim two concurrent hooks race for, and one loses. Once per
+    session holds only while a claim can be filed. A state directory that
+    cannot be used — no absolute base, a base in the tree, a file where the
+    directory should be — delivers on EVERY call rather than on none, with no
+    file to withdraw: a repeat costs context, a silence costs the rule."""
     try:
         d = state_dir(root)
         sweep(d)
         key = hashlib.sha1("\0".join((session, agent, root, rel)).encode()).hexdigest()
         flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
-        os.close(os.open(os.path.join(d, key), flags, 0o600))
-        return True
+        path = os.path.join(d, key)
+        os.close(os.open(path, flags, 0o600))
+        return True, path
     except FileExistsError:
-        return False
+        return False, None
     except OSError:
-        return True
+        return True, None
 
 
 if __name__ == "__main__":

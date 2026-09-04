@@ -33,27 +33,31 @@ never take the turn down.
    `CLAUDE_PROJECT_DIR` = the project delivers the rule for `../docs/adr/x.md`; the current hook
    looks for rules under `cwd` and delivers nothing. [proof: acceptance]
 2. [S2] Read the project root from `$CLAUDE_PROJECT_DIR`, else walk up from `cwd` to the nearest
-   `.claude/rules`, stopping at the first `.git`; resolve a Bash command's paths from `cwd` and every
-   other tool's from the root, one base per call, and relativise to the root. [proof: mutation]
-3. [S3] Take served paths from every `==> path` header in the tool result as well as the named ones,
-   the path read up to the two spaces mrw prints after it, so a grep delivers and a space survives.
+   `.claude/rules`, stopping at the first `.git`; resolve a Bash command's operands AND the headers
+   mrw printed for it from where the command ran (`cwd`, moved by a leading `cd`), every other tool's
+   paths from the root, one base per call, and relativise to the root. [proof: mutation]
+3. [S3] Take served paths from every `==> path  NL  NB  sha …` header in the tool result as well as
+   the named ones, the path read back from that suffix, so a grep delivers and any spaces survive.
    [proof: mutation]
-4. [S4] Read plan headers as `mrw` does: `splitHeader` ported, `Parse`'s and `parseHeader`'s refusals
-   mirrored (a BOM stripped once per line, every `body=N` honoured, `raw=true` without `body=`, a
-   duplicate or unknown guard, an unknown op and an unterminated quote all deliver nothing), a
-   pattern checked for shape and not compiled. [proof: mutation]
+4. [S4] Tokenise plan headers as `mrw` does — `splitHeader` ported, a BOM stripped once per line —
+   and take every header-shaped line's first field as a candidate, bodies included; do not mirror
+   whether mrw accepts the plan (a refused plan delivers early, never silently). [proof: mutation]
 5. [S5] Match globs by segment in an enumerated grammar: `**` at a boundary crosses directories,
-   `*`/`?` within one, flat `{a,b}` expanded before the split, slash-less is root-only; a table
-   whose cost is the product of the segment counts. [proof: mutation]
+   `*`/`?` within one by a two-pointer walk, flat `{a,b}` expanded before the split, nested braces
+   literal, a trailing `/` names no file, slash-less is root-only; a table whose cost is the product
+   of the segment counts. [proof: mutation]
 6. [S6] Dedup by an atomic claim — `O_CREAT|O_EXCL|O_NOFOLLOW` under a `0700` cache directory keyed
    by session, agent, root and rule — swept after seven days; the base absolute and outside the
-   project, else no claim and a delivery; two racing hooks deliver once. [proof: mutation]
+   project, else no claim and a delivery; a claim withdrawn when the envelope cannot be written;
+   two racing hooks deliver once. [proof: mutation]
 7. [S7] Exit 0 unconditionally, closed stdout included; stdin read whole. [proof: acceptance]
 8. [S8] §55: decode the JSON envelope exactly; take the hook from the settings entry (exactly the
    four tools, the command resolved through `CLAUDE_PROJECT_DIR`) and drive that file; the
-   subdirectory, quoted-path, counted-body, race and closed-stdout cases; the differential grammar
-   rows; the spaced header; the relative, in-tree and unusable state bases; the nested `.git`; the
-   300-globstar × 400-directory alarm. [proof: acceptance]
+   subdirectory, quoted-path, race and closed-stdout cases; the tokeniser rows and the early
+   deliveries for plans mrw refuses; the spaced and double-spaced headers; the `cd` before a grep;
+   the 601-operand command; the relative, in-tree and unusable state bases; the withdrawn claim; the
+   nested `.git`; the 300-globstar × 400-directory and 24-star alarms; the trailing slash and the
+   nested braces. [proof: acceptance]
 
 ## Acceptance
 
@@ -109,12 +113,19 @@ and touches no engine code.
 - 2026-09-04 · 0df776f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: make `**` no longer cross directories (`if False:` on the globstar branch). §55's zero-directory, two-directory and 400-directory rows fail · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 0df776f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: put the memoised recursion back in place of the table. ⚠ IT SURVIVED TWICE FIRST: a 200-globstar fixture under a 5 s alarm let it through at 1.6 s, and a 500-globstar one killed it by Python's recursion limit rather than by time — the wrong reason, with the alarm row passing. Measured, then sized: 300 globstars × 400 directories under a 1 s alarm; the recursion takes 2.3 s through the hook and exit 142 fails the row, the table takes 40 ms · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 0df776f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S6: accept a relative cache base. §55's relative-base row fails: `rel55/` is created under cwd while the delivery still happens · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 8a8b137 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S3: read the served path forward to the first gap again. §55's consecutive-space row fails: `docs/adr/my  file.md` arrives as `docs/adr/my` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 8a8b137 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: apply a leading `cd` to the command's operands only, not to the headers it printed. §55's `cd docs && mrw read --grep` row fails: `adr/x.md` resolves from the wrong base · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 8a8b137 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S4: tokenise headers with `shlex` in place of the `splitHeader` port. §55's single-quoted-path row fails: the quotes are stripped and the file delivers · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 8a8b137 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: match each segment with a regex of `[^/]*` runs in place of the two-pointer walk. §55's 24-star row fails on the alarm (exit 142) · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 8a8b137 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: drop the trailing-slash check. §55's `README.md/` row fails: a pattern naming a directory matched a file · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 8a8b137 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: expand a brace group that holds another. §55's nested-brace rows fail both ways: `src/a/b.tsx` matches and the literal path does not · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 8a8b137 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S6: keep the claims when the envelope cannot be written. §55's closed-stdout-then-read row fails: the next read in the session is silent · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 
 ## Invariants
 
-- A rule is delivered once per session per agent per project while its claim can be filed, and on every matching call when it cannot — never on none — whichever of the four tools read the file.
-- The project root is never assumed to be `cwd`; a Bash path resolves from `cwd`, every other from the root, and no path from both.
-- A plan header is tokenised as `mrw` tokenises it, and a plan mrw refuses delivers nothing, a bad pattern excepted.
+- A rule is delivered once per session per agent per project while its claim can be filed and its envelope reaches the harness, and on every matching call when a claim cannot be filed — never on none — whichever of the four tools read the file.
+- The project root is never assumed to be `cwd`; a Bash operand and a Bash-served header resolve from where the command ran, every other path from the root, and no path from both.
+- A plan header is tokenised as `mrw` tokenises it; whether mrw accepts the plan is not mirrored, so a refused plan delivers early and never silently.
 - The hook exits 0 whatever happens.
 - No engine change; `go.mod` declares exactly one requirement.
 
@@ -139,3 +150,4 @@ build. That is a different tool, and the record's Alternatives say why it was no
 - 2026-09-04 · 48b2e9f · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:46599
 - 2026-09-04 · ee58dbb* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:30941
 - 2026-09-04 · 0df776f* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:25969
+- 2026-09-04 · 8a8b137* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:35773
