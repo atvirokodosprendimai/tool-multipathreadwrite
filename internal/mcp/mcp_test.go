@@ -3,6 +3,7 @@ package mcp
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -310,5 +311,42 @@ func TestTheDescriptionsSayWhenToReachForTheTool(t *testing.T) {
 	// through mrw than through an ordinary editor.
 	if !strings.Contains(instructionsText(), "Below that") {
 		t.Error("the instructions never say when NOT to reach for mrw")
+	}
+}
+
+// TestTheInstructionsTeachThePatternAddress asserts the wire teaches ADR-013's
+// form AND its refusal.
+//
+// Saying `/re/` works without saying that two matches fail leaves a caller to
+// meet the refusal as a surprise and read it as a bug. And the rule has to be
+// the SHIPPED rule: ADR-012 taught an enum the engine never sent, found by two
+// independent reviewers, so a description is now held to what the code does
+// rather than to what reads well.
+func TestTheInstructionsTeachThePatternAddress(t *testing.T) {
+	lines := serve(t, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`)
+	res, ok := decode(t, lines[0])["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("no result object in %q", lines[0])
+	}
+	got, _ := res["instructions"].(string)
+	for _, must := range []string{"/regexp/", "/from/,/to/", "EXACTLY ONE"} {
+		if !strings.Contains(got, must) {
+			t.Errorf("the instructions never mention %q, so a caller meets the refusal as a surprise", must)
+		}
+	}
+	// The bound is paid by every session; teaching a new form must not quietly
+	// raise it.
+	if len(got) > maxInstructionsChars {
+		t.Errorf("instructions are %d bytes, over the %d-byte bound", len(got), maxInstructionsChars)
+	}
+	// The same rule must reach the tool description, which is the surface a
+	// host reads even when it ignores `instructions`.
+	for _, tl := range tools() {
+		if tl.Name != "mrw_write" {
+			continue
+		}
+		if !strings.Contains(tl.Description+fmt.Sprint(tl.InputSchema), "EXACTLY ONE") {
+			t.Error("mrw_write does not publish the exactly-once rule anywhere a host reading only tools/list would see it")
+		}
 	}
 }

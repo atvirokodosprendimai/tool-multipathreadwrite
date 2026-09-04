@@ -2009,6 +2009,119 @@ PY
 [ $? -eq 0 ] && ok "every property of every declared outputSchema says what it means, at every depth" \
              || bad "the declared output schemas still describe only their types"
 
+# 45. ADR-013 T2: a pattern address resolves exactly once, or it is refused —
+# and it is never a way to edit a file you have not read.
+#
+# The fixture here is written by hand and the plans bend to it, deliberately.
+# ADR-012 shipped a mutant that survived because its fixture was generated FROM
+# the plan, so the plan's own guard could not fail. `func (s *Store) Get`
+# appearing twice below is the ordinary shape of a Go file, not a contrivance.
+fixture
+mkdir -p "$R/store"
+cat > "$R/store/store.go" <<'GO'
+package store
+
+// Get returns a row. See func (s *Store) Get below.
+func (s *Store) Get(id string) (string, bool) {
+	r, ok := s.rows[id]
+	return r, ok
+}
+
+func (s *Store) Put(id, v string) {
+	s.rows[id] = v
+}
+GO
+
+m read store/store.go >/dev/null 2>&1
+want 0 $? "the fixture reads"
+
+out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Put/ replace\nfunc (s *Store) Put(id, v string) { s.rows[id] = v }\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "a pattern that matches exactly one line applies"
+grep -q '^ok .*/\^func' <<<"$out" \
+  && ok "and the verdict echoes the PATTERN the caller wrote, not the line it resolved to" \
+  || bad "the verdict does not name the pattern: $out"
+
+# THE ROW: two matches is a refusal that names both lines, never a choice.
+m read store/store.go >/dev/null 2>&1
+out=$(printf '@@ store/store.go /func \\(s \\*Store\\) Get/ replace\n// no\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "an ambiguous pattern is refused"
+grep -qi 'matched 2 lines' <<<"$out" \
+  && ok "and the refusal says how many it matched" \
+  || bad "the refusal does not say how many: $out"
+grep -qE 'lines 3, 4' <<<"$out" \
+  && ok "and names them, so the caller can narrow it or address by number" \
+  || bad "the refusal does not name the matching lines: $out"
+grep -q 'NOTHING WRITTEN' <<<"$out" \
+  && ok "and nothing was written" \
+  || bad "an ambiguous pattern wrote something"
+
+# A pattern must NOT be a ledger bypass: the resolved line still has to be read.
+fixture
+mkdir -p "$R/store"
+printf 'package store\n\nfunc (s *Store) Put(id, v string) {\n\ts.rows[id] = v\n}\n' > "$R/store/store.go"
+out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Put/ replace\n// no\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "a pattern against an unread file is refused"
+grep -q 'has not been read' <<<"$out" \
+  && ok "and refused as UNREAD, so a pattern is not a way past the ledger" \
+  || bad "the refusal was not the unread one: $out"
+
+# The RANGE form, which the first cut of this record shipped with no resolution
+# test at all — and whose own headline example failed, because `^}` closes every
+# function and exactly-once was being applied to the end as well as the start.
+# The end is a delimiter: first match AT OR AFTER the start.
+fixture
+mkdir -p "$R/store"
+cat > "$R/store/store.go" <<'GO'
+package store
+
+func (s *Store) Get(id string) (string, bool) {
+	r, ok := s.rows[id]
+	return r, ok
+}
+
+func (s *Store) Put(id, v string) {
+	s.rows[id] = v
+}
+GO
+m read store/store.go >/dev/null 2>&1
+out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Get/,/^\\}/ replace\nfunc (s *Store) Get(id string) (string, bool) { return s.rows[id], true }\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "the range form applies on a file where the end pattern matches twice"
+grep -q 'func (s \*Store) Put' "$R/store/store.go" \
+  && ok "and it stopped at the FIRST closing brace, leaving Put intact" \
+  || bad "the range ran past the first closing brace: $(cat "$R/store/store.go")"
+
+# An end that only matches ABOVE the start delimits nothing and is refused.
+m read store/store.go >/dev/null 2>&1
+out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Put/,/^package/ replace\n// x\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "an end pattern above the start is refused"
+grep -q 'above the start' <<<"$out" \
+  && ok "and the refusal says why, rather than silently inverting the range" \
+  || bad "the refusal does not explain the inversion: $out"
+
+# Two address forms in ONE grammar must be refused on the same inputs.
+out=$(printf '@@ store/nope.go /x/ create\n// x\n' | m write - 2>&1); rc=$?
+# Exit 2, not 1: both are PARSE errors — a malformed document, refused before
+# anything touches the tree — where 1 is a hunk that parsed and failed to apply.
+want 2 "$rc" "create refuses a pattern address exactly as it refuses a number"
+out=$(printf '@@ store/store.go /^package/,/^func/ insert-after\n// x\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "and an insertion refuses a RANGE, whether it is written 3-6 or /a/,/b/"
+
+# 46. ADR-013 T3: the rule the wire teaches is the rule the binary enforces.
+#
+# ADR-012 taught an enum the engine never sent and two independent reviewers
+# caught it. This row is that lesson applied to a RULE rather than a value: the
+# exactly-once refusal is asserted on the wire and in the binary, in one place.
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+i=json.loads(sys.argv[1])["result"]["instructions"]
+assert "/regexp/" in i, "the instructions never teach the pattern form"
+assert "EXACTLY ONE" in i, "the instructions teach the form without the exactly-once rule"
+assert "have not read" in i, "the instructions do not say a pattern is still subject to the ledger"
+PY
+[ $? -eq 0 ] && ok "the wire teaches the pattern form, its exactly-once rule, and the ledger caveat" \
+             || bad "the taught rule is incomplete"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
