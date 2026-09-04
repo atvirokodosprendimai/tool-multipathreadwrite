@@ -24,9 +24,13 @@ Status: `pending` | `partial` | `blocked` | `done` | `withdrawn`.
 
 ## Notes
 
-- ⚠ **A MERGE CAN COMMIT CONFLICT MARKERS INTO A FILE NO GATE READS.** This
-  branch shipped `<<<<<<<`, `=======` and `>>>>>>>` into `docs/adr/BACKLOG.md`
-  and nothing noticed: CI does not read that file, `adr-debt` found every
+- ⚠ **A MERGE CAN COMMIT CONFLICT MARKERS INTO A FILE NO GATE READS, AND THEY
+  TRAVEL.** `main` shipped `<<<<<<<`, `=======` and `>>>>>>>` into
+  `docs/adr/BACKLOG.md` at `d90be24` — #76's squash merge — and #77 and #78 both
+  inherited them by branching from it. The first review of this branch attributed
+  them to THIS merge and corrected itself; the origin matters, because a marker
+  on a branch is one PR's mistake and a marker on `main` is every later branch's
+  inheritance. Nothing noticed: CI does not read that file, `adr-debt` found every
   deferral it was looking for on BOTH sides of the markers, and `adr-lint`
   treats BACKLOG.md as prose. A reviewer found it by eye. §49 now carries a
   tree-wide `git grep` for markers, because the class is "a merge artifact in a
