@@ -47,12 +47,20 @@ type Params struct {
 	Seed        int64
 }
 
-// Manifest is what the client receives. It carries no ground truth.
+// Manifest is what the client receives. It carries NO ground truth: not the
+// planted line, and not the stratum or distractor count either — with those two
+// the target's block index follows by arithmetic (early is the first block,
+// late the last), so a client could localise by counting rather than by
+// reading, which is exactly the confound the fixture exists to remove.
 type Manifest struct {
-	TrialID     string   `json:"trial_id"`
-	ServedBytes int      `json:"served_bytes"`
-	Position    Position `json:"position"`
-	Distractors int      `json:"distractors"`
+	TrialID string `json:"trial_id"`
+	// Cell is the REQUESTED size, and it is what a tally groups by. Padding
+	// overshoots by a seed-dependent amount, so grouping by the measured size
+	// would give nearly every trial a cell of its own.
+	Cell int `json:"cell"`
+	// ServedBytes is what this trial actually served. It is echoed back with
+	// the result so a result from another trial can be refused.
+	ServedBytes int `json:"served_bytes"`
 	// Tree is the absolute fixture root the client's mrw should be pointed at.
 	Tree string `json:"tree"`
 	// File is the target's path relative to Tree — the path a plan names.
@@ -64,10 +72,14 @@ type Manifest struct {
 }
 
 // Answer is the planted ground truth. It is written beside the manifest and
-// never handed to the client.
+// never handed to the client. The stratum and the distractor count live here
+// rather than in the manifest for the reason given above: together they name
+// the target's block.
 type Answer struct {
-	TrialID string `json:"trial_id"`
-	Line    int    `json:"line"`
+	TrialID     string   `json:"trial_id"`
+	Line        int      `json:"line"`
+	Position    Position `json:"position"`
+	Distractors int      `json:"distractors"`
 }
 
 const (
@@ -103,6 +115,15 @@ func Generate(dir string, p Params) (Manifest, error) {
 			return Manifest{}, err
 		}
 	}
+	// A state directory that already holds something is refused rather than
+	// reused: the runner exports it as XDG_STATE_HOME, so an inherited ledger
+	// would license reads this trial never made. Regenerating into a used -out
+	// is the way that happens, and it looks like success.
+	if entries, err := os.ReadDir(state); err != nil {
+		return Manifest{}, err
+	} else if len(entries) > 0 {
+		return Manifest{}, fmt.Errorf("state directory %s is not empty (%d entries); generate into a fresh -out so no trial inherits another's ledger", state, len(entries))
+	}
 	names := serviceNames(p)
 	target := targetIndex(p)
 
@@ -133,15 +154,14 @@ func Generate(dir string, p Params) (Manifest, error) {
 
 	m := Manifest{
 		TrialID:     trialID(p),
+		Cell:        p.ServedBytes,
 		ServedBytes: len(served),
-		Position:    p.Position,
-		Distractors: p.Distractors,
 		Tree:        tree,
 		File:        targetFile,
 		StateHome:   state,
 		Instruction: instruction(names[target]),
 	}
-	a := Answer{TrialID: m.TrialID, Line: line}
+	a := Answer{TrialID: m.TrialID, Line: line, Position: p.Position, Distractors: p.Distractors}
 	if err := writeJSON(filepath.Join(abs, manifestName), m); err != nil {
 		return Manifest{}, err
 	}
@@ -163,8 +183,11 @@ func (p Params) check() error {
 	if p.ServedBytes <= 0 {
 		return fmt.Errorf("served bytes must be positive, got %d", p.ServedBytes)
 	}
-	if p.Distractors < 1 {
-		return fmt.Errorf("a trial needs at least one distractor, got %d", p.Distractors)
+	// Two is the minimum that makes the three strata distinct: with one
+	// distractor there are two blocks, and early and middle both name the
+	// first — two advertised strata that are the same trial.
+	if p.Distractors < 2 {
+		return fmt.Errorf("a trial needs at least two distractors so the strata differ, got %d", p.Distractors)
 	}
 	return nil
 }

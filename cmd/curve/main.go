@@ -123,7 +123,11 @@ func tally(paths []string) error {
 		}
 		scores = append(scores, s)
 	}
-	return emit(curve.Tally(scores))
+	cells, err := curve.Tally(scores)
+	if err != nil {
+		return err
+	}
+	return emit(cells)
 }
 
 func emit(v any) error {

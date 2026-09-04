@@ -55,11 +55,17 @@ using a memory curve to justify a context budget is the category error ADR-012 r
 - **`apply.Apply` (ADR-001):** the real applier. **Reused unchanged, and this is the design's centre
   of gravity** — see Decision 3. Scoring by comparing address STRINGS would have been simpler and
   would have measured a different thing.
-- **`seen.Record` (ADR-002):** the ledger. **Reused unchanged**, to license the fixture so the
-  read-before-write guard cannot convert a wrong address into a refusal — see Decision 4.
-- **`state.Dir` (ADR-010):** already hashes the resolved absolute root, so a per-cell state
-  directory comes free. **Reused unchanged.**
-- **`mcp.MaxResultChars`:** **read, never moved.** This record measures it; it does not set it.
+- **`seen.SHA` and `apply.Options.Seen` (ADR-002):** the ledger's hash and its in-memory shape.
+  **Used unchanged** to license the fixture WHOLE so the read-before-write guard cannot convert a
+  wrong address into a refusal — see Decision 4. ⚠ Note what this is NOT: the harness builds the
+  observation in memory and never calls `seen.Record`, because nothing about a scoring run should
+  outlive it. An earlier revision of this row said "`seen.Record` … reused unchanged", which was a
+  primitive the code does not call. Corrected after review of #85.
+- **`state.Dir` (ADR-004):** **NOT called.** The harness creates the per-cell directory itself and
+  hands it to the runner as `XDG_STATE_HOME`; `state.Dir` is what MRW then uses to resolve it. The
+  reuse is of the PROTOCOL, one process away, not of the function.
+- **`mcp.MaxResultChars`:** **referenced in prose only.** The size is a caller-supplied flag; this
+  record measures the constant's value but no code here reads it.
 - **The stdlib `flag` package:** taken for the new binary rather than the CLI framework, so `go.mod`
   still declares exactly one requirement.
 
@@ -78,6 +84,11 @@ through, which is the difference between a number and a finding.
 measured served-byte count; the results must echo both, and a mismatch is refused rather than scored.
 A manifest emitted at 190 KB with results pasted back from a 10 KB run would otherwise score
 perfectly and mean nothing — the same class as a fixture that never reaches the bug.
+The manifest carries NO ground truth in the wider sense either: the target's stratum and the
+distractor count are written to `answer.json`, not to the manifest, because together they name
+the target's block by arithmetic — early is the first block, late the last — and a client holding
+them could localise by counting instead of by reading. Found by review of #85; the first cut leaked
+both.
 
 **3. The primary DV is measured by APPLYING, not by comparing addresses.** The scorer copies the
 fixture, runs `apply.Apply`, and diffs against the original: **the changed line number IS the
@@ -95,6 +106,12 @@ its refusals into data would corrupt the variable that is.
 reported separately, with its count. Folding a format failure into a localisation rate would bend the
 primary curve with the secondary variable — and silence on the interaction is what makes a published
 proportion unreadable.
+The two refusal kinds are counted APART, because the pre-registration names `refused_parse` and
+`refused_apply` as two secondary variables, and an outcome the scorer never produces is refused by
+the tally rather than bucketed. **Cells key on the REQUESTED size, not the measured one.** Padding
+is fitted to reach a size and overshoots by a seed-dependent amount, so five repeats of one 6,000-byte
+cell served 6,011 to 6,040 bytes: keyed on the measurement they would have been five cells of one and
+every interval the interval of a single observation. Found by review of #85.
 
 **6. Each cell owns a fresh `XDG_STATE_HOME`.** Verified during pre-registration: with a fresh state
 home per trial, `mrw stats` reports that trial alone. If a cell inherited one, the previous trial's

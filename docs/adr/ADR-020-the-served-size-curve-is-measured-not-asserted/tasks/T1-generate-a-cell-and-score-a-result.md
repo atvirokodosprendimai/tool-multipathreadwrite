@@ -5,7 +5,7 @@
 **Estimated scope:** M (one new package, one new binary, one contract row)
 **Owner:** unassigned
 **Produces:** the generator, the manifest shape, and the scorer
-**Consumes:** `plan.Parse`, `apply.Apply`, `seen.Record`, `state.Dir` (all unchanged)
+**Consumes:** `plan.Parse`, `apply.Apply`, `seen.SHA` (all unchanged); `state.Dir` only through the runner's `XDG_STATE_HOME`
 **Data dependency:** hermetic
 **Proof map:** v1
 **Rests-on:** `a wrong line is scored as a miss`, `results from another trial are refused`, `a refusal is not a localisation miss`, `each cell owns its ledger`
@@ -50,6 +50,14 @@ to report a miss, because a scorer that has only ever seen correct answers prove
 8. [S8] Add contract §54: build the `curve` binary, generate a cell, score a KNOWN-GOOD plan and a
    KNOWN-WRONG plan, and assert the two verdicts differ in the right direction. A row that scored
    only the good plan would pass with a scorer that always says hit. [proof: acceptance]
+9. [S9] The manifest carries neither the stratum nor the distractor count. Together they name the
+   target's block by arithmetic, and a client could count instead of read. [proof: mutation]
+10. [S10] The tally keys on the REQUESTED size. Padding overshoots by a seed-dependent amount, so
+    keying on measured bytes turns N repetitions into N cells of one. [proof: mutation]
+11. [S11] A hit changed exactly the planted line AND wrote no other file. Diffing only the target
+    scores a plan that also created something elsewhere as clean. [proof: mutation]
+12. [S12] A plan that drives the engine into an I/O error — a path naming a directory — is
+    `refused_apply`, not a harness failure: a client's mistake is data. [proof: acceptance]
 
 ## Acceptance
 
@@ -90,6 +98,9 @@ sequence with a good plan and a wrong one.
 | `TestTheScorerRefusesResultsFromADifferentTrial` | `internal/curve/score_test.go` | S3 — a mismatched trial id or served size is refused, not scored | — | S1, S3 |
 | `TestARefusedPlanIsNotCountedAsALocalisationMiss` | `internal/curve/score_test.go` | S6 — the third outcome stays out of the primary denominator | — | S1, S6 |
 | `TestEachCellGetsItsOwnLedger` | `internal/curve/score_test.go` | S7 — no trial inherits another's state | — | S1, S7 |
+| `TestTheManifestCarriesNoGroundTruth` | `internal/curve/score_test.go` | S9 — the client's manifest names neither stratum nor count | — | S9 |
+| `TestRepeatsOfOneCellTallyTogether` | `internal/curve/score_test.go` | S10 — five seeds at one size are ONE cell of five | — | S10 |
+| `TestAPlanThatAlsoWritesElsewhereIsNotAHit` | `internal/curve/score_test.go` | S11 — a hit writes no other file, and the verdict names what it touched | — | S11 |
 
 ## Reachability
 
@@ -124,6 +135,10 @@ sequence with a good plan and a wrong one.
 - The scorer is only ever fed correct plans and reports 100%. The Enforced-by feeds it a wrong one.
 - The verbs work in-process and the manifest does not survive the filesystem. §54 crosses it.
 - Padding becomes distractors and a second variable rides along. The count is asserted constant.
+- One fence run at `a282c6e*` reported `1 assertion(s) FAILED` from `contract.sh` while three
+  stand-alone runs and two further fence runs on the same tree passed 388/388. The receipt folds
+  stdout to its last ten lines, so the failing row's name was lost. Recorded rather than hidden:
+  an intermittent row is a defect in the contract, and the next occurrence must be captured whole.
 
 ## Stop Condition
 
@@ -141,3 +156,18 @@ measuring something else and the record should say so rather than the branch qui
 ## Verification Log
 <!-- filled during execution -->
 - 2026-09-04 · 2ab8d9a* · exit 0 · `set -o pipefail …` · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1 · ms:26211
+- 2026-09-04 · a282c6e* · exit 1 · `set -o pipefail …` · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1 · ms:33343
+  ```
+  --- last 10 line(s) of stdout (of 424 after folding 424 raw)
+    PASS  and a write to a line that page did NOT serve is refused as unread
+    PASS  the wire teaches paging, and a real oversized read does exactly that
+    PASS  a body line beginning with @@ is refused
+    PASS  and the refusal names the escape, instead of only reporting a bogus op
+    PASS  and it stays quiet on an ordinary bad op, so it does not become noise
+    PASS  an unexpanded glob is named as one, not reported as a missing file
+    PASS  and it names the tools that do the job
+    PASS  and an ordinary missing file gets no glob hint
+    PASS  no conflict markers are committed anywhere in the tree
+  1 assertion(s) FAILED
+  ```
+- 2026-09-04 · a282c6e* · exit 0 · `set -o pipefail …` · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1 · ms:19917

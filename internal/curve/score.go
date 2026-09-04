@@ -29,7 +29,8 @@ type Result struct {
 type Outcome string
 
 // The outcomes. RefusedParse and RefusedApply are the format failing, which is
-// the secondary variable; Hit and Miss are the primary one.
+// the secondary variable; Hit and Miss are the primary one. They are counted
+// SEPARATELY, because the pre-registration names them as two secondary DVs.
 const (
 	Hit          Outcome = "hit"
 	Miss         Outcome = "miss"
@@ -37,26 +38,36 @@ const (
 	RefusedApply Outcome = "refused_apply"
 )
 
-// Score is one trial's verdict.
+// Score is one trial's verdict. Cell is the REQUESTED size and is what the
+// tally groups by; ServedBytes is what the trial actually served, which varies
+// with the seed and so cannot be a grouping key.
 type Score struct {
 	TrialID     string   `json:"trial_id"`
+	Cell        int      `json:"cell"`
 	ServedBytes int      `json:"served_bytes"`
 	Position    Position `json:"position"`
 	Outcome     Outcome  `json:"outcome"`
 	Target      int      `json:"target"`
 	Changed     []int    `json:"changed"`
-	Reason      string   `json:"reason,omitempty"`
+	// Touched names any OTHER file the plan wrote. A plan that edits the target
+	// and also creates a file elsewhere did not change "exactly the planted
+	// line", so it is a miss and this says why.
+	Touched []string `json:"touched,omitempty"`
+	Reason  string   `json:"reason,omitempty"`
 }
 
 // ScoreTrial scores r against the trial in dir. The error is a refusal of the
-// RESULT — it names another trial or another served size — and never a verdict
-// on the plan: a plan that does not parse or does not apply is an Outcome.
+// RESULT — it names another trial or another served size — or a failure of the
+// harness itself. It is never a verdict on the plan: a plan that does not
+// parse, does not apply, or drives the engine into an I/O error is an Outcome,
+// because a client's mistake is data and must not be reported as harness
+// breakage.
 //
 // The primary variable is measured by applying, not by comparing addresses.
 // The plan runs through plan.Parse and apply.Apply exactly as mrw runs it, on
 // a copy of the fixture, and the lines that differ afterwards are the answer.
-// A hit is a plan that changed exactly the planted line; anything else that
-// applied is a miss, including a plan that changed that line and another.
+// A hit is a plan that changed exactly the planted line AND wrote no other
+// file; anything else that applied is a miss.
 func ScoreTrial(dir string, r Result) (Score, error) {
 	m, a, err := Load(dir)
 	if err != nil {
@@ -68,7 +79,10 @@ func ScoreTrial(dir string, r Result) (Score, error) {
 	if r.ServedBytes != m.ServedBytes {
 		return Score{}, fmt.Errorf("result echoes %d served bytes but trial %s served %d", r.ServedBytes, m.TrialID, m.ServedBytes)
 	}
-	s := Score{TrialID: m.TrialID, ServedBytes: m.ServedBytes, Position: m.Position, Target: a.Line}
+	s := Score{
+		TrialID: m.TrialID, Cell: m.Cell, ServedBytes: m.ServedBytes,
+		Position: a.Position, Target: a.Line,
+	}
 
 	hunks, err := plan.Parse(strings.NewReader(r.Plan))
 	if err != nil {
@@ -93,9 +107,27 @@ func ScoreTrial(dir string, r Result) (Score, error) {
 	// under test, and left in force it would turn a plan addressing an
 	// unserved line — the worst kind of miss — into a refusal and quietly
 	// remove it from the primary denominator (ADR-020, Decision 4).
+	// A hunk whose path names a DIRECTORY drives Apply into an I/O error rather
+	// than a per-hunk refusal, and an error would abort the run. That is the
+	// client being wrong, which is data, so it is caught here by name.
+	// Out-of-root and absolute paths need no such handling: the engine already
+	// refuses those with a verdict.
+	if bad := addressesADirectory(scratch, hunks); bad != "" {
+		s.Outcome = RefusedApply
+		s.Reason = fmt.Sprintf("the plan addresses %s, which is a directory", bad)
+		return s, nil
+	}
 	ledger := map[string]apply.Seen{filepath.Clean(m.File): {SHA: seen.SHA(before)}}
 	res, err := apply.Apply(scratch, inputs(hunks), apply.Options{Seen: ledger})
 	if err != nil {
+		// Apply fills the receipt before returning an error, so a receipt with
+		// per-hunk verdicts means the PLAN drove this — a path naming a
+		// directory, for instance. That is the client being wrong, which is
+		// data. Only a failure with no receipt at all is the harness's.
+		if len(res.Hunks) > 0 {
+			s.Outcome, s.Reason = RefusedApply, err.Error()
+			return s, nil
+		}
 		return Score{}, fmt.Errorf("apply: %w", err)
 	}
 	if !res.Applied {
@@ -107,12 +139,28 @@ func ScoreTrial(dir string, r Result) (Score, error) {
 		return Score{}, err
 	}
 	s.Changed = changed(string(before), string(after))
-	if len(s.Changed) == 1 && s.Changed[0] == a.Line {
+	s.Touched = wroteElsewhere(res, m.File)
+	if len(s.Changed) == 1 && s.Changed[0] == a.Line && len(s.Touched) == 0 {
 		s.Outcome = Hit
 	} else {
 		s.Outcome = Miss
 	}
 	return s, nil
+}
+
+// wroteElsewhere lists files the plan wrote that are not the target. Diffing
+// only the target file would score a plan that fixed the right line and also
+// created something else as a clean hit.
+func wroteElsewhere(res apply.Result, target string) []string {
+	var out []string
+	want := filepath.Clean(target)
+	for _, f := range res.Files {
+		if f.Written && filepath.Clean(f.Path) != want {
+			out = append(out, f.Path)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // inputs is the mapping cmd/mrw performs before apply, minus the working-set
@@ -181,34 +229,60 @@ func copyTree(src, dst string) error {
 
 // Cell is one point on the curve: a proportion with its interval, and the
 // refusals that were kept OUT of its denominator.
+//
+// It groups by the REQUESTED size, not the measured one. Padding is fitted to
+// reach a size and overshoots it by a seed-dependent amount, so grouping by
+// measured bytes would give almost every trial a cell of its own and turn every
+// interval into the interval of a single observation. MinServed and MaxServed
+// report the spread that grouping absorbs.
 type Cell struct {
-	ServedBytes int      `json:"served_bytes"`
-	Position    Position `json:"position"`
-	N           int      `json:"n"`
-	Hits        int      `json:"hits"`
-	Misses      int      `json:"misses"`
-	Refused     int      `json:"refused"`
-	Rate        float64  `json:"rate"`
-	Low         float64  `json:"low"`
-	High        float64  `json:"high"`
+	Cell      int      `json:"cell"`
+	Position  Position `json:"position"`
+	N         int      `json:"n"`
+	Hits      int      `json:"hits"`
+	Misses    int      `json:"misses"`
+	Refused   int      `json:"refused"`
+	ParseRef  int      `json:"refused_parse"`
+	ApplyRef  int      `json:"refused_apply"`
+	MinServed int      `json:"min_served_bytes"`
+	MaxServed int      `json:"max_served_bytes"`
+	Rate      float64  `json:"rate"`
+	Low       float64  `json:"low"`
+	High      float64  `json:"high"`
 }
 
-// Tally groups scores by (served bytes, position) and reports each cell as a
+// Tally groups scores by (requested size, position) and reports each cell as a
 // proportion with a 95% Wilson interval. A refused plan is counted beside the
 // cell and excluded from N: folding a format failure into a localisation rate
-// would bend the primary curve with the secondary variable.
-func Tally(scores []Score) []Cell {
+// would bend the primary curve with the secondary variable. The two refusal
+// kinds are kept apart, because the pre-registration names them separately.
+//
+// An unrecognised outcome is REFUSED rather than bucketed. Counting it as a
+// refusal would let malformed score data enter the measurement silently, which
+// is the whole failure this harness exists to avoid one level up.
+func Tally(scores []Score) ([]Cell, error) {
 	type key struct {
-		b int
+		c int
 		p Position
 	}
 	cells := map[key]*Cell{}
-	for _, s := range scores {
-		k := key{s.ServedBytes, s.Position}
+	for i, s := range scores {
+		switch s.Outcome {
+		case Hit, Miss, RefusedParse, RefusedApply:
+		default:
+			return nil, fmt.Errorf("score %d (trial %q) has outcome %q, which is not one of hit, miss, refused_parse or refused_apply", i, s.TrialID, s.Outcome)
+		}
+		k := key{s.Cell, s.Position}
 		c := cells[k]
 		if c == nil {
-			c = &Cell{ServedBytes: s.ServedBytes, Position: s.Position}
+			c = &Cell{Cell: s.Cell, Position: s.Position, MinServed: s.ServedBytes, MaxServed: s.ServedBytes}
 			cells[k] = c
+		}
+		if s.ServedBytes < c.MinServed {
+			c.MinServed = s.ServedBytes
+		}
+		if s.ServedBytes > c.MaxServed {
+			c.MaxServed = s.ServedBytes
 		}
 		switch s.Outcome {
 		case Hit:
@@ -217,7 +291,11 @@ func Tally(scores []Score) []Cell {
 		case Miss:
 			c.Misses++
 			c.N++
-		default:
+		case RefusedParse:
+			c.ParseRef++
+			c.Refused++
+		case RefusedApply:
+			c.ApplyRef++
 			c.Refused++
 		}
 	}
@@ -227,12 +305,26 @@ func Tally(scores []Score) []Cell {
 		out = append(out, *c)
 	}
 	sort.Slice(out, func(i, j int) bool {
-		if out[i].ServedBytes != out[j].ServedBytes {
-			return out[i].ServedBytes < out[j].ServedBytes
+		if out[i].Cell != out[j].Cell {
+			return out[i].Cell < out[j].Cell
 		}
-		return out[i].Position < out[j].Position
+		return positionOrder(out[i].Position) < positionOrder(out[j].Position)
 	})
-	return out
+	return out, nil
+}
+
+// positionOrder sorts the strata the way they sit in the file rather than
+// alphabetically, which would report early, late, middle.
+func positionOrder(p Position) int {
+	switch p {
+	case Early:
+		return 0
+	case Middle:
+		return 1
+	case Late:
+		return 2
+	}
+	return 3
 }
 
 // wilson is the score interval at z=1.96. It is taken over the normal
@@ -249,4 +341,20 @@ func wilson(hits, n int) (rate, low, high float64) {
 	centre := (p + z*z/(2*nn)) / denom
 	half := z * math.Sqrt(p*(1-p)/nn+z*z/(4*nn*nn)) / denom
 	return p, centre - half, centre + half
+}
+
+// addressesADirectory returns the first plan path that names a directory in the
+// scratch tree, or "". Only a root-relative path is checked: an absolute or
+// escaping one is the engine's to refuse, and it does so with a verdict.
+func addressesADirectory(root string, hunks []plan.Hunk) string {
+	for _, h := range hunks {
+		p := filepath.Clean(h.Path)
+		if filepath.IsAbs(p) || p == ".." || strings.HasPrefix(p, ".."+string(filepath.Separator)) {
+			continue
+		}
+		if st, err := os.Stat(filepath.Join(root, p)); err == nil && st.IsDir() {
+			return h.Path
+		}
+	}
+	return ""
 }
