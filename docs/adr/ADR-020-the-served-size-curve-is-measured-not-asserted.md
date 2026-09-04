@@ -174,8 +174,10 @@ guide gate stays true without documenting a benchmark to callers who will never 
 
 ## Implementation
 
-One task. The harness, its self-test with known-wrong answers, and the contract row that drives the
-built binary end to end.
+Two tasks. **T1** built the harness, its self-test with known-wrong answers, and the contract row that
+drives the built binary end to end. **T2** adds a second way to pick the target — by a relation
+between blocks rather than by a unique name — because the first reading came back at ceiling and a
+curve cannot bend against a task nobody fails. T2 builds the fixture and does not spend the trials.
 
 **The first reading is deliberately NOT a task in this record.** It needs N trials across cells
 against a real client, which is a budget decision and a scheduling decision rather than an
@@ -236,6 +238,12 @@ byte-identical, so the revert is a deletion.
       settled, and this reading cannot settle it: every cell serves `@@ 1-N`, so a row count in the
       served rendering and the line number plus two are the same integer everywhere in it. **A cell
       whose served window does not begin at line 1 would discriminate**, and building one is a
-      generator change here.
+      generator change here, and it is deliberately NOT in T2 — it answers a different question from
+      "can the task be failed", and folding it in would put two claims under one fence. It is carried
+      in `docs/adr/BACKLOG.md` as the offset-window entry.
+- [ ] **The named fixture is at ceiling, and T2 is the answer to that, not to the reading.** 42 of 45
+      with every client reading the window whole means the first reading measured a task nobody
+      fails. T2 adds the relational selector so a later reading has room to bend; running that
+      reading is a budget decision and stays out of this record's tasks for the reason above.
 - [ ] If the reading bends, the cap becomes a measured number and ADR-011-T3's value is revisited by
       the record that owns it.

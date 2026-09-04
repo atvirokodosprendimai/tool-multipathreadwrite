@@ -36,6 +36,27 @@ const (
 	Late   Position = "late"
 )
 
+// Selector says how the instruction identifies the target block. It is a
+// stratum of DIFFICULTY, not a nuisance: the first reading returned 42 correct
+// addresses in 45 trials against ByName and flat across a hundredfold change in
+// served bytes, which is a ceiling rather than a curve, and a curve cannot bend
+// against a task nobody fails.
+type Selector string
+
+// The two selectors. ByName is the zero value so every caller written before it
+// existed keeps the fixture it had — which is what lets the two readings be
+// compared rather than merely both reported.
+const (
+	// ByName gives the client the target's unique service name. It measures
+	// whether a caller can MATCH a string.
+	ByName Selector = ""
+	// ByOddRetries names no service and describes a relation instead: one
+	// block's retry budget differs from every other. It measures whether a
+	// caller can READ, because the property cannot be evaluated without
+	// obtaining every block's value.
+	ByOddRetries Selector = "odd-retries"
+)
+
 // Params fixes one trial. ServedBytes is the independent variable. Distractors
 // is held constant across size cells by the caller, so that "more context"
 // stays separable from "more candidates" — the second variable the
@@ -45,6 +66,9 @@ type Params struct {
 	Position    Position
 	Distractors int
 	Seed        int64
+	// Selector is how the instruction points at the target. The zero value is
+	// ByName, the fixture T1 shipped.
+	Selector Selector
 }
 
 // Manifest is what the client receives. It carries NO ground truth: not the
@@ -91,6 +115,12 @@ const (
 	targetFile   = "services.conf"
 	targetLine   = "timeout = 30"
 	wantLine     = "timeout = 45"
+	// commonRetries is what every block carries; oddRetries is what exactly one
+	// carries under ByOddRetries. The values are arbitrary and only their
+	// INEQUALITY is load-bearing, which is why the relation is what the
+	// instruction describes.
+	commonRetries = "retries = 3"
+	oddRetries    = "retries = 5"
 	// padBytes is a rough size of one rendered padding line, used only to
 	// choose how many to add per fitting step. The loop measures the truth.
 	padBytes = 70
@@ -159,7 +189,7 @@ func Generate(dir string, p Params) (Manifest, error) {
 		Tree:        tree,
 		File:        targetFile,
 		StateHome:   state,
-		Instruction: instruction(names[target]),
+		Instruction: instruction(p, names[target]),
 	}
 	a := Answer{TrialID: m.TrialID, Line: line, Position: p.Position, Distractors: p.Distractors}
 	if err := writeJSON(filepath.Join(abs, manifestName), m); err != nil {
@@ -185,9 +215,16 @@ func (p Params) check() error {
 	}
 	// Two is the minimum that makes the three strata distinct: with one
 	// distractor there are two blocks, and early and middle both name the
-	// first — two advertised strata that are the same trial.
+	// first — two advertised strata that are the same trial. It is also what
+	// makes ByOddRetries meaningful: with two blocks each differs from the
+	// other, so "the one that differs from every other" picks out nothing.
 	if p.Distractors < 2 {
 		return fmt.Errorf("a trial needs at least two distractors so the strata differ, got %d", p.Distractors)
+	}
+	switch p.Selector {
+	case ByName, ByOddRetries:
+	default:
+		return fmt.Errorf("selector %q is not the named one or %q", p.Selector, ByOddRetries)
 	}
 	return nil
 }
@@ -209,7 +246,7 @@ func Load(dir string) (Manifest, Answer, error) {
 // trialID is a stable name for one Params, so a result can say which trial it
 // answers and the scorer can refuse one that answers a different trial.
 func trialID(p Params) string {
-	sum := sha256.Sum256([]byte(fmt.Sprintf("curve/v1|%d|%s|%d|%d", p.ServedBytes, p.Position, p.Distractors, p.Seed)))
+	sum := sha256.Sum256([]byte(fmt.Sprintf("curve/v1|%d|%s|%d|%d|%s", p.ServedBytes, p.Position, p.Distractors, p.Seed, p.Selector)))
 	return hex.EncodeToString(sum[:6])
 }
 
@@ -282,7 +319,11 @@ func render(p Params, names []string, target, pad int) (string, int) {
 	for i, name := range names {
 		padding(i)
 		emit("[service " + name + "]")
-		emit("retries = 3")
+		if i == target && p.Selector == ByOddRetries {
+			emit(oddRetries)
+		} else {
+			emit(commonRetries)
+		}
 		emit(targetLine)
 		if i == target {
 			targetLineNo = line
@@ -313,12 +354,20 @@ func serve(tree string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// instruction is identical across cells for one target name: only the served
-// size and the address the client must produce vary with the cell.
-func instruction(name string) string {
-	return fmt.Sprintf("In %s, service %q has the wrong timeout. Change its `%s` line to `%s`. "+
-		"Author one mrw write plan containing exactly one `replace` hunk that addresses that line and nothing else; "+
-		"every other service keeps its timeout. Reply with the plan text and nothing else.",
+// instruction is identical across cells for one selector: only the served size
+// and the address the client must produce vary with the cell. Under ByOddRetries
+// it names NO service, because a name is a string to match and matching is what
+// the other selector already measures.
+func instruction(p Params, name string) string {
+	const tail = "Author one mrw write plan containing exactly one `replace` hunk that addresses that line and nothing else; " +
+		"every other service keeps its timeout. Reply with the plan text and nothing else."
+	if p.Selector == ByOddRetries {
+		return fmt.Sprintf("In %s, exactly one service has a retry budget that differs from every other service's. "+
+			"That service has the wrong timeout: change ITS `%s` line to `%s`. "+
+			"The file does not say which service it is and neither does this instruction. "+tail,
+			targetFile, targetLine, wantLine)
+	}
+	return fmt.Sprintf("In %s, service %q has the wrong timeout. Change its `%s` line to `%s`. "+tail,
 		targetFile, name, targetLine, wantLine)
 }
 
