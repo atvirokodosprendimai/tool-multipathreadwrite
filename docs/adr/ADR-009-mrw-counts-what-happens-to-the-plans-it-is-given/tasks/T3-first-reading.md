@@ -102,6 +102,7 @@ non-hermetic data dependency and the sign-off line are for, and saying so here i
 
 - 2026-09-03 · 2b71e2a* · mutant killed · exit 1 · `README.md` · T3 adds this section; without it the fence must go red — proving the fence binds to what this task wrote rather than to pre-existing README text · acceptance-sha256:cc5afe5fffc3779e0a1e9071003d8c0356d0e1f82cae58542e6dbff15860f086
 - 2026-09-04 · d611885 · mutant killed · exit 1 · `README.md` · remove the phrase that names the criterion as pre-registered — a threshold written AFTER the number it judges is not a criterion, and the fence must notice the claim going missing · acceptance-sha256:2f495d1b3e4606639002f045113c8a87d92aeb90e35688a562ae6fb292655dbd
+- 2026-09-04 · 9cfde55 · mutant killed · exit 1 · `README.md` · break the phrase that names the criterion as pre-registered — a threshold written after the number it judges is not a criterion, and the section must say which it is · acceptance-sha256:78b71ade5e33bdb468e7d704e8efde74e1aec27b9af6809ebf730ebca8f384ab
 
 ## Invariants
 
@@ -139,3 +140,4 @@ the sample size recorded. A number nobody should act on is worse than an admissi
   ```
   ```
 - 2026-09-04 · c4f0a39 · exit 0 · `# SCOPED TO THE SECTION, and asserting the READING rather than the prose around …` · acceptance-sha256:78b71ade5e33bdb468e7d704e8efde74e1aec27b9af6809ebf730ebca8f384ab · ms:20237
+- 2026-09-04 · 9cfde55 · exit 0 · `# SCOPED TO THE SECTION, and asserting the READING rather than the prose around …` · acceptance-sha256:78b71ade5e33bdb468e7d704e8efde74e1aec27b9af6809ebf730ebca8f384ab · ms:11510
