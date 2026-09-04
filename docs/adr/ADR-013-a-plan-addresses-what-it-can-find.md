@@ -8,8 +8,8 @@
 **Cross-references:** ADR-001 (owns the plan format this extends, and the original-file rule this must not break), ADR-002 (owns the read-before-write ledger this must not bypass), ADR-007 (owns the regex address `read` already has), ADR-006 (the root boundary, untouched)
 **Governs:** `internal/plan/**`, `internal/apply/**`
 **Enforced-by:** `internal/apply/apply_test.go::TestAnAmbiguousRegexAddressIsRefused`
-**Invalidates:** none — checked. ADR-001 says a plan's addresses resolve against the ORIGINAL file and that is preserved exactly; it does not say addresses must be line numbers, and the audit below quotes what it actually says. ADR-002's guard is strengthened by construction rather than weakened — see Decision 3.
-**Served-path change:** a plan can say `@@ internal/store/store.go /^func (s \*Store) Get/,/^}/ replace` instead of naming line numbers a caller had to read the file to learn.
+**Invalidates:** ADR-012-T1-S2 in one clause, named rather than glossed. Its `instructions` text taught *"a regexp works in a read, never here"*, and its Mutation Log records a killed mutant that gave the published example a regexp address — *"the exact authoring mistake its own description warns about."* T3 rewrites that prose and **that mutant would now survive**; the ADR-012 entry is left standing beside this note rather than edited, because it was true when it was written. Nothing else: ADR-001 says a plan's addresses resolve against the ORIGINAL file and that is preserved exactly; it does not say addresses must be line numbers. ADR-002's guard is strengthened by construction rather than weakened — see Decision 3.
+**Served-path change:** a plan can say `@@ internal/store/store.go /^func \(s \*Store\) Get/,/^\}/ replace` instead of naming line numbers a caller had to read the file to learn. The escaping is not decoration — RE2 reads an unescaped `(` as a group and an unescaped `*` as a quantifier, so the unescaped form matches nothing. Both taught examples shipped unescaped and were caught in review of PR #74.
 
 ## Context
 
@@ -72,12 +72,23 @@ multi-match by picking one has made mrw into the tool ADR-001 was written agains
 A pattern is a Go regular expression matched against a whole line, unanchored unless the caller
 anchors it. `N`, `N-M`, `N-` and `$` keep their current meanings exactly.
 
-**2. Ambiguity is a refusal, never a choice.** Each endpoint must match **exactly once** in the file.
-Zero matches fails the hunk naming the pattern; two or more fails it naming the pattern **and the
-line numbers it matched**, so the caller can narrow it or address by number. A range endpoint pair
-must resolve with the end at or after the start. There is no "first match", no "nearest to a hint",
-no `occurrence=2` selector — every one of those turns a refusal into a wrong edit, and a plan that
-edits the wrong function is the failure this project's whole ledger exists to prevent.
+**2. The START is exactly-once; the END is a delimiter.** A start pattern must match **exactly one**
+line in the file. Zero matches fails the hunk naming the pattern; two or more fails it naming the
+pattern **and the line numbers it matched**, so the caller can narrow it or address by number. There
+is no "first match" for a start, no "nearest to a hint", no `occurrence=2` selector — every one of
+those turns a refusal into a wrong edit, and a plan that edits the wrong function is the failure this
+project's whole ledger exists to prevent.
+
+**Amended during execution, 2026-09-04 (review of PR #74).** This first said *each endpoint* must
+match exactly once, and that is wrong in a way that made the record's own headline example fail. An
+end pattern is not a second site: it is a delimiter relative to a start that has already been pinned
+to one line, so the end resolves to the **first match at or after the start** — what `ed`, `sed` and
+mrw's own `read` mean by `/a/,/b/`. Under the original rule `/^}/` — the natural end of any function
+body, and the end this record's Served-path line teaches — was ambiguous in every file holding two
+functions, including the fixture the record itself defines. The refusal principle is untouched
+because it was always about *which site do you mean*, and the start alone asks that; once the start
+is unique, "the first `^}` after it" is one deterministic line rather than a choice among
+candidates. An end that matches only ABOVE the start is still refused, because it delimits nothing.
 
 **3. A pattern resolves against the ORIGINAL file, and then faces the ledger unchanged.** ADR-001's
 rule is preserved: resolution reads the file as it was before any hunk applied, so patterns and line
@@ -196,3 +207,8 @@ meaning.
 
 - [ ] If the ambiguity refusal turns out to be common, revisit whether the message should suggest the
       narrowed pattern rather than only the matched line numbers
+- [ ] **Publish a pattern-addressed example on the MCP surface.** T3 teaches the form in prose but
+      every shipped example is still line-addressed, so ADR-012's Enforced-by never dry-runs a
+      pattern. Blocked on `treeFor`, which builds its fixture from `Addr.Start`/`End` — zero until
+      `apply` resolves a pattern — so the example cannot be executed by the existing harness as it
+      stands. Named in review of PR #74.

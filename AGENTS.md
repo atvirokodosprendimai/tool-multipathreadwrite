@@ -153,7 +153,7 @@ Or address by pattern, when you would otherwise read the file only to learn a
 line number:
 
 ```
-@@ internal/store/store.go /^func (s *Store) Get/,/^}/ replace
+@@ internal/store/store.go /^func \(s \*Store\) Get/,/^\}/ replace
         ... new lines ...
 ```
 

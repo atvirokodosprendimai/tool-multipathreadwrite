@@ -37,6 +37,13 @@ shipped, an enum the engine never sent, is exactly what teaching-before-implemen
 
 ## Notes
 
+- **This ADR changes `internal/plan` and `internal/apply`, and that turns ADR-010, ADR-011 and
+  ADR-012's engine go/no-go clauses RED on this branch.** They diff those directories against the
+  merge-base, and this record governs them. It is expected, not a regression: those clauses assert
+  that a record which does NOT govern the engine left it alone, and they are green again on `main`
+  once this merges. Anyone re-running an older task's fence from this branch should read a red
+  engine clause here as "wrong branch", not "broken".
+
 - **`gofmt -l .` and `go vet ./...` lead every fence here, and that is new.** ADR-012's fences ran
   neither; CI's Format step runs `gofmt`, and a formatting failure reached CI twice in one day
   because the fence a task called "done" was not the gate CI applied. ADR-012 carries a follow-up to

@@ -22,16 +22,15 @@ accepts.
 |------|--------|-----|
 | `internal/mcp/instructions.go` | edit | the grammar paragraph gains the pattern forms and the exactly-once rule |
 | `internal/mcp/mcp.go` | edit | the `plan` property description says addresses may be patterns |
-| `internal/mcp/conformance_test.go` | edit | the existing Enforced-by already dry-runs every shipped example; a pattern example must pass through it unchanged |
+| `internal/mcp/mcp_test.go` | edit | the test that pins the taught rule to the shipped one |
 | `AGENTS.md` | edit | §"One plan, not N writes" — the pattern form, and when a number is still better |
-| `README.md` | edit | the plan grammar reference |
 | `scripts/contract.sh` | edit | §46 — the taught rule is the shipped rule |
 
 ## Ordered Steps
 
 1. [S1] Write the failing tests first (TDD red): the shipped `instructions` mention the pattern form
-   and the exactly-once rule; a pattern-addressed example is among the shipped plans and survives
-   `TestEveryEmbeddedExamplePlanReallyApplies` unchanged. [proof: acceptance]
+   and the exactly-once rule, and that the same rule reaches the `plan` property description a host
+   reads when it ignores `instructions`. [proof: acceptance]
 2. [S2] Teach it where ADR-012 put the format: `instructionsText` and the `plan` property
    description. **Say the refusal, not only the syntax.** A caller told that `/re/` works and not
    told that two matches fail will read the first refusal as a bug. [proof: mutation]
@@ -59,16 +58,18 @@ test -z "$(gofmt -l .)" \
 ```
 
 Every clause was run BEFORE this fence was written and returned **zero hits** except
-`TestEveryEmbeddedExamplePlanReallyApplies`, which exists already and is named here deliberately:
-this task adds a pattern example to the set it walks, so the existing Enforced-by must stay green
-over new content rather than be replaced. `# 46.` was confirmed free.
+`TestEveryEmbeddedExamplePlanReallyApplies`, which exists already and is named here so ADR-012's
+Enforced-by is asserted to stay green over the changed surface rather than quietly replaced. It does
+NOT walk a pattern-addressed example: no shipped plan carries one. Adding one needs `treeFor` to
+build a fixture for a pattern, and it derives file length from `Addr.Start`/`End`, which are zero
+until `apply` resolves them. That is a follow-up, recorded as one, and this fence does not pretend
 
 ## Tests
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestTheInstructionsTeachThePatternAddress` | `internal/mcp/mcp_test.go` | S2 — the form AND the exactly-once refusal reach the wire | — | S1, S2 |
-| `TestEveryEmbeddedExamplePlanReallyApplies` | `internal/mcp/conformance_test.go` | ADR-012's Enforced-by, now over a pattern-addressed example | — | S1, S2 |
+| `TestTheInstructionsTeachThePatternAddress` | `internal/mcp/mcp_test.go` | S2 — the form AND the exactly-once refusal reach the wire, and the same rule reaches the `plan` description | — | S1, S2 |
+| `TestEveryEmbeddedExamplePlanReallyApplies` | `internal/mcp/conformance_test.go` | ADR-012's Enforced-by, asserted to stay green over the rewritten surface — it walks the existing line-addressed example, not a patterned one | — | S1, S2 |
 
 ## Reachability
 
@@ -108,3 +109,4 @@ raise it silently.
 ## Verification Log
 <!-- filled during execution -->
 - 2026-09-04 · 2e8d959* · exit 0 · `set -o pipefail …` · acceptance-sha256:f7e0f1fb30aaa5ac51c3bbd55beb4fd6b8a2a4f94ae71a87e56450be602baa25 · ms:39880
+- 2026-09-04 · eeeb615* · exit 0 · `set -o pipefail …` · acceptance-sha256:f7e0f1fb30aaa5ac51c3bbd55beb4fd6b8a2a4f94ae71a87e56450be602baa25 · ms:13038

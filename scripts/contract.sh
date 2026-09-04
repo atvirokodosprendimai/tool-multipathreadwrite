@@ -2065,6 +2065,47 @@ grep -q 'has not been read' <<<"$out" \
   && ok "and refused as UNREAD, so a pattern is not a way past the ledger" \
   || bad "the refusal was not the unread one: $out"
 
+# The RANGE form, which the first cut of this record shipped with no resolution
+# test at all — and whose own headline example failed, because `^}` closes every
+# function and exactly-once was being applied to the end as well as the start.
+# The end is a delimiter: first match AT OR AFTER the start.
+fixture
+mkdir -p "$R/store"
+cat > "$R/store/store.go" <<'GO'
+package store
+
+func (s *Store) Get(id string) (string, bool) {
+	r, ok := s.rows[id]
+	return r, ok
+}
+
+func (s *Store) Put(id, v string) {
+	s.rows[id] = v
+}
+GO
+m read store/store.go >/dev/null 2>&1
+out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Get/,/^\\}/ replace\nfunc (s *Store) Get(id string) (string, bool) { return s.rows[id], true }\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "the range form applies on a file where the end pattern matches twice"
+grep -q 'func (s \*Store) Put' "$R/store/store.go" \
+  && ok "and it stopped at the FIRST closing brace, leaving Put intact" \
+  || bad "the range ran past the first closing brace: $(cat "$R/store/store.go")"
+
+# An end that only matches ABOVE the start delimits nothing and is refused.
+m read store/store.go >/dev/null 2>&1
+out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Put/,/^package/ replace\n// x\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "an end pattern above the start is refused"
+grep -q 'above the start' <<<"$out" \
+  && ok "and the refusal says why, rather than silently inverting the range" \
+  || bad "the refusal does not explain the inversion: $out"
+
+# Two address forms in ONE grammar must be refused on the same inputs.
+out=$(printf '@@ store/nope.go /x/ create\n// x\n' | m write - 2>&1); rc=$?
+# Exit 2, not 1: both are PARSE errors — a malformed document, refused before
+# anything touches the tree — where 1 is a hunk that parsed and failed to apply.
+want 2 "$rc" "create refuses a pattern address exactly as it refuses a number"
+out=$(printf '@@ store/store.go /^package/,/^func/ insert-after\n// x\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "and an insertion refuses a RANGE, whether it is written 3-6 or /a/,/b/"
+
 # 46. ADR-013 T3: the rule the wire teaches is the rule the binary enforces.
 #
 # ADR-012 taught an enum the engine never sent and two independent reviewers

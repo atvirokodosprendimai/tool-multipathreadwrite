@@ -524,6 +524,14 @@ func validate(h *Hunk) error {
 		// it HOLDS needs the file, so it is checked in internal/apply; there is
 		// nothing to check here (ADR-008).
 	case OpCreate:
+		// A pattern IS an address, so `create` refuses it exactly as it refuses
+		// a line number. Gating this on !patterned let `@@ new.go /x/ create`
+		// through with `ok` while `@@ new.go 1 create` was refused — two
+		// address forms in one grammar have to be refused on the same inputs.
+		// Caught in review of PR #74.
+		if h.Addr.StartPat != nil {
+			return fmt.Errorf("create takes no address, use %q", "-")
+		}
 		if !patterned && (h.Addr.Start != 0 || h.Addr.End != 0) {
 			return fmt.Errorf("create takes no address, use %q", "-")
 		}
@@ -531,6 +539,13 @@ func validate(h *Hunk) error {
 			return fmt.Errorf("create takes no anchor= or lines= (the file must not exist yet)")
 		}
 	case OpInsertAfter, OpInsertBefore:
+		// A RANGE is a range whether it is written 3-6 or /a/,/b/, and an
+		// insertion addresses one line. Whether the two patterns happen to
+		// resolve to the same line is not knowable here and does not matter:
+		// the caller wrote a range.
+		if h.Addr.EndPat != nil {
+			return fmt.Errorf("%s takes a single line, not a range", h.Op)
+		}
 		if !patterned && h.Addr.Start != h.Addr.End {
 			return fmt.Errorf("%s takes a single line, not the range %s", h.Op, h.Addr)
 		}

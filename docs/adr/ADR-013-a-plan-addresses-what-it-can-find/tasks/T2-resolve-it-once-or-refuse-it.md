@@ -76,6 +76,8 @@ was generated from the pattern would be the same defect wearing a different name
 | `TestAPatternMatchingNothingIsRefused` | `internal/apply/apply_test.go` | S3 — the other half of ambiguity, and the one a moved line produces | — | S1, S3 |
 | `TestARegexAddressResolvesAgainstTheOriginalFile` | `internal/apply/apply_test.go` | S2 — a two-hunk plan where an earlier hunk changes the line count still resolves the later pattern against the original | — | S1, S2 |
 | `TestARegexAddressIsStillSubjectToTheLedger` | `internal/apply/apply_test.go` | S4 — the safety argument: a pattern resolving onto an unread line is refused as unread | — | S1, S4 |
+| `TestTheEndPatternIsTheFirstMatchAtOrAfterTheStart` | `internal/apply/apply_test.go` | S3 amended — the end is a delimiter, so `/^}/` works even though it closes every function | — | S1, S3 |
+| `TestAnEndPatternOnlyAboveTheStartIsRefused` | `internal/apply/apply_test.go` | S3 amended — relaxing exactly-once for the end must not let it delimit nothing | — | S1, S3 |
 
 ## Reachability
 
@@ -90,6 +92,7 @@ was generated from the pattern would be the same defect wearing a different name
 
 - 2026-09-04 · 2e8d959 · mutant killed · exit 1 · `internal/apply/apply.go` · S3: resolve ambiguity by taking the first match instead of refusing — the silent wrong edit this record exists to make unrepresentable · acceptance-sha256:8f4c7dda0c16e849b62de76ed7b1be31255b184d39cd71867dfdc2dcd67ba98f
 - 2026-09-04 · 2e8d959 · mutant killed · exit 1 · `internal/apply/apply.go` · S4: let `covered()` return true for a patterned hunk — the ledger bypass, and the one way this feature is worse than not having it · acceptance-sha256:8f4c7dda0c16e849b62de76ed7b1be31255b184d39cd71867dfdc2dcd67ba98f
+- 2026-09-04 · eeeb615 · mutant killed · exit 1 · `internal/apply/apply.go` · S3 amended: apply exactly-once to the END pattern as well as the start — the defect that shipped in the first cut and made this record's own headline example fail, because `^}` closes every function in the file · acceptance-sha256:8f4c7dda0c16e849b62de76ed7b1be31255b184d39cd71867dfdc2dcd67ba98f
 
 ## Invariants
 
@@ -122,3 +125,4 @@ rather than softened into first-match.
 ## Verification Log
 <!-- filled during execution -->
 - 2026-09-04 · 2e8d959* · exit 0 · `set -o pipefail …` · acceptance-sha256:8f4c7dda0c16e849b62de76ed7b1be31255b184d39cd71867dfdc2dcd67ba98f · ms:22045
+- 2026-09-04 · eeeb615* · exit 0 · `set -o pipefail …` · acceptance-sha256:8f4c7dda0c16e849b62de76ed7b1be31255b184d39cd71867dfdc2dcd67ba98f · ms:11942

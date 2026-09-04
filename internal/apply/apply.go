@@ -598,12 +598,33 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 			}
 			to := from
 			if h.EndPat != nil {
-				if to, ok = resolve(h.EndPat, "end "); !ok {
-					continue
+				// ⚠ THE END IS A DELIMITER, NOT A SITE — the first match AT OR
+				// AFTER the start, which is what ed, sed and mrw's own `read`
+				// mean by /a/,/b/.
+				//
+				// It deliberately does NOT get the exactly-once rule. That rule
+				// exists to answer WHICH SITE the caller means, and the start
+				// asks and answers it; once the start is unique, "the first ^}
+				// after it" is one deterministic line, not a choice among
+				// candidates. Applying exactly-once here shipped in the first
+				// cut and made this record's own headline example —
+				// /^func X/,/^}/ — fail on any file with two functions, because
+				// ^} closes both. Caught in review of PR #74.
+				at := matchLines(h.EndPat, orig)
+				to = 0
+				for _, n := range at {
+					if n >= from {
+						to = n
+						break
+					}
 				}
-				if to < from {
-					fail(h, "end pattern %s matched line %d, before the start pattern's line %d",
-						h.EndPat, to, from)
+				if to == 0 {
+					if len(at) == 0 {
+						fail(h, "end pattern %s matched no line in %s", h.EndPat, path)
+					} else {
+						fail(h, "end pattern %s matched only above the start line %d (%s) in %s",
+							h.EndPat, from, joinInts(at), path)
+					}
 					continue
 				}
 			}

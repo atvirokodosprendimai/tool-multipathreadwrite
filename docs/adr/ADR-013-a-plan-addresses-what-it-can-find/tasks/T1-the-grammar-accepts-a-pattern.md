@@ -106,3 +106,4 @@ learn how long a file is. Resolution belongs to whoever reads the file, which is
 ## Verification Log
 <!-- filled during execution -->
 - 2026-09-04 · 2e8d959* · exit 0 · `set -o pipefail …` · acceptance-sha256:f133612dbaf014760e2ff641fc82f3af1f6f8a3ba92bfbdd00c8f7763288da06 · ms:49500
+- 2026-09-04 · eeeb615* · exit 0 · `set -o pipefail …` · acceptance-sha256:f133612dbaf014760e2ff641fc82f3af1f6f8a3ba92bfbdd00c8f7763288da06 · ms:11795

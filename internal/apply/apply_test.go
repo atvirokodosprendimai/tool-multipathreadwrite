@@ -1321,3 +1321,65 @@ func TestARegexAddressIsStillSubjectToTheLedger(t *testing.T) {
 		t.Error("a hunk refused as unread still changed the file")
 	}
 }
+
+// TestTheEndPatternIsTheFirstMatchAtOrAfterTheStart pins the semantics that
+// make the range form usable at all.
+//
+// The first cut applied exactly-once to BOTH endpoints, and `/^}/` — the
+// natural end for any function body, and the form this record's own served-path
+// line teaches — is ambiguous in every file with two functions. The headline
+// example therefore failed on the record's own fixture. Caught in review of
+// PR #74; the end is now a delimiter resolved relative to the start.
+//
+// `storeGo` has two `^}` lines. That is the point.
+func TestTheEndPatternIsTheFirstMatchAtOrAfterTheStart(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Lines: -1, Body: []string{"// collapsed"},
+		StartPat: regexp.MustCompile(`^func \(s \*Store\) Get`),
+		EndPat:   regexp.MustCompile(`^\}`),
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed = %d (%v), want 0 — /^}/ is ambiguous file-wide and must still work as an END", res.Failed, res.Hunks)
+	}
+	got := read(t, root, "store.go")
+	if !strings.Contains(got, "// collapsed") {
+		t.Error("the range did not apply")
+	}
+	// It must have taken the FIRST closing brace, not the last: Put survives.
+	if !strings.Contains(got, "func (s *Store) Put") {
+		t.Error("the range ran past the first closing brace and swallowed Put")
+	}
+}
+
+// TestAnEndPatternOnlyAboveTheStartIsRefused is the other side of the
+// delimiter rule. Relaxing exactly-once for the end must not mean the end can
+// be found anywhere: a match that precedes the start delimits nothing, and
+// silently inverting the range would be the wrong-edit failure again.
+func TestAnEndPatternOnlyAboveTheStartIsRefused(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Lines: -1, Body: []string{"// x"},
+		StartPat: regexp.MustCompile(`^func \(s \*Store\) Put`),
+		EndPat:   regexp.MustCompile(`^package`),
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed = %d, want 1", res.Failed)
+	}
+	if !strings.Contains(res.Hunks[0].Reason, "above the start") {
+		t.Errorf("the refusal does not explain that the end precedes the start: %s", res.Hunks[0].Reason)
+	}
+	if read(t, root, "store.go") != storeGo {
+		t.Error("an inverted range changed the file")
+	}
+}
