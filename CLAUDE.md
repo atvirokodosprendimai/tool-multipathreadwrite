@@ -9,7 +9,9 @@ and the build-and-check list, and it is what every other agent reads; the rules 
 and are pointed at from there. The three path-scoped rules (`adr.md`, `testing.md`, `contract.md`)
 arrive natively only on a Read-tool read of a matching file; `.claude/settings.json` installs a
 PostToolUse hook that delivers them on `mrw read`, `cat`, Write and the MCP tools too (issue #86,
-contract §55). With hooks disabled, Read one such file, or the rule itself, first.
+contract §55). Installed on M's go-ahead of 2026-09-04 — *"fix of course"*, to the three items
+flagged as M's call, of which the hook was one. With hooks disabled, Read one such file, or the
+rule itself, first.
 
 **In Claude Code, drive mrw through Bash.** M, 2026-09-04: *"we must use mrw as bash tool when we
 can, mcp is only for desktop."* The `mrw_read`/`mrw_write` MCP tools are for hosts without a shell.

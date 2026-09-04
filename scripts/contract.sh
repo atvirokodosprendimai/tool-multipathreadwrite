@@ -2405,8 +2405,10 @@ printf -- '# plain rule\n\nPLAIN RULE BODY 55\n' > "$R55/proj/.claude/rules/plai
 printf 'a record\n' > "$R55/proj/docs/adr/x.md"
 printf 'package pkg\n' > "$R55/proj/pkg/a_test.go"
 printf 'readme\n' > "$R55/proj/README.md"
-hook55() {  # session, tool, tool_input JSON -> the hook's stdout
-  python3 -c 'import json,sys; print(json.dumps({"hook_event_name":"PostToolUse","session_id":sys.argv[1],"cwd":sys.argv[2],"tool_name":sys.argv[3],"tool_input":json.loads(sys.argv[4])}))' "$1" "$R55/proj" "$2" "$3" | python3 "$HOOK"
+hook55() {  # session, tool, tool_input JSON [, tool_response JSON] -> the hook's stdout
+  python3 -c 'import json,sys; d={"hook_event_name":"PostToolUse","session_id":sys.argv[1],"cwd":sys.argv[2],"tool_name":sys.argv[3],"tool_input":json.loads(sys.argv[4])}
+if len(sys.argv) > 5 and sys.argv[5]: d["tool_response"]=json.loads(sys.argv[5])
+print(json.dumps(d))' "$1" "$R55/proj" "$2" "$3" "${4:-}" | python3 "$HOOK"
 }
 out=$(hook55 s1 Bash '{"command":"mrw read docs/adr/x.md:1-3 README.md"}')
 want 0 "$?" "the hook exits 0 on a Bash mrw read"
@@ -2440,6 +2442,18 @@ grep -q 'SCOPED RULE BODY 55' <<<"$out" \
 out=$(printf 'not json' | python3 "$HOOK")
 want 0 "$?" "malformed stdin exits 0: a broken hook must not take the turn down"
 [ -z "$out" ] && ok "and prints nothing" || bad "printed on malformed stdin: $out"
+# A grep names no file in its INPUT; the files it served are in its RESULT as
+# `==> path` headers, and that is where the hook must look.
+out=$(hook55 s8 Bash '{"command":"mrw read --grep record docs/"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}')
+grep -q 'SCOPED RULE BODY 55' <<<"$out" \
+  && ok "a grep whose served files appear only in the result still delivers their rules" \
+  || bad "grep result headers were not read: $out"
+out=$(hook55 s9 Bash '{"command":"cd docs/adr && cat x.md"}')
+grep -q 'SCOPED RULE BODY 55' <<<"$out" \
+  && ok "a leading cd moves the base the later tokens resolve against" \
+  || bad "cd-relative read not matched: $out"
+out=$(hook55 s10 mcp__mrw__mrw_write '{"plan":"@@ README.md 1 replace raw=true\n@@ docs/adr/x.md 1 replace\n"}')
+[ -z "$out" ] && ok "raw=true without body= is a plan mrw refuses, and delivers nothing" || bad "delivered for a plan mrw refuses: $out"
 rm -rf "$R55"
 
 # 47. ADR-014 T1: an oversized read is a FIRST PAGE, and following it loses
