@@ -341,13 +341,52 @@ same engine without shell access. Add one block to your host's config:
 Use an absolute path for `command` if `mrw` is not on the host's `PATH` — a host
 does not always inherit your shell's.
 
-**Which checkout it serves.** With no `--root`, the server uses `CLAUDE_PROJECT_DIR`
-when the host sets it — Claude Code does, naming the project you are working in —
-and falls back to its working directory otherwise. That fallback is why the
-variable matters: a host does not guarantee the working directory a server
-inherits, so before this the block above could bind the server to the wrong tree
-and every refusal it gave would be correct about a repository nobody asked about.
-Pass `--root` to override the host: `"args": ["--root", "/path/to/repo", "mcp"]`.
+**Which checkout it serves — and Claude Desktop needs `--root`.** With no
+`--root`, the server uses `CLAUDE_PROJECT_DIR` when the host sets it and falls
+back to its own working directory otherwise.
+
+**Claude Code sets that variable**, naming the project you are working in, so
+the block above serves the right tree.
+
+**Claude Desktop does not set it and has no project concept**, so the fallback
+applies and the server binds to whatever directory Desktop launched it in.
+Reproduced 2026-09-04 under Desktop's launch condition:
+
+```sh
+$ cd / && env -u CLAUDE_PROJECT_DIR mrw mcp
+mrw mcp: serving / (from the working directory)
+```
+
+A root of `/` is almost never what anyone means. Every refusal stays correct
+and confinement is to the whole filesystem, which is the same class of defect
+as binding to the wrong repository — correct-looking answers about a tree
+nobody asked about — except the wrong tree is everything.
+
+So on Claude Desktop, and on any host that does not set the variable, pass an
+absolute `--root`, and use an absolute `command` while you are there:
+
+```json
+{
+  "mcpServers": {
+    "mrw": {
+      "command": "/absolute/path/to/mrw",
+      "args": ["--root", "/absolute/path/to/repo", "mcp"]
+    }
+  }
+}
+```
+
+**Check the binary the host actually launches.** The handshake only teaches the
+plan format from the first release AFTER v0.0.20; every released binary up to
+and including v0.0.20 returns a zero-length `instructions` string, so a host
+registered against one gets a server that works and explains nothing. Build
+from source until then. `"command"` is often a path you installed to once and
+forgot, so run `--version` on that exact path rather than on whatever `mrw`
+your shell resolves.
+
+The trade is that one entry serves one fixed checkout. For several projects,
+add several entries under distinct names.
+
 Whichever wins, the server prints the tree it chose and the reason to stderr at
 startup, so a host log answers "which checkout is this?" without guessing.
 
