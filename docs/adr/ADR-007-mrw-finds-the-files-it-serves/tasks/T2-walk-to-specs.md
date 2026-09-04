@@ -121,15 +121,27 @@ go test ./internal/read/ -run 'TestWalk' -v 2>&1 | tee /tmp/adr007-t2.out \
 | 3 — the caller can discover it | n/a: no declared interface until T3 adds the flag |
 | 4 — it is used | nothing measures this yet |
 
+## Mutation Findings, 2026-09-03
+
+Three mutants SURVIVED here, and they are the reason T1 was withdrawn. They are recorded as prose
+rather than as Mutation Log rows because they were performed and written by hand, carry no
+acceptance digest, and `adr-verify` cannot parse them — a row the tool cannot read is not tool-written
+provenance, whatever it looks like. The Mutation Log below holds only rows a real run produced.
+
+- **Calling `rooted.Descendable` and ignoring its answer changed nothing.** Every walk test stayed
+  green. `filepath.WalkDir` already prevents the descent, so the function had no reachable effect.
+- **The same mutation against a REWRITE that consulted `Descendable` for symlinked directories and
+  descended when permitted was also green.** Rule 4 deduplicates on the root-relative path, so
+  descending a link's real target yields a path already served. The property is over-determined
+  three ways.
+- **Dropping rule 2's regular-file test entirely was green**, for the same reason: no mutation of
+  mrw's own code can kill that test, because the standard library prevents the case first.
+
+Together these say the property was real and the CODE for it was not: `rooted.Descendable` was
+built, tested, mutation-logged and deleted unused on 2026-09-03 (`8a73748`). That is what a survived
+mutant is for.
+
 ## Mutation Log
-
-- 2026-09-03 · `1b88cb9`+ · **mutant SURVIVED** · exit 0 · `internal/read/walk.go` · rung 2 as originally written: call `rooted.Descendable` and ignore its answer (`_, _ = rooted.Descendable(...); ok, err := true, error(nil)`), which compiles because `rooted.Resolve` keeps the import used. Every walk test stayed green. This is the finding that withdrew T1.
-- 2026-09-03 · `1b88cb9`+ · **mutant SURVIVED** · exit 0 · `internal/read/walk.go` · the same mutation against a REWRITE that consulted `Descendable` for symlink entries resolving to directories and descended when permitted. Still green: rule 4 deduplicates on the root-relative path, so descending the link's real target yields a path already served. The property is over-determined three ways.
-- 2026-09-03 · `1b88cb9`+ · **mutant SURVIVED** · exit 0 · `internal/read/walk.go` · dropping rule 2's regular-file test entirely (`if st, err := os.Stat(p); false && (...)`). `TestWalkDoesNotDescendASymlinkedDirectory` still passed — proof that NO mutation of mrw's code can kill it, because `filepath.WalkDir` alone prevents the descent.
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `internal/read/walk.go` · stop skipping `.git` during a walk · killed by `TestWalkSkipsTheGitDirectory`
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `internal/read/walk.go` · stop deduplicating candidates (`if false {` in `offer`) · killed by `TestWalkDeduplicatesAPathNamedTwiceOrCoveredTwice`
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `internal/read/walk.go` · `excluded()` always returns false · killed by `TestWalkHonoursExcludeGlobsAndPrunesDirectories`
-
 ## Invariants
 
 - `read.Run` is unchanged: `Walk` produces the same `Spec` values a caller can

@@ -58,9 +58,19 @@ go test ./internal/seen/ -v 2>&1 | tee /tmp/adr002t1.out \
 | `TestMissingLedgerIsEmptyNotAnError` | `internal/seen/seen_test.go` | No file means an empty ledger, not a failure | — |
 | `TestRecordMergesRatherThanReplaces` | `internal/seen/seen_test.go` | Recording b.go does not drop a.go | — |
 | `TestRecordOverwritesTheSamePath` | `internal/seen/seen_test.go` | A second observation of one path replaces the first, leaving one row | — |
-| `TestForget` | `internal/seen/seen_test.go` | Forget drops named paths and reports the count; an unrecorded path is not a removal | — |
+| ~~`TestForget`~~ | — | REMOVED 2026-09-03 with `seen.Forget` | — |
 | `TestSHAIsStable` | `internal/seen/seen_test.go` | Deterministic, and a one-byte change changes the hash | — |
 
+
+`seen.Forget` was deleted in `1d9b4b0` (#50): it had no CLI caller and a doc comment describing one
+that never existed — "Used by `mrw forget` when a caller knows their picture is stale" — which reads
+as evidence of reachability while being none. `--force` already covers a stale picture, and wiring a
+public subcommand would have needed its own decision. Its test went with it.
+
+The row is struck rather than deleted for the same reason as ADR-007-T1's: a Tests table quietly
+shortened reads like a task that had fewer tests, which is the opposite of what happened. Everything
+ADR-002 actually decides — that a write to an unseen file is refused — is still covered by the rows
+above and by `TestAFileChangedBehindMrwsBackCannotBeEdited`, this record's `Enforced-by`.
 ## Reachability
 
 | Rung | How this task shows it |

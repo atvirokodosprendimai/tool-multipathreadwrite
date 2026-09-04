@@ -285,3 +285,51 @@ func TestALedgerThisBuildWroteLoadsBack(t *testing.T) {
 		}
 	}
 }
+
+func TestLegacyInTreeLedgerIsStillRead(t *testing.T) {
+	// ADR-004 moved state out of the working tree and kept READING the old
+	// in-tree location, so an upgrade does not silently lose every observation
+	// and force a re-read of the whole checkout.
+	//
+	// This test existed, was deleted in #19, and stayed deleted for the wrong
+	// reason: #19 introduced the v2 header and DISCARDED any ledger without it,
+	// which made this test's fixture invalid. The fixture was the problem, not
+	// the behaviour — state.go still implements the fallback and its comment
+	// still says "It is still READ". Between #19 and now, nothing tested it:
+	// no test file so much as referenced LegacyDir, while ADR-004's Tests table
+	// went on naming this test, which is what adr-lint was reporting.
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	legacy := filepath.Join(root, ".mrw")
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, Name),
+		[]byte(header+"\nabc123  -  old.go\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l["old.go"].SHA != "abc123" {
+		t.Fatalf("a legacy in-tree ledger was ignored: %v", l)
+	}
+	if !l["old.go"].Whole() {
+		t.Error("the legacy entry lost its whole-file observation")
+	}
+
+	// And a later write goes to the state directory, never back into the tree:
+	// ADR-004's whole point is that mrw leaves nothing behind.
+	if err := Record(root, map[string]Observation{"new.go": {SHA: "def456"}}); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(legacy, Name))
+	if strings.Contains(string(b), "new.go") {
+		t.Error("Record wrote into the legacy in-tree ledger")
+	}
+	if !strings.Contains(string(b), "old.go") {
+		t.Error("Record modified the legacy ledger; it must never be written or deleted")
+	}
+}
