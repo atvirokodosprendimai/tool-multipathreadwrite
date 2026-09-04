@@ -222,9 +222,15 @@ byte-identical, so the revert is a deletion.
 
 ## Follow-ups
 
-- [ ] **Take the first reading.** N trials per cell, cells fixed in advance, across at least two
-      clients. The criterion is already pre-registered in `docs/adr/BACKLOG.md` and must not be
-      re-derived: correct-address rate against served bytes, stratified by target position, with
-      refusals reported separately, and **a flat curve accepted as the answer**.
+- [x] **Take the first reading.** Reading 1 was voided on evidence and its notice is
+      `docs/curve/reading-01-void.md`. Reading 2's read arm is complete and reported in
+      `docs/curve/reading-02-result.md`: 42 correct addresses in 45 trials, flat from 2,000 to
+      200,000 served bytes, which is the flat curve the pre-registration accepts as an answer. The
+      search arm stands at 18 observations and is not pooled with it.
+- [ ] **The failure mode the reading did find is address transcription, not retrieval.** All three
+      misses addressed the line two below the target — the count of the two unnumbered header lines
+      in a served read — and every one of them would have applied silently without a guard. Whether
+      the read format should make that harder to get wrong belongs to the record that owns the
+      format, not to this one.
 - [ ] If the reading bends, the cap becomes a measured number and ADR-011-T3's value is revisited by
       the record that owns it.
