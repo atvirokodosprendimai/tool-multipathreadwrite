@@ -14,7 +14,8 @@
 
 A session in this repository receives a path-scoped rule when a Bash, Write, `mrw_read` or `mrw_write`
 call touches a file its globs match — from a subdirectory, through a grep, for a quoted plan path —
-exactly once, and the hook can never take the turn down.
+once per session while its claim can be filed and on every call when it cannot, and the hook can
+never take the turn down.
 
 ## Affected Files
 
@@ -32,20 +33,27 @@ exactly once, and the hook can never take the turn down.
    `CLAUDE_PROJECT_DIR` = the project delivers the rule for `../docs/adr/x.md`; the current hook
    looks for rules under `cwd` and delivers nothing. [proof: acceptance]
 2. [S2] Read the project root from `$CLAUDE_PROJECT_DIR`, else walk up from `cwd` to the nearest
-   `.claude/rules`; resolve relative paths from `cwd` and relativise to the root. [proof: mutation]
+   `.claude/rules`, stopping at the first `.git`; resolve a Bash command's paths from `cwd` and every
+   other tool's from the root, one base per call, and relativise to the root. [proof: mutation]
 3. [S3] Take served paths from every `==> path` header in the tool result as well as the named ones,
-   so a grep delivers. [proof: mutation]
-4. [S4] Read plan headers as `mrw` does: strip a BOM, quoted first field, every `body=N` honoured,
-   `raw=true` without `body=` delivers nothing. [proof: mutation]
-5. [S5] Match globs by segment: `**` at a boundary crosses directories, `*`/`?` within one, `{a,b}`
-   alternates, slash-less is root-only; linear in the path. [proof: mutation]
-6. [S6] Dedup by an atomic claim — `O_CREAT|O_EXCL|O_NOFOLLOW` under a `0700` cache directory keyed
-   by session, agent, root and rule — swept after seven days; two racing hooks deliver once.
+   the path read up to the two spaces mrw prints after it, so a grep delivers and a space survives.
    [proof: mutation]
-7. [S7] Exit 0 unconditionally, closed stdout included. [proof: acceptance]
-8. [S8] §55: decode the JSON envelope exactly; assert the settings entry names an existing file; the
-   subdirectory, quoted-path, counted-body, race and closed-stdout cases; state under the fixture.
-   [proof: acceptance]
+4. [S4] Read plan headers as `mrw` does: `splitHeader` ported, `Parse`'s and `parseHeader`'s refusals
+   mirrored (a BOM stripped once per line, every `body=N` honoured, `raw=true` without `body=`, a
+   duplicate or unknown guard, an unknown op and an unterminated quote all deliver nothing), a
+   pattern checked for shape and not compiled. [proof: mutation]
+5. [S5] Match globs by segment in an enumerated grammar: `**` at a boundary crosses directories,
+   `*`/`?` within one, flat `{a,b}` expanded before the split, slash-less is root-only; a table
+   whose cost is the product of the segment counts. [proof: mutation]
+6. [S6] Dedup by an atomic claim — `O_CREAT|O_EXCL|O_NOFOLLOW` under a `0700` cache directory keyed
+   by session, agent, root and rule — swept after seven days; the base absolute and outside the
+   project, else no claim and a delivery; two racing hooks deliver once. [proof: mutation]
+7. [S7] Exit 0 unconditionally, closed stdout included; stdin read whole. [proof: acceptance]
+8. [S8] §55: decode the JSON envelope exactly; take the hook from the settings entry (exactly the
+   four tools, the command resolved through `CLAUDE_PROJECT_DIR`) and drive that file; the
+   subdirectory, quoted-path, counted-body, race and closed-stdout cases; the differential grammar
+   rows; the spaced header; the relative, in-tree and unusable state bases; the nested `.git`; the
+   300-globstar × 400-directory alarm. [proof: acceptance]
 
 ## Acceptance
 
@@ -95,12 +103,18 @@ and touches no engine code.
 - 2026-09-04 · 48b2e9f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S4: stop stripping the BOM. §55's quoted-path-behind-a-BOM row fails · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · ee58dbb · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: make `**` no longer cross directories (it degrades to `*`). ⚠ THE FIRST ATTEMPT SURVIVED and was logged as killed before the log was corrected: every globbed fixture sat exactly one directory deep, where `*` and `**` agree. §55 gained a root-level `top_test.go` (zero directories) and `pkg/sub/deep_test.go` (two), and the mutant now fails both · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 48b2e9f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S6: let a losing claim deliver anyway. The Enforced-by's second call and §55's dedup and race rows fail · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 0df776f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: drop the `.git` stop in the walk-up. §55's nested-repository row fails: the enclosing project's rule is delivered into `inner/` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 0df776f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S3: cut the served path at the first whitespace (`\S+`) again. §55's spaced-header row fails: `docs/adr/my file.md` is lost · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 0df776f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S4: tokenise headers with `shlex` in place of the `splitHeader` port. §55 fails twice: the single-quoted path is stripped and delivers, and the pattern address with spaces splits the header so the op is `(s` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 0df776f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: make `**` no longer cross directories (`if False:` on the globstar branch). §55's zero-directory, two-directory and 400-directory rows fail · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 0df776f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: put the memoised recursion back in place of the table. ⚠ IT SURVIVED TWICE FIRST: a 200-globstar fixture under a 5 s alarm let it through at 1.6 s, and a 500-globstar one killed it by Python's recursion limit rather than by time — the wrong reason, with the alarm row passing. Measured, then sized: 300 globstars × 400 directories under a 1 s alarm; the recursion takes 2.3 s through the hook and exit 142 fails the row, the table takes 40 ms · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 0df776f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S6: accept a relative cache base. §55's relative-base row fails: `rel55/` is created under cwd while the delivery still happens · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 
 ## Invariants
 
-- A rule is delivered once per session per agent per project, whichever of the four tools read the file.
-- The project root is never assumed to be `cwd`.
-- A plan header is read as `mrw` reads it.
+- A rule is delivered once per session per agent per project while its claim can be filed, and on every matching call when it cannot — never on none — whichever of the four tools read the file.
+- The project root is never assumed to be `cwd`; a Bash path resolves from `cwd`, every other from the root, and no path from both.
+- A plan header is tokenised as `mrw` tokenises it, and a plan mrw refuses delivers nothing, a bad pattern excepted.
 - The hook exits 0 whatever happens.
 - No engine change; `go.mod` declares exactly one requirement.
 
@@ -124,3 +138,4 @@ build. That is a different tool, and the record's Alternatives say why it was no
 <!-- filled during execution -->
 - 2026-09-04 · 48b2e9f · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:46599
 - 2026-09-04 · ee58dbb* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:30941
+- 2026-09-04 · 0df776f* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:25969

@@ -30,16 +30,25 @@ calls, so read-then-append dedup double-delivers; a glob with many `**` backtrac
 world-readable temp directory follows a pre-positioned symlink. Each is a decision, and they are made
 below rather than left as a hook's private opinion.
 
+**A third review, of the reworked hook, found what a mirror and a matcher have to get right.** A
+served path with a space was cut at the space; the header tokeniser was `shlex`, which strips the
+single quotes mrw keeps; the `**` memo rescanned the path on every globstar, so a long path made a
+matcher described as linear take seconds; a relative cache base landed state in the checkout; a Bash
+operand that named nothing from `cwd` was retried against the root and found a file the call never
+read; the walk-up crossed a nested repository's `.git`; and "exactly once" was written where "once
+while a claim can be filed" was true. Each is decided below, and the measurements are in §55.
+
 ## Existing Primitives Audit
 
 - **`$CLAUDE_PROJECT_DIR`:** Claude Code sets it for hooks and it is what `.claude/settings.json`
   already expands to locate the script. **The project root is read from it**, with a walk up from
   `cwd` to the nearest `.claude/rules` as the fallback; `cwd` itself is what relative paths in a
   Bash command resolve against.
-- **`internal/plan`'s header grammar (ADR-001):** first field quoted or bare, a BOM stripped, `body=N`
-  always honoured, `raw=true` needing `body=`. **Mirrored, not imported** — the hook is Python so it
-  can run without a Go build — and the contract row asserts the mirror against the cases the
-  reviewer found.
+- **`internal/plan`'s header grammar (ADR-001):** `splitHeader` ported line for line, the document
+  and header refusals of `Parse` and `parseHeader` mirrored, a pattern checked for shape and not
+  compiled. **Mirrored, not imported** — the hook is Python so it can run without a Go build — and
+  §55 asserts the mirror differentially: a single-quoted path, an unterminated quote, a pattern
+  address with spaces, a duplicate guard, an unknown op.
 - **`os.open(O_CREAT|O_EXCL)`:** the atomic claim. **Taken over read-then-append** because two hooks
   can run at once and one must lose.
 - **`mrw read`'s `==> path` header:** printed once per served file on the CLI and in the MCP text
@@ -53,30 +62,59 @@ Read is the native trigger; an Edit is refused unless the file was already Read,
 rules.
 
 **2. Paths come from the CALL and from the RESULT.** Named paths are taken from the tool input (Bash
-tokens, a Write's path, `mrw_read` specs with their range stripped, plan headers); served paths are
-taken from every `==> path` header in the tool result. A grep, a working-set read, a no-argument
-read — anything whose input names no file — is still delivered for the files it served.
+tokens, a Write's path, `mrw_read` specs with their range stripped, plan headers); served paths from
+every `==> path` header in the tool result, read up to the two spaces mrw prints after the path, so
+a space inside it survives. A grep, a working-set read, a no-argument read — anything whose input
+names no file — is still delivered for the files it served. **Every named path is a guess that a file
+was read**, and a wrong guess — `echo docs/adr/x.md` names the record without reading it — delivers
+a rule one call early. That is the side the hook errs on throughout: an early delivery puts the rule
+in context; a path the hook fails to see loses it.
 
-**3. The project root is `$CLAUDE_PROJECT_DIR`, else the nearest `.claude/rules` above `cwd`; relative
-paths resolve from `cwd`, then relativise to the root.** A session that has `cd`-ed into `internal/`
-still gets `../scripts/contract.sh`'s rule.
+**3. The project root is `$CLAUDE_PROJECT_DIR`, else the nearest `.claude/rules` above `cwd`, and
+the walk stops at the first `.git` it meets** — a nested repository does not inherit an enclosing
+one's rules. A Bash command's paths, and the `==>` headers mrw printed for it, resolve from `cwd`,
+where the command ran (mrw's own `--root` defaults to `.`); a Write's path, an MCP spec and an MCP
+result resolve from the root. One base per call, never retried against the other: a session that has
+`cd`-ed into `internal/` still gets `../scripts/contract.sh`'s rule, and `docs/adr/x.md` typed
+from `cmd/mrw`, which read nothing, delivers nothing.
 
-**4. Plan headers are read the way `mrw` reads them.** A leading BOM is stripped; the first field may be
-quoted; every `body=N` skips N lines whether or not `raw=true`; `raw=true` without `body=` is a plan
-mrw refuses and delivers nothing.
+**4. Plan headers are tokenised as `internal/plan` tokenises them** — `splitHeader` ported line for
+line: double quotes only, a backslash escaping a quote or a backslash, a `/pattern/` address one
+token with its spaces — **and a plan mrw would refuse delivers nothing**, because it wrote nothing: a
+BOM is stripped once per line before the header test, every `body=N` is honoured, a valid header
+inside a counted body is refused unless `raw=true`, and text outside any hunk, an unknown op, an
+option that is not `key=value`, a key given twice, a key mrw does not know and `raw=true` without
+`body=` all refuse. One refusal is not mirrored: a pattern address is checked for shape and never
+compiled, because Go's `regexp` and Python's `re` are not one language; a plan mrw refuses for a bad
+pattern delivers for its paths — early, not silently, as Decision 2 says.
 
-**5. Globs match by segment, not by regex.** `**` crosses directories only at a segment boundary
-(Git's rule), `*` and `?` stay within one, `{a,b}` alternates, a slash-less pattern is root-only. A
-segment matcher is linear in the path and cannot backtrack.
+**5. Globs match by segment, in an enumerated grammar.** A `**` segment stands for zero or more
+directories — Git's boundary rule, and the only thing borrowed from Git; `*` and `?` stay inside
+one segment; a flat `{a,b}` is expanded before the pattern is split, so an alternative may hold a
+slash or a glob; a slash-less pattern is root-only. Nothing else is claimed: nested braces are
+literal, a trailing `dir/` names no file (write `dir/**`), and there is no negation. The matcher
+fills one row per pattern segment over the path positions, so its cost is the product of the two
+segment counts and nothing is rescanned — measured at 40 ms through the hook for 300 globstars
+against 400 directories, where the memoised recursion it replaced took 2.3 s. The native matcher's
+behaviour on shapes outside this grammar is unmeasured; the hook claims only what it matches.
 
-**6. Dedup is an atomic claim per rule per session per agent per project**, a file created with
-`O_CREAT|O_EXCL|O_NOFOLLOW` under a `0700` directory in the user's cache, swept after seven days. Two
-hooks that race for one rule: exactly one delivers.
+**6. Dedup is an atomic claim per rule per session per agent per project**: a file created with
+`O_CREAT|O_EXCL|O_NOFOLLOW` under `claude-rules-on-read` in `$XDG_CACHE_HOME`, else `~/.cache`,
+made `0700` (a chmod that fails on a directory that already existed is ignored; the claim files are
+`0600` regardless), swept after seven days. The base must be absolute and outside the project — a
+relative one would land under whatever `cwd` the hook was given, one inside the tree would break
+ADR-004 — and a state directory that cannot be used, for those reasons or any other, delivers on
+every call rather than on none. So: exactly once while a claim can be filed; two hooks that race for
+one rule, one delivers; and the failure mode is a repeat, never a silence.
 
-**7. Exit 0 is unconditional**, including a closed stdout. A hook that breaks must not take the turn.
+**7. Exit 0 is unconditional**, including a closed stdout, and stdin is read whole — no size cap, so a
+large tool result cannot become a silent no-rules. A hook that breaks must not take the turn.
 
-**8. Every delivery in the contract row is paired with a non-delivery**, and the row decodes the
-hook's JSON rather than grepping it, and asserts `.claude/settings.json` names a hook file that exists.
+**8. Every delivery in the contract row is paired with a non-delivery**, the row decodes the hook's
+JSON rather than grepping it, and both the row and the Enforced-by take the hook from
+`.claude/settings.json` — exactly the four tools in the matcher, the command resolved through
+`CLAUDE_PROJECT_DIR` to a file that exists — and drive THAT file, so an entry pointing at nothing
+fails here and not in a session.
 
 **Go/no-go, checked during execution:**
 
@@ -144,15 +182,18 @@ and the wording.
 - A host that registers the MCP server under another name (permanent: fact: the matcher names `mcp__mrw__*`; citation: file `.claude/settings.json:5`)
 - Making the rules unconditional instead (permanent: boundary: Alternatives)
 - Windows behaviour of the hook (deferred: docs/adr/BACKLOG.md — the rules-hook-on-Windows entry)
+- Rule globs outside the enumerated grammar — nested braces, a trailing `dir/`, negation (permanent: boundary: Decision 5 — the native matcher's behaviour on them is unmeasured, and the hook claims only what it matches)
 
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | The hook is wired to a path that does not exist in a clone | Low | High | §55 asserts the settings entry names an existing file; the Enforced-by runs the same file |
-| A plan or command large enough to make the hook slow | Low | Med | linear matchers, no regex over globs, 10 s timeout |
+| A plan or command large enough to make the hook slow | Low | Med | a table matcher whose cost is the product of the segment counts (§55: 300 globstars × 400 directories inside a 1 s alarm), no regex over globs, stdin read whole, the 10 s timeout |
 | Two parallel hooks both deliver | Med without the claim | Low | atomic claim files; §55 races two hooks and requires one delivery |
 | The hook masks a Claude Code fix that makes it redundant | Low | Low | it delivers once per rule per session, as the harness does; a double delivery would show as a repeat |
+| The mirrored grammar drifts from `internal/plan` | Med, over time | Med | §55's differential rows; a drift is a defect here, not there — ADR-001 owns the grammar |
+| Dedup state cannot be written | Low | Low | the rule is delivered on every call instead — a repeat, never a silence; §55 drives a file where the directory should be |
 
 ## Rollback
 

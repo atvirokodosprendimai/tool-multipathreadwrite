@@ -222,7 +222,8 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   none of `mrw read`, `mrw_read`, `cat` or a Write** — measured 2026-09-04 in Claude Code, issue #86.
   Here `.claude/settings.json` installs `.claude/hooks/rules-on-read.py`, a PostToolUse hook that
   delivers the matching rules on those reads too — from the paths a call names and from the `==>`
-  headers it served, so a grep counts — once per rule per session (contract §55; needs `python3`;
+  headers it served, so a grep counts — once per rule per session while its claim can be filed, else
+  on every call (contract §55; needs `python3`;
   its matcher assumes the MCP server is registered as `mrw`). Elsewhere, or with hooks off, Read
   one such file with the harness reader first, or Read the rule itself. An absent rule is silent.
 

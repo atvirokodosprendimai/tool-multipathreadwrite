@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -23,13 +25,7 @@ func TestThePathScopedRulesHookDeliversOnAnMrwRead(t *testing.T) {
 	if err != nil {
 		t.Skip("python3 is not on PATH; the hook cannot run here")
 	}
-	hook, err := filepath.Abs(filepath.Join("..", "..", ".claude", "hooks", "rules-on-read.py"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(hook); err != nil {
-		t.Fatalf("the hook this record is about is not where settings.json points: %v", err)
-	}
+	hook := hookFromSettings(t)
 	proj, home := t.TempDir(), t.TempDir()
 	for name, body := range map[string]string{
 		".claude/rules/scoped.md": "---\npaths:\n  - \"docs/adr/**\"\n---\n\nSCOPED RULE BODY\n",
@@ -75,4 +71,58 @@ func TestThePathScopedRulesHookDeliversOnAnMrwRead(t *testing.T) {
 	if again := run("s1", "mrw read ../docs/adr/x.md:1"); again != "" {
 		t.Fatalf("the same rule was delivered twice in one session: %q", again)
 	}
+}
+
+// hookFromSettings returns the hook file .claude/settings.json wires for
+// exactly the four tools, resolved the way Claude Code resolves it —
+// ${CLAUDE_PROJECT_DIR} is this checkout. The command shape it accepts is the
+// one the file has, `python3 "${CLAUDE_PROJECT_DIR}/<path>"`; any other shape
+// is a wiring change this record has to look at, and fails here rather than
+// silently in a session. A test that stat'd a path of its own would pass
+// with the settings entry pointing at nothing.
+func hookFromSettings(t *testing.T) string {
+	t.Helper()
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, ".claude", "settings.json"))
+	if err != nil {
+		t.Fatalf("no settings.json wires the hook: %v", err)
+	}
+	var s struct {
+		Hooks struct {
+			PostToolUse []struct {
+				Matcher string `json:"matcher"`
+				Hooks   []struct {
+					Command string `json:"command"`
+				} `json:"hooks"`
+			} `json:"PostToolUse"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(raw, &s); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"Bash": true, "Write": true, "mcp__mrw__mrw_read": true, "mcp__mrw__mrw_write": true}
+	shape := regexp.MustCompile(`^python3 "\$\{CLAUDE_PROJECT_DIR\}/([^"]+)"$`)
+	for _, e := range s.Hooks.PostToolUse {
+		got := map[string]bool{}
+		for _, m := range strings.Split(e.Matcher, "|") {
+			got[m] = true
+		}
+		if !reflect.DeepEqual(got, want) || len(e.Hooks) != 1 {
+			continue
+		}
+		m := shape.FindStringSubmatch(e.Hooks[0].Command)
+		if m == nil {
+			t.Fatalf("the hook command is not a shape this test can resolve: %q", e.Hooks[0].Command)
+		}
+		p := filepath.Join(root, filepath.FromSlash(m[1]))
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("settings.json wires a hook file that is not there: %v", err)
+		}
+		return p
+	}
+	t.Fatal("no PostToolUse entry matches exactly Bash|Write|mcp__mrw__mrw_read|mcp__mrw__mrw_write")
+	return ""
 }

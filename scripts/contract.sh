@@ -2516,11 +2516,23 @@ rm -rf "$R54"
 # `"n": 2` is a substring of `"n": 20` and body text is a substring of a
 # broken envelope. Every case that must deliver is paired with one that must
 # not. State goes under the fixture's HOME, so nothing is left in /tmp.
-HOOK="$PWD/.claude/hooks/rules-on-read.py"
-python3 -c 'import json; h=json.load(open(".claude/settings.json"))["hooks"]["PostToolUse"][0]; assert "mcp__mrw__mrw_read" in h["matcher"] and "Bash" in h["matcher"] and "Write" in h["matcher"]; assert "rules-on-read.py" in h["hooks"][0]["command"]' 2>/dev/null \
-  && [ -f "$HOOK" ] \
-  && ok "settings.json wires the four tools to a hook file that exists" \
-  || bad "the settings entry does not wire the hook this row drives"
+# The hook driven below is the one settings.json WIRES, resolved the way the
+# harness resolves it — ${CLAUDE_PROJECT_DIR} is this checkout — so an entry
+# that names a file which is not there fails this row, not a session.
+HOOK=$(CLAUDE_PROJECT_DIR="$PWD" python3 -c '
+import json, os, re
+entries = json.load(open(".claude/settings.json"))["hooks"]["PostToolUse"]
+ours = [e for e in entries if "rules-on-read" in json.dumps(e)]
+assert len(ours) == 1, entries
+e = ours[0]
+assert set(e["matcher"].split("|")) == {"Bash", "Write", "mcp__mrw__mrw_read", "mcp__mrw__mrw_write"}, e["matcher"]
+assert len(e["hooks"]) == 1 and e["hooks"][0]["type"] == "command", e
+m = re.fullmatch(r"python3 \"\$\{CLAUDE_PROJECT_DIR\}/([^\"]+)\"", e["hooks"][0]["command"])
+assert m, e["hooks"][0]["command"]
+print(os.path.join(os.environ["CLAUDE_PROJECT_DIR"], m.group(1)))' 2>/dev/null)
+[ -n "$HOOK" ] && [ -f "$HOOK" ] \
+  && ok "settings.json wires exactly the four tools to a command whose file, resolved through CLAUDE_PROJECT_DIR, exists" \
+  || bad "the settings entry does not wire the hook this row drives: ${HOOK:-no command resolved}"
 R55=$(mktemp -d)
 mkdir -p "$R55/proj/.claude/rules" "$R55/proj/docs/adr" "$R55/proj/pkg" "$R55/home"
 printf -- '---\npaths:\n  - "docs/adr/**"   # the records\n  - "**/*_test.go"\n---\n\nSCOPED RULE BODY 55\n' > "$R55/proj/.claude/rules/scoped.md"
@@ -2531,12 +2543,14 @@ printf 'spaced\n' > "$R55/proj/docs/adr/my file.md"
 printf 'package pkg\n' > "$R55/proj/pkg/a_test.go"
 printf 'readme\n' > "$R55/proj/README.md"
 mkdir -p "$R55/proj/src/a"; printf 'ts\n' > "$R55/proj/src/a/b.tsx"
-hook55() {  # session, tool, tool_input JSON [, tool_response JSON [, cwd]] -> the hook's stdout
+mk55() {  # session, tool, tool_input JSON [, tool_response JSON [, cwd]] -> the JSON the harness would put on stdin
   python3 -c 'import json,sys
 d={"hook_event_name":"PostToolUse","session_id":sys.argv[1],"cwd":sys.argv[6] or sys.argv[2],"tool_name":sys.argv[3],"tool_input":json.loads(sys.argv[4])}
 if sys.argv[5]: d["tool_response"]=json.loads(sys.argv[5])
-print(json.dumps(d))' "$1" "$R55/proj" "$2" "$3" "${4:-}" "${5:-}" \
-  | env HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK"
+print(json.dumps(d))' "$1" "$R55/proj" "$2" "$3" "${4:-}" "${5:-}"
+}
+hook55() {  # the same arguments -> the hook's stdout, under the fixture's HOME and project
+  mk55 "$@" | env HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK"
 }
 ctx55() {  # stdin: the hook's stdout -> the additionalContext, or "" ; exit 1 on a bad envelope
   python3 -c 'import json,sys
@@ -2611,7 +2625,74 @@ hook55 s12 Bash '{"command":"cat docs/adr/x.md"}' > "$R55/race1" & hook55 s12 Ba
 n=$( { ctx55 < "$R55/race1"; echo; ctx55 < "$R55/race2"; } | grep -c 'SCOPED RULE BODY 55')
 [ "$n" = 1 ] && ok "two hooks racing for one rule in one session deliver it exactly once" || bad "raced delivery count is $n, want 1"
 printf -- '---\npaths:\n  - "%s*.md"\n---\n\nBOMB RULE BODY 55\n' "$(printf '**/%.0s' $(seq 1 24))" > "$R55/proj/.claude/rules/bomb.md"
-( perl -e 'alarm shift; exec @ARGV' 5 bash -c "$(declare -f hook55); R55='$R55'; HOOK='$HOOK'; hook55 s13 Bash '{\"command\":\"cat docs/adr/x.md\"}'" > /dev/null ); want 0 "$?" "a rule with 24 globstars matches by segment and cannot stall the hook"
+( perl -e 'alarm shift; exec @ARGV' 5 bash -c "$(declare -f mk55 hook55); R55='$R55'; HOOK='$HOOK'; hook55 s13 Bash '{\"command\":\"cat docs/adr/x.md\"}'" > /dev/null ); want 0 "$?" "a rule with 24 globstars matches by segment and cannot stall the hook"
+# The matcher's cost is the product of the two segment counts, so a rule of
+# 300 globstars against a file 400 directories deep — inside macOS's 1024-byte
+# path limit, so this row runs everywhere — must answer inside a 1 s alarm.
+# The file must NOT match that rule: the memoised recursion this replaced
+# short-circuited on a match and rescanned the rest of the path on every `**`
+# for a non-match. Sized by measurement: at 200 globstars that recursion took
+# 1.6 s here and a 5 s alarm let it SURVIVE as a mutant; at 300 it takes 2.3 s
+# through the hook and the alarm kills it; past ~330 it dies of Python's
+# recursion limit instead, which would kill the mutant for the wrong reason.
+# The table answers in 40 ms through the hook.
+printf -- '---\npaths:\n  - "%s*.md"\n---\n\nBOMB2 RULE BODY 55\n' "$(printf '**/%.0s' $(seq 1 300))" > "$R55/proj/.claude/rules/bomb2.md"
+deep55=$(printf 'x/%.0s' $(seq 1 400))
+mkdir -p "$R55/proj/docs/adr/$deep55" && printf 'deep\n' > "$R55/proj/docs/adr/${deep55}deep.txt"
+( perl -e 'alarm shift; exec @ARGV' 1 bash -c "$(declare -f mk55 hook55); R55='$R55'; HOOK='$HOOK'; hook55 s13b Bash '{\"command\":\"cat docs/adr/${deep55}deep.txt\"}'" > "$R55/deep.out" ); want 0 "$?" "a 300-globstar rule against a file 400 directories deep that it does not match still answers inside a 1 s alarm"
+ctx=$(ctx55 < "$R55/deep.out")
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ! grep -q 'BOMB' <<<"$ctx" && ok "and docs/adr/** matched it while the *.md rules did not: ** stands for 400 directories as it does for none" || bad "deep path: $(head -c 200 <<<"$ctx")"
+# A served path with a space in it. mrw's header is `==> path  NL  NB  sha …`,
+# two spaces after the path, and for a grep the header is the only place the
+# path appears at all.
+ctx=$(hook55 s8b Bash '{"command":"mrw read --grep spaced docs/"}' '{"stdout":"==> docs/adr/my file.md  1L  7B  sha 1234abcd\n    1| spaced\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a served path containing a space is read whole from its ==> header" || bad "spaced header path lost: $ctx"
+# Plan headers are tokenised as internal/plan tokenises them — double quotes
+# only, a /pattern/ address one token with its spaces — and a plan mrw refuses
+# (an unterminated quote, an unknown op, a guard given twice) wrote nothing
+# and delivers nothing.
+ctx=$(hook55 s5e mcp__mrw__mrw_write "{\"plan\":\"@@ 'docs/adr/x.md' 1 replace\\nX\\n\"}" | ctx55)
+[ -z "$ctx" ] && ok "a single-quoted path is literal to mrw, names no file, and delivers nothing" || bad "single quotes were stripped, which mrw does not do: $ctx"
+ctx=$(hook55 s5f mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md /^func (s *Store) Get/,/^}/ replace\nX\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a pattern address with spaces is one token, so the op is still the third field" || bad "a pattern address split the header: $ctx"
+ctx=$(hook55 s5g mcp__mrw__mrw_write '{"plan":"@@ \"docs/adr/x.md 1 replace\nX\n@@ README.md 1 replace\nY\n"}' | ctx55)
+[ -z "$ctx" ] && ok "an unterminated quote refuses the whole plan, so a later valid header delivers nothing" || bad "delivered for a plan mrw refuses (unterminated quote): $ctx"
+ctx=$(hook55 s5h mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md 1 replace anchor=\"a\" anchor=\"b\"\nX\n"}' | ctx55)
+[ -z "$ctx" ] && ok "a guard given twice is a plan mrw refuses, and delivers nothing" || bad "delivered for a plan mrw refuses (duplicate guard): $ctx"
+ctx=$(hook55 s5i mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md 1 frobnicate\nX\n"}' | ctx55)
+[ -z "$ctx" ] && ok "an unknown op is a plan mrw refuses, and delivers nothing" || bad "delivered for a plan mrw refuses (unknown op): $ctx"
+# A Bash operand is relative to where the command ran, and to nothing else:
+# mrw's own --root defaults to ".", so a spelling that names no file from cwd
+# read no file.
+ctx=$(hook55 s10b Bash '{"command":"cat docs/adr/x.md"}' '' "$R55/proj/pkg" | ctx55)
+[ -z "$ctx" ] && ok "from a subdirectory, a root-relative spelling that names nothing from cwd is not retried against the root" || bad "a Bash operand was resolved against the root: $ctx"
+# Nothing lands in a checkout. A relative XDG_CACHE_HOME would land under
+# whatever cwd the hook got; one inside the project would land in the tree.
+# Both are refused, and the hook delivers WITHOUT a claim — a repeat beats a
+# silence, and ADR-004's promise beats both.
+mkdir -p "$R55/cwd"
+ctx=$(cd "$R55/cwd" && mk55 s14 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME=rel55 CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && [ ! -e "$R55/cwd/rel55" ] && [ ! -e "$R55/proj/rel55" ] \
+  && ok "a relative XDG_CACHE_HOME is refused: nothing is created under cwd, and the rule is delivered anyway" \
+  || bad "relative cache base: delivered=$([ -n "$ctx" ] && echo yes || echo no) created=$(ls -d "$R55/cwd/rel55" "$R55/proj/rel55" 2>/dev/null | tr '\n' ' ')"
+ctx=$(mk55 s15 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/proj/.cache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && [ ! -e "$R55/proj/.cache" ] \
+  && ok "a cache base inside the project is refused: nothing lands in the tree, and the rule is delivered anyway" \
+  || bad "in-tree cache base: delivered=$([ -n "$ctx" ] && echo yes || echo no) created=$(ls -d "$R55/proj/.cache" 2>/dev/null)"
+printf 'not a directory\n' > "$R55/notadir"
+one=$(mk55 s16 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/notadir" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+two=$(mk55 s16 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/notadir" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$one" && grep -q 'SCOPED RULE BODY 55' <<<"$two" \
+  && ok "an unusable state directory delivers on every call: once per session holds only while a claim can be filed" \
+  || bad "an unusable state directory suppressed a delivery: first=$([ -n "$one" ] && echo yes || echo no) second=$([ -n "$two" ] && echo yes || echo no)"
+# Without CLAUDE_PROJECT_DIR the walk up from cwd takes the nearest
+# .claude/rules, and stops at the first .git it meets: a nested repository
+# does not inherit the enclosing one's rules.
+ctx=$(mk55 s17 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/pkg" | env -u CLAUDE_PROJECT_DIR HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" python3 "$HOOK" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "without CLAUDE_PROJECT_DIR, the nearest .claude/rules above cwd is the project" || bad "the walk-up found no project: $ctx"
+mkdir -p "$R55/proj/inner/.git"
+ctx=$(mk55 s18 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/inner" | env -u CLAUDE_PROJECT_DIR HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" python3 "$HOOK" | ctx55)
+[ -z "$ctx" ] && ok "and it stops at a nested repository's .git, so the enclosing project's rules are not delivered into it" || bad "the walk-up crossed a .git boundary: $ctx"
 [ -n "$(ls "$R55/home/.cache/claude-rules-on-read" 2>/dev/null)" ] && ok "dedup state lives under the caller's cache directory, not the shared temp" || bad "no state under HOME"
 rm -rf "$R55"
 
