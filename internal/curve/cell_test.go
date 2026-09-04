@@ -120,3 +120,25 @@ func TestTheNamedSelectorIsUnchangedByTheRelationalOne(t *testing.T) {
 		t.Fatalf("the named instruction no longer names a service:\n%s", m.Instruction)
 	}
 }
+
+// TestALegacyTrialIDStillRegenerates pins a trial id recorded before the
+// selector existed. It is a regression test in the strict sense: the first
+// version of trialID appended the selector unconditionally, so ByName cells got
+// a NEW id, and regenerating a historical cell would have refused the raw result
+// collected against it — collected data invalidated with nothing failing. Found
+// in review of PR #93.
+//
+// The pinned value is the trial_id in docs/curve/reading-02-scores/2000-early-1.score.json,
+// which is committed evidence from a reading taken before T2 existed.
+func TestALegacyTrialIDStillRegenerates(t *testing.T) {
+	const recorded = "96bbcee067ba" // 2000-early-1, reading 2
+	got := trialID(Params{ServedBytes: 2000, Position: Early, Distractors: 3, Seed: 1})
+	if got != recorded {
+		t.Fatalf("a cell generated before the selector existed regenerates as %s, but the reading recorded %s — every raw result from that reading would now be refused", got, recorded)
+	}
+	// And the relational cell of the same parameters is still a different trial.
+	rel := trialID(Params{ServedBytes: 2000, Position: Early, Distractors: 3, Seed: 1, Selector: ByOddRetries})
+	if rel == recorded {
+		t.Fatalf("the relational cell shares the named cell's trial id %s", rel)
+	}
+}

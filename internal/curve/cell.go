@@ -51,9 +51,11 @@ const (
 	// whether a caller can MATCH a string.
 	ByName Selector = ""
 	// ByOddRetries names no service and describes a relation instead: one
-	// block's retry budget differs from every other. It measures whether a
-	// caller can READ, because the property cannot be evaluated without
-	// obtaining every block's value.
+	// block's retry budget differs from every other. It defeats a lookup by
+	// unique name and forces a comparison ACROSS blocks. It does not prove the
+	// caller read everything: `retries` appears in every block, so one search
+	// returns them all. What it removes is the single-match shortcut, which is
+	// what put the first reading at a ceiling.
 	ByOddRetries Selector = "odd-retries"
 )
 
@@ -245,8 +247,19 @@ func Load(dir string) (Manifest, Answer, error) {
 
 // trialID is a stable name for one Params, so a result can say which trial it
 // answers and the scorer can refuse one that answers a different trial.
+//
+// The selector is appended ONLY when it is not the zero value. That is not
+// cosmetic: the ids of every cell generated before T2 are recorded in
+// docs/curve/reading-02-scores, and a formula that appended "|" for ByName too
+// would give the same parameters a different id — so regenerating a historical
+// cell would refuse the raw result collected against it. Found in review; the
+// first version of this function did exactly that.
 func trialID(p Params) string {
-	sum := sha256.Sum256([]byte(fmt.Sprintf("curve/v1|%d|%s|%d|%d|%s", p.ServedBytes, p.Position, p.Distractors, p.Seed, p.Selector)))
+	s := fmt.Sprintf("curve/v1|%d|%s|%d|%d", p.ServedBytes, p.Position, p.Distractors, p.Seed)
+	if p.Selector != ByName {
+		s += "|" + string(p.Selector)
+	}
+	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:6])
 }
 

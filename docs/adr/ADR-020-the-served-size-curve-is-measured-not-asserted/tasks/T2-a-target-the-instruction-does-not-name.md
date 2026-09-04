@@ -8,13 +8,13 @@
 **Consumes:** `Generate`, `render`, `instruction`, `trialID` (T1, otherwise unchanged)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the instruction names no service`, `the odd block is the target`, `two selectors are two trials`, `the named fixture is unchanged`, `the built binary generates one`
+**Rests-on:** `the instruction names no service`, `the odd block is the target`, `two selectors are two trials`, `the named fixture is unchanged`, `a legacy trial id still regenerates`, `the built binary generates one`
 
 ## Goal
 
 The generator can produce a cell whose target is identified by a RELATION between blocks rather than
-by a unique name, so a client that matches strings cannot reach it and a client that reads can. The
-existing named selector is unchanged and stays the default.
+by a unique name, so a client cannot reach it by looking up one string and must compare values across
+blocks. The existing named selector is unchanged and stays the default.
 
 ## Why this task exists, in the record's own words
 
@@ -83,6 +83,8 @@ from the command line — which is exactly how a fixture mode nobody can generat
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestATargetChosenByRelationNotName` | `internal/curve/cell_test.go` | **the task's Enforced-by** — the instruction names no service, exactly one block's retries differs, the answer names that block's timeout line, and two selectors are two trial ids | — | S1, S2, S3, S4 |
+| `TestTheNamedSelectorIsUnchangedByTheRelationalOne` | `internal/curve/cell_test.go` | the zero `Selector` is `ByName`, the named fixture keeps its block count and its instruction still names a service | — | S2 |
+| `TestALegacyTrialIDStillRegenerates` | `internal/curve/cell_test.go` | the trial id recorded in `docs/curve/reading-02-scores` regenerates from the same parameters, so a reading taken before T2 is not invalidated | — | S4 |
 
 ## Reachability
 
@@ -101,10 +103,14 @@ from the command line — which is exactly how a fixture mode nobody can generat
 - 2026-09-04 · faf26a4* · mutant killed · exit 1 · `internal/curve/cell.go` · S3: fall back to the named instruction under every selector. TestATargetChosenByRelationNotName fails on the first clause — the fixture would be relational and the instruction would still hand over the name, which is the ceiling this task exists to remove and would look green. · acceptance-sha256:e76a3785553bd56e41c6ceb9d1c3bcb999ed7ebeb27cb76ff0670b5ce4f3aff8 · covers:the instruction names no service
 - 2026-09-04 · faf26a4* · mutant killed · exit 1 · `internal/curve/cell.go` · S4: drop the selector from the trial id. TestATargetChosenByRelationNotName fails on clause 4 and contract section 58 fails with it — a named cell and a relational cell with the same size, position and seed would share an id, so the scorer would accept a result answering the easy trial as an answer to the hard one, and the comparison this whole task exists for would be silently wrong. · acceptance-sha256:e76a3785553bd56e41c6ceb9d1c3bcb999ed7ebeb27cb76ff0670b5ce4f3aff8 · covers:two selectors are two trials
 - 2026-09-04 · faf26a4* · mutant killed · exit 1 · `cmd/curve/main.go` · S5: accept -selector odd-retries on the command line and generate the NAMED cell anyway. Every Go test still passes, because Generate is correct; only contract section 58 fails, which is the whole reason the row drives the built binary. This is the shape the fence warns about: a selector correct in the library and unreachable from the CLI would ship green. · acceptance-sha256:e76a3785553bd56e41c6ceb9d1c3bcb999ed7ebeb27cb76ff0670b5ce4f3aff8 · covers:the built binary generates one
+- 2026-09-05 · f505fd0* · mutant killed · exit 1 · `internal/curve/cell.go` · S4, the defect a review found in the first version of this task: append the selector to the trial id UNCONDITIONALLY. TestALegacyTrialIDStillRegenerates fails — the same parameters that produced 96bbcee067ba in reading 2 now produce 173df413e7a5, so every raw result from a reading taken before T2 would be refused by the scorer. Nothing else fails: the fixtures are byte-identical and every other test passes, which is why it shipped in the first version and was caught by reading the committed scores rather than the code. · acceptance-sha256:e76a3785553bd56e41c6ceb9d1c3bcb999ed7ebeb27cb76ff0670b5ce4f3aff8 · covers:a legacy trial id still regenerates
+- 2026-09-05 · f505fd0* · mutant killed · exit 1 · `internal/curve/cell.go` · S4, in the shipped form of trialID: drop the selector from the id entirely. TestATargetChosenByRelationNotName fails on clause 4 and contract section 58 fails with it — a named and a relational cell of the same size, position and seed would share an id, so the scorer would accept an answer to the easy trial as an answer to the hard one. This replaces the earlier S4 row, whose --from text no longer exists in the file after the legacy-id fix. · acceptance-sha256:e76a3785553bd56e41c6ceb9d1c3bcb999ed7ebeb27cb76ff0670b5ce4f3aff8 · covers:two selectors are two trials
 
 ## Invariants
 
-- `ByName` is the zero value, so every existing caller and every generated cell is unchanged.
+- `ByName` is the zero value, so every existing caller keeps its fixture AND its trial id: the same
+  parameters regenerate the id recorded in `docs/curve/reading-02-scores`, pinned by
+  `TestALegacyTrialIDStillRegenerates`. The selector joins the id only when it is not `ByName`.
 - In `ByOddRetries` the instruction contains no service name from the fixture.
 - Exactly one block's `retries` differs; the answer's line is that block's timeout line.
 - Two cells differing only in selector have different trial ids.
@@ -139,3 +145,5 @@ a fixture.
 - 2026-09-04 · faf26a4* · exit 0 · `set -o pipefail …` · acceptance-sha256:e76a3785553bd56e41c6ceb9d1c3bcb999ed7ebeb27cb76ff0670b5ce4f3aff8 · ms:25047
 - 2026-09-04 · faf26a4* · exit 0 · `set -o pipefail …` · acceptance-sha256:e76a3785553bd56e41c6ceb9d1c3bcb999ed7ebeb27cb76ff0670b5ce4f3aff8 · ms:25206
 - 2026-09-04 · faf26a4* · exit 0 · `set -o pipefail …` · acceptance-sha256:e76a3785553bd56e41c6ceb9d1c3bcb999ed7ebeb27cb76ff0670b5ce4f3aff8 · ms:25485
+- 2026-09-05 · f505fd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:e76a3785553bd56e41c6ceb9d1c3bcb999ed7ebeb27cb76ff0670b5ce4f3aff8 · ms:27317
+- 2026-09-05 · f505fd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:e76a3785553bd56e41c6ceb9d1c3bcb999ed7ebeb27cb76ff0670b5ce4f3aff8 · ms:25948
