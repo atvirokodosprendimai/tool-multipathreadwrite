@@ -556,6 +556,12 @@ re-measuring these. Each was driven at the built binary, not read:
   mid-window targets. **If the curve is flat, that is a publishable answer and
   the cap stays arbitrary with evidence** — it does not become a reason to
   search for a different metric until something bends. ADR-009 and ADR-012 both
+
+  **RECEIPT, 2026-09-04 — the instrument exists, the reading does not.** ADR-020 (PR #85) built
+  the harness this pre-registration describes: `curve generate` / `score` / `tally`, no model
+  client, scored by applying. **The FIRST READING is deferred to ADR-020's Follow-ups**, with the
+  criterion above unchanged and not to be re-derived. This paragraph is the entry `adr-debt` looks
+  for when the record's Out of Scope names this file.
   refused criteria that could not go red; this one commits to accepting a null.
 - **`occurrence=N`, or any positional disambiguator for a pattern address —
   DEFERRED.** Raised and refused in ADR-013.

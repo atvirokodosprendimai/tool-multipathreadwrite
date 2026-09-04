@@ -2387,6 +2387,125 @@ R53=$(mktemp -d)
 want 0 "$?" "and an ordinary directory reached by fallback still serves"
 rm -rf "$R53"
 
+# 54. ADR-020: the served-size curve is measured, not asserted — and the
+# scorer can see a wrong line.
+#
+# A harness that has only ever been shown correct plans proves nothing: a
+# scorer that always says "hit" passes every such row. So this row generates
+# a real trial with the BUILT curve binary, authors one plan at the planted
+# line and one at a distractor's byte-identical line, and requires the two
+# verdicts to differ in the right direction. It also pastes a result from
+# "another trial" and requires a refusal at exit 2, because a manifest
+# answered from a different cell would otherwise score cleanly and mean
+# nothing. The engine is untouched by this record; it is only called.
+CURVE="$WORK/curve"
+go build -o "$CURVE" ./cmd/curve
+R54=$(mktemp -d)
+"$CURVE" generate -out "$R54/cell" -bytes 6000 -position middle -distractors 4 -seed 54 > "$R54/generate.out" 2>&1
+want 0 "$?" "curve generate writes a trial from the built binary"
+target=$(grep -o '"line": *[0-9]*' "$R54/cell/answer.json" | grep -o '[0-9]*$')
+trial=$(grep -o '"trial_id": *"[0-9a-f]*"' "$R54/cell/manifest.json" | grep -o '[0-9a-f]*"$' | tr -d '"')
+served=$(grep -o '"served_bytes": *[0-9]*' "$R54/cell/manifest.json" | grep -o '[0-9]*$')
+wrong=$(grep -n '^timeout = 30$' "$R54/cell/tree/services.conf" | cut -d: -f1 | grep -vx "$target" | head -1)
+[ -n "$target" ] && [ -n "$wrong" ] && [ "${served:-0}" -ge 6000 ] \
+  && ok "the trial planted line $target, has a byte-identical distractor at line $wrong, and served $served bytes" \
+  || bad "the trial did not come out as generated: target=$target wrong=$wrong served=$served"
+result54() {
+  python3 -c 'import json,sys; print(json.dumps({"trial_id":sys.argv[1],"served_bytes":int(sys.argv[2]),"plan":sys.argv[3]}))' "$1" "$2" "$3"
+}
+result54 "$trial" "$served" "@@ services.conf $target replace
+timeout = 45
+" > "$R54/right.json"
+result54 "$trial" "$served" "@@ services.conf $wrong replace
+timeout = 45
+" > "$R54/wrong.json"
+result54 "someone-else" "$served" "@@ services.conf $target replace
+timeout = 45
+" > "$R54/other.json"
+
+# Assertions decode the JSON rather than grepping it: `"n": 2` is a SUBSTRING of
+# `"n": 20`, so a grep-shaped check passes on a tally twice the size it claims.
+# python3 is already required by earlier rows.
+j54() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps(d))' "$1"; }
+assert54() {
+  python3 - "$1" "$2" <<'PY'
+import json, sys
+doc = json.load(open(sys.argv[1]))
+for clause in sys.argv[2].split(";"):
+    path, want = clause.split("=", 1)
+    node = doc
+    for part in path.split("."):
+        node = node[int(part)] if part.isdigit() else node[part]
+    if json.dumps(node, sort_keys=True) != want and str(node) != want:
+        raise SystemExit("%s is %r, want %s" % (path, node, want))
+PY
+}
+
+"$CURVE" score -cell "$R54/cell" -result "$R54/right.json" > "$R54/right.out"
+want 0 "$?" "a plan at the planted line is scored"
+assert54 "$R54/right.out" "outcome=hit;changed=[$target];target=$target" \
+  && ok "and it is a hit that changed exactly the planted line" \
+  || bad "the planted line did not score a clean hit: $(j54 "$R54/right.out")"
+
+"$CURVE" score -cell "$R54/cell" -result "$R54/wrong.json" > "$R54/wrong.out"
+want 0 "$?" "a plan at a distractor's identical line is scored, not refused — it parsed and applied"
+assert54 "$R54/wrong.out" "outcome=miss;changed=[$wrong]" \
+  && ok "and it is a MISS: the scorer can see a wrong line that applied cleanly" \
+  || bad "a wrong line did not score a miss: $(j54 "$R54/wrong.out")"
+
+# The plan that fixes the right line and ALSO writes elsewhere. Diffing only the
+# target file scores this a clean hit, which is not "exactly the planted line".
+result54 "$trial" "$served" "@@ services.conf $target replace
+timeout = 45
+$(printf '@@ extra.txt - create\nuninvited\n')" > "$R54/both.json"
+"$CURVE" score -cell "$R54/cell" -result "$R54/both.json" > "$R54/both.out"
+want 0 "$?" "a plan that fixes the target and also creates another file is scored"
+assert54 "$R54/both.out" 'outcome=miss;touched=["extra.txt"]' \
+  && ok "and it is a MISS naming the file it also wrote" \
+  || bad "an extra written file was scored as a hit: $(j54 "$R54/both.out")"
+
+"$CURVE" score -cell "$R54/cell" -result "$R54/other.json" > /dev/null 2> "$R54/other.err"
+want 2 "$?" "a result echoing another trial's id is refused, not scored"
+grep -q 'trial' "$R54/other.err" \
+  && ok "and the refusal names the trial it was expecting" \
+  || bad "the refusal does not say what mismatched: $(cat "$R54/other.err")"
+
+# The manifest must not carry the stratum or the distractor count: together they
+# name the target's block, so a client could count instead of read.
+grep -qE '"(position|distractors)"' "$R54/cell/manifest.json" \
+  && bad "manifest.json leaks the stratum or the distractor count: $(cat "$R54/cell/manifest.json")" \
+  || ok "and the client's manifest carries no ground truth"
+
+# Repeats of ONE cell must tally together. Padding overshoots by a seed-dependent
+# amount, so keying on measured bytes would make N repetitions N cells of one.
+for s in 1 2 3; do
+  "$CURVE" generate -out "$R54/rep$s" -bytes 6000 -position middle -distractors 4 -seed "$s" > /dev/null
+  rt=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["trial_id"])' "$R54/rep$s/manifest.json")
+  rb=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["served_bytes"])' "$R54/rep$s/manifest.json")
+  rl=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["line"])' "$R54/rep$s/answer.json")
+  result54 "$rt" "$rb" "$(printf '@@ services.conf %s replace\ntimeout = 45\n' "$rl")" > "$R54/rep$s.json"
+  "$CURVE" score -cell "$R54/rep$s" -result "$R54/rep$s.json" > "$R54/rep$s.out"
+done
+"$CURVE" tally "$R54/rep1.out" "$R54/rep2.out" "$R54/rep3.out" > "$R54/reps.out"
+want 0 "$?" "tally accepts three repeats of one size cell"
+assert54 "$R54/reps.out" "0.n=3;0.hits=3;0.cell=6000" \
+  && [ "$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$R54/reps.out")" = 1 ] \
+  && ok "and groups them into ONE cell of 3, not three cells of one" \
+  || bad "repeats did not group: $(j54 "$R54/reps.out")"
+
+"$CURVE" tally "$R54/right.out" "$R54/wrong.out" > "$R54/tally.out"
+want 0 "$?" "tally accepts the two scores"
+assert54 "$R54/tally.out" "0.n=2;0.hits=1;0.refused=0;0.misses=1" \
+  && [ "$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$R54/tally.out")" = 1 ] \
+  && ok "and reports 1 of 2 in exactly one cell, with nothing in the refused column" \
+  || bad "tally did not report the cell: $(j54 "$R54/tally.out")"
+
+# A malformed outcome must be REFUSED, not bucketed: silently counting it as a
+# refusal is how bad score data enters the measurement.
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); d["outcome"]="garbage"; json.dump(d, open(sys.argv[2],"w"))' "$R54/right.out" "$R54/garbage.out"
+"$CURVE" tally "$R54/garbage.out" > /dev/null 2>&1
+want 2 "$?" "and a score carrying an unrecognised outcome is refused, not tallied"
+rm -rf "$R54"
 # 55. Issue #86: a path-scoped rule arrives on an mrw read too, via the hook.
 #
 # Claude Code injects a `.claude/rules/*.md` file with `paths:` frontmatter
