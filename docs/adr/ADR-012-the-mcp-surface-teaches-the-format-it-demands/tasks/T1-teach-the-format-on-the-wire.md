@@ -98,7 +98,10 @@ apply, because an example asserted to be *present* stays green long after it sto
 
 ## Mutation Log
 
-<!-- filled during execution: one line per mutant, with the exit code that killed it -->
+- 2026-09-04 · 99ee7a0 · mutant killed · exit 1 · `internal/mcp/mcp.go` · S3: drop `instructions` from the initialize result — the one field the lifecycle spec provides for telling a host how to drive this server · acceptance-sha256:e8e34fb105c0b7ad65ef22c4329a99f67278f545ddf63348b983b1d7209101e7
+- 2026-09-04 · 99ee7a0 · mutant killed · exit 1 · `internal/mcp/mcp.go` · S4: take the trigger threshold out of `mrw_read`'s description, leaving it saying only what the tool does — which is what it said before this ADR · acceptance-sha256:e8e34fb105c0b7ad65ef22c4329a99f67278f545ddf63348b983b1d7209101e7
+- 2026-09-04 · 99ee7a0 · mutant killed · exit 1 · `internal/mcp/instructions.go` · S5: give the published example a regexp address — the exact authoring mistake its own description warns about, and the one a stale example would teach a caller to make · acceptance-sha256:e8e34fb105c0b7ad65ef22c4329a99f67278f545ddf63348b983b1d7209101e7
+- 2026-09-04 · 99ee7a0 · mutant survived · exit 0 · `internal/mcp/instructions.go` · S5: change the example's `anchor=` text. It survives by construction — `treeFor` plants the anchor FROM the plan, so a guard in an example naming files no repository has can never fail. Recorded rather than repaired, because the fixture cannot know what a fictional file holds, and written into the test's own comment so the next reader does not mistake a green run for a checked guard · acceptance-sha256:e8e34fb105c0b7ad65ef22c4329a99f67278f545ddf63348b983b1d7209101e7
 
 ## Invariants
 
@@ -129,4 +132,23 @@ syntax, that is a separate record, not a paragraph in a description string.
 - Any change to the plan grammar (permanent: boundary: ADR-001 owns it)
 
 ## Verification Log
-<!-- filled during execution -->
+- 2026-09-04 · 99ee7a0* · exit 1 · `set -o pipefail …` · acceptance-sha256:e8e34fb105c0b7ad65ef22c4329a99f67278f545ddf63348b983b1d7209101e7
+  ```
+  --- last 8 line(s) of stdout
+  internal/mcp/conformance_test.go:275:42: undefined: examplePlan
+  internal/mcp/mcp_test.go:278:28: undefined: examplePlan
+  internal/mcp/mcp_test.go:293:16: undefined: maxInstructionsChars
+  internal/mcp/mcp_test.go:294:75: undefined: maxInstructionsChars
+  internal/mcp/mcp_test.go:304:40: undefined: triggerRule
+  internal/mcp/mcp_test.go:305:98: undefined: triggerRule
+  internal/mcp/mcp_test.go:311:23: undefined: instructionsText
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp [build failed]
+  ```
+- 2026-09-04 · 99ee7a0* · exit 1 · `set -o pipefail …` · acceptance-sha256:e8e34fb105c0b7ad65ef22c4329a99f67278f545ddf63348b983b1d7209101e7
+
+  §43 was red here for two reasons worth keeping. AGENTS.md wraps the threshold sentence across two
+  lines, so `grep -qF` could not see it; the row now folds whitespace before comparing. And
+  `grep -q 'fail'` matched the string "0 failed" in a PASSING receipt — the near-miss shape this
+  corpus keeps producing, green on every run; the row now anchors the verdict to the first column.
+- 2026-09-04 · 99ee7a0 · exit 0 · `set -o pipefail …` · acceptance-sha256:e8e34fb105c0b7ad65ef22c4329a99f67278f545ddf63348b983b1d7209101e7
+- 2026-09-04 · 99ee7a0* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8e34fb105c0b7ad65ef22c4329a99f67278f545ddf63348b983b1d7209101e7 · ms:14182

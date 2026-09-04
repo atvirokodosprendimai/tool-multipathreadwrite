@@ -24,8 +24,8 @@ it there is nothing to author a plan from. If they are worked in parallel, expec
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Teach the format on the wire, and show a plan that really applies | pending | — | 3 named `--- PASS:` lines, `# 43.` in `contract.sh`, both engine clauses, `./scripts/contract.sh` |
-| T2 | Say what every field of the answer means, and keep saying it | pending | — | 2 named `--- PASS:` lines, `# 44.` in `contract.sh`, both engine clauses, `./scripts/contract.sh` |
+| T1 | Teach the format on the wire, and show a plan that really applies | done | — | 3 named `--- PASS:` lines, `# 43.` in `contract.sh`, both engine clauses, `./scripts/contract.sh` |
+| T2 | Say what every field of the answer means, and keep saying it | done | — | 2 named `--- PASS:` lines, `# 44.` in `contract.sh`, both engine clauses, `./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done` | `withdrawn`.
 

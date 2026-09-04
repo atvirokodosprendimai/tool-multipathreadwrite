@@ -83,7 +83,8 @@ section in `contract.sh` is 42, and T1 takes 43.
 
 ## Mutation Log
 
-<!-- filled during execution: one line per mutant, with the exit code that killed it -->
+- 2026-09-04 · 99ee7a0 · mutant killed · exit 1 · `internal/mcp/schema.go` · S2: drop `hunks.status` from the table — the single most load-bearing field of the receipt, and the one a caller must read to tell an ok from a skip · acceptance-sha256:e346ac09339dfc93a0c595edcfffedf121843cd7ecb9fffe9d56ddff54ed2852
+- 2026-09-04 · 99ee7a0 · mutant killed · exit 1 · `internal/mcp/schema.go` · S4: make a stale table entry a no-op instead of a refusal — the quiet direction of the drift, where the schema still validates every response while the prose describes a field nobody sends · acceptance-sha256:e346ac09339dfc93a0c595edcfffedf121843cd7ecb9fffe9d56ddff54ed2852
 
 ## Invariants
 
@@ -112,4 +113,13 @@ exact failure ADR-011-T2 was built to make unrepresentable, and it is not worth 
 - A JSON Schema library (permanent: boundary: restated from ADR-010 and ADR-011-T2)
 
 ## Verification Log
-<!-- filled during execution -->
+- 2026-09-04 · 99ee7a0* · exit 1 · `set -o pipefail …` · acceptance-sha256:e346ac09339dfc93a0c595edcfffedf121843cd7ecb9fffe9d56ddff54ed2852
+  ```
+  --- last 4 line(s) of stdout
+  internal/mcp/schema_test.go:139:15: undefined: describeResult
+  internal/mcp/schema_test.go:142:11: undefined: describeResult
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp [build failed]
+  FAIL
+  ```
+- 2026-09-04 · 99ee7a0 · exit 0 · `set -o pipefail …` · acceptance-sha256:e346ac09339dfc93a0c595edcfffedf121843cd7ecb9fffe9d56ddff54ed2852
+- 2026-09-04 · 99ee7a0* · exit 0 · `set -o pipefail …` · acceptance-sha256:e346ac09339dfc93a0c595edcfffedf121843cd7ecb9fffe9d56ddff54ed2852 · ms:32235

@@ -321,6 +321,15 @@ func dryRunExample(t *testing.T, text string) {
 // the highest line the plan names and planting any `anchor=` guard on the line
 // it guards. The tree comes from the plan so that a plan naming a new path is
 // still exercised, rather than the test quietly skipping what it cannot find.
+//
+// ⚠ WHAT THIS DOES NOT PROVE. The anchor is planted FROM the plan, so an
+// `anchor=` guard here can never fail — measured as a surviving mutant on
+// 2026-09-04, when changing the example's anchor text left this test green.
+// That is the honest limit of an example naming files no repository has: the
+// test proves the plan is grammatical and applies, not that its guard matches
+// real code. The mutants that DO die are the ones that matter for an example a
+// caller copies — an address form the plan grammar rejects, a header that does
+// not parse.
 func treeFor(t *testing.T, root string, hunks []plan.Hunk) []any {
 	t.Helper()
 	last := map[string]int{}

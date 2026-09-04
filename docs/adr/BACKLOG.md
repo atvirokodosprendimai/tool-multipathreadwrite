@@ -442,3 +442,20 @@ re-measuring these. Each was driven at the built binary, not read:
   marshalled again into the response. For anything under the limit that is a
   few hundred kilobytes and not worth the complexity of a streaming encoder.
   Revisit only if the limit rises far enough for the constant factor to matter.
+
+- **Splitting the authoring tally by call source, CLI versus MCP — DEFERRED,
+  with the reason written down so it is not re-proposed every month.** Raised
+  and rejected in ADR-012.
+
+  `cmd/mrw` and `internal/mcp` both call `authoring.Record` into one set of
+  counters, so `mrw stats` cannot tell a plan authored by a shell user from one
+  authored by a host. Splitting them is easy and it does not buy the thing it
+  looks like it buys. The population worth measuring is a caller who has ONLY
+  the tool description — no AGENTS.md, no README — and every caller in this
+  checkout has read AGENTS.md. Splitting partitions the population we have; it
+  does not create the one we want, and ADR-009's Out of Scope permanently
+  refuses the transmission that would bring the other one's outcomes here.
+
+  Revisit only if a source split answers a question someone actually has about
+  THIS checkout — for instance whether MCP callers hit `refused_apply` more
+  than shell callers, which is about the ledger and not about the format.
