@@ -130,3 +130,6 @@ the sample size recorded. A number nobody should act on is worse than an admissi
 - 2026-09-04 · b80bf7e · exit 0 · `set -o pipefail …` · acceptance-sha256:2f495d1b3e4606639002f045113c8a87d92aeb90e35688a562ae6fb292655dbd · ms:11330
 - 2026-09-04 · human-observed · Reading published 2026-09-04: 65 applied / 2 refused_apply / 1 refused_parse of 68 plans. refused_parse 1.5% against the pre-registered 5% criterion, so the reading does not ask for a format change. Population caveat and the stale-binary under-count are stated in the README section.
 - 2026-09-04 · d611885 · exit 0 · `set -o pipefail …` · acceptance-sha256:2f495d1b3e4606639002f045113c8a87d92aeb90e35688a562ae6fb292655dbd · ms:10705
+- 2026-09-04 · 7927406 · exit 1 · `# SCOPED TO THE SECTION, and asserting the READING rather than the prose around …` · acceptance-sha256:c804908334fd2757ab0560341f1ec3d4d0d69acae18a1e6e6f6ee6b035c5c67b · ms:63
+  ```
+  ```
