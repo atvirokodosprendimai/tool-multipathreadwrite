@@ -1,4 +1,4 @@
-# Reading 2, result: the curve is flat, and the one failure mode is address transcription
+# Reading 2, result: the Sonnet read arm is flat, and its three misses land at target+2
 
 **Collected 2026-09-04 under `reading-02-plan.md`, which was written before any trial ran.**
 Forty-five trials, one client population (fresh Sonnet subagents), the read arm only. The search
@@ -12,7 +12,12 @@ any kind, and had to author a one-hunk plan naming the line to change. Complianc
 each trial's own transcript afterwards, filtered on the read arm's prompt marker rather than on the
 cell id, because both arms use the same ids.
 
-**All 45 trials were compliant: zero search-tool calls.**
+**All 45 trials were compliant: zero search-tool calls, and every one read `served.txt` whole.**
+Coverage is computed from the `offset` and `limit` of each `Read` call in a trial's own transcript,
+unioned and compared against the served row count: all 45 cover every served row. Both halves matter
+and only together — reading 1 was voided because an instruction to read completely is not evidence of
+what a client processed, so the no-search count alone would not have established that the served
+bytes entered context.
 
 That compliance was achieved against a competing instruction, which is worth stating because it was
 not designed in. Partway through, the harness injected a reminder into trial clients telling them to
@@ -69,8 +74,11 @@ With a window of `@@ 500-900`, a row count and a line-number-plus-two differ by 
 accounts stop predicting the same answer. None of the forty-five cells has such a window, and adding
 one is a generator change, so it belongs to a later reading rather than to this one.
 
-What the data does support without qualification is the shape of the failure: **retrieval did not
-degrade with served size; addressing did, and the error was constant.**
+What the data supports without qualification is narrower than a mechanism: **three plans carried the
+correct replacement text and named `target+2`, one at each served size.** Retrieval, row counting,
+transcription and any other additive-two account all predict exactly that, and this reading separates
+none of them. Nor does the rate change with size — one miss at 2,000 bytes, one at 20,000 and one at
+200,000 — so nothing here says a failure of any kind grows as more is served.
 
 ## Why this matters more than the curve
 
@@ -99,8 +107,12 @@ All three were run both ways against the real fixture, and `anchor=` caught all 
 
 ## Cost
 
-Two numbers per trial, both taken from the client's own request records with duplicate records
-collapsed by message id. **Spend** is input plus cache-creation plus output summed over requests.
+Two numbers per trial, computed from the client's own request records with duplicates collapsed by
+message id. **Spend** sums `input_tokens + cache_creation_input_tokens + output_tokens` over every
+request and excludes `cache_read_input_tokens` entirely. **Peak** is the largest single request's
+`input_tokens + cache_creation_input_tokens + cache_read_input_tokens`, which is why peak can exceed
+spend: it is the one number that counts re-read cached context, and it is the figure the harness
+reports as a subagent's own token total. For `200000-early-5` this method gives 138,142 against the
 **Peak** is the largest single request's input, which is the figure the harness reports as a
 subagent's own token total: for `200000-early-5` this method gives 138,142 against the harness's
 138,234.
@@ -120,8 +132,10 @@ cost of a session dominates until the window is very large.
 - It does not say a curve cannot bend. The target here carries a unique service name, so a client
   that reads at all can find it. A fixture whose target is identified by a relational property
   rather than a name would be a harder test, and building one is a generator change in ADR-020.
-- It does not say the search arm behaves the same way. Reading 1 was voided because its clients
-  searched instead of reading, which is itself the finding that tool-using clients never process
-  the served window at all.
+- It does not say the search arm behaves the same way, and it does not say a searching client ignores
+  the window. Reading 1 was voided because its population MIXED the two strategies within a cell —
+  some trials read the window and some searched past it, at a factor of 2.3 in tokens — so a cell
+  pooled two different tasks. What is established there is that a client with a search tool CAN
+  bypass the served window, not that it never reads it.
 - Five repeats per cell resolve only large effects. A flat result here means "no large effect at
   this difficulty", not "no effect".

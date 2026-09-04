@@ -222,16 +222,20 @@ byte-identical, so the revert is a deletion.
 
 ## Follow-ups
 
-- [x] **Take the first reading.** Reading 1 was voided on evidence and its notice is
-      `docs/curve/reading-01-void.md`. Reading 2's read arm is complete and reported in
-      `docs/curve/reading-02-result.md`: 42 correct addresses in 45 trials, flat from 2,000 to
-      200,000 served bytes, which is the flat curve the pre-registration accepts as an answer. The
-      search arm stands at 18 observations and is not pooled with it.
-- [ ] **The failure mode the reading did find is addressing, not retrieval.** All three misses named
-      the line exactly two below the target, with the replacement text correct, and every one of them
-      applied silently without a guard and was refused with `anchor=`. Why it is two is not settled:
-      every cell serves `@@ 1-N`, so a row count in the served rendering and the line number plus two
-      are the same integer everywhere in this reading. **A cell whose served window does not begin at
-      line 1 would discriminate**, and building one is a generator change here.
+- [ ] **Take the first reading.** Still open: the pre-registration in `docs/adr/BACKLOG.md` requires
+      edit outcome against served bytes **across models**, and only one client population has been
+      measured. Reading 1 was voided on evidence (`docs/curve/reading-01-void.md`). The Sonnet read
+      arm is complete and reported in `docs/curve/reading-02-result.md`: 42 correct addresses in 45
+      trials, flat from 2,000 to 200,000 served bytes, with every trial verified to have read the
+      served window whole. That is a flat curve for one client, which the pre-registration accepts as
+      an answer only once a second client has been measured. The search arm stands at 18 observations
+      and is not pooled with it.
+- [ ] **The failure the reading did find is not a retrieval failure that grows with size.** Three
+      misses named `target+2` with the replacement text correct, one at each served size, and every
+      one applied silently without a guard and was refused with `anchor=`. Why it is two is not
+      settled, and this reading cannot settle it: every cell serves `@@ 1-N`, so a row count in the
+      served rendering and the line number plus two are the same integer everywhere in it. **A cell
+      whose served window does not begin at line 1 would discriminate**, and building one is a
+      generator change here.
 - [ ] If the reading bends, the cap becomes a measured number and ADR-011-T3's value is revisited by
       the record that owns it.
