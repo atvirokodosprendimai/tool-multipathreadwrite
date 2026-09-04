@@ -3134,6 +3134,45 @@ want 1 "$?" "and the binary refuses exactly what the wire just promised it would
   && ok "with nothing written, so the taught rule and the enforced rule are one rule" \
   || bad "the wire teaches a refusal the binary did not perform: $(cat "$R57/real.txt")"
 
+# 58. ADR-020-T2: the harder fixture names no service, and the two are two trials.
+#
+# The first reading returned 42 correct addresses in 45 trials against the named
+# selector, flat across a hundredfold change in served bytes, with every client
+# verified to have read the window whole. That is a ceiling, and a curve cannot
+# bend against a task nobody fails. This row drives the BUILT binary because a
+# selector can be correct in Generate and unreachable from the command line,
+# which is exactly how a fixture mode nobody can generate ships green. The pair
+# is the SAME parameters under the named selector, whose instruction must still
+# name a service — a check that just looked for a short instruction would pass
+# the first half and fail this one.
+R58=$(mktemp -d)
+"$CURVE" generate -out "$R58/rel" -bytes 3000 -position middle -distractors 3 -seed 58 -selector odd-retries > "$R58/rel.json" 2>&1
+want 0 "$?" "the built binary generates a cell whose target is picked by relation"
+"$CURVE" generate -out "$R58/named" -bytes 3000 -position middle -distractors 3 -seed 58 > "$R58/named.json" 2>&1
+want 0 "$?" "and the same parameters still generate the named cell, unchanged"
+python3 - "$R58" <<'PY'
+import json,re,sys
+d=sys.argv[1]
+rel=json.load(open(d+"/rel/manifest.json")); named=json.load(open(d+"/named/manifest.json"))
+body=open(d+"/rel/tree/services.conf").read()
+names=set(re.findall(r"svc-[a-z]+", body))
+assert names, "the fixture has no service names, so this row proves nothing"
+leaked=[n for n in names if n in rel["instruction"]]
+assert not leaked, "the relational instruction names %s, so the target is findable without reading" % leaked
+nb=open(d+"/named/tree/services.conf").read()
+assert any(n in named["instruction"] for n in set(re.findall(r"svc-[a-z]+", nb))), "the named instruction stopped naming a service"
+vals=re.findall(r"^retries = (\d+)$", body, re.M)
+odd=[v for v in set(vals) if vals.count(v)==1]
+assert len(vals)>=3 and len(odd)==1, "want one odd retry budget over at least three blocks, got %r" % vals
+ans=json.load(open(d+"/rel/answer.json"))
+lines=body.split("\n")
+assert lines[ans["line"]-1]=="timeout = 30", "the answer does not name a timeout line"
+assert lines[ans["line"]-2]=="retries = "+odd[0], "the answer names a block that is not the odd one"
+assert rel["trial_id"]!=named["trial_id"], "the two selectors share a trial id, so a result could be scored against the wrong cell"
+PY
+[ $? -eq 0 ] && ok "the relational instruction names no service, the answer is the odd block's timeout, and the two selectors are two trials" \
+             || bad "the harder fixture is findable by name, points at the wrong block, or collides with the named cell"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

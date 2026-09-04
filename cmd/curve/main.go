@@ -2,7 +2,7 @@
 // binary on purpose: mrw's own surface is for callers, and this is for whoever
 // is measuring mrw.
 //
-//	curve generate -out DIR -bytes N [-position early|middle|late] [-distractors K] [-seed S]
+//	curve generate -out DIR -bytes N [-position early|middle|late] [-distractors K] [-seed S] [-selector name|odd-retries]
 //	curve score    -cell DIR -result FILE
 //	curve tally    SCORE.json ...
 //
@@ -21,7 +21,7 @@ import (
 )
 
 const usageText = `usage:
-  curve generate -out DIR -bytes N [-position early|middle|late] [-distractors K] [-seed S]
+  curve generate -out DIR -bytes N [-position early|middle|late] [-distractors K] [-seed S] [-selector name|odd-retries]
   curve score    -cell DIR -result FILE
   curve tally    SCORE.json ...
 
@@ -69,13 +69,21 @@ func generate(args []string) error {
 	pos := fl.String("position", string(curve.Middle), "target stratum: early, middle or late")
 	k := fl.Int("distractors", 4, "near-identical distractor blocks; hold constant across size cells")
 	seed := fl.Int64("seed", 1, "the same params and seed regenerate the same trial")
+	sel := fl.String("selector", "name", "how the instruction points at the target: name (a unique service name) or odd-retries (the one block whose retry budget differs)")
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
 	if *out == "" || *size <= 0 {
 		return fmt.Errorf("generate needs -out and a positive -bytes")
 	}
-	m, err := curve.Generate(*out, curve.Params{ServedBytes: *size, Position: curve.Position(*pos), Distractors: *k, Seed: *seed})
+	selector := curve.ByName
+	if *sel != "name" {
+		if *sel != string(curve.ByOddRetries) {
+			return fmt.Errorf("selector %q is not name or %s", *sel, curve.ByOddRetries)
+		}
+		selector = curve.ByOddRetries
+	}
+	m, err := curve.Generate(*out, curve.Params{ServedBytes: *size, Position: curve.Position(*pos), Distractors: *k, Seed: *seed, Selector: selector})
 	if err != nil {
 		return err
 	}

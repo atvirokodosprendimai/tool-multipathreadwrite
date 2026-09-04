@@ -722,3 +722,19 @@ re-measuring these. Each was driven at the built binary, not read:
   path handling (`os.sep`, `O_NOFOLLOW` absent, `realpath` on drive letters) has not been
   run on NTFS. Promote when a Windows contributor reports a delivery that did not happen,
   or when CI gains a Windows python3.
+
+## From ADR-020-T2 (a target the instruction does not name)
+
+- **Run a reading against the relational fixture.** T2 builds the selector; it does not spend the
+  trials. The criterion is the one already pre-registered above and must not be re-derived — correct
+  address rate against served bytes, stratified by position, refusals reported separately, a flat
+  curve accepted as an answer. What the first reading adds is that the NAMED fixture is at ceiling
+  (42/45, `docs/curve/reading-02-result.md`), so a relational reading is the first one whose curve
+  has room to bend. It is a budget decision, which is why ADR-020 keeps readings out of its tasks.
+- **A served window that does not begin at line 1.** All three misses of the first reading named the
+  line exactly two below the target, and the reading cannot say why: every cell serves `@@ 1-N`, so a
+  row count in the served rendering and the target's line number plus two are the same integer in all
+  45 trials. A cell served from, say, line 500 separates them by 498 and settles it in one trial.
+  Deliberately NOT in T2: it answers a different question from "can the task be failed", and folding
+  it in would put two claims under one fence. Promote it when a reading needs to explain a miss
+  rather than count one.
