@@ -2568,6 +2568,13 @@ ctx=$(hook55 s3 mcp__mrw__mrw_read '{"specs":["pkg/a_test.go:/package/"]}' | ctx
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "an mrw_read spec with a pattern address is matched by its path, and **/*_test.go crosses directories" \
   || bad "mrw_read spec not matched: $ctx"
+# `**` must match ZERO directories and TWO, not exactly one: a `**` that
+# degraded to `*` still matches every one-deep fixture above.
+printf 'package top\n' > "$R55/proj/top_test.go"; mkdir -p "$R55/proj/pkg/sub"; printf 'package sub\n' > "$R55/proj/pkg/sub/deep_test.go"
+ctx=$(hook55 s3b Bash '{"command":"cat top_test.go"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "**/*_test.go matches a root file: ** stands for zero directories" || bad "** did not match zero directories: $ctx"
+ctx=$(hook55 s3c Bash '{"command":"cat pkg/sub/deep_test.go"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "and a file two directories deep: ** stands for several" || bad "** did not cross two directories: $ctx"
 printf 'package pkg\n' > "$R55/proj/pkg/new_test.go"
 ctx=$(hook55 s4 mcp__mrw__mrw_write '{"plan":"@@ pkg/new_test.go - create\npackage pkg\n"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \

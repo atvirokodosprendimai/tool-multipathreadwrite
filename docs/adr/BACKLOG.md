@@ -703,3 +703,10 @@ re-measuring these. Each was driven at the built binary, not read:
   not being TOLD to. ADR-015 makes the refusal name the escape, so the evidence
   for a terminator is now "the hint landed and counting is still the friction".
   Revisit with that evidence, not before.
+
+- **The rules hook on Windows — DEFERRED by ADR-022.** `.claude/hooks/rules-on-read.py`
+  is exercised by contract §55 on Linux and by its Go Enforced-by wherever `python3` is
+  on PATH; the Windows runner may lack `python3` (the test skips there), and the hook's
+  path handling (`os.sep`, `O_NOFOLLOW` absent, `realpath` on drive letters) has not been
+  run on NTFS. Promote when a Windows contributor reports a delivery that did not happen,
+  or when CI gains a Windows python3.

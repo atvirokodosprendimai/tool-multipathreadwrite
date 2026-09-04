@@ -93,7 +93,7 @@ and touches no engine code.
 - 2026-09-04 · 48b2e9f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: take cwd for the project root. TestThePathScopedRulesHookDeliversOnAnMrwRead fails: from a subdirectory no rule is found — the first cut's defect · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 48b2e9f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S3: ignore the `==>` headers in the result. §55's grep row fails: a grep names no file in its input · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 48b2e9f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S4: stop stripping the BOM. §55's quoted-path-behind-a-BOM row fails · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
-- 2026-09-04 · 48b2e9f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: make `**` no longer cross directories. §55's `**/*_test.go` and `docs/adr/**` rows fail · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · ee58dbb · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: make `**` no longer cross directories (it degrades to `*`). ⚠ THE FIRST ATTEMPT SURVIVED and was logged as killed before the log was corrected: every globbed fixture sat exactly one directory deep, where `*` and `**` agree. §55 gained a root-level `top_test.go` (zero directories) and `pkg/sub/deep_test.go` (two), and the mutant now fails both · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 48b2e9f · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S6: let a losing claim deliver anyway. The Enforced-by's second call and §55's dedup and race rows fail · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 
 ## Invariants
@@ -123,3 +123,4 @@ build. That is a different tool, and the record's Alternatives say why it was no
 ## Verification Log
 <!-- filled during execution -->
 - 2026-09-04 · 48b2e9f · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:46599
+- 2026-09-04 · ee58dbb* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:30941
