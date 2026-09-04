@@ -459,3 +459,23 @@ re-measuring these. Each was driven at the built binary, not read:
   Revisit only if a source split answers a question someone actually has about
   THIS checkout — for instance whether MCP callers hit `refused_apply` more
   than shell callers, which is about the ledger and not about the format.
+
+- **Measuring whether served size degrades edit accuracy — DEFERRED, and it is
+  the most valuable unanswered question this project has.** Named in ADR-014.
+
+  `MaxResultChars` is 200,000 because that fits under Claude Code's per-tool
+  ceiling. It bounds a RESOURCE and says nothing about quality. What nobody has
+  measured is whether a model's next edit gets WORSE as more context is served:
+  the reported degradation with long context is about retrieval and QA, and edit
+  authoring is a narrower, more mechanical task it has not been measured on.
+
+  ⚠ The obvious instrument is the wrong one. ADR-014 records peak RSS against
+  served bytes (about 12x the served size over MCP, flat on the CLI). That is
+  what the SERVER spends. The question is what the CALLER's accuracy does, and
+  using a memory curve to justify a context budget is the same category error
+  ADR-012 rejected one level up — a measurement pointed at the wrong population.
+
+  Answering it needs the benchmark harness: served bytes as the independent
+  variable, edit outcome as the dependent one, across models. If the curve turns
+  over, the cap becomes a measured number instead of an inherited one; if it is
+  flat, "arbitrary" is a defensible answer and we will be able to say so.

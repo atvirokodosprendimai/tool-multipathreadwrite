@@ -254,7 +254,10 @@ func tools() []tool {
 				triggerRule + " — one call serves them all, and each served line is recorded so " +
 				"mrw_write may later edit it. Below that a single read is cheaper in your own " +
 				"editor. Specs use mrw's own syntax: path, path:10-20, path:/regexp/ so the read " +
-				"finds its own site, or path:$ for the last line.",
+				"finds its own site, or path:$ for the last line. A read too large for one answer " +
+				"comes back as a PAGE, not a failure: the lines that fit, isError true, and a " +
+				"next_read spec for the rest. Repeat until next_read is absent — its absence is " +
+				"how you know you have the whole file, and you may only edit lines a page served.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

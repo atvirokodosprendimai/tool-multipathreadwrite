@@ -356,13 +356,14 @@ than 200,000 characters in one call. A request over that comes back as the FIRST
 PAGE — the lines that fit, `isError: true`, and a `next_read` field naming the
 spec that asks for the rest. Send it to continue, and repeat until `next_read`
 is absent; its absence is how a caller knows it has the whole file, and each
-its absence is how a caller knows it has the whole file, and each page licenses
-a write to exactly the lines it served, no more. Nothing is ever truncated: a
-part that arrives looking like the whole file is the silent wrong answer this
-tool exists to refuse, which is why a page stays an error and says what remains.
-Naming several specs at once cannot page — mrw cannot know which of them to
-narrow — so that case is still refused outright, with the limit and a per-file
-line budget. The limit is also
+page licenses a write to exactly the lines it served, no more. Nothing is ever
+truncated: a part that arrives looking like the whole file is the silent wrong
+answer this tool exists to refuse, which is why a page stays an error and says
+what remains. Naming several specs at once cannot page — mrw cannot know which
+of them to narrow — so that case is still refused outright, with the limit and a
+per-file line budget. The limit is also declared in `tools/list` as
+`_meta["anthropic/maxResultSizeChars"]`, so a host knows it before it hits it.
+`mrw read` on the command line has no such limit and no paging: it streams.
 
 Two tools are exposed. `mrw_read` takes `specs` — the same range syntax the CLI
 takes — and `mrw_write` takes `plan`, the same plan text. Nothing listens on a

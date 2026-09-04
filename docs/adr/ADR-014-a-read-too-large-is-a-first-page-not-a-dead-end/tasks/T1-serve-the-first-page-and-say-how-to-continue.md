@@ -127,3 +127,4 @@ transport (ADR-011's own reasoning); a page is a span, and spans already exist.
 ## Verification Log
 <!-- filled during execution -->
 - 2026-09-04 · 43e517d* · exit 0 · `set -o pipefail …` · acceptance-sha256:c5303f63b8ec1362aea7e8d944e908ebb3260ccff0e85a92abb703a9f496c20e · ms:14107
+- 2026-09-04 · dca6d28* · exit 0 · `set -o pipefail …` · acceptance-sha256:c5303f63b8ec1362aea7e8d944e908ebb3260ccff0e85a92abb703a9f496c20e · ms:11103

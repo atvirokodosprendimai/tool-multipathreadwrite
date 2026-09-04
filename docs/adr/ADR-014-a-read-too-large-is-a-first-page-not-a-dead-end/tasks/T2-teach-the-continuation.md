@@ -125,3 +125,4 @@ there or cut the example, and say which — do not raise the constant to fit.
   ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	(cached)
   ```
 - 2026-09-04 · 43e517d* · exit 0 · `set -o pipefail …` · acceptance-sha256:f6a623a88137fd22088905bd737edf691a78c7cb425102f47d6f38e55847556d · ms:9518
+- 2026-09-04 · dca6d28* · exit 0 · `set -o pipefail …` · acceptance-sha256:f6a623a88137fd22088905bd737edf691a78c7cb425102f47d6f38e55847556d · ms:10676
