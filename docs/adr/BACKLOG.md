@@ -666,16 +666,23 @@ re-measuring these. Each was driven at the built binary, not read:
   already hashes the resolved absolute root so N namespaces come free, but
   `apply.Apply(root, …)` takes ONE root and `seen.Load(root)` loads ONE ledger
   per run — a cross-repo plan needs the ledger resolved PER HUNK, which changes
-  what a run is. **Issue #81 belongs to that record too**: whether the server
-  should REFUSE a root of `/`, which is what a host that sets no project
-  directory currently gets. It was split out of #75 so that issue could close
-  on its documentation fix, and so the question is tracked somewhere that does
-  not depend on this branch merging — the tracking for it lived only here, and
-  closing #75 with the thread hanging on an unmerged BACKLOG entry is the
-  failure this corpus keeps recording. Note the rule is not obvious: `/` is
-  easy, but `$HOME` is arguably worse AND is exactly where a Desktop analyst's
-  documents are, so "refuse suspicious roots" by taste would break the
-  population ADR-017 was written for.
+  what a run is.
+
+  ⚠ **#81 IS DONE AND REACH IS NOT — THEY SEPARATED.** When #81 was filed this
+  entry said it "belongs to that record too". It does not any more. ADR-018 took
+  it, because the axis turned out to be EXPLICIT VERSUS ACCIDENTAL rather than
+  which directory is unpleasant: `ResolveRoot` already returns a `Source`, so
+  "did anyone say this?" is a value that exists. A fallback onto a filesystem
+  root or the home directory is refused; anything explicit is honoured, `/`
+  included. That rule says nothing about how MANY roots there may be, which is
+  why it could ship without waiting for this entry.
+
+  ⚠ **AND THE NUMBER MOVED.** ADR-017's Out of Scope, its T1 and its T2 all say
+  reach is `ADR-018`. That was true when they were written and is now wrong:
+  **018 is the root guard, and REACH IS ADR-019**, still unwritten. The
+  deferrals point at this entry rather than at a number precisely so a
+  renumbering cannot break them — which is the reason `adr-debt` refused the
+  original `ADR-018` pointer as a pointer to nowhere.
 
 - **A heredoc-style body terminator for the plan format — DEFERRED.** Raised and
   refused in ADR-015.

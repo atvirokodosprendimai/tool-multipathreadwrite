@@ -3,6 +3,7 @@ package mcp
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -135,4 +136,62 @@ func TestAProjectDirEndingInSpaceIsNotRewritten(t *testing.T) {
 	if got != odd || src != SourceProjectDir {
 		t.Errorf("root = %q, want the untrimmed %q", got, odd)
 	}
+}
+
+// TestAFallbackRootThatIsNotAProjectIsRefused is ADR-018's Enforced-by.
+//
+// The defect issue #81 reports is a root of `/`, but `/` is the symptom. The
+// defect is that NOBODY NAMED A TREE: with no --root and no CLAUDE_PROJECT_DIR
+// the server serves whatever directory the host happened to launch it in, and
+// every refusal it then gives is correct about a tree nobody asked about. So
+// the guard keys on the SOURCE, not on a list of unpleasant paths.
+func TestAFallbackRootThatIsNotAProjectIsRefused(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skipf("no home directory on this host: %v", err)
+	}
+	fsRoot := filepath.VolumeName(home) + string(filepath.Separator)
+
+	for _, tc := range []struct {
+		name string
+		root string
+		src  Source
+		want bool // want refused
+	}{
+		{"the filesystem root, by fallback", fsRoot, SourceWorkingDir, true},
+		{"the home directory, by fallback", home, SourceWorkingDir, true},
+		// EXPLICITNESS IS THE LICENCE. Someone who writes --root / has said
+		// what they mean; the guard exists for the case where nobody said
+		// anything, so it must not second-guess a stated intent.
+		{"the filesystem root, named by --root", fsRoot, SourceFlag, false},
+		{"the home directory, named by --root", home, SourceFlag, false},
+		// A host that sets the project variable has also stated intent.
+		{"the home directory, from the project variable", home, SourceProjectDir, false},
+		// And an ordinary checkout reached by fallback is the common case
+		// that must keep working: `cd myrepo && mrw mcp`.
+		{"an ordinary directory, by fallback", t.TempDir(), SourceWorkingDir, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := CheckRoot(tc.root, tc.src)
+			if got := err != nil; got != tc.want {
+				t.Fatalf("CheckRoot(%q, %v) error = %v, want refused = %v", tc.root, tc.src, err, tc.want)
+			}
+			if err != nil {
+				// A refusal that does not say how to proceed is a dead end,
+				// which is the thing this corpus keeps refusing.
+				if !containsAll(err.Error(), "--root", tc.root) {
+					t.Errorf("the refusal does not name the root and the fix: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func containsAll(s string, subs ...string) bool {
+	for _, sub := range subs {
+		if !strings.Contains(s, sub) {
+			return false
+		}
+	}
+	return true
 }

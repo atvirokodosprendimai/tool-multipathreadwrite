@@ -351,6 +351,17 @@ the block above serves the right tree.
 **A host that does not set it binds to its own working directory instead.** That
 is the case to watch, because the fallback is silent and the resulting root can
 be anything. Claude Desktop is the one reported in practice (issue #75).
+
+**Two fallback roots are REFUSED rather than served** (issue #81): a filesystem
+root, and your home directory. Neither can be a project, and serving one would
+scope every read and write to everything below it — correctly, which is what
+makes it dangerous. `mrw mcp` exits 2 and names the flag that fixes it.
+
+The guard is on how the root was CHOSEN, not on which directory it is. **An
+explicit `--root` is always honoured, including `--root /` and `--root "$HOME"`**,
+and so is a host-set `CLAUDE_PROJECT_DIR`. Only the silent fallback is
+second-guessed, and an ordinary checkout reached by fallback — `cd myrepo && mrw
+mcp` — still serves.
 The fallback itself, shown directly — this demonstrates mrw, not Desktop:
 
 ```sh
