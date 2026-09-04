@@ -253,3 +253,62 @@ func TestAJSONArrayIsAnInvalidRequestNotAParseError(t *testing.T) {
 		t.Errorf("code = %v, want -32600 (invalid request), not a parse error", e["code"])
 	}
 }
+
+// TestTheInstructionsTellAHostHowToAuthorAPlan asserts the handshake carries
+// the field the lifecycle spec provides for "how to drive this server", and
+// that what it carries is the format itself rather than a pointer to a file.
+//
+// The pointer case is the one worth naming: an MCP-only caller is driving mrw
+// in a checkout it did not clone from here, so AGENTS.md and README.md do not
+// exist for it. A reference to a file the reader cannot open reads as help and
+// is not, which is worse than silence.
+func TestTheInstructionsTellAHostHowToAuthorAPlan(t *testing.T) {
+	lines := serve(t, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`)
+	if len(lines) != 1 {
+		t.Fatalf("got %d response line(s), want 1", len(lines))
+	}
+	res, ok := decode(t, lines[0])["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("no result object in %q", lines[0])
+	}
+	got, _ := res["instructions"].(string)
+	if strings.TrimSpace(got) == "" {
+		t.Fatal("initialize carries no instructions — the one field the lifecycle spec provides for telling a host how to drive this server")
+	}
+	if !strings.Contains(got, examplePlan) {
+		t.Error("the instructions do not carry the worked plan; the grammar without an example is what the tool description already was")
+	}
+	for _, must := range []string{"@@", "replace", "insert-after"} {
+		if !strings.Contains(got, must) {
+			t.Errorf("the instructions never mention %q", must)
+		}
+	}
+	for _, file := range []string{"AGENTS.md", "README.md", "CONTRIBUTING.md"} {
+		if strings.Contains(got, file) {
+			t.Errorf("the instructions point at %s, which an MCP-only caller cannot open", file)
+		}
+	}
+	// Paid on every session, by every host that reads the field. A bound is
+	// what keeps this from becoming a second copy of AGENTS.md.
+	if len(got) > maxInstructionsChars {
+		t.Errorf("instructions are %d bytes, over the %d-byte bound", len(got), maxInstructionsChars)
+	}
+}
+
+// TestTheDescriptionsSayWhenToReachForTheTool asserts the trigger, not the
+// behaviour. Over MCP mrw competes with the host's own Edit and Write, and the
+// description is the whole pitch: a caller told what the tool does and not when
+// it wins will keep using the editor it already has.
+func TestTheDescriptionsSayWhenToReachForTheTool(t *testing.T) {
+	for _, tl := range tools() {
+		if !strings.Contains(tl.Description, triggerRule) {
+			t.Errorf("tool %q does not say when to reach for it; want the threshold %q in:\n%s", tl.Name, triggerRule, tl.Description)
+		}
+	}
+	// The counter-advice belongs with the pitch: a tool that never says when
+	// NOT to use it is advertising, and a single edit really does cost more
+	// through mrw than through an ordinary editor.
+	if !strings.Contains(instructionsText(), "Below that") {
+		t.Error("the instructions never say when NOT to reach for mrw")
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
@@ -195,24 +196,130 @@ const MaxResultChars = 200_000
 // mistake that every test and every startup would hit immediately, not a
 // runtime condition a caller could act on.
 func readSchema() map[string]any {
-	return map[string]any{
+	return mustDescribe(map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"observed": map[string]any{
 				"type":                 "object",
-				"description":          "What each served file was observed to hold, keyed by path.",
 				"additionalProperties": mustSchema(seen.Observation{}),
 			},
-			"problems": map[string]any{
-				"type":        "integer",
-				"description": "How many requested ranges could not be served.",
-			},
+			"problems": map[string]any{"type": "integer"},
 		},
 		"required": []string{"observed", "problems"},
+	}, readDescriptions)
+}
+
+func writeSchema() map[string]any { return mustDescribe(mustSchema(apply.Result{}), writeDescriptions) }
+
+// readDescriptions and writeDescriptions say what each property MEANS. The
+// shapes stay generated — ADR-011 measured what happens to a hand-written
+// schema — and only the prose is authored here.
+//
+// ⚠ THE PROSE LIVES IN THIS PACKAGE, NOT IN A STRUCT TAG. `internal/apply` and
+// `internal/seen` are two of the six engine directories every ADR-010 and
+// ADR-011 fence asserts byte-identical, and that boundary is permanent; a
+// `desc:` tag is inert at runtime and still changes those bytes. ADR-011's
+// boundary table already gives this package the tool descriptors, and prose
+// about a returned field is a descriptor.
+//
+// Keys are dotted property paths, so a field one level down is nameable:
+// `hunks.status`, not `status`. Coverage is enforced in both directions — an
+// undescribed property fails TestEveryOutputSchemaPropertyIsDescribed, and an
+// entry here naming a property the schema no longer declares is refused at
+// construction, which is the quieter of the two drifts.
+var readDescriptions = map[string]string{
+	"observed":       "What each served file was observed to hold, keyed by path. This IS the ledger entry a later mrw_write is checked against.",
+	"observed.SHA":   "The sha256 of the whole file as it was when served. A later write is refused if the file no longer hashes to this.",
+	"observed.Spans": "The line spans actually rendered, as [start, end] pairs; null means the whole file. A write to a line outside these is refused even though the file was read.",
+	"problems":       "How many requested ranges could not be served. Non-zero means part of what you asked for is missing from `observed` — the call itself still answered.",
+}
+
+var writeDescriptions = map[string]string{
+	"root":                "The checkout the plan was applied in. Every path in the plan is relative to it.",
+	"dry_run":             "True when the plan was only validated. Every other field means what it would have meant, and nothing was written.",
+	"applied":             "True when every hunk passed and the new content reached disk. False on a dry run and on any refusal.",
+	"failed":              "How many hunks did not apply. Non-zero means NOTHING was written: a plan is all or nothing.",
+	"files":               "One entry per file the plan addressed, including files it could not write.",
+	"files.path":          "The file's path, relative to root.",
+	"files.created":       "True when the file did not exist and a create hunk made it.",
+	"files.written":       "True when this file's new content reached disk. False on a dry run, and false for every file when any hunk failed.",
+	"files.sha_before":    "The sha256 of the file before the plan was applied.",
+	"files.sha_after":     "The sha256 of the file after the plan was applied.",
+	"files.lines_before":  "How many lines the file held before the plan was applied.",
+	"files.lines_after":   "How many lines the file holds after it.",
+	"hunks":               "One verdict per hunk, in plan order. This is the field to read: a replacement that matched nothing is reported here rather than silently skipped.",
+	"hunks.path":          "The file this hunk addressed, as written in the plan.",
+	"hunks.addr":          "The address as written in the plan, so a verdict can be matched back to the plan line that produced it.",
+	"hunks.op":            "The op as written: replace, insert-after, insert-before, delete or create.",
+	"hunks.status":        "`ok` when this hunk applied, `fail` when it did not, `skip` when a sibling failed and the whole plan was abandoned. A skip is never an ok.",
+	"hunks.reason":        "Why a failing hunk failed: a guard that did not hold, a file mrw had not served, a path outside the root. Absent when the hunk passed.",
+	"hunks.removed":       "How many lines this hunk removed.",
+	"hunks.added":         "How many lines this hunk added.",
+	"hunks.plan_line":     "The line of the plan document this hunk's header was on.",
+	"hunks.removed_first": "The first line a delete removed, echoed back so a caller can see what it lost. Present only for a successful delete.",
+	"hunks.removed_last":  "The last line a delete removed. Present only for a successful delete.",
+}
+
+// describeResult attaches the table's prose to a generated schema, in place,
+// and REFUSES a table entry that matches no declared property.
+//
+// The refusal is the point. A missing description is loud — the coverage test
+// names the property. A stale one is silent: the schema still validates every
+// response, and the entry sits there describing a field nobody sends until
+// somebody reads it and believes it.
+func describeResult(schema map[string]any, table map[string]string) (map[string]any, error) {
+	used := map[string]bool{}
+	attachDescriptions(schema, "", table, used)
+	var stale []string
+	for k := range table {
+		if !used[k] {
+			stale = append(stale, k)
+		}
+	}
+	if len(stale) > 0 {
+		sort.Strings(stale)
+		return nil, fmt.Errorf("mcp: described propert(ies) the schema does not declare: %s", strings.Join(stale, ", "))
+	}
+	return schema, nil
+}
+
+// attachDescriptions walks properties, array items and map values alike, so a
+// field one level down is reachable by a dotted path. Items and additional
+// properties share their parent's prefix because neither is separately named
+// on the wire — an element of `hunks` is a hunk, not a `hunks[]`.
+func attachDescriptions(schema map[string]any, prefix string, table map[string]string, used map[string]bool) {
+	props, _ := schema["properties"].(map[string]any)
+	for name, raw := range props {
+		p, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		path := prefix + name
+		if d, ok := table[path]; ok {
+			p["description"] = d
+			used[path] = true
+		}
+		attachDescriptions(p, path+".", table, used)
+		if items, ok := p["items"].(map[string]any); ok {
+			attachDescriptions(items, path+".", table, used)
+		}
+		if ap, ok := p["additionalProperties"].(map[string]any); ok {
+			attachDescriptions(ap, path+".", table, used)
+		}
 	}
 }
 
-func writeSchema() map[string]any { return mustSchema(apply.Result{}) }
+// mustDescribe is the panicking form, for the same reason mustSchema is: the
+// tables and the types are compile-time constants of this package, so a
+// mismatch is a programming mistake every startup and every test hits at once,
+// not a runtime condition a caller could act on.
+func mustDescribe(schema map[string]any, table map[string]string) map[string]any {
+	s, err := describeResult(schema, table)
+	if err != nil {
+		panic(err.Error())
+	}
+	return s
+}
 
 func mustSchema(v any) map[string]any {
 	s, err := SchemaOf(v)

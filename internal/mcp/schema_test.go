@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
@@ -119,5 +120,30 @@ func TestANilSliceIsAdmittedByTheSchema(t *testing.T) {
 	spans := s["properties"].(map[string]any)["Spans"].(map[string]any)
 	if !sameStrings(spans["type"], []string{"array", "null"}) {
 		t.Errorf(`Spans type is %v, want ["array","null"] — a whole-file read sends null`, spans["type"])
+	}
+}
+
+// TestADescribedPropertyThatNoLongerExistsIsRefused covers the quieter half of
+// the drift.
+//
+// An UNdescribed property is loud: the coverage test names it. A description
+// for a property that has been renamed or removed is silent — the schema still
+// validates every response, and the table just describes a field nobody sends,
+// until someone reads it and believes it. So a table entry that matches nothing
+// is an error at construction, not a no-op.
+func TestADescribedPropertyThatNoLongerExistsIsRefused(t *testing.T) {
+	schema, err := SchemaOf(apply.Result{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := describeResult(schema, map[string]string{"failed": "how many hunks did not apply"}); err != nil {
+		t.Fatalf("describing a property the schema declares failed: %v", err)
+	}
+	_, err = describeResult(schema, map[string]string{"hunks.was_renamed": "a field that no longer exists"})
+	if err == nil {
+		t.Fatal("a description for a property the schema does not declare was accepted; it would sit there describing a field nobody sends")
+	}
+	if !strings.Contains(err.Error(), "hunks.was_renamed") {
+		t.Errorf("the refusal does not name the stale entry: %v", err)
 	}
 }

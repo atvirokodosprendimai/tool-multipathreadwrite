@@ -1883,6 +1883,128 @@ want 0 "$rc" "and the same file still reads whole on the CLI"
   && ok "and the CLI answer is larger than the MCP limit, so only the transport is capped" \
   || bad "the CLI read was also bounded; the engine was changed"
 
+# 43. ADR-012 T1: the wire teaches the format, because nothing else can.
+#
+# A host driving `mrw mcp` is in a checkout it did not clone from here: AGENTS.md
+# does not exist for it, and no model has this plan format in training data. So
+# `initialize` and `tools/list` are the whole of its education. This row reads
+# what the SHIPPED BINARY says, not what the source says, and it holds the wire
+# against AGENTS.md — the duplication ADR-012 accepts deliberately, asserted here
+# rather than trusted.
+fixture
+
+rule='3 or more edits, 2 or more files, or several ranges you need to read'
+# AGENTS.md wraps the sentence across two lines, so compare on a whitespace-
+# folded copy: the rule is the words, not where the paragraph happened to break.
+tr -s '[:space:]' ' ' < "$SRC/AGENTS.md" | grep -qF "$rule" \
+  && ok "AGENTS.md still states the trigger threshold this row holds the wire against" \
+  || bad "the threshold sentence moved in AGENTS.md; the wire and the repository now teach different rules"
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+want 0 $? "initialize answers"
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+i=r.get("instructions")
+assert isinstance(i,str) and i.strip(), "initialize carries no instructions"
+assert "@@" in i, "the instructions never show a plan header"
+for f in ("AGENTS.md","README.md","CONTRIBUTING.md"):
+    assert f not in i, "the instructions point at %s, which an MCP-only caller cannot open" % f
+assert len(i) <= 4096, "the instructions are %d bytes; they are paid once per session" % len(i)
+PY
+[ $? -eq 0 ] && ok "and the handshake teaches the format without pointing at a file the caller cannot open" \
+             || bad "the initialize instructions are missing, unbounded, or a pointer to nothing"
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+want 0 $? "tools/list answers"
+python3 - "$out" "$rule" <<'PY'
+import json,sys
+tools={t["name"]: t for t in json.loads(sys.argv[1])["result"]["tools"]}
+rule=sys.argv[2]
+for name in ("mrw_read","mrw_write"):
+    assert rule in tools[name]["description"], "%s never says when to reach for it" % name
+props=tools["mrw_write"]["inputSchema"]["properties"]
+ex=props["plan"].get("examples")
+assert ex and ex[0].startswith("@@ "), "mrw_write publishes no worked plan"
+ex=tools["mrw_read"]["inputSchema"]["properties"]["specs"].get("examples")
+assert ex and isinstance(ex[0],list) and len(ex[0])>1, "mrw_read publishes no worked spec list"
+PY
+[ $? -eq 0 ] && ok "and both tools say when to reach for them, and publish a worked example" \
+             || bad "the tool descriptions still say only what the tools do"
+
+# THE ROW: the published plan is one the SHIPPED BINARY accepts. An example
+# asserted to be present stays green long after it stops being valid, and it is
+# the one thing a caller copies verbatim.
+python3 - "$out" > "$WORK/published.plan" <<'PY'
+import json,sys
+tools={t["name"]: t for t in json.loads(sys.argv[1])["result"]["tools"]}
+sys.stdout.write(tools["mrw_write"]["inputSchema"]["properties"]["plan"]["examples"][0])
+PY
+python3 - "$WORK/published.plan" "$R" <<'PY'
+import os,re,sys
+# Build the tree the published plan addresses, planting each anchor on the line
+# it guards, so the dry run judges the plan and not the fixture.
+plan=open(sys.argv[1]).read(); root=sys.argv[2]
+last={}; anchors={}
+for h in re.finditer(r'^@@ (\S+) (\d+)(?:-(\d+))? (\S+)(.*)$', plan, re.M):
+    p,a,b,op,rest=h.group(1),int(h.group(2)),h.group(3),h.group(4),h.group(5)
+    hi=int(b) if b else a
+    last[p]=max(last.get(p,0),hi)
+    m=re.search(r'anchor="([^"]*)"',rest)
+    if m: anchors.setdefault(p,{})[a]=m.group(1)
+for p,n in last.items():
+    full=os.path.join(root,p); os.makedirs(os.path.dirname(full),exist_ok=True)
+    with open(full,'w') as f:
+        for i in range(1,n+1): f.write(anchors.get(p,{}).get(i,"line %d"%i)+"\n")
+PY
+paths=$(python3 -c "
+import re,sys
+print(' '.join(sorted({m.group(1) for m in re.finditer(r'^@@ (\S+) ', open('$WORK/published.plan').read(), re.M)})))
+")
+# shellcheck disable=SC2086
+m read $paths >/dev/null 2>&1
+want 0 $? "the files the published plan names can be read"
+out=$(m write --dry-run "$WORK/published.plan" 2>&1); rc=$?
+want 0 "$rc" "and the plan mrw publishes to a host is one mrw itself accepts"
+# "0 failed" contains the word, so match a VERDICT line: `fail` or `skip` in the
+# first column. A substring check here would have been green on every run.
+grep -qE '^(fail|skip) ' <<<"$out" \
+  && bad "a hunk of the published example failed: $out" \
+  || ok "and every hunk of the published example passes"
+
+# 44. ADR-012 T2: the machine-readable half of the contract says what it means.
+#
+# ADR-011 made the output shapes GENERATED from the Go types, which is right and
+# left them mute: a caller was told `failed` is an integer and never what it
+# counts. This row reads the descriptions off the SHIPPED BINARY, at every
+# depth — the fields worth describing are one level down, in a hunk's verdict
+# and a file's `written`.
+fixture
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+want 0 $? "tools/list answers"
+python3 - "$out" <<'PY'
+import json,sys
+tools=json.loads(sys.argv[1])["result"]["tools"]
+missing=[]; seen=[]
+def walk(schema, where, prefix=""):
+    for name,p in (schema.get("properties") or {}).items():
+        path=prefix+name
+        seen.append("%s:%s" % (where,path))
+        if not (p.get("description") or "").strip(): missing.append("%s:%s" % (where,path))
+        walk(p, where, path+".")
+        for sub in ("items","additionalProperties"):
+            if isinstance(p.get(sub), dict): walk(p[sub], where, path+".")
+for t in tools:
+    walk(t["outputSchema"], t["name"])
+assert not missing, "undescribed propert(ies): %s" % ", ".join(missing)
+# A walk that never descended would find only the top level and report success.
+assert len(seen) >= 20, "the walk found only %d properties, so it is not descending: %s" % (len(seen), seen)
+assert any(s.startswith("mrw_write:hunks.status") for s in seen), "the walk never reached a hunk verdict"
+PY
+[ $? -eq 0 ] && ok "every property of every declared outputSchema says what it means, at every depth" \
+             || bad "the declared output schemas still describe only their types"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

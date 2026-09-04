@@ -222,6 +222,10 @@ func initializeResult() map[string]any {
 		"capabilities": map[string]any{
 			"tools": map[string]any{},
 		},
+		// The lifecycle spec's field for "how to drive this server". It is the
+		// only documentation an MCP-only caller has: it is in a checkout it did
+		// not clone from here, so the format has to travel on the wire.
+		"instructions": instructionsText(),
 	}
 }
 
@@ -246,9 +250,11 @@ func tools() []tool {
 				"openWorldHint":   false,
 			},
 			Meta: map[string]any{"anthropic/maxResultSizeChars": MaxResultChars},
-			Description: "Read many ranges across many files in one call, recording each as seen " +
-				"so it may later be edited. Specs use mrw's own syntax: path, path:10-20, " +
-				"path:/regexp/ or path:$ for the last line.",
+			Description: "Reach for this instead of your own file reader when the task touches " +
+				triggerRule + " — one call serves them all, and each served line is recorded so " +
+				"mrw_write may later edit it. Below that a single read is cheaper in your own " +
+				"editor. Specs use mrw's own syntax: path, path:10-20, path:/regexp/ so the read " +
+				"finds its own site, or path:$ for the last line.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -256,6 +262,11 @@ func tools() []tool {
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
 						"description": "One or more range specs, e.g. internal/x/y.go:40-60",
+						// A worked value, not a sentence about one. The three
+						// address forms in one list, because a caller who sees
+						// only a line range will make a second call to find the
+						// line it should have asked for by regexp.
+						"examples": []any{exampleReadSpecs},
 					},
 				},
 				"required": []string{"specs"},
@@ -277,9 +288,12 @@ func tools() []tool {
 				"openWorldHint":  false,
 			},
 			Meta: map[string]any{"anthropic/maxResultSizeChars": MaxResultChars},
-			Description: "Apply an edit plan across one or more files, all or nothing, returning a " +
-				"verdict for every hunk. Every address resolves against the ORIGINAL file, so " +
-				"several hunks in one file need no offset arithmetic.",
+			Description: "Reach for this instead of your own file editor when the task touches " +
+				triggerRule + " — every edit travels in ONE plan and every hunk gets a verdict, so " +
+				"a replacement that matched nothing is reported rather than silently skipped. All " +
+				"or nothing: if any hunk fails, nothing is written. Every address resolves against " +
+				"the ORIGINAL file, so several hunks in one file need no offset arithmetic. mrw " +
+				"will not edit a line it has not served you — read it with mrw_read first.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -289,8 +303,19 @@ func tools() []tool {
 							"same shape, with dry_run true and no file written.",
 					},
 					"plan": map[string]any{
-						"type":        "string",
-						"description": "The plan text: @@ <path> <addr> <op> [guards] followed by body lines.",
+						"type": "string",
+						"description": "The plan document. Each hunk is a header line " +
+							"`@@ <path> <line-address> <op> [guards]` followed by its body lines. " +
+							"Ops: replace, insert-after, insert-before, delete, create. Addresses " +
+							"here are line numbers or N-M ranges only — a regexp works in a read, " +
+							"not in a plan — and resolve against the ORIGINAL file. Optional " +
+							"guards, checked on every op: sha=<hex>, lines=<n>, anchor=\"<text>\". " +
+							"A body line beginning with @@ needs body=<n> raw=true.",
+						// The format is bespoke and no model has it in training
+						// data (ADR-009's premise), so one plan that really
+						// applies is worth more than the paragraph above it.
+						// TestEveryEmbeddedExamplePlanReallyApplies dry-runs it.
+						"examples": []string{examplePlan},
 					},
 				},
 				"required": []string{"plan"},
