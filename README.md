@@ -341,13 +341,53 @@ same engine without shell access. Add one block to your host's config:
 Use an absolute path for `command` if `mrw` is not on the host's `PATH` — a host
 does not always inherit your shell's.
 
-**Which checkout it serves.** With no `--root`, the server uses `CLAUDE_PROJECT_DIR`
-when the host sets it — Claude Code does, naming the project you are working in —
-and falls back to its working directory otherwise. That fallback is why the
-variable matters: a host does not guarantee the working directory a server
-inherits, so before this the block above could bind the server to the wrong tree
-and every refusal it gave would be correct about a repository nobody asked about.
-Pass `--root` to override the host: `"args": ["--root", "/path/to/repo", "mcp"]`.
+**Which checkout it serves — and Claude Desktop needs `--root`.** With no
+`--root`, the server uses `CLAUDE_PROJECT_DIR` when the host sets it and falls
+back to its own working directory otherwise.
+
+**Claude Code sets that variable**, naming the project you are working in, so
+the block above serves the right tree.
+
+**A host that does not set it binds to its own working directory instead.** That
+is the case to watch, because the fallback is silent and the resulting root can
+be anything. Claude Desktop is the one reported in practice (issue #75).
+The fallback itself, shown directly — this demonstrates mrw, not Desktop:
+
+```sh
+$ cd / && env -u CLAUDE_PROJECT_DIR mrw mcp
+mrw mcp: serving / (from the working directory)
+```
+
+A root of `/` is almost never what anyone means. Every refusal stays correct
+and confinement is to the whole filesystem, which is the same class of defect
+as binding to the wrong repository — correct-looking answers about a tree
+nobody asked about — except the wrong tree is everything.
+
+So on Claude Desktop, and on any host that does not set the variable, pass an
+absolute `--root`, and use an absolute `command` while you are there:
+
+```json
+{
+  "mcpServers": {
+    "mrw": {
+      "command": "/absolute/path/to/mrw",
+      "args": ["--root", "/absolute/path/to/repo", "mcp"]
+    }
+  }
+}
+```
+
+**Check the binary the host actually launches.** MCP first shipped in v0.0.19.
+Neither v0.0.19 nor v0.0.20 sends `instructions` at all — the field is absent
+from the handshake, so a host registered against either gets a server that
+works and teaches nothing. No released tag yet contains the format-teaching
+handshake; build from source until the next release. `"command"` is often a
+path you installed to once and forgot, so run `--version` on that exact path
+rather than on whatever `mrw` your shell resolves.
+
+The trade is that one entry serves one fixed checkout. For several projects,
+add several entries under distinct names.
+
 Whichever wins, the server prints the tree it chose and the reason to stderr at
 startup, so a host log answers "which checkout is this?" without guessing.
 
