@@ -113,9 +113,7 @@ request and excludes `cache_read_input_tokens` entirely. **Peak** is the largest
 `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`, which is why peak can exceed
 spend: it is the one number that counts re-read cached context, and it is the figure the harness
 reports as a subagent's own token total. For `200000-early-5` this method gives 138,142 against the
-**Peak** is the largest single request's input, which is the figure the harness reports as a
-subagent's own token total: for `200000-early-5` this method gives 138,142 against the harness's
-138,234.
+harness's 138,234.
 
 | Served bytes | median spend | vs 2 KB | median peak | vs 2 KB |
 |---|---|---|---|---|
@@ -139,3 +137,11 @@ cost of a session dominates until the window is very large.
   bypass the served window, not that it never reads it.
 - Five repeats per cell resolve only large effects. A flat result here means "no large effect at
   this difficulty", not "no effect".
+
+## The instrument's output, committed
+
+`docs/curve/reading-02-scores/` holds the 45 `curve score` results this table was computed from, and
+`docs/curve/reading-02-tally.json` is `curve tally` over all of them. The table above is prose; those
+two are the measurement, and anyone can recompute one from the other with the tool the record built
+for it. The transcripts are not committed — they are large and hold the clients' own text — so the
+Read-coverage and compliance counts remain reported rather than reproducible from this tree.
