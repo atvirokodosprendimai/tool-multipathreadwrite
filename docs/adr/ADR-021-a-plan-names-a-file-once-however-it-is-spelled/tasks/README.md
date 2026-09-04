@@ -4,7 +4,7 @@
 
 | Task | Title | Status |
 |---|---|---|
-| T1 | Refuse the second spelling of one file | pending |
+| T1 | Refuse the second spelling of one file | done |
 
 ## Inter-task Contracts
 

@@ -85,6 +85,8 @@ a caller runs, with the exact plan from the Context.
 
 ## Mutation Log
 <!-- filled during execution -->
+- 2026-09-04 · 70b9f05 · mutant killed · exit 1 · `internal/apply/apply.go` · S2: make the identity question always answer no — `if false` in place of `os.SameFile`. TestAPlanThatNamesOneFileTwiceIsRefusedWhicheverTheSpelling fails on the symlink half: real.txt and link.txt applied as two files, the measured defect · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002
+- 2026-09-04 · 70b9f05 · mutant killed · exit 1 · `internal/apply/apply.go` · S3: drop the first spelling from the refusal. The same test fails on "the refusal must name both spellings so the plan can be fixed in one edit" · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002
 
 ## Invariants
 
