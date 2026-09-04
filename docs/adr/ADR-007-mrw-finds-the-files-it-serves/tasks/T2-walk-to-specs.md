@@ -144,6 +144,7 @@ mutant is for.
 ## Mutation Log
 - 2026-09-04 · eff614a · mutant killed · exit 1 · `internal/read/walk.go` · stop skipping .git during a walk, so a walk serves the object store — re-recorded as a real run after the hand-written row was found unparseable · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd
 - 2026-09-04 · e6c302a · mutant killed · exit 1 · `internal/read/walk.go` · excluded() always returns false, so --exclude globs prune nothing — re-recorded as a real run · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd
+- 2026-09-04 · 5846555 · mutant killed · exit 1 · `internal/read/walk.go` · stop deduplicating candidates, so a path named twice or covered by two specs is served twice — re-recorded as a real run, restoring the third killed observation the log lost · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd
 
 ## Invariants
 
@@ -224,3 +225,4 @@ three the ADR names ✓. **`--grep` ships.**
 - 2026-09-03 · 8aaafc3 · exit 0 · `set -o pipefail …` · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd · ms:487
 - 2026-09-04 · eff614a · exit 0 · `set -o pipefail …` · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd · ms:587
 - 2026-09-04 · e6c302a · exit 0 · `set -o pipefail …` · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd · ms:444
+- 2026-09-04 · 5846555 · exit 0 · `set -o pipefail …` · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd · ms:2547
