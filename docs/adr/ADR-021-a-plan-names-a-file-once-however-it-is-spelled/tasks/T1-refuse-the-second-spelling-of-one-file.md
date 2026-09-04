@@ -31,9 +31,9 @@ nothing written, on every filesystem, instead of applying both hunks and keeping
    case-sensitive filesystem still apply. [proof: acceptance]
 2. [S2] In the grouping loop, resolve each NEW path and ask `os.SameFile` against every file already
    grouped. Ask the filesystem; fold nothing. [proof: mutation]
-3. [S3] Report the match as a failed hunk — the second spelling's first — with a reason naming the
 3. [S3] Report the match as a failed hunk — the second spelling's first, its siblings skipped — with a
    reason naming the earlier spelling and its plan line, and let ADR-001's existing abort do the rest:
+   nothing written, siblings `skip`. [proof: mutation]
 4. [S4] Only for paths that exist. A `create` has no inode yet; that collision is deferred with a
    BACKLOG entry, not claimed. [proof: acceptance]
 5. [S5] Add contract §56: the Context's plan through the built binary — exit 1, the file unchanged,
@@ -118,3 +118,4 @@ would be a different record.
 - 2026-09-04 · 88c8139* · exit 0 · `set -o pipefail …` · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002 · ms:27948
 - 2026-09-04 · 7a1c206* · exit 0 · `set -o pipefail …` · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002 · ms:30252
 - 2026-09-04 · 6d00059* · exit 0 · `set -o pipefail …` · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002 · ms:55064
+- 2026-09-04 · f30f4b0* · exit 0 · `set -o pipefail …` · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002 · ms:56407
