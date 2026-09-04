@@ -218,11 +218,12 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   head's status. This is the single most common way a red run reads as green.
 - A refusal is the tool working. It names the file, the plan line and the
   reason; read it rather than reaching for a bigger hammer.
-- **A path-scoped rule in `.claude/rules/` is delivered only by your harness's own Read tool.**
-  `mrw read`, `mrw_read`, `cat` and a Write deliver none of them — measured 2026-09-04, issue #86.
-  So when a task enters `docs/adr/`, a `_test.go` file or `scripts/contract.sh`, Read one such
-  file with the harness reader first (or Read the rule itself), then read the rest through mrw.
-  An absent rule is silent.
+- **A path-scoped rule in `.claude/rules/` is delivered by your harness's own Read tool, and by
+  none of `mrw read`, `mrw_read`, `cat` or a Write** — measured 2026-09-04 in Claude Code, issue #86.
+  Here `.claude/settings.json` installs `.claude/hooks/rules-on-read.py`, a PostToolUse hook that
+  delivers the matching rules on those reads too, once per rule per session (contract §55; needs
+  `python3`). Elsewhere, or with hooks off, Read one such file with the harness reader first, or
+  Read the rule itself. An absent rule is silent.
 
 ### 5. The other subcommands
 
