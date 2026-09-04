@@ -49,3 +49,15 @@ to this one.
 Five repeats give wide intervals. This reading can detect a large effect and cannot resolve a small
 one, and a flat result means "no large effect at this difficulty", which is not the same as "no
 effect". The tally prints the interval so the claim cannot be read stronger than the data.
+
+## Verifying compliance: the trial id is not a key
+
+Both arms run against the same cell ids, so a transcript found by searching for `200000-early-2`
+matches the read-arm run **and** the search-arm run of that cell. Matching on the id alone reported
+three of the first six read-arm trials as non-compliant; every one of those hits was the search arm's
+transcript for the same cell.
+
+Compliance is therefore read from transcripts filtered on the read arm's own marker — the words
+`TOOL RESTRICTION`, which appear only in the read arm's prompt — and only then counted for
+`Grep`, `Glob`, `Bash` and `WebSearch` calls. With that filter the first nine read-arm trials all
+returned `search=0`.
