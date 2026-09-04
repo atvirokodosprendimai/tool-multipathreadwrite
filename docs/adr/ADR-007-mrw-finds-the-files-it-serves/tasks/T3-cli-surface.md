@@ -107,6 +107,8 @@ grammar, and prose in it is not a malformed row, it is prose in the wrong place.
 
 ## Mutation Log
 
+- 2026-09-04 · a46938a · mutant killed · exit 1 · `cmd/mrw/main.go` · ignore --files-from entirely, so specs are never read from the named file — re-recorded as a real run after the hand-written row was found unparseable · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9
+
 ## Invariants
 
 - `mrw read <specs...>` without `--grep` behaves exactly as it does today,
@@ -162,3 +164,4 @@ file is a candidate and the walk does not read `.gitignore`. Both are permanent
 ADR decisions and `--exclude bin` is the answer, but the README example now
 carries an `--exclude` for that reason rather than for decoration.
 - 2026-09-03 · 8337272 · exit 0 · `set -o pipefail …` · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9 · ms:8997
+- 2026-09-04 · a46938a · exit 0 · `set -o pipefail …` · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9 · ms:11081
