@@ -63,6 +63,7 @@ Enforced-by is asserted to stay green over the changed surface rather than quiet
 NOT walk a pattern-addressed example: no shipped plan carries one. Adding one needs `treeFor` to
 build a fixture for a pattern, and it derives file length from `Addr.Start`/`End`, which are zero
 until `apply` resolves them. That is a follow-up, recorded as one, and this fence does not pretend
+otherwise: naming the test here asserts it stays green, not that it grew new coverage.
 
 ## Tests
 
