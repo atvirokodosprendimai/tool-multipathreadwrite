@@ -4,7 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -398,4 +402,99 @@ func TestTheInstructionsTeachTheContinuation(t *testing.T) {
 			t.Errorf("mrw_read's description never mentions %q, so a host reading only tools/list is not told a large read pages:\n%s", must, readDesc)
 		}
 	}
+}
+
+// TestTheSurfaceSaysTheCLIIsRicher is ADR-016's Enforced-by.
+//
+// A registered MCP tool outcompetes a CLI an agent has to remember exists: the
+// tool arrives in the tool list with a schema, the CLI is a string in a file the
+// agent may never read. M observed agents settling for this surface because it
+// is the one they can see. So the surface says, first, that it is the smaller
+// one — and says concretely what is lost, because "the CLI is richer" routes
+// nobody.
+//
+// The second half is what keeps it honest: every flag the advice names is
+// checked against the CLI's OWN help output. Advice that recommends a flag which
+// has since been renamed is worse than no advice, and this is the same defect
+// ADR-012 shipped when it taught an enum the engine never sent.
+func TestTheSurfaceSaysTheCLIIsRicher(t *testing.T) {
+	lines := serve(t, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`)
+	res, ok := decode(t, lines[0])["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("no result object in %q", lines[0])
+	}
+	got, _ := res["instructions"].(string)
+
+	named := []string{"--grep", "--files-from", "--check", "--json"}
+	for _, must := range append([]string{"shell"}, named...) {
+		if !strings.Contains(got, must) {
+			t.Errorf("the instructions never mention %q, so a caller with both surfaces is not told what it gives up", must)
+		}
+	}
+	// The reach difference, which is deliberate and therefore worth stating
+	// rather than leaving as a surprise refusal.
+	if !strings.Contains(strings.ToLower(got), "one fixed checkout") {
+		t.Error("the instructions do not say this server serves ONE fixed checkout while the CLI can be pointed anywhere")
+	}
+	if len(got) > maxInstructionsChars {
+		t.Errorf("instructions are %d bytes, over the %d-byte bound — shorten what is there rather than raising it", len(got), maxInstructionsChars)
+	}
+
+	// A host that ignores `instructions` reads only the descriptions. ADR-012's
+	// finding, applied to this record.
+	for _, tl := range tools() {
+		if !strings.Contains(tl.Description, "CLI") {
+			t.Errorf("%s's description does not route a shell-capable caller to the CLI:\n%s", tl.Name, tl.Description)
+		}
+	}
+
+	// ⚠ THE CLAIM MUST BE TRUE WHEN MADE. Every flag named above is asserted
+	// against the CLI's own help, which is generated from the flag set — so a
+	// rename turns this red instead of leaving the wire recommending a flag
+	// that no longer exists.
+	help := cliHelp(t, "read") + cliHelp(t, "write")
+	for _, flag := range named {
+		if !strings.Contains(help, flag) {
+			t.Errorf("the wire recommends %q but no CLI help output lists it", flag)
+		}
+	}
+}
+
+// cliHelp runs the built CLI's help for one subcommand. It builds the binary
+// once per test run into a temp dir rather than trusting ./bin/mrw, which may
+// be stale — a stale binary cost this project a wrong reading earlier today.
+func cliHelp(t *testing.T, sub string) string {
+	t.Helper()
+	bin := buildCLI(t)
+	out, err := exec.Command(bin, sub, "--help").CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s --help: %v\n%s", sub, err, out)
+	}
+	return string(out)
+}
+
+var cliOnce struct {
+	sync.Once
+	path string
+	err  error
+}
+
+func buildCLI(t *testing.T) string {
+	t.Helper()
+	cliOnce.Do(func() {
+		dir, err := os.MkdirTemp("", "mrw-cli")
+		if err != nil {
+			cliOnce.err = err
+			return
+		}
+		cliOnce.path = filepath.Join(dir, "mrw")
+		out, err := exec.Command("go", "build", "-o", cliOnce.path, "../../cmd/mrw").CombinedOutput()
+		if err != nil {
+			cliOnce.err = fmt.Errorf("building the CLI: %v\n%s", err, out)
+		}
+	})
+	if cliOnce.err != nil {
+		t.Fatal(cliOnce.err)
+	}
+	return cliOnce.path
 }

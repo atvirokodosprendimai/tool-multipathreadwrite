@@ -257,7 +257,9 @@ func tools() []tool {
 				"finds its own site, or path:$ for the last line. A read too large for one answer " +
 				"comes back as a PAGE, not a failure: the lines that fit, isError true, and a " +
 				"next_read spec for the rest. Repeat until next_read is absent — its absence is " +
-				"how you know you have the whole file, and you may only edit lines a page served.",
+				"how you know you have the whole file, and you may only edit lines a page served. " +
+				"If you can run shell commands, prefer the CLI `mrw read` — it also has --grep, " +
+				"--files-from and -C for any checkout, none of which exist here.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -296,7 +298,9 @@ func tools() []tool {
 				"a replacement that matched nothing is reported rather than silently skipped. All " +
 				"or nothing: if any hunk fails, nothing is written. Every address resolves against " +
 				"the ORIGINAL file, so several hunks in one file need no offset arithmetic. mrw " +
-				"will not edit a line it has not served you — read it with mrw_read first.",
+				"will not edit a line it has not served you — read it with mrw_read first. If you " +
+				"can run shell commands, prefer the CLI `mrw write` — it also has --check and " +
+				"--json, and this server is pinned to one checkout.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

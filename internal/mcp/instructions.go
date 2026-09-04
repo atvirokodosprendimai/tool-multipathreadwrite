@@ -58,7 +58,14 @@ var exampleReadSpecs = []string{
 // examplePlan the tool schema publishes: one worked plan, quoted twice, so the
 // two copies cannot disagree about a format that has no second source.
 func instructionsText() string {
-	return fmt.Sprintf(`mrw reads many file ranges and applies many edits in ONE call, and it reports a
+	return fmt.Sprintf(`WHICH SURFACE. If you can run shell commands and mrw is on PATH, USE THE CLI —
+it is the fuller tool. Only the CLI has --grep (walk a tree and serve every
+match in one call), --files-from, --check (run the project's tests scoped to
+what you just wrote), --json, and -C, which points it at ANY checkout. This MCP
+server is two tools over ONE fixed checkout, chosen at startup, and it exists
+for hosts that have no shell. Prefer it only when that is you.
+
+mrw reads many file ranges and applies many edits in ONE call, and it reports a
 verdict for EVERY edit. The failure it exists to prevent: a read that finds
 nothing is obvious, a write that changes nothing is not.
 
