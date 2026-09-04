@@ -34,13 +34,15 @@ them` on all 13 tasks of ADR-001..008. It is last because a reading needs someth
 | T2 | `mrw stats` prints the tally, sample size beside the rate | done | — | `go test ./cmd/mrw/ -run 'TestStats' … && ./scripts/contract.sh` |
 | T3 | Publish the first reading, and say what it does not cover | done | — | `grep -q '### The first reading' README.md && grep -qi 'pre-registered criterion' README.md && … && go test ./...` |
 
-**T3 is `partial`, and that is the Stop Condition working rather than a
-shortfall.** The reading was taken — 9 plans, 9 applied, 0 refused, 2026-09-03 —
-and 9 is below the 30-plan floor this task sets for publishing a RATE. So the
-README carries the count and an admission instead of "100%", and the task stays
-open until a real sample exists. A flattering number on nine samples, authored
-by one model in one session that had just written the format's documentation, is
-exactly what that floor was written to refuse.
+**T3 stayed `partial` until the tally crossed its own floor, and the Stop Condition is why.** The
+first reading was 9 plans — below the 30-plan floor this task sets for publishing a RATE — so the
+README carried a count and an admission instead of "100%", and the task stayed open.
+It is `done` as of 2026-09-04 at 68 recorded outcomes: 65 applied, 2 refused_apply, 1 refused_parse.
+
+The floor was not crossed by more work. It was crossed by rebuilding the authoring machine's binary:
+it had been running v0.0.14, which predates the recorder entirely, so every plan it applied was
+invisible to the tally. 9 became 68 in a day. That is now the sharpest caveat in the published
+section, because it says the denominator is biased toward callers who already upgraded.
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

@@ -47,10 +47,20 @@ size, its date, and an explicit statement of the population it came from.
 ## Acceptance
 
 ```bash
-set -o pipefail
-grep -q '### The first reading' README.md \
-  && grep -qi 'pre-registered criterion' README.md \
-  && grep -qi 'under-counts by construction' README.md \
+# SCOPED TO THE SECTION, and asserting the READING rather than the prose around
+# it. The previous version grepped the whole README for four phrases; an
+# independent reviewer deleted the dated introduction and all three count lines
+# and every clause still passed, because the phrases live in the commentary. A
+# fence for "publish a measurement" that survives deleting the measurement is
+# the sixth instance of this defect in this repository, and it was written in
+# the same commit as a paragraph about that defect.
+section=$(awk '/^### The first reading/{f=1;next} f&&/^### /{exit} f' README.md)
+[ -n "$section" ] \
+  && grep -qE '^Taken 2026-[0-9]{2}-[0-9]{2} ' <<<"$section" \
+  && grep -qE '^ +refused_parse +[0-9]+ of [0-9]+ plan\(s\) \([0-9.]+%\)$' <<<"$section" \
+  && grep -qE '^ +applied +[0-9]+ of [0-9]+ plan\(s\)' <<<"$section" \
+  && grep -qi 'pre-registered criterion' <<<"$section" \
+  && grep -qi 'under-counts by construction' <<<"$section" \
   && grep -qE 'of [0-9]+ plans' README.md \
   && ./scripts/contract.sh \
   && go test ./...

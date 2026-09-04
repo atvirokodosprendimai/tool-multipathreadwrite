@@ -729,11 +729,23 @@ repository's own development produced:
   refused_parse     1 of 68 plan(s) (1.5%)
 ```
 
-**`refused_parse` is 1.5%, and ADR-009's pre-registered criterion is 5%.** The
-criterion was written before the number, which is the only order in which a
-threshold means anything: above 5% the FORMAT is what needs changing rather than
-the caller. At 1.5% of 68 plans this reading does not ask for a format change.
-One parse refusal in 68 is a single malformed plan, not a pattern.
+**`refused_parse` is 1.5% of RECORDED OUTCOMES, and ADR-009's pre-registered
+criterion is 5%.** The criterion was written before the number, which is the
+only order in which a threshold means anything: above 5% the FORMAT is what
+needs changing rather than the caller. At 1.5% this reading does not ask for a
+format change. One parse refusal in 68 is a single malformed plan, not a
+pattern.
+
+**"Recorded outcomes" is not "plans handed to mrw", and the difference is not
+rounding.** A plan that fails to parse is counted immediately, but several other
+terminal paths in `mrw write` return before any outcome is recorded — an
+unreadable plan file, a working-set pointer that resolves to none or many, a
+ledger or check-config that will not load. `authoring.Record` also fails open by
+design: it must never fail a write, so a tally it cannot write is silently not
+written. Every one of those is a plan mrw was handed and this denominator does
+not contain. The direction of the bias is unknown, which is worse than a known
+one, and it is the reason the comparison above is stated against recorded
+outcomes rather than against plans.
 
 **Sixty-eight is above the floor of thirty, and the floor was the smaller
 problem.** An earlier reading here published nine plans and said so — nine is
