@@ -388,13 +388,12 @@ absolute `--root`, and use an absolute `command` while you are there:
 }
 ```
 
-**Check the binary the host actually launches.** MCP first shipped in v0.0.19.
-Neither v0.0.19 nor v0.0.20 sends `instructions` at all — the field is absent
-from the handshake, so a host registered against either gets a server that
-works and teaches nothing. No released tag yet contains the format-teaching
-handshake; build from source until the next release. `"command"` is often a
-path you installed to once and forgot, so run `--version` on that exact path
-rather than on whatever `mrw` your shell resolves.
+**Check the binary the host actually launches.** MCP first shipped in v0.0.19,
+and neither v0.0.19 nor v0.0.20 sends `instructions` at all — the field is
+absent from the handshake, so a host registered against either gets a server
+that works and teaches nothing. **v0.1.0 is the first release that sends them.**
+`"command"` is often a path you installed to once and forgot, so run `--version`
+on that exact path rather than on whatever `mrw` your shell resolves.
 
 The trade is that one entry serves one fixed checkout. For several projects,
 add several entries under distinct names.
@@ -952,7 +951,7 @@ tokens to use.
 
 ## What a write will not do
 
-Three boundaries, each one a bug that was found by trying to break the tool
+Five boundaries, each one a bug that was found by trying to break the tool
 rather than by reading it:
 
 - **It will not write outside `--root`.** A `../` in a hunk's path is refused,
@@ -976,6 +975,14 @@ rather than by reading it:
   file LF, and a file that mixes them is left mixed — the lines a hunk did not
   address survive byte for byte. A file terminated with lone `\r` has
   addressable lines like any other.
+- **It will not let one plan name one file twice.** Two spellings that reach the
+  same file — `Same.txt` and `same.txt` where the filesystem folds case, or a
+  file and a symlink to it anywhere — are refused with both spellings named, and
+  nothing is written. Until v0.1.0 that plan applied: both spellings staged a
+  copy of the same bytes, the last rename won, and the receipt said
+  `2 hunk(s), 2 file(s), 0 failed — applied` while the first edit was gone. That
+  is the failure this tool exists to prevent, arriving through a green receipt,
+  so the fix is a break: put all of one file's hunks under one spelling.
 
 ## The working set — write once, use many
 

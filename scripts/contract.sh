@@ -3098,6 +3098,41 @@ markers=$(cd "$SRC" && git grep -n -E '^(<<<<<<< |=======$|>>>>>>> )' -- . 2>/de
   && ok "no conflict markers are committed anywhere in the tree" \
   || bad "conflict markers are committed: $markers"
 
+# 57. ADR-012 + ADR-021: the MCP surface teaches the refusal the engine added.
+#
+# §46 established the shape: a rule taught on the wire must be a rule the binary
+# enforces, because ADR-012 once taught an enum the engine never sent. This is
+# the converse and the gap v0.1.0 shipped with — the engine gained ADR-021's
+# one-file-one-spelling refusal while the handshake said nothing about it. An
+# MCP-only caller has no README and no AGENTS.md, so the wire is the ONLY place
+# it can learn the rule before meeting it as a refusal. Both halves here, in one
+# row, so the wire cannot drift from the binary in either direction.
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+i=json.loads(sys.argv[1])["result"]["instructions"]
+# The predicate is the WHOLE clause, not two words that co-occur. Codex found
+# this: asserting "spellings of ONE file" and "refused" separately let a wire
+# saying "a plan naming both is ALLOWED and the last wins" pass, because
+# "refused" appears in six unrelated sentences. Reproduced here — the contract
+# exited 0 while the wire contradicted the binary. A predicate loose enough to
+# match a contradiction is not a predicate.
+assert "spellings of ONE file" in i, "the wire never teaches that two spellings are one file"
+assert "a plan naming both is refused" in i, "the wire names the case without refusing it"
+b=len(i.encode())
+assert b <= 4096, "the instructions are %d bytes; they are paid once per session" % b
+PY
+[ $? -eq 0 ] && ok "the wire teaches that two spellings of one file are refused, still within budget" \
+             || bad "the one-spelling rule is missing from the handshake, or the budget is blown"
+R57=$(mktemp -d)
+printf 'one\ntwo\nthree\n' > "$R57/real.txt"; ln -s real.txt "$R57/link.txt"
+( cd "$R57" && "$MRW" read real.txt link.txt > /dev/null 2>&1 ); want 0 "$?" "both spellings are served, so the refusal below is the identity check"
+printf '@@ real.txt 1 replace\nX\n@@ link.txt 3 replace\nZ\n' > "$R57/two.plan"
+( cd "$R57" && "$MRW" write --quiet two.plan > /dev/null 2>&1 )
+want 1 "$?" "and the binary refuses exactly what the wire just promised it would"
+[ "$(cat "$R57/real.txt")" = "$(printf 'one\ntwo\nthree')" ] \
+  && ok "with nothing written, so the taught rule and the enforced rule are one rule" \
+  || bad "the wire teaches a refusal the binary did not perform: $(cat "$R57/real.txt")"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

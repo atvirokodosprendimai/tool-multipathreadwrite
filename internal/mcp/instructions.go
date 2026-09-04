@@ -63,8 +63,8 @@ verdict for EVERY edit. The failure it exists to prevent: a read that finds
 nothing is obvious, a write that changes nothing is not.
 
 WHICH SURFACE, AND WHEN TO REACH FOR EITHER. Reach for mrw at all when the task
-touches %s. Below that use your ordinary editor: one edit in one file costs the
-same two calls and prints more bytes than the file holds.
+touches %s. Below that use your ordinary editor: it costs the same two calls and
+prints more bytes than the file holds.
 
 Then choose. The CLI has the broader surface — only it has --files-from,
 --check (the project's tests, scoped to what you wrote), and the check, iter,
@@ -97,8 +97,7 @@ skips globs; no range on a path with grep.
 A read too large for one answer comes back as a PAGE, not a failure: you get the
 lines that fit, isError true, and next_read naming the spec to send for the
 rest. Send it, repeat until next_read is absent — its absence is how you know
-you have the whole file. Stopping early leaves you holding part of a file, and
-you may only edit lines a page served.
+you have the whole file. Stopping early leaves you holding part of a file.
 
 WRITING. mrw_write takes one plan document. Each hunk is a header line
 
@@ -108,11 +107,12 @@ followed by its body lines. Ops are replace, insert-after, insert-before,
 delete and create. An address is a line number, an N-M range, $ for the last
 line, or a PATTERN — /regexp/ for one line, /from/,/to/ for a range. A pattern
 must match EXACTLY ONE line: matching none or several fails that hunk and the
-refusal names the lines it matched, so nothing is ever edited by guess. Every
-address resolves against the ORIGINAL file, so several hunks in one file need no
-offset arithmetic, and a pattern is NOT a way to edit a file you have not read —
-it resolves to a line, and that line must still have been served to you. Paths
-are relative to the server's root; an absolute path is refused by name.
+refusal names the lines it matched. Every address resolves against the ORIGINAL
+file, so several hunks in one file need no offset arithmetic, and a pattern is
+NOT a way to edit a file you have not read — it resolves to a line, and that line
+must still have been served to you. Paths are relative to the server's root; an
+absolute path is refused by name, and two spellings of ONE file — case, or a
+symlink — are one file, so a plan naming both is refused with both named.
 
 Guards are optional and checked on every op, insertions included: sha=<hex> for
 the whole file, lines=<n> for the addressed span, anchor="<text>" for the first
@@ -125,6 +125,6 @@ A worked plan — two hunks across two files, one guard:
 Pass dry_run true to validate and get the same receipt without writing.
 
 A refusal is the tool working. It names the file, the plan line and the reason.
-Read it and fix the plan rather than reaching for a bigger hammer.
+Read it and fix the plan.
 `, triggerRule, exampleReadSpecs, examplePlan)
 }
