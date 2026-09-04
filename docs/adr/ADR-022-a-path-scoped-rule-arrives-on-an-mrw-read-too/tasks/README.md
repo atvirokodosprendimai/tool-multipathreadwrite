@@ -4,7 +4,7 @@
 
 | Task | Title | Status |
 |---|---|---|
-| T1 | The hook, its wiring, and the test that drives it | pending |
+| T1 | The hook, its wiring, and the test that drives it | done |
 
 ## Inter-task Contracts
 
