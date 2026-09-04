@@ -49,7 +49,8 @@ size, its date, and an explicit statement of the population it came from.
 ```bash
 set -o pipefail
 grep -q '### The first reading' README.md \
-  && grep -qi 'below the floor' README.md \
+  && grep -qi 'pre-registered criterion' README.md \
+  && grep -qi 'under-counts by construction' README.md \
   && grep -qE 'of [0-9]+ plans' README.md \
   && ./scripts/contract.sh \
   && go test ./...
