@@ -84,11 +84,25 @@ Two fixtures now sit at or near 100%, so the difficulty this harness can generat
 the client. Candidates the corpus has not tried, in the order they seem worth trying:
 
 - **More candidates.** Distractors are held at 3 in every reading so far, so the target is one of
-  four. The generator takes the count and nothing has varied it; "more context" and "more candidates"
-  were deliberately separated, and the second has never been manipulated.
+  four — and that is not an oversight to repair. Reading 1's plan fixed it deliberately, saying
+  *"distractor count is a second IV and is not this experiment"*, so that "more context" stayed
+  separable from "more candidates". Only the first has ever been varied. Raising the second is
+  therefore the experiment that was scoped out at the start, not a fix to this one, and it needs its
+  own pre-registration rather than a footnote in this reading.
 - **A target requiring more than one comparison** — a property over pairs rather than over one field.
 - **A weaker client.** Every reading here uses the same model; a smaller one may sit below the
   ceiling and show the curve these three could not.
 
 The instrument's own output is committed: `docs/curve/reading-03-scores/` holds the 45 `curve score`
 results and `docs/curve/reading-03-tally.json` is `curve tally` over them.
+
+## What can be recomputed from this repository, and what cannot
+
+- **The table and the tally: yes.** `curve tally docs/curve/reading-03-scores/*.score.json`
+  reproduces `reading-03-tally.json` exactly, and the 45 scores are the scorer's own output.
+- **The paired comparison: yes.** All 45 planted lines are identical between
+  `reading-02-scores/` and `reading-03-scores/`, which is what makes the comparison paired rather
+  than merely aligned by cell name.
+- **The compliance counts: no.** Zero search calls and full coverage were computed from each trial's
+  transcript, and transcripts are not committed — they are large and hold the clients' own text. So
+  compliance is **reported here rather than reproducible from this tree**, exactly as in reading 2.
