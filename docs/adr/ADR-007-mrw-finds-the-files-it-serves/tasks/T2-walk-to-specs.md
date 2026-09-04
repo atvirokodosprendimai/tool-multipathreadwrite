@@ -142,6 +142,8 @@ built, tested, mutation-logged and deleted unused on 2026-09-03 (`8a73748`). Tha
 mutant is for.
 
 ## Mutation Log
+- 2026-09-04 · eff614a · mutant killed · exit 1 · `internal/read/walk.go` · stop skipping .git during a walk, so a walk serves the object store — re-recorded as a real run after the hand-written row was found unparseable · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd
+
 ## Invariants
 
 - `read.Run` is unchanged: `Walk` produces the same `Spec` values a caller can
@@ -219,3 +221,4 @@ three the ADR names ✓. **`--grep` ships.**
   FAIL
   ```
 - 2026-09-03 · 8aaafc3 · exit 0 · `set -o pipefail …` · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd · ms:487
+- 2026-09-04 · eff614a · exit 0 · `set -o pipefail …` · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd · ms:587
