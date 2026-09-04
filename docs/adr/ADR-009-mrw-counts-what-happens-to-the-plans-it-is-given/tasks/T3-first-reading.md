@@ -47,10 +47,26 @@ size, its date, and an explicit statement of the population it came from.
 ## Acceptance
 
 ```bash
-set -o pipefail
-grep -q '### The first reading' README.md \
-  && grep -qi 'below the floor' README.md \
-  && grep -qE 'of [0-9]+ plans' README.md \
+# SCOPED TO THE SECTION, and asserting the READING rather than the prose around
+# it. The previous version grepped the whole README for four phrases; an
+# independent reviewer deleted the dated introduction and all three count lines
+# and every clause still passed, because the phrases live in the commentary. A
+# fence for "publish a measurement" that survives deleting the measurement is
+# the sixth instance of this defect in this repository, and it was written in
+# the same commit as a paragraph about that defect.
+# Newlines squeezed out before matching a PHRASE. Prose wraps, and
+# "pre-registered criterion" happens to break across two lines in the section it
+# describes — a line-based grep cannot see a phrase the author's line length
+# split, so the clause failed while the claim was present. The count lines are
+# matched line-anchored, because those are lines rather than prose.
+section=$(awk '/^### The first reading/{f=1;next} f&&/^### /{exit} f' README.md)
+flat=$(tr '\n' ' ' <<<"$section")
+[ -n "$section" ] \
+  && grep -qE '^Taken 2026-[0-9]{2}-[0-9]{2} ' <<<"$section" \
+  && grep -qE '^ +refused_parse +[0-9]+ of [0-9]+ plan\(s\) \([0-9.]+%\)$' <<<"$section" \
+  && grep -qE '^ +applied +[0-9]+ of [0-9]+ plan\(s\)' <<<"$section" \
+  && grep -qi 'pre-registered criterion' <<<"$flat" \
+  && grep -qi 'under-counts by construction' <<<"$flat" \
   && ./scripts/contract.sh \
   && go test ./...
 ```
@@ -85,6 +101,8 @@ non-hermetic data dependency and the sign-off line are for, and saying so here i
 ## Mutation Log
 
 - 2026-09-03 · 2b71e2a* · mutant killed · exit 1 · `README.md` · T3 adds this section; without it the fence must go red — proving the fence binds to what this task wrote rather than to pre-existing README text · acceptance-sha256:cc5afe5fffc3779e0a1e9071003d8c0356d0e1f82cae58542e6dbff15860f086
+- 2026-09-04 · d611885 · mutant killed · exit 1 · `README.md` · remove the phrase that names the criterion as pre-registered — a threshold written AFTER the number it judges is not a criterion, and the fence must notice the claim going missing · acceptance-sha256:2f495d1b3e4606639002f045113c8a87d92aeb90e35688a562ae6fb292655dbd
+- 2026-09-04 · 9cfde55 · mutant killed · exit 1 · `README.md` · break the phrase that names the criterion as pre-registered — a threshold written after the number it judges is not a criterion, and the section must say which it is · acceptance-sha256:78b71ade5e33bdb468e7d704e8efde74e1aec27b9af6809ebf730ebca8f384ab
 
 ## Invariants
 
@@ -115,3 +133,11 @@ the sample size recorded. A number nobody should act on is worse than an admissi
 - 2026-09-03 · human-observed · sample taken 2026-09-03 on this repository, Apple M5 (darwin/arm64): 9 plans, 9 applied, 0 refused. BELOW the 30-plan floor this task sets, so the README publishes a count and an admission rather than a rate, and this task stays partial. Population is one repository, one model, one session — the narrowest possible.
 - 2026-09-03 · 2b71e2a* · exit 0 · `set -o pipefail …` · acceptance-sha256:cc5afe5fffc3779e0a1e9071003d8c0356d0e1f82cae58542e6dbff15860f086 · ms:9599
 - 2026-09-03 · 2b71e2a* · exit 0 · `set -o pipefail …` · acceptance-sha256:cc5afe5fffc3779e0a1e9071003d8c0356d0e1f82cae58542e6dbff15860f086 · ms:8493
+- 2026-09-04 · b80bf7e · exit 0 · `set -o pipefail …` · acceptance-sha256:2f495d1b3e4606639002f045113c8a87d92aeb90e35688a562ae6fb292655dbd · ms:11330
+- 2026-09-04 · human-observed · Reading published 2026-09-04: 65 applied / 2 refused_apply / 1 refused_parse of 68 plans. refused_parse 1.5% against the pre-registered 5% criterion, so the reading does not ask for a format change. Population caveat and the stale-binary under-count are stated in the README section.
+- 2026-09-04 · d611885 · exit 0 · `set -o pipefail …` · acceptance-sha256:2f495d1b3e4606639002f045113c8a87d92aeb90e35688a562ae6fb292655dbd · ms:10705
+- 2026-09-04 · 7927406 · exit 1 · `# SCOPED TO THE SECTION, and asserting the READING rather than the prose around …` · acceptance-sha256:c804908334fd2757ab0560341f1ec3d4d0d69acae18a1e6e6f6ee6b035c5c67b · ms:63
+  ```
+  ```
+- 2026-09-04 · c4f0a39 · exit 0 · `# SCOPED TO THE SECTION, and asserting the READING rather than the prose around …` · acceptance-sha256:78b71ade5e33bdb468e7d704e8efde74e1aec27b9af6809ebf730ebca8f384ab · ms:20237
+- 2026-09-04 · 9cfde55 · exit 0 · `# SCOPED TO THE SECTION, and asserting the READING rather than the prose around …` · acceptance-sha256:78b71ade5e33bdb468e7d704e8efde74e1aec27b9af6809ebf730ebca8f384ab · ms:11510

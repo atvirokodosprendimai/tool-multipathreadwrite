@@ -90,25 +90,27 @@ rows — an unchanged `contract.sh` exits 0 on its own.
 | 3 — the caller can discover it | `mrw read --help` lists all three, the README carries the precedence table, and `scripts/contract.sh` §15 drives them through the real binary — the acceptance fence asserts both documents changed |
 | 4 — it is used | nothing measures this yet |
 
+## Fence Corrections, 2026-09-03
+
+Two corrections to the fence above, both found by running it. They lived in the Mutation Log until
+2026-09-04, which is why `adr-lint` could not parse that section: a log the tool writes has one
+grammar, and prose in it is not a malformed row, it is prose in the wrong place.
+
+- It said `grep -q '^# 15\.' scripts/contract.sh`. **Section 15 has existed since the `check`
+  work**, so that clause was satisfied by an UNTOUCHED `contract.sh` from the moment this task was
+  written — the exact failure the note under the fence warns about, in the fence itself. The new
+  rows are §28 and the clause now names it.
+- The `-run` regex covered five of this task's seven named tests;
+  `TestNoArgumentsWithoutGrepStillReadsTheWorkingSet` and `TestTheDocumentedUsageErrorsAreErrors`
+  matched nothing and would have been reported as passing by never running. Both are now in the
+  pattern.
+
 ## Mutation Log
 
-Two corrections to the fence above, both found by running it on 2026-09-03:
-
-- It said `grep -q '^# 15\.' scripts/contract.sh`. **Section 15 has existed
-  since the `check` work**, so that clause was satisfied by an UNTOUCHED
-  `contract.sh` from the moment this task was written — the exact failure the
-  note under the fence warns about, in the fence itself. The new rows are §28
-  and the clause now names it.
-- The `-run` regex covered five of this task's seven named tests;
-  `TestNoArgumentsWithoutGrepStillReadsTheWorkingSet` and
-  `TestTheDocumentedUsageErrorsAreErrors` matched nothing and would have been
-  reported as passing by never running. Both are now in the pattern.
-
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · `case pattern != "":` → `case false:`, so `--grep` never selects the walk · killed by `TestGrepWithNoPathsWalksTheRoot`
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · remove the empty-result report, restoring silence for a pattern that matched nothing · killed by `TestGrepReportsAPatternThatMatchedNoFile`
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · never render `read.Problem` values · killed by `TestGrepReportsARefusedPathAndServesTheRest`
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · pass `Exclude: nil` to `read.Walk`, dropping every `--exclude` on the floor · killed by `TestExcludeDropsAMatchingFileAndPrunesADirectory`
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · ignore `--files-from` · killed by `TestFilesFromReadsSpecsFromStdin`
+- 2026-09-04 · a46938a · mutant killed · exit 1 · `cmd/mrw/main.go` · ignore --files-from entirely, so specs are never read from the named file — re-recorded as a real run after the hand-written row was found unparseable · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9
+- 2026-09-04 · dd3a822 · mutant killed · exit 1 · `cmd/mrw/main.go` · drop every --exclude on the floor, so a walk serves what the caller asked to prune — re-recorded as a real run · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9
+- 2026-09-04 · ae95789 · mutant killed · exit 1 · `cmd/mrw/main.go` · restore silence for a --grep pattern that matched nothing, so an empty result is indistinguishable from a served one — re-recorded as a real run, restoring an observation the log lost · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9
+- 2026-09-04 · 26f77ff · mutant killed · exit 1 · `cmd/mrw/main.go` · never render read.Problem values, so a refused path inside a walk is silently dropped from the report — re-recorded as a real run, restoring an observation the log lost · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9
 
 ## Invariants
 
@@ -148,9 +150,16 @@ above. `go test ./cmd/mrw/ -run 'TestGrep|TestFilesFrom|TestExclude|TestNoArgume
 19 new rows in §28); `gofmt -l .` silent; `go vet ./...` clean;
 `go test -race ./...` exit 0. Darwin/arm64, Apple M5.
 
-The five mutations above were each run against the built binary's own package
-and each killed by exactly one named test, so rung 2 is met by every flag this
-task adds rather than by the flag registration alone.
+The mutations above were each run against the built binary's own package and each killed by exactly
+one named test, so rung 2 is met by every flag this task adds rather than by the flag registration
+alone.
+
+Five were recorded originally and four are here. The fifth broke `--grep`'s selection with
+`case pattern != "":` → `case false:`, and that shape no longer exists in `cmd/mrw/main.go` — the
+selection was restructured after this task shipped. It is named here rather than replaced by a
+different mutation chosen to make the count five: a mutant picked to satisfy a number is the failure
+this pipeline exists to refuse, and a count that no longer matches the code is worth more as a note
+than as a round figure.
 
 **Driven through the real binary** as well as through Go tests, because a flag
 surface is met through a shell: `--grep` with and without paths, `--exclude`
@@ -165,3 +174,7 @@ file is a candidate and the walk does not read `.gitignore`. Both are permanent
 ADR decisions and `--exclude bin` is the answer, but the README example now
 carries an `--exclude` for that reason rather than for decoration.
 - 2026-09-03 · 8337272 · exit 0 · `set -o pipefail …` · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9 · ms:8997
+- 2026-09-04 · a46938a · exit 0 · `set -o pipefail …` · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9 · ms:11081
+- 2026-09-04 · dd3a822 · exit 0 · `set -o pipefail …` · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9 · ms:11926
+- 2026-09-04 · ae95789 · exit 0 · `set -o pipefail …` · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9 · ms:11290
+- 2026-09-04 · 26f77ff · exit 0 · `set -o pipefail …` · acceptance-sha256:2ba24b7fa5c028b6f9500cc9921e59a839eeb4c088d49b1edcc31e00a8d842e9 · ms:12000

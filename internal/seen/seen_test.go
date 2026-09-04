@@ -285,3 +285,74 @@ func TestALedgerThisBuildWroteLoadsBack(t *testing.T) {
 		}
 	}
 }
+
+func TestLegacyInTreeLedgerIsStillRead(t *testing.T) {
+	// ADR-004 moved state out of the working tree and kept READING the old
+	// in-tree location. state.go still implements that fallback and its comment
+	// still says "It is still READ", and between #19 and 2026-09-04 nothing
+	// tested it — no test file so much as referenced LegacyDir, while ADR-004's
+	// Tests table went on naming this test, which is what adr-lint reported.
+	//
+	// WHAT THIS DOES AND DOES NOT COVER, because the distinction is easy to
+	// overstate. It covers the LOCATION fallback: with an empty state directory,
+	// Load reads .mrw/seen, and Record writes the state directory instead of
+	// writing back into the tree. It does NOT reconstruct a genuine
+	// pre-ADR-004 ledger: state moved out of the tree in v0.0.5 and the v2
+	// header arrived in v0.0.12, so a real in-tree ledger has no header and
+	// today's Load discards it deliberately (seen.go, the header check). An
+	// upgrade from that era therefore loses its observations and re-reads —
+	// which is a decision ADR-002's stale-ledger rule already made on purpose,
+	// not a gap this test hides. The fixture carries a v2 header because a
+	// headerless one would test the discard, not the fallback.
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	legacy := filepath.Join(root, ".mrw")
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, Name),
+		[]byte(header+"\nabc123  -  old.go\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	beforeBytes, err := os.ReadFile(filepath.Join(legacy, Name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := string(beforeBytes)
+
+	l, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l["old.go"].SHA != "abc123" {
+		t.Fatalf("a legacy in-tree ledger was ignored: %v", l)
+	}
+	if !l["old.go"].Whole() {
+		t.Error("the legacy entry lost its whole-file observation")
+	}
+
+	// And a later write goes to the state directory, never back into the tree:
+	// ADR-004's whole point is that mrw leaves nothing behind.
+	if err := Record(root, map[string]Observation{"new.go": {SHA: "def456"}}); err != nil {
+		t.Fatal(err)
+	}
+	// Byte-for-byte, not "does it still mention old.go": the claim is that the
+	// legacy file is never written or deleted, and a substring check would pass
+	// on a file that had been rewritten around it.
+	after, err := os.ReadFile(filepath.Join(legacy, Name))
+	if err != nil {
+		t.Fatalf("Record deleted the legacy ledger: %v", err)
+	}
+	if string(after) != before {
+		t.Errorf("Record modified the legacy in-tree ledger.\n before: %q\n  after: %q", before, after)
+	}
+	// And the new observation really did land in the state directory.
+	reloaded, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded["new.go"].SHA != "def456" {
+		t.Errorf("the recorded observation is not readable back: %v", reloaded)
+	}
+}

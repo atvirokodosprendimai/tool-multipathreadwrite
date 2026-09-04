@@ -718,25 +718,57 @@ the FORMAT was the problem rather than your picture of a file. ADR-009
 pre-registers the reading: above **5% of plans**, the format is what needs
 changing, not the caller.
 
-### The first reading — and why it is not a rate
+### The first reading — above the floor, and still not a general number
 
-Taken 2026-09-03 on this repository, on an Apple M5, from the tally this
+Taken 2026-09-04 on this repository, on an Apple M5, from the tally this
 repository's own development produced:
 
 ```
-  applied           9 of 9 plans (100.0%)
+  applied          65 of 68 plan(s) (95.6%)
+  refused_apply     2 of 68 plan(s) (2.9%)
+  refused_parse     1 of 68 plan(s) (1.5%)
 ```
 
-**Do not read that as 100%.** Nine is below the floor ADR-009-T3 sets for
-publishing a rate at all — thirty — and a percentage on nine samples is noise
-wearing a decimal point. It is printed here as a COUNT, with its floor stated,
-because an admission is worth more than a figure nobody should act on.
+**`refused_parse` is 1.5% of RECORDED OUTCOMES, and ADR-009's pre-registered
+criterion is 5%.** The criterion was written before the number, which is the
+only order in which a threshold means anything: above 5% the FORMAT is what
+needs changing rather than the caller. At 1.5% this reading does not ask for a
+format change. One parse refusal in 68 is a single malformed plan, not a
+pattern.
 
-**The population is the narrowest one possible.** Nine plans, one repository,
-one model, one session, authored by someone who had just written the format's
-documentation. That is the best case for the format and the worst case for
-generalising from it. ADR-009's criterion — parse refusals above 5% mean the
-FORMAT is the problem — is not yet testable against this.
+**"Recorded outcomes" is not "plans handed to mrw", and the difference is not
+rounding.** A plan that fails to parse is counted immediately, but several other
+terminal paths in `mrw write` return before any outcome is recorded — an
+unreadable plan file, a working-set pointer that resolves to none or many, a
+ledger or check-config that will not load. `authoring.Record` also fails open by
+design: it must never fail a write, so a tally it cannot write is silently not
+written. Every one of those is a plan mrw was handed and this denominator does
+not contain. The direction of the bias is unknown, which is worse than a known
+one, and it is the reason the comparison above is stated against recorded
+outcomes rather than against plans.
+
+**Sixty-eight is above the floor of thirty, and the floor was the smaller
+problem.** An earlier reading here published nine plans and said so — nine is
+below the floor, and a percentage on nine samples is noise wearing a decimal
+point. That has been fixed by time rather than by design: the sample grew
+because the authoring machine was finally running a binary new enough to record
+one. Which is the caveat that outlived the floor.
+
+**The population is still the narrowest one possible.** Sixty-eight plans, one
+repository, one model, one family of sessions, authored by whoever had most
+recently read the format's documentation. Crossing a sample-size floor does not
+make a population representative — it only stops the arithmetic being silly.
+Nothing here supports a claim about a different model, a different repository or
+a caller meeting the format for the first time.
+
+**The tally under-counts by construction, and this is the sharpest caveat.** It
+records only what a binary carrying the recorder applied, so plans applied by an
+older binary are invisible. That is not hypothetical: this reading sat at nine
+for weeks while the authoring machine ran a v0.0.14 binary that predates the
+recorder entirely, and it jumped to sixty-eight the day that machine was
+rebuilt. The heaviest users of a tool are the likeliest to be running a stale
+copy of it, so the denominator is biased toward the traffic that already
+upgraded.
 
 **What the tally cannot show, at any sample size.** It counts parse refusals,
 and only those are about the format. It cannot distinguish a model that could
@@ -745,8 +777,9 @@ moved — that shows up as `refused_apply`, which is about the caller's picture 
 the tree rather than about the document. And it says nothing about plans that
 were never attempted because the author reached for a different tool.
 
-Re-run `mrw stats` in your own checkout rather than quoting this. A second
-reading, once the sample is real, is a follow-up on ADR-009.
+Re-run `mrw stats` in your own checkout rather than quoting this. A reading from
+a different model or a different repository is the one that would test ADR-009's
+criterion; this one only fails to trip it.
 
 **Counts only.** No plan text, no paths, no anchors, no SHAs, no command lines —
 the tally is something you can read in full and find nothing of your work in,
