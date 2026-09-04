@@ -1383,3 +1383,75 @@ func TestAnEndPatternOnlyAboveTheStartIsRefused(t *testing.T) {
 		t.Error("an inverted range changed the file")
 	}
 }
+
+// TestAPlanThatNamesOneFileTwiceIsRefusedWhicheverTheSpelling is ADR-021's
+// Enforced-by. Measured 2026-09-04: a plan naming one file as Same.txt and
+// same.txt on APFS reported two hunks ok and two files written, and the file
+// held only the second edit — both spellings staged a copy and the last rename
+// won. The ledger already answered identity with os.SameFile (issue #47); the
+// grouping of hunks into files did not.
+//
+// The symlink half runs everywhere: link.txt -> real.txt is one inode on ext4
+// too, so a case-sensitive CI runner cannot pass this without reaching the
+// branch. The two-spelling half runs where the filesystem folds case.
+func TestAPlanThatNamesOneFileTwiceIsRefusedWhicheverTheSpelling(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "real.txt", "one\ntwo\nthree\n")
+	if err := os.Symlink("real.txt", filepath.Join(root, "link.txt")); err != nil {
+		t.Skipf("cannot create a symlink here: %v", err)
+	}
+	sha := shaOfFile(t, root, "real.txt")
+	res, err := Apply(root, []Input{
+		{Path: "real.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
+		{Path: "link.txt", Start: 3, End: 3, Op: "replace", Body: []string{"Z"}, Lines: -1, Index: 1},
+	}, Options{Seen: map[string]Seen{"real.txt": {SHA: sha}, "link.txt": {SHA: sha}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Applied {
+		t.Fatalf("a plan naming one file as real.txt and link.txt APPLIED — the first hunk is silently lost: %+v", res.Hunks)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "real.txt")); string(got) != "one\ntwo\nthree\n" {
+		t.Fatalf("a refused plan wrote something: %q", got)
+	}
+	reason := ""
+	for _, h := range res.Hunks {
+		if h.Status == StatusFailed {
+			reason = h.Reason
+		}
+	}
+	if !strings.Contains(reason, "real.txt") || !strings.Contains(reason, "link.txt") {
+		t.Fatalf("the refusal must name both spellings so the plan can be fixed in one edit: %q", reason)
+	}
+
+	if caseInsensitiveFS(t, root) {
+		write(t, root, "Same.txt", "one\ntwo\nthree\n")
+		s := shaOfFile(t, root, "Same.txt")
+		res, err = Apply(root, []Input{
+			{Path: "Same.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
+			{Path: "same.txt", Start: 3, End: 3, Op: "replace", Body: []string{"Z"}, Lines: -1, Index: 1},
+		}, Options{Seen: map[string]Seen{"Same.txt": {SHA: s}, "same.txt": {SHA: s}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Applied {
+			t.Fatal("Same.txt and same.txt applied as two files on a case-insensitive filesystem — the measured defect")
+		}
+	}
+
+	// Two genuinely different files must still apply: the check asks the
+	// filesystem, and must not refuse on a resemblance between names.
+	first, second := "a.txt", "b.txt"
+	if !caseInsensitiveFS(t, root) {
+		second = "A.txt" // really a different file here, and the one a case fold would wrongly merge
+	}
+	write(t, root, first, "one\n")
+	write(t, root, second, "one\n")
+	res, err = Apply(root, []Input{
+		{Path: first, Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0},
+		{Path: second, Start: 1, End: 1, Op: "replace", Body: []string{"B"}, Lines: -1, Index: 1},
+	}, Options{Seen: map[string]Seen{first: {SHA: shaOfFile(t, root, first)}, second: {SHA: shaOfFile(t, root, second)}}})
+	if err != nil || !res.Applied {
+		t.Fatalf("two different files %s and %s were refused: %v %+v", first, second, err, res.Hunks)
+	}
+}
