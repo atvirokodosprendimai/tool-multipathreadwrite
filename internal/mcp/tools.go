@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -120,24 +122,83 @@ func callTool(root string, raw json.RawMessage) (callToolResult, *rpcError) {
 func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	var a struct {
 		Specs []string `json:"specs"`
+		// Grep turns the specs from "what to serve" into "where to look":
+		// read.Walk finds the files and supplies the specs itself. This is
+		// `mrw read --grep` over the wire, calling the same primitive in the
+		// same order the CLI calls it (cmd/mrw/main.go:510).
+		Grep    string   `json:"grep"`
+		Exclude []string `json:"exclude"`
+		// After resumes a paged INDEX. It is the missing half of next_index:
+		// without an argument that accepts it, the index named a continuation
+		// nothing could follow — a field describing a dead end, which is the
+		// exact defect this record was written to prevent, one level down.
+		// Found by review of #80.
+		After string `json:"after"`
 	}
 	if err := json.Unmarshal(args, &a); err != nil {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "arguments: " + err.Error()}
 	}
-	if len(a.Specs) == 0 {
+	// With grep, no spec is required at all — the walk starts at the root, the
+	// way `mrw read --grep P` with no paths does. Without it, a read with
+	// nothing to read is the caller's mistake.
+	if len(a.Specs) == 0 && a.Grep == "" {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "mrw_read needs at least one spec"}
 	}
+	if len(a.Exclude) > 0 && a.Grep == "" {
+		return errorResult("exclude without grep: there is nothing to exclude from"), nil
+	}
+	// `after` resumes a grep's index, so without one it means nothing. Silently
+	// ignoring it is how a caller believes it is paging while re-reading page
+	// one forever — the same silence `exclude` already refuses, and it deserves
+	// the same sentence. Found by review of #80.
+	if a.After != "" && a.Grep == "" {
+		return errorResult("after without grep: it resumes a grep's index, and there is no index without one"), nil
+	}
 
-	specs := make([]read.Spec, 0, len(a.Specs))
-	for _, s := range a.Specs {
-		sp, err := read.ParseSpec(s)
+	var specs []read.Spec
+	var walked bool
+	// walkProblems are paths the WALK could not use — absent, unreadable, or
+	// outside the root. The CLI prints every one of them and counts them as
+	// failures (cmd/mrw/main.go:553); the first cut of this dropped them on the
+	// floor, so a caller naming a directory that does not exist was told "no
+	// file matches" — a clean answer about a question nobody asked. With a
+	// valid sibling path the bad one vanished entirely. Found by review of #80.
+	var walkProblems []read.Problem
+	if a.Grep != "" {
+		var err error
+		specs, walkProblems, err = grepSpecs(root, a.Specs, a.Grep, a.Exclude, a.After)
 		if err != nil {
-			// A spec mrw cannot parse is the caller's mistake, reported as a
-			// tool error rather than served as an empty read: "nothing here"
-			// and "I could not understand you" are different answers.
-			return errorResult(fmt.Sprintf("%s: %v", s, err)), nil
+			return errorResult(err.Error()), nil
 		}
-		specs = append(specs, sp)
+		walked = true
+		if len(specs) == 0 {
+			// Not an error: "nothing matched" is a real answer, and the
+			// caller asked a question rather than named a file that is
+			// missing. But a walk that could not LOOK somewhere is a
+			// different answer again, and it is an error — otherwise a
+			// typo'd path reads as a searched-and-empty tree.
+			report := fmt.Sprintf("no file under the root matches /%s/.", a.Grep)
+			for _, p := range walkProblems {
+				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
+			}
+			return result(map[string]any{
+				"observed": map[string]seen.Observation{},
+				"problems": len(walkProblems),
+				"matches":  0,
+			}, report, len(walkProblems) > 0)
+		}
+	} else {
+		specs = make([]read.Spec, 0, len(a.Specs))
+		for _, s := range a.Specs {
+			sp, err := read.ParseSpec(s)
+			if err != nil {
+				// A spec mrw cannot parse is the caller's mistake, reported as a
+				// tool error rather than served as an empty read: "nothing here"
+				// and "I could not understand you" are different answers.
+				return errorResult(fmt.Sprintf("%s: %v", s, err)), nil
+			}
+			specs = append(specs, sp)
+		}
 	}
 	// A CAPPED writer, not a size check afterwards. The first version of this
 	// buffered the whole read and then measured it. That refused correctly and
@@ -185,10 +246,46 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		//
 		// It stays isError. That is the whole difference between paging and
 		// truncation: the caller must be able to see it received a part.
+		// ADR-017: a grep too large to SERVE still answers, with the addresses
+		// it found. firstPage cannot help here — it needs one open-ended spec
+		// and a walk produces many across many files — so without this branch
+		// an oversized grep would fall to the flat refusal below, which is the
+		// dead end ADR-014 removed reappearing through a new door, firing on
+		// this population's ordinary case rather than an exotic one.
+		if walked {
+			return matchIndex(specs, len(walkProblems), cw), nil
+		}
 		if page, ok := firstPage(root, a.Specs, cw); ok {
 			return page, nil
 		}
 		return errorResult(overflowMessage(a.Specs, cw)), nil
+	}
+
+	// ⚠ THE WALK'S PROBLEMS TRAVEL WITH THE SERVED ANSWER TOO. They reached the
+	// no-match branch and the index and stopped there, so a caller naming a bad
+	// path ALONGSIDE a good one got the good one and silence about the other —
+	// `problems: 0`, no isError, the bad path unmentioned. The commit that added
+	// them claimed this case was fixed; it was not, and the test passed only
+	// because it named ONLY the bad path, which takes the no-match branch.
+	// Found by review of #80.
+	report := cw.buf.String()
+	for _, p := range walkProblems {
+		report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
+	}
+	problems += len(walkProblems)
+
+	// ⚠ AND THE SERVED ANSWER IS BUDGETED, for the same reason the index is.
+	// The capped writer bounds the REPORT TEXT and nothing else: `observed`
+	// carries a sha and spans per file and travels twice more, in
+	// structuredContent and in its serialized copy. A grep resuming onto 2,514
+	// small files came back at 794,582 characters — four times the cap this
+	// server declares in _meta, and past the ceiling the host truncates at. So
+	// a walked read that will not fit ENCODED degrades to the index, which is
+	// the answer that does fit and is resumable. Found by review of #80.
+	if walked {
+		if res, over := servedOrIndex(specs, problems, cw, observed, report); over {
+			return res, nil
+		}
 	}
 
 	// Reading is how mrw learns what a file holds; recording that is what lets
@@ -206,7 +303,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	return result(map[string]any{
 		"observed": observed,
 		"problems": problems,
-	}, cw.buf.String(), problems > 0)
+	}, report, problems > 0)
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the
@@ -526,4 +623,213 @@ func pagedResult(report string, observed map[string]seen.Observation, problems i
 		// separating this from what ADR-011 refused.
 		IsError: true,
 	}
+}
+
+// grepSpecs turns a pattern and some paths into the specs read.Run serves, by
+// calling read.Walk — the same primitive `mrw read --grep` calls, in the same
+// order (cmd/mrw/main.go:510). Nothing here reimplements matching.
+//
+// The refusals mirror the CLI's, deliberately. A grammar the two surfaces
+// disagree on is the class ADR-016 exists to prevent, and the caller who hits
+// one should get the same sentence whichever surface it is on.
+func grepSpecs(root string, paths []string, pattern string, exclude []string, after string) ([]read.Spec, []read.Problem, error) {
+	for _, p := range paths {
+		sp, err := read.ParseSpec(p)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %v", p, err)
+		}
+		if len(sp.Ranges) > 0 {
+			// cmd/mrw/main.go:499, word for word: the caller has said both
+			// "look here" and "look for this", and mrw will not pick one.
+			return nil, nil, fmt.Errorf("%s: a range and grep are two answers to one question", p)
+		}
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, nil, fmt.Errorf("grep %q: %v", pattern, err)
+	}
+	specs, problems, err := read.Walk(root, paths, read.WalkOptions{Pattern: re, Exclude: exclude})
+	if err != nil {
+		return nil, nil, err
+	}
+	// Resume: drop everything at or before the caller's cursor. read.Walk
+	// sorts by path, so "after" is a position in a total order rather than an
+	// opaque token — the caller can read it, and two calls with the same
+	// cursor return the same page.
+	if after != "" {
+		i := 0
+		for i < len(specs) && specs[i].Path <= after {
+			i++
+		}
+		specs = specs[i:]
+	}
+	return specs, problems, nil
+}
+
+// matchIndex is the answer to a grep whose CONTENT will not fit: the addresses,
+// with no content at all.
+//
+// ENTRIES ARE PATHS, not `path:/pattern/`. The first cut serialized the walk's
+// own address into each entry, which reads well and is WRONG for a whole class
+// of patterns: `alpha/,/beta` is a valid regexp, and `f.txt:/alpha/,/beta/`
+// parses back as a pattern RANGE rather than the single pattern that matched.
+// The entry would still look like a spec and would read different lines than
+// the ones it claimed to index — a silent wrong answer, which is the one thing
+// this tool exists to refuse. A bare path cannot be misparsed, and the caller
+// re-sends it WITH the same grep, so the pattern travels in the argument that
+// already carries it. Found by review of #80.
+//
+// NOTHING IS RECORDED. The index served no lines, so it licenses no write; an
+// index that licensed edits to files the caller never saw would be ADR-002's
+// guarantee spent on a convenience.
+func matchIndex(specs []read.Spec, problems int, cw *capped) callToolResult {
+	entries := make([]string, 0, len(specs))
+	for _, sp := range specs {
+		entries = append(entries, sp.Path)
+	}
+
+	// The index itself can overflow, and refusing here would be the same dead
+	// end one level down — so it pages BY FILE. A list's natural continuation
+	// is "resume after this entry", the way a file's is "resume at this line".
+	//
+	// ⚠ BUDGETED AGAINST THE ENCODED RESULT, NOT THE ENTRY LIST. Every entry is
+	// emitted TWICE — once in the JSON text block and once in structuredContent
+	// — plus JSON quoting. Counting each entry once selected 7,388 entries for
+	// an 8,000-file fixture and produced roughly 650,000 characters against a
+	// 200,000 limit, so the index built to fit under the cap blew through it.
+	// perEntry counts both copies and the quoting. Found by review of #80.
+	// ⚠ MEASURED, NOT ESTIMATED. Two earlier cuts got this wrong in the same
+	// direction. Counting each entry ONCE selected 7,388 of 8,000 files and
+	// produced a 650,000-character result against a 200,000 limit; counting it
+	// twice still produced 210,289, because the JSON block is escaped AGAIN
+	// inside the JSON-RPC envelope. An index built to fit under the cap that
+	// blows through it is worse than no index — it is the spill this whole
+	// answer exists to avoid. So the result is built, marshalled, and MEASURED,
+	// and trimmed until the encoded thing actually fits. Found by review of #80.
+	shown := entries
+	var b strings.Builder
+	var raw []byte
+	next := ""
+	for {
+		next = ""
+		if len(shown) < len(entries) {
+			// THE LAST ENTRY SHOWN, not the first withheld. The field is
+			// `after`, and grepSpecs skips everything at or before it — so
+			// naming the first withheld file makes that file skip ITSELF,
+			// losing exactly one entry per page boundary. Caught by paging to
+			// exhaustion and comparing the union (7,999 of 8,000); a check
+			// that the cursor merely names a real path passed it, which is
+			// the whole reason ADR-014's Enforced-by reassembles rather than
+			// inspects.
+			next = shown[len(shown)-1]
+		}
+
+		b.Reset()
+		fmt.Fprintf(&b, "-- INDEX: %d file(s) match, and their CONTENT would have been about %d bytes against a limit of %d.\n",
+			len(entries), cw.written, cw.limit)
+		b.WriteString("-- No content was served and nothing was recorded, so no write is licensed by this.\n")
+		if next != "" {
+			fmt.Fprintf(&b, "-- Showing the first %d of %d. Send the SAME grep again with after=%q for the next page, and repeat until next_index is absent.\n", len(shown), len(entries), next)
+		}
+		// The paths are NOT repeated in the prose block: they are in the JSON
+		// block below and in structuredContent, and a third copy is a third of
+		// the cap spent saying the same thing.
+		b.WriteString("-- The matching files are listed in this result's index field. Send any of them back as specs WITH the same grep to read its matches, or on its own to read the file.\n")
+
+		structured := map[string]any{
+			"matches":    len(entries),
+			"index":      shown,
+			"next_index": next,
+			// Declared by the read schema and always present, so a
+			// schema-checking host sees the shape it was promised. An index
+			// served nothing, so observed is empty rather than absent —
+			// absent would be a different claim.
+			"observed": map[string]seen.Observation{},
+			"problems": problems,
+		}
+		var err error
+		raw, err = json.Marshal(structured)
+		if err != nil {
+			return errorResult("could not encode the index: " + err.Error())
+		}
+		// ⚠ MARSHAL WHAT GOES ON THE WIRE AND MEASURE THAT. The previous cut
+		// ESTIMATED — `b.Len() + 2*len(raw)` — which ignores the JSON escaping
+		// of the text copy and the envelope around both. The estimate landed
+		// on either side of the cap depending on the fixture: 199,998
+		// characters for an 8,000-file page and 200,128 for a 12,001-file one,
+		// so §51 passed because its fixture happened to come in two under.
+		// A record that says it "marshals and MEASURES" has to do it.
+		// Found by review of #80.
+		total := encodedSize(indexResult(b.String(), raw))
+		// ALWAYS KEEP AT LEAST ONE. An entry too large to fit alone would
+		// otherwise yield an empty page whose cursor names nothing, so the
+		// caller loops forever on no progress — and `shown[len(shown)-1]`
+		// would index out of range. Only PATH_MAX keeps that unreachable
+		// today, which is not a guarantee this function should rest on.
+		if total <= cw.limit || len(shown) <= 1 {
+			break
+		}
+		n := int(float64(len(shown)) * float64(cw.limit) / float64(total) * 0.95)
+		if n < 1 {
+			n = 1
+		}
+		if n >= len(shown) {
+			n = len(shown) - 1
+		}
+		shown = shown[:n]
+	}
+	// The SAME assembler the loop measured, so the thing sent and the thing
+	// checked against the cap cannot drift apart.
+	return indexResult(b.String(), raw)
+}
+
+// indexResult assembles the tool result an index answer sends, so that the
+// thing measured and the thing sent are built by one function and cannot drift.
+func indexResult(report string, raw []byte) callToolResult {
+	return callToolResult{
+		Content: []contentBlock{
+			{Type: "text", Text: report},
+			{Type: "text", Text: string(raw)},
+		},
+		StructuredContent: json.RawMessage(raw),
+		// An index is not the content that was asked for, so it stays an
+		// error for the same reason a page does: the caller must be able to
+		// see it did not get what it requested.
+		IsError: true,
+	}
+}
+
+// encodedSize is the length of the result once marshalled — the quantity the
+// cap is actually about, since that is what crosses the wire.
+//
+// A result that will not marshal is reported as unbounded rather than as zero:
+// zero would read as "fits" and ship the thing that could not be encoded.
+func encodedSize(res callToolResult) int {
+	b, err := json.Marshal(res)
+	if err != nil {
+		return math.MaxInt
+	}
+	return len(b)
+}
+
+// servedOrIndex decides whether a WALKED read may be served as content.
+//
+// The capped writer bounds the report text and nothing else; `observed` carries
+// a sha and a span list per file and is emitted twice more. For a grep over
+// many small documents — this record's ordinary case — that is the difference
+// between 178,494 characters of report and a 794,582-character result. When the
+// encoded answer will not fit, the index is returned instead: it is the answer
+// that does fit, it is resumable, and it licenses nothing, which is the honest
+// trade for content that cannot be delivered.
+func servedOrIndex(specs []read.Spec, problems int, cw *capped, observed map[string]seen.Observation, report string) (callToolResult, bool) {
+	probe, rpcErr := result(map[string]any{"observed": observed, "problems": problems}, report, problems > 0)
+	if rpcErr != nil {
+		// Undecidable, so not degraded: the caller path will report the same
+		// encoding failure with its own message.
+		return callToolResult{}, false
+	}
+	if encodedSize(probe) <= cw.limit {
+		return callToolResult{}, false
+	}
+	return matchIndex(specs, problems, cw), true
 }

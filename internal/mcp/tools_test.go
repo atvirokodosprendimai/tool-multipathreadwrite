@@ -582,3 +582,400 @@ func TestAnOversizedReadStillReadsAsIncomplete(t *testing.T) {
 		t.Error("neither content block tells a human reader that more remains")
 	}
 }
+
+// grepTree plants n files under the root, each carrying matchLines lines that
+// contain the needle, plus one filler line so a file is never made ENTIRELY of
+// matches by construction.
+//
+// ⚠ matchLines, not padding. A grep serves only the lines that MATCH, so a file
+// of 900 filler lines and one needle costs 19 bytes to serve, not 45,000. The
+// first version of this fixture padded and could not overflow the cap at any
+// size — the test failed for a reason that had nothing to do with the code, and
+// that is worth a comment because the same instinct will return.
+func grepTree(t *testing.T, n, matchLines int) string {
+	t.Helper()
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	for i := 0; i < n; i++ {
+		var b strings.Builder
+		b.WriteString("a line that matches nothing\n")
+		for j := 0; j < matchLines; j++ {
+			b.WriteString("the NEEDLE is here\n")
+		}
+		name := filepath.Join(root, fmt.Sprintf("document%05d.csv", i))
+		if err := os.WriteFile(name, []byte(b.String()), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+func TestGrepServesWhatItFindsAndRecordsIt(t *testing.T) {
+	root := grepTree(t, 3, 2)
+
+	res := call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE"})
+	if res["isError"] == true {
+		t.Fatalf("a grep that fits should not be an error: %v", res)
+	}
+	all := fmt.Sprint(res["content"])
+	for i := 0; i < 3; i++ {
+		if want := fmt.Sprintf("document%05d.csv", i); !strings.Contains(all, want) {
+			t.Errorf("the grep did not serve %s:\n%s", want, all)
+		}
+	}
+	if !strings.Contains(all, "the NEEDLE is here") {
+		t.Errorf("the grep found files but served no matching content:\n%s", all)
+	}
+
+	// What was SERVED is what is licensed. The ledger must know these files,
+	// or a grep would be a read that teaches mrw nothing.
+	obs := structured(t, res)["observed"]
+	if obs == nil || len(obs.(map[string]any)) != 3 {
+		t.Errorf("a served grep recorded %v, want 3 files observed", obs)
+	}
+}
+
+func TestGrepRefusesARangedSpec(t *testing.T) {
+	root := grepTree(t, 1, 1)
+
+	res := call(t, root, "mrw_read", map[string]any{
+		"specs": []any{"document00000.csv:1-2"},
+		"grep":  "NEEDLE",
+	})
+	if res["isError"] != true {
+		t.Fatalf("a range plus a grep should be refused, got %v", res)
+	}
+	// The CLI's own sentence, so a caller hitting this on either surface reads
+	// the same explanation (cmd/mrw/main.go:499).
+	if all := fmt.Sprint(res["content"]); !strings.Contains(all, "two answers to one question") {
+		t.Errorf("the refusal does not give the CLI's reasoning:\n%s", all)
+	}
+}
+
+// TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd is ADR-017's Enforced-by.
+//
+// It drives a REAL overflow rather than constructing a result, and it asserts
+// the index is USABLE — every entry parses as a spec, and sending one back
+// actually reads that file. An index of the wrong files, or of strings that are
+// not specs, would pass any check that only asked whether an index key exists.
+func TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd(t *testing.T) {
+	// Enough content that serving every match blows the cap, with few enough
+	// files that the INDEX itself still fits — that is the case under test.
+	root := grepTree(t, 60, 400)
+
+	res := call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE"})
+	if res["isError"] != true {
+		t.Fatal("an oversized grep must still read as an error — a partial answer that looks whole is what this project refuses")
+	}
+	st := structured(t, res)
+	if got := st["matches"]; got == nil || int(got.(float64)) != 60 {
+		t.Errorf("the index reports %v matches, want 60", got)
+	}
+	idx, ok := st["index"].([]any)
+	if !ok || len(idx) == 0 {
+		t.Fatalf("an oversized grep returned no index: %v", st)
+	}
+
+	// NO CONTENT, THEREFORE NO LICENCE — asserted against the LEDGER, not
+	// against the response.
+	//
+	// ⚠ The first version compared the length of the printed `observed` field
+	// and would have passed with the ledger written: adding seen.Record before
+	// matchIndex, or dropping it from a fitting grep, changed nothing it
+	// looked at. The Risks table rates this Critical, so the check has to be
+	// the thing the risk is about. A write to a matched file must be REFUSED,
+	// which is the only statement that means "no licence". Found by review
+	// of #80.
+	if obs, ok := st["observed"].(map[string]any); !ok || len(obs) != 0 {
+		t.Errorf("the index reported observed=%v, want an empty map", st["observed"])
+	}
+	first := fmt.Sprint(idx[0])
+	w := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": "@@ " + first + " 2 replace\nCHANGED\n",
+	}))
+	if applied, _ := w["applied"].(bool); applied {
+		t.Fatalf("a write to %q was APPLIED after only an index — the index licensed a file the caller never saw", first)
+	}
+	if failed, _ := w["failed"].(float64); failed == 0 {
+		t.Errorf("the write after an index was not refused: %v", w)
+	}
+
+	// THE ENTRIES ARE USABLE. An entry is a PATH, so sending it back with the
+	// same grep must read that file's matches — the round trip the caller is
+	// told to make.
+	back := call(t, root, "mrw_read", map[string]any{"specs": []any{first}, "grep": "NEEDLE"})
+	if back["isError"] == true {
+		t.Fatalf("index entry %q is not a spec this tool accepts: %v", first, back)
+	}
+	if all := fmt.Sprint(back["content"]); !strings.Contains(all, "NEEDLE") {
+		t.Errorf("reading index entry %q served no match:\n%s", first, all)
+	}
+}
+
+func TestAnIndexTooLargeToServePagesByFile(t *testing.T) {
+	// Each entry is roughly 30 bytes, so this needs many files rather than
+	// large ones — which is exactly the Desktop folder this record is for.
+	const files = 8000
+	root := grepTree(t, files, 1)
+
+	res := call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE"})
+	st := structured(t, res)
+	idx, ok := st["index"].([]any)
+	if !ok {
+		t.Fatalf("no index came back: %v", st)
+	}
+	// ⚠ AGAINST THE FIXTURE'S OWN COUNT. This was written as a literal 9000
+	// while the fixture was resized to 8000, which made it an assertion that
+	// could never fire — found because a mutant that disabled paging entirely
+	// sailed past it and failed the NEXT check instead. A threshold that does
+	// not track the fixture is a test with a hole in the middle.
+	if len(idx) >= files {
+		t.Fatalf("the index served all %d entries; this fixture exists to overflow it", len(idx))
+	}
+	next, _ := st["next_index"].(string)
+	if next == "" {
+		t.Fatal("the index was cut short and did not say where to resume — that is ADR-014's dead end, one level down")
+	}
+	// The continuation names a real file, not an opaque token.
+	if _, err := os.Stat(filepath.Join(root, next)); err != nil {
+		t.Errorf("next_index %q is not a path under the root: %v", next, err)
+	}
+
+	// ⚠ FOLLOW IT TO EXHAUSTION, and compare the union to the whole match set.
+	//
+	// The first version of this test stopped at the two checks above: that a
+	// continuation is PRESENT and names a real path. It passed while nothing
+	// in the tool accepted that value — there was no `after` argument, so the
+	// index advertised a continuation no caller could follow. A presence check
+	// cannot tell a working continuation from a decorative one, which is the
+	// same lesson ADR-014's Enforced-by already carried and this test did not
+	// inherit. Found by review of #80.
+	seenPaths := map[string]bool{}
+	countIndex := func(st map[string]any) string {
+		// A resumed page comes back in ONE OF TWO SHAPES, and both are right:
+		// another index while the remainder is still too large, or an ordinary
+		// SERVED read once it fits — the same way ADR-014's last page is a
+		// normal read carrying no continuation. A test that demanded an index
+		// every time would be asserting a worse tool than the one that exists.
+		if idx, ok := st["index"].([]any); ok {
+			for _, e := range idx {
+				s := fmt.Sprint(e)
+				if i := strings.LastIndex(s, ":"); i > 0 {
+					s = s[:i]
+				}
+				if seenPaths[s] {
+					t.Errorf("entry %q appears on two pages — a cursor that overlaps loses the caller's place", s)
+				}
+				seenPaths[s] = true
+			}
+			next, _ := st["next_index"].(string)
+			return next
+		}
+		for p := range st["observed"].(map[string]any) {
+			if seenPaths[p] {
+				t.Errorf("file %q appears on two pages", p)
+			}
+			seenPaths[p] = true
+		}
+		return ""
+	}
+
+	next = countIndex(st)
+	for pages := 1; next != ""; pages++ {
+		if pages > 20 {
+			t.Fatalf("following next_index did not terminate after %d pages", pages)
+		}
+		res = call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE", "after": next})
+		next = countIndex(structured(t, res))
+	}
+	if len(seenPaths) != files {
+		t.Errorf("paging to exhaustion yielded %d distinct files, want %d — entries were lost between pages", len(seenPaths), files)
+	}
+}
+
+// TestTheIndexSurvivesAPatternThatLooksLikeARange pins the reason index entries
+// are bare PATHS.
+//
+// The first cut emitted `path:/<pattern>/`, which reads well and is wrong for a
+// whole class of patterns: `alpha/,/beta` is a valid regexp, and the entry
+// `f.txt:/alpha/,/beta/` parses back as a pattern RANGE — start /alpha/, end
+// /beta/ — rather than the single pattern that matched. The entry still LOOKS
+// like a spec and still reads successfully; it just reads different lines than
+// the ones it claims to index. That is the silent wrong answer this tool exists
+// to refuse, and a simple needle could never expose it. Found by review of #80.
+func TestTheIndexSurvivesAPatternThatLooksLikeARange(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	body := "alpha/,/beta here\n" + strings.Repeat("noise\n", 5) + "tail\n"
+	for i := 0; i < 40; i++ {
+		name := filepath.Join(root, fmt.Sprintf("doc%03d.txt", i))
+		if err := os.WriteFile(name, []byte(strings.Repeat(body, 400)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	res := call(t, root, "mrw_read", map[string]any{"grep": `alpha/,/beta`})
+	st := structured(t, res)
+	idx, ok := st["index"].([]any)
+	if !ok || len(idx) == 0 {
+		t.Fatalf("expected an index for an oversized grep: %v", st)
+	}
+	for _, e := range idx {
+		s := fmt.Sprint(e)
+		if strings.Contains(s, ":") {
+			t.Fatalf("index entry %q carries an address; a pattern with a slash makes that ambiguous, so entries must be bare paths", s)
+		}
+	}
+	// And the round trip serves the SAME matches the grep found.
+	back := call(t, root, "mrw_read", map[string]any{"specs": []any{fmt.Sprint(idx[0])}, "grep": `alpha/,/beta`})
+	if back["isError"] == true {
+		t.Fatalf("the round trip failed: %v", back)
+	}
+	all := fmt.Sprint(back["content"])
+	if !strings.Contains(all, "alpha/,/beta here") {
+		t.Errorf("the round trip did not serve the matching line:\n%s", all[:min(400, len(all))])
+	}
+	if strings.Contains(all, "noise") {
+		t.Errorf("the round trip served lines BETWEEN two patterns — the range reading, not the single-pattern one:\n%s", all[:min(400, len(all))])
+	}
+}
+
+// TestAWalkProblemIsReportedAndNotSwallowed keeps a failed lookup from reading
+// as an empty result.
+//
+// The CLI prints every path the walk could not use and counts it (main.go:553).
+// The first cut of the MCP path discarded read.Walk's []Problem entirely, so a
+// caller naming a directory that does not exist was told "no file under the
+// root matches" — a clean answer to a question nobody asked. Found by review
+// of #80.
+func TestAWalkProblemIsReportedAndNotSwallowed(t *testing.T) {
+	root := grepTree(t, 2, 1)
+
+	res := call(t, root, "mrw_read", map[string]any{
+		"specs": []any{"no-such-directory"},
+		"grep":  "NEEDLE",
+	})
+	all := fmt.Sprint(res["content"])
+	if !strings.Contains(all, "no-such-directory") {
+		t.Errorf("a path the walk could not use vanished from the answer:\n%s", all)
+	}
+	if res["isError"] != true {
+		t.Errorf("a walk that could not look where it was told reported success: %v", res)
+	}
+}
+
+// TestAWalkProblemSurvivesAValidSibling is the case the FIRST version of the
+// problem-reporting fix missed, and the case its test could not see.
+//
+// walkProblems reached the no-match branch and matchIndex and stopped there, so
+// a caller naming a bad path ALONGSIDE a good one got the good one and silence
+// about the other. TestAWalkProblemIsReportedAndNotSwallowed passed throughout,
+// because it names ONLY the bad path — which takes the no-match branch. A test
+// that cannot reach the broken path is not covering it. Found by review of #80.
+func TestAWalkProblemSurvivesAValidSibling(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if err := os.MkdirAll(filepath.Join(root, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "sub", "deep.txt"), []byte("x\nthe NEEDLE is here\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	res := call(t, root, "mrw_read", map[string]any{
+		"specs": []any{"nope_dir", "sub"},
+		"grep":  "NEEDLE",
+	})
+	all := fmt.Sprint(res["content"])
+	if !strings.Contains(all, "NEEDLE") {
+		t.Errorf("the good sibling was not served:\n%s", all)
+	}
+	if !strings.Contains(all, "nope_dir") {
+		t.Errorf("the unusable path vanished from an answer that served its sibling:\n%s", all)
+	}
+	if n, _ := structured(t, res)["problems"].(float64); n < 1 {
+		t.Errorf("problems = %v, want the unusable path counted", n)
+	}
+	if res["isError"] != true {
+		t.Error("a walk that could not look where it was told reported success")
+	}
+}
+
+// TestNoGrepAnswerExceedsTheDeclaredCap is the property both the index budget
+// and the served-page budget exist to hold, asserted on the ENCODED result.
+//
+// Two earlier cuts measured the wrong quantity. The index ESTIMATED its size
+// and landed on either side of the cap depending on the fixture. The served
+// page was not budgeted at all — the capped writer bounds the report text,
+// while `observed` carries a sha and spans per file and is emitted twice more,
+// so a grep resuming onto ~2,500 small files came back at 794,582 characters
+// against a declared 200,000. Found by review of #80.
+func TestNoGrepAnswerExceedsTheDeclaredCap(t *testing.T) {
+	// ⚠ 1,500, AND THE COUNT IS LOAD-BEARING — twice over.
+	//
+	// At 3,000 this test was GREEN AND HOLLOW: a mutant disabling the
+	// served-page degradation survived it. At 12,001 it survived AGAIN, and
+	// that reason is the interesting one — read.Run emits a per-file header,
+	// so ~3,000 files push the REPORT over the cap and the INDEX branch fires
+	// first, meaning the served path is never reached at all.
+	//
+	// The oversized served page lives in a narrow band: few enough files that
+	// the report fits, many enough that `observed` (a sha and spans per file,
+	// emitted three times over) blows the encoded result. 1,500 sits in it —
+	// mutated, this serves 423,179 characters against a declared 200,000.
+	// Reaching the bug beats resembling the report that described it.
+	const files = 1500
+	root := grepTree(t, files, 1)
+
+	seen := map[string]bool{}
+	next := ""
+	for page := 1; ; page++ {
+		if page > 30 {
+			t.Fatal("paging did not terminate")
+		}
+		args := map[string]any{"grep": "NEEDLE"}
+		if next != "" {
+			args["after"] = next
+		}
+		res := call(t, root, "mrw_read", args)
+
+		// THE ENCODED RESULT, which is what crosses the wire and what the cap
+		// is declared about — not the report text it happens to bound.
+		enc, err := json.Marshal(res)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(enc) > MaxResultChars {
+			t.Fatalf("page %d encodes to %d characters, over the declared cap of %d", page, len(enc), MaxResultChars)
+		}
+
+		st := structured(t, res)
+		if idx, ok := st["index"].([]any); ok {
+			for _, e := range idx {
+				seen[fmt.Sprint(e)] = true
+			}
+		} else {
+			for p := range st["observed"].(map[string]any) {
+				seen[p] = true
+			}
+		}
+		next, _ = st["next_index"].(string)
+		if next == "" {
+			break
+		}
+	}
+	if len(seen) != files {
+		t.Errorf("paging yielded %d distinct files, want %d", len(seen), files)
+	}
+}
+
+func TestAfterWithoutGrepIsRefused(t *testing.T) {
+	root := grepTree(t, 1, 1)
+	res := call(t, root, "mrw_read", map[string]any{
+		"specs": []any{"document00000.csv"},
+		"after": "x",
+	})
+	if res["isError"] != true {
+		t.Fatalf("after without grep was silently ignored, so a caller believes it is paging: %v", res)
+	}
+}

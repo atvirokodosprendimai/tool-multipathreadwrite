@@ -479,6 +479,84 @@ re-measuring these. Each was driven at the built binary, not read:
   variable, edit outcome as the dependent one, across models. If the curve turns
   over, the cap becomes a measured number instead of an inherited one; if it is
   flat, "arbitrary" is a defensible answer and we will be able to say so.
+
+  **PRE-REGISTRATION, written 2026-09-04 BEFORE any harness exists or any datum
+  was collected.** It is here rather than in a record because a criterion
+  authored after the first look is not a criterion.
+
+  ⚠ THE DEPENDENT VARIABLE IS THE WHOLE PROBLEM, and the obvious ones are
+  traps. ADR-009 already counts `applied`, `refused_parse` and `refused_apply`,
+  so they are free — and they will be FLAT, because they measure whether the
+  caller could author the FORMAT, which has nothing to do with how much was
+  served. A flat curve on those would read as "the cap does not matter" when it
+  actually means "the easy thing was measured". They are recorded as secondary
+  and are not the claim.
+
+
+  ⚠ AND "FREE FROM THE TALLY" NEEDED CHECKING, because ADR-012's Context
+  records that tally as per-checkout and unable to ATTRIBUTE. Verified
+  2026-09-04 before the design was allowed to depend on it: with a fresh
+  `XDG_STATE_HOME` per trial, `mrw stats` reports that trial alone —
+  `applied 1 of 1 plan(s)`, one plan recorded. So the secondary DVs are
+  per-cell readable, and the isolation is the state dir rather than the
+  checkout. If that ever stops holding, the fallback is parsing each
+  `mrw_write` result directly, which is a different code path and should be
+  named as such rather than quietly substituted.
+  **PRIMARY DV: did the plan address the line it was supposed to address?**
+  This is the failure mode that matters and the one every other gate is blind
+  to — an edit that parses, applies cleanly, reports `ok`, and changed the
+  wrong line. `refused_parse` and `refused_apply` both stay green through it.
+  It is also the failure mrw exists to prevent, so it is the honest thing to
+  put on the y-axis.
+
+  GROUND TRUTH IS PLANTED, NOT JUDGED. The generator places the target line and
+  therefore knows the correct address by construction; scoring is
+  `plan addressed line N` against a known N, mechanically. Nothing here needs a
+  human to rate an edit, which is what keeps the measurement affordable and
+  repeatable — and it is the reason this DV was chosen over "is the edit
+  semantically right", which cannot be scored without authoring a rubric and a
+  rater.
+
+  ⚠ THE THREAT TO VALIDITY, named up front: a planted target is easy to find if
+  it is a unique string, and then the task measures string matching rather than
+  reading. The distractors must be NEAR-IDENTICAL to the target — same shape,
+  differing in the detail the instruction names — or the curve will be flat for
+  a reason that has nothing to do with context size.
+
+  IV: served bytes, varied by padding around the target on both sides.
+
+  ⚠ "THE TASK IS HELD FIXED" WAS FALSE AS FIRST WRITTEN, and the correction
+  matters because it is the difference between a clean manipulation and two
+  variables moving at once. Padding adds LINES, so the line-number space grows
+  and the address the model must produce changes by construction. It cannot be
+  held fixed while size varies — the honest statement is that the INSTRUCTION
+  and the target CONTENT are identical across cells, the address is not, and
+  target position is a stratum rather than a nuisance.
+
+  ⚠ DISTRACTOR COUNT IS A SECOND IV HIDING INSIDE THE FIRST, and this is the
+  one that would make a real curve uninterpretable rather than merely absent.
+  If the padding IS near-identical distractors, then larger cells have more
+  near-misses and "more context" cannot be separated from "more candidates".
+  So: the number of near-identical distractors is HELD CONSTANT across size
+  cells, and the remaining padding is inert content that is obviously not a
+  candidate. Distractor density is a legitimate second experiment; it is not
+  this one, and one curve answers one question.
+
+  STRATIFY BY TARGET POSITION rather than randomising it away. Position within
+  the served window is the best-documented effect in the long-context
+  literature, and if it is folded into the noise the headline curve will
+  average a real effect into nothing. Early / middle / late are separate cells.
+
+  REPEATS: the model is nondeterministic, so N trials per cell with the count
+  fixed in advance. A cell is a proportion, and proportions need their interval
+  reported, not a point.
+
+  **DIRECTION AND THE FLAT ANSWER, committed now.** The prediction is that
+  correct-address rate DEGRADES as served bytes grow, most sharply for
+  mid-window targets. **If the curve is flat, that is a publishable answer and
+  the cap stays arbitrary with evidence** — it does not become a reason to
+  search for a different metric until something bends. ADR-009 and ADR-012 both
+  refused criteria that could not go red; this one commits to accepting a null.
 - **`occurrence=N`, or any positional disambiguator for a pattern address —
   DEFERRED.** Raised and refused in ADR-013.
 
@@ -567,6 +645,37 @@ re-measuring these. Each was driven at the built binary, not read:
   Those are different records. Needs its own ADR, with M's scope decision, and
   it should NOT be inferred from ADR-016 — that record deliberately covers only
   what the surface SAYS, and its refusal of parity is scoped to itself.
+
+  **M ANSWERED THE SCOPE QUESTION on 2026-09-04: both, as two records.** The
+  CAPABILITY half is done — ADR-017 shipped `grep` and `exclude` on `mrw_read`,
+  with a match INDEX when the results will not fit and `after` to page it. It
+  also settled `--files-from` permanently on the flag's own documented
+  rationale: it exists to undo shell word-splitting, and MCP has no shell.
+
+  **THE REACH HALF IS STILL OPEN AND IS FILED HERE.** ADR-017, its T1 and its
+  T2 each defer "any root or multi-root change" to this entry, and this
+  paragraph is their receipt — they pointed here first at a filename
+  (`ADR-018`) that did not exist, which `adr-debt` correctly refused as a
+  pointer to nowhere.
+
+  What the reach record has to decide, carried forward so it is not re-argued:
+  repeatable `--root`, ALLOW-ONLY (a deny list needs symlink resolution and
+  reintroduces every path-handling bug already fixed), resolved once at
+  startup, the boundary set by the launcher rather than by a file mrw can read
+  and therefore widen, and one state namespace per root. `state.Dir(root)`
+  already hashes the resolved absolute root so N namespaces come free, but
+  `apply.Apply(root, …)` takes ONE root and `seen.Load(root)` loads ONE ledger
+  per run — a cross-repo plan needs the ledger resolved PER HUNK, which changes
+  what a run is. **Issue #81 belongs to that record too**: whether the server
+  should REFUSE a root of `/`, which is what a host that sets no project
+  directory currently gets. It was split out of #75 so that issue could close
+  on its documentation fix, and so the question is tracked somewhere that does
+  not depend on this branch merging — the tracking for it lived only here, and
+  closing #75 with the thread hanging on an unmerged BACKLOG entry is the
+  failure this corpus keeps recording. Note the rule is not obvious: `/` is
+  easy, but `$HOME` is arguably worse AND is exactly where a Desktop analyst's
+  documents are, so "refuse suspicious roots" by taste would break the
+  population ADR-017 was written for.
 
 - **A heredoc-style body terminator for the plan format — DEFERRED.** Raised and
   refused in ADR-015.

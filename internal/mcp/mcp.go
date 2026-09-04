@@ -258,7 +258,10 @@ func tools() []tool {
 				"comes back as a PAGE, not a failure: the lines that fit, isError true, and a " +
 				"next_read spec for the rest. Repeat until next_read is absent — its absence is " +
 				"how you know you have the whole file, and you may only edit lines a page served. " +
-				"With a shell and mrw on PATH, prefer the CLI `mrw read` — it also has --grep, " +
+				"Set `grep` to a regexp to FIND files you cannot name: it walks the paths " +
+				"(or the whole root) and serves every match, and returns an index of matching " +
+				"files when the matches are too large to serve. " +
+				"With a shell and mrw on PATH, prefer the CLI `mrw read` — it also has " +
 				"--files-from, and `mrw --root DIR read` for any checkout (--root BEFORE the " +
 				"subcommand; after `read`, -C is the context flag). Prefer THIS tool with no " +
 				"shell, or when callers sharing one checkout want their ledger writes serialized.",
@@ -268,15 +271,30 @@ func tools() []tool {
 					"specs": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": "One or more range specs, e.g. internal/x/y.go:40-60",
+						"description": "One or more range specs, e.g. internal/x/y.go:40-60. With `grep` set these are DIRECTORIES OR FILES TO SEARCH instead, and may be omitted to search the whole root.",
 						// A worked value, not a sentence about one. The three
 						// address forms in one list, because a caller who sees
 						// only a line range will make a second call to find the
 						// line it should have asked for by regexp.
 						"examples": []any{exampleReadSpecs},
 					},
+					"grep": map[string]any{
+						"type":        "string",
+						"description": "A regexp. Walks the paths in `specs` (or the whole root when they are omitted) and serves every matching range, so you can find files you cannot name. If the matches are too large to serve you get an INDEX instead — one spec per matching file, no content — which you send back as `specs` to read the ones you want. A path in `specs` may not carry a range when this is set: a range and a grep are two answers to one question.",
+						"examples":    []any{"func Serve\\(", "TODO|FIXME"},
+					},
+					"exclude": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Globs to skip, matched against BOTH the root-relative path and the basename. Only meaningful with `grep`. Note that `*` does not cross a separator, which is why the basename is matched too: \"*_test.go\" against the full path alone matches no test file anywhere below the root.",
+						"examples":    []any{[]any{"*_test.go", "vendor"}},
+					},
+					"after": map[string]any{
+						"type":        "string",
+						"description": "Resume a paged index: send the SAME `grep` again with this set to the `next_index` the previous call returned, and matching files at or before it are skipped. Files are walked in path order, so this is a position you can read rather than an opaque cursor. Repeat until `next_index` is absent.",
+					},
 				},
-				"required": []string{"specs"},
+				"required": []string{},
 			},
 		},
 		{
