@@ -2387,6 +2387,67 @@ R53=$(mktemp -d)
 want 0 "$?" "and an ordinary directory reached by fallback still serves"
 rm -rf "$R53"
 
+# 54. ADR-020: the served-size curve is measured, not asserted — and the
+# scorer can see a wrong line.
+#
+# A harness that has only ever been shown correct plans proves nothing: a
+# scorer that always says "hit" passes every such row. So this row generates
+# a real trial with the BUILT curve binary, authors one plan at the planted
+# line and one at a distractor's byte-identical line, and requires the two
+# verdicts to differ in the right direction. It also pastes a result from
+# "another trial" and requires a refusal at exit 2, because a manifest
+# answered from a different cell would otherwise score cleanly and mean
+# nothing. The engine is untouched by this record; it is only called.
+CURVE="$WORK/curve"
+go build -o "$CURVE" ./cmd/curve
+R54=$(mktemp -d)
+"$CURVE" generate -out "$R54/cell" -bytes 6000 -position middle -distractors 4 -seed 54 > "$R54/generate.out" 2>&1
+want 0 "$?" "curve generate writes a trial from the built binary"
+target=$(grep -o '"line": *[0-9]*' "$R54/cell/answer.json" | grep -o '[0-9]*$')
+trial=$(grep -o '"trial_id": *"[0-9a-f]*"' "$R54/cell/manifest.json" | grep -o '[0-9a-f]*"$' | tr -d '"')
+served=$(grep -o '"served_bytes": *[0-9]*' "$R54/cell/manifest.json" | grep -o '[0-9]*$')
+wrong=$(grep -n '^timeout = 30$' "$R54/cell/tree/services.conf" | cut -d: -f1 | grep -vx "$target" | head -1)
+[ -n "$target" ] && [ -n "$wrong" ] && [ "${served:-0}" -ge 6000 ] \
+  && ok "the trial planted line $target, has a byte-identical distractor at line $wrong, and served $served bytes" \
+  || bad "the trial did not come out as generated: target=$target wrong=$wrong served=$served"
+result54() {
+  python3 -c 'import json,sys; print(json.dumps({"trial_id":sys.argv[1],"served_bytes":int(sys.argv[2]),"plan":sys.argv[3]}))' "$1" "$2" "$3"
+}
+result54 "$trial" "$served" "@@ services.conf $target replace
+timeout = 45
+" > "$R54/right.json"
+result54 "$trial" "$served" "@@ services.conf $wrong replace
+timeout = 45
+" > "$R54/wrong.json"
+result54 "someone-else" "$served" "@@ services.conf $target replace
+timeout = 45
+" > "$R54/other.json"
+
+"$CURVE" score -cell "$R54/cell" -result "$R54/right.json" > "$R54/right.out"
+want 0 "$?" "a plan at the planted line is scored"
+grep -q '"outcome": *"hit"' "$R54/right.out" \
+  && ok "and it is a hit" \
+  || bad "the planted line did not score a hit: $(cat "$R54/right.out")"
+
+"$CURVE" score -cell "$R54/cell" -result "$R54/wrong.json" > "$R54/wrong.out"
+want 0 "$?" "a plan at a distractor's identical line is scored, not refused — it parsed and applied"
+grep -q '"outcome": *"miss"' "$R54/wrong.out" \
+  && ok "and it is a MISS: the scorer can see a wrong line that applied cleanly" \
+  || bad "a wrong line did not score a miss: $(cat "$R54/wrong.out")"
+
+"$CURVE" score -cell "$R54/cell" -result "$R54/other.json" > /dev/null 2> "$R54/other.err"
+want 2 "$?" "a result echoing another trial's id is refused, not scored"
+grep -q 'trial' "$R54/other.err" \
+  && ok "and the refusal names the trial it was expecting" \
+  || bad "the refusal does not say what mismatched: $(cat "$R54/other.err")"
+
+"$CURVE" tally "$R54/right.out" "$R54/wrong.out" > "$R54/tally.out"
+want 0 "$?" "tally accepts the two scores"
+grep -q '"n": *2' "$R54/tally.out" && grep -q '"hits": *1' "$R54/tally.out" && grep -q '"refused": *0' "$R54/tally.out" \
+  && ok "and reports 1 of 2 in one cell, with nothing in the refused column" \
+  || bad "tally did not report the cell: $(cat "$R54/tally.out")"
+rm -rf "$R54"
+
 # 47. ADR-014 T1: an oversized read is a FIRST PAGE, and following it loses
 # nothing.
 #

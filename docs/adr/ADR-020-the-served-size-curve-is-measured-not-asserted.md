@@ -137,7 +137,7 @@ guide gate stays true without documenting a benchmark to callers who will never 
 | Component | Ownership after change | One reason to change? |
 |---|---|---|
 | `internal/curve` | How a cell is generated and how a result is scored | Yes |
-| `cmd/curve` | The two verbs, and nothing else | Wiring only |
+| `cmd/curve` | The three verbs, and nothing else | Wiring only |
 | `internal/mcp` | Untouched — it still owns the cap this measures | Untouched |
 | every engine package | Untouched — reused as libraries, byte-identical | Untouched |
 
@@ -145,7 +145,7 @@ guide gate stays true without documenting a benchmark to callers who will never 
 
 | Change | Kind | Consumers |
 |---|---|---|
-| a second binary, `curve`, with `generate` and `score` | New, additive | whoever runs the benchmark |
+| a second binary, `curve`, with `generate`, `score` and `tally` | New, additive | whoever runs the benchmark |
 | `mrw`'s surface | Unchanged | — |
 | `MaxResultChars` | Unchanged | — |
 

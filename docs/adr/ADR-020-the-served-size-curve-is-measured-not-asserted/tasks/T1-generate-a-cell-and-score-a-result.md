@@ -22,7 +22,7 @@ to report a miss, because a scorer that has only ever seen correct answers prove
 | `internal/curve/cell.go` | create | the generator: fixture tree, planted target, constant distractors, position stratum, manifest |
 | `internal/curve/score.go` | create | the scorer: echo checks, whole-ledger seeding, apply, diff, three outcomes |
 | `internal/curve/score_test.go` | create | **the ADR's Enforced-by**, plus the refusal and isolation properties |
-| `cmd/curve/main.go` | create | the two verbs over the package — stdlib `flag`, so `go.mod` is unchanged |
+| `cmd/curve/main.go` | create | the three verbs over the package — stdlib `flag`, so `go.mod` is unchanged |
 | `scripts/contract.sh` | edit | §54 — drive the BUILT `curve` binary generate → score, for a right answer and a wrong one |
 
 ## Ordered Steps
@@ -78,8 +78,8 @@ measures `MaxResultChars`; the moment it edits the file that declares it, the in
 thing being measured have merged.
 
 ⚠ **THE UNIT TESTS ALONE CANNOT PROVE THIS.** A scorer can be correct and reachable from nothing, and
-`generate` and `score` can each work while the manifest they exchange does not round-trip through the
-filesystem. §54 is the row that binds, because it drives the two verbs of the BUILT binary in
+`generate`, `score` and `tally` can each work while the manifest they exchange does not round-trip
+through the filesystem. §54 is the row that binds, because it drives the verbs of the BUILT binary in
 sequence with a good plan and a wrong one.
 
 ## Tests
@@ -97,11 +97,17 @@ sequence with a good plan and a wrong one.
 |------|------------------------|
 | 1 — exists | the four tests above |
 | 2 — something selects it | `cmd/curve` is the only caller; §54 drives it through the real binary |
-| 3 — the caller can discover it | `curve -h` names both verbs, and the ADR states the protocol |
+| 3 — the caller can discover it | `curve -h` names all three verbs, and the ADR states the protocol |
 | 4 — it is used | §54 runs a complete generate→score cycle. The first READING is a Follow-up and the record says so rather than implying data exists |
 
 ## Mutation Log
 <!-- filled during execution -->
+- 2026-09-04 · 2ab8d9a* · mutant killed · exit 1 · `internal/curve/score.go` · S4: score every applied plan as a hit — `if true {` in place of the changed-set check. TestTheScorerCountsAWrongLineAsAMiss fails on the distractor plan: a plan that parsed, applied cleanly and changed the WRONG line reported hit. This is the scorer the record exists to refuse — one that has only ever been shown correct answers · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1
+- 2026-09-04 · 2ab8d9a* · mutant killed · exit 1 · `internal/curve/score.go` · S3: drop the trial-id echo check. TestTheScorerRefusesResultsFromADifferentTrial fails: a result naming "someone-else" was scored against this trial's answer instead of refused · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1
+- 2026-09-04 · 2ab8d9a* · mutant killed · exit 1 · `internal/curve/score.go` · S5: seed the ledger with ONE served line instead of the whole file. TestTheScorerCountsAWrongLineAsAMiss fails: the plan at the planted line came back refused_apply — ADR-002's guard turned a hit into a refusal, which is the leak from the primary denominator that Decision 4 exists to stop · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1
+- 2026-09-04 · 2ab8d9a* · mutant killed · exit 1 · `internal/curve/cell.go` · S2: make the inert padding emit the distractor line. TestDistractorCountDoesNotVaryWithSize fails: the 40,000-byte cell carried hundreds of candidates against the 4,000-byte cell's five — size and distractor count moving together, the confound the pre-registration names · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1
+- 2026-09-04 · 2ab8d9a* · mutant killed · exit 1 · `internal/curve/cell.go` · S7: put every cell's state home at one shared temp path. TestEachCellGetsItsOwnLedger fails: two cells named the same directory, outside either cell · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1
+- 2026-09-04 · 2ab8d9a* · mutant killed · exit 1 · `internal/curve/score.go` · S6: count a refused plan in the cell's N. TestARefusedPlanIsNotCountedAsALocalisationMiss fails: N became 3 and the rate moved with the refusal. S6 is [proof: acceptance] in this task; the mutant was cheap and the denominator rule is the one a reader would question, so it is logged · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1
 
 ## Invariants
 
@@ -116,7 +122,7 @@ sequence with a good plan and a wrong one.
 ## Risks
 
 - The scorer is only ever fed correct plans and reports 100%. The Enforced-by feeds it a wrong one.
-- The two verbs work in-process and the manifest does not survive the filesystem. §54 crosses it.
+- The verbs work in-process and the manifest does not survive the filesystem. §54 crosses it.
 - Padding becomes distractors and a second variable rides along. The count is asserted constant.
 
 ## Stop Condition
@@ -134,3 +140,4 @@ measuring something else and the record should say so rather than the branch qui
 
 ## Verification Log
 <!-- filled during execution -->
+- 2026-09-04 · 2ab8d9a* · exit 0 · `set -o pipefail …` · acceptance-sha256:de86ec445cbbd3d71c02bd58bf4c984b24725f97de8315d5438bc5090ee3bfa1 · ms:26211

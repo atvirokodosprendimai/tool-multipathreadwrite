@@ -4,7 +4,7 @@
 
 | Task | Title | Status |
 |---|---|---|
-| T1 | The harness that generates a cell and scores a result | pending |
+| T1 | The harness that generates a cell and scores a result | done |
 
 ## Inter-task Contracts
 
