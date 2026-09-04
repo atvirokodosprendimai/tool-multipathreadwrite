@@ -56,6 +56,9 @@ _SPEC_SPLIT = re.compile(r":(?=[0-9$/-])")
 # The path is read back from that suffix, greedily, so any run of spaces inside
 # it survives; a REFUSED or UNREADABLE header served nothing and names nothing.
 _SERVED = re.compile(r"^==> (.+)  \d+L  \d+B  sha [0-9a-f]+$", re.M)
+# mrw's own global root flag, which comes BEFORE the subcommand (after it, -C
+# is the integer context flag). The paths mrw prints are relative to it.
+_MRW_ROOT = re.compile(r"^(?:--root|-C)(?:=(.*))?$")
 _BOM = "\ufeff"
 _STATE_MAX_AGE = 7 * 24 * 3600
 
@@ -106,11 +109,15 @@ def run(data):
     # an MCP result are relative to the project the server serves. A path
     # retried against the other base names a file the call never touched.
     if tool == "Bash":
-        cd, cands = bash_paths(inp.get("command") or "")
+        cd, mrw_root, cands = bash_paths(inp.get("command") or "")
         base = os.path.join(cwd, cd)
+        # An operand is relative to where the command ran; a path mrw PRINTED
+        # is relative to the root mrw used, which its own --root/-C moves.
+        served_base = os.path.join(base, mrw_root)
     else:
         cands, base = candidates(tool, inp), root
-    paths = resolve(root, base, cands + served_paths(data.get("tool_response")))
+        served_base = root
+    paths = resolve(root, base, cands) | resolve(root, served_base, served_paths(data.get("tool_response")))
     if not paths:
         return None, []
     session = data.get("session_id") or "nosession"
@@ -161,11 +168,12 @@ def candidates(tool, inp):
 
 
 def bash_paths(cmd):
-    """The directory a leading `cd DIR &&` (or `;`) moved into, and every
-    other token of the command. Existence decides later which tokens are
-    paths; there is no token cap, because a cap is a silent way to lose the
-    last operand. The cd directory is returned rather than joined in, since
-    the headers mrw printed for the command are relative to it too."""
+    """The directory a leading `cd DIR &&` (or `;`) moved into, the root an
+    mrw call gave its own `--root`/`-C` flag, and every other token of the
+    command. Existence decides later which tokens are paths; there is no token
+    cap, because a cap is a silent way to lose the last operand. The two
+    directories are returned rather than joined in: an operand is relative to
+    where the command ran, and a path mrw PRINTED is relative to mrw's root."""
     try:
         toks = shlex.split(cmd)
     except ValueError:
@@ -173,12 +181,19 @@ def bash_paths(cmd):
     cd = ""
     if len(toks) >= 3 and toks[0] == "cd" and toks[2] in ("&&", ";"):
         cd, toks = toks[1], toks[3:]
-    out = []
-    for t in toks:
+    out, mrw_root = [], ""
+    for n, t in enumerate(toks):
+        # The global flag only counts before the subcommand, which is the
+        # first bare word after the program name — `mrw read -C 3` is context.
+        if n and not mrw_root and not any(x for x in toks[1:n] if not x.startswith("-")):
+            m = _MRW_ROOT.match(t)
+            if m:
+                mrw_root = m.group(1) if m.group(1) is not None else (toks[n + 1] if n + 1 < len(toks) else "")
+                continue
         t = _SPEC_SPLIT.split(t, 1)[0]
         if t and not t.startswith("-"):
             out.append(t)
-    return cd, out
+    return cd, mrw_root, out
 
 
 def served_paths(resp):
@@ -316,7 +331,13 @@ def frontmatter_paths(text):
         if s.startswith("paths:"):
             rest = s[len("paths:"):].strip()
             if rest.startswith("["):
-                globs += split_list(rest.strip()[1:].rstrip("]"))
+                # The comment goes before the brackets do: stripping `]` first
+                # left `docs/adr/**]` for `paths: ["docs/adr/**"] # a comment`,
+                # a glob that matches nothing and says nothing.
+                inner = split_list(rest[1:])
+                if inner and inner[-1].endswith("]"):
+                    inner[-1] = inner[-1][:-1]
+                globs += [g for g in inner if g]
                 in_paths = False
             else:
                 in_paths = True
@@ -362,25 +383,30 @@ def split_list(s):
 
 def expand_braces(pat):
     """Flat `{a,b}` alternation, expanded before matching so an alternative
-    may hold a glob or a slash. One level only, as ADR-022 promises: a group
-    that holds another group, or one never closed, leaves the whole pattern
-    literal."""
-    i = pat.find("{")
-    if i < 0:
-        return [pat]
-    depth, j = 0, -1
-    for k in range(i, len(pat)):
-        if pat[k] == "{":
+    may hold a glob or a slash. One level only, as ADR-022 promises: a pattern
+    holding a group inside a group, or a group never closed, is literal — and
+    that is decided for the WHOLE pattern before any group is expanded, since
+    expanding a flat group first would leave a half-expanded pattern behind."""
+    depth = 0
+    for c in pat:
+        if c == "{":
             depth += 1
-        elif pat[k] == "}":
-            depth -= 1
-            if depth == 0:
-                j = k
-                break
-    if j < 0 or "{" in pat[i + 1:j]:
+            if depth > 1:
+                return [pat]
+        elif c == "}":
+            depth = max(0, depth - 1)
+    if depth:
+        return [pat]
+    return _expand_flat(pat)
+
+
+def _expand_flat(pat):
+    i = pat.find("{")
+    j = pat.find("}", i + 1) if i >= 0 else -1
+    if j < 0:
         return [pat]
     head, alts, tail = pat[:i], pat[i + 1:j].split(","), pat[j + 1:]
-    return [head + a + t for a in alts for t in expand_braces(tail)]
+    return [head + a + t for a in alts for t in _expand_flat(tail)]
 
 
 def seg_match(pat, s):

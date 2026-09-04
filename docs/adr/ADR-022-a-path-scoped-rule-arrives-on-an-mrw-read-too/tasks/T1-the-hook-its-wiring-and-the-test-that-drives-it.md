@@ -33,9 +33,10 @@ never take the turn down.
    `CLAUDE_PROJECT_DIR` = the project delivers the rule for `../docs/adr/x.md`; the current hook
    looks for rules under `cwd` and delivers nothing. [proof: acceptance]
 2. [S2] Read the project root from `$CLAUDE_PROJECT_DIR`, else walk up from `cwd` to the nearest
-   `.claude/rules`, stopping at the first `.git`; resolve a Bash command's operands AND the headers
-   mrw printed for it from where the command ran (`cwd`, moved by a leading `cd`), every other tool's
-   paths from the root, one base per call, and relativise to the root. [proof: mutation]
+   `.claude/rules`, stopping at the first `.git`; resolve a Bash command's operands from where the
+   command ran (`cwd`, moved by a leading `cd`) and the headers mrw printed for it from the root mrw
+   used (its global `--root`/`-C`, before the subcommand), every other tool's paths from the project
+   root, and relativise to the root. [proof: mutation]
 3. [S3] Take served paths from every `==> path  NL  NB  sha …` header in the tool result as well as
    the named ones, the path read back from that suffix, so a grep delivers and any spaces survive.
    [proof: mutation]
@@ -43,21 +44,24 @@ never take the turn down.
    and take every header-shaped line's first field as a candidate, bodies included; do not mirror
    whether mrw accepts the plan (a refused plan delivers early, never silently). [proof: mutation]
 5. [S5] Match globs by segment in an enumerated grammar: `**` at a boundary crosses directories,
-   `*`/`?` within one by a two-pointer walk, flat `{a,b}` expanded before the split, nested braces
-   literal, a trailing `/` names no file, slash-less is root-only; a table whose cost is the product
-   of the segment counts. [proof: mutation]
+   `*`/`?` within one by a two-pointer walk, flat `{a,b}` expanded before the split, a pattern
+   holding a group inside a group literal (decided for the whole pattern first), an inline list's
+   comment stripped before its brackets, a trailing `/` names no file, slash-less is root-only; a
+   table whose cost is the product of the segment counts. [proof: mutation]
 6. [S6] Dedup by an atomic claim — `O_CREAT|O_EXCL|O_NOFOLLOW` under a `0700` cache directory keyed
    by session, agent, root and rule — swept after seven days; the base absolute and outside the
    project, else no claim and a delivery; a claim withdrawn when the envelope cannot be written;
    two racing hooks deliver once. [proof: mutation]
 7. [S7] Exit 0 unconditionally, closed stdout included; stdin read whole. [proof: acceptance]
 8. [S8] §55: decode the JSON envelope exactly; take the hook from the settings entry (exactly the
-   four tools, the command resolved through `CLAUDE_PROJECT_DIR`) and drive that file; the
-   subdirectory, quoted-path, race and closed-stdout cases; the tokeniser rows and the early
-   deliveries for plans mrw refuses; the spaced and double-spaced headers; the `cd` before a grep;
-   the 601-operand command; the relative, in-tree and unusable state bases; the withdrawn claim; the
-   nested `.git`; the 300-globstar × 400-directory and 24-star alarms; the trailing slash and the
-   nested braces. [proof: acceptance]
+   four tools, the command resolved through `CLAUDE_PROJECT_DIR`) and drive that file; compare path
+   selection against the BUILT BINARY for five header shapes; the subdirectory, quoted-path, race and
+   closed-stdout cases (the descriptor closed by the shell that execs the hook, never before `env`);
+   the early deliveries for plans mrw refuses; the spaced and double-spaced headers; the `cd` before
+   a grep and the explicit `mrw --root`; the 601-operand command; the relative, in-tree and unusable
+   state bases; the withdrawn claim; the nested `.git`; the 300-globstar × 400-directory and 24-star
+   alarms; the trailing slash, the nested braces, the flat-before-nested group and the inline list
+   with a comment. [proof: acceptance]
 
 ## Acceptance
 
@@ -120,19 +124,24 @@ and touches no engine code.
 - 2026-09-04 · 8a8b137 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: drop the trailing-slash check. §55's `README.md/` row fails: a pattern naming a directory matched a file · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 8a8b137 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: expand a brace group that holds another. §55's nested-brace rows fail both ways: `src/a/b.tsx` matches and the literal path does not · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 8a8b137 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S6: keep the claims when the envelope cannot be written. §55's closed-stdout-then-read row fails: the next read in the session is silent · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · d6e8c95 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: resolve a served header from the command's cwd even when mrw was given `--root`. §55's `mrw -C .. read` row fails: the header mrw printed is lost · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · d6e8c95 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: decide brace nesting per group instead of for the whole pattern. §55's flat-before-nested row fails: `src/{a,b}/{c,{d,e}}/*.tsx` half-expands and matches a path it should not · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · d6e8c95 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S5: strip an inline list's brackets before its comment. §55's commented-list row fails: the glob becomes `docs/adr/**]` and matches nothing · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · d6e8c95 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S6: keep the claims when the envelope cannot be written. §55's closed-stdout-then-read row fails — now on every host, because the row closes the descriptor in the shell that execs the hook rather than before `env` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · d6e8c95 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S4: tokenise headers with `shlex` in place of the `splitHeader` port. §55's CROSS-LANGUAGE row fails: for `'docs/adr/x.md' 1 replace` the built binary names `'docs/adr/x.md'` and the hook names `docs/adr/x.md` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 
 ## Invariants
 
 - A rule is delivered once per session per agent per project while its claim can be filed and its envelope reaches the harness, and on every matching call when a claim cannot be filed — never on none — whichever of the four tools read the file.
-- The project root is never assumed to be `cwd`; a Bash operand and a Bash-served header resolve from where the command ran, every other path from the root, and no path from both.
-- A plan header is tokenised as `mrw` tokenises it; whether mrw accepts the plan is not mirrored, so a refused plan delivers early and never silently.
+- The project root is never assumed to be `cwd`; a Bash operand resolves from where the command ran, a header mrw printed from the root mrw used, every other path from the project root, and no path from two of them.
+- A plan header is tokenised as `mrw` tokenises it, pinned against the built binary; whether mrw accepts the plan is not mirrored, so a refused plan delivers early and never silently.
 - The hook exits 0 whatever happens.
 - No engine change; `go.mod` declares exactly one requirement.
 
 ## Risks
 
 - `python3` absent on a contributor's machine: the hook errors, nothing is delivered, which is the state before this record; `AGENTS.md` says so.
-- The mirrored header grammar drifts from `internal/plan`. Mitigated by §55's cases and by ADR-001 owning the grammar; a drift is a defect here, not there.
+- The mirrored tokeniser drifts from `internal/plan`. Mitigated by §55's cross-language row, which drives the built binary, and by ADR-001 owning the grammar; a drift is a defect here, not there.
 
 ## Stop Condition
 
@@ -151,3 +160,4 @@ build. That is a different tool, and the record's Alternatives say why it was no
 - 2026-09-04 · ee58dbb* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:30941
 - 2026-09-04 · 0df776f* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:25969
 - 2026-09-04 · 8a8b137* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:35773
+- 2026-09-04 · d6e8c95* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:49058

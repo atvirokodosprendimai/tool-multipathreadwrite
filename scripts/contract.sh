@@ -2552,6 +2552,17 @@ print(json.dumps(d))' "$1" "$R55/proj" "$2" "$3" "${4:-}" "${5:-}"
 hook55() {  # the same arguments -> the hook's stdout, under the fixture's HOME and project
   mk55 "$@" | env HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK"
 }
+closed55() {  # the same arguments -> the hook run with stdout genuinely closed
+  # Closed AFTER env, by the shell that execs python3. Closing it before env
+  # tests the host, not the hook: uutils coreutils 0.8.0 reopens a closed
+  # standard descriptor to /dev/null before exec, so on such a machine the
+  # hook wrote its envelope into /dev/null and kept the claim, and the row
+  # below went red for a reason that had nothing to do with this repository
+  # (found by review on a Linux host, 2026-09-04; GNU env leaves it closed,
+  # which is why CI and darwin were both green).
+  mk55 "$@" | env HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" CLAUDE_PROJECT_DIR="$R55/proj" \
+    bash -c 'exec >&-; exec python3 "$1"' _ "$HOOK"
+}
 ctx55() {  # stdin: the hook's stdout -> the additionalContext, or "" ; exit 1 on a bad envelope
   python3 -c 'import json,sys
 s=sys.stdin.read()
@@ -2620,6 +2631,12 @@ ctx=$(hook55 s9 Bash '{"command":"cd docs/adr && cat x.md"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a leading cd moves the base the later tokens resolve against" || bad "cd-relative read not matched: $ctx"
 ctx=$(hook55 s9b Bash '{"command":"cd docs && mrw read --grep record adr/"}' '{"stdout":"==> adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "and the same cd moves the base the served ==> headers resolve against, so a grep after a cd delivers" || bad "served headers after a cd were resolved from the wrong base: $ctx"
+# mrw's own --root/-C moves the root its `==>` headers are relative to, and it
+# comes BEFORE the subcommand (after `read`, -C is the integer context flag).
+ctx=$(hook55 s9c Bash '{"command":"mrw -C .. read docs/adr/x.md:1"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' "$R55/proj/pkg" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+  && ok "a served header from an mrw run given an explicit --root resolves against that root, not against cwd" \
+  || bad "an explicit mrw root lost the served header: $ctx"
 ctx=$(hook55 s10 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/pkg" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "with cwd in a subdirectory, the project root still comes from CLAUDE_PROJECT_DIR and ../ resolves" \
@@ -2629,7 +2646,7 @@ ctx=$(hook55 s10c Bash "{\"command\":\"cat ${many55}docs/adr/x.md\"}" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "the 601st operand of a command is still a candidate: there is no token cap" || bad "a long command lost its last operand: $ctx"
 out=$(printf 'not json' | env HOME="$R55/home" python3 "$HOOK"); want 0 "$?" "malformed stdin exits 0: a broken hook must not take the turn down"
 [ -z "$out" ] && ok "and prints nothing" || bad "printed on malformed stdin: $out"
-( hook55 s11 Bash '{"command":"cat docs/adr/x.md"}' >&- 2>/dev/null ); want 0 "$?" "a closed stdout still exits 0"
+( closed55 s11 Bash '{"command":"cat docs/adr/x.md"}' 2>/dev/null ); want 0 "$?" "a closed stdout still exits 0"
 ctx=$(hook55 s11 Bash '{"command":"cat docs/adr/x.md"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "and the claim that call filed was withdrawn, so the next read in the same session still delivers" || bad "a claim outlived an envelope that never reached the harness: $ctx"
 hook55 s12 Bash '{"command":"cat docs/adr/x.md"}' > "$R55/race1" & hook55 s12 Bash '{"command":"cat docs/adr/x.md"}' > "$R55/race2" & wait
@@ -2674,6 +2691,24 @@ ctx=$(hook55 s20 Bash '{"command":"cat src/a/b.tsx"}' | ctx55)
 ! grep -q 'NESTED RULE BODY 55' <<<"$ctx" && ok "nested braces are literal, so src/{a,{b,c}}/*.tsx does not match src/a/b.tsx" || bad "nested braces were expanded: $ctx"
 ctx=$(hook55 s20 Bash '{"command":"cat \"src/{a,{b,c}}/q.tsx\""}' | ctx55)
 grep -q 'NESTED RULE BODY 55' <<<"$ctx" && ok "and it does match the path spelled with those braces" || bad "literal nested braces did not match: $ctx"
+# Nesting is decided for the WHOLE pattern before any group is expanded:
+# expanding the flat group first would leave a half-expanded pattern whose
+# later nested group had silently become an alternation.
+printf -- '---\npaths: ["src/{a,b}/{c,{d,e}}/*.tsx"]\n---\n\nMIXED RULE BODY 55\n' > "$R55/proj/.claude/rules/mixed.md"
+mkdir -p "$R55/proj/src/a/{c,{d,e}}"; printf 'lit\n' > "$R55/proj/src/a/{c,{d,e}}/q.tsx"
+ctx=$(hook55 s21 Bash '{"command":"cat \"src/a/{c,{d,e}}/q.tsx\""}' | ctx55)
+! grep -q 'MIXED RULE BODY 55' <<<"$ctx" \
+  && ok "a flat group before a nested one does not expand either: the whole pattern is literal" \
+  || bad "a flat group was expanded ahead of a nested one: $ctx"
+# An inline list may carry a trailing comment, and the comment goes before the
+# brackets do — stripping `]` first left the glob `docs/adr/**]`, which matches
+# nothing and says nothing.
+printf -- '---\npaths: ["docs/adr/**"] # the records\n---\n\nCOMMENT RULE BODY 55\n' > "$R55/proj/.claude/rules/comment.md"
+ctx=$(hook55 s22 Bash '{"command":"cat docs/adr/x.md"}' | ctx55)
+grep -q 'COMMENT RULE BODY 55' <<<"$ctx" \
+  && ok "an inline paths list with a trailing comment still yields the glob inside it" \
+  || bad "an inline list with a comment produced no usable glob: $ctx"
+rm -f "$R55/proj/.claude/rules/comment.md" "$R55/proj/.claude/rules/mixed.md"
 # A served path with a space in it. mrw's header is `==> path  NL  NB  sha …`,
 # two spaces after the path, and for a grep the header is the only place the
 # path appears at all.
@@ -2682,9 +2717,28 @@ grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a served path containing a space 
 printf 'twice\n' > "$R55/proj/docs/adr/my  file.md"
 ctx=$(hook55 s8c Bash '{"command":"mrw read --grep twice docs/"}' '{"stdout":"==> docs/adr/my  file.md  1L  6B  sha 1234abcd\n    1| twice\n"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "and one holding two consecutive spaces: the path is read back from the NL  NB  sha suffix, not forward to the first gap" || bad "consecutive-space header path lost: $ctx"
-# Plan headers are tokenised as internal/plan tokenises them — double quotes
-# only, a /pattern/ address one token with its spaces — because the tokeniser
-# decides WHICH string is the path. Nothing after that is mirrored.
+# Plan headers are tokenised as internal/plan tokenises them, and this is the
+# row that makes that DIFFERENTIAL rather than a Python opinion: for each
+# header shape, the BUILT BINARY is given a one-hunk plan and reports the path
+# it took (`files[].path` in --json, empty when it refuses to parse), and the
+# hook is given the same header; the two must name the same string. Nothing
+# else about the plan is compared, because acceptance is deliberately not
+# mirrored — only which string is the path.
+for hdr in 'docs/adr/x.md 1 replace' "'docs/adr/x.md' 1 replace" '"docs/adr/my file.md" 1 replace' 'docs/adr/x.md /^func (s *Store) Get/,/^}/ replace' 'docs/adr/x.md 1 replace anchor="unterminated'; do
+  printf '@@ %s\nX\n' "$hdr" > "$R55/plan55"
+  mrwpath=$("$MRW" -C "$R55/proj" write --json "$R55/plan55" 2>/dev/null | python3 -c 'import json,sys
+try: d=json.load(sys.stdin)
+except Exception: print(""); raise SystemExit
+fs=d.get("files") or []
+print(fs[0]["path"] if fs else "")')
+  hookpath=$(printf '@@ %s\nX\n' "$hdr" | python3 -c 'import json,sys,importlib.util
+spec=importlib.util.spec_from_file_location("h", sys.argv[1]); h=importlib.util.module_from_spec(spec); spec.loader.exec_module(h)
+print("\n".join(h.plan_paths(sys.stdin.read())))' "$HOOK")
+  [ "$mrwpath" = "$hookpath" ] \
+    && ok "the hook and the built binary take the same path from the header: ${hdr:0:34}…" \
+    || bad "path selection differs for '$hdr': mrw said '$mrwpath', the hook said '$hookpath'"
+done
+rm -f "$R55/plan55"
 ctx=$(hook55 s5e mcp__mrw__mrw_write "{\"plan\":\"@@ 'docs/adr/x.md' 1 replace\\nX\\n\"}" | ctx55)
 [ -z "$ctx" ] && ok "a single-quoted path is literal to mrw, names no file, and delivers nothing" || bad "single quotes were stripped, which mrw does not do: $ctx"
 ctx=$(hook55 s5f mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md /^func (s *Store) Get/,/^}/ replace\nX\n"}' | ctx55)
