@@ -57,7 +57,7 @@ test -z "$(gofmt -l .)" \
   && ! grep -qE 'no tests to run|no test files|^FAIL|^--- FAIL' /tmp/adr017-t2.out \
   && [ "$(grep -cE '^--- PASS: (TestTheSurfaceTeachesFinding|TestTheRoutingClaimsOnlyRealExclusives)\b' /tmp/adr017-t2.out)" = "2" ] \
   && grep -q '^# 52\.' scripts/contract.sh \
-  && go test ./cmd/mrw/ -run TestEverySubcommandReachesTheAgentFacingGuide \
+  && go test ./cmd/mrw/ \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ] \
   && go test ./... \
   && ./scripts/contract.sh
@@ -91,7 +91,9 @@ about exactly this class.
 | 4 — it is used | not measured and will not be — see T1's rung 4 |
 
 ## Mutation Log
+
 <!-- filled during execution -->
+- 2026-09-04 · ba05252* · mutant killed · exit 1 · `internal/mcp/instructions.go` · S2/S3: put --grep back in the routing as a CLI exclusive. TestTheRoutingClaimsOnlyRealExclusives fails with "the wire names --grep as something the CLI has, but mrw_read declares an argument grep". What this proves is the point: SS50 and TestTheSurfaceSaysTheCLIIsRicher both stay GREEN under this mutant, because --grep does still exist in the CLI help — the gate that motivated ADR-016 could not catch ADR-016 own text going false · acceptance-sha256:17cc6a64901888ea4dfe16cf8799997c7db4c451e8fb03ec82abe99261c2828c
 
 ## Invariants
 
@@ -121,3 +123,5 @@ donor, since dropping `--grep` from it already frees text.
 
 ## Verification Log
 <!-- filled during execution -->
+- 2026-09-04 · ba05252* · exit 0 · `set -o pipefail …` · acceptance-sha256:17cc6a64901888ea4dfe16cf8799997c7db4c451e8fb03ec82abe99261c2828c · ms:47641
+- 2026-09-04 · ba05252* · exit 0 · `set -o pipefail …` · acceptance-sha256:17cc6a64901888ea4dfe16cf8799997c7db4c451e8fb03ec82abe99261c2828c · ms:23606

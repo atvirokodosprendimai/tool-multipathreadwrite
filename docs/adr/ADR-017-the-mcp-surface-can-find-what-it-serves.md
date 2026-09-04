@@ -1,6 +1,7 @@
 # ADR-017: The MCP surface can find what it serves
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-09-04 by M — asked to "loosen the MCP", shown that the phrase covers two different changes, and given the choice explicitly. M chose *"Both, as two records"*: capability here, reach in ADR-018, so that a trust boundary is not carried in on a capability change. ⚠ What M accepted is the SCOPE and the split, put to them before this text existed. The decisions below — the index degradation, the permanent refusal of `--files-from`, and paging the index by file — are this record's own and have not been separately signed off; they are put for review with the implementation.
 **Date:** 2026-09-04
 **Owner:** M
 **Spec:** None — no spec stage

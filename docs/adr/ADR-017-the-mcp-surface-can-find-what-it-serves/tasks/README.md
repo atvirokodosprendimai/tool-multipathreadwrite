@@ -22,8 +22,8 @@ rather than against it.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Find over MCP, and degrade to the index rather than to a dead end | pending | — | 4 named `--- PASS:` lines, `# 51.` in `contract.sh`, gofmt + vet, both engine clauses, `./scripts/contract.sh` |
-| T2 | Teach finding, and repair ADR-016's sentence in the same commit | pending | — | 2 named `--- PASS:` lines, `# 52.` in `contract.sh`, #73's gate, gofmt + vet, `./scripts/contract.sh` |
+| T1 | Find over MCP, and degrade to the index rather than to a dead end | done | — | 4 named `--- PASS:` lines, `# 51.` in `contract.sh`, gofmt + vet, both engine clauses, `./scripts/contract.sh` |
+| T2 | Teach finding, and repair ADR-016's sentence in the same commit | done | — | 2 named `--- PASS:` lines, `# 52.` in `contract.sh`, #73's gate, gofmt + vet, `./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done` | `withdrawn`.
 

@@ -89,6 +89,12 @@ tools instead of the shell recipes below. The arguments are the same strings —
 to `mrw write` — and every rule in this section applies unchanged, because it is
 the same engine and the same ledger.
 
+`mrw read --grep P` maps onto the `grep` argument, and `--exclude` onto
+`exclude`. When the matches are too large to serve, the tool returns an INDEX —
+one spec per matching file, no content — which you send back as `specs` to read
+the ones you want. `--files-from` has no MCP equivalent and does not need one:
+it exists to undo shell word-splitting, and `specs` is already a list.
+
 ### 1. Read many ranges in one call, and let the read do the finding
 
 Addresses are line numbers, `N-M` ranges, `$` for the last line, or a **regex**

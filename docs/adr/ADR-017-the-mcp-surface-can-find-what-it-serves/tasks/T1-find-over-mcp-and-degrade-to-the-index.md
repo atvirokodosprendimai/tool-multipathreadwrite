@@ -21,14 +21,14 @@ comes back as a usable list of addresses rather than as a failure.
 |------|--------|-----|
 | `internal/mcp/tools.go` | edit | `readTool` accepts `grep`/`exclude`, calls `read.Walk`, and owns the index degradation |
 | `internal/mcp/mcp.go` | edit | `mrw_read`'s input schema declares the two new arguments, described — ADR-012's rule |
-| `internal/mcp/schema.go` | edit | the read output schema declares the index fields, described |
+| ~~`internal/mcp/schema.go`~~ | not touched | the index fields are built in `matchIndex` and declared in the tool's own result, so the generated output schema needed no change — struck rather than deleted, because an Affected Files row nobody reconciled is how a plan starts describing a different change |
 | `internal/mcp/tools_test.go` | edit | **the ADR's Enforced-by**, plus the refusal and ledger properties |
 | `scripts/contract.sh` | edit | §51 — drive a real oversized grep through the built binary |
 
 ## Ordered Steps
 
 1. [S1] Write the failing tests first (TDD red): a grep serves matching ranges and records them; an
-   oversized grep returns an index of `path:N` specs with a count and NO content; an index too large
+   oversized grep returns an index of `path:/pattern/` specs with a count and NO content; an index
    to serve names where to resume; `grep` with a ranged spec is refused. [proof: acceptance]
 2. [S2] Call `read.Walk` and then the existing serve path. The CLI does exactly this
    (`main.go:510`), so the two surfaces run the same code in the same order rather than two
@@ -100,7 +100,9 @@ slipped from "call the primitive" into "change the primitive", which is the Stop
 | 4 — it is used | not measured and will not be: telemetry is refused by ADR-009, and the per-checkout tally cannot attribute a surface (ADR-012's Context). The evidence for building it is M's stated population, which is the honest provenance |
 
 ## Mutation Log
+
 <!-- filled during execution -->
+- 2026-09-04 · ba05252* · mutant killed · exit 1 · `internal/mcp/tools.go` · S4: give the index an unbounded budget so it never pages — the step after the satisfying part, the one this record predicted would be dropped. It also found a DEAD ASSERTION: the mutant sailed past len(idx) >= 9000 because the fixture had been resized to 8000, so that check could never fire; the threshold is bound to the fixture count now · acceptance-sha256:6240852dc249e1c084a95d1ecd3379962f63338ad67d77618f849b06930b08b7
 
 ## Invariants
 
@@ -134,3 +136,5 @@ than the branch quietly widening.
 
 ## Verification Log
 <!-- filled during execution -->
+- 2026-09-04 · ba05252* · exit 0 · `set -o pipefail …` · acceptance-sha256:6240852dc249e1c084a95d1ecd3379962f63338ad67d77618f849b06930b08b7 · ms:37140
+- 2026-09-04 · ba05252* · exit 0 · `set -o pipefail …` · acceptance-sha256:6240852dc249e1c084a95d1ecd3379962f63338ad67d77618f849b06930b08b7 · ms:19228

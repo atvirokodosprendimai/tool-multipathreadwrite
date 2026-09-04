@@ -2141,7 +2141,7 @@ out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolV
 python3 - "$out" <<'PY'
 import json,sys
 i=json.loads(sys.argv[1])["result"]["instructions"]
-for w in ("--grep","--files-from","--check","--root","shell","serialized","ONE fixed checkout"):
+for w in ("--files-from","--check","--root","shell","serialized","ONE fixed checkout"):
     assert w in i, "the instructions never mention %r" % w
 # The routing must come BEFORE the format details. It is no longer literally
 # first: it is merged into the WHEN TO REACH paragraph, because a separate
@@ -2171,7 +2171,6 @@ PY
 # pass `-C` for choosing a checkout — which is the context flag after `read`,
 # so `mrw read -C DIR` errors. That was the first cut of this record's advice.
 missing=""
-grep -q -- '--grep'       <<<"$(m read --help 2>&1)"  || missing="$missing read:--grep"
 grep -q -- '--files-from' <<<"$(m read --help 2>&1)"  || missing="$missing read:--files-from"
 grep -q -- '--check'      <<<"$(m write --help 2>&1)" || missing="$missing write:--check"
 grep -q -- '--root'       <<<"$(m --help 2>&1)"       || missing="$missing root:--root"
@@ -2189,6 +2188,106 @@ grep -q 'alpha' <<<"$out" \
   || bad "the recommended form did not serve the other checkout: $out"
 rm -rf "$OTHER"
 
+
+# 51. ADR-017 T1: the MCP surface can FIND, and an oversized find is an index.
+#
+# The population this is for has no shell: an analyst on Claude Desktop cannot
+# run `rg -l | mrw read --files-from -`, so over MCP "which files" was simply
+# unanswerable. This row drives the real binary over a real tree.
+#
+# THE ROW THAT MATTERS is the second one. Serving matches is the easy half; the
+# half that decides whether this is usable is what happens when the matches do
+# not fit — and a refusal there is ADR-014's dead end reappearing on the
+# ORDINARY case for this caller rather than an exotic one.
+fixture
+python3 -c "
+import os
+for i in range(40):
+    with open('$R/doc%03d.csv' % i,'w') as f:
+        f.write('a line that matches nothing\n')
+        for j in range(400): f.write('the NEEDLE is here\n')
+"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"NEEDLE"}}}\n' | m --root "$R" mcp 2>/dev/null)
+MRW_BIN="$MRW" python3 - "$R" "$out" <<'PY'
+import json, subprocess, sys, os
+root, raw = sys.argv[1], sys.argv[2]
+res = json.loads(raw)["result"]
+sc = res["structuredContent"]
+assert res.get("isError") is True, "an oversized grep must still read as an error"
+assert sc["matches"] == 40, "the index reports %r matching files, want 40" % sc["matches"]
+idx = sc["index"]
+assert idx, "an oversized grep returned no index at all"
+# THE ENTRIES MUST BE SPECS. Send the first one back to the real binary.
+first = idx[0]
+req = {"jsonrpc":"2.0","id":1,"method":"tools/call",
+       "params":{"name":"mrw_read","arguments":{"specs":[first]}}}
+p = subprocess.run([os.environ["MRW_BIN"], "--root", root, "mcp"],
+                   input=json.dumps(req)+"\n", capture_output=True, text=True)
+back = json.loads(p.stdout.splitlines()[0])["result"]
+assert back.get("isError") is not True, "index entry %r is not a spec the tool accepts" % first
+body = "".join(c.get("text","") for c in back["content"])
+assert "NEEDLE" in body, "reading index entry %r served no match" % first
+PY
+[ $? -eq 0 ] && ok "an oversized grep returns an index whose entries really read" \
+             || bad "the index is missing, wrong, or not made of specs"
+
+# And a grep that FITS serves content and records it, so the ledger licenses a
+# write to what the caller was actually shown.
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["doc000.csv"],"grep":"NEEDLE"}}}\n' | m --root "$R" mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+res = json.loads(sys.argv[1])["result"]
+assert res.get("isError") is not True, "a grep that fits should not be an error"
+assert res["structuredContent"]["observed"], "a served grep recorded nothing, so it licenses no write"
+PY
+[ $? -eq 0 ] && ok "and a grep that fits serves content and records what it served" \
+             || bad "a fitting grep did not serve or did not record"
+
+# The grammar matches the CLI's: a range and a grep are two answers to one
+# question, and BOTH surfaces say so.
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["doc000.csv:1-2"],"grep":"NEEDLE"}}}\n' | m --root "$R" mcp 2>/dev/null)
+grep -q 'two answers to one question' <<<"$out" \
+  && ok "and a ranged spec with grep is refused, in the CLI's own words" \
+  || bad "the two surfaces disagree on the grammar: $out"
+
+
+# 52. ADR-017 T2: the wire teaches finding, and no longer calls --grep a thing
+# only the CLI has.
+#
+# ADR-016 shipped "only it has --grep". That sentence became FALSE the moment
+# §51 passed, and NOTHING ELSE COULD HAVE CAUGHT IT: §50 asserts the flags the
+# routing names EXIST in the CLI's help, and --grep still exists. A gate that
+# checks a thing exists cannot catch a thing that is present and false.
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+i = json.loads(sys.argv[1])["result"]["instructions"]
+assert "grep" in i, "the wire never mentions grep, so an MCP-only caller cannot learn it can search"
+assert "INDEX" in i and "no content" in i, "the wire does not say an oversized grep returns an index carrying NO content"
+assert "only it has --grep" not in i, "the wire still calls --grep a CLI exclusive, which it is not"
+assert len(i) <= 4096, "instructions are %d bytes, over the bound every session pays" % len(i)
+PY
+[ $? -eq 0 ] && ok "the handshake teaches finding and stops claiming --grep for the CLI" \
+             || bad "the wire is wrong about finding"
+
+# THE ROW THAT BINDS: every long flag the wire still names as the CLI's must NOT
+# be an argument mrw_read declares. This is the direction §50 cannot check.
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+ins=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n' | m mcp 2>/dev/null)
+python3 - "$out" "$ins" <<'PY'
+import json,re,sys
+tools = json.loads(sys.argv[1])["result"]["tools"]
+i = json.loads(sys.argv[2])["result"]["instructions"]
+props = {}
+for t in tools:
+    if t["name"] == "mrw_read":
+        props = t["inputSchema"].get("properties", {})
+for m in re.findall(r"--[a-z][a-z-]+", i):
+    arg = m[2:].replace("-", "_")
+    assert arg not in props, "the wire names %s as the CLI's, but mrw_read declares %r" % (m, arg)
+PY
+[ $? -eq 0 ] && ok "and no flag it calls the CLI's is an argument this tool has" \
+             || bad "the routing tells callers to leave a surface that has the flag"
 
 # 47. ADR-014 T1: an oversized read is a FIRST PAGE, and following it loses
 # nothing.

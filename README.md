@@ -410,6 +410,26 @@ takes — and `mrw_write` takes `plan`, the same plan text. Nothing listens on a
 port; the server speaks over the pipe the host already opened, and it writes
 only MCP messages to stdout.
 
+**`mrw_read` can also FIND.** Set `grep` to a regexp and it walks the paths in
+`specs` — or the whole root when you give none — and serves every match, which
+is `mrw read --grep` over the wire. `exclude` takes globs to skip. A path in
+`specs` may not carry a range when `grep` is set: a range and a grep are two
+answers to one question, and both surfaces refuse it in the same words.
+
+This matters most where there is no shell. A caller with a terminal finds its
+sites with `rg -l | mrw read --files-from -`; a caller that only has this server
+could not previously answer "which files" at all.
+
+**A grep too large to serve returns an INDEX, not a refusal.** The result
+carries one spec per matching file with no content, plus the count, and you send
+entries back as `specs` to read the ones you want. Nothing is recorded for an
+index, because nothing was served — so it licenses no write. If the index itself
+will not fit, it is cut and `next_index` names the file to resume at.
+
+`--files-from` has no MCP equivalent and does not need one. It exists so a
+shell pipeline composes without word-splitting mangling the list; `specs` is
+already a JSON array, which is the thing it reconstructs.
+
 **What the server does not change.** It is the same engine: the same read-before-write
 ledger, shared with the CLI so a file read over MCP can be edited from a shell
 and the reverse; the same plan format; the same per-hunk verdict, carried in the

@@ -693,10 +693,10 @@ func TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd(t *testing.T) {
 }
 
 func TestAnIndexTooLargeToServePagesByFile(t *testing.T) {
-	// Enough MATCHING FILES that the list of addresses alone exceeds the cap.
 	// Each entry is roughly 30 bytes, so this needs many files rather than
 	// large ones — which is exactly the Desktop folder this record is for.
-	root := grepTree(t, 8000, 1)
+	const files = 8000
+	root := grepTree(t, files, 1)
 
 	res := call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE"})
 	st := structured(t, res)
@@ -704,7 +704,12 @@ func TestAnIndexTooLargeToServePagesByFile(t *testing.T) {
 	if !ok {
 		t.Fatalf("no index came back: %v", st)
 	}
-	if len(idx) >= 9000 {
+	// ⚠ AGAINST THE FIXTURE'S OWN COUNT. This was written as a literal 9000
+	// while the fixture was resized to 8000, which made it an assertion that
+	// could never fire — found because a mutant that disabled paging entirely
+	// sailed past it and failed the NEXT check instead. A threshold that does
+	// not track the fixture is a test with a hole in the middle.
+	if len(idx) >= files {
 		t.Fatalf("the index served all %d entries; this fixture exists to overflow it", len(idx))
 	}
 	next, _ := st["next_index"].(string)
