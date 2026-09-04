@@ -13,11 +13,12 @@ behaviour, extended to the reads it does not follow.
 
 Decisions the record makes and this file keeps:
 - the project root is $CLAUDE_PROJECT_DIR, else the nearest .claude/rules above
-  cwd, stopping at the first .git; a Bash command's paths, and the headers mrw
-  printed for it, resolve from where the command ran — cwd, moved by a leading
-  `cd` — and every other tool's from the root;
+  cwd, stopping at the first .git; a Bash command's OPERANDS resolve from where
+  the command ran — cwd, moved by a leading `cd` — and the headers mrw PRINTED
+  for it from the root mrw was given; every other tool's paths from the root;
 - plan headers are tokenised as internal/plan tokenises them, and whether mrw
-  accepts the plan is not mirrored: every header-shaped line's first field is
+  accepts the plan is not mirrored: the first field of every header-shaped line
+  the tokeniser can split is
   a candidate;
 - globs match by segment in a table sized (pattern segments x path segments),
   each segment by a two-pointer walk, so nothing backtracks;
@@ -59,6 +60,12 @@ _SERVED = re.compile(r"^==> (.+)  \d+L  \d+B  sha [0-9a-f]+$", re.M)
 # mrw's own global root flag, which comes BEFORE the subcommand (after it, -C
 # is the integer context flag). The paths mrw prints are relative to it.
 _MRW_ROOT = re.compile(r"^(?:--root|-C)(?:=(.*))?$")
+# A command may reach mrw behind assignments and one of these words, and the
+# root flag counts only for mrw itself: -C means something else to git, make
+# and tar, so a program this hook does not recognise gets no root at all.
+_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_PREFIX = {"env", "command", "exec", "nohup", "time", "nice"}
+_MRW_NAMES = {"mrw", "mrw.exe"}
 _BOM = "\ufeff"
 _STATE_MAX_AGE = 7 * 24 * 3600
 
@@ -103,16 +110,15 @@ def run(data):
     if not rules:
         return None, []
     inp = data.get("tool_input") or {}
-    # One base per call. A Bash command's operands, and the headers mrw printed
-    # for it, are relative to where the command ran — cwd, moved by a leading
-    # `cd` (mrw's own --root defaults to "."); a Write's path, an MCP spec and
-    # an MCP result are relative to the project the server serves. A path
-    # retried against the other base names a file the call never touched.
+    # One base per kind. A Bash command's operands are relative to where the
+    # command ran — cwd, moved by a leading `cd`; the headers mrw PRINTED for it
+    # are relative to the root mrw used, which its own --root/-C moves and which
+    # defaults to "."; a Write's path, an MCP spec and an MCP result are relative
+    # to the project the server serves. A path retried against another base names
+    # a file the call never touched.
     if tool == "Bash":
         cd, mrw_root, cands = bash_paths(inp.get("command") or "")
         base = os.path.join(cwd, cd)
-        # An operand is relative to where the command ran; a path mrw PRINTED
-        # is relative to the root mrw used, which its own --root/-C moves.
         served_base = os.path.join(base, mrw_root)
     else:
         cands, base = candidates(tool, inp), root
@@ -181,15 +187,42 @@ def bash_paths(cmd):
     cd = ""
     if len(toks) >= 3 and toks[0] == "cd" and toks[2] in ("&&", ";"):
         cd, toks = toks[1], toks[3:]
-    out, mrw_root = [], ""
-    for n, t in enumerate(toks):
-        # The global flag only counts before the subcommand, which is the
-        # first bare word after the program name — `mrw read -C 3` is context.
-        if n and not mrw_root and not any(x for x in toks[1:n] if not x.startswith("-")):
-            m = _MRW_ROOT.match(t)
+    mrw_root, taken = "", set()
+    # Find the program: assignments and a wrapper word may come first, and
+    # `env` carries flags of its own (-i, -u NAME) before the command.
+    i = 0
+    while i < len(toks):
+        if _ASSIGN.match(toks[i]):
+            i += 1
+        elif toks[i] in _PREFIX:
+            was_env, i = toks[i] == "env", i + 1
+            while was_env and i < len(toks) and (toks[i].startswith("-") or _ASSIGN.match(toks[i])):
+                if toks[i] in ("-u", "--unset") and i + 1 < len(toks):
+                    i += 1
+                i += 1
+        else:
+            break
+    # Only mrw's own flags are read as a root, and only before the subcommand:
+    # after `read`, the same -C is the integer context flag. A root given twice
+    # is last-wins, as the CLI's own string flag is.
+    if i < len(toks) and os.path.basename(toks[i]) in _MRW_NAMES:
+        j = i + 1
+        while j < len(toks):
+            m = _MRW_ROOT.match(toks[j])
             if m:
-                mrw_root = m.group(1) if m.group(1) is not None else (toks[n + 1] if n + 1 < len(toks) else "")
-                continue
+                taken.add(j)
+                if m.group(1) is not None:
+                    mrw_root = m.group(1)
+                elif j + 1 < len(toks):
+                    mrw_root, j = toks[j + 1], j + 1
+                    taken.add(j)
+            elif not toks[j].startswith("-"):
+                break  # the subcommand
+            j += 1
+    out = []
+    for n, t in enumerate(toks):
+        if n in taken:
+            continue
         t = _SPEC_SPLIT.split(t, 1)[0]
         if t and not t.startswith("-"):
             out.append(t)
@@ -437,11 +470,12 @@ def seg_match(pat, s):
 
 def glob_match(pattern, path):
     """Match by segment. A `**` segment stands for zero or more directories;
-    `*` and `?` stay inside one; a slash-less pattern names a root file; a
-    pattern ending in `/` names a directory and so no file. One row per
-    pattern segment over the path positions, so the cost is the product of
-    the two counts and nothing is rescanned. (Git is borrowed for the `**`
-    boundary rule and for nothing else.)"""
+    `*` and `?` stay inside one; a slash-less pattern names a file at the root,
+    except a bare `**`, which is the whole tree; a pattern ending in `/` names a
+    directory and so no file. One row per pattern segment over the path
+    positions, so the cost is the product of the two counts and nothing is
+    rescanned. (Git is borrowed for the `**` boundary rule and for nothing
+    else.)"""
     if pattern.endswith("/"):
         return False
     pseg = [s for s in pattern.split("/") if s]

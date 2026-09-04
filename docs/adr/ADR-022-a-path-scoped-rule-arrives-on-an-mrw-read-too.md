@@ -95,18 +95,22 @@ hook fails to see loses it.
 the walk stops at the first `.git` it meets** — a nested repository does not inherit an enclosing
 one's rules. A Bash command's operands resolve from where the command ran — `cwd`, moved by a leading
 `cd DIR &&`; the `==>` headers mrw printed for it resolve from the root MRW used, which its own
-`--root`/`-C` moves — a global flag, so it counts only before the subcommand, since after `read` the
-same `-C` is the integer context flag. A Write's path, an MCP spec and an MCP result resolve from the
-project root. One base per kind, never retried against another: a session that has `cd`-ed into
-`internal/` still gets `../scripts/contract.sh`'s rule, `cd docs && mrw read --grep` delivers for the
-`adr/…` headers it printed, `mrw -C .. read docs/adr/x.md` from `pkg/` delivers for the header it
-printed, and `docs/adr/x.md` typed from `cmd/mrw`, which read nothing, delivers nothing.
+`--root`/`-C` moves. That flag is read only for mrw itself, because `git`, `make` and `tar` all spell
+a different meaning the same way; only before the subcommand, since after `read` the same `-C` is the
+integer context flag; through assignments and a wrapper word, so `env FOO=1 mrw -C ..` is still mrw;
+and last-wins when given twice, as the CLI's own string flag is. A Write's path, an MCP spec and an
+MCP result resolve from the project root. One base per kind, never retried against another: a session
+that has `cd`-ed into `internal/` still gets `../scripts/contract.sh`'s rule, `cd docs && mrw read
+--grep` delivers for the `adr/…` headers it printed, `mrw -C .. read docs/adr/x.md` from `pkg/`
+delivers for the header it printed, and `docs/adr/x.md` typed from `cmd/mrw`, which read nothing,
+delivers nothing.
 
 **4. Plan headers are tokenised as `internal/plan` tokenises them, and whether mrw accepts the plan
 is not mirrored.** `splitHeader` is ported line for line — double quotes only, a backslash escaping a
 quote or a backslash, a `/pattern/` address one token with its spaces — and a BOM is stripped once per
-line as mrw strips it. Every header-shaped line's first field is then a candidate, counted and raw
-bodies included: a body line that looks like a header delivers early for a file the plan did not touch,
+line as mrw strips it. The first field of every header-shaped line the tokeniser can split is then a
+candidate, counted and raw bodies included: a body line that looks like a header delivers early for a
+file the plan did not touch,
 and a plan mrw refuses — an unknown op, a guard given twice, `raw=true` without `body=` — delivers
 early for the files it names. The third round mirrored `Parse`, `parseHeader` and their refusals
 instead, so that a refused plan delivered nothing; the fourth removed it, because a mirror can only add
@@ -117,7 +121,9 @@ everywhere it was looser the delivery was merely early. Decision 2 already prefe
 **5. Globs match by segment, in an enumerated grammar.** A `**` segment stands for zero or more
 directories — Git's boundary rule, and the only thing borrowed from Git; `*` and `?` stay inside
 one segment; a flat `{a,b}` is expanded before the pattern is split, so an alternative may hold a
-slash or a glob; a slash-less pattern is root-only. The edges do what this sentence says: a pattern
+slash or a glob; a slash-less pattern names a file at the root — except a bare `**`, which is the
+whole tree, since reading the pattern that means everything as root-only would silently drop a rule
+its author meant to apply everywhere. The edges do what this sentence says: a pattern
 ending in `/` names a directory and so no file (write `dir/**`), a pattern containing a group inside a
 group is literal — decided for the WHOLE pattern before any group is expanded, since expanding a flat
 group first would leave a half-expanded pattern behind — and there is no negation. The matcher fills

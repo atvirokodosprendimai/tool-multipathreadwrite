@@ -2585,6 +2585,19 @@ ctx=$(hook55 s2 Bash '{"command":"cat README.md"}' | ctx55)
 grep -q 'INLINE RULE BODY 55' <<<"$ctx" && ! grep -q 'SCOPED' <<<"$ctx" \
   && ok "a slash-less pattern in an inline list matches a root file, and only that rule" \
   || bad "root-only inline glob: $ctx"
+ctx=$(hook55 s2c Bash '{"command":"cat docs/adr/x.md"}' | ctx55)
+! grep -q 'INLINE RULE BODY 55' <<<"$ctx" \
+  && ok "and it matches nothing deeper: *.md is a file at the root, not every .md in the tree" \
+  || bad "a slash-less glob reached a nested file: $ctx"
+# The one exception, and it is the safe direction: a bare ** is the whole tree.
+# Reading it as root-only would silently drop a rule whose author wrote the
+# pattern that means everything.
+printf -- '---\npaths: ["**"]\n---\n\nEVERY RULE BODY 55\n' > "$R55/proj/.claude/rules/every.md"
+ctx=$(hook55 s2d Bash '{"command":"cat docs/adr/x.md"}' | ctx55)
+grep -q 'EVERY RULE BODY 55' <<<"$ctx" && ok "a bare ** matches a file two directories deep" || bad "** did not match a nested file: $ctx"
+ctx=$(hook55 s2e Bash '{"command":"cat README.md"}' | ctx55)
+grep -q 'EVERY RULE BODY 55' <<<"$ctx" && ok "and one at the root" || bad "** did not match a root file: $ctx"
+rm -f "$R55/proj/.claude/rules/every.md"
 ctx=$(hook55 s2b Bash '{"command":"cat src/a/b.tsx"}' | ctx55)
 grep -q 'INLINE RULE BODY 55' <<<"$ctx" \
   && ok "a brace group inside an inline list is one glob, not two" \
@@ -2637,6 +2650,20 @@ ctx=$(hook55 s9c Bash '{"command":"mrw -C .. read docs/adr/x.md:1"}' '{"stdout":
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "a served header from an mrw run given an explicit --root resolves against that root, not against cwd" \
   || bad "an explicit mrw root lost the served header: $ctx"
+# mrw can be reached behind assignments and a wrapper word, and a root given
+# twice is last-wins, as the CLI's own string flag is.
+ctx=$(hook55 s9d Bash '{"command":"env FOO=1 mrw -C .. read docs/adr/x.md:1"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' "$R55/proj/pkg" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+  && ok "and an mrw reached behind env and an assignment is still the mrw whose root moves the header" \
+  || bad "a prefixed mrw lost the served header: $ctx"
+ctx=$(hook55 s9e Bash '{"command":"mrw -C /nowhere --root .. read docs/adr/x.md:1"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' "$R55/proj/pkg" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+  && ok "and a root given twice takes the last, as the CLI does" \
+  || bad "a repeated root did not take the last value: $ctx"
+# -C is mrw's root and nobody else's: git, make and tar all spell a different
+# meaning the same way, so an unrecognised program moves no base.
+ctx=$(hook55 s9f Bash '{"command":"git -C .. log --stat"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n"}' "$R55/proj/pkg" | ctx55)
+[ -z "$ctx" ] && ok "another program's -C is not read as a root" || bad "a non-mrw -C moved the base: $ctx"
 ctx=$(hook55 s10 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/pkg" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "with cwd in a subdirectory, the project root still comes from CLAUDE_PROJECT_DIR and ../ resolves" \
