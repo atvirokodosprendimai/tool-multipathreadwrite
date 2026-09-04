@@ -81,11 +81,21 @@ serves the resulting specs exactly as it serves caller-supplied ones — same ca
 recording.
 
 **2. An oversized grep returns the MATCH INDEX, not a refusal and not a truncation.** When the served
-content would exceed the cap, the result carries every match as a bare `path:N` spec with no content,
-plus the count. This is a first-class answer rather than a consolation: the index IS the language of
-the next call, it is roughly fifty times smaller than the content it describes, and *finding the
-sites* is the thing this record exists to do. The caller then reads the specs it actually wants, each
-pageable by ADR-014's existing mechanism.
+content would exceed the cap, the result carries every matching FILE as a `path:/pattern/` spec with
+no content, plus the count. That form is not a choice: `read.Walk` returns exactly one spec per
+matching file, addressed by the pattern (`walk.go:219`), so the index is the walk's own output handed
+back rather than a new shape invented for the occasion — and reading one of those entries re-finds
+the lines, so nothing is lost by not carrying line numbers here.
+
+⚠ An earlier draft of this decision said "every match as a bare `path:N` spec". That was written
+before the walk's output was read and it is WRONG: the walk does not produce line numbers, and a
+record describing a shape the primitive cannot emit is how a task ends up implementing something the
+record did not mean. Corrected rather than deleted, because the mistake is the instructive part.
+
+This is a first-class answer rather than a consolation: the index IS the language of the next call,
+it is far smaller than the content it describes, and *finding the sites* is the thing this record
+exists to do. The caller then reads the entries it actually wants, each pageable by ADR-014's
+existing mechanism.
 
 **3. An index too large to serve PAGES BY FILE.** The index is a list, and a list has a natural
 continuation the way a file's lines do: the result carries the first N entries and names the path to

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -443,8 +444,15 @@ func TestTheSurfaceSaysTheCLIIsRicher(t *testing.T) {
 	// `read --help` + `write --help` joined together would pass a wire text
 	// that recommended --check to mrw_read's caller, which is the association
 	// the advice is actually making.
+	//
+	// ⚠ --grep LEFT THIS TABLE IN ADR-017, and its absence here is the point.
+	// This table's job is "the flags the routing names must EXIST in the CLI",
+	// and --grep still exists — so this check could never have noticed that it
+	// stopped being CLI-only. TestTheRoutingClaimsOnlyRealExclusives is what
+	// asserts the other direction; adding --grep back here would pass while
+	// the wire told callers to leave a surface that now has it.
 	named := map[string][]string{
-		"read":  {"--grep", "--files-from"},
+		"read":  {"--files-from"},
 		"write": {"--check"},
 	}
 	var allFlags []string
@@ -593,5 +601,72 @@ func TestTheBuiltCLISurvivesASecondCaller(t *testing.T) {
 	out, err := exec.Command(bin, "--version").CombinedOutput()
 	if err != nil {
 		t.Fatalf("running the built CLI a second time: %v\n%s", err, out)
+	}
+}
+
+// TestTheSurfaceTeachesFinding asserts the wire tells a caller it can find
+// files it cannot name — in `instructions` AND in mrw_read's description, since
+// a host may read only the second.
+func TestTheSurfaceTeachesFinding(t *testing.T) {
+	lines := serve(t, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`)
+	res, ok := decode(t, lines[0])["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("no result object in %q", lines[0])
+	}
+	got, _ := res["instructions"].(string)
+
+	if !strings.Contains(got, "grep") {
+		t.Error("the instructions never mention grep, so an MCP-only caller cannot learn it can search at all")
+	}
+	// The CONSEQUENCE, not only the mechanism. A caller told it gets an index
+	// and not told the index carries no content will read it as the answer.
+	if !strings.Contains(got, "INDEX") || !strings.Contains(got, "no content") {
+		t.Errorf("the instructions do not say an oversized grep returns an index carrying NO CONTENT:\n%s", got)
+	}
+
+	var readDesc string
+	for _, tl := range tools() {
+		if tl.Name == "mrw_read" {
+			readDesc = tl.Description
+		}
+	}
+	if !strings.Contains(readDesc, "grep") {
+		t.Errorf("mrw_read's description never mentions grep, so a host ignoring instructions is not told:\n%s", readDesc)
+	}
+}
+
+// TestTheRoutingClaimsOnlyRealExclusives closes a hole no existing gate can see.
+//
+// §50 and TestTheSurfaceSaysTheCLIIsRicher assert that every flag the routing
+// names EXISTS in the CLI's help. That check stays true of a flag forever,
+// including after the MCP surface grows one — so nothing could notice that
+// `--grep`, advertised for two records as CLI-ONLY, had appeared here. ADR-017
+// is exactly that event, and this asserts the other direction: a flag the wire
+// calls exclusive must NOT be an argument this tool declares.
+func TestTheRoutingClaimsOnlyRealExclusives(t *testing.T) {
+	var props map[string]any
+	for _, tl := range tools() {
+		if tl.Name != "mrw_read" {
+			continue
+		}
+		schema, _ := tl.InputSchema.(map[string]any)
+		props, _ = schema["properties"].(map[string]any)
+	}
+	if props == nil {
+		t.Fatal("mrw_read declares no input properties")
+	}
+
+	lines := serve(t, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`)
+	res, _ := decode(t, lines[0])["result"].(map[string]any)
+	got, _ := res["instructions"].(string)
+
+	// Every long flag the instructions name, mapped to the argument name it
+	// would have here: --files-from would be files_from.
+	for _, m := range regexp.MustCompile(`--[a-z][a-z-]+`).FindAllString(got, -1) {
+		flag := strings.TrimPrefix(m, "--")
+		arg := strings.ReplaceAll(flag, "-", "_")
+		if _, declared := props[arg]; declared {
+			t.Errorf("the wire names %q as something the CLI has, but mrw_read declares an argument %q — the routing is telling callers to leave a surface that has it", m, arg)
+		}
 	}
 }

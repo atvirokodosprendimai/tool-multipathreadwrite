@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -120,24 +121,57 @@ func callTool(root string, raw json.RawMessage) (callToolResult, *rpcError) {
 func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	var a struct {
 		Specs []string `json:"specs"`
+		// Grep turns the specs from "what to serve" into "where to look":
+		// read.Walk finds the files and supplies the specs itself. This is
+		// `mrw read --grep` over the wire, calling the same primitive in the
+		// same order the CLI calls it (cmd/mrw/main.go:510).
+		Grep    string   `json:"grep"`
+		Exclude []string `json:"exclude"`
 	}
 	if err := json.Unmarshal(args, &a); err != nil {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "arguments: " + err.Error()}
 	}
-	if len(a.Specs) == 0 {
+	// With grep, no spec is required at all — the walk starts at the root, the
+	// way `mrw read --grep P` with no paths does. Without it, a read with
+	// nothing to read is the caller's mistake.
+	if len(a.Specs) == 0 && a.Grep == "" {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "mrw_read needs at least one spec"}
 	}
+	if len(a.Exclude) > 0 && a.Grep == "" {
+		return errorResult("exclude without grep: there is nothing to exclude from"), nil
+	}
 
-	specs := make([]read.Spec, 0, len(a.Specs))
-	for _, s := range a.Specs {
-		sp, err := read.ParseSpec(s)
+	var specs []read.Spec
+	var walked bool
+	if a.Grep != "" {
+		var err error
+		specs, err = grepSpecs(root, a.Specs, a.Grep, a.Exclude)
 		if err != nil {
-			// A spec mrw cannot parse is the caller's mistake, reported as a
-			// tool error rather than served as an empty read: "nothing here"
-			// and "I could not understand you" are different answers.
-			return errorResult(fmt.Sprintf("%s: %v", s, err)), nil
+			return errorResult(err.Error()), nil
 		}
-		specs = append(specs, sp)
+		walked = true
+		if len(specs) == 0 {
+			// Not an error: "nothing matched" is a real answer, and the
+			// caller asked a question rather than named a file that is
+			// missing. Saying so plainly beats an empty successful read.
+			return result(map[string]any{
+				"observed": map[string]seen.Observation{},
+				"problems": 0,
+				"matches":  0,
+			}, fmt.Sprintf("no file under the root matches /%s/.", a.Grep), false)
+		}
+	} else {
+		specs = make([]read.Spec, 0, len(a.Specs))
+		for _, s := range a.Specs {
+			sp, err := read.ParseSpec(s)
+			if err != nil {
+				// A spec mrw cannot parse is the caller's mistake, reported as a
+				// tool error rather than served as an empty read: "nothing here"
+				// and "I could not understand you" are different answers.
+				return errorResult(fmt.Sprintf("%s: %v", s, err)), nil
+			}
+			specs = append(specs, sp)
+		}
 	}
 	// A CAPPED writer, not a size check afterwards. The first version of this
 	// buffered the whole read and then measured it. That refused correctly and
@@ -185,6 +219,15 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		//
 		// It stays isError. That is the whole difference between paging and
 		// truncation: the caller must be able to see it received a part.
+		// ADR-017: a grep too large to SERVE still answers, with the addresses
+		// it found. firstPage cannot help here — it needs one open-ended spec
+		// and a walk produces many across many files — so without this branch
+		// an oversized grep would fall to the flat refusal below, which is the
+		// dead end ADR-014 removed reappearing through a new door, firing on
+		// this population's ordinary case rather than an exotic one.
+		if walked {
+			return matchIndex(specs, cw), nil
+		}
 		if page, ok := firstPage(root, a.Specs, cw); ok {
 			return page, nil
 		}
@@ -526,4 +569,127 @@ func pagedResult(report string, observed map[string]seen.Observation, problems i
 		// separating this from what ADR-011 refused.
 		IsError: true,
 	}
+}
+
+// grepSpecs turns a pattern and some paths into the specs read.Run serves, by
+// calling read.Walk — the same primitive `mrw read --grep` calls, in the same
+// order (cmd/mrw/main.go:510). Nothing here reimplements matching.
+//
+// The refusals mirror the CLI's, deliberately. A grammar the two surfaces
+// disagree on is the class ADR-016 exists to prevent, and the caller who hits
+// one should get the same sentence whichever surface it is on.
+func grepSpecs(root string, paths []string, pattern string, exclude []string) ([]read.Spec, error) {
+	for _, p := range paths {
+		sp, err := read.ParseSpec(p)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %v", p, err)
+		}
+		if len(sp.Ranges) > 0 {
+			// cmd/mrw/main.go:499, word for word: the caller has said both
+			// "look here" and "look for this", and mrw will not pick one.
+			return nil, fmt.Errorf("%s: a range and grep are two answers to one question", p)
+		}
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("grep %q: %v", pattern, err)
+	}
+	specs, _, err := read.Walk(root, paths, read.WalkOptions{Pattern: re, Exclude: exclude})
+	if err != nil {
+		return nil, err
+	}
+	return specs, nil
+}
+
+// matchIndex is the answer to a grep whose CONTENT will not fit: the addresses,
+// with no content at all.
+//
+// One entry per matching file, in the walk's own form — read.Walk returns a
+// spec per file addressed by the pattern (internal/read/walk.go:219), so this
+// hands back what the walk produced rather than inventing a shape. Each entry
+// is a valid spec, so the caller's next call is this call's output.
+//
+// NOTHING IS RECORDED. The index served no lines, so it licenses no write; an
+// index that licensed edits to files the caller never saw would be ADR-002's
+// guarantee spent on a convenience.
+func matchIndex(specs []read.Spec, cw *capped) callToolResult {
+	entries := make([]string, 0, len(specs))
+	for _, sp := range specs {
+		// Each entry is the file plus the address the walk gave it, which is
+		// the pattern. Guarded because a spec with no range would otherwise
+		// index the file as a whole read and quietly promise far more than
+		// the caller asked for.
+		if len(sp.Ranges) == 0 {
+			entries = append(entries, sp.Raw)
+			continue
+		}
+		entries = append(entries, sp.Raw+":"+sp.Ranges[0].Text)
+	}
+
+	// The index itself can overflow, and refusing here would be the same dead
+	// end one level down — so it pages BY FILE. A list's natural continuation
+	// is "resume after this entry", the way a file's is "resume at this line".
+	//
+	// Grown forwards rather than halved: halving discards entries that would
+	// have fitted, and an index that is needlessly short costs the caller a
+	// round trip for nothing.
+	budget := cw.limit - indexOverhead
+	shown, used := entries, 0
+	for i, e := range entries {
+		if used+len(e)+1 > budget {
+			shown = entries[:i]
+			break
+		}
+		used += len(e) + 1
+	}
+	next := ""
+	if len(shown) < len(entries) {
+		next = specs[len(shown)].Raw
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "-- INDEX: %d file(s) match, and their CONTENT would have been about %d bytes against a limit of %d.\n",
+		len(entries), cw.written, cw.limit)
+	b.WriteString("-- No content was served and nothing was recorded, so no write is licensed by this.\n")
+	if next != "" {
+		fmt.Fprintf(&b, "-- Showing the first %d. Send the same grep with paths starting at %q to continue.\n", len(shown), next)
+	}
+	b.WriteString("-- Send any of these back as specs to read it:\n")
+	for _, e := range shown {
+		b.WriteString(e)
+		b.WriteByte('\n')
+	}
+
+	structured := map[string]any{
+		"matches":    len(entries),
+		"index":      shown,
+		"next_index": next,
+	}
+	raw, err := json.Marshal(structured)
+	if err != nil {
+		return errorResult("could not encode the index: " + err.Error())
+	}
+	return callToolResult{
+		Content: []contentBlock{
+			{Type: "text", Text: b.String()},
+			{Type: "text", Text: string(raw)},
+		},
+		StructuredContent: json.RawMessage(raw),
+		// An index is not the content that was asked for, so it stays an
+		// error for the same reason a page does: the caller must be able to
+		// see it did not get what it requested.
+		IsError: true,
+	}
+}
+
+// indexOverhead reserves room for the prose around the entries, so the entry
+// budget is not spent on the sentence explaining the entries.
+const indexOverhead = 512
+
+func indexLen(entries []string) int {
+	n := 0
+	for _, e := range entries {
+		n += len(e) + 1
+	}
+	return n
 }

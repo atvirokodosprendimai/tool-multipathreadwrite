@@ -582,3 +582,137 @@ func TestAnOversizedReadStillReadsAsIncomplete(t *testing.T) {
 		t.Error("neither content block tells a human reader that more remains")
 	}
 }
+
+// grepTree plants n files under the root, each carrying matchLines lines that
+// contain the needle, plus one filler line so a file is never made ENTIRELY of
+// matches by construction.
+//
+// ⚠ matchLines, not padding. A grep serves only the lines that MATCH, so a file
+// of 900 filler lines and one needle costs 19 bytes to serve, not 45,000. The
+// first version of this fixture padded and could not overflow the cap at any
+// size — the test failed for a reason that had nothing to do with the code, and
+// that is worth a comment because the same instinct will return.
+func grepTree(t *testing.T, n, matchLines int) string {
+	t.Helper()
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	for i := 0; i < n; i++ {
+		var b strings.Builder
+		b.WriteString("a line that matches nothing\n")
+		for j := 0; j < matchLines; j++ {
+			b.WriteString("the NEEDLE is here\n")
+		}
+		name := filepath.Join(root, fmt.Sprintf("document%05d.csv", i))
+		if err := os.WriteFile(name, []byte(b.String()), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+func TestGrepServesWhatItFindsAndRecordsIt(t *testing.T) {
+	root := grepTree(t, 3, 2)
+
+	res := call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE"})
+	if res["isError"] == true {
+		t.Fatalf("a grep that fits should not be an error: %v", res)
+	}
+	all := fmt.Sprint(res["content"])
+	for i := 0; i < 3; i++ {
+		if want := fmt.Sprintf("document%05d.csv", i); !strings.Contains(all, want) {
+			t.Errorf("the grep did not serve %s:\n%s", want, all)
+		}
+	}
+	if !strings.Contains(all, "the NEEDLE is here") {
+		t.Errorf("the grep found files but served no matching content:\n%s", all)
+	}
+
+	// What was SERVED is what is licensed. The ledger must know these files,
+	// or a grep would be a read that teaches mrw nothing.
+	obs := structured(t, res)["observed"]
+	if obs == nil || len(obs.(map[string]any)) != 3 {
+		t.Errorf("a served grep recorded %v, want 3 files observed", obs)
+	}
+}
+
+func TestGrepRefusesARangedSpec(t *testing.T) {
+	root := grepTree(t, 1, 1)
+
+	res := call(t, root, "mrw_read", map[string]any{
+		"specs": []any{"document00000.csv:1-2"},
+		"grep":  "NEEDLE",
+	})
+	if res["isError"] != true {
+		t.Fatalf("a range plus a grep should be refused, got %v", res)
+	}
+	// The CLI's own sentence, so a caller hitting this on either surface reads
+	// the same explanation (cmd/mrw/main.go:499).
+	if all := fmt.Sprint(res["content"]); !strings.Contains(all, "two answers to one question") {
+		t.Errorf("the refusal does not give the CLI's reasoning:\n%s", all)
+	}
+}
+
+// TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd is ADR-017's Enforced-by.
+//
+// It drives a REAL overflow rather than constructing a result, and it asserts
+// the index is USABLE — every entry parses as a spec, and sending one back
+// actually reads that file. An index of the wrong files, or of strings that are
+// not specs, would pass any check that only asked whether an index key exists.
+func TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd(t *testing.T) {
+	// Enough content that serving every match blows the cap, with few enough
+	// files that the INDEX itself still fits — that is the case under test.
+	root := grepTree(t, 60, 400)
+
+	res := call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE"})
+	if res["isError"] != true {
+		t.Fatal("an oversized grep must still read as an error — a partial answer that looks whole is what this project refuses")
+	}
+	st := structured(t, res)
+	if got := st["matches"]; got == nil || int(got.(float64)) != 60 {
+		t.Errorf("the index reports %v matches, want 60", got)
+	}
+	idx, ok := st["index"].([]any)
+	if !ok || len(idx) == 0 {
+		t.Fatalf("an oversized grep returned no index: %v", st)
+	}
+
+	// No content, and therefore no licence.
+	if obs := st["observed"]; obs != nil && len(fmt.Sprint(obs)) > 4 {
+		t.Errorf("the index served no content but recorded %v — that would license writes to files the caller never saw", obs)
+	}
+
+	// THE ENTRIES ARE SPECS. Send the first one back and it must read.
+	first := fmt.Sprint(idx[0])
+	back := call(t, root, "mrw_read", map[string]any{"specs": []any{first}})
+	if back["isError"] == true {
+		t.Fatalf("index entry %q is not a spec this tool accepts: %v", first, back)
+	}
+	if all := fmt.Sprint(back["content"]); !strings.Contains(all, "NEEDLE") {
+		t.Errorf("reading index entry %q served no match:\n%s", first, all)
+	}
+}
+
+func TestAnIndexTooLargeToServePagesByFile(t *testing.T) {
+	// Enough MATCHING FILES that the list of addresses alone exceeds the cap.
+	// Each entry is roughly 30 bytes, so this needs many files rather than
+	// large ones — which is exactly the Desktop folder this record is for.
+	root := grepTree(t, 8000, 1)
+
+	res := call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE"})
+	st := structured(t, res)
+	idx, ok := st["index"].([]any)
+	if !ok {
+		t.Fatalf("no index came back: %v", st)
+	}
+	if len(idx) >= 9000 {
+		t.Fatalf("the index served all %d entries; this fixture exists to overflow it", len(idx))
+	}
+	next, _ := st["next_index"].(string)
+	if next == "" {
+		t.Fatal("the index was cut short and did not say where to resume — that is ADR-014's dead end, one level down")
+	}
+	// The continuation names a real file, not an opaque token.
+	if _, err := os.Stat(filepath.Join(root, next)); err != nil {
+		t.Errorf("next_index %q is not a path under the root: %v", next, err)
+	}
+}
