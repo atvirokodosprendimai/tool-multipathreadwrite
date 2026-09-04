@@ -41,8 +41,56 @@ func TestEverySubcommandReachesTheAgentFacingGuide(t *testing.T) {
 		// The backticked invocation, not the bare word: "check" and "read"
 		// are ordinary English and occur throughout this file in prose, so a
 		// bare-word check would pass for a subcommand nobody documented.
-		if want := "`mrw " + c.Name; !strings.Contains(guide, want) {
+		//
+		// A TOKEN BOUNDARY is required after the name, because the plain
+		// prefix form has a silent false positive: "`mrw stat" is contained
+		// in "`mrw stats`", so adding a `stat` subcommand tomorrow would be
+		// reported as documented by the sentence documenting a different
+		// command. That is precisely the future drift this gate exists to
+		// catch, so the gate must not be the thing that hides it. Found by an
+		// independent review of #79.
+		if !documented(guide, c.Name) {
 			t.Errorf("AGENTS.md never mentions %q — an agent loading the centralised skill is taught mrw without it (issue #73)", "mrw "+c.Name)
 		}
+	}
+}
+
+// documented reports whether the guide invokes the named subcommand: the
+// backticked form, followed by something that ends the name rather than
+// continuing it.
+func documented(guide, name string) bool {
+	const prefix = "`mrw "
+	for i := 0; ; {
+		j := strings.Index(guide[i:], prefix+name)
+		if j < 0 {
+			return false
+		}
+		after := i + j + len(prefix) + len(name)
+		// End of file counts as a boundary; otherwise the next byte must not
+		// extend the command name.
+		if after >= len(guide) || !isNameByte(guide[after]) {
+			return true
+		}
+		i = after
+	}
+}
+
+// isNameByte reports whether b could continue a subcommand name. Names are
+// lower-case ASCII words, so anything else — a closing backtick, a space, a
+// newline — ends one.
+func isNameByte(b byte) bool {
+	return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9' || b == '-' || b == '_'
+}
+
+// TestTheGateDoesNotAcceptAPrefixOfAnotherCommand pins the false positive the
+// review found, because the plain strings.Contains form passed this and would
+// have gone on passing for a subcommand nobody had written a word about.
+func TestTheGateDoesNotAcceptAPrefixOfAnotherCommand(t *testing.T) {
+	const guide = "run `mrw stats` to see what became of your plans"
+	if !documented(guide, "stats") {
+		t.Error("documented() does not recognise the command the guide actually invokes")
+	}
+	if documented(guide, "stat") {
+		t.Error("documented() accepts `stat` because `stats` is documented — the prefix hole this test exists to keep closed")
 	}
 }

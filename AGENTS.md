@@ -215,19 +215,25 @@ and #73, one release apart.
 - **`mrw check`** runs the project's check on its own, scoped to the working
   set or to paths you name. `mrw write --check` is the same runner bolted onto
   a write; this is it without the write, for when you want the verdict again
-  without changing anything.
+  without applying another plan. ⚠ It is NOT read-only: the declared command is
+  whatever the project declared, run with `sh -c` in the checkout, so a check
+  that generates code or writes fixtures does exactly that.
 - **`mrw stats`** prints what became of the plans this checkout has been given
-  — how many applied, and how many were refused for parse, for a failed guard,
-  or for an unread line. Reach for it when you want to know whether the format
-  is costing you attempts, rather than guessing.
+  — how many applied, how many were refused because the document did not PARSE,
+  and how many parsed but failed to APPLY. That last one is deliberately one
+  bucket and not three: a failed guard, an unread line and a path outside the
+  root all land in it, because splitting them would mean matching on free-form
+  reason text that changes. Reach for it to see whether the format is costing
+  you attempts, rather than guessing.
 - **`mrw iter`** shows or edits the working set: the specs mrw is currently
   carrying. `mrw seen` prints the state directory and the read-before-modify
   ledger — the record of which lines you have actually been served, which is
   what licenses a write. When a write is refused for a line you believe you
   read, `mrw seen` is the file that settles it.
 
-State lives outside the tree (ADR-004), so none of these write to your
-checkout.
+mrw's OWN state lives outside the tree (ADR-004), so none of these commands
+writes to your checkout of its own accord — with the one exception above, where
+`mrw check` runs a command the project chose.
 
 See `CONTRIBUTING.md` for the gate list and the release process, and `README.md`
 for the full interface.

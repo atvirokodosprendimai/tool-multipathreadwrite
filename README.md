@@ -348,9 +348,10 @@ back to its own working directory otherwise.
 **Claude Code sets that variable**, naming the project you are working in, so
 the block above serves the right tree.
 
-**Claude Desktop does not set it and has no project concept**, so the fallback
-applies and the server binds to whatever directory Desktop launched it in.
-Reproduced 2026-09-04 under Desktop's launch condition:
+**A host that does not set it binds to its own working directory instead.** That
+is the case to watch, because the fallback is silent and the resulting root can
+be anything. Claude Desktop is the one reported in practice (issue #75).
+The fallback itself, shown directly — this demonstrates mrw, not Desktop:
 
 ```sh
 $ cd / && env -u CLAUDE_PROJECT_DIR mrw mcp
@@ -376,13 +377,13 @@ absolute `--root`, and use an absolute `command` while you are there:
 }
 ```
 
-**Check the binary the host actually launches.** The handshake only teaches the
-plan format from the first release AFTER v0.0.20; every released binary up to
-and including v0.0.20 returns a zero-length `instructions` string, so a host
-registered against one gets a server that works and explains nothing. Build
-from source until then. `"command"` is often a path you installed to once and
-forgot, so run `--version` on that exact path rather than on whatever `mrw`
-your shell resolves.
+**Check the binary the host actually launches.** MCP first shipped in v0.0.19.
+Neither v0.0.19 nor v0.0.20 sends `instructions` at all — the field is absent
+from the handshake, so a host registered against either gets a server that
+works and teaches nothing. No released tag yet contains the format-teaching
+handshake; build from source until the next release. `"command"` is often a
+path you installed to once and forgot, so run `--version` on that exact path
+rather than on whatever `mrw` your shell resolves.
 
 The trade is that one entry serves one fixed checkout. For several projects,
 add several entries under distinct names.
