@@ -2700,6 +2700,22 @@ ctx=$(hook55 s9m Bash '{"command":"env -C /nowhere -C docs cat adr/x.md"}' | ctx
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "a repeated env --chdir delivers: the last value is tried, not only the two joined" \
   || bad "a repeated env --chdir lost the rule: $ctx"
+# Each env takes the LAST of its own --chdir flags, so the candidate list grows
+# by two per invocation and not by doubling: the first cut offered every value
+# against every directory so far, which a review measured at 262,144 candidates
+# from eighteen flags — enough to spend the 10 s budget and deliver nothing.
+many55=$(for i in $(seq 1 40); do printf -- '-C d%s ' "$i"; done)
+( perl -e 'alarm shift; exec @ARGV' 1 bash -c "$(declare -f mk55 hook55); R55='$R55'; HOOK='$HOOK'; hook55 s9n Bash '{\"command\":\"env $many55 -C docs cat adr/x.md\"}'" > "$R55/many.out" ); want 0 "$?" "forty repeated --chdir flags answer inside a 1 s alarm: the directory list is linear, not exponential"
+grep -q 'SCOPED RULE BODY 55' <<<"$(ctx55 < "$R55/many.out")" && ok "and the last value still wins, so the rule is delivered" || bad "forty flags lost the rule: $(head -c 120 "$R55/many.out")"
+# The boundary, asserted where it bites. The hook reads a command heuristically,
+# so a subshell that changes directory prints a header it cannot place, and a
+# read whose output is redirected prints no header into the result at all.
+# Both deliver NOTHING, which is what the record now says rather than claiming
+# the served header always makes up for an unparsed command.
+ctx=$(hook55 s9o Bash '{"command":"(cd docs && mrw read adr/x.md:1)"}' '{"stdout":"==> adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' | ctx55)
+[ -z "$ctx" ] && ok "a subshell that changes directory delivers nothing: its header names a path this reading cannot place" || bad "the subshell case delivered after all, so the boundary is wrong: $ctx"
+ctx=$(hook55 s9p Bash '{"command":"mrw read docs/adr/x.md:1 > /tmp/out55"}' '{"stdout":""}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a redirected read still delivers for the operand the command names" || bad "a redirected read lost its named operand: $ctx"
 # A shell operand may itself contain a colon: `note:1` is a filename, and
 # `x.md:1-3` is an mrw spec whose file is the part before it. Both forms are
 # offered and only the one that exists survives.

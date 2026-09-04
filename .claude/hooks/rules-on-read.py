@@ -123,7 +123,7 @@ def run(data):
     # what the server serves.
     if tool == "Bash":
         dirs, mrw_roots, cands = bash_paths(inp.get("command") or "")
-        bases = [os.path.join(cwd, d) for d in dirs]
+        bases = list(dict.fromkeys(os.path.join(cwd, d) for d in dirs))
         served_bases = bases + [os.path.join(b, r) for b in bases for r in mrw_roots]
     else:
         cands, bases = candidates(tool, inp), [root]
@@ -200,11 +200,15 @@ def bash_paths(cmd):
     is returned rather than one: a false one delivers a rule early at worst.
 
     ⚠ This is a heuristic reading of a shell command, not a shell parser. It
-    knows quoting (via `shlex`), control operators, assignments, `cd` and the
-    two flags above. A shape outside that — a subshell, a variable holding the
-    path, a here-doc — yields no candidate from the COMMAND, and the rule then
-    arrives only if mrw's own `==>` header names the file in the RESULT. That
-    boundary is chosen, and ADR-022's Out of Scope says so."""
+    knows quoting, control operators, assignments, `cd` and the two flags above.
+    A shape outside that — a subshell that changes directory, a variable holding
+    the path, a here-doc — yields no candidate from the COMMAND, and the served
+    `==>` header only makes up for it when the header reaches the RESULT and its
+    path resolves against a directory this reading did recognise. Neither is
+    guaranteed: `(cd docs && mrw read adr/x.md)` prints a header this hook
+    cannot place, and a redirected or captured read prints none at all. Those
+    reads deliver nothing, the session falls back to reading the rule itself,
+    and ADR-022's Out of Scope says so."""
     try:
         toks = shlex.split(cmd)
     except ValueError:
@@ -241,36 +245,47 @@ def bash_paths(cmd):
         return None, j
 
     def scan(names, pat):
-        """Every value of `pat` given to any program called one of `names`,
-        in order, reading only that program's own flags — a bare word ends
-        them, because that is the subcommand or the wrapped command. Every
-        occurrence is read, not just the first: `mrw -C a read x ; mrw -C b
-        read y` is two roots, and the second read's header is relative to the
+        """The values of `pat` given to each program called one of `names`,
+        one list per invocation, reading only that program's own flags — a bare
+        word ends them, because that is the subcommand or the wrapped command.
+        Every occurrence is read, not just the first: `mrw -C a read x ; mrw -C
+        b read y` is two calls, and the second read's header is relative to the
         second."""
         found = []
         for n, t in enumerate(toks):
             if os.path.basename(t) not in names:
                 continue
-            j = n + 1
+            here, j = [], n + 1
             while j < len(toks):
                 v, j = flag_value(j, pat)
                 if v:
-                    found.append(v)
+                    here.append(v)
                 elif v is None and not toks[j].startswith("-") and not _ASSIGN.match(toks[j]):
                     break
                 j += 1
+            found.append(here)
         return found
 
     # env --chdir runs the command elsewhere, so it moves the base for the
     # operands too; mrw's --root moves only the paths mrw prints. Both are read
     # only for the program that owns the flag: -C means something else to git,
     # make and tar, and a program this hook does not recognise gets neither.
-    # Every --chdir is offered against every directory so far, because real env
-    # takes the LAST one relative to where it started, while a cd before it
-    # composes — and one of those two is right.
-    for chdir in scan(_ENV_NAMES, _ENV_CHDIR):
-        dirs = dirs + [os.path.join(d, chdir) for d in dirs]
-    mrw_roots = scan(_MRW_NAMES, _MRW_ROOT)
+    #
+    # One `env` takes the LAST of its own --chdir flags, relative to where it
+    # started; a `cd` or a nested `env` before it composes. Both readings are
+    # offered — the running composition, and each value alone — which is two
+    # candidates per invocation. ⚠ The first cut of this offered every value
+    # against every directory so far, which DOUBLES the list per flag: a review
+    # measured 262,144 candidates from eighteen flags, enough to spend the 10 s
+    # budget and deliver nothing. Linear, not exponential.
+    cur = dirs[-1]
+    for here in scan(_ENV_NAMES, _ENV_CHDIR):
+        if not here:
+            continue
+        cur = os.path.join(cur, here[-1])
+        dirs.append(cur)
+        dirs.append(here[-1])
+    mrw_roots = [v for here in scan(_MRW_NAMES, _MRW_ROOT) for v in here]
     out = list(composite)
     for n, t in enumerate(toks):
         if n in taken or not t or t.startswith("-"):

@@ -13,9 +13,10 @@
 ## Goal
 
 A session in this repository receives a path-scoped rule when a Bash, Write, `mrw_read` or `mrw_write`
-call touches a file its globs match — from a subdirectory, through a grep, for a quoted plan path —
-once per session while its claim can be filed and on every call when it cannot, and the hook can
-never take the turn down.
+call touches a file its globs match and the call's own shape is one this hook reads — from a
+subdirectory, through a grep, for a quoted plan path — once per session while its claim can be filed
+and on every call when it cannot, and the hook can never take the turn down. A shape outside that
+reading, such as a subshell that changes directory, delivers nothing and is named in the record.
 
 ## Affected Files
 
@@ -146,10 +147,14 @@ and touches no engine code.
 - 2026-09-04 · fddfb55 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: stop splitting control operators out of the tokens. §55's `;mrw` row fails: the second call arrives as one token and its root is never seen · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · fddfb55 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: compose repeated `env --chdir` values only, instead of offering each. §55's `env -C /nowhere -C docs` row fails, where real env takes the last · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · fddfb55 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: drop the composite token from the candidates. §55's quoted `semi;colon.md` row fails: splitting the operator loses the filename · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · c4fd825 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: offer every `--chdir` against every directory so far, the exponential first cut. §55's forty-flag row fails on the alarm (exit 142) and the rule is lost · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · c4fd825 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: take the FIRST `--chdir` of an invocation instead of the last, which is not what env does. §55's `-C /nowhere -C docs` and forty-flag rows both fail · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 
 ## Invariants
 
 - A rule is delivered once per session per agent per project while its claim can be filed and its envelope reaches the harness, and on every matching call when a claim cannot be filed — never on none — whichever of the four tools read the file.
+- A shape the reading does not cover delivers nothing rather than something wrong, and the record names it: the served header makes up for an unparsed command only when its path resolves against a directory the reading recognised.
+- The candidate directory list is linear in the number of `--chdir` flags, never exponential.
 - The project root is never assumed to be `cwd`; a Bash operand resolves from where the command ran, a header mrw printed from any root an mrw in that command was given, every other path from the project root.
 - A plan header is tokenised as `mrw` tokenises it, pinned against the built binary; whether mrw accepts the plan is not mirrored, so a refused plan delivers early and never silently.
 - The hook exits 0 whatever happens.
@@ -201,3 +206,4 @@ build. That is a different tool, and the record's Alternatives say why it was no
   ```
 - 2026-09-04 · 0a46d2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:32990
 - 2026-09-04 · fddfb55* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:32437
+- 2026-09-04 · c4fd825* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:83902

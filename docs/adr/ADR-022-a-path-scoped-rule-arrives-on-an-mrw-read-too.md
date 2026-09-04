@@ -119,10 +119,21 @@ because a quoted operand may hold one (`cat 'a;b.txt'`).
 
 **This is a heuristic reading of a shell command, not a shell parser**, and the boundary is chosen
 rather than discovered: it knows quoting, control operators, assignments, `cd`, and the two flags
-above. A shape outside that — a subshell, a variable holding the path, a here-doc — yields no
-candidate from the COMMAND, and the rule arrives only if mrw's own `==>` header names the file in the
-RESULT, which covers every read mrw itself performed. Shapes found later are BACKLOG entries, not
-new decisions.
+above. A shape outside that — a subshell that changes directory, a variable holding the path, a
+here-doc — yields no candidate from the COMMAND, **and the served `==>` header does not always make
+up for it**: the header is relative, so it delivers only when it reaches the RESULT and its path
+resolves against a directory this reading recognised. `(cd docs && mrw read adr/x.md)` prints a
+header the hook cannot place, and a read whose output is redirected prints none into the result at
+all. Those reads deliver nothing and the session falls back to reading the rule itself, which
+`AGENTS.md` and `CLAUDE.md` now say in the same words. ⚠ An earlier draft of this paragraph claimed
+the header covered every read mrw performed; it does not, and the two rows below hold it to the
+narrower claim. Shapes found later are BACKLOG entries, not new decisions.
+
+**Each `env` takes the last of its own `--chdir` flags**, so the directory list grows by two per
+invocation — the running composition and that value alone — and not by doubling. The first cut
+offered every value against every directory so far, which a review measured at 262,144 candidates
+from eighteen flags: enough to spend the 10 s budget and deliver nothing, a silence reached through
+the very generosity that was meant to prevent one.
 
 So: a session that has `cd`-ed into `internal/` still gets `../scripts/contract.sh`'s rule,
 `cd docs && mrw read --grep` delivers for the `adr/…` headers it printed, `mrw -C .. read docs/adr/x.md`
@@ -256,14 +267,14 @@ and the wording.
 - Making the rules unconditional instead (permanent: boundary: Alternatives)
 - Windows behaviour of the hook (deferred: docs/adr/BACKLOG.md — the rules-hook-on-Windows entry)
 - Matching the shapes outside the enumerated grammar — nested braces, a trailing `dir/`, negation — the way the native matcher would (permanent: boundary: Decision 5 — here they are literal, a directory, and absent; what the native matcher does with them is unmeasured)
-- Shell shapes outside the heuristic reading — a subshell, a variable holding the path, a here-doc (permanent: boundary: Decision 3 — the command yields no candidate for them and the served `==>` header is what delivers; a shell parser inside a hook is a larger thing than the rule it delivers)
+- Shell shapes outside the heuristic reading — a subshell that changes directory, a variable holding the path, a here-doc (permanent: boundary: Decision 3 — no candidate comes from the command, and the served `==>` header covers it only when its path resolves against a directory the reading recognised; §55 pins the subshell case as a non-delivery so the limit is asserted, not assumed)
 
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | The hook is wired to a path that does not exist in a clone | Low | High | §55 asserts the settings entry names an existing file; the Enforced-by runs the same file |
-| A plan or command large enough to make the hook slow | Low | Med | a table matcher over segments and a two-pointer walk inside each (§55: 300 globstars × 400 directories, and 24 stars in one segment, each inside a 1 s alarm), no regex over globs, stdin read whole, the 10 s timeout |
+| A plan or command large enough to make the hook slow | Low | Med | a table matcher over segments and a two-pointer walk inside each (§55: 300 globstars × 400 directories, and 24 stars in one segment, each inside a 1 s alarm); a directory list linear in the `--chdir` count (§55: forty flags inside a 1 s alarm); no regex over globs; stdin read whole; the 10 s timeout |
 | Two parallel hooks both deliver | Med without the claim | Low | atomic claim files; §55 races two hooks and requires one delivery |
 | The hook masks a Claude Code fix that makes it redundant | Low | Low | it delivers once per rule per session, as the harness does; a double delivery would show as a repeat |
 | The tokeniser drifts from `internal/plan`'s `splitHeader` | Med, over time | Low | §55's differential rows; a drift is a defect here, not there — ADR-001 owns the grammar. Acceptance is not mirrored, so a drift can only mis-pick a path, never suppress a plan |
