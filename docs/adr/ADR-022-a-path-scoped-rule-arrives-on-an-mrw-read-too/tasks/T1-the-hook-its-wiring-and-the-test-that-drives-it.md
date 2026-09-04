@@ -33,11 +33,12 @@ never take the turn down.
    `CLAUDE_PROJECT_DIR` = the project delivers the rule for `../docs/adr/x.md`; the current hook
    looks for rules under `cwd` and delivers nothing. [proof: acceptance]
 2. [S2] Read the project root from `$CLAUDE_PROJECT_DIR`, else walk up from `cwd` to the nearest
-   `.claude/rules`, stopping at the first `.git`; resolve a Bash command's operands from where the
-   command ran (`cwd`, moved by a leading `cd` and by `env --chdir`) and the headers mrw printed for
-   it from EVERY root any mrw in the command was given — found by mrw's NAME anywhere in it, before
-   the subcommand — and from the command's own directory besides; every other tool's paths from the
-   project root, and relativise to the root. [proof: mutation]
+   `.claude/rules`, stopping at the first `.git`; resolve a Bash command's operands — each offered
+   both as written and with an mrw range stripped — from EVERY directory the command may have run in
+   (`cwd`, a leading `cd`, every `env --chdir`), and the headers mrw printed from those crossed with
+   EVERY root any mrw in the command was given, mrw found by NAME anywhere in it and control
+   operators split out of the tokens; every other tool's paths from the project root, and relativise
+   to the root. [proof: mutation]
 3. [S3] Take served paths from every `==> path  NL  NB  sha …` header in the tool result as well as
    the named ones, the path read back from that suffix, so a grep delivers and any spaces survive.
    [proof: mutation]
@@ -142,6 +143,9 @@ and touches no engine code.
 - 2026-09-04 · 0817274 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S6: put the directory and the create back in ONE try block, so `FileExistsError` from `makedirs` reads as a claim. §55's file-at-the-claim-directory row fails: both calls deliver nothing · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 0a46d2c · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: keep only the FIRST mrw root and resolve every served header against it. §55's two-roots row loses the second read's rule, and its false-mrw-token row loses the real read's · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 0a46d2c · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: strip an mrw range from every Bash token instead of offering both forms. §55's `cat docs/adr/note:1` row fails: a filename with a colon is cut at it · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · fddfb55 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: stop splitting control operators out of the tokens. §55's `;mrw` row fails: the second call arrives as one token and its root is never seen · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · fddfb55 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: compose repeated `env --chdir` values only, instead of offering each. §55's `env -C /nowhere -C docs` row fails, where real env takes the last · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · fddfb55 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: drop the composite token from the candidates. §55's quoted `semi;colon.md` row fails: splitting the operator loses the filename · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 
 ## Invariants
 
@@ -196,3 +200,4 @@ build. That is a different tool, and the record's Alternatives say why it was no
   ./scripts/contract.sh: line 2695: `  || bad "a repeated root did not take the last value: $ctx"'
   ```
 - 2026-09-04 · 0a46d2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:32990
+- 2026-09-04 · fddfb55* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:32437

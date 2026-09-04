@@ -95,12 +95,14 @@ hook fails to see loses it.
 
 **3. The project root is `$CLAUDE_PROJECT_DIR`, else the nearest `.claude/rules` above `cwd`, and
 the walk stops at the first `.git` it meets** — a nested repository does not inherit an enclosing
-one's rules. A Bash command's operands resolve from where the command ran: `cwd`, moved by a leading
-`cd DIR &&` and by `env`'s own `--chdir`, which runs the command elsewhere exactly as a `cd` does. The
-`==>` headers mrw printed resolve from the root MRW used, which its own `--root`/`-C` moves — read only
-for mrw itself, because `git`, `make` and `tar` all spell a different meaning the same way, and only
-before the subcommand, since after `read` the same `-C` is the integer context flag. A Write's path, an
-MCP spec and an MCP result resolve from the project root.
+one's rules. A Bash command's operands resolve from where the command ran, and EVERY directory the
+command may have run in is tried: `cwd`, a leading `cd DIR &&`, and `env`'s own `--chdir`, which runs
+the command elsewhere as a `cd` does — given twice, real `env` takes the last relative to where it
+started while a `cd` before it composes, so both readings are offered. The `==>` headers mrw printed
+resolve from those directories crossed with every root mrw was given by its own `--root`/`-C` — read
+only for mrw itself, because `git`, `make` and `tar` all spell a different meaning the same way, and
+only before the subcommand, since after `read` the same `-C` is the integer context flag. A Write's
+path, an MCP spec and an MCP result resolve from the project root.
 
 **mrw is found by NAME anywhere in the command, not by position, and EVERY root any mrw was given is
 tried.** The positional reading this replaced had to know every wrapper and every wrapper's own flags,
@@ -110,7 +112,17 @@ missing rule, and a name needs no vocabulary. Taking one root was the same mista
 command may call mrw twice with two roots, and a token that merely spells mrw may name a third that no
 call used, so choosing one resolves the real read's header against the wrong base and loses its rule.
 Every root is offered, and the command's own directory besides. A false base costs an early delivery;
-a missing one costs the rule, and Decision 2 has already chosen between those.
+a missing one costs the rule, and Decision 2 has already chosen between those. The same answer holds
+for a shell operator with no space around it: `read x.md:1;mrw -C ..` arrives as the token `;mrw`, so
+operators are split out of the tokens the scan reads, while the composite token stays a candidate path
+because a quoted operand may hold one (`cat 'a;b.txt'`).
+
+**This is a heuristic reading of a shell command, not a shell parser**, and the boundary is chosen
+rather than discovered: it knows quoting, control operators, assignments, `cd`, and the two flags
+above. A shape outside that — a subshell, a variable holding the path, a here-doc — yields no
+candidate from the COMMAND, and the rule arrives only if mrw's own `==>` header names the file in the
+RESULT, which covers every read mrw itself performed. Shapes found later are BACKLOG entries, not
+new decisions.
 
 So: a session that has `cd`-ed into `internal/` still gets `../scripts/contract.sh`'s rule,
 `cd docs && mrw read --grep` delivers for the `adr/…` headers it printed, `mrw -C .. read docs/adr/x.md`
@@ -244,6 +256,7 @@ and the wording.
 - Making the rules unconditional instead (permanent: boundary: Alternatives)
 - Windows behaviour of the hook (deferred: docs/adr/BACKLOG.md — the rules-hook-on-Windows entry)
 - Matching the shapes outside the enumerated grammar — nested braces, a trailing `dir/`, negation — the way the native matcher would (permanent: boundary: Decision 5 — here they are literal, a directory, and absent; what the native matcher does with them is unmeasured)
+- Shell shapes outside the heuristic reading — a subshell, a variable holding the path, a here-doc (permanent: boundary: Decision 3 — the command yields no candidate for them and the served `==>` header is what delivers; a shell parser inside a hook is a larger thing than the rule it delivers)
 
 ## Risks
 

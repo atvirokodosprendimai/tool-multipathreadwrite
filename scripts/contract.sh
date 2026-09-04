@@ -2652,7 +2652,7 @@ grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "a served header from an mrw run given an explicit --root resolves against that root, not against cwd" \
   || bad "an explicit mrw root lost the served header: $ctx"
 # mrw can be reached behind assignments and a wrapper word, and a root given
-# twice is last-wins, as the CLI's own string flag is.
+# twice is not chosen between: both are tried, so neither reading loses a rule.
 ctx=$(hook55 s9d Bash '{"command":"env FOO=1 mrw -C .. read docs/adr/x.md:1"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' "$R55/proj/pkg" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "and an mrw reached behind env and an assignment is still the mrw whose root moves the header" \
@@ -2681,6 +2681,25 @@ ctx=$(hook55 s9i Bash '{"command":"mrw -C .. read README.md:1 ; mrw -C ../docs r
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && grep -q 'INLINE RULE BODY 55' <<<"$ctx" \
   && ok "two mrw calls with two roots both deliver: the headers of the second are not resolved against the first" \
   || bad "a second mrw root was lost: $ctx"
+# A control operator needs no whitespace around it, and `;mrw` arrives as one
+# token — which a scan by name misses unless the operators are split out.
+ctx=$(hook55 s9k Bash '{"command":"mrw -C .. read README.md:1;mrw -C ../docs read adr/x.md:1"}' '{"stdout":"==> README.md  1L  7B  sha 1234abcd\n==> adr/x.md  1L  9B  sha 5678efab\n"}' "$R55/proj/pkg" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+  && ok "and with no space before the operator, where the second call arrives as ';mrw'" \
+  || bad "an adjacent control operator hid the second mrw: $ctx"
+# A quoted operand may hold an operator of its own, so the composite token is
+# still offered as a path even though the scan reads the split parts.
+printf 'semi\n' > "$R55/proj/docs/adr/semi;colon.md"
+ctx=$(hook55 s9l Bash '{"command":"cat \"docs/adr/semi;colon.md\""}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+  && ok "a quoted filename containing a control operator is still read whole" \
+  || bad "splitting on the operator lost a quoted filename: $ctx"
+# Real `env` takes the LAST --chdir relative to where it started, while a `cd`
+# before it composes; both readings are offered, so neither loses the rule.
+ctx=$(hook55 s9m Bash '{"command":"env -C /nowhere -C docs cat adr/x.md"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+  && ok "a repeated env --chdir delivers: the last value is tried, not only the two joined" \
+  || bad "a repeated env --chdir lost the rule: $ctx"
 # A shell operand may itself contain a colon: `note:1` is a filename, and
 # `x.md:1-3` is an mrw spec whose file is the part before it. Both forms are
 # offered and only the one that exists survives.

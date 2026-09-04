@@ -66,6 +66,8 @@ _ENV_CHDIR = re.compile(r"^(?:--chdir|-C)(?:=(.*))?$")
 _ENV_NAMES = {"env"}
 # A leading NAME=VALUE is an assignment, not the command and not a path.
 _ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+# Shell control operators, which need no whitespace around them.
+_CTRL = re.compile(r"([;&|]+)")
 _MRW_NAMES = {"mrw", "mrw.exe"}
 _BOM = "\ufeff"
 _STATE_MAX_AGE = 7 * 24 * 3600
@@ -111,26 +113,22 @@ def run(data):
     if not rules:
         return None, []
     inp = data.get("tool_input") or {}
-    # One base per kind. A Bash command's operands are relative to where the
-    # command ran — cwd, moved by a leading `cd`; the headers mrw PRINTED for it
-    # are relative to the root mrw used, which its own --root/-C moves and which
-    # defaults to "."; a Write's path, an MCP spec and an MCP result are relative
-    # to the project the server serves. A path retried against another base names
-    # a file the call never touched.
+    # Every base a call plausibly used, because choosing one is how a path
+    # resolves against the wrong directory and its rule goes missing, and a
+    # base that was never used costs an early delivery at worst — the side
+    # Decision 2 chose. For Bash: the directory the command ran in (cwd, and
+    # every directory a leading `cd` or an `env --chdir` names), and for the
+    # headers mrw PRINTED, those directories crossed with every root any mrw in
+    # the command was given. For every other tool the project root, which is
+    # what the server serves.
     if tool == "Bash":
-        cd, mrw_roots, cands = bash_paths(inp.get("command") or "")
-        base = os.path.join(cwd, cd)
-        # EVERY root any mrw in the command was given, and the command's own
-        # directory besides. One command may call mrw twice with two roots, and
-        # a token that merely spells mrw may name a third; picking one of them
-        # is how a header gets resolved against the wrong base and its rule goes
-        # missing. Trying all of them costs an early delivery at worst, which is
-        # the side Decision 2 chose.
-        served_bases = [base] + [os.path.join(base, r) for r in mrw_roots]
+        dirs, mrw_roots, cands = bash_paths(inp.get("command") or "")
+        bases = [os.path.join(cwd, d) for d in dirs]
+        served_bases = bases + [os.path.join(b, r) for b in bases for r in mrw_roots]
     else:
-        cands, base = candidates(tool, inp), root
+        cands, bases = candidates(tool, inp), [root]
         served_bases = [root]
-    paths = resolve(root, [base], cands) | resolve(root, served_bases, served_paths(data.get("tool_response")))
+    paths = resolve(root, bases, cands) | resolve(root, served_bases, served_paths(data.get("tool_response")))
     if not paths:
         return None, []
     session = data.get("session_id") or "nosession"
@@ -181,13 +179,16 @@ def candidates(tool, inp):
 
 
 def bash_paths(cmd):
-    """The directory the command ran in relative to cwd (a leading `cd DIR &&`,
-    and `env --chdir`), the root an mrw call gave its own `--root`/`-C` flag,
-    and every other token of the command. Existence decides later which tokens
-    are paths; there is no token cap, because a cap is a silent way to lose the
-    last operand. The two directories are returned rather than joined in: an
-    operand is relative to where the command ran, and a path mrw PRINTED is
-    relative to mrw's root.
+    """Every directory the command may have run in relative to cwd, every root
+    an mrw call gave its own `--root`/`-C` flag, and every other token of the
+    command. Existence decides later which tokens are paths; there is no token
+    cap, because a cap is a silent way to lose the last operand.
+
+    Both lists are plural on purpose. `env -C a -C b` runs in `b`, a leading
+    `cd x &&` before it runs in `x/b`, and a command may call mrw twice with
+    two roots — so a single answer is a guess, and the wrong guess loses the
+    rule the real read served. Every candidate is returned and the caller tries
+    them all: a directory the command never used simply matches no file.
 
     mrw is found by NAME anywhere in the command rather than by position. The
     positional reading this replaced had to know every wrapper — `env`,
@@ -195,17 +196,35 @@ def bash_paths(cmd):
     eight valid shapes it still missed (`command --`, `time -p`, `nice -n 5`,
     `/usr/bin/env`, …), each of them a silently missing rule. Finding the name
     needs no vocabulary at all. A stray token that merely SPELLS mrw (`echo mrw
-    --root ..`) can name a root the command never used, and EVERY root found is
-    returned for that reason: the caller tries them all, so a false one delivers
-    a rule early at worst, where choosing one of them would have lost the rule
-    the real call served."""
+    --root ..`) can name a root the command never used, which is why every root
+    is returned rather than one: a false one delivers a rule early at worst.
+
+    ⚠ This is a heuristic reading of a shell command, not a shell parser. It
+    knows quoting (via `shlex`), control operators, assignments, `cd` and the
+    two flags above. A shape outside that — a subshell, a variable holding the
+    path, a here-doc — yields no candidate from the COMMAND, and the rule then
+    arrives only if mrw's own `==>` header names the file in the RESULT. That
+    boundary is chosen, and ADR-022's Out of Scope says so."""
     try:
         toks = shlex.split(cmd)
     except ValueError:
         toks = cmd.split()
-    cd = ""
+    # A control operator needs no whitespace around it: `read x.md:1;mrw -C ..`
+    # leaves `;mrw` as one token, and a name-based scan then misses the second
+    # call entirely. The scan reads the split parts; the composite token is kept
+    # only as a CANDIDATE PATH, because a quoted operand may legitimately hold
+    # one (`cat 'a;b.txt'`) — putting it back in the token stream would sit a
+    # bare word after a program name and end its flag scan.
+    split, composite = [], []
+    for t in toks:
+        parts = [p for p in _CTRL.split(t) if p]
+        split.extend(parts)
+        if len(parts) > 1:
+            composite.append(t)
+    toks = split
+    dirs = [""]
     if len(toks) >= 3 and toks[0] == "cd" and toks[2] in ("&&", ";"):
-        cd, toks = toks[1], toks[3:]
+        dirs, toks = ["", toks[1]], toks[3:]
     taken = set()
 
     def flag_value(j, pat):
@@ -246,10 +265,13 @@ def bash_paths(cmd):
     # operands too; mrw's --root moves only the paths mrw prints. Both are read
     # only for the program that owns the flag: -C means something else to git,
     # make and tar, and a program this hook does not recognise gets neither.
+    # Every --chdir is offered against every directory so far, because real env
+    # takes the LAST one relative to where it started, while a cd before it
+    # composes — and one of those two is right.
     for chdir in scan(_ENV_NAMES, _ENV_CHDIR):
-        cd = os.path.join(cd, chdir)
+        dirs = dirs + [os.path.join(d, chdir) for d in dirs]
     mrw_roots = scan(_MRW_NAMES, _MRW_ROOT)
-    out = []
+    out = list(composite)
     for n, t in enumerate(toks):
         if n in taken or not t or t.startswith("-"):
             continue
@@ -261,7 +283,7 @@ def bash_paths(cmd):
         stripped = _SPEC_SPLIT.split(t, 1)[0]
         if stripped != t and stripped:
             out.append(stripped)
-    return cd, mrw_roots, out
+    return dirs, mrw_roots, out
 
 
 def served_paths(resp):
