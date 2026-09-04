@@ -2359,6 +2359,34 @@ PY
 [ $? -eq 0 ] && ok "and no flag it calls the CLI's is an argument this tool has" \
              || bad "the routing tells callers to leave a surface that has the flag"
 
+# 53. ADR-018: a root nobody named, that cannot be a project, is refused.
+#
+# Issue #81. The reported symptom is a server bound to `/`, but the guard is on
+# the SOURCE: with no --root and no CLAUDE_PROJECT_DIR the server serves
+# whichever directory the host happened to launch it in, and everything
+# downstream is then correct about a tree nobody asked about — on a surface
+# that also writes.
+#
+# EXPLICITNESS IS THE LICENCE, and the third row is the one that matters: an
+# explicit --root / must still be SERVED. A guard that refused it would be a
+# list of paths somebody found distasteful rather than a rule, and it would
+# break the population whose documents really do live under a wide root.
+( cd / && env -u CLAUDE_PROJECT_DIR "$MRW" mcp < /dev/null > /dev/null 2>&1 )
+want 2 "$?" "a fallback onto the filesystem root is refused"
+
+out=$( cd / && env -u CLAUDE_PROJECT_DIR "$MRW" mcp < /dev/null 2>&1 )
+grep -q -- '--root' <<<"$out" \
+  && ok "and the refusal names the flag that fixes it" \
+  || bad "the refusal is a dead end, it does not say how to name a tree: $out"
+
+( cd / && env -u CLAUDE_PROJECT_DIR "$MRW" --root / mcp < /dev/null > /dev/null 2>&1 )
+want 0 "$?" "but an EXPLICIT --root / is still served — explicitness is the licence"
+
+R53=$(mktemp -d)
+( cd "$R53" && env -u CLAUDE_PROJECT_DIR "$MRW" mcp < /dev/null > /dev/null 2>&1 )
+want 0 "$?" "and an ordinary directory reached by fallback still serves"
+rm -rf "$R53"
+
 # 47. ADR-014 T1: an oversized read is a FIRST PAGE, and following it loses
 # nothing.
 #

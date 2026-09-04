@@ -227,6 +227,12 @@ this subcommand is not useful to run by hand.`,
 				explicitRoot = cmd.Root().String("root")
 			}
 			root, src := mcp.ResolveRoot(explicitRoot, os.LookupEnv)
+			// ADR-018: a root nobody named, that cannot be a project, is
+			// refused BEFORE the server starts rather than served correctly.
+			// Exit 2 is the usage status: the fix is an argument.
+			if err := mcp.CheckRoot(root, src); err != nil {
+				return cli.Exit("mrw mcp: "+err.Error(), exitUsage)
+			}
 			// Announced on STDERR: the spec forbids anything on stdout that is
 			// not an MCP message, and a server silently bound to the wrong tree
 			// is this subcommand's worst failure — every refusal it then gives
