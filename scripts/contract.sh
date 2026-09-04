@@ -2669,10 +2669,30 @@ done
 # env's own --chdir moves where the command RAN, so it moves the operands too.
 ctx=$(hook55 s9g Bash '{"command":"env -C docs cat adr/x.md"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "env --chdir moves the base the operands resolve against, as a leading cd does" || bad "env -C did not move the base: $ctx"
+# One command may call mrw twice with two roots, and a token that merely
+# SPELLS mrw may name a third that no call used. Every root found is tried,
+# because picking one is how the header of the real read gets resolved against
+# the wrong base and its rule goes missing.
+ctx=$(hook55 s9h Bash '{"command":"printf \"%s\" \"mrw\" -C nowhere ; mrw -C .. read docs/adr/x.md:1"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' "$R55/proj/pkg" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+  && ok "a data token that spells mrw does not take the root away from the mrw that ran" \
+  || bad "a false mrw token suppressed the served header: $ctx"
+ctx=$(hook55 s9i Bash '{"command":"mrw -C .. read README.md:1 ; mrw -C ../docs read adr/x.md:1"}' '{"stdout":"==> README.md  1L  7B  sha 1234abcd\n==> adr/x.md  1L  9B  sha 5678efab\n"}' "$R55/proj/pkg" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && grep -q 'INLINE RULE BODY 55' <<<"$ctx" \
+  && ok "two mrw calls with two roots both deliver: the headers of the second are not resolved against the first" \
+  || bad "a second mrw root was lost: $ctx"
+# A shell operand may itself contain a colon: `note:1` is a filename, and
+# `x.md:1-3` is an mrw spec whose file is the part before it. Both forms are
+# offered and only the one that exists survives.
+printf 'colon\n' > "$R55/proj/docs/adr/note:1"
+ctx=$(hook55 s9j Bash '{"command":"cat docs/adr/note:1"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+  && ok "a filename containing a colon is read as itself, not cut at the colon" \
+  || bad "a colon in a filename lost the rule: $ctx"
 ctx=$(hook55 s9e Bash '{"command":"mrw -C /nowhere --root .. read docs/adr/x.md:1"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' "$R55/proj/pkg" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
-  && ok "and a root given twice takes the last, as the CLI does" \
-  || bad "a repeated root did not take the last value: $ctx"
+  && ok "and a root given twice delivers, because both are tried rather than one being chosen" \
+  || bad "a repeated root lost the served header: $ctx"
 # -C is mrw's root and nobody else's: git, make and tar all spell a different
 # meaning the same way, so an unrecognised program moves no base.
 ctx=$(hook55 s9f Bash '{"command":"git -C .. log --stat"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n"}' "$R55/proj/pkg" | ctx55)

@@ -82,7 +82,9 @@ Read is the native trigger; an Edit is refused unless the file was already Read,
 rules.
 
 **2. Paths come from the CALL and from the RESULT.** Named paths are taken from the tool input (Bash
-tokens, uncapped; a Write's path; `mrw_read` specs with their range stripped; the first field of every
+tokens, uncapped, each offered both as written and with an mrw range stripped, since `note:1` is a
+filename and `x.md:1-3` is a spec; a Write's path; `mrw_read` specs with their range stripped; the
+first field of every
 header-shaped plan line the tokeniser can split); served paths from every `==> path  NL  NB  sha …`
 header in the tool result, the path read back from that suffix so any run of spaces inside it survives.
 A grep, a working-set read, a no-argument read — anything whose input names no file — is still
@@ -93,21 +95,27 @@ hook fails to see loses it.
 
 **3. The project root is `$CLAUDE_PROJECT_DIR`, else the nearest `.claude/rules` above `cwd`, and
 the walk stops at the first `.git` it meets** — a nested repository does not inherit an enclosing
-one's rules. A Bash command's operands resolve from where the command ran — `cwd`, moved by a leading
-`cd DIR &&`; the `==>` headers mrw printed for it resolve from the root MRW used, which its own
-`--root`/`-C` moves. That flag is read only for mrw itself, because `git`, `make` and `tar` all spell
-integer context flag; and last-wins when given twice, as the CLI's own string flag is. **mrw is found
-by NAME anywhere in the command, not by position**: the positional reading this replaced had to know
-every wrapper and every wrapper's own flags, and a review found eight valid shapes it still missed —
-`command --`, `time -p`, `nice -n 5`, `/usr/bin/env`, `exec -a` — each of them a silently missing
-rule, with `sudo` and `timeout` outside the list altogether. A name needs no vocabulary. `env`'s own
-`--chdir` is read the same way and moves where the command RAN, so it moves the operands too, exactly
-as a leading `cd` does.
-MCP result resolve from the project root. One base per kind, never retried against another: a session
-that has `cd`-ed into `internal/` still gets `../scripts/contract.sh`'s rule, `cd docs && mrw read
---grep` delivers for the `adr/…` headers it printed, `mrw -C .. read docs/adr/x.md` from `pkg/`
-delivers for the header it printed, and `docs/adr/x.md` typed from `cmd/mrw`, which read nothing,
-delivers nothing.
+one's rules. A Bash command's operands resolve from where the command ran: `cwd`, moved by a leading
+`cd DIR &&` and by `env`'s own `--chdir`, which runs the command elsewhere exactly as a `cd` does. The
+`==>` headers mrw printed resolve from the root MRW used, which its own `--root`/`-C` moves — read only
+for mrw itself, because `git`, `make` and `tar` all spell a different meaning the same way, and only
+before the subcommand, since after `read` the same `-C` is the integer context flag. A Write's path, an
+MCP spec and an MCP result resolve from the project root.
+
+**mrw is found by NAME anywhere in the command, not by position, and EVERY root any mrw was given is
+tried.** The positional reading this replaced had to know every wrapper and every wrapper's own flags,
+and a review found eight valid shapes it still missed — `command --`, `time -p`, `nice -n 5`,
+`/usr/bin/env`, `exec -a` — with `sudo` and `timeout` outside the list altogether; each was a silently
+missing rule, and a name needs no vocabulary. Taking one root was the same mistake one layer in: a
+command may call mrw twice with two roots, and a token that merely spells mrw may name a third that no
+call used, so choosing one resolves the real read's header against the wrong base and loses its rule.
+Every root is offered, and the command's own directory besides. A false base costs an early delivery;
+a missing one costs the rule, and Decision 2 has already chosen between those.
+
+So: a session that has `cd`-ed into `internal/` still gets `../scripts/contract.sh`'s rule,
+`cd docs && mrw read --grep` delivers for the `adr/…` headers it printed, `mrw -C .. read docs/adr/x.md`
+from `pkg/` delivers for the header it printed, two mrw calls with two roots both deliver, and
+`docs/adr/x.md` typed from `cmd/mrw`, which read nothing, delivers nothing.
 
 **4. Plan headers are tokenised as `internal/plan` tokenises them, and whether mrw accepts the plan
 is not mirrored.** `splitHeader` is ported line for line — double quotes only, a backslash escaping a

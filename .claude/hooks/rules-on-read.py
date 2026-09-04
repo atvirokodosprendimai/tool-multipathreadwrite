@@ -118,13 +118,19 @@ def run(data):
     # to the project the server serves. A path retried against another base names
     # a file the call never touched.
     if tool == "Bash":
-        cd, mrw_root, cands = bash_paths(inp.get("command") or "")
+        cd, mrw_roots, cands = bash_paths(inp.get("command") or "")
         base = os.path.join(cwd, cd)
-        served_base = os.path.join(base, mrw_root)
+        # EVERY root any mrw in the command was given, and the command's own
+        # directory besides. One command may call mrw twice with two roots, and
+        # a token that merely spells mrw may name a third; picking one of them
+        # is how a header gets resolved against the wrong base and its rule goes
+        # missing. Trying all of them costs an early delivery at worst, which is
+        # the side Decision 2 chose.
+        served_bases = [base] + [os.path.join(base, r) for r in mrw_roots]
     else:
         cands, base = candidates(tool, inp), root
-        served_base = root
-    paths = resolve(root, base, cands) | resolve(root, served_base, served_paths(data.get("tool_response")))
+        served_bases = [root]
+    paths = resolve(root, [base], cands) | resolve(root, served_bases, served_paths(data.get("tool_response")))
     if not paths:
         return None, []
     session = data.get("session_id") or "nosession"
@@ -188,9 +194,11 @@ def bash_paths(cmd):
     `command`, `nice` — and every wrapper's own flags, and a review found
     eight valid shapes it still missed (`command --`, `time -p`, `nice -n 5`,
     `/usr/bin/env`, …), each of them a silently missing rule. Finding the name
-    needs no vocabulary at all. A stray token that merely SPELLS mrw (`grep -C 3
-    mrw f`) is harmless: the tokens after it are read as flags only until the
-    first bare word, so nothing that follows a filename is taken as a root."""
+    needs no vocabulary at all. A stray token that merely SPELLS mrw (`echo mrw
+    --root ..`) can name a root the command never used, and EVERY root found is
+    returned for that reason: the caller tries them all, so a false one delivers
+    a rule early at worst, where choosing one of them would have lost the rule
+    the real call served."""
     try:
         toks = shlex.split(cmd)
     except ValueError:
@@ -214,40 +222,46 @@ def bash_paths(cmd):
         return None, j
 
     def scan(names, pat):
-        """The last value of `pat` given to the first program called one of
-        `names`, reading only its own flags — a bare word ends them, because
-        that is the subcommand or the wrapped command."""
-        found = ""
+        """Every value of `pat` given to any program called one of `names`,
+        in order, reading only that program's own flags — a bare word ends
+        them, because that is the subcommand or the wrapped command. Every
+        occurrence is read, not just the first: `mrw -C a read x ; mrw -C b
+        read y` is two roots, and the second read's header is relative to the
+        second."""
+        found = []
         for n, t in enumerate(toks):
             if os.path.basename(t) not in names:
                 continue
             j = n + 1
             while j < len(toks):
                 v, j = flag_value(j, pat)
-                if v is not None:
-                    found = v
-                elif not toks[j].startswith("-") and not _ASSIGN.match(toks[j]):
+                if v:
+                    found.append(v)
+                elif v is None and not toks[j].startswith("-") and not _ASSIGN.match(toks[j]):
                     break
                 j += 1
-            break
         return found
 
     # env --chdir runs the command elsewhere, so it moves the base for the
     # operands too; mrw's --root moves only the paths mrw prints. Both are read
     # only for the program that owns the flag: -C means something else to git,
     # make and tar, and a program this hook does not recognise gets neither.
-    chdir = scan(_ENV_NAMES, _ENV_CHDIR)
-    if chdir:
+    for chdir in scan(_ENV_NAMES, _ENV_CHDIR):
         cd = os.path.join(cd, chdir)
-    mrw_root = scan(_MRW_NAMES, _MRW_ROOT)
+    mrw_roots = scan(_MRW_NAMES, _MRW_ROOT)
     out = []
     for n, t in enumerate(toks):
-        if n in taken:
+        if n in taken or not t or t.startswith("-"):
             continue
-        t = _SPEC_SPLIT.split(t, 1)[0]
-        if t and not t.startswith("-"):
-            out.append(t)
-    return cd, mrw_root, out
+        # A token is offered BOTH as written and with an mrw range stripped:
+        # `docs/adr/x.md:1-3` is a spec whose file is the part before the colon,
+        # and `docs/adr/note:1` is a filename a shell command may read whole.
+        # Only one of the two will exist, and resolve() keeps that one.
+        out.append(t)
+        stripped = _SPEC_SPLIT.split(t, 1)[0]
+        if stripped != t and stripped:
+            out.append(stripped)
+    return cd, mrw_roots, out
 
 
 def served_paths(resp):
@@ -328,18 +342,19 @@ def split_header(s):
     return out
 
 
-def resolve(root, base, cands):
-    """Root-relative paths that exist, each relative candidate taken from the
-    one base its tool implies. Symlinks are resolved before the containment
+def resolve(root, bases, cands):
+    """Root-relative paths that exist, each relative candidate tried against
+    every base its tool implies. Symlinks are resolved before the containment
     check, so a link inside the project pointing outside is refused.
     PostToolUse runs after the write, so a just-created file counts."""
     out = set()
     for c in cands:
         if not c:
             continue
-        full = os.path.realpath(c if os.path.isabs(c) else os.path.join(base, c))
-        if full.startswith(root + os.sep) and os.path.isfile(full):
-            out.add(os.path.relpath(full, root).replace(os.sep, "/"))
+        for base in bases:
+            full = os.path.realpath(c if os.path.isabs(c) else os.path.join(base, c))
+            if full.startswith(root + os.sep) and os.path.isfile(full):
+                out.add(os.path.relpath(full, root).replace(os.sep, "/"))
     return out
 
 

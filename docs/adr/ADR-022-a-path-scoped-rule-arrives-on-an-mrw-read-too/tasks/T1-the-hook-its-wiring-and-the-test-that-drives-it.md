@@ -35,9 +35,9 @@ never take the turn down.
 2. [S2] Read the project root from `$CLAUDE_PROJECT_DIR`, else walk up from `cwd` to the nearest
    `.claude/rules`, stopping at the first `.git`; resolve a Bash command's operands from where the
    command ran (`cwd`, moved by a leading `cd` and by `env --chdir`) and the headers mrw printed for
-   it from the root mrw used — its global `--root`/`-C`, read by finding mrw's NAME anywhere in the
-   command, only before the subcommand, last-wins — every other tool's paths from the project root,
-   and relativise to the root. [proof: mutation]
+   it from EVERY root any mrw in the command was given — found by mrw's NAME anywhere in it, before
+   the subcommand — and from the command's own directory besides; every other tool's paths from the
+   project root, and relativise to the root. [proof: mutation]
 3. [S3] Take served paths from every `==> path  NL  NB  sha …` header in the tool result as well as
    the named ones, the path read back from that suffix, so a grep delivers and any spaces survive.
    [proof: mutation]
@@ -140,11 +140,13 @@ and touches no engine code.
 - 2026-09-04 · 0817274 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: look for mrw at token zero again instead of by name. §55's wrapper loop fails for `/usr/bin/env FOO=1`, `nice -n 5` and the rest · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 0817274 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: ignore `env --chdir`. §55's `env -C docs cat adr/x.md` row fails: the operand resolves from the wrong base · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 - 2026-09-04 · 0817274 · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S6: put the directory and the create back in ONE try block, so `FileExistsError` from `makedirs` reads as a claim. §55's file-at-the-claim-directory row fails: both calls deliver nothing · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 0a46d2c · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: keep only the FIRST mrw root and resolve every served header against it. §55's two-roots row loses the second read's rule, and its false-mrw-token row loses the real read's · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
+- 2026-09-04 · 0a46d2c · mutant killed · exit 1 · `.claude/hooks/rules-on-read.py` · S2: strip an mrw range from every Bash token instead of offering both forms. §55's `cat docs/adr/note:1` row fails: a filename with a colon is cut at it · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370
 
 ## Invariants
 
 - A rule is delivered once per session per agent per project while its claim can be filed and its envelope reaches the harness, and on every matching call when a claim cannot be filed — never on none — whichever of the four tools read the file.
-- The project root is never assumed to be `cwd`; a Bash operand resolves from where the command ran, a header mrw printed from the root mrw itself was given, every other path from the project root, and no path from two of them.
+- The project root is never assumed to be `cwd`; a Bash operand resolves from where the command ran, a header mrw printed from any root an mrw in that command was given, every other path from the project root.
 - A plan header is tokenised as `mrw` tokenises it, pinned against the built binary; whether mrw accepts the plan is not mirrored, so a refused plan delivers early and never silently.
 - The hook exits 0 whatever happens.
 - No engine change; `go.mod` declares exactly one requirement.
@@ -176,3 +178,21 @@ build. That is a different tool, and the record's Alternatives say why it was no
 - 2026-09-04 · 0817274* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:33053
 - 2026-09-04 · 0817274* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:31943
 - 2026-09-04 · 0817274* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:32504
+- 2026-09-04 · 0a46d2c* · exit 2 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:26715
+  ```
+  --- last 10 line(s) of stdout (of 434 after folding 434 raw)
+    PASS  and behind 'time -p', where a positional reading of the command loses it
+    PASS  and behind 'exec -a custom', where a positional reading of the command loses it
+    PASS  and behind 'nohup', where a positional reading of the command loses it
+    PASS  and behind 'sudo -u nobody', where a positional reading of the command loses it
+    PASS  and behind 'timeout 30', where a positional reading of the command loses it
+    PASS  env --chdir moves the base the operands resolve against, as a leading cd does
+    PASS  a data token that spells mrw does not take the root away from the mrw that ran
+    PASS  two mrw calls with two roots both deliver: the headers of the second are not resolved against the first
+    PASS  a filename containing a colon is read as itself, not cut at the colon
+    PASS  and a root given twice delivers, because both are tried rather than one being chosen
+  --- last 2 line(s) of stderr
+  ./scripts/contract.sh: line 2695: syntax error near unexpected token `||'
+  ./scripts/contract.sh: line 2695: `  || bad "a repeated root did not take the last value: $ctx"'
+  ```
+- 2026-09-04 · 0a46d2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8996f83fd6e2fa313b22b02ec081c26c34c9c04542feff85dd0572b923ece370 · ms:32990
