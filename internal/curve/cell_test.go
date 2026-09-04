@@ -1,9 +1,12 @@
 package curve
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -140,5 +143,181 @@ func TestALegacyTrialIDStillRegenerates(t *testing.T) {
 	rel := trialID(Params{ServedBytes: 2000, Position: Early, Distractors: 3, Seed: 1, Selector: ByOddRetries})
 	if rel == recorded {
 		t.Fatalf("the relational cell shares the named cell's trial id %s", rel)
+	}
+}
+
+// TestTheOddRetryBudgetIsNotAFixedSignature is ADR-020-T3's Enforced-by. T2
+// removed the unique NAME and left a constant VALUE: every relational cell at
+// every seed rendered the target at "retries = 5", so a client that had seen one
+// cell could search for it in every other at a cost independent of served size —
+// the single-match shortcut T2 exists to remove, surviving inside T2's own
+// fixture. Found by review of PR #93.
+func TestTheOddRetryBudgetIsNotAFixedSignature(t *testing.T) {
+	odds, commons := map[string]bool{}, map[string]bool{}
+	// Seeds 1..30 rather than a handful. Review of PR #94 found that a
+	// generator accepting the FIRST odd draw — no inequality guarantee at all —
+	// produces a cell with no odd block at seeds 13, 18, 23 and 24, and passes
+	// at every seed a shorter sweep would have exercised. The range is the
+	// assertion here as much as the clauses are.
+	for seed := int64(1); seed <= 30; seed++ {
+		p := Params{ServedBytes: 2500, Position: Middle, Distractors: 3, Seed: seed, Selector: ByOddRetries}
+		dir := t.TempDir()
+		m, err := Generate(dir, p)
+		if err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+		odd, common := retriesShape(t, m, p.Distractors+1)
+		odds[odd], commons[common] = true, true
+	}
+	if len(odds) < 2 {
+		t.Fatalf("the odd budget is %v at every seed — a client that has seen one cell can search for it in all of them", keys(odds))
+	}
+	if len(commons) < 2 {
+		t.Fatalf("the common budget is %v at every seed, which identifies the odd block by elimination", keys(commons))
+	}
+
+	// The named fixture is untouched: it still renders the constant in every
+	// block, which is what keeps its recorded trial ids regenerable.
+	dir := t.TempDir()
+	m, err := Generate(dir, Params{ServedBytes: 2500, Position: Middle, Distractors: 3, Seed: 1})
+	if err != nil {
+		t.Fatalf("named: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(m.Tree, m.File))
+	if err != nil {
+		t.Fatalf("read named fixture: %v", err)
+	}
+	if n := strings.Count(string(b), commonRetries); n != 4 {
+		t.Fatalf("the named fixture renders %s in %d of 4 blocks — T3 reached a fixture it does not own", commonRetries, n)
+	}
+}
+
+// retriesOf returns the singleton retries line, the common one, and the block
+// count of a generated fixture.
+// retriesShape returns the singleton retries line and the common one, and FAILS
+// unless the fixture has exactly two distinct values at multiplicities 1 and
+// blocks-1. The earlier version returned an empty odd value when every block
+// matched and left the caller to notice; it did not, so a fixture with no odd
+// block at all passed. Found by review of PR #94.
+func retriesShape(t *testing.T, m Manifest, blocks int) (odd, common string) {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(m.Tree, m.File))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	counts := map[string]int{}
+	total := 0
+	for _, l := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(l, "retries = ") {
+			counts[l]++
+			total++
+		}
+	}
+	if total != blocks {
+		t.Fatalf("want %d retries lines, got %d: %v", blocks, total, counts)
+	}
+	if len(counts) != 2 {
+		t.Fatalf("want exactly two distinct retries values at multiplicities 1 and %d, got %v", blocks-1, counts)
+	}
+	for value, n := range counts {
+		switch n {
+		case 1:
+			odd = value
+		case blocks - 1:
+			common = value
+		default:
+			t.Fatalf("want multiplicities 1 and %d, got %v", blocks-1, counts)
+		}
+	}
+	if odd == "" || common == "" {
+		t.Fatalf("no singleton retries value in %v", counts)
+	}
+	return odd, common
+}
+
+// keys renders a set for a failure message in a stable order.
+func keys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TestTheNamedFixtureMatchesItsGoldenBytes pins the BYTES of the named fixture,
+// not its trial id.
+//
+// This exists because the id cannot do the job the record claimed it did.
+// trialID hashes PARAMETERS — served bytes, position, distractors, seed — and
+// never the rendered file, so a change to the renderer does not change the id:
+// drifted bytes would silently reuse the recorded one, which is the opposite of
+// a guard. Reading 2's forty-five results were collected against these bytes, so
+// the bytes are what has to be pinned. Found by review of PR #94, which named
+// the rationale as backwards.
+//
+// The digests were taken from the binary built at origin/main (e96504a) and
+// confirmed identical on this head across 6 seeds x 3 positions.
+func TestTheNamedFixtureMatchesItsGoldenBytes(t *testing.T) {
+	golden := []struct {
+		p      Params
+		digest string
+	}{
+		{Params{ServedBytes: 2000, Position: Early, Distractors: 3, Seed: 1}, "a9504af9b15f03df2ad26bddbb0016d5"},
+		{Params{ServedBytes: 20000, Position: Middle, Distractors: 3, Seed: 3}, "ce3922d276340d0136af54378719ce55"},
+		{Params{ServedBytes: 200000, Position: Late, Distractors: 3, Seed: 5}, "53516277fd562c27f583a7f5a13ba230"},
+	}
+	for _, g := range golden {
+		dir := t.TempDir()
+		m, err := Generate(dir, g.p)
+		if err != nil {
+			t.Fatalf("%v: %v", g.p, err)
+		}
+		h := sha256.New()
+		// The manifest is excluded on purpose: it carries the absolute -out
+		// path, which differs per run and is not fixture content.
+		for _, f := range []string{filepath.Join(m.Tree, m.File), filepath.Join(dir, servedName), filepath.Join(dir, answerName)} {
+			b, err := os.ReadFile(f)
+			if err != nil {
+				t.Fatalf("read %s: %v", f, err)
+			}
+			h.Write(b)
+		}
+		if got := hex.EncodeToString(h.Sum(nil))[:32]; got != g.digest {
+			t.Fatalf("the named fixture for %v now hashes %s, was %s — reading 2's results were collected against the old bytes and its trial ids would NOT change to say so", g.p, got, g.digest)
+		}
+	}
+}
+
+// TestTheDrawIsStableAcrossThePaddingFit renders one cell at several padding
+// widths and requires the budgets not to move.
+//
+// Generate calls render repeatedly while fitting the padding to the size cell.
+// If retryPair drew from a generator that advanced with each call, the budgets
+// would change between steps — and the fit loop would still converge, because
+// every budget 2..8 is one digit and the rendered length does not change. So
+// nothing else in the suite would notice: the cell would simply be a different
+// cell from the one measured. Review of PR #94 pointed out that the task's own
+// risk text claimed convergence would catch it, which is false.
+func TestTheDrawIsStableAcrossThePaddingFit(t *testing.T) {
+	p := Params{ServedBytes: 2500, Position: Middle, Distractors: 3, Seed: 4, Selector: ByOddRetries}
+	names := serviceNames(p)
+	target := targetIndex(p)
+	var first []string
+	for _, pad := range []int{0, 1, 7, 40, 250} {
+		body, _ := render(p, names, target, pad)
+		var got []string
+		for _, l := range strings.Split(body, "\n") {
+			if strings.HasPrefix(l, "retries = ") {
+				got = append(got, l)
+			}
+		}
+		if first == nil {
+			first = got
+			continue
+		}
+		if strings.Join(got, ",") != strings.Join(first, ",") {
+			t.Fatalf("pad %d renders %v; pad 0 rendered %v — the budgets move between fitting steps, so the cell measured is not the cell generated", pad, got, first)
+		}
 	}
 }
