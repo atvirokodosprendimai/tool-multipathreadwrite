@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -46,11 +47,29 @@ const (
 	OpCreate       Op = "create"
 )
 
-// Addr is an inclusive 1-based line range. Start may be 0 for the position
-// before the first line, and either bound may be EOF.
+// Addr is an inclusive 1-based line range, or a pair of patterns that resolve
+// to one. Start may be 0 for the position before the first line, and either
+// bound may be EOF.
+//
+// ⚠ AN ADDRESS IS LINES OR PATTERNS, NEVER BOTH. When StartPat is non-nil the
+// line bounds are meaningless and whoever reads the file fills them in; when it
+// is nil the patterns are absent. A half-set pair is the shape that invites a
+// resolver to read the wrong field, so ParseAddr never produces one and
+// TestAPatternAddressParses asserts it.
+//
+// Patterns are compiled HERE, at parse time, so a plan carrying an
+// uncompilable one is refused as a malformed document before anything touches
+// the tree — a cheap refusal, and a parse error rather than a hunk failure.
+// ADR-013 records the decision; resolving a pattern to a line belongs to
+// internal/apply, which is the only package that knows how long a file is.
 type Addr struct {
 	Start int
 	End   int
+
+	// StartPat and EndPat are the pattern form. EndPat is nil for the
+	// single-pattern address `/re/`; both are nil for a line address.
+	StartPat *regexp.Regexp
+	EndPat   *regexp.Regexp
 }
 
 // String renders an address in the same syntax the parser accepts, so a
@@ -337,11 +356,36 @@ func splitHeader(s string) ([]string, error) {
 		cur   strings.Builder
 		inTok bool
 		inQ   bool
+		// inPat is ADR-013's pattern address. A regex is a single token even
+		// though it contains spaces — `/^func (s *Store) Get/` is the whole
+		// point of the feature and it has two. Without this the header splits
+		// mid-pattern and the op is reported as `\(s`, which is what the
+		// end-to-end run reported before this existed: the unit tests passed
+		// because they called ParseAddr directly and never went through here.
+		inPat bool
 	)
 	rs := []rune(s)
 	for i := 0; i < len(rs); i++ {
 		r := rs[i]
 		switch {
+		case inPat && r == '\\' && i+1 < len(rs) && rs[i+1] == '/':
+			// \/ is a literal slash inside a pattern, not its terminator.
+			cur.WriteRune(r)
+			cur.WriteRune(rs[i+1])
+			i++
+		case inPat && r == '/':
+			cur.WriteRune(r)
+			// `/a/,/b/` is one address: swallow the comma and keep scanning.
+			if i+2 < len(rs) && rs[i+1] == ',' && rs[i+2] == '/' {
+				cur.WriteRune(',')
+				cur.WriteRune('/')
+				i += 2
+			} else {
+				inPat = false
+			}
+		case r == '/' && !inTok && !inQ:
+			inPat, inTok = true, true
+			cur.WriteRune(r)
 		case r == '\\' && i+1 < len(rs) && (rs[i+1] == '"' || rs[i+1] == '\\'):
 			// A backslash escapes a quote or another backslash, so an anchor
 			// can name code that itself contains a quote. Without this the
@@ -352,7 +396,7 @@ func splitHeader(s string) ([]string, error) {
 			i++
 		case r == '"':
 			inQ, inTok = !inQ, true
-		case (r == ' ' || r == '\t') && !inQ:
+		case (r == ' ' || r == '\t') && !inQ && !inPat:
 			if inTok {
 				out = append(out, cur.String())
 				cur.Reset()
@@ -372,6 +416,51 @@ func splitHeader(s string) ([]string, error) {
 	return out, nil
 }
 
+// parsePattern reads the `/re/` and `/re/,/re/` forms. The syntax is the one
+// internal/read already accepts, so a caller learns one address language
+// rather than two — but the RULE differs, and deliberately: read serving two
+// matches is useful, apply editing two matches is a bug. ADR-013's exactly-once
+// rule lives in the resolver, not here.
+func parsePattern(s string) (Addr, error) {
+	// Scan to the closing slash, honouring \/ so a pattern may contain one.
+	end := -1
+	for i := 1; i < len(s); i++ {
+		if s[i] == '/' && s[i-1] != '\\' {
+			end = i
+			break
+		}
+	}
+	if end < 0 {
+		return Addr{}, fmt.Errorf("pattern %q is never closed: expected a second /", s)
+	}
+	body := s[1:end]
+	rest := s[end+1:]
+	start, err := regexp.Compile(body)
+	if err != nil {
+		return Addr{}, fmt.Errorf("bad pattern %q: %w", body, err)
+	}
+	if body == "" {
+		return Addr{}, fmt.Errorf("empty pattern // matches every line, so it can never resolve to exactly one")
+	}
+	a := Addr{StartPat: start}
+	switch {
+	case rest == "":
+		return a, nil
+	case strings.HasPrefix(rest, ",/"):
+		tail, err := parsePattern(rest[1:])
+		if err != nil {
+			return Addr{}, err
+		}
+		if tail.EndPat != nil {
+			return Addr{}, fmt.Errorf("address %q has more than two endpoints", s)
+		}
+		a.EndPat = tail.StartPat
+		return a, nil
+	default:
+		return Addr{}, fmt.Errorf("unexpected %q after the pattern in %q", rest, s)
+	}
+}
+
 // ParseAddr reads an address: "N", "N-M", "N-" (to end of file), "$" (last
 // line), "0" (before the first line) or "-" (no address, for create).
 func ParseAddr(s string) (Addr, error) {
@@ -382,6 +471,12 @@ func ParseAddr(s string) (Addr, error) {
 		return Addr{Start: 0, End: 0}, nil
 	case "$":
 		return Addr{Start: EOF, End: EOF}, nil
+	}
+	// A pattern is scanned before anything splits on "-" or ",": those are
+	// ordinary characters inside a regex, and cutting first is how `/a-b/`
+	// becomes a bad line number.
+	if strings.HasPrefix(s, "/") {
+		return parsePattern(s)
 	}
 	one := func(t string) (int, error) {
 		if t == "$" {
@@ -414,6 +509,13 @@ func ParseAddr(s string) (Addr, error) {
 // validate checks the parts of a hunk that need no file on disk: op/address
 // agreement and whether a body is meaningful for the op.
 func validate(h *Hunk) error {
+	// A pattern address has no line bounds yet — internal/apply resolves it
+	// against the file, which is the only place the file's length is known. So
+	// the checks below that reason about Start and End cannot speak about it,
+	// and `patterned` is how they say so rather than reading a zero as an
+	// address. Everything that does NOT depend on the resolved lines — an empty
+	// body, a create with a guard — still applies.
+	patterned := h.Addr.StartPat != nil
 	switch h.Op {
 	case OpDelete:
 		// A body on a delete used to be a hard parse error. It now means "these
@@ -422,21 +524,21 @@ func validate(h *Hunk) error {
 		// it HOLDS needs the file, so it is checked in internal/apply; there is
 		// nothing to check here (ADR-008).
 	case OpCreate:
-		if h.Addr.Start != 0 || h.Addr.End != 0 {
+		if !patterned && (h.Addr.Start != 0 || h.Addr.End != 0) {
 			return fmt.Errorf("create takes no address, use %q", "-")
 		}
 		if h.Anchor != "" || h.Lines >= 0 {
 			return fmt.Errorf("create takes no anchor= or lines= (the file must not exist yet)")
 		}
 	case OpInsertAfter, OpInsertBefore:
-		if h.Addr.Start != h.Addr.End {
+		if !patterned && h.Addr.Start != h.Addr.End {
 			return fmt.Errorf("%s takes a single line, not the range %s", h.Op, h.Addr)
 		}
 		if len(h.Body) == 0 {
 			return fmt.Errorf("%s with an empty body would change nothing", h.Op)
 		}
 	case OpReplace:
-		if h.Addr.Start == 0 {
+		if !patterned && h.Addr.Start == 0 {
 			return fmt.Errorf("replace needs a real line range, got %s", h.Addr)
 		}
 		// A replace with no body DELETES the addressed lines while reporting

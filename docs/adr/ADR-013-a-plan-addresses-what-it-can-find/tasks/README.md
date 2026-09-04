@@ -24,11 +24,9 @@ shipped, an enum the engine never sent, is exactly what teaching-before-implemen
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The grammar accepts a pattern, and changes nothing else | pending | — | 3 named `--- PASS:` lines, gofmt + vet, `./scripts/contract.sh` |
-| T2 | Resolve it exactly once, or refuse it | pending | — | 4 named `--- PASS:` lines, `# 45.` in `contract.sh`, gofmt + vet, `./scripts/contract.sh` |
-| T3 | Teach the form, now that it exists | pending | — | 2 named `--- PASS:` lines, `# 46.` in `contract.sh`, gofmt + vet, `./scripts/contract.sh` |
-
-Status: `pending` | `partial` | `blocked` | `done` | `withdrawn`.
+| T1 | The grammar accepts a pattern, and changes nothing else | done | — | 3 named `--- PASS:` lines, gofmt + vet, `./scripts/contract.sh` |
+| T2 | Resolve it exactly once, or refuse it | done | — | 4 named `--- PASS:` lines, `# 45.` in `contract.sh`, gofmt + vet, `./scripts/contract.sh` |
+| T3 | Teach the form, now that it exists | done | — | 2 named `--- PASS:` lines, `# 46.` in `contract.sh`, gofmt + vet, `./scripts/contract.sh` |
 
 ## Contract Coupling
 

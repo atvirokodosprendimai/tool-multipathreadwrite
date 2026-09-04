@@ -81,7 +81,7 @@ over new content rather than be replaced. `# 46.` was confirmed free.
 
 ## Mutation Log
 
-<!-- filled during execution -->
+- 2026-09-04 · 2e8d959 · mutant killed · exit 1 · `internal/mcp/instructions.go` · S2: teach the pattern form without the exactly-once rule — a caller told `/re/` works and not told two matches fail meets the refusal as a surprise and reads it as a bug · acceptance-sha256:f7e0f1fb30aaa5ac51c3bbd55beb4fd6b8a2a4f94ae71a87e56450be602baa25
 
 ## Invariants
 
@@ -107,3 +107,4 @@ raise it silently.
 
 ## Verification Log
 <!-- filled during execution -->
+- 2026-09-04 · 2e8d959* · exit 0 · `set -o pipefail …` · acceptance-sha256:f7e0f1fb30aaa5ac51c3bbd55beb4fd6b8a2a4f94ae71a87e56450be602baa25 · ms:39880

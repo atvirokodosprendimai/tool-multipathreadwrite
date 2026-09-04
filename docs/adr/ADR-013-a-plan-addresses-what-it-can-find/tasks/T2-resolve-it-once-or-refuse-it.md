@@ -88,7 +88,8 @@ was generated from the pattern would be the same defect wearing a different name
 
 ## Mutation Log
 
-<!-- filled during execution -->
+- 2026-09-04 · 2e8d959 · mutant killed · exit 1 · `internal/apply/apply.go` · S3: resolve ambiguity by taking the first match instead of refusing — the silent wrong edit this record exists to make unrepresentable · acceptance-sha256:8f4c7dda0c16e849b62de76ed7b1be31255b184d39cd71867dfdc2dcd67ba98f
+- 2026-09-04 · 2e8d959 · mutant killed · exit 1 · `internal/apply/apply.go` · S4: let `covered()` return true for a patterned hunk — the ledger bypass, and the one way this feature is worse than not having it · acceptance-sha256:8f4c7dda0c16e849b62de76ed7b1be31255b184d39cd71867dfdc2dcd67ba98f
 
 ## Invariants
 
@@ -120,3 +121,4 @@ rather than softened into first-match.
 
 ## Verification Log
 <!-- filled during execution -->
+- 2026-09-04 · 2e8d959* · exit 0 · `set -o pipefail …` · acceptance-sha256:8f4c7dda0c16e849b62de76ed7b1be31255b184d39cd71867dfdc2dcd67ba98f · ms:22045

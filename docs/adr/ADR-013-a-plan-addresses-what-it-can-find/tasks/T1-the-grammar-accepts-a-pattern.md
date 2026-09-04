@@ -78,7 +78,7 @@ because the fence a task calls "done" was not the gate CI applies.
 
 ## Mutation Log
 
-<!-- filled during execution -->
+- 2026-09-04 · 2e8d959 · mutant killed · exit 1 · `internal/plan/plan.go` · S3: accept the empty pattern `//`, which matches every line and so can never resolve to exactly one — a document that cannot possibly apply, accepted at parse time · acceptance-sha256:f133612dbaf014760e2ff641fc82f3af1f6f8a3ba92bfbdd00c8f7763288da06
 
 ## Invariants
 
@@ -105,3 +105,4 @@ learn how long a file is. Resolution belongs to whoever reads the file, which is
 
 ## Verification Log
 <!-- filled during execution -->
+- 2026-09-04 · 2e8d959* · exit 0 · `set -o pipefail …` · acceptance-sha256:f133612dbaf014760e2ff641fc82f3af1f6f8a3ba92bfbdd00c8f7763288da06 · ms:49500

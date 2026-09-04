@@ -149,12 +149,26 @@ Every address resolves against the **original** file, so there is no offset
 arithmetic between hunks. Guards `sha=`, `lines=` and `anchor=` are checked on
 every op, insertions included.
 
+Or address by pattern, when you would otherwise read the file only to learn a
+line number:
+
+```
+@@ internal/store/store.go /^func (s *Store) Get/,/^}/ replace
+        ... new lines ...
+```
+
+A pattern is **not** a way to edit a file you have not read: it resolves to a
+line, and that line still has to have been served to you.
+
 ### 3. Generate the plan when there are many sites — this is the lever
 
 A plan is line-oriented text, so anything that prints lines can build one. This
 is the part that turns 54 calls into 2, and it is the part that gets missed.
-**Plan addresses are line numbers only — a regex works in `read`, not in a
-plan** — so take the numbers from the read you just did:
+**A plan address may be a line number, an `N-M` range, `$`, or a pattern —
+`/regexp/` or `/from/,/to/`.** A pattern must match **exactly one** line; none
+or several fails that hunk and the refusal names the lines it matched. Reach
+for a pattern when you have not read the file for any other reason; take the
+numbers from the read you just did when you have:
 
 ```bash
 specs=()

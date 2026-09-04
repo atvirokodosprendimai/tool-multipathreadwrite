@@ -18,7 +18,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -129,6 +131,11 @@ type hunk struct {
 	Lines  int
 	Anchor string
 
+	// StartPat and EndPat are ADR-013's pattern address, carried through
+	// unresolved. Resolution happens in the loop below, against the ORIGINAL
+	// file, and the resolved span then meets the ledger check like any other.
+	StartPat *regexp.Regexp
+	EndPat   *regexp.Regexp
 	// SrcOp and SrcAddr are the op and address exactly as the caller wrote
 	// them. Every verdict echoes these rather than the resolved form, so a
 	// report line can be matched back to the plan line that produced it.
@@ -148,16 +155,18 @@ func (h hunk) resolveTo(start, end int, op string) hunk {
 // Input is one hunk as the caller describes it, with addresses still unresolved
 // (EOF sentinels intact).
 type Input struct {
-	Path    string
-	Start   int
-	End     int
-	Op      string
-	Body    []string
-	SHA     string
-	Lines   int
-	Anchor  string
-	SrcLine int
-	Index   int
+	Path     string
+	Start    int
+	End      int
+	Op       string
+	Body     []string
+	SHA      string
+	Lines    int
+	Anchor   string
+	StartPat *regexp.Regexp
+	EndPat   *regexp.Regexp
+	SrcLine  int
+	Index    int
 }
 
 // EOF mirrors plan.EOF; resolution happens here because only this package knows
@@ -214,7 +223,8 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		byPath[p] = append(byPath[p], hunk{
 			Path: p, Start: i.Start, End: i.End, Op: i.Op, Body: i.Body,
 			SHA: i.SHA, Lines: i.Lines, Anchor: i.Anchor,
-			SrcOp: i.Op, SrcAddr: addrString(i.Start, i.End), SrcLine: i.SrcLine, Index: n,
+			StartPat: i.StartPat, EndPat: i.EndPat,
+			SrcOp: i.Op, SrcAddr: srcAddrOf(i), SrcLine: i.SrcLine, Index: n,
 		})
 	}
 
@@ -554,6 +564,52 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 			continue
 		}
 
+		// ADR-013: a pattern address resolves HERE, against `orig` — the file
+		// as it was before any hunk in this run applied, which is ADR-001's
+		// rule and the reason patterns and line numbers in one plan cannot
+		// disagree about what they address.
+		//
+		// ⚠ THE ORDER IS THE SAFETY ARGUMENT. Resolution happens before the
+		// `covered()` call below, and `covered()` takes the RESOLVED span, so a
+		// pattern meets the same per-line ledger check a typed number meets. A
+		// pattern is not a way to edit a file the caller has not read. Moving
+		// resolution after the ledger check would turn this feature into a
+		// bypass — TestARegexAddressIsStillSubjectToTheLedger is what notices.
+		if h.StartPat != nil {
+			resolve := func(re *regexp.Regexp, which string) (int, bool) {
+				at := matchLines(re, orig)
+				switch len(at) {
+				case 1:
+					return at[0], true
+				case 0:
+					fail(h, "%spattern %s matched no line in %s", which, re, path)
+				default:
+					// Naming the lines is what lets the caller act: narrow the
+					// pattern, or address by number. A refusal that only says
+					// "ambiguous" leaves them guessing.
+					fail(h, "%spattern %s matched %d lines in %s (%s) — narrow it, or address by line number",
+						which, re, len(at), path, joinInts(at))
+				}
+				return 0, false
+			}
+			from, ok := resolve(h.StartPat, "")
+			if !ok {
+				continue
+			}
+			to := from
+			if h.EndPat != nil {
+				if to, ok = resolve(h.EndPat, "end "); !ok {
+					continue
+				}
+				if to < from {
+					fail(h, "end pattern %s matched line %d, before the start pattern's line %d",
+						h.EndPat, to, from)
+					continue
+				}
+			}
+			h.Start, h.End = from, to
+		}
+
 		start, end := h.Start, h.End
 		if start == EOF {
 			start = total
@@ -752,6 +808,31 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 // formatter: a CRLF file must come back CRLF, and — just as important — join()
 // must reproduce the ORIGINAL bytes exactly, since internal/seen hashes the raw
 // file and a disagreement would make every CRLF file read as "changed behind
+// matchLines returns the 1-based numbers of every line the pattern matches.
+//
+// It returns ALL of them rather than the first, because ADR-013 makes ambiguity
+// a refusal and the refusal has to say how many and where. A resolver that
+// stopped at the first match could not tell a caller what it was competing with,
+// and would be one edit away from silently choosing.
+func matchLines(re *regexp.Regexp, lines []string) []int {
+	var at []int
+	for i, l := range lines {
+		if re.MatchString(l) {
+			at = append(at, i+1)
+		}
+	}
+	return at
+}
+
+// joinInts renders line numbers for a refusal message.
+func joinInts(ns []int) string {
+	parts := make([]string, len(ns))
+	for i, n := range ns {
+		parts[i] = strconv.Itoa(n)
+	}
+	return "lines " + strings.Join(parts, ", ")
+}
+
 // mrw's back".
 type text struct {
 	lines []string
@@ -922,6 +1003,24 @@ func addrString(start, end int) string {
 		return f(start)
 	}
 	return f(start) + "-" + f(end)
+}
+
+// srcAddrOf renders the address AS THE CALLER WROTE IT, which for a pattern is
+// the pattern and not the line it resolves to.
+//
+// Every verdict echoes this so a report line can be matched back to the plan
+// line that produced it. Before ADR-013 that was always a line number, and a
+// patterned hunk reported `0` — the unresolved bound — which named nothing the
+// caller had typed and nothing the file contained.
+func srcAddrOf(i Input) string {
+	if i.StartPat == nil {
+		return addrString(i.Start, i.End)
+	}
+	s := "/" + i.StartPat.String() + "/"
+	if i.EndPat != nil {
+		s += ",/" + i.EndPat.String() + "/"
+	}
+	return s
 }
 
 func trim(s string) string {
