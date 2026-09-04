@@ -666,9 +666,16 @@ re-measuring these. Each was driven at the built binary, not read:
   already hashes the resolved absolute root so N namespaces come free, but
   `apply.Apply(root, …)` takes ONE root and `seen.Load(root)` loads ONE ledger
   per run — a cross-repo plan needs the ledger resolved PER HUNK, which changes
-  what a run is. Issue #75's open half belongs to that record too: whether the
-  server should REFUSE a root of `/`, which is what a host that sets no project
-  directory currently gets.
+  what a run is. **Issue #81 belongs to that record too**: whether the server
+  should REFUSE a root of `/`, which is what a host that sets no project
+  directory currently gets. It was split out of #75 so that issue could close
+  on its documentation fix, and so the question is tracked somewhere that does
+  not depend on this branch merging — the tracking for it lived only here, and
+  closing #75 with the thread hanging on an unmerged BACKLOG entry is the
+  failure this corpus keeps recording. Note the rule is not obvious: `/` is
+  easy, but `$HOME` is arguably worse AND is exactly where a Desktop analyst's
+  documents are, so "refuse suspicious roots" by taste would break the
+  population ADR-017 was written for.
 
 - **A heredoc-style body terminator for the plan format — DEFERRED.** Raised and
   refused in ADR-015.
