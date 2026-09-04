@@ -267,6 +267,17 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		}
 	}
 
+	// ONE FILE, ONE SPELLING. byPath keys on the cleaned path STRING, and two
+	// strings can name one inode: Same.txt and same.txt on a case-insensitive
+	// filesystem, or a symlink and its target anywhere. Grouped as two files,
+	// both would stage a copy of the same bytes and the second rename would
+	// replace the first — two hunks reported ok, one of them silently undone
+	// (ADR-021, measured 2026-09-04). So every file is stat'ed once as it is
+	// resolved and compared with os.SameFile against the files already
+	// grouped: the filesystem's own answer, as issue #47 chose for the ledger,
+	// with nothing folded. Only an EXISTING file has an inode to compare; two
+	// creates that would collide are deferred, not claimed.
+	var seenFiles []groupedFile
 	for _, path := range order {
 		hs := byPath[path]
 		full, err := resolve(root, path)
@@ -281,6 +292,27 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 			}
 			failed = append(failed, FileResult{Path: path})
 			continue
+		}
+		if info, statErr := os.Stat(full); statErr == nil {
+			if prior, dup := sameFileAs(info, seenFiles); dup {
+				// One refusal per file, carried by its FIRST hunk (ADR-021
+				// Decision 3); the file's other hunks are skipped, which is
+				// how ADR-001 rule 3 has every sibling of a failure report.
+				// Marking them all failed would count one refusal several
+				// times in the receipt.
+				for i, h := range hs {
+					r := HunkResult{Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine, Status: StatusSkipped}
+					if i == 0 {
+						r.Status = StatusFailed
+						r.Reason = fmt.Sprintf("%s names the same file as %s (plan line %d); one file, one spelling per plan",
+							path, prior.path, prior.line)
+					}
+					results[h.Index] = r
+				}
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
+			seenFiles = append(seenFiles, groupedFile{path: path, info: info, line: hs[0].SrcLine})
 		}
 		orig, existed, err := readLines(full)
 		if err != nil {
@@ -1126,4 +1158,26 @@ func sameFileEntry(full, path string, ledger map[string]Seen) (Seen, bool) {
 		}
 	}
 	return Seen{}, false
+}
+
+// groupedFile is a plan path that resolved to an existing file, with the stat
+// that identifies it and the plan line of its first hunk — what a later
+// spelling of the same file is refused against.
+type groupedFile struct {
+	path string
+	info os.FileInfo
+	line int
+}
+
+// sameFileAs reports whether info names a file already in grouped, and which.
+// os.SameFile is the filesystem's answer to "one file or two": true for two
+// spellings on a case-insensitive filesystem and for a symlink and its target,
+// false for a.txt and A.txt on ext4, where they really are two files.
+func sameFileAs(info os.FileInfo, grouped []groupedFile) (groupedFile, bool) {
+	for _, g := range grouped {
+		if os.SameFile(info, g.info) {
+			return g, true
+		}
+	}
+	return groupedFile{}, false
 }

@@ -1383,3 +1383,98 @@ func TestAnEndPatternOnlyAboveTheStartIsRefused(t *testing.T) {
 		t.Error("an inverted range changed the file")
 	}
 }
+
+// TestAPlanThatNamesOneFileTwiceIsRefusedWhicheverTheSpelling is ADR-021's
+// Enforced-by. Measured 2026-09-04: a plan naming one file as Same.txt and
+// same.txt on APFS reported two hunks ok and two files written, and the file
+// held only the second edit — both spellings staged a copy and the last rename
+// won. The ledger already answered identity with os.SameFile (issue #47); the
+// grouping of hunks into files did not.
+//
+// The symlink half runs everywhere: link.txt -> real.txt is one inode on ext4
+// too, so a case-sensitive CI runner cannot pass this without reaching the
+// branch. The two-spelling half runs where the filesystem folds case.
+func TestAPlanThatNamesOneFileTwiceIsRefusedWhicheverTheSpelling(t *testing.T) {
+	root := t.TempDir()
+	// refuse applies a plan naming one file as a (line 1) and b (line 3) and
+	// requires the refusal: nothing written, and both spellings in the reason.
+	refuse := func(t *testing.T, a, b string) {
+		t.Helper()
+		write(t, root, a, "one\ntwo\nthree\n")
+		sha := shaOfFile(t, root, a)
+		// The second spelling carries TWO hunks: one refusal per file, on
+		// its first hunk, with the other skipped — not two failures.
+		res, err := Apply(root, []Input{
+			{Path: a, Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
+			{Path: b, Start: 3, End: 3, Op: "replace", Body: []string{"Z"}, Lines: -1, Index: 1},
+			{Path: b, Start: 2, End: 2, Op: "replace", Body: []string{"Y"}, Lines: -1, Index: 2},
+		}, Options{Seen: map[string]Seen{a: {SHA: sha}, b: {SHA: sha}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Applied {
+			t.Fatalf("a plan naming one file as %s and %s APPLIED — the first hunk is silently lost: %+v", a, b, res.Hunks)
+		}
+		if got, _ := os.ReadFile(filepath.Join(root, a)); string(got) != "one\ntwo\nthree\n" {
+			t.Fatalf("a refused plan wrote something: %q", got)
+		}
+		if res.Failed != 1 {
+			t.Fatalf("one file refused once, but Failed=%d: %+v", res.Failed, res.Hunks)
+		}
+		var status []Status
+		reason := ""
+		for _, h := range res.Hunks {
+			status = append(status, h.Status)
+			if h.Status == StatusFailed {
+				reason = h.Reason
+			}
+		}
+		if want := []Status{StatusSkipped, StatusFailed, StatusSkipped}; fmt.Sprint(status) != fmt.Sprint(want) {
+			t.Fatalf("hunk statuses %v, want %v — the refusal rides the second spelling's first hunk and every sibling skips", status, want)
+		}
+		if !strings.Contains(reason, a) || !strings.Contains(reason, b) {
+			t.Fatalf("the refusal must name both spellings so the plan can be fixed in one edit: %q", reason)
+		}
+		if len(res.Files) != 2 {
+			t.Fatalf("both spellings must appear in the receipt (ADR-001 rule 3): %+v", res.Files)
+		}
+		for _, f := range res.Files {
+			if f.Written {
+				t.Fatalf("receipt says %s was written by a refused plan", f.Path)
+			}
+		}
+	}
+
+	// The case-fold half comes FIRST and outside any skip: NTFS is the one CI
+	// platform where the measured shape reproduces natively, and it must not
+	// sit behind a symlink attempt that a runner without developer mode skips.
+	if caseInsensitiveFS(t, root) {
+		refuse(t, "Same.txt", "same.txt")
+	}
+
+	// The symlink half is one inode on every filesystem, so a case-sensitive
+	// runner reaches the branch wherever a symlink can be created; it skips
+	// only where one cannot, and the case-fold half above covers NTFS.
+	t.Run("symlink alias", func(t *testing.T) {
+		if err := os.Symlink("real.txt", filepath.Join(root, "link.txt")); err != nil {
+			t.Skipf("cannot create a symlink here: %v", err)
+		}
+		refuse(t, "real.txt", "link.txt")
+	})
+
+	// Two genuinely different files must still apply: the check asks the
+	// filesystem, and must not refuse on a resemblance between names.
+	first, second := "a.txt", "b.txt"
+	if !caseInsensitiveFS(t, root) {
+		second = "A.txt" // really a different file here, and the one a case fold would wrongly merge
+	}
+	write(t, root, first, "one\n")
+	write(t, root, second, "one\n")
+	res, err := Apply(root, []Input{
+		{Path: first, Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0},
+		{Path: second, Start: 1, End: 1, Op: "replace", Body: []string{"B"}, Lines: -1, Index: 1},
+	}, Options{Seen: map[string]Seen{first: {SHA: shaOfFile(t, root, first)}, second: {SHA: shaOfFile(t, root, second)}}})
+	if err != nil || !res.Applied {
+		t.Fatalf("two different files %s and %s were refused: %v %+v", first, second, err, res.Hunks)
+	}
+}
