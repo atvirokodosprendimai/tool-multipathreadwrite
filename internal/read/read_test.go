@@ -442,3 +442,45 @@ func TestAnAbsolutePathIsAWholePathOnThisPlatform(t *testing.T) {
 		t.Errorf("Path = %q with %d range(s), want %q with 1", sp.Path, len(sp.Ranges), abs)
 	}
 }
+
+// TestAGlobThatTheShellDidNotExpandSaysSo covers ADR-015's other half.
+//
+// "no such file or directory" for a path holding a `*` is true and answers the
+// wrong question. Worse, the shape that produces it most often never reaches
+// mrw at all: zsh refuses `dir/*.go:1-3` outright, because the address suffix
+// stops the pattern matching any file. Quoting is what a caller tries next, and
+// quoting is what produces this message.
+func TestAGlobThatTheShellDidNotExpandSaysSo(t *testing.T) {
+	root := t.TempDir()
+	var b strings.Builder
+	sp, err := ParseSpec("sub/*.go:1-3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	Run(&b, root, []Spec{sp}, Options{})
+	got := b.String()
+	if !strings.Contains(got, "UNREADABLE") {
+		t.Fatalf("expected an unreadable report, got:\n%s", got)
+	}
+	for _, want := range []string{"glob", "--grep"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the report never mentions %q, so a caller reads it as a missing file:\n%s", want, got)
+		}
+	}
+}
+
+// TestAnOrdinaryMissingFileGetsNoGlobHint is the silence case for the read
+// side: a path with no metacharacter is simply missing, and saying anything
+// about globs there would be a guess dressed as help.
+func TestAnOrdinaryMissingFileGetsNoGlobHint(t *testing.T) {
+	root := t.TempDir()
+	var b strings.Builder
+	sp, err := ParseSpec("nope.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	Run(&b, root, []Spec{sp}, Options{})
+	if strings.Contains(b.String(), "glob") {
+		t.Errorf("the glob hint fired for a path with no metacharacter:\n%s", b.String())
+	}
+}
