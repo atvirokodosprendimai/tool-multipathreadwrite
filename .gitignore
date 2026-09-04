@@ -27,3 +27,4 @@
 # artefact tied to one interpreter version, and the class of file ADR-004
 # exists to keep out of the tree.
 __pycache__/
+.DS_Store
