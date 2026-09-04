@@ -119,9 +119,10 @@ donor, since dropping `--grep` from it already frees text.
 
 - Any behaviour change (T1 owns it)
 - Re-opening ADR-016's routing decision (its DIRECTION stands; only the flag list is wrong)
-- Any root change (deferred: ADR-018)
+- Any root change (deferred: docs/adr/BACKLOG.md — the Desktop-coverage entry, until the record that owns reach exists)
 
 ## Verification Log
 <!-- filled during execution -->
 - 2026-09-04 · ba05252* · exit 0 · `set -o pipefail …` · acceptance-sha256:17cc6a64901888ea4dfe16cf8799997c7db4c451e8fb03ec82abe99261c2828c · ms:47641
 - 2026-09-04 · ba05252* · exit 0 · `set -o pipefail …` · acceptance-sha256:17cc6a64901888ea4dfe16cf8799997c7db4c451e8fb03ec82abe99261c2828c · ms:23606
+- 2026-09-04 · 4ae94cc* · exit 0 · `set -o pipefail …` · acceptance-sha256:17cc6a64901888ea4dfe16cf8799997c7db4c451e8fb03ec82abe99261c2828c · ms:107042

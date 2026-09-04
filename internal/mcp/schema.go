@@ -207,6 +207,15 @@ func readSchema() map[string]any {
 			// Present only on a paged answer, so it is NOT in `required` — a
 			// caller's exit condition is precisely its absence.
 			"next_read": map[string]any{"type": "string"},
+			// Present only on a grep's INDEX answer, and likewise not
+			// required. ⚠ ADR-017-T1's first cut claimed this file needed no
+			// change because matchIndex builds its own map — which is exactly
+			// how a response comes to violate the schema its own tool
+			// advertises. A schema-validating host would have rejected it.
+			// Found by review of #80.
+			"matches":    map[string]any{"type": "integer"},
+			"index":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"next_index": map[string]any{"type": "string"},
 		},
 		"required": []string{"observed", "problems"},
 	}, readDescriptions)
@@ -236,6 +245,9 @@ var readDescriptions = map[string]string{
 	"observed.Spans": "The line spans this call rendered, as [start, end] pairs; null means the whole file. Authorisation is per LINE: a write to a line no read has served is refused, though a line served by an EARLIER read of the same sha is still licensed.",
 	"problems":       "How many requested ranges could not be served. Non-zero means part of what you asked for is missing from `observed` — the call itself still answered.",
 	"next_read":      "The spec to send next when this answer is only a PAGE of what you asked for. Absent when nothing remains, which is how you know you have the whole thing. A paged answer is also `isError: true`: stopping here leaves you holding part of a file, not the file.",
+	"matches":        "How many files matched a `grep`, counting the whole match set and not just this page. Present on any grep answer.",
+	"index":          "The matching FILE PATHS, served instead of content when the matches are too large to return. No content came with them and nothing was recorded, so this licenses no write. Send one back as a spec WITH the same grep to read its matches.",
+	"next_index":     "The last path on this page of an INDEX. Send the same grep again with `after` set to this for the next page, and repeat until it is absent — its absence is how you know you have the whole match set.",
 }
 
 var writeDescriptions = map[string]string{

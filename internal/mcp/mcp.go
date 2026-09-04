@@ -289,6 +289,10 @@ func tools() []tool {
 						"description": "Globs to skip, matched against BOTH the root-relative path and the basename. Only meaningful with `grep`. Note that `*` does not cross a separator, which is why the basename is matched too: \"*_test.go\" against the full path alone matches no test file anywhere below the root.",
 						"examples":    []any{[]any{"*_test.go", "vendor"}},
 					},
+					"after": map[string]any{
+						"type":        "string",
+						"description": "Resume a paged index: send the SAME `grep` again with this set to the `next_index` the previous call returned, and matching files at or before it are skipped. Files are walked in path order, so this is a position you can read rather than an opaque cursor. Repeat until `next_index` is absent.",
+					},
 				},
 				"required": []string{},
 			},

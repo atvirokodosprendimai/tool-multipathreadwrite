@@ -2217,16 +2217,24 @@ assert res.get("isError") is True, "an oversized grep must still read as an erro
 assert sc["matches"] == 40, "the index reports %r matching files, want 40" % sc["matches"]
 idx = sc["index"]
 assert idx, "an oversized grep returned no index at all"
-# THE ENTRIES MUST BE SPECS. Send the first one back to the real binary.
+# THE ENTRIES MUST BE PATHS THAT ROUND-TRIP. Send the first one back to the real
+# binary WITH the same grep, which is what the result tells the caller to do.
 first = idx[0]
+assert ":" not in first, "index entry %r carries an address; a pattern containing a slash makes that ambiguous" % first
 req = {"jsonrpc":"2.0","id":1,"method":"tools/call",
-       "params":{"name":"mrw_read","arguments":{"specs":[first]}}}
+       "params":{"name":"mrw_read","arguments":{"specs":[first],"grep":"NEEDLE"}}}
 p = subprocess.run([os.environ["MRW_BIN"], "--root", root, "mcp"],
                    input=json.dumps(req)+"\n", capture_output=True, text=True)
 back = json.loads(p.stdout.splitlines()[0])["result"]
 assert back.get("isError") is not True, "index entry %r is not a spec the tool accepts" % first
 body = "".join(c.get("text","") for c in back["content"])
 assert "NEEDLE" in body, "reading index entry %r served no match" % first
+# AND THE INDEX ITSELF MUST FIT THE CAP IT EXISTS TO RESPECT. An index built to
+# avoid an oversized result that is ITSELF oversized is the spill this answer
+# was added to prevent. Measured on the encoded line, not on the entry list:
+# earlier cuts counted each entry once (650,000 chars) and then twice (210,289),
+# because the JSON block is escaped again inside the envelope.
+assert len(raw) <= 200000, "the index result is %d characters, over the 200000 cap it exists to respect" % len(raw)
 PY
 [ $? -eq 0 ] && ok "an oversized grep returns an index whose entries really read" \
              || bad "the index is missing, wrong, or not made of specs"
@@ -2249,6 +2257,62 @@ out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mr
 grep -q 'two answers to one question' <<<"$out" \
   && ok "and a ranged spec with grep is refused, in the CLI's own words" \
   || bad "the two surfaces disagree on the grammar: $out"
+# THE INDEX MUST PAGE TO EXHAUSTION, AND FIT THE CAP WHILE DOING IT.
+#
+# This fixture exists because the 40-file one above cannot reach either failure:
+# its index is tiny, so a cap assertion passes trivially and a paging assertion
+# never fires. Many small files is also the shape the Desktop population
+# actually has.
+fixture
+python3 -c "
+for i in range(8000):
+    f=open('$R/document%05d.csv' % i,'w'); f.write('x\n'); f.write('the NEEDLE is here\n')
+"
+MRW_BIN="$MRW" python3 - "$R" <<'PY'
+import json, subprocess, sys, os
+root = sys.argv[1]
+mrw = os.environ["MRW_BIN"]
+
+def call(args):
+    req = {"jsonrpc":"2.0","id":1,"method":"tools/call",
+           "params":{"name":"mrw_read","arguments":args}}
+    p = subprocess.run([mrw, "--root", root, "mcp"],
+                       input=json.dumps(req)+"\n", capture_output=True, text=True)
+    line = p.stdout.splitlines()[0]
+    # THE ENCODED LINE is what the host receives, so it is what the cap governs.
+    assert len(line) <= 200000, "an index result was %d characters, over the 200000 cap it exists to respect" % len(line)
+    return json.loads(line)["result"]
+
+res = call({"grep": "NEEDLE"})
+sc = res["structuredContent"]
+assert sc["matches"] == 8000, "matches = %r, want 8000" % sc["matches"]
+assert len(sc["index"]) < 8000, "the index served all 8000 entries; this fixture exists to overflow it"
+assert sc["next_index"], "the index was cut short and named no resume point"
+
+# FOLLOW IT TO EXHAUSTION and compare the union, rather than checking that a
+# continuation is present. next_index named the FIRST WITHHELD file in an
+# earlier cut, and `after` skips everything at or before its value — so the
+# cursor skipped its own file and lost exactly one per page boundary. A
+# presence check passed that; only the union caught it.
+seen_paths, nxt, pages = set(sc["index"]), sc["next_index"], 1
+while nxt:
+    pages += 1
+    assert pages <= 30, "following next_index did not terminate"
+    r = call({"grep": "NEEDLE", "after": nxt})
+    s = r["structuredContent"]
+    if "index" in s:
+        page = s["index"]
+        assert page, "page %d came back empty; after=%r is not making progress" % (pages, nxt)
+        assert not (seen_paths & set(page)), "page %d repeats entries already shown" % pages
+        seen_paths |= set(page)
+        nxt = s.get("next_index") or ""
+    else:
+        seen_paths |= set(s["observed"].keys())
+        nxt = ""
+assert len(seen_paths) == 8000, "paging to exhaustion yielded %d distinct files, want 8000" % len(seen_paths)
+PY
+[ $? -eq 0 ] && ok "an index pages to exhaustion, loses nothing, and stays under the cap" \
+             || bad "the index loses entries, does not terminate, or exceeds the cap"
 
 
 # 52. ADR-017 T2: the wire teaches finding, and no longer calls --grep a thing

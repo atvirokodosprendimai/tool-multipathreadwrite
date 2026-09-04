@@ -21,7 +21,7 @@ comes back as a usable list of addresses rather than as a failure.
 |------|--------|-----|
 | `internal/mcp/tools.go` | edit | `readTool` accepts `grep`/`exclude`, calls `read.Walk`, and owns the index degradation |
 | `internal/mcp/mcp.go` | edit | `mrw_read`'s input schema declares the two new arguments, described — ADR-012's rule |
-| ~~`internal/mcp/schema.go`~~ | not touched | the index fields are built in `matchIndex` and declared in the tool's own result, so the generated output schema needed no change — struck rather than deleted, because an Affected Files row nobody reconciled is how a plan starts describing a different change |
+| `internal/mcp/schema.go` | edit | the read schema declares `matches`, `index` and `next_index`, described. ⚠ An earlier revision of this row said the file was NOT touched, on the reasoning that `matchIndex` builds its own map. That reasoning is exactly how a response comes to violate the schema its own tool advertises: a schema-validating host would have rejected the index. Corrected after review of #80 |
 | `internal/mcp/tools_test.go` | edit | **the ADR's Enforced-by**, plus the refusal and ledger properties |
 | `scripts/contract.sh` | edit | §51 — drive a real oversized grep through the built binary |
 
@@ -89,6 +89,8 @@ slipped from "call the primitive" into "change the primitive", which is the Stop
 | `TestAnIndexTooLargeToServePagesByFile` | `internal/mcp/tools_test.go` | S4 — the index itself is resumable, not a third dead end | — | S1, S4 |
 | `TestGrepServesWhatItFindsAndRecordsIt` | `internal/mcp/tools_test.go` | S2, S5 — a fitting grep serves content and records exactly it; the index path records nothing | — | S1, S2, S5 |
 | `TestGrepRefusesARangedSpec` | `internal/mcp/tools_test.go` | S6 — the grammar matches the CLI's | — | S1, S6 |
+| `TestTheIndexSurvivesAPatternThatLooksLikeARange` | `internal/mcp/tools_test.go` | the entry form is unambiguous for a pattern containing `/`, which `path:/pattern/` was not | — | S3 |
+| `TestAWalkProblemIsReportedAndNotSwallowed` | `internal/mcp/tools_test.go` | a path the walk could not use is named, not silently dropped | — | S2 |
 
 ## Reachability
 
@@ -103,6 +105,7 @@ slipped from "call the primitive" into "change the primitive", which is the Stop
 
 <!-- filled during execution -->
 - 2026-09-04 · ba05252* · mutant killed · exit 1 · `internal/mcp/tools.go` · S4: give the index an unbounded budget so it never pages — the step after the satisfying part, the one this record predicted would be dropped. It also found a DEAD ASSERTION: the mutant sailed past len(idx) >= 9000 because the fixture had been resized to 8000, so that check could never fire; the threshold is bound to the fixture count now · acceptance-sha256:6240852dc249e1c084a95d1ecd3379962f63338ad67d77618f849b06930b08b7
+- 2026-09-04 · 4ae94cc* · mutant killed · exit 1 · `internal/mcp/tools.go` · S3: put the walk address back into each index entry. TestTheIndexSurvivesAPatternThatLooksLikeARange fails: for the pattern alpha/,/beta the entry f.txt:/alpha/,/beta/ parses back as a pattern RANGE, so it reads different lines than it claims to index — a wrong answer that only appears for patterns containing a slash, which is why it survived the suite, a contract row and a first review. Found by review of #80 · acceptance-sha256:6240852dc249e1c084a95d1ecd3379962f63338ad67d77618f849b06930b08b7
 
 ## Invariants
 
@@ -131,10 +134,11 @@ than the branch quietly widening.
 
 - Teaching any of this in prose (T2 — ADR-012's finding, applied)
 - `--files-from` (permanent: boundary: parent ADR, Decision 4)
-- Any root or multi-root change (deferred: ADR-018)
+- Any root or multi-root change (deferred: docs/adr/BACKLOG.md — the Desktop-coverage entry, until the record that owns reach exists)
 - Bounding the walk (deferred: parent ADR, Alternatives)
 
 ## Verification Log
 <!-- filled during execution -->
 - 2026-09-04 · ba05252* · exit 0 · `set -o pipefail …` · acceptance-sha256:6240852dc249e1c084a95d1ecd3379962f63338ad67d77618f849b06930b08b7 · ms:37140
 - 2026-09-04 · ba05252* · exit 0 · `set -o pipefail …` · acceptance-sha256:6240852dc249e1c084a95d1ecd3379962f63338ad67d77618f849b06930b08b7 · ms:19228
+- 2026-09-04 · 4ae94cc* · exit 0 · `set -o pipefail …` · acceptance-sha256:6240852dc249e1c084a95d1ecd3379962f63338ad67d77618f849b06930b08b7 · ms:149481

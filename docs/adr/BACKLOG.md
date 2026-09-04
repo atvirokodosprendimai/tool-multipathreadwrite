@@ -568,6 +568,30 @@ re-measuring these. Each was driven at the built binary, not read:
   it should NOT be inferred from ADR-016 — that record deliberately covers only
   what the surface SAYS, and its refusal of parity is scoped to itself.
 
+  **M ANSWERED THE SCOPE QUESTION on 2026-09-04: both, as two records.** The
+  CAPABILITY half is done — ADR-017 shipped `grep` and `exclude` on `mrw_read`,
+  with a match INDEX when the results will not fit and `after` to page it. It
+  also settled `--files-from` permanently on the flag's own documented
+  rationale: it exists to undo shell word-splitting, and MCP has no shell.
+
+  **THE REACH HALF IS STILL OPEN AND IS FILED HERE.** ADR-017, its T1 and its
+  T2 each defer "any root or multi-root change" to this entry, and this
+  paragraph is their receipt — they pointed here first at a filename
+  (`ADR-018`) that did not exist, which `adr-debt` correctly refused as a
+  pointer to nowhere.
+
+  What the reach record has to decide, carried forward so it is not re-argued:
+  repeatable `--root`, ALLOW-ONLY (a deny list needs symlink resolution and
+  reintroduces every path-handling bug already fixed), resolved once at
+  startup, the boundary set by the launcher rather than by a file mrw can read
+  and therefore widen, and one state namespace per root. `state.Dir(root)`
+  already hashes the resolved absolute root so N namespaces come free, but
+  `apply.Apply(root, …)` takes ONE root and `seen.Load(root)` loads ONE ledger
+  per run — a cross-repo plan needs the ledger resolved PER HUNK, which changes
+  what a run is. Issue #75's open half belongs to that record too: whether the
+  server should REFUSE a root of `/`, which is what a host that sets no project
+  directory currently gets.
+
 - **A heredoc-style body terminator for the plan format — DEFERRED.** Raised and
   refused in ADR-015.
 

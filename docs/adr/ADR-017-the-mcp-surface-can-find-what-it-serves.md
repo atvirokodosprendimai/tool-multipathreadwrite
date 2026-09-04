@@ -82,28 +82,49 @@ serves the resulting specs exactly as it serves caller-supplied ones — same ca
 recording.
 
 **2. An oversized grep returns the MATCH INDEX, not a refusal and not a truncation.** When the served
-content would exceed the cap, the result carries every matching FILE as a `path:/pattern/` spec with
-no content, plus the count. That form is not a choice: `read.Walk` returns exactly one spec per
-matching file, addressed by the pattern (`walk.go:219`), so the index is the walk's own output handed
-back rather than a new shape invented for the occasion — and reading one of those entries re-finds
-the lines, so nothing is lost by not carrying line numbers here.
+content would exceed the cap, the result carries every matching FILE as a bare PATH with no content,
+plus the count. The caller sends a path back as a spec WITH the same `grep` to read that file's
+matches.
 
-⚠ An earlier draft of this decision said "every match as a bare `path:N` spec". That was written
-before the walk's output was read and it is WRONG: the walk does not produce line numbers, and a
-record describing a shape the primitive cannot emit is how a task ends up implementing something the
-record did not mean. Corrected rather than deleted, because the mistake is the instructive part.
+⚠ THIS DECISION HAS BEEN WRONG TWICE, in the same place, and both corrections are kept because the
+second one is not the sort of thing a reader would guess.
+
+- The first draft said "every match as a bare `path:N` spec". The walk produces no line numbers at
+  all — it returns one spec per matching FILE addressed by the pattern (`walk.go:219`).
+- The second draft therefore said `path:/pattern/`, handing back the walk's own address. That is
+  worse, because it is wrong only SOMETIMES: `alpha/,/beta` is a valid regexp, and the entry
+  `f.txt:/alpha/,/beta/` parses back as a pattern RANGE — start `/alpha/`, end `/beta/` — instead of
+  the single pattern that matched. The entry still looks like a spec and still reads successfully; it
+  reads DIFFERENT LINES than the ones it claims to index. A needle without a slash can never expose
+  it, which is exactly why it survived a test suite, a contract row and a first review.
+
+A bare path cannot be misparsed, and the pattern travels in the argument that already carries it.
 
 This is a first-class answer rather than a consolation: the index IS the language of the next call,
 it is far smaller than the content it describes, and *finding the sites* is the thing this record
-exists to do. The caller then reads the entries it actually wants, each pageable by ADR-014's
-existing mechanism.
+exists to do.
 
-**3. An index too large to serve PAGES BY FILE.** The index is a list, and a list has a natural
-continuation the way a file's lines do: the result carries the first N entries and names the path to
-resume after. This is stated as a decision rather than left to the implementation because the
-tempting alternative — refuse with a count — is ADR-014's dead end a third time, and the step after
-the satisfying part is the one this project keeps dropping. The Enforced-by drives the
-overflowing-INDEX case, not only the overflowing-content case.
+**3. An index too large to serve PAGES BY FILE, and `after` is what resumes it.** The result carries
+the entries that fit and `next_index`, the LAST path shown; sending the same grep again with
+`after` set to that value returns the next page, until `next_index` is absent. A resumed page comes
+back as another index while the remainder is still too large, and as an ordinary SERVED read once it
+fits — the same shape as ADR-014's last page.
+
+⚠ The first implementation shipped `next_index` with NOTHING THAT ACCEPTED IT. There was no
+`after` argument, and `specs` names files to search rather than a cursor, so the advertised
+continuation could not be followed: the caller would have had to enumerate the remaining paths, which
+is precisely what this population cannot do. It was ADR-014's dead end wearing a field, in the record
+written to prevent exactly that, and the test passed because it asked whether the cursor NAMED a real
+path rather than following it. Adding the argument then exposed an off-by-one — `next_index` named
+the first WITHHELD file, which `after` skips, losing one entry per page boundary (7,999 of 8,000).
+Both were found by review of #80; the Enforced-by now pages to exhaustion and compares the union.
+
+**3b. The index is budgeted against the ENCODED RESULT.** Every entry is emitted in the structured
+content and again in the JSON text block, which the transport escapes a second time. Counting each
+entry once produced a 650,000-character answer against a 200,000 cap, and counting it twice still
+produced 210,289 — an index built to avoid an oversized result that was itself the oversized result.
+The implementation marshals and MEASURES, trimming until the encoded line fits, and always keeps at
+least one entry so a page can never be empty.
 
 **4. `--files-from` is not added, permanently.** See Context: it exists to undo shell word-splitting,
 and MCP has no shell. `specs` already is the list.
@@ -193,7 +214,7 @@ the defect ADR-012 was written about and ADR-013 and ADR-016 each repeated.
 
 - `--files-from` over MCP (permanent: boundary: it exists to undo shell word-splitting, which MCP does not have — `cmd/mrw/main.go:1146`)
 - `--check` and the `check`/`iter`/`seen`/`stats` subcommands over MCP (permanent: boundary: BACKLOG's Desktop entry — a Go-test runner and introspection are not this population's work)
-- Any change to the root, or to how many roots there are (deferred: ADR-018 owns reach; this record is capability only, and the two were split deliberately)
+- Any change to the root, or to how many roots there are (deferred: docs/adr/BACKLOG.md — the Desktop-coverage entry. Reach is a separate record by M's decision and is not written yet; a deferral must point at a place that EXISTS, so it points at the backlog entry rather than at a filename nobody has created)
 - Bounding the walk (deferred: belongs with the root model — see Alternatives)
 - Changing `MaxResultChars` (deferred: still needs the quality curve — ADR-014 Decision 4)
 - Any CLI behaviour change (permanent: boundary: ADR-010's go/no-go)
