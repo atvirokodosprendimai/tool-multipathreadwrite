@@ -2008,6 +2008,42 @@ assert any(s.startswith("mrw_write:hunks.status") for s in seen), "the walk neve
 PY
 [ $? -eq 0 ] && ok "every property of every declared outputSchema says what it means, at every depth" \
              || bad "the declared output schemas still describe only their types"
+# 49. ADR-015 T1: the two mistakes this syntax invites name their own fix.
+#
+# This project's stated ethos is that a refusal is the tool working and "names
+# the file, the plan line and the reason". These two did not. Both were hit
+# repeatedly while writing this repository's own documentation, which is what
+# writing plan syntax into a plan body gets you.
+fixture
+
+# D5: a body line beginning with @@ is read as a header.
+out=$(printf '@@ a.go 1 replace\n@@ this is body text\nmore body\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "a body line beginning with @@ is refused"
+grep -q 'body=<n> raw=true' <<<"$out" \
+  && ok "and the refusal names the escape, instead of only reporting a bogus op" \
+  || bad "the refusal does not mention body=/raw=: $out"
+
+# ...and the hint must NOT fire where it would be wrong.
+out=$(printf '@@ a.go 1 mangle\nbody\n' | m write - 2>&1)
+grep -q 'body=<n> raw=true' <<<"$out" \
+  && bad "the body-line hint fired on an ordinary bad op on the first line: $out" \
+  || ok "and it stays quiet on an ordinary bad op, so it does not become noise"
+
+# D4: a glob the shell never expanded.
+out=$(m read 'sub/*.go:1-3' 2>&1)
+grep -q 'UNREADABLE' <<<"$out" || bad "expected an unreadable report: $out"
+grep -q 'glob your shell did not expand' <<<"$out" \
+  && ok "an unexpanded glob is named as one, not reported as a missing file" \
+  || bad "the report reads as a missing file: $out"
+grep -q -- '--grep' <<<"$out" \
+  && ok "and it names the tools that do the job" \
+  || bad "the hint does not say what to use instead: $out"
+
+out=$(m read 'nope.go' 2>&1)
+grep -q 'glob' <<<"$out" \
+  && bad "the glob hint fired for a path with no metacharacter: $out" \
+  || ok "and an ordinary missing file gets no glob hint"
+
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

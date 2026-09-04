@@ -209,11 +209,26 @@ func Parse(r io.Reader) ([]Hunk, error) {
 			}
 			continue
 		}
-
 		flush()
 		h, explicit, err := parseHeader(hdr, n)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("line %d: %v", n, err))
+			// ADR-015: if a hunk has already been seen, a `@@` line that will
+			// not parse is far more often a BODY line than a broken header —
+			// documenting this format means writing this format inside a body,
+			// and the escape for that is documented in three places and named
+			// in none of the errors. Before this the caller was told their op
+			// was "starts", plus two consequential errors about the wreckage.
+			//
+			// Conditional on len(hunks) > 0 deliberately: on the first line
+			// there is no body it could belong to, and a hint that fires on
+			// every parse failure is noise, which is how a real hint stops
+			// being read. TestTheHintsStayQuietOnOrdinaryFailures pins that.
+			hint := ""
+			if len(hunks) > 0 {
+				hint = " — if this is a BODY line that begins with @@, declare body=<n> raw=true" +
+					" on the hunk it belongs to, so the count says where the body ends"
+			}
+			errs = append(errs, fmt.Sprintf("line %d: %v%s", n, err, hint))
 			continue
 		}
 		h.Index = len(hunks)

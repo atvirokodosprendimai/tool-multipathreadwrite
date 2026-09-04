@@ -132,6 +132,14 @@ error names a line number you never typed. Quoting does not help; it happens in
 the process-spawn layer, after the shell. Export `MSYS2_ARG_CONV_EXCL='*'`, or
 use PowerShell or WSL. Line-number and `$` addresses are unaffected.
 
+⚠ **A shell glob and an address suffix do not mix.** `mrw read 'dir/*.go:1-3'`
+is served with the star taken literally, so it reports the path UNREADABLE; and
+unquoted, zsh refuses it before mrw starts — *"no matches found"* — because
+`dir/*.go:1-3` matches no file. Quoting is what most callers try next and it is
+the wrong half of the fix. Use `--grep` to walk and serve in one call, or
+`--files-from` to pipe a list in and add the suffix per line. mrw says this in
+the UNREADABLE line too, but by then you have spent a call.
+
 ### 2. One plan, not N writes
 
 Every hunk gets a verdict. If any hunk fails, **nothing is written at all** and
