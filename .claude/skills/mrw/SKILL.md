@@ -54,6 +54,23 @@ that story are kept because the lesson is not "the skill was missing" but **a
 pointer reads exactly like a working one until someone follows it** — so follow
 one when you write it, and again when you cite it.
 
+**And a second time, on 2026-09-04.** The skill existed and was current when it
+was written, then `main` moved and it did not. By v0.1.0 it stated as a permanent
+rule something ADR-013 had already made false — *"plan addresses are line numbers
+ONLY. A regex address works in `read` and is rejected in a plan (`unknown op
+"/"`, exit 2)"* — so every session in every other repository was being told to
+avoid a feature that works. It also predated ADR-021 and ADR-022 and had never
+carried `--grep`, `--files-from`, or the `check`, `stats`, `iter` and `seen`
+subcommands, which is the defect of issues #51 and #73 surviving a third release.
+Corrected to version 3, pinned to `e917310` / v0.1.0.
+
+The lesson is narrower than "keep the mirror fresh", and it is worth having in
+front of you when you edit either copy: **a mirror does not rot by being edited
+wrongly, it rots by the source being edited correctly.** Nothing about updating
+AGENTS.md fails, or warns, or looks any different when the copy is left behind.
+So the moment you change the "Using mrw" section here, `am_update_skill` in the
+same session — not in a follow-up, which is the step that never happens.
+
 ## ⚠ Step 0 — does the binary exist?
 
 Repeated here because it is the one thing you need before deciding whether to
