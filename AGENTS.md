@@ -72,6 +72,14 @@ unverified. Tests assert these; changing one is a breaking change.
 - Exported identifiers carry doc comments starting with the name. Packages carry
   a package comment.
 
+## The drill — how a change reaches `main`
+
+The contributor lifecycle for this repository is written down in `.claude/rules/`, one file per
+topic: `lifecycle.md` (record → red test → mutant → contract row → receipts), `git.md`,
+`reviews.md`, and the path-scoped `adr.md`, `testing.md` and `contract.md`. Claude Code loads them
+on its own; any other agent should read them before changing anything. They are project policy,
+not tool documentation, which is why they are there and not here.
+
 ## Using mrw — read this before you edit anything
 
 **Reach for mrw when the task touches 3 or more edits, 2 or more files, or
