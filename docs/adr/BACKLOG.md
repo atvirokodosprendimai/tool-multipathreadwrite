@@ -479,6 +479,59 @@ re-measuring these. Each was driven at the built binary, not read:
   variable, edit outcome as the dependent one, across models. If the curve turns
   over, the cap becomes a measured number instead of an inherited one; if it is
   flat, "arbitrary" is a defensible answer and we will be able to say so.
+
+  **PRE-REGISTRATION, written 2026-09-04 BEFORE any harness exists or any datum
+  was collected.** It is here rather than in a record because a criterion
+  authored after the first look is not a criterion.
+
+  ⚠ THE DEPENDENT VARIABLE IS THE WHOLE PROBLEM, and the obvious ones are
+  traps. ADR-009 already counts `applied`, `refused_parse` and `refused_apply`,
+  so they are free — and they will be FLAT, because they measure whether the
+  caller could author the FORMAT, which has nothing to do with how much was
+  served. A flat curve on those would read as "the cap does not matter" when it
+  actually means "the easy thing was measured". They are recorded as secondary
+  and are not the claim.
+
+  **PRIMARY DV: did the plan address the line it was supposed to address?**
+  This is the failure mode that matters and the one every other gate is blind
+  to — an edit that parses, applies cleanly, reports `ok`, and changed the
+  wrong line. `refused_parse` and `refused_apply` both stay green through it.
+  It is also the failure mrw exists to prevent, so it is the honest thing to
+  put on the y-axis.
+
+  GROUND TRUTH IS PLANTED, NOT JUDGED. The generator places the target line and
+  therefore knows the correct address by construction; scoring is
+  `plan addressed line N` against a known N, mechanically. Nothing here needs a
+  human to rate an edit, which is what keeps the measurement affordable and
+  repeatable — and it is the reason this DV was chosen over "is the edit
+  semantically right", which cannot be scored without authoring a rubric and a
+  rater.
+
+  ⚠ THE THREAT TO VALIDITY, named up front: a planted target is easy to find if
+  it is a unique string, and then the task measures string matching rather than
+  reading. The distractors must be NEAR-IDENTICAL to the target — same shape,
+  differing in the detail the instruction names — or the curve will be flat for
+  a reason that has nothing to do with context size.
+
+  IV: served bytes, varied by padding the same task with more surrounding file.
+  The TASK IS HELD FIXED across sizes; only the volume of non-target content
+  moves, or size and difficulty are confounded and the result says nothing.
+
+  STRATIFY BY TARGET POSITION rather than randomising it away. Position within
+  the served window is the best-documented effect in the long-context
+  literature, and if it is folded into the noise the headline curve will
+  average a real effect into nothing. Early / middle / late are separate cells.
+
+  REPEATS: the model is nondeterministic, so N trials per cell with the count
+  fixed in advance. A cell is a proportion, and proportions need their interval
+  reported, not a point.
+
+  **DIRECTION AND THE FLAT ANSWER, committed now.** The prediction is that
+  correct-address rate DEGRADES as served bytes grow, most sharply for
+  mid-window targets. **If the curve is flat, that is a publishable answer and
+  the cap stays arbitrary with evidence** — it does not become a reason to
+  search for a different metric until something bends. ADR-009 and ADR-012 both
+  refused criteria that could not go red; this one commits to accepting a null.
 - **`occurrence=N`, or any positional disambiguator for a pattern address —
   DEFERRED.** Raised and refused in ADR-013.
 
