@@ -1855,7 +1855,14 @@ with open('$R/wide.go','w') as f:
     for i in range(60000): f.write('// padding padding padding padding padding %d\n' % i)
 "
 
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["wide.go"]}}}\n' | m mcp 2>/dev/null)
+# ⚠ RETARGETED BY ADR-014 at the MULTI-SPEC branch. A single oversized spec now
+# returns a first page and a continuation and records the span it served, so
+# "carries no file content" and "licenses nothing" are deliberately false there;
+# §47 covers that case. mrw still cannot know WHICH of several specs to narrow,
+# so the flat refusal survives for them, and this row pins it where its
+# assertions remain true.
+printf '// small\n' > "$R/small.go"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["wide.go","small.go"]}}}\n' | m mcp 2>/dev/null)
 want 0 $? "the server answers a read that is too large"
 python3 - "$out" <<'PY'
 import json,re,sys
@@ -1863,18 +1870,21 @@ r=json.loads(sys.argv[1])["result"]
 assert r.get("isError") is True, "an oversized read was not refused"
 t=r["content"][0]["text"]
 assert "200000" in t, "the refusal does not name the limit: %s" % t[:120]
-assert "wide.go" in t, "the refusal does not name the file"
-m=re.search(r"wide\.go:1-(\d+)", t)
-assert m, "the refusal shows no range to retry with: %s" % t[:160]
-assert int(m.group(1)) >= 100, "the suggested range %s is too small to be a useful retry" % m.group(1)
+m=re.search(r"around (\d+) lines per file", t)
+assert m, "the refusal gives no line budget to retry with: %s" % t[:200]
+assert int(m.group(1)) >= 100, "the budget %s is too small to be a useful retry" % m.group(1)
 assert "padding padding" not in t, "the refusal carries file content; it truncated rather than refused"
+# On the RESULT, not on structuredContent: a multi-spec refusal carries no
+# structuredContent at all, so asserting the key's absence inside it passed over
+# an empty object and proved nothing. Non-blocking item 6 of PR #76's review.
+assert "next_read" not in json.dumps(r), "a multi-spec refusal must not pretend to page"
 PY
 [ $? -eq 0 ] && ok "and refuses it, naming the limit and a range to retry with" \
              || bad "the oversized read was not refused legibly"
 
 # A refused read must license NOTHING: no ledger entry claiming the caller saw it.
 out=$(printf '@@ wide.go 2 replace\n// changed\n' | m write - 2>&1); rc=$?
-want 1 "$rc" "and a write to the refused file is still refused as unread"
+want 1 "$rc" "and a multi-spec refusal still licenses nothing"
 
 # THE GO/NO-GO: one transport is bounded, the engine is not.
 out=$(m read wide.go 2>&1); rc=$?
@@ -2008,6 +2018,111 @@ assert any(s.startswith("mrw_write:hunks.status") for s in seen), "the walk neve
 PY
 [ $? -eq 0 ] && ok "every property of every declared outputSchema says what it means, at every depth" \
              || bad "the declared output schemas still describe only their types"
+# 47. ADR-014 T1: an oversized read is a FIRST PAGE, and following it loses
+# nothing.
+#
+# ADR-011-T3 bounded the result and left the caller a dead end: one suggested
+# range and no page two, so a caller that followed it once had confidently read
+# part of a file. This row pages a real file to completion through the built
+# binary and reassembles it, because a continuation pointing at the wrong lines
+# passes every check that only asks whether a continuation exists.
+fixture
+python3 -c "
+with open('$R/huge.go','w') as f:
+    f.write('package demo\n')
+    for i in range(12000): f.write('// padding padding padding padding padding %06d\n' % i)
+"
+total=$(wc -l < "$R/huge.go" | tr -d ' ')
+
+MRW_BIN="$MRW" python3 - "$R" "$total" <<'PY'
+import json, subprocess, sys, os
+root, total = sys.argv[1], int(sys.argv[2])
+mrw = os.environ["MRW_BIN"]
+spec, got, pages = "huge.go", [], 0
+while True:
+    pages += 1
+    assert pages <= 30, "still paging after %d pages — the continuation is not advancing" % pages
+    req = json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":
+                      {"name":"mrw_read","arguments":{"specs":[spec]}}})
+    out = subprocess.run([mrw, "-C", root, "mcp"], input=req+"\n",
+                         capture_output=True, text=True).stdout
+    r = json.loads(out)["result"]
+    body = r["content"][0]["text"]
+    for ln in body.split("\n"):
+        i = ln.find("|")
+        if i < 0: continue
+        if not ln[:i].strip().isdigit(): continue
+        got.append(ln[i+1:].removeprefix(" "))
+    nxt = r.get("structuredContent", {}).get("next_read", "")
+    if not nxt:
+        break
+    assert nxt != spec, "page %d handed back the spec it was given" % pages
+    spec = nxt
+assert pages > 1, "a file this size must page; the fixture is not exercising the row"
+assert len(got) == total, "reassembled %d lines, want %d — paging lost or repeated content" % (len(got), total)
+with open(os.path.join(root, "huge.go")) as f:
+    want = f.read().split("\n")[:-1]
+assert got == want, "the reassembly differs from the file on disk"
+print("paged %d time(s), reassembled %d lines" % (pages, total))
+PY
+[ $? -eq 0 ] && ok "an oversized read pages to completion and reassembles byte for byte" \
+             || bad "paging lost content, repeated it, or did not terminate"
+# A page must license exactly what it served — no more, and no less. This needs
+# a FRESH tree: the loop above read every page, so in that one the whole file is
+# licensed and the row would pass for the wrong reason.
+fixture
+python3 -c "
+with open('$R/huge.go','w') as f:
+    f.write('package demo\n')
+    for i in range(12000): f.write('// padding padding padding padding padding %06d\n' % i)
+"
+total=$(wc -l < "$R/huge.go" | tr -d ' ')
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["huge.go"]}}}\n' | m mcp >/dev/null 2>&1
+out=$(printf '@@ huge.go 1 replace\n// page one\n' | m write --dry-run - 2>&1); rc=$?
+want 0 "$rc" "a write to a line the first page served is licensed"
+out=$(printf "@@ huge.go $total replace\n// last line\n" | m write --dry-run - 2>&1); rc=$?
+want 1 "$rc" "and a write to a line that page did NOT serve is refused as unread"
+# ⚠ Both judgements must sit ABOVE the next section. They were spliced apart by
+# §48's `fixture`, which replaces $R — so the second write ran against a tree
+# holding no huge.go at all, failed with "does not exist", and satisfied a row
+# claiming to prove the ledger. A test that passes for the wrong reason is worse
+# than one that fails. Caught in review of PR #76.
+
+# 48. ADR-014 T2: what the wire TEACHES about paging is what the binary DOES.
+#
+# One row, both halves. ADR-012 taught an enum the engine never sent and ADR-013
+# taught two examples that could not match anything; both were prose checked
+# against nothing, and both were found by a reviewer rather than a gate.
+fixture
+python3 -c "
+with open('$R/pager.go','w') as f:
+    f.write('package demo\n')
+    for i in range(9000): f.write('// padding padding padding padding padding %06d\n' % i)
+"
+# ⚠ THROUGH FILES, NOT ARGV. The page is ~156 KB, and Linux caps a single
+# argument at 131,072 bytes (MAX_ARG_STRLEN), so passing it as argv dies with
+# "Argument list too long" and the row reports a behaviour mismatch that is not
+# one. macOS's limit is larger, which is why this was green here and red in CI.
+# Caught in review of PR #76.
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null > "$WORK/init.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["pager.go"]}}}\n' | m mcp 2>/dev/null > "$WORK/page.json"
+python3 - "$WORK/init.json" "$WORK/page.json" <<'PY'
+import json,sys
+i=json.load(open(sys.argv[1]))["result"]["instructions"]
+r=json.load(open(sys.argv[2]))["result"]
+# What it teaches.
+for w in ("next_read","PAGE","absent","part of a file"):
+    assert w in i, "the instructions never mention %r" % w
+# What it does — the same three claims, against a real oversized read.
+assert r.get("isError") is True, "taught as an error, shipped as a success"
+sc=r.get("structuredContent",{})
+assert sc.get("next_read"), "taught next_read, shipped none"
+assert "padding" in r["content"][0]["text"], "taught a PAGE of content, shipped no content"
+assert "PARTIAL" in r["content"][0]["text"], "the page does not say it is partial to a human reader"
+PY
+[ $? -eq 0 ] && ok "the wire teaches paging, and a real oversized read does exactly that" \
+             || bad "the taught paging behaviour is not the shipped one"
+
 
 # 45. ADR-013 T2: a pattern address resolves exactly once, or it is refused —
 # and it is never a way to edit a file you have not read.
