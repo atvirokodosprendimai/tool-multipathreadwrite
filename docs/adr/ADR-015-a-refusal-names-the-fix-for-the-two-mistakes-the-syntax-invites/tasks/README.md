@@ -24,6 +24,16 @@ Status: `pending` | `partial` | `blocked` | `done` | `withdrawn`.
 
 ## Notes
 
+- ⚠ **A MERGE CAN COMMIT CONFLICT MARKERS INTO A FILE NO GATE READS.** This
+  branch shipped `<<<<<<<`, `=======` and `>>>>>>>` into `docs/adr/BACKLOG.md`
+  and nothing noticed: CI does not read that file, `adr-debt` found every
+  deferral it was looking for on BOTH sides of the markers, and `adr-lint`
+  treats BACKLOG.md as prose. A reviewer found it by eye. §49 now carries a
+  tree-wide `git grep` for markers, because the class is "a merge artifact in a
+  file no gate parses" and a gate over the files that ARE parsed cannot see it.
+  Run `git grep -n -E '^(<<<<<<< |=======$|>>>>>>> )'` before committing any
+  merge.
+
 - ⚠ **A deferral pointing at `BACKLOG.md` needs an ENTRY in `BACKLOG.md`, in the same commit.**
   ADR-013, ADR-014 and ADR-015 each shipped a first draft whose Out of Scope deferred something to
   `BACKLOG.md` with no such entry, and `adr-debt` named all three. Three in a row is not three

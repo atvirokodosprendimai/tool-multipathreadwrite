@@ -111,3 +111,4 @@ grammar change is ADR-001's and needs its own record.
 <!-- filled during execution -->
 - 2026-09-04 · 14d28b3* · exit 0 · `set -o pipefail …` · acceptance-sha256:176af12d72a278b779c4ef03dd9b03a3203b7c1b510f11895408699dfc01168c · ms:10835
 - 2026-09-04 · a1059d2* · exit 0 · `set -o pipefail …` · acceptance-sha256:ded8db4c20c1c4361ed3a11675c59c0fc04af80b8305d4a1d986a0f36fa0cd45 · ms:13644
+- 2026-09-04 · ba97975* · exit 0 · `set -o pipefail …` · acceptance-sha256:ded8db4c20c1c4361ed3a11675c59c0fc04af80b8305d4a1d986a0f36fa0cd45 · ms:15418

@@ -2271,6 +2271,18 @@ grep -q 'glob' <<<"$out" \
   && bad "the glob hint fired for a path with no metacharacter: $out" \
   || ok "and an ordinary missing file gets no glob hint"
 
+# REPO HYGIENE, and it lives here because this is the PR that shipped the defect
+# it catches. A merge of main into this branch committed <<<<<<< / ======= /
+# >>>>>>> into docs/adr/BACKLOG.md and NOTHING NOTICED: CI does not read that
+# file, adr-debt found every deferral it was looking for on both sides of the
+# markers, and adr-lint treats BACKLOG.md as prose. A reviewer found it by
+# eye. The class is "a merge artifact in a file no gate reads", so the gate has
+# to be over the whole tree rather than over the files a gate happens to parse.
+markers=$(cd "$SRC" && git grep -n -E '^(<<<<<<< |=======$|>>>>>>> )' -- . 2>/dev/null || true)
+[ -z "$markers" ] \
+  && ok "no conflict markers are committed anywhere in the tree" \
+  || bad "conflict markers are committed: $markers"
+
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

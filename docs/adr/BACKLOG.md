@@ -460,7 +460,6 @@ re-measuring these. Each was driven at the built binary, not read:
   THIS checkout — for instance whether MCP callers hit `refused_apply` more
   than shell callers, which is about the ledger and not about the format.
 
-<<<<<<< HEAD
 - **Measuring whether served size degrades edit accuracy — DEFERRED, and it is
   the most valuable unanswered question this project has.** Named in ADR-014.
 
@@ -480,7 +479,6 @@ re-measuring these. Each was driven at the built binary, not read:
   variable, edit outcome as the dependent one, across models. If the curve turns
   over, the cap becomes a measured number instead of an inherited one; if it is
   flat, "arbitrary" is a defensible answer and we will be able to say so.
-=======
 - **`occurrence=N`, or any positional disambiguator for a pattern address —
   DEFERRED.** Raised and refused in ADR-013.
 
@@ -496,7 +494,6 @@ re-measuring these. Each was driven at the built binary, not read:
   Revisit only if the ambiguity refusal proves common enough in practice to be
   friction rather than a guard — and note that nothing currently counts it, for
   the attribution reason ADR-012's Context sets out.
->>>>>>> main
 
 - **A heredoc-style body terminator for the plan format — DEFERRED.** Raised and
   refused in ADR-015.
