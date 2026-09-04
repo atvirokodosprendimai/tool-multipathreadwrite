@@ -5,8 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 )
 
 // TestEveryDeclaredOutputSchemaValidatesARealResponse is ADR-011's Enforced-by.
@@ -245,4 +250,253 @@ func jsonKind(v any) string {
 		return "number"
 	}
 	return "unknown"
+}
+
+// TestEveryEmbeddedExamplePlanReallyApplies is ADR-012's Enforced-by.
+//
+// Every plan this server SHIPS is parsed and then dry-run applied against a
+// tree built from the plan itself, through the same two tools a caller drives.
+// An example asserted merely to be PRESENT stays green long after it has
+// stopped being valid — and the example is the one thing a caller copies
+// verbatim, so a stale one is worse than none.
+func TestEveryEmbeddedExamplePlanReallyApplies(t *testing.T) {
+	shipped := shippedPlans(t)
+	if len(shipped) == 0 {
+		t.Fatal("no example plan ships on the wire, so this test would pass vacuously")
+	}
+	for where, text := range shipped {
+		t.Run(where, func(t *testing.T) { dryRunExample(t, text) })
+	}
+}
+
+// shippedPlans collects every plan text a host can actually receive, read off
+// the descriptor set rather than off the constants — the wire is what a caller
+// copies, and an example that never reached `examples` is not shipped.
+func shippedPlans(t *testing.T) map[string]string {
+	t.Helper()
+	out := map[string]string{"examplePlan": examplePlan}
+	for _, tl := range tools() {
+		schema, ok := tl.InputSchema.(map[string]any)
+		if !ok {
+			t.Fatalf("tool %q has no object inputSchema", tl.Name)
+		}
+		props, _ := schema["properties"].(map[string]any)
+		p, ok := props["plan"].(map[string]any)
+		if !ok {
+			continue
+		}
+		// Accept either JSON-ish shape. `plan` publishes []string and `specs`
+		// publishes []any; a type assertion for one of them silently SKIPS an
+		// example published as the other, which would make this whole test
+		// vacuous without failing. Noted in review of PR #72.
+		examples := stringExamples(t, tl.Name, p["examples"])
+		if len(examples) == 0 {
+			t.Errorf("tool %q declares a plan property with no examples; the format is bespoke and this is the only worked one a host sees", tl.Name)
+			continue
+		}
+		for i, ex := range examples {
+			out[fmt.Sprintf("%s.plan.examples[%d]", tl.Name, i)] = ex
+		}
+	}
+	return out
+}
+
+// stringExamples reads a JSON Schema `examples` array whose entries are
+// strings, accepting both the []string a Go literal produces and the []any a
+// decoded JSON document produces. It FAILS on an unexpected shape rather than
+// returning nothing: a helper that answers "no examples" for a shape it does
+// not recognise makes its caller vacuous without making it red.
+func stringExamples(t *testing.T, where string, raw any) []string {
+	t.Helper()
+	switch v := raw.(type) {
+	case nil:
+		return nil
+	case []string:
+		return v
+	case []any:
+		out := make([]string, 0, len(v))
+		for i, el := range v {
+			s, ok := el.(string)
+			if !ok {
+				t.Fatalf("%s: examples[%d] is %T, want a string", where, i, el)
+			}
+			out = append(out, s)
+		}
+		return out
+	default:
+		t.Fatalf("%s: examples is %T, want an array of strings", where, raw)
+		return nil
+	}
+}
+
+// TestTheStatusDescriptionNamesTheValuesTheEngineSends pins the prose to the
+// constants.
+//
+// T2 enforced that every property is described and that no description names a
+// property the schema dropped. Neither catches a description that names the
+// right property and the WRONG VALUES — which is what shipped: `hunks.status`
+// was documented as `fail`/`skip` while the engine sends `failed`/`skipped`, so
+// a host filtering on the documented value would have read every failing run as
+// clean. Caught in review of PR #72, on the field the record itself calls the
+// most load-bearing in the receipt.
+func TestTheStatusDescriptionNamesTheValuesTheEngineSends(t *testing.T) {
+	schema, ok := writeSchema()["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("the write schema declares no properties")
+	}
+	hunks, _ := schema["hunks"].(map[string]any)
+	items, _ := hunks["items"].(map[string]any)
+	props, _ := items["properties"].(map[string]any)
+	status, _ := props["status"].(map[string]any)
+	got, _ := status["description"].(string)
+	if got == "" {
+		t.Fatal("hunks.status carries no description")
+	}
+	for _, want := range []apply.Status{apply.StatusOK, apply.StatusFailed, apply.StatusSkipped} {
+		if !strings.Contains(got, string(want)) {
+			t.Errorf("the hunks.status description never names %q, which is a value the engine really sends:\n%s", want, got)
+		}
+	}
+	// The near-miss forms, and the reason this test is not just a "contains"
+	// check: "failed" contains "fail", so naming the wrong value is only
+	// detectable by looking for it as a WHOLE word.
+	for _, wrong := range []string{"fail", "skip"} {
+		if regexp.MustCompile(`\b` + wrong + `\b`).MatchString(got) {
+			t.Errorf("the hunks.status description names %q as a status; the engine sends %q-style values and a host filtering on %q sees no failure:\n%s", wrong, apply.StatusFailed, wrong, got)
+		}
+	}
+}
+
+// dryRunExample proves one shipped plan against the real engine: parse it,
+// build the tree it addresses, read that tree through mrw_read so the ledger
+// licenses the write, then dry-run it and demand every hunk pass.
+func dryRunExample(t *testing.T, text string) {
+	t.Helper()
+	hunks, err := plan.Parse(strings.NewReader(text))
+	if err != nil {
+		t.Fatalf("a shipped example does not parse: %v\n%s", err, text)
+	}
+	if len(hunks) == 0 {
+		t.Fatalf("a shipped example parsed to no hunks:\n%s", text)
+	}
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	specs := treeFor(t, root, hunks)
+	call(t, root, "mrw_read", map[string]any{"specs": specs})
+	got := structured(t, call(t, root, "mrw_write", map[string]any{"plan": text, "dry_run": true}))
+	if n, _ := got["failed"].(float64); n != 0 {
+		t.Errorf("the shipped example failed %v hunk(s) on a real dry run: %v", n, got["hunks"])
+	}
+}
+
+// treeFor builds the files a plan addresses, deriving each file's length from
+// the highest line the plan names and planting any `anchor=` guard on the line
+// it guards. The tree comes from the plan so that a plan naming a new path is
+// still exercised, rather than the test quietly skipping what it cannot find.
+//
+// ⚠ WHAT THIS DOES NOT PROVE. The anchor is planted FROM the plan, so an
+// `anchor=` guard here can never fail — measured as a surviving mutant on
+// 2026-09-04, when changing the example's anchor text left this test green.
+// That is the honest limit of an example naming files no repository has: the
+// test proves the plan is grammatical and applies, not that its guard matches
+// real code. The mutants that DO die are the ones that matter for an example a
+// caller copies — an address form the plan grammar rejects, a header that does
+// not parse.
+func treeFor(t *testing.T, root string, hunks []plan.Hunk) []any {
+	t.Helper()
+	last := map[string]int{}
+	anchors := map[string]map[int]string{}
+	for _, h := range hunks {
+		if h.Op == plan.OpCreate {
+			continue
+		}
+		for _, n := range []int{h.Addr.Start, h.Addr.End} {
+			if n > last[h.Path] {
+				last[h.Path] = n
+			}
+		}
+		if h.Anchor != "" {
+			if anchors[h.Path] == nil {
+				anchors[h.Path] = map[int]string{}
+			}
+			anchors[h.Path][h.Addr.Start] = h.Anchor
+		}
+	}
+	var specs []any
+	for p, n := range last {
+		body := make([]string, max(n, 1))
+		for i := range body {
+			if a, ok := anchors[p][i+1]; ok {
+				body[i] = a
+			} else {
+				body[i] = fmt.Sprintf("line %d", i+1)
+			}
+		}
+		full := filepath.Join(root, filepath.FromSlash(p))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(strings.Join(body, "\n")+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		specs = append(specs, p)
+	}
+	return specs
+}
+
+// TestEveryOutputSchemaPropertyIsDescribed holds the machine-readable half of
+// the contract to the same standard as the prose half.
+//
+// ADR-011 made the shapes generated from the Go types, which is right and left
+// them silent: a caller was told that `failed` is an integer and never what it
+// counts. Coverage is total and at every depth, because the interesting fields
+// are the ones one level down — a verdict's `status`, a file's `written`.
+func TestEveryOutputSchemaPropertyIsDescribed(t *testing.T) {
+	total := 0
+	for _, tl := range tools() {
+		schema, ok := tl.OutputSchema.(map[string]any)
+		if !ok {
+			t.Fatalf("tool %q declares no object outputSchema", tl.Name)
+		}
+		paths := describedPaths(t, tl.Name, schema, "")
+		if len(paths) == 0 {
+			t.Errorf("tool %q: the walk found no properties, so this test would pass vacuously", tl.Name)
+		}
+		total += len(paths)
+	}
+	// The two results carry more than twenty fields between them. A walk that
+	// found only the top level would pass every assertion above.
+	if total < 20 {
+		t.Errorf("the walk found %d properties across both tools; the declared shapes carry more than that, so it is not descending", total)
+	}
+}
+
+// describedPaths walks a schema, asserting a description on every property it
+// finds, and returns the paths it checked. It is written here rather than
+// reused from the production walker on purpose: a coverage test that shares its
+// traversal with the code it checks agrees with itself by construction.
+func describedPaths(t *testing.T, where string, schema map[string]any, prefix string) []string {
+	t.Helper()
+	var found []string
+	props, _ := schema["properties"].(map[string]any)
+	for name, raw := range props {
+		p, ok := raw.(map[string]any)
+		if !ok {
+			t.Errorf("%s: property %q is not an object", where, prefix+name)
+			continue
+		}
+		path := prefix + name
+		if d, _ := p["description"].(string); strings.TrimSpace(d) == "" {
+			t.Errorf("%s: property %q has no description; a caller is told its type and not what it means", where, path)
+		}
+		found = append(found, path)
+		found = append(found, describedPaths(t, where, p, path+".")...)
+		if items, ok := p["items"].(map[string]any); ok {
+			found = append(found, describedPaths(t, where, items, path+".")...)
+		}
+		if ap, ok := p["additionalProperties"].(map[string]any); ok {
+			found = append(found, describedPaths(t, where, ap, path+".")...)
+		}
+	}
+	return found
 }
