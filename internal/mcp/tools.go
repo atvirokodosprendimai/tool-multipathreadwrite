@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -146,6 +147,13 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if len(a.Exclude) > 0 && a.Grep == "" {
 		return errorResult("exclude without grep: there is nothing to exclude from"), nil
 	}
+	// `after` resumes a grep's index, so without one it means nothing. Silently
+	// ignoring it is how a caller believes it is paging while re-reading page
+	// one forever — the same silence `exclude` already refuses, and it deserves
+	// the same sentence. Found by review of #80.
+	if a.After != "" && a.Grep == "" {
+		return errorResult("after without grep: it resumes a grep's index, and there is no index without one"), nil
+	}
 
 	var specs []read.Spec
 	var walked bool
@@ -253,6 +261,33 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return errorResult(overflowMessage(a.Specs, cw)), nil
 	}
 
+	// ⚠ THE WALK'S PROBLEMS TRAVEL WITH THE SERVED ANSWER TOO. They reached the
+	// no-match branch and the index and stopped there, so a caller naming a bad
+	// path ALONGSIDE a good one got the good one and silence about the other —
+	// `problems: 0`, no isError, the bad path unmentioned. The commit that added
+	// them claimed this case was fixed; it was not, and the test passed only
+	// because it named ONLY the bad path, which takes the no-match branch.
+	// Found by review of #80.
+	report := cw.buf.String()
+	for _, p := range walkProblems {
+		report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
+	}
+	problems += len(walkProblems)
+
+	// ⚠ AND THE SERVED ANSWER IS BUDGETED, for the same reason the index is.
+	// The capped writer bounds the REPORT TEXT and nothing else: `observed`
+	// carries a sha and spans per file and travels twice more, in
+	// structuredContent and in its serialized copy. A grep resuming onto 2,514
+	// small files came back at 794,582 characters — four times the cap this
+	// server declares in _meta, and past the ceiling the host truncates at. So
+	// a walked read that will not fit ENCODED degrades to the index, which is
+	// the answer that does fit and is resumable. Found by review of #80.
+	if walked {
+		if res, over := servedOrIndex(specs, problems, cw, observed, report); over {
+			return res, nil
+		}
+	}
+
 	// Reading is how mrw learns what a file holds; recording that is what lets
 	// a later write know whether its picture is still current.
 	if err := seen.Record(root, observed); err != nil {
@@ -268,7 +303,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	return result(map[string]any{
 		"observed": observed,
 		"problems": problems,
-	}, cw.buf.String(), problems > 0)
+	}, report, problems > 0)
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the
@@ -717,10 +752,15 @@ func matchIndex(specs []read.Spec, problems int, cw *capped) callToolResult {
 		if err != nil {
 			return errorResult("could not encode the index: " + err.Error())
 		}
-		// The block appears once as text and once as structuredContent, and
-		// the text copy is escaped by the transport — so the envelope costs
-		// about twice the marshalled bytes plus the prose.
-		total := b.Len() + 2*len(raw)
+		// ⚠ MARSHAL WHAT GOES ON THE WIRE AND MEASURE THAT. The previous cut
+		// ESTIMATED — `b.Len() + 2*len(raw)` — which ignores the JSON escaping
+		// of the text copy and the envelope around both. The estimate landed
+		// on either side of the cap depending on the fixture: 199,998
+		// characters for an 8,000-file page and 200,128 for a 12,001-file one,
+		// so §51 passed because its fixture happened to come in two under.
+		// A record that says it "marshals and MEASURES" has to do it.
+		// Found by review of #80.
+		total := encodedSize(indexResult(b.String(), raw))
 		// ALWAYS KEEP AT LEAST ONE. An entry too large to fit alone would
 		// otherwise yield an empty page whose cursor names nothing, so the
 		// caller loops forever on no progress — and `shown[len(shown)-1]`
@@ -738,9 +778,17 @@ func matchIndex(specs []read.Spec, problems int, cw *capped) callToolResult {
 		}
 		shown = shown[:n]
 	}
+	// The SAME assembler the loop measured, so the thing sent and the thing
+	// checked against the cap cannot drift apart.
+	return indexResult(b.String(), raw)
+}
+
+// indexResult assembles the tool result an index answer sends, so that the
+// thing measured and the thing sent are built by one function and cannot drift.
+func indexResult(report string, raw []byte) callToolResult {
 	return callToolResult{
 		Content: []contentBlock{
-			{Type: "text", Text: b.String()},
+			{Type: "text", Text: report},
 			{Type: "text", Text: string(raw)},
 		},
 		StructuredContent: json.RawMessage(raw),
@@ -749,4 +797,39 @@ func matchIndex(specs []read.Spec, problems int, cw *capped) callToolResult {
 		// see it did not get what it requested.
 		IsError: true,
 	}
+}
+
+// encodedSize is the length of the result once marshalled — the quantity the
+// cap is actually about, since that is what crosses the wire.
+//
+// A result that will not marshal is reported as unbounded rather than as zero:
+// zero would read as "fits" and ship the thing that could not be encoded.
+func encodedSize(res callToolResult) int {
+	b, err := json.Marshal(res)
+	if err != nil {
+		return math.MaxInt
+	}
+	return len(b)
+}
+
+// servedOrIndex decides whether a WALKED read may be served as content.
+//
+// The capped writer bounds the report text and nothing else; `observed` carries
+// a sha and a span list per file and is emitted twice more. For a grep over
+// many small documents — this record's ordinary case — that is the difference
+// between 178,494 characters of report and a 794,582-character result. When the
+// encoded answer will not fit, the index is returned instead: it is the answer
+// that does fit, it is resumable, and it licenses nothing, which is the honest
+// trade for content that cannot be delivered.
+func servedOrIndex(specs []read.Spec, problems int, cw *capped, observed map[string]seen.Observation, report string) (callToolResult, bool) {
+	probe, rpcErr := result(map[string]any{"observed": observed, "problems": problems}, report, problems > 0)
+	if rpcErr != nil {
+		// Undecidable, so not degraded: the caller path will report the same
+		// encoding failure with its own message.
+		return callToolResult{}, false
+	}
+	if encodedSize(probe) <= cw.limit {
+		return callToolResult{}, false
+	}
+	return matchIndex(specs, problems, cw), true
 }

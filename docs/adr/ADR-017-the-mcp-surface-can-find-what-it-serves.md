@@ -119,12 +119,32 @@ path rather than following it. Adding the argument then exposed an off-by-one �
 the first WITHHELD file, which `after` skips, losing one entry per page boundary (7,999 of 8,000).
 Both were found by review of #80; the Enforced-by now pages to exhaustion and compares the union.
 
-**3b. The index is budgeted against the ENCODED RESULT.** Every entry is emitted in the structured
-content and again in the JSON text block, which the transport escapes a second time. Counting each
-entry once produced a 650,000-character answer against a 200,000 cap, and counting it twice still
-produced 210,289 — an index built to avoid an oversized result that was itself the oversized result.
-The implementation marshals and MEASURES, trimming until the encoded line fits, and always keeps at
-least one entry so a page can never be empty.
+**3b. EVERY grep answer is budgeted against the ENCODED RESULT — the index and the served page
+alike.** The result is assembled, marshalled, and MEASURED; the index trims until it fits, and a
+served page that will not fit degrades to the index, which is the answer that does.
+
+⚠ This decision has now been wrong three times, each in the same direction — measuring something
+adjacent to what crosses the wire — and each was found by a different reviewer:
+
+- Counting each index entry ONCE: a 650,000-character answer against a 200,000 cap.
+- Counting it TWICE: still 210,289, because the JSON text block is escaped again by the envelope.
+- ESTIMATING as `report + 2*marshalled`: 199,998 on an 8,000-file fixture and 200,128 on a 12,001-file
+  one, so the gate passed only because its fixture happened to land two characters under.
+- And the SERVED page was not budgeted at all. The capped writer bounds the report TEXT; `observed`
+  carries a sha and a span list per file and is emitted twice more, so a grep resuming onto ~2,500
+  small documents returned **794,582** characters — four times the declared cap, and past the
+  ceiling the host truncates at.
+
+The lesson the record keeps re-learning: a cap is about the bytes that cross the wire, and every
+cheaper proxy for that has been wrong. The implementation now marshals the actual `callToolResult`
+through one assembler, so the thing measured and the thing sent cannot drift.
+
+**3c. A grep's answer names every path the walk could not use.** They reached the no-match branch and
+the index and stopped there, so a caller naming a bad path ALONGSIDE a good one got the good one and
+silence about the other — `problems: 0`, no `isError`, the bad path unmentioned. ⚠ The commit that
+introduced problem-reporting CLAIMED this case was fixed. It was not, and the test passed because it
+named only the bad path, which takes the no-match branch: a test that cannot reach the broken path
+is not covering it.
 
 **4. `--files-from` is not added, permanently.** See Context: it exists to undo shell word-splitting,
 and MCP has no shell. `specs` already is the list.

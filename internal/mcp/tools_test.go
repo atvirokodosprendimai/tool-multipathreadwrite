@@ -863,3 +863,119 @@ func TestAWalkProblemIsReportedAndNotSwallowed(t *testing.T) {
 		t.Errorf("a walk that could not look where it was told reported success: %v", res)
 	}
 }
+
+// TestAWalkProblemSurvivesAValidSibling is the case the FIRST version of the
+// problem-reporting fix missed, and the case its test could not see.
+//
+// walkProblems reached the no-match branch and matchIndex and stopped there, so
+// a caller naming a bad path ALONGSIDE a good one got the good one and silence
+// about the other. TestAWalkProblemIsReportedAndNotSwallowed passed throughout,
+// because it names ONLY the bad path — which takes the no-match branch. A test
+// that cannot reach the broken path is not covering it. Found by review of #80.
+func TestAWalkProblemSurvivesAValidSibling(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if err := os.MkdirAll(filepath.Join(root, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "sub", "deep.txt"), []byte("x\nthe NEEDLE is here\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	res := call(t, root, "mrw_read", map[string]any{
+		"specs": []any{"nope_dir", "sub"},
+		"grep":  "NEEDLE",
+	})
+	all := fmt.Sprint(res["content"])
+	if !strings.Contains(all, "NEEDLE") {
+		t.Errorf("the good sibling was not served:\n%s", all)
+	}
+	if !strings.Contains(all, "nope_dir") {
+		t.Errorf("the unusable path vanished from an answer that served its sibling:\n%s", all)
+	}
+	if n, _ := structured(t, res)["problems"].(float64); n < 1 {
+		t.Errorf("problems = %v, want the unusable path counted", n)
+	}
+	if res["isError"] != true {
+		t.Error("a walk that could not look where it was told reported success")
+	}
+}
+
+// TestNoGrepAnswerExceedsTheDeclaredCap is the property both the index budget
+// and the served-page budget exist to hold, asserted on the ENCODED result.
+//
+// Two earlier cuts measured the wrong quantity. The index ESTIMATED its size
+// and landed on either side of the cap depending on the fixture. The served
+// page was not budgeted at all — the capped writer bounds the report text,
+// while `observed` carries a sha and spans per file and is emitted twice more,
+// so a grep resuming onto ~2,500 small files came back at 794,582 characters
+// against a declared 200,000. Found by review of #80.
+func TestNoGrepAnswerExceedsTheDeclaredCap(t *testing.T) {
+	// ⚠ 1,500, AND THE COUNT IS LOAD-BEARING — twice over.
+	//
+	// At 3,000 this test was GREEN AND HOLLOW: a mutant disabling the
+	// served-page degradation survived it. At 12,001 it survived AGAIN, and
+	// that reason is the interesting one — read.Run emits a per-file header,
+	// so ~3,000 files push the REPORT over the cap and the INDEX branch fires
+	// first, meaning the served path is never reached at all.
+	//
+	// The oversized served page lives in a narrow band: few enough files that
+	// the report fits, many enough that `observed` (a sha and spans per file,
+	// emitted three times over) blows the encoded result. 1,500 sits in it —
+	// mutated, this serves 423,179 characters against a declared 200,000.
+	// Reaching the bug beats resembling the report that described it.
+	const files = 1500
+	root := grepTree(t, files, 1)
+
+	seen := map[string]bool{}
+	next := ""
+	for page := 1; ; page++ {
+		if page > 30 {
+			t.Fatal("paging did not terminate")
+		}
+		args := map[string]any{"grep": "NEEDLE"}
+		if next != "" {
+			args["after"] = next
+		}
+		res := call(t, root, "mrw_read", args)
+
+		// THE ENCODED RESULT, which is what crosses the wire and what the cap
+		// is declared about — not the report text it happens to bound.
+		enc, err := json.Marshal(res)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(enc) > MaxResultChars {
+			t.Fatalf("page %d encodes to %d characters, over the declared cap of %d", page, len(enc), MaxResultChars)
+		}
+
+		st := structured(t, res)
+		if idx, ok := st["index"].([]any); ok {
+			for _, e := range idx {
+				seen[fmt.Sprint(e)] = true
+			}
+		} else {
+			for p := range st["observed"].(map[string]any) {
+				seen[p] = true
+			}
+		}
+		next, _ = st["next_index"].(string)
+		if next == "" {
+			break
+		}
+	}
+	if len(seen) != files {
+		t.Errorf("paging yielded %d distinct files, want %d", len(seen), files)
+	}
+}
+
+func TestAfterWithoutGrepIsRefused(t *testing.T) {
+	root := grepTree(t, 1, 1)
+	res := call(t, root, "mrw_read", map[string]any{
+		"specs": []any{"document00000.csv"},
+		"after": "x",
+	})
+	if res["isError"] != true {
+		t.Fatalf("after without grep was silently ignored, so a caller believes it is paging: %v", res)
+	}
+}
