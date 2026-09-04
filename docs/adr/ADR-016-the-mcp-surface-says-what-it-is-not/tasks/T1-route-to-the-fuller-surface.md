@@ -64,6 +64,7 @@ choice that made #74 and #76 merge textually instead of by renumbering.
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestTheSurfaceSaysTheCLIIsRicher` | `internal/mcp/mcp_test.go` | **the ADR's Enforced-by** — the routing reaches both surfaces, and every flag it names exists in the CLI's help | — | S1, S2, S3, S4 |
+| `TestTheBuiltCLISurvivesASecondCaller` | `internal/mcp/mcp_test.go` | review fix — the built CLI is still there for a SECOND caller of `buildCLI`, the case one caller hid | — | — |
 
 ## Reachability
 
@@ -80,6 +81,7 @@ choice that made #74 and #76 merge textually instead of by renumbering.
 - 2026-09-04 · 1bbcdeb · mutant killed · exit 1 · `internal/mcp/instructions.go` · review fix: drop the serialization counterweight — "the CLI is strictly fuller" is FALSE, because one server is one writer to the ledger while parallel CLI processes race (ADR-010:42,185), and a caller told only half of that has been misrouted · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a
 - 2026-09-04 · d90be24 · mutant killed · exit 1 · `internal/mcp/instructions.go` · S3: rename a flag the advice recommends to one the CLI does not have — advice that recommends a flag which has since been renamed is worse than no advice, and this is the rot the help-output check exists to catch · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a
 - 2026-09-04 · d90be24 · mutant killed · exit 1 · `internal/mcp/instructions.go` · S2: move the routing out of first position — a caller that has already picked a tool has stopped reading, so advice further down is advice nobody acts on · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a
+- 2026-09-04 · 8567321 · mutant killed · exit 1 · `internal/mcp/mcp_test.go` · review fix: restore the `t.Cleanup` that removed `buildCLI`'s directory — it binds to whichever test called `buildCLI` FIRST, so that test finishing deletes the binary while `cliOnce.path` still points at it. Reported as latent by review of #78 and CONFIRMED here rather than accepted: the mutant fails with *"the built CLI is gone before a second caller could use it: … no such file or directory"*. One caller hid it, which is why the fix ships with a second one · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a
 
 ## Invariants
 
@@ -107,3 +109,4 @@ say which; do not raise the bound, which every session pays.
 <!-- filled during execution -->
 - 2026-09-04 · d90be24* · exit 0 · `set -o pipefail …` · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a · ms:12051
 - 2026-09-04 · 1bbcdeb* · exit 0 · `set -o pipefail …` · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a · ms:41932
+- 2026-09-04 · 8567321* · exit 0 · `set -o pipefail …` · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a · ms:10273

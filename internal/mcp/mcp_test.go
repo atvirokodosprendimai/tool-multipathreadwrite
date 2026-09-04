@@ -13,6 +13,19 @@ import (
 	"testing"
 )
 
+// TestMain owns the directory buildCLI builds into. Registering the removal
+// with t.Cleanup instead binds it to whichever test called buildCLI FIRST, and
+// that test finishing then deletes the binary while cliOnce.path still points
+// at it — the next caller fails with "executable file not found", which reads
+// like a PATH problem and is not. One caller hid this; a second would not.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if cliOnce.dir != "" {
+		os.RemoveAll(cliOnce.dir)
+	}
+	os.Exit(code)
+}
+
 // serve drives Serve over a canned session and returns the lines it wrote.
 // Every test goes through the real reader/writer path rather than calling a
 // handler, because the framing is the part a host trips over.
@@ -563,11 +576,22 @@ func buildCLI(t *testing.T) string {
 	if cliOnce.err != nil {
 		t.Fatal(cliOnce.err)
 	}
-	t.Cleanup(func() {
-		if cliOnce.dir != "" {
-			os.RemoveAll(cliOnce.dir)
-			cliOnce.dir = ""
-		}
-	})
 	return cliOnce.path
+}
+
+// TestTheBuiltCLISurvivesASecondCaller is the regression guard for the defect
+// TestMain fixes, and it exists because the bug was INVISIBLE with one caller:
+// buildCLI's directory used to be removed by whichever test finished first,
+// while cliOnce.path still pointed into it. Go runs tests in source order
+// within a file, so this runs after the test that first builds the binary —
+// and under the old t.Cleanup it fails here, not there.
+func TestTheBuiltCLISurvivesASecondCaller(t *testing.T) {
+	bin := buildCLI(t)
+	if _, err := os.Stat(bin); err != nil {
+		t.Fatalf("the built CLI is gone before a second caller could use it: %v", err)
+	}
+	out, err := exec.Command(bin, "--version").CombinedOutput()
+	if err != nil {
+		t.Fatalf("running the built CLI a second time: %v\n%s", err, out)
+	}
 }

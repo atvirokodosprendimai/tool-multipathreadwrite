@@ -70,8 +70,9 @@ that the CLI has the broader command and flag surface — `--grep`, `--files-fro
 `check`/`iter`/`seen`/`stats` subcommands — and that `mrw --root DIR read` points it at any checkout.
 **`--root`, not `-C`.** After `read`, the short `-C` is the integer context flag, so `mrw read -C DIR`
 errors with *invalid value … for flag -C*. The first cut of this record recommended exactly that, and
-advice that fails when followed is worse than no advice; it was caught in review of PR #78 and is now
-asserted against the CLI's own help, per subcommand.
+advice that fails when followed is worse than no advice. It was found while ADDRESSING the review of
+PR #78, not by it — that review had proposed adding `-C` to the checked set, reading it as the
+top-level alias of `--root`. It is now asserted against the CLI's own help, per subcommand.
 
 **1b. It also says what this surface does BETTER, because "strictly poorer" was false.** MCP always
 returns `structuredContent`, so it needs no `--json`; and one server is one writer to the
