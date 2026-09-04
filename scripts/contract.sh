@@ -3111,8 +3111,14 @@ out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolV
 python3 - "$out" <<'PY'
 import json,sys
 i=json.loads(sys.argv[1])["result"]["instructions"]
+# The predicate is the WHOLE clause, not two words that co-occur. Codex found
+# this: asserting "spellings of ONE file" and "refused" separately let a wire
+# saying "a plan naming both is ALLOWED and the last wins" pass, because
+# "refused" appears in six unrelated sentences. Reproduced here — the contract
+# exited 0 while the wire contradicted the binary. A predicate loose enough to
+# match a contradiction is not a predicate.
 assert "spellings of ONE file" in i, "the wire never teaches that two spellings are one file"
-assert "refused" in i, "the wire names the case without saying it is refused"
+assert "a plan naming both is refused" in i, "the wire names the case without refusing it"
 b=len(i.encode())
 assert b <= 4096, "the instructions are %d bytes; they are paid once per session" % b
 PY

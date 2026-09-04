@@ -62,7 +62,23 @@ ONLY. A regex address works in `read` and is rejected in a plan (`unknown op
 avoid a feature that works. It also predated ADR-021 and ADR-022 and had never
 carried `--grep`, `--files-from`, or the `check`, `stats`, `iter` and `seen`
 subcommands, which is the defect of issues #51 and #73 surviving a third release.
-Corrected to version 3, pinned to `e917310` / v0.1.0.
+Corrected to version 3, pinned to `e917310` / v0.1.0 — **in the `Local` workspace,
+which is the palace the correcting session was registered against.**
+
+⚠ **"The centralised skill" is not one object, and this file used to say it was.**
+Found by review on 2026-09-04: a session registered against a DIFFERENT palace
+reported an `mrw` skill there at version 10, last updated 2026-09-02 and pinned
+to v0.0.14 — a copy that never carried the "line numbers ONLY" sentence and is
+stale in its own way, still quoting a contract assertion count and predating
+`--grep`, `--files-from`, ADR-021 and ADR-022. So there are at least two mirrors,
+only one was corrected, and neither `am_load_skill("mrw")` nor this file can tell
+you which one you just loaded.
+
+**So before trusting any copy, read its provenance line and compare the commit it
+names against `AGENTS.md` here.** A mirror that names no commit, or one older than
+the behaviour you are about to rely on, is a mirror to check rather than follow.
+The correcting session could not see the other palace at all, which is exactly why
+this instruction is addressed to the reader and not carried out for them.
 
 The lesson is narrower than "keep the mirror fresh", and it is worth having in
 front of you when you edit either copy: **a mirror does not rot by being edited
