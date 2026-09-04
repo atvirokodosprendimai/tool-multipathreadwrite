@@ -245,9 +245,19 @@ byte-identical, so the revert is a deletion.
       generator change here, and it is deliberately NOT in T2 — it answers a different question from
       "can the task be failed", and folding it in would put two claims under one fence. It is carried
       in `docs/adr/BACKLOG.md` as the offset-window entry.
-- [ ] **The named fixture is at ceiling, and T2 is the answer to that, not to the reading.** 42 of 45
-      with every client reading the window whole means the first reading measured a task nobody
-      fails. T2 adds the relational selector so a later reading has room to bend; running that
-      reading is a budget decision and stays out of this record's tasks for the reason above.
+- [x] **The relational fixture is NOT measurably harder, and the prediction that it would be is
+      refuted.** Reading 3 (`docs/curve/reading-03-result.md`) ran the same 45 cells under the
+      `odd-retries` selector and returned **45 of 45**, against reading 2's 42 of 45 on the named
+      one — every trial compliant on both halves and reading the window whole, which is reported from
+      the transcripts and is not recomputable from this tree. The plan predicted a LOWER rate and
+      said in advance that a higher one would mean T2 and T3 bought nothing measurable; that is the
+      reported outcome. The three trials that missed in reading 2 all hit in reading 3, and two
+      readings of five repeats cannot separate "the relational task removed an addressing error"
+      from "three misses in 90 trials is noise".
+- [ ] **Two fixtures now sit at the ceiling, so difficulty is not what this harness lacks.** The next
+      candidates, in the order they look worth trying: raise the DISTRACTOR count, which has been
+      held at 3 in every reading and never manipulated, so the target has always been one of four; a
+      property over pairs rather than over one field; or a weaker client. Each is a generator or a
+      population change, and each is a budget decision, so none is a task here.
 - [ ] If the reading bends, the cap becomes a measured number and ADR-011-T3's value is revisited by
       the record that owns it.
