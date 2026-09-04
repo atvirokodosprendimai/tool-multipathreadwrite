@@ -711,3 +711,7 @@ re-measuring these. Each was driven at the built binary, not read:
   the second rename would win as before. Promote to a record when one such plan
   is seen in the wild; the fix needs either a case-fold belief about the
   filesystem, which issue #47 and ADR-021 both refused, or write-then-stat.
+  ⚠ Beside it: two `create` ops for the SAME path in one plan are accepted today and produce a
+  two-line file with both hunks `ok` (review of #89, 2026-09-04). Same spelling, so outside
+  ADR-021's identity check — but it is a plan that "says two things" in exactly Decision 2's
+  sense, and it belongs to whichever record takes the create collision.

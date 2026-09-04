@@ -72,7 +72,7 @@ to write; the refusal names both spellings so the fix is one edit to the plan.
 
 **3. The refusal is reported through the second spelling's first hunk**, in the receipt, and aborts
 the run with nothing written — ADR-001 rule 3, unchanged. The reason names the earlier spelling: *"names
-the same file as `Same.txt` (hunk 1); one file, one spelling per plan"*.
+the same file as `Same.txt` (plan line 1); one file, one spelling per plan"*.
 
 **4. Only existing files are checked.** Two `create` ops for `New.txt` and `new.txt` have no inode
 to compare until one is written. That case is named in Out of Scope with the evidence that would

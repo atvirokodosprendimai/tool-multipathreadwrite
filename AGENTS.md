@@ -218,6 +218,10 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   head's status. This is the single most common way a red run reads as green.
 - A refusal is the tool working. It names the file, the plan line and the
   reason; read it rather than reaching for a bigger hammer.
+- **A plan names a file once, however it is spelled.** `README.md` and `Readme.md` on a
+  case-insensitive filesystem, or a file and a symlink to it anywhere, are ONE file; a plan naming
+  both is refused with both spellings named, because both would stage a copy and the last rename
+  would win (ADR-021). Put all of one file's hunks under one spelling.
 - **A path-scoped rule in `.claude/rules/` is delivered only by your harness's own Read tool.**
   `mrw read`, `mrw_read`, `cat` and a Write deliver none of them — measured 2026-09-04, issue #86.
   So when a task enters `docs/adr/`, a `_test.go` file or `scripts/contract.sh`, Read one such
