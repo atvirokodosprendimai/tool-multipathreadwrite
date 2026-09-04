@@ -90,25 +90,22 @@ rows — an unchanged `contract.sh` exits 0 on its own.
 | 3 — the caller can discover it | `mrw read --help` lists all three, the README carries the precedence table, and `scripts/contract.sh` §15 drives them through the real binary — the acceptance fence asserts both documents changed |
 | 4 — it is used | nothing measures this yet |
 
-## Mutation Log
+## Fence Corrections, 2026-09-03
 
-Two corrections to the fence above, both found by running it on 2026-09-03:
+Two corrections to the fence above, both found by running it. They lived in the Mutation Log until
+2026-09-04, which is why `adr-lint` could not parse that section: a log the tool writes has one
+grammar, and prose in it is not a malformed row, it is prose in the wrong place.
 
-- It said `grep -q '^# 15\.' scripts/contract.sh`. **Section 15 has existed
-  since the `check` work**, so that clause was satisfied by an UNTOUCHED
-  `contract.sh` from the moment this task was written — the exact failure the
-  note under the fence warns about, in the fence itself. The new rows are §28
-  and the clause now names it.
+- It said `grep -q '^# 15\.' scripts/contract.sh`. **Section 15 has existed since the `check`
+  work**, so that clause was satisfied by an UNTOUCHED `contract.sh` from the moment this task was
+  written — the exact failure the note under the fence warns about, in the fence itself. The new
+  rows are §28 and the clause now names it.
 - The `-run` regex covered five of this task's seven named tests;
-  `TestNoArgumentsWithoutGrepStillReadsTheWorkingSet` and
-  `TestTheDocumentedUsageErrorsAreErrors` matched nothing and would have been
-  reported as passing by never running. Both are now in the pattern.
+  `TestNoArgumentsWithoutGrepStillReadsTheWorkingSet` and `TestTheDocumentedUsageErrorsAreErrors`
+  matched nothing and would have been reported as passing by never running. Both are now in the
+  pattern.
 
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · `case pattern != "":` → `case false:`, so `--grep` never selects the walk · killed by `TestGrepWithNoPathsWalksTheRoot`
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · remove the empty-result report, restoring silence for a pattern that matched nothing · killed by `TestGrepReportsAPatternThatMatchedNoFile`
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · never render `read.Problem` values · killed by `TestGrepReportsARefusedPathAndServesTheRest`
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · pass `Exclude: nil` to `read.Walk`, dropping every `--exclude` on the floor · killed by `TestExcludeDropsAMatchingFileAndPrunesADirectory`
-- 2026-09-03 · `1b88cb9`+ · mutant killed · exit 1 · `cmd/mrw/main.go` · ignore `--files-from` · killed by `TestFilesFromReadsSpecsFromStdin`
+## Mutation Log
 
 ## Invariants
 
