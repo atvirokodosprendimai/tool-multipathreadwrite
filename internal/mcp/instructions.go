@@ -62,9 +62,23 @@ func instructionsText() string {
 verdict for EVERY edit. The failure it exists to prevent: a read that finds
 nothing is obvious, a write that changes nothing is not.
 
-WHEN TO REACH FOR IT. Use mrw_read and mrw_write when the task touches %s.
-Below that, use your ordinary editor — one edit in one file costs the same two
-calls and prints more bytes than the file holds. It is for scattered sites.
+WHICH SURFACE, AND WHEN TO REACH FOR EITHER. Reach for mrw at all when the task
+touches %s. Below that use your ordinary editor: one edit in one file costs the
+same two calls and prints more bytes than the file holds.
+
+Then choose the surface. The CLI has the broader command and flag surface —
+only it has --grep (walk a tree and serve every match in one call),
+--files-from, --check (run the project's tests scoped to what you just wrote),
+and the check, iter, seen and stats subcommands. `+"`mrw --root DIR read`"+`
+points it at ANY checkout; note --root BEFORE the subcommand, because after
+`+"`read`"+` the short -C is the context flag, not a directory.
+
+This surface is not simply the poorer one. It always returns structured JSON,
+so it needs no --json, and one server is one writer to the read-before-write
+ledger while parallel CLI processes race for it. So: with a shell and mrw on
+PATH, prefer the CLI for its reach and extra commands — prefer THIS surface
+with no shell, or when several callers share ONE fixed checkout and you want
+their ledger writes serialized.
 
 THE TWO RULES THAT PRODUCE MOST REFUSALS.
 1. Read before you write, and it is enforced per LINE, not per file. Being

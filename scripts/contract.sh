@@ -2130,6 +2130,65 @@ assert "have not read" in i, "the instructions do not say a pattern is still sub
 PY
 [ $? -eq 0 ] && ok "the wire teaches the pattern form, its exactly-once rule, and the ledger caveat" \
              || bad "the taught rule is incomplete"
+# 50. ADR-016 T1: the surface says what it is NOT.
+#
+# A registered MCP tool outcompetes a CLI an agent must remember exists — it
+# arrives with a schema, in the tool list, while the CLI is a string in a file
+# the agent may never read. Observed directly: agents settling for the smaller
+# surface because it is the one they can see. So the wire routes them, and this
+# row checks the routing is on the wire AND that the flags it names are real.
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+i=json.loads(sys.argv[1])["result"]["instructions"]
+for w in ("--grep","--files-from","--check","--root","shell","serialized","ONE fixed checkout"):
+    assert w in i, "the instructions never mention %r" % w
+# The routing must come BEFORE the format details. It is no longer literally
+# first: it is merged into the WHEN TO REACH paragraph, because a separate
+# opening block competed with the old "Use mrw_read and mrw_write" guidance
+# further down and told a shell-capable caller two different things. What has
+# to hold is the ORDER — a caller meets the choice before it meets the grammar.
+assert i.index("WHICH SURFACE") < i.index("READING."), "the routing comes after the format details, so the choice is made before it is offered"
+assert len(i) <= 4096, "instructions are %d bytes, over the bound every session pays" % len(i)
+PY
+[ $? -eq 0 ] && ok "the handshake routes a shell-capable caller to the CLI, first" \
+             || bad "the surface does not say it is the smaller one"
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+for t in json.loads(sys.argv[1])["result"]["tools"]:
+    assert "CLI" in t["description"], "%s does not route to the CLI" % t["name"]
+PY
+[ $? -eq 0 ] && ok "and both descriptions do too, for a host that ignores instructions" \
+             || bad "a host reading only tools/list is not routed"
+
+# THE ROW: the advice must be TRUE. Every flag it names comes from the CLI's own
+# help, so a rename turns this red instead of leaving the wire recommending a
+# flag that is gone.
+# PER SUBCOMMAND, and --root against the ROOT help. A concatenated blob would
+# pass a wire text that recommended --check to mrw_read's caller, and it would
+# pass `-C` for choosing a checkout — which is the context flag after `read`,
+# so `mrw read -C DIR` errors. That was the first cut of this record's advice.
+missing=""
+grep -q -- '--grep'       <<<"$(m read --help 2>&1)"  || missing="$missing read:--grep"
+grep -q -- '--files-from' <<<"$(m read --help 2>&1)"  || missing="$missing read:--files-from"
+grep -q -- '--check'      <<<"$(m write --help 2>&1)" || missing="$missing write:--check"
+grep -q -- '--root'       <<<"$(m --help 2>&1)"       || missing="$missing root:--root"
+[ -z "$missing" ] \
+  && ok "and every flag the wire recommends exists on the SUBCOMMAND it names" \
+  || bad "the wire recommends flags that subcommand does not have:$missing"
+
+# THE ROW THE FIRST CUT WOULD HAVE FAILED: the recommended checkout form must
+# actually work against a second tree.
+OTHER=$(mktemp -d); printf 'alpha\n' > "$OTHER/o.txt"
+out=$("$MRW" --root "$OTHER" read o.txt 2>&1); rc=$?
+want 0 "$rc" "the recommended --root form really points the CLI at another checkout"
+grep -q 'alpha' <<<"$out" \
+  && ok "and serves it" \
+  || bad "the recommended form did not serve the other checkout: $out"
+rm -rf "$OTHER"
+
 
 # 47. ADR-014 T1: an oversized read is a FIRST PAGE, and following it loses
 # nothing.
