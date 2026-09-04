@@ -50,9 +50,10 @@ case-folding bug with a macOS-only fix; it is a missing identity check with a po
   filesystem `os.SameFile` against a stat. **Reused in shape**: the grouping loop needs the same
   question asked against the files the plan has already resolved, and it is asked the same way —
   the filesystem's own answer, no belief about case encoded.
-- **`resolve` (ADR-006):** every hunk path is already resolved to an absolute, symlink-followed,
-  in-root path before anything is staged. **The identity check hangs off that resolution** and adds
-  no new path handling.
+- **`resolve` (ADR-006):** every hunk path is already resolved to an absolute in-root path before
+  anything is staged — confinement follows a symlink to decide, the returned path does not. **The
+  identity check hangs off that resolution**: it stats the returned path, and a stat follows the link,
+  so the comparison sees the target. No new path handling.
 - **`os.SameFile`:** taken over folding case or comparing resolved strings. `filepath.EvalSymlinks`
   does not canonicalise case, so two strings can differ and name one file; a stat comparison cannot.
 - **The per-hunk refusal path (ADR-001 rule 3):** a file that fails validation reports the failure

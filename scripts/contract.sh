@@ -2519,7 +2519,7 @@ rm -rf "$R54"
 # would pass the first half and fail this one.
 R56=$(mktemp -d)
 printf 'one\ntwo\nthree\n' > "$R56/real.txt"; ln -s real.txt "$R56/link.txt"
-( cd "$R56" && "$MRW" read real.txt link.txt > /dev/null 2>&1 )
+( cd "$R56" && "$MRW" read real.txt link.txt > /dev/null 2>&1 ); want 0 "$?" "both spellings are served first, so the refusal below is the identity check and not the ledger"
 printf '@@ real.txt 1 replace\nX\n@@ link.txt 3 replace\nZ\n' > "$R56/two.plan"
 out=$( cd "$R56" && "$MRW" write two.plan 2>&1 ); rc=$?
 want 1 "$rc" "a plan naming one file as real.txt and as a symlink to it is refused"
@@ -2531,7 +2531,7 @@ grep -q 'link.txt names the same file as real.txt' <<<"$out" \
   || bad "the refusal does not name both spellings: $out"
 printf 'one\ntwo\nthree\n' > "$R56/Same.txt"
 if [ -e "$R56/same.txt" ]; then
-  ( cd "$R56" && "$MRW" read Same.txt same.txt > /dev/null 2>&1 )
+  ( cd "$R56" && "$MRW" read Same.txt same.txt > /dev/null 2>&1 ); want 0 "$?" "both case spellings are served first"
   printf '@@ Same.txt 1 replace\nX\n@@ same.txt 3 replace\nZ\n' > "$R56/case.plan"
   ( cd "$R56" && "$MRW" write --quiet case.plan > /dev/null 2>&1 )
   want 1 "$?" "Same.txt and same.txt in one plan are refused where the filesystem folds case — the measured shape"
@@ -2539,7 +2539,7 @@ if [ -e "$R56/same.txt" ]; then
     && ok "and nothing was written" \
     || bad "the measured defect is back: $(cat "$R56/Same.txt")"
 else
-  ok "a case-sensitive filesystem here: the two-spelling half is the symlink half's twin and is covered by it"
+  skip "a case-sensitive filesystem here: the two-spelling half did not run; the symlink half above is its twin"
 fi
 printf '@@ real.txt 1 replace\nX\n@@ real.txt 3 replace\nZ\n' > "$R56/one.plan"
 ( cd "$R56" && "$MRW" write --quiet one.plan > /dev/null 2>&1 )

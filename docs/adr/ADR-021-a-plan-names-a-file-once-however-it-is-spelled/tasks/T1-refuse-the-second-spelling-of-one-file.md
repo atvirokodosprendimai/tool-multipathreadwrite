@@ -32,8 +32,8 @@ nothing written, on every filesystem, instead of applying both hunks and keeping
 2. [S2] In the grouping loop, resolve each NEW path and ask `os.SameFile` against every file already
    grouped. Ask the filesystem; fold nothing. [proof: mutation]
 3. [S3] Report the match as a failed hunk — the second spelling's first — with a reason naming the
-   earlier spelling and its hunk number, and let ADR-001's existing abort do the rest: nothing
-   written, siblings `skip`. [proof: mutation]
+3. [S3] Report the match as a failed hunk — the second spelling's first, its siblings skipped — with a
+   reason naming the earlier spelling and its plan line, and let ADR-001's existing abort do the rest:
 4. [S4] Only for paths that exist. A `create` has no inode yet; that collision is deferred with a
    BACKLOG entry, not claimed. [proof: acceptance]
 5. [S5] Add contract §56: the Context's plan through the built binary — exit 1, the file unchanged,
@@ -72,7 +72,7 @@ a caller runs, with the exact plan from the Context.
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestAPlanThatNamesOneFileTwiceIsRefusedWhicheverTheSpelling` | `internal/apply/apply_test.go` | **the ADR's Enforced-by** — a symlink alias is refused everywhere, two spellings where the filesystem folds case, and two real files still apply | — | S1, S2, S3, S4 |
+| `TestAPlanThatNamesOneFileTwiceIsRefusedWhicheverTheSpelling` | `internal/apply/apply_test.go` | **the ADR's Enforced-by** — a symlink alias is refused everywhere, two spellings where the filesystem folds case, one refusal per file with siblings skipped, and two real files still apply | — | S1, S2, S3 |
 
 ## Reachability
 
@@ -91,7 +91,7 @@ a caller runs, with the exact plan from the Context.
 ## Invariants
 
 - A plan naming one existing file under two path strings is refused; nothing is written.
-- The refusal names both spellings and the earlier hunk's number.
+- The refusal names both spellings and the first spelling's plan line, rides the second spelling's first hunk, and its siblings are skipped.
 - Two genuinely different files with near-identical names still apply.
 - Nothing folds case; `os.SameFile` decides.
 - Every engine directory except `internal/apply`, and `internal/mcp`, are byte-identical; `go.mod` declares exactly one requirement.
@@ -117,3 +117,4 @@ would be a different record.
 <!-- filled during execution -->
 - 2026-09-04 · 88c8139* · exit 0 · `set -o pipefail …` · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002 · ms:27948
 - 2026-09-04 · 7a1c206* · exit 0 · `set -o pipefail …` · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002 · ms:30252
+- 2026-09-04 · 6d00059* · exit 0 · `set -o pipefail …` · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002 · ms:55064

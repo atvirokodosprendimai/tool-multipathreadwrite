@@ -295,13 +295,19 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		}
 		if info, statErr := os.Stat(full); statErr == nil {
 			if prior, dup := sameFileAs(info, seenFiles); dup {
-				for _, h := range hs {
-					results[h.Index] = HunkResult{
-						Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine,
-						Status: StatusFailed,
-						Reason: fmt.Sprintf("%s names the same file as %s (plan line %d); one file, one spelling per plan",
-							path, prior.path, prior.line),
+				// One refusal per file, carried by its FIRST hunk (ADR-021
+				// Decision 3); the file's other hunks are skipped, which is
+				// how ADR-001 rule 3 has every sibling of a failure report.
+				// Marking them all failed would count one refusal several
+				// times in the receipt.
+				for i, h := range hs {
+					r := HunkResult{Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine, Status: StatusSkipped}
+					if i == 0 {
+						r.Status = StatusFailed
+						r.Reason = fmt.Sprintf("%s names the same file as %s (plan line %d); one file, one spelling per plan",
+							path, prior.path, prior.line)
 					}
+					results[h.Index] = r
 				}
 				failed = append(failed, FileResult{Path: path})
 				continue

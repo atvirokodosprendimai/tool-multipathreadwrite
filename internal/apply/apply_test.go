@@ -1402,9 +1402,12 @@ func TestAPlanThatNamesOneFileTwiceIsRefusedWhicheverTheSpelling(t *testing.T) {
 		t.Helper()
 		write(t, root, a, "one\ntwo\nthree\n")
 		sha := shaOfFile(t, root, a)
+		// The second spelling carries TWO hunks: one refusal per file, on
+		// its first hunk, with the other skipped — not two failures.
 		res, err := Apply(root, []Input{
 			{Path: a, Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
 			{Path: b, Start: 3, End: 3, Op: "replace", Body: []string{"Z"}, Lines: -1, Index: 1},
+			{Path: b, Start: 2, End: 2, Op: "replace", Body: []string{"Y"}, Lines: -1, Index: 2},
 		}, Options{Seen: map[string]Seen{a: {SHA: sha}, b: {SHA: sha}}})
 		if err != nil {
 			t.Fatal(err)
@@ -1415,14 +1418,30 @@ func TestAPlanThatNamesOneFileTwiceIsRefusedWhicheverTheSpelling(t *testing.T) {
 		if got, _ := os.ReadFile(filepath.Join(root, a)); string(got) != "one\ntwo\nthree\n" {
 			t.Fatalf("a refused plan wrote something: %q", got)
 		}
+		if res.Failed != 1 {
+			t.Fatalf("one file refused once, but Failed=%d: %+v", res.Failed, res.Hunks)
+		}
+		var status []Status
 		reason := ""
 		for _, h := range res.Hunks {
+			status = append(status, h.Status)
 			if h.Status == StatusFailed {
 				reason = h.Reason
 			}
 		}
+		if want := []Status{StatusSkipped, StatusFailed, StatusSkipped}; fmt.Sprint(status) != fmt.Sprint(want) {
+			t.Fatalf("hunk statuses %v, want %v — the refusal rides the second spelling's first hunk and every sibling skips", status, want)
+		}
 		if !strings.Contains(reason, a) || !strings.Contains(reason, b) {
 			t.Fatalf("the refusal must name both spellings so the plan can be fixed in one edit: %q", reason)
+		}
+		if len(res.Files) != 2 {
+			t.Fatalf("both spellings must appear in the receipt (ADR-001 rule 3): %+v", res.Files)
+		}
+		for _, f := range res.Files {
+			if f.Written {
+				t.Fatalf("receipt says %s was written by a refused plan", f.Path)
+			}
 		}
 	}
 
