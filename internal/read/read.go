@@ -330,7 +330,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		}
 		b, err := os.ReadFile(full)
 		if err != nil {
-			fmt.Fprintf(w, "==> %s  UNREADABLE  %v\n", sp.Path, err)
+			fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, hintUnexpandedGlob(sp.Path))
 			problems++
 			continue
 		}
@@ -523,4 +523,26 @@ func split(b []byte) ([]string, string) {
 	}
 	s := strings.TrimSuffix(string(b), "\n")
 	return strings.Split(s, "\n"), sha
+}
+
+// hintUnexpandedGlob explains an unreadable path that holds a glob
+// metacharacter, and says nothing otherwise.
+//
+// "no such file or directory" for `internal/mcp/*.go` is true and answers the
+// wrong question. The shape that produces it most often never reaches mrw at
+// all: zsh refuses `internal/mcp/*.go:1-3` with "no matches found", because the
+// address suffix means the pattern matches no file. Quoting is what a caller
+// tries next, and quoting is what produces this message — so this is the second
+// step of a wrong path, and the place to say where the right one is.
+//
+// It fires only on a path that ALREADY failed to open, so it is advice about a
+// broken path rather than a claim about what the caller meant. A file whose
+// name really does contain a star is served normally and never sees this.
+func hintUnexpandedGlob(path string) string {
+	if !strings.ContainsAny(path, "*?[") {
+		return ""
+	}
+	return "\n    (that path holds a glob your shell did not expand. An address suffix like" +
+		" `:1-3` stops most shells matching, and quoting keeps the star literal." +
+		" Use --grep to walk and serve in one call, or --files-from to pipe a list in.)"
 }

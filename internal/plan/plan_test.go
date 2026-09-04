@@ -441,3 +441,40 @@ func TestEveryExistingAddressFormIsUnchanged(t *testing.T) {
 		}
 	}
 }
+
+// TestABodyLineThatLooksLikeAHeaderSaysSo is ADR-015's Enforced-by.
+//
+// A body line beginning with @@ is read as a header, and before this the errors
+// were about something else entirely — "unknown op \"starts\"" for the line, and
+// two more about the wreckage. The escape (body=<n> raw=true) is documented in
+// three places and mentioned in none of them. A caller who has not read those is
+// exactly the caller who needs the message to say it.
+//
+// This is not hypothetical: it was hit twice in one session while writing this
+// repository's own documentation, because documenting a plan format means
+// putting plan syntax inside a body.
+func TestABodyLineThatLooksLikeAHeaderSaysSo(t *testing.T) {
+	_, err := Parse(strings.NewReader("@@ f.md 1 replace\n@@ this line starts with at-at\nsecond body line\n"))
+	if err == nil {
+		t.Fatal("a body line beginning with @@ parsed as a plan")
+	}
+	for _, want := range []string{"body=", "raw="} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the error never mentions %q, so it routes the caller to the wrong problem:\n%v", want, err)
+		}
+	}
+}
+
+// TestTheHintsStayQuietOnOrdinaryFailures is the half that is easy to skip, and
+// the half that decides whether the hint is worth having: one that fires on
+// every parse error is noise, and noise is how a real hint stops being read.
+func TestTheHintsStayQuietOnOrdinaryFailures(t *testing.T) {
+	// A bad op on the FIRST line is a genuine header mistake, not a body line.
+	_, err := Parse(strings.NewReader("@@ f.md 1 mangle\nbody\n"))
+	if err == nil {
+		t.Fatal("an unknown op parsed")
+	}
+	if strings.Contains(err.Error(), "body=") {
+		t.Errorf("the body-line hint fired on an ordinary bad op, where it is wrong:\n%v", err)
+	}
+}

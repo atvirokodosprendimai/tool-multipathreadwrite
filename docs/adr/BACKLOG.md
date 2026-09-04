@@ -460,7 +460,6 @@ re-measuring these. Each was driven at the built binary, not read:
   THIS checkout — for instance whether MCP callers hit `refused_apply` more
   than shell callers, which is about the ledger and not about the format.
 
-<<<<<<< HEAD
 - **Measuring whether served size degrades edit accuracy — DEFERRED, and it is
   the most valuable unanswered question this project has.** Named in ADR-014.
 
@@ -480,7 +479,6 @@ re-measuring these. Each was driven at the built binary, not read:
   variable, edit outcome as the dependent one, across models. If the curve turns
   over, the cap becomes a measured number instead of an inherited one; if it is
   flat, "arbitrary" is a defensible answer and we will be able to say so.
-=======
 - **`occurrence=N`, or any positional disambiguator for a pattern address —
   DEFERRED.** Raised and refused in ADR-013.
 
@@ -496,7 +494,6 @@ re-measuring these. Each was driven at the built binary, not read:
   Revisit only if the ambiguity refusal proves common enough in practice to be
   friction rather than a guard — and note that nothing currently counts it, for
   the attribution reason ADR-012's Context sets out.
->>>>>>> main
 
 - **Widening the MCP root, or multi-root — DEFERRED, with a measurement behind
   it.** Named in ADR-016's Out of Scope; the analysis was done 2026-09-04 and is
@@ -570,3 +567,17 @@ re-measuring these. Each was driven at the built binary, not read:
   Those are different records. Needs its own ADR, with M's scope decision, and
   it should NOT be inferred from ADR-016 — that record deliberately covers only
   what the surface SAYS, and its refusal of parity is scoped to itself.
+
+- **A heredoc-style body terminator for the plan format — DEFERRED.** Raised and
+  refused in ADR-015.
+
+  A body line beginning with `@@` needs `body=<n> raw=true`, and the friction is
+  COUNTING the lines. `body=<<END … END` would remove the count. It is refused
+  for now rather than taken because it is a genuine grammar addition that gives
+  the format a second way to say one thing, and it does not remove `body=`
+  anyway — a terminator can itself appear in a body.
+
+  The judgement behind the deferral: what hurt was not counting lines, it was
+  not being TOLD to. ADR-015 makes the refusal name the escape, so the evidence
+  for a terminator is now "the hint landed and counting is still the friction".
+  Revisit with that evidence, not before.

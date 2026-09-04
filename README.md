@@ -406,6 +406,21 @@ Line-number, range and `$` addresses are unaffected — they carry no leading `/
 mrw recognises the wreckage and says so, but it cannot undo it: the bytes it
 receives are already the mangled ones.
 
+
+**A shell glob and an address suffix do not mix, on any platform.** This one is
+not Windows-specific and it bites on macOS's default shell:
+
+```
+$ mrw read internal/mcp/*.go:1-3
+zsh: no matches found: internal/mcp/*.go:1-3
+```
+
+zsh refuses before mrw is started, because `internal/mcp/*.go:1-3` matches no
+file — the `:1-3` is part of the pattern. Quoting is the obvious next move and
+it is the wrong half of the fix: the star then reaches mrw literally and the
+path is reported UNREADABLE. Use `--grep` to walk and serve in one call, or
+`--files-from` to pipe a list in and add the suffix per line. mrw says as much
+in the UNREADABLE line, but by then a call has been spent.
 ## Releasing
 
 `.github/workflows/ci.yml` runs gofmt, `go vet`, `go test ./...` and
