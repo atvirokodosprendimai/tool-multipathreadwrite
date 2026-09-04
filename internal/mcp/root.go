@@ -1,7 +1,9 @@
 package mcp
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -96,4 +98,62 @@ func isUsableDir(p string) bool {
 	}
 	fi, err := os.Stat(p)
 	return err == nil && fi.IsDir()
+}
+
+// CheckRoot refuses a root that NOBODY NAMED and that cannot plausibly be a
+// project. It returns nil for everything else.
+//
+// ⚠ THE GUARD IS ON THE SOURCE, NOT ON THE PATH. Issue #81 reports a server
+// bound to `/`, but `/` is the symptom: the defect is that with no --root and
+// no CLAUDE_PROJECT_DIR the server serves whichever directory the host
+// happened to launch it in, and a fallback onto some arbitrary directory is
+// equally unintended. Confinement still works and every refusal is still
+// correct — about a tree nobody asked about, on a surface that also WRITES.
+//
+// EXPLICITNESS IS THE LICENCE. `--root /` and a host-set CLAUDE_PROJECT_DIR
+// are statements of intent and are honoured whatever they name; only the
+// fallback is second-guessed. That is what keeps this from becoming a list of
+// paths somebody finds distasteful — a rule this repository would then have to
+// defend, and which would break the Desktop population whose documents really
+// do live under the home directory.
+//
+// The two refused cases are the ones that cannot be a project by construction:
+// a filesystem root, and the home directory itself.
+func CheckRoot(root string, src Source) error {
+	if src != SourceWorkingDir {
+		return nil
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		// Undecidable, so not refused: a guard that fires when it cannot tell
+		// would stop a server for a reason it cannot name.
+		return nil
+	}
+	abs = resolved(abs)
+
+	// filepath.Dir of a filesystem root is itself, which is true for "/" and
+	// for a Windows volume root like `C:\` without naming either.
+	if filepath.Dir(abs) == abs {
+		return fmt.Errorf("refusing to serve %s: nothing named a project, so this is the directory this process happened to start in, and it is a filesystem root.\n"+
+			"Every read and write would be scoped to the whole filesystem. Name the tree you mean:\n"+
+			"  mrw --root /path/to/repo mcp\n"+
+			"or set CLAUDE_PROJECT_DIR. An explicit --root is always honoured, including this one", abs)
+	}
+	if home, err := os.UserHomeDir(); err == nil && resolved(home) == abs {
+		return fmt.Errorf("refusing to serve %s: nothing named a project, so this is the directory this process happened to start in, and it is your home directory.\n"+
+			"Name the tree you mean:\n"+
+			"  mrw --root /path/to/repo mcp\n"+
+			"or set CLAUDE_PROJECT_DIR. An explicit --root is always honoured, including this one", abs)
+	}
+	return nil
+}
+
+// resolved follows symlinks when it can, so /tmp and /private/tmp on macOS are
+// not two different answers about one directory. A path that cannot be
+// resolved is returned as given: this is a comparison aid, not a check.
+func resolved(p string) string {
+	if real, err := filepath.EvalSymlinks(p); err == nil {
+		return real
+	}
+	return p
 }
