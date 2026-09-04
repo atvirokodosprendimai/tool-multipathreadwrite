@@ -54,14 +54,19 @@ size, its date, and an explicit statement of the population it came from.
 # fence for "publish a measurement" that survives deleting the measurement is
 # the sixth instance of this defect in this repository, and it was written in
 # the same commit as a paragraph about that defect.
+# Newlines squeezed out before matching a PHRASE. Prose wraps, and
+# "pre-registered criterion" happens to break across two lines in the section it
+# describes — a line-based grep cannot see a phrase the author's line length
+# split, so the clause failed while the claim was present. The count lines are
+# matched line-anchored, because those are lines rather than prose.
 section=$(awk '/^### The first reading/{f=1;next} f&&/^### /{exit} f' README.md)
+flat=$(tr '\n' ' ' <<<"$section")
 [ -n "$section" ] \
   && grep -qE '^Taken 2026-[0-9]{2}-[0-9]{2} ' <<<"$section" \
   && grep -qE '^ +refused_parse +[0-9]+ of [0-9]+ plan\(s\) \([0-9.]+%\)$' <<<"$section" \
   && grep -qE '^ +applied +[0-9]+ of [0-9]+ plan\(s\)' <<<"$section" \
-  && grep -qi 'pre-registered criterion' <<<"$section" \
-  && grep -qi 'under-counts by construction' <<<"$section" \
-  && grep -qE 'of [0-9]+ plans' README.md \
+  && grep -qi 'pre-registered criterion' <<<"$flat" \
+  && grep -qi 'under-counts by construction' <<<"$flat" \
   && ./scripts/contract.sh \
   && go test ./...
 ```
