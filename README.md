@@ -352,13 +352,18 @@ Whichever wins, the server prints the tree it chose and the reason to stderr at
 startup, so a host log answers "which checkout is this?" without guessing.
 
 **A read over MCP is bounded; the CLI is not.** `mrw_read` will not return more
-than 200,000 characters in one call, and a request over that is REFUSED rather
-than truncated — a truncated file that arrives looking like the whole file is
-the silent wrong answer this tool exists to refuse. The refusal names the limit,
-how far over the request was, and a range that would fit, so the next call is
-obvious: ask for a narrower range, or name fewer files. The limit is also
-declared in `tools/list` as `_meta["anthropic/maxResultSizeChars"]`, so a host
-knows it before it hits it. `mrw read` on the command line has no such limit.
+than 200,000 characters in one call. A request over that comes back as the FIRST
+PAGE — the lines that fit, `isError: true`, and a `next_read` field naming the
+spec that asks for the rest. Send it to continue, and repeat until `next_read`
+is absent; its absence is how a caller knows it has the whole file, and each
+page licenses a write to exactly the lines it served, no more. Nothing is ever
+truncated: a part that arrives looking like the whole file is the silent wrong
+answer this tool exists to refuse, which is why a page stays an error and says
+what remains. Naming several specs at once cannot page — mrw cannot know which
+of them to narrow — so that case is still refused outright, with the limit and a
+per-file line budget. The limit is also declared in `tools/list` as
+`_meta["anthropic/maxResultSizeChars"]`, so a host knows it before it hits it.
+`mrw read` on the command line has no such limit and no paging: it streams.
 
 Two tools are exposed. `mrw_read` takes `specs` — the same range syntax the CLI
 takes — and `mrw_write` takes `plan`, the same plan text. Nothing listens on a
@@ -401,6 +406,21 @@ Line-number, range and `$` addresses are unaffected — they carry no leading `/
 mrw recognises the wreckage and says so, but it cannot undo it: the bytes it
 receives are already the mangled ones.
 
+
+**A shell glob and an address suffix do not mix, on any platform.** This one is
+not Windows-specific and it bites on macOS's default shell:
+
+```
+$ mrw read internal/mcp/*.go:1-3
+zsh: no matches found: internal/mcp/*.go:1-3
+```
+
+zsh refuses before mrw is started, because `internal/mcp/*.go:1-3` matches no
+file — the `:1-3` is part of the pattern. Quoting is the obvious next move and
+it is the wrong half of the fix: the star then reaches mrw literally and the
+path is reported UNREADABLE. Use `--grep` to walk and serve in one call, or
+`--files-from` to pipe a list in and add the suffix per line. mrw says as much
+in the UNREADABLE line, but by then a call has been spent.
 ## Releasing
 
 `.github/workflows/ci.yml` runs gofmt, `go vet`, `go test ./...` and

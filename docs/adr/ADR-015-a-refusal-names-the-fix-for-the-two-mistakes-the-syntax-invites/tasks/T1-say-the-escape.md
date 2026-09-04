@@ -24,6 +24,7 @@ fires on an ordinary failure.
 | `internal/read/read.go` | edit | an unreadable path holding a glob metacharacter adds the glob hint |
 | `internal/read/read_test.go` | edit | the glob hint, and its silence case |
 | `AGENTS.md` | edit | the zsh trap, beside the MSYS trap that is already documented |
+| `README.md` | edit | the same trap where README already documents the MSYS one, so the two shell traps are found together |
 | `scripts/contract.sh` | edit | §49 — both hints, through the built binary |
 
 ## Ordered Steps
@@ -49,7 +50,7 @@ test -z "$(gofmt -l .)" \
   && go vet ./... \
   && go test ./internal/plan/ ./internal/read/ -v 2>&1 | tee /tmp/adr015-t1.out \
   && ! grep -qE 'no tests to run|no test files|^FAIL|^--- FAIL' /tmp/adr015-t1.out \
-  && [ "$(grep -cE '^--- PASS: (TestABodyLineThatLooksLikeAHeaderSaysSo|TestAGlobThatTheShellDidNotExpandSaysSo|TestTheHintsStayQuietOnOrdinaryFailures)\b' /tmp/adr015-t1.out)" = "3" ] \
+  && [ "$(grep -cE '^--- PASS: (TestABodyLineThatLooksLikeAHeaderSaysSo|TestAGlobThatTheShellDidNotExpandSaysSo|TestTheHintsStayQuietOnOrdinaryFailures|TestAnOrdinaryMissingFileGetsNoGlobHint)\b' /tmp/adr015-t1.out)" = "4" ] \
   && grep -q '^# 49\.' scripts/contract.sh \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ] \
   && go test ./... \
@@ -67,7 +68,8 @@ rather than colliding on merge.
 |-----------|------|----------|--------|-------|
 | `TestABodyLineThatLooksLikeAHeaderSaysSo` | `internal/plan/plan_test.go` | **the ADR's Enforced-by** — the D5 error names the escape | — | S1, S2 |
 | `TestAGlobThatTheShellDidNotExpandSaysSo` | `internal/read/read_test.go` | S3 — the D4 error names the real problem | — | S1, S3 |
-| `TestTheHintsStayQuietOnOrdinaryFailures` | `internal/plan/plan_test.go` | S2, S3 — a hint that always fires is noise | — | S1, S2, S3 |
+| `TestTheHintsStayQuietOnOrdinaryFailures` | `internal/plan/plan_test.go` | S2 — the plan-side silence case: a hint that always fires is noise | — | S1, S2 |
+| `TestAnOrdinaryMissingFileGetsNoGlobHint` | `internal/read/read_test.go` | S3 — the read-side silence case. It existed and passed but was not in this table, so `both stay quiet when they should` had only half a test bound to it | — | S1, S3 |
 
 ## Reachability
 
@@ -80,8 +82,8 @@ rather than colliding on merge.
 
 ## Mutation Log
 
-- 2026-09-04 · 14d28b3 · mutant killed · exit 1 · `internal/plan/plan.go` · S2: fire the body-line hint unconditionally — a hint on every parse failure is noise, and noise is how a real hint stops being read · acceptance-sha256:176af12d72a278b779c4ef03dd9b03a3203b7c1b510f11895408699dfc01168c
-- 2026-09-04 · 14d28b3 · mutant killed · exit 1 · `internal/read/read.go` · S3: fire the glob hint for every unreadable path — an ordinary missing file would be told to check its shell, which is advice about a problem it does not have · acceptance-sha256:176af12d72a278b779c4ef03dd9b03a3203b7c1b510f11895408699dfc01168c
+- 2026-09-04 · a1059d2 · mutant killed · exit 1 · `internal/plan/plan.go` · S2: fire the body-line hint unconditionally — a hint on every parse failure is noise, and noise is how a real hint stops being read · acceptance-sha256:ded8db4c20c1c4361ed3a11675c59c0fc04af80b8305d4a1d986a0f36fa0cd45
+- 2026-09-04 · a1059d2 · mutant killed · exit 1 · `internal/read/read.go` · S3: fire the glob hint for every unreadable path — an ordinary missing file would be told to check its shell, which is advice about a problem it does not have. Killed by TestAnOrdinaryMissingFileGetsNoGlobHint, which the fence did not count until review pointed it out · acceptance-sha256:ded8db4c20c1c4361ed3a11675c59c0fc04af80b8305d4a1d986a0f36fa0cd45
 
 ## Invariants
 
@@ -108,3 +110,4 @@ grammar change is ADR-001's and needs its own record.
 ## Verification Log
 <!-- filled during execution -->
 - 2026-09-04 · 14d28b3* · exit 0 · `set -o pipefail …` · acceptance-sha256:176af12d72a278b779c4ef03dd9b03a3203b7c1b510f11895408699dfc01168c · ms:10835
+- 2026-09-04 · a1059d2* · exit 0 · `set -o pipefail …` · acceptance-sha256:ded8db4c20c1c4361ed3a11675c59c0fc04af80b8305d4a1d986a0f36fa0cd45 · ms:13644

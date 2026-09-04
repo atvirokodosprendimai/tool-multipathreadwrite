@@ -204,6 +204,9 @@ func readSchema() map[string]any {
 				"additionalProperties": mustSchema(seen.Observation{}),
 			},
 			"problems": map[string]any{"type": "integer"},
+			// Present only on a paged answer, so it is NOT in `required` — a
+			// caller's exit condition is precisely its absence.
+			"next_read": map[string]any{"type": "string"},
 		},
 		"required": []string{"observed", "problems"},
 	}, readDescriptions)
@@ -232,6 +235,7 @@ var readDescriptions = map[string]string{
 	"observed.SHA":   "The sha256 of the whole file as it was when served. A later write is refused if the file no longer hashes to this.",
 	"observed.Spans": "The line spans this call rendered, as [start, end] pairs; null means the whole file. Authorisation is per LINE: a write to a line no read has served is refused, though a line served by an EARLIER read of the same sha is still licensed.",
 	"problems":       "How many requested ranges could not be served. Non-zero means part of what you asked for is missing from `observed` — the call itself still answered.",
+	"next_read":      "The spec to send next when this answer is only a PAGE of what you asked for. Absent when nothing remains, which is how you know you have the whole thing. A paged answer is also `isError: true`: stopping here leaves you holding part of a file, not the file.",
 }
 
 var writeDescriptions = map[string]string{

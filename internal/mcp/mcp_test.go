@@ -350,3 +350,52 @@ func TestTheInstructionsTeachThePatternAddress(t *testing.T) {
 		}
 	}
 }
+
+// TestTheInstructionsTeachTheContinuation asserts the wire teaches ADR-014's
+// paging AND its consequence.
+//
+// The consequence is the part that matters and the part prose usually drops. A
+// caller told "you get a page" and not told "stopping here leaves you with part
+// of a file" will stop, and the field it ignored was the only thing telling it
+// otherwise. ADR-012 shipped an enum the engine never sent and ADR-013 shipped
+// two examples that could not match; both were prose written beside behaviour
+// instead of against it, so this checks the shipped text.
+func TestTheInstructionsTeachTheContinuation(t *testing.T) {
+	lines := serve(t, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`)
+	res, ok := decode(t, lines[0])["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("no result object in %q", lines[0])
+	}
+	got, _ := res["instructions"].(string)
+	for _, must := range []string{"next_read", "PAGE", "part of a file"} {
+		if !strings.Contains(got, must) {
+			t.Errorf("the instructions never mention %q, so a caller meets paging as a surprise", must)
+		}
+	}
+	// The exit condition has to be stated: a caller that does not know absence
+	// terminates the loop has no way to know when it is done.
+	if !strings.Contains(got, "absent") {
+		t.Error("the instructions do not say that the ABSENCE of next_read is how you know you have the whole file")
+	}
+	if len(got) > maxInstructionsChars {
+		t.Errorf("instructions are %d bytes, over the %d-byte bound — shorten what is there rather than raising it", len(got), maxInstructionsChars)
+	}
+	// And the same behaviour must reach the tool DESCRIPTION, which is the one
+	// surface every host reads even when it ignores `instructions` — ADR-012's
+	// whole point. The record claimed this shipped before it did; the claim is
+	// checked here now rather than believed.
+	var readDesc string
+	for _, tl := range tools() {
+		if tl.Name == "mrw_read" {
+			readDesc = tl.Description
+		}
+	}
+	if readDesc == "" {
+		t.Fatal("no mrw_read tool is declared")
+	}
+	for _, must := range []string{"PAGE", "next_read", "absent"} {
+		if !strings.Contains(readDesc, must) {
+			t.Errorf("mrw_read's description never mentions %q, so a host reading only tools/list is not told a large read pages:\n%s", must, readDesc)
+		}
+	}
+}

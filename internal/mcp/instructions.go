@@ -77,6 +77,12 @@ READING. mrw_read takes specs: a bare path, path:N, path:N-M, path:$ for the
 last line, or path:/regexp/ — so the read finds the site and no separate search
 call is needed. Example: %v
 
+A read too large for one answer comes back as a PAGE, not a failure: you get the
+lines that fit, isError true, and next_read naming the spec to send for the
+rest. Send it, repeat until next_read is absent — its absence is how you know
+you have the whole file. Stopping early leaves you holding part of a file, and
+you will only edit the lines a page actually served.
+
 WRITING. mrw_write takes one plan document. Each hunk is a header line
 
     @@ <path> <address> <op> [guards]
