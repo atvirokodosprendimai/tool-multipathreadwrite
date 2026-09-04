@@ -308,10 +308,12 @@ func tools() []tool {
 					"plan": map[string]any{
 						"type": "string",
 						"description": "The plan document. Each hunk is a header line " +
-							"`@@ <path> <line-address> <op> [guards]` followed by its body lines. " +
-							"Ops: replace, insert-after, insert-before, delete, create. Addresses " +
-							"here are line numbers or N-M ranges only — a regexp works in a read, " +
-							"not in a plan — and resolve against the ORIGINAL file. Optional " +
+							"`@@ <path> <address> <op> [guards]` followed by its body lines. " +
+							"Ops: replace, insert-after, insert-before, delete, create. An address " +
+							"is a line number, an N-M range, $ for the last line, or a pattern — " +
+							"/regexp/ or /from/,/to/. A pattern must match EXACTLY ONE line; none " +
+							"or several fails that hunk, naming the lines it matched. Addresses " +
+							"resolve against the ORIGINAL file. Optional " +
 							"guards, checked on every op: sha=<hex>, lines=<n>, anchor=\"<text>\". " +
 							"A body line beginning with @@ needs body=<n> raw=true.",
 						// The format is bespoke and no model has it in training

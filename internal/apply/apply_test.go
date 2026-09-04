@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -1170,5 +1171,215 @@ func TestAReadUnderOneSpellingLicensesTheSameFileUnderAnother(t *testing.T) {
 		if res.Failed == 0 {
 			t.Error("on a case-SENSITIVE filesystem F.TXT is a different file and must not inherit f.txt's licence")
 		}
+	}
+}
+
+// storeGo is a fixture written by hand, ONCE, and shared by the pattern tests.
+//
+// ⚠ IT IS AUTHORED INDEPENDENTLY OF THE PLANS THAT ADDRESS IT, and that is the
+// point rather than an accident. ADR-012 shipped a mutant that survived because
+// a fixture built FROM the plan cannot falsify the plan's guard — changing an
+// anchor left the test green because the fixture was regenerated to match. A
+// two-match test whose file was generated from the pattern would be the same
+// defect wearing a different name, so this file is a constant and the tests
+// bend to it.
+//
+// Note what it contains: `func (s *Store) Get` appears TWICE, once as a method
+// and once in a comment. That is not contrived — it is the ordinary shape of a
+// Go file, and it is exactly why exactly-once resolution has to be a refusal.
+const storeGo = `package store
+
+// Store keeps rows.
+type Store struct{ rows map[string]string }
+
+// Get returns a row. See func (s *Store) Get below.
+func (s *Store) Get(id string) (string, bool) {
+	r, ok := s.rows[id]
+	return r, ok
+}
+
+func (s *Store) Put(id, v string) {
+	s.rows[id] = v
+}
+`
+
+// TestAnAmbiguousRegexAddressIsRefused is ADR-013's Enforced-by.
+//
+// Two matches is a refusal, never a choice. A plan that silently edits the
+// first of several matches is a receipt saying `ok` over a wrong edit, which is
+// the failure this project's whole ledger exists to prevent — and the refusal
+// must name the lines it matched, because that is what lets a caller narrow the
+// pattern or fall back to a number.
+func TestAnAmbiguousRegexAddressIsRefused(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Body: []string{"// replaced"}, Lines: -1,
+		StartPat: regexp.MustCompile(`func \(s \*Store\) Get`),
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply returned an error rather than a verdict: %v", err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed = %d, want 1 — an ambiguous pattern must be refused, not resolved", res.Failed)
+	}
+	reason := res.Hunks[0].Reason
+	// The two matching lines are 6 (the comment) and 7 (the method).
+	for _, want := range []string{"6", "7"} {
+		if !strings.Contains(reason, want) {
+			t.Errorf("the refusal does not name matching line %s, so a caller cannot narrow it: %s", want, reason)
+		}
+	}
+	if read(t, root, "store.go") != storeGo {
+		t.Error("an ambiguous pattern changed the file")
+	}
+}
+
+// TestAPatternMatchingNothingIsRefused covers the other half of ambiguity, and
+// the half a moved line produces: the pattern that used to match and no longer
+// does. Reporting it is the whole improvement over a stale line number, which
+// would have silently addressed whatever moved into its place.
+func TestAPatternMatchingNothingIsRefused(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Body: []string{"// replaced"}, Lines: -1,
+		StartPat: regexp.MustCompile(`func \(s \*Store\) Delete`),
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed = %d, want 1", res.Failed)
+	}
+	if !strings.Contains(res.Hunks[0].Reason, "Delete") {
+		t.Errorf("the refusal does not name the pattern that matched nothing: %s", res.Hunks[0].Reason)
+	}
+}
+
+// TestARegexAddressResolvesAgainstTheOriginalFile is ADR-001's rule applied to
+// the new form. An earlier hunk that changes the line count must not move where
+// a later pattern resolves, or patterns and numbers in one plan disagree about
+// what they address and the offset arithmetic the format removes comes back.
+func TestARegexAddressResolvesAgainstTheOriginalFile(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+
+	res, err := Apply(root, []Input{
+		// Insert three lines near the top; then address Put by pattern. If the
+		// pattern resolved against the PARTIALLY APPLIED file it would land
+		// three lines off.
+		{Path: "store.go", Start: 1, End: 1, Op: "insert-after", Body: []string{"", "// added", ""}, Lines: -1},
+		{Path: "store.go", Op: "replace", Body: []string{"func (s *Store) Put(id, v string) { // rewritten"}, Lines: -1,
+			StartPat: regexp.MustCompile(`^func \(s \*Store\) Put`)},
+	}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed = %d (%+v), want 0", res.Failed, res.Hunks)
+	}
+	got := read(t, root, "store.go")
+	if !strings.Contains(got, "func (s *Store) Put(id, v string) { // rewritten") {
+		t.Error("the pattern hunk did not land on Put")
+	}
+	if strings.Contains(got, "s.rows[id] = v\n}\n\nfunc (s *Store) Put") {
+		t.Error("the pattern resolved against a partially applied file")
+	}
+}
+
+// TestARegexAddressIsStillSubjectToTheLedger is the safety argument, and the
+// one way this feature could be worse than not having it.
+//
+// A pattern must not become a way to edit a file the caller has not read. The
+// guarantee is an ORDERING: the pattern resolves to a line first, and that line
+// then meets the same per-line coverage check a typed number meets. If
+// resolution ever moved after the ledger check, this test is what notices.
+func TestARegexAddressIsStillSubjectToTheLedger(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+
+	// The caller has seen lines 1-3 only. Put is far below them.
+	ledger := map[string]Seen{"store.go": {SHA: shaOfFile(t, root, "store.go"), Spans: [][2]int{{1, 3}}}}
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Body: []string{"// rewritten"}, Lines: -1,
+		StartPat: regexp.MustCompile(`^func \(s \*Store\) Put`),
+	}}, Options{Seen: ledger})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed = %d, want 1 — a pattern is not a way to edit lines you have not read", res.Failed)
+	}
+	if !strings.Contains(res.Hunks[0].Reason, "has not been read") {
+		t.Errorf("the refusal is not the unread-lines one: %s", res.Hunks[0].Reason)
+	}
+	if read(t, root, "store.go") != storeGo {
+		t.Error("a hunk refused as unread still changed the file")
+	}
+}
+
+// TestTheEndPatternIsTheFirstMatchAtOrAfterTheStart pins the semantics that
+// make the range form usable at all.
+//
+// The first cut applied exactly-once to BOTH endpoints, and `/^}/` — the
+// natural end for any function body, and the form this record's own served-path
+// line teaches — is ambiguous in every file with two functions. The headline
+// example therefore failed on the record's own fixture. Caught in review of
+// PR #74; the end is now a delimiter resolved relative to the start.
+//
+// `storeGo` has two `^}` lines. That is the point.
+func TestTheEndPatternIsTheFirstMatchAtOrAfterTheStart(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Lines: -1, Body: []string{"// collapsed"},
+		StartPat: regexp.MustCompile(`^func \(s \*Store\) Get`),
+		EndPat:   regexp.MustCompile(`^\}`),
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed = %d (%v), want 0 — /^}/ is ambiguous file-wide and must still work as an END", res.Failed, res.Hunks)
+	}
+	got := read(t, root, "store.go")
+	if !strings.Contains(got, "// collapsed") {
+		t.Error("the range did not apply")
+	}
+	// It must have taken the FIRST closing brace, not the last: Put survives.
+	if !strings.Contains(got, "func (s *Store) Put") {
+		t.Error("the range ran past the first closing brace and swallowed Put")
+	}
+}
+
+// TestAnEndPatternOnlyAboveTheStartIsRefused is the other side of the
+// delimiter rule. Relaxing exactly-once for the end must not mean the end can
+// be found anywhere: a match that precedes the start delimits nothing, and
+// silently inverting the range would be the wrong-edit failure again.
+func TestAnEndPatternOnlyAboveTheStartIsRefused(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Lines: -1, Body: []string{"// x"},
+		StartPat: regexp.MustCompile(`^func \(s \*Store\) Put`),
+		EndPat:   regexp.MustCompile(`^package`),
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed = %d, want 1", res.Failed)
+	}
+	if !strings.Contains(res.Hunks[0].Reason, "above the start") {
+		t.Errorf("the refusal does not explain that the end precedes the start: %s", res.Hunks[0].Reason)
+	}
+	if read(t, root, "store.go") != storeGo {
+		t.Error("an inverted range changed the file")
 	}
 }

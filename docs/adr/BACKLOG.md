@@ -460,6 +460,7 @@ re-measuring these. Each was driven at the built binary, not read:
   THIS checkout — for instance whether MCP callers hit `refused_apply` more
   than shell callers, which is about the ledger and not about the format.
 
+<<<<<<< HEAD
 - **Measuring whether served size degrades edit accuracy — DEFERRED, and it is
   the most valuable unanswered question this project has.** Named in ADR-014.
 
@@ -479,3 +480,20 @@ re-measuring these. Each was driven at the built binary, not read:
   variable, edit outcome as the dependent one, across models. If the curve turns
   over, the cap becomes a measured number instead of an inherited one; if it is
   flat, "arbitrary" is a defensible answer and we will be able to say so.
+=======
+- **`occurrence=N`, or any positional disambiguator for a pattern address —
+  DEFERRED.** Raised and refused in ADR-013.
+
+  When a start pattern matches several lines the hunk is refused and the
+  refusal names the matched line numbers. The obvious next step is to let the
+  caller say *which* one — `occurrence=2`. It is deferred rather than taken
+  because it makes a plan depend on the ORDER of matches in a file, which
+  changes when unrelated code moves above them: the address would then resolve
+  somewhere else while still looking correct, which is the silent-wrong-edit
+  class the exactly-once rule exists to refuse. The caller already has the line
+  numbers from the refusal and can address by number.
+
+  Revisit only if the ambiguity refusal proves common enough in practice to be
+  friction rather than a guard — and note that nothing currently counts it, for
+  the attribution reason ADR-012's Context sets out.
+>>>>>>> main

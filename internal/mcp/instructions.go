@@ -88,9 +88,13 @@ WRITING. mrw_write takes one plan document. Each hunk is a header line
     @@ <path> <address> <op> [guards]
 
 followed by its body lines. Ops are replace, insert-after, insert-before,
-delete and create. Addresses in a PLAN are line numbers or N-M ranges only — a
-regexp works in a read, never here — and every address resolves against the
-ORIGINAL file, so several hunks in one file need no offset arithmetic. Paths
+delete and create. An address is a line number, an N-M range, $ for the last
+line, or a PATTERN — /regexp/ for one line, /from/,/to/ for a range. A pattern
+must match EXACTLY ONE line: matching none or several fails that hunk and the
+refusal names the lines it matched, so nothing is ever edited by guess. Every
+address resolves against the ORIGINAL file, so several hunks in one file need no
+offset arithmetic, and a pattern is NOT a way to edit a file you have not read —
+it resolves to a line, and that line must still have been served to you. Paths
 are relative to the server's root; an absolute path is refused by name.
 
 Guards are optional and checked on every op, insertions included: sha=<hex> for

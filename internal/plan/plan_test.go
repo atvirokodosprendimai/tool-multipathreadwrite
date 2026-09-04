@@ -11,13 +11,13 @@ func TestParseAddr(t *testing.T) {
 		want Addr
 		bad  bool
 	}{
-		{in: "5", want: Addr{5, 5}},
-		{in: "3-6", want: Addr{3, 6}},
-		{in: "3-", want: Addr{3, EOF}},
-		{in: "0", want: Addr{0, 0}},
-		{in: "$", want: Addr{EOF, EOF}},
-		{in: "10-$", want: Addr{10, EOF}},
-		{in: "-", want: Addr{0, 0}},
+		{in: "5", want: Addr{Start: 5, End: 5}},
+		{in: "3-6", want: Addr{Start: 3, End: 6}},
+		{in: "3-", want: Addr{Start: 3, End: EOF}},
+		{in: "0", want: Addr{Start: 0, End: 0}},
+		{in: "$", want: Addr{Start: EOF, End: EOF}},
+		{in: "10-$", want: Addr{Start: 10, End: EOF}},
+		{in: "-", want: Addr{Start: 0, End: 0}},
 		{in: "", bad: true},
 		{in: "x", bad: true},
 		{in: "3-x", bad: true},
@@ -55,11 +55,11 @@ hello
 	if len(hunks) != 4 {
 		t.Fatalf("got %d hunks, want 4", len(hunks))
 	}
-	if h := hunks[0]; h.Path != "a.go" || h.Op != OpReplace || h.Addr != (Addr{3, 6}) ||
+	if h := hunks[0]; h.Path != "a.go" || h.Op != OpReplace || h.Addr != (Addr{Start: 3, End: 6}) ||
 		h.Anchor != "func" || len(h.Body) != 2 {
 		t.Errorf("hunk 0 = %+v", h)
 	}
-	if h := hunks[1]; h.Op != OpInsertAfter || h.Addr != (Addr{42, 42}) || len(h.Body) != 1 {
+	if h := hunks[1]; h.Op != OpInsertAfter || h.Addr != (Addr{Start: 42, End: 42}) || len(h.Body) != 1 {
 		t.Errorf("hunk 1 = %+v", h)
 	}
 	if h := hunks[2]; h.Op != OpDelete || len(h.Body) != 0 {
@@ -337,5 +337,107 @@ func TestABOMInABodyIsWrittenBackVerbatim(t *testing.T) {
 	}
 	if len(hunks) != 1 || len(hunks[0].Body) != 1 || hunks[0].Body[0] != "\ufeffKEEP" {
 		t.Errorf("body = %q, want the BOM preserved", hunks[0].Body)
+	}
+}
+
+// TestAPatternAddressParses covers the two forms ADR-013 adds. The syntax is
+// deliberately the one `read` already accepts, so a caller learns it once.
+func TestAPatternAddressParses(t *testing.T) {
+	for _, tc := range []struct {
+		in        string
+		wantStart string
+		wantEnd   string // "" when the address is a single pattern
+	}{
+		{in: `/^func Apply/`, wantStart: `^func Apply`},
+		{in: `/^func Apply/,/^}/`, wantStart: `^func Apply`, wantEnd: `^}`},
+		// A pattern may contain the characters the line-number parser splits
+		// on. This is the case that breaks a parser which cuts on "-" first.
+		{in: `/a-b/`, wantStart: `a-b`},
+		{in: `/x,y/`, wantStart: `x,y`},
+		{in: `/^func (s \*Store) Get/`, wantStart: `^func (s \*Store) Get`},
+	} {
+		got, err := ParseAddr(tc.in)
+		if err != nil {
+			t.Errorf("ParseAddr(%q) failed: %v", tc.in, err)
+			continue
+		}
+		if got.StartPat == nil {
+			t.Errorf("ParseAddr(%q) produced no start pattern", tc.in)
+			continue
+		}
+		if got.StartPat.String() != tc.wantStart {
+			t.Errorf("ParseAddr(%q) start = %q, want %q", tc.in, got.StartPat, tc.wantStart)
+		}
+		if tc.wantEnd == "" {
+			if got.EndPat != nil {
+				t.Errorf("ParseAddr(%q) invented an end pattern %q", tc.in, got.EndPat)
+			}
+		} else if got.EndPat == nil {
+			t.Errorf("ParseAddr(%q) produced no end pattern", tc.in)
+		} else if got.EndPat.String() != tc.wantEnd {
+			t.Errorf("ParseAddr(%q) end = %q, want %q", tc.in, got.EndPat, tc.wantEnd)
+		}
+		// An address is lines or patterns, never both — a half-set pair is the
+		// shape that invites a resolver to read the wrong field.
+		if got.Start != 0 || got.End != 0 {
+			t.Errorf("ParseAddr(%q) left line bounds set to %d-%d beside a pattern", tc.in, got.Start, got.End)
+		}
+	}
+}
+
+// TestAMalformedPatternIsRefusedAtParseTime asserts a bad pattern fails the
+// DOCUMENT, not a hunk. Compiling at parse time is what makes the refusal
+// cheap and keeps a plan that cannot possibly apply from touching the tree.
+func TestAMalformedPatternIsRefusedAtParseTime(t *testing.T) {
+	for _, in := range []string{
+		`/^func Apply`, // never closed
+		`/a(/`,         // does not compile
+		`/a/,/b(/`,     // the END does not compile
+		`//`,           // empty pattern matches every line; useless and ambiguous by construction
+	} {
+		if got, err := ParseAddr(in); err == nil {
+			t.Errorf("ParseAddr(%q) = %+v, want an error", in, got)
+		}
+	}
+}
+
+// TestEveryExistingAddressFormIsUnchanged is the go/no-go. The corpus is taken
+// from the addresses this repository actually writes — contract.sh and the ADR
+// examples — rather than from the doc comment, which is how a form gets missed.
+func TestEveryExistingAddressFormIsUnchanged(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		want Addr
+	}{
+		{"1", Addr{Start: 1, End: 1}},
+		{"42", Addr{Start: 42, End: 42}},
+		{"42-58", Addr{Start: 42, End: 58}},
+		{"3-", Addr{Start: 3, End: EOF}},
+		{"$", Addr{Start: EOF, End: EOF}},
+		{"-", Addr{Start: 0, End: 0}},
+		{"0", Addr{Start: 0, End: 0}},
+	} {
+		got, err := ParseAddr(tc.in)
+		if err != nil {
+			t.Errorf("ParseAddr(%q) failed: %v", tc.in, err)
+			continue
+		}
+		if got.Start != tc.want.Start || got.End != tc.want.End {
+			t.Errorf("ParseAddr(%q) = %d-%d, want %d-%d", tc.in, got.Start, got.End, tc.want.Start, tc.want.End)
+		}
+		if got.StartPat != nil || got.EndPat != nil {
+			t.Errorf("ParseAddr(%q) invented a pattern on a line address", tc.in)
+		}
+		// String() round-trips, and the property is that RE-PARSING it yields
+		// the same address — not that the text matches. `3-` renders as the
+		// equivalent `3-$` and `-` as `0`; both are pre-existing and correct,
+		// and a string-equality check here would have been asserting a
+		// rendering choice rather than the property a diagnostic needs.
+		again, err := ParseAddr(got.String())
+		if err != nil {
+			t.Errorf("ParseAddr(%q).String() = %q, which does not parse back: %v", tc.in, got.String(), err)
+		} else if again.Start != got.Start || again.End != got.End {
+			t.Errorf("ParseAddr(%q).String() = %q, which parses back as %d-%d not %d-%d", tc.in, got.String(), again.Start, again.End, got.Start, got.End)
+		}
 	}
 }
