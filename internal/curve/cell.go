@@ -310,6 +310,7 @@ touching the others while the defaults stay visible here for review`)
 // between fitting steps extends the padding rather than reshuffling it.
 func render(p Params, names []string, target, pad int) (string, int) {
 	rng := rand.New(rand.NewSource(p.Seed ^ 0x5eed))
+	common, odd := retryPair(p.Seed)
 	gaps := len(names) + 1
 	var b strings.Builder
 	line := 0
@@ -333,7 +334,9 @@ func render(p Params, names []string, target, pad int) (string, int) {
 		padding(i)
 		emit("[service " + name + "]")
 		if i == target && p.Selector == ByOddRetries {
-			emit(oddRetries)
+			emit(odd)
+		} else if p.Selector == ByOddRetries {
+			emit(common)
 		} else {
 			emit(commonRetries)
 		}
@@ -398,4 +401,31 @@ func readJSON(path string, v any) error {
 		return err
 	}
 	return json.Unmarshal(b, v)
+}
+
+// retryPair draws the common and the odd retry budget for one trial from its
+// seed, and guarantees they differ.
+//
+// They are DRAWN rather than fixed because a constant odd value is a signature:
+// T2 removed the target's unique name and left "retries = 5" at every seed, so a
+// client that had seen one relational cell could search for it in every other at
+// a cost independent of served size — the single-match shortcut the selector
+// exists to remove, surviving inside its own fixture. The common value varies
+// too, because a fixed common value identifies the odd block by elimination.
+//
+// It derives from the seed and not from a generator that advances, because
+// render is called repeatedly while the padding is fitted to the size cell and
+// the budgets must not move between steps.
+//
+// This removes the CONSTANT, not the alphabet: the values are small integers and
+// a determined client could enumerate them. ADR-020-T3 says so rather than
+// claiming more.
+func retryPair(seed int64) (common, odd string) {
+	rng := rand.New(rand.NewSource(seed ^ 0x0ddba11))
+	c := 2 + rng.Intn(7)
+	o := c
+	for o == c {
+		o = 2 + rng.Intn(7)
+	}
+	return fmt.Sprintf("retries = %d", c), fmt.Sprintf("retries = %d", o)
 }

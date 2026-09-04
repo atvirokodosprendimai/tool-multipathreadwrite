@@ -142,3 +142,75 @@ func TestALegacyTrialIDStillRegenerates(t *testing.T) {
 		t.Fatalf("the relational cell shares the named cell's trial id %s", rel)
 	}
 }
+
+// TestTheOddRetryBudgetIsNotAFixedSignature is ADR-020-T3's Enforced-by. T2
+// removed the unique NAME and left a constant VALUE: every relational cell at
+// every seed rendered the target at "retries = 5", so a client that had seen one
+// cell could search for it in every other at a cost independent of served size —
+// the single-match shortcut T2 exists to remove, surviving inside T2's own
+// fixture. Found by review of PR #93.
+func TestTheOddRetryBudgetIsNotAFixedSignature(t *testing.T) {
+	odds, commons := map[string]bool{}, map[string]bool{}
+	for seed := int64(1); seed <= 8; seed++ {
+		p := Params{ServedBytes: 2500, Position: Middle, Distractors: 3, Seed: seed, Selector: ByOddRetries}
+		dir := t.TempDir()
+		m, err := Generate(dir, p)
+		if err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+		odd, common, n := retriesOf(t, m)
+		if odd == common {
+			t.Fatalf("seed %d: the odd budget equals the common one (%q), so no block is odd", seed, odd)
+		}
+		if n < 3 {
+			t.Fatalf("seed %d: %d blocks, want at least three", seed, n)
+		}
+		odds[odd], commons[common] = true, true
+	}
+	if len(odds) < 2 {
+		t.Fatalf("the odd budget is %v at every seed — a client that has seen one cell can search for it in all of them", odds)
+	}
+	if len(commons) < 2 {
+		t.Fatalf("the common budget is %v at every seed, which identifies the odd block by elimination", commons)
+	}
+
+	// The named fixture is untouched: it still renders the constant in every
+	// block, which is what keeps its recorded trial ids regenerable.
+	dir := t.TempDir()
+	m, err := Generate(dir, Params{ServedBytes: 2500, Position: Middle, Distractors: 3, Seed: 1})
+	if err != nil {
+		t.Fatalf("named: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(m.Tree, m.File))
+	if err != nil {
+		t.Fatalf("read named fixture: %v", err)
+	}
+	if n := strings.Count(string(b), commonRetries); n != 4 {
+		t.Fatalf("the named fixture renders %s in %d of 4 blocks — T3 reached a fixture it does not own", commonRetries, n)
+	}
+}
+
+// retriesOf returns the singleton retries line, the common one, and the block
+// count of a generated fixture.
+func retriesOf(t *testing.T, m Manifest) (odd, common string, blocks int) {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(m.Tree, m.File))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	counts := map[string]int{}
+	for _, l := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(l, "retries = ") {
+			counts[l]++
+		}
+	}
+	for value, n := range counts {
+		blocks += n
+		if n == 1 {
+			odd = value
+		} else {
+			common = value
+		}
+	}
+	return odd, common, blocks
+}

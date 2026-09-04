@@ -3173,6 +3173,32 @@ PY
 [ $? -eq 0 ] && ok "the relational instruction names no service, the answer is the odd block's timeout, and the two selectors are two trials" \
              || bad "the harder fixture is findable by name, points at the wrong block, or collides with the named cell"
 
+# 59. ADR-020-T3: the relational fixture carries no constant signature.
+#
+# T2 removed the target's unique NAME and left a constant VALUE. Measured on
+# e96504a: every relational cell at every seed rendered the target at
+# "retries = 5", so a client that had seen one cell could search for it in every
+# other at a cost independent of served size — the single-match shortcut the
+# selector exists to remove, surviving inside its own fixture. Found by review of
+# PR #93. This row drives the BUILT binary at two seeds because the defect was
+# invisible at one: any single cell looks fine, and only comparing two shows the
+# value never moves. The pair is two NAMED cells, whose retries lines must be
+# IDENTICAL across seeds — a draw that leaked into the named fixture would change
+# ids recorded in a committed reading, and would pass the first half.
+R59=$(mktemp -d)
+for s in 1 2; do
+  "$CURVE" generate -out "$R59/rel$s" -bytes 2500 -position middle -distractors 3 -seed $s -selector odd-retries > /dev/null 2>&1
+  want 0 "$?" "the built binary generates relational cell seed $s"
+  "$CURVE" generate -out "$R59/named$s" -bytes 2500 -position middle -distractors 3 -seed $s > /dev/null 2>&1
+  want 0 "$?" "and named cell seed $s"
+done
+sig () { grep -oE '^retries = [0-9]+' "$1/tree/services.conf" | sort | uniq -c | tr -s ' ' | tr '\n' ';'; }
+[ "$(sig "$R59/rel1")" != "$(sig "$R59/rel2")" ] \
+  && ok "two relational seeds render different retry budgets, so no value is a signature to carry between cells" \
+  || bad "every relational seed renders the same budgets ($(sig "$R59/rel1")): one look at any cell teaches a search that works on all of them"
+[ "$(sig "$R59/named1")" = "$(sig "$R59/named2")" ] \
+  && ok "and the named fixture still renders the same constant at every seed, so its recorded trial ids regenerate" \
+  || bad "the draw reached the named fixture: seed 1 is $(sig "$R59/named1") and seed 2 is $(sig "$R59/named2")"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
