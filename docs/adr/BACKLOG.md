@@ -703,3 +703,11 @@ re-measuring these. Each was driven at the built binary, not read:
   not being TOLD to. ADR-015 makes the refusal name the escape, so the evidence
   for a terminator is now "the hint landed and counting is still the friction".
   Revisit with that evidence, not before.
+
+- **Two `create` ops that collide on a case-insensitive filesystem — DEFERRED by
+  ADR-021.** `New.txt` and `new.txt` created in one plan have no inode to compare
+  until one is written, so the identity check that refuses two spellings of an
+  EXISTING file (`os.SameFile` at grouping time, ADR-021) cannot see them, and
+  the second rename would win as before. Promote to a record when one such plan
+  is seen in the wild; the fix needs either a case-fold belief about the
+  filesystem, which issue #47 and ADR-021 both refused, or write-then-stat.

@@ -2507,6 +2507,48 @@ python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); d["outcome"]="garba
 want 2 "$?" "and a score carrying an unrecognised outcome is refused, not tallied"
 rm -rf "$R54"
 
+# 56. ADR-021: a plan names a file once, however it is spelled.
+#
+# Measured 2026-09-04: Same.txt and same.txt in one plan on a case-insensitive
+# filesystem reported two hunks ok and two files written, and the file held
+# only the second edit — both spellings staged a copy of the same bytes and
+# the last rename won. A symlink and its target do the same on EVERY
+# filesystem, which is the half this row can run on Linux CI. The fix asks
+# os.SameFile at grouping time. The pair is the same two hunks under ONE
+# spelling, which must still apply — a check that refused on resemblance
+# would pass the first half and fail this one.
+R56=$(mktemp -d)
+printf 'one\ntwo\nthree\n' > "$R56/real.txt"; ln -s real.txt "$R56/link.txt"
+( cd "$R56" && "$MRW" read real.txt link.txt > /dev/null 2>&1 )
+printf '@@ real.txt 1 replace\nX\n@@ link.txt 3 replace\nZ\n' > "$R56/two.plan"
+out=$( cd "$R56" && "$MRW" write two.plan 2>&1 ); rc=$?
+want 1 "$rc" "a plan naming one file as real.txt and as a symlink to it is refused"
+[ "$(cat "$R56/real.txt")" = "$(printf 'one\ntwo\nthree')" ] \
+  && ok "and nothing was written" \
+  || bad "a refused plan wrote something: $(cat "$R56/real.txt")"
+grep -q 'link.txt names the same file as real.txt' <<<"$out" \
+  && ok "and the refusal names both spellings, so the plan can be fixed in one edit" \
+  || bad "the refusal does not name both spellings: $out"
+printf 'one\ntwo\nthree\n' > "$R56/Same.txt"
+if [ -e "$R56/same.txt" ]; then
+  ( cd "$R56" && "$MRW" read Same.txt same.txt > /dev/null 2>&1 )
+  printf '@@ Same.txt 1 replace\nX\n@@ same.txt 3 replace\nZ\n' > "$R56/case.plan"
+  ( cd "$R56" && "$MRW" write --quiet case.plan > /dev/null 2>&1 )
+  want 1 "$?" "Same.txt and same.txt in one plan are refused where the filesystem folds case — the measured shape"
+  [ "$(cat "$R56/Same.txt")" = "$(printf 'one\ntwo\nthree')" ] \
+    && ok "and nothing was written" \
+    || bad "the measured defect is back: $(cat "$R56/Same.txt")"
+else
+  ok "a case-sensitive filesystem here: the two-spelling half is the symlink half's twin and is covered by it"
+fi
+printf '@@ real.txt 1 replace\nX\n@@ real.txt 3 replace\nZ\n' > "$R56/one.plan"
+( cd "$R56" && "$MRW" write --quiet one.plan > /dev/null 2>&1 )
+want 0 "$?" "the same two hunks under ONE spelling still apply"
+[ "$(cat "$R56/real.txt")" = "$(printf 'X\ntwo\nZ')" ] \
+  && ok "and both landed, through the symlink's target" \
+  || bad "one spelling did not apply both hunks: $(cat "$R56/real.txt")"
+rm -rf "$R56"
+
 # 47. ADR-014 T1: an oversized read is a FIRST PAGE, and following it loses
 # nothing.
 #

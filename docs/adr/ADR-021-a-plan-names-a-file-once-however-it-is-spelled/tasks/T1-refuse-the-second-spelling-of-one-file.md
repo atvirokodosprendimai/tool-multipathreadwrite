@@ -113,3 +113,4 @@ would be a different record.
 
 ## Verification Log
 <!-- filled during execution -->
+- 2026-09-04 · 88c8139* · exit 0 · `set -o pipefail …` · acceptance-sha256:7dbc2dde4ea5fae35610ce64bf14437a21dfce8a3b23976132f8dd030b5b8002 · ms:27948
