@@ -22,8 +22,8 @@ test was green and hollow at 3,000 AND at 12,001 before it could kill anything.
 A cursor, `next_index`, or a next page is tested by FOLLOWING it to exhaustion and comparing the
 reassembled union to the whole — with no overlap between pages and a bounded page count so a
 non-terminating cursor fails instead of hanging. A presence check passed over a continuation that
-nothing could follow (no `after` argument existed) and then over an off-by-one that lost 7,999 of
-8,000.
+nothing could follow (no `after` argument existed) and then over an off-by-one that yielded 7,999 of
+8,000 — one lost at the page boundary.
 
 ## Assert the thing, not its shadow
 
@@ -39,4 +39,4 @@ nothing could follow (no `after` argument existed) and then over an off-by-one t
 
 Test names are sentences stating the property (`TestAFallbackRootThatIsNotAProjectIsRefused`); the
 Acceptance fence greps `^--- PASS: Name\b`, so a name that is a prefix of another name is a hole.
-Never read an exit code through a pipe — `CONTRIBUTING.md` says why.
+`CONTRIBUTING.md` says why an exit code is never read through a pipe.

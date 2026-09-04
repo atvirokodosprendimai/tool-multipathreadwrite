@@ -1,19 +1,20 @@
 # Reviews: a different lineage, acknowledged at once, merged when clean
 
 **Every review goes through Codex** — `/quality-harness:codex-review` — in addition to whatever
-in-process review runs. Standing rule since 2026-09-04. A different lineage with fresh context fails
-differently: on this repository it caught a wrong `hunks.status` enum, a `-C` recipe that errored
-when followed, and two documentation claims an in-repo review had approved.
+in-process review runs. M, 2026-09-04: *"use codex reviews"*, then *"add this as a standing rule."*
+A different lineage with fresh context fails differently: on #72 it found the wrong `hunks.status`
+enum independently of the in-repo review that found it too, and on #79 it returned five findings
+that all held, among them documentation claims the in-repo review had approved.
 
-⚠ `codex exec` reads stdin even with the prompt as an argument; a backgrounded run hangs on a pipe
-that never closes. Redirect `< /dev/null`.
+⚠ Redirect `< /dev/null` when running `codex exec` from a script: with stdin left on an open pipe, a
+backgrounded run has hung here instead of exiting. Defensive, and cheap.
 
 ## Acknowledge before fixing
 
 When a review lands on one of our PRs, post ONE short comment first — the head SHA being worked
 and what is already verified — before the first fix. Then the substantive reply when the fixes are
-pushed and green. Two comments; the first costs nothing and stops the reviewer re-running against a
-head that is about to move.
+pushed and green. Asked for by M on 2026-09-01, so the PR itself shows the bot is working without
+anyone having to ask; it also stops the reviewer re-running against a head that is about to move.
 
 ## Reconcile against the source, never by authority
 
@@ -32,6 +33,6 @@ review", and a record that says the second when the first is true is a false cit
 ## Merge when clean, without asking
 
 A clean verdict — no blockers AND nothing open from the reviewer's side — on one of our PRs means
-merge. Asking after a clean verdict adds a round trip that decides nothing. Findings, even
-non-blocking ones, are not clean; someone else's PR is theirs to merge. Then `git.md`, "After a
-merge".
+merge. M, 2026-09-01: *"so if comment nothing from my side, clean - merge it."* Asking after a clean
+verdict adds a round trip that decides nothing. Findings, even non-blocking ones, are not clean;
+someone else's PR is theirs to merge. Then `git.md`, "After a merge".
