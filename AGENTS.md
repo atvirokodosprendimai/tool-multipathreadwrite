@@ -222,11 +222,16 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   case-insensitive filesystem, or a file and a symlink to it anywhere, are ONE file; a plan naming
   both is refused with both spellings named, because both would stage a copy and the last rename
   would win (ADR-021). Put all of one file's hunks under one spelling.
-- **A path-scoped rule in `.claude/rules/` is delivered only by your harness's own Read tool.**
-  `mrw read`, `mrw_read`, `cat` and a Write deliver none of them — measured 2026-09-04, issue #86.
-  So when a task enters `docs/adr/`, a `_test.go` file or `scripts/contract.sh`, Read one such
-  file with the harness reader first (or Read the rule itself), then read the rest through mrw.
-  An absent rule is silent.
+- **A path-scoped rule in `.claude/rules/` is delivered by your harness's own Read tool, and by
+  none of `mrw read`, `mrw_read`, `cat` or a Write** — measured 2026-09-04 in Claude Code, issue #86.
+  Here `.claude/settings.json` installs `.claude/hooks/rules-on-read.py`, a PostToolUse hook that
+  delivers the matching rules on those reads too — from the paths a call names and from the `==>`
+  headers it served, so a grep counts — once per rule per session while its claim can be filed, else
+  on every call (contract §55; needs `python3`; its matcher assumes the MCP server is registered as
+  `mrw`). It reads the command heuristically, not as a shell: a subshell that changes directory, or a
+  read whose output is redirected away, delivers nothing. Elsewhere, with hooks off, or for those
+  shapes, Read one such file with the harness reader first, or Read the rule itself. An absent rule
+  is silent.
 
 ### 5. The other subcommands
 

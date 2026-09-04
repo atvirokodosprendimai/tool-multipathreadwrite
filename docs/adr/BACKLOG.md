@@ -715,3 +715,10 @@ re-measuring these. Each was driven at the built binary, not read:
   two-line file with both hunks `ok` (review of #89, 2026-09-04). Same spelling, so outside
   ADR-021's identity check — but it is a plan that "says two things" in exactly Decision 2's
   sense, and it belongs to whichever record takes the create collision.
+
+- **The rules hook on Windows — DEFERRED by ADR-022.** `.claude/hooks/rules-on-read.py`
+  is exercised by contract §55 on Linux and by its Go Enforced-by wherever `python3` is
+  on PATH; the Windows runner may lack `python3` (the test skips there), and the hook's
+  path handling (`os.sep`, `O_NOFOLLOW` absent, `realpath` on drive letters) has not been
+  run on NTFS. Promote when a Windows contributor reports a delivery that did not happen,
+  or when CI gains a Windows python3.

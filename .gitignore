@@ -20,3 +20,10 @@
 # come back the same way.
 /tmp/
 /internal/state/relative/
+
+# Compiled Python from .claude/hooks/rules-on-read.py. A `py_compile` check
+# during ADR-022 left rules-on-read.cpython-314.pyc beside the hook and
+# `git add -A .claude` swept it into a commit (review of #88): a build
+# artefact tied to one interpreter version, and the class of file ADR-004
+# exists to keep out of the tree.
+__pycache__/
