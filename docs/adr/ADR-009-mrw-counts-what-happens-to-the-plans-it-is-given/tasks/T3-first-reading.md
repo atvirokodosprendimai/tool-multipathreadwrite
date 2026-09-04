@@ -138,3 +138,4 @@ the sample size recorded. A number nobody should act on is worse than an admissi
 - 2026-09-04 · 7927406 · exit 1 · `# SCOPED TO THE SECTION, and asserting the READING rather than the prose around …` · acceptance-sha256:c804908334fd2757ab0560341f1ec3d4d0d69acae18a1e6e6f6ee6b035c5c67b · ms:63
   ```
   ```
+- 2026-09-04 · c4f0a39 · exit 0 · `# SCOPED TO THE SECTION, and asserting the READING rather than the prose around …` · acceptance-sha256:78b71ade5e33bdb468e7d704e8efde74e1aec27b9af6809ebf730ebca8f384ab · ms:20237
