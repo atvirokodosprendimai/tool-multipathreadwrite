@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 )
 
@@ -283,8 +285,12 @@ func shippedPlans(t *testing.T) map[string]string {
 		if !ok {
 			continue
 		}
-		examples, ok := p["examples"].([]string)
-		if !ok || len(examples) == 0 {
+		// Accept either JSON-ish shape. `plan` publishes []string and `specs`
+		// publishes []any; a type assertion for one of them silently SKIPS an
+		// example published as the other, which would make this whole test
+		// vacuous without failing. Noted in review of PR #72.
+		examples := stringExamples(t, tl.Name, p["examples"])
+		if len(examples) == 0 {
 			t.Errorf("tool %q declares a plan property with no examples; the format is bespoke and this is the only worked one a host sees", tl.Name)
 			continue
 		}
@@ -293,6 +299,72 @@ func shippedPlans(t *testing.T) map[string]string {
 		}
 	}
 	return out
+}
+
+// stringExamples reads a JSON Schema `examples` array whose entries are
+// strings, accepting both the []string a Go literal produces and the []any a
+// decoded JSON document produces. It FAILS on an unexpected shape rather than
+// returning nothing: a helper that answers "no examples" for a shape it does
+// not recognise makes its caller vacuous without making it red.
+func stringExamples(t *testing.T, where string, raw any) []string {
+	t.Helper()
+	switch v := raw.(type) {
+	case nil:
+		return nil
+	case []string:
+		return v
+	case []any:
+		out := make([]string, 0, len(v))
+		for i, el := range v {
+			s, ok := el.(string)
+			if !ok {
+				t.Fatalf("%s: examples[%d] is %T, want a string", where, i, el)
+			}
+			out = append(out, s)
+		}
+		return out
+	default:
+		t.Fatalf("%s: examples is %T, want an array of strings", where, raw)
+		return nil
+	}
+}
+
+// TestTheStatusDescriptionNamesTheValuesTheEngineSends pins the prose to the
+// constants.
+//
+// T2 enforced that every property is described and that no description names a
+// property the schema dropped. Neither catches a description that names the
+// right property and the WRONG VALUES — which is what shipped: `hunks.status`
+// was documented as `fail`/`skip` while the engine sends `failed`/`skipped`, so
+// a host filtering on the documented value would have read every failing run as
+// clean. Caught in review of PR #72, on the field the record itself calls the
+// most load-bearing in the receipt.
+func TestTheStatusDescriptionNamesTheValuesTheEngineSends(t *testing.T) {
+	schema, ok := writeSchema()["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("the write schema declares no properties")
+	}
+	hunks, _ := schema["hunks"].(map[string]any)
+	items, _ := hunks["items"].(map[string]any)
+	props, _ := items["properties"].(map[string]any)
+	status, _ := props["status"].(map[string]any)
+	got, _ := status["description"].(string)
+	if got == "" {
+		t.Fatal("hunks.status carries no description")
+	}
+	for _, want := range []apply.Status{apply.StatusOK, apply.StatusFailed, apply.StatusSkipped} {
+		if !strings.Contains(got, string(want)) {
+			t.Errorf("the hunks.status description never names %q, which is a value the engine really sends:\n%s", want, got)
+		}
+	}
+	// The near-miss forms, and the reason this test is not just a "contains"
+	// check: "failed" contains "fail", so naming the wrong value is only
+	// detectable by looking for it as a WHOLE word.
+	for _, wrong := range []string{"fail", "skip"} {
+		if regexp.MustCompile(`\b` + wrong + `\b`).MatchString(got) {
+			t.Errorf("the hunks.status description names %q as a status; the engine sends %q-style values and a host filtering on %q sees no failure:\n%s", wrong, apply.StatusFailed, wrong, got)
+		}
+	}
 }
 
 // dryRunExample proves one shipped plan against the real engine: parse it,

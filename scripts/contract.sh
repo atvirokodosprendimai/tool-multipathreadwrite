@@ -1968,7 +1968,11 @@ out=$(m write --dry-run "$WORK/published.plan" 2>&1); rc=$?
 want 0 "$rc" "and the plan mrw publishes to a host is one mrw itself accepts"
 # "0 failed" contains the word, so match a VERDICT line: `fail` or `skip` in the
 # first column. A substring check here would have been green on every run.
-grep -qE '^(fail|skip) ' <<<"$out" \
+# The rendered report prints a failure as `FAIL` and a skipped sibling as
+# `skip`, so this must be case-insensitive: matching only lowercase bound on
+# this two-hunk example purely because a sibling gets skipped, and a ONE-hunk
+# failing plan would have walked straight past it.
+grep -qiE '^(fail|skip)' <<<"$out" \
   && bad "a hunk of the published example failed: $out" \
   || ok "and every hunk of the published example passes"
 

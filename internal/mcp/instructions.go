@@ -71,7 +71,7 @@ THE TWO RULES THAT PRODUCE MOST REFUSALS.
    served lines 10-12 does not license an edit at line 50. mrw_read is what
    records the lines; a read through any other tool licenses nothing.
 2. A plan is all or nothing. If any hunk fails, NOTHING is written and the
-   siblings report skip, never ok.
+   siblings report skipped, never ok.
 
 READING. mrw_read takes specs: a bare path, path:N, path:N-M, path:$ for the
 last line, or path:/regexp/ — so the read finds the site and no separate search

@@ -51,20 +51,29 @@ reaches a host.
 
 The session that found these gaps proposed ADR-009's tally as a pre-registered instrument: change the
 descriptions, watch `refused_parse`. **That criterion cannot produce data, and writing it down as if
-it could would be worse than not measuring at all.** Three reasons, the third fatal:
+it could would be worse than not measuring at all.** Three reasons, the third decisive. The first
+two are weaknesses of sensitivity; only the third makes the instrument the wrong one, and this
+paragraph was rewritten during review because its earlier form overstated the first two into
+impossibility claims the arithmetic does not support.
 
-- **The baseline already passes.** `refused_parse` sits at 1.5% against a proposed 5% threshold. A
-  criterion satisfied before the intervention cannot go red — the same defect as a fence clause that
-  was green the day it was written, which this corpus has produced four times and now counts tokens
-  to avoid.
-- **N=1.** 1.5% of 68 recorded outcomes is a single refusal; 5% of 68 is 3.4. There is no power to
-  detect a change of any size.
-- **The population is structurally unreachable.** The caller worth measuring is one who has *only*
-  the description. That caller is in another checkout on another machine, and ADR-009's Out of Scope
-  permanently refuses transmission — the tally is per-checkout and `mrw stats` is its only reader.
-  No path exists by which their outcomes arrive here. Splitting the tally by source would partition
-  the population we have (every caller in this repository has read AGENTS.md); it would not create
-  the one we want.
+- **The baseline is already inside the threshold.** `refused_parse` sits at 1.5% against a proposed
+  5%. That is not literally unfalsifiable — a cumulative rate CAN rise past 5% if enough later plans
+  are refused — but a criterion the tool satisfies before the intervention tests the wrong
+  direction: it can only fail if the change makes authoring *worse*, and it registers nothing if the
+  change helps. It is one step from the defect this corpus has produced four times, a clause that
+  was green the day it was written.
+- **One event, not one observation.** 68 outcomes are recorded and exactly ONE of them is a
+  `refused_parse`; 5% of 68 is 3.4 events. The sample is 68 and the event count is 1, so the
+  interval around 1.5% is wide and the criterion is insensitive to any change smaller than the noise
+  in a handful of refusals. Insensitive, not powerless — the earlier wording said "no power to
+  detect a change of any size", which is false and is corrected here rather than quietly dropped.
+- **THE DECISIVE ONE — the tally cannot attribute, and cannot see the population.** `cmd/mrw` and
+  `internal/mcp` write the same counters, so an outcome cannot be assigned to the MCP descriptions
+  this ADR changes. And the caller worth measuring is one who has *only* the description: in another
+  checkout on another machine, where ADR-009's Out of Scope permanently refuses transmission — the
+  tally is per-checkout and `mrw stats` is its only reader. Splitting by source fixes attribution and
+  still leaves every caller here one who has read AGENTS.md. No amount of sensitivity repairs an
+  instrument pointed at the wrong population.
 
 So this record is justified by the contract, not by an experiment: each gap is a thing a host is
 entitled to be told and is not. Uptake goes in Reachability rung 4 as *not measured and will not be*,

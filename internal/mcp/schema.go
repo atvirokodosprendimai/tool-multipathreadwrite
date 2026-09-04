@@ -228,9 +228,9 @@ func writeSchema() map[string]any { return mustDescribe(mustSchema(apply.Result{
 // entry here naming a property the schema no longer declares is refused at
 // construction, which is the quieter of the two drifts.
 var readDescriptions = map[string]string{
-	"observed":       "What each served file was observed to hold, keyed by path. This IS the ledger entry a later mrw_write is checked against.",
+	"observed":       "What THIS call observed of each served file, keyed by path. It is merged into the per-checkout ledger rather than replacing it, so a later write is authorised by the accumulated spans for the same sha — not by this response alone.",
 	"observed.SHA":   "The sha256 of the whole file as it was when served. A later write is refused if the file no longer hashes to this.",
-	"observed.Spans": "The line spans actually rendered, as [start, end] pairs; null means the whole file. A write to a line outside these is refused even though the file was read.",
+	"observed.Spans": "The line spans this call rendered, as [start, end] pairs; null means the whole file. Authorisation is per LINE: a write to a line no read has served is refused, though a line served by an EARLIER read of the same sha is still licensed.",
 	"problems":       "How many requested ranges could not be served. Non-zero means part of what you asked for is missing from `observed` — the call itself still answered.",
 }
 
@@ -238,26 +238,31 @@ var writeDescriptions = map[string]string{
 	"root":                "The checkout the plan was applied in. Every path in the plan is relative to it.",
 	"dry_run":             "True when the plan was only validated. Every other field means what it would have meant, and nothing was written.",
 	"applied":             "True when every hunk passed and the new content reached disk. False on a dry run and on any refusal.",
-	"failed":              "How many hunks did not apply. Non-zero means NOTHING was written: a plan is all or nothing.",
-	"files":               "One entry per file the plan addressed, including files it could not write.",
+	"failed":              "How many hunks FAILED. A hunk that was valid but abandoned because a sibling failed is `skipped` and is NOT counted here, so this is not the number of hunks that did not apply — read `hunks[].status` for that. Non-zero means NOTHING was written: a plan is all or nothing.",
+	"files":               "One entry per file the plan addressed, including files it could not validate. If the run died on an I/O error partway through, files already written are named and the rest may be missing.",
 	"files.path":          "The file's path, relative to root.",
 	"files.created":       "True when the file did not exist and a create hunk made it.",
 	"files.written":       "True when this file's new content reached disk. False on a dry run, and false for every file when any hunk failed.",
 	"files.sha_before":    "The sha256 of the file before the plan was applied.",
-	"files.sha_after":     "The sha256 of the file after the plan was applied.",
+	"files.sha_after":     "The sha256 the file WOULD have after this plan. Computed before the write, so on a dry run or a failed plan it describes proposed content that is not on disk — `written` says which.",
 	"files.lines_before":  "How many lines the file held before the plan was applied.",
-	"files.lines_after":   "How many lines the file holds after it.",
+	"files.lines_after":   "How many lines the file would hold after this plan. Proposed, on the same terms as `sha_after`.",
 	"hunks":               "One verdict per hunk, in plan order. This is the field to read: a replacement that matched nothing is reported here rather than silently skipped.",
 	"hunks.path":          "The file this hunk addressed, as written in the plan.",
 	"hunks.addr":          "The address as written in the plan, so a verdict can be matched back to the plan line that produced it.",
 	"hunks.op":            "The op as written: replace, insert-after, insert-before, delete or create.",
-	"hunks.status":        "`ok` when this hunk applied, `fail` when it did not, `skip` when a sibling failed and the whole plan was abandoned. A skip is never an ok.",
+	// ⚠ THESE THREE ARE THE WIRE VALUES, verbatim from apply.Status. An earlier
+	// draft of this line taught `fail` and `skip`, which the engine never
+	// sends: a host filtering hunks[].status == "fail" would have seen a clean
+	// run through every failure. Caught in review of PR #72 and pinned by
+	// TestTheStatusDescriptionNamesTheValuesTheEngineSends.
+	"hunks.status": "`ok` when this hunk applied, `failed` when it did not, `skipped` when a sibling failed and the whole plan was abandoned. A skipped hunk is never an applied one.",
 	"hunks.reason":        "Why a failing hunk failed: a guard that did not hold, a file mrw had not served, a path outside the root. Absent when the hunk passed.",
-	"hunks.removed":       "How many lines this hunk removed.",
-	"hunks.added":         "How many lines this hunk added.",
+	"hunks.removed":       "How many lines this hunk removes. Computed during validation, so on a dry run or a failed plan it is a proposed delta.",
+	"hunks.added":         "How many lines this hunk adds, on the same terms as `removed`.",
 	"hunks.plan_line":     "The line of the plan document this hunk's header was on.",
-	"hunks.removed_first": "The first line a delete removed, echoed back so a caller can see what it lost. Present only for a successful delete.",
-	"hunks.removed_last":  "The last line a delete removed. Present only for a successful delete.",
+	"hunks.removed_first": "The first line a delete removes, trimmed for display, so a caller can see what it is losing. Present whenever a delete reaches `ok` — a dry run included, where nothing was actually removed.",
+	"hunks.removed_last":  "The last line a delete removes, on the same terms as `removed_first`.",
 }
 
 // describeResult attaches the table's prose to a generated schema, in place,

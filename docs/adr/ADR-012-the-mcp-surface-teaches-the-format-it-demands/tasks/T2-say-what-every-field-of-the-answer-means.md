@@ -71,6 +71,7 @@ section in `contract.sh` is 42, and T1 takes 43.
 |-----------|------|----------|--------|-------|
 | `TestEveryOutputSchemaPropertyIsDescribed` | `internal/mcp/conformance_test.go` | S1, S4 — total coverage over the real declared schemas, at every depth | — | S1, S3, S4 |
 | `TestADescribedPropertyThatNoLongerExistsIsRefused` | `internal/mcp/schema_test.go` | S4 — the quieter direction: a stale entry describes a shape nobody sends | — | S1, S4 |
+| `TestTheStatusDescriptionNamesTheValuesTheEngineSends` | `internal/mcp/conformance_test.go` | added in review — the prose names the values `apply.Status` really sends, not values a host would filter on and never match | — | S2, S4 |
 
 ## Reachability
 
@@ -84,6 +85,7 @@ section in `contract.sh` is 42, and T1 takes 43.
 ## Mutation Log
 
 - 2026-09-04 · 99ee7a0 · mutant killed · exit 1 · `internal/mcp/schema.go` · S2: drop `hunks.status` from the table — the single most load-bearing field of the receipt, and the one a caller must read to tell an ok from a skip · acceptance-sha256:e346ac09339dfc93a0c595edcfffedf121843cd7ecb9fffe9d56ddff54ed2852
+- 2026-09-04 · 96c5098 · mutant killed · exit 1 · `internal/mcp/schema.go` · review fix: restore the shipped `fail`/`skip` wording on hunks.status — the defect two independent reviewers found, where a host filtering on the documented value reads every failing run as clean · acceptance-sha256:e346ac09339dfc93a0c595edcfffedf121843cd7ecb9fffe9d56ddff54ed2852
 - 2026-09-04 · 99ee7a0 · mutant killed · exit 1 · `internal/mcp/schema.go` · S4: make a stale table entry a no-op instead of a refusal — the quiet direction of the drift, where the schema still validates every response while the prose describes a field nobody sends · acceptance-sha256:e346ac09339dfc93a0c595edcfffedf121843cd7ecb9fffe9d56ddff54ed2852
 
 ## Invariants
@@ -123,3 +125,4 @@ exact failure ADR-011-T2 was built to make unrepresentable, and it is not worth 
   ```
 - 2026-09-04 · 99ee7a0 · exit 0 · `set -o pipefail …` · acceptance-sha256:e346ac09339dfc93a0c595edcfffedf121843cd7ecb9fffe9d56ddff54ed2852
 - 2026-09-04 · 99ee7a0* · exit 0 · `set -o pipefail …` · acceptance-sha256:e346ac09339dfc93a0c595edcfffedf121843cd7ecb9fffe9d56ddff54ed2852 · ms:32235
+- 2026-09-04 · 96c5098* · exit 0 · `set -o pipefail …` · acceptance-sha256:e346ac09339dfc93a0c595edcfffedf121843cd7ecb9fffe9d56ddff54ed2852 · ms:12326

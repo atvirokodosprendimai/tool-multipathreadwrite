@@ -152,3 +152,4 @@ syntax, that is a separate record, not a paragraph in a description string.
   corpus keeps producing, green on every run; the row now anchors the verdict to the first column.
 - 2026-09-04 · 99ee7a0 · exit 0 · `set -o pipefail …` · acceptance-sha256:e8e34fb105c0b7ad65ef22c4329a99f67278f545ddf63348b983b1d7209101e7
 - 2026-09-04 · 99ee7a0* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8e34fb105c0b7ad65ef22c4329a99f67278f545ddf63348b983b1d7209101e7 · ms:14182
+- 2026-09-04 · 96c5098* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8e34fb105c0b7ad65ef22c4329a99f67278f545ddf63348b983b1d7209101e7 · ms:17671
