@@ -1920,7 +1920,7 @@ assert isinstance(i,str) and i.strip(), "initialize carries no instructions"
 assert "@@" in i, "the instructions never show a plan header"
 for f in ("AGENTS.md","README.md","CONTRIBUTING.md"):
     assert f not in i, "the instructions point at %s, which an MCP-only caller cannot open" % f
-assert len(i) <= 4096, "the instructions are %d bytes; they are paid once per session" % len(i)
+assert len(i.encode()) <= 4096, "the instructions are %d bytes; they are paid once per session" % len(i.encode())
 PY
 [ $? -eq 0 ] && ok "and the handshake teaches the format without pointing at a file the caller cannot open" \
              || bad "the initialize instructions are missing, unbounded, or a pointer to nothing"
@@ -2149,7 +2149,7 @@ for w in ("--files-from","--check","--root","shell","serialized","ONE fixed chec
 # further down and told a shell-capable caller two different things. What has
 # to hold is the ORDER — a caller meets the choice before it meets the grammar.
 assert i.index("WHICH SURFACE") < i.index("READING."), "the routing comes after the format details, so the choice is made before it is offered"
-assert len(i) <= 4096, "instructions are %d bytes, over the bound every session pays" % len(i)
+assert len(i.encode()) <= 4096, "instructions are %d bytes, over the bound every session pays" % len(i.encode())
 PY
 [ $? -eq 0 ] && ok "the handshake routes a shell-capable caller to the CLI, first" \
              || bad "the surface does not say it is the smaller one"
@@ -2329,7 +2329,13 @@ i = json.loads(sys.argv[1])["result"]["instructions"]
 assert "grep" in i, "the wire never mentions grep, so an MCP-only caller cannot learn it can search"
 assert "INDEX" in i and "no content" in i, "the wire does not say an oversized grep returns an index carrying NO content"
 assert "only it has --grep" not in i, "the wire still calls --grep a CLI exclusive, which it is not"
-assert len(i) <= 4096, "instructions are %d bytes, over the bound every session pays" % len(i)
+# BYTES, NOT RUNES. Python's len() on a str counts code points and Go's
+# len() counts bytes, so these two gates were measuring different things
+# against the same constant: 4,073 here against 4,091 there, 18 bytes of
+# headroom the contract believed it had and did not. The text is full of em
+# dashes, so the gap grows with every one added. Caught while writing this
+# off as non-blocking — which is the habit this corpus keeps recording.
+assert len(i.encode()) <= 4096, "instructions are %d bytes, over the bound every session pays" % len(i.encode())
 PY
 [ $? -eq 0 ] && ok "the handshake teaches finding and stops claiming --grep for the CLI" \
              || bad "the wire is wrong about finding"
