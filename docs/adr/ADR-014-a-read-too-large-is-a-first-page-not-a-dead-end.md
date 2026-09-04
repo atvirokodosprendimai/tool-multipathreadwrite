@@ -1,13 +1,13 @@
 # ADR-014: A read too large is a first page, not a dead end
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-09-04 by M — *"accepted"*, in reply to this record put to them as Proposed with its one open question named: the paging design is taken, and Decision 4 stands, so the cap's VALUE is still not decided here.
 **Date:** 2026-09-04
 **Owner:** M
 **Spec:** None — no spec stage
 **Cross-references:** ADR-011 (owns `MaxResultChars` and the refusal this changes), ADR-007 (owns the read this bounds), ADR-002 (owns the ledger a partial read must record honestly), ADR-009 (the tally whose attribution limit is why the cap's VALUE stays unmeasured here)
 **Governs:** `internal/mcp/**`
-**Enforced-by:** to be named by T1 — the test that a continuation actually continues
-**Invalidates:** none — checked. ADR-011 decided that an oversized read is refused rather than truncated, and that stands unchanged: nothing here truncates. What changes is what the refusal HANDS BACK.
+**Enforced-by:** `internal/mcp/tools_test.go::TestAPagedReadReassemblesTheWholeFile`
 **Served-path change:** a caller whose read exceeds the limit gets the first page and the spec for the next one, instead of an error it must translate into a range by hand.
 
 ## Context
