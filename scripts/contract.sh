@@ -2506,73 +2506,106 @@ python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); d["outcome"]="garba
 "$CURVE" tally "$R54/garbage.out" > /dev/null 2>&1
 want 2 "$?" "and a score carrying an unrecognised outcome is refused, not tallied"
 rm -rf "$R54"
-# 55. Issue #86: a path-scoped rule arrives on an mrw read too, via the hook.
+# 55. ADR-022: a path-scoped rule arrives on an mrw read too, through the hook.
 #
 # Claude Code injects a `.claude/rules/*.md` file with `paths:` frontmatter
-# only when its own Read tool reads a matching file; an mrw read, a Bash read
-# and a Write deliver nothing, so a repository that sends sessions through mrw
-# loses every path-scoped rule silently. .claude/hooks/rules-on-read.py is the
-# PostToolUse hook that closes the gap, and this row drives it the way the
-# harness does: JSON on stdin, JSON on stdout. Every case that must deliver is
-# paired with one that must not, because a hook that emits every rule on every
-# call passes the first kind alone.
+# only when its own Read tool reads a matching file (issue #86). This row
+# drives .claude/hooks/rules-on-read.py the way the harness does — JSON on
+# stdin, the documented envelope on stdout, $CLAUDE_PROJECT_DIR in the
+# environment — and DECODES what comes back rather than grepping it, because
+# `"n": 2` is a substring of `"n": 20` and body text is a substring of a
+# broken envelope. Every case that must deliver is paired with one that must
+# not. State goes under the fixture's HOME, so nothing is left in /tmp.
 HOOK="$PWD/.claude/hooks/rules-on-read.py"
+python3 -c 'import json; h=json.load(open(".claude/settings.json"))["hooks"]["PostToolUse"][0]; assert "mcp__mrw__mrw_read" in h["matcher"] and "Bash" in h["matcher"] and "Write" in h["matcher"]; assert "rules-on-read.py" in h["hooks"][0]["command"]' 2>/dev/null \
+  && [ -f "$HOOK" ] \
+  && ok "settings.json wires the four tools to a hook file that exists" \
+  || bad "the settings entry does not wire the hook this row drives"
 R55=$(mktemp -d)
-mkdir -p "$R55/proj/.claude/rules" "$R55/proj/docs/adr" "$R55/proj/pkg"
-printf -- '---\npaths:\n  - "docs/adr/**"\n  - "**/*_test.go"\n---\n\nSCOPED RULE BODY 55\n' > "$R55/proj/.claude/rules/scoped.md"
+mkdir -p "$R55/proj/.claude/rules" "$R55/proj/docs/adr" "$R55/proj/pkg" "$R55/home"
+printf -- '---\npaths:\n  - "docs/adr/**"   # the records\n  - "**/*_test.go"\n---\n\nSCOPED RULE BODY 55\n' > "$R55/proj/.claude/rules/scoped.md"
+printf -- '---\npaths: ["src/**/*.{ts,tsx}", "*.md"]\n---\n\nINLINE RULE BODY 55\n' > "$R55/proj/.claude/rules/inline.md"
 printf -- '# plain rule\n\nPLAIN RULE BODY 55\n' > "$R55/proj/.claude/rules/plain.md"
 printf 'a record\n' > "$R55/proj/docs/adr/x.md"
+printf 'spaced\n' > "$R55/proj/docs/adr/my file.md"
 printf 'package pkg\n' > "$R55/proj/pkg/a_test.go"
 printf 'readme\n' > "$R55/proj/README.md"
-hook55() {  # session, tool, tool_input JSON [, tool_response JSON] -> the hook's stdout
-  python3 -c 'import json,sys; d={"hook_event_name":"PostToolUse","session_id":sys.argv[1],"cwd":sys.argv[2],"tool_name":sys.argv[3],"tool_input":json.loads(sys.argv[4])}
-if len(sys.argv) > 5 and sys.argv[5]: d["tool_response"]=json.loads(sys.argv[5])
-print(json.dumps(d))' "$1" "$R55/proj" "$2" "$3" "${4:-}" | python3 "$HOOK"
+mkdir -p "$R55/proj/src/a"; printf 'ts\n' > "$R55/proj/src/a/b.tsx"
+hook55() {  # session, tool, tool_input JSON [, tool_response JSON [, cwd]] -> the hook's stdout
+  python3 -c 'import json,sys
+d={"hook_event_name":"PostToolUse","session_id":sys.argv[1],"cwd":sys.argv[6] or sys.argv[2],"tool_name":sys.argv[3],"tool_input":json.loads(sys.argv[4])}
+if sys.argv[5]: d["tool_response"]=json.loads(sys.argv[5])
+print(json.dumps(d))' "$1" "$R55/proj" "$2" "$3" "${4:-}" "${5:-}" \
+  | env HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK"
 }
-out=$(hook55 s1 Bash '{"command":"mrw read docs/adr/x.md:1-3 README.md"}')
-want 0 "$?" "the hook exits 0 on a Bash mrw read"
-grep -q 'SCOPED RULE BODY 55' <<<"$out" \
-  && ok "and delivers the rule whose glob matches the file the mrw read served" \
-  || bad "no rule delivered for docs/adr/x.md: $out"
-grep -q 'PLAIN RULE BODY 55' <<<"$out" \
-  && bad "an unconditional rule was delivered too, and the harness had already loaded it: $out" \
+ctx55() {  # stdin: the hook's stdout -> the additionalContext, or "" ; exit 1 on a bad envelope
+  python3 -c 'import json,sys
+s=sys.stdin.read()
+if not s: sys.exit(0)
+d=json.loads(s); h=d["hookSpecificOutput"]
+assert set(d)=={"hookSpecificOutput"} and set(h)=={"hookEventName","additionalContext"} and h["hookEventName"]=="PostToolUse", d
+print(h["additionalContext"])'
+}
+ctx=$(hook55 s1 Bash '{"command":"mrw read docs/adr/x.md:1-3 README.md"}' | ctx55); rc=$?
+want 0 "$rc" "a Bash mrw read comes back as the documented envelope and nothing else"
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+  && ok "and delivers the rule whose glob matches the file the read served" \
+  || bad "no rule delivered for docs/adr/x.md: $ctx"
+grep -q 'PLAIN RULE BODY 55' <<<"$ctx" \
+  && bad "an unconditional rule was delivered too, and the harness had already loaded it" \
   || ok "and not the unconditional rule, which the harness already loaded"
-out=$(hook55 s1 Bash '{"command":"mrw read docs/adr/x.md:5"}')
-[ -z "$out" ] && ok "a rule already delivered in this session is not delivered again" || bad "re-delivered: $out"
-out=$(hook55 s2 Bash '{"command":"cat README.md"}')
-[ -z "$out" ] && ok "a read of a file no rule globs delivers nothing" || bad "delivered for README.md: $out"
-out=$(hook55 s3 mcp__mrw__mrw_read '{"specs":["pkg/a_test.go:/package/"]}')
-grep -q 'SCOPED RULE BODY 55' <<<"$out" \
-  && ok "an mrw_read spec with a pattern address is matched by its path" \
-  || bad "mrw_read spec not matched: $out"
+ctx=$(hook55 s1 Bash '{"command":"mrw read docs/adr/x.md:5"}' | ctx55)
+[ -z "$ctx" ] && ok "a rule already delivered in this session is not delivered again" || bad "re-delivered: $ctx"
+ctx=$(hook55 s2 Bash '{"command":"cat README.md"}' | ctx55)
+grep -q 'INLINE RULE BODY 55' <<<"$ctx" && ! grep -q 'SCOPED' <<<"$ctx" \
+  && ok "a slash-less pattern in an inline list matches a root file, and only that rule" \
+  || bad "root-only inline glob: $ctx"
+ctx=$(hook55 s2b Bash '{"command":"cat src/a/b.tsx"}' | ctx55)
+grep -q 'INLINE RULE BODY 55' <<<"$ctx" \
+  && ok "a brace group inside an inline list is one glob, not two" \
+  || bad "src/**/*.{ts,tsx} did not match src/a/b.tsx: $ctx"
+ctx=$(hook55 s3 mcp__mrw__mrw_read '{"specs":["pkg/a_test.go:/package/"]}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+  && ok "an mrw_read spec with a pattern address is matched by its path, and **/*_test.go crosses directories" \
+  || bad "mrw_read spec not matched: $ctx"
 printf 'package pkg\n' > "$R55/proj/pkg/new_test.go"
-out=$(hook55 s4 mcp__mrw__mrw_write '{"plan":"@@ pkg/new_test.go - create\npackage pkg\n"}')
-grep -q 'SCOPED RULE BODY 55' <<<"$out" \
+ctx=$(hook55 s4 mcp__mrw__mrw_write '{"plan":"@@ pkg/new_test.go - create\npackage pkg\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "a file an mrw_write plan just created is matched: the hook runs after the write" \
-  || bad "create op not matched: $out"
-out=$(hook55 s5 mcp__mrw__mrw_write '{"plan":"@@ README.md 1 replace body=1 raw=true\n@@ docs/adr/x.md 1 replace\n"}')
-[ -z "$out" ] && ok "a raw body line beginning with @@ is not read as a header" || bad "a raw body was read as a header: $out"
-out=$(hook55 s6 Read '{"file_path":"docs/adr/x.md"}')
-[ -z "$out" ] && ok "the Read tool is left to the harness, so nothing arrives twice" || bad "the hook fired on Read: $out"
-out=$(hook55 s7 Write "{\"file_path\":\"$R55/proj/docs/adr/x.md\"}")
-grep -q 'SCOPED RULE BODY 55' <<<"$out" \
-  && ok "an absolute path inside the project is matched" \
-  || bad "absolute path not matched: $out"
-out=$(printf 'not json' | python3 "$HOOK")
-want 0 "$?" "malformed stdin exits 0: a broken hook must not take the turn down"
-[ -z "$out" ] && ok "and prints nothing" || bad "printed on malformed stdin: $out"
-# A grep names no file in its INPUT; the files it served are in its RESULT as
-# `==> path` headers, and that is where the hook must look.
-out=$(hook55 s8 Bash '{"command":"mrw read --grep record docs/"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}')
-grep -q 'SCOPED RULE BODY 55' <<<"$out" \
+  || bad "create op not matched: $ctx"
+ctx=$(hook55 s5 mcp__mrw__mrw_write '{"plan":"@@ README.md 1 replace body=1 raw=true\n@@ docs/adr/x.md 1 replace\n"}' | ctx55)
+! grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a raw body line beginning with @@ is not read as a header" || bad "a raw body was read as a header: $ctx"
+ctx=$(hook55 s5b mcp__mrw__mrw_write '{"plan":"@@ README.md 1 replace body=1\n@@ docs/adr/x.md 1 replace\n"}' | ctx55)
+! grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a counted body line is skipped without raw=true, as mrw skips it" || bad "a counted body was read as a header: $ctx"
+ctx=$(hook55 s5c mcp__mrw__mrw_write '{"plan":"@@ README.md 1 replace raw=true\n@@ docs/adr/x.md 1 replace\n"}' | ctx55)
+[ -z "$ctx" ] && ok "raw=true without body= is a plan mrw refuses, and delivers nothing" || bad "delivered for a plan mrw refuses: $ctx"
+ctx=$(hook55 s5d mcp__mrw__mrw_write '{"plan":"﻿@@ \"docs/adr/my file.md\" 1 replace\nX\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+  && ok "a quoted path with a space behind a BOM is read as mrw reads it" \
+  || bad "quoted header path not matched: $ctx"
+ctx=$(hook55 s6 Read '{"file_path":"docs/adr/x.md"}' | ctx55)
+[ -z "$ctx" ] && ok "the Read tool is left to the harness, so nothing arrives twice" || bad "the hook fired on Read: $ctx"
+ctx=$(hook55 s7 Write "{\"file_path\":\"$R55/proj/docs/adr/x.md\"}" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "an absolute path inside the project is matched" || bad "absolute path not matched: $ctx"
+ctx=$(hook55 s8 Bash '{"command":"mrw read --grep record docs/"}' '{"stdout":"==> docs/adr/x.md  1L  9B  sha 1234abcd\n    1| a record\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
   && ok "a grep whose served files appear only in the result still delivers their rules" \
-  || bad "grep result headers were not read: $out"
-out=$(hook55 s9 Bash '{"command":"cd docs/adr && cat x.md"}')
-grep -q 'SCOPED RULE BODY 55' <<<"$out" \
-  && ok "a leading cd moves the base the later tokens resolve against" \
-  || bad "cd-relative read not matched: $out"
-out=$(hook55 s10 mcp__mrw__mrw_write '{"plan":"@@ README.md 1 replace raw=true\n@@ docs/adr/x.md 1 replace\n"}')
-[ -z "$out" ] && ok "raw=true without body= is a plan mrw refuses, and delivers nothing" || bad "delivered for a plan mrw refuses: $out"
+  || bad "grep result headers were not read: $ctx"
+ctx=$(hook55 s9 Bash '{"command":"cd docs/adr && cat x.md"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a leading cd moves the base the later tokens resolve against" || bad "cd-relative read not matched: $ctx"
+ctx=$(hook55 s10 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/pkg" | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
+  && ok "with cwd in a subdirectory, the project root still comes from CLAUDE_PROJECT_DIR and ../ resolves" \
+  || bad "a subdirectory cwd lost the rules: $ctx"
+out=$(printf 'not json' | env HOME="$R55/home" python3 "$HOOK"); want 0 "$?" "malformed stdin exits 0: a broken hook must not take the turn down"
+[ -z "$out" ] && ok "and prints nothing" || bad "printed on malformed stdin: $out"
+( hook55 s11 Bash '{"command":"cat docs/adr/x.md"}' >&- 2>/dev/null ); want 0 "$?" "a closed stdout still exits 0"
+hook55 s12 Bash '{"command":"cat docs/adr/x.md"}' > "$R55/race1" & hook55 s12 Bash '{"command":"cat docs/adr/x.md"}' > "$R55/race2" & wait
+n=$( { ctx55 < "$R55/race1"; echo; ctx55 < "$R55/race2"; } | grep -c 'SCOPED RULE BODY 55')
+[ "$n" = 1 ] && ok "two hooks racing for one rule in one session deliver it exactly once" || bad "raced delivery count is $n, want 1"
+printf -- '---\npaths:\n  - "%s*.md"\n---\n\nBOMB RULE BODY 55\n' "$(printf '**/%.0s' $(seq 1 24))" > "$R55/proj/.claude/rules/bomb.md"
+( perl -e 'alarm shift; exec @ARGV' 5 bash -c "$(declare -f hook55); R55='$R55'; HOOK='$HOOK'; hook55 s13 Bash '{\"command\":\"cat docs/adr/x.md\"}'" > /dev/null ); want 0 "$?" "a rule with 24 globstars matches by segment and cannot stall the hook"
+[ -n "$(ls "$R55/home/.cache/claude-rules-on-read" 2>/dev/null)" ] && ok "dedup state lives under the caller's cache directory, not the shared temp" || bad "no state under HOME"
 rm -rf "$R55"
 
 # 47. ADR-014 T1: an oversized read is a FIRST PAGE, and following it loses
