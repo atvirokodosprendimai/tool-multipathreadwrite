@@ -22,8 +22,8 @@ rather than against it.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Serve the first page, and say how to continue | pending | — | 3 named `--- PASS:` lines, `# 47.` in `contract.sh`, gofmt + vet, both engine clauses, `./scripts/contract.sh` |
-| T2 | Teach the continuation, once it exists | pending | — | 1 named `--- PASS:` line, `# 48.` in `contract.sh`, gofmt + vet, `./scripts/contract.sh` |
+| T1 | Serve the first page, and say how to continue | done | — | 3 named `--- PASS:` lines, `# 47.` in `contract.sh`, gofmt + vet, both engine clauses, `./scripts/contract.sh` |
+| T2 | Teach the continuation, once it exists | done | — | 1 named `--- PASS:` line, `# 48.` in `contract.sh`, gofmt + vet, `./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done` | `withdrawn`.
 

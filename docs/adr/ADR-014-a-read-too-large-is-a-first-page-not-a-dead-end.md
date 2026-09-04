@@ -8,7 +8,7 @@
 **Cross-references:** ADR-011 (owns `MaxResultChars` and the refusal this changes), ADR-007 (owns the read this bounds), ADR-002 (owns the ledger a partial read must record honestly), ADR-009 (the tally whose attribution limit is why the cap's VALUE stays unmeasured here)
 **Governs:** `internal/mcp/**`
 **Enforced-by:** `internal/mcp/tools_test.go::TestAPagedReadReassemblesTheWholeFile`
-**Served-path change:** a caller whose read exceeds the limit gets the first page and the spec for the next one, instead of an error it must translate into a range by hand.
+**Invalidates:** ADR-011-T3 in one clause, for the SINGLE-SPEC case only, and this line was wrong when the record was first written. It said `none — checked`, on the reasoning that nothing here truncates. That is true and it is not the whole claim ADR-011-T3 makes: its refusal states *"Nothing was read and nothing was recorded, so no write is licensed by it"*, and both halves stop being true for a pageable read — a page IS served and its span IS recorded. Its two tests failed on the first run of this work, which is how the error surfaced rather than shipping. They are retargeted at the multi-spec branch, where mrw still cannot know which file to narrow and the flat refusal survives unchanged. The property ADR-011 was protecting — a caller must never receive a part that reads like the whole — is kept by `isError`, the PARTIAL label and the continuation, and is asserted by `TestAnOversizedReadStillReadsAsIncomplete`.
 
 ## Context
 

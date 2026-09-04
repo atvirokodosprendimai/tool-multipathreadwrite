@@ -58,11 +58,13 @@ test -z "$(gofmt -l .)" \
   && ./scripts/contract.sh
 ```
 
-Every clause was run BEFORE this fence was written and returned **zero hits** except
-`grep -q 'continue' README.md`, which was counted and returns **1 hit today** — the word appears in
-an unrelated sentence. It is kept anyway because it is the weakest clause in the fence and saying so
-is the point: it would be green with this task undone. The clause that actually binds is §48, which
-drives the taught text and the real binary together.
+Every clause was run BEFORE this fence was written and returned **zero hits**, including
+`grep -q 'continue' README.md`. ⚠ An earlier draft of this paragraph claimed that clause returned one
+hit from an unrelated sentence and was therefore weak. That was wrong — it returned zero, and the
+clause binds. The claim is corrected here rather than deleted because the mistake is the instructive
+part: a fence note asserting a count nobody re-ran is the same defect as a clause nobody counted, and
+this one would have talked a reader out of trusting a check that works. §48 remains the row that
+binds hardest, driving the taught text and the real binary together.
 
 ## Tests
 
@@ -81,7 +83,7 @@ drives the taught text and the real binary together.
 
 ## Mutation Log
 
-<!-- filled during execution -->
+- 2026-09-04 · 43e517d · mutant killed · exit 1 · `internal/mcp/instructions.go` · S2: teach the mechanism without the consequence — say a large read pages and drop "stopping early leaves you holding part of a file". The field a caller ignores is the only thing telling it otherwise · acceptance-sha256:f6a623a88137fd22088905bd737edf691a78c7cb425102f47d6f38e55847556d
 
 ## Invariants
 
@@ -108,3 +110,18 @@ there or cut the example, and say which — do not raise the constant to fit.
 
 ## Verification Log
 <!-- filled during execution -->
+- 2026-09-04 · 43e517d* · exit 1 · `set -o pipefail …` · acceptance-sha256:f6a623a88137fd22088905bd737edf691a78c7cb425102f47d6f38e55847556d · ms:267
+  ```
+  --- last 10 line(s) of stdout (of 110 after folding 110 raw)
+      --- PASS: TestTheRefusalDoesNotInventAnInvalidSpec/first_spec_already_ranged (0.00s)
+      --- PASS: TestTheRefusalDoesNotInventAnInvalidSpec/several_specs (0.00s)
+  === RUN   TestAPagedReadReassemblesTheWholeFile
+  --- PASS: TestAPagedReadReassemblesTheWholeFile (0.04s)
+  === RUN   TestAPageLicensesOnlyWhatItServed
+  --- PASS: TestAPageLicensesOnlyWhatItServed (0.01s)
+  === RUN   TestAnOversizedReadStillReadsAsIncomplete
+  --- PASS: TestAnOversizedReadStillReadsAsIncomplete (0.01s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	(cached)
+  ```
+- 2026-09-04 · 43e517d* · exit 0 · `set -o pipefail …` · acceptance-sha256:f6a623a88137fd22088905bd737edf691a78c7cb425102f47d6f38e55847556d · ms:9518

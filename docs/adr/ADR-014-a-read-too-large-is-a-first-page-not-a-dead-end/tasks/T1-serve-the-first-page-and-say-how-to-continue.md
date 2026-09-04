@@ -93,7 +93,8 @@ whether a continuation exists.
 
 ## Mutation Log
 
-<!-- filled during execution -->
+- 2026-09-04 · 43e517d · mutant killed · exit 1 · `internal/mcp/tools.go` · S3: make the continuation start at `end` rather than `end+1` — the off-by-one that repeats a line on every page boundary, reported by the Enforced-by as 12,004 lines reassembled where 12,000 were wanted. A presence check on the field would not have noticed · acceptance-sha256:c5303f63b8ec1362aea7e8d944e908ebb3260ccff0e85a92abb703a9f496c20e
+- 2026-09-04 · 43e517d · mutant killed · exit 1 · `internal/mcp/tools.go` · S5: return a page with `isError: false` — the moment paging stops being distinguishable from the truncation ADR-011 refused, because a caller that stops has no signal it holds only part of a file · acceptance-sha256:c5303f63b8ec1362aea7e8d944e908ebb3260ccff0e85a92abb703a9f496c20e
 
 ## Invariants
 
@@ -125,3 +126,4 @@ transport (ADR-011's own reasoning); a page is a span, and spans already exist.
 
 ## Verification Log
 <!-- filled during execution -->
+- 2026-09-04 · 43e517d* · exit 0 · `set -o pipefail …` · acceptance-sha256:c5303f63b8ec1362aea7e8d944e908ebb3260ccff0e85a92abb703a9f496c20e · ms:14107

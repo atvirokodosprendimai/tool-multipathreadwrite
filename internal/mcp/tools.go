@@ -5,6 +5,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -166,6 +169,25 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// write against a file they never saw. That is ADR-002's guarantee, and it
 	// is the one thing a size limit must not quietly spend.
 	if cw.over {
+		// ADR-014: an oversized read is a FIRST PAGE, not a dead end.
+		//
+		// The refusal ADR-011 shipped was correct and unactionable past one
+		// step: it suggested a single range and left the caller to compute
+		// every range after it, so a caller that followed it once had
+		// confidently read part of a file.
+		//
+		// The continuation is always "the rest" — `path:N-` — which is what
+		// makes this terminate without touching the normal path: each
+		// continuation is itself too large until the remainder fits, at which
+		// point it returns as an ordinary successful read carrying no
+		// continuation at all. The caller's exit condition is the absence of a
+		// field rather than a count it has to keep.
+		//
+		// It stays isError. That is the whole difference between paging and
+		// truncation: the caller must be able to see it received a part.
+		if page, ok := firstPage(root, a.Specs, cw); ok {
+			return page, nil
+		}
 		return errorResult(overflowMessage(a.Specs, cw)), nil
 	}
 
@@ -353,6 +375,99 @@ func (c *capped) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// firstPage serves as much of a single-file read as fits and names the spec
+// that asks for the rest. It reports false when it cannot honestly page, and
+// the caller falls back to the flat refusal.
+//
+// It pages only a SINGLE spec naming a whole file or an open-ended `path:N-`
+// range. With several specs the one that crossed the limit may not be the
+// first, and a page of the wrong file would be worse than a refusal; with a
+// CLOSED range the caller has already said what it wants and mrw narrowing it
+// further would be answering a question nobody asked.
+func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
+	if len(specs) != 1 {
+		return callToolResult{}, false
+	}
+	path, start, ok := openEnded(specs[0])
+	if !ok {
+		return callToolResult{}, false
+	}
+	total, err := countFileLines(filepath.Join(root, filepath.FromSlash(path)))
+	if err != nil || total <= 0 {
+		return callToolResult{}, false
+	}
+	per := suggestLines(cw.buf.Len(), countLines(&cw.buf))
+	if per < 1 {
+		return callToolResult{}, false
+	}
+	end := start + per - 1
+	if end >= total {
+		// The remainder already fits, so there is nothing to page: this can
+		// only be reached if the estimate disagrees with the cap, and serving
+		// a "page" that is the whole rest while claiming to be partial would
+		// be a lie in the safe-looking direction.
+		return callToolResult{}, false
+	}
+	sp, err := read.ParseSpec(fmt.Sprintf("%s:%d-%d", path, start, end))
+	if err != nil {
+		return callToolResult{}, false
+	}
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	observed, problems := read.Run(w, root, []read.Spec{sp}, read.Options{Numbers: true})
+	w.Flush()
+
+	// The page WAS shown, so it is recorded — and only the span it served, which
+	// is what keeps a page from licensing lines the caller never saw. seen.Record
+	// merges spans for the same sha, so page two adds to page one rather than
+	// replacing it (ADR-002, ADR-014 Decision 3).
+	if err := seen.Record(root, observed); err != nil {
+		return callToolResult{}, false
+	}
+	next := fmt.Sprintf("%s:%d-", path, end+1)
+	report := fmt.Sprintf("%s\n\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
+		"-- Send specs [%q] to continue, or a narrower range of your own.\n"+
+		"-- Stopping here means you have part of this file, not the file.",
+		b.String(), start, end, total, total-end, next)
+	return pagedResult(report, observed, problems, next), true
+}
+
+// openEnded reports the path and start line of a spec that asks for a whole
+// file or for `path:N-`. Anything else is not pageable — see firstPage.
+func openEnded(spec string) (path string, start int, ok bool) {
+	i := strings.LastIndex(spec, ":")
+	if i < 0 {
+		return spec, 1, true
+	}
+	addr := spec[i+1:]
+	if !strings.HasSuffix(addr, "-") {
+		return "", 0, false
+	}
+	n, err := strconv.Atoi(strings.TrimSuffix(addr, "-"))
+	if err != nil || n < 1 {
+		return "", 0, false
+	}
+	return spec[:i], n, true
+}
+
+// countFileLines counts newline-terminated lines without holding the file, so
+// the page arithmetic knows where the end is without spending the memory the
+// cap exists to save.
+func countFileLines(full string) (int, error) {
+	f, err := os.Open(full)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	n := 0
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
+	for sc.Scan() {
+		n++
+	}
+	return n, sc.Err()
+}
+
 // overflowMessage explains a refused read and, where it honestly can, names the
 // narrower request to make instead.
 //
@@ -376,4 +491,38 @@ func overflowMessage(specs []string, cw *capped) string {
 			suggestLines(cw.buf.Len(), countLines(&cw.buf)))
 	}
 	return b.String()
+}
+
+// pagedResult builds a first-page answer: the page, the receipt, and the spec
+// that asks for the rest.
+//
+// It duplicates little of `result` and deliberately does not reuse it: `result`
+// takes isErr as a parameter and a page is ALWAYS an error, and the structured
+// map here carries a field the normal shape does not. Folding the two would
+// mean a boolean and an optional field threaded through the common path for one
+// caller's benefit.
+func pagedResult(report string, observed map[string]seen.Observation, problems int, next string) callToolResult {
+	structured := map[string]any{
+		"observed":  observed,
+		"problems":  problems,
+		"next_read": next,
+	}
+	b, err := json.Marshal(structured)
+	if err != nil {
+		// A page whose receipt will not marshal is not a page. Falling back to
+		// the flat refusal is honest; returning the prose alone would hand back
+		// content with no machine-readable account of what it was.
+		return errorResult("could not encode the page receipt: " + err.Error())
+	}
+	return callToolResult{
+		Content: []contentBlock{
+			{Type: "text", Text: report},
+			{Type: "text", Text: string(b)},
+		},
+		StructuredContent: json.RawMessage(b),
+		// ALWAYS true. A page that reads as a complete answer is truncation,
+		// and the caller's ability to see it received a part is the only thing
+		// separating this from what ADR-011 refused.
+		IsError: true,
+	}
 }

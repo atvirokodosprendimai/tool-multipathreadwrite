@@ -283,11 +283,24 @@ func bigCheckout(t *testing.T, n int) (root, path string) {
 }
 
 func TestAReadOverTheLimitIsRefusedNotTruncated(t *testing.T) {
-	// The whole point. ADR-007's cap reports itself, which is right for a human
-	// reading a terminal; over MCP the consumer is a model, and a truncated file
-	// that arrives looking like the file is the silent wrong answer.
+	// ADR-007's cap reports itself, which is right for a human reading a
+	// terminal; over MCP the consumer is a model, and a truncated file that
+	// arrives looking like the file is the silent wrong answer.
+	//
+	// ⚠ RETARGETED BY ADR-014. A SINGLE oversized spec now returns a first page
+	// and a continuation, and records the span it served — so "carries no file
+	// content" and "records no ledger entry" are deliberately false there, and
+	// TestAPagedReadReassemblesTheWholeFile and TestAPageLicensesOnlyWhatItServed
+	// carry that case. What ADR-014 does NOT change is the multi-spec request:
+	// the spec that crossed the limit may not be the first, so paging one of
+	// them could serve the wrong file, and the flat refusal still applies. This
+	// test now pins that branch, which is where its assertions are still true.
 	root, path := bigCheckout(t, MaxResultChars/40)
-	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	other := path + ".2"
+	if err := os.WriteFile(filepath.Join(root, other), []byte("// small\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path, other}})
 
 	if isErr, _ := res["isError"].(bool); !isErr {
 		t.Fatalf("a read over the limit was not refused: isError=%v", res["isError"])
@@ -313,32 +326,38 @@ func TestAReadOverTheLimitIsRefusedNotTruncated(t *testing.T) {
 		t.Error("a refused read recorded a ledger entry; the caller did not see this file")
 	}
 }
-
 func TestTheRefusalNamesTheLimitAndARangeToRetry(t *testing.T) {
 	// A refusal a caller cannot act on turns one bad call into a loop of them.
+	//
+	// ⚠ RETARGETED BY ADR-014, and the retargeting is the interesting part. For
+	// a single file the "range to retry" is no longer prose to be parsed: the
+	// caller is handed the page AND `next_read`, which is strictly more
+	// actionable, and the paging tests assert it. What remains prose — and so
+	// remains here — is the multi-spec case, where mrw cannot know which file
+	// to narrow and says so with a line budget instead of inventing a spec.
 	root, path := bigCheckout(t, MaxResultChars/40)
-	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	other := path + ".2"
+	if err := os.WriteFile(filepath.Join(root, other), []byte("// small\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path, other}})
 	content, _ := res["content"].([]any)
 	txt, _ := content[0].(map[string]any)["text"].(string)
 
 	if !strings.Contains(txt, fmt.Sprint(MaxResultChars)) {
 		t.Errorf("the refusal does not name the limit %d:\n%s", MaxResultChars, txt)
 	}
-	if !strings.Contains(txt, path) {
-		t.Errorf("the refusal does not name the file:\n%s", txt)
-	}
-	// The range form that would fit — the caller's next move, spelled out.
-	// The NUMBER matters, not just the shape: an early version derived the
-	// per-line average from two different samples and suggested "big.txt:1-2"
-	// for a 193 MB file, which passed a prefix check and wasted the retry it
-	// exists to save.
-	m := regexp.MustCompile(regexp.QuoteMeta(path) + `:1-(\d+)`).FindStringSubmatch(txt)
+	// A line budget the caller can act on. The NUMBER matters, not just the
+	// shape: an early version derived the per-line average from two different
+	// samples and suggested a two-line range for a 193 MB file, which passed a
+	// prefix check and wasted the retry it exists to save.
+	m := regexp.MustCompile(`around (\d+) lines per file`).FindStringSubmatch(txt)
 	if m == nil {
-		t.Fatalf("the refusal does not show a range to retry with:\n%s", txt)
+		t.Fatalf("the refusal gives no line budget to retry with:\n%s", txt)
 	}
 	n, _ := strconv.Atoi(m[1])
 	if n < 100 {
-		t.Errorf("the suggested range is %s:1-%d, which is too small to be a useful retry", path, n)
+		t.Errorf("the suggested budget is %d lines, too small to be a useful retry", n)
 	}
 }
 
@@ -429,5 +448,137 @@ func TestTheRefusalDoesNotInventAnInvalidSpec(t *testing.T) {
 				t.Errorf("the refusal does not name the limit:\n%s", txt)
 			}
 		})
+	}
+}
+
+// nextOf pulls the continuation spec out of a read result, or "" when the
+// result names none — which is how a caller knows it has reached the end.
+func nextOf(t *testing.T, res map[string]any) string {
+	t.Helper()
+	sc, ok := res["structuredContent"].(map[string]any)
+	if !ok {
+		t.Fatalf("no structuredContent in %v", res)
+	}
+	n, _ := sc["next_read"].(string)
+	return n
+}
+
+// TestAPagedReadReassemblesTheWholeFile is ADR-014's Enforced-by.
+//
+// It FOLLOWS the continuation to exhaustion and compares the reassembly to the
+// file, rather than checking that a continuation exists. A spec that points at
+// the wrong lines — off by one, or at the same page forever — passes every
+// presence check and loses or repeats content, which is the silent wrong answer
+// the whole project refuses. It also bounds its own iterations, so a
+// continuation that never clears fails the test instead of hanging it.
+func TestAPagedReadReassemblesTheWholeFile(t *testing.T) {
+	// Large enough that the first read is over the limit several times over.
+	const lines = 12000
+	root, path := bigCheckout(t, lines)
+
+	var got []string
+	spec := path
+	for page := 0; ; page++ {
+		if page > 20 {
+			t.Fatalf("still paging after %d pages — the continuation is not advancing", page)
+		}
+		res := call(t, root, "mrw_read", map[string]any{"specs": []any{spec}})
+		text, _ := res["content"].([]any)
+		if len(text) == 0 {
+			t.Fatalf("page %d carried no content", page)
+		}
+		body, _ := text[0].(map[string]any)["text"].(string)
+		got = append(got, numberedLines(t, body)...)
+		next := nextOf(t, res)
+		if next == "" {
+			break
+		}
+		if next == spec {
+			t.Fatalf("page %d hands back the spec it was given (%q) — that never terminates", page, next)
+		}
+		spec = next
+	}
+	if len(got) != lines {
+		t.Fatalf("reassembled %d lines, want %d — paging lost or repeated content", len(got), lines)
+	}
+	for i, l := range got {
+		if l != "// padding padding padding padding padding padding padding" {
+			t.Fatalf("line %d of the reassembly is wrong: %q", i+1, l)
+		}
+	}
+}
+
+// numberedLines strips mrw's rendered "   12| " prefixes back to the file's own
+// lines, so a reassembly can be compared with what is on disk.
+func numberedLines(t *testing.T, rendered string) []string {
+	t.Helper()
+	var out []string
+	for _, l := range strings.Split(rendered, "\n") {
+		i := strings.Index(l, "|")
+		if i < 0 {
+			continue // a header or a blank separator, not a served line
+		}
+		if _, err := strconv.Atoi(strings.TrimSpace(l[:i])); err != nil {
+			continue
+		}
+		out = append(out, strings.TrimPrefix(l[i+1:], " "))
+	}
+	return out
+}
+
+// TestAPageLicensesOnlyWhatItServed is the ledger property, and the one that
+// would turn paging into a read-before-write bypass if it were wrong.
+//
+// A page shows the caller part of a file. It must license editing THAT part and
+// refuse the rest — licensing everything would be the bypass; licensing nothing
+// would make paging useless.
+func TestAPageLicensesOnlyWhatItServed(t *testing.T) {
+	const lines = 12000
+	root, path := bigCheckout(t, lines)
+
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	if nextOf(t, res) == "" {
+		t.Fatal("a file this size must page; the fixture is not exercising the path")
+	}
+
+	// A write inside page one is licensed.
+	ok := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": "@@ " + path + " 1 replace\n// page one\n", "dry_run": true}))
+	if n, _ := ok["failed"].(float64); n != 0 {
+		t.Errorf("a write to a line page one served was refused: %v", ok["hunks"])
+	}
+
+	// A write far past it is not.
+	no := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": fmt.Sprintf("@@ %s %d replace\n// last page\n", path, lines), "dry_run": true}))
+	if n, _ := no["failed"].(float64); n != 1 {
+		t.Fatalf("failed = %v, want 1 — a page must not license lines it never served", no["failed"])
+	}
+}
+
+// TestAnOversizedReadStillReadsAsIncomplete keeps the property ADR-011 bought.
+//
+// Paging differs from truncation only because the caller can see it received a
+// part and must ask for the rest. If the result stopped saying so, this would
+// be truncation with extra steps.
+func TestAnOversizedReadStillReadsAsIncomplete(t *testing.T) {
+	root, path := bigCheckout(t, 12000)
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+
+	if e, _ := res["isError"].(bool); !e {
+		t.Error("a paged read is not marked isError, so a caller that stops here believes it has the file")
+	}
+	sc, _ := res["structuredContent"].(map[string]any)
+	if _, ok := sc["next_read"]; !ok {
+		t.Error("structuredContent does not name the continuation")
+	}
+	blocks, _ := res["content"].([]any)
+	var all string
+	for _, b := range blocks {
+		s, _ := b.(map[string]any)["text"].(string)
+		all += s
+	}
+	if !strings.Contains(all, "next_read") && !strings.Contains(all, "continue") {
+		t.Error("neither content block tells a human reader that more remains")
 	}
 }
