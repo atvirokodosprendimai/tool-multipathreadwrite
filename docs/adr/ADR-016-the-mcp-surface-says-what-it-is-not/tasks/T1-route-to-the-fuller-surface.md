@@ -76,6 +76,8 @@ choice that made #74 and #76 merge textually instead of by renumbering.
 
 ## Mutation Log
 
+- 2026-09-04 · 1bbcdeb · mutant killed · exit 1 · `internal/mcp/instructions.go` · review fix: recommend `-C` for choosing a checkout again — after `read` that is the integer context flag, so `mrw read -C DIR` errors with "invalid value … for flag -C". Advice that FAILS WHEN FOLLOWED is worse than no advice, and this shipped in the first cut · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a
+- 2026-09-04 · 1bbcdeb · mutant killed · exit 1 · `internal/mcp/instructions.go` · review fix: drop the serialization counterweight — "the CLI is strictly fuller" is FALSE, because one server is one writer to the ledger while parallel CLI processes race (ADR-010:42,185), and a caller told only half of that has been misrouted · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a
 - 2026-09-04 · d90be24 · mutant killed · exit 1 · `internal/mcp/instructions.go` · S3: rename a flag the advice recommends to one the CLI does not have — advice that recommends a flag which has since been renamed is worse than no advice, and this is the rot the help-output check exists to catch · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a
 - 2026-09-04 · d90be24 · mutant killed · exit 1 · `internal/mcp/instructions.go` · S2: move the routing out of first position — a caller that has already picked a tool has stopped reading, so advice further down is advice nobody acts on · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a
 
@@ -104,3 +106,4 @@ say which; do not raise the bound, which every session pays.
 ## Verification Log
 <!-- filled during execution -->
 - 2026-09-04 · d90be24* · exit 0 · `set -o pipefail …` · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a · ms:12051
+- 2026-09-04 · 1bbcdeb* · exit 0 · `set -o pipefail …` · acceptance-sha256:c06636f0674ed460d73244d34e767a85efa3586c4c8231e9175e47e50687826a · ms:41932

@@ -497,3 +497,76 @@ re-measuring these. Each was driven at the built binary, not read:
   friction rather than a guard — and note that nothing currently counts it, for
   the attribution reason ADR-012's Context sets out.
 >>>>>>> main
+
+- **Widening the MCP root, or multi-root — DEFERRED, with a measurement behind
+  it.** Named in ADR-016's Out of Scope; the analysis was done 2026-09-04 and is
+  recorded here so the decision is not re-argued from scratch.
+
+  The proposal that prompted it was sound in shape: repeatable `--root`,
+  ALLOW-ONLY (a deny list needs symlink resolution and reintroduces every
+  path-handling bug already fixed), resolved once at startup, boundary set by
+  the launcher rather than by a file mrw can read and therefore widen, and one
+  state namespace per root.
+
+  ⚠ TWO THINGS CHECKED AGAINST THE CODE. `state.Dir(root)` already hashes the
+  resolved absolute root, so N namespaces come free. But `apply.Apply(root, …)`
+  takes ONE root and `seen.Load(root)` loads ONE ledger per run, so a cross-repo
+  plan needs the ledger resolved PER HUNK. That is not a small generalisation of
+  the existing invariant; it changes what a run is.
+
+  THE MEASUREMENT, which is what actually decided it: the test proposed by the
+  argument itself is "count how many recent plans would have wanted a second
+  root". Over one full session of ~40 plans, the answer was ZERO. The single
+  file touched outside the root was a one-file config edit — below mrw's own
+  trigger threshold, so multi-root would not have earned it even then.
+
+  So N registrations wins on this evidence, and issue #75 records
+  one-registration-per-repo as the Claude Desktop shape. Revisit only for the
+  case that would justify it: routinely changing a contract in one repo and its
+  consumer in another, where the value is an ATOMIC plan across both. Note the
+  cost if it is ever taken — an all-or-nothing plan spanning two git trees rolls
+  both back on one failed hunk, which is the right semantics, but neither tree's
+  history reflects the other.
+
+- **⚠ THE MULTI-ROOT MEASUREMENT ABOVE WAS TAKEN ON THE WRONG POPULATION.**
+  Correction filed 2026-09-04, hours after the entry it corrects.
+
+  That entry concluded "N registrations wins" from counting plans in one
+  session: ~40, all single-root, so a second root would have earned nothing. The
+  count is accurate and the population is a CODER working inside one git
+  checkout — which is the population that already has the CLI and can point it
+  anywhere with `--root`.
+
+  M has since named the population that matters for this question: a Claude
+  Desktop user, an analyst reading and writing large documents into CSV. Their
+  files are not in one repository. For them, "one fixed checkout chosen at
+  startup" is not a safety property they trade away — it is the thing that stops
+  the tool working at all, and they have no CLI to fall back to.
+
+  So the earlier conclusion stands ONLY for coders with a shell. It is not
+  evidence about Desktop, and it should not be quoted as if it were. The measure
+  worth taking is on the Desktop population, and nothing has taken it.
+
+- **MCP coverage for the Desktop population — the largest open product
+  question in this repository.** M, 2026-09-04: *"we need wider MCP coverage,
+  which basically calls local mrw under the hood … the potential here IS HUGE,
+  for analysts reading and writing mega documents into csv files … humans aren't
+  structured in their daily work … this is the single biggest feature that we
+  ship only for coders but not desktop users."*
+
+  WHY IT IS NOT JUST "ADD THE FLAGS". The capability gap and the reach gap are
+  different problems with different answers, and only some of the CLI surface
+  is even meaningful to this population:
+  - `--grep` and `--files-from` are the ones that matter — finding the sites is
+    exactly what an analyst cannot do by hand across many documents.
+  - `--check` is a Go-test runner scoped to changed files; it means nothing for
+    a folder of CSVs, and shipping it would be cargo.
+  - `iter`, `seen`, `stats` are introspection a Desktop user has no use for.
+  - The ROOT is the hard part, not the flags. See the correction above.
+
+  WHAT TO DECIDE FIRST, before any of it: whether an analyst's answer is a wider
+  MCP tool set, or one tool whose spec language already covers finding (mrw's
+  read specs take a regexp) plus a root model that fits scattered documents.
+  Those are different records. Needs its own ADR, with M's scope decision, and
+  it should NOT be inferred from ADR-016 — that record deliberately covers only
+  what the surface SAYS, and its refusal of parity is scoped to itself.

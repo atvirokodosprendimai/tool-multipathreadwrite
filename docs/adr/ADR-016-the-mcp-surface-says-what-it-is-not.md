@@ -13,11 +13,13 @@
 
 ## Context
 
-**A registered MCP tool outcompetes a CLI the agent has to remember exists.** An MCP tool appears in
-the tool list with a schema and a description; the CLI is a string an agent must recall from
-AGENTS.md, a skill, or habit. M observed the consequence directly: agents *"prefer to stay with mcp
-limited tool, rather than using the binary local one."* Nothing on the wire tells them the surface
-they can see is the smaller one.
+**A registered MCP tool can outcompete a CLI the agent has to remember exists, and did in the
+sessions M observed.** An MCP tool appears in the tool list with a schema and a description; the CLI
+is a string an agent must recall from AGENTS.md, a skill, or habit. M reported the consequence
+directly: agents *"prefer to stay with mcp limited tool, rather than using the binary local one."*
+That is one user's observation across several sessions, not a measurement, and rung 4 of the task
+says so — nothing here counts uptake, and nothing will. Nothing on the wire told them the surface
+they can see is the narrower one.
 
 **And it is much smaller. Measured 2026-09-04 at `d90be24`,** by enumerating both surfaces:
 
@@ -26,7 +28,7 @@ they can see is the smaller one.
 | `--grep PATTERN`, `--exclude GLOB` | walk a tree and serve every match in ONE call — the lever AGENTS.md calls the part that gets missed |
 | `--files-from FILE` | pipe a searcher's output straight in |
 | `--check` | run the project's check, scoped to the files the write touched |
-| `--json` | a parseable receipt for a hook or a gate |
+| `--json` | a receipt for a hook or a gate — though see the correction below: over MCP the answer is ALREADY structured, so this is CLI output formatting rather than a missing capability |
 | `--stat`, `-C`, `--max-lines`, `-N` | cheap shapes and context windows |
 | `check`, `iter`, `seen`, `stats` | four subcommands, including the ledger and ADR-009's tally |
 
@@ -63,11 +65,20 @@ MCP.
 
 ## Decision
 
-**1. The handshake says which surface to be on, first.** `instructions` opens with: if you can run
-shell commands and `mrw` is on PATH, prefer the CLI — it has `--grep`, `--files-from`, `--check` and
-`--json`, and `-C` points it at any checkout. This server is two tools over ONE fixed checkout, and
-exists for hosts without shell access.
+**1. The handshake says which surface to be on, next to when to reach for mrw at all.** It states
+that the CLI has the broader command and flag surface — `--grep`, `--files-from`, `--check`, and the
+`check`/`iter`/`seen`/`stats` subcommands — and that `mrw --root DIR read` points it at any checkout.
+**`--root`, not `-C`.** After `read`, the short `-C` is the integer context flag, so `mrw read -C DIR`
+errors with *invalid value … for flag -C*. The first cut of this record recommended exactly that, and
+advice that fails when followed is worse than no advice; it was caught in review of PR #78 and is now
+asserted against the CLI's own help, per subcommand.
 
+**1b. It also says what this surface does BETTER, because "strictly poorer" was false.** MCP always
+returns `structuredContent`, so it needs no `--json`; and one server is one writer to the
+read-before-write ledger, while parallel CLI processes race for it — which ADR-010 records as an
+MCP advantage at lines 42 and 185. So the routing is "prefer the CLI for reach and extra commands;
+prefer this surface with no shell, OR when several callers share one checkout and want their ledger
+writes serialized" — not "prefer this only when you have no shell", which is what the first cut said.
 **2. Both tool descriptions carry the same routing in one clause**, because a host that ignores
 `instructions` reads only the descriptions. That is ADR-012's finding applied to itself.
 
@@ -91,11 +102,20 @@ costs: find-and-serve in one call, and verify after write.
 
 - **Say nothing and rely on AGENTS.md.** Today's state, and the one M's observation refutes. AGENTS.md
   is a file in a checkout; the tool list is in front of the model. The surface with a schema wins.
-- **Give MCP feature parity — `--grep`, `--check` as tools.** The obvious "fix", and refused. ADR-010
-  decided the tool surface is two tools over the same engine, and every capability added is a second
-  place for the contract to drift (ADR-012 shipped a wrong enum on a surface with two tools). It also
-  would not close the reach gap, which is deliberate. If a specific capability is genuinely needed
-  over MCP, that is its own record with its own evidence.
+- **Give MCP feature parity — `--grep`, `--check` as tools.** Refused **for this record, and not
+  forever.** ADR-010 decided the surface is two tools over the same engine, and every capability
+  added is a second place for the contract to drift (ADR-012 shipped a wrong enum on a surface with
+  only two). It also would not close the reach gap.
+
+  ⚠ **AMENDED 2026-09-04, same day, by M, and the amendment is the more important half.** M's
+  direction is that MCP coverage should GROW, calling the same engine underneath: *"the potential
+  here IS HUGE, for analysts reading and writing mega documents into csv files … this is the single
+  biggest feature that we ship only for coders but not desktop users."* That is a product argument
+  this record has no standing to refuse, and it names a population this record was reasoning past —
+  a Desktop user has no CLI to be routed to, so for them the routing paragraph is not advice, it is
+  an explanation of a limit. The refusal above therefore covers THIS change only. Widening is a
+  separate record with its own scope, and the Out of Scope entry below says deferred rather than
+  permanent because of this.
 - **Remove the MCP server.** It exists for Claude Desktop, which has no shell — the population this
   routing paragraph explicitly excludes. Removing it would strand exactly the caller it serves.
 - **Make the MCP tools refuse when a shell is available.** Not knowable: a server sees a JSON-RPC
@@ -145,7 +165,7 @@ holds it true is how ADR-012 shipped a wrong enum.
 
 ## Out of Scope
 
-- Adding any capability to the MCP surface (permanent: boundary: ADR-010 owns the two-tool decision; a specific capability needs its own record)
+- Adding capability to the MCP surface (deferred: docs/adr/BACKLOG.md — ⚠ NOT permanent. An earlier draft of this line said `permanent: boundary`, which was wrong within hours: M's stated direction is that MCP coverage should grow for the Desktop population, and a boundary that contradicts the owner's roadmap is the stale-record failure this corpus exists to avoid)
 - Widening the MCP root, or multi-root (deferred: docs/adr/BACKLOG.md — measured as unneeded for this user's plans, and it is ADR-011's boundary)
 - Changing any CLI behaviour (permanent: boundary: the CLI does not learn that MCP exists)
 - Detecting host capabilities (permanent: boundary: a server sees a message, not a shell)

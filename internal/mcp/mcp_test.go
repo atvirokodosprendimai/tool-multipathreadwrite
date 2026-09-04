@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -425,11 +426,37 @@ func TestTheSurfaceSaysTheCLIIsRicher(t *testing.T) {
 	}
 	got, _ := res["instructions"].(string)
 
-	named := []string{"--grep", "--files-from", "--check", "--json"}
-	for _, must := range append([]string{"shell"}, named...) {
+	// Per SUBCOMMAND, not a concatenated blob. Checking every flag against
+	// `read --help` + `write --help` joined together would pass a wire text
+	// that recommended --check to mrw_read's caller, which is the association
+	// the advice is actually making.
+	named := map[string][]string{
+		"read":  {"--grep", "--files-from"},
+		"write": {"--check"},
+	}
+	var allFlags []string
+	for _, fs := range named {
+		allFlags = append(allFlags, fs...)
+	}
+	for _, must := range append([]string{"shell", "--root"}, allFlags...) {
 		if !strings.Contains(got, must) {
 			t.Errorf("the instructions never mention %q, so a caller with both surfaces is not told what it gives up", must)
 		}
+	}
+	// ⚠ NOT `-C` FOR A CHECKOUT. After `read`, -C is the integer context flag,
+	// so `mrw read -C DIR` errors — the first cut of this record recommended
+	// exactly that, and a caller following it got
+	// `invalid value … for flag -C`. Advice that fails when followed is worse
+	// than no advice. Caught in review of PR #78.
+	if strings.Contains(got, "-C, which points") || strings.Contains(got, "-C for any checkout") {
+		t.Error("the instructions recommend -C for choosing a checkout; that is the context flag after `read` and the recommendation errors")
+	}
+	// And the honest counterweight: this surface is not simply poorer. ADR-010
+	// records that one server is one writer to the ledger while parallel CLI
+	// processes race, so a caller told only "the CLI is fuller" has been given
+	// half the picture.
+	if !strings.Contains(got, "serialized") {
+		t.Error("the instructions do not say this surface serializes ledger writes, which is the one thing it does better")
 	}
 	// The reach difference, which is deliberate and therefore worth stating
 	// rather than leaving as a surprise refusal.
@@ -441,22 +468,33 @@ func TestTheSurfaceSaysTheCLIIsRicher(t *testing.T) {
 	}
 
 	// A host that ignores `instructions` reads only the descriptions. ADR-012's
-	// finding, applied to this record.
+	// finding, applied to this record. A bare `strings.Contains("CLI")` would
+	// pass a description reading "do not use the CLI", so assert the DIRECTION.
 	for _, tl := range tools() {
-		if !strings.Contains(tl.Description, "CLI") {
+		if !strings.Contains(tl.Description, "prefer the CLI") {
 			t.Errorf("%s's description does not route a shell-capable caller to the CLI:\n%s", tl.Name, tl.Description)
+		}
+		if !strings.Contains(tl.Description, "Prefer THIS tool") {
+			t.Errorf("%s's description does not say when this surface is the right one:\n%s", tl.Name, tl.Description)
 		}
 	}
 
-	// ⚠ THE CLAIM MUST BE TRUE WHEN MADE. Every flag named above is asserted
-	// against the CLI's own help, which is generated from the flag set — so a
-	// rename turns this red instead of leaving the wire recommending a flag
-	// that no longer exists.
-	help := cliHelp(t, "read") + cliHelp(t, "write")
-	for _, flag := range named {
-		if !strings.Contains(help, flag) {
-			t.Errorf("the wire recommends %q but no CLI help output lists it", flag)
+	// ⚠ THE CLAIM MUST BE TRUE WHEN MADE, AND BOUND TO THE RIGHT SUBCOMMAND.
+	// Each flag is checked against the help of the subcommand the advice
+	// associates it with, so recommending --check to a reader of `mrw read`
+	// would be caught rather than absorbed by a concatenated blob.
+	for sub, flags := range named {
+		help := cliHelp(t, sub)
+		for _, flag := range flags {
+			if !strings.Contains(help, flag) {
+				t.Errorf("the wire recommends %q for `mrw %s`, but `%s --help` does not list it", flag, sub, sub)
+			}
 		}
+	}
+	// --root is global, so it is checked against the root help, not a
+	// subcommand's — the distinction the -C mistake turned on.
+	if !strings.Contains(cliHelp(t, ""), "--root") {
+		t.Error("the wire recommends --root but the CLI's own help does not list it")
 	}
 }
 
@@ -465,29 +503,58 @@ func TestTheSurfaceSaysTheCLIIsRicher(t *testing.T) {
 // be stale — a stale binary cost this project a wrong reading earlier today.
 func cliHelp(t *testing.T, sub string) string {
 	t.Helper()
-	bin := buildCLI(t)
-	out, err := exec.Command(bin, sub, "--help").CombinedOutput()
+	args := []string{"--help"}
+	if sub != "" {
+		// A subcommand's own help. An empty sub means the ROOT help, which is
+		// where the global --root lives — and that distinction is the whole
+		// point of the -C mistake this test now guards.
+		args = []string{sub, "--help"}
+	}
+	out, err := exec.Command(buildCLI(t), args...).CombinedOutput()
 	if err != nil {
-		t.Fatalf("%s --help: %v\n%s", sub, err, out)
+		t.Fatalf("mrw %v: %v\n%s", args, err, out)
 	}
 	return string(out)
 }
 
+// buildCLI builds the CLI once per test binary, into a directory the test
+// framework removes. An earlier cut used os.MkdirTemp with no cleanup and left
+// an `mrw-cli*` directory behind on every local run — noted in review of
+// PR #78.
+//
+// It is built rather than taken from ./bin/mrw deliberately: a stale binary
+// there produced a wrong reading earlier in this project's history, and a test
+// that asserts what the CLI's help says must be asserting about THIS source.
 var cliOnce struct {
 	sync.Once
 	path string
+	dir  string
 	err  error
 }
 
 func buildCLI(t *testing.T) string {
 	t.Helper()
 	cliOnce.Do(func() {
+		// t.TempDir() belongs to whichever test builds first, and that test's
+		// cleanup would remove the binary while a later test still needs it.
+		// So this owns its directory and removes it when the package's tests
+		// finish, which is what TestMain would do if this package had one.
 		dir, err := os.MkdirTemp("", "mrw-cli")
 		if err != nil {
 			cliOnce.err = err
 			return
 		}
-		cliOnce.path = filepath.Join(dir, "mrw")
+		cliOnce.dir = dir
+		// ⚠ .exe ON WINDOWS. `go build -o` produces exactly the name given, and
+		// exec.Command will not run a file without the extension — it reports
+		// "executable file not found in %PATH%", which reads like a PATH problem
+		// and is not. This turned the windows job red on PR #78, the first time
+		// it had failed since #65.
+		name := "mrw"
+		if runtime.GOOS == "windows" {
+			name += ".exe"
+		}
+		cliOnce.path = filepath.Join(dir, name)
 		out, err := exec.Command("go", "build", "-o", cliOnce.path, "../../cmd/mrw").CombinedOutput()
 		if err != nil {
 			cliOnce.err = fmt.Errorf("building the CLI: %v\n%s", err, out)
@@ -496,5 +563,11 @@ func buildCLI(t *testing.T) string {
 	if cliOnce.err != nil {
 		t.Fatal(cliOnce.err)
 	}
+	t.Cleanup(func() {
+		if cliOnce.dir != "" {
+			os.RemoveAll(cliOnce.dir)
+			cliOnce.dir = ""
+		}
+	})
 	return cliOnce.path
 }

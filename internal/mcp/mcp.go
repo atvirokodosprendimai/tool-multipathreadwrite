@@ -258,8 +258,10 @@ func tools() []tool {
 				"comes back as a PAGE, not a failure: the lines that fit, isError true, and a " +
 				"next_read spec for the rest. Repeat until next_read is absent — its absence is " +
 				"how you know you have the whole file, and you may only edit lines a page served. " +
-				"If you can run shell commands, prefer the CLI `mrw read` — it also has --grep, " +
-				"--files-from and -C for any checkout, none of which exist here.",
+				"With a shell and mrw on PATH, prefer the CLI `mrw read` — it also has --grep, " +
+				"--files-from, and `mrw --root DIR read` for any checkout (--root BEFORE the " +
+				"subcommand; after `read`, -C is the context flag). Prefer THIS tool with no " +
+				"shell, or when callers sharing one checkout want their ledger writes serialized.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -299,8 +301,10 @@ func tools() []tool {
 				"or nothing: if any hunk fails, nothing is written. Every address resolves against " +
 				"the ORIGINAL file, so several hunks in one file need no offset arithmetic. mrw " +
 				"will not edit a line it has not served you — read it with mrw_read first. If you " +
-				"can run shell commands, prefer the CLI `mrw write` — it also has --check and " +
-				"--json, and this server is pinned to one checkout.",
+				"can run shell commands, prefer the CLI `mrw write` — it also has --check, which " +
+				"runs the project's tests scoped to what it just wrote. Prefer THIS tool with no " +
+				"shell, or when callers sharing one checkout want their ledger writes serialized; " +
+				"it needs no --json because its answer is already structured.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
