@@ -116,3 +116,4 @@ the sample size recorded. A number nobody should act on is worse than an admissi
 - 2026-09-03 · human-observed · sample taken 2026-09-03 on this repository, Apple M5 (darwin/arm64): 9 plans, 9 applied, 0 refused. BELOW the 30-plan floor this task sets, so the README publishes a count and an admission rather than a rate, and this task stays partial. Population is one repository, one model, one session — the narrowest possible.
 - 2026-09-03 · 2b71e2a* · exit 0 · `set -o pipefail …` · acceptance-sha256:cc5afe5fffc3779e0a1e9071003d8c0356d0e1f82cae58542e6dbff15860f086 · ms:9599
 - 2026-09-03 · 2b71e2a* · exit 0 · `set -o pipefail …` · acceptance-sha256:cc5afe5fffc3779e0a1e9071003d8c0356d0e1f82cae58542e6dbff15860f086 · ms:8493
+- 2026-09-04 · b80bf7e · exit 0 · `set -o pipefail …` · acceptance-sha256:2f495d1b3e4606639002f045113c8a87d92aeb90e35688a562ae6fb292655dbd · ms:11330
