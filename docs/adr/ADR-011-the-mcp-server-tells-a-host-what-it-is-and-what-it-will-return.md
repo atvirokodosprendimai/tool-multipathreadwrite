@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026-09-03
+**Accepted:** 2026-09-03 by M, in the instruction that opened the work — *"accepted, implemnt these, cover the gaps, make it sound"* — where "these" are the three gaps put to M in the session that found them: the root binding, the undeclared tool surface, and the unbounded read. Reaffirmed 2026-09-04 with *"address all of these open"*. Recorded here because a reviewer asked, correctly, whether the status was M's decision or the author's inference from one word; it is the former, and now says so rather than resting on a reading of it.
 **Owner:** M
 **Spec:** None — no spec stage
 **Cross-references:** ADR-010 (the transport this completes), ADR-006 (the root boundary this binds correctly), ADR-002 (the ledger a wrong root would key wrongly), ADR-007 (the read whose output this bounds)
