@@ -6,22 +6,26 @@ and what actually made them go wrong. mrw v1.0.0, 2026-09-05.*
 ## Abstract
 
 mrw serves a client many ranges of many files in one call and applies many edits in one plan,
-refusing any plan whose hunks cannot all land. Its result cap is 200,000 characters. Nothing in
-the tool's design said whether that number was right, and the common instinct in the field —
+refusing any plan whose hunks cannot all land. Its MCP read tool advertises a 200,000-character
+result cap, enforced as 200,000 bytes (the CLI is uncapped). Nothing in the tool's design said
+whether that number was right, and the common instinct in the field —
 serve about ten thousand tokens and stop — had never been measured against the alternative. We
 built an instrument (`curve`) that generates a fixture, records exactly what mrw would serve, has
 a fresh client author one plan against it, and scores the plan by applying it: the line that
 changed is the measurement. Under a criterion pre-registered before any cell existed, nine
 readings were taken, each plan committed before its trials and every score file committed.
 
-Two results. First, for a strong client, serving a hundred times more bytes cost about 2.5× the
-tokens and lost nothing, on two fixtures. Second, and the one we did not expect: for a weaker
-client the curve bent — 15, 12, 8 of 15 across 2 KB, 20 KB, 200 KB — and every one of its misses,
-thirteen of thirteen across three readings, addressed the same wrong line, exactly two below the
-target. Two further readings identified that offset as the row index of the served text as the
-client's own file reader numbered it, laid beside mrw's numbers; delivering the identical text as
-a tool result, with mrw's numbers the only numbers, took the same client on the same cells to
-15, 15, 15 at the read arm's cost or below it. Served size did not bend the curve. A second gutter did.
+Two results. First, for a strong client, serving a hundred times more bytes cost 2.4–2.5× the
+tokens with no measurable reduction in correct addressing at these sizes, on two fixtures. Second,
+and the one we did not expect: for a weaker client the curve bent — 15, 12, 8 of 15 across 2 KB,
+20 KB, 200 KB — and its ten misses all addressed the same wrong line, exactly two below the target;
+across readings 2–4, all thirteen misses by either client shared that offset. Two further readings
+identified the offset as the row index of the served text as the client's own file reader numbered
+it, laid beside mrw's numbers. Delivering the identical text as a tool result — with mrw's numbers
+the only numbers, and in `sed` ranges rather than a reader's windows — took the same client on the
+same cells to 15, 15, 15, at a cost within 3% of the read arm's at 2 KB and 20 KB and 7% lower at
+200 KB. On the delivery measured, served size did not bend the curve; the second gutter is the
+parsimonious account of what did.
 
 ## 1. The question
 
@@ -44,8 +48,10 @@ degrade, or collapse — and at what token cost?
 `curve generate` writes a fixture (`services.conf`: many `[service …]` blocks, each with a
 `retries` and a `timeout` line, padded with inert comment text to a byte target), records what mrw
 serves for it (`served.txt`, measured), and plants one target: the `timeout` line of the one
-service whose retry budget differs from every other's. The client is told only that relation —
-never the service's name or its line — and must author one plan with one `replace` hunk.
+service whose retry budget differs from every other's. Two selectors exist: the named one, where
+the instruction names the service (readings 1 and 2), and the relational one, where the client is
+told only the relation — never the service's name or its line (readings 3 onward). Either way it
+must author one plan with one `replace` hunk.
 `curve score` applies the plan to the fixture and reports which line changed. `curve tally`
 groups by served bytes and target position and reports each cell as a rate with a Wilson interval.
 
@@ -72,8 +78,9 @@ and reported, never counted as a miss.
 | 8 | Haiku | tool result | — | — | 15/15 | mrw's gutter the only gutter: no miss. |
 | 9 | Haiku | tool result | 15/15 | 15/15 | (reading 8) | Flat at the ceiling at every size. |
 
-Every score file is in the repository under `docs/curve/reading-0N-scores/`; every table here
-recomputes from them.
+Every score file is in the repository under `docs/curve/reading-0N-scores/`; the rates, intervals,
+offsets and pairings in this note recompute from them. Compliance, coverage, cost and the quoted
+transcript row come from transcripts and request records that are not committed, and are reported.
 
 ## 4. Result A: the miss was a row index, and the row index was the reader's
 
@@ -109,9 +116,12 @@ all one way, exact two-sided sign test p = 0.0156. Reading 9 took the same arm t
 the same direction.
 
 What this is and is not. It is a measurement that, for this client on this fixture family, the
-only recurring miss was induced by a second numbering laid over mrw's by the delivery, and that
-removing the second numbering removed the miss at every size. It is not a claim about the MCP
-transport, which was not run, nor about clients or fixtures not measured. And reading 4 stands as
+only recurring miss followed the row index of a second numbering laid over mrw's by the delivery,
+and that a delivery without it showed no miss at any size. Two things changed between the arms,
+not one: the second gutter went, and the text arrived in `sed` ranges rather than a reader's
+windows; the gutter is the parsimonious account, because reading 5 put the misses exactly where
+it predicted, but the two were not separated. It is not a claim about the MCP transport, which was
+not run, nor about clients or fixtures not measured. And reading 4 stands as
 a fact about a real path: a client that saves a tool's numbered output to a file and reads it back
 through a numbering viewer will meet two gutters, and a weaker client takes the first.
 
@@ -127,9 +137,9 @@ tier; peak (the largest single request's context) is in the result documents.
 | Haiku, file reader (reading 4) | 31,062 | 36,469 | 91,546 | 2.95× |
 | Haiku, tool result (readings 8, 9) | 31,909 | 36,444 | 84,789 | 2.66× |
 
-The fixed cost of a session dominates: a hundredfold increase in served bytes is a two-and-a-half
-to three-fold increase in tokens. The "serve ten thousand tokens and stop" instinct buys little,
-because the window is not where the tokens go until it is very large. The same bytes cost the same
+The fixed cost of a session dominates: a hundredfold increase in served bytes is a 2.4× to 2.9×
+increase in tokens, and the 20 KB tier costs 12–17% more than the 2 KB tier. A ten-thousand-token
+window was not a tier and is not measured here. The same bytes cost the same
 through either delivery — within 3% at 2 KB and 20 KB, 7% less at 200 KB — which is what a
 delivery-not-size account predicts.
 (Cost figures come from request records that are not committed; the result documents say so.)
@@ -141,13 +151,14 @@ searched for the target's name instead of reading, so served bytes were never ma
 Readings 6 and 7 because a weaker client given a shell and a rule — read in ranges under a cap, no
 search — broke the rule four different ways, and given the exact commands merged two of them. The
 rule that finally held was written from how the client behaves and pre-registered before the run
-that counted. Each void is recorded with its observations; none is in a table.
+that counted. Each void is recorded with its observations; none contributes to a counted rate.
 
 Two plan files were edited after collection during this series — a wrong count corrected, a dated
 note added — and both edits were reverted at review, because a plan that can be edited whenever the
 edit looks harmless is not a pre-registration. Every plan in the series is byte-identical to the
-commit that added it. And every number in every result document is computed by the script that
-reads the scores; the two numbers in this series that were typed from memory were both wrong.
+commit that added it. And every rate, interval, offset and pairing in every result document is
+computed by the script that reads the scores; the two numbers in this series that were typed from
+memory — a paired count and a range width — were both wrong, and were caught by review.
 
 ## 7. Limits
 
