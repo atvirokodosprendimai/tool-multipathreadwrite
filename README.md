@@ -9,7 +9,7 @@ one.
 
 **Status: stable, v1.0.0 (2026-09-05).** What that word rests on, all of it recorded in this tree: six
 promises recorded as ADRs and asserted by `scripts/contract.sh` against the built binary, 512 rows
-at the tag; a break campaign of 45 probes (`scripts/break-campaign.sh`, its run in `docs/break/`) against
+at the tag; a break campaign of 47 probes (`scripts/break-campaign.sh`, its run in `docs/break/`) against
 the tagged main with no silent wrong write and
 every refusal naming its reason; and the served-size curve measured rather than asserted — a strong
 client at the ceiling on the fixture built to be failed (reading 3), the one recurring miss

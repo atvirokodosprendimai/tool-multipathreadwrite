@@ -1,5 +1,5 @@
 # break-campaign.sh against main d633e57, 2026-09-05, darwin/arm64, go go1.27.0
-# 45 probes; read each line for a silent wrong write — an 'applied' whose file state is not what the plan said — or a refusal without a reason.
+# 47 probes; read each line for a silent wrong write — an 'applied' whose file state is not what the plan said — or a refusal without a reason.
 [pat-with-space] exit=0  X | 1 hunk(s), 1 file(s), 0 failed — applied
 [pat-escaped-slash] exit=0  X | 1 hunk(s), 1 file(s), 0 failed — applied
 [pat-end-before-start] exit=1  one|two|three| | FAIL f.txt /three/,/one/ replace (plan line 1): end pattern one matched only above the start line 3 (lines 1) in f.txt
