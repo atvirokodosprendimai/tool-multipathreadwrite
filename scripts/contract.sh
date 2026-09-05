@@ -3231,6 +3231,46 @@ assert len(set(n1))==1, "the named fixture no longer renders one constant budget
 PY
 [ $? -eq 0 ] && ok "four relational seeds move BOTH budgets, and the named fixture renders the same constant at every seed" \
              || bad "the relational fixture carries a constant signature, or the draw reached the named fixture"
+# 60. ADR-020-T4: a served window that does not begin at line one.
+#
+# Every miss in the 135 read-arm trials of readings 2, 3 and 4 sits at
+# target+2, and every cell so far serves from line 1 — where a row count in the
+# rendering, whose first two rows carry no line number, and the line number
+# plus two are the same integer. This row drives the BUILT binary because a
+# -from flag that parses and serves the whole file anyway would leave every
+# test green and the discriminating reading measuring nothing. The pair is a
+# window past the target, which must be REFUSED: a client served no answer is
+# not a hard trial, it is an unanswerable one, and it would score as a miss.
+R60=$(mktemp -d)
+"$CURVE" generate -out "$R60/win" -bytes 20000 -position late -distractors 3 -seed 2 -selector odd-retries -from 120 > "$R60/win.json" 2>&1
+want 0 "$?" "the built binary generates a cell served from line 120"
+python3 - "$R60" <<'PY'
+import json,sys,re
+d=sys.argv[1]
+lines=open(d+"/win/served.txt").read().split("\n")
+assert lines[1].startswith("@@ 120-"), "the served range header is %r, want it to begin at 120" % lines[1]
+assert re.match(r"^\s*120\|", lines[2]), "the first served row is %r, want line 120" % lines[2]
+a=json.load(open(d+"/win/answer.json")); m=json.load(open(d+"/win/manifest.json"))
+assert a["line"]>=120, "the answer at line %d is outside a window that starts at 120" % a["line"]
+assert m["served_bytes"]>=20000, "the window served %d bytes, below its target" % m["served_bytes"]
+PY
+[ $? -eq 0 ] && ok "the window starts where asked, the target is inside it, and the window is what was sized" \
+             || bad "the served window does not start at 120, excludes the target, or was not what the fit sized"
+"$CURVE" generate -out "$R60/past" -bytes 20000 -position early -distractors 3 -seed 2 -selector odd-retries -from 100000 > "$R60/past.json" 2>&1
+want 2 "$?" "and a window that starts past every line is refused (exit 2, the usage-error code) rather than served with no answer in it"
+grep -q 'excludes the target' "$R60/past.json" \
+  && ok "with a refusal that says the window excludes the target" \
+  || bad "the refusal does not say why: $(head -c 200 "$R60/past.json")"
+# The case the one above does NOT reach: a window that EXISTS and starts after
+# the target. An early target sits near line 76 of a ~374-line cell; a window
+# from 200 is served in full and holds no answer. The fit-loop refusal never
+# fires here, so this is the only row that reaches the post-fit check — and a
+# mutant that deleted that check survived the fence until this row existed.
+"$CURVE" generate -out "$R60/gap" -bytes 20000 -position early -distractors 3 -seed 2 -selector odd-retries -from 200 > "$R60/gap.json" 2>&1
+want 2 "$?" "a window that exists but starts after an early target is refused too"
+grep -q 'excludes the target' "$R60/gap.json" \
+  && ok "and says so, rather than serving a window with no answer in it" \
+  || bad "the existing-window refusal does not say why: $(head -c 200 "$R60/gap.json")"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

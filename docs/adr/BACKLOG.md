@@ -738,3 +738,15 @@ re-measuring these. Each was driven at the built binary, not read:
   Deliberately NOT in T2: it answers a different question from "can the task be failed", and folding
   it in would put two claims under one fence. Promote it when a reading needs to explain a miss
   rather than count one.
+
+## From ADR-020-T4 (a served window that does not begin at line one)
+
+- **The read format, if the row-count account holds.** Every miss in 135 read-arm trials sits at
+  `target+2`, and mrw's served rendering opens with two rows that carry no line number — the `==>`
+  header and the `@@` range. T4 builds the cell that can tell "the client counted rows" from any other
+  +2; the discriminating reading spends the trials. If it comes back row-count, the tool's own output
+  induces the silent wrong write the tool exists to prevent, and the fix is an engine change with a
+  Served-path change: it needs its own record, a decision about what the header rows should look
+  like so a caller cannot mistake a row for a line, and a contract row that pins the served bytes
+  every reading so far was collected against. Not a task under ADR-020, whose Served-path change is
+  `none` and stays so.

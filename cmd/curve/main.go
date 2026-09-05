@@ -2,7 +2,7 @@
 // binary on purpose: mrw's own surface is for callers, and this is for whoever
 // is measuring mrw.
 //
-//	curve generate -out DIR -bytes N [-position early|middle|late] [-distractors K] [-seed S] [-selector name|odd-retries]
+//	curve generate -out DIR -bytes N [-position early|middle|late] [-distractors K] [-seed S] [-selector name|odd-retries] [-from LINE]
 //	curve score    -cell DIR -result FILE
 //	curve tally    SCORE.json ...
 //
@@ -21,7 +21,7 @@ import (
 )
 
 const usageText = `usage:
-  curve generate -out DIR -bytes N [-position early|middle|late] [-distractors K] [-seed S] [-selector name|odd-retries]
+  curve generate -out DIR -bytes N [-position early|middle|late] [-distractors K] [-seed S] [-selector name|odd-retries] [-from LINE]
   curve score    -cell DIR -result FILE
   curve tally    SCORE.json ...
 
@@ -70,6 +70,7 @@ func generate(args []string) error {
 	k := fl.Int("distractors", 4, "near-identical distractor blocks; hold constant across size cells")
 	seed := fl.Int64("seed", 1, "the same params and seed regenerate the same trial")
 	sel := fl.String("selector", "name", "how the instruction points at the target: name (a unique service name) or odd-retries (the one block whose retry budget differs)")
+	from := fl.Int("from", 0, "serve the fixture from this line rather than from line 1, so a row count and a line number diverge; 0 serves the whole file")
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
@@ -83,7 +84,7 @@ func generate(args []string) error {
 		}
 		selector = curve.ByOddRetries
 	}
-	m, err := curve.Generate(*out, curve.Params{ServedBytes: *size, Position: curve.Position(*pos), Distractors: *k, Seed: *seed, Selector: selector})
+	m, err := curve.Generate(*out, curve.Params{ServedBytes: *size, Position: curve.Position(*pos), Distractors: *k, Seed: *seed, Selector: selector, ServeFrom: *from})
 	if err != nil {
 		return err
 	}
