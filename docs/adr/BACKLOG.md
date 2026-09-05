@@ -765,3 +765,25 @@ re-measuring these. Each was driven at the built binary, not read:
   ChatGPT render both halves. Worth one probe each when a Desktop or third-party session is at hand,
   recorded beside ADR-023's Verification Log. Not blocking: the bare envelope is right for a host that
   shows either half.
+
+- **A page mrw serves can be truncated by the HOST before the model sees it, and the ledger is
+  written anyway — ADR-002 inverted.** Measured 2026-09-05 on Claude Code 2.1.261 against the
+  `d6c62e7` build, staging reading 18 (`docs/curve/reading-18-result.md`). A bare-path `mrw_read` of
+  a 3,619-line fixture returned ADR-014's first page — lines 1-2727, `isError: true`, a correct
+  `-- PARTIAL:` notice and a `next_read`. What reached the model was lines 1-90, a marker reading
+  `[141140 characters truncated]`, and lines 2644-2727: the middle was discarded by the host, not by
+  mrw, and the phrase appears nowhere in this source. `internal/mcp/tools.go:535` then records the
+  page because "the page WAS shown", so `mrw seen` claimed `lines 1-3619`. A plan replacing line
+  1500 — inside the discarded middle, shown to nobody — applied with `"status": "ok"` and exit 0.
+  So mrw edited a line its caller had not seen. It is issue #109's class by another route: ADR-023
+  removed an envelope that replaced the served text; here the text survives mrw and is cut after it,
+  with the ledger already written.
+
+  What is NOT established: where the host's limit lies. `200,000 - 141,140 = 58,860` characters is
+  arithmetic from one result, not a measured boundary, and other hosts are unmeasured. The hard part
+  is that mrw cannot observe this from inside the server — a truncated result and a delivered one are
+  identical to it — so any fix is a design question (lower `MaxResultChars`, page to a size a host
+  will deliver, or record the ledger from something other than what was sent) and needs a record
+  rather than a patch. Readings 19 and 20 measure the same arm at 2 KB and 20 KB, where no paging and
+  no truncation occur — reading 19 voided whole and reading 20 is pre-registered to re-run it, so the
+  arm is still unmeasured at any size. The 200 KB case is this entry and is not a rate.

@@ -322,8 +322,21 @@ byte-identical, so the revert is a deletion.
       With the plan's shape not shown, 34 of 45 void on format — the client wrote apply_patch,
       JSON or prose plans — while every parsed plan hit and every void message named the target
       (a finding for ADR-012). With the shape shown, 45 of 45: at the ceiling at every size.
-- [ ] **The MCP delivery arm (reading 12), blocked by ADR-023 until it ships.** Staging it on
-      2026-09-05 found that over Claude Code 2.1.261 a successful `mrw_read` reached the model as its
-      `structuredContent` alone — no served lines — so the arm would have measured a client authoring
-      against a receipt (issue #109). ADR-023 removes the envelope; the arm runs against that build,
-      from a fresh session, on reading 4's fifteen 200 KB cells staged under `tmp/curve/`.
+- [x] **The MCP delivery arm at 200 KB is NOT a curve point** (`docs/curve/reading-18-result.md`):
+      mrw serves ADR-014's first page correctly and the HOST truncates it before the model sees it —
+      one observation put 58,860 of 200,000 characters through, head and tail — while
+      `internal/mcp/tools.go:535` records the whole page in the ledger. A plan replacing a line
+      inside the discarded middle then applied, exit 0: ADR-002 inverted. It is a defect, filed in
+      `docs/adr/BACKLOG.md` under ADR-023, and no rate is published for that size.
+- [ ] **The MCP delivery arm at 2 KB and 20 KB, unmeasured after three attempts**
+      (`docs/curve/reading-20-plan.md`). Reading 12 voided — a subagent's transcript is not readable
+      by the session that spawned it, so compliance could not be checked. Reading 18 voided at 200 KB
+      with the cause above. Reading 19 collected thirty trials at 2 KB and 20 KB and voided WHOLE:
+      its coverage instruction was clarified after the first trial and a no-answer trial was retried,
+      and its plan's void condition is unconditional. Its first result document published the 2 KB
+      stratum and voided only the 20 KB one; the Codex review of PR #115 established that the
+      stratum-level exception was invented after the results were seen. Reading 20 re-runs both sizes
+      with three rules pre-registered: the last-line comparison and its prompt wording fixed
+      together, a no-answer never retried, and the coverage reports committed so every rate and count
+      it publishes comes from committed data — with cost named as the one exception, an observation
+      from uncommitted request records rather than a published number.
