@@ -1,4 +1,5 @@
 # break-campaign.sh against main d6c62e7 (the tree v1.1.0's binary is built from), 2026-09-05, darwin/arm64, go go1.27.0
+# Temporary paths the script printed were replaced with <tmp> after the run; a fresh run differs from this file on those lines and on this header.
 # 47 probes, one line each; read each for a silent wrong write — an 'applied' whose file state is not what the plan said — or a refusal that does not name its reason.
 [pat-with-space] exit=0  X | 1 hunk(s), 1 file(s), 0 failed — applied
 [pat-escaped-slash] exit=0  X | 1 hunk(s), 1 file(s), 0 failed — applied
