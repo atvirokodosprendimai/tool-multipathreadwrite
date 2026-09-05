@@ -968,7 +968,7 @@ and are recorded, not counted.
 
 Compliance, coverage and cost come from transcripts and request records that are not committed, and
 each result document says so. The tables, the intervals and the offsets recompute from
-`docs/curve/reading-0N-scores/`.
+`docs/curve/reading-NN-scores/`.
 
 ## Read before modify
 

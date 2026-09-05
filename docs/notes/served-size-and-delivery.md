@@ -85,7 +85,7 @@ and reported, never counted as a miss.
 | 10 | Haiku | tool result, `nl` per range | — | — | 14/14 | Second number restarts per range: no miss; one trial void (spill). |
 | 11 | Haiku | tool result, `nl -v` from the top | — | — | 10/15 | Second number equal to the reader's: five misses, all at target+2, all late. |
 
-Every score file is in the repository under `docs/curve/reading-0N-scores/`; the rates, intervals,
+Every score file is in the repository under `docs/curve/reading-NN-scores/`; the rates, intervals,
 offsets and pairings in this note recompute from them. Compliance, coverage, cost and the quoted
 transcript row come from transcripts and request records that are not committed, and are reported.
 
@@ -125,7 +125,7 @@ the same direction.
 Two things changed between readings 4 and 8, not one: the second gutter went, and the text arrived
 in `sed` ranges rather than a reader's windows. Readings 10 and 11 separated them on the same
 cells. Reading 10 kept the ranges and piped each through `nl -ba`, so a second number stood beside
-mrw's again but restarted at 1 in every range — on the target's row it read 125 to 259 — and the
+mrw's again but restarted at 1 in every range — on the target's row it read 127 to 261 — and the
 client ignored it: 14 of 14 compliant trials at offset 0 (one trial merged two ranges and spilled;
 void under the pre-registered rule). Reading 11 piped each range through `nl -ba -v A`, so the
 second number was the row index from the top of the served text — `T + 2` on the target's row,
