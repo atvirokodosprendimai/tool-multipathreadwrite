@@ -1,0 +1,47 @@
+[
+  {
+    "cell": 200000,
+    "position": "early",
+    "n": 5,
+    "hits": 5,
+    "misses": 0,
+    "refused": 0,
+    "refused_parse": 0,
+    "refused_apply": 0,
+    "min_served_bytes": 200013,
+    "max_served_bytes": 200039,
+    "rate": 1,
+    "low": 0.565508505247919,
+    "high": 1
+  },
+  {
+    "cell": 200000,
+    "position": "middle",
+    "n": 5,
+    "hits": 5,
+    "misses": 0,
+    "refused": 0,
+    "refused_parse": 0,
+    "refused_apply": 0,
+    "min_served_bytes": 200013,
+    "max_served_bytes": 200039,
+    "rate": 1,
+    "low": 0.565508505247919,
+    "high": 1
+  },
+  {
+    "cell": 200000,
+    "position": "late",
+    "n": 5,
+    "hits": 0,
+    "misses": 5,
+    "refused": 0,
+    "refused_parse": 0,
+    "refused_apply": 0,
+    "min_served_bytes": 200013,
+    "max_served_bytes": 200039,
+    "rate": 0,
+    "low": 0,
+    "high": 0.43449149475208104
+  }
+]
