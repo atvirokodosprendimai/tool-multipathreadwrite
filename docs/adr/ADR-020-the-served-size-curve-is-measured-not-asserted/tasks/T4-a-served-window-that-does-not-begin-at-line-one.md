@@ -36,8 +36,9 @@ to prevent, and the fix belongs in `internal/read` under its own record — not 
 held (every miss at `target − 117` from line 120), but the sentence above assumed the only rows a
 client could count were mrw's. The read arm delivers `served.txt` through the client's own file
 reader, which lays a second gutter beside mrw's, and the transcript suggests the client took that one.
-Whether mrw's rendering induces the count when no other gutter is present is what a gutter-free
-reading decides; the `internal/read` record waits on it, per the BACKLOG entry.
+Whether mrw's rendering induces the count when no other gutter is present was decided by reading 8
+(`docs/curve/reading-08-result.md`, 2026-09-05): it does not — 15 of 15 through a tool result — so
+no `internal/read` record opens; the BACKLOG entry is closed.
 
 ## Affected Files
 
