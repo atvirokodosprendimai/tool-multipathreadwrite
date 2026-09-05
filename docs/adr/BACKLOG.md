@@ -739,14 +739,20 @@ re-measuring these. Each was driven at the built binary, not read:
   it in would put two claims under one fence. Promote it when a reading needs to explain a miss
   rather than count one.
 
+  **RECEIPT, 2026-09-05 — promoted and spent.** ADR-020 T4 built the cell (`-from`); reading 5
+  (`docs/curve/reading-05-result.md`) served 15 trials from line 120 and every miss sat at
+  `target − 117`: the row count, and it is the read arm's file reader that counts, not mrw. Closed.
+
 ## From ADR-020-T4 (a served window that does not begin at line one)
 
-- **The read format, if the row-count account holds.** Every miss in 135 read-arm trials sits at
-  `target+2`, and mrw's served rendering opens with two rows that carry no line number — the `==>`
-  header and the `@@` range. T4 builds the cell that can tell "the client counted rows" from any other
-  +2; the discriminating reading spends the trials. If it comes back row-count, the tool's own output
-  induces the silent wrong write the tool exists to prevent, and the fix is an engine change with a
-  Served-path change: it needs its own record, a decision about what the header rows should look
-  like so a caller cannot mistake a row for a line, and a contract row that pins the served bytes
-  every reading so far was collected against. Not a task under ADR-020, whose Served-path change is
-  `none` and stays so.
+- **The read format, if the row-count account holds — RESOLVED 2026-09-05, no engine change.** Every
+  miss in 135 read-arm trials sat at `target+2`, and mrw's served rendering opens with two rows that
+  carry no line number, so the candidate was that the tool's own output induces the miss. Reading 5
+  refuted that as stated: the row count that the misses follow is the outer numbering of the file
+  reader the harness hands `served.txt` through (the transcript shows `634	  751| timeout = 30` and
+  the client took 634); mrw's two rows only set the offset's size, and do nothing when the window
+  starts elsewhere. That numbering is absent on every real delivery path (a Bash result, an MCP tool
+  result), so there is no served-path change to make and no record to open. What stays worth a note:
+  a client that SAVES mrw output to a file and reads it back through a numbering viewer recreates the
+  collision, and the weaker client then takes the first gutter. If that path is ever measured to
+  matter, the decision is what the gutter should look like so a row cannot be mistaken for a line.
