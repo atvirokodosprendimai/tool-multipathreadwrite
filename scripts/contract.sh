@@ -12,9 +12,65 @@
 # and exit statuses are half of what is being asserted.
 set -uo pipefail
 
+# The runner is a fresh process group of its own, always, so that
+# `pgrep -g $$` at the end names every process this run started and nothing
+# else: a descendant re-parented away from its spawner keeps its group, so
+# #101's two orphans would have been named the day they were made rather
+# than fifteen hours later. Being a leader already is not enough — as the
+# first command of an interactive pipeline (`./scripts/contract.sh | tee`)
+# the script leads a group that `tee` shares, and a group-wide kill takes
+# `tee` with it (both reviews of the previous form found this). So the
+# original process is a thin wrapper: it forks, the child takes a new group
+# and becomes the runner, and the wrapper — still in the caller's group, so
+# a terminal Ctrl-C or hangup reaches it — forwards INT, TERM and HUP to the
+# runner's group as TERM, waits, and repeats the runner's exit status
+# (signal n → 128+n). perl, because macOS has no setsid(1) and the script
+# depends on perl already. CONTRACT_GROUP marks the runner so the wrapper is
+# entered exactly once; nothing before this line spawns a child. Measured on
+# darwin: exit 7 repeated as 7; INT to the wrapper emptied a three-member
+# runner group inside a second, and the caller's pipeline peer finished on
+# its own with 143 from the runner. The group form was proposed by a peer
+# session on 2026-09-05. One consequence: with `stty tostop` set, a write to
+# the terminal from this background group stops it — off by default, and
+# nothing here reads the terminal.
+if [ "${CONTRACT_GROUP:-}" != "$$" ]; then
+  exec perl -e '
+    my ($pid, $pending);
+    # Handlers before the fork, and the group set from BOTH sides: a signal
+    # in the window between them is recorded and forwarded once the group
+    # exists, instead of killing the wrapper and leaving the runner behind.
+    $SIG{INT} = $SIG{TERM} = $SIG{HUP} = sub { $pending = 1; kill "TERM", -$pid if $pid };
+    $pid = fork; defined $pid or die "fork: $!";
+    if ($pid) {
+      setpgrp($pid, $pid);
+      kill "TERM", -$pid if $pending;
+      my $r; do { $r = waitpid $pid, 0 } while ($r == -1 && $!{EINTR});
+      my $s = $?; exit(($s & 127) ? 128 + ($s & 127) : $s >> 8);
+    }
+    setpgrp(0, 0);
+    $SIG{INT} = $SIG{TERM} = $SIG{HUP} = "DEFAULT";
+    # A forward that landed before that reset ran the inherited handler with
+    # $pid still 0 and was swallowed; replay it here (review, round five).
+    kill "TERM", $$ if $pending;
+    $ENV{CONTRACT_GROUP} = $$;
+    exec @ARGV or die "exec: $!";
+  ' "$BASH" "$0" "$@"
+fi
+# The marker is consumed here so no descendant inherits it: a stale exported
+# value equal to a reused pid would otherwise skip the wrapper (review).
+# Nothing accidental can match it after this — live pids are unique and this
+# is unset before anything is spawned; a caller that forges it to its own
+# pid on purpose is defeating the wrapper deliberately, and may.
+unset CONTRACT_GROUP
+
 cd "$(dirname "$0")/.."
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+# Reap the whole group on exit: every child, and every orphan that kept the
+# group after its parent died. TERM is ignored FIRST, before the rm, so a
+# second forwarded signal cannot cut the trap short — measured unnecessary
+# on darwin, where bash carried exit status through it; kept as a guard for
+# the Linux runner.
+trap 'trap "" TERM; rm -rf "$WORK"; kill -- -$$ 2>/dev/null' EXIT
 
 # Build our OWN binary inside WORK rather than sharing bin/mrw. Two fences ran
 # concurrently under `adr-verify --sweep` on 2026-08-31 — one starting with
@@ -25,7 +81,6 @@ trap 'rm -rf "$WORK"' EXIT
 MRW=${MRW:+$(cd "$(dirname "$MRW")" && pwd)/$(basename "$MRW")}
 MRW=${MRW:-$WORK/mrw}
 go build -o "$MRW" ./cmd/mrw
-trap 'rm -rf "$WORK"' EXIT
 fails=0
 
 ok()   { printf '  PASS  %s\n' "$1"; }
@@ -2549,8 +2604,15 @@ d={"hook_event_name":"PostToolUse","session_id":sys.argv[1],"cwd":sys.argv[6] or
 if sys.argv[5]: d["tool_response"]=json.loads(sys.argv[5])
 print(json.dumps(d))' "$1" "$R55/proj" "$2" "$3" "${4:-}" "${5:-}"
 }
+# Every hook child runs under an alarm. A mutant that hangs is a legitimate
+# mutant and bounding it is the harness's job: on 2026-09-04 the "regex-seg"
+# mutant — a catastrophic pattern in the hook — was killed by its row and then
+# ran for fifteen hours at 80 % CPU under parent 1, twice, because nothing here
+# put a ceiling on the child (#101). The alarm survives exec, so python3 gets
+# SIGALRM and exits 142, which every row reads as a failure. ALARM55 is
+# overridable so the row that proves this can use a short one.
 hook55() {  # the same arguments -> the hook's stdout, under the fixture's HOME and project
-  mk55 "$@" | env HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK"
+  mk55 "$@" | env HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK"
 }
 closed55() {  # the same arguments -> the hook run with stdout genuinely closed
   # Closed AFTER env, by the shell that execs python3. Closing it before env
@@ -2560,8 +2622,12 @@ closed55() {  # the same arguments -> the hook run with stdout genuinely closed
   # below went red for a reason that had nothing to do with this repository
   # (found by review on a Linux host, 2026-09-04; GNU env leaves it closed,
   # which is why CI and darwin were both green).
+  # The alarm sits OUTSIDE the closing shell. Inside it, perl reopened fd 1
+  # before its exec — fstat(1) succeeded while write(1) still failed — and
+  # the fixture no longer meant "stdout genuinely closed" (found by review,
+  # 2026-09-05, perl 5.34 on darwin). The alarm survives both execs.
   mk55 "$@" | env HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" CLAUDE_PROJECT_DIR="$R55/proj" \
-    bash -c 'exec >&-; exec python3 "$1"' _ "$HOOK"
+    perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" bash -c 'exec >&-; exec python3 "$1"' _ "$HOOK"
 }
 ctx55() {  # stdin: the hook's stdout -> the additionalContext, or "" ; exit 1 on a bad envelope
   python3 -c 'import json,sys
@@ -2754,7 +2820,7 @@ grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
 many55=$(printf 'README.md %.0s' $(seq 1 600))
 ctx=$(hook55 s10c Bash "{\"command\":\"cat ${many55}docs/adr/x.md\"}" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "the 601st operand of a command is still a candidate: there is no token cap" || bad "a long command lost its last operand: $ctx"
-out=$(printf 'not json' | env HOME="$R55/home" python3 "$HOOK"); want 0 "$?" "malformed stdin exits 0: a broken hook must not take the turn down"
+out=$(printf 'not json' | env HOME="$R55/home" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK"); want 0 "$?" "malformed stdin exits 0: a broken hook must not take the turn down"
 [ -z "$out" ] && ok "and prints nothing" || bad "printed on malformed stdin: $out"
 ( closed55 s11 Bash '{"command":"cat docs/adr/x.md"}' 2>/dev/null ); want 0 "$?" "a closed stdout still exits 0"
 ctx=$(hook55 s11 Bash '{"command":"cat docs/adr/x.md"}' | ctx55)
@@ -2841,7 +2907,7 @@ try: d=json.load(sys.stdin)
 except Exception: print(""); raise SystemExit
 fs=d.get("files") or []
 print(fs[0]["path"] if fs else "")')
-  hookpath=$(printf '@@ %s\nX\n' "$hdr" | python3 -c 'import json,sys,importlib.util
+  hookpath=$(printf '@@ %s\nX\n' "$hdr" | perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 -c 'import json,sys,importlib.util
 spec=importlib.util.spec_from_file_location("h", sys.argv[1]); h=importlib.util.module_from_spec(spec); spec.loader.exec_module(h)
 print("\n".join(h.plan_paths(sys.stdin.read())))' "$HOOK")
   [ "$mrwpath" = "$hookpath" ] \
@@ -2869,17 +2935,17 @@ ctx=$(hook55 s10b Bash '{"command":"cat docs/adr/x.md"}' '' "$R55/proj/pkg" | ct
 # Both are refused, and the hook delivers WITHOUT a claim — a repeat beats a
 # silence, and ADR-004's promise beats both.
 mkdir -p "$R55/cwd"
-ctx=$(cd "$R55/cwd" && mk55 s14 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME=rel55 CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+ctx=$(cd "$R55/cwd" && mk55 s14 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME=rel55 CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && [ ! -e "$R55/cwd/rel55" ] && [ ! -e "$R55/proj/rel55" ] \
   && ok "a relative XDG_CACHE_HOME is refused: nothing is created under cwd, and the rule is delivered anyway" \
   || bad "relative cache base: delivered=$([ -n "$ctx" ] && echo yes || echo no) created=$(ls -d "$R55/cwd/rel55" "$R55/proj/rel55" 2>/dev/null | tr '\n' ' ')"
-ctx=$(mk55 s15 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/proj/.cache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+ctx=$(mk55 s15 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/proj/.cache" CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && [ ! -e "$R55/proj/.cache" ] \
   && ok "a cache base inside the project is refused: nothing lands in the tree, and the rule is delivered anyway" \
   || bad "in-tree cache base: delivered=$([ -n "$ctx" ] && echo yes || echo no) created=$(ls -d "$R55/proj/.cache" 2>/dev/null)"
 printf 'not a directory\n' > "$R55/notadir"
-one=$(mk55 s16 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/notadir" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
-two=$(mk55 s16 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/notadir" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+one=$(mk55 s16 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/notadir" CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
+two=$(mk55 s16 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/notadir" CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$one" && grep -q 'SCOPED RULE BODY 55' <<<"$two" \
   && ok "an unusable state directory delivers on every call: once per session holds only while a claim can be filed" \
   || bad "an unusable state directory suppressed a delivery: first=$([ -n "$one" ] && echo yes || echo no) second=$([ -n "$two" ] && echo yes || echo no)"
@@ -2888,20 +2954,36 @@ grep -q 'SCOPED RULE BODY 55' <<<"$one" && grep -q 'SCOPED RULE BODY 55' <<<"$tw
 # suppressed every rule for the session. Only the O_EXCL create may be read
 # that way, so this pair must deliver twice.
 mkdir -p "$R55/filecache"; printf 'not a directory\n' > "$R55/filecache/claude-rules-on-read"
-one=$(mk55 s16b Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/filecache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
-two=$(mk55 s16b Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/filecache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+one=$(mk55 s16b Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/filecache" CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
+two=$(mk55 s16b Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/filecache" CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$one" && grep -q 'SCOPED RULE BODY 55' <<<"$two" \
   && ok "a regular file where the claim directory belongs delivers on every call, not none: FileExistsError from makedirs is not a claim" \
   || bad "a file at the state directory's path suppressed a delivery: first=$([ -n "$one" ] && echo yes || echo no) second=$([ -n "$two" ] && echo yes || echo no)"
 # Without CLAUDE_PROJECT_DIR the walk up from cwd takes the nearest
 # .claude/rules, and stops at the first .git it meets: a nested repository
 # does not inherit the enclosing one's rules.
-ctx=$(mk55 s17 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/pkg" | env -u CLAUDE_PROJECT_DIR HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" python3 "$HOOK" | ctx55)
+ctx=$(mk55 s17 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/pkg" | env -u CLAUDE_PROJECT_DIR HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "without CLAUDE_PROJECT_DIR, the nearest .claude/rules above cwd is the project" || bad "the walk-up found no project: $ctx"
 mkdir -p "$R55/proj/inner/.git"
-ctx=$(mk55 s18 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/inner" | env -u CLAUDE_PROJECT_DIR HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" python3 "$HOOK" | ctx55)
+ctx=$(mk55 s18 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/inner" | env -u CLAUDE_PROJECT_DIR HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 [ -z "$ctx" ] && ok "and it stops at a nested repository's .git, so the enclosing project's rules are not delivered into it" || bad "the walk-up crossed a .git boundary: $ctx"
 [ -n "$(ls "$R55/home/.cache/claude-rules-on-read" 2>/dev/null)" ] && ok "dedup state lives under the caller's cache directory, not the shared temp" || bad "no state under HOME"
+# A hook that never returns must be a FAILED row, not a process that outlives
+# the run (#101). Every run of hook code above — hook55, closed55, and the
+# plan_paths import — goes under the alarm hook55 describes. This row proves
+# the alarm fires on the two entry points it can drive, by handing them a
+# hook that sleeps longer than a 1 s alarm; the sleep is at module level, so
+# it hangs an import exactly as it hangs an exec. Without the alarm the sleep
+# completes, the exit is 0 and the row goes red — after thirty seconds
+# instead of one. The 2>: bash reports the SIGALRM kill on stderr.
+printf 'import time\ntime.sleep(30)\n' > "$R55/hang.py"
+t0=$(date +%s)
+( HOOK="$R55/hang.py"; ALARM55=1; hook55 s19 Bash '{"command":"cat docs/adr/x.md"}' >/dev/null ) 2>/dev/null; rc=$?
+( HOOK="$R55/hang.py"; ALARM55=1; closed55 s19c Bash '{"command":"cat docs/adr/x.md"}' ) 2>/dev/null; rc2=$?
+el=$(( $(date +%s) - t0 ))
+[ "$rc" -ne 0 ] && [ "$rc2" -ne 0 ] && [ "$el" -lt 10 ] \
+  && ok "a hook that never returns is killed by the alarm and its row fails, through hook55 and closed55 alike: exit $rc/$rc2 after ${el}s" \
+  || bad "a hanging hook outlived its alarm: hook55 exit $rc, closed55 exit $rc2, after ${el}s"
 rm -rf "$R55"
 
 # 56. ADR-021: a plan names a file once, however it is spelled.
@@ -3278,6 +3360,74 @@ want 2 "$?" "a window that exists but starts after an early target is refused to
 grep -q 'excludes the target' "$R60/gap.json" \
   && ok "and says so, rather than serving a window with no answer in it" \
   || bad "the existing-window refusal does not say why: $(head -c 200 "$R60/gap.json")"
+# Nothing this run started may outlive it — including a descendant already
+# re-parented away from its spawner, the shape #101 took. The runner is a
+# fresh process group of its own (top of file) and re-parenting does not
+# change a process's group, so `pgrep -g $$` is exact: every survivor of
+# this run and nothing else — the wrapper, and any pipeline peer of the
+# caller's, are in the caller's group. pgrep writes to a file, not a $( )
+# substitution: the substitution's subshell and its pipeline members are
+# group members too, and were listed (measured). The positive case first —
+# a deliberate orphan must be VISIBLE — because a detector that has never
+# seen one is a detector that always says clean. Its parent is asserted to
+# be not this shell rather than literally 1: under a subreaper (an init in a
+# container, a user manager) the adopter is not 1, and the group is what
+# matters.
+[ "$(ps -o pgid= -p $$ | tr -d ' ')" = "$$" ] && ok "the runner is its own process-group leader" || bad "the runner is not its group leader: pgid $(ps -o pgid= -p $$ | tr -d ' ')"
+( sleep 300 & )   # its parent exits at once; it is re-parented away and keeps the group
+sleep 0.2
+pgrep -g $$ > "$WORK/kids"; prc=$?
+orphan=$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')
+oppid=$(ps -o ppid= -p ${orphan:-0} 2>/dev/null | tr -d ' ')
+[ "$prc" -eq 0 ] && [ -n "$oppid" ] && [ "$oppid" != "$$" ] \
+  && ok "an orphan no longer under this shell is visible to the group check: pid ${orphan% } under $oppid" \
+  || bad "the group check cannot see an orphan (pgrep exit $prc, saw '$orphan', parent '$oppid')"
+kill $orphan 2>/dev/null
+# A killed process is a zombie until its adopter reaps it, and pgrep lists
+# zombies: poll, bounded, rather than trust one sleep.
+for _ in $(seq 1 30); do
+  pgrep -g $$ > "$WORK/kids"; prc=$?   # 0 matched, 1 none; anything else is pgrep itself failing
+  left=$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')
+  [ -z "$left" ] && break; sleep 0.1
+done
+[ "$prc" -le 1 ] && [ -z "$left" ] && ok "no process of this run survives it" \
+  || bad "survivors in the run's group after 3 s (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
+# The wrapper's and the trap's promises get their own failing case: a nested
+# run of THIS FILE'S prologue — the committed text up to the trap line, not a
+# copy — with a body that plants an orphan and exits 7. Run plain, the exit
+# status must come back 7 and the orphan must be gone: that is the trap's
+# group kill, and deleting it leaves the orphan alive. Run hanging, an INT
+# to the wrapper must end the run 143 within seconds with the orphan gone:
+# that is the forwarding, and deleting the handler leaves the runner asleep.
+sed -n '1,/^trap .*EXIT$/p' "$0" > "$WORK/probe.sh"
+# The cut is the first EXIT trap. Assert it is the prologue and nothing
+# more or less, so a moved trap cannot silently change what the probe proves.
+[ "$(grep -c '^trap ' "$WORK/probe.sh")" = 1 ] && grep -q 'CONTRACT_GROUP' "$WORK/probe.sh" && grep -q 'kill -- -\$\$' "$WORK/probe.sh" && ! grep -q '^ok()' "$WORK/probe.sh" \
+  && ok "the probe is this file's prologue: one trap, the wrapper, the group kill, and no rows" \
+  || bad "the probe cut is not the prologue: $(wc -l < "$WORK/probe.sh" | tr -d ' ') lines, $(grep -c '^trap ' "$WORK/probe.sh") trap line(s)"
+cat >> "$WORK/probe.sh" <<'PROBE'
+echo $$ > "$1.runner"
+( sleep 300 & )
+sleep 0.2
+pgrep -g $$ > "$1.all"; grep -vx "$$" "$1.all" > "$1"
+[ "${2:-}" = hang ] && sleep 60
+exit 7
+PROBE
+chmod +x "$WORK/probe.sh"
+"$WORK/probe.sh" "$WORK/probe1" > /dev/null; want 7 "$?" "a nested run of this file's own prologue repeats the runner's exit status through the wrapper"
+sleep 0.3; opid=$(cat "$WORK/probe1" 2>/dev/null)
+[ -n "$opid" ] && ! kill -0 "$opid" 2>/dev/null \
+  && ok "and its EXIT trap reaped an orphan already re-parented away (pid $opid)" \
+  || bad "the prologue's EXIT trap left the nested run's orphan '${opid:-?}' alive"
+kill "${opid:-999999999}" 2>/dev/null
+"$WORK/probe.sh" "$WORK/probe2" hang > /dev/null & wp=$!
+for _ in $(seq 1 50); do [ -s "$WORK/probe2" ] && break; sleep 0.1; done
+t0=$(date +%s); kill -INT "$wp"; wait "$wp"; rc=$?; el=$(( $(date +%s) - t0 ))
+opid=$(cat "$WORK/probe2" 2>/dev/null)
+[ "$rc" -eq 143 ] && [ "$el" -lt 10 ] && [ -n "$opid" ] && ! kill -0 "$opid" 2>/dev/null \
+  && ok "INT to the wrapper is forwarded: the nested runner ended 143 in ${el}s and its orphan with it" \
+  || bad "INT to the wrapper: exit $rc after ${el}s, orphan '${opid:-?}' $(kill -0 "${opid:-999999999}" 2>/dev/null && echo alive || echo gone)"
+kill "${opid:-999999999}" 2>/dev/null; kill -- -"$(cat "$WORK/probe2.runner" 2>/dev/null || echo 999999999)" 2>/dev/null; true
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
