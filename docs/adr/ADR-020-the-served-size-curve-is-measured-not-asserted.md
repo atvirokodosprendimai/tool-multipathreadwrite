@@ -322,3 +322,8 @@ byte-identical, so the revert is a deletion.
       With the plan's shape not shown, 34 of 45 void on format — the client wrote apply_patch,
       JSON or prose plans — while every parsed plan hit and every void message named the target
       (a finding for ADR-012). With the shape shown, 45 of 45: at the ceiling at every size.
+- [ ] **The MCP delivery arm (reading 12), blocked by ADR-023 until it ships.** Staging it on
+      2026-09-05 found that over Claude Code 2.1.261 a successful `mrw_read` reached the model as its
+      `structuredContent` alone — no served lines — so the arm would have measured a client authoring
+      against a receipt (issue #109). ADR-023 removes the envelope; the arm runs against that build,
+      from a fresh session, on reading 4's fifteen 200 KB cells staged under `tmp/curve/`.

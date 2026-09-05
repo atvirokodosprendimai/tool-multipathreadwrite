@@ -65,8 +65,11 @@ Every clause was run BEFORE this fence was written and returned **zero hits**: b
 |-----------|------|----------|--------|-------|
 | `TestAReadResultCarriesNoStructuredContent` | `internal/mcp/conformance_test.go` | served, paged and index `mrw_read` results carry no `structuredContent`; `content[1]` is the receipt | — | S1, S2 |
 | `TestMrwReadDeclaresNoOutputSchema` | `internal/mcp/mcp_test.go` | `mrw_read` declares no `outputSchema`; `mrw_write` still does | — | S1, S3 |
-| `TestEveryDeclaredOutputSchemaValidatesARealResponse` | `internal/mcp/conformance_test.go` | ADR-011's Enforced-by, narrowed to declaring tools, still validates `mrw_write` | — | S4 |
-| `TestTheFirstContentBlockIsTheSerializedStructuredContent` | `internal/mcp/conformance_test.go` | `content[1]` is the receipt for both tools; equals `structuredContent` where one exists | — | S4 |
+
+S4 is proved by the regression half of the fence — `go test ./...` and `./scripts/contract.sh` — through
+`TestEveryDeclaredOutputSchemaValidatesARealResponse` (ADR-011's Enforced-by, narrowed to the tools
+that declare a schema) and `TestTheFirstContentBlockIsTheSerializedStructuredContent` (`content[1]`
+is the receipt for both tools, equal to `structuredContent` where one exists), both moved in this task.
 
 ## Reachability
 
