@@ -12,19 +12,39 @@
 # and exit statuses are half of what is being asserted.
 set -uo pipefail
 
-# The runner is its own process-group leader, so that `pgrep -g $$` at the
-# end names every process this run started and nothing else: a descendant
-# re-parented to 1 keeps its group, so #101's two orphans would have been
-# named the day they were made rather than fifteen hours later. A shell with
-# job control gives a script its own group already; a non-interactive parent
-# (CI, adr-verify, a hook) leaves it in the parent's, so re-exec under a fresh
-# one — perl, because macOS has no setsid(1) and the script depends on perl
-# already. Proposed by a peer session on 2026-09-05 after `pgrep -P $$` was
-# shown to miss exactly the orphan shape. Consequence: under a non-interactive
-# parent a terminal Ctrl-C no longer reaches this group; the EXIT trap's kill
-# covers the run's children either way.
-if [ "$(ps -o pgid= -p $$ | tr -d ' ')" != "$$" ]; then
-  exec perl -e 'setpgrp(0,0) or die "setpgrp: $!"; exec @ARGV or die "exec: $!"' "$BASH" "$0" "$@"
+# The runner is a fresh process group of its own, always, so that
+# `pgrep -g $$` at the end names every process this run started and nothing
+# else: a descendant re-parented away from its spawner keeps its group, so
+# #101's two orphans would have been named the day they were made rather
+# than fifteen hours later. Being a leader already is not enough — as the
+# first command of an interactive pipeline (`./scripts/contract.sh | tee`)
+# the script leads a group that `tee` shares, and a group-wide kill takes
+# `tee` with it (both reviews of the previous form found this). So the
+# original process is a thin wrapper: it forks, the child takes a new group
+# and becomes the runner, and the wrapper — still in the caller's group, so
+# a terminal Ctrl-C or hangup reaches it — forwards INT, TERM and HUP to the
+# runner's group as TERM, waits, and repeats the runner's exit status
+# (signal n → 128+n). perl, because macOS has no setsid(1) and the script
+# depends on perl already. CONTRACT_GROUP marks the runner so the wrapper is
+# entered exactly once; nothing before this line spawns a child. Measured on
+# darwin: exit 7 repeated as 7; INT to the wrapper emptied a three-member
+# runner group inside a second, and the caller's pipeline peer finished on
+# its own with 143 from the runner. The group form was proposed by a peer
+# session on 2026-09-05. One consequence: with `stty tostop` set, a write to
+# the terminal from this background group stops it — off by default, and
+# nothing here reads the terminal.
+if [ "${CONTRACT_GROUP:-}" != "$$" ]; then
+  exec perl -e '
+    my $pid = fork; defined $pid or die "fork: $!";
+    if ($pid) {
+      $SIG{INT} = $SIG{TERM} = $SIG{HUP} = sub { kill "TERM", -$pid };
+      my $r; do { $r = waitpid $pid, 0 } while ($r == -1 && $!{EINTR});
+      my $s = $?; exit(($s & 127) ? 128 + ($s & 127) : $s >> 8);
+    }
+    setpgrp(0, 0) or die "setpgrp: $!";
+    $ENV{CONTRACT_GROUP} = $$;
+    exec @ARGV or die "exec: $!";
+  ' "$BASH" "$0" "$@"
 fi
 
 cd "$(dirname "$0")/.."
@@ -2585,8 +2605,12 @@ closed55() {  # the same arguments -> the hook run with stdout genuinely closed
   # below went red for a reason that had nothing to do with this repository
   # (found by review on a Linux host, 2026-09-04; GNU env leaves it closed,
   # which is why CI and darwin were both green).
+  # The alarm sits OUTSIDE the closing shell. Inside it, perl reopened fd 1
+  # before its exec — fstat(1) succeeded while write(1) still failed — and
+  # the fixture no longer meant "stdout genuinely closed" (found by review,
+  # 2026-09-05, perl 5.34 on darwin). The alarm survives both execs.
   mk55 "$@" | env HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" CLAUDE_PROJECT_DIR="$R55/proj" \
-    bash -c 'exec >&-; exec perl -e "alarm shift; exec @ARGV" "$2" python3 "$1"' _ "$HOOK" "${ALARM55:-10}"
+    perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" bash -c 'exec >&-; exec python3 "$1"' _ "$HOOK"
 }
 ctx55() {  # stdin: the hook's stdout -> the additionalContext, or "" ; exit 1 on a bad envelope
   python3 -c 'import json,sys
@@ -3320,26 +3344,37 @@ grep -q 'excludes the target' "$R60/gap.json" \
   && ok "and says so, rather than serving a window with no answer in it" \
   || bad "the existing-window refusal does not say why: $(head -c 200 "$R60/gap.json")"
 # Nothing this run started may outlive it — including a descendant already
-# re-parented to 1, the shape #101 took. The runner is its own group leader
-# (top of file) and re-parenting does not change a process's group, so
-# `pgrep -g $$` is exact: every survivor of this run and nothing else. pgrep
-# writes to a file, not a $( ) substitution: the substitution's subshell and
-# its pipeline members are group members too, and were listed (measured).
-# The positive case first — a deliberate orphan must be VISIBLE — because a
-# detector that has never seen one is a detector that always says clean.
+# re-parented away from its spawner, the shape #101 took. The runner is a
+# fresh process group of its own (top of file) and re-parenting does not
+# change a process's group, so `pgrep -g $$` is exact: every survivor of
+# this run and nothing else — the wrapper, and any pipeline peer of the
+# caller's, are in the caller's group. pgrep writes to a file, not a $( )
+# substitution: the substitution's subshell and its pipeline members are
+# group members too, and were listed (measured). The positive case first —
+# a deliberate orphan must be VISIBLE — because a detector that has never
+# seen one is a detector that always says clean. Its parent is asserted to
+# be not this shell rather than literally 1: under a subreaper (an init in a
+# container, a user manager) the adopter is not 1, and the group is what
+# matters.
 [ "$(ps -o pgid= -p $$ | tr -d ' ')" = "$$" ] && ok "the runner is its own process-group leader" || bad "the runner is not its group leader: pgid $(ps -o pgid= -p $$ | tr -d ' ')"
-( sleep 300 & )   # its parent exits at once; it is re-parented to 1 and keeps the group
+( sleep 300 & )   # its parent exits at once; it is re-parented away and keeps the group
 sleep 0.2
 pgrep -g $$ > "$WORK/kids"; prc=$?
 orphan=$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')
-[ "$prc" -eq 0 ] && [ "$(ps -o ppid= -p ${orphan:-0} 2>/dev/null | tr -d ' ')" = 1 ] \
-  && ok "an orphan already under parent 1 is visible to the group check: pid ${orphan% }" \
-  || bad "the group check cannot see an orphan (pgrep exit $prc, saw '$orphan')"
-kill $orphan 2>/dev/null; sleep 0.5
-pgrep -g $$ > "$WORK/kids"; prc=$?   # 0 matched, 1 none; anything else is pgrep itself failing
-left=$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')
+oppid=$(ps -o ppid= -p ${orphan:-0} 2>/dev/null | tr -d ' ')
+[ "$prc" -eq 0 ] && [ -n "$oppid" ] && [ "$oppid" != "$$" ] \
+  && ok "an orphan no longer under this shell is visible to the group check: pid ${orphan% } under $oppid" \
+  || bad "the group check cannot see an orphan (pgrep exit $prc, saw '$orphan', parent '$oppid')"
+kill $orphan 2>/dev/null
+# A killed process is a zombie until its adopter reaps it, and pgrep lists
+# zombies: poll, bounded, rather than trust one sleep.
+for _ in $(seq 1 30); do
+  pgrep -g $$ > "$WORK/kids"; prc=$?   # 0 matched, 1 none; anything else is pgrep itself failing
+  left=$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')
+  [ -z "$left" ] && break; sleep 0.1
+done
 [ "$prc" -le 1 ] && [ -z "$left" ] && ok "no process of this run survives it" \
-  || bad "survivors in the run's group (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
+  || bad "survivors in the run's group after 3 s (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

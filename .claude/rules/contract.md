@@ -23,9 +23,11 @@ paths:
   import all use `perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" …`. A mutant that hangs is a
   mutant the harness must bound: the 2026-09-04 regex mutant was killed by its row and then ran for
   fifteen hours under parent 1 (#101). Extend the idiom to any new child a row could leave running.
-- **The runner is its own process group, and the last rows prove nothing survived it.** The top of
-  the file re-execs under a fresh group when a non-interactive parent did not give it one; the tail
-  plants a deliberate orphan, asserts `pgrep -g $$` sees it, and then asserts the group is empty;
-  the EXIT trap kills the group. `pgrep -P $$` was the first form and misses an orphan already
-  under parent 1 — a peer session named the group form on 2026-09-05. Write `pgrep` to a file, not a
-  `$( )`: the substitution's own subshell is a group member and lists itself.
+- **The runner is a fresh process group, and the last rows prove nothing survived it.** The top of
+  the file is a thin wrapper that forks the runner into a new group, forwards INT/TERM/HUP to it and
+  repeats its exit status; the tail plants a deliberate orphan, asserts `pgrep -g $$` sees it, and
+  then asserts the group is empty; the EXIT trap kills the group. Always a new group, never "if not
+  already a leader": as the first command of `… | tee` the script leads a group `tee` shares, and
+  the kill took `tee` (found by both reviews). `pgrep -P $$` was the first form and misses an orphan
+  already re-parented — a peer session named the group form on 2026-09-05. Write `pgrep` to a
+  file, not a `$( )`: the substitution's own subshell is a group member and lists itself.
