@@ -36,8 +36,9 @@ to prevent, and the fix belongs in `internal/read` under its own record — not 
 held (every miss at `target − 117` from line 120), but the sentence above assumed the only rows a
 client could count were mrw's. The read arm delivers `served.txt` through the client's own file
 reader, which lays a second gutter beside mrw's, and the transcript suggests the client took that one.
-Whether mrw's rendering induces the count when no other gutter is present is what a gutter-free
-reading decides; the `internal/read` record waits on it, per the BACKLOG entry.
+Whether mrw's rendering induces the count when no other gutter is present was decided by reading 8
+(`docs/curve/reading-08-result.md`, 2026-09-05): it does not — 15 of 15 through a tool result — so
+no `internal/read` record opens; the BACKLOG entry is closed.
 
 ## Affected Files
 
@@ -134,8 +135,8 @@ what this task needs, that is a finding about the engine and its own record, not
 
 ## Out of Scope
 
-- Running the discriminating reading (deferred: docs/adr/BACKLOG.md — the offset-window entry, which this task builds the cell for and does not spend)
-- Fixing the read format if the row-count account holds (deferred: docs/adr/BACKLOG.md — the read-format entry; it is an engine change with a Served-path change and needs its own record)
+- Running the discriminating reading (permanent: fact: it was run as reading 5 on 2026-09-05 with the cell this task built, and the BACKLOG offset-window entry it was deferred to carries the receipt; citation: docs/curve/reading-05-result.md)
+- Fixing the read format if the row-count account holds (permanent: fact: the account held and the fix was not needed — reading 8 showed the count was the harness read arm's, and the BACKLOG read-format entry closed with no engine change; citation: docs/curve/reading-08-result.md)
 - Keying the retry pair on the whole tuple, issue #97 (deferred: issue #97 — not needed for a one-cell-per-client reading)
 
 ## Verification Log

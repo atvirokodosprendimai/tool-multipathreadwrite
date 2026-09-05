@@ -236,15 +236,16 @@ byte-identical, so the revert is a deletion.
       relational cells: 15/15, 12/15, 8/15 — the second client the pre-registration's **across
       models** wording required, and the first curve that bends. What remains of this item is the
       search arm, which stands at 18 observations from reading 1 and is not pooled with any of them.
-- [ ] **The failure the reading did find is not a retrieval failure that grows with size.** Three
-      misses named `target+2` with the replacement text correct, one at each served size, and every
-      one applied silently without a guard and was refused with `anchor=`. Why it is two is not
-      settled, and this reading cannot settle it: every cell serves `@@ 1-N`, so a row count in the
-      served rendering and the line number plus two are the same integer everywhere in it. **A cell
-      whose served window does not begin at line 1 would discriminate**, and building one is a
-      generator change here, and it is deliberately NOT in T2 — it answers a different question from
-      "can the task be failed", and folding it in would put two claims under one fence. It is carried
-      in `docs/adr/BACKLOG.md` as the offset-window entry.
+- [x] **The failure the reading did find is not a retrieval failure that grows with size — and why
+      it is two is now settled.** Three misses named `target+2` with the replacement text correct,
+      one at each served size, and every one applied silently without a guard and was refused with
+      `anchor=`. Reading 2 could not say why it was two: every cell served `@@ 1-N`, so a row count
+      in the served rendering and the line number plus two were the same integer everywhere in it.
+      ADR-020 T4 built the offset-window cell; reading 5 showed the offset is the row index of the
+      served text (−117 from line 120); reading 8 showed that with mrw's gutter the only gutter the
+      same client on the same cells does not count rows. Scope: one Haiku client, the fifteen 200 KB
+      cells, a Bash-result delivery; the MCP path was not run and no served-size curve was taken
+      within that arm. See the two items below for the numbers.
 - [x] **The relational fixture is NOT measurably harder, and the prediction that it would be is
       refuted.** Reading 3 (`docs/curve/reading-03-result.md`) ran the same 45 cells under the
       `odd-retries` selector and returned **45 of 45**, against reading 2's 42 of 45 on the named
@@ -266,26 +267,28 @@ byte-identical, so the revert is a deletion.
       (`docs/curve/reading-05-result.md`) served 15 Haiku trials at 200 KB with the window from
       line 120: 12 of 15, and all three misses at exactly `target − 117`, the row-index prediction,
       none at `target+2`. The transcript shows the row the client took — `634	  751| timeout = 30`,
-      the read arm's file reader's number beside mrw's — which suggests, and does not establish, that
-      the client read the reader's gutter rather than counted mrw's rows; a transcript is not a
-      score. Compliance 15/15; the three misses apply unguarded and are refused with `anchor=`,
-      16 of 16 across readings 2–5.
+      the read arm's file reader's number beside mrw's — which suggested the client read the reader's
+      gutter rather than counted mrw's rows; reading 8 (the item below) then established it. Compliance
+      15/15; the three misses apply unguarded and are refused with `anchor=`, 16 of 16 across
+      readings 2–5.
 - [ ] **Difficulty is not what this harness lacks for the stronger client, and reading 4 has
       already tried the weaker one.** Two fixtures sit at 100% for Sonnet. The candidates that remain,
       in the order they look worth trying: raise the DISTRACTOR count, held at 3 in every reading and
       never manipulated, so the target has always been one of four; or a property over pairs rather
       than over one field. Each is a generator change and a budget decision, so neither is a task here.
 - [x] **The reading bent, at the size that is `MaxResultChars`, for one of two clients — and the
-      revisit of ADR-011-T3 waits.** The condition on this item fired in reading 4: 8 of 15 at
-      200,000 served bytes for Haiku, against 15 of 15 for Sonnet on identical cells. But the bend is
-      not a retrieval failure — every miss found the right block and wrote the right text — and every
-      one of the 13 misses across readings 2–4 sits at exactly `target+2`. **Reading 5 settled what
-      the offset is:** the row index of the served text — +2 from line 1, −117 from line 120, mrw's
-      two unnumbered rows adding 2 to either. So the current evidence does not justify changing the
-      cap, and ADR-011-T3's revisit is deferred rather than ruled out. Whether the client read the gutter its own file reader lays
-      beside mrw's (the transcript points there) or counted mrw's rows itself is what the scores
-      cannot tell apart, and it is the difference between "the harness's delivery" and "mrw's own
-      rendering induces the miss". The reading that tells them apart delivers served text as a tool
-      result with no outer gutter — `cat` under Bash or `mrw_read` over MCP, Haiku, 200 KB —
-      and either returns the client to the ceiling or opens a served-path record; it is the reading
-      that licenses a stability claim, and a budget decision like the others.
+      bend was the harness read arm's delivery, not mrw's rendering.** The condition on this item fired in reading
+      4: 8 of 15 at 200,000 served bytes for Haiku, against 15 of 15 for Sonnet on identical cells,
+      every miss at exactly `target+2`. Reading 5 settled what the offset is: the row index of the
+      served text (+2 from line 1, −117 from line 120). Reading 8
+      (`docs/curve/reading-08-result.md`) settled whose count: the same client on the same fifteen
+      cells, with the served text delivered as a Bash tool result so that mrw's `N|` is the only
+      number on any row, scored **15 of 15**, compliant 15 of 15 under a pre-registered rule, no plan
+      at +2 — seven discordant pairs against reading 4, all one way, p = 0.0156. So the cap is not
+      revisited (ADR-011-T3 stays at 200,000), no served-path record opens, and the read-format
+      entry in BACKLOG.md closes with no engine change. Readings 6 and 7 were the same experiment
+      voided by their own compliance rules and are recorded as such. What stands from reading 4 is a
+      fact about one delivery: a client that reads mrw's output back through a numbering viewer gets
+      a second gutter, and the weaker client takes it. Scope of the closure: one Haiku client, the
+      fifteen 200 KB cells, a Bash-result delivery — the MCP path was not run, and no served-size
+      curve was taken within the tool-result arm.
