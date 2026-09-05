@@ -243,9 +243,9 @@ byte-identical, so the revert is a deletion.
       in the served rendering and the line number plus two were the same integer everywhere in it.
       ADR-020 T4 built the offset-window cell; reading 5 showed the offset is the row index of the
       served text (−117 from line 120); reading 8 showed that with mrw's gutter the only gutter the
-      same client on the same cells does not count rows. Scope: one Haiku client, the fifteen 200 KB
-      cells, a Bash-result delivery; the MCP path was not run and no served-size curve was taken
-      within that arm. See the two items below for the numbers.
+      same client on the same cells does not count rows; reading 9 took the curve within that arm and
+      it is flat, 45 of 45. Scope: one Haiku client, reading 4's forty-five cells, a Bash-result
+      delivery; the MCP path was not run. See the two items below for the numbers.
 - [x] **The relational fixture is NOT measurably harder, and the prediction that it would be is
       refuted.** Reading 3 (`docs/curve/reading-03-result.md`) ran the same 45 cells under the
       `odd-retries` selector and returned **45 of 45**, against reading 2's 42 of 45 on the named
@@ -289,6 +289,7 @@ byte-identical, so the revert is a deletion.
       entry in BACKLOG.md closes with no engine change. Readings 6 and 7 were the same experiment
       voided by their own compliance rules and are recorded as such. What stands from reading 4 is a
       fact about one delivery: a client that reads mrw's output back through a numbering viewer gets
-      a second gutter, and the weaker client takes it. Scope of the closure: one Haiku client, the
-      fifteen 200 KB cells, a Bash-result delivery — the MCP path was not run, and no served-size
-      curve was taken within the tool-result arm.
+      a second gutter, and the weaker client takes it. Scope of the closure: one Haiku client, reading
+      4's forty-five cells, a Bash-result delivery — the MCP path was not run. Reading 9
+      (`docs/curve/reading-09-result.md`) took the served-size curve within the tool-result arm:
+      15, 15, 15, at the read arm's cost within 3% at 2 KB and 20 KB and 7% below it at 200 KB.
