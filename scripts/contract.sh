@@ -2568,7 +2568,7 @@ closed55() {  # the same arguments -> the hook run with stdout genuinely closed
   # (found by review on a Linux host, 2026-09-04; GNU env leaves it closed,
   # which is why CI and darwin were both green).
   mk55 "$@" | env HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" CLAUDE_PROJECT_DIR="$R55/proj" \
-    bash -c 'exec >&-; exec python3 "$1"' _ "$HOOK"
+    bash -c 'exec >&-; exec perl -e "alarm shift; exec @ARGV" "$2" python3 "$1"' _ "$HOOK" "${ALARM55:-10}"
 }
 ctx55() {  # stdin: the hook's stdout -> the additionalContext, or "" ; exit 1 on a bad envelope
   python3 -c 'import json,sys
@@ -2848,7 +2848,7 @@ try: d=json.load(sys.stdin)
 except Exception: print(""); raise SystemExit
 fs=d.get("files") or []
 print(fs[0]["path"] if fs else "")')
-  hookpath=$(printf '@@ %s\nX\n' "$hdr" | python3 -c 'import json,sys,importlib.util
+  hookpath=$(printf '@@ %s\nX\n' "$hdr" | perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 -c 'import json,sys,importlib.util
 spec=importlib.util.spec_from_file_location("h", sys.argv[1]); h=importlib.util.module_from_spec(spec); spec.loader.exec_module(h)
 print("\n".join(h.plan_paths(sys.stdin.read())))' "$HOOK")
   [ "$mrwpath" = "$hookpath" ] \
@@ -2909,18 +2909,22 @@ mkdir -p "$R55/proj/inner/.git"
 ctx=$(mk55 s18 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/inner" | env -u CLAUDE_PROJECT_DIR HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 [ -z "$ctx" ] && ok "and it stops at a nested repository's .git, so the enclosing project's rules are not delivered into it" || bad "the walk-up crossed a .git boundary: $ctx"
 [ -n "$(ls "$R55/home/.cache/claude-rules-on-read" 2>/dev/null)" ] && ok "dedup state lives under the caller's cache directory, not the shared temp" || bad "no state under HOME"
-# A hook child that never returns must be a FAILED row, not a process that
-# outlives the run (#101). Every python3 "$HOOK" above runs under the alarm
-# hook55 describes; this row proves the alarm fires by handing it a hook that
-# sleeps longer than the alarm. Without the alarm the sleep completes, the
-# exit is 0 and this row goes red — after thirty seconds instead of one.
+# A hook that never returns must be a FAILED row, not a process that outlives
+# the run (#101). Every run of hook code above — hook55, closed55, and the
+# plan_paths import — goes under the alarm hook55 describes. This row proves
+# the alarm fires on the two entry points it can drive, by handing them a
+# hook that sleeps longer than a 1 s alarm; the sleep is at module level, so
+# it hangs an import exactly as it hangs an exec. Without the alarm the sleep
+# completes, the exit is 0 and the row goes red — after thirty seconds
+# instead of one. The 2>: bash reports the SIGALRM kill on stderr.
 printf 'import time\ntime.sleep(30)\n' > "$R55/hang.py"
 t0=$(date +%s)
-( HOOK="$R55/hang.py"; ALARM55=1; hook55 s19 Bash '{"command":"cat docs/adr/x.md"}' >/dev/null ) 2>/dev/null; rc=$?  # 2>: bash reports the SIGALRM kill on stderr
+( HOOK="$R55/hang.py"; ALARM55=1; hook55 s19 Bash '{"command":"cat docs/adr/x.md"}' >/dev/null ) 2>/dev/null; rc=$?
+( HOOK="$R55/hang.py"; ALARM55=1; closed55 s19c Bash '{"command":"cat docs/adr/x.md"}' ) 2>/dev/null; rc2=$?
 el=$(( $(date +%s) - t0 ))
-[ "$rc" -ne 0 ] && [ "$el" -lt 10 ] \
-  && ok "a hook that never returns is killed by the alarm and its row fails: exit $rc after ${el}s" \
-  || bad "a hanging hook outlived its alarm: exit $rc after ${el}s"
+[ "$rc" -ne 0 ] && [ "$rc2" -ne 0 ] && [ "$el" -lt 10 ] \
+  && ok "a hook that never returns is killed by the alarm and its row fails, through hook55 and closed55 alike: exit $rc/$rc2 after ${el}s" \
+  || bad "a hanging hook outlived its alarm: hook55 exit $rc, closed55 exit $rc2, after ${el}s"
 rm -rf "$R55"
 
 # 56. ADR-021: a plan names a file once, however it is spelled.
@@ -3297,13 +3301,15 @@ want 2 "$?" "a window that exists but starts after an early target is refused to
 grep -q 'excludes the target' "$R60/gap.json" \
   && ok "and says so, rather than serving a window with no answer in it" \
   || bad "the existing-window refusal does not say why: $(head -c 200 "$R60/gap.json")"
-# Nothing this run started may outlive it. The alarm in §55 is the per-child
-# bound; this is the whole-run check that would have named #101 the day it
-# happened instead of fifteen hours later. pgrep runs as a direct child so it
-# is not itself in the list, and it never reports itself.
-pgrep -P $$ > "$WORK/kids"
+# Nothing this run started may still be attached at exit. The alarm in §55 is
+# the bound that matters; this row catches a child a row started and forgot
+# to wait for. It sees DIRECT children only: a descendant already re-parented
+# to 1 — the shape #101 took — is outside what pgrep -P can see, which is why
+# the alarm is the fix and this is only the check. pgrep never reports itself.
+pgrep -P $$ > "$WORK/kids"; prc=$?   # 0 matched, 1 none; anything else is pgrep itself failing
 left=$(wc -l < "$WORK/kids" | tr -d ' ')
-[ "$left" = 0 ] && ok "no child process outlived the run" || bad "$left child process(es) still running at exit: $(tr '\n' ' ' < "$WORK/kids")"
+[ "$prc" -le 1 ] && [ "$left" = 0 ] && ok "no child process is still attached at exit" \
+  || bad "children at exit: $left attached (pgrep exit $prc): $(tr '\n' ' ' < "$WORK/kids")"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

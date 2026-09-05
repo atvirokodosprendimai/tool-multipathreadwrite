@@ -19,7 +19,10 @@ paths:
   through a pipe.
 - Every new promise gets a row; the row's number is cited in the record's Acceptance fence as
   `grep -q '^# NN\.' scripts/contract.sh`.
-- **Every child a row spawns runs under an alarm** — `perl -e 'alarm shift; exec @ARGV' N cmd`, the
-  idiom §55 uses on every hook call — and the last row asserts nothing outlived the run. A mutant
-  that hangs is a mutant the harness must bound: the 2026-09-04 regex mutant was killed by its row
-  and then ran for fifteen hours under parent 1 (#101).
+- **Every run of hook code in §55 goes under an alarm** — `hook55`, `closed55` and the `plan_paths`
+  import all use `perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" …` — and the last row of the
+  run asserts no child is still attached at exit (direct children only; an orphan already under
+  parent 1 is invisible to it, so the alarm is the fix and that row is the check). A mutant that
+  hangs is a mutant the harness must bound: the 2026-09-04 regex mutant was killed by its row and
+  then ran for fifteen hours under parent 1 (#101). Extend the same idiom to any new child a row
+  could leave running.
