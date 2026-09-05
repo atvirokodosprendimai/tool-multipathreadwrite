@@ -17,9 +17,6 @@ from line 1. Reading 4: 8 of 15 hits, seven misses, all at `target+2`.
 
 ## Client and arm
 
-*(Note, 2026-09-05, after collection: the commit that added this plan, `bfc27fa`, says "twelve
-listed commands" in its message; the plan below says thirteen, and thirteen is what ran.)*
-
 **Client:** a fresh Haiku subagent per trial (`claude-haiku-4-5`).
 
 **Arm: the scripted tool-result arm.** Bash and Write only. The prompt lists thirteen commands:

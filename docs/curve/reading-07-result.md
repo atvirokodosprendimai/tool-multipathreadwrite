@@ -58,6 +58,14 @@ reading 8 grants it in advance: a run of consecutive listed ranges merged into o
 same rows is the listed work done in fewer calls, and the harness's persistence calls after the
 Write are not the trial's.
 
+## Corrections to the plan, recorded here and not in it
+
+The plan is byte-identical to its commit (`700133e`), as every plan in this series must be. Two of
+its sentences are wrong and are corrected here: the listed set is fourteen commands — `cat` and
+thirteen ranges — not eleven as the plan's tolerance paragraph says; the prompt and the compliance
+rule were always the fourteen. And the plan's "Bash and Write only" makes the post-Write memory calls
+in two trials a violation, as the compliance section above records.
+
 ## Provenance
 
 Scores in `docs/curve/reading-07-scores/`, tally in `docs/curve/reading-07-tally.json`. Compliance

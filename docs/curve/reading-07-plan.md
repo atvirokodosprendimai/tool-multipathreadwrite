@@ -37,10 +37,7 @@ Compliance, per trial, from its transcript, matched on the prompt marker:
 - no Bash result spilled to a file.
 
 **Pre-registered tolerance, from reading 6:** none. The commands are given, so there is nothing to
-tolerate; a client that cannot run the listed commands in order is a result about the client.
-*(Correction, 2026-09-05, after collection: the listed set is fourteen commands — `cat` and thirteen
-ranges — not eleven as this paragraph first said. The count in the prompt and the compliance rule
-were the fourteen; only this sentence was wrong.)*
+tolerate; a client that cannot run eleven listed commands in order is a result about the client.
 
 ## Predictions, recorded before collection
 

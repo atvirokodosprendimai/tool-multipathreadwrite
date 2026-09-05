@@ -80,8 +80,17 @@ fifteen 200 KB cells, through a Bash-result delivery; the MCP path was not run:
 Reading 4's read-arm result stands as a fact about that delivery: a client that saves mrw's output
 to a file and reads it back through a numbering viewer recreates the collision, and the weaker
 client then takes the first gutter. That path is real but not the tool's; it is documented, not
-fixed. And the ceiling here is one client on one fixture at one size, fifteen trials: a second
-client or a harder fixture through this arm is a budget decision, not a gap in this claim.
+fixed. The ceiling here is one client on one fixture at one size, fifteen trials: a second client or
+a harder fixture through this arm is a budget decision, not a gap in this claim. And this arm
+differs from reading 4's in two things, not one: the gutter is gone, and the text arrives in `sed`
+ranges of at most 345 rows rather than in the file reader's windows. The gutter is the parsimonious
+account — reading 5 put the misses exactly at its prediction — and the chunking is intrinsic to a
+Bash delivery on this harness; but the two were not separated, and a reading that delivers the
+same ranges with an outer gutter would be the one to separate them.
+
+**A note on the plan's commit.** The plan is byte-identical to its commit (`bfc27fa`). That commit's
+message says "twelve listed commands"; the plan says thirteen, and thirteen is what ran. The message
+is wrong and the file is right; the note lives here because a plan is not edited after its trials.
 
 ## Cost
 
