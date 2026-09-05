@@ -30,7 +30,8 @@ Not measured, as the plan said.
 A client from a second family, shown mrw's served text with `N|` the only number and the plan's
 shape once, addresses the target at every size and every position: 2 KB to 200 KB is flat for it,
 as the bare tool result was flat for the weaker Claude client (readings 8, 9) and as both
-fixtures were flat for the stronger one (readings 2, 3, and 14 on its strict trials). The account
+four-service fixtures were flat for the stronger one through its reader (readings 2, 3; reading 14
+on a thirteen-service fixture is evidence-limited and reading 17 re-runs it). The account
 "the number, not the size" gains a family. With reading 15: what the shape not shown cost was
 thirty-four plans in a grammar mrw does not read, and what it cost in addressing was nothing —
 every trial in both readings named the target line.

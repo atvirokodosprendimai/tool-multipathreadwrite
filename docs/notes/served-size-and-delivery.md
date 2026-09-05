@@ -13,10 +13,10 @@ serve about ten thousand tokens and stop — had never been measured against the
 built an instrument (`curve`) that generates a fixture, records exactly what mrw would serve, has
 a fresh client author one plan against it, and scores the plan by applying it: the line that
 changed is the measurement. Under a criterion pre-registered before any cell existed, eleven
-readings were taken, plus a twelfth at 2 KB and 20 KB (reading 13) and two on a harder fixture
-(reading 14, evidence-limited, and reading 17; reading 12, the MCP arm, waits on ADR-023), each
-plan committed before its trials, and every score file of the thirteen scored readings committed
-(reading 1 is a void notice, not scores).
+readings were taken through reading 11, then reading 13 at 2 KB and 20 KB, reading 14 on a harder
+fixture (evidence-limited), and readings 15 and 16 on a second model family (reading 12, the MCP
+arm, waits on ADR-023) — each plan committed before its trials, and every score file of the
+fifteen scored readings committed (reading 1 is a void notice, not scores).
 
 Two results. First, for a strong client, serving a hundred times more bytes cost 2.4–2.5× the
 tokens with no measurable reduction in correct addressing at these sizes, on two fixtures, and

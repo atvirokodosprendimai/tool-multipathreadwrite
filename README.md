@@ -909,7 +909,7 @@ ADR-020 built an instrument to find out rather than argue about it: `curve` gene
 client authors a plan against what mrw would serve, and the scorer applies the plan and reports which
 line changed. The pre-registration in `docs/adr/BACKLOG.md` fixed the criterion before a cell existed
 — correct-address rate against served bytes, stratified by position, **a flat curve accepted as an
-answer** — and fourteen readings have been taken under it: three void under their own rules (1, 6, 7), one evidence-limited under its own (14), and ten with results; reading 12, the MCP arm, waits on ADR-023. Every plan was committed before its trials
+answer** — and sixteen readings have been taken under it: four void under their own rules (1, 6, 7, and 15 on format), one evidence-limited under its own (14), and ten with results; reading 12, the MCP arm, waits on ADR-023. Every plan was committed before its trials
 ran, every score file is committed, and every table below recomputes from them.
 
 | Reading | Client | Fixture | 2 KB | 20 KB | 200 KB | What it settled |
