@@ -142,8 +142,8 @@ both ways. Reading 13 took the same number to 2 KB and 20 KB: 14 and 13 of 15, t
 size measured (observed points 14, 13, 10 through a tool result, 15, 12, 8 through its reader),
 where the bare arm had no miss at any (15, 15, 15). Thirty trials with three misses do not establish
 a size trend, and the note's claim stays what it was: served size did not bend the curve through
-the bare delivery; the second number did, at every size. The late-only pattern of reading 11 is
-neither reproduced nor refuted by three misses.
+the bare delivery; with the second number present, misses appeared at every size measured. The
+late-only pattern of reading 11 is neither reproduced nor refuted by three misses.
 
 What this is and is not. It is a measurement that, for this client on this fixture family, the
 only recurring miss followed a second number laid beside mrw's whose value is plausible as a
