@@ -7,21 +7,26 @@ It is an ordinary command-line tool. It was built for AI coding agents, which
 are the ones doing hundreds of small edits a day, but nothing about it requires
 one.
 
-**Status: stable at v1.0.0 (2026-09-05), the tag cut from the main that carries this paragraph.**
+**Status: stable at v1.1.0 (2026-09-05), the tag cut from the main that carries this paragraph.**
 What that word rests on is recorded in this tree. The six promises listed in `AGENTS.md` are each
 an ADR and each a set of rows in `scripts/contract.sh`, which drives the built binary and prints its
 own total; every row is green on the tree the tag is cut from. A break campaign of 47 probes
-(`scripts/break-campaign.sh`, its run in `docs/break/`) against main `d633e57` — the tree the
+(`scripts/break-campaign.sh`, its run in `docs/break/`) against main `d6c62e7` — the tree the
 binary is built from, since nothing after it is Go — found no silent wrong write, and every refusal
 in it names its reason. And the served-size curve is measured rather than asserted: a strong client
 at the ceiling on the fixture built to be failed (reading 3), the one recurring miss identified as a
 row index (reading 5), the weaker client at the ceiling once the served text reached it without
-a second number that reads as a line address (readings 8, 9, 10), and that number put back
-bringing the miss back in five of fifteen trials (reading 11); the section *Does serving more
-hurt?* has the numbers and their limits.
+a second number that reads as a line address (readings 8, 9, 10), that number put back
+bringing the miss back in five of fifteen trials (reading 11), and the ceiling holding on a
+thirteen-service fixture (reading 17) and for a client from a second vendor (reading 16); the
+section *Does serving more hurt?* has the numbers and their limits.
 Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
 tools — changes only through a record, and a record that relaxes or replaces an earlier promise
-retires it.
+retires it. **Since v1.0.0 that has happened once:** ADR-023 retires half of ADR-011's T2, so
+`mrw_read` returns no `structuredContent` and declares no `outputSchema`; its receipt is the
+second text block, unchanged in shape. A caller that read `result.structuredContent` off a read
+parses the JSON string in `result.content[1].text` instead — the same object, one block over.
+`mrw_write` is untouched, and so is every CLI behaviour.
 
 Install it with one command — see [Install](#install) for the details:
 
@@ -467,7 +472,7 @@ between the two paths and no behaviour to
 learn twice — the server is a second caller of one engine, not a second product.
 The single difference is the concurrency note above. One shape to know: a read's
 answer is its first text block and its receipt (observed spans, problems, `next_read`)
-its second, with no `structuredContent` — because a host was measured rendering
+the JSON string in its second, with no `structuredContent` — because a host was measured rendering
 `structuredContent` in place of the text, which for a read is the receipt without the
 lines (ADR-023, issue #109). A write's receipt is its `structuredContent`, and the
 measured host shows exactly that.
