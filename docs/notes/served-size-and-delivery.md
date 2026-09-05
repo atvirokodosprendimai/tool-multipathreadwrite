@@ -13,7 +13,8 @@ serve about ten thousand tokens and stop — had never been measured against the
 built an instrument (`curve`) that generates a fixture, records exactly what mrw would serve, has
 a fresh client author one plan against it, and scores the plan by applying it: the line that
 changed is the measurement. Under a criterion pre-registered before any cell existed, nine
-readings were taken, each plan committed before its trials and every score file committed.
+readings were taken, each plan committed before its trials, and every score file of the eight
+scored readings committed (reading 1 is a void notice, not scores).
 
 Two results. First, for a strong client, serving a hundred times more bytes cost 2.4–2.5× the
 tokens with no measurable reduction in correct addressing at these sizes, on two fixtures. Second,
@@ -39,7 +40,8 @@ parsimonious account of what did.
 ```
 
 A plan then addresses a line by the number in that gutter: `@@ services.conf 2898 replace`. The
-cap on a served result is 200,000 characters (ADR-011). The question was the throughput one: as
+cap on an MCP `mrw_read` result is 200,000 characters as advertised, enforced as 200,000 bytes
+(ADR-011); the CLI is uncapped. The question was the throughput one: as
 the served window grows toward that cap, does a client's ability to address the right line hold,
 degrade, or collapse — and at what token cost?
 
@@ -59,8 +61,8 @@ The criterion was written into the backlog before the generator existed: correct
 against served bytes, stratified by target position (early, middle, late), refusals reported
 beside the cell and never in it, five repeats per cell, and **a flat curve accepted as an answer**.
 
-Each reading's plan — cells, client, arm, predictions — is committed before its first trial and
-never edited after; corrections live in the result document. Compliance is verified from each
+Each reading's plan — cells, client, arm, predictions — is committed before its first trial, and
+the plan in the tree is byte-identical to that commit; corrections live in the result document. Compliance is verified from each
 trial's transcript, matched on the prompt marker, never on the cell id: which tools were called,
 whether the served text was read whole, whether anything searched. A non-compliant trial is void
 and reported, never counted as a miss.
@@ -137,7 +139,7 @@ tier; peak (the largest single request's context) is in the result documents.
 | Haiku, file reader (reading 4) | 31,062 | 36,469 | 91,546 | 2.95× |
 | Haiku, tool result (readings 8, 9) | 31,909 | 36,444 | 84,789 | 2.66× |
 
-The fixed cost of a session dominates: a hundredfold increase in served bytes is a 2.4× to 2.9×
+The fixed cost of a session dominates: a hundredfold increase in served bytes is a 2.4× to 3.0×
 increase in tokens, and the 20 KB tier costs 12–17% more than the 2 KB tier. A ten-thousand-token
 window was not a tier and is not measured here. The same bytes cost the same
 through either delivery — within 3% at 2 KB and 20 KB, 7% less at 200 KB — which is what a
@@ -156,7 +158,10 @@ that counted. Each void is recorded with its observations; none contributes to a
 Two plan files were edited after collection during this series — a wrong count corrected, a dated
 note added — and both edits were reverted at review, because a plan that can be edited whenever the
 edit looks harmless is not a pre-registration. Every plan in the series is byte-identical to the
-commit that added it. And every rate, interval, offset and pairing in every result document is
+commit that added it. Because `main` takes squash merges, the plan-before-trials ordering is
+checkable in the pull requests rather than on `main`: reading 2 in #90, 3 in #96, 4 in #98, 5 in
+#103 (plan commit `e65a684`), 6 to 8 in #104 (`5ebb34d`, `700133e`, `bfc27fa`), 9 in #106
+(`30d5637`). And every rate, interval, offset and pairing in every result document is
 computed by the script that reads the scores; the two numbers in this series that were typed from
 memory — a paired count and a range width — were both wrong, and were caught by review.
 
