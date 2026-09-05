@@ -500,3 +500,72 @@ func describedPaths(t *testing.T, where string, schema map[string]any, prefix st
 	}
 	return found
 }
+
+// receipt parses the serialized receipt out of content[1]. For mrw_read this
+// is the ONLY machine-readable copy: ADR-023 removed structuredContent from
+// every read result because a host that renders structuredContent in place of
+// content showed the model the receipt and none of the served lines.
+func receipt(t *testing.T, res map[string]any) map[string]any {
+	t.Helper()
+	content, _ := res["content"].([]any)
+	if len(content) < 2 {
+		t.Fatalf("want two content blocks (the answer, then the receipt), got %v", res["content"])
+	}
+	text, _ := content[1].(map[string]any)["text"].(string)
+	var out map[string]any
+	if err := json.Unmarshal([]byte(text), &out); err != nil {
+		t.Fatalf("content[1] is not the serialized receipt: %v\n%q", err, text)
+	}
+	return out
+}
+
+// TestAReadResultCarriesNoStructuredContent is ADR-023's Enforced-by.
+//
+// Measured 2026-09-05 on Claude Code 2.1.261: a successful tool result that
+// carries structuredContent reaches the model AS the structuredContent — the
+// content blocks are dropped. For mrw_write that is the verdict and fine; for
+// mrw_read it is the receipt without the lines, while the ledger has already
+// recorded those lines as seen. So no mrw_read result — served, paged, index —
+// may carry structuredContent, and the receipt travels in content[1] alone.
+// The write tool is asserted in the same test so the two cannot drift apart
+// unnoticed: one keeps the envelope, one does not, on purpose.
+func TestAReadResultCarriesNoStructuredContent(t *testing.T) {
+	root, path := checkout(t, "a.txt", "one\ntwo\n")
+	served := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+
+	bigRoot, bigPath := bigCheckout(t, 12000)
+	paged := call(t, bigRoot, "mrw_read", map[string]any{"specs": []any{bigPath}})
+
+	idxRoot := grepTree(t, 60, 400)
+	index := call(t, idxRoot, "mrw_read", map[string]any{"grep": "NEEDLE"})
+
+	for name, res := range map[string]map[string]any{"served": served, "paged": paged, "index": index} {
+		if _, has := res["structuredContent"]; has {
+			t.Errorf("%s read result carries structuredContent; a host that renders it in place of content hides the served text", name)
+		}
+		if _, ok := receipt(t, res)["observed"]; !ok {
+			t.Errorf("%s read result's content[1] carries no observed field; the receipt must still travel", name)
+		}
+	}
+	if paged["isError"] != true {
+		t.Fatal("the oversized read did not page; this fixture exists to produce a page")
+	}
+	if next, _ := receipt(t, paged)["next_read"].(string); next == "" {
+		t.Error("a page's content[1] names no next_read; the continuation moved out of structuredContent and must still be findable")
+	}
+	if idx, _ := receipt(t, index)["index"].([]any); len(idx) == 0 {
+		t.Error("an index's content[1] carries no index entries")
+	}
+
+	// mrw_write keeps its envelope, equal to its own content[1].
+	w := call(t, root, "mrw_write", map[string]any{"plan": "@@ a.txt 1 replace\nONE\n"})
+	sc, has := w["structuredContent"]
+	if !has {
+		t.Fatal("mrw_write lost its structuredContent; its answer IS the receipt and the measured host shows exactly that")
+	}
+	want, _ := json.Marshal(sc)
+	got, _ := json.Marshal(receipt(t, w))
+	if string(want) != string(got) {
+		t.Errorf("mrw_write's content[1] and structuredContent disagree:\n got %s\nwant %s", got, want)
+	}
+}

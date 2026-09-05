@@ -670,3 +670,29 @@ func TestTheRoutingClaimsOnlyRealExclusives(t *testing.T) {
 		}
 	}
 }
+
+// TestMrwReadDeclaresNoOutputSchema pins ADR-023's half of the tools/list
+// surface: a tool that returns no structuredContent must declare no
+// outputSchema (the 2025-06-18 specification's MUST), and mrw_write, which
+// still returns one, still declares one.
+func TestMrwReadDeclaresNoOutputSchema(t *testing.T) {
+	seen := map[string]bool{}
+	for _, tl := range tools() {
+		seen[tl.Name] = true
+		switch tl.Name {
+		case "mrw_read":
+			if tl.OutputSchema != nil {
+				t.Errorf("mrw_read declares an outputSchema; it returns no structuredContent, so the declaration promises a field that never arrives")
+			}
+		case "mrw_write":
+			if tl.OutputSchema == nil {
+				t.Errorf("mrw_write declares no outputSchema; its receipt is structured and validated, and ADR-011 still governs it")
+			}
+		}
+	}
+	for _, n := range []string{"mrw_read", "mrw_write"} {
+		if !seen[n] {
+			t.Errorf("tools/list does not advertise %s", n)
+		}
+	}
+}
