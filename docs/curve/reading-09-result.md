@@ -43,7 +43,8 @@ appear at any size once mrw's gutter is the only gutter.
 | 200,000 | 84,789 | 91,546 | 0.93× | 103,428 | 109,025 |
 
 Prediction 4 holds: the ratio from 2 KB to 200 KB through this arm is 2.66×, against reading
-4's 2.95×, and each tier's median is within 3% of the read arm's. The same bytes cost the same
+4's 2.95×; at 2 KB and 20 KB this arm's median is within 3% of the read arm's, and at 200 KB it is
+7% lower. The same bytes cost the same
 through either delivery — which is what a delivery-not-size account predicts.
 
 ## What this decides

@@ -916,7 +916,7 @@ ran, every score file is committed, and every table below recomputes from them.
 | 6 | Haiku | relational, tool-result arm | — | — | (15/15) | **Void under its own rule**: 0 of 15 compliant — ranges over the cap, searches, early stops. Reported, not counted. |
 | 7 | Haiku | relational, scripted arm | — | — | (15/15) | **Void under its own rule**: 14 of 15 merged the two listed tail ranges; no tolerance granted. Reported, not counted. |
 | 8 | Haiku | relational, scripted arm | — | — | **15/15** | **Compliant 15 of 15.** mrw's gutter the only gutter, no miss at all; 7 discordant pairs against reading 4, all one way. |
-| 9 | Haiku | relational, scripted arm | 15/15 | 15/15 | (15/15, reading 8) | **Flat at the ceiling through the tool-result arm**, 45/45 pooled; the read arm's 15, 12, 8 on the same cells becomes 15, 15, 15. Cost per tier within 3% of the read arm's. |
+| 9 | Haiku | relational, scripted arm | 15/15 | 15/15 | (15/15, reading 8) | **Flat at the ceiling through the tool-result arm**, 45/45 pooled; the read arm's 15, 12, 8 on the same cells becomes 15, 15, 15. Cost within 3% of the read arm's at 2 KB and 20 KB, 7% lower at 200 KB. |
 
 **For a strong client, serving a hundred times more bytes costs about 2.5× the tokens and loses
 nothing.** Measured twice, on two different tasks. The "serve 10k and call it a day" instinct is not
@@ -927,7 +927,7 @@ buys almost nothing.
 through a tool-result path it costs 2.66× and loses nothing at any size.** Reading 4's 45 trials read
 every byte at every size, verified from the transcripts, and still missed 7 of 15 at 200 KB; readings
 8 and 9 delivered the same client the same forty-five cells as a Bash tool result and it scored
-15, 15, 15, each tier's cost within 3% of the read arm's.
+15, 15, 15 — the cost within 3% of the read arm's at 2 KB and 20 KB, and 7% lower at 200 KB.
 
 **Every miss in every reading is the same miss, and reading 5 says what it is.** Across the 150
 read-arm trials of readings 2–5 there are 16 misses; the committed scores show all 16 changed exactly
@@ -949,7 +949,7 @@ mrw's rendering. The miss is the row index of the served text (reading 5: −117
 line 120), and when mrw's `N|` is the only number on any row — the served text arriving as a Bash
 tool result, the delivery the readings ran; the MCP path was not run — the client that missed seven
 of fifteen at 200 KB and three of fifteen at 20 KB through its file reader addressed all forty-five
-exactly, at every size, at the same cost per tier (readings 8 and 9, compliant 45 of 45 under
+exactly, at every size, at the read arm's cost or below it (readings 8 and 9, compliant 45 of 45 under
 pre-registered rules). So the cap stays at 200,000 with evidence, the served format is not changed,
 and the stability claim rests on readings 3, 5, 8 and 9 together. What stands from reading 4 is a
 fact about one delivery: read mrw's output back through a viewer that numbers rows and a weaker

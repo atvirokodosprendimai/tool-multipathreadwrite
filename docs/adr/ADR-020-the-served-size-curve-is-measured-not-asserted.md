@@ -292,4 +292,4 @@ byte-identical, so the revert is a deletion.
       a second gutter, and the weaker client takes it. Scope of the closure: one Haiku client, reading
       4's forty-five cells, a Bash-result delivery — the MCP path was not run. Reading 9
       (`docs/curve/reading-09-result.md`) took the served-size curve within the tool-result arm:
-      15, 15, 15, the same cost per tier as the read arm within 3%.
+      15, 15, 15, at the read arm's cost within 3% at 2 KB and 20 KB and 7% below it at 200 KB.
