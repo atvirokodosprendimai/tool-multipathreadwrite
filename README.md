@@ -898,6 +898,10 @@ not the same as nothing failed.
 
 ## Does serving more hurt? — the served-size curve, measured
 
+
+The measurement note that draws these readings together — the instrument, the two results, the method
+and its limits — is `docs/notes/served-size-and-delivery.md`.
+
 `MaxResultChars` is 200,000. Nothing in this repository knew whether that number was right, so
 ADR-020 built an instrument to find out rather than argue about it: `curve` generates a fixture, a
 client authors a plan against what mrw would serve, and the scorer applies the plan and reports which
