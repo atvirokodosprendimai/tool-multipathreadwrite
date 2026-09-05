@@ -125,13 +125,15 @@ Stop if removing `structuredContent` from `mrw_read` requires changing the recei
 
 ## Verification Log
 
-Read this log with two things in mind. Rows at digest `6a58ea72…` are for the fence as it stood
-before its two grep clauses were made portable (bare backticks, a trailing space), and they were
-taken on macOS, whose BSD grep read the escaped form as backticks; the bot's Linux run of that
-fence exited 1, which is why the clauses changed. The single exit-1 row at `201869c*` is a
-contract run in which one assertion failed and the run was then terminated by the fence's own
-process-group cleanup; the contract alone passed all 513 rows on the next run, and the failed row
-was not captured. It is kept because it happened.
+Read this log with three digests in mind. Rows at `14ab23ac…` are for the fence as first written,
+with the README clause the Codex review of #110 showed to be vacuous. Rows at `6a58ea72…` are for
+the fence after that clause was replaced and before its two grep clauses were made portable (bare
+backticks, a trailing space); they were taken on macOS, whose BSD grep read the escaped form as
+backticks, and the bot's Linux run of that fence exited 1, which is why the clauses changed. Rows at
+`9e7d041b…` are the fence as it stands. The single exit-1 row at `201869c*` is a contract run in
+which one assertion failed and the run was then terminated by the fence's own process-group
+cleanup; the contract alone passed every row on the next run, and the failed row was not captured.
+It is kept because it happened.
 - 2026-09-05 · 679d457* · exit 1 · `set -o pipefail …` · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · ms:1008
   ```
   --- last 8 line(s) of stdout
