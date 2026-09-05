@@ -71,6 +71,11 @@ type Params struct {
 	// Selector is how the instruction points at the target. The zero value is
 	// ByName, the fixture T1 shipped.
 	Selector Selector
+	// ServeFrom is the first line the client is served; zero means the whole
+	// file. Every cell before T4 served from line 1, where a row count in the
+	// rendering — whose first two rows carry no line number — and the line
+	// number plus two coincide. A window from line N separates them by N-1.
+	ServeFrom int
 }
 
 // Manifest is what the client receives. It carries NO ground truth: not the
@@ -171,14 +176,24 @@ func Generate(dir string, p Params) (Manifest, error) {
 		if err := os.WriteFile(filepath.Join(tree, targetFile), []byte(content), 0o600); err != nil {
 			return Manifest{}, err
 		}
-		served, err = serve(tree)
-		if err != nil {
+		// A window past the end of a still-short file is not a serve failure,
+		// it is a fixture that has not grown enough yet: serve nothing and let
+		// the loop add padding until the window exists.
+		if p.ServeFrom > strings.Count(content, "\n") {
+			served = nil
+		} else if served, err = serve(tree, p.ServeFrom); err != nil {
 			return Manifest{}, err
 		}
 		if len(served) >= p.ServedBytes {
 			break
 		}
 		if step >= fitSteps {
+			if p.ServeFrom > 0 && served == nil {
+				// The window never came into existence: the file would need
+				// more lines than this size cell produces. Say that, rather
+				// than the byte count, because the byte count is a symptom.
+				return Manifest{}, fmt.Errorf("a window served from line %d excludes the target: the fixture has only %d lines at %d served bytes, so the window never exists", p.ServeFrom, strings.Count(content, "\n"), p.ServedBytes)
+			}
 			return Manifest{}, fmt.Errorf("could not reach %d served bytes in %d steps (at %d)", p.ServedBytes, fitSteps, len(served))
 		}
 		pad += (p.ServedBytes-len(served))/padBytes + 1
@@ -192,6 +207,11 @@ func Generate(dir string, p Params) (Manifest, error) {
 		File:        targetFile,
 		StateHome:   state,
 		Instruction: instruction(p, names[target]),
+	}
+	// A window that excludes the target is unanswerable rather than hard, and
+	// it can only be checked here, once the fit has settled the target's line.
+	if p.ServeFrom > line {
+		return Manifest{}, fmt.Errorf("a window served from line %d excludes the target at line %d; the client would be served no answer", p.ServeFrom, line)
 	}
 	a := Answer{TrialID: m.TrialID, Line: line, Position: p.Position, Distractors: p.Distractors}
 	if err := writeJSON(filepath.Join(abs, manifestName), m); err != nil {
@@ -222,6 +242,9 @@ func (p Params) check() error {
 	// other, so "the one that differs from every other" picks out nothing.
 	if p.Distractors < 2 {
 		return fmt.Errorf("a trial needs at least two distractors so the strata differ, got %d", p.Distractors)
+	}
+	if p.ServeFrom < 0 {
+		return fmt.Errorf("serve-from must be a line number or zero for the whole file, got %d", p.ServeFrom)
 	}
 	switch p.Selector {
 	case ByName, ByOddRetries:
@@ -258,6 +281,14 @@ func trialID(p Params) string {
 	s := fmt.Sprintf("curve/v1|%d|%s|%d|%d", p.ServedBytes, p.Position, p.Distractors, p.Seed)
 	if p.Selector != ByName {
 		s += "|" + string(p.Selector)
+	}
+	// The window joins the id under the same rule as the selector: only when
+	// set, so every id recorded before T4 regenerates. Without this a windowed
+	// cell and its whole-file twin were one trial to the scorer — the defect T2
+	// closed for the selector, reopened for the window, and found by both
+	// reviews of PR #100.
+	if p.ServeFrom > 0 {
+		s += fmt.Sprintf("|from=%d", p.ServeFrom)
 	}
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:6])
@@ -361,9 +392,17 @@ func prose(rng *rand.Rand) string {
 
 // serve renders the target file exactly as `mrw read` would — header, line
 // numbers and all — so served bytes is what a caller actually pays for.
-func serve(tree string) ([]byte, error) {
+func serve(tree string, from int) ([]byte, error) {
 	var buf bytes.Buffer
-	_, problems := read.Run(&buf, tree, []read.Spec{{Path: targetFile, Raw: targetFile}}, read.Options{Numbers: true})
+	spec := read.Spec{Path: targetFile, Raw: targetFile}
+	if from > 0 {
+		// Start with End 0 is "from this line to the last": the range the
+		// engine already offers, so the fixture uses it and never touches
+		// internal/read. Raw is what the header prints for the caller.
+		spec.Ranges = []read.Range{{Start: from, Text: fmt.Sprintf("%d-", from)}}
+		spec.Raw = fmt.Sprintf("%s:%d-", targetFile, from)
+	}
+	_, problems := read.Run(&buf, tree, []read.Spec{spec}, read.Options{Numbers: true})
 	if problems != 0 {
 		return nil, fmt.Errorf("mrw could not serve %s: %d problem(s)", targetFile, problems)
 	}

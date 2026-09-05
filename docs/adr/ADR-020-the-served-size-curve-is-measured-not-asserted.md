@@ -176,12 +176,14 @@ guide gate stays true without documenting a benchmark to callers who will never 
 
 ## Implementation
 
-Three tasks. **T1** built the harness, its self-test with known-wrong answers, and the contract row
+Four tasks. **T1** built the harness, its self-test with known-wrong answers, and the contract row
 that drives the built binary end to end. **T2** adds a second way to pick the target — by a relation
 between blocks rather than by a unique name — because the first reading came back at ceiling and a
 curve cannot bend against a task nobody fails. **T3** draws the relational fixture's retry budgets
 from the trial seed, because T2 removed the unique NAME and left a constant VALUE that a client could
-have carried between cells. None of the three spends trials.
+have carried between cells. **T4** serves a cell from a chosen line rather than from line 1, because
+every miss in 135 trials sits at `target+2` and no cell so far could tell a row count from any other
++2. None of the four spends trials.
 
 **The first reading is deliberately NOT a task in this record.** It needs N trials across cells
 against a real client, which is a budget decision and a scheduling decision rather than an

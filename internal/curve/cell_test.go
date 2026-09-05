@@ -321,3 +321,105 @@ func TestTheDrawIsStableAcrossThePaddingFit(t *testing.T) {
 		}
 	}
 }
+
+// TestAServedWindowNeedNotBeginAtLineOne is ADR-020-T4's Enforced-by. Every
+// miss in 135 read-arm trials sits at target+2, and every cell so far serves
+// from line 1, where a row count in the rendering — whose first two rows carry
+// no line number — and the line number plus two are the same integer. A window
+// served from line N makes them differ by N-1, which is what lets a reading
+// tell the two apart.
+func TestAServedWindowNeedNotBeginAtLineOne(t *testing.T) {
+	base := Params{ServedBytes: 20000, Position: Late, Distractors: 3, Seed: 2, Selector: ByOddRetries}
+
+	whole, err := Generate(t.TempDir(), base)
+	if err != nil {
+		t.Fatalf("whole-file cell: %v", err)
+	}
+
+	from := base
+	from.ServeFrom = 120
+	dir := t.TempDir()
+	m, err := Generate(dir, from)
+	if err != nil {
+		t.Fatalf("windowed cell: %v", err)
+	}
+	_, a, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	served, err := os.ReadFile(filepath.Join(dir, servedName))
+	if err != nil {
+		t.Fatalf("read served: %v", err)
+	}
+	lines := strings.Split(string(served), "\n")
+
+	// 1. The rendering's range header starts where asked. This is the line a
+	//    row-counting client would mis-add; it must not start at 1.
+	if len(lines) < 2 || !strings.HasPrefix(lines[1], "@@ 120-") {
+		t.Fatalf("the served window's range header is %q, want it to begin at 120", lines[1])
+	}
+	// 2. The first numbered row is the requested line, so row 3 of the
+	//    rendering is line 120 and a row count is off by 119, not by 2.
+	if !strings.HasPrefix(lines[2], "  120|") && !strings.HasPrefix(lines[2], " 120|") && !strings.HasPrefix(lines[2], "120|") {
+		t.Fatalf("the first served row is %q, want line 120", lines[2])
+	}
+	// 3. The target is inside the window — a window that excludes it would be
+	//    unanswerable rather than hard.
+	if a.Line < 120 {
+		t.Fatalf("the answer is line %d, outside a window that starts at 120", a.Line)
+	}
+	// 4. The window is what the client is served, so it is what the fit loop
+	//    sized: the cell reaches its byte target with FEWER file lines than the
+	//    whole-file cell, not by serving the whole file and hiding the top.
+	//    Measured from served.txt, not from the manifest's own count: a
+	//    regression that served a short window and reported a whole-file
+	//    number would pass a manifest check. Found by review of PR #100.
+	if len(served) != m.ServedBytes {
+		t.Fatalf("served.txt is %d bytes but the manifest says %d", len(served), m.ServedBytes)
+	}
+	if len(served) < base.ServedBytes {
+		t.Fatalf("the windowed cell served %d bytes, below its %d-byte target", len(served), base.ServedBytes)
+	}
+	if whole.ServedBytes < base.ServedBytes {
+		t.Fatalf("the whole-file twin served %d bytes, below its target", whole.ServedBytes)
+	}
+	// 4b. The two are two trials. Same size, position, distractors, seed and
+	//     selector; only the window differs — and without the window in the
+	//     id, a result answering the whole-file cell scored against the
+	//     windowed one. Found by both reviews of PR #100.
+	if whole.TrialID == m.TrialID {
+		t.Fatalf("a windowed cell and its whole-file twin share trial id %s", m.TrialID)
+	}
+	if got := trialID(Params{ServedBytes: 2000, Position: Early, Distractors: 3, Seed: 1}); got != "96bbcee067ba" {
+		t.Fatalf("a zero-window cell regenerates as %s; reading 2 recorded 96bbcee067ba", got)
+	}
+
+	// 5. A window past the target is refused at generate time.
+	past := base
+	past.ServeFrom = 100000
+	_, err = Generate(t.TempDir(), past)
+	if err == nil {
+		t.Fatalf("a window starting past every line was generated; the client would be served no answer")
+	}
+	// And refused for the RIGHT reason. The first version of this test took
+	// any error, and the error it took was the fit loop giving up on a byte
+	// count — a symptom, not the cause — which the contract row then exposed.
+	if !strings.Contains(err.Error(), "excludes the target") {
+		t.Fatalf("refused, but not for excluding the target: %v", err)
+	}
+
+	// 6. And the case that the previous one does NOT reach: a window that
+	//    EXISTS but starts after the target. With an early target at line ~76
+	//    of a ~374-line file, a window from 200 is served in full and holds no
+	//    answer. The fit-loop refusal above never fires here, so this is the
+	//    only case that exercises the post-fit check — a mutant that deleted
+	//    that check survived until this case was added.
+	exists := Params{ServedBytes: 20000, Position: Early, Distractors: 3, Seed: 2, Selector: ByOddRetries, ServeFrom: 200}
+	_, err = Generate(t.TempDir(), exists)
+	if err == nil {
+		t.Fatalf("a window from 200 over an early target was generated; the client would be served no answer")
+	}
+	if !strings.Contains(err.Error(), "excludes the target") {
+		t.Fatalf("refused, but not for excluding the target: %v", err)
+	}
+}
