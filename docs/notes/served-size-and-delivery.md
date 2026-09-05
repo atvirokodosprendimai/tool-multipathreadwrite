@@ -13,10 +13,10 @@ serve about ten thousand tokens and stop — had never been measured against the
 built an instrument (`curve`) that generates a fixture, records exactly what mrw would serve, has
 a fresh client author one plan against it, and scores the plan by applying it: the line that
 changed is the measurement. Under a criterion pre-registered before any cell existed, eleven
-readings were taken, plus a twelfth at 2 KB and 20 KB (reading 13) and two on a harder fixture
-(reading 14, evidence-limited, and reading 17; reading 12, the MCP arm, waits on ADR-023), each
-plan committed before its trials, and every score file of the thirteen scored readings committed
-(reading 1 is a void notice, not scores).
+readings were taken through reading 11, then reading 13 at 2 KB and 20 KB, readings 14 and 17 on
+a harder fixture (14 evidence-limited), and readings 15 and 16 on a second model family (reading
+12, the MCP arm, waits on ADR-023) — each plan committed before its trials, and every score file
+of the fifteen scored readings committed (reading 1 is a void notice, not scores).
 
 Two results. First, for a strong client, serving a hundred times more bytes cost 2.4–2.5× the
 tokens with no measurable reduction in correct addressing at these sizes, on two fixtures, and
@@ -89,6 +89,8 @@ and reported, never counted as a miss.
 | 11 | Haiku | tool result, `nl -v` from the top | — | — | 10/15 | Second number equal to the reader's: five misses, all at target+2, all late. |
 | 13 | Haiku | tool result, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | The same number at the smaller sizes: three misses, all at target+2, two late and one middle; no size trend established. |
 | 14 | Sonnet | tool result, twelve distractors | (6/6) | (7/7) | (2/2) | Evidence-limited: thirty trials void on an unnamed reply channel; the fifteen strict all hit; 44/45 as sensitivity. |
+| 15 | gpt-5.6-sol | prompt, shape not shown | 8 parsed | 2 parsed | 1 parsed | Void on format 34 of 45: its own grammar; every parsed plan hit, every void message named the target. |
+| 16 | gpt-5.6-sol | prompt, shape shown | 15/15 | 15/15 | 15/15 | A second family at the ceiling at every size. |
 | 17 | Sonnet | tool result, twelve distractors | 15/15 | 15/15 | 15/15 | Reading 14 re-run with the channel named: at the ceiling, 45/45. |
 
 Every score file is in the repository under `docs/curve/reading-NN-scores/`; the rates, intervals,
@@ -200,9 +202,11 @@ memory — a paired count and a range width — were both wrong, and were caught
 
 ## 7. Limits
 
-One fixture family, five repeats per cell, two clients from one vendor; the strong client sits at
-the ceiling on both fixtures and on a thirteen-service one (reading 17: 45 of 45 through the bare
-tool result), so its curve cannot bend and says nothing about where it would. The
+One fixture family, five repeats per cell, two clients from one vendor and one from another
+(reading 16: `gpt-5.6-sol` through a prompt delivery, 45 of 45; reading 15, the same with the plan's
+shape not shown, void on format 34 of 45); the strong client sits at the ceiling on both fixtures
+and on a thirteen-service one (reading 17: 45 of 45 through the bare tool result), so its curve
+cannot bend and says nothing about where it would. The
 weaker client's ceiling through a tool result is fifteen of fifteen per tier, whose interval's
 lower bound is 0.796, not 1. Reading 9's 200 KB tier is reading 8's data, pooled under a plan that
 said so. Readings 10 and 11 separate the gutter from the chunking on fifteen cells each, and

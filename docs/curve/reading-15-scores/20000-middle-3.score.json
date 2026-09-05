@@ -1,0 +1,10 @@
+{
+  "trial_id": "5c4fefd9b6d8",
+  "cell": 20000,
+  "served_bytes": 20033,
+  "position": "middle",
+  "outcome": "refused_parse",
+  "target": 150,
+  "changed": null,
+  "reason": "plan has 4 error(s):\n  line 1: unknown op \"@@\" (want replace, insert-after, insert-before, delete or create)\n  line 2: text before the first @@ header: \"-timeout = 30\"\n  line 3: text before the first @@ header: \"+timeout = 45\"\n  line 4: text before the first @@ header: \"*** End Patch\""
+}

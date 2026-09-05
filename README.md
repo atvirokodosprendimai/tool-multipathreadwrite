@@ -909,7 +909,7 @@ ADR-020 built an instrument to find out rather than argue about it: `curve` gene
 client authors a plan against what mrw would serve, and the scorer applies the plan and reports which
 line changed. The pre-registration in `docs/adr/BACKLOG.md` fixed the criterion before a cell existed
 — correct-address rate against served bytes, stratified by position, **a flat curve accepted as an
-answer** — and fourteen readings have been taken under it: three void under their own rules (1, 6, 7), one evidence-limited under its own (14), and ten with results; reading 12, the MCP arm, waits on ADR-023. Every plan was committed before its trials
+answer** — and sixteen readings have been taken under it: four void under their own rules (1, 6, 7, and 15 on format), one evidence-limited under its own (14), and eleven with results; reading 12, the MCP arm, waits on ADR-023. Every plan was committed before its trials
 ran, every score file is committed, and every table below recomputes from them.
 
 | Reading | Client | Fixture | 2 KB | 20 KB | 200 KB | What it settled |
@@ -927,6 +927,8 @@ ran, every score file is committed, and every table below recomputes from them.
 | 11 | Haiku | relational, scripted arm, `nl -v` from the top | — | — | **10/15** | **Reading 4's number put back, the miss comes back**: five misses, every one at +2, all five late. Against reading 10, 5 discordant pairs, all one way. |
 | 13 | Haiku | relational, scripted arm, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | **The same number at the smaller sizes**: three misses in thirty, every one at +2, two late and one middle. Observed points with the number 14, 13, 10; without it (readings 9, 8) 15, 15, 15; no size trend established. |
 | 14 | Sonnet | relational, twelve distractors, scripted arm | (6/6) | (7/7) | (2/2) | **Evidence-limited.** Thirty of forty-five replied through a channel the rule did not name and are void; the fifteen strict trials all hit; all forty-five as sensitivity: 14, 15, 15, the one miss the right service's line above the target. Reading 17 re-runs it with the channel named. |
+| 15 | **gpt-5.6-sol** (Codex) | relational, prompt delivery, shape not shown | 8 parsed | 2 parsed | 1 parsed | **Void on format, 34 of 45**: the client wrote its own grammar (apply_patch, JSON, prose headers); every parsed plan hit, and every void message named the target line. A finding for ADR-012, not about size. |
+| 16 | **gpt-5.6-sol** (Codex) | relational, prompt delivery, shape shown | 15/15 | 15/15 | 15/15 | **A second family at the ceiling at every size**, 45/45; 10 discordant pairs against reading 4, all one way. |
 | 17 | Sonnet | relational, twelve distractors, scripted arm | 15/15 | 15/15 | 15/15 | **The strong client at the ceiling on a thirteen-service fixture**, 45/45, compliant 45 of 45 under a rule that names the reply channel. Cost 2.41× from 2 KB to 200 KB. |
 
 **For a strong client, serving a hundred times more bytes costs about 2.5× the tokens and loses
