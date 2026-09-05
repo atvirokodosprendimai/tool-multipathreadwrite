@@ -1,0 +1,10 @@
+{
+  "trial_id": "5a96c73dd0f9",
+  "cell": 20000,
+  "served_bytes": 20019,
+  "position": "middle",
+  "outcome": "refused_parse",
+  "target": 150,
+  "changed": null,
+  "reason": "plan has 3 error(s):\n  line 1: header needs at least \u003cpath\u003e \u003caddr\u003e \u003cop\u003e, got 2 field(s)\n  line 2: text before the first @@ header: \"timeout = 45\"\n  line 3: text before the first @@ header: \"*** End Plan\""
+}

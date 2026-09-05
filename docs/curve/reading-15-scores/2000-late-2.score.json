@@ -1,0 +1,10 @@
+{
+  "trial_id": "a480952c9a39",
+  "cell": 2000,
+  "served_bytes": 2028,
+  "position": "late",
+  "outcome": "refused_parse",
+  "target": 40,
+  "changed": null,
+  "reason": "plan is empty: no @@ headers found"
+}
