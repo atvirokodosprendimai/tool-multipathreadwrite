@@ -3458,15 +3458,21 @@ for i in range(60):
         f.write('a line that matches nothing\n')
         for j in range(400): f.write('the NEEDLE is here\n')
 "
-call61() { printf '%s\n' "$1" | m mcp 2>/dev/null; }
-served=$(call61 '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}')
-paged=$(call61 '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["big.txt"]}}}')
-index=$(call61 '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"NEEDLE"}}}')
-listed=$(call61 '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}')
-wrote=$(call61 '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\nfunc A() int { return 61 }\n"}}}')
-python3 - "$served" "$paged" "$index" "$listed" "$wrote" <<'PY'
+# Results go to FILES, not argv: a page of a 12,000-line file is ~700 KB, and
+# Linux refuses a single argument over 128 KB ("Argument list too long") —
+# which is how the first cut of this row went red in CI and green on macOS.
+call61() { printf '%s\n' "$2" | m mcp 2>/dev/null > "$WORK/61-$1.json"; }
+call61 served '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}'
+call61 paged  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["big.txt"]}}}'
+call61 index  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"NEEDLE"}}}'
+call61 listed '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+call61 wrote  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\nfunc A() int { return 61 }\n"}}}'
+python3 - "$WORK" <<'PY'
 import json,sys
-served,paged,index,listed,wrote=[json.loads(a.splitlines()[0])["result"] for a in sys.argv[1:6]]
+w=sys.argv[1]
+def load(n):
+    with open("%s/61-%s.json" % (w,n)) as f: return json.loads(f.readline())["result"]
+served,paged,index,listed,wrote=[load(n) for n in ("served","paged","index","listed","wrote")]
 for name,r in (("served",served),("paged",paged),("index",index)):
     assert "structuredContent" not in r, "%s read result carries structuredContent; a host that renders it in place of content hides the served text" % name
     c=r["content"]; assert len(c)>=2, "%s read result has %d content blocks, want the answer and the receipt" % (name,len(c))
