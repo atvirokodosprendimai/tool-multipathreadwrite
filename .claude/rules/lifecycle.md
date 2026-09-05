@@ -20,10 +20,13 @@ each of those greps BEFORE writing the fence and confirm every one is empty; a c
 matches is a clause that cannot go red.
 
 **Contract sections are not in file order.** The next free number is
-`grep -oE '^# [0-9]+\.' scripts/contract.sh | sort -k2,2n | tail -1` — keyed on the second field,
+`grep -oE '^# [0-9]+\. ' scripts/contract.sh | sort -k2,2n | tail -1` — keyed on the second field,
 because `sort -n` on a line that begins with `#` reads every key as zero, falls back to lexical order
-and answers `# 9.`. Run the recipe before committing it: the first version of this rule did not, and
-shipped the `# 9.` form. Taking the file's tail once said 49 when the highest was 50.
+and answers `# 9.`; and with the trailing SPACE, because without it the pattern also matches a comment
+that happens to begin with a decimal — `# 1.6 s here` matched as a second `# 1.` and was filed as
+issue #91 before anyone read the line. Run the recipe before committing it: the first version of
+this rule did not, and shipped the `# 9.` form; the second shipped without the space. Taking the
+file's tail once said 49 when the highest was 50.
 
 `adr-lint <record.md>` must print `PASS` before any code. Its advice lines are findings too.
 

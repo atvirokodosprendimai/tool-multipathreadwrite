@@ -882,6 +882,53 @@ size is the form that gets quoted out of the population it was measured on. An
 empty tally says so in words rather than printing zeros — nothing measured is
 not the same as nothing failed.
 
+## Does serving more hurt? — the served-size curve, measured
+
+`MaxResultChars` is 200,000. Nothing in this repository knew whether that number was right, so
+ADR-020 built an instrument to find out rather than argue about it: `curve` generates a fixture, a
+client authors a plan against what mrw would serve, and the scorer applies the plan and reports which
+line changed. The pre-registration in `docs/adr/BACKLOG.md` fixed the criterion before a cell existed
+— correct-address rate against served bytes, stratified by position, **a flat curve accepted as an
+answer** — and four readings have been taken under it. Every plan was committed before its trials
+ran, every score file is committed, and every table below recomputes from them.
+
+| Reading | Client | Fixture | 2 KB | 20 KB | 200 KB | What it settled |
+|---|---|---|---|---|---|---|
+| 1 | Sonnet | named | — | — | — | **Void.** Clients searched for the name instead of reading, so served bytes were never manipulated. `docs/curve/reading-01-void.md` |
+| 2 | Sonnet | named, read arm | 14/15 | 14/15 | 14/15 | Flat, at a ceiling. Three misses, one at each size. |
+| 3 | Sonnet | relational | 15/15 | 15/15 | 15/15 | Flat. **Refuted its own prediction** that the harder fixture would be harder. |
+| 4 | **Haiku** | relational | 15/15 | 12/15 | **8/15** | **The curve bends.** Intervals at 2 KB and 200 KB do not overlap. |
+
+**For a strong client, serving a hundred times more bytes costs about 2.5× the tokens and loses
+nothing.** Measured twice, on two different tasks. The "serve 10k and call it a day" instinct is not
+supported: the fixed cost of a session dominates until the window is very large, so a small window
+buys almost nothing.
+
+**For a weaker client it costs 2.95× and loses 47 points at 200 KB** — but not by failing to read.
+Every one of the 45 trials read every byte at every size, verified from the transcripts.
+
+**Every miss in every reading is the same miss.** Across the 135 read-arm trials of readings 2, 3 and
+4 there are 13 misses, and the committed scores show all 13 changed exactly one line, **two below** the
+target. Not noise — thirteen misses do not share one offset by chance — and not size-independent: the
+frequency rises with served bytes and falls with model strength. The result documents report, from
+the clients' plans and their replies, that each miss wrote the right replacement text for the right
+service; the plans are not committed, so that half is reported rather than recomputable.
+
+All 13 apply silently through a green receipt without a guard, and **all 13 are refused with
+`anchor=`** — run against each cell's own fixture with the built binary, and reported in each result
+document rather than reproducible from a committed receipt. That is the case for the guard, measured.
+Why it is two is not yet settled, and the candidate is uncomfortable: mrw's own served rendering opens
+with two rows that carry no line number — the `==>` header and the `@@` range — and +2 is what you get
+by counting rows instead of reading the printed number. If that is the cause, the tool's output
+induces the exact silent wrong write the tool exists to prevent, and the fix is in the read format
+rather than in the cap. The experiment that decides it is a served window that does not begin at line
+1; reading 2 could not power it at 3 misses in 45, and reading 4 can at 7 in 15. It is the next
+reading.
+
+Compliance, coverage and cost come from transcripts and request records that are not committed, and
+each result document says so. The tables, the intervals and the offsets recompute from
+`docs/curve/reading-0N-scores/`.
+
 ## Read before modify
 
 `mrw` refuses to edit a file whose current contents it has not seen.
