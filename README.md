@@ -917,7 +917,7 @@ ran, every score file is committed, and every table below recomputes from them.
 | 2 | Sonnet | named, read arm | 14/15 | 14/15 | 14/15 | Flat, at a ceiling. Three misses, one at each size. |
 | 3 | Sonnet | relational | 15/15 | 15/15 | 15/15 | Flat. **Refuted its own prediction** that the harder fixture would be harder. |
 | 4 | **Haiku** | relational | 15/15 | 12/15 | **8/15** | **The curve bends.** Intervals at 2 KB and 200 KB do not overlap. |
-| 5 | Haiku | relational, window from line 120 | — | — | 12/15 | **Every miss moved from +2 to −117.** The miss is the row index of the served text; whose gutter, reading 8 decided. |
+| 5 | Haiku | relational, window from line 120 | — | — | 12/15 | **Every miss moved from +2 to −117.** The miss is the row index of the served text; whose number the client took, readings 10 and 11 separated. |
 | 6 | Haiku | relational, tool-result arm | — | — | (15/15) | **Void under its own rule**: 0 of 15 compliant — ranges over the cap, searches, early stops. Reported, not counted. |
 | 7 | Haiku | relational, scripted arm | — | — | (15/15) | **Void under its own rule**: 14 of 15 merged the two listed tail ranges; no tolerance granted. Reported, not counted. |
 | 8 | Haiku | relational, scripted arm | — | — | **15/15** | **Compliant 15 of 15.** mrw's gutter the only gutter, no miss at all; 7 discordant pairs against reading 4, all one way. |
@@ -957,10 +957,10 @@ from line 120), and when mrw's `N|` is the only number on any row — the served
 Bash tool result, the delivery the readings ran; the MCP path was not run — the client that missed
 seven of fifteen at 200 KB and three of fifteen at 20 KB through its file reader addressed all
 forty-five exactly, at every size, at the read arm's cost or below it (readings 8 and 9, compliant
-45 of 45 under pre-registered rules). Readings 10 and 11 then separated the gutter from the
+45 of 45 under pre-registered rules). Readings 10 and 11 then separated the second number from the
 chunking: a second number that restarts per range changed nothing (14 of 14), and a second number
 equal to the reader's — the row index from the top — brought the miss back at exactly that number
-(10 of 15, all five misses late). So the cap stays at 200,000 with evidence, the served format is
+under the same chunking (10 of 15, all five misses late). So the cap stays at 200,000 with evidence, the served format is
 not changed, and the stability claim rests on readings 3, 5, 8, 9, 10 and 11 together. What stands
 from reading 4 is a fact about one kind of delivery: lay a plausible line number beside mrw's and
 a weaker client takes it. Two readings between 5 and 8 were void under their own compliance rules

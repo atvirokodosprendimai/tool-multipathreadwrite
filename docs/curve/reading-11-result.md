@@ -65,11 +65,15 @@ Prediction 4 holds: 3.0% above reading 10's median, against 20% allowed.
 ## What this decides
 
 With reading 10 it separates the two things reading 8 changed at once, and separates them the
-other way from what reading 10 alone suggested. The chunking did nothing: readings 10 and 11 chunk
-identically and differ by ten hits. The second number did everything, **provided its value reads
-as a line number** — the row index of the served text from its first row, which is what a file
-reader shows and what `nl -v` reproduced. The note's account of reading 4 therefore stands and
-generalises beyond the file reader: any delivery that lays a plausible line number beside mrw's
+other way from what reading 10 alone suggested. Readings 10 and 11 chunk identically and differ
+only in the value of the second number, and they differ on five of the fourteen comparable cells,
+all one way. So the chunking is not what removed the miss: a plausible outer line number induces
+the `T + 2` miss under chunked delivery too. What the chunking may contribute on its own these
+two readings cannot say — reading 4 against reading 11 is 8 and 10 of 15 with six discordant
+pairs both ways, and a different position pattern. The second number is sufficient, **provided
+its value reads as a line number** — the row index of the served text from its first row, which
+is what a file reader shows and what `nl -v` reproduced. The note's account of reading 4 therefore
+stands and generalises beyond the file reader: any delivery that lays a plausible line number beside mrw's
 takes the weaker client off the target by exactly the difference, here two, the header rows.
 
 What stays the same for mrw: served size did not bend the curve, at 200,000 bytes or below; the

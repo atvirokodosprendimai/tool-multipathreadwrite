@@ -132,8 +132,10 @@ second number was the row index from the top of the served text — `T + 2` on t
 reading 4's number exactly — and the miss came back: 10 of 15, five misses, every one at `T + 2`,
 and all five in the late position, where reading 4's misses had been spread across positions.
 Against reading 10 on the fourteen cells compliant in both, five discordant pairs, all one way,
-p = 0.0625. The chunking did nothing; the second number did everything, provided its value read
-as a line number.
+p = 0.0625. The chunking is not what removed the miss; a second number brings it back under
+chunked delivery too, provided its value reads as a line number. What chunking contributes on its
+own, these readings do not measure: reading 4 against reading 11 is 8 and 10 of 15, discordant
+both ways.
 
 What this is and is not. It is a measurement that, for this client on this fixture family, the
 only recurring miss is induced by a second number laid beside mrw's whose value is plausible as a

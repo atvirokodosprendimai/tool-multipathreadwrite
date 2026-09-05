@@ -281,7 +281,7 @@ byte-identical, so the revert is a deletion.
       4: 8 of 15 at 200,000 served bytes for Haiku, against 15 of 15 for Sonnet on identical cells,
       every miss at exactly `target+2`. Reading 5 settled what the offset is: the row index of the
       served text (+2 from line 1, −117 from line 120). Reading 8
-      (`docs/curve/reading-08-result.md`) settled whose count: the same client on the same fifteen
+      (`docs/curve/reading-08-result.md`) removed the second count: the same client on the same fifteen
       cells, with the served text delivered as a Bash tool result so that mrw's `N|` is the only
       number on any row, scored **15 of 15**, compliant 15 of 15 under a pre-registered rule, no plan
       at +2 — seven discordant pairs against reading 4, all one way, p = 0.0156. So the cap is not
@@ -296,5 +296,6 @@ byte-identical, so the revert is a deletion.
       Readings 10 and 11 (`reading-10-result.md`, `reading-11-result.md`) separated the two things
       the tool-result arm had changed at once: the same `sed` ranges with a second number that
       restarts per range scored 14 of 14 compliant; with a second number equal to the reader's row
-      index they scored 10 of 15, every miss at +2, all five late. The chunking did nothing; a
-      second number does, when its value reads as a line address. The closure's scope is unchanged.
+      index they scored 10 of 15, every miss at +2, all five late. So the chunking is not what removed
+      the miss; a second number brings it back under chunked delivery when its value reads as a line
+      address. The closure's scope is unchanged.
