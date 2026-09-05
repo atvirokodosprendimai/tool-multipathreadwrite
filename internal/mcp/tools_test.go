@@ -921,7 +921,7 @@ func TestNoGrepAnswerExceedsTheDeclaredCap(t *testing.T) {
 	//
 	// The oversized served page lives in a narrow band: few enough files that
 	// the report fits, many enough that `observed` (a sha and spans per file,
-	// emitted three times over) blows the encoded result. 1,500 sits in it —
+	// emitted once more, in content[1]; three times over before ADR-023) blows the encoded result. 1,500 sits in it —
 	// mutated, this serves 423,179 characters against a declared 200,000.
 	// Reaching the bug beats resembling the report that described it.
 	const files = 1500

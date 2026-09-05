@@ -47,10 +47,10 @@ test -z "$(gofmt -l .)" \
   && go vet ./... \
   && go test ./internal/mcp/ -run 'TestAReadResultCarriesNoStructuredContent|TestMrwReadDeclaresNoOutputSchema' -v 2>&1 | tee /tmp/adr023-t1.out \
   && ! grep -qE 'no tests to run|no test files|^FAIL|^--- FAIL' /tmp/adr023-t1.out \
-  && [ "$(grep -cE '^--- PASS: (TestAReadResultCarriesNoStructuredContent|TestMrwReadDeclaresNoOutputSchema)\b' /tmp/adr023-t1.out)" = "2" ] \
+  && [ "$(grep -cE '^--- PASS: (TestAReadResultCarriesNoStructuredContent|TestMrwReadDeclaresNoOutputSchema) ' /tmp/adr023-t1.out)" = "2" ] \
   && grep -q '^# 61\. ' scripts/contract.sh \
   && grep -q "write result's \`structuredContent\`" README.md \
-  && grep -q 'with no \`structuredContent\`' README.md \
+  && grep -q 'with no `structuredContent`' README.md \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check internal/state cmd/mrw/main.go \
   && go test ./... \
@@ -97,6 +97,10 @@ is the receipt for both tools, equal to `structuredContent` where one exists), b
 - 2026-09-05 · 201869c* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on a PAGE only — a served read stays bare, so a test that checked one shape would pass this · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:a page and an index carry none either
 - 2026-09-05 · 201869c* · mutant killed · exit 1 · `internal/mcp/mcp.go` · S3: declare an outputSchema for mrw_read again — a schema declared is a structuredContent promised, and none is sent · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:mrw_read declares no outputSchema while mrw_write still does
 - 2026-09-05 · 2ec22d6 · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: send an empty object where the receipt belongs in content[1] — the only machine-readable copy a read now has · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:content[1] is still the receipt
+- 2026-09-05 · b44614d* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on every mrw_read result — the envelope the measured host renders in place of the served text · acceptance-sha256:9e7d041b65677273daf84677f9f887f16d6ef4c019f0958d939d261447e70150 · covers:a served read carries no structuredContent
+- 2026-09-05 · b44614d* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on a PAGE only — a served read stays bare, so a test that checked one shape would pass this · acceptance-sha256:9e7d041b65677273daf84677f9f887f16d6ef4c019f0958d939d261447e70150 · covers:a page and an index carry none either
+- 2026-09-05 · b44614d* · mutant killed · exit 1 · `internal/mcp/mcp.go` · S3: declare an outputSchema for mrw_read again — a schema declared is a structuredContent promised, and none is sent · acceptance-sha256:9e7d041b65677273daf84677f9f887f16d6ef4c019f0958d939d261447e70150 · covers:mrw_read declares no outputSchema while mrw_write still does
+- 2026-09-05 · b44614d* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: send an empty object where the receipt belongs in content[1] — the only machine-readable copy a read now has · acceptance-sha256:9e7d041b65677273daf84677f9f887f16d6ef4c019f0958d939d261447e70150 · covers:content[1] is still the receipt
 
 ## Invariants
 
@@ -120,6 +124,14 @@ Stop if removing `structuredContent` from `mrw_read` requires changing the recei
 - Other hosts (deferred: docs/adr/BACKLOG.md — the "ADR-023: other hosts" entry)
 
 ## Verification Log
+
+Read this log with two things in mind. Rows at digest `6a58ea72…` are for the fence as it stood
+before its two grep clauses were made portable (bare backticks, a trailing space), and they were
+taken on macOS, whose BSD grep read the escaped form as backticks; the bot's Linux run of that
+fence exited 1, which is why the clauses changed. The single exit-1 row at `201869c*` is a
+contract run in which one assertion failed and the run was then terminated by the fence's own
+process-group cleanup; the contract alone passed all 513 rows on the next run, and the failed row
+was not captured. It is kept because it happened.
 - 2026-09-05 · 679d457* · exit 1 · `set -o pipefail …` · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · ms:1008
   ```
   --- last 8 line(s) of stdout
@@ -187,3 +199,8 @@ Stop if removing `structuredContent` from `mrw_read` requires changing the recei
   Terminated: 15
   ```
 - 2026-09-05 · 2ec22d6 · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:56507
+- 2026-09-05 · b44614d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9e7d041b65677273daf84677f9f887f16d6ef4c019f0958d939d261447e70150 · ms:32910
+- 2026-09-05 · b44614d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9e7d041b65677273daf84677f9f887f16d6ef4c019f0958d939d261447e70150 · ms:31099
+- 2026-09-05 · b44614d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9e7d041b65677273daf84677f9f887f16d6ef4c019f0958d939d261447e70150 · ms:30802
+- 2026-09-05 · b44614d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9e7d041b65677273daf84677f9f887f16d6ef4c019f0958d939d261447e70150 · ms:28429
+- 2026-09-05 · b44614d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9e7d041b65677273daf84677f9f887f16d6ef4c019f0958d939d261447e70150 · ms:31275
