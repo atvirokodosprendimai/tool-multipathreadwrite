@@ -12,9 +12,28 @@
 # and exit statuses are half of what is being asserted.
 set -uo pipefail
 
+# The runner is its own process-group leader, so that `pgrep -g $$` at the
+# end names every process this run started and nothing else: a descendant
+# re-parented to 1 keeps its group, so #101's two orphans would have been
+# named the day they were made rather than fifteen hours later. A shell with
+# job control gives a script its own group already; a non-interactive parent
+# (CI, adr-verify, a hook) leaves it in the parent's, so re-exec under a fresh
+# one — perl, because macOS has no setsid(1) and the script depends on perl
+# already. Proposed by a peer session on 2026-09-05 after `pgrep -P $$` was
+# shown to miss exactly the orphan shape. Consequence: under a non-interactive
+# parent a terminal Ctrl-C no longer reaches this group; the EXIT trap's kill
+# covers the run's children either way.
+if [ "$(ps -o pgid= -p $$ | tr -d ' ')" != "$$" ]; then
+  exec perl -e 'setpgrp(0,0) or die "setpgrp: $!"; exec @ARGV or die "exec: $!"' "$BASH" "$0" "$@"
+fi
+
 cd "$(dirname "$0")/.."
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+# Reap the whole group on exit: every child, and every orphan that kept the
+# group after its parent died. TERM is ignored in the runner first so the
+# group signal cannot cut the trap short — measured unnecessary on darwin,
+# where bash carried exit status through it; kept because Linux is untested.
+trap 'rm -rf "$WORK"; trap "" TERM; kill -- -$$ 2>/dev/null' EXIT
 
 # Build our OWN binary inside WORK rather than sharing bin/mrw. Two fences ran
 # concurrently under `adr-verify --sweep` on 2026-08-31 — one starting with
@@ -25,7 +44,6 @@ trap 'rm -rf "$WORK"' EXIT
 MRW=${MRW:+$(cd "$(dirname "$MRW")" && pwd)/$(basename "$MRW")}
 MRW=${MRW:-$WORK/mrw}
 go build -o "$MRW" ./cmd/mrw
-trap 'rm -rf "$WORK"' EXIT
 fails=0
 
 ok()   { printf '  PASS  %s\n' "$1"; }
@@ -3301,15 +3319,27 @@ want 2 "$?" "a window that exists but starts after an early target is refused to
 grep -q 'excludes the target' "$R60/gap.json" \
   && ok "and says so, rather than serving a window with no answer in it" \
   || bad "the existing-window refusal does not say why: $(head -c 200 "$R60/gap.json")"
-# Nothing this run started may still be attached at exit. The alarm in §55 is
-# the bound that matters; this row catches a child a row started and forgot
-# to wait for. It sees DIRECT children only: a descendant already re-parented
-# to 1 — the shape #101 took — is outside what pgrep -P can see, which is why
-# the alarm is the fix and this is only the check. pgrep never reports itself.
-pgrep -P $$ > "$WORK/kids"; prc=$?   # 0 matched, 1 none; anything else is pgrep itself failing
-left=$(wc -l < "$WORK/kids" | tr -d ' ')
-[ "$prc" -le 1 ] && [ "$left" = 0 ] && ok "no child process is still attached at exit" \
-  || bad "children at exit: $left attached (pgrep exit $prc): $(tr '\n' ' ' < "$WORK/kids")"
+# Nothing this run started may outlive it — including a descendant already
+# re-parented to 1, the shape #101 took. The runner is its own group leader
+# (top of file) and re-parenting does not change a process's group, so
+# `pgrep -g $$` is exact: every survivor of this run and nothing else. pgrep
+# writes to a file, not a $( ) substitution: the substitution's subshell and
+# its pipeline members are group members too, and were listed (measured).
+# The positive case first — a deliberate orphan must be VISIBLE — because a
+# detector that has never seen one is a detector that always says clean.
+[ "$(ps -o pgid= -p $$ | tr -d ' ')" = "$$" ] && ok "the runner is its own process-group leader" || bad "the runner is not its group leader: pgid $(ps -o pgid= -p $$ | tr -d ' ')"
+( sleep 300 & )   # its parent exits at once; it is re-parented to 1 and keeps the group
+sleep 0.2
+pgrep -g $$ > "$WORK/kids"; prc=$?
+orphan=$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')
+[ "$prc" -eq 0 ] && [ "$(ps -o ppid= -p ${orphan:-0} 2>/dev/null | tr -d ' ')" = 1 ] \
+  && ok "an orphan already under parent 1 is visible to the group check: pid ${orphan% }" \
+  || bad "the group check cannot see an orphan (pgrep exit $prc, saw '$orphan')"
+kill $orphan 2>/dev/null; sleep 0.5
+pgrep -g $$ > "$WORK/kids"; prc=$?   # 0 matched, 1 none; anything else is pgrep itself failing
+left=$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')
+[ "$prc" -le 1 ] && [ -z "$left" ] && ok "no process of this run survives it" \
+  || bad "survivors in the run's group (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
