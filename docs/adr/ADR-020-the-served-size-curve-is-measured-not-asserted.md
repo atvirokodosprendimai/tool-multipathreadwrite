@@ -305,3 +305,8 @@ byte-identical, so the revert is a deletion.
       plausible second number this client missed at every size measured (observed points 14, 13, 10
       through a tool result); without one, 15, 15, 15. No size trend is established by thirty
       trials, and the late-only pattern of reading 11 stays unexplained.
+- [x] **Reading 14** (`docs/curve/reading-14-result.md`): a harder fixture — twelve distractors,
+      thirteen services — for the strong client through the bare tool result: 14, 15, 15 of 15,
+      one miss on the right service one line above the target, cost 2.32× from 2 KB to 200 KB.
+      The flat curve is not an artefact of an easy fixture. Compliance rests on reading a
+      post-Write `SendMessage` as the harness's reply channel; the result says so.

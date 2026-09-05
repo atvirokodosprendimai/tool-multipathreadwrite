@@ -926,6 +926,7 @@ ran, every score file is committed, and every table below recomputes from them.
 | 10 | Haiku | relational, scripted arm, `nl` per range | — | — | 14/14 | **A second number that restarts per range was not taken by this client in these trials.** Compliant 14 of 15 (one merge spilled, void); no miss; predicted misses did not appear. |
 | 11 | Haiku | relational, scripted arm, `nl -v` from the top | — | — | **10/15** | **Reading 4's number put back, the miss comes back**: five misses, every one at +2, all five late. Against reading 10, 5 discordant pairs, all one way. |
 | 13 | Haiku | relational, scripted arm, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | **The same number at the smaller sizes**: three misses in thirty, every one at +2, two late and one middle. Observed points with the number 14, 13, 10; without it (readings 9, 8) 15, 15, 15; no size trend established. |
+| 14 | Sonnet | relational, twelve distractors, scripted arm | 14/15 | 15/15 | 15/15 | **The strong client at the ceiling on a thirteen-service fixture**, 44/45 pooled; the one miss is the right service's line above the target. Cost 2.32× from 2 KB to 200 KB. |
 
 **For a strong client, serving a hundred times more bytes costs about 2.5× the tokens and loses
 nothing.** Measured twice, on two different tasks. The "serve 10k and call it a day" instinct is not

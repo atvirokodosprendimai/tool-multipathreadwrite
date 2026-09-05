@@ -86,6 +86,7 @@ and reported, never counted as a miss.
 | 10 | Haiku | tool result, `nl` per range | — | — | 14/14 | Second number restarts per range: no miss; one trial void (spill). |
 | 11 | Haiku | tool result, `nl -v` from the top | — | — | 10/15 | Second number equal to the reader's: five misses, all at target+2, all late. |
 | 13 | Haiku | tool result, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | The same number at the smaller sizes: three misses, all at target+2, two late and one middle; no size trend established. |
+| 14 | Sonnet | tool result, twelve distractors | 14/15 | 15/15 | 15/15 | A thirteen-service fixture: at the ceiling; the one miss is the right service's line above. |
 
 Every score file is in the repository under `docs/curve/reading-NN-scores/`; the rates, intervals,
 offsets and pairings in this note recompute from them. Compliance, coverage, cost and the quoted
@@ -195,7 +196,8 @@ memory — a paired count and a range width — were both wrong, and were caught
 ## 7. Limits
 
 One fixture family, five repeats per cell, two clients from one vendor; the strong client sits at
-the ceiling on both fixtures, so its curve cannot bend and says nothing about where it would. The
+the ceiling on both fixtures and on a thirteen-service one (reading 14: 14, 15, 15 of 15 through
+the bare tool result, cost 2.32×), so its curve cannot bend and says nothing about where it would. The
 weaker client's ceiling through a tool result is fifteen of fifteen per tier, whose interval's
 lower bound is 0.796, not 1. Reading 9's 200 KB tier is reading 8's data, pooled under a plan that
 said so. Readings 10 and 11 separate the gutter from the chunking on fifteen cells each, and
