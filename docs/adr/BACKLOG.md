@@ -746,16 +746,13 @@ re-measuring these. Each was driven at the built binary, not read:
 
 ## From ADR-020-T4 (a served window that does not begin at line one)
 
-- **The read format, if the row-count account holds — RECEIPTED 2026-09-05, decision deferred to the
-  gutter-free reading.** Every miss in 135 read-arm trials sat at `target+2`, and mrw's served
-  rendering opens with two rows that carry no line number, so the candidate was that the tool's own
-  output induces the miss. Reading 5 (`docs/curve/reading-05-result.md`) confirmed the row-count
-  account — every miss is the row index of the served text, −117 with the window from line 120 — and
-  showed the two unnumbered rows add 2 to that index in either case. What it could not decide is
-  whose count: the transcript shows the read arm's file reader laying its own number beside mrw's
-  (`634	  751| timeout = 30`) and the client taking 634, which points at the harness's delivery and
-  not at mrw; but a transcript is not a committed score. If a reading that delivers the text with no
-  outer gutter (a Bash result, an MCP tool result) still misses by the row count, the fix is an
-  engine change with a Served-path change and needs its own record — what the gutter should look
-  like so a row cannot be mistaken for a line, and a contract row pinning the served bytes every
-  reading was collected against. If it does not miss, this entry closes with no engine change.
+- **The read format, if the row-count account holds — CLOSED 2026-09-05, no engine change.** Every
+  miss in 135 read-arm trials sat at `target+2`, and mrw's served rendering opens with two rows that
+  carry no line number, so the candidate was that the tool's own output induces the miss. Reading 5
+  (`docs/curve/reading-05-result.md`) confirmed the row-count account — every miss is the row index
+  of the served text, −117 with the window from line 120. Reading 8
+  (`docs/curve/reading-08-result.md`) delivered the same client the same cells as a Bash tool result,
+  mrw's gutter the only gutter, and it scored 15 of 15 with no plan at the row index: the count was
+  the read arm's file reader's, not mrw's. No served-path record, no change to the header rows.
+  What remains documented, not fixed: a client that saves mrw's output to a file and reads it back
+  through a numbering viewer recreates the collision.

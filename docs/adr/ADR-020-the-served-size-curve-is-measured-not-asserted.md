@@ -276,16 +276,16 @@ byte-identical, so the revert is a deletion.
       never manipulated, so the target has always been one of four; or a property over pairs rather
       than over one field. Each is a generator change and a budget decision, so neither is a task here.
 - [x] **The reading bent, at the size that is `MaxResultChars`, for one of two clients — and the
-      revisit of ADR-011-T3 waits.** The condition on this item fired in reading 4: 8 of 15 at
-      200,000 served bytes for Haiku, against 15 of 15 for Sonnet on identical cells. But the bend is
-      not a retrieval failure — every miss found the right block and wrote the right text — and every
-      one of the 13 misses across readings 2–4 sits at exactly `target+2`. **Reading 5 settled what
-      the offset is:** the row index of the served text — +2 from line 1, −117 from line 120, mrw's
-      two unnumbered rows adding 2 to either. So the current evidence does not justify changing the
-      cap, and ADR-011-T3's revisit is deferred rather than ruled out. Whether the client read the gutter its own file reader lays
-      beside mrw's (the transcript points there) or counted mrw's rows itself is what the scores
-      cannot tell apart, and it is the difference between "the harness's delivery" and "mrw's own
-      rendering induces the miss". The reading that tells them apart delivers served text as a tool
-      result with no outer gutter — `cat` under Bash or `mrw_read` over MCP, Haiku, 200 KB —
-      and either returns the client to the ceiling or opens a served-path record; it is the reading
-      that licenses a stability claim, and a budget decision like the others.
+      bend was the harness's delivery, not the tool's.** The condition on this item fired in reading
+      4: 8 of 15 at 200,000 served bytes for Haiku, against 15 of 15 for Sonnet on identical cells,
+      every miss at exactly `target+2`. Reading 5 settled what the offset is: the row index of the
+      served text (+2 from line 1, −117 from line 120). Reading 8
+      (`docs/curve/reading-08-result.md`) settled whose count: the same client on the same fifteen
+      cells, with the served text delivered as a Bash tool result so that mrw's `N|` is the only
+      number on any row, scored **15 of 15**, compliant 15 of 15 under a pre-registered rule, no plan
+      at +2 — seven discordant pairs against reading 4, all one way, p = 0.0156. So the cap is not
+      revisited (ADR-011-T3 stays at 200,000), no served-path record opens, and the read-format
+      entry in BACKLOG.md closes with no engine change. Readings 6 and 7 were the same experiment
+      voided by their own compliance rules and are recorded as such. What stands from reading 4 is a
+      fact about one delivery: a client that reads mrw's output back through a numbering viewer gets
+      a second gutter, and the weaker client takes it.
