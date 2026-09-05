@@ -52,7 +52,8 @@ reader, every one at the row index, addressed every target exactly.
 
 ## What this decides
 
-Taken with readings 5 and 7, the account is now measured rather than suggested:
+Taken with reading 5, the account is now measured rather than suggested — for this client, on these
+fifteen 200 KB cells, through a Bash-result delivery; the MCP path was not run:
 
 - **The `target+2` of readings 2–4 was the harness read arm's delivery.** Reading 5 showed the miss
   is the row index of the served text (−117 from line 120). Reading 8 shows that when mrw's rendering

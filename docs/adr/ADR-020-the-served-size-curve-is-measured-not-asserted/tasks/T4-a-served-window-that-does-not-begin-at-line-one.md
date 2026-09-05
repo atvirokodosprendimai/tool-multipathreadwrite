@@ -135,8 +135,8 @@ what this task needs, that is a finding about the engine and its own record, not
 
 ## Out of Scope
 
-- Running the discriminating reading (deferred: docs/adr/BACKLOG.md — the offset-window entry, which this task builds the cell for and does not spend)
-- Fixing the read format if the row-count account holds (deferred: docs/adr/BACKLOG.md — the read-format entry; it is an engine change with a Served-path change and needs its own record)
+- Running the discriminating reading (deferred: docs/adr/BACKLOG.md — the offset-window entry, which this task builds the cell for; promoted and spent by reading 5 on 2026-09-05, and the entry's receipt says so)
+- Fixing the read format if the row-count account holds (deferred: docs/adr/BACKLOG.md — the read-format entry; closed on 2026-09-05 by reading 8 with no engine change, and the entry says so)
 - Keying the retry pair on the whole tuple, issue #97 (deferred: issue #97 — not needed for a one-cell-per-client reading)
 
 ## Verification Log
