@@ -96,6 +96,7 @@ is the receipt for both tools, equal to `structuredContent` where one exists), b
 - 2026-09-05 · 201869c* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on every mrw_read result — the envelope the measured host renders in place of the served text · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:a served read carries no structuredContent
 - 2026-09-05 · 201869c* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on a PAGE only — a served read stays bare, so a test that checked one shape would pass this · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:a page and an index carry none either
 - 2026-09-05 · 201869c* · mutant killed · exit 1 · `internal/mcp/mcp.go` · S3: declare an outputSchema for mrw_read again — a schema declared is a structuredContent promised, and none is sent · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:mrw_read declares no outputSchema while mrw_write still does
+- 2026-09-05 · 2ec22d6 · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: send an empty object where the receipt belongs in content[1] — the only machine-readable copy a read now has · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:content[1] is still the receipt
 
 ## Invariants
 
@@ -185,3 +186,4 @@ Stop if removing `structuredContent` from `mrw_read` requires changing the recei
   --- last 1 line(s) of stderr
   Terminated: 15
   ```
+- 2026-09-05 · 2ec22d6 · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:56507
