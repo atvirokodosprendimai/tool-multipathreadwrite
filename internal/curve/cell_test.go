@@ -371,10 +371,28 @@ func TestAServedWindowNeedNotBeginAtLineOne(t *testing.T) {
 	// 4. The window is what the client is served, so it is what the fit loop
 	//    sized: the cell reaches its byte target with FEWER file lines than the
 	//    whole-file cell, not by serving the whole file and hiding the top.
-	if m.ServedBytes < base.ServedBytes {
-		t.Fatalf("the windowed cell served %d bytes, below its %d-byte target", m.ServedBytes, base.ServedBytes)
+	//    Measured from served.txt, not from the manifest's own count: a
+	//    regression that served a short window and reported a whole-file
+	//    number would pass a manifest check. Found by review of PR #100.
+	if len(served) != m.ServedBytes {
+		t.Fatalf("served.txt is %d bytes but the manifest says %d", len(served), m.ServedBytes)
 	}
-	_ = whole
+	if len(served) < base.ServedBytes {
+		t.Fatalf("the windowed cell served %d bytes, below its %d-byte target", len(served), base.ServedBytes)
+	}
+	if whole.ServedBytes < base.ServedBytes {
+		t.Fatalf("the whole-file twin served %d bytes, below its target", whole.ServedBytes)
+	}
+	// 4b. The two are two trials. Same size, position, distractors, seed and
+	//     selector; only the window differs — and without the window in the
+	//     id, a result answering the whole-file cell scored against the
+	//     windowed one. Found by both reviews of PR #100.
+	if whole.TrialID == m.TrialID {
+		t.Fatalf("a windowed cell and its whole-file twin share trial id %s", m.TrialID)
+	}
+	if got := trialID(Params{ServedBytes: 2000, Position: Early, Distractors: 3, Seed: 1}); got != "96bbcee067ba" {
+		t.Fatalf("a zero-window cell regenerates as %s; reading 2 recorded 96bbcee067ba", got)
+	}
 
 	// 5. A window past the target is refused at generate time.
 	past := base

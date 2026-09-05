@@ -3243,6 +3243,8 @@ PY
 # not a hard trial, it is an unanswerable one, and it would score as a miss.
 R60=$(mktemp -d)
 "$CURVE" generate -out "$R60/win" -bytes 20000 -position late -distractors 3 -seed 2 -selector odd-retries -from 120 > "$R60/win.json" 2>&1
+"$CURVE" generate -out "$R60/twin" -bytes 20000 -position late -distractors 3 -seed 2 -selector odd-retries > "$R60/twin.json" 2>&1
+want 0 "$?" "and its whole-file twin, same parameters, no window"
 want 0 "$?" "the built binary generates a cell served from line 120"
 python3 - "$R60" <<'PY'
 import json,sys,re
@@ -3252,7 +3254,12 @@ assert lines[1].startswith("@@ 120-"), "the served range header is %r, want it t
 assert re.match(r"^\s*120\|", lines[2]), "the first served row is %r, want line 120" % lines[2]
 a=json.load(open(d+"/win/answer.json")); m=json.load(open(d+"/win/manifest.json"))
 assert a["line"]>=120, "the answer at line %d is outside a window that starts at 120" % a["line"]
-assert m["served_bytes"]>=20000, "the window served %d bytes, below its target" % m["served_bytes"]
+import os
+served=os.path.getsize(d+"/win/served.txt")
+assert served==m["served_bytes"], "served.txt is %d bytes but the manifest says %d" % (served, m["served_bytes"])
+assert served>=20000, "the window served %d bytes, below its target" % served
+twin=json.load(open(d+"/twin/manifest.json"))
+assert twin["trial_id"]!=m["trial_id"], "the windowed cell and its whole-file twin share trial id %s, so a result for one scores against the other" % m["trial_id"]
 PY
 [ $? -eq 0 ] && ok "the window starts where asked, the target is inside it, and the window is what was sized" \
              || bad "the served window does not start at 120, excludes the target, or was not what the fit sized"

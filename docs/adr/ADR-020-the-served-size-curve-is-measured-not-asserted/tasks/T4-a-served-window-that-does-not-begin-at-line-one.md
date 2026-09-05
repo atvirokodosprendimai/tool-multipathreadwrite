@@ -97,7 +97,7 @@ clauses: this task USES a range the read engine already offers and must not touc
 ## Mutation Log
 <!-- filled during execution -->
 - 2026-09-05 · dbc1fb9* · mutant killed · exit 1 · `internal/curve/cell.go` · S2: accept -from, print its header text, and serve from line 1 anyway. TestAServedWindowNeedNotBeginAtLineOne fails on the range header and contract 60 fails on the same — the exact shape that would leave every other test green while the discriminating reading measured a window that was never there. · acceptance-sha256:447a404b6802467de7d96158e0259d7d9445e71c86a77c6e2ad5dfde59eec85e · covers:the window starts where asked
-- 2026-09-05 · dbc1fb9* · mutant survived · exit 0 · `internal/curve/cell.go` · S3: never refuse a window past the target. The unit test fails on its reason clause and contract 60 fails on its refusal pair: a cell whose answer is not in what the client sees would be generated, served, and scored as a miss — an unanswerable trial counted as a hard one. · acceptance-sha256:447a404b6802467de7d96158e0259d7d9445e71c86a77c6e2ad5dfde59eec85e · covers:the target is inside the window
+- 2026-09-05 · dbc1fb9* · mutant survived · exit 0 · `internal/curve/cell.go` · S3: never refuse a window past the target. SURVIVED: the fence passed with the post-fit check deleted, because no fixture reached that branch — the only past-the-target case used line 100000, which the fit loop refuses first. (This row's prose was written before the run as the expected outcome and originally claimed the test failed; corrected by hand after review of PR #100 to say what happened, with verdict and digest untouched.) · acceptance-sha256:447a404b6802467de7d96158e0259d7d9445e71c86a77c6e2ad5dfde59eec85e · covers:the target is inside the window
   ```
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
@@ -106,7 +106,7 @@ clauses: this task USES a range the read engine already offers and must not touc
 
 ## Invariants
 
-- `ServeFrom: 0` serves the whole file and every existing cell is byte-identical, pinned by T3's golden digests.
+- `ServeFrom: 0` serves the whole file by the path that existed before T4, and the three fixtures T3 pinned by golden digest are byte-identical — which proves that path unchanged for those three, not for every cell.
 - With `ServeFrom: N > 0` the served rendering's `@@` header begins at N and the answer's line is ≥ N.
 - A window that excludes the target is refused at generate time, never scored.
 - `internal/read` and every other engine directory are byte-identical.

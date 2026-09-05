@@ -282,6 +282,14 @@ func trialID(p Params) string {
 	if p.Selector != ByName {
 		s += "|" + string(p.Selector)
 	}
+	// The window joins the id under the same rule as the selector: only when
+	// set, so every id recorded before T4 regenerates. Without this a windowed
+	// cell and its whole-file twin were one trial to the scorer — the defect T2
+	// closed for the selector, reopened for the window, and found by both
+	// reviews of PR #100.
+	if p.ServeFrom > 0 {
+		s += fmt.Sprintf("|from=%d", p.ServeFrom)
+	}
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:6])
 }
