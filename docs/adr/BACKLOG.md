@@ -739,14 +739,23 @@ re-measuring these. Each was driven at the built binary, not read:
   it in would put two claims under one fence. Promote it when a reading needs to explain a miss
   rather than count one.
 
+  **RECEIPT, 2026-09-05 — promoted and spent.** ADR-020 T4 built the cell (`-from`); reading 5
+  (`docs/curve/reading-05-result.md`) served 15 trials from line 120 and every miss sat at
+  `target − 117`: the row count. Whose count — the read arm's file reader's, which the transcript
+  suggests, or mrw's own rows — waits on the gutter-free reading; see the ADR-020-T4 entry below.
+
 ## From ADR-020-T4 (a served window that does not begin at line one)
 
-- **The read format, if the row-count account holds.** Every miss in 135 read-arm trials sits at
-  `target+2`, and mrw's served rendering opens with two rows that carry no line number — the `==>`
-  header and the `@@` range. T4 builds the cell that can tell "the client counted rows" from any other
-  +2; the discriminating reading spends the trials. If it comes back row-count, the tool's own output
-  induces the silent wrong write the tool exists to prevent, and the fix is an engine change with a
-  Served-path change: it needs its own record, a decision about what the header rows should look
-  like so a caller cannot mistake a row for a line, and a contract row that pins the served bytes
-  every reading so far was collected against. Not a task under ADR-020, whose Served-path change is
-  `none` and stays so.
+- **The read format, if the row-count account holds — RECEIPTED 2026-09-05, decision deferred to the
+  gutter-free reading.** Every miss in 135 read-arm trials sat at `target+2`, and mrw's served
+  rendering opens with two rows that carry no line number, so the candidate was that the tool's own
+  output induces the miss. Reading 5 (`docs/curve/reading-05-result.md`) confirmed the row-count
+  account — every miss is the row index of the served text, −117 with the window from line 120 — and
+  showed the two unnumbered rows add 2 to that index in either case. What it could not decide is
+  whose count: the transcript shows the read arm's file reader laying its own number beside mrw's
+  (`634	  751| timeout = 30`) and the client taking 634, which points at the harness's delivery and
+  not at mrw; but a transcript is not a committed score. If a reading that delivers the text with no
+  outer gutter (a Bash result, an MCP tool result) still misses by the row count, the fix is an
+  engine change with a Served-path change and needs its own record — what the gutter should look
+  like so a row cannot be mistaken for a line, and a contract row pinning the served bytes every
+  reading was collected against. If it does not miss, this entry closes with no engine change.

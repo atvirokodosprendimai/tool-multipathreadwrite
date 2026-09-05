@@ -889,7 +889,7 @@ ADR-020 built an instrument to find out rather than argue about it: `curve` gene
 client authors a plan against what mrw would serve, and the scorer applies the plan and reports which
 line changed. The pre-registration in `docs/adr/BACKLOG.md` fixed the criterion before a cell existed
 — correct-address rate against served bytes, stratified by position, **a flat curve accepted as an
-answer** — and four readings have been taken under it. Every plan was committed before its trials
+answer** — and five readings have been attempted under it, four of them non-void. Every plan was committed before its trials
 ran, every score file is committed, and every table below recomputes from them.
 
 | Reading | Client | Fixture | 2 KB | 20 KB | 200 KB | What it settled |
@@ -898,6 +898,7 @@ ran, every score file is committed, and every table below recomputes from them.
 | 2 | Sonnet | named, read arm | 14/15 | 14/15 | 14/15 | Flat, at a ceiling. Three misses, one at each size. |
 | 3 | Sonnet | relational | 15/15 | 15/15 | 15/15 | Flat. **Refuted its own prediction** that the harder fixture would be harder. |
 | 4 | **Haiku** | relational | 15/15 | 12/15 | **8/15** | **The curve bends.** Intervals at 2 KB and 200 KB do not overlap. |
+| 5 | Haiku | relational, window from line 120 | — | — | 12/15 | **Every miss moved from +2 to −117.** The miss is the row number of the served text; the transcript points at the reader's gutter, and the gutter-free reading decides. |
 
 **For a strong client, serving a hundred times more bytes costs about 2.5× the tokens and loses
 nothing.** Measured twice, on two different tasks. The "serve 10k and call it a day" instinct is not
@@ -907,23 +908,30 @@ buys almost nothing.
 **For a weaker client it costs 2.95× and loses 47 points at 200 KB** — but not by failing to read.
 Every one of the 45 trials read every byte at every size, verified from the transcripts.
 
-**Every miss in every reading is the same miss.** Across the 135 read-arm trials of readings 2, 3 and
-4 there are 13 misses, and the committed scores show all 13 changed exactly one line, **two below** the
-target. Not noise — thirteen misses do not share one offset by chance — and not size-independent: the
-frequency rises with served bytes and falls with model strength. The result documents report, from
-the clients' plans and their replies, that each miss wrote the right replacement text for the right
-service; the plans are not committed, so that half is reported rather than recomputable.
+**Every miss in every reading is the same miss, and reading 5 says what it is.** Across the 150
+read-arm trials of readings 2–5 there are 16 misses; the committed scores show all 16 changed exactly
+one line, and the offset is the **row index of the served text** — the target's row counted from the
+`==>` header — two below the target when the window starts at line 1 (13 of 13 in readings 2–4), and
+117 above it when the window starts at line 120 (3 of 3 in reading 5). The transcript shows the row
+as the client saw it, `634	  751| timeout = 30`: the harness reader's number first, mrw's second, and
+the client addressing 634. That excerpt suggests the client read the first number; the scores cannot
+tell reading a gutter from counting rows, and the transcript is not committed. Each miss found the
+right service and wrote the right text; the plans are not committed, so that half is reported rather
+than recomputable.
 
-All 13 apply silently through a green receipt without a guard, and **all 13 are refused with
+All 16 apply silently through a green receipt without a guard, and **all 16 are refused with
 `anchor=`** — run against each cell's own fixture with the built binary, and reported in each result
 document rather than reproducible from a committed receipt. That is the case for the guard, measured.
-Why it is two is not yet settled, and the candidate is uncomfortable: mrw's own served rendering opens
-with two rows that carry no line number — the `==>` header and the `@@` range — and +2 is what you get
-by counting rows instead of reading the printed number. If that is the cause, the tool's output
-induces the exact silent wrong write the tool exists to prevent, and the fix is in the read format
-rather than in the cap. The experiment that decides it is a served window that does not begin at line
-1; reading 2 could not power it at 3 misses in 45, and reading 4 can at 7 in 15. It is the next
-reading.
+
+What reading 5 rules out is as useful as what it found. The bend is an addressing choice — the row
+index of the served text — and not a failure to read 200 KB or to find the block, so the current
+evidence does not justify changing the cap or the served format. What it does not settle is whose
+number the client took: its own file reader's, laid beside mrw's by the read arm's delivery, or a count
+of mrw's rows. The transcript points at the first (the reader's `634` beside mrw's `751|`, and the
+client calling 634 a line), and mrw's two unnumbered rows add 2 to either count; but a transcript is
+not a score. The reading that settles it delivers the text as a tool result with no outer gutter — a
+Bash result, an MCP tool result, which is how mrw's output reaches a client outside this harness — at
+200 KB, to the same client. It is the next one, and it is the one a stability claim waits on.
 
 Compliance, coverage and cost come from transcripts and request records that are not committed, and
 each result document says so. The tables, the intervals and the offsets recompute from

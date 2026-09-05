@@ -262,10 +262,14 @@ byte-identical, so the revert is a deletion.
       trials of readings 2–4 — an addressing error of fixed size whose frequency rises with served
       bytes and falls with model strength. All ten apply silently without a guard and are refused with
       `anchor=`.
-- [ ] **Promote the offset-window entry from BACKLOG.md.** Reading 2 deferred it because a client
-      missing 3 in 45 would need many trials to discriminate row-count from any other +2 account. A
-      client missing 7 of 15 at 200 KB settles it in a handful, and reading 4 is that client. This is
-      now the cheapest decisive experiment the harness can run.
+- [x] **The offset-window entry is promoted and spent, and the account is row numbering.** Reading 5
+      (`docs/curve/reading-05-result.md`) served 15 Haiku trials at 200 KB with the window from
+      line 120: 12 of 15, and all three misses at exactly `target − 117`, the row-index prediction,
+      none at `target+2`. The transcript shows the row the client took — `634	  751| timeout = 30`,
+      the read arm's file reader's number beside mrw's — which suggests, and does not establish, that
+      the client read the reader's gutter rather than counted mrw's rows; a transcript is not a
+      score. Compliance 15/15; the three misses apply unguarded and are refused with `anchor=`,
+      16 of 16 across readings 2–5.
 - [ ] **Difficulty is not what this harness lacks for the stronger client, and reading 4 has
       already tried the weaker one.** Two fixtures sit at 100% for Sonnet. The candidates that remain,
       in the order they look worth trying: raise the DISTRACTOR count, held at 3 in every reading and
@@ -275,8 +279,13 @@ byte-identical, so the revert is a deletion.
       revisit of ADR-011-T3 waits.** The condition on this item fired in reading 4: 8 of 15 at
       200,000 served bytes for Haiku, against 15 of 15 for Sonnet on identical cells. But the bend is
       not a retrieval failure — every miss found the right block and wrote the right text — and every
-      one of the 13 misses across readings 2–4 sits at exactly `target+2`. If the offset-window
-      experiment shows that offset is the two unnumbered header rows of a served read, the fix is in
-      the READ FORMAT and the cap is the wrong knob; if it does not, the cap is the knob and this
-      reading is its evidence. ADR-011-T3 is asked to revisit 200,000 once that experiment has run,
-      with reading 4 and its result as the input, and not before.
+      one of the 13 misses across readings 2–4 sits at exactly `target+2`. **Reading 5 settled what
+      the offset is:** the row index of the served text — +2 from line 1, −117 from line 120, mrw's
+      two unnumbered rows adding 2 to either. So the current evidence does not justify changing the
+      cap, and ADR-011-T3's revisit is deferred rather than ruled out. Whether the client read the gutter its own file reader lays
+      beside mrw's (the transcript points there) or counted mrw's rows itself is what the scores
+      cannot tell apart, and it is the difference between "the harness's delivery" and "mrw's own
+      rendering induces the miss". The reading that tells them apart delivers served text as a tool
+      result with no outer gutter — `cat` under Bash or `mrw_read` over MCP, Haiku, 200 KB —
+      and either returns the client to the ceiling or opens a served-path record; it is the reading
+      that licenses a stability claim, and a budget decision like the others.
