@@ -54,22 +54,25 @@ reader, every one at the row index, addressed every target exactly.
 
 Taken with readings 5 and 7, the account is now measured rather than suggested:
 
-- **The `target+2` of readings 2–4 was the harness's delivery.** Reading 5 showed the miss is the
-  row index of the served text (−117 from line 120). Reading 8 shows that when mrw's rendering is
-  the only thing numbering the rows, the same client on the same cells does not count rows: it reads
-  the number. mrw's own two unnumbered rows do not induce the miss.
+- **The `target+2` of readings 2–4 was the harness read arm's delivery.** Reading 5 showed the miss
+  is the row index of the served text (−117 from line 120). Reading 8 shows that when mrw's rendering
+  is the only thing numbering the rows — the served text as a Bash tool result — the same client on
+  the same cells does not count rows: it reads the number. mrw's own two unnumbered rows do not
+  induce the miss on this delivery. The MCP tool-result path was not run; it carries no outer
+  numbering either, and that is a statement about the transport, not a measurement.
 - **The served format is not changed.** No served-path record opens; the BACKLOG read-format entry
   closes with no engine change.
-- **The cap is not changed.** ADR-011-T3's 200,000 stays as it is. The bend in reading 4 was not a
-  failure to read or to find at 200 KB; it was a second gutter, and the real delivery paths — a Bash
-  result, an MCP tool result — have none.
-- **The throughput answer is now one answer, not two.** For the strong client, 100× the bytes cost
-  2.5× the tokens and lost nothing (readings 2, 3). For the weaker client, through the tool-result
-  path, 100× the bytes cost about the same ratio and lost nothing either: 15 of 15 at 200 KB. The
-  harm measured in reading 4 was the read arm's, and it is reported as such.
-- **The stability claim rests on readings 3, 5 and 8 together**: a strong client at the ceiling on
-  the relational fixture, the miss identified as a row index, and the weaker client at the ceiling
-  through a delivery with no outer gutter.
+- **The cap is not changed on this evidence.** ADR-011-T3's 200,000 stays as it is. The bend in
+  reading 4 was not a failure to read or to find at 200 KB; it was a second gutter, and the tested
+  delivery has none.
+- **The throughput answer, scoped.** For the strong client, 100× the bytes cost 2.5× the tokens and
+  lost nothing (readings 2, 3, three sizes). For the weaker client this arm ran at 200 KB only: 15 of
+  15 at the same cost as the read arm's 200 KB trials. A served-size curve within this arm was not
+  taken; the harm measured in reading 4 was the read arm's, and it is reported as such.
+- **The stability claim rests on readings 3, 5 and 8 together**, each scoped to what it ran: a
+  strong client at the ceiling on the relational fixture at three sizes, the miss identified as a
+  row index, and the weaker client at the ceiling at 200 KB through a Bash-result delivery with no
+  outer gutter.
 
 ## What it does not decide
 

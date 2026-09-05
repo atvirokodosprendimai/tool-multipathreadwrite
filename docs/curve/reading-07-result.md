@@ -35,8 +35,9 @@ the same way:
   nothing else run" and pre-registered no tolerance; that rule voids them, and the author wrote it.
 - **Two trials called `ToolSearch` and a memory tool after writing their plan.** That is the session
   harness's own persistence protocol, loaded into every subagent, firing at the end of the task; it
-  reads nothing the trial is about and ran after the plan existed. The plan's compliance conditions
-  name Read, Grep and Glob, not these, so they are reported and not what voids those two trials.
+  reads nothing the trial is about and ran after the plan existed. The prompt said Bash and Write
+  only, so under this plan those calls are a second violation in those two trials, recorded here;
+  the void verdict on them stands either way, and reading 8's plan names such calls in advance.
 - **No trial searched, spilled, skipped a row, or ran any other unlisted command.** The failure
   modes of reading 6 are gone; what remains is a client that does the listed work in one fewer call.
 

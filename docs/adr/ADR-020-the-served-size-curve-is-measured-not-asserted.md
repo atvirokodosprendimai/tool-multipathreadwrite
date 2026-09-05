@@ -236,15 +236,14 @@ byte-identical, so the revert is a deletion.
       relational cells: 15/15, 12/15, 8/15 — the second client the pre-registration's **across
       models** wording required, and the first curve that bends. What remains of this item is the
       search arm, which stands at 18 observations from reading 1 and is not pooled with any of them.
-- [ ] **The failure the reading did find is not a retrieval failure that grows with size.** Three
-      misses named `target+2` with the replacement text correct, one at each served size, and every
-      one applied silently without a guard and was refused with `anchor=`. Why it is two is not
-      settled, and this reading cannot settle it: every cell serves `@@ 1-N`, so a row count in the
-      served rendering and the line number plus two are the same integer everywhere in it. **A cell
-      whose served window does not begin at line 1 would discriminate**, and building one is a
-      generator change here, and it is deliberately NOT in T2 — it answers a different question from
-      "can the task be failed", and folding it in would put two claims under one fence. It is carried
-      in `docs/adr/BACKLOG.md` as the offset-window entry.
+- [x] **The failure the reading did find is not a retrieval failure that grows with size — and why
+      it is two is now settled.** Three misses named `target+2` with the replacement text correct,
+      one at each served size, and every one applied silently without a guard and was refused with
+      `anchor=`. Reading 2 could not say why it was two: every cell served `@@ 1-N`, so a row count
+      in the served rendering and the line number plus two were the same integer everywhere in it.
+      ADR-020 T4 built the offset-window cell; reading 5 showed the offset is the row index of the
+      served text (−117 from line 120); reading 8 showed that with mrw's gutter the only gutter the
+      same client on the same cells does not count rows. See the two items below for the numbers.
 - [x] **The relational fixture is NOT measurably harder, and the prediction that it would be is
       refuted.** Reading 3 (`docs/curve/reading-03-result.md`) ran the same 45 cells under the
       `odd-retries` selector and returned **45 of 45**, against reading 2's 42 of 45 on the named
@@ -276,7 +275,7 @@ byte-identical, so the revert is a deletion.
       never manipulated, so the target has always been one of four; or a property over pairs rather
       than over one field. Each is a generator change and a budget decision, so neither is a task here.
 - [x] **The reading bent, at the size that is `MaxResultChars`, for one of two clients — and the
-      bend was the harness's delivery, not the tool's.** The condition on this item fired in reading
+      bend was the harness read arm's delivery, not mrw's rendering.** The condition on this item fired in reading
       4: 8 of 15 at 200,000 served bytes for Haiku, against 15 of 15 for Sonnet on identical cells,
       every miss at exactly `target+2`. Reading 5 settled what the offset is: the row index of the
       served text (+2 from line 1, −117 from line 120). Reading 8

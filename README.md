@@ -928,10 +928,10 @@ All 16 apply silently through a green receipt without a guard, and **all 16 are 
 `anchor=`** — run against each cell's own fixture with the built binary, and reported in each result
 document rather than reproducible from a committed receipt. That is the case for the guard, measured.
 
-What readings 5 and 8 settle between them: the bend was the harness's delivery, not the tool's. The
-miss is the row index of the served text (reading 5: −117 with the window from line 120), and when
-mrw's `N|` is the only number on any row — the served text arriving as a Bash tool result, which is
-how mrw's output reaches a client outside this harness — the client that missed seven of fifteen
+What readings 5 and 8 settle between them: the bend was the harness read arm's delivery, not mrw's
+rendering. The miss is the row index of the served text (reading 5: −117 with the window from line
+120), and when mrw's `N|` is the only number on any row — the served text arriving as a Bash tool
+result, the delivery the reading ran; the MCP path was not run — the client that missed seven of fifteen
 through its file reader addressed all fifteen exactly (reading 8, compliant 15 of 15 under a
 pre-registered rule). So the cap stays at 200,000 with evidence, the served format is not changed,
 and the stability claim rests on readings 3, 5 and 8 together. What stands from reading 4 is a fact

@@ -54,10 +54,13 @@ fail them in four different ways:
 
 ## What the void suggests, labelled as such
 
-Six trials neither searched nor spilled and read every row but the last two of padding: early-3, early-4, early-5, late-2, middle-3, middle-4.
-Their only violation is the off-by-one range. All six hit. On the same six cells the read arm in
-reading 4 scored 3 of 6. That is a post-hoc selection under a tolerance the plan did not
-pre-register, and it is written here so the next plan can pre-register it, not as a result.
+Six trials neither searched nor spilled: early-3, early-4, early-5, late-2, middle-3, middle-4. Each
+still failed two pre-registered conditions — a range over the cap (474 and 545 rows in two of them,
+351 in the rest) and the last two padding rows unread. All six hit. On the same six cells the read
+arm in reading 4 scored 2 of 6 (recomputed from the committed scores; an earlier draft of this
+paragraph said 3 of 6 from a hand-typed list, and was wrong). That is a post-hoc selection under a
+tolerance the plan did not pre-register, and it is written here so the next plan can pre-register
+it, not as a result.
 
 ## What follows
 
