@@ -895,7 +895,7 @@ ran, every score file is committed, and every table below recomputes from them.
 | Reading | Client | Fixture | 2 KB | 20 KB | 200 KB | What it settled |
 |---|---|---|---|---|---|---|
 | 1 | Sonnet | named | — | — | — | **Void.** Clients searched for the name instead of reading, so served bytes were never manipulated. `docs/curve/reading-01-void.md` |
-| 2 | Sonnet | named, read arm | 15/15 | 14/15 | 13/15 | Flat, at a ceiling. Three misses. |
+| 2 | Sonnet | named, read arm | 14/15 | 14/15 | 14/15 | Flat, at a ceiling. Three misses, one at each size. |
 | 3 | Sonnet | relational | 15/15 | 15/15 | 15/15 | Flat. **Refuted its own prediction** that the harder fixture would be harder. |
 | 4 | **Haiku** | relational | 15/15 | 12/15 | **8/15** | **The curve bends.** Intervals at 2 KB and 200 KB do not overlap. |
 
@@ -908,13 +908,15 @@ buys almost nothing.
 Every one of the 45 trials read every byte at every size, verified from the transcripts.
 
 **Every miss in every reading is the same miss.** Across the 135 read-arm trials of readings 2, 3 and
-4, there are 13 misses and all 13 addressed the line **exactly two below** the target — right block,
-right replacement text, wrong line by a constant. Not retrieval, not noise: an addressing error of
-fixed size whose frequency rises with served bytes and falls with model strength.
+4 there are 13 misses, and the committed scores show all 13 changed exactly one line, **two below** the
+target. Not noise — thirteen misses do not share one offset by chance — and not size-independent: the
+frequency rises with served bytes and falls with model strength. The result documents report, from
+the clients' plans and their replies, that each miss wrote the right replacement text for the right
+service; the plans are not committed, so that half is reported rather than recomputable.
 
-All 13 apply silently through a green receipt without a guard. **All 13 are refused with `anchor=`.**
-That is the case for the guard, measured rather than asserted.
-
+All 13 apply silently through a green receipt without a guard, and **all 13 are refused with
+`anchor=`** — run against each cell's own fixture with the built binary, and reported in each result
+document rather than reproducible from a committed receipt. That is the case for the guard, measured.
 Why it is two is not yet settled, and the candidate is uncomfortable: mrw's own served rendering opens
 with two rows that carry no line number — the `==>` header and the `@@` range — and +2 is what you get
 by counting rows instead of reading the printed number. If that is the cause, the tool's output
