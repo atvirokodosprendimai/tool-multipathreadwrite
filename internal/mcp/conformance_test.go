@@ -24,15 +24,28 @@ import (
 func TestEveryDeclaredOutputSchemaValidatesARealResponse(t *testing.T) {
 	root, path := checkout(t, "a.txt", "one\ntwo\n")
 
+	// Only mrw_write declares a schema now: ADR-023 removed mrw_read's with its
+	// structuredContent, so a read is validated by TestAReadResultCarriesNo-
+	// StructuredContent instead. The loop below still walks EVERY tool, so a
+	// schema added later is validated without anyone editing this test.
+	// The read is for its LEDGER side effect: without it the write below is
+	// refused (ADR-002), and a refusal validates the schema's top level while
+	// never exercising the success-only fields (`applied`, `written`,
+	// `sha_after`). Found by the Codex review of #110.
+	call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
 	responses := map[string]map[string]any{}
-	responses["mrw_read"] = structured(t, call(t, root, "mrw_read", map[string]any{"specs": []any{path}}))
-	responses["mrw_write"] = structured(t, call(t, root, "mrw_write",
-		map[string]any{"plan": "@@ a.txt 1 replace\nONE\n"}))
+	w := call(t, root, "mrw_write", map[string]any{"plan": "@@ a.txt 1 replace\nONE\n"})
+	if w["isError"] == true {
+		t.Fatalf("the write was refused, so the schema would be validated against a refusal: %v", w["content"])
+	}
+	responses["mrw_write"] = structured(t, w)
 
 	declared := 0
 	for _, tool := range tools() {
 		if tool.OutputSchema == nil {
-			t.Errorf("tool %q declares no outputSchema; a caller cannot validate what it gets", tool.Name)
+			if tool.Name == "mrw_write" {
+				t.Errorf("mrw_write declares no outputSchema; its receipt is the verdict and ADR-011 still governs it")
+			}
 			continue
 		}
 		declared++
@@ -48,8 +61,8 @@ func TestEveryDeclaredOutputSchemaValidatesARealResponse(t *testing.T) {
 			t.Errorf("tool %q: %v", tool.Name, err)
 		}
 	}
-	if declared != len(tools()) {
-		t.Errorf("%d of %d tools declare an outputSchema", declared, len(tools()))
+	if declared != 1 {
+		t.Errorf("%d tools declare an outputSchema, want exactly one (mrw_write)", declared)
 	}
 }
 
@@ -77,6 +90,14 @@ func TestTheFirstContentBlockIsTheSerializedStructuredContent(t *testing.T) {
 		var decoded map[string]any
 		if err := json.Unmarshal([]byte(text), &decoded); err != nil {
 			t.Fatalf("%s: content[1] is not the serialized JSON: %v\n%q", name, err, text)
+		}
+		if name == "mrw_read" {
+			// No structuredContent to agree with (ADR-023); the receipt at
+			// content[1] is the only copy and must carry the ledger fields.
+			if _, ok := decoded["observed"]; !ok {
+				t.Errorf("mrw_read: content[1] carries no observed field: %s", text)
+			}
+			continue
 		}
 		// One marshal used twice, not two marshals of one value — two is how
 		// the halves start to disagree.
@@ -452,15 +473,23 @@ func treeFor(t *testing.T, root string, hunks []plan.Hunk) []any {
 // counts. Coverage is total and at every depth, because the interesting fields
 // are the ones one level down — a verdict's `status`, a file's `written`.
 func TestEveryOutputSchemaPropertyIsDescribed(t *testing.T) {
-	total := 0
+	// mrw_read no longer DECLARES its schema (ADR-023), but readSchema() still
+	// describes the receipt at content[1] for a reader of the code, so it is
+	// walked here by name rather than through tools/list.
+	shapes := map[string]map[string]any{"mrw_read receipt": readSchema()}
 	for _, tl := range tools() {
-		schema, ok := tl.OutputSchema.(map[string]any)
-		if !ok {
-			t.Fatalf("tool %q declares no object outputSchema", tl.Name)
+		if schema, ok := tl.OutputSchema.(map[string]any); ok {
+			shapes[tl.Name] = schema
 		}
-		paths := describedPaths(t, tl.Name, schema, "")
+	}
+	if _, ok := shapes["mrw_write"]; !ok {
+		t.Fatal("mrw_write declares no object outputSchema")
+	}
+	total := 0
+	for name, schema := range shapes {
+		paths := describedPaths(t, name, schema, "")
 		if len(paths) == 0 {
-			t.Errorf("tool %q: the walk found no properties, so this test would pass vacuously", tl.Name)
+			t.Errorf("%s: the walk found no properties, so this test would pass vacuously", name)
 		}
 		total += len(paths)
 	}
@@ -499,4 +528,97 @@ func describedPaths(t *testing.T, where string, schema map[string]any, prefix st
 		}
 	}
 	return found
+}
+
+// receipt parses the serialized receipt out of content[1]. For mrw_read this
+// is the ONLY machine-readable copy: ADR-023 removed structuredContent from
+// every read result because a host that renders structuredContent in place of
+// content showed the model the receipt and none of the served lines.
+func receipt(t *testing.T, res map[string]any) map[string]any {
+	t.Helper()
+	content, _ := res["content"].([]any)
+	if len(content) < 2 {
+		t.Fatalf("want two content blocks (the answer, then the receipt), got %v", res["content"])
+	}
+	text, _ := content[1].(map[string]any)["text"].(string)
+	var out map[string]any
+	if err := json.Unmarshal([]byte(text), &out); err != nil {
+		t.Fatalf("content[1] is not the serialized receipt: %v\n%q", err, text)
+	}
+	return out
+}
+
+// TestAReadResultCarriesNoStructuredContent is ADR-023's Enforced-by.
+//
+// Measured 2026-09-05 on Claude Code 2.1.261: a successful tool result that
+// carries structuredContent reaches the model AS the structuredContent — the
+// content blocks are dropped. For mrw_write that is the verdict and fine; for
+// mrw_read it is the receipt without the lines, while the ledger has already
+// recorded those lines as seen. So no mrw_read result — served, paged, index —
+// may carry structuredContent, and the receipt travels in content[1] alone.
+// The write tool is asserted in the same test so the two cannot drift apart
+// unnoticed: one keeps the envelope, one does not, on purpose.
+func TestAReadResultCarriesNoStructuredContent(t *testing.T) {
+	root, path := checkout(t, "a.txt", "one\ntwo\n")
+	served := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+
+	bigRoot, bigPath := bigCheckout(t, 12000)
+	paged := call(t, bigRoot, "mrw_read", map[string]any{"specs": []any{bigPath}})
+
+	idxRoot := grepTree(t, 60, 400)
+	index := call(t, idxRoot, "mrw_read", map[string]any{"grep": "NEEDLE"})
+
+	for name, res := range map[string]map[string]any{"served": served, "paged": paged, "index": index} {
+		if _, has := res["structuredContent"]; has {
+			t.Errorf("%s read result carries structuredContent; a host that renders it in place of content hides the served text", name)
+		}
+		if _, ok := receipt(t, res)["observed"]; !ok {
+			t.Errorf("%s read result's content[1] carries no observed field; the receipt must still travel", name)
+		}
+	}
+	if paged["isError"] != true {
+		t.Fatal("the oversized read did not page; this fixture exists to produce a page")
+	}
+	if next, _ := receipt(t, paged)["next_read"].(string); next == "" {
+		t.Error("a page's content[1] names no next_read; the continuation moved out of structuredContent and must still be findable")
+	}
+	if idx, _ := receipt(t, index)["index"].([]any); len(idx) == 0 {
+		t.Error("an index's content[1] carries no index entries")
+	}
+
+	// The two refusal shapes. A grep that matched nothing carries a receipt
+	// (matches 0, observed empty) and must carry it in content[1] alone; a
+	// bare refusal — exclude without grep — is one text block and nothing
+	// else, as it was before ADR-023. Both are branches where a
+	// structuredContent could be reintroduced without the three shapes above
+	// noticing. Found by the Codex review of #110.
+	none := call(t, root, "mrw_read", map[string]any{"grep": "no-such-needle-anywhere"})
+	if _, has := none["structuredContent"]; has {
+		t.Error("a grep that matched nothing carries structuredContent")
+	}
+	if m, _ := receipt(t, none)["matches"].(float64); m != 0 {
+		t.Errorf("a grep that matched nothing reports matches=%v at content[1], want 0", m)
+	}
+	bare := call(t, root, "mrw_read", map[string]any{"specs": []any{path}, "exclude": []any{"x"}})
+	if bare["isError"] != true {
+		t.Fatal("exclude without grep was not refused; the fixture does not reach the bare refusal")
+	}
+	if _, has := bare["structuredContent"]; has {
+		t.Error("a bare refusal carries structuredContent")
+	}
+	if c, _ := bare["content"].([]any); len(c) != 1 {
+		t.Errorf("a bare refusal has %d content blocks, want one: it carries no receipt", len(c))
+	}
+
+	// mrw_write keeps its envelope, equal to its own content[1].
+	w := call(t, root, "mrw_write", map[string]any{"plan": "@@ a.txt 1 replace\nONE\n"})
+	sc, has := w["structuredContent"]
+	if !has {
+		t.Fatal("mrw_write lost its structuredContent; its answer IS the receipt and the measured host shows exactly that")
+	}
+	want, _ := json.Marshal(sc)
+	got, _ := json.Marshal(receipt(t, w))
+	if string(want) != string(got) {
+		t.Errorf("mrw_write's content[1] and structuredContent disagree:\n got %s\nwant %s", got, want)
+	}
 }

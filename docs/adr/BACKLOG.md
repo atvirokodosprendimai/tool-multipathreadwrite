@@ -756,3 +756,12 @@ re-measuring these. Each was driven at the built binary, not read:
   the read arm's file reader's, not mrw's. No served-path record, no change to the header rows.
   What remains documented, not fixed: a client that saves mrw's output to a file and reads it back
   through a numbering viewer recreates the collision.
+
+## From ADR-023 (a read's answer is the served text)
+
+- **ADR-023: other hosts.** The host measurement behind ADR-023 is Claude Code 2.1.261 only: a
+  successful result with `structuredContent` reached the model as the structured half alone. Claude
+  Desktop and other hosts were not measured; the two host issues (#55677, #15412) say Claude.ai and
+  ChatGPT render both halves. Worth one probe each when a Desktop or third-party session is at hand,
+  recorded beside ADR-023's Verification Log. Not blocking: the bare envelope is right for a host that
+  shows either half.

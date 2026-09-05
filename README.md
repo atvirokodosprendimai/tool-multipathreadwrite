@@ -459,13 +459,18 @@ already a JSON array, which is the thing it reconstructs.
 **What the server does not change.** It is the same engine: the same read-before-write
 ledger, shared with the CLI so a file read over MCP can be edited from a shell
 and the reverse; the same plan format; the same per-hunk verdict, carried in the
-tool result's `structuredContent` and identical field for field to what
+write result's `structuredContent` and identical field for field to what
 `mrw write --json` prints, apart from `root` — the CLI reports the root you gave
 it and the server reports the checkout it was bound to; and the same meanings for
 every exit status when you go back to the shell. There is nothing to choose
 between the two paths and no behaviour to
 learn twice — the server is a second caller of one engine, not a second product.
-The single difference is the concurrency note above.
+The single difference is the concurrency note above. One shape to know: a read's
+answer is its first text block and its receipt (observed spans, problems, `next_read`)
+its second, with no `structuredContent` — because a host was measured rendering
+`structuredContent` in place of the text, which for a read is the receipt without the
+lines (ADR-023, issue #109). A write's receipt is its `structuredContent`, and the
+measured host shows exactly that.
 
 ### ⚠ Git Bash on Windows mangles a regex address
 

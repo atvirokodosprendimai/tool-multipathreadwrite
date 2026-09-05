@@ -121,7 +121,7 @@ func TestTheToolResultCarriesContentAndStructuredContent(t *testing.T) {
 	if txt, _ := block["text"].(string); txt == "" {
 		t.Error("content[0].text is empty")
 	}
-	structured(t, res) // and the machine-readable half is present too
+	receipt(t, res) // and the machine-readable half is present too, at content[1]
 }
 
 func TestTheWriteToolReturnsTheSameResultAsTheCLI(t *testing.T) {
@@ -367,7 +367,7 @@ func TestAReadUnderTheLimitIsUnchanged(t *testing.T) {
 	if isErr, _ := res["isError"].(bool); isErr {
 		t.Fatalf("an ordinary read was refused: %v", res["content"])
 	}
-	sc := structured(t, res)
+	sc := receipt(t, res)
 	if p, _ := sc["problems"].(float64); p != 0 {
 		t.Errorf("problems = %v, want 0", p)
 	}
@@ -455,11 +455,7 @@ func TestTheRefusalDoesNotInventAnInvalidSpec(t *testing.T) {
 // result names none — which is how a caller knows it has reached the end.
 func nextOf(t *testing.T, res map[string]any) string {
 	t.Helper()
-	sc, ok := res["structuredContent"].(map[string]any)
-	if !ok {
-		t.Fatalf("no structuredContent in %v", res)
-	}
-	n, _ := sc["next_read"].(string)
+	n, _ := receipt(t, res)["next_read"].(string)
 	return n
 }
 
@@ -568,7 +564,7 @@ func TestAnOversizedReadStillReadsAsIncomplete(t *testing.T) {
 	if e, _ := res["isError"].(bool); !e {
 		t.Error("a paged read is not marked isError, so a caller that stops here believes it has the file")
 	}
-	sc, _ := res["structuredContent"].(map[string]any)
+	sc := receipt(t, res)
 	if _, ok := sc["next_read"]; !ok {
 		t.Error("structuredContent does not name the continuation")
 	}
@@ -629,7 +625,7 @@ func TestGrepServesWhatItFindsAndRecordsIt(t *testing.T) {
 
 	// What was SERVED is what is licensed. The ledger must know these files,
 	// or a grep would be a read that teaches mrw nothing.
-	obs := structured(t, res)["observed"]
+	obs := receipt(t, res)["observed"]
 	if obs == nil || len(obs.(map[string]any)) != 3 {
 		t.Errorf("a served grep recorded %v, want 3 files observed", obs)
 	}
@@ -667,7 +663,7 @@ func TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd(t *testing.T) {
 	if res["isError"] != true {
 		t.Fatal("an oversized grep must still read as an error — a partial answer that looks whole is what this project refuses")
 	}
-	st := structured(t, res)
+	st := receipt(t, res)
 	if got := st["matches"]; got == nil || int(got.(float64)) != 60 {
 		t.Errorf("the index reports %v matches, want 60", got)
 	}
@@ -715,11 +711,14 @@ func TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd(t *testing.T) {
 func TestAnIndexTooLargeToServePagesByFile(t *testing.T) {
 	// Each entry is roughly 30 bytes, so this needs many files rather than
 	// large ones — which is exactly the Desktop folder this record is for.
-	const files = 8000
+	// 12000, not 8000: ADR-023 removed the structuredContent copy of the
+	// index, so an 8000-entry index now FITS the cap — which is the honest
+	// answer, and the fixture had to grow past it to still overflow.
+	const files = 12000
 	root := grepTree(t, files, 1)
 
 	res := call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE"})
-	st := structured(t, res)
+	st := receipt(t, res)
 	idx, ok := st["index"].([]any)
 	if !ok {
 		t.Fatalf("no index came back: %v", st)
@@ -786,7 +785,7 @@ func TestAnIndexTooLargeToServePagesByFile(t *testing.T) {
 			t.Fatalf("following next_index did not terminate after %d pages", pages)
 		}
 		res = call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE", "after": next})
-		next = countIndex(structured(t, res))
+		next = countIndex(receipt(t, res))
 	}
 	if len(seenPaths) != files {
 		t.Errorf("paging to exhaustion yielded %d distinct files, want %d — entries were lost between pages", len(seenPaths), files)
@@ -815,7 +814,7 @@ func TestTheIndexSurvivesAPatternThatLooksLikeARange(t *testing.T) {
 	}
 
 	res := call(t, root, "mrw_read", map[string]any{"grep": `alpha/,/beta`})
-	st := structured(t, res)
+	st := receipt(t, res)
 	idx, ok := st["index"].([]any)
 	if !ok || len(idx) == 0 {
 		t.Fatalf("expected an index for an oversized grep: %v", st)
@@ -893,7 +892,7 @@ func TestAWalkProblemSurvivesAValidSibling(t *testing.T) {
 	if !strings.Contains(all, "nope_dir") {
 		t.Errorf("the unusable path vanished from an answer that served its sibling:\n%s", all)
 	}
-	if n, _ := structured(t, res)["problems"].(float64); n < 1 {
+	if n, _ := receipt(t, res)["problems"].(float64); n < 1 {
 		t.Errorf("problems = %v, want the unusable path counted", n)
 	}
 	if res["isError"] != true {
@@ -907,7 +906,8 @@ func TestAWalkProblemSurvivesAValidSibling(t *testing.T) {
 // Two earlier cuts measured the wrong quantity. The index ESTIMATED its size
 // and landed on either side of the cap depending on the fixture. The served
 // page was not budgeted at all — the capped writer bounds the report text,
-// while `observed` carries a sha and spans per file and is emitted twice more,
+// while `observed` carries a sha and spans per file and is emitted once more
+// in content[1] (twice more before ADR-023),
 // so a grep resuming onto ~2,500 small files came back at 794,582 characters
 // against a declared 200,000. Found by review of #80.
 func TestNoGrepAnswerExceedsTheDeclaredCap(t *testing.T) {
@@ -921,7 +921,7 @@ func TestNoGrepAnswerExceedsTheDeclaredCap(t *testing.T) {
 	//
 	// The oversized served page lives in a narrow band: few enough files that
 	// the report fits, many enough that `observed` (a sha and spans per file,
-	// emitted three times over) blows the encoded result. 1,500 sits in it —
+	// emitted once more, in content[1]; three times over before ADR-023) blows the encoded result. 1,500 sits in it —
 	// mutated, this serves 423,179 characters against a declared 200,000.
 	// Reaching the bug beats resembling the report that described it.
 	const files = 1500
@@ -949,7 +949,7 @@ func TestNoGrepAnswerExceedsTheDeclaredCap(t *testing.T) {
 			t.Fatalf("page %d encodes to %d characters, over the declared cap of %d", page, len(enc), MaxResultChars)
 		}
 
-		st := structured(t, res)
+		st := receipt(t, res)
 		if idx, ok := st["index"].([]any); ok {
 			for _, e := range idx {
 				seen[fmt.Sprint(e)] = true

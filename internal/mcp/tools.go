@@ -91,6 +91,20 @@ func result(structured any, report string, isErr bool) (callToolResult, *rpcErro
 	}, nil
 }
 
+// readResult is result() without the structuredContent. Every mrw_read answer
+// takes this form — served, paged, index, refused — because of a host measured
+// on 2026-09-05 (Claude Code 2.1.261, issue #109): a non-error result that
+// carries structuredContent reaches the model AS the structuredContent, and the
+// content blocks are dropped. For mrw_write that is the verdict; for mrw_read it
+// was the receipt without the lines, while the ledger had already recorded
+// those lines as seen — ADR-002 inverted by an envelope. So the receipt
+// travels in content[1] alone (ADR-023), from the same single marshal.
+func readResult(structured any, report string, isErr bool) (callToolResult, *rpcError) {
+	res, err := result(structured, report, isErr)
+	res.StructuredContent = nil
+	return res, err
+}
+
 // callTool routes one tools/call. Both tools are adapters: they parse what the
 // CLI parses, call the function the CLI calls, and return what it returned. The
 // moment one computes a verdict of its own there are two answers to "did this
@@ -181,7 +195,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			for _, p := range walkProblems {
 				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
 			}
-			return result(map[string]any{
+			return readResult(map[string]any{
 				"observed": map[string]seen.Observation{},
 				"problems": len(walkProblems),
 				"matches":  0,
@@ -276,8 +290,8 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 
 	// ⚠ AND THE SERVED ANSWER IS BUDGETED, for the same reason the index is.
 	// The capped writer bounds the REPORT TEXT and nothing else: `observed`
-	// carries a sha and spans per file and travels twice more, in
-	// structuredContent and in its serialized copy. A grep resuming onto 2,514
+	// carries a sha and spans per file and travels once more, serialized in
+	// content[1] (twice more before ADR-023). A grep resuming onto 2,514
 	// small files came back at 794,582 characters — four times the cap this
 	// server declares in _meta, and past the ceiling the host truncates at. So
 	// a walked read that will not fit ENCODED degrades to the index, which is
@@ -294,13 +308,12 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the ledger: " + err.Error()}
 	}
 
-	// The two tools' structuredContent shapes differ and are now DECLARED:
-	// mrw_write returns apply.Result, whose json tags make it snake_case; this
-	// returns seen.Observation, which carries no tags, so its keys are the Go
-	// field names. Both are generated into the outputSchema each tool
-	// advertises, so the day seen.Observation gains tags the schema follows it
-	// and the conformance test catches any response that does not.
-	return result(map[string]any{
+	// The receipt — seen.Observation, no json tags, so its keys are the Go
+	// field names — travels in content[1] and NOT in structuredContent
+	// (ADR-023; see readResult). readSchema() still describes it for a reader
+	// of the code, but tools/list no longer declares it: a schema declared is
+	// a structuredContent promised, and none is sent.
+	return readResult(map[string]any{
 		"observed": observed,
 		"problems": problems,
 	}, report, problems > 0)
@@ -617,7 +630,7 @@ func pagedResult(report string, observed map[string]seen.Observation, problems i
 			{Type: "text", Text: report},
 			{Type: "text", Text: string(b)},
 		},
-		StructuredContent: json.RawMessage(b),
+		// No structuredContent: a read's answer is content[0] (ADR-023).
 		// ALWAYS true. A page that reads as a complete answer is truncation,
 		// and the caller's ability to see it received a part is the only thing
 		// separating this from what ADR-011 refused.
@@ -693,11 +706,14 @@ func matchIndex(specs []read.Spec, problems int, cw *capped) callToolResult {
 	// is "resume after this entry", the way a file's is "resume at this line".
 	//
 	// ⚠ BUDGETED AGAINST THE ENCODED RESULT, NOT THE ENTRY LIST. Every entry is
-	// emitted TWICE — once in the JSON text block and once in structuredContent
-	// — plus JSON quoting. Counting each entry once selected 7,388 entries for
+	// emitted in the JSON text block with JSON quoting and envelope (and was
+	// emitted twice, structuredContent included, before ADR-023 — which is why
+	// an 8,000-file index now fits and the fixtures grew to 12,000). Counting
+	// each entry once selected 7,388 entries for
 	// an 8,000-file fixture and produced roughly 650,000 characters against a
 	// 200,000 limit, so the index built to fit under the cap blew through it.
-	// perEntry counts both copies and the quoting. Found by review of #80.
+	// The measure counts the one copy an index carries now, content[1], with
+	// its quoting and envelope (it counted two before ADR-023). Found by review of #80.
 	// ⚠ MEASURED, NOT ESTIMATED. Two earlier cuts got this wrong in the same
 	// direction. Counting each entry ONCE selected 7,388 of 8,000 files and
 	// produced a 650,000-character result against a 200,000 limit; counting it
@@ -732,8 +748,8 @@ func matchIndex(specs []read.Spec, problems int, cw *capped) callToolResult {
 			fmt.Fprintf(&b, "-- Showing the first %d of %d. Send the SAME grep again with after=%q for the next page, and repeat until next_index is absent.\n", len(shown), len(entries), next)
 		}
 		// The paths are NOT repeated in the prose block: they are in the JSON
-		// block below and in structuredContent, and a third copy is a third of
-		// the cap spent saying the same thing.
+		// block below, and a second copy is a second share of the cap spent
+		// saying the same thing.
 		b.WriteString("-- The matching files are listed in this result's index field. Send any of them back as specs WITH the same grep to read its matches, or on its own to read the file.\n")
 
 		structured := map[string]any{
@@ -791,7 +807,7 @@ func indexResult(report string, raw []byte) callToolResult {
 			{Type: "text", Text: report},
 			{Type: "text", Text: string(raw)},
 		},
-		StructuredContent: json.RawMessage(raw),
+		// No structuredContent: a read's answer is content[0] (ADR-023).
 		// An index is not the content that was asked for, so it stays an
 		// error for the same reason a page does: the caller must be able to
 		// see it did not get what it requested.
@@ -815,14 +831,14 @@ func encodedSize(res callToolResult) int {
 // servedOrIndex decides whether a WALKED read may be served as content.
 //
 // The capped writer bounds the report text and nothing else; `observed` carries
-// a sha and a span list per file and is emitted twice more. For a grep over
+// a sha and a span list per file and is emitted once more, in content[1]. For a grep over
 // many small documents — this record's ordinary case — that is the difference
 // between 178,494 characters of report and a 794,582-character result. When the
 // encoded answer will not fit, the index is returned instead: it is the answer
 // that does fit, it is resumable, and it licenses nothing, which is the honest
 // trade for content that cannot be delivered.
 func servedOrIndex(specs []read.Spec, problems int, cw *capped, observed map[string]seen.Observation, report string) (callToolResult, bool) {
-	probe, rpcErr := result(map[string]any{"observed": observed, "problems": problems}, report, problems > 0)
+	probe, rpcErr := readResult(map[string]any{"observed": observed, "problems": problems}, report, problems > 0)
 	if rpcErr != nil {
 		// Undecidable, so not degraded: the caller path will report the same
 		// encoding failure with its own message.

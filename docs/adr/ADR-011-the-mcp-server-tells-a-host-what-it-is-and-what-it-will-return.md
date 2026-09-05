@@ -206,3 +206,4 @@ changes meaning, and a tree touched under this ADR is served identically by the 
 
 - [x] `BACKLOG.md`'s read-buffering entry is replaced, in T3 S5, by an entry recording that its stated reason for deferring — that a cap diverges from the CLI — was the thing this record corrects
 - [ ] Revisit `roots/list` if a second host needs it, or if `CLAUDE_PROJECT_DIR` proves host-specific in a way that matters
+- [x] 2026-09-05: T2's `outputSchema` and `structuredContent` are RETIRED for `mrw_read` by ADR-023 — measured on Claude Code 2.1.261, a host that renders `structuredContent` in place of `content` showed the model the receipt and none of the served lines (issue #109). `mrw_write` keeps both.

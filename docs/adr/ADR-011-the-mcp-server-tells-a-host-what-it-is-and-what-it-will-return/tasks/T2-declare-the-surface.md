@@ -5,6 +5,7 @@
 **Estimated scope:** M (multi-file)
 **Owner:** unassigned
 **Produces:** the tool descriptor set (`title`, `annotations`, `outputSchema`, `_meta`), `mcp.MaxResultChars`
+**Retired in part:** 2026-09-05 by ADR-023 — `mrw_read` no longer declares an `outputSchema` or returns `structuredContent` (its receipt is `content[1]`); every clause below about "each tool's" schema now reads `mrw_write` only.
 **Consumes:** `mcp.ResolveRoot` (T1)
 **Data dependency:** hermetic
 **Proof map:** v1

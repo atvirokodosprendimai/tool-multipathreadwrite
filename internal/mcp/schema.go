@@ -185,8 +185,8 @@ func baseSchema(t reflect.Type) map[string]any {
 // The value is Claude Code's per-tool ceiling. Its global default is 25,000
 // tokens (`MAX_MCP_OUTPUT_TOKENS`), and a tool may declare up to 500,000
 // characters via `anthropic/maxResultSizeChars`; 200,000 leaves room for the
-// envelope and for the serialized JSON that rides beside the report, since a
-// result carries the receipt twice by design.
+// envelope and for the serialized JSON receipt that rides beside the report in
+// content[1] (mrw_write's result carries it twice, in structuredContent too).
 // https://code.claude.com/docs/en/mcp
 const MaxResultChars = 200_000
 
