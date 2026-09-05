@@ -228,14 +228,12 @@ byte-identical, so the revert is a deletion.
 
 ## Follow-ups
 
-- [ ] **Take the first reading.** Still open: the pre-registration in `docs/adr/BACKLOG.md` requires
-      edit outcome against served bytes **across models**, and only one client population has been
-      measured. Reading 1 was voided on evidence (`docs/curve/reading-01-void.md`). The Sonnet read
-      arm is complete and reported in `docs/curve/reading-02-result.md`: 42 correct addresses in 45
-      trials, flat from 2,000 to 200,000 served bytes, with every trial verified to have read the
-      served window whole. That is a flat curve for one client, which the pre-registration accepts as
-      an answer only once a second client has been measured. The search arm stands at 18 observations
-      and is not pooled with it.
+- [x] **Take the first reading.** Done across two clients. Reading 1 was voided on evidence
+      (`docs/curve/reading-01-void.md`). Reading 2, Sonnet on the named fixture: 42 of 45, flat.
+      Reading 3, Sonnet on the relational fixture: 45 of 45, flat. Reading 4, Haiku on the same
+      relational cells: 15/15, 12/15, 8/15 — the second client the pre-registration's **across
+      models** wording required, and the first curve that bends. What remains of this item is the
+      search arm, which stands at 18 observations from reading 1 and is not pooled with any of them.
 - [ ] **The failure the reading did find is not a retrieval failure that grows with size.** Three
       misses named `target+2` with the replacement text correct, one at each served size, and every
       one applied silently without a guard and was refused with `anchor=`. Why it is two is not
@@ -266,10 +264,17 @@ byte-identical, so the revert is a deletion.
       missing 3 in 45 would need many trials to discriminate row-count from any other +2 account. A
       client missing 7 of 15 at 200 KB settles it in a handful, and reading 4 is that client. This is
       now the cheapest decisive experiment the harness can run.
-- [ ] **Two fixtures now sit at the ceiling, so difficulty is not what this harness lacks.** The next
-      candidates, in the order they look worth trying: raise the DISTRACTOR count, which has been
-      held at 3 in every reading and never manipulated, so the target has always been one of four; a
-      property over pairs rather than over one field; or a weaker client. Each is a generator or a
-      population change, and each is a budget decision, so none is a task here.
-- [ ] If the reading bends, the cap becomes a measured number and ADR-011-T3's value is revisited by
-      the record that owns it.
+- [ ] **Difficulty is not what this harness lacks for the stronger client, and reading 4 has
+      already tried the weaker one.** Two fixtures sit at 100% for Sonnet. The candidates that remain,
+      in the order they look worth trying: raise the DISTRACTOR count, held at 3 in every reading and
+      never manipulated, so the target has always been one of four; or a property over pairs rather
+      than over one field. Each is a generator change and a budget decision, so neither is a task here.
+- [x] **The reading bent, at the size that is `MaxResultChars`, for one of two clients — and the
+      revisit of ADR-011-T3 waits.** The condition on this item fired in reading 4: 8 of 15 at
+      200,000 served bytes for Haiku, against 15 of 15 for Sonnet on identical cells. But the bend is
+      not a retrieval failure — every miss found the right block and wrote the right text — and every
+      one of the 13 misses across readings 2–4 sits at exactly `target+2`. If the offset-window
+      experiment shows that offset is the two unnumbered header rows of a served read, the fix is in
+      the READ FORMAT and the cap is the wrong knob; if it does not, the cap is the knob and this
+      reading is its evidence. ADR-011-T3 is asked to revisit 200,000 once that experiment has run,
+      with reading 4 and its result as the input, and not before.

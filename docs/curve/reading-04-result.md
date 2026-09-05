@@ -16,9 +16,12 @@ Thirty-five hits in forty-five, zero refusals, and the first bend in four readin
 intervals at 2,000 and 200,000 bytes do not overlap. Five repeats per cell still cannot separate
 adjacent cells, but fifteen per size tier can separate the ends of the range, and they do.
 
-**Prediction 1 (lower than 45/45): confirmed. Prediction 2 (bends downward, 200 KB first):
-confirmed.** Reading 3's Sonnet client scored 45 of 45 on these exact cells; the ten pairs that
-differ all favour Sonnet, which is p = 0.002 on an exact two-sided matched test. This is the reading
+**Prediction 1 (lower than 45/45): confirmed. Prediction 2 (bends downward, 200 KB first): the
+direction is confirmed; the "200 KB first" clause only partly.** Misses first appear at 20 KB, 3 of
+15, before the 7 of 15 at 200 KB. 200 KB is the first tier whose interval separates from 2 KB, but
+that reading of "shows first" was not the one pre-registered, so the clause is scored as ambiguous
+rather than confirmed. Reading 3's Sonnet client scored 45 of 45 on these exact cells; the ten pairs
+that differ all favour Sonnet, which is p = 0.002 on an exact two-sided matched test. This is the reading
 the pre-registration asked for — across models — and the second model is not at the ceiling.
 
 ## Compliance: 45 of 45, and that refutes a prediction
@@ -31,6 +34,10 @@ offset and limit equalled the served row count in all 45, from 47/47 at 2 KB to 
 weaker client read every byte it was given at every size. So whatever it got wrong, it did not get
 wrong by stopping early, and the misses below are misses by a client that had the whole window in
 front of it.
+
+**Prediction 5 (a flat curve remains an acceptable answer): not activated.** It was a commitment to
+accept a null; the curve bent, so the commitment was never called on. Neither confirmed nor refuted,
+and listed so all five predictions are accounted for.
 
 ## Every miss is `target+2`
 
