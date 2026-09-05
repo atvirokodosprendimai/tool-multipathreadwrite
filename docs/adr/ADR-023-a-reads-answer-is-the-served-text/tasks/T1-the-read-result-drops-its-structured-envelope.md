@@ -12,9 +12,10 @@
 
 ## Goal
 
-Every `mrw_read` result reaches a host as `content[0]` served text or report plus `content[1]` the
-serialized receipt and nothing else, `tools/list` declares no `outputSchema` for it, and a fresh
-Claude Code session quotes a served line back.
+Every receipt-bearing `mrw_read` result — served, paged, index, grep-no-match — reaches a host as
+`content[0]` served text or report plus `content[1]` the serialized receipt and nothing else; a bare
+refusal stays one text block with no receipt, as before; `tools/list` declares no `outputSchema`
+for it; and a fresh Claude Code session quotes a served line back.
 
 ## Affected Files
 
@@ -91,6 +92,10 @@ is the receipt for both tools, equal to `structuredContent` where one exists), b
 - 2026-09-05 · 6948737* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on every mrw_read result — the envelope the measured host renders in place of the served text · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:a served read carries no structuredContent
 - 2026-09-05 · 6948737* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on a PAGE only — a served read stays bare, so a test that checked one shape would pass this · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:a page and an index carry none either
 - 2026-09-05 · 6948737* · mutant killed · exit 1 · `internal/mcp/mcp.go` · S3: declare an outputSchema for mrw_read again — a schema declared is a structuredContent promised, and none is sent · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:mrw_read declares no outputSchema while mrw_write still does
+- 2026-09-05 · 201869c* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: send an empty object where the receipt belongs in content[1] — the only machine-readable copy a read now has · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:content[1] is still the receipt
+- 2026-09-05 · 201869c* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on every mrw_read result — the envelope the measured host renders in place of the served text · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:a served read carries no structuredContent
+- 2026-09-05 · 201869c* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on a PAGE only — a served read stays bare, so a test that checked one shape would pass this · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:a page and an index carry none either
+- 2026-09-05 · 201869c* · mutant killed · exit 1 · `internal/mcp/mcp.go` · S3: declare an outputSchema for mrw_read again — a schema declared is a structuredContent promised, and none is sent · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:mrw_read declares no outputSchema while mrw_write still does
 
 ## Invariants
 
@@ -159,3 +164,24 @@ Stop if removing `structuredContent` from `mrw_read` requires changing the recei
 - 2026-09-05 · 6948737* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:31033
 - 2026-09-05 · 6948737* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:32268
 - 2026-09-05 · 6948737* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:32040
+- 2026-09-05 · 201869c* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:32352
+- 2026-09-05 · 201869c* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:33246
+- 2026-09-05 · 201869c* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:37020
+- 2026-09-05 · 201869c* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:34263
+- 2026-09-05 · 201869c* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:32074
+- 2026-09-05 · 201869c* · exit 1 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:37839
+  ```
+  --- last 10 line(s) of stdout (of 537 after folding 537 raw)
+    PASS  a window that exists but starts after an early target is refused too
+    PASS  and says so, rather than serving a window with no answer in it
+    PASS  the runner is its own process-group leader
+    PASS  an orphan no longer under this shell is visible to the group check: pid 36380 under 1
+    PASS  no process of this run survives it
+    PASS  the probe is this file's prologue: one trap, the wrapper, the group kill, and no rows
+    PASS  a nested run of this file's own prologue repeats the runner's exit status through the wrapper
+    PASS  and its EXIT trap reaped an orphan already re-parented away (pid 36406)
+    PASS  INT to the wrapper is forwarded: the nested runner ended 143 in 0s and its orphan with it
+  1 assertion(s) FAILED
+  --- last 1 line(s) of stderr
+  Terminated: 15
+  ```

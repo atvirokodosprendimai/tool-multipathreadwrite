@@ -906,7 +906,8 @@ func TestAWalkProblemSurvivesAValidSibling(t *testing.T) {
 // Two earlier cuts measured the wrong quantity. The index ESTIMATED its size
 // and landed on either side of the cap depending on the fixture. The served
 // page was not budgeted at all — the capped writer bounds the report text,
-// while `observed` carries a sha and spans per file and is emitted twice more,
+// while `observed` carries a sha and spans per file and is emitted once more
+// in content[1] (twice more before ADR-023),
 // so a grep resuming onto ~2,500 small files came back at 794,582 characters
 // against a declared 200,000. Found by review of #80.
 func TestNoGrepAnswerExceedsTheDeclaredCap(t *testing.T) {

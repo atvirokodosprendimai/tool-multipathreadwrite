@@ -712,7 +712,8 @@ func matchIndex(specs []read.Spec, problems int, cw *capped) callToolResult {
 	// each entry once selected 7,388 entries for
 	// an 8,000-file fixture and produced roughly 650,000 characters against a
 	// 200,000 limit, so the index built to fit under the cap blew through it.
-	// perEntry counts both copies and the quoting. Found by review of #80.
+	// The measure counts the one copy an index carries now, content[1], with
+	// its quoting and envelope (it counted two before ADR-023). Found by review of #80.
 	// ⚠ MEASURED, NOT ESTIMATED. Two earlier cuts got this wrong in the same
 	// direction. Counting each entry ONCE selected 7,388 of 8,000 files and
 	// produced a 650,000-character result against a 200,000 limit; counting it
