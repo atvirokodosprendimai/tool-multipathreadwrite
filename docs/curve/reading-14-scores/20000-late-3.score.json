@@ -1,0 +1,11 @@
+{
+  "trial_id": "7f02ec4c0538",
+  "cell": 20000,
+  "served_bytes": 20006,
+  "position": "late",
+  "outcome": "hit",
+  "target": 368,
+  "changed": [
+    368
+  ]
+}

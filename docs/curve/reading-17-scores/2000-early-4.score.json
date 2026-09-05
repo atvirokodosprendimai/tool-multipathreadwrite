@@ -1,0 +1,11 @@
+{
+  "trial_id": "cebc23c4592a",
+  "cell": 2000,
+  "served_bytes": 2058,
+  "position": "early",
+  "outcome": "hit",
+  "target": 6,
+  "changed": [
+    6
+  ]
+}

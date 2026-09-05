@@ -272,11 +272,13 @@ byte-identical, so the revert is a deletion.
       readings 10 and 11 (below) separated the number from the delivery's chunking. Compliance
       15/15; the three misses apply unguarded and are refused with `anchor=`, 16 of 16 across
       readings 2–5.
-- [ ] **Difficulty is not what this harness lacks for the stronger client, and reading 4 has
+- [x] **Difficulty is not what this harness lacks for the stronger client, and reading 4 has
       already tried the weaker one.** Two fixtures sit at 100% for Sonnet. The candidates that remain,
-      in the order they look worth trying: raise the DISTRACTOR count, held at 3 in every reading and
-      never manipulated, so the target has always been one of four; or a property over pairs rather
-      than over one field. Each is a generator change and a budget decision, so neither is a task here.
+      in the order they looked worth trying: raise the DISTRACTOR count — held at 3 through reading
+      13, so the target was always one of four; raised to 12 by reading 14 (evidence-limited on
+      compliance, its fifteen strict trials all hits) and by reading 17, which re-runs it with the
+      reply channel named — or a property over pairs rather than over one field, which remains a
+      generator change and a budget decision and is not a task here.
 - [x] **The reading bent, at the size that is `MaxResultChars`, for one of two clients — and the
       bend was the harness read arm's delivery, not mrw's rendering.** The condition on this item fired in reading
       4: 8 of 15 at 200,000 served bytes for Haiku, against 15 of 15 for Sonnet on identical cells,
@@ -305,3 +307,13 @@ byte-identical, so the revert is a deletion.
       plausible second number this client missed at every size measured (observed points 14, 13, 10
       through a tool result); without one, 15, 15, 15. No size trend is established by thirty
       trials, and the late-only pattern of reading 11 stays unexplained.
+- [x] **Reading 14** (`docs/curve/reading-14-result.md`), evidence-limited: a harder fixture —
+      twelve distractors, thirteen services — for the strong client through the bare tool result.
+      Thirty of forty-five trials replied through `SendMessage`, a channel the rule did not name, and
+      are void; the fifteen strict trials all hit; all forty-five as sensitivity are 14, 15, 15 with
+      one miss on the right service one line above the target. The distractor item above is
+      manipulated by this reading and by reading 17, which re-runs it with the channel named.
+- [x] **Reading 17** (`docs/curve/reading-17-result.md`): reading 14 re-run under a plan that names
+      the reply channel — 45 of 45, compliant 45 of 45, cost 2.41× from 2 KB to 200 KB. The strong
+      client's flat curve survives a fixture with three times the candidates, at the pre-registered
+      strength.

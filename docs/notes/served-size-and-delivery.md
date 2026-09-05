@@ -13,12 +13,14 @@ serve about ten thousand tokens and stop — had never been measured against the
 built an instrument (`curve`) that generates a fixture, records exactly what mrw would serve, has
 a fresh client author one plan against it, and scores the plan by applying it: the line that
 changed is the measurement. Under a criterion pre-registered before any cell existed, eleven
-readings were taken, plus a twelfth at 2 KB and 20 KB (reading 13; reading 12, the MCP arm,
-waits on ADR-023), each plan committed before its trials, and every score file of the eleven
-scored readings committed (reading 1 is a void notice, not scores).
+readings were taken, plus a twelfth at 2 KB and 20 KB (reading 13) and two on a harder fixture
+(reading 14, evidence-limited, and reading 17; reading 12, the MCP arm, waits on ADR-023), each
+plan committed before its trials, and every score file of the thirteen scored readings committed
+(reading 1 is a void notice, not scores).
 
 Two results. First, for a strong client, serving a hundred times more bytes cost 2.4–2.5× the
-tokens with no measurable reduction in correct addressing at these sizes, on two fixtures. Second,
+tokens with no measurable reduction in correct addressing at these sizes, on two fixtures, and
+2.41× on a thirteen-service fixture through the bare tool result (reading 17, 45 of 45). Second,
 and the one we did not expect: for a weaker client the curve bent — 15, 12, 8 of 15 across 2 KB,
 20 KB, 200 KB — and its ten misses all addressed the same wrong line, exactly two below the target;
 across readings 2–4, all thirteen misses by either client shared that offset. Two further readings
@@ -86,6 +88,8 @@ and reported, never counted as a miss.
 | 10 | Haiku | tool result, `nl` per range | — | — | 14/14 | Second number restarts per range: no miss; one trial void (spill). |
 | 11 | Haiku | tool result, `nl -v` from the top | — | — | 10/15 | Second number equal to the reader's: five misses, all at target+2, all late. |
 | 13 | Haiku | tool result, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | The same number at the smaller sizes: three misses, all at target+2, two late and one middle; no size trend established. |
+| 14 | Sonnet | tool result, twelve distractors | (6/6) | (7/7) | (2/2) | Evidence-limited: thirty trials void on an unnamed reply channel; the fifteen strict all hit; 44/45 as sensitivity. |
+| 17 | Sonnet | tool result, twelve distractors | 15/15 | 15/15 | 15/15 | Reading 14 re-run with the channel named: at the ceiling, 45/45. |
 
 Every score file is in the repository under `docs/curve/reading-NN-scores/`; the rates, intervals,
 offsets and pairings in this note recompute from them. Compliance, coverage, cost and the quoted
@@ -165,6 +169,8 @@ tier; peak (the largest single request's context) is in the result documents.
 | Sonnet, file reader, relational fixture (reading 3) | 49,050 | 55,426 | 123,307 | 2.51× |
 | Haiku, file reader (reading 4) | 31,062 | 36,469 | 91,546 | 2.95× |
 | Haiku, tool result (readings 8, 9) | 31,909 | 36,444 | 84,789 | 2.66× |
+| Sonnet, tool result, twelve distractors (reading 14, all 45, sensitivity) | 50,889 | 54,212 | 117,879 | 2.32× |
+| Sonnet, tool result, twelve distractors (reading 17) | 48,646 | 56,940 | 117,454 | 2.41× |
 
 The fixed cost of a session dominates: a hundredfold increase in served bytes is a 2.4× to 3.0×
 increase in tokens, and the 20 KB tier costs 12–17% more than the 2 KB tier. A ten-thousand-token
@@ -195,7 +201,8 @@ memory — a paired count and a range width — were both wrong, and were caught
 ## 7. Limits
 
 One fixture family, five repeats per cell, two clients from one vendor; the strong client sits at
-the ceiling on both fixtures, so its curve cannot bend and says nothing about where it would. The
+the ceiling on both fixtures and on a thirteen-service one (reading 17: 45 of 45 through the bare
+tool result), so its curve cannot bend and says nothing about where it would. The
 weaker client's ceiling through a tool result is fifteen of fifteen per tier, whose interval's
 lower bound is 0.796, not 1. Reading 9's 200 KB tier is reading 8's data, pooled under a plan that
 said so. Readings 10 and 11 separate the gutter from the chunking on fifteen cells each, and
