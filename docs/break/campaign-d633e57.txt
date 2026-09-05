@@ -1,73 +1,44 @@
-# break-campaign.sh against main d633e57, 2026-09-05, darwin/arm64, go go1.27.0
-# 47 probes; read each line for a silent wrong write — an 'applied' whose file state is not what the plan said — or a refusal without a reason.
+# break-campaign.sh against main d633e57 (the tree v1.0.0's binary is built from; nothing after it is Go), 2026-09-05, darwin/arm64, go go1.27.0
+# 47 probes, one line each; read each for a silent wrong write — an 'applied' whose file state is not what the plan said — or a refusal that does not name its reason.
 [pat-with-space] exit=0  X | 1 hunk(s), 1 file(s), 0 failed — applied
 [pat-escaped-slash] exit=0  X | 1 hunk(s), 1 file(s), 0 failed — applied
-[pat-end-before-start] exit=1  one|two|three| | FAIL f.txt /three/,/one/ replace (plan line 1): end pattern one matched only above the start line 3 (lines 1) in f.txt
-1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN
-mrw: 1 hunk(s) failed — nothing was written
-[pat-end-never-matches] exit=1  one|two|three| | FAIL f.txt /one/,/nomatch/ replace (plan line 1): end pattern nomatch matched no line in f.txt
-1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN
-mrw: 1 hunk(s) failed — nothing was written
-[pat-empty-regex] exit=2  one|two| | mrw: p.plan: plan has 2 error(s):
-  line 1: empty pattern // matches every line, so it can never resolve to exactly one
-  line 2: text before the first @@ header: "X"
-[pat-invalid-regex] exit=2  mrw: p.plan: plan has 2 error(s):
-  line 1: bad pattern "(": error parsing regexp: missing closing ): `(`
-  line 2: text before the first @@ header: "X"
-[pat+numeric-same-line] exit=1  one|two| | FAIL f.txt 1 replace (plan line 3): overlaps an earlier hunk: 1 begins before line 2, which a previous hunk already consumed
-2 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN
-mrw: 1 hunk(s) failed — nothing was written
-[pat-dollar-on-crlf] exit=0  0000000 o n e \r \n X \r \n  0000010  | 1 hunk(s), 1 file(s), 0 failed — applied
-[pat-resolves-to-unserved-line] exit=1  one|two| | FAIL f.txt /two/ replace (plan line 1): 2 of f.txt has not been read: mrw served lines 1. A line address means nothing in lines you have not seen — read them, or pass --force
-1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN
-mrw: 1 hunk(s) failed — nothing was written
+[pat-end-before-start] exit=1  one|two|three| | FAIL f.txt /three/,/one/ replace (plan line 1): end pattern one matched only above the start line 3 (lines 1) in f.txt 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
+[pat-end-never-matches] exit=1  one|two|three| | FAIL f.txt /one/,/nomatch/ replace (plan line 1): end pattern nomatch matched no line in f.txt 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
+[pat-empty-regex] exit=2  one|two| | mrw: p.plan: plan has 2 error(s): line 1: empty pattern // matches every line, so it can never resolve to exactly one line 2: text before the first @@ header: "X"
+[pat-invalid-regex] exit=2  mrw: p.plan: plan has 2 error(s): line 1: bad pattern "(": error parsing regexp: missing closing ): `(` line 2: text before the first @@ header: "X"
+[pat+numeric-same-line] exit=1  one|two| | FAIL f.txt 1 replace (plan line 3): overlaps an earlier hunk: 1 begins before line 2, which a previous hunk already consumed 2 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
+[pat-dollar-on-crlf] exit=0  0000000 o n e \r \n X \r \n 0000010 | 1 hunk(s), 1 file(s), 0 failed — applied
+[pat-resolves-to-unserved-line] exit=1  one|two| | FAIL f.txt /two/ replace (plan line 1): 2 of f.txt has not been read: mrw served lines 1. A line address means nothing in lines you have not seen — read them, or pass --force 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
 [pat-insert-after-lines-guard] exit=0  one|X|two| | 1 hunk(s), 1 file(s), 0 failed — applied
-[case-two-spellings-one-plan] exit=1  file=one|two|three| | FAIL same.txt 3 replace (plan line 3): same.txt names the same file as Same.txt (plan line 1); one file, one spelling per plan
-2 hunk(s), 2 file(s), 1 failed — NOTHING WRITTEN
-mrw: 1 hunk(s) failed — nothing was written
+[case-two-spellings-one-plan] exit=1  file=one|two|three| | FAIL same.txt 3 replace (plan line 3): same.txt names the same file as Same.txt (plan line 1); one file, one spelling per plan 2 hunk(s), 2 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
 [case-read-A-write-a] exit=0  file=X|two| | 1 hunk(s), 1 file(s), 0 failed — applied
-[symlink-read-escapes-root?] exit=1  mrw: 1 range(s) could not be served
-[symlink-write-through-force] exit=1  outside=secret islink=yes | FAIL link.txt 1 replace (plan line 1): link.txt resolves to /private<tmp> which is outside the root /private<tmp> a plan may only change files under the directory mrw was pointed at
-1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN
-mrw: 1 hunk(s) failed — nothing was written
+[symlink-read-escapes-root?] exit=1  ==> link.txt REFUSED link.txt resolves to /private<tmp> which is outside the root /private<tmp> read it with --root pointed where you mean mrw: 1 range(s) could not be served
+[symlink-write-through-force] exit=1  outside=secret islink=yes | FAIL link.txt 1 replace (plan line 1): link.txt resolves to /private<tmp> which is outside the root /private<tmp> a plan may only change files under the directory mrw was pointed at 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
 [symlink-inside-write] exit=0  real=VIA-LINK islink=yes | 1 hunk(s), 1 file(s), 0 failed — applied
 [grep-walk-symlink-dir-outside] exit=1  mrw: no file matched /secret/
-[grep-walk-symlink-loop] exit=0  1 matches,     1| needle
-[grep-walk-fifo] exit=0      1| needle
+[grep-walk-symlink-loop] exit=0  1 matches, 1| needle
+[grep-walk-fifo] exit=0  ==> a.txt 1L 7B sha d2921077 @@ 1-1 1| needle
 [grep-walk-unreadable-dir] exit=1  1 mentions of the dir | mrw: 1 range(s) could not be served
 [empty-insert-before-1] exit=0  bytes=1 | 1 hunk(s), 1 file(s), 0 failed — applied
 [empty-insert-after-dollar] exit=0  bytes=1 content=X | 1 hunk(s), 1 file(s), 0 failed — applied
-[no-trailing-newline-preserved] exit=0  0000000 ?  | 1 hunk(s), 1 file(s), 0 failed — applied
+[no-trailing-newline-preserved] exit=0  0000000 ? | 1 hunk(s), 1 file(s), 0 failed — applied
 [delete-only-line] exit=0  bytes=0 | 1 hunk(s), 1 file(s), 0 failed — applied
-[cr-only-file-read] exit=0  ==> cr.txt  1L  5B  sha d6979e20
-[binary-nul-write] exit=0  0000000 b i n \0 a r y \n L 2 \n  | 1 hunk(s), 1 file(s), 0 failed — applied
-[3MB-single-line-read-line-2] exit=0      2| end
-[overlap-range-and-line] exit=1  1|2|3|4| | FAIL f.txt 2 replace (plan line 3): overlaps an earlier hunk: 2 begins before line 4, which a previous hunk already consumed
-2 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN
-mrw: 1 hunk(s) failed — nothing was written
+[cr-only-file-read] exit=0  ==> cr.txt 1L 5B sha d6979e20
+[binary-nul-write] exit=0  0000000 b i n \0 a r y \n L 2 \n | 1 hunk(s), 1 file(s), 0 failed — applied
+[3MB-single-line-read-line-2] exit=0   2| end
+[overlap-range-and-line] exit=1  1|2|3|4| | FAIL f.txt 2 replace (plan line 3): overlaps an earlier hunk: 2 begins before line 4, which a previous hunk already consumed 2 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
 [replace+insert-after-same-line] exit=0  1|B|C|3|4| | 2 hunk(s), 1 file(s), 0 failed — applied
-[delete+replace-same-line] exit=1  1|B|C|3|4| | FAIL f.txt 2 replace (plan line 2): overlaps an earlier hunk: 2 begins before line 3, which a previous hunk already consumed
-2 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN
-mrw: 1 hunk(s) failed — nothing was written
+[delete+replace-same-line] exit=1  1|B|C|3|4| | FAIL f.txt 2 replace (plan line 2): overlaps an earlier hunk: 2 begins before line 3, which a previous hunk already consumed 2 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
 [quoted-path-with-space] exit=0  Y | 1 hunk(s), 1 file(s), 0 failed — applied
 [plan-with-BOM] exit=0  Y | 1 hunk(s), 1 file(s), 0 failed — applied
-[plan-with-CRLF] exit=0  0000000 Y \n  | 1 hunk(s), 1 file(s), 0 failed — applied
-[plan-tab-separated-header] exit=2  Y | mrw: p.plan: plan has 2 error(s):
-  line 1: text before the first @@ header: "@@\tf.txt\t1\treplace"
-  line 2: text before the first @@ header: "Z"
+[plan-with-CRLF] exit=0  0000000 Y \n | 1 hunk(s), 1 file(s), 0 failed — applied
+[plan-tab-separated-header] exit=2  Y | mrw: p.plan: plan has 2 error(s): line 1: text before the first @@ header: "@@\tf.txt\t1\treplace" line 2: text before the first @@ header: "Z"
 [sha-guard-uppercase-hex] exit=0  Q | 1 hunk(s), 1 file(s), 0 failed — applied
-[lines=0-guard] exit=1  Q | FAIL f.txt 1 replace (plan line 1): lines=0 but range 1 covers 1 line(s)
-1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN
-mrw: 1 hunk(s) failed — nothing was written
-[replace-with-empty-body] exit=2  bytes=2 | mrw: p.plan: plan has 1 error(s):
-  line 1: replace with an empty body would delete 1 — say delete if that is what you mean, and check the body did not go missing if it is not
-[create-over-existing-file] exit=1  Q | FAIL f.txt 0 create (plan line 1): create: f.txt already exists (1 lines) — use replace or delete
-1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN
-mrw: 1 hunk(s) failed — nothing was written
+[lines=0-guard] exit=1  Q | FAIL f.txt 1 replace (plan line 1): lines=0 but range 1 covers 1 line(s) 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
+[replace-with-empty-body] exit=2  bytes=2 | mrw: p.plan: plan has 1 error(s): line 1: replace with an empty body would delete 1 — say delete if that is what you mean, and check the body did not go missing if it is not
+[create-over-existing-file] exit=1  Q | FAIL f.txt 0 create (plan line 1): create: f.txt already exists (1 lines) — use replace or delete 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
 [create-in-missing-dir] exit=0  new | 1 hunk(s), 1 file(s), 0 failed — applied
-[create-outside-root] exit=1  contained | FAIL ../escape.txt 0 create (plan line 1): ../escape.txt resolves to /private<tmp> which is outside the root /private<tmp> a plan may only change files under the directory mrw was pointed at
-1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN
-mrw: 1 hunk(s) failed — nothing was written
+[create-outside-root] exit=1  contained | FAIL ../escape.txt 0 create (plan line 1): ../escape.txt resolves to /private<tmp> which is outside the root /private<tmp> a plan may only change files under the directory mrw was pointed at 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
 [dry-run-records-nothing-new?] exit=0  ledger lines for f.txt=1 (1 from the read is expected)
 [mcp-120KB-request-line] exit=0  mrw mcp: serving <tmp> (from the working directory) {"jsonrpc":"2.0","id":1,"result":{"con
 [mcp-batch-array] exit=0  mrw mcp: serving <tmp> (from the working directory
@@ -76,4 +47,3 @@ mrw: 1 hunk(s) failed — nothing was written
 [mcp-garbage-then-valid] exit=0  responses=2 mrw mcp: serving <tmp> (from t
 [no-HOME-no-XDG] exit=2  mrw: no XDG_STATE_HOME and no home directory: $HOME is not defined
 [unwritable-state-home] exit=2  mrw: mkdir /dev/null: not a directory
-campaign dir: <tmp>

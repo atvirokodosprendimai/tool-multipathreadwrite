@@ -7,15 +7,19 @@ It is an ordinary command-line tool. It was built for AI coding agents, which
 are the ones doing hundreds of small edits a day, but nothing about it requires
 one.
 
-**Status: stable, v1.0.0 (2026-09-05).** What that word rests on, all of it recorded in this tree: six
-promises recorded as ADRs and asserted by `scripts/contract.sh` against the built binary, 512 rows
-at the tag; a break campaign of 47 probes (`scripts/break-campaign.sh`, its run in `docs/break/`) against
-the tagged main with no silent wrong write and
-every refusal naming its reason; and the served-size curve measured rather than asserted — a strong
-client at the ceiling on the fixture built to be failed (reading 3), the one recurring miss
-identified as a row index (reading 5), and the weaker client at the ceiling once the served text
-reached it without a second gutter (reading 8). The section *Does serving more hurt?* has the
-numbers and their limits. Stable means the public contract — the plan grammar, the exit codes,
+**Status: stable at v1.0.0 (2026-09-05), the tag cut from the main that carries this paragraph.**
+What that word rests on is recorded in this tree. The six promises listed in `AGENTS.md` are each
+an ADR and each a set of rows in `scripts/contract.sh`, which drives the built binary and prints its
+own total; every row is green on the tree the tag is cut from. A break campaign of 47 probes
+(`scripts/break-campaign.sh`, its run in `docs/break/`) against main `d633e57` — the tree the
+binary is built from, since nothing after it is Go — found no silent wrong write, and every refusal
+in it names its reason. And the served-size curve is measured rather than asserted: a strong client
+at the ceiling on the fixture built to be failed (reading 3), the one recurring miss identified as a
+row index (reading 5), and the weaker client at the ceiling once the served text reached it without
+a second gutter (reading 8); the section *Does serving more hurt?* has the numbers and their limits.
+Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
+tools — changes only through a record, and a record that relaxes or replaces an earlier promise
+retires it.
 read-before-write, the MCP tools — changes only through a record that retires the one it replaces.
 
 Install it with one command — see [Install](#install) for the details:

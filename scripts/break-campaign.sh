@@ -6,7 +6,7 @@ MRW=${MRW:?}
 W=$(mktemp -d); export XDG_STATE_HOME="$W/state"; mkdir -p "$XDG_STATE_HOME"
 t() { perl -e 'alarm shift; exec @ARGV' 5 "$@"; }
 fresh() { R="$W/r$RANDOM$RANDOM"; mkdir -p "$R"; cd "$R" || exit 9; }
-say() { printf '[%s] exit=%s  %s\n' "$1" "$2" "$3"; }
+say() { printf '[%s] exit=%s  %s\n' "$1" "$2" "$(printf '%s' "$3" | tr '\n' ' ' | tr -s ' ')"; }  # one line per probe, whatever the tool printed
 plan() { printf '%b' "$1" > "$R/p.plan"; }
 
 # ---------- 1. pattern addresses in plans (ADR-013) ----------
@@ -37,15 +37,15 @@ plan '@@ same.txt 1 replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); sa
 
 # ---------- 3. symlinks ----------
 fresh; mkdir -p "$W/outside"; printf 'secret\n' > "$W/outside/s.txt"; ln -s "$W/outside/s.txt" link.txt
-out=$(t "$MRW" read link.txt 2>&1); say "symlink-read-escapes-root?" $? "$(echo "$out" | tail -1)"
+out=$(t "$MRW" read link.txt 2>&1); say "symlink-read-escapes-root?" $? "$out"
 plan '@@ link.txt 1 replace\nOWNED\n'; out=$(t "$MRW" write --quiet --force p.plan 2>&1); say "symlink-write-through-force" $? "outside=$(cat "$W/outside/s.txt") islink=$([ -L link.txt ] && echo yes || echo no) | $out"
 fresh; printf 'in\n' > real.txt; ln -s real.txt link.txt; t "$MRW" read link.txt >/dev/null 2>&1
 plan '@@ link.txt 1 replace\nVIA-LINK\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "symlink-inside-write" $? "real=$(cat real.txt) islink=$([ -L link.txt ] && echo yes || echo no) | $out"
-fresh; mkdir sub; ln -s "$W/outside" sub/esc; out=$(t "$MRW" read --grep secret sub/ 2>&1); say "grep-walk-symlink-dir-outside" $? "$(echo "$out" | tail -1)"
+fresh; mkdir sub; ln -s "$W/outside" sub/esc; out=$(t "$MRW" read --grep secret sub/ 2>&1); say "grep-walk-symlink-dir-outside" $? "$out"
 fresh; ln -s . loop; printf 'needle\n' > n.txt; out=$(t "$MRW" read --grep needle . 2>&1); say "grep-walk-symlink-loop" $? "$(echo "$out" | grep -c needle) matches, $(echo "$out" | tail -1 | cut -c1-60)"
 
 # ---------- 4. a FIFO and an unreadable dir in a walked tree ----------
-fresh; printf 'needle\n' > a.txt; mkfifo pipe; out=$(t "$MRW" read --grep needle . 2>&1); say "grep-walk-fifo" $? "$(echo "$out" | tail -1 | cut -c1-80)"
+fresh; printf 'needle\n' > a.txt; mkfifo pipe; out=$(t "$MRW" read --grep needle . 2>&1); say "grep-walk-fifo" $? "$out"
 fresh; printf 'needle\n' > a.txt; mkdir locked; printf 'needle\n' > locked/b.txt; chmod 000 locked; out=$(t "$MRW" read --grep needle . 2>&1); rc=$?; chmod 755 locked; say "grep-walk-unreadable-dir" $rc "$(echo "$out" | grep -ci 'locked\|permission') mentions of the dir | $(echo "$out" | tail -1 | cut -c1-70)"
 
 # ---------- 5. degenerate files ----------
@@ -81,7 +81,7 @@ printf '@@ f.txt 1 replace\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1
 printf '@@ f.txt - create\nnew\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "create-over-existing-file" $? "$(cat f.txt) | $out"
 printf '@@ sub/dir/new.txt - create\nnew\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "create-in-missing-dir" $? "$(cat sub/dir/new.txt 2>&1 | head -1) | $out"
 printf '@@ ../escape.txt - create\nx\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "create-outside-root" $? "$([ -e ../escape.txt ] && echo ESCAPED || echo contained) | $out"
-printf '@@ f.txt 1 replace\nQ\n' | t "$MRW" write --quiet --dry-run - >/dev/null 2>&1; l=$("$MRW" seen 2>/dev/null | grep -c 'f.txt'); say "dry-run-records-nothing-new?" $? "ledger lines for f.txt=$l (1 from the read is expected)"
+printf '@@ f.txt 1 replace\nQ\n' | t "$MRW" write --quiet --dry-run - >/dev/null 2>&1; rc=$?; l=$(t "$MRW" seen 2>/dev/null | grep -c 'f.txt'); say "dry-run-records-nothing-new?" $rc "ledger lines for f.txt=$l (1 from the read is expected)"
 
 # ---------- 8. MCP stdio: a request line over bufio's 64KB default ----------
 fresh; printf 'one\ntwo\n' > f.txt
@@ -94,6 +94,6 @@ out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mr
 out=$(printf 'not json at all\n{"jsonrpc":"2.0","id":2,"method":"tools/list"}\n' | t "$MRW" mcp 2>&1); say "mcp-garbage-then-valid" $? "responses=$(echo "$out" | grep -c jsonrpc) $(echo "$out" | head -c 100 | tr '\n' ' ')"
 
 # ---------- 9. state and env ----------
-fresh; printf 'x\n' > f.txt; out=$(env -u HOME -u XDG_STATE_HOME "$MRW" read f.txt 2>&1); say "no-HOME-no-XDG" $? "$(echo "$out" | tail -1 | cut -c1-80)"
-out=$(XDG_STATE_HOME=/dev/null/nope "$MRW" read f.txt 2>&1); say "unwritable-state-home" $? "$(echo "$out" | tail -1 | cut -c1-80)"
+fresh; printf 'x\n' > f.txt; out=$(t env -u HOME -u XDG_STATE_HOME "$MRW" read f.txt 2>&1); say "no-HOME-no-XDG" $? "$out"
+out=$(XDG_STATE_HOME=/dev/null/nope t "$MRW" read f.txt 2>&1); say "unwritable-state-home" $? "$out"
 echo "campaign dir: $W"
