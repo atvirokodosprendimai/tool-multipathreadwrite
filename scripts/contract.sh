@@ -49,12 +49,18 @@ if [ "${CONTRACT_GROUP:-}" != "$$" ]; then
     }
     setpgrp(0, 0);
     $SIG{INT} = $SIG{TERM} = $SIG{HUP} = "DEFAULT";
+    # A forward that landed before that reset ran the inherited handler with
+    # $pid still 0 and was swallowed; replay it here (review, round five).
+    kill "TERM", $$ if $pending;
     $ENV{CONTRACT_GROUP} = $$;
     exec @ARGV or die "exec: $!";
   ' "$BASH" "$0" "$@"
 fi
 # The marker is consumed here so no descendant inherits it: a stale exported
 # value equal to a reused pid would otherwise skip the wrapper (review).
+# Nothing accidental can match it after this — live pids are unique and this
+# is unset before anything is spawned; a caller that forges it to its own
+# pid on purpose is defeating the wrapper deliberately, and may.
 unset CONTRACT_GROUP
 
 cd "$(dirname "$0")/.."
@@ -3394,6 +3400,11 @@ done
 # to the wrapper must end the run 143 within seconds with the orphan gone:
 # that is the forwarding, and deleting the handler leaves the runner asleep.
 sed -n '1,/^trap .*EXIT$/p' "$0" > "$WORK/probe.sh"
+# The cut is the first EXIT trap. Assert it is the prologue and nothing
+# more or less, so a moved trap cannot silently change what the probe proves.
+[ "$(grep -c '^trap ' "$WORK/probe.sh")" = 1 ] && grep -q 'CONTRACT_GROUP' "$WORK/probe.sh" && grep -q 'kill -- -\$\$' "$WORK/probe.sh" && ! grep -q '^ok()' "$WORK/probe.sh" \
+  && ok "the probe is this file's prologue: one trap, the wrapper, the group kill, and no rows" \
+  || bad "the probe cut is not the prologue: $(wc -l < "$WORK/probe.sh" | tr -d ' ') lines, $(grep -c '^trap ' "$WORK/probe.sh") trap line(s)"
 cat >> "$WORK/probe.sh" <<'PROBE'
 echo $$ > "$1.runner"
 ( sleep 300 & )
