@@ -2549,8 +2549,15 @@ d={"hook_event_name":"PostToolUse","session_id":sys.argv[1],"cwd":sys.argv[6] or
 if sys.argv[5]: d["tool_response"]=json.loads(sys.argv[5])
 print(json.dumps(d))' "$1" "$R55/proj" "$2" "$3" "${4:-}" "${5:-}"
 }
+# Every hook child runs under an alarm. A mutant that hangs is a legitimate
+# mutant and bounding it is the harness's job: on 2026-09-04 the "regex-seg"
+# mutant — a catastrophic pattern in the hook — was killed by its row and then
+# ran for fifteen hours at 80 % CPU under parent 1, twice, because nothing here
+# put a ceiling on the child (#101). The alarm survives exec, so python3 gets
+# SIGALRM and exits 142, which every row reads as a failure. ALARM55 is
+# overridable so the row that proves this can use a short one.
 hook55() {  # the same arguments -> the hook's stdout, under the fixture's HOME and project
-  mk55 "$@" | env HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK"
+  mk55 "$@" | env HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK"
 }
 closed55() {  # the same arguments -> the hook run with stdout genuinely closed
   # Closed AFTER env, by the shell that execs python3. Closing it before env
@@ -2754,7 +2761,7 @@ grep -q 'SCOPED RULE BODY 55' <<<"$ctx" \
 many55=$(printf 'README.md %.0s' $(seq 1 600))
 ctx=$(hook55 s10c Bash "{\"command\":\"cat ${many55}docs/adr/x.md\"}" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "the 601st operand of a command is still a candidate: there is no token cap" || bad "a long command lost its last operand: $ctx"
-out=$(printf 'not json' | env HOME="$R55/home" python3 "$HOOK"); want 0 "$?" "malformed stdin exits 0: a broken hook must not take the turn down"
+out=$(printf 'not json' | env HOME="$R55/home" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK"); want 0 "$?" "malformed stdin exits 0: a broken hook must not take the turn down"
 [ -z "$out" ] && ok "and prints nothing" || bad "printed on malformed stdin: $out"
 ( closed55 s11 Bash '{"command":"cat docs/adr/x.md"}' 2>/dev/null ); want 0 "$?" "a closed stdout still exits 0"
 ctx=$(hook55 s11 Bash '{"command":"cat docs/adr/x.md"}' | ctx55)
@@ -2869,17 +2876,17 @@ ctx=$(hook55 s10b Bash '{"command":"cat docs/adr/x.md"}' '' "$R55/proj/pkg" | ct
 # Both are refused, and the hook delivers WITHOUT a claim — a repeat beats a
 # silence, and ADR-004's promise beats both.
 mkdir -p "$R55/cwd"
-ctx=$(cd "$R55/cwd" && mk55 s14 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME=rel55 CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+ctx=$(cd "$R55/cwd" && mk55 s14 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME=rel55 CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && [ ! -e "$R55/cwd/rel55" ] && [ ! -e "$R55/proj/rel55" ] \
   && ok "a relative XDG_CACHE_HOME is refused: nothing is created under cwd, and the rule is delivered anyway" \
   || bad "relative cache base: delivered=$([ -n "$ctx" ] && echo yes || echo no) created=$(ls -d "$R55/cwd/rel55" "$R55/proj/rel55" 2>/dev/null | tr '\n' ' ')"
-ctx=$(mk55 s15 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/proj/.cache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+ctx=$(mk55 s15 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/proj/.cache" CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && [ ! -e "$R55/proj/.cache" ] \
   && ok "a cache base inside the project is refused: nothing lands in the tree, and the rule is delivered anyway" \
   || bad "in-tree cache base: delivered=$([ -n "$ctx" ] && echo yes || echo no) created=$(ls -d "$R55/proj/.cache" 2>/dev/null)"
 printf 'not a directory\n' > "$R55/notadir"
-one=$(mk55 s16 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/notadir" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
-two=$(mk55 s16 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/notadir" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+one=$(mk55 s16 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/notadir" CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
+two=$(mk55 s16 Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/notadir" CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$one" && grep -q 'SCOPED RULE BODY 55' <<<"$two" \
   && ok "an unusable state directory delivers on every call: once per session holds only while a claim can be filed" \
   || bad "an unusable state directory suppressed a delivery: first=$([ -n "$one" ] && echo yes || echo no) second=$([ -n "$two" ] && echo yes || echo no)"
@@ -2888,20 +2895,32 @@ grep -q 'SCOPED RULE BODY 55' <<<"$one" && grep -q 'SCOPED RULE BODY 55' <<<"$tw
 # suppressed every rule for the session. Only the O_EXCL create may be read
 # that way, so this pair must deliver twice.
 mkdir -p "$R55/filecache"; printf 'not a directory\n' > "$R55/filecache/claude-rules-on-read"
-one=$(mk55 s16b Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/filecache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
-two=$(mk55 s16b Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/filecache" CLAUDE_PROJECT_DIR="$R55/proj" python3 "$HOOK" | ctx55)
+one=$(mk55 s16b Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/filecache" CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
+two=$(mk55 s16b Bash '{"command":"cat docs/adr/x.md"}' | env HOME="$R55/home" XDG_CACHE_HOME="$R55/filecache" CLAUDE_PROJECT_DIR="$R55/proj" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$one" && grep -q 'SCOPED RULE BODY 55' <<<"$two" \
   && ok "a regular file where the claim directory belongs delivers on every call, not none: FileExistsError from makedirs is not a claim" \
   || bad "a file at the state directory's path suppressed a delivery: first=$([ -n "$one" ] && echo yes || echo no) second=$([ -n "$two" ] && echo yes || echo no)"
 # Without CLAUDE_PROJECT_DIR the walk up from cwd takes the nearest
 # .claude/rules, and stops at the first .git it meets: a nested repository
 # does not inherit the enclosing one's rules.
-ctx=$(mk55 s17 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/pkg" | env -u CLAUDE_PROJECT_DIR HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" python3 "$HOOK" | ctx55)
+ctx=$(mk55 s17 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/pkg" | env -u CLAUDE_PROJECT_DIR HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "without CLAUDE_PROJECT_DIR, the nearest .claude/rules above cwd is the project" || bad "the walk-up found no project: $ctx"
 mkdir -p "$R55/proj/inner/.git"
-ctx=$(mk55 s18 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/inner" | env -u CLAUDE_PROJECT_DIR HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" python3 "$HOOK" | ctx55)
+ctx=$(mk55 s18 Bash '{"command":"cat ../docs/adr/x.md"}' '' "$R55/proj/inner" | env -u CLAUDE_PROJECT_DIR HOME="$R55/home" XDG_CACHE_HOME="$R55/home/.cache" perl -e 'alarm shift; exec @ARGV' "${ALARM55:-10}" python3 "$HOOK" | ctx55)
 [ -z "$ctx" ] && ok "and it stops at a nested repository's .git, so the enclosing project's rules are not delivered into it" || bad "the walk-up crossed a .git boundary: $ctx"
 [ -n "$(ls "$R55/home/.cache/claude-rules-on-read" 2>/dev/null)" ] && ok "dedup state lives under the caller's cache directory, not the shared temp" || bad "no state under HOME"
+# A hook child that never returns must be a FAILED row, not a process that
+# outlives the run (#101). Every python3 "$HOOK" above runs under the alarm
+# hook55 describes; this row proves the alarm fires by handing it a hook that
+# sleeps longer than the alarm. Without the alarm the sleep completes, the
+# exit is 0 and this row goes red — after thirty seconds instead of one.
+printf 'import time\ntime.sleep(30)\n' > "$R55/hang.py"
+t0=$(date +%s)
+( HOOK="$R55/hang.py"; ALARM55=1; hook55 s19 Bash '{"command":"cat docs/adr/x.md"}' >/dev/null ) 2>/dev/null; rc=$?  # 2>: bash reports the SIGALRM kill on stderr
+el=$(( $(date +%s) - t0 ))
+[ "$rc" -ne 0 ] && [ "$el" -lt 10 ] \
+  && ok "a hook that never returns is killed by the alarm and its row fails: exit $rc after ${el}s" \
+  || bad "a hanging hook outlived its alarm: exit $rc after ${el}s"
 rm -rf "$R55"
 
 # 56. ADR-021: a plan names a file once, however it is spelled.
@@ -3278,6 +3297,13 @@ want 2 "$?" "a window that exists but starts after an early target is refused to
 grep -q 'excludes the target' "$R60/gap.json" \
   && ok "and says so, rather than serving a window with no answer in it" \
   || bad "the existing-window refusal does not say why: $(head -c 200 "$R60/gap.json")"
+# Nothing this run started may outlive it. The alarm in §55 is the per-child
+# bound; this is the whole-run check that would have named #101 the day it
+# happened instead of fifteen hours later. pgrep runs as a direct child so it
+# is not itself in the list, and it never reports itself.
+pgrep -P $$ > "$WORK/kids"
+left=$(wc -l < "$WORK/kids" | tr -d ' ')
+[ "$left" = 0 ] && ok "no child process outlived the run" || bad "$left child process(es) still running at exit: $(tr '\n' ' ' < "$WORK/kids")"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
