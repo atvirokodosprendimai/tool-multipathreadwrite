@@ -20,7 +20,6 @@ a second gutter (reading 8); the section *Does serving more hurt?* has the numbe
 Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
 tools — changes only through a record, and a record that relaxes or replaces an earlier promise
 retires it.
-read-before-write, the MCP tools — changes only through a record that retires the one it replaces.
 
 Install it with one command — see [Install](#install) for the details:
 
@@ -284,7 +283,7 @@ Every row below is asserted by a script, against the real binary in a throwaway
 repo, by making each promise go wrong on purpose:
 
 ```sh
-./scripts/contract.sh      # exit 0 only if every assertion holds (216 today)
+./scripts/contract.sh      # exit 0 only if every assertion holds; the script prints its own total
 ```
 
 The count moves as rows are added, so the script prints its own total rather

@@ -12,13 +12,13 @@
 [pat-insert-after-lines-guard] exit=0  one|X|two| | 1 hunk(s), 1 file(s), 0 failed — applied
 [case-two-spellings-one-plan] exit=1  file=one|two|three| | FAIL same.txt 3 replace (plan line 3): same.txt names the same file as Same.txt (plan line 1); one file, one spelling per plan 2 hunk(s), 2 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
 [case-read-A-write-a] exit=0  file=X|two| | 1 hunk(s), 1 file(s), 0 failed — applied
-[symlink-read-escapes-root?] exit=1  ==> link.txt REFUSED link.txt resolves to /private<tmp> which is outside the root /private<tmp> read it with --root pointed where you mean mrw: 1 range(s) could not be served
-[symlink-write-through-force] exit=1  outside=secret islink=yes | FAIL link.txt 1 replace (plan line 1): link.txt resolves to /private<tmp> which is outside the root /private<tmp> a plan may only change files under the directory mrw was pointed at 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
+[symlink-read-escapes-root?] exit=1  ==> link.txt REFUSED link.txt resolves to <tmp> which is outside the root <tmp> read it with --root pointed where you mean mrw: 1 range(s) could not be served
+[symlink-write-through-force] exit=1  outside=secret islink=yes | FAIL link.txt 1 replace (plan line 1): link.txt resolves to <tmp> which is outside the root <tmp> a plan may only change files under the directory mrw was pointed at 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
 [symlink-inside-write] exit=0  real=VIA-LINK islink=yes | 1 hunk(s), 1 file(s), 0 failed — applied
 [grep-walk-symlink-dir-outside] exit=1  mrw: no file matched /secret/
 [grep-walk-symlink-loop] exit=0  1 matches, 1| needle
 [grep-walk-fifo] exit=0  ==> a.txt 1L 7B sha d2921077 @@ 1-1 1| needle
-[grep-walk-unreadable-dir] exit=1  1 mentions of the dir | mrw: 1 range(s) could not be served
+[grep-walk-unreadable-dir] exit=1  1 mentions of the dir | ==> locked REFUSED open <tmp> permission denied ==> a.txt 1L 7B sha d2921077 @@ 1-1 1| needle mrw: 1 range(s) could not be served
 [empty-insert-before-1] exit=0  bytes=1 | 1 hunk(s), 1 file(s), 0 failed — applied
 [empty-insert-after-dollar] exit=0  bytes=1 content=X | 1 hunk(s), 1 file(s), 0 failed — applied
 [no-trailing-newline-preserved] exit=0  0000000 ? | 1 hunk(s), 1 file(s), 0 failed — applied
@@ -38,12 +38,12 @@
 [replace-with-empty-body] exit=2  bytes=2 | mrw: p.plan: plan has 1 error(s): line 1: replace with an empty body would delete 1 — say delete if that is what you mean, and check the body did not go missing if it is not
 [create-over-existing-file] exit=1  Q | FAIL f.txt 0 create (plan line 1): create: f.txt already exists (1 lines) — use replace or delete 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
 [create-in-missing-dir] exit=0  new | 1 hunk(s), 1 file(s), 0 failed — applied
-[create-outside-root] exit=1  contained | FAIL ../escape.txt 0 create (plan line 1): ../escape.txt resolves to /private<tmp> which is outside the root /private<tmp> a plan may only change files under the directory mrw was pointed at 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
+[create-outside-root] exit=1  contained | FAIL ../escape.txt 0 create (plan line 1): ../escape.txt resolves to <tmp> which is outside the root <tmp> a plan may only change files under the directory mrw was pointed at 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
 [dry-run-records-nothing-new?] exit=0  ledger lines for f.txt=1 (1 from the read is expected)
-[mcp-120KB-request-line] exit=0  mrw mcp: serving <tmp> (from the working directory) {"jsonrpc":"2.0","id":1,"result":{"con
-[mcp-batch-array] exit=0  mrw mcp: serving <tmp> (from the working directory
+[mcp-120KB-request-line] exit=0  mrw mcp: serving <tmp> (from the working directory) {"jsonrpc":"2.0","id":1,"result":{"cont
+[mcp-batch-array] exit=0  mrw mcp: serving <tmp> (from the working directory)
 [mcp-notification-then-string-id] exit=0  "id":"s" responses=1
-[mcp-specs-as-string] exit=0  mrw mcp: serving <tmp> (from the working directory) {"jsonrpc":"2.0","
-[mcp-garbage-then-valid] exit=0  responses=2 mrw mcp: serving <tmp> (from t
+[mcp-specs-as-string] exit=0  mrw mcp: serving <tmp> (from the working directory) {"jsonrpc":"2.0","i
+[mcp-garbage-then-valid] exit=0  responses=2 mrw mcp: serving <tmp> (from th
 [no-HOME-no-XDG] exit=2  mrw: no XDG_STATE_HOME and no home directory: $HOME is not defined
 [unwritable-state-home] exit=2  mrw: mkdir /dev/null: not a directory

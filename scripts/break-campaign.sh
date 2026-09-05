@@ -46,7 +46,7 @@ fresh; ln -s . loop; printf 'needle\n' > n.txt; out=$(t "$MRW" read --grep needl
 
 # ---------- 4. a FIFO and an unreadable dir in a walked tree ----------
 fresh; printf 'needle\n' > a.txt; mkfifo pipe; out=$(t "$MRW" read --grep needle . 2>&1); say "grep-walk-fifo" $? "$out"
-fresh; printf 'needle\n' > a.txt; mkdir locked; printf 'needle\n' > locked/b.txt; chmod 000 locked; out=$(t "$MRW" read --grep needle . 2>&1); rc=$?; chmod 755 locked; say "grep-walk-unreadable-dir" $rc "$(echo "$out" | grep -ci 'locked\|permission') mentions of the dir | $(echo "$out" | tail -1 | cut -c1-70)"
+fresh; printf 'needle\n' > a.txt; mkdir locked; printf 'needle\n' > locked/b.txt; chmod 000 locked; out=$(t "$MRW" read --grep needle . 2>&1); rc=$?; chmod 755 locked; say "grep-walk-unreadable-dir" $rc "$(echo "$out" | grep -ci 'locked\|permission') mentions of the dir | $out"
 
 # ---------- 5. degenerate files ----------
 fresh; : > empty.txt; t "$MRW" read empty.txt >/dev/null
