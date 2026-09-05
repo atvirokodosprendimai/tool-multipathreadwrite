@@ -322,8 +322,18 @@ byte-identical, so the revert is a deletion.
       With the plan's shape not shown, 34 of 45 void on format — the client wrote apply_patch,
       JSON or prose plans — while every parsed plan hit and every void message named the target
       (a finding for ADR-012). With the shape shown, 45 of 45: at the ceiling at every size.
-- [ ] **The MCP delivery arm (reading 12), blocked by ADR-023 until it ships.** Staging it on
-      2026-09-05 found that over Claude Code 2.1.261 a successful `mrw_read` reached the model as its
-      `structuredContent` alone — no served lines — so the arm would have measured a client authoring
-      against a receipt (issue #109). ADR-023 removes the envelope; the arm runs against that build,
-      from a fresh session, on reading 4's fifteen 200 KB cells staged under `tmp/curve/`.
+- [x] **The MCP delivery arm, at 2 KB** (`docs/curve/reading-19-result.md`): 15 of 15, compliant 15
+      of 15, no paged reads. The delivery mrw ships matches the best delivery measured on these
+      cells — reading 9's bare tool result was 15 of 15 and reading 13's numbered arm 14 of 15. The
+      arm was blocked twice before it ran: ADR-023's envelope (issue #109, found staging reading 12),
+      and then the truncation below. Readings 12 and 18 are void and say why.
+- [x] **The MCP delivery arm at 200 KB is NOT a curve point** (`docs/curve/reading-18-result.md`):
+      mrw serves ADR-014's first page correctly and the HOST truncates it before the model sees it —
+      one observation put 58,860 of 200,000 characters through, head and tail — while
+      `internal/mcp/tools.go:535` records the whole page in the ledger. A plan replacing a line
+      inside the discarded middle then applied, exit 0: ADR-002 inverted. It is a defect, filed in
+      `docs/adr/BACKLOG.md` under ADR-023, and no rate is published for that size.
+- [ ] **The 20 KB stratum, re-run** (`docs/curve/reading-20-plan.md`): reading 19 collected it and
+      voided it on two deviations of its author's — a coverage instruction clarified after the first
+      trial, and a no-answer trial retried without authority. Reading 20 fixes both as pre-registered
+      rules and re-runs the fifteen cells.
