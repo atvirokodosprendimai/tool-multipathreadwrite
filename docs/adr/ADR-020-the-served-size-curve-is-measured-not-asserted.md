@@ -293,3 +293,8 @@ byte-identical, so the revert is a deletion.
       4's forty-five cells, a Bash-result delivery — the MCP path was not run. Reading 9
       (`docs/curve/reading-09-result.md`) took the served-size curve within the tool-result arm:
       15, 15, 15, at the read arm's cost within 3% at 2 KB and 20 KB and 7% below it at 200 KB.
+      Readings 10 and 11 (`reading-10-result.md`, `reading-11-result.md`) separated the two things
+      the tool-result arm had changed at once: the same `sed` ranges with a second number that
+      restarts per range scored 14 of 14 compliant; with a second number equal to the reader's row
+      index they scored 10 of 15, every miss at +2, all five late. The chunking did nothing; a
+      second number does, when its value reads as a line address. The closure's scope is unchanged.
