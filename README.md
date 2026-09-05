@@ -909,7 +909,7 @@ ADR-020 built an instrument to find out rather than argue about it: `curve` gene
 client authors a plan against what mrw would serve, and the scorer applies the plan and reports which
 line changed. The pre-registration in `docs/adr/BACKLOG.md` fixed the criterion before a cell existed
 — correct-address rate against served bytes, stratified by position, **a flat curve accepted as an
-answer** — and eleven readings have been taken under it: three void under their own rules (1, 6, 7) and eight with results. Every plan was committed before its trials
+answer** — and twelve readings have been taken under it: three void under their own rules (1, 6, 7) and nine with results; reading 12, the MCP arm, waits on ADR-023. Every plan was committed before its trials
 ran, every score file is committed, and every table below recomputes from them.
 
 | Reading | Client | Fixture | 2 KB | 20 KB | 200 KB | What it settled |
@@ -925,6 +925,7 @@ ran, every score file is committed, and every table below recomputes from them.
 | 9 | Haiku | relational, scripted arm | 15/15 | 15/15 | (15/15, reading 8) | **Flat at the ceiling through the tool-result arm**, 45/45 pooled; the read arm's 15, 12, 8 on the same cells becomes 15, 15, 15. Cost within 3% of the read arm's at 2 KB and 20 KB, 7% lower at 200 KB. |
 | 10 | Haiku | relational, scripted arm, `nl` per range | — | — | 14/14 | **A second number that restarts per range was not taken by this client in these trials.** Compliant 14 of 15 (one merge spilled, void); no miss; predicted misses did not appear. |
 | 11 | Haiku | relational, scripted arm, `nl -v` from the top | — | — | **10/15** | **Reading 4's number put back, the miss comes back**: five misses, every one at +2, all five late. Against reading 10, 5 discordant pairs, all one way. |
+| 13 | Haiku | relational, scripted arm, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | **The same number at the smaller sizes**: three misses in thirty, every one at +2, two late and one middle. With the number the curve is 14, 13, 10; without it (readings 9, 8) 15, 15, 15. |
 
 **For a strong client, serving a hundred times more bytes costs about 2.5× the tokens and loses
 nothing.** Measured twice, on two different tasks. The "serve 10k and call it a day" instinct is not
@@ -961,7 +962,9 @@ forty-five exactly, at every size, at the read arm's cost or below it (readings 
 45 of 45 under pre-registered rules). Readings 10 and 11 then separated the second number from the
 chunking: with a second number that restarts per range this client addressed 14 of 14, and a second number
 equal to the reader's — the row index from the top — brought the miss back at exactly that number
-under the same chunking (10 of 15, all five misses late). So the cap stays at 200,000 with evidence, the served format is
+under the same chunking (10 of 15, all five misses late), and reading 13 took that number to 2 KB and 20 KB: 14 and 13 of 15,
+three misses at +2, so with a plausible second number the curve bends with size through either
+delivery — 14, 13, 10 against the bare arm's 15, 15, 15. So the cap stays at 200,000 with evidence, the served format is
 not changed, and the stability claim rests on readings 3, 5, 8, 9, 10 and 11 together. What stands
 from reading 4 is a fact about the two delivery forms measured: lay a plausible line number beside
 mrw's and a weaker client takes it some of the time. Two readings between 5 and 8 were void under their own compliance rules

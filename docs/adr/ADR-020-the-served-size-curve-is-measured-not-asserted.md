@@ -300,3 +300,8 @@ byte-identical, so the revert is a deletion.
       index they scored 10 of 15, every miss at +2, all five late. So the chunking is not what removed
       the miss; a second number brought it back in five of fifteen trials under chunked delivery when its value read as a line
       address. The closure's scope is unchanged.
+- [x] **Reading 13** (`docs/curve/reading-13-result.md`): reading 11's number at 2 KB and 20 KB —
+      14 and 13 of 15, three misses at +2, two late and one middle, compliant 30 of 30. With a
+      plausible second number the curve is 14, 13, 10 through a tool result; without one, 15, 15, 15.
+      The late-only pattern of reading 11 is not reproduced as a rule and stays unexplained.
+
