@@ -25,7 +25,8 @@ tools — changes only through a record, and a record that relaxes or replaces a
 retires it. **Since v1.0.0 that has happened once:** ADR-023 retires half of ADR-011's T2, so
 `mrw_read` returns no `structuredContent` and declares no `outputSchema`; its receipt is the
 second text block, unchanged in shape. A caller that read `result.structuredContent` off a read
-reads `content[1]` instead. `mrw_write` is untouched, and so is every CLI behaviour.
+parses the JSON string in `result.content[1].text` instead — the same object, one block over.
+`mrw_write` is untouched, and so is every CLI behaviour.
 
 Install it with one command — see [Install](#install) for the details:
 
@@ -471,7 +472,7 @@ between the two paths and no behaviour to
 learn twice — the server is a second caller of one engine, not a second product.
 The single difference is the concurrency note above. One shape to know: a read's
 answer is its first text block and its receipt (observed spans, problems, `next_read`)
-its second, with no `structuredContent` — because a host was measured rendering
+the JSON string in its second, with no `structuredContent` — because a host was measured rendering
 `structuredContent` in place of the text, which for a read is the receipt without the
 lines (ADR-023, issue #109). A write's receipt is its `structuredContent`, and the
 measured host shows exactly that.
