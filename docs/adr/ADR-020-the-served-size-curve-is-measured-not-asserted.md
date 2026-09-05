@@ -272,7 +272,7 @@ byte-identical, so the revert is a deletion.
       readings 10 and 11 (below) separated the number from the delivery's chunking. Compliance
       15/15; the three misses apply unguarded and are refused with `anchor=`, 16 of 16 across
       readings 2–5.
-- [ ] **Difficulty is not what this harness lacks for the stronger client, and reading 4 has
+- [x] **Difficulty is not what this harness lacks for the stronger client, and reading 4 has
       already tried the weaker one.** Two fixtures sit at 100% for Sonnet. The candidates that remain,
       in the order they look worth trying: raise the DISTRACTOR count, held at 3 in every reading and
       never manipulated, so the target has always been one of four; or a property over pairs rather
@@ -305,8 +305,9 @@ byte-identical, so the revert is a deletion.
       plausible second number this client missed at every size measured (observed points 14, 13, 10
       through a tool result); without one, 15, 15, 15. No size trend is established by thirty
       trials, and the late-only pattern of reading 11 stays unexplained.
-- [x] **Reading 14** (`docs/curve/reading-14-result.md`): a harder fixture — twelve distractors,
-      thirteen services — for the strong client through the bare tool result: 14, 15, 15 of 15,
-      one miss on the right service one line above the target, cost 2.32× from 2 KB to 200 KB.
-      The flat curve is not an artefact of an easy fixture. Compliance rests on reading a
-      post-Write `SendMessage` as the harness's reply channel; the result says so.
+- [x] **Reading 14** (`docs/curve/reading-14-result.md`), evidence-limited: a harder fixture —
+      twelve distractors, thirteen services — for the strong client through the bare tool result.
+      Thirty of forty-five trials replied through `SendMessage`, a channel the rule did not name, and
+      are void; the fifteen strict trials all hit; all forty-five as sensitivity are 14, 15, 15 with
+      one miss on the right service one line above the target. The distractor item above is
+      manipulated by this reading and by reading 17, which re-runs it with the channel named.
