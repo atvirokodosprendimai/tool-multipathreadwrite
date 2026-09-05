@@ -1,4 +1,4 @@
-# Reading 13, result: with the number present the miss appears at every size, at a rate that rises with size
+# Reading 13, result: with the number present the miss appears at 2 KB and 20 KB too, three times in thirty
 
 **Collected 2026-09-05 under `reading-13-plan.md`, committed before any trial ran.** Thirty
 trials, a Haiku client, reading 11's arm — one `sed` range piped through `nl -ba -v 1`, so the outer
@@ -26,21 +26,24 @@ The author expected no miss at 2 KB and at most one at 20 KB. There was one at 2
 line 38 with 39 numbered rows before it — and two at 20 KB. That is the third reading in a row in
 which the author's expectation was wrong.
 
-Neither pre-registered account survives as written. **H-preceding-text** said no miss at 2 KB; a
-miss at 2 KB with 39 rows of preceding text refutes the amount of preceding text as what the miss
-requires. **H-position** said the misses concentrate in the late cells; two of three are late and
-one is middle, and three misses cannot carry a claim about position either way. Reading 11's
-late-only pattern at 200 KB is therefore not reproduced as a rule at smaller sizes, and stays what
-reading 11 called it: observed on five cells, not explained.
+**H-preceding-text failed as written:** it said no miss at 2 KB, and there was one, with 39 rows of
+preceding text. **H-position is inconclusive:** it said misses concentrate in the late cells; two of
+three are late and one is middle, and three misses cannot carry a claim about position either
+way. The plan's decision rule — "late-only misses at 20 KB, or any at 2 KB, mean position is the
+variable" — fired on one 2 KB late miss, and one miss is too coarse a trigger to decide anything;
+the rule was written too strong, and this result does not apply it. Reading 11's late-only pattern
+at 200 KB is neither reproduced nor refuted here, and stays what reading 11 called it: observed on
+five cells, not explained.
 
 ## What the three sizes say together
 
-With the number present, this client's curve through a tool result is 14, 13, 10 of 15 across
-2 KB, 20 KB, 200 KB (readings 13, 13, 11). Reading 4's curve through its file reader — the same
-number, laid by the reader — was 15, 12, 8. Through the bare tool result, with no second number,
-it was 15, 15, 15 (readings 9, 9, 8). So: in the presence of a plausible second number, served size
-is associated with the miss rate through both deliveries measured; in its absence the curve was
-flat at every size. The pairings by cell:
+With the number present, this client's observed points through a tool result are 14, 13, 10 of 15
+across 2 KB, 20 KB, 200 KB (readings 13, 13, 11). Reading 4's through its file reader — the same
+number, laid by the reader — were 15, 12, 8. Through the bare tool result, with no second number,
+they were 15, 15, 15 (readings 9, 9, 8). These are point estimates, and the ones at 2 KB and 20 KB
+have overlapping intervals: **these trials do not establish a served-size trend.** What they
+establish is that with the number present the miss occurred at every size measured, always at
+`T + 2`, and that without it no miss occurred at any size. The pairings by cell:
 
 - Against reading 9 (bare): 2 KB 1–0, 20 KB 2–0, reading 9 hit and this reading missed; the
   reverse never.
@@ -62,13 +65,13 @@ Prediction 4 holds.
 
 ## What this decides
 
-The second number's effect is not confined to 200 KB or to the late position: it appears at 2 KB
-and at 20 KB, at `T + 2`, at a lower rate. What the late-only pattern of reading 11 was, this
-reading does not say. What it does say is that the flat curve of readings 8 and 9 is a property of
-the bare delivery, and that the delivery which lays a plausible line number beside mrw's has a curve
-that bends with size — through a file reader (reading 4) and through a tool result (readings 11
-and 13) alike. For mrw nothing moves: the cap stays, the served format stays, and the bare
-delivery is the one the tool's own output is.
+The second number's effect is not confined to 200 KB or to the late position: it appeared at 2 KB
+and at 20 KB, at `T + 2`. What the late-only pattern of reading 11 was, this reading does not say,
+and whether the miss rate rises with size, thirty trials with three misses cannot say either. What
+it does say is that the flat curve of readings 8 and 9 is a property of the bare delivery: with a
+plausible line number beside mrw's, this client missed at every size measured, through a file
+reader (reading 4) and through a tool result (readings 11 and 13) alike. For mrw nothing moves: the
+cap stays, the served format stays, and the bare delivery is the one the tool's own output is.
 
 ## What it does not decide
 

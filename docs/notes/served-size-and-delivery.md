@@ -85,7 +85,7 @@ and reported, never counted as a miss.
 | 9 | Haiku | tool result | 15/15 | 15/15 | (reading 8) | Flat at the ceiling at every size. |
 | 10 | Haiku | tool result, `nl` per range | — | — | 14/14 | Second number restarts per range: no miss; one trial void (spill). |
 | 11 | Haiku | tool result, `nl -v` from the top | — | — | 10/15 | Second number equal to the reader's: five misses, all at target+2, all late. |
-| 13 | Haiku | tool result, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | The same number at the smaller sizes: three misses, all at target+2, two late and one middle. |
+| 13 | Haiku | tool result, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | The same number at the smaller sizes: three misses, all at target+2, two late and one middle; no size trend established. |
 
 Every score file is in the repository under `docs/curve/reading-NN-scores/`; the rates, intervals,
 offsets and pairings in this note recompute from them. Compliance, coverage, cost and the quoted
@@ -138,9 +138,12 @@ p = 0.0625. The chunking is not what removed the miss; a second number brought i
 fifteen trials under chunked delivery, when its value read as a line number. What chunking contributes on its
 own, these readings do not measure: reading 4 against reading 11 is 8 and 10 of 15, discordant
 both ways. Reading 13 took the same number to 2 KB and 20 KB: 14 and 13 of 15, three misses at
-`T + 2`, two late and one middle — so with a plausible second number this client's curve through a
-tool result is 14, 13, 10, beside reading 4's 15, 12, 8 through its reader and the bare arm's
-15, 15, 15. The late-only pattern of reading 11 is neither reproduced nor refuted by three misses.
+`T + 2`, two late and one middle — so with a plausible second number this client missed at every
+size measured (observed points 14, 13, 10 through a tool result, 15, 12, 8 through its reader),
+where the bare arm had no miss at any (15, 15, 15). Thirty trials with three misses do not establish
+a size trend, and the note's claim stays what it was: served size did not bend the curve through
+the bare delivery; the second number did, at every size. The late-only pattern of reading 11 is
+neither reproduced nor refuted by three misses.
 
 What this is and is not. It is a measurement that, for this client on this fixture family, the
 only recurring miss followed a second number laid beside mrw's whose value is plausible as a

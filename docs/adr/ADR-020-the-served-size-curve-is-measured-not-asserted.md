@@ -302,6 +302,6 @@ byte-identical, so the revert is a deletion.
       address. The closure's scope is unchanged.
 - [x] **Reading 13** (`docs/curve/reading-13-result.md`): reading 11's number at 2 KB and 20 KB —
       14 and 13 of 15, three misses at +2, two late and one middle, compliant 30 of 30. With a
-      plausible second number the curve is 14, 13, 10 through a tool result; without one, 15, 15, 15.
-      The late-only pattern of reading 11 is not reproduced as a rule and stays unexplained.
-
+      plausible second number this client missed at every size measured (observed points 14, 13, 10
+      through a tool result); without one, 15, 15, 15. No size trend is established by thirty
+      trials, and the late-only pattern of reading 11 stays unexplained.
