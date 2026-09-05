@@ -103,6 +103,7 @@ clauses: this task USES a range the read engine already offers and must not touc
   ```
 - 2026-09-05 · dbc1fb9* · mutant killed · exit 1 · `internal/curve/cell.go` · S2, the other half: ignore ServeFrom in the fit loop and size the WHOLE file. The window is then served afterwards over a fixture sized for the whole file, so the served bytes fall short of the cell and the test fails on the byte-count clause: the fit must measure what the client is served, not what exists. · acceptance-sha256:447a404b6802467de7d96158e0259d7d9445e71c86a77c6e2ad5dfde59eec85e · covers:the window starts where asked
 - 2026-09-05 · dbc1fb9* · mutant killed · exit 1 · `internal/curve/cell.go` · S3, re-run after the SURVIVED row above. The first run survived because no fixture reached the post-fit branch: the only past-the-target case used line 100000, which the fit loop refuses first. A window from 200 over an early target at ~76 exists in full and holds no answer; that case is now in the test and in contract 60, and this mutant fails both. The survived row is kept — it is the evidence that the branch was unreached, which testing.md says is the first thing a survivor means. · acceptance-sha256:447a404b6802467de7d96158e0259d7d9445e71c86a77c6e2ad5dfde59eec85e · covers:the target is inside the window
+- 2026-09-05 · 8ab21c4 · mutant killed · exit 1 · `internal/curve/cell.go` · S2: drop the window from the trial id. TestAServedWindowNeedNotBeginAtLineOne fails on the twin-id clause and contract 60 fails on the same — a windowed cell and its whole-file twin become one trial to the scorer, the defect both reviews of PR #100 found. Logged after the fix at the reviewer's note, so the log says what the fence proves. · acceptance-sha256:447a404b6802467de7d96158e0259d7d9445e71c86a77c6e2ad5dfde59eec85e · covers:the window starts where asked
 
 ## Invariants
 
@@ -136,3 +137,4 @@ what this task needs, that is a finding about the engine and its own record, not
 - 2026-09-05 · dbc1fb9* · exit 0 · `set -o pipefail …` · acceptance-sha256:447a404b6802467de7d96158e0259d7d9445e71c86a77c6e2ad5dfde59eec85e · ms:29377
 - 2026-09-05 · dbc1fb9* · exit 0 · `set -o pipefail …` · acceptance-sha256:447a404b6802467de7d96158e0259d7d9445e71c86a77c6e2ad5dfde59eec85e · ms:25935
 - 2026-09-05 · dbc1fb9* · exit 0 · `set -o pipefail …` · acceptance-sha256:447a404b6802467de7d96158e0259d7d9445e71c86a77c6e2ad5dfde59eec85e · ms:28633
+- 2026-09-05 · 8ab21c4 · exit 0 · `set -o pipefail …` · acceptance-sha256:447a404b6802467de7d96158e0259d7d9445e71c86a77c6e2ad5dfde59eec85e · ms:50486
