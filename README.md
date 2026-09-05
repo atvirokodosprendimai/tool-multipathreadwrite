@@ -7,6 +7,16 @@ It is an ordinary command-line tool. It was built for AI coding agents, which
 are the ones doing hundreds of small edits a day, but nothing about it requires
 one.
 
+**Status: stable, v1.0.0 (2026-09-05).** What that word rests on, all of it in this tree: six
+promises recorded as ADRs and asserted by `scripts/contract.sh` against the built binary, 512 rows
+at the tag; a break campaign of 45 probes against the tagged main with no silent wrong write and
+every refusal naming its reason; and the served-size curve measured rather than asserted — a strong
+client at the ceiling on the fixture built to be failed (reading 3), the one recurring miss
+identified as a row index (reading 5), and the weaker client at the ceiling once the served text
+reached it without a second gutter (reading 8). The section *Does serving more hurt?* has the
+numbers and their limits. Stable means the public contract — the plan grammar, the exit codes,
+read-before-write, the MCP tools — changes only through a record that retires the one it replaces.
+
 Install it with one command — see [Install](#install) for the details:
 
 ```sh
