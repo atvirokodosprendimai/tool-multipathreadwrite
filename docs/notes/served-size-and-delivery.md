@@ -87,6 +87,7 @@ and reported, never counted as a miss.
 | 9 | Haiku | tool result | 15/15 | 15/15 | (reading 8) | Flat at the ceiling at every size. |
 | 10 | Haiku | tool result, `nl` per range | — | — | 14/14 | Second number restarts per range: no miss; one trial void (spill). |
 | 11 | Haiku | tool result, `nl -v` from the top | — | — | 10/15 | Second number equal to the reader's: five misses, all at target+2, all late. |
+| 13 | Haiku | tool result, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | The same number at the smaller sizes: three misses, all at target+2, two late and one middle; no size trend established. |
 | 15 | gpt-5.6-sol | prompt, shape not shown | 8 parsed | 2 parsed | 1 parsed | Void on format 34 of 45: its own grammar; every parsed plan hit, every void message named the target. |
 | 16 | gpt-5.6-sol | prompt, shape shown | 15/15 | 15/15 | 15/15 | A second family at the ceiling at every size. |
 | 13 | Haiku | tool result, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | The same number at the smaller sizes: three misses, all at target+2, two late and one middle; no size trend established. |

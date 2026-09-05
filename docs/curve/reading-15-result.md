@@ -60,5 +60,7 @@ the result is what a caller who has only the served text does.
 ## Provenance
 
 Forty-five scores in `docs/curve/reading-15-scores/` (thirty-four `refused_parse`);
-`reading-15-tally.json` is computed over them. The final messages are not committed; the format
+`reading-15-tally.json` is computed over them. In that tally the three tiers with no parsed trial
+carry `rate: 0`, which is the tool's placeholder for an empty cell and not a rate; the table above
+reports those cells as parsed counts for that reason. The final messages are not committed; the format
 counts above are from them.
