@@ -87,6 +87,8 @@ and reported, never counted as a miss.
 | 9 | Haiku | tool result | 15/15 | 15/15 | (reading 8) | Flat at the ceiling at every size. |
 | 10 | Haiku | tool result, `nl` per range | — | — | 14/14 | Second number restarts per range: no miss; one trial void (spill). |
 | 11 | Haiku | tool result, `nl -v` from the top | — | — | 10/15 | Second number equal to the reader's: five misses, all at target+2, all late. |
+| 15 | gpt-5.6-sol | prompt, shape not shown | 8 parsed | 2 parsed | 1 parsed | Void on format 34 of 45: its own grammar; every parsed plan hit, every void message named the target. |
+| 16 | gpt-5.6-sol | prompt, shape shown | 15/15 | 15/15 | 15/15 | A second family at the ceiling at every size. |
 | 13 | Haiku | tool result, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | The same number at the smaller sizes: three misses, all at target+2, two late and one middle; no size trend established. |
 | 14 | Sonnet | tool result, twelve distractors | (6/6) | (7/7) | (2/2) | Evidence-limited: thirty trials void on an unnamed reply channel; the fifteen strict all hit; 44/45 as sensitivity. |
 | 17 | Sonnet | tool result, twelve distractors | 15/15 | 15/15 | 15/15 | Reading 14 re-run with the channel named: at the ceiling, 45/45. |
@@ -200,9 +202,11 @@ memory — a paired count and a range width — were both wrong, and were caught
 
 ## 7. Limits
 
-One fixture family, five repeats per cell, two clients from one vendor; the strong client sits at
-the ceiling on both fixtures and on a thirteen-service one (reading 17: 45 of 45 through the bare
-tool result), so its curve cannot bend and says nothing about where it would. The
+One fixture family, five repeats per cell, two clients from one vendor and one from another
+(reading 16: `gpt-5.6-sol` through a prompt delivery, 45 of 45; reading 15, the same with the plan's
+shape not shown, void on format 34 of 45); the strong client sits at the ceiling on both fixtures
+and on a thirteen-service one (reading 17: 45 of 45 through the bare tool result), so its curve
+cannot bend and says nothing about where it would. The
 weaker client's ceiling through a tool result is fifteen of fifteen per tier, whose interval's
 lower bound is 0.796, not 1. Reading 9's 200 KB tier is reading 8's data, pooled under a plan that
 said so. Readings 10 and 11 separate the gutter from the chunking on fifteen cells each, and

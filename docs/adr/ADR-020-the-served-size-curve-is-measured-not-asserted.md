@@ -317,3 +317,8 @@ byte-identical, so the revert is a deletion.
       the reply channel — 45 of 45, compliant 45 of 45, cost 2.41× from 2 KB to 200 KB. The strong
       client's flat curve survives a fixture with three times the candidates, at the pre-registered
       strength.
+- [x] **Readings 15 and 16** (`docs/curve/reading-15-result.md`, `reading-16-result.md`): a second
+      model family, `gpt-5.6-sol` through Codex, prompt delivery, reading 4's forty-five cells.
+      With the plan's shape not shown, 34 of 45 void on format — the client wrote apply_patch,
+      JSON or prose plans — while every parsed plan hit and every void message named the target
+      (a finding for ADR-012). With the shape shown, 45 of 45: at the ceiling at every size.
