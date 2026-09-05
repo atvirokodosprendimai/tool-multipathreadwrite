@@ -92,7 +92,6 @@ and reported, never counted as a miss.
 | 15 | gpt-5.6-sol | prompt, shape not shown | 8 parsed | 2 parsed | 1 parsed | Void on format 34 of 45: its own grammar; every parsed plan hit, every void message named the target. |
 | 16 | gpt-5.6-sol | prompt, shape shown | 15/15 | 15/15 | 15/15 | A second family at the ceiling at every size. |
 | 17 | Sonnet | tool result, twelve distractors | 15/15 | 15/15 | 15/15 | Reading 14 re-run with the channel named: at the ceiling, 45/45. |
-| 13 | Haiku | tool result, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | The same number at the smaller sizes: three misses, all at target+2, two late and one middle; no size trend established. |
 
 Every score file is in the repository under `docs/curve/reading-NN-scores/`; the rates, intervals,
 offsets and pairings in this note recompute from them. Compliance, coverage, cost and the quoted
