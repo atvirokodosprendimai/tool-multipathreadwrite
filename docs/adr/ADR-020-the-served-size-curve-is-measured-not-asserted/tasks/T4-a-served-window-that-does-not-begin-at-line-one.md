@@ -135,8 +135,8 @@ what this task needs, that is a finding about the engine and its own record, not
 
 ## Out of Scope
 
-- Running the discriminating reading (deferred: docs/adr/BACKLOG.md — the offset-window entry, which this task builds the cell for; promoted and spent by reading 5 on 2026-09-05, and the entry's receipt says so)
-- Fixing the read format if the row-count account holds (deferred: docs/adr/BACKLOG.md — the read-format entry; closed on 2026-09-05 by reading 8 with no engine change, and the entry says so)
+- Running the discriminating reading (permanent: fact: it was run as reading 5 on 2026-09-05 with the cell this task built, and the BACKLOG offset-window entry it was deferred to carries the receipt; citation: docs/curve/reading-05-result.md)
+- Fixing the read format if the row-count account holds (permanent: fact: the account held and the fix was not needed — reading 8 showed the count was the harness read arm's, and the BACKLOG read-format entry closed with no engine change; citation: docs/curve/reading-08-result.md)
 - Keying the retry pair on the whole tuple, issue #97 (deferred: issue #97 — not needed for a one-cell-per-client reading)
 
 ## Verification Log
