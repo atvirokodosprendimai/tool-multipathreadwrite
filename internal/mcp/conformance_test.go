@@ -24,15 +24,21 @@ import (
 func TestEveryDeclaredOutputSchemaValidatesARealResponse(t *testing.T) {
 	root, path := checkout(t, "a.txt", "one\ntwo\n")
 
+	// Only mrw_write declares a schema now: ADR-023 removed mrw_read's with its
+	// structuredContent, so a read is validated by TestAReadResultCarriesNo-
+	// StructuredContent instead. The loop below still walks EVERY tool, so a
+	// schema added later is validated without anyone editing this test.
 	responses := map[string]map[string]any{}
-	responses["mrw_read"] = structured(t, call(t, root, "mrw_read", map[string]any{"specs": []any{path}}))
 	responses["mrw_write"] = structured(t, call(t, root, "mrw_write",
 		map[string]any{"plan": "@@ a.txt 1 replace\nONE\n"}))
+	_ = path
 
 	declared := 0
 	for _, tool := range tools() {
 		if tool.OutputSchema == nil {
-			t.Errorf("tool %q declares no outputSchema; a caller cannot validate what it gets", tool.Name)
+			if tool.Name == "mrw_write" {
+				t.Errorf("mrw_write declares no outputSchema; its receipt is the verdict and ADR-011 still governs it")
+			}
 			continue
 		}
 		declared++
@@ -48,8 +54,8 @@ func TestEveryDeclaredOutputSchemaValidatesARealResponse(t *testing.T) {
 			t.Errorf("tool %q: %v", tool.Name, err)
 		}
 	}
-	if declared != len(tools()) {
-		t.Errorf("%d of %d tools declare an outputSchema", declared, len(tools()))
+	if declared != 1 {
+		t.Errorf("%d tools declare an outputSchema, want exactly one (mrw_write)", declared)
 	}
 }
 
@@ -77,6 +83,14 @@ func TestTheFirstContentBlockIsTheSerializedStructuredContent(t *testing.T) {
 		var decoded map[string]any
 		if err := json.Unmarshal([]byte(text), &decoded); err != nil {
 			t.Fatalf("%s: content[1] is not the serialized JSON: %v\n%q", name, err, text)
+		}
+		if name == "mrw_read" {
+			// No structuredContent to agree with (ADR-023); the receipt at
+			// content[1] is the only copy and must carry the ledger fields.
+			if _, ok := decoded["observed"]; !ok {
+				t.Errorf("mrw_read: content[1] carries no observed field: %s", text)
+			}
+			continue
 		}
 		// One marshal used twice, not two marshals of one value — two is how
 		// the halves start to disagree.
@@ -452,15 +466,23 @@ func treeFor(t *testing.T, root string, hunks []plan.Hunk) []any {
 // counts. Coverage is total and at every depth, because the interesting fields
 // are the ones one level down — a verdict's `status`, a file's `written`.
 func TestEveryOutputSchemaPropertyIsDescribed(t *testing.T) {
-	total := 0
+	// mrw_read no longer DECLARES its schema (ADR-023), but readSchema() still
+	// describes the receipt at content[1] for a reader of the code, so it is
+	// walked here by name rather than through tools/list.
+	shapes := map[string]map[string]any{"mrw_read receipt": readSchema()}
 	for _, tl := range tools() {
-		schema, ok := tl.OutputSchema.(map[string]any)
-		if !ok {
-			t.Fatalf("tool %q declares no object outputSchema", tl.Name)
+		if schema, ok := tl.OutputSchema.(map[string]any); ok {
+			shapes[tl.Name] = schema
 		}
-		paths := describedPaths(t, tl.Name, schema, "")
+	}
+	if _, ok := shapes["mrw_write"]; !ok {
+		t.Fatal("mrw_write declares no object outputSchema")
+	}
+	total := 0
+	for name, schema := range shapes {
+		paths := describedPaths(t, name, schema, "")
 		if len(paths) == 0 {
-			t.Errorf("tool %q: the walk found no properties, so this test would pass vacuously", tl.Name)
+			t.Errorf("%s: the walk found no properties, so this test would pass vacuously", name)
 		}
 		total += len(paths)
 	}

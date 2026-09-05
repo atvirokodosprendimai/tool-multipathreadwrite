@@ -4,7 +4,7 @@
 
 | Task | Title | Status |
 |---|---|---|
-| T1 | The read result drops its structured envelope | pending |
+| T1 | The read result drops its structured envelope | done |
 
 ## Inter-task Contracts
 

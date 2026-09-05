@@ -72,8 +72,8 @@ seen and stats subcommands. `+"`mrw --root DIR read`"+` points it at ANY
 checkout; note --root BEFORE the subcommand, because after `+"`read`"+` the
 short -C is the context flag, not a directory.
 
-This surface is not simply the poorer one. It always returns structured JSON,
-so it needs no --json, and one server is one writer to the read-before-write
+Not simply the poorer surface: mrw_write returns structured JSON, so no --json
+is needed (a read's receipt: 2nd text block); one server is one writer to the read-before-write
 ledger while parallel CLI processes race for it. So with a shell and mrw on
 PATH, prefer the CLI for its reach and extra commands — prefer THIS surface
 with no shell, or when callers sharing ONE fixed checkout want writes serialized.

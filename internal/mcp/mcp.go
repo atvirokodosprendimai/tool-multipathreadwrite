@@ -239,9 +239,11 @@ var Version = "dev"
 func tools() []tool {
 	return []tool{
 		{
-			Name:         "mrw_read",
-			Title:        "Read file ranges",
-			OutputSchema: readSchema(),
+			Name:  "mrw_read",
+			Title: "Read file ranges",
+			// No outputSchema, on purpose: this tool returns no
+			// structuredContent (ADR-023, readResult), and the specification
+			// makes a declared schema a promise to return one.
 			Annotations: map[string]any{
 				"title":           "Read file ranges",
 				"readOnlyHint":    true,
@@ -258,6 +260,8 @@ func tools() []tool {
 				"comes back as a PAGE, not a failure: the lines that fit, isError true, and a " +
 				"next_read spec for the rest. Repeat until next_read is absent — its absence is " +
 				"how you know you have the whole file, and you may only edit lines a page served. " +
+				"The served text is the first text block; the receipt (observed spans, problems, " +
+				"next_read) is the second, as JSON. " +
 				"Set `grep` to a regexp to FIND files you cannot name: it walks the paths " +
 				"(or the whole root) and serves every match, and returns an index of matching " +
 				"files when the matches are too large to serve. " +

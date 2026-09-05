@@ -91,6 +91,20 @@ func result(structured any, report string, isErr bool) (callToolResult, *rpcErro
 	}, nil
 }
 
+// readResult is result() without the structuredContent. Every mrw_read answer
+// takes this form — served, paged, index, refused — because of a host measured
+// on 2026-09-05 (Claude Code 2.1.261, issue #109): a non-error result that
+// carries structuredContent reaches the model AS the structuredContent, and the
+// content blocks are dropped. For mrw_write that is the verdict; for mrw_read it
+// was the receipt without the lines, while the ledger had already recorded
+// those lines as seen — ADR-002 inverted by an envelope. So the receipt
+// travels in content[1] alone (ADR-023), from the same single marshal.
+func readResult(structured any, report string, isErr bool) (callToolResult, *rpcError) {
+	res, err := result(structured, report, isErr)
+	res.StructuredContent = nil
+	return res, err
+}
+
 // callTool routes one tools/call. Both tools are adapters: they parse what the
 // CLI parses, call the function the CLI calls, and return what it returned. The
 // moment one computes a verdict of its own there are two answers to "did this
@@ -181,7 +195,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			for _, p := range walkProblems {
 				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
 			}
-			return result(map[string]any{
+			return readResult(map[string]any{
 				"observed": map[string]seen.Observation{},
 				"problems": len(walkProblems),
 				"matches":  0,
@@ -294,13 +308,12 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the ledger: " + err.Error()}
 	}
 
-	// The two tools' structuredContent shapes differ and are now DECLARED:
-	// mrw_write returns apply.Result, whose json tags make it snake_case; this
-	// returns seen.Observation, which carries no tags, so its keys are the Go
-	// field names. Both are generated into the outputSchema each tool
-	// advertises, so the day seen.Observation gains tags the schema follows it
-	// and the conformance test catches any response that does not.
-	return result(map[string]any{
+	// The receipt — seen.Observation, no json tags, so its keys are the Go
+	// field names — travels in content[1] and NOT in structuredContent
+	// (ADR-023; see readResult). readSchema() still describes it for a reader
+	// of the code, but tools/list no longer declares it: a schema declared is
+	// a structuredContent promised, and none is sent.
+	return readResult(map[string]any{
 		"observed": observed,
 		"problems": problems,
 	}, report, problems > 0)
@@ -617,7 +630,7 @@ func pagedResult(report string, observed map[string]seen.Observation, problems i
 			{Type: "text", Text: report},
 			{Type: "text", Text: string(b)},
 		},
-		StructuredContent: json.RawMessage(b),
+		// No structuredContent: a read's answer is content[0] (ADR-023).
 		// ALWAYS true. A page that reads as a complete answer is truncation,
 		// and the caller's ability to see it received a part is the only thing
 		// separating this from what ADR-011 refused.
@@ -791,7 +804,7 @@ func indexResult(report string, raw []byte) callToolResult {
 			{Type: "text", Text: report},
 			{Type: "text", Text: string(raw)},
 		},
-		StructuredContent: json.RawMessage(raw),
+		// No structuredContent: a read's answer is content[0] (ADR-023).
 		// An index is not the content that was asked for, so it stays an
 		// error for the same reason a page does: the caller must be able to
 		// see it did not get what it requested.
@@ -822,7 +835,7 @@ func encodedSize(res callToolResult) int {
 // that does fit, it is resumable, and it licenses nothing, which is the honest
 // trade for content that cannot be delivered.
 func servedOrIndex(specs []read.Spec, problems int, cw *capped, observed map[string]seen.Observation, report string) (callToolResult, bool) {
-	probe, rpcErr := result(map[string]any{"observed": observed, "problems": problems}, report, problems > 0)
+	probe, rpcErr := readResult(map[string]any{"observed": observed, "problems": problems}, report, problems > 0)
 	if rpcErr != nil {
 		// Undecidable, so not degraded: the caller path will report the same
 		// encoding failure with its own message.

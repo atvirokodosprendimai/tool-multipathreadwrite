@@ -79,6 +79,10 @@ Every clause was run BEFORE this fence was written and returned **zero hits**: b
 
 ## Mutation Log
 
+- 2026-09-05 · 679d457* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on every mrw_read result — the envelope the measured host renders in place of the served text · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · covers:a served read carries no structuredContent
+- 2026-09-05 · 679d457* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on a PAGE only — a served read stays bare, so a test that checked one shape would pass this · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · covers:a page and an index carry none either
+- 2026-09-05 · 679d457* · mutant killed · exit 1 · `internal/mcp/mcp.go` · S3: declare an outputSchema for mrw_read again — a schema declared is a structuredContent promised, and none is sent · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · covers:mrw_read declares no outputSchema while mrw_write still does
+
 ## Invariants
 
 - `mrw_write`'s result carries `structuredContent` equal to its `content[1]`, and declares a schema it validates against.
@@ -101,3 +105,44 @@ Stop if removing `structuredContent` from `mrw_read` requires changing the recei
 - Other hosts (deferred: docs/adr/BACKLOG.md — the "ADR-023: other hosts" entry)
 
 ## Verification Log
+- 2026-09-05 · 679d457* · exit 1 · `set -o pipefail …` · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · ms:1008
+  ```
+  --- last 8 line(s) of stdout
+  === RUN   TestAReadResultCarriesNoStructuredContent
+  --- PASS: TestAReadResultCarriesNoStructuredContent (0.04s)
+  === RUN   TestMrwReadDeclaresNoOutputSchema
+      mcp_test.go:685: mrw_read declares an outputSchema; it returns no structuredContent, so the declaration promises a field that never arrives
+  --- FAIL: TestMrwReadDeclaresNoOutputSchema (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.366s
+  FAIL
+  ```
+- 2026-09-05 · 679d457* · exit 1 · `set -o pipefail …` · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · ms:492
+  ```
+  --- last 8 line(s) of stdout
+  === RUN   TestAReadResultCarriesNoStructuredContent
+  --- PASS: TestAReadResultCarriesNoStructuredContent (0.02s)
+  === RUN   TestMrwReadDeclaresNoOutputSchema
+      mcp_test.go:685: mrw_read declares an outputSchema; it returns no structuredContent, so the declaration promises a field that never arrives
+  --- FAIL: TestMrwReadDeclaresNoOutputSchema (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.163s
+  FAIL
+  ```
+- 2026-09-05 · 679d457* · exit 1 · `set -o pipefail …` · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · ms:503
+  ```
+  --- last 8 line(s) of stdout
+  === RUN   TestAReadResultCarriesNoStructuredContent
+  --- PASS: TestAReadResultCarriesNoStructuredContent (0.03s)
+  === RUN   TestMrwReadDeclaresNoOutputSchema
+      mcp_test.go:685: mrw_read declares an outputSchema; it returns no structuredContent, so the declaration promises a field that never arrives
+  --- FAIL: TestMrwReadDeclaresNoOutputSchema (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.180s
+  FAIL
+  ```
+- 2026-09-05 · human-observed · S6 sign-off 2026-09-05: claude -p --model haiku (Claude Code 2.1.261) with --mcp-config naming bin/mrw and --strict-mcp-config, spec tmp/curve/r12/200000-early-1/tree/services.conf:1-2 — the tool_result block began with "==> tmp/curve/r12/200000-early-1/tree/services.conf  3619L  174648B  sha 2c37d4ac" and the assistant replied "TEXT: # service registry — every service has the same shape"; the same prompt against the pre-ADR-023 server (e917310) replied "NO TEXT: {\"observed\":…,\"problems\":0}"
+- 2026-09-05 · 679d457* · exit 0 · `set -o pipefail …` · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · ms:59441
+- 2026-09-05 · 679d457* · exit 0 · `set -o pipefail …` · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · ms:30627
+- 2026-09-05 · 679d457* · exit 0 · `set -o pipefail …` · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · ms:29415
+- 2026-09-05 · 679d457* · exit 0 · `set -o pipefail …` · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · ms:29891

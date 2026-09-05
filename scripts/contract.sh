@@ -1852,16 +1852,19 @@ import json,sys
 tools={t["name"]: t for t in json.loads(sys.argv[1])["result"]["tools"]}
 for name in ("mrw_read","mrw_write"):
     t=tools[name]
-    for field in ("title","annotations","outputSchema","_meta"):
+    for field in ("title","annotations","_meta"):
         assert field in t, "%s has no %s" % (name, field)
-    props=t["outputSchema"].get("properties") or {}
-    assert props, "%s declares a property-less schema, which validates anything" % name
     assert t["_meta"]["anthropic/maxResultSizeChars"] > 0, "%s declares no size limit" % name
+# Only mrw_write declares an outputSchema: ADR-023 (§61) removed mrw_read's
+# with its structuredContent, and a declared schema promises one.
+props=tools["mrw_write"]["outputSchema"].get("properties") or {}
+assert props, "mrw_write declares a property-less schema, which validates anything"
+assert "outputSchema" not in tools["mrw_read"], "mrw_read declares an outputSchema and returns no structuredContent (ADR-023)"
 assert tools["mrw_read"]["annotations"]["readOnlyHint"] is True
 assert tools["mrw_write"]["annotations"]["readOnlyHint"] is False
 assert tools["mrw_write"]["annotations"]["destructiveHint"] is True
 PY
-[ $? -eq 0 ] && ok "both tools declare title, annotations, outputSchema and _meta" \
+[ $? -eq 0 ] && ok "both tools declare title, annotations and _meta, and only mrw_write an outputSchema" \
              || bad "the declared tool surface is incomplete or dishonest"
 
 # THE ROW: mrw_read says readOnlyHint, so running it must leave the tree alone.
@@ -2064,11 +2067,16 @@ def walk(schema, where, prefix=""):
         walk(p, where, path+".")
         for sub in ("items","additionalProperties"):
             if isinstance(p.get(sub), dict): walk(p[sub], where, path+".")
-for t in tools:
+# Only the tools that DECLARE a schema: mrw_read's went with its
+# structuredContent (ADR-023, §61); its receipt's descriptions are held by
+# TestEveryOutputSchemaPropertyIsDescribed, which walks readSchema() by name.
+declared=[t for t in tools if "outputSchema" in t]
+assert [t["name"] for t in declared]==["mrw_write"], "declared schemas: %r, want mrw_write only" % [t["name"] for t in declared]
+for t in declared:
     walk(t["outputSchema"], t["name"])
 assert not missing, "undescribed propert(ies): %s" % ", ".join(missing)
 # A walk that never descended would find only the top level and report success.
-assert len(seen) >= 20, "the walk found only %d properties, so it is not descending: %s" % (len(seen), seen)
+assert len(seen) >= 10, "the walk found only %d properties, so it is not descending: %s" % (len(seen), seen)
 assert any(s.startswith("mrw_write:hunks.status") for s in seen), "the walk never reached a hunk verdict"
 PY
 [ $? -eq 0 ] && ok "every property of every declared outputSchema says what it means, at every depth" \
@@ -2267,7 +2275,7 @@ MRW_BIN="$MRW" python3 - "$R" "$out" <<'PY'
 import json, subprocess, sys, os
 root, raw = sys.argv[1], sys.argv[2]
 res = json.loads(raw)["result"]
-sc = res["structuredContent"]
+sc = json.loads(res["content"][1]["text"])   # the receipt lives in content[1] (ADR-023)
 assert res.get("isError") is True, "an oversized grep must still read as an error"
 assert sc["matches"] == 40, "the index reports %r matching files, want 40" % sc["matches"]
 idx = sc["index"]
@@ -2301,7 +2309,7 @@ python3 - "$out" <<'PY'
 import json,sys
 res = json.loads(sys.argv[1])["result"]
 assert res.get("isError") is not True, "a grep that fits should not be an error"
-assert res["structuredContent"]["observed"], "a served grep recorded nothing, so it licenses no write"
+assert json.loads(res["content"][1]["text"])["observed"], "a served grep recorded nothing, so it licenses no write"
 PY
 [ $? -eq 0 ] && ok "and a grep that fits serves content and records what it served" \
              || bad "a fitting grep did not serve or did not record"
@@ -2319,8 +2327,10 @@ grep -q 'two answers to one question' <<<"$out" \
 # never fires. Many small files is also the shape the Desktop population
 # actually has.
 fixture
+# 12000, not 8000: ADR-023 removed the structuredContent copy of the index, so
+# an 8000-entry index now FITS the cap, and the fixture grew past it.
 python3 -c "
-for i in range(8000):
+for i in range(12000):
     f=open('$R/document%05d.csv' % i,'w'); f.write('x\n'); f.write('the NEEDLE is here\n')
 "
 MRW_BIN="$MRW" python3 - "$R" <<'PY'
@@ -2339,9 +2349,9 @@ def call(args):
     return json.loads(line)["result"]
 
 res = call({"grep": "NEEDLE"})
-sc = res["structuredContent"]
-assert sc["matches"] == 8000, "matches = %r, want 8000" % sc["matches"]
-assert len(sc["index"]) < 8000, "the index served all 8000 entries; this fixture exists to overflow it"
+sc = json.loads(res["content"][1]["text"])   # the receipt lives in content[1] (ADR-023)
+assert sc["matches"] == 12000, "matches = %r, want 12000" % sc["matches"]
+assert len(sc["index"]) < 12000, "the index served all 12000 entries; this fixture exists to overflow it"
 assert sc["next_index"], "the index was cut short and named no resume point"
 
 # FOLLOW IT TO EXHAUSTION and compare the union, rather than checking that a
@@ -2354,7 +2364,7 @@ while nxt:
     pages += 1
     assert pages <= 30, "following next_index did not terminate"
     r = call({"grep": "NEEDLE", "after": nxt})
-    s = r["structuredContent"]
+    s = json.loads(r["content"][1]["text"])
     if "index" in s:
         page = s["index"]
         assert page, "page %d came back empty; after=%r is not making progress" % (pages, nxt)
@@ -2364,7 +2374,7 @@ while nxt:
     else:
         seen_paths |= set(s["observed"].keys())
         nxt = ""
-assert len(seen_paths) == 8000, "paging to exhaustion yielded %d distinct files, want 8000" % len(seen_paths)
+assert len(seen_paths) == 12000, "paging to exhaustion yielded %d distinct files, want 12000" % len(seen_paths)
 PY
 [ $? -eq 0 ] && ok "an index pages to exhaustion, loses nothing, and stays under the cap" \
              || bad "the index loses entries, does not terminate, or exceeds the cap"
@@ -3063,7 +3073,7 @@ while True:
         if i < 0: continue
         if not ln[:i].strip().isdigit(): continue
         got.append(ln[i+1:].removeprefix(" "))
-    nxt = r.get("structuredContent", {}).get("next_read", "")
+    nxt = json.loads(r["content"][1]["text"]).get("next_read", "")
     if not nxt:
         break
     assert nxt != spec, "page %d handed back the spec it was given" % pages
@@ -3125,7 +3135,7 @@ for w in ("next_read","PAGE","absent","part of a file"):
     assert w in i, "the instructions never mention %r" % w
 # What it does — the same three claims, against a real oversized read.
 assert r.get("isError") is True, "taught as an error, shipped as a success"
-sc=r.get("structuredContent",{})
+sc=json.loads(r["content"][1]["text"])
 assert sc.get("next_read"), "taught next_read, shipped none"
 assert "padding" in r["content"][0]["text"], "taught a PAGE of content, shipped no content"
 assert "PARTIAL" in r["content"][0]["text"], "the page does not say it is partial to a human reader"
@@ -3428,6 +3438,53 @@ opid=$(cat "$WORK/probe2" 2>/dev/null)
   && ok "INT to the wrapper is forwarded: the nested runner ended 143 in ${el}s and its orphan with it" \
   || bad "INT to the wrapper: exit $rc after ${el}s, orphan '${opid:-?}' $(kill -0 "${opid:-999999999}" 2>/dev/null && echo alive || echo gone)"
 kill "${opid:-999999999}" 2>/dev/null; kill -- -"$(cat "$WORK/probe2.runner" 2>/dev/null || echo 999999999)" 2>/dev/null; true
+# 61. ADR-023 T1: a read's answer is the served text, and no envelope stands in
+# for it.
+#
+# Measured 2026-09-05 on Claude Code 2.1.261 (issue #109): a non-error result
+# that carried structuredContent reached the model AS the structuredContent, and
+# the content blocks were dropped — so a successful mrw_read delivered the
+# receipt and none of the lines, while the ledger had already recorded them as
+# seen. Hence: no mrw_read result — served, paged, index — carries
+# structuredContent; its receipt is content[1]; tools/list declares no
+# outputSchema for it. Paired with the case that must differ: mrw_write keeps
+# both, equal to each other, because its answer IS the receipt.
+fixture
+python3 -c "
+with open('$R/big.txt','w') as f:
+    for i in range(12000): f.write('padding line %05d that is long enough to make this file page\n' % i)
+for i in range(60):
+    with open('$R/document%05d.csv' % i,'w') as f:
+        f.write('a line that matches nothing\n')
+        for j in range(400): f.write('the NEEDLE is here\n')
+"
+call61() { printf '%s\n' "$1" | m mcp 2>/dev/null; }
+served=$(call61 '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}')
+paged=$(call61 '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["big.txt"]}}}')
+index=$(call61 '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"NEEDLE"}}}')
+listed=$(call61 '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}')
+wrote=$(call61 '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\nfunc A() int { return 61 }\n"}}}')
+python3 - "$served" "$paged" "$index" "$listed" "$wrote" <<'PY'
+import json,sys
+served,paged,index,listed,wrote=[json.loads(a.splitlines()[0])["result"] for a in sys.argv[1:6]]
+for name,r in (("served",served),("paged",paged),("index",index)):
+    assert "structuredContent" not in r, "%s read result carries structuredContent; a host that renders it in place of content hides the served text" % name
+    c=r["content"]; assert len(c)>=2, "%s read result has %d content blocks, want the answer and the receipt" % (name,len(c))
+    rec=json.loads(c[1]["text"]); assert "observed" in rec, "%s receipt at content[1] carries no observed" % name
+assert served["content"][0]["text"].startswith("==> a.go"), "the served read's content[0] is not the served text"
+assert served.get("isError") is not True, "a two-line served read read as an error"
+assert paged.get("isError") is True and json.loads(paged["content"][1]["text"]).get("next_read"), "the page names no next_read at content[1]"
+assert index.get("isError") is True and json.loads(index["content"][1]["text"]).get("index"), "the index carries no entries at content[1]"
+tools={t["name"]:t for t in listed["tools"]}
+assert "outputSchema" not in tools["mrw_read"], "mrw_read declares an outputSchema it never fulfils"
+assert "outputSchema" in tools["mrw_write"], "mrw_write lost its outputSchema"
+assert "structuredContent" in wrote, "mrw_write lost its structuredContent; its answer IS the receipt"
+assert wrote["structuredContent"]==json.loads(wrote["content"][1]["text"]), "mrw_write's content[1] and structuredContent disagree"
+assert wrote["structuredContent"]["applied"] is True, "the write did not apply; the pairing is not exercised"
+PY
+[ $? -eq 0 ] && ok "no mrw_read result carries structuredContent, its receipt is content[1], and mrw_write keeps both" \
+             || bad "a read result still carries the envelope that hid the served text, or the write lost its own"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
