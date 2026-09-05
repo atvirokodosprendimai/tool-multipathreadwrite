@@ -322,18 +322,20 @@ byte-identical, so the revert is a deletion.
       With the plan's shape not shown, 34 of 45 void on format — the client wrote apply_patch,
       JSON or prose plans — while every parsed plan hit and every void message named the target
       (a finding for ADR-012). With the shape shown, 45 of 45: at the ceiling at every size.
-- [x] **The MCP delivery arm, at 2 KB** (`docs/curve/reading-19-result.md`): 15 of 15, compliant 15
-      of 15, no paged reads. The delivery mrw ships matches the best delivery measured on these
-      cells — reading 9's bare tool result was 15 of 15 and reading 13's numbered arm 14 of 15. The
-      arm was blocked twice before it ran: ADR-023's envelope (issue #109, found staging reading 12),
-      and then the truncation below. Readings 12 and 18 are void and say why.
 - [x] **The MCP delivery arm at 200 KB is NOT a curve point** (`docs/curve/reading-18-result.md`):
       mrw serves ADR-014's first page correctly and the HOST truncates it before the model sees it —
       one observation put 58,860 of 200,000 characters through, head and tail — while
       `internal/mcp/tools.go:535` records the whole page in the ledger. A plan replacing a line
       inside the discarded middle then applied, exit 0: ADR-002 inverted. It is a defect, filed in
       `docs/adr/BACKLOG.md` under ADR-023, and no rate is published for that size.
-- [ ] **The 20 KB stratum, re-run** (`docs/curve/reading-20-plan.md`): reading 19 collected it and
-      voided it on two deviations of its author's — a coverage instruction clarified after the first
-      trial, and a no-answer trial retried without authority. Reading 20 fixes both as pre-registered
-      rules and re-runs the fifteen cells.
+- [ ] **The MCP delivery arm at 2 KB and 20 KB, unmeasured after three attempts**
+      (`docs/curve/reading-20-plan.md`). Reading 12 voided — a subagent's transcript is not readable
+      by the session that spawned it, so compliance could not be checked. Reading 18 voided at 200 KB
+      with the cause above. Reading 19 collected thirty trials at 2 KB and 20 KB and voided WHOLE:
+      its coverage instruction was clarified after the first trial and a no-answer trial was retried,
+      and its plan's void condition is unconditional. Its first result document published the 2 KB
+      stratum and voided only the 20 KB one; the Codex review of PR #115 established that the
+      stratum-level exception was invented after the results were seen. Reading 20 re-runs both sizes
+      with three rules pre-registered: the last-line comparison and its prompt wording fixed
+      together, a no-answer never retried, and the coverage reports committed so every published
+      number — primary and secondary — comes from committed data.

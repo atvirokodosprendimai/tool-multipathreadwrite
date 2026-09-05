@@ -784,5 +784,6 @@ re-measuring these. Each was driven at the built binary, not read:
   is that mrw cannot observe this from inside the server — a truncated result and a delivered one are
   identical to it — so any fix is a design question (lower `MaxResultChars`, page to a size a host
   will deliver, or record the ledger from something other than what was sent) and needs a record
-  rather than a patch. Reading 19 measures the same arm at 2 KB and 20 KB, where no paging and no
-  truncation occur; the 200 KB case is this entry.
+  rather than a patch. Readings 19 and 20 measure the same arm at 2 KB and 20 KB, where no paging and
+  no truncation occur — reading 19 voided whole and reading 20 is pre-registered to re-run it, so the
+  arm is still unmeasured at any size. The 200 KB case is this entry and is not a rate.
