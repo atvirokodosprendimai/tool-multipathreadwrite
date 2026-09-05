@@ -279,12 +279,13 @@ byte-identical, so the revert is a deletion.
       revisit of ADR-011-T3 waits.** The condition on this item fired in reading 4: 8 of 15 at
       200,000 served bytes for Haiku, against 15 of 15 for Sonnet on identical cells. But the bend is
       not a retrieval failure — every miss found the right block and wrote the right text — and every
-      one of the 13 misses across readings 2–4 sits at exactly `target+2`. **Reading 5 decided it:**
-      the offset is the outer gutter of the reader the read arm delivers text through, not mrw's two
-      unnumbered rows (they fix the offset's size at +2 from line 1 and −117 from line 120, and cause
-      nothing). So the cap is not the knob, the read format is not the knob either, and readings 2–4
-      measured the harness's delivery path as much as the client. ADR-011-T3 is not revisited on this
-      evidence. What remains is the reading over the real delivery path — served text as a tool result
-      with no outer gutter, `cat` under Bash or `mrw_read` over MCP, Haiku, 200 KB — which either
-      returns the client to the ceiling or shows a second cause; that is the reading that licenses a
-      stability claim, and it is a budget decision like the others.
+      one of the 13 misses across readings 2–4 sits at exactly `target+2`. **Reading 5 settled what
+      the offset is:** the row index of the served text — +2 from line 1, −117 from line 120, mrw's
+      two unnumbered rows adding 2 to either. So the cap is not the knob on this evidence, and
+      ADR-011-T3 is not revisited on it. Whether the client read the gutter its own file reader lays
+      beside mrw's (the transcript points there) or counted mrw's rows itself is what the scores
+      cannot tell apart, and it is the difference between "the harness's delivery" and "mrw's own
+      rendering induces the miss". The reading that tells them apart delivers served text as a tool
+      result with no outer gutter — `cat` under Bash or `mrw_read` over MCP, Haiku, 200 KB —
+      and either returns the client to the ceiling or opens a served-path record; it is the reading
+      that licenses a stability claim, and a budget decision like the others.

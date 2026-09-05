@@ -889,7 +889,7 @@ ADR-020 built an instrument to find out rather than argue about it: `curve` gene
 client authors a plan against what mrw would serve, and the scorer applies the plan and reports which
 line changed. The pre-registration in `docs/adr/BACKLOG.md` fixed the criterion before a cell existed
 — correct-address rate against served bytes, stratified by position, **a flat curve accepted as an
-answer** — and four readings have been taken under it. Every plan was committed before its trials
+answer** — and five readings have been attempted under it, four of them non-void. Every plan was committed before its trials
 ran, every score file is committed, and every table below recomputes from them.
 
 | Reading | Client | Fixture | 2 KB | 20 KB | 200 KB | What it settled |
@@ -898,7 +898,7 @@ ran, every score file is committed, and every table below recomputes from them.
 | 2 | Sonnet | named, read arm | 14/15 | 14/15 | 14/15 | Flat, at a ceiling. Three misses, one at each size. |
 | 3 | Sonnet | relational | 15/15 | 15/15 | 15/15 | Flat. **Refuted its own prediction** that the harder fixture would be harder. |
 | 4 | **Haiku** | relational | 15/15 | 12/15 | **8/15** | **The curve bends.** Intervals at 2 KB and 200 KB do not overlap. |
-| 5 | Haiku | relational, window from line 120 | — | — | 12/15 | **Every miss moved from +2 to −117.** The miss is the reader's row number, not the cap and not mrw's format. |
+| 5 | Haiku | relational, window from line 120 | — | — | 12/15 | **Every miss moved from +2 to −117.** The miss is the row number of the served text; the transcript points at the reader's gutter, and the gutter-free reading decides. |
 
 **For a strong client, serving a hundred times more bytes costs about 2.5× the tokens and loses
 nothing.** Measured twice, on two different tasks. The "serve 10k and call it a day" instinct is not
@@ -921,14 +921,15 @@ All 16 apply silently through a green receipt without a guard, and **all 16 are 
 `anchor=`** — run against each cell's own fixture with the built binary, and reported in each result
 document rather than reproducible from a committed receipt. That is the case for the guard, measured.
 
-What reading 5 rules out matters as much as what it found. The cap is not the knob: the bend is an
-addressing choice between two gutters, not a failure to read 200 KB. And mrw's own two unnumbered rows
-are not the cause either — they set the offset's size and nothing more. The second gutter is the
-harness's: the read arm delivers served text through the client's file reader, which numbers what it
-shows, and no real delivery path — a Bash result, an MCP tool result — has one. So readings 2–4 are
-an upper bound on the harm for the real path. The reading that turns that bound into a measurement
-delivers the text as a tool result with no outer gutter, at 200 KB, to the same client; it is the
-next one, and it is the one a stability claim waits on.
+What reading 5 rules out is as useful as what it found. The bend is an addressing choice — the row
+index of the served text — and not a failure to read 200 KB or to find the block, so on this evidence
+the cap is not the knob and no served-format change is opened. What it does not settle is whose
+number the client took: its own file reader's, laid beside mrw's by the read arm's delivery, or a count
+of mrw's rows. The transcript points at the first (the reader's `634` beside mrw's `751|`, and the
+client calling 634 a line), and mrw's two unnumbered rows add 2 to either count; but a transcript is
+not a score. The reading that settles it delivers the text as a tool result with no outer gutter — a
+Bash result, an MCP tool result, which is how mrw's output reaches a client outside this harness — at
+200 KB, to the same client. It is the next one, and it is the one a stability claim waits on.
 
 Compliance, coverage and cost come from transcripts and request records that are not committed, and
 each result document says so. The tables, the intervals and the offsets recompute from

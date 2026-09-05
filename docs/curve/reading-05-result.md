@@ -42,21 +42,30 @@ wrote the right text, and took the first gutter. With a window served from line 
 is always mrw's number plus two, because two rows above the first numbered line carry no number;
 that is the whole `+2` of readings 2, 3 and 4.
 
-## What this decides
+## What this decides, and what it only suggests
 
-- **The cap is not the knob.** The bend in reading 4 is not a retrieval or a reading failure at
-  200 KB; it is an addressing choice between two gutters, and its frequency with size is the
-  frequency of that choice. ADR-011-T3's revisit of 200,000 is not warranted on this evidence.
-- **mrw's served format is not the cause either.** The candidate named in reading 4 and in the
-  README — that the tool's own two unnumbered rows induce the miss — is refuted as stated: those two
-  rows fix the SIZE of the offset when the window starts at 1 (+2) and do nothing when it starts at
-  120 (−117). What induces the miss is a second numbering laid over mrw's by the reader the harness
-  hands the text through. That numbering does not exist when mrw's output reaches a client as tool
-  output — a Bash result, or an MCP tool result — which is every real delivery path this tool has.
-- **So readings 2–4 measured the harness's delivery as much as the client.** The read arm was chosen
-  in reading 2 to stop clients searching instead of reading, and it did that; it also put a second
-  gutter in front of every client, and the weaker client took it 10 times in 45. The curve those
-  readings report is real for that delivery path and is an upper bound on the harm for the real one.
+- **The miss is the row number of the served text.** That is what the scores establish: with the
+  window from line 1 every miss was the target's row counted from the `==>` header (+2), and with
+  the window from line 120 every miss is that same row index (−117). mrw's two unnumbered rows add
+  2 to the row index in both cases; they set the offset's magnitude, and the window start sets the
+  rest.
+- **Which gutter the client read is suggested, not established.** Two accounts give the row index:
+  a client that reads the number its own file reader lays beside each row, and a client that counts
+  mrw's rows itself. The transcript excerpt above — the reader's `634` beside mrw's `751|`, and the
+  client quoting 634 as a "line" — points at the first, and the author finds it persuasive; but a
+  transcript is not committed, and a reported excerpt is not a score. What separates the two is a
+  delivery with no outer gutter, and that is the next reading, not this one.
+- **The observed bend no longer warrants a cap change or a served-format change.** Every miss in
+  four readings matches one row-index account; none is a failure to read 200 KB (coverage is whole
+  in every trial) or to find the block (every miss wrote the right text for the right service). So
+  ADR-011-T3's revisit of 200,000 is not warranted on this evidence, and no served-path record is
+  opened on it either — until the gutter-free reading says whether mrw's own rendering induces the
+  row count when nothing else numbers the rows.
+- **Readings 2–4 were collected through a delivery that adds a gutter.** The read arm was chosen in
+  reading 2 to stop clients searching instead of reading, and it did that; it also put the reader's
+  numbering in front of every client. The curve those readings report is real for that delivery
+  path. What it says about the real one — a Bash result, an MCP tool result, where mrw's gutter is
+  the only one — is not measured, and is not claimed here.
 
 ## What it does not decide
 
@@ -70,8 +79,10 @@ That is the next reading, and it is the one that licenses a stability claim.
 ## Compliance: 15 of 15
 
 Every trial made zero search-tool calls and read `served.txt` whole — coverage from each read call's
-offset and limit equalled the served row count in all 15 (3615/3615, 3625/3625, 3630/3630, 3632/3632, 3645/3645 rows across the five
-seeds). Prediction 4 holds. No trial was void.
+offset and limit equalled the served row count in all 15. The plan quoted one row count, 3,615, and
+that is seed 1's; the five seeds pad differently and serve 3,615, 3,625, 3,630, 3,632 and 3,645 rows
+(two unnumbered each), which the plan did not say and this does. Prediction 4 holds. No trial was
+void.
 
 ## The guard, again
 

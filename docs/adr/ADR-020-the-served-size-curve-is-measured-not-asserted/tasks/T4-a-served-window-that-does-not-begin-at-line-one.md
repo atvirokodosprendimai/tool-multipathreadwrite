@@ -32,6 +32,13 @@ running the trials is a reading and a budget decision, as always in this record.
 If the row-count account holds, the tool's own output induces the silent wrong write the tool exists
 to prevent, and the fix belongs in `internal/read` under its own record — not here.
 
+**Superseded 2026-09-05 by reading 5** (`docs/curve/reading-05-result.md`): the row-count account
+held (every miss at `target − 117` from line 120), but the sentence above assumed the only rows a
+client could count were mrw's. The read arm delivers `served.txt` through the client's own file
+reader, which lays a second gutter beside mrw's, and the transcript shows the client taking that one.
+Whether mrw's rendering induces the count when no other gutter is present is what a gutter-free
+reading decides; the `internal/read` record waits on it, per the BACKLOG entry.
+
 ## Affected Files
 
 | File | Change | Why |
