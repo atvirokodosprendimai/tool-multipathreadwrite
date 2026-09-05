@@ -741,7 +741,8 @@ re-measuring these. Each was driven at the built binary, not read:
 
   **RECEIPT, 2026-09-05 — promoted and spent.** ADR-020 T4 built the cell (`-from`); reading 5
   (`docs/curve/reading-05-result.md`) served 15 trials from line 120 and every miss sat at
-  `target − 117`: the row count, and it is the read arm's file reader that counts, not mrw. Closed.
+  `target − 117`: the row count. Whose count — the read arm's file reader's, which the transcript
+  suggests, or mrw's own rows — waits on the gutter-free reading; see the ADR-020-T4 entry below.
 
 ## From ADR-020-T4 (a served window that does not begin at line one)
 

@@ -262,14 +262,14 @@ byte-identical, so the revert is a deletion.
       trials of readings 2–4 — an addressing error of fixed size whose frequency rises with served
       bytes and falls with model strength. All ten apply silently without a guard and are refused with
       `anchor=`.
-- [x] **The offset-window entry is promoted and spent, and the account is row numbering — the
-      harness's.** Reading 5 (`docs/curve/reading-05-result.md`) served 15 Haiku trials at 200 KB
-      with the window from line 120: 12 of 15, and all three misses at exactly `target − 117`, the
-      row-numbering prediction, none at `target+2`. The transcript shows the row the client took:
-      `634	  751| timeout = 30` — the read arm's file reader numbers what it shows, and the client
-      took the first gutter. That numbering is the harness's, not mrw's, and does not exist when the
-      tool's output reaches a client as a Bash or MCP result. Compliance 15/15; the three misses apply
-      unguarded and are refused with `anchor=`, 16 of 16 across readings 2–5.
+- [x] **The offset-window entry is promoted and spent, and the account is row numbering.** Reading 5
+      (`docs/curve/reading-05-result.md`) served 15 Haiku trials at 200 KB with the window from
+      line 120: 12 of 15, and all three misses at exactly `target − 117`, the row-index prediction,
+      none at `target+2`. The transcript shows the row the client took — `634	  751| timeout = 30`,
+      the read arm's file reader's number beside mrw's — which suggests, and does not establish, that
+      the client read the reader's gutter rather than counted mrw's rows; a transcript is not a
+      score. Compliance 15/15; the three misses apply unguarded and are refused with `anchor=`,
+      16 of 16 across readings 2–5.
 - [ ] **Difficulty is not what this harness lacks for the stronger client, and reading 4 has
       already tried the weaker one.** Two fixtures sit at 100% for Sonnet. The candidates that remain,
       in the order they look worth trying: raise the DISTRACTOR count, held at 3 in every reading and
@@ -281,8 +281,8 @@ byte-identical, so the revert is a deletion.
       not a retrieval failure — every miss found the right block and wrote the right text — and every
       one of the 13 misses across readings 2–4 sits at exactly `target+2`. **Reading 5 settled what
       the offset is:** the row index of the served text — +2 from line 1, −117 from line 120, mrw's
-      two unnumbered rows adding 2 to either. So the cap is not the knob on this evidence, and
-      ADR-011-T3 is not revisited on it. Whether the client read the gutter its own file reader lays
+      two unnumbered rows adding 2 to either. So the current evidence does not justify changing the
+      cap, and ADR-011-T3's revisit is deferred rather than ruled out. Whether the client read the gutter its own file reader lays
       beside mrw's (the transcript points there) or counted mrw's rows itself is what the scores
       cannot tell apart, and it is the difference between "the harness's delivery" and "mrw's own
       rendering induces the miss". The reading that tells them apart delivers served text as a tool

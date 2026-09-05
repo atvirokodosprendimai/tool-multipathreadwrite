@@ -1,4 +1,4 @@
-# Reading 5, result: the miss is the outer gutter, and it is the harness's, not mrw's
+# Reading 5, result: the miss is a row index, and the reading that decides whose is named
 
 **Collected 2026-09-05 under `reading-05-plan.md`, committed before any trial ran.** Fifteen
 trials, a Haiku client, the read arm, the 200,000-byte tier, every window served from line 120.
@@ -23,8 +23,8 @@ holds. The tally is not what this reading is for.
 
 Three of three at the row-numbering prediction, zero at the intrinsic one, 119 lines apart.
 **H1 is confirmed and H2 is refuted.** Predictions 1 and 2 hold. Across readings 2–5 that is 16
-misses in 150 read-arm trials, and every one of them is the row number of the served text where the
-client's reader put the target, not the line number mrw printed beside it.
+misses in 150 read-arm trials, and every one of them is the row index of the served text — the row
+the target sits on, counted from the `==>` header — not the line number mrw printed beside it.
 
 ## What the client actually saw, from the transcript
 
@@ -37,10 +37,12 @@ shows. At the target row of `200000-early-4` the client saw:
 
 Two numbers on one row: the harness reader's row number first, mrw's line number second. The
 client's own summary before it wrote the plan named the right service with the wrong number —
-*"svc-nofdh: retries = 6 (line 634: timeout = 30)"* — and addressed 634. It found the right block,
-wrote the right text, and took the first gutter. With a window served from line 1 the first gutter
-is always mrw's number plus two, because two rows above the first numbered line carry no number;
-that is the whole `+2` of readings 2, 3 and 4.
+*"svc-nofdh: retries = 6 (line 634: timeout = 30)"* — and addressed 634. It found the right block
+and wrote the right text. That it READ the first number rather than counted rows is what this
+excerpt suggests, and no more: the scores cannot tell reading a gutter from counting rows, and the
+transcript is not committed. With a window served from line 1 the row index is always mrw's number
+plus two, because two rows above the first numbered line carry no number; that is the whole `+2`
+of readings 2, 3 and 4.
 
 ## What this decides, and what it only suggests
 
@@ -55,12 +57,13 @@ that is the whole `+2` of readings 2, 3 and 4.
   client quoting 634 as a "line" — points at the first, and the author finds it persuasive; but a
   transcript is not committed, and a reported excerpt is not a score. What separates the two is a
   delivery with no outer gutter, and that is the next reading, not this one.
-- **The observed bend no longer warrants a cap change or a served-format change.** Every miss in
+- **The current evidence does not justify changing the cap or the served format.** Every miss in
   four readings matches one row-index account; none is a failure to read 200 KB (coverage is whole
   in every trial) or to find the block (every miss wrote the right text for the right service). So
-  ADR-011-T3's revisit of 200,000 is not warranted on this evidence, and no served-path record is
-  opened on it either — until the gutter-free reading says whether mrw's own rendering induces the
-  row count when nothing else numbers the rows.
+  ADR-011-T3's revisit of 200,000 is deferred rather than ruled out — whether the observed bend
+  transfers to the real delivery path is what the gutter-free reading decides — and no served-path
+  record is opened until that reading says whether mrw's own rendering induces the row count when
+  nothing else numbers the rows.
 - **Readings 2–4 were collected through a delivery that adds a gutter.** The read arm was chosen in
   reading 2 to stop clients searching instead of reading, and it did that; it also put the reader's
   numbering in front of every client. The curve those readings report is real for that delivery

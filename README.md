@@ -910,20 +910,22 @@ Every one of the 45 trials read every byte at every size, verified from the tran
 
 **Every miss in every reading is the same miss, and reading 5 says what it is.** Across the 150
 read-arm trials of readings 2–5 there are 16 misses; the committed scores show all 16 changed exactly
-one line, and the offset is the **row number of the served text where the client's file reader put
-the target** — two below the target when the window starts at line 1 (13 of 13 in readings 2–4), and
+one line, and the offset is the **row index of the served text** — the target's row counted from the
+`==>` header — two below the target when the window starts at line 1 (13 of 13 in readings 2–4), and
 117 above it when the window starts at line 120 (3 of 3 in reading 5). The transcript shows the row
 as the client saw it, `634	  751| timeout = 30`: the harness reader's number first, mrw's second, and
-the weaker client took the first. Each miss found the right service and wrote the right text; the
-plans are not committed, so that half is reported rather than recomputable.
+the client addressing 634. That excerpt suggests the client read the first number; the scores cannot
+tell reading a gutter from counting rows, and the transcript is not committed. Each miss found the
+right service and wrote the right text; the plans are not committed, so that half is reported rather
+than recomputable.
 
 All 16 apply silently through a green receipt without a guard, and **all 16 are refused with
 `anchor=`** — run against each cell's own fixture with the built binary, and reported in each result
 document rather than reproducible from a committed receipt. That is the case for the guard, measured.
 
 What reading 5 rules out is as useful as what it found. The bend is an addressing choice — the row
-index of the served text — and not a failure to read 200 KB or to find the block, so on this evidence
-the cap is not the knob and no served-format change is opened. What it does not settle is whose
+index of the served text — and not a failure to read 200 KB or to find the block, so the current
+evidence does not justify changing the cap or the served format. What it does not settle is whose
 number the client took: its own file reader's, laid beside mrw's by the read arm's delivery, or a count
 of mrw's rows. The transcript points at the first (the reader's `634` beside mrw's `751|`, and the
 client calling 634 a line), and mrw's two unnumbered rows add 2 to either count; but a transcript is
