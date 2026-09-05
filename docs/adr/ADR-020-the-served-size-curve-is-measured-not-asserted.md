@@ -317,4 +317,3 @@ byte-identical, so the revert is a deletion.
       the reply channel — 45 of 45, compliant 45 of 45, cost 2.41× from 2 KB to 200 KB. The strong
       client's flat curve survives a fixture with three times the candidates, at the pre-registered
       strength.
-
