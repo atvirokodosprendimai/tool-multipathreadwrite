@@ -15,8 +15,9 @@ own total; every row is green on the tree the tag is cut from. A break campaign 
 binary is built from, since nothing after it is Go — found no silent wrong write, and every refusal
 in it names its reason. And the served-size curve is measured rather than asserted: a strong client
 at the ceiling on the fixture built to be failed (reading 3), the one recurring miss identified as a
-row index (reading 5), and the weaker client at the ceiling once the served text reached it without
-a second number that reads as a line address (readings 8, 10, 11); the section *Does serving more
+row index (reading 5), the weaker client at the ceiling once the served text reached it without
+a second number that reads as a line address (readings 8, 9, 10), and that number put back
+bringing the miss back in five of fifteen trials (reading 11); the section *Does serving more
 hurt?* has the numbers and their limits.
 Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
 tools — changes only through a record, and a record that relaxes or replaces an earlier promise
@@ -922,7 +923,7 @@ ran, every score file is committed, and every table below recomputes from them.
 | 7 | Haiku | relational, scripted arm | — | — | (15/15) | **Void under its own rule**: 14 of 15 merged the two listed tail ranges; no tolerance granted. Reported, not counted. |
 | 8 | Haiku | relational, scripted arm | — | — | **15/15** | **Compliant 15 of 15.** mrw's gutter the only gutter, no miss at all; 7 discordant pairs against reading 4, all one way. |
 | 9 | Haiku | relational, scripted arm | 15/15 | 15/15 | (15/15, reading 8) | **Flat at the ceiling through the tool-result arm**, 45/45 pooled; the read arm's 15, 12, 8 on the same cells becomes 15, 15, 15. Cost within 3% of the read arm's at 2 KB and 20 KB, 7% lower at 200 KB. |
-| 10 | Haiku | relational, scripted arm, `nl` per range | — | — | 14/14 | **A second number that restarts per range is ignored.** Compliant 14 of 15 (one merge spilled, void); no miss; predicted misses did not appear. |
+| 10 | Haiku | relational, scripted arm, `nl` per range | — | — | 14/14 | **A second number that restarts per range was not taken by this client in these trials.** Compliant 14 of 15 (one merge spilled, void); no miss; predicted misses did not appear. |
 | 11 | Haiku | relational, scripted arm, `nl -v` from the top | — | — | **10/15** | **Reading 4's number put back, the miss comes back**: five misses, every one at +2, all five late. Against reading 10, 5 discordant pairs, all one way. |
 
 **For a strong client, serving a hundred times more bytes costs about 2.5× the tokens and loses
@@ -958,7 +959,7 @@ Bash tool result, the delivery the readings ran; the MCP path was not run — th
 seven of fifteen at 200 KB and three of fifteen at 20 KB through its file reader addressed all
 forty-five exactly, at every size, at the read arm's cost or below it (readings 8 and 9, compliant
 45 of 45 under pre-registered rules). Readings 10 and 11 then separated the second number from the
-chunking: a second number that restarts per range changed nothing (14 of 14), and a second number
+chunking: with a second number that restarts per range this client addressed 14 of 14, and a second number
 equal to the reader's — the row index from the top — brought the miss back at exactly that number
 under the same chunking (10 of 15, all five misses late). So the cap stays at 200,000 with evidence, the served format is
 not changed, and the stability claim rests on readings 3, 5, 8, 9, 10 and 11 together. What stands

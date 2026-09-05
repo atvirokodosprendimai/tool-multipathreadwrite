@@ -290,7 +290,7 @@ byte-identical, so the revert is a deletion.
       entry in BACKLOG.md closes with no engine change. Readings 6 and 7 were the same experiment
       voided by their own compliance rules and are recorded as such. What stands from reading 4 is a
       fact about one delivery: a client that reads mrw's output back through a numbering viewer gets
-      a second gutter, and the weaker client takes it. Scope of the closure: one Haiku client, reading
+      a second gutter, and the weaker client took it some of the time. Scope of the closure: one Haiku client, reading
       4's forty-five cells, a Bash-result delivery — the MCP path was not run. Reading 9
       (`docs/curve/reading-09-result.md`) took the served-size curve within the tool-result arm:
       15, 15, 15, at the read arm's cost within 3% at 2 KB and 20 KB and 7% below it at 200 KB.
