@@ -9,7 +9,7 @@
 **Governs:** `internal/mcp/**`
 **Enforced-by:** `internal/mcp/conformance_test.go::TestAReadResultCarriesNoStructuredContent`
 **Invalidates:** ADR-011 — the clause of its Decision and T2 reading "every declared `outputSchema` validates a REAL response" and "`content[1]` is the serialized `structuredContent`" as they apply to `mrw_read`; `mrw_write` keeps both
-**Served-path change:** over MCP, every `mrw_read` result — a served read, a page, an index, a refusal — carries the served text in `content[0]` and the JSON receipt in `content[1]`, and NO `structuredContent`; `tools/list` declares no `outputSchema` for `mrw_read`. A Claude Code session that calls `mrw_read` now receives the lines it asked for. The CLI is unchanged.
+**Served-path change:** over MCP, every `mrw_read` result that carries a receipt — a served read, a page, an index, a grep that matched nothing — carries the served text or report in `content[0]` and the JSON receipt in `content[1]`, and NO `structuredContent`; a bare refusal (`exclude` without `grep`, an unparseable spec) stays one text block with no receipt, as it was; `tools/list` declares no `outputSchema` for `mrw_read`. A Claude Code session that calls `mrw_read` now receives the lines it asked for. The CLI is unchanged.
 
 ## Context
 
@@ -66,8 +66,9 @@ whole answer.
 ## Decision
 
 **1. `mrw_read` returns no `structuredContent`, on any result.** A served read, a page (ADR-014), an
-index (ADR-017) and a refusal all carry the served text or the report in `content[0]` and the
-serialized receipt in `content[1]`, and nothing else. The receipt's shape is unchanged — `observed`,
+index (ADR-017) and a grep that matched nothing all carry the served text or the report in
+`content[0]` and the serialized receipt in `content[1]`, and nothing else; a bare refusal — one
+that never had a receipt, such as `exclude` without `grep` — stays one text block, as before. The receipt's shape is unchanged — `observed`,
 `problems`, and `next_read` or `matches`/`index`/`next_index` where they applied before — so a caller
 that parsed `structuredContent` parses `content[1]` and gets the same object. A host that renders
 `structuredContent` in place of `content` has nothing to render in its place, and shows the answer.
@@ -135,7 +136,7 @@ its Verification Log with the Claude Code version it was taken against.
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| `tools/call` result of `mrw_read` (served, paged, index, refused) | `structuredContent` removed; `content[0]` served text or report, `content[1]` the serialized receipt, unchanged in shape | `internal/mcp` | any MCP host; `scripts/contract.sh` rows that read the receipt |
+| `tools/call` result of `mrw_read` (served, paged, index, grep-no-match) | `structuredContent` removed; `content[0]` served text or report, `content[1]` the serialized receipt, unchanged in shape; a bare refusal stays one text block | `internal/mcp` | any MCP host; `scripts/contract.sh` rows that read the receipt |
 | `tools/list` entry for `mrw_read` | `outputSchema` removed; `title`, `annotations`, `_meta`, `inputSchema` unchanged | `internal/mcp` | any MCP host |
 | `initialize.instructions` and the `mrw_read` description | say where the receipt is (`content[1]`) | `internal/mcp` | a model reading the surface |
 | `mrw_write` | unchanged | — | — |

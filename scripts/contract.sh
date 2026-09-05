@@ -3323,6 +3323,59 @@ assert len(set(n1))==1, "the named fixture no longer renders one constant budget
 PY
 [ $? -eq 0 ] && ok "four relational seeds move BOTH budgets, and the named fixture renders the same constant at every seed" \
              || bad "the relational fixture carries a constant signature, or the draw reached the named fixture"
+# 61. ADR-023 T1: a read's answer is the served text, and no envelope stands in
+# for it.
+#
+# Measured 2026-09-05 on Claude Code 2.1.261 (issue #109): a non-error result
+# that carried structuredContent reached the model AS the structuredContent, and
+# the content blocks were dropped — so a successful mrw_read delivered the
+# receipt and none of the lines, while the ledger had already recorded them as
+# seen. Hence: no mrw_read result — served, paged, index — carries
+# structuredContent; its receipt is content[1]; tools/list declares no
+# outputSchema for it. Paired with the case that must differ: mrw_write keeps
+# both, equal to each other, because its answer IS the receipt.
+fixture
+python3 -c "
+with open('$R/big.txt','w') as f:
+    for i in range(12000): f.write('padding line %05d that is long enough to make this file page\n' % i)
+for i in range(60):
+    with open('$R/document%05d.csv' % i,'w') as f:
+        f.write('a line that matches nothing\n')
+        for j in range(400): f.write('the NEEDLE is here\n')
+"
+# Results go to FILES, not argv: a page of a 12,000-line file is ~700 KB, and
+# Linux refuses a single argument over 128 KB ("Argument list too long") —
+# which is how the first cut of this row went red in CI and green on macOS.
+call61() { printf '%s\n' "$2" | m mcp 2>/dev/null > "$WORK/61-$1.json"; }
+call61 served '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}'
+call61 paged  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["big.txt"]}}}'
+call61 index  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"NEEDLE"}}}'
+call61 listed '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+call61 wrote  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\nfunc A() int { return 61 }\n"}}}'
+python3 - "$WORK" <<'PY'
+import json,sys
+w=sys.argv[1]
+def load(n):
+    with open("%s/61-%s.json" % (w,n)) as f: return json.loads(f.readline())["result"]
+served,paged,index,listed,wrote=[load(n) for n in ("served","paged","index","listed","wrote")]
+for name,r in (("served",served),("paged",paged),("index",index)):
+    assert "structuredContent" not in r, "%s read result carries structuredContent; a host that renders it in place of content hides the served text" % name
+    c=r["content"]; assert len(c)>=2, "%s read result has %d content blocks, want the answer and the receipt" % (name,len(c))
+    rec=json.loads(c[1]["text"]); assert "observed" in rec, "%s receipt at content[1] carries no observed" % name
+assert served["content"][0]["text"].startswith("==> a.go"), "the served read's content[0] is not the served text"
+assert served.get("isError") is not True, "a two-line served read read as an error"
+assert paged.get("isError") is True and json.loads(paged["content"][1]["text"]).get("next_read"), "the page names no next_read at content[1]"
+assert index.get("isError") is True and json.loads(index["content"][1]["text"]).get("index"), "the index carries no entries at content[1]"
+tools={t["name"]:t for t in listed["tools"]}
+assert "outputSchema" not in tools["mrw_read"], "mrw_read declares an outputSchema it never fulfils"
+assert "outputSchema" in tools["mrw_write"], "mrw_write lost its outputSchema"
+assert "structuredContent" in wrote, "mrw_write lost its structuredContent; its answer IS the receipt"
+assert wrote["structuredContent"]==json.loads(wrote["content"][1]["text"]), "mrw_write's content[1] and structuredContent disagree"
+assert wrote["structuredContent"]["applied"] is True, "the write did not apply; the pairing is not exercised"
+PY
+[ $? -eq 0 ] && ok "no mrw_read result carries structuredContent, its receipt is content[1], and mrw_write keeps both" \
+             || bad "a read result still carries the envelope that hid the served text, or the write lost its own"
+
 # 60. ADR-020-T4: a served window that does not begin at line one.
 #
 # Every miss in the 135 read-arm trials of readings 2, 3 and 4 sits at
@@ -3438,59 +3491,6 @@ opid=$(cat "$WORK/probe2" 2>/dev/null)
   && ok "INT to the wrapper is forwarded: the nested runner ended 143 in ${el}s and its orphan with it" \
   || bad "INT to the wrapper: exit $rc after ${el}s, orphan '${opid:-?}' $(kill -0 "${opid:-999999999}" 2>/dev/null && echo alive || echo gone)"
 kill "${opid:-999999999}" 2>/dev/null; kill -- -"$(cat "$WORK/probe2.runner" 2>/dev/null || echo 999999999)" 2>/dev/null; true
-# 61. ADR-023 T1: a read's answer is the served text, and no envelope stands in
-# for it.
-#
-# Measured 2026-09-05 on Claude Code 2.1.261 (issue #109): a non-error result
-# that carried structuredContent reached the model AS the structuredContent, and
-# the content blocks were dropped — so a successful mrw_read delivered the
-# receipt and none of the lines, while the ledger had already recorded them as
-# seen. Hence: no mrw_read result — served, paged, index — carries
-# structuredContent; its receipt is content[1]; tools/list declares no
-# outputSchema for it. Paired with the case that must differ: mrw_write keeps
-# both, equal to each other, because its answer IS the receipt.
-fixture
-python3 -c "
-with open('$R/big.txt','w') as f:
-    for i in range(12000): f.write('padding line %05d that is long enough to make this file page\n' % i)
-for i in range(60):
-    with open('$R/document%05d.csv' % i,'w') as f:
-        f.write('a line that matches nothing\n')
-        for j in range(400): f.write('the NEEDLE is here\n')
-"
-# Results go to FILES, not argv: a page of a 12,000-line file is ~700 KB, and
-# Linux refuses a single argument over 128 KB ("Argument list too long") —
-# which is how the first cut of this row went red in CI and green on macOS.
-call61() { printf '%s\n' "$2" | m mcp 2>/dev/null > "$WORK/61-$1.json"; }
-call61 served '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}'
-call61 paged  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["big.txt"]}}}'
-call61 index  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"NEEDLE"}}}'
-call61 listed '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
-call61 wrote  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\nfunc A() int { return 61 }\n"}}}'
-python3 - "$WORK" <<'PY'
-import json,sys
-w=sys.argv[1]
-def load(n):
-    with open("%s/61-%s.json" % (w,n)) as f: return json.loads(f.readline())["result"]
-served,paged,index,listed,wrote=[load(n) for n in ("served","paged","index","listed","wrote")]
-for name,r in (("served",served),("paged",paged),("index",index)):
-    assert "structuredContent" not in r, "%s read result carries structuredContent; a host that renders it in place of content hides the served text" % name
-    c=r["content"]; assert len(c)>=2, "%s read result has %d content blocks, want the answer and the receipt" % (name,len(c))
-    rec=json.loads(c[1]["text"]); assert "observed" in rec, "%s receipt at content[1] carries no observed" % name
-assert served["content"][0]["text"].startswith("==> a.go"), "the served read's content[0] is not the served text"
-assert served.get("isError") is not True, "a two-line served read read as an error"
-assert paged.get("isError") is True and json.loads(paged["content"][1]["text"]).get("next_read"), "the page names no next_read at content[1]"
-assert index.get("isError") is True and json.loads(index["content"][1]["text"]).get("index"), "the index carries no entries at content[1]"
-tools={t["name"]:t for t in listed["tools"]}
-assert "outputSchema" not in tools["mrw_read"], "mrw_read declares an outputSchema it never fulfils"
-assert "outputSchema" in tools["mrw_write"], "mrw_write lost its outputSchema"
-assert "structuredContent" in wrote, "mrw_write lost its structuredContent; its answer IS the receipt"
-assert wrote["structuredContent"]==json.loads(wrote["content"][1]["text"]), "mrw_write's content[1] and structuredContent disagree"
-assert wrote["structuredContent"]["applied"] is True, "the write did not apply; the pairing is not exercised"
-PY
-[ $? -eq 0 ] && ok "no mrw_read result carries structuredContent, its receipt is content[1], and mrw_write keeps both" \
-             || bad "a read result still carries the envelope that hid the served text, or the write lost its own"
-
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

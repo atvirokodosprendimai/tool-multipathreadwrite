@@ -28,10 +28,17 @@ func TestEveryDeclaredOutputSchemaValidatesARealResponse(t *testing.T) {
 	// structuredContent, so a read is validated by TestAReadResultCarriesNo-
 	// StructuredContent instead. The loop below still walks EVERY tool, so a
 	// schema added later is validated without anyone editing this test.
+	// The read is for its LEDGER side effect: without it the write below is
+	// refused (ADR-002), and a refusal validates the schema's top level while
+	// never exercising the success-only fields (`applied`, `written`,
+	// `sha_after`). Found by the Codex review of #110.
+	call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
 	responses := map[string]map[string]any{}
-	responses["mrw_write"] = structured(t, call(t, root, "mrw_write",
-		map[string]any{"plan": "@@ a.txt 1 replace\nONE\n"}))
-	_ = path
+	w := call(t, root, "mrw_write", map[string]any{"plan": "@@ a.txt 1 replace\nONE\n"})
+	if w["isError"] == true {
+		t.Fatalf("the write was refused, so the schema would be validated against a refusal: %v", w["content"])
+	}
+	responses["mrw_write"] = structured(t, w)
 
 	declared := 0
 	for _, tool := range tools() {
@@ -577,6 +584,30 @@ func TestAReadResultCarriesNoStructuredContent(t *testing.T) {
 	}
 	if idx, _ := receipt(t, index)["index"].([]any); len(idx) == 0 {
 		t.Error("an index's content[1] carries no index entries")
+	}
+
+	// The two refusal shapes. A grep that matched nothing carries a receipt
+	// (matches 0, observed empty) and must carry it in content[1] alone; a
+	// bare refusal — exclude without grep — is one text block and nothing
+	// else, as it was before ADR-023. Both are branches where a
+	// structuredContent could be reintroduced without the three shapes above
+	// noticing. Found by the Codex review of #110.
+	none := call(t, root, "mrw_read", map[string]any{"grep": "no-such-needle-anywhere"})
+	if _, has := none["structuredContent"]; has {
+		t.Error("a grep that matched nothing carries structuredContent")
+	}
+	if m, _ := receipt(t, none)["matches"].(float64); m != 0 {
+		t.Errorf("a grep that matched nothing reports matches=%v at content[1], want 0", m)
+	}
+	bare := call(t, root, "mrw_read", map[string]any{"specs": []any{path}, "exclude": []any{"x"}})
+	if bare["isError"] != true {
+		t.Fatal("exclude without grep was not refused; the fixture does not reach the bare refusal")
+	}
+	if _, has := bare["structuredContent"]; has {
+		t.Error("a bare refusal carries structuredContent")
+	}
+	if c, _ := bare["content"].([]any); len(c) != 1 {
+		t.Errorf("a bare refusal has %d content blocks, want one: it carries no receipt", len(c))
 	}
 
 	// mrw_write keeps its envelope, equal to its own content[1].

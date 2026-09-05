@@ -48,7 +48,8 @@ test -z "$(gofmt -l .)" \
   && ! grep -qE 'no tests to run|no test files|^FAIL|^--- FAIL' /tmp/adr023-t1.out \
   && [ "$(grep -cE '^--- PASS: (TestAReadResultCarriesNoStructuredContent|TestMrwReadDeclaresNoOutputSchema)\b' /tmp/adr023-t1.out)" = "2" ] \
   && grep -q '^# 61\. ' scripts/contract.sh \
-  && ! grep -qn 'structuredContent' README.md | grep -q mrw_read \
+  && grep -q "write result's \`structuredContent\`" README.md \
+  && grep -q 'with no \`structuredContent\`' README.md \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check internal/state cmd/mrw/main.go \
   && go test ./... \
@@ -56,7 +57,9 @@ test -z "$(gofmt -l .)" \
 ```
 
 Every clause was run BEFORE this fence was written and returned **zero hits**: both test names and
-`# 61. `. The fence is red until S1's tests exist and pass, and `./scripts/contract.sh` is red until
+`# 61. `. The two README greps replaced a clause the Codex review of #110 showed to be vacuous
+(`! grep -q … | grep -q …` succeeds whatever the file says); they now require the two sentences the
+task adds — the write's receipt is its `structuredContent`, a read's answer comes with none. The fence is red until S1's tests exist and pass, and `./scripts/contract.sh` is red until
 §61 exists and every moved consumer reads `content[1]`.
 
 ## Tests
@@ -85,6 +88,9 @@ is the receipt for both tools, equal to `structuredContent` where one exists), b
 - 2026-09-05 · 679d457* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on every mrw_read result — the envelope the measured host renders in place of the served text · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · covers:a served read carries no structuredContent
 - 2026-09-05 · 679d457* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on a PAGE only — a served read stays bare, so a test that checked one shape would pass this · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · covers:a page and an index carry none either
 - 2026-09-05 · 679d457* · mutant killed · exit 1 · `internal/mcp/mcp.go` · S3: declare an outputSchema for mrw_read again — a schema declared is a structuredContent promised, and none is sent · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · covers:mrw_read declares no outputSchema while mrw_write still does
+- 2026-09-05 · 6948737* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on every mrw_read result — the envelope the measured host renders in place of the served text · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:a served read carries no structuredContent
+- 2026-09-05 · 6948737* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: put the structuredContent back on a PAGE only — a served read stays bare, so a test that checked one shape would pass this · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:a page and an index carry none either
+- 2026-09-05 · 6948737* · mutant killed · exit 1 · `internal/mcp/mcp.go` · S3: declare an outputSchema for mrw_read again — a schema declared is a structuredContent promised, and none is sent · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · covers:mrw_read declares no outputSchema while mrw_write still does
 
 ## Invariants
 
@@ -149,3 +155,7 @@ Stop if removing `structuredContent` from `mrw_read` requires changing the recei
 - 2026-09-05 · 679d457* · exit 0 · `set -o pipefail …` · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · ms:30627
 - 2026-09-05 · 679d457* · exit 0 · `set -o pipefail …` · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · ms:29415
 - 2026-09-05 · 679d457* · exit 0 · `set -o pipefail …` · acceptance-sha256:14ab23ac7e8e6b7ed62bfad07512fa7228b138e6ef85a9f4b6539023e0544a9b · ms:29891
+- 2026-09-05 · 6948737* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:68908
+- 2026-09-05 · 6948737* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:31033
+- 2026-09-05 · 6948737* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:32268
+- 2026-09-05 · 6948737* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a58ea72ccf195e7ed08d1d34d3fc2f0ad678ffc53ca3d193c349164a112da72 · ms:32040

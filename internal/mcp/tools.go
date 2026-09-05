@@ -290,8 +290,8 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 
 	// ⚠ AND THE SERVED ANSWER IS BUDGETED, for the same reason the index is.
 	// The capped writer bounds the REPORT TEXT and nothing else: `observed`
-	// carries a sha and spans per file and travels twice more, in
-	// structuredContent and in its serialized copy. A grep resuming onto 2,514
+	// carries a sha and spans per file and travels once more, serialized in
+	// content[1] (twice more before ADR-023). A grep resuming onto 2,514
 	// small files came back at 794,582 characters — four times the cap this
 	// server declares in _meta, and past the ceiling the host truncates at. So
 	// a walked read that will not fit ENCODED degrades to the index, which is
@@ -706,8 +706,10 @@ func matchIndex(specs []read.Spec, problems int, cw *capped) callToolResult {
 	// is "resume after this entry", the way a file's is "resume at this line".
 	//
 	// ⚠ BUDGETED AGAINST THE ENCODED RESULT, NOT THE ENTRY LIST. Every entry is
-	// emitted TWICE — once in the JSON text block and once in structuredContent
-	// — plus JSON quoting. Counting each entry once selected 7,388 entries for
+	// emitted in the JSON text block with JSON quoting and envelope (and was
+	// emitted twice, structuredContent included, before ADR-023 — which is why
+	// an 8,000-file index now fits and the fixtures grew to 12,000). Counting
+	// each entry once selected 7,388 entries for
 	// an 8,000-file fixture and produced roughly 650,000 characters against a
 	// 200,000 limit, so the index built to fit under the cap blew through it.
 	// perEntry counts both copies and the quoting. Found by review of #80.
@@ -745,8 +747,8 @@ func matchIndex(specs []read.Spec, problems int, cw *capped) callToolResult {
 			fmt.Fprintf(&b, "-- Showing the first %d of %d. Send the SAME grep again with after=%q for the next page, and repeat until next_index is absent.\n", len(shown), len(entries), next)
 		}
 		// The paths are NOT repeated in the prose block: they are in the JSON
-		// block below and in structuredContent, and a third copy is a third of
-		// the cap spent saying the same thing.
+		// block below, and a second copy is a second share of the cap spent
+		// saying the same thing.
 		b.WriteString("-- The matching files are listed in this result's index field. Send any of them back as specs WITH the same grep to read its matches, or on its own to read the file.\n")
 
 		structured := map[string]any{
@@ -828,7 +830,7 @@ func encodedSize(res callToolResult) int {
 // servedOrIndex decides whether a WALKED read may be served as content.
 //
 // The capped writer bounds the report text and nothing else; `observed` carries
-// a sha and a span list per file and is emitted twice more. For a grep over
+// a sha and a span list per file and is emitted once more, in content[1]. For a grep over
 // many small documents — this record's ordinary case — that is the difference
 // between 178,494 characters of report and a 794,582-character result. When the
 // encoded answer will not fit, the index is returned instead: it is the answer
