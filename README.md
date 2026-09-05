@@ -962,8 +962,8 @@ chunking: a second number that restarts per range changed nothing (14 of 14), an
 equal to the reader's — the row index from the top — brought the miss back at exactly that number
 under the same chunking (10 of 15, all five misses late). So the cap stays at 200,000 with evidence, the served format is
 not changed, and the stability claim rests on readings 3, 5, 8, 9, 10 and 11 together. What stands
-from reading 4 is a fact about one kind of delivery: lay a plausible line number beside mrw's and
-a weaker client takes it. Two readings between 5 and 8 were void under their own compliance rules
+from reading 4 is a fact about the two delivery forms measured: lay a plausible line number beside
+mrw's and a weaker client takes it some of the time. Two readings between 5 and 8 were void under their own compliance rules
 and are recorded, not counted.
 
 Compliance, coverage and cost come from transcripts and request records that are not committed, and

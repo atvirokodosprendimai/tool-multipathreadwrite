@@ -268,7 +268,8 @@ byte-identical, so the revert is a deletion.
       line 120: 12 of 15, and all three misses at exactly `target − 117`, the row-index prediction,
       none at `target+2`. The transcript shows the row the client took — `634	  751| timeout = 30`,
       the read arm's file reader's number beside mrw's — which suggested the client read the reader's
-      gutter rather than counted mrw's rows; reading 8 (the item below) then established it. Compliance
+      gutter rather than counted mrw's rows; reading 8 removed that number and the miss with it, and
+      readings 10 and 11 (below) separated the number from the delivery's chunking. Compliance
       15/15; the three misses apply unguarded and are refused with `anchor=`, 16 of 16 across
       readings 2–5.
 - [ ] **Difficulty is not what this harness lacks for the stronger client, and reading 4 has

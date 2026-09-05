@@ -138,8 +138,8 @@ own, these readings do not measure: reading 4 against reading 11 is 8 and 10 of 
 both ways.
 
 What this is and is not. It is a measurement that, for this client on this fixture family, the
-only recurring miss is induced by a second number laid beside mrw's whose value is plausible as a
-line address, wherever it arrives — a file reader's gutter or a `nl -v` column — and that a
+only recurring miss followed a second number laid beside mrw's whose value is plausible as a
+line address, in both delivery forms measured — a file reader's gutter and a `nl -v` column — and that a
 delivery without one showed no miss at any size. It is not a claim about the MCP transport, which
 was not run, nor about clients or fixtures not measured; and the late-only pattern of reading 11
 is observed on five cells and not explained. Reading 4 stands as a fact about a real path: a client

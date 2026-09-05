@@ -70,11 +70,13 @@ only in the value of the second number, and they differ on five of the fourteen 
 all one way. So the chunking is not what removed the miss: a plausible outer line number induces
 the `T + 2` miss under chunked delivery too. What the chunking may contribute on its own these
 two readings cannot say — reading 4 against reading 11 is 8 and 10 of 15 with six discordant
-pairs both ways, and a different position pattern. The second number is sufficient, **provided
-its value reads as a line number** — the row index of the served text from its first row, which
-is what a file reader shows and what `nl -v` reproduced. The note's account of reading 4 therefore
-stands and generalises beyond the file reader: any delivery that lays a plausible line number beside mrw's
-takes the weaker client off the target by exactly the difference, here two, the header rows.
+pairs both ways, and a different position pattern. Restoring the plausible number reproduced five
+`T + 2` misses in the chunked arm — a number whose value is the row index of the served text from
+its first row, which is what a file reader shows and what `nl -v` reproduced. The note's account
+of reading 4 therefore stands for both delivery forms measured, a file reader's gutter and a
+`nl -v` column beside mrw's in a tool result: in each, a weaker client took the second number
+some of the time, and when it did it was off the target by exactly the difference, here two, the
+header rows.
 
 What stays the same for mrw: served size did not bend the curve, at 200,000 bytes or below; the
 cap stays; through a delivery where mrw's number is the only plausible line number, the weaker
