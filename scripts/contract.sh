@@ -35,25 +35,36 @@ set -uo pipefail
 # nothing here reads the terminal.
 if [ "${CONTRACT_GROUP:-}" != "$$" ]; then
   exec perl -e '
-    my $pid = fork; defined $pid or die "fork: $!";
+    my ($pid, $pending);
+    # Handlers before the fork, and the group set from BOTH sides: a signal
+    # in the window between them is recorded and forwarded once the group
+    # exists, instead of killing the wrapper and leaving the runner behind.
+    $SIG{INT} = $SIG{TERM} = $SIG{HUP} = sub { $pending = 1; kill "TERM", -$pid if $pid };
+    $pid = fork; defined $pid or die "fork: $!";
     if ($pid) {
-      $SIG{INT} = $SIG{TERM} = $SIG{HUP} = sub { kill "TERM", -$pid };
+      setpgrp($pid, $pid);
+      kill "TERM", -$pid if $pending;
       my $r; do { $r = waitpid $pid, 0 } while ($r == -1 && $!{EINTR});
       my $s = $?; exit(($s & 127) ? 128 + ($s & 127) : $s >> 8);
     }
-    setpgrp(0, 0) or die "setpgrp: $!";
+    setpgrp(0, 0);
+    $SIG{INT} = $SIG{TERM} = $SIG{HUP} = "DEFAULT";
     $ENV{CONTRACT_GROUP} = $$;
     exec @ARGV or die "exec: $!";
   ' "$BASH" "$0" "$@"
 fi
+# The marker is consumed here so no descendant inherits it: a stale exported
+# value equal to a reused pid would otherwise skip the wrapper (review).
+unset CONTRACT_GROUP
 
 cd "$(dirname "$0")/.."
 WORK=$(mktemp -d)
 # Reap the whole group on exit: every child, and every orphan that kept the
-# group after its parent died. TERM is ignored in the runner first so the
-# group signal cannot cut the trap short — measured unnecessary on darwin,
-# where bash carried exit status through it; kept because Linux is untested.
-trap 'rm -rf "$WORK"; trap "" TERM; kill -- -$$ 2>/dev/null' EXIT
+# group after its parent died. TERM is ignored FIRST, before the rm, so a
+# second forwarded signal cannot cut the trap short — measured unnecessary
+# on darwin, where bash carried exit status through it; kept as a guard for
+# the Linux runner.
+trap 'trap "" TERM; rm -rf "$WORK"; kill -- -$$ 2>/dev/null' EXIT
 
 # Build our OWN binary inside WORK rather than sharing bin/mrw. Two fences ran
 # concurrently under `adr-verify --sweep` on 2026-08-31 — one starting with
@@ -3375,6 +3386,37 @@ for _ in $(seq 1 30); do
 done
 [ "$prc" -le 1 ] && [ -z "$left" ] && ok "no process of this run survives it" \
   || bad "survivors in the run's group after 3 s (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
+# The wrapper's and the trap's promises get their own failing case: a nested
+# run of THIS FILE'S prologue — the committed text up to the trap line, not a
+# copy — with a body that plants an orphan and exits 7. Run plain, the exit
+# status must come back 7 and the orphan must be gone: that is the trap's
+# group kill, and deleting it leaves the orphan alive. Run hanging, an INT
+# to the wrapper must end the run 143 within seconds with the orphan gone:
+# that is the forwarding, and deleting the handler leaves the runner asleep.
+sed -n '1,/^trap .*EXIT$/p' "$0" > "$WORK/probe.sh"
+cat >> "$WORK/probe.sh" <<'PROBE'
+echo $$ > "$1.runner"
+( sleep 300 & )
+sleep 0.2
+pgrep -g $$ > "$1.all"; grep -vx "$$" "$1.all" > "$1"
+[ "${2:-}" = hang ] && sleep 60
+exit 7
+PROBE
+chmod +x "$WORK/probe.sh"
+"$WORK/probe.sh" "$WORK/probe1" > /dev/null; want 7 "$?" "a nested run of this file's own prologue repeats the runner's exit status through the wrapper"
+sleep 0.3; opid=$(cat "$WORK/probe1" 2>/dev/null)
+[ -n "$opid" ] && ! kill -0 "$opid" 2>/dev/null \
+  && ok "and its EXIT trap reaped an orphan already re-parented away (pid $opid)" \
+  || bad "the prologue's EXIT trap left the nested run's orphan '${opid:-?}' alive"
+kill "${opid:-999999999}" 2>/dev/null
+"$WORK/probe.sh" "$WORK/probe2" hang > /dev/null & wp=$!
+for _ in $(seq 1 50); do [ -s "$WORK/probe2" ] && break; sleep 0.1; done
+t0=$(date +%s); kill -INT "$wp"; wait "$wp"; rc=$?; el=$(( $(date +%s) - t0 ))
+opid=$(cat "$WORK/probe2" 2>/dev/null)
+[ "$rc" -eq 143 ] && [ "$el" -lt 10 ] && [ -n "$opid" ] && ! kill -0 "$opid" 2>/dev/null \
+  && ok "INT to the wrapper is forwarded: the nested runner ended 143 in ${el}s and its orphan with it" \
+  || bad "INT to the wrapper: exit $rc after ${el}s, orphan '${opid:-?}' $(kill -0 "${opid:-999999999}" 2>/dev/null && echo alive || echo gone)"
+kill "${opid:-999999999}" 2>/dev/null; kill -- -"$(cat "$WORK/probe2.runner" 2>/dev/null || echo 999999999)" 2>/dev/null; true
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
