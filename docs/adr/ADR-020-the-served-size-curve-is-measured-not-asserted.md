@@ -313,3 +313,8 @@ byte-identical, so the revert is a deletion.
       are void; the fifteen strict trials all hit; all forty-five as sensitivity are 14, 15, 15 with
       one miss on the right service one line above the target. The distractor item above is
       manipulated by this reading and by reading 17, which re-runs it with the channel named.
+- [x] **Reading 17** (`docs/curve/reading-17-result.md`): reading 14 re-run under a plan that names
+      the reply channel — 45 of 45, compliant 45 of 45, cost 2.41× from 2 KB to 200 KB. The strong
+      client's flat curve survives a fixture with three times the candidates, at the pre-registered
+      strength.
+
