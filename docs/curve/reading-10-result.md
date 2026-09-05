@@ -70,11 +70,11 @@ But this reading's outer gutter is not reading 4's, in one respect the plan did 
 Reading 4's reader numbered the whole file from 1, so its number on the target's row was `T + 2`
 at every size and every position — a number that looks like a line number. Reading 10's `nl`
 restarts at 1 in every range, so the outer number on the target's row was between 127 and 261
-for targets at lines 725 to 2917: a number no client would take for a line address in a
-3,600-line file. The parsimonious account of reading 5 — the client took the reader's number —
-is therefore neither confirmed nor refuted here. It has been narrowed: the client does not take
-*any* second number; it took one that was continuous from the top of the file and presented by
-its own file reader.
+for targets at lines 725 to 2917: a number that does not read as a line address in a 3,600-line
+file, and one this client did not take in these trials. The parsimonious account of reading 5 —
+the client took the reader's number — is therefore neither confirmed nor refuted here. It has been
+narrowed: in these trials this client did not take *any* second number; the one it took, in
+readings 4 and 5, was continuous from the top of the file and presented by its own file reader.
 
 The two remaining accounts, and the reading that separates them, are in `reading-11-plan.md`:
 the same ranges with `nl -ba -v A`, so the outer number is the row index of the whole served

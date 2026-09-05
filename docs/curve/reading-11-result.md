@@ -28,8 +28,8 @@ the client saw it in `200000-late-1`, and its one-line reply:
 
 > 2900
 
-No miss anywhere else; no third account is needed. The outer number's *value* is what the weaker
-client takes: when it looks like a line number it is taken, and reading 10's per-range numbers,
+No miss anywhere else; no third account is needed. The outer number's *value* is what mattered
+for this client: when it looked like a line number it was taken in five of fifteen trials, and reading 10's per-range numbers,
 which did not, were not.
 
 ## A position effect this plan did not foresee
@@ -67,8 +67,8 @@ Prediction 4 holds: 3.0% above reading 10's median, against 20% allowed.
 With reading 10 it separates the two things reading 8 changed at once, and separates them the
 other way from what reading 10 alone suggested. Readings 10 and 11 chunk identically and differ
 only in the value of the second number, and they differ on five of the fourteen comparable cells,
-all one way. So the chunking is not what removed the miss: a plausible outer line number induces
-the `T + 2` miss under chunked delivery too. What the chunking may contribute on its own these
+all one way. So the chunking is not what removed the miss: restoring a plausible outer line number
+reproduced the `T + 2` miss in five of fifteen trials under chunked delivery. What the chunking may contribute on its own these
 two readings cannot say — reading 4 against reading 11 is 8 and 10 of 15 with six discordant
 pairs both ways, and a different position pattern. Restoring the plausible number reproduced five
 `T + 2` misses in the chunked arm — a number whose value is the row index of the served text from

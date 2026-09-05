@@ -298,5 +298,5 @@ byte-identical, so the revert is a deletion.
       the tool-result arm had changed at once: the same `sed` ranges with a second number that
       restarts per range scored 14 of 14 compliant; with a second number equal to the reader's row
       index they scored 10 of 15, every miss at +2, all five late. So the chunking is not what removed
-      the miss; a second number brings it back under chunked delivery when its value reads as a line
+      the miss; a second number brought it back in five of fifteen trials under chunked delivery when its value read as a line
       address. The closure's scope is unchanged.

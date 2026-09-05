@@ -29,7 +29,7 @@ same cells to 15, 15, 15, at a cost within 3% of the read arm's at 2 KB and 20 K
 second number that restarts per range left the client at 14 of 14; the same ranges with a second
 number equal to the reader's — the row index from the top — took it back to 10 of 15, every miss
 at exactly that number. Served size did not bend the curve. A second number that reads as a line
-number did.
+number did, some of the time.
 
 ## 1. The question
 
@@ -132,8 +132,8 @@ second number was the row index from the top of the served text — `T + 2` on t
 reading 4's number exactly — and the miss came back: 10 of 15, five misses, every one at `T + 2`,
 and all five in the late position, where reading 4's misses had been spread across positions.
 Against reading 10 on the fourteen cells compliant in both, five discordant pairs, all one way,
-p = 0.0625. The chunking is not what removed the miss; a second number brings it back under
-chunked delivery too, provided its value reads as a line number. What chunking contributes on its
+p = 0.0625. The chunking is not what removed the miss; a second number brought it back in five of
+fifteen trials under chunked delivery, when its value read as a line number. What chunking contributes on its
 own, these readings do not measure: reading 4 against reading 11 is 8 and 10 of 15, discordant
 both ways.
 
@@ -144,7 +144,7 @@ delivery without one showed no miss at any size. It is not a claim about the MCP
 was not run, nor about clients or fixtures not measured; and the late-only pattern of reading 11
 is observed on five cells and not explained. Reading 4 stands as a fact about a real path: a client
 that saves a tool's numbered output to a file and reads it back through a numbering viewer will
-meet two gutters, and a weaker client takes the first.
+meet two gutters, and a weaker client took the first some of the time.
 
 ## 5. Result B: what a hundred times more bytes costs
 
