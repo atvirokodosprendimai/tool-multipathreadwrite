@@ -268,7 +268,8 @@ byte-identical, so the revert is a deletion.
       line 120: 12 of 15, and all three misses at exactly `target − 117`, the row-index prediction,
       none at `target+2`. The transcript shows the row the client took — `634	  751| timeout = 30`,
       the read arm's file reader's number beside mrw's — which suggested the client read the reader's
-      gutter rather than counted mrw's rows; reading 8 (the item below) then established it. Compliance
+      gutter rather than counted mrw's rows; reading 8 removed that number and the miss with it, and
+      readings 10 and 11 (below) separated the number from the delivery's chunking. Compliance
       15/15; the three misses apply unguarded and are refused with `anchor=`, 16 of 16 across
       readings 2–5.
 - [ ] **Difficulty is not what this harness lacks for the stronger client, and reading 4 has
@@ -281,7 +282,7 @@ byte-identical, so the revert is a deletion.
       4: 8 of 15 at 200,000 served bytes for Haiku, against 15 of 15 for Sonnet on identical cells,
       every miss at exactly `target+2`. Reading 5 settled what the offset is: the row index of the
       served text (+2 from line 1, −117 from line 120). Reading 8
-      (`docs/curve/reading-08-result.md`) settled whose count: the same client on the same fifteen
+      (`docs/curve/reading-08-result.md`) removed the second count: the same client on the same fifteen
       cells, with the served text delivered as a Bash tool result so that mrw's `N|` is the only
       number on any row, scored **15 of 15**, compliant 15 of 15 under a pre-registered rule, no plan
       at +2 — seven discordant pairs against reading 4, all one way, p = 0.0156. So the cap is not
@@ -289,7 +290,13 @@ byte-identical, so the revert is a deletion.
       entry in BACKLOG.md closes with no engine change. Readings 6 and 7 were the same experiment
       voided by their own compliance rules and are recorded as such. What stands from reading 4 is a
       fact about one delivery: a client that reads mrw's output back through a numbering viewer gets
-      a second gutter, and the weaker client takes it. Scope of the closure: one Haiku client, reading
+      a second gutter, and the weaker client took it some of the time. Scope of the closure: one Haiku client, reading
       4's forty-five cells, a Bash-result delivery — the MCP path was not run. Reading 9
       (`docs/curve/reading-09-result.md`) took the served-size curve within the tool-result arm:
       15, 15, 15, at the read arm's cost within 3% at 2 KB and 20 KB and 7% below it at 200 KB.
+      Readings 10 and 11 (`reading-10-result.md`, `reading-11-result.md`) separated the two things
+      the tool-result arm had changed at once: the same `sed` ranges with a second number that
+      restarts per range scored 14 of 14 compliant; with a second number equal to the reader's row
+      index they scored 10 of 15, every miss at +2, all five late. So the chunking is not what removed
+      the miss; a second number brought it back in five of fifteen trials under chunked delivery when its value read as a line
+      address. The closure's scope is unchanged.

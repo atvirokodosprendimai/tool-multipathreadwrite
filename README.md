@@ -15,8 +15,10 @@ own total; every row is green on the tree the tag is cut from. A break campaign 
 binary is built from, since nothing after it is Go — found no silent wrong write, and every refusal
 in it names its reason. And the served-size curve is measured rather than asserted: a strong client
 at the ceiling on the fixture built to be failed (reading 3), the one recurring miss identified as a
-row index (reading 5), and the weaker client at the ceiling once the served text reached it without
-a second gutter (reading 8); the section *Does serving more hurt?* has the numbers and their limits.
+row index (reading 5), the weaker client at the ceiling once the served text reached it without
+a second number that reads as a line address (readings 8, 9, 10), and that number put back
+bringing the miss back in five of fifteen trials (reading 11); the section *Does serving more
+hurt?* has the numbers and their limits.
 Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
 tools — changes only through a record, and a record that relaxes or replaces an earlier promise
 retires it.
@@ -907,7 +909,7 @@ ADR-020 built an instrument to find out rather than argue about it: `curve` gene
 client authors a plan against what mrw would serve, and the scorer applies the plan and reports which
 line changed. The pre-registration in `docs/adr/BACKLOG.md` fixed the criterion before a cell existed
 — correct-address rate against served bytes, stratified by position, **a flat curve accepted as an
-answer** — and nine readings have been taken under it: three void under their own rules (1, 6, 7) and six with results. Every plan was committed before its trials
+answer** — and eleven readings have been taken under it: three void under their own rules (1, 6, 7) and eight with results. Every plan was committed before its trials
 ran, every score file is committed, and every table below recomputes from them.
 
 | Reading | Client | Fixture | 2 KB | 20 KB | 200 KB | What it settled |
@@ -916,11 +918,13 @@ ran, every score file is committed, and every table below recomputes from them.
 | 2 | Sonnet | named, read arm | 14/15 | 14/15 | 14/15 | Flat, at a ceiling. Three misses, one at each size. |
 | 3 | Sonnet | relational | 15/15 | 15/15 | 15/15 | Flat. **Refuted its own prediction** that the harder fixture would be harder. |
 | 4 | **Haiku** | relational | 15/15 | 12/15 | **8/15** | **The curve bends.** Intervals at 2 KB and 200 KB do not overlap. |
-| 5 | Haiku | relational, window from line 120 | — | — | 12/15 | **Every miss moved from +2 to −117.** The miss is the row index of the served text; whose gutter, reading 8 decided. |
+| 5 | Haiku | relational, window from line 120 | — | — | 12/15 | **Every miss moved from +2 to −117.** The miss is the row index of the served text; whose number the client took, readings 10 and 11 separated. |
 | 6 | Haiku | relational, tool-result arm | — | — | (15/15) | **Void under its own rule**: 0 of 15 compliant — ranges over the cap, searches, early stops. Reported, not counted. |
 | 7 | Haiku | relational, scripted arm | — | — | (15/15) | **Void under its own rule**: 14 of 15 merged the two listed tail ranges; no tolerance granted. Reported, not counted. |
 | 8 | Haiku | relational, scripted arm | — | — | **15/15** | **Compliant 15 of 15.** mrw's gutter the only gutter, no miss at all; 7 discordant pairs against reading 4, all one way. |
 | 9 | Haiku | relational, scripted arm | 15/15 | 15/15 | (15/15, reading 8) | **Flat at the ceiling through the tool-result arm**, 45/45 pooled; the read arm's 15, 12, 8 on the same cells becomes 15, 15, 15. Cost within 3% of the read arm's at 2 KB and 20 KB, 7% lower at 200 KB. |
+| 10 | Haiku | relational, scripted arm, `nl` per range | — | — | 14/14 | **A second number that restarts per range was not taken by this client in these trials.** Compliant 14 of 15 (one merge spilled, void); no miss; predicted misses did not appear. |
+| 11 | Haiku | relational, scripted arm, `nl -v` from the top | — | — | **10/15** | **Reading 4's number put back, the miss comes back**: five misses, every one at +2, all five late. Against reading 10, 5 discordant pairs, all one way. |
 
 **For a strong client, serving a hundred times more bytes costs about 2.5× the tokens and loses
 nothing.** Measured twice, on two different tasks. The "serve 10k and call it a day" instinct is not
@@ -948,21 +952,24 @@ All 16 apply silently through a green receipt without a guard, and **all 16 are 
 `anchor=`** — run against each cell's own fixture with the built binary, and reported in each result
 document rather than reproducible from a committed receipt. That is the case for the guard, measured.
 
-What readings 5, 8 and 9 settle between them: the bend was the harness read arm's delivery, not
-mrw's rendering. The miss is the row index of the served text (reading 5: −117 with the window from
-line 120), and when mrw's `N|` is the only number on any row — the served text arriving as a Bash
-tool result, the delivery the readings ran; the MCP path was not run — the client that missed seven
-of fifteen at 200 KB and three of fifteen at 20 KB through its file reader addressed all forty-five
-exactly, at every size, at the read arm's cost or below it (readings 8 and 9, compliant 45 of 45 under
-pre-registered rules). So the cap stays at 200,000 with evidence, the served format is not changed,
-and the stability claim rests on readings 3, 5, 8 and 9 together. What stands from reading 4 is a
-fact about one delivery: read mrw's output back through a viewer that numbers rows and a weaker
-client takes the viewer's number. Two readings between 5 and 8 were void under their own compliance
-rules and are recorded, not counted.
+What readings 5, 8, 9, 10 and 11 settle between them: the bend was the harness read arm's delivery,
+not mrw's rendering. The miss is the row index of the served text (reading 5: −117 with the window
+from line 120), and when mrw's `N|` is the only number on any row — the served text arriving as a
+Bash tool result, the delivery the readings ran; the MCP path was not run — the client that missed
+seven of fifteen at 200 KB and three of fifteen at 20 KB through its file reader addressed all
+forty-five exactly, at every size, at the read arm's cost or below it (readings 8 and 9, compliant
+45 of 45 under pre-registered rules). Readings 10 and 11 then separated the second number from the
+chunking: with a second number that restarts per range this client addressed 14 of 14, and a second number
+equal to the reader's — the row index from the top — brought the miss back at exactly that number
+under the same chunking (10 of 15, all five misses late). So the cap stays at 200,000 with evidence, the served format is
+not changed, and the stability claim rests on readings 3, 5, 8, 9, 10 and 11 together. What stands
+from reading 4 is a fact about the two delivery forms measured: lay a plausible line number beside
+mrw's and a weaker client takes it some of the time. Two readings between 5 and 8 were void under their own compliance rules
+and are recorded, not counted.
 
 Compliance, coverage and cost come from transcripts and request records that are not committed, and
 each result document says so. The tables, the intervals and the offsets recompute from
-`docs/curve/reading-0N-scores/`.
+`docs/curve/reading-NN-scores/`.
 
 ## Read before modify
 

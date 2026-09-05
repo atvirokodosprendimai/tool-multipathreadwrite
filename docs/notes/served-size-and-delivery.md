@@ -12,8 +12,8 @@ whether that number was right, and the common instinct in the field —
 serve about ten thousand tokens and stop — had never been measured against the alternative. We
 built an instrument (`curve`) that generates a fixture, records exactly what mrw would serve, has
 a fresh client author one plan against it, and scores the plan by applying it: the line that
-changed is the measurement. Under a criterion pre-registered before any cell existed, nine
-readings were taken, each plan committed before its trials, and every score file of the eight
+changed is the measurement. Under a criterion pre-registered before any cell existed, eleven
+readings were taken, each plan committed before its trials, and every score file of the ten
 scored readings committed (reading 1 is a void notice, not scores).
 
 Two results. First, for a strong client, serving a hundred times more bytes cost 2.4–2.5× the
@@ -25,8 +25,11 @@ identified the offset as the row index of the served text as the client's own fi
 it, laid beside mrw's numbers. Delivering the identical text as a tool result — with mrw's numbers
 the only numbers, and in `sed` ranges rather than a reader's windows — took the same client on the
 same cells to 15, 15, 15, at a cost within 3% of the read arm's at 2 KB and 20 KB and 7% lower at
-200 KB. On the delivery measured, served size did not bend the curve; the second gutter is the
-parsimonious account of what did.
+200 KB. Two more readings separated the two things that delivery changed: the same ranges with a
+second number that restarts per range left the client at 14 of 14; the same ranges with a second
+number equal to the reader's — the row index from the top — took it back to 10 of 15, every miss
+at exactly that number. Served size did not bend the curve. A second number that reads as a line
+number did, some of the time.
 
 ## 1. The question
 
@@ -79,8 +82,10 @@ and reported, never counted as a miss.
 | 6, 7 | Haiku | tool result | — | — | (15/15) | Void under their own compliance rules; reported, not counted. |
 | 8 | Haiku | tool result | — | — | 15/15 | mrw's gutter the only gutter: no miss. |
 | 9 | Haiku | tool result | 15/15 | 15/15 | (reading 8) | Flat at the ceiling at every size. |
+| 10 | Haiku | tool result, `nl` per range | — | — | 14/14 | Second number restarts per range: no miss; one trial void (spill). |
+| 11 | Haiku | tool result, `nl -v` from the top | — | — | 10/15 | Second number equal to the reader's: five misses, all at target+2, all late. |
 
-Every score file is in the repository under `docs/curve/reading-0N-scores/`; the rates, intervals,
+Every score file is in the repository under `docs/curve/reading-NN-scores/`; the rates, intervals,
 offsets and pairings in this note recompute from them. Compliance, coverage, cost and the quoted
 transcript row come from transcripts and request records that are not committed, and are reported.
 
@@ -117,15 +122,29 @@ all one way, exact two-sided sign test p = 0.0156. Reading 9 took the same arm t
 20 KB: 15 and 15. The forty-five pairs against reading 4 are 0, 3 and 7 discordant, every one in
 the same direction.
 
+Two things changed between readings 4 and 8, not one: the second gutter went, and the text arrived
+in `sed` ranges rather than a reader's windows. Readings 10 and 11 separated them on the same
+cells. Reading 10 kept the ranges and piped each through `nl -ba`, so a second number stood beside
+mrw's again but restarted at 1 in every range — on the target's row it read 127 to 261 — and the
+client ignored it: 14 of 14 compliant trials at offset 0 (one trial merged two ranges and spilled;
+void under the pre-registered rule). Reading 11 piped each range through `nl -ba -v A`, so the
+second number was the row index from the top of the served text — `T + 2` on the target's row,
+reading 4's number exactly — and the miss came back: 10 of 15, five misses, every one at `T + 2`,
+and all five in the late position, where reading 4's misses had been spread across positions.
+Against reading 10 on the fourteen cells compliant in both, five discordant pairs, all one way,
+p = 0.0625. The chunking is not what removed the miss; a second number brought it back in five of
+fifteen trials under chunked delivery, when its value read as a line number. What chunking contributes on its
+own, these readings do not measure: reading 4 against reading 11 is 8 and 10 of 15, discordant
+both ways.
+
 What this is and is not. It is a measurement that, for this client on this fixture family, the
-only recurring miss followed the row index of a second numbering laid over mrw's by the delivery,
-and that a delivery without it showed no miss at any size. Two things changed between the arms,
-not one: the second gutter went, and the text arrived in `sed` ranges rather than a reader's
-windows; the gutter is the parsimonious account, because reading 5 put the misses exactly where
-it predicted, but the two were not separated. It is not a claim about the MCP transport, which was
-not run, nor about clients or fixtures not measured. And reading 4 stands as
-a fact about a real path: a client that saves a tool's numbered output to a file and reads it back
-through a numbering viewer will meet two gutters, and a weaker client takes the first.
+only recurring miss followed a second number laid beside mrw's whose value is plausible as a
+line address, in both delivery forms measured — a file reader's gutter and a `nl -v` column — and that a
+delivery without one showed no miss at any size. It is not a claim about the MCP transport, which
+was not run, nor about clients or fixtures not measured; and the late-only pattern of reading 11
+is observed on five cells and not explained. Reading 4 stands as a fact about a real path: a client
+that saves a tool's numbered output to a file and reads it back through a numbering viewer will
+meet two gutters, and a weaker client took the first some of the time.
 
 ## 5. Result B: what a hundred times more bytes costs
 
@@ -171,10 +190,9 @@ One fixture family, five repeats per cell, two clients from one vendor; the stro
 the ceiling on both fixtures, so its curve cannot bend and says nothing about where it would. The
 weaker client's ceiling through a tool result is fifteen of fifteen per tier, whose interval's
 lower bound is 0.796, not 1. Reading 9's 200 KB tier is reading 8's data, pooled under a plan that
-said so. Reading 8's arm differs from reading 4's in two things — the gutter is gone, and the text
-arrives in `sed` ranges rather than a reader's windows; the gutter is the parsimonious account,
-because reading 5 put the misses exactly where it predicted, but the two were not separated. The
-MCP tool-result path, which carries no outer numbering either, was not measured.
+said so. Readings 10 and 11 separate the gutter from the chunking on fifteen cells each, and
+reading 11's misses fall in one position only, which no plan predicted and this note does not
+explain. The MCP tool-result path, which carries no outer numbering, was not measured.
 
 ## 8. Reproduction
 
