@@ -337,5 +337,6 @@ byte-identical, so the revert is a deletion.
       stratum and voided only the 20 KB one; the Codex review of PR #115 established that the
       stratum-level exception was invented after the results were seen. Reading 20 re-runs both sizes
       with three rules pre-registered: the last-line comparison and its prompt wording fixed
-      together, a no-answer never retried, and the coverage reports committed so every published
-      number — primary and secondary — comes from committed data.
+      together, a no-answer never retried, and the coverage reports committed so every rate and count
+      it publishes comes from committed data — with cost named as the one exception, an observation
+      from uncommitted request records rather than a published number.

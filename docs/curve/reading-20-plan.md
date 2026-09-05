@@ -3,10 +3,14 @@
 **Written and committed before any trial ran.** Reading 19 is void, whole; `reading-19-void.md`
 records why, and none of its thirty scores carries over.
 
-**This plan was amended once, on 2026-09-05, BEFORE its first trial** — it originally covered the
-20 KB stratum alone, because reading 19's first result document published its 2 KB stratum. The
-Codex review of PR #115 established that reading 19 voids whole, so both sizes need re-running. A
-plan is frozen at its first trial, and this one had run none; it has not been touched since.
+**This plan has been amended TWICE, BEFORE its first trial, and has run none.** A plan is frozen at
+its first trial, not at its commit, so both amendments are legitimate and both are recorded here
+rather than left to a reader to reconstruct. First, on 2026-09-05, it covered the 20 KB stratum
+alone, because reading 19's first result document published its 2 KB stratum; the Codex review of
+PR #115 established that reading 19 voids whole, so both sizes need re-running. Second, on
+2026-09-06, a follow-up review found that rule 3 promised every published number came from committed
+data while prediction 4 pre-registered a cost comparison the plan itself calls unreproducible; cost
+is now named as the one explicit exception. Nothing else has been touched.
 
 ## Why a twentieth reading
 
@@ -117,9 +121,18 @@ Each closes something a previous reading discovered mid-run.
 3. **The coverage reports are committed alongside the scores**, in
    `docs/curve/reading-20-coverage/`, one JSON per trial. Reading 19's first result document
    published "compliant 15 of 15" and "zero paged reads" while its provenance claimed every number
-   came from the committed scores — which carry neither. **Every published number, primary and
-   secondary, is computed from committed data.** The compliance verdict per trial is derived from the
-   committed coverage file and the cell, not asserted in prose.
+   came from the committed scores — which carry neither. **Every RATE and COUNT this reading
+   publishes — the correct-address rate, the compliance count, the paged-read count and the
+   `no_answer` count — is computed from committed data**: the scores in
+   `docs/curve/reading-20-scores/` and the coverage files beside them. The compliance verdict per
+   trial is derived from the committed coverage file and the cell, not asserted in prose.
+
+   **The one exception is cost, and it is named here rather than left to be noticed.** Token spend
+   comes from request records this corpus has never committed, at any reading. It is therefore an
+   OBSERVATION reported beside the result and **never a published number**: prediction 4 below is a
+   sanity check on the arm's shape, and if the records are unavailable when this reading is written
+   the prediction is reported as unevaluated rather than estimated. No claim in the result rests on
+   it.
 
 ## Predictions, recorded before collection
 
@@ -132,7 +145,8 @@ Each closes something a previous reading discovered mid-run.
    target and what sits at the addressed line.
 3. **Compliance at least 27 of 30**, computed from the committed coverage files.
 4. **Cost within 20% of reading 9's medians on these cells — 31,909 at 2 KB and 36,444 at 20 KB** —
-   plus the coverage write.
+   plus the coverage write. This is the named exception in rule 3: an observation from uncommitted
+   request records, reported and not published, and unevaluated if the records are unavailable.
 5. **Zero paged reads.** Both sizes sit far below mrw's cap.
 6. **At most one `no_answer` in thirty.** Reading 19's void run saw exactly one. More than one is a
    fact about running this arm and is reported as its own number.
