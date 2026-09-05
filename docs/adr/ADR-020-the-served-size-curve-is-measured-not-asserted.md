@@ -254,6 +254,18 @@ byte-identical, so the revert is a deletion.
       reported outcome. The three trials that missed in reading 2 all hit in reading 3, and two
       readings of five repeats cannot separate "the relational task removed an addressing error"
       from "three misses in 90 trials is noise".
+- [x] **A second client is measured, and the curve bends.** Reading 4 (`docs/curve/reading-04-result.md`)
+      ran reading 3's 45 cells, verified byte-identical, with a Haiku client: **15/15, 12/15, 8/15**
+      across the three sizes, pooled intervals at 2 KB and 200 KB not overlapping, every trial
+      compliant and reading the window whole. That discharges the pre-registration's across-models
+      requirement. All ten misses are `target+2`, which makes **13 of 13** across the 135 read-arm
+      trials of readings 2–4 — an addressing error of fixed size whose frequency rises with served
+      bytes and falls with model strength. All ten apply silently without a guard and are refused with
+      `anchor=`.
+- [ ] **Promote the offset-window entry from BACKLOG.md.** Reading 2 deferred it because a client
+      missing 3 in 45 would need many trials to discriminate row-count from any other +2 account. A
+      client missing 7 of 15 at 200 KB settles it in a handful, and reading 4 is that client. This is
+      now the cheapest decisive experiment the harness can run.
 - [ ] **Two fixtures now sit at the ceiling, so difficulty is not what this harness lacks.** The next
       candidates, in the order they look worth trying: raise the DISTRACTOR count, which has been
       held at 3 in every reading and never manipulated, so the target has always been one of four; a
