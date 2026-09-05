@@ -274,9 +274,11 @@ byte-identical, so the revert is a deletion.
       readings 2–5.
 - [x] **Difficulty is not what this harness lacks for the stronger client, and reading 4 has
       already tried the weaker one.** Two fixtures sit at 100% for Sonnet. The candidates that remain,
-      in the order they look worth trying: raise the DISTRACTOR count, held at 3 in every reading and
-      never manipulated, so the target has always been one of four; or a property over pairs rather
-      than over one field. Each is a generator change and a budget decision, so neither is a task here.
+      in the order they looked worth trying: raise the DISTRACTOR count — held at 3 through reading
+      13, so the target was always one of four; raised to 12 by reading 14 (evidence-limited on
+      compliance, its fifteen strict trials all hits) and by reading 17, which re-runs it with the
+      reply channel named — or a property over pairs rather than over one field, which remains a
+      generator change and a budget decision and is not a task here.
 - [x] **The reading bent, at the size that is `MaxResultChars`, for one of two clients — and the
       bend was the harness read arm's delivery, not mrw's rendering.** The condition on this item fired in reading
       4: 8 of 15 at 200,000 served bytes for Haiku, against 15 of 15 for Sonnet on identical cells,

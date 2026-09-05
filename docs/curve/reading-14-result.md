@@ -6,9 +6,10 @@ trials, a Sonnet client, the bare tool-result arm, on forty-five new cells with 
 
 ## Corrections to the plan's own numbers, recorded here and not there
 
-The plan quoted row counts from probe cells rather than from the generated set: the cells as
-generated serve 71–73 rows at 2 KB, 395–403 at 20 KB and 3,644–3,670 at 200 KB (the plan said 72,
-385–395 and 3,662–3,678). Every 200 KB cell took thirteen ranges plus the tail — fourteen listed
+The plan quoted row counts and byte ranges from probe cells rather than from the generated set:
+the cells as generated serve 71–73 rows at 2 KB, 395–403 at 20 KB and 3,644–3,670 at 200 KB (the
+plan said 72, 385–395 and 3,662–3,678), and 2,009–2,063, 20,006–20,045 and 200,002–200,049 bytes
+(the plan said about 2,009, 20,006–20,045 and 200,002–200,037). Every 200 KB cell took thirteen ranges plus the tail — fourteen listed
 commands with `cat task.json`, where the plan said "twelve or thirteen … plus a tail". The cells
 themselves are what the plan's parameters generate; only the prose counts were typed.
 
