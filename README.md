@@ -574,9 +574,13 @@ mrw read internal/apply/apply.go:1-40
 mrw read a.go:1-8,100-130 b.go:/func Handle/,/^}/ c.go --stat
 ```
 
-A range is `3-6`, `5`, `3-` (to EOF), `-20` (from the start), `/pattern/` (each
-matching line, with `-C N` context) or `/start/,/end/`. Overlapping ranges are
-merged, so no line is printed — or paid for — twice.
+A range is `3-6`, `5`, `3-` (to EOF), `-20` (from the start), `A,+N` (the line
+`A` plus the `N` lines after it, so `12,+2` is lines 12 through 14), `/pattern/`
+(each matching line, with `-C N` context) or `/start/,/end/`. A relative end
+takes a single start — `5-7,+3` and a bare `,+3` are refused, because the count
+replaces the end rather than joining it — and where an explicit `-C` also
+applies, the relative end wins for the lines BELOW the match. Overlapping ranges
+are merged, so no line is printed — or paid for — twice.
 
 Output ranges print as `@@ 3-6`, which is exactly the address a write plan takes.
 
@@ -726,9 +730,13 @@ Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`.
 Addresses are 1-based and inclusive; `$` is the last line, `0` is before the
 first, `N-` runs to EOF, and `A,+N` is the line `A` plus the `N` lines AFTER it
 — so `f.go:12,+2` is three lines, 12 through 14, and `f.go:/func Start/,+20` is
-the match and the twenty below it. A relative end past the last line clamps
-rather than failing, exactly as `12-9999` does; there is no backwards form, and
-`,+0` is refused because it says what `A` alone says. The same address means the
+the match and the twenty below it. **A read CLAMPS a relative end at the last
+line; a write REFUSES one that runs past it.** That is each path's own rule
+rather than a difference invented here: `mrw read f.go:2-99` serves what exists,
+while `@@ f.go 5-9999 replace` is already refused as out of range, and a write
+that quietly did less than its address said is the thing this tool exists to
+make visible. There is no backwards form, and `,+0` is refused because it says
+what `A` alone says. The same address means the
 same thing to `read` and to `write` — `mrw read f.go:$` prints one line and
 `@@ f.go $ replace` changes one. `read` used to disagree, because it shared one
 sentinel between `$` and an omitted end and so served the whole file for

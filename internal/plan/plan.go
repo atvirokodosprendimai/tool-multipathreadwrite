@@ -26,6 +26,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
 )
 
 // EOF is the sentinel address component meaning "the last line of the file".
@@ -87,13 +89,25 @@ func (a Addr) String() string {
 		}
 		return strconv.Itoa(n)
 	}
+	var s string
+	switch {
+	case a.StartPat != nil:
+		// A pattern address rendered as a line number was a real defect: an
+		// address carrying only a pattern has Start 0, so `/two/,+1` printed
+		// as "0,+1" — a number the caller never wrote and cannot paste back.
+		s = "/" + a.StartPat.String() + "/"
+		if a.EndPat != nil {
+			s += ",/" + a.EndPat.String() + "/"
+		}
+	case a.Start == a.End:
+		s = f(a.Start)
+	default:
+		s = f(a.Start) + "-" + f(a.End)
+	}
 	if a.RelEnd > 0 {
-		return f(a.Start) + ",+" + strconv.Itoa(a.RelEnd)
+		s += ",+" + strconv.Itoa(a.RelEnd)
 	}
-	if a.Start == a.End {
-		return f(a.Start)
-	}
-	return f(a.Start) + "-" + f(a.End)
+	return s
 }
 
 // Hunk is one change to one file.
@@ -488,23 +502,13 @@ func parsePattern(s string) (Addr, error) {
 // ParseAddr reads an address: "N", "N-M", "N-" (to end of file), "$" (last
 // line), "0" (before the first line) or "-" (no address, for create).
 func ParseAddr(s string) (Addr, error) {
-	// `A,+N` is the N lines after A (ADR-026). The suffix is cut before
-	// anything else looks at the string, so A reaches the parsers below
-	// exactly as it would have without it. The wording of both refusals is
-	// kept identical to internal/read's; contract §64 is what fails if the
-	// two paths ever drift apart.
-	raw, rel := s, 0
-	if strings.HasPrefix(s, "+") {
-		return Addr{}, fmt.Errorf("%q has no start to be relative to: write %s for that line, or A,%s for the %s lines after A", s, s[1:], s, s[1:])
+	// `A,+N` is the N lines after A (ADR-026), cut by internal/addr so this
+	// path and the read path recognise and refuse exactly the same strings.
+	base, rel, err := addr.CutRelative(s)
+	if err != nil {
+		return Addr{}, err
 	}
-	if k := strings.LastIndex(s, ",+"); k >= 0 && isDigits(s[k+2:]) {
-		n, err := strconv.Atoi(s[k+2:])
-		if err != nil || n < 1 {
-			return Addr{}, fmt.Errorf("bad relative end %q in %q: write ,+N with N at least 1 for the N lines after the start, or drop it to address the start alone", s[k+1:], raw)
-		}
-		rel = n
-		s = s[:k]
-	}
+	s = base
 	switch s {
 	case "":
 		return Addr{}, fmt.Errorf("empty address")
@@ -521,9 +525,8 @@ func ParseAddr(s string) (Addr, error) {
 		if err != nil {
 			return Addr{}, err
 		}
-		if rel > 0 && a.EndPat != nil {
-			return Addr{}, fmt.Errorf("%q has both an end pattern and a relative end: write /from/,/to/ or A,+N, not both", raw)
-		}
+		// The two-endpoint case is refused in internal/addr, before the pattern
+		// is compiled, so both paths refuse `/a/,/b/,+2` in the same words.
 		a.RelEnd = rel
 		return a, nil
 	}
@@ -555,21 +558,6 @@ func ParseAddr(s string) (Addr, error) {
 	return Addr{Start: start, End: end, RelEnd: rel}, nil
 }
 
-// isDigits reports whether t is one or more ASCII digits. It is what keeps a
-// `,+` INSIDE a pattern from being read as a relative end: `/a,+3/` ends in
-// "3/", which is not a number, so the suffix is left alone.
-func isDigits(t string) bool {
-	if t == "" {
-		return false
-	}
-	for i := 0; i < len(t); i++ {
-		if t[i] < '0' || t[i] > '9' {
-			return false
-		}
-	}
-	return true
-}
-
 // validate checks the parts of a hunk that need no file on disk: op/address
 // agreement and whether a body is meaningful for the op.
 func validate(h *Hunk) error {
@@ -599,6 +587,9 @@ func validate(h *Hunk) error {
 		if !patterned && (h.Addr.Start != 0 || h.Addr.End != 0) {
 			return fmt.Errorf("create takes no address, use %q", "-")
 		}
+		if h.Addr.RelEnd > 0 {
+			return fmt.Errorf("create takes no address, so it takes no relative end either: use %q", "-")
+		}
 		if h.Anchor != "" || h.Lines >= 0 {
 			return fmt.Errorf("create takes no anchor= or lines= (the file must not exist yet)")
 		}
@@ -609,6 +600,9 @@ func validate(h *Hunk) error {
 		// the caller wrote a range.
 		if h.Addr.EndPat != nil {
 			return fmt.Errorf("%s takes a single line, not a range", h.Op)
+		}
+		if h.Addr.RelEnd > 0 {
+			return fmt.Errorf("%s takes a single line, not the range %s", h.Op, h.Addr)
 		}
 		if !patterned && h.Addr.Start != h.Addr.End {
 			return fmt.Errorf("%s takes a single line, not the range %s", h.Op, h.Addr)

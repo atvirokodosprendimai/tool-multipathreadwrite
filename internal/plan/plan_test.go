@@ -526,3 +526,58 @@ func TestAPlanAddressTakesARelativeEnd(t *testing.T) {
 		}
 	}
 }
+
+// A relative end that an op cannot honour must be refused, not ignored. Before
+// the Codex review of #125, `2,+3 insert-after` parsed, applied, and reported
+// `ok f.txt 2 insert-after` — the caller wrote an address spanning four lines
+// and got an insertion at one, with a receipt that showed neither.
+func TestARelativeEndIsRefusedWhereItWouldBeIgnored(t *testing.T) {
+	for _, c := range []struct{ addr, op, names string }{
+		{"2,+3", "insert-after", "single line"},
+		{"2,+3", "insert-before", "single line"},
+		{"-", "create", ""}, // the control: create with no address still parses
+	} {
+		hunks, err := Parse(strings.NewReader("@@ f.txt " + c.addr + " " + c.op + "\nX\n"))
+		if c.names == "" {
+			if err != nil {
+				t.Errorf("%s %s was refused and should not be: %v", c.addr, c.op, err)
+			}
+			continue
+		}
+		if err == nil {
+			t.Errorf("%s %s parsed as %+v, want a refusal — the relative end would be ignored", c.addr, c.op, hunks)
+			continue
+		}
+		if !strings.Contains(err.Error(), c.names) {
+			t.Errorf("the refusal of %s %s does not say %q: %v", c.addr, c.op, c.names, err)
+		}
+	}
+
+	// `create` takes no address at all, so it takes no relative end either.
+	if _, err := Parse(strings.NewReader("@@ n.txt 0,+3 create\nX\n")); err == nil {
+		t.Error("0,+3 create parsed; create takes no address, so it can carry no relative end")
+	}
+}
+
+// An address renders back in the syntax the parser accepts — that is what lets
+// a diagnostic be pasted into a plan. A pattern address carries Start 0, so
+// rendering it as a number printed `/two/,+1` as "0,+1": a line the caller
+// never wrote.
+func TestAnAddressRendersBackAsTheCallerWroteIt(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"5,+3", "5,+3"},
+		{"/two/,+1", "/two/,+1"},
+		{"/a/,/b/", "/a/,/b/"},
+		{"5-7", "5-7"},
+		{"$", "$"},
+	} {
+		a, err := ParseAddr(c.in)
+		if err != nil {
+			t.Errorf("ParseAddr(%q): %v", c.in, err)
+			continue
+		}
+		if got := a.String(); got != c.want {
+			t.Errorf("ParseAddr(%q).String() = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

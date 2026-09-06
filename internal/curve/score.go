@@ -170,7 +170,7 @@ func inputs(hunks []plan.Hunk) []apply.Input {
 	for _, h := range hunks {
 		in = append(in, apply.Input{
 			Path: h.Path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
-			StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat,
+			StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd,
 			Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor,
 			SrcLine: h.SrcLine, Index: h.Index,
 		})

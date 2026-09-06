@@ -675,14 +675,21 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 			end = total
 		}
 
-		// `A,+N` (ADR-026): the end is N lines after the resolved start, and it
-		// clamps at the last line exactly as a read's relative end does. It is
-		// applied here, after the pattern and the EOF sentinels have resolved,
-		// so one rule covers every address form rather than one per form.
+		// `A,+N` (ADR-026): the end is N lines after the resolved start.
+		//
+		// ⚠ IT REFUSES TO RUN PAST THE LAST LINE, where a READ clamps. That is
+		// not an inconsistency between the two paths, it is each path's own
+		// existing rule: `mrw read f.txt:2-99` serves what exists, while a plan
+		// addressed `5-9999` is already refused as out of range. A write that
+		// quietly did less than the address it was given is the failure this
+		// tool exists to make visible, so the relative form is refused for the
+		// same reason the explicit one is. Found by the Codex review of #125,
+		// which measured the two spellings disagreeing.
 		if h.RelEnd > 0 {
 			end = start + h.RelEnd
 			if end > total {
-				end = total
+				fail(h, "range %s is out of range (file has %d lines)", h.SrcAddr, total)
+				continue
 			}
 		}
 
@@ -1081,12 +1088,19 @@ func addrString(start, end int) string {
 // patterned hunk reported `0` — the unresolved bound — which named nothing the
 // caller had typed and nothing the file contained.
 func srcAddrOf(i Input) string {
+	var s string
 	if i.StartPat == nil {
-		return addrString(i.Start, i.End)
+		s = addrString(i.Start, i.End)
+	} else {
+		s = "/" + i.StartPat.String() + "/"
+		if i.EndPat != nil {
+			s += ",/" + i.EndPat.String() + "/"
+		}
 	}
-	s := "/" + i.StartPat.String() + "/"
-	if i.EndPat != nil {
-		s += ",/" + i.EndPat.String() + "/"
+	// The receipt echoes the address the caller WROTE. Dropping the relative
+	// end reported `3,+1` as `3`, which hides the span the hunk consumed.
+	if i.RelEnd > 0 {
+		s += ",+" + strconv.Itoa(i.RelEnd)
 	}
 	return s
 }

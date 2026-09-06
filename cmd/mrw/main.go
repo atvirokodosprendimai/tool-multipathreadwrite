@@ -366,7 +366,10 @@ func readCmd() *cli.Command {
 		Usage:     "print line ranges from one or more files",
 		ArgsUsage: "PATH[:RANGE[,RANGE...]] ...",
 		Description: `A RANGE is 3-6, 5, 3- (to end of file), -20 (from the start),
+A,+N (the line A plus the N lines after it, so 12,+2 is lines 12 through 14),
 /pattern/ (every matching line, with -C context) or /start/,/end/.
+A relative end takes a single start: 5-7,+3 and a bare ,+3 are refused.
+A read clamps a relative end at the last line; a write refuses one past it.
 Overlapping ranges are merged, so no line is printed — or paid for — twice.
 
 Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,

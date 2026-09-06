@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -203,42 +204,20 @@ func splitRanges(s string) []string {
 	return out
 }
 
-// isDigits reports whether t is one or more ASCII digits. It is what keeps a
-// `,+` INSIDE a pattern from being mistaken for a relative end: `/a,+3/` ends
-// in "3/", which is not a number, so the suffix is left alone and the regex
-// compiles as written.
-func isDigits(t string) bool {
-	if t == "" {
-		return false
-	}
-	for i := 0; i < len(t); i++ {
-		if t[i] < '0' || t[i] > '9' {
-			return false
-		}
-	}
-	return true
-}
-
 func parseRange(s string) (Range, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return Range{}, fmt.Errorf("empty range")
 	}
-	// `A,+N` is the N lines after A (ADR-026). The suffix is cut before
-	// anything else looks at the string, so A reaches the parsers below
-	// exactly as it would have without it.
-	raw, rel := s, 0
-	if strings.HasPrefix(s, "+") {
-		return Range{}, fmt.Errorf("%q has no start to be relative to: write %s for that line, or A,%s for the %s lines after A", s, s[1:], s, s[1:])
+	// `A,+N` is the N lines after A (ADR-026). internal/addr cuts it, so this
+	// path and the plan path recognise and REFUSE exactly the same strings —
+	// they are one function, not two copies a contract row watches.
+	raw := s
+	base, rel, err := addr.CutRelative(s)
+	if err != nil {
+		return Range{}, err
 	}
-	if k := strings.LastIndex(s, ",+"); k >= 0 && isDigits(s[k+2:]) {
-		n, err := strconv.Atoi(s[k+2:])
-		if err != nil || n < 1 {
-			return Range{}, fmt.Errorf("bad relative end %q in %q: write ,+N with N at least 1 for the N lines after the start, or drop it to address the start alone", s[k+1:], raw)
-		}
-		rel = n
-		s = s[:k]
-	}
+	s = base
 	if strings.HasPrefix(s, "/") {
 		// "/a/,/b/" arrives as one part because splitRanges kept it together.
 		pats := strings.Split(strings.TrimSuffix(strings.TrimPrefix(s, "/"), "/"), "/,/")

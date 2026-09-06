@@ -100,6 +100,16 @@ go test ./internal/read/ -run 'TestARelativeEnd' -count=1 -v 2>&1 | tee /tmp/adr
 
 ## Risks
 
+⚠ **Two rows in the Mutation Log above are SURVIVORS, and one of them is noise.** The first records
+the removal this task is proudest of: the `,+` lookahead in `splitRanges`' pattern branch could not
+be told apart from its absence, so it went. Its `why` text predicted a split that does not happen —
+written before the measurement, kept because the log is append-only and tool-written, and corrected
+here. The Codex review of PR #125 confirmed the removal independently across 2,396,745 generated
+strings plus targeted escaped-slash, character-class, CR, `$` and `N-` cases: no behavioural
+difference. The second survivor says only `probe`; it was mine, a diagnostic run made while working
+out why the first one survived, and it names no mechanism because it was testing the harness rather
+than the code.
+
 - `splitRanges` is scanning bytes, and a `,+` inside a regex must not be caught by the new `case ','` clause. The existing loop consumes a `/…/` wholesale before it looks at the next byte, so a `,+` inside a pattern is never seen by the comma case — asserted by keeping `TestRegexpRange` and `TestParseSpec` in the fence, and by `isDigits`, which refuses to read `3/` as a count.
 - `internal/adversarial/record_test.go` turns `go test ./...` red the moment a Tests table names a test that does not exist, so this task's table is red until S1 lands. That is red-first working; the fence runs `./internal/adversarial/` so the task's own gate sees it.
 
@@ -127,3 +137,4 @@ around it.
 - 2026-09-06 · 0cb2ad1* · exit 0 · `set -o pipefail …` · acceptance-sha256:21e1c87b9807d30c69ddd2b7345a61d53afe98e5a3c351110284c5c9d8d3cf8b · ms:1342
 - 2026-09-06 · 0cb2ad1* · exit 0 · `set -o pipefail …` · acceptance-sha256:21e1c87b9807d30c69ddd2b7345a61d53afe98e5a3c351110284c5c9d8d3cf8b · ms:1392
 - 2026-09-06 · 0cb2ad1* · exit 0 · `set -o pipefail …` · acceptance-sha256:21e1c87b9807d30c69ddd2b7345a61d53afe98e5a3c351110284c5c9d8d3cf8b · ms:1389
+- 2026-09-06 · b621b21* · exit 0 · `set -o pipefail …` · acceptance-sha256:21e1c87b9807d30c69ddd2b7345a61d53afe98e5a3c351110284c5c9d8d3cf8b · ms:1952

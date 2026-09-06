@@ -6,7 +6,7 @@
 **Accepted:** M, 2026-09-06, choosing "Implement `,+N` as relative" over "Refuse `+N`" when the two were put side by side with the measured receipt: *"$ mrw read 'f.txt:/alpha/,+3' → @@ 1-4"*, which is the preview M selected and is therefore the specification of what the form means.
 **Spec:** None — no spec stage
 **Cross-references:** `docs/adr/ADR-013-a-plan-addresses-what-it-can-find.md`, `docs/adr/ADR-015-a-refusal-names-the-fix-for-the-two-mistakes-the-syntax-invites.md`, `docs/adr/ADR-006-the-root-confines-reads-too-and-a-replace-must-replace-something.md`
-**Governs:** `internal/read/read.go`, `internal/plan/plan.go`, `internal/apply/apply.go`
+**Governs:** `internal/addr/**`, `internal/read/read.go`, `internal/plan/plan.go`, `internal/apply/apply.go`, `internal/curve/score.go`
 **Enforced-by:** `internal/read/read_test.go::TestARelativeEndServesTheLinesAfterTheStart`
 **Invalidates:** none — checked
 **Served-path change:** `mrw read 'f.go:/func Start/,+20'` serves the matching line and the twenty lines after it; today it serves the matching line and line 20.
@@ -51,9 +51,18 @@ over `README.md`, `AGENTS.md`, `docs/adr/` and `internal/read/` returns nothing 
 
 ## Existing Primitives Audit
 
+- **`internal/addr` — CREATED BY THIS RECORD, and it is the one new component.** The lexical half
+  of the address grammar: recognising `,+N`, validating its digits, checking the base is a single
+  start, and the exact wording of every refusal. It did not exist when this record was drafted; the
+  first cut duplicated that logic in both parsers with contract §64 as the anti-drift gate, and the
+  Codex review of PR #125 found the copies had ALREADY drifted before the branch merged —
+  `f.txt:,+3` served lines 1-4 at exit 0 on the read path while the plan path refused the identical
+  string. `docs/adr/BACKLOG.md`'s "One address parser, not two" pre-registered the trigger — *worth
+  a record if it happens twice* — and this was the second time. Resolution stays split, as ADR-013
+  requires: only `internal/apply` knows how long a file is.
 - **`splitRanges` (`internal/read/read.go:149`)** — already carries the one precedent for a comma
   that does not separate: `/a/,/b/` is held together by a lookahead for `,/`. A relative end is the
-  same shape with a different lookahead, so this is **reshaped**, not replaced.
+  same shape, one branch over. **Reshaped**, not replaced.
 - **`parseRange` (`internal/read/read.go:186`)** — already returns a `Range` with a `Start`/`End`
   pair and already resolves `$` late, at the point the file length is known. A relative end resolves
   in the same place for the same reason. **Reused.**
@@ -73,8 +82,12 @@ may be a line number, `$`, or a `/regexp/`; the relative end is resolved after `
 
 Four edges, each following a rule this tree already has rather than a new one:
 
-1. **An end past the last line clamps**, exactly as `2-99` does. `$,+5` serves the last line and
-   exits 0.
+1. **An end past the last line CLAMPS ON A READ and is REFUSED ON A WRITE.** Not two rules but each
+   path's own existing one: `mrw read f.txt:2-99` serves what exists and exits 0, while a plan
+   addressed `5-9999` is already refused as out of range. The first cut clamped on both, so
+   `@@ f.txt 5,+99 replace` quietly replaced two lines and reported `ok` — a write doing less than
+   its address said, which is the failure this tool exists to make visible. Measured and corrected
+   after the Codex review of PR #125.
 2. **`+0` is refused**, naming the fix, because `0` is already refused as a line number
    (`f.txt:0` → `bad line number "0"`, exit 2) and `,+0` says the same thing as writing `A` alone.
 3. **A relative end with nothing before it is refused** — `f.txt:+3` names no start to be relative
@@ -102,6 +115,14 @@ create a way to gather it; ADR-009 refuses telemetry.
   is. Rejected because the two grammars are documented as one in `AGENTS.md` ("A plan address may be
   a line number, an `N-M` range, `$`, or a pattern"), and a form that works in a read and fails in
   the plan built from that read is a worse trap than the one being fixed.
+- **Two copies of the lexer, held together by contract §64.** What the first cut shipped, and it is
+  recorded as rejected rather than deleted because the reasoning was not silly: the two grammars are
+  parsed in different packages against different types, and a row driving the built binary does check
+  both. It failed for a reason worth keeping: **a contract row can only notice a drift after someone
+  writes the case that exposes it**, and three such cases (`,+3`, `5-7,+3`, `569BEJNRXghkl5,+3`) were already
+  divergent when the row was green. One function cannot drift. The review that found this also
+  named the boundary — share the lexing, keep the resolution split — which is what `internal/addr`
+  does.
 - **`A,~N` and the rest of `sed`'s address arithmetic.** Rejected as unrequested scope; `,+N` is the
   form that was actually reached for.
 

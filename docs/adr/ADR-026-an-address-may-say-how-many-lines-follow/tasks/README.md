@@ -14,6 +14,7 @@ README must be regenerated.
 | 1 | T1 | none |
 | 2 | T2 | T1 |
 | 3 | T3 | T1, T2 |
+| 4 | T4 | T1, T2, T3 |
 
 ## Task Index
 
@@ -22,6 +23,7 @@ README must be regenerated.
 | T1 | A read address takes a relative end | done | — | `go test ./internal/read/ -run 'TestARelativeEnd' …` |
 | T2 | A plan address takes the same relative end | done | — | `go test ./internal/plan/ -run 'TestAPlanAddressTakesARelativeEnd' …` |
 | T3 | The contract drives both paths, and the docs say the form exists | done | — | `grep -q '^# 64\. ' scripts/contract.sh && ./scripts/contract.sh` |
+| T4 | One lexer, and an address no op can half-ignore | done | — | `go test ./internal/addr/ ./internal/plan/ ./internal/apply/ …` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
@@ -31,6 +33,7 @@ Status: `pending` | `partial` | `blocked` | `done`.
 |----------|----------|-------------|---------------|
 | T1 | `read.Range.RelEnd` and the `A,+N` read grammar, with its two refusals | T2, T3 | T1 before T2 — T2 reuses the refusal wording so the two paths refuse the same thing in the same words, which is what makes one grammar rather than two |
 | T2 | `plan.ParseAddr` accepting `A,+N` | T3 | T2 before T3 — §64 drives the built binary through both paths, so both must exist before the row can be red for the right reason |
+| T1, T2 | the duplicated suffix lexer and its refusal wording | T4 | T4 replaces both copies with `internal/addr.CutRelative` — the Codex review of #125 measured them already divergent, which is the second occurrence `docs/adr/BACKLOG.md` pre-registered a record for |
 
 ## Notes
 

@@ -68,6 +68,7 @@ grep -q '^# 64\. ' scripts/contract.sh \
 - 2026-09-06 · 0cb2ad1* · mutant killed · exit 1 · `internal/mcp/tools.go` · the MCP server stops carrying the relative end into apply.Input, so an mrw_write plan addressed 3,+1 edits only line 3; the CLI probes in the same section stay green, which is why the section drives the MCP path as well · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · covers:the built binary applying start..start+N on the plan path
 - 2026-09-06 · 0cb2ad1* · mutant killed · exit 1 · `internal/read/read.go` · the built binary stops widening a read span, so §64 read probes serve one line where they assert three — the row is what notices, since a unit test proves the function and not that the shipped binary calls it · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · covers:the built binary serving start..start+N on the read path
 - 2026-09-06 · 0cb2ad1* · mutant killed · exit 1 · `internal/read/read.go` · the built binary stops refusing a bare `+N` on the read path, so `mrw read a.go:+3` exits 0 serving line 3 and §64 must go red on the refusal half rather than only on the serving half · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · covers:the two refusals coming from the built binary
+- 2026-09-06 · b621b21* · mutant killed · exit 1 · `internal/read/read.go` · the built binary stops clamping a read at the last line, so §64 read probe a.go:4,+99 no longer serves 4-5 at exit 0 — the rule the read path inherits from 2-99, asserted against the shipped binary rather than the function · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · covers:the clamp at EOF
 
 ## Invariants
 
@@ -97,3 +98,5 @@ without the feature is asserting nothing, and finding that out here is the point
 - 2026-09-06 · 0cb2ad1* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:23036
 - 2026-09-06 · 0cb2ad1* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:23616
 - 2026-09-06 · 0cb2ad1* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:21324
+- 2026-09-06 · b621b21* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:30027
+- 2026-09-06 · b621b21* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:27284

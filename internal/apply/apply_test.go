@@ -1512,3 +1512,56 @@ func TestARelativeEndAddressesTheLinesItReplaces(t *testing.T) {
 		t.Error("the replacement body is not in the file")
 	}
 }
+
+// The receipt echoes the address the caller WROTE — that is this package's own
+// guarantee, and a relative end was being dropped from it: `3,+1` was reported
+// as `3`, hiding the span the hunk actually consumed.
+func TestAReceiptEchoesTheRelativeEndTheCallerWrote(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Body: []string{"// replaced"}, Lines: -1,
+		Start: 6, End: 6, RelEnd: 2,
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed=%d: %s", res.Failed, res.Hunks[0].Reason)
+	}
+	if got := res.Hunks[0].Addr; got != "6,+2" {
+		t.Errorf("the receipt reports %q, want %q — a receipt that drops the suffix hides the span consumed", got, "6,+2")
+	}
+}
+
+// A WRITE refuses to run past the last line where a READ clamps, and that is
+// each path's own existing rule rather than an inconsistency: `mrw read
+// f.txt:2-99` serves what exists, while a plan addressed `5-9999` is already
+// refused as out of range. A write that quietly did less than its address said
+// is the failure this tool exists to make visible.
+func TestARelativeEndPastTheLastLineIsRefusedOnThePlanPath(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+	before := read(t, root, "store.go")
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Body: []string{"// replaced"}, Lines: -1,
+		Start: 6, End: 6, RelEnd: 999,
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed=%d, want 1 — a relative end past EOF must be refused on the write path", res.Failed)
+	}
+	reason := res.Hunks[0].Reason
+	for _, want := range []string{"6,+999", "out of range"} {
+		if !strings.Contains(reason, want) {
+			t.Errorf("the refusal does not name %q: %s", want, reason)
+		}
+	}
+	if read(t, root, "store.go") != before {
+		t.Error("the file changed despite the refusal")
+	}
+}

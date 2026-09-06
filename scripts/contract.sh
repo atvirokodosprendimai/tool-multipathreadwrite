@@ -3627,6 +3627,112 @@ assert "func C" in after, "the MCP write ran past the lines the relative end nam
 PY
 [ $? -eq 0 ] && ok "the MCP write path carries a relative end too" \
              || bad "the MCP write path drops the relative end"
+# ONE BASE MATRIX, DRIVEN THROUGH BOTH PATHS AND COMPARED WORD FOR WORD.
+#
+# The first cut of this section asserted fragments — that a refusal mentioned
+# `A,+3` somewhere — which is what let the two parsers ship already diverged:
+# `f.txt:,+3` served lines 1-4 at exit 0 on the read path while the plan path
+# refused the identical string as an empty address. Found by the Codex review of
+# PR #125. Both paths now call internal/addr, so the row compares the MESSAGE,
+# not a substring of it: a shared function cannot drift, and this is what says
+# so if someone re-splits it.
+fixture
+for a in ',+3' '5-7,+3' '3-,+3' '$-5,+3' '0,+3' '-,+3' '+3' '3,+0' '/func A/,/func B/,+2'; do
+  rout=$(m read "a.go:$a" 2>&1); rrc=$?
+  wout=$(printf '@@ a.go %s replace\nX\n' "$a" | m write - 2>&1); wrc=$?
+  want 2 "$rrc" "read refuses the base $a"
+  want 2 "$wrc" "a plan refuses the base $a"
+  python3 - "$a" "$rout" "$wout" <<'PY'
+import sys
+a, rout, wout = sys.argv[1], sys.argv[2], sys.argv[3]
+# The shared refusal always opens by quoting what the caller wrote. Take from
+# that quote to the end of the line on each side and require them equal.
+def core(txt):
+    for line in txt.splitlines():
+        i = line.find('"%s' % a)
+        if i >= 0:
+            return line[i:].strip()
+    return None
+r, w = core(rout), core(wout)
+assert r is not None, "the read refusal of %s does not quote what the caller wrote:\n%s" % (a, rout)
+assert w is not None, "the plan refusal of %s does not quote what the caller wrote:\n%s" % (a, wout)
+assert r == w, "the two paths refuse %s in DIFFERENT words, which is the drift internal/addr exists to make impossible:\n  read: %s\n  plan: %s" % (a, r, w)
+PY
+  [ $? -eq 0 ] && ok "both paths refuse $a in the same words" || bad "the refusal of $a differs between the paths"
+done
+
+# An op that cannot honour a relative end must REFUSE it, not ignore it. Before
+# the review, `2,+3 insert-after` applied and reported `ok a.go 2 insert-after`.
+fixture
+for op in insert-after insert-before; do
+  out=$(printf '@@ a.go 3,+2 %s\nX\n' "$op" | m write - 2>&1); rc=$?
+  want 2 "$rc" "a plan refuses a relative end on $op"
+  grep -q 'single line' <<<"$out" && ok "the $op refusal says it takes a single line" || bad "the $op refusal does not name the fix: $out"
+done
+out=$(printf '@@ new.go 0,+2 create\nX\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "a plan refuses a relative end on create"
+# ...and the ops that DO take a range still work, or the rule above is just a ban.
+fixture
+out=$(printf '@@ a.go 3,+1 delete\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "delete still takes a relative end"
+grep -q 'func B' "$R/a.go" && bad "delete with a relative end did not remove the second line" || ok "delete with a relative end removed both lines"
+
+# THE RECEIPT ECHOES THE ADDRESS THE CALLER WROTE. It reported `3,+1` as `3`,
+# which hides the span the hunk consumed from the one line a caller reads.
+fixture
+out=$(printf '@@ a.go 3,+1 replace\nX\n' | m write - 2>&1)
+grep -q 'ok   a.go 3,+1 replace' <<<"$out" && ok "the receipt keeps the relative end" || bad "the receipt drops the relative end: $out"
+fixture
+out=$(printf '@@ a.go /func A/,+1 replace\nX\n' | m write - 2>&1)
+grep -q 'ok   a.go /func A/,+1 replace' <<<"$out" && ok "the receipt keeps a pattern's relative end" || bad "the receipt mangles a pattern's relative end: $out"
+
+# A WRITE REFUSES TO RUN PAST THE LAST LINE WHERE A READ CLAMPS, and that pairing
+# is the assertion: each is the path's own existing rule — `2-99` serves what
+# exists, `5-9999` is refused as out of range — so the relative form must not
+# invent a third behaviour on either side.
+fixture
+out=$(m read 'a.go:4,+99' 2>&1); rc=$?
+want 0 "$rc" "a read clamps a relative end at the last line"
+grep -q '@@ 4-5' <<<"$out" && ok "the read clamp stops at the last line" || bad "the read clamp is wrong: $out"
+out=$(printf '@@ a.go 4,+99 replace\nX\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "a plan refuses a relative end that runs past the last line"
+grep -q 'out of range' <<<"$out" && ok "the write refusal says out of range, as the explicit form does" || bad "the write refusal does not match the explicit form's wording: $out"
+grep -q '4,+99' <<<"$out" && ok "the write refusal names the address the caller wrote" || bad "the write refusal does not name the caller's address: $out"
+
+# EACH DOCUMENTED LOCATION IS GATED SEPARATELY, and the CLI help is gated against
+# the BUILT BINARY rather than against the source string. A single
+# `grep -q ',+N' README.md` passed from the Write passage alone while the Read
+# passage and `mrw read --help` did not mention the form at all — one grep for
+# several places is a gate that reports the best of them (Codex review of #125).
+grep -qE '^A range is .*`A,\+N`' README.md \
+  && ok "README's Read grammar carries the relative end" \
+  || bad "README's Read grammar does not carry the relative end"
+grep -q 'and `A,+N` is the line `A` plus the `N` lines AFTER it' README.md \
+  && ok "README's Write grammar carries the relative end" \
+  || bad "README's Write grammar does not carry the relative end"
+grep -q 'Addresses are line numbers, .*`A,+N` for the' AGENTS.md \
+  && ok "AGENTS.md section 1 carries the relative end" \
+  || bad "AGENTS.md section 1 does not carry the relative end"
+grep -q 'a relative end$' AGENTS.md && grep -q '^`A,+N` — the line `A` plus the `N` lines after it' AGENTS.md \
+  && ok "AGENTS.md section 2 carries the relative end" \
+  || bad "AGENTS.md section 2 does not carry the relative end"
+# ⚠ CAPTURE FIRST, THEN GREP. `"$MRW" read --help | grep -q` fails under this
+# script's `set -o pipefail`: grep -q exits at the first match and closes the
+# pipe, mrw takes SIGPIPE, and the PIPELINE reports 141 even though the text was
+# there. Same family as the exit-code-through-a-pipe rule in CONTRIBUTING.md,
+# and it cost a red row that was telling the truth about the shell rather than
+# about the help text.
+help=$("$MRW" read --help 2>&1)
+grep -q 'A,+N' <<<"$help" \
+  && ok "mrw read --help names the relative end" \
+  || bad "mrw read --help does not name the relative end"
+# ...and the one claim that was FALSE: a relative end does not clamp on a write.
+grep -q 'A read CLAMPS a relative end at the last' README.md \
+  && ok "README says which path clamps and which refuses" \
+  || bad "README does not distinguish the read clamp from the write refusal"
+grep -qi 'clamps.*exactly as `12-9999`' README.md \
+  && bad "README still claims a relative end clamps like an explicit over-range, which a write refuses" \
+  || ok "the false clamp claim is gone from README"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
