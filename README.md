@@ -726,7 +726,12 @@ were short. That is the intended loop, not an obstacle to route around.
 **Every address resolves against the original file.** Read once, note several
 ranges, edit them all — no offset arithmetic between hunks.
 
-Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`.
+Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`. A hunk
+that carries no body is refused for every op except `delete` — a body lost in
+transit is indistinguishable from one never written, and the receipt cannot tell
+you which happened. To create an EMPTY file, say so: `@@ new.txt 0 create
+body=0` applies and leaves a zero-byte file, where `@@ new.txt 0 create` alone
+is refused and leaves nothing behind.
 Addresses are 1-based and inclusive; `$` is the last line, `0` is before the
 first, `N-` runs to EOF, and `A,+N` is the line `A` plus the `N` lines AFTER it
 — so `f.go:12,+2` is three lines, 12 through 14, and `f.go:/func Start/,+20` is

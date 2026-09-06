@@ -134,6 +134,12 @@ type Hunk struct {
 	// REAL hunk header as content, which any plan editing this project's own
 	// documentation or test fixtures has to do.
 	Raw bool
+	// CountedBody records that the hunk DECLARED a body= count, whatever the
+	// count was. After parsing, a hunk with no body and a hunk written
+	// `body=0` are otherwise identical — which is exactly why a `create` whose
+	// body went missing could report ok (ADR-027). The count itself is spent
+	// during parsing; this is the declaration surviving it.
+	CountedBody bool
 
 	// SrcLine is the plan's own line number, for diagnostics.
 	SrcLine int
@@ -167,6 +173,7 @@ func Parse(r io.Reader) ([]Hunk, error) {
 				cur.SrcLine, want))
 		}
 		cur.Body = body
+		cur.CountedBody = fixed
 		hunks = append(hunks, *cur)
 		cur, body, want, fixed, stray = nil, nil, -1, false, false
 	}
@@ -598,7 +605,27 @@ func validate(h *Hunk) error {
 		// it HOLDS needs the file, so it is checked in internal/apply; there is
 		// nothing to check here (ADR-008).
 	case OpCreate:
+		// A create with no body makes an empty file and used to report `ok`.
+		// ADR-006 refuses the same shape for `replace` and the reasoning is
+		// not about deletion: a body lost in transit — a truncated emission, a
+		// pipe that closed early — is indistinguishable from a body never
+		// written, and the receipt cannot tell the caller which happened. A
+		// create is very often the LAST hunk of a plan, which is where a
+		// truncation loses one. `body=0` is the caller saying they meant it,
+		// and it was already legal (ADR-027).
+		//
+		// The message is its own, not shared with the replace refusal below:
+		// each names the remedy for ITS op, and a common string would have to
+		// name neither.
+		if len(h.Body) == 0 && !h.CountedBody {
+			return fmt.Errorf("create with an empty body: say body=0 if you mean an empty file, " +
+				"and check the body did not go missing if you do not")
+		}
 		// A pattern IS an address, so `create` refuses it exactly as it refuses
+		// a line number. Gating this on !patterned let `@@ new.go /x/ create`
+		// through with `ok` while `@@ new.go 1 create` was refused — two
+		// address forms in one grammar have to be refused on the same inputs.
+		// Caught in review of PR #74.
 		// a line number. Gating this on !patterned let `@@ new.go /x/ create`
 		// through with `ok` while `@@ new.go 1 create` was refused — two
 		// address forms in one grammar have to be refused on the same inputs.

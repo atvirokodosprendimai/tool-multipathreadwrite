@@ -710,7 +710,7 @@ visible to whatever hooks watch file writes.`,
 				}
 				in = append(in, apply.Input{
 					Path: path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
-					StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd,
+					StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd, CountedBody: h.CountedBody,
 					Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor,
 					SrcLine: h.SrcLine, Index: h.Index,
 				})
