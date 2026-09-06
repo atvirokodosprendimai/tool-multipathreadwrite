@@ -329,7 +329,9 @@ byte-identical, so the revert is a deletion.
       inside the discarded middle then applied, exit 0: ADR-002 inverted. It is a defect, filed in
       `docs/adr/BACKLOG.md` under ADR-023, and no rate is published for that size.
 - [x] **The MCP delivery arm at 2 KB and 20 KB: 30 of 30** (`docs/curve/reading-20-result.md`).
-      Compliant 30 of 30, zero paged reads, zero no-answers, no void and no deviation. On these
+      Thirty of thirty correct addresses and zero paged reads, both from committed data; no event on
+      that plan's list of void conditions occurred, and its compliance and `no_answer` counts are
+      withdrawn for the reason below. On these
       cells the delivery mrw ships equals the best previously measured (reading 9's bare tool
       result, 15/15 at both sizes) and beats both arms that lay a second plausible line number
       beside mrw's — reading 13's 14 and 13 of 15, reading 4's 15 and 12 of 15. mrw's gutter,
@@ -338,11 +340,14 @@ byte-identical, so the revert is a deletion.
       so compliance could not be checked), reading 18 (200 KB, the defect above), and reading 19
       (thirty trials voided WHOLE — its coverage instruction was clarified after the first trial and
       a no-answer trial was retried; the Codex review of PR #115 established that its stratum-level
-      rules those failures earned. Its correct-address rate, its paged-read count and three of its
-      four compliance clauses are computed from committed scores, coverage reports and a derived
-      compliance table. Three things are not, and its result document reports each as an observation
-      under its own rule 3 rather than as a published number: cost, the compliance table's ordering
-      clause, and the absence of any retry or trial without an answer.
+      exception had been invented after the results were seen). Reading 20 pre-registered the three
+      rules those failures earned — and then failed one of them. Its correct-address rate and its
+      paged-read count are computed from committed scores and committed coverage reports. Its rule 3
+      also promised the compliance count and the `no_answer` count from committed data, naming cost
+      as the one exception; neither turned out to be derivable from the tree, so **both counts are
+      withdrawn rather than published**, and the shortfall is recorded in the result. A shortfall
+      against rule 3 is not on that plan's enumerated list of void conditions, and the reviewer who
+      held that it should be is quoted there with the argument on both sides.
 
       **ADR-020's served-size question is closed for the sizes it can be closed for:** at 2 KB and
       20 KB the arm is at the ceiling; at 200 KB it cannot be measured on this host at all, for the

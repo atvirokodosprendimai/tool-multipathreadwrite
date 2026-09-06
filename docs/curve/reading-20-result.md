@@ -1,13 +1,17 @@
 # Reading 20, result: 30 of 30 at 2 KB and 20 KB through the delivery mrw ships
 
 **Collected 2026-09-06 under `reading-20-plan.md`, committed before any trial ran and amended twice
-before its first trial, both amendments recorded in the plan. Thirty trials, no void, no deviation.**
+before its first trial, both amendments recorded in the plan. Thirty trials. No event on the plan's
+list of void conditions occurred — and one of the plan's three rules was not met, which costs this
+reading two of the four counts it set out to publish.**
 
-**30 of 30 correct addresses. 0 paged reads. Compliance 30 of 30 — three of its four clauses
-computed from committed data, the fourth attested. No retry and no trial without an answer,
-attested.** Under the plan's rule 3 an attested item is an observation reported beside the result,
-never a published number; "What is not reproducible from the committed data" below says which is
-which and why.
+**Published: 30 of 30 correct addresses, and 0 paged reads. Both computed from committed data.**
+
+**Withdrawn: the compliance count and the `no_answer` count.** Rule 3 of the plan promised both from
+committed data and named cost as its one exception; neither turned out to be derivable from the
+tree. They are not published as numbers here, in either direction. "Rule 3 was not met" below says
+exactly what was and was not preserved, and a reviewer who held that this should void the reading
+whole is quoted at the end with the argument on both sides.
 
 This is the first number this corpus has for the MCP delivery arm. Readings 12, 18 and 19 all tried
 and all voided; `reading-12-void.md`, `reading-18-result.md` and `reading-19-void.md` say why.
@@ -30,23 +34,25 @@ were no misses, no `refused_parse` and no `refused_apply`.
 2. **Vacuous.** No miss occurred, so there is no third account to report. The `T + 2` offset that
    explains every miss in readings 4, 11 and 13 has no analogue in this arm, which lays no second
    number beside mrw's gutter.
-3. **Holds on three clauses; the fourth is attested, not reproducible.** Compliance 30 of 30, from
-   `reading-20-compliance.json`: every trial reported every service block and the true last line —
-   both recomputable, because that table carries the claimed AND true values — and used no forbidden
-   tool. The fourth clause, `coverage.json` written strictly after `result.json`, was checked on
-   mtime at collection time and **cannot be re-derived from the tree**: git does not preserve mtimes
-   and the `result.json` files were not committed. Under rule 3 that clause is an observation and
-   not a published number. See "What is not reproducible" below.
+3. **Not met, and the count is withdrawn.** The prediction was compliance 30 of 30. Three of its
+   four clauses do hold on committed data — every trial reported every service block and the true
+   last line, both recomputable because `reading-20-compliance.json` carries the claimed AND true
+   values, and none used a forbidden tool. The fourth, `coverage.json` written strictly after
+   `result.json`, was checked on mtime at collection time and **cannot be re-derived from the
+   tree**: git preserves no mtimes and the `result.json` files were not committed. Rule 3 promised
+   this count from committed data, so the count is withdrawn rather than reported at three clauses
+   out of four. See "Rule 3 was not met" below.
 4. **Unevaluated, as the plan requires.** Cost comes from request records this corpus has never
    committed. Under rule 3 it is an observation and never a published number, and it is reported as
    unevaluated rather than estimated. No claim above rests on it.
 5. **Holds exactly.** `next_read_sends` is 0 in all thirty. Both sizes sit far below
    `mcp.MaxResultChars`, so nothing paged and nothing was truncated.
-6. **Holds on attestation, not on the tree.** Zero `no_answer` trials against at most one allowed,
-   and under rule 2 none was retried because none needed to be. Thirty committed score/coverage
-   pairs cannot distinguish that from a discarded no-answer followed by a retry, so under rule 3
-   this is an observation and not a published number. Reading 19's void run saw one no-answer at
-   20 KB; this run saw none.
+6. **Withdrawn for the same reason.** The prediction was at most one `no_answer` trial. Thirty
+   committed score/coverage pairs cannot distinguish thirty first attempts from a discarded
+   no-answer followed by a retry — which is exactly reading 19's failure — so the tree does not
+   carry this count either, and rule 3 promised that it would. What the author can say, and it is
+   an account rather than a number: one dispatch per cell, no retry, no trial without an answer.
+   Reading 19's void run saw one no-answer at 20 KB.
 
 ## What it decides
 
@@ -85,9 +91,10 @@ down to 0.886. It says nothing about 200 KB — reading 18 says what there is to
 defect rather than a rate, so these thirty trials must not be read as a curve extending to the cap.
 All thirty cells had been seen once by reading 19's void run with a fresh client per trial.
 
-The in-band coverage report is each client's own account of what it was served. Committing it makes
-the compliance number reproducible, not truthful; the mtime rule constrains the order of the two
-writes but not their honesty.
+The in-band coverage report is each client's own account of what it was served. Committing it would
+have made a compliance count reproducible, not truthful — and here it did not even manage
+reproducible, because one of the four clauses rested on mtimes the tree does not carry. The mtime
+rule constrains the order of the two writes; it never constrained their honesty.
 
 ## Provenance
 
@@ -100,16 +107,22 @@ scores:
 bin/curve tally docs/curve/reading-20-scores/*.score.json
 ```
 
-Every rate and count above is computed from that committed data, none typed.
+Every number this reading PUBLISHES — the correct-address rate and the paged-read count — is
+computed from that committed data, none typed. The two counts that could not be are withdrawn, and
+the next section says why.
 
-## What is not reproducible from the committed data
+## Rule 3 was not met, and two counts are withdrawn
 
-Stated plainly because the plan's rule 3 promised that every rate and count would be recomputable,
-and two things fall short of it. Rule 3 already names the category they belong to: cost is "an
-observation reported beside the result, never a published number", and these two are the same kind
-of thing. Neither is on the plan's enumerated list of void conditions, so neither voids the reading
-— but both are demoted from published numbers to attested observations, and every claim above that
-rests on one now says so where the claim is made.
+Rule 3 of the plan is unambiguous, and it is worth quoting rather than paraphrasing: "**Every RATE
+and COUNT this reading publishes — the correct-address rate, the compliance count, the paged-read
+count and the `no_answer` count — is computed from committed data**", with "**the one exception**"
+being cost, "named here rather than left to be noticed."
+
+Two of those four are not. Cost's exception does not stretch to cover them: the plan named one
+exception, and extending it after the results are in is the same move reading 19 was voided for,
+run in the author's own favour. So the two counts are **withdrawn** — not restated as observations,
+not reported at a lower figure, not published at all. What remains published is what rule 3 was
+actually met for.
 
 - **The compliance table's `order` clause.** It records the conclusion `"order": true`, not evidence.
   It was computed from file mtimes while the cells existed; git preserves no mtimes and the
@@ -122,11 +135,11 @@ rests on one now says so where the claim is made.
 
 **A future reading of this arm should commit, per attempt, the `result.json`, the `coverage.json` and
 a dispatch receipt recording the order of the two writes and the outcome of every attempt including
-the ones that produced nothing.** That is the smallest change that would make these two claims
-reproducible, and it is cheap; it was simply not foreseen when this plan was frozen.
+the ones that produced nothing.** That is the smallest change that would let rule 3 be met, and it is
+cheap; it was simply not foreseen when this plan was frozen.
 
-Cost is the third, and is the plan's own named exception: it comes from uncommitted request records
-and is reported unevaluated.
+Cost is the third thing the tree does not carry, and it is the only one of the three the plan
+provided for: it comes from uncommitted request records and is reported unevaluated, as rule 3 says.
 
 ## A reviewer held that this reading should void
 
@@ -136,21 +149,25 @@ this reading whole: the missing evidence is exactly what would rule out two of t
 enumerated void conditions, and accepting the author's word for it after a favourable result is the
 asymmetry reading 19 was voided for.
 
-The reading was kept, for a reason that is checkable rather than a matter of confidence.
-**Author-attested compliance is what every published result in this corpus already stands on.**
-`reading-04-plan.md` says so in as many words — compliance and cost "come from transcripts and
-request records that are not committed, and will be reported rather than reproducible, as in
-readings 2 and 3." A rule that not-re-derivable implies void would void readings 2 through 17
-retroactively, and that has never been this corpus's rule. The void conditions this plan lists are
-events; no retry and no no-answer occurred. Reading 19 voided partly on an attested event its author
-disclosed against interest, which is the evidence that the standard runs in both directions.
+The reading was kept, on the plan's own text rather than on the author's confidence. **What voids
+this reading is enumerated**, in a section headed "What would void this reading": a change to the
+cells, the plan or the harness after the first trial; a client reaching `answer.json`; a
+`coverage.json` not strictly newer than its `result.json`; a cell failing the three-field identity
+check; any retry of any trial. A shortfall against rule 3 is not on that list. Voiding for a reason
+the plan does not list is itself a rule invented after the results were seen — the same error as
+keeping a number the plan does not license, run in the other direction.
 
-What the finding did change is the shape of the claims. The headline, prediction 3 and prediction 6
-now carry the attestation with them rather than leaving it ninety lines below, and the two items are
-demoted to rule 3's category. **A reader who thinks the reviewer had the better of it can discount
-every attested item and is left with 30 of 30 correct addresses, three of four compliance clauses,
-and `next_read_sends` 0 — all computed from committed data.** That subset is what the reading is
-worth at its most sceptical reading, and it is still the first number this corpus has for this arm.
+**Where the reviewer was right, and it cost this reading two counts.** The first version of this
+document defended those counts by citing `reading-04-plan.md`, which pre-registered that compliance
+"will be reported rather than reproducible, as in readings 2 and 3". The citation is accurate and
+the defence is not: reading 4 pre-registered non-reproducible evidence, and reading 20 pre-registered
+the opposite and then did not deliver it. A stricter promise, broken, cannot be excused by an
+earlier reading's looser one. That is why the two counts are now withdrawn rather than qualified.
+
+**What a sceptical reader is left with**, and it is the whole of what this reading asserts: 30 of 30
+correct addresses and 0 paged reads, both recomputable from the committed scores and coverage files
+by the command above. That is the first number this corpus has for the arm mrw actually ships, and
+it is a claim about 2 KB and 20 KB and nothing else.
 
 ## Provenance, continued
 
