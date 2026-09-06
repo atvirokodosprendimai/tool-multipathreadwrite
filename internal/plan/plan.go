@@ -70,6 +70,12 @@ type Addr struct {
 	// single-pattern address `/re/`; both are nil for a line address.
 	StartPat *regexp.Regexp
 	EndPat   *regexp.Regexp
+
+	// RelEnd is the `A,+N` form (ADR-026): the address ends N lines after its
+	// resolved start. 0 means absent — `,+0` is refused, so no caller means it.
+	// internal/read.Range.RelEnd is the same field for the read grammar; the
+	// two are kept identical by contract §64, which drives both paths.
+	RelEnd int
 }
 
 // String renders an address in the same syntax the parser accepts, so a
@@ -80,6 +86,9 @@ func (a Addr) String() string {
 			return "$"
 		}
 		return strconv.Itoa(n)
+	}
+	if a.RelEnd > 0 {
+		return f(a.Start) + ",+" + strconv.Itoa(a.RelEnd)
 	}
 	if a.Start == a.End {
 		return f(a.Start)
@@ -479,19 +488,44 @@ func parsePattern(s string) (Addr, error) {
 // ParseAddr reads an address: "N", "N-M", "N-" (to end of file), "$" (last
 // line), "0" (before the first line) or "-" (no address, for create).
 func ParseAddr(s string) (Addr, error) {
+	// `A,+N` is the N lines after A (ADR-026). The suffix is cut before
+	// anything else looks at the string, so A reaches the parsers below
+	// exactly as it would have without it. The wording of both refusals is
+	// kept identical to internal/read's; contract §64 is what fails if the
+	// two paths ever drift apart.
+	raw, rel := s, 0
+	if strings.HasPrefix(s, "+") {
+		return Addr{}, fmt.Errorf("%q has no start to be relative to: write %s for that line, or A,%s for the %s lines after A", s, s[1:], s, s[1:])
+	}
+	if k := strings.LastIndex(s, ",+"); k >= 0 && isDigits(s[k+2:]) {
+		n, err := strconv.Atoi(s[k+2:])
+		if err != nil || n < 1 {
+			return Addr{}, fmt.Errorf("bad relative end %q in %q: write ,+N with N at least 1 for the N lines after the start, or drop it to address the start alone", s[k+1:], raw)
+		}
+		rel = n
+		s = s[:k]
+	}
 	switch s {
 	case "":
 		return Addr{}, fmt.Errorf("empty address")
 	case "-":
 		return Addr{Start: 0, End: 0}, nil
 	case "$":
-		return Addr{Start: EOF, End: EOF}, nil
+		return Addr{Start: EOF, End: EOF, RelEnd: rel}, nil
 	}
 	// A pattern is scanned before anything splits on "-" or ",": those are
 	// ordinary characters inside a regex, and cutting first is how `/a-b/`
 	// becomes a bad line number.
 	if strings.HasPrefix(s, "/") {
-		return parsePattern(s)
+		a, err := parsePattern(s)
+		if err != nil {
+			return Addr{}, err
+		}
+		if rel > 0 && a.EndPat != nil {
+			return Addr{}, fmt.Errorf("%q has both an end pattern and a relative end: write /from/,/to/ or A,+N, not both", raw)
+		}
+		a.RelEnd = rel
+		return a, nil
 	}
 	one := func(t string) (int, error) {
 		if t == "$" {
@@ -509,16 +543,31 @@ func ParseAddr(s string) (Addr, error) {
 		return Addr{}, err
 	}
 	if !ranged {
-		return Addr{Start: start, End: start}, nil
+		return Addr{Start: start, End: start, RelEnd: rel}, nil
 	}
 	if hi == "" { // "N-" means N to end of file
-		return Addr{Start: start, End: EOF}, nil
+		return Addr{Start: start, End: EOF, RelEnd: rel}, nil
 	}
 	end, err := one(hi)
 	if err != nil {
 		return Addr{}, err
 	}
-	return Addr{Start: start, End: end}, nil
+	return Addr{Start: start, End: end, RelEnd: rel}, nil
+}
+
+// isDigits reports whether t is one or more ASCII digits. It is what keeps a
+// `,+` INSIDE a pattern from being read as a relative end: `/a,+3/` ends in
+// "3/", which is not a number, so the suffix is left alone.
+func isDigits(t string) bool {
+	if t == "" {
+		return false
+	}
+	for i := 0; i < len(t); i++ {
+		if t[i] < '0' || t[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // validate checks the parts of a hunk that need no file on disk: op/address

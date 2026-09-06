@@ -19,9 +19,9 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | A read address takes a relative end | pending | — | `go test ./internal/read/ -run 'TestARelativeEnd' …` |
-| T2 | A plan address takes the same relative end | pending | — | `go test ./internal/plan/ -run 'TestAPlanAddressTakesARelativeEnd' …` |
-| T3 | The contract drives both paths, and the docs say the form exists | pending | — | `grep -q '^# 64\. ' scripts/contract.sh && ./scripts/contract.sh` |
+| T1 | A read address takes a relative end | done | — | `go test ./internal/read/ -run 'TestARelativeEnd' …` |
+| T2 | A plan address takes the same relative end | done | — | `go test ./internal/plan/ -run 'TestAPlanAddressTakesARelativeEnd' …` |
+| T3 | The contract drives both paths, and the docs say the form exists | done | — | `grep -q '^# 64\. ' scripts/contract.sh && ./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

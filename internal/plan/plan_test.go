@@ -478,3 +478,51 @@ func TestTheHintsStayQuietOnOrdinaryFailures(t *testing.T) {
 		t.Errorf("the body-line hint fired on an ordinary bad op, where it is wrong:\n%v", err)
 	}
 }
+
+// A relative end is `A,+N`: the line A resolves to plus the N lines after it
+// (ADR-026). Before it, the read path parsed the same string as two addresses
+// and served the wrong one, while this path refused it outright — one grammar
+// documented, two behaviours shipped.
+func TestAPlanAddressTakesARelativeEnd(t *testing.T) {
+	a, err := ParseAddr("5,+3")
+	if err != nil {
+		t.Fatalf("5,+3: %v", err)
+	}
+	if a.Start != 5 || a.End != 5 || a.RelEnd != 3 {
+		t.Errorf("5,+3 parsed as %+v, want start 5 with a relative end of 3", a)
+	}
+
+	p, err := ParseAddr("/beta/,+1")
+	if err != nil {
+		t.Fatalf("/beta/,+1: %v", err)
+	}
+	if p.StartPat == nil || p.EndPat != nil || p.RelEnd != 1 {
+		t.Errorf("/beta/,+1 parsed as %+v, want a start pattern with a relative end of 1 and no end pattern", p)
+	}
+
+	// A pattern that CONTAINS ",+3" must not be mistaken for one carrying a
+	// relative end: the suffix is only a suffix when what follows it is a
+	// number and nothing else.
+	c, err := ParseAddr("/a,+3/")
+	if err != nil {
+		t.Fatalf("/a,+3/ was refused, so a legal pattern was read as a relative end: %v", err)
+	}
+	if c.RelEnd != 0 {
+		t.Errorf("/a,+3/ parsed with RelEnd=%d, want 0", c.RelEnd)
+	}
+
+	for _, bad := range []struct{ addr, names string }{
+		{"+3", "3"},
+		{"5,+0", "+0"},
+		{"/a/,/b/,+2", "not both"},
+	} {
+		got, err := ParseAddr(bad.addr)
+		if err == nil {
+			t.Errorf("%s parsed as %+v, want a refusal", bad.addr, got)
+			continue
+		}
+		if !strings.Contains(err.Error(), bad.names) {
+			t.Errorf("the refusal of %s does not name the fix (%q): %v", bad.addr, bad.names, err)
+		}
+	}
+}

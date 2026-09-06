@@ -3568,6 +3568,65 @@ assert "isError" not in miss, "the built server flags a range that matched no li
 PY
 [ $? -eq 0 ] && ok "the built server flags a read that served nothing and names the path, and leaves a served answer unflagged" \
              || bad "the shipped served-nothing shape is not what ADR-025 decided"
+
+# 64. ADR-026: an address may say how many lines follow, on BOTH paths.
+#
+# `A,+N` is the line A resolves to plus the N lines after it. Before it, the read
+# path parsed the comma as a separator and `+N` as the ABSOLUTE line N — so
+# `/func A/,+2` served the match and line 2 at exit 0 — while the plan path
+# refused the same string as a bad line number. One grammar, two behaviours.
+#
+# THE PAIRING, AND WHY IT IS FOUR-WAY. A row asserting only that the form is
+# served would pass against a parser that accepts anything, and a row asserting
+# only the refusals would pass against the binary this record corrects. Both
+# refusals are asserted on BOTH paths, because the two parsers are separate code
+# and this section is the only place their agreement is checked: each package's
+# own tests stay green while the two drift.
+fixture
+out=$(m read 'a.go:3,+1' 2>&1); rc=$?
+want 0 "$rc" "a read with a relative end exits 0"
+grep -q '@@ 3-4' <<<"$out" && ok "a.go:3,+1 serves the start plus one line" || bad "a.go:3,+1 did not serve 3-4: $out"
+grep -q 'func B' <<<"$out" && ok "the line after the start is in the answer" || bad "the line after the start is missing"
+out=$(m read 'a.go:/func A/,+2' 2>&1); rc=$?
+want 0 "$rc" "a pattern with a relative end exits 0"
+grep -q '@@ 3-5' <<<"$out" && ok "a.go:/func A/,+2 serves the match plus two lines" || bad "the pattern form did not serve 3-5: $out"
+out=$(m read 'a.go:4,+10' 2>&1); rc=$?
+want 0 "$rc" "a relative end past the last line clamps rather than failing"
+grep -q '@@ 4-5' <<<"$out" && ok "the clamp stops at the last line" || bad "the clamp did not stop at the last line: $out"
+out=$(m read 'a.go:+3' 2>&1); rc=$?
+want 2 "$rc" "a read's relative end with no start is refused"
+grep -q 'A,+3' <<<"$out" && ok "the read refusal names the fix" || bad "the read refusal does not name the fix: $out"
+out=$(m read 'a.go:2,+0' 2>&1); rc=$?
+want 2 "$rc" "a read's ,+0 is refused"
+grep -q '+0' <<<"$out" && ok "the read refusal names what was written" || bad "the read refusal does not name +0: $out"
+out=$(printf '@@ a.go 3,+1 replace\nfunc A() int { return 10 }\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "a plan hunk with a relative end applies"
+grep -q 'func B' "$R/a.go" && bad "the relative end did not reach the line after the start" || ok "a plan's relative end replaced the start plus one line"
+grep -q 'func C' "$R/a.go" && ok "the relative end stopped where it said" || bad "the relative end ran past the lines it named"
+out=$(printf '@@ a.go +3 replace\nx\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "a plan's relative end with no start is refused"
+grep -q 'A,+3' <<<"$out" && ok "the plan refusal names the fix, in the same words as the read" || bad "the plan refusal does not name the fix: $out"
+out=$(printf '@@ a.go 3,+0 replace\nx\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "a plan's ,+0 is refused"
+grep -q '+0' <<<"$out" && ok "the plan refusal names what was written" || bad "the plan refusal does not name +0: $out"
+# The MCP write path carries the field through a SECOND wiring site, in
+# internal/mcp/tools.go. The CLI probes above cannot see it: delete that line and
+# every unit test stays green while an MCP caller's relative end is silently
+# dropped, which is the shape of defect this whole record is about.
+fixture
+req=$(printf '@@ a.go 3,+1 replace\nfunc A() int { return 11 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
+printf '%s\n' "$req" | m mcp 2>/dev/null > "$WORK/w64.json"
+python3 - "$WORK/w64.json" "$R/a.go" <<'PY'
+import json,sys
+res=json.load(open(sys.argv[1]))["result"]
+txt=res["content"][0]["text"]
+after=open(sys.argv[2]).read()
+assert "isError" not in res, "the MCP server refused a plan with a relative end: "+txt
+assert "func B" not in after, "the MCP write did not reach the line after the start, so plan.Addr.RelEnd is not wired through internal/mcp/tools.go"
+assert "func C" in after, "the MCP write ran past the lines the relative end named"
+PY
+[ $? -eq 0 ] && ok "the MCP write path carries a relative end too" \
+             || bad "the MCP write path drops the relative end"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

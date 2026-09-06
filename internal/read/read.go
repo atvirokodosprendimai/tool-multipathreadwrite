@@ -52,6 +52,10 @@ type Range struct {
 	Re    *regexp.Regexp
 	ReEnd *regexp.Regexp // nil for a single-pattern match
 	Text  string         // the range as written, for diagnostics
+	// RelEnd is the `A,+N` form (ADR-026): the range ends N lines after its
+	// start. 0 means absent, which is unambiguous because `,+0` is refused —
+	// no caller can mean it.
+	RelEnd int
 }
 
 // Options control how much of the answer is rendered. They exist so a caller
@@ -164,11 +168,27 @@ func splitRanges(s string) []string {
 			cur.WriteString(s[i:j])
 			i = j
 			// "/a/,/b/" is one range: swallow the comma and keep scanning.
+			//
+			// `,+N` is deliberately NOT handled here as well. It reads as the
+			// symmetrical case and it is unreachable by difference: when this
+			// does not swallow the comma, the loop's next pass reaches the
+			// `case ','` below, which continues the range for a `+`. Adding
+			// the clause here was mutated on 2026-09-06 and the mutant
+			// SURVIVED — nothing can tell the two versions apart, so the
+			// clause was removed rather than left as code no test can reach.
 			if i+1 < len(s) && s[i] == ',' && s[i+1] == '/' {
 				cur.WriteByte(',')
 				i++
 			}
 		case ',':
+			// A comma followed by `+` continues the range: `A,+N` is one
+			// address carrying a relative end (ADR-026). Every other comma
+			// separates two addresses of the same file.
+			if i+1 < len(s) && s[i+1] == '+' {
+				cur.WriteByte(',')
+				i++
+				continue
+			}
 			out = append(out, cur.String())
 			cur.Reset()
 			i++
@@ -183,10 +203,41 @@ func splitRanges(s string) []string {
 	return out
 }
 
+// isDigits reports whether t is one or more ASCII digits. It is what keeps a
+// `,+` INSIDE a pattern from being mistaken for a relative end: `/a,+3/` ends
+// in "3/", which is not a number, so the suffix is left alone and the regex
+// compiles as written.
+func isDigits(t string) bool {
+	if t == "" {
+		return false
+	}
+	for i := 0; i < len(t); i++ {
+		if t[i] < '0' || t[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func parseRange(s string) (Range, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return Range{}, fmt.Errorf("empty range")
+	}
+	// `A,+N` is the N lines after A (ADR-026). The suffix is cut before
+	// anything else looks at the string, so A reaches the parsers below
+	// exactly as it would have without it.
+	raw, rel := s, 0
+	if strings.HasPrefix(s, "+") {
+		return Range{}, fmt.Errorf("%q has no start to be relative to: write %s for that line, or A,%s for the %s lines after A", s, s[1:], s, s[1:])
+	}
+	if k := strings.LastIndex(s, ",+"); k >= 0 && isDigits(s[k+2:]) {
+		n, err := strconv.Atoi(s[k+2:])
+		if err != nil || n < 1 {
+			return Range{}, fmt.Errorf("bad relative end %q in %q: write ,+N with N at least 1 for the N lines after the start, or drop it to address the start alone", s[k+1:], raw)
+		}
+		rel = n
+		s = s[:k]
 	}
 	if strings.HasPrefix(s, "/") {
 		// "/a/,/b/" arrives as one part because splitRanges kept it together.
@@ -195,8 +246,11 @@ func parseRange(s string) (Range, error) {
 		if err != nil {
 			return Range{}, fmt.Errorf("bad pattern %q: %w", pats[0], err)
 		}
-		r := Range{Re: re, Text: s}
+		r := Range{Re: re, Text: raw, RelEnd: rel}
 		if len(pats) == 2 {
+			if rel > 0 {
+				return Range{}, fmt.Errorf("%q has both an end pattern and a relative end: write /from/,/to/ or A,+N, not both", raw)
+			}
 			if r.ReEnd, err = regexp.Compile(pats[1]); err != nil {
 				return Range{}, fmt.Errorf("bad end pattern %q: %w", pats[1], err)
 			}
@@ -228,7 +282,7 @@ func parseRange(s string) (Range, error) {
 		return Range{}, err
 	}
 	if !ranged {
-		return Range{Start: start, End: start, Text: s}, nil
+		return Range{Start: start, End: start, Text: raw, RelEnd: rel}, nil
 	}
 	end, err := num(hi)
 	if err != nil {
@@ -243,9 +297,9 @@ func parseRange(s string) (Range, error) {
 	// that verdict waits for resolve, which is the first place the length is
 	// known.
 	if start > 0 && end > 0 && end < start {
-		return Range{}, fmt.Errorf("range %q ends before it starts", s)
+		return Range{}, fmt.Errorf("range %q ends before it starts", raw)
 	}
-	return Range{Start: start, End: end, Text: s}, nil
+	return Range{Start: start, End: end, Text: raw, RelEnd: rel}, nil
 }
 
 // Run renders every spec to w. It returns what it OBSERVED of every file it
@@ -454,7 +508,14 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 				if !r.Re.MatchString(l) {
 					continue
 				}
-				spans = append(spans, span{max(1, i+1-ctx), min(total, i+1+ctx)})
+				end := i + 1 + ctx
+				if r.RelEnd > 0 {
+					// An explicit relative end overrides -C on the trailing
+					// side: the caller said how many lines they wanted after
+					// the match, which is not a guess about context.
+					end = i + 1 + r.RelEnd
+				}
+				spans = append(spans, span{max(1, i+1-ctx), min(total, end)})
 				found = true
 			}
 			if !found {
@@ -470,6 +531,11 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 			}
 			if start == unbounded {
 				start = 1
+			}
+			if r.RelEnd > 0 {
+				// Applied where the length is known, so the clamp below is the
+				// same one `2-99` already gets.
+				end = start + r.RelEnd
 			}
 			if end == unbounded || end > total {
 				end = total

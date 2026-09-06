@@ -484,3 +484,90 @@ func TestAnOrdinaryMissingFileGetsNoGlobHint(t *testing.T) {
 		t.Errorf("the glob hint fired for a path with no metacharacter:\n%s", b.String())
 	}
 }
+
+// A relative end is the form a caller arrives with from sed: `A,+N` is the line
+// A resolves to plus the N lines after it. Before ADR-026 the comma separated
+// two addresses and `+N` parsed as the ABSOLUTE line N, because strconv.Atoi
+// accepts a leading sign — so `/func Foo/,+2` served the match and line 2, at
+// exit 0, and the receipt was the only place that said so.
+//
+// Asserting the served span is the assertion that matters: the old reading and
+// the new one both exit 0 and both print lines, so only WHICH lines tells them
+// apart.
+func TestARelativeEndServesTheLinesAfterTheStart(t *testing.T) {
+	root, opt := fixture(t)
+	for _, spec := range []string{"a.go:/func Foo/,+2", "a.go:3,+2"} {
+		out, problems := run(t, root, opt, spec)
+		if problems != 0 {
+			t.Fatalf("%s: problems=%d\n%s", spec, problems, out)
+		}
+		if !strings.Contains(out, "@@ 3-5") {
+			t.Errorf("%s did not serve 3-5:\n%s", spec, out)
+		}
+		if n := strings.Count(out, "|"); n != 3 {
+			t.Errorf("%s served %d lines, want 3:\n%s", spec, n, out)
+		}
+		if strings.Contains(out, "package p") {
+			t.Errorf("%s served line 1, so the suffix was read as an absolute address:\n%s", spec, out)
+		}
+	}
+	// The ledger is the half a caller cannot see: the licence must cover
+	// exactly the lines served, or ADR-002's per-line guard is being granted
+	// for lines nobody was shown.
+	obs, problems := runObserved(t, root, opt, "a.go:/func Foo/,+2")
+	if problems != 0 {
+		t.Fatalf("problems=%d", problems)
+	}
+	o, ok := obs["a.go"]
+	if !ok {
+		t.Fatal("a.go was not observed at all")
+	}
+	if !o.Covers(3, 5) {
+		t.Errorf("the observation does not cover 3-5, so the served lines were not licensed: %+v", o)
+	}
+	if o.Covers(6, 6) {
+		t.Errorf("the observation covers line 6, which was never served: %+v", o)
+	}
+}
+
+// An end past the last line CLAMPS, which is not a new rule: `2-99` on this
+// fixture already serves 2-9 and exits 0. A relative end that refused instead
+// would make the same overrun mean two different things depending on how it
+// was written.
+func TestARelativeEndPastTheLastLineClamps(t *testing.T) {
+	root, opt := fixture(t)
+	out, problems := run(t, root, opt, "a.go:8,+10")
+	if problems != 0 {
+		t.Fatalf("problems=%d, want 0 — an end past EOF clamps, as 2-99 does\n%s", problems, out)
+	}
+	if !strings.Contains(out, "@@ 8-9") {
+		t.Errorf("did not clamp to the last line:\n%s", out)
+	}
+}
+
+// `+N` with nothing before it names no start to be relative to. ADR-015: the
+// refusal names the fix rather than only the mistake.
+func TestARelativeEndWithNothingBeforeItIsRefused(t *testing.T) {
+	_, err := ParseSpec("a.go:+3")
+	if err == nil {
+		t.Fatal("a.go:+3 parsed; a relative end with no start must be refused")
+	}
+	for _, want := range []string{"+3", "3", "A,+3"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not name %q, so it does not name the fix: %v", want, err)
+		}
+	}
+}
+
+// `,+0` says exactly what `A` alone says, and `0` is already refused as a line
+// number. Accepting it would be the one case where a relative end is a no-op,
+// which is a thing to explain rather than a thing to allow.
+func TestARelativeEndOfZeroIsRefused(t *testing.T) {
+	_, err := ParseSpec("a.go:2,+0")
+	if err == nil {
+		t.Fatal("a.go:2,+0 parsed; a zero relative end must be refused")
+	}
+	if !strings.Contains(err.Error(), "+0") {
+		t.Errorf("the refusal does not name what was written: %v", err)
+	}
+}

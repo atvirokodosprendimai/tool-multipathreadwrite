@@ -136,6 +136,9 @@ type hunk struct {
 	// file, and the resolved span then meets the ledger check like any other.
 	StartPat *regexp.Regexp
 	EndPat   *regexp.Regexp
+	// RelEnd carries plan.Addr.RelEnd — the `A,+N` form (ADR-026) — and is
+	// applied once the start has resolved and the file's length is known.
+	RelEnd int
 	// SrcOp and SrcAddr are the op and address exactly as the caller wrote
 	// them. Every verdict echoes these rather than the resolved form, so a
 	// report line can be matched back to the plan line that produced it.
@@ -165,6 +168,7 @@ type Input struct {
 	Anchor   string
 	StartPat *regexp.Regexp
 	EndPat   *regexp.Regexp
+	RelEnd   int
 	SrcLine  int
 	Index    int
 }
@@ -223,7 +227,7 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		byPath[p] = append(byPath[p], hunk{
 			Path: p, Start: i.Start, End: i.End, Op: i.Op, Body: i.Body,
 			SHA: i.SHA, Lines: i.Lines, Anchor: i.Anchor,
-			StartPat: i.StartPat, EndPat: i.EndPat,
+			StartPat: i.StartPat, EndPat: i.EndPat, RelEnd: i.RelEnd,
 			SrcOp: i.Op, SrcAddr: srcAddrOf(i), SrcLine: i.SrcLine, Index: n,
 		})
 	}
@@ -669,6 +673,17 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		}
 		if end == EOF {
 			end = total
+		}
+
+		// `A,+N` (ADR-026): the end is N lines after the resolved start, and it
+		// clamps at the last line exactly as a read's relative end does. It is
+		// applied here, after the pattern and the EOF sentinels have resolved,
+		// so one rule covers every address form rather than one per form.
+		if h.RelEnd > 0 {
+			end = start + h.RelEnd
+			if end > total {
+				end = total
+			}
 		}
 
 		// A guard the caller wrote is checked whatever the op. An insertion

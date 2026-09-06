@@ -1478,3 +1478,37 @@ func TestAPlanThatNamesOneFileTwiceIsRefusedWhicheverTheSpelling(t *testing.T) {
 		t.Fatalf("two different files %s and %s were refused: %v %+v", first, second, err, res.Hunks)
 	}
 }
+
+// The plan side of ADR-026, driven through Apply rather than the parser: a
+// relative end must resolve against the ORIGINAL file and change exactly the
+// lines it names. A parse test cannot see that — the address could parse
+// correctly and still splice the wrong span.
+func TestARelativeEndAddressesTheLinesItReplaces(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Body: []string{"// the whole method, replaced"}, Lines: -1,
+		StartPat: regexp.MustCompile(`^func \(s \*Store\) Get`), RelEnd: 3,
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply returned an error rather than a verdict: %v", err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed = %d, want 0: %s", res.Failed, res.Hunks[0].Reason)
+	}
+	// Get spans lines 6-9 of storeGo: the func line and the three below it.
+	if n := res.Hunks[0].Removed; n != 4 {
+		t.Errorf("removed %d lines, want 4 — a relative end of 3 is the start plus three", n)
+	}
+	got := read(t, root, "store.go")
+	if strings.Contains(got, "r, ok := s.rows[id]") {
+		t.Error("the body of Get survived, so the relative end did not reach it")
+	}
+	if !strings.Contains(got, "func (s *Store) Put") {
+		t.Error("Put was removed, so the relative end ran past the lines it named")
+	}
+	if !strings.Contains(got, "// the whole method, replaced") {
+		t.Error("the replacement body is not in the file")
+	}
+}

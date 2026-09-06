@@ -64,6 +64,11 @@ grep -q '^# 64\. ' scripts/contract.sh \
 
 ## Mutation Log
 
+- 2026-09-06 · 0cb2ad1* · mutant killed · exit 1 · `cmd/mrw/main.go` · the CLI stops carrying the relative end into apply.Input, so `@@ a.go 3,+1 replace` edits only line 3 while every unit test in internal/plan and internal/read stays green; §64 is the only thing that notices · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · covers:the built binary applying start..start+N on the plan path
+- 2026-09-06 · 0cb2ad1* · mutant killed · exit 1 · `internal/mcp/tools.go` · the MCP server stops carrying the relative end into apply.Input, so an mrw_write plan addressed 3,+1 edits only line 3; the CLI probes in the same section stay green, which is why the section drives the MCP path as well · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · covers:the built binary applying start..start+N on the plan path
+- 2026-09-06 · 0cb2ad1* · mutant killed · exit 1 · `internal/read/read.go` · the built binary stops widening a read span, so §64 read probes serve one line where they assert three — the row is what notices, since a unit test proves the function and not that the shipped binary calls it · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · covers:the built binary serving start..start+N on the read path
+- 2026-09-06 · 0cb2ad1* · mutant killed · exit 1 · `internal/read/read.go` · the built binary stops refusing a bare `+N` on the read path, so `mrw read a.go:+3` exits 0 serving line 3 and §64 must go red on the refusal half rather than only on the serving half · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · covers:the two refusals coming from the built binary
+
 ## Invariants
 
 - Every existing contract section still passes; §64 adds a fixture of its own and touches no other section's `$R`.
@@ -87,3 +92,8 @@ without the feature is asserting nothing, and finding that out here is the point
 - A backwards relative address in the docs (deferred: `docs/adr/BACKLOG.md`)
 
 ## Verification Log
+- 2026-09-06 · 0cb2ad1* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:32379
+- 2026-09-06 · 0cb2ad1* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:24282
+- 2026-09-06 · 0cb2ad1* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:23036
+- 2026-09-06 · 0cb2ad1* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:23616
+- 2026-09-06 · 0cb2ad1* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:21324

@@ -6,7 +6,7 @@
 **Accepted:** M, 2026-09-06, choosing "Implement `,+N` as relative" over "Refuse `+N`" when the two were put side by side with the measured receipt: *"$ mrw read 'f.txt:/alpha/,+3' → @@ 1-4"*, which is the preview M selected and is therefore the specification of what the form means.
 **Spec:** None — no spec stage
 **Cross-references:** `docs/adr/ADR-013-a-plan-addresses-what-it-can-find.md`, `docs/adr/ADR-015-a-refusal-names-the-fix-for-the-two-mistakes-the-syntax-invites.md`, `docs/adr/ADR-006-the-root-confines-reads-too-and-a-replace-must-replace-something.md`
-**Governs:** `internal/read/read.go`, `internal/plan/plan.go`
+**Governs:** `internal/read/read.go`, `internal/plan/plan.go`, `internal/apply/apply.go`
 **Enforced-by:** `internal/read/read_test.go::TestARelativeEndServesTheLinesAfterTheStart`
 **Invalidates:** none — checked
 **Served-path change:** `mrw read 'f.go:/func Start/,+20'` serves the matching line and the twenty lines after it; today it serves the matching line and line 20.
@@ -34,9 +34,16 @@ range. And `strconv.Atoi` (`internal/read/read.go:219`) accepts a leading sign, 
 the absolute line 3 rather than as a bad line number. `f.txt:/alpha/,+3` is therefore a spec with
 two addresses in it, and both resolve.
 
-The same string is refused on the plan side today — `strconv.Atoi` there is reached through
+The plan side refuses the same string today — `strconv.Atoi` there is reached through
 `ParseAddr` with no comma splitting (`internal/plan/plan.go:496-505`), so `@@ f.txt 5,+3 replace`
 fails with `bad line number "5,+3"`. One path silently serves something else; the other refuses.
+
+⚠ **But the BARE form is silently wrong on the plan side too, and that was not known when this
+record was drafted.** Measured 2026-09-06 by running §64 against a worktree at `bab2128`:
+`@@ a.go +3 replace` is ACCEPTED there and applies at line 3, exit 0 — `ParseAddr` never splits on
+a comma, so `+3` reaches `strconv.Atoi` whole and parses as the absolute 3. So the two paths did
+not differ in kind, only in which spelling reached the sign-accepting parser. Both are refused now,
+in the same words, and §64 asserts that on both.
 
 Reported from a quality-harness session on 2026-09-04 as an open question — *"unclear whether that
 form is supported; the docs I had did not say"* — and the docs still do not: `grep -rn ',+[0-9N]'`
