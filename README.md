@@ -7,11 +7,13 @@ It is an ordinary command-line tool. It was built for AI coding agents, which
 are the ones doing hundreds of small edits a day, but nothing about it requires
 one.
 
-**Status: stable at v1.1.0 (2026-09-05), the tag cut from the main that carries this paragraph.**
+**Status: stable at v1.2.0 (2026-09-06), the tag cut from the main that carries this paragraph.**
 What that word rests on is recorded in this tree. The six promises listed in `AGENTS.md` are each
 an ADR and each a set of rows in `scripts/contract.sh`, which drives the built binary and prints its
 own total; every row is green on the tree the tag is cut from. A break campaign of 47 probes
-(`scripts/break-campaign.sh`, its run in `docs/break/`) against main `d6c62e7` — the tree the
+(`scripts/break-campaign.sh`, its run in `docs/break/`) against main `03feb92` — the tree the
+binary is built from — found no silent wrong write, every refusal in it names its reason, and
+every probe's outcome is identical to the v1.1.0 run against `d6c62e7`.
 binary is built from, since nothing after it is Go — found no silent wrong write, and every refusal
 in it names its reason. And the served-size curve is measured rather than asserted: a strong client
 at the ceiling on the fixture built to be failed (reading 3), the one recurring miss identified as a
@@ -21,13 +23,27 @@ bringing the miss back in five of fifteen trials (reading 11), and the ceiling h
 thirteen-service fixture (reading 17) and for a client from a second vendor (reading 16); the
 section *Does serving more hurt?* has the numbers and their limits.
 Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
+Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
 tools — changes only through a record, and a record that relaxes or replaces an earlier promise
-retires it. **Since v1.0.0 that has happened once:** ADR-023 retires half of ADR-011's T2, so
-`mrw_read` returns no `structuredContent` and declares no `outputSchema`; its receipt is the
-second text block, unchanged in shape. A caller that read `result.structuredContent` off a read
-parses the JSON string in `result.content[1].text` instead — the same object, one block over.
-`mrw_write` is untouched, and so is every CLI behaviour.
+retires it. **Since v1.0.0 that has happened twice, both on the MCP surface and neither on the CLI:**
 
+ADR-023 retires half of ADR-011's T2, so `mrw_read` returns no `structuredContent` and declares no
+`outputSchema`; its receipt is the second text block, unchanged in shape. A caller that read
+`result.structuredContent` off a read parses the JSON string in `result.content[1].text` instead —
+the same object, one block over.
+
+ADR-024 retires the clause of ADR-014's Decision 2 that marked a page `isError: true`, and the
+matching assertion in ADR-017's Enforced-by test, so **an `mrw_read` answer that SERVED something no
+longer sets `isError`** — a page, an oversized grep index, and a read that served content beside a
+path it could not use. A refusal that served nothing still carries the flag. A caller that branched
+on `isError` to notice a partial answer branches on the absence of `next_read` instead, which was
+always the documented exit condition; the page still says what it is in its served text, with
+`-- PARTIAL: lines N-M of T. K line(s) remain.` Why it changed is measured rather than argued: with
+the flag set, a host truncated a 152,594-character page to about 150 of its 2,380 lines before the
+model saw it, while the ledger recorded the whole page and licensed a write to a line nobody had
+seen; with the flag absent, the same page arrives whole.
+
+`mrw_write` is untouched by both, and so is every CLI behaviour.
 Install it with one command — see [Install](#install) for the details:
 
 ```sh

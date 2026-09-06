@@ -867,3 +867,48 @@ re-measuring these. Each was driven at the built binary, not read:
   truncation occur, and found 30 of 30 (`docs/curve/reading-20-result.md`); readings 12, 18 and 19
   voided on the way there. So the arm is measured BELOW the truncation point and unmeasurable AT it:
   the 200 KB case is this entry, and it is a defect rather than a rate.
+
+## From five sessions field-testing the multi-line-body hazard (2026-09-06)
+
+Reported by a peer session working in another repository, then field-tested on `f732fed` by four
+sessions across markdown, Python/JS, PHP/Blade and YAML/Ansible; a fifth (React/TSX) confirmed its
+binary and contributed an observation without running the test. The guidance those reports produced
+is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they reopen.
+
+- **Should `mrw write` echo the written region, padded, after a write?** Rejected once already, on
+  COST rather than principle: the caller wrote the plan and can re-read the file, so an echo restates
+  what is reachable, and it would pay bytes on every write for a rare case. Four field reports change
+  the inputs to that arithmetic and are recorded so the next reader can redo it rather than inherit
+  the verdict.
+
+  What is new. **The damage is never in the lines the plan named** — a surviving closer sits below
+  the body by construction, and a short address orphans lines above it — so the ONE region a caller
+  naturally re-reads is the one region that cannot show the problem. Measured offsets: Blade replaced
+  7 wrote 7-9 orphan at 10; HTML `</div>` replaced 5 wrote 5-7 orphan at 8; YAML block scalar
+  replaced 8 wrote 8-10 orphan at 11; markdown fence replaced 333 wrote 333-336 orphan at 340; and a
+  34-line body at `3104-3108` where `3088-3108` was meant left sixteen dangling lines above.
+
+  And **the automated gates were blind in three of the four stacks**: `yamllint`, `ansible-lint
+  --profile production` and `ansible-playbook --syntax-check` all passed YAML whose meaning had
+  changed; `php -l` passes a broken `.blade.php`; and a React repo's `vite build` does not type-check
+  at all while its pre-push gate covers eight crash codes. `--check` cannot reach a file no test
+  exercises, which is most templates. So "the caller can check it themselves" is weaker than it was
+  when the idea was rejected.
+
+  What has NOT changed is the design line, and it is the reason this is a question rather than a
+  plan: mrw guards body content that breaks ITS OWN parse (`@@` needs `body=<N> raw=true`) and models
+  no target syntax, because a checker for fences is a checker for braces is a checker for Blade
+  directives, and that ends the property that one line-oriented editor takes Go, shell, markdown,
+  JSON and YAML hunks in a single all-or-nothing plan. **A padded echo is not a checker** — it prints
+  lines and understands none of them — so it does not cross that line. Whether it is worth its bytes
+  is the open question. Anyone taking it up needs a record, an opt-in shape (a flag, not a default),
+  and a contract row.
+
+- **UNMEASURED, and deliberately not written into the docs: a balanced-but-wrongly-nested JSX
+  subtree.** Predicted by the React session to be valid TypeScript that renders differently — `tsc`
+  green, DOM wrong — which would be the JSX analogue of the YAML case where a body at the wrong
+  indent silently reparents keys and every linter stays green. Its author declined to speculate and
+  did not run it; the session was briefing-only and correctly treated a field test as unrequested
+  scope. It is here as a probe someone could run, not as a finding. If it reproduces it is the worst
+  shape reported so far, because the file stays valid in a language whose type checker is the one
+  gate that was expected to work.
