@@ -19,11 +19,12 @@ carried onto the served text that a host does not rewrite.
 
 | File | Change | Why |
 |------|--------|-----|
-| `internal/mcp/tools.go` | edit | `pagedResult` (`:637`), `indexResult` (`:814`) and the served-read path that passes `problems > 0` (`:202`, `:319`, `:841`) return `isError` absent; `errorResult` (`:422`) untouched. This is the change. |
+| `internal/mcp/tools.go` | edit | `pagedResult` (`:637`), `indexResult` (`:814`) and the served-read return (`:319`, with its size probe at `:841`) leave `isError` absent. `errorResult` (`:422`) and the no-match-with-walk-problem branch (`:202`) are NOT touched — each delivered nothing of what was asked. This is the change. |
 | `internal/mcp/tools_test.go` | edit | `TestAnOversizedReadStillReadsAsIncomplete` asserts the retired promise at line 565 and is rewritten to assert the replacement; the new `TestAPageIsKnownByItsServedText` is added here. |
 | `internal/mcp/conformance_test.go` | edit | Line 579 uses `isError` as a FIXTURE GUARD — "this fixture exists to produce a page" — not as the promise. It must detect a page by `next_read` instead, or it fails for the wrong reason and hides whatever it was guarding. |
 | `internal/mcp/instructions.go` | edit | Line 98 tells every host "the lines that fit, isError true, and next_read naming the spec". That sentence is what SELECTS the behaviour for a reader of the surface; leaving it makes the tool document a promise it no longer keeps. |
 | `internal/mcp/schema.go` | edit | The `next_read` description ends "A paged answer is also `isError: true`". Same reason: the schema is the caller-facing declaration. |
+| `internal/mcp/mcp.go` | edit | `:260`, the `tools/list` description a host reads BEFORE it calls anything, still promised "isError true" for a page. Missed on the first pass and found by the Codex review of #118, because neither §48 nor the first §62 inspected it. |
 | `scripts/contract.sh` | edit | Three EXISTING rows pin the retired promise against the built binary — `:2279` (the index), `:3137` (taught-versus-shipped) and `:3367`/`:3368` (ADR-023's shapes). They are moved onto the new promise here rather than in T2, because they went red the moment the behaviour changed and a red contract cannot be carried between tasks. T2 still owns the NEW row, §62. |
 
 ## Ordered Steps
@@ -89,6 +90,13 @@ go test ./internal/mcp/ -run 'TestAPageIsKnownByItsServedText' -count=1 2>&1 | t
 - 2026-09-06 · 54d6b18* · mutant killed · exit 1 · `internal/mcp/tools.go` · empties the continuation spec; a page a caller cannot continue is the dead end ADR-014 removed · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the next_read field in content[1]
 - 2026-09-06 · 54d6b18* · mutant killed · exit 1 · `internal/mcp/tools.go` · drops the flag from a genuine refusal; ADR-024 removes it only from answers that SERVED something · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:errorResult keeping its flag
 - 2026-09-06 · 54d6b18* · mutant killed · exit 1 · `internal/mcp/tools.go` · stops a served answer naming the path it could not use; dropping the flag must not drop the report · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the per-path -- <path>: <reason> lines in content[0]
+- 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · restores the flag on a page; the fence must go red · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the absence of isError on an answer that served content
+- 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · restores the flag on an oversized grep index; the fence must go red · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the absence of isError on an answer that served content
+- 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · restores the flag on an ordinary read that served content beside an unusable path; the fence must go red · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the absence of isError on an answer that served content
+- 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · lowercases the notice a page carries in content[0], now asserted against content[0] alone · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the -- PARTIAL: notice in content[0]
+- 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · empties the continuation spec; a page a caller cannot continue is the dead end ADR-014 removed · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the next_read field in content[1]
+- 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · drops the flag from a genuine refusal; ADR-024 removes it only from answers that delivered what was asked · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:errorResult keeping its flag
+- 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · stops a served answer naming the path it could not use; dropping the flag must not drop the report · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the per-path -- <path>: <reason> lines in content[0]
 
 ## Invariants
 
@@ -142,3 +150,10 @@ and the record must be revised rather than the test relaxed.
 - 2026-09-06 · 54d6b18* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:8178
 - 2026-09-06 · 54d6b18* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:6875
 - 2026-09-06 · 54d6b18* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:6515
+- 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:6695
+- 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:9798
+- 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:6378
+- 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:5854
+- 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:5825
+- 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:5975
+- 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:5902

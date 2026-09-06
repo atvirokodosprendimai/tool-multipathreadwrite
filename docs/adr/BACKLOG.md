@@ -836,7 +836,8 @@ re-measuring these. Each was driven at the built binary, not read:
 
   ⚠ **Executing it widened the class twice, and both widenings came from enumerating rather than
   recalling.** ADR-024's first enumeration used `awk '/IsError: *true/'` and found three sites; it
-  missed `readResult`'s `IsError: isErr` parameter, whose callers pass `problems > 0`. So an
+  missed `readResult`'s `IsError: isErr` parameter, which its callers at the time all passed
+  `problems > 0` (only the deliberately retained `:202` branch still does). So an
   ORDINARY multi-file read that served content beside one unreadable path came back flagged — no
   oversized file needed, which makes it the most exposed member of the class and the one nobody was
   looking for. The corrected command is `grep -n 'IsError' internal/mcp/tools.go`, deliberately the

@@ -43,6 +43,7 @@ grep -q '^# 62\. ' scripts/contract.sh \
 |-----------|------|----------|--------|-------|
 | `contract.sh §62 (good case)` | `scripts/contract.sh` | The built server's paged reply carries no `isError`, carries `-- PARTIAL:` in `content[0]`, and names `next_read` in `content[1]` | — | S2, S3 |
 | `contract.sh §62 (paired failure)` | `scripts/contract.sh` | A genuine refusal through the same server is still `isError: true`, so the row cannot pass against a server that never flags anything | — | S4 |
+| `contract.sh §62 (surface)` | `scripts/contract.sh` | `mrw_read`'s `tools/list` description no longer teaches `isError true` and does teach `-- PARTIAL:` — the declaration a host reads BEFORE it calls anything, which neither §48 nor the first version of this row inspected | — | S2 |
 
 ## Reachability
 
@@ -58,6 +59,9 @@ grep -q '^# 62\. ' scripts/contract.sh \
 - 2026-09-06 · 69b5f07* · mutant killed · exit 1 · `internal/mcp/tools.go` · restores the flag on a page in the BUILT binary; §62 must go red, which is what distinguishes this row from the package-level test · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:the absence of isError in the server's JSON-RPC reply
 - 2026-09-06 · 69b5f07* · mutant killed · exit 1 · `internal/mcp/tools.go` · drops the flag from a refusal in the BUILT binary; §62 must go red, which is what stops the row passing against a server that flags nothing at all · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:errorResult still flagging a refusal
 - 2026-09-06 · 69b5f07* · mutant killed · exit 1 · `internal/mcp/tools.go` · lowercases the notice the page carries in content[0]; §62 must go red because that text is the only place a paged reply now says it is partial · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:the -- PARTIAL: notice in the reply's content[0]
+- 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · restores the flag on a page in the BUILT binary; §62 must go red · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:the absence of isError in the server's JSON-RPC reply
+- 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · drops the flag from a refusal in the BUILT binary; §62 must go red · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:errorResult still flagging a refusal
+- 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/mcp.go` · restores the retired promise in the tools/list description; §62 must go red, which is the check that was missing when this shipped · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:the -- PARTIAL: notice in the reply's content[0]
 
 ## Invariants
 
@@ -89,3 +93,6 @@ task and is ADR-010's territory.
 - 2026-09-06 · 69b5f07* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:21659
 - 2026-09-06 · 69b5f07* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:21974
 - 2026-09-06 · 69b5f07* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:22216
+- 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:24421
+- 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:23426
+- 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:20945

@@ -258,8 +258,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// continuation at all. The caller's exit condition is the absence of a
 		// field rather than a count it has to keep.
 		//
-		// It stays isError. That is the whole difference between paging and
-		// truncation: the caller must be able to see it received a part.
+		// It carries NO isError, per ADR-024 — the difference between paging and
+		// truncation is the `-- PARTIAL:` line in the served text, not a flag a
+		// host reads as "this call failed" and then truncates the answer over.
 		// ADR-017: a grep too large to SERVE still answers, with the addresses
 		// it found. firstPage cannot help here — it needs one open-ended spec
 		// and a walk produces many across many files — so without this branch
@@ -608,7 +609,7 @@ func overflowMessage(specs []string, cw *capped) string {
 // that asks for the rest.
 //
 // It duplicates little of `result` and deliberately does not reuse it: `result`
-// takes isErr as a parameter and a page is ALWAYS an error, and the structured
+// takes isErr as a parameter and threads structuredContent, and the structured
 // map here carries a field the normal shape does not. Folding the two would
 // mean a boolean and an optional field threaded through the common path for one
 // caller's benefit.
@@ -845,7 +846,9 @@ func encodedSize(res callToolResult) int {
 // trade for content that cannot be delivered.
 func servedOrIndex(specs []read.Spec, problems int, cw *capped, observed map[string]seen.Observation, report string) (callToolResult, bool) {
 	// ADR-024: false, matching what the served result will actually carry, so
-	// the probe measures the shape that is sent rather than one 16 bytes larger.
+	// the probe measures the shape that is sent rather than one 15 bytes larger
+	// (`,"isError":true`). Only results inside that 15-byte band change verdict,
+	// and they change it correctly: they now genuinely fit the declared limit.
 	probe, rpcErr := readResult(map[string]any{"observed": observed, "problems": problems}, report, false)
 	if rpcErr != nil {
 		// Undecidable, so not degraded: the caller path will report the same

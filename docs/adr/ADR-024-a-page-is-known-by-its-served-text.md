@@ -8,7 +8,7 @@
 **Cross-references:** `docs/adr/ADR-014-a-read-too-large-is-a-first-page-not-a-dead-end.md`, `docs/adr/ADR-017-the-mcp-surface-can-find-what-it-serves.md`, `docs/adr/ADR-002-mrw-will-not-edit-a-file-it-has-not-seen.md`, `docs/adr/ADR-023-a-reads-answer-is-the-served-text.md`, `docs/adr/ADR-011-the-mcp-server-tells-a-host-what-it-is-and-what-it-will-return.md`, `docs/adr/BACKLOG.md`
 **Governs:** `internal/mcp/tools.go`, `internal/mcp/tools_test.go`, `internal/mcp/conformance_test.go`
 **Enforced-by:** `internal/mcp/tools_test.go::TestAPageIsKnownByItsServedText`
-**Invalidates:** ADR-014 — the clause of its Decision 2 reading "It is still `isError: true` when nothing was asked for narrowly enough"; ADR-017 — the clause of its index decision that keeps the flag, pinned by `TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd`
+**Invalidates:** ADR-014 — the clause of its Decision 2 reading "It is still `isError: true` when nothing was asked for narrowly enough"; ADR-017 — **not a clause of its Decision, which never mentions the flag**, but the assertion its Enforced-by test `TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd` carried, that an oversized grep "must still read as an error". ADR-017's own promise — that an oversized find answers with a usable index rather than a dead end — is untouched and still enforced by that test.
 **Served-path change:** A `mrw_read` whose answer is a page or a grep index no longer sets `isError`, so a host stops treating it as a failed call and stops discarding its middle; the caller sees the whole page it was sent.
 
 ## Context
@@ -58,9 +58,12 @@ and no host rewrites.
   introduced; this record only stops two existing shapes from claiming to be failures.
 
 ## Decision
-**1. An answer that SERVED something does not set `isError`.** `pagedResult`, `indexResult` and the
-served-read path that passes `problems > 0` all return `isError` absent. `errorResult` is untouched:
-a refusal served nothing, so it is an error, because it is one.
+**1. An answer that delivered what was asked for — file content, or a usable index of where it is —
+does not set `isError`.** `pagedResult`, `indexResult` and the served-read return at `:319` (with its
+size probe at `:841`) leave the key absent. `errorResult` is untouched, and so is the no-match branch
+at `:202`: a walk that could not look where it was told searched INCOMPLETELY and produced no match,
+so it delivered nothing of what was asked and stays an error. That branch's own comment already drew
+this line — "a walk that could not LOOK somewhere is a different answer again, and it is an error".
 
 **2. Partiality is carried by the served text, and that is now the promise under test.** A page's
 `content[0]` carries `-- PARTIAL: lines N-M of T. K line(s) remain.` and the continuation spec; its
@@ -68,8 +71,8 @@ a refusal served nothing, so it is an error, because it is one.
 than the flag it retires, because a host may reinterpret a protocol flag and does not rewrite served
 text — which is the same reasoning ADR-023 applied to `structuredContent`.
 
-**3. The class is every answer that carries content, and it has four members, not the one that was
-measured.** Enumerated with
+**3. The class is every answer that delivered what was asked for, and it has four members, not the
+one that was measured.** Enumerated with
 
 ```sh
 grep -n 'IsError' internal/mcp/tools.go

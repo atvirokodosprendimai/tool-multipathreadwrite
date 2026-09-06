@@ -67,6 +67,11 @@ number belongs to whatever measures it.
 error. The result carries the lines that fit, and a field naming the exact spec to send to continue —
 `f400.go:2679-5357`. The caller can send it verbatim, narrow it, or stop.
 
+⚠ **Decision 2 below is SUPERSEDED by ADR-024 (2026-09-06).** The flag was removed; everything else
+in this record stands, including Decision 2's own requirement that the page be labelled with what it
+is and what remains — which is now the whole of the promise rather than half of it. See the
+Amendment at the end.
+
 **2. It is still `isError: true` when nothing was asked for narrowly enough**, so a caller that
 ignores the field is not silently handed a third of a file as if it were the whole. ADR-011's refusal
 principle is untouched: what the model receives must never look like the complete answer when it is
@@ -179,3 +184,20 @@ added field is additive and nothing depends on it.
 - [ ] When the benchmark harness exists, measure edit accuracy against served bytes and give
       `MaxResultChars` a justified value — or record that the curve is flat and the constant may stay
       arbitrary, which is also an answer
+
+## Amendment, 2026-09-06: Decision 2's flag is superseded by ADR-024
+
+**`isError: true` on a page was removed.** Decision 2 required it so "a caller that ignores the field
+is not silently handed a third of a file as if it were the whole." Measured 2026-09-06 on Claude Code
+2.1.263, that flag is what caused the silent handing-over: hosts truncate error-flagged tool results
+head-and-tail, so the same 152,594-character page reached a consumer GAPPED with the flag (line 78,
+then line 2309 of 2,380) and CONTINUOUS without it — while `internal/mcp/tools.go` recorded the whole
+page in the ledger regardless, licensing a write to a line nobody saw.
+
+**Decision 2's purpose survives; only its mechanism changed.** The page is still labelled with what
+it is and what remains — `-- PARTIAL: lines N-M of T. K line(s) remain.` in `content[0]`, plus
+`next_read` in `content[1]`. That label is the part of Decision 2 ADR-023 had already made the only
+surviving one, when it removed `structuredContent` from a read.
+
+Decisions 1, 3 and 4 are untouched. The continuation, the ledger's page-scoped span, and the cap's
+value all stand. See `docs/adr/ADR-024-a-page-is-known-by-its-served-text.md`.
