@@ -801,6 +801,15 @@ exercises — most templates. Where a parser does see the file (`node --check`,
 `python3 -m py_compile`, `jq .`) run it, it costs milliseconds and it caught a
 real 34-line splice; just never in place of the read.
 
+⚠ **And "the language could catch it" is not "the gate that runs catches it."**
+Three stacks, three ways the running gate is narrower than the checker: a
+`php -l` hook fires on `.blade.php` and passes it, because to the PHP lexer a
+template is inline HTML; a React repo's `vite build` does not type-check at all,
+its `tsc` carries a standing baseline of 436 errors so only the DELTA a change
+introduces carries information, and its pre-push gate covers eight crash codes
+rather than the type system. Know which of those your gate is before you lean on
+it.
+
 ⚠ **Delimiters are only the sub-case that leaves a token.** Where structure is
 indentation, nothing survives to be found: a body at the wrong indent silently
 REPARENTS keys and the file stays valid while meaning something else. Measured on

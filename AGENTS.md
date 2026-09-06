@@ -239,6 +239,15 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   `jq .` — run it: milliseconds, and one session caught a real 34-line splice that
   way. Never INSTEAD of the read.
 
+  ⚠ **And "the language could catch it" is not "the gate that runs catches it".**
+  Three stacks, three different ways the running gate is narrower than the
+  checker: a `php -l` hook fires on `.blade.php` and passes it, because to the
+  PHP lexer a template is inline HTML; a React repo's `vite build` does not
+  type-check at all, its `tsc` carries a standing baseline of 436 errors so only
+  the DELTA a change introduces means anything, and its pre-push gate covers
+  eight crash codes rather than the type system. Before you lean on a gate, know
+  which of those it is.
+
   ⚠ **Delimiters are only the sub-case that leaves a token.** Where structure is
   indentation there is nothing to find afterwards: a body at the wrong indent
   silently REPARENTS keys, and the result is valid and means something else.
