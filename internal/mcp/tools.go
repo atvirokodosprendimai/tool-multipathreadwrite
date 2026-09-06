@@ -321,7 +321,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// and both counting a problem — so the problem count cannot exclude them and
 	// the observation count can. (A bare spec on an empty file counts no problem
 	// and is excluded by the observation alone.)
-	// can. Neither shape reaches here with an empty map and no problem either: a
+	// Neither shape reaches here with an empty map and no problem either: a
 	// read naming no spec is refused at :158 when it passes no grep, and a clean
 	// grep that matched nothing answers at :202. So the conjunct could never
 	// discriminate and no mutation could kill it.
