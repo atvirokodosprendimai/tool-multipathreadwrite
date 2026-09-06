@@ -853,6 +853,8 @@ re-measuring these. Each was driven at the built binary, not read:
   from inside the server, a cut result and a whole one being identical to it. `anchor=` is the
   candidate echo-back — it already exists, and a caller that never saw a line cannot reproduce its
   text, which turns "did you see it?" from a server-side belief into a checkable claim.
+  Deferred again, unchanged, from `docs/adr/ADR-025-a-read-that-served-nothing-is-an-error.md`, which
+  narrows the flag on the served-read return and touches no ledger code.
 
 - **`MaxResultChars` is one host's ceiling hardcoded into a general-purpose tool.** `schema.go` says
   so itself — "The value is Claude Code's per-tool ceiling" — while mrw runs under any MCP host.
@@ -862,6 +864,8 @@ re-measuring these. Each was driven at the built binary, not read:
   ⚠ The cap is NOT ceremony and must not simply be deleted: `internal/mcp/tools.go` records that an
   uncapped 40 × 18 MB read peaked at 2.6 GB and that the cap brought the same request to 87 MB,
   measured 2026-09-03. What a knob changes is WHO chooses, not whether the guard exists.
+  Deferred again, unchanged, from `docs/adr/ADR-025-a-read-that-served-nothing-is-an-error.md`, which
+  changes which answers carry `isError` and moves no ceiling.
 
   Reading 20 measured the same arm at 2 KB and 20 KB, where no paging and no
   truncation occur, and found 30 of 30 (`docs/curve/reading-20-result.md`); readings 12, 18 and 19

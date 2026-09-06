@@ -314,10 +314,20 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// (ADR-023; see readResult). readSchema() still describes it for a reader
 	// of the code, but tools/list no longer declares it: a schema declared is
 	// a structuredContent promised, and none is sent.
+	// ⚠ AND AN ANSWER THAT SERVED NOTHING IS AN ERROR (ADR-025). The observation
+	// count is the whole test, and it is deliberately not conjoined with
+	// `problems > 0`: a spec that served no LINES is still OBSERVED — an empty
+	// file, a range that misses, both noted with empty spans and both counting a
+	// problem — so the problem count cannot exclude them and the observation count
+	// can. A read naming no spec at all is refused at :158 and never arrives here,
+	// so the conjunct could never discriminate and no mutation could kill it.
+	// ADR-024 removed the flag from answers that DELIVERED something; this restores
+	// it for the one case its enumeration missed, so :202 and this return agree
+	// rather than disagreeing on whether `grep` was passed.
 	return readResult(map[string]any{
 		"observed": observed,
 		"problems": problems,
-	}, report, false)
+	}, report, len(observed) == 0)
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the

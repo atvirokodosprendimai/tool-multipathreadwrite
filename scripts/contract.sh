@@ -3537,6 +3537,36 @@ assert "-- PARTIAL:" in desc, "mrw_read's tools/list description does not teach 
 PY
 [ $? -eq 0 ] && ok "the built server sends a page unflagged and saying so in its own text, and still flags a refusal" \
              || bad "the shipped paging or refusal shape is not what ADR-024 decided"
+
+# 63. ADR-025: a read that served NOTHING is an error, whichever path produced it.
+#
+# ADR-024 stopped an answer that SERVED something from claiming to be a failure,
+# and left this return passing an unconditional false — which also covered the case
+# where nothing was served at all. Two calls with the same outcome then disagreed
+# on the flag, decided only by whether `grep` was passed.
+#
+# THE PAIRING IS THE WHOLE POINT, TWICE OVER. A row asserting only the flag would
+# pass against a server that had started flagging everything; a row asserting only
+# its absence would pass against the shipped v1.2.0 binary this record corrects.
+# The third call is the one that pins WHICH count decides: a range that matches no
+# line is still OBSERVED, so it must stay unflagged even though it counts a problem.
+fixture
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["nope_dir"]}}}\n' | m mcp 2>/dev/null > "$WORK/n63.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go","nope_dir"]}}}\n' | m mcp 2>/dev/null > "$WORK/s63.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:99"]}}}\n' | m mcp 2>/dev/null > "$WORK/m63.json"
+python3 - "$WORK/n63.json" "$WORK/s63.json" "$WORK/m63.json" <<'PY'
+import json,sys
+nothing=json.load(open(sys.argv[1]))["result"]
+sib=json.load(open(sys.argv[2]))["result"]
+miss=json.load(open(sys.argv[3]))["result"]
+assert nothing.get("isError") is True, "the built server does not flag a read that served NOTHING; the caller got none of what it asked for and cannot tell that from the envelope"
+txt=nothing["content"][0]["text"]
+assert "nope_dir" in txt, "the flagged result does not name the path it could not use; flagging an answer must not be traded for dropping the only thing it carries"
+assert "isError" not in sib, "the built server flags a read that served a good sibling; ADR-024 removed the flag from answers that delivered something and ADR-025 does not restore it"
+assert "isError" not in miss, "the built server flags a range that matched no line in a file it OBSERVED; the observation count is the test, never the problem count"
+PY
+[ $? -eq 0 ] && ok "the built server flags a read that served nothing and names the path, and leaves a served answer unflagged" \
+             || bad "the shipped served-nothing shape is not what ADR-025 decided"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

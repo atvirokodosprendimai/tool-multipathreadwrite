@@ -1084,3 +1084,47 @@ func TestAPageIsKnownByItsServedText(t *testing.T) {
 		t.Fatal("a refusal that served nothing is not marked isError; the flag must still mean what it says")
 	}
 }
+
+// TestAReadThatServedNothingIsAnError is ADR-025's Enforced-by test. ADR-024
+// stopped an answer that SERVED something from claiming to be a failure, and the
+// served-read return went to an unconditional false — which also covered the case
+// where nothing was served at all. That left two calls with the same outcome
+// disagreeing: a walked read that could not look flagged at :202, and a spec-only
+// read that could not look did not, so passing `grep` decided whether "I could not
+// look" was an error.
+//
+// The four shapes sit together because the flag is a claim about ONE property —
+// did the caller get any of what it asked for — and a test naming only the flagged
+// case passes against a server that flags everything.
+func TestAReadThatServedNothingIsAnError(t *testing.T) {
+	// 1. Nothing was served. This is the shape ADR-025 changes.
+	root, _ := checkout(t, "a.txt", "one\ntwo\n")
+	nothing := call(t, root, "mrw_read", map[string]any{"specs": []any{"nope_dir"}})
+	if nothing["isError"] != true {
+		t.Error("a read that served nothing is not marked isError; the caller got none of what it asked for and cannot tell that from the envelope")
+	}
+	// Flagging it must not be traded for dropping the report: the per-path reason
+	// is the whole value of an answer that carries no content.
+	if all := served0(t, nothing); !strings.Contains(all, "nope_dir") {
+		t.Errorf("the flagged result does not name the path it could not use: %q", all)
+	}
+
+	// 2. ADR-024's member, and the reason this test cannot be satisfied by a
+	// server that flags everything: a good sibling was served, so the answer
+	// delivered what was asked for and is not an error.
+	sib := call(t, root, "mrw_read", map[string]any{"specs": []any{"a.txt", "nope_dir"}})
+	unflagged(t, sib, "a read that served a good sibling beside an unusable path")
+
+	// 3 and 4. A range that misses, and an empty file, serve no LINES and are
+	// still OBSERVED — internal/read notes the file with empty spans and counts a
+	// problem — so it is the observation count and never the problem count that
+	// excludes them. Measured 2026-09-06: both answer observed 1, problems 1.
+	miss := call(t, root, "mrw_read", map[string]any{"specs": []any{"a.txt:99"}})
+	unflagged(t, miss, "a range that matched no line in a file that was observed")
+
+	if err := os.WriteFile(filepath.Join(root, "empty.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	empty := call(t, root, "mrw_read", map[string]any{"specs": []any{"empty.txt:1"}})
+	unflagged(t, empty, "a range against an empty file that was observed")
+}
