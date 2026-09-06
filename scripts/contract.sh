@@ -2276,7 +2276,7 @@ import json, subprocess, sys, os
 root, raw = sys.argv[1], sys.argv[2]
 res = json.loads(raw)["result"]
 sc = json.loads(res["content"][1]["text"])   # the receipt lives in content[1] (ADR-023)
-assert res.get("isError") is True, "an oversized grep must still read as an error"
+assert res.get("isError") is not True, "ADR-024: an oversized grep index SERVED an index, so it must not read as an error — a host truncates a flagged result and a shortened index names no gap"
 assert sc["matches"] == 40, "the index reports %r matching files, want 40" % sc["matches"]
 idx = sc["index"]
 assert idx, "an oversized grep returned no index at all"
@@ -3134,7 +3134,7 @@ r=json.load(open(sys.argv[2]))["result"]
 for w in ("next_read","PAGE","absent","part of a file"):
     assert w in i, "the instructions never mention %r" % w
 # What it does — the same three claims, against a real oversized read.
-assert r.get("isError") is True, "taught as an error, shipped as a success"
+assert r.get("isError") is not True, "ADR-024: taught as a PAGE and not a failure, shipped flagged as an error"
 sc=json.loads(r["content"][1]["text"])
 assert sc.get("next_read"), "taught next_read, shipped none"
 assert "padding" in r["content"][0]["text"], "taught a PAGE of content, shipped no content"
@@ -3364,8 +3364,8 @@ for name,r in (("served",served),("paged",paged),("index",index)):
     rec=json.loads(c[1]["text"]); assert "observed" in rec, "%s receipt at content[1] carries no observed" % name
 assert served["content"][0]["text"].startswith("==> a.go"), "the served read's content[0] is not the served text"
 assert served.get("isError") is not True, "a two-line served read read as an error"
-assert paged.get("isError") is True and json.loads(paged["content"][1]["text"]).get("next_read"), "the page names no next_read at content[1]"
-assert index.get("isError") is True and json.loads(index["content"][1]["text"]).get("index"), "the index carries no entries at content[1]"
+assert paged.get("isError") is not True and json.loads(paged["content"][1]["text"]).get("next_read"), "ADR-024: the page is flagged an error, or names no next_read at content[1]"
+assert index.get("isError") is not True and json.loads(index["content"][1]["text"]).get("index"), "ADR-024: the index is flagged an error, or carries no entries at content[1]"
 tools={t["name"]:t for t in listed["tools"]}
 assert "outputSchema" not in tools["mrw_read"], "mrw_read declares an outputSchema it never fulfils"
 assert "outputSchema" in tools["mrw_write"], "mrw_write lost its outputSchema"
