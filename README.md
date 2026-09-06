@@ -14,15 +14,13 @@ own total; every row is green on the tree the tag is cut from. A break campaign 
 (`scripts/break-campaign.sh`, its run in `docs/break/`) against main `03feb92` — the tree the
 binary is built from — found no silent wrong write, every refusal in it names its reason, and
 every probe's outcome is identical to the v1.1.0 run against `d6c62e7`.
-binary is built from, since nothing after it is Go — found no silent wrong write, and every refusal
-in it names its reason. And the served-size curve is measured rather than asserted: a strong client
+And the served-size curve is measured rather than asserted: a strong client
 at the ceiling on the fixture built to be failed (reading 3), the one recurring miss identified as a
 row index (reading 5), the weaker client at the ceiling once the served text reached it without
 a second number that reads as a line address (readings 8, 9, 10), that number put back
 bringing the miss back in five of fifteen trials (reading 11), and the ceiling holding on a
 thirteen-service fixture (reading 17) and for a client from a second vendor (reading 16); the
 section *Does serving more hurt?* has the numbers and their limits.
-Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
 Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
 tools — changes only through a record, and a record that relaxes or replaces an earlier promise
 retires it. **Since v1.0.0 that has happened twice, both on the MCP surface and neither on the CLI:**
@@ -36,8 +34,9 @@ ADR-024 retires the clause of ADR-014's Decision 2 that marked a page `isError: 
 matching assertion in ADR-017's Enforced-by test, so **an `mrw_read` answer that SERVED something no
 longer sets `isError`** — a page, an oversized grep index, and a read that served content beside a
 path it could not use. A refusal that served nothing still carries the flag. A caller that branched
-on `isError` to notice a partial answer branches on the absence of `next_read` instead, which was
-always the documented exit condition; the page still says what it is in its served text, with
+on `isError` to notice a partial answer branches on the PRESENCE of `next_read` instead — its
+absence is how you know you have the whole file, which was always the documented exit condition. The
+page still says what it is in its served text too, with
 `-- PARTIAL: lines N-M of T. K line(s) remain.` Why it changed is measured rather than argued: with
 the flag set, a host truncated a 152,594-character page to about 150 of its 2,380 lines before the
 model saw it, while the ledger recorded the whole page and licensed a write to a line nobody had
