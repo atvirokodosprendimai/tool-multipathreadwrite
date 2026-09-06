@@ -104,6 +104,7 @@ go test ./internal/mcp/ -run 'TestAPageIsKnownByItsServedText' -count=1 2>&1 | t
 - 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/tools.go` · empties the continuation spec a page names in content[1] · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the next_read field in content[1]
 - 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/tools.go` · drops the flag from a genuine refusal · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:errorResult keeping its flag
 - 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/tools.go` · stops a served answer naming the path it could not use · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the per-path -- <path>: <reason> lines in content[0]
+- 2026-09-06 · 5165802 · mutant killed · exit 1 · `internal/mcp/tools.go` · breaks ONLY the remaining-count half of the PARTIAL notice, leaving the -- PARTIAL: marker intact, so it isolates the assertion added in response to the second review rather than letting it inherit proof from the marker mutant · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the -- PARTIAL: notice in content[0]
 
 ## Invariants
 
@@ -171,3 +172,4 @@ and the record must be revised rather than the test relaxed.
 - 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:5796
 - 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:8179
 - 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:8477
+- 2026-09-06 · 5165802 · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:5205
