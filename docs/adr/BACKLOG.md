@@ -789,25 +789,40 @@ re-measuring these. Each was driven at the built binary, not read:
   that observation is ≈8,860 — which the observation itself corroborates, since 174 delivered lines
   at ~55 characters each is ≈9,600. It was one result either way, never a measured boundary.
 
-  A counter-observation, 2026-09-06, Claude Code **2.1.263**, main session (Opus, 1M context): a
-  bare-path `mrw_read` of a 116,736-byte, 2,048-line fixture was delivered **whole** — every line,
-  no marker — and `mrw seen` recorded the whole file, correctly. So the truncation is **not** a low
-  fixed cap on this host, and the two observations differ in more than size: reading 18's ran in a
-  **`claude-haiku-4-5` subagent** on **2.1.261**. That the threshold may scale with the CONSUMING
-  session's context rather than being a host constant is the most useful open question here, and it
-  is untested. The hard part is unchanged: mrw cannot observe this from inside the server — a
-  truncated result and a delivered one are identical to it — so any fix is a design question (lower
-  `MaxResultChars`, page to a size a host will deliver, or record the ledger from something other
-  than what was sent) and needs a record rather than a patch.
+  **What triggers it is the PAGED SHAPE, not the size. Measured 2026-09-06 on Claude Code 2.1.263,
+  `claude-haiku-4-5` subagents, one bare-path `mrw_read` per fixture:**
 
-  Nor is the defect confined to the PAGING path, though that is where it was caught. mrw records
-  what it served on every read; a result under the cap that pages not at all is truncated by the
-  same mechanism if it exceeds whatever the consuming session will take, with no `-- PARTIAL:` and
-  nothing to warn anyone. That is reasoning from the mechanism, NOT a measurement — the 117 KB probe
-  above did not reach the threshold, so it neither confirms nor refutes it. The probe that would
-  settle it: read a file just over the threshold in a small-context subagent without triggering
-  mrw's own cap, then try to write to a line in the discarded middle.
-  rather than a patch. Reading 20 measured the same arm at 2 KB and 20 KB, where no paging and no
+  | fixture | served chars | mrw paged? | host truncated? |
+  |---|---|---|---|
+  | 2,048 lines | 131,136 | no | no |
+  | 2,560 lines | 163,904 | no | no |
+  | 3,072 lines | **196,672** | no | **no** |
+  | 3,328 lines | 213,056 → page of **152,320** | yes | **YES** |
+  | 4,437 lines | 284,032 → page of ~152,000 | yes | **YES** |
+
+  A 196,672-character ordinary result arrived WHOLE. A 152,320-character PAGED result was gutted —
+  44,000 characters smaller, and it is the one that was cut. So size does not explain it, and neither
+  does the consuming model: the same Haiku subagents took the larger result intact. What the cut
+  results have in common is that ADR-014 marks a page with **`isError: true`** and a `-- PARTIAL:`
+  notice. Hosts truncate error-flagged tool results aggressively, keeping a head and a tail: the
+  remnant here was ~150 lines ≈ 9,600 characters, and reading 18's was 174 lines ≈ 9,600, two CLI
+  versions apart.
+
+  **So the trigger is in our own code, not only in the host's.** The leading hypothesis is that
+  `isError: true` on a SUCCESSFUL partial read is the collision: the flag means "this call failed" to
+  a host, while ADR-014 uses it to mean "there is more". It is a hypothesis and NOT yet tested — the
+  test is to build mrw with the paging path returning `isError: false`, restart the MCP server, and
+  re-run the table above. That could not be done in the measuring session, because replacing the
+  binary does not affect an already-running server.
+
+  If it holds, the fix is small and is ours, and the three earlier candidates (lower
+  `MaxResultChars`, page to a size a host will deliver, record the ledger from something the client
+  echoes back) are no longer the only options. **The ledger premise is still worth fixing on its own
+  merits** — mrw cannot observe truncation from inside the server, a cut result and a whole one being
+  identical to it — and `anchor=` is already an echo-back the write path could require, since a
+  caller that never saw a line cannot reproduce its text.
+
+  Reading 20 measured the same arm at 2 KB and 20 KB, where no paging and no
   truncation occur, and found 30 of 30 (`docs/curve/reading-20-result.md`); readings 12, 18 and 19
   voided on the way there. So the arm is measured BELOW the truncation point and unmeasurable AT it:
   the 200 KB case is this entry, and it is a defect rather than a rate.
