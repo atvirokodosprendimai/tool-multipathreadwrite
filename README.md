@@ -43,6 +43,7 @@ model saw it, while the ledger recorded the whole page and licensed a write to a
 seen; with the flag absent, the same page arrives whole.
 
 `mrw_write` is untouched by both, and so is every CLI behaviour.
+
 Install it with one command — see [Install](#install) for the details:
 
 ```sh
