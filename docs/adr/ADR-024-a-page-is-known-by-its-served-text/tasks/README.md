@@ -19,7 +19,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | A partial answer announces itself in the served text and is not flagged an error | done | — | `set -o pipefail; go test ./internal/mcp/ -run 'TestAPageIsKnownByItsServedText' -count=1 2>&1 \| tee /tmp/adr024-t1.out && ! grep -qE "no tests to run\|^FAIL\|^--- FAIL" /tmp/adr024-t1.out && go test ./internal/mcp/... -count=1 && gofmt -l internal/mcp && go vet ./internal/mcp/...` |
-| T2 | The contract drives a paged read through the built server and fails if it is flagged | pending | — | `set -o pipefail; grep -q '^# 62\. ' scripts/contract.sh && ./scripts/contract.sh` |
+| T2 | The contract drives a paged read through the built server and fails if it is flagged | done | — | `set -o pipefail; grep -q '^# 62\. ' scripts/contract.sh && ./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

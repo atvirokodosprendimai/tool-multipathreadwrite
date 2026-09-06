@@ -3491,6 +3491,42 @@ opid=$(cat "$WORK/probe2" 2>/dev/null)
   && ok "INT to the wrapper is forwarded: the nested runner ended 143 in ${el}s and its orphan with it" \
   || bad "INT to the wrapper: exit $rc after ${el}s, orphan '${opid:-?}' $(kill -0 "${opid:-999999999}" 2>/dev/null && echo alive || echo gone)"
 kill "${opid:-999999999}" 2>/dev/null; kill -- -"$(cat "$WORK/probe2.runner" 2>/dev/null || echo 999999999)" 2>/dev/null; true
+
+# 62. ADR-024 T2: an answer that SERVED something is not flagged an error, and a
+# refusal still is.
+#
+# A unit test proves the function; it cannot prove the SHIPPED server returns it.
+# The pairing is the whole point: a row asserting only the ABSENCE of a flag
+# would pass against a server that had stopped flagging everything, refusals
+# included, which is a different defect wearing this fix's face.
+#
+# Measured 2026-09-06 on Claude Code 2.1.263 — the same 152,594-character page
+# reached a consumer GAPPED with isError set (line 78, then line 2309 of 2,380)
+# and CONTINUOUS without it. This row cannot see the host, only what the binary
+# sends, so it pins the half that is ours.
+fixture
+python3 -c "
+with open('$R/pager.go','w') as f:
+    f.write('package demo\n')
+    for i in range(9000): f.write('// padding padding padding padding padding %06d\n' % i)
+"
+# ⚠ THROUGH FILES, NOT ARGV — the page is ~156 KB and Linux caps one argument at
+# 131,072 bytes (MAX_ARG_STRLEN). The same trap §48 records.
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["pager.go"]}}}\n' | m mcp 2>/dev/null > "$WORK/p62.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"],"exclude":["x"]}}}\n' | m mcp 2>/dev/null > "$WORK/r62.json"
+python3 - "$WORK/p62.json" "$WORK/r62.json" <<'PY'
+import json,sys
+page=json.load(open(sys.argv[1]))["result"]
+ref=json.load(open(sys.argv[2]))["result"]
+assert page.get("isError") is not True, "the built server flags a PAGE as an error; a host then discards its middle"
+txt=page["content"][0]["text"]
+assert "-- PARTIAL:" in txt, "the page does not say it is partial in the served text, which is now the only place it says so"
+assert "line(s) remain" in txt, "the page's notice does not say how much remains"
+assert json.loads(page["content"][1]["text"]).get("next_read"), "the page names no next_read, so a caller cannot continue"
+assert ref.get("isError") is True, "a refusal that served NOTHING lost its flag; without this pair the row would pass against a server that flags nothing at all"
+PY
+[ $? -eq 0 ] && ok "the built server sends a page unflagged and saying so in its own text, and still flags a refusal" \
+             || bad "the shipped paging or refusal shape is not what ADR-024 decided"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

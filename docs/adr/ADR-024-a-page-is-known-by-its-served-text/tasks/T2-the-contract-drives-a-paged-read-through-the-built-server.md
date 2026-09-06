@@ -8,7 +8,7 @@
 **Consumes:** `pagedResult()` and `indexResult()` return `isError` absent (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the absence of isError in the server's JSON-RPC reply`, `the -- PARTIAL: notice in the reply's content[0]`, `the built binary rather than a package-level call`
+**Rests-on:** `the absence of isError in the server's JSON-RPC reply`, `the -- PARTIAL: notice in the reply's content[0]`, `errorResult still flagging a refusal`, `the built binary rather than a package-level call`
 
 ## Goal
 
@@ -55,6 +55,10 @@ grep -q '^# 62\. ' scripts/contract.sh \
 
 ## Mutation Log
 
+- 2026-09-06 · 69b5f07* · mutant killed · exit 1 · `internal/mcp/tools.go` · restores the flag on a page in the BUILT binary; §62 must go red, which is what distinguishes this row from the package-level test · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:the absence of isError in the server's JSON-RPC reply
+- 2026-09-06 · 69b5f07* · mutant killed · exit 1 · `internal/mcp/tools.go` · drops the flag from a refusal in the BUILT binary; §62 must go red, which is what stops the row passing against a server that flags nothing at all · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:errorResult still flagging a refusal
+- 2026-09-06 · 69b5f07* · mutant killed · exit 1 · `internal/mcp/tools.go` · lowercases the notice the page carries in content[0]; §62 must go red because that text is the only place a paged reply now says it is partial · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:the -- PARTIAL: notice in the reply's content[0]
+
 ## Invariants
 
 - §62 drives `$MRW`, the built binary, never a Go test helper. That is the whole reason the row exists.
@@ -65,6 +69,7 @@ grep -q '^# 62\. ' scripts/contract.sh \
 
 - The fixture must be large enough to page on any machine that runs the contract. Mitigated: paging is triggered by `MaxResultChars`, a compile-time constant, not by anything host- or machine-dependent, so a fixture sized against it pages deterministically.
 - The row could pass against a server that never sets `isError` at all. Mitigated: S4 pairs it with a refusal that must still be flagged.
+- `the built binary rather than a package-level call` is declared in **Rests-on:** and carries NO bound mutant, deliberately. It is a property of how this row is written — it drives `$MRW` through `m mcp` — not a mechanism in the source, so every mutation that would break it also breaks the package-level test and proves nothing about the distinction. Declared anyway, so the gate reports one mechanism nothing has shown can fail rather than the record claiming coverage it does not have.
 
 ## Stop Condition
 
@@ -78,3 +83,9 @@ task and is ADR-010's territory.
 - The ledger premise (deferred: `docs/adr/BACKLOG.md` under ADR-023)
 
 ## Verification Log
+- 2026-09-06 · 69b5f07 · exit 1 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:28
+  ```
+  ```
+- 2026-09-06 · 69b5f07* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:21659
+- 2026-09-06 · 69b5f07* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:21974
+- 2026-09-06 · 69b5f07* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:22216
