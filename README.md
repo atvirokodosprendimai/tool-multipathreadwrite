@@ -23,7 +23,7 @@ thirteen-service fixture (reading 17) and for a client from a second vendor (rea
 section *Does serving more hurt?* has the numbers and their limits.
 Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
 tools — changes only through a record, and a record that relaxes or replaces an earlier promise
-retires it. **Since v1.0.0 that has happened twice, both on the MCP surface and neither on the CLI:**
+retires it. **Since v1.0.0 that has happened three times, all on the MCP surface and none on the CLI:**
 
 ADR-023 retires half of ADR-011's T2, so `mrw_read` returns no `structuredContent` and declares no
 `outputSchema`; its receipt is the second text block, unchanged in shape. A caller that read
@@ -42,7 +42,18 @@ the flag set, a host truncated a 152,594-character page to about 150 of its 2,38
 model saw it, while the ledger recorded the whole page and licensed a write to a line nobody had
 seen; with the flag absent, the same page arrives whole.
 
-`mrw_write` is untouched by both, and so is every CLI behaviour.
+ADR-025 narrows that last clause. The served-read return had been left flagging nothing at all, so a
+read whose every path was unusable came back with the key absent while the same emptiness reached
+through `grep` came back flagged — what decided was whether `grep` was passed, not what the caller
+received. **An `mrw_read` on the served-read path that served NOTHING now sets `isError: true`.**
+A `grep` that searched successfully and matched nothing is not that shape and is not flagged: it
+answered the question, and it returns before this path.
+An answer that served anything is unchanged, and that includes the two shapes it is easy to
+mistake for emptiness: a range that matches no line, and an empty file. Both are still OBSERVED — mrw
+opened them and recorded their sha — so both stay unflagged, and the observation count rather than the
+problem count is what separates them.
+
+`mrw_write` is untouched by all three, and so is every CLI behaviour.
 
 Install it with one command — see [Install](#install) for the details:
 

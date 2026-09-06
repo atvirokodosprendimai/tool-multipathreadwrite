@@ -24,7 +24,7 @@ server that ships rather than of the function alone.
 ## Ordered Steps
 
 1. [S1] Confirm §63 is unused — `grep -c '^# 63\. ' scripts/contract.sh` returns 0 — before writing the fence that greps for it, so the clause is red at authoring time. [proof: acceptance]
-2. [S2] Write §63. It drives `mrw_read` three times through `m mcp` against a fixture root and asserts the PAIRING: `specs: ["nope_dir"]` comes back `isError: true` AND still carries `-- nope_dir:` with its reason in `content[0]`; `specs: ["a.go"]` comes back with the key ABSENT; and `specs: ["a.go", "nope_dir"]` comes back with the key ABSENT, which is ADR-024's member and the case a careless `problems > 0` would break. [proof: mutation]
+2. [S2] Write §63. It drives `mrw_read` three times through `m mcp` against a fixture root and asserts the PAIRING: `specs: ["nope_dir"]` comes back `isError: true` AND still carries an `==> nope_dir  UNREADABLE  <reason>` record in `content[0]`; `specs: ["a.go", "nope_dir"]` comes back with the key ABSENT, which is ADR-024's member; and `specs: ["a.go:99"]`, a range that matches no line, comes back with the key ABSENT, which is the case a careless `problems > 0` would break. [proof: mutation]
 3. [S3] Pass the JSON through files rather than argv, as §48 and §62 record — Linux caps one argument at 131,072 bytes and a served page exceeds it. [proof: acceptance]
 4. [S4] Run the whole contract script and confirm exit 0 with §62 still passing beside the new row. [proof: acceptance]
 
@@ -66,7 +66,7 @@ grep -q '^# 63\. ' scripts/contract.sh \
 
 ## Risks
 
-- The row could assert only the flag and not the surviving report text, which would let a change that flags the result and drops its reasons pass. Mitigated: S2 asserts `-- nope_dir:` is still in `content[0]` of the flagged result.
+- The row could assert only the flag and not the surviving report text, which would let a change that flags the result and drops its reasons pass. Mitigated: S2 asserts the `==> nope_dir  UNREADABLE  <reason>` record is still in `content[0]`, matched as a record with a non-empty reason rather than as the substring `nope_dir` — the substring form accepted a response naming the path and nothing else, and the Codex review of #123 demonstrated exactly that.
 
 ## Stop Condition
 
@@ -82,3 +82,5 @@ scope is wrong rather than the row.
 - 2026-09-06 · d8a1d0f* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5bc10e98b19e16c662552383fec67106a9f7755d817b90c315dc7e22b026c0e · ms:22848
 - 2026-09-06 · d8a1d0f* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5bc10e98b19e16c662552383fec67106a9f7755d817b90c315dc7e22b026c0e · ms:20594
 - 2026-09-06 · d8a1d0f* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5bc10e98b19e16c662552383fec67106a9f7755d817b90c315dc7e22b026c0e · ms:26266
+- 2026-09-06 · b5b7d2e* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5bc10e98b19e16c662552383fec67106a9f7755d817b90c315dc7e22b026c0e · ms:24174
+- 2026-09-06 · b5b7d2e* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5bc10e98b19e16c662552383fec67106a9f7755d817b90c315dc7e22b026c0e · ms:22157

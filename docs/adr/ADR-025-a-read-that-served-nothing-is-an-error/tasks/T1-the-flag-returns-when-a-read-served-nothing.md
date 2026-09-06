@@ -19,7 +19,7 @@ served-read return agrees with the walk branch that already does.
 
 | File | Change | Why |
 |------|--------|-----|
-| `internal/mcp/tools.go` | edit | The served-read return at `:320` passes `len(observed) == 0` instead of `false`. This is the whole change. `errorResult`, `pagedResult`, `indexResult` and the `:202` branch are NOT touched. |
+| `internal/mcp/tools.go` | edit | THREE return sites, not one. (a) The served-read return passes `len(observed) == 0` instead of `false` — the change the test covers. (b) `servedOrIndex`'s encoded-size probe passes the same expression: it hardcoded `false` while its comment claimed to measure the shape actually sent, which stopped being true the moment (a) landed, and a served-nothing answer encodes 15 bytes larger. (c) `firstPage` declines to page when its second read observed nothing, so a file that vanished between the line count and the re-read yields the ordinary flagged refusal instead of a fabricated `-- PARTIAL:` notice. `errorResult`, `pagedResult`, `indexResult` and the `:202` branch are NOT touched. (b) and (c) were found by the Codex review of #123. |
 | `internal/mcp/tools_test.go` | edit | `TestAReadThatServedNothingIsAnError` is added here. It is what SELECTS the new condition — the only test that reaches the served-read return with an empty `observed`. |
 
 ## Ordered Steps
@@ -28,7 +28,9 @@ served-read return agrees with the walk branch that already does.
 2. [S2] Change the served-read return at `internal/mcp/tools.go:320` from `false` to `len(observed) == 0`, and say in the comment that the observation count is the whole test — a spec that served no lines is still observed, so this cannot catch an empty file or a missed range. [proof: mutation]
 3. [S3] Confirm ADR-024's own test is still green untouched: `TestAPageIsKnownByItsServedText`'s four members all served something, so none of them may change. [proof: acceptance]
 4. [S4] Confirm the walk branch is untouched by running `TestAWalkProblemIsReportedAndNotSwallowed` and `TestAWalkProblemSurvivesAValidSibling` — the first takes `:202` and keeps its flag, the second serves a sibling and keeps none. [proof: acceptance]
-5. [S5] Run the whole package, gofmt and vet, and confirm the engine packages are byte-identical against the merge base. [proof: acceptance]
+5. [S5] Pass the same `len(observed) == 0` to `servedOrIndex`'s size probe, and correct the comment that claimed a hardcoded `false` matched the shape being sent. [proof: human: read the probe call beside the served-read return and confirm both pass the same expression; the two must agree by construction, and no hermetic test reaches the 15-byte band where the verdict differs]
+6. [S6] Make `firstPage` return `false` when its second read observed nothing, so the caller falls through to the flagged refusal rather than constructing a page for content nobody received. [proof: human: read the guard against the `countFileLines` call above it; the window is a filesystem race between the count and the re-read, which cannot be produced hermetically, so no test in this package can reach it]
+7. [S7] Run the whole package, gofmt and vet, and confirm the engine packages are byte-identical against the merge base. [proof: acceptance]
 
 ## Acceptance
 
@@ -116,3 +118,5 @@ the Decision's falsifiability paragraph rather than the test.
 - 2026-09-06 · d8a1d0f* · exit 0 · `set -o pipefail …` · acceptance-sha256:fef6f4f3f7c03f715e468566ee1c1e6a8d51bc452ab0af20ee3f90cf2e144c66 · ms:5680
 - 2026-09-06 · d8a1d0f* · exit 0 · `set -o pipefail …` · acceptance-sha256:fef6f4f3f7c03f715e468566ee1c1e6a8d51bc452ab0af20ee3f90cf2e144c66 · ms:5664
 - 2026-09-06 · d8a1d0f* · exit 0 · `set -o pipefail …` · acceptance-sha256:fef6f4f3f7c03f715e468566ee1c1e6a8d51bc452ab0af20ee3f90cf2e144c66 · ms:5448
+- 2026-09-06 · b5b7d2e* · exit 0 · `set -o pipefail …` · acceptance-sha256:fef6f4f3f7c03f715e468566ee1c1e6a8d51bc452ab0af20ee3f90cf2e144c66 · ms:6165
+- 2026-09-06 · b5b7d2e* · exit 0 · `set -o pipefail …` · acceptance-sha256:fef6f4f3f7c03f715e468566ee1c1e6a8d51bc452ab0af20ee3f90cf2e144c66 · ms:6207

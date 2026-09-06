@@ -1,4 +1,4 @@
-# ADR-025: A read that served nothing is an error, whichever path produced it
+# ADR-025: A read that served nothing is an error, on the path that serves
 
 **Status:** Accepted
 **Date:** 2026-09-06
@@ -74,11 +74,17 @@ makes the `:202` and `:320` paths agree so that passing `grep` no longer decides
 look" is an error.
 
 The condition is the observation count alone, and that is a correction to this record's first draft,
-which conjoined `problems > 0` and justified it with two examples that do not hold. A read of an
-empty file, and a range that matches nothing, both COUNT a problem and are excluded because they are
-observed; and on this path `len(observed) == 0` already implies `problems > 0`, because a read naming
-no spec at all is refused earlier at `:158` and never reaches here. The conjunct could therefore
-never discriminate, and no mutation could kill it.
+which conjoined `problems > 0` and justified it with two examples that do not hold. An empty file
+ADDRESSED BY A RANGE, and a range that matches nothing, both COUNT a problem and are excluded because
+they are observed — the range is load-bearing in that sentence, because a bare `specs: ["empty.txt"]`
+counts zero problems and is excluded by the observation alone;
+observed; and on this path `len(observed) == 0` already implies `problems > 0`. A read naming no spec
+is refused at `:158` only when it also passes no `grep` — with `grep` the walk starts at the root —
+and a clean grep that matched nothing answers earlier at `:202`, so neither shape arrives here with
+an empty map and no problem. The conjunct could therefore never discriminate, and no mutation could
+kill it. (The first draft stated that proof as "no spec is refused at `:158`" without the `grep`
+qualifier, which is false on its own terms; the conclusion survives, the stated proof did not. Found
+by the Codex review of #123.)
 
 **What would make this decision fail:** a host that discards the content of a flagged result, on an
 answer whose content is worth reading. The served-nothing answer's whole value is its `-- <path>:
@@ -144,6 +150,7 @@ See `docs/adr/ADR-025-a-read-that-served-nothing-is-an-error/tasks/README.md`.
 
 ## Out of Scope
 
+- The walk's CLEAN no-match: `grep` that searched successfully and matched nothing (permanent: boundary: it serves nothing and is not flagged, measured 2026-09-06 as `observed 0, problems 0, isError absent`, and it returns at `:202` before the served-read path — a completed search that found no matches has ANSWERED the question, which is a different thing from having none of what was asked, so flagging it would be a different decision than the one argued here. This bullet exists because the record's first draft said "whichever path produced it", which that one call falsifies; the title is narrowed to the served-read path and the code is unchanged. Found by the review of #123.)
 - The `:202` walk branch's own flag, which already behaves this way (permanent: boundary: this record removes the disagreement by changing the side that is wrong, and ADR-024 deliberately left that branch alone)
 - A read that serves no LINES but whose file was observed — an empty file, a range that matches nothing (permanent: boundary: `internal/read` notes the file and counts a problem, so the caller learned the file exists and its sha; flagging it would widen this record from "you got nothing" to "you got fewer lines than you asked for", which is a different decision)
 - The read-before-modify ledger recording what was SENT rather than what was SEEN (deferred: `docs/adr/BACKLOG.md` under ADR-023)
@@ -155,7 +162,7 @@ See `docs/adr/ADR-025-a-read-that-served-nothing-is-an-error/tasks/README.md`.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | A host discards the report text of a flagged result, losing the per-path reasons | Low | Med | The answer is a few hundred characters against a measured truncation threshold two orders of magnitude higher; §63 asserts the reasons are still in `content[0]` of the flagged result |
-| The condition catches a shape that legitimately serves nothing | Low | Med | Conjunctive on `problems > 0`; T1's test pairs a wholly-unusable read against a served read and against a zero-problem read |
+| The condition catches a shape that legitimately serves nothing | Low | Med | T1's test pairs a wholly-unusable read against a served sibling, a missed range and an empty file, so a condition that caught any of the three goes red; the observation count is what separates them, and `internal/read` notes every file it opened |
 | The change is read as reverting ADR-024 | Med | Low | The Invalidates header names the single clause and the single case; ADR-024's four enumerated members are asserted unchanged in the same test and in §62, which stays |
 
 ## Rollback

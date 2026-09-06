@@ -1104,9 +1104,12 @@ func TestAReadThatServedNothingIsAnError(t *testing.T) {
 		t.Error("a read that served nothing is not marked isError; the caller got none of what it asked for and cannot tell that from the envelope")
 	}
 	// Flagging it must not be traded for dropping the report: the per-path reason
-	// is the whole value of an answer that carries no content.
-	if all := served0(t, nothing); !strings.Contains(all, "nope_dir") {
-		t.Errorf("the flagged result does not name the path it could not use: %q", all)
+	// is the whole value of an answer that carries no content. Asserting the
+	// RECORD and a non-empty reason, not the substring: a response carrying only
+	// the word "nope_dir" passed the substring form, which is the hollow-fixture
+	// shape this record was written about. Found by the Codex review of #123.
+	if all := served0(t, nothing); !regexp.MustCompile(`(?m)^==> nope_dir\s+UNREADABLE\s+\S`).MatchString(all) {
+		t.Errorf("the flagged result does not carry an UNREADABLE record with a reason for the path it could not use: %q", all)
 	}
 
 	// 2. ADR-024's member, and the reason this test cannot be satisfied by a

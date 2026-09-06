@@ -1,6 +1,6 @@
 # ADR-025 Tasks
 
-Implementation tasks for ADR-025: A read that served nothing is an error, whichever path produced it.
+Implementation tasks for ADR-025: A read that served nothing is an error, on the path that serves.
 See the parent ADR for the decision.
 
 **Source of truth:** the task files' `Depends-on` / `Produces` / `Consumes` / `Covers` headers.

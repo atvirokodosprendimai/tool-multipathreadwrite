@@ -3538,7 +3538,7 @@ PY
 [ $? -eq 0 ] && ok "the built server sends a page unflagged and saying so in its own text, and still flags a refusal" \
              || bad "the shipped paging or refusal shape is not what ADR-024 decided"
 
-# 63. ADR-025: a read that served NOTHING is an error, whichever path produced it.
+# 63. ADR-025: a read that served NOTHING is an error, on the path that serves.
 #
 # ADR-024 stopped an answer that SERVED something from claiming to be a failure,
 # and left this return passing an unconditional false — which also covered the case
@@ -3561,7 +3561,8 @@ sib=json.load(open(sys.argv[2]))["result"]
 miss=json.load(open(sys.argv[3]))["result"]
 assert nothing.get("isError") is True, "the built server does not flag a read that served NOTHING; the caller got none of what it asked for and cannot tell that from the envelope"
 txt=nothing["content"][0]["text"]
-assert "nope_dir" in txt, "the flagged result does not name the path it could not use; flagging an answer must not be traded for dropping the only thing it carries"
+import re
+assert re.search(r"(?m)^==> nope_dir\s+UNREADABLE\s+\S", txt), "the flagged result does not carry an UNREADABLE record with a reason; flagging an answer must not be traded for dropping the only thing it carries, and a substring check would accept a response naming the path and nothing else"
 assert "isError" not in sib, "the built server flags a read that served a good sibling; ADR-024 removed the flag from answers that delivered something and ADR-025 does not restore it"
 assert "isError" not in miss, "the built server flags a range that matched no line in a file it OBSERVED; the observation count is the test, never the problem count"
 PY
