@@ -1,8 +1,10 @@
 package read
 
 import (
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -569,5 +571,62 @@ func TestARelativeEndOfZeroIsRefused(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "+0") {
 		t.Errorf("the refusal does not name what was written: %v", err)
+	}
+}
+
+// THE REPRODUCER FROM THE SECOND REVIEW, ON THE PATH IT WAS FOUND ON. The
+// existing boundary test builds an apply.Input, so neither read branch was
+// reached by it — a regression fixture that describes the defect without
+// executing it, which is the failure mode testing.md names. `/two/,+MaxInt`
+// printed `@@ 2--9223372036854775807` and served nothing at exit 0.
+func TestARelativeEndAtTheIntegerBoundaryClampsOnARead(t *testing.T) {
+	root, opt := fixture(t)
+	for _, spec := range []string{
+		"a.go:/func Foo/,+" + strconv.Itoa(math.MaxInt), // the pattern branch: no end<start net beneath it
+		"a.go:3,+" + strconv.Itoa(math.MaxInt),          // the numeric branch, which had one by accident
+	} {
+		out, problems := run(t, root, opt, spec)
+		if problems != 0 {
+			t.Errorf("%s: problems=%d, want 0 — a relative end past EOF clamps on a read\n%s", spec, problems, out)
+		}
+		if !strings.Contains(out, "@@ 3-9") {
+			t.Errorf("%s did not clamp to the last line:\n%s", spec, out)
+		}
+		if strings.Contains(out, "--") {
+			t.Errorf("%s produced an inverted span, so the end wrapped:\n%s", spec, out)
+		}
+	}
+}
+
+// -C is the same arithmetic one line away, and the flag refuses only a NEGATIVE
+// value, so a caller can reach it. It printed `@@ 1--9223372036854775807`.
+func TestContextAtTheIntegerBoundaryClamps(t *testing.T) {
+	root, opt := fixture(t)
+	out, problems := run(t, root, Options{Numbers: opt.Numbers, Context: math.MaxInt}, "a.go:/func Foo/")
+	if problems != 0 {
+		t.Fatalf("problems=%d, want 0\n%s", problems, out)
+	}
+	if !strings.Contains(out, "@@ 1-9") {
+		t.Errorf("a huge -C did not clamp to the whole file:\n%s", out)
+	}
+	if strings.Contains(out, "--") {
+		t.Errorf("a huge -C produced an inverted span, so the end wrapped:\n%s", out)
+	}
+}
+
+// A pattern whose body ends in a literal backslash: the closing slash is NOT
+// escaped, because the backslash before it is itself escaped. All three
+// scanners tested only the preceding byte and read this as unclosed.
+func TestAPatternEndingInABackslashIsClosed(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "b.txt"), []byte("a\\b\nplain\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, problems := run(t, root, Options{Numbers: true}, `b.txt:/\\/,+1`)
+	if problems != 0 {
+		t.Fatalf("problems=%d, want 0 — a pattern ending in a backslash is closed\n%s", problems, out)
+	}
+	if !strings.Contains(out, "@@ 1-2") {
+		t.Errorf("the pattern did not resolve to its match plus one:\n%s", out)
 	}
 }

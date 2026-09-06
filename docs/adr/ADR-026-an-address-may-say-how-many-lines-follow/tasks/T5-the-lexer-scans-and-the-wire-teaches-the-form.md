@@ -115,7 +115,7 @@ go test ./internal/addr/ ./internal/apply/ -count=1 -v \
 ## Invariants
 
 - The instructions stay within 4096 bytes: room is made by compressing prose, never by raising the bound. Its own test says so.
-- Every phrase another contract section asserts about the wire survives — the one-spelling rule was compressed away once and §NN caught it in the same run.
+- Every phrase another contract section asserts about the wire survives — the one-spelling rule was compressed away once and §57 caught it in the same run.
 - `delete` still takes a relative end at both the parser and the engine boundary.
 - A read still clamps; only the write path refuses.
 - `internal/seen`, `internal/check` and `internal/state` stay byte-identical against the merge base, and `go.mod` declares exactly one requirement.

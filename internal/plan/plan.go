@@ -406,8 +406,14 @@ func splitHeader(s string) ([]string, error) {
 	for i := 0; i < len(rs); i++ {
 		r := rs[i]
 		switch {
-		case inPat && r == '\\' && i+1 < len(rs) && rs[i+1] == '/':
-			// \/ is a literal slash inside a pattern, not its terminator.
+		case inPat && r == '\\' && i+1 < len(rs):
+			// An escape inside a pattern consumes the NEXT rune whatever it is,
+			// which is what gives backslash parity for free: `\/` is a literal
+			// slash, and `\\` is a literal backslash whose following slash is a
+			// real delimiter. Testing only for `\/` fired on the SECOND
+			// backslash of `/\\/` and swallowed the closing slash, so the rest
+			// of the header — the op included — was absorbed into the address.
+			// Third Codex review of PR #125.
 			cur.WriteRune(r)
 			cur.WriteRune(rs[i+1])
 			i++
@@ -424,11 +430,19 @@ func splitHeader(s string) ([]string, error) {
 		case r == '/' && !inTok && !inQ:
 			inPat, inTok = true, true
 			cur.WriteRune(r)
-		case r == '\\' && i+1 < len(rs) && (rs[i+1] == '"' || rs[i+1] == '\\'):
+		case !inPat && r == '\\' && i+1 < len(rs) && (rs[i+1] == '"' || rs[i+1] == '\\'):
 			// A backslash escapes a quote or another backslash, so an anchor
 			// can name code that itself contains a quote. Without this the
 			// quote toggles the quoting state and the backslash survives into
 			// the value, producing a guard that matches nothing.
+			//
+			// ⚠ NOT INSIDE A PATTERN. A regex is passed to the engine verbatim,
+			// so unescaping here turned the address `/\\/` — one literal
+			// backslash — into `/\/`, whose final slash then read as escaped
+			// and the pattern as never closed. The read path accepted the same
+			// address, because it does not come through this splitter. Found by
+			// the third Codex review of PR #125, and it is the FOURTH scanner
+			// in this repository that had its own idea of what a pattern is.
 			cur.WriteRune(rs[i+1])
 			inTok = true
 			i++
@@ -460,14 +474,11 @@ func splitHeader(s string) ([]string, error) {
 // matches is useful, apply editing two matches is a bug. ADR-013's exactly-once
 // rule lives in the resolver, not here.
 func parsePattern(s string) (Addr, error) {
-	// Scan to the closing slash, honouring \/ so a pattern may contain one.
-	end := -1
-	for i := 1; i < len(s); i++ {
-		if s[i] == '/' && s[i-1] != '\\' {
-			end = i
-			break
-		}
-	}
+	// Scan to the closing slash with internal/addr's scanner, which counts
+	// backslash PARITY: in `/\\/` the pattern is one literal backslash and the
+	// final slash closes it. Shared so this package, internal/read and
+	// internal/addr cannot disagree about where a pattern ends.
+	end := addr.ClosingDelim(s, 0)
 	if end < 0 {
 		return Addr{}, fmt.Errorf("pattern %q is never closed: expected a second /", s)
 	}

@@ -72,7 +72,7 @@ func singleStart(base, whole string) error {
 	case base == "0" || base == "-":
 		return fmt.Errorf("%q cannot carry a relative end: %s names no line to count from", whole, base)
 	case strings.HasPrefix(base, "/"):
-		end := closingSlash(base)
+		end := ClosingDelim(base, 0)
 		if end < 0 {
 			return fmt.Errorf("%q has an unclosed pattern: expected a second /", whole)
 		}
@@ -97,13 +97,28 @@ func singleStart(base, whole string) error {
 	return nil
 }
 
-// closingSlash returns the index of the slash that closes a pattern opened at
-// index 0, honouring `\/`, or -1 when the pattern is never closed. A substring
-// search cannot do this: in `/a\/,/` the escaped slash makes `/,/` appear where
-// no delimiter is.
-func closingSlash(base string) int {
-	for i := 1; i < len(base); i++ {
-		if base[i] == '/' && base[i-1] != '\\' {
+// ClosingDelim returns the index of the slash that closes a pattern opened at
+// index `open`, or -1 when it is never closed. It is exported because all three
+// scanners in this repository — this package, internal/read's splitRanges and
+// internal/plan's parsePattern — must agree byte for byte about where a pattern
+// ends; two of them disagreeing is how `/a\/,/` became "both an end pattern and
+// a relative end".
+//
+// ⚠ IT COUNTS BACKSLASH PARITY, and `s[i-1] != '\\'` does not. In `/\\/` the
+// pattern is a single literal backslash and the final slash CLOSES it, because
+// the backslash before it is itself escaped. All three scanners tested only the
+// preceding byte, so that address was read as unclosed and a legal regexp was
+// refused. Found by the third Codex review of PR #125.
+func ClosingDelim(s string, open int) int {
+	for i := open + 1; i < len(s); i++ {
+		if s[i] != '/' {
+			continue
+		}
+		back := 0
+		for j := i - 1; j > open && s[j] == '\\'; j-- {
+			back++
+		}
+		if back%2 == 0 {
 			return i
 		}
 	}

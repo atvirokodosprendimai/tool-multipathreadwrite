@@ -9,6 +9,21 @@ README must be regenerated.
 
 ## Execution Order
 
+## Waves
+
+Every task depends on the one before it, so the DAG is a chain and each wave holds one task. That is
+not an accident of scheduling: T1-T3 built the form, and T4, T5 and T6 are three rounds of review
+findings against it, each of which could only be written once the previous round had landed.
+
+| Wave | Tasks | Depends-on |
+|------|-------|------------|
+| 1 | T1 | none |
+| 2 | T2 | T1 |
+| 3 | T3 | T1, T2 |
+| 4 | T4 | T1, T2, T3 |
+| 5 | T5 | T4 |
+| 6 | T6 | T5 |
+
 | Order | Task | Depends-on |
 |-------|------|------------|
 | 1 | T1 | none |
@@ -16,6 +31,7 @@ README must be regenerated.
 | 3 | T3 | T1, T2 |
 | 4 | T4 | T1, T2, T3 |
 | 5 | T5 | T4 |
+| 6 | T6 | T5 |
 
 ## Task Index
 
@@ -26,6 +42,7 @@ README must be regenerated.
 | T3 | The contract drives both paths, and the docs say the form exists | done | — | `grep -q '^# 64\. ' scripts/contract.sh && ./scripts/contract.sh` |
 | T4 | One lexer, and an address no op can half-ignore | done | — | `go test ./internal/addr/ ./internal/plan/ ./internal/apply/ …` |
 | T5 | The lexer scans, and the wire teaches the form | done | — | `go test ./internal/addr/ ./internal/apply/ …` |
+| T6 | One scanner for every delimiter, and no arithmetic that wraps | done | — | `go test ./internal/read/ -run 'IntegerBoundary|BackslashIsClosed' …` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

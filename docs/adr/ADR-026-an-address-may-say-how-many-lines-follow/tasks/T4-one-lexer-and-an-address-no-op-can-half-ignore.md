@@ -12,7 +12,7 @@
 
 ## Goal
 
-Make the two paths recognise and refuse the same address strings **by construction** rather than by
+Make the two paths recognise and refuse the same RELATIVE-END strings **by construction** rather
 assertion, and stop every remaining way a relative end could be parsed and then quietly not honoured.
 
 ## Context this task exists for

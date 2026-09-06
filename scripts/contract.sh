@@ -3777,6 +3777,41 @@ for n in ("mrw_read","mrw_write"):
 PY
 [ $? -eq 0 ] && ok "the MCP wire text teaches the relative end on both tools" \
              || bad "the MCP wire text does not teach the relative end"
+
+# THE INTEGER BOUNDARY, THROUGH THE BUILT BINARY. `i + 1 + N` wraps negative at a
+# large count and printed an INVERTED span — `@@ 2--9223372036854775807` — while
+# serving nothing and exiting 0. Both the relative end and -C reach that
+# arithmetic, and -C only refuses a NEGATIVE value, so a caller can type this.
+# The assertion is the absence of an inverted span AND the presence of real
+# lines: either alone would pass on a tool that had stopped serving anything.
+fixture
+MAXINT=9223372036854775807
+out=$(m read "a.go:/func A/,+$MAXINT" 2>&1); rc=$?
+want 0 "$rc" "a pattern with a relative end at the integer boundary clamps"
+grep -q '@@ 3-5' <<<"$out" && ok "the pattern branch clamps at the last line" || bad "the pattern branch did not clamp: $out"
+grep -q -- '--' <<<"$out" && bad "the pattern branch produced an inverted span, so the end wrapped" || ok "the pattern branch produced no inverted span"
+out=$(m read "a.go:3,+$MAXINT" 2>&1); rc=$?
+want 0 "$rc" "a numeric relative end at the integer boundary clamps"
+grep -q '@@ 3-5' <<<"$out" && ok "the numeric branch clamps at the last line" || bad "the numeric branch did not clamp: $out"
+out=$(m read -C "$MAXINT" 'a.go:/func A/' 2>&1); rc=$?
+want 0 "$rc" "a context at the integer boundary clamps"
+grep -q '@@ 1-5' <<<"$out" && ok "-C clamps to the whole file" || bad "-C did not clamp: $out"
+grep -q -- '--' <<<"$out" && bad "-C produced an inverted span, so the end wrapped" || ok "-C produced no inverted span"
+out=$(printf '@@ a.go 3,+%s replace\nX\n' "$MAXINT" | m write - 2>&1); rc=$?
+want 1 "$rc" "a write refuses a relative end at the integer boundary"
+grep -q 'out of range' <<<"$out" && ok "the write refusal says out of range" || bad "the write refusal is wrong at the boundary: $out"
+
+# A PATTERN ENDING IN A LITERAL BACKSLASH is closed by its next slash, because
+# the backslash before it is itself escaped. All three delimiter scanners tested
+# only the preceding byte and read it as unclosed, refusing a legal address.
+fixture
+printf 'a\\b\nplain\n' > "$R/bs.txt"
+m read bs.txt > /dev/null 2>&1
+out=$(m read 'bs.txt:/\\/,+1' 2>&1); rc=$?
+want 0 "$rc" "a pattern ending in a backslash is closed on the read path"
+grep -q '@@ 1-2' <<<"$out" && ok "the backslash pattern resolves to its match plus one" || bad "the backslash pattern did not resolve: $out"
+out=$(printf '@@ bs.txt /\\\\/,+1 replace\nX\nY\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "a pattern ending in a backslash is closed on the plan path too"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

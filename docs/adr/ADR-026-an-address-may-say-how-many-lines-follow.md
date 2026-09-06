@@ -131,7 +131,11 @@ create a way to gather it; ADR-009 refuses telemetry.
 None — internal to the address parsers. `internal/read` and `internal/plan` each keep one reason to
 change (how a read spec is addressed; how a plan hunk is addressed), and neither gains a dependency
 on the other. The MCP surface parses the same `specs` and `plan` strings through the same two
-functions, so it inherits the form without a change of its own.
+functions, so the FORM cost it no code. It did cost it prose: the initialize
+instructions and both tool descriptions had to be taught the grammar, because an
+MCP caller reads no README and no --help. Recorded here because the first
+draft of this record said the MCP surface needed "no change of its own", and
+two source changes later that was simply false.
 
 ## Wiring & Contract Changes
 
@@ -162,7 +166,7 @@ See `docs/adr/ADR-026-an-address-may-say-how-many-lines-follow/tasks/README.md`.
 - **Negative:** the absolute reading of `+N` is withdrawn. It was undocumented and nobody is known to
   use it, but the withdrawal is real and cannot be detected from a caller's side except by the
   changed receipt.
-- **Neutral:** the MCP surface changes with no code of its own, because it shares both parsers.
+- **Neutral:** the MCP surface needed no ENGINE change, because it shares both parsers — but it did need its wire text taught the grammar, since an MCP caller reads no README and no --help.
 
 ## Out of Scope
 
@@ -181,7 +185,7 @@ See `docs/adr/ADR-026-an-address-may-say-how-many-lines-follow/tasks/README.md`.
 
 ## Rollback
 
-Revert the three commits. mrw keeps no persistent state about address forms — the read-before-modify
+Revert the commits on this branch. mrw keeps no persistent state about address forms — the read-before-modify
 ledger records resolved line numbers, never the address that produced them (`internal/seen`), so a
 ledger written under this ADR stays valid after a revert. A caller's scripts that adopted `,+N` break
 on revert with `bad line number`, which is loud.

@@ -159,11 +159,13 @@ func splitRanges(s string) []string {
 	for i := 0; i < len(s); {
 		switch s[i] {
 		case '/':
-			j := i + 1
-			for j < len(s) && (s[j] != '/' || s[j-1] == '\\') {
-				j++
-			}
-			if j < len(s) {
+			// One scanner for every pattern delimiter in this repository, so
+			// splitRanges and the two parsers cannot disagree about where a
+			// pattern ends (ADR-026, third review of #125).
+			j := addr.ClosingDelim(s, i)
+			if j < 0 {
+				j = len(s)
+			} else {
 				j++ // include the closing slash
 			}
 			cur.WriteString(s[i:j])
@@ -487,8 +489,18 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 				if !r.Re.MatchString(l) {
 					continue
 				}
-				end := i + 1 + ctx
+				// -C is compared before it is added for the same reason the
+				// relative end is: `i + 1 + ctx` OVERFLOWS at a large context
+				// and printed `@@ 1--9223372036854775807` at exit 0, serving
+				// nothing. The context flag only refuses a NEGATIVE value, so a
+				// caller can reach this. Found by the third Codex review of
+				// PR #125, beside the relative end it had just protected.
+				end := total
+				if ctx <= total-(i+1) {
+					end = i + 1 + ctx
+				}
 				if r.RelEnd > 0 {
+					// An explicit relative end overrides -C on the trailing
 					// An explicit relative end overrides -C on the trailing
 					// side: the caller said how many lines they wanted after
 					// the match, which is not a guess about context.
