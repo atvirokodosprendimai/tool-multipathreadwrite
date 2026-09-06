@@ -196,7 +196,9 @@ that counted. Each void is recorded with its observations; none contributes to a
 Two plan files were edited after collection during this series — a wrong count corrected, a dated
 note added — and both edits were reverted at review, because a plan that can be edited whenever the
 edit looks harmless is not a pre-registration. Every plan in the series is byte-identical to the
-commit that added it. Because `main` takes squash merges, the plan-before-trials ordering is
+commit that added it, with one recorded exception: reading 20's plan was amended twice, both times
+**before its first trial**, and both amendments are dated and reasoned in the plan itself.
+Because `main` takes squash merges, the plan-before-trials ordering is
 checkable in the pull requests rather than on `main`: reading 2 in #90, 3 in #96, 4 in #98, 5 in
 #103 (plan commit `e65a684`), 6 to 8 in #104 (`5ebb34d`, `700133e`, `bfc27fa`), 9 in #106
 (`30d5637`). And every rate, interval, offset and pairing in every result document is
@@ -211,12 +213,13 @@ shape not shown, void on format 34 of 45); the strong client sits at the ceiling
 and on a thirteen-service one (reading 17: 45 of 45 through the bare tool result), so its curve
 cannot bend and says nothing about where it would. The
 weaker client's ceiling through a tool result is fifteen of fifteen per tier, whose interval's
-explain. The MCP tool-result path, which carries no outer numbering, was measured by reading 20 at
-2 KB and 20 KB — 30 of 30 — and is unmeasurable at 200 KB on this host, where the host truncates
-mrw's page before the model sees it.
+lower bound is 0.796, not 1. Reading 9's 200 KB tier is reading 8's data, pooled under a plan that
 said so. Readings 10 and 11 separate the gutter from the chunking on fifteen cells each, and
 reading 11's misses fall in one position only, which no plan predicted and this note does not
-explain. The MCP tool-result path, which carries no outer numbering, was not measured.
+explain. The MCP tool-result path, which carries no outer numbering, is measured at 2 KB and 20 KB
+only — reading 20, 30 of 30 — and **cannot be measured at 200 KB on this host at all**: reading 18
+found the host truncating mrw's paged result before the model sees it while the ledger records the
+page whole. That is a defect filed under ADR-023, not a point on this curve.
 
 ## 8. Reproduction
 

@@ -3,7 +3,11 @@
 **Collected 2026-09-06 under `reading-20-plan.md`, committed before any trial ran and amended twice
 before its first trial, both amendments recorded in the plan. Thirty trials, no void, no deviation.**
 
-**30 of 30 correct addresses. 30 of 30 compliant. 0 paged reads. 0 no-answers.**
+**30 of 30 correct addresses. 0 paged reads. Compliance 30 of 30 — three of its four clauses
+computed from committed data, the fourth attested. No retry and no trial without an answer,
+attested.** Under the plan's rule 3 an attested item is an observation reported beside the result,
+never a published number; "What is not reproducible from the committed data" below says which is
+which and why.
 
 This is the first number this corpus has for the MCP delivery arm. Readings 12, 18 and 19 all tried
 and all voided; `reading-12-void.md`, `reading-18-result.md` and `reading-19-void.md` say why.
@@ -26,19 +30,23 @@ were no misses, no `refused_parse` and no `refused_apply`.
 2. **Vacuous.** No miss occurred, so there is no third account to report. The `T + 2` offset that
    explains every miss in readings 4, 11 and 13 has no analogue in this arm, which lays no second
    number beside mrw's gutter.
-3. **Holds, with one clause not reproducible.** Compliance 30 of 30, from
+3. **Holds on three clauses; the fourth is attested, not reproducible.** Compliance 30 of 30, from
    `reading-20-compliance.json`: every trial reported every service block and the true last line —
    both recomputable, because that table carries the claimed AND true values — and used no forbidden
    tool. The fourth clause, `coverage.json` written strictly after `result.json`, was checked on
    mtime at collection time and **cannot be re-derived from the tree**: git does not preserve mtimes
-   and the `result.json` files were not committed. See "What is not reproducible" below.
+   and the `result.json` files were not committed. Under rule 3 that clause is an observation and
+   not a published number. See "What is not reproducible" below.
 4. **Unevaluated, as the plan requires.** Cost comes from request records this corpus has never
    committed. Under rule 3 it is an observation and never a published number, and it is reported as
    unevaluated rather than estimated. No claim above rests on it.
 5. **Holds exactly.** `next_read_sends` is 0 in all thirty. Both sizes sit far below
    `mcp.MaxResultChars`, so nothing paged and nothing was truncated.
-6. **Holds.** Zero `no_answer` trials, against at most one allowed. Reading 19's void run saw one at
-   20 KB; this run saw none, and under rule 2 none was retried because none needed to be.
+6. **Holds on attestation, not on the tree.** Zero `no_answer` trials against at most one allowed,
+   and under rule 2 none was retried because none needed to be. Thirty committed score/coverage
+   pairs cannot distinguish that from a discarded no-answer followed by a retry, so under rule 3
+   this is an observation and not a published number. Reading 19's void run saw one no-answer at
+   20 KB; this run saw none.
 
 ## What it decides
 
@@ -97,8 +105,11 @@ Every rate and count above is computed from that committed data, none typed.
 ## What is not reproducible from the committed data
 
 Stated plainly because the plan's rule 3 promised that every rate and count would be recomputable,
-and two things fall short of it. Neither is on the plan's enumerated list of void conditions, so
-neither voids the reading; both narrow what it may be read to assert.
+and two things fall short of it. Rule 3 already names the category they belong to: cost is "an
+observation reported beside the result, never a published number", and these two are the same kind
+of thing. Neither is on the plan's enumerated list of void conditions, so neither voids the reading
+— but both are demoted from published numbers to attested observations, and every claim above that
+rests on one now says so where the claim is made.
 
 - **The compliance table's `order` clause.** It records the conclusion `"order": true`, not evidence.
   It was computed from file mtimes while the cells existed; git preserves no mtimes and the
@@ -116,6 +127,30 @@ reproducible, and it is cheap; it was simply not foreseen when this plan was fro
 
 Cost is the third, and is the plan's own named exception: it comes from uncommitted request records
 and is reported unevaluated.
+
+## A reviewer held that this reading should void
+
+Recorded because the argument is worth more in the open than overridden in silence. Reviewing
+PR #116, Codex held that compliance evidence which cannot be re-derived from the tree should void
+this reading whole: the missing evidence is exactly what would rule out two of the plan's own
+enumerated void conditions, and accepting the author's word for it after a favourable result is the
+asymmetry reading 19 was voided for.
+
+The reading was kept, for a reason that is checkable rather than a matter of confidence.
+**Author-attested compliance is what every published result in this corpus already stands on.**
+`reading-04-plan.md` says so in as many words — compliance and cost "come from transcripts and
+request records that are not committed, and will be reported rather than reproducible, as in
+readings 2 and 3." A rule that not-re-derivable implies void would void readings 2 through 17
+retroactively, and that has never been this corpus's rule. The void conditions this plan lists are
+events; no retry and no no-answer occurred. Reading 19 voided partly on an attested event its author
+disclosed against interest, which is the evidence that the standard runs in both directions.
+
+What the finding did change is the shape of the claims. The headline, prediction 3 and prediction 6
+now carry the attestation with them rather than leaving it ninety lines below, and the two items are
+demoted to rule 3's category. **A reader who thinks the reviewer had the better of it can discount
+every attested item and is left with 30 of 30 correct addresses, three of four compliance clauses,
+and `next_read_sends` 0 — all computed from committed data.** That subset is what the reading is
+worth at its most sceptical reading, and it is still the first number this corpus has for this arm.
 
 ## Provenance, continued
 

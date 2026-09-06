@@ -338,16 +338,17 @@ byte-identical, so the revert is a deletion.
       so compliance could not be checked), reading 18 (200 KB, the defect above), and reading 19
       (thirty trials voided WHOLE — its coverage instruction was clarified after the first trial and
       a no-answer trial was retried; the Codex review of PR #115 established that its stratum-level
-      exception had been invented after the results were seen). Reading 20 pre-registered the three
-      rules those failures earned, and every rate and count it publishes is computed from committed
-      scores, coverage reports and a derived compliance table — with cost named as the one
-      exception, an observation from uncommitted request records, reported unevaluated.
+      rules those failures earned. Its correct-address rate, its paged-read count and three of its
+      four compliance clauses are computed from committed scores, coverage reports and a derived
+      compliance table. Three things are not, and its result document reports each as an observation
+      under its own rule 3 rather than as a published number: cost, the compliance table's ordering
+      clause, and the absence of any retry or trial without an answer.
 
       **ADR-020's served-size question is closed for the sizes it can be closed for:** at 2 KB and
       20 KB the arm is at the ceiling; at 200 KB it cannot be measured on this host at all, for the
       reason in the entry above, so no correct-address rate exists there and none is claimed. The
       shipped path's accuracy above 20 KB is therefore unmeasured rather than established. The cap
-      and the served format do not move. Reading 20's result also records two things its own rule 3
-      promised and could not deliver — the compliance table's `order` clause and the no-retry claim
-      are not re-derivable from the tree — and names the cheap fix for a future reading: commit the
-      per-attempt `result.json`, `coverage.json` and a dispatch receipt.
+      and the served format do not move. Reading 20's result names the cheap fix for a future reading
+      of this arm — commit the per-attempt `result.json`, `coverage.json` and a dispatch receipt
+      recording the order of the two writes and the outcome of every attempt — and records the
+      reviewer who held that those gaps should have voided it, with the argument on both sides.
