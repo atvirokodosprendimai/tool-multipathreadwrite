@@ -4,7 +4,7 @@
 **Covers:** none — no spec
 **Estimated scope:** M (multi-file)
 **Owner:** Zy
-**Produces:** `pagedResult()`, `indexResult()` and the served-read path return `isError` absent (T2)
+**Produces:** `pagedResult()`, `indexResult()` and the served-read path return `isError` absent (T2) — ⚠ NARROWED 2026-09-06 by ADR-025: the served-read path leaves the key absent only when it served something; a read that served nothing now carries `isError: true`. The historical record of what this task did is unchanged.
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
@@ -19,7 +19,7 @@ carried onto the served text that a host does not rewrite.
 
 | File | Change | Why |
 |------|--------|-----|
-| `internal/mcp/tools.go` | edit | `pagedResult` (`:637`), `indexResult` (`:814`) and the served-read return (`:319`, with its size probe at `:841`) leave `isError` absent. `errorResult` (`:422`) and the no-match-with-walk-problem branch (`:202`) are NOT touched — each delivered nothing of what was asked. This is the change. |
+| `internal/mcp/tools.go` | edit | `pagedResult` (`:637`), `indexResult` (`:814`) and the served-read return (`:319`, with its size probe at `:841`) leave `isError` absent. `errorResult` (`:422`) and the no-match-with-walk-problem branch (`:202`) are NOT touched — each delivered nothing of what was asked. This is the change. ⚠ NARROWED 2026-09-06 by ADR-025 for the served-read return and its size probe, which now pass `len(observed) == 0` rather than an unconditional `false`. |
 | `internal/mcp/tools_test.go` | edit | `TestAnOversizedReadStillReadsAsIncomplete` asserts the retired promise at line 565 and is rewritten to assert the replacement; the new `TestAPageIsKnownByItsServedText` is added here. |
 | `internal/mcp/conformance_test.go` | edit | Line 579 uses `isError` as a FIXTURE GUARD — "this fixture exists to produce a page" — not as the promise. It must detect a page by `next_read` instead, or it fails for the wrong reason and hides whatever it was guarding. |
 | `internal/mcp/instructions.go` | edit | Line 98 tells every host "the lines that fit, isError true, and next_read naming the spec". That sentence is what SELECTS the behaviour for a reader of the surface; leaving it makes the tool document a promise it no longer keeps. |

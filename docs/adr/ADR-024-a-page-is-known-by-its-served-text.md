@@ -58,6 +58,11 @@ and no host rewrites.
   introduced; this record only stops two existing shapes from claiming to be failures.
 
 ## Decision
+
+⚠ **Decision 1's served-read clause is NARROWED by ADR-025 (2026-09-06)** in the single case where
+that return served NOTHING. The four members enumerated below all delivered something and are
+unchanged, as is `:202`. See the Amendment at the end of this record.
+
 **1. An answer that delivered what was asked for — file content, or a usable index of where it is —
 does not set `isError`.** `pagedResult`, `indexResult` and the served-read return at `:319` (with its
 size probe at `:841`) leave the key absent. `errorResult` is untouched, and so is the no-match branch
@@ -193,3 +198,25 @@ that preferred the old behaviour needs nothing from us — the previous binary s
 ## Follow-ups
 
 - [ ] Re-run the A/B on one non-Claude-Code host, and record it beside ADR-023's existing "other hosts" item.
+
+## Amendment, 2026-09-06: the served-read return no longer covers a read that served nothing (ADR-025)
+
+Decision 1 lists the served-read return at `:319` among the shapes that leave `isError` absent, and
+T1's step S10 implemented that as an unconditional `false`. That is right for the shape this record
+was written about — a read that served content beside a path it could not use — and it also caught a
+case the enumeration never named: a read whose every spec was unusable, which served nothing at all.
+
+The result was that two calls with the same outcome disagreed, decided only by whether `grep` was
+passed: the walk's no-match branch at `:202` flagged, and this return could not. ADR-025 changes the
+return to `len(observed) == 0`, so it flags exactly when nothing was delivered — which is this
+record's own stated principle, applied to the member its enumeration missed.
+
+Nothing else here moves. The page, the oversized index, the served-with-problems answer and the size
+probe all delivered something and stay unflagged; `errorResult` and `:202` stay flagged; §62 and
+`TestAPageIsKnownByItsServedText` are unchanged and still pass.
+
+Raised by the review of `ae8ce33` on PR #122, which posted four minutes after that PR merged and 52
+seconds before v1.2.0 was published, so it described shipped text. The same gap had been raised at
+all four heads of PR #118 and merged unrecorded.
+
+See `docs/adr/ADR-025-a-read-that-served-nothing-is-an-error.md`.

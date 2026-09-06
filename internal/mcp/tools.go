@@ -314,10 +314,24 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// (ADR-023; see readResult). readSchema() still describes it for a reader
 	// of the code, but tools/list no longer declares it: a schema declared is
 	// a structuredContent promised, and none is sent.
+	// ⚠ AND AN ANSWER THAT SERVED NOTHING IS AN ERROR (ADR-025). The observation
+	// count is the whole test, and it is deliberately not conjoined with
+	// `problems > 0`: a spec that served no LINES is still OBSERVED — an empty
+	// file addressed by a range, a range that misses, both noted with empty spans
+	// and both counting a problem — so the problem count cannot exclude them and
+	// the observation count can. (A bare spec on an empty file counts no problem
+	// and is excluded by the observation alone.)
+	// Neither shape reaches here with an empty map and no problem either: a
+	// read naming no spec is refused at :158 when it passes no grep, and a clean
+	// grep that matched nothing answers at :202. So the conjunct could never
+	// discriminate and no mutation could kill it.
+	// ADR-024 removed the flag from answers that DELIVERED something; this restores
+	// it for the one case its enumeration missed, so :202 and this return agree
+	// rather than disagreeing on whether `grep` was passed.
 	return readResult(map[string]any{
 		"observed": observed,
 		"problems": problems,
-	}, report, false)
+	}, report, len(observed) == 0)
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the
@@ -528,6 +542,18 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 	w := bufio.NewWriter(&b)
 	observed, problems := read.Run(w, root, []read.Spec{sp}, read.Options{Numbers: true})
 	w.Flush()
+
+	// ⚠ AND IF THAT SECOND READ SERVED NOTHING, THIS IS NOT A PAGE (ADR-025).
+	// countFileLines succeeded a moment ago, so an empty `observed` here means
+	// the file stopped being readable in between — deleted, or its permissions
+	// changed. Returning a page then would fabricate a `-- PARTIAL:` notice for
+	// content nobody received, and `pagedResult` omits `isError`, so it would be
+	// the one served-nothing answer that still claimed success. Declining sends
+	// the caller down the ordinary path, which reports the real reason and flags
+	// it. Found by the Codex review of #123.
+	if len(observed) == 0 {
+		return callToolResult{}, false
+	}
 
 	// The page WAS shown, so it is recorded — and only the span it served, which
 	// is what keeps a page from licensing lines the caller never saw. seen.Record
@@ -845,11 +871,15 @@ func encodedSize(res callToolResult) int {
 // that does fit, it is resumable, and it licenses nothing, which is the honest
 // trade for content that cannot be delivered.
 func servedOrIndex(specs []read.Spec, problems int, cw *capped, observed map[string]seen.Observation, report string) (callToolResult, bool) {
-	// ADR-024: false, matching what the served result will actually carry, so
-	// the probe measures the shape that is sent rather than one 15 bytes larger
-	// (`,"isError":true`). Only results inside that 15-byte band change verdict,
-	// and they change it correctly: they now genuinely fit the declared limit.
-	probe, rpcErr := readResult(map[string]any{"observed": observed, "problems": problems}, report, false)
+	// ADR-025: the probe carries the flag the served result will actually carry,
+	// which is `len(observed) == 0`. It said `false` unconditionally under
+	// ADR-024, when that was what the served shape always carried; since a
+	// served-nothing answer now carries `isError: true`, a hardcoded false
+	// measures a shape 15 bytes smaller than the one sent (`,"isError":true`)
+	// and can approve a result that does not fit the declared limit. Only
+	// results inside that 15-byte band change verdict. Found by the Codex
+	// review of #123.
+	probe, rpcErr := readResult(map[string]any{"observed": observed, "problems": problems}, report, len(observed) == 0)
 	if rpcErr != nil {
 		// Undecidable, so not degraded: the caller path will report the same
 		// encoding failure with its own message.
