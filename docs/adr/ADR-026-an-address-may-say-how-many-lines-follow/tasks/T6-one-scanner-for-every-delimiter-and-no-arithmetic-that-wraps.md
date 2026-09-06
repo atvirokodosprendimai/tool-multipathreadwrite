@@ -98,7 +98,7 @@ go test ./internal/read/ -count=1 -v \
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | `TestAPatternEndingInABackslashIsClosed` |
-| 2 — something selects it | `ClosingDelim` is now the only delimiter scan in the repository — `grep -n "!= '\\\\\\\\'" internal/` returns nothing outside it — and §64 drives both paths through the built binary |
+| 2 — something selects it | `ClosingDelim` is the delimiter scan for every ADDRESS parser — `addr.singleStart`, `read.splitRanges`, `read.parseRange` and `plan.parsePattern` all call it. `plan.splitHeader` is NOT an address parser: it tokenises a header and tracks its own pattern state, which is why it needed fixing twice and is called out here rather than claimed away. §64 drives both paths through the built binary |
 | 3 — the caller can discover it | Unchanged by this task: the grammar passages T3 and T5 gate |
 | 4 — it is used | §64 runs in CI on every push; no telemetry, per ADR-009 |
 

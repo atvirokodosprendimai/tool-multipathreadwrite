@@ -221,22 +221,48 @@ func parseRange(s string) (Range, error) {
 	}
 	s = base
 	if strings.HasPrefix(s, "/") {
-		// "/a/,/b/" arrives as one part because splitRanges kept it together.
-		pats := strings.Split(strings.TrimSuffix(strings.TrimPrefix(s, "/"), "/"), "/,/")
-		re, err := regexp.Compile(pats[0])
+		// SCANNED, NOT SPLIT. TrimSuffix+Split accepted `/` as an empty regexp
+		// matching every line at exit 0, compiled `/a/garbage` as the pattern
+		// `a/garbage`, and silently reduced `/a/,/b/,/c/` to its first
+		// endpoint. The plan path refused all three, so the two grammars
+		// disagreed on exactly the inputs nobody writes on purpose — and the
+		// record claimed they could not. Found by the fourth Codex review of
+		// PR #125.
+		end := addr.ClosingDelim(s, 0)
+		if end < 0 {
+			return Range{}, fmt.Errorf("pattern %q is never closed: expected a second /", raw)
+		}
+		body := s[1:end]
+		if body == "" {
+			return Range{}, fmt.Errorf("empty pattern // matches every line, so it addresses nothing in particular — name the file alone if you want all of it")
+		}
+		re, err := regexp.Compile(body)
 		if err != nil {
-			return Range{}, fmt.Errorf("bad pattern %q: %w", pats[0], err)
+			return Range{}, fmt.Errorf("bad pattern %q: %w", body, err)
 		}
 		r := Range{Re: re, Text: raw, RelEnd: rel}
-		if len(pats) == 2 {
+		rest := s[end+1:]
+		switch {
+		case rest == "":
+			return r, nil
+		case strings.HasPrefix(rest, ",/"):
 			if rel > 0 {
 				return Range{}, fmt.Errorf("%q has both an end pattern and a relative end: write /from/,/to/ or A,+N, not both", raw)
 			}
-			if r.ReEnd, err = regexp.Compile(pats[1]); err != nil {
-				return Range{}, fmt.Errorf("bad end pattern %q: %w", pats[1], err)
+			e2 := addr.ClosingDelim(rest, 1)
+			if e2 < 0 {
+				return Range{}, fmt.Errorf("end pattern in %q is never closed: expected a second /", raw)
 			}
+			if tail := rest[e2+1:]; tail != "" {
+				return Range{}, fmt.Errorf("%q has %q after the end pattern: an address takes one range, not three", raw, tail)
+			}
+			if r.ReEnd, err = regexp.Compile(rest[2:e2]); err != nil {
+				return Range{}, fmt.Errorf("bad end pattern %q: %w", rest[2:e2], err)
+			}
+			return r, nil
+		default:
+			return Range{}, fmt.Errorf("%q has %q after the pattern: write /re/, /from/,/to/ or A,+N", raw, rest)
 		}
-		return r, nil
 	}
 	// `$` and an OMITTED end are different addresses and used to share the
 	// sentinel 0. Downstream 0 means "unbounded in whichever direction you

@@ -630,3 +630,30 @@ func TestAPatternEndingInABackslashIsClosed(t *testing.T) {
 		t.Errorf("the pattern did not resolve to its match plus one:\n%s", out)
 	}
 }
+
+// The read grammar accepted four shapes the plan grammar refused, which is the
+// divergence ADR-026 claims to have ended: `/` was an empty regexp matching
+// every line at exit 0, `//` the same, `/a/garbage` compiled as the pattern
+// `a/garbage`, and `/a/,/b/,/c/` silently became its first endpoint. Found by
+// the fourth Codex review of PR #125.
+func TestAMalformedPatternAddressIsRefused(t *testing.T) {
+	for _, c := range []struct{ addr, names string }{
+		{"/", "never closed"},
+		{"//", "empty pattern"},
+		{"/a/garbage", "after the pattern"},
+		{"/a/,/b/,/c/", "after the end pattern"},
+		{"/a/,/b", "never closed"},
+	} {
+		if _, err := ParseSpec("f.txt:" + c.addr); err == nil {
+			t.Errorf("f.txt:%s parsed; the plan path refuses it and the two grammars must agree", c.addr)
+		} else if !strings.Contains(err.Error(), c.names) {
+			t.Errorf("the refusal of %s does not say %q: %v", c.addr, c.names, err)
+		}
+	}
+	// The controls: the two legal pattern forms still parse.
+	for _, ok := range []string{"/a/", "/a/,/b/", "/a/,+2"} {
+		if _, err := ParseSpec("f.txt:" + ok); err != nil {
+			t.Errorf("f.txt:%s was refused: %v", ok, err)
+		}
+	}
+}

@@ -108,7 +108,7 @@ go test ./internal/addr/ ./internal/plan/ ./internal/apply/ -count=1 -v \
 
 ## Invariants
 
-- The two paths refuse the same string in the same words. §64 compares the message, not a fragment.
+- The two paths refuse the same RELATIVE-END string in the same words. §64 compares the message, not a fragment. They still differ on the richer read grammar — comma lists, every-match patterns — which is deliberate and is not what this shares.
 - `delete` still takes a relative end: the rule is that an op which cannot honour one must refuse it.
 - A read still clamps at the last line; only the write path refuses.
 - ADR-001, ADR-002 and ADR-013 are untouched: addresses still resolve against the original file, the ledger is still per line, and a pattern still has to match exactly once.

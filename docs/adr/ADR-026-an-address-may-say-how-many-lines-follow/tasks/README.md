@@ -23,6 +23,7 @@ findings against it, each of which could only be written once the previous round
 | 4 | T4 | T1, T2, T3 |
 | 5 | T5 | T4 |
 | 6 | T6 | T5 |
+| 7 | T7 | T6 |
 
 | Order | Task | Depends-on |
 |-------|------|------------|
@@ -32,6 +33,7 @@ findings against it, each of which could only be written once the previous round
 | 4 | T4 | T1, T2, T3 |
 | 5 | T5 | T4 |
 | 6 | T6 | T5 |
+| 7 | T7 | T6 |
 
 ## Task Index
 
@@ -43,6 +45,7 @@ findings against it, each of which could only be written once the previous round
 | T4 | One lexer, and an address no op can half-ignore | done | — | `go test ./internal/addr/ ./internal/plan/ ./internal/apply/ …` |
 | T5 | The lexer scans, and the wire teaches the form | done | — | `go test ./internal/addr/ ./internal/apply/ …` |
 | T6 | One scanner for every delimiter, and no arithmetic that wraps | done | — | `go test ./internal/read/ -run 'IntegerBoundary|BackslashIsClosed' …` |
+| T7 | The header does not rewrite the pattern it carries | done | — | `go test ./internal/read/ ./internal/plan/ -run 'MalformedPattern|QuoteInsideAPattern' …` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

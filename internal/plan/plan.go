@@ -446,7 +446,15 @@ func splitHeader(s string) ([]string, error) {
 			cur.WriteRune(rs[i+1])
 			inTok = true
 			i++
-		case r == '"':
+		case !inPat && r == '"':
+			// ⚠ NOT INSIDE A PATTERN. A quote is an ordinary regexp character,
+			// and toggling on it here CONSUMED it: `/^"foo"$/` reached the
+			// parser as `/^foo$/`, a different expression that matched a
+			// different line, and the receipt echoed the mutated address rather
+			// than what the caller wrote. An odd number of quotes produced
+			// "unterminated quote in header" for a legal regex instead. Every
+			// pattern test called ParseAddr directly, so none of them came
+			// through here. Found by the fourth Codex review of PR #125.
 			inQ, inTok = !inQ, true
 		case (r == ' ' || r == '\t') && !inQ && !inPat:
 			if inTok {
@@ -458,6 +466,9 @@ func splitHeader(s string) ([]string, error) {
 			cur.WriteRune(r)
 			inTok = true
 		}
+	}
+	if inPat {
+		return nil, fmt.Errorf("unterminated pattern in header: expected a second /")
 	}
 	if inQ {
 		return nil, fmt.Errorf("unterminated quote in header")

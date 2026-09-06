@@ -3812,6 +3812,34 @@ want 0 "$rc" "a pattern ending in a backslash is closed on the read path"
 grep -q '@@ 1-2' <<<"$out" && ok "the backslash pattern resolves to its match plus one" || bad "the backslash pattern did not resolve: $out"
 out=$(printf '@@ bs.txt /\\\\/,+1 replace\nX\nY\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "a pattern ending in a backslash is closed on the plan path too"
+
+# THE TWO GRAMMARS AGREE ON WHAT IS MALFORMED, or the record's central claim is
+# false. Four shapes the read path accepted and the plan path refused: `/` as an
+# empty regexp matching every line at exit 0, `//`, `/a/garbage` compiled as the
+# pattern a/garbage, and `/a/,/b/,/c/` silently reduced to its first endpoint.
+fixture
+for a in '/' '//' '/a/garbage' '/a/,/b/,/c/'; do
+  m read "a.go:$a" > /dev/null 2>&1; rr=$?
+  printf '@@ a.go %s replace\nX\n' "$a" | m write - > /dev/null 2>&1; wr=$?
+  want 2 "$rr" "a read refuses the malformed pattern $a"
+  want 2 "$wr" "a plan refuses the malformed pattern $a"
+done
+# ...and the legal forms still parse on both, or the rule above is just a ban.
+out=$(m read 'a.go:/func A/,/func C/' 2>&1); want 0 "$?" "a two-pattern read still parses"
+grep -q '@@ 3-5' <<<"$out" && ok "the two-pattern read serves its range" || bad "the two-pattern read is wrong: $out"
+
+# A QUOTE IS AN ORDINARY REGEXP CHARACTER. The header splitter toggled on it
+# inside a pattern and CONSUMED it, so /^"x"$/ reached the parser as /^x$/ — a
+# different expression, a different line, and a receipt echoing the mutation.
+fixture
+printf 'package demo\n\nfunc A() int { return 1 }\nconst Q = "quoted"\n' > "$R/q.go"
+m read q.go > /dev/null 2>&1
+out=$(printf '@@ q.go /"quoted"/ replace\nconst Q = "changed"\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "a plan pattern containing quotes applies"
+grep -q 'ok   q.go /"quoted"/ replace' <<<"$out" && ok "the receipt echoes the pattern with its quotes" || bad "the receipt shows a mutated address: $out"
+grep -q 'changed' "$R/q.go" && ok "the quoted pattern reached the line it named" || bad "the quoted pattern edited the wrong line"
+out=$(printf '@@ q.go 3 replace anchor="func A"\nfunc A() int { return 9 }\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "a quoted anchor still works, so the toggle was narrowed and not removed"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

@@ -581,3 +581,38 @@ func TestAnAddressRendersBackAsTheCallerWroteIt(t *testing.T) {
 		}
 	}
 }
+
+// splitHeader toggled on a quote INSIDE a pattern and consumed it, so
+// `/^"foo"$/` reached the parser as `/^foo$/` — a different expression, against
+// a different line, with the receipt echoing the mutated address. Every other
+// pattern test calls ParseAddr directly and never comes through the splitter,
+// which is why this went unseen until the fourth review of PR #125.
+func TestAQuoteInsideAPatternSurvivesTheHeader(t *testing.T) {
+	hunks, err := Parse(strings.NewReader("@@ f.txt /^\"foo\"$/ replace\nX\n"))
+	if err != nil {
+		t.Fatalf("a pattern containing quotes was refused: %v", err)
+	}
+	if got := hunks[0].Addr.String(); got != `/^"foo"$/` {
+		t.Errorf("the address parsed as %s, want /^\"foo\"$/ — the quotes were eaten", got)
+	}
+
+	// An odd quote inside a pattern is a regexp, not an unterminated header.
+	if _, err := Parse(strings.NewReader("@@ f.txt /\"/ replace\nX\n")); err != nil {
+		t.Errorf("a pattern holding one quote was refused as an unterminated header: %v", err)
+	}
+
+	// The control: quoting still works OUTSIDE a pattern, which is what the
+	// toggle is for.
+	h2, err := Parse(strings.NewReader("@@ f.txt 1 replace anchor=\"a b\"\nX\n"))
+	if err != nil {
+		t.Fatalf("a quoted anchor was refused: %v", err)
+	}
+	if h2[0].Anchor != "a b" {
+		t.Errorf("the quoted anchor parsed as %q, want %q", h2[0].Anchor, "a b")
+	}
+
+	// An unterminated pattern in a header is reported as one.
+	if _, err := Parse(strings.NewReader("@@ f.txt /unclosed replace\nX\n")); err == nil {
+		t.Error("an unterminated pattern in a header parsed")
+	}
+}
