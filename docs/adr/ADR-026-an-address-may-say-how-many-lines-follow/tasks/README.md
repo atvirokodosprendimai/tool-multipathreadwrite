@@ -15,6 +15,7 @@ README must be regenerated.
 | 2 | T2 | T1 |
 | 3 | T3 | T1, T2 |
 | 4 | T4 | T1, T2, T3 |
+| 5 | T5 | T4 |
 
 ## Task Index
 
@@ -24,6 +25,7 @@ README must be regenerated.
 | T2 | A plan address takes the same relative end | done | — | `go test ./internal/plan/ -run 'TestAPlanAddressTakesARelativeEnd' …` |
 | T3 | The contract drives both paths, and the docs say the form exists | done | — | `grep -q '^# 64\. ' scripts/contract.sh && ./scripts/contract.sh` |
 | T4 | One lexer, and an address no op can half-ignore | done | — | `go test ./internal/addr/ ./internal/plan/ ./internal/apply/ …` |
+| T5 | The lexer scans, and the wire teaches the form | done | — | `go test ./internal/addr/ ./internal/apply/ …` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

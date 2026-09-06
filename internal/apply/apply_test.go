@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1560,6 +1561,80 @@ func TestARelativeEndPastTheLastLineIsRefusedOnThePlanPath(t *testing.T) {
 		if !strings.Contains(reason, want) {
 			t.Errorf("the refusal does not name %q: %s", want, reason)
 		}
+	}
+	if read(t, root, "store.go") != before {
+		t.Error("the file changed despite the refusal")
+	}
+}
+
+// Apply is a public entry point and its doc comment says it validates every
+// hunk. plan.validate protects the CLI and the MCP server, but a caller who
+// builds Inputs directly — which this package's own tests do throughout — could
+// hand it a relative end on an op that cannot honour one, and get `ok` for an
+// address that was half-ignored.
+func TestTheEngineRefusesARelativeEndTheOpCannotHonour(t *testing.T) {
+	for _, op := range []string{"create", "insert-after", "insert-before"} {
+		root := t.TempDir()
+		write(t, root, "store.go", storeGo)
+		path := "store.go"
+		start, end := 6, 6
+		if op == "create" {
+			path, start, end = "new.go", 0, 0
+		}
+		res, err := Apply(root, []Input{{
+			Path: path, Op: op, Body: []string{"X"}, Lines: -1,
+			Start: start, End: end, RelEnd: 2,
+		}}, Options{})
+		if err != nil {
+			t.Fatalf("%s: Apply: %v", op, err)
+		}
+		if res.Failed != 1 {
+			t.Errorf("%s: failed=%d, want 1 — the engine accepted a relative end it would ignore", op, res.Failed)
+			continue
+		}
+		if !strings.Contains(res.Hunks[0].Reason, "single line") {
+			t.Errorf("%s: the refusal does not name the fix: %s", op, res.Hunks[0].Reason)
+		}
+	}
+
+	// The control: delete DOES honour a relative end, so the rule is "an op
+	// that cannot honour it refuses it", not "relative ends are suspicious".
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "delete", Lines: -1, Start: 6, End: 6, RelEnd: 2,
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("delete: Apply: %v", err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("delete: failed=%d, want 0: %s", res.Failed, res.Hunks[0].Reason)
+	}
+	if n := res.Hunks[0].Removed; n != 3 {
+		t.Errorf("delete removed %d lines, want 3", n)
+	}
+}
+
+// The overflow the second review found: i+1+RelEnd wraps negative at a large
+// count, and a wrapped end is not a clamp. The read path printed
+// `@@ 2--9223372036854775807` and served nothing at exit 0.
+func TestARelativeEndAtTheIntegerBoundaryDoesNotWrap(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+	before := read(t, root, "store.go")
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Body: []string{"X"}, Lines: -1,
+		Start: 2, End: 2, RelEnd: math.MaxInt,
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed=%d, want 1 — a wrapped end must not read as in range", res.Failed)
+	}
+	if !strings.Contains(res.Hunks[0].Reason, "out of range") {
+		t.Errorf("the refusal does not say out of range: %s", res.Hunks[0].Reason)
 	}
 	if read(t, root, "store.go") != before {
 		t.Error("the file changed despite the refusal")

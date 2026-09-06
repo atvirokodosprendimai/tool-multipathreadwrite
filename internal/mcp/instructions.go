@@ -62,7 +62,7 @@ func instructionsText() string {
 verdict for EVERY edit. The failure it exists to prevent: a read that finds
 nothing is obvious, a write that changes nothing is not.
 
-WHICH SURFACE, AND WHEN TO REACH FOR EITHER. Reach for mrw at all when the task
+WHICH SURFACE, AND WHEN TO REACH FOR EITHER. Reach for mrw when the task
 touches %s. Below that use your ordinary editor: it costs the same two calls and
 prints more bytes than the file holds.
 
@@ -72,46 +72,47 @@ seen and stats subcommands. `+"`mrw --root DIR read`"+` points it at ANY
 checkout; note --root BEFORE the subcommand, because after `+"`read`"+` the
 short -C is the context flag, not a directory.
 
-Not simply the poorer surface: mrw_write returns structured JSON, so no --json
-is needed (a read's receipt: 2nd text block); one server is one writer to the read-before-write
-ledger while parallel CLI processes race for it. So with a shell and mrw on
-PATH, prefer the CLI for its reach and extra commands — prefer THIS surface
-with no shell, or when callers sharing ONE fixed checkout want writes serialized.
+Not simply the poorer surface: mrw_write returns structured JSON (a read's
+receipt: 2nd text block), and one server is one writer to the read-before-write
+ledger while parallel CLI processes race for it. With a shell and mrw on PATH
+prefer the CLI for its reach; prefer THIS surface with no shell, or when callers
+sharing ONE fixed checkout want writes serialized.
 
 THE TWO RULES THAT PRODUCE MOST REFUSALS.
 1. Read before you write, and it is enforced per LINE, not per file. Being
-   served lines 10-12 does not license an edit at line 50. mrw_read is what
-   records the lines; a read through any other tool licenses nothing.
+   served lines 10-12 does not license an edit at line 50. mrw_read records
+   the lines; a read through any other tool licenses nothing.
 2. A plan is all or nothing. If any hunk fails, NOTHING is written and the
    siblings report skipped, never ok.
 
-READING. mrw_read takes specs: a bare path, path:N, path:N-M, path:$ for the
-last line, or path:/regexp/ — so the read finds the site and no separate search
-call is needed. Example: %v
+READING. mrw_read takes specs: a bare path, path:N, path:N-M, path:A,+N (A plus
+the N lines after it), path:$ for the last line, or path:/regexp/ — the read
+finds its own site. Example: %v
 
 To find files you cannot NAME, set grep to a regexp: mrw walks your paths (or
-the root) and serves every match. Too large to serve? You get an INDEX — one
-spec per file, no content — to send back as specs. exclude
-skips globs; no range on a path with grep.
+the root) and serves every match. Too large? You get an INDEX — one spec per
+file, no content — send it back as specs. exclude skips globs; no range with grep.
 
 A read too large for one answer comes back as a PAGE, not a failure: the lines
 that fit, a -- PARTIAL: line naming what remains, and next_read naming the spec
-to send for the rest. Repeat until next_read is absent — that absence is how you
-know you have the whole file. Stopping early leaves you part of a file.
+to send for the rest. Repeat until next_read is absent — that absence means
+you have the whole file. Stopping early leaves you part of a file.
 
 WRITING. mrw_write takes one plan document. Each hunk is a header line
 
     @@ <path> <address> <op> [guards]
 
 followed by its body lines. Ops are replace, insert-after, insert-before,
-delete and create. An address is a line number, an N-M range, $ for the last
-line, or a PATTERN — /regexp/ for one line, /from/,/to/ for a range. A pattern
+delete and create. An address is a line number, an N-M range, A,+N (ONE start
+plus the N lines after it; a read clamps at the last line, a write refuses past
+it), $ for the last line, or a PATTERN — /regexp/ for one line, /from/,/to/ for
+a range. A pattern
 must match EXACTLY ONE line: matching none or several fails that hunk and the
 refusal names the lines it matched. Every address resolves against the ORIGINAL
-file, so several hunks in one file need no offset arithmetic, and a pattern is
+file, so hunks need no offset arithmetic, and a pattern is
 NOT a way to edit a file you have not read — it resolves to a line, and that line
 must still have been served to you. Paths are relative to the server's root; an
-absolute path is refused by name, and two spellings of ONE file — case, or a
+absolute one is refused by name, and two spellings of ONE file — case, or a
 symlink — are one file, so a plan naming both is refused with both named.
 
 Guards are optional and checked on every op, insertions included: sha=<hex> for

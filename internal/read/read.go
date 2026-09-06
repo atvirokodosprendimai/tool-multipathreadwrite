@@ -492,7 +492,21 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 					// An explicit relative end overrides -C on the trailing
 					// side: the caller said how many lines they wanted after
 					// the match, which is not a guess about context.
-					end = i + 1 + r.RelEnd
+					//
+					// ⚠ COMPARED BEFORE IT IS ADDED. `i + 1 + r.RelEnd`
+					// OVERFLOWS at a large count, and a negative end printed
+					// `@@ 2--9223372036854775807` and served nothing at exit 0
+					// — a read that returned nothing while reporting success,
+					// which is the failure this tool exists to make visible.
+					// The numeric branch below was safe by accident, because
+					// its `end < start` check caught the wrapped value; this
+					// branch has no such check. Found by the second Codex
+					// review of PR #125.
+					if r.RelEnd > total-(i+1) {
+						end = total
+					} else {
+						end = i + 1 + r.RelEnd
+					}
 				}
 				spans = append(spans, span{max(1, i+1-ctx), min(total, end)})
 				found = true
@@ -511,10 +525,14 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 			if start == unbounded {
 				start = 1
 			}
-			if r.RelEnd > 0 {
-				// Applied where the length is known, so the clamp below is the
-				// same one `2-99` already gets.
-				end = start + r.RelEnd
+			if r.RelEnd > 0 && start <= total {
+				// Compared before it is added: start+RelEnd overflows at a
+				// large count, and a wrapped end is not a clamp.
+				if r.RelEnd > total-start {
+					end = total
+				} else {
+					end = start + r.RelEnd
+				}
 			}
 			if end == unbounded || end > total {
 				end = total

@@ -3733,6 +3733,50 @@ grep -q 'A read CLAMPS a relative end at the last' README.md \
 grep -qi 'clamps.*exactly as `12-9999`' README.md \
   && bad "README still claims a relative end clamps like an explicit over-range, which a write refuses" \
   || ok "the false clamp claim is gone from README"
+# AGENTS.md is the plan grammar every non-Claude agent reads, and it said a
+# relative end "clamps at the last line" after the write path started refusing
+# one — advice that makes a caller build a plan the tool rejects. Gated on the
+# ASYMMETRY, not on the form's presence, because the form was present and the
+# rule was wrong (second Codex review of #125).
+grep -q 'A READ CLAMPS a relative end at the last line; a WRITE' AGENTS.md \
+  && ok "AGENTS.md says which path clamps and which refuses" \
+  || bad "AGENTS.md does not carry the read-clamps/write-refuses split"
+grep -qi 'relative end clamps at the last line, has no backwards' AGENTS.md \
+  && bad "AGENTS.md still tells agents a relative end clamps on a write" \
+  || ok "the stale clamp claim is gone from AGENTS.md"
+
+# THE MCP WIRE TEXT IS THE MCP CALLER'S ONLY GRAMMAR. A model reaching mrw over
+# MCP never reads README.md or --help: it gets the initialize instructions and
+# the two tool descriptions. All three omitted the form while the server
+# accepted it — the defect issues #51 and #73 recorded, one surface over. Driven
+# through the BUILT server so the assertion is about what goes on the wire.
+fixture
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"c","version":"1"}}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null > "$WORK/w64b.json"
+python3 - "$WORK/w64b.json" <<'PY'
+import json,sys
+init=None; tools=None
+for line in open(sys.argv[1]):
+    line=line.strip()
+    if not line: continue
+    m=json.loads(line)
+    if m.get("id")==1: init=m["result"]
+    if m.get("id")==2: tools=m["result"]
+assert init is not None, "the built server sent no initialize result"
+assert tools is not None, "the built server sent no tools/list result"
+instr=init.get("instructions","")
+# BOTH passages, not "somewhere in the text": the reading grammar and the
+# writing grammar are two answers a caller needs, and a mutant that broke
+# only the reading one survived a check for the form anywhere.
+assert "path:A,+N" in instr, "the READING grammar never mentions path:A,+N, so an MCP caller reading files cannot know the form exists"
+assert "an N-M range, A,+N" in instr, "the WRITING grammar never mentions A,+N, so an MCP caller authoring a plan cannot know the form exists"
+assert "clamps" in instr and "refuses" in instr, "the instructions do not tell an MCP caller that a read clamps where a write refuses"
+byname={t["name"]: json.dumps(t) for t in tools["tools"]}
+for n in ("mrw_read","mrw_write"):
+    assert n in byname, "the built server does not declare %s" % n
+    assert "A,+N" in byname[n], "%s's wire description never mentions A,+N" % n
+PY
+[ $? -eq 0 ] && ok "the MCP wire text teaches the relative end on both tools" \
+             || bad "the MCP wire text does not teach the relative end"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

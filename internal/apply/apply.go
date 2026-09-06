@@ -570,6 +570,19 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 			}
 		}
 
+		// An op that cannot honour a relative end refuses it HERE as well as in
+		// plan.validate. The plan parser protects the CLI and the MCP server,
+		// but Apply is a public entry point this repository's own tests call
+		// directly, and its doc comment says it validates every hunk. A create
+		// took the branch below before the relative end was ever resolved, and
+		// an insertion computed an end and then used only the start — both
+		// reporting ok for an address they half-ignored. Second Codex review of
+		// PR #125.
+		if h.RelEnd > 0 && (h.Op == "create" || h.Op == "insert-after" || h.Op == "insert-before") {
+			fail(h, "%s takes a single line, not the range %s", h.Op, h.SrcAddr)
+			continue
+		}
+
 		if h.Op == "create" {
 			if existed {
 				fail(h, "create: %s already exists (%d lines) — use replace or delete", path, total)
@@ -686,11 +699,14 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		// same reason the explicit one is. Found by the Codex review of #125,
 		// which measured the two spellings disagreeing.
 		if h.RelEnd > 0 {
-			end = start + h.RelEnd
-			if end > total {
+			// Compared before it is added, for the reason the read path gives:
+			// start+RelEnd overflows at a large count and a wrapped end reads
+			// as in range. Refusing needs the comparison to be right.
+			if start > total || h.RelEnd > total-start {
 				fail(h, "range %s is out of range (file has %d lines)", h.SrcAddr, total)
 				continue
 			}
+			end = start + h.RelEnd
 		}
 
 		// A guard the caller wrote is checked whatever the op. An insertion

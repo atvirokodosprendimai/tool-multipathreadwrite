@@ -255,7 +255,8 @@ func tools() []tool {
 			Description: "Reach for this instead of your own file reader when the task touches " +
 				triggerRule + " — one call serves them all, and each served line is recorded so " +
 				"mrw_write may later edit it. Below that a single read is cheaper in your own " +
-				"editor. Specs use mrw's own syntax: path, path:10-20, path:/regexp/ so the read " +
+				"editor. Specs use mrw's own syntax: path, path:10-20, path:A,+N for the line A " +
+				"plus the N lines after it, path:/regexp/ so the read " +
 				"finds its own site, or path:$ for the last line. A read too large for one answer " +
 				"comes back as a PAGE, not a failure: the lines that fit, a -- PARTIAL: line, and a " +
 				"next_read spec for the rest. Repeat until next_read is absent — its absence is " +
@@ -340,7 +341,9 @@ func tools() []tool {
 						"description": "The plan document. Each hunk is a header line " +
 							"`@@ <path> <address> <op> [guards]` followed by its body lines. " +
 							"Ops: replace, insert-after, insert-before, delete, create. An address " +
-							"is a line number, an N-M range, $ for the last line, or a pattern — " +
+							"is a line number, an N-M range, A,+N (the line A plus the N lines " +
+							"after it, refused if it runs past the last line), $ for the last " +
+							"line, or a pattern — " +
 							"/regexp/ or /from/,/to/. A pattern must match EXACTLY ONE line; none " +
 							"or several fails that hunk, naming the lines it matched. Addresses " +
 							"resolve against the ORIGINAL file. Optional " +

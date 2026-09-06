@@ -20,7 +20,12 @@ func TestARelativeEndIsCutOnlyFromASingleStart(t *testing.T) {
 		{"$", "$", 0},
 		{"/a,+3/", "/a,+3/", 0}, // the tail is "3/", not a number
 		{"/a/,/b/", "/a/,/b/", 0},
+		{`/a\/,/,+2`, `/a\/,/`, 2}, // an escaped slash is not the /,/ delimiter
 		{"-", "-", 0},
+		// A base too large for an int is cut cleanly and left to the caller's
+		// own parser, which refuses it as a bad line number on BOTH paths. The
+		// lexer's job is the suffix, not the base's arithmetic.
+		{"9223372036854775808,+2", "9223372036854775808", 2},
 		{"0", "0", 0},
 	}
 	for _, c := range ok {
@@ -46,6 +51,10 @@ func TestARelativeEndIsCutOnlyFromASingleStart(t *testing.T) {
 		{"0,+3", "names no line"},
 		{"-,+3", "names no line"},
 		{"/a/,/b/,+2", "not both"},
+		{"/a/,+2,+3", "after the pattern"},
+		{"5,+1,+2", "already has an end"},
+		{"/unclosed,+2", "unclosed pattern"},
+		{"2,+9223372036854775808", "at least 1"},
 	}
 	for _, c := range bad {
 		got, n, err := CutRelative(c.in)
