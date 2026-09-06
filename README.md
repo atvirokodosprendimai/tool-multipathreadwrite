@@ -7,10 +7,10 @@ It is an ordinary command-line tool. It was built for AI coding agents, which
 are the ones doing hundreds of small edits a day, but nothing about it requires
 one.
 
-**Status: stable at v1.3.0 (2026-09-06), the tag cut from the main that carries this paragraph.**
+**Status: stable at v1.3.0 (2026-09-06), the tag cut from main `3434c35`.**
 What that word rests on is recorded in this tree. The six promises listed in `AGENTS.md` are each
 an ADR and each a set of rows in `scripts/contract.sh`, which drives the built binary and prints its
-own total; every row is green on the tree the tag is cut from. A break campaign of 47 probes
+own verdict; every row is green on the tree the tag is cut from. A break campaign of 47 probes
 (`scripts/break-campaign.sh`, its run in `docs/break/`) against main `3434c35` — the tree the
 binary is built from — found no silent wrong write, every refusal in it names its reason, and
 every probe's outcome is identical to the v1.2.0 run against `03feb92` and the v1.1.0 run against
