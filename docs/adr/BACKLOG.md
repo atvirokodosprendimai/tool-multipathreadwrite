@@ -773,18 +773,76 @@ re-measuring these. Each was driven at the built binary, not read:
   `-- PARTIAL:` notice and a `next_read`. What reached the model was lines 1-90, a marker reading
   `[141140 characters truncated]`, and lines 2644-2727: the middle was discarded by the host, not by
   mrw, and the phrase appears nowhere in this source. `internal/mcp/tools.go:535` then records the
-  page because "the page WAS shown", so `mrw seen` claimed `lines 1-3619`. A plan replacing line
+  page because "the page WAS shown" — the span it served, lines 1-2727, since `tools.go:522` builds
+  a narrowed spec for the page rather than recording the file whole. (An earlier version of this
+  entry said `mrw seen` claimed `lines 1-3619`; the code does not support that, and it does not
+  matter to the defect: line 1500 is inside 1-2727 either way.) A plan replacing line
   1500 — inside the discarded middle, shown to nobody — applied with `"status": "ok"` and exit 0.
   So mrw edited a line its caller had not seen. It is issue #109's class by another route: ADR-023
   removed an envelope that replaced the served text; here the text survives mrw and is cut after it,
   with the ledger already written.
 
-  What is NOT established: where the host's limit lies. `200,000 - 141,140 = 58,860` characters is
-  arithmetic from one result, not a measured boundary, and other hosts are unmeasured. The hard part
-  is that mrw cannot observe this from inside the server — a truncated result and a delivered one are
-  identical to it — so any fix is a design question (lower `MaxResultChars`, page to a size a host
-  will deliver, or record the ledger from something other than what was sent) and needs a record
-  rather than a patch. Reading 20 measured the same arm at 2 KB and 20 KB, where no paging and no
+  What is NOT established: where the host's limit lies, or whether it is a property of the host at
+  all. The figure `200,000 - 141,140 = 58,860` that this entry carried until 2026-09-06 was
+  **arithmetic from the wrong base and is withdrawn**: `internal/mcp/tools.go:444` sizes a page at
+  three quarters of the cap, so mrw sent ≈150,000 characters, not 200,000, and the remainder for
+  that observation is ≈8,860 — which the observation itself corroborates, since 174 delivered lines
+  at ~55 characters each is ≈9,600. It was one result either way, never a measured boundary.
+
+  **What triggers it is the PAGED SHAPE, not the size. Measured 2026-09-06 on Claude Code 2.1.263,
+  `claude-haiku-4-5` subagents, one bare-path `mrw_read` per fixture:**
+
+  | fixture | served chars | mrw paged? | host truncated? |
+  |---|---|---|---|
+  | 2,048 lines | 131,136 | no | no |
+  | 2,560 lines | 163,904 | no | no |
+  | 3,072 lines | **196,672** | no | **no** |
+  | 3,328 lines | 213,056 → page of **152,320** | yes | **YES** |
+  | 4,437 lines | 284,032 → page of ~152,000 | yes | **YES** |
+
+  A 196,672-character ordinary result arrived WHOLE. A 152,320-character PAGED result was gutted —
+  44,000 characters smaller, and it is the one that was cut. So size does not explain it, and neither
+  does the consuming model: the same Haiku subagents took the larger result intact. What the cut
+  results have in common is that ADR-014 marks a page with **`isError: true`** and a `-- PARTIAL:`
+  notice. Hosts truncate error-flagged tool results aggressively, keeping a head and a tail: the
+  remnant here was ~150 lines ≈ 9,600 characters, and reading 18's was 174 lines ≈ 9,600, two CLI
+  versions apart.
+
+  **The trigger is in our own code, and it is now CONFIRMED by a controlled A/B.** `isError: true` on
+  a SUCCESSFUL partial read is the collision: to a host the flag means "this call failed", while
+  ADR-014 uses it to mean "there is more", and hosts truncate failed results head-and-tail. mrw was
+  rebuilt with the paging path returning `isError: false`, the MCP server restarted, and the same
+  fixture re-read by the same class of consumer:
+
+  | `isError` on the page | served chars | what the consumer received |
+  |---|---|---|
+  | `true`  | 152,594 | **GAPPED** — line 78 then line 2309; ~150 lines of 2,380 survived |
+  | `false` | 152,594 | **CONTINUOUS** — first line 1, last line 2380, no gap |
+
+  Nothing else changed between the two runs. Read off the wire directly (a JSON-RPC client driving
+  `mrw mcp` over stdio, not a model's account), the page still carries its notice in the served TEXT
+  — `-- PARTIAL: lines 1-2380 of 3328. 948 line(s) remain.` — and simply omits the flag. So the
+  visibility ADR-014 wanted survives, in the place a model actually reads, and the truncation stops.
+
+  **The flag added to make partiality visible was making the page's middle invisible.** That is the
+  whole defect, and `internal/mcp/tools.go:535` recording the page as seen is what turned it into a
+  licensed write.
+
+  This has NOT been merged. It needs ADR-014 amended and the two tests that encode the old promise
+  rewritten — `TestAnOversizedReadStillReadsAsIncomplete` (`tools_test.go:565`) and
+  `TestAReadResultCarriesNoStructuredContent` both fail with the flag flipped, correctly, because
+  they assert exactly what is being changed. The replacement promise a test should hold is that a
+  page is distinguishable from a whole answer BY ITS SERVED TEXT, which is what a model reads and
+  what no host rewrites.
+
+  If it holds, the fix is small and is ours, and the three earlier candidates (lower
+  `MaxResultChars`, page to a size a host will deliver, record the ledger from something the client
+  echoes back) are no longer the only options. **The ledger premise is still worth fixing on its own
+  merits** — mrw cannot observe truncation from inside the server, a cut result and a whole one being
+  identical to it — and `anchor=` is already an echo-back the write path could require, since a
+  caller that never saw a line cannot reproduce its text.
+
+  Reading 20 measured the same arm at 2 KB and 20 KB, where no paging and no
   truncation occur, and found 30 of 30 (`docs/curve/reading-20-result.md`); readings 12, 18 and 19
   voided on the way there. So the arm is measured BELOW the truncation point and unmeasurable AT it:
   the 200 KB case is this entry, and it is a defect rather than a rate.
