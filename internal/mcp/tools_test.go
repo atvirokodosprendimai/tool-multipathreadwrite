@@ -563,8 +563,6 @@ func TestAnOversizedReadStillReadsAsIncomplete(t *testing.T) {
 
 	// ADR-024: the promise moved off the flag and onto the served text, because
 	// a host truncates an error-flagged result and does not rewrite text.
-	// ADR-024: the promise moved off the flag and onto the served text, because
-	// a host truncates an error-flagged result and does not rewrite text.
 	unflagged(t, res, "a paged read")
 	if !strings.Contains(served0(t, res), "-- PARTIAL:") {
 		t.Error("a paged read does not say it is partial in the text a model reads, so a caller that stops here believes it has the file")
@@ -573,14 +571,13 @@ func TestAnOversizedReadStillReadsAsIncomplete(t *testing.T) {
 	if _, ok := sc["next_read"]; !ok {
 		t.Error("structuredContent does not name the continuation")
 	}
-	blocks, _ := res["content"].([]any)
-	var all string
-	for _, b := range blocks {
-		s, _ := b.(map[string]any)["text"].(string)
-		all += s
-	}
-	if !strings.Contains(all, "next_read") && !strings.Contains(all, "continue") {
-		t.Error("neither content block tells a human reader that more remains")
+	// ⚠ NOT a search over every block for "next_read": content[1] IS the receipt
+	// and carries that key by construction, so such a check restates the
+	// assertion above and cannot fail. What is worth asserting separately is
+	// that the SERVED text tells a human reader more remains. Found by the Codex
+	// review of #118.
+	if !strings.Contains(served0(t, res), "line(s) remain") {
+		t.Error("the page's served text does not tell a human reader how much remains")
 	}
 }
 
@@ -665,8 +662,6 @@ func TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd(t *testing.T) {
 	root := grepTree(t, 60, 400)
 
 	res := call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE"})
-	// ADR-024: an index is an answer that SERVED something, so it carries no
-	// flag. What it must still do is read as an index rather than as the file.
 	// ADR-024: an index is an answer that SERVED something, so it carries no
 	// flag. What it must still do is read as an index rather than as the file,
 	// and that has to be checked in content[0] — content[1] uses "index" as a

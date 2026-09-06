@@ -97,6 +97,13 @@ go test ./internal/mcp/ -run 'TestAPageIsKnownByItsServedText' -count=1 2>&1 | t
 - 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · empties the continuation spec; a page a caller cannot continue is the dead end ADR-014 removed · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the next_read field in content[1]
 - 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · drops the flag from a genuine refusal; ADR-024 removes it only from answers that delivered what was asked · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:errorResult keeping its flag
 - 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · stops a served answer naming the path it could not use; dropping the flag must not drop the report · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the per-path -- <path>: <reason> lines in content[0]
+- 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/tools.go` · restores the flag on a page; the fence must go red · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the absence of isError on an answer that served content
+- 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/tools.go` · restores the flag on an oversized grep index; the fence must go red · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the absence of isError on an answer that served content
+- 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/tools.go` · restores the flag on an ordinary read that served content beside an unusable path; the fence must go red · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the absence of isError on an answer that served content
+- 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/tools.go` · lowercases the notice a page carries in content[0] · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the -- PARTIAL: notice in content[0]
+- 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/tools.go` · empties the continuation spec a page names in content[1] · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the next_read field in content[1]
+- 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/tools.go` · drops the flag from a genuine refusal · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:errorResult keeping its flag
+- 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/tools.go` · stops a served answer naming the path it could not use · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · covers:the per-path -- <path>: <reason> lines in content[0]
 
 ## Invariants
 
@@ -157,3 +164,10 @@ and the record must be revised rather than the test relaxed.
 - 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:5825
 - 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:5975
 - 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:5902
+- 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:6735
+- 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:6015
+- 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:5642
+- 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:5895
+- 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:5796
+- 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:8179
+- 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c27e92dcee4c9a7c7def518fd09a2dbab8078ef35abe061165f2be82fcdd34b · ms:8477

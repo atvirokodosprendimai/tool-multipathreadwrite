@@ -581,9 +581,6 @@ func TestAReadResultCarriesNoStructuredContent(t *testing.T) {
 	if next, _ := receipt(t, paged)["next_read"].(string); next == "" {
 		t.Fatal("the oversized read did not page; this fixture exists to produce a page")
 	}
-	if next, _ := receipt(t, paged)["next_read"].(string); next == "" {
-		t.Error("a page's content[1] names no next_read; the continuation moved out of structuredContent and must still be findable")
-	}
 	if idx, _ := receipt(t, index)["index"].([]any); len(idx) == 0 {
 		t.Error("an index's content[1] carries no index entries")
 	}

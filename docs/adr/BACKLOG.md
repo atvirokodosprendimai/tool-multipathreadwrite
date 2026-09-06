@@ -832,7 +832,8 @@ re-measuring these. Each was driven at the built binary, not read:
   record was accepted 2026-09-06 and executed the same day: `pagedResult`, `indexResult` and the
   served-read path that passed `problems > 0` all return the flag absent, `errorResult` keeps it,
   and contract §62 drives the shape through the built binary. ADR-024 formally invalidates the
-  clause of ADR-014's Decision 2 that added the flag and the matching clause of ADR-017.
+  clause of ADR-014's Decision 2 that added the flag, and the matching assertion in ADR-017's
+  Enforced-by test — ADR-017's own Decision never mentioned the flag.
 
   ⚠ **Executing it widened the class twice, and both widenings came from enumerating rather than
   recalling.** ADR-024's first enumeration used `awk '/IsError: *true/'` and found three sites; it

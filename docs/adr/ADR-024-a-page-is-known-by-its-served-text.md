@@ -78,11 +78,17 @@ one that was measured.** Enumerated with
 grep -n 'IsError' internal/mcp/tools.go
 ```
 
-which returns the field declaration at `:48` and four constructions: `errorResult` (`:422` — a
-refusal, served nothing, keeps the flag), `pagedResult` (`:637`, ADR-014), `indexResult` (`:814`,
-ADR-017), and `readResult`'s `IsError: isErr` (`:90`), whose callers at `:202`, `:319` and `:841`
-pass `problems > 0` — so **an ordinary read that served file content and hit one unreadable path
-comes back flagged as a failure, carrying the content**.
+⚠ **That output is the enumeration AS IT STOOD BEFORE this record was implemented, and it is kept in
+that tense on purpose.** Run at head the same command returns three lines — `:48`, `:90` and `:423` —
+because two of the four constructions no longer set the field at all. The list below is what the
+audit found, not what the tree shows now.
+
+Four constructions, plus the field declaration at `:48`: `errorResult` (`:422` — a refusal, served
+nothing, keeps the flag), `pagedResult` (`:637`, ADR-014), `indexResult` (`:814`, ADR-017), and
+`readResult`'s `IsError: isErr` (`:90`), whose callers at `:202`, `:319` and `:841` all passed
+`problems > 0` — so **an ordinary read that served file content and hit one unreadable path came
+back flagged as a failure, carrying the content**. Of those three callers only `:319` and `:841`
+change here; `:202` is retained as an error under Decision 1 and still passes `len(walkProblems) > 0`.
 
 ⚠ **An earlier version of this record enumerated the class with `awk '/IsError: *true/'` and found
 three sites.** That command matches only the literal, and `readResult` takes the flag as a
@@ -134,7 +140,7 @@ engine go/no-go.
 |---------|--------|----------|-------------|
 | `mrw_read` MCP result, paged shape | `isError` no longer set; `content[0]` `-- PARTIAL:` notice and `content[1]` `next_read` unchanged | `pagedResult` (`internal/mcp/tools.go`) | any MCP host; `internal/mcp/tools_test.go`, `internal/mcp/conformance_test.go`, `scripts/contract.sh` §62 |
 | `mrw_read` MCP result, index shape | `isError` no longer set; `content[0]` report and `content[1]` `index` unchanged | `indexResult` (`internal/mcp/tools.go:814`) | any MCP host; `internal/mcp/tools_test.go`, `internal/mcp/conformance_test.go` |
-| `mrw_read` MCP result, served-with-problems shape | `isError` no longer set; the per-path `-- <path>: <reason>` lines in `content[0]` and `problems` in `content[1]` unchanged | `readResult` via `:202`, `:319`, `:841` (`internal/mcp/tools.go`) | any MCP host; `internal/mcp/tools_test.go` |
+| `mrw_read` MCP result, served-with-problems shape | `isError` no longer set; the per-path `-- <path>: <reason>` lines in `content[0]` and `problems` in `content[1]` unchanged | `readResult` via `:319` and its size probe `:841` (`internal/mcp/tools.go`); `:202` is NOT changed and still flags | any MCP host; `internal/mcp/tools_test.go` |
 
 ## Inter-task Contracts
 

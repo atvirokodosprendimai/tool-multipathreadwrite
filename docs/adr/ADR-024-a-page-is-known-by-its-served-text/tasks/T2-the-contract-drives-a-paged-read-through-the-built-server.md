@@ -8,7 +8,7 @@
 **Consumes:** `pagedResult()` and `indexResult()` return `isError` absent (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the absence of isError in the server's JSON-RPC reply`, `the -- PARTIAL: notice in the reply's content[0]`, `errorResult still flagging a refusal`, `the built binary rather than a package-level call`
+**Rests-on:** `the absence of isError in the server's JSON-RPC reply`, `the -- PARTIAL: notice in the reply's content[0]`, `errorResult still flagging a refusal`, `the tools/list description not teaching the retired flag`, `the built binary rather than a package-level call`
 
 ## Goal
 
@@ -62,6 +62,9 @@ grep -q '^# 62\. ' scripts/contract.sh \
 - 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · restores the flag on a page in the BUILT binary; §62 must go red · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:the absence of isError in the server's JSON-RPC reply
 - 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/tools.go` · drops the flag from a refusal in the BUILT binary; §62 must go red · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:errorResult still flagging a refusal
 - 2026-09-06 · 54a7e59* · mutant killed · exit 1 · `internal/mcp/mcp.go` · restores the retired promise in the tools/list description; §62 must go red, which is the check that was missing when this shipped · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:the -- PARTIAL: notice in the reply's content[0]
+- 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/tools.go` · restores the flag on a page in the BUILT binary; §62 must go red · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:the absence of isError in the server's JSON-RPC reply
+- 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/tools.go` · drops the flag from a refusal in the BUILT binary; §62 must go red · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:errorResult still flagging a refusal
+- 2026-09-06 · 6c4326d* · mutant killed · exit 1 · `internal/mcp/mcp.go` · restores the retired promise in the tools/list description a host reads before it calls anything; §62 must go red — this is the check that was missing when the description shipped stale · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · covers:the tools/list description not teaching the retired flag
 
 ## Invariants
 
@@ -96,3 +99,6 @@ task and is ADR-010's territory.
 - 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:24421
 - 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:23426
 - 2026-09-06 · 54a7e59* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:20945
+- 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:23290
+- 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:24053
+- 2026-09-06 · 6c4326d* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bebd8687eb29d49a0302917cb8e65d252cdb3c95979f06a088587e8e7897cab · ms:23012
