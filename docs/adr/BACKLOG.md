@@ -808,12 +808,32 @@ re-measuring these. Each was driven at the built binary, not read:
   remnant here was ~150 lines ≈ 9,600 characters, and reading 18's was 174 lines ≈ 9,600, two CLI
   versions apart.
 
-  **So the trigger is in our own code, not only in the host's.** The leading hypothesis is that
-  `isError: true` on a SUCCESSFUL partial read is the collision: the flag means "this call failed" to
-  a host, while ADR-014 uses it to mean "there is more". It is a hypothesis and NOT yet tested — the
-  test is to build mrw with the paging path returning `isError: false`, restart the MCP server, and
-  re-run the table above. That could not be done in the measuring session, because replacing the
-  binary does not affect an already-running server.
+  **The trigger is in our own code, and it is now CONFIRMED by a controlled A/B.** `isError: true` on
+  a SUCCESSFUL partial read is the collision: to a host the flag means "this call failed", while
+  ADR-014 uses it to mean "there is more", and hosts truncate failed results head-and-tail. mrw was
+  rebuilt with the paging path returning `isError: false`, the MCP server restarted, and the same
+  fixture re-read by the same class of consumer:
+
+  | `isError` on the page | served chars | what the consumer received |
+  |---|---|---|
+  | `true`  | 152,594 | **GAPPED** — line 78 then line 2309; ~150 lines of 2,380 survived |
+  | `false` | 152,594 | **CONTINUOUS** — first line 1, last line 2380, no gap |
+
+  Nothing else changed between the two runs. Read off the wire directly (a JSON-RPC client driving
+  `mrw mcp` over stdio, not a model's account), the page still carries its notice in the served TEXT
+  — `-- PARTIAL: lines 1-2380 of 3328. 948 line(s) remain.` — and simply omits the flag. So the
+  visibility ADR-014 wanted survives, in the place a model actually reads, and the truncation stops.
+
+  **The flag added to make partiality visible was making the page's middle invisible.** That is the
+  whole defect, and `internal/mcp/tools.go:535` recording the page as seen is what turned it into a
+  licensed write.
+
+  This has NOT been merged. It needs ADR-014 amended and the two tests that encode the old promise
+  rewritten — `TestAnOversizedReadStillReadsAsIncomplete` (`tools_test.go:565`) and
+  `TestAReadResultCarriesNoStructuredContent` both fail with the flag flipped, correctly, because
+  they assert exactly what is being changed. The replacement promise a test should hold is that a
+  page is distinguishable from a whole answer BY ITS SERVED TEXT, which is what a model reads and
+  what no host rewrites.
 
   If it holds, the fix is small and is ours, and the three earlier candidates (lower
   `MaxResultChars`, page to a size a host will deliver, record the ledger from something the client
