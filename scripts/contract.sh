@@ -2276,7 +2276,7 @@ import json, subprocess, sys, os
 root, raw = sys.argv[1], sys.argv[2]
 res = json.loads(raw)["result"]
 sc = json.loads(res["content"][1]["text"])   # the receipt lives in content[1] (ADR-023)
-assert res.get("isError") is True, "an oversized grep must still read as an error"
+assert "isError" not in res, "ADR-024: an oversized grep index SERVED an index, so the key must be ABSENT — a host truncates a flagged result and a shortened index names no gap"
 assert sc["matches"] == 40, "the index reports %r matching files, want 40" % sc["matches"]
 idx = sc["index"]
 assert idx, "an oversized grep returned no index at all"
@@ -3134,7 +3134,7 @@ r=json.load(open(sys.argv[2]))["result"]
 for w in ("next_read","PAGE","absent","part of a file"):
     assert w in i, "the instructions never mention %r" % w
 # What it does — the same three claims, against a real oversized read.
-assert r.get("isError") is True, "taught as an error, shipped as a success"
+assert "isError" not in r, "ADR-024: taught as a PAGE and not a failure, shipped carrying the isError key"
 sc=json.loads(r["content"][1]["text"])
 assert sc.get("next_read"), "taught next_read, shipped none"
 assert "padding" in r["content"][0]["text"], "taught a PAGE of content, shipped no content"
@@ -3364,8 +3364,8 @@ for name,r in (("served",served),("paged",paged),("index",index)):
     rec=json.loads(c[1]["text"]); assert "observed" in rec, "%s receipt at content[1] carries no observed" % name
 assert served["content"][0]["text"].startswith("==> a.go"), "the served read's content[0] is not the served text"
 assert served.get("isError") is not True, "a two-line served read read as an error"
-assert paged.get("isError") is True and json.loads(paged["content"][1]["text"]).get("next_read"), "the page names no next_read at content[1]"
-assert index.get("isError") is True and json.loads(index["content"][1]["text"]).get("index"), "the index carries no entries at content[1]"
+assert "isError" not in paged and json.loads(paged["content"][1]["text"]).get("next_read"), "ADR-024: the page carries the isError key, or names no next_read at content[1]"
+assert "isError" not in index and json.loads(index["content"][1]["text"]).get("index"), "ADR-024: the index carries the isError key, or carries no entries at content[1]"
 tools={t["name"]:t for t in listed["tools"]}
 assert "outputSchema" not in tools["mrw_read"], "mrw_read declares an outputSchema it never fulfils"
 assert "outputSchema" in tools["mrw_write"], "mrw_write lost its outputSchema"
@@ -3491,6 +3491,52 @@ opid=$(cat "$WORK/probe2" 2>/dev/null)
   && ok "INT to the wrapper is forwarded: the nested runner ended 143 in ${el}s and its orphan with it" \
   || bad "INT to the wrapper: exit $rc after ${el}s, orphan '${opid:-?}' $(kill -0 "${opid:-999999999}" 2>/dev/null && echo alive || echo gone)"
 kill "${opid:-999999999}" 2>/dev/null; kill -- -"$(cat "$WORK/probe2.runner" 2>/dev/null || echo 999999999)" 2>/dev/null; true
+
+# 62. ADR-024 T2: an answer that SERVED something is not flagged an error, and a
+# refusal still is.
+#
+# A unit test proves the function; it cannot prove the SHIPPED server returns it.
+# The pairing is the whole point: a row asserting only the ABSENCE of a flag
+# would pass against a server that had stopped flagging everything, refusals
+# included, which is a different defect wearing this fix's face.
+#
+# Measured 2026-09-06 on Claude Code 2.1.263 — the same 152,594-character page
+# reached a consumer GAPPED with isError set (line 78, then line 2309 of 2,380)
+# and CONTINUOUS without it. This row cannot see the host, only what the binary
+# sends, so it pins the half that is ours.
+fixture
+python3 -c "
+with open('$R/pager.go','w') as f:
+    f.write('package demo\n')
+    for i in range(9000): f.write('// padding padding padding padding padding %06d\n' % i)
+"
+# ⚠ THROUGH FILES, NOT ARGV — the page is ~156 KB and Linux caps one argument at
+# 131,072 bytes (MAX_ARG_STRLEN). The same trap §48 records.
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["pager.go"]}}}\n' | m mcp 2>/dev/null > "$WORK/p62.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"],"exclude":["x"]}}}\n' | m mcp 2>/dev/null > "$WORK/r62.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null > "$WORK/l62.json"
+python3 - "$WORK/p62.json" "$WORK/r62.json" "$WORK/l62.json" <<'PY'
+import json,sys
+page=json.load(open(sys.argv[1]))["result"]
+ref=json.load(open(sys.argv[2]))["result"]
+listed=json.load(open(sys.argv[3]))["result"]
+assert "isError" not in page, "the built server flags a PAGE as an error; a host then discards its middle, and the key must be ABSENT rather than false"
+txt=page["content"][0]["text"]
+assert "-- PARTIAL:" in txt, "the page does not say it is partial in the served text, which is now the only place it says so"
+assert "line(s) remain" in txt, "the page's notice does not say how much remains"
+assert json.loads(page["content"][1]["text"]).get("next_read"), "the page names no next_read, so a caller cannot continue"
+assert ref.get("isError") is True, "a refusal that served NOTHING lost its flag; without this pair the row would pass against a server that flags nothing at all"
+# ⚠ AND THE SURFACE MUST NOT STILL TEACH THE RETIRED PROMISE. The tools/list
+# description is what a host reads before it ever calls anything, and it went on
+# promising `isError true` for a page after the server had stopped sending it —
+# neither §48 nor the first version of this row looked at it. Found by the Codex
+# review of #118.
+desc=[t for t in listed["tools"] if t["name"]=="mrw_read"][0]["description"]
+assert "isError true" not in desc, "mrw_read's tools/list description still teaches the flag ADR-024 retired"
+assert "-- PARTIAL:" in desc, "mrw_read's tools/list description does not teach what replaced the flag"
+PY
+[ $? -eq 0 ] && ok "the built server sends a page unflagged and saying so in its own text, and still flags a refusal" \
+             || bad "the shipped paging or refusal shape is not what ADR-024 decided"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

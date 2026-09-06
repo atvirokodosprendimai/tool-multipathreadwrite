@@ -828,19 +828,40 @@ re-measuring these. Each was driven at the built binary, not read:
   whole defect, and `internal/mcp/tools.go:535` recording the page as seen is what turned it into a
   licensed write.
 
-  This has NOT been merged. It needs ADR-014 amended and the two tests that encode the old promise
-  rewritten — `TestAnOversizedReadStillReadsAsIncomplete` (`tools_test.go:565`) and
-  `TestAReadResultCarriesNoStructuredContent` both fail with the flag flipped, correctly, because
-  they assert exactly what is being changed. The replacement promise a test should hold is that a
-  page is distinguishable from a whole answer BY ITS SERVED TEXT, which is what a model reads and
-  what no host rewrites.
+  **This is DONE, as `ADR-024: A page is known by its served text, not by an error flag`.** The
+  record was accepted 2026-09-06 and executed the same day: `pagedResult`, `indexResult` and the
+  served-read path that passed `problems > 0` all return the flag absent, `errorResult` keeps it,
+  and contract §62 drives the shape through the built binary. ADR-024 formally invalidates the
+  clause of ADR-014's Decision 2 that added the flag, and the matching assertion in ADR-017's
+  Enforced-by test — ADR-017's own Decision never mentioned the flag.
 
-  If it holds, the fix is small and is ours, and the three earlier candidates (lower
-  `MaxResultChars`, page to a size a host will deliver, record the ledger from something the client
-  echoes back) are no longer the only options. **The ledger premise is still worth fixing on its own
-  merits** — mrw cannot observe truncation from inside the server, a cut result and a whole one being
-  identical to it — and `anchor=` is already an echo-back the write path could require, since a
-  caller that never saw a line cannot reproduce its text.
+  ⚠ **Executing it widened the class twice, and both widenings came from enumerating rather than
+  recalling.** ADR-024's first enumeration used `awk '/IsError: *true/'` and found three sites; it
+  missed `readResult`'s `IsError: isErr` parameter, which its callers at the time all passed
+  `problems > 0` (only the deliberately retained `:202` branch still does). So an
+  ORDINARY multi-file read that served content beside one unreadable path came back flagged — no
+  oversized file needed, which makes it the most exposed member of the class and the one nobody was
+  looking for. The corrected command is `grep -n 'IsError' internal/mcp/tools.go`, deliberately the
+  broad one. The lesson generalises: a class-enumerating command has to be checked against what it
+  CANNOT match.
+
+  **Two obligations remain open here, and ADR-024 defers both to this file by name.**
+
+- **The ledger records what was SENT, not what was SEEN** (`internal/mcp/tools.go`, the `seen.Record`
+  calls). Deferred from `docs/adr/ADR-024-a-page-is-known-by-its-served-text.md`, whose Decision 4
+  says plainly that it narrows the exposure without removing the class: mrw cannot observe truncation
+  from inside the server, a cut result and a whole one being identical to it. `anchor=` is the
+  candidate echo-back — it already exists, and a caller that never saw a line cannot reproduce its
+  text, which turns "did you see it?" from a server-side belief into a checkable claim.
+
+- **`MaxResultChars` is one host's ceiling hardcoded into a general-purpose tool.** `schema.go` says
+  so itself — "The value is Claude Code's per-tool ceiling" — while mrw runs under any MCP host.
+  Deferred from ADR-024, which explicitly does not move the number. The proposed shape is a
+  caller-set knob (`MRW_MAX_RESULT_CHARS`, `mrw mcp --max-result-chars N`, `0` = no limit) with
+  `_meta`'s `anthropic/maxResultSizeChars` advertising the configured value rather than a constant.
+  ⚠ The cap is NOT ceremony and must not simply be deleted: `internal/mcp/tools.go` records that an
+  uncapped 40 × 18 MB read peaked at 2.6 GB and that the cap brought the same request to 87 MB,
+  measured 2026-09-03. What a knob changes is WHO chooses, not whether the guard exists.
 
   Reading 20 measured the same arm at 2 KB and 20 KB, where no paging and no
   truncation occur, and found 30 of 30 (`docs/curve/reading-20-result.md`); readings 12, 18 and 19

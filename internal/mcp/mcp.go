@@ -257,7 +257,7 @@ func tools() []tool {
 				"mrw_write may later edit it. Below that a single read is cheaper in your own " +
 				"editor. Specs use mrw's own syntax: path, path:10-20, path:/regexp/ so the read " +
 				"finds its own site, or path:$ for the last line. A read too large for one answer " +
-				"comes back as a PAGE, not a failure: the lines that fit, isError true, and a " +
+				"comes back as a PAGE, not a failure: the lines that fit, a -- PARTIAL: line, and a " +
 				"next_read spec for the rest. Repeat until next_read is absent — its absence is " +
 				"how you know you have the whole file, and you may only edit lines a page served. " +
 				"The served text is the first text block; the receipt (observed spans, problems, " +

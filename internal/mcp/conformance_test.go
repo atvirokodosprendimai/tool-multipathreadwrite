@@ -576,11 +576,10 @@ func TestAReadResultCarriesNoStructuredContent(t *testing.T) {
 			t.Errorf("%s read result's content[1] carries no observed field; the receipt must still travel", name)
 		}
 	}
-	if paged["isError"] != true {
-		t.Fatal("the oversized read did not page; this fixture exists to produce a page")
-	}
+	// The fixture guard, not the promise: ADR-024 removed the flag from a page,
+	// so paging is confirmed by the continuation it names instead.
 	if next, _ := receipt(t, paged)["next_read"].(string); next == "" {
-		t.Error("a page's content[1] names no next_read; the continuation moved out of structuredContent and must still be findable")
+		t.Fatal("the oversized read did not page; this fixture exists to produce a page")
 	}
 	if idx, _ := receipt(t, index)["index"].([]any); len(idx) == 0 {
 		t.Error("an index's content[1] carries no index entries")

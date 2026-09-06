@@ -258,8 +258,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// continuation at all. The caller's exit condition is the absence of a
 		// field rather than a count it has to keep.
 		//
-		// It stays isError. That is the whole difference between paging and
-		// truncation: the caller must be able to see it received a part.
+		// It carries NO isError, per ADR-024 — the difference between paging and
+		// truncation is the `-- PARTIAL:` line in the served text, not a flag a
+		// host reads as "this call failed" and then truncates the answer over.
 		// ADR-017: a grep too large to SERVE still answers, with the addresses
 		// it found. firstPage cannot help here — it needs one open-ended spec
 		// and a walk produces many across many files — so without this branch
@@ -316,7 +317,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	return readResult(map[string]any{
 		"observed": observed,
 		"problems": problems,
-	}, report, problems > 0)
+	}, report, false)
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the
@@ -608,7 +609,7 @@ func overflowMessage(specs []string, cw *capped) string {
 // that asks for the rest.
 //
 // It duplicates little of `result` and deliberately does not reuse it: `result`
-// takes isErr as a parameter and a page is ALWAYS an error, and the structured
+// takes isErr as a parameter and threads structuredContent, and the structured
 // map here carries a field the normal shape does not. Folding the two would
 // mean a boolean and an optional field threaded through the common path for one
 // caller's benefit.
@@ -631,10 +632,15 @@ func pagedResult(report string, observed map[string]seen.Observation, problems i
 			{Type: "text", Text: string(b)},
 		},
 		// No structuredContent: a read's answer is content[0] (ADR-023).
-		// ALWAYS true. A page that reads as a complete answer is truncation,
-		// and the caller's ability to see it received a part is the only thing
-		// separating this from what ADR-011 refused.
-		IsError: true,
+		//
+		// AND NO isError, per ADR-024. This was `true`, so that a caller could
+		// SEE it received a part — and that is exactly what destroyed the part.
+		// A host reads the flag as "this call failed" and truncates such a
+		// result head-and-tail: measured 2026-09-06 on Claude Code 2.1.263, the
+		// same 152,594-character page arrived gapped with the flag (line 78,
+		// then line 2309 of 2,380) and continuous without it. The partiality is
+		// carried by the `-- PARTIAL:` notice in content[0] and by next_read in
+		// content[1] — the served text, which no host rewrites.
 	}
 }
 
@@ -808,10 +814,11 @@ func indexResult(report string, raw []byte) callToolResult {
 			{Type: "text", Text: string(raw)},
 		},
 		// No structuredContent: a read's answer is content[0] (ADR-023).
-		// An index is not the content that was asked for, so it stays an
-		// error for the same reason a page does: the caller must be able to
-		// see it did not get what it requested.
-		IsError: true,
+		//
+		// AND NO isError, per ADR-024, for the same reason a page carries none:
+		// an index that a host truncates is worse than a page, because a
+		// shortened list of matching files names no gap for anyone to notice.
+		// The report in content[0] says what this is.
 	}
 }
 
@@ -838,7 +845,11 @@ func encodedSize(res callToolResult) int {
 // that does fit, it is resumable, and it licenses nothing, which is the honest
 // trade for content that cannot be delivered.
 func servedOrIndex(specs []read.Spec, problems int, cw *capped, observed map[string]seen.Observation, report string) (callToolResult, bool) {
-	probe, rpcErr := readResult(map[string]any{"observed": observed, "problems": problems}, report, problems > 0)
+	// ADR-024: false, matching what the served result will actually carry, so
+	// the probe measures the shape that is sent rather than one 15 bytes larger
+	// (`,"isError":true`). Only results inside that 15-byte band change verdict,
+	// and they change it correctly: they now genuinely fit the declared limit.
+	probe, rpcErr := readResult(map[string]any{"observed": observed, "problems": problems}, report, false)
 	if rpcErr != nil {
 		// Undecidable, so not degraded: the caller path will report the same
 		// encoding failure with its own message.

@@ -258,3 +258,19 @@ with it — the two are in one commit precisely so neither can be reverted alone
 
 - [ ] Measure the walk on a real document tree once the root model exists, and decide whether
       `WalkOptions` needs a bound or whether the root is the only bound that matters.
+
+## Amendment, 2026-09-06: the index no longer reads as an error (ADR-024)
+
+**This record's Decision never mentioned `isError`, and none of it is superseded.** What changed is
+an assertion its Enforced-by test carried: `TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd` required
+that an oversized grep "must still read as an error". ADR-024 removed the flag from every answer that
+delivered what was asked for, an index included, because hosts truncate error-flagged results — and a
+silently shortened index is worse than a shortened page, since a missing file name leaves no gap in a
+sequence for anyone to notice.
+
+The test still enforces THIS record's promise, and now does it better: it asserts the served text
+carries `-- INDEX:` in `content[0]`, rather than asserting a protocol flag. The first rewrite searched
+every content block for the word "index", which the receipt supplies as a JSON key — an assertion that
+could not fail. Found by the Codex review of #118 and replaced with the `content[0]` check.
+
+See `docs/adr/ADR-024-a-page-is-known-by-its-served-text.md`.

@@ -561,21 +561,23 @@ func TestAnOversizedReadStillReadsAsIncomplete(t *testing.T) {
 	root, path := bigCheckout(t, 12000)
 	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
 
-	if e, _ := res["isError"].(bool); !e {
-		t.Error("a paged read is not marked isError, so a caller that stops here believes it has the file")
+	// ADR-024: the promise moved off the flag and onto the served text, because
+	// a host truncates an error-flagged result and does not rewrite text.
+	unflagged(t, res, "a paged read")
+	if !strings.Contains(served0(t, res), "-- PARTIAL:") {
+		t.Error("a paged read does not say it is partial in the text a model reads, so a caller that stops here believes it has the file")
 	}
 	sc := receipt(t, res)
 	if _, ok := sc["next_read"]; !ok {
 		t.Error("structuredContent does not name the continuation")
 	}
-	blocks, _ := res["content"].([]any)
-	var all string
-	for _, b := range blocks {
-		s, _ := b.(map[string]any)["text"].(string)
-		all += s
-	}
-	if !strings.Contains(all, "next_read") && !strings.Contains(all, "continue") {
-		t.Error("neither content block tells a human reader that more remains")
+	// ⚠ NOT a search over every block for "next_read": content[1] IS the receipt
+	// and carries that key by construction, so such a check restates the
+	// assertion above and cannot fail. What is worth asserting separately is
+	// that the SERVED text tells a human reader more remains. Found by the Codex
+	// review of #118.
+	if !strings.Contains(served0(t, res), "line(s) remain") {
+		t.Error("the page's served text does not tell a human reader how much remains")
 	}
 }
 
@@ -660,8 +662,13 @@ func TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd(t *testing.T) {
 	root := grepTree(t, 60, 400)
 
 	res := call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE"})
-	if res["isError"] != true {
-		t.Fatal("an oversized grep must still read as an error — a partial answer that looks whole is what this project refuses")
+	// ADR-024: an index is an answer that SERVED something, so it carries no
+	// flag. What it must still do is read as an index rather than as the file,
+	// and that has to be checked in content[0] — content[1] uses "index" as a
+	// receipt key, so searching every block cannot fail.
+	unflagged(t, res, "an oversized grep index")
+	if !strings.Contains(served0(t, res), "-- INDEX:") {
+		t.Fatal("an oversized grep did not read as an index — a partial answer that looks whole is what this project refuses")
 	}
 	st := receipt(t, res)
 	if got := st["matches"]; got == nil || int(got.(float64)) != 60 {
@@ -895,9 +902,9 @@ func TestAWalkProblemSurvivesAValidSibling(t *testing.T) {
 	if n, _ := receipt(t, res)["problems"].(float64); n < 1 {
 		t.Errorf("problems = %v, want the unusable path counted", n)
 	}
-	if res["isError"] != true {
-		t.Error("a walk that could not look where it was told reported success")
-	}
+	// ADR-024: this answer SERVED its good sibling, so it carries no flag; the
+	// unusable path is reported in the text and counted in problems above.
+	unflagged(t, res, "a read that served its good sibling")
 }
 
 // TestNoGrepAnswerExceedsTheDeclaredCap is the property both the index budget
@@ -977,5 +984,103 @@ func TestAfterWithoutGrepIsRefused(t *testing.T) {
 	})
 	if res["isError"] != true {
 		t.Fatalf("after without grep was silently ignored, so a caller believes it is paging: %v", res)
+	}
+}
+
+// TestAPageIsKnownByItsServedText is ADR-024's Enforced-by test. An answer that
+// SERVED something must not be marked isError: a host reads that flag as "this
+// call failed" and truncates the result head-and-tail, so the flag ADR-014 added
+// to make partiality visible was what made the page's middle invisible. Measured
+// 2026-09-06 against Claude Code 2.1.263 — the same 152,594-character page came
+// back gapped with the flag (line 78 then line 2309) and continuous without it.
+//
+// The four members of the class are asserted together on purpose. Three of them
+// serve content and must lose the flag; the fourth serves nothing and must keep
+// it. Without that pairing the test would pass against a server that had simply
+// stopped flagging anything, which is a different bug wearing this fix's face.
+// served0 is content[0] — the block that carries the ANSWER. Assertions about
+// what a result says must read it directly: fmt.Sprint over every block also
+// spans content[1], the JSON receipt, so a check for a word the receipt happens
+// to use as a key passes without the served text saying anything at all. That
+// is how the first version of TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd
+// searched for "index" and could not fail. Found by the Codex review of #118.
+func served0(t *testing.T, res map[string]any) string {
+	t.Helper()
+	blocks, _ := res["content"].([]any)
+	if len(blocks) == 0 {
+		t.Fatal("the result carries no content blocks")
+	}
+	s, _ := blocks[0].(map[string]any)["text"].(string)
+	return s
+}
+
+// unflagged asserts the isError KEY IS ABSENT, which is what ADR-024 promises
+// and what `omitempty` actually produces. `res["isError"] == true` is also
+// satisfied by an explicit `false`, so it would pass against a server that
+// started sending the field again with a different value.
+func unflagged(t *testing.T, res map[string]any, what string) {
+	t.Helper()
+	if v, has := res["isError"]; has {
+		t.Errorf("%s carries isError=%v; ADR-024 promises the key is absent, and a host reads its presence as a failed call", what, v)
+	}
+}
+
+func TestAPageIsKnownByItsServedText(t *testing.T) {
+	// 1. A page: ADR-014's first-page shape.
+	pagedRoot, pagedPath := bigCheckout(t, 12000)
+	paged := call(t, pagedRoot, "mrw_read", map[string]any{"specs": []any{pagedPath}})
+	unflagged(t, paged, "a paged read")
+	pagedAll := served0(t, paged)
+	if !strings.Contains(pagedAll, "-- PARTIAL:") {
+		t.Error("a page does not say it is partial in the text a model reads")
+	}
+	if !strings.Contains(pagedAll, "line(s) remain") {
+		t.Error("a page's notice does not say how much remains")
+	}
+	if next, _ := receipt(t, paged)["next_read"].(string); next == "" {
+		t.Error("a page names no next_read, so a caller cannot continue")
+	}
+
+	// 2. An oversized grep index: ADR-017's shape.
+	index := call(t, grepTree(t, 60, 400), "mrw_read", map[string]any{"grep": "NEEDLE"})
+	unflagged(t, index, "an oversized grep index")
+	if !strings.Contains(served0(t, index), "-- INDEX:") {
+		t.Error("the index's content[0] does not identify itself as an index; a caller reading the served text cannot tell it did not get the files")
+	}
+	if idx, _ := receipt(t, index)["index"].([]any); len(idx) == 0 {
+		t.Error("the index carries no entries, so this fixture did not reach the index shape")
+	}
+	// 3. The ordinary case, and the most exposed: content served alongside a path
+	// that could not be used. This needs no oversized file at all.
+	sibRoot := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if err := os.MkdirAll(filepath.Join(sibRoot, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sibRoot, "sub", "deep.txt"), []byte("x\nthe NEEDLE is here\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sib := call(t, sibRoot, "mrw_read", map[string]any{
+		"specs": []any{"nope_dir", "sub"},
+		"grep":  "NEEDLE",
+	})
+	unflagged(t, sib, "a read that served its good sibling")
+	sibAll := served0(t, sib)
+	if !strings.Contains(sibAll, "NEEDLE") {
+		t.Error("the good sibling was not served, so this fixture did not reach the served-with-problems shape")
+	}
+	if !strings.Contains(sibAll, "nope_dir") {
+		t.Error("the unusable path is not named in the served text; dropping the flag must not drop the report")
+	}
+	if n, _ := receipt(t, sib)["problems"].(float64); n < 1 {
+		t.Error("the unusable path is not counted in problems")
+	}
+
+	// 4. The pairing. A refusal served NOTHING and keeps its flag, so the three
+	// assertions above cannot be satisfied by a server that flags nothing at all.
+	refRoot, refPath := checkout(t, "a.txt", "one\ntwo\n")
+	refused := call(t, refRoot, "mrw_read", map[string]any{"specs": []any{refPath}, "exclude": []any{"x"}})
+	if refused["isError"] != true {
+		t.Fatal("a refusal that served nothing is not marked isError; the flag must still mean what it says")
 	}
 }

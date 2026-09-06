@@ -94,10 +94,10 @@ the root) and serves every match. Too large to serve? You get an INDEX — one
 spec per file, no content — to send back as specs. exclude
 skips globs; no range on a path with grep.
 
-A read too large for one answer comes back as a PAGE, not a failure: you get the
-lines that fit, isError true, and next_read naming the spec to send for the
-rest. Send it, repeat until next_read is absent — its absence is how you know
-you have the whole file. Stopping early leaves you holding part of a file.
+A read too large for one answer comes back as a PAGE, not a failure: the lines
+that fit, a -- PARTIAL: line naming what remains, and next_read naming the spec
+to send for the rest. Repeat until next_read is absent — that absence is how you
+know you have the whole file. Stopping early leaves you part of a file.
 
 WRITING. mrw_write takes one plan document. Each hunk is a header line
 
