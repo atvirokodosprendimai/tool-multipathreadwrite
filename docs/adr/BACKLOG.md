@@ -927,3 +927,13 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   to stay understandable when the caller wrote the ambiguous one. Anyone taking it up needs a
   record, both parsers changed together for the reason ADR-026 gives, and a contract row that pairs
   the good case with the ambiguous one.
+
+## From ADR-027 (an empty file is created on purpose, or not at all)
+
+- **Requiring `body=N` on every op, not just as an opt-in guard.** ADR-027 reuses `body=0` as the
+  way to SAY "deliberately nothing" for `create`, which works because the count already exists and
+  already means it. Making the count mandatory everywhere is the larger version of that idea: it
+  would close the lost-body hazard for every op at once rather than one at a time, and it would cost
+  a token on every hunk anyone ever writes. Nobody has asked for it, and the three ops that could
+  lose a body silently are all closed without it. Anyone taking it up needs a record and a measured
+  reason, not a symmetry argument.
