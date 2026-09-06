@@ -210,8 +210,47 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 
 - **Read before write is ENFORCED, and it is per LINE.** Being served lines
   10-12 does not license an edit at line 50.
-- **`--check`** applies the edits and then runs the project's tests scoped to
-  what changed. **`--json`** gives a parseable receipt on success *and* failure.
+- **AFTER ANY MULTI-LINE BODY, READ ON PAST YOUR RANGE UNTIL YOU SEE THE
+  ENCLOSING STRUCTURE CLOSE.** Unconditional, and deliberately wider than the
+  write. What follows is explanation, not a trigger: a rule opening "if your body
+  closes a structure…" asks the reader to spot the thing they have just failed to
+  spot, and every session that met this in the field reported the condition was
+  invisible to them at the time. mrw is line-oriented and models no target syntax
+  — it puts the lines you gave where you said, exactly, and cannot see structure
+  of any kind.
+
+  **The damage is never inside the lines you named**, which is why the receipt
+  cannot show it and why re-reading only what you wrote is the one check
+  guaranteed to miss. A surviving closer sits BELOW your body by construction: it
+  is the closer the file already had. Measured 2026-09-06 across four sessions and
+  five stacks — replaced 7, wrote 7-9, survivor at 10 (Blade `@endif`); replaced
+  5, wrote 5-7, survivor at 8 (an HTML `</div>`); replaced 8, wrote 8-10, survivor
+  at 11 (a YAML block scalar); replaced 333, wrote 333-336, survivor at 340 (a
+  markdown fence). A short ADDRESS orphans the other way: `3104-3108` where
+  `3088-3108` was meant left sixteen dangling lines ABOVE. So read from before
+  your first line through past the closer.
+
+  ⚠ **A lint or syntax gate is not a substitute, and some are vacuous here.**
+  Measured green on files already broken: `yamllint`, `ansible-lint --profile
+  production` and `ansible-playbook --syntax-check`, all three on YAML whose
+  meaning had changed; and `php -l` on a `.blade.php`, which is inline HTML to the
+  lexer. `--check` cannot reach a file no test exercises, which is most templates.
+  Where a parser DOES see the file — `node --check`, `python3 -m py_compile`,
+  `jq .` — run it: milliseconds, and one session caught a real 34-line splice that
+  way. Never INSTEAD of the read.
+
+  ⚠ **Delimiters are only the sub-case that leaves a token.** Where structure is
+  indentation there is nothing to find afterwards: a body at the wrong indent
+  silently REPARENTS keys, and the result is valid and means something else.
+  Measured on Ansible task YAML — a task-level `when:` re-indented by two spaces
+  became an argument of the module, deleting the condition that gated the task,
+  with all three linters above green. It concentrates in keys legal at two levels:
+  `when`, `tags`, `become`, `vars`, `loop`. Compare the parsed structure, or check
+  every body line's indent against the lines above AND below the replaced range.
+
+  ⚠ **Loud is not the same as early.** A broken template may not fail until it is
+  rendered — for a playbook, mid-run against a live host after earlier tasks have
+  already applied; for a Blade view, a 500 on the page rather than a build failure.
 - **Exit `3` means the write APPLIED and the check failed** — the tree is
   changed and unverified. It is not a rollback.
 - **Never read an exit code through a pipe.** `mrw write plan | head` returns
