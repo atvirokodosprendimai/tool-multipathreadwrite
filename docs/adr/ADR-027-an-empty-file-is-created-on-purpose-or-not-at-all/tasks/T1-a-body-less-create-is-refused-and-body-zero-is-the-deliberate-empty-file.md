@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the refusal of a create carrying no body`, `body=0 still creating an empty file`
+**Rests-on:** `the refusal of a create carrying no body`, `body=0 still creating an empty file`, `the neighbouring ops keeping their own refusals`
 
 ## Goal
 
@@ -39,7 +39,10 @@ go test ./internal/plan/ -count=1 -v \
   -run 'TestACreateWithNoBodyIsRefusedUnlessItSaysBodyZero' 2>&1 | tee /tmp/adr027-t1.out \
   && grep -q '^--- PASS: TestACreateWithNoBodyIsRefusedUnlessItSaysBodyZero' /tmp/adr027-t1.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr027-t1.out \
-  && go test ./internal/plan/ -count=1 -run 'TestAReplaceWithNoBodyIsRejected|TestBodyZeroMeansAnEmptyBody' \
+  && go test ./internal/plan/ ./internal/adversarial/ -count=1 -v -run 'TestDeleteIsTheOnlyRangeConsumingOpThatNeedsNoBody|TestRawWithoutBodyIsRefused|TestAReplaceWithNoBodyIsRejected' 2>&1 | tee /tmp/adr027-t1n.out \
+  && grep -q '^--- PASS: TestAReplaceWithNoBodyIsRejected' /tmp/adr027-t1n.out \
+  && grep -q '^--- PASS: TestRawWithoutBodyIsRefused' /tmp/adr027-t1n.out \
+  && ! grep -qE 'no tests to run|^FAIL|^--- FAIL' /tmp/adr027-t1n.out \
   && go test ./... -count=1 \
   && [ -z "$(gofmt -l .)" ] \
   && go vet ./...
@@ -65,6 +68,9 @@ go test ./internal/plan/ -count=1 -v \
 
 - 2026-09-06 · dd0cc3a* · mutant killed · exit 1 · `internal/plan/plan.go` · the create branch stops refusing a body-less hunk, so a plan whose last create lost its body creates an empty file and reports ok — the behaviour this record removes · acceptance-sha256:8d332ebfef1a0bc0a7dc362ec806a0fb9e850d1676aab971d72cbd59597b3356 · covers:the refusal of a create carrying no body
 - 2026-09-06 · dd0cc3a* · mutant killed · exit 1 · `internal/plan/plan.go` · the declaration is dropped on the way out of the parser, so `create body=0` becomes indistinguishable from a lost body again and the deliberate empty file is refused too · acceptance-sha256:8d332ebfef1a0bc0a7dc362ec806a0fb9e850d1676aab971d72cbd59597b3356 · covers:body=0 still creating an empty file
+- 2026-09-06 · a5e4347* · mutant killed · exit 1 · `internal/plan/plan.go` · the create branch stops refusing a body-less hunk, so a plan whose last create lost its body creates an empty file and reports ok · acceptance-sha256:fbd6f89cf93719c55c333eddab55f6822493eba44da2a804f64124aac5827cd7 · covers:the refusal of a create carrying no body
+- 2026-09-06 · a5e4347* · mutant killed · exit 1 · `internal/plan/plan.go` · the declaration is dropped leaving the parser, so `create body=0` is refused too and the change becomes a ban rather than a narrowing · acceptance-sha256:fbd6f89cf93719c55c333eddab55f6822493eba44da2a804f64124aac5827cd7 · covers:body=0 still creating an empty file
+- 2026-09-06 · a5e4347* · mutant killed · exit 1 · `internal/plan/plan.go` · the insertion ops stop refusing an empty body, which the new create rule must not have traded away — the neighbour segment of this fence ran ZERO tests before this round and exited 0 · acceptance-sha256:fbd6f89cf93719c55c333eddab55f6822493eba44da2a804f64124aac5827cd7 · covers:the neighbouring ops keeping their own refusals
 
 ## Invariants
 
@@ -93,3 +99,7 @@ conflict, that is a decision about the guard rather than about `create`.
 - 2026-09-06 · dd0cc3a* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d332ebfef1a0bc0a7dc362ec806a0fb9e850d1676aab971d72cbd59597b3356 · ms:5245
 - 2026-09-06 · dd0cc3a* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d332ebfef1a0bc0a7dc362ec806a0fb9e850d1676aab971d72cbd59597b3356 · ms:5304
 - 2026-09-06 · dd0cc3a* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d332ebfef1a0bc0a7dc362ec806a0fb9e850d1676aab971d72cbd59597b3356 · ms:6295
+- 2026-09-06 · a5e4347* · exit 0 · `set -o pipefail …` · acceptance-sha256:fbd6f89cf93719c55c333eddab55f6822493eba44da2a804f64124aac5827cd7 · ms:5288
+- 2026-09-06 · a5e4347* · exit 0 · `set -o pipefail …` · acceptance-sha256:fbd6f89cf93719c55c333eddab55f6822493eba44da2a804f64124aac5827cd7 · ms:5257
+- 2026-09-06 · a5e4347* · exit 0 · `set -o pipefail …` · acceptance-sha256:fbd6f89cf93719c55c333eddab55f6822493eba44da2a804f64124aac5827cd7 · ms:5212
+- 2026-09-06 · a5e4347* · exit 0 · `set -o pipefail …` · acceptance-sha256:fbd6f89cf93719c55c333eddab55f6822493eba44da2a804f64124aac5827cd7 · ms:5401

@@ -1640,3 +1640,46 @@ func TestARelativeEndAtTheIntegerBoundaryDoesNotWrap(t *testing.T) {
 		t.Error("the file changed despite the refusal")
 	}
 }
+
+// plan.validate protects the CLI, the MCP server and the curve scorer, because
+// each calls plan.Parse. Apply is a public entry point whose doc comment says it
+// validates every hunk, and a caller building Inputs directly — which this
+// package's own tests do throughout — could create an empty file with no body
+// at all. Both files were written before this: the refused create AND its valid
+// sibling, so ADR-001's all-or-nothing was bypassed too (ADR-027).
+func TestTheEngineRefusesABodyLessCreate(t *testing.T) {
+	root := t.TempDir()
+	res, err := Apply(root, []Input{
+		{Path: "empty.txt", Op: "create", Lines: -1},
+		{Path: "sibling.txt", Op: "create", Body: []string{"x"}, Lines: -1},
+	}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed=%d, want 1 — the engine accepted a create carrying no body", res.Failed)
+	}
+	if !strings.Contains(res.Hunks[0].Reason, "body=0") {
+		t.Errorf("the refusal does not name the fix: %s", res.Hunks[0].Reason)
+	}
+	for _, n := range []string{"empty.txt", "sibling.txt"} {
+		if _, err := os.Stat(filepath.Join(root, n)); err == nil {
+			t.Errorf("%s exists; a failed hunk must write nothing at all, siblings included", n)
+		}
+	}
+
+	// The control: body=0 is the deliberate empty file and still applies here.
+	root2 := t.TempDir()
+	res2, err := Apply(root2, []Input{
+		{Path: "empty.txt", Op: "create", Lines: -1, CountedBody: true},
+	}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res2.Failed != 0 {
+		t.Fatalf("body=0 was refused at the engine: %s", res2.Hunks[0].Reason)
+	}
+	if fi, err := os.Stat(filepath.Join(root2, "empty.txt")); err != nil || fi.Size() != 0 {
+		t.Errorf("body=0 did not create an empty file: %v", err)
+	}
+}

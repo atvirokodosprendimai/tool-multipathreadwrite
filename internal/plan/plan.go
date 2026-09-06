@@ -605,7 +605,6 @@ func validate(h *Hunk) error {
 		// it HOLDS needs the file, so it is checked in internal/apply; there is
 		// nothing to check here (ADR-008).
 	case OpCreate:
-		// A pattern IS an address, so `create` refuses it exactly as it refuses
 		// A create with no body makes an empty file and used to report `ok`.
 		// ADR-006 refuses the same shape for `replace` and the reasoning is
 		// not about deletion: a body lost in transit — a truncated emission, a
@@ -614,10 +613,19 @@ func validate(h *Hunk) error {
 		// create is very often the LAST hunk of a plan, which is where a
 		// truncation loses one. `body=0` is the caller saying they meant it,
 		// and it was already legal (ADR-027).
+		//
+		// The message is its own, not shared with the replace refusal below:
+		// each names the remedy for ITS op, and a common string would have to
+		// name neither.
 		if len(h.Body) == 0 && !h.CountedBody {
 			return fmt.Errorf("create with an empty body: say body=0 if you mean an empty file, " +
 				"and check the body did not go missing if you do not")
 		}
+		// A pattern IS an address, so `create` refuses it exactly as it refuses
+		// a line number. Gating this on !patterned let `@@ new.go /x/ create`
+		// through with `ok` while `@@ new.go 1 create` was refused — two
+		// address forms in one grammar have to be refused on the same inputs.
+		// Caught in review of PR #74.
 		// a line number. Gating this on !patterned let `@@ new.go /x/ create`
 		// through with `ok` while `@@ new.go 1 create` was refused — two
 		// address forms in one grammar have to be refused on the same inputs.

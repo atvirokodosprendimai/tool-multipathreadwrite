@@ -937,3 +937,13 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   a token on every hunk anyone ever writes. Nobody has asked for it, and the three ops that could
   lose a body silently are all closed without it. Anyone taking it up needs a record and a measured
   reason, not a symmetry argument.
+
+- **A general "the engine re-validates everything the parser does" pass.** Deferred from ADR-027-T3.
+  Two records in a row have found the same hole one field at a time: `plan.validate` protects the
+  CLI, the MCP server and the curve scorer because each calls `plan.Parse`, and a direct
+  `apply.Apply` caller reaches none of it — ADR-026 for a relative end on an op that cannot honour
+  one, ADR-027 for a `create` carrying no body. Each was fixed where it was found. The general
+  question is whether `Apply` should re-assert every parser rule, which it cannot do by calling
+  `internal/plan` without inverting the dependency the two packages are split to keep. Anyone taking
+  it up needs a record, and the honest first step is enumerating what `validate` checks that `Apply`
+  does not, rather than assuming the list is those two.

@@ -139,6 +139,13 @@ type hunk struct {
 	// RelEnd carries plan.Addr.RelEnd — the `A,+N` form (ADR-026) — and is
 	// applied once the start has resolved and the file's length is known.
 	RelEnd int
+	// CountedBody carries plan.Hunk.CountedBody — whether the caller DECLARED a
+	// body= count (ADR-027). Without it here, a direct Apply caller could
+	// create an empty file with no body at all, which is what the parser
+	// refuses; plan.validate protects the CLI, the MCP server and the curve
+	// scorer, and this protects everyone else. Same shape as the RelEnd check
+	// above, and found the same way.
+	CountedBody bool
 	// SrcOp and SrcAddr are the op and address exactly as the caller wrote
 	// them. Every verdict echoes these rather than the resolved form, so a
 	// report line can be matched back to the plan line that produced it.
@@ -158,19 +165,20 @@ func (h hunk) resolveTo(start, end int, op string) hunk {
 // Input is one hunk as the caller describes it, with addresses still unresolved
 // (EOF sentinels intact).
 type Input struct {
-	Path     string
-	Start    int
-	End      int
-	Op       string
-	Body     []string
-	SHA      string
-	Lines    int
-	Anchor   string
-	StartPat *regexp.Regexp
-	EndPat   *regexp.Regexp
-	RelEnd   int
-	SrcLine  int
-	Index    int
+	Path        string
+	Start       int
+	End         int
+	Op          string
+	Body        []string
+	SHA         string
+	Lines       int
+	Anchor      string
+	StartPat    *regexp.Regexp
+	EndPat      *regexp.Regexp
+	RelEnd      int
+	CountedBody bool
+	SrcLine     int
+	Index       int
 }
 
 // EOF mirrors plan.EOF; resolution happens here because only this package knows
@@ -227,7 +235,7 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		byPath[p] = append(byPath[p], hunk{
 			Path: p, Start: i.Start, End: i.End, Op: i.Op, Body: i.Body,
 			SHA: i.SHA, Lines: i.Lines, Anchor: i.Anchor,
-			StartPat: i.StartPat, EndPat: i.EndPat, RelEnd: i.RelEnd,
+			StartPat: i.StartPat, EndPat: i.EndPat, RelEnd: i.RelEnd, CountedBody: i.CountedBody,
 			SrcOp: i.Op, SrcAddr: srcAddrOf(i), SrcLine: i.SrcLine, Index: n,
 		})
 	}
@@ -578,6 +586,11 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		// an insertion computed an end and then used only the start — both
 		// reporting ok for an address they half-ignored. Second Codex review of
 		// PR #125.
+		if h.Op == "create" && len(h.Body) == 0 && !h.CountedBody {
+			fail(h, "create with an empty body: say body=0 if you mean an empty file, "+
+				"and check the body did not go missing if you do not")
+			continue
+		}
 		if h.RelEnd > 0 && (h.Op == "create" || h.Op == "insert-after" || h.Op == "insert-before") {
 			fail(h, "%s takes a single line, not the range %s", h.Op, h.SrcAddr)
 			continue

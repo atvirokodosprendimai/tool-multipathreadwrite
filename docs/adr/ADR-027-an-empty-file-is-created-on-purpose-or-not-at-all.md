@@ -25,7 +25,7 @@ A hunk that carried no content created a file with no content, reported `ok`, an
 
 **ADR-006 already refuses the same shape one op over.** `replace` with an empty body is rejected —
 *"replace with an empty body would delete N — say delete if that is what you mean, and check the
-body did not go missing if it is not"* (`internal/plan/plan.go:631`). The reasoning there is not
+body did not go missing if it is not"* (`internal/plan/plan.go:674`). The reasoning there is not
 about deletion being wrong; it is that **a body lost in transit is indistinguishable from a body
 that was never written**, and the receipt cannot tell the caller which happened. A truncated
 emission, an editor eating the last line, a pipe that closed early.
@@ -57,9 +57,11 @@ so the cost falls entirely on external callers, and for them the fix is one toke
   because a body that goes missing is silent, and it already carries the count through parsing,
   overcount detection and the `raw=` interaction. `body=0` is a value it already accepts.
   **Reused as-is; no new grammar.**
-- **The empty-`replace` refusal (`internal/plan/plan.go:631`)** — the wording and the reasoning this
-  record extends to a second op. **Reshaped**: the message is parameterised rather than duplicated,
-  so the two refusals cannot drift into saying different things about the same hazard.
+- **The empty-`replace` refusal (`internal/plan/plan.go:674`)** — the wording and the reasoning this
+  record extends to a second op. **Copied in shape, not shared in code**: each refusal names the
+  remedy for ITS op — `say delete if that is what you mean` for a replace, `say body=0` for a
+  create — and one common string would have to name neither. A comment at the create branch says so,
+  because "why is this not one message" is the question a later reader will have.
 - **ADR-015's refusal shape** — a refusal names the fix. Reused: the message names `body=0` for the
   caller who meant an empty file, and says to check for a lost body for the caller who did not.
 
@@ -129,7 +131,7 @@ See `docs/adr/ADR-027-an-empty-file-is-created-on-purpose-or-not-at-all/tasks/RE
 
 ## Out of Scope
 
-- Applying the same rule to `insert-after` / `insert-before` (permanent: fact: both already refuse an empty body with "would change nothing", so `create` is the last op where a lost body is reported as success; citation: file `internal/plan/plan.go:617`)
+- Applying the same rule to `insert-after` / `insert-before` (permanent: fact: both already refuse an empty body with "would change nothing", so `create` is the last op where a lost body is reported as success; citation: file `internal/plan/plan.go:660`)
 - A general "this hunk intends nothing" marker across every op (permanent: boundary: `body=0` answers the one op where an empty body is legitimate; a cross-op marker would be a grammar for a case that does not exist)
 - Requiring `body=N` on every op rather than as an opt-in guard (deferred: `docs/adr/BACKLOG.md`)
 - Telemetry on how often the new refusal fires (permanent: fact: this corpus refuses telemetry; citation: file `docs/adr/ADR-009-mrw-counts-what-happens-to-the-plans-it-is-given.md:1`)
@@ -139,7 +141,7 @@ See `docs/adr/ADR-027-an-empty-file-is-created-on-purpose-or-not-at-all/tasks/RE
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | A caller's existing plans break | Med | Low | The refusal names `body=0`; the change is in the release notes and README; ADR-001 means the plan fails whole, so nothing is half-applied |
-| The two empty-body refusals drift apart in wording | Low | Med | T1 parameterises one message rather than writing a second; §65 asserts both in one section |
+| The two empty-body refusals drift apart in wording | Low | Med | They are two strings and stay two, because each names the remedy for its own op. §65 asserts both in one section, so a drift that made either stop naming its remedy fails the row |
 | `body=0` interacts with `raw=` or the overcount check in a way not considered | Low | Med | T1's test covers `body=0` with and without `raw=`, and keeps the existing body= tests in the fence |
 
 ## Rollback

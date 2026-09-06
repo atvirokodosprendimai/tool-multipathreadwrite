@@ -217,7 +217,8 @@ func TestDeleteIsTheOnlyRangeConsumingOpThatNeedsNoBody(t *testing.T) {
 				t.Error("an empty body was accepted")
 			}
 			// The conjunction is the claim. Either half alone is false of
-			// some op: create takes an empty body, replace consumes a range.
+			// some op: create needs a body now too (ADR-027), replace consumes
+			// a range and delete does not need one.
 			if only := tc.consumesRange && tc.emptyBodyOK; only != (tc.op == "delete") {
 				t.Errorf("%s satisfies both halves; the receipt's bounds field is keyed on delete alone", tc.op)
 			}

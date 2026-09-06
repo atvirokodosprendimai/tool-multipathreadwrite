@@ -13,6 +13,7 @@ README must be regenerated.
 |-------|------|------------|
 | 1 | T1 | none |
 | 2 | T2 | T1 |
+| 3 | T3 | T1, T2 |
 
 ## Task Index
 
@@ -20,6 +21,7 @@ README must be regenerated.
 |----|-------|--------|--------|------------|
 | T1 | A body-less create is refused, and body=0 is the deliberate empty file | done | — | `go test ./internal/plan/ -run 'TestACreateWithNoBodyIsRefusedUnlessItSaysBodyZero' …` |
 | T2 | The contract drives both shapes, and the docs say which is which | done | — | `grep -q '^# 65\. ' scripts/contract.sh && ./scripts/contract.sh` |
+| T3 | The engine refuses it too, and one fence segment was vacuous | done | — | `go test ./internal/apply/ -run 'TestTheEngineRefusesABodyLessCreate' …` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
