@@ -329,9 +329,11 @@ byte-identical, so the revert is a deletion.
       inside the discarded middle then applied, exit 0: ADR-002 inverted. It is a defect, filed in
       `docs/adr/BACKLOG.md` under ADR-023, and no rate is published for that size.
 - [x] **The MCP delivery arm at 2 KB and 20 KB: 30 of 30** (`docs/curve/reading-20-result.md`).
-      Thirty of thirty correct addresses and zero paged reads, both from committed data; no event on
-      that plan's list of void conditions occurred, and its compliance and `no_answer` counts are
-      withdrawn for the reason below. On these
+      Thirty of thirty correct addresses and zero paged reads, both from committed data; its
+      compliance and `no_answer` counts are withdrawn, because the plan's rule 3 promised both from
+      committed data and the tree does not carry it. Two of that plan's own void conditions — any
+      retry, and the `coverage.json`/`result.json` write ordering — rest on the same missing
+      evidence, so no claim is made either way about them. On these
       cells the delivery mrw ships equals the best previously measured (reading 9's bare tool
       result, 15/15 at both sizes) and beats both arms that lay a second plausible line number
       beside mrw's — reading 13's 14 and 13 of 15, reading 4's 15 and 12 of 15. mrw's gutter,

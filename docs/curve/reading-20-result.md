@@ -1,9 +1,10 @@
 # Reading 20, result: 30 of 30 at 2 KB and 20 KB through the delivery mrw ships
 
 **Collected 2026-09-06 under `reading-20-plan.md`, committed before any trial ran and amended twice
-before its first trial, both amendments recorded in the plan. Thirty trials. No event on the plan's
-list of void conditions occurred — and one of the plan's three rules was not met, which costs this
-reading two of the four counts it set out to publish.**
+before its first trial, both amendments recorded in the plan. Thirty trials. One of the plan's three
+rules was not met, which costs this reading two of the four counts it set out to publish — and two
+of the plan's own void conditions rest on the same evidence the tree does not carry, so this
+document asserts neither that they occurred nor that they did not.**
 
 **Published: 30 of 30 correct addresses, and 0 paged reads. Both computed from committed data.**
 
@@ -47,12 +48,11 @@ were no misses, no `refused_parse` and no `refused_apply`.
    unevaluated rather than estimated. No claim above rests on it.
 5. **Holds exactly.** `next_read_sends` is 0 in all thirty. Both sizes sit far below
    `mcp.MaxResultChars`, so nothing paged and nothing was truncated.
-6. **Withdrawn for the same reason.** The prediction was at most one `no_answer` trial. Thirty
-   committed score/coverage pairs cannot distinguish thirty first attempts from a discarded
-   no-answer followed by a retry — which is exactly reading 19's failure — so the tree does not
-   carry this count either, and rule 3 promised that it would. What the author can say, and it is
-   an account rather than a number: one dispatch per cell, no retry, no trial without an answer.
-   Reading 19's void run saw one no-answer at 20 KB.
+6. **Withdrawn.** The prediction was at most one `no_answer` trial. Thirty committed score/coverage
+   pairs cannot distinguish thirty first attempts from a discarded no-answer followed by a retry —
+   which is exactly reading 19's failure — so the tree does not carry this count, and rule 3
+   promised that it would. Reading 19's void run saw one no-answer at 20 KB. What happened in this
+   run is not established by anything committed, in either direction.
 
 ## What it decides
 
@@ -104,7 +104,8 @@ values in `docs/curve/reading-20-compliance.json`. `reading-20-tally.json` is co
 scores:
 
 ```sh
-bin/curve tally docs/curve/reading-20-scores/*.score.json
+bin/curve tally docs/curve/reading-20-scores/*.score.json                    # 30 of 30
+jq -s 'map(.next_read_sends) | add' docs/curve/reading-20-coverage/*.json    # 0 paged reads
 ```
 
 Every number this reading PUBLISHES — the correct-address rate and the paged-read count — is
@@ -123,15 +124,20 @@ exception, and extending it after the results are in is the same move reading 19
 run in the author's own favour. So the two counts are **withdrawn** — not restated as observations,
 not reported at a lower figure, not published at all. What remains published is what rule 3 was
 actually met for.
-
-- **The compliance table's `order` clause.** It records the conclusion `"order": true`, not evidence.
-  It was computed from file mtimes while the cells existed; git preserves no mtimes and the
-  `result.json` files were not committed, so a reader cannot re-derive it. The other three clauses —
+- **The compliance table's `order` clause.** It was computed from file mtimes while the cells
+  existed; git preserves no mtimes and the `result.json` files were not committed, so a reader
+  cannot re-derive it. `reading-20-compliance.json` therefore carries `"order": null` and
+  `"compliant": null` rather than a conclusion nothing in the tree supports — the count cannot be
+  recomputed from it in either direction. The other three clauses — `last`, `blocks`, `tools` — are
+  fully recomputable from the committed claimed-and-true values beside them, and are kept.
   blocks, last line, tools — are fully recomputable from the committed claimed-and-true values.
-- **That no trial was retried and none produced a no-answer.** Thirty complete score/coverage pairs
-  cannot distinguish thirty first attempts from a discarded no-answer followed by a retry, which is
-  exactly reading 19's failure. The run is reported as conducted — one dispatch per cell, no retry,
-  no trial without an answer — and that report is the author's, not the tree's.
+- **Whether any trial was retried, and whether any produced no answer.** Thirty complete
+  score/coverage pairs cannot distinguish thirty first attempts from a discarded no-answer followed
+  by a retry, which is exactly reading 19's failure. This one matters twice over: **any retry is on
+  the plan's list of void conditions**, and so is a `coverage.json` not strictly newer than its
+  `result.json`. The tree settles neither, so this document asserts neither that they happened nor
+  that they did not — which is also why the reviewer's argument at the end is not disposed of by
+  anything here.
 
 **A future reading of this arm should commit, per attempt, the `result.json`, the `coverage.json` and
 a dispatch receipt recording the order of the two writes and the outcome of every attempt including
@@ -166,7 +172,7 @@ earlier reading's looser one. That is why the two counts are now withdrawn rathe
 
 **What a sceptical reader is left with**, and it is the whole of what this reading asserts: 30 of 30
 correct addresses and 0 paged reads, both recomputable from the committed scores and coverage files
-by the command above. That is the first number this corpus has for the arm mrw actually ships, and
+by the two commands above. That is the first number this corpus has for the arm mrw actually ships,
 it is a claim about 2 KB and 20 KB and nothing else.
 
 ## Provenance, continued
