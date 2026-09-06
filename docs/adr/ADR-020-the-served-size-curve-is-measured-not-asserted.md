@@ -328,15 +328,34 @@ byte-identical, so the revert is a deletion.
       `internal/mcp/tools.go:535` records the whole page in the ledger. A plan replacing a line
       inside the discarded middle then applied, exit 0: ADR-002 inverted. It is a defect, filed in
       `docs/adr/BACKLOG.md` under ADR-023, and no rate is published for that size.
-- [ ] **The MCP delivery arm at 2 KB and 20 KB, unmeasured after three attempts**
-      (`docs/curve/reading-20-plan.md`). Reading 12 voided — a subagent's transcript is not readable
-      by the session that spawned it, so compliance could not be checked. Reading 18 voided at 200 KB
-      with the cause above. Reading 19 collected thirty trials at 2 KB and 20 KB and voided WHOLE:
-      its coverage instruction was clarified after the first trial and a no-answer trial was retried,
-      and its plan's void condition is unconditional. Its first result document published the 2 KB
-      stratum and voided only the 20 KB one; the Codex review of PR #115 established that the
-      stratum-level exception was invented after the results were seen. Reading 20 re-runs both sizes
-      with three rules pre-registered: the last-line comparison and its prompt wording fixed
-      together, a no-answer never retried, and the coverage reports committed so every rate and count
-      it publishes comes from committed data — with cost named as the one exception, an observation
-      from uncommitted request records rather than a published number.
+- [x] **The MCP delivery arm at 2 KB and 20 KB: 30 of 30** (`docs/curve/reading-20-result.md`).
+      Thirty of thirty correct addresses and zero paged reads, both from committed data; its
+      compliance and `no_answer` counts are withdrawn, because the plan's rule 3 promised both from
+      committed data and the tree does not carry it. Two of that plan's own void conditions — any
+      retry, and the `coverage.json`/`result.json` write ordering — rest on the same missing
+      evidence, so no claim is made either way about them. On these
+      cells the delivery mrw ships equals the best previously measured (reading 9's bare tool
+      result, 15/15 at both sizes) and beats both arms that lay a second plausible line number
+      beside mrw's — reading 13's 14 and 13 of 15, reading 4's 15 and 12 of 15. mrw's gutter,
+      delivered by mrw's own tool, is the address the answer needs. It took three void readings to
+      get here: reading 12 (a subagent's transcript is not readable by the session that spawned it,
+      so compliance could not be checked), reading 18 (200 KB, the defect above), and reading 19
+      (thirty trials voided WHOLE — its coverage instruction was clarified after the first trial and
+      a no-answer trial was retried; the Codex review of PR #115 established that its stratum-level
+      exception had been invented after the results were seen). Reading 20 pre-registered the three
+      rules those failures earned — and then failed one of them. Its correct-address rate and its
+      paged-read count are computed from committed scores and committed coverage reports. Its rule 3
+      also promised the compliance count and the `no_answer` count from committed data, naming cost
+      as the one exception; neither turned out to be derivable from the tree, so **both counts are
+      withdrawn rather than published**, and the shortfall is recorded in the result. A shortfall
+      against rule 3 is not on that plan's enumerated list of void conditions, and the reviewer who
+      held that it should be is quoted there with the argument on both sides.
+
+      **ADR-020's served-size question is closed for the sizes it can be closed for:** at 2 KB and
+      20 KB the arm is at the ceiling; at 200 KB it cannot be measured on this host at all, for the
+      reason in the entry above, so no correct-address rate exists there and none is claimed. The
+      shipped path's accuracy above 20 KB is therefore unmeasured rather than established. The cap
+      and the served format do not move. Reading 20's result names the cheap fix for a future reading
+      of this arm — commit the per-attempt `result.json`, `coverage.json` and a dispatch receipt
+      recording the order of the two writes and the outcome of every attempt — and records the
+      reviewer who held that those gaps should have voided it, with the argument on both sides.

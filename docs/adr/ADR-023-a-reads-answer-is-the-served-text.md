@@ -187,5 +187,8 @@ the previous binary — through every host except the one this record was measur
 
 ## Follow-ups
 
-- [ ] Run ADR-020's MCP delivery arm (reading 12) against the shipped binary, from a fresh session
-      so the server is this build.
+- [x] Run ADR-020's MCP delivery arm against the shipped binary, from a fresh session so the server
+      is this build. Done 2026-09-06 as reading 20 (`docs/curve/reading-20-result.md`): 30 of 30 at
+      2 KB and 20 KB against the `d6c62e7` build. Staging it also found the neighbouring defect at
+      200 KB — the host truncates mrw's page while the ledger records it whole — which is filed in
+      `docs/adr/BACKLOG.md` under this record's section and is not fixed here.

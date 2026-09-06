@@ -14,9 +14,10 @@ built an instrument (`curve`) that generates a fixture, records exactly what mrw
 a fresh client author one plan against it, and scores the plan by applying it: the line that
 changed is the measurement. Under a criterion pre-registered before any cell existed, eleven
 readings were taken through reading 11, then reading 13 at 2 KB and 20 KB, readings 14 and 17 on
-a harder fixture (14 evidence-limited), and readings 15 and 16 on a second model family (reading
-12, the MCP arm, waits on ADR-023) — each plan committed before its trials, and every score file
-of the fifteen scored readings committed (reading 1 is a void notice, not scores).
+a harder fixture (14 evidence-limited), readings 15 and 16 on a second model family, and reading 20
+on the MCP delivery arm at 2 KB and 20 KB after readings 12, 18 and 19 voided attempting it — each
+plan committed before its trials, and every score file of the scored readings committed (reading 1
+is a void notice, not scores).
 
 Two results. First, for a strong client, serving a hundred times more bytes cost 2.4–2.5× the
 tokens with no measurable reduction in correct addressing at these sizes, on two fixtures, and
@@ -67,8 +68,10 @@ The criterion was written into the backlog before the generator existed: correct
 against served bytes, stratified by target position (early, middle, late), refusals reported
 beside the cell and never in it, five repeats per cell, and **a flat curve accepted as an answer**.
 
-Each reading's plan — cells, client, arm, predictions — is committed before its first trial, and
-the plan in the tree is byte-identical to that commit; corrections live in the result document. Compliance is verified from each
+Each reading's plan — cells, client, arm, predictions — is committed before its first trial, and a
+plan is frozen AT THAT TRIAL rather than at its commit: reading 20's was amended twice beforehand
+and records both amendments with dates and reasons; every other plan in the tree is byte-identical
+to its introducing commit. Corrections live in the result document. Compliance is verified from each
 trial's transcript, matched on the prompt marker, never on the cell id: which tools were called,
 whether the served text was read whole, whether anything searched. A non-compliant trial is void
 and reported, never counted as a miss.
@@ -92,10 +95,16 @@ and reported, never counted as a miss.
 | 15 | gpt-5.6-sol | prompt, shape not shown | 8 parsed | 2 parsed | 1 parsed | Void on format 34 of 45: its own grammar; every parsed plan hit, every void message named the target. |
 | 16 | gpt-5.6-sol | prompt, shape shown | 15/15 | 15/15 | 15/15 | A second family at the ceiling at every size. |
 | 17 | Sonnet | tool result, twelve distractors | 15/15 | 15/15 | 15/15 | Reading 14 re-run with the channel named: at the ceiling, 45/45. |
+| 18 | Haiku | MCP delivery (`mrw_read`), 200 KB | — | — | void | **The arm cannot be measured at 200 KB on this host.** The host truncates mrw's paged result before the model sees it while the ledger records the page whole. A defect under ADR-023, not a rate. |
+| 19 | Haiku | MCP delivery (`mrw_read`) | void | void | — | Void whole: the coverage instruction changed after the first trial and one no-answer trial was retried. |
+| 20 | Haiku | MCP delivery (`mrw_read`) | 15/15 | 15/15 | — | The delivery mrw ships, at the ceiling at both sizes: 30/30. Two secondary counts withdrawn — see below. |
 
 Every score file is in the repository under `docs/curve/reading-NN-scores/`; the rates, intervals,
 offsets and pairings in this note recompute from them. Compliance, coverage, cost and the quoted
 transcript row come from transcripts and request records that are not committed, and are reported.
+Reading 20 is the exception and the cautionary case: it committed its coverage reports so that its
+compliance and `no_answer` counts would recompute too, and two of those counts turned out not to,
+so both are withdrawn rather than published. Its result document says why.
 
 ## 4. Result A: the miss was a row index, and the row index was the reader's
 
@@ -183,7 +192,9 @@ delivery-not-size account predicts.
 
 ## 6. What the method cost, and what it bought
 
-Three readings were void under their own rules. Reading 1 because clients given a search tool
+Seven readings were void under their own rules — 1, 6, 7 and 15 on format, 12 on compliance that
+could not be checked, 18 on a host defect that makes its size unmeasurable, and 19 whole, on its
+author's own deviations. Reading 1 because clients given a search tool
 searched for the target's name instead of reading, so served bytes were never manipulated.
 Readings 6 and 7 because a weaker client given a shell and a rule — read in ranges under a cap, no
 search — broke the rule four different ways, and given the exact commands merged two of them. The
@@ -193,7 +204,11 @@ that counted. Each void is recorded with its observations; none contributes to a
 Two plan files were edited after collection during this series — a wrong count corrected, a dated
 note added — and both edits were reverted at review, because a plan that can be edited whenever the
 edit looks harmless is not a pre-registration. Every plan in the series is byte-identical to the
-commit that added it. Because `main` takes squash merges, the plan-before-trials ordering is
+commit that added it, reading 20's included: it was amended twice, both times **before its first
+trial** and both inside the pull request that introduced it, so the amendments are in the commit
+that added the plan rather than after it. Both are dated and reasoned in the plan's own opening.
+A plan is frozen at its first trial, not at its commit.
+Because `main` takes squash merges, the plan-before-trials ordering is
 checkable in the pull requests rather than on `main`: reading 2 in #90, 3 in #96, 4 in #98, 5 in
 #103 (plan commit `e65a684`), 6 to 8 in #104 (`5ebb34d`, `700133e`, `bfc27fa`), 9 in #106
 (`30d5637`). And every rate, interval, offset and pairing in every result document is
@@ -211,7 +226,10 @@ weaker client's ceiling through a tool result is fifteen of fifteen per tier, wh
 lower bound is 0.796, not 1. Reading 9's 200 KB tier is reading 8's data, pooled under a plan that
 said so. Readings 10 and 11 separate the gutter from the chunking on fifteen cells each, and
 reading 11's misses fall in one position only, which no plan predicted and this note does not
-explain. The MCP tool-result path, which carries no outer numbering, was not measured.
+explain. The MCP tool-result path, which carries no outer numbering, is measured at 2 KB and 20 KB
+only — reading 20, 30 of 30 — and **cannot be measured at 200 KB on this host at all**: reading 18
+found the host truncating mrw's paged result before the model sees it while the ledger records the
+page whole. That is a defect filed under ADR-023, not a point on this curve.
 
 ## 8. Reproduction
 

@@ -919,7 +919,7 @@ ADR-020 built an instrument to find out rather than argue about it: `curve` gene
 client authors a plan against what mrw would serve, and the scorer applies the plan and reports which
 line changed. The pre-registration in `docs/adr/BACKLOG.md` fixed the criterion before a cell existed
 — correct-address rate against served bytes, stratified by position, **a flat curve accepted as an
-answer** — and sixteen readings have been taken under it: four void under their own rules (1, 6, 7, and 15 on format), one evidence-limited under its own (14), and eleven with results; reading 12, the MCP arm, waits on ADR-023. Every plan was committed before its trials
+answer** — and twenty readings have been taken under it: seven void under their own rules (1, 6, 7 and 15 on format; 12 on unverifiable compliance; 18 on a host defect; 19 on the author's own deviations), one evidence-limited under its own (14), and twelve with results — the last of them reading 20, which measured the MCP delivery arm, the path mrw ships, at 30 of 30 at 2 KB and 20 KB. Every plan was committed before its trials
 ran, every score file is committed, and every table below recomputes from them.
 
 | Reading | Client | Fixture | 2 KB | 20 KB | 200 KB | What it settled |
@@ -940,6 +940,7 @@ ran, every score file is committed, and every table below recomputes from them.
 | 15 | **gpt-5.6-sol** (Codex) | relational, prompt delivery, shape not shown | 8 parsed | 2 parsed | 1 parsed | **Void on format, 34 of 45**: the client wrote its own grammar (apply_patch, JSON, prose headers); every parsed plan hit, and every void message named the target line. A finding for ADR-012, not about size. |
 | 16 | **gpt-5.6-sol** (Codex) | relational, prompt delivery, shape shown | 15/15 | 15/15 | 15/15 | **A second family at the ceiling at every size**, 45/45; 10 discordant pairs against reading 4, all one way. |
 | 17 | Sonnet | relational, twelve distractors, scripted arm | 15/15 | 15/15 | 15/15 | **The strong client at the ceiling on a thirteen-service fixture**, 45/45, compliant 45 of 45 under a rule that names the reply channel. Cost 2.41× from 2 KB to 200 KB. |
+| 20 | Haiku | relational, MCP delivery (`mrw_read`) | 15/15 | 15/15 | — | **The delivery mrw ships, at the ceiling at both sizes.** 30/30 correct addresses, 0 paged reads, both computed from committed data. Two secondary counts its own plan promised from committed data are not derivable from the tree and are withdrawn; 200 KB cannot be measured on this host at all (reading 18). |
 
 **For a strong client, serving a hundred times more bytes costs about 2.5× the tokens and loses
 nothing.** Measured twice, on two different tasks, through the reader; a thirteen-service fixture through the tool result says the same at the pre-registered strength (reading 17: 45 of 45, cost 2.41×; reading 14 before it, evidence-limited). The "serve 10k and call it a day" instinct is not
@@ -970,7 +971,8 @@ document rather than reproducible from a committed receipt. That is the case for
 What readings 5, 8, 9, 10 and 11 settle between them: the bend was the harness read arm's delivery,
 not mrw's rendering. The miss is the row index of the served text (reading 5: −117 with the window
 from line 120), and when mrw's `N|` is the only number on any row — the served text arriving as a
-Bash tool result, the delivery the readings ran; the MCP path was not run — the client that missed
+Bash tool result, the delivery most readings ran, and through `mrw_read` itself at 2 KB and 20 KB
+(reading 20, 30 of 30) — the client that missed
 seven of fifteen at 200 KB and three of fifteen at 20 KB through its file reader addressed all
 forty-five exactly, at every size, at the read arm's cost or below it (readings 8 and 9, compliant
 45 of 45 under pre-registered rules). Readings 10 and 11 then separated the second number from the
@@ -986,8 +988,9 @@ mrw's and a weaker client takes it some of the time. Two readings between 5 and 
 and are recorded, not counted.
 
 Compliance, coverage and cost come from transcripts and request records that are not committed, and
-each result document says so. The tables, the intervals and the offsets recompute from
-`docs/curve/reading-NN-scores/`.
+each result document says so. Reading 20 is the one attempt to do better: it commits its coverage
+reports, and it records the two counts it promised to derive from them and could not. The tables,
+the intervals and the offsets recompute from `docs/curve/reading-NN-scores/`.
 
 ## Read before modify
 
