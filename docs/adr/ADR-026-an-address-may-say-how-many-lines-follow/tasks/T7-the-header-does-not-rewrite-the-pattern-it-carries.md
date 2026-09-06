@@ -98,6 +98,7 @@ go test ./internal/read/ ./internal/plan/ -count=1 -v \
 
 - 2026-09-06 · d2a9f55* · mutant killed · exit 1 · `internal/plan/plan.go` · the header toggles on a quote inside a pattern again, so /^"foo"$/ reaches the parser as /^foo$/ — a different expression, a different line, and a receipt echoing the mutation · acceptance-sha256:f3c09e49ec2333e5ab59c5cc6e46cf74ee7265aea915a056e2643cc76643a775 · covers:a pattern reaching the parser as the caller wrote it
 - 2026-09-06 · d2a9f55* · mutant killed · exit 1 · `internal/read/read.go` · the read pattern is found by search rather than scanned, so /a/garbage compiles as a/garbage and the two grammars disagree again on what is malformed · acceptance-sha256:f3c09e49ec2333e5ab59c5cc6e46cf74ee7265aea915a056e2643cc76643a775 · covers:the two grammars refusing the same malformed patterns
+- 2026-09-06 · 0ee9a6b* · mutant killed · exit 1 · `internal/read/read.go` · splitRanges drops a trailing empty component again, so 5,+2, is silently read as 5,+2 while the plan path refuses the whole string — the divergence the fifth review measured · acceptance-sha256:f3c09e49ec2333e5ab59c5cc6e46cf74ee7265aea915a056e2643cc76643a775 · covers:the two grammars refusing the same malformed patterns
 
 ## Invariants
 
@@ -126,3 +127,5 @@ than this record made.
 - 2026-09-06 · d2a9f55* · exit 0 · `set -o pipefail …` · acceptance-sha256:f3c09e49ec2333e5ab59c5cc6e46cf74ee7265aea915a056e2643cc76643a775 · ms:33351
 - 2026-09-06 · d2a9f55* · exit 0 · `set -o pipefail …` · acceptance-sha256:f3c09e49ec2333e5ab59c5cc6e46cf74ee7265aea915a056e2643cc76643a775 · ms:39660
 - 2026-09-06 · d2a9f55* · exit 0 · `set -o pipefail …` · acceptance-sha256:f3c09e49ec2333e5ab59c5cc6e46cf74ee7265aea915a056e2643cc76643a775 · ms:31638
+- 2026-09-06 · 0ee9a6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:f3c09e49ec2333e5ab59c5cc6e46cf74ee7265aea915a056e2643cc76643a775 · ms:35143
+- 2026-09-06 · 0ee9a6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:f3c09e49ec2333e5ab59c5cc6e46cf74ee7265aea915a056e2643cc76643a775 · ms:34638

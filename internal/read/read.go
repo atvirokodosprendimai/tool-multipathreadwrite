@@ -195,6 +195,14 @@ func splitRanges(s string) []string {
 			out = append(out, cur.String())
 			cur.Reset()
 			i++
+			// A comma at the very end leaves an empty component, and dropping
+			// it silently turned `5,+2,` into `5,+2` on the read path while the
+			// plan path refused the string whole. Emit the empty range so
+			// parseRange refuses it, in the same words, on both. Found by the
+			// fifth Codex review of PR #125.
+			if i == len(s) {
+				out = append(out, "")
+			}
 		default:
 			cur.WriteByte(s[i])
 			i++
@@ -256,8 +264,12 @@ func parseRange(s string) (Range, error) {
 			if tail := rest[e2+1:]; tail != "" {
 				return Range{}, fmt.Errorf("%q has %q after the end pattern: an address takes one range, not three", raw, tail)
 			}
-			if r.ReEnd, err = regexp.Compile(rest[2:e2]); err != nil {
-				return Range{}, fmt.Errorf("bad end pattern %q: %w", rest[2:e2], err)
+			body2 := rest[2:e2]
+			if body2 == "" {
+				return Range{}, fmt.Errorf("empty pattern // matches every line, so it addresses nothing in particular — name the file alone if you want all of it")
+			}
+			if r.ReEnd, err = regexp.Compile(body2); err != nil {
+				return Range{}, fmt.Errorf("bad end pattern %q: %w", body2, err)
 			}
 			return r, nil
 		default:

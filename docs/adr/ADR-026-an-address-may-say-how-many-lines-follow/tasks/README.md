@@ -12,7 +12,7 @@ README must be regenerated.
 ## Waves
 
 Every task depends on the one before it, so the DAG is a chain and each wave holds one task. That is
-not an accident of scheduling: T1-T3 built the form, and T4, T5 and T6 are three rounds of review
+not an accident of scheduling: T1-T3 built the form, and T4 through T7 are four rounds of review
 findings against it, each of which could only be written once the previous round had landed.
 
 | Wave | Tasks | Depends-on |

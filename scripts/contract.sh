@@ -3813,12 +3813,14 @@ grep -q '@@ 1-2' <<<"$out" && ok "the backslash pattern resolves to its match pl
 out=$(printf '@@ bs.txt /\\\\/,+1 replace\nX\nY\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "a pattern ending in a backslash is closed on the plan path too"
 
-# THE TWO GRAMMARS AGREE ON WHAT IS MALFORMED, or the record's central claim is
-# false. Four shapes the read path accepted and the plan path refused: `/` as an
+# THE TWO GRAMMARS AGREE ON EVERY SHAPE NAMED BELOW, which is narrower than
+# "agree on what is malformed" and is what this row can actually assert. Seven
+# shapes the read path once accepted and the plan path refused: `/` as an
 # empty regexp matching every line at exit 0, `//`, `/a/garbage` compiled as the
-# pattern a/garbage, and `/a/,/b/,/c/` silently reduced to its first endpoint.
-fixture
-for a in '/' '//' '/a/garbage' '/a/,/b/,/c/'; do
+# pattern a/garbage, `/a/,/b/,/c/` reduced to its first endpoint, `/a/,//` with
+# an empty END pattern, and the trailing-comma forms `5,+2,` and `/a/,/b/,`
+# whose empty component splitRanges silently dropped.
+for a in '/' '//' '/a/garbage' '/a/,/b/,/c/' '/a/,//' '5,+2,' '/a/,/b/,'; do
   m read "a.go:$a" > /dev/null 2>&1; rr=$?
   printf '@@ a.go %s replace\nX\n' "$a" | m write - > /dev/null 2>&1; wr=$?
   want 2 "$rr" "a read refuses the malformed pattern $a"

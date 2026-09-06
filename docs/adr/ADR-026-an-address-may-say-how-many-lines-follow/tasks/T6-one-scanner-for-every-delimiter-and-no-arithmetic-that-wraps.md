@@ -1,10 +1,10 @@
-# Task ADR-026-T6: One scanner for every delimiter, and no arithmetic that wraps
+# Task ADR-026-T6: One scanner for every ADDRESS parser, and no arithmetic that wraps
 
 **Depends-on:** T5
 **Covers:** none — no spec
 **Estimated scope:** M (one shared scanner adopted by four callers, one arithmetic site, and the tests that reach them)
 **Owner:** Zy
-**Produces:** `addr.ClosingDelim` as the single delimiter scanner, the overflow-safe `-C`, and read-path boundary tests
+**Produces:** `addr.ClosingDelim` as the delimiter scanner for every address parser, the overflow-safe `-C`, and read-path boundary tests
 **Consumes:** `internal/addr.CutRelative` (T4), the scanning base check (T5)
 **Data dependency:** hermetic
 **Proof map:** v1
@@ -12,8 +12,11 @@
 
 ## Goal
 
-Make every place that finds the end of a pattern use one function that counts backslash parity, stop
-`-C` wrapping the same way the relative end did, and put the reproducer on the path it was found on.
+Make every ADDRESS PARSER that finds the end of a pattern use one function that counts backslash
+parity, stop `-C` wrapping the same way the relative end did, and put the reproducer on the path it
+was found on. `plan.splitHeader` is NOT an address parser and keeps its own pattern state; the
+filename of this task still says "every delimiter", which was the claim before the fourth review
+narrowed it.
 
 ## Context this task exists for
 

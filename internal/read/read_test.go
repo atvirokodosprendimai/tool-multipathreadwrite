@@ -643,6 +643,12 @@ func TestAMalformedPatternAddressIsRefused(t *testing.T) {
 		{"/a/garbage", "after the pattern"},
 		{"/a/,/b/,/c/", "after the end pattern"},
 		{"/a/,/b", "never closed"},
+		// The fifth review's two: an empty END pattern, and a trailing comma
+		// whose empty component splitRanges used to drop — `5,+2,` became
+		// `5,+2` on the read path while the plan path refused the whole string.
+		{"/a/,//", "empty pattern"},
+		{"5,+2,", "empty range"},
+		{"/a/,/b/,", "empty range"},
 	} {
 		if _, err := ParseSpec("f.txt:" + c.addr); err == nil {
 			t.Errorf("f.txt:%s parsed; the plan path refuses it and the two grammars must agree", c.addr)
