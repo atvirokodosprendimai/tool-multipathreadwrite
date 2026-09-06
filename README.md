@@ -919,7 +919,7 @@ ADR-020 built an instrument to find out rather than argue about it: `curve` gene
 client authors a plan against what mrw would serve, and the scorer applies the plan and reports which
 line changed. The pre-registration in `docs/adr/BACKLOG.md` fixed the criterion before a cell existed
 — correct-address rate against served bytes, stratified by position, **a flat curve accepted as an
-answer** — and sixteen readings have been taken under it: four void under their own rules (1, 6, 7, and 15 on format), one evidence-limited under its own (14), and eleven with results; reading 12, the MCP arm, waits on ADR-023. Every plan was committed before its trials
+answer** — and eighteen readings have been taken under it: seven void under their own rules (1, 6, 7 and 15 on format; 12 on unverifiable compliance; 18 on a host defect; 19 on the author's own deviations), one evidence-limited under its own (14), and ten with results. Reading 20 measured the MCP delivery arm — the path mrw ships — at 30 of 30. Every plan was committed before its trials
 ran, every score file is committed, and every table below recomputes from them.
 
 | Reading | Client | Fixture | 2 KB | 20 KB | 200 KB | What it settled |
@@ -970,7 +970,8 @@ document rather than reproducible from a committed receipt. That is the case for
 What readings 5, 8, 9, 10 and 11 settle between them: the bend was the harness read arm's delivery,
 not mrw's rendering. The miss is the row index of the served text (reading 5: −117 with the window
 from line 120), and when mrw's `N|` is the only number on any row — the served text arriving as a
-Bash tool result, the delivery the readings ran; the MCP path was not run — the client that missed
+Bash tool result, the delivery most readings ran, and through `mrw_read` itself at 2 KB and 20 KB
+(reading 20, 30 of 30) — the client that missed
 seven of fifteen at 200 KB and three of fifteen at 20 KB through its file reader addressed all
 forty-five exactly, at every size, at the read arm's cost or below it (readings 8 and 9, compliant
 45 of 45 under pre-registered rules). Readings 10 and 11 then separated the second number from the

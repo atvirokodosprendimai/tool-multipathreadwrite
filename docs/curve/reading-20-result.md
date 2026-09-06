@@ -1,4 +1,4 @@
-# Reading 20, result: the delivery mrw ships is at the ceiling wherever it fits in one result
+# Reading 20, result: 30 of 30 at 2 KB and 20 KB through the delivery mrw ships
 
 **Collected 2026-09-06 under `reading-20-plan.md`, committed before any trial ran and amended twice
 before its first trial, both amendments recorded in the plan. Thirty trials, no void, no deviation.**
@@ -26,9 +26,12 @@ were no misses, no `refused_parse` and no `refused_apply`.
 2. **Vacuous.** No miss occurred, so there is no third account to report. The `T + 2` offset that
    explains every miss in readings 4, 11 and 13 has no analogue in this arm, which lays no second
    number beside mrw's gutter.
-3. **Holds.** Compliance 30 of 30, computed from `reading-20-compliance.json`, which is derived from
-   the committed coverage files and the cells: every trial reported every service block, the true
-   last line, no forbidden tool, and wrote `coverage.json` strictly after `result.json`.
+3. **Holds, with one clause not reproducible.** Compliance 30 of 30, from
+   `reading-20-compliance.json`: every trial reported every service block and the true last line —
+   both recomputable, because that table carries the claimed AND true values — and used no forbidden
+   tool. The fourth clause, `coverage.json` written strictly after `result.json`, was checked on
+   mtime at collection time and **cannot be re-derived from the tree**: git does not preserve mtimes
+   and the `result.json` files were not committed. See "What is not reproducible" below.
 4. **Unevaluated, as the plan requires.** Cost comes from request records this corpus has never
    committed. Under rule 3 it is an observation and never a published number, and it is reported as
    unevaluated rather than estimated. No claim above rests on it.
@@ -43,16 +46,19 @@ were no misses, no `refused_parse` and no `refused_apply`.
 every time.** On these exact cells the shipped delivery equals the best previously measured — reading
 9's bare tool result, 15/15 at both sizes — and beats both arms that lay a second plausible line
 number beside mrw's: reading 13's numbered tool result (14 and 13 of 15) and reading 4's file reader
-(15 and 12 of 15). The flat curve of readings 8 and 9 is a property of the delivery mrw ships, not
-only of a harness built for the measurement.
+(15 and 12 of 15). At these two sizes the flatness readings 8 and 9 found is reproduced through the
+delivery mrw ships, and not only through a harness built for the measurement. **That is a claim
+about 2 KB and 20 KB and about nothing else**: readings 8 and 9 also cover 200 KB, and this reading
+does not, so the shipped path's accuracy above 20 KB stays unmeasured.
 
-ADR-020's open item is now answered, in two parts:
+ADR-020's open item is answered for the sizes it can be answered for:
 
-- **Where the served text fits in one result, the arm is at the ceiling** — 30 of 30 here.
-- **Where it does not, the arm cannot be measured on this host at all**, because the host truncates
-  mrw's page before the model sees it while the ledger records the page whole, so a write to the
-  unseen middle is licensed and applies. That is reading 18's finding and it is a defect in
-  `docs/adr/BACKLOG.md` under ADR-023, not a point on a curve.
+- **At 2 KB and 20 KB the arm is at the ceiling** — 30 of 30 here.
+- **At 200 KB the arm cannot be measured on this host at all**, because the host truncates mrw's page
+  before the model sees it while the ledger records the page whole, so a write to the unseen middle
+  is licensed and applies. That is reading 18's finding: a defect in `docs/adr/BACKLOG.md` under
+  ADR-023, not a point on a curve and not an accuracy result. **No correct-address rate exists for
+  this arm at 200 KB, and none is claimed.**
 
 Nothing here moves mrw's cap or its served format.
 
@@ -86,8 +92,34 @@ scores:
 bin/curve tally docs/curve/reading-20-scores/*.score.json
 ```
 
-Every rate and count above is computed from that committed data, none typed. Cost is the one named
-exception in the plan's rule 3 and is unevaluated. The thirty cells were verified before the first
-trial against `docs/curve/reading-13-scores/` on `trial_id`, `served_bytes` and the planted line, and
-against the plan's own committed sha256 table; all thirty matched on all four fields. The thirty
-dispatched prompts were verified byte-identical apart from the cell name.
+Every rate and count above is computed from that committed data, none typed.
+
+## What is not reproducible from the committed data
+
+Stated plainly because the plan's rule 3 promised that every rate and count would be recomputable,
+and two things fall short of it. Neither is on the plan's enumerated list of void conditions, so
+neither voids the reading; both narrow what it may be read to assert.
+
+- **The compliance table's `order` clause.** It records the conclusion `"order": true`, not evidence.
+  It was computed from file mtimes while the cells existed; git preserves no mtimes and the
+  `result.json` files were not committed, so a reader cannot re-derive it. The other three clauses —
+  blocks, last line, tools — are fully recomputable from the committed claimed-and-true values.
+- **That no trial was retried and none produced a no-answer.** Thirty complete score/coverage pairs
+  cannot distinguish thirty first attempts from a discarded no-answer followed by a retry, which is
+  exactly reading 19's failure. The run is reported as conducted — one dispatch per cell, no retry,
+  no trial without an answer — and that report is the author's, not the tree's.
+
+**A future reading of this arm should commit, per attempt, the `result.json`, the `coverage.json` and
+a dispatch receipt recording the order of the two writes and the outcome of every attempt including
+the ones that produced nothing.** That is the smallest change that would make these two claims
+reproducible, and it is cheap; it was simply not foreseen when this plan was frozen.
+
+Cost is the third, and is the plan's own named exception: it comes from uncommitted request records
+and is reported unevaluated.
+
+## Provenance, continued
+
+The thirty cells were verified before the first trial against `docs/curve/reading-13-scores/` on
+`trial_id`, `served_bytes` and the planted line, and against the plan's own committed sha256 table;
+all thirty matched on all four fields. The thirty dispatched prompts were verified byte-identical
+apart from the cell name.

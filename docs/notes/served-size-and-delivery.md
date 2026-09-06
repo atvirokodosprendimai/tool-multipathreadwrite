@@ -14,9 +14,10 @@ built an instrument (`curve`) that generates a fixture, records exactly what mrw
 a fresh client author one plan against it, and scores the plan by applying it: the line that
 changed is the measurement. Under a criterion pre-registered before any cell existed, eleven
 readings were taken through reading 11, then reading 13 at 2 KB and 20 KB, readings 14 and 17 on
-a harder fixture (14 evidence-limited), and readings 15 and 16 on a second model family (reading
-12, the MCP arm, waits on ADR-023) — each plan committed before its trials, and every score file
-of the fifteen scored readings committed (reading 1 is a void notice, not scores).
+a harder fixture (14 evidence-limited), readings 15 and 16 on a second model family, and reading 20
+on the MCP delivery arm at 2 KB and 20 KB after readings 12, 18 and 19 voided attempting it — each
+plan committed before its trials, and every score file of the scored readings committed (reading 1
+is a void notice, not scores).
 
 Two results. First, for a strong client, serving a hundred times more bytes cost 2.4–2.5× the
 tokens with no measurable reduction in correct addressing at these sizes, on two fixtures, and
@@ -67,8 +68,10 @@ The criterion was written into the backlog before the generator existed: correct
 against served bytes, stratified by target position (early, middle, late), refusals reported
 beside the cell and never in it, five repeats per cell, and **a flat curve accepted as an answer**.
 
-Each reading's plan — cells, client, arm, predictions — is committed before its first trial, and
-the plan in the tree is byte-identical to that commit; corrections live in the result document. Compliance is verified from each
+Each reading's plan — cells, client, arm, predictions — is committed before its first trial, and a
+plan is frozen AT THAT TRIAL rather than at its commit: reading 20's was amended twice beforehand
+and records both amendments with dates and reasons; every other plan in the tree is byte-identical
+to its introducing commit. Corrections live in the result document. Compliance is verified from each
 trial's transcript, matched on the prompt marker, never on the cell id: which tools were called,
 whether the served text was read whole, whether anything searched. A non-compliant trial is void
 and reported, never counted as a miss.
@@ -208,7 +211,9 @@ shape not shown, void on format 34 of 45); the strong client sits at the ceiling
 and on a thirteen-service one (reading 17: 45 of 45 through the bare tool result), so its curve
 cannot bend and says nothing about where it would. The
 weaker client's ceiling through a tool result is fifteen of fifteen per tier, whose interval's
-lower bound is 0.796, not 1. Reading 9's 200 KB tier is reading 8's data, pooled under a plan that
+explain. The MCP tool-result path, which carries no outer numbering, was measured by reading 20 at
+2 KB and 20 KB — 30 of 30 — and is unmeasurable at 200 KB on this host, where the host truncates
+mrw's page before the model sees it.
 said so. Readings 10 and 11 separate the gutter from the chunking on fifteen cells each, and
 reading 11's misses fall in one position only, which no plan predicted and this note does not
 explain. The MCP tool-result path, which carries no outer numbering, was not measured.

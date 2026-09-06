@@ -343,6 +343,11 @@ byte-identical, so the revert is a deletion.
       scores, coverage reports and a derived compliance table — with cost named as the one
       exception, an observation from uncommitted request records, reported unevaluated.
 
-      **ADR-020's served-size question is now closed in two parts:** where the served text fits in
-      one result the arm is at the ceiling, and where it does not it cannot be measured on this host
-      at all, for the reason in the entry above. The cap and the served format do not move.
+      **ADR-020's served-size question is closed for the sizes it can be closed for:** at 2 KB and
+      20 KB the arm is at the ceiling; at 200 KB it cannot be measured on this host at all, for the
+      reason in the entry above, so no correct-address rate exists there and none is claimed. The
+      shipped path's accuracy above 20 KB is therefore unmeasured rather than established. The cap
+      and the served format do not move. Reading 20's result also records two things its own rule 3
+      promised and could not deliver — the compliance table's `order` clause and the no-retry claim
+      are not re-derivable from the tree — and names the cheap fix for a future reading: commit the
+      per-attempt `result.json`, `coverage.json` and a dispatch receipt.
