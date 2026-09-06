@@ -773,17 +773,40 @@ re-measuring these. Each was driven at the built binary, not read:
   `-- PARTIAL:` notice and a `next_read`. What reached the model was lines 1-90, a marker reading
   `[141140 characters truncated]`, and lines 2644-2727: the middle was discarded by the host, not by
   mrw, and the phrase appears nowhere in this source. `internal/mcp/tools.go:535` then records the
-  page because "the page WAS shown", so `mrw seen` claimed `lines 1-3619`. A plan replacing line
+  page because "the page WAS shown" — the span it served, lines 1-2727, since `tools.go:522` builds
+  a narrowed spec for the page rather than recording the file whole. (An earlier version of this
+  entry said `mrw seen` claimed `lines 1-3619`; the code does not support that, and it does not
+  matter to the defect: line 1500 is inside 1-2727 either way.) A plan replacing line
   1500 — inside the discarded middle, shown to nobody — applied with `"status": "ok"` and exit 0.
   So mrw edited a line its caller had not seen. It is issue #109's class by another route: ADR-023
   removed an envelope that replaced the served text; here the text survives mrw and is cut after it,
   with the ledger already written.
 
-  What is NOT established: where the host's limit lies. `200,000 - 141,140 = 58,860` characters is
-  arithmetic from one result, not a measured boundary, and other hosts are unmeasured. The hard part
-  is that mrw cannot observe this from inside the server — a truncated result and a delivered one are
-  identical to it — so any fix is a design question (lower `MaxResultChars`, page to a size a host
-  will deliver, or record the ledger from something other than what was sent) and needs a record
+  What is NOT established: where the host's limit lies, or whether it is a property of the host at
+  all. The figure `200,000 - 141,140 = 58,860` that this entry carried until 2026-09-06 was
+  **arithmetic from the wrong base and is withdrawn**: `internal/mcp/tools.go:444` sizes a page at
+  three quarters of the cap, so mrw sent ≈150,000 characters, not 200,000, and the remainder for
+  that observation is ≈8,860 — which the observation itself corroborates, since 174 delivered lines
+  at ~55 characters each is ≈9,600. It was one result either way, never a measured boundary.
+
+  A counter-observation, 2026-09-06, Claude Code **2.1.263**, main session (Opus, 1M context): a
+  bare-path `mrw_read` of a 116,736-byte, 2,048-line fixture was delivered **whole** — every line,
+  no marker — and `mrw seen` recorded the whole file, correctly. So the truncation is **not** a low
+  fixed cap on this host, and the two observations differ in more than size: reading 18's ran in a
+  **`claude-haiku-4-5` subagent** on **2.1.261**. That the threshold may scale with the CONSUMING
+  session's context rather than being a host constant is the most useful open question here, and it
+  is untested. The hard part is unchanged: mrw cannot observe this from inside the server — a
+  truncated result and a delivered one are identical to it — so any fix is a design question (lower
+  `MaxResultChars`, page to a size a host will deliver, or record the ledger from something other
+  than what was sent) and needs a record rather than a patch.
+
+  Nor is the defect confined to the PAGING path, though that is where it was caught. mrw records
+  what it served on every read; a result under the cap that pages not at all is truncated by the
+  same mechanism if it exceeds whatever the consuming session will take, with no `-- PARTIAL:` and
+  nothing to warn anyone. That is reasoning from the mechanism, NOT a measurement — the 117 KB probe
+  above did not reach the threshold, so it neither confirms nor refutes it. The probe that would
+  settle it: read a file just over the threshold in a small-context subagent without triggering
+  mrw's own cap, then try to write to a line in the discarded middle.
   rather than a patch. Reading 20 measured the same arm at 2 KB and 20 KB, where no paging and no
   truncation occur, and found 30 of 30 (`docs/curve/reading-20-result.md`); readings 12, 18 and 19
   voided on the way there. So the arm is measured BELOW the truncation point and unmeasurable AT it:
