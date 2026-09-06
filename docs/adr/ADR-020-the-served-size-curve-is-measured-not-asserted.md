@@ -328,15 +328,21 @@ byte-identical, so the revert is a deletion.
       `internal/mcp/tools.go:535` records the whole page in the ledger. A plan replacing a line
       inside the discarded middle then applied, exit 0: ADR-002 inverted. It is a defect, filed in
       `docs/adr/BACKLOG.md` under ADR-023, and no rate is published for that size.
-- [ ] **The MCP delivery arm at 2 KB and 20 KB, unmeasured after three attempts**
-      (`docs/curve/reading-20-plan.md`). Reading 12 voided — a subagent's transcript is not readable
-      by the session that spawned it, so compliance could not be checked. Reading 18 voided at 200 KB
-      with the cause above. Reading 19 collected thirty trials at 2 KB and 20 KB and voided WHOLE:
-      its coverage instruction was clarified after the first trial and a no-answer trial was retried,
-      and its plan's void condition is unconditional. Its first result document published the 2 KB
-      stratum and voided only the 20 KB one; the Codex review of PR #115 established that the
-      stratum-level exception was invented after the results were seen. Reading 20 re-runs both sizes
-      with three rules pre-registered: the last-line comparison and its prompt wording fixed
-      together, a no-answer never retried, and the coverage reports committed so every rate and count
-      it publishes comes from committed data — with cost named as the one exception, an observation
-      from uncommitted request records rather than a published number.
+- [x] **The MCP delivery arm at 2 KB and 20 KB: 30 of 30** (`docs/curve/reading-20-result.md`).
+      Compliant 30 of 30, zero paged reads, zero no-answers, no void and no deviation. On these
+      cells the delivery mrw ships equals the best previously measured (reading 9's bare tool
+      result, 15/15 at both sizes) and beats both arms that lay a second plausible line number
+      beside mrw's — reading 13's 14 and 13 of 15, reading 4's 15 and 12 of 15. mrw's gutter,
+      delivered by mrw's own tool, is the address the answer needs. It took three void readings to
+      get here: reading 12 (a subagent's transcript is not readable by the session that spawned it,
+      so compliance could not be checked), reading 18 (200 KB, the defect above), and reading 19
+      (thirty trials voided WHOLE — its coverage instruction was clarified after the first trial and
+      a no-answer trial was retried; the Codex review of PR #115 established that its stratum-level
+      exception had been invented after the results were seen). Reading 20 pre-registered the three
+      rules those failures earned, and every rate and count it publishes is computed from committed
+      scores, coverage reports and a derived compliance table — with cost named as the one
+      exception, an observation from uncommitted request records, reported unevaluated.
+
+      **ADR-020's served-size question is now closed in two parts:** where the served text fits in
+      one result the arm is at the ceiling, and where it does not it cannot be measured on this host
+      at all, for the reason in the entry above. The cap and the served format do not move.
