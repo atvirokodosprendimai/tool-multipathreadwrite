@@ -105,12 +105,14 @@ it exists to undo shell word-splitting, and `specs` is already a list.
 
 ### 1. Read many ranges in one call, and let the read do the finding
 
-Addresses are line numbers, `N-M` ranges, `$` for the last line, or a **regex**
-— so you do not need a separate search call to locate the site:
+Addresses are line numbers, `N-M` ranges, `$` for the last line, `A,+N` for the
+line `A` plus the `N` lines after it, or a **regex** — so you do not need a
+separate search call to locate the site:
 
 ```sh
 mrw read 'internal/apply/apply.go:/^func Apply/,/^}/' \
          'internal/read/read.go:120-160' \
+         'internal/read/read.go:/func Run/,+12' \
          'cmd/mrw/main.go:$'
 ```
 
@@ -186,11 +188,17 @@ line, and that line still has to have been served to you.
 
 A plan is line-oriented text, so anything that prints lines can build one. This
 is the part that turns 54 calls into 2, and it is the part that gets missed.
-**A plan address may be a line number, an `N-M` range, `$`, or a pattern —
-`/regexp/` or `/from/,/to/`.** A pattern must match **exactly one** line; none
-or several fails that hunk and the refusal names the lines it matched. Reach
-for a pattern when you have not read the file for any other reason; take the
-numbers from the read you just did when you have:
+**A plan address may be a line number, an `N-M` range, `$`, a relative end
+`A,+N` — the line `A` plus the `N` lines after it, so `12,+2` is three lines —
+or a pattern, `/regexp/` or `/from/,/to/`.** A pattern must match **exactly
+one** line; none or several fails that hunk and the refusal names the lines it
+matched. A relative end has no backwards form and may not be combined with
+`/from/,/to/`. ⚠ **A READ CLAMPS a relative end at the last line; a WRITE
+REFUSES one that runs past it** — each is that path's own existing rule, since
+`mrw read f.go:2-99` serves what exists while `@@ f.go 5-9999 replace` is
+refused as out of range. Reach for a pattern when you have not read
+the file for any other reason; take the numbers from the read you just did when
+you have:
 
 ```bash
 specs=()

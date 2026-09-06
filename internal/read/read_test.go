@@ -1,8 +1,10 @@
 package read
 
 import (
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -482,5 +484,182 @@ func TestAnOrdinaryMissingFileGetsNoGlobHint(t *testing.T) {
 	Run(&b, root, []Spec{sp}, Options{})
 	if strings.Contains(b.String(), "glob") {
 		t.Errorf("the glob hint fired for a path with no metacharacter:\n%s", b.String())
+	}
+}
+
+// A relative end is the form a caller arrives with from sed: `A,+N` is the line
+// A resolves to plus the N lines after it. Before ADR-026 the comma separated
+// two addresses and `+N` parsed as the ABSOLUTE line N, because strconv.Atoi
+// accepts a leading sign — so `/func Foo/,+2` served the match and line 2, at
+// exit 0, and the receipt was the only place that said so.
+//
+// Asserting the served span is the assertion that matters: the old reading and
+// the new one both exit 0 and both print lines, so only WHICH lines tells them
+// apart.
+func TestARelativeEndServesTheLinesAfterTheStart(t *testing.T) {
+	root, opt := fixture(t)
+	for _, spec := range []string{"a.go:/func Foo/,+2", "a.go:3,+2"} {
+		out, problems := run(t, root, opt, spec)
+		if problems != 0 {
+			t.Fatalf("%s: problems=%d\n%s", spec, problems, out)
+		}
+		if !strings.Contains(out, "@@ 3-5") {
+			t.Errorf("%s did not serve 3-5:\n%s", spec, out)
+		}
+		if n := strings.Count(out, "|"); n != 3 {
+			t.Errorf("%s served %d lines, want 3:\n%s", spec, n, out)
+		}
+		if strings.Contains(out, "package p") {
+			t.Errorf("%s served line 1, so the suffix was read as an absolute address:\n%s", spec, out)
+		}
+	}
+	// The ledger is the half a caller cannot see: the licence must cover
+	// exactly the lines served, or ADR-002's per-line guard is being granted
+	// for lines nobody was shown.
+	obs, problems := runObserved(t, root, opt, "a.go:/func Foo/,+2")
+	if problems != 0 {
+		t.Fatalf("problems=%d", problems)
+	}
+	o, ok := obs["a.go"]
+	if !ok {
+		t.Fatal("a.go was not observed at all")
+	}
+	if !o.Covers(3, 5) {
+		t.Errorf("the observation does not cover 3-5, so the served lines were not licensed: %+v", o)
+	}
+	if o.Covers(6, 6) {
+		t.Errorf("the observation covers line 6, which was never served: %+v", o)
+	}
+}
+
+// An end past the last line CLAMPS, which is not a new rule: `2-99` on this
+// fixture already serves 2-9 and exits 0. A relative end that refused instead
+// would make the same overrun mean two different things depending on how it
+// was written.
+func TestARelativeEndPastTheLastLineClamps(t *testing.T) {
+	root, opt := fixture(t)
+	out, problems := run(t, root, opt, "a.go:8,+10")
+	if problems != 0 {
+		t.Fatalf("problems=%d, want 0 — an end past EOF clamps, as 2-99 does\n%s", problems, out)
+	}
+	if !strings.Contains(out, "@@ 8-9") {
+		t.Errorf("did not clamp to the last line:\n%s", out)
+	}
+}
+
+// `+N` with nothing before it names no start to be relative to. ADR-015: the
+// refusal names the fix rather than only the mistake.
+func TestARelativeEndWithNothingBeforeItIsRefused(t *testing.T) {
+	_, err := ParseSpec("a.go:+3")
+	if err == nil {
+		t.Fatal("a.go:+3 parsed; a relative end with no start must be refused")
+	}
+	for _, want := range []string{"+3", "3", "A,+3"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not name %q, so it does not name the fix: %v", want, err)
+		}
+	}
+}
+
+// `,+0` says exactly what `A` alone says, and `0` is already refused as a line
+// number. Accepting it would be the one case where a relative end is a no-op,
+// which is a thing to explain rather than a thing to allow.
+func TestARelativeEndOfZeroIsRefused(t *testing.T) {
+	_, err := ParseSpec("a.go:2,+0")
+	if err == nil {
+		t.Fatal("a.go:2,+0 parsed; a zero relative end must be refused")
+	}
+	if !strings.Contains(err.Error(), "+0") {
+		t.Errorf("the refusal does not name what was written: %v", err)
+	}
+}
+
+// THE REPRODUCER FROM THE SECOND REVIEW, ON THE PATH IT WAS FOUND ON. The
+// existing boundary test builds an apply.Input, so neither read branch was
+// reached by it — a regression fixture that describes the defect without
+// executing it, which is the failure mode testing.md names. `/two/,+MaxInt`
+// printed `@@ 2--9223372036854775807` and served nothing at exit 0.
+func TestARelativeEndAtTheIntegerBoundaryClampsOnARead(t *testing.T) {
+	root, opt := fixture(t)
+	for _, spec := range []string{
+		"a.go:/func Foo/,+" + strconv.Itoa(math.MaxInt), // the pattern branch: no end<start net beneath it
+		"a.go:3,+" + strconv.Itoa(math.MaxInt),          // the numeric branch, which had one by accident
+	} {
+		out, problems := run(t, root, opt, spec)
+		if problems != 0 {
+			t.Errorf("%s: problems=%d, want 0 — a relative end past EOF clamps on a read\n%s", spec, problems, out)
+		}
+		if !strings.Contains(out, "@@ 3-9") {
+			t.Errorf("%s did not clamp to the last line:\n%s", spec, out)
+		}
+		if strings.Contains(out, "--") {
+			t.Errorf("%s produced an inverted span, so the end wrapped:\n%s", spec, out)
+		}
+	}
+}
+
+// -C is the same arithmetic one line away, and the flag refuses only a NEGATIVE
+// value, so a caller can reach it. It printed `@@ 1--9223372036854775807`.
+func TestContextAtTheIntegerBoundaryClamps(t *testing.T) {
+	root, opt := fixture(t)
+	out, problems := run(t, root, Options{Numbers: opt.Numbers, Context: math.MaxInt}, "a.go:/func Foo/")
+	if problems != 0 {
+		t.Fatalf("problems=%d, want 0\n%s", problems, out)
+	}
+	if !strings.Contains(out, "@@ 1-9") {
+		t.Errorf("a huge -C did not clamp to the whole file:\n%s", out)
+	}
+	if strings.Contains(out, "--") {
+		t.Errorf("a huge -C produced an inverted span, so the end wrapped:\n%s", out)
+	}
+}
+
+// A pattern whose body ends in a literal backslash: the closing slash is NOT
+// escaped, because the backslash before it is itself escaped. All three
+// scanners tested only the preceding byte and read this as unclosed.
+func TestAPatternEndingInABackslashIsClosed(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "b.txt"), []byte("a\\b\nplain\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, problems := run(t, root, Options{Numbers: true}, `b.txt:/\\/,+1`)
+	if problems != 0 {
+		t.Fatalf("problems=%d, want 0 — a pattern ending in a backslash is closed\n%s", problems, out)
+	}
+	if !strings.Contains(out, "@@ 1-2") {
+		t.Errorf("the pattern did not resolve to its match plus one:\n%s", out)
+	}
+}
+
+// The read grammar accepted four shapes the plan grammar refused, which is the
+// divergence ADR-026 claims to have ended: `/` was an empty regexp matching
+// every line at exit 0, `//` the same, `/a/garbage` compiled as the pattern
+// `a/garbage`, and `/a/,/b/,/c/` silently became its first endpoint. Found by
+// the fourth Codex review of PR #125.
+func TestAMalformedPatternAddressIsRefused(t *testing.T) {
+	for _, c := range []struct{ addr, names string }{
+		{"/", "never closed"},
+		{"//", "empty pattern"},
+		{"/a/garbage", "after the pattern"},
+		{"/a/,/b/,/c/", "after the end pattern"},
+		{"/a/,/b", "never closed"},
+		// The fifth review's two: an empty END pattern, and a trailing comma
+		// whose empty component splitRanges used to drop — `5,+2,` became
+		// `5,+2` on the read path while the plan path refused the whole string.
+		{"/a/,//", "empty pattern"},
+		{"5,+2,", "empty range"},
+		{"/a/,/b/,", "empty range"},
+	} {
+		if _, err := ParseSpec("f.txt:" + c.addr); err == nil {
+			t.Errorf("f.txt:%s parsed; the plan path refuses it and the two grammars must agree", c.addr)
+		} else if !strings.Contains(err.Error(), c.names) {
+			t.Errorf("the refusal of %s does not say %q: %v", c.addr, c.names, err)
+		}
+	}
+	// The controls: the two legal pattern forms still parse.
+	for _, ok := range []string{"/a/", "/a/,/b/", "/a/,+2"} {
+		if _, err := ParseSpec("f.txt:" + ok); err != nil {
+			t.Errorf("f.txt:%s was refused: %v", ok, err)
+		}
 	}
 }

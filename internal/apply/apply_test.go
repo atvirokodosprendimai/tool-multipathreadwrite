@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1476,5 +1477,166 @@ func TestAPlanThatNamesOneFileTwiceIsRefusedWhicheverTheSpelling(t *testing.T) {
 	}, Options{Seen: map[string]Seen{first: {SHA: shaOfFile(t, root, first)}, second: {SHA: shaOfFile(t, root, second)}}})
 	if err != nil || !res.Applied {
 		t.Fatalf("two different files %s and %s were refused: %v %+v", first, second, err, res.Hunks)
+	}
+}
+
+// The plan side of ADR-026, driven through Apply rather than the parser: a
+// relative end must resolve against the ORIGINAL file and change exactly the
+// lines it names. A parse test cannot see that — the address could parse
+// correctly and still splice the wrong span.
+func TestARelativeEndAddressesTheLinesItReplaces(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Body: []string{"// the whole method, replaced"}, Lines: -1,
+		StartPat: regexp.MustCompile(`^func \(s \*Store\) Get`), RelEnd: 3,
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply returned an error rather than a verdict: %v", err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed = %d, want 0: %s", res.Failed, res.Hunks[0].Reason)
+	}
+	// Get spans lines 6-9 of storeGo: the func line and the three below it.
+	if n := res.Hunks[0].Removed; n != 4 {
+		t.Errorf("removed %d lines, want 4 — a relative end of 3 is the start plus three", n)
+	}
+	got := read(t, root, "store.go")
+	if strings.Contains(got, "r, ok := s.rows[id]") {
+		t.Error("the body of Get survived, so the relative end did not reach it")
+	}
+	if !strings.Contains(got, "func (s *Store) Put") {
+		t.Error("Put was removed, so the relative end ran past the lines it named")
+	}
+	if !strings.Contains(got, "// the whole method, replaced") {
+		t.Error("the replacement body is not in the file")
+	}
+}
+
+// The receipt echoes the address the caller WROTE — that is this package's own
+// guarantee, and a relative end was being dropped from it: `3,+1` was reported
+// as `3`, hiding the span the hunk actually consumed.
+func TestAReceiptEchoesTheRelativeEndTheCallerWrote(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Body: []string{"// replaced"}, Lines: -1,
+		Start: 6, End: 6, RelEnd: 2,
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("failed=%d: %s", res.Failed, res.Hunks[0].Reason)
+	}
+	if got := res.Hunks[0].Addr; got != "6,+2" {
+		t.Errorf("the receipt reports %q, want %q — a receipt that drops the suffix hides the span consumed", got, "6,+2")
+	}
+}
+
+// A WRITE refuses to run past the last line where a READ clamps, and that is
+// each path's own existing rule rather than an inconsistency: `mrw read
+// f.txt:2-99` serves what exists, while a plan addressed `5-9999` is already
+// refused as out of range. A write that quietly did less than its address said
+// is the failure this tool exists to make visible.
+func TestARelativeEndPastTheLastLineIsRefusedOnThePlanPath(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+	before := read(t, root, "store.go")
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Body: []string{"// replaced"}, Lines: -1,
+		Start: 6, End: 6, RelEnd: 999,
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed=%d, want 1 — a relative end past EOF must be refused on the write path", res.Failed)
+	}
+	reason := res.Hunks[0].Reason
+	for _, want := range []string{"6,+999", "out of range"} {
+		if !strings.Contains(reason, want) {
+			t.Errorf("the refusal does not name %q: %s", want, reason)
+		}
+	}
+	if read(t, root, "store.go") != before {
+		t.Error("the file changed despite the refusal")
+	}
+}
+
+// Apply is a public entry point and its doc comment says it validates every
+// hunk. plan.validate protects the CLI and the MCP server, but a caller who
+// builds Inputs directly — which this package's own tests do throughout — could
+// hand it a relative end on an op that cannot honour one, and get `ok` for an
+// address that was half-ignored.
+func TestTheEngineRefusesARelativeEndTheOpCannotHonour(t *testing.T) {
+	for _, op := range []string{"create", "insert-after", "insert-before"} {
+		root := t.TempDir()
+		write(t, root, "store.go", storeGo)
+		path := "store.go"
+		start, end := 6, 6
+		if op == "create" {
+			path, start, end = "new.go", 0, 0
+		}
+		res, err := Apply(root, []Input{{
+			Path: path, Op: op, Body: []string{"X"}, Lines: -1,
+			Start: start, End: end, RelEnd: 2,
+		}}, Options{})
+		if err != nil {
+			t.Fatalf("%s: Apply: %v", op, err)
+		}
+		if res.Failed != 1 {
+			t.Errorf("%s: failed=%d, want 1 — the engine accepted a relative end it would ignore", op, res.Failed)
+			continue
+		}
+		if !strings.Contains(res.Hunks[0].Reason, "single line") {
+			t.Errorf("%s: the refusal does not name the fix: %s", op, res.Hunks[0].Reason)
+		}
+	}
+
+	// The control: delete DOES honour a relative end, so the rule is "an op
+	// that cannot honour it refuses it", not "relative ends are suspicious".
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "delete", Lines: -1, Start: 6, End: 6, RelEnd: 2,
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("delete: Apply: %v", err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("delete: failed=%d, want 0: %s", res.Failed, res.Hunks[0].Reason)
+	}
+	if n := res.Hunks[0].Removed; n != 3 {
+		t.Errorf("delete removed %d lines, want 3", n)
+	}
+}
+
+// The overflow the second review found: i+1+RelEnd wraps negative at a large
+// count, and a wrapped end is not a clamp. The read path printed
+// `@@ 2--9223372036854775807` and served nothing at exit 0.
+func TestARelativeEndAtTheIntegerBoundaryDoesNotWrap(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "store.go", storeGo)
+	before := read(t, root, "store.go")
+
+	res, err := Apply(root, []Input{{
+		Path: "store.go", Op: "replace", Body: []string{"X"}, Lines: -1,
+		Start: 2, End: 2, RelEnd: math.MaxInt,
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed=%d, want 1 — a wrapped end must not read as in range", res.Failed)
+	}
+	if !strings.Contains(res.Hunks[0].Reason, "out of range") {
+		t.Errorf("the refusal does not say out of range: %s", res.Hunks[0].Reason)
+	}
+	if read(t, root, "store.go") != before {
+		t.Error("the file changed despite the refusal")
 	}
 }

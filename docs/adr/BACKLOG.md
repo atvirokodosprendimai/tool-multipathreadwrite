@@ -916,3 +916,14 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   scope. It is here as a probe someone could run, not as a finding. If it reproduces it is the worst
   shape reported so far, because the file stays valid in a language whose type checker is the one
   gate that was expected to work.
+
+## From ADR-026 (an address may say how many lines follow)
+
+- **A backwards relative address, `A,-N` or `-N,A`.** Deferred from ADR-026, which implements the
+  forward form `A,+N` only. The backwards form is the one a caller wants after a match — *"show me
+  the five lines that led up to this"* — and `--grep -C N` already answers that for a WALK but not
+  for a named address. It is not free: `-` is the range separator, so `5,-2` has to be
+  disambiguated from `5,-` and from a `-2` that never meant anything, and the refusal wording has
+  to stay understandable when the caller wrote the ambiguous one. Anyone taking it up needs a
+  record, both parsers changed together for the reason ADR-026 gives, and a contract row that pairs
+  the good case with the ambiguous one.

@@ -136,6 +136,9 @@ type hunk struct {
 	// file, and the resolved span then meets the ledger check like any other.
 	StartPat *regexp.Regexp
 	EndPat   *regexp.Regexp
+	// RelEnd carries plan.Addr.RelEnd — the `A,+N` form (ADR-026) — and is
+	// applied once the start has resolved and the file's length is known.
+	RelEnd int
 	// SrcOp and SrcAddr are the op and address exactly as the caller wrote
 	// them. Every verdict echoes these rather than the resolved form, so a
 	// report line can be matched back to the plan line that produced it.
@@ -165,6 +168,7 @@ type Input struct {
 	Anchor   string
 	StartPat *regexp.Regexp
 	EndPat   *regexp.Regexp
+	RelEnd   int
 	SrcLine  int
 	Index    int
 }
@@ -223,7 +227,7 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		byPath[p] = append(byPath[p], hunk{
 			Path: p, Start: i.Start, End: i.End, Op: i.Op, Body: i.Body,
 			SHA: i.SHA, Lines: i.Lines, Anchor: i.Anchor,
-			StartPat: i.StartPat, EndPat: i.EndPat,
+			StartPat: i.StartPat, EndPat: i.EndPat, RelEnd: i.RelEnd,
 			SrcOp: i.Op, SrcAddr: srcAddrOf(i), SrcLine: i.SrcLine, Index: n,
 		})
 	}
@@ -566,6 +570,19 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 			}
 		}
 
+		// An op that cannot honour a relative end refuses it HERE as well as in
+		// plan.validate. The plan parser protects the CLI and the MCP server,
+		// but Apply is a public entry point this repository's own tests call
+		// directly, and its doc comment says it validates every hunk. A create
+		// took the branch below before the relative end was ever resolved, and
+		// an insertion computed an end and then used only the start — both
+		// reporting ok for an address they half-ignored. Second Codex review of
+		// PR #125.
+		if h.RelEnd > 0 && (h.Op == "create" || h.Op == "insert-after" || h.Op == "insert-before") {
+			fail(h, "%s takes a single line, not the range %s", h.Op, h.SrcAddr)
+			continue
+		}
+
 		if h.Op == "create" {
 			if existed {
 				fail(h, "create: %s already exists (%d lines) — use replace or delete", path, total)
@@ -669,6 +686,27 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		}
 		if end == EOF {
 			end = total
+		}
+
+		// `A,+N` (ADR-026): the end is N lines after the resolved start.
+		//
+		// ⚠ IT REFUSES TO RUN PAST THE LAST LINE, where a READ clamps. That is
+		// not an inconsistency between the two paths, it is each path's own
+		// existing rule: `mrw read f.txt:2-99` serves what exists, while a plan
+		// addressed `5-9999` is already refused as out of range. A write that
+		// quietly did less than the address it was given is the failure this
+		// tool exists to make visible, so the relative form is refused for the
+		// same reason the explicit one is. Found by the Codex review of #125,
+		// which measured the two spellings disagreeing.
+		if h.RelEnd > 0 {
+			// Compared before it is added, for the reason the read path gives:
+			// start+RelEnd overflows at a large count and a wrapped end reads
+			// as in range. Refusing needs the comparison to be right.
+			if start > total || h.RelEnd > total-start {
+				fail(h, "range %s is out of range (file has %d lines)", h.SrcAddr, total)
+				continue
+			}
+			end = start + h.RelEnd
 		}
 
 		// A guard the caller wrote is checked whatever the op. An insertion
@@ -1066,12 +1104,19 @@ func addrString(start, end int) string {
 // patterned hunk reported `0` — the unresolved bound — which named nothing the
 // caller had typed and nothing the file contained.
 func srcAddrOf(i Input) string {
+	var s string
 	if i.StartPat == nil {
-		return addrString(i.Start, i.End)
+		s = addrString(i.Start, i.End)
+	} else {
+		s = "/" + i.StartPat.String() + "/"
+		if i.EndPat != nil {
+			s += ",/" + i.EndPat.String() + "/"
+		}
 	}
-	s := "/" + i.StartPat.String() + "/"
-	if i.EndPat != nil {
-		s += ",/" + i.EndPat.String() + "/"
+	// The receipt echoes the address the caller WROTE. Dropping the relative
+	// end reported `3,+1` as `3`, which hides the span the hunk consumed.
+	if i.RelEnd > 0 {
+		s += ",+" + strconv.Itoa(i.RelEnd)
 	}
 	return s
 }

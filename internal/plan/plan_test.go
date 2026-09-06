@@ -478,3 +478,141 @@ func TestTheHintsStayQuietOnOrdinaryFailures(t *testing.T) {
 		t.Errorf("the body-line hint fired on an ordinary bad op, where it is wrong:\n%v", err)
 	}
 }
+
+// A relative end is `A,+N`: the line A resolves to plus the N lines after it
+// (ADR-026). Before it, the read path parsed the same string as two addresses
+// and served the wrong one, while this path refused it outright — one grammar
+// documented, two behaviours shipped.
+func TestAPlanAddressTakesARelativeEnd(t *testing.T) {
+	a, err := ParseAddr("5,+3")
+	if err != nil {
+		t.Fatalf("5,+3: %v", err)
+	}
+	if a.Start != 5 || a.End != 5 || a.RelEnd != 3 {
+		t.Errorf("5,+3 parsed as %+v, want start 5 with a relative end of 3", a)
+	}
+
+	p, err := ParseAddr("/beta/,+1")
+	if err != nil {
+		t.Fatalf("/beta/,+1: %v", err)
+	}
+	if p.StartPat == nil || p.EndPat != nil || p.RelEnd != 1 {
+		t.Errorf("/beta/,+1 parsed as %+v, want a start pattern with a relative end of 1 and no end pattern", p)
+	}
+
+	// A pattern that CONTAINS ",+3" must not be mistaken for one carrying a
+	// relative end: the suffix is only a suffix when what follows it is a
+	// number and nothing else.
+	c, err := ParseAddr("/a,+3/")
+	if err != nil {
+		t.Fatalf("/a,+3/ was refused, so a legal pattern was read as a relative end: %v", err)
+	}
+	if c.RelEnd != 0 {
+		t.Errorf("/a,+3/ parsed with RelEnd=%d, want 0", c.RelEnd)
+	}
+
+	for _, bad := range []struct{ addr, names string }{
+		{"+3", "3"},
+		{"5,+0", "+0"},
+		{"/a/,/b/,+2", "not both"},
+	} {
+		got, err := ParseAddr(bad.addr)
+		if err == nil {
+			t.Errorf("%s parsed as %+v, want a refusal", bad.addr, got)
+			continue
+		}
+		if !strings.Contains(err.Error(), bad.names) {
+			t.Errorf("the refusal of %s does not name the fix (%q): %v", bad.addr, bad.names, err)
+		}
+	}
+}
+
+// A relative end that an op cannot honour must be refused, not ignored. Before
+// the Codex review of #125, `2,+3 insert-after` parsed, applied, and reported
+// `ok f.txt 2 insert-after` — the caller wrote an address spanning four lines
+// and got an insertion at one, with a receipt that showed neither.
+func TestARelativeEndIsRefusedWhereItWouldBeIgnored(t *testing.T) {
+	for _, c := range []struct{ addr, op, names string }{
+		{"2,+3", "insert-after", "single line"},
+		{"2,+3", "insert-before", "single line"},
+		{"-", "create", ""}, // the control: create with no address still parses
+	} {
+		hunks, err := Parse(strings.NewReader("@@ f.txt " + c.addr + " " + c.op + "\nX\n"))
+		if c.names == "" {
+			if err != nil {
+				t.Errorf("%s %s was refused and should not be: %v", c.addr, c.op, err)
+			}
+			continue
+		}
+		if err == nil {
+			t.Errorf("%s %s parsed as %+v, want a refusal — the relative end would be ignored", c.addr, c.op, hunks)
+			continue
+		}
+		if !strings.Contains(err.Error(), c.names) {
+			t.Errorf("the refusal of %s %s does not say %q: %v", c.addr, c.op, c.names, err)
+		}
+	}
+
+	// `create` takes no address at all, so it takes no relative end either.
+	if _, err := Parse(strings.NewReader("@@ n.txt 0,+3 create\nX\n")); err == nil {
+		t.Error("0,+3 create parsed; create takes no address, so it can carry no relative end")
+	}
+}
+
+// An address renders back in the syntax the parser accepts — that is what lets
+// a diagnostic be pasted into a plan. A pattern address carries Start 0, so
+// rendering it as a number printed `/two/,+1` as "0,+1": a line the caller
+// never wrote.
+func TestAnAddressRendersBackAsTheCallerWroteIt(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"5,+3", "5,+3"},
+		{"/two/,+1", "/two/,+1"},
+		{"/a/,/b/", "/a/,/b/"},
+		{"5-7", "5-7"},
+		{"$", "$"},
+	} {
+		a, err := ParseAddr(c.in)
+		if err != nil {
+			t.Errorf("ParseAddr(%q): %v", c.in, err)
+			continue
+		}
+		if got := a.String(); got != c.want {
+			t.Errorf("ParseAddr(%q).String() = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// splitHeader toggled on a quote INSIDE a pattern and consumed it, so
+// `/^"foo"$/` reached the parser as `/^foo$/` — a different expression, against
+// a different line, with the receipt echoing the mutated address. Every other
+// pattern test calls ParseAddr directly and never comes through the splitter,
+// which is why this went unseen until the fourth review of PR #125.
+func TestAQuoteInsideAPatternSurvivesTheHeader(t *testing.T) {
+	hunks, err := Parse(strings.NewReader("@@ f.txt /^\"foo\"$/ replace\nX\n"))
+	if err != nil {
+		t.Fatalf("a pattern containing quotes was refused: %v", err)
+	}
+	if got := hunks[0].Addr.String(); got != `/^"foo"$/` {
+		t.Errorf("the address parsed as %s, want /^\"foo\"$/ — the quotes were eaten", got)
+	}
+
+	// An odd quote inside a pattern is a regexp, not an unterminated header.
+	if _, err := Parse(strings.NewReader("@@ f.txt /\"/ replace\nX\n")); err != nil {
+		t.Errorf("a pattern holding one quote was refused as an unterminated header: %v", err)
+	}
+
+	// The control: quoting still works OUTSIDE a pattern, which is what the
+	// toggle is for.
+	h2, err := Parse(strings.NewReader("@@ f.txt 1 replace anchor=\"a b\"\nX\n"))
+	if err != nil {
+		t.Fatalf("a quoted anchor was refused: %v", err)
+	}
+	if h2[0].Anchor != "a b" {
+		t.Errorf("the quoted anchor parsed as %q, want %q", h2[0].Anchor, "a b")
+	}
+
+	// An unterminated pattern in a header is reported as one.
+	if _, err := Parse(strings.NewReader("@@ f.txt /unclosed replace\nX\n")); err == nil {
+		t.Error("an unterminated pattern in a header parsed")
+	}
+}

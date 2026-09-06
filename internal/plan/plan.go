@@ -26,6 +26,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
 )
 
 // EOF is the sentinel address component meaning "the last line of the file".
@@ -70,6 +72,12 @@ type Addr struct {
 	// single-pattern address `/re/`; both are nil for a line address.
 	StartPat *regexp.Regexp
 	EndPat   *regexp.Regexp
+
+	// RelEnd is the `A,+N` form (ADR-026): the address ends N lines after its
+	// resolved start. 0 means absent — `,+0` is refused, so no caller means it.
+	// internal/read.Range.RelEnd is the same field for the read grammar; the
+	// two are kept identical by contract §64, which drives both paths.
+	RelEnd int
 }
 
 // String renders an address in the same syntax the parser accepts, so a
@@ -81,10 +89,25 @@ func (a Addr) String() string {
 		}
 		return strconv.Itoa(n)
 	}
-	if a.Start == a.End {
-		return f(a.Start)
+	var s string
+	switch {
+	case a.StartPat != nil:
+		// A pattern address rendered as a line number was a real defect: an
+		// address carrying only a pattern has Start 0, so `/two/,+1` printed
+		// as "0,+1" — a number the caller never wrote and cannot paste back.
+		s = "/" + a.StartPat.String() + "/"
+		if a.EndPat != nil {
+			s += ",/" + a.EndPat.String() + "/"
+		}
+	case a.Start == a.End:
+		s = f(a.Start)
+	default:
+		s = f(a.Start) + "-" + f(a.End)
 	}
-	return f(a.Start) + "-" + f(a.End)
+	if a.RelEnd > 0 {
+		s += ",+" + strconv.Itoa(a.RelEnd)
+	}
+	return s
 }
 
 // Hunk is one change to one file.
@@ -383,8 +406,14 @@ func splitHeader(s string) ([]string, error) {
 	for i := 0; i < len(rs); i++ {
 		r := rs[i]
 		switch {
-		case inPat && r == '\\' && i+1 < len(rs) && rs[i+1] == '/':
-			// \/ is a literal slash inside a pattern, not its terminator.
+		case inPat && r == '\\' && i+1 < len(rs):
+			// An escape inside a pattern consumes the NEXT rune whatever it is,
+			// which is what gives backslash parity for free: `\/` is a literal
+			// slash, and `\\` is a literal backslash whose following slash is a
+			// real delimiter. Testing only for `\/` fired on the SECOND
+			// backslash of `/\\/` and swallowed the closing slash, so the rest
+			// of the header — the op included — was absorbed into the address.
+			// Third Codex review of PR #125.
 			cur.WriteRune(r)
 			cur.WriteRune(rs[i+1])
 			i++
@@ -401,15 +430,31 @@ func splitHeader(s string) ([]string, error) {
 		case r == '/' && !inTok && !inQ:
 			inPat, inTok = true, true
 			cur.WriteRune(r)
-		case r == '\\' && i+1 < len(rs) && (rs[i+1] == '"' || rs[i+1] == '\\'):
+		case !inPat && r == '\\' && i+1 < len(rs) && (rs[i+1] == '"' || rs[i+1] == '\\'):
 			// A backslash escapes a quote or another backslash, so an anchor
 			// can name code that itself contains a quote. Without this the
 			// quote toggles the quoting state and the backslash survives into
 			// the value, producing a guard that matches nothing.
+			//
+			// ⚠ NOT INSIDE A PATTERN. A regex is passed to the engine verbatim,
+			// so unescaping here turned the address `/\\/` — one literal
+			// backslash — into `/\/`, whose final slash then read as escaped
+			// and the pattern as never closed. The read path accepted the same
+			// address, because it does not come through this splitter. Found by
+			// the third Codex review of PR #125, and it is the FOURTH scanner
+			// in this repository that had its own idea of what a pattern is.
 			cur.WriteRune(rs[i+1])
 			inTok = true
 			i++
-		case r == '"':
+		case !inPat && r == '"':
+			// ⚠ NOT INSIDE A PATTERN. A quote is an ordinary regexp character,
+			// and toggling on it here CONSUMED it: `/^"foo"$/` reached the
+			// parser as `/^foo$/`, a different expression that matched a
+			// different line, and the receipt echoed the mutated address rather
+			// than what the caller wrote. An odd number of quotes produced
+			// "unterminated quote in header" for a legal regex instead. Every
+			// pattern test called ParseAddr directly, so none of them came
+			// through here. Found by the fourth Codex review of PR #125.
 			inQ, inTok = !inQ, true
 		case (r == ' ' || r == '\t') && !inQ && !inPat:
 			if inTok {
@@ -421,6 +466,9 @@ func splitHeader(s string) ([]string, error) {
 			cur.WriteRune(r)
 			inTok = true
 		}
+	}
+	if inPat {
+		return nil, fmt.Errorf("unterminated pattern in header: expected a second /")
 	}
 	if inQ {
 		return nil, fmt.Errorf("unterminated quote in header")
@@ -437,14 +485,11 @@ func splitHeader(s string) ([]string, error) {
 // matches is useful, apply editing two matches is a bug. ADR-013's exactly-once
 // rule lives in the resolver, not here.
 func parsePattern(s string) (Addr, error) {
-	// Scan to the closing slash, honouring \/ so a pattern may contain one.
-	end := -1
-	for i := 1; i < len(s); i++ {
-		if s[i] == '/' && s[i-1] != '\\' {
-			end = i
-			break
-		}
-	}
+	// Scan to the closing slash with internal/addr's scanner, which counts
+	// backslash PARITY: in `/\\/` the pattern is one literal backslash and the
+	// final slash closes it. Shared so this package, internal/read and
+	// internal/addr cannot disagree about where a pattern ends.
+	end := addr.ClosingDelim(s, 0)
 	if end < 0 {
 		return Addr{}, fmt.Errorf("pattern %q is never closed: expected a second /", s)
 	}
@@ -479,19 +524,33 @@ func parsePattern(s string) (Addr, error) {
 // ParseAddr reads an address: "N", "N-M", "N-" (to end of file), "$" (last
 // line), "0" (before the first line) or "-" (no address, for create).
 func ParseAddr(s string) (Addr, error) {
+	// `A,+N` is the N lines after A (ADR-026), cut by internal/addr so this
+	// path and the read path recognise and refuse exactly the same strings.
+	base, rel, err := addr.CutRelative(s)
+	if err != nil {
+		return Addr{}, err
+	}
+	s = base
 	switch s {
 	case "":
 		return Addr{}, fmt.Errorf("empty address")
 	case "-":
 		return Addr{Start: 0, End: 0}, nil
 	case "$":
-		return Addr{Start: EOF, End: EOF}, nil
+		return Addr{Start: EOF, End: EOF, RelEnd: rel}, nil
 	}
 	// A pattern is scanned before anything splits on "-" or ",": those are
 	// ordinary characters inside a regex, and cutting first is how `/a-b/`
 	// becomes a bad line number.
 	if strings.HasPrefix(s, "/") {
-		return parsePattern(s)
+		a, err := parsePattern(s)
+		if err != nil {
+			return Addr{}, err
+		}
+		// The two-endpoint case is refused in internal/addr, before the pattern
+		// is compiled, so both paths refuse `/a/,/b/,+2` in the same words.
+		a.RelEnd = rel
+		return a, nil
 	}
 	one := func(t string) (int, error) {
 		if t == "$" {
@@ -509,16 +568,16 @@ func ParseAddr(s string) (Addr, error) {
 		return Addr{}, err
 	}
 	if !ranged {
-		return Addr{Start: start, End: start}, nil
+		return Addr{Start: start, End: start, RelEnd: rel}, nil
 	}
 	if hi == "" { // "N-" means N to end of file
-		return Addr{Start: start, End: EOF}, nil
+		return Addr{Start: start, End: EOF, RelEnd: rel}, nil
 	}
 	end, err := one(hi)
 	if err != nil {
 		return Addr{}, err
 	}
-	return Addr{Start: start, End: end}, nil
+	return Addr{Start: start, End: end, RelEnd: rel}, nil
 }
 
 // validate checks the parts of a hunk that need no file on disk: op/address
@@ -550,6 +609,9 @@ func validate(h *Hunk) error {
 		if !patterned && (h.Addr.Start != 0 || h.Addr.End != 0) {
 			return fmt.Errorf("create takes no address, use %q", "-")
 		}
+		if h.Addr.RelEnd > 0 {
+			return fmt.Errorf("create takes no address, so it takes no relative end either: use %q", "-")
+		}
 		if h.Anchor != "" || h.Lines >= 0 {
 			return fmt.Errorf("create takes no anchor= or lines= (the file must not exist yet)")
 		}
@@ -560,6 +622,9 @@ func validate(h *Hunk) error {
 		// the caller wrote a range.
 		if h.Addr.EndPat != nil {
 			return fmt.Errorf("%s takes a single line, not a range", h.Op)
+		}
+		if h.Addr.RelEnd > 0 {
+			return fmt.Errorf("%s takes a single line, not the range %s", h.Op, h.Addr)
 		}
 		if !patterned && h.Addr.Start != h.Addr.End {
 			return fmt.Errorf("%s takes a single line, not the range %s", h.Op, h.Addr)

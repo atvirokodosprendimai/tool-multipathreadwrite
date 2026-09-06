@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -52,6 +53,10 @@ type Range struct {
 	Re    *regexp.Regexp
 	ReEnd *regexp.Regexp // nil for a single-pattern match
 	Text  string         // the range as written, for diagnostics
+	// RelEnd is the `A,+N` form (ADR-026): the range ends N lines after its
+	// start. 0 means absent, which is unambiguous because `,+0` is refused —
+	// no caller can mean it.
+	RelEnd int
 }
 
 // Options control how much of the answer is rendered. They exist so a caller
@@ -154,24 +159,50 @@ func splitRanges(s string) []string {
 	for i := 0; i < len(s); {
 		switch s[i] {
 		case '/':
-			j := i + 1
-			for j < len(s) && (s[j] != '/' || s[j-1] == '\\') {
-				j++
-			}
-			if j < len(s) {
+			// One scanner for every pattern delimiter in this repository, so
+			// splitRanges and the two parsers cannot disagree about where a
+			// pattern ends (ADR-026, third review of #125).
+			j := addr.ClosingDelim(s, i)
+			if j < 0 {
+				j = len(s)
+			} else {
 				j++ // include the closing slash
 			}
 			cur.WriteString(s[i:j])
 			i = j
 			// "/a/,/b/" is one range: swallow the comma and keep scanning.
+			//
+			// `,+N` is deliberately NOT handled here as well. It reads as the
+			// symmetrical case and it is unreachable by difference: when this
+			// does not swallow the comma, the loop's next pass reaches the
+			// `case ','` below, which continues the range for a `+`. Adding
+			// the clause here was mutated on 2026-09-06 and the mutant
+			// SURVIVED — nothing can tell the two versions apart, so the
+			// clause was removed rather than left as code no test can reach.
 			if i+1 < len(s) && s[i] == ',' && s[i+1] == '/' {
 				cur.WriteByte(',')
 				i++
 			}
 		case ',':
+			// A comma followed by `+` continues the range: `A,+N` is one
+			// address carrying a relative end (ADR-026). Every other comma
+			// separates two addresses of the same file.
+			if i+1 < len(s) && s[i+1] == '+' {
+				cur.WriteByte(',')
+				i++
+				continue
+			}
 			out = append(out, cur.String())
 			cur.Reset()
 			i++
+			// A comma at the very end leaves an empty component, and dropping
+			// it silently turned `5,+2,` into `5,+2` on the read path while the
+			// plan path refused the string whole. Emit the empty range so
+			// parseRange refuses it, in the same words, on both. Found by the
+			// fifth Codex review of PR #125.
+			if i == len(s) {
+				out = append(out, "")
+			}
 		default:
 			cur.WriteByte(s[i])
 			i++
@@ -188,20 +219,62 @@ func parseRange(s string) (Range, error) {
 	if s == "" {
 		return Range{}, fmt.Errorf("empty range")
 	}
+	// `A,+N` is the N lines after A (ADR-026). internal/addr cuts it, so this
+	// path and the plan path recognise and REFUSE exactly the same strings —
+	// they are one function, not two copies a contract row watches.
+	raw := s
+	base, rel, err := addr.CutRelative(s)
+	if err != nil {
+		return Range{}, err
+	}
+	s = base
 	if strings.HasPrefix(s, "/") {
-		// "/a/,/b/" arrives as one part because splitRanges kept it together.
-		pats := strings.Split(strings.TrimSuffix(strings.TrimPrefix(s, "/"), "/"), "/,/")
-		re, err := regexp.Compile(pats[0])
+		// SCANNED, NOT SPLIT. TrimSuffix+Split accepted `/` as an empty regexp
+		// matching every line at exit 0, compiled `/a/garbage` as the pattern
+		// `a/garbage`, and silently reduced `/a/,/b/,/c/` to its first
+		// endpoint. The plan path refused all three, so the two grammars
+		// disagreed on exactly the inputs nobody writes on purpose — and the
+		// record claimed they could not. Found by the fourth Codex review of
+		// PR #125.
+		end := addr.ClosingDelim(s, 0)
+		if end < 0 {
+			return Range{}, fmt.Errorf("pattern %q is never closed: expected a second /", raw)
+		}
+		body := s[1:end]
+		if body == "" {
+			return Range{}, fmt.Errorf("empty pattern // matches every line, so it addresses nothing in particular — name the file alone if you want all of it")
+		}
+		re, err := regexp.Compile(body)
 		if err != nil {
-			return Range{}, fmt.Errorf("bad pattern %q: %w", pats[0], err)
+			return Range{}, fmt.Errorf("bad pattern %q: %w", body, err)
 		}
-		r := Range{Re: re, Text: s}
-		if len(pats) == 2 {
-			if r.ReEnd, err = regexp.Compile(pats[1]); err != nil {
-				return Range{}, fmt.Errorf("bad end pattern %q: %w", pats[1], err)
+		r := Range{Re: re, Text: raw, RelEnd: rel}
+		rest := s[end+1:]
+		switch {
+		case rest == "":
+			return r, nil
+		case strings.HasPrefix(rest, ",/"):
+			if rel > 0 {
+				return Range{}, fmt.Errorf("%q has both an end pattern and a relative end: write /from/,/to/ or A,+N, not both", raw)
 			}
+			e2 := addr.ClosingDelim(rest, 1)
+			if e2 < 0 {
+				return Range{}, fmt.Errorf("end pattern in %q is never closed: expected a second /", raw)
+			}
+			if tail := rest[e2+1:]; tail != "" {
+				return Range{}, fmt.Errorf("%q has %q after the end pattern: an address takes one range, not three", raw, tail)
+			}
+			body2 := rest[2:e2]
+			if body2 == "" {
+				return Range{}, fmt.Errorf("empty pattern // matches every line, so it addresses nothing in particular — name the file alone if you want all of it")
+			}
+			if r.ReEnd, err = regexp.Compile(body2); err != nil {
+				return Range{}, fmt.Errorf("bad end pattern %q: %w", body2, err)
+			}
+			return r, nil
+		default:
+			return Range{}, fmt.Errorf("%q has %q after the pattern: write /re/, /from/,/to/ or A,+N", raw, rest)
 		}
-		return r, nil
 	}
 	// `$` and an OMITTED end are different addresses and used to share the
 	// sentinel 0. Downstream 0 means "unbounded in whichever direction you
@@ -228,7 +301,7 @@ func parseRange(s string) (Range, error) {
 		return Range{}, err
 	}
 	if !ranged {
-		return Range{Start: start, End: start, Text: s}, nil
+		return Range{Start: start, End: start, Text: raw, RelEnd: rel}, nil
 	}
 	end, err := num(hi)
 	if err != nil {
@@ -243,9 +316,9 @@ func parseRange(s string) (Range, error) {
 	// that verdict waits for resolve, which is the first place the length is
 	// known.
 	if start > 0 && end > 0 && end < start {
-		return Range{}, fmt.Errorf("range %q ends before it starts", s)
+		return Range{}, fmt.Errorf("range %q ends before it starts", raw)
 	}
-	return Range{Start: start, End: end, Text: s}, nil
+	return Range{Start: start, End: end, Text: raw, RelEnd: rel}, nil
 }
 
 // Run renders every spec to w. It returns what it OBSERVED of every file it
@@ -454,7 +527,38 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 				if !r.Re.MatchString(l) {
 					continue
 				}
-				spans = append(spans, span{max(1, i+1-ctx), min(total, i+1+ctx)})
+				// -C is compared before it is added for the same reason the
+				// relative end is: `i + 1 + ctx` OVERFLOWS at a large context
+				// and printed `@@ 1--9223372036854775807` at exit 0, serving
+				// nothing. The context flag only refuses a NEGATIVE value, so a
+				// caller can reach this. Found by the third Codex review of
+				// PR #125, beside the relative end it had just protected.
+				end := total
+				if ctx <= total-(i+1) {
+					end = i + 1 + ctx
+				}
+				if r.RelEnd > 0 {
+					// An explicit relative end overrides -C on the trailing
+					// An explicit relative end overrides -C on the trailing
+					// side: the caller said how many lines they wanted after
+					// the match, which is not a guess about context.
+					//
+					// ⚠ COMPARED BEFORE IT IS ADDED. `i + 1 + r.RelEnd`
+					// OVERFLOWS at a large count, and a negative end printed
+					// `@@ 2--9223372036854775807` and served nothing at exit 0
+					// — a read that returned nothing while reporting success,
+					// which is the failure this tool exists to make visible.
+					// The numeric branch below was safe by accident, because
+					// its `end < start` check caught the wrapped value; this
+					// branch has no such check. Found by the second Codex
+					// review of PR #125.
+					if r.RelEnd > total-(i+1) {
+						end = total
+					} else {
+						end = i + 1 + r.RelEnd
+					}
+				}
+				spans = append(spans, span{max(1, i+1-ctx), min(total, end)})
 				found = true
 			}
 			if !found {
@@ -470,6 +574,15 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 			}
 			if start == unbounded {
 				start = 1
+			}
+			if r.RelEnd > 0 && start <= total {
+				// Compared before it is added: start+RelEnd overflows at a
+				// large count, and a wrapped end is not a clamp.
+				if r.RelEnd > total-start {
+					end = total
+				} else {
+					end = start + r.RelEnd
+				}
 			}
 			if end == unbounded || end > total {
 				end = total
