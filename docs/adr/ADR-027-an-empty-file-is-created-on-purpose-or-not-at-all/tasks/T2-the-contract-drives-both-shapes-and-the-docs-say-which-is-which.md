@@ -65,6 +65,9 @@ grep -q '^# 65\. ' scripts/contract.sh \
 
 ## Mutation Log
 
+- 2026-09-06 · dd0cc3a* · mutant killed · exit 1 · `internal/plan/plan.go` · the built binary stops refusing a body-less create, so §65 sees `ok` and a file that should not exist — the row drives the binary, which a unit test cannot · acceptance-sha256:1f1ebab483c2e8c6d469e0eee61f6b4c74caaded1ed4beb3284c4be7882ef746 · covers:the built binary refusing a body-less create
+- 2026-09-06 · dd0cc3a* · mutant killed · exit 1 · `internal/plan/plan.go` · the built binary stops honouring body=0, so the deliberate empty file is refused too and §65 fails on the half that keeps this a narrowing rather than a ban · acceptance-sha256:1f1ebab483c2e8c6d469e0eee61f6b4c74caaded1ed4beb3284c4be7882ef746 · covers:the built binary creating an empty file for body=0
+
 ## Invariants
 
 - Every existing contract section still passes; §65 uses its own fixture and touches no other section's `$R`.
@@ -87,3 +90,6 @@ feature exists is asserting nothing, and finding that out here is the point of S
 - Applying the same rule to any other op (permanent: fact: `replace`, `insert-after` and `insert-before` already refuse an empty body, so `create` was the last one; citation: file `internal/plan/plan.go:617`)
 
 ## Verification Log
+- 2026-09-06 · dd0cc3a* · exit 0 · `set -o pipefail …` · acceptance-sha256:1f1ebab483c2e8c6d469e0eee61f6b4c74caaded1ed4beb3284c4be7882ef746 · ms:30493
+- 2026-09-06 · dd0cc3a* · exit 0 · `set -o pipefail …` · acceptance-sha256:1f1ebab483c2e8c6d469e0eee61f6b4c74caaded1ed4beb3284c4be7882ef746 · ms:29644
+- 2026-09-06 · dd0cc3a* · exit 0 · `set -o pipefail …` · acceptance-sha256:1f1ebab483c2e8c6d469e0eee61f6b4c74caaded1ed4beb3284c4be7882ef746 · ms:29490

@@ -197,7 +197,12 @@ func TestDeleteIsTheOnlyRangeConsumingOpThatNeedsNoBody(t *testing.T) {
 		consumesRange bool
 		emptyBodyOK   bool
 	}{
-		{op: "create", addr: "-", consumesRange: false, emptyBodyOK: true},
+		// ⚠ `create` moved from emptyBodyOK true to false in ADR-027: a create
+		// carrying no body reported ok for a file with no content, and the
+		// deliberate empty file is now spelled `body=0`. This test's own claim
+		// is untouched — it is the CONJUNCTION below, and create fails the
+		// range half either way.
+		{op: "create", addr: "-", consumesRange: false, emptyBodyOK: false},
 		{op: "replace", addr: "2", consumesRange: true, emptyBodyOK: false},
 		{op: "delete", addr: "2", consumesRange: true, emptyBodyOK: true},
 		{op: "insert-after", addr: "2", consumesRange: false, emptyBodyOK: false},
@@ -614,5 +619,39 @@ func TestAQuoteInsideAPatternSurvivesTheHeader(t *testing.T) {
 	// An unterminated pattern in a header is reported as one.
 	if _, err := Parse(strings.NewReader("@@ f.txt /unclosed replace\nX\n")); err == nil {
 		t.Error("an unterminated pattern in a header parsed")
+	}
+}
+
+// A `create` whose body went missing produced an empty file and reported ok —
+// the failure this tool exists to make visible, in the tool. ADR-006 refuses
+// the same shape for `replace` and the reasoning carries: a body lost in
+// transit is indistinguishable from a body never written, and a create is
+// often the LAST hunk of a plan, which is where a truncated emission loses one.
+// `body=0` says the empty file was meant (ADR-027).
+func TestACreateWithNoBodyIsRefusedUnlessItSaysBodyZero(t *testing.T) {
+	if _, err := Parse(strings.NewReader("@@ new.txt - create\n")); err == nil {
+		t.Error("a create with no body parsed; a lost body would be reported as success")
+	} else if !strings.Contains(err.Error(), "body=0") {
+		t.Errorf("the refusal does not name the fix: %v", err)
+	}
+
+	// The deliberate empty file keeps working, and says so in the plan text.
+	for _, doc := range []string{
+		"@@ new.txt - create body=0\n",
+		"@@ new.txt - create body=0 raw=true\n",
+	} {
+		hunks, err := Parse(strings.NewReader(doc))
+		if err != nil {
+			t.Errorf("%q was refused: %v", doc, err)
+			continue
+		}
+		if len(hunks) != 1 || len(hunks[0].Body) != 0 {
+			t.Errorf("%q parsed as %+v, want one hunk with an empty body", doc, hunks)
+		}
+	}
+
+	// The control: an ordinary create is untouched.
+	if _, err := Parse(strings.NewReader("@@ new.txt - create\nhello\n")); err != nil {
+		t.Errorf("an ordinary create was refused: %v", err)
 	}
 }

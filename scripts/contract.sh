@@ -3842,6 +3842,33 @@ grep -q 'ok   q.go /"quoted"/ replace' <<<"$out" && ok "the receipt echoes the p
 grep -q 'changed' "$R/q.go" && ok "the quoted pattern reached the line it named" || bad "the quoted pattern edited the wrong line"
 out=$(printf '@@ q.go 3 replace anchor="func A"\nfunc A() int { return 9 }\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "a quoted anchor still works, so the toggle was narrowed and not removed"
+
+# 65. ADR-027: an empty file is created on purpose, or not at all.
+#
+# A create carrying no body made an empty file and reported `ok`. ADR-006 refuses
+# the same shape for replace, and the reasoning is not about deletion: a body
+# lost in transit is indistinguishable from a body never written, and a create is
+# very often the LAST hunk of a plan, which is where a truncation loses one.
+#
+# THE PAIRING IS THE POINT, AND SO IS THE FILE'S ABSENCE. A row asserting only
+# the refusal would pass against a tool that had stopped creating files at all,
+# so the deliberate `body=0` case is asserted beside it. And a refusal that still
+# left the file behind would be worse than the behaviour being removed (ADR-004),
+# so the row checks the file is not there rather than only the exit code.
+fixture
+out=$(printf '@@ new.txt 0 create\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "a create carrying no body is refused"
+grep -q 'body=0' <<<"$out" && ok "the refusal names the fix" || bad "the refusal does not name body=0: $out"
+[ -e "$R/new.txt" ] && bad "the refused create left the file behind" || ok "the refused create left nothing behind"
+out=$(printf '@@ empty.txt 0 create body=0\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "create body=0 is the deliberate empty file"
+[ -f "$R/empty.txt" ] && [ ! -s "$R/empty.txt" ] && ok "body=0 created a file with no content" || bad "body=0 did not create an empty file: $out"
+out=$(printf '@@ full.txt 0 create\nhello\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "an ordinary create still applies"
+grep -q hello "$R/full.txt" && ok "the ordinary create wrote its body" || bad "the ordinary create lost its body"
+out=$(printf '@@ a.go 3 replace\n' | m write - 2>&1); rc=$?
+want 2 "$rc" "an empty-bodied replace is still refused, in its own words"
+grep -q 'would delete' <<<"$out" && ok "the replace refusal is unchanged" || bad "the replace refusal changed: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

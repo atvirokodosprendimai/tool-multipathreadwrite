@@ -21,6 +21,7 @@ available under a spelling that says it was deliberate.
 |------|--------|-----|
 | `internal/plan/plan.go` | edit | `validate`'s `OpCreate` branch refuses a hunk with no body lines unless it declared `body=0`. The `Hunk` needs to carry whether a count was DECLARED, which the parser already tracks as `fixed` while checking overcounts but does not keep — a hunk with no body and no `body=` is indistinguishable from `body=0` after parsing today. |
 | `internal/plan/plan_test.go` | edit | `TestACreateWithNoBodyIsRefusedUnlessItSaysBodyZero` is what SELECTS the new branch: nothing else parses a `create` with an empty body. |
+| `internal/plan/plan_test.go` (existing row) | edit | `TestDeleteIsTheOnlyRangeConsumingOpThatNeedsNoBody` carried `create` as `emptyBodyOK: true` — it encoded the behaviour this record changes. Its own claim is the CONJUNCTION "range-consuming AND needs no body", which `create` fails on the range half either way, so the claim is untouched and only the row moves. Named here rather than quietly edited, because a test changed by a record is a decision, not a fixup. |
 
 ## Ordered Steps
 
@@ -62,6 +63,9 @@ go test ./internal/plan/ -count=1 -v \
 
 ## Mutation Log
 
+- 2026-09-06 · dd0cc3a* · mutant killed · exit 1 · `internal/plan/plan.go` · the create branch stops refusing a body-less hunk, so a plan whose last create lost its body creates an empty file and reports ok — the behaviour this record removes · acceptance-sha256:8d332ebfef1a0bc0a7dc362ec806a0fb9e850d1676aab971d72cbd59597b3356 · covers:the refusal of a create carrying no body
+- 2026-09-06 · dd0cc3a* · mutant killed · exit 1 · `internal/plan/plan.go` · the declaration is dropped on the way out of the parser, so `create body=0` becomes indistinguishable from a lost body again and the deliberate empty file is refused too · acceptance-sha256:8d332ebfef1a0bc0a7dc362ec806a0fb9e850d1676aab971d72cbd59597b3356 · covers:body=0 still creating an empty file
+
 ## Invariants
 
 - `create body=0` still produces an empty file: this record changes the spelling required, never the capability.
@@ -86,3 +90,6 @@ conflict, that is a decision about the guard rather than about `create`.
 - Requiring `body=N` on every op (permanent: boundary: the count is opt-in and stays opt-in; this record uses it as the one available way to SAY "deliberately nothing", not as a new obligation)
 
 ## Verification Log
+- 2026-09-06 · dd0cc3a* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d332ebfef1a0bc0a7dc362ec806a0fb9e850d1676aab971d72cbd59597b3356 · ms:5245
+- 2026-09-06 · dd0cc3a* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d332ebfef1a0bc0a7dc362ec806a0fb9e850d1676aab971d72cbd59597b3356 · ms:5304
+- 2026-09-06 · dd0cc3a* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d332ebfef1a0bc0a7dc362ec806a0fb9e850d1676aab971d72cbd59597b3356 · ms:6295

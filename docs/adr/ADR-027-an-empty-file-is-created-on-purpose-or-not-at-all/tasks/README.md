@@ -18,8 +18,8 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | A body-less create is refused, and body=0 is the deliberate empty file | pending | — | `go test ./internal/plan/ -run 'TestACreateWithNoBodyIsRefusedUnlessItSaysBodyZero' …` |
-| T2 | The contract drives both shapes, and the docs say which is which | pending | — | `grep -q '^# 65\. ' scripts/contract.sh && ./scripts/contract.sh` |
+| T1 | A body-less create is refused, and body=0 is the deliberate empty file | done | — | `go test ./internal/plan/ -run 'TestACreateWithNoBodyIsRefusedUnlessItSaysBodyZero' …` |
+| T2 | The contract drives both shapes, and the docs say which is which | done | — | `grep -q '^# 65\. ' scripts/contract.sh && ./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
