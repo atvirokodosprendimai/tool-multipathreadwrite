@@ -6,7 +6,7 @@
 **Accepted:** M, 2026-09-06, standing direction for this session: *"keep closing the open issues, highest rank. the product must not deteriorate and make the premise of his - false."* A `create` whose body went missing reports `ok` for a file with no content, which is the premise this tool is built on failing inside the tool.
 **Spec:** None — no spec stage
 **Cross-references:** `docs/adr/ADR-006-the-root-confines-reads-too-and-a-replace-must-replace-something.md`, `docs/adr/ADR-015-a-refusal-names-the-fix-for-the-two-mistakes-the-syntax-invites.md`, `docs/adr/ADR-001-a-plan-addresses-the-original-file-and-applies-whole-or-not-at-all.md`
-**Governs:** `internal/plan/plan.go`
+**Governs:** `internal/plan/plan.go`, `internal/apply/apply.go`
 **Enforced-by:** `internal/plan/plan_test.go::TestACreateWithNoBodyIsRefusedUnlessItSaysBodyZero`
 **Invalidates:** none — checked
 **Served-path change:** `@@ new.txt 0 create` with no body lines now fails that hunk and names the fix; `@@ new.txt 0 create body=0` creates the empty file as before.
@@ -100,14 +100,22 @@ noise shows up in the field, the fix is to revisit this record, not to relax the
 
 ## Component / Boundary Impact
 
-None — internal to `internal/plan`'s validation. `validate` already owns "is this body meaningful
-for this op"; this is one more case in the place that already answers that question.
+**Two packages, and the second was not in the first draft.** `internal/plan.validate` owns "is this
+body meaningful for this op" and gained one case there. But `apply.Input` is a PUBLIC struct and
+`Apply` a public entry point that promises to validate every hunk, and a caller building Inputs
+directly reaches neither the parser nor its rules — so `CountedBody` travels to `internal/apply`
+too and the engine refuses beside the parser. That is a second package and a widened public struct,
+which this section said it was not until the review of PR #126 pointed at the contradiction.
+`cmd/mrw`, `internal/mcp` and `internal/curve` each carry the field through their conversion
+without owning a rule.
 
 ## Wiring & Contract Changes
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
 | `@@ <path> 0 create` plan grammar | a body-less `create` is refused; `body=0` is the deliberate empty file | `internal/plan.validate` | CLI callers, `mrw_write` MCP tool |
+| `apply.Input` (public struct) | gains `CountedBody bool` | `internal/apply` | `cmd/mrw`, `internal/mcp`, `internal/curve`, and any direct `Apply` caller |
+| `apply.Apply` boundary | refuses a body-less `create` for callers that never reach the parser | `internal/apply` | direct `Apply` callers, this package's own tests |
 
 ## Inter-task Contracts
 
