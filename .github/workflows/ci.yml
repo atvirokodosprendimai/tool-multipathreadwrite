@@ -105,8 +105,28 @@ jobs:
   # part in — and it FAILS rather than skips when no shell is found, because a
   # skip here is indistinguishable from a pass and that invisibility is what
   # cost three defects before it existed.
-  windows:
+  # The Windows suite, SHARDED. Measured on c6688c5: setup 42s, then Test 266s
+  # and Race 303s in series — 611s wall, and the long pole of every PR. The two
+  # steps were sequential in one job for no reason, and the packages within them
+  # are independent.
+  #
+  # Six shards, chosen by measurement rather than taste: weighting each package
+  # by its own `go test` time gives an estimated wall of 351s at two shards,
+  # 267s at four, 215s at six and 209s at eight. Six is the knee — beyond it
+  # `internal/mcp` (a third of the suite on its own) and the fixed 42s runner
+  # setup dominate, so an eighth runner buys six seconds.
+  #
+  # ⚠ THE REQUIRED CHECK IS NAMED `windows`, so it cannot BE this job. A matrix
+  # reports as `windows-shard (0)`, `windows-shard (1)`, … and the context named
+  # in branch protection would simply never appear again — every pull request
+  # would block for ever, waiting on a check nothing produces. The aggregate job
+  # below keeps that name.
+  windows-shard:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
       # `.gitattributes` pins every file to LF, so Git for Windows does not
@@ -116,12 +136,43 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Vet
-        run: go vet ./...
-      - name: Test
-        run: go test ./...
-      - name: Race
-        run: go test -race ./...
+      - name: Vet, test and race — shard ${{ matrix.shard }} of 6
+        shell: bash
+        run: |
+          set -euo pipefail
+          all=$(go list ./...)
+          pkgs=$(printf '%s\n' "$all" | awk "NR % 6 == ${{ matrix.shard }}")
+          n=$(printf '%s\n' "$pkgs" | grep -c . || true)
+          echo "shard ${{ matrix.shard }} takes $n of $(printf '%s\n' "$all" | grep -c .) package(s):"
+          printf '  %s\n' $pkgs
+          # ⚠ AN EMPTY SHARD IS A GATE THAT CANNOT FAIL. `go test` with no
+          # package arguments tests NOTHING and exits 0, so a sharding bug — a
+          # renamed module, a `go list` that failed, an off-by-one in the
+          # modulo — would turn a whole leg green while running not one test.
+          # Refuse it loudly instead. The union of the six shards is the whole
+          # list by construction, and a new package joins one of them without
+          # anybody editing this file.
+          [ "$n" -gt 0 ] || { echo "::error::shard ${{ matrix.shard }} selected no packages"; exit 1; }
+          go vet $pkgs
+          go test -count=1 $pkgs
+          go test -race -count=1 $pkgs
+
+  # The name branch protection requires. It exists to collapse the six shards
+  # into one context, and it must FAIL when any of them does.
+  #
+  # ⚠ `if: always()` is load-bearing. Without it a failed shard SKIPS this job,
+  # and a skipped required check is not a failed one — the gate would go quiet
+  # exactly when it should shout. So it always runs, and reads the result.
+  # `needs.<matrix-job>.result` is `success` only when every leg succeeded.
+  windows:
+    needs: [windows-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every Windows shard must have succeeded
+        run: |
+          echo "windows-shard result: ${{ needs.windows-shard.result }}"
+          [ "${{ needs.windows-shard.result }}" = "success" ] || exit 1
 
   # Cross-compile every target. CGO_ENABLED=0 makes each one static and lets
   # the single linux runner build them all — mrw has no cgo dependency.
