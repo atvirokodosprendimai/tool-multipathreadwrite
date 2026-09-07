@@ -80,12 +80,15 @@ the promise is kept where it is made.
 
 The two sites are kept honest by TWO tests, because the first one alone was not enough.
 `TestTheEngineRefusesEveryShapeTheParserRefuses` drives `Apply` directly with one `Input` per rule
-and is a TABLE, so a new rule with no engine counterpart shows up as a missing row rather than as
-silence. But its expected strings are hardcoded and it never invokes the parser, so rewording
+and is a TABLE with a row for every one of validate's returns. ⚠ That makes a new rule visible only
+if somebody WALKS the branches again and counts: the rows are hand-written, so a return added to
+`validate` for an input no row presents leaves every existing row green. The table is a place to
+notice the gap, not a mechanism that reports it — saying otherwise would be the third overclaim in
+this record, and the walk is a standing obligation on whoever edits `validate`. But its expected strings are hardcoded and it never invokes the parser, so rewording
 `validate` alone left it green — the review of PR #130 said so, and the first cut of this record
 claimed the drift was mitigated when it was not.
 `TestTheEngineAndTheParserRefuseInTheSameWords` closes that: it PARSES each malformed plan, takes the
-expected text out of the parser's own error at run time, and compares it — by EQUALITY, not equality
+expected text out of the parser's own error at run time, and compares it — by EQUALITY, not substring
 — to what `Apply` says for the equivalent `Input`. Reword either site alone and it goes red, measured
 in both directions: an engine message reworded, and the parser reworded with the engine left alone.
 
@@ -144,7 +147,9 @@ See `docs/adr/ADR-030-the-engine-refuses-what-the-parser-refuses/tasks/README.md
 
 - **Positive:** `Apply`'s doc comment becomes true, and the class is closed by walking `validate`'s
   branches rather than by the next record finding the eleventh.
-- **Positive:** the table test makes a future divergence visible as a missing row, and the cross-site
+- **Positive:** the table test gives a future divergence somewhere to be noticed — as a return with
+  no row — provided somebody walks `validate`'s branches and counts; the rows are hand-written and
+  nothing reports a gap on its own. And the cross-site
   test makes a reworded message visible as a failure, in either direction, for all ten verbatim
   branches. The first test alone was what the first cut of this record claimed was enough.
 - **Negative:** the same rule is now written twice, and the two could drift. Accepted deliberately —

@@ -1789,8 +1789,10 @@ func TestTheEngineRefusesEveryShapeTheParserRefuses(t *testing.T) {
 			Input{Path: "n.txt", Op: "create", Lines: -1},
 		},
 		{
-			// Reachable only as `00,+2`: "0" is refused earlier by CutRelative,
-			// but "00" passes its digit check and converts to numeric zero.
+			// Reached by a zero-padded zero — `00,+2`, `000,+2` and so on.
+			// CutRelative refuses the exact base "0", so `0,+2` is refused
+			// earlier with a different message, but any longer spelling passes
+			// its digit check and converts to numeric zero.
 			"create with a relative end",
 			"create takes no address, so it takes no relative end either",
 			Input{Path: "n.txt", Op: "create", Start: 0, End: 0, RelEnd: 2, Body: []string{"x"}, Lines: -1},

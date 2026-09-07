@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the engine refusing every enumerated shape the parser refuses`, `the engine still applying every shape the parser accepts`, `the two sites refusing in the same words`
+**Rests-on:** `the engine refusing every enumerated shape the parser refuses`, `the engine still applying the well-formed shapes used as controls`, `the two sites refusing in the same words`
 
 ## Goal
 
@@ -20,13 +20,14 @@ memory, without importing `internal/plan`.
 | File | Change | Why |
 |------|--------|-----|
 | `internal/apply/apply.go` | edit | The boundary block that already refuses a relative end (ADR-026) and a body-less `create` (ADR-027) gains the remaining rules, with the messages copied verbatim from `plan.validate` so the two sites cannot say different things about one mistake. |
-| `internal/apply/apply_test.go` | edit | `TestTheEngineRefusesEveryShapeTheParserRefuses` is a TABLE with a row for every `validate` return — the ten verbatim-mirrored ones plus the two the engine answers with its own semantic wording — so a rule added to `validate` with no engine counterpart is a missing row rather than silence. |
+| `internal/adversarial/planformat_test.go` | edit | `TestTheEngineAndTheParserRefuseInTheSameWords` lives here because this package already imports BOTH `internal/plan` and `internal/apply`, which is what lets one test take the expected text from the parser and compare it to the engine. `internal/apply`'s own tests cannot: importing the parser there inverts the dependency the split exists to keep. |
+| `internal/apply/apply_test.go` | edit | `TestTheEngineRefusesEveryShapeTheParserRefuses` is a TABLE with a row for every `validate` return — the ten verbatim-mirrored ones plus the two the engine answers with its own semantic wording — so a rule added to `validate` with no engine counterpart shows up as a return with no row — ⚠ but only to someone who walks the branches and counts, since the rows are hand-written and nothing reports the gap on its own. |
 
 ## Ordered Steps
 
 1. [S1] Write the table test with one row per enumerated rule and confirm it is RED for seven of the eight rows first probed — the eighth, `replace` with `Start: 0`, is already refused and is in the table as a control that must stay green. [proof: mutation]
 2. [S2] Add the rules to the existing boundary block, copying each message verbatim from `plan.validate`. [proof: mutation]
-3. [S3] Assert the ACCEPTING half in the same test: an ordinary `replace`, `create`, `delete` and both insertions still apply. Without it, "refuse everything" passes. [proof: mutation]
+3. [S3] Assert the ACCEPTING half in the same test: representative well-formed shapes — an ordinary `replace`, `create`, `delete`, both insertions, and two patterned forms — still apply and leave the exact bytes they should. These are CONTROLS proving the change is a narrowing and not "refuse everything"; they are not, and do not claim to be, every form the parser accepts. [proof: mutation]
 4. [S4] Assert `Failed` AND the file's bytes for every refused row. A refusal that still wrote is worse than the behaviour being removed, and `replace` with an empty body is the row where that matters — it deleted lines while reporting `ok`. [proof: acceptance]
 5. [S5] ⚠ **Walk `plan.validate` BRANCH BY BRANCH, not shape by shape**, and give every branch a row. The first pass probed the shapes that came to mind, found seven, and wrote that the list was complete; the review of PR #130 walked the branches and found two more — an insertion with a pattern RANGE, never named, and a `create` with a pattern address, named absent on a rationale that was false, since `Input` carries `StartPat` and the boundary runs before resolution. Both were then confirmed accepted by driving `Apply`. [proof: mutation]
 6. [S6] Make the drift claim TRUE rather than asserting it. `TestTheEngineAndTheParserRefuseInTheSameWords` parses each malformed plan, takes the expected text from the PARSER's own error at run time, and compares it to what `Apply` says for the equivalent `Input` — so rewording either site alone goes red. The table test cannot do this: its strings are hardcoded and it never invokes the parser, which is exactly what the review found. [proof: mutation]
@@ -56,7 +57,7 @@ go test ./internal/apply/ -count=1 -v \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestTheEngineRefusesEveryShapeTheParserRefuses` | `internal/apply/apply_test.go` | Every one of `plan.validate`'s twelve returns is refused by a direct `Apply` with `Failed: 1` and the file byte-identical; every well-formed shape still applies AND leaves the exact bytes it should, so a no-op reporting success cannot pass | — | S1, S2, S3, S4, S5 |
+| `TestTheEngineRefusesEveryShapeTheParserRefuses` | `internal/apply/apply_test.go` | Every one of `plan.validate`'s twelve returns is refused by a direct `Apply` with `Failed: 1` and the file byte-identical; eight representative well-formed shapes still apply AND leave the exact bytes they should, so a no-op reporting success cannot pass — representative controls, not every accepted form | — | S1, S2, S3, S4, S5 |
 | `TestTheEngineAndTheParserRefuseInTheSameWords` | `internal/adversarial/planformat_test.go` | For all ten verbatim-mirrored branches — including the one an earlier cut wrongly called unreachable, which `00,+2` reaches — the parser's message and the engine's `Reason` are EQUAL, the expected text taken from the parser at run time, so rewording either site alone goes red | — | S6 |
 
 ## Reachability
@@ -69,6 +70,13 @@ go test ./internal/apply/ -count=1 -v \
 | 4 — it is used | ⚠ No contract row, and that is deliberate: `scripts/contract.sh` drives the built binary, which cannot reach `Apply` without the parser, so a row would prove the PARSER's refusal and credit it here. The Go test is the whole of rung 4, as it was for ADR-027-T3. No telemetry, per ADR-009 |
 
 ## Mutation Log
+
+⚠ **One entry below carries `covers:the engine still applying every shape the parser accepts`, a
+mechanism name that no longer appears in `Rests-on:`.** It was renamed to "the well-formed shapes
+used as controls" because the old name claimed more than the test does — eight representative
+controls are not every accepted form, and the review of PR #130 was right to say so. Same mechanism,
+honest name; the entry is left as it ran rather than edited, because tool-written evidence is not
+prose to tidy.
 
 ⚠ **The `051880f` entry reading "the pattern-range refusal for insertions is reworded … the
 cross-site test is what now sees the divergence" CLAIMED THE WRONG KILLER.** At that commit the
@@ -91,7 +99,7 @@ the direction only the cross-site test can see, and it now has the row to see it
 ## Invariants
 - `internal/apply` does not import `internal/plan`. That inversion is ADR-027-T3's Stop Condition and is the reason the duplication is accepted.
 - The messages are `plan.validate`'s, verbatim. Two sites saying different things about one mistake is worse than two sites.
-- Every shape the parser ACCEPTS still applies at the engine — asserted in the same test, because "refuse everything" would otherwise pass.
+- The well-formed shapes used as controls still apply at the engine, with the exact bytes they should — asserted in the same test, because "refuse everything" would otherwise pass. They are representative, not exhaustive: the parser accepts more forms than any table enumerates.
 - `internal/read`, `internal/plan`, `internal/seen`, `internal/check` and `internal/state` stay byte-identical against the merge base, and `go.mod` declares exactly one requirement.
 
 ## Risks
@@ -124,3 +132,4 @@ record rather than a workaround in the code.
 - 2026-09-07 · 051880f* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:38468
 - 2026-09-07 · 3916d1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:34296
 - 2026-09-07 · 3916d1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:29758
+- 2026-09-07 · 99a305f* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:34965
