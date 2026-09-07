@@ -7,14 +7,16 @@ It is an ordinary command-line tool. It was built for AI coding agents, which
 are the ones doing hundreds of small edits a day, but nothing about it requires
 one.
 
-**Status: stable at v1.3.0 (2026-09-06), the tag cut from main `3434c35`.**
+**Status: stable at v1.4.0 (2026-09-07), the tag cut from the commit this paragraph landed in.**
 What that word rests on is recorded in this tree. The six promises listed in `AGENTS.md` are each
 an ADR and each a set of rows in `scripts/contract.sh`, which drives the built binary and prints its
 own verdict; every row is green on the tree the tag is cut from. A break campaign of 47 probes
-(`scripts/break-campaign.sh`, its run in `docs/break/`) against main `3434c35` — the tree the
-binary is built from — found no silent wrong write, every refusal in it names its reason, and
-every probe's outcome is identical to the v1.2.0 run against `03feb92` and the v1.1.0 run against
-`d6c62e7`.
+(`scripts/break-campaign.sh`, its run in `docs/break/`) against that same tree found no silent wrong
+write, every refusal in it names its reason, and every probe's outcome is identical to the v1.3.0 run
+against `3434c35`, the v1.2.0 run against `03feb92` and the v1.1.0 run against `d6c62e7`. That
+identity is evidence of no UNINTENDED change: the campaign exercises neither behaviour v1.4.0
+deliberately changed — the relative address form or the body-less create — and contract §64 and §65
+do.
 And the served-size curve is measured rather than asserted: a strong client
 at the ceiling on the fixture built to be failed (reading 3), the one recurring miss identified as a
 row index (reading 5), the weaker client at the ceiling once the served text reached it without
