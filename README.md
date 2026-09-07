@@ -337,9 +337,20 @@ hid the row where the other axis loses would not be worth reading.
 **Read the two byte rows together or neither.** `Read` takes `offset`/`limit`, so
 the windowed reader is the documented interface, not a strawman — and against it
 mrw costs *more* bytes, because it adds a header and a line number per line. The
-50.0× is real for the case an agent is usually in: it does not yet know where to
-look, so it reads whole files. Once it knows, the byte advantage is gone and the
-round trips are what is left.
+whole-file ratio in shape A's first row is real for the case an agent is usually
+in: it does not yet know where to look, so it reads whole files. Once it knows,
+the byte advantage is gone and the round trips are what is left.
+
+⚠ **That sentence deliberately does not repeat the number.** Prose beside a table
+drifts differently from the table, because a re-measurement looks for the figures
+it expects to move and prose is not where they live. This line still said `50.0×`
+after the re-measurement in `1dd1f21` had already changed shape A's row to 50.7×
+— caught within the hour, and only because a peer session had just named the
+class: it found a file count of `52` on its own page that had never been a
+measured value at ANY point, surviving every re-stamp because nobody looks for a
+number that is wrong on its own terms rather than merely out of date. A sentence
+that POINTS at a row cannot go stale; one that restates it can only be kept true
+by hand, and the hand that re-measures is looking at the table.
 
 That is also why the calls row splits. Reading whole files needs no search — the
 file reveals the site. Reading windows presupposes knowing where the window is,
