@@ -268,3 +268,57 @@ func TestAReplaceWithNoBodyIsStillRejectedNowThatDeleteTakesOne(t *testing.T) {
 		t.Errorf("a delete with an expected body was rejected: %v", err)
 	}
 }
+
+// TestTheEngineAndTheParserRefuseInTheSameWords pins the half of ADR-030 that
+// its first cut only asserted in prose. The engine copies plan.validate's
+// message strings, and the record claimed that keeps the two sites honest — but
+// the engine-side test hardcoded those strings and never invoked the parser, so
+// rewording validate alone left everything green. The review of PR #130 said so,
+// and this is the fix: the expected text is TAKEN FROM THE PARSER at run time.
+//
+// Each row is one malformed plan and the apply.Input a direct caller would build
+// for the same mistake. Reword either site alone and this goes red.
+func TestTheEngineAndTheParserRefuseInTheSameWords(t *testing.T) {
+	cases := []struct {
+		name string
+		doc  string
+		in   apply.Input
+	}{
+		{"replace with an empty body", "@@ f.txt 1-2 replace\n",
+			apply.Input{Path: "f.txt", Op: "replace", Start: 1, End: 2, Lines: unset}},
+		{"insert-after over a range", "@@ f.txt 1-3 insert-after\nX\n",
+			apply.Input{Path: "f.txt", Op: "insert-after", Start: 1, End: 3, Body: []string{"X"}, Lines: unset}},
+		{"insert-before over a range", "@@ f.txt 1-3 insert-before\nX\n",
+			apply.Input{Path: "f.txt", Op: "insert-before", Start: 1, End: 3, Body: []string{"X"}, Lines: unset}},
+		{"create with a line address", "@@ n.txt 1 create\nX\n",
+			apply.Input{Path: "n.txt", Op: "create", Start: 1, End: 1, Body: []string{"X"}, Lines: unset}},
+		{"create with anchor=", "@@ n.txt - create anchor=\"zzz\"\nX\n",
+			apply.Input{Path: "n.txt", Op: "create", Body: []string{"X"}, Lines: unset, Anchor: "zzz"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := plan.Parse(strings.NewReader(c.doc))
+			if err == nil {
+				t.Fatalf("the parser accepted %q — this test's premise is that it refuses it", c.doc)
+			}
+			// "plan has 1 error(s):\n  line 1: <validate's own words>"
+			_, want, found := strings.Cut(err.Error(), "line 1: ")
+			if !found {
+				t.Fatalf("cannot find the parser's message in %q", err)
+			}
+			want = strings.TrimSpace(want)
+
+			root := tree(t, map[string]string{"f.txt": "a\nb\nc\nd\n"})
+			res, aerr := apply.Apply(root, []apply.Input{c.in}, apply.Options{Force: true})
+			if aerr != nil {
+				t.Fatal(aerr)
+			}
+			if res.Failed != 1 {
+				t.Fatalf("the engine accepted what the parser refuses: failed=%d", res.Failed)
+			}
+			if got := res.Hunks[0].Reason; got != want {
+				t.Errorf("the two sites do not say the same thing about one mistake:\n  parser: %s\n  engine: %s", want, got)
+			}
+		})
+	}
+}

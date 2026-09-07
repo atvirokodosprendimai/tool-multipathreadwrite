@@ -1703,18 +1703,21 @@ func TestTheEngineRefusesABodyLessCreate(t *testing.T) {
 // rule and recording the verdict — not from memory. ADR-026 and ADR-027 each
 // closed one field of this hole, and each assumed it was the last.
 //
-// ⚠ Deliberately NOT mirrored, because they need what only the parser has:
+// ⚠ NOTHING IS DELIBERATELY ABSENT, and an earlier cut of this test said two
+// things were. Both claims were false, and the review of PR #130 found them on
+// the one question the record says it must not get wrong:
 //
-//   - `patterned` (plan.go: h.Addr.StartPat != nil) gates the checks that reason
-//     about Start and End. By the time Apply runs, a pattern has been resolved
-//     to a line, so the engine cannot tell a resolved pattern from a typed line
-//     number and must not guess. Every rule below is therefore a rule that holds
-//     for a resolved address too.
-//   - The `create` refusals for a pattern address (`StartPat != nil`) are the
-//     same case: unresolvable here, and unreachable, since a create's address is
-//     never resolved against a file that must not exist.
+//   - `create` with a pattern address was called "unresolvable here, and
+//     unreachable". Input carries StartPat, the boundary block runs BEFORE
+//     resolution, and a patterned create was accepted — measured.
+//   - an insertion with a pattern RANGE (EndPat != nil) was not named at all.
+//     An unresolved pattern range has Start == End == 0, so it slipped past the
+//     numeric range check, resolved later, and then silently used the start and
+//     ignored the end the caller wrote.
 //
-// A rule added to validate with no row here should show up as a MISSING ROW.
+// `patterned` in plan.validate is not a rule, it is a gate that chooses WHICH
+// rule applies, and both sides of it are mirrored here. A rule added to validate
+// with no row here should show up as a MISSING ROW.
 func TestTheEngineRefusesEveryShapeTheParserRefuses(t *testing.T) {
 	const before = "a\nb\nc\nd\n"
 	refused := []struct {
@@ -1763,6 +1766,24 @@ func TestTheEngineRefusesEveryShapeTheParserRefuses(t *testing.T) {
 			Input{Path: "n.txt", Op: "create", Body: []string{"x"}, Lines: 5},
 		},
 		{
+			"create with a pattern address",
+			"create takes no address",
+			Input{Path: "n.txt", Op: "create", Body: []string{"x"}, Lines: -1,
+				StartPat: regexp.MustCompile(`^a$`)},
+		},
+		{
+			"insert-after over a pattern range",
+			"takes a single line, not a range",
+			Input{Path: "f.txt", Op: "insert-after", Body: []string{"x"}, Lines: -1,
+				StartPat: regexp.MustCompile(`^a$`), EndPat: regexp.MustCompile(`^c$`)},
+		},
+		{
+			"insert-before over a pattern range",
+			"takes a single line, not a range",
+			Input{Path: "f.txt", Op: "insert-before", Body: []string{"x"}, Lines: -1,
+				StartPat: regexp.MustCompile(`^a$`), EndPat: regexp.MustCompile(`^c$`)},
+		},
+		{
 			// The control: already refused before this record, and it must stay
 			// refused. A table whose every row was red is a table that cannot
 			// tell a fix from a ban. ⚠ Its wording is the ENGINE's, not the
@@ -1809,16 +1830,35 @@ func TestTheEngineRefusesEveryShapeTheParserRefuses(t *testing.T) {
 
 	// The accepting half. Without it, "refuse everything" passes the table above
 	// and the change is a ban rather than a narrowing.
+	//
+	// ⚠ Each row asserts the resulting BYTES, not merely that nothing failed.
+	// `Failed == 0` alone is satisfied by an engine that reports success and
+	// writes nothing — the invisible-no-write this whole tool exists to refuse,
+	// and what an earlier cut of this half actually checked (review of PR #130).
 	applied := []struct {
 		name string
+		file string // the file to read back
+		want string // its exact contents afterwards
 		in   Input
 	}{
-		{"an ordinary replace", Input{Path: "f.txt", Op: "replace", Start: 1, End: 2, Body: []string{"X"}, Lines: -1}},
-		{"an ordinary delete", Input{Path: "f.txt", Op: "delete", Start: 1, End: 1, Lines: -1}},
-		{"an ordinary insert-after", Input{Path: "f.txt", Op: "insert-after", Start: 1, End: 1, Body: []string{"X"}, Lines: -1}},
-		{"an ordinary insert-before", Input{Path: "f.txt", Op: "insert-before", Start: 1, End: 1, Body: []string{"X"}, Lines: -1}},
-		{"an ordinary create", Input{Path: "n.txt", Op: "create", Body: []string{"X"}, Lines: -1}},
-		{"a deliberate empty create", Input{Path: "n.txt", Op: "create", Lines: -1, CountedBody: true}},
+		{"an ordinary replace", "f.txt", "X\nc\nd\n",
+			Input{Path: "f.txt", Op: "replace", Start: 1, End: 2, Body: []string{"X"}, Lines: -1}},
+		{"an ordinary delete", "f.txt", "b\nc\nd\n",
+			Input{Path: "f.txt", Op: "delete", Start: 1, End: 1, Lines: -1}},
+		{"an ordinary insert-after", "f.txt", "a\nX\nb\nc\nd\n",
+			Input{Path: "f.txt", Op: "insert-after", Start: 1, End: 1, Body: []string{"X"}, Lines: -1}},
+		{"an ordinary insert-before", "f.txt", "X\na\nb\nc\nd\n",
+			Input{Path: "f.txt", Op: "insert-before", Start: 1, End: 1, Body: []string{"X"}, Lines: -1}},
+		{"an ordinary create", "n.txt", "X\n",
+			Input{Path: "n.txt", Op: "create", Body: []string{"X"}, Lines: -1}},
+		{"a deliberate empty create", "n.txt", "",
+			Input{Path: "n.txt", Op: "create", Lines: -1, CountedBody: true}},
+		{"a patterned replace, which the parser accepts", "f.txt", "X\nd\n",
+			Input{Path: "f.txt", Op: "replace", Body: []string{"X"}, Lines: -1,
+				StartPat: regexp.MustCompile(`^a$`), EndPat: regexp.MustCompile(`^c$`)}},
+		{"a patterned insertion, single line", "f.txt", "a\nX\nb\nc\nd\n",
+			Input{Path: "f.txt", Op: "insert-after", Body: []string{"X"}, Lines: -1,
+				StartPat: regexp.MustCompile(`^a$`)}},
 	}
 	for _, c := range applied {
 		t.Run(c.name, func(t *testing.T) {
@@ -1832,6 +1872,13 @@ func TestTheEngineRefusesEveryShapeTheParserRefuses(t *testing.T) {
 			}
 			if res.Failed != 0 {
 				t.Fatalf("failed=%d, want 0 — the parser accepts this shape: %s", res.Failed, res.Hunks[0].Reason)
+			}
+			got, err := os.ReadFile(filepath.Join(root, c.file))
+			if err != nil {
+				t.Fatalf("the accepted hunk left no %s: %v", c.file, err)
+			}
+			if string(got) != c.want {
+				t.Errorf("%s = %q, want %q — a verdict of ok with nothing written is the failure this tool exists to refuse", c.file, got, c.want)
 			}
 		})
 	}

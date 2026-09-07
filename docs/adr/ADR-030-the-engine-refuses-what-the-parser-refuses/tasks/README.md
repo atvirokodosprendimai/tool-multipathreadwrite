@@ -31,4 +31,4 @@ Status: `pending` | `partial` | `blocked` | `done`.
 
 - ⚠ **No contract row, deliberately.** `scripts/contract.sh` drives the built binary, which reaches `Apply` only through `plan.Parse`. A row would prove the parser's refusal and credit it to the engine — the vacuous-gate shape this corpus has now recorded five times. The Go test is the whole of rung 4, as it was for ADR-027-T3.
 - The engine go/no-go applies with one exception this record owns: `internal/apply` changes here.
-- ⚠ The list came from ENUMERATION — driving `Apply` with one `Input` per `plan.validate` rule — not from memory. It is seven rules, not the two that ADR-026 and ADR-027 found one at a time.
+- ⚠ The list came from a BRANCH-BY-BRANCH walk of `plan.validate`, not from memory and not from probing the shapes that came to mind. The first cut did the latter, found seven, and called it complete; the review of PR #130 walked the branches and found two more — an insertion with a pattern RANGE and a `create` with a pattern address. Ten branches, not the two that ADR-026 and ADR-027 found one at a time, and not the seven the first pass reported.

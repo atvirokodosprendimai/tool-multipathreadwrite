@@ -2,13 +2,13 @@
 
 **Depends-on:** none
 **Covers:** none — no spec
-**Estimated scope:** M (seven rules at one boundary, and the table test that keeps the two sites honest)
+**Estimated scope:** M (ten  branches at one boundary, a table test, and the cross-site test that makes the drift claim true)
 **Owner:** Zy
 **Produces:** the enumerated engine-boundary refusals
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the engine refusing every enumerated shape the parser refuses`, `the engine still applying every shape the parser accepts`
+**Rests-on:** `the engine refusing every enumerated shape the parser refuses`, `the engine still applying every shape the parser accepts`, `the two sites refusing in the same words`
 
 ## Goal
 
@@ -24,12 +24,13 @@ memory, without importing `internal/plan`.
 
 ## Ordered Steps
 
-1. [S1] Write the table test with one row per enumerated rule and confirm it is RED for seven of the eight rows — the eighth, `replace` with `Start: 0`, is already refused and is in the table as a control that must stay green. [proof: mutation]
+1. [S1] Write the table test with one row per enumerated rule and confirm it is RED for seven of the eight rows first probed — the eighth, `replace` with `Start: 0`, is already refused and is in the table as a control that must stay green. [proof: mutation]
 2. [S2] Add the rules to the existing boundary block, copying each message verbatim from `plan.validate`. [proof: mutation]
 3. [S3] Assert the ACCEPTING half in the same test: an ordinary `replace`, `create`, `delete` and both insertions still apply. Without it, "refuse everything" passes. [proof: mutation]
 4. [S4] Assert `Failed` AND the file's bytes for every refused row. A refusal that still wrote is worse than the behaviour being removed, and `replace` with an empty body is the row where that matters — it deleted lines while reporting `ok`. [proof: acceptance]
-5. [S5] Name the rules that are deliberately NOT mirrored, in the test, with the reason: `patterned` is a parse fact and the engine has resolved the address by the time it could ask. A silent omission is how the next enumeration goes wrong. [proof: human: read the test's absent-rules comment against `plan.validate` and confirm every unmirrored branch is named there]
-6. [S6] Run every gate, including `go test -race ./...` and `./scripts/contract.sh` — no contract row is added, so the contract must be unchanged and still green. [proof: acceptance]
+5. [S5] ⚠ **Walk `plan.validate` BRANCH BY BRANCH, not shape by shape**, and give every branch a row. The first pass probed the shapes that came to mind, found seven, and wrote that the list was complete; the review of PR #130 walked the branches and found two more — an insertion with a pattern RANGE, never named, and a `create` with a pattern address, named absent on a rationale that was false, since `Input` carries `StartPat` and the boundary runs before resolution. Both were then confirmed accepted by driving `Apply`. [proof: mutation]
+6. [S6] Make the drift claim TRUE rather than asserting it. `TestTheEngineAndTheParserRefuseInTheSameWords` parses each malformed plan, takes the expected text from the PARSER's own error at run time, and compares it to what `Apply` says for the equivalent `Input` — so rewording either site alone goes red. The table test cannot do this: its strings are hardcoded and it never invokes the parser, which is exactly what the review found. [proof: mutation]
+7. [S7] Run every gate, including `go test -race ./...` and `./scripts/contract.sh` — no contract row is added, so the contract must be unchanged and still green. [proof: acceptance]
 
 ## Acceptance
 
@@ -39,6 +40,10 @@ go test ./internal/apply/ -count=1 -v \
   -run 'TestTheEngineRefusesEveryShapeTheParserRefuses' 2>&1 | tee /tmp/adr030-t1.out \
   && grep -q '^--- PASS: TestTheEngineRefusesEveryShapeTheParserRefuses' /tmp/adr030-t1.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr030-t1.out \
+  && go test ./internal/adversarial/ -count=1 -v \
+       -run 'TestTheEngineAndTheParserRefuseInTheSameWords' 2>&1 | tee /tmp/adr030-t1x.out \
+  && grep -q '^--- PASS: TestTheEngineAndTheParserRefuseInTheSameWords' /tmp/adr030-t1x.out \
+  && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr030-t1x.out \
   && go test ./... -count=1 \
   && go test -race ./... -count=1 \
   && ./scripts/contract.sh 2>&1 | tee /tmp/adr030-t1c.out \
@@ -51,7 +56,8 @@ go test ./internal/apply/ -count=1 -v \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestTheEngineRefusesEveryShapeTheParserRefuses` | `internal/apply/apply_test.go` | Every enumerated shape is refused by a direct `Apply` with `Failed: 1` and the file byte-identical; every well-formed shape still applies; the unmirrored parser-only rules are named | — | S1, S2, S3, S4, S5 |
+| `TestTheEngineRefusesEveryShapeTheParserRefuses` | `internal/apply/apply_test.go` | Every `plan.validate` branch is refused by a direct `Apply` with `Failed: 1` and the file byte-identical; every well-formed shape still applies AND leaves the exact bytes it should, so a no-op reporting success cannot pass | — | S1, S2, S3, S4, S5 |
+| `TestTheEngineAndTheParserRefuseInTheSameWords` | `internal/adversarial/planformat_test.go` | For one malformed plan per rule, the parser's message and the engine's `Reason` are equal — the expected text taken from the parser at run time, so rewording either site alone goes red | — | S6 |
 
 ## Reachability
 
@@ -67,6 +73,10 @@ go test ./internal/apply/ -count=1 -v \
 - 2026-09-07 · d26e39a* · mutant killed · exit 1 · `internal/apply/apply.go` · the engine stops refusing a replace carrying no body, so a direct Apply caller DELETES the addressed lines and gets a receipt saying ok — the shape plan.validate calls the failure this whole format exists to refuse · acceptance-sha256:42aebec5aa67d55597a759fd7cd72f0a7a41b4660ba4bde949061f0901b4fc7b · covers:the engine refusing every enumerated shape the parser refuses
 - 2026-09-07 · d26e39a* · mutant killed · exit 1 · `internal/apply/apply.go` · an insertion stops refusing a RANGE address, so it silently uses the start and ignores the end the caller wrote — an address half-ignored, reported ok · acceptance-sha256:42aebec5aa67d55597a759fd7cd72f0a7a41b4660ba4bde949061f0901b4fc7b · covers:the engine refusing every enumerated shape the parser refuses
 - 2026-09-07 · d26e39a* · mutant killed · exit 1 · `internal/apply/apply.go` · the insertion rule widens to refuse every insertion, which a table of refusals alone would call success — the accepting half is what refuses it, and it is why the fix is a narrowing rather than a ban · acceptance-sha256:42aebec5aa67d55597a759fd7cd72f0a7a41b4660ba4bde949061f0901b4fc7b · covers:the engine still applying every shape the parser accepts
+- 2026-09-07 · ee97f6b* · mutant killed · exit 1 · `internal/apply/apply.go` · the engine stops refusing a create with a PATTERN address — the branch the first cut named deliberately absent on a rationale that was false, and which a direct caller had accepted · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · covers:the engine refusing every enumerated shape the parser refuses
+- 2026-09-07 · ee97f6b* · mutant killed · exit 1 · `internal/apply/apply.go` · one engine message is reworded and the parser is left alone — the drift the first cut claimed was mitigated by copying strings verbatim, which the hardcoded table test could not see · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · covers:the two sites refusing in the same words
+- 2026-09-07 · ee97f6b* · mutant killed · exit 1 · `internal/apply/apply.go` · the pattern-range refusal for insertions is reworded away from plan.validate wording — it is the branch the first cut never named, and the cross-site test is what now sees the divergence · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · covers:the two sites refusing in the same words
+- 2026-09-07 · ee97f6b* · mutant killed · exit 1 · `internal/apply/apply.go` · the guard itself is removed for an insertion with a PATTERN range, so the hunk resolves and then silently uses the start and ignores the end the caller wrote — the branch the first pass never named, reported ok · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · covers:the engine refusing every enumerated shape the parser refuses
 
 ## Invariants
 - `internal/apply` does not import `internal/plan`. That inversion is ADR-027-T3's Stop Condition and is the reason the duplication is accepted.
@@ -76,7 +86,7 @@ go test ./internal/apply/ -count=1 -v \
 
 ## Risks
 
-- ⚠ The enumeration could be incomplete, which is the exact mistake this record was written to stop repeating. It came from driving `Apply` with one `Input` per `validate` rule and recording the verdict; the table carries the same list so an eighth rule is a missing row.
+- ⚠ The enumeration WAS incomplete, which is the exact mistake this record was written to stop repeating, made inside it. Probing shapes is not walking branches; two branches were missed and the review of PR #130 found them. The list now comes from a branch-by-branch walk, and the table carries every one so an eleventh is a missing row.
 - A refused row that still wrote would be worse than the behaviour removed. S4 asserts the file's bytes, not only the verdict.
 
 ## Stop Condition
@@ -95,3 +105,8 @@ record rather than a workaround in the code.
 - 2026-09-07 · d26e39a* · exit 0 · `set -o pipefail …` · acceptance-sha256:42aebec5aa67d55597a759fd7cd72f0a7a41b4660ba4bde949061f0901b4fc7b · ms:30034
 - 2026-09-07 · d26e39a* · exit 0 · `set -o pipefail …` · acceptance-sha256:42aebec5aa67d55597a759fd7cd72f0a7a41b4660ba4bde949061f0901b4fc7b · ms:29881
 - 2026-09-07 · d26e39a* · exit 0 · `set -o pipefail …` · acceptance-sha256:42aebec5aa67d55597a759fd7cd72f0a7a41b4660ba4bde949061f0901b4fc7b · ms:30332
+- 2026-09-07 · ee97f6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:34176
+- 2026-09-07 · ee97f6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:29881
+- 2026-09-07 · ee97f6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:31282
+- 2026-09-07 · ee97f6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:30193
+- 2026-09-07 · ee97f6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:30133

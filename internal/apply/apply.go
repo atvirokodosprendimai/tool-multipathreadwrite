@@ -617,6 +617,17 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 				"and check the body did not go missing if you do not")
 			continue
 		}
+		// A pattern IS an address, so a create refuses it exactly as it refuses
+		// a line number — and the engine CAN ask, because Input carries both
+		// pattern fields and this block runs before resolution. An earlier cut
+		// of ADR-030 named this rule "deliberately absent, unresolvable here",
+		// which was false twice over: the field is right there, and a patterned
+		// create was accepted. Found by the review of PR #130, on the question
+		// the record said it must not get wrong.
+		if h.Op == "create" && h.StartPat != nil {
+			fail(h, "create takes no address, use %q", "-")
+			continue
+		}
 		if h.Op == "create" && (h.Start != 0 || h.End != 0) {
 			fail(h, "create takes no address, use %q", "-")
 			continue
@@ -633,6 +644,18 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 			// A RANGE is a range however it was written, and an insertion
 			// addresses one line. The relative-end form is the same mistake
 			// spelled differently, which is why it is refused beside it.
+			// A RANGE is a range however it was written — two patterns, two
+			// line numbers, or a relative end — and an insertion addresses one
+			// line. The pattern form is checked FIRST because it is the one the
+			// numeric comparison cannot see: an unresolved pattern range has
+			// Start == End == 0, so it passed the check below, resolved later,
+			// and then silently used the start and ignored the end the caller
+			// wrote. The wording is validate's own, which differs between the
+			// two forms because only one of them has a range to name yet.
+			if h.EndPat != nil {
+				fail(h, "%s takes a single line, not a range", h.Op)
+				continue
+			}
 			if h.RelEnd > 0 || h.Start != h.End {
 				fail(h, "%s takes a single line, not the range %s", h.Op, h.SrcAddr)
 				continue
