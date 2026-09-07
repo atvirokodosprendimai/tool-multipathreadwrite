@@ -223,8 +223,12 @@ here.
   practice omit it exactly where it would have helped, that judgement is wrong
   and the default should move.
 
-- **`anchor=` reports its failure above the ledger check, so a failed anchor
-  reads one line of a range the caller was never served.** ADR-008 moved its own
+- ~~**`anchor=` reports its failure above the ledger check, so a failed anchor
+  reads one line of a range the caller was never served.**~~ **CLOSED 2026-09-07 by ADR-028** — the
+  check moved below `covered()`, contract §65 drives both halves through the built binary, and the
+  row was proved red against the released v1.4.0 tree. The entry's own warning about the fixture was
+  right and is why the test serves line 1 and anchors line 2. Kept because the reasoning below is
+  what made it a defect rather than a judgement call. ADR-008 moved its own
   expected-removal comparison BELOW `covered()` for exactly this reason and
   pinned it with a test; its sibling one line up was noticed at the same time
   and deliberately left, so this entry exists to stop the asymmetry reading as

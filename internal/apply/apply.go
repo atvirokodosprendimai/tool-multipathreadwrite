@@ -794,11 +794,18 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 				fail(h, "lines=%d but range %s covers %d line(s)", h.Lines, addrString(start, end), end-start+1)
 				continue
 			}
-			if h.Anchor != "" && !strings.Contains(orig[start-1], h.Anchor) {
-				fail(h, "anchor %q not in line %d: %s", h.Anchor, start, trim(orig[start-1]))
+			if !covered(h, start, end) {
 				continue
 			}
-			if !covered(h, start, end) {
+			// Checked BELOW covered() for the reason ADR-008 gives three lines
+			// down about its own guard: the mismatch message quotes the line
+			// the file actually holds, and only the ledger check establishes
+			// that the caller was served it. Above it, a failed anchor guess
+			// read back a line nobody had shown them — ADR-002 and ADR-005's
+			// "mrw does not tell you what it has not shown you", false on the
+			// one path that had this guard first (ADR-028).
+			if h.Anchor != "" && !strings.Contains(orig[start-1], h.Anchor) {
+				fail(h, "anchor %q not in line %d: %s", h.Anchor, start, trim(orig[start-1]))
 				continue
 			}
 			// A delete is the only op with no body, so a body on one is not

@@ -3869,6 +3869,32 @@ grep -q hello "$R/full.txt" && ok "the ordinary create wrote its body" || bad "t
 out=$(printf '@@ a.go 3 replace\n' | m write - 2>&1); rc=$?
 want 2 "$rc" "an empty-bodied replace is still refused, in its own words"
 grep -q 'would delete' <<<"$out" && ok "the replace refusal is unchanged" || bad "the replace refusal changed: $out"
+
+# 65. ADR-028: a guard does not read back what was not served.
+#
+# `anchor=` was checked ABOVE the ledger, so a FAILED anchor quoted the line the
+# file holds — on a line the caller had never been served. ADR-002 and ADR-005
+# say mrw does not tell you what it has not shown you, and this was the one path
+# that did. ADR-008 had already moved its own guard below `covered()` for the
+# same reason and left this sibling; the asymmetry is closed now.
+#
+# BOTH HALVES, OR THE ROW PROVES NOTHING. A section asserting only the absence
+# would pass against a binary that had stopped checking anchors altogether, so
+# the served-line half is asserted beside it. And the fixture serves a NARROW
+# range: a file served NOT AT ALL is refused by the whole-file gate before
+# either guard runs, which is green with the ordering reversed (BACKLOG:226).
+fixture
+printf 'public line\nUNSERVED-SENTINEL-42\nthird\n' > "$R/s.txt"
+m read 's.txt:1' > /dev/null 2>&1
+out=$(printf '@@ s.txt 2 replace anchor="no-such-text"\nX\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "an anchored hunk on an unserved line is refused"
+grep -q 'UNSERVED-SENTINEL-42' <<<"$out" \
+  && bad "the refusal read back a line the caller was never served: $out" \
+  || ok "the refusal reads back no line the caller was not served"
+grep -q 'has not been read' <<<"$out" && ok "the refusal is the ledger's, naming what was served" || bad "the refusal is not the ledger's: $out"
+out=$(printf '@@ s.txt 1 replace anchor="no-such-text"\nX\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "an anchored hunk on a SERVED line is still anchor-checked"
+grep -q 'public line' <<<"$out" && ok "a served line's anchor failure still quotes it" || bad "the anchor no longer quotes a line the caller was served: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

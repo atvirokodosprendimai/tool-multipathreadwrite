@@ -239,3 +239,55 @@ func TestAPatternThatMatchesNothingObservesNothing(t *testing.T) {
 		t.Fatalf("an edit to line 40 was licensed by a read that printed nothing: failed=%d", res.Failed)
 	}
 }
+
+// ADR-002 and ADR-005 say mrw does not tell you what it has not shown you, and
+// `anchor=` was the one guard that did: it was checked ABOVE the ledger, so a
+// FAILED anchor quoted a line the caller had never been served.
+//
+// ⚠ THE FIXTURE SERVES LINE 1 AND ANCHORS LINE 2, and that is not incidental.
+// docs/adr/BACKLOG.md:226 pre-registers the trap: a fixture that serves NOTHING
+// is refused by the whole-file gate before either guard runs, so it passes with
+// the ordering reversed and proves nothing. The file must be partly served.
+func TestAFailedAnchorDoesNotReadBackAnUnservedLine(t *testing.T) {
+	const secret = "UNSERVED-SENTINEL-42"
+	root := tree(t, map[string]string{"f.txt": "public line\n" + secret + "\nthird\n"})
+
+	// Line 1 only.
+	observed, _ := read.Run(io.Discard, root,
+		[]read.Spec{{Path: "f.txt", Ranges: []read.Range{{Start: 1, End: 1}}}}, read.Options{})
+
+	res, err := apply.Apply(root, []apply.Input{{
+		Path: "f.txt", Start: 2, End: 2, Op: "replace",
+		Body: []string{"rewritten"}, Lines: unset, Anchor: "no-such-text",
+	}}, apply.Options{Seen: observed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed=%d, want 1 — the hunk addresses a line that was never served", res.Failed)
+	}
+	reason := res.Hunks[0].Reason
+	if strings.Contains(reason, secret) {
+		t.Errorf("the refusal reads back a line the caller was never served: %s", reason)
+	}
+	if !strings.Contains(reason, "has not been read") {
+		t.Errorf("the refusal is not the ledger's: %s", reason)
+	}
+
+	// The other half, or the fix could be "never check anchors": a line the
+	// caller WAS served is still anchor-checked, and its text is still quoted,
+	// because they are entitled to it.
+	res2, err := apply.Apply(root, []apply.Input{{
+		Path: "f.txt", Start: 1, End: 1, Op: "replace",
+		Body: []string{"rewritten"}, Lines: unset, Anchor: "no-such-text",
+	}}, apply.Options{Seen: observed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res2.Failed != 1 {
+		t.Fatalf("failed=%d, want 1 — the anchor does not match line 1", res2.Failed)
+	}
+	if !strings.Contains(res2.Hunks[0].Reason, "public line") {
+		t.Errorf("a served line's anchor failure no longer quotes it: %s", res2.Hunks[0].Reason)
+	}
+}
