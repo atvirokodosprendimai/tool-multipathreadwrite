@@ -5,7 +5,7 @@
 | for | you need |
 |---|---|
 | building and testing | **Go 1.26.6 or newer** (the version in `go.mod`). One dependency, no cgo. |
-| `scripts/measure.sh`, `scripts/contract.sh` | **bash**, **git**, **bc**. `bc` is absent from Alpine and most slim images: `apk add bc`. |
+| `scripts/measure.sh`, `scripts/contract.sh` | **bash**, **git**, **awk**, and **python3** for `contract.sh`, which uses it to build and inspect JSON on 89 lines. `bc` is no longer needed by either: `measure.sh` was its only user and now rounds with `awk` instead, which also fixed a truncated ratio. python3 was required all along and this row did not say so. |
 | either script on Windows | **WSL** or **Git Bash**. They are POSIX shell, not PowerShell. The binary itself is native. |
 | a **regex address** in Git Bash | `MSYS2_ARG_CONV_EXCL='*'`, or PowerShell/WSL. MSYS rewrites `f.go:/re/` before mrw starts and quoting does not stop it — see the README's "Git Bash on Windows mangles a regex address". |
 

@@ -45,6 +45,30 @@ fi
 
 rule() { printf '%s\n' "------------------------------------------------------------"; }
 
+# round1 divides and rounds to one decimal.
+#
+# ⚠ ROUND, NEVER TRUNCATE, and the distinction is not cosmetic. This was
+# `bc scale=1`, which truncates: 1.29 printed as 1.2 and 1.53 as 1.5. On a LOSS
+# ratio that understates mrw's OWN weakness, which is the one direction this
+# repository may not err in — and it is how the numbers on a page came to
+# disagree with the same numbers recomputed by hand, with the script looking
+# like the authority. Found 2026-09-07 by a reader who recomputed a published
+# ratio and got 1.29 where the script said 1.2. awk's printf rounds.
+#
+# It also removes `bc`, which was this script's only user of it and is absent
+# from Alpine and most slim images. awk is already what contract.sh uses.
+round1() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%.1f", a / b }'; }
+
+# A SELF-CHECK, because the defect it replaces was invisible: a truncated ratio
+# is a plausible number, and nobody recomputes a plausible number. 1.29 must
+# print as 1.3. Put back `bc scale=1` and this exits 2 before a single figure
+# is published, which is the only way a silent arithmetic regression announces
+# itself in a script whose whole output is numbers.
+[ "$(round1 1290 1000)" = "1.3" ] || {
+  echo "measure.sh: round1 is truncating rather than rounding; every ratio below would understate" >&2
+  exit 2
+}
+
 # measure <label> <sites-as-mrw-specs...>
 # Files are derived from the specs, so both paths always cover the same set.
 measure() {
@@ -98,8 +122,8 @@ EOF
   # Report a loss as a loss. "0.8x less input" is a sentence that hides which
   # way the comparison went.
   ratio() {
-    if [ "$2" -le "$1" ]; then echo "$(echo "scale=1; $1 / $2" | bc)x LESS"
-    else echo "$(echo "scale=1; $2 / $1" | bc)x MORE"; fi
+    if [ "$2" -le "$1" ]; then echo "$(round1 "$1" "$2")x LESS"
+    else echo "$(round1 "$2" "$1")x MORE"; fi
   }
 
   rule
@@ -111,9 +135,9 @@ EOF
   printf '  %-38s %10s %10s   %s\n' "bytes, vs a WINDOWED read" \
     "$windowed" "$ranged" "$(ratio "$windowed" "$ranged") input"
   printf '  %-38s %10s %10s   %s\n' "calls, whole-file (reads+edits)" \
-    "$wholecalls" "$mrwcalls" "$(echo "scale=1; $wholecalls / $mrwcalls" | bc)x fewer"
+    "$wholecalls" "$mrwcalls" "$(round1 "$wholecalls" "$mrwcalls")x fewer"
   printf '  %-38s %10s %10s   %s\n' "calls, windowed (search+reads+edits)" \
-    "$windowcalls" "$mrwcalls" "$(echo "scale=1; $windowcalls / $mrwcalls" | bc)x fewer"
+    "$windowcalls" "$mrwcalls" "$(round1 "$windowcalls" "$mrwcalls")x fewer"
 }
 
 echo "mrw measurement — $(git rev-parse --short HEAD)$(git diff --quiet || echo ' (dirty tree)')"

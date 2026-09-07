@@ -385,9 +385,12 @@ go build -o bin/mrw.exe ./cmd/mrw      # Windows
 ```
 
 Running the tests needs only Go (`go test ./...`). Running the two reproduction
-scripts additionally needs **bash**, **git** and **bc** on `PATH`. `bc` is *not*
-present on Alpine or most slim container images — `apk add bc` — and on Windows
-they need WSL or Git Bash.
+scripts additionally needs **bash**, **git** and **awk** on `PATH`, and
+`scripts/contract.sh` needs **python3** as well — it builds and inspects JSON
+with it on 89 lines, which this passage did not say. Neither needs `bc` any
+more: `measure.sh` was its only user, and `bc scale=1` TRUNCATES, so a ratio of
+1.29 printed as 1.2 and understated mrw's own loss. On Windows both scripts
+need WSL or Git Bash.
 
 
 ### Use it from an MCP host
