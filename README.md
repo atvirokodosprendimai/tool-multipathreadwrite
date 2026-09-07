@@ -258,7 +258,7 @@ both, because for a file that small the window IS the whole file.
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 145,952 | 2,918 | **50.0× less** |
+| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 147,971 | 2,918 | **50.7× less** |
 | | bytes vs a **windowed** `offset`/`limit` read | 2,254 | 2,918 | **1.3× MORE** |
 | | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
 | | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
@@ -267,27 +267,37 @@ both, because for a file that small the window IS the whole file.
 | | calls | 4 / 5 | 2 | 2.0–2.5× fewer |
 | **C.** 1 site, whole small file | bytes (window *is* the whole file) | 12,396 | 15,133 | **1.2× MORE** |
 | | calls | 2 / 3 | 2 | same to 1.5× fewer |
-| **D.** 1 site in **every** Go file — 54 sites, 54 files | calls (reads + edits) | 108 | 2 | **54.0× fewer** |
-| | bytes vs whole | 855,932 | 4,729 | 181.0× less |
-| | bytes vs windowed | 770 | 4,729 | **6.1× MORE** |
+| **D.** 1 site in **every** Go file — 55 sites, 55 files | calls (reads + edits) | 110 | 2 | **55.0× fewer** |
+| | bytes vs whole | 897,917 | 4,814 | 186.5× less |
+| | bytes vs windowed | 782 | 4,814 | **6.2× MORE** |
 
-Measured at `4d01620` with a binary the script built from that tree. Set `MRW`
-to measure a binary from somewhere else and the header says so, because the
-commit then describes the fixtures and the file list rather than the code that
-produced the bytes. **Every figure here drifts, and shape D drifts fastest** —
-its file list is `git ls-files '*.go'`, so
-it grew from 27 files to 54 while this table said 27. Shape A's whole-file
-baseline moves whenever the four files it reads do. Re-run the script; the stamp
-is what tells you how old the number beside it is.
+**Measured at `0fffa77`, which is the tree v1.6.0 was tagged from**, with a binary the script built
+from it. Set `MRW` to measure a binary from somewhere else and the header says so, because the
+commit then describes the fixtures and the file list rather than the code that produced the bytes.
+
+⚠ **A stamp names a commit you can actually check out, and one whose `scripts/measure.sh` is the
+script that produced the numbers.** This line said `4d01620` until v1.6.0 and neither was true of it:
+`main` takes SQUASH merges, so every commit on a merged branch survives only under
+`refs/pull/<n>/head` and `git clone && git checkout 4d01620` fails — and `scripts/measure.sh` at
+that commit is a different blob (`cd1159fe`) from the released one (`5924286f`), so a reader who did
+reach the tree would have run different code than produced the quoted figures. Found from outside
+the repository by a peer session reading the public remote, which is the vantage point that makes an
+unreachable SHA obvious and the one nobody working on the branch has.
+
+**Every figure here drifts, and shape D drifts fastest** — its file list is `git ls-files '*.go'`,
+so it grew from 27 files to 54 to **55** across three releases while an earlier version of this table
+still said 27. Shape A's whole-file baseline moves whenever the four files it reads do, and it moved
+here: 145,952 → 147,971 bytes between the previous stamp and this one, without a line of `measure.sh`
+changing. Re-run the script; the stamp is what tells you how old the number beside it is.
 
 **Shape D is the one to read.** It is the change every codebase gets eventually —
-a renamed symbol, an added build tag, a changed import — one site in each of 54
+a renamed symbol, an added build tag, a changed import — one site in each of 55
 files, and the file list comes from `git ls-files` so it grows with the
 repository instead of measuring a subset somebody typed once.
 
-⚠ **And read shape D for the CALLS, not the bytes.** Its `6.1× MORE` is mrw's
-worst possible input by construction: 54 files at ONE line each, so a per-file
-header and a per-file receipt are charged against 770 bytes of payload. **Shape E
+⚠ **And read shape D for the CALLS, not the bytes.** Its `6.2× MORE` is mrw's
+worst possible input by construction: 55 files at ONE line each, so a per-file
+header and a per-file receipt are charged against 782 bytes of payload. **Shape E
 holds the task still and varies the span instead**, on one 1.06 MB file:
 
 | span | whole file | windowed | mrw | | |
@@ -318,7 +328,7 @@ block read back, and one more opportunity to lose the thread between site 19 and
 site 20. That is the cost mrw removes, and it is why the floor is 2 rather than
 "fewer".
 
-**Shape D also sends 6.1× MORE bytes than a windowed reader, and that is fine.**
+**Shape D also sends 6.2× MORE bytes than a windowed reader, and that is fine.**
 Each site is a single line, so mrw is paying a per-file header and a per-line
 number on the smallest possible payload — the worst byte case there is. It is in
 the table at its worst because the calls column is the claim, and a table that
