@@ -110,11 +110,22 @@ See `docs/adr/ADR-028-a-guard-does-not-read-back-what-was-not-served/tasks/READM
 
 ## Consequences
 
-- **Positive:** the paths where mrw printed a line it had not served are gone — all four anchored ops,
-  which is `replace`, `delete` and both insertions. The first cut of this record fixed the first
-  two and claimed "every guard" while the insertions still leaked; the Codex review of PR #128 caught
-  it. They reach the anchor through a guard closure invoked BESIDE `covered()` rather than after it,
-  which is why moving one check did not move theirs, and why the test and §66 now drive all four.
+- **Positive:** for a hunk addressed by the spelling the ledger recorded, the paths where mrw printed
+  a line it had not served are gone — all four anchored ops, which is `replace`, `delete` and both
+  insertions. The first cut of this record fixed the first two and claimed "every guard" while the
+  insertions still leaked; the Codex review of PR #128 caught it. They reach the anchor through a
+  guard closure invoked BESIDE `covered()` rather than after it, which is why moving one check did
+  not move theirs, and why the test and §66 now drive all four.
+- ⚠ **That qualifier is load-bearing, and it was added after the SECOND review.** An ALIAS spelling —
+  an in-root symlink, or a case-only variant on a case-insensitive filesystem — misses `covered()`'s
+  exact-key ledger lookup entirely, is therefore treated as covered, and the anchor quotes the line
+  as before. Measured 2026-09-07 against this branch at `1efd1a6`: with `s.txt:1` served, a hunk
+  spelled `al.txt 2 replace anchor="zzz"` printed `SECRET-VALUE-42`, while the same hunk spelled
+  `s.txt` got the ledger refusal. It is a ledger-IDENTITY defect rather than a guard-ordering one —
+  `internal/apply/apply.go:553` looks the ledger up again by exact key, discarding the alias recovery
+  `:525` had just done — and it is receipted in `docs/adr/BACKLOG.md` rather than folded in here,
+  because the same gap lets an alias-spelled write to unread lines APPLY. That is a larger claim than
+  this record makes, and burying it under an anchor-ordering heading is how it stays unfound.
 - **Positive:** the asymmetry with ADR-008 is closed, so the two guards no longer teach opposite
   lessons three lines apart.
 - **Negative:** a caller whose anchor AND ledger are both wrong now learns about the ledger first,
@@ -127,6 +138,7 @@ See `docs/adr/ADR-028-a-guard-does-not-read-back-what-was-not-served/tasks/READM
 
 - Making `anchor=` mandatory, or promoting it into the licence (permanent: boundary: an anchor matches the first line of a range, so it cannot carry a per-line claim; and the ledger is what ADR-002 rests on)
 - The SENT-vs-SEEN gap itself — that mrw records what it served rather than what the caller saw (deferred: `docs/adr/BACKLOG.md`)
+- The alias spelling that misses the per-line ledger altogether — an in-root symlink, or a case-only variant on a case-insensitive filesystem (deferred: `docs/adr/BACKLOG.md`)
 - Whether `lines=` should also move (permanent: fact: it reports only arithmetic over values the caller supplied and prints no file content; citation: file `internal/apply/apply.go:793`)
 
 ## Risks
@@ -144,3 +156,4 @@ not written, by either guard.
 ## Follow-ups
 
 - [ ] If a caller reports the ledger refusal being less useful than the anchor one for a drifted address, improve the ledger message rather than reordering the guards again.
+- [ ] When the alias gap closes, this record's first Consequence loses its qualifier and §66 gains the alias case. Until then the qualifier stays: a record claiming more than its tree does is the failure `.claude/rules/reviews.md` names first.

@@ -224,11 +224,13 @@ here.
   and the default should move.
 
 - ~~**`anchor=` reports its failure above the ledger check, so a failed anchor
-  reads one line of a range the caller was never served.**~~ **CLOSED 2026-09-07 by ADR-028** — the
-  check moved below `covered()`, contract §65 drives both halves through the built binary, and the
-  row was proved red against the released v1.4.0 tree. The entry's own warning about the fixture was
-  right and is why the test serves line 1 and anchors line 2. Kept because the reasoning below is
-  what made it a defect rather than a judgement call. ADR-008 moved its own
+  reads one line of a range the caller was never served.**~~ **CLOSED 2026-09-07 by ADR-028, FOR THE
+  SPELLING THE LEDGER RECORDED** — the check moved below `covered()`, contract §66 drives all four
+  anchored ops through the built binary, and the row was proved red against the released v1.4.0 tree.
+  ⚠ It is NOT closed for an alias spelling: that misses `covered()` altogether, so the anchor still
+  prints the line — see the alias entry below, which is the same defect one level down. The entry's
+  own warning about the fixture was right and is why the test serves line 1 and anchors line 2. Kept
+  because the reasoning below is what made it a defect rather than a judgement call. ADR-008 moved its own
   expected-removal comparison BELOW `covered()` for exactly this reason and
   pinned it with a test; its sibling one line up was noticed at the same time
   and deliberately left, so this entry exists to stop the asymmetry reading as
@@ -251,6 +253,41 @@ here.
   one-line move plus the fixture that proves it — a fixture whose FIRST version
   must be checked against a mutant, because the obvious one trips the
   whole-file gate instead and passes with the ordering reversed.
+
+- **An ALIAS spelling of a partially-read file bypasses the per-line ledger
+  ENTIRELY, so a write to lines the caller was never served APPLIES.** Found by
+  the Codex review of PR #128, reproduced 2026-09-07 against that branch at
+  `1efd1a6`. `internal/apply/apply.go:510` recovers an aliased observation with
+  `sameFileEntry` — that is issue #47's fix and it must keep working — but `:553`
+  looks the ledger up again by exact key and `covered()` treats the miss as
+  COVERED (`:555`), so every per-line check passes:
+
+      $ mrw --root . read 'real.txt:1'                             # line 1 only
+      $ printf '@@ link.txt 4 replace\nPWNED\n' | mrw --root . write -
+      ok   link.txt 4 replace  -1 +1
+
+  with `link.txt -> real.txt`; a case-only `REAL.txt` does the same on APFS and
+  on NTFS. The exact spelling is refused, as it should be. **This is larger than
+  the anchor entry above, which is one visible symptom of it**: for an alias,
+  ADR-002's per-line guard is not weakened, it is absent.
+
+  **Pre-registered before the harness exists**, because the obvious fixture
+  passes for the wrong reason in two different ways.
+
+  1. A test asserting only that the alias write is REFUSED is green against a fix
+     that refuses every alias — which undoes #47. It must also assert that a
+     WHOLE read of `real.txt` still licenses a write spelled `link.txt`.
+  2. Neither alias is portable, and each is covered on exactly one of this
+     repository's two CI operating systems. The symlink half runs on Linux and
+     may fail to create on Windows; the case-only half needs a case-INsensitive
+     filesystem, so it runs on Windows and cannot run on Linux. Probe at runtime
+     and skip — never assert the platform — and say in the record that
+     `scripts/contract.sh` can carry the symlink half only, being Linux-only.
+
+  `--root` still refuses first: checked the same day on an in-root symlink
+  pointing outside the root, where read and write were both refused by name. So
+  this is a contract violation against ADR-002 and ADR-005, not a privilege
+  boundary — exactly as for the entry above.
 
 ## Found by probing the built binary (2026-09-01)
 
