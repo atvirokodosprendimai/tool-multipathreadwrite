@@ -3971,14 +3971,20 @@ alias_fixture() {
 }
 alias_fixture
 m read 'real.txt:1' > /dev/null 2>&1
+before=$(cksum < "$R/real.txt")
 out=$(printf '@@ link.txt 4 replace\nPWNED\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "an alias-spelled write to a line never served is refused"
-grep -q 'has not been read' <<<"$out" \
-  && ok "the alias refusal is the ledger's, naming what was served" \
-  || bad "the alias refusal is not the ledger's: $out"
-grep -q 'PWNED' "$R/real.txt" \
-  && bad "the alias spelling wrote through to the file: $(cat "$R/real.txt")" \
-  || ok "the file the alias names is unchanged"
+# The PER-LINE message, not merely "has not been read": the file-level check
+# says that too, for a file no spelling of which is in the ledger, and matching
+# the shorter string would let this case pass on the wrong refusal.
+grep -q 'has not been read: mrw served' <<<"$out" \
+  && ok "the alias refusal is the per-line ledger's, naming what was served" \
+  || bad "the alias refusal is not the per-line ledger's: $out"
+# Byte identity by digest, not the absence of one string: a write that landed
+# anywhere else in the file would leave PWNED absent and the file changed.
+[ "$(cksum < "$R/real.txt")" = "$before" ] \
+  && ok "the file the alias names is byte-identical" \
+  || bad "the alias spelling changed the file it names: $(cat "$R/real.txt")"
 
 # Issue #47's half, and the reason this is a resolution rather than a ban.
 alias_fixture

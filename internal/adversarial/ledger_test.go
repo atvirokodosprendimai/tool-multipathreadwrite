@@ -342,8 +342,12 @@ func TestAnAliasSpellingIsTheSameFileToThePerLineLedger(t *testing.T) {
 		if res.Failed != 1 {
 			t.Fatalf("failed=%d, want 1 — line 4 was never served under any spelling", res.Failed)
 		}
-		if !strings.Contains(res.Hunks[0].Reason, "has not been read") {
-			t.Errorf("the refusal is not the ledger's: %s", res.Hunks[0].Reason)
+		// The PER-LINE message. The file-level check opens with the same words
+		// for a file no spelling of which is in the ledger, so matching the
+		// shorter string would pass on the wrong refusal — which is exactly
+		// what happens if alias recovery is removed instead of consumed.
+		if !strings.Contains(res.Hunks[0].Reason, "has not been read: mrw served") {
+			t.Errorf("the refusal is not the per-line ledger's: %s", res.Hunks[0].Reason)
 		}
 		after, err := os.ReadFile(filepath.Join(root, real))
 		if err != nil {
@@ -417,6 +421,9 @@ func TestAnAliasSpellingIsTheSameFileToThePerLineLedger(t *testing.T) {
 		}
 		if res.Failed != 1 {
 			t.Fatalf("failed=%d, want 1 — line 4 was never served under any spelling", res.Failed)
+		}
+		if !strings.Contains(res.Hunks[0].Reason, "has not been read: mrw served") {
+			t.Errorf("the refusal is not the per-line ledger's: %s", res.Hunks[0].Reason)
 		}
 	})
 }

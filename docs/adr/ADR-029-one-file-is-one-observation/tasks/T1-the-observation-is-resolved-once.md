@@ -54,7 +54,7 @@ go test ./internal/adversarial/ -count=1 -v \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestAnAliasSpellingIsTheSameFileToThePerLineLedger` | `internal/adversarial/ledger_test.go` | A partial read refuses an alias-spelled write to lines never served and leaves the file unchanged; a WHOLE read still licenses one; the case-only variant does both where the filesystem is case-insensitive | — | S1, S2, S3 |
+| `TestAnAliasSpellingIsTheSameFileToThePerLineLedger` | `internal/adversarial/ledger_test.go` | A partial read refuses an alias-spelled write to lines never served, with the PER-LINE refusal rather than the file-level one, and leaves the file byte-identical; a WHOLE read still licenses such a write; the case-only variant asserts the refusal half where the filesystem is case-insensitive — its positive half is already covered by the existing issue #47 test, which is why this one does not repeat it | — | S1, S2, S3 |
 | `TestAFailedAnchorDoesNotReadBackAnUnservedLine` | `internal/adversarial/ledger_test.go` | Unchanged from ADR-028, and now holds for the alias spelling too | — | S4 |
 
 ## Reachability
@@ -96,3 +96,4 @@ be a separate decision.
 ## Verification Log
 - 2026-09-07 · cd259f2* · exit 0 · `set -o pipefail …` · acceptance-sha256:bc4adbfc3ec32062baab9dcacfde2e7bc661e5b76a3bfd8b8d5abaa401be2a0d · ms:14015
 - 2026-09-07 · cd259f2* · exit 0 · `set -o pipefail …` · acceptance-sha256:bc4adbfc3ec32062baab9dcacfde2e7bc661e5b76a3bfd8b8d5abaa401be2a0d · ms:15562
+- 2026-09-07 · 2f8adce* · exit 0 · `set -o pipefail …` · acceptance-sha256:bc4adbfc3ec32062baab9dcacfde2e7bc661e5b76a3bfd8b8d5abaa401be2a0d · ms:18971

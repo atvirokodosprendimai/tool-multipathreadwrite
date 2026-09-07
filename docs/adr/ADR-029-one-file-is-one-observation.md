@@ -121,8 +121,10 @@ See `docs/adr/ADR-029-one-file-is-one-observation/tasks/README.md`.
 - **Negative:** a caller who reads under one spelling and writes under another now meets a refusal
   where a write used to apply. That is the point, and it is the refusal the recorded spelling has
   always given.
-- **Neutral:** `sameFileEntry` runs on the ordinary path now rather than only on the failure path, so
-  a plan whose file IS in the ledger pays one `os.Stat` of a path it already stats. Measured in T1.
+- **Neutral:** no new cost on the ordinary path. `sameFileEntry` still runs only after an exact-key
+  MISS, exactly as before; what moved is where its answer is consumed, not when it is computed. An
+  earlier draft of this line claimed a plan whose file IS in the ledger now pays an extra `os.Stat`,
+  which is false of the code — corrected on the review of PR #129.
 
 ## Out of Scope
 

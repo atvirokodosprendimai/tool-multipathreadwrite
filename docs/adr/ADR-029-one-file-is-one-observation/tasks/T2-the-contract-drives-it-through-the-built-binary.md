@@ -47,7 +47,7 @@ grep -q '^# 67\. ADR-029: one file is one observation, whatever the plan calls i
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `§67` | `scripts/contract.sh` | The built binary refuses an alias-spelled write to lines never served and leaves the file byte-identical, still applies one after a whole read, and prints no unserved line on an alias-spelled anchor failure | — | S1, S2, S3 |
+| `§67` | `scripts/contract.sh` | The built binary refuses an alias-spelled write to lines never served with the PER-LINE refusal and leaves the file byte-identical by digest, still applies one after a whole read, and prints no unserved line on an alias-spelled anchor failure | — | S1, S2, S3 |
 
 ## Reachability
 
@@ -88,3 +88,4 @@ fix exists is asserting nothing, and finding that out here is the point of S1.
 - 2026-09-07 · cd259f2* · exit 0 · `set -o pipefail …` · acceptance-sha256:168c71c1acfb96fd88a82f177f928c51fe99a354c9ab52b7fac6a3d6eac4f389 · ms:32259
 - 2026-09-07 · cd259f2* · exit 0 · `set -o pipefail …` · acceptance-sha256:168c71c1acfb96fd88a82f177f928c51fe99a354c9ab52b7fac6a3d6eac4f389 · ms:30438
 - 2026-09-07 · cd259f2* · exit 0 · `set -o pipefail …` · acceptance-sha256:168c71c1acfb96fd88a82f177f928c51fe99a354c9ab52b7fac6a3d6eac4f389 · ms:30221
+- 2026-09-07 · 2f8adce* · exit 0 · `set -o pipefail …` · acceptance-sha256:168c71c1acfb96fd88a82f177f928c51fe99a354c9ab52b7fac6a3d6eac4f389 · ms:31183
