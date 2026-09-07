@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -148,9 +149,19 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// exact defect this record was written to prevent, one level down.
 		// Found by review of #80.
 		After string `json:"after"`
+		// Ack carries the checkpoints the caller actually received, and it is
+		// what turns a served page into a licensed one (ADR-031). Absent means
+		// "I acknowledge nothing", which is the safe reading and what a caller
+		// written before this field sends.
+		Ack []string `json:"ack"`
 	}
 	if err := json.Unmarshal(args, &a); err != nil {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "arguments: " + err.Error()}
+	}
+	// Promote before serving: the caller is acknowledging the PREVIOUS page,
+	// and a write in the same turn must see the licence this call grants.
+	if err := promote(root, a.Ack); err != nil {
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + err.Error()}
 	}
 	// With grep, no spec is required at all — the walk starts at the root, the
 	// way `mrw read --grep P` with no paths does. Without it, a read with
@@ -340,11 +351,17 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 // count the outcome for ADR-009's tally.
 func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	var a struct {
-		Plan   string `json:"plan"`
-		DryRun bool   `json:"dry_run"`
+		Plan   string   `json:"plan"`
+		DryRun bool     `json:"dry_run"`
+		Ack    []string `json:"ack"`
 	}
 	if err := json.Unmarshal(args, &a); err != nil {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "arguments: " + err.Error()}
+	}
+	// The checkpoints for the page this plan was written against, promoted
+	// before the ledger is consulted (ADR-031).
+	if err := promote(root, a.Ack); err != nil {
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + err.Error()}
 	}
 	if strings.TrimSpace(a.Plan) == "" {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "mrw_write needs a plan"}
@@ -555,19 +572,31 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 		return callToolResult{}, false
 	}
 
-	// The page WAS shown, so it is recorded — and only the span it served, which
-	// is what keeps a page from licensing lines the caller never saw. seen.Record
-	// merges spans for the same sha, so page two adds to page one rather than
-	// replacing it (ADR-002, ADR-014 Decision 3).
-	if err := seen.Record(root, observed); err != nil {
+	// ⚠ THE PAGE WAS SENT, WHICH IS NOT THE SAME AS RECEIVED, AND THIS LINE USED
+	// TO CONFUSE THEM. It recorded the served span outright — "the page WAS
+	// shown" — and on 2026-09-05 a host cut the middle out of exactly such a
+	// page, leaving the model lines 1-90 and 2644-2727 while mrw claimed
+	// 1-3619; a write to line 1500 then applied at exit 0. So the span is held
+	// PENDING against checkpoints woven through the text, and reaches the
+	// ledger only when the caller echoes them back (ADR-031).
+	text, spans := interleave(b.String())
+	if err := hold(root, observed, spans); err != nil {
 		return callToolResult{}, false
 	}
+	acks := make([]string, 0, len(spans))
+	for ck := range spans {
+		acks = append(acks, ck)
+	}
+	sort.Strings(acks)
 	next := fmt.Sprintf("%s:%d-", path, end+1)
-	report := fmt.Sprintf("%s\n\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
+	report := fmt.Sprintf("%s\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
 		"-- Send specs [%q] to continue, or a narrower range of your own.\n"+
-		"-- Stopping here means you have part of this file, not the file.",
-		b.String(), start, end, total, total-end, next)
-	return pagedResult(report, observed, problems, next), true
+		"-- Stopping here means you have part of this file, not the file.\n"+
+		"-- This page licenses NOTHING until you acknowledge it: send ack:[…] with the\n"+
+		"-- `-- ck` values above, and send only the ones you actually received. Each\n"+
+		"-- covers the lines before it; one you omit stays unwritable.",
+		text, start, end, total, total-end, next)
+	return pagedResult(report, nil, problems, next), true
 }
 
 // openEnded reports the path and start line of a spec that asks for a whole

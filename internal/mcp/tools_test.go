@@ -538,16 +538,32 @@ func TestAPageLicensesOnlyWhatItServed(t *testing.T) {
 		t.Fatal("a file this size must page; the fixture is not exercising the path")
 	}
 
-	// A write inside page one is licensed.
-	ok := structured(t, call(t, root, "mrw_write", map[string]any{
+	// ⚠ A PAGE NOW LICENSES NOTHING UNTIL IT IS ACKNOWLEDGED (ADR-031). Before
+	// that record this test wrote straight after reading, because being SENT a
+	// page was taken as having received it — which is the belief a host's
+	// truncation falsified on 2026-09-05. So the checkpoints are taken out of
+	// the served text, the way a caller that actually received the page would.
+	acks := checkpointsIn(served0(t, res))
+	if len(acks) == 0 {
+		t.Fatal("a paged read carries no checkpoints, so nothing can ever be acknowledged")
+	}
+	unacked := structured(t, call(t, root, "mrw_write", map[string]any{
 		"plan": "@@ " + path + " 1 replace\n// page one\n", "dry_run": true}))
-	if n, _ := ok["failed"].(float64); n != 0 {
-		t.Errorf("a write to a line page one served was refused: %v", ok["hunks"])
+	if n, _ := unacked["failed"].(float64); n != 1 {
+		t.Errorf("a write against an UNACKNOWLEDGED page was allowed: %v", unacked["hunks"])
 	}
 
-	// A write far past it is not.
+	// A write inside page one is licensed once the page is acknowledged.
+	ok := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": "@@ " + path + " 1 replace\n// page one\n", "dry_run": true, "ack": acks}))
+	if n, _ := ok["failed"].(float64); n != 0 {
+		t.Errorf("a write to a line page one served was refused after it was acknowledged: %v", ok["hunks"])
+	}
+
+	// A write far past it is not, even acknowledged: acking every checkpoint
+	// the page carried licenses the page, never the file.
 	no := structured(t, call(t, root, "mrw_write", map[string]any{
-		"plan": fmt.Sprintf("@@ %s %d replace\n// last page\n", path, lines), "dry_run": true}))
+		"plan": fmt.Sprintf("@@ %s %d replace\n// last page\n", path, lines), "dry_run": true, "ack": acks}))
 	if n, _ := no["failed"].(float64); n != 1 {
 		t.Fatalf("failed = %v, want 1 — a page must not license lines it never served", no["failed"])
 	}
@@ -1131,4 +1147,16 @@ func TestAReadThatServedNothingIsAnError(t *testing.T) {
 	}
 	empty := call(t, root, "mrw_read", map[string]any{"specs": []any{"empty.txt:1"}})
 	unflagged(t, empty, "a range against an empty file that was observed")
+}
+
+// checkpointsIn pulls ADR-031's markers out of a served page, which is what a
+// caller that actually received the text can do and one that did not cannot.
+func checkpointsIn(text string) []any {
+	var out []any
+	for _, line := range strings.Split(text, "\n") {
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "-- ck "); ok {
+			out = append(out, strings.TrimSpace(rest))
+		}
+	}
+	return out
 }
