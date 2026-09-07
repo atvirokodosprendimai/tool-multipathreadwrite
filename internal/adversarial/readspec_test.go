@@ -103,7 +103,7 @@ func TestKnownGap_ARequestedCapCountsAsAProblem(t *testing.T) {
 	root := tree(t, map[string]string{"big.txt": strings.Repeat("line\n", 40)})
 
 	var buf bytes.Buffer
-	_, problems := read.Run(&buf, root, []read.Spec{{Path: "big.txt"}}, read.Options{MaxLines: 5})
+	_, problems := read.Run(&buf, root, []read.Spec{{Path: "big.txt"}}, read.Options{MaxLines: intp(5)})
 
 	if problems == 0 {
 		t.Error("a fired --max-lines cap no longer counts as a problem — if that is deliberate, " +
@@ -124,7 +124,7 @@ func TestKnownGap_AWhollyWithheldSpanCountsAsAProblem(t *testing.T) {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	_, problems := read.Run(&buf, root, []read.Spec{spec}, read.Options{MaxLines: 3})
+	_, problems := read.Run(&buf, root, []read.Spec{spec}, read.Options{MaxLines: intp(3)})
 
 	if problems == 0 {
 		t.Error("a wholly withheld span no longer counts as a problem")
@@ -151,3 +151,6 @@ func TestAnUnreadableFileAndAnUnmatchedPatternStayProblems(t *testing.T) {
 		t.Error("a pattern matching nothing is not a problem any more")
 	}
 }
+
+// intp is ADR-033's "a cap is set": nil means no cap.
+func intp(n int) *int { return &n }

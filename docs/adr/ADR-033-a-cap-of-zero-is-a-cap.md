@@ -1,9 +1,9 @@
 # ADR-033: A cap of zero is a cap
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-07
 **Owner:** M
-**Accepted:** pending
+**Accepted:** M, 2026-09-07, choosing consistency with `body=0` and `lines=0` over the 0-means-unlimited convention.
 **Spec:** None — no spec stage
 **Cross-references:** `docs/adr/ADR-006-the-root-confines-reads-too-and-a-replace-must-replace-something.md`, `docs/adr/ADR-025-a-read-that-served-nothing-is-an-error.md`, `docs/adr/ADR-027-an-empty-file-is-created-on-purpose-or-not-at-all.md`
 **Governs:** `internal/read/read.go`, `cmd/mrw/main.go`

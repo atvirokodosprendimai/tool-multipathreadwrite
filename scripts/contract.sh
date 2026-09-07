@@ -4002,6 +4002,29 @@ want 1 "$rc" "an alias-spelled anchored hunk on an unserved line is refused"
 grep -q 'UNSERVED-SENTINEL-29' <<<"$out" \
   && bad "the alias refusal read back a line the caller was never served: $out" \
   || ok "the alias refusal reads back no line the caller was not served"
+# 69. ADR-033: a cap of zero is a cap.
+#
+# --max-lines 0 meant UNLIMITED: both guards asked `> 0`, so a cap of zero was
+# indistinguishable from no cap — and NOTHING was reported withheld, though the
+# README promises whatever is withheld always is. body=0 (ADR-027) and lines=0
+# had already been decided the other way.
+#
+# BOTH SPELLINGS. A row asserting only the zero case passes against a binary
+# that serves nothing at all, which is a ban rather than a narrowing.
+fixture
+printf 'one\ntwo\nthree\n' > "$R/cap.txt"
+out=$(m read --max-lines 0 cap.txt 2>&1); rc=$?
+want 1 "$rc" "a cap of zero serves nothing, and a read that served nothing is an error"
+grep -q 'WITHHELD 3 line(s)' <<<"$out" \
+  && ok "a cap of zero reports what it withheld, with the count" \
+  || bad "a cap of zero withheld silently: $out"
+grep -qE '^ +[0-9]+\| ' <<<"$out" && bad "a cap of zero served content: $out" || ok "a cap of zero served no content line"
+# The other spelling: no flag at all is how a caller asks for no cap.
+out=$(m read cap.txt 2>&1); rc=$?
+want 0 "$rc" "a read with no cap is served"
+[ "$(grep -cE '^ +[0-9]+\| ' <<<"$out")" = 3 ] \
+  && ok "an ABSENT --max-lines still serves the whole file" \
+  || bad "omitting the flag no longer means no cap: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

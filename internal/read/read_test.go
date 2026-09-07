@@ -1,6 +1,7 @@
 package read
 
 import (
+	"bytes"
 	"math"
 	"os"
 	"path/filepath"
@@ -192,7 +193,7 @@ func TestStatAsksForTheFactNotTheArtifact(t *testing.T) {
 // A cap that fires must be visible: a silent truncation reads as the whole file.
 func TestMaxLinesReportsWhatItWithheld(t *testing.T) {
 	root, opt := fixture(t)
-	opt.MaxLines = 3
+	opt.MaxLines = intp(3)
 	out, problems := run(t, root, opt, "a.go")
 	if problems == 0 {
 		t.Errorf("truncation was not counted as a problem:\n%s", out)
@@ -663,3 +664,50 @@ func TestAMalformedPatternAddressIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// TestACapOfZeroServesNothing pins ADR-033. `--max-lines 0` used to mean
+// UNLIMITED: both guards asked `opt.MaxLines > 0`, so a cap of zero was
+// indistinguishable from no cap — and nothing was reported withheld, though the
+// README promises whatever is withheld is always reported.
+//
+// This repository decided the same question the other way twice: body=0 is an
+// EMPTY body (ADR-027) and lines=0 is a real assertion about a zero-length span.
+func TestACapOfZeroServesNothing(t *testing.T) {
+	root := t.TempDir()
+	body := ""
+	for i := 1; i <= 5; i++ {
+		body += "line\n"
+	}
+	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	zero := 0
+	var buf bytes.Buffer
+	_, problems := Run(&buf, root, []Spec{{Path: "f.txt"}}, Options{Numbers: true, MaxLines: &zero})
+	got := buf.String()
+	if problems == 0 {
+		t.Error("a cap of zero served everything it was asked for, so nothing was reported withheld")
+	}
+	if strings.Contains(got, "| line") {
+		t.Errorf("a cap of zero served content:\n%s", got)
+	}
+	if !strings.Contains(got, "WITHHELD 5 line(s)") {
+		t.Errorf("the withholding is not reported with its count, so a caller cannot tell what it did not get:\n%s", got)
+	}
+
+	// The control, and the reason this is a pointer rather than a sentinel: an
+	// ABSENT cap still serves the whole file. Without this half, "serve nothing
+	// always" passes.
+	var whole bytes.Buffer
+	_, p2 := Run(&whole, root, []Spec{{Path: "f.txt"}}, Options{Numbers: true})
+	if p2 != 0 {
+		t.Errorf("a read with no cap reported %d problem(s)", p2)
+	}
+	if n := strings.Count(whole.String(), "| line"); n != 5 {
+		t.Errorf("a read with no cap served %d of 5 lines:\n%s", n, whole.String())
+	}
+}
+
+// intp is ADR-033's "a cap is set" in test form: nil means no cap.
+func intp(n int) *int { return &n }

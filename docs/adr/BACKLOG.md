@@ -141,7 +141,9 @@ here.
 
 ## From ADR-007 (mrw finds the files it serves)
 
-- **A cross-file `--max-lines` budget.** The cap is per SPEC today — `read.Run`
+- **A cross-file `--max-lines` budget.** Deferred again from ADR-033, which
+  settles what a cap of ZERO means and leaves the per-file scope alone. The cap
+  is per SPEC today — `read.Run`
   resets `budget := opt.MaxLines` for each one — and ADR-007's walk deduplicates
   so that it is per file for everything the walk produces. What nobody has
   decided is whether `mrw read --grep PAT .` over a large tree should have a
