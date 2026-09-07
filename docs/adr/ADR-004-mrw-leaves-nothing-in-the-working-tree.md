@@ -163,12 +163,18 @@ the state directory, then moving both consumers onto it with migration and
 - **Negative:** moving or renaming a checkout orphans its state directory, and
   nothing prunes them. Each is a few hundred bytes and carries a `root` file
   naming what it belonged to, so a human can clean up; no automatic reaper.
+  ⚠ **Both halves of that sentence went false.** ADR-034 (2026-09-07) measured
+  22,836 directories and 242 MB on one machine — ~10.6 KB each, not a few
+  hundred bytes — of which 22,591 were dead, which is not a number a human
+  cleans up by hand. `mrw seen --prune` now does it, explicitly; the "no
+  automatic reaper" half of this clause is upheld rather than overturned, and
+  ADR-034's Decision says why.
 - **Neutral:** repositories that already gitignored `/.mrw/` keep a harmless
   line, and one containing a legacy ledger keeps it until removed by hand.
 
 ## Out of Scope
 
-- Pruning orphaned state directories (deferred: docs/adr/BACKLOG.md)
+- Pruning orphaned state directories (deferred: docs/adr/BACKLOG.md — RESOLVED by ADR-034)
 - Deleting a legacy `.mrw/` on the caller's behalf (permanent: a tool that
   removes files it did not create, one of which may be committed, is a worse
   bug than the one being fixed)
