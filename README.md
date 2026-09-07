@@ -7,16 +7,22 @@ It is an ordinary command-line tool. It was built for AI coding agents, which
 are the ones doing hundreds of small edits a day, but nothing about it requires
 one.
 
-**Status: stable at v1.4.0 (2026-09-07), the tag cut from the commit this paragraph landed in.**
+**Status: stable at v1.5.0 (2026-09-07), the tag cut from `07bc664`.**
 What that word rests on is recorded in this tree. The six promises listed in `AGENTS.md` are each
 an ADR and each a set of rows in `scripts/contract.sh`, which drives the built binary and prints its
-own verdict; every row is green on the tree the tag is cut from. A break campaign of 47 probes
+own verdict; all 658 of its assertions are green on the tree the tag was cut from. A break campaign of 47 probes
 (`scripts/break-campaign.sh`, its run in `docs/break/`) against that same tree found no silent wrong
-write, every refusal in it names its reason, and every probe's outcome is identical to the v1.3.0 run
-against `3434c35`, the v1.2.0 run against `03feb92` and the v1.1.0 run against `d6c62e7`. That
-identity is evidence of no UNINTENDED change: the campaign exercises neither behaviour v1.4.0
-deliberately changed — the relative address form or the body-less create — and contract §64 and §65
-do.
+write and every refusal in it names its reason; every probe's name and exit code is identical to the
+v1.4.0 run against `bd73ee0`, the v1.3.0 run against `3434c35`, the v1.2.0 run against `03feb92` and the v1.1.0 run
+against `d6c62e7`. That identity is evidence of no UNINTENDED change: the campaign exercises none of
+the three behaviours v1.5.0 changes, and contract §66 and §67 and the engine-boundary tests do.
+**v1.5.0 fixes a defect present in every release before it**, so upgrading is worth doing rather than
+deferring: a file has more than one valid name — an in-root symlink, or a case-only spelling where the
+filesystem is case-insensitive — and under any name but the one the ledger recorded, the per-line
+read-before-write guard was not weakened but ABSENT. A write to lines the caller had never been served
+applied, and reported `ok`. ADR-029 resolves the ledger once so both checks consult the same
+observation; ADR-028 stops a failed `anchor=` printing a line the caller was never shown; ADR-030
+makes `Apply`'s "validates every hunk" true for a caller that builds hunks without the parser.
 And the served-size curve is measured rather than asserted: a strong client
 at the ceiling on the fixture built to be failed (reading 3), the one recurring miss identified as a
 row index (reading 5), the weaker client at the ceiling once the served text reached it without
