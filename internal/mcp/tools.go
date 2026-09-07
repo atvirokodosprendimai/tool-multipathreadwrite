@@ -619,7 +619,14 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 	// cost, stopping the READ at the limit. What it buys is that an over-cap
 	// answer is never delivered — and it sits before hold, so nothing is
 	// recorded pending for a page that is never sent.
-	res := pagedResult(report, nil, problems, next)
+	// ⚠ `observed` DESCRIBES WHAT WAS SERVED, not what is licensed, and passing
+	// nil to signal "nothing licensed yet" produced `"observed": null` against
+	// a schema that requires an object (readSchema) and a README that says the
+	// receipt is unchanged in shape. The conformance assertion checked only key
+	// PRESENCE, so null passed it. Licensing is the ledger's business and the
+	// checkpoints say what is pending; the receipt goes back to telling the
+	// truth about service. Eighth review of PR #132.
+	res := pagedResult(report, observed, problems, next)
 	if encodedSize(res) > MaxResultChars {
 		return callToolResult{}, false
 	}
@@ -698,8 +705,37 @@ func overflowMessage(specs []string, cw *capped) string {
 	// newlines than that, the first CONTENT line never terminated inside a
 	// whole budget — so it cannot come back as a one-line result either, and
 	// mrw serves whole lines. That is the only case where no range helps.
+	// ⚠ PER FILE, NOT ACROSS THE SAMPLE. Counting newlines over the whole
+	// capped buffer means a small file listed FIRST supplies completed lines
+	// and hides an unservable long line in the file after it — the caller then
+	// gets a per-file line budget that cannot serve the long one (eighth review
+	// of PR #132). Each served file's own section is examined: a section whose
+	// header is followed by no completed content line is a file no range helps.
 	const headerLines = 2
 	unterminated := countLines(&cw.buf) <= headerLines
+	if !unterminated {
+		// ⚠ ONLY LINES THAT ENDED COUNT. Splitting on newline leaves the last
+		// element unterminated, and the PREFIX of a giant line arrives — with
+		// its "NNNNN| " gutter — so counting every element containing "| "
+		// counts the very line that did not fit and hides the case.
+		lines := bytes.Split(cw.buf.Bytes(), []byte{'\n'})
+		if n := len(lines); n > 0 {
+			lines = lines[:n-1] // drop the unterminated tail
+		}
+		since := 0
+		for _, l := range lines {
+			if bytes.HasPrefix(l, []byte("==> ")) {
+				since = 0
+				continue
+			}
+			if bytes.Contains(l, []byte("| ")) {
+				since++
+			}
+		}
+		// The LAST file in the sample is the one the cap cut short; if none of
+		// its lines completed, its lines are the unservable ones.
+		unterminated = since == 0
+	}
 	if n := suggestLines(cw.buf.Len(), countLines(&cw.buf)); unterminated || n < 1 {
 		fmt.Fprintf(&b, "One line of this file renders to more than the whole %d-character limit, "+
 			"and mrw serves whole lines — so no narrower range of it can be served, and retrying "+
@@ -1007,9 +1043,16 @@ func nameTheAck(root string, res *apply.Result) {
 		// of PR #132). A refusal naming a fix that cannot work is the failure
 		// ADR-015 exists to prevent, wearing the shape of help.
 		start, end, known := addrRange(h.Addr)
+		// promote() drops a pending span whose version is gone, so recommending
+		// ack for one is recommending a step that cannot work (eighth review of
+		// PR #132).
+		live, _ := currentSHA(root, h.Path)
 		covers := false
 		for _, p := range store {
 			if p.Path != h.Path && !anySameFile(root, h.Path, []string{p.Path}) {
+				continue
+			}
+			if live != "" && p.SHA != live {
 				continue
 			}
 			// An address mrw could not resolve to numbers — a pattern, or $ —
@@ -1062,7 +1105,11 @@ func addrRange(addr string) (start, end int, known bool) {
 	}
 	b, err := strconv.Atoi(strings.TrimSpace(hi))
 	if err != nil {
-		return a, a, true
+		// `3-$` is a valid open-ended address, and calling it the single line 3
+		// makes a pending LATER span look non-intersecting — the caller then
+		// loses the remedy that would have worked. Unknown takes the permissive
+		// path, which is what the doc comment already promised.
+		return 0, 0, false
 	}
 	return a, b, true
 }

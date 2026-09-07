@@ -116,3 +116,4 @@ forbids and which would put markers in CLI output.
 - 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:661d553052712c9edccf3d5edde2eb93caf6a916c563fb6b5bd1f3280a3740bf · ms:5156
 - 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:661d553052712c9edccf3d5edde2eb93caf6a916c563fb6b5bd1f3280a3740bf · ms:5064
 - 2026-09-07 · c9f747b* · exit 0 · `set -o pipefail …` · acceptance-sha256:661d553052712c9edccf3d5edde2eb93caf6a916c563fb6b5bd1f3280a3740bf · ms:5093
+- 2026-09-07 · d65f8e7* · exit 0 · `set -o pipefail …` · acceptance-sha256:661d553052712c9edccf3d5edde2eb93caf6a916c563fb6b5bd1f3280a3740bf · ms:5110

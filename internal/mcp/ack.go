@@ -12,7 +12,7 @@
 //
 // ⚠ Checkpoints are interleaved THROUGH the page, not appended to it, and the
 // measurement is why: the observed truncation kept both ends and removed the
-// middle, so one token at the end survives a cut that destroyed 2,554 lines.
+// middle, so one token at the end survives a cut that destroyed 2,553 lines.
 // Proving receipt of a page requires proving it per region.
 //
 // ⚠ AND A MARKER BRACKETS ITS SPAN RATHER THAN FOLLOWING IT, which is the

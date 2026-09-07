@@ -34,7 +34,7 @@ thirteen-service fixture (reading 17) and for a client from a second vendor (rea
 section *Does serving more hurt?* has the numbers and their limits.
 Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
 tools — changes only through a record, and a record that relaxes or replaces an earlier promise
-retires it. **Since v1.0.0 that has happened three times, all on the MCP surface and none on the CLI:**
+retires it. **Since v1.0.0 that has happened four times, all on the MCP surface and none on the CLI:**
 
 ADR-023 retires half of ADR-011's T2, so `mrw_read` returns no `structuredContent` and declares no
 `outputSchema`; its receipt is the second text block, unchanged in shape. A caller that read
@@ -63,6 +63,15 @@ An answer that served anything is unchanged, and that includes the two shapes it
 mistake for emptiness: a range that matches no line, and an empty file. Both are still OBSERVED — mrw
 opened them and recorded their sha — so both stay unflagged, and the observation count rather than the
 problem count is what separates them.
+
+ADR-031 retires the clause of ADR-014's Decision 3 that recorded a page ON SERVE. The reasoning is
+kept — a page licenses its own lines and no more — but the licence now attaches on ACKNOWLEDGEMENT
+rather than on delivery, because mrw cannot see the difference between a page that arrived and one a
+host cut in half. A paged answer brackets each run of lines with `-- ck <id> open lines A-B (N lines
+follow)` and `-- ck <id> close`, and licenses nothing until the caller sends those ids back as
+`ack`. Measured 2026-09-05, and it is the same failure the `isError` clause above was retired for,
+one level down: the host cut the MIDDLE out of a 2,727-line page, the model saw the two ends, mrw
+recorded all of it, and a write to a line in the discarded middle applied at exit 0.
 
 `mrw_write` is untouched by all three, and so is every CLI behaviour.
 

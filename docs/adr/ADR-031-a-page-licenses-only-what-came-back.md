@@ -8,7 +8,7 @@
 **Cross-references:** `docs/adr/ADR-002-mrw-will-not-edit-a-file-it-has-not-seen.md`, `docs/adr/ADR-014-a-read-too-large-is-a-first-page-not-a-dead-end.md`, `docs/adr/ADR-023-a-reads-answer-is-the-served-text.md`, `docs/adr/ADR-024-a-page-is-known-by-its-served-text.md`, `docs/adr/ADR-029-one-file-is-one-observation.md`
 **Governs:** `internal/mcp/tools.go`, `internal/mcp/ack.go`
 **Enforced-by:** `internal/mcp/ack_test.go::TestOnlyAckedSegmentsAreRecorded`
-**Invalidates:** none — checked
+**Invalidates:** `docs/adr/ADR-014-a-read-too-large-is-a-first-page-not-a-dead-end.md` Decision 3, the clause "What is served IS recorded in the ledger". A page is now HELD PENDING and recorded only on acknowledgement. Decision 3's reasoning survives intact — a page must license its own lines and no more — and this record narrows WHEN that licence attaches, not what it covers. ADR-014 carries the amendment.
 **Served-path change:** an MCP read that PAGES now carries checkpoint markers in its served text and records nothing until the caller echoes them. A read that fits and a grep index are unchanged and carry none; a multi-spec refusal is unchanged except that a file whose lines cannot fit at all now says so instead of naming a range that would fail the same way — the class is narrowed, not closed, and the small-read half is receipted in `docs/adr/BACKLOG.md`. A caller that echoes none is refused on its next write exactly as if it had not read.
 
 ## Context
@@ -32,7 +32,7 @@ M chose the shape on 2026-09-07: a page is recorded only when the caller confirm
 ⚠ **The obvious implementation does not work, and the measurement is what says so.** Put one
 acknowledgement token at the END of the page and require it echoed: the host's cut took the MIDDLE
 and left both ends, so the token survives, the caller echoes it honestly, and the whole page is
-licensed including the 2,554 lines nobody saw. A single token proves the caller saw *a* part. Any
+licensed including the 2,553 lines nobody saw. A single token proves the caller saw *a* part. Any
 design here has to prove receipt *per region*, because that is the shape the damage actually has.
 
 ## Existing Primitives Audit
@@ -93,7 +93,7 @@ number of lines between them. No host does that; a truncation notice is not a fo
 ## Alternatives Considered
 
 - **One token at the end of the page.** Rejected on the measurement above: the observed cut kept both
-  ends and removed the middle, so the token survives a truncation that destroyed 2,554 lines. This is
+  ends and removed the middle, so the token survives a truncation that destroyed 2,553 lines. This is
   the design most readers will propose, which is why it is named first.
 - **A digest of the whole served page, echoed by the caller.** Strongest in principle — a truncated
   page has a different digest — and rejected because the caller is a language model: it cannot

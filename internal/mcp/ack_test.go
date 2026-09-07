@@ -112,7 +112,7 @@ func TestAPendingRecordReachesNoLedger(t *testing.T) {
 // truncation measured on 2026-09-05 kept lines 1-90 and 2644-2727 and discarded
 // everything between, so a fixture that drops the TAIL is green against the
 // single-token scheme ADR-031 explicitly rejects — one token at the end of the
-// page survives that cut, and licenses 2,554 lines nobody saw.
+// page survives that cut, and licenses 2,553 lines nobody saw.
 func TestOnlyAckedSegmentsAreRecorded(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))

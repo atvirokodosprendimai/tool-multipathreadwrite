@@ -94,8 +94,15 @@ func TestTheFirstContentBlockIsTheSerializedStructuredContent(t *testing.T) {
 		if name == "mrw_read" {
 			// No structuredContent to agree with (ADR-023); the receipt at
 			// content[1] is the only copy and must carry the ledger fields.
-			if _, ok := decoded["observed"]; !ok {
+			// ⚠ THE TYPE, not the key. readSchema declares observed an
+			// OBJECT, and checking presence alone let a paged receipt ship
+			// `"observed": null` against it — the key was there and the shape
+			// was wrong (eighth review of PR #132).
+			obs, ok := decoded["observed"]
+			if !ok {
 				t.Errorf("mrw_read: content[1] carries no observed field: %s", text)
+			} else if _, isObj := obs.(map[string]any); !isObj {
+				t.Errorf("mrw_read: observed is %T, not the object readSchema declares: %s", obs, text)
 			}
 			continue
 		}

@@ -4119,6 +4119,28 @@ for c in $cks; do [ -z "$first" ] && first="$c"; last="$c"; done
 if [ -z "$first" ]; then first="none"; last="none"; fi
 
 # Unacknowledged: the page licenses nothing at all.
+# ⚠ EVERY BLOCK BEFORE ANY ACKNOWLEDGEMENT, not just line 1. Probing one line
+# lets a server that records the LAST span while serving still pass: the
+# post-ack assertions cannot tell a licence that came from acknowledgement from
+# one that was there already (eighth review of PR #132).
+python3 - "$R/page.json" > "$R/preack.plan" <<'PY'
+import json,re,sys
+t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"]
+for m in re.finditer(r"^-- ck [0-9a-f]{16} open lines (\d+)-", t, re.M):
+    print("@@ big.txt %s replace" % m.group(1)); print("X")
+PY
+plan_preack=$(python3 -c "
+import sys,json
+print(json.dumps(open(sys.argv[1]).read())[1:-1])" "$R/preack.plan")
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"%s","dry_run":true}}}\n' "$plan_preack" | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == sc["failed"] and sc["applied"] == 0, "a freshly served page licensed something before any acknowledgement: %s" % sc
+PY
+want 0 $? "a freshly served page licenses NO block until it is acknowledged"
+
 out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt 1 replace\\nX\\n","dry_run":true}}}\n' | m mcp 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys

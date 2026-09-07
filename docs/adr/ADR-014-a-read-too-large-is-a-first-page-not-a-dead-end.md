@@ -201,3 +201,22 @@ surviving one, when it removed `structuredContent` from a read.
 
 Decisions 1, 3 and 4 are untouched. The continuation, the ledger's page-scoped span, and the cap's
 value all stand. See `docs/adr/ADR-024-a-page-is-known-by-its-served-text.md`.
+
+## Amendment, 2026-09-07: Decision 3's "recorded on serve" is superseded by ADR-031
+
+**Decision 3 said what is SERVED is recorded, so a page-one read licenses page-one lines.** The
+reasoning holds and ADR-031 keeps it: a page must license its own lines and no more. What ADR-031
+changes is WHEN the licence attaches.
+
+Measured 2026-09-05: a host cut the middle out of a served page, the model received lines 1-90 and
+2644-2727, mrw recorded the whole page, and a write to line 1500 — inside the discarded middle —
+applied at exit 0. Recording on SERVE assumes the page arrived, and mrw cannot see that a cut result
+and a delivered one are different.
+
+So a paged read now holds its span PENDING against checkpoints bracketed through the served text,
+and it reaches the ledger only when the caller echoes them back. "What is served is recorded"
+becomes "what is ACKNOWLEDGED is recorded", and Decision 3's second half — a page licenses its own
+lines and nothing else — is unchanged and now also true of the part of the page that arrived.
+
+Decision 4 (the cap's value does not move) is untouched here; ADR-032 takes up whether the number
+should be the caller's.

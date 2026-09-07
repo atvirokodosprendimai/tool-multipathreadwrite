@@ -1300,3 +1300,48 @@ func TestAPageIsMeasuredAfterItsMarkersAndFooter(t *testing.T) {
 		t.Errorf("the encoded result is %d bytes, over the %d advertised cap", len(enc), MaxResultChars)
 	}
 }
+
+// TestTheUnservableLineIsDiagnosedPerFile pins the multi-spec case. The
+// diagnosis counted completed lines across the WHOLE capped sample, so a small
+// file listed first supplied them and hid an unservable long line in the file
+// after it — the caller then got a per-file line budget that cannot serve it
+// (eighth review of PR #132).
+func TestTheUnservableLineIsDiagnosedPerFile(t *testing.T) {
+	root := t.TempDir()
+	small := ""
+	for i := 1; i < 50; i++ {
+		small += fmt.Sprintf("s %d\n", i)
+	}
+	if err := os.WriteFile(filepath.Join(root, "small.txt"), []byte(small), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "wide.txt"),
+		[]byte(strings.Repeat("x", MaxResultChars+1000)+"\nsecond\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Many long but individually SERVABLE lines must still get a range.
+	if err := os.WriteFile(filepath.Join(root, "many.txt"),
+		[]byte(strings.Repeat(strings.Repeat("y", 110000)+"\n", 6)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range []struct {
+		name       string
+		specs      []any
+		unservable bool
+	}{
+		{"small first, then a line no range can serve", []any{"small.txt", "wide.txt"}, true},
+		{"small first, then long but servable lines", []any{"small.txt", "many.txt"}, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			res := call(t, root, "mrw_read", map[string]any{"specs": c.specs})
+			blocks, _ := res["content"].([]any)
+			first, _ := blocks[0].(map[string]any)
+			txt, _ := first["text"].(string)
+			said := strings.Contains(txt, "serves whole lines")
+			if said != c.unservable {
+				t.Errorf("unservable-line advice = %v, want %v: %s", said, c.unservable, txt)
+			}
+		})
+	}
+}
