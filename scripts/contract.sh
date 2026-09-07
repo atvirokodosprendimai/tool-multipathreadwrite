@@ -3906,8 +3906,19 @@ for op in insert-after insert-before; do
     && bad "the $op refusal read back a line the caller was never served: $out" \
     || ok "the $op refusal reads back no unserved line"
 done
-out=$(printf '@@ s.txt 1 insert-after anchor="no-such-text"\nX\n' | m write - 2>&1)
-grep -q 'public line' <<<"$out" && ok "a served line's insertion anchor still quotes it" || bad "insert-after stopped checking anchors: $out"
+# ⚠ A SERVED-LINE CONTROL MUST ASSERT THE REFUSAL, NOT ONLY THE QUOTE. Grepping
+# the output for the line's text passes against a binary that stopped checking
+# anchors, if that op's SUCCESS receipt happens to print the line — which
+# `delete`'s does, ADR-008 having made it say what it removed. Caught by the
+# fourth Codex review of PR #128 on the delete control below; insert-after
+# survived only because its receipt prints no content, which is an accident of
+# receipt shape rather than a property of the check. Both assert exit 1 now.
+out=$(printf '@@ s.txt 1 insert-after anchor="no-such-text"\nX\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "an anchored insert-after on a SERVED line is still anchor-checked"
+grep -q 'anchor "no-such-text" not in line 1' <<<"$out" \
+  && ok "a served line's insertion anchor failure is the anchor's own" \
+  || bad "insert-after stopped checking anchors: $out"
+grep -q 'public line' <<<"$out" && ok "a served line's insertion anchor still quotes it" || bad "the insertion anchor no longer quotes a line the caller was served: $out"
 # And `delete`, which the first version of this section left out while the record
 # above it claimed all four — caught by the third Codex review of PR #128. It
 # shares `replace`'s ordering rather than the insertions' closure, so it proves a
@@ -3917,8 +3928,12 @@ want 1 "$rc" "an anchored delete on an unserved line is refused"
 grep -q 'UNSERVED-SENTINEL-42' <<<"$out" \
   && bad "the delete refusal read back a line the caller was never served: $out" \
   || ok "the delete refusal reads back no unserved line"
-out=$(printf '@@ s.txt 1 delete anchor="no-such-text"\n' | m write - 2>&1)
-grep -q 'public line' <<<"$out" && ok "a served line's delete anchor still quotes it" || bad "delete stopped checking anchors: $out"
+out=$(printf '@@ s.txt 1 delete anchor="no-such-text"\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "an anchored delete on a SERVED line is still anchor-checked"
+grep -q 'anchor "no-such-text" not in line 1' <<<"$out" \
+  && ok "a served line's delete anchor failure is the anchor's own" \
+  || bad "delete stopped checking anchors: $out"
+grep -q 'public line' <<<"$out" && ok "a served line's delete anchor still quotes it" || bad "the delete anchor no longer quotes a line the caller was served: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
