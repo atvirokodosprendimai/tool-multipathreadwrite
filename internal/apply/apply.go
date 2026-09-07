@@ -501,31 +501,44 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		ok = false
 	}
 
+	// ONE FILE IS ONE OBSERVATION, WHATEVER THE PLAN CALLS IT (ADR-029). The
+	// ledger is keyed on the path a caller typed, and a file has more than one
+	// valid name: an in-root symlink, or a case-only variant where the
+	// filesystem is case-insensitive. So the lookup is resolved ONCE, here,
+	// alias recovery included, and every check below consumes this value.
+	//
+	// It used to be looked up twice — once for the file-level check, which
+	// recovered an alias, and once for the per-line gate, which did not. The
+	// per-line gate then read "no observation for this path" as the shape of a
+	// caller who has read nothing, which the file-level check has already
+	// refused, and let every line through. A write to lines the caller was
+	// never served APPLIED, at exit 0.
+	recorded, known := opt.Seen[path]
+	if !known && opt.Seen != nil {
+		// On a case-insensitive filesystem — NTFS, and APFS by default —
+		// two spellings name ONE file, and the ledger keyed on the string.
+		// So a file that HAD been read was refused as unread, the refusal
+		// asserted something false, and the remedy it suggested added a
+		// third spelling rather than resolving the mismatch (issue #47).
+		//
+		// Resolved with os.SameFile rather than by folding case or asking
+		// what kind of filesystem this is: SameFile is the filesystem's
+		// OWN answer, so on Linux — where a.txt and A.TXT really are two
+		// files — it says no and nothing changes. Separator normalisation
+		// already worked; this is the other axis of the same equivalence.
+		//
+		// Only on the miss, so the ordinary case pays nothing.
+		if alias, found := sameFileEntry(full, path, opt.Seen); found {
+			recorded, known = alias, true
+		}
+	}
+
 	// READ BEFORE MODIFY. An existing file may only be edited if mrw has seen
 	// what it currently holds. Checked once per file, before any hunk, because
 	// it is a fact about the file rather than about a hunk — but reported
 	// THROUGH the first hunk so it travels in the same receipt as every other
 	// verdict, and still aborts the whole run.
 	if existed && opt.Seen != nil && !opt.Force {
-		recorded, known := opt.Seen[path]
-		if !known {
-			// On a case-insensitive filesystem — NTFS, and APFS by default —
-			// two spellings name ONE file, and the ledger keyed on the string.
-			// So a file that HAD been read was refused as unread, the refusal
-			// asserted something false, and the remedy it suggested added a
-			// third spelling rather than resolving the mismatch (issue #47).
-			//
-			// Resolved with os.SameFile rather than by folding case or asking
-			// what kind of filesystem this is: SameFile is the filesystem's
-			// OWN answer, so on Linux — where a.txt and A.TXT really are two
-			// files — it says no and nothing changes. Separator normalisation
-			// already worked; this is the other axis of the same equivalence.
-			//
-			// Only on the failure path, so the ordinary case pays nothing.
-			if alias, found := sameFileEntry(full, path, opt.Seen); found {
-				recorded, known = alias, true
-			}
-		}
 		switch {
 		case !known:
 			fail(hs[0], "%s has not been read: mrw does not know what it currently holds, and a "+
@@ -550,7 +563,7 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 	// caller, and an address counted in lines they never saw is exactly the
 	// stale picture ADR-002 exists to refuse — the same failure as an edited
 	// file, one level finer.
-	obs, haveObs := opt.Seen[path]
+	obs, haveObs := recorded, known
 	covered := func(h hunk, from, to int) bool {
 		if !haveObs || opt.Force || obs.Whole() {
 			return true

@@ -3939,6 +3939,69 @@ for op in replace delete insert-after insert-before; do
     && ok "a served line's $op anchor failure still quotes it" \
     || bad "the $op anchor no longer quotes a line the caller was served: $out"
 done
+# 67. ADR-029: one file is one observation, whatever the plan calls it.
+#
+# The ledger is keyed on the path a caller TYPED, and a file has more than one
+# valid name. The file-level check recovered an aliased observation with
+# os.SameFile (issue #47); the per-line gate looked the ledger up AGAIN by exact
+# key, missed, and read the miss as "this caller has read nothing" — which the
+# file-level check has already refused. So for an alias every per-line check
+# passed and a write to lines never served APPLIED, at exit 0. Not a weakened
+# guard: an absent one.
+#
+# BOTH HALVES. A row asserting only the refusal is green against a binary that
+# refuses EVERY alias, which is issue #47 undone — a file that HAS been read
+# must not be refused as unread because the caller typed another valid name for
+# it. The whole-read case is asserted beside it.
+#
+# ⚠ THIS ROW CARRIES THE SYMLINK HALF ONLY. The other alias is a case-only
+# spelling, which needs a case-INsensitive filesystem; this script runs on Linux
+# in CI, where real.txt and REAL.txt are two different files, so the case is not
+# skipped here — it cannot be written here at all. It is covered by
+# TestAnAliasSpellingIsTheSameFileToThePerLineLedger, which probes the
+# filesystem at runtime and runs on the Windows CI job.
+#
+# ⚠ And one fresh fixture per case, for §66's reason: a case that wrongly
+# SUCCEEDS writes the file AND records the ledger whole, so every later case
+# silently becomes a different test than its name says.
+alias_fixture() {
+  fixture
+  printf 'first\nsecond\nthird\nUNSERVED-SENTINEL-29\n' > "$R/real.txt"
+  ln -s real.txt "$R/link.txt"
+}
+alias_fixture
+m read 'real.txt:1' > /dev/null 2>&1
+before=$(cksum < "$R/real.txt")
+out=$(printf '@@ link.txt 4 replace\nPWNED\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "an alias-spelled write to a line never served is refused"
+# The PER-LINE message, not merely "has not been read": the file-level check
+# says that too, for a file no spelling of which is in the ledger, and matching
+# the shorter string would let this case pass on the wrong refusal.
+grep -q 'has not been read: mrw served' <<<"$out" \
+  && ok "the alias refusal is the per-line ledger's, naming what was served" \
+  || bad "the alias refusal is not the per-line ledger's: $out"
+# Byte identity by digest, not the absence of one string: a write that landed
+# anywhere else in the file would leave PWNED absent and the file changed.
+[ "$(cksum < "$R/real.txt")" = "$before" ] \
+  && ok "the file the alias names is byte-identical" \
+  || bad "the alias spelling changed the file it names: $(cat "$R/real.txt")"
+
+# Issue #47's half, and the reason this is a resolution rather than a ban.
+alias_fixture
+m read 'real.txt' > /dev/null 2>&1
+out=$(printf '@@ link.txt 4 replace\nrewritten\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "a WHOLE read still licenses a write spelled as the alias"
+grep -q 'rewritten' "$R/real.txt" && ok "the licensed alias write reached the file" || bad "the alias write did not reach the file: $out"
+
+# ADR-028's property reaching the alias: with the per-line gate absent, a failed
+# anchor printed the line as it always had.
+alias_fixture
+m read 'real.txt:1' > /dev/null 2>&1
+out=$(printf '@@ link.txt 4 replace anchor="no-such-text"\nX\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "an alias-spelled anchored hunk on an unserved line is refused"
+grep -q 'UNSERVED-SENTINEL-29' <<<"$out" \
+  && bad "the alias refusal read back a line the caller was never served: $out" \
+  || ok "the alias refusal reads back no line the caller was not served"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
