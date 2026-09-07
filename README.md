@@ -360,8 +360,10 @@ the state-directory counts: there is no row to point at, and pointing would leav
 the sentence saying nothing. **And state it when it cannot drift**: shape E's
 175.15× and 8.83× come from a generated file of 20,000 lines of IDENTICAL LENGTH
 — 52 characters plus the newline, 53 bytes, 1,060,000 in total — but of DISTINCT
-content (`item%05d`, all 20,000 different), so the line-number gutter is isolated
-from any variation in line length. That makes those ratios a property of the
+content (`item%05d`, all 20,000 different). Both properties are load-bearing and
+neither is incidental: uniform length isolates the line-number gutter from any
+variation in line length, and distinct content keeps the file reading like real
+source rather than a degenerate one. That makes those ratios a property of the
 construction rather than of a file list, which is exactly what shape D's are not.
 
 The boundary was drawn by the peer session that named the class, after applying
