@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 )
 
 // ceilingFixture builds a checkout whose read AND whose write receipt are each
@@ -462,5 +465,105 @@ func TestTheSecondStageElisionDropsFileRecords(t *testing.T) {
 		if h.Status != "failed" {
 			t.Errorf("a %q hunk survived stage two; only failures may", h.Status)
 		}
+	}
+}
+
+// TestTheWriteFloorIsAFloor binds `writeFloor` to the message it is supposed to
+// bound. The first version substituted 999999 for each count and called that
+// "the widest plausible width"; nothing bounds a plan to a million hunks, so a
+// wide enough real count would slip past the guard and then be replaced by the
+// funnel's generic refusal, which does not say the write happened.
+//
+// ⚠ THE FLOOR IS SELF-REFERENTIAL: the message it measures quotes the ceiling
+// in force, so a narrower ceiling renders a shorter message and a smaller
+// floor. That is consistent — the guard and the real message read the same
+// value at the same moment — but it means the boundary cannot be computed at
+// one ceiling and tested at another. The contract asserted here is the one that
+// actually holds: at any ceiling B, the write is refused exactly when the floor
+// computed AT B exceeds B.
+func TestTheWriteFloorIsAFloor(t *testing.T) {
+	restore := MaxResultChars
+	t.Cleanup(func() { MaxResultChars = restore })
+
+	for _, budget := range []int{0, 1, 64, 300, 440, 445, 450, 500, 5_000, restore} {
+		t.Run(fmt.Sprintf("budget-%d", budget), func(t *testing.T) {
+			root, name := checkout(t, "f.txt", "alpha\nbravo\n")
+			MaxResultChars = restore
+			rawResult(t, root, "mrw_read", map[string]any{"specs": []string{name + ":1"}})
+
+			MaxResultChars = budget
+			floor := writeFloor()
+
+			// The floor must bound the real message for ANY counts at this
+			// ceiling, not for the ones a probe happened to pick.
+			for _, c := range [][3]int{{0, 0, 0}, {1, 1, 0}, {999999, 999999, 999999}, {math.MaxInt, math.MaxInt, math.MaxInt}} {
+				for _, partial := range []bool{false, true} {
+					if n := encodedSize(errorResult(appliedButUnreportable(c[0], c[1], c[2], partial))); n > floor {
+						t.Errorf("a real message at counts %v (partial=%v) is %d bytes, over the %d-byte floor",
+							c, partial, n, floor)
+					}
+				}
+			}
+
+			resp := rawResponse(t, root, "mrw_write", map[string]any{
+				"plan": "@@ " + name + " 1 replace\nMUTATED\n"})
+			_, refused := resp["error"]
+			if want := floor > budget; refused != want {
+				t.Errorf("at ceiling %d with floor %d the write refused=%v, want %v",
+					budget, floor, refused, want)
+			}
+		})
+	}
+}
+
+// TestAPartialApplicationIsNotReportedAsNothingWritten is the regression for the
+// second HIGH the Codex review of #135 found: the terminal branch asked
+// `res.Applied`, which is FALSE for a partial application.
+//
+// apply.Apply renames file by file; a rename that fails after earlier ones
+// succeeded returns Applied=false with those files already on disk, and the
+// engine's own `writtenSoFar` exists to name them. Asking Applied would deny a
+// write that happened — the same denial as the first HIGH, one branch over.
+//
+// ⚠ IT DRIVES boundedReceipt DIRECTLY. Staging a real mid-rename failure needs a
+// filesystem the test can break at exactly the right moment, which is a race on
+// Unix and a different mechanism on Windows; the defect is in the reporting, so
+// the reporting is what is tested.
+func TestAPartialApplicationIsNotReportedAsNothingWritten(t *testing.T) {
+	restore := MaxResultChars
+	t.Cleanup(func() { MaxResultChars = restore })
+	MaxResultChars = 600 // large enough for the terminal sentence, far too small for the receipt
+
+	res := apply.Result{
+		Root:    "/tmp/whatever",
+		Applied: false, // a later rename failed
+		Files: []apply.FileResult{
+			{Path: "a.go", Written: true},  // already renamed into place
+			{Path: "b.go", Written: false}, // the one that failed
+		},
+	}
+	for i := 0; i < 200; i++ {
+		res.Hunks = append(res.Hunks, apply.HunkResult{
+			Path: "a.go", Addr: fmt.Sprint(i), Op: "replace", Status: apply.StatusOK,
+			Reason: strings.Repeat("padding so the full receipt cannot fit ", 4),
+		})
+	}
+
+	out, rpcErr := boundedReceipt(res, fmt.Errorf("b.go: rename failed"), true)
+	if rpcErr != nil {
+		t.Fatalf("boundedReceipt: %v", rpcErr)
+	}
+	if n := encodedSize(out); n > MaxResultChars {
+		t.Fatalf("the terminal answer is %d bytes against a %d ceiling", n, MaxResultChars)
+	}
+	got := out.Content[0].Text
+	if strings.Contains(got, "nothing was written") {
+		t.Errorf("a partial application was reported as nothing written: %s", got)
+	}
+	if !strings.Contains(got, "PARTIALLY APPLIED") {
+		t.Errorf("the answer does not say the tree changed partially: %s", got)
+	}
+	if !strings.Contains(got, "1 file(s) changed on disk") {
+		t.Errorf("the answer does not count the file that WAS written: %s", got)
 	}
 }

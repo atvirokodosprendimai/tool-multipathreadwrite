@@ -4271,9 +4271,14 @@ fixture
 python3 - "$R" <<'PY'
 import sys, pathlib
 d = pathlib.Path(sys.argv[1])
-d.joinpath("wide.txt").write_text("".join("line %05d\n" % i for i in range(1, 4001)))
-d.joinpath("plan.txt").write_text("".join("@@ wide.txt %d replace\nline %05d\n" % (i, i) for i in range(1, 4001)))
-d.joinpath("small.txt").write_text("alpha\nbravo\n")
+# ⚠ NON-ASCII ON PURPOSE. The size assertion below counts UTF-8 BYTES, and an
+# all-ASCII fixture makes bytes and code points identical — so the correction
+# from len(str) to len(bytes) would pass either way and assert nothing. Each
+# line carries a multi-byte character, which is exactly the content that made
+# the two counts diverge. Found by the second Codex review of #135.
+d.joinpath("wide.txt").write_text("".join("línė %05d — ok\n" % i for i in range(1, 4001)), encoding="utf-8")
+d.joinpath("plan.txt").write_text("".join("@@ wide.txt %d replace\nlínė %05d — ok\n" % (i, i) for i in range(1, 4001)), encoding="utf-8")
+d.joinpath("small.txt").write_text("alpha\nbravo\n", encoding="utf-8")
 PY
 # The read is what licenses the write, so the receipt below carries 4,000
 # VERDICTS rather than 4,000 refusals — the shape an elision may shorten.
@@ -4305,6 +4310,14 @@ for line in open(sys.argv[1]):
         continue
     i = line.index('"result":') + len('"result":')
     _, end = dec.raw_decode(line, i)
+    # ⚠ AND THIS CORRECTION CANNOT BE MADE TO BIND FROM A GREEN RUN — said here
+    # rather than left for the next reader to discover. A correct server enforces
+    # the ceiling in BYTES, so every answer it delivers has bytes <= ceiling, and
+    # therefore code points <= bytes <= ceiling as well: both counts pass. The
+    # unit only diverges against a server that has ALREADY shipped an oversized
+    # answer, which is the case this row exists to catch and the one no passing
+    # suite can stage. Reverting to len() leaves the contract green; that is a
+    # property of the check, not evidence the check is idle.
     # ⚠ BYTES, NOT CHARACTERS. json.load hands back a decoded str, so len()
     # counts code points; the ceiling is enforced in bytes (schema.go says so
     # and says why). Equal for an ASCII fixture, which is what made this look

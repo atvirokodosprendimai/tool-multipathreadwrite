@@ -121,6 +121,6 @@ dry_run true: same receipt, no write. A refusal is the tool working:
 it names the file, the plan line and the reason.
 
 Both tools cap the ENCODED answer at the ceiling _meta names. An oversized
-write receipt drops successes, never a failure, and says so in elided.
+write receipt drops successes first and failures last, saying so in elided.
 `, triggerRule, exampleReadSpecs, AckRule, examplePlan)
 }

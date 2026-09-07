@@ -51,7 +51,7 @@ universal name over a two-case fixture, which is the failure `testing.md` names 
 | `internal/mcp/tools.go` | edit | `callTool` gains one postcondition, `withinCeiling`, instead of a size check per return site — enumerating them is how four were missed. `writeTool` refuses before `apply.Apply` when the ceiling cannot carry a minimal truthful post-apply sentence. `boundedReceipt`'s terminal branch tells the truth when `res.Applied`, rather than relying on the new guard elsewhere staying correct. |
 | `internal/mcp/limit_test.go` | edit | Four tests for the four unreached branches. |
 | `scripts/contract.sh` | edit | §70 counts UTF-8 BYTES, not decoded characters, and drives a real write at a small ceiling. |
-| `docs/adr/ADR-032-…md`, `README.md`, `AGENTS.md`, `internal/mcp/instructions.go` | edit | Four claims the review found overstated or false. |
+| `docs/adr/ADR-032-…md`, `docs/adr/…/tasks/T2-…md`, `README.md`, `AGENTS.md` | edit | Four claims the review found overstated or false. ⚠ An earlier version of this row named `internal/mcp/instructions.go`, which the first commit did NOT touch, and omitted T2, which it did — a row that describes a different change than the one it sits in. Corrected in the follow-up commit, which does edit the instructions. |
 
 ## Ordered Steps
 
@@ -70,11 +70,13 @@ universal name over a two-case fixture, which is the failure `testing.md` names 
 ```bash
 set -o pipefail
 go test ./internal/mcp/ -count=1 -v \
-  -run 'TestASmallCeilingRefusesTheWriteBeforeApplying|TestEveryAnswerFitsIncludingTheRefusals|TestTheCeilingNeverShrinksAServedRead|TestTheSecondStageElisionDropsFileRecords' 2>&1 | tee /tmp/adr032-t4.out \
+  -run 'TestASmallCeilingRefusesTheWriteBeforeApplying|TestEveryAnswerFitsIncludingTheRefusals|TestTheCeilingNeverShrinksAServedRead|TestTheSecondStageElisionDropsFileRecords|TestAPartialApplicationIsNotReportedAsNothingWritten|TestTheWriteFloorIsAFloor' 2>&1 | tee /tmp/adr032-t4.out \
   && grep -q '^--- PASS: TestASmallCeilingRefusesTheWriteBeforeApplying' /tmp/adr032-t4.out \
   && grep -q '^--- PASS: TestEveryAnswerFitsIncludingTheRefusals' /tmp/adr032-t4.out \
   && grep -q '^--- PASS: TestTheCeilingNeverShrinksAServedRead' /tmp/adr032-t4.out \
   && grep -q '^--- PASS: TestTheSecondStageElisionDropsFileRecords' /tmp/adr032-t4.out \
+  && grep -q '^--- PASS: TestAPartialApplicationIsNotReportedAsNothingWritten' /tmp/adr032-t4.out \
+  && grep -q '^--- PASS: TestTheWriteFloorIsAFloor' /tmp/adr032-t4.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr032-t4.out \
   && go test ./... -count=1 \
   && go test -race ./... -count=1 \
@@ -93,6 +95,8 @@ go test ./internal/mcp/ -count=1 -v \
 | `TestEveryAnswerFitsIncludingTheRefusals` | `internal/mcp/limit_test.go` | Five refusal shapes — oversized read, bad spec, exclude without grep, empty grep, unparseable plan — all fit the ceiling in force | — | S4 |
 | `TestTheCeilingNeverShrinksAServedRead` | `internal/mcp/limit_test.go` | A read refused for encoded size licenses no write, so the funnel never discards content the ledger recorded | — | S5 |
 | `TestTheSecondStageElisionDropsFileRecords` | `internal/mcp/limit_test.go` | With 400 files and 2 failures at a 3,000-byte ceiling, the file records go, the elision says so, and both failures survive | — | S6 |
+| `TestAPartialApplicationIsNotReportedAsNothingWritten` | `internal/mcp/limit_test.go` | A result with `Applied: false` and one file `Written: true` is reported as PARTIALLY APPLIED with the file counted, never as "nothing was written" | — | S3 |
+| `TestTheWriteFloorIsAFloor` | `internal/mcp/limit_test.go` | At ten ceilings, the floor bounds the real message at every count width including `math.MaxInt`, and the write is refused exactly when the floor exceeds the ceiling | — | S2 |
 
 ## Reachability
 
@@ -116,11 +120,16 @@ go test ./internal/mcp/ -count=1 -v \
   ```
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
+- 2026-09-07 · 2ca098c* · mutant killed · exit 1 · `internal/mcp/tools.go` · the terminal branch goes back to asking Applied, so a PARTIAL application — earlier files already renamed, a later one failed — is reported as nothing written. The second HIGH of the second Codex review, and the same denial as the first HIGH one branch over · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477 · covers:a write refused rather than applied when its verdict cannot be reported
+- 2026-09-07 · 2ca098c* · mutant killed · exit 1 · `internal/mcp/tools.go` · the floor goes back to a plausible width rather than a proven one, so a plan wide enough to render more digits passes the guard and is then replaced by the funnel generic refusal, which does not say the write happened · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477 · covers:a write refused rather than applied when its verdict cannot be reported
+- 2026-09-07 · 2ca098c* · mutant killed · exit 1 · `internal/mcp/tools.go` · the pre-apply guard is gone again — re-run against the fence extended in this commit; a mutant bound to a digest nobody runs is evidence about nothing · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477
+- 2026-09-07 · 2ca098c* · mutant killed · exit 1 · `internal/mcp/tools.go` · the funnel stops bounding anything again — re-run against the fence extended in this commit; a mutant bound to a digest nobody runs is evidence about nothing · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477
+- 2026-09-07 · 2ca098c* · mutant killed · exit 1 · `internal/mcp/tools.go` · the second elision stage stops dropping file records again — re-run against the fence extended in this commit; a mutant bound to a digest nobody runs is evidence about nothing · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477
 
 ## Invariants
 - ⚠ A WRITE IS NEVER APPLIED UNDER A CEILING THAT CANNOT REPORT IT. The refusal happens before `apply.Apply`, so the tree is untouched — ADR-004's rule, applied to a budget rather than to a failure.
 - The terminal branch of `boundedReceipt` is honest on its own, without depending on the pre-apply guard. A verdict whose correctness rests on a guard somewhere else is the kind that comes back.
-- `withinCeiling` may only ever shrink an answer that licensed nothing. The served-read path measures and refuses before `seen.Record`, and S5 pins it.
+- `withinCeiling` shrinks no answer that this CALL licensed: the served read measures and refuses before `seen.Record`, a page measures before `hold`, and `matchIndex` records nothing. ⚠ It is NOT true that such an answer licensed nothing at all — `promote(root, a.Ack)` runs at the top of both handlers and writes the PREVIOUS page into the ledger before anything is composed. So a rewritten answer can follow a licence granted earlier in the same call, for lines the caller really did receive. An earlier version of this line said "licensed nothing" flatly, which is false; the property that matters is that no pending record ever describes content the caller was not sent. Codex, second review of #135.
 - A JSON-RPC error carries no `result` member and is therefore outside the advertised tool-result ceiling. That is what makes an honest answer possible at budget 0.
 - `internal/read`, `internal/apply`, `internal/plan`, `internal/seen` and `internal/state` stay byte-identical against the merge base, and `go.mod` declares exactly one requirement.
 
@@ -145,6 +154,11 @@ before the size check — that inverts ADR-002 and is a different decision.
 - 2026-09-07 · e8c1a29* · exit 0 · `set -o pipefail …` · acceptance-sha256:b372ba8dfb64d297b8ccf0fd27d7fd7fc2499fab220ec6457faa367a879bc240 · ms:35158
 - 2026-09-07 · e8c1a29* · exit 0 · `set -o pipefail …` · acceptance-sha256:b372ba8dfb64d297b8ccf0fd27d7fd7fc2499fab220ec6457faa367a879bc240 · ms:54086
 - 2026-09-07 · e8c1a29* · exit 0 · `set -o pipefail …` · acceptance-sha256:b372ba8dfb64d297b8ccf0fd27d7fd7fc2499fab220ec6457faa367a879bc240 · ms:51468
+- 2026-09-07 · 2ca098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477 · ms:35755
+- 2026-09-07 · 2ca098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477 · ms:40302
+- 2026-09-07 · 2ca098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477 · ms:39704
+- 2026-09-07 · 2ca098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477 · ms:39352
+- 2026-09-07 · 2ca098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477 · ms:38851
 
 ## Declared uncovered
 
@@ -154,3 +168,23 @@ before the size check — that inverts ADR-002 and is a different decision.
   reach a ceiling too small to report it, so no hermetic fixture gets there. The branch stays because
   a verdict whose correctness depends on a guard elsewhere staying correct is the kind that comes
   back — but "I could not make the fence fail for that reason" is the finding, not a weaker mutant.
+
+- ⚠ **THE MUTATION LOG CARRIES TWO FENCE DIGESTS, and the earlier one is about a fence that no
+  longer exists.** `b372ba8d…` is the fence before this task's follow-up commit added
+  `TestAPartialApplicationIsNotReportedAsNothingWritten` and `TestTheWriteFloorIsAFloor` to it;
+  `8366a327…` is the fence as it stands. Every mechanism still present was re-run against the new
+  digest and killed — the pre-apply guard, the funnel, the second elision stage, the proven floor and
+  the written-file test — so no live claim rests on the stale digest. The `b372ba8d` rows are left in
+  place because the log is append-only and because they record something true at the time, including
+  the funnel mutant that SURVIVED before its test was strengthened.
+  One `b372ba8d` row is about code that is gone: the survivor for `if res.Applied {` in the terminal
+  branch, which is now `if written > 0 {`. It is not evidence about anything in the tree today, and
+  saying so here is cheaper than letting a future reader re-derive it.
+
+- ⚠ **§70's UTF-8 byte count CANNOT BE MADE TO BIND from a green run, and the row says so itself.**
+  A correct server enforces the ceiling in bytes, so every answer it delivers has bytes ≤ ceiling and
+  therefore code points ≤ bytes ≤ ceiling: both counts pass. The unit only diverges against a server
+  that has already shipped an oversized answer — the case this row exists to catch and the one no
+  passing suite can stage. Reverting `.encode("utf-8")` leaves the contract green. The correction is
+  kept because it is right, not because anything here proves it; the non-ASCII fixture is kept
+  because it exercises multi-byte content through read, plan and write, which nothing did before.

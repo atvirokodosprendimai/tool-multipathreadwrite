@@ -631,12 +631,21 @@ func boundedReceipt(res apply.Result, applyErr error, isErr bool) (callToolResul
 	// now makes this unreachable for an applied write, and this branch tells
 	// the truth anyway — a verdict that depends on a guard elsewhere staying
 	// correct is the kind that comes back.
-	if res.Applied {
-		return errorResult(fmt.Sprintf("the plan APPLIED: %d file(s) changed, %d hunk(s), %d failed. "+
-			"NAMING them takes more than the %d-byte ceiling this server advertises, so the "+
-			"per-hunk detail is not here — but the write HAPPENED. Read the files, or re-run "+
-			"with a larger --max-result-chars.",
-			len(res.Files), len(res.Hunks), res.Failed, MaxResultChars)), nil
+	// ⚠ AND THE TEST IS "DID ANY FILE CHANGE", NOT "DID THE PLAN APPLY". The
+	// second cut asked res.Applied, which is FALSE for a partial application:
+	// apply.Apply renames file by file, and a rename that fails after earlier
+	// ones succeeded returns Applied=false with those files already on disk —
+	// the engine has `writtenSoFar` for exactly that case. Asking Applied would
+	// deny a write that happened, one review after the same denial for a
+	// complete one. Found by the second Codex review of #135.
+	written := 0
+	for _, f := range res.Files {
+		if f.Written {
+			written++
+		}
+	}
+	if written > 0 {
+		return errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, !res.Applied)), nil
 	}
 	return errorResult(fmt.Sprintf("%d of %d hunk(s) failed and nothing was written. Naming them "+
 		"takes more than the %d-byte ceiling this server advertises, so they are not listed here. "+
@@ -644,18 +653,39 @@ func boundedReceipt(res apply.Result, applyErr error, isErr bool) (callToolResul
 		"limit.", res.Failed, len(res.Hunks), MaxResultChars)), nil
 }
 
+// appliedButUnreportable is what this server says when the tree changed and the
+// receipt naming the change will not fit. One function so the message the floor
+// is measured against and the message actually sent cannot drift apart.
+func appliedButUnreportable(written, hunks, failed int, partial bool) string {
+	state := "the plan APPLIED"
+	if partial {
+		state = "the plan PARTIALLY APPLIED — a later file failed after earlier ones were already written"
+	}
+	return fmt.Sprintf("%s: %d file(s) changed on disk, %d hunk(s), %d failed. NAMING them takes "+
+		"more than the %d-byte ceiling this server advertises, so the per-hunk detail is not here "+
+		"— but the write HAPPENED. Read the files, or re-run with a larger --max-result-chars.",
+		state, written, hunks, failed, MaxResultChars)
+}
+
 // writeFloor is the size of the smallest truthful thing this server can say
 // about a write that has already happened, and writeFloorFits asks whether the
 // ceiling in force can carry it.
 //
-// The probe is the applied-but-unreportable sentence with its counts at their
-// widest plausible width, so the floor is never optimistic: a budget that
-// passes here must still hold the real message.
+// ⚠ IT IS A PROVEN FLOOR, NOT A PLAUSIBLE ONE. The first cut substituted 999999
+// for each count and called that "the widest plausible width"; nothing bounds a
+// plan to a million hunks, so a wide enough real count would exceed the probe,
+// pass the guard, and then be replaced by the funnel's generic refusal — which
+// does not say the write happened. math.MaxInt is the widest any int can
+// render, and the PARTIAL wording is the longer of the two, so this is an upper
+// bound on the real message by construction. Codex, second review of #135.
+//
+// ⚠ IT IS SELF-REFERENTIAL: the message quotes the ceiling in force, so a
+// narrower ceiling renders a shorter message and a smaller floor. That is
+// consistent, because the guard and the real message read MaxResultChars at the
+// same moment — but it means a floor computed at one ceiling says nothing about
+// another, which is what TestTheWriteFloorIsAFloor asserts across ten of them.
 func writeFloor() int {
-	return encodedSize(errorResult(fmt.Sprintf("the plan APPLIED: %d file(s) changed, %d hunk(s), %d failed. "+
-		"NAMING them takes more than the %d-byte ceiling this server advertises, so the "+
-		"per-hunk detail is not here — but the write HAPPENED. Read the files, or re-run "+
-		"with a larger --max-result-chars.", 999999, 999999, 999999, MaxResultChars)))
+	return encodedSize(errorResult(appliedButUnreportable(math.MaxInt, math.MaxInt, math.MaxInt, true)))
 }
 
 func writeFloorFits() bool { return writeFloor() <= MaxResultChars }
