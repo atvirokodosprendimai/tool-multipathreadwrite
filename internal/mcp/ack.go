@@ -60,7 +60,7 @@ const AckRule = "Send an id in ack only if you hold BOTH its open and close mark
 
 // ckEvery is how many served content lines one checkpoint covers. At 200 a
 // 2,727-line page pays twenty-eight marker lines — an open and a close each —
-// which is under one percent of its size.
+// which is 1.03% of its size.
 const ckEvery = 200
 
 // pendingName is the file under the state directory holding spans that have

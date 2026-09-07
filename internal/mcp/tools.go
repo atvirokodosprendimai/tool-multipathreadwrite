@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -589,10 +588,6 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 	// partial line: the unit it proves is a line. Declining sends the caller
 	// down the ordinary path, which refuses with the limit and a line budget.
 	// Found by the fifth review of PR #132.
-	if b.Len() > MaxResultChars {
-		return callToolResult{}, false
-	}
-
 	// ⚠ THE PAGE WAS SENT, WHICH IS NOT THE SAME AS RECEIVED, AND THIS LINE USED
 	// TO CONFUSE THEM. It recorded the served span outright — "the page WAS
 	// shown" — and on 2026-09-05 a host cut the middle out of exactly such a
@@ -601,14 +596,6 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 	// PENDING against checkpoints woven through the text, and reaches the
 	// ledger only when the caller echoes them back (ADR-031).
 	text, spans := interleave(b.String())
-	if err := hold(root, observed, spans); err != nil {
-		return callToolResult{}, false
-	}
-	acks := make([]string, 0, len(spans))
-	for ck := range spans {
-		acks = append(acks, ck)
-	}
-	sort.Strings(acks)
 	next := fmt.Sprintf("%s:%d-", path, end+1)
 	report := fmt.Sprintf("%s\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
 		"-- Send specs [%q] to continue, or a narrower range of your own.\n"+
@@ -616,6 +603,19 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 		"-- This page licenses NOTHING until you acknowledge it.\n-- "+AckRule+"\n"+
 		"-- An id you omit leaves its lines unwritable, which is the point.",
 		text, start, end, total, total-end, next)
+
+	// ⚠ THE COMPOSED PAGE IS WHAT MUST FIT, and an earlier cut measured the raw
+	// buffer instead — before interleave added the markers and before this
+	// footer was appended. A line just under the cap therefore produced a page
+	// just over it: measured at 199,518 bytes checked against 200,142 delivered
+	// (sixth review of PR #132). The gate is here, after composition and BEFORE
+	// hold, so nothing is recorded as pending for a page that is never sent.
+	if len(report) > MaxResultChars {
+		return callToolResult{}, false
+	}
+	if err := hold(root, observed, spans); err != nil {
+		return callToolResult{}, false
+	}
 	return pagedResult(report, nil, problems, next), true
 }
 
@@ -670,9 +670,36 @@ func overflowMessage(specs []string, cw *capped) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "that read would have returned about %d bytes and the limit is %d.\n", cw.written, cw.limit)
 	b.WriteString("Nothing was read and nothing was recorded, so no write is licensed by it.\n")
-	if len(specs) == 1 && !strings.Contains(specs[0], ":") {
-		fmt.Fprintf(&b, "Ask for a range instead — for example %s:1-%d.",
-			specs[0], suggestLines(cw.buf.Len(), countLines(&cw.buf)))
+	// ⚠ WHEN ONE LINE CANNOT FIT, A NARROWER RANGE CANNOT HELP. Suggesting
+	// `f.txt:1-1` for a file whose first line exceeds the cap sends the caller
+	// to retry the identical unservable request. mrw pages by LINE and
+	// acknowledges by line, so a line larger than the answer has no smaller
+	// unit to fall back to — say so, and name a reader that has one. Found by
+	// the sixth review of PR #132.
+	// The sample is capped at the limit, so a run of bytes with no newline in it
+	// is a line at LEAST that long. Half the budget is the threshold: a line
+	// that big cannot be served with room for the markers and footer a page
+	// needs, and mrw pages by line, so no narrower range exists to retry with.
+	// An average over countLines would not see this — the header's own newlines
+	// pull it down.
+	sample := cw.buf.Bytes()
+	longest := len(sample)
+	if i := bytes.LastIndexByte(sample, '\n'); i >= 0 {
+		if run := len(sample) - i - 1; run < longest {
+			longest = run
+		}
+		for _, line := range bytes.Split(sample, []byte{'\n'}) {
+			if len(line) > longest {
+				longest = len(line)
+			}
+		}
+	}
+	if n := suggestLines(cw.buf.Len(), countLines(&cw.buf)); longest >= cw.limit/2 || n < 1 {
+		fmt.Fprintf(&b, "One line of this file is at least %d characters, and mrw pages BY LINE — "+
+			"so no narrower range of it can be served, and retrying with one would fail the same "+
+			"way. Read it with the CLI, `mrw read`, which streams and has no such limit.", longest)
+	} else if len(specs) == 1 && !strings.Contains(specs[0], ":") {
+		fmt.Fprintf(&b, "Ask for a range instead — for example %s:1-%d.", specs[0], n)
 	} else {
 		fmt.Fprintf(&b, "Ask for narrower ranges — around %d lines per file at this file's line length — or name fewer files in one call.",
 			suggestLines(cw.buf.Len(), countLines(&cw.buf)))

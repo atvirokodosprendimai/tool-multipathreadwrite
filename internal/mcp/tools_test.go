@@ -1253,7 +1253,45 @@ func TestAPageThatCannotFitIsNotAPage(t *testing.T) {
 		t.Error("a read that cannot be paged is not refused either, so the caller gets neither the lines nor a reason")
 	}
 	first, _ := blocks[0].(map[string]any)
-	if txt, _ := first["text"].(string); !strings.Contains(txt, "limit") {
+	txt, _ := first["text"].(string)
+	if !strings.Contains(txt, "limit") {
 		t.Errorf("the refusal does not name the limit: %s", txt)
+	}
+	// ⚠ AND THE ADVICE MUST BE USABLE. The ordinary refusal says "ask for a
+	// range instead — for example wide.txt:1-1", which for this file retries the
+	// identical unservable line. A refusal that names an impossible remedy is
+	// ADR-015's failure with extra steps (sixth review of PR #132).
+	if strings.Contains(txt, ":1-1") {
+		t.Errorf("the refusal tells the caller to retry the same unservable line: %s", txt)
+	}
+	if !strings.Contains(txt, "pages BY LINE") || !strings.Contains(txt, "mrw read") {
+		t.Errorf("the refusal does not say why no range helps, nor name a reader that can: %s", txt)
+	}
+}
+
+// TestAPageIsMeasuredAfterItsMarkersAndFooter pins the boundary the first cut
+// of the fit check missed: it measured the raw buffer, before interleave added
+// the checkpoint markers and before the footer was appended. A line just UNDER
+// the cap then produced a page just over it — 199,518 bytes checked against
+// 200,142 delivered — so the very case the check exists for slipped through.
+// Found by the sixth review of PR #132.
+func TestAPageIsMeasuredAfterItsMarkersAndFooter(t *testing.T) {
+	root := t.TempDir()
+	var b strings.Builder
+	b.WriteString(strings.Repeat("x", MaxResultChars-2000))
+	b.WriteByte('\n')
+	for i := 2; i <= 1001; i++ {
+		fmt.Fprintf(&b, "line %d\n", i)
+	}
+	if err := os.WriteFile(filepath.Join(root, "near.txt"), []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{"near.txt"}})
+	blocks, _ := res["content"].([]any)
+	for _, blk := range blocks {
+		m, _ := blk.(map[string]any)
+		if txt, _ := m["text"].(string); len(txt) > MaxResultChars {
+			t.Errorf("a served block is %d characters, over the %d advertised cap — the page was measured before its markers and footer", len(txt), MaxResultChars)
+		}
 	}
 }

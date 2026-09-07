@@ -52,7 +52,7 @@ go test ./internal/mcp/ -count=1 -v \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestOnlyAckedSegmentsAreRecorded` | `internal/mcp/ack_test.go` | With the FIRST and LAST checkpoints acked and the middle not, the ledger holds exactly the two end spans — asserted at their EDGES, since probing an unacknowledged middle leaves an off-by-one at a boundary invisible — and the WRITES are driven, not merely the ledger inspected — the middle is refused, the refusal carries `ack` after `nameTheAck`, and an acknowledged span applies | — | S1, S2, S3, S4, S5 |
+| `TestOnlyAckedSegmentsAreRecorded` | `internal/mcp/ack_test.go` | With the FIRST and LAST checkpoints acked and the middle not, the ledger holds exactly the two end spans — compared as an exact span set, and asserted at their EDGES, since probing an unacknowledged middle leaves an off-by-one at a boundary invisible — and the WRITES are driven, not merely the ledger inspected — the middle is refused, the refusal carries `ack` after `nameTheAck`, and an acknowledged span applies | — | S1, S2, S3, S4, S5 |
 
 ## Reachability
 
@@ -116,3 +116,5 @@ Stop and ask if promotion needs `internal/seen` to change shape — the spans ar
 - 2026-09-07 · f0865c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:30602
 - 2026-09-07 · 7c7b0b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:36407
 - 2026-09-07 · c617934* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:30248
+- 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:34260
+- 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:32402

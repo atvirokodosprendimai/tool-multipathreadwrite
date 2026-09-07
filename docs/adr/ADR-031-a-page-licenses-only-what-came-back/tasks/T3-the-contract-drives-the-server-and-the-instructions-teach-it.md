@@ -146,3 +146,5 @@ exists asserts nothing, and finding that out here is the point of S1.
 - 2026-09-07 · f0865c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:30079
 - 2026-09-07 · 7c7b0b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:32483
 - 2026-09-07 · c617934* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:30160
+- 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:32184
+- 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:32108

@@ -190,6 +190,18 @@ func TestOnlyAckedSegmentsAreRecorded(t *testing.T) {
 	if !o.Covers(200, 200) || !o.Covers(401, 401) {
 		t.Errorf("an acknowledged span does not reach its own edges: %s", o.Served())
 	}
+	// ⚠ THE EXACT SPAN SET. Probing 201, 250 and 400 leaves a rogue interior
+	// span anywhere else undetected, while T2 claims the ledger holds EXACTLY
+	// the two acknowledged spans (sixth review of PR #132).
+	want := [][2]int{{1, 200}, {401, 500}}
+	if len(o.Spans) != len(want) {
+		t.Fatalf("the ledger holds %v, want exactly %v", o.Spans, want)
+	}
+	for i := range want {
+		if o.Spans[i] != want[i] {
+			t.Errorf("span %d is %v, want %v", i, o.Spans[i], want[i])
+		}
+	}
 
 	// ⚠ The WRITES, not only the ledger's opinion of them. Inspecting Covers
 	// asserts what the ledger holds; it does not assert that a write is refused
@@ -447,5 +459,29 @@ func TestCheckpointsAreNotADenseSequence(t *testing.T) {
 		if vals[i]-vals[i-1] < 1<<32 {
 			t.Errorf("two checkpoints are within 2^32 of each other, which 64-bit draws do not do at this sample size")
 		}
+	}
+}
+
+// TestThePendingStoreIsBounded gives the cap an oracle. T1 marked the bound
+// [proof: mutation] with no mutant against it, and disabling eviction was
+// observed by nothing (sixth review of PR #132).
+func TestThePendingStoreIsBounded(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < maxPending+64; i++ {
+		spans := map[string][2]int{checkpoint(): {i + 1, i + 1}}
+		if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: "deadbeef"}}, spans); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store, err := loadPending(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(store) > maxPending {
+		t.Errorf("the pending store holds %d entries, over the %d bound — a caller that never acknowledges grows it without limit", len(store), maxPending)
 	}
 }

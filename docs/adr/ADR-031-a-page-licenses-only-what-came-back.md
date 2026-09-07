@@ -41,7 +41,7 @@ design here has to prove receipt *per region*, because that is the shape the dam
   `merge` already unions them. **Reused as-is**: recording three disjoint segments of a page needs no
   new shape, only a decision about which segments to record.
 - **`seen.Record` (`:274`)** — unchanged. What changes is WHEN the MCP layer calls it.
-- **ADR-014's paging and its `-- PARTIAL:` footer (`internal/mcp/tools.go:566`)** — the place the
+- **ADR-014's paging and its `-- PARTIAL:` footer (`internal/mcp/tools.go:600`)** — the place the
   caller is already told what it holds and how to continue. **Extended**, not replaced.
 - **`internal/state`** — where mrw keeps what belongs outside the tree (ADR-004). **Reused** for the
   pending record; nothing new is invented to hold it.

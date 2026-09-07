@@ -888,8 +888,11 @@ re-measuring these. Each was driven at the built binary, not read:
 
   **Two obligations remain open here, and ADR-024 defers both to this file by name.**
 
-- **The ledger records what was SENT, not what was SEEN** (`internal/mcp/tools.go`, the `seen.Record`
-  calls). Deferred from `docs/adr/ADR-024-a-page-is-known-by-its-served-text.md`, whose Decision 4
+- ~~**The ledger records what was SENT, not what was SEEN** (`internal/mcp/tools.go`, the `seen.Record`
+  calls).~~ **CLOSED 2026-09-07 by ADR-031 FOR PAGED READS** — a page is held pending against
+  bracketed checkpoints and reaches the ledger only when the caller echoes them. ⚠ Still OPEN for a
+  read that FITS, which is recorded on serve as before; that half has its own entry below. Kept
+  because the reasoning is what made the class visible. Deferred from `docs/adr/ADR-024-a-page-is-known-by-its-served-text.md`, whose Decision 4
   says plainly that it narrows the exposure without removing the class: mrw cannot observe truncation
   from inside the server, a cut result and a whole one being identical to it. `anchor=` is the
   candidate echo-back — it already exists, and a caller that never saw a line cannot reproduce its
