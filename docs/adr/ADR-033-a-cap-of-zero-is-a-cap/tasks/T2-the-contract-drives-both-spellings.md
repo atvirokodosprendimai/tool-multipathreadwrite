@@ -49,7 +49,7 @@ grep -q '^# 69\. ADR-033: a cap of zero is a cap\.' scripts/contract.sh \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `§69` | `scripts/contract.sh` | The built binary serves nothing and reports the withholding for `--max-lines 0`, and serves the whole file, line for line and in order, when the flag is absent | — | S1, S2 |
+| `§69` | `scripts/contract.sh` | The built binary serves nothing and reports the withholding for `--max-lines 0`, and serves the whole file when the flag is absent, its served sequence compared exactly so reordering or a repeat fails | — | S1, S2 |
 
 ## Reachability
 
@@ -91,3 +91,4 @@ exists asserts nothing.
 - 2026-09-07 · 2fda99d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · ms:33041
 - 2026-09-07 · 2fda99d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · ms:31547
 - 2026-09-07 · fd4ce17* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · ms:34524
+- 2026-09-07 · 2a67824* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · ms:30672

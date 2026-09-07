@@ -2,7 +2,6 @@ package read
 
 import (
 	"bytes"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -690,8 +689,11 @@ func TestACapOfZeroServesNothing(t *testing.T) {
 	if problems == 0 {
 		t.Error("a cap of zero served everything it was asked for, so nothing was reported withheld")
 	}
-	if strings.Contains(got, "| line") {
-		t.Errorf("a cap of zero served content:\n%s", got)
+	// ⚠ ANY numbered content line, not the old fixture's word. This checked for
+	// "| line" and kept checking for it after the fixture became alpha/bravo/…,
+	// so it could have served every line and still passed (review of PR #133).
+	if numbered := contentLines(got); len(numbered) != 0 {
+		t.Errorf("a cap of zero served %d content line(s):\n%s", len(numbered), got)
 	}
 	if !strings.Contains(got, "WITHHELD 5 line(s)") {
 		t.Errorf("the withholding is not reported with its count, so a caller cannot tell what it did not get:\n%s", got)
@@ -705,16 +707,39 @@ func TestACapOfZeroServesNothing(t *testing.T) {
 	if p2 != 0 {
 		t.Errorf("a read with no cap reported %d problem(s)", p2)
 	}
-	// The exact lines, in order, not a count of them.
-	for i, want := range []string{"alpha", "bravo", "charlie", "delta", "echo"} {
-		if !strings.Contains(whole.String(), fmt.Sprintf("%5d| %s\n", i+1, want)) {
-			t.Errorf("a read with no cap did not serve line %d as %q:\n%s", i+1, want, whole.String())
-		}
+	// ⚠ THE SEQUENCE, compared exactly. Checking each line's PRESENCE and then
+	// ordering only the first against the last lets the middle reorder and lets
+	// any line repeat — the review of PR #133 reproduced that. The extracted
+	// sequence is compared to the fixture's, element for element.
+	want := []string{"alpha", "bravo", "charlie", "delta", "echo"}
+	got2 := contentLines(whole.String())
+	if len(got2) != len(want) {
+		t.Fatalf("a read with no cap served %d lines, want %d:\n%s", len(got2), len(want), whole.String())
 	}
-	if a, b := strings.Index(whole.String(), "alpha"), strings.Index(whole.String(), "echo"); a > b {
-		t.Error("the served lines are out of order")
+	for i := range want {
+		if got2[i] != want[i] {
+			t.Errorf("line %d is %q, want %q — the served sequence is not the file's", i+1, got2[i], want[i])
+		}
 	}
 }
 
 // intp is ADR-033's "a cap is set" in test form: nil means no cap.
 func intp(n int) *int { return &n }
+
+// contentLines extracts the served text of every numbered line, in order, so a
+// control can compare the SEQUENCE rather than count occurrences or check
+// presence — both of which accept duplicated and reordered output.
+func contentLines(out string) []string {
+	var got []string
+	for _, l := range strings.Split(out, "\n") {
+		i := strings.Index(l, "| ")
+		if i <= 0 {
+			continue
+		}
+		if _, err := strconv.Atoi(strings.TrimSpace(l[:i])); err != nil {
+			continue
+		}
+		got = append(got, l[i+2:])
+	}
+	return got
+}

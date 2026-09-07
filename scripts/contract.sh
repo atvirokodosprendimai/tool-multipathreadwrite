@@ -4022,14 +4022,14 @@ grep -qE '^ +[0-9]+\| ' <<<"$out" && bad "a cap of zero served content: $out" ||
 # The other spelling: no flag at all is how a caller asks for no cap.
 out=$(m read cap.txt 2>&1); rc=$?
 want 0 "$rc" "a read with no cap is served"
-# ⚠ THE LINES, IN ORDER — not a count of numbered lines, which passes on
-# duplicated or substituted content while the row claims the whole file came
-# back (review of PR #133).
-if grep -q '^ *1| alpha$' <<<"$out" && grep -q '^ *2| bravo$' <<<"$out" && grep -q '^ *3| charlie$' <<<"$out"; then
-  ok "an ABSENT --max-lines still serves the whole file, line for line"
-else
-  bad "omitting the flag no longer serves the file whole: $out"
-fi
+# ⚠ THE SEQUENCE, COMPARED EXACTLY. Three independent greps accept the same
+# lines reordered or repeated, which the second review of PR #133 reproduced —
+# and counting numbered lines accepts substituted content. The served sequence
+# is extracted and compared to the fixture's, in order.
+seq=$(sed -nE 's/^ *[0-9]+\| (.*)$/\1/p' <<<"$out" | tr '\n' ',')
+[ "$seq" = "alpha,bravo,charlie," ] \
+  && ok "an ABSENT --max-lines serves the file whole, in order, without repeats" \
+  || bad "omitting the flag no longer serves the file whole: got [$seq] from: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
