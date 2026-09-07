@@ -764,7 +764,14 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 				fail(h, "line %d is out of range (file has %d lines)", start, total)
 				continue
 			}
-			if !guard(start) || !covered(h, min(max(start, 1), total), min(max(start, 1), total)) {
+			// covered() FIRST, then guard(): the guard's anchor comparison
+			// quotes the line the file holds, and only the ledger establishes
+			// that the caller was served it (ADR-028). `||` short-circuits, so
+			// an unserved line is refused by the ledger and the anchor is never
+			// evaluated. The two insertion ops had this order the wrong way
+			// round after the replace/delete fix, which is how the first cut of
+			// ADR-028 could claim "every guard" while two still leaked.
+			if !covered(h, min(max(start, 1), total), min(max(start, 1), total)) || !guard(start) {
 				continue
 			}
 			resolved = append(resolved, h.resolveTo(start+1, start, "insert"))
@@ -773,7 +780,7 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 				fail(h, "line %d is out of range (file has %d lines)", start, total)
 				continue
 			}
-			if !guard(start) || !covered(h, min(max(start, 1), total), min(max(start, 1), total)) {
+			if !covered(h, min(max(start, 1), total), min(max(start, 1), total)) || !guard(start) {
 				continue
 			}
 			resolved = append(resolved, h.resolveTo(start, start-1, "insert"))
@@ -794,11 +801,18 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 				fail(h, "lines=%d but range %s covers %d line(s)", h.Lines, addrString(start, end), end-start+1)
 				continue
 			}
-			if h.Anchor != "" && !strings.Contains(orig[start-1], h.Anchor) {
-				fail(h, "anchor %q not in line %d: %s", h.Anchor, start, trim(orig[start-1]))
+			if !covered(h, start, end) {
 				continue
 			}
-			if !covered(h, start, end) {
+			// Checked BELOW covered() for the reason ADR-008 gives three lines
+			// down about its own guard: the mismatch message quotes the line
+			// the file actually holds, and only the ledger check establishes
+			// that the caller was served it. Above it, a failed anchor guess
+			// read back a line nobody had shown them — ADR-002 and ADR-005's
+			// "mrw does not tell you what it has not shown you", false on the
+			// one path that had this guard first (ADR-028).
+			if h.Anchor != "" && !strings.Contains(orig[start-1], h.Anchor) {
+				fail(h, "anchor %q not in line %d: %s", h.Anchor, start, trim(orig[start-1]))
 				continue
 			}
 			// A delete is the only op with no body, so a body on one is not

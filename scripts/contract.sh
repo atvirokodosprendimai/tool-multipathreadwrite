@@ -3869,6 +3869,76 @@ grep -q hello "$R/full.txt" && ok "the ordinary create wrote its body" || bad "t
 out=$(printf '@@ a.go 3 replace\n' | m write - 2>&1); rc=$?
 want 2 "$rc" "an empty-bodied replace is still refused, in its own words"
 grep -q 'would delete' <<<"$out" && ok "the replace refusal is unchanged" || bad "the replace refusal changed: $out"
+
+# 66. ADR-028: a guard does not read back what was not served.
+#
+# `anchor=` was checked ABOVE the ledger, so a FAILED anchor quoted the line the
+# file holds — on a line the caller had never been served. ADR-002 and ADR-005
+# say mrw does not tell you what it has not shown you, and this was the one path
+# that did. ADR-008 had already moved its own guard below `covered()` for the
+# same reason and left this sibling; the asymmetry is closed now.
+#
+# BOTH HALVES, OR THE ROW PROVES NOTHING. A section asserting only the absence
+# would pass against a binary that had stopped checking anchors altogether, so
+# the served-line half is asserted beside it. And the fixture serves a NARROW
+# range: a file served NOT AT ALL is refused by the whole-file gate before
+# either guard runs, which is green with the ordering reversed (BACKLOG:226).
+#
+# ALL FOUR ANCHORED OPS. `replace` and `delete` compare the anchor inline; the
+# two insertions reach it through a guard closure invoked beside `covered()`.
+# The first cut of ADR-028 moved one pair and claimed every guard, and the first
+# version of this section drove three of the four while the record above it said
+# four — neither was caught by a gate, because a section that runs three ops
+# passes exactly like one that runs four (PR #128, reviews two and three).
+#
+# ⚠ A SERVED-LINE CONTROL MUST ASSERT THE REFUSAL, NOT ONLY THE QUOTE. Grepping
+# the output for the line's text passes against a binary that has stopped
+# checking anchors, whenever that op's SUCCESS receipt happens to print the line
+# — which `delete`'s does, ADR-008 having made it say what it removed (review
+# four). `insert-after` had the same shape and survived only because its receipt
+# prints no content, which is an accident of receipt shape and not a property of
+# the check.
+#
+# ⚠ AND ONE FRESH FIXTURE PER CASE. A case that wrongly SUCCEEDS writes the file
+# AND records the ledger as WHOLE, so every later case in the section silently
+# becomes a different test than the one it is named for — an unserved line that
+# is no longer unserved, a sentinel that is no longer there (review five). The
+# isolation is what makes each assertion evidence about its own op.
+anchored_fixture() {
+  fixture
+  printf 'public line\nUNSERVED-SENTINEL-42\nthird\n' > "$R/s.txt"
+  m read 's.txt:1' > /dev/null 2>&1
+}
+anchored_plan() {  # $1 = op, $2 = line; `delete` is the one op that carries no body
+  if [ "$1" = delete ]; then
+    printf '@@ s.txt %s delete anchor="no-such-text"\n' "$2"
+  else
+    printf '@@ s.txt %s %s anchor="no-such-text"\nX\n' "$2" "$1"
+  fi
+}
+for op in replace delete insert-after insert-before; do
+  anchored_fixture
+  out=$(anchored_plan "$op" 2 | m write - 2>&1); rc=$?
+  want 1 "$rc" "an anchored $op on an unserved line is refused"
+  grep -q 'UNSERVED-SENTINEL-42' <<<"$out" \
+    && bad "the $op refusal read back a line the caller was never served: $out" \
+    || ok "the $op refusal reads back no line the caller was not served"
+  # Paired with the absence above on purpose: an absence assertion alone is
+  # satisfied by EMPTY output, so the ledger's own message is asserted present.
+  grep -q 'has not been read' <<<"$out" \
+    && ok "the $op refusal is the ledger's, naming what was served" \
+    || bad "the $op refusal is not the ledger's: $out"
+
+  anchored_fixture
+  out=$(anchored_plan "$op" 1 | m write - 2>&1); rc=$?
+  want 1 "$rc" "an anchored $op on a SERVED line is still anchor-checked"
+  grep -q 'anchor "no-such-text" not in line 1' <<<"$out" \
+    && ok "a served line's $op anchor failure is the anchor's own" \
+    || bad "$op stopped checking anchors: $out"
+  grep -q 'public line' <<<"$out" \
+    && ok "a served line's $op anchor failure still quotes it" \
+    || bad "the $op anchor no longer quotes a line the caller was served: $out"
+done
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
