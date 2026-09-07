@@ -277,15 +277,15 @@ func TestAReplaceWithNoBodyIsStillRejectedNowThatDeleteTakesOne(t *testing.T) {
 // rewording validate alone left everything green. The review of PR #130 said so,
 // and this is the fix: the expected text is TAKEN FROM THE PARSER at run time.
 //
-// One row per VERBATIM-mirrored validate branch. Nine of the ten are here.
+// One row per VERBATIM-mirrored validate branch. All ten are here.
 //
-// ⚠ The tenth — `create` with a relative end — has NO cross-site pair, and that
-// is a fact about the parser rather than a gap: validate's numeric-address check
-// fires first for every address a caller can write, so `@@ n.txt 1,+2 create`
-// comes back as "create takes no address" and the relative-end branch is
-// unreachable from a plan document. Measured. Its engine counterpart is covered
-// by the apply-side table instead, and this comment is here so the next reader
-// does not add a row that silently tests the branch above it.
+// ⚠ An earlier cut said the tenth — `create` with a relative end — was
+// unreachable from a plan document, because validate's numeric-address check
+// fires first for `1,+2`. That was true of the spelling tried and false as a
+// claim: `00,+2` reaches it, since CutRelative refuses only the exact bases "0"
+// and "-" while "00" passes its digit check and converts to numeric zero. The
+// review of PR #130 found the spelling. "I could not reach it" is not "it is
+// unreachable", and this record has now made that mistake twice.
 //
 // The two remaining validate returns — replace at line zero, and a reversed
 // range — are answered by the engine's own semantic checks with its own wording,
@@ -326,6 +326,16 @@ func TestTheEngineAndTheParserRefuseInTheSameWords(t *testing.T) {
 			apply.Input{Path: "f.txt", Op: "insert-after", Start: 1, End: 1, Lines: unset}},
 		{"insert-before with an empty body", "@@ f.txt 1 insert-before\n",
 			apply.Input{Path: "f.txt", Op: "insert-before", Start: 1, End: 1, Lines: unset}},
+		// ⚠ `00`, not `0`. CutRelative refuses the exact bases "0" and "-", so
+		// `0,+2` is refused earlier with a different message — but "00" passes
+		// its digit check and ParseAddr converts it to numeric zero, which slips
+		// past the create-address check and lands on the relative-end branch.
+		// An earlier cut of this test declared this branch UNREACHABLE from a
+		// plan document and said so in a comment; the review of PR #130 found
+		// the spelling that reaches it. Measured.
+		{"create with a relative end", "@@ n.txt 00,+2 create\nX\n",
+			apply.Input{Path: "n.txt", Op: "create", Start: 0, End: 0, RelEnd: 2,
+				Body: []string{"X"}, Lines: unset}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

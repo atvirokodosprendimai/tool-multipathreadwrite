@@ -1784,6 +1784,30 @@ func TestTheEngineRefusesEveryShapeTheParserRefuses(t *testing.T) {
 				StartPat: regexp.MustCompile(`^a$`), EndPat: regexp.MustCompile(`^c$`)},
 		},
 		{
+			"a body-less create",
+			"create with an empty body",
+			Input{Path: "n.txt", Op: "create", Lines: -1},
+		},
+		{
+			// Reachable only as `00,+2`: "0" is refused earlier by CutRelative,
+			// but "00" passes its digit check and converts to numeric zero.
+			"create with a relative end",
+			"create takes no address, so it takes no relative end either",
+			Input{Path: "n.txt", Op: "create", Start: 0, End: 0, RelEnd: 2, Body: []string{"x"}, Lines: -1},
+		},
+		{
+			"insert-after with a relative end",
+			"takes a single line, not the range",
+			Input{Path: "f.txt", Op: "insert-after", Start: 1, End: 1, RelEnd: 2, Body: []string{"x"}, Lines: -1},
+		},
+		{
+			// Not a verbatim mirror: the engine answers this with its own
+			// semantic check, in its own wording, after resolution.
+			"a reversed range",
+			"ends before it starts",
+			Input{Path: "f.txt", Op: "replace", Start: 3, End: 1, Body: []string{"x"}, Lines: -1},
+		},
+		{
 			// The control: already refused before this record, and it must stay
 			// refused. A table whose every row was red is a table that cannot
 			// tell a fix from a ban. ⚠ Its wording is the ENGINE's, not the

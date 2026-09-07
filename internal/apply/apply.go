@@ -603,9 +603,11 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		//
 		// ⚠ THE LIST CAME FROM ENUMERATION, NOT MEMORY. ADR-026 closed this hole
 		// for a relative end and ADR-027 for a body-less create, each assuming
-		// it was the last; driving Apply directly with one Input per rule found
+		// it was the last. Driving Apply with the shapes that came to mind found
 		// seven open, including a `replace` with no body that DELETED the
-		// addressed lines and reported ok.
+		// addressed lines and reported ok — and THAT pass was itself incomplete,
+		// because probing shapes is not walking validate's branches. Two more
+		// came out of the branch walk in review.
 		//
 		// ⚠ THIS BLOCK RUNS BEFORE RESOLUTION, so the pattern fields are still
 		// here to be asked about — StartPat and EndPat are on Input and on the

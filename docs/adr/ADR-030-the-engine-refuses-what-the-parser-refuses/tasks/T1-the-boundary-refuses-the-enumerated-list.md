@@ -20,7 +20,7 @@ memory, without importing `internal/plan`.
 | File | Change | Why |
 |------|--------|-----|
 | `internal/apply/apply.go` | edit | The boundary block that already refuses a relative end (ADR-026) and a body-less `create` (ADR-027) gains the remaining rules, with the messages copied verbatim from `plan.validate` so the two sites cannot say different things about one mistake. |
-| `internal/apply/apply_test.go` | edit | `TestTheEngineRefusesEveryShapeTheParserRefuses` is a TABLE, one row per rule, so a rule added to `validate` with no engine counterpart is a missing row rather than silence. |
+| `internal/apply/apply_test.go` | edit | `TestTheEngineRefusesEveryShapeTheParserRefuses` is a TABLE with a row for every `validate` return — the ten verbatim-mirrored ones plus the two the engine answers with its own semantic wording — so a rule added to `validate` with no engine counterpart is a missing row rather than silence. |
 
 ## Ordered Steps
 
@@ -56,8 +56,8 @@ go test ./internal/apply/ -count=1 -v \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestTheEngineRefusesEveryShapeTheParserRefuses` | `internal/apply/apply_test.go` | Every `plan.validate` branch is refused by a direct `Apply` with `Failed: 1` and the file byte-identical; every well-formed shape still applies AND leaves the exact bytes it should, so a no-op reporting success cannot pass | — | S1, S2, S3, S4, S5 |
-| `TestTheEngineAndTheParserRefuseInTheSameWords` | `internal/adversarial/planformat_test.go` | For nine of the ten verbatim-mirrored branches — the tenth being unreachable from a plan document, and said so in the test — the parser's message and the engine's `Reason` are EQUAL, the expected text taken from the parser at run time, so rewording either site alone goes red | — | S6 |
+| `TestTheEngineRefusesEveryShapeTheParserRefuses` | `internal/apply/apply_test.go` | Every one of `plan.validate`'s twelve returns is refused by a direct `Apply` with `Failed: 1` and the file byte-identical; every well-formed shape still applies AND leaves the exact bytes it should, so a no-op reporting success cannot pass | — | S1, S2, S3, S4, S5 |
+| `TestTheEngineAndTheParserRefuseInTheSameWords` | `internal/adversarial/planformat_test.go` | For all ten verbatim-mirrored branches — including the one an earlier cut wrongly called unreachable, which `00,+2` reaches — the parser's message and the engine's `Reason` are EQUAL, the expected text taken from the parser at run time, so rewording either site alone goes red | — | S6 |
 
 ## Reachability
 
@@ -86,6 +86,7 @@ the direction only the cross-site test can see, and it now has the row to see it
 - 2026-09-07 · ee97f6b* · mutant killed · exit 1 · `internal/apply/apply.go` · the pattern-range refusal for insertions is reworded away from plan.validate wording — it is the branch the first cut never named, and the cross-site test is what now sees the divergence · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · covers:the two sites refusing in the same words
 - 2026-09-07 · ee97f6b* · mutant killed · exit 1 · `internal/apply/apply.go` · the guard itself is removed for an insertion with a PATTERN range, so the hunk resolves and then silently uses the start and ignores the end the caller wrote — the branch the first pass never named, reported ok · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · covers:the engine refusing every enumerated shape the parser refuses
 - 2026-09-07 · 051880f* · mutant killed · exit 1 · `internal/plan/plan.go` · the PARSER is reworded and the engine left alone, on the pattern-range branch the first pass never named — this is the direction the hardcoded apply-side table cannot see, and the direction T1 previously claimed evidence for without having it · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · covers:the two sites refusing in the same words
+- 2026-09-07 · 3916d1e* · mutant killed · exit 1 · `internal/plan/plan.go` · the PARSER is reworded on the branch an earlier cut declared unreachable — the row for it exists now because 00,+2 reaches it, so this direction is bound for all ten branches rather than nine · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · covers:the two sites refusing in the same words
 
 ## Invariants
 - `internal/apply` does not import `internal/plan`. That inversion is ADR-027-T3's Stop Condition and is the reason the duplication is accepted.
@@ -95,7 +96,7 @@ the direction only the cross-site test can see, and it now has the row to see it
 
 ## Risks
 
-- ⚠ The enumeration WAS incomplete, which is the exact mistake this record was written to stop repeating, made inside it. Probing shapes is not walking branches; two branches were missed and the review of PR #130 found them. The list now comes from a branch-by-branch walk, and the table carries every one so an eleventh is a missing row.
+- ⚠ The enumeration WAS incomplete, twice, which is the exact mistake this record was written to stop repeating, made inside it. First: probing shapes is not walking branches, and two branches were missed. Then: a branch nobody could reach with the spelling tried was declared UNREACHABLE, and `00,+2` reaches it. Both found by the review of PR #130. **"I could not reach it" is not "it is unreachable"** — the table now carries every return, and the parity test every verbatim one.
 - A refused row that still wrote would be worse than the behaviour removed. S4 asserts the file's bytes, not only the verdict.
 
 ## Stop Condition
@@ -121,3 +122,5 @@ record rather than a workaround in the code.
 - 2026-09-07 · ee97f6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:30133
 - 2026-09-07 · 051880f* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:34952
 - 2026-09-07 · 051880f* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:38468
+- 2026-09-07 · 3916d1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:34296
+- 2026-09-07 · 3916d1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:29758

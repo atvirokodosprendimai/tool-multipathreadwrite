@@ -85,18 +85,21 @@ silence. But its expected strings are hardcoded and it never invokes the parser,
 `validate` alone left it green — the review of PR #130 said so, and the first cut of this record
 claimed the drift was mitigated when it was not.
 `TestTheEngineAndTheParserRefuseInTheSameWords` closes that: it PARSES each malformed plan, takes the
-expected text out of the parser's own error at run time, and compares it — by EQUALITY, not substring
+expected text out of the parser's own error at run time, and compares it — by EQUALITY, not equality
 — to what `Apply` says for the equivalent `Input`. Reword either site alone and it goes red, measured
 in both directions: an engine message reworded, and the parser reworded with the engine left alone.
 
-It carries one row per verbatim-mirrored branch, nine of the ten. The tenth, `create` with a relative
-end, has no cross-site pair and that is a fact about the parser rather than a gap: validate's
-numeric-address check fires first for every address a caller can write, so `@@ n.txt 1,+2 create`
-comes back as "create takes no address" and the relative-end branch is unreachable from a plan
-document. Its engine counterpart is covered by the apply-side table instead. The remaining two of
-validate's twelve returns — replace at line zero, and a reversed range — are answered by the engine's
-own semantic checks in its own wording, so they are not parity rows either. All of that is written in
-the test, because an unstated omission is how the last two rounds of this record went wrong.
+It carries one row per verbatim-mirrored branch, all ten. ⚠ An earlier cut carried nine and declared
+the tenth — `create` with a relative end — UNREACHABLE from a plan document, because validate's
+numeric-address check fires first for `1,+2`. That was true of the spelling tried and false as a
+claim: `00,+2` reaches it, since `CutRelative` refuses only the exact bases `"0"` and `"-"` while
+`"00"` passes its digit check and converts to numeric zero. The review of PR #130 found the spelling.
+**"I could not reach it" is not "it is unreachable", and this record has now made that mistake
+twice** — first calling a branch unmirrorable, then calling one unreachable.
+
+The remaining two of validate's twelve returns — replace at line zero, and a reversed range — are
+answered by the engine's own semantic checks in its own wording rather than by a verbatim mirror, so
+they are not parity rows; the apply-side table carries them with the engine's wording instead.
 
 **What would falsify this:** a rule that genuinely cannot be checked without the parse tree. The
 first cut asserted `patterned` was such a rule; it is not one — it is a GATE that chooses which rule
@@ -142,9 +145,8 @@ See `docs/adr/ADR-030-the-engine-refuses-what-the-parser-refuses/tasks/README.md
 - **Positive:** `Apply`'s doc comment becomes true, and the class is closed by walking `validate`'s
   branches rather than by the next record finding the eleventh.
 - **Positive:** the table test makes a future divergence visible as a missing row, and the cross-site
-  test makes a reworded message visible as a failure, in either direction, for nine of the ten
-  verbatim branches — the tenth being unreachable from a plan document and said so. The first test
-  alone was what the first cut of this record claimed was enough.
+  test makes a reworded message visible as a failure, in either direction, for all ten verbatim
+  branches. The first test alone was what the first cut of this record claimed was enough.
 - **Negative:** the same rule is now written twice, and the two could drift. Accepted deliberately —
   the alternative is inverting a package dependency — and mitigated by copying the message strings
   verbatim so a drift in wording shows up in the test.
@@ -171,7 +173,7 @@ See `docs/adr/ADR-030-the-engine-refuses-what-the-parser-refuses/tasks/README.md
 |------|------------|--------|------------|
 | The enumeration is incomplete, and the record repeats the mistake it names | **It happened** | High | This risk MATERIALISED, and the mitigation as first written did not catch it: probing the shapes that came to mind is not walking `validate`’s branches, and two were missed. Caught by the review of PR #130. The mitigation now is that walk, recorded as a table in Context, plus the cross-site test that fails on a reworded message |
 | A refused shape was actually reachable, making this a live defect the record calls harmless | Low | High | All three `plan.Hunk → apply.Input` conversions were checked: each is fed by `plan.Parse`. If a fourth appears that is not, this record's reachability paragraph is wrong and must be corrected, not quietly kept |
-| The duplicated messages drift | Medium | Low | Copied verbatim and asserted by substring in the test, so a change to one and not the other goes red |
+| The duplicated messages drift | Medium | Low | Copied verbatim and asserted by equality in the test, so a change to one and not the other goes red |
 
 ## Rollback
 
