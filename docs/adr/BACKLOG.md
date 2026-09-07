@@ -144,7 +144,7 @@ here.
 - **A cross-file `--max-lines` budget.** Deferred again from ADR-033, which
   settles what a cap of ZERO means and leaves the per-file scope alone. The cap
   is per SPEC today — `read.Run`
-  resets `budget := opt.MaxLines` for each one — and ADR-007's walk deduplicates
+  resets `budget := opt.MaxLines` (now `capped := opt.MaxLines != nil`, ADR-033) for each one — and ADR-007's walk deduplicates
   so that it is per file for everything the walk produces. What nobody has
   decided is whether `mrw read --grep PAT .` over a large tree should have a
   budget for the WHOLE answer rather than per file, which is the number an agent
@@ -343,8 +343,11 @@ under `--dry-run`) were fixed then and carry contract rows.
   legitimate pairing (`body=N raw=true`, the escape hatch for a plan whose body
   contains a real `@@` header) is pinned by its own contract row, because
   refusing the useless form must not break the useful one.
-- **`--max-lines 0` means UNLIMITED, and this repository decided the opposite
-  question the other way once already.** A cap of zero is currently
+- ~~**`--max-lines 0` means UNLIMITED, and this repository decided the opposite
+  question the other way once already.**~~ **CLOSED 2026-09-07 by ADR-033** — zero
+  is a cap of zero now, `Options.MaxLines` is a `*int` so omission still means no
+  cap, and contract §69 drives both spellings. The reasoning is kept because it is
+  what made this a decision rather than a bug report. It read: a cap of zero was
   indistinguishable from no cap, so there is no way to say "serve me the header
   and nothing else" — and nothing is reported as withheld, though the README
   promises "whatever is withheld is always reported". The precedent cuts

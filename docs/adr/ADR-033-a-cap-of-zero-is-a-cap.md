@@ -17,8 +17,9 @@
 `opt.MaxLines > 0`, so a cap of zero is indistinguishable from no cap at all. Two consequences, and
 the second is the one that matters:
 
-1. There is no way to say "serve me the header and nothing else" — a request with a cap of zero
-   serves everything.
+1. There is no way to say "serve me the header and nothing else" THROUGH `--max-lines` — a request
+   with a cap of zero serves everything. (`--stat` covers the header-only need by another route; see
+   Alternatives.)
 2. **Nothing is reported as withheld**, though `README.md` promises "whatever is withheld is always
    reported". A caller who asked for nothing and received a 3,000-line file was not told the cap was
    ignored. That is a promise the tool makes and does not keep.
@@ -44,9 +45,13 @@ withholding is a broken promise regardless of which meaning zero takes.
   now reaches it instead of being skipped. **Reused unchanged.**
 - **`cmd.IsSet` from the CLI library** — how the command layer tells "flag absent" from "flag given
   as 0". **Reused**; no new flag, no new syntax.
-- **ADR-025's rule that a read serving nothing is an error** — already decides what a zero cap
-  RETURNS: the read reports every line withheld and exits non-zero, as an unsatisfiable read does.
-  **Inherited, not re-decided.**
+- **The CLI's existing "a withheld range is a problem" behaviour** (`internal/read/read.go`'s
+  `problems` counter, pinned by `internal/adversarial/readspec_test.go`) — already decides what a
+  zero cap RETURNS: every span is reported withheld, the problem count is non-zero, and the CLI exits
+  1. **Reused unchanged**, and this record owns the claim. ⚠ An earlier draft credited ADR-025, which
+  governs `internal/mcp/**` and decides when an MCP result carries `isError` — it has nothing to say
+  about a CLI exit code, and citing it was borrowing authority that does not exist. Caught by the
+  review of PR #133.
 
 ## Decision
 
@@ -57,7 +62,8 @@ is a budget of zero: every span is reported `WITHHELD`, nothing is served, and t
 non-zero under ADR-025 because it served nothing.
 
 `--max-lines` is read through `cmd.IsSet`, so the flag's absence and `--max-lines 0` stop being the
-same input. A negative value stays the usage error it already is.
+same input. A negative value stays the usage error it already is. The exit code follows the rule the
+CLI already had: a withheld range is a problem, and a run with problems exits 1.
 
 **What would falsify this:** a caller found in the wild passing `--max-lines 0` to mean "no cap" —
 scripted from the convention rather than from this tool's docs. Then the change costs them a silent

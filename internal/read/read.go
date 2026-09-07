@@ -71,7 +71,8 @@ type Options struct {
 	Stat bool
 	// Context adds N lines either side of a single-pattern match.
 	Context int
-	// MaxLines caps the lines emitted per file, and NIL is how a caller says
+	// MaxLines caps the lines emitted per SPEC — the budget resets for each one,
+	// so two specs naming one file get two budgets — and NIL is how a caller says
 	// "no cap" (ADR-033). A pointer, not a sentinel: zero used to mean unlimited
 	// because both guards asked `> 0`, so there was no way to say "serve me the
 	// header and nothing else" and — worse — nothing was reported withheld,

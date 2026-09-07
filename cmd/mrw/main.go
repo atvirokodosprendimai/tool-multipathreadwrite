@@ -390,7 +390,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.IntFlag{
 				Name:  "max-lines",
-				Usage: "stop after `N` lines per file, where zero means zero: omit the flag to ask for no cap. Whatever is withheld is always reported",
+				Usage: "stop after `N` lines per SPEC, where zero means zero: omit the flag to ask for no cap. Two specs naming one file get two budgets. Whatever is withheld is always reported",
 			},
 			&cli.StringFlag{
 				Name:  "grep",

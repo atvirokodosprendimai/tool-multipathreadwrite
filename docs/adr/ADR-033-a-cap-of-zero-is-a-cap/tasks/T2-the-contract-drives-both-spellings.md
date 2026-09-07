@@ -63,6 +63,7 @@ grep -q '^# 69\. ADR-033: a cap of zero is a cap\.' scripts/contract.sh \
 ## Mutation Log
 
 - 2026-09-07 · 73649a9* · mutant killed · exit 1 · `internal/read/read.go` · the BUILT binary stops honouring a cap of zero, so §69 sees it serve the file and report nothing withheld — the row drives $MRW, which a unit test cannot · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · covers:the built binary serving nothing for a cap of zero
+- 2026-09-07 · 2fda99d* · mutant killed · exit 1 · `cmd/mrw/main.go` · the CLI stops distinguishing an ABSENT flag from an explicit zero, which is the whole wiring — the Go test drives read.Run directly and cannot see it, so §69 is the only gate that can. Its absence as a receipt was the review of PR #133 finding a [proof: mutation] step with no mutant against cmd/mrw · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · covers:the built binary serving nothing for a cap of zero
 
 ## Invariants
 
@@ -87,3 +88,5 @@ exists asserts nothing.
 ## Verification Log
 - 2026-09-07 · 73649a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · ms:29836
 - 2026-09-07 · 73649a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · ms:32507
+- 2026-09-07 · 2fda99d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · ms:33041
+- 2026-09-07 · 2fda99d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · ms:31547

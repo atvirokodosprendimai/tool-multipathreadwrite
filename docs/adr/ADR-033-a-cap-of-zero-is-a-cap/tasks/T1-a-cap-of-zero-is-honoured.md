@@ -24,11 +24,11 @@ Make `--max-lines 0` mean zero, without making the struct's zero value mean "ser
 
 ## Ordered Steps
 
-1. [S1] Write `TestACapOfZeroServesNothing` and confirm it is RED: with a cap of zero, no content line is served and every span is reported `WITHHELD` with its own count. [proof: mutation]
+1. [S1] Write `TestACapOfZeroServesNothing` and confirm it is RED: with a cap of zero, no content line is served and the span is reported `WITHHELD` with its count. The fixture uses ONE span; the multi-span case is §69's and the record does not claim more. [proof: mutation]
 2. [S2] Change the field to `*int` and update the two guards. ⚠ Not a `-1` sentinel: the three call sites that omit the field would then mean "serve nothing", and omission must keep meaning "no cap". [proof: mutation]
-3. [S3] Read the flag through `IsSet` in `cmd/mrw`. [proof: mutation]
+3. [S3] Read the flag through `IsSet` in `cmd/mrw`. ⚠ The Go test cannot reach this: it drives `read.Run` directly, so CLI wiring that stopped distinguishing an absent flag from an explicit zero would leave it green. §69 (T2) is what covers it, and the mutant for it is logged there. [proof: acceptance]
 4. [S4] Assert the control in the same test — no cap set, whole file served — because "serve nothing always" would otherwise pass. [proof: mutation]
-5. [S5] Confirm the three call sites that never set the field are untouched and still serve whole files: `internal/mcp` twice and `internal/curve` once. [proof: acceptance]
+5. [S5] Confirm the three call sites that never set the field are untouched and still serve WHAT THEY ASK FOR, uncapped: `internal/mcp` twice — one of which deliberately serves a bounded first page — and `internal/curve` once, which can start from a chosen line. "Whole files" was the wrong words for it. [proof: acceptance]
 6. [S6] Run every gate, including `go test -race ./...` and `./scripts/contract.sh`. [proof: acceptance]
 
 ## Acceptance
@@ -51,7 +51,7 @@ go test ./internal/read/ -count=1 -v \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestACapOfZeroServesNothing` | `internal/read/read_test.go` | A cap of zero serves no content line and reports every span withheld with its count; an absent cap serves the file whole | — | S1, S2, S3, S4 |
+| `TestACapOfZeroServesNothing` | `internal/read/read_test.go` | A cap of zero serves no content line and reports its one span withheld with the count; an absent cap serves the file whole. It drives `read.Run` directly and says nothing about CLI wiring, which is §69's | — | S1, S2, S4 |
 
 ## Reachability
 
@@ -93,3 +93,4 @@ not a return to zero-means-infinity.
 - 2026-09-07 · 73649a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:ac6b274ce4e8fc9f114b1c63bd412cad025bf73c379d8c824990f13cd4ff5581 · ms:30557
 - 2026-09-07 · 73649a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:ac6b274ce4e8fc9f114b1c63bd412cad025bf73c379d8c824990f13cd4ff5581 · ms:30464
 - 2026-09-07 · 73649a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:ac6b274ce4e8fc9f114b1c63bd412cad025bf73c379d8c824990f13cd4ff5581 · ms:31783
+- 2026-09-07 · 2fda99d* · exit 0 · `set -o pipefail …` · acceptance-sha256:ac6b274ce4e8fc9f114b1c63bd412cad025bf73c379d8c824990f13cd4ff5581 · ms:39801
