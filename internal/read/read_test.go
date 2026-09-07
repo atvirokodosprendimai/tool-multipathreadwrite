@@ -2,6 +2,7 @@ package read
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -674,10 +675,10 @@ func TestAMalformedPatternAddressIsRefused(t *testing.T) {
 // EMPTY body (ADR-027) and lines=0 is a real assertion about a zero-length span.
 func TestACapOfZeroServesNothing(t *testing.T) {
 	root := t.TempDir()
-	body := ""
-	for i := 1; i <= 5; i++ {
-		body += "line\n"
-	}
+	// ⚠ DISTINCT lines. Five copies of "line" let a control that COUNTS
+	// occurrences pass on duplicated, substituted or reordered content while
+	// claiming the whole file came back (review of PR #133).
+	body := "alpha\nbravo\ncharlie\ndelta\necho\n"
 	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -704,8 +705,14 @@ func TestACapOfZeroServesNothing(t *testing.T) {
 	if p2 != 0 {
 		t.Errorf("a read with no cap reported %d problem(s)", p2)
 	}
-	if n := strings.Count(whole.String(), "| line"); n != 5 {
-		t.Errorf("a read with no cap served %d of 5 lines:\n%s", n, whole.String())
+	// The exact lines, in order, not a count of them.
+	for i, want := range []string{"alpha", "bravo", "charlie", "delta", "echo"} {
+		if !strings.Contains(whole.String(), fmt.Sprintf("%5d| %s\n", i+1, want)) {
+			t.Errorf("a read with no cap did not serve line %d as %q:\n%s", i+1, want, whole.String())
+		}
+	}
+	if a, b := strings.Index(whole.String(), "alpha"), strings.Index(whole.String(), "echo"); a > b {
+		t.Error("the served lines are out of order")
 	}
 }
 

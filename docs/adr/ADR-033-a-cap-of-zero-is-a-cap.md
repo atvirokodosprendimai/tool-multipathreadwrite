@@ -5,7 +5,7 @@
 **Owner:** M
 **Accepted:** M, 2026-09-07, choosing consistency with `body=0` and `lines=0` over the 0-means-unlimited convention.
 **Spec:** None — no spec stage
-**Cross-references:** `docs/adr/ADR-006-the-root-confines-reads-too-and-a-replace-must-replace-something.md`, `docs/adr/ADR-025-a-read-that-served-nothing-is-an-error.md`, `docs/adr/ADR-027-an-empty-file-is-created-on-purpose-or-not-at-all.md`
+**Cross-references:** `docs/adr/ADR-006-the-root-confines-reads-too-and-a-replace-must-replace-something.md`, `docs/adr/ADR-027-an-empty-file-is-created-on-purpose-or-not-at-all.md`
 **Governs:** `internal/read/read.go`, `cmd/mrw/main.go`
 **Enforced-by:** `internal/read/read_test.go::TestACapOfZeroServesNothing`
 **Invalidates:** none — checked
@@ -45,13 +45,16 @@ withholding is a broken promise regardless of which meaning zero takes.
   now reaches it instead of being skipped. **Reused unchanged.**
 - **`cmd.IsSet` from the CLI library** — how the command layer tells "flag absent" from "flag given
   as 0". **Reused**; no new flag, no new syntax.
-- **The CLI's existing "a withheld range is a problem" behaviour** (`internal/read/read.go`'s
-  `problems` counter, pinned by `internal/adversarial/readspec_test.go`) — already decides what a
-  zero cap RETURNS: every span is reported withheld, the problem count is non-zero, and the CLI exits
-  1. **Reused unchanged**, and this record owns the claim. ⚠ An earlier draft credited ADR-025, which
-  governs `internal/mcp/**` and decides when an MCP result carries `isError` — it has nothing to say
-  about a CLI exit code, and citing it was borrowing authority that does not exist. Caught by the
-  review of PR #133.
+- **The CLI's existing "a withheld range is a problem" chain** — `internal/read/read.go` increments
+  `problems` for a withheld span, `cmd/mrw/main.go` turns a positive count into exit 1, and contract
+  §14 pins that against the BUILT binary for spans withheld in part and in whole. **Reused
+  unchanged**, and this record owns the claim; §69 adds the zero-cap case to the same chain.
+  ⚠ TWO wrong citations preceded this one, both from the review of PR #133. The first credited
+  ADR-025, which governs `internal/mcp/**` and decides when an MCP result carries `isError` — it says
+  nothing about a CLI exit code. The second named `internal/adversarial/readspec_test.go`, which
+  calls `read.Run` DIRECTLY and therefore cannot establish the CLI mapping at all. Correcting a wrong
+  citation with another wrong citation is worth recording: the question is always which artifact
+  actually runs the path.
 
 ## Decision
 
@@ -59,7 +62,9 @@ withholding is a broken promise regardless of which meaning zero takes.
 
 `read.Options.MaxLines` becomes `*int`. Nil means unbounded. A non-nil pointer is a budget, and zero
 is a budget of zero: every span is reported `WITHHELD`, nothing is served, and the read exits
-non-zero under ADR-025 because it served nothing.
+non-zero by the chain the CLI already had: `internal/read/read.go` increments `problems` for a
+withheld span, `cmd/mrw/main.go` turns a positive count into exit 1, and contract §14 already pins
+that for spans withheld in part and in whole. §69 adds the zero-cap case to it.
 
 `--max-lines` is read through `cmd.IsSet`, so the flag's absence and `--max-lines 0` stop being the
 same input. A negative value stays the usage error it already is. The exit code follows the rule the
@@ -86,7 +91,8 @@ meaning infinity. Nothing in this repository or its docs uses the form.
 ## Component / Boundary Impact
 
 None structural. One field's type changes inside `internal/read`, and `cmd/mrw` learns to distinguish
-an absent flag from a zero one. `internal/apply`, `internal/plan`, `internal/seen` and
+an absent flag from a zero one. The cap stays PER SPEC, which is what the code has always done —
+two specs naming one file get two budgets. `internal/apply`, `internal/plan`, `internal/seen` and
 `internal/state` are untouched; the MCP surface takes no `--max-lines` and is unaffected.
 
 ## Wiring & Contract Changes
@@ -108,8 +114,10 @@ See `docs/adr/ADR-033-a-cap-of-zero-is-a-cap/tasks/README.md`.
 
 ## Consequences
 
-- **Positive:** "serve the header and nothing else" becomes expressible, and the withholding promise
-  is kept for every cap including zero.
+- **Positive:** the withholding promise is kept for every cap including zero, and `--max-lines 0`
+  becomes a way to ask for the header alone — with a `WITHHELD` line naming what it did not serve,
+  which `--stat` does not print because it withholds nothing. `--stat` already covered header-only;
+  what was missing was a CAP of zero that reports itself.
 - **Positive:** zero means zero in all three places this format uses a count — `body=`, `lines=` and
   now `--max-lines`. A reader no longer has to remember which one is the exception.
 - **Negative:** a caller who wrote `--max-lines 0` meaning "no cap" now gets nothing served and a

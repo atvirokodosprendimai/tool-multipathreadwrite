@@ -4012,7 +4012,7 @@ grep -q 'UNSERVED-SENTINEL-29' <<<"$out" \
 # BOTH SPELLINGS. A row asserting only the zero case passes against a binary
 # that serves nothing at all, which is a ban rather than a narrowing.
 fixture
-printf 'one\ntwo\nthree\n' > "$R/cap.txt"
+printf 'alpha\nbravo\ncharlie\n' > "$R/cap.txt"   # DISTINCT lines: a count passes on duplicates
 out=$(m read --max-lines 0 cap.txt 2>&1); rc=$?
 want 1 "$rc" "a cap of zero serves nothing, and a read that served nothing is an error"
 grep -q 'WITHHELD 3 line(s)' <<<"$out" \
@@ -4022,9 +4022,14 @@ grep -qE '^ +[0-9]+\| ' <<<"$out" && bad "a cap of zero served content: $out" ||
 # The other spelling: no flag at all is how a caller asks for no cap.
 out=$(m read cap.txt 2>&1); rc=$?
 want 0 "$rc" "a read with no cap is served"
-[ "$(grep -cE '^ +[0-9]+\| ' <<<"$out")" = 3 ] \
-  && ok "an ABSENT --max-lines still serves the whole file" \
-  || bad "omitting the flag no longer means no cap: $out"
+# ⚠ THE LINES, IN ORDER — not a count of numbered lines, which passes on
+# duplicated or substituted content while the row claims the whole file came
+# back (review of PR #133).
+if grep -q '^ *1| alpha$' <<<"$out" && grep -q '^ *2| bravo$' <<<"$out" && grep -q '^ *3| charlie$' <<<"$out"; then
+  ok "an ABSENT --max-lines still serves the whole file, line for line"
+else
+  bad "omitting the flag no longer serves the file whole: $out"
+fi
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

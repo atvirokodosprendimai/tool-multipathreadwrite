@@ -1194,7 +1194,7 @@ func specList(name string) ([]string, error) {
 	return out, nil
 }
 
-// maxLines is the read's per-file cap, or nil when the flag was not given.
+// maxLines is the read's per-SPEC cap, or nil when the flag was not given.
 //
 // ⚠ IsSet is the whole point: without it an absent flag and `--max-lines 0` are
 // the same input, which is how zero came to mean unlimited — and why nothing was
