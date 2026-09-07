@@ -234,8 +234,9 @@ nothing anyone is paying, and it is not the axis the tool competes on.
 
 **Round trips are the claim that survives every reading: 2 calls, for any N.**
 Bytes depend entirely on what you compare against, so the table gives both
-baselines rather than the flattering one — including the two shapes where mrw
-sends MORE bytes than the thing it replaces.
+baselines rather than the flattering one — and every one of the four shapes in
+it sends MORE bytes than a windowed read on at least one comparison. C loses on
+both, because for a file that small the window IS the whole file.
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
@@ -252,8 +253,11 @@ sends MORE bytes than the thing it replaces.
 | | bytes vs whole | 855,932 | 4,729 | 181.0× less |
 | | bytes vs windowed | 770 | 4,729 | **6.1× MORE** |
 
-Measured at `4d01620`; the script builds the binary it stamps. **Every figure here
-drifts, and shape D drifts fastest** — its file list is `git ls-files '*.go'`, so
+Measured at `4d01620` with a binary the script built from that tree. Set `MRW`
+to measure a binary from somewhere else and the header says so, because the
+commit then describes the fixtures and the file list rather than the code that
+produced the bytes. **Every figure here drifts, and shape D drifts fastest** —
+its file list is `git ls-files '*.go'`, so
 it grew from 27 files to 54 while this table said 27. Shape A's whole-file
 baseline moves whenever the four files it reads do. Re-run the script; the stamp
 is what tells you how old the number beside it is.
@@ -407,7 +411,8 @@ Running the tests needs only Go (`go test ./...`). Running the two reproduction
 scripts additionally needs **bash**, **git**, **awk** and a POSIX userland — the
 ordinary `sed`, `tr`, `wc`, `mktemp` and friends — on `PATH`.
 `scripts/contract.sh` needs more than that: **python3** (it builds and inspects
-JSON on 86 non-comment lines), plus **perl**, **jq**, **shasum** and **pgrep**.
+JSON on 86 non-comment lines), plus **perl**, **jq**, **shasum**, **pgrep** and
+**seq** — the last is not in POSIX and is used on 21 lines.
 None of those four was ever listed. Neither script needs `bc` any more:
 `measure.sh` was its only user, and `bc scale=1` TRUNCATES, so a ratio of
 1.29 printed as 1.2 and understated mrw's own loss. On Windows both scripts

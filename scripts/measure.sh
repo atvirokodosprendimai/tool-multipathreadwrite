@@ -45,11 +45,21 @@ cd "$(dirname "$0")/.."
 # Measured 2026-09-07 on this machine: 22,613 such directories, 240 MB, all from
 # one day of running the scripts. Found by the Codex review of #136.
 SCRATCH=$(mktemp -d)
-trap 'rm -rf "$SCRATCH"' EXIT INT TERM
+cleanup() { rm -rf "$SCRATCH"; }
+# ⚠ A CAUGHT SIGNAL DOES NOT STOP BASH. `trap cleanup EXIT INT TERM` runs the
+# handler and then RESUMES the script — with its binary, its fixture and its
+# state directory already deleted. With an externally supplied $MRW it can even
+# run to completion and exit 0, publishing a measurement that was interrupted.
+# So the signal handlers EXIT, and the EXIT trap is the single owner of the
+# removal. Codex, third review of #136.
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 export XDG_STATE_HOME="$SCRATCH/state"
 mkdir -p "$XDG_STATE_HOME"
 if [ -n "${MRW:-}" ]; then
   MRW=$(cd "$(dirname "$MRW")" && pwd)/$(basename "$MRW")
+  MRW_EXTERNAL=1
 else
   MRW="$SCRATCH/mrw"
   go build -o "$MRW" ./cmd/mrw
@@ -189,7 +199,11 @@ EOF
 # so a tree with an untracked .go file — which `go build` sees and shape D's
 # `git ls-files` does not — was stamped with a bare commit and could not be
 # reproduced from it. Codex, second review of #136.
-echo "mrw measurement — $(git rev-parse --short HEAD)$([ -n "$(git status --porcelain)" ] && echo ' (DIRTY TREE — these numbers are not reproducible from that commit)')"
+# ⚠ AND THE STAMP SAYS WHOSE BINARY IT IS. $MRW may name a binary built from
+# another tree — a release, a colleague's build — and then the commit below
+# describes the FIXTURES and the file list, not the code that produced the
+# bytes. Codex, third review of #136.
+echo "mrw measurement — $(git rev-parse --short HEAD)$([ -n "$(git status --porcelain)" ] && echo ' (DIRTY TREE — these numbers are not reproducible from that commit)')$([ -n "${MRW_EXTERNAL:-}" ] && echo " (binary supplied via \$MRW: $MRW — NOT built from this tree)")"
 
 # Shape A: scattered sites in large files. The case mrw is built for.
 measure "A. Scattered sites, large files" \
