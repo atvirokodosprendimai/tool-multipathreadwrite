@@ -8,7 +8,9 @@
 # 47 probes. Every probe name and exit code is IDENTICAL to the v1.4.0 run. Four lines differ in text
 # and only in where each is cut: the script truncates at a fixed width and the temp path lengths moved
 # the cut point. No probe changed outcome — including the three ADR-028/029/030 deliberately touched,
-# which the campaign does not exercise; contract §66 and §67 do.
+# which the campaign does not exercise. Contract §66 covers ADR-028 and §67 covers ADR-029; ADR-030
+# has NO contract row, deliberately — the built binary cannot reach a direct apply.Apply caller without
+# the parser — so its engine-boundary Go tests are what cover it.
 [pat-with-space] exit=0  X | 1 hunk(s), 1 file(s), 0 failed — applied
 [pat-escaped-slash] exit=0  X | 1 hunk(s), 1 file(s), 0 failed — applied
 [pat-end-before-start] exit=1  one|two|three| | FAIL f.txt /three/,/one/ replace (plan line 1): end pattern one matched only above the start line 3 (lines 1) in f.txt 1 hunk(s), 1 file(s), 1 failed — NOTHING WRITTEN mrw: 1 hunk(s) failed — nothing was written
