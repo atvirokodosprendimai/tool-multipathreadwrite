@@ -141,8 +141,10 @@ here.
 
 ## From ADR-007 (mrw finds the files it serves)
 
-- **A cross-file `--max-lines` budget.** The cap is per SPEC today — `read.Run`
-  resets `budget := opt.MaxLines` for each one — and ADR-007's walk deduplicates
+- **A cross-file `--max-lines` budget.** Deferred again from ADR-033, which
+  settles what a cap of ZERO means and leaves the scope alone. The cap is per
+  SPEC today — `read.Run`
+  resets `budget := opt.MaxLines` (now `capped := opt.MaxLines != nil`, ADR-033) for each one — and ADR-007's walk deduplicates
   so that it is per file for everything the walk produces. What nobody has
   decided is whether `mrw read --grep PAT .` over a large tree should have a
   budget for the WHOLE answer rather than per file, which is the number an agent
@@ -341,10 +343,13 @@ under `--dry-run`) were fixed then and carry contract rows.
   legitimate pairing (`body=N raw=true`, the escape hatch for a plan whose body
   contains a real `@@` header) is pinned by its own contract row, because
   refusing the useless form must not break the useful one.
-- **`--max-lines 0` means UNLIMITED, and this repository decided the opposite
-  question the other way once already.** A cap of zero is currently
-  indistinguishable from no cap, so there is no way to say "serve me the header
-  and nothing else" — and nothing is reported as withheld, though the README
+- ~~**`--max-lines 0` means UNLIMITED, and this repository decided the opposite
+  question the other way once already.**~~ **CLOSED 2026-09-07 by ADR-033** — zero
+  is a cap of zero now, `Options.MaxLines` is a `*int` so omission still means no
+  cap, and contract §69 drives both spellings. The reasoning is kept because it is
+  what made this a decision rather than a bug report. It read: a cap of zero was
+  indistinguishable from no cap, so there was no way to ask for the header alone
+  THROUGH THIS FLAG — `--stat` always covered that need by another route — — and nothing is reported as withheld, though the README
   promises "whatever is withheld is always reported". The precedent cuts
   against the current behaviour: `body=0` in a plan means an EMPTY body, not an
   unbounded one, and `TestBodyZeroMeansAnEmptyBody` exists because treating an
@@ -1068,3 +1073,40 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   and nothing else" expressible. It is a breaking change for anyone passing `0`
   to mean no cap, so it needs an ADR, a contract row and a line in the README's
   flag table. Its own record.
+- **Does the TURN COUNT dominate token cost, and if so does mrw win on tokens
+  even against a windowed read?** Raised 2026-09-07 by the session working on
+  atvirokodosprendimai.github.io while rewriting the landing page around
+  `scripts/measure.sh`, and filed here rather than left in a chat log because it
+  would change what this repository can honestly claim.
+
+  The mechanism is not in doubt: every tool call is a fresh request carrying the
+  whole conversation so far, so the Nth read pays for the N-1 before it.
+  Cumulative input across a loop is closer to `N x base + R x N(N+1)/2` than to
+  `N x R`. `measure.sh` reports R — the bytes one read puts in the context —
+  and says nothing about the exponent. It says so in its own header, which is
+  why the number is honest as far as it goes.
+
+  ⚠ **The confound is large enough to reverse the answer, not merely shade it:
+  prompt caching.** The re-sent prefix is charged at a fraction of fresh input,
+  and the discount lands exactly on the quadratic term the argument rests on.
+  "Turns dominate" and "turns are nearly free after the first" are both
+  plausible readings of the same mechanism; which holds is an empirical question
+  about cache hit rates in a real loop.
+
+  **Why it is worth the work.** The windowed baseline reads fewer bytes per read
+  but takes MORE turns — 105 against 2 in shape D. Those pull in opposite
+  directions and the turn count is the one that compounds. If the quadratic term
+  survives caching at all, mrw may win on cumulative tokens against the
+  disciplined windowed reader, which is the one case where the per-read column
+  says it LOSES 6.1x. That would invert the honest weakness this repository
+  currently publishes.
+
+  **Which is why nobody may state it until it is measured.** A claim that large,
+  that convenient and that unmeasured has the same shape as quoting only the
+  whole-file baseline: true under one accounting, stated as if it were the
+  accounting. Better to carry a weakness we can prove.
+
+  What a real measurement needs, and why it is not another shell script over
+  file sizes: actual API token accounting across a scripted N-turn loop, or a
+  defensible model of cache behaviour, for both the whole-file and the windowed
+  baseline against mrw's two calls. `docs/curve/` is the closest existing shape.

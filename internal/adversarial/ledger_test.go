@@ -167,7 +167,7 @@ func TestATruncatedReadLicensesOnlyTheLinesItPrinted(t *testing.T) {
 	root := tree(t, map[string]string{"big.go": long()})
 
 	observed, _ := read.Run(io.Discard, root,
-		[]read.Spec{{Path: "big.go"}}, read.Options{MaxLines: 5})
+		[]read.Spec{{Path: "big.go"}}, read.Options{MaxLines: intp(5)})
 
 	res, err := apply.Apply(root, []apply.Input{{
 		Path: "big.go", Start: 40, End: 40, Op: "replace",
