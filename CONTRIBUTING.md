@@ -5,7 +5,8 @@
 | for | you need |
 |---|---|
 | building and testing | **Go 1.26.6 or newer** (the version in `go.mod`). One dependency, no cgo. |
-| `scripts/measure.sh`, `scripts/contract.sh` | **bash**, **git**, **bc**. `bc` is absent from Alpine and most slim images: `apk add bc`. |
+| `scripts/measure.sh` | **bash**, **git**, **awk**, and a POSIX userland (`sed`, `tr`, `wc`, `mktemp`, `rm`, …). No `bc`: it was `measure.sh`'s only user and `bc scale=1` truncated the ratios. It builds its own binary from the working tree and stamps the commit — unless `MRW` names one, and then the header says the binary came from elsewhere, because the commit describes only the fixtures and the file list. |
+| `scripts/contract.sh` | the same, plus **python3** (JSON, on 86 non-comment lines), **perl**, **jq**, **shasum**, **pgrep** and **seq** (not POSIX; 21 lines). ⚠ This row has been wrong three times: it listed `bc`, which nothing needs; it omitted `python3`, which is mandatory; and "a POSIX userland" covered `seq`, which is not in POSIX. It names the NON-baseline commands and says "a POSIX userland" for the rest rather than pretending to enumerate every `sed` and `wc` — an incomplete list that reads as complete is what made the earlier versions misleading. |
 | either script on Windows | **WSL** or **Git Bash**. They are POSIX shell, not PowerShell. The binary itself is native. |
 | a **regex address** in Git Bash | `MSYS2_ARG_CONV_EXCL='*'`, or PowerShell/WSL. MSYS rewrites `f.go:/re/` before mrw starts and quoting does not stop it — see the README's "Git Bash on Windows mangles a regex address". |
 
@@ -59,7 +60,8 @@ output and check `$?`, or let the command stand alone.
 ```
 
 It builds its own binary from the working tree and stamps the commit, so the
-figures always name what produced them. **Re-run it rather than quoting the
+figures always name what produced them — and when `MRW` supplies a binary from
+somewhere else, the header says that too. **Re-run it rather than quoting the
 table** — the ratios track how large this repository's own files are, and they
 have moved by a third within a day.
 

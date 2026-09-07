@@ -234,33 +234,56 @@ nothing anyone is paying, and it is not the axis the tool competes on.
 
 **Round trips are the claim that survives every reading: 2 calls, for any N.**
 Bytes depend entirely on what you compare against, so the table gives both
-baselines rather than the flattering one — including the two shapes where mrw
-sends MORE bytes than the thing it replaces.
+baselines rather than the flattering one — and every one of the four shapes in
+it sends MORE bytes than a windowed read on at least one comparison. C loses on
+both, because for a file that small the window IS the whole file.
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 104,697 | 2,951 | **35.4× less** |
-| | bytes vs a **windowed** `offset`/`limit` read | 2,289 | 2,951 | **1.2× MORE** |
+| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 145,952 | 2,918 | **50.0× less** |
+| | bytes vs a **windowed** `offset`/`limit` read | 2,254 | 2,918 | **1.3× MORE** |
 | | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
 | | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
-| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 20,630 | 1,329 | 15.5× less |
+| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 20,145 | 1,329 | 15.2× less |
 | | bytes vs windowed | 866 | 1,329 | 1.5× MORE |
 | | calls | 4 / 5 | 2 | 2.0–2.5× fewer |
-| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 12,881 | 15,765 | **1.2× MORE** |
-| | calls | 2 / 3 | 2 | 1.0–1.5× fewer |
-| **D.** 1 site in **every** Go file — 27 sites, 27 files | calls (reads + edits) | 54 | 2 | **27.0× fewer** |
-| | bytes vs whole | 324,256 | 2,421 | 133.9× less |
-| | bytes vs windowed | 410 | 2,421 | **5.9× MORE** |
+| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 12,396 | 15,133 | **1.2× MORE** |
+| | calls | 2 / 3 | 2 | same to 1.5× fewer |
+| **D.** 1 site in **every** Go file — 54 sites, 54 files | calls (reads + edits) | 108 | 2 | **54.0× fewer** |
+| | bytes vs whole | 855,932 | 4,729 | 181.0× less |
+| | bytes vs windowed | 770 | 4,729 | **6.1× MORE** |
 
-Measured at `87b43d4`; the script builds the binary it stamps. Shape A's
-whole-file baseline moves whenever the four files it reads do — it went from
-104,486 to 104,697 bytes between two commits a day apart, and the ratio did not
-budge. That is the drift this note exists for, and why the stamp is here.
+Measured at `4d01620` with a binary the script built from that tree. Set `MRW`
+to measure a binary from somewhere else and the header says so, because the
+commit then describes the fixtures and the file list rather than the code that
+produced the bytes. **Every figure here drifts, and shape D drifts fastest** —
+its file list is `git ls-files '*.go'`, so
+it grew from 27 files to 54 while this table said 27. Shape A's whole-file
+baseline moves whenever the four files it reads do. Re-run the script; the stamp
+is what tells you how old the number beside it is.
 
 **Shape D is the one to read.** It is the change every codebase gets eventually —
-a renamed symbol, an added build tag, a changed import — one site in each of 27
+a renamed symbol, an added build tag, a changed import — one site in each of 54
 files, and the file list comes from `git ls-files` so it grows with the
 repository instead of measuring a subset somebody typed once.
+
+⚠ **And read shape D for the CALLS, not the bytes.** Its `6.1× MORE` is mrw's
+worst possible input by construction: 54 files at ONE line each, so a per-file
+header and a per-file receipt are charged against 770 bytes of payload. **Shape E
+holds the task still and varies the span instead**, on one 1.06 MB file:
+
+| span | whole file | windowed | mrw | | |
+|---|---|---|---|---|---|
+| 100 lines | 1,060,000 | 5,300 | 6,052 | **175.15× less** than whole | 1.14× more than windowed |
+| 2,000 lines | 1,060,000 | 106,000 | 120,053 | **8.83× less** | 1.13× more |
+| 20,000 lines | 1,060,000 | 1,060,000 | 1,200,054 | 1.13× more | 1.13× more |
+
+Two things fall out. The overhead against a windowed read is **flat at ~13%** and
+does not grow — it is the line-number gutter, which is what makes a served line
+addressable by a later write. And the *saving* is not a property of file size at
+all: it is the part of the file you were never going to look at, so it collapses
+as the span approaches the whole file. The large ratios in shape D are what one
+line per file looks like, not what scale looks like.
 
 The arithmetic is the product, and it does not depend on this repository:
 
@@ -277,7 +300,7 @@ block read back, and one more opportunity to lose the thread between site 19 and
 site 20. That is the cost mrw removes, and it is why the floor is 2 rather than
 "fewer".
 
-**Shape D also sends 5.9× MORE bytes than a windowed reader, and that is fine.**
+**Shape D also sends 6.1× MORE bytes than a windowed reader, and that is fine.**
 Each site is a single line, so mrw is paying a per-file header and a per-line
 number on the smallest possible payload — the worst byte case there is. It is in
 the table at its worst because the calls column is the claim, and a table that
@@ -286,7 +309,7 @@ hid the row where the other axis loses would not be worth reading.
 **Read the two byte rows together or neither.** `Read` takes `offset`/`limit`, so
 the windowed reader is the documented interface, not a strawman — and against it
 mrw costs *more* bytes, because it adds a header and a line number per line. The
-35.4× is real for the case an agent is usually in: it does not yet know where to
+50.0× is real for the case an agent is usually in: it does not yet know where to
 look, so it reads whole files. Once it knows, the byte advantage is gone and the
 round trips are what is left.
 
@@ -385,9 +408,15 @@ go build -o bin/mrw.exe ./cmd/mrw      # Windows
 ```
 
 Running the tests needs only Go (`go test ./...`). Running the two reproduction
-scripts additionally needs **bash**, **git** and **bc** on `PATH`. `bc` is *not*
-present on Alpine or most slim container images — `apk add bc` — and on Windows
-they need WSL or Git Bash.
+scripts additionally needs **bash**, **git**, **awk** and a POSIX userland — the
+ordinary `sed`, `tr`, `wc`, `mktemp` and friends — on `PATH`.
+`scripts/contract.sh` needs more than that: **python3** (it builds and inspects
+JSON on 86 non-comment lines), plus **perl**, **jq**, **shasum**, **pgrep** and
+**seq** — the last is not in POSIX and is used on 21 lines.
+None of those four was ever listed. Neither script needs `bc` any more:
+`measure.sh` was its only user, and `bc scale=1` TRUNCATES, so a ratio of
+1.29 printed as 1.2 and understated mrw's own loss. On Windows both scripts
+need WSL or Git Bash.
 
 
 ### Use it from an MCP host
