@@ -71,9 +71,22 @@ type Options struct {
 	Stat bool
 	// Context adds N lines either side of a single-pattern match.
 	Context int
-	// MaxLines caps the lines emitted per file. A cap that fires is always
+	// MaxLines caps the lines emitted per SPEC — the budget resets for each one,
+	// so two specs naming one file get two budgets — and NIL is how a caller says
+	// "no cap" (ADR-033). A pointer, not a sentinel: zero used to mean unlimited
+	// because both guards asked `> 0`, so there was no way to say "serve me the
+	// header and nothing else" and — worse — nothing was reported withheld,
+	// though the README promises whatever is withheld always is. This
+	// repository decided the same question the other way for `body=0`
+	// (ADR-027) and `lines=0`.
+	//
+	// ⚠ A numeric sentinel would invert the danger: the struct's zero value
+	// would mean "serve nothing", and the three call sites that omit this field
+	// would silently stop serving. Nil is what omission already meant.
+	//
+	// A cap that fires is always
 	// reported: a silent truncation reads as "that was the whole file".
-	MaxLines int
+	MaxLines *int
 }
 
 // msysHint recognises MSYS2 argument conversion, which rewrites a spec BEFORE
@@ -436,17 +449,21 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			fmt.Fprintf(w, "!! no match for %s\n", m)
 			problems++
 		}
-		budget := opt.MaxLines
+		capped := opt.MaxLines != nil
+		budget := 0
+		if capped {
+			budget = *opt.MaxLines
+		}
 		for _, sn := range spans {
 			n := sn.end - sn.start + 1
-			if opt.MaxLines > 0 && budget <= 0 {
+			if capped && budget <= 0 {
 				fmt.Fprintf(w, "@@ %d-%d  WITHHELD %d line(s): --max-lines reached\n", sn.start, sn.end, n)
 				problems++
 				whole = false
 				continue
 			}
 			cut := 0
-			if opt.MaxLines > 0 && n > budget {
+			if capped && n > budget {
 				cut, n = n-budget, budget
 				whole = false
 			}

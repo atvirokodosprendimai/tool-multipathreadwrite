@@ -598,7 +598,7 @@ Output ranges print as `@@ 3-6`, which is exactly the address a write plan takes
 |---|---|
 | `--stat` | length, bytes and sha only — no content |
 | `-C N` | context lines around a single-pattern match |
-| `--max-lines N` | cap per SPEC; whatever is withheld is always reported. Two hand-written specs naming one file therefore get two budgets — `--max-lines 2 f.txt f.txt` prints four lines. `--grep` deduplicates, so it is per file for everything the walk produces. |
+| `--max-lines N` | cap per SPEC, where zero means zero: `--max-lines 0` serves nothing and reports every line withheld, and omitting the flag is how you ask for no cap. Whatever is withheld is always reported. Two hand-written specs naming one file therefore get two budgets — `--max-lines 2 f.txt f.txt` prints four lines. `--grep` deduplicates, so it is per file for everything the walk produces. |
 | `-N` | drop line numbers |
 | `--grep PATTERN` | serve every matching range in the files under the given paths; a directory is walked, and with no paths the walk starts at `--root` |
 | `--exclude GLOB` | skip paths matching GLOB (repeatable); needs `--grep` |

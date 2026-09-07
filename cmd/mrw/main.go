@@ -390,7 +390,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.IntFlag{
 				Name:  "max-lines",
-				Usage: "stop after `N` lines per file; whatever is withheld is always reported",
+				Usage: "stop after `N` lines per SPEC, where zero means zero: omit the flag to ask for no cap. Two specs naming one file get two budgets. Whatever is withheld is always reported",
 			},
 			&cli.StringFlag{
 				Name:  "grep",
@@ -578,7 +578,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Numbers:  !cmd.Bool("no-numbers"),
 				Stat:     cmd.Bool("stat"),
 				Context:  cmd.Int("context"),
-				MaxLines: cmd.Int("max-lines"),
+				MaxLines: maxLines(cmd),
 			})
 			// Reading a file is how mrw learns what it holds; recording that is
 			// what lets a later write know whether its picture is still current.
@@ -1192,4 +1192,17 @@ func specList(name string) ([]string, error) {
 		return nil, fmt.Errorf("--files-from %s: no specs (blank lines and # comments are skipped)", name)
 	}
 	return out, nil
+}
+
+// maxLines is the read's per-SPEC cap, or nil when the flag was not given.
+//
+// ⚠ IsSet is the whole point: without it an absent flag and `--max-lines 0` are
+// the same input, which is how zero came to mean unlimited — and why nothing was
+// reported withheld for a cap the tool never applied (ADR-033).
+func maxLines(cmd *cli.Command) *int {
+	if !cmd.IsSet("max-lines") {
+		return nil
+	}
+	n := cmd.Int("max-lines")
+	return &n
 }

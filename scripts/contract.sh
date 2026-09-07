@@ -4002,6 +4002,34 @@ want 1 "$rc" "an alias-spelled anchored hunk on an unserved line is refused"
 grep -q 'UNSERVED-SENTINEL-29' <<<"$out" \
   && bad "the alias refusal read back a line the caller was never served: $out" \
   || ok "the alias refusal reads back no line the caller was not served"
+# 69. ADR-033: a cap of zero is a cap.
+#
+# --max-lines 0 meant UNLIMITED: both guards asked `> 0`, so a cap of zero was
+# indistinguishable from no cap — and NOTHING was reported withheld, though the
+# README promises whatever is withheld always is. body=0 (ADR-027) and lines=0
+# had already been decided the other way.
+#
+# BOTH SPELLINGS. A row asserting only the zero case passes against a binary
+# that serves nothing at all, which is a ban rather than a narrowing.
+fixture
+printf 'alpha\nbravo\ncharlie\n' > "$R/cap.txt"   # DISTINCT lines: a count passes on duplicates
+out=$(m read --max-lines 0 cap.txt 2>&1); rc=$?
+want 1 "$rc" "a cap of zero serves nothing, and a read that served nothing is an error"
+grep -q 'WITHHELD 3 line(s)' <<<"$out" \
+  && ok "a cap of zero reports what it withheld, with the count" \
+  || bad "a cap of zero withheld silently: $out"
+grep -qE '^ +[0-9]+\| ' <<<"$out" && bad "a cap of zero served content: $out" || ok "a cap of zero served no content line"
+# The other spelling: no flag at all is how a caller asks for no cap.
+out=$(m read cap.txt 2>&1); rc=$?
+want 0 "$rc" "a read with no cap is served"
+# ⚠ THE SEQUENCE, COMPARED EXACTLY. Three independent greps accept the same
+# lines reordered or repeated, which the second review of PR #133 reproduced —
+# and counting numbered lines accepts substituted content. The served sequence
+# is extracted and compared to the fixture's, in order.
+seq=$(sed -nE 's/^ *[0-9]+\| (.*)$/\1/p' <<<"$out" | tr '\n' ',')
+[ "$seq" = "alpha,bravo,charlie," ] \
+  && ok "an ABSENT --max-lines serves the file whole, in order, without repeats" \
+  || bad "omitting the flag no longer serves the file whole: got [$seq] from: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
