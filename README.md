@@ -352,6 +352,25 @@ number that is wrong on its own terms rather than merely out of date. A sentence
 that POINTS at a row cannot go stale; one that restates it can only be kept true
 by hand, and the hand that re-measures is looking at the table.
 
+⚠ **This is a rule about DUPLICATION, not a ban on numbers**, and the boundary
+matters because the unqualified version is wrong. Point when the figure already
+exists in an adjacent table and the sentence is repeating it. **State the figure,
+with a stamp, when it IS the claim** — the 453,632-character receipt above, or
+the state-directory counts: there is no row to point at, and pointing would leave
+the sentence saying nothing. **And state it when it cannot drift**: shape E's
+175.15× and 8.83× come from a generated file of 20,000 lines of IDENTICAL LENGTH
+— 52 characters plus the newline, 53 bytes, 1,060,000 in total — but of DISTINCT
+content (`item%05d`, all 20,000 different), so the line-number gutter is isolated
+from any variation in line length. That makes those ratios a property of the
+construction rather than of a file list, which is exactly what shape D's are not.
+
+The boundary was drawn by the peer session that named the class, after applying
+the fix to its own pages and finding one place it should not go: a landing page
+with no table at all, where the number is the content and the mitigation has to
+be a stamp instead. Their sweep had checked that every figure MATCHED the new
+measurement, and every one did — while creating four sentences that could only
+stay true by hand. Matching is not the property to want; not needing to match is.
+
 That is also why the calls row splits. Reading whole files needs no search — the
 file reveals the site. Reading windows presupposes knowing where the window is,
 and finding it costs a call. mrw needs neither: these specs are regexes, so the
