@@ -27,6 +27,7 @@ failed anchor on a served line still quotes it.
 2. [S2] Write §66 with both halves and a distinctive sentinel: serve line 1, anchor line 2 with a wrong value, and assert the sentinel text of line 2 is ABSENT from the output while the ledger's own refusal is present. [proof: acceptance]
 3. [S3] Assert the other half in the same section: with the line served, a failed anchor still quotes it. Without this the row would pass against a binary that had stopped checking anchors. [proof: acceptance]
 4. [S4] Run `./scripts/contract.sh` whole, and every other gate. [proof: acceptance]
+5. [S5] Drive ALL FOUR anchored ops, not the ones that came to mind. `replace` and `delete` share the moved inline check; the two insertions reach the anchor through a guard closure. The first version of this section carried three of the four while the record above it claimed all four — a false coverage claim, caught by the third Codex review of PR #128 and by no gate, because a section that runs three ops passes exactly like one that runs four. The added `delete` case was confirmed RED against the v1.4.0 binary built from `bd73ee0`, where it prints `UNSERVED-SENTINEL-42`. [proof: acceptance]
 
 ## Acceptance
 
@@ -46,7 +47,7 @@ grep -q '^# 66\. ADR-028: a guard does not read back what was not served\.$' scr
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `§66` | `scripts/contract.sh` | The built binary refuses an anchored hunk on an unserved line without printing any of that line, and still quotes a served line whose anchor failed | — | S1, S2, S3 |
+| `§66` | `scripts/contract.sh` | For all four anchored ops — `replace`, `delete`, `insert-after`, `insert-before` — the built binary refuses an anchored hunk on an unserved line without printing any of that line, and still quotes a served line whose anchor failed | — | S1, S2, S3, S5 |
 
 ## Reachability
 
@@ -90,3 +91,4 @@ exists is asserting nothing, and finding that out here is the point of S1.
 - 2026-09-07 · eed0cd4* · exit 0 · `set -o pipefail …` · acceptance-sha256:7cc5f992045a9f073f8bb609eca768382330e3717a607bbc77cf7f2a0c15e731 · ms:32433
 - 2026-09-07 · eed0cd4* · exit 0 · `set -o pipefail …` · acceptance-sha256:7cc5f992045a9f073f8bb609eca768382330e3717a607bbc77cf7f2a0c15e731 · ms:29918
 - 2026-09-07 · eed0cd4* · exit 0 · `set -o pipefail …` · acceptance-sha256:7cc5f992045a9f073f8bb609eca768382330e3717a607bbc77cf7f2a0c15e731 · ms:29943
+- 2026-09-07 · 29efa5d* · exit 0 · `set -o pipefail …` · acceptance-sha256:7cc5f992045a9f073f8bb609eca768382330e3717a607bbc77cf7f2a0c15e731 · ms:34952

@@ -3908,6 +3908,17 @@ for op in insert-after insert-before; do
 done
 out=$(printf '@@ s.txt 1 insert-after anchor="no-such-text"\nX\n' | m write - 2>&1)
 grep -q 'public line' <<<"$out" && ok "a served line's insertion anchor still quotes it" || bad "insert-after stopped checking anchors: $out"
+# And `delete`, which the first version of this section left out while the record
+# above it claimed all four — caught by the third Codex review of PR #128. It
+# shares `replace`'s ordering rather than the insertions' closure, so it proves a
+# different half of the same claim, and it carries no body.
+out=$(printf '@@ s.txt 2 delete anchor="no-such-text"\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "an anchored delete on an unserved line is refused"
+grep -q 'UNSERVED-SENTINEL-42' <<<"$out" \
+  && bad "the delete refusal read back a line the caller was never served: $out" \
+  || ok "the delete refusal reads back no unserved line"
+out=$(printf '@@ s.txt 1 delete anchor="no-such-text"\n' | m write - 2>&1)
+grep -q 'public line' <<<"$out" && ok "a served line's delete anchor still quotes it" || bad "delete stopped checking anchors: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
