@@ -893,8 +893,11 @@ re-measuring these. Each was driven at the built binary, not read:
 
   **Two obligations remain open here, and ADR-024 defers both to this file by name.**
 
-- **The ledger records what was SENT, not what was SEEN** (`internal/mcp/tools.go`, the `seen.Record`
-  calls). Deferred from `docs/adr/ADR-024-a-page-is-known-by-its-served-text.md`, whose Decision 4
+- ~~**The ledger records what was SENT, not what was SEEN** (`internal/mcp/tools.go`, the `seen.Record`
+  calls).~~ **CLOSED 2026-09-07 by ADR-031 FOR PAGED READS** — a page is held pending against
+  bracketed checkpoints and reaches the ledger only when the caller echoes them. ⚠ Still OPEN for a
+  read that FITS, which is recorded on serve as before; that half has its own entry below. Kept
+  because the reasoning is what made the class visible. Deferred from `docs/adr/ADR-024-a-page-is-known-by-its-served-text.md`, whose Decision 4
   says plainly that it narrows the exposure without removing the class: mrw cannot observe truncation
   from inside the server, a cut result and a whole one being identical to it. `anchor=` is the
   candidate echo-back — it already exists, and a caller that never saw a line cannot reproduce its
@@ -905,8 +908,12 @@ re-measuring these. Each was driven at the built binary, not read:
 - **`MaxResultChars` is one host's ceiling hardcoded into a general-purpose tool.** `schema.go` says
   so itself — "The value is Claude Code's per-tool ceiling" — while mrw runs under any MCP host.
   Deferred from ADR-024, which explicitly does not move the number. The proposed shape is a
-  caller-set knob (`MRW_MAX_RESULT_CHARS`, `mrw mcp --max-result-chars N`, `0` = no limit) with
-  `_meta`'s `anthropic/maxResultSizeChars` advertising the configured value rather than a constant.
+  caller-set knob (`MRW_MAX_RESULT_CHARS`, `mrw mcp --max-result-chars N`) with
+  ⚠ **NOT `0` = no limit** — that shape was proposed here before ADR-033 settled
+  the same question for `--max-lines`, and M chose zero-means-zero on 2026-09-07;
+  omitting the knob is how a caller asks for the default — with `_meta`'s
+  `anthropic/maxResultSizeChars` advertising the configured value rather than a
+  constant.
   ⚠ The cap is NOT ceremony and must not simply be deleted: `internal/mcp/tools.go` records that an
   uncapped 40 × 18 MB read peaked at 2.6 GB and that the cap brought the same request to 87 MB,
   measured 2026-09-03. What a knob changes is WHO chooses, not whether the guard exists.
@@ -1040,6 +1047,32 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   makes for classifying refusals without matching text, so whoever takes one
   should take both.
 
+- **Checkpoints on small reads that fit whole.** Deferred from ADR-031, which
+  interleaves `-- ck` markers only into reads that PAGE. A read that fits in one
+  answer is still recorded on serve, so the same host truncation would license
+  lines nobody saw — the class is narrowed, not closed, and this entry is the
+  only place that is written down. Against doing it now: every read would grow
+  by TWO marker lines per 200 lines — spans are bracketed, open and close and every caller would have to acknowledge
+  every read, which is a large tax for a case nothing has yet measured. The
+  evidence to promote it is one observed truncation of a NON-paged answer; the
+  measurement that produced ADR-031 was of a paged one (`docs/curve/reading-18-result.md`).
+
+- **`MaxResultChars` as a caller-set knob, bounding the whole encoded result.**
+  Chosen by M on 2026-09-07 and deferred out of ADR-031 so that record stays
+  about the ledger. It is one host's ceiling (200,000) hardcoded into a
+  general-purpose tool; `mrw_write` also advertises a cap it does not enforce.
+  M's decision: make it caller-set, bound the ENTIRE encoded result rather than
+  the served text alone, enforce the write cap, and explicitly do NOT give `0`
+  the meaning "unlimited" — `0` means zero, per this repository's own precedent
+  in `body=0` and `lines=0`. Its own record; nothing here blocks it.
+
+- **`--max-lines 0` means UNLIMITED, and M decided on 2026-09-07 that it should
+  mean ZERO.** The struck entry above states the
+  question and the precedent — `body=0` is an empty body, `lines=0` is a real
+  assertion — and M's answer is consistency with those, making "serve the header
+  and nothing else" expressible. It is a breaking change for anyone passing `0`
+  to mean no cap, so it needs an ADR, a contract row and a line in the README's
+  flag table. Its own record.
 - **Does the TURN COUNT dominate token cost, and if so does mrw win on tokens
   even against a windowed read?** Raised 2026-09-07 by the session working on
   atvirokodosprendimai.github.io while rewriting the landing page around

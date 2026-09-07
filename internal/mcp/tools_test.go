@@ -288,9 +288,11 @@ func TestAReadOverTheLimitIsRefusedNotTruncated(t *testing.T) {
 	// terminal; over MCP the consumer is a model, and a truncated file that
 	// arrives looking like the file is the silent wrong answer.
 	//
-	// ⚠ RETARGETED BY ADR-014. A SINGLE oversized spec now returns a first page
-	// and a continuation, and records the span it served — so "carries no file
-	// content" and "records no ledger entry" are deliberately false there, and
+	// ⚠ RETARGETED BY ADR-014, THEN AGAIN BY ADR-031. A SINGLE oversized spec
+	// returns a first page and a continuation, and HOLDS the span it served
+	// pending until the caller acknowledges it — so "carries no file content"
+	// is deliberately false there, while "records no ledger entry" became true
+	// again once a page stopped recording on serve. Covered by
 	// TestAPagedReadReassemblesTheWholeFile and TestAPageLicensesOnlyWhatItServed
 	// carry that case. What ADR-014 does NOT change is the multi-spec request:
 	// the spec that crossed the limit may not be the first, so paging one of
@@ -538,16 +540,32 @@ func TestAPageLicensesOnlyWhatItServed(t *testing.T) {
 		t.Fatal("a file this size must page; the fixture is not exercising the path")
 	}
 
-	// A write inside page one is licensed.
-	ok := structured(t, call(t, root, "mrw_write", map[string]any{
+	// ⚠ A PAGE NOW LICENSES NOTHING UNTIL IT IS ACKNOWLEDGED (ADR-031). Before
+	// that record this test wrote straight after reading, because being SENT a
+	// page was taken as having received it — which is the belief a host's
+	// truncation falsified on 2026-09-05. So the checkpoints are taken out of
+	// the served text, the way a caller that actually received the page would.
+	acks := checkpointsIn(served0(t, res))
+	if len(acks) == 0 {
+		t.Fatal("a paged read carries no checkpoints, so nothing can ever be acknowledged")
+	}
+	unacked := structured(t, call(t, root, "mrw_write", map[string]any{
 		"plan": "@@ " + path + " 1 replace\n// page one\n", "dry_run": true}))
-	if n, _ := ok["failed"].(float64); n != 0 {
-		t.Errorf("a write to a line page one served was refused: %v", ok["hunks"])
+	if n, _ := unacked["failed"].(float64); n != 1 {
+		t.Errorf("a write against an UNACKNOWLEDGED page was allowed: %v", unacked["hunks"])
 	}
 
-	// A write far past it is not.
+	// A write inside page one is licensed once the page is acknowledged.
+	ok := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": "@@ " + path + " 1 replace\n// page one\n", "dry_run": true, "ack": acks}))
+	if n, _ := ok["failed"].(float64); n != 0 {
+		t.Errorf("a write to a line page one served was refused after it was acknowledged: %v", ok["hunks"])
+	}
+
+	// A write far past it is not, even acknowledged: acking every checkpoint
+	// the page carried licenses the page, never the file.
 	no := structured(t, call(t, root, "mrw_write", map[string]any{
-		"plan": fmt.Sprintf("@@ %s %d replace\n// last page\n", path, lines), "dry_run": true}))
+		"plan": fmt.Sprintf("@@ %s %d replace\n// last page\n", path, lines), "dry_run": true, "ack": acks}))
 	if n, _ := no["failed"].(float64); n != 1 {
 		t.Fatalf("failed = %v, want 1 — a page must not license lines it never served", no["failed"])
 	}
@@ -1131,4 +1149,199 @@ func TestAReadThatServedNothingIsAnError(t *testing.T) {
 	}
 	empty := call(t, root, "mrw_read", map[string]any{"specs": []any{"empty.txt:1"}})
 	unflagged(t, empty, "a range against an empty file that was observed")
+}
+
+// checkpointsIn pulls ADR-031's markers out of a served page, which is what a
+// caller that actually received the text can do and one that did not cannot.
+func checkpointsIn(text string) []any {
+	var out []any
+	for _, line := range strings.Split(text, "\n") {
+		// Only the OPEN marker, and only its id: a span is acknowledged by the
+		// id that brackets it, and the close marker repeats the same id.
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "-- ck "); ok {
+			if id, _, found := strings.Cut(rest, " "); found && strings.Contains(rest, "open") {
+				out = append(out, id)
+			}
+		}
+	}
+	return out
+}
+
+// TestAckOnAReadPromotesToo pins the half no test reached: ack is accepted on
+// mrw_read as well as on mrw_write, so a caller can acknowledge the page it just
+// received while asking for the next one. Deleting the read-side promotion left
+// every other test and section 68 green — the review of PR #132 found that.
+func TestAckOnAReadPromotesToo(t *testing.T) {
+	const lines = 12000
+	root, path := bigCheckout(t, lines)
+
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	acks := checkpointsIn(served0(t, res))
+	if len(acks) == 0 {
+		t.Fatal("a paged read carries no checkpoints")
+	}
+
+	// ⚠ The acknowledging read must not license the tested line BY ITSELF. The
+	// first version of this test acked on a read of line 1 and then wrote line
+	// 1 — which readTool's ordinary seen.Record licensed regardless, so
+	// deleting read-side promotion left it green. Found by the review of PR
+	// #132. It reads a DIFFERENT file, so the only thing that can license line
+	// 1 of this one is the ack it carried.
+	other := filepath.Join(root, "other.txt")
+	if err := os.WriteFile(other, []byte("only\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	call(t, root, "mrw_read", map[string]any{"specs": []any{"other.txt"}, "ack": acks})
+
+	// The write carries no ack of its own, so anything licensed here was
+	// licensed by the READ.
+	ok := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": "@@ " + path + " 1 replace\n// page one\n", "dry_run": true}))
+	if n, _ := ok["failed"].(float64); n != 0 {
+		t.Errorf("acknowledging on a read licensed nothing: %v", ok["hunks"])
+	}
+}
+
+// TestBothToolsAdvertiseAck keeps the field discoverable. It was implemented in
+// the handlers and absent from tools/list, so a schema-driven host could not
+// learn about a BREAKING requirement — found by the review of PR #132.
+// TestAPagedFooterCarriesTheOneRule inspects a REAL paged answer. The rule
+// reaching the instructions and the two documents left the footer free to
+// paraphrase — the surface a caller meets first (fourth review of PR #132).
+func TestAPagedFooterCarriesTheOneRule(t *testing.T) {
+	root, path := bigCheckout(t, 12000)
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	if nextOf(t, res) == "" {
+		t.Fatal("the fixture did not page")
+	}
+	if !strings.Contains(served0(t, res), AckRule) {
+		t.Errorf("the page footer does not carry the acknowledgement rule verbatim:\n%s", served0(t, res))
+	}
+}
+
+func TestBothToolsAdvertiseAck(t *testing.T) {
+	for _, tl := range tools() {
+		if tl.Name != "mrw_read" && tl.Name != "mrw_write" {
+			continue
+		}
+		schema, _ := tl.InputSchema.(map[string]any)
+		props, _ := schema["properties"].(map[string]any)
+		if _, ok := props["ack"]; !ok {
+			t.Errorf("%s does not advertise ack, so a host driven by the schema cannot send it", tl.Name)
+		}
+	}
+}
+
+// TestAPageThatCannotFitIsNotAPage pins ADR-031's line-granularity limit. The
+// paging budget is estimated in LINES, so one line longer than the entire cap
+// yields a page that still exceeds it — and a head/tail cut of a single numbered
+// line leaves the open marker, the `NNN|` prefix and the close marker intact.
+// The caller then satisfies AckRule honestly while the middle never arrived.
+//
+// Bracketing proves receipt per LINE and cannot prove it within one, so such a
+// read is refused rather than paged. Found by the fifth review of PR #132.
+func TestAPageThatCannotFitIsNotAPage(t *testing.T) {
+	root := t.TempDir()
+	long := strings.Repeat("x", MaxResultChars+1000)
+	if err := os.WriteFile(filepath.Join(root, "wide.txt"), []byte(long+"\nsecond\nthird\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{"wide.txt"}})
+	blocks, _ := res["content"].([]any)
+	if len(blocks) > 1 {
+		t.Error("a read whose first line exceeds the cap was served as a PAGE; its one line cannot be acknowledged honestly, because a cut inside it leaves both markers standing")
+	}
+	if isErr, _ := res["isError"].(bool); !isErr {
+		t.Error("a read that cannot be paged is not refused either, so the caller gets neither the lines nor a reason")
+	}
+	first, _ := blocks[0].(map[string]any)
+	txt, _ := first["text"].(string)
+	if !strings.Contains(txt, "limit") {
+		t.Errorf("the refusal does not name the limit: %s", txt)
+	}
+	// ⚠ AND THE ADVICE MUST BE USABLE. The ordinary refusal says "ask for a
+	// range instead — for example wide.txt:1-1", which for this file retries the
+	// identical unservable line. A refusal that names an impossible remedy is
+	// ADR-015's failure with extra steps (sixth review of PR #132).
+	if strings.Contains(txt, ":1-1") {
+		t.Errorf("the refusal tells the caller to retry the same unservable line: %s", txt)
+	}
+	if !strings.Contains(txt, "serves whole lines") || !strings.Contains(txt, "mrw read") {
+		t.Errorf("the refusal does not say why no range helps, nor name a reader that can: %s", txt)
+	}
+}
+
+// TestAPageIsMeasuredAfterItsMarkersAndFooter pins the boundary the first cut
+// of the fit check missed: it measured the raw buffer, before interleave added
+// the checkpoint markers and before the footer was appended. A line just UNDER
+// the cap then produced a page just over it — 199,518 bytes checked against
+// 200,142 delivered — so the very case the check exists for slipped through.
+// Found by the sixth review of PR #132.
+func TestAPageIsMeasuredAfterItsMarkersAndFooter(t *testing.T) {
+	root := t.TempDir()
+	var b strings.Builder
+	b.WriteString(strings.Repeat("x", MaxResultChars-2000))
+	b.WriteByte('\n')
+	for i := 2; i <= 1001; i++ {
+		fmt.Fprintf(&b, "line %d\n", i)
+	}
+	if err := os.WriteFile(filepath.Join(root, "near.txt"), []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// ⚠ THE ENCODED RESULT, not each block. Measuring blocks separately misses
+	// the receipt and the JSON envelope, which is how a 199,794-byte report
+	// delivered 200,004 bytes (seventh review of PR #132).
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{"near.txt"}})
+	enc, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(enc) > MaxResultChars {
+		t.Errorf("the encoded result is %d bytes, over the %d advertised cap", len(enc), MaxResultChars)
+	}
+}
+
+// TestTheUnservableLineIsDiagnosedPerFile pins the multi-spec case. The
+// diagnosis counted completed lines across the WHOLE capped sample, so a small
+// file listed first supplied them and hid an unservable long line in the file
+// after it — the caller then got a per-file line budget that cannot serve it
+// (eighth review of PR #132).
+func TestTheUnservableLineIsDiagnosedPerFile(t *testing.T) {
+	root := t.TempDir()
+	small := ""
+	for i := 1; i < 50; i++ {
+		small += fmt.Sprintf("s %d\n", i)
+	}
+	if err := os.WriteFile(filepath.Join(root, "small.txt"), []byte(small), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "wide.txt"),
+		[]byte(strings.Repeat("x", MaxResultChars+1000)+"\nsecond\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Many long but individually SERVABLE lines must still get a range.
+	if err := os.WriteFile(filepath.Join(root, "many.txt"),
+		[]byte(strings.Repeat(strings.Repeat("y", 110000)+"\n", 6)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range []struct {
+		name       string
+		specs      []any
+		unservable bool
+	}{
+		{"small first, then a line no range can serve", []any{"small.txt", "wide.txt"}, true},
+		{"small first, then long but servable lines", []any{"small.txt", "many.txt"}, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			res := call(t, root, "mrw_read", map[string]any{"specs": c.specs})
+			blocks, _ := res["content"].([]any)
+			first, _ := blocks[0].(map[string]any)
+			txt, _ := first["text"].(string)
+			said := strings.Contains(txt, "serves whole lines")
+			if said != c.unservable {
+				t.Errorf("unservable-line advice = %v, want %v: %s", said, c.unservable, txt)
+			}
+		})
+	}
 }

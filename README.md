@@ -34,7 +34,7 @@ thirteen-service fixture (reading 17) and for a client from a second vendor (rea
 section *Does serving more hurt?* has the numbers and their limits.
 Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
 tools — changes only through a record, and a record that relaxes or replaces an earlier promise
-retires it. **Since v1.0.0 that has happened three times, all on the MCP surface and none on the CLI:**
+retires it. **Since v1.0.0 that has happened four times, all on the MCP surface and none on the CLI:**
 
 ADR-023 retires half of ADR-011's T2, so `mrw_read` returns no `structuredContent` and declares no
 `outputSchema`; its receipt is the second text block, unchanged in shape. A caller that read
@@ -63,6 +63,15 @@ An answer that served anything is unchanged, and that includes the two shapes it
 mistake for emptiness: a range that matches no line, and an empty file. Both are still OBSERVED — mrw
 opened them and recorded their sha — so both stay unflagged, and the observation count rather than the
 problem count is what separates them.
+
+ADR-031 retires the clause of ADR-014's Decision 3 that recorded a page ON SERVE. The reasoning is
+kept — a page licenses its own lines and no more — but the licence now attaches on ACKNOWLEDGEMENT
+rather than on delivery, because mrw cannot see the difference between a page that arrived and one a
+host cut in half. A paged answer brackets each run of lines with `-- ck <id> open lines A-B (N lines
+follow)` and `-- ck <id> close`, and licenses nothing until the caller sends those ids back as
+`ack`. Measured 2026-09-05, and it is the same failure the `isError` clause above was retired for,
+one level down: the host cut the MIDDLE out of a 2,727-line page, the model saw the two ends, mrw
+recorded all of it, and a write to a line in the discarded middle applied at exit 0.
 
 `mrw_write` is untouched by all three, and so is every CLI behaviour.
 
@@ -462,16 +471,29 @@ startup, so a host log answers "which checkout is this?" without guessing.
 
 **A read over MCP is bounded; the CLI is not.** `mrw_read` will not return more
 than 200,000 characters in one call. A request over that comes back as the FIRST
-PAGE — the lines that fit, `isError: true`, and a `next_read` field naming the
+PAGE — the lines that fit, a `next_read` field naming the
 spec that asks for the rest. Send it to continue, and repeat until `next_read`
 is absent; its absence is how a caller knows it has the whole file, and each
-page licenses a write to exactly the lines it served, no more. Nothing is ever
+page licenses a write to exactly the lines it served **that you acknowledge**. Nothing is ever
 truncated: a part that arrives looking like the whole file is the silent wrong
-answer this tool exists to refuse, which is why a page stays an error and says
-what remains. Naming several specs at once cannot page — mrw cannot know which
+answer this tool exists to refuse, which is why a page says in its own text
+what remains — a page is not flagged `isError`, since ADR-024 moved that promise onto the served
+text. Naming several specs at once cannot page — mrw cannot know which
 of them to narrow — so that case is still refused outright, with the limit and a
-per-file line budget. The limit is also declared in `tools/list` as
+per-file line budget — unless no line of the file fits at all, where a budget would name a range
+that fails the same way, and the refusal says so and points at the CLI instead. The limit is also declared in `tools/list` as
 `_meta["anthropic/maxResultSizeChars"]`, so a host knows it before it hits it.
+
+⚠ **A page licenses nothing until you acknowledge it** (ADR-031). Its served text carries `-- ck`
+markers: each run of 200 lines is BRACKETED by `-- ck <id> open lines A-B (N lines follow)` and
+`-- ck <id> close`. Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.
+Omit an id and its lines stay unwritable, which is the point: on 2026-09-05 a host cut the middle out of a 2,727-line page, the model saw the two ends,
+mrw recorded the whole thing, and a write to a line in the discarded middle applied at exit 0. mrw
+cannot see that from inside the server — a cut result and a delivered one are identical to it — so
+the licence comes from the caller rather than from the send. The CLI takes no `ack` and needs none:
+nothing sits between `mrw read` and you.
+
+
 `mrw read` on the command line has no such limit and no paging: it streams.
 
 Two tools are exposed. `mrw_read` takes `specs` — the same range syntax the CLI

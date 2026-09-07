@@ -2204,7 +2204,7 @@ out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolV
 python3 - "$out" <<'PY'
 import json,sys
 i=json.loads(sys.argv[1])["result"]["instructions"]
-for w in ("--files-from","--check","--root","shell","serialized","ONE fixed checkout"):
+for w in ("--files-from","--check","--root","shell","serialized","ONE fixed checkout","ack","LICENSES NOTHING"):
     assert w in i, "the instructions never mention %r" % w
 # The routing must come BEFORE the format details. It is no longer literally
 # first: it is merged into the WHEN TO REACH paragraph, because a separate
@@ -2213,6 +2213,21 @@ for w in ("--files-from","--check","--root","shell","serialized","ONE fixed chec
 # to hold is the ORDER — a caller meets the choice before it meets the grammar.
 assert i.index("WHICH SURFACE") < i.index("READING."), "the routing comes after the format details, so the choice is made before it is offered"
 assert len(i.encode()) <= 4096, "instructions are %d bytes, over the bound every session pays" % len(i.encode())
+# ⚠ THE RULE ITSELF, read out of internal/mcp/ack.go's AckRule constant and
+# required VERBATIM on the wire. Listing tokens is what let a mutant negate the
+# clause while "ack", "LICENSES NOTHING" and the rest stayed present — twice.
+import re as _re
+_src=open("internal/mcp/ack.go").read()
+_m=_re.search(r'const AckRule = "([^"]*)"', _src)
+assert _m, "internal/mcp/ack.go no longer declares AckRule, so nothing pins what the surfaces must say"
+# ⚠ AN INDEPENDENT ORACLE. Taking the expected text from the implementation and
+# then finding it in the implementation's output is satisfied by an EMPTY rule.
+# The sentence is written here so that weakening the constant fails.
+_want = ("Send an id in ack only if you hold BOTH its open and close markers AND counted the N "
+         "numbered lines the open marker says follow: one marker is not enough, because a cut "
+         "starting inside a span leaves the other end.")
+assert _m.group(1) == _want, "AckRule no longer states the rule ADR-031 decided:\n%s" % _m.group(1)
+assert _want in i, "the served instructions do not carry the acknowledgement rule verbatim"
 PY
 [ $? -eq 0 ] && ok "the handshake routes a shell-capable caller to the CLI, first" \
              || bad "the surface does not say it is the smaller one"
@@ -3097,9 +3112,28 @@ with open('$R/huge.go','w') as f:
     for i in range(12000): f.write('// padding padding padding padding padding %06d\n' % i)
 "
 total=$(wc -l < "$R/huge.go" | tr -d ' ')
-printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["huge.go"]}}}\n' | m mcp >/dev/null 2>&1
-out=$(printf '@@ huge.go 1 replace\n// page one\n' | m write --dry-run - 2>&1); rc=$?
-want 0 "$rc" "a write to a line the first page served is licensed"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["huge.go"]}}}\n' | m mcp 2>/dev/null)
+# ⚠ A PAGE LICENSES NOTHING UNTIL IT IS ACKNOWLEDGED (ADR-031). This row used to
+# read and then write, because being SENT a page was taken as receiving it —
+# the belief a host's truncation falsified on 2026-09-05. Acknowledging every
+# checkpoint is what a caller that received the whole page does, and the row's
+# own claim is unchanged: the PAGE is licensed, the file is not.
+printf '%s' "$out" > "$R/page.json"   # via a file: a page exceeds Linux's 128 KB argv limit
+cks=$(python3 - "$R/page.json" <<'PY'
+import json,re,sys
+r=json.load(open(sys.argv[1]))["result"]
+print(",".join('"%s"' % c for c in re.findall(r"^-- ck ([0-9a-f]{16}) open ", r["content"][0]["text"], re.M)))
+PY
+)
+[ -n "$cks" ] && ok "the page carries checkpoints to acknowledge" || bad "a paged read carries no checkpoint"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ huge.go 1 replace\\n// page one\\n","dry_run":true,"ack":[%s]}}}\n' "$cks" | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == 0, "a write to a line the acknowledged page served was refused: %s" % sc
+PY
+want 0 $? "a write to a line the first page served is licensed once acknowledged"
 out=$(printf "@@ huge.go $total replace\n// last line\n" | m write --dry-run - 2>&1); rc=$?
 want 1 "$rc" "and a write to a line that page did NOT serve is refused as unread"
 # ⚠ Both judgements must sit ABOVE the next section. They were spliced apart by
@@ -4002,6 +4036,193 @@ want 1 "$rc" "an alias-spelled anchored hunk on an unserved line is refused"
 grep -q 'UNSERVED-SENTINEL-29' <<<"$out" \
   && bad "the alias refusal read back a line the caller was never served: $out" \
   || ok "the alias refusal reads back no line the caller was not served"
+# 68. ADR-031: a page licenses only what came back.
+#
+# A page mrw SENDS is not a page the caller RECEIVED. Measured 2026-09-05: the
+# host cut the middle out of a 2,727-line page, the model saw lines 1-90 and
+# 2644-2727, mrw recorded that page whole (1-2727), and a write to line 1500
+# applied at exit 0.
+# So a served span is held pending against checkpoints woven through the text
+# and reaches the ledger only when the caller echoes them.
+#
+# BOTH HALVES. A row asserting only the refusal passes against a server that
+# licenses NOTHING, which would be a ban rather than a narrowing — so the
+# acknowledged write must succeed in the same section.
+#
+# ⚠ AND THE UNACKNOWLEDGED HALF IS THE MIDDLE, NOT THE TAIL. The measured cut
+# kept both ends, so a fixture that omits the LAST checkpoint is green against
+# the one-token-at-the-end design ADR-031 rejects, and proves nothing.
+fixture
+python3 - "$R" <<'PY'
+import sys, pathlib
+pathlib.Path(sys.argv[1], "big.txt").write_text("".join("line %d\n" % i for i in range(1, 12001)))
+PY
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["big.txt"]}}}\n' | m mcp 2>/dev/null)
+want 0 $? "the server answers a read that must page"
+# the page is kept in $R/page.json below: $out is reused by every write
+# ⚠ THE PAGE GOES THROUGH A FILE, NOT THROUGH ARGV. Linux caps a single
+# argument at 128 KB (MAX_ARG_STRLEN) while macOS does not, so passing a
+# 200 KB page as sys.argv[1] worked locally and died on CI with "Argument
+# list too long" — and the row then reported the FEATURE missing rather
+# than the harness broken.
+printf '%s' "$out" > "$R/page.json"
+cks=$(python3 - "$R/page.json" <<'PY'
+import json,re,sys
+r=json.load(open(sys.argv[1]))["result"]
+print(" ".join(re.findall(r"^-- ck ([0-9a-f]{16}) open ", r["content"][0]["text"], re.M)))
+PY
+)
+[ -n "$cks" ] && ok "a paged read carries checkpoints a caller can echo" || bad "a paged read carries no checkpoint, so nothing can ever be acknowledged"
+# ⚠ COVERAGE, not just the markers that happen to exist. Validating only the
+# blocks present passes against a server that brackets lines 1-200 and leaves
+# the rest unmarked: every assertion would be satisfied and the page would
+# license nothing anyone could acknowledge. The review of PR #132 demonstrated
+# exactly that. So parse every block, require them to TILE the served range with
+# no gap and no overlap, require more than one, and check the negative probe
+# lands inside a real block that is NOT acknowledged.
+python3 - "$R/page.json" <<'PY'
+import json,re,sys
+t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"].split(chr(10))
+blocks=[]
+for i,l in enumerate(t):
+    m=re.match(r"^-- ck ([0-9a-f]{16}) open lines (\d+)-(\d+) \((\d+) lines follow\)$", l)
+    if m:
+        blocks.append({"ck":m.group(1),"a":int(m.group(2)),"b":int(m.group(3)),"n":int(m.group(4)),"at":i})
+assert len(blocks) > 1, "a page with one block cannot show that acknowledging is per-region"
+served=[int(re.match(r"^ *(\d+)\|", l).group(1)) for l in t if re.match(r"^ *\d+\|", l)]
+assert served, "the page served no numbered lines"
+for blk in blocks:
+    close=[i for i,l in enumerate(t) if l == "-- ck " + blk["ck"] + " close"]
+    assert close, "checkpoint has no close marker: " + blk["ck"]
+    body=[l for l in t[blk["at"]+1:close[0]] if re.match(r"^ *\d+\|", l)]
+    assert len(body) == blk["n"], "checkpoint " + blk["ck"] + " miscounts its span"
+    nums=[int(re.match(r"^ *(\d+)\|", l).group(1)) for l in body]
+    assert nums[0] == blk["a"] and nums[-1] == blk["b"], "checkpoint " + blk["ck"] + " brackets lines it does not claim"
+blocks.sort(key=lambda x: x["a"])
+assert blocks[0]["a"] == min(served) and blocks[-1]["b"] == max(served), "the blocks do not span the served range"
+for x, y in zip(blocks, blocks[1:]):
+    assert y["a"] == x["b"] + 1, "blocks leave a gap or overlap, so some served lines can never be acknowledged"
+assert sum(b["n"] for b in blocks) == len(served), "served line count and bracketed line count differ"
+first, last = blocks[0]["ck"], blocks[-1]["ck"]
+inside=[b for b in blocks if b["a"] <= 900 <= b["b"]]
+assert inside, "line 900 is in no block, so refusing it says nothing about acknowledgement"
+assert inside[0]["ck"] not in (first, last), "line 900 sits in an acknowledged block, so the negative probe cannot fail"
+assert first != last, "the first and last checkpoints are the same block"
+PY
+want 0 $? "the page tiles its served lines and the negative probe sits in a real unacknowledged block"
+# ⚠ Guarded, because  is on and this section must REPORT rather than
+# abort. Against a server without ADR-031 there are no checkpoints at all, and
+# an unguarded `shift` on an empty list took the whole script down with it —
+# so the row that proves the feature missing also silenced every row after it.
+first=""; last=""
+for c in $cks; do [ -z "$first" ] && first="$c"; last="$c"; done
+if [ -z "$first" ]; then first="none"; last="none"; fi
+
+# Unacknowledged: the page licenses nothing at all.
+# ⚠ EVERY BLOCK BEFORE ANY ACKNOWLEDGEMENT, not just line 1. Probing one line
+# lets a server that records the LAST span while serving still pass: the
+# post-ack assertions cannot tell a licence that came from acknowledgement from
+# one that was there already (eighth review of PR #132).
+python3 - "$R/page.json" > "$R/preack.plan" <<'PY'
+import json,re,sys
+t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"]
+for m in re.finditer(r"^-- ck [0-9a-f]{16} open lines (\d+)-", t, re.M):
+    print("@@ big.txt %s replace" % m.group(1)); print("X")
+PY
+plan_preack=$(python3 -c "
+import sys,json
+print(json.dumps(open(sys.argv[1]).read())[1:-1])" "$R/preack.plan")
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"%s","dry_run":true}}}\n' "$plan_preack" | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == sc["failed"] and sc["applied"] == 0, "a freshly served page licensed something before any acknowledgement: %s" % sc
+PY
+want 0 $? "a freshly served page licenses NO block until it is acknowledged"
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt 1 replace\\nX\\n","dry_run":true}}}\n' | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == 1, "a write against an UNACKNOWLEDGED page was allowed: %s" % sc
+PY
+want 0 $? "an unacknowledged page licenses nothing"
+
+# Acknowledged FIRST and LAST, and the middle deliberately not — the shape the
+# host's cut actually produced.
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt 1 replace\\nX\\n","dry_run":true,"ack":["%s","%s"]}}}\n' "$first" "$last" | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == 0, "an acknowledged segment did not license its own lines: %s" % sc
+PY
+want 0 $? "an acknowledged segment licenses its own lines"
+
+# ⚠ AND A WRITE INSIDE THE **LAST** ACKNOWLEDGED SPAN. The row above sends two
+# ids and writes only line 1, so the last id could be ignored entirely and the
+# section would still pass — found by the review of PR #132. The last span's
+# range is read out of its own open marker rather than assumed.
+lastspan=$(python3 - "$R/page.json" "$last" <<'PY'
+import json,re,sys
+r=json.load(open(sys.argv[1]))["result"]
+m=re.search(r"^-- ck %s open lines (\d+)-(\d+) " % re.escape(sys.argv[2]), r["content"][0]["text"], re.M)
+print(m.group(1) if m else "")
+PY
+)
+[ -n "$lastspan" ] && ok "the last checkpoint names the span it opens" || bad "the last checkpoint's open marker carries no range"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt %s replace\\nX\\n","dry_run":true,"ack":["%s","%s"]}}}\n' "$lastspan" "$first" "$last" | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == 0, "the LAST acknowledged segment licensed nothing, so acking it is unexercised: %s" % sc
+PY
+want 0 $? "the last acknowledged segment licenses its own lines too"
+
+# And a line covered only by a checkpoint nobody echoed stays unwritable.
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt 900 replace\\nX\\n","dry_run":true,"ack":["%s","%s"]}}}\n' "$first" "$last" | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == 1, "a line in the UNACKNOWLEDGED middle was writable: %s" % sc
+assert "ack" in json.dumps(sc), "the refusal does not name the remedy: %s" % sc
+PY
+want 0 $? "an unacknowledged middle stays unwritable, and the refusal names ack"
+
+# ⚠ AND EVERY RENDERED BLOCK MUST BE PROMOTABLE, not just the two ends. The
+# tiling check proves the marker TEXT covers the page; a server could render
+# every interior block and store only the first and last mappings, and every
+# assertion above would still pass while no caller could acknowledge anything
+# between them. The fourth review of PR #132 named that hole. So: acknowledge
+# EVERY id, and write one line from EVERY declared block in a single plan.
+plan=$(python3 - "$R/page.json" <<'PY'
+import json,re,sys
+t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"].split(chr(10))
+out=[]
+for l in t:
+    m=re.match(r"^-- ck ([0-9a-f]{16}) open lines (\d+)-(\d+) ", l)
+    if m: out.append("@@ big.txt %s replace\\nX\\n" % m.group(2))
+print("".join(out))
+PY
+)
+allcks=$(python3 - "$R/page.json" <<'PY'
+import json,re,sys
+t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"]
+print(",".join('"%s"' % c for c in re.findall(r"^-- ck ([0-9a-f]{16}) open ", t, re.M)))
+PY
+)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"%s","dry_run":true,"ack":[%s]}}}\n' "$plan" "$allcks" | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == 0, "acknowledging every rendered id did not license one line from every block: %s" % sc["hunks"]
+PY
+want 0 $? "every rendered checkpoint is promotable, not only the two ends"
 # 69. ADR-033: a cap of zero is a cap.
 #
 # --max-lines 0 meant UNLIMITED: both guards asked `> 0`, so a cap of zero was

@@ -148,9 +148,19 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// exact defect this record was written to prevent, one level down.
 		// Found by review of #80.
 		After string `json:"after"`
+		// Ack carries the checkpoints the caller actually received, and it is
+		// what turns a served page into a licensed one (ADR-031). Absent means
+		// "I acknowledge nothing", which is the safe reading and what a caller
+		// written before this field sends.
+		Ack []string `json:"ack"`
 	}
 	if err := json.Unmarshal(args, &a); err != nil {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "arguments: " + err.Error()}
+	}
+	// Promote before serving: the caller is acknowledging the PREVIOUS page,
+	// and a write in the same turn must see the licence this call grants.
+	if err := promote(root, a.Ack); err != nil {
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + err.Error()}
 	}
 	// With grep, no spec is required at all — the walk starts at the root, the
 	// way `mrw read --grep P` with no paths does. Without it, a read with
@@ -340,11 +350,17 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 // count the outcome for ADR-009's tally.
 func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	var a struct {
-		Plan   string `json:"plan"`
-		DryRun bool   `json:"dry_run"`
+		Plan   string   `json:"plan"`
+		DryRun bool     `json:"dry_run"`
+		Ack    []string `json:"ack"`
 	}
 	if err := json.Unmarshal(args, &a); err != nil {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "arguments: " + err.Error()}
+	}
+	// The checkpoints for the page this plan was written against, promoted
+	// before the ledger is consulted (ADR-031).
+	if err := promote(root, a.Ack); err != nil {
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + err.Error()}
 	}
 	if strings.TrimSpace(a.Plan) == "" {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "mrw_write needs a plan"}
@@ -393,6 +409,13 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	res, applyErr := apply.Apply(root, in, apply.Options{DryRun: a.DryRun, Seen: ledger})
 	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
 	// it is rendered on whichever path we are on rather than discarded.
+
+	// A refusal names the fix (ADR-015). Over MCP the commonest reason a line is
+	// unread is now that its page was served but never acknowledged, and the
+	// ledger's own message cannot say so — it belongs to the engine, which knows
+	// nothing about pages. So the remedy is added HERE, and only when there
+	// really is something pending to acknowledge.
+	nameTheAck(root, &res)
 
 	if res.Applied && !res.DryRun {
 		// A file mrw just wrote is one it knows WHOLLY: it produced every line.
@@ -555,19 +578,62 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 		return callToolResult{}, false
 	}
 
-	// The page WAS shown, so it is recorded — and only the span it served, which
-	// is what keeps a page from licensing lines the caller never saw. seen.Record
-	// merges spans for the same sha, so page two adds to page one rather than
-	// replacing it (ADR-002, ADR-014 Decision 3).
-	if err := seen.Record(root, observed); err != nil {
+	// ⚠ AND IF THE PAGE ITSELF DOES NOT FIT, IT IS NOT A PAGE EITHER (ADR-031).
+	// The budget above is estimated in LINES, so a single line longer than the
+	// whole cap produces a one-line "page" that still exceeds it. A host must
+	// then cut it, and a head/tail cut of ONE numbered line leaves the open
+	// marker, the line's `NNN|` prefix and the close marker all intact — so the
+	// caller can satisfy AckRule honestly while the line's middle never arrived,
+	// and acknowledging licenses the whole of it. Bracketing cannot express a
+	// partial line: the unit it proves is a line. Declining sends the caller
+	// down the ordinary path, which refuses with the limit and a line budget.
+	// Found by the fifth review of PR #132.
+	// ⚠ THE PAGE WAS SENT, WHICH IS NOT THE SAME AS RECEIVED, AND THIS LINE USED
+	// TO CONFUSE THEM. It recorded the served span outright — "the page WAS
+	// shown" — and on 2026-09-05 a host cut the middle out of exactly such a
+	// page, leaving the model lines 1-90 and 2644-2727 while mrw claimed
+	// 1-3619; a write to line 1500 then applied at exit 0. So the span is held
+	// PENDING against checkpoints woven through the text, and reaches the
+	// ledger only when the caller echoes them back (ADR-031).
+	text, spans := interleave(b.String())
+	next := fmt.Sprintf("%s:%d-", path, end+1)
+	report := fmt.Sprintf("%s\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
+		"-- Send specs [%q] to continue, or a narrower range of your own.\n"+
+		"-- Stopping here means you have part of this file, not the file.\n"+
+		"-- This page licenses NOTHING until you acknowledge it.\n-- "+AckRule+"\n"+
+		"-- An id you omit leaves its lines unwritable, which is the point.",
+		text, start, end, total, total-end, next)
+
+	// ⚠ THE ENCODED RESULT IS WHAT MUST FIT, measured with encodedSize — the
+	// function this file already uses for the grep paths, twenty lines up.
+	//
+	// This took three attempts and each measured something that was not what a
+	// host receives. First the raw buffer, before interleave's markers and this
+	// footer. Then len(report), which omits the receipt and the JSON envelope:
+	// an ordinary one-line read composed a 199,794-byte report and delivered
+	// 200,004 bytes (seventh review of PR #132). The right primitive was in
+	// this file the whole time, used correctly a few functions away.
+	//
+	// It is an assertion about what to SEND, not a guard against doing the
+	// work: the composing has happened by now and `capped` is what bounds the
+	// cost, stopping the READ at the limit. What it buys is that an over-cap
+	// answer is never delivered — and it sits before hold, so nothing is
+	// recorded pending for a page that is never sent.
+	// ⚠ `observed` DESCRIBES WHAT WAS SERVED, not what is licensed, and passing
+	// nil to signal "nothing licensed yet" produced `"observed": null` against
+	// a schema that requires an object (readSchema) and a README that says the
+	// receipt is unchanged in shape. The conformance assertion checked only key
+	// PRESENCE, so null passed it. Licensing is the ledger's business and the
+	// checkpoints say what is pending; the receipt goes back to telling the
+	// truth about service. Eighth review of PR #132.
+	res := pagedResult(report, observed, problems, next)
+	if encodedSize(res) > MaxResultChars {
 		return callToolResult{}, false
 	}
-	next := fmt.Sprintf("%s:%d-", path, end+1)
-	report := fmt.Sprintf("%s\n\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
-		"-- Send specs [%q] to continue, or a narrower range of your own.\n"+
-		"-- Stopping here means you have part of this file, not the file.",
-		b.String(), start, end, total, total-end, next)
-	return pagedResult(report, observed, problems, next), true
+	if err := hold(root, observed, spans); err != nil {
+		return callToolResult{}, false
+	}
+	return res, true
 }
 
 // openEnded reports the path and start line of a spec that asks for a whole
@@ -621,9 +687,62 @@ func overflowMessage(specs []string, cw *capped) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "that read would have returned about %d bytes and the limit is %d.\n", cw.written, cw.limit)
 	b.WriteString("Nothing was read and nothing was recorded, so no write is licensed by it.\n")
-	if len(specs) == 1 && !strings.Contains(specs[0], ":") {
-		fmt.Fprintf(&b, "Ask for a range instead — for example %s:1-%d.",
-			specs[0], suggestLines(cw.buf.Len(), countLines(&cw.buf)))
+	// ⚠ WHEN ONE LINE CANNOT FIT, A NARROWER RANGE CANNOT HELP. Suggesting
+	// `f.txt:1-1` for a file whose first line exceeds the cap sends the caller
+	// to retry the identical unservable request. mrw pages by LINE and
+	// acknowledges by line, so a line larger than the answer has no smaller
+	// unit to fall back to — say so, and name a reader that has one. Found by
+	// the sixth review of PR #132.
+	// ⚠ THE QUESTION IS WHETHER ANY CONTENT LINE COMPLETED INSIDE THE SAMPLE,
+	// not how long the longest run is. The sample is CAPPED at the limit, so a
+	// run measured inside it can never reach the limit — a threshold against
+	// the cap never fires, and half the cap fires far too often: a file of
+	// 110,000-character lines got "no narrower range can be served" while
+	// `file:1-1` is an ordinary 110 KB read that works. Both wrong, in
+	// opposite directions, in consecutive attempts (seventh review of PR #132).
+	//
+	// The served text opens with two header lines. If the sample holds no more
+	// newlines than that, the first CONTENT line never terminated inside a
+	// whole budget — so it cannot come back as a one-line result either, and
+	// mrw serves whole lines. That is the only case where no range helps.
+	// ⚠ PER FILE, NOT ACROSS THE SAMPLE. Counting newlines over the whole
+	// capped buffer means a small file listed FIRST supplies completed lines
+	// and hides an unservable long line in the file after it — the caller then
+	// gets a per-file line budget that cannot serve the long one (eighth review
+	// of PR #132). Each served file's own section is examined: a section whose
+	// header is followed by no completed content line is a file no range helps.
+	const headerLines = 2
+	unterminated := countLines(&cw.buf) <= headerLines
+	if !unterminated {
+		// ⚠ ONLY LINES THAT ENDED COUNT. Splitting on newline leaves the last
+		// element unterminated, and the PREFIX of a giant line arrives — with
+		// its "NNNNN| " gutter — so counting every element containing "| "
+		// counts the very line that did not fit and hides the case.
+		lines := bytes.Split(cw.buf.Bytes(), []byte{'\n'})
+		if n := len(lines); n > 0 {
+			lines = lines[:n-1] // drop the unterminated tail
+		}
+		since := 0
+		for _, l := range lines {
+			if bytes.HasPrefix(l, []byte("==> ")) {
+				since = 0
+				continue
+			}
+			if bytes.Contains(l, []byte("| ")) {
+				since++
+			}
+		}
+		// The LAST file in the sample is the one the cap cut short; if none of
+		// its lines completed, its lines are the unservable ones.
+		unterminated = since == 0
+	}
+	if n := suggestLines(cw.buf.Len(), countLines(&cw.buf)); unterminated || n < 1 {
+		fmt.Fprintf(&b, "One line of this file renders to more than the whole %d-character limit, "+
+			"and mrw serves whole lines — so no narrower range of it can be served, and retrying "+
+			"with one would fail the same way. Read it with the CLI, `mrw read`, which streams and "+
+			"has no such limit.", cw.limit)
+	} else if len(specs) == 1 && !strings.Contains(specs[0], ":") {
+		fmt.Fprintf(&b, "Ask for a range instead — for example %s:1-%d.", specs[0], n)
 	} else {
 		fmt.Fprintf(&b, "Ask for narrower ranges — around %d lines per file at this file's line length — or name fewer files in one call.",
 			suggestLines(cw.buf.Len(), countLines(&cw.buf)))
@@ -889,4 +1008,108 @@ func servedOrIndex(specs []read.Spec, problems int, cw *capped, observed map[str
 		return callToolResult{}, false
 	}
 	return matchIndex(specs, problems, cw), true
+}
+
+// nameTheAck appends ADR-031's remedy to any hunk refused for lines that were
+// served on a page nobody acknowledged.
+//
+// It is deliberately conditional: with no pending record the advice would be
+// wrong, and a refusal that suggests a fix which does not apply is worse than
+// one that suggests none. The engine's message is left intact and extended,
+// never replaced — it names the file and the served spans, which the caller
+// still needs.
+func nameTheAck(root string, res *apply.Result) {
+	if res == nil || res.Failed == 0 {
+		return
+	}
+	store, err := loadPending(root)
+	if err != nil || len(store) == 0 {
+		return
+	}
+	// ⚠ Compared by FILE IDENTITY, not by spelling. internal/apply treats a
+	// symlink or a case-only variant as one file (ADR-029), so a page read as
+	// real.txt and written as link.txt is one file to the ledger — and this
+	// remedy, matching literal strings, used to go missing for exactly the
+	// caller who most needs it. Found by the review of PR #132.
+	for i := range res.Hunks {
+		h := &res.Hunks[i]
+		if !strings.Contains(h.Reason, "has not been read") {
+			continue
+		}
+		// ⚠ THE REFUSED ADDRESS MUST INTERSECT A PENDING SPAN. Appending the
+		// remedy whenever the FILE has anything pending tells a caller to
+		// acknowledge a page that cannot license the line they asked for —
+		// lines 1-1000 pending, line 2000 refused, "send ack" (seventh review
+		// of PR #132). A refusal naming a fix that cannot work is the failure
+		// ADR-015 exists to prevent, wearing the shape of help.
+		start, end, known := addrRange(h.Addr)
+		// promote() drops a pending span whose version is gone, so recommending
+		// ack for one is recommending a step that cannot work (eighth review of
+		// PR #132).
+		live, _ := currentSHA(root, h.Path)
+		covers := false
+		for _, p := range store {
+			if p.Path != h.Path && !anySameFile(root, h.Path, []string{p.Path}) {
+				continue
+			}
+			if live != "" && p.SHA != live {
+				continue
+			}
+			// An address mrw could not resolve to numbers — a pattern, or $ —
+			// is treated as possibly covered. Being wrong here costs a caller
+			// one unnecessary sentence; being silent costs the caller who WAS
+			// working from that page the only remedy they had.
+			if !known || (p.End >= start && p.Start <= end) {
+				covers = true
+				break
+			}
+		}
+		if !covers {
+			continue
+		}
+		h.Reason += ". A page of this file was served but never acknowledged, and an " +
+			"unacknowledged page licenses nothing. " + AckRule
+	}
+}
+
+// anySameFile reports whether path names the same file on disk as any of the
+// candidates, so an alias spelling is recognised the way apply recognises it.
+func anySameFile(root, path string, candidates []string) bool {
+	want, err := os.Stat(filepath.Join(root, filepath.FromSlash(path)))
+	if err != nil {
+		return false
+	}
+	for _, c := range candidates {
+		if c == path {
+			return true
+		}
+		got, err := os.Stat(filepath.Join(root, filepath.FromSlash(c)))
+		if err == nil && os.SameFile(want, got) {
+			return true
+		}
+	}
+	return false
+}
+
+// addrRange reads the line span out of an address as the caller wrote it, so a
+// refusal's remedy can be matched against what is actually pending. A pattern
+// or a $ has no numbers to read and reports known=false.
+func addrRange(addr string) (start, end int, known bool) {
+	lo, hi, ok := strings.Cut(addr, "-")
+	a, err := strconv.Atoi(strings.TrimSpace(lo))
+	if err != nil {
+		return 0, 0, false
+	}
+	if !ok {
+		return a, a, true
+	}
+	b, err := strconv.Atoi(strings.TrimSpace(hi))
+	if err != nil {
+		// `3-$` is a valid open-ended address, and calling it the single line 3
+		// makes a pending LATER span look non-intersecting — the caller then
+		// loses the remedy that would have worked. Unknown takes the permissive
+		// path, which is what the doc comment already promised.
+		return 0, 0, false
+	}
+	return a, b, true
 }
