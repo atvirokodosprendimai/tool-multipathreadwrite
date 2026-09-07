@@ -14,10 +14,24 @@
 // measurement is why: the observed truncation kept both ends and removed the
 // middle, so one token at the end survives a cut that destroyed 2,554 lines.
 // Proving receipt of a page requires proving it per region.
+//
+// ⚠ AND A MARKER BRACKETS ITS SPAN RATHER THAN FOLLOWING IT, which is the
+// second half of the same lesson and one this file got wrong first. A single
+// marker AFTER its lines is the page-level flaw at a smaller scale: a cut that
+// begins inside the span and leaves the trailing marker licenses everything the
+// caller did not receive. Under the recorded 1-90 / 2644-2727 cut that
+// over-licensed lines 2601-2643. So each span opens with a marker naming its
+// range and COUNT and closes with the same id, and a caller acknowledges only
+// when it holds both ends and counted the lines between.
+//
+// ⚠ WHAT THIS DOES AND DOES NOT PROVE. mrw cannot verify any of it from inside
+// the server, and does not pretend to: the mechanism makes an honest caller ABLE
+// TO TELL that it was cut, which it previously could not. A caller that echoes
+// markers without checking the count is trusting itself, and no server-side
+// design can stop that.
 package mcp
 
 import (
-	"bufio"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -33,7 +47,8 @@ import (
 )
 
 // ckEvery is how many served content lines one checkpoint covers. At 200 a
-// 2,727-line page pays fourteen marker lines, under half a percent of its size.
+// 2,727-line page pays twenty-eight marker lines — an open and a close each —
+// which is under one percent of its size.
 const ckEvery = 200
 
 // pendingName is the file under the state directory holding spans that have
@@ -63,7 +78,7 @@ type pending struct {
 // mechanism ceremony: the point is that a checkpoint can only be echoed by
 // someone it actually reached.
 func checkpoint() string {
-	var b [4]byte
+	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		// crypto/rand failing is not something to paper over with a weaker
 		// source: a predictable checkpoint is worse than none, because it
@@ -81,38 +96,63 @@ func checkpoint() string {
 // than taking the requested range, so a span is what was SERVED. A page that
 // served 1-2727 of 3619 yields checkpoints inside 1-2727 and none beyond.
 func interleave(text string) (string, map[string][2]int) {
-	spans := map[string][2]int{}
-	var out strings.Builder
-	sc := bufio.NewScanner(strings.NewReader(text))
-	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
+	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 
-	first, last, n := 0, 0, 0
-	flush := func() {
-		if n == 0 || first == 0 {
-			return
-		}
-		if ck := checkpoint(); ck != "" {
-			fmt.Fprintf(&out, "-- ck %s\n", ck)
-			spans[ck] = [2]int{first, last}
-		}
-		first, last, n = 0, 0, 0
+	// Group the SERVED content lines into runs of ckEvery, remembering where
+	// each run begins and ends in the slice. Two passes are needed because an
+	// opening marker names the span it introduces, and the span is not known
+	// until its lines have been counted — the one-pass alternative is a marker
+	// that trails its lines, which is the defect this design exists to avoid.
+	type group struct {
+		from, to   int // indices into lines
+		start, end int // served line numbers
+		n          int
 	}
-	for sc.Scan() {
-		line := sc.Text()
+	var groups []group
+	cur := group{from: -1}
+	for i, line := range lines {
+		ln, ok := servedLineNumber(line)
+		if !ok {
+			continue
+		}
+		if cur.from < 0 {
+			cur = group{from: i, start: ln}
+		}
+		cur.to, cur.end, cur.n = i, ln, cur.n+1
+		if cur.n >= ckEvery {
+			groups = append(groups, cur)
+			cur = group{from: -1}
+		}
+	}
+	if cur.from >= 0 {
+		groups = append(groups, cur)
+	}
+
+	spans := map[string][2]int{}
+	ids := make([]string, len(groups))
+	for i := range groups {
+		ids[i] = checkpoint()
+		if ids[i] != "" {
+			spans[ids[i]] = [2]int{groups[i].start, groups[i].end}
+		}
+	}
+
+	var out strings.Builder
+	g := 0
+	for i, line := range lines {
+		if g < len(groups) && i == groups[g].from && ids[g] != "" {
+			fmt.Fprintf(&out, "-- ck %s open lines %d-%d (%d lines follow)\n",
+				ids[g], groups[g].start, groups[g].end, groups[g].n)
+		}
 		out.WriteString(line)
 		out.WriteByte('\n')
-		if ln, ok := servedLineNumber(line); ok {
-			if first == 0 {
-				first = ln
+		if g < len(groups) && i == groups[g].to {
+			if ids[g] != "" {
+				fmt.Fprintf(&out, "-- ck %s close\n", ids[g])
 			}
-			last = ln
-			n++
-			if n >= ckEvery {
-				flush()
-			}
+			g++
 		}
 	}
-	flush()
 	return out.String(), spans
 }
 
@@ -180,25 +220,38 @@ func promote(root string, acks []string) error {
 	if err != nil || len(store) == 0 {
 		return err
 	}
-	obs := map[string]seen.Observation{}
+	// ⚠ KEYED BY PATH **AND SHA**, not by path alone. An earlier cut appended
+	// every acknowledged span to one observation per path and let the last
+	// checkpoint's SHA win, so acknowledging a stale page and a current one in
+	// the same call produced spans from the OLD file recorded under the NEW
+	// file's SHA — a licence to write lines the caller never saw in the version
+	// on disk. Found by the review of PR #132.
+	type key struct{ path, sha string }
+	byVersion := map[key][][2]int{}
 	changed := false
 	for _, ck := range acks {
 		p, ok := store[ck]
 		if !ok {
 			continue
 		}
-		o := obs[p.Path]
-		o.SHA = p.SHA
-		o.Spans = append(o.Spans, [2]int{p.Start, p.End})
-		obs[p.Path] = o
+		k := key{p.Path, p.SHA}
+		byVersion[k] = append(byVersion[k], [2]int{p.Start, p.End})
 		delete(store, ck)
 		changed = true
 	}
 	if !changed {
 		return nil
 	}
-	if err := seen.Record(root, obs); err != nil {
-		return err
+	// One Record per version. seen.merge REPLACES the observation when the SHA
+	// differs, so recording each version separately is also what keeps a stale
+	// acknowledgement from silently discarding a current one: whichever matches
+	// the file on disk is the one a write is checked against, and the others
+	// cannot contribute spans to it.
+	for k, spans := range byVersion {
+		o := seen.Observation{SHA: k.sha, Spans: spans}
+		if err := seen.Record(root, map[string]seen.Observation{k.path: o}); err != nil {
+			return err
+		}
 	}
 	return savePending(root, store)
 }

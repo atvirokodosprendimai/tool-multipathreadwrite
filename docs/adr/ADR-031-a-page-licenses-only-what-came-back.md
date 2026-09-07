@@ -53,10 +53,16 @@ design here has to prove receipt *per region*, because that is the shape the dam
 **An MCP read interleaves unguessable CHECKPOINTS through its served text, and records only the
 segments whose checkpoints the caller echoes back.**
 
-1. When the MCP layer serves a read that is paged or over a size threshold, it inserts a marker line
-   `-- ck <8 hex>` after every N served content lines. Each marker covers the span since the previous
-   one. The markers are random per read, so they cannot be guessed, recalled, or derived — only
-   received.
+1. When the MCP layer serves a paged read, it BRACKETS every run of N served content lines:
+   `-- ck <16 hex> open lines A-B (N lines follow)` before the run and `-- ck <16 hex> close` after
+   it. The ids are random per read, so they cannot be recalled from a previous session or derived
+   from the request.
+
+   ⚠ **The bracket is the whole design, and one marker per span was not enough.** A single marker
+   FOLLOWING its lines is the page-level flaw at a smaller scale: a cut beginning inside the span and
+   leaving the trailing marker licenses everything the caller did not receive. The first cut of this
+   record did exactly that and claimed otherwise; the review of PR #132 found it. With brackets and a
+   stated count, a caller that was cut holds one end, or neither, or too few lines — and can tell.
 2. The observation goes to a PENDING record under the state directory, keyed by checkpoint. Nothing
    reaches the ledger yet.
 3. `mrw_read` and `mrw_write` accept `ack`, a list of checkpoints. Every checkpoint that matches a
@@ -64,13 +70,21 @@ segments whose checkpoints the caller echoes back.**
 4. A checkpoint nobody echoes licenses nothing. A write addressing those lines is refused with the
    ledger's existing message, naming what WAS acked.
 
-On the measured failure this records lines 1-90 and 2644-2727 and nothing between, so the probe write
-to line 1500 is refused — which is the correct answer and the one mrw could not give.
+**On the measured failure this licenses NOTHING**, and the first cut of this record got that wrong
+too. The host kept lines 1-90 and 2644-2727: the span opening at line 1 lost its close (which sits
+after line 200), and the span containing 2644-2727 lost its open (which sits before 2601). Neither
+was received intact, so an honest caller acknowledges neither and the probe write to line 1500 is
+refused — along with every other line of that page. That is a stricter answer than the "1-90 and
+2644-2727" this record first claimed, and a true one.
 
-**What would falsify this:** a host that truncates a result and then *reconstructs* plausible
-checkpoints, or a caller that echoes checkpoints it did not receive. The first is not a failure mode
-any host has; the second is a caller lying about its own state, which no server-side design can
-prevent and which ADR-002 never claimed to.
+**What this proves, stated narrowly.** mrw still cannot detect truncation from inside the server, and
+this does not change that. What changes is that an honest caller CAN now detect it: before, a cut
+page and a whole one were indistinguishable to the caller too, so acknowledging was meaningless. The
+count in the open marker is what makes the check possible. A caller that echoes ids without counting
+is trusting itself, and no server-side design can stop that — ADR-002 never claimed otherwise.
+
+**What would falsify this:** a host that truncates and then RECONSTRUCTS both markers and the right
+number of lines between them. No host does that; a truncation notice is not a forgery.
 
 ## Alternatives Considered
 
@@ -120,15 +134,20 @@ See `docs/adr/ADR-031-a-page-licenses-only-what-came-back/tasks/README.md`.
 
 ## Consequences
 
-- **Positive:** the measured defect is closed at its actual shape. A middle-cut page licenses its
-  ends and not its middle, which no single-token scheme can express.
+- **Positive:** the measured defect is closed at its actual shape. A cut anywhere inside a span
+  leaves that span unacknowledgeable, which no single-token scheme can express — and, on the cut
+  actually observed, licenses nothing at all rather than the two ends.
 - **Positive:** the ledger stops recording a server-side belief and starts recording a caller-side
   fact, which is what ADR-002 always claimed it held.
 - **Negative, and the reason this needs M's word:** an MCP caller that never sends `ack` can no longer
   write to anything it read through a paged response. That is a breaking change for every existing
   MCP caller, it fails safe, and the page footer says exactly what to send.
-- **Negative:** the served text grows by one short line per N lines. At N=200 a 2,727-line page pays
-  fourteen lines, well under a percent.
+- **Negative:** the served text grows by TWO short lines per N lines. At N=200 a 2,727-line page pays
+  twenty-eight, still under one percent.
+- **Negative, and named because it is the honest limit:** a cut that falls entirely between two spans
+  — removing whole spans and nothing else — is indistinguishable to the caller from a page that never
+  contained them, unless it notices the gap in the stated line ranges. The ranges are printed for
+  that reason, but nothing forces a caller to read them.
 - **Neutral:** the CLI is unchanged, so this repository's own `mrw` usage and `scripts/contract.sh`'s
   non-MCP sections behave identically.
 

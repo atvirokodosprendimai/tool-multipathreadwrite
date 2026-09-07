@@ -1154,9 +1154,56 @@ func TestAReadThatServedNothingIsAnError(t *testing.T) {
 func checkpointsIn(text string) []any {
 	var out []any
 	for _, line := range strings.Split(text, "\n") {
+		// Only the OPEN marker, and only its id: a span is acknowledged by the
+		// id that brackets it, and the close marker repeats the same id.
 		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "-- ck "); ok {
-			out = append(out, strings.TrimSpace(rest))
+			if id, _, found := strings.Cut(rest, " "); found && strings.Contains(rest, "open") {
+				out = append(out, id)
+			}
 		}
 	}
 	return out
+}
+
+// TestAckOnAReadPromotesToo pins the half no test reached: ack is accepted on
+// mrw_read as well as on mrw_write, so a caller can acknowledge the page it just
+// received while asking for the next one. Deleting the read-side promotion left
+// every other test and section 68 green — the review of PR #132 found that.
+func TestAckOnAReadPromotesToo(t *testing.T) {
+	const lines = 12000
+	root, path := bigCheckout(t, lines)
+
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	acks := checkpointsIn(served0(t, res))
+	if len(acks) == 0 {
+		t.Fatal("a paged read carries no checkpoints")
+	}
+
+	// Acknowledge through a READ, not a write: ask for a narrow range and carry
+	// the previous page's ids along.
+	call(t, root, "mrw_read", map[string]any{"specs": []any{path + ":1-1"}, "ack": acks})
+
+	// The write carries no ack of its own, so anything licensed here was
+	// licensed by the READ.
+	ok := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": "@@ " + path + " 1 replace\n// page one\n", "dry_run": true}))
+	if n, _ := ok["failed"].(float64); n != 0 {
+		t.Errorf("acknowledging on a read licensed nothing: %v", ok["hunks"])
+	}
+}
+
+// TestBothToolsAdvertiseAck keeps the field discoverable. It was implemented in
+// the handlers and absent from tools/list, so a schema-driven host could not
+// learn about a BREAKING requirement — found by the review of PR #132.
+func TestBothToolsAdvertiseAck(t *testing.T) {
+	for _, tl := range tools() {
+		if tl.Name != "mrw_read" && tl.Name != "mrw_write" {
+			continue
+		}
+		schema, _ := tl.InputSchema.(map[string]any)
+		props, _ := schema["properties"].(map[string]any)
+		if _, ok := props["ack"]; !ok {
+			t.Errorf("%s does not advertise ack, so a host driven by the schema cannot send it", tl.Name)
+		}
+	}
 }

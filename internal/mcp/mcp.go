@@ -294,6 +294,12 @@ func tools() []tool {
 						"description": "Globs to skip, matched against BOTH the root-relative path and the basename. Only meaningful with `grep`. Note that `*` does not cross a separator, which is why the basename is matched too: \"*_test.go\" against the full path alone matches no test file anywhere below the root.",
 						"examples":    []any{[]any{"*_test.go", "vendor"}},
 					},
+					"ack": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "The checkpoint ids you ACTUALLY RECEIVED from a previous paged read. A paged answer brackets each run of lines with `-- ck <id> open lines A-B (N lines follow)` and `-- ck <id> close`; a page licenses NO write until you send its ids back here. Send an id only when you hold both its markers and counted N lines between them — a host can cut a page before you see it, and mrw cannot tell. Omit one and those lines stay unwritable, which is the point.",
+						"examples":    []any{[]any{"3f8a1c4d90b27e56"}},
+					},
 					"after": map[string]any{
 						"type":        "string",
 						"description": "Resume a paged index: send the SAME `grep` again with this set to the `next_index` the previous call returned, and matching files at or before it are skipped. Files are walked in path order, so this is a position you can read rather than an opaque cursor. Repeat until `next_index` is absent.",
@@ -331,6 +337,12 @@ func tools() []tool {
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"ack": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "The checkpoint ids you ACTUALLY RECEIVED from the paged read this plan was written against. Same rule as on mrw_read: an unacknowledged page licenses nothing, so a hunk addressing lines you have not acknowledged is refused. Send an id only when you hold both its `-- ck` markers and counted the lines between them.",
+						"examples":    []any{[]any{"3f8a1c4d90b27e56"}},
+					},
 					"dry_run": map[string]any{
 						"type": "boolean",
 						"description": "Validate and report without writing anything. The receipt is the " +

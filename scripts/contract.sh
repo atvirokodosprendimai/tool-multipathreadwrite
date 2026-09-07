@@ -3106,7 +3106,7 @@ out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mr
 cks=$(python3 - "$out" <<'PY'
 import json,re,sys
 r=json.loads(sys.argv[1])["result"]
-print(",".join('"%s"' % c for c in re.findall(r"^-- ck ([0-9a-f]{8})$", r["content"][0]["text"], re.M)))
+print(",".join('"%s"' % c for c in re.findall(r"^-- ck ([0-9a-f]{16}) open ", r["content"][0]["text"], re.M)))
 PY
 )
 [ -n "$cks" ] && ok "the page carries checkpoints to acknowledge" || bad "a paged read carries no checkpoint"
@@ -4042,10 +4042,11 @@ pathlib.Path(sys.argv[1], "big.txt").write_text("".join("line %d\n" % i for i in
 PY
 out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["big.txt"]}}}\n' | m mcp 2>/dev/null)
 want 0 $? "the server answers a read that must page"
+page="$out"   # the page text, kept because $out is reused by every write below
 cks=$(python3 - "$out" <<'PY'
 import json,re,sys
 r=json.loads(sys.argv[1])["result"]
-print(" ".join(re.findall(r"^-- ck ([0-9a-f]{8})$", r["content"][0]["text"], re.M)))
+print(" ".join(re.findall(r"^-- ck ([0-9a-f]{16}) open ", r["content"][0]["text"], re.M)))
 PY
 )
 [ -n "$cks" ] && ok "a paged read carries checkpoints a caller can echo" || bad "a paged read carries no checkpoint, so nothing can ever be acknowledged"
@@ -4077,6 +4078,27 @@ sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
 assert sc["failed"] == 0, "an acknowledged segment did not license its own lines: %s" % sc
 PY
 want 0 $? "an acknowledged segment licenses its own lines"
+
+# ⚠ AND A WRITE INSIDE THE **LAST** ACKNOWLEDGED SPAN. The row above sends two
+# ids and writes only line 1, so the last id could be ignored entirely and the
+# section would still pass — found by the review of PR #132. The last span's
+# range is read out of its own open marker rather than assumed.
+lastspan=$(python3 - "$page" "$last" <<'PY'
+import json,re,sys
+r=json.loads(sys.argv[1])["result"]
+m=re.search(r"^-- ck %s open lines (\d+)-(\d+) " % re.escape(sys.argv[2]), r["content"][0]["text"], re.M)
+print(m.group(1) if m else "")
+PY
+)
+[ -n "$lastspan" ] && ok "the last checkpoint names the span it opens" || bad "the last checkpoint's open marker carries no range"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt %s replace\\nX\\n","dry_run":true,"ack":["%s","%s"]}}}\n' "$lastspan" "$first" "$last" | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == 0, "the LAST acknowledged segment licensed nothing, so acking it is unexercised: %s" % sc
+PY
+want 0 $? "the last acknowledged segment licenses its own lines too"
 
 # And a line covered only by a checkpoint nobody echoed stays unwritable.
 out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt 900 replace\\nX\\n","dry_run":true,"ack":["%s","%s"]}}}\n' "$first" "$last" | m mcp 2>/dev/null)

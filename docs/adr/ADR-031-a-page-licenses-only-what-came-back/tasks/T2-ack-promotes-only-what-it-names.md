@@ -26,7 +26,7 @@ nobody echoed unlicensed.
 ## Ordered Steps
 
 1. [S1] Write `TestOnlyAckedSegmentsAreRecorded` and confirm it is RED. ⚠ **The fixture MUST cut the MIDDLE.** Serve a page with checkpoints, ack the FIRST and LAST and not the middle, and assert the ledger holds the two end spans and that a write to the middle is refused. `BACKLOG.md` and ADR-031's Context pre-register this: the measured host truncation kept both ends, so a fixture that drops the tail is green against the single-token design this record rejects and proves nothing. [proof: mutation]
-2. [S2] Add `ack` to both tool schemas, optional, absent meaning "I acknowledge nothing". [proof: mutation]
+2. [S2] Add `ack` to both tool handlers AND to both ADVERTISED schemas in `tools/list`, optional, absent meaning "I acknowledge nothing". ⚠ The first cut added it to the handlers only, so a schema-driven host could not discover a BREAKING requirement (review of PR #132); `TestBothToolsAdvertiseAck` pins it. [proof: mutation]
 3. [S3] Implement `promote`: for each ack that matches a pending record, `seen.Record` that span; drop the pending entry; ignore an ack that matches nothing rather than failing the call, since a stale ack from a previous session is a caller mistake and not a reason to refuse a read. [proof: mutation]
 4. [S4] Stop the paged path recording on serve. [proof: mutation]
 5. [S5] Assert the refusal for an unacked span names `ack` — ADR-015's rule, that a refusal names the fix. [proof: mutation]
@@ -52,7 +52,7 @@ go test ./internal/mcp/ -count=1 -v \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestOnlyAckedSegmentsAreRecorded` | `internal/mcp/ack_test.go` | With the FIRST and LAST checkpoints acked and the middle not, the ledger holds exactly the two end spans, a write to the middle is refused, the refusal names `ack`, and a write to an acked span applies | — | S1, S2, S3, S4, S5 |
+| `TestOnlyAckedSegmentsAreRecorded` | `internal/mcp/ack_test.go` | With the FIRST and LAST checkpoints acked and the middle not, the ledger holds exactly the two end spans; and the WRITES are driven, not merely the ledger inspected — the middle is refused, the refusal carries `ack` after `nameTheAck`, and an acknowledged span applies | — | S1, S2, S3, S4, S5 |
 
 ## Reachability
 
@@ -65,8 +65,17 @@ go test ./internal/mcp/ -count=1 -v \
 
 ## Mutation Log
 
+⚠ **Two P0 defects and three unasserted properties were found here by the review of PR #132, not by
+this task's own gates.** Promotion keyed observations by PATH alone and let the last checkpoint's SHA
+win, so a stale and a current acknowledgement together recorded old spans under the new SHA;
+`ack` reached the handlers but not the advertised schemas; no test sent `ack` on a READ, so deleting
+read-side promotion left everything green; the table asserted `Covers` rather than driving the
+writes; and §68 sent two ids while writing only into the first. Each now has a test, and the entries
+below post-date them.
+
 - 2026-09-07 · d95d79e* · mutant killed · exit 1 · `internal/mcp/ack.go` · promotion records a WHOLE-file observation instead of the acknowledged span, so acking one checkpoint licenses the entire file — the middle nobody received included · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · covers:an acked checkpoint promoting exactly its own span
 - 2026-09-07 · d95d79e* · mutant killed · exit 1 · `internal/mcp/tools.go` · the refusal stops naming the remedy, so a caller meets "has not been read" for a page it was sent and is told nothing about ack — ADR-015 says a refusal names the fix · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · covers:an unacked span licensing nothing
+- 2026-09-07 · dbe88d0* · mutant killed · exit 1 · `internal/mcp/ack.go` · promotion stops distinguishing file versions, so a stale acknowledgement and a current one merge and old spans are recorded against the current file — the second P0 the review of PR #132 found · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · covers:an acked checkpoint promoting exactly its own span
 
 ## Invariants
 - An unacked span licenses nothing, and the refusal is the ledger's existing message plus the remedy.
@@ -94,3 +103,5 @@ Stop and ask if promotion needs `internal/seen` to change shape — the spans ar
 - 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:32278
 - 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:30027
 - 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:31852
+- 2026-09-07 · dbe88d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:30570
+- 2026-09-07 · dbe88d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:43525

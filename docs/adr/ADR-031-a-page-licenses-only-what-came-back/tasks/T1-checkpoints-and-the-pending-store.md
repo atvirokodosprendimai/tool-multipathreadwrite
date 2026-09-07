@@ -25,7 +25,7 @@ somebody proves they received it.
 ## Ordered Steps
 
 1. [S1] Write `TestACheckpointCoversTheSpanItFollows` and confirm it is RED: interleaving over a 500-line served text at N=200 yields checkpoints for 1-200, 201-400, 401-500, each covering exactly its own span and no other. [proof: mutation]
-2. [S2] Implement the marker: `-- ck <8 hex>` on its own line, the hex from `crypto/rand`. ⚠ Not a hash of the content and not a counter — either can be derived by a caller that received nothing, which is the property the whole record rests on. [proof: mutation]
+2. [S2] Implement the marker: `-- ck <16 hex> open lines A-B (N lines follow)` before its span and `-- ck <16 hex> close` after it, the hex from `crypto/rand`. ⚠ 16, not 8: 32 bits against a 512-entry store is roughly 8.4 million attempts to hit any live id, and nothing rate-limits guesses (review of PR #132). ⚠ Not a hash of the content and not a counter — either can be derived by a caller that received nothing, which is the property the whole record rests on. [proof: mutation]
 3. [S3] Implement the interleave over the text `read.Run` already produced, tracking served line numbers from the `NNN|` prefix so a span is what was SERVED rather than what was requested. [proof: mutation]
 4. [S4] Implement the pending store under `internal/state`'s directory (ADR-004: nothing in the working tree), keyed by checkpoint, holding path, sha and span. Cap the entries per root and drop the oldest beyond it. [proof: mutation]
 5. [S5] Assert a pending record reaches NO ledger: write a page, run `seen.Load`, and find nothing. Without this the store could be a second name for the same bug. [proof: mutation]
@@ -49,7 +49,7 @@ go test ./internal/mcp/ -count=1 -v \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestACheckpointCoversTheSpanItFollows` | `internal/mcp/ack_test.go` | Interleaving yields one checkpoint per N served lines, each covering exactly the span since the previous marker, taken from the served line numbers rather than the request | — | S1, S2, S3 |
+| `TestACheckpointCoversTheSpanItFollows` | `internal/mcp/ack_test.go` | Interleaving BRACKETS each run of N served lines — open before the first, close after the last, asserted by POSITION rather than presence — with the range and count stated, ids 16 hex, and spans taken from the served line numbers rather than the request | — | S1, S2, S3 |
 | `TestAPendingRecordReachesNoLedger` | `internal/mcp/ack_test.go` | After a page is served, `seen.Load` holds nothing for that path | — | S4, S5 |
 
 ## Reachability
@@ -70,9 +70,11 @@ are what stands in for it — each breaks one mechanism and the fence goes red �
 evidence this task has that its tests bind. A reader should weigh them accordingly.
 - 2026-09-07 · d95d79e* · mutant killed · exit 1 · `internal/mcp/ack.go` · the checkpoint becomes a constant rather than random, so two reads produce the same marker and a caller that received nothing could produce one — the property the whole record rests on. Chosen to keep compiling: dropping the last use of hex kills the fence with an unused import, which is a compile error rather than a detection · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · covers:a checkpoint covering exactly the span it follows
 - 2026-09-07 · d95d79e* · mutant killed · exit 1 · `internal/mcp/ack.go` · holding a page also records it, which is the pre-ADR-031 behaviour wearing the new name: the served span reaches the ledger without anybody acknowledging it · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · covers:a pending record reaching no ledger until it is promoted
+- 2026-09-07 · dbe88d0* · mutant killed · exit 1 · `internal/mcp/ack.go` · the open marker stops naming its range and count, so a caller that was cut mid-span has nothing to check against and cannot tell it received fewer lines than the span claims — the property the whole mechanism now rests on · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · covers:a checkpoint covering exactly the span it follows
 
 ## Invariants
-- The checkpoint is RANDOM. Not a hash of the served text, not a counter, not derived from the request — a caller that received nothing must be unable to produce it.
+- The checkpoint is RANDOM and 64 bits. Not a hash of the served text, not a counter, not derived from the request.
+- ⚠ A marker BRACKETS its span. A single trailing marker is the page-level defect at span scale: a cut beginning inside the span leaves it and licenses what was never received. Asserted by POSITION, because asserting presence passes when every marker is moved to the end.
 - A pending record is not a ledger record. Nothing in `internal/seen` changes and nothing is written there until T2 promotes it.
 - Spans come from the SERVED line numbers, so a page that served 1-2727 of 3619 yields checkpoints inside 1-2727 and none beyond.
 - `internal/read`, `internal/apply`, `internal/plan`, `internal/seen`, `internal/check` and `internal/state` stay byte-identical against the merge base, and `go.mod` declares exactly one requirement.
@@ -98,3 +100,5 @@ forbids and which would put markers in CLI output.
 - 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:5551
 - 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:6349
 - 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:5749
+- 2026-09-07 · dbe88d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:5328
+- 2026-09-07 · dbe88d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:5099

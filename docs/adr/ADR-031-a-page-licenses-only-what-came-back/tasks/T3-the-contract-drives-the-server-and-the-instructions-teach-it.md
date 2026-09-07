@@ -107,3 +107,4 @@ exists asserts nothing, and finding that out here is the point of S1.
 - 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:feeb54c07d5d3a5bd8cac1ce2bc0923b87a2e0bb17f1242b543f44abfc86e34f · ms:29480
 - 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:37066136ae42398cf0f39614a5e406b4c3ee603f14675da395711b9f98d180da · ms:32291
 - 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:37066136ae42398cf0f39614a5e406b4c3ee603f14675da395711b9f98d180da · ms:29731
+- 2026-09-07 · dbe88d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:37066136ae42398cf0f39614a5e406b4c3ee603f14675da395711b9f98d180da · ms:30208
