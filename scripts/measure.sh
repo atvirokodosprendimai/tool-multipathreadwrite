@@ -267,8 +267,11 @@ measure "D. One site in every Go file — the shape mrw is for" "${DSPECS[@]}"
 #
 # The fixture is synthetic and uniform on purpose — 20,000 lines of IDENTICAL
 # LENGTH (52 characters plus the newline, so 53 bytes each, 1,060,000 total) but
-# DISTINCT content (`item%05d`, all 20,000 different) — so the gutter is isolated
-# from any variation in line length while the file stays realistic.
+# DISTINCT content (`item%05d`, all 20,000 different). BOTH are load-bearing:
+# uniform length isolates the gutter from variation in line length, and distinct
+# content keeps this reading like real source. Do not "simplify" it to genuinely
+# identical lines — that destroys the second property and makes a controlled
+# fixture a degenerate one.
 # ⚠ This comment said "20,000 identical 53-byte lines" until 2026-09-08, which is
 # not what the awk below generates and is the kind of wrong that propagates: the
 # phrase was repeated verbatim into a peer project's copy and into README.md by
