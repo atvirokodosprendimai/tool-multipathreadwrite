@@ -5,7 +5,8 @@
 | for | you need |
 |---|---|
 | building and testing | **Go 1.26.6 or newer** (the version in `go.mod`). One dependency, no cgo. |
-| `scripts/measure.sh`, `scripts/contract.sh` | **bash**, **git**, **awk**, and **python3** for `contract.sh`, which uses it to build and inspect JSON on 89 lines. `bc` is no longer needed by either: `measure.sh` was its only user and now rounds with `awk` instead, which also fixed a truncated ratio. python3 was required all along and this row did not say so. |
+| `scripts/measure.sh` | **bash**, **git**, **awk**. No `bc`: it was `measure.sh`'s only user and `bc scale=1` truncated the ratios. |
+| `scripts/contract.sh` | the same, plus **python3** (JSON, on 86 non-comment lines), **perl**, **jq**, **shasum** and **pgrep**. Only `bc` and `python3` were ever listed here; the other four were not, and a reader installing what this table named could still watch the contract fail. |
 | either script on Windows | **WSL** or **Git Bash**. They are POSIX shell, not PowerShell. The binary itself is native. |
 | a **regex address** in Git Bash | `MSYS2_ARG_CONV_EXCL='*'`, or PowerShell/WSL. MSYS rewrites `f.go:/re/` before mrw starts and quoting does not stop it — see the README's "Git Bash on Windows mangles a regex address". |
 

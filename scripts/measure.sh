@@ -57,15 +57,55 @@ rule() { printf '%s\n' "--------------------------------------------------------
 #
 # It also removes `bc`, which was this script's only user of it and is absent
 # from Alpine and most slim images. awk is already what contract.sh uses.
-round1() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%.1f", a / b }'; }
+# ⚠ AND LC_ALL=C, WHICH IS NOT A TIDINESS FLAG. awk's printf honours the
+# locale's decimal separator, so a correctly ROUNDING awk prints "1,3" under
+# lt_LT, de_DE or fr_FR. That broke the self-check below into a false failure
+# blaming truncation that was not happening — the gate added to catch a silent
+# defect became a loud wrong one, on the maintainer's own locale. It also
+# matters for the output itself: these figures are quoted verbatim in README.md
+# and copied onto a web page, so the separator must not depend on who ran the
+# script. Found by the Codex review of #136.
+round1() { LC_ALL=C awk -v a="$1" -v b="$2" 'BEGIN { printf "%.1f", a / b }'; }
 
+# fewer() renders a CALL comparison. Equal counts are "the same", not
+# "1.0x fewer" — a ratio of one is not a reduction, and shape C prints exactly
+# that for its whole-file row. Codex, #136.
+fewer() {
+  if [ "$1" = "$2" ]; then echo "the same"
+  else echo "$(round1 "$1" "$2")x fewer"; fi
+}
+
+
+# ratio and ratio2 report a comparison, and report a LOSS as a loss: "0.8x less
+# input" is a sentence that hides which way it went.
+#
+# ⚠ THEY LIVE AT FILE SCOPE, not inside measure(). `ratio` used to be defined in
+# measure()'s body, which in bash leaks it globally once measure has run — so
+# shape E called it successfully only because shape A ran first. A function that
+# works because of the order its callers happen to appear in is a defect waiting
+# for someone to reorder the file.
+ratio() {
+  if [ "$2" -le "$1" ]; then echo "$(round1 "$1" "$2")x LESS"
+  else echo "$(round1 "$2" "$1")x MORE"; fi
+}
+
+# Two decimals, for the one place a THIRD digit is the finding: shape E exists to
+# show that the overhead does not move across two orders of magnitude, and
+# "1.1x, 1.1x, 1.1x" cannot distinguish flat from slowly drifting.
+round2() { LC_ALL=C awk -v a="$1" -v b="$2" 'BEGIN { printf "%.2f", a / b }'; }
+ratio2() {
+  if [ "$2" -le "$1" ]; then echo "$(round2 "$1" "$2")x LESS"
+  else echo "$(round2 "$2" "$1")x MORE"; fi
+}
 # A SELF-CHECK, because the defect it replaces was invisible: a truncated ratio
 # is a plausible number, and nobody recomputes a plausible number. 1.29 must
 # print as 1.3. Put back `bc scale=1` and this exits 2 before a single figure
 # is published, which is the only way a silent arithmetic regression announces
 # itself in a script whose whole output is numbers.
 [ "$(round1 1290 1000)" = "1.3" ] || {
-  echo "measure.sh: round1 is truncating rather than rounding; every ratio below would understate" >&2
+  echo "measure.sh: round1 did not print 1.3 for 1290/1000 — it printed '$(round1 1290 1000)'." >&2
+  echo "  a '1.2' means it is TRUNCATING and every ratio below would understate;" >&2
+  echo "  a '1,3' means the decimal separator is not pinned and LC_ALL=C was lost." >&2
   exit 2
 }
 
@@ -119,13 +159,6 @@ EOF
   local windowcalls=$(( 1 + nfiles + nsites ))  # + the search that windowing needs
   local mrwcalls=2                              # one read, one write
 
-  # Report a loss as a loss. "0.8x less input" is a sentence that hides which
-  # way the comparison went.
-  ratio() {
-    if [ "$2" -le "$1" ]; then echo "$(round1 "$1" "$2")x LESS"
-    else echo "$(round1 "$2" "$1")x MORE"; fi
-  }
-
   rule
   printf '%s\n' "$label"
   printf '  %d site(s) across %d file(s)\n\n' "$nsites" "$nfiles"
@@ -135,9 +168,9 @@ EOF
   printf '  %-38s %10s %10s   %s\n' "bytes, vs a WINDOWED read" \
     "$windowed" "$ranged" "$(ratio "$windowed" "$ranged") input"
   printf '  %-38s %10s %10s   %s\n' "calls, whole-file (reads+edits)" \
-    "$wholecalls" "$mrwcalls" "$(round1 "$wholecalls" "$mrwcalls")x fewer"
+    "$wholecalls" "$mrwcalls" "$(fewer "$wholecalls" "$mrwcalls")"
   printf '  %-38s %10s %10s   %s\n' "calls, windowed (search+reads+edits)" \
-    "$windowcalls" "$mrwcalls" "$(round1 "$windowcalls" "$mrwcalls")x fewer"
+    "$windowcalls" "$mrwcalls" "$(fewer "$windowcalls" "$mrwcalls")"
 }
 
 echo "mrw measurement — $(git rev-parse --short HEAD)$(git diff --quiet || echo ' (dirty tree)')"
@@ -185,6 +218,46 @@ mapfile -t GOFILES < <(git ls-files '*.go') 2>/dev/null || {
 DSPECS=()
 for f in "${GOFILES[@]}"; do DSPECS+=("$f:/^package /"); done
 measure "D. One site in every Go file — the shape mrw is for" "${DSPECS[@]}"
+
+# Shape E: ONE file, three spans. The other four shapes vary the task; this one
+# holds the task still and varies how much of a file it needs, which is the only
+# way to see what the overhead actually IS.
+#
+# It answers two questions the ratio columns cannot. First, mrw's cost against a
+# windowed read is a FLAT ~13% — the line-number gutter, which is what makes a
+# served line addressable by a later write — and it does not grow with the span.
+# Second, the SAVING is not a property of file size at all: it is the part of the
+# file you were never going to look at, so it collapses as the span approaches
+# the whole file.
+#
+# ⚠ THIS EXISTS BECAUSE README.md QUOTED THESE NUMBERS WITH NO WAY TO REPRODUCE
+# THEM, in the section whose own opening line is "a number nobody can reproduce
+# is a claim, not a measurement". Measuring it by hand and pasting the result was
+# the same defect one level up. Found by the Codex review of #136.
+#
+# The fixture is synthetic and uniform on purpose — 20,000 identical 53-byte
+# lines — so the gutter is isolated from any variation in line length. awk
+# generates it rather than python3, which this script does not otherwise need.
+spans() {
+  local dir big whole n w m
+  dir=$(mktemp -d)
+  big="$dir/big.go"
+  awk 'BEGIN { for (i = 1; i <= 20000; i++) printf "\tif err := doSomething(ctx, item%05d); err != nil {\n", i }' > "$big"
+  whole=$(wc -c < "$big" | tr -d ' ')
+
+  rule
+  printf '%s\n' "E. One 1.06 MB file, three spans — the overhead, and where the saving comes from"
+  printf '  1 file, %d lines, %d bytes\n\n' 20000 "$whole"
+  printf '  %-16s %12s %12s %12s   %s\n' "span" "whole file" "windowed" "mrw" ""
+  for n in 100 2000 20000; do
+    w=$(sed -n "1,${n}p" "$big" | wc -c | tr -d ' ')
+    m=$("$MRW" -C "$dir" read "big.go:1-$n" | wc -c | tr -d ' ')
+    printf '  %-16s %12s %12s %12s   %s vs whole, %s vs windowed\n' \
+      "$n lines" "$whole" "$w" "$m" "$(ratio2 "$whole" "$m")" "$(ratio2 "$w" "$m")"
+  done
+  rm -rf "$dir"
+}
+spans
 
 rule
 echo "Round trips are the floor: mrw is 2 calls for any N. Bytes depend on how"

@@ -247,7 +247,7 @@ sends MORE bytes than the thing it replaces.
 | | bytes vs windowed | 866 | 1,329 | 1.5× MORE |
 | | calls | 4 / 5 | 2 | 2.0–2.5× fewer |
 | **C.** 1 site, whole small file | bytes (window *is* the whole file) | 12,396 | 15,133 | **1.2× MORE** |
-| | calls | 2 / 3 | 2 | 1.0–1.5× fewer |
+| | calls | 2 / 3 | 2 | same to 1.5× fewer |
 | **D.** 1 site in **every** Go file — 54 sites, 54 files | calls (reads + edits) | 108 | 2 | **54.0× fewer** |
 | | bytes vs whole | 855,932 | 4,729 | 181.0× less |
 | | bytes vs windowed | 770 | 4,729 | **6.1× MORE** |
@@ -265,11 +265,21 @@ repository instead of measuring a subset somebody typed once.
 
 ⚠ **And read shape D for the CALLS, not the bytes.** Its `6.1× MORE` is mrw's
 worst possible input by construction: 54 files at ONE line each, so a per-file
-header and a per-file receipt are charged against 770 bytes of payload. Measured
-2026-09-07 against a windowed read of the SAME span, the overhead is a flat
-**1.13×** at 100, 2,000 and 20,000 lines — it is the line-number gutter, which is
-what makes a served line addressable by a later write, and it stops growing. The
-large ratios are what one line per file looks like, not what scale looks like.
+header and a per-file receipt are charged against 770 bytes of payload. **Shape E
+holds the task still and varies the span instead**, on one 1.06 MB file:
+
+| span | whole file | windowed | mrw | | |
+|---|---|---|---|---|---|
+| 100 lines | 1,060,000 | 5,300 | 6,052 | **175.15× less** than whole | 1.14× more than windowed |
+| 2,000 lines | 1,060,000 | 106,000 | 120,053 | **8.83× less** | 1.13× more |
+| 20,000 lines | 1,060,000 | 1,060,000 | 1,200,054 | 1.13× more | 1.13× more |
+
+Two things fall out. The overhead against a windowed read is **flat at ~13%** and
+does not grow — it is the line-number gutter, which is what makes a served line
+addressable by a later write. And the *saving* is not a property of file size at
+all: it is the part of the file you were never going to look at, so it collapses
+as the span approaches the whole file. The large ratios in shape D are what one
+line per file looks like, not what scale looks like.
 
 The arithmetic is the product, and it does not depend on this repository:
 
@@ -286,7 +296,7 @@ block read back, and one more opportunity to lose the thread between site 19 and
 site 20. That is the cost mrw removes, and it is why the floor is 2 rather than
 "fewer".
 
-**Shape D also sends 5.9× MORE bytes than a windowed reader, and that is fine.**
+**Shape D also sends 6.1× MORE bytes than a windowed reader, and that is fine.**
 Each site is a single line, so mrw is paying a per-file header and a per-line
 number on the smallest possible payload — the worst byte case there is. It is in
 the table at its worst because the calls column is the claim, and a table that
@@ -295,7 +305,7 @@ hid the row where the other axis loses would not be worth reading.
 **Read the two byte rows together or neither.** `Read` takes `offset`/`limit`, so
 the windowed reader is the documented interface, not a strawman — and against it
 mrw costs *more* bytes, because it adds a header and a line number per line. The
-35.4× is real for the case an agent is usually in: it does not yet know where to
+50.0× is real for the case an agent is usually in: it does not yet know where to
 look, so it reads whole files. Once it knows, the byte advantage is gone and the
 round trips are what is left.
 
@@ -394,10 +404,12 @@ go build -o bin/mrw.exe ./cmd/mrw      # Windows
 ```
 
 Running the tests needs only Go (`go test ./...`). Running the two reproduction
-scripts additionally needs **bash**, **git** and **awk** on `PATH`, and
-`scripts/contract.sh` needs **python3** as well — it builds and inspects JSON
-with it on 89 lines, which this passage did not say. Neither needs `bc` any
-more: `measure.sh` was its only user, and `bc scale=1` TRUNCATES, so a ratio of
+scripts additionally needs **bash**, **git** and **awk** on `PATH`.
+`scripts/contract.sh` needs more: **python3** (it builds and inspects JSON on 86
+non-comment lines), plus **perl**, **jq**, **shasum** and **pgrep**. None of that
+was listed before, and a reader installing only what this passage named could
+still watch the contract fail. Neither script needs `bc` any more: `measure.sh`
+was its only user, and `bc scale=1` TRUNCATES, so a ratio of
 1.29 printed as 1.2 and understated mrw's own loss. On Windows both scripts
 need WSL or Git Bash.
 
