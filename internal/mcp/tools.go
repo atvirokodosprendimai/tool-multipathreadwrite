@@ -411,6 +411,13 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
 	// it is rendered on whichever path we are on rather than discarded.
 
+	// A refusal names the fix (ADR-015). Over MCP the commonest reason a line is
+	// unread is now that its page was served but never acknowledged, and the
+	// ledger's own message cannot say so — it belongs to the engine, which knows
+	// nothing about pages. So the remedy is added HERE, and only when there
+	// really is something pending to acknowledge.
+	nameTheAck(root, &res)
+
 	if res.Applied && !res.DryRun {
 		// A file mrw just wrote is one it knows WHOLLY: it produced every line.
 		wrote := map[string]seen.Observation{}
@@ -918,4 +925,35 @@ func servedOrIndex(specs []read.Spec, problems int, cw *capped, observed map[str
 		return callToolResult{}, false
 	}
 	return matchIndex(specs, problems, cw), true
+}
+
+// nameTheAck appends ADR-031's remedy to any hunk refused for lines that were
+// served on a page nobody acknowledged.
+//
+// It is deliberately conditional: with no pending record the advice would be
+// wrong, and a refusal that suggests a fix which does not apply is worse than
+// one that suggests none. The engine's message is left intact and extended,
+// never replaced — it names the file and the served spans, which the caller
+// still needs.
+func nameTheAck(root string, res *apply.Result) {
+	if res == nil || res.Failed == 0 {
+		return
+	}
+	store, err := loadPending(root)
+	if err != nil || len(store) == 0 {
+		return
+	}
+	pendingFor := map[string]bool{}
+	for _, p := range store {
+		pendingFor[p.Path] = true
+	}
+	for i := range res.Hunks {
+		h := &res.Hunks[i]
+		if !pendingFor[h.Path] || !strings.Contains(h.Reason, "has not been read") {
+			continue
+		}
+		h.Reason += ". A page of this file was served but never acknowledged, and an " +
+			"unacknowledged page licenses nothing: send ack:[…] with the `-- ck` values you " +
+			"actually received"
+	}
 }

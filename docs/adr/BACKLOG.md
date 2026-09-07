@@ -1034,3 +1034,30 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   sites, which string equality cannot tell from a drift. It is the same request ADR-009's open follow-up already
   makes for classifying refusals without matching text, so whoever takes one
   should take both.
+
+- **Checkpoints on small reads that fit whole.** Deferred from ADR-031, which
+  interleaves `-- ck` markers only into reads that PAGE. A read that fits in one
+  answer is still recorded on serve, so the same host truncation would license
+  lines nobody saw — the class is narrowed, not closed, and this entry is the
+  only place that is written down. Against doing it now: every read would grow
+  by a marker line per 200 lines and every caller would have to acknowledge
+  every read, which is a large tax for a case nothing has yet measured. The
+  evidence to promote it is one observed truncation of a NON-paged answer; the
+  measurement that produced ADR-031 was of a paged one (`docs/curve/reading-18-result.md`).
+
+- **`MaxResultChars` as a caller-set knob, bounding the whole encoded result.**
+  Chosen by M on 2026-09-07 and deferred out of ADR-031 so that record stays
+  about the ledger. It is one host's ceiling (200,000) hardcoded into a
+  general-purpose tool; `mrw_write` also advertises a cap it does not enforce.
+  M's decision: make it caller-set, bound the ENTIRE encoded result rather than
+  the served text alone, enforce the write cap, and explicitly do NOT give `0`
+  the meaning "unlimited" — `0` means zero, per this repository's own precedent
+  in `body=0` and `lines=0`. Its own record; nothing here blocks it.
+
+- **`--max-lines 0` means UNLIMITED, and M decided on 2026-09-07 that it should
+  mean ZERO.** The entry above under "Probed and found correct" states the
+  question and the precedent — `body=0` is an empty body, `lines=0` is a real
+  assertion — and M's answer is consistency with those, making "serve the header
+  and nothing else" expressible. It is a breaking change for anyone passing `0`
+  to mean no cap, so it needs an ADR, a contract row and a line in the README's
+  flag table. Its own record.

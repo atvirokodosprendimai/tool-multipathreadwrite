@@ -65,6 +65,9 @@ go test ./internal/mcp/ -count=1 -v \
 
 ## Mutation Log
 
+- 2026-09-07 · d95d79e* · mutant killed · exit 1 · `internal/mcp/ack.go` · promotion records a WHOLE-file observation instead of the acknowledged span, so acking one checkpoint licenses the entire file — the middle nobody received included · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · covers:an acked checkpoint promoting exactly its own span
+- 2026-09-07 · d95d79e* · mutant killed · exit 1 · `internal/mcp/tools.go` · the refusal stops naming the remedy, so a caller meets "has not been read" for a page it was sent and is told nothing about ack — ADR-015 says a refusal names the fix · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · covers:an unacked span licensing nothing
+
 ## Invariants
 - An unacked span licenses nothing, and the refusal is the ledger's existing message plus the remedy.
 - An ack that matches no pending record is ignored, not an error: it is a stale caller, and refusing the whole read would punish the honest half.
@@ -87,3 +90,7 @@ Stop and ask if promotion needs `internal/seen` to change shape — the spans ar
 - Checkpoints on small whole reads (deferred: `docs/adr/BACKLOG.md`)
 
 ## Verification Log
+- 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:30972
+- 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:32278
+- 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:30027
+- 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:31852

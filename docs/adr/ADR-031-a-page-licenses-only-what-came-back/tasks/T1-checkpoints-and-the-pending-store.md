@@ -68,6 +68,8 @@ inverts `.claude/rules/lifecycle.md`'s order and it is recorded rather than glos
 written against code that already passes is exactly the shape that proves nothing. The mutants below
 are what stands in for it — each breaks one mechanism and the fence goes red — and they are the only
 evidence this task has that its tests bind. A reader should weigh them accordingly.
+- 2026-09-07 · d95d79e* · mutant killed · exit 1 · `internal/mcp/ack.go` · the checkpoint becomes a constant rather than random, so two reads produce the same marker and a caller that received nothing could produce one — the property the whole record rests on. Chosen to keep compiling: dropping the last use of hex kills the fence with an unused import, which is a compile error rather than a detection · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · covers:a checkpoint covering exactly the span it follows
+- 2026-09-07 · d95d79e* · mutant killed · exit 1 · `internal/mcp/ack.go` · holding a page also records it, which is the pre-ADR-031 behaviour wearing the new name: the served span reaches the ledger without anybody acknowledging it · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · covers:a pending record reaching no ledger until it is promoted
 
 ## Invariants
 - The checkpoint is RANDOM. Not a hash of the served text, not a counter, not derived from the request — a caller that received nothing must be unable to produce it.
@@ -92,3 +94,7 @@ forbids and which would put markers in CLI output.
 - The contract row and the instructions — T3
 
 ## Verification Log
+- 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:6950
+- 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:5551
+- 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:6349
+- 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:5749

@@ -1,9 +1,9 @@
 # ADR-031: A page licenses only the part of it that came back
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-07
 **Owner:** M
-**Accepted:** pending
+**Accepted:** M, 2026-09-07, choosing "page acknowledgement" over a preimage echo and over documenting the gap: *"accepted, finish."*
 **Spec:** None — no spec stage
 **Cross-references:** `docs/adr/ADR-002-mrw-will-not-edit-a-file-it-has-not-seen.md`, `docs/adr/ADR-014-a-read-too-large-is-a-first-page-not-a-dead-end.md`, `docs/adr/ADR-023-a-reads-answer-is-the-served-text.md`, `docs/adr/ADR-024-a-page-is-known-by-its-served-text.md`, `docs/adr/ADR-029-one-file-is-one-observation.md`
 **Governs:** `internal/mcp/tools.go`, `internal/mcp/ack.go`
