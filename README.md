@@ -239,28 +239,37 @@ sends MORE bytes than the thing it replaces.
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 104,697 | 2,951 | **35.4× less** |
-| | bytes vs a **windowed** `offset`/`limit` read | 2,289 | 2,951 | **1.2× MORE** |
+| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 145,952 | 2,918 | **50.0× less** |
+| | bytes vs a **windowed** `offset`/`limit` read | 2,254 | 2,918 | **1.3× MORE** |
 | | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
 | | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
-| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 20,630 | 1,329 | 15.5× less |
+| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 20,145 | 1,329 | 15.2× less |
 | | bytes vs windowed | 866 | 1,329 | 1.5× MORE |
 | | calls | 4 / 5 | 2 | 2.0–2.5× fewer |
-| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 12,881 | 15,765 | **1.2× MORE** |
+| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 12,396 | 15,133 | **1.2× MORE** |
 | | calls | 2 / 3 | 2 | 1.0–1.5× fewer |
-| **D.** 1 site in **every** Go file — 27 sites, 27 files | calls (reads + edits) | 54 | 2 | **27.0× fewer** |
-| | bytes vs whole | 324,256 | 2,421 | 133.9× less |
-| | bytes vs windowed | 410 | 2,421 | **5.9× MORE** |
+| **D.** 1 site in **every** Go file — 54 sites, 54 files | calls (reads + edits) | 108 | 2 | **54.0× fewer** |
+| | bytes vs whole | 855,932 | 4,729 | 181.0× less |
+| | bytes vs windowed | 770 | 4,729 | **6.1× MORE** |
 
-Measured at `87b43d4`; the script builds the binary it stamps. Shape A's
-whole-file baseline moves whenever the four files it reads do — it went from
-104,486 to 104,697 bytes between two commits a day apart, and the ratio did not
-budge. That is the drift this note exists for, and why the stamp is here.
+Measured at `4d01620`; the script builds the binary it stamps. **Every figure here
+drifts, and shape D drifts fastest** — its file list is `git ls-files '*.go'`, so
+it grew from 27 files to 54 while this table said 27. Shape A's whole-file
+baseline moves whenever the four files it reads do. Re-run the script; the stamp
+is what tells you how old the number beside it is.
 
 **Shape D is the one to read.** It is the change every codebase gets eventually —
-a renamed symbol, an added build tag, a changed import — one site in each of 27
+a renamed symbol, an added build tag, a changed import — one site in each of 54
 files, and the file list comes from `git ls-files` so it grows with the
 repository instead of measuring a subset somebody typed once.
+
+⚠ **And read shape D for the CALLS, not the bytes.** Its `6.1× MORE` is mrw's
+worst possible input by construction: 54 files at ONE line each, so a per-file
+header and a per-file receipt are charged against 770 bytes of payload. Measured
+2026-09-07 against a windowed read of the SAME span, the overhead is a flat
+**1.13×** at 100, 2,000 and 20,000 lines — it is the line-number gutter, which is
+what makes a served line addressable by a later write, and it stops growing. The
+large ratios are what one line per file looks like, not what scale looks like.
 
 The arithmetic is the product, and it does not depend on this repository:
 
