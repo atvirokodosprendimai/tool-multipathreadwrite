@@ -1039,3 +1039,41 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   sites, which string equality cannot tell from a drift. It is the same request ADR-009's open follow-up already
   makes for classifying refusals without matching text, so whoever takes one
   should take both.
+
+- **Does the TURN COUNT dominate token cost, and if so does mrw win on tokens
+  even against a windowed read?** Raised 2026-09-07 by the session working on
+  atvirokodosprendimai.github.io while rewriting the landing page around
+  `scripts/measure.sh`, and filed here rather than left in a chat log because it
+  would change what this repository can honestly claim.
+
+  The mechanism is not in doubt: every tool call is a fresh request carrying the
+  whole conversation so far, so the Nth read pays for the N-1 before it.
+  Cumulative input across a loop is closer to `N x base + R x N(N+1)/2` than to
+  `N x R`. `measure.sh` reports R — the bytes one read puts in the context —
+  and says nothing about the exponent. It says so in its own header, which is
+  why the number is honest as far as it goes.
+
+  ⚠ **The confound is large enough to reverse the answer, not merely shade it:
+  prompt caching.** The re-sent prefix is charged at a fraction of fresh input,
+  and the discount lands exactly on the quadratic term the argument rests on.
+  "Turns dominate" and "turns are nearly free after the first" are both
+  plausible readings of the same mechanism; which holds is an empirical question
+  about cache hit rates in a real loop.
+
+  **Why it is worth the work.** The windowed baseline reads fewer bytes per read
+  but takes MORE turns — 105 against 2 in shape D. Those pull in opposite
+  directions and the turn count is the one that compounds. If the quadratic term
+  survives caching at all, mrw may win on cumulative tokens against the
+  disciplined windowed reader, which is the one case where the per-read column
+  says it LOSES 6.1x. That would invert the honest weakness this repository
+  currently publishes.
+
+  **Which is why nobody may state it until it is measured.** A claim that large,
+  that convenient and that unmeasured has the same shape as quoting only the
+  whole-file baseline: true under one accounting, stated as if it were the
+  accounting. Better to carry a weakness we can prove.
+
+  What a real measurement needs, and why it is not another shell script over
+  file sizes: actual API token accounting across a scripted N-turn loop, or a
+  defensible model of cache behaviour, for both the whole-file and the windowed
+  baseline against mrw's two calls. `docs/curve/` is the closest existing shape.
