@@ -101,6 +101,15 @@ nothing until you acknowledge it. A paged read brackets each run of 200 lines wi
 An id you omit leaves its lines stay unwritable. A host can cut a page before you see it, and mrw cannot
 tell, which is what this exists for.
 
+Both tools are bounded at 200,000 characters of ENCODED result, and the number is yours to set:
+`mrw mcp --max-result-chars N` or `MRW_MAX_RESULT_CHARS`. The flag beats the variable, omitting both
+takes the default, and `0` means zero — the same reading `--max-lines 0` takes. An oversized
+`mrw_write` receipt drops successful and skipped verdicts and says so in an `elided` field; every
+FAILED hunk survives, because a failure is why nothing was written. If not even the failures fit, you
+get a refusal naming the counts instead of a receipt cut past them. And a ceiling too small to report
+a write REFUSES THE WRITE, before anything is applied — as a JSON-RPC error, which carries no result
+and so is not itself bound by the ceiling it is reporting on.
+
 `mrw read --grep P` maps onto the `grep` argument, and `--exclude` onto
 `exclude`. When the matches are too large to serve, the tool returns an INDEX —
 one spec per matching file, no content — which you send back as `specs` to read

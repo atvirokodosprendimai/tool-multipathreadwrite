@@ -1110,3 +1110,21 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   file sizes: actual API token accounting across a scripted N-turn loop, or a
   defensible model of cache behaviour, for both the whole-file and the windowed
   baseline against mrw's two calls. `docs/curve/` is the closest existing shape.
+
+## From ADR-032 (the ceiling is the caller's, and it bounds the whole answer)
+
+### A read that FITS could record on serve rather than on acknowledgement
+
+ADR-031 made a PAGE license only what the caller echoes back. A read that fits in
+one answer still records on serve, because nothing was cut — but "nothing was
+cut" is mrw's belief about a delivery it cannot observe, which is the exact
+premise ADR-031 rejected for pages. The asymmetry is deliberate for now: an
+unpaged answer has no checkpoints to echo, so requiring an ack would mean adding
+them to every read, and the measured defect was a paged one.
+
+What would settle it: a host measured truncating a result that was UNDER the
+advertised ceiling. Until then this is a consistency argument rather than a
+defect, and the cost — a second round trip on every read — is paid by the
+population that has never been bitten.
+
+Deferred by `docs/adr/ADR-032-the-ceiling-is-the-callers.md`, Out of Scope.

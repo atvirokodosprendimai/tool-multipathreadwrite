@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/urfave/cli/v3"
@@ -213,6 +214,13 @@ be edited from a shell and the reverse.
 
 Stdout carries MCP messages and nothing else — diagnostics go to stderr — so
 this subcommand is not useful to run by hand.`,
+		Flags: []cli.Flag{
+			&cli.IntFlag{
+				Name:  "max-result-chars",
+				Value: mcp.DefaultMaxResultChars,
+				Usage: "produce no tool result larger than `N` characters, advertised to the host in _meta and enforced on BOTH tools. Zero means zero: omit the flag to take the default. Also settable as MRW_MAX_RESULT_CHARS, which the flag overrides",
+			},
+		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			// A host launches this without --root and expects the project it is
 			// working in. The working directory it happens to inherit is not
@@ -233,6 +241,16 @@ this subcommand is not useful to run by hand.`,
 			if err := mcp.CheckRoot(root, src); err != nil {
 				return cli.Exit("mrw mcp: "+err.Error(), exitUsage)
 			}
+			// The ceiling this server advertises and enforces (ADR-032). It
+			// was one host's number compiled in; a host with a larger budget
+			// could not use it and a host with a smaller one was not
+			// protected. Resolved before the announcement, so a bad value is a
+			// usage error rather than a line claiming the server started.
+			budget, err := resultBudget(cmd, os.LookupEnv)
+			if err != nil {
+				return cli.Exit("mrw mcp: "+err.Error(), exitUsage)
+			}
+			mcp.MaxResultChars = budget
 			// Announced on STDERR: the spec forbids anything on stdout that is
 			// not an MCP message, and a server silently bound to the wrong tree
 			// is this subcommand's worst failure — every refusal it then gives
@@ -251,6 +269,35 @@ this subcommand is not useful to run by hand.`,
 			return nil
 		},
 	}
+}
+
+// resultBudget resolves the MCP result ceiling: the flag, else the
+// environment, else the default.
+//
+// ⚠ IsSet, not a test for zero. `--max-result-chars 0` is a caller asking for a
+// server that may return nothing, and only IsSet tells that from an absent
+// flag — the distinction ADR-033 settled for --max-lines, inherited here rather
+// than argued again.
+//
+// A host config is the natural place for this and a host config sets an
+// environment, so the variable is not a convenience: for some hosts it is the
+// only way to say it.
+func resultBudget(cmd *cli.Command, lookup func(string) (string, bool)) (int, error) {
+	if cmd.IsSet("max-result-chars") {
+		n := cmd.Int("max-result-chars")
+		if n < 0 {
+			return 0, fmt.Errorf("--max-result-chars %d: a ceiling cannot be negative", n)
+		}
+		return n, nil
+	}
+	if raw, ok := lookup("MRW_MAX_RESULT_CHARS"); ok && strings.TrimSpace(raw) != "" {
+		n, err := strconv.Atoi(strings.TrimSpace(raw))
+		if err != nil || n < 0 {
+			return 0, fmt.Errorf("MRW_MAX_RESULT_CHARS=%q: want a whole number of characters, zero or more", raw)
+		}
+		return n, nil
+	}
+	return mcp.DefaultMaxResultChars, nil
 }
 
 // statsCmd prints what became of the plans this checkout has been given.

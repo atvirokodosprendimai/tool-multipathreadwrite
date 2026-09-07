@@ -120,14 +120,57 @@ func callTool(root string, raw json.RawMessage) (callToolResult, *rpcError) {
 	gate.Lock()
 	defer gate.Unlock()
 
+	var res callToolResult
+	var rpcErr *rpcError
 	switch p.Name {
 	case "mrw_read":
-		return readTool(root, p.Arguments)
+		res, rpcErr = readTool(root, p.Arguments)
 	case "mrw_write":
-		return writeTool(root, p.Arguments)
+		res, rpcErr = writeTool(root, p.Arguments)
 	default:
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "unknown tool: " + p.Name}
 	}
+	if rpcErr != nil {
+		return callToolResult{}, rpcErr
+	}
+	// ⚠ ONE POSTCONDITION, HERE, BECAUSE "EVERY PATH CHECKS" WAS NOT TRUE.
+	// ADR-032 bounded the paths that compose a large answer and left the ones
+	// that compose a small one — errorResult carried no check at all, so at a
+	// small ceiling the REFUSALS exceeded the number _meta advertises, which is
+	// the promise the record is named after. Enumerating return sites is how
+	// that happened; a funnel cannot be forgotten. Found by the Codex review of
+	// #135.
+	return withinCeiling(res)
+}
+
+// withinCeiling is the last thing every tool result passes through.
+//
+// ⚠ IT MAY ONLY EVER SHRINK AN ANSWER THAT LICENSED NOTHING. A served read is
+// measured and REFUSED before its ledger record is written (readTool), so it
+// reaches here already inside the ceiling and this function never rewrites it.
+// If that ordering were reversed, this would discard lines the ledger had just
+// recorded as seen — ADR-002 inverted by a size check, which is exactly the
+// shape ADR-031 was written about. TestTheCeilingNeverShrinksAServedRead pins
+// it.
+//
+// When not even the refusal fits, the answer is a JSON-RPC error: it carries no
+// `result` member, so it is outside the ceiling this server advertises, and a
+// transport-level failure is the honest reading of "you asked for a budget in
+// which I cannot answer at all".
+func withinCeiling(res callToolResult) (callToolResult, *rpcError) {
+	n := encodedSize(res)
+	if n <= MaxResultChars {
+		return res, nil
+	}
+	small := errorResult(fmt.Sprintf("this answer came to %d bytes and the ceiling in force is %d, "+
+		"so it is not being sent. Ask for less in one call, or raise the ceiling with "+
+		"--max-result-chars.", n, MaxResultChars))
+	if encodedSize(small) <= MaxResultChars {
+		return small, nil
+	}
+	return callToolResult{}, &rpcError{Code: codeInternal, Message: fmt.Sprintf(
+		"--max-result-chars %d is smaller than any tool result this server can produce; "+
+			"nothing was done", MaxResultChars)}
 }
 
 // readTool serves ranges and records what it observed, exactly as `mrw read`
@@ -305,20 +348,19 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// content[1] (twice more before ADR-023). A grep resuming onto 2,514
 	// small files came back at 794,582 characters — four times the cap this
 	// server declares in _meta, and past the ceiling the host truncates at. So
-	// a walked read that will not fit ENCODED degrades to the index, which is
-	// the answer that does fit and is resumable. Found by review of #80.
-	if walked {
-		if res, over := servedOrIndex(specs, problems, cw, observed, report); over {
-			return res, nil
-		}
-	}
-
-	// Reading is how mrw learns what a file holds; recording that is what lets
-	// a later write know whether its picture is still current.
-	if err := seen.Record(root, observed); err != nil {
-		return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the ledger: " + err.Error()}
-	}
-
+	// a read that will not fit ENCODED degrades to something that does. Found
+	// by review of #80.
+	//
+	// ⚠ THE ANSWER IS COMPOSED ONCE AND THAT SAME OBJECT IS MEASURED. This was
+	// a probe assembled beside the answer, which is how a check ends up on a
+	// shape that is not what got sent — ADR-031 did exactly that twice in
+	// consecutive reviews, and the comment at firstPage's own size check
+	// records both. A probe cannot be wrong about the thing it IS.
+	//
+	// ⚠ AND IT IS NO LONGER ONLY THE WALKED READ (ADR-032). The check was
+	// reached only with `grep`, so a caller naming hundreds of specs of its own
+	// had its report bounded and its receipt not.
+	//
 	// The receipt — seen.Observation, no json tags, so its keys are the Go
 	// field names — travels in content[1] and NOT in structuredContent
 	// (ADR-023; see readResult). readSchema() still describes it for a reader
@@ -338,10 +380,39 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-024 removed the flag from answers that DELIVERED something; this restores
 	// it for the one case its enumeration missed, so :202 and this return agree
 	// rather than disagreeing on whether `grep` was passed.
-	return readResult(map[string]any{
+	served, rpcErr := readResult(map[string]any{
 		"observed": observed,
 		"problems": problems,
 	}, report, len(observed) == 0)
+	if rpcErr != nil {
+		return callToolResult{}, rpcErr
+	}
+	if encodedSize(served) > cw.limit {
+		// The ledger is deliberately NOT written on any of these paths: the
+		// caller is about to be handed something other than these lines, and an
+		// entry claiming otherwise licenses a write against a file they never
+		// saw. That is ADR-002's guarantee.
+		//
+		// A walk degrades to its index, which is resumable. A named read
+		// degrades to a first page when one spec can carry it, and otherwise
+		// says why — with its own sentence, because "your read was too large"
+		// is not what happened here.
+		if walked {
+			return matchIndex(specs, problems, cw), nil
+		}
+		if page, ok := firstPage(root, a.Specs, cw); ok {
+			return page, nil
+		}
+		return errorResult(receiptOverflowMessage(encodedSize(served), cw.limit)), nil
+	}
+
+	// Reading is how mrw learns what a file holds; recording that is what lets
+	// a later write know whether its picture is still current.
+	if err := seen.Record(root, observed); err != nil {
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the ledger: " + err.Error()}
+	}
+
+	return served, nil
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the
@@ -406,6 +477,25 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if err != nil {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
 	}
+	// ⚠ REFUSE BEFORE APPLYING WHEN THE VERDICT COULD NOT BE REPORTED.
+	//
+	// A write is not undoable and a receipt is not optional: once the plan has
+	// applied, every answer this server can give must be TRUE about the tree.
+	// If the ceiling cannot carry even the smallest honest post-apply sentence,
+	// there is no truthful answer left to give afterwards — so the honest
+	// moment to refuse is now, with the tree untouched.
+	//
+	// Measured on the built binary at e8c1a29, before this guard: with
+	// `--max-result-chars 0` a licensed one-hunk write changed the file, wrote
+	// the ledger, and answered "0 of 1 hunk(s) failed and nothing was written".
+	// A false statement about the filesystem, which is the defect this whole
+	// tool exists to refuse. Found by the Codex review of #135.
+	if !writeFloorFits() {
+		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf(
+			"--max-result-chars %d is too small to report what a write did, so nothing was "+
+				"applied and the tree is unchanged. Raise the ceiling to at least %d.",
+			MaxResultChars, writeFloor())}
+	}
 	res, applyErr := apply.Apply(root, in, apply.Options{DryRun: a.DryRun, Seen: ledger})
 	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
 	// it is rendered on whichever path we are on rather than discarded.
@@ -440,17 +530,193 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		_ = authoring.Record(root, authoring.Applied)
 	}
 
-	var report bytes.Buffer
-	for _, h := range res.Hunks {
-		fmt.Fprintf(&report, "%s %s %s %s\n", h.Status, h.Path, h.Addr, h.Reason)
+	return boundedReceipt(res, applyErr, applyErr != nil || res.Failed > 0)
+}
+
+// writeReceipt is what mrw_write returns: the engine's own Result, plus the one
+// fact the engine cannot know — that this transport had to shorten it.
+//
+// The field is embedded and untagged, so encoding/json inlines it and the
+// generated schema inlines it too (fieldsOf). `elided` is omitempty, so a
+// receipt that dropped nothing is byte-identical to the one this server sent
+// before ADR-032.
+type writeReceipt struct {
+	apply.Result
+	// Elided says what this receipt left out to fit the budget. Absent when it
+	// left out nothing, which is every ordinary write.
+	Elided string `json:"elided,omitempty"`
+}
+
+// writeReport renders the per-hunk verdicts, the counts, and any elision.
+//
+// ⚠ The counts come from the WHOLE result even when `hunks` is a subset of it.
+// They are the fact a caller checks first, and a shortened receipt that also
+// shortened them would be a lie rather than an omission.
+func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, elided string) string {
+	var b bytes.Buffer
+	for _, h := range hunks {
+		fmt.Fprintf(&b, "%s %s %s %s\n", h.Status, h.Path, h.Addr, h.Reason)
 	}
-	fmt.Fprintf(&report, "%d hunk(s), %d file(s), %d failed\n", len(res.Hunks), len(res.Files), res.Failed)
+	fmt.Fprintf(&b, "%d hunk(s), %d file(s), %d failed\n", len(res.Hunks), len(res.Files), res.Failed)
 	if applyErr != nil {
-		fmt.Fprintf(&report, "error: %v\n", applyErr)
+		fmt.Fprintf(&b, "error: %v\n", applyErr)
+	}
+	if elided != "" {
+		fmt.Fprintf(&b, "-- %s\n", elided)
+	}
+	return b.String()
+}
+
+// boundedReceipt is the answer mrw_write sends: the whole receipt when it fits
+// the budget this server advertises, and otherwise one with its SUCCESSFUL
+// detail dropped (ADR-032).
+//
+// Both tools advertised a ceiling and only the read path kept one. Measured
+// 2026-09-07: a 4,000-hunk dry-run returned 453,632 characters against an
+// advertised 200,000, and a host that trusts the number truncates — which is
+// the answer ADR-031 exists because mrw cannot see.
+//
+// ⚠ TWO THINGS ARE NEVER ELIDED: a FAILED hunk, and the file record of a file
+// that WAS WRITTEN. Under ADR-001 a failure is why nothing was written, so it is
+// the one verdict a caller cannot act without; the successes of a plan that
+// applied are what `applied` already told them. A written file is the mirror of
+// that — it is the evidence that the tree changed, and for a PARTIAL
+// application `applied` is false and says the opposite. Files go only after the
+// successful hunks, and only if dropping those was not enough.
+//
+// ⚠ AND THE ELISION IS STATED, in the receipt and in the report both. An answer
+// silently shorter than the truth is the defect this tool exists to refuse, and
+// ADR-014 makes saying so the rule for any partial answer. It is in the
+// STRUCTURED value and not only in the text because a host measured on
+// 2026-09-05 delivers mrw_write's answer to the model as the structured value
+// alone (ADR-023).
+func boundedReceipt(res apply.Result, applyErr error, isErr bool) (callToolResult, *rpcError) {
+	full, rpcErr := result(writeReceipt{Result: res}, writeReport(res, res.Hunks, applyErr, ""), isErr)
+	if rpcErr != nil || encodedSize(full) <= MaxResultChars {
+		return full, rpcErr
+	}
+	whole := encodedSize(full)
+
+	kept := make([]apply.HunkResult, 0, res.Failed)
+	for _, h := range res.Hunks {
+		if h.Status == apply.StatusFailed {
+			kept = append(kept, h)
+		}
+	}
+	short := res
+	short.Hunks = kept
+
+	for _, alsoFiles := range []bool{false, true} {
+		note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: "+
+			"%d successful or skipped hunk verdict(s) are not here",
+			MaxResultChars, whole, len(res.Hunks)-len(kept))
+		if alsoFiles {
+			// ⚠ ONLY THE UNWRITTEN FILES GO. The first cut dropped every file
+			// record, and a PARTIAL application — Applied=false, Failed=0,
+			// earlier files already renamed — then came back as applied:false,
+			// failed:0, files:[], hunks:[], which a host that delivers only the
+			// structured value (ADR-023) reads as "nothing happened". That is
+			// the same denial the terminal branch below was fixed for, one
+			// return earlier: each cut of this record moved it up by one.
+			// Keeping the written records cannot hide a write, and when there
+			// are too many of them to fit, the terminal branch says so in
+			// words. Codex, third review of #135.
+			short.Files = writtenFiles(res.Files)
+			note += fmt.Sprintf(", nor %d file record(s) for files that were NOT written",
+				len(res.Files)-len(short.Files))
+		}
+		note += ". Every FAILED hunk is here, every file that WAS written is here, " +
+			"and the counts are of the whole plan."
+
+		out, rpcErr := result(writeReceipt{Result: short, Elided: note}, writeReport(res, kept, applyErr, note), isErr)
+		if rpcErr != nil {
+			return out, rpcErr
+		}
+		if encodedSize(out) <= MaxResultChars {
+			return out, nil
+		}
 	}
 
-	return result(res, report.String(), applyErr != nil || res.Failed > 0)
+	// ⚠ THIS BRANCH IS REACHABLE AFTER A SUCCESSFUL WRITE, and the first cut of
+	// it did not know that. It said "nothing was written" unconditionally,
+	// reasoning that a receipt this large must be all failures and that ADR-001
+	// therefore wrote nothing. A small ceiling breaks that reasoning: with
+	// `--max-result-chars 0` a one-hunk write applied, recorded its ledger
+	// entry, and was told nothing had happened. The guard before apply.Apply
+	// now makes this unreachable for an applied write, and this branch tells
+	// the truth anyway — a verdict that depends on a guard elsewhere staying
+	// correct is the kind that comes back.
+	// ⚠ AND THE TEST IS "DID ANY FILE CHANGE", NOT "DID THE PLAN APPLY". The
+	// second cut asked res.Applied, which is FALSE for a partial application:
+	// apply.Apply renames file by file, and a rename that fails after earlier
+	// ones succeeded returns Applied=false with those files already on disk —
+	// the engine has `writtenSoFar` for exactly that case. Asking Applied would
+	// deny a write that happened, one review after the same denial for a
+	// complete one. Found by the second Codex review of #135.
+	written := 0
+	for _, f := range res.Files {
+		if f.Written {
+			written++
+		}
+	}
+	if written > 0 {
+		return errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, !res.Applied)), nil
+	}
+	return errorResult(fmt.Sprintf("%d of %d hunk(s) failed and nothing was written. Naming them "+
+		"takes more than the %d-byte ceiling this server advertises, so they are not listed here. "+
+		"Send fewer hunks in one plan, or use the CLI `mrw write`, which streams and has no such "+
+		"limit.", res.Failed, len(res.Hunks), MaxResultChars)), nil
 }
+
+// writtenFiles is the subset of file records whose file actually changed on
+// disk. It is what stage-two elision keeps: dropping these is what let a receipt
+// deny a write that had already happened.
+func writtenFiles(files []apply.FileResult) []apply.FileResult {
+	out := make([]apply.FileResult, 0, len(files))
+	for _, f := range files {
+		if f.Written {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// appliedButUnreportable is what this server says when the tree changed and the
+// receipt naming the change will not fit. One function so the message the floor
+// is measured against and the message actually sent cannot drift apart.
+func appliedButUnreportable(written, hunks, failed int, partial bool) string {
+	state := "the plan APPLIED"
+	if partial {
+		state = "the plan PARTIALLY APPLIED — a later file failed after earlier ones were already written"
+	}
+	return fmt.Sprintf("%s: %d file(s) changed on disk, %d hunk(s), %d failed. NAMING them takes "+
+		"more than the %d-byte ceiling this server advertises, so the per-hunk detail is not here "+
+		"— but the write HAPPENED. Read the files, or re-run with a larger --max-result-chars.",
+		state, written, hunks, failed, MaxResultChars)
+}
+
+// writeFloor is the size of the smallest truthful thing this server can say
+// about a write that has already happened, and writeFloorFits asks whether the
+// ceiling in force can carry it.
+//
+// ⚠ IT IS A PROVEN FLOOR, NOT A PLAUSIBLE ONE. The first cut substituted 999999
+// for each count and called that "the widest plausible width"; nothing bounds a
+// plan to a million hunks, so a wide enough real count would exceed the probe,
+// pass the guard, and then be replaced by the funnel's generic refusal — which
+// does not say the write happened. math.MaxInt is the widest any int can
+// render, and the PARTIAL wording is the longer of the two, so this is an upper
+// bound on the real message by construction. Codex, second review of #135.
+//
+// ⚠ IT IS SELF-REFERENTIAL: the message quotes the ceiling in force, so a
+// narrower ceiling renders a shorter message and a smaller floor. That is
+// consistent, because the guard and the real message read MaxResultChars at the
+// same moment — but it means a floor computed at one ceiling says nothing about
+// another, which is what TestTheWriteFloorIsAFloor asserts across ten of them.
+func writeFloor() int {
+	return encodedSize(errorResult(appliedButUnreportable(math.MaxInt, math.MaxInt, math.MaxInt, true)))
+}
+
+func writeFloorFits() bool { return writeFloor() <= MaxResultChars }
 
 // errorResult reports a failure the CALLER caused, inside a normal tool result.
 // A tool error is not a protocol error: the request was well-formed and the
@@ -750,6 +1016,26 @@ func overflowMessage(specs []string, cw *capped) string {
 	return b.String()
 }
 
+// receiptOverflowMessage explains the overflow `capped` cannot see: the served
+// TEXT fit the budget and the whole ANSWER did not.
+//
+// It is a different failure from a read that is simply too large, and it takes
+// a different remedy, so it gets its own sentence rather than borrowing
+// overflowMessage's. The excess is the per-file receipt — one sha and one span
+// list per served file, the same size whatever range was asked for — so
+// narrowing ranges barely moves it and naming fewer files moves it exactly.
+// Telling the caller to retry with a smaller range would send them back for
+// the same refusal, which is the failure the sixth review of PR #132 fixed
+// once already, one message over.
+func receiptOverflowMessage(encoded, limit int) string {
+	return fmt.Sprintf("that read rendered inside the %d-byte limit, but its whole answer — "+
+		"the lines plus the receipt naming what was served — came to %d.\n"+
+		"Nothing was read and nothing was recorded, so no write is licensed by it.\n"+
+		"The excess is the per-file receipt, a sha and a span list for every file served and "+
+		"the same size whatever range you ask for. Name fewer files in one call rather than "+
+		"narrower ranges.", limit, encoded)
+}
+
 // pagedResult builds a first-page answer: the page, the receipt, and the spec
 // that asks for the rest.
 //
@@ -978,36 +1264,6 @@ func encodedSize(res callToolResult) int {
 		return math.MaxInt
 	}
 	return len(b)
-}
-
-// servedOrIndex decides whether a WALKED read may be served as content.
-//
-// The capped writer bounds the report text and nothing else; `observed` carries
-// a sha and a span list per file and is emitted once more, in content[1]. For a grep over
-// many small documents — this record's ordinary case — that is the difference
-// between 178,494 characters of report and a 794,582-character result. When the
-// encoded answer will not fit, the index is returned instead: it is the answer
-// that does fit, it is resumable, and it licenses nothing, which is the honest
-// trade for content that cannot be delivered.
-func servedOrIndex(specs []read.Spec, problems int, cw *capped, observed map[string]seen.Observation, report string) (callToolResult, bool) {
-	// ADR-025: the probe carries the flag the served result will actually carry,
-	// which is `len(observed) == 0`. It said `false` unconditionally under
-	// ADR-024, when that was what the served shape always carried; since a
-	// served-nothing answer now carries `isError: true`, a hardcoded false
-	// measures a shape 15 bytes smaller than the one sent (`,"isError":true`)
-	// and can approve a result that does not fit the declared limit. Only
-	// results inside that 15-byte band change verdict. Found by the Codex
-	// review of #123.
-	probe, rpcErr := readResult(map[string]any{"observed": observed, "problems": problems}, report, len(observed) == 0)
-	if rpcErr != nil {
-		// Undecidable, so not degraded: the caller path will report the same
-		// encoding failure with its own message.
-		return callToolResult{}, false
-	}
-	if encodedSize(probe) <= cw.limit {
-		return callToolResult{}, false
-	}
-	return matchIndex(specs, problems, cw), true
 }
 
 // nameTheAck appends ADR-031's remedy to any hunk refused for lines that were

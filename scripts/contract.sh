@@ -4251,6 +4251,137 @@ seq=$(sed -nE 's/^ *[0-9]+\| (.*)$/\1/p' <<<"$out" | tr '\n' ',')
 [ "$seq" = "alpha,bravo,charlie," ] \
   && ok "an ABSENT --max-lines serves the file whole, in order, without repeats" \
   || bad "omitting the flag no longer serves the file whole: got [$seq] from: $out"
+# 70. ADR-032: the ceiling is the caller's, and it bounds the whole answer.
+#
+# Both tools advertise `anthropic/maxResultSizeChars` and only the read path
+# kept it. Measured 2026-09-07: a 4,000-hunk dry-run came back at 453,632
+# characters against an advertised 200,000, and a host that trusts the number
+# truncates — which is the answer ADR-031 exists because mrw cannot see.
+#
+# ⚠ THE ENCODED RESULT IS WHAT IS MEASURED, and it is measured as the SERVER'S
+# OWN BYTES — raw_decode hands back the exact substring of the response line
+# rather than a re-serialization of a parsed object. ADR-031 shipped a size
+# check on a buffer that was not what got sent, twice, and a row that
+# re-encodes what it parsed repeats that at the gate instead of in the code.
+#
+# ⚠ BOTH TOOLS AND BOTH BUDGETS. A row covering only reads passes against the
+# pre-ADR-032 tree, and a row covering only the default proves nothing about a
+# number the caller set.
+fixture
+python3 - "$R" <<'PY'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+# ⚠ NON-ASCII ON PURPOSE. The size assertion below counts UTF-8 BYTES, and an
+# all-ASCII fixture makes bytes and code points identical — so the correction
+# from len(str) to len(bytes) would pass either way and assert nothing. Each
+# line carries a multi-byte character, which is exactly the content that made
+# the two counts diverge. Found by the second Codex review of #135.
+d.joinpath("wide.txt").write_text("".join("línė %05d — ok\n" % i for i in range(1, 4001)), encoding="utf-8")
+d.joinpath("plan.txt").write_text("".join("@@ wide.txt %d replace\nlínė %05d — ok\n" % (i, i) for i in range(1, 4001)), encoding="utf-8")
+d.joinpath("small.txt").write_text("alpha\nbravo\n", encoding="utf-8")
+PY
+# The read is what licenses the write, so the receipt below carries 4,000
+# VERDICTS rather than 4,000 refusals — the shape an elision may shorten.
+m read wide.txt small.txt >/dev/null 2>&1
+want 0 $? "the ceiling fixture is served"
+python3 - "$R" > "$R/calls.jsonl" <<'PY'
+import json, pathlib, sys
+d = pathlib.Path(sys.argv[1])
+for args in ({"name": "mrw_read", "arguments": {"specs": ["wide.txt"]}},
+             {"name": "mrw_write", "arguments": {"plan": d.joinpath("plan.txt").read_text(), "dry_run": True}},
+             {"name": "mrw_write", "arguments": {"plan": "@@ small.txt 1 replace\nALPHA\n", "dry_run": True}}):
+    print(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": args}))
+PY
+for ceiling in 200000 20000; do
+  flags=""
+  [ "$ceiling" = 200000 ] || flags="--max-result-chars $ceiling"
+  adv=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n' | m mcp $flags 2>/dev/null \
+        | python3 -c 'import sys,json; d=json.load(sys.stdin); print(" ".join("%s=%s" % (t["name"], t["_meta"]["anthropic/maxResultSizeChars"]) for t in sorted(d["result"]["tools"], key=lambda t: t["name"])))')
+  [ "$adv" = "mrw_read=$ceiling mrw_write=$ceiling" ] \
+    && ok "both tools advertise the ceiling in force ($ceiling)" \
+    || bad "the advertised ceiling is not the one in force ($ceiling): $adv"
+  m mcp $flags < "$R/calls.jsonl" > "$R/answers.jsonl" 2>/dev/null
+  out=$(python3 - "$R/answers.jsonl" "$ceiling" <<'PY'
+import json, sys
+limit, dec, over, seen = int(sys.argv[2]), json.JSONDecoder(), [], 0
+for line in open(sys.argv[1]):
+    line = line.rstrip("\n")
+    if not line:
+        continue
+    i = line.index('"result":') + len('"result":')
+    _, end = dec.raw_decode(line, i)
+    # ⚠ AND THIS CORRECTION CANNOT BE MADE TO BIND FROM A GREEN RUN — said here
+    # rather than left for the next reader to discover. A correct server enforces
+    # the ceiling in BYTES, so every answer it delivers has bytes <= ceiling, and
+    # therefore code points <= bytes <= ceiling as well: both counts pass. The
+    # unit only diverges against a server that has ALREADY shipped an oversized
+    # answer, which is the case this row exists to catch and the one no passing
+    # suite can stage. Reverting to len() leaves the contract green; that is a
+    # property of the check, not evidence the check is idle.
+    # ⚠ BYTES, NOT CHARACTERS. json.load hands back a decoded str, so len()
+    # counts code points; the ceiling is enforced in bytes (schema.go says so
+    # and says why). Equal for an ASCII fixture, which is what made this look
+    # right, and wrong the moment a served line is not ASCII. Codex, #135.
+    n = len(line[i:end].encode("utf-8"))   # the server's own bytes, not a re-encoding
+    seen += 1
+    if n > limit:
+        over.append(n)
+print("answers=%d over=%s" % (seen, ",".join(str(n) for n in over) or "none"))
+PY
+)
+  [ "$out" = "answers=3 over=none" ] \
+    && ok "no answer exceeds the ceiling in force ($ceiling)" \
+    || bad "an answer exceeded the ceiling in force ($ceiling): $out"
+done
+# ⚠ THE PAIR THAT MUST STILL WORK. A row asserting only the bound passes
+# against a server that elides everything, which would be a ban rather than a
+# narrowing. The big receipt says what it dropped; the small one drops nothing
+# and says nothing.
+m mcp < "$R/calls.jsonl" > "$R/answers.jsonl" 2>/dev/null
+out=$(python3 - "$R/answers.jsonl" <<'PY'
+import json, sys
+rows = [json.loads(l)["result"] for l in open(sys.argv[1]) if l.strip()]
+big, small = rows[1]["structuredContent"], rows[2]["structuredContent"]
+print("big=%s small=%s failed=%s dry=%s hunks=%s" % (
+    "elided" if big.get("elided") else "whole",
+    "elided" if small.get("elided") else "whole",
+    big["failed"], big["dry_run"], len(small["hunks"])))
+PY
+)
+[ "$out" = "big=elided small=whole failed=0 dry=True hunks=1" ] \
+  && ok "an oversized receipt says what it dropped and a small one drops nothing" \
+  || bad "the elision fired on the wrong receipt, or silently: $out"
+
+# ⚠ AND A REAL WRITE AT A CEILING TOO SMALL TO REPORT ONE. Measured on the
+# built binary before this guard existed: `--max-result-chars 0` applied a
+# licensed one-hunk write, recorded the ledger, and answered "0 of 1 hunk(s)
+# failed and nothing was written". The file is the assertion, not the message —
+# a fix that only corrected the wording would leave the write applying.
+fixture
+printf 'alpha\nbravo\n' > "$R/tiny.txt"
+python3 - "$R" > "$R/one.jsonl" <<'PY'
+import json, sys
+print(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                  "params": {"name": "mrw_read", "arguments": {"specs": ["tiny.txt:1"]}}}))
+PY
+python3 - "$R" > "$R/onewrite.jsonl" <<'PY'
+import json, sys
+print(json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                  "params": {"name": "mrw_write",
+                             "arguments": {"plan": "@@ tiny.txt 1 replace\nMUTATED\n"}}}))
+PY
+m mcp < "$R/one.jsonl" >/dev/null 2>&1
+out=$(m mcp --max-result-chars 0 < "$R/onewrite.jsonl" 2>/dev/null | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+print("error" if "error" in d else "result")')
+[ "$out" = "error" ] \
+  && ok "a ceiling too small to report a write refuses it instead" \
+  || bad "a write under an unreportable ceiling returned a tool result: $out"
+grep -q '^alpha$' "$R/tiny.txt" \
+  && ok "and the tree is untouched, which is the assertion the message is not" \
+  || bad "the write APPLIED under a ceiling that cannot report it: $(cat "$R/tiny.txt")"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
