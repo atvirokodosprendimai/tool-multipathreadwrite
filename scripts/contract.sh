@@ -4305,7 +4305,11 @@ for line in open(sys.argv[1]):
         continue
     i = line.index('"result":') + len('"result":')
     _, end = dec.raw_decode(line, i)
-    n = len(line[i:end])          # the server's own bytes, not a re-encoding
+    # ⚠ BYTES, NOT CHARACTERS. json.load hands back a decoded str, so len()
+    # counts code points; the ceiling is enforced in bytes (schema.go says so
+    # and says why). Equal for an ASCII fixture, which is what made this look
+    # right, and wrong the moment a served line is not ASCII. Codex, #135.
+    n = len(line[i:end].encode("utf-8"))   # the server's own bytes, not a re-encoding
     seen += 1
     if n > limit:
         over.append(n)
@@ -4334,6 +4338,36 @@ PY
 [ "$out" = "big=elided small=whole failed=0 dry=True hunks=1" ] \
   && ok "an oversized receipt says what it dropped and a small one drops nothing" \
   || bad "the elision fired on the wrong receipt, or silently: $out"
+
+# ⚠ AND A REAL WRITE AT A CEILING TOO SMALL TO REPORT ONE. Measured on the
+# built binary before this guard existed: `--max-result-chars 0` applied a
+# licensed one-hunk write, recorded the ledger, and answered "0 of 1 hunk(s)
+# failed and nothing was written". The file is the assertion, not the message —
+# a fix that only corrected the wording would leave the write applying.
+fixture
+printf 'alpha\nbravo\n' > "$R/tiny.txt"
+python3 - "$R" > "$R/one.jsonl" <<'PY'
+import json, sys
+print(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                  "params": {"name": "mrw_read", "arguments": {"specs": ["tiny.txt:1"]}}}))
+PY
+python3 - "$R" > "$R/onewrite.jsonl" <<'PY'
+import json, sys
+print(json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                  "params": {"name": "mrw_write",
+                             "arguments": {"plan": "@@ tiny.txt 1 replace\nMUTATED\n"}}}))
+PY
+m mcp < "$R/one.jsonl" >/dev/null 2>&1
+out=$(m mcp --max-result-chars 0 < "$R/onewrite.jsonl" 2>/dev/null | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+print("error" if "error" in d else "result")')
+[ "$out" = "error" ] \
+  && ok "a ceiling too small to report a write refuses it instead" \
+  || bad "a write under an unreportable ceiling returned a tool result: $out"
+grep -q '^alpha$' "$R/tiny.txt" \
+  && ok "and the tree is untouched, which is the assertion the message is not" \
+  || bad "the write APPLIED under a ceiling that cannot report it: $(cat "$R/tiny.txt")"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

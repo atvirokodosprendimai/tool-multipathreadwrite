@@ -27,9 +27,11 @@ Code's per-tool ceiling" — while mrw runs under any MCP host. A host with a la
 it; a host with a smaller one is not protected.
 
 **And what is bounded is the report text, not the answer.** `capped` limits the text mrw composes;
-the RESULT also carries the receipt in `content[1]` and, for a read, `structuredContent`. ADR-024's
-own note records the gap: 178,494 characters of report inside a 794,582-character result. A caller
-that budgets against the advertised number is budgeting against the wrong quantity.
+the RESULT also carries the receipt in `content[1]`, and for a WRITE in `structuredContent` as well.
+⚠ A READ carries none — ADR-023 removed it after a host delivered the receipt to the model instead of
+the lines — and an earlier draft of this paragraph said it did. ADR-024's own note records the gap it
+leaves regardless: 178,494 characters of report inside a 794,582-character result. A caller that
+budgets against the advertised number is budgeting against the wrong quantity.
 
 M chose the shape on 2026-09-07: caller-set, bounding the whole encoded result, with `mrw_write`'s
 cap enforced, and explicitly NOT `0` = unlimited.
@@ -37,8 +39,11 @@ cap enforced, and explicitly NOT `0` = unlimited.
 ## Existing Primitives Audit
 
 - **`capped` (`internal/mcp/tools.go:466`)** — an `io.Writer` that keeps at most `limit` bytes and
-  records what it dropped. **Reused as-is** for the read path; the write path gets the same type
-  rather than a second mechanism.
+  records what it dropped. **Reused as-is for the READ path only.** ⚠ An earlier draft of this line
+  said the write path would get the same type; it does not, and could not usefully — `capped` bounds
+  a STREAM as it is produced, and a write receipt is a value that exists in full before it is
+  rendered. The write path measures the composed result with `encodedSize` and elides, which is a
+  second mechanism for a second shape rather than reuse avoided.
 - **`servedOrIndex` (`tools.go:874`)** — already decided "the encoded answer will not fit, so return
   the thing that does". **ABSORBED, not reused, and the function is gone.** It composed a PROBE beside
   the answer and measured that; the same judgement now measures the answer itself, composed once and

@@ -11,6 +11,7 @@ Implementation tasks for ADR-032: The ceiling is the caller's, and it bounds the
 | 1 | T1 | none |
 | 2 | T2 | T1 |
 | 3 | T3 | T1, T2 |
+| 4 | T4 | T1, T2, T3 |
 
 ## Task Index
 
@@ -19,6 +20,7 @@ Implementation tasks for ADR-032: The ceiling is the caller's, and it bounds the
 | T1 | The budget is configured, and it bounds the encoded result | done | — | `go test ./internal/mcp/ -run 'TestTheAdvertisedCeilingBoundsEveryAnswer' …` |
 | T2 | A write receipt that fits | done | — | `go test ./internal/mcp/ -run 'TestAWriteReceiptElidesSuccessesNotFailures' …` |
 | T3 | The contract drives the ceiling | done | — | `grep -q '^# 70\. ' scripts/contract.sh && ./scripts/contract.sh` |
+| T4 | A ceiling too small to report a write refuses it, and every answer is bounded | done | — | `go test ./internal/mcp/ -run 'TestASmallCeilingRefusesTheWriteBeforeApplying|…' …` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
@@ -28,6 +30,7 @@ Status: `pending` | `partial` | `blocked` | `done`.
 |----------|----------|-------------|---------------|
 | T1 | the configured budget | T2, T3 | T1 first — there is no budget to bound a receipt with until it exists |
 | T2 | the bounded write receipt | T3 | T2 before T3 — §70 drives the built server |
+| T2 | the bounded write receipt | T4 | T4 fixes what T1 and T2 shipped; it cannot precede them |
 
 ## Notes
 

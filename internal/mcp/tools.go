@@ -120,14 +120,57 @@ func callTool(root string, raw json.RawMessage) (callToolResult, *rpcError) {
 	gate.Lock()
 	defer gate.Unlock()
 
+	var res callToolResult
+	var rpcErr *rpcError
 	switch p.Name {
 	case "mrw_read":
-		return readTool(root, p.Arguments)
+		res, rpcErr = readTool(root, p.Arguments)
 	case "mrw_write":
-		return writeTool(root, p.Arguments)
+		res, rpcErr = writeTool(root, p.Arguments)
 	default:
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "unknown tool: " + p.Name}
 	}
+	if rpcErr != nil {
+		return callToolResult{}, rpcErr
+	}
+	// ⚠ ONE POSTCONDITION, HERE, BECAUSE "EVERY PATH CHECKS" WAS NOT TRUE.
+	// ADR-032 bounded the paths that compose a large answer and left the ones
+	// that compose a small one — errorResult carried no check at all, so at a
+	// small ceiling the REFUSALS exceeded the number _meta advertises, which is
+	// the promise the record is named after. Enumerating return sites is how
+	// that happened; a funnel cannot be forgotten. Found by the Codex review of
+	// #135.
+	return withinCeiling(res)
+}
+
+// withinCeiling is the last thing every tool result passes through.
+//
+// ⚠ IT MAY ONLY EVER SHRINK AN ANSWER THAT LICENSED NOTHING. A served read is
+// measured and REFUSED before its ledger record is written (readTool), so it
+// reaches here already inside the ceiling and this function never rewrites it.
+// If that ordering were reversed, this would discard lines the ledger had just
+// recorded as seen — ADR-002 inverted by a size check, which is exactly the
+// shape ADR-031 was written about. TestTheCeilingNeverShrinksAServedRead pins
+// it.
+//
+// When not even the refusal fits, the answer is a JSON-RPC error: it carries no
+// `result` member, so it is outside the ceiling this server advertises, and a
+// transport-level failure is the honest reading of "you asked for a budget in
+// which I cannot answer at all".
+func withinCeiling(res callToolResult) (callToolResult, *rpcError) {
+	n := encodedSize(res)
+	if n <= MaxResultChars {
+		return res, nil
+	}
+	small := errorResult(fmt.Sprintf("this answer came to %d bytes and the ceiling in force is %d, "+
+		"so it is not being sent. Ask for less in one call, or raise the ceiling with "+
+		"--max-result-chars.", n, MaxResultChars))
+	if encodedSize(small) <= MaxResultChars {
+		return small, nil
+	}
+	return callToolResult{}, &rpcError{Code: codeInternal, Message: fmt.Sprintf(
+		"--max-result-chars %d is smaller than any tool result this server can produce; "+
+			"nothing was done", MaxResultChars)}
 }
 
 // readTool serves ranges and records what it observed, exactly as `mrw read`
@@ -434,6 +477,25 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if err != nil {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
 	}
+	// ⚠ REFUSE BEFORE APPLYING WHEN THE VERDICT COULD NOT BE REPORTED.
+	//
+	// A write is not undoable and a receipt is not optional: once the plan has
+	// applied, every answer this server can give must be TRUE about the tree.
+	// If the ceiling cannot carry even the smallest honest post-apply sentence,
+	// there is no truthful answer left to give afterwards — so the honest
+	// moment to refuse is now, with the tree untouched.
+	//
+	// Measured on the built binary at e8c1a29, before this guard: with
+	// `--max-result-chars 0` a licensed one-hunk write changed the file, wrote
+	// the ledger, and answered "0 of 1 hunk(s) failed and nothing was written".
+	// A false statement about the filesystem, which is the defect this whole
+	// tool exists to refuse. Found by the Codex review of #135.
+	if !writeFloorFits() {
+		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf(
+			"--max-result-chars %d is too small to report what a write did, so nothing was "+
+				"applied and the tree is unchanged. Raise the ceiling to at least %d.",
+			MaxResultChars, writeFloor())}
+	}
 	res, applyErr := apply.Apply(root, in, apply.Options{DryRun: a.DryRun, Seen: ledger})
 	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
 	// it is rendered on whichever path we are on rather than discarded.
@@ -560,15 +622,43 @@ func boundedReceipt(res apply.Result, applyErr error, isErr bool) (callToolResul
 		}
 	}
 
-	// Nothing remains that may honestly be dropped: what is left is the
-	// failures themselves. Under ADR-001 a plan with this many of them wrote
-	// nothing at all, so saying that plainly beats a receipt shortened past the
-	// verdicts it exists to carry.
+	// ⚠ THIS BRANCH IS REACHABLE AFTER A SUCCESSFUL WRITE, and the first cut of
+	// it did not know that. It said "nothing was written" unconditionally,
+	// reasoning that a receipt this large must be all failures and that ADR-001
+	// therefore wrote nothing. A small ceiling breaks that reasoning: with
+	// `--max-result-chars 0` a one-hunk write applied, recorded its ledger
+	// entry, and was told nothing had happened. The guard before apply.Apply
+	// now makes this unreachable for an applied write, and this branch tells
+	// the truth anyway — a verdict that depends on a guard elsewhere staying
+	// correct is the kind that comes back.
+	if res.Applied {
+		return errorResult(fmt.Sprintf("the plan APPLIED: %d file(s) changed, %d hunk(s), %d failed. "+
+			"NAMING them takes more than the %d-byte ceiling this server advertises, so the "+
+			"per-hunk detail is not here — but the write HAPPENED. Read the files, or re-run "+
+			"with a larger --max-result-chars.",
+			len(res.Files), len(res.Hunks), res.Failed, MaxResultChars)), nil
+	}
 	return errorResult(fmt.Sprintf("%d of %d hunk(s) failed and nothing was written. Naming them "+
-		"takes more than the %d-byte budget this server advertises, so they are not listed here. "+
+		"takes more than the %d-byte ceiling this server advertises, so they are not listed here. "+
 		"Send fewer hunks in one plan, or use the CLI `mrw write`, which streams and has no such "+
 		"limit.", res.Failed, len(res.Hunks), MaxResultChars)), nil
 }
+
+// writeFloor is the size of the smallest truthful thing this server can say
+// about a write that has already happened, and writeFloorFits asks whether the
+// ceiling in force can carry it.
+//
+// The probe is the applied-but-unreportable sentence with its counts at their
+// widest plausible width, so the floor is never optimistic: a budget that
+// passes here must still hold the real message.
+func writeFloor() int {
+	return encodedSize(errorResult(fmt.Sprintf("the plan APPLIED: %d file(s) changed, %d hunk(s), %d failed. "+
+		"NAMING them takes more than the %d-byte ceiling this server advertises, so the "+
+		"per-hunk detail is not here — but the write HAPPENED. Read the files, or re-run "+
+		"with a larger --max-result-chars.", 999999, 999999, 999999, MaxResultChars)))
+}
+
+func writeFloorFits() bool { return writeFloor() <= MaxResultChars }
 
 // errorResult reports a failure the CALLER caused, inside a normal tool result.
 // A tool error is not a protocol error: the request was well-formed and the

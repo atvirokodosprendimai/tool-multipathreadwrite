@@ -65,7 +65,7 @@ go test ./internal/mcp/ -count=1 -v \
 ## Invariants
 - A FAILED hunk is never elided. ADR-001's all-or-nothing means a failure explains why nothing was written, and dropping it would leave the caller the one fact they cannot act without.
 - The elision is stated, not silent — ADR-014's rule for any partial answer.
-- The counts survive: `applied`, `failed` and `skipped` are what a caller checks first.
+- The counts survive: `applied` and `failed` in the structured receipt, and the whole plan's hunk and file totals in the report line. ⚠ There is NO skipped count to survive — an earlier draft of this line named one. `apply.Result` carries `Applied`, `Failed` and the two slices, and a skipped hunk is counted only by subtraction.
 
 ## Risks
 

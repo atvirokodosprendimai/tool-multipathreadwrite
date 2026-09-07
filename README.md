@@ -496,6 +496,16 @@ exactly what it left out; every FAILED hunk stays, because under all-or-nothing 
 failure is why nothing was written and is the one verdict a caller cannot act
 without. The counts describe the whole plan whatever was dropped.
 
+Two edges of that, both deliberate. If even the failures alone will not fit, the
+answer is a plain refusal naming the counts rather than a receipt shortened past
+the verdicts it exists to carry — the elision never eats a failure, it stops. And
+**a ceiling too small to report a write refuses the write itself**, before
+anything is applied and with the tree untouched: once a plan has applied, every
+answer must be true about your files, so the honest moment to refuse is before.
+That refusal is a JSON-RPC error, which carries no result and is therefore
+outside the ceiling it is reporting on — which is how `--max-result-chars 0` can
+be answered honestly at all.
+
 ⚠ **A page licenses nothing until you acknowledge it** (ADR-031). Its served text carries `-- ck`
 markers: each run of 200 lines is BRACKETED by `-- ck <id> open lines A-B (N lines follow)` and
 `-- ck <id> close`. Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.

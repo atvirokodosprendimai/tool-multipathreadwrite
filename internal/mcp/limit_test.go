@@ -242,3 +242,225 @@ func TestAWriteReceiptElidesSuccessesNotFailures(t *testing.T) {
 		t.Errorf("the report does not carry the whole plan's counts: %q", got.Content[0].Text)
 	}
 }
+
+// rawResponse drives one tools/call and returns the WHOLE response line, so a
+// test can see a JSON-RPC error as well as a result. rawResult refuses an
+// error; the paths below are about answers that are deliberately not results.
+func rawResponse(t *testing.T, root, tool string, args map[string]any) map[string]any {
+	t.Helper()
+	params, err := json.Marshal(map[string]any{"name": tool, "arguments": args})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := json.Marshal(request{JSONRPC: "2.0", ID: json.RawMessage("1"), Method: "tools/call", Params: params})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := Serve(strings.NewReader(string(req)+"\n"), &out, root); err != nil {
+		t.Fatalf("Serve: %v", err)
+	}
+	var resp map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSuffix(out.String(), "\n")), &resp); err != nil {
+		t.Fatalf("response is not JSON: %v", err)
+	}
+	return resp
+}
+
+// TestASmallCeilingRefusesTheWriteBeforeApplying is the regression for the
+// defect the Codex review of #135 found and this branch reproduced on the built
+// binary: with `--max-result-chars 0` a licensed one-hunk write CHANGED the
+// file, recorded its ledger entry, and answered "0 of 1 hunk(s) failed and
+// nothing was written".
+//
+// ⚠ THE ASSERTION IS THE FILE, NOT THE MESSAGE. A fix that only corrected the
+// wording would leave a write applying under a ceiling that cannot report it,
+// and this test would pass. What must hold is that the tree is untouched.
+func TestASmallCeilingRefusesTheWriteBeforeApplying(t *testing.T) {
+	for _, budget := range []int{0, 1, 64} {
+		t.Run(fmt.Sprintf("budget-%d", budget), func(t *testing.T) {
+			root, name := checkout(t, "f.txt", "alpha\nbravo\n")
+			full := filepath.Join(root, name)
+
+			// Serve line 1 at the default ceiling, so the write below is
+			// refused for the BUDGET and not for the ledger.
+			restore := MaxResultChars
+			MaxResultChars = restore
+			rawResult(t, root, "mrw_read", map[string]any{"specs": []string{name + ":1"}})
+
+			MaxResultChars = budget
+			t.Cleanup(func() { MaxResultChars = restore })
+
+			resp := rawResponse(t, root, "mrw_write", map[string]any{
+				"plan": "@@ " + name + " 1 replace\nMUTATED\n"})
+
+			before, err := os.ReadFile(full)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(before) != "alpha\nbravo\n" {
+				t.Errorf("the file was written under a ceiling that cannot report a write: %q", before)
+			}
+			if _, ok := resp["error"]; !ok {
+				t.Errorf("a write that cannot be reported was not refused; got result %v", resp["result"])
+			}
+			if _, ok := resp["result"]; ok {
+				t.Error("the refusal carries a tool result, which is itself subject to the ceiling it could not meet")
+			}
+		})
+	}
+}
+
+// TestEveryAnswerFitsIncludingTheRefusals covers what ADR-032's first cut did
+// not: `errorResult` carried no size check, so at a small ceiling the REFUSALS
+// exceeded the number `_meta` advertises — the promise the record is named for.
+//
+// ⚠ ITS FIRST VERSION PASSED FOR THE WRONG REASON and the mutation gate caught
+// it. Five short refusals were all under 900 bytes on their own, so removing
+// the funnel changed nothing and the mutant SURVIVED. A refusal is only a test
+// of a size bound if the refusal is genuinely too large — so two of these are
+// measured oversized on this fixture (35,765 and 6,109 bytes at an unbounded
+// ceiling), and the assertion is the funnel's OWN sentence, which cannot appear
+// unless the funnel ran.
+func TestEveryAnswerFitsIncludingTheRefusals(t *testing.T) {
+	const budget = 900
+	restore := MaxResultChars
+	t.Cleanup(func() { MaxResultChars = restore })
+
+	root, specs := manyFiles(t, 40)
+
+	// A grep whose paths do not exist reports one walk problem per path, so the
+	// refusal grows with what the caller asked for. Codex named this path.
+	missing := make([]string, 0, 200)
+	for i := 0; i < 200; i++ {
+		missing = append(missing, fmt.Sprintf("no-such-dir-%03d/nope.txt", i))
+	}
+	// A bad spec is quoted back, so a long path makes a long refusal.
+	longSpec := strings.Repeat("x", 3000) + ":not-a-range"
+
+	MaxResultChars = budget
+
+	for _, c := range []struct {
+		name     string
+		tool     string
+		oversize bool // measured larger than the budget with no ceiling in force
+		args     map[string]any
+	}{
+		{"a grep whose paths all fail to walk", "mrw_read", true, map[string]any{"specs": missing, "grep": "zzz"}},
+		{"an unparseable spec quoted back at length", "mrw_read", true, map[string]any{"specs": []string{longSpec}}},
+		{"a read too large to serve", "mrw_read", false, map[string]any{"specs": specs}},
+		{"exclude without grep", "mrw_read", false, map[string]any{"specs": specs[:1], "exclude": []string{"x"}}},
+		{"a plan that does not parse", "mrw_write", false, map[string]any{"plan": "@@ nonsense\n"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			resp := rawResponse(t, root, c.tool, c.args)
+			raw, ok := resp["result"]
+			if !ok {
+				return // a JSON-RPC error carries no result member; no ceiling applies
+			}
+			b, err := json.Marshal(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(b) > budget {
+				t.Errorf("%s returned %d bytes against an advertised %d", c.name, len(b), budget)
+			}
+			if !c.oversize {
+				return
+			}
+			// This case is larger than the budget on its own, so the funnel is
+			// the only thing that can have brought it under. Assert the funnel's
+			// own words: without it the answer arrives whole and this fails.
+			if !strings.Contains(string(b), "the ceiling in force is") {
+				t.Errorf("%s fits, but not because the ceiling funnel trimmed it — its own refusal text is absent: %s",
+					c.name, b)
+			}
+		})
+	}
+}
+
+// TestTheCeilingNeverShrinksAServedRead pins the ordering withinCeiling's
+// correctness rests on: a served read is measured and refused BEFORE its ledger
+// record is written, so the final size check never has to rewrite an answer
+// that licensed something.
+//
+// If that order were reversed the check would discard lines the ledger had just
+// recorded as seen — ADR-002 inverted by a size guard, which is the shape
+// ADR-031 exists about. The test asserts the licence, not the message.
+func TestTheCeilingNeverShrinksAServedRead(t *testing.T) {
+	restore := MaxResultChars
+	t.Cleanup(func() { MaxResultChars = restore })
+
+	root, specs := manyFiles(t, 200)
+	MaxResultChars = 20_000 // the report fits; the receipt carries it over
+
+	res := rawResult(t, root, "mrw_read", map[string]any{"specs": specs})
+	if len(res) > MaxResultChars {
+		t.Fatalf("the read answered with %d bytes against %d", len(res), MaxResultChars)
+	}
+
+	// Nothing was served, so nothing may be written. A ledger entry here would
+	// mean the size check had thrown away content it had already licensed.
+	MaxResultChars = restore
+	out := rawResult(t, root, "mrw_write", map[string]any{
+		"plan": "@@ " + specs[0] + " 1 replace\nMUTATED\n", "dry_run": true})
+	if !strings.Contains(string(out), "has not been read") {
+		t.Errorf("a read that was refused for size still licensed a write: %s", out)
+	}
+}
+
+// TestTheSecondStageElisionDropsFileRecords reaches the branch
+// TestAWriteReceiptElidesSuccessesNotFailures could not: with one file there is
+// nothing for stage two to drop, so the `Files = nil` path was never executed.
+func TestTheSecondStageElisionDropsFileRecords(t *testing.T) {
+	restore := MaxResultChars
+	t.Cleanup(func() { MaxResultChars = restore })
+
+	root, specs := manyFiles(t, 400)
+	rawResult(t, root, "mrw_read", map[string]any{"specs": specs})
+
+	var plan strings.Builder
+	for i, s := range specs {
+		if i < 2 {
+			fmt.Fprintf(&plan, "@@ %s 1 replace anchor=\"no-such-anchor\"\nY\n", s)
+			continue
+		}
+		fmt.Fprintf(&plan, "@@ %s 1 replace\nY\n", s)
+	}
+
+	const budget = 3_000
+	MaxResultChars = budget
+	res := rawResult(t, root, "mrw_write", map[string]any{"plan": plan.String()})
+	if len(res) > budget {
+		t.Fatalf("the receipt returned %d bytes against an advertised %d", len(res), budget)
+	}
+
+	var got struct {
+		Structured struct {
+			Failed int    `json:"failed"`
+			Elided string `json:"elided"`
+			Files  []any  `json:"files"`
+			Hunks  []struct {
+				Status string `json:"status"`
+			} `json:"hunks"`
+		} `json:"structuredContent"`
+	}
+	if err := json.Unmarshal(res, &got); err != nil {
+		t.Fatalf("result is not JSON: %v", err)
+	}
+	if !strings.Contains(got.Structured.Elided, "file record(s)") {
+		t.Errorf("stage two was not reached, or did not say it dropped the file records: %q", got.Structured.Elided)
+	}
+	if len(got.Structured.Files) != 0 {
+		t.Errorf("stage two kept %d file record(s); it exists to drop them", len(got.Structured.Files))
+	}
+	if got.Structured.Failed != 2 || len(got.Structured.Hunks) != 2 {
+		t.Errorf("failed=%d with %d hunk(s) kept, want 2 and 2 — a failure is never elided",
+			got.Structured.Failed, len(got.Structured.Hunks))
+	}
+	for _, h := range got.Structured.Hunks {
+		if h.Status != "failed" {
+			t.Errorf("a %q hunk survived stage two; only failures may", h.Status)
+		}
+	}
+}
