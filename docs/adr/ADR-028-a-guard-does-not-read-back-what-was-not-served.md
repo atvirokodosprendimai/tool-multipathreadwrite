@@ -131,8 +131,9 @@ See `docs/adr/ADR-028-a-guard-does-not-read-back-what-was-not-served/tasks/READM
 - **Negative:** a caller whose anchor AND ledger are both wrong now learns about the ledger first,
   and must read the lines before the anchor mismatch is reported. That is the correct order of
   problems, but it is one more round trip for that caller.
-- **Neutral:** nothing changes for a hunk whose lines were served, which is every hunk in this
-  repository's own tests and contract.
+- **Neutral:** nothing changes for a hunk whose lines were served. That is every hunk this repository
+  applies in anger; the exceptions are the fixtures written to prove this record, which address an
+  unserved line on purpose — `TestAFailedAnchorDoesNotReadBackAnUnservedLine` and §66.
 
 ## Out of Scope
 

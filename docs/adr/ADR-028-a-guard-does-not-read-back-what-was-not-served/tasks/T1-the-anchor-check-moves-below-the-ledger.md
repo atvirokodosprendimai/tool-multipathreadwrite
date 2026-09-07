@@ -27,7 +27,7 @@ the lines they were.
 1. [S1] Write `TestAFailedAnchorDoesNotReadBackAnUnservedLine` and confirm it is RED. ⚠ **The fixture must serve a NARROW range and address a line just outside it.** `BACKLOG.md:226` pre-registers the trap: the obvious fixture — serve nothing, address anything — trips the WHOLE-FILE gate instead, so it passes with the ordering reversed and proves nothing. Serve line 1, anchor line 2.
 2. [S2] Move the `anchor=` check below `covered()`. [proof: mutation]
 3. [S3] Assert the other half in the same test: a hunk whose lines WERE served still gets the anchor message, with the line quoted, because the caller is entitled to it. Without this the fix could be "never check anchors", which would pass a one-sided test. [proof: mutation]
-4. [S4] Confirm ADR-008's delete-body ordering test is untouched, and that `lines=` still reports above the ledger — it prints only arithmetic over caller-supplied values. [proof: acceptance]
+4. [S4] Confirm ADR-008's delete-body ordering test is untouched, and that `lines=` still reports above the ledger FOR `replace` AND `delete` — it prints only arithmetic over caller-supplied values. ⚠ Not for the two insertions: their `lines=` lives inside the guard closure that the anchor comparison lives in, and the closure moves as one, so it goes below with it. [proof: acceptance]
 5. [S5] Run the package, the adversarial package, `gofmt` and `go vet`. [proof: acceptance]
 
 ## Acceptance
@@ -73,7 +73,6 @@ go test ./internal/adversarial/ -count=1 -v \
 - `lines=` stays above the ledger for `replace` and `delete`: it prints arithmetic over values the caller supplied and no file content. For the two INSERTIONS it now sits below, because their `lines=` check lives inside the same guard closure as the anchor comparison and the closure moves as one — costing nothing, since a caller who has not read the line learns that first either way.
 - A hunk whose lines were served still gets the anchor check, and its message still quotes the line — the fix is an ORDER, not a removal, and a one-sided test would not notice the difference.
 - ADR-008's delete-body guard keeps its own position below `covered()`; this record moves its sibling to match rather than moving either of them anywhere new.
-- `lines=` stays above the ledger: it prints arithmetic over values the caller supplied and no file content.
 - `internal/read`, `internal/plan`, `internal/seen`, `internal/check` and `internal/state` stay byte-identical against the merge base, and `go.mod` declares exactly one requirement.
 
 ## Risks
