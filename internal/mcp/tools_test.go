@@ -1203,6 +1203,20 @@ func TestAckOnAReadPromotesToo(t *testing.T) {
 // TestBothToolsAdvertiseAck keeps the field discoverable. It was implemented in
 // the handlers and absent from tools/list, so a schema-driven host could not
 // learn about a BREAKING requirement — found by the review of PR #132.
+// TestAPagedFooterCarriesTheOneRule inspects a REAL paged answer. The rule
+// reaching the instructions and the two documents left the footer free to
+// paraphrase — the surface a caller meets first (fourth review of PR #132).
+func TestAPagedFooterCarriesTheOneRule(t *testing.T) {
+	root, path := bigCheckout(t, 12000)
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	if nextOf(t, res) == "" {
+		t.Fatal("the fixture did not page")
+	}
+	if !strings.Contains(served0(t, res), AckRule) {
+		t.Errorf("the page footer does not carry the acknowledgement rule verbatim:\n%s", served0(t, res))
+	}
+}
+
 func TestBothToolsAdvertiseAck(t *testing.T) {
 	for _, tl := range tools() {
 		if tl.Name != "mrw_read" && tl.Name != "mrw_write" {

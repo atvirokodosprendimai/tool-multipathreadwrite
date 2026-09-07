@@ -9,7 +9,7 @@
 **Governs:** `internal/mcp/tools.go`, `internal/mcp/ack.go`
 **Enforced-by:** `internal/mcp/ack_test.go::TestOnlyAckedSegmentsAreRecorded`
 **Invalidates:** none — checked
-**Served-path change:** an MCP read that is paged or large now carries checkpoint markers in its served text, and records nothing until the caller echoes them. A caller that echoes none is refused on its next write exactly as if it had not read.
+**Served-path change:** an MCP read that PAGES now carries checkpoint markers in its served text and records nothing until the caller echoes them. A read that fits, a grep index and a refused multi-spec read are unchanged and carry none — the class is narrowed, not closed, and the small-read half is receipted in `docs/adr/BACKLOG.md`. A caller that echoes none is refused on its next write exactly as if it had not read.
 
 ## Context
 
@@ -66,8 +66,11 @@ segments whose checkpoints the caller echoes back.**
    stated count, a caller that was cut holds one end, or neither, or too few lines — and can tell.
 2. The observation goes to a PENDING record under the state directory, keyed by checkpoint. Nothing
    reaches the ledger yet.
-3. `mrw_read` and `mrw_write` accept `ack`, a list of checkpoints. Every checkpoint that matches a
-   pending record promotes exactly its own span into the ledger, via the existing `seen.Record`.
+3. `mrw_read` and `mrw_write` accept `ack`, a list of checkpoints. A checkpoint that matches a
+   pending record promotes exactly its own span into the ledger, via the existing `seen.Record` —
+   PROVIDED the file still holds the version that was served. A span acknowledged against a version
+   since replaced is dropped: the ledger would refuse it anyway, and dropping it deterministically is
+   what keeps a stale acknowledgement from overwriting a current one.
 4. A checkpoint nobody echoes licenses nothing. A write addressing those lines is refused with the
    ledger's existing message, naming what WAS acked.
 
@@ -165,7 +168,7 @@ See `docs/adr/ADR-031-a-page-licenses-only-what-came-back/tasks/README.md`.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | The fixture proves a single token would have passed | **High** | High | Pre-registered: the test must include a MIDDLE-CUT case, since the measured truncation kept both ends. A fixture that cuts the tail is green against the design this record rejects |
-| A caller echoes every checkpoint reflexively without having received them | Medium | High | Unpreventable server-side and stated as such in the Decision. Checkpoints are random per read, so they cannot be predicted or derived; promotion consumes a pending entry, so a recalled id cannot be replayed. Neither stops a caller lying about what it received |
+| A caller echoes every checkpoint reflexively without having received them | Medium | High | Unpreventable server-side and stated as such in the Decision. Checkpoints come from `crypto/rand`, so they cannot be predicted or derived; promotion consumes a pending entry, so a recalled id cannot be replayed. ⚠ The TEST for this rules out a dense counter and nothing more — a statistical test on output cannot establish unpredictability, and the guarantee is the `crypto/rand` dependency rather than the test |
 | The pending store grows without bound | Medium | Low | Entries are dropped once promoted, and expire with the state directory they live in; T1 caps the count per root |
 | Breaking existing MCP callers silently | **High** | High | It fails SAFE — a write is refused, never wrongly applied — and the refusal names `ack`. T3 asserts the refusal text carries the remedy, which is ADR-015's rule |
 

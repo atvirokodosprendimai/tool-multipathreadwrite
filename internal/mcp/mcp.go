@@ -254,7 +254,8 @@ func tools() []tool {
 			Meta: map[string]any{"anthropic/maxResultSizeChars": MaxResultChars},
 			Description: "Reach for this instead of your own file reader when the task touches " +
 				triggerRule + " — one call serves them all, and each served line is recorded so " +
-				"mrw_write may later edit it. Below that a single read is cheaper in your own " +
+				"mrw_write may later edit it, EXCEPT on a paged answer, which records nothing " +
+				"until you acknowledge it (see ack). Below that a single read is cheaper in your own " +
 				"editor. Specs use mrw's own syntax: path, path:10-20, path:A,+N for the line A " +
 				"plus the N lines after it, path:/regexp/ so the read " +
 				"finds its own site, or path:$ for the last line. A read too large for one answer " +
@@ -297,7 +298,7 @@ func tools() []tool {
 					"ack": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": "The checkpoint ids you ACTUALLY RECEIVED from a previous paged read. A paged answer brackets each run of lines with `-- ck <id> open lines A-B (N lines follow)` and `-- ck <id> close`; a page licenses NO write until you send its ids back here. Send an id only when you hold both its markers and counted N lines between them — a host can cut a page before you see it, and mrw cannot tell. Omit one and those lines stay unwritable, which is the point.",
+						"description": "The checkpoint ids from a previous paged read. A paged answer brackets each run of lines with `-- ck <id> open lines A-B (N lines follow)` and `-- ck <id> close`, and licenses NO write until you send its ids back here. " + AckRule + " Omit an id and its lines stay unwritable, which is the point: a host can cut a page before you see it, and mrw cannot tell.",
 						"examples":    []any{[]any{"3f8a1c4d90b27e56"}},
 					},
 					"after": map[string]any{
@@ -340,7 +341,7 @@ func tools() []tool {
 					"ack": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": "The checkpoint ids you ACTUALLY RECEIVED from the paged read this plan was written against. Same rule as on mrw_read: an unacknowledged page licenses nothing, so a hunk addressing lines you have not acknowledged is refused. Send an id only when you hold both its `-- ck` markers and counted the lines between them.",
+						"description": "The checkpoint ids from the paged read this plan was written against. An unacknowledged page licenses nothing, so a hunk addressing lines you have not acknowledged is refused. " + AckRule,
 						"examples":    []any{[]any{"3f8a1c4d90b27e56"}},
 					},
 					"dry_run": map[string]any{

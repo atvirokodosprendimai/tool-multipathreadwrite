@@ -70,9 +70,10 @@ grep -q '^# 68\. ADR-031: a page licenses only what came back\.' scripts/contrac
 from the mechanism and two mutants survived by leaving a token, and then a heading, in place. The
 third review of PR #132 then demonstrated the remaining hole directly: negating the operative clause
 while keeping `ack`, `LICENSES NOTHING`, `BOTH its markers` and `numbered NNN| lines` still passed.
-Listing tokens cannot express "says this". So `mcp.AckRule` is the sentence, every surface embeds it,
-`TestEverySurfaceCarriesTheOneRule` requires it BYTE FOR BYTE in the instructions, `README.md` and
-`AGENTS.md`, and the contract row reads the constant out of the source and requires it on the WIRE.
+Listing tokens cannot express "says this". So `mcp.AckRule` is the sentence. The MCP instructions, the page footer, the refusal remedy and BOTH tool schemas are built from the constant; `README.md` and `AGENTS.md` carry the same text as static duplicates, which a test pins rather than derives — changing the constant does not change those two files, it makes their check FAIL until somebody updates them, and the fourth review of PR #132 was right that the first draft claimed otherwise.
+`TestEverySurfaceCarriesTheOneRule` requires it BYTE FOR BYTE in the instructions, `README.md`,
+`AGENTS.md` and both schema descriptions; `TestAPagedFooterCarriesTheOneRule` inspects a REAL paged
+answer; and the contract row reads the constant out of the source and requires it on the WIRE.
 
 ⚠ **An `instructions.go` mutant SURVIVED TWICE, and the fence was the reason both times.**
 The second run gutted the OPERATIVE CLAUSE — "only if you hold BOTH its markers AND counted the N
@@ -143,3 +144,4 @@ exists asserts nothing, and finding that out here is the point of S1.
 - 2026-09-07 · f0865c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:214ecdbe31cd12cef63b3c559c4b1aebed27c127ddd4fbf74766a7b37e7b886d · ms:30868
 - 2026-09-07 · f0865c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:30876
 - 2026-09-07 · f0865c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:30079
+- 2026-09-07 · 7c7b0b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:32483

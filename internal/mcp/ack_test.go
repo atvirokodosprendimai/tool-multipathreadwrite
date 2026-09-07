@@ -25,7 +25,7 @@ func served(from, to int) string {
 	return b.String()
 }
 
-func TestACheckpointCoversTheSpanItFollows(t *testing.T) {
+func TestACheckpointCoversTheSpanItBrackets(t *testing.T) {
 	text, spans := interleave(served(1, 500))
 	if len(spans) != 3 {
 		t.Fatalf("got %d checkpoints for 500 lines at ckEvery=%d, want 3", len(spans), ckEvery)
@@ -368,12 +368,35 @@ func TestEverySurfaceCarriesTheOneRule(t *testing.T) {
 	if !strings.Contains(instructionsText(), AckRule) {
 		t.Error("the MCP instructions do not carry the acknowledgement rule verbatim")
 	}
+
+	// ⚠ AND THE SURFACES A CALLER ACTUALLY MEETS. Checking the two documents and
+	// the instructions left the page FOOTER and both schema descriptions as
+	// independent paraphrases — a schema could teach the old unsafe rule with
+	// every check green, which the fourth review of PR #132 pointed out. Both
+	// ack descriptions are built from the constant, and this asserts that.
+	for _, tl := range tools() {
+		schema, _ := tl.InputSchema.(map[string]any)
+		props, _ := schema["properties"].(map[string]any)
+		ack, ok := props["ack"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if d, _ := ack["description"].(string); !strings.Contains(d, AckRule) {
+			t.Errorf("%s's ack description paraphrases the rule instead of carrying it: %s", tl.Name, d)
+		}
+	}
 }
 
-// TestCheckpointsAreNotASequence separates randomness from a counter, which the
-// non-collision check could not: a 16-hex sequential counter passed it while
-// violating the assumption the whole record rests on.
-func TestCheckpointsAreNotASequence(t *testing.T) {
+// TestCheckpointsAreNotADenseSequence catches the cheapest wrong implementation
+// and CLAIMS NO MORE THAN THAT.
+//
+// ⚠ A statistical test on output cannot establish unpredictability. The first
+// version of this test was called "…AreNotASequence" and the fourth review of
+// PR #132 showed it green against a counter emitting i<<48 — adjacent gaps of
+// 2^48, a total spread far past the threshold. What actually buys the property
+// is the crypto/rand dependency in checkpoint(); this test rules out a dense
+// counter and the non-collision case, and the name says so.
+func TestCheckpointsAreNotADenseSequence(t *testing.T) {
 	_, spans := interleave(served(1, 4000))
 	if len(spans) < 8 {
 		t.Fatalf("need several checkpoints to judge a sequence, got %d", len(spans))
@@ -387,16 +410,16 @@ func TestCheckpointsAreNotASequence(t *testing.T) {
 		vals = append(vals, n)
 	}
 	sort.Slice(vals, func(i, j int) bool { return vals[i] < vals[j] })
-	// A counter's sorted values are consecutive, or at least share a tiny,
-	// constant gap. Random 64-bit values spread across the whole range.
+	// A DENSE counter's sorted values are consecutive or nearly so. This says
+	// nothing about a sparse one — see the doc comment.
 	gap := vals[len(vals)-1] - vals[0]
 	if gap < uint64(len(vals))*1<<40 {
-		t.Errorf("checkpoints span only %d across %d values — that is a counter or a near-sequence, not 64 bits of randomness", gap, len(vals))
+		t.Errorf("checkpoints span only %d across %d values — that is a dense counter, not 64 bits of draw", gap, len(vals))
 	}
-	// And no two share a long prefix, which a counter's neighbours would.
+	// And no two are adjacent, which a dense counter's neighbours would be.
 	for i := 1; i < len(vals); i++ {
 		if vals[i]-vals[i-1] < 1<<32 {
-			t.Errorf("two checkpoints are within 2^32 of each other, which random 64-bit draws do not do at this sample size")
+			t.Errorf("two checkpoints are within 2^32 of each other, which 64-bit draws do not do at this sample size")
 		}
 	}
 }

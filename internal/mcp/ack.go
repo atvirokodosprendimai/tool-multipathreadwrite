@@ -115,7 +115,8 @@ func interleave(text string) (string, map[string][2]int) {
 	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 
 	// Group the SERVED content lines into runs of ckEvery, remembering where
-	// each run begins and ends in the slice. Two passes are needed because an
+	// each run begins and ends in the slice. Each run is BRACKETED, never
+	// followed: a marker after its lines is the page-level defect at span scale. Two passes are needed because an
 	// opening marker names the span it introduces, and the span is not known
 	// until its lines have been counted — the one-pass alternative is a marker
 	// that trails its lines, which is the defect this design exists to avoid.

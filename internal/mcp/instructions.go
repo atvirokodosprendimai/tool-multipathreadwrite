@@ -65,9 +65,8 @@ nothing is obvious, a write that changes nothing is not.
 WHICH SURFACE. Reach for mrw when the task touches %s. Below that use your
 ordinary editor: it costs the same two calls and prints more than the file holds.
 
-Then choose. The CLI has the broader surface — only it has --files-from, --check
-(the project's tests, scoped to what you wrote), and the check, iter, seen and
-stats subcommands. `+"`mrw --root DIR read`"+` points it at ANY checkout; note
+Then choose. The CLI is broader — only it has --files-from, --check (the
+project's tests, scoped to what you wrote), and check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; note
 --root BEFORE the subcommand, because after `+"`read`"+` the short -C is the
 context flag, not a directory. This surface returns structured JSON (a read's
 receipt: 2nd text block), and one server is one writer to the ledger while
@@ -76,15 +75,15 @@ one with none, or when callers sharing ONE fixed checkout want writes serialized
 
 THE TWO RULES THAT PRODUCE MOST REFUSALS.
 1. Read before you write, per LINE not per file: served lines 10-12 do not
-   license an edit at line 50. Only mrw_read records lines.
-2. A plan is all or nothing. If any hunk fails NOTHING is written and the
+   license an edit at line 50. Only mrw_read serves lines; ack on either tool records them.
+2. A plan is all or nothing: if any hunk fails NOTHING is written and the
    siblings report skipped, never ok.
 
 READING. mrw_read takes specs: a bare path, path:N, path:N-M, path:A,+N (A plus
 the N lines after it), path:$ for the last line, or path:/regexp/ — the read
 finds its own site. Example: %v
 To find files you cannot NAME, set grep to a regexp: mrw walks your paths (or the
-root) and serves every match. Too large? You get an INDEX — one spec per file,
+root) and serves every match. Too large? An INDEX — one spec per file,
 no content — send back as specs. exclude skips globs; no range with grep.
 
 A read too large for one answer comes back as a PAGE: the lines that fit, a
@@ -93,8 +92,8 @@ A read too large for one answer comes back as a PAGE: the lines that fit, a
 Repeat until next_read is absent; stopping early leaves you part of a file.
 A PAGE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT.
 %s
-An id you omit leaves its lines unwritable. A host can cut a page before you
-see it and mrw cannot tell; this is how you can.
+An id you omit leaves its lines unwritable. A host can cut a page before you see
+it and mrw cannot tell; this is how you can.
 
 WRITING. mrw_write takes one plan document. Each hunk is a header line
 

@@ -4163,6 +4163,37 @@ assert sc["failed"] == 1, "a line in the UNACKNOWLEDGED middle was writable: %s"
 assert "ack" in json.dumps(sc), "the refusal does not name the remedy: %s" % sc
 PY
 want 0 $? "an unacknowledged middle stays unwritable, and the refusal names ack"
+
+# ⚠ AND EVERY RENDERED BLOCK MUST BE PROMOTABLE, not just the two ends. The
+# tiling check proves the marker TEXT covers the page; a server could render
+# every interior block and store only the first and last mappings, and every
+# assertion above would still pass while no caller could acknowledge anything
+# between them. The fourth review of PR #132 named that hole. So: acknowledge
+# EVERY id, and write one line from EVERY declared block in a single plan.
+plan=$(python3 - "$R/page.json" <<'PY'
+import json,re,sys
+t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"].split(chr(10))
+out=[]
+for l in t:
+    m=re.match(r"^-- ck ([0-9a-f]{16}) open lines (\d+)-(\d+) ", l)
+    if m: out.append("@@ big.txt %s replace\\nX\\n" % m.group(2))
+print("".join(out))
+PY
+)
+allcks=$(python3 - "$R/page.json" <<'PY'
+import json,re,sys
+t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"]
+print(",".join('"%s"' % c for c in re.findall(r"^-- ck ([0-9a-f]{16}) open ", t, re.M)))
+PY
+)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"%s","dry_run":true,"ack":[%s]}}}\n' "$plan" "$allcks" | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == 0, "acknowledging every rendered id did not license one line from every block: %s" % sc["hunks"]
+PY
+want 0 $? "every rendered checkpoint is promotable, not only the two ends"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
