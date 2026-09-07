@@ -764,7 +764,14 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 				fail(h, "line %d is out of range (file has %d lines)", start, total)
 				continue
 			}
-			if !guard(start) || !covered(h, min(max(start, 1), total), min(max(start, 1), total)) {
+			// covered() FIRST, then guard(): the guard's anchor comparison
+			// quotes the line the file holds, and only the ledger establishes
+			// that the caller was served it (ADR-028). `||` short-circuits, so
+			// an unserved line is refused by the ledger and the anchor is never
+			// evaluated. The two insertion ops had this order the wrong way
+			// round after the replace/delete fix, which is how the first cut of
+			// ADR-028 could claim "every guard" while two still leaked.
+			if !covered(h, min(max(start, 1), total), min(max(start, 1), total)) || !guard(start) {
 				continue
 			}
 			resolved = append(resolved, h.resolveTo(start+1, start, "insert"))
@@ -773,7 +780,7 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 				fail(h, "line %d is out of range (file has %d lines)", start, total)
 				continue
 			}
-			if !guard(start) || !covered(h, min(max(start, 1), total), min(max(start, 1), total)) {
+			if !covered(h, min(max(start, 1), total), min(max(start, 1), total)) || !guard(start) {
 				continue
 			}
 			resolved = append(resolved, h.resolveTo(start, start-1, "insert"))

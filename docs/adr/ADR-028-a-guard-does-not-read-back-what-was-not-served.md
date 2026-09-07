@@ -21,11 +21,12 @@ Reproduced against the v1.4.0 binary (`bd73ee0`) on 2026-09-07:
 
 Line 2 was never served. The refusal quotes it.
 
-**ADR-002 and ADR-005 say mrw does not tell you what it has not shown you**, and this is the one
-path that does. `internal/apply/apply.go` checks `anchor=` at `:797` and the ledger at `:801`, so a
-FAILED anchor guess prints a line the caller has no licence to see. It fires on `replace` and
-`delete` alike and is repeatable per address, so what it can leak is bounded by `clip`'s 60
-characters per failed hunk rather than by one line in total.
+**ADR-002 and ADR-005 say mrw does not tell you what it has not shown you**, and `anchor=` is the
+guard that does. It reaches the file through TWO call sites, which is why the first cut of this
+record fixed one and shipped the other: `replace` and `delete` compare the anchor inline, above
+`covered()`; the two INSERTION ops call a guard closure BESIDE `covered()`, so moving the first
+did nothing for them. All four print the line on a failed anchor. It is repeatable per address, so
+what it can leak is bounded by `clip`'s 60 characters per failed hunk rather than by one line.
 
 **This is not a new discovery and the record should not pretend otherwise.** It is
 `docs/adr/BACKLOG.md:226`, reproduced 2026-09-01 during the PR #11 re-review, deliberately left, and
@@ -57,13 +58,16 @@ an oversight.
 
 ## Decision
 
-**The `anchor=` check moves below `covered()`.** A hunk whose lines were not served is refused by the
-ledger, in the ledger's own words, and the anchor is never evaluated — so nothing of the file is
-printed. A hunk whose lines WERE served is anchor-checked exactly as before, with the same message,
-because the caller has already been shown that line.
+**The anchor comparison is evaluated only after `covered()`, at BOTH call sites.** For `replace`
+and `delete` the inline check moves below the ledger. For `insert-after` and `insert-before` the
+guard closure is called after `covered()` rather than beside it — `||` short-circuits, so an
+unserved line is refused by the ledger and the anchor is never reached. A hunk whose lines were not
+served is refused in the ledger's own words and nothing of the file is printed; a hunk whose lines
+WERE served is anchor-checked exactly as before, with the same message.
 
-The order is the whole change: `lines=` stays above `covered()` because it reports only arithmetic the
-caller supplied (`lines=3 but range 2-6 covers 5 line(s)`), and reveals nothing of the file.
+`lines=` keeps its position for `replace` and `delete`, above the ledger, because it reports only
+arithmetic the caller supplied and reveals nothing of the file. For the insertions it moves below,
+because it lives inside the same closure as the anchor comparison and the closure moves as one.
 
 **What would falsify this:** if a caller relied on the anchor failure to discover WHY an unserved
 write was refused, the ledger's own message would have to be worse than the anchor's. It is not — it
@@ -106,8 +110,11 @@ See `docs/adr/ADR-028-a-guard-does-not-read-back-what-was-not-served/tasks/READM
 
 ## Consequences
 
-- **Positive:** the one path where mrw printed a line it had not served is gone, and ADR-002's
-  "mrw does not tell you what it has not shown you" is true of every guard rather than most of them.
+- **Positive:** the paths where mrw printed a line it had not served are gone — all four anchored ops,
+  which is `replace`, `delete` and both insertions. The first cut of this record fixed the first
+  two and claimed "every guard" while the insertions still leaked; the Codex review of PR #128 caught
+  it. They reach the anchor through a guard closure invoked BESIDE `covered()` rather than after it,
+  which is why moving one check did not move theirs, and why the test and §66 now drive all four.
 - **Positive:** the asymmetry with ADR-008 is closed, so the two guards no longer teach opposite
   lessons three lines apart.
 - **Negative:** a caller whose anchor AND ledger are both wrong now learns about the ledger first,

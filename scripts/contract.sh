@@ -3870,7 +3870,7 @@ out=$(printf '@@ a.go 3 replace\n' | m write - 2>&1); rc=$?
 want 2 "$rc" "an empty-bodied replace is still refused, in its own words"
 grep -q 'would delete' <<<"$out" && ok "the replace refusal is unchanged" || bad "the replace refusal changed: $out"
 
-# 65. ADR-028: a guard does not read back what was not served.
+# 66. ADR-028: a guard does not read back what was not served.
 #
 # `anchor=` was checked ABOVE the ledger, so a FAILED anchor quoted the line the
 # file holds — on a line the caller had never been served. ADR-002 and ADR-005
@@ -3895,6 +3895,19 @@ grep -q 'has not been read' <<<"$out" && ok "the refusal is the ledger's, naming
 out=$(printf '@@ s.txt 1 replace anchor="no-such-text"\nX\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "an anchored hunk on a SERVED line is still anchor-checked"
 grep -q 'public line' <<<"$out" && ok "a served line's anchor failure still quotes it" || bad "the anchor no longer quotes a line the caller was served: $out"
+# The two INSERTION ops reach the anchor by a different path — a guard closure
+# invoked beside covered() rather than after it — and the first cut of ADR-028
+# fixed replace/delete and left them, while claiming every guard. Driven here so
+# the row cannot be green with half the ops leaking.
+for op in insert-after insert-before; do
+  out=$(printf '@@ s.txt 2 %s anchor="no-such-text"\nX\n' "$op" | m write - 2>&1); rc=$?
+  want 1 "$rc" "an anchored $op on an unserved line is refused"
+  grep -q 'UNSERVED-SENTINEL-42' <<<"$out" \
+    && bad "the $op refusal read back a line the caller was never served: $out" \
+    || ok "the $op refusal reads back no unserved line"
+done
+out=$(printf '@@ s.txt 1 insert-after anchor="no-such-text"\nX\n' | m write - 2>&1)
+grep -q 'public line' <<<"$out" && ok "a served line's insertion anchor still quotes it" || bad "insert-after stopped checking anchors: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

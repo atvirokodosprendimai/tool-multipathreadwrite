@@ -18,7 +18,7 @@ This README is a derived index — when it disagrees with a task file, the task 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | The anchor check moves below the ledger | done | — | `go test ./internal/adversarial/ -run 'TestAFailedAnchorDoesNotReadBackAnUnservedLine' …` |
-| T2 | The contract drives both halves through the built binary | done | — | `grep -q '^# 65\. ' scripts/contract.sh && ./scripts/contract.sh` |
+| T2 | The contract drives both halves through the built binary | done | — | `grep -q '^# 66\. ' scripts/contract.sh && ./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

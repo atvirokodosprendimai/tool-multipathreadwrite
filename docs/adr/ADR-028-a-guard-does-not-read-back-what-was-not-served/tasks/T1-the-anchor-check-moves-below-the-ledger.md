@@ -61,15 +61,16 @@ go test ./internal/adversarial/ -count=1 -v \
 | 1 — exists | `TestAFailedAnchorDoesNotReadBackAnUnservedLine` |
 | 2 — something selects it | The two checks sit in the same per-hunk loop every write passes through; the S2 mutation swaps them back and the fence goes red on the leaked text |
 | 3 — the caller can discover it | The refusal a caller sees changes from the anchor message to the ledger message, which already names the file, the address and the served spans |
-| 4 — it is used | Contract §65 (T2) drives both halves through the built binary; no telemetry, per ADR-009 |
+| 4 — it is used | Contract §66 (T2) drives both halves through the built binary; no telemetry, per ADR-009 |
 
 ## Mutation Log
 
 - 2026-09-07 · bd73ee0* · mutant killed · exit 1 · `internal/apply/apply.go` · the ledger check stops gating the anchor, so a failed anchor guess reads back a line the caller was never served — the ordering this record exists to fix · acceptance-sha256:95fd930c5d89aef070fb5f36c8010495b8e89a709cb4c0bdd31d35db3244dac2 · covers:a failed anchor printing no line the caller was not served
 - 2026-09-07 · bd73ee0* · mutant killed · exit 1 · `internal/apply/apply.go` · the anchor stops being checked at all, which a one-sided test would call success — the served-line half of the fixture is what refuses it · acceptance-sha256:95fd930c5d89aef070fb5f36c8010495b8e89a709cb4c0bdd31d35db3244dac2 · covers:the anchor still checked for lines that were served
+- 2026-09-07 · eed0cd4* · mutant killed · exit 1 · `internal/apply/apply.go` · insert-after reverts to calling the anchor guard beside the ledger rather than after it, so a failed anchor on an unserved line reads that line back — the half of this defect the first cut of ADR-028 missed · acceptance-sha256:95fd930c5d89aef070fb5f36c8010495b8e89a709cb4c0bdd31d35db3244dac2 · covers:a failed anchor printing no line the caller was not served
 
 ## Invariants
-
+- `lines=` stays above the ledger for `replace` and `delete`: it prints arithmetic over values the caller supplied and no file content. For the two INSERTIONS it now sits below, because their `lines=` check lives inside the same guard closure as the anchor comparison and the closure moves as one — costing nothing, since a caller who has not read the line learns that first either way.
 - A hunk whose lines were served still gets the anchor check, and its message still quotes the line — the fix is an ORDER, not a removal, and a one-sided test would not notice the difference.
 - ADR-008's delete-body guard keeps its own position below `covered()`; this record moves its sibling to match rather than moving either of them anywhere new.
 - `lines=` stays above the ledger: it prints arithmetic over values the caller supplied and no file content.
@@ -109,3 +110,5 @@ behaviour this record removes, and the test would need reading before either is 
 - 2026-09-07 · bd73ee0* · exit 0 · `set -o pipefail …` · acceptance-sha256:95fd930c5d89aef070fb5f36c8010495b8e89a709cb4c0bdd31d35db3244dac2 · ms:5593
 - 2026-09-07 · bd73ee0* · exit 0 · `set -o pipefail …` · acceptance-sha256:95fd930c5d89aef070fb5f36c8010495b8e89a709cb4c0bdd31d35db3244dac2 · ms:5425
 - 2026-09-07 · bd73ee0* · exit 0 · `set -o pipefail …` · acceptance-sha256:95fd930c5d89aef070fb5f36c8010495b8e89a709cb4c0bdd31d35db3244dac2 · ms:5380
+- 2026-09-07 · eed0cd4* · exit 0 · `set -o pipefail …` · acceptance-sha256:95fd930c5d89aef070fb5f36c8010495b8e89a709cb4c0bdd31d35db3244dac2 · ms:7654
+- 2026-09-07 · eed0cd4* · exit 0 · `set -o pipefail …` · acceptance-sha256:95fd930c5d89aef070fb5f36c8010495b8e89a709cb4c0bdd31d35db3244dac2 · ms:5329

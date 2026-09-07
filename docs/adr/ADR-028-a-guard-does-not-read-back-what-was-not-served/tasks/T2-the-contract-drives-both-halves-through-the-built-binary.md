@@ -4,7 +4,7 @@
 **Covers:** none — no spec
 **Estimated scope:** S (one contract section)
 **Owner:** Zy
-**Produces:** contract §65
+**Produces:** contract §66
 **Consumes:** the anchor check evaluated only for lines the ledger licensed (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
@@ -23,8 +23,8 @@ failed anchor on a served line still quotes it.
 
 ## Ordered Steps
 
-1. [S1] Confirm §65 does not exist and that the row is RED against a binary built before T1: the leaked line appears in the refusal on the pre-ADR-028 tree. A row that cannot fail asserts nothing. [proof: acceptance]
-2. [S2] Write §65 with both halves and a distinctive sentinel: serve line 1, anchor line 2 with a wrong value, and assert the sentinel text of line 2 is ABSENT from the output while the ledger's own refusal is present. [proof: acceptance]
+1. [S1] Confirm §66 does not exist and that the row is RED against a binary built before T1: the leaked line appears in the refusal on the pre-ADR-028 tree. A row that cannot fail asserts nothing. [proof: acceptance]
+2. [S2] Write §66 with both halves and a distinctive sentinel: serve line 1, anchor line 2 with a wrong value, and assert the sentinel text of line 2 is ABSENT from the output while the ledger's own refusal is present. [proof: acceptance]
 3. [S3] Assert the other half in the same section: with the line served, a failed anchor still quotes it. Without this the row would pass against a binary that had stopped checking anchors. [proof: acceptance]
 4. [S4] Run `./scripts/contract.sh` whole, and every other gate. [proof: acceptance]
 
@@ -32,7 +32,7 @@ failed anchor on a served line still quotes it.
 
 ```bash
 set -o pipefail
-grep -q '^# 65\. ' scripts/contract.sh \
+grep -q '^# 66\. ADR-028: a guard does not read back what was not served\.$' scripts/contract.sh \
   && go test ./... -count=1 \
   && go test -race ./... -count=1 \
   && ./scripts/contract.sh 2>&1 | tee /tmp/adr028-t2.out \
@@ -46,13 +46,13 @@ grep -q '^# 65\. ' scripts/contract.sh \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `§65` | `scripts/contract.sh` | The built binary refuses an anchored hunk on an unserved line without printing any of that line, and still quotes a served line whose anchor failed | — | S1, S2, S3 |
+| `§66` | `scripts/contract.sh` | The built binary refuses an anchored hunk on an unserved line without printing any of that line, and still quotes a served line whose anchor failed | — | S1, S2, S3 |
 
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | `§65` in `scripts/contract.sh` |
+| 1 — exists | `§66` in `scripts/contract.sh` |
 | 2 — something selects it | `./scripts/contract.sh` runs every section against `$MRW`, the binary built at the top of the script, so the row fails if the shipped ordering is wrong even when the unit test passes |
 | 3 — the caller can discover it | The refusal itself; no documented surface changes |
 | 4 — it is used | The contract runs in CI on every push; no telemetry, per ADR-009 |
@@ -61,10 +61,12 @@ grep -q '^# 65\. ' scripts/contract.sh \
 
 - 2026-09-07 · bd73ee0* · mutant killed · exit 1 · `internal/apply/apply.go` · the built binary reads back the unserved line again, so §65 sees the sentinel in the refusal — the row drives the shipped binary, which the unit test cannot · acceptance-sha256:7d34cb49b2d0d244d0de5c079bb7bf76eec57211b01fd9580e8adfe9eeae1a71 · covers:the built binary printing no unserved line on a failed anchor
 - 2026-09-07 · bd73ee0* · mutant killed · exit 1 · `internal/apply/apply.go` · the built binary stops checking anchors, so the served-line half of §65 no longer sees the line quoted and the row goes red rather than crediting a removal as a fix · acceptance-sha256:7d34cb49b2d0d244d0de5c079bb7bf76eec57211b01fd9580e8adfe9eeae1a71 · covers:the built binary still quoting a served line
+- 2026-09-07 · eed0cd4* · mutant killed · exit 1 · `internal/apply/apply.go` · insert-before reverts to the old ordering in the built binary, so §66 sees the sentinel in the refusal for that op while replace and delete stay clean · acceptance-sha256:7cc5f992045a9f073f8bb609eca768382330e3717a607bbc77cf7f2a0c15e731 · covers:the built binary printing no unserved line on a failed anchor
+- 2026-09-07 · eed0cd4* · mutant killed · exit 1 · `internal/apply/apply.go` · the built binary stops checking anchors on replace, so the served-line half of §66 no longer sees the line quoted and a removal cannot pass as a fix · acceptance-sha256:7cc5f992045a9f073f8bb609eca768382330e3717a607bbc77cf7f2a0c15e731 · covers:the built binary still quoting a served line
 
 ## Invariants
 
-- Every existing contract section still passes; §65 uses its own fixture.
+- Every existing contract section still passes; §66 uses its own fixture.
 - The row drives `$MRW`, never a Go test.
 - Both halves live in one section, because a row asserting only the absence would pass against a binary that printed nothing at all.
 
@@ -74,7 +76,7 @@ grep -q '^# 65\. ' scripts/contract.sh \
 
 ## Stop Condition
 
-Stop and ask if §65 cannot be made red against the pre-ADR-028 tree: a row green before the fix
+Stop and ask if §66 cannot be made red against the pre-ADR-028 tree: a row green before the fix
 exists is asserting nothing, and finding that out here is the point of S1.
 
 ## Out of Scope
@@ -85,3 +87,6 @@ exists is asserting nothing, and finding that out here is the point of S1.
 - 2026-09-07 · bd73ee0* · exit 0 · `set -o pipefail …` · acceptance-sha256:7d34cb49b2d0d244d0de5c079bb7bf76eec57211b01fd9580e8adfe9eeae1a71 · ms:32344
 - 2026-09-07 · bd73ee0* · exit 0 · `set -o pipefail …` · acceptance-sha256:7d34cb49b2d0d244d0de5c079bb7bf76eec57211b01fd9580e8adfe9eeae1a71 · ms:29195
 - 2026-09-07 · bd73ee0* · exit 0 · `set -o pipefail …` · acceptance-sha256:7d34cb49b2d0d244d0de5c079bb7bf76eec57211b01fd9580e8adfe9eeae1a71 · ms:31276
+- 2026-09-07 · eed0cd4* · exit 0 · `set -o pipefail …` · acceptance-sha256:7cc5f992045a9f073f8bb609eca768382330e3717a607bbc77cf7f2a0c15e731 · ms:32433
+- 2026-09-07 · eed0cd4* · exit 0 · `set -o pipefail …` · acceptance-sha256:7cc5f992045a9f073f8bb609eca768382330e3717a607bbc77cf7f2a0c15e731 · ms:29918
+- 2026-09-07 · eed0cd4* · exit 0 · `set -o pipefail …` · acceptance-sha256:7cc5f992045a9f073f8bb609eca768382330e3717a607bbc77cf7f2a0c15e731 · ms:29943

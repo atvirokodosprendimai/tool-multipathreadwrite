@@ -256,22 +256,31 @@ func TestAFailedAnchorDoesNotReadBackAnUnservedLine(t *testing.T) {
 	observed, _ := read.Run(io.Discard, root,
 		[]read.Spec{{Path: "f.txt", Ranges: []read.Range{{Start: 1, End: 1}}}}, read.Options{})
 
-	res, err := apply.Apply(root, []apply.Input{{
-		Path: "f.txt", Start: 2, End: 2, Op: "replace",
-		Body: []string{"rewritten"}, Lines: unset, Anchor: "no-such-text",
-	}}, apply.Options{Seen: observed})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Failed != 1 {
-		t.Fatalf("failed=%d, want 1 — the hunk addresses a line that was never served", res.Failed)
-	}
-	reason := res.Hunks[0].Reason
-	if strings.Contains(reason, secret) {
-		t.Errorf("the refusal reads back a line the caller was never served: %s", reason)
-	}
-	if !strings.Contains(reason, "has not been read") {
-		t.Errorf("the refusal is not the ledger's: %s", reason)
+	// EVERY op that carries an anchor, because replace/delete and the two
+	// insertions reach the guard by different paths — the first cut of ADR-028
+	// fixed one pair and left the other, and claimed "every guard" anyway.
+	for _, op := range []string{"replace", "delete", "insert-after", "insert-before"} {
+		in := apply.Input{
+			Path: "f.txt", Start: 2, End: 2, Op: op,
+			Lines: unset, Anchor: "no-such-text",
+		}
+		if op != "delete" {
+			in.Body = []string{"rewritten"}
+		}
+		res, err := apply.Apply(root, []apply.Input{in}, apply.Options{Seen: observed})
+		if err != nil {
+			t.Fatalf("%s: %v", op, err)
+		}
+		if res.Failed != 1 {
+			t.Fatalf("%s: failed=%d, want 1 — the hunk addresses a line that was never served", op, res.Failed)
+		}
+		reason := res.Hunks[0].Reason
+		if strings.Contains(reason, secret) {
+			t.Errorf("%s: the refusal reads back a line the caller was never served: %s", op, reason)
+		}
+		if !strings.Contains(reason, "has not been read") {
+			t.Errorf("%s: the refusal is not the ledger's: %s", op, reason)
+		}
 	}
 
 	// The other half, or the fix could be "never check anchors": a line the
