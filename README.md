@@ -1412,9 +1412,35 @@ It composes: editing a `.templ` is not a `.go` path, so the scope falls back to
 the full command — which is what you want after regenerating anyway.
 
 **Where state lives.** `mrw seen` prints the per-checkout state directory
-(`$XDG_STATE_HOME/mrw/<key>/`, or `~/.local/state/mrw/<key>/`) and the ledger.
-mrw writes nothing into your repository; a pre-existing `.mrw/` from an older
-version is copied across once, announced, and never deleted.
+(`$XDG_STATE_HOME/mrw/<key>/`, or `~/.local/state/mrw/<key>/`), how many such
+directories the base holds, and the ledger. mrw writes nothing into your
+repository; a pre-existing `.mrw/` from an older version is copied across once,
+announced, and never deleted.
+
+**Clearing the dead ones.** One directory is kept per checkout mrw has ever
+seen, keyed by a hash of its path, and for mrw's whole life before ADR-034
+nothing ever removed one — so a machine that runs mrw against temporary
+directories accumulates them for ever. Measured on one machine on 2026-09-07:
+**22,836 directories, 242 MB, of which 22,591 named a checkout that no longer
+existed.**
+
+`mrw seen --prune` removes those and names each one it removed, with the
+checkout it belonged to — a 16-hex-character directory name tells a human
+nothing on its own. `mrw seen --prune --dry-run` prints the identical list and
+removes nothing.
+
+It is deliberately narrow. It **never** removes an entry whose `root` marker is
+missing, unreadable, empty or not an absolute path — mrw did not write those, so
+it does not know what they are, and deleting something of unknown provenance is
+the one mistake here that re-reading a file cannot undo. It never removes the
+entry for the root you are running in. It reads one directory and follows no
+symlink out of it. And it never runs on its own: a path that is gone may be a
+deleted checkout or a volume that is not mounted, and only you can tell which.
+
+If a prune is wrong, it costs a re-read. A ledger is a licence to edit, not a
+record of content, so losing one means the next write to those files is refused
+until you read them again — there is no shape of this mistake that produces a
+wrong edit. See ADR-034.
 
 `{packages}` expands to the Go packages your paths cover, `{files}` to the paths
 themselves. **Write the placeholder unquoted**: each value arrives already

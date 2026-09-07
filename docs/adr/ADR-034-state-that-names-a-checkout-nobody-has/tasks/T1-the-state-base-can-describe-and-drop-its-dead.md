@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic — every fixture builds its own base under `t.TempDir()` and pins `XDG_STATE_HOME` to it
 **Proof map:** v1
-**Rests-on:** `only an entry whose marker names a missing path is removed`, `an unidentifiable entry is kept`, `the walk never leaves the base`
+**Rests-on:** `only an entry whose marker names a missing path is removed`, `an unidentifiable entry is kept`, `the walk never leaves the base`, `a dry run removes nothing and reports the same list`, `the running checkout's own entry is kept`
 
 ## Goal
 
@@ -55,10 +55,11 @@ again", without giving it the power to decide that on its own.
 ```bash
 set -o pipefail
 go test ./internal/state/ -count=1 -v \
-  -run 'TestOnlyAnEntryWhoseCheckoutIsGoneIsPruned|TestThePruneStaysInsideTheStateBase|TestAnUnidentifiableEntryIsKeptAndReported' 2>&1 | tee /tmp/adr034-t1.out \
+  -run 'TestOnlyAnEntryWhoseCheckoutIsGoneIsPruned|TestThePruneStaysInsideTheStateBase|TestAnUnidentifiableEntryIsKeptAndReported|TestADryRunPruneReportsTheSameAndRemovesNothing' 2>&1 | tee /tmp/adr034-t1.out \
   && grep -q '^--- PASS: TestOnlyAnEntryWhoseCheckoutIsGoneIsPruned' /tmp/adr034-t1.out \
   && grep -q '^--- PASS: TestThePruneStaysInsideTheStateBase' /tmp/adr034-t1.out \
   && grep -q '^--- PASS: TestAnUnidentifiableEntryIsKeptAndReported' /tmp/adr034-t1.out \
+  && grep -q '^--- PASS: TestADryRunPruneReportsTheSameAndRemovesNothing' /tmp/adr034-t1.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr034-t1.out \
   && go test ./internal/state/ -count=1 -v -run 'TestNoStateIsWrittenUnderTheRepoRoot' 2>&1 | tee /tmp/adr034-t1n.out \
   && grep -q '^--- PASS: TestNoStateIsWrittenUnderTheRepoRoot' /tmp/adr034-t1n.out \
@@ -77,6 +78,7 @@ go test ./internal/state/ -count=1 -v \
 | `TestOnlyAnEntryWhoseCheckoutIsGoneIsPruned` | `internal/state/prune_test.go` | In a base holding a live, a dead and an unidentifiable entry, only the dead one is removed; and the same base after `dryRun` still holds all three while reporting the same one | — | S1, S2, S3, S4 |
 | `TestThePruneStaysInsideTheStateBase` | `internal/state/prune_test.go` | A symlink under the base is not followed and not removed, its target survives, and a plain file under the base is left alone | — | S5 |
 | `TestAnUnidentifiableEntryIsKeptAndReported` | `internal/state/prune_test.go` | An entry with no marker, one with an empty marker and one with a relative marker are each reported with `Identified` false and each still on disk after a real prune | — | S6 |
+| `TestADryRunPruneReportsTheSameAndRemovesNothing` | `internal/state/prune_test.go` | A dry run over the same base names the dead entry and leaves every directory on disk, and the real run that follows removes exactly what the dry run promised — which is what makes `--dry-run` a preview rather than a second question | — | S3 |
 | `TestNoStateIsWrittenUnderTheRepoRoot` | `internal/state/state_test.go` | Unchanged: ADR-004's guarantee is not disturbed by a package that now also deletes | — | S7 |
 
 ## Reachability
@@ -91,6 +93,35 @@ go test ./internal/state/ -count=1 -v \
 ## Mutation Log
 
 ## Verification Log
+
+- 2026-09-07 · fa14205* · exit 1 · `set -o pipefail …` · acceptance-sha256:b9360ac7fdbee50aa8c145c8d3d246d7bd00d360be0113b75a1f8e4d4b90cc74 · ms:10441
+  ```
+  --- last 10 line(s) of stdout (of 36 after folding 36 raw)
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check	2.386s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/curve	2.067s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter	1.996s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	8.722s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan	2.283s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	2.363s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted	2.362s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen	2.439s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state	2.241s
+  FAIL
+  ```
+- 2026-09-07 · fa14205* · exit 1 · `set -o pipefail …` · acceptance-sha256:b9360ac7fdbee50aa8c145c8d3d246d7bd00d360be0113b75a1f8e4d4b90cc74 · ms:9693
+  ```
+  --- last 10 line(s) of stdout (of 36 after folding 36 raw)
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check	2.396s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/curve	1.116s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter	0.263s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	8.131s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan	1.034s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	1.281s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted	1.251s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen	1.233s
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state	1.216s
+  FAIL
+  ```
 
 ## Invariants
 
