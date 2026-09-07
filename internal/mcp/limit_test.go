@@ -454,8 +454,13 @@ func TestTheSecondStageElisionDropsFileRecords(t *testing.T) {
 	if !strings.Contains(got.Structured.Elided, "file record(s)") {
 		t.Errorf("stage two was not reached, or did not say it dropped the file records: %q", got.Structured.Elided)
 	}
+	// ⚠ THIS FIXTURE WRITES NOTHING. Two hunks fail, so under ADR-001 the plan
+	// applies nothing and every FileResult has Written false — which is why
+	// stage two can drop all 400 records here. It pins the DROP; what stage two
+	// KEEPS is TestTheSecondStageNeverElidesAWrittenFile's claim, and this test
+	// cannot see it.
 	if len(got.Structured.Files) != 0 {
-		t.Errorf("stage two kept %d file record(s); it exists to drop them", len(got.Structured.Files))
+		t.Errorf("stage two kept %d file record(s); with nothing written there is none to keep", len(got.Structured.Files))
 	}
 	if got.Structured.Failed != 2 || len(got.Structured.Hunks) != 2 {
 		t.Errorf("failed=%d with %d hunk(s) kept, want 2 and 2 — a failure is never elided",
@@ -565,5 +570,80 @@ func TestAPartialApplicationIsNotReportedAsNothingWritten(t *testing.T) {
 	}
 	if !strings.Contains(got, "1 file(s) changed on disk") {
 		t.Errorf("the answer does not count the file that WAS written: %s", got)
+	}
+}
+
+// TestTheSecondStageNeverElidesAWrittenFile pins the half of stage-two elision
+// that a partial application depends on.
+//
+// ⚠ THE FIXTURE MUST REACH STAGE TWO AND FIT THERE. A budget that also defeats
+// stage two falls through to the terminal branch, which
+// TestAPartialApplicationIsNotReportedAsNothingWritten already covers and which
+// would make this test green for the wrong reason — so it asserts the answer
+// came from the loop by requiring the elision note, which only the loop writes.
+// Many FILE records and no failed hunk is what keeps stage one over the budget:
+// with Failed=0 every hunk is dropped at stage one, so the files are the only
+// thing left to make it too large.
+func TestTheSecondStageNeverElidesAWrittenFile(t *testing.T) {
+	restore := MaxResultChars
+	t.Cleanup(func() { MaxResultChars = restore })
+
+	res := apply.Result{Root: "/tmp/whatever", Applied: false} // a later rename failed
+	for i := 0; i < 300; i++ {
+		res.Files = append(res.Files, apply.FileResult{
+			Path:      fmt.Sprintf("pkg/dir%03d/file%03d.go", i, i),
+			Written:   i < 3, // the three already renamed into place before the failure
+			SHABefore: strings.Repeat("a", 64),
+			SHAAfter:  strings.Repeat("b", 64),
+		})
+		res.Hunks = append(res.Hunks, apply.HunkResult{
+			Path: res.Files[i].Path, Addr: "1", Op: "replace", Status: apply.StatusOK,
+		})
+	}
+
+	const budget = 4_000
+	MaxResultChars = budget
+	out, rpcErr := boundedReceipt(res, fmt.Errorf("pkg/dir003/file003.go: rename failed"), true)
+	if rpcErr != nil {
+		t.Fatalf("boundedReceipt: %v", rpcErr)
+	}
+	if n := encodedSize(out); n > budget {
+		t.Fatalf("the receipt returned %d bytes against a %d ceiling", n, budget)
+	}
+
+	var got struct {
+		Elided string             `json:"elided"`
+		Failed int                `json:"failed"`
+		Files  []apply.FileResult `json:"files"`
+	}
+	if out.StructuredContent == nil {
+		t.Fatalf("no structured content: the terminal branch answered, not stage two:\n%s", out.Content[0].Text)
+	}
+	b, err := json.Marshal(out.StructuredContent)
+	if err != nil {
+		t.Fatalf("structured content is not JSON: %v", err)
+	}
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("structured content does not decode: %v", err)
+	}
+	if !strings.Contains(got.Elided, "NOT written") {
+		t.Fatalf("this answer did not come from stage two, so it proves nothing about elision: %q", got.Elided)
+	}
+
+	// The claim. With Failed=0 and Applied=false, the file records are the ONLY
+	// thing in the receipt that says the tree changed: `applied` says the
+	// opposite and `failed` says nothing happened. A host that delivers only
+	// the structured value (ADR-023) has nothing else to read.
+	if len(got.Files) != 3 {
+		t.Errorf("stage two kept %d file record(s), want the 3 that were WRITTEN — dropping them "+
+			"reports a partial application as applied:false, failed:0, files:[]", len(got.Files))
+	}
+	for _, f := range got.Files {
+		if !f.Written {
+			t.Errorf("stage two kept %q, which was not written; only the written records are evidence", f.Path)
+		}
+	}
+	if got.Failed != 0 {
+		t.Errorf("failed=%d, want 0 — the fixture exists because failed=0 is what makes the denial silent", got.Failed)
 	}
 }

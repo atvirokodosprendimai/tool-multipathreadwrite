@@ -63,12 +63,12 @@ verdict for EVERY edit. The failure it exists to prevent: a read that finds
 nothing is obvious, a write that changes nothing is not.
 
 WHICH SURFACE. Reach for mrw when the task touches %s. Below that use your
-ordinary editor: same two calls, more bytes than the file holds.
+editor: same two calls, more bytes than the file holds.
 
 Then choose. The CLI is broader — only it has --files-from, --check (the
 project's tests, scoped to your writes), and check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; --root goes
 BEFORE the subcommand, since after `+"`read`"+` the short -C is the context flag.
-This surface returns structured JSON (a read's receipt: 2nd text block), and one
+This surface returns structured JSON (a read's receipt: 2nd text block); one
 server is one writer to the ledger while parallel CLI processes race. With
 a shell prefer the CLI; prefer this one with none, or when callers sharing
 ONE fixed checkout want writes serialized.
@@ -86,7 +86,7 @@ To find files you cannot NAME, set grep to a regexp: mrw walks your paths (or th
 root) and serves every match. Too large? An INDEX — one spec per file,
 no content — send back as specs. exclude skips globs; no range with grep.
 
-A read too large for one answer comes back as a PAGE: the lines that fit, a
+A read too large comes back as a PAGE: the lines that fit, a
 -- PARTIAL: line, next_read for the rest, and markers BRACKETING each run:
 "-- ck <id> open lines A-B (N lines follow)", the lines, "-- ck <id> close".
 Repeat until next_read is absent; stopping early leaves part of a file.
@@ -104,14 +104,14 @@ plus the N lines after; a read clamps at the last line, a write refuses past
 it), $ for the last, or a PATTERN — /regexp/ for one line, /from/,/to/ for
 a range. A pattern must match EXACTLY ONE line: none or several fails that hunk
 and the refusal names its matches. Every address resolves against the
-ORIGINAL file, so hunks need no offset arithmetic, and a pattern is NOT a way to
+ORIGINAL file, so hunks need no offset arithmetic; a pattern is NOT a way to
 edit a file you have not read — the line it resolves to must still have been
 served. Paths are relative to the server's root; an absolute one is
-refused by name, and two spellings of ONE file (case, symlink) are one file, so
+refused by name, and two spellings of ONE file (case, symlink) are one, so
 a plan naming both is refused.
 
 Guards, checked on every op: sha=<hex> whole file, lines=<n> the span,
-anchor="<text>" the first addressed line. A BODY line beginning with @@ needs
+anchor="<text>" first addressed line. A BODY line beginning with @@ needs
 body=<n> and raw=true, or the plan is refused.
 
 A worked plan:
@@ -121,6 +121,7 @@ dry_run true: same receipt, no write. A refusal is the tool working:
 it names the file, the plan line and the reason.
 
 Both tools cap the ENCODED answer at the ceiling _meta names. An oversized
-write receipt drops successes first and failures last, saying so in elided.
+write receipt drops successes then UNWRITTEN files and says so in elided;
+smaller still, one sentence and no receipt.
 `, triggerRule, exampleReadSpecs, AckRule, examplePlan)
 }

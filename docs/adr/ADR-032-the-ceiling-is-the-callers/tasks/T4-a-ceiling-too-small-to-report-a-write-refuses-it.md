@@ -8,7 +8,7 @@
 **Consumes:** the configured budget (T1), the bounded write receipt (T2)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `a write refused rather than applied when its verdict cannot be reported`, `every tool result inside the advertised ceiling, refusals included`, `a failure surviving the second elision stage`
+**Rests-on:** `a write refused rather than applied when its verdict cannot be reported`, `every tool result inside the advertised ceiling, refusals included`, `a failure surviving the second elision stage`, `a written file record surviving the second elision stage`
 
 ## Goal
 
@@ -48,7 +48,7 @@ universal name over a two-case fixture, which is the failure `testing.md` names 
 
 | File | Change | Why |
 |------|--------|-----|
-| `internal/mcp/tools.go` | edit | `callTool` gains one postcondition, `withinCeiling`, instead of a size check per return site — enumerating them is how four were missed. `writeTool` refuses before `apply.Apply` when the ceiling cannot carry a minimal truthful post-apply sentence. `boundedReceipt`'s terminal branch tells the truth when `res.Applied`, rather than relying on the new guard elsewhere staying correct. |
+| `internal/mcp/tools.go` | edit | `callTool` gains one postcondition, `withinCeiling`, instead of a size check per return site — enumerating them is how four were missed. `writeTool` refuses before `apply.Apply` when the ceiling cannot carry a minimal truthful post-apply sentence. `boundedReceipt` is made honest about a write at BOTH of its exits: the terminal branch counts `FileResult.Written` rather than asking `res.Applied`, which is false for a partial application; and stage-two elision keeps the written file records instead of dropping every one, because for a partial application with no failed hunk those records are the only thing in the receipt that says the tree changed. |
 | `internal/mcp/limit_test.go` | edit | Four tests for the four unreached branches. |
 | `scripts/contract.sh` | edit | §70 counts UTF-8 BYTES, not decoded characters, and drives a real write at a small ceiling. |
 | `docs/adr/ADR-032-…md`, `docs/adr/…/tasks/T2-…md`, `README.md`, `AGENTS.md` | edit | Four claims the review found overstated or false. ⚠ An earlier version of this row named `internal/mcp/instructions.go`, which the first commit did NOT touch, and omitted T2, which it did — a row that describes a different change than the one it sits in. Corrected in the follow-up commit, which does edit the instructions. |
@@ -59,22 +59,24 @@ universal name over a two-case fixture, which is the failure `testing.md` names 
 2. [S2] Refuse before `apply.Apply` when a minimal post-apply receipt would not fit, as a JSON-RPC error: it carries no `result` member, so it is outside the ceiling it is reporting on. [proof: mutation]
 3. [S3] Make `boundedReceipt`'s terminal branch honest for an applied plan, independently of S2. [proof: mutation]
 4. [S4] Add `withinCeiling` at `callTool` and write `TestEveryAnswerFitsIncludingTheRefusals`. [proof: mutation]
-5. [S5] Write `TestTheCeilingNeverShrinksAServedRead`, which pins the ordering S4 rests on: a served read is refused for size BEFORE its ledger record is written, so the funnel never rewrites an answer that licensed something. [proof: mutation]
+5. [S5] Write `TestTheCeilingNeverShrinksAServedRead`, which pins the ordering S4 rests on: a served read is refused for size BEFORE its ledger record is written, so no PENDING record ever describes content the caller was not sent. ⚠ Not "the funnel never rewrites an answer that licensed something" — `promote(root, a.Ack)` runs at the top of both handlers, so a rewritten answer can follow a licence granted earlier in the same call. The Invariants below carry the precise form; this line said the loose one for two commits. [proof: mutation]
 6. [S6] Write `TestTheSecondStageElisionDropsFileRecords` — T2's fixture had one file, so `Files = nil` never executed. [proof: mutation]
 7. [S7] §70 counts `len(substring.encode("utf-8"))` rather than `len()` on a decoded string, and drives a real write at a small ceiling. [proof: acceptance]
 8. [S8] Correct the four documentation claims. [proof: human: read each against the implementation it describes, not against neighbouring prose]
 9. [S9] Run every gate. [proof: acceptance]
+10. [S10] Make stage-two elision keep the WRITTEN file records instead of dropping every one, and write `TestTheSecondStageNeverElidesAWrittenFile`. ⚠ Third round, third location of ONE defect: the receipt denying a write that happened. The first cut denied it for a complete application, the second for a partial one at the terminal branch, and this one for a partial application that never reaches the terminal branch because stage two FITS after dropping the files. Each fix moved the denial one return earlier, which is the shape to look for rather than a fourth spelling to guess at. [proof: mutation]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
 go test ./internal/mcp/ -count=1 -v \
-  -run 'TestASmallCeilingRefusesTheWriteBeforeApplying|TestEveryAnswerFitsIncludingTheRefusals|TestTheCeilingNeverShrinksAServedRead|TestTheSecondStageElisionDropsFileRecords|TestAPartialApplicationIsNotReportedAsNothingWritten|TestTheWriteFloorIsAFloor' 2>&1 | tee /tmp/adr032-t4.out \
+  -run 'TestASmallCeilingRefusesTheWriteBeforeApplying|TestEveryAnswerFitsIncludingTheRefusals|TestTheCeilingNeverShrinksAServedRead|TestTheSecondStageElisionDropsFileRecords|TestTheSecondStageNeverElidesAWrittenFile|TestAPartialApplicationIsNotReportedAsNothingWritten|TestTheWriteFloorIsAFloor' 2>&1 | tee /tmp/adr032-t4.out \
   && grep -q '^--- PASS: TestASmallCeilingRefusesTheWriteBeforeApplying' /tmp/adr032-t4.out \
   && grep -q '^--- PASS: TestEveryAnswerFitsIncludingTheRefusals' /tmp/adr032-t4.out \
   && grep -q '^--- PASS: TestTheCeilingNeverShrinksAServedRead' /tmp/adr032-t4.out \
   && grep -q '^--- PASS: TestTheSecondStageElisionDropsFileRecords' /tmp/adr032-t4.out \
+  && grep -q '^--- PASS: TestTheSecondStageNeverElidesAWrittenFile' /tmp/adr032-t4.out \
   && grep -q '^--- PASS: TestAPartialApplicationIsNotReportedAsNothingWritten' /tmp/adr032-t4.out \
   && grep -q '^--- PASS: TestTheWriteFloorIsAFloor' /tmp/adr032-t4.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr032-t4.out \
@@ -94,9 +96,10 @@ go test ./internal/mcp/ -count=1 -v \
 | `TestASmallCeilingRefusesTheWriteBeforeApplying` | `internal/mcp/limit_test.go` | At budgets 0, 1 and 64 a licensed write leaves the file byte-identical and answers with a JSON-RPC error carrying no tool result | — | S1, S2, S3 |
 | `TestEveryAnswerFitsIncludingTheRefusals` | `internal/mcp/limit_test.go` | Five refusal shapes — oversized read, bad spec, exclude without grep, empty grep, unparseable plan — all fit the ceiling in force | — | S4 |
 | `TestTheCeilingNeverShrinksAServedRead` | `internal/mcp/limit_test.go` | A read refused for encoded size licenses no write, so the funnel never discards content the ledger recorded | — | S5 |
-| `TestTheSecondStageElisionDropsFileRecords` | `internal/mcp/limit_test.go` | With 400 files and 2 failures at a 3,000-byte ceiling, the file records go, the elision says so, and both failures survive | — | S6 |
+| `TestTheSecondStageElisionDropsFileRecords` | `internal/mcp/limit_test.go` | With 400 files and 2 failures at a 3,000-byte ceiling, the file records go, the elision says so, and both failures survive. ⚠ Its fixture writes NOTHING — the two failures abort the plan under ADR-001 — so it pins the drop and cannot see what stage two keeps | — | S6 |
+| `TestTheSecondStageNeverElidesAWrittenFile` | `internal/mcp/limit_test.go` | The other half: 300 files of which 3 are `Written`, `Applied: false`, `Failed: 0`, at a 4,000-byte ceiling — stage two keeps exactly the 3 written records and says it dropped 297 unwritten ones. Without them the structured value reads `applied:false, failed:0, files:[]`, which is a denial of a write that happened | — | S10 |
 | `TestAPartialApplicationIsNotReportedAsNothingWritten` | `internal/mcp/limit_test.go` | A result with `Applied: false` and one file `Written: true` is reported as PARTIALLY APPLIED with the file counted, never as "nothing was written" | — | S3 |
-| `TestTheWriteFloorIsAFloor` | `internal/mcp/limit_test.go` | At ten ceilings, the floor bounds the real message at every count width including `math.MaxInt`, and the write is refused exactly when the floor exceeds the ceiling | — | S2 |
+| `TestTheWriteFloorIsAFloor` | `internal/mcp/limit_test.go` | At ten ceilings, the write is refused exactly when the floor computed at that ceiling exceeds it. ⚠ It samples four count widths — `0`, `1`, `999999` and `math.MaxInt` — not "every count width"; `math.MaxInt` is the widest an `int` renders, so the bound follows from that one sample rather than from the sweep | — | S2 |
 
 ## Reachability
 
@@ -125,6 +128,7 @@ go test ./internal/mcp/ -count=1 -v \
 - 2026-09-07 · 2ca098c* · mutant killed · exit 1 · `internal/mcp/tools.go` · the pre-apply guard is gone again — re-run against the fence extended in this commit; a mutant bound to a digest nobody runs is evidence about nothing · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477
 - 2026-09-07 · 2ca098c* · mutant killed · exit 1 · `internal/mcp/tools.go` · the funnel stops bounding anything again — re-run against the fence extended in this commit; a mutant bound to a digest nobody runs is evidence about nothing · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477
 - 2026-09-07 · 2ca098c* · mutant killed · exit 1 · `internal/mcp/tools.go` · the second elision stage stops dropping file records again — re-run against the fence extended in this commit; a mutant bound to a digest nobody runs is evidence about nothing · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477
+- 2026-09-07 · e4e5e6c* · mutant killed · exit 1 · `internal/mcp/tools.go` · stage-two elision drops EVERY file record again, so a partial application that fits at stage two comes back applied:false, failed:0, files:[], hunks:[] — a denial of a write that happened, at the one exit the terminal branch never sees. Third location of one defect; each earlier fix moved it a return earlier · acceptance-sha256:8a0f6ac9bd2f8c3acabf4095260c6605873644bb6a54ea0ed32a1ccb9c84995e · covers:a written file record surviving the second elision stage
 
 ## Invariants
 - ⚠ A WRITE IS NEVER APPLIED UNDER A CEILING THAT CANNOT REPORT IT. The refusal happens before `apply.Apply`, so the tree is untouched — ADR-004's rule, applied to a budget rather than to a failure.
@@ -159,6 +163,8 @@ before the size check — that inverts ADR-002 and is a different decision.
 - 2026-09-07 · 2ca098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477 · ms:39704
 - 2026-09-07 · 2ca098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477 · ms:39352
 - 2026-09-07 · 2ca098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477 · ms:38851
+- 2026-09-07 · e4e5e6c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a0f6ac9bd2f8c3acabf4095260c6605873644bb6a54ea0ed32a1ccb9c84995e · ms:41865
+- 2026-09-07 · e4e5e6c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a0f6ac9bd2f8c3acabf4095260c6605873644bb6a54ea0ed32a1ccb9c84995e · ms:39229
 
 ## Declared uncovered
 

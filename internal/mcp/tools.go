@@ -576,10 +576,13 @@ func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, eli
 // advertised 200,000, and a host that trusts the number truncates — which is
 // the answer ADR-031 exists because mrw cannot see.
 //
-// ⚠ A FAILED HUNK IS NEVER ELIDED. Under ADR-001 a failure is why nothing was
-// written, so it is the one verdict a caller cannot act without; the successes
-// of a plan that applied are what `applied` already told them. Files go only
-// after the successful hunks, and only if dropping those was not enough.
+// ⚠ TWO THINGS ARE NEVER ELIDED: a FAILED hunk, and the file record of a file
+// that WAS WRITTEN. Under ADR-001 a failure is why nothing was written, so it is
+// the one verdict a caller cannot act without; the successes of a plan that
+// applied are what `applied` already told them. A written file is the mirror of
+// that — it is the evidence that the tree changed, and for a PARTIAL
+// application `applied` is false and says the opposite. Files go only after the
+// successful hunks, and only if dropping those was not enough.
 //
 // ⚠ AND THE ELISION IS STATED, in the receipt and in the report both. An answer
 // silently shorter than the truth is the defect this tool exists to refuse, and
@@ -608,10 +611,22 @@ func boundedReceipt(res apply.Result, applyErr error, isErr bool) (callToolResul
 			"%d successful or skipped hunk verdict(s) are not here",
 			MaxResultChars, whole, len(res.Hunks)-len(kept))
 		if alsoFiles {
-			short.Files = nil
-			note += fmt.Sprintf(", nor %d file record(s)", len(res.Files))
+			// ⚠ ONLY THE UNWRITTEN FILES GO. The first cut dropped every file
+			// record, and a PARTIAL application — Applied=false, Failed=0,
+			// earlier files already renamed — then came back as applied:false,
+			// failed:0, files:[], hunks:[], which a host that delivers only the
+			// structured value (ADR-023) reads as "nothing happened". That is
+			// the same denial the terminal branch below was fixed for, one
+			// return earlier: each cut of this record moved it up by one.
+			// Keeping the written records cannot hide a write, and when there
+			// are too many of them to fit, the terminal branch says so in
+			// words. Codex, third review of #135.
+			short.Files = writtenFiles(res.Files)
+			note += fmt.Sprintf(", nor %d file record(s) for files that were NOT written",
+				len(res.Files)-len(short.Files))
 		}
-		note += ". Every FAILED hunk is, and the counts are of the whole plan."
+		note += ". Every FAILED hunk is here, every file that WAS written is here, " +
+			"and the counts are of the whole plan."
 
 		out, rpcErr := result(writeReceipt{Result: short, Elided: note}, writeReport(res, kept, applyErr, note), isErr)
 		if rpcErr != nil {
@@ -651,6 +666,19 @@ func boundedReceipt(res apply.Result, applyErr error, isErr bool) (callToolResul
 		"takes more than the %d-byte ceiling this server advertises, so they are not listed here. "+
 		"Send fewer hunks in one plan, or use the CLI `mrw write`, which streams and has no such "+
 		"limit.", res.Failed, len(res.Hunks), MaxResultChars)), nil
+}
+
+// writtenFiles is the subset of file records whose file actually changed on
+// disk. It is what stage-two elision keeps: dropping these is what let a receipt
+// deny a write that had already happened.
+func writtenFiles(files []apply.FileResult) []apply.FileResult {
+	out := make([]apply.FileResult, 0, len(files))
+	for _, f := range files {
+		if f.Written {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // appliedButUnreportable is what this server says when the tree changed and the
