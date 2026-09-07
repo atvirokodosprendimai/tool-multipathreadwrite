@@ -5,8 +5,8 @@
 | for | you need |
 |---|---|
 | building and testing | **Go 1.26.6 or newer** (the version in `go.mod`). One dependency, no cgo. |
-| `scripts/measure.sh` | **bash**, **git**, **awk**. No `bc`: it was `measure.sh`'s only user and `bc scale=1` truncated the ratios. |
-| `scripts/contract.sh` | the same, plus **python3** (JSON, on 86 non-comment lines), **perl**, **jq**, **shasum** and **pgrep**. Only `bc` and `python3` were ever listed here; the other four were not, and a reader installing what this table named could still watch the contract fail. |
+| `scripts/measure.sh` | **bash**, **git**, **awk**, and a POSIX userland (`sed`, `tr`, `wc`, `mktemp`, `rm`, …). No `bc`: it was `measure.sh`'s only user and `bc scale=1` truncated the ratios. |
+| `scripts/contract.sh` | the same, plus **python3** (JSON, on 86 non-comment lines), **perl**, **jq**, **shasum** and **pgrep**. ⚠ This row has been wrong twice: it listed `bc`, which nothing needs, and omitted `python3`, which is mandatory. It now names the NON-baseline commands and says "a POSIX userland" for the rest rather than pretending to enumerate every `sed` and `wc` — an incomplete list that reads as complete is what made the first two versions misleading. |
 | either script on Windows | **WSL** or **Git Bash**. They are POSIX shell, not PowerShell. The binary itself is native. |
 | a **regex address** in Git Bash | `MSYS2_ARG_CONV_EXCL='*'`, or PowerShell/WSL. MSYS rewrites `f.go:/re/` before mrw starts and quoting does not stop it — see the README's "Git Bash on Windows mangles a regex address". |
 

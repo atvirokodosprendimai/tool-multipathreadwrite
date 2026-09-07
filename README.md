@@ -404,12 +404,12 @@ go build -o bin/mrw.exe ./cmd/mrw      # Windows
 ```
 
 Running the tests needs only Go (`go test ./...`). Running the two reproduction
-scripts additionally needs **bash**, **git** and **awk** on `PATH`.
-`scripts/contract.sh` needs more: **python3** (it builds and inspects JSON on 86
-non-comment lines), plus **perl**, **jq**, **shasum** and **pgrep**. None of that
-was listed before, and a reader installing only what this passage named could
-still watch the contract fail. Neither script needs `bc` any more: `measure.sh`
-was its only user, and `bc scale=1` TRUNCATES, so a ratio of
+scripts additionally needs **bash**, **git**, **awk** and a POSIX userland — the
+ordinary `sed`, `tr`, `wc`, `mktemp` and friends — on `PATH`.
+`scripts/contract.sh` needs more than that: **python3** (it builds and inspects
+JSON on 86 non-comment lines), plus **perl**, **jq**, **shasum** and **pgrep**.
+None of those four was ever listed. Neither script needs `bc` any more:
+`measure.sh` was its only user, and `bc scale=1` TRUNCATES, so a ratio of
 1.29 printed as 1.2 and understated mrw's own loss. On Windows both scripts
 need WSL or Git Bash.
 

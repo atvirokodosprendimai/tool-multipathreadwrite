@@ -24,8 +24,11 @@
 # same order of magnitude, so this is an INPUT-side and round-trip result, not
 # a total-cost one.
 #
-# Two shapes are measured on purpose. The second is the case mrw barely helps
-# with, because a benchmark that only shows the favourable shape is marketing.
+# FIVE shapes are measured, and the ones where mrw LOSES are in on purpose:
+# a benchmark that shows only the favourable shape is marketing. Shapes A, B and
+# D each carry a losing byte comparison against a windowed read, C loses against
+# both baselines, and E shows what the loss actually is once the payload is not
+# a single line.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -34,12 +37,21 @@ cd "$(dirname "$0")/.."
 # binary happened to be lying there: a ./bin/mrw a day old measured as though it
 # were HEAD, and nothing said so. contract.sh builds its own for the same reason
 # — a shared mutable artifact is the bug, not the sharing.
+# ⚠ ONE DISPOSABLE AREA, ONE TRAP. Everything this script creates lives under
+# $SCRATCH — the binary it builds, shape E's fixture, and mrw's own per-root
+# STATE. That last one is why XDG_STATE_HOME is pinned: mrw keeps a directory
+# per root it has ever seen, outside the tree by ADR-004, and shape E hands it a
+# fresh root on every run. Unpinned, each run left an orphan behind for ever.
+# Measured 2026-09-07 on this machine: 22,613 such directories, 240 MB, all from
+# one day of running the scripts. Found by the Codex review of #136.
+SCRATCH=$(mktemp -d)
+trap 'rm -rf "$SCRATCH"' EXIT INT TERM
+export XDG_STATE_HOME="$SCRATCH/state"
+mkdir -p "$XDG_STATE_HOME"
 if [ -n "${MRW:-}" ]; then
   MRW=$(cd "$(dirname "$MRW")" && pwd)/$(basename "$MRW")
 else
-  MRWDIR=$(mktemp -d)
-  trap 'rm -rf "$MRWDIR"' EXIT
-  MRW="$MRWDIR/mrw"
+  MRW="$SCRATCH/mrw"
   go build -o "$MRW" ./cmd/mrw
 fi
 
@@ -173,7 +185,11 @@ EOF
     "$windowcalls" "$mrwcalls" "$(fewer "$windowcalls" "$mrwcalls")"
 }
 
-echo "mrw measurement — $(git rev-parse --short HEAD)$(git diff --quiet || echo ' (dirty tree)')"
+# ⚠ PORCELAIN, NOT `git diff --quiet`. That misses STAGED and UNTRACKED changes,
+# so a tree with an untracked .go file — which `go build` sees and shape D's
+# `git ls-files` does not — was stamped with a bare commit and could not be
+# reproduced from it. Codex, second review of #136.
+echo "mrw measurement — $(git rev-parse --short HEAD)$([ -n "$(git status --porcelain)" ] && echo ' (DIRTY TREE — these numbers are not reproducible from that commit)')"
 
 # Shape A: scattered sites in large files. The case mrw is built for.
 measure "A. Scattered sites, large files" \
@@ -240,7 +256,7 @@ measure "D. One site in every Go file — the shape mrw is for" "${DSPECS[@]}"
 # generates it rather than python3, which this script does not otherwise need.
 spans() {
   local dir big whole n w m
-  dir=$(mktemp -d)
+  dir=$(mktemp -d "$SCRATCH/span-XXXXXX")
   big="$dir/big.go"
   awk 'BEGIN { for (i = 1; i <= 20000; i++) printf "\tif err := doSomething(ctx, item%05d); err != nil {\n", i }' > "$big"
   whole=$(wc -c < "$big" | tr -d ' ')
@@ -255,7 +271,7 @@ spans() {
     printf '  %-16s %12s %12s %12s   %s vs whole, %s vs windowed\n' \
       "$n lines" "$whole" "$w" "$m" "$(ratio2 "$whole" "$m")" "$(ratio2 "$w" "$m")"
   done
-  rm -rf "$dir"
+  rm -rf "$dir"   # and the EXIT trap covers an abnormal exit before this line
 }
 spans
 

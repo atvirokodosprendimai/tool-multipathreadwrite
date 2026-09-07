@@ -1128,3 +1128,41 @@ defect, and the cost — a second round trip on every read — is paid by the
 population that has never been bitten.
 
 Deferred by `docs/adr/ADR-032-the-ceiling-is-the-callers.md`, Out of Scope.
+
+## From the Codex review of PR #136 (2026-09-07)
+
+### mrw's per-root state accumulates without bound, and the contract script is its heaviest producer
+
+mrw keeps one state directory per ROOT it has ever been pointed at, outside the
+tree by ADR-004. Nothing prunes it, and nothing needs to for ordinary use: a
+developer has a handful of checkouts and the entries are tiny.
+
+`scripts/contract.sh` is a different population. It isolates fixtures by giving
+every one a FRESH root — a deliberate decision, stated at `contract.sh:1587`, and
+the right one for isolation — so a single run mints dozens of roots that will
+never be seen again.
+
+**Measured 2026-09-07 on the maintainer's machine: 22,613 directories, 240 MB,
+every one of them created that day.** Found while fixing the same leak in
+`measure.sh`, which now pins `XDG_STATE_HOME` into its own disposable area.
+
+Why it is not fixed here: pinning `XDG_STATE_HOME` in `contract.sh` is the same
+one-line change, but that script is the repository's gate and several of its
+sections assert things about where state lives — rows read `m seen` to find the
+tally, and one deliberately asks mrw for the state path rather than guessing at
+XDG layout. Changing the variable under them needs each of those rows read, not a
+global edit, and it does not belong in a PR about rounding.
+
+What a fix should decide, and it is a real question rather than an oversight: is
+this the SCRIPT's problem or the TOOL's? A state directory per root with no
+expiry is a design mrw chose; if an agent points mrw at temporary checkouts all
+day — which is exactly what a test harness or a CI job does — it grows for ever
+and nothing tells anyone. A prune, an age-out, or a documented "this is yours to
+clean" are three different answers and only one of them is a script change.
+
+**ANSWERED by ADR-034**, which chose the prune: `mrw seen --prune` removes the
+entries whose `root` marker names a checkout that is gone, explicitly and never
+automatically, and `contract.sh` pins `XDG_STATE_HOME` into the `$WORK` its trap
+already removes. The question above is left as it was asked, because the reason
+it was a real question — and not an oversight — is the argument ADR-034's
+Alternatives had to answer.
