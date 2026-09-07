@@ -1,7 +1,10 @@
 package adversarial
 
 import (
+	"bytes"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -299,4 +302,121 @@ func TestAFailedAnchorDoesNotReadBackAnUnservedLine(t *testing.T) {
 	if !strings.Contains(res2.Hunks[0].Reason, "public line") {
 		t.Errorf("a served line's anchor failure no longer quotes it: %s", res2.Hunks[0].Reason)
 	}
+}
+
+// TestAnAliasSpellingIsTheSameFileToThePerLineLedger pins ADR-029: a file is one
+// observation to the per-line gate whatever the plan calls it. Both halves live
+// here on purpose — a test that only asserts the alias write is REFUSED is green
+// against a fix that refuses every alias, which is issue #47 undone.
+func TestAnAliasSpellingIsTheSameFileToThePerLineLedger(t *testing.T) {
+	const secret = "UNSERVED-SENTINEL-29"
+
+	// The alias is created by the test rather than asserted about the platform:
+	// Windows CI may refuse to make a symlink, and a failure there would be
+	// about the harness rather than about the ledger.
+	aliased := func(t *testing.T) (root, real, alias string) {
+		t.Helper()
+		root = tree(t, map[string]string{"real.txt": "public line\n" + secret + "\nthird\nfourth\n"})
+		if err := os.Symlink("real.txt", filepath.Join(root, "link.txt")); err != nil {
+			t.Skipf("this filesystem will not create a symlink: %v", err)
+		}
+		return root, "real.txt", "link.txt"
+	}
+
+	t.Run("a partial read does not license the alias spelling", func(t *testing.T) {
+		root, real, alias := aliased(t)
+		before, err := os.ReadFile(filepath.Join(root, real))
+		if err != nil {
+			t.Fatal(err)
+		}
+		observed, _ := read.Run(io.Discard, root,
+			[]read.Spec{{Path: real, Ranges: []read.Range{{Start: 1, End: 1}}}}, read.Options{})
+
+		res, err := apply.Apply(root, []apply.Input{{
+			Path: alias, Start: 4, End: 4, Op: "replace",
+			Body: []string{"PWNED"}, Lines: unset,
+		}}, apply.Options{Seen: observed})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Failed != 1 {
+			t.Fatalf("failed=%d, want 1 — line 4 was never served under any spelling", res.Failed)
+		}
+		if !strings.Contains(res.Hunks[0].Reason, "has not been read") {
+			t.Errorf("the refusal is not the ledger's: %s", res.Hunks[0].Reason)
+		}
+		after, err := os.ReadFile(filepath.Join(root, real))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(before, after) {
+			t.Fatalf("the file changed through the alias spelling:\n%s", after)
+		}
+	})
+
+	// Issue #47's promise, and the reason this fix is a resolution rather than a
+	// ban: a file that HAS been read must not be refused as unread because the
+	// caller typed another valid name for it.
+	t.Run("a whole read still licenses the alias spelling", func(t *testing.T) {
+		root, real, alias := aliased(t)
+		observed, _ := read.Run(io.Discard, root,
+			[]read.Spec{{Path: real}}, read.Options{})
+
+		res, err := apply.Apply(root, []apply.Input{{
+			Path: alias, Start: 4, End: 4, Op: "replace",
+			Body: []string{"rewritten"}, Lines: unset,
+		}}, apply.Options{Seen: observed})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Failed != 0 {
+			t.Fatalf("failed=%d, want 0 — the whole file was served, and #47 says the spelling may differ: %s",
+				res.Failed, res.Hunks[0].Reason)
+		}
+	})
+
+	// The anchored case, which is ADR-028's property reaching the alias: with the
+	// per-line gate absent, a failed anchor printed the line as it always had.
+	t.Run("an alias-spelled anchor failure reads back no unserved line", func(t *testing.T) {
+		root, real, alias := aliased(t)
+		observed, _ := read.Run(io.Discard, root,
+			[]read.Spec{{Path: real, Ranges: []read.Range{{Start: 1, End: 1}}}}, read.Options{})
+
+		res, err := apply.Apply(root, []apply.Input{{
+			Path: alias, Start: 2, End: 2, Op: "replace",
+			Body: []string{"rewritten"}, Lines: unset, Anchor: "no-such-text",
+		}}, apply.Options{Seen: observed})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Failed != 1 {
+			t.Fatalf("failed=%d, want 1", res.Failed)
+		}
+		if strings.Contains(res.Hunks[0].Reason, secret) {
+			t.Errorf("the refusal reads back a line the caller was never served: %s", res.Hunks[0].Reason)
+		}
+	})
+
+	// The case-only alias needs a case-INsensitive filesystem, so it runs on
+	// Windows CI and on a developer's macOS and cannot run on Linux, where
+	// real.txt and REAL.txt are two different files. Probed, never asserted.
+	t.Run("a case-only alias is the same file too", func(t *testing.T) {
+		root := tree(t, map[string]string{"real.txt": "public line\n" + secret + "\nthird\nfourth\n"})
+		if _, err := os.Stat(filepath.Join(root, "REAL.TXT")); err != nil {
+			t.Skip("this filesystem is case-sensitive: a case-only alias names a different file")
+		}
+		observed, _ := read.Run(io.Discard, root,
+			[]read.Spec{{Path: "real.txt", Ranges: []read.Range{{Start: 1, End: 1}}}}, read.Options{})
+
+		res, err := apply.Apply(root, []apply.Input{{
+			Path: "REAL.TXT", Start: 4, End: 4, Op: "replace",
+			Body: []string{"PWNED"}, Lines: unset,
+		}}, apply.Options{Seen: observed})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Failed != 1 {
+			t.Fatalf("failed=%d, want 1 — line 4 was never served under any spelling", res.Failed)
+		}
+	})
 }

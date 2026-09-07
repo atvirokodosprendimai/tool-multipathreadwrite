@@ -988,3 +988,31 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   `internal/plan` without inverting the dependency the two packages are split to keep. Anyone taking
   it up needs a record, and the honest first step is enumerating what `validate` checks that `Apply`
   does not, rather than assuming the list is those two.
+
+- **A successful alias-spelled write leaves ONE file recorded under TWO ledger
+  keys, and the recorded spelling then gets a refusal that is not true.**
+  Measured 2026-09-07 while writing ADR-029, against the v1.4.0 binary. With
+  `link.txt -> real.txt`, reading `real.txt:1-3` and writing `@@ link.txt 2`
+  succeeds and `mrw seen` shows both:
+
+      4c650896  the whole file            link.txt
+      880553fc  lines 1-3                 real.txt
+
+  A later plan naming `real.txt` is then refused with
+
+      real.txt changed since mrw last saw it (recorded 880553fc, now 4c650896):
+      re-read it before editing, or pass --force to overwrite blind
+
+  which says something false — mrw made that change itself, one call earlier.
+  `sameFileEntry` does not help here: the exact key IS present, so no alias
+  recovery runs, and the SHA comparison is against the stale entry.
+
+  **Not fixed by ADR-029, and deliberately.** That record resolves identity for
+  the per-line gate on the READ side; this is the WRITE-back side, where two
+  keys are created rather than one consulted. It fails SAFE — it refuses, it
+  never applies — so it costs a caller a re-read and a confusing sentence rather
+  than a wrong edit. Fixing it means either reconciling SHAs across aliases in
+  the file-level check, or keying the ledger on resolved identity, which
+  ADR-029's Alternatives rejects because `mrw seen` prints the keys the caller
+  typed. Promote it if a caller reports the refusal in the wild; the entry
+  exists so the next reader does not mistake it for part of ADR-029.
