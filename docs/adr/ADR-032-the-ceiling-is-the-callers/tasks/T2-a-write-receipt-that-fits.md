@@ -59,6 +59,9 @@ go test ./internal/mcp/ -count=1 -v \
 
 ## Mutation Log
 
+- 2026-09-07 · b36aea1* · mutant killed · exit 1 · `internal/mcp/tools.go` · the write receipt is sent whole however large, which is the defect measured at 453,632 characters against an advertised 200,000 · acceptance-sha256:07030db0f8f00762375ff12c4a93413b88c6065d4d3c66e66a3a539f662a74a4 · covers:a write receipt within the advertised budget
+- 2026-09-07 · b36aea1* · mutant killed · exit 1 · `internal/mcp/tools.go` · the elision keeps the successes and drops the failures, so a caller is handed a receipt that omits the only verdicts they can act on · acceptance-sha256:07030db0f8f00762375ff12c4a93413b88c6065d4d3c66e66a3a539f662a74a4 · covers:every failed hunk surviving the elision
+
 ## Invariants
 - A FAILED hunk is never elided. ADR-001's all-or-nothing means a failure explains why nothing was written, and dropping it would leave the caller the one fact they cannot act without.
 - The elision is stated, not silent — ADR-014's rule for any partial answer.
@@ -80,3 +83,6 @@ receipt this record cannot honestly bound, and the answer is a refusal rather th
 - The contract row — T3
 
 ## Verification Log
+- 2026-09-07 · b36aea1* · exit 0 · `set -o pipefail …` · acceptance-sha256:07030db0f8f00762375ff12c4a93413b88c6065d4d3c66e66a3a539f662a74a4 · ms:17947
+- 2026-09-07 · b36aea1* · exit 0 · `set -o pipefail …` · acceptance-sha256:07030db0f8f00762375ff12c4a93413b88c6065d4d3c66e66a3a539f662a74a4 · ms:16057
+- 2026-09-07 · b36aea1* · exit 0 · `set -o pipefail …` · acceptance-sha256:07030db0f8f00762375ff12c4a93413b88c6065d4d3c66e66a3a539f662a74a4 · ms:29391

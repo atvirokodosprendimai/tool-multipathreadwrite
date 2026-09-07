@@ -16,9 +16,9 @@ Implementation tasks for ADR-032: The ceiling is the caller's, and it bounds the
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The budget is configured, and it bounds the encoded result | pending | — | `go test ./internal/mcp/ -run 'TestTheAdvertisedCeilingBoundsEveryAnswer' …` |
-| T2 | A write receipt that fits | pending | — | `go test ./internal/mcp/ -run 'TestAWriteReceiptElidesSuccessesNotFailures' …` |
-| T3 | The contract drives the ceiling | pending | — | `grep -q '^# 70\. ' scripts/contract.sh && ./scripts/contract.sh` |
+| T1 | The budget is configured, and it bounds the encoded result | done | — | `go test ./internal/mcp/ -run 'TestTheAdvertisedCeilingBoundsEveryAnswer' …` |
+| T2 | A write receipt that fits | done | — | `go test ./internal/mcp/ -run 'TestAWriteReceiptElidesSuccessesNotFailures' …` |
+| T3 | The contract drives the ceiling | done | — | `grep -q '^# 70\. ' scripts/contract.sh && ./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

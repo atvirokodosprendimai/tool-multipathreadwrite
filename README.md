@@ -469,8 +469,14 @@ add several entries under distinct names.
 Whichever wins, the server prints the tree it chose and the reason to stderr at
 startup, so a host log answers "which checkout is this?" without guessing.
 
-**A read over MCP is bounded; the CLI is not.** `mrw_read` will not return more
-than 200,000 characters in one call. A request over that comes back as the FIRST
+**An answer over MCP is bounded; the CLI is not.** Neither tool will return more
+than 200,000 characters in one call, and that number is the caller's to set:
+`mrw mcp --max-result-chars N`, or `MRW_MAX_RESULT_CHARS` for a host config that
+can only pass an environment. The flag beats the variable, absence takes the
+200,000 default, and `0` means zero — a server that may return nothing, the same
+reading `--max-lines 0` takes. What is bounded is the ENCODED result, receipt
+included, rather than the served text alone.
+A `mrw_read` request over the ceiling comes back as the FIRST
 PAGE — the lines that fit, a `next_read` field naming the
 spec that asks for the rest. Send it to continue, and repeat until `next_read`
 is absent; its absence is how a caller knows it has the whole file, and each
@@ -483,6 +489,12 @@ of them to narrow — so that case is still refused outright, with the limit and
 per-file line budget — unless no line of the file fits at all, where a budget would name a range
 that fails the same way, and the refusal says so and points at the CLI instead. The limit is also declared in `tools/list` as
 `_meta["anthropic/maxResultSizeChars"]`, so a host knows it before it hits it.
+
+`mrw_write` obeys the same ceiling. A receipt too large for it drops SUCCESSFUL
+and skipped hunk verdicts, then file records, and says in an `elided` field
+exactly what it left out; every FAILED hunk stays, because under all-or-nothing a
+failure is why nothing was written and is the one verdict a caller cannot act
+without. The counts describe the whole plan whatever was dropped.
 
 ⚠ **A page licenses nothing until you acknowledge it** (ADR-031). Its served text carries `-- ck`
 markers: each run of 200 lines is BRACKETED by `-- ck <id> open lines A-B (N lines follow)` and
@@ -1054,7 +1066,7 @@ not the same as nothing failed.
 The measurement note that draws these readings together — the instrument, the two results, the method
 and its limits — is `docs/notes/served-size-and-delivery.md`.
 
-`MaxResultChars` is 200,000. Nothing in this repository knew whether that number was right, so
+The DEFAULT `MaxResultChars` is 200,000, and `mrw mcp --max-result-chars N` overrides it. Nothing in this repository knew whether that number was right, so
 ADR-020 built an instrument to find out rather than argue about it: `curve` generates a fixture, a
 client authors a plan against what mrw would serve, and the scorer applies the plan and reports which
 line changed. The pre-registration in `docs/adr/BACKLOG.md` fixed the criterion before a cell existed
@@ -1121,7 +1133,7 @@ equal to the reader's — the row index from the top — brought the miss back a
 under the same chunking (10 of 15, all five misses late), and reading 13 took that number to 2 KB and 20 KB: 14 and 13 of 15,
 three misses at +2 — so with a plausible second number this client missed at every size measured,
 through either delivery, where the bare arm had no miss at any (observed points 14, 13, 10 against
-15, 15, 15; thirty trials do not establish a size trend). So the cap stays at 200,000 with evidence, the served format is
+15, 15, 15; thirty trials do not establish a size trend). So the default stays at 200,000 with evidence, the served format is
 not changed, and the stability claim rests on readings 3, 5, 8, 9, 10 and 11 together. What stands
 from reading 4 is a fact about the two delivery forms measured: lay a plausible line number beside
 mrw's and a weaker client takes it some of the time. Two readings between 5 and 8 were void under their own compliance rules

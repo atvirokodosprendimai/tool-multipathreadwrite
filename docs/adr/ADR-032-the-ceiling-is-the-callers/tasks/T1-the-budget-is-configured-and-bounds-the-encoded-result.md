@@ -64,6 +64,9 @@ go test ./internal/mcp/ -count=1 -v \
 
 ## Mutation Log
 
+- 2026-09-07 · b36aea1* · mutant killed · exit 1 · `internal/mcp/tools.go` · the read path enforces the compiled-in default while _meta advertises the budget the caller set, so the advertised limit and the enforced one drift apart again · acceptance-sha256:a9aaf05f961c3616f845ba4bf135f4c25cac538061b3588b7cf1ac395bd79132 · covers:the advertised value being the enforced value
+- 2026-09-07 · b36aea1* · mutant killed · exit 1 · `internal/mcp/tools.go` · the encoded judgement is reached only through grep again, so a caller naming its own specs has its report bounded and its receipt not · acceptance-sha256:a9aaf05f961c3616f845ba4bf135f4c25cac538061b3588b7cf1ac395bd79132 · covers:the bound measured on the encoded result
+
 ## Invariants
 - The advertised value IS the enforced value, on both tools. That is `mcp.go:81`'s existing promise and today it holds only for reads.
 - `0` means zero and absence means the default — ADR-033's decision, not re-argued here.
@@ -86,3 +89,6 @@ a cost the record has not weighed, and it would need measuring before it is acce
 - The contract row and the documentation — T3
 
 ## Verification Log
+- 2026-09-07 · b36aea1* · exit 0 · `set -o pipefail …` · acceptance-sha256:a9aaf05f961c3616f845ba4bf135f4c25cac538061b3588b7cf1ac395bd79132 · ms:19662
+- 2026-09-07 · b36aea1* · exit 0 · `set -o pipefail …` · acceptance-sha256:a9aaf05f961c3616f845ba4bf135f4c25cac538061b3588b7cf1ac395bd79132 · ms:19306
+- 2026-09-07 · b36aea1* · exit 0 · `set -o pipefail …` · acceptance-sha256:a9aaf05f961c3616f845ba4bf135f4c25cac538061b3588b7cf1ac395bd79132 · ms:31282

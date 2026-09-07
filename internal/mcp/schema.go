@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
@@ -171,16 +170,7 @@ func baseSchema(t reflect.Type) map[string]any {
 	}
 }
 
-// MaxResultChars is the largest tool result this server will produce. It is
-// advertised in each tool's `_meta` and enforced on the read path — ONE
-// constant with two readers, so the advertised limit and the enforced limit
-// cannot drift.
-//
-// It is enforced in BYTES while the host's key is named in characters. That is
-// deliberate and conservative in the safe direction: a UTF-8 character is at
-// least one byte, so bounding bytes at N guarantees at most N characters, and
-// the server can only ever come in UNDER what it advertised. The refusal
-// message says bytes, because that is what was counted.
+// DefaultMaxResultChars is the ceiling when the caller sets none.
 //
 // The value is Claude Code's per-tool ceiling. Its global default is 25,000
 // tokens (`MAX_MCP_OUTPUT_TOKENS`), and a tool may declare up to 500,000
@@ -188,7 +178,27 @@ func baseSchema(t reflect.Type) map[string]any {
 // envelope and for the serialized JSON receipt that rides beside the report in
 // content[1] (mrw_write's result carries it twice, in structuredContent too).
 // https://code.claude.com/docs/en/mcp
-const MaxResultChars = 200_000
+//
+// ⚠ It is ONE host's number, and mrw runs under any of them. That is why it is
+// a default rather than the rule: a host with a larger budget could not use it
+// and a host with a smaller one was not protected (ADR-032).
+const DefaultMaxResultChars = 200_000
+
+// MaxResultChars is the largest tool result this server will produce. It is
+// advertised in each tool's `_meta` and enforced on every path that composes an
+// answer — ONE value with two readers, so the advertised limit and the enforced
+// limit cannot drift.
+//
+// It is a var, set once at startup by cmd/mrw from `--max-result-chars` or
+// `MRW_MAX_RESULT_CHARS`, the way Version is. A server is one process with one
+// budget, and every tool call is already serialized by `gate`.
+//
+// It is enforced in BYTES while the host's key is named in characters. That is
+// deliberate and conservative in the safe direction: a UTF-8 character is at
+// least one byte, so bounding bytes at N guarantees at most N characters, and
+// the server can only ever come in UNDER what it advertised. The refusal
+// message says bytes, because that is what was counted.
+var MaxResultChars = DefaultMaxResultChars
 
 // readSchema and writeSchema describe what each tool returns. They panic on a
 // generation failure rather than returning an error, because the types are
@@ -221,7 +231,7 @@ func readSchema() map[string]any {
 	}, readDescriptions)
 }
 
-func writeSchema() map[string]any { return mustDescribe(mustSchema(apply.Result{}), writeDescriptions) }
+func writeSchema() map[string]any { return mustDescribe(mustSchema(writeReceipt{}), writeDescriptions) }
 
 // readDescriptions and writeDescriptions say what each property MEANS. The
 // shapes stay generated — ADR-011 measured what happens to a hand-written
@@ -251,6 +261,7 @@ var readDescriptions = map[string]string{
 }
 
 var writeDescriptions = map[string]string{
+	"elided":             "Present ONLY when the whole receipt exceeded this server's advertised ceiling, and says exactly what was left out. Successful and skipped hunk verdicts go first and file records after them; every FAILED hunk is always here, and `failed`, `applied` and the counts in the report describe the whole plan whatever was dropped. Its absence means nothing was left out.",
 	"root":               "The checkout the plan was applied in. Every path in the plan is relative to it.",
 	"dry_run":            "True when the plan was only validated. Every other field means what it would have meant, and nothing was written.",
 	"applied":            "True when every hunk passed and the new content reached disk. False on a dry run and on any refusal.",

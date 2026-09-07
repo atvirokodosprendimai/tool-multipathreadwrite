@@ -62,8 +62,21 @@ grep -q '^# 70\. ADR-032: the ceiling is the caller' scripts/contract.sh \
 
 ## Mutation Log
 
+- 2026-09-07 · b36aea1* · mutant killed · exit 1 · `cmd/mrw/main.go` · the built server ignores --max-result-chars and serves the default, so section 70 measures a ceiling nobody set and the advertisement no longer matches the value in force · acceptance-sha256:fab6668ddc2955165a55b18c16dbb97375c085e9f65e9d190aacf3e81fca4e76 · covers:the built server obeying a caller-set ceiling
+
 ## Invariants
 
+- ⚠ A SURVIVOR LINE WAS WRITTEN HERE IN ERROR AND REMOVED, and the removal is recorded rather than
+  hidden. The "mutant" appended a trailing COMMENT to a contract line, so it changed no mechanism and
+  could not have failed; logged, it reads as a finding about `# 70.` when it is a finding about the
+  person who typed it. The append-only Mutation Log is for evidence, and a line that is evidence of
+  nothing costs the next reader a real investigation. The killed mutant above it is the one that
+  binds this section: with `--max-result-chars` ignored, §70 measures a ceiling nobody set.
+- ⚠ S1's RED was measured against a binary built from `main`, not by removing §70 from this tree: with
+  the pre-ADR-032 server the same three calls returned 76,262 / **976,338** / 989 bytes against an
+  advertised 200,000, and `mcp --max-result-chars 20000` was refused with "flag provided but not
+  defined". So the Verification Log below carries no red entry by construction — the fence cannot be
+  red against a tree that already has the fix, and the red is the measurement above.
 - The row measures the ENCODED result, the same quantity T1 bounds.
 - Both tools in one section: a row covering only reads passes against today's tree.
 - The instruction byte bound is not raised.
@@ -82,3 +95,7 @@ Stop and ask if §70 cannot be made red against the pre-ADR-032 server.
 - The mechanism — T1 and T2
 
 ## Verification Log
+- 2026-09-07 · b36aea1* · exit 0 · `set -o pipefail …` · acceptance-sha256:fab6668ddc2955165a55b18c16dbb97375c085e9f65e9d190aacf3e81fca4e76 · ms:51224
+- 2026-09-07 · human-observed · Zy, 2026-09-07: read README.md:472-496, AGENTS.md:104-109 and the instructions text against contract section 70's fixture. Each names --max-result-chars, MRW_MAX_RESULT_CHARS, the 200,000 default and that 0 means zero; the README and AGENTS passages also say the write receipt elides successes and never a failure. The instructions carry the ceiling in one sentence at 4,089 of 4,096 bytes, paid for by compressing five existing sentences and not by raising the bound.
+- 2026-09-07 · b36aea1* · exit 0 · `set -o pipefail …` · acceptance-sha256:fab6668ddc2955165a55b18c16dbb97375c085e9f65e9d190aacf3e81fca4e76 · ms:46799
+- 2026-09-07 · b36aea1* · exit 0 · `set -o pipefail …` · acceptance-sha256:fab6668ddc2955165a55b18c16dbb97375c085e9f65e9d190aacf3e81fca4e76 · ms:39052

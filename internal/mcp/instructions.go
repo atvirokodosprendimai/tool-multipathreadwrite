@@ -63,15 +63,15 @@ verdict for EVERY edit. The failure it exists to prevent: a read that finds
 nothing is obvious, a write that changes nothing is not.
 
 WHICH SURFACE. Reach for mrw when the task touches %s. Below that use your
-ordinary editor: it costs the same two calls and prints more than the file holds.
+ordinary editor: same two calls, more bytes than the file holds.
 
 Then choose. The CLI is broader — only it has --files-from, --check (the
-project's tests, scoped to what you wrote), and check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; note
---root BEFORE the subcommand, because after `+"`read`"+` the short -C is the
-context flag, not a directory. This surface returns structured JSON (a read's
-receipt: 2nd text block), and one server is one writer to the ledger while
-parallel CLI processes race for it. With a shell, prefer the CLI; prefer this
-one with none, or when callers sharing ONE fixed checkout want writes serialized.
+project's tests, scoped to your writes), and check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; --root goes
+BEFORE the subcommand, since after `+"`read`"+` the short -C is the context flag.
+This surface returns structured JSON (a read's receipt: 2nd text block), and one
+server is one writer to the ledger while parallel CLI processes race. With
+a shell prefer the CLI; prefer this one with none, or when callers sharing
+ONE fixed checkout want writes serialized.
 
 THE TWO RULES THAT PRODUCE MOST REFUSALS.
 1. Read before you write, per LINE not per file: served lines 10-12 do not
@@ -89,35 +89,38 @@ no content — send back as specs. exclude skips globs; no range with grep.
 A read too large for one answer comes back as a PAGE: the lines that fit, a
 -- PARTIAL: line, next_read for the rest, and markers BRACKETING each run:
 "-- ck <id> open lines A-B (N lines follow)", the lines, "-- ck <id> close".
-Repeat until next_read is absent; stopping early leaves you part of a file.
+Repeat until next_read is absent; stopping early leaves part of a file.
 A PAGE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT.
 %s
-An id you omit leaves its lines unwritable. A host can cut a page before you see
-it and mrw cannot tell; this is how you can.
+An id you omit leaves its lines unwritable: a host can cut a page before you see
+it and mrw cannot tell, but you can.
 
-WRITING. mrw_write takes one plan document. Each hunk is a header line
+WRITING. mrw_write takes one plan. Each hunk is a header line
 
     @@ <path> <address> <op> [guards]
-followed by its body lines. Ops are replace, insert-after, insert-before,
-delete and create. An address is a line number, an N-M range, A,+N (ONE start
-plus the N lines after it; a read clamps at the last line, a write refuses past
-it), $ for the last line, or a PATTERN — /regexp/ for one line, /from/,/to/ for
+then its body lines. Ops: replace, insert-after, insert-before, delete, create.
+An address is a line number, an N-M range, A,+N (ONE start
+plus the N lines after; a read clamps at the last line, a write refuses past
+it), $ for the last, or a PATTERN — /regexp/ for one line, /from/,/to/ for
 a range. A pattern must match EXACTLY ONE line: none or several fails that hunk
-and the refusal names what it matched. Every address resolves against the
+and the refusal names its matches. Every address resolves against the
 ORIGINAL file, so hunks need no offset arithmetic, and a pattern is NOT a way to
 edit a file you have not read — the line it resolves to must still have been
-served to you. Paths are relative to the server's root; an absolute one is
-refused by name, and two spellings of ONE file (case, or a symlink) are one
-file: a plan naming both is refused.
+served. Paths are relative to the server's root; an absolute one is
+refused by name, and two spellings of ONE file (case, symlink) are one file, so
+a plan naming both is refused.
 
-Guards are optional, checked on every op: sha=<hex> whole file, lines=<n> the
-addressed span, anchor="<text>" the first addressed line. If a BODY line begins
-with @@, declare body=<n> and raw=true or the plan is refused.
+Guards, checked on every op: sha=<hex> whole file, lines=<n> the span,
+anchor="<text>" the first addressed line. A BODY line beginning with @@ needs
+body=<n> and raw=true, or the plan is refused.
 
 A worked plan:
 
 %s
-Pass dry_run true for the same receipt, no write. A refusal is the tool working:
+dry_run true: same receipt, no write. A refusal is the tool working:
 it names the file, the plan line and the reason.
+
+Both tools cap the ENCODED answer at the ceiling _meta names. An oversized
+write receipt drops successes, never a failure, and says so in elided.
 `, triggerRule, exampleReadSpecs, AckRule, examplePlan)
 }

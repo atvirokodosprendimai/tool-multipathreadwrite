@@ -1,9 +1,9 @@
 # ADR-032: The ceiling is the caller's, and it bounds the whole answer
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-07
 **Owner:** M
-**Accepted:** pending
+**Accepted:** M, 2026-09-07, choosing the shape from three questions put to them: the budget is *"Caller-set, bound whole result"*, `--max-lines 0` and by inheritance every numeric limit here means *"0 means zero"*, and the standing direction for this session is *"keep closing the open issues, highest rank. the product must not deteriorate and make the premise of his - false."*
 **Spec:** None — no spec stage
 **Cross-references:** `docs/adr/ADR-011-the-mcp-server-tells-a-host-what-it-is-and-what-it-will-return.md`, `docs/adr/ADR-014-a-read-too-large-is-a-first-page-not-a-dead-end.md`, `docs/adr/ADR-024-a-page-is-known-by-its-served-text.md`, `docs/adr/ADR-031-a-page-licenses-only-what-came-back.md`, `docs/adr/ADR-033-a-cap-of-zero-is-a-cap.md`
 **Governs:** `internal/mcp/schema.go`, `internal/mcp/tools.go`, `internal/mcp/mcp.go`, `cmd/mrw/main.go`
@@ -39,9 +39,12 @@ cap enforced, and explicitly NOT `0` = unlimited.
 - **`capped` (`internal/mcp/tools.go:466`)** — an `io.Writer` that keeps at most `limit` bytes and
   records what it dropped. **Reused as-is** for the read path; the write path gets the same type
   rather than a second mechanism.
-- **`servedOrIndex` (`tools.go:874`)** — already decides "the encoded answer will not fit, so return
-  the thing that does". **Reused**: the same judgement, applied to a budget that is no longer a
-  constant.
+- **`servedOrIndex` (`tools.go:874`)** — already decided "the encoded answer will not fit, so return
+  the thing that does". **ABSORBED, not reused, and the function is gone.** It composed a PROBE beside
+  the answer and measured that; the same judgement now measures the answer itself, composed once and
+  returned. Measuring a shape that is not what gets sent is the mistake ADR-031 made twice in
+  consecutive reviews, and a probe cannot be wrong about the thing it IS. Its walked-only condition
+  went with it: that narrowness was the read half of this defect.
 - **`_meta["anthropic/maxResultSizeChars"]` (`mcp.go:254`, `:320`)** — the advertisement. **Reused**,
   now carrying the configured value, which is the point: `mcp.go:81` already promises the advertised
   limit and the enforced one cannot drift, and today that promise holds only for reads.

@@ -305,20 +305,19 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// content[1] (twice more before ADR-023). A grep resuming onto 2,514
 	// small files came back at 794,582 characters — four times the cap this
 	// server declares in _meta, and past the ceiling the host truncates at. So
-	// a walked read that will not fit ENCODED degrades to the index, which is
-	// the answer that does fit and is resumable. Found by review of #80.
-	if walked {
-		if res, over := servedOrIndex(specs, problems, cw, observed, report); over {
-			return res, nil
-		}
-	}
-
-	// Reading is how mrw learns what a file holds; recording that is what lets
-	// a later write know whether its picture is still current.
-	if err := seen.Record(root, observed); err != nil {
-		return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the ledger: " + err.Error()}
-	}
-
+	// a read that will not fit ENCODED degrades to something that does. Found
+	// by review of #80.
+	//
+	// ⚠ THE ANSWER IS COMPOSED ONCE AND THAT SAME OBJECT IS MEASURED. This was
+	// a probe assembled beside the answer, which is how a check ends up on a
+	// shape that is not what got sent — ADR-031 did exactly that twice in
+	// consecutive reviews, and the comment at firstPage's own size check
+	// records both. A probe cannot be wrong about the thing it IS.
+	//
+	// ⚠ AND IT IS NO LONGER ONLY THE WALKED READ (ADR-032). The check was
+	// reached only with `grep`, so a caller naming hundreds of specs of its own
+	// had its report bounded and its receipt not.
+	//
 	// The receipt — seen.Observation, no json tags, so its keys are the Go
 	// field names — travels in content[1] and NOT in structuredContent
 	// (ADR-023; see readResult). readSchema() still describes it for a reader
@@ -338,10 +337,39 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-024 removed the flag from answers that DELIVERED something; this restores
 	// it for the one case its enumeration missed, so :202 and this return agree
 	// rather than disagreeing on whether `grep` was passed.
-	return readResult(map[string]any{
+	served, rpcErr := readResult(map[string]any{
 		"observed": observed,
 		"problems": problems,
 	}, report, len(observed) == 0)
+	if rpcErr != nil {
+		return callToolResult{}, rpcErr
+	}
+	if encodedSize(served) > cw.limit {
+		// The ledger is deliberately NOT written on any of these paths: the
+		// caller is about to be handed something other than these lines, and an
+		// entry claiming otherwise licenses a write against a file they never
+		// saw. That is ADR-002's guarantee.
+		//
+		// A walk degrades to its index, which is resumable. A named read
+		// degrades to a first page when one spec can carry it, and otherwise
+		// says why — with its own sentence, because "your read was too large"
+		// is not what happened here.
+		if walked {
+			return matchIndex(specs, problems, cw), nil
+		}
+		if page, ok := firstPage(root, a.Specs, cw); ok {
+			return page, nil
+		}
+		return errorResult(receiptOverflowMessage(encodedSize(served), cw.limit)), nil
+	}
+
+	// Reading is how mrw learns what a file holds; recording that is what lets
+	// a later write know whether its picture is still current.
+	if err := seen.Record(root, observed); err != nil {
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the ledger: " + err.Error()}
+	}
+
+	return served, nil
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the
@@ -440,16 +468,106 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		_ = authoring.Record(root, authoring.Applied)
 	}
 
-	var report bytes.Buffer
-	for _, h := range res.Hunks {
-		fmt.Fprintf(&report, "%s %s %s %s\n", h.Status, h.Path, h.Addr, h.Reason)
+	return boundedReceipt(res, applyErr, applyErr != nil || res.Failed > 0)
+}
+
+// writeReceipt is what mrw_write returns: the engine's own Result, plus the one
+// fact the engine cannot know — that this transport had to shorten it.
+//
+// The field is embedded and untagged, so encoding/json inlines it and the
+// generated schema inlines it too (fieldsOf). `elided` is omitempty, so a
+// receipt that dropped nothing is byte-identical to the one this server sent
+// before ADR-032.
+type writeReceipt struct {
+	apply.Result
+	// Elided says what this receipt left out to fit the budget. Absent when it
+	// left out nothing, which is every ordinary write.
+	Elided string `json:"elided,omitempty"`
+}
+
+// writeReport renders the per-hunk verdicts, the counts, and any elision.
+//
+// ⚠ The counts come from the WHOLE result even when `hunks` is a subset of it.
+// They are the fact a caller checks first, and a shortened receipt that also
+// shortened them would be a lie rather than an omission.
+func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, elided string) string {
+	var b bytes.Buffer
+	for _, h := range hunks {
+		fmt.Fprintf(&b, "%s %s %s %s\n", h.Status, h.Path, h.Addr, h.Reason)
 	}
-	fmt.Fprintf(&report, "%d hunk(s), %d file(s), %d failed\n", len(res.Hunks), len(res.Files), res.Failed)
+	fmt.Fprintf(&b, "%d hunk(s), %d file(s), %d failed\n", len(res.Hunks), len(res.Files), res.Failed)
 	if applyErr != nil {
-		fmt.Fprintf(&report, "error: %v\n", applyErr)
+		fmt.Fprintf(&b, "error: %v\n", applyErr)
+	}
+	if elided != "" {
+		fmt.Fprintf(&b, "-- %s\n", elided)
+	}
+	return b.String()
+}
+
+// boundedReceipt is the answer mrw_write sends: the whole receipt when it fits
+// the budget this server advertises, and otherwise one with its SUCCESSFUL
+// detail dropped (ADR-032).
+//
+// Both tools advertised a ceiling and only the read path kept one. Measured
+// 2026-09-07: a 4,000-hunk dry-run returned 453,632 characters against an
+// advertised 200,000, and a host that trusts the number truncates — which is
+// the answer ADR-031 exists because mrw cannot see.
+//
+// ⚠ A FAILED HUNK IS NEVER ELIDED. Under ADR-001 a failure is why nothing was
+// written, so it is the one verdict a caller cannot act without; the successes
+// of a plan that applied are what `applied` already told them. Files go only
+// after the successful hunks, and only if dropping those was not enough.
+//
+// ⚠ AND THE ELISION IS STATED, in the receipt and in the report both. An answer
+// silently shorter than the truth is the defect this tool exists to refuse, and
+// ADR-014 makes saying so the rule for any partial answer. It is in the
+// STRUCTURED value and not only in the text because a host measured on
+// 2026-09-05 delivers mrw_write's answer to the model as the structured value
+// alone (ADR-023).
+func boundedReceipt(res apply.Result, applyErr error, isErr bool) (callToolResult, *rpcError) {
+	full, rpcErr := result(writeReceipt{Result: res}, writeReport(res, res.Hunks, applyErr, ""), isErr)
+	if rpcErr != nil || encodedSize(full) <= MaxResultChars {
+		return full, rpcErr
+	}
+	whole := encodedSize(full)
+
+	kept := make([]apply.HunkResult, 0, res.Failed)
+	for _, h := range res.Hunks {
+		if h.Status == apply.StatusFailed {
+			kept = append(kept, h)
+		}
+	}
+	short := res
+	short.Hunks = kept
+
+	for _, alsoFiles := range []bool{false, true} {
+		note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: "+
+			"%d successful or skipped hunk verdict(s) are not here",
+			MaxResultChars, whole, len(res.Hunks)-len(kept))
+		if alsoFiles {
+			short.Files = nil
+			note += fmt.Sprintf(", nor %d file record(s)", len(res.Files))
+		}
+		note += ". Every FAILED hunk is, and the counts are of the whole plan."
+
+		out, rpcErr := result(writeReceipt{Result: short, Elided: note}, writeReport(res, kept, applyErr, note), isErr)
+		if rpcErr != nil {
+			return out, rpcErr
+		}
+		if encodedSize(out) <= MaxResultChars {
+			return out, nil
+		}
 	}
 
-	return result(res, report.String(), applyErr != nil || res.Failed > 0)
+	// Nothing remains that may honestly be dropped: what is left is the
+	// failures themselves. Under ADR-001 a plan with this many of them wrote
+	// nothing at all, so saying that plainly beats a receipt shortened past the
+	// verdicts it exists to carry.
+	return errorResult(fmt.Sprintf("%d of %d hunk(s) failed and nothing was written. Naming them "+
+		"takes more than the %d-byte budget this server advertises, so they are not listed here. "+
+		"Send fewer hunks in one plan, or use the CLI `mrw write`, which streams and has no such "+
+		"limit.", res.Failed, len(res.Hunks), MaxResultChars)), nil
 }
 
 // errorResult reports a failure the CALLER caused, inside a normal tool result.
@@ -750,6 +868,26 @@ func overflowMessage(specs []string, cw *capped) string {
 	return b.String()
 }
 
+// receiptOverflowMessage explains the overflow `capped` cannot see: the served
+// TEXT fit the budget and the whole ANSWER did not.
+//
+// It is a different failure from a read that is simply too large, and it takes
+// a different remedy, so it gets its own sentence rather than borrowing
+// overflowMessage's. The excess is the per-file receipt — one sha and one span
+// list per served file, the same size whatever range was asked for — so
+// narrowing ranges barely moves it and naming fewer files moves it exactly.
+// Telling the caller to retry with a smaller range would send them back for
+// the same refusal, which is the failure the sixth review of PR #132 fixed
+// once already, one message over.
+func receiptOverflowMessage(encoded, limit int) string {
+	return fmt.Sprintf("that read rendered inside the %d-byte limit, but its whole answer — "+
+		"the lines plus the receipt naming what was served — came to %d.\n"+
+		"Nothing was read and nothing was recorded, so no write is licensed by it.\n"+
+		"The excess is the per-file receipt, a sha and a span list for every file served and "+
+		"the same size whatever range you ask for. Name fewer files in one call rather than "+
+		"narrower ranges.", limit, encoded)
+}
+
 // pagedResult builds a first-page answer: the page, the receipt, and the spec
 // that asks for the rest.
 //
@@ -978,36 +1116,6 @@ func encodedSize(res callToolResult) int {
 		return math.MaxInt
 	}
 	return len(b)
-}
-
-// servedOrIndex decides whether a WALKED read may be served as content.
-//
-// The capped writer bounds the report text and nothing else; `observed` carries
-// a sha and a span list per file and is emitted once more, in content[1]. For a grep over
-// many small documents — this record's ordinary case — that is the difference
-// between 178,494 characters of report and a 794,582-character result. When the
-// encoded answer will not fit, the index is returned instead: it is the answer
-// that does fit, it is resumable, and it licenses nothing, which is the honest
-// trade for content that cannot be delivered.
-func servedOrIndex(specs []read.Spec, problems int, cw *capped, observed map[string]seen.Observation, report string) (callToolResult, bool) {
-	// ADR-025: the probe carries the flag the served result will actually carry,
-	// which is `len(observed) == 0`. It said `false` unconditionally under
-	// ADR-024, when that was what the served shape always carried; since a
-	// served-nothing answer now carries `isError: true`, a hardcoded false
-	// measures a shape 15 bytes smaller than the one sent (`,"isError":true`)
-	// and can approve a result that does not fit the declared limit. Only
-	// results inside that 15-byte band change verdict. Found by the Codex
-	// review of #123.
-	probe, rpcErr := readResult(map[string]any{"observed": observed, "problems": problems}, report, len(observed) == 0)
-	if rpcErr != nil {
-		// Undecidable, so not degraded: the caller path will report the same
-		// encoding failure with its own message.
-		return callToolResult{}, false
-	}
-	if encodedSize(probe) <= cw.limit {
-		return callToolResult{}, false
-	}
-	return matchIndex(specs, problems, cw), true
 }
 
 // nameTheAck appends ADR-031's remedy to any hunk refused for lines that were
