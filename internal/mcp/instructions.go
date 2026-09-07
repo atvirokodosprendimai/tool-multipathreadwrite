@@ -88,14 +88,13 @@ root) and serves every match. Too large? You get an INDEX — one spec per file,
 no content — send back as specs. exclude skips globs; no range with grep.
 
 A read too large for one answer comes back as a PAGE: the lines that fit, a
--- PARTIAL: line, next_read naming the spec for the rest, and markers BRACKETING
-each run — "-- ck <id> open lines A-B (N lines follow)", the lines, "-- ck <id>
-close". Repeat until next_read is absent; stopping early
-leaves you part of a file. A PAGE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT. Pass an id in ack only
-if you hold BOTH its markers AND counted the N numbered NNN| lines between them:
-one marker is not enough, since a cut starting inside a span leaves the other
-end. An id you omit leaves its lines unwritable. A host can cut a page
-before you see it and mrw cannot tell; this is how you can.
+-- PARTIAL: line, next_read for the rest, and markers BRACKETING each run:
+"-- ck <id> open lines A-B (N lines follow)", the lines, "-- ck <id> close".
+Repeat until next_read is absent; stopping early leaves you part of a file.
+A PAGE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT.
+%s
+An id you omit leaves its lines unwritable. A host can cut a page before you
+see it and mrw cannot tell; this is how you can.
 
 WRITING. mrw_write takes one plan document. Each hunk is a header line
 
@@ -112,14 +111,14 @@ served to you. Paths are relative to the server's root; an absolute one is
 refused by name, and two spellings of ONE file (case, or a symlink) are one
 file: a plan naming both is refused.
 
-Guards are optional, checked on every op: sha=<hex> for the whole file, lines=<n>
-for the addressed span, anchor="<text>" for the first addressed line. If a BODY
-line begins with @@, declare body=<n> and raw=true or the plan is refused.
+Guards are optional, checked on every op: sha=<hex> whole file, lines=<n> the
+addressed span, anchor="<text>" the first addressed line. If a BODY line begins
+with @@, declare body=<n> and raw=true or the plan is refused.
 
 A worked plan:
 
 %s
 Pass dry_run true for the same receipt, no write. A refusal is the tool working:
 it names the file, the plan line and the reason.
-`, triggerRule, exampleReadSpecs, examplePlan)
+`, triggerRule, exampleReadSpecs, AckRule, examplePlan)
 }

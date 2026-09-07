@@ -599,10 +599,7 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 	report := fmt.Sprintf("%s\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
 		"-- Send specs [%q] to continue, or a narrower range of your own.\n"+
 		"-- Stopping here means you have part of this file, not the file.\n"+
-		"-- This page licenses NOTHING until you acknowledge it. Send ack:[…] with an id\n"+
-		"-- ONLY IF you hold BOTH its `-- ck <id> open` and `-- ck <id> close` markers AND\n"+
-		"-- counted the N numbered `NNN|` lines the open marker says follow. Holding one\n"+
-		"-- marker is not enough: a cut that starts inside a span leaves the other end.\n"+
+		"-- This page licenses NOTHING until you acknowledge it.\n-- "+AckRule+"\n"+
 		"-- An id you omit leaves its lines unwritable, which is the point.",
 		text, start, end, total, total-end, next)
 	return pagedResult(report, nil, problems, next), true
@@ -960,8 +957,7 @@ func nameTheAck(root string, res *apply.Result) {
 			continue
 		}
 		h.Reason += ". A page of this file was served but never acknowledged, and an " +
-			"unacknowledged page licenses nothing: send ack:[…] with the `-- ck` values you " +
-			"actually received"
+			"unacknowledged page licenses nothing. " + AckRule
 	}
 }
 

@@ -1040,7 +1040,7 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   answer is still recorded on serve, so the same host truncation would license
   lines nobody saw — the class is narrowed, not closed, and this entry is the
   only place that is written down. Against doing it now: every read would grow
-  by a marker line per 200 lines and every caller would have to acknowledge
+  by TWO marker lines per 200 lines — spans are bracketed, open and close and every caller would have to acknowledge
   every read, which is a large tax for a case nothing has yet measured. The
   evidence to promote it is one observed truncation of a NON-paged answer; the
   measurement that produced ADR-031 was of a paged one (`docs/curve/reading-18-result.md`).

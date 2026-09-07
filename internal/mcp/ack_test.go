@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -215,8 +217,25 @@ func TestOnlyAckedSegmentsAreRecorded(t *testing.T) {
 		t.Fatalf("a write into the UNACKNOWLEDGED middle was allowed: failed=%d", res.Failed)
 	}
 	nameTheAck(root2, &res)
-	if !strings.Contains(res.Hunks[0].Reason, "ack") {
-		t.Errorf("the refusal does not name the remedy: %s", res.Hunks[0].Reason)
+	if !strings.Contains(res.Hunks[0].Reason, AckRule) {
+		t.Errorf("the refusal does not carry the canonical rule, so it teaches an abbreviated one: %s", res.Hunks[0].Reason)
+	}
+
+	// Through an ALIAS, because apply treats a symlink as the same file and the
+	// remedy used to go missing for exactly that caller (ADR-029).
+	if err := os.Symlink("f.txt", filepath.Join(root2, "alias.txt")); err == nil {
+		aliased := apply.Input{Path: "alias.txt", Start: 250, End: 250, Op: "replace", Body: []string{"X"}, Lines: -1}
+		ares, err := apply.Apply(root2, []apply.Input{aliased}, apply.Options{Seen: ledger, DryRun: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ares.Failed != 1 {
+			t.Fatalf("an alias-spelled write into the unacknowledged middle was allowed: %d", ares.Failed)
+		}
+		nameTheAck(root2, &ares)
+		if !strings.Contains(ares.Hunks[0].Reason, AckRule) {
+			t.Errorf("the remedy is missing for an ALIAS spelling: %s", ares.Hunks[0].Reason)
+		}
 	}
 	endHunk := apply.Input{Path: "f.txt", Start: 450, End: 450, Op: "replace", Body: []string{"X"}, Lines: -1}
 	res2, err := apply.Apply(root2, []apply.Input{endHunk}, apply.Options{Seen: ledger, DryRun: true})
@@ -302,9 +321,17 @@ func TestAStaleAcknowledgementDoesNotRevokeTheCurrentOne(t *testing.T) {
 	if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: live}}, current); err != nil {
 		t.Fatal(err)
 	}
-	// Both in one call, repeatedly: map order is not stable, so a single run
-	// could pass by luck.
+	// ⚠ The pending records are RECREATED each round. An earlier version looped
+	// twenty times over the same two ids, and promotion CONSUMES a pending entry
+	// — so rounds 2-20 were no-ops and the map-order implementation could still
+	// pass by luck. Found by the review of PR #132.
 	for i := 0; i < 20; i++ {
+		if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: "00000000deadbeef"}}, map[string][2]int{staleCk: stale[staleCk]}); err != nil {
+			t.Fatal(err)
+		}
+		if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: live}}, map[string][2]int{curCk: current[curCk]}); err != nil {
+			t.Fatal(err)
+		}
 		if err := promote(root, []string{staleCk, curCk}); err != nil {
 			t.Fatal(err)
 		}
@@ -316,5 +343,60 @@ func TestAStaleAcknowledgementDoesNotRevokeTheCurrentOne(t *testing.T) {
 	o := l["f.txt"]
 	if o.SHA != live || !o.Covers(201, 400) {
 		t.Errorf("the CURRENT licence did not survive a stale acknowledgement in the same call: sha=%s served=%s", o.SHA, o.Served())
+	}
+}
+
+// TestEverySurfaceCarriesTheOneRule is the structural answer to a gate that kept
+// passing on presence. Three paraphrases drifted from the mechanism and two
+// mutants survived by leaving a token or a heading in place, so the rule is now
+// ONE constant and every surface must carry it BYTE FOR BYTE.
+func TestEverySurfaceCarriesTheOneRule(t *testing.T) {
+	root, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := filepath.Dir(filepath.Dir(root))
+	for _, f := range []string{"README.md", "AGENTS.md"} {
+		b, err := os.ReadFile(filepath.Join(repo, f))
+		if err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+		if !strings.Contains(string(b), AckRule) {
+			t.Errorf("%s does not carry the acknowledgement rule verbatim, so it can drift from what the server enforces", f)
+		}
+	}
+	if !strings.Contains(instructionsText(), AckRule) {
+		t.Error("the MCP instructions do not carry the acknowledgement rule verbatim")
+	}
+}
+
+// TestCheckpointsAreNotASequence separates randomness from a counter, which the
+// non-collision check could not: a 16-hex sequential counter passed it while
+// violating the assumption the whole record rests on.
+func TestCheckpointsAreNotASequence(t *testing.T) {
+	_, spans := interleave(served(1, 4000))
+	if len(spans) < 8 {
+		t.Fatalf("need several checkpoints to judge a sequence, got %d", len(spans))
+	}
+	vals := make([]uint64, 0, len(spans))
+	for ck := range spans {
+		n, err := strconv.ParseUint(ck, 16, 64)
+		if err != nil {
+			t.Fatalf("checkpoint %q is not 16 hex digits: %v", ck, err)
+		}
+		vals = append(vals, n)
+	}
+	sort.Slice(vals, func(i, j int) bool { return vals[i] < vals[j] })
+	// A counter's sorted values are consecutive, or at least share a tiny,
+	// constant gap. Random 64-bit values spread across the whole range.
+	gap := vals[len(vals)-1] - vals[0]
+	if gap < uint64(len(vals))*1<<40 {
+		t.Errorf("checkpoints span only %d across %d values — that is a counter or a near-sequence, not 64 bits of randomness", gap, len(vals))
+	}
+	// And no two share a long prefix, which a counter's neighbours would.
+	for i := 1; i < len(vals); i++ {
+		if vals[i]-vals[i-1] < 1<<32 {
+			t.Errorf("two checkpoints are within 2^32 of each other, which random 64-bit draws do not do at this sample size")
+		}
 	}
 }

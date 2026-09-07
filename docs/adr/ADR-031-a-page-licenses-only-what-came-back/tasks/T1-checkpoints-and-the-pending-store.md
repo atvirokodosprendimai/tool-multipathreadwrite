@@ -104,3 +104,4 @@ forbids and which would put markers in CLI output.
 - 2026-09-07 · dbe88d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:5099
 - 2026-09-07 · ba6aecd* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:5141
 - 2026-09-07 · ba6aecd* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:6494
+- 2026-09-07 · f0865c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:5304

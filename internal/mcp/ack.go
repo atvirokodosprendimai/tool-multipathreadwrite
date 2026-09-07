@@ -47,6 +47,17 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
+// AckRule is THE sentence that states the acknowledgement contract, and every
+// caller-facing surface embeds this one value rather than paraphrasing it.
+//
+// ⚠ It is a constant because paraphrases drifted three times. The mechanism was
+// bracketed while the footer, the instructions, the README and AGENTS.md all
+// still described the old single-marker rule; and twice a mutant gutted the
+// clause while gates that checked for a TOKEN, and then for a HEADING, stayed
+// green. A gate can assert this exact string on every surface, which is a
+// question about substance rather than about vocabulary.
+const AckRule = "Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end."
+
 // ckEvery is how many served content lines one checkpoint covers. At 200 a
 // 2,727-line page pays twenty-eight marker lines — an open and a close each —
 // which is under one percent of its size.

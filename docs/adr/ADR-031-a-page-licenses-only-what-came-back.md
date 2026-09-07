@@ -55,8 +55,9 @@ segments whose checkpoints the caller echoes back.**
 
 1. When the MCP layer serves a paged read, it BRACKETS every run of N served content lines:
    `-- ck <16 hex> open lines A-B (N lines follow)` before the run and `-- ck <16 hex> close` after
-   it. The ids are random per read, so they cannot be recalled from a previous session or derived
-   from the request.
+   it. The ids are random per read, so they cannot be PREDICTED or DERIVED. They can of course be
+   RECALLED by whoever received one — that is what acknowledging is, and a pending record outlives
+   the session that made it — so promotion CONSUMES the entry and a replayed id licenses nothing.
 
    ⚠ **The bracket is the whole design, and one marker per span was not enough.** A single marker
    FOLLOWING its lines is the page-level flaw at a smaller scale: a cut beginning inside the span and
@@ -164,7 +165,7 @@ See `docs/adr/ADR-031-a-page-licenses-only-what-came-back/tasks/README.md`.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | The fixture proves a single token would have passed | **High** | High | Pre-registered: the test must include a MIDDLE-CUT case, since the measured truncation kept both ends. A fixture that cuts the tail is green against the design this record rejects |
-| A caller echoes every checkpoint reflexively without having received them | Medium | High | Unpreventable server-side and stated as such in the Decision. Checkpoints are random per read so they cannot be recalled from a previous session, which is the reachable half |
+| A caller echoes every checkpoint reflexively without having received them | Medium | High | Unpreventable server-side and stated as such in the Decision. Checkpoints are random per read, so they cannot be predicted or derived; promotion consumes a pending entry, so a recalled id cannot be replayed. Neither stops a caller lying about what it received |
 | The pending store grows without bound | Medium | Low | Entries are dropped once promoted, and expire with the state directory they live in; T1 caps the count per root |
 | Breaking existing MCP callers silently | **High** | High | It fails SAFE — a write is refused, never wrongly applied — and the refusal names `ack`. T3 asserts the refusal text carries the remedy, which is ADR-015's rule |
 

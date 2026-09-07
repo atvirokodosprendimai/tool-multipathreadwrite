@@ -35,12 +35,10 @@ Prove it in the BUILT server, over the wire, and tell a caller the rule where it
 ```bash
 set -o pipefail
 grep -q '^# 68\. ADR-031: a page licenses only what came back\.' scripts/contract.sh \
-  && grep -q 'A PAGE LICENSES NOTHING' internal/mcp/instructions.go \
-  && grep -q 'BOTH its markers' internal/mcp/instructions.go \
-  && grep -q 'numbered NNN| lines' internal/mcp/instructions.go \
-  && grep -q 'ack' internal/mcp/instructions.go \
-  && grep -q 'ack' README.md \
-  && grep -q 'ack' AGENTS.md \
+  && go test ./internal/mcp/ -count=1 -v -run 'TestEverySurfaceCarriesTheOneRule|TestTheInstructionsTellAHostHowToAuthorAPlan' 2>&1 | tee /tmp/adr031-rule.out \
+  && grep -q '^--- PASS: TestEverySurfaceCarriesTheOneRule' /tmp/adr031-rule.out \
+  && grep -q '^--- PASS: TestTheInstructionsTellAHostHowToAuthorAPlan' /tmp/adr031-rule.out \
+  && ! grep -qE 'no tests to run|^FAIL|^--- FAIL' /tmp/adr031-rule.out \
   && go test ./... -count=1 \
   && go test -race ./... -count=1 \
   && ./scripts/contract.sh 2>&1 | tee /tmp/adr031-t3.out \
@@ -68,6 +66,14 @@ grep -q '^# 68\. ADR-031: a page licenses only what came back\.' scripts/contrac
 
 ## Mutation Log
 
+⚠ **THE RULE IS ONE CONSTANT NOW, AND THAT IS THE STRUCTURAL ANSWER.** Three paraphrases drifted
+from the mechanism and two mutants survived by leaving a token, and then a heading, in place. The
+third review of PR #132 then demonstrated the remaining hole directly: negating the operative clause
+while keeping `ack`, `LICENSES NOTHING`, `BOTH its markers` and `numbered NNN| lines` still passed.
+Listing tokens cannot express "says this". So `mcp.AckRule` is the sentence, every surface embeds it,
+`TestEverySurfaceCarriesTheOneRule` requires it BYTE FOR BYTE in the instructions, `README.md` and
+`AGENTS.md`, and the contract row reads the constant out of the source and requires it on the WIRE.
+
 ⚠ **An `instructions.go` mutant SURVIVED TWICE, and the fence was the reason both times.**
 The second run gutted the OPERATIVE CLAUSE — "only if you hold BOTH its markers AND counted the N
 numbered NNN| lines between them" became "only if you received it" — while the fence checked that
@@ -94,6 +100,7 @@ is asserted against the built server rather than against a grep of the source.
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
 - 2026-09-07 · ba6aecd* · mutant killed · exit 1 · `internal/mcp/instructions.go` · the instructions stop requiring both markers and the count. It SURVIVED twice before: once when the fence checked only the token ack, and again when it checked only the heading A PAGE LICENSES NOTHING. Checking a word is not checking the rule; checking the rule HEADING is not checking the rule either · acceptance-sha256:15bb7ed8ce28c05a2a8c3715a4d97e617c7ffbfe8bd56fae9890ff4b25cf3156 · covers:the instructions naming ack within the byte bound
+- 2026-09-07 · f0865c8* · mutant killed · exit 1 · `internal/mcp/ack.go` · the canonical rule is weakened at its single source, which now changes every surface at once — instructions, footer, README and AGENTS. Three earlier paraphrases drifted and two mutants survived against token and heading checks; this is the shape those gates could not see · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · covers:the instructions naming ack within the byte bound
 
 ## Invariants
 
@@ -128,3 +135,11 @@ exists asserts nothing, and finding that out here is the point of S1.
 - 2026-09-07 · ba6aecd* · exit 0 · `set -o pipefail …` · acceptance-sha256:37066136ae42398cf0f39614a5e406b4c3ee603f14675da395711b9f98d180da · ms:31928
 - 2026-09-07 · ba6aecd* · exit 0 · `set -o pipefail …` · acceptance-sha256:15bb7ed8ce28c05a2a8c3715a4d97e617c7ffbfe8bd56fae9890ff4b25cf3156 · ms:30121
 - 2026-09-07 · ba6aecd* · exit 0 · `set -o pipefail …` · acceptance-sha256:15bb7ed8ce28c05a2a8c3715a4d97e617c7ffbfe8bd56fae9890ff4b25cf3156 · ms:30024
+- 2026-09-07 · f0865c8* · exit 1 · `set -o pipefail …` · acceptance-sha256:c7c5e0b3c7e1f1518efb2173c3d163a4cbaaa13075391d67c199a08a8d591411 · ms:331
+  ```
+  --- last 1 line(s) of stdout
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.178s
+  ```
+- 2026-09-07 · f0865c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:214ecdbe31cd12cef63b3c559c4b1aebed27c127ddd4fbf74766a7b37e7b886d · ms:30868
+- 2026-09-07 · f0865c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:30876
+- 2026-09-07 · f0865c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:30079

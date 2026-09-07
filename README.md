@@ -467,16 +467,15 @@ spec that asks for the rest. Send it to continue, and repeat until `next_read`
 is absent; its absence is how a caller knows it has the whole file, and each
 page licenses a write to exactly the lines it served **that you acknowledge**. Nothing is ever
 truncated: a part that arrives looking like the whole file is the silent wrong
-answer this tool exists to refuse, which is why a page stays an error and says
-what remains. Naming several specs at once cannot page — mrw cannot know which
+answer this tool exists to refuse, which is why a page says in its own text
+what remains — a page is not flagged `isError`, since ADR-024 moved that promise onto the served
+text. Naming several specs at once cannot page — mrw cannot know which
 of them to narrow — so that case is still refused outright, with the limit and a
 
 ⚠ **A page licenses nothing until you acknowledge it** (ADR-031). Its served text carries `-- ck`
 markers: each run of 200 lines is BRACKETED by `-- ck <id> open lines A-B (N lines follow)` and
-`-- ck <id> close`. Pass an id as `ack` on your next `mrw_read` or `mrw_write` **only if you hold
-both markers and counted the N numbered `NNN|` lines between them** — one marker is not enough,
-because a cut that begins inside a span leaves the other end. Omit an id and its lines stay
-unwritable, which is the point: on 2026-09-05 a host cut the middle out of a 2,727-line page, the model saw the two ends,
+`-- ck <id> close`. Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.
+Omit an id and its lines stay unwritable, which is the point: on 2026-09-05 a host cut the middle out of a 2,727-line page, the model saw the two ends,
 mrw recorded the whole thing, and a write to a line in the discarded middle applied at exit 0. mrw
 cannot see that from inside the server — a cut result and a delivered one are identical to it — so
 the licence comes from the caller rather than from the send. The CLI takes no `ack` and needs none:

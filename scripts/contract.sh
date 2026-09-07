@@ -2204,7 +2204,7 @@ out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolV
 python3 - "$out" <<'PY'
 import json,sys
 i=json.loads(sys.argv[1])["result"]["instructions"]
-for w in ("--files-from","--check","--root","shell","serialized","ONE fixed checkout","ack","LICENSES NOTHING","BOTH its markers","numbered NNN| lines"):
+for w in ("--files-from","--check","--root","shell","serialized","ONE fixed checkout","ack","LICENSES NOTHING"):
     assert w in i, "the instructions never mention %r" % w
 # The routing must come BEFORE the format details. It is no longer literally
 # first: it is merged into the WHEN TO REACH paragraph, because a separate
@@ -2213,6 +2213,14 @@ for w in ("--files-from","--check","--root","shell","serialized","ONE fixed chec
 # to hold is the ORDER — a caller meets the choice before it meets the grammar.
 assert i.index("WHICH SURFACE") < i.index("READING."), "the routing comes after the format details, so the choice is made before it is offered"
 assert len(i.encode()) <= 4096, "instructions are %d bytes, over the bound every session pays" % len(i.encode())
+# ⚠ THE RULE ITSELF, read out of internal/mcp/ack.go's AckRule constant and
+# required VERBATIM on the wire. Listing tokens is what let a mutant negate the
+# clause while "ack", "LICENSES NOTHING" and the rest stayed present — twice.
+import re as _re
+_src=open("internal/mcp/ack.go").read()
+_m=_re.search(r'const AckRule = "([^"]*)"', _src)
+assert _m, "internal/mcp/ack.go no longer declares AckRule, so nothing pins what the surfaces must say"
+assert _m.group(1) in i, "the served instructions do not carry AckRule verbatim:\n%s" % _m.group(1)
 PY
 [ $? -eq 0 ] && ok "the handshake routes a shell-capable caller to the CLI, first" \
              || bad "the surface does not say it is the smaller one"
@@ -4025,7 +4033,8 @@ grep -q 'UNSERVED-SENTINEL-29' <<<"$out" \
 #
 # A page mrw SENDS is not a page the caller RECEIVED. Measured 2026-09-05: the
 # host cut the middle out of a 2,727-line page, the model saw lines 1-90 and
-# 2644-2727, mrw recorded 1-3619, and a write to line 1500 applied at exit 0.
+# 2644-2727, mrw recorded that page whole (1-2727), and a write to line 1500
+# applied at exit 0.
 # So a served span is held pending against checkpoints woven through the text
 # and reaches the ledger only when the caller echoes them.
 #
@@ -4057,27 +4066,43 @@ print(" ".join(re.findall(r"^-- ck ([0-9a-f]{16}) open ", r["content"][0]["text"
 PY
 )
 [ -n "$cks" ] && ok "a paged read carries checkpoints a caller can echo" || bad "a paged read carries no checkpoint, so nothing can ever be acknowledged"
-# ⚠ AND THE BRACKET RULE THE PAGE NOW TELLS CALLERS TO FOLLOW. Extracting the
-# open markers proves the ids exist; it does not prove a caller can check what
-# the footer, the instructions, the README and AGENTS.md all now require —
-# BOTH markers present and the stated count of numbered lines between them.
-# The review of PR #132 found the protocol text and the mechanism disagreeing;
-# a row that only reads opens cannot see that.
+# ⚠ COVERAGE, not just the markers that happen to exist. Validating only the
+# blocks present passes against a server that brackets lines 1-200 and leaves
+# the rest unmarked: every assertion would be satisfied and the page would
+# license nothing anyone could acknowledge. The review of PR #132 demonstrated
+# exactly that. So parse every block, require them to TILE the served range with
+# no gap and no overlap, require more than one, and check the negative probe
+# lands inside a real block that is NOT acknowledged.
 python3 - "$R/page.json" <<'PY'
 import json,re,sys
 t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"].split(chr(10))
-opens={}
+blocks=[]
 for i,l in enumerate(t):
     m=re.match(r"^-- ck ([0-9a-f]{16}) open lines (\d+)-(\d+) \((\d+) lines follow\)$", l)
-    if m: opens[m.group(1)]=(i,int(m.group(4)))
-assert opens, "no open markers"
-for ck,(at,n) in opens.items():
-    close=[i for i,l in enumerate(t) if l=="-- ck %s close" % ck]
-    assert close, "checkpoint %s has no close marker, so a cut caller cannot tell it holds the whole span" % ck
-    got=sum(1 for l in t[at+1:close[0]] if re.match(r"^ *\d+\|", l))
-    assert got==n, "checkpoint %s says %d lines follow but %d numbered lines sit between its markers" % (ck,n,got)
+    if m:
+        blocks.append({"ck":m.group(1),"a":int(m.group(2)),"b":int(m.group(3)),"n":int(m.group(4)),"at":i})
+assert len(blocks) > 1, "a page with one block cannot show that acknowledging is per-region"
+served=[int(re.match(r"^ *(\d+)\|", l).group(1)) for l in t if re.match(r"^ *\d+\|", l)]
+assert served, "the page served no numbered lines"
+for blk in blocks:
+    close=[i for i,l in enumerate(t) if l == "-- ck " + blk["ck"] + " close"]
+    assert close, "checkpoint has no close marker: " + blk["ck"]
+    body=[l for l in t[blk["at"]+1:close[0]] if re.match(r"^ *\d+\|", l)]
+    assert len(body) == blk["n"], "checkpoint " + blk["ck"] + " miscounts its span"
+    nums=[int(re.match(r"^ *(\d+)\|", l).group(1)) for l in body]
+    assert nums[0] == blk["a"] and nums[-1] == blk["b"], "checkpoint " + blk["ck"] + " brackets lines it does not claim"
+blocks.sort(key=lambda x: x["a"])
+assert blocks[0]["a"] == min(served) and blocks[-1]["b"] == max(served), "the blocks do not span the served range"
+for x, y in zip(blocks, blocks[1:]):
+    assert y["a"] == x["b"] + 1, "blocks leave a gap or overlap, so some served lines can never be acknowledged"
+assert sum(b["n"] for b in blocks) == len(served), "served line count and bracketed line count differ"
+first, last = blocks[0]["ck"], blocks[-1]["ck"]
+inside=[b for b in blocks if b["a"] <= 900 <= b["b"]]
+assert inside, "line 900 is in no block, so refusing it says nothing about acknowledgement"
+assert inside[0]["ck"] not in (first, last), "line 900 sits in an acknowledged block, so the negative probe cannot fail"
+assert first != last, "the first and last checkpoints are the same block"
 PY
-want 0 $? "every checkpoint brackets its span and the count matches"
+want 0 $? "the page tiles its served lines and the negative probe sits in a real unacknowledged block"
 # ⚠ Guarded, because  is on and this section must REPORT rather than
 # abort. Against a server without ADR-031 there are no checkpoints at all, and
 # an unguarded `shift` on an empty list took the whole script down with it —
