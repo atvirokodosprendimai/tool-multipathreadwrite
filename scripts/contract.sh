@@ -2220,7 +2220,14 @@ import re as _re
 _src=open("internal/mcp/ack.go").read()
 _m=_re.search(r'const AckRule = "([^"]*)"', _src)
 assert _m, "internal/mcp/ack.go no longer declares AckRule, so nothing pins what the surfaces must say"
-assert _m.group(1) in i, "the served instructions do not carry AckRule verbatim:\n%s" % _m.group(1)
+# ⚠ AN INDEPENDENT ORACLE. Taking the expected text from the implementation and
+# then finding it in the implementation's output is satisfied by an EMPTY rule.
+# The sentence is written here so that weakening the constant fails.
+_want = ("Send an id in ack only if you hold BOTH its open and close markers AND counted the N "
+         "numbered lines the open marker says follow: one marker is not enough, because a cut "
+         "starting inside a span leaves the other end.")
+assert _m.group(1) == _want, "AckRule no longer states the rule ADR-031 decided:\n%s" % _m.group(1)
+assert _want in i, "the served instructions do not carry the acknowledgement rule verbatim"
 PY
 [ $? -eq 0 ] && ok "the handshake routes a shell-capable caller to the CLI, first" \
              || bad "the surface does not say it is the smaller one"

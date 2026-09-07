@@ -471,6 +471,8 @@ answer this tool exists to refuse, which is why a page says in its own text
 what remains — a page is not flagged `isError`, since ADR-024 moved that promise onto the served
 text. Naming several specs at once cannot page — mrw cannot know which
 of them to narrow — so that case is still refused outright, with the limit and a
+per-file line budget. The limit is also declared in `tools/list` as
+`_meta["anthropic/maxResultSizeChars"]`, so a host knows it before it hits it.
 
 ⚠ **A page licenses nothing until you acknowledge it** (ADR-031). Its served text carries `-- ck`
 markers: each run of 200 lines is BRACKETED by `-- ck <id> open lines A-B (N lines follow)` and
@@ -480,8 +482,8 @@ mrw recorded the whole thing, and a write to a line in the discarded middle appl
 cannot see that from inside the server — a cut result and a delivered one are identical to it — so
 the licence comes from the caller rather than from the send. The CLI takes no `ack` and needs none:
 nothing sits between `mrw read` and you.
-per-file line budget. The limit is also declared in `tools/list` as
-`_meta["anthropic/maxResultSizeChars"]`, so a host knows it before it hits it.
+
+
 `mrw read` on the command line has no such limit and no paging: it streams.
 
 Two tools are exposed. `mrw_read` takes `specs` — the same range syntax the CLI

@@ -1229,3 +1229,31 @@ func TestBothToolsAdvertiseAck(t *testing.T) {
 		}
 	}
 }
+
+// TestAPageThatCannotFitIsNotAPage pins ADR-031's line-granularity limit. The
+// paging budget is estimated in LINES, so one line longer than the entire cap
+// yields a page that still exceeds it — and a head/tail cut of a single numbered
+// line leaves the open marker, the `NNN|` prefix and the close marker intact.
+// The caller then satisfies AckRule honestly while the middle never arrived.
+//
+// Bracketing proves receipt per LINE and cannot prove it within one, so such a
+// read is refused rather than paged. Found by the fifth review of PR #132.
+func TestAPageThatCannotFitIsNotAPage(t *testing.T) {
+	root := t.TempDir()
+	long := strings.Repeat("x", MaxResultChars+1000)
+	if err := os.WriteFile(filepath.Join(root, "wide.txt"), []byte(long+"\nsecond\nthird\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{"wide.txt"}})
+	blocks, _ := res["content"].([]any)
+	if len(blocks) > 1 {
+		t.Error("a read whose first line exceeds the cap was served as a PAGE; its one line cannot be acknowledged honestly, because a cut inside it leaves both markers standing")
+	}
+	if isErr, _ := res["isError"].(bool); !isErr {
+		t.Error("a read that cannot be paged is not refused either, so the caller gets neither the lines nor a reason")
+	}
+	first, _ := blocks[0].(map[string]any)
+	if txt, _ := first["text"].(string); !strings.Contains(txt, "limit") {
+		t.Errorf("the refusal does not name the limit: %s", txt)
+	}
+}

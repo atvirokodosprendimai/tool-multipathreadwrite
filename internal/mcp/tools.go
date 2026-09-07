@@ -579,6 +579,20 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 		return callToolResult{}, false
 	}
 
+	// ⚠ AND IF THE PAGE ITSELF DOES NOT FIT, IT IS NOT A PAGE EITHER (ADR-031).
+	// The budget above is estimated in LINES, so a single line longer than the
+	// whole cap produces a one-line "page" that still exceeds it. A host must
+	// then cut it, and a head/tail cut of ONE numbered line leaves the open
+	// marker, the line's `NNN|` prefix and the close marker all intact — so the
+	// caller can satisfy AckRule honestly while the line's middle never arrived,
+	// and acknowledging licenses the whole of it. Bracketing cannot express a
+	// partial line: the unit it proves is a line. Declining sends the caller
+	// down the ordinary path, which refuses with the limit and a line budget.
+	// Found by the fifth review of PR #132.
+	if b.Len() > MaxResultChars {
+		return callToolResult{}, false
+	}
+
 	// ⚠ THE PAGE WAS SENT, WHICH IS NOT THE SAME AS RECEIVED, AND THIS LINE USED
 	// TO CONFUSE THEM. It recorded the served span outright — "the page WAS
 	// shown" — and on 2026-09-05 a host cut the middle out of exactly such a

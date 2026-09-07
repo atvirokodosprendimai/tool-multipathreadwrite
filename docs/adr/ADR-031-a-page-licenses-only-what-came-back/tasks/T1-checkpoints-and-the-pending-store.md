@@ -108,3 +108,4 @@ forbids and which would put markers in CLI output.
 - 2026-09-07 · f0865c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:b7fe8ce981f5464d68c8faf909dd6ad36b2176f459e076aadbacfad5bb0a572a · ms:5304
 - 2026-09-07 · 7c7b0b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f0157b5481cd2d2e850ac97905d96edcc7468b9ccd7dac0f7a0457cb92b574a · ms:4920
 - 2026-09-07 · 7c7b0b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f0157b5481cd2d2e850ac97905d96edcc7468b9ccd7dac0f7a0457cb92b574a · ms:5288
+- 2026-09-07 · c617934* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f0157b5481cd2d2e850ac97905d96edcc7468b9ccd7dac0f7a0457cb92b574a · ms:5216

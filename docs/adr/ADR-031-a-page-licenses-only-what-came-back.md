@@ -149,6 +149,12 @@ See `docs/adr/ADR-031-a-page-licenses-only-what-came-back/tasks/README.md`.
 - **Negative:** the served text grows by TWO short lines per N lines. At N=200 a 2,727-line page pays
   twenty-eight marker lines, 1.03% of it — the first draft said "under one percent", which is the
   kind of number worth getting right in a record that spends its length on precision.
+- **Negative, and the limit the mechanism cannot pass:** bracketing proves receipt per LINE and
+  cannot prove it WITHIN one. A single line longer than the whole result cap would produce a one-line
+  page that still exceeds it, and a head/tail cut of one numbered line leaves the open marker, the
+  `NNN|` prefix and the close marker all standing — the caller satisfies the rule honestly while the
+  middle never arrived. Such a read is therefore REFUSED rather than paged, which is the ordinary
+  oversized-read path with its limit and line budget. Found by the fifth review of PR #132.
 - **Negative, and named because it is the honest limit:** a cut that falls entirely between two spans
   — removing whole spans and nothing else — is indistinguishable to the caller from a page that never
   contained them, unless it notices the gap in the stated line ranges. The ranges are printed for

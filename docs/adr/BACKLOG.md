@@ -900,8 +900,12 @@ re-measuring these. Each was driven at the built binary, not read:
 - **`MaxResultChars` is one host's ceiling hardcoded into a general-purpose tool.** `schema.go` says
   so itself — "The value is Claude Code's per-tool ceiling" — while mrw runs under any MCP host.
   Deferred from ADR-024, which explicitly does not move the number. The proposed shape is a
-  caller-set knob (`MRW_MAX_RESULT_CHARS`, `mrw mcp --max-result-chars N`, `0` = no limit) with
-  `_meta`'s `anthropic/maxResultSizeChars` advertising the configured value rather than a constant.
+  caller-set knob (`MRW_MAX_RESULT_CHARS`, `mrw mcp --max-result-chars N`) with
+  ⚠ **NOT `0` = no limit** — that shape was proposed here before ADR-033 settled
+  the same question for `--max-lines`, and M chose zero-means-zero on 2026-09-07;
+  omitting the knob is how a caller asks for the default — with `_meta`'s
+  `anthropic/maxResultSizeChars` advertising the configured value rather than a
+  constant.
   ⚠ The cap is NOT ceremony and must not simply be deleted: `internal/mcp/tools.go` records that an
   uncapped 40 × 18 MB read peaked at 2.6 GB and that the cap brought the same request to 87 MB,
   measured 2026-09-03. What a knob changes is WHO chooses, not whether the guard exists.
@@ -1055,7 +1059,7 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   in `body=0` and `lines=0`. Its own record; nothing here blocks it.
 
 - **`--max-lines 0` means UNLIMITED, and M decided on 2026-09-07 that it should
-  mean ZERO.** The entry above under "Probed and found correct" states the
+  mean ZERO.** The struck entry above states the
   question and the precedent — `body=0` is an empty body, `lines=0` is a real
   assertion — and M's answer is consistency with those, making "serve the header
   and nothing else" expressible. It is a breaking change for anyone passing `0`

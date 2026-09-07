@@ -177,6 +177,20 @@ func TestOnlyAckedSegmentsAreRecorded(t *testing.T) {
 		t.Error("the observation claims the whole file, so acking two of three segments licensed everything")
 	}
 
+	// ⚠ THE BOUNDARIES, EXACTLY. Probing the middle of an unacknowledged span
+	// leaves an off-by-one invisible: [Start, End+1] licenses line 201 while
+	// 1-200 was acknowledged, and 250 is refused either way. The fifth review of
+	// PR #132 found that. So the adjacent lines on both sides are asserted.
+	if o.Covers(201, 201) {
+		t.Error("line 201 is licensed although only 1-200 was acknowledged — promotion is over-licensing by one at the span's end")
+	}
+	if o.Covers(400, 400) {
+		t.Error("line 400 is licensed although the acknowledged span starts at 401 — promotion is over-licensing by one at the span's start")
+	}
+	if !o.Covers(200, 200) || !o.Covers(401, 401) {
+		t.Errorf("an acknowledged span does not reach its own edges: %s", o.Served())
+	}
+
 	// ⚠ The WRITES, not only the ledger's opinion of them. Inspecting Covers
 	// asserts what the ledger holds; it does not assert that a write is refused
 	// or that the refusal carries the remedy, which is what a caller meets. The
@@ -351,6 +365,18 @@ func TestAStaleAcknowledgementDoesNotRevokeTheCurrentOne(t *testing.T) {
 // mutants survived by leaving a token or a heading in place, so the rule is now
 // ONE constant and every surface must carry it BYTE FOR BYTE.
 func TestEverySurfaceCarriesTheOneRule(t *testing.T) {
+	// ⚠ AN INDEPENDENT ORACLE FIRST. Every assertion below is
+	// strings.Contains(surface, AckRule), which is satisfied by ANY surface when
+	// AckRule is empty — so setting the constant to "" strips the requirement
+	// from the instructions, the footer, the refusal and both schemas while
+	// every check passes. The fifth review of PR #132 demonstrated exactly that.
+	// A rule compared only against itself is not pinned, so the sentence is
+	// written out HERE, literally, and the constant is checked against it.
+	const want = "Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end."
+	if AckRule != want {
+		t.Fatalf("AckRule no longer states the rule this record decided:\n got: %q\nwant: %q", AckRule, want)
+	}
+
 	root, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
