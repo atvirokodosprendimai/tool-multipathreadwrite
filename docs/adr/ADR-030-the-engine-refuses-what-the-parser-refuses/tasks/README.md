@@ -17,7 +17,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The boundary refuses the enumerated list | done | — | `go test ./internal/apply/ -run 'TestTheEngineRefusesEveryShapeTheParserRefuses' …` |
+| T1 | The boundary refuses the enumerated list | done | — | `go test ./internal/apply/ -run 'TestTheEngineRefusesEveryShapeTheParserRefuses' …` and `go test ./internal/adversarial/ -run 'TestTheEngineAndTheParserRefuseInTheSameWords' …`, both in the fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

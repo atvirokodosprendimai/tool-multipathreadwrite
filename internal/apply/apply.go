@@ -607,11 +607,16 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		// seven open, including a `replace` with no body that DELETED the
 		// addressed lines and reported ok.
 		//
-		// What is NOT mirrored, and why: validate's `patterned` gate. A pattern
-		// address has no line bounds until the file is read, and by the time
-		// Apply runs it has been resolved to a line — so the engine cannot tell
-		// a resolved pattern from a typed number and must not guess. Every rule
-		// below therefore holds for a resolved address too.
+		// ⚠ THIS BLOCK RUNS BEFORE RESOLUTION, so the pattern fields are still
+		// here to be asked about — StartPat and EndPat are on Input and on the
+		// hunk, and resolution happens further down. An earlier cut of this
+		// comment said the opposite: that a pattern had already been resolved by
+		// the time Apply could look, and that validate's `patterned` gate
+		// therefore could not be mirrored. Both halves were false, and a
+		// patterned create and a patterned insertion range were accepted while
+		// the comment explained why they could not be checked. `patterned` is
+		// not a rule at all — it is a gate choosing WHICH rule applies — and
+		// both sides of it are mirrored below.
 		if h.Op == "create" && len(h.Body) == 0 && !h.CountedBody {
 			fail(h, "create with an empty body: say body=0 if you mean an empty file, "+
 				"and check the body did not go missing if you do not")

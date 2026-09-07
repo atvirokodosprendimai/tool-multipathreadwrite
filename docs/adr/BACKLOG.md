@@ -1022,7 +1022,8 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   ADR-030, which asserts every parser rule again at the engine boundary and keeps
   the two honest by copying `plan.validate`'s message strings VERBATIM and
   asserting them by substring. That works and it is what the test checks, but it
-  is STRING equality, checked at run time:
+  is STRING equality, checked at run time for nine of the ten verbatim-mirrored
+  branches (the tenth is unreachable from a plan document, and the test says so):
   `TestTheEngineAndTheParserRefuseInTheSameWords` parses each malformed plan,
   takes the expected text out of the parser's own error, and compares it to what
   `Apply` says for the equivalent Input, so rewording either site alone goes red.

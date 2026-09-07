@@ -1,6 +1,7 @@
 package adversarial
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -276,6 +277,20 @@ func TestAReplaceWithNoBodyIsStillRejectedNowThatDeleteTakesOne(t *testing.T) {
 // rewording validate alone left everything green. The review of PR #130 said so,
 // and this is the fix: the expected text is TAKEN FROM THE PARSER at run time.
 //
+// One row per VERBATIM-mirrored validate branch. Nine of the ten are here.
+//
+// ⚠ The tenth — `create` with a relative end — has NO cross-site pair, and that
+// is a fact about the parser rather than a gap: validate's numeric-address check
+// fires first for every address a caller can write, so `@@ n.txt 1,+2 create`
+// comes back as "create takes no address" and the relative-end branch is
+// unreachable from a plan document. Measured. Its engine counterpart is covered
+// by the apply-side table instead, and this comment is here so the next reader
+// does not add a row that silently tests the branch above it.
+//
+// The two remaining validate returns — replace at line zero, and a reversed
+// range — are answered by the engine's own semantic checks with its own wording,
+// not by a verbatim mirror, so they are not parity rows either.
+//
 // Each row is one malformed plan and the apply.Input a direct caller would build
 // for the same mistake. Reword either site alone and this goes red.
 func TestTheEngineAndTheParserRefuseInTheSameWords(t *testing.T) {
@@ -294,6 +309,23 @@ func TestTheEngineAndTheParserRefuseInTheSameWords(t *testing.T) {
 			apply.Input{Path: "n.txt", Op: "create", Start: 1, End: 1, Body: []string{"X"}, Lines: unset}},
 		{"create with anchor=", "@@ n.txt - create anchor=\"zzz\"\nX\n",
 			apply.Input{Path: "n.txt", Op: "create", Body: []string{"X"}, Lines: unset, Anchor: "zzz"}},
+		{"create with lines=", "@@ n.txt - create lines=5\nX\n",
+			apply.Input{Path: "n.txt", Op: "create", Body: []string{"X"}, Lines: 5}},
+		{"a body-less create", "@@ n.txt - create\n",
+			apply.Input{Path: "n.txt", Op: "create", Lines: unset}},
+		{"create with a pattern address", "@@ n.txt /a/ create\nX\n",
+			apply.Input{Path: "n.txt", Op: "create", Body: []string{"X"}, Lines: unset,
+				StartPat: regexp.MustCompile(`^a$`)}},
+		{"insert-after over a pattern range", "@@ f.txt /a/,/c/ insert-after\nX\n",
+			apply.Input{Path: "f.txt", Op: "insert-after", Body: []string{"X"}, Lines: unset,
+				StartPat: regexp.MustCompile(`^a$`), EndPat: regexp.MustCompile(`^c$`)}},
+		{"insert-after with a relative end", "@@ f.txt 1,+2 insert-after\nX\n",
+			apply.Input{Path: "f.txt", Op: "insert-after", Start: 1, End: 1, RelEnd: 2,
+				Body: []string{"X"}, Lines: unset}},
+		{"insert-after with an empty body", "@@ f.txt 1 insert-after\n",
+			apply.Input{Path: "f.txt", Op: "insert-after", Start: 1, End: 1, Lines: unset}},
+		{"insert-before with an empty body", "@@ f.txt 1 insert-before\n",
+			apply.Input{Path: "f.txt", Op: "insert-before", Start: 1, End: 1, Lines: unset}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

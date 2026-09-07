@@ -85,9 +85,18 @@ silence. But its expected strings are hardcoded and it never invokes the parser,
 `validate` alone left it green — the review of PR #130 said so, and the first cut of this record
 claimed the drift was mitigated when it was not.
 `TestTheEngineAndTheParserRefuseInTheSameWords` closes that: it PARSES each malformed plan, takes the
-expected text out of the parser's own error at run time, and compares it to what `Apply` says for the
-equivalent `Input`. Reword either site alone and it goes red — measured, by rewording one engine
-message and watching it fail.
+expected text out of the parser's own error at run time, and compares it — by EQUALITY, not substring
+— to what `Apply` says for the equivalent `Input`. Reword either site alone and it goes red, measured
+in both directions: an engine message reworded, and the parser reworded with the engine left alone.
+
+It carries one row per verbatim-mirrored branch, nine of the ten. The tenth, `create` with a relative
+end, has no cross-site pair and that is a fact about the parser rather than a gap: validate's
+numeric-address check fires first for every address a caller can write, so `@@ n.txt 1,+2 create`
+comes back as "create takes no address" and the relative-end branch is unreachable from a plan
+document. Its engine counterpart is covered by the apply-side table instead. The remaining two of
+validate's twelve returns — replace at line zero, and a reversed range — are answered by the engine's
+own semantic checks in its own wording, so they are not parity rows either. All of that is written in
+the test, because an unstated omission is how the last two rounds of this record went wrong.
 
 **What would falsify this:** a rule that genuinely cannot be checked without the parse tree. The
 first cut asserted `patterned` was such a rule; it is not one — it is a GATE that chooses which rule
@@ -133,8 +142,9 @@ See `docs/adr/ADR-030-the-engine-refuses-what-the-parser-refuses/tasks/README.md
 - **Positive:** `Apply`'s doc comment becomes true, and the class is closed by walking `validate`'s
   branches rather than by the next record finding the eleventh.
 - **Positive:** the table test makes a future divergence visible as a missing row, and the cross-site
-  test makes a reworded message visible as a failure. The first alone was what the first cut of this
-  record claimed was enough.
+  test makes a reworded message visible as a failure, in either direction, for nine of the ten
+  verbatim branches — the tenth being unreachable from a plan document and said so. The first test
+  alone was what the first cut of this record claimed was enough.
 - **Negative:** the same rule is now written twice, and the two could drift. Accepted deliberately —
   the alternative is inverting a package dependency — and mitigated by copying the message strings
   verbatim so a drift in wording shows up in the test.

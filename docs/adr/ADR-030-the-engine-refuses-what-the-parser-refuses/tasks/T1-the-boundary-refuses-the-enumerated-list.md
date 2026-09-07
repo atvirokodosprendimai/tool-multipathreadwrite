@@ -57,7 +57,7 @@ go test ./internal/apply/ -count=1 -v \
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestTheEngineRefusesEveryShapeTheParserRefuses` | `internal/apply/apply_test.go` | Every `plan.validate` branch is refused by a direct `Apply` with `Failed: 1` and the file byte-identical; every well-formed shape still applies AND leaves the exact bytes it should, so a no-op reporting success cannot pass | — | S1, S2, S3, S4, S5 |
-| `TestTheEngineAndTheParserRefuseInTheSameWords` | `internal/adversarial/planformat_test.go` | For one malformed plan per rule, the parser's message and the engine's `Reason` are equal — the expected text taken from the parser at run time, so rewording either site alone goes red | — | S6 |
+| `TestTheEngineAndTheParserRefuseInTheSameWords` | `internal/adversarial/planformat_test.go` | For nine of the ten verbatim-mirrored branches — the tenth being unreachable from a plan document, and said so in the test — the parser's message and the engine's `Reason` are EQUAL, the expected text taken from the parser at run time, so rewording either site alone goes red | — | S6 |
 
 ## Reachability
 
@@ -70,6 +70,14 @@ go test ./internal/apply/ -count=1 -v \
 
 ## Mutation Log
 
+⚠ **The `051880f` entry reading "the pattern-range refusal for insertions is reworded … the
+cross-site test is what now sees the divergence" CLAIMED THE WRONG KILLER.** At that commit the
+cross-site test had no pattern-range row, so the fence went red on the apply-side table, whose
+expected string is hardcoded — which is engine-side drift, not the parser-side drift the entry
+describes. The review of PR #130 found it. The entry is kept as it ran and superseded by the
+`internal/plan/plan.go` mutant below, which rewords the PARSER and leaves the engine alone: that is
+the direction only the cross-site test can see, and it now has the row to see it with.
+
 - 2026-09-07 · d26e39a* · mutant killed · exit 1 · `internal/apply/apply.go` · the engine stops refusing a replace carrying no body, so a direct Apply caller DELETES the addressed lines and gets a receipt saying ok — the shape plan.validate calls the failure this whole format exists to refuse · acceptance-sha256:42aebec5aa67d55597a759fd7cd72f0a7a41b4660ba4bde949061f0901b4fc7b · covers:the engine refusing every enumerated shape the parser refuses
 - 2026-09-07 · d26e39a* · mutant killed · exit 1 · `internal/apply/apply.go` · an insertion stops refusing a RANGE address, so it silently uses the start and ignores the end the caller wrote — an address half-ignored, reported ok · acceptance-sha256:42aebec5aa67d55597a759fd7cd72f0a7a41b4660ba4bde949061f0901b4fc7b · covers:the engine refusing every enumerated shape the parser refuses
 - 2026-09-07 · d26e39a* · mutant killed · exit 1 · `internal/apply/apply.go` · the insertion rule widens to refuse every insertion, which a table of refusals alone would call success — the accepting half is what refuses it, and it is why the fix is a narrowing rather than a ban · acceptance-sha256:42aebec5aa67d55597a759fd7cd72f0a7a41b4660ba4bde949061f0901b4fc7b · covers:the engine still applying every shape the parser accepts
@@ -77,6 +85,7 @@ go test ./internal/apply/ -count=1 -v \
 - 2026-09-07 · ee97f6b* · mutant killed · exit 1 · `internal/apply/apply.go` · one engine message is reworded and the parser is left alone — the drift the first cut claimed was mitigated by copying strings verbatim, which the hardcoded table test could not see · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · covers:the two sites refusing in the same words
 - 2026-09-07 · ee97f6b* · mutant killed · exit 1 · `internal/apply/apply.go` · the pattern-range refusal for insertions is reworded away from plan.validate wording — it is the branch the first cut never named, and the cross-site test is what now sees the divergence · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · covers:the two sites refusing in the same words
 - 2026-09-07 · ee97f6b* · mutant killed · exit 1 · `internal/apply/apply.go` · the guard itself is removed for an insertion with a PATTERN range, so the hunk resolves and then silently uses the start and ignores the end the caller wrote — the branch the first pass never named, reported ok · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · covers:the engine refusing every enumerated shape the parser refuses
+- 2026-09-07 · 051880f* · mutant killed · exit 1 · `internal/plan/plan.go` · the PARSER is reworded and the engine left alone, on the pattern-range branch the first pass never named — this is the direction the hardcoded apply-side table cannot see, and the direction T1 previously claimed evidence for without having it · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · covers:the two sites refusing in the same words
 
 ## Invariants
 - `internal/apply` does not import `internal/plan`. That inversion is ADR-027-T3's Stop Condition and is the reason the duplication is accepted.
@@ -110,3 +119,5 @@ record rather than a workaround in the code.
 - 2026-09-07 · ee97f6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:31282
 - 2026-09-07 · ee97f6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:30193
 - 2026-09-07 · ee97f6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:30133
+- 2026-09-07 · 051880f* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:34952
+- 2026-09-07 · 051880f* · exit 0 · `set -o pipefail …` · acceptance-sha256:4419231c12d93d17907c57dc8737b405e52dc0b08221047bb7a384af293045c6 · ms:38468
