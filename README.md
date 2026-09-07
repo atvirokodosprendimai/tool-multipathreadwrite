@@ -471,7 +471,8 @@ answer this tool exists to refuse, which is why a page says in its own text
 what remains — a page is not flagged `isError`, since ADR-024 moved that promise onto the served
 text. Naming several specs at once cannot page — mrw cannot know which
 of them to narrow — so that case is still refused outright, with the limit and a
-per-file line budget. The limit is also declared in `tools/list` as
+per-file line budget — unless no line of the file fits at all, where a budget would name a range
+that fails the same way, and the refusal says so and points at the CLI instead. The limit is also declared in `tools/list` as
 `_meta["anthropic/maxResultSizeChars"]`, so a host knows it before it hits it.
 
 ⚠ **A page licenses nothing until you acknowledge it** (ADR-031). Its served text carries `-- ck`

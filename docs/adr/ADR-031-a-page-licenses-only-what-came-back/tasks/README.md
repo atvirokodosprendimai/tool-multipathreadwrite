@@ -19,7 +19,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Checkpoints and the pending store | done | — | `go test ./internal/mcp/ -run 'TestACheckpointCoversTheSpanItBrackets\|TestAPendingRecordReachesNoLedger' …` |
+| T1 | Checkpoints and the pending store | done | — | `go test ./internal/mcp/ -run 'TestACheckpointCoversTheSpanItBrackets\|TestAPendingRecordReachesNoLedger\|TestThePendingStoreIsBounded' …` |
 | T2 | `ack` promotes only what it names | done | — | `go test ./internal/mcp/ -run 'TestOnlyAckedSegmentsAreRecorded' …` |
 | T3 | The contract drives the server, and the instructions teach it | done | — | `grep -q '^# 68\. ' scripts/contract.sh && ./scripts/contract.sh` |
 

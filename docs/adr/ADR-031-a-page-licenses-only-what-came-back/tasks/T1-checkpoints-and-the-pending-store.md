@@ -52,7 +52,7 @@ go test ./internal/mcp/ -count=1 -v \
 |-----------|------|----------|--------|-------|
 | `TestACheckpointCoversTheSpanItBrackets` | `internal/mcp/ack_test.go` | Interleaving BRACKETS each run of N served lines — open before the first, close after the last, asserted by POSITION rather than presence — with the range and count stated, ids 16 hex, and spans taken from the served line numbers rather than the request | — | S1, S2, S3 |
 | `TestAPendingRecordReachesNoLedger` | `internal/mcp/ack_test.go` | After a page is served, `seen.Load` holds nothing for that path | — | S5 |
-| `TestThePendingStoreIsBounded` | `internal/mcp/ack_test.go` | Holding more than `maxPending` entries evicts the oldest, so a caller that never acknowledges cannot grow the store without limit | — | S4 |
+| `TestThePendingStoreIsBounded` | `internal/mcp/ack_test.go` | Holding more than `maxPending` entries leaves the store within the bound. ⚠ It does NOT check WHICH entries survive — an implementation dropping all of them would pass, and the "oldest first" half is unproved (seventh review of PR #132) | — | S4 |
 
 ## Reachability
 
@@ -115,3 +115,4 @@ forbids and which would put markers in CLI output.
 - 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f0157b5481cd2d2e850ac97905d96edcc7468b9ccd7dac0f7a0457cb92b574a · ms:5134
 - 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:661d553052712c9edccf3d5edde2eb93caf6a916c563fb6b5bd1f3280a3740bf · ms:5156
 - 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:661d553052712c9edccf3d5edde2eb93caf6a916c563fb6b5bd1f3280a3740bf · ms:5064
+- 2026-09-07 · c9f747b* · exit 0 · `set -o pipefail …` · acceptance-sha256:661d553052712c9edccf3d5edde2eb93caf6a916c563fb6b5bd1f3280a3740bf · ms:5093

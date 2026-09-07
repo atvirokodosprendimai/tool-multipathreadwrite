@@ -288,9 +288,11 @@ func TestAReadOverTheLimitIsRefusedNotTruncated(t *testing.T) {
 	// terminal; over MCP the consumer is a model, and a truncated file that
 	// arrives looking like the file is the silent wrong answer.
 	//
-	// ⚠ RETARGETED BY ADR-014. A SINGLE oversized spec now returns a first page
-	// and a continuation, and records the span it served — so "carries no file
-	// content" and "records no ledger entry" are deliberately false there, and
+	// ⚠ RETARGETED BY ADR-014, THEN AGAIN BY ADR-031. A SINGLE oversized spec
+	// returns a first page and a continuation, and HOLDS the span it served
+	// pending until the caller acknowledges it — so "carries no file content"
+	// is deliberately false there, while "records no ledger entry" became true
+	// again once a page stopped recording on serve. Covered by
 	// TestAPagedReadReassemblesTheWholeFile and TestAPageLicensesOnlyWhatItServed
 	// carry that case. What ADR-014 does NOT change is the multi-spec request:
 	// the spec that crossed the limit may not be the first, so paging one of
@@ -1264,7 +1266,7 @@ func TestAPageThatCannotFitIsNotAPage(t *testing.T) {
 	if strings.Contains(txt, ":1-1") {
 		t.Errorf("the refusal tells the caller to retry the same unservable line: %s", txt)
 	}
-	if !strings.Contains(txt, "pages BY LINE") || !strings.Contains(txt, "mrw read") {
+	if !strings.Contains(txt, "serves whole lines") || !strings.Contains(txt, "mrw read") {
 		t.Errorf("the refusal does not say why no range helps, nor name a reader that can: %s", txt)
 	}
 }
@@ -1286,12 +1288,15 @@ func TestAPageIsMeasuredAfterItsMarkersAndFooter(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "near.txt"), []byte(b.String()), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// ⚠ THE ENCODED RESULT, not each block. Measuring blocks separately misses
+	// the receipt and the JSON envelope, which is how a 199,794-byte report
+	// delivered 200,004 bytes (seventh review of PR #132).
 	res := call(t, root, "mrw_read", map[string]any{"specs": []any{"near.txt"}})
-	blocks, _ := res["content"].([]any)
-	for _, blk := range blocks {
-		m, _ := blk.(map[string]any)
-		if txt, _ := m["text"].(string); len(txt) > MaxResultChars {
-			t.Errorf("a served block is %d characters, over the %d advertised cap — the page was measured before its markers and footer", len(txt), MaxResultChars)
-		}
+	enc, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(enc) > MaxResultChars {
+		t.Errorf("the encoded result is %d bytes, over the %d advertised cap", len(enc), MaxResultChars)
 	}
 }

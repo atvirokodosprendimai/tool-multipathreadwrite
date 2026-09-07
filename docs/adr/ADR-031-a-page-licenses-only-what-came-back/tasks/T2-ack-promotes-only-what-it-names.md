@@ -21,6 +21,7 @@ nobody echoed unlicensed.
 |------|--------|-----|
 | `internal/mcp/tools.go` | edit | `mrw_read` and `mrw_write` gain the optional `ack` array; the paged path stops calling `seen.Record` and files a pending record instead. |
 | `internal/mcp/ack.go` | edit | `promote(root, acks)` resolves checkpoints to spans and calls `seen.Record` for those and no others. |
+| `internal/mcp/mcp.go` | edit | Both advertised tool schemas gain `ack`, built from `AckRule` — a handler that accepts a field no schema declares is undiscoverable to a schema-driven host. |
 | `internal/mcp/ack_test.go` | edit | `TestOnlyAckedSegmentsAreRecorded` — the record's `Enforced-by`. |
 
 ## Ordered Steps
@@ -118,3 +119,4 @@ Stop and ask if promotion needs `internal/seen` to change shape — the spans ar
 - 2026-09-07 · c617934* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:30248
 - 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:34260
 - 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:32402
+- 2026-09-07 · c9f747b* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:35003

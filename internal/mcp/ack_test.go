@@ -485,3 +485,55 @@ func TestThePendingStoreIsBounded(t *testing.T) {
 		t.Errorf("the pending store holds %d entries, over the %d bound — a caller that never acknowledges grows it without limit", len(store), maxPending)
 	}
 }
+
+// TestTheRemedyMatchesTheRefusedAddress pins the P2 the seventh review of
+// PR #132 found: nameTheAck appended the acknowledgement remedy whenever the
+// FILE had anything pending, so a caller refused at line 2000 with lines 1-1000
+// pending was told to acknowledge a page that cannot license line 2000. A
+// refusal naming a fix that cannot work is ADR-015's failure wearing the shape
+// of help.
+func TestTheRemedyMatchesTheRefusedAddress(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	body := strings.Repeat("z\n", 3000)
+	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256([]byte(body))
+	if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: hex.EncodeToString(sum[:])}},
+		map[string][2]int{checkpoint(): {1, 1000}}); err != nil {
+		t.Fatal(err)
+	}
+	ledger, err := seen.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range []struct {
+		name   string
+		line   int
+		remedy bool
+	}{
+		{"inside the pending span", 500, true},
+		{"outside every pending span", 2000, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			res, err := apply.Apply(root, []apply.Input{{
+				Path: "f.txt", Start: c.line, End: c.line, Op: "replace",
+				Body: []string{"X"}, Lines: -1,
+			}}, apply.Options{Seen: ledger, DryRun: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Failed != 1 {
+				t.Fatalf("failed=%d, want 1", res.Failed)
+			}
+			nameTheAck(root, &res)
+			got := strings.Contains(res.Hunks[0].Reason, AckRule)
+			if got != c.remedy {
+				t.Errorf("remedy present = %v, want %v — a page covering 1-1000 cannot license line %d: %s",
+					got, c.remedy, c.line, res.Hunks[0].Reason)
+			}
+		})
+	}
+}

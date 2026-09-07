@@ -9,7 +9,7 @@
 **Governs:** `internal/mcp/tools.go`, `internal/mcp/ack.go`
 **Enforced-by:** `internal/mcp/ack_test.go::TestOnlyAckedSegmentsAreRecorded`
 **Invalidates:** none — checked
-**Served-path change:** an MCP read that PAGES now carries checkpoint markers in its served text and records nothing until the caller echoes them. A read that fits, a grep index and a refused multi-spec read are unchanged and carry none — the class is narrowed, not closed, and the small-read half is receipted in `docs/adr/BACKLOG.md`. A caller that echoes none is refused on its next write exactly as if it had not read.
+**Served-path change:** an MCP read that PAGES now carries checkpoint markers in its served text and records nothing until the caller echoes them. A read that fits and a grep index are unchanged and carry none; a multi-spec refusal is unchanged except that a file whose lines cannot fit at all now says so instead of naming a range that would fail the same way — the class is narrowed, not closed, and the small-read half is receipted in `docs/adr/BACKLOG.md`. A caller that echoes none is refused on its next write exactly as if it had not read.
 
 ## Context
 

@@ -604,25 +604,29 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 		"-- An id you omit leaves its lines unwritable, which is the point.",
 		text, start, end, total, total-end, next)
 
-	// ⚠ AN ASSERTION ABOUT WHAT TO SEND, NOT A GUARD AGAINST DOING THE WORK. The
-	// composing has already happened when this runs, so it buys no memory back;
-	// what bounds the cost is `capped`, which stops the READ at the limit long
-	// before here. This exists so an over-cap answer is never DELIVERED, and it
-	// has to be here because only the composed page has its markers and footer.
+	// ⚠ THE ENCODED RESULT IS WHAT MUST FIT, measured with encodedSize — the
+	// function this file already uses for the grep paths, twenty lines up.
 	//
-	// ⚠ THE COMPOSED PAGE IS WHAT MUST FIT, and an earlier cut measured the raw
-	// buffer instead — before interleave added the markers and before this
-	// footer was appended. A line just under the cap therefore produced a page
-	// just over it: measured at 199,518 bytes checked against 200,142 delivered
-	// (sixth review of PR #132). The gate is here, after composition and BEFORE
-	// hold, so nothing is recorded as pending for a page that is never sent.
-	if len(report) > MaxResultChars {
+	// This took three attempts and each measured something that was not what a
+	// host receives. First the raw buffer, before interleave's markers and this
+	// footer. Then len(report), which omits the receipt and the JSON envelope:
+	// an ordinary one-line read composed a 199,794-byte report and delivered
+	// 200,004 bytes (seventh review of PR #132). The right primitive was in
+	// this file the whole time, used correctly a few functions away.
+	//
+	// It is an assertion about what to SEND, not a guard against doing the
+	// work: the composing has happened by now and `capped` is what bounds the
+	// cost, stopping the READ at the limit. What it buys is that an over-cap
+	// answer is never delivered — and it sits before hold, so nothing is
+	// recorded pending for a page that is never sent.
+	res := pagedResult(report, nil, problems, next)
+	if encodedSize(res) > MaxResultChars {
 		return callToolResult{}, false
 	}
 	if err := hold(root, observed, spans); err != nil {
 		return callToolResult{}, false
 	}
-	return pagedResult(report, nil, problems, next), true
+	return res, true
 }
 
 // openEnded reports the path and start line of a spec that asks for a whole
@@ -682,28 +686,25 @@ func overflowMessage(specs []string, cw *capped) string {
 	// acknowledges by line, so a line larger than the answer has no smaller
 	// unit to fall back to — say so, and name a reader that has one. Found by
 	// the sixth review of PR #132.
-	// The sample is capped at the limit, so a run of bytes with no newline in it
-	// is a line at LEAST that long. Half the budget is the threshold: a line
-	// that big cannot be served with room for the markers and footer a page
-	// needs, and mrw pages by line, so no narrower range exists to retry with.
-	// An average over countLines would not see this — the header's own newlines
-	// pull it down.
-	sample := cw.buf.Bytes()
-	longest := len(sample)
-	if i := bytes.LastIndexByte(sample, '\n'); i >= 0 {
-		if run := len(sample) - i - 1; run < longest {
-			longest = run
-		}
-		for _, line := range bytes.Split(sample, []byte{'\n'}) {
-			if len(line) > longest {
-				longest = len(line)
-			}
-		}
-	}
-	if n := suggestLines(cw.buf.Len(), countLines(&cw.buf)); longest >= cw.limit/2 || n < 1 {
-		fmt.Fprintf(&b, "One line of this file is at least %d characters, and mrw pages BY LINE — "+
-			"so no narrower range of it can be served, and retrying with one would fail the same "+
-			"way. Read it with the CLI, `mrw read`, which streams and has no such limit.", longest)
+	// ⚠ THE QUESTION IS WHETHER ANY CONTENT LINE COMPLETED INSIDE THE SAMPLE,
+	// not how long the longest run is. The sample is CAPPED at the limit, so a
+	// run measured inside it can never reach the limit — a threshold against
+	// the cap never fires, and half the cap fires far too often: a file of
+	// 110,000-character lines got "no narrower range can be served" while
+	// `file:1-1` is an ordinary 110 KB read that works. Both wrong, in
+	// opposite directions, in consecutive attempts (seventh review of PR #132).
+	//
+	// The served text opens with two header lines. If the sample holds no more
+	// newlines than that, the first CONTENT line never terminated inside a
+	// whole budget — so it cannot come back as a one-line result either, and
+	// mrw serves whole lines. That is the only case where no range helps.
+	const headerLines = 2
+	unterminated := countLines(&cw.buf) <= headerLines
+	if n := suggestLines(cw.buf.Len(), countLines(&cw.buf)); unterminated || n < 1 {
+		fmt.Fprintf(&b, "One line of this file renders to more than the whole %d-character limit, "+
+			"and mrw serves whole lines — so no narrower range of it can be served, and retrying "+
+			"with one would fail the same way. Read it with the CLI, `mrw read`, which streams and "+
+			"has no such limit.", cw.limit)
 	} else if len(specs) == 1 && !strings.Contains(specs[0], ":") {
 		fmt.Fprintf(&b, "Ask for a range instead — for example %s:1-%d.", specs[0], n)
 	} else {
@@ -994,13 +995,33 @@ func nameTheAck(root string, res *apply.Result) {
 	// real.txt and written as link.txt is one file to the ledger — and this
 	// remedy, matching literal strings, used to go missing for exactly the
 	// caller who most needs it. Found by the review of PR #132.
-	pendingFor := make([]string, 0, len(store))
-	for _, p := range store {
-		pendingFor = append(pendingFor, p.Path)
-	}
 	for i := range res.Hunks {
 		h := &res.Hunks[i]
-		if !strings.Contains(h.Reason, "has not been read") || !anySameFile(root, h.Path, pendingFor) {
+		if !strings.Contains(h.Reason, "has not been read") {
+			continue
+		}
+		// ⚠ THE REFUSED ADDRESS MUST INTERSECT A PENDING SPAN. Appending the
+		// remedy whenever the FILE has anything pending tells a caller to
+		// acknowledge a page that cannot license the line they asked for —
+		// lines 1-1000 pending, line 2000 refused, "send ack" (seventh review
+		// of PR #132). A refusal naming a fix that cannot work is the failure
+		// ADR-015 exists to prevent, wearing the shape of help.
+		start, end, known := addrRange(h.Addr)
+		covers := false
+		for _, p := range store {
+			if p.Path != h.Path && !anySameFile(root, h.Path, []string{p.Path}) {
+				continue
+			}
+			// An address mrw could not resolve to numbers — a pattern, or $ —
+			// is treated as possibly covered. Being wrong here costs a caller
+			// one unnecessary sentence; being silent costs the caller who WAS
+			// working from that page the only remedy they had.
+			if !known || (p.End >= start && p.Start <= end) {
+				covers = true
+				break
+			}
+		}
+		if !covers {
 			continue
 		}
 		h.Reason += ". A page of this file was served but never acknowledged, and an " +
@@ -1025,4 +1046,23 @@ func anySameFile(root, path string, candidates []string) bool {
 		}
 	}
 	return false
+}
+
+// addrRange reads the line span out of an address as the caller wrote it, so a
+// refusal's remedy can be matched against what is actually pending. A pattern
+// or a $ has no numbers to read and reports known=false.
+func addrRange(addr string) (start, end int, known bool) {
+	lo, hi, ok := strings.Cut(addr, "-")
+	a, err := strconv.Atoi(strings.TrimSpace(lo))
+	if err != nil {
+		return 0, 0, false
+	}
+	if !ok {
+		return a, a, true
+	}
+	b, err := strconv.Atoi(strings.TrimSpace(hi))
+	if err != nil {
+		return a, a, true
+	}
+	return a, b, true
 }

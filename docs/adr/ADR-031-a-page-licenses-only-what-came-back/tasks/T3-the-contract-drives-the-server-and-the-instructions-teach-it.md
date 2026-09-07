@@ -101,7 +101,7 @@ is asserted against the built server rather than against a grep of the source.
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
 - 2026-09-07 · ba6aecd* · mutant killed · exit 1 · `internal/mcp/instructions.go` · the instructions stop requiring both markers and the count. It SURVIVED twice before: once when the fence checked only the token ack, and again when it checked only the heading A PAGE LICENSES NOTHING. Checking a word is not checking the rule; checking the rule HEADING is not checking the rule either · acceptance-sha256:15bb7ed8ce28c05a2a8c3715a4d97e617c7ffbfe8bd56fae9890ff4b25cf3156 · covers:the instructions naming ack within the byte bound
-- 2026-09-07 · f0865c8* · mutant killed · exit 1 · `internal/mcp/ack.go` · the canonical rule is weakened at its single source, which now changes every surface at once — instructions, footer, README and AGENTS. Three earlier paraphrases drifted and two mutants survived against token and heading checks; this is the shape those gates could not see · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · covers:the instructions naming ack within the byte bound
+- 2026-09-07 · f0865c8* · mutant killed · exit 1 · `internal/mcp/ack.go` · the canonical rule is weakened at its single source, which changes every surface BUILT from it — instructions, footer, refusal, both schemas — and makes the README and AGENTS checks fail until somebody updates those two by hand. Three earlier paraphrases drifted and two mutants survived against token and heading checks; this is the shape those gates could not see · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · covers:the instructions naming ack within the byte bound
 
 ## Invariants
 
@@ -148,3 +148,4 @@ exists asserts nothing, and finding that out here is the point of S1.
 - 2026-09-07 · c617934* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:30160
 - 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:32184
 - 2026-09-07 · fc95241* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:32108
+- 2026-09-07 · c9f747b* · exit 0 · `set -o pipefail …` · acceptance-sha256:cdb4e95e7f640dff5456dd1b3028eba624c69c724d0e68ef2d46bc0e6c06f3bb · ms:41626
