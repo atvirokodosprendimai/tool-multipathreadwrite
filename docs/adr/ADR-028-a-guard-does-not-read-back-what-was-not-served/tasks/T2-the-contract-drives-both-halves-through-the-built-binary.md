@@ -19,7 +19,7 @@ failed anchor on a served line still quotes it.
 
 | File | Change | Why |
 |------|--------|-----|
-| `scripts/contract.sh` | edit | New `# 65.` section. A unit test proves the ordering inside the package; it cannot prove the shipped binary has it, which is why §53 exists. This is also the only place the two halves are asserted against one binary in one run. |
+| `scripts/contract.sh` | edit | New `# 66.` section. A unit test proves the ordering inside the package; it cannot prove the shipped binary has it, which is why §53 exists. This is also the only place the two halves are asserted against one binary in one run. ⚠ It was authored as `# 65.`, which ADR-027 already owned; the number moved to 66 in review, and the two `bd73ee0` Mutation Log entries below still name §65 because that is what they were written against. |
 
 ## Ordered Steps
 
@@ -71,6 +71,10 @@ the entry gives. Kept rather than removed, because "the run that motivated the c
 isolate the mechanism" is itself the finding, and it is what S7 exists for. The `7d75c3a` entry runs
 against one fresh fixture per case and discriminates cleanly. Marked on the sixth Codex review of
 PR #128.
+⚠ **The two `bd73ee0` entries say §65, which is this section's authoring number.** It collided with
+ADR-027's and became §66 in review; the entries are tool-written and are left as they ran. Read §65
+in them as §66. Found by the seventh Codex review of PR #128, alongside the same stale number in the
+Affected Files table above, which is prose and IS corrected.
 - 2026-09-07 · bd73ee0* · mutant killed · exit 1 · `internal/apply/apply.go` · the built binary reads back the unserved line again, so §65 sees the sentinel in the refusal — the row drives the shipped binary, which the unit test cannot · acceptance-sha256:7d34cb49b2d0d244d0de5c079bb7bf76eec57211b01fd9580e8adfe9eeae1a71 · covers:the built binary printing no unserved line on a failed anchor
 - 2026-09-07 · bd73ee0* · mutant killed · exit 1 · `internal/apply/apply.go` · the built binary stops checking anchors, so the served-line half of §65 no longer sees the line quoted and the row goes red rather than crediting a removal as a fix · acceptance-sha256:7d34cb49b2d0d244d0de5c079bb7bf76eec57211b01fd9580e8adfe9eeae1a71 · covers:the built binary still quoting a served line
 - 2026-09-07 · eed0cd4* · mutant killed · exit 1 · `internal/apply/apply.go` · insert-before reverts to the old ordering in the built binary, so §66 sees the sentinel in the refusal for that op while replace and delete stay clean · acceptance-sha256:7cc5f992045a9f073f8bb609eca768382330e3717a607bbc77cf7f2a0c15e731 · covers:the built binary printing no unserved line on a failed anchor
