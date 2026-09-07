@@ -3103,9 +3103,10 @@ out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mr
 # the belief a host's truncation falsified on 2026-09-05. Acknowledging every
 # checkpoint is what a caller that received the whole page does, and the row's
 # own claim is unchanged: the PAGE is licensed, the file is not.
-cks=$(python3 - "$out" <<'PY'
+printf '%s' "$out" > "$R/page.json"   # via a file: a page exceeds Linux's 128 KB argv limit
+cks=$(python3 - "$R/page.json" <<'PY'
 import json,re,sys
-r=json.loads(sys.argv[1])["result"]
+r=json.load(open(sys.argv[1]))["result"]
 print(",".join('"%s"' % c for c in re.findall(r"^-- ck ([0-9a-f]{16}) open ", r["content"][0]["text"], re.M)))
 PY
 )
@@ -4042,10 +4043,16 @@ pathlib.Path(sys.argv[1], "big.txt").write_text("".join("line %d\n" % i for i in
 PY
 out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["big.txt"]}}}\n' | m mcp 2>/dev/null)
 want 0 $? "the server answers a read that must page"
-page="$out"   # the page text, kept because $out is reused by every write below
-cks=$(python3 - "$out" <<'PY'
+# the page is kept in $R/page.json below: $out is reused by every write
+# ⚠ THE PAGE GOES THROUGH A FILE, NOT THROUGH ARGV. Linux caps a single
+# argument at 128 KB (MAX_ARG_STRLEN) while macOS does not, so passing a
+# 200 KB page as sys.argv[1] worked locally and died on CI with "Argument
+# list too long" — and the row then reported the FEATURE missing rather
+# than the harness broken.
+printf '%s' "$out" > "$R/page.json"
+cks=$(python3 - "$R/page.json" <<'PY'
 import json,re,sys
-r=json.loads(sys.argv[1])["result"]
+r=json.load(open(sys.argv[1]))["result"]
 print(" ".join(re.findall(r"^-- ck ([0-9a-f]{16}) open ", r["content"][0]["text"], re.M)))
 PY
 )
@@ -4083,9 +4090,9 @@ want 0 $? "an acknowledged segment licenses its own lines"
 # ids and writes only line 1, so the last id could be ignored entirely and the
 # section would still pass — found by the review of PR #132. The last span's
 # range is read out of its own open marker rather than assumed.
-lastspan=$(python3 - "$page" "$last" <<'PY'
+lastspan=$(python3 - "$R/page.json" "$last" <<'PY'
 import json,re,sys
-r=json.loads(sys.argv[1])["result"]
+r=json.load(open(sys.argv[1]))["result"]
 m=re.search(r"^-- ck %s open lines (\d+)-(\d+) " % re.escape(sys.argv[2]), r["content"][0]["text"], re.M)
 print(m.group(1) if m else "")
 PY
