@@ -76,7 +76,11 @@ before=$(ls "$B" 2>/dev/null | wc -l | tr -d ' ')
 
 ## Mutation Log
 
+- 2026-09-07 · 882fdea* · mutant killed · exit 1 · `scripts/contract.sh` · the pin is assigned but not EXPORTED, so no child process sees it and every fixture writes to the real state base again — the whole defect, and the one-word spelling of it that looks correct · acceptance-sha256:2f97e180302c678f203201b70af2cbbf047b70abcbe863f7b567e7c115038097 · covers:a contract run adds no entry to the real state base
+
 ## Verification Log
+
+- 2026-09-07 · 882fdea* · exit 0 · `set -o pipefail …` · acceptance-sha256:2f97e180302c678f203201b70af2cbbf047b70abcbe863f7b567e7c115038097 · ms:24248
 
 ## Invariants
 

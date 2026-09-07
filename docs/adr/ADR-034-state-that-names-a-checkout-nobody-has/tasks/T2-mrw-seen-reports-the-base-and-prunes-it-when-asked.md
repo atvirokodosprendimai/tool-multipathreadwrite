@@ -84,7 +84,15 @@ go test ./cmd/mrw/ -count=1 -v \
 
 ## Mutation Log
 
+- 2026-09-07 · 882fdea* · mutant killed · exit 1 · `cmd/mrw/main.go` · the --prune flag is parsed and never acted on, so the command prints the ledger and removes nothing — a flag that exists and does nothing · acceptance-sha256:f98379ddd2ebf26ac7323976eb5baeabdcbc3ec0b732ebba67e04e5038639609 · covers:the flag is the only way to delete
+- 2026-09-07 · 882fdea* · mutant killed · exit 1 · `cmd/mrw/main.go` · --dry-run is dropped on the way in, so the preview deletes — the flag a caller reaches for precisely because they are not sure · acceptance-sha256:f98379ddd2ebf26ac7323976eb5baeabdcbc3ec0b732ebba67e04e5038639609 · covers:a dry run deletes nothing
+- 2026-09-07 · 882fdea* · mutant killed · exit 1 · `cmd/mrw/main.go` · the count line is printed BEFORE the directory, so `mrw seen | head -1` stops naming the state directory and contract section 54 reads a comment as a path · acceptance-sha256:f98379ddd2ebf26ac7323976eb5baeabdcbc3ec0b732ebba67e04e5038639609 · covers:the state directory is still the first line
+
 ## Verification Log
+
+- 2026-09-07 · 882fdea* · exit 0 · `set -o pipefail …` · acceptance-sha256:f98379ddd2ebf26ac7323976eb5baeabdcbc3ec0b732ebba67e04e5038639609 · ms:15691
+- 2026-09-07 · 882fdea* · exit 0 · `set -o pipefail …` · acceptance-sha256:f98379ddd2ebf26ac7323976eb5baeabdcbc3ec0b732ebba67e04e5038639609 · ms:15606
+- 2026-09-07 · 882fdea* · exit 0 · `set -o pipefail …` · acceptance-sha256:f98379ddd2ebf26ac7323976eb5baeabdcbc3ec0b732ebba67e04e5038639609 · ms:14934
 
 ## Invariants
 

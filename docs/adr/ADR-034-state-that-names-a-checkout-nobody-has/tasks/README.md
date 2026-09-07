@@ -19,10 +19,10 @@ This README is a derived index — when it disagrees with a task file, the task 
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The state base can describe itself, and drop only its dead | pending | — | `go test ./internal/state/ -run 'TestOnlyAnEntryWhoseCheckoutIsGoneIsPruned…' …` |
-| T2 | `mrw seen` reports the base, and prunes it when asked | pending | — | `go test ./cmd/mrw/ -run 'TestSeenPruneRemovesOnlyTheDeadEntries…' …` |
-| T3 | The contract drives the prune, and the docs say it exists | pending | — | `grep -q '^# 71\. ' scripts/contract.sh && ./scripts/contract.sh` |
-| T4 | The gate stops producing what the prune removes | pending | — | a full `contract.sh` run leaves the real state base's entry count unchanged |
+| T1 | The state base can describe itself, and drop only its dead | done | — | `go test ./internal/state/ -run 'TestOnlyAnEntryWhoseCheckoutIsGoneIsPruned…' …` |
+| T2 | `mrw seen` reports the base, and prunes it when asked | done | — | `go test ./cmd/mrw/ -run 'TestSeenPruneRemovesOnlyTheDeadEntries…' …` |
+| T3 | The contract drives the prune, and the docs say it exists | done | — | `grep -q '^# 71\. ' scripts/contract.sh && ./scripts/contract.sh` |
+| T4 | The gate stops producing what the prune removes | done | — | a full `contract.sh` run leaves the real state base's entry count unchanged |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

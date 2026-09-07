@@ -92,6 +92,11 @@ go test ./internal/state/ -count=1 -v \
 
 ## Mutation Log
 
+- 2026-09-07 · 882fdea · mutant killed · exit 1 · `internal/state/prune.go` · the unidentified guard goes, so an entry with no readable root marker is deleted — the one mistake here that re-reading a file cannot undo · acceptance-sha256:b9360ac7fdbee50aa8c145c8d3d246d7bd00d360be0113b75a1f8e4d4b90cc74 · covers:an unidentifiable entry is kept
+- 2026-09-07 · 882fdea* · mutant killed · exit 1 · `internal/state/prune.go` · the self guard never matches, so the entry for the root the caller is running in is deleted when that checkout has been removed underneath the process. ⚠ The obvious spelling — dropping the clause — leaves `self` unused and does NOT COMPILE, and a mutant that does not build proves nothing; this one keeps self live and never matches · acceptance-sha256:b9360ac7fdbee50aa8c145c8d3d246d7bd00d360be0113b75a1f8e4d4b90cc74 · covers:the running checkout's own entry is kept
+- 2026-09-07 · 882fdea* · mutant killed · exit 1 · `internal/state/prune.go` · the live guard goes, so a checkout that still exists loses its ledger and its next write is refused · acceptance-sha256:b9360ac7fdbee50aa8c145c8d3d246d7bd00d360be0113b75a1f8e4d4b90cc74 · covers:only an entry whose marker names a missing path is removed
+- 2026-09-07 · 882fdea* · mutant killed · exit 1 · `internal/state/prune.go` · dryRun is ignored, so the preview deletes — the flag a caller reaches for precisely because they are not sure · acceptance-sha256:b9360ac7fdbee50aa8c145c8d3d246d7bd00d360be0113b75a1f8e4d4b90cc74 · covers:a dry run removes nothing and reports the same list
+
 ## Verification Log
 
 - 2026-09-07 · fa14205* · exit 1 · `set -o pipefail …` · acceptance-sha256:b9360ac7fdbee50aa8c145c8d3d246d7bd00d360be0113b75a1f8e4d4b90cc74 · ms:10441
@@ -122,6 +127,10 @@ go test ./internal/state/ -count=1 -v \
   ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state	1.216s
   FAIL
   ```
+- 2026-09-07 · 882fdea · exit 0 · `set -o pipefail …` · acceptance-sha256:b9360ac7fdbee50aa8c145c8d3d246d7bd00d360be0113b75a1f8e4d4b90cc74 · ms:17659
+- 2026-09-07 · 882fdea* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9360ac7fdbee50aa8c145c8d3d246d7bd00d360be0113b75a1f8e4d4b90cc74 · ms:15795
+- 2026-09-07 · 882fdea* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9360ac7fdbee50aa8c145c8d3d246d7bd00d360be0113b75a1f8e4d4b90cc74 · ms:15348
+- 2026-09-07 · 882fdea* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9360ac7fdbee50aa8c145c8d3d246d7bd00d360be0113b75a1f8e4d4b90cc74 · ms:20270
 
 ## Invariants
 

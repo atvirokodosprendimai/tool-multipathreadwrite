@@ -89,7 +89,11 @@ grep -q '^# 71\. ' scripts/contract.sh \
 
 ## Mutation Log
 
+- 2026-09-07 · 882fdea* · mutant killed · exit 1 · `cmd/mrw/main.go` · the BUILT binary no longer prunes: section 71 must go red, which is what proves the row drives the binary rather than the Go tests. A unit test cannot prove the binary calls the function — the lesson section 53 was written for · acceptance-sha256:e44e06338ac4db500a1a3c0ff81c3265bc28ecb1a12ebc77fbf0e672a7fdc0fc · covers:the built binary removes the dead entry
+
 ## Verification Log
+
+- 2026-09-07 · 882fdea* · exit 0 · `set -o pipefail …` · acceptance-sha256:e44e06338ac4db500a1a3c0ff81c3265bc28ecb1a12ebc77fbf0e672a7fdc0fc · ms:32848
 
 ## Invariants
 
