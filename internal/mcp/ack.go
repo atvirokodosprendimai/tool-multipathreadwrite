@@ -33,6 +33,7 @@ package mcp
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -71,12 +72,16 @@ type pending struct {
 	Seq   int64  `json:"seq"`
 }
 
-// checkpoint returns an unguessable 8-hex-digit marker.
+// checkpoint returns a 16-hex-digit (64-bit) marker from crypto/rand.
 //
 // ⚠ Random, NOT a hash of the served text and not a counter. Both of those can
-// be derived by a caller that received nothing, which would make the whole
-// mechanism ceremony: the point is that a checkpoint can only be echoed by
-// someone it actually reached.
+// be DERIVED by a caller that received nothing. Randomness buys exactly that —
+// it does not stop an id being recalled while it is still pending, which is why
+// a pending entry is consumed on promotion.
+//
+// 8 hex digits (32 bits) was the first cut and is too few: against a 512-entry
+// store with nothing rate-limiting, hitting any live id is roughly 8.4 million
+// attempts (review of PR #132).
 func checkpoint() string {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -242,12 +247,22 @@ func promote(root string, acks []string) error {
 	if !changed {
 		return nil
 	}
-	// One Record per version. seen.merge REPLACES the observation when the SHA
-	// differs, so recording each version separately is also what keeps a stale
-	// acknowledgement from silently discarding a current one: whichever matches
-	// the file on disk is the one a write is checked against, and the others
-	// cannot contribute spans to it.
+	// ⚠ ONLY THE VERSION ON DISK IS RECORDED, and the rest are dropped.
+	//
+	// An earlier cut recorded one observation per version by ranging over a map.
+	// seen.merge REPLACES the observation when the SHA differs, so the last
+	// iteration won — and map order is random, which meant a STALE
+	// acknowledgement could overwrite a current, valid licence and consume both
+	// ids doing it. Found by the review of PR #132.
+	//
+	// A span acknowledged against a version that is no longer on disk cannot
+	// license anything anyway: the ledger's own SHA check refuses it. Dropping
+	// it is what it already meant, done deterministically.
 	for k, spans := range byVersion {
+		sha, err := currentSHA(root, k.path)
+		if err != nil || sha != k.sha {
+			continue
+		}
 		o := seen.Observation{SHA: k.sha, Spans: spans}
 		if err := seen.Record(root, map[string]seen.Observation{k.path: o}); err != nil {
 			return err
@@ -307,4 +322,15 @@ func savePending(root string, store map[string]pending) error {
 		return err
 	}
 	return os.WriteFile(p, b, 0o644)
+}
+
+// currentSHA is the digest of the file as it stands, in the same form the
+// ledger records, so promotion can tell a live acknowledgement from a stale one.
+func currentSHA(root, path string) (string, error) {
+	b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:]), nil
 }

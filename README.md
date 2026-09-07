@@ -462,7 +462,7 @@ startup, so a host log answers "which checkout is this?" without guessing.
 
 **A read over MCP is bounded; the CLI is not.** `mrw_read` will not return more
 than 200,000 characters in one call. A request over that comes back as the FIRST
-PAGE — the lines that fit, `isError: true`, and a `next_read` field naming the
+PAGE — the lines that fit, a `next_read` field naming the
 spec that asks for the rest. Send it to continue, and repeat until `next_read`
 is absent; its absence is how a caller knows it has the whole file, and each
 page licenses a write to exactly the lines it served **that you acknowledge**. Nothing is ever
@@ -472,9 +472,11 @@ what remains. Naming several specs at once cannot page — mrw cannot know which
 of them to narrow — so that case is still refused outright, with the limit and a
 
 ⚠ **A page licenses nothing until you acknowledge it** (ADR-031). Its served text carries `-- ck`
-markers every 200 lines; pass the ones you ACTUALLY RECEIVED as `ack` on your next `mrw_read` or
-`mrw_write`, and each promotes the lines above it. Omit one and those lines stay unwritable, which is
-the point: on 2026-09-05 a host cut the middle out of a 2,727-line page, the model saw the two ends,
+markers: each run of 200 lines is BRACKETED by `-- ck <id> open lines A-B (N lines follow)` and
+`-- ck <id> close`. Pass an id as `ack` on your next `mrw_read` or `mrw_write` **only if you hold
+both markers and counted the N numbered `NNN|` lines between them** — one marker is not enough,
+because a cut that begins inside a span leaves the other end. Omit an id and its lines stay
+unwritable, which is the point: on 2026-09-05 a host cut the middle out of a 2,727-line page, the model saw the two ends,
 mrw recorded the whole thing, and a write to a line in the discarded middle applied at exit 0. mrw
 cannot see that from inside the server — a cut result and a delivered one are identical to it — so
 the licence comes from the caller rather than from the send. The CLI takes no `ack` and needs none:

@@ -18,7 +18,7 @@ Measured 2026-09-05 on Claude Code 2.1.261 at `d6c62e7`, recorded in
 
     mrw_read of a 3,619-line file  -> ADR-014's first page, lines 1-2727
     what the model received        -> lines 1-90, "[141140 characters truncated]", lines 2644-2727
-    mrw seen                       -> lines 1-3619
+    mrw seen                       -> lines 1-2727 (the page, recorded whole)
     @@ f.txt 1500 replace          -> ok, exit 0
 
 Line 1500 is inside the discarded middle. **ADR-002 inverted**: mrw edited a file on the strength of
@@ -143,7 +143,8 @@ See `docs/adr/ADR-031-a-page-licenses-only-what-came-back/tasks/README.md`.
   write to anything it read through a paged response. That is a breaking change for every existing
   MCP caller, it fails safe, and the page footer says exactly what to send.
 - **Negative:** the served text grows by TWO short lines per N lines. At N=200 a 2,727-line page pays
-  twenty-eight, still under one percent.
+  twenty-eight marker lines, 1.03% of it — the first draft said "under one percent", which is the
+  kind of number worth getting right in a record that spends its length on precision.
 - **Negative, and named because it is the honest limit:** a cut that falls entirely between two spans
   — removing whole spans and nothing else — is indistinguishable to the caller from a page that never
   contained them, unless it notices the gap in the stated line ranges. The ranges are printed for

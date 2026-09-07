@@ -122,8 +122,12 @@ func TestOnlyAckedSegmentsAreRecorded(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// The real digest: promotion records only the version ON DISK, because a
+	// span acknowledged against a version that is gone cannot license anything
+	// and the ledger's SHA check would refuse it anyway.
+	sum0 := sha256.Sum256([]byte(body))
 	_, spans := interleave(served(1, 500))
-	obs := map[string]seen.Observation{"f.txt": {SHA: "deadbeef", Spans: [][2]int{{1, 500}}}}
+	obs := map[string]seen.Observation{"f.txt": {SHA: hex.EncodeToString(sum0[:]), Spans: [][2]int{{1, 500}}}}
 	if err := hold(root, obs, spans); err != nil {
 		t.Fatal(err)
 	}
@@ -265,5 +269,52 @@ func TestAStaleAcknowledgementDoesNotLicenseTheCurrentFile(t *testing.T) {
 	o := l["f.txt"]
 	if o.SHA == "1111bbbb" && o.Covers(1, 200) {
 		t.Errorf("a span acknowledged against the OLD file is licensed under the CURRENT sha: %s %s", o.SHA, o.Served())
+	}
+}
+
+// TestAStaleAcknowledgementDoesNotRevokeTheCurrentOne is the other half, and the
+// review of PR #132 found it missing. Recording one observation per version by
+// ranging over a map let map ORDER decide the outcome, and seen.merge replaces
+// on a SHA change — so a stale acknowledgement could overwrite a valid current
+// licence and consume both ids doing it.
+func TestAStaleAcknowledgementDoesNotRevokeTheCurrentOne(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	body := strings.Repeat("y\n", 500)
+	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256([]byte(body))
+	live := hex.EncodeToString(sum[:])
+
+	_, stale := interleave(served(1, 200))
+	_, current := interleave(served(201, 400))
+	var staleCk, curCk string
+	for ck := range stale {
+		staleCk = ck
+	}
+	for ck := range current {
+		curCk = ck
+	}
+	if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: "00000000deadbeef"}}, stale); err != nil {
+		t.Fatal(err)
+	}
+	if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: live}}, current); err != nil {
+		t.Fatal(err)
+	}
+	// Both in one call, repeatedly: map order is not stable, so a single run
+	// could pass by luck.
+	for i := 0; i < 20; i++ {
+		if err := promote(root, []string{staleCk, curCk}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	l, err := seen.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := l["f.txt"]
+	if o.SHA != live || !o.Covers(201, 400) {
+		t.Errorf("the CURRENT licence did not survive a stale acknowledgement in the same call: sha=%s served=%s", o.SHA, o.Served())
 	}
 }

@@ -599,9 +599,11 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 	report := fmt.Sprintf("%s\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
 		"-- Send specs [%q] to continue, or a narrower range of your own.\n"+
 		"-- Stopping here means you have part of this file, not the file.\n"+
-		"-- This page licenses NOTHING until you acknowledge it: send ack:[…] with the\n"+
-		"-- `-- ck` values above, and send only the ones you actually received. Each\n"+
-		"-- covers the lines before it; one you omit stays unwritable.",
+		"-- This page licenses NOTHING until you acknowledge it. Send ack:[…] with an id\n"+
+		"-- ONLY IF you hold BOTH its `-- ck <id> open` and `-- ck <id> close` markers AND\n"+
+		"-- counted the N numbered `NNN|` lines the open marker says follow. Holding one\n"+
+		"-- marker is not enough: a cut that starts inside a span leaves the other end.\n"+
+		"-- An id you omit leaves its lines unwritable, which is the point.",
 		text, start, end, total, total-end, next)
 	return pagedResult(report, nil, problems, next), true
 }
@@ -943,17 +945,41 @@ func nameTheAck(root string, res *apply.Result) {
 	if err != nil || len(store) == 0 {
 		return
 	}
-	pendingFor := map[string]bool{}
+	// ⚠ Compared by FILE IDENTITY, not by spelling. internal/apply treats a
+	// symlink or a case-only variant as one file (ADR-029), so a page read as
+	// real.txt and written as link.txt is one file to the ledger — and this
+	// remedy, matching literal strings, used to go missing for exactly the
+	// caller who most needs it. Found by the review of PR #132.
+	pendingFor := make([]string, 0, len(store))
 	for _, p := range store {
-		pendingFor[p.Path] = true
+		pendingFor = append(pendingFor, p.Path)
 	}
 	for i := range res.Hunks {
 		h := &res.Hunks[i]
-		if !pendingFor[h.Path] || !strings.Contains(h.Reason, "has not been read") {
+		if !strings.Contains(h.Reason, "has not been read") || !anySameFile(root, h.Path, pendingFor) {
 			continue
 		}
 		h.Reason += ". A page of this file was served but never acknowledged, and an " +
 			"unacknowledged page licenses nothing: send ack:[…] with the `-- ck` values you " +
 			"actually received"
 	}
+}
+
+// anySameFile reports whether path names the same file on disk as any of the
+// candidates, so an alias spelling is recognised the way apply recognises it.
+func anySameFile(root, path string, candidates []string) bool {
+	want, err := os.Stat(filepath.Join(root, filepath.FromSlash(path)))
+	if err != nil {
+		return false
+	}
+	for _, c := range candidates {
+		if c == path {
+			return true
+		}
+		got, err := os.Stat(filepath.Join(root, filepath.FromSlash(c)))
+		if err == nil && os.SameFile(want, got) {
+			return true
+		}
+	}
+	return false
 }

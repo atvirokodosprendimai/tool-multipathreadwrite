@@ -96,9 +96,11 @@ tools instead of the shell recipes below. The arguments are the same strings —
 `specs` is what you would pass to `mrw read`, `plan` is the file you would pass
 to `mrw write` — and every rule in this section applies unchanged, because it is
 the same engine and the same ledger — with ONE addition the CLI has no need of: a page licenses
-nothing until you acknowledge it. A paged read's text carries `-- ck <hex>` markers every 200 lines;
-send the ones you actually received as `ack` on your next call and each promotes the lines above it.
-Omit one and those lines stay unwritable. A host can cut a page before you see it, and mrw cannot
+nothing until you acknowledge it. A paged read brackets each run of 200 lines with
+`-- ck <id> open lines A-B (N lines follow)` and `-- ck <id> close`. Send an id as `ack` on your next
+call ONLY IF you hold both markers and counted the N numbered `NNN|` lines between them — one marker
+is not enough, since a cut beginning inside a span leaves the other end. Omit an id and its lines
+stay unwritable. A host can cut a page before you see it, and mrw cannot
 tell, which is what this exists for.
 
 `mrw read --grep P` maps onto the `grep` argument, and `--exclude` onto

@@ -36,6 +36,8 @@ Prove it in the BUILT server, over the wire, and tell a caller the rule where it
 set -o pipefail
 grep -q '^# 68\. ADR-031: a page licenses only what came back\.' scripts/contract.sh \
   && grep -q 'A PAGE LICENSES NOTHING' internal/mcp/instructions.go \
+  && grep -q 'BOTH its markers' internal/mcp/instructions.go \
+  && grep -q 'numbered NNN| lines' internal/mcp/instructions.go \
   && grep -q 'ack' internal/mcp/instructions.go \
   && grep -q 'ack' README.md \
   && grep -q 'ack' AGENTS.md \
@@ -66,7 +68,15 @@ grep -q '^# 68\. ADR-031: a page licenses only what came back\.' scripts/contrac
 
 ## Mutation Log
 
-⚠ **The `instructions.go` mutant below SURVIVED on its first run, and the fence was the reason.** It
+⚠ **An `instructions.go` mutant SURVIVED TWICE, and the fence was the reason both times.**
+The second run gutted the OPERATIVE CLAUSE — "only if you hold BOTH its markers AND counted the N
+numbered NNN| lines between them" became "only if you received it" — while the fence checked that
+the heading "A PAGE LICENSES NOTHING" was present, which it still was. The first survivor taught
+that checking a WORD is not checking the rule; the second taught that checking the rule's HEADING is
+not checking the rule either. The fence and the instruction-words contract row now match the clause
+that carries the requirement.
+
+⚠ **The first `instructions.go` mutant SURVIVED too, and the fence was the reason then as well.** It
 gutted the rule — "A PAGE LICENSES NOTHING" became "A page licenses everything" — while the fence
 only grepped for the token `ack`, which was still there. A gate that checks a word is present is not
 a gate that checks the rule is stated. The fence now matches the rule itself, and the contract row
@@ -79,6 +89,11 @@ is asserted against the built server rather than against a grep of the source.
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
 - 2026-09-07 · d95d79e* · mutant killed · exit 1 · `internal/mcp/instructions.go` · the instructions stop teaching the rule while the server still enforces it. It SURVIVED on its first run because the fence only grepped for the token ack; the fence now matches the rule, and the instruction-words contract row carries it too · acceptance-sha256:37066136ae42398cf0f39614a5e406b4c3ee603f14675da395711b9f98d180da · covers:the instructions naming ack within the byte bound
+- 2026-09-07 · ba6aecd* · mutant survived · exit 0 · `internal/mcp/instructions.go` · the instructions stop requiring both markers and the count, so a caller that received half a span acknowledges it — the mechanism brackets and the GUIDANCE defeats it, which is the P0 the second review of PR #132 found: an implementation is worth what its instructions say · acceptance-sha256:37066136ae42398cf0f39614a5e406b4c3ee603f14675da395711b9f98d180da · covers:the instructions naming ack within the byte bound
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-07 · ba6aecd* · mutant killed · exit 1 · `internal/mcp/instructions.go` · the instructions stop requiring both markers and the count. It SURVIVED twice before: once when the fence checked only the token ack, and again when it checked only the heading A PAGE LICENSES NOTHING. Checking a word is not checking the rule; checking the rule HEADING is not checking the rule either · acceptance-sha256:15bb7ed8ce28c05a2a8c3715a4d97e617c7ffbfe8bd56fae9890ff4b25cf3156 · covers:the instructions naming ack within the byte bound
 
 ## Invariants
 
@@ -108,3 +123,8 @@ exists asserts nothing, and finding that out here is the point of S1.
 - 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:37066136ae42398cf0f39614a5e406b4c3ee603f14675da395711b9f98d180da · ms:32291
 - 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:37066136ae42398cf0f39614a5e406b4c3ee603f14675da395711b9f98d180da · ms:29731
 - 2026-09-07 · dbe88d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:37066136ae42398cf0f39614a5e406b4c3ee603f14675da395711b9f98d180da · ms:30208
+- 2026-09-07 · ba6aecd* · exit 0 · `set -o pipefail …` · acceptance-sha256:37066136ae42398cf0f39614a5e406b4c3ee603f14675da395711b9f98d180da · ms:31749
+- 2026-09-07 · ba6aecd* · exit 0 · `set -o pipefail …` · acceptance-sha256:37066136ae42398cf0f39614a5e406b4c3ee603f14675da395711b9f98d180da · ms:35585
+- 2026-09-07 · ba6aecd* · exit 0 · `set -o pipefail …` · acceptance-sha256:37066136ae42398cf0f39614a5e406b4c3ee603f14675da395711b9f98d180da · ms:31928
+- 2026-09-07 · ba6aecd* · exit 0 · `set -o pipefail …` · acceptance-sha256:15bb7ed8ce28c05a2a8c3715a4d97e617c7ffbfe8bd56fae9890ff4b25cf3156 · ms:30121
+- 2026-09-07 · ba6aecd* · exit 0 · `set -o pipefail …` · acceptance-sha256:15bb7ed8ce28c05a2a8c3715a4d97e617c7ffbfe8bd56fae9890ff4b25cf3156 · ms:30024

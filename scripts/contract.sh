@@ -2204,7 +2204,7 @@ out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolV
 python3 - "$out" <<'PY'
 import json,sys
 i=json.loads(sys.argv[1])["result"]["instructions"]
-for w in ("--files-from","--check","--root","shell","serialized","ONE fixed checkout","ack","LICENSES NOTHING"):
+for w in ("--files-from","--check","--root","shell","serialized","ONE fixed checkout","ack","LICENSES NOTHING","BOTH its markers","numbered NNN| lines"):
     assert w in i, "the instructions never mention %r" % w
 # The routing must come BEFORE the format details. It is no longer literally
 # first: it is merged into the WHEN TO REACH paragraph, because a separate
@@ -4057,6 +4057,27 @@ print(" ".join(re.findall(r"^-- ck ([0-9a-f]{16}) open ", r["content"][0]["text"
 PY
 )
 [ -n "$cks" ] && ok "a paged read carries checkpoints a caller can echo" || bad "a paged read carries no checkpoint, so nothing can ever be acknowledged"
+# ⚠ AND THE BRACKET RULE THE PAGE NOW TELLS CALLERS TO FOLLOW. Extracting the
+# open markers proves the ids exist; it does not prove a caller can check what
+# the footer, the instructions, the README and AGENTS.md all now require —
+# BOTH markers present and the stated count of numbered lines between them.
+# The review of PR #132 found the protocol text and the mechanism disagreeing;
+# a row that only reads opens cannot see that.
+python3 - "$R/page.json" <<'PY'
+import json,re,sys
+t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"].split(chr(10))
+opens={}
+for i,l in enumerate(t):
+    m=re.match(r"^-- ck ([0-9a-f]{16}) open lines (\d+)-(\d+) \((\d+) lines follow\)$", l)
+    if m: opens[m.group(1)]=(i,int(m.group(4)))
+assert opens, "no open markers"
+for ck,(at,n) in opens.items():
+    close=[i for i,l in enumerate(t) if l=="-- ck %s close" % ck]
+    assert close, "checkpoint %s has no close marker, so a cut caller cannot tell it holds the whole span" % ck
+    got=sum(1 for l in t[at+1:close[0]] if re.match(r"^ *\d+\|", l))
+    assert got==n, "checkpoint %s says %d lines follow but %d numbered lines sit between its markers" % (ck,n,got)
+PY
+want 0 $? "every checkpoint brackets its span and the count matches"
 # ⚠ Guarded, because  is on and this section must REPORT rather than
 # abort. Against a server without ADR-031 there are no checkpoints at all, and
 # an unguarded `shift` on an empty list took the whole script down with it —

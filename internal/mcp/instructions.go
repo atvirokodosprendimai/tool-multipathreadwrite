@@ -63,8 +63,7 @@ verdict for EVERY edit. The failure it exists to prevent: a read that finds
 nothing is obvious, a write that changes nothing is not.
 
 WHICH SURFACE. Reach for mrw when the task touches %s. Below that use your
-ordinary editor: it costs the same two calls and prints more bytes than the
-file holds.
+ordinary editor: it costs the same two calls and prints more than the file holds.
 
 Then choose. The CLI has the broader surface — only it has --files-from, --check
 (the project's tests, scoped to what you wrote), and the check, iter, seen and
@@ -76,10 +75,9 @@ parallel CLI processes race for it. With a shell, prefer the CLI; prefer this
 one with none, or when callers sharing ONE fixed checkout want writes serialized.
 
 THE TWO RULES THAT PRODUCE MOST REFUSALS.
-1. Read before you write, enforced per LINE, not per file. Being served lines
-   10-12 does not license an edit at line 50. mrw_read records the lines; a
-   read through any other tool licenses nothing.
-2. A plan is all or nothing. If any hunk fails, NOTHING is written and the
+1. Read before you write, per LINE not per file: served lines 10-12 do not
+   license an edit at line 50. Only mrw_read records lines.
+2. A plan is all or nothing. If any hunk fails NOTHING is written and the
    siblings report skipped, never ok.
 
 READING. mrw_read takes specs: a bare path, path:N, path:N-M, path:A,+N (A plus
@@ -87,16 +85,17 @@ the N lines after it), path:$ for the last line, or path:/regexp/ — the read
 finds its own site. Example: %v
 To find files you cannot NAME, set grep to a regexp: mrw walks your paths (or the
 root) and serves every match. Too large? You get an INDEX — one spec per file,
-no content — send it back as specs. exclude skips globs; no range with grep.
+no content — send back as specs. exclude skips globs; no range with grep.
 
 A read too large for one answer comes back as a PAGE: the lines that fit, a
--- PARTIAL: line, next_read naming the spec for the rest, and -- ck markers
-through the text. Repeat until next_read is absent; stopping early leaves you
-part of a file. A PAGE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT: pass ack with
-the -- ck values you actually RECEIVED, on your next read or write. Each covers
-the lines above it; omit one you did not receive and those lines stay
-unwritable — a host can cut a page before you see it, and mrw cannot tell.
-it, and mrw cannot tell.
+-- PARTIAL: line, next_read naming the spec for the rest, and markers BRACKETING
+each run — "-- ck <id> open lines A-B (N lines follow)", the lines, "-- ck <id>
+close". Repeat until next_read is absent; stopping early
+leaves you part of a file. A PAGE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT. Pass an id in ack only
+if you hold BOTH its markers AND counted the N numbered NNN| lines between them:
+one marker is not enough, since a cut starting inside a span leaves the other
+end. An id you omit leaves its lines unwritable. A host can cut a page
+before you see it and mrw cannot tell; this is how you can.
 
 WRITING. mrw_write takes one plan document. Each hunk is a header line
 
@@ -113,15 +112,14 @@ served to you. Paths are relative to the server's root; an absolute one is
 refused by name, and two spellings of ONE file (case, or a symlink) are one
 file: a plan naming both is refused.
 
-Guards are optional and checked on every op, insertions included: sha=<hex> for
-the whole file, lines=<n> for the addressed span, anchor="<text>" for the first
-addressed line. If a BODY line begins with @@, declare body=<n> and raw=true or
-the plan is refused.
+Guards are optional, checked on every op: sha=<hex> for the whole file, lines=<n>
+for the addressed span, anchor="<text>" for the first addressed line. If a BODY
+line begins with @@, declare body=<n> and raw=true or the plan is refused.
 
 A worked plan:
 
 %s
-Pass dry_run true for the same receipt without writing. A refusal is the tool
-working: it names the file, the plan line and the reason.
+Pass dry_run true for the same receipt, no write. A refusal is the tool working:
+it names the file, the plan line and the reason.
 `, triggerRule, exampleReadSpecs, examplePlan)
 }

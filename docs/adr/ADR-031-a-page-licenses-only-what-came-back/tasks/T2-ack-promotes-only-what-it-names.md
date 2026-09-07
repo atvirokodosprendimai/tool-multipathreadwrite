@@ -73,6 +73,12 @@ read-side promotion left everything green; the table asserted `Covers` rather th
 writes; and §68 sent two ids while writing only into the first. Each now has a test, and the entries
 below post-date them.
 
+⚠ **And the round that fixed those found a P0 of its own: the MECHANISM was bracketed while every
+piece of caller guidance still said "the lines above it, send what you received".** A caller
+following the instructions would acknowledge a span it had only half received, which is the defect
+the brackets exist to prevent — the implementation was right and worth nothing. The footer, the MCP
+instructions, `README.md` and `AGENTS.md` all state the both-markers-and-count rule now.
+
 - 2026-09-07 · d95d79e* · mutant killed · exit 1 · `internal/mcp/ack.go` · promotion records a WHOLE-file observation instead of the acknowledged span, so acking one checkpoint licenses the entire file — the middle nobody received included · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · covers:an acked checkpoint promoting exactly its own span
 - 2026-09-07 · d95d79e* · mutant killed · exit 1 · `internal/mcp/tools.go` · the refusal stops naming the remedy, so a caller meets "has not been read" for a page it was sent and is told nothing about ack — ADR-015 says a refusal names the fix · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · covers:an unacked span licensing nothing
 - 2026-09-07 · dbe88d0* · mutant killed · exit 1 · `internal/mcp/ack.go` · promotion stops distinguishing file versions, so a stale acknowledgement and a current one merge and old spans are recorded against the current file — the second P0 the review of PR #132 found · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · covers:an acked checkpoint promoting exactly its own span
@@ -105,3 +111,5 @@ Stop and ask if promotion needs `internal/seen` to change shape — the spans ar
 - 2026-09-07 · d95d79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:31852
 - 2026-09-07 · dbe88d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:30570
 - 2026-09-07 · dbe88d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:43525
+- 2026-09-07 · ba6aecd* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:30422
+- 2026-09-07 · ba6aecd* · exit 0 · `set -o pipefail …` · acceptance-sha256:56737d912f453189e61cc8dbdacd0a2f2d54685176185c78827a35eb3634bec8 · ms:38542

@@ -1179,9 +1179,17 @@ func TestAckOnAReadPromotesToo(t *testing.T) {
 		t.Fatal("a paged read carries no checkpoints")
 	}
 
-	// Acknowledge through a READ, not a write: ask for a narrow range and carry
-	// the previous page's ids along.
-	call(t, root, "mrw_read", map[string]any{"specs": []any{path + ":1-1"}, "ack": acks})
+	// ⚠ The acknowledging read must not license the tested line BY ITSELF. The
+	// first version of this test acked on a read of line 1 and then wrote line
+	// 1 — which readTool's ordinary seen.Record licensed regardless, so
+	// deleting read-side promotion left it green. Found by the review of PR
+	// #132. It reads a DIFFERENT file, so the only thing that can license line
+	// 1 of this one is the ack it carried.
+	other := filepath.Join(root, "other.txt")
+	if err := os.WriteFile(other, []byte("only\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	call(t, root, "mrw_read", map[string]any{"specs": []any{"other.txt"}, "ack": acks})
 
 	// The write carries no ack of its own, so anything licensed here was
 	// licensed by the READ.
