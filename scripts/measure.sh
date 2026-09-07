@@ -265,9 +265,15 @@ measure "D. One site in every Go file — the shape mrw is for" "${DSPECS[@]}"
 # is a claim, not a measurement". Measuring it by hand and pasting the result was
 # the same defect one level up. Found by the Codex review of #136.
 #
-# The fixture is synthetic and uniform on purpose — 20,000 identical 53-byte
-# lines — so the gutter is isolated from any variation in line length. awk
-# generates it rather than python3, which this script does not otherwise need.
+# The fixture is synthetic and uniform on purpose — 20,000 lines of IDENTICAL
+# LENGTH (52 characters plus the newline, so 53 bytes each, 1,060,000 total) but
+# DISTINCT content (`item%05d`, all 20,000 different) — so the gutter is isolated
+# from any variation in line length while the file stays realistic.
+# ⚠ This comment said "20,000 identical 53-byte lines" until 2026-09-08, which is
+# not what the awk below generates and is the kind of wrong that propagates: the
+# phrase was repeated verbatim into a peer project's copy and into README.md by
+# two readers who trusted it rather than reading the generator one line down.
+# awk generates it rather than python3, which this script does not otherwise need.
 spans() {
   local dir big whole n w m
   dir=$(mktemp -d "$SCRATCH/span-XXXXXX")
