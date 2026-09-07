@@ -591,21 +591,93 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 			}
 		}
 
-		// An op that cannot honour a relative end refuses it HERE as well as in
-		// plan.validate. The plan parser protects the CLI and the MCP server,
-		// but Apply is a public entry point this repository's own tests call
-		// directly, and its doc comment says it validates every hunk. A create
-		// took the branch below before the relative end was ever resolved, and
-		// an insertion computed an end and then used only the start — both
-		// reporting ok for an address they half-ignored. Second Codex review of
-		// PR #125.
+		// THE ENGINE REFUSES WHAT THE PARSER REFUSES (ADR-030). plan.validate
+		// protects the CLI, the MCP server and the curve scorer, because each
+		// builds its Inputs from plan.Parse. Apply is a public entry point whose
+		// doc comment says it validates every hunk, and this repository's own
+		// tests build Inputs directly — so every rule of validate's that does
+		// not need the parse tree is asserted again here, with validate's own
+		// message, so the two sites cannot say different things about one
+		// mistake. It cannot call validate: internal/apply importing
+		// internal/plan inverts the dependency the split exists to keep.
+		//
+		// ⚠ THE LIST CAME FROM ENUMERATION, NOT MEMORY. ADR-026 closed this hole
+		// for a relative end and ADR-027 for a body-less create, each assuming
+		// it was the last. Driving Apply with the shapes that came to mind found
+		// seven open, including a `replace` with no body that DELETED the
+		// addressed lines and reported ok — and THAT pass was itself incomplete,
+		// because probing shapes is not walking validate's branches. Two more
+		// came out of the branch walk in review.
+		//
+		// ⚠ THIS BLOCK RUNS BEFORE RESOLUTION, so the pattern fields are still
+		// here to be asked about — StartPat and EndPat are on Input and on the
+		// hunk, and resolution happens further down. An earlier cut of this
+		// comment said the opposite: that a pattern had already been resolved by
+		// the time Apply could look, and that validate's `patterned` gate
+		// therefore could not be mirrored. Both halves were false, and a
+		// patterned create and a patterned insertion range were accepted while
+		// the comment explained why they could not be checked. `patterned` is
+		// not a rule at all — it is a gate choosing WHICH rule applies — and
+		// both sides of it are mirrored below.
 		if h.Op == "create" && len(h.Body) == 0 && !h.CountedBody {
 			fail(h, "create with an empty body: say body=0 if you mean an empty file, "+
 				"and check the body did not go missing if you do not")
 			continue
 		}
-		if h.RelEnd > 0 && (h.Op == "create" || h.Op == "insert-after" || h.Op == "insert-before") {
-			fail(h, "%s takes a single line, not the range %s", h.Op, h.SrcAddr)
+		// A pattern IS an address, so a create refuses it exactly as it refuses
+		// a line number — and the engine CAN ask, because Input carries both
+		// pattern fields and this block runs before resolution. An earlier cut
+		// of ADR-030 named this rule "deliberately absent, unresolvable here",
+		// which was false twice over: the field is right there, and a patterned
+		// create was accepted. Found by the review of PR #130, on the question
+		// the record said it must not get wrong.
+		if h.Op == "create" && h.StartPat != nil {
+			fail(h, "create takes no address, use %q", "-")
+			continue
+		}
+		if h.Op == "create" && (h.Start != 0 || h.End != 0) {
+			fail(h, "create takes no address, use %q", "-")
+			continue
+		}
+		if h.Op == "create" && h.RelEnd > 0 {
+			fail(h, "create takes no address, so it takes no relative end either: use %q", "-")
+			continue
+		}
+		if h.Op == "create" && (h.Anchor != "" || h.Lines >= 0) {
+			fail(h, "create takes no anchor= or lines= (the file must not exist yet)")
+			continue
+		}
+		if h.Op == "insert-after" || h.Op == "insert-before" {
+			// A RANGE is a range however it was written, and an insertion
+			// addresses one line. The relative-end form is the same mistake
+			// spelled differently, which is why it is refused beside it.
+			// A RANGE is a range however it was written — two patterns, two
+			// line numbers, or a relative end — and an insertion addresses one
+			// line. The pattern form is checked FIRST because it is the one the
+			// numeric comparison cannot see: an unresolved pattern range has
+			// Start == End == 0, so it passed the check below, resolved later,
+			// and then silently used the start and ignored the end the caller
+			// wrote. The wording is validate's own, which differs between the
+			// two forms because only one of them has a range to name yet.
+			if h.EndPat != nil {
+				fail(h, "%s takes a single line, not a range", h.Op)
+				continue
+			}
+			if h.RelEnd > 0 || h.Start != h.End {
+				fail(h, "%s takes a single line, not the range %s", h.Op, h.SrcAddr)
+				continue
+			}
+			if len(h.Body) == 0 {
+				fail(h, "%s with an empty body would change nothing", h.Op)
+				continue
+			}
+		}
+		// The one that matters most: a body lost in transit is indistinguishable
+		// from a body never written, and this shape removed code while handing
+		// back a receipt that said it succeeded.
+		if h.Op == "replace" && len(h.Body) == 0 {
+			fail(h, "replace with an empty body would delete %s — say delete if that is "+
+				"what you mean, and check the body did not go missing if it is not", h.SrcAddr)
 			continue
 		}
 

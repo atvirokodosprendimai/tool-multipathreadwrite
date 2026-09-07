@@ -1016,3 +1016,21 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   ADR-029's Alternatives rejects because `mrw seen` prints the keys the caller
   typed. Promote it if a caller reports the refusal in the wild; the entry
   exists so the next reader does not mistake it for part of ADR-029.
+
+- **Typed error kinds shared by `internal/plan` and `internal/apply`, so the two
+  refusal sites can be compared without matching message text.** Deferred from
+  ADR-030, which asserts every parser rule again at the engine boundary and keeps
+  the two honest by copying `plan.validate`'s message strings VERBATIM and
+  comparing them by equality. That works and it is what the test checks, but it
+  is STRING equality, checked at run time for all ten verbatim-mirrored branches:
+  `TestTheEngineAndTheParserRefuseInTheSameWords` parses each malformed plan,
+  takes the expected text out of the parser's own error, and compares it to what
+  `Apply` says for the equivalent Input, so rewording either site alone goes red.
+  (An earlier draft of this entry said the pairing was only prose, which was true
+  of ADR-030's FIRST cut — the table test hardcoded the strings and never invoked
+  the parser. The review of PR #130 found that, and the cross-site test is the
+  fix.) Typed kinds would still be better: they would make the pairing structural
+  rather than textual, and they would survive a deliberate rewording of both
+  sites, which string equality cannot tell from a drift. It is the same request ADR-009's open follow-up already
+  makes for classifying refusals without matching text, so whoever takes one
+  should take both.
