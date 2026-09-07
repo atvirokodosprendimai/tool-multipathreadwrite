@@ -1592,7 +1592,17 @@ func TestTheEngineRefusesARelativeEndTheOpCannotHonour(t *testing.T) {
 			t.Errorf("%s: failed=%d, want 1 — the engine accepted a relative end it would ignore", op, res.Failed)
 			continue
 		}
-		if !strings.Contains(res.Hunks[0].Reason, "single line") {
+		// ⚠ Per op, because the two refusals are not one message and never
+		// were in plan.validate: a create takes no address at all, so a
+		// relative end on one is refused as an address, while an insertion
+		// takes a single line and is refused as a range. The engine used to
+		// give the insertion wording to both, which is the parser/engine
+		// divergence ADR-030 removes — the message is now validate's own.
+		want := "single line"
+		if op == "create" {
+			want = "create takes no address, so it takes no relative end either"
+		}
+		if !strings.Contains(res.Hunks[0].Reason, want) {
 			t.Errorf("%s: the refusal does not name the fix: %s", op, res.Hunks[0].Reason)
 		}
 	}
@@ -1681,5 +1691,148 @@ func TestTheEngineRefusesABodyLessCreate(t *testing.T) {
 	}
 	if fi, err := os.Stat(filepath.Join(root2, "empty.txt")); err != nil || fi.Size() != 0 {
 		t.Errorf("body=0 did not create an empty file: %v", err)
+	}
+}
+
+// TestTheEngineRefusesEveryShapeTheParserRefuses pins ADR-030. Apply's doc
+// comment says it validates every hunk; measured 2026-09-07 against d26e39a it
+// accepted seven of the eight shapes plan.validate refuses, one of which
+// DELETED lines and reported ok.
+//
+// The list came from ENUMERATION — driving Apply with one Input per validate
+// rule and recording the verdict — not from memory. ADR-026 and ADR-027 each
+// closed one field of this hole, and each assumed it was the last.
+//
+// ⚠ Deliberately NOT mirrored, because they need what only the parser has:
+//
+//   - `patterned` (plan.go: h.Addr.StartPat != nil) gates the checks that reason
+//     about Start and End. By the time Apply runs, a pattern has been resolved
+//     to a line, so the engine cannot tell a resolved pattern from a typed line
+//     number and must not guess. Every rule below is therefore a rule that holds
+//     for a resolved address too.
+//   - The `create` refusals for a pattern address (`StartPat != nil`) are the
+//     same case: unresolvable here, and unreachable, since a create's address is
+//     never resolved against a file that must not exist.
+//
+// A rule added to validate with no row here should show up as a MISSING ROW.
+func TestTheEngineRefusesEveryShapeTheParserRefuses(t *testing.T) {
+	const before = "a\nb\nc\nd\n"
+	refused := []struct {
+		name string
+		want string // a substring of plan.validate's own message
+		in   Input
+	}{
+		{
+			"replace with an empty body deletes while reporting ok",
+			"replace with an empty body would delete",
+			Input{Path: "f.txt", Op: "replace", Start: 1, End: 2, Lines: -1},
+		},
+		{
+			"insert-after over a range",
+			"takes a single line, not the range",
+			Input{Path: "f.txt", Op: "insert-after", Start: 1, End: 3, Body: []string{"x"}, Lines: -1},
+		},
+		{
+			"insert-before over a range",
+			"takes a single line, not the range",
+			Input{Path: "f.txt", Op: "insert-before", Start: 1, End: 3, Body: []string{"x"}, Lines: -1},
+		},
+		{
+			"insert-after with an empty body changes nothing",
+			"with an empty body would change nothing",
+			Input{Path: "f.txt", Op: "insert-after", Start: 1, End: 1, Lines: -1},
+		},
+		{
+			"insert-before with an empty body changes nothing",
+			"with an empty body would change nothing",
+			Input{Path: "f.txt", Op: "insert-before", Start: 1, End: 1, Lines: -1},
+		},
+		{
+			"create with a line address",
+			"create takes no address",
+			Input{Path: "n.txt", Op: "create", Start: 1, End: 1, Body: []string{"x"}, Lines: -1},
+		},
+		{
+			"create with anchor=",
+			"create takes no anchor= or lines=",
+			Input{Path: "n.txt", Op: "create", Body: []string{"x"}, Lines: -1, Anchor: "zzz"},
+		},
+		{
+			"create with lines=",
+			"create takes no anchor= or lines=",
+			Input{Path: "n.txt", Op: "create", Body: []string{"x"}, Lines: 5},
+		},
+		{
+			// The control: already refused before this record, and it must stay
+			// refused. A table whose every row was red is a table that cannot
+			// tell a fix from a ban. ⚠ Its wording is the ENGINE's, not the
+			// parser's — the engine reaches its own range check first and
+			// refuses line 0 as out of range. Asserting plan.validate's wording
+			// here would demand a mirror that is not needed and is not there.
+			"replace with no line range",
+			"is out of range",
+			Input{Path: "f.txt", Op: "replace", Start: 0, End: 0, Body: []string{"x"}, Lines: -1},
+		},
+	}
+	for _, c := range refused {
+		t.Run(c.name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte(before), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			// Force:true so the ledger cannot be what refuses: this test is
+			// about the format's own rules, not about read-before-modify.
+			res, err := Apply(root, []Input{c.in}, Options{Force: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Failed != 1 {
+				t.Fatalf("failed=%d, want 1 — the parser refuses this shape and Apply says it validates every hunk", res.Failed)
+			}
+			if !strings.Contains(res.Hunks[0].Reason, c.want) {
+				t.Errorf("refusal does not carry plan.validate's wording %q: %s", c.want, res.Hunks[0].Reason)
+			}
+			// A refusal that still wrote would be worse than the behaviour
+			// being removed — and the first row is exactly where that bites.
+			after, err := os.ReadFile(filepath.Join(root, "f.txt"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(after) != before {
+				t.Errorf("the refused hunk changed the file: %q", after)
+			}
+			if _, err := os.Stat(filepath.Join(root, "n.txt")); err == nil {
+				t.Error("the refused create left a file behind")
+			}
+		})
+	}
+
+	// The accepting half. Without it, "refuse everything" passes the table above
+	// and the change is a ban rather than a narrowing.
+	applied := []struct {
+		name string
+		in   Input
+	}{
+		{"an ordinary replace", Input{Path: "f.txt", Op: "replace", Start: 1, End: 2, Body: []string{"X"}, Lines: -1}},
+		{"an ordinary delete", Input{Path: "f.txt", Op: "delete", Start: 1, End: 1, Lines: -1}},
+		{"an ordinary insert-after", Input{Path: "f.txt", Op: "insert-after", Start: 1, End: 1, Body: []string{"X"}, Lines: -1}},
+		{"an ordinary insert-before", Input{Path: "f.txt", Op: "insert-before", Start: 1, End: 1, Body: []string{"X"}, Lines: -1}},
+		{"an ordinary create", Input{Path: "n.txt", Op: "create", Body: []string{"X"}, Lines: -1}},
+		{"a deliberate empty create", Input{Path: "n.txt", Op: "create", Lines: -1, CountedBody: true}},
+	}
+	for _, c := range applied {
+		t.Run(c.name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte(before), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			res, err := Apply(root, []Input{c.in}, Options{Force: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Failed != 0 {
+				t.Fatalf("failed=%d, want 0 — the parser accepts this shape: %s", res.Failed, res.Hunks[0].Reason)
+			}
+		})
 	}
 }

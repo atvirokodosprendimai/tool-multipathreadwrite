@@ -1016,3 +1016,14 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   ADR-029's Alternatives rejects because `mrw seen` prints the keys the caller
   typed. Promote it if a caller reports the refusal in the wild; the entry
   exists so the next reader does not mistake it for part of ADR-029.
+
+- **Typed error kinds shared by `internal/plan` and `internal/apply`, so the two
+  refusal sites can be compared without matching message text.** Deferred from
+  ADR-030, which asserts every parser rule again at the engine boundary and keeps
+  the two honest by copying `plan.validate`'s message strings VERBATIM and
+  asserting them by substring. That works and it is what the test checks, but it
+  is prose equality: a reworded message in one site and not the other is caught
+  only because a test happens to name the string. Typed kinds would make the
+  pairing structural. It is the same request ADR-009's open follow-up already
+  makes for classifying refusals without matching text, so whoever takes one
+  should take both.
