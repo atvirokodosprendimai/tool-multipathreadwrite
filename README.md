@@ -1421,8 +1421,12 @@ announced, and never deleted.
 seen, keyed by a hash of its path, and for mrw's whole life before ADR-034
 nothing ever removed one — so a machine that runs mrw against temporary
 directories accumulates them for ever. Measured on one machine on 2026-09-07:
-**22,836 directories, 242 MB, of which 22,591 named a checkout that no longer
-existed.**
+**22,836 directories, of which 22,591 named a checkout that no longer existed**
+— 242 MB of disk. ⚠ That is `du`, the space a prune RETURNS; the files
+themselves were 10.7 MB across 65,235 of them, and the difference is one block
+per tiny file plus one per directory. It is spending inodes, not bytes, and the
+`--prune` report counts file content because block size is not something mrw can
+portably ask a filesystem about.
 
 `mrw seen --prune` removes those and names each one it removed, with the
 checkout it belonged to — a 16-hex-character directory name tells a human

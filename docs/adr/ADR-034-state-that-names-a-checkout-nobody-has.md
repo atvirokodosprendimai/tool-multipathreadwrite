@@ -20,18 +20,33 @@ created a second one it did not consider: **nothing ever removes an entry.** A r
 deleted, moved or renamed leaves its directory behind for ever, and mrw can never consult it again,
 because the key is a hash of a path that no longer resolves.
 
-Measured on M's machine, 2026-09-07, at `/Users/zy/.local/state/mrw`:
+Measured on M's machine at `/Users/zy/.local/state/mrw`. Two readings, hours apart on 2026-09-07,
+reported as taken rather than reconciled — the growth between them is itself the finding:
 
-| | |
-|---|---|
-| state directories | **22,836** |
-| on disk | **242 MB** |
-| whose `root` marker names a path that is gone | **22,591 (98.9%)** |
-| whose root still exists | 245 |
-| with no readable `root` marker | 0 |
+| | first reading | second reading |
+|---|---|---|
+| state directories | **22,836** | **24,067** |
+| whose `root` marker names a path that is gone | **22,591 (98.9%)** | 23,809 (98.9%) |
+| whose root still exists | 245 | — |
+| with no readable `root` marker | 0 | — |
+| disk used (`du -sh`) | **242 MB** | **256 MB** |
+| apparent size (`du -shA`) | — | 47 MB |
+| the files themselves (sum of `stat` sizes) | — | **10.7 MB** across 65,235 files |
 
-The day before, the same base held 22,613 directories and 240 MB. So this is not a historical
-accumulation that has settled: it grows by hundreds of directories per working day.
+⚠ **THE THREE SIZES ARE DIFFERENT QUESTIONS AND ONLY ONE OF THEM IS "DATA".** Eleven megabytes of
+ledgers occupy 256 MB of disk because each of 65,235 tiny files takes a whole block and each of
+24,067 directories costs its own. The reclaimable figure is the `du` one; the content figure is the
+`stat` one; and a record that prints "242 MB" without saying which reads as 242 MB of data, which it
+is not. The first reading has no `-A` or `stat` column because those were not taken at the time, and
+scaling the second reading's ratio back would be an inference dressed as a measurement.
+
+`Entry.Bytes` and the `--prune` report use the CONTENT figure, because block size is a filesystem
+property mrw cannot portably ask about — so the space a prune actually returns is LARGER than the
+number it prints, never smaller.
+
+Between the two readings the base grew by 1,231 directories in a few hours of ordinary work. This is
+not a historical accumulation that has settled, and inodes rather than bytes are what it is really
+spending.
 
 **The producer is this repository's own gate.** Classified from the 22,591 dead roots: 22,590 are
 `mktemp` fixtures and exactly 1 is a Go `t.TempDir()` — 11 of the 32 test files already pin

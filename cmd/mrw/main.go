@@ -1238,7 +1238,14 @@ func prune(root string, dry bool) error {
 	}
 	// A run that removed nothing says so. Printing nothing would be
 	// indistinguishable from a run that never happened.
-	fmt.Printf("%d of %d state director%s %s, %d byte(s)\n",
+	//
+	// ⚠ "of file content", not a disk figure. This sums the sizes of the files
+	// removed; the space the filesystem actually returns is LARGER, because a
+	// 40-byte ledger occupies a whole block and each directory costs one too.
+	// Measured on one base: 10.7 MB of content across 65,235 files sat in
+	// 256 MB of disk. Block size is not something mrw can portably ask about,
+	// so it reports what it can count and names the unit (ADR-034).
+	fmt.Printf("%d of %d state director%s %s, %d byte(s) of file content\n",
 		len(removed)-failed, len(entries), plural(len(entries), "y", "ies"), summary, bytes)
 	if unidentified > 0 {
 		fmt.Printf("# %d kept: no readable `root` marker naming an absolute path, so mrw cannot say what %s\n",
