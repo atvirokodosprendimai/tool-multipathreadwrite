@@ -604,6 +604,12 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 		"-- An id you omit leaves its lines unwritable, which is the point.",
 		text, start, end, total, total-end, next)
 
+	// ⚠ AN ASSERTION ABOUT WHAT TO SEND, NOT A GUARD AGAINST DOING THE WORK. The
+	// composing has already happened when this runs, so it buys no memory back;
+	// what bounds the cost is `capped`, which stops the READ at the limit long
+	// before here. This exists so an over-cap answer is never DELIVERED, and it
+	// has to be here because only the composed page has its markers and footer.
+	//
 	// ⚠ THE COMPOSED PAGE IS WHAT MUST FIT, and an earlier cut measured the raw
 	// buffer instead — before interleave added the markers and before this
 	// footer was appended. A line just under the cap therefore produced a page
