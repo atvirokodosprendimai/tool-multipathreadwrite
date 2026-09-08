@@ -4531,6 +4531,32 @@ if ln -s "$P72VICTIM" "$XDG_STATE_HOME/mrw" 2>/dev/null; then
   [ -f "$P72VICTIM/precious" ] \
     && ok "and so is everything beside it" \
     || bad "--prune removed $P72VICTIM/precious through a symlinked base"
+
+  # AND A SYMLINKED ENTRY UNDER A REAL BASE IS COUNTED AND REPORTED, not
+  # silently dropped. ADR-034 promises "reported and skipped"; skipping it
+  # without reporting makes it indistinguishable from an entry nothing looked
+  # at, which is the same argument the record makes about unidentifiable ones.
+  export XDG_STATE_HOME="$P72/good"
+  P72LINK=$(mktemp -d "$WORK/p72link-XXXXXX")
+  printf 'mine\n' > "$P72LINK/precious"
+  ln -s "$P72LINK" "$XDG_STATE_HOME/mrw/7777777777777777"
+  out=$("$MRW" -C "$P72ROOT" seen 2>&1); rc=$?
+  want 0 "$rc" "mrw seen exits 0 with a symlinked entry under the base"
+  grep -qE '^# 2 state directories under ' <<<"$out" \
+    && ok "a symlinked entry is COUNTED rather than dropped from the walk" \
+    || bad "the count does not include the symlinked entry: $(grep '^#' <<<"$out" | tr '\n' '|')"
+  out=$("$MRW" -C "$P72ROOT" seen --prune 2>&1); rc=$?
+  want 0 "$rc" "mrw seen --prune exits 0 with a symlinked entry under the base"
+  grep -q '1 kept' <<<"$out" \
+    && ok "and it is REPORTED as kept, not silently skipped" \
+    || bad "--prune did not report the symlinked entry as kept: $out"
+  [ -L "$XDG_STATE_HOME/mrw/7777777777777777" ] \
+    && ok "the symlinked entry itself is left alone" \
+    || bad "--prune removed the symlinked entry"
+  [ -f "$P72LINK/precious" ] \
+    && ok "and nothing on the far side of it is touched" \
+    || bad "--prune followed the symlinked entry and removed $P72LINK/precious"
+  export XDG_STATE_HOME="$P72/bad"
 else
   skip "this filesystem does not do symlinks, so the symlinked-base case cannot be planted"
 fi
