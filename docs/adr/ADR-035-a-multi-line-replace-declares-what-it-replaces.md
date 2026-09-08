@@ -143,7 +143,7 @@ message claims.
   (`apply.go:583-590`), so it cannot discriminate a wrong address from the
   intended one on any incident or any file state. A disjunction is only as strong
   as its weakest arm, and a caller satisfying it with `sha=` would get a refusal
-  message promising a guard that had no way to fire.
+  message promising a guard that had no way to discriminate the addresses.
 - **Requiring the replaced body to be declared, as `delete` allows.** Strictly
   stronger, and rejected on cost: a replace's body is the NEW content, so this
   would mean carrying both old and new text in every multi-line hunk, roughly

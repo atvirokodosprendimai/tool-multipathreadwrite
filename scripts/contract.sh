@@ -2031,8 +2031,12 @@ import re as _re
 
 def _adr035_desc_problems(text):
     out = []
-    if not _re.search(r"anchor=\s+is\s+REQUIRED\s+on\s+a\s+replace\s+addressing\s+more\s+than\s+one\s+line", text):
-        out.append("does not state the requirement with its scope")
+    # THE WHOLE SENTENCE, TO ITS FULL STOP. An open-ended substring let a
+    # qualifier be appended after the scope and still pass — `... more than one
+    # line only when --force is absent.` was accepted, while the guard at
+    # apply.go is unconditional.
+    if not _re.search(r"anchor=\s+is\s+REQUIRED\s+on\s+a\s+replace\s+addressing\s+more\s+than\s+one\s+line,\s+and\s+may\s+be\s+omitted\s+elsewhere\.", text):
+        out.append("does not state the requirement as the whole canonical clause")
     if _re.search(r"(?i)required[^.]*\b(unless|except)\b", text):
         out.append("qualifies REQUIRED away with unless/except")
     if _re.search(r"(?i)required[^.]*exactly\s+one\s+line", text):
@@ -2052,6 +2056,8 @@ _bad_wordings = [
     'anchor= is REQUIRED on a replace addressing exactly one line',
     'Optional guards: sha=<hex>, lines=<n>, anchor="<text>"',
     'anchor= is REQUIRED on a replace',
+    'anchor= is REQUIRED on a replace addressing more than one line only when --force is absent.',
+    'anchor= is REQUIRED on a replace addressing more than one line',
 ]
 for _w in _bad_wordings:
     assert _adr035_desc_problems(_w), \
@@ -4670,97 +4676,23 @@ grep -q 'func C' "$R/a.go" \
 # PROSE mentions of `@@ f.go 5-9999 replace` — which discuss the out-of-range
 # refusal, and which mrw still refuses for that reason first — are not matched.
 # CONSERVATIVE BY CONSTRUCTION: the safe forms are enumerated and everything
-# else is flagged, rather than the reverse. Two earlier cuts were unsound and
-# both were found by probe, not by reading:
+# else is flagged, rather than the reverse — and this row no longer tries. THE
+# DOCUMENTATION CHECK MOVED TO A GO TEST, because it needs the PARSER and a
+# contract row cannot have one. Three shell cuts were each defeated by a header
+# `splitHeader` accepts and a regex does not see: a quoted path read as the op,
+# a greedy match backtracking into one, tab separators, and finally a QUOTED OP
+# (`@@ f.go 2-3 "replace"`) plus a BOM-prefixed header. Every one was found by a
+# review round rather than by reading, which is the signal that the approach was
+# wrong rather than incomplete.
 #
-#   1. Enumerating the RANGE forms missed `@@ f.go 2- replace` and
-#      `@@ f.go 2-$ replace` — real grammar (ParseAddr: "N-" runs to end of
-#      file), multi-line, refused by the guard.
-#   2. Splitting the line into awk FIELDS and taking the first one equal to
-#      `replace` as the op mis-reads a QUOTED path, which plan.go keeps as one
-#      parser field: `@@ "foo 2 replace bar.go" 2-3 replace` was exempted. And
-#      testing for `anchor=` anywhere on the line exempted a pattern address
-#      that merely CONTAINS it, a path containing it, and `anchor=""` — which
-#      mrw itself refuses, since an empty anchor is no anchor.
+# internal/adversarial.TestEveryDocumentedReplaceCarriesItsAnchor now calls
+# plan.Parse on every `@@` line in README.md and AGENTS.md, so it classifies
+# exactly what mrw would, including forms nobody has thought of yet. Its
+# companion TestTheDocumentedPlanCheckRejectsWhatItMustReject drives ten
+# must-flag headers — the four that defeated the shell among them — and ten that
+# must pass.
 #
-# So this classifies the RAW LINE and never tokenises it. A header is safe only
-# if it is one of the two provably single-line spellings, or carries a non-empty
-# anchor= AFTER the op. Everything else is flagged, `4-4` included: over-flagging
-# documentation is the safe direction and costs one anchor.
-#
-# The two PROSE mentions of the out-of-range example are excluded by the column-0
-# anchor, not by their content.
-adr035_unanchored() {
-  # THE OP IS FOUND BY COUNTING, NOT BY POSITION. Two regex cuts were defeated
-  # because they guessed which token was the op:
-  #   awk fields          took the FIRST field equal to `replace`, so a quoted
-  #                       path — one parser field, plan.go:396 — was read as op
-  #   greedy `.* replace` backtracked to a `replace` inside a quoted path when
-  #                       the real op ended the line, and then accepted an
-  #                       `anchor=` that sat in the ADDRESS pattern after it
-  # So: if the word appears with a separator on both sides exactly ONCE, its
-  # position is unambiguous and everything after it is guards. If it appears
-  # twice or more, the op is not determinable by this gate and the line is
-  # FLAGGED rather than guessed at. No documented header has two.
-  #
-  # Separators are space OR TAB, because splitHeader accepts both
-  # (plan.go:466) — `@@ f.go 2-3<TAB>replace` is valid grammar and an earlier
-  # cut missed it. An anchor may be quoted or bare (plan.go:365-371); `anchor=""`
-  # is not an anchor, and mrw refuses it, so it does not count here either.
-  awk '
-    /^@@ / {
-      s = $0; n = 0; at = 0; off = 0
-      while (match(s, /[ \t]replace([ \t]|$)/)) {
-        n++
-        at = off + RSTART
-        off = off + RSTART + RLENGTH - 1
-        s = substr(s, RSTART + RLENGTH)
-      }
-      if (n == 0) next
-      if (n > 1) { printf "%s:%d: %s\n", FILENAME, FNR, $0; next }
-      head = substr($0, 1, at - 1)
-      tail = substr($0, at + 8)
-      if (tail ~ /anchor=("[^"]+"|[^ \t"][^ \t]*)/) next
-      if (head ~ /^@@ [^ \t]+[ \t]+([0-9]+|\$)$/) next
-      printf "%s:%d: %s\n", FILENAME, FNR, $0
-    }' "$@"
-}
-docs_bad=$(adr035_unanchored README.md AGENTS.md)
-[ -z "$docs_bad" ] \
-  && ok "every range-shaped replace shown in README.md and AGENTS.md carries an anchor" \
-  || bad "a documented range-shaped replace has no anchor= and would now be refused: $docs_bad"
-# A GATE IS ITSELF A CLAIM, so the classifier is driven over headers built to
-# defeat it — through the SAME function the check above uses, never a copy.
-# Without this the row passes on a classifier that flags nothing.
-# The tabbed cases are written with printf, not in the heredoc, so the
-# separator is unambiguously a TAB rather than whatever an editor left behind.
-{ cat <<'SAFE'
-@@ f.go 12 replace
-@@ f.go $ replace
-@@ f.go 42-58 replace anchor="func Apply" lines=17
-@@ internal/store/store.go /^func \(s \*Store\) Get/,/^\}/ replace anchor="func (s *Store) Get"
-@@ f.go 2-3 replace anchor=x
-SAFE
-  printf '@@ f.go 12\treplace\n'
-} > "$WORK/s73safe.txt"
-{ cat <<'BAD'
-@@ f.go 2-3 replace
-@@ f.go 2- replace
-@@ f.go 2-$ replace
-@@ f.go 12,+2 replace
-@@ f.go /^a$/,/^b$/ replace
-@@ f.go /anchor="x"/,/^b$/ replace
-@@ f.go 2-3 replace anchor=""
-@@ "foo 2 replace bar.go" 2-3 replace
-@@ "foo replace bar.go" /anchor="x"/,/^b$/ replace
-@@ "a replace b.go" 2-3 replace anchor="x"
-BAD
-  printf '@@ f.go 2-3\treplace\n'
-} > "$WORK/s73bad.txt"
-n_safe=$(adr035_unanchored "$WORK/s73safe.txt" | wc -l | tr -d ' ')
-want 0 "$n_safe" "the documentation classifier passes every header that carries its anchor, quoted or bare"
-n_bad=$(adr035_unanchored "$WORK/s73bad.txt" | wc -l | tr -d ' ')
-want 11 "$n_bad" "and flags every unanchored shape: open-ended and tabbed ranges, an anchor= inside the ADDRESS, an empty anchor=, and a quoted path that makes the op ambiguous"
+# What stays HERE is what only a contract row can do: drive the built binary.
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
