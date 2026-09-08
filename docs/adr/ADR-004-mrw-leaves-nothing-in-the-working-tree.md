@@ -208,4 +208,4 @@ where it was left.
 
 ## Follow-ups
 
-- [ ] Decide whether orphaned state directories are ever worth pruning (see BACKLOG.md)
+- [x] Decide whether orphaned state directories are ever worth pruning (see BACKLOG.md) — **decided 2026-09-07 by ADR-034: yes, but only when an operator asks.** This record deferred a prune and gave the reason a reaper would be wrong — deciding a directory is dead means deciding a path will never come back. ADR-034 does not overturn that: `mrw seen --prune` runs on request, never on its own, because an absent root is also an unmounted volume and mrw cannot tell them apart. What changed is the measurement — 24,067 directories and 256 MB on one machine, 98.9% naming a checkout that no longer exists, against this record's estimate of *"a few hundred bytes"* each.
