@@ -163,12 +163,18 @@ the state directory, then moving both consumers onto it with migration and
 - **Negative:** moving or renaming a checkout orphans its state directory, and
   nothing prunes them. Each is a few hundred bytes and carries a `root` file
   naming what it belonged to, so a human can clean up; no automatic reaper.
+  ⚠ **Both halves of that sentence went false.** ADR-034 (2026-09-07) measured
+  22,836 directories and 242 MB on one machine — ~10.6 KB each, not a few
+  hundred bytes — of which 22,591 were dead, which is not a number a human
+  cleans up by hand. `mrw seen --prune` now does it, explicitly; the "no
+  automatic reaper" half of this clause is upheld rather than overturned, and
+  ADR-034's Decision says why.
 - **Neutral:** repositories that already gitignored `/.mrw/` keep a harmless
   line, and one containing a legacy ledger keeps it until removed by hand.
 
 ## Out of Scope
 
-- Pruning orphaned state directories (deferred: docs/adr/BACKLOG.md)
+- Pruning orphaned state directories (deferred: docs/adr/BACKLOG.md — RESOLVED by ADR-034)
 - Deleting a legacy `.mrw/` on the caller's behalf (permanent: a tool that
   removes files it did not create, one of which may be committed, is a worse
   bug than the one being fixed)
@@ -202,4 +208,4 @@ where it was left.
 
 ## Follow-ups
 
-- [ ] Decide whether orphaned state directories are ever worth pruning (see BACKLOG.md)
+- [x] Decide whether orphaned state directories are ever worth pruning (see BACKLOG.md) — **decided 2026-09-07 by ADR-034: yes, but only when an operator asks.** This record deferred a prune and gave the reason a reaper would be wrong — deciding a directory is dead means deciding a path will never come back. ADR-034 does not overturn that: `mrw seen --prune` runs on request, never on its own, because an absent root is also an unmounted volume and mrw cannot tell them apart. What changed is the measurement — 24,067 directories and 256 MB on one machine, 98.9% naming a checkout that no longer exists, against this record's estimate of *"a few hundred bytes"* each.

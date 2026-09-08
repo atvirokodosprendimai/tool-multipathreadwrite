@@ -72,6 +72,18 @@ WORK=$(mktemp -d)
 # the Linux runner.
 trap 'trap "" TERM; rm -rf "$WORK"; kill -- -$$ 2>/dev/null' EXIT
 
+# ⚠ AND PIN mrw's OWN STATE INTO $WORK. Every `fixture` gets a fresh root, which
+# is a fresh state KEY, so an unpinned run converted one temporary directory
+# into one PERMANENT one per fixture: measured 2026-09-07, +111 entries per run
+# and 22,836 directories / 242 MB accumulated on one machine, 22,591 of them
+# naming a checkout that no longer exists (ADR-034). Fresh-root isolation is
+# unchanged and still the mechanism; this puts the state beside the fixtures
+# that caused it, so a run leaves the machine as it found it. Section 71 pins a
+# sub-base of its own under $WORK because it COUNTS entries and needs a base
+# holding only what it planted.
+export XDG_STATE_HOME="$WORK/state"
+mkdir -p "$XDG_STATE_HOME"
+
 # Build our OWN binary inside WORK rather than sharing bin/mrw. Two fences ran
 # concurrently under `adr-verify --sweep` on 2026-08-31 — one starting with
 # `go build -o bin/mrw`, two others executing it — and the binary was rewritten
@@ -1585,8 +1597,8 @@ printf '@@ a.go 3 replace anchor="NOPE"\nx\n' | m write - >/dev/null 2>&1
 want 1 $? "a plan that parses but does not apply exits 1"
 
 # mrw's own answer for where this checkout's state lives, rather than guessing
-# at XDG layout — contract.sh does not pin XDG_STATE_HOME, it isolates by
-# giving every fixture a fresh root.
+# at XDG layout. The base is pinned into $WORK at the top of this file, but the
+# KEY is still a hash, so the directory is asked for rather than constructed.
 tally="$(m seen | head -1)/authoring"
 if [ -f "$tally" ]; then
   ok "a tally is written"
@@ -4382,6 +4394,179 @@ grep -q '^alpha$' "$R/tiny.txt" \
   && ok "and the tree is untouched, which is the assertion the message is not" \
   || bad "the write APPLIED under a ceiling that cannot report it: $(cat "$R/tiny.txt")"
 
+
+# 71. ADR-034: an entry whose checkout is gone is removable, and only when asked.
+#
+# THE ROW BUILDS ITS OWN BASE. Every other row shares whatever XDG_STATE_HOME is
+# in force, and this one counts directories, so it needs a base holding only
+# what it planted. That sub-base sits under $WORK and goes with the EXIT trap.
+#
+# AND EVERY CASE IS PAIRED. A row that scores only "the dead one is gone" is
+# green against a binary that removes the whole base — which is exactly the
+# defect a prune has, and the one this section exists to refuse.
+P71=$(mktemp -d "$WORK/prune-XXXXXX")
+export XDG_STATE_HOME="$P71/state"
+P71LIVE=$(mktemp -d "$WORK/p71live-XXXXXX")
+P71DEAD=$(mktemp -d "$WORK/p71dead-XXXXXX")
+P71SELF=$(mktemp -d "$WORK/p71self-XXXXXX")
+for d in "$P71LIVE" "$P71DEAD" "$P71SELF"; do
+  printf 'alpha\n' > "$d/f.txt"
+  # Through the BINARY, so the `root` markers under test are the ones mrw writes.
+  "$MRW" -C "$d" read f.txt >/dev/null 2>&1
+done
+rm -rf "$P71DEAD"
+P71UNKNOWN="$XDG_STATE_HOME/mrw/dddddddddddddddd"
+mkdir -p "$P71UNKNOWN"                       # no `root` marker: mrw did not write it
+p71dir() { "$MRW" -C "$1" seen 2>/dev/null | head -1; }
+P71SELFDIR=$(p71dir "$P71SELF")
+P71LIVEDIR=$(p71dir "$P71LIVE")
+# The dead entry's directory is whichever one neither of the live roots claims.
+# ⚠ Iterate the full paths. The first cut ran `ls -d .../mrw/*/ | tr -d /`,
+# which strips EVERY slash rather than the trailing one and turns each path into
+# one mangled token — the row then "found" a directory that never existed and
+# all four of its comparisons missed.
+P71DEADDIR=""
+for d in "$XDG_STATE_HOME"/mrw/*/; do
+  d=${d%/}
+  case "$d" in "$P71SELFDIR" | "$P71LIVEDIR" | "$P71UNKNOWN") continue ;; esac
+  P71DEADDIR="$d"
+  break
+done
+
+[ -n "$P71DEADDIR" ] && [ -d "$P71DEADDIR" ] \
+  && ok "the fixture planted a dead entry" \
+  || bad "the fixture planted no dead entry: $(ls "$XDG_STATE_HOME/mrw" | tr '\n' ' ')"
+
+# THE FIRST LINE IS STILL THE DIRECTORY. Read the status from the binary, never
+# through the pipe: `$MRW seen | head -1` returns head's exit code.
+"$MRW" -C "$P71SELF" seen > "$P71/seen.out" 2>&1
+want 0 $? "mrw seen still exits 0 with the count line added"
+[ "$(head -1 "$P71/seen.out")" = "$P71SELFDIR" ] \
+  && ok "the state directory is still the FIRST line of mrw seen" \
+  || bad "line 1 of mrw seen is not the state directory: $(head -1 "$P71/seen.out")"
+grep -q '^# 4 state directories under ' "$P71/seen.out" \
+  && ok "mrw seen counts the entries in the base" \
+  || bad "mrw seen printed no count: $(tr '\n' '|' < "$P71/seen.out")"
+grep -q -- '--prune' "$P71/seen.out" \
+  && ok "and points at the flag that removes the dead ones" \
+  || bad "mrw seen names the growth and not the remedy"
+
+# A DRY RUN REMOVES NOTHING.
+out=$("$MRW" -C "$P71SELF" seen --prune --dry-run 2>&1); rc=$?
+want 0 "$rc" "mrw seen --prune --dry-run exits 0"
+grep -q "$P71DEADDIR" <<<"$out" && ok "a dry run names the entry it would remove" || bad "a dry run named nothing: $out"
+[ -d "$P71DEADDIR" ] && ok "and removes nothing" || bad "a dry run removed $P71DEADDIR"
+
+# --dry-run WITHOUT --prune IS A USAGE ERROR, not a silent no-op.
+"$MRW" -C "$P71SELF" seen --dry-run >/dev/null 2>&1
+want 2 $? "mrw seen --dry-run without --prune is a usage error"
+
+# THE REAL RUN. One goes; three stay.
+out=$("$MRW" -C "$P71SELF" seen --prune 2>&1); rc=$?
+want 0 "$rc" "mrw seen --prune exits 0"
+[ -d "$P71DEADDIR" ] && bad "the dead entry survived --prune" || ok "the entry whose checkout is gone is removed"
+[ -d "$P71LIVEDIR" ] && ok "the entry whose checkout still exists is KEPT" || bad "--prune removed a live entry"
+[ -d "$P71SELFDIR" ] && ok "the running root's own entry is KEPT" || bad "--prune removed the entry it is running from"
+[ -d "$P71UNKNOWN" ] && ok "an entry with no root marker is KEPT" || bad "--prune removed an entry of unknown provenance"
+grep -q "$P71DEADDIR" <<<"$out" && ok "and the delete says what it removed (ADR-008)" || bad "--prune removed silently: $out"
+grep -q '1 kept' <<<"$out" && ok "and says the unidentifiable entry was kept" || bad "--prune did not report the kept entry: $out"
+
+# A SECOND RUN IS A NO-OP THAT STILL SAYS SO.
+out=$("$MRW" -C "$P71SELF" seen --prune 2>&1); rc=$?
+want 0 "$rc" "a second --prune exits 0"
+grep -q '^0 of 3 state directories removed' <<<"$out" \
+  && ok "a prune that removed nothing says so rather than printing nothing" \
+  || bad "a no-op prune reported: $out"
+
+# 72. ADR-034: the prune refuses a state base mrw did not create.
+#
+# PAIRED, because a row that scores only the refusal is green against a binary
+# that refuses everything. The same shape is driven twice: once against a real
+# base holding a dead entry, which must GO, and once against a base whose
+# `mrw` directory is a symlink to somebody else's directory holding an
+# identical-looking dead entry, which must STAY.
+#
+# ⚠ THE BASE, NOT AN ENTRY. The symlinked ENTRY under a real base is covered by
+# a Go test, not by §71 — an earlier version of this comment claimed §71 plants
+# one, and it does not. This row is the level ABOVE that, and it is the one
+# os.RemoveAll followed: the walk and the removal each re-resolved the base by
+# path, so replacing it put a directory nobody gave mrw inside the prune's
+# reach.
+P72=$(mktemp -d "$WORK/prune72-XXXXXX")
+P72ROOT=$(mktemp -d "$WORK/p72root-XXXXXX")
+printf 'alpha\n' > "$P72ROOT/f.txt"
+
+# --- THE GOOD CASE: a base mrw made, holding one entry whose checkout is gone.
+export XDG_STATE_HOME="$P72/good"
+P72DEAD=$(mktemp -d "$WORK/p72dead-XXXXXX")
+printf 'alpha\n' > "$P72DEAD/f.txt"
+"$MRW" -C "$P72DEAD" read f.txt >/dev/null 2>&1
+"$MRW" -C "$P72ROOT" read f.txt >/dev/null 2>&1
+P72DEADDIR=$("$MRW" -C "$P72DEAD" seen 2>/dev/null | head -1)
+rm -rf "$P72DEAD"
+[ -n "$P72DEADDIR" ] && [ -d "$P72DEADDIR" ] \
+  && ok "the fixture planted a dead entry under a real base" \
+  || bad "the fixture planted no dead entry: $P72DEADDIR"
+"$MRW" -C "$P72ROOT" seen --prune > "$P72/good.out" 2>&1
+want 0 $? "mrw seen --prune exits 0 on a base mrw created"
+[ -d "$P72DEADDIR" ] \
+  && bad "the dead entry survived a prune of a legitimate base" \
+  || ok "and the entry whose checkout is gone is removed"
+
+# --- THE BAD CASE: <base>/mrw is a symlink out to a directory that is not ours.
+export XDG_STATE_HOME="$P72/bad"
+mkdir -p "$XDG_STATE_HOME"
+P72VICTIM=$(mktemp -d "$WORK/p72victim-XXXXXX")
+mkdir -p "$P72VICTIM/eeeeeeeeeeeeeeee"
+printf '/no/such/checkout\n' > "$P72VICTIM/eeeeeeeeeeeeeeee/root"
+printf 'not mrw own\n' > "$P72VICTIM/precious"
+if ln -s "$P72VICTIM" "$XDG_STATE_HOME/mrw" 2>/dev/null; then
+  "$MRW" -C "$P72ROOT" seen --prune > "$P72/bad.out" 2>&1
+  rc=$?
+  want 2 "$rc" "a prune through a symlinked base is refused, not attempted"
+  grep -qi 'symlink' "$P72/bad.out" \
+    && ok "and the refusal says the base is a symlink" \
+    || bad "the refusal does not name what is wrong: $(cat "$P72/bad.out")"
+  [ -d "$P72VICTIM/eeeeeeeeeeeeeeee" ] \
+    && ok "the entry on the far side of the link is untouched" \
+    || bad "--prune removed $P72VICTIM/eeeeeeeeeeeeeeee through a symlinked base"
+  [ -f "$P72VICTIM/precious" ] \
+    && ok "and so is everything beside it" \
+    || bad "--prune removed $P72VICTIM/precious through a symlinked base"
+
+  # AND A SYMLINKED ENTRY UNDER A REAL BASE IS COUNTED AND REPORTED, not
+  # silently dropped. ADR-034 promises "reported and skipped"; skipping it
+  # without reporting makes it indistinguishable from an entry nothing looked
+  # at, which is the same argument the record makes about unidentifiable ones.
+  export XDG_STATE_HOME="$P72/good"
+  P72LINK=$(mktemp -d "$WORK/p72link-XXXXXX")
+  printf 'mine\n' > "$P72LINK/precious"
+  ln -s "$P72LINK" "$XDG_STATE_HOME/mrw/7777777777777777"
+  out=$("$MRW" -C "$P72ROOT" seen 2>&1); rc=$?
+  want 0 "$rc" "mrw seen exits 0 with a symlinked entry under the base"
+  grep -qE '^# 2 state directories under ' <<<"$out" \
+    && ok "a symlinked entry is COUNTED rather than dropped from the walk" \
+    || bad "the count does not include the symlinked entry: $(grep '^#' <<<"$out" | tr '\n' '|')"
+  out=$("$MRW" -C "$P72ROOT" seen --prune 2>&1); rc=$?
+  want 0 "$rc" "mrw seen --prune exits 0 with a symlinked entry under the base"
+  grep -q '1 kept' <<<"$out" \
+    && ok "and it is REPORTED as kept, not silently skipped" \
+    || bad "--prune did not report the symlinked entry as kept: $out"
+  [ -L "$XDG_STATE_HOME/mrw/7777777777777777" ] \
+    && ok "the symlinked entry itself is left alone" \
+    || bad "--prune removed the symlinked entry"
+  [ -f "$P72LINK/precious" ] \
+    && ok "and nothing on the far side of it is touched" \
+    || bad "--prune followed the symlinked entry and removed $P72LINK/precious"
+  export XDG_STATE_HOME="$P72/bad"
+else
+  skip "this filesystem does not do symlinks, so the symlinked-base case cannot be planted"
+fi
+# RESTORE the file-wide pin, do not unset it. This row swapped XDG_STATE_HOME for
+# a sub-base of its own because it COUNTS entries; unsetting it here would send
+# any row added after this one back to the real state base, which is the leak
+# ADR-034 T4 closed. It is last today, and that is not a reason to leave a trap.
+export XDG_STATE_HOME="$WORK/state"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

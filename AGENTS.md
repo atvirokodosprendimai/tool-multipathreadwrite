@@ -326,10 +326,21 @@ and #73, one release apart.
   reason text that changes. Reach for it to see whether the format is costing
   you attempts, rather than guessing.
 - **`mrw iter`** shows or edits the working set: the specs mrw is currently
-  carrying. `mrw seen` prints the state directory and the read-before-modify
-  ledger — the record of which lines you have actually been served, which is
-  what licenses a write. When a write is refused for a line you believe you
-  read, `mrw seen` is the file that settles it.
+  carrying. `mrw seen` prints the state directory, a count of how many state
+  directories the base holds, and the read-before-modify ledger — the record of
+  which lines you have actually been served, which is what licenses a write.
+  When a write is refused for a line you believe you read, `mrw seen` is the
+  file that settles it.
+- **`mrw seen --prune`** removes the state directories whose `root` marker names
+  a checkout that is no longer there, and says which. `--prune --dry-run` shows
+  the same list and removes nothing. It keeps anything it cannot identify — a
+  missing, unreadable or relative marker means mrw did not write it — and keeps
+  the entry for the root you are in. It keeps a root it cannot STAT, too: only
+  "not there" means gone, and a denied parent or an unmounted point does not.
+  It refuses to run at all if `<state>/mrw` is a symlink. Nothing calls it for
+  you: a path that is gone may be a deleted checkout or an unmounted volume
+  (ADR-034). One machine had 22,836 of these directories and 242 MB on
+  2026-09-07, 98.9% of them dead.
 
 mrw's OWN state lives outside the tree (ADR-004), so none of these commands
 writes to your checkout of its own accord — with the one exception above, where

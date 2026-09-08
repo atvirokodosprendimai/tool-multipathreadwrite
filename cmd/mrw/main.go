@@ -372,15 +372,60 @@ is for the current root, and what the ledger currently holds.
 
 A path listed here is one mrw has seen; one that is not listed must be read
 before it can be edited. A sha that disagrees with the file on disk means it
-changed since mrw last looked, and the next write to it is refused.`,
+changed since mrw last looked, and the next write to it is refused.
+
+--prune removes the state directories whose ` + "`root`" + ` marker names a checkout that
+is no longer there, and names each one it removed. It NEVER removes an entry
+whose marker is missing, unreadable or not an absolute path — mrw did not write
+those, so it does not know what they are — nor the entry for the root you are
+running in. --prune --dry-run prints the same list and removes nothing.
+
+There is no automatic reaper and there will not be one: a path that is gone may
+be a deleted checkout or a volume that is not mounted, and only you can tell.`,
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:  "prune",
+				Usage: "remove the state directories whose checkout no longer exists, naming each",
+			},
+			&cli.BoolFlag{
+				Name:  "dry-run",
+				Usage: "with --prune: print what would be removed, and remove nothing",
+			},
+		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			root := cmd.Root().String("root")
+			if cmd.Bool("prune") {
+				return prune(root, cmd.Bool("dry-run"))
+			}
+			// A dry run of the thing that only reads is not a request anyone
+			// can mean, so it is a usage error rather than a silent no-op.
+			if cmd.Bool("dry-run") {
+				return cli.Exit("mrw seen: --dry-run says what --prune would remove, "+
+					"and there is no --prune here; add it, or drop --dry-run", exitUsage)
+			}
 			dir, err := state.Dir(root)
 			if err != nil {
 				return cli.Exit(err, exitUsage)
 			}
 			// Location first: "where is it" is the question that brought you here.
 			fmt.Println(dir)
+			// ⚠ AFTER THE DIRECTORY, NEVER BEFORE IT. `mrw seen | head -1` is
+			// the documented way to find the state directory and contract §54
+			// reads it that way, so this line goes second or it breaks them.
+			// It is a bare count and not a survey, and state.Count is what
+			// makes that true. It used to call state.Entries, which opens
+			// every entry, reads every marker and STATS EVERY CHECKOUT those
+			// markers name — 22,836 of them on the machine that motivated
+			// ADR-034, some against unmounted or network paths, on a command
+			// whose job is to print one number. The comment here described the
+			// cheap behaviour while the line below it did the expensive one.
+			if n, err := state.Count(); err == nil {
+				fmt.Printf("# %d state director%s under %s\n",
+					n, plural(n, "y", "ies"), filepath.Dir(dir))
+				if n > 1 {
+					fmt.Println("# `mrw seen --prune` removes the ones whose checkout is gone")
+				}
+			}
 
 			path, err := seen.ReadPath(root)
 			if err != nil {
@@ -1153,6 +1198,76 @@ func report(w *os.File, res apply.Result, quiet bool) {
 	}
 	fmt.Fprintf(out, "%d hunk(s), %d file(s), %d failed — %s\n",
 		len(res.Hunks), len(res.Files), res.Failed, state)
+}
+
+// prune removes the state directories whose checkout is gone, and SAYS what it
+// removed — ADR-008's rule, which until ADR-034 applied only to lines in a file.
+//
+// It reports the kept-but-unidentifiable entries too. An entry mrw declines to
+// touch because it cannot tell what it is looks, from outside, exactly like an
+// entry mrw never looked at; the only difference a caller can see is this line.
+func prune(root string, dry bool) error {
+	entries, err := state.Entries()
+	if err != nil {
+		return cli.Exit(err, exitUsage)
+	}
+	removed, err := state.Prune(root, entries, dry)
+	if err != nil {
+		return cli.Exit(err, exitUsage)
+	}
+
+	// Two words, not one: "removed" prefixes a line about ONE directory and
+	// "1 of 4 … would remove" does not parse as English.
+	verb, summary := "removed", "removed"
+	if dry {
+		verb, summary = "would remove", "would be removed"
+	}
+	var bytes int64
+	failed := 0
+	for _, e := range removed {
+		if e.Err != nil {
+			fmt.Printf("FAIL %s  %v\n", e.Dir, e.Err)
+			failed++
+			continue
+		}
+		fmt.Printf("%s  %s  %s\n", verb, e.Dir, e.Root)
+		bytes += e.Bytes
+	}
+
+	unidentified := 0
+	for _, e := range entries {
+		if !e.Identified {
+			unidentified++
+		}
+	}
+	// A run that removed nothing says so. Printing nothing would be
+	// indistinguishable from a run that never happened.
+	//
+	// ⚠ "of file content", not a disk figure. This sums the sizes of the files
+	// removed; the space the filesystem actually returns is LARGER, because a
+	// 40-byte ledger occupies a whole block and each directory costs one too.
+	// Measured on one base: 10.7 MB of content across 65,235 files sat in
+	// 256 MB of disk. Block size is not something mrw can portably ask about,
+	// so it reports what it can count and names the unit (ADR-034).
+	fmt.Printf("%d of %d state director%s %s, %d byte(s) of file content\n",
+		len(removed)-failed, len(entries), plural(len(entries), "y", "ies"), summary, bytes)
+	if unidentified > 0 {
+		fmt.Printf("# %d kept: no readable `root` marker naming an absolute path, so mrw cannot say what %s\n",
+			unidentified, plural(unidentified, "it is", "they are"))
+	}
+	if failed > 0 {
+		return cli.Exit(fmt.Sprintf("mrw seen --prune: %d director%s could not be removed",
+			failed, plural(failed, "y", "ies")), exitUsage)
+	}
+	return nil
+}
+
+// plural picks the singular or the plural form for n.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 func short(sha string) string {

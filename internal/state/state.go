@@ -58,7 +58,7 @@ func Dir(root string) (string, error) {
 	// still usable, and failing the whole command over a marker would be worse
 	// than the orphan it prevents.
 	marker := filepath.Join(dir, "root")
-	if existing, err := os.ReadFile(marker); err != nil || strings.TrimSpace(string(existing)) != abs {
+	if existing, err := os.ReadFile(marker); err != nil || strings.TrimSuffix(string(existing), "\n") != abs {
 		_ = os.WriteFile(marker, []byte(abs+"\n"), 0o600)
 	}
 	return dir, nil

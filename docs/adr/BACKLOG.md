@@ -109,13 +109,19 @@ here.
 
 ## From ADR-004 (mrw leaves nothing in the working tree)
 
-- **Pruning orphaned state directories.** Moving or deleting a checkout leaves
-  its `$XDG_STATE_HOME/mrw/<key>/` behind. Each is a few hundred bytes and
-  carries a `root` file naming the checkout it belonged to, so a human can see
-  what is dead:
-  `grep -r . "${XDG_STATE_HOME:-$HOME/.local/state}/mrw"/*/root`. No automatic
-  reaper — deciding a directory is dead means deciding a path will never come
-  back, and a tool should not decide that.
+- **Pruning orphaned state directories.** ✅ **RESOLVED by ADR-034 (2026-09-07).** Moving or
+  deleting a checkout leaves its `$XDG_STATE_HOME/mrw/<key>/` behind. `mrw seen --prune` now removes
+  the entries whose `root` marker names a path that is gone, and says what it removed;
+  `--prune --dry-run` shows the list first.
+
+  **The size estimate here was wrong and is corrected.** This entry and ADR-004's Consequence at
+  `:164` both said each orphan is *"a few hundred bytes"* and that a human can clean up with
+  `grep -r . "${XDG_STATE_HOME:-$HOME/.local/state}/mrw"/*/root`. Measured 2026-09-07 on the
+  maintainer's machine: 22,836 directories using 242 MB of disk, of which 22,591 were dead — and a
+  second reading hours later, 24,067 directories and 256 MB. ⚠ Those are `du` figures. The FILES
+  came to 10.7 MB across 65,235 of them; the rest is one block per tiny file and one per directory,
+  so the real cost is inodes. Either way, selecting 22,591 `rm -rf` targets by hand out of that grep
+  is not a cleanup a human does.
 
 - **Windows conventions.** The state path is XDG-shaped; Windows would want
   `%LOCALAPPDATA%`. Nothing currently builds or tests mrw on Windows beyond
@@ -1166,3 +1172,52 @@ automatically, and `contract.sh` pins `XDG_STATE_HOME` into the `$WORK` its trap
 already removes. The question above is left as it was asked, because the reason
 it was a real question — and not an oversight — is the argument ADR-034's
 Alternatives had to answer.
+
+## From ADR-034 (state that names a checkout nobody has)
+
+- **The Go tests that do not pin `XDG_STATE_HOME`.** 11 of the 32 test files pin it into their own
+  `t.TempDir()`; the rest do not, and exactly ONE dead entry in the 22,591 measured on 2026-09-07
+  came from a Go `t.TempDir()` root. So this is real but tiny — 1 entry against 22,590 from
+  `scripts/contract.sh`, which ADR-034 T4 fixes. Bundling 21 files into that record would bury the
+  one line that mattered. The fix is `t.Setenv("XDG_STATE_HOME", t.TempDir())` in each test that
+  builds a root, and the check is the same before/after count T4's fence uses, run over
+  `go test ./...` instead of `contract.sh`.
+
+- **A prune that refuses when the marker's volume is absent.** PRE-REGISTERED, so the criterion
+  predates the first report rather than being written to fit it. ADR-034's exact test — the `root`
+  marker names a path that is not a directory — cannot distinguish a deleted checkout from one on
+  an unmounted volume. Today the operator is the gate: the command is explicit, `--dry-run` shows
+  the list, and a lost ledger costs a re-read and cannot cause a wrong edit (ADR-002) — though the
+  iteration working set and the authoring tally in the same directory are lost outright.
+
+  **What would promote this:** one report of a real `--prune` that removed state for a checkout on
+  a volume that was merely unmounted. The answer is then a refusal for entries whose marker names a
+  path under an absent mount point, NOT an age gate — an age gate deletes the same entries a
+  fortnight later and adds a number nobody can defend. ADR-034's Alternatives rejects the age gate
+  in advance for that reason.
+
+- **`absReal` resolving through ancestors that are gone.** ADR-034 T5 needed the spelling a state
+  key was minted under while its checkout existed, and rebuilt it by resolving the deepest surviving
+  ancestor. Doing that inside `absReal` instead would make `Dir` and every later lookup agree by
+  construction rather than by consulting three candidates, which is the better shape.
+
+  **Why it is not done:** it CHANGES THE KEY for any root under a symlinked parent that does not
+  exist yet. `Dir` on such a path currently keys by the literal spelling; afterwards it would key by
+  the resolved one, and every state directory already on disk for such a root becomes unreachable —
+  a ledger silently starting empty, which reads exactly like a first run. That is a migration with a
+  compatibility window, not a cleanup.
+
+  **What would promote this:** a third site needing the same reconstruction, or a decision to write
+  the migration. Measured cost today: three `key()` calls per prune, on a command an operator runs
+  by hand.
+
+- **The permission-error branch on Windows.** `TestARootThatCannotBeStattedIsKept` proves that only
+  `fs.ErrNotExist` means "gone" by denying traversal of a parent with mode 0. That does not deny
+  traversal on Windows, and the test SKIPS there — so on Windows nothing shows the branch holds, and
+  a skip is not a pass. The Windows spelling is an ACL denying `FILE_TRAVERSE`, which needs either
+  `golang.org/x/sys` or a `syscall` block, and `go.mod` declaring exactly one requirement is a
+  standing invariant of this repository.
+
+  **What would promote this:** a report of a prune removing live state on Windows, or a decision
+  that the second requirement is worth it. The `windows` CI job runs the test today and reports the
+  skip.
