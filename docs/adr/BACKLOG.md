@@ -1295,3 +1295,30 @@ Alternatives had to answer.
 
   Kept here rather than deleted because the entry is a receipt: the finding, the
   direction chosen, and the reason the remaining difference is not one.
+
+## From the v1.8.0 release (contract §24, observed rather than decided)
+
+- **§24's concurrency row can FAIL spuriously, not only skip.** `scripts/contract.sh:920`
+  races 40 concurrent `mrw read` invocations, measures how many ledger entries
+  survived as `kept`, then writes to all 40 and asserts `applied == kept`.
+  Observed three times on 2026-09-08 on one host: `exit 22, want 23`,
+  `exit 33, want 34`, and a clean pass. The window is between MEASURING `kept`
+  and performing the writes — a ledger entry can be lost in it, so `applied`
+  comes back one lower than the count the assertion was built from.
+
+  This is a defect in the ROW, not in mrw: the safety property it exists to
+  assert — that writability follows the ledger exactly, rather than failing open
+  at 40 or closed at 0 — is the right property, and it holds. What is racy is
+  the way the expected value is captured.
+
+  ⚠ It also means the count is not the only thing this row perturbs. The README
+  status paragraph explains a ±3 swing from its SKIP branch; a spurious FAIL is
+  a different and louder outcome, and "no assertion fails on the tagged tree"
+  is a statement about the runs that were measured rather than a guarantee.
+  The v1.8.0 CI run (34254748001) had 0 FAIL.
+
+  **What would fix it:** re-measure `kept` immediately before the writes, or
+  drive the comparison from the same enumeration the writes use, so the expected
+  value and the writes see one ledger state. Not attempted here — it is a change
+  to a contract row that guards ADR-002, and doing it inside a documentation PR
+  is how a gate quietly stops asserting what it was written for.
