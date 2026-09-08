@@ -113,6 +113,7 @@ because a review credited for something it did not find is a false citation
 - 2026-09-08 · fff5b94* · exit 0 · `set -o pipefail …` · acceptance-sha256:154265c939657a0d301500eefdab2cd0b31a2693973c71a91a36c889c552e3de · ms:24434
 - 2026-09-08 · fff5b94* · exit 0 · `set -o pipefail …` · acceptance-sha256:154265c939657a0d301500eefdab2cd0b31a2693973c71a91a36c889c552e3de · ms:22908
 - 2026-09-08 · 69e6a1a* · exit 0 · `set -o pipefail …` · acceptance-sha256:154265c939657a0d301500eefdab2cd0b31a2693973c71a91a36c889c552e3de · ms:23482
+- 2026-09-08 · 06dd1a4 · exit 0 · `set -o pipefail …` · acceptance-sha256:154265c939657a0d301500eefdab2cd0b31a2693973c71a91a36c889c552e3de · ms:26026
 
 ## Invariants
 
