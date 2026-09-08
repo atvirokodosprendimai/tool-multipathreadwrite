@@ -2008,8 +2008,17 @@ ex=props["plan"].get("examples")
 assert ex and ex[0].startswith("@@ "), "mrw_write publishes no worked plan"
 ex=tools["mrw_read"]["inputSchema"]["properties"]["specs"].get("examples")
 assert ex and isinstance(ex[0],list) and len(ex[0])>1, "mrw_read publishes no worked spec list"
+# ADR-027 changed a SERVED path — a bare `create` fails and names the fix — and
+# ADR-012 is the promise that this surface teaches the format it demands. The
+# handshake has no room for it (its 4096-byte bound is asserted three tests
+# over, and the claims it would displace are guarded), so the tool description
+# is where a plan author meets it, and this is what drives that through the
+# built server rather than trusting the string in the source.
+d=props["plan"]["description"]
+assert "body=0" in d, "the plan description does not teach that an empty file is body=0 (ADR-027)"
+assert "refused" in d.lower(), "the plan description lists create without saying a bare one is refused"
 PY
-[ $? -eq 0 ] && ok "and both tools say when to reach for them, and publish a worked example" \
+[ $? -eq 0 ] && ok "and both tools say when to reach for them, publish a worked example, and teach the body-less create refusal" \
              || bad "the tool descriptions still say only what the tools do"
 
 # THE ROW: the published plan is one the SHIPPED BINARY accepts. An example

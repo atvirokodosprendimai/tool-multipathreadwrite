@@ -353,7 +353,11 @@ func tools() []tool {
 						"type": "string",
 						"description": "The plan document. Each hunk is a header line " +
 							"`@@ <path> <address> <op> [guards]` followed by its body lines. " +
-							"Ops: replace, insert-after, insert-before, delete, create. An address " +
+							"Ops: replace, insert-after, insert-before, delete, create. " +
+							"ONLY delete may carry no body: an empty file is `@@ new.txt 0 " +
+							"create body=0`, and a bare create with nothing under it is " +
+							"refused, because a lost body reads exactly like one never " +
+							"written. An address " +
 							"is a line number, an N-M range, A,+N (the line A plus the N lines " +
 							"after it, refused if it runs past the last line), $ for the last " +
 							"line, or a pattern — " +
