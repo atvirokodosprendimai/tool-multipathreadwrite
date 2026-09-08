@@ -26,7 +26,7 @@ carries `anchor=`, on every address form, for every caller of `apply.Apply`.
 1. [S1] Write `TestAMultiLineReplaceWithoutAnAnchorIsRefused` and confirm it is RED: a `replace` over `3-6` with no anchor fails, nothing is written, and the message names `anchor=`. [proof: mutation]
 2. [S2] Write `TestASingleLineReplaceNeedsNoAnchor` and confirm it is RED against a guard that fires on every replace. This is the control that bounds the change: without it, "refuse every replace" passes S1. [proof: mutation]
 3. [S3] Write `TestAPatternRangeSpanningManyLinesNeedsAnAnchor` and confirm it is RED. ⚠ This is the step that decides WHERE the guard lives. A pattern has no resolved span at parse time — `plan.go:599`'s `patterned` escape says so — so a guard in `plan.validate` leaves this case green while S1 passes, which is the address-form-conditional hole ADR-026 and ADR-027 each found once. [proof: mutation]
-4. [S4] Write `TestAMultiLineReplaceWithAnAnchorStillApplies` and confirm it is RED before the guard exists only in the sense that the guard is absent; assert the file's resulting CONTENT, not just `Failed == 0`, so a guard that refuses everything and a guard that writes the wrong lines both fail it. [proof: mutation]
+4. [S4] Write `TestAMultiLineReplaceWithAnAnchorStillApplies`. ⚠ It is GREEN before the guard exists — the pre-guard engine applies that hunk — so it is not a red-first step and must not be described as one. Its job is the opposite bound: it goes red under a guard that refuses everything or writes the wrong lines, which is what the Mutation Log records. Assert the file's resulting CONTENT, not just `Failed == 0`, so both of those mutants fail it. [proof: mutation]
 5. [S5] Add the guard. Placed on the resolved `start`/`end`, so `3-6`, `/a/,/b/`, `A,+N` and `$` are all covered by one comparison. [proof: mutation]
 6. [S6] Confirm `delete`, `insert-after`, `insert-before` and `create` are untouched, and that `lines=` and `sha=` still work as they did — this record narrows nothing else. [proof: acceptance]
 7. [S7] Run every gate, unpiped. [proof: acceptance]
@@ -108,3 +108,4 @@ no guard at all.
 - 2026-09-08 · 0681115* · exit 0 · `set -o pipefail …` · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · ms:16298
 - 2026-09-08 · 195f72f* · exit 0 · `set -o pipefail …` · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · ms:16138
 - 2026-09-08 · 2254c4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · ms:15689
+- 2026-09-08 · d331809* · exit 0 · `set -o pipefail …` · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · ms:15953

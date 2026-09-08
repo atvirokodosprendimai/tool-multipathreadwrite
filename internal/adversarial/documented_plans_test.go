@@ -21,7 +21,7 @@ import (
 // already carry one. That is policy, and it is said out loud — an earlier cut
 // reported these as "a plan mrw refuses", which was simply untrue of them.
 //
-// ⚠ THIS IS A GO TEST BECAUSE THE CHECK NEEDS THE PARSER, AND THREE SHELL CUTS
+// ⚠ THIS IS A GO TEST BECAUSE THE CHECK NEEDS THE PARSER, AND FOUR SHELL CUTS
 // PROVED IT. A contract row can drive the built binary but it cannot tokenise a
 // plan header, and every attempt to approximate `splitHeader` with a regex was
 // defeated by a header the parser accepts:
@@ -64,8 +64,11 @@ func TestEveryDocumentedReplaceCarriesItsAnchor(t *testing.T) {
 	}
 }
 
-// documentedReplaceNeedsAnchor returns why the line is a documented replace
-// that ADR-035 would refuse, or "" if it is not one or carries its anchor.
+// documentedReplaceNeedsAnchor returns why the line is a documented replace that
+// this repository's DOCUMENTATION POLICY requires an anchor on, or "" if it is
+// not one or carries its anchor. Not every such line is one mrw would refuse:
+// the third bucket below is deliberately stricter than the engine, and saying
+// otherwise is the claim two rounds of review took out of this file.
 //
 // A line that does not parse as exactly one hunk is not a plan header — read
 // output such as `@@ 3-3` is the common case — and is left alone. That is not
@@ -139,9 +142,10 @@ func documentedReplaceNeedsAnchor(line string) string {
 
 // TestTheDocumentedPlanCheckRejectsWhatItMustReject is the gate on the gate.
 // Without it the test above passes on a classifier that returns "" for
-// everything — and the three shell cuts it replaces were each green against the
-// real documentation while blind to a header the parser accepts. Every case
-// below defeated one of them.
+// everything — and the four shell cuts it replaces were each green against the
+// real documentation while blind to a header the parser accepts. Most cases
+// below defeated one of them; the counted-body case defeated the FIRST Go cut
+// of this very check, which is why it is here too.
 func TestTheDocumentedPlanCheckRejectsWhatItMustReject(t *testing.T) {
 	mustFlag := []string{
 		`@@ f.go 2-3 replace`,
@@ -160,7 +164,7 @@ func TestTheDocumentedPlanCheckRejectsWhatItMustReject(t *testing.T) {
 	}
 	for _, line := range mustFlag {
 		if documentedReplaceNeedsAnchor(line) == "" {
-			t.Errorf("not flagged, but mrw would refuse it: %q", line)
+			t.Errorf("not flagged, but the documentation policy requires an anchor here: %q", line)
 		}
 	}
 

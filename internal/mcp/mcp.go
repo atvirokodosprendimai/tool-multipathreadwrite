@@ -361,8 +361,10 @@ func tools() []tool {
 							"is a line number, an N-M range, A,+N (the line A plus the N lines " +
 							"after it, refused if it runs past the last line), $ for the last " +
 							"line, or a pattern — " +
-							"/regexp/ or /from/,/to/. A pattern must match EXACTLY ONE line; none " +
-							"or several fails that hunk, naming the lines it matched. Addresses " +
+							"/regexp/ or /from/,/to/. The START pattern must match EXACTLY ONE " +
+							"line; none or several fails that hunk, naming the lines it matched. " +
+							"The END is a DELIMITER, not a site: the first match at or after the " +
+							"start, so it may match many times. Addresses " +
 							"resolve against the ORIGINAL file. Guards, checked on " +
 							"every op: sha=<hex>, lines=<n>, anchor=\"<text>\". " +
 							"sha= and lines= are always optional. " +

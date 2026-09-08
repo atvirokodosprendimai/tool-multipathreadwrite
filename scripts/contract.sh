@@ -4678,7 +4678,7 @@ grep -q 'func C' "$R/a.go" \
 # CONSERVATIVE BY CONSTRUCTION: the safe forms are enumerated and everything
 # else is flagged, rather than the reverse — and this row no longer tries. THE
 # DOCUMENTATION CHECK MOVED TO A GO TEST, because it needs the PARSER and a
-# contract row cannot have one. Three shell cuts were each defeated by a header
+# contract row cannot have one. Four shell cuts were each defeated by a header
 # `splitHeader` accepts and a regex does not see: a quoted path read as the op,
 # a greedy match backtracking into one, tab separators, and finally a QUOTED OP
 # (`@@ f.go 2-3 "replace"`) plus a BOM-prefixed header. Every one was found by a

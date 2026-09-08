@@ -102,7 +102,7 @@ then its body lines. Ops: replace, insert-after, insert-before, delete, create.
 An address is a line number, an N-M range, A,+N (ONE start
 plus the N lines after; a read clamps at the last line, a write refuses past
 it), $ for the last, or a PATTERN — /regexp/ for one line, /from/,/to/ for
-a range. A pattern must match EXACTLY ONE line: none or several fails that hunk
+a range. The START must match EXACTLY ONE line: none or several fails that hunk
 and the refusal names its matches. Every address resolves against the
 ORIGINAL file, so hunks need no offset arithmetic; a pattern is NOT a way to
 edit a file you have not read — the line it resolves to must still have been
