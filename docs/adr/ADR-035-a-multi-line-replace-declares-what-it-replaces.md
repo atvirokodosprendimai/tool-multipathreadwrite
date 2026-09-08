@@ -67,28 +67,38 @@ discriminates is:
 | Guard | What it asserts | Incident 1 (short address) | Incident 2 (stale address) |
 |---|---|---|---|
 | `lines=N` (`apply.go:885`) | `end-start+1 == N` — the address against its own arithmetic | **distinguishes** — `lines=21`, the intended count, fails on a 5-line address. A count read off the wrong address does not | **CANNOT** — the intended and written spans have the same cardinality: `96-97` spans 2 either way, `103` spans 1. A truthful count is the same number |
-| `sha=` (`apply.go:589`) | the whole file is the bytes the caller expects | **UNKNOWN** — the record does not establish whether that file had changed, so nothing here can say. See the note below | **CANNOT** — the file was demonstrably unchanged, so a truthful hash matches and the wrong address survives |
+| `sha=` (`apply.go:583`) | the whole file is the bytes the caller expects | **CANNOT** — the check never reads the address at all, so it returns the same verdict for the intended range and the wrong one | **CANNOT** — same reason; and here the file was demonstrably unchanged, so a truthful hash also matches |
 | `anchor=` (`apply.go:899`) | `orig[start-1]` contains the declared text | **distinguishes**, unless the declared text also happens to sit at the wrong first line | **distinguishes**, same caveat |
 
 `anchor=` is the only one that distinguishes both, and the reason is structural
 rather than lucky: it is the only one that speaks about the content AT the
-address, which is the thing both incidents got wrong. `lines=` asks the address
-about itself and `sha=` asks about the whole file. Incident 2 is precisely the
-case where the address is internally consistent AND the file has not moved, so a
-truthful count and a truthful hash both match while the address is wrong — which
-is what rules those two out as location guards. Both remain available and remain
-orthogonal: `sha=` still answers a question `anchor=` cannot, namely whether the
-file moved under the caller.
+address, which is the thing both incidents got wrong.
 
-⚠ **This table's own history is the argument for the record.** The `sha=` cell
-for incident 1 first read "catches", written by analogy with the `lines=` cell
-above it rather than against `apply.go:583` — an assertion about a location
-nobody had looked at, which is exactly what the guard this record adds exists to
-refuse in a plan. The correction then over-claimed the other way, asserting
-`sha=` "would have passed" when the record never established whether that file
-changed, and asserting that "no value fails" when a false value always does.
-Both were caught by review, one round apart. The cell now says UNKNOWN, because
-that is what is known.
+`sha=` is ruled out by inspection rather than by either incident. Read
+`apply.go:583-590`: it compares `shaBefore` against the declared prefix and
+never touches `h.Start` or `h.End`. A guard that does not read the address
+returns the same verdict for the intended range and the wrong one, so it cannot
+discriminate between them for any file state. If the file HAS drifted it rejects
+both — which detects drift, a different and genuinely useful thing, and the
+reason `sha=` stays in the grammar. It is not a location guard and cannot be
+made into one.
+
+`lines=` does read the address, so it is ruled out per-incident rather than
+structurally: it distinguishes incident 1 and not incident 2, because there the
+intended and written spans have equal cardinality and a truthful count is the
+same number either way.
+
+⚠ **This table's own history is the argument for the record, and it took three
+review rounds to get one cell right.** The `sha=` cell for incident 1 first read
+"catches", written by analogy with the `lines=` cell above it rather than
+against `apply.go:583` — an assertion about a location nobody had looked at,
+which is exactly what the guard this record adds exists to refuse in a plan. The
+first correction over-claimed the other way ("would have passed", "no value
+fails" — a false value always fails). The second retreated to UNKNOWN, which was
+still answering the wrong question: *would it have fired here* rather than *can
+it discriminate at all*. Reading the check settles it without needing to know
+anything about that file. Every one of those cuts was written from the shape of
+the argument; only the last was read off the code.
 
 The first proposal for this record was mandatory `lines=`. It was withdrawn on
 the finding in the table above: on incident 2, a truthfully sourced `lines=`
@@ -129,11 +139,11 @@ message claims.
 ## Alternatives Considered
 
 - **Mandatory `lines=`.** The original proposal. Withdrawn: see the audit table.
-- **Mandatory `anchor=` OR `sha=`.** Rejected. On incident 2 a truthfully sourced
-  `sha=` cannot distinguish the incident at all, and on incident 1 nothing
-  establishes what it would have done. A disjunction is only as strong as its
-  weakest arm, and a caller satisfying it with `sha=` would get a refusal message
-  promising a guard that had no way to fire.
+- **Mandatory `anchor=` OR `sha=`.** Rejected. `sha=` never reads the address
+  (`apply.go:583-590`), so it cannot discriminate a wrong address from the
+  intended one on any incident or any file state. A disjunction is only as strong
+  as its weakest arm, and a caller satisfying it with `sha=` would get a refusal
+  message promising a guard that had no way to fire.
 - **Requiring the replaced body to be declared, as `delete` allows.** Strictly
   stronger, and rejected on cost: a replace's body is the NEW content, so this
   would mean carrying both old and new text in every multi-line hunk, roughly

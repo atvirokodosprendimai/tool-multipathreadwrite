@@ -2017,22 +2017,47 @@ assert ex and isinstance(ex[0],list) and len(ex[0])>1, "mrw_read publishes no wo
 d=props["plan"]["description"]
 assert "body=0" in d, "the plan description does not teach that an empty file is body=0 (ADR-027)"
 assert "refused" in d.lower(), "the plan description lists create without saying a bare one is refused"
-# ADR-035. `"REQUIRED" in d` is not an assertion: it passed for
-# `anchor= is not REQUIRED on a multi-line replace`, and the contradiction check
-# below it caught only one word order and two capitalisations, so
-# `anchor= is optional. It is REQUIRED only on delete` passed too. Both were
-# demonstrated by probe in the second review round. The clause is asserted whole
-# — anchor=, REQUIRED, and replace tied together in one sentence — and the
-# negations and both adjacency orders are refused case-insensitively.
+# ADR-035. This check has been unsound twice, and each cut was defeated by a
+# string a careless edit could plausibly produce:
+#   `"REQUIRED" in d`                     passed `anchor= is not REQUIRED ...`
+#   one word order + two capitalisations  passed `anchor= is optional. It is
+#                                         REQUIRED only on delete`
+#   the clause without its SCOPE          passed `... REQUIRED on a replace
+#                                         unless it addresses more than one line`
+# So the scope is pinned too, and the checks are run over a table of strings
+# that MUST fail as well as the live description — a check nobody has watched
+# reject anything is a claim, not a gate.
 import re as _re
-assert _re.search(r"anchor=\s+is\s+REQUIRED\s+on\s+a\s+replace", d), \
-    "the plan description does not tie anchor= to REQUIRED and replace in one clause (ADR-035)"
-assert not _re.search(r"(?i)anchor=[^.]*\bnot\s+required", d), \
-    "the plan description says anchor= is NOT required (ADR-035)"
-assert not _re.search(r"(?i)optional[^.]*anchor=", d), \
-    "the plan description calls anchor= optional before requiring it (ADR-035)"
-assert not _re.search(r"(?i)anchor=[^.]*\boptional\b", d), \
-    "the plan description calls anchor= optional after requiring it (ADR-035)"
+
+def _adr035_desc_problems(text):
+    out = []
+    if not _re.search(r"anchor=\s+is\s+REQUIRED\s+on\s+a\s+replace\s+addressing\s+more\s+than\s+one\s+line", text):
+        out.append("does not state the requirement with its scope")
+    if _re.search(r"(?i)required[^.]*\b(unless|except)\b", text):
+        out.append("qualifies REQUIRED away with unless/except")
+    if _re.search(r"(?i)required[^.]*exactly\s+one\s+line", text):
+        out.append("inverts the scope to exactly one line")
+    if _re.search(r"(?i)anchor=[^.]*\bnot\s+required", text):
+        out.append("says anchor= is not required")
+    if _re.search(r"(?i)optional[^.]*anchor=", text):
+        out.append("calls anchor= optional before requiring it")
+    if _re.search(r"(?i)anchor=[^.]*\boptional\b", text):
+        out.append("calls anchor= optional after requiring it")
+    return out
+
+_bad_wordings = [
+    'anchor= is not REQUIRED on a replace addressing more than one line',
+    'anchor= is optional. It is REQUIRED only on delete',
+    'anchor= is REQUIRED on a replace unless it addresses more than one line',
+    'anchor= is REQUIRED on a replace addressing exactly one line',
+    'Optional guards: sha=<hex>, lines=<n>, anchor="<text>"',
+    'anchor= is REQUIRED on a replace',
+]
+for _w in _bad_wordings:
+    assert _adr035_desc_problems(_w), \
+        "the ADR-035 wording check accepts a misleading description: %r" % _w
+assert not _adr035_desc_problems(d), \
+    "the plan description misstates the anchor= requirement (ADR-035): %s" % _adr035_desc_problems(d)
 PY
 [ $? -eq 0 ] && ok "and both tools say when to reach for them, publish a worked example, and teach the body-less create refusal" \
              || bad "the tool descriptions still say only what the tools do"
@@ -4666,14 +4691,39 @@ grep -q 'func C' "$R/a.go" \
 # The two PROSE mentions of the out-of-range example are excluded by the column-0
 # anchor, not by their content.
 adr035_unanchored() {
-  # -H, not just -n: with ONE file grep omits the filename, so the two exclusion
-  # patterns below — which expect `file:line:` — matched nothing and every safe
-  # header was flagged. The self-test found that; the docs check could not,
-  # because it always passes two files.
-  grep -HnE '^@@ .* replace( |$)' "$@" \
-    | grep -vE '^[^:]+:[0-9]+:@@ [^ ]+ ([0-9]+|\$) replace( +[a-z]+=[^ ]+)*$' \
-    | grep -vE '^[^:]+:[0-9]+:@@ .* replace .*anchor="[^"]+"' \
-    || true
+  # THE OP IS FOUND BY COUNTING, NOT BY POSITION. Two regex cuts were defeated
+  # because they guessed which token was the op:
+  #   awk fields          took the FIRST field equal to `replace`, so a quoted
+  #                       path — one parser field, plan.go:396 — was read as op
+  #   greedy `.* replace` backtracked to a `replace` inside a quoted path when
+  #                       the real op ended the line, and then accepted an
+  #                       `anchor=` that sat in the ADDRESS pattern after it
+  # So: if the word appears with a separator on both sides exactly ONCE, its
+  # position is unambiguous and everything after it is guards. If it appears
+  # twice or more, the op is not determinable by this gate and the line is
+  # FLAGGED rather than guessed at. No documented header has two.
+  #
+  # Separators are space OR TAB, because splitHeader accepts both
+  # (plan.go:466) — `@@ f.go 2-3<TAB>replace` is valid grammar and an earlier
+  # cut missed it. An anchor may be quoted or bare (plan.go:365-371); `anchor=""`
+  # is not an anchor, and mrw refuses it, so it does not count here either.
+  awk '
+    /^@@ / {
+      s = $0; n = 0; at = 0; off = 0
+      while (match(s, /[ \t]replace([ \t]|$)/)) {
+        n++
+        at = off + RSTART
+        off = off + RSTART + RLENGTH - 1
+        s = substr(s, RSTART + RLENGTH)
+      }
+      if (n == 0) next
+      if (n > 1) { printf "%s:%d: %s\n", FILENAME, FNR, $0; next }
+      head = substr($0, 1, at - 1)
+      tail = substr($0, at + 8)
+      if (tail ~ /anchor=("[^"]+"|[^ \t"][^ \t]*)/) next
+      if (head ~ /^@@ [^ \t]+[ \t]+([0-9]+|\$)$/) next
+      printf "%s:%d: %s\n", FILENAME, FNR, $0
+    }' "$@"
 }
 docs_bad=$(adr035_unanchored README.md AGENTS.md)
 [ -z "$docs_bad" ] \
@@ -4682,14 +4732,18 @@ docs_bad=$(adr035_unanchored README.md AGENTS.md)
 # A GATE IS ITSELF A CLAIM, so the classifier is driven over headers built to
 # defeat it — through the SAME function the check above uses, never a copy.
 # Without this the row passes on a classifier that flags nothing.
-cat > "$WORK/s73safe.txt" <<'SAFE'
+# The tabbed cases are written with printf, not in the heredoc, so the
+# separator is unambiguously a TAB rather than whatever an editor left behind.
+{ cat <<'SAFE'
 @@ f.go 12 replace
 @@ f.go $ replace
 @@ f.go 42-58 replace anchor="func Apply" lines=17
 @@ internal/store/store.go /^func \(s \*Store\) Get/,/^\}/ replace anchor="func (s *Store) Get"
-@@ "a replace b.go" 2-3 replace anchor="x"
+@@ f.go 2-3 replace anchor=x
 SAFE
-cat > "$WORK/s73bad.txt" <<'BAD'
+  printf '@@ f.go 12\treplace\n'
+} > "$WORK/s73safe.txt"
+{ cat <<'BAD'
 @@ f.go 2-3 replace
 @@ f.go 2- replace
 @@ f.go 2-$ replace
@@ -4698,11 +4752,15 @@ cat > "$WORK/s73bad.txt" <<'BAD'
 @@ f.go /anchor="x"/,/^b$/ replace
 @@ f.go 2-3 replace anchor=""
 @@ "foo 2 replace bar.go" 2-3 replace
+@@ "foo replace bar.go" /anchor="x"/,/^b$/ replace
+@@ "a replace b.go" 2-3 replace anchor="x"
 BAD
+  printf '@@ f.go 2-3\treplace\n'
+} > "$WORK/s73bad.txt"
 n_safe=$(adr035_unanchored "$WORK/s73safe.txt" | wc -l | tr -d ' ')
-want 0 "$n_safe" "the documentation classifier passes every header that carries its anchor"
+want 0 "$n_safe" "the documentation classifier passes every header that carries its anchor, quoted or bare"
 n_bad=$(adr035_unanchored "$WORK/s73bad.txt" | wc -l | tr -d ' ')
-want 8 "$n_bad" "and flags every unanchored shape, including a quoted path and an empty anchor="
+want 11 "$n_bad" "and flags every unanchored shape: open-ended and tabbed ranges, an anchor= inside the ADDRESS, an empty anchor=, and a quoted path that makes the op ambiguous"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
