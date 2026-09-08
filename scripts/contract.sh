@@ -2017,6 +2017,14 @@ assert ex and isinstance(ex[0],list) and len(ex[0])>1, "mrw_read publishes no wo
 d=props["plan"]["description"]
 assert "body=0" in d, "the plan description does not teach that an empty file is body=0 (ADR-027)"
 assert "refused" in d.lower(), "the plan description lists create without saying a bare one is refused"
+assert "REQUIRED" in d, "the plan description does not say anchor= is required on a multi-line replace (ADR-035)"
+# The description carried BOTH "Optional guards: ... anchor=" and "anchor= is
+# REQUIRED", two lines apart, and shipped that way. A caller reading the wire
+# contract was told the opposite of the engine's behaviour, so the word that
+# caused it is asserted absent rather than the corrected sentence asserted
+# present: only the first can go wrong again the same way.
+import re as _re
+assert not _re.search(r"[Oo]ptional[^.]*anchor=", d), "the plan description calls anchor= optional while also requiring it (ADR-035)"
 PY
 [ $? -eq 0 ] && ok "and both tools say when to reach for them, publish a worked example, and teach the body-less create refusal" \
              || bad "the tool descriptions still say only what the tools do"
@@ -4628,10 +4636,30 @@ grep -q 'func C' "$R/a.go" \
 # else here reads README.md or AGENTS.md. Anchored to column 0, so the two
 # PROSE mentions of `@@ f.go 5-9999 replace` — which discuss the out-of-range
 # refusal, and which mrw still refuses for that reason first — are not matched.
-docs_bad=$(grep -nE '^@@ .*([0-9]+-[0-9]+|/,/.*/|,\+[0-9]+) replace' README.md AGENTS.md 2>/dev/null | grep -v 'anchor=' || true)
+# CONSERVATIVE BY CONSTRUCTION: the safe forms are enumerated and everything
+# else is flagged, rather than the reverse. An earlier cut enumerated the
+# RANGE forms and so missed `@@ f.go 2- replace` and `@@ f.go 2-$ replace` —
+# both real grammar (plan.go's ParseAddr: "N-" runs to end of file), both
+# multi-line, both refused by the guard. A gate that has to be extended for
+# every address form the grammar gains is a gate that is wrong by default.
+#
+# Single-line spellings are exactly two: a bare line number, and `$`. Anything
+# else — a range, an open-ended range, a pattern pair, a relative end, or an
+# address the awk splits across fields because it contains a space — is
+# range-shaped and must carry an anchor. `4-4` is range-SHAPED and covers one
+# line, so it is flagged though it would apply; over-flagging in documentation
+# is the safe direction and costs one anchor.
+docs_bad=$(awk '
+  /^@@ / && !/anchor=/ {
+    op = 0
+    for (i = 3; i <= NF; i++) if ($i == "replace") { op = i; break }
+    if (op == 0) next
+    if (op == 4 && ($3 ~ /^[0-9]+$/ || $3 == "$")) next
+    printf "%s:%d: %s\n", FILENAME, FNR, $0
+  }' README.md AGENTS.md 2>/dev/null || true)
 [ -z "$docs_bad" ] \
-  && ok "every multi-line replace shown in README.md and AGENTS.md carries an anchor" \
-  || bad "a documented multi-line replace has no anchor= and would now be refused: $docs_bad"
+  && ok "every range-shaped replace shown in README.md and AGENTS.md carries an anchor" \
+  || bad "a documented range-shaped replace has no anchor= and would now be refused: $docs_bad"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

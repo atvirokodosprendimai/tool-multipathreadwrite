@@ -95,3 +95,4 @@ defer with a receipt, not to shorten what is guarded.
 - 2026-09-08 · 3245e1a* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:33361
 - 2026-09-08 · 3245e1a* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:33542
 - 2026-09-08 · 3245e1a* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:33524
+- 2026-09-08 · e9165d5* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:34286

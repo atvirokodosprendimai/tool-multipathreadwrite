@@ -1262,3 +1262,13 @@ Alternatives had to answer.
   CONTENT, not just the span — a size and staleness question this record did not
   need to answer, since a caller who read the lines can copy the anchor out of
   the `NNN| content` the read already printed.
+
+- **The handshake `instructions` do not teach the anchor requirement.** Same wall
+  and same reasoning as the ADR-027 entry above, which measured it: the document
+  is at 4,095 of `maxInstructionsChars`' 4,096 BYTES, and every candidate cut
+  turned a guarded claim red. The `mrw_write` tool DESCRIPTION carries it as of
+  2026-09-08 and contract §43 asserts it through the built server, so an MCP
+  caller does get it — from the tool, not the handshake. The refusal message also
+  names the remedy, which is what bounds the cost of not saying it earlier.
+  **What would promote this:** whatever promotes the ADR-027 entry, since one cut
+  funds both.

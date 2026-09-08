@@ -363,10 +363,11 @@ func tools() []tool {
 							"line, or a pattern — " +
 							"/regexp/ or /from/,/to/. A pattern must match EXACTLY ONE line; none " +
 							"or several fails that hunk, naming the lines it matched. Addresses " +
-							"resolve against the ORIGINAL file. Optional " +
-							"guards, checked on every op: sha=<hex>, lines=<n>, anchor=\"<text>\". " +
-							"anchor= is REQUIRED on a replace addressing more than one line, and " +
-							"is worth most taken from the NNN| content a read printed. " +
+							"resolve against the ORIGINAL file. Guards, checked on " +
+							"every op: sha=<hex>, lines=<n>, anchor=\"<text>\". " +
+							"anchor= is REQUIRED on a replace addressing more than one " +
+							"line; the other two are optional. An anchor is worth most " +
+							"taken from the NNN| content a read printed. " +
 							"A body line beginning with @@ needs body=<n> raw=true.",
 						// The format is bespoke and no model has it in training
 						// data (ADR-009's premise), so one plan that really

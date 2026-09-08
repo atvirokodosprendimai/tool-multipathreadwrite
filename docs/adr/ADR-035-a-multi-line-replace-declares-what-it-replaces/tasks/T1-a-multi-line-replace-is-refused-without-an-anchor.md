@@ -104,3 +104,4 @@ no guard at all.
 - 2026-09-08 · 3245e1a* · exit 0 · `set -o pipefail …` · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · ms:15672
 - 2026-09-08 · 3245e1a* · exit 0 · `set -o pipefail …` · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · ms:15480
 - 2026-09-08 · 3245e1a* · exit 0 · `set -o pipefail …` · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · ms:15398
+- 2026-09-08 · e9165d5* · exit 0 · `set -o pipefail …` · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · ms:17258
