@@ -4696,6 +4696,49 @@ grep -q 'func C' "$R/a.go" \
 # in the commit that grows them, and this comment's did.
 #
 # What stays HERE is what only a contract row can do: drive the built binary.
+
+# 74. ADR-036: a paired pattern means one thing on both paths.
+#
+# The unit tests prove the resolver; they cannot prove the shipped binary uses
+# it. Both changed behaviours are driven here, each paired with the case that
+# must still work, because a row that only shows the refusal is satisfied by a
+# binary that refuses every paired pattern.
+fixture
+printf 'alpha\nSTART\nbody one\nbody two\nomega\n' > "$R/p.txt"
+out=$(m read 'p.txt:/^START$/,/^NEVER$/' 2>&1); rc=$?
+want 1 "$rc" "a paired pattern whose end never matches is refused, not served to EOF"
+grep -q 'end pattern' <<<"$out" \
+  && ok "and the report says which HALF of the pattern missed" \
+  || bad "the report does not name the end as the half that failed: $out"
+# ⚠ THE ABSENCE IS THE ASSERTION. A build that reports the range AND serves it
+# passes a message-only check, and serving is the defect this row exists for.
+grep -q 'body one' <<<"$out" \
+  && bad "content past the start was served anyway: $out" \
+  || ok "and nothing past the start was served"
+# The end is the first match AT OR AFTER the start, so an end on the start line
+# closes the span there — one line, exactly as the write path resolves it.
+printf 'alpha\nMARK here\nmiddle\nMARK again\nomega\n' > "$R/q.txt"
+out=$(m read 'q.txt:/^MARK here$/,/MARK/' 2>&1); rc=$?
+want 0 "$rc" "an end matching the start line is accepted"
+grep -q '@@ 2-2' <<<"$out" \
+  && ok "and it closes the span on that line" \
+  || bad "an end on the start line did not close the span there: $out"
+# The pair: an ordinary later end still spans to it, so this is a narrowing
+# rather than a ban.
+out=$(m read 'q.txt:/^alpha$/,/^middle$/' 2>&1); rc=$?
+want 0 "$rc" "an ordinary paired pattern still resolves"
+grep -q '@@ 1-3' <<<"$out" \
+  && ok "and still spans to its end" \
+  || bad "an ordinary paired pattern no longer spans to its end: $out"
+# The difference ADR-036 KEEPS: a read serves a span for every match of the
+# start, where a write refuses unless it matches once. The spans need a GAP
+# between them, because contiguous spans are coalesced into one.
+printf 'START\nx\nEND\ngap\nSTART\ny\nEND\n' > "$R/r.txt"
+out=$(m read 'r.txt:/^START$/,/^END$/' 2>&1); rc=$?
+want 0 "$rc" "a start matching twice is still served by a read"
+grep -q '@@ 1-3' <<<"$out" && grep -q '@@ 5-7' <<<"$out" \
+  && ok "and both spans come back, which the write path deliberately refuses" \
+  || bad "a start matching twice no longer serves both spans: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

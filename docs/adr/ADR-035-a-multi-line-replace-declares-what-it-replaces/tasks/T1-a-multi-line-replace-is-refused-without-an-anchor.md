@@ -78,7 +78,7 @@ go test ./internal/apply/ -count=1 -v \
 - A single-line `replace` is unchanged. `delete`, `insert-after`, `insert-before` and `create` are unchanged.
 - `lines=` and `sha=` keep their existing meanings and stay optional; neither satisfies this requirement, for the reason ADR-035's audit table gives.
 - The guard sits after `covered()`, so a refusal never quotes a line the caller was not served (ADR-028).
-- `internal/read`, `internal/plan`, `internal/seen`, `internal/check` and `internal/state` stay byte-identical against the merge base, and `go.mod` declares exactly one requirement.
+- `internal/plan`, `internal/seen`, `internal/check` and `internal/state` stay byte-identical against the merge base, and `go.mod` declares exactly one requirement. ⚠ `internal/read` was on this list and is no longer: ADR-036, written in the same branch after the eighth review round found `read` and `write` resolving `/from/,/to/` differently, OWNS that change. The invariant is not relaxed — it is transferred, which is the only way this list is allowed to shrink.
 
 ## Risks
 

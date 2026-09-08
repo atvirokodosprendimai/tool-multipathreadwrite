@@ -520,23 +520,49 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 		switch {
 		case r.Re != nil && r.ReEnd != nil:
 			found := false
+			// Tracked separately from `found` so the report can say WHICH half
+			// missed. A caller told only "this range matched nothing" re-reads
+			// the file to learn whether it was the start or the end, which is a
+			// call this tool exists to save them.
+			startMatched := false
 			for i := 0; i < total; i++ {
 				if !r.Re.MatchString(lines[i]) {
 					continue
 				}
-				end := total
+				startMatched = true
+				// ADR-036. `j >= i`, not `j > i`: the end is the first match AT
+				// OR AFTER the start, which is what internal/apply already did
+				// (apply.go:748) and what ed and sed mean by /a/,/b/. An end on
+				// the start line closes the span there.
+				//
+				// 0 means "no end matched", and it is not a valid span start, so
+				// it cannot be confused with one. This used to default to
+				// `total` — the range silently ran to the end of the file and
+				// reported SUCCESS, serving a span the address never described.
+				// A read that quietly serves more is exactly as invisible as a
+				// write that quietly changes less, and the caller then holds
+				// line numbers mrw never agreed to.
+				end := 0
 				for j := i; j < total; j++ {
-					if j > i && r.ReEnd.MatchString(lines[j]) {
+					if r.ReEnd.MatchString(lines[j]) {
 						end = j + 1
 						break
 					}
+				}
+				if end == 0 {
+					continue
 				}
 				spans = append(spans, span{i + 1, end})
 				found = true
 				i = end - 1
 			}
 			if !found {
-				missed = append(missed, r.Text)
+				if startMatched {
+					missed = append(missed, fmt.Sprintf(
+						"%s (the start matched, but the end pattern matched no line at or after it)", r.Text))
+				} else {
+					missed = append(missed, r.Text)
+				}
 			}
 		case r.Re != nil:
 			found := false

@@ -1280,29 +1280,18 @@ Alternatives had to answer.
   not by the handshake. An eighth-round review caught this branch's own commit
   message claiming all three places state the split. They do not.
 
-- **`/from/,/to/` MEANS DIFFERENT THINGS TO `read` AND TO `write`.** Found by the
-  eighth Codex review round of ADR-035, while checking whether a documentation
-  correction about the end pattern matched both paths. It did not, and the
-  divergence is real, measured against the resolvers rather than inferred:
+- **~~`/from/,/to/` MEANS DIFFERENT THINGS TO `read` AND TO `write`.~~ CLOSED by
+  ADR-036, 2026-09-08, the same day it was filed.** Found by the eighth Codex
+  review round of ADR-035, while checking whether a documentation correction
+  about the end pattern held on the read path too. It did not.
 
-  | case | `mrw read f.go:/a/,/b/` | `@@ f.go /a/,/b/ replace` |
-  |---|---|---|
-  | the start matches twice | serves BOTH spans (`internal/read/read.go:523`) | refuses as ambiguous (`internal/apply/apply.go:728`) |
-  | the end matches on the START line | looks strictly after it (`read.go:529`), so it runs on | accepts, and the span is one line |
-  | no end matches after the start | silently extends to EOF (`read.go:527`) | refuses |
+  Two of the three differences are gone: the end is now the first match at or
+  after the start on both paths, and a paired pattern whose end never matches is
+  reported rather than served to EOF. The third — a read serving a span for every
+  match of the start, where a write refuses unless it matches once — is KEPT on
+  purpose and is recorded as a boundary in ADR-036, not as debt: the exactly-once
+  rule answers which site a plan means, and an exploratory read need not answer
+  it.
 
-  So the same address can serve a broad span and then write one line — and a
-  caller who takes their line numbers from that read is in exactly the position
-  ADR-035 exists to protect them from.
-
-  **Not fixed here, deliberately.** It is an engine change to `internal/read` or
-  `internal/apply`, both of which ADR-035's tasks pin as byte-identical, and
-  choosing WHICH path moves is a public-contract decision that needs its own
-  record: making `read` exactly-once would break every exploratory read that
-  matches twice, and making `write` permissive would give a plan an ambiguous
-  site, which ADR-001 and ADR-002 exist to refuse. README.md now says the two
-  agree on LINE addresses and names this exception rather than claiming more.
-
-  **What would promote this:** a caller reporting a wrong write whose numbers
-  came from a paired-pattern read — or simply the decision being taken, since the
-  divergence is now written down rather than latent.
+  Kept here rather than deleted because the entry is a receipt: the finding, the
+  direction chosen, and the reason the remaining difference is not one.

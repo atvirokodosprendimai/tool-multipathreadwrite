@@ -219,6 +219,12 @@ it may match many times and does not get the exactly-once rule. Applying it to
 both ends shipped once and made `/^func X/,/^}/` fail on any file with two
 functions, because `^}` closes both (`internal/apply/apply.go:748`, pinned by
 `TestTheEndPatternIsTheFirstMatchAtOrAfterTheStart`).
+And the END is resolved the same way by `read` and by `write` (ADR-036): the
+first match **at or after** the start, so an end matching the start line closes
+the span there, and a paired pattern whose end never matches is **reported and
+exits 1** rather than served to the end of the file — say `f.go:/a/,$` when you
+mean "to the end". One difference is kept on purpose: a read serves a span for
+EVERY match of the start, a write refuses unless the start matches exactly once.
 A relative end has no backwards form and may not be combined with
 `/from/,/to/`. ⚠ **A READ CLAMPS a relative end at the last line; a WRITE
 REFUSES one that runs past it** — each is that path's own existing rule, since
