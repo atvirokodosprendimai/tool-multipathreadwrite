@@ -194,4 +194,4 @@ only such consumer is `scripts/contract.sh` in this repository.
 
 ## Follow-ups
 
-- [ ] Decide whether the temp output files should be cleaned up or moved under the repo (see BACKLOG.md)
+- [x] Decide whether the temp output files should be cleaned up or moved under the repo (see BACKLOG.md) — **decided 2026-09-03: cleaned up where they are, not moved.** Moving them under the checkout would break ADR-004, which is why the log stays in the system temp directory. `internal/check/check.go:230` removes it only when the check RAN, exited `0` **and** was not truncated; a failing run keeps its log because the tail is a summary and the file is the evidence, and a truncated one keeps it because the report names the file.

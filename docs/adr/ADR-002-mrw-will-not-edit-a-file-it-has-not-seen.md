@@ -192,4 +192,4 @@ observations, not a source of truth.
 
 ## Follow-ups
 
-- [ ] Decide whether `mrw forget <path>` is worth wiring, or whether `seen.Forget` should be deleted as dead code (see BACKLOG.md)
+- [x] Decide whether `mrw forget <path>` is worth wiring, or whether `seen.Forget` should be deleted as dead code (see BACKLOG.md) — **decided 2026-09-03: deleted.** `seen.Forget` had no CLI caller and a doc comment describing one that never existed, so wiring it would have added a public subcommand needing its own record. `grep -rn 'Forget' internal/ cmd/` finds nothing today. `--force` remains the escape hatch for a stale picture.
