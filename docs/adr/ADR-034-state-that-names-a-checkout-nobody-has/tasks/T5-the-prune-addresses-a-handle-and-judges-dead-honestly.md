@@ -8,7 +8,7 @@
 **Consumes:** T1's `state.Entries`/`state.Prune`, T3's §71 — both must keep passing
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the base opened is the base verified, by identity`, `a refusal names the base and says it is a symlink`, `a marker is read back exactly as Dir wrote it`, `only ErrNotExist means the checkout is gone`, `the self guard survives the live-to-missing transition`, `a removal is reported only when this walk saw the entry`, `the current answer vetoes the caller's stale one`, `a symlinked entry is reported, not silently dropped`
+**Rests-on:** `the base opened is the base verified, by identity`, `a refusal names the base and says it is a symlink`, `a marker is read back exactly as Dir wrote it`, `only ErrNotExist means the checkout is gone`, `the self guard survives the live-to-missing transition`, `a removal is reported only when this walk saw the entry`, `the current answer vetoes the caller's stale one`, `a symlinked entry is reported, not silently dropped`, `Count and Entries agree on what the base holds`
 
 ## Goal
 
@@ -32,7 +32,7 @@ because a review credited for something it did not find is a false citation
 | `internal/state/prune.go` | rewrite | `openBase` opens the base through the parent handle and THEN verifies by `os.SameFile` that the name still resolves to the object it opened. `Prune` re-enumerates AND re-describes under its own handle, and removes a child NAME via `os.Root.RemoveAll` only where the current answer agrees with the caller's. `Entry.Live` becomes `Entry.Dead`, whose zero value is *keep*. `isDead` treats only `fs.ErrNotExist` as gone. `selfNames` returns three spellings. `children` returns symlinks so `describe` can report them unfollowed. |
 | `internal/state/state.go` | edit | `:61` compares the marker with `TrimSuffix(…, "\n")`, matching exactly what `:62` writes |
 | `internal/state/prune_test.go` | edit | `Live` → `Dead` at four assertion sites; the assertions keep their meaning |
-| `internal/state/prune_findings_test.go` | create | Nine tests, each red before its fix |
+| `internal/state/prune_findings_test.go` | create | Ten tests, of which EIGHT were red before their fix. The two exceptions are named because "each red first" was claimed here and was not true of all of them: `TestABaseThatIsARelativeSymlinkInsideTheStateHomeIsRefused` is refused by the pre-T5 ordering too (see the Risks note), and `TestCountAgreesWithEntriesOnEveryClassOfEntry` pins an agreement that already held — it exists so the two counters cannot drift, not to reproduce a defect |
 | `scripts/contract.sh` | edit | §72, pairing a refused symlinked base with a legitimate base that still prunes |
 
 ## Ordered Steps
@@ -67,6 +67,7 @@ because a review credited for something it did not find is a false citation
 | `TestABaseThatIsARelativeSymlinkInsideTheStateHomeIsRefused` | `internal/state/prune_findings_test.go` | A relative `mrw -> other` INSIDE the state home — which `os.Root` follows, unlike an escaping one — is refused by the identity check, and the sibling's entry survives | — | S2 |
 | `TestAnEntryWhoseCheckoutCameBackIsNotRemoved` | `internal/state/prune_findings_test.go` | A checkout restored between the caller's walk and the prune keeps its state: the current answer vetoes the stale verdict | — | S5 |
 | `TestASymlinkedEntryIsReportedRatherThanSilentlyDropped` | `internal/state/prune_findings_test.go` | A symlinked entry is returned unidentified and not dead, so it is reported and kept, which is what ADR-034:132 promises | — | S5 |
+| `TestCountAgreesWithEntriesOnEveryClassOfEntry` | `internal/state/prune_findings_test.go` | `Count` and `Entries` return the same number across a live, dead, unidentifiable, symlinked and plain-file base. ⚠ It does NOT assert the saving — swapping Count back to `len(Entries())` stays green; what it stops is the count line and the prune report describing different bases | — | S2 |
 | `TestADanglingSymlinkedBaseIsRefusedRatherThanReadAsAbsent` | `internal/state/prune_findings_test.go` | `<state>/mrw -> missing` makes OpenRoot report ErrNotExist, which is byte-identical to an absent base; asking "absent?" before "symlink?" therefore exited 0 while README and AGENTS.md promise an unconditional refusal | — | S2 |
 | `TestOnlyAnEntryWhoseCheckoutIsGoneIsPruned` | `internal/state/prune_test.go` | Unchanged behaviour under the rewrite, with `Live` read as `Dead` | — | S2, S3, S4 |
 | `TestThePruneStaysInsideTheStateBase` | `internal/state/prune_test.go` | Unchanged: a symlinked ENTRY under a real base is still neither followed nor removed | — | S2 |
@@ -103,6 +104,27 @@ because a review credited for something it did not find is a false citation
 - 2026-09-08 · 29b6170* · mutant killed · exit 1 · `internal/state/prune.go` · the freshness lookup is forced true, so an entry that vanished between the walk and the prune is REPORTED as removed — RemoveAll succeeds silently on a name that is not there, and ADR-008 says a delete says what it removed. · acceptance-sha256:555dd6a90cfd463abad6f4c844c93c211291368e2d1763e9b330e795bb9ac3a3 · covers:a removal is reported only when this walk saw the entry
 - 2026-09-08 · 29b6170* · mutant killed · exit 1 · `internal/state/prune.go` · the current answer loses its veto, so a checkout restored between the caller walk and the prune has its live state deleted on evidence that has expired. · acceptance-sha256:555dd6a90cfd463abad6f4c844c93c211291368e2d1763e9b330e795bb9ac3a3 · covers:the current answer vetoes the caller's stale one
 - 2026-09-08 · 29b6170* · mutant killed · exit 1 · `internal/state/prune.go` · symlinked entries are silently omitted again, so they are skipped but never REPORTED, and ADR-034:132 promises reported and skipped. · acceptance-sha256:555dd6a90cfd463abad6f4c844c93c211291368e2d1763e9b330e795bb9ac3a3 · covers:a symlinked entry is reported, not silently dropped
+- 2026-09-08 · 6365917* · mutant killed · exit 1 · `internal/state/prune.go` · Count disagrees with Entries, so the mrw seen count line and the --prune report describe different bases. ⚠ The mutant that would prove the SAVING — swapping Count back to len(Entries()) — returns the identical number and SURVIVES; the cost is not observable without instrumenting the filesystem, and T5 says so rather than claiming a proof it does not have. · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · covers:Count and Entries agree on what the base holds
+- 2026-09-08 · 6365917* · mutant survived · exit 0 · `internal/state/prune.go` · an Lstat failing for a reason other than absence — a denied or unreadable state home — falls through to "no base yet", so the command exits 0 having pruned nothing and reports an answer about the LOOKUP as an answer about the base. · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · covers:an indeterminate base is not an absent one
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-08 · 6365917* · mutant survived · exit 0 · `internal/state/prune.go` · probe · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · covers:an indeterminate base is not an absent one
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-08 · 6365917* · mutant survived · exit 0 · `internal/state/prune.go` · the verification errors are ignored and a failed comparison is reported as a confirmed symlink — naming a cause that was never established. · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · covers:the base opened is the base verified, by identity
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-08 · 6365917* · mutant killed · exit 1 · `internal/state/prune.go` · a symlinked base falls through to os.Root own message or to "absent", so the refusal names neither the directory nor what is wrong with it, and a DANGLING relative link is read as no base at all. · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · covers:a refusal names the base and says it is a symlink
+- 2026-09-08 · 6365917* · mutant killed · exit 1 · `internal/state/prune.go` · the marker is trimmed wider than Dir writes it, so a checkout whose directory name ends in a space reads back as a different path and a LIVE checkout is classified dead. · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · covers:a marker is read back exactly as Dir wrote it
+- 2026-09-08 · 6365917* · mutant killed · exit 1 · `internal/state/prune.go` · every stat error is read as gone, so a denied parent or an unmounted point loses its state on an answer about the LOOKUP. · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · covers:only ErrNotExist means the checkout is gone
+- 2026-09-08 · 6365917* · mutant killed · exit 1 · `internal/state/prune.go` · the identity comparison goes, so a base that is a symlink at open time is enumerated and pruned through. ⚠ This is NOT the pre-T5 ordering — that one refused a stable symlink at its own Lstat; what the identity check adds over it is the swap window, which no fixture forces. · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · covers:the base opened is the base verified, by identity
+- 2026-09-08 · 6365917* · mutant killed · exit 1 · `internal/state/prune.go` · the ancestor-resolved spelling is dropped, leaving two candidates identical once the leaf is gone, so the run prunes its own state. · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · covers:the self guard survives the live-to-missing transition
+- 2026-09-08 · 6365917* · mutant killed · exit 1 · `internal/state/prune.go` · the freshness lookup is forced true, so an entry that vanished between the walk and the prune is REPORTED as removed though nothing was removed (ADR-008). · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · covers:a removal is reported only when this walk saw the entry
+- 2026-09-08 · 6365917* · mutant killed · exit 1 · `internal/state/prune.go` · the current answer loses its veto, so a checkout restored between the caller walk and the prune has its live state deleted on expired evidence. · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · covers:the current answer vetoes the caller's stale one
+- 2026-09-08 · 6365917* · mutant killed · exit 1 · `internal/state/prune.go` · symlinked entries are silently omitted again, so they are skipped but never REPORTED, and ADR-034:132 promises reported and skipped. · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · covers:a symlinked entry is reported, not silently dropped
 
 ## Verification Log
 
@@ -132,6 +154,19 @@ because a review credited for something it did not find is a false citation
 - 2026-09-08 · 29b6170* · exit 0 · `set -o pipefail …` · acceptance-sha256:555dd6a90cfd463abad6f4c844c93c211291368e2d1763e9b330e795bb9ac3a3 · ms:23378
 - 2026-09-08 · 29b6170* · exit 0 · `set -o pipefail …` · acceptance-sha256:555dd6a90cfd463abad6f4c844c93c211291368e2d1763e9b330e795bb9ac3a3 · ms:23220
 - 2026-09-08 · 29b6170* · exit 0 · `set -o pipefail …` · acceptance-sha256:555dd6a90cfd463abad6f4c844c93c211291368e2d1763e9b330e795bb9ac3a3 · ms:22857
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:22949
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:22766
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:25350
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:24023
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:26752
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:25549
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:24900
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:24822
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:26319
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:25492
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:26045
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:28163
+- 2026-09-08 · 6365917* · exit 0 · `set -o pipefail …` · acceptance-sha256:4c58ba57f1b4433edc7f2c4ea5f821bf0db4003a32e6ab6aca3a993f050de21c · ms:25867
 
 ## Invariants
 
@@ -183,9 +218,22 @@ because a review credited for something it did not find is a false citation
 
   Closing them means quarantining the selected child — rename it inside the base, re-describe the
   renamed object, then delete only that — which is a different design, not a tightening, and it
-  still cannot make checkout liveness atomic with the deletion across a filesystem. The window is
-  bounded by what it can cost: a lost ledger is a licence to edit, not content (ADR-002), so the
-  worst case is a refused write and a re-read. Stated here rather than implied away.
+  still cannot make checkout liveness atomic with the deletion across a filesystem. ⚠ The window is
+  bounded, but by MORE than this bullet first said: a lost ledger costs a re-read (ADR-002), while
+  the iteration working set and the authoring tally in the same directory are lost outright. Stated
+  here rather than implied away.
+- ⚠ **DECLARED UNCOVERED, AND THE MUTANT IS IN THE LOG AS A SURVIVOR: the indeterminate-base
+  branch.** `openBase` refuses when `OpenRoot` fails and `Lstat` then fails for a reason that is not
+  absence, rather than reading it as "no base yet". The fourth review asked for exactly this, and it
+  is the right shape — an answer about the LOOKUP is not an answer about the base, which is `isDead`'s
+  rule one level up.
+
+  It is not provable here. The two calls resolve the SAME name through the SAME parent handle, so
+  "OpenRoot says absent while Lstat says denied" is not a state a fixture can construct: deny
+  traversal and both return the permission error, which the `default` branch already refuses. The
+  mutant is recorded as SURVIVED rather than deleted from the log or reworded until it passed —
+  `covers:` was removed from **Rests-on:** for the same reason, because a declared mechanism with no
+  killed mutant is a claim the gate cannot check.
 - ⚠ **DECLARED UNCOVERED: removing by NAME rather than by PATH.** No mutant binds it and none is
   claimed. Swapping `base.RemoveAll(cur.Name)` back to `os.RemoveAll(cur.Dir)` leaves every test and
   §72 green, because the base refusal above it already turns those fixtures away. What the handle
@@ -209,7 +257,7 @@ parent — a migration, not a fix, and a different decision from the one this re
 ```bash
 set -o pipefail
 go test ./internal/state/ ./cmd/mrw/ -count=1 \
-    -run 'TestABaseThatIsASymlinkIsRefusedRatherThanFollowed|TestABaseThatIsARelativeSymlinkInsideTheStateHomeIsRefused|TestADanglingSymlinkedBaseIsRefusedRatherThanReadAsAbsent|TestAMarkerIsReadBackExactlyAsDirWroteIt|TestARootThatCannotBeStattedIsKept|TestAnEntryThatVanishedBetweenTheWalkAndTheRemovalIsNotReported|TestAnEntryWhoseCheckoutCameBackIsNotRemoved|TestASymlinkedEntryIsReportedRatherThanSilentlyDropped|TestSelfSurvivesWhenItsCheckoutIsGoneUnderASymlinkedPath|TestOnlyAnEntryWhoseCheckoutIsGoneIsPruned|TestADryRunPruneReportsTheSameAndRemovesNothing|TestAnUnidentifiableEntryIsKeptAndReported|TestThePruneStaysInsideTheStateBase' \
+    -run 'TestABaseThatIsASymlinkIsRefusedRatherThanFollowed|TestABaseThatIsARelativeSymlinkInsideTheStateHomeIsRefused|TestADanglingSymlinkedBaseIsRefusedRatherThanReadAsAbsent|TestCountAgreesWithEntriesOnEveryClassOfEntry|TestAMarkerIsReadBackExactlyAsDirWroteIt|TestARootThatCannotBeStattedIsKept|TestAnEntryThatVanishedBetweenTheWalkAndTheRemovalIsNotReported|TestAnEntryWhoseCheckoutCameBackIsNotRemoved|TestASymlinkedEntryIsReportedRatherThanSilentlyDropped|TestSelfSurvivesWhenItsCheckoutIsGoneUnderASymlinkedPath|TestOnlyAnEntryWhoseCheckoutIsGoneIsPruned|TestADryRunPruneReportsTheSameAndRemovesNothing|TestAnUnidentifiableEntryIsKeptAndReported|TestThePruneStaysInsideTheStateBase' \
   && grep -q '^# 72\. ' scripts/contract.sh \
   && grep -q 'Dead bool' internal/state/prune.go \
   && grep -q 'func openBase' internal/state/prune.go \

@@ -1187,7 +1187,8 @@ Alternatives had to answer.
   predates the first report rather than being written to fit it. ADR-034's exact test — the `root`
   marker names a path that is not a directory — cannot distinguish a deleted checkout from one on
   an unmounted volume. Today the operator is the gate: the command is explicit, `--dry-run` shows
-  the list, and a lost ledger costs a re-read and cannot cause a wrong edit (ADR-002).
+  the list, and a lost ledger costs a re-read and cannot cause a wrong edit (ADR-002) — though the
+  iteration working set and the authoring tally in the same directory are lost outright.
 
   **What would promote this:** one report of a real `--prune` that removed state for a checkout on
   a volume that was merely unmounted. The answer is then a refusal for entries whose marker names a

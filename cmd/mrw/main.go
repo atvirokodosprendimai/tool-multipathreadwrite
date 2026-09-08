@@ -412,13 +412,17 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 			// ⚠ AFTER THE DIRECTORY, NEVER BEFORE IT. `mrw seen | head -1` is
 			// the documented way to find the state directory and contract §54
 			// reads it that way, so this line goes second or it breaks them.
-			// It is a bare count and not a survey: one ReadDir costs nothing,
-			// while saying how many are DEAD means stating every marker in the
-			// base, which on this machine was 22,836 files (ADR-034).
-			if entries, err := state.Entries(); err == nil {
+			// It is a bare count and not a survey, and state.Count is what
+			// makes that true. It used to call state.Entries, which opens
+			// every entry, reads every marker and STATS EVERY CHECKOUT those
+			// markers name — 22,836 of them on the machine that motivated
+			// ADR-034, some against unmounted or network paths, on a command
+			// whose job is to print one number. The comment here described the
+			// cheap behaviour while the line below it did the expensive one.
+			if n, err := state.Count(); err == nil {
 				fmt.Printf("# %d state director%s under %s\n",
-					len(entries), plural(len(entries), "y", "ies"), filepath.Dir(dir))
-				if len(entries) > 1 {
+					n, plural(n, "y", "ies"), filepath.Dir(dir))
+				if n > 1 {
 					fmt.Println("# `mrw seen --prune` removes the ones whose checkout is gone")
 				}
 			}

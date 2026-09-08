@@ -1446,10 +1446,11 @@ deleted checkout or a volume that is not mounted, and only you can tell which. A
 for any other reason — a denied parent, an unmounted point, a network timeout — is INDETERMINATE and
 kept, because only "it is not there" answers the question the prune asks.
 
-If a prune is wrong, it costs a re-read. A ledger is a licence to edit, not a
-record of content, so losing one means the next write to those files is refused
-until you read them again — there is no shape of this mistake that produces a
-wrong edit. See ADR-034.
+If a prune is wrong, it costs a re-read — and, beside the ledger, the iteration
+working set and the plan tally that live in the same directory, which do not
+come back from your source. A ledger is a licence to edit, not a record of
+content, so the next write to those files is refused until you read them again;
+there is no shape of this mistake that produces a wrong edit. See ADR-034.
 
 `{packages}` expands to the Go packages your paths cover, `{files}` to the paths
 themselves. **Write the placeholder unquoted**: each value arrives already

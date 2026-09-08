@@ -179,15 +179,19 @@ func TestARootThatCannotBeStattedIsKept(t *testing.T) {
 	}
 }
 
-// TestABaseThatIsARelativeSymlinkInsideTheStateHomeIsRefused is the case the
-// FIRST fix missed, and the reason openBase opens before it checks.
+// TestABaseThatIsARelativeSymlinkInsideTheStateHomeIsRefused pins that a
+// relative `mrw -> other`, which stays inside the state home, is refused.
 //
-// os.Root confines a path to its root; it does NOT refuse symlinks that stay
-// inside that root. A relative `mrw -> other` under the same state home is
-// therefore opened and enumerated quite happily — so a check-then-open ordering
-// left a real sequence in which the prune removed directories from a sibling
-// nobody gave it. The escaping symlink in the sibling test above is refused by
-// os.Root on its own and cannot show this.
+// ⚠ IT DOES NOT DISTINGUISH THE TWO ORDERINGS, and an earlier version of this
+// comment claimed it did. os.Root confines a path to its root and does NOT
+// refuse a symlink that stays inside it — measured — so this link IS followed
+// by OpenRoot. But the pre-T5 ordering never reached OpenRoot: its own Lstat
+// saw ModeSymlink and refused first, and it refuses this fixture too. What the
+// old ordering actually left open was the RACE, a name swapped between its two
+// calls, which no fixture can force.
+//
+// So what this test proves is narrower than it looks: the identity check is
+// present rather than absent. That is worth pinning, and it is all it pins.
 func TestABaseThatIsARelativeSymlinkInsideTheStateHomeIsRefused(t *testing.T) {
 	base := xdg(t)
 
@@ -209,7 +213,7 @@ func TestABaseThatIsARelativeSymlinkInsideTheStateHomeIsRefused(t *testing.T) {
 	removed, err := Prune(t.TempDir(), entries, false)
 	if err == nil {
 		t.Fatalf("Prune followed a relative symlink that stays inside the state home and "+
-			"reported %d removals; os.Root permits that link, so only an identity check refuses it",
+			"reported %d removals; os.Root permits that link, so something must refuse it",
 			len(removed))
 	}
 	if !strings.Contains(err.Error(), filepath.Join(base, "mrw")) {
@@ -217,6 +221,44 @@ func TestABaseThatIsARelativeSymlinkInsideTheStateHomeIsRefused(t *testing.T) {
 	}
 	if !exists(t, entry) {
 		t.Errorf("Prune removed %q, an entry under a sibling directory it was never given", entry)
+	}
+}
+
+// TestCountAgreesWithEntriesOnEveryClassOfEntry pins the half of Count that a
+// test can actually see.
+//
+// Count exists because `mrw seen` printed one number by running the full
+// survey: Entries opens every entry, reads every marker and stats every
+// checkout those markers name. On the base that motivated ADR-034 that is
+// 22,836 stats, some against unmounted or network paths, for a count line.
+//
+// ⚠ THE COST IS NOT WHAT THIS ASSERTS, and no test here does. Swapping Count
+// back to len(Entries()) returns the identical number, so every assertion
+// stays green — the saving is in what is NOT touched, which a unit test cannot
+// observe without instrumenting the filesystem. What IS assertable, and what
+// would actually break a caller, is the two disagreeing: the count line and
+// the prune report would then describe different bases.
+func TestCountAgreesWithEntriesOnEveryClassOfEntry(t *testing.T) {
+	p := plant(t)
+	if err := os.Symlink(t.TempDir(), filepath.Join(p.mrw, "8888888888888888")); err != nil {
+		t.Skipf("this filesystem does not do symlinks: %v", err)
+	}
+	// A plain file is not an entry, and neither counter may take it for one.
+	if err := os.WriteFile(filepath.Join(p.mrw, "notadirectory"), []byte("x\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := Entries()
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := Count()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != len(entries) {
+		t.Errorf("Count says %d and Entries says %d; the count line and the prune report "+
+			"would describe different bases", n, len(entries))
 	}
 }
 

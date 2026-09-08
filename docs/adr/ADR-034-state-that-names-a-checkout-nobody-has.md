@@ -134,9 +134,12 @@ removed so the caller can report them. It refuses to touch, in order:
 
 **3. `mrw seen --prune` is the only caller**, and `--prune --dry-run` prints the identical report
 and removes nothing. `mrw seen` without the flag gains one line — how many entries the base holds,
-and, when it holds more than one, that `--prune` exists. That line costs a single `ReadDir` and
-makes no claim about how many are dead, because counting the dead means stating 22,836 files and
-the point of the line is to cost nothing.
+and, when it holds more than one, that `--prune` exists. That line costs a single `ReadDir` plus one
+`Lstat` per child and makes no claim about how many are dead, because counting the dead means
+reading 22,836 markers and stating every checkout they name — and the point of the line is to cost
+nothing. ⚠ **It called `Entries()` and did exactly that until 2026-09-08**, when a review found the
+comment above the call describing the cheap behaviour while the call did the expensive one;
+`state.Count` is what makes this paragraph true.
 
 **No automatic deletion, on any code path, ever.** A root that does not resolve means *deleted* or
 *on a volume that is not mounted right now*, and mrw cannot tell those apart. An explicit command
@@ -144,12 +147,15 @@ makes the operator the one who can. This is the same shape as `Migrate`, which c
 deletes for the same reason, and it is why `--dry-run` exists on the same flag rather than in a
 follow-up.
 
-**What makes the stakes low, and it is worth stating plainly:** the worst outcome of a wrong prune
-is a refused write. ADR-002's ledger is a licence to edit, not a record of content; losing it costs
-the caller a re-read and nothing else, because a file mrw has not seen cannot be written. There is
-no shape of this mistake that produces a wrong edit — that is what makes an explicit, reporting,
-exact-test prune sufficient, and what makes an age-out heuristic unnecessary rather than merely
-unproven.
+**What the stakes actually are, corrected 2026-09-08 after a review found this understated:** the
+LEDGER is a licence to edit and not a record of content (ADR-002), so losing it costs a re-read and
+cannot produce a wrong edit. But the entry holds more than the ledger. `internal/iter` keeps the
+working set there and `internal/authoring` keeps the plan-outcome tally there — `mrw iter` and
+`mrw stats` are their readers — and **neither is recreated by re-reading source.** A wrong prune
+therefore costs a re-read PLUS a working set the caller must re-specify and a tally that is simply
+gone. Still no shape of this mistake produces a wrong edit, which is what makes an explicit,
+reporting, exact-test prune sufficient and an age-out heuristic unnecessary; but "a re-read and
+nothing else" was wrong and is withdrawn.
 
 **What would falsify this:** an operator who runs `--prune` with an external disk unmounted and
 loses ledgers they wanted. The report names every root it removed, and `--dry-run` shows the same
@@ -225,8 +231,10 @@ See `docs/adr/ADR-034-state-that-names-a-checkout-nobody-has/tasks/README.md`.
   exactly as it found it.
 - **Negative:** mrw deletes directories for the first time. The blast radius is bounded by the base,
   by the marker test, and by the flag, but the capability is new and that is why this is a record.
-- **Negative:** a wrongly-pruned entry costs a re-read before the next write to those files. It
-  cannot cost a wrong edit — see the Decision — but it is a real cost on an unmounted volume.
+- **Negative:** a wrongly-pruned entry costs a re-read before the next write to those files, and
+  also loses the iteration working set and the authoring tally kept beside the ledger — those do not
+  come back from source. It cannot cost a wrong edit — see the Decision — but the loss is larger
+  than this record first claimed.
 - **Neutral:** entries with no readable marker accumulate for ever by design. There are none today
   and the report names them, so if that changes it will be visible rather than silently pruned.
 
@@ -243,7 +251,7 @@ See `docs/adr/ADR-034-state-that-names-a-checkout-nobody-has/tasks/README.md`.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| A prune deletes state for a checkout on an unmounted volume | Medium | Low | `--dry-run` shows the list first, the report names every root, and a lost ledger costs a re-read and cannot cause a wrong edit (ADR-002) |
+| A prune deletes state for a checkout on an unmounted volume | Medium | Low | `--dry-run` shows the list first and the report names every root. A lost ledger costs a re-read and cannot cause a wrong edit (ADR-002); the iteration working set and the tally beside it are lost outright, which is the real cost |
 | The fixture passes against a prune that deletes everything | **High** — this is the default way to get it wrong | The fixture holds a live entry, a dead entry AND an unidentifiable entry in one base, and asserts the first and third survive. A prune that removes all three fails it, and the T1 mutant proves the distinction held |
 | The walk follows a symlink out of the base | Low | High | `ReadDir` reports the entry type without following; a non-directory or a symlink is skipped and reported. Asserted by its own fixture |
 | The added `mrw seen` line breaks a caller parsing the output | Low | Medium | The state directory stays the FIRST line, which is what `scripts/contract.sh:1590` and the documented recipe read. §71 pins that |

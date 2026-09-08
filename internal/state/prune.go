@@ -211,22 +211,68 @@ func openBase() (*os.Root, string, error) {
 		// A symlink OUT of the state home is refused by os.Root itself, whose
 		// message says only that a path escaped — which names neither the
 		// directory nor what to do about it (ADR-015).
-		if fi, lerr := parent.Lstat("mrw"); lerr == nil && fi.Mode()&os.ModeSymlink != 0 {
+		fi, lerr := parent.Lstat("mrw")
+		switch {
+		case lerr == nil && fi.Mode()&os.ModeSymlink != 0:
 			return nil, "", symlinkedBase(dir)
-		}
-		if isNotExist(err) {
+		case lerr != nil && !isNotExist(lerr):
+			// ⚠ INDETERMINATE IS NOT ABSENT. Discarding this error and falling
+			// through to "no base yet" is the same mistake isDead exists to
+			// refuse: an answer about the LOOKUP read as an answer about the
+			// thing. A denied or unreadable state home must say so.
+			return nil, "", fmt.Errorf("the state base %s cannot be identified: %w", dir, lerr)
+		case isNotExist(err):
 			return nil, dir, nil
+		default:
+			return nil, "", fmt.Errorf("the state base %s cannot be opened: %w", dir, err)
 		}
-		return nil, "", fmt.Errorf("the state base %s cannot be opened: %w", dir, err)
 	}
 
 	opened, oerr := base.Stat(".")
 	named, nerr := parent.Lstat("mrw")
-	if oerr != nil || nerr != nil || !os.SameFile(opened, named) {
+	// ⚠ AND A FAILED COMPARISON IS NOT A FAILED IDENTITY. Reporting "symlink,
+	// or replaced" when the stat itself errored names a cause that was never
+	// established — the reviewer's point, and the same class of overstatement.
+	if oerr != nil || nerr != nil {
+		base.Close()
+		err := oerr
+		if err == nil {
+			err = nerr
+		}
+		return nil, "", fmt.Errorf("the state base %s cannot be verified as the object mrw opened: %w", dir, err)
+	}
+	if !os.SameFile(opened, named) {
 		base.Close()
 		return nil, "", symlinkedBase(dir)
 	}
 	return base, dir, nil
+}
+
+// Count is how many entries the base holds, without describing any of them.
+//
+// ⚠ IT EXISTS BECAUSE Entries IS A SURVEY AND `mrw seen` IS NOT. Entries opens
+// every entry, reads every marker and stats every checkout those markers name —
+// which on a base of 22,836 is 22,836 stats, some of them against unmounted or
+// network paths, on a command whose job is to print one count. ADR-034 promised
+// a bare count from one cheap walk and the count line called Entries anyway;
+// the comment above it described the opposite of what it did.
+//
+// This reads the directory and asks the type of each child. It never opens an
+// entry, never reads a marker and never touches a checkout.
+func Count() (int, error) {
+	base, _, err := openBase()
+	if err != nil {
+		return 0, err
+	}
+	if base == nil {
+		return 0, nil
+	}
+	defer base.Close()
+	names, err := children(base)
+	if err != nil {
+		return 0, err
+	}
+	return len(names), nil
 }
 
 // symlinkedBase is the one refusal, worded for both shapes it covers: the name
