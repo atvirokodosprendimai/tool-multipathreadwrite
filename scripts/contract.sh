@@ -4486,10 +4486,12 @@ grep -q '^0 of 3 state directories removed' <<<"$out" \
 # `mrw` directory is a symlink to somebody else's directory holding an
 # identical-looking dead entry, which must STAY.
 #
-# ⚠ THE BASE, NOT AN ENTRY. §71 already plants a symlinked ENTRY under a real
-# base. This is the level above it, and it is the one os.RemoveAll followed:
-# the walk and the removal each re-resolved the base by path, so replacing it
-# put a directory nobody gave mrw inside the prune's reach.
+# ⚠ THE BASE, NOT AN ENTRY. The symlinked ENTRY under a real base is covered by
+# a Go test, not by §71 — an earlier version of this comment claimed §71 plants
+# one, and it does not. This row is the level ABOVE that, and it is the one
+# os.RemoveAll followed: the walk and the removal each re-resolved the base by
+# path, so replacing it put a directory nobody gave mrw inside the prune's
+# reach.
 P72=$(mktemp -d "$WORK/prune72-XXXXXX")
 P72ROOT=$(mktemp -d "$WORK/p72root-XXXXXX")
 printf 'alpha\n' > "$P72ROOT/f.txt"

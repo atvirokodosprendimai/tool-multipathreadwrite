@@ -200,15 +200,22 @@ func openBase() (*os.Root, string, error) {
 
 	base, err := parent.OpenRoot("mrw")
 	if err != nil {
-		if isNotExist(err) {
-			return nil, dir, nil
-		}
+		// ⚠ ASK WHETHER IT IS A SYMLINK BEFORE BELIEVING "not there". A
+		// DANGLING relative link — `mrw -> missing` — makes OpenRoot report
+		// ErrNotExist, which reads exactly like a machine that has never run
+		// mrw. Treating it as an absent base exits 0 and prunes nothing, while
+		// README and AGENTS.md both promise a symlinked base is REFUSED. The
+		// order here was wrong for that reason until a review found it: the
+		// cheaper test was asked first and answered for the wrong case.
+		//
 		// A symlink OUT of the state home is refused by os.Root itself, whose
-		// message says only that a path escaped. Name what is actually wrong:
-		// "openat mrw: path escapes from parent" tells an operator neither
-		// which directory nor what to do about it (ADR-015).
+		// message says only that a path escaped — which names neither the
+		// directory nor what to do about it (ADR-015).
 		if fi, lerr := parent.Lstat("mrw"); lerr == nil && fi.Mode()&os.ModeSymlink != 0 {
 			return nil, "", symlinkedBase(dir)
+		}
+		if isNotExist(err) {
+			return nil, dir, nil
 		}
 		return nil, "", fmt.Errorf("the state base %s cannot be opened: %w", dir, err)
 	}

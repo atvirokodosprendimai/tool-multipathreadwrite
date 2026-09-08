@@ -220,6 +220,37 @@ func TestABaseThatIsARelativeSymlinkInsideTheStateHomeIsRefused(t *testing.T) {
 	}
 }
 
+// TestADanglingSymlinkedBaseIsRefusedRatherThanReadAsAbsent covers the case
+// where the cheaper question was asked first and answered for the wrong one.
+//
+// `<state>/mrw -> missing` makes OpenRoot report ErrNotExist, which is
+// byte-identical to what a machine that has never run mrw looks like. Checking
+// "is it absent?" before "is it a symlink?" therefore exits 0 and prunes
+// nothing, while README.md and AGENTS.md both promise an unconditional refusal
+// for a symlinked base. A promise the code keeps only when the link happens to
+// resolve is not the promise that was written down.
+func TestADanglingSymlinkedBaseIsRefusedRatherThanReadAsAbsent(t *testing.T) {
+	base := xdg(t)
+	if err := os.MkdirAll(base, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("nothing-is-here", filepath.Join(base, "mrw")); err != nil {
+		t.Skipf("this filesystem does not do symlinks: %v", err)
+	}
+
+	if _, err := Entries(); err == nil {
+		t.Errorf("Entries read a dangling symlinked base as an absent one")
+	}
+	_, err := Prune(t.TempDir(), nil, false)
+	if err == nil {
+		t.Fatalf("Prune read a dangling symlinked base as an absent one and exited cleanly; " +
+			"the documented refusal is unconditional")
+	}
+	if !strings.Contains(err.Error(), "symlink") {
+		t.Errorf("the refusal is %q; it must say the base is a symlink", err)
+	}
+}
+
 // TestAnEntryWhoseCheckoutCameBackIsNotRemoved covers the caller's verdict
 // EXPIRING. Prune is handed entries from an earlier walk; between that walk and
 // the removal a checkout can be restored from backup, a volume can be
