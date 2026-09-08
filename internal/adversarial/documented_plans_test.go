@@ -65,11 +65,25 @@ func documentedReplaceNeedsAnchor(line string) string {
 	}
 	// A replace needs a body or plan.validate refuses it for the wrong reason,
 	// and this check is not about that rule.
-	hs, err := plan.Parse(strings.NewReader(line + "\nBODY\n"))
-	if err != nil || len(hs) != 1 {
+	//
+	// ⚠ THE BODY LENGTH IS SEARCHED, NOT ASSUMED. A header may declare `body=N`
+	// (ADR-027's counted body, used by any documented plan whose content itself
+	// begins with @@), and a declared count that does not match what follows is
+	// a parse error — which this function would then read as "not a plan
+	// header" and skip SILENTLY. That is the same shape as the four shell cuts
+	// it replaces: a real replace passing unseen. Trying successive lengths
+	// costs nothing here and needs no regex over the header to find the count.
+	var h plan.Hunk
+	found := false
+	for n := 1; n <= 8 && !found; n++ {
+		hs, err := plan.Parse(strings.NewReader(line + "\n" + strings.Repeat("BODY\n", n)))
+		if err == nil && len(hs) == 1 {
+			h, found = hs[0], true
+		}
+	}
+	if !found {
 		return ""
 	}
-	h := hs[0]
 	if h.Op != plan.OpReplace || h.Anchor != "" {
 		return ""
 	}
@@ -100,6 +114,9 @@ func TestTheDocumentedPlanCheckRejectsWhatItMustReject(t *testing.T) {
 		`@@ f.go 2-3 "replace"`,
 		"\ufeff@@ f.go 2-3 replace",
 		`@@ "foo replace bar.go" 2-3 replace`,
+		// A counted body: the header declares how many lines follow, so a check
+		// that appends a fixed one gets a parse error and skips it in silence.
+		`@@ f.go 2-5 replace body=2 raw=true`,
 	}
 	for _, line := range mustFlag {
 		if documentedReplaceNeedsAnchor(line) == "" {
