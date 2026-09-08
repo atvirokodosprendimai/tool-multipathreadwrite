@@ -1943,11 +1943,24 @@ func TestAMultiLineReplaceWithoutAnAnchorIsRefused(t *testing.T) {
 	if res.Failed != 1 {
 		t.Fatalf("an anchorless multi-line replace was not refused: %+v", res.Hunks)
 	}
-	// The message has to name the remedy. Every other refusal on this path says
-	// something else, so this also pins WHICH guard fired: asserting only that
-	// the hunk failed would pass for an unread line or a bad path.
-	if got := res.Hunks[0].Reason; !strings.Contains(got, "anchor=") {
-		t.Errorf("the refusal does not name anchor=: %s", got)
+	// The message has TWO halves and both are asserted, separately.
+	//
+	// ⚠ THIS COMMENT SAID "the message has to name the remedy" WHILE THE
+	// ASSERTION CHECKED ONLY THE DIAGNOSIS. Reported on PR #146 by a reviewer
+	// who deleted the remedy clause alone and watched `go test ./...` and
+	// `scripts/contract.sh` both stay green — reproduced here before fixing. The
+	// logged mutant claimed `covers:the refusal naming the remedy` while the
+	// only assertion anywhere bound `carries no anchor=`, so the log read as
+	// though the remedy were guarded, which is how it stopped being checked.
+	//
+	// The remedy is the half that tells a caller what to TYPE, and it is the
+	// reason this record prefers a refusal to silence. It is worth its own line.
+	got := res.Hunks[0].Reason
+	if !strings.Contains(got, "carries no anchor=") {
+		t.Errorf("the refusal does not diagnose the missing anchor: %s", got)
+	}
+	if !strings.Contains(got, `say anchor="<text from the first line>"`) {
+		t.Errorf("the refusal diagnoses but does not prescribe — the remedy is gone: %s", got)
 	}
 	// ADR-001: a failed hunk writes nothing at all.
 	if got, want := read(t, root, "f.txt"), "1\n2\n3\n4\n5\n6\n7\n"; got != want {

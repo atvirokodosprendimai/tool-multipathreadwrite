@@ -68,10 +68,20 @@ go test ./internal/apply/ -count=1 -v \
 
 ## Mutation Log
 
+⚠ The 2026-09-08 row labelled `covers:the refusal naming the remedy` whose mutation replaced the
+WHOLE message was mis-credited, and the row is left standing because this log is append-only. It
+killed by deleting `anchor=` from the diagnosis; the only assertion anywhere was
+`contract.sh`'s grep on `carries no anchor=`, which binds the diagnosis and not the remedy. So the
+log read as though the remedy were guarded — which is exactly how it stopped being checked. Found on
+PR #146 by a reviewer who deleted ONLY the remedy clause and watched `go test ./...` and
+`scripts/contract.sh` both stay green. Reproduced here before fixing. The remedy now has its own
+assertion on both paths and its own correctly-bound mutant, appended below.
+
 - 2026-09-08 · 3245e1a* · mutant killed · exit 1 · `internal/apply/apply.go` · the guard stops firing, so an anchorless multi-line replace applies again — the behaviour this record removes, and the one that is invisible because a replace that wrote over the wrong span reports ok · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · covers:a multi-line replace without an anchor being refused
 - 2026-09-08 · 3245e1a* · mutant killed · exit 1 · `internal/apply/apply.go` · the guard keys on the op instead of the SPAN, so it refuses a single-line replace too — a ban rather than a narrowing, which the table of refusals alone cannot distinguish · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · covers:a single-line replace still needing no anchor
 - 2026-09-08 · 3245e1a* · mutant killed · exit 1 · `internal/apply/apply.go` · the guard skips a pattern-resolved range, which is exactly what putting it in plan.validate would produce: a requirement conditional on address form, green for 3-6 and silent for /a/,/b/ — the hole ADR-026 and ADR-027 each found one field at a time · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · covers:a pattern range spanning many lines being refused on the same terms
 - 2026-09-08 · 3245e1a* · mutant killed · exit 1 · `internal/apply/apply.go` · the refusal stops naming anchor=, so the caller is told what is wrong but not what to write — and the fence stops being able to say WHICH guard fired, since a dozen other refusals also exit 1 · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · covers:the refusal naming the remedy
+- 2026-09-08 · c04288b* · mutant killed · exit 1 · `internal/apply/apply.go` · ONLY the remedy is deleted, leaving the diagnosis intact. This mutant SURVIVED both go test and contract.sh until now — reported on PR #146 by a reviewer who ran exactly this and watched everything stay green. The refusal could tell a caller what was wrong and stop telling them what to type, and the log already credited a row with covering it · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · covers:the refusal naming the remedy
 
 ## Invariants
 
@@ -109,3 +119,4 @@ no guard at all.
 - 2026-09-08 · 195f72f* · exit 0 · `set -o pipefail …` · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · ms:16138
 - 2026-09-08 · 2254c4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · ms:15689
 - 2026-09-08 · d331809* · exit 0 · `set -o pipefail …` · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · ms:15953
+- 2026-09-08 · c04288b* · exit 0 · `set -o pipefail …` · acceptance-sha256:c588f2f8b2b54ed44fdb71d9f4c13e9e4f10d859e10de5e346471487bb449d55 · ms:19119

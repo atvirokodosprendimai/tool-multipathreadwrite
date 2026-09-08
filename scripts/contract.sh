@@ -4643,6 +4643,14 @@ want 1 "$rc" "a multi-line replace with no anchor= is refused"
 grep -q 'carries no anchor=' <<<"$out" \
   && ok "and the refusal names the guard that fired" \
   || bad "the refusal does not name the missing anchor: $out"
+# THE REMEDY IS ITS OWN ASSERTION. This row used to grep the DIAGNOSIS only,
+# while the mutation log credited it with covering the remedy — so deleting
+# `say anchor="…"` left every gate green. Reported on PR #146 and reproduced
+# before fixing: a refusal that diagnoses without prescribing is the failure a
+# refusal exists to avoid.
+grep -q 'say anchor="<text from the first line>"' <<<"$out" \
+  && ok "and it prescribes the remedy, not just the diagnosis" \
+  || bad "the refusal does not tell the caller what to write: $out"
 grep -q 'func B' "$R/a.go" \
   && ok "and ADR-001 holds: the refused plan wrote nothing" \
   || bad "the refused plan changed the file: $(cat "$R/a.go")"
