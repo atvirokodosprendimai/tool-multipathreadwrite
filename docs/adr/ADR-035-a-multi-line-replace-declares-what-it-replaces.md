@@ -53,39 +53,47 @@ are what bounds this record's scope.
 Three guards already exist on a hunk, all opt-in. Each was checked against the
 two measured incidents before a new one was considered.
 
-**The axis is not "catches" and "misses", and an earlier cut of this table said
-it was.** Every one of these guards is a value the CALLER supplies, so whether it
-fires depends on where that value came from — a count or a hash or a text
-fragment derived from the same wrong belief as the address passes. So the
-question a guard has to answer is the stricter one: *is it even CAPABLE of
-failing on this incident, for some value the caller could plausibly have
-written?* A guard that cannot is ruled out; a guard that can is then only as good
-as its source.
+**The axis is not "catches" and "misses", and it is not "can any value fail"
+either — this table has been wrong twice, in both directions.** Every one of
+these guards is a value the CALLER supplies, and `apply.go` rejects any value
+that does not match, so a guard can always be made to fail by declaring
+something false. That is not a property worth having. The question that
+discriminates is:
+
+> **can this guard DISTINGUISH the incident, given a TRUTHFULLY SOURCED
+> expectation** — a count, a hash or a fragment the caller believed and had
+> honest grounds for?
 
 | Guard | What it asserts | Incident 1 (short address) | Incident 2 (stale address) |
 |---|---|---|---|
-| `lines=N` (`apply.go:885`) | `end-start+1 == N` — the address against its own arithmetic | **capable** — `lines=21`, the intended count, fails on a 5-line address. A count read off the wrong address does not | **INCAPABLE** — `96-97` does span 2 lines and `103` does span 1, so no value fails |
-| `sha=` (`apply.go:589`) | the whole file is the bytes the caller expects | **INCAPABLE** — it compares file hashes, and nothing establishes that file had changed; a wrong address in an unchanged file passes every value | **INCAPABLE** — the file was demonstrably unchanged; only the belief was wrong |
-| `anchor=` (`apply.go:899`) | `orig[start-1]` contains the declared text | **capable** — fails unless the declared text also happens to sit at the wrong first line | **capable** — same |
+| `lines=N` (`apply.go:885`) | `end-start+1 == N` — the address against its own arithmetic | **distinguishes** — `lines=21`, the intended count, fails on a 5-line address. A count read off the wrong address does not | **CANNOT** — the intended and written spans have the same cardinality: `96-97` spans 2 either way, `103` spans 1. A truthful count is the same number |
+| `sha=` (`apply.go:589`) | the whole file is the bytes the caller expects | **UNKNOWN** — the record does not establish whether that file had changed, so nothing here can say. See the note below | **CANNOT** — the file was demonstrably unchanged, so a truthful hash matches and the wrong address survives |
+| `anchor=` (`apply.go:899`) | `orig[start-1]` contains the declared text | **distinguishes**, unless the declared text also happens to sit at the wrong first line | **distinguishes**, same caveat |
 
-`anchor=` is the only one CAPABLE on both, and the reason is structural rather
-than lucky: it is the only one that speaks about the content AT the address,
-which is the thing both incidents got wrong. `lines=` asks the address about
-itself and `sha=` asks about the whole file, and incident 2 is precisely the case
-where the address is internally consistent and the file has not moved — so
-neither can fail there for any value at all. Both remain available and remain
+`anchor=` is the only one that distinguishes both, and the reason is structural
+rather than lucky: it is the only one that speaks about the content AT the
+address, which is the thing both incidents got wrong. `lines=` asks the address
+about itself and `sha=` asks about the whole file. Incident 2 is precisely the
+case where the address is internally consistent AND the file has not moved, so a
+truthful count and a truthful hash both match while the address is wrong — which
+is what rules those two out as location guards. Both remain available and remain
 orthogonal: `sha=` still answers a question `anchor=` cannot, namely whether the
 file moved under the caller.
 
-⚠ **The `sha=` cell for incident 1 read "catches" until a review asked what it
-would have compared.** It would have compared the file against itself and
-passed. That cell was written by analogy with incident 1's `lines=` cell instead
-of against `apply.go:583` — which is the same move, in a record, that the guard
-this record adds exists to catch in a plan.
+⚠ **This table's own history is the argument for the record.** The `sha=` cell
+for incident 1 first read "catches", written by analogy with the `lines=` cell
+above it rather than against `apply.go:583` — an assertion about a location
+nobody had looked at, which is exactly what the guard this record adds exists to
+refuse in a plan. The correction then over-claimed the other way, asserting
+`sha=` "would have passed" when the record never established whether that file
+changed, and asserting that "no value fails" when a false value always does.
+Both were caught by review, one round apart. The cell now says UNKNOWN, because
+that is what is known.
 
 The first proposal for this record was mandatory `lines=`. It was withdrawn on
-the finding in the table above: on incident 2 it is not merely unlikely to fire,
-it is incapable of firing, and that was the incident cited as its own evidence.
+the finding in the table above: on incident 2, a truthfully sourced `lines=`
+cannot distinguish the incident at all — and that was the incident cited as its
+own evidence.
 
 ## Decision
 
@@ -121,10 +129,11 @@ message claims.
 ## Alternatives Considered
 
 - **Mandatory `lines=`.** The original proposal. Withdrawn: see the audit table.
-- **Mandatory `anchor=` OR `sha=`.** Rejected. `sha=` is incapable of failing on
-  either incident, so the disjunction is only as strong as its weakest arm and a
-  caller satisfying it with `sha=` gets a refusal message promising a guard that
-  could not have run.
+- **Mandatory `anchor=` OR `sha=`.** Rejected. On incident 2 a truthfully sourced
+  `sha=` cannot distinguish the incident at all, and on incident 1 nothing
+  establishes what it would have done. A disjunction is only as strong as its
+  weakest arm, and a caller satisfying it with `sha=` would get a refusal message
+  promising a guard that had no way to fire.
 - **Requiring the replaced body to be declared, as `delete` allows.** Strictly
   stronger, and rejected on cost: a replace's body is the NEW content, so this
   would mean carrying both old and new text in every multi-line hunk, roughly

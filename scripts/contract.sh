@@ -2017,14 +2017,22 @@ assert ex and isinstance(ex[0],list) and len(ex[0])>1, "mrw_read publishes no wo
 d=props["plan"]["description"]
 assert "body=0" in d, "the plan description does not teach that an empty file is body=0 (ADR-027)"
 assert "refused" in d.lower(), "the plan description lists create without saying a bare one is refused"
-assert "REQUIRED" in d, "the plan description does not say anchor= is required on a multi-line replace (ADR-035)"
-# The description carried BOTH "Optional guards: ... anchor=" and "anchor= is
-# REQUIRED", two lines apart, and shipped that way. A caller reading the wire
-# contract was told the opposite of the engine's behaviour, so the word that
-# caused it is asserted absent rather than the corrected sentence asserted
-# present: only the first can go wrong again the same way.
+# ADR-035. `"REQUIRED" in d` is not an assertion: it passed for
+# `anchor= is not REQUIRED on a multi-line replace`, and the contradiction check
+# below it caught only one word order and two capitalisations, so
+# `anchor= is optional. It is REQUIRED only on delete` passed too. Both were
+# demonstrated by probe in the second review round. The clause is asserted whole
+# — anchor=, REQUIRED, and replace tied together in one sentence — and the
+# negations and both adjacency orders are refused case-insensitively.
 import re as _re
-assert not _re.search(r"[Oo]ptional[^.]*anchor=", d), "the plan description calls anchor= optional while also requiring it (ADR-035)"
+assert _re.search(r"anchor=\s+is\s+REQUIRED\s+on\s+a\s+replace", d), \
+    "the plan description does not tie anchor= to REQUIRED and replace in one clause (ADR-035)"
+assert not _re.search(r"(?i)anchor=[^.]*\bnot\s+required", d), \
+    "the plan description says anchor= is NOT required (ADR-035)"
+assert not _re.search(r"(?i)optional[^.]*anchor=", d), \
+    "the plan description calls anchor= optional before requiring it (ADR-035)"
+assert not _re.search(r"(?i)anchor=[^.]*\boptional\b", d), \
+    "the plan description calls anchor= optional after requiring it (ADR-035)"
 PY
 [ $? -eq 0 ] && ok "and both tools say when to reach for them, publish a worked example, and teach the body-less create refusal" \
              || bad "the tool descriptions still say only what the tools do"
@@ -4637,29 +4645,64 @@ grep -q 'func C' "$R/a.go" \
 # PROSE mentions of `@@ f.go 5-9999 replace` — which discuss the out-of-range
 # refusal, and which mrw still refuses for that reason first — are not matched.
 # CONSERVATIVE BY CONSTRUCTION: the safe forms are enumerated and everything
-# else is flagged, rather than the reverse. An earlier cut enumerated the
-# RANGE forms and so missed `@@ f.go 2- replace` and `@@ f.go 2-$ replace` —
-# both real grammar (plan.go's ParseAddr: "N-" runs to end of file), both
-# multi-line, both refused by the guard. A gate that has to be extended for
-# every address form the grammar gains is a gate that is wrong by default.
+# else is flagged, rather than the reverse. Two earlier cuts were unsound and
+# both were found by probe, not by reading:
 #
-# Single-line spellings are exactly two: a bare line number, and `$`. Anything
-# else — a range, an open-ended range, a pattern pair, a relative end, or an
-# address the awk splits across fields because it contains a space — is
-# range-shaped and must carry an anchor. `4-4` is range-SHAPED and covers one
-# line, so it is flagged though it would apply; over-flagging in documentation
-# is the safe direction and costs one anchor.
-docs_bad=$(awk '
-  /^@@ / && !/anchor=/ {
-    op = 0
-    for (i = 3; i <= NF; i++) if ($i == "replace") { op = i; break }
-    if (op == 0) next
-    if (op == 4 && ($3 ~ /^[0-9]+$/ || $3 == "$")) next
-    printf "%s:%d: %s\n", FILENAME, FNR, $0
-  }' README.md AGENTS.md 2>/dev/null || true)
+#   1. Enumerating the RANGE forms missed `@@ f.go 2- replace` and
+#      `@@ f.go 2-$ replace` — real grammar (ParseAddr: "N-" runs to end of
+#      file), multi-line, refused by the guard.
+#   2. Splitting the line into awk FIELDS and taking the first one equal to
+#      `replace` as the op mis-reads a QUOTED path, which plan.go keeps as one
+#      parser field: `@@ "foo 2 replace bar.go" 2-3 replace` was exempted. And
+#      testing for `anchor=` anywhere on the line exempted a pattern address
+#      that merely CONTAINS it, a path containing it, and `anchor=""` — which
+#      mrw itself refuses, since an empty anchor is no anchor.
+#
+# So this classifies the RAW LINE and never tokenises it. A header is safe only
+# if it is one of the two provably single-line spellings, or carries a non-empty
+# anchor= AFTER the op. Everything else is flagged, `4-4` included: over-flagging
+# documentation is the safe direction and costs one anchor.
+#
+# The two PROSE mentions of the out-of-range example are excluded by the column-0
+# anchor, not by their content.
+adr035_unanchored() {
+  # -H, not just -n: with ONE file grep omits the filename, so the two exclusion
+  # patterns below — which expect `file:line:` — matched nothing and every safe
+  # header was flagged. The self-test found that; the docs check could not,
+  # because it always passes two files.
+  grep -HnE '^@@ .* replace( |$)' "$@" \
+    | grep -vE '^[^:]+:[0-9]+:@@ [^ ]+ ([0-9]+|\$) replace( +[a-z]+=[^ ]+)*$' \
+    | grep -vE '^[^:]+:[0-9]+:@@ .* replace .*anchor="[^"]+"' \
+    || true
+}
+docs_bad=$(adr035_unanchored README.md AGENTS.md)
 [ -z "$docs_bad" ] \
   && ok "every range-shaped replace shown in README.md and AGENTS.md carries an anchor" \
   || bad "a documented range-shaped replace has no anchor= and would now be refused: $docs_bad"
+# A GATE IS ITSELF A CLAIM, so the classifier is driven over headers built to
+# defeat it — through the SAME function the check above uses, never a copy.
+# Without this the row passes on a classifier that flags nothing.
+cat > "$WORK/s73safe.txt" <<'SAFE'
+@@ f.go 12 replace
+@@ f.go $ replace
+@@ f.go 42-58 replace anchor="func Apply" lines=17
+@@ internal/store/store.go /^func \(s \*Store\) Get/,/^\}/ replace anchor="func (s *Store) Get"
+@@ "a replace b.go" 2-3 replace anchor="x"
+SAFE
+cat > "$WORK/s73bad.txt" <<'BAD'
+@@ f.go 2-3 replace
+@@ f.go 2- replace
+@@ f.go 2-$ replace
+@@ f.go 12,+2 replace
+@@ f.go /^a$/,/^b$/ replace
+@@ f.go /anchor="x"/,/^b$/ replace
+@@ f.go 2-3 replace anchor=""
+@@ "foo 2 replace bar.go" 2-3 replace
+BAD
+n_safe=$(adr035_unanchored "$WORK/s73safe.txt" | wc -l | tr -d ' ')
+want 0 "$n_safe" "the documentation classifier passes every header that carries its anchor"
+n_bad=$(adr035_unanchored "$WORK/s73bad.txt" | wc -l | tr -d ' ')
+want 8 "$n_bad" "and flags every unanchored shape, including a quoted path and an empty anchor="
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
