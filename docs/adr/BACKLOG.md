@@ -1272,3 +1272,37 @@ Alternatives had to answer.
   names the remedy, which is what bounds the cost of not saying it earlier.
   **What would promote this:** whatever promotes the ADR-027 entry, since one cut
   funds both.
+
+  ⚠ **The handshake's ADR-035 edit REMOVED a falsehood; it did not add the rule.**
+  `A pattern must match EXACTLY ONE line` became `The START must match EXACTLY ONE
+  line` — nine characters for nine, so it cost none of the one spare byte — and the
+  END-delimiter rule is carried by the `mrw_write` tool DESCRIPTION and `AGENTS.md`,
+  not by the handshake. An eighth-round review caught this branch's own commit
+  message claiming all three places state the split. They do not.
+
+- **`/from/,/to/` MEANS DIFFERENT THINGS TO `read` AND TO `write`.** Found by the
+  eighth Codex review round of ADR-035, while checking whether a documentation
+  correction about the end pattern matched both paths. It did not, and the
+  divergence is real, measured against the resolvers rather than inferred:
+
+  | case | `mrw read f.go:/a/,/b/` | `@@ f.go /a/,/b/ replace` |
+  |---|---|---|
+  | the start matches twice | serves BOTH spans (`internal/read/read.go:523`) | refuses as ambiguous (`internal/apply/apply.go:728`) |
+  | the end matches on the START line | looks strictly after it (`read.go:529`), so it runs on | accepts, and the span is one line |
+  | no end matches after the start | silently extends to EOF (`read.go:527`) | refuses |
+
+  So the same address can serve a broad span and then write one line — and a
+  caller who takes their line numbers from that read is in exactly the position
+  ADR-035 exists to protect them from.
+
+  **Not fixed here, deliberately.** It is an engine change to `internal/read` or
+  `internal/apply`, both of which ADR-035's tasks pin as byte-identical, and
+  choosing WHICH path moves is a public-contract decision that needs its own
+  record: making `read` exactly-once would break every exploratory read that
+  matches twice, and making `write` permissive would give a plan an ambiguous
+  site, which ADR-001 and ADR-002 exist to refuse. README.md now says the two
+  agree on LINE addresses and names this exception rather than claiming more.
+
+  **What would promote this:** a caller reporting a wrong write whose numbers
+  came from a paired-pattern read — or simply the decision being taken, since the
+  divergence is now written down rather than latent.

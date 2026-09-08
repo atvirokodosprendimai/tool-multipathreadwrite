@@ -890,11 +890,25 @@ rather than a difference invented here: `mrw read f.go:2-99` serves what exists,
 while `@@ f.go 5-9999 replace` is already refused as out of range, and a write
 that quietly did less than its address said is the thing this tool exists to
 make visible. There is no backwards form, and `,+0` is refused because it says
-what `A` alone says. The same address means the
+what `A` alone says. A LINE address means the
 same thing to `read` and to `write` — `mrw read f.go:$` prints one line and
 `@@ f.go $ replace` changes one. `read` used to disagree, because it shared one
 sentinel between `$` and an omitted end and so served the whole file for
 `f.go:$`.
+
+⚠ **A PAIRED PATTERN `/from/,/to/` DOES NOT YET MEAN THE SAME THING ON BOTH
+PATHS, and this paragraph claimed it did until the eighth review round of
+ADR-035.** Three differences, all measured against the resolvers rather than
+inferred: `read` serves a span for EVERY match of the start
+(`internal/read/read.go:523`) while a write refuses unless the start matches
+exactly once (`internal/apply/apply.go:728`); `read` looks for the end strictly
+AFTER the start (`read.go:529`) while a write accepts an end on the start line
+itself; and `read` silently extends to EOF when no end follows (`read.go:527`)
+where a write refuses. So the same paired pattern can serve a broad span and
+then write one line. Contract §64 is not wrong about this — it says the two
+grammars agree on the shapes it NAMES, which is deliberately narrower — but this
+sentence was. Aligning them is a decision with its own record to write; it is
+receipted in `docs/adr/BACKLOG.md`.
 
 Three guards make a batch safe to trust, and all three are cheap to write, which
 is the point. Two are optional. **`anchor=` is required on a `replace` that

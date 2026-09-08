@@ -219,6 +219,7 @@ it may match many times and does not get the exactly-once rule. Applying it to
 both ends shipped once and made `/^func X/,/^}/` fail on any file with two
 functions, because `^}` closes both (`internal/apply/apply.go:748`, pinned by
 `TestTheEndPatternIsTheFirstMatchAtOrAfterTheStart`).
+A relative end has no backwards form and may not be combined with
 `/from/,/to/`. ⚠ **A READ CLAMPS a relative end at the last line; a WRITE
 REFUSES one that runs past it** — each is that path's own existing rule, since
 `mrw read f.go:2-99` serves what exists while `@@ f.go 5-9999 replace` is
