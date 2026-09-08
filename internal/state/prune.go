@@ -77,19 +77,24 @@ func Entries() ([]Entry, error) {
 // construction, which is what makes a dry run a preview rather than a different
 // question.
 //
-// ⚠ IT RE-OPENS THE BASE AND RE-ENUMERATES IT, and removes only a child NAME it
-// can still see under that handle. The entries it is given describe what a
-// previous walk found; they are a filter, never an address. Removing by the
-// absolute path in Entry.Dir would re-resolve every component after the walk
-// that produced it, so a base — or a component above it — swapped for a symlink
-// in between would carry os.RemoveAll straight out of the directory mrw owns.
-// A handle cannot be re-pointed that way: it names the object, not the route to
-// it.
+// ⚠ IT RE-OPENS THE BASE, RE-ENUMERATES IT AND RE-DESCRIBES EVERY CHILD, and
+// removes only a child NAME it can still see, still identify, and still find
+// dead under that handle. The entries it is given are a FILTER, never an
+// address and never a verdict: they describe what some earlier walk found, and
+// between that walk and this one a checkout can be restored, a volume can be
+// remounted, or a marker can be rewritten. Acting on the older answer would
+// delete live state on evidence that has expired. Both answers must agree.
 //
-// The cost is one extra walk on the removing path, and the alternative was
-// handing the caller a live *os.Root to pass back in. That widens the API to
-// save a directory read, and this record already carries a finding about giving
-// a boundary away by widening a signature.
+// Removing by the absolute path in Entry.Dir would be worse still: it
+// re-resolves every component after the walk that produced it, so a base — or a
+// component above it — swapped for a symlink in between would carry
+// os.RemoveAll out of the directory mrw owns. A handle cannot be re-pointed
+// that way, because it names the object rather than the route to it.
+//
+// The cost is one extra walk and one extra stat per entry on the removing path.
+// The alternative was handing the caller a live *os.Root to pass back in, which
+// widens the API to save a directory read — and this record already carries a
+// finding about giving a boundary away by widening a signature.
 //
 // root is the checkout the caller is working in. Its own entry is never
 // removed, even when that checkout has been deleted underneath the process: a
@@ -107,7 +112,7 @@ func Prune(root string, entries []Entry, dryRun bool) ([]Entry, error) {
 		return nil, err
 	}
 
-	base, _, err := openBase()
+	base, dir, err := openBase()
 	if err != nil {
 		return nil, err
 	}
@@ -116,14 +121,15 @@ func Prune(root string, entries []Entry, dryRun bool) ([]Entry, error) {
 	}
 	defer base.Close()
 
-	// What is under the base NOW, not what the caller's walk once saw.
-	present := map[string]bool{}
+	// What is under the base NOW, described NOW — not what the caller's walk
+	// once saw and once concluded.
 	names, err := children(base)
 	if err != nil {
 		return nil, err
 	}
+	fresh := make(map[string]Entry, len(names))
 	for _, name := range names {
-		present[name] = true
+		fresh[name] = describe(base, dir, name)
 	}
 
 	var removed []Entry
@@ -131,39 +137,47 @@ func Prune(root string, entries []Entry, dryRun bool) ([]Entry, error) {
 		if !e.Identified || !e.Dead || self[e.Name] {
 			continue
 		}
-		// ⚠ ONLY WHAT THIS WALK JUST SAW. The entries are a filter, not an
-		// address: the caller's slice may name something that has since gone,
-		// and os.Root.RemoveAll succeeds silently on a name that is not there.
-		// Reporting that as a removal would break ADR-008 — a delete says what
-		// it removed, and nothing was removed.
-		//
-		// ⚠ There is deliberately NO separate "is this a single component"
-		// check. It would be unkillable: `present` is built from this walk, so
-		// a crafted name cannot be in it, and os.Root refuses a traversal on
-		// its own ("path escapes from parent"). A guard no mutant can kill is
-		// this repository's named defect, so containment is left where it is
-		// actually enforced and this clause carries only what it can prove.
-		if !present[e.Name] {
+		// ⚠ THE CURRENT ANSWER HAS A VETO. The entry must still be there, still
+		// be identifiable, still name the same checkout, and that checkout must
+		// still be gone. Any disagreement with the caller's older verdict means
+		// KEEP: the evidence for removing has expired, and a directory removed
+		// on expired evidence cannot be restored by looking again. This is also
+		// what stops a removal being REPORTED that did not happen — os.Root's
+		// RemoveAll succeeds silently on a name that is not there, and ADR-008
+		// says a delete says what it removed.
+		cur, ok := fresh[e.Name]
+		if !ok || !cur.Identified || !cur.Dead || cur.Root != e.Root {
 			continue
 		}
 		if !dryRun {
-			if err := base.RemoveAll(e.Name); err != nil {
-				e.Err = err
+			if err := base.RemoveAll(cur.Name); err != nil {
+				cur.Err = err
 			}
 		}
-		removed = append(removed, e)
+		removed = append(removed, cur)
 	}
 	return removed, nil
 }
 
-// openBase opens the state base as a HANDLE, refusing one that is a symlink.
+// openBase opens the state base as a HANDLE, refusing one mrw did not create.
 //
-// The order is the whole point. Checking the path and then opening it leaves a
-// window in which `<state>/mrw` is replaced between the two calls, which moves
-// the race rather than closing it. So the parent is opened first, the child is
-// interrogated THROUGH that handle, and the base is opened through it too:
-// every step after the first names an object rather than a path, and the thing
-// that was checked is the thing that was opened.
+// ⚠ OPEN FIRST, THEN VERIFY WHAT WAS OPENED. An earlier form of this function
+// did the reverse — `Lstat("mrw")`, reject a symlink, then `OpenRoot("mrw")` —
+// and claimed in its own comment that "the thing that was checked is the thing
+// that was opened". THAT WAS FALSE, and a review said so. They are two
+// operations on a NAME, and a name can be replaced between them.
+//
+// It is not a theoretical window either. `os.Root` confines a path to its root
+// but it does FOLLOW a symlink that stays INSIDE it — measured: a relative
+// `mrw -> other` under the same state home opens successfully and enumerates
+// `other`. So the check-then-open order left a real sequence in which mrw
+// removed directories from a sibling nobody gave it.
+//
+// This order cannot be raced that way: whatever object comes back is compared
+// by IDENTITY against what the name resolves to now. A symlink makes `Lstat`
+// report the link rather than the directory, so the two are different files and
+// the base is refused; a swap after the open is refused for the same reason.
+// Only a name that still resolves to exactly the object in hand proceeds.
 //
 // It returns a nil handle and no error when there is nothing there yet, which
 // is what a machine that has never run mrw looks like. The second return is the
@@ -184,37 +198,46 @@ func openBase() (*os.Root, string, error) {
 	}
 	defer parent.Close()
 
-	fi, err := parent.Lstat("mrw")
-	if err != nil {
-		if isNotExist(err) {
-			return nil, dir, nil
-		}
-		return nil, "", err
-	}
-	if fi.Mode()&os.ModeSymlink != 0 {
-		return nil, "", fmt.Errorf("the state base %s is a symlink; mrw will not enumerate or remove "+
-			"through it, because it did not create it and cannot tell what is on the other side", dir)
-	}
-	if !fi.IsDir() {
-		return nil, "", fmt.Errorf("the state base %s is not a directory", dir)
-	}
-
 	base, err := parent.OpenRoot("mrw")
 	if err != nil {
 		if isNotExist(err) {
 			return nil, dir, nil
 		}
-		return nil, "", err
+		// A symlink OUT of the state home is refused by os.Root itself, whose
+		// message says only that a path escaped. Name what is actually wrong:
+		// "openat mrw: path escapes from parent" tells an operator neither
+		// which directory nor what to do about it (ADR-015).
+		if fi, lerr := parent.Lstat("mrw"); lerr == nil && fi.Mode()&os.ModeSymlink != 0 {
+			return nil, "", symlinkedBase(dir)
+		}
+		return nil, "", fmt.Errorf("the state base %s cannot be opened: %w", dir, err)
+	}
+
+	opened, oerr := base.Stat(".")
+	named, nerr := parent.Lstat("mrw")
+	if oerr != nil || nerr != nil || !os.SameFile(opened, named) {
+		base.Close()
+		return nil, "", symlinkedBase(dir)
 	}
 	return base, dir, nil
 }
 
-// children is the entry names directly under the base: real directories only.
+// symlinkedBase is the one refusal, worded for both shapes it covers: the name
+// is a symlink, or it stopped naming the object mrw opened while it was being
+// opened. An operator cannot act on the difference and the remedy is the same,
+// so the message names the directory and says what mrw will not do.
+func symlinkedBase(dir string) error {
+	return fmt.Errorf("the state base %s is a symlink, or was replaced while mrw was opening it; "+
+		"mrw will not enumerate or remove through it, because it did not create it and "+
+		"cannot tell what is on the other side", dir)
+}
+
+// children is the entry names directly under the base: directories, plus
+// symlinks so that they can be REPORTED rather than silently dropped. A plain
+// file is not an entry and is left out.
 //
-// ⚠ Lstat, NOT Stat, and it is the same reason the old os.DirEntry.IsDir was
-// right: a symlink planted under the base has ModeSymlink and must be skipped
-// rather than followed out of the directory mrw owns. A plain file is skipped
-// for the same reason.
+// ⚠ Lstat, NOT Stat. A symlink must be named without being followed; describe
+// is what declines to open it.
 func children(base *os.Root) ([]string, error) {
 	f, err := base.Open(".")
 	if err != nil {
@@ -228,7 +251,10 @@ func children(base *os.Root) ([]string, error) {
 	out := make([]string, 0, len(items))
 	for _, it := range items {
 		fi, err := base.Lstat(it.Name())
-		if err != nil || fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir() {
+		if err != nil {
+			continue
+		}
+		if fi.Mode()&os.ModeSymlink == 0 && !fi.IsDir() {
 			continue
 		}
 		out = append(out, it.Name())
@@ -252,8 +278,11 @@ func children(base *os.Root) ([]string, error) {
 // EvalSymlinks fails on the whole path and gives back nothing. The spelling the
 // entry was actually created under is rebuilt from the ancestors that are still
 // there: resolve the deepest one that exists, then re-append what was removed.
-// A name that is not an entry matches nothing, so extra candidates cost only
-// the lookup.
+//
+// Every candidate is a key of the CALLER'S OWN root under one spelling of it,
+// so a candidate can only ever match the caller's own entry or nothing at all.
+// It cannot shield a different checkout: two distinct paths would have to
+// collide under sha256 for that.
 func selfNames(root string) (map[string]bool, error) {
 	out := map[string]bool{}
 	abs, err := filepath.Abs(root)
@@ -294,8 +323,22 @@ func resolveThroughAncestors(abs string) (string, bool) {
 }
 
 // describe reads one entry's marker and measures it, through the base handle.
+//
+// ⚠ A SYMLINK IS DESCRIBED BUT NEVER OPENED. It comes back unidentified, which
+// means kept — and, because it is returned at all, REPORTED, which is what
+// ADR-034 promises. Silently omitting it would hide an unexpected object from
+// the count and from the kept line, and an entry nothing reports is
+// indistinguishable from one nothing looked at.
 func describe(base *os.Root, baseDir, name string) Entry {
 	e := Entry{Dir: filepath.Join(baseDir, name), Name: name}
+
+	fi, err := base.Lstat(name)
+	if err != nil {
+		return e
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return e // provenance unknown by construction: mrw writes no symlinks
+	}
 
 	sub, err := base.OpenRoot(name)
 	if err != nil {

@@ -4534,8 +4534,6 @@ if ln -s "$P72VICTIM" "$XDG_STATE_HOME/mrw" 2>/dev/null; then
 else
   skip "this filesystem does not do symlinks, so the symlinked-base case cannot be planted"
 fi
-# RESTORE the file-wide pin, for the reason §71 gives just below.
-export XDG_STATE_HOME="$WORK/state"
 # RESTORE the file-wide pin, do not unset it. This row swapped XDG_STATE_HOME for
 # a sub-base of its own because it COUNTS entries; unsetting it here would send
 # any row added after this one back to the real state base, which is the leak

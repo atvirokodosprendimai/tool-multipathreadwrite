@@ -114,7 +114,6 @@ here.
   the entries whose `root` marker names a path that is gone, and says what it removed;
   `--prune --dry-run` shows the list first.
 
-  This entry's own reasoning is what ADR-034 was built around and is preserved verbatim because it
   **The size estimate here was wrong and is corrected.** This entry and ADR-004's Consequence at
   `:164` both said each orphan is *"a few hundred bytes"* and that a human can clean up with
   `grep -r . "${XDG_STATE_HOME:-$HOME/.local/state}/mrw"/*/root`. Measured 2026-09-07 on the
@@ -123,10 +122,6 @@ here.
   came to 10.7 MB across 65,235 of them; the rest is one block per tiny file and one per directory,
   so the real cost is inodes. Either way, selecting 22,591 `rm -rf` targets by hand out of that grep
   is not a cleanup a human does.
-  `grep -r . "${XDG_STATE_HOME:-$HOME/.local/state}/mrw"/*/root`. Measured 2026-09-07 on the
-  maintainer's machine: 22,836 directories, 242 MB, ~10.6 KB each — thirty times the estimate — of
-  which 22,591 were dead. Selecting 22,591 `rm -rf` targets by hand from that grep is not a cleanup
-  a human does.
 
 - **Windows conventions.** The state path is XDG-shaped; Windows would want
   `%LOCALAPPDATA%`. Nothing currently builds or tests mrw on Windows beyond

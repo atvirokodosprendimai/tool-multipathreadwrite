@@ -179,6 +179,139 @@ func TestARootThatCannotBeStattedIsKept(t *testing.T) {
 	}
 }
 
+// TestABaseThatIsARelativeSymlinkInsideTheStateHomeIsRefused is the case the
+// FIRST fix missed, and the reason openBase opens before it checks.
+//
+// os.Root confines a path to its root; it does NOT refuse symlinks that stay
+// inside that root. A relative `mrw -> other` under the same state home is
+// therefore opened and enumerated quite happily — so a check-then-open ordering
+// left a real sequence in which the prune removed directories from a sibling
+// nobody gave it. The escaping symlink in the sibling test above is refused by
+// os.Root on its own and cannot show this.
+func TestABaseThatIsARelativeSymlinkInsideTheStateHomeIsRefused(t *testing.T) {
+	base := xdg(t)
+
+	// A sibling under the SAME state home, holding what looks prunable.
+	sibling := filepath.Join(base, "other")
+	entry := filepath.Join(sibling, "5555555555555555")
+	if err := os.MkdirAll(entry, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(entry, "root"), []byte("/no/such/checkout\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Relative, so it never leaves the parent root and os.Root will follow it.
+	if err := os.Symlink("other", filepath.Join(base, "mrw")); err != nil {
+		t.Skipf("this filesystem does not do symlinks: %v", err)
+	}
+
+	entries, _ := Entries()
+	removed, err := Prune(t.TempDir(), entries, false)
+	if err == nil {
+		t.Fatalf("Prune followed a relative symlink that stays inside the state home and "+
+			"reported %d removals; os.Root permits that link, so only an identity check refuses it",
+			len(removed))
+	}
+	if !strings.Contains(err.Error(), filepath.Join(base, "mrw")) {
+		t.Errorf("the refusal is %q; it must name the base %q", err, filepath.Join(base, "mrw"))
+	}
+	if !exists(t, entry) {
+		t.Errorf("Prune removed %q, an entry under a sibling directory it was never given", entry)
+	}
+}
+
+// TestAnEntryWhoseCheckoutCameBackIsNotRemoved covers the caller's verdict
+// EXPIRING. Prune is handed entries from an earlier walk; between that walk and
+// the removal a checkout can be restored from backup, a volume can be
+// remounted, or a marker can be rewritten. Acting on the older answer deletes
+// live state on evidence that is no longer true, so the current answer has a
+// veto.
+func TestAnEntryWhoseCheckoutCameBackIsNotRemoved(t *testing.T) {
+	p := plant(t)
+
+	entries, err := Entries()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The walk said this one is dead. Confirm that, so the test cannot pass by
+	// the entry having been unprunable all along.
+	var sawDead bool
+	for _, e := range entries {
+		if e.Dir == p.deadDir && e.Identified && e.Dead {
+			sawDead = true
+		}
+	}
+	if !sawDead {
+		t.Fatalf("the fixture's dead entry %q did not read as dead; the test would prove nothing", p.deadDir)
+	}
+
+	// ...and then the checkout comes back.
+	if err := os.MkdirAll(p.deadGo, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := Prune(p.selfGo, entries, false)
+	if err != nil {
+		t.Fatalf("Prune: %v", err)
+	}
+	for _, e := range removed {
+		if e.Dir == p.deadDir {
+			t.Errorf("Prune removed %q on the caller's stale verdict; its checkout %q exists again",
+				p.deadDir, p.deadGo)
+		}
+	}
+	if !exists(t, p.deadDir) {
+		t.Errorf("the state of a checkout that came back was removed")
+	}
+}
+
+// TestASymlinkedEntryIsReportedRatherThanSilentlyDropped holds the record to
+// what it says. ADR-034 promises a symlinked entry is "reported and skipped
+// rather than followed out of the base"; omitting it from Entries entirely
+// makes it skipped but NOT reported, and an entry nothing reports cannot be
+// told from one nothing looked at — which is the same argument the record makes
+// about unidentifiable entries.
+func TestASymlinkedEntryIsReportedRatherThanSilentlyDropped(t *testing.T) {
+	p := plant(t)
+
+	outside := t.TempDir()
+	link := filepath.Join(p.mrw, "6666666666666666")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("this filesystem does not do symlinks: %v", err)
+	}
+
+	entries, err := Entries()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found *Entry
+	for i := range entries {
+		if entries[i].Dir == link {
+			found = &entries[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("the symlinked entry %q is not in Entries() at all, so nothing can report it", link)
+	}
+	if found.Identified {
+		t.Errorf("the symlinked entry claims to be identified, naming root %q — mrw writes no symlinks",
+			found.Root)
+	}
+	if found.Dead {
+		t.Errorf("the symlinked entry claims its checkout is gone; it was never followed, so nothing is known")
+	}
+
+	if _, err := Prune(p.selfGo, entries, false); err != nil {
+		t.Fatal(err)
+	}
+	if !exists(t, link) {
+		t.Errorf("Prune removed the symlinked entry %q; reported and skipped means kept", link)
+	}
+	if !exists(t, outside) {
+		t.Errorf("Prune followed %q out of the base and removed %q", link, outside)
+	}
+}
+
 // TestAnEntryThatVanishedBetweenTheWalkAndTheRemovalIsNotReported is what
 // makes Prune's "only what this walk saw" clause a guard rather than a
 // comment. The entries a caller hands back describe a PAST walk; between that
