@@ -7,28 +7,62 @@ It is an ordinary command-line tool. It was built for AI coding agents, which
 are the ones doing hundreds of small edits a day, but nothing about it requires
 one.
 
-**Status: stable at v1.7.0 (2026-09-08), the tag cut from `8846325`.**
+**Status: stable at v1.8.0 (2026-09-08), the tag cut from `fe49ef5`.**
 What that word rests on is recorded in this tree. The six promises listed in `AGENTS.md` are each
 an ADR and each a set of rows in `scripts/contract.sh`, which drives the built binary and prints its
 own verdict; no assertion fails on the tree the tag was cut from. The COUNT is platform-dependent
-and is not quoted flat for that reason: **713 pass on darwin/arm64, and the Linux CI run for the tag
-reports 710 passing, one skipped and none failing.** The gap is exactly the case-folding family —
+and is not quoted flat for that reason: **735 pass on darwin/arm64, and the Linux CI run for the tag
+reports 732 passing, one skipped and none failing.** The gap is exactly the case-folding family —
 darwin folds case and Linux does not, so three assertions about two spellings of one file do not run
 there, and CI prints one SKIP naming them. Re-measured for this tag rather than carried over: the
-skip line in run 34204756478 says *"a case-sensitive filesystem here: the two-spelling half did not
-run"*, which is the explanation and not an inference from the arithmetic. The v1.5.0 paragraph
-attributed its own gap to root-user triggers, a different set, and would have been wrong here.
+skip line in run 34254748001 says *"a case-sensitive filesystem here: the two-spelling half did not
+run; the symlink half above is its twin"*, which is the explanation and not an inference from the
+arithmetic. The v1.5.0 paragraph attributed its own gap to root-user triggers, a different set, and
+would have been wrong here.
+⚠ **And the arithmetic could not have attributed it anyway, because TWO independent mechanisms each
+swing the count by three.** Beside the case-folding family, §24 races 40 concurrent ledger reads and
+emits one SKIP in place of three assertions when the race does not reproduce — this tree was
+measured at both 719 and 722 within an hour on the same host. Here it DID reproduce on both
+platforms (the Linux run says *"concurrent reads lose ledger entries (1/40 kept), as ADR-002
+accepts"*), so it is not confounding this gap; that is checked and stated rather than assumed,
+because a previous reading of these numbers fitted a coincidence and matched the wrong mechanism.
 A break campaign of 47 probes
-(`scripts/break-campaign.sh`, its run in `docs/break/campaign-v1.7.0.txt`) against that same tagged
+(`scripts/break-campaign.sh`, its run in `docs/break/campaign-v1.8.0.txt`) against that same tagged
 tree found no silent wrong write and every refusal in it names its reason; every probe's name and
-exit code is identical to the v1.6.0 run against `0fffa77`, the v1.5.0 run against `07bc664`, the
-v1.4.0 run against `bd73ee0`, the v1.3.0 run against `3434c35`, the v1.2.0 run against `03feb92` and
-the v1.1.0 run against `d6c62e7`.
+exit code is identical to the v1.7.0 run against `8846325`, the v1.6.0 run against `0fffa77`, the
+v1.5.0 run against `07bc664`, the v1.4.0 run against `bd73ee0`, the v1.3.0 run against `3434c35`,
+the v1.2.0 run against `03feb92` and the v1.1.0 run against `d6c62e7`.
+One probe was EDITED for this release — the overlap probe now carries an `anchor=`, because
+ADR-035 would otherwise refuse it for the wrong reason and it would silently stop measuring
+overlap — and its verdict is unchanged, which is the evidence that the edit preserved what the
+probe measures rather than quietly replacing it.
 That identity is evidence of no UNINTENDED change and nothing more: the campaign exercises none of
-what v1.7.0 changes, and contract §71 and §72 with `internal/state/prune_test.go` and
-`internal/state/prune_findings_test.go` do.
-**v1.7.0 adds the first thing mrw removes**, so read the next paragraph before upgrading — v1.5.0's
+what v1.8.0 changes, and contract §73 and §74 with `internal/apply/apply_test.go`,
+`internal/read/read_test.go` and `internal/adversarial/documented_plans_test.go` do.
+**v1.8.0 ships two breaking refusals**, so read the next paragraph before upgrading — v1.5.0's
 alias defect remains the reason to leave anything older.
+**Both v1.8.0 refusals make a silent wrong answer loud, and neither changes what a correct plan
+does.** ADR-035: a `replace` whose address resolves to more than one line is refused unless it
+carries `anchor=`. mrw models no target syntax — it puts the lines you gave where you said — so a
+range wrong by a few lines writes your body over content nobody looked at, and the receipt cannot
+show it, because the damage falls outside the lines the hunk named. Two such ranges reached a build.
+`anchor=` and not `lines=` or `sha=`, because it is the only one of the three that speaks about the
+content AT the address: `sha=` never reads the address at all (`internal/apply/apply.go:583`), so it
+cannot discriminate a wrong one for any file state. Scoped to `replace` — every measured incident is
+one, and `delete` already has the stronger optional guard of an expected body.
+ADR-036: `/from/,/to/` now means one thing on both paths. The end is the first match **at or after**
+the start, so an end on the start line closes the span there; and a paired pattern whose end never
+matches is reported and exits 1 rather than served silently to the end of the file. That second one
+is why it is a record: a read that quietly serves MORE than its address named is exactly as
+invisible as a write that quietly changes less, and the line numbers it hands back then reach a
+plan. One difference is KEPT — a read serves a span for every match of the start that is not already
+inside a span it served, a write refuses unless the start matches exactly once — because
+exactly-once answers *which site did you mean*, which a plan must know and an exploratory read need
+not.
+**Upgrading:** add `anchor=` to multi-line replaces, taking the text from the `NNN| content` a read
+printed, where it is a real check rather than a guess — an anchor typed from memory can be wrong in
+the same way the address is, and mrw cannot tell which it got. Say `f.go:/a/,$` where you relied on
+a paired pattern running to end of file.
 Three things arrived in v1.6.0 and still stand. ADR-031 makes a paged read license only the part the caller echoes back.
 ADR-032 makes the MCP result ceiling the CALLER's (`--max-result-chars`, `MRW_MAX_RESULT_CHARS`) and
 bounds the WHOLE answer rather than the read path alone: measured, a 4,000-hunk dry run returned
