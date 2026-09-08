@@ -1240,3 +1240,25 @@ Alternatives had to answer.
   **What would promote this:** a report of a prune removing live state on Windows, or a decision
   that the second requirement is worth it. The `windows` CI job runs the test today and reports the
   skip.
+
+## From ADR-035 (a multi-line replace declares what it replaces)
+
+- **Requiring a guard on a multi-line `delete` too.** ADR-008 pre-registered the
+  condition — *"if a wrong range still reaches a build after ADR-008, the tax is
+  worth paying"* — and ADR-035 pays it for `replace`, because both measured
+  incidents are replaces. It does not extend to `delete`, because no wrong
+  multi-line delete has been measured and extending on shape alone is the
+  symmetry argument ADR-027's own deferral refuses. `delete` also already has the
+  stronger opt-in guard: an expected body declares every line, not just the
+  first. Reopen when a wrong multi-line delete range reaches a build.
+
+- **Deriving the anchor from the ledger instead of asking the caller for it.**
+  mrw already knows which lines it served (`internal/seen`), so in principle it
+  could check the addressed line against what the caller was actually shown and
+  need no `anchor=` at all. Not done, and the reason is not effort: the ledger
+  records that a line was served, and re-deriving the anchor from the file at
+  write time compares the file against itself, which is the tautology ADR-008
+  names for its own guard. Making it real means the ledger storing the served
+  CONTENT, not just the span — a size and staleness question this record did not
+  need to answer, since a caller who read the lines can copy the anchor out of
+  the `NNN| content` the read already printed.

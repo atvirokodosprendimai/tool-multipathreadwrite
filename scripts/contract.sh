@@ -2177,7 +2177,7 @@ func (s *Store) Put(id, v string) {
 }
 GO
 m read store/store.go >/dev/null 2>&1
-out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Get/,/^\\}/ replace\nfunc (s *Store) Get(id string) (string, bool) { return s.rows[id], true }\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Get/,/^\\}/ replace anchor="Store) Get(id"\nfunc (s *Store) Get(id string) (string, bool) { return s.rows[id], true }\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "the range form applies on a file where the end pattern matches twice"
 grep -q 'func (s \*Store) Put' "$R/store/store.go" \
   && ok "and it stopped at the FIRST closing brace, leaving Put intact" \
@@ -3654,7 +3654,7 @@ grep -q 'A,+3' <<<"$out" && ok "the read refusal names the fix" || bad "the read
 out=$(m read 'a.go:2,+0' 2>&1); rc=$?
 want 2 "$rc" "a read's ,+0 is refused"
 grep -q '+0' <<<"$out" && ok "the read refusal names what was written" || bad "the read refusal does not name +0: $out"
-out=$(printf '@@ a.go 3,+1 replace\nfunc A() int { return 10 }\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ a.go 3,+1 replace anchor="func A()"\nfunc A() int { return 10 }\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "a plan hunk with a relative end applies"
 grep -q 'func B' "$R/a.go" && bad "the relative end did not reach the line after the start" || ok "a plan's relative end replaced the start plus one line"
 grep -q 'func C' "$R/a.go" && ok "the relative end stopped where it said" || bad "the relative end ran past the lines it named"
@@ -3669,7 +3669,7 @@ grep -q '+0' <<<"$out" && ok "the plan refusal names what was written" || bad "t
 # every unit test stays green while an MCP caller's relative end is silently
 # dropped, which is the shape of defect this whole record is about.
 fixture
-req=$(printf '@@ a.go 3,+1 replace\nfunc A() int { return 11 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
+req=$(printf '@@ a.go 3,+1 replace anchor="func A()"\nfunc A() int { return 11 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
 printf '%s\n' "$req" | m mcp 2>/dev/null > "$WORK/w64.json"
 python3 - "$WORK/w64.json" "$R/a.go" <<'PY'
 import json,sys
@@ -3735,10 +3735,10 @@ grep -q 'func B' "$R/a.go" && bad "delete with a relative end did not remove the
 # THE RECEIPT ECHOES THE ADDRESS THE CALLER WROTE. It reported `3,+1` as `3`,
 # which hides the span the hunk consumed from the one line a caller reads.
 fixture
-out=$(printf '@@ a.go 3,+1 replace\nX\n' | m write - 2>&1)
+out=$(printf '@@ a.go 3,+1 replace anchor="func A()"\nX\n' | m write - 2>&1)
 grep -q 'ok   a.go 3,+1 replace' <<<"$out" && ok "the receipt keeps the relative end" || bad "the receipt drops the relative end: $out"
 fixture
-out=$(printf '@@ a.go /func A/,+1 replace\nX\n' | m write - 2>&1)
+out=$(printf '@@ a.go /func A/,+1 replace anchor="func A()"\nX\n' | m write - 2>&1)
 grep -q 'ok   a.go /func A/,+1 replace' <<<"$out" && ok "the receipt keeps a pattern's relative end" || bad "the receipt mangles a pattern's relative end: $out"
 
 # A WRITE REFUSES TO RUN PAST THE LAST LINE WHERE A READ CLAMPS, and that pairing
@@ -3865,7 +3865,11 @@ m read bs.txt > /dev/null 2>&1
 out=$(m read 'bs.txt:/\\/,+1' 2>&1); rc=$?
 want 0 "$rc" "a pattern ending in a backslash is closed on the read path"
 grep -q '@@ 1-2' <<<"$out" && ok "the backslash pattern resolves to its match plus one" || bad "the backslash pattern did not resolve: $out"
-out=$(printf '@@ bs.txt /\\\\/,+1 replace\nX\nY\n' | m write - 2>&1); rc=$?
+# anchor="a" is line 1 of bs.txt (`a\b`), deliberately the plain half of it: the
+# row is about the DELIMITER scanner closing a pattern that ends in a backslash,
+# and an anchor carrying its own backslash would put two escaping questions in
+# one assertion.
+out=$(printf '@@ bs.txt /\\\\/,+1 replace anchor="a"\nX\nY\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "a pattern ending in a backslash is closed on the plan path too"
 
 # THE TWO GRAMMARS AGREE ON EVERY SHAPE NAMED BELOW, which is narrower than
@@ -4576,6 +4580,58 @@ fi
 # any row added after this one back to the real state base, which is the leak
 # ADR-034 T4 closed. It is last today, and that is not a reason to leave a trap.
 export XDG_STATE_HOME="$WORK/state"
+
+# 73. ADR-035: a multi-line replace declares what it replaces.
+#
+# The unit tests prove the guard; they cannot prove the SHIPPED binary runs it.
+# Both spellings are driven here, because a row that only shows the refusal is
+# satisfied by a binary that refuses every replace.
+#
+# The message is asserted, not just the exit code: `mrw write` exits 1 for a
+# dozen reasons — an unread line, a bad path, a failed guard — so `want 1` alone
+# scores the binary's error handling rather than this guard.
+fixture
+out=$(printf '@@ a.go 3-4 replace\nfunc A() int { return 10 }\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "a multi-line replace with no anchor= is refused"
+grep -q 'carries no anchor=' <<<"$out" \
+  && ok "and the refusal names the guard that fired" \
+  || bad "the refusal does not name the missing anchor: $out"
+grep -q 'func B' "$R/a.go" \
+  && ok "and ADR-001 holds: the refused plan wrote nothing" \
+  || bad "the refused plan changed the file: $(cat "$R/a.go")"
+# The same plan with the anchor the message asked for. Without this pair the row
+# above passes on a binary that refuses everything.
+out=$(printf '@@ a.go 3-4 replace anchor="func A()"\nfunc A() int { return 10 }\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "the same plan applies once it carries an anchor"
+grep -q 'return 10' "$R/a.go" \
+  && ok "and the anchored replace wrote what it said" \
+  || bad "the anchored replace did not apply: $(cat "$R/a.go")"
+# A SINGLE-line replace still needs none. This is what makes the row a narrowing
+# rather than a ban, and it is the assertion a guard keyed on the op instead of
+# the span would fail.
+fixture
+out=$(printf '@@ a.go 3 replace\nfunc A() int { return 99 }\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "a single-line replace needs no anchor"
+grep -q 'return 99' "$R/a.go" \
+  && ok "and it wrote what it said" \
+  || bad "the single-line replace did not apply: $(cat "$R/a.go")"
+# A multi-line DELETE is untouched: ADR-035 is scoped to replace, because every
+# measured incident is one and ADR-008 already gives delete an expected body.
+fixture
+out=$(printf '@@ a.go 3-4 delete\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "a multi-line delete still needs no anchor"
+grep -q 'func C' "$R/a.go" \
+  && ok "and it removed only the lines it named" \
+  || bad "the delete removed the wrong span: $(cat "$R/a.go")"
+# THE DOCUMENTED PLANS MUST BE PLANS mrw WOULD ACCEPT. A grammar change that
+# leaves the examples behind teaches the old shape to every reader, and nothing
+# else here reads README.md or AGENTS.md. Anchored to column 0, so the two
+# PROSE mentions of `@@ f.go 5-9999 replace` — which discuss the out-of-range
+# refusal, and which mrw still refuses for that reason first — are not matched.
+docs_bad=$(grep -nE '^@@ .*([0-9]+-[0-9]+|/,/.*/|,\+[0-9]+) replace' README.md AGENTS.md 2>/dev/null | grep -v 'anchor=' || true)
+[ -z "$docs_bad" ] \
+  && ok "every multi-line replace shown in README.md and AGENTS.md carries an anchor" \
+  || bad "a documented multi-line replace has no anchor= and would now be refused: $docs_bad"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

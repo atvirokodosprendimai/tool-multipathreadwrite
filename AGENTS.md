@@ -187,13 +187,18 @@ refused and leaves no file behind.
 
 Every address resolves against the **original** file, so there is no offset
 arithmetic between hunks. Guards `sha=`, `lines=` and `anchor=` are checked on
-every op, insertions included.
+every op, insertions included. ⚠ **`anchor=` is REQUIRED on a `replace` that
+addresses more than one line** (ADR-035): a wrong multi-line range writes your
+body over lines nobody looked at, and the receipt cannot show it because the
+damage falls outside the lines the hunk named. Take the anchor from the
+`NNN| content` your read printed — one typed from memory can be wrong exactly as
+the address is wrong.
 
 Or address by pattern, when you would otherwise read the file only to learn a
 line number:
 
 ```
-@@ internal/store/store.go /^func \(s \*Store\) Get/,/^\}/ replace
+@@ internal/store/store.go /^func \(s \*Store\) Get/,/^\}/ replace anchor="func (s *Store) Get"
         ... new lines ...
 ```
 
