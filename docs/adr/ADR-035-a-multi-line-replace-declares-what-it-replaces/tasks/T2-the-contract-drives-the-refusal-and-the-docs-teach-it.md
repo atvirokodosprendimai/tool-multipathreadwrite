@@ -7,7 +7,7 @@
 **Consumes:** the refusal in `apply.Apply`, and its message naming `anchor=`
 **Proof map:** v1
 
-**Rests-on:** `the built binary refusing an anchorless multi-line replace`, `the built binary still applying one that carries an anchor`, `every documented multi-line replace being a plan mrw would accept`, `the documentation check classifying a header exactly as the parser does`
+**Rests-on:** `the built binary refusing an anchorless multi-line replace`, `the built binary still applying one that carries an anchor`, `every documented multi-line replace being a plan mrw would accept`, `the documentation check tokenising a header with the parser rather than a regex`, `a single-pattern replace not being treated as multi-line`
 
 ## Goal
 
@@ -79,6 +79,7 @@ grep -q '^# 73\. ' scripts/contract.sh \
   ```
 - 2026-09-08 · 2254c4a* · mutant killed · exit 1 · `internal/adversarial/documented_plans_test.go` · the documentation check returns "" for every header, so it passes on documentation that teaches a refused shape — the vacuous-gate shape that four shell cuts of this check each had in a different disguise, and the reason it carries a gate on the gate · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · covers:the documentation check classifying a header exactly as the parser does
 - 2026-09-08 · 1328390* · mutant killed · exit 1 · `internal/adversarial/documented_plans_test.go` · the documentation check appends a fixed one-line body again, so a header declaring body=N is a parse error and is SKIPPED IN SILENCE — a real documented replace passing unseen, which is the same shape as the four shell cuts this check replaces · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · covers:the documentation check classifying a header exactly as the parser does
+- 2026-09-08 · dfb7aaa* · mutant killed · exit 1 · `internal/adversarial/documented_plans_test.go` · every pattern is treated as multi-line again, so a legitimate single-pattern replace — which apply.go:746 resolves to ONE line, since to := from is extended only for EndPat — is flagged and fails the build on correct documentation · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · covers:a single-pattern replace not being treated as multi-line
 
 ## Invariants
 
@@ -116,3 +117,5 @@ defer with a receipt, not to shorten what is guarded.
 - 2026-09-08 · 2254c4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:33325
 - 2026-09-08 · 2254c4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:35246
 - 2026-09-08 · 1328390* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:36633
+- 2026-09-08 · dfb7aaa* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:41206
+- 2026-09-08 · dfb7aaa* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:38228

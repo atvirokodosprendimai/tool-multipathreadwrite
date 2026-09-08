@@ -31,9 +31,14 @@ import (
 //
 // Each of those was found by a review round rather than by reading, which is
 // the signal that the approach was wrong and not merely incomplete. Calling
-// plan.Parse makes the question parser-equivalent by construction: whatever
-// splitHeader accepts, this sees the same way, including forms nobody has
-// thought of yet.
+// plan.Parse settles the part the regexes kept getting wrong — TOKENIZATION.
+// Whatever splitHeader accepts, this sees the same way, including forms nobody
+// has thought of yet.
+//
+// It is not equivalent in every respect, and saying so is the point: the body
+// length is searched to a finite bound (below), so a header declaring a body
+// longer than that is skipped. That residue is one bounded, stated case rather
+// than an open class of header spellings, which is the trade this rewrite made.
 func TestEveryDocumentedReplaceCarriesItsAnchor(t *testing.T) {
 	repo := repoRoot(t)
 	for _, name := range []string{"README.md", "AGENTS.md"} {
@@ -75,7 +80,12 @@ func documentedReplaceNeedsAnchor(line string) string {
 	// costs nothing here and needs no regex over the header to find the count.
 	var h plan.Hunk
 	found := false
-	for n := 1; n <= 8 && !found; n++ {
+	// The bound is finite and that is a real limit, not a proof: a header
+	// declaring body=65 would fall out of the search and be skipped. It is not
+	// closed because closing it means reading the count back out of the header,
+	// which is the regex this check exists to stop writing. 64 is far past any
+	// documented example, and the limit is stated here rather than papered over.
+	for n := 1; n <= 64 && !found; n++ {
 		hs, err := plan.Parse(strings.NewReader(line + "\n" + strings.Repeat("BODY\n", n)))
 		if err == nil && len(hs) == 1 {
 			h, found = hs[0], true
@@ -88,10 +98,15 @@ func documentedReplaceNeedsAnchor(line string) string {
 		return ""
 	}
 	a := h.Addr
-	// Single-line spellings need no anchor. Asked of the PARSED address, so a
-	// pattern, a relative end and an open-ended range are all multi-line here
-	// without this test knowing how any of them are written.
-	if a.StartPat == nil && a.EndPat == nil && a.RelEnd == 0 && a.Start == a.End {
+	// Single-line spellings need no anchor, and there are three of them once the
+	// address is parsed rather than read: a bare line number, `$`, and a SINGLE
+	// pattern. That last one is the case an earlier cut got wrong — it treated
+	// every pattern as multi-line, which would have failed the build on a
+	// legitimate `@@ f.go /^func A/ replace`. apply.go:746 sets `to := from` and
+	// extends it only when EndPat is present, so `/re/` alone resolves to one
+	// line exactly as `12` does. A relative end and an open-ended range are
+	// multi-line here without this test knowing how either is written.
+	if a.EndPat == nil && a.RelEnd == 0 && (a.StartPat != nil || a.Start == a.End) {
 		return ""
 	}
 	return "a replace addressing more than one line, with no anchor="
@@ -130,6 +145,11 @@ func TestTheDocumentedPlanCheckRejectsWhatItMustReject(t *testing.T) {
 		"@@ f.go 12\treplace",
 		`@@ f.go 42-58 replace anchor="func Apply" lines=17`,
 		`@@ f.go 2-3 replace anchor=x`,
+		// A SINGLE pattern resolves to one line (apply.go:746), so it needs no
+		// anchor. An earlier cut flagged it and would have failed the build on a
+		// legitimate documented header.
+		`@@ f.go /^func A/ replace`,
+		`@@ f.go /^func A/ replace lines=1`,
 		`@@ internal/store/store.go /^func \(s \*Store\) Get/,/^\}/ replace anchor="func (s *Store) Get"`,
 		`@@ f.go 2-3 delete`,
 		`@@ f.go 2 insert-after`,

@@ -4686,8 +4686,10 @@ grep -q 'func C' "$R/a.go" \
 # wrong rather than incomplete.
 #
 # internal/adversarial.TestEveryDocumentedReplaceCarriesItsAnchor now calls
-# plan.Parse on every `@@` line in README.md and AGENTS.md, so it classifies
-# exactly what mrw would, including forms nobody has thought of yet. Its
+# plan.Parse on every `@@` line in README.md and AGENTS.md, so the TOKENIZATION
+# is the parser's rather than a regex's — the part every shell cut got wrong. It
+# is not equivalent in every respect and its own comment says where: the body
+# length is searched to a finite bound. Its
 # companion TestTheDocumentedPlanCheckRejectsWhatItMustReject drives ten
 # must-flag headers — the four that defeated the shell among them — and ten that
 # must pass.
