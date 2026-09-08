@@ -361,10 +361,16 @@ func tools() []tool {
 							"is a line number, an N-M range, A,+N (the line A plus the N lines " +
 							"after it, refused if it runs past the last line), $ for the last " +
 							"line, or a pattern — " +
-							"/regexp/ or /from/,/to/. A pattern must match EXACTLY ONE line; none " +
-							"or several fails that hunk, naming the lines it matched. Addresses " +
-							"resolve against the ORIGINAL file. Optional " +
-							"guards, checked on every op: sha=<hex>, lines=<n>, anchor=\"<text>\". " +
+							"/regexp/ or /from/,/to/. The START pattern must match EXACTLY ONE " +
+							"line; none or several fails that hunk, naming the lines it matched. " +
+							"The END is a DELIMITER, not a site: the first match at or after the " +
+							"start, so it may match many times. Addresses " +
+							"resolve against the ORIGINAL file. Guards, checked on " +
+							"every op: sha=<hex>, lines=<n>, anchor=\"<text>\". " +
+							"sha= and lines= are always optional. " +
+							"anchor= is REQUIRED on a replace addressing more than one " +
+							"line, and may be omitted elsewhere. An anchor is worth most " +
+							"taken from the NNN| content a read printed. " +
 							"A body line beginning with @@ needs body=<n> raw=true.",
 						// The format is bespoke and no model has it in training
 						// data (ADR-009's premise), so one plan that really

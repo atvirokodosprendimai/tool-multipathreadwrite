@@ -900,6 +900,35 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 				fail(h, "anchor %q not in line %d: %s", h.Anchor, start, trim(orig[start-1]))
 				continue
 			}
+			// ADR-035. A replace addressing more than one line must say what it
+			// is replacing. mrw models no target syntax: it puts the lines it
+			// was given where it was told, so a range that is wrong by a few
+			// lines writes the new body over content nobody looked at, and the
+			// receipt cannot show the damage because the damage is outside the
+			// lines the hunk named. Two such ranges reached a build — a short
+			// address, and a stale one where the file had not changed at all
+			// and only the caller's belief about which line held what was
+			// wrong. `anchor=` is the only guard that catches both, because it
+			// is the only one that speaks about the content AT the address:
+			// `lines=` compares the address against its own arithmetic, and
+			// `sha=` asks whether the whole file moved, which the stale case
+			// answers "no". Both stay available and neither satisfies this.
+			//
+			// Scoped to replace, not delete: every measured incident is a
+			// replace, a wrong delete leaves an absence rather than plausible
+			// wrong content, and ADR-008 already gives delete the stronger
+			// opt-in guard of an expected body. Extending it on shape alone is
+			// the symmetry argument ADR-027's deferral refuses.
+			//
+			// Checked here, after resolution, so `3-6`, `/a/,/b/`, `A,+N` and
+			// `$` are one case. In plan.validate a pattern has no span yet, so
+			// the requirement would have been conditional on address form —
+			// the hole ADR-026 and ADR-027 each found once.
+			if h.Op == "replace" && end > start && h.Anchor == "" {
+				fail(h, "replace of %s covers %d lines and carries no anchor=: say anchor=\"<text from the first line>\" so a wrong range fails instead of overwriting",
+					addrString(start, end), end-start+1)
+				continue
+			}
 			// A delete is the only op with no body, so a body on one is not
 			// content to write: it is the caller's expectation of what the
 			// range holds, and it is the one guard mrw cannot compute for them

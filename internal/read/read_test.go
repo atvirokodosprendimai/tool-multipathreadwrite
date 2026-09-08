@@ -743,3 +743,130 @@ func contentLines(out string) []string {
 	}
 	return got
 }
+
+// ADR-036. `/from/,/to/` meant three different things depending on which path
+// resolved it, and two of those differences had no reason. This is the one that
+// matters: a read whose end never matched served everything from the start to
+// the end of the file and reported success. That is this project's own headline
+// failure wearing a different hat — a read that quietly served MORE than the
+// address named is exactly as invisible as a write that quietly changed less,
+// and the caller then holds line numbers for a span mrw never agreed to.
+func TestAPairedPatternWithNoEndIsRefusedRatherThanExtendedToEOF(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "f.txt"),
+		[]byte("alpha\nSTART\nbody one\nbody two\nomega\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, problems := run(t, root, Options{Numbers: true}, `f.txt:/^START$/,/^NEVER$/`)
+	if problems == 0 {
+		t.Fatalf("a paired pattern with no end was served rather than reported:\n%s", out)
+	}
+	// ⚠ THE ABSENCE IS THE ASSERTION. A build that reports the range AND still
+	// serves it passes a message-only check, and serving is the defect.
+	for _, line := range []string{"body one", "body two", "omega"} {
+		if strings.Contains(out, line) {
+			t.Errorf("content past the start was still served (%q):\n%s", line, out)
+		}
+	}
+	// The report has to say WHICH half failed, or the caller re-reads the file
+	// to find out whether it was the start or the end.
+	//
+	// ⚠ NOT `Contains(out, "NEVER")`. The spec text is echoed in every miss
+	// report, and the end pattern is part of the spec — so that assertion is
+	// satisfied by the OLD message and cannot fail for this mechanism. It was
+	// written that way first and the mutant would have survived.
+	if !strings.Contains(out, "end pattern") {
+		t.Errorf("the report does not say the END was the half that missed:\n%s", out)
+	}
+}
+
+// The other half of ADR-036, and the smaller one: the end is the first match AT
+// OR AFTER the start, which is what the write path already did. An end matching
+// the start line closes the span there.
+func TestAPairedPatternEndsAtOrAfterItsStart(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "f.txt"),
+		[]byte("alpha\nMARK here\nmiddle\nMARK again\nomega\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// The end pattern matches the START line: one line, not a run to the next
+	// match. `j > i` served 2-4 here.
+	out, problems := run(t, root, Options{Numbers: true}, `f.txt:/^MARK here$/,/MARK/`)
+	if problems != 0 {
+		t.Fatalf("problems=%d, want 0:\n%s", problems, out)
+	}
+	if !strings.Contains(out, "@@ 2-2") {
+		t.Errorf("an end on the start line did not close the span there:\n%s", out)
+	}
+
+	// The control that keeps this a narrowing rather than a ban: a normal later
+	// end still spans to it.
+	out, problems = run(t, root, Options{Numbers: true}, `f.txt:/^alpha$/,/^middle$/`)
+	if problems != 0 {
+		t.Fatalf("problems=%d, want 0:\n%s", problems, out)
+	}
+	if !strings.Contains(out, "@@ 1-3") {
+		t.Errorf("a normal paired pattern no longer spans to its end:\n%s", out)
+	}
+
+	// The control for the difference ADR-036 KEEPS on purpose: a read still
+	// serves a span for EVERY match of the start, where a write refuses unless
+	// the start matches exactly once. Dropping that would make this record a
+	// different and much larger change.
+	//
+	// ⚠ The spans must not OVERLAP for this to mean anything. `i = end - 1`
+	// advances past the span just served, so a second start INSIDE the first
+	// span is skipped by construction and proves nothing about every-start
+	// behaviour — an earlier cut of this control asserted exactly that and was
+	// red for a reason it had misdiagnosed.
+	if err := os.WriteFile(filepath.Join(root, "two.txt"),
+		[]byte("START\nx\nEND\ngap\nSTART\ny\nEND\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, problems = run(t, root, Options{Numbers: true}, `two.txt:/^START$/,/^END$/`)
+	if problems != 0 {
+		t.Fatalf("problems=%d, want 0:\n%s", problems, out)
+	}
+	// A GAP between them, or the assertion proves nothing: contiguous spans are
+	// COALESCED, so 1-3 and 4-6 come back as a single `@@ 1-6` and a test
+	// asserting two spans fails for a reason that has nothing to do with
+	// every-start behaviour. Measured on the pre-change build.
+	if !strings.Contains(out, "@@ 1-3") || !strings.Contains(out, "@@ 5-7") {
+		t.Errorf("a start matching twice no longer serves both spans:\n%s", out)
+	}
+}
+
+// The case a range-wide `found` flag hides: one start resolves, a LATER start
+// has no end. The first cut of ADR-036 reported nothing here, because the
+// missing-end diagnostic was gated on `!found` and the earlier span had already
+// set it — so `START … END … START … EOF` came back as one span, no problem,
+// exit 0, with a start the address named silently dropped. Reported by review of
+// PR #146.
+//
+// The contract is BOTH: the resolved span is kept AND the unresolved start is
+// reported. A caller gets what mrw could resolve plus a named problem for what
+// it could not, which is the only answer that is not a lie by omission.
+func TestAResolvedSpanDoesNotSuppressALaterMissingEnd(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "m.txt"),
+		[]byte("START\nx\nEND\ngap\nSTART\ny\nz\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, problems := run(t, root, Options{Numbers: true}, `m.txt:/^START$/,/^END$/`)
+	if problems == 0 {
+		t.Fatalf("the unresolved second start was not reported:\n%s", out)
+	}
+	if !strings.Contains(out, "end pattern") {
+		t.Errorf("the report does not say the END was the half that missed:\n%s", out)
+	}
+	// The span that DID resolve is still served — reporting the problem must not
+	// throw away the answer.
+	if !strings.Contains(out, "@@ 1-3") {
+		t.Errorf("the resolved span was dropped along with the problem:\n%s", out)
+	}
+	// And nothing was invented for the start that did not resolve.
+	if strings.Contains(out, "@@ 5-") {
+		t.Errorf("a span was served for the start whose end never matched:\n%s", out)
+	}
+}

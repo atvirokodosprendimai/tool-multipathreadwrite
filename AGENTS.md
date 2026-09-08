@@ -187,13 +187,18 @@ refused and leaves no file behind.
 
 Every address resolves against the **original** file, so there is no offset
 arithmetic between hunks. Guards `sha=`, `lines=` and `anchor=` are checked on
-every op, insertions included.
+every op, insertions included. ⚠ **`anchor=` is REQUIRED on a `replace` that
+addresses more than one line** (ADR-035): a wrong multi-line range writes your
+body over lines nobody looked at, and the receipt cannot show it because the
+damage falls outside the lines the hunk named. Take the anchor from the
+`NNN| content` your read printed — one typed from memory can be wrong exactly as
+the address is wrong.
 
 Or address by pattern, when you would otherwise read the file only to learn a
 line number:
 
 ```
-@@ internal/store/store.go /^func \(s \*Store\) Get/,/^\}/ replace
+@@ internal/store/store.go /^func \(s \*Store\) Get/,/^\}/ replace anchor="func (s *Store) Get"
         ... new lines ...
 ```
 
@@ -206,9 +211,22 @@ A plan is line-oriented text, so anything that prints lines can build one. This
 is the part that turns 54 calls into 2, and it is the part that gets missed.
 **A plan address may be a line number, an `N-M` range, `$`, a relative end
 `A,+N` — the line `A` plus the `N` lines after it, so `12,+2` is three lines —
-or a pattern, `/regexp/` or `/from/,/to/`.** A pattern must match **exactly
-one** line; none or several fails that hunk and the refusal names the lines it
-matched. A relative end has no backwards form and may not be combined with
+or a pattern, `/regexp/` or `/from/,/to/`.** The START pattern must match
+**exactly one** line; none or several fails that hunk and the refusal names the
+lines it matched. ⚠ **The END is a DELIMITER, not a site** — the first match at
+or after the start, the way `ed`, `sed` and mrw's own `read` mean `/a/,/b/` — so
+it may match many times and does not get the exactly-once rule. Applying it to
+both ends shipped once and made `/^func X/,/^}/` fail on any file with two
+functions, because `^}` closes both (`internal/apply/apply.go:748`, pinned by
+`TestTheEndPatternIsTheFirstMatchAtOrAfterTheStart`).
+And the END is resolved the same way by `read` and by `write` (ADR-036): the
+first match **at or after** the start, so an end matching the start line closes
+the span there, and a paired pattern whose end never matches is **reported and
+exits 1** rather than served to the end of the file — say `f.go:/a/,$` when you
+mean "to the end". One difference is kept on purpose: a read serves a span for
+every match of the start that is not already inside a span it served, and a write
+refuses unless the start matches exactly once.
+A relative end has no backwards form and may not be combined with
 `/from/,/to/`. ⚠ **A READ CLAMPS a relative end at the last line; a WRITE
 REFUSES one that runs past it** — each is that path's own existing rule, since
 `mrw read f.go:2-99` serves what exists while `@@ f.go 5-9999 replace` is

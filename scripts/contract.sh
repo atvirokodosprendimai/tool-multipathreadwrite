@@ -2017,6 +2017,53 @@ assert ex and isinstance(ex[0],list) and len(ex[0])>1, "mrw_read publishes no wo
 d=props["plan"]["description"]
 assert "body=0" in d, "the plan description does not teach that an empty file is body=0 (ADR-027)"
 assert "refused" in d.lower(), "the plan description lists create without saying a bare one is refused"
+# ADR-035. This check has been unsound twice, and each cut was defeated by a
+# string a careless edit could plausibly produce:
+#   `"REQUIRED" in d`                     passed `anchor= is not REQUIRED ...`
+#   one word order + two capitalisations  passed `anchor= is optional. It is
+#                                         REQUIRED only on delete`
+#   the clause without its SCOPE          passed `... REQUIRED on a replace
+#                                         unless it addresses more than one line`
+# So the scope is pinned too, and the checks are run over a table of strings
+# that MUST fail as well as the live description — a check nobody has watched
+# reject anything is a claim, not a gate.
+import re as _re
+
+def _adr035_desc_problems(text):
+    out = []
+    # THE WHOLE SENTENCE, TO ITS FULL STOP. An open-ended substring let a
+    # qualifier be appended after the scope and still pass — `... more than one
+    # line only when --force is absent.` was accepted, while the guard at
+    # apply.go is unconditional.
+    if not _re.search(r"anchor=\s+is\s+REQUIRED\s+on\s+a\s+replace\s+addressing\s+more\s+than\s+one\s+line,\s+and\s+may\s+be\s+omitted\s+elsewhere\.", text):
+        out.append("does not state the requirement as the whole canonical clause")
+    if _re.search(r"(?i)required[^.]*\b(unless|except)\b", text):
+        out.append("qualifies REQUIRED away with unless/except")
+    if _re.search(r"(?i)required[^.]*exactly\s+one\s+line", text):
+        out.append("inverts the scope to exactly one line")
+    if _re.search(r"(?i)anchor=[^.]*\bnot\s+required", text):
+        out.append("says anchor= is not required")
+    if _re.search(r"(?i)optional[^.]*anchor=", text):
+        out.append("calls anchor= optional before requiring it")
+    if _re.search(r"(?i)anchor=[^.]*\boptional\b", text):
+        out.append("calls anchor= optional after requiring it")
+    return out
+
+_bad_wordings = [
+    'anchor= is not REQUIRED on a replace addressing more than one line',
+    'anchor= is optional. It is REQUIRED only on delete',
+    'anchor= is REQUIRED on a replace unless it addresses more than one line',
+    'anchor= is REQUIRED on a replace addressing exactly one line',
+    'Optional guards: sha=<hex>, lines=<n>, anchor="<text>"',
+    'anchor= is REQUIRED on a replace',
+    'anchor= is REQUIRED on a replace addressing more than one line only when --force is absent.',
+    'anchor= is REQUIRED on a replace addressing more than one line',
+]
+for _w in _bad_wordings:
+    assert _adr035_desc_problems(_w), \
+        "the ADR-035 wording check accepts a misleading description: %r" % _w
+assert not _adr035_desc_problems(d), \
+    "the plan description misstates the anchor= requirement (ADR-035): %s" % _adr035_desc_problems(d)
 PY
 [ $? -eq 0 ] && ok "and both tools say when to reach for them, publish a worked example, and teach the body-less create refusal" \
              || bad "the tool descriptions still say only what the tools do"
@@ -2177,7 +2224,7 @@ func (s *Store) Put(id, v string) {
 }
 GO
 m read store/store.go >/dev/null 2>&1
-out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Get/,/^\\}/ replace\nfunc (s *Store) Get(id string) (string, bool) { return s.rows[id], true }\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Get/,/^\\}/ replace anchor="Store) Get(id"\nfunc (s *Store) Get(id string) (string, bool) { return s.rows[id], true }\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "the range form applies on a file where the end pattern matches twice"
 grep -q 'func (s \*Store) Put' "$R/store/store.go" \
   && ok "and it stopped at the FIRST closing brace, leaving Put intact" \
@@ -3654,7 +3701,7 @@ grep -q 'A,+3' <<<"$out" && ok "the read refusal names the fix" || bad "the read
 out=$(m read 'a.go:2,+0' 2>&1); rc=$?
 want 2 "$rc" "a read's ,+0 is refused"
 grep -q '+0' <<<"$out" && ok "the read refusal names what was written" || bad "the read refusal does not name +0: $out"
-out=$(printf '@@ a.go 3,+1 replace\nfunc A() int { return 10 }\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ a.go 3,+1 replace anchor="func A()"\nfunc A() int { return 10 }\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "a plan hunk with a relative end applies"
 grep -q 'func B' "$R/a.go" && bad "the relative end did not reach the line after the start" || ok "a plan's relative end replaced the start plus one line"
 grep -q 'func C' "$R/a.go" && ok "the relative end stopped where it said" || bad "the relative end ran past the lines it named"
@@ -3669,7 +3716,7 @@ grep -q '+0' <<<"$out" && ok "the plan refusal names what was written" || bad "t
 # every unit test stays green while an MCP caller's relative end is silently
 # dropped, which is the shape of defect this whole record is about.
 fixture
-req=$(printf '@@ a.go 3,+1 replace\nfunc A() int { return 11 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
+req=$(printf '@@ a.go 3,+1 replace anchor="func A()"\nfunc A() int { return 11 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
 printf '%s\n' "$req" | m mcp 2>/dev/null > "$WORK/w64.json"
 python3 - "$WORK/w64.json" "$R/a.go" <<'PY'
 import json,sys
@@ -3735,10 +3782,10 @@ grep -q 'func B' "$R/a.go" && bad "delete with a relative end did not remove the
 # THE RECEIPT ECHOES THE ADDRESS THE CALLER WROTE. It reported `3,+1` as `3`,
 # which hides the span the hunk consumed from the one line a caller reads.
 fixture
-out=$(printf '@@ a.go 3,+1 replace\nX\n' | m write - 2>&1)
+out=$(printf '@@ a.go 3,+1 replace anchor="func A()"\nX\n' | m write - 2>&1)
 grep -q 'ok   a.go 3,+1 replace' <<<"$out" && ok "the receipt keeps the relative end" || bad "the receipt drops the relative end: $out"
 fixture
-out=$(printf '@@ a.go /func A/,+1 replace\nX\n' | m write - 2>&1)
+out=$(printf '@@ a.go /func A/,+1 replace anchor="func A()"\nX\n' | m write - 2>&1)
 grep -q 'ok   a.go /func A/,+1 replace' <<<"$out" && ok "the receipt keeps a pattern's relative end" || bad "the receipt mangles a pattern's relative end: $out"
 
 # A WRITE REFUSES TO RUN PAST THE LAST LINE WHERE A READ CLAMPS, and that pairing
@@ -3865,7 +3912,11 @@ m read bs.txt > /dev/null 2>&1
 out=$(m read 'bs.txt:/\\/,+1' 2>&1); rc=$?
 want 0 "$rc" "a pattern ending in a backslash is closed on the read path"
 grep -q '@@ 1-2' <<<"$out" && ok "the backslash pattern resolves to its match plus one" || bad "the backslash pattern did not resolve: $out"
-out=$(printf '@@ bs.txt /\\\\/,+1 replace\nX\nY\n' | m write - 2>&1); rc=$?
+# anchor="a" is line 1 of bs.txt (`a\b`), deliberately the plain half of it: the
+# row is about the DELIMITER scanner closing a pattern that ends in a backslash,
+# and an anchor carrying its own backslash would put two escaping questions in
+# one assertion.
+out=$(printf '@@ bs.txt /\\\\/,+1 replace anchor="a"\nX\nY\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "a pattern ending in a backslash is closed on the plan path too"
 
 # THE TWO GRAMMARS AGREE ON EVERY SHAPE NAMED BELOW, which is narrower than
@@ -4576,6 +4627,142 @@ fi
 # any row added after this one back to the real state base, which is the leak
 # ADR-034 T4 closed. It is last today, and that is not a reason to leave a trap.
 export XDG_STATE_HOME="$WORK/state"
+
+# 73. ADR-035: a multi-line replace declares what it replaces.
+#
+# The unit tests prove the guard; they cannot prove the SHIPPED binary runs it.
+# Both spellings are driven here, because a row that only shows the refusal is
+# satisfied by a binary that refuses every replace.
+#
+# The message is asserted, not just the exit code: `mrw write` exits 1 for a
+# dozen reasons — an unread line, a bad path, a failed guard — so `want 1` alone
+# scores the binary's error handling rather than this guard.
+fixture
+out=$(printf '@@ a.go 3-4 replace\nfunc A() int { return 10 }\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "a multi-line replace with no anchor= is refused"
+grep -q 'carries no anchor=' <<<"$out" \
+  && ok "and the refusal names the guard that fired" \
+  || bad "the refusal does not name the missing anchor: $out"
+# THE REMEDY IS ITS OWN ASSERTION. This row used to grep the DIAGNOSIS only,
+# while the mutation log credited it with covering the remedy — so deleting
+# `say anchor="…"` left every gate green. Reported on PR #146 and reproduced
+# before fixing: a refusal that diagnoses without prescribing is the failure a
+# refusal exists to avoid.
+grep -q 'say anchor="<text from the first line>"' <<<"$out" \
+  && ok "and it prescribes the remedy, not just the diagnosis" \
+  || bad "the refusal does not tell the caller what to write: $out"
+grep -q 'func B' "$R/a.go" \
+  && ok "and ADR-001 holds: the refused plan wrote nothing" \
+  || bad "the refused plan changed the file: $(cat "$R/a.go")"
+# The same plan with the anchor the message asked for. Without this pair the row
+# above passes on a binary that refuses everything.
+out=$(printf '@@ a.go 3-4 replace anchor="func A()"\nfunc A() int { return 10 }\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "the same plan applies once it carries an anchor"
+grep -q 'return 10' "$R/a.go" \
+  && ok "and the anchored replace wrote what it said" \
+  || bad "the anchored replace did not apply: $(cat "$R/a.go")"
+# A SINGLE-line replace still needs none. This is what makes the row a narrowing
+# rather than a ban, and it is the assertion a guard keyed on the op instead of
+# the span would fail.
+fixture
+out=$(printf '@@ a.go 3 replace\nfunc A() int { return 99 }\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "a single-line replace needs no anchor"
+grep -q 'return 99' "$R/a.go" \
+  && ok "and it wrote what it said" \
+  || bad "the single-line replace did not apply: $(cat "$R/a.go")"
+# A multi-line DELETE is untouched: ADR-035 is scoped to replace, because every
+# measured incident is one and ADR-008 already gives delete an expected body.
+fixture
+out=$(printf '@@ a.go 3-4 delete\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "a multi-line delete still needs no anchor"
+grep -q 'func C' "$R/a.go" \
+  && ok "and it removed only the lines it named" \
+  || bad "the delete removed the wrong span: $(cat "$R/a.go")"
+# THE DOCUMENTED PLANS MUST BE PLANS mrw WOULD ACCEPT. A grammar change that
+# leaves the examples behind teaches the old shape to every reader, and nothing
+# else here reads README.md or AGENTS.md. Anchored to column 0, so the two
+# PROSE mentions of `@@ f.go 5-9999 replace` — which discuss the out-of-range
+# refusal, and which mrw still refuses for that reason first — are not matched.
+# CONSERVATIVE BY CONSTRUCTION: the safe forms are enumerated and everything
+# else is flagged, rather than the reverse — and this row no longer tries. THE
+# DOCUMENTATION CHECK MOVED TO A GO TEST, because it needs the PARSER and a
+# contract row cannot have one. Four shell cuts were each defeated by a header
+# `splitHeader` accepts and a regex does not see: a quoted path read as the op,
+# a greedy match backtracking into one, tab separators, and finally a QUOTED OP
+# (`@@ f.go 2-3 "replace"`) plus a BOM-prefixed header. Every one was found by a
+# review round rather than by reading, which is the signal that the approach was
+# wrong rather than incomplete.
+#
+# internal/adversarial.TestEveryDocumentedReplaceCarriesItsAnchor now calls
+# plan.Parse on every `@@` line in README.md and AGENTS.md, so the TOKENIZATION
+# is the parser's rather than a regex's — the part every shell cut got wrong. It
+# is not equivalent in every respect and its own comment says where: the body
+# length is searched to a finite bound. Its
+# companion TestTheDocumentedPlanCheckRejectsWhatItMustReject drives a table of
+# must-flag headers — the four that defeated the shell among them — and a table
+# that must pass. The tables are the count; naming a number here would go stale
+# in the commit that grows them, and this comment's did.
+#
+# What stays HERE is what only a contract row can do: drive the built binary.
+
+# 74. ADR-036: a paired pattern means one thing on both paths.
+#
+# The unit tests prove the resolver; they cannot prove the shipped binary uses
+# it. Both changed behaviours are driven here, each paired with the case that
+# must still work, because a row that only shows the refusal is satisfied by a
+# binary that refuses every paired pattern.
+fixture
+printf 'alpha\nSTART\nbody one\nbody two\nomega\n' > "$R/p.txt"
+out=$(m read 'p.txt:/^START$/,/^NEVER$/' 2>&1); rc=$?
+want 1 "$rc" "a paired pattern whose end never matches is refused, not served to EOF"
+grep -q 'end pattern' <<<"$out" \
+  && ok "and the report says which HALF of the pattern missed" \
+  || bad "the report does not name the end as the half that failed: $out"
+# ⚠ THE ABSENCE IS THE ASSERTION. A build that reports the range AND serves it
+# passes a message-only check, and serving is the defect this row exists for.
+grep -q 'body one' <<<"$out" \
+  && bad "content past the start was served anyway: $out" \
+  || ok "and nothing past the start was served"
+# The end is the first match AT OR AFTER the start, so an end on the start line
+# closes the span there — one line, exactly as the write path resolves it.
+printf 'alpha\nMARK here\nmiddle\nMARK again\nomega\n' > "$R/q.txt"
+out=$(m read 'q.txt:/^MARK here$/,/MARK/' 2>&1); rc=$?
+want 0 "$rc" "an end matching the start line is accepted"
+grep -q '@@ 2-2' <<<"$out" \
+  && ok "and it closes the span on that line" \
+  || bad "an end on the start line did not close the span there: $out"
+# The pair: an ordinary later end still spans to it, so this is a narrowing
+# rather than a ban.
+out=$(m read 'q.txt:/^alpha$/,/^middle$/' 2>&1); rc=$?
+want 0 "$rc" "an ordinary paired pattern still resolves"
+grep -q '@@ 1-3' <<<"$out" \
+  && ok "and still spans to its end" \
+  || bad "an ordinary paired pattern no longer spans to its end: $out"
+# The difference ADR-036 KEEPS: a read serves a span for every match of the start
+# THAT IS NOT ALREADY INSIDE A SPAN IT SERVED — the resolver advances past each
+# span it emits — where a write refuses unless the start matches once. The spans
+# need a GAP between them, because contiguous spans are coalesced into one.
+printf 'START\nx\nEND\ngap\nSTART\ny\nEND\n' > "$R/r.txt"
+out=$(m read 'r.txt:/^START$/,/^END$/' 2>&1); rc=$?
+want 0 "$rc" "a start matching twice is still served by a read"
+grep -q '@@ 1-3' <<<"$out" && grep -q '@@ 5-7' <<<"$out" \
+  && ok "and both spans come back, which the write path deliberately refuses" \
+  || bad "a start matching twice no longer serves both spans: $out"
+# A RESOLVED SPAN MUST NOT SUPPRESS A LATER MISSING END. `found` is range-wide,
+# so the first cut of this record reported nothing for `START … END … START … EOF`
+# — one span, no problem, exit 0, a start the address named silently dropped.
+# That is the same silent-drop ADR-036 removes, moved one case along. Reported by
+# review of PR #146.
+printf 'START\nx\nEND\ngap\nSTART\ny\nz\n' > "$R/s.txt"
+out=$(m read 's.txt:/^START$/,/^END$/' 2>&1); rc=$?
+want 1 "$rc" "a resolved span does not suppress a later missing end"
+grep -q 'end pattern' <<<"$out" \
+  && ok "and the report names the END as the half that missed" \
+  || bad "the mixed case reports nothing about the unresolved start: $out"
+# BOTH, not either: the answer mrw could resolve is still served.
+grep -q '@@ 1-3' <<<"$out" \
+  && ok "and the span that DID resolve is still served" \
+  || bad "reporting the problem threw away the resolved span: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

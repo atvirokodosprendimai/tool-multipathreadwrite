@@ -890,20 +890,57 @@ rather than a difference invented here: `mrw read f.go:2-99` serves what exists,
 while `@@ f.go 5-9999 replace` is already refused as out of range, and a write
 that quietly did less than its address said is the thing this tool exists to
 make visible. There is no backwards form, and `,+0` is refused because it says
-what `A` alone says. The same address means the
+what `A` alone says. A LINE address means the
 same thing to `read` and to `write` — `mrw read f.go:$` prints one line and
 `@@ f.go $ replace` changes one. `read` used to disagree, because it shared one
 sentinel between `$` and an omitted end and so served the whole file for
 `f.go:$`.
 
-Three optional guards make a batch safe to trust, and all three are cheap to
-write, which is the point:
+⚠ **A PAIRED PATTERN `/from/,/to/` RESOLVES THE SAME WAY ON BOTH PATHS, and it
+did not until ADR-036.** The end is the first match **at or after** the start, so
+an end matching the start line closes the span there; and a paired pattern whose
+end never matches is **reported and exits 1** rather than served to the end of
+the file. That second one was the reason to change it: a read that quietly
+served MORE than the address named is exactly as invisible as a write that
+quietly changed less, and the line numbers it hands back describe a span mrw
+never agreed to. Say `f.go:/a/,$` when you mean "from here to the end".
+
+One difference remains, on purpose: **a read serves a span for every match of the
+start that is not already inside a span it served, and a write refuses unless the
+start matches exactly once**
+(`internal/apply/apply.go:728`). The exactly-once rule answers *which site did
+you mean*, which a plan must know and an exploratory read need not — making
+`read` strict would refuse `mrw read f.go:/func /,/^}/` on any file with two
+functions, which is the reading it is most useful for. Contract §64 asserts the
+two grammars agree on the shapes it NAMES; §74 drives the rules above.
+
+Three guards make a batch safe to trust, and all three are cheap to write, which
+is the point. Two are optional. **`anchor=` is required on a `replace` that
+addresses more than one line** — see below the table for why:
 
 | guard | asserts |
 |---|---|
 | `sha=<8+ hex>` | the whole file is what you read |
 | `lines=N` | the addressed range covers exactly N lines — an insertion's address is a position, so it covers `1` at a real line and `0` at the two boundary positions below |
 | `anchor=<substring>` | it appears in the addressed range's first line |
+
+A multi-line `replace` without an `anchor=` is refused, and the refusal names
+the remedy. mrw models no target syntax: it puts the lines you gave where you
+said, so a range wrong by a few lines writes your body over content nobody
+looked at — and the receipt cannot show that, because the damage is outside the
+lines the hunk named. Two such ranges have reached a build: a short address, and
+a stale one where the file had not changed at all and only the belief about
+which line held what was wrong. `anchor=` is the only one of the three that
+speaks about the content AT the address, which is why it is the one required:
+`lines=` compares the address against its own arithmetic, and `sha=` asks
+whether the whole file moved, which the stale case answers "no". The requirement
+is on `replace` alone — a wrong `delete` leaves an absence rather than plausible
+wrong content, and it already has the stronger optional guard of an expected
+body (ADR-035, ADR-008).
+
+⚠ **The anchor is worth what its source is worth.** Copied out of the
+`NNN| content` a read printed, it is a real check. Typed from memory, it can be
+wrong in the same way the address is wrong, and mrw cannot tell which it got.
 
 All three are checked on **every** op, insertions included. An insertion at a
 drifted address puts the right text in the wrong place exactly as a replacement

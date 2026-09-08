@@ -1240,3 +1240,58 @@ Alternatives had to answer.
   **What would promote this:** a report of a prune removing live state on Windows, or a decision
   that the second requirement is worth it. The `windows` CI job runs the test today and reports the
   skip.
+
+## From ADR-035 (a multi-line replace declares what it replaces)
+
+- **Requiring a guard on a multi-line `delete` too.** ADR-008 pre-registered the
+  condition — *"if a wrong range still reaches a build after ADR-008, the tax is
+  worth paying"* — and ADR-035 pays it for `replace`, because both measured
+  incidents are replaces. It does not extend to `delete`, because no wrong
+  multi-line delete has been measured and extending on shape alone is the
+  symmetry argument ADR-027's own deferral refuses. `delete` also already has the
+  stronger opt-in guard: an expected body declares every line, not just the
+  first. Reopen when a wrong multi-line delete range reaches a build.
+
+- **Deriving the anchor from the ledger instead of asking the caller for it.**
+  mrw already knows which lines it served (`internal/seen`), so in principle it
+  could check the addressed line against what the caller was actually shown and
+  need no `anchor=` at all. Not done, and the reason is not effort: the ledger
+  records that a line was served, and re-deriving the anchor from the file at
+  write time compares the file against itself, which is the tautology ADR-008
+  names for its own guard. Making it real means the ledger storing the served
+  CONTENT, not just the span — a size and staleness question this record did not
+  need to answer, since a caller who read the lines can copy the anchor out of
+  the `NNN| content` the read already printed.
+
+- **The handshake `instructions` do not teach the anchor requirement.** Same wall
+  and same reasoning as the ADR-027 entry above, which measured it: the document
+  is at 4,095 of `maxInstructionsChars`' 4,096 BYTES, and every candidate cut
+  turned a guarded claim red. The `mrw_write` tool DESCRIPTION carries it as of
+  2026-09-08 and contract §43 asserts it through the built server, so an MCP
+  caller does get it — from the tool, not the handshake. The refusal message also
+  names the remedy, which is what bounds the cost of not saying it earlier.
+  **What would promote this:** whatever promotes the ADR-027 entry, since one cut
+  funds both.
+
+  ⚠ **The handshake's ADR-035 edit REMOVED a falsehood; it did not add the rule.**
+  `A pattern must match EXACTLY ONE line` became `The START must match EXACTLY ONE
+  line` — nine characters for nine, so it cost none of the one spare byte — and the
+  END-delimiter rule is carried by the `mrw_write` tool DESCRIPTION and `AGENTS.md`,
+  not by the handshake. An eighth-round review caught this branch's own commit
+  message claiming all three places state the split. They do not.
+
+- **~~`/from/,/to/` MEANS DIFFERENT THINGS TO `read` AND TO `write`.~~ CLOSED by
+  ADR-036, 2026-09-08, the same day it was filed.** Found by the eighth Codex
+  review round of ADR-035, while checking whether a documentation correction
+  about the end pattern held on the read path too. It did not.
+
+  Two of the three differences are gone: the end is now the first match at or
+  after the start on both paths, and a paired pattern whose end never matches is
+  reported rather than served to EOF. The third — a read serving a span for every
+  match of the start, where a write refuses unless it matches once — is KEPT on
+  purpose and is recorded as a boundary in ADR-036, not as debt: the exactly-once
+  rule answers which site a plan means, and an exploratory read need not answer
+  it.
+
+  Kept here rather than deleted because the entry is a receipt: the finding, the
+  direction chosen, and the reason the remaining difference is not one.

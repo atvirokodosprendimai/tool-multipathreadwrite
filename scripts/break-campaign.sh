@@ -64,7 +64,7 @@ fresh; head -c 3000000 /dev/zero | tr '\0' 'x' > huge.txt; printf '\nend\n' >> h
 
 # ---------- 6. overlapping and duplicate hunks ----------
 fresh; printf '1\n2\n3\n4\n' > f.txt; t "$MRW" read f.txt >/dev/null
-plan '@@ f.txt 1-3 replace\nA\n@@ f.txt 2 replace\nB\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "overlap-range-and-line" $? "$(tr '\n' '|' < f.txt) | $out"
+plan '@@ f.txt 1-3 replace anchor="1"\nA\n@@ f.txt 2 replace\nB\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "overlap-range-and-line" $? "$(tr '\n' '|' < f.txt) | $out"
 plan '@@ f.txt 2 replace\nB\n@@ f.txt 2 insert-after\nC\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "replace+insert-after-same-line" $? "$(tr '\n' '|' < f.txt) | $out"
 plan '@@ f.txt 2 delete\n@@ f.txt 2 replace\nB\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "delete+replace-same-line" $? "$(tr '\n' '|' < f.txt) | $out"
 

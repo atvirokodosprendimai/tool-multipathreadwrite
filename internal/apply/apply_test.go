@@ -42,7 +42,7 @@ func TestAddressesResolveAgainstTheOriginalFile(t *testing.T) {
 	write(t, root, "f.txt", "1\n2\n3\n4\n5\n6\n7\n")
 
 	res, err := Apply(root, []Input{
-		{Path: "f.txt", Start: 3, End: 6, Op: "replace", Body: []string{"NEW"}, Lines: -1, Index: 0},
+		{Path: "f.txt", Start: 3, End: 6, Op: "replace", Body: []string{"NEW"}, Lines: -1, Anchor: "3", Index: 0},
 		{Path: "f.txt", Start: 2, End: 2, Op: "insert-after", Body: []string{"INS"}, Lines: -1, Index: 1},
 	}, Options{})
 	if err != nil {
@@ -430,8 +430,11 @@ func TestOverlappingHunksAreRejected(t *testing.T) {
 	write(t, root, "f.txt", abcde)
 
 	res, err := Apply(root, []Input{
-		{Path: "f.txt", Start: 1, End: 3, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 0},
-		{Path: "f.txt", Start: 2, End: 4, Op: "replace", Body: []string{"Y"}, Lines: -1, Index: 1},
+		// Both carry an anchor because ADR-035 requires one on a multi-line
+		// replace, and without it this test would measure that refusal instead
+		// of the overlap it is named for — a guard masking the check under it.
+		{Path: "f.txt", Start: 1, End: 3, Op: "replace", Body: []string{"X"}, Lines: -1, Anchor: "a", Index: 0},
+		{Path: "f.txt", Start: 2, End: 4, Op: "replace", Body: []string{"Y"}, Lines: -1, Anchor: "b", Index: 1},
 	}, Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -1339,6 +1342,7 @@ func TestTheEndPatternIsTheFirstMatchAtOrAfterTheStart(t *testing.T) {
 
 	res, err := Apply(root, []Input{{
 		Path: "store.go", Op: "replace", Lines: -1, Body: []string{"// collapsed"},
+		Anchor:   "func (s *Store) Get(id",
 		StartPat: regexp.MustCompile(`^func \(s \*Store\) Get`),
 		EndPat:   regexp.MustCompile(`^\}`),
 	}}, Options{})
@@ -1490,6 +1494,7 @@ func TestARelativeEndAddressesTheLinesItReplaces(t *testing.T) {
 
 	res, err := Apply(root, []Input{{
 		Path: "store.go", Op: "replace", Body: []string{"// the whole method, replaced"}, Lines: -1,
+		Anchor:   "func (s *Store) Get(id",
 		StartPat: regexp.MustCompile(`^func \(s \*Store\) Get`), RelEnd: 3,
 	}}, Options{})
 	if err != nil {
@@ -1523,7 +1528,8 @@ func TestAReceiptEchoesTheRelativeEndTheCallerWrote(t *testing.T) {
 
 	res, err := Apply(root, []Input{{
 		Path: "store.go", Op: "replace", Body: []string{"// replaced"}, Lines: -1,
-		Start: 6, End: 6, RelEnd: 2,
+		Anchor: "// Get returns a row",
+		Start:  6, End: 6, RelEnd: 2,
 	}}, Options{})
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
@@ -1857,6 +1863,14 @@ func TestTheEngineRefusesEveryShapeTheParserRefuses(t *testing.T) {
 	// The accepting half. Without it, "refuse everything" passes the table above
 	// and the change is a ban rather than a narrowing.
 	//
+	// ⚠ The two multi-line replaces below carry an anchor because ADR-035
+	// requires one. That is not a weakening of this half: its job is to show the
+	// engine is a narrowing rather than a ban, and a row that applies with the
+	// guard satisfied shows exactly that. What this half does NOT claim, and
+	// never did, is that everything plan.validate accepts the engine accepts —
+	// the engine sees resolved addresses and the parser does not, which is why
+	// ADR-035's requirement lives there and not here.
+	//
 	// ⚠ Each row asserts the resulting BYTES, not merely that nothing failed.
 	// `Failed == 0` alone is satisfied by an engine that reports success and
 	// writes nothing — the invisible-no-write this whole tool exists to refuse,
@@ -1868,7 +1882,7 @@ func TestTheEngineRefusesEveryShapeTheParserRefuses(t *testing.T) {
 		in   Input
 	}{
 		{"an ordinary replace", "f.txt", "X\nc\nd\n",
-			Input{Path: "f.txt", Op: "replace", Start: 1, End: 2, Body: []string{"X"}, Lines: -1}},
+			Input{Path: "f.txt", Op: "replace", Start: 1, End: 2, Body: []string{"X"}, Lines: -1, Anchor: "a"}},
 		{"an ordinary delete", "f.txt", "b\nc\nd\n",
 			Input{Path: "f.txt", Op: "delete", Start: 1, End: 1, Lines: -1}},
 		{"an ordinary insert-after", "f.txt", "a\nX\nb\nc\nd\n",
@@ -1880,7 +1894,7 @@ func TestTheEngineRefusesEveryShapeTheParserRefuses(t *testing.T) {
 		{"a deliberate empty create", "n.txt", "",
 			Input{Path: "n.txt", Op: "create", Lines: -1, CountedBody: true}},
 		{"a patterned replace, which the parser accepts", "f.txt", "X\nd\n",
-			Input{Path: "f.txt", Op: "replace", Body: []string{"X"}, Lines: -1,
+			Input{Path: "f.txt", Op: "replace", Body: []string{"X"}, Lines: -1, Anchor: "a",
 				StartPat: regexp.MustCompile(`^a$`), EndPat: regexp.MustCompile(`^c$`)}},
 		{"a patterned insertion, single line", "f.txt", "a\nX\nb\nc\nd\n",
 			Input{Path: "f.txt", Op: "insert-after", Body: []string{"X"}, Lines: -1,
@@ -1907,5 +1921,124 @@ func TestTheEngineRefusesEveryShapeTheParserRefuses(t *testing.T) {
 				t.Errorf("%s = %q, want %q — a verdict of ok with nothing written is the failure this tool exists to refuse", c.file, got, c.want)
 			}
 		})
+	}
+}
+
+// ADR-035. A replace addressing more than one line must declare what it is
+// replacing. Two wrong ranges reached a build under the old grammar — a short
+// address (`3104-3108` where `3088-3108` was meant) and a stale one, where the
+// file had not changed at all and only the caller's belief about which line
+// held what was wrong. `anchor=` is the only existing guard that catches both,
+// because it is the only one that speaks about the content AT the address.
+func TestAMultiLineReplaceWithoutAnAnchorIsRefused(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "1\n2\n3\n4\n5\n6\n7\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 3, End: 6, Op: "replace", Body: []string{"NEW"}, Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("an anchorless multi-line replace was not refused: %+v", res.Hunks)
+	}
+	// The message has TWO halves and both are asserted, separately.
+	//
+	// ⚠ THIS COMMENT SAID "the message has to name the remedy" WHILE THE
+	// ASSERTION CHECKED ONLY THE DIAGNOSIS. Reported on PR #146 by a reviewer
+	// who deleted the remedy clause alone and watched `go test ./...` and
+	// `scripts/contract.sh` both stay green — reproduced here before fixing. The
+	// logged mutant claimed `covers:the refusal naming the remedy` while the
+	// only assertion anywhere bound `carries no anchor=`, so the log read as
+	// though the remedy were guarded, which is how it stopped being checked.
+	//
+	// The remedy is the half that tells a caller what to TYPE, and it is the
+	// reason this record prefers a refusal to silence. It is worth its own line.
+	got := res.Hunks[0].Reason
+	if !strings.Contains(got, "carries no anchor=") {
+		t.Errorf("the refusal does not diagnose the missing anchor: %s", got)
+	}
+	if !strings.Contains(got, `say anchor="<text from the first line>"`) {
+		t.Errorf("the refusal diagnoses but does not prescribe — the remedy is gone: %s", got)
+	}
+	// ADR-001: a failed hunk writes nothing at all.
+	if got, want := read(t, root, "f.txt"), "1\n2\n3\n4\n5\n6\n7\n"; got != want {
+		t.Errorf("the file was changed by a refused plan: got %q, want %q", got, want)
+	}
+}
+
+// The control that bounds the guard. Without it, "refuse every replace" passes
+// the test above. The address is spelled 4-4 on purpose: that IS one line, and
+// a guard keyed on `End != Start` rather than on the span would wrongly refuse
+// it.
+func TestASingleLineReplaceNeedsNoAnchor(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "1\n2\n3\n4\n5\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 4, End: 4, Op: "replace", Body: []string{"NEW"}, Lines: -1, Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("a single-line replace was refused: %+v", res.Hunks)
+	}
+	if got, want := read(t, root, "f.txt"), "1\n2\n3\nNEW\n5\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// This is the case that decides WHERE the guard lives. A pattern address has no
+// resolved span at parse time — plan.go's `patterned` escape says so — so a
+// guard in plan.validate would fire on `3-6` and not on `/a/,/b/`: a
+// requirement conditional on address form, which is the hole ADR-026 and
+// ADR-027 each found once. The guard is in internal/apply, after resolution,
+// where every address form looks the same.
+func TestAPatternRangeSpanningManyLinesNeedsAnAnchor(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "alpha\nbeta\ngamma\ndelta\n")
+
+	res, err := Apply(root, []Input{
+		{
+			Path: "f.txt", Op: "replace", Body: []string{"NEW"}, Lines: -1, Index: 0,
+			StartPat: regexp.MustCompile(`^beta$`),
+			EndPat:   regexp.MustCompile(`^delta$`),
+		},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("an anchorless pattern range was not refused: %+v", res.Hunks)
+	}
+	if got := res.Hunks[0].Reason; !strings.Contains(got, "anchor=") {
+		t.Errorf("the refusal does not name anchor=: %s", got)
+	}
+	if got, want := read(t, root, "f.txt"), "alpha\nbeta\ngamma\ndelta\n"; got != want {
+		t.Errorf("the file was changed by a refused plan: got %q, want %q", got, want)
+	}
+}
+
+// The other half of the bound: with an anchor the hunk still applies. The
+// assertion is on the file's whole CONTENT, so a guard that refuses everything
+// and a guard that writes the right number of lines in the wrong place both
+// fail it.
+func TestAMultiLineReplaceWithAnAnchorStillApplies(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "1\n2\n3\n4\n5\n6\n7\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 3, End: 6, Op: "replace", Body: []string{"NEW"}, Lines: -1, Anchor: "3", Index: 0},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("an anchored multi-line replace was refused: %+v", res.Hunks)
+	}
+	if got, want := read(t, root, "f.txt"), "1\n2\nNEW\n7\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }
