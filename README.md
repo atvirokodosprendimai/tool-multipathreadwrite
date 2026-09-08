@@ -7,27 +7,29 @@ It is an ordinary command-line tool. It was built for AI coding agents, which
 are the ones doing hundreds of small edits a day, but nothing about it requires
 one.
 
-**Status: stable at v1.6.0 (2026-09-07), the tag cut from `0fffa77`.**
+**Status: stable at v1.7.0 (2026-09-08), the tag cut from `8846325`.**
 What that word rests on is recorded in this tree. The six promises listed in `AGENTS.md` are each
 an ADR and each a set of rows in `scripts/contract.sh`, which drives the built binary and prints its
 own verdict; no assertion fails on the tree the tag was cut from. The COUNT is platform-dependent
-and is not quoted flat for that reason: **682 pass on darwin/arm64, and the Linux CI run for the tag
-reports 679 passing, one skipped and none failing.** The gap is exactly the case-folding family —
+and is not quoted flat for that reason: **713 pass on darwin/arm64, and the Linux CI run for the tag
+reports 710 passing, one skipped and none failing.** The gap is exactly the case-folding family —
 darwin folds case and Linux does not, so three assertions about two spellings of one file do not run
-there, and CI prints one SKIP naming them. That was checked by comparing the two assertion lists,
-not assumed: the v1.5.0 paragraph attributed its own gap to root-user triggers, which is a different
-set and would have been the wrong explanation here.
+there, and CI prints one SKIP naming them. Re-measured for this tag rather than carried over: the
+skip line in run 34204756478 says *"a case-sensitive filesystem here: the two-spelling half did not
+run"*, which is the explanation and not an inference from the arithmetic. The v1.5.0 paragraph
+attributed its own gap to root-user triggers, a different set, and would have been wrong here.
 A break campaign of 47 probes
-(`scripts/break-campaign.sh`, its run in `docs/break/campaign-v1.6.0.txt`) against that same tagged
+(`scripts/break-campaign.sh`, its run in `docs/break/campaign-v1.7.0.txt`) against that same tagged
 tree found no silent wrong write and every refusal in it names its reason; every probe's name and
-exit code is identical to the v1.5.0 run against `07bc664`, the v1.4.0 run against `bd73ee0`, the
-v1.3.0 run against `3434c35`, the v1.2.0 run against `03feb92` and the v1.1.0 run against `d6c62e7`.
+exit code is identical to the v1.6.0 run against `0fffa77`, the v1.5.0 run against `07bc664`, the
+v1.4.0 run against `bd73ee0`, the v1.3.0 run against `3434c35`, the v1.2.0 run against `03feb92` and
+the v1.1.0 run against `d6c62e7`.
 That identity is evidence of no UNINTENDED change and nothing more: the campaign exercises none of
-what v1.6.0 changes, and contract §68, §69 and §70 with `internal/mcp/limit_test.go` and
-`internal/mcp/ack_test.go` do.
-**v1.6.0 is a correctness and honesty release, not a defect fix**, so upgrading is worth doing but
-not urgent — v1.5.0's alias defect is already fixed and remains the reason to leave anything older.
-Three things change. ADR-031 makes a paged read license only the part the caller echoes back.
+what v1.7.0 changes, and contract §71 and §72 with `internal/state/prune_test.go` and
+`internal/state/prune_findings_test.go` do.
+**v1.7.0 adds the first thing mrw removes**, so read the next paragraph before upgrading — v1.5.0's
+alias defect remains the reason to leave anything older.
+Three things arrived in v1.6.0 and still stand. ADR-031 makes a paged read license only the part the caller echoes back.
 ADR-032 makes the MCP result ceiling the CALLER's (`--max-result-chars`, `MRW_MAX_RESULT_CHARS`) and
 bounds the WHOLE answer rather than the read path alone: measured, a 4,000-hunk dry run returned
 453,632 characters against an advertised 200,000, and a host that trusts the number truncates. An
@@ -35,15 +37,18 @@ oversized write receipt now drops successes, then unwritten file records, and sa
 hunk and a WRITTEN file never go, because for a partial application those records are the only thing
 in the receipt saying the tree changed. ADR-033 makes `--max-lines 0` a cap of zero rather than
 "no cap", so zero means zero in all three places this format counts.
-⚠ **`mrw seen --prune` is NOT in this release.** ADR-034 is written, implemented and reviewed on
-PR #137. The HIGH its review found — `Prune` removing a directory outside the state base when
-`<state>/mrw` is a symlink — is closed by that record's T5, which binds enumeration and removal to
-one securely-opened handle and removes a child NAME rather than a path. Per-checkout state still
-accumulates without bound in v1.6.0: 24,067 directories and 256 MB of disk on one machine, 98.9% of
-them naming a checkout that no longer exists, and `scripts/contract.sh` in THIS tree is still the
-heaviest producer at +111 entries per run. Both halves are fixed on #137 and neither is in a tag yet.
-Until then the entries are inert and identifiable: each carries a `root` file naming the checkout it
-belonged to, which is what `grep -r . "${XDG_STATE_HOME:-$HOME/.local/state}/mrw"/*/root` reads.
+**`mrw seen --prune` arrives in v1.7.0, and it is the first thing mrw deletes that it did not write.**
+Per-checkout state had accumulated without bound since ADR-004: 24,067 directories and 256 MB of
+disk on one machine, 98.9% of them naming a checkout that no longer exists, with
+`scripts/contract.sh` in THIS repository the heaviest producer at +111 entries per run. ADR-034
+removes the ones whose `root` marker names a path that is gone, says which, and runs ONLY when you
+ask; ADR-034 T4 stops the gate producing them. Nothing reaps anything on its own.
+It went through four review rounds and the record says what each one found, including the two
+occasions the fix was right and the account of it was wrong. Two properties are worth knowing before
+you run it: `os.Root` confines a path to its root but FOLLOWS a symlink that stays inside it, which
+is why the base is opened and then verified by identity rather than checked and then opened; and a
+wrong prune costs more than the ledger, because the iteration working set and the plan tally live in
+the same directory and do not come back from your source.
 And the served-size curve is measured rather than asserted: a strong client
 at the ceiling on the fixture built to be failed (reading 3), the one recurring miss identified as a
 row index (reading 5), the weaker client at the ceiling once the served text reached it without
