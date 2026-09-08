@@ -13,6 +13,14 @@ import (
 // documented example that does not carry one teaches a plan mrw refuses, and
 // nothing else in this repository reads README.md or AGENTS.md.
 //
+// ⚠ THIS GATE IS DELIBERATELY STRICTER THAN THE ENGINE, IN ONE STATED PLACE.
+// It has no file, so for `/from/,/to/`, `N-`, `N-$` and `$-N` the span is not
+// knowable here: each CAN resolve to one line, and mrw would then accept it
+// unanchored. The gate asks for an anchor anyway rather than guessing, because
+// an anchor on such a documented example is never wrong and the two that exist
+// already carry one. That is policy, and it is said out loud — an earlier cut
+// reported these as "a plan mrw refuses", which was simply untrue of them.
+//
 // ⚠ THIS IS A GO TEST BECAUSE THE CHECK NEEDS THE PARSER, AND THREE SHELL CUTS
 // PROVED IT. A contract row can drive the built binary but it cannot tokenise a
 // plan header, and every attempt to approximate `splitHeader` with a regex was
@@ -49,7 +57,7 @@ func TestEveryDocumentedReplaceCarriesItsAnchor(t *testing.T) {
 		for i, line := range strings.Split(string(b), "\n") {
 			why := documentedReplaceNeedsAnchor(line)
 			if why != "" {
-				t.Errorf("%s:%d teaches a plan mrw refuses — %s:\n\t%s",
+				t.Errorf("%s:%d — %s:\n\t%s",
 					name, i+1, why, line)
 			}
 		}
@@ -98,18 +106,35 @@ func documentedReplaceNeedsAnchor(line string) string {
 		return ""
 	}
 	a := h.Addr
-	// Single-line spellings need no anchor, and there are three of them once the
-	// address is parsed rather than read: a bare line number, `$`, and a SINGLE
-	// pattern. That last one is the case an earlier cut got wrong — it treated
-	// every pattern as multi-line, which would have failed the build on a
-	// legitimate `@@ f.go /^func A/ replace`. apply.go:746 sets `to := from` and
-	// extends it only when EndPat is present, so `/re/` alone resolves to one
-	// line exactly as `12` does. A relative end and an open-ended range are
-	// multi-line here without this test knowing how either is written.
-	if a.EndPat == nil && a.RelEnd == 0 && (a.StartPat != nil || a.Start == a.End) {
+	// THREE OUTCOMES, NOT TWO — and collapsing them to two is what produced a
+	// false positive twice. This check has no file, so for some address forms
+	// the span is genuinely not knowable here, and calling those "multi-line"
+	// states something that may be false.
+	//
+	// Guaranteed ONE line, whatever the file holds:
+	//   a bare number, `$`, an equal literal range `N-N`, and a SINGLE pattern.
+	//   apply.go:746 sets `to := from` and extends it only when EndPat is set,
+	//   so `/re/` alone resolves to one line exactly as `12` does. Treating
+	//   every pattern as multi-line was the round-5 defect.
+	switch {
+	case a.EndPat == nil && a.RelEnd == 0 && (a.StartPat != nil || a.Start == a.End):
 		return ""
+	// Guaranteed MORE than one line, whatever the file holds: a relative end of
+	// at least 1, or a literal range whose ends are ordinary line numbers with
+	// the end above the start. EOF is excluded because `$` is a sentinel, not a
+	// number, and `N-$` is only knowable against a file.
+	case a.RelEnd >= 1,
+		a.StartPat == nil && a.EndPat == nil &&
+			a.Start != plan.EOF && a.End != plan.EOF && a.End > a.Start:
+		return "a replace addressing more than one line, with no anchor="
 	}
-	return "a replace addressing more than one line, with no anchor="
+	// Everything left — `/from/,/to/`, `N-`, `N-$`, `$-N` — resolves against a
+	// file this check does not have, and CAN come out as one line: a pattern
+	// pair whose ends match the same line, or an open range starting at the last
+	// line. So the requirement is stated as what it is. An anchor on such a
+	// documented example is never wrong, and the two that exist already carry
+	// one.
+	return "a replace whose span cannot be known without the file, and no anchor= to pin it"
 }
 
 // TestTheDocumentedPlanCheckRejectsWhatItMustReject is the gate on the gate.
@@ -142,6 +167,12 @@ func TestTheDocumentedPlanCheckRejectsWhatItMustReject(t *testing.T) {
 	mustPass := []string{
 		`@@ f.go 12 replace`,
 		`@@ f.go $ replace`,
+		// Equal after resolution, and equal WITHOUT resolution: these cover one
+		// line whatever the file holds, so requiring an anchor on them would
+		// fail the build on correct documentation.
+		`@@ f.go 3-3 replace`,
+		`@@ f.go $-$ replace`,
+		`@@ f.go $- replace`,
 		"@@ f.go 12\treplace",
 		`@@ f.go 42-58 replace anchor="func Apply" lines=17`,
 		`@@ f.go 2-3 replace anchor=x`,

@@ -53,7 +53,7 @@ grep -q '^# 73\. ' scripts/contract.sh \
 |-----------|------|----------|--------|-------|
 | `§73` | `scripts/contract.sh` | The BUILT binary refuses an anchorless multi-line replace with a message naming `anchor=` and leaves the file byte-identical, and applies the same plan when it carries one | — | S1, S2 |
 | `TestEveryDocumentedReplaceCarriesItsAnchor` | `internal/adversarial/documented_plans_test.go` | Every `@@` line in `README.md` and `AGENTS.md` is classified by the real parser, so a documented replace addressing more than one line without `anchor=` fails the build | — | S3, S5 |
-| `TestTheDocumentedPlanCheckRejectsWhatItMustReject` | `internal/adversarial/documented_plans_test.go` | The gate on the gate: ten headers that must be flagged — including the quoted op, the BOM and the tabbed range that defeated the shell versions — and ten that must pass | — | S3 |
+| `TestTheDocumentedPlanCheckRejectsWhatItMustReject` | `internal/adversarial/documented_plans_test.go` | The gate on the gate: a table of headers that must be flagged — the quoted op, the BOM and the tabbed range that defeated the shell versions among them — and a table that must pass, including the forms that are one line after resolution. The tables are the count; no number is repeated here, because a number beside a list goes stale in the commit that grows the list, and this row's did | — | S3 |
 
 ## Reachability
 
@@ -65,6 +65,12 @@ grep -q '^# 73\. ' scripts/contract.sh \
 | 4 — it is used | the row drives `$MRW`, which is what ships |
 
 ## Mutation Log
+
+⚠ Rows below carrying `covers:the documentation check classifying a header exactly as the parser
+does` predate the sixth review round, which withdrew that claim: `plan.Parse` settles TOKENIZATION,
+and the body search has a finite bound. Those rows are NOT rewritten — this log is append-only
+evidence and a killed mutant is a fact about the run that produced it, not about the name the
+mechanism has now. The same mutants were re-run under the current name and appear again below.
 
 - 2026-09-08 · 3245e1a* · mutant killed · exit 1 · `internal/apply/apply.go` · the guard stops firing in the SHIPPED binary, so §73 sees an anchorless multi-line replace apply — the wiring a unit test cannot check, because it proves the function and not that the function is reached · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · covers:the built binary refusing an anchorless multi-line replace
 - 2026-09-08 · 3245e1a* · mutant killed · exit 1 · `internal/apply/apply.go` · the guard refuses EVERY multi-line replace, anchored or not, so the requirement becomes a ban — which the refusal half of §73 cannot see on its own, and only the paired applying case catches · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · covers:the built binary still applying one that carries an anchor
@@ -80,6 +86,8 @@ grep -q '^# 73\. ' scripts/contract.sh \
 - 2026-09-08 · 2254c4a* · mutant killed · exit 1 · `internal/adversarial/documented_plans_test.go` · the documentation check returns "" for every header, so it passes on documentation that teaches a refused shape — the vacuous-gate shape that four shell cuts of this check each had in a different disguise, and the reason it carries a gate on the gate · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · covers:the documentation check classifying a header exactly as the parser does
 - 2026-09-08 · 1328390* · mutant killed · exit 1 · `internal/adversarial/documented_plans_test.go` · the documentation check appends a fixed one-line body again, so a header declaring body=N is a parse error and is SKIPPED IN SILENCE — a real documented replace passing unseen, which is the same shape as the four shell cuts this check replaces · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · covers:the documentation check classifying a header exactly as the parser does
 - 2026-09-08 · dfb7aaa* · mutant killed · exit 1 · `internal/adversarial/documented_plans_test.go` · every pattern is treated as multi-line again, so a legitimate single-pattern replace — which apply.go:746 resolves to ONE line, since to := from is extended only for EndPat — is flagged and fails the build on correct documentation · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · covers:a single-pattern replace not being treated as multi-line
+- 2026-09-08 · d2cb6bc* · mutant killed · exit 1 · `internal/adversarial/documented_plans_test.go` · the documentation check returns "" for every guaranteed-multi-line header, so it passes on documentation that teaches a refused shape — re-run under the CURRENT mechanism name after the exactness claim was withdrawn · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · covers:the documentation check tokenising a header with the parser rather than a regex
+- 2026-09-08 · d2cb6bc* · mutant killed · exit 1 · `internal/adversarial/documented_plans_test.go` · the body length is assumed again rather than searched, so a header declaring body=N is a parse error and is skipped in silence — re-run under the CURRENT mechanism name · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · covers:the documentation check tokenising a header with the parser rather than a regex
 
 ## Invariants
 
@@ -119,3 +127,5 @@ defer with a receipt, not to shorten what is guarded.
 - 2026-09-08 · 1328390* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:36633
 - 2026-09-08 · dfb7aaa* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:41206
 - 2026-09-08 · dfb7aaa* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:38228
+- 2026-09-08 · d2cb6bc* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:64650
+- 2026-09-08 · d2cb6bc* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dd175e616442c631057034b9b434721c41060feb945a3ce1742eae2d3678402 · ms:60386

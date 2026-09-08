@@ -4690,9 +4690,10 @@ grep -q 'func C' "$R/a.go" \
 # is the parser's rather than a regex's — the part every shell cut got wrong. It
 # is not equivalent in every respect and its own comment says where: the body
 # length is searched to a finite bound. Its
-# companion TestTheDocumentedPlanCheckRejectsWhatItMustReject drives ten
-# must-flag headers — the four that defeated the shell among them — and ten that
-# must pass.
+# companion TestTheDocumentedPlanCheckRejectsWhatItMustReject drives a table of
+# must-flag headers — the four that defeated the shell among them — and a table
+# that must pass. The tables are the count; naming a number here would go stale
+# in the commit that grows them, and this comment's did.
 #
 # What stays HERE is what only a contract row can do: drive the built binary.
 if [ "$fails" -eq 0 ]; then
