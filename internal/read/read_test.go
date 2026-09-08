@@ -836,3 +836,37 @@ func TestAPairedPatternEndsAtOrAfterItsStart(t *testing.T) {
 		t.Errorf("a start matching twice no longer serves both spans:\n%s", out)
 	}
 }
+
+// The case a range-wide `found` flag hides: one start resolves, a LATER start
+// has no end. The first cut of ADR-036 reported nothing here, because the
+// missing-end diagnostic was gated on `!found` and the earlier span had already
+// set it — so `START … END … START … EOF` came back as one span, no problem,
+// exit 0, with a start the address named silently dropped. Reported by review of
+// PR #146.
+//
+// The contract is BOTH: the resolved span is kept AND the unresolved start is
+// reported. A caller gets what mrw could resolve plus a named problem for what
+// it could not, which is the only answer that is not a lie by omission.
+func TestAResolvedSpanDoesNotSuppressALaterMissingEnd(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "m.txt"),
+		[]byte("START\nx\nEND\ngap\nSTART\ny\nz\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, problems := run(t, root, Options{Numbers: true}, `m.txt:/^START$/,/^END$/`)
+	if problems == 0 {
+		t.Fatalf("the unresolved second start was not reported:\n%s", out)
+	}
+	if !strings.Contains(out, "end pattern") {
+		t.Errorf("the report does not say the END was the half that missed:\n%s", out)
+	}
+	// The span that DID resolve is still served — reporting the problem must not
+	// throw away the answer.
+	if !strings.Contains(out, "@@ 1-3") {
+		t.Errorf("the resolved span was dropped along with the problem:\n%s", out)
+	}
+	// And nothing was invented for the start that did not resolve.
+	if strings.Contains(out, "@@ 5-") {
+		t.Errorf("a span was served for the start whose end never matched:\n%s", out)
+	}
+}

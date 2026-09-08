@@ -36,7 +36,7 @@ agreed to, and ADR-035 exists because those numbers then reach a plan.
 ## Existing Primitives Audit
 
 `internal/read` already has the mechanism this needs: `missed`, the list that
-turns into the `UNREADABLE` report and exit 1 (`read.go:508`). A range that
+prints `!! no match for <spec>` and makes the run exit 1 (`read.go:449`). A range that
 resolves to nothing is already reported by name rather than served as an empty
 success. Nothing new is required to refuse; only the decision to use it here.
 
@@ -56,7 +56,9 @@ paths differ in purpose.** Concretely, in `internal/read`:
    which half failed so the caller does not re-read the file to find out.
 
 **The every-start behaviour stays.** `read` continues to serve a span for every
-match of the start, while `write` continues to refuse unless the start matches
+match of the start THAT IS NOT ALREADY INSIDE A SPAN IT SERVED — the resolver
+advances past each span it emits, so a start nested in the previous one is
+skipped — while `write` continues to refuse unless the start matches
 exactly once. That is not a divergence to remove: the exactly-once rule exists to
 answer WHICH SITE a caller means, and a plan must resolve to one site while a
 read is exploratory by construction. Making `read` exactly-once would refuse
@@ -106,8 +108,12 @@ start line — the same thing they already do on the write path.
 
 - **A caller depended on the EOF extension.** Bounded: it exits 1 and names the
   range, so the failure is loud and the fix is one character (`,$`).
-- **`--grep` and the MCP read path share this resolver.** Both are exercised by
-  the existing suite and by contract rows that predate this record.
+- **The MCP read path shares this resolver**, and is exercised by the existing
+  suite and by contract rows that predate this record. `--grep` does NOT: it
+  builds single-pattern ranges only (`internal/read/walk.go:219` sets no
+  `ReEnd`), so it takes the branch below this one and is untouched. Checked
+  rather than assumed — the first cut of this record claimed `--grep` was
+  affected.
 
 ## Rollback
 

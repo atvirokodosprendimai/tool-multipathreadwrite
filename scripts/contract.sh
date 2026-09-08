@@ -4738,15 +4738,31 @@ want 0 "$rc" "an ordinary paired pattern still resolves"
 grep -q '@@ 1-3' <<<"$out" \
   && ok "and still spans to its end" \
   || bad "an ordinary paired pattern no longer spans to its end: $out"
-# The difference ADR-036 KEEPS: a read serves a span for every match of the
-# start, where a write refuses unless it matches once. The spans need a GAP
-# between them, because contiguous spans are coalesced into one.
+# The difference ADR-036 KEEPS: a read serves a span for every match of the start
+# THAT IS NOT ALREADY INSIDE A SPAN IT SERVED — the resolver advances past each
+# span it emits — where a write refuses unless the start matches once. The spans
+# need a GAP between them, because contiguous spans are coalesced into one.
 printf 'START\nx\nEND\ngap\nSTART\ny\nEND\n' > "$R/r.txt"
 out=$(m read 'r.txt:/^START$/,/^END$/' 2>&1); rc=$?
 want 0 "$rc" "a start matching twice is still served by a read"
 grep -q '@@ 1-3' <<<"$out" && grep -q '@@ 5-7' <<<"$out" \
   && ok "and both spans come back, which the write path deliberately refuses" \
   || bad "a start matching twice no longer serves both spans: $out"
+# A RESOLVED SPAN MUST NOT SUPPRESS A LATER MISSING END. `found` is range-wide,
+# so the first cut of this record reported nothing for `START … END … START … EOF`
+# — one span, no problem, exit 0, a start the address named silently dropped.
+# That is the same silent-drop ADR-036 removes, moved one case along. Reported by
+# review of PR #146.
+printf 'START\nx\nEND\ngap\nSTART\ny\nz\n' > "$R/s.txt"
+out=$(m read 's.txt:/^START$/,/^END$/' 2>&1); rc=$?
+want 1 "$rc" "a resolved span does not suppress a later missing end"
+grep -q 'end pattern' <<<"$out" \
+  && ok "and the report names the END as the half that missed" \
+  || bad "the mixed case reports nothing about the unresolved start: $out"
+# BOTH, not either: the answer mrw could resolve is still served.
+grep -q '@@ 1-3' <<<"$out" \
+  && ok "and the span that DID resolve is still served" \
+  || bad "reporting the problem threw away the resolved span: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

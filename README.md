@@ -890,7 +890,7 @@ rather than a difference invented here: `mrw read f.go:2-99` serves what exists,
 while `@@ f.go 5-9999 replace` is already refused as out of range, and a write
 that quietly did less than its address said is the thing this tool exists to
 make visible. There is no backwards form, and `,+0` is refused because it says
-what `A` alone says. An address means the
+what `A` alone says. A LINE address means the
 same thing to `read` and to `write` — `mrw read f.go:$` prints one line and
 `@@ f.go $ replace` changes one. `read` used to disagree, because it shared one
 sentinel between `$` and an omitted end and so served the whole file for
@@ -906,7 +906,8 @@ quietly changed less, and the line numbers it hands back describe a span mrw
 never agreed to. Say `f.go:/a/,$` when you mean "from here to the end".
 
 One difference remains, on purpose: **a read serves a span for every match of the
-start, and a write refuses unless the start matches exactly once**
+start that is not already inside a span it served, and a write refuses unless the
+start matches exactly once**
 (`internal/apply/apply.go:728`). The exactly-once rule answers *which site did
 you mean*, which a plan must know and an exploratory read need not — making
 `read` strict would refuse `mrw read f.go:/func /,/^}/` on any file with two

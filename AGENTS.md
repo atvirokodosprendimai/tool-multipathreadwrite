@@ -224,7 +224,8 @@ first match **at or after** the start, so an end matching the start line closes
 the span there, and a paired pattern whose end never matches is **reported and
 exits 1** rather than served to the end of the file — say `f.go:/a/,$` when you
 mean "to the end". One difference is kept on purpose: a read serves a span for
-EVERY match of the start, a write refuses unless the start matches exactly once.
+every match of the start that is not already inside a span it served, and a write
+refuses unless the start matches exactly once.
 A relative end has no backwards form and may not be combined with
 `/from/,/to/`. ⚠ **A READ CLAMPS a relative end at the last line; a WRITE
 REFUSES one that runs past it** — each is that path's own existing rule, since

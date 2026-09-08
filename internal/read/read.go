@@ -521,15 +521,16 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 		case r.Re != nil && r.ReEnd != nil:
 			found := false
 			// Tracked separately from `found` so the report can say WHICH half
-			// missed. A caller told only "this range matched nothing" re-reads
-			// the file to learn whether it was the start or the end, which is a
-			// call this tool exists to save them.
-			startMatched := false
+			// missed, AND so an earlier resolved span cannot suppress it. A
+			// caller told only "this range matched nothing" re-reads the file to
+			// learn whether it was the start or the end; a caller told nothing
+			// at all never learns a start was dropped.
+			missingEnd := false
 			for i := 0; i < total; i++ {
 				if !r.Re.MatchString(lines[i]) {
 					continue
 				}
-				startMatched = true
+				// no-op: the start matched, which only matters if its end does not
 				// ADR-036. `j >= i`, not `j > i`: the end is the first match AT
 				// OR AFTER the start, which is what internal/apply already did
 				// (apply.go:748) and what ed and sed mean by /a/,/b/. An end on
@@ -550,19 +551,30 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 					}
 				}
 				if end == 0 {
+					// ⚠ RECORDED, NOT JUST SKIPPED. `found` is range-wide, so a
+					// start that resolved EARLIER used to suppress this one
+					// entirely: `START … END … START … EOF` returned the first
+					// span with no problem and exit 0, silently dropping a start
+					// the address named. That is the same silent-drop this
+					// record exists to remove, moved one case along, and it
+					// survived the first cut because the only report was gated
+					// on `!found`. Found by review of PR #146.
+					missingEnd = true
 					continue
 				}
 				spans = append(spans, span{i + 1, end})
 				found = true
 				i = end - 1
 			}
-			if !found {
-				if startMatched {
-					missed = append(missed, fmt.Sprintf(
-						"%s (the start matched, but the end pattern matched no line at or after it)", r.Text))
-				} else {
-					missed = append(missed, r.Text)
-				}
+			// Reported INDEPENDENTLY of whether anything resolved, and the valid
+			// spans are kept: a caller gets what mrw could resolve plus a named
+			// problem for what it could not, rather than one or the other.
+			switch {
+			case missingEnd:
+				missed = append(missed, fmt.Sprintf(
+					"%s (the start matched, but the end pattern matched no line at or after it)", r.Text))
+			case !found:
+				missed = append(missed, r.Text)
 			}
 		case r.Re != nil:
 			found := false
