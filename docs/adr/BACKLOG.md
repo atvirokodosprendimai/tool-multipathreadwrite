@@ -989,6 +989,25 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
 
 ## From ADR-027 (an empty file is created on purpose, or not at all)
 
+- **The handshake `instructions` do not teach the body-less `create` refusal.** The `mrw_write`
+  tool DESCRIPTION does, as of 2026-09-08, and the ADR-012 row asserts it through the built server.
+  The handshake does not, and this entry is why rather than an oversight.
+
+  **Measured, not assumed.** `maxInstructionsChars` is 4096 BYTES and the document sits at 4,095 —
+  one byte of headroom. The shortest honest clause is 71 bytes, so it has to be funded by cutting
+  something already there. Every candidate cut was tried: trimming the surface-choice paragraph to
+  "prefer this with none, or to serialize writes" fits, and turns
+  `TestTheSurfaceSaysTheCLIIsRicher` red on two assertions — that this surface *"serializes ledger
+  writes"* and serves *"ONE fixed checkout"*. Those claims are guarded because they are the reason
+  to choose this surface at all.
+
+  So the choice is not "add a clause" but "which guarded claim is worth less than this one", and
+  that is a decision about what a handshake paid for by EVERY session should carry — the question
+  `maxInstructionsChars`'s own comment says the bound exists to force.
+
+  **What would promote this:** an MCP caller reporting a bare `create` refusal they had no warning
+  of, or any other change that frees 71 bytes there for an unrelated reason.
+
 - **Requiring `body=N` on every op, not just as an opt-in guard.** ADR-027 reuses `body=0` as the
   way to SAY "deliberately nothing" for `create`, which works because the count already exists and
   already means it. Making the count mandatory everywhere is the larger version of that idea: it
