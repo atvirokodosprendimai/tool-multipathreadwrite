@@ -335,9 +335,12 @@ and #73, one release apart.
   a checkout that is no longer there, and says which. `--prune --dry-run` shows
   the same list and removes nothing. It keeps anything it cannot identify — a
   missing, unreadable or relative marker means mrw did not write it — and keeps
-  the entry for the root you are in. Nothing calls it for you: a path that is
-  gone may be a deleted checkout or an unmounted volume (ADR-034). One machine
-  had 22,836 of these directories and 242 MB on 2026-09-07, 98.9% of them dead.
+  the entry for the root you are in. It keeps a root it cannot STAT, too: only
+  "not there" means gone, and a denied parent or an unmounted point does not.
+  It refuses to run at all if `<state>/mrw` is a symlink. Nothing calls it for
+  you: a path that is gone may be a deleted checkout or an unmounted volume
+  (ADR-034). One machine had 22,836 of these directories and 242 MB on
+  2026-09-07, 98.9% of them dead.
 
 mrw's OWN state lives outside the tree (ADR-004), so none of these commands
 writes to your checkout of its own accord — with the one exception above, where

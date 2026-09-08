@@ -1199,3 +1199,29 @@ Alternatives had to answer.
   path under an absent mount point, NOT an age gate — an age gate deletes the same entries a
   fortnight later and adds a number nobody can defend. ADR-034's Alternatives rejects the age gate
   in advance for that reason.
+
+- **`absReal` resolving through ancestors that are gone.** ADR-034 T5 needed the spelling a state
+  key was minted under while its checkout existed, and rebuilt it by resolving the deepest surviving
+  ancestor. Doing that inside `absReal` instead would make `Dir` and every later lookup agree by
+  construction rather than by consulting three candidates, which is the better shape.
+
+  **Why it is not done:** it CHANGES THE KEY for any root under a symlinked parent that does not
+  exist yet. `Dir` on such a path currently keys by the literal spelling; afterwards it would key by
+  the resolved one, and every state directory already on disk for such a root becomes unreachable —
+  a ledger silently starting empty, which reads exactly like a first run. That is a migration with a
+  compatibility window, not a cleanup.
+
+  **What would promote this:** a third site needing the same reconstruction, or a decision to write
+  the migration. Measured cost today: three `key()` calls per prune, on a command an operator runs
+  by hand.
+
+- **The permission-error branch on Windows.** `TestARootThatCannotBeStattedIsKept` proves that only
+  `fs.ErrNotExist` means "gone" by denying traversal of a parent with mode 0. That does not deny
+  traversal on Windows, and the test SKIPS there — so on Windows nothing shows the branch holds, and
+  a skip is not a pass. The Windows spelling is an ACL denying `FILE_TRAVERSE`, which needs either
+  `golang.org/x/sys` or a `syscall` block, and `go.mod` declaring exactly one requirement is a
+  standing invariant of this repository.
+
+  **What would promote this:** a report of a prune removing live state on Windows, or a decision
+  that the second requirement is worth it. The `windows` CI job runs the test today and reports the
+  skip.

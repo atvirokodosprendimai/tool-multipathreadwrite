@@ -208,18 +208,18 @@ func TestAnUnidentifiableEntryIsKeptAndReported(t *testing.T) {
 		if e.Identified {
 			t.Errorf("the entry with %s claims to be identified, naming root %q", what, e.Root)
 		}
-		if e.Live {
-			t.Errorf("the entry with %s claims to be live", what)
+		if e.Dead {
+			t.Errorf("the entry with %s claims its checkout is gone", what)
 		}
 	}
 
-	if e := byDir[p.liveDir]; !e.Identified || !e.Live || e.Root != p.liveGo {
-		t.Errorf("the live entry reads identified=%v live=%v root=%q, want true true %q",
-			e.Identified, e.Live, e.Root, p.liveGo)
+	if e := byDir[p.liveDir]; !e.Identified || e.Dead || e.Root != p.liveGo {
+		t.Errorf("the live entry reads identified=%v dead=%v root=%q, want true false %q",
+			e.Identified, e.Dead, e.Root, p.liveGo)
 	}
-	if e := byDir[p.deadDir]; !e.Identified || e.Live || e.Root != p.deadGo {
-		t.Errorf("the dead entry reads identified=%v live=%v root=%q, want true false %q",
-			e.Identified, e.Live, e.Root, p.deadGo)
+	if e := byDir[p.deadDir]; !e.Identified || !e.Dead || e.Root != p.deadGo {
+		t.Errorf("the dead entry reads identified=%v dead=%v root=%q, want true true %q",
+			e.Identified, e.Dead, e.Root, p.deadGo)
 	}
 	if e := byDir[p.liveDir]; e.Bytes <= 0 {
 		t.Errorf("the live entry reports %d bytes; it holds a marker and a ledger", e.Bytes)

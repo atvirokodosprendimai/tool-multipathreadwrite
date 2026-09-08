@@ -4477,6 +4477,65 @@ want 0 "$rc" "a second --prune exits 0"
 grep -q '^0 of 3 state directories removed' <<<"$out" \
   && ok "a prune that removed nothing says so rather than printing nothing" \
   || bad "a no-op prune reported: $out"
+
+# 72. ADR-034: the prune refuses a state base mrw did not create.
+#
+# PAIRED, because a row that scores only the refusal is green against a binary
+# that refuses everything. The same shape is driven twice: once against a real
+# base holding a dead entry, which must GO, and once against a base whose
+# `mrw` directory is a symlink to somebody else's directory holding an
+# identical-looking dead entry, which must STAY.
+#
+# ⚠ THE BASE, NOT AN ENTRY. §71 already plants a symlinked ENTRY under a real
+# base. This is the level above it, and it is the one os.RemoveAll followed:
+# the walk and the removal each re-resolved the base by path, so replacing it
+# put a directory nobody gave mrw inside the prune's reach.
+P72=$(mktemp -d "$WORK/prune72-XXXXXX")
+P72ROOT=$(mktemp -d "$WORK/p72root-XXXXXX")
+printf 'alpha\n' > "$P72ROOT/f.txt"
+
+# --- THE GOOD CASE: a base mrw made, holding one entry whose checkout is gone.
+export XDG_STATE_HOME="$P72/good"
+P72DEAD=$(mktemp -d "$WORK/p72dead-XXXXXX")
+printf 'alpha\n' > "$P72DEAD/f.txt"
+"$MRW" -C "$P72DEAD" read f.txt >/dev/null 2>&1
+"$MRW" -C "$P72ROOT" read f.txt >/dev/null 2>&1
+P72DEADDIR=$("$MRW" -C "$P72DEAD" seen 2>/dev/null | head -1)
+rm -rf "$P72DEAD"
+[ -n "$P72DEADDIR" ] && [ -d "$P72DEADDIR" ] \
+  && ok "the fixture planted a dead entry under a real base" \
+  || bad "the fixture planted no dead entry: $P72DEADDIR"
+"$MRW" -C "$P72ROOT" seen --prune > "$P72/good.out" 2>&1
+want 0 $? "mrw seen --prune exits 0 on a base mrw created"
+[ -d "$P72DEADDIR" ] \
+  && bad "the dead entry survived a prune of a legitimate base" \
+  || ok "and the entry whose checkout is gone is removed"
+
+# --- THE BAD CASE: <base>/mrw is a symlink out to a directory that is not ours.
+export XDG_STATE_HOME="$P72/bad"
+mkdir -p "$XDG_STATE_HOME"
+P72VICTIM=$(mktemp -d "$WORK/p72victim-XXXXXX")
+mkdir -p "$P72VICTIM/eeeeeeeeeeeeeeee"
+printf '/no/such/checkout\n' > "$P72VICTIM/eeeeeeeeeeeeeeee/root"
+printf 'not mrw own\n' > "$P72VICTIM/precious"
+if ln -s "$P72VICTIM" "$XDG_STATE_HOME/mrw" 2>/dev/null; then
+  "$MRW" -C "$P72ROOT" seen --prune > "$P72/bad.out" 2>&1
+  rc=$?
+  want 2 "$rc" "a prune through a symlinked base is refused, not attempted"
+  grep -qi 'symlink' "$P72/bad.out" \
+    && ok "and the refusal says the base is a symlink" \
+    || bad "the refusal does not name what is wrong: $(cat "$P72/bad.out")"
+  [ -d "$P72VICTIM/eeeeeeeeeeeeeeee" ] \
+    && ok "the entry on the far side of the link is untouched" \
+    || bad "--prune removed $P72VICTIM/eeeeeeeeeeeeeeee through a symlinked base"
+  [ -f "$P72VICTIM/precious" ] \
+    && ok "and so is everything beside it" \
+    || bad "--prune removed $P72VICTIM/precious through a symlinked base"
+else
+  skip "this filesystem does not do symlinks, so the symlinked-base case cannot be planted"
+fi
+# RESTORE the file-wide pin, for the reason §71 gives just below.
+export XDG_STATE_HOME="$WORK/state"
 # RESTORE the file-wide pin, do not unset it. This row swapped XDG_STATE_HOME for
 # a sub-base of its own because it COUNTS entries; unsetting it here would send
 # any row added after this one back to the real state base, which is the leak

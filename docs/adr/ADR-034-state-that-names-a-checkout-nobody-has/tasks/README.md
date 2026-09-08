@@ -14,6 +14,7 @@ This README is a derived index — when it disagrees with a task file, the task 
 | 2 | T2 | T1 |
 | 3 | T3 | T2 |
 | 4 | T4 | T3 |
+| 5 | T5 | T4 |
 
 ## Task Index
 
@@ -23,6 +24,7 @@ This README is a derived index — when it disagrees with a task file, the task 
 | T2 | `mrw seen` reports the base, and prunes it when asked | done | — | `go test ./cmd/mrw/ -run 'TestSeenPruneRemovesOnlyTheDeadEntries…' …` |
 | T3 | The contract drives the prune, and the docs say it exists | done | — | `grep -q '^# 71\. ' scripts/contract.sh && ./scripts/contract.sh` |
 | T4 | The gate stops producing what the prune removes | done | — | a full `contract.sh` run leaves the real state base's entry count unchanged |
+| T5 | The prune addresses a handle, and only ErrNotExist means gone | done | — | `go test ./internal/state/ ./cmd/mrw/ -run 'TestABaseThatIsASymlinkIsRefusedRatherThanFollowed…' && grep -q '^# 72\. ' scripts/contract.sh && ./scripts/contract.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
@@ -33,6 +35,7 @@ Status: `pending` | `partial` | `blocked` | `done`.
 | T1 | `state.Entry`, `state.Entries()`, `state.Prune()` | T2 | T1 before T2 — the flag has nothing to call otherwise |
 | T2 | `mrw seen --prune`, `--dry-run`, the count line | T3 | T2 before T3 — the row drives the built binary |
 | T3 | §71, which pins its own `XDG_STATE_HOME` under `$WORK` | T4 | T3 before T4 — T4 pins the same variable for the whole script and must not move §71's verdict |
+| T5 | `state.Entry.Name`, `state.Entry.Dead`, `openBase`, §72 | none — it is the last | T5 after T4 — it rewrites the file T1 produced and must not move §71's or §72's verdict |
 
 ## Notes
 

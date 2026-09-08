@@ -35,12 +35,13 @@ oversized write receipt now drops successes, then unwritten file records, and sa
 hunk and a WRITTEN file never go, because for a partial application those records are the only thing
 in the receipt saying the tree changed. ADR-033 makes `--max-lines 0` a cap of zero rather than
 "no cap", so zero means zero in all three places this format counts.
-⚠ **`mrw seen --prune` is NOT in this release.** ADR-034 is written, implemented and held on PR #137
-over a HIGH its review found and this session reproduced: `Prune` accepted a caller-supplied
-deletion path and removed a directory outside the state base. Per-checkout state still accumulates
-without bound in v1.6.0 — 24,067 directories and 256 MB of disk on one machine, 98.9% of them naming
-a checkout that no longer exists, and `scripts/contract.sh` in THIS tree is still the heaviest
-producer at +111 entries per run. Both halves of that are fixed on #137 and neither is released.
+⚠ **`mrw seen --prune` is NOT in this release.** ADR-034 is written, implemented and reviewed on
+PR #137. The HIGH its review found — `Prune` removing a directory outside the state base when
+`<state>/mrw` is a symlink — is closed by that record's T5, which binds enumeration and removal to
+one securely-opened handle and removes a child NAME rather than a path. Per-checkout state still
+accumulates without bound in v1.6.0: 24,067 directories and 256 MB of disk on one machine, 98.9% of
+them naming a checkout that no longer exists, and `scripts/contract.sh` in THIS tree is still the
+heaviest producer at +111 entries per run. Both halves are fixed on #137 and neither is in a tag yet.
 Until then the entries are inert and identifiable: each carries a `root` file naming the checkout it
 belonged to, which is what `grep -r . "${XDG_STATE_HOME:-$HOME/.local/state}/mrw"/*/root` reads.
 And the served-size curve is measured rather than asserted: a strong client
@@ -1437,9 +1438,13 @@ It is deliberately narrow. It **never** removes an entry whose `root` marker is
 missing, unreadable, empty or not an absolute path — mrw did not write those, so
 it does not know what they are, and deleting something of unknown provenance is
 the one mistake here that re-reading a file cannot undo. It never removes the
-entry for the root you are running in. It reads one directory and follows no
-symlink out of it. And it never runs on its own: a path that is gone may be a
-deleted checkout or a volume that is not mounted, and only you can tell which.
+entry for the root you are running in — including when that checkout has been deleted underneath the
+run, which is the case the guard exists for. It reads one directory and follows no symlink out of
+it, and it **refuses outright** if `<state>/mrw` is itself a symlink: mrw did not create that, so it
+cannot tell what is on the far side. And it never runs on its own: a path that is gone may be a
+deleted checkout or a volume that is not mounted, and only you can tell which. A path it cannot stat
+for any other reason — a denied parent, an unmounted point, a network timeout — is INDETERMINATE and
+kept, because only "it is not there" answers the question the prune asks.
 
 If a prune is wrong, it costs a re-read. A ledger is a licence to edit, not a
 record of content, so losing one means the next write to those files is refused
