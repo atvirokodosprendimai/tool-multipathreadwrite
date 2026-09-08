@@ -10,7 +10,9 @@ one.
 **Status: stable at v1.8.0 (2026-09-08), the tag cut from `fe49ef5`.**
 What that word rests on is recorded in this tree. The six promises listed in `AGENTS.md` are each
 an ADR and each a set of rows in `scripts/contract.sh`, which drives the built binary and prints its
-own verdict; no assertion fails on the tree the tag was cut from. The COUNT is platform-dependent
+own verdict; no assertion failed on the tree the tag was cut from, in the runs that were measured —
+which is the honest form, because §24 races 40 concurrent ledger reads and has been seen to FAIL
+spuriously as well as skip (`docs/adr/BACKLOG.md`). The tag's CI run had none. The COUNT is platform-dependent
 and is not quoted flat for that reason: **735 pass on darwin/arm64, and the Linux CI run for the tag
 reports 732 passing, one skipped and none failing.** The gap is exactly the case-folding family —
 darwin folds case and Linux does not, so three assertions about two spellings of one file do not run
@@ -61,8 +63,17 @@ exactly-once answers *which site did you mean*, which a plan must know and an ex
 not.
 **Upgrading:** add `anchor=` to multi-line replaces, taking the text from the `NNN| content` a read
 printed, where it is a real check rather than a guess — an anchor typed from memory can be wrong in
-the same way the address is, and mrw cannot tell which it got. Say `f.go:/a/,$` where you relied on
-a paired pattern running to end of file.
+the same way the address is, and mrw cannot tell which it got.
+Where you relied on a paired pattern running to end of file, there is no pattern-anchored spelling
+that reaches EOF, so name the start by LINE — `f.go:2-$` or `f.go:2-` — or give a real end pattern,
+or bound it with `A,+N`. Those three are what the refusal itself names: *"write /re/, /from/,/to/ or
+A,+N"*.
+⚠ **Not `f.go:/a/,$`.** An earlier draft of this paragraph advised it and it is wrong in the way
+this release is about: on the read path `,` separates SPECS, not the ends of a range, so
+`f.go:/^bbb$/,$` returns two disjoint single-line spans — the `bbb` line and the last line — and
+exits 0, handing back numbers for something nobody asked for. On the write path the same string does
+not parse. Caught in review of the release note announcing ADR-036, which is the same failure one
+level up.
 Three things arrived in v1.6.0 and still stand. ADR-031 makes a paged read license only the part the caller echoes back.
 ADR-032 makes the MCP result ceiling the CALLER's (`--max-result-chars`, `MRW_MAX_RESULT_CHARS`) and
 bounds the WHOLE answer rather than the read path alone: measured, a 4,000-hunk dry run returned
