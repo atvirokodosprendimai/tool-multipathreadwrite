@@ -1986,6 +1986,19 @@ assert "@@" in i, "the instructions never show a plan header"
 for f in ("AGENTS.md","README.md","CONTRIBUTING.md"):
     assert f not in i, "the instructions point at %s, which an MCP-only caller cannot open" % f
 assert len(i.encode()) <= 4096, "the instructions are %d bytes; they are paid once per session" % len(i.encode())
+# ADR-037: Shared is the contract both surfaces must carry. The Go test
+# proves instructionsText contains it; this row proves the SHIPPED binary
+# does. Five literals, not a package import — a drifted splice that still
+# compiles must fail here.
+shared = (
+    "Reach for mrw when the task touches 3 or more edits, 2 or more files, or several ranges you need to read.",
+    "A plan applies whole or not at all: if any hunk fails, nothing is written.",
+    "Read before you write, per line, not per file.",
+    "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
+    "A refusal names the file, the plan line, and the reason.",
+)
+for s in shared:
+    assert s in i, "handshake omitted Shared sentence: %r" % s
 PY
 [ $? -eq 0 ] && ok "and the handshake teaches the format without pointing at a file the caller cannot open" \
              || bad "the initialize instructions are missing, unbounded, or a pointer to nothing"
@@ -4761,16 +4774,26 @@ grep -q '@@ 1-3' <<<"$out" \
 # 75. ADR-037: the binary teaches the format it demands.
 #
 # A unit test on guide.CLI cannot prove the shipped binary prints it. Drive
-# $MRW: the good case is exit 0 and the trigger plus the pipe trap, and the
-# pair is an extra argument, which is usage — not a file to append to.
+# $MRW: the good case is exit 0 and every Shared sentence plus the pipe trap,
+# and the pair is an extra argument, which is usage — not a file to append to.
 out=$(m instructions 2>&1); rc=$?
 want 0 "$rc" "mrw instructions exits 0"
-grep -q '3 or more edits, 2 or more files, or several ranges you need to read' <<<"$out" \
-  && ok "and it prints the trigger" \
-  || bad "instructions omitted the trigger: $out"
-grep -q 'through a pipe' <<<"$out" \
-  && ok "and it names the pipe trap" \
-  || bad "instructions omitted the pipe trap: $out"
+python3 - "$out" <<'PY'
+import sys
+out = sys.argv[1]
+shared = (
+    "Reach for mrw when the task touches 3 or more edits, 2 or more files, or several ranges you need to read.",
+    "A plan applies whole or not at all: if any hunk fails, nothing is written.",
+    "Read before you write, per line, not per file.",
+    "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
+    "A refusal names the file, the plan line, and the reason.",
+)
+missing = [s for s in shared if s not in out]
+assert not missing, "instructions omitted Shared sentences: %r" % missing
+assert "through a pipe" in out, "instructions omitted the pipe trap"
+PY
+[ $? -eq 0 ] && ok "and it prints Shared verbatim plus the pipe trap" \
+             || bad "instructions omitted Shared or the pipe trap"
 out=$(m instructions nope 2>&1); rc=$?
 want 2 "$rc" "an extra argument is a usage error"
 
