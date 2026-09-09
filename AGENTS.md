@@ -101,6 +101,13 @@ nothing until you acknowledge it. A paged read brackets each run of 200 lines wi
 An id you omit leaves its lines stay unwritable. A host can cut a page before you see it, and mrw cannot
 tell, which is what this exists for.
 
+Which surface you are on is not purely your choice: it follows from where the
+server was registered, and a user-scope registration puts these two tools in
+every project on the machine, including the ones whose instructions say to use
+the shell. See the README, "Use it from an MCP host" — which also carries the one
+thing this surface does better, since one server is one writer to the ledger
+while parallel CLI processes race.
+
 Both tools are bounded at 200,000 characters of ENCODED result, and the number is yours to set:
 `mrw mcp --max-result-chars N` or `MRW_MAX_RESULT_CHARS`. The flag beats the variable, omitting both
 takes the default, and `0` means zero — the same reading `--max-lines 0` takes. An oversized
