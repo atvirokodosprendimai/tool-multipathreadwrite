@@ -1,9 +1,11 @@
 package seen
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -354,5 +356,47 @@ func TestLegacyInTreeLedgerIsStillRead(t *testing.T) {
 	}
 	if reloaded["new.go"].SHA != "def456" {
 		t.Errorf("the recorded observation is not readable back: %v", reloaded)
+	}
+}
+
+// TestConcurrentRecordsKeepEveryPath pins ADR-038: N concurrent Record calls
+// keep N paths. The barrier sits BEFORE the lock so an unlocked mutant loads
+// the same empty snapshot and the last save wins.
+func TestConcurrentRecordsKeepEveryPath(t *testing.T) {
+	root := t.TempDir()
+	const n = 40
+	var ready, release sync.WaitGroup
+	ready.Add(n)
+	release.Add(1)
+	beforeLock = func() {
+		ready.Done()
+		release.Wait()
+	}
+	t.Cleanup(func() { beforeLock = nil })
+
+	errc := make(chan error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errc <- Record(root, map[string]Observation{fmt.Sprintf("f%d.go", i): {SHA: "aaa"}})
+		}(i)
+	}
+	ready.Wait()
+	release.Done()
+	wg.Wait()
+	close(errc)
+	for err := range errc {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	l, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(l) != n {
+		t.Fatalf("kept %d, want %d — concurrent Records dropped paths", len(l), n)
 	}
 }

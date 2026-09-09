@@ -72,9 +72,9 @@ Then choose. The CLI is broader — only it has --files-from, --check (the
 project's tests, scoped to your writes), and check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; --root goes
 BEFORE the subcommand, since after `+"`read`"+` the short -C is the context flag.
 This surface returns structured JSON (a read's receipt: 2nd text block); one
-server is one writer to the ledger while parallel CLI processes race. With
-a shell prefer the CLI; prefer this one with none, or when callers sharing
-ONE fixed checkout want writes serialized.
+server is one writer to the ledger. With a shell prefer the CLI; prefer this
+one with none, or when callers sharing ONE fixed checkout want writes
+serialized.
 
 Only mrw_read serves lines; ack records them. Lines 10-12 do not license line 50.
 A failing hunk's siblings report skipped, never ok.

@@ -95,6 +95,16 @@ func TestTheGateDoesNotAcceptAPrefixOfAnotherCommand(t *testing.T) {
 	}
 }
 
+func TestReadmeDoesNotTeachALedgerRace(t *testing.T) {
+	b, err := os.ReadFile("../../README.md")
+	if err != nil {
+		t.Fatalf("reading README.md: %v", err)
+	}
+	if strings.Contains(string(b), "40 racing reads kept 5") {
+		t.Fatal("README still teaches a ledger race ADR-038 closed")
+	}
+}
+
 func TestReadmeAndSkillNameInstructions(t *testing.T) {
 	for _, path := range []string{"../../README.md", "../../.claude/skills/mrw/SKILL.md"} {
 		b, err := os.ReadFile(path)

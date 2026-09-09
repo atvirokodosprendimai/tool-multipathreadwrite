@@ -451,6 +451,12 @@ func TestTheInstructionsTeachTheContinuation(t *testing.T) {
 // checked against the CLI's OWN help output. Advice that recommends a flag which
 // has since been renamed is worse than no advice, and this is the same defect
 // ADR-012 shipped when it taught an enum the engine never sent.
+func TestTheHandshakeDoesNotTeachALedgerRace(t *testing.T) {
+	if strings.Contains(instructionsText(), "parallel CLI processes race") {
+		t.Fatal("instructions still teach a ledger race ADR-038 closed")
+	}
+}
+
 func TestTheSurfaceSaysTheCLIIsRicher(t *testing.T) {
 	lines := serve(t, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`)
 	res, ok := decode(t, lines[0])["result"].(map[string]any)
@@ -491,10 +497,9 @@ func TestTheSurfaceSaysTheCLIIsRicher(t *testing.T) {
 	if strings.Contains(got, "-C, which points") || strings.Contains(got, "-C for any checkout") {
 		t.Error("the instructions recommend -C for choosing a checkout; that is the context flag after `read` and the recommendation errors")
 	}
-	// And the honest counterweight: this surface is not simply poorer. ADR-010
-	// records that one server is one writer to the ledger while parallel CLI
-	// processes race, so a caller told only "the CLI is fuller" has been given
-	// half the picture.
+	// And the honest counterweight: this surface is not simply poorer. One
+	// server is one writer and serializes in-process; a caller told only
+	// "the CLI is fuller" has been given half the picture.
 	if !strings.Contains(got, "serialized") {
 		t.Error("the instructions do not say this surface serializes ledger writes, which is the one thing it does better")
 	}

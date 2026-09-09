@@ -114,6 +114,11 @@ today, and this record does not claim it has been measured.
   costs a re-read and never licenses a wrong write. `scripts/contract.sh`
   section 24 pins that direction by asserting the files still in the ledger are
   EXACTLY the ones that can be written.
+
+  **Superseded 2026-09-09 by ADR-038.** The failure direction stands. The
+  accepted loss does not. `seen.Record` holds an exclusive lock for the
+  load-merge-save; §24 and §76 require 40 concurrent reads to keep 40. Locking
+  the *target* file a plan edits remains out of scope (ADR-002).
 - **Do nothing; document the gitignore line:** rejected. It puts the burden on
   every user of every repository, and the failure is silent until something is
   committed.

@@ -263,6 +263,13 @@ func formatSpans(o Observation) string {
 	return strings.Join(parts, ",")
 }
 
+// beforeLock runs after Record decides there is work and before it takes the
+// exclusive lock. Tests use it to start every goroutine at the lock, so an
+// unlocked mutant load-merge-saves from the same empty snapshot. It sits
+// OUTSIDE the lock: a barrier inside it deadlocks, because the others never
+// enter afterLoad while the first still holds LOCK_EX.
+var beforeLock func()
+
 // Record merges observations into the ledger on disk and saves it. Paths absent
 // from obs keep whatever was recorded for them: one command observing two files
 // must not erase what another observed about a third.
@@ -271,18 +278,47 @@ func formatSpans(o Observation) string {
 // reads of different ranges leave the caller having seen both. A different SHA
 // replaces the record outright, because spans counted in one version of a file
 // say nothing about another.
+//
+// ONE WRITER, EVEN ACROSS PROCESSES (ADR-038). The whole load-merge-save is
+// held under an exclusive lock on seen.lock, so N concurrent CLI processes
+// keep N entries. The format is unchanged.
 func Record(root string, obs map[string]Observation) error {
 	if len(obs) == 0 {
 		return nil
 	}
-	l, err := Load(root)
+	if beforeLock != nil {
+		beforeLock()
+	}
+	return withLock(root, func() error {
+		l, err := Load(root)
+		if err != nil {
+			return err
+		}
+		for path, o := range obs {
+			l[path] = merge(l[path], o)
+		}
+		return save(root, l)
+	})
+}
+
+func withLock(root string, fn func() error) error {
+	path, err := state.Path(root, Name+".lock")
 	if err != nil {
 		return err
 	}
-	for path, o := range obs {
-		l[path] = merge(l[path], o)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
 	}
-	return save(root, l)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := lock(f); err != nil {
+		return err
+	}
+	defer unlock(f)
+	return fn()
 }
 
 // merge combines a new observation with what was already recorded for the same

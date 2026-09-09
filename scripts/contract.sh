@@ -885,42 +885,37 @@ grep -E 'led\.txt' <<<"$out" | grep -qE 'lines 5( |$)' \
   && ok "and the ledger records only the line that was served" \
   || bad "ledger over-records: $(grep led.txt <<<"$out")"
 
-# 24. CONCURRENT invocations lose ledger entries, and the loss must stay SAFE.
-#     Every `mrw read` rewrites the whole ledger (load, merge, save) with no
-#     lock — ADR-002 puts locking permanently out of scope — so parallel reads
-#     clobber each other: 40 racing reads kept 1 entry here, while the same 40
-#     sequentially, or named in ONE call, keep all 40.
-#
-#     The lost entries are ACCEPTED. What must hold is the failure DIRECTION
-#     ADR-004 leans on: a missing entry costs a re-read and never licenses a
-#     wrong write. So the assertion is that the files still IN the ledger are
-#     exactly the ones that can be written — not merely that some writes were
-#     refused, which would pass on a build that refused everything, and not
-#     that changed == applied, which would pass on a build that failed OPEN.
+# 24. CONCURRENT invocations serialize on the ledger (ADR-038), and writability
+#     still follows the ledger exactly. ADR-038 closed the accepted loss: 40
+#     racing reads must keep 40. The skip-when-no-race branch is gone — a host
+#     that serialises is now the pass, not a hole. What must STILL hold is the
+#     failure DIRECTION ADR-004 leans on: a missing entry costs a re-read and
+#     never licenses a wrong write. So after the reads, the files still IN the
+#     ledger are exactly the ones that can be written — not merely that some
+#     writes were refused, which would pass on a build that refused everything,
+#     and not that changed == applied, which would pass on a build that failed
+#     OPEN. §76 is the keep-40 row; this one is the safety half.
 fixture
 N=40
 for i in $(seq 1 $N); do printf 'a\nb\nc\n' > "$R/r$i.txt"; done
 for i in $(seq 1 $N); do m read "r$i.txt" >/dev/null 2>&1 & done
 wait
 kept=$(m seen 2>/dev/null | grep -cE '(^| )r[0-9]+\.txt$')
-if [ "$kept" -ge "$N" ]; then
-  # The race did not reproduce — a fast or serialising machine. Asserting the
-  # safety property here would assert nothing, so it is skipped and said out
-  # loud rather than reported as a pass.
-  skip "concurrent reads lose ledger entries (no race observed here: $kept/$N kept)"
+if [ "$kept" -lt "$N" ]; then
+  bad "concurrent reads lost ledger entries ($kept/$N kept) — ADR-038 requires all 40"
 else
-  ok "concurrent reads lose ledger entries ($kept/$N kept), as ADR-002 accepts"
-  applied=0
-  for i in $(seq 1 $N); do
-    printf '@@ r%s.txt 2 replace\nB\n' "$i" | m write - >/dev/null 2>&1 && applied=$((applied + 1))
-  done
-  # THE ASSERTION: writability follows the ledger exactly. Fail-open makes this
-  # 40; refuse-everything makes it 0; only honouring the surviving entries
-  # makes it equal to what survived.
-  want "$kept" "$applied" "and exactly the files still in the ledger are writable"
-  changed=$(grep -lx 'B' "$R"/r*.txt 2>/dev/null | wc -l | tr -d ' ')
-  want "$applied" "$changed" "and no file changed that was not applied"
+  ok "concurrent reads keep every entry ($kept/$N kept)"
 fi
+applied=0
+for i in $(seq 1 $N); do
+  printf '@@ r%s.txt 2 replace\nB\n' "$i" | m write - >/dev/null 2>&1 && applied=$((applied + 1))
+done
+# THE ASSERTION: writability follows the ledger exactly. Fail-open makes this
+# 40 with a short ledger; refuse-everything makes it 0; only honouring the
+# surviving entries makes it equal to what survived.
+want "$kept" "$applied" "and exactly the files still in the ledger are writable"
+changed=$(grep -lx 'B' "$R"/r*.txt 2>/dev/null | wc -l | tr -d ' ')
+want "$applied" "$changed" "and no file changed that was not applied"
 
 # 25. A directory that EXISTS and cannot be READ is refused, not read as one
 #     holding no package. holdsPackage walks the directory and discarded the
@@ -4778,6 +4773,27 @@ grep -q 'through a pipe' <<<"$out" \
   || bad "instructions omitted the pipe trap: $out"
 out=$(m instructions nope 2>&1); rc=$?
 want 2 "$rc" "an extra argument is a usage error"
+
+# 76. ADR-038: a ledger write is one writer, even across processes.
+#
+# §24 keeps the safety half (writability follows the ledger). This row is the
+# keep-40 half, driven through $MRW, so a package-only lock that cmd/mrw does
+# not call cannot pass. Pair: 40 concurrent reads keep 40; then every one of
+# those files is writable, and no extra file changed.
+fixture
+N=40
+for i in $(seq 1 $N); do printf 'a\nb\nc\n' > "$R/p$i.txt"; done
+for i in $(seq 1 $N); do m read "p$i.txt" >/dev/null 2>&1 & done
+wait
+kept=$(m seen 2>/dev/null | grep -cE '(^| )p[0-9]+\.txt$')
+want "$N" "$kept" "40 concurrent reads keep 40 ledger entries"
+applied=0
+for i in $(seq 1 $N); do
+  printf '@@ p%s.txt 2 replace\nB\n' "$i" | m write - >/dev/null 2>&1 && applied=$((applied + 1))
+done
+want "$N" "$applied" "and every kept entry is writable"
+changed=$(grep -lx 'B' "$R"/p*.txt 2>/dev/null | wc -l | tr -d ' ')
+want "$applied" "$changed" "and no file changed that was not applied"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

@@ -178,10 +178,9 @@ here.
   "what did the caller see": `check` runs a subprocess, `seen` exposes the ledger, `stats` exposes
   the tally. None is obviously wrong; none is free.
 
-- **The CLI path's parallel-read limitation.** ADR-010 lifts it for MCP callers for free — one
-  server is one writer — and deliberately does not touch the CLI path, where parallel PROCESSES
-  race on a whole-file ledger rewrite. Measured: 40 racing reads kept 5. Fixing it there means
-  per-entry locking or an append-only ledger, which is a format change ADR-002 governs.
+- ~~**The CLI path's parallel-read limitation.**~~ **CLOSED 2026-09-09 by ADR-038.**
+  Exclusive lock around `seen.Record`. §76: 40 concurrent reads keep 40. The
+  hash-in-request fallback above stays; it is a different decision.
 
 - **Publishing to an MCP registry or directory.** Deferred from ADR-010-T3. The config block in the
   README is the install path; a registry listing is distribution work with its own review surface.
@@ -1332,9 +1331,8 @@ the older entry or record that still owns it.
 - **MCP tools for `check`, `iter`, `seen`, `stats`.** Still ADR-010's deferred
   follow-up. ADR-037 teaches that they exist on the CLI; it does not put them
   on the wire.
-- **The CLI parallel-read ledger race.** Still ADR-010's. Measured: 40 racing
-  reads kept 5. ADR-037 mentions it in the CLI pamphlet as a reason to prefer
-  MCP when several callers share one checkout; it does not change the ledger.
+- ~~**The CLI parallel-read ledger race.**~~ **CLOSED 2026-09-09 by ADR-038.**
+  Exclusive lock in `seen.Record`. §76 green.
 - **Streaming / memory-bounded apply, non-Go check scoping, unguarded
   multi-line delete, Windows `%LOCALAPPDATA%` state path, a live-model
   plan-authoring benchmark.** Already in this file under their parent records
@@ -1343,3 +1341,13 @@ the older entry or record that still owns it.
   two-way sync between the pamphlet and the contributor guide is a process tax
   ADR-037 refused. Revisit if `Contains(Shared())` starts failing because
   AGENTS.md reworded a sentence the binary still has.
+
+## From ADR-038 (a ledger write is one writer)
+
+- **A shared lock on `Load`, or an atomic save via rename.** ADR-038 locks
+  `Record` and leaves `Load` unlocked and `save` as `os.WriteFile`. A reader
+  that opens the ledger in the middle of that write could see a torn file.
+  Unmeasured. Promote when one is observed; prefer rename-over (with a Windows
+  answer) rather than a shared lock first. The exclusive lock already serializes
+  writers, so the only remaining reader is `Load` / `mrw seen` / `apply` at the
+  start of a write.
