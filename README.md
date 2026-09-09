@@ -522,8 +522,8 @@ Running the tests needs only Go (`go test ./...`). Running the two reproduction
 scripts additionally needs **bash**, **git**, **awk** and a POSIX userland — the
 ordinary `sed`, `tr`, `wc`, `mktemp` and friends — on `PATH`.
 `scripts/contract.sh` needs more than that: **python3** (it builds and inspects
-JSON on 86 non-comment lines), plus **perl**, **jq**, **shasum**, **pgrep** and
-**seq** — the last is not in POSIX and is used on 21 lines.
+JSON throughout), plus **perl**, **jq**, **shasum**, **pgrep** and **seq** — the
+last is not in POSIX.
 None of those four was ever listed. Neither script needs `bc` any more:
 `measure.sh` was its only user, and `bc scale=1` TRUNCATES, so a ratio of
 1.29 printed as 1.2 and understated mrw's own loss. On Windows both scripts
