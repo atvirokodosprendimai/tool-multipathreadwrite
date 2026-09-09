@@ -4763,6 +4763,22 @@ grep -q 'end pattern' <<<"$out" \
 grep -q '@@ 1-3' <<<"$out" \
   && ok "and the span that DID resolve is still served" \
   || bad "reporting the problem threw away the resolved span: $out"
+# 75. ADR-037: the binary teaches the format it demands.
+#
+# A unit test on guide.CLI cannot prove the shipped binary prints it. Drive
+# $MRW: the good case is exit 0 and the trigger plus the pipe trap, and the
+# pair is an extra argument, which is usage — not a file to append to.
+out=$(m instructions 2>&1); rc=$?
+want 0 "$rc" "mrw instructions exits 0"
+grep -q '3 or more edits, 2 or more files, or several ranges you need to read' <<<"$out" \
+  && ok "and it prints the trigger" \
+  || bad "instructions omitted the trigger: $out"
+grep -q 'through a pipe' <<<"$out" \
+  && ok "and it names the pipe trap" \
+  || bad "instructions omitted the pipe trap: $out"
+out=$(m instructions nope 2>&1); rc=$?
+want 2 "$rc" "an extra argument is a usage error"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

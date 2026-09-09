@@ -1,6 +1,10 @@
 package mcp
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/guide"
+)
 
 // This file is the only documentation an MCP caller has.
 //
@@ -54,16 +58,15 @@ var exampleReadSpecs = []string{
 // place the 2025-06-18 lifecycle provides for a server to say how it is meant
 // to be driven.
 //
-// It is a function rather than a constant because it interpolates the same
-// examplePlan the tool schema publishes: one worked plan, quoted twice, so the
-// two copies cannot disagree about a format that has no second source.
+// It is a function rather than a constant because it prepends guide.Shared
+// (ADR-037) and interpolates the same examplePlan the tool schema publishes:
+// one worked plan, quoted twice, so the two copies cannot disagree about a
+// format that has no second source.
 func instructionsText() string {
-	return fmt.Sprintf(`mrw reads many file ranges and applies many edits in ONE call, and it reports a
-verdict for EVERY edit. The failure it exists to prevent: a read that finds
-nothing is obvious, a write that changes nothing is not.
+	return guide.Shared() + "\n\n" + fmt.Sprintf(`mrw reads many ranges and applies many edits in ONE call; every edit gets a verdict.
+A read that finds nothing is obvious; a write that changes nothing is not.
 
-WHICH SURFACE. Reach for mrw when the task touches %s. Below that use your
-editor: same two calls, more bytes than the file holds.
+WHICH SURFACE. Below that use your editor: same two calls, more bytes than the file.
 
 Then choose. The CLI is broader — only it has --files-from, --check (the
 project's tests, scoped to your writes), and check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; --root goes
@@ -73,11 +76,8 @@ server is one writer to the ledger while parallel CLI processes race. With
 a shell prefer the CLI; prefer this one with none, or when callers sharing
 ONE fixed checkout want writes serialized.
 
-THE TWO RULES THAT PRODUCE MOST REFUSALS.
-1. Read before you write, per LINE not per file: served lines 10-12 do not
-   license an edit at line 50. Only mrw_read serves lines; ack on either tool records them.
-2. A plan is all or nothing: if any hunk fails NOTHING is written and the
-   siblings report skipped, never ok.
+Only mrw_read serves lines; ack records them. Lines 10-12 do not license line 50.
+A failing hunk's siblings report skipped, never ok.
 
 READING. mrw_read takes specs: a bare path, path:N, path:N-M, path:A,+N (A plus
 the N lines after it), path:$ for the last line, or path:/regexp/ — the read
@@ -117,11 +117,10 @@ body=<n> and raw=true, or the plan is refused.
 A worked plan:
 
 %s
-dry_run true: same receipt, no write. A refusal is the tool working:
-it names the file, the plan line and the reason.
+dry_run true: same receipt, no write. A refusal is the tool working.
 
 Both tools cap the ENCODED answer at the ceiling _meta names. An oversized
 write receipt drops successes then UNWRITTEN files and says so in elided;
 smaller still, one sentence and no receipt.
-`, triggerRule, exampleReadSpecs, AckRule, examplePlan)
+`, exampleReadSpecs, AckRule, examplePlan)
 }

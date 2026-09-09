@@ -94,3 +94,15 @@ func TestTheGateDoesNotAcceptAPrefixOfAnotherCommand(t *testing.T) {
 		t.Error("documented() accepts `stat` because `stats` is documented — the prefix hole this test exists to keep closed")
 	}
 }
+
+func TestReadmeAndSkillNameInstructions(t *testing.T) {
+	for _, path := range []string{"../../README.md", "../../.claude/skills/mrw/SKILL.md"} {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("reading %s: %v", path, err)
+		}
+		if !documented(string(b), "instructions") {
+			t.Errorf("%s never mentions %q — a caller who reads the mirror is not told the binary prints its own contract", path, "mrw instructions")
+		}
+	}
+}

@@ -332,11 +332,15 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 
 ### 5. The other subcommands
 
-Four commands exist that the recipes above never reach for. They are listed
+These commands exist that the recipes above never reach for. They are listed
 here because the centralised `mrw` skill mirrors this file, so a command
 absent from it is a command no agent knows to ask for — the defect in issues #51
 and #73, one release apart.
 
+- **`mrw instructions`** prints the contract from the binary: when to reach for
+  mrw, the two rules that produce most refusals, and the traps that make a red
+  run look green. Exit 0. No flags. A caller who installed mrw and has neither
+  this checkout nor the skill can learn the format from this.
 - **`mrw check`** runs the project's check on its own, scoped to the working
   set or to paths you name. `mrw write --check` is the same runner bolted onto
   a write; this is it without the write, for when you want the verdict again

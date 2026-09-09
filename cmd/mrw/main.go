@@ -36,6 +36,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/guide"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
@@ -163,7 +164,7 @@ func rootCommand() *cli.Command {
 			cmd.Metadata = map[string]any{"notFound": cli.Exit(
 				fmt.Sprintf("unknown command %q (want %s)", name, strings.Join(names, ", ")), exitUsage)}
 		},
-		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd()},
+		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd()},
 	}
 }
 
@@ -298,6 +299,25 @@ func resultBudget(cmd *cli.Command, lookup func(string) (string, bool)) (int, er
 		return n, nil
 	}
 	return mcp.DefaultMaxResultChars, nil
+}
+
+// instructionsCmd prints the contract a caller with only this binary is entitled to.
+func instructionsCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "instructions",
+		Usage: "print the contract a caller with only this binary is entitled to",
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			if cmd.Args().Len() != 0 {
+				return cli.Exit("instructions takes no arguments", exitUsage)
+			}
+			out := cmd.Root().Writer
+			if out == nil {
+				out = os.Stdout
+			}
+			_, err := fmt.Fprint(out, guide.CLI())
+			return err
+		},
+	}
 }
 
 // statsCmd prints what became of the plans this checkout has been given.

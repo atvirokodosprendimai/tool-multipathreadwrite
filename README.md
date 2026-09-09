@@ -1175,6 +1175,13 @@ lines 201-204 contained is the one fact not already in the system — which is
 also why writing the body by copying it back out of `mrw read` asserts nothing.
 Write it from your intent, or leave it off.
 
+## Instructions — the contract from the binary
+
+`mrw instructions` prints when to reach for mrw, the two rules that produce most
+refusals, and the traps that make a red run look green. Exit 0. No flags. A
+caller who installed the binary and has neither this checkout nor the skill can
+learn the format from that.
+
 ## Stats — can a caller actually author a plan?
 
 ```sh
