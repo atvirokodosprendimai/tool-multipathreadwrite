@@ -532,6 +532,21 @@ need WSL or Git Bash.
 
 ### Use it from an MCP host
 
+**Which surface, and where to register it.** On a host that has a shell, the CLI
+is the surface. It is the broader one — `--files-from`, `--check`, and the
+`check`, `iter`, `seen` and `stats` subcommands exist only there — and it needs
+no registration at all. Register this server for the ONE project that needs it
+rather than for your user account, because a user-scope registration loads
+`mrw_read` and `mrw_write` into every project on the machine, and an instruction
+written in one repository does not reach the others. In Claude Code that is
+`claude mcp add -s project mrw -- mrw mcp`, which writes a `.mcp.json` in the
+repository; user scope lives in `~/.claude.json`. Measured on one machine on
+2026-09-09: the repository whose own instructions said to drive mrw through the
+shell made 9 MCP calls in a week, every one a deliberate probe of this arm,
+while a repository with no such instruction and the same machine-wide
+registration made 57 MCP writes in a single day. Register for the user account
+on a host WITHOUT a shell, where these two tools are the whole interface.
+
 `mrw mcp` speaks the Model Context Protocol on stdio, so an agent reaches the
 same engine without shell access. Add one block to your host's config:
 
