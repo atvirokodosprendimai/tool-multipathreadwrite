@@ -37,10 +37,9 @@ moment you read it.
 
 The reason the mirror exists at all: mrw is installed globally and is reached for
 from repositories that never see this file, so a copy discoverable only inside
-its own repo is missing from most of the places the tool is used. Shipping the
-text inside the binary (`mrw instructions`) is the option that needs no memory
-server and reaches every repository; it was considered on 2026-09-03 and not
-taken, because it makes a new public contract.
+its own repo is missing from most of the places the tool is used. `mrw instructions`
+prints the contract from the binary — ADR-037 — so a caller with only the install
+needs neither this file nor the palace.
 
 ## What this file used to claim, and why the correction is here
 

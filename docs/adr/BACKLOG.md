@@ -1322,3 +1322,24 @@ Alternatives had to answer.
   value and the writes see one ledger state. Not attempted here — it is a change
   to a contract row that guards ADR-002, and doing it inside a documentation PR
   is how a gate quietly stops asserting what it was written for.
+
+## From ADR-037 (the binary teaches the format it demands)
+
+Classified 2026-09-09 from the review; this heading is the receipt so `adr-debt`
+does not report UNRECEIPTED. Nothing here is newly invented — each line names
+the older entry or record that still owns it.
+
+- **MCP tools for `check`, `iter`, `seen`, `stats`.** Still ADR-010's deferred
+  follow-up. ADR-037 teaches that they exist on the CLI; it does not put them
+  on the wire.
+- **The CLI parallel-read ledger race.** Still ADR-010's. Measured: 40 racing
+  reads kept 5. ADR-037 mentions it in the CLI pamphlet as a reason to prefer
+  MCP when several callers share one checkout; it does not change the ledger.
+- **Streaming / memory-bounded apply, non-Go check scoping, unguarded
+  multi-line delete, Windows `%LOCALAPPDATA%` state path, a live-model
+  plan-authoring benchmark.** Already in this file under their parent records
+  (ADR-001, ADR-003, ADR-008, ADR-004, ADR-009). ADR-037 does not reopen them.
+- **Generating AGENTS.md from `guide.Shared()`.** New, and cheap to want. A
+  two-way sync between the pamphlet and the contributor guide is a process tax
+  ADR-037 refused. Revisit if `Contains(Shared())` starts failing because
+  AGENTS.md reworded a sentence the binary still has.

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/guide"
 )
 
 // TestMain owns the directory buildCLI builds into. Registering the removal
@@ -310,6 +312,23 @@ func TestTheInstructionsTellAHostHowToAuthorAPlan(t *testing.T) {
 	}
 	// Paid on every session, by every host that reads the field. A bound is
 	// what keeps this from becoming a second copy of AGENTS.md.
+	if len(got) > maxInstructionsChars {
+		t.Errorf("instructions are %d bytes, over the %d-byte bound", len(got), maxInstructionsChars)
+	}
+}
+
+func TestMCPInstructionsContainShared(t *testing.T) {
+	got := instructionsText()
+	shared := guide.Shared()
+	if shared == "" {
+		t.Fatal("Shared() is empty; strings.Contains would pass vacuously")
+	}
+	if !strings.Contains(got, shared) {
+		t.Errorf("instructionsText does not contain guide.Shared() verbatim")
+	}
+	if maxInstructionsChars != 4096 {
+		t.Errorf("maxInstructionsChars is %d; ADR-037 forbids raising the bound", maxInstructionsChars)
+	}
 	if len(got) > maxInstructionsChars {
 		t.Errorf("instructions are %d bytes, over the %d-byte bound", len(got), maxInstructionsChars)
 	}
