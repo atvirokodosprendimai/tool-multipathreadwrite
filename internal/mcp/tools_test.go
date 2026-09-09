@@ -221,9 +221,9 @@ func TestAWriteToAnUnreadFileIsRefusedOverMCP(t *testing.T) {
 }
 
 func TestConcurrentToolCallsDoNotLoseALedgerEntry(t *testing.T) {
-	// The concurrency gap ADR-010 closes: parallel CLI PROCESSES race because
-	// the ledger is a whole-file rewrite. One server is one writer, so calls
-	// made through it must serialize.
+	// ADR-010 closed in-process races: one server is one writer. ADR-038
+	// closed the CLI process race. This test still pins in-process
+	// serialization.
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	const n = 12

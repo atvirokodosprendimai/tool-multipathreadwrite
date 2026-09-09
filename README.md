@@ -542,9 +542,9 @@ need WSL or Git Bash.
 the CLI. It is the broader one — `--files-from`, `--check`, and the `check`,
 `iter`, `seen` and `stats` subcommands exist only there — and it needs no
 registration at all. It is not simply the better one, and the handshake says so:
-one server is one writer to the ledger, while parallel CLI processes race, so
-callers sharing ONE fixed checkout may want their writes serialized through this
-surface instead. Where that does not apply, register this server for the ONE
+one server is one writer to the ledger and serializes in-process, so
+callers sharing ONE fixed checkout may still want that rather than waiting
+on the flock a CLI process takes. Where that does not apply, register this server for the ONE
 project that needs it rather than for your user account, because a user-scope
 registration loads `mrw_read` and `mrw_write` into every project on the machine,
 and an instruction written in one repository does not reach the others. In Claude
@@ -1383,19 +1383,14 @@ numbers were counted in.
 a per-checkout state directory **outside the working tree** — mrw creates
 nothing in your repository. `mrw seen` prints where it is and what it holds.
 
-Run mrw **one call at a time** against a checkout — this is the CLI path's
-limitation, and after `mrw mcp` it is no longer the whole story. Each read
-rewrites the whole ledger for that checkout, and parallel invocations overwrite
-one another's entries — 40 racing reads kept 5. Nothing is corrupted and nothing
-is wrongly written; the cost is that a file whose entry was lost has to be read
-again. Naming every path in ONE `mrw read` is both faster and unaffected, which
-is the call shape the tool is built around anyway.
+Each read rewrites the whole ledger for that checkout. Parallel CLI invocations
+serialize on that rewrite (ADR-038): every concurrent read keeps its entry.
+Naming every path in ONE `mrw read` is still faster, which is the call shape
+the tool is built around anyway.
 
-Calls made **through the server** do not race: one server is one process and
-serializes its own calls in-process, so an agent speaking MCP can fan out
-freely. A `mrw` invocation running *beside* a server is still a second process
-rewriting the same ledger file, so that pairing is still subject to the
-paragraph above.
+Calls made **through the server** serialize in-process and do not wait on the
+flock. A `mrw` invocation running *beside* a server takes the same lock, so the
+pair queues rather than overwriting.
 
 What is recorded is **what you were shown**, not what mrw hashed. A read that
 printed no content observes nothing, and a read of lines 1-5 observes lines
