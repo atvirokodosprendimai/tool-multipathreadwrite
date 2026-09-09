@@ -32,9 +32,10 @@ func TestEveryDeclaredOutputSchemaValidatesARealResponse(t *testing.T) {
 	// refused (ADR-002), and a refusal validates the schema's top level while
 	// never exercising the success-only fields (`applied`, `written`,
 	// `sha_after`). Found by the Codex review of #110.
-	call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	readRes := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
 	responses := map[string]map[string]any{}
-	w := call(t, root, "mrw_write", map[string]any{"plan": "@@ a.txt 1 replace\nONE\n"})
+	w := call(t, root, "mrw_write", map[string]any{
+		"plan": "@@ a.txt 1 replace\nONE\n", "ack": checkpointsIn(served0(t, readRes))})
 	if w["isError"] == true {
 		t.Fatalf("the write was refused, so the schema would be validated against a refusal: %v", w["content"])
 	}
@@ -410,8 +411,9 @@ func dryRunExample(t *testing.T, text string) {
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	specs := treeFor(t, root, hunks)
-	call(t, root, "mrw_read", map[string]any{"specs": specs})
-	got := structured(t, call(t, root, "mrw_write", map[string]any{"plan": text, "dry_run": true}))
+	readRes := call(t, root, "mrw_read", map[string]any{"specs": specs})
+	got := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": text, "dry_run": true, "ack": checkpointsIn(served0(t, readRes))}))
 	if n, _ := got["failed"].(float64); n != 0 {
 		t.Errorf("the shipped example failed %v hunk(s) on a real dry run: %v", n, got["hunks"])
 	}

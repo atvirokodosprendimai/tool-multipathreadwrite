@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -132,15 +133,20 @@ func TestTheWriteToolReturnsTheSameResultAsTheCLI(t *testing.T) {
 
 	// Two identical checkouts so both transports face the same starting tree.
 	mcpRoot, path := checkout(t, "a.txt", "one\ntwo\n")
-	call(t, mcpRoot, "mrw_read", map[string]any{"specs": []any{path}})
-	got := structured(t, call(t, mcpRoot, "mrw_write", map[string]any{"plan": planText}))
+	acks := checkpointsIn(served0(t, call(t, mcpRoot, "mrw_read", map[string]any{"specs": []any{path}})))
+	got := structured(t, call(t, mcpRoot, "mrw_write", map[string]any{"plan": planText, "ack": acks}))
 
 	cliRoot, cliPath := checkout(t, "a.txt", "one\ntwo\n")
 	if _, err := os.ReadFile(filepath.Join(cliRoot, cliPath)); err != nil {
 		t.Fatal(err)
 	}
-	// Read first on this side too, so read-before-write is satisfied identically.
-	call(t, cliRoot, "mrw_read", map[string]any{"specs": []any{cliPath}})
+	// CLI read licenses without ack (ADR-039 T2). Drive the built binary so
+	// this is not a second MCP serve.
+	bin := buildCLI(t)
+	cliRead := exec.Command(bin, "--root", cliRoot, "read", cliPath)
+	if out, err := cliRead.CombinedOutput(); err != nil {
+		t.Fatalf("cli read: %v\n%s", err, out)
+	}
 	want := cliWrite(t, cliRoot, planText)
 
 	// Compare the DECODED structuredContent against the CLI's result marshalled
@@ -169,7 +175,10 @@ func TestTheWriteToolReturnsTheSameResultAsTheCLI(t *testing.T) {
 
 func TestTheReadToolObservesWhatTheCLIWouldObserve(t *testing.T) {
 	root, path := checkout(t, "a.txt", "one\ntwo\nthree\n")
-	call(t, root, "mrw_read", map[string]any{"specs": []any{path + ":1-2"}})
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path + ":1-2"}})
+	if err := promote(root, asStrings(checkpointsIn(served0(t, res)))); err != nil {
+		t.Fatal(err)
+	}
 
 	ledger, err := seen.Load(root)
 	if err != nil {
@@ -177,7 +186,7 @@ func TestTheReadToolObservesWhatTheCLIWouldObserve(t *testing.T) {
 	}
 	obs, ok := ledger[path]
 	if !ok {
-		t.Fatalf("a read over MCP left no ledger entry; ledger = %v", ledger)
+		t.Fatalf("an acknowledged MCP read left no ledger entry; ledger = %v", ledger)
 	}
 	if obs.SHA == "" {
 		t.Error("the ledger entry carries no SHA, so a later write cannot tell whether the file moved")
@@ -191,11 +200,14 @@ func TestAnMCPReadLicensesACLIWrite(t *testing.T) {
 	// One guarantee, not one per transport. This is what makes ADR-002 hold
 	// across both, and it works because there is one ledger on disk.
 	root, path := checkout(t, "a.txt", "one\ntwo\n")
-	call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	if err := promote(root, asStrings(checkpointsIn(served0(t, res)))); err != nil {
+		t.Fatal(err)
+	}
 
-	res := cliWrite(t, root, "@@ a.txt 1 replace\nONE\n")
-	if !res.Applied || res.Failed != 0 {
-		t.Fatalf("a CLI write after an MCP read was refused: %+v", res)
+	applied := cliWrite(t, root, "@@ a.txt 1 replace\nONE\n")
+	if !applied.Applied || applied.Failed != 0 {
+		t.Fatalf("a CLI write after an acknowledged MCP read was refused: %+v", applied)
 	}
 }
 
@@ -252,6 +264,29 @@ func TestConcurrentToolCallsDoNotLoseALedgerEntry(t *testing.T) {
 	}
 	wg.Wait()
 
+	store, err := loadPending(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var acks []string
+	held := map[string]bool{}
+	for ck, p := range store {
+		acks = append(acks, ck)
+		held[p.Path] = true
+	}
+	var missingPending []string
+	for _, name := range names {
+		if !held[name] {
+			missingPending = append(missingPending, name)
+		}
+	}
+	if len(missingPending) > 0 {
+		t.Fatalf("%d of %d concurrent reads left no pending span: %v", len(missingPending), n, missingPending)
+	}
+	if err := promote(root, acks); err != nil {
+		t.Fatal(err)
+	}
+
 	ledger, err := seen.Load(root)
 	if err != nil {
 		t.Fatal(err)
@@ -263,7 +298,7 @@ func TestConcurrentToolCallsDoNotLoseALedgerEntry(t *testing.T) {
 		}
 	}
 	if len(missing) > 0 {
-		t.Errorf("%d of %d reads left no ledger entry: %v", len(missing), n, missing)
+		t.Errorf("%d of %d reads left no ledger entry after ack: %v", len(missing), n, missing)
 	}
 }
 
@@ -374,12 +409,16 @@ func TestAReadUnderTheLimitIsUnchanged(t *testing.T) {
 	if p, _ := sc["problems"].(float64); p != 0 {
 		t.Errorf("problems = %v, want 0", p)
 	}
+	text := served0(t, res)
+	if len(checkpointsIn(text)) == 0 {
+		t.Fatal("an ordinary under-limit MCP read carries no checkpoints — that is the hole ADR-039 closes")
+	}
 	ledger, err := seen.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := ledger[path]; !ok {
-		t.Error("an ordinary read left no ledger entry")
+	if _, ok := ledger[path]; ok {
+		t.Error("an ordinary under-limit MCP read left a ledger entry before ack")
 	}
 }
 
@@ -1153,6 +1192,23 @@ func TestAReadThatServedNothingIsAnError(t *testing.T) {
 
 // checkpointsIn pulls ADR-031's markers out of a served page, which is what a
 // caller that actually received the text can do and one that did not cannot.
+func asStrings(acks []any) []string {
+	out := make([]string, len(acks))
+	for i, a := range acks {
+		out[i] = fmt.Sprint(a)
+	}
+	return out
+}
+
+func acksFromRaw(t *testing.T, raw []byte) []any {
+	t.Helper()
+	var res map[string]any
+	if err := json.Unmarshal(raw, &res); err != nil {
+		t.Fatal(err)
+	}
+	return checkpointsIn(served0(t, res))
+}
+
 func checkpointsIn(text string) []any {
 	var out []any
 	for _, line := range strings.Split(text, "\n") {

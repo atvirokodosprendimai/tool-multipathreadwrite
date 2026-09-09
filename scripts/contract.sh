@@ -4818,6 +4818,50 @@ want "$N" "$applied" "and every kept entry is writable"
 changed=$(grep -lx 'B' "$R"/p*.txt 2>/dev/null | wc -l | tr -d ' ')
 want "$applied" "$changed" "and no file changed that was not applied"
 
+# 77. ADR-039: a fitting read licenses only what came back.
+#
+# A unit test on hold cannot prove the built server calls it. Drive $MRW mcp:
+# a three-line file must carry checkpoints, an unacked write is refused and
+# leaves the tree unchanged, and the same write with ack applies. Pair both
+# halves so a server that licenses nothing cannot pass.
+fixture
+printf 'one\ntwo\nthree\n' > "$R/small.txt"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["small.txt"]}}}\n' | m mcp 2>/dev/null)
+want 0 $? "the server answers a fitting read"
+printf '%s' "$out" > "$R/fit.json"
+python3 - "$R/fit.json" <<'PY'
+import json,re,sys
+r=json.load(open(sys.argv[1]))["result"]
+t=r["content"][0]["text"]
+assert "-- PARTIAL:" not in t, "the fixture paged; §77 must drive a fitting serve"
+cks=re.findall(r"^-- ck ([0-9a-f]{16}) open ", t, re.M)
+assert cks, "a fitting serve carried no checkpoints"
+open(sys.argv[1]+".cks","w").write(" ".join(cks))
+PY
+want 0 $? "a fitting serve carries checkpoints and did not page"
+cks=$(cat "$R/fit.json.cks")
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ small.txt 2 replace\\nTWO\\n"}}}\n' | m mcp 2>/dev/null)
+python3 - "$out" "$R/small.txt" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == 1 and sc.get("applied") is False, "an unacked fitting write applied: %s" % sc
+reason=(sc["hunks"][0].get("reason") or "")
+assert "ack" in reason.lower() or "Send an id in ack only if you hold BOTH" in reason, "the refusal does not name ack / AckRule: %s" % reason
+assert open(sys.argv[2]).read() == "one\ntwo\nthree\n", "an unacked write changed the tree"
+PY
+want 0 $? "an unacked fitting write is refused and the tree is unchanged"
+first=$(printf '%s' "$cks" | awk '{print $1}')
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ small.txt 2 replace\\nTWO\\n","ack":["%s"]}}}\n' "$first" | m mcp 2>/dev/null)
+python3 - "$out" "$R/small.txt" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == 0, "an acked fitting write was refused: %s" % sc
+assert open(sys.argv[2]).read() == "one\nTWO\nthree\n", "an acked write did not apply"
+PY
+want 0 $? "an acked fitting write applies"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

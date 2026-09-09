@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -92,8 +93,7 @@ func TestAPendingRecordReachesNoLedger(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, spans := interleave(served(1, 500))
-	obs := map[string]seen.Observation{"f.txt": {SHA: "deadbeef", Spans: [][2]int{{1, 500}}}}
-	if err := hold(root, obs, spans); err != nil {
+	if err := hold(root, "f.txt", "deadbeef", spans); err != nil {
 		t.Fatal(err)
 	}
 
@@ -129,8 +129,7 @@ func TestOnlyAckedSegmentsAreRecorded(t *testing.T) {
 	// and the ledger's SHA check would refuse it anyway.
 	sum0 := sha256.Sum256([]byte(body))
 	_, spans := interleave(served(1, 500))
-	obs := map[string]seen.Observation{"f.txt": {SHA: hex.EncodeToString(sum0[:]), Spans: [][2]int{{1, 500}}}}
-	if err := hold(root, obs, spans); err != nil {
+	if err := hold(root, "f.txt", hex.EncodeToString(sum0[:]), spans); err != nil {
 		t.Fatal(err)
 	}
 
@@ -224,7 +223,7 @@ func TestOnlyAckedSegmentsAreRecorded(t *testing.T) {
 			l2 = ck
 		}
 	}
-	if err := hold(root2, map[string]seen.Observation{"f.txt": {SHA: sha, Spans: [][2]int{{1, 500}}}}, spans2); err != nil {
+	if err := hold(root2, "f.txt", sha, spans2); err != nil {
 		t.Fatal(err)
 	}
 	if err := promote(root2, []string{f2, l2}); err != nil {
@@ -297,10 +296,10 @@ func TestAStaleAcknowledgementDoesNotLicenseTheCurrentFile(t *testing.T) {
 	for ck := range newSpans {
 		newCk = ck
 	}
-	if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: "0000aaaa"}}, oldSpans); err != nil {
+	if err := hold(root, "f.txt", "0000aaaa", oldSpans); err != nil {
 		t.Fatal(err)
 	}
-	if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: "1111bbbb"}}, newSpans); err != nil {
+	if err := hold(root, "f.txt", "1111bbbb", newSpans); err != nil {
 		t.Fatal(err)
 	}
 	if err := promote(root, []string{oldCk, newCk}); err != nil {
@@ -341,10 +340,10 @@ func TestAStaleAcknowledgementDoesNotRevokeTheCurrentOne(t *testing.T) {
 	for ck := range current {
 		curCk = ck
 	}
-	if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: "00000000deadbeef"}}, stale); err != nil {
+	if err := hold(root, "f.txt", "00000000deadbeef", stale); err != nil {
 		t.Fatal(err)
 	}
-	if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: live}}, current); err != nil {
+	if err := hold(root, "f.txt", live, current); err != nil {
 		t.Fatal(err)
 	}
 	// ⚠ The pending records are RECREATED each round. An earlier version looped
@@ -352,10 +351,10 @@ func TestAStaleAcknowledgementDoesNotRevokeTheCurrentOne(t *testing.T) {
 	// — so rounds 2-20 were no-ops and the map-order implementation could still
 	// pass by luck. Found by the review of PR #132.
 	for i := 0; i < 20; i++ {
-		if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: "00000000deadbeef"}}, map[string][2]int{staleCk: stale[staleCk]}); err != nil {
+		if err := hold(root, "f.txt", "00000000deadbeef", map[string][2]int{staleCk: stale[staleCk]}); err != nil {
 			t.Fatal(err)
 		}
-		if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: live}}, map[string][2]int{curCk: current[curCk]}); err != nil {
+		if err := hold(root, "f.txt", live, map[string][2]int{curCk: current[curCk]}); err != nil {
 			t.Fatal(err)
 		}
 		if err := promote(root, []string{staleCk, curCk}); err != nil {
@@ -402,9 +401,15 @@ func TestEverySurfaceCarriesTheOneRule(t *testing.T) {
 		if !strings.Contains(string(b), AckRule) {
 			t.Errorf("%s does not carry the acknowledgement rule verbatim, so it can drift from what the server enforces", f)
 		}
+		if strings.Contains(string(b), "A page licenses nothing until you acknowledge it") {
+			t.Errorf("%s still teaches acknowledgement as pages-only", f)
+		}
 	}
 	if !strings.Contains(instructionsText(), AckRule) {
 		t.Error("the MCP instructions do not carry the acknowledgement rule verbatim")
+	}
+	if strings.Contains(instructionsText(), "A PAGE LICENSES NOTHING") {
+		t.Error("the MCP instructions still teach acknowledgement as pages-only")
 	}
 
 	// ⚠ AND THE SURFACES A CALLER ACTUALLY MEETS. Checking the two documents and
@@ -421,6 +426,8 @@ func TestEverySurfaceCarriesTheOneRule(t *testing.T) {
 		}
 		if d, _ := ack["description"].(string); !strings.Contains(d, AckRule) {
 			t.Errorf("%s's ack description paraphrases the rule instead of carrying it: %s", tl.Name, d)
+		} else if strings.Contains(d, "paged read") {
+			t.Errorf("%s's ack description still frames the requirement as pages-only: %s", tl.Name, d)
 		}
 	}
 }
@@ -473,7 +480,7 @@ func TestThePendingStoreIsBounded(t *testing.T) {
 	}
 	for i := 0; i < maxPending+64; i++ {
 		spans := map[string][2]int{checkpoint(): {i + 1, i + 1}}
-		if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: "deadbeef"}}, spans); err != nil {
+		if err := hold(root, "f.txt", "deadbeef", spans); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -500,7 +507,7 @@ func TestTheRemedyMatchesTheRefusedAddress(t *testing.T) {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256([]byte(body))
-	if err := hold(root, map[string]seen.Observation{"f.txt": {SHA: hex.EncodeToString(sum[:])}},
+	if err := hold(root, "f.txt", hex.EncodeToString(sum[:]),
 		map[string][2]int{checkpoint(): {1, 1000}}); err != nil {
 		t.Fatal(err)
 	}
@@ -535,5 +542,135 @@ func TestTheRemedyMatchesTheRefusedAddress(t *testing.T) {
 					got, c.remedy, c.line, res.Hunks[0].Reason)
 			}
 		})
+	}
+}
+
+// TestAFittingReadLicensesOnlyWhatCameBack is ADR-039's Enforced-by. A fitting
+// MCP serve used to call seen.Record before returning, so a host that cut it
+// licensed lines nobody received — the ADR-031 hole, one size class down.
+func TestAFittingReadLicensesOnlyWhatCameBack(t *testing.T) {
+	root, path := checkout(t, "a.txt", "one\ntwo\nthree\n")
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
+	text := served0(t, res)
+	acks := checkpointsIn(text)
+	if len(acks) == 0 {
+		t.Fatal("a fitting MCP read carries no checkpoints, so nothing can be acknowledged")
+	}
+	if !strings.Contains(text, "-- ck ") || !strings.Contains(text, " open lines ") || !strings.Contains(text, " close") {
+		t.Fatalf("a fitting serve is not bracketed the way a page is:\n%s", text)
+	}
+
+	ledger, err := seen.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := ledger[path]; ok {
+		t.Fatal("a fitting MCP read licensed the file on serve — that is the hole ADR-039 closes")
+	}
+
+	unacked := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": "@@ a.txt 2 replace\nTWO\n"}))
+	if n, _ := unacked["failed"].(float64); n == 0 {
+		t.Fatalf("a write without ack after a fitting serve applied: %v", unacked)
+	}
+	hunks, _ := unacked["hunks"].([]any)
+	if len(hunks) == 0 {
+		t.Fatal("the refused write named no hunk")
+	}
+	h0, _ := hunks[0].(map[string]any)
+	reason, _ := h0["reason"].(string)
+	if !strings.Contains(reason, "ack") && !strings.Contains(reason, AckRule) {
+		t.Errorf("the refusal does not name ack / AckRule: %s", reason)
+	}
+	body, err := os.ReadFile(filepath.Join(root, path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "one\ntwo\nthree\n" {
+		t.Errorf("an unacked write changed the tree: %q", body)
+	}
+
+	ok := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": "@@ a.txt 2 replace\nTWO\n", "ack": acks}))
+	if n, _ := ok["failed"].(float64); n != 0 {
+		t.Errorf("the same write with ack was refused: %v", ok["hunks"])
+	}
+	body, err = os.ReadFile(filepath.Join(root, path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "one\nTWO\nthree\n" {
+		t.Errorf("acked write did not apply: %q", body)
+	}
+}
+
+// TestAFittingReadHoldsPendingPerFile pins the hold reshape. Today's hold
+// picks one path from the observation map, so a two-file fixture is the only
+// shape that can fail if that loop survives.
+func TestAFittingReadHoldsPendingPerFile(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	for name, body := range map[string]string{"a.txt": "A1\nA2\nA3\n", "b.txt": "B1\nB2\nB3\n"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{"a.txt", "b.txt"}})
+	text := served0(t, res)
+	aAcks := checkpointsBetween(text, "a.txt", "b.txt")
+	if len(aAcks) == 0 {
+		t.Fatal("file A carried no checkpoints")
+	}
+
+	noB := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": "@@ b.txt 2 replace\nBB\n", "ack": aAcks}))
+	if n, _ := noB["failed"].(float64); n == 0 {
+		t.Fatalf("acking only A's ids licensed a write to B: %v", noB)
+	}
+	okA := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": "@@ a.txt 2 replace\nAA\n", "ack": aAcks}))
+	if n, _ := okA["failed"].(float64); n != 0 {
+		t.Errorf("acking A's ids did not license A: %v", okA["hunks"])
+	}
+}
+
+// checkpointsBetween returns open-marker ids that sit after ==> path and
+// before the next ==> header (or EOF). That is how a caller tells which file
+// a checkpoint brackets on a multi-file serve.
+func checkpointsBetween(text, path, next string) []any {
+	start := strings.Index(text, "==> "+path)
+	if start < 0 {
+		return nil
+	}
+	rest := text[start:]
+	if next != "" {
+		if i := strings.Index(rest[1:], "\n==> "); i >= 0 {
+			rest = rest[:i+1]
+		}
+	}
+	return checkpointsIn(rest)
+}
+
+// TestACLIReadStillLicensesWithoutAck is T2: the CLI is the member this
+// record leaves out. Drive the built binary the way internal/adversarial does.
+func TestACLIReadStillLicensesWithoutAck(t *testing.T) {
+	root, path := checkout(t, "a.txt", "one\ntwo\nthree\n")
+	bin := buildCLI(t)
+	read := exec.Command(bin, "--root", root, "read", path)
+	if out, err := read.CombinedOutput(); err != nil {
+		t.Fatalf("mrw read: %v\n%s", err, out)
+	}
+	write := exec.Command(bin, "--root", root, "write", "-")
+	write.Stdin = strings.NewReader("@@ a.txt 2 replace\nTWO\n")
+	out, err := write.CombinedOutput()
+	if err != nil {
+		t.Fatalf("CLI write after CLI read (no ack) was refused: %v\n%s", err, out)
+	}
+	body, err := os.ReadFile(filepath.Join(root, path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "one\nTWO\nthree\n" {
+		t.Errorf("CLI write did not apply: %q", body)
 	}
 }

@@ -1139,19 +1139,22 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
 
 ### A read that FITS could record on serve rather than on acknowledgement
 
-ADR-031 made a PAGE license only what the caller echoes back. A read that fits in
-one answer still records on serve, because nothing was cut — but "nothing was
-cut" is mrw's belief about a delivery it cannot observe, which is the exact
-premise ADR-031 rejected for pages. The asymmetry is deliberate for now: an
-unpaged answer has no checkpoints to echo, so requiring an ack would mean adding
-them to every read, and the measured defect was a paged one.
+✅ **Accepted and executed as ADR-039 (2026-09-09) by M — *"accpted"***. The licensing half — a
+fitting MCP serve recording on serve — is
+`docs/adr/ADR-039-a-fitting-read-licenses-only-what-came-back.md`. M said *"ok, start"* on the
+uneven-proof recommendation. The BACKLOG cost argument (a second round trip on every read) is
+wrong for the 2-call recipe: `ack` already rides on `mrw_write`.
 
-What would settle it: a host measured truncating a result that was UNDER the
-advertised ceiling. Until then this is a consistency argument rather than a
-defect, and the cost — a second round trip on every read — is paid by the
-population that has never been bitten.
+The measurement that would have settled it remains open below. Do not treat ADR-039 as that
+evidence.
 
-Deferred by `docs/adr/ADR-032-the-ceiling-is-the-callers.md`, Out of Scope.
+### A host-truncation measurement of an under-ceiling result
+
+A host measured truncating a result that was UNDER the advertised ceiling. Reading-18 measured
+a paged cut (Claude Code 2.1.261, 2026-09-05, `docs/curve/reading-18-result.md`). File an
+under-ceiling measurement beside that reading rather than treating ADR-039 as it.
+
+Deferred by `docs/adr/ADR-039-a-fitting-read-licenses-only-what-came-back.md`, Out of Scope.
 
 ## From the Codex review of PR #136 (2026-09-07)
 

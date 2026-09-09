@@ -84,7 +84,7 @@ this release is about: on the read path `,` separates SPECS, not the ends of a r
 exits 0, handing back numbers for something nobody asked for. On the write path the same string does
 not parse. Caught in review of the release note announcing ADR-036, which is the same failure one
 level up.
-Three things arrived in v1.6.0 and still stand. ADR-031 makes a paged read license only the part the caller echoes back.
+Three things arrived in v1.6.0 and still stand. ADR-031 and ADR-039 make a served MCP read license only the part the caller echoes back.
 ADR-032 makes the MCP result ceiling the CALLER's (`--max-result-chars`, `MRW_MAX_RESULT_CHARS`) and
 bounds the WHOLE answer rather than the read path alone: measured, a 4,000-hunk dry run returned
 453,632 characters against an advertised 200,000, and a host that trusts the number truncates. An
@@ -675,7 +675,7 @@ That refusal is a JSON-RPC error, which carries no result and is therefore
 outside the ceiling it is reporting on — which is how `--max-result-chars 0` can
 be answered honestly at all.
 
-⚠ **A page licenses nothing until you acknowledge it** (ADR-031). Its served text carries `-- ck`
+⚠ **A served MCP read licenses nothing until you acknowledge it** (ADR-031, ADR-039). Its served text carries `-- ck`
 markers: each run of 200 lines is BRACKETED by `-- ck <id> open lines A-B (N lines follow)` and
 `-- ck <id> close`. Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.
 Omit an id and its lines stay unwritable, which is the point: on 2026-09-05 a host cut the middle out of a 2,727-line page, the model saw the two ends,
