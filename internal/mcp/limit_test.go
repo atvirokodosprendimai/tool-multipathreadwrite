@@ -197,7 +197,8 @@ func TestAWriteReceiptElidesSuccessesNotFailures(t *testing.T) {
 
 	// Serve every line, so the plan is refused for the anchors below and not
 	// for the ledger.
-	rawResult(t, root, "mrw_read", map[string]any{"specs": []string{name}})
+	read := rawResult(t, root, "mrw_read", map[string]any{"specs": []string{name}})
+	acks := acksFromRaw(t, read)
 
 	// Three hunks that cannot apply, among 3,997 that can. Under ADR-001 the
 	// rest are `skipped` and nothing is written, which is exactly the shape a
@@ -206,7 +207,7 @@ func TestAWriteReceiptElidesSuccessesNotFailures(t *testing.T) {
 	for _, line := range []int{7, 500, 3999} {
 		bad += fmt.Sprintf("@@ f.txt %d replace anchor=\"no-such-anchor\"\nline %05d of the fixture\n", line, line)
 	}
-	res := rawResult(t, root, "mrw_write", map[string]any{"plan": planText + bad})
+	res := rawResult(t, root, "mrw_write", map[string]any{"plan": planText + bad, "ack": acks})
 
 	if len(res) > MaxResultChars {
 		t.Fatalf("mrw_write returned %d bytes against an advertised %d", len(res), MaxResultChars)
@@ -420,7 +421,8 @@ func TestTheSecondStageElisionDropsFileRecords(t *testing.T) {
 	t.Cleanup(func() { MaxResultChars = restore })
 
 	root, specs := manyFiles(t, 400)
-	rawResult(t, root, "mrw_read", map[string]any{"specs": specs})
+	read := rawResult(t, root, "mrw_read", map[string]any{"specs": specs})
+	acks := acksFromRaw(t, read)
 
 	var plan strings.Builder
 	for i, s := range specs {
@@ -433,7 +435,7 @@ func TestTheSecondStageElisionDropsFileRecords(t *testing.T) {
 
 	const budget = 3_000
 	MaxResultChars = budget
-	res := rawResult(t, root, "mrw_write", map[string]any{"plan": plan.String()})
+	res := rawResult(t, root, "mrw_write", map[string]any{"plan": plan.String(), "ack": acks})
 	if len(res) > budget {
 		t.Fatalf("the receipt returned %d bytes against an advertised %d", len(res), budget)
 	}

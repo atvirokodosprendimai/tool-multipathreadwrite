@@ -95,8 +95,8 @@ If you are reaching mrw over MCP (`mrw mcp`), use the `mrw_read` and `mrw_write`
 tools instead of the shell recipes below. The arguments are the same strings —
 `specs` is what you would pass to `mrw read`, `plan` is the file you would pass
 to `mrw write` — and every rule in this section applies unchanged, because it is
-the same engine and the same ledger — with ONE addition the CLI has no need of: a page licenses
-nothing until you acknowledge it. A paged read brackets each run of 200 lines with
+the same engine and the same ledger — with ONE addition the CLI has no need of: a served read licenses
+nothing until you acknowledge it. A read that served numbered lines brackets each run of 200 lines with
 `-- ck <id> open lines A-B (N lines follow)` and `-- ck <id> close`. Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.
 An id you omit leaves its lines stay unwritable. A host can cut a page before you see it, and mrw cannot
 tell, which is what this exists for.

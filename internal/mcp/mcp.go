@@ -254,8 +254,8 @@ func tools() []tool {
 			Meta: map[string]any{"anthropic/maxResultSizeChars": MaxResultChars},
 			Description: "Reach for this instead of your own file reader when the task touches " +
 				triggerRule + " — one call serves them all, and each served line is recorded so " +
-				"mrw_write may later edit it, EXCEPT on a paged answer, which records nothing " +
-				"until you acknowledge it (see ack). Below that a single read is cheaper in your own " +
+				"mrw_write may later edit it — served lines record nothing until you acknowledge " +
+				"them (see ack). Below that a single read is cheaper in your own " +
 				"editor. Specs use mrw's own syntax: path, path:10-20, path:A,+N for the line A " +
 				"plus the N lines after it, path:/regexp/ so the read " +
 				"finds its own site, or path:$ for the last line. A read too large for one answer " +
@@ -298,7 +298,7 @@ func tools() []tool {
 					"ack": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": "The checkpoint ids from a previous paged read. A paged answer brackets each run of lines with `-- ck <id> open lines A-B (N lines follow)` and `-- ck <id> close`, and licenses NO write until you send its ids back here. " + AckRule + " Omit an id and its lines stay unwritable, which is the point: a host can cut a page before you see it, and mrw cannot tell.",
+						"description": "The checkpoint ids from a previous read that served lines. A served answer brackets each run of lines with `-- ck <id> open lines A-B (N lines follow)` and `-- ck <id> close`, and licenses NO write until you send its ids back here. " + AckRule + " Omit an id and its lines stay unwritable, which is the point: a host can cut a result before you see it, and mrw cannot tell.",
 						"examples":    []any{[]any{"3f8a1c4d90b27e56"}},
 					},
 					"after": map[string]any{
@@ -341,7 +341,7 @@ func tools() []tool {
 					"ack": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": "The checkpoint ids from the paged read this plan was written against. An unacknowledged page licenses nothing, so a hunk addressing lines you have not acknowledged is refused. " + AckRule,
+						"description": "The checkpoint ids from the read this plan was written against. An unacknowledged serve licenses nothing, so a hunk addressing lines you have not acknowledged is refused. " + AckRule,
 						"examples":    []any{[]any{"3f8a1c4d90b27e56"}},
 					},
 					"dry_run": map[string]any{
@@ -371,6 +371,7 @@ func tools() []tool {
 							"anchor= is REQUIRED on a replace addressing more than one " +
 							"line, and may be omitted elsewhere. An anchor is worth most " +
 							"taken from the NNN| content a read printed. " +
+							"Pass the ck ids from that read as ack; a serve licenses nothing until you do. " +
 							"A body line beginning with @@ needs body=<n> raw=true.",
 						// The format is bespoke and no model has it in training
 						// data (ADR-009's premise), so one plan that really

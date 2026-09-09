@@ -406,10 +406,39 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return errorResult(receiptOverflowMessage(encodedSize(served), cw.limit)), nil
 	}
 
-	// Reading is how mrw learns what a file holds; recording that is what lets
-	// a later write know whether its picture is still current.
-	if err := seen.Record(root, observed); err != nil {
-		return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the ledger: " + err.Error()}
+	// ADR-039: a fitting serve of numbered lines is held pending, not recorded.
+	// Markers and the footer are composed before hold; an encode that now
+	// exceeds the ceiling takes the overflow path above and holds nothing.
+	if len(observed) > 0 {
+		marked, byPath := markServed(report)
+		if len(byPath) > 0 {
+			markedServed, markErr := readResult(map[string]any{
+				"observed": observed,
+				"problems": problems,
+			}, marked, false)
+			if markErr != nil {
+				return callToolResult{}, markErr
+			}
+			if encodedSize(markedServed) > cw.limit {
+				if walked {
+					return matchIndex(specs, problems, cw), nil
+				}
+				if page, ok := firstPage(root, a.Specs, cw); ok {
+					return page, nil
+				}
+				return errorResult(receiptOverflowMessage(encodedSize(markedServed), cw.limit)), nil
+			}
+			for path, spans := range byPath {
+				o, ok := observationOf(observed, path)
+				if !ok || o.SHA == "" {
+					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: no observation for " + path}
+				}
+				if err := hold(root, path, o.SHA, spans); err != nil {
+					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: " + err.Error()}
+				}
+			}
+			return markedServed, nil
+		}
 	}
 
 	return served, nil
@@ -896,7 +925,11 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 	if encodedSize(res) > MaxResultChars {
 		return callToolResult{}, false
 	}
-	if err := hold(root, observed, spans); err != nil {
+	o, ok := observationOf(observed, path)
+	if !ok || o.SHA == "" {
+		return callToolResult{}, false
+	}
+	if err := hold(root, filepath.Clean(path), o.SHA, spans); err != nil {
 		return callToolResult{}, false
 	}
 	return res, true
@@ -1323,8 +1356,8 @@ func nameTheAck(root string, res *apply.Result) {
 		if !covers {
 			continue
 		}
-		h.Reason += ". A page of this file was served but never acknowledged, and an " +
-			"unacknowledged page licenses nothing. " + AckRule
+		h.Reason += ". This file was served but never acknowledged, and an " +
+			"unacknowledged serve licenses nothing. " + AckRule
 	}
 }
 

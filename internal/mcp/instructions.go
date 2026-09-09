@@ -90,12 +90,12 @@ A read too large comes back as a PAGE: the lines that fit, a
 -- PARTIAL: line, next_read for the rest, and markers BRACKETING each run:
 "-- ck <id> open lines A-B (N lines follow)", the lines, "-- ck <id> close".
 Repeat until next_read is absent; stopping early leaves part of a file.
-A PAGE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT.
+A SERVE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT.
 %s
-An id you omit leaves its lines unwritable: a host can cut a page before you see
-it and mrw cannot tell, but you can.
+An id you omit leaves its lines unwritable: a host can cut a result before you
+see it and mrw cannot tell, but you can.
 
-WRITING. mrw_write takes one plan. Each hunk is a header line
+WRITING. mrw_write takes one plan and those ck ids as ack. Each hunk is a header line
 
     @@ <path> <address> <op> [guards]
 then its body lines. Ops: replace, insert-after, insert-before, delete, create.

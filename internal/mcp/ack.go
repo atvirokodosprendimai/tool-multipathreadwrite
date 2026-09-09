@@ -173,6 +173,72 @@ func interleave(text string) (string, map[string][2]int) {
 	return out.String(), spans
 }
 
+// servedSlice is one ==> header and the lines that belong to it, so a
+// multi-file fitting serve can be interleaved per file (ADR-039).
+type servedSlice struct {
+	path string
+	text string
+}
+
+// splitServed cuts a read.Run report on `==> path` headers. A slice with no
+// numbered lines produces no checkpoints — UNREADABLE and REFUSED stay unmarked.
+func splitServed(report string) []servedSlice {
+	if report == "" {
+		return nil
+	}
+	lines := strings.Split(strings.TrimSuffix(report, "\n"), "\n")
+	var out []servedSlice
+	var cur servedSlice
+	var b strings.Builder
+	flush := func() {
+		if cur.path == "" && b.Len() == 0 {
+			return
+		}
+		cur.text = b.String()
+		out = append(out, cur)
+		b.Reset()
+		cur = servedSlice{}
+	}
+	for _, line := range lines {
+		if rest, ok := strings.CutPrefix(line, "==> "); ok {
+			flush()
+			path := rest
+			if i := strings.IndexAny(rest, " \t"); i >= 0 {
+				path = rest[:i]
+			}
+			cur.path = path
+		}
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	flush()
+	return out
+}
+
+// markServed interleaves checkpoints through each file of a fitting report
+// and returns the marked text plus per-path spans. A report with no numbered
+// lines is returned unchanged and holds nothing.
+func markServed(report string) (string, map[string]map[string][2]int) {
+	slices := splitServed(report)
+	if len(slices) == 0 {
+		return report, nil
+	}
+	var out strings.Builder
+	byPath := map[string]map[string][2]int{}
+	for _, sl := range slices {
+		marked, spans := interleave(sl.text)
+		out.WriteString(marked)
+		if sl.path != "" && len(spans) > 0 {
+			byPath[filepath.Clean(sl.path)] = spans
+		}
+	}
+	if len(byPath) == 0 {
+		return report, nil
+	}
+	fmt.Fprintf(&out, "-- This serve licenses NOTHING until you acknowledge it.\n-- %s\n", AckRule)
+	return out.String(), byPath
+}
+
 // servedLineNumber reads the line number off a served content line, which
 // read.Run renders as spaces, digits, "|", then the file's own text.
 func servedLineNumber(s string) (int, bool) {
@@ -187,20 +253,31 @@ func servedLineNumber(s string) (int, bool) {
 	return n, true
 }
 
-// hold files served spans as pending, keyed by checkpoint. It writes no ledger
-// entry: that is the whole point, and TestAPendingRecordReachesNoLedger pins it.
-func hold(root string, obs map[string]seen.Observation, spans map[string][2]int) error {
-	if len(spans) == 0 {
+// observationOf returns the observation for path under the same key
+// read.Run uses (filepath.Clean), then the typed spelling. The ==> header
+// prints the spec as typed; the map is cleaned. Looking up only the header
+// spelling holds an empty SHA, and promote then drops the ack as stale —
+// which is how a fitting nested-path read licensed nothing after a correct
+// ack on Windows (PR #157).
+func observationOf(observed map[string]seen.Observation, path string) (seen.Observation, bool) {
+	if o, ok := observed[filepath.Clean(path)]; ok {
+		return o, true
+	}
+	if o, ok := observed[path]; ok {
+		return o, true
+	}
+	return seen.Observation{}, false
+}
+
+// hold files served spans as pending, keyed by checkpoint, against the file
+// whose lines they bracketed (ADR-039). It writes no ledger entry: that is
+// the whole point, and TestAPendingRecordReachesNoLedger pins it.
+func hold(root, path, sha string, spans map[string][2]int) error {
+	if len(spans) == 0 || path == "" {
 		return nil
 	}
-	// One observation per path here — a paged read serves one file.
-	var path, sha string
-	for p, o := range obs {
-		path, sha = p, o.SHA
-		break
-	}
-	if path == "" {
-		return nil
+	if sha == "" {
+		return fmt.Errorf("empty sha for %s", path)
 	}
 	store, err := loadPending(root)
 	if err != nil {
