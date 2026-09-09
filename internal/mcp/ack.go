@@ -229,7 +229,7 @@ func markServed(report string) (string, map[string]map[string][2]int) {
 		marked, spans := interleave(sl.text)
 		out.WriteString(marked)
 		if sl.path != "" && len(spans) > 0 {
-			byPath[sl.path] = spans
+			byPath[filepath.Clean(sl.path)] = spans
 		}
 	}
 	if len(byPath) == 0 {
@@ -253,12 +253,31 @@ func servedLineNumber(s string) (int, bool) {
 	return n, true
 }
 
+// observationOf returns the observation for path under the same key
+// read.Run uses (filepath.Clean), then the typed spelling. The ==> header
+// prints the spec as typed; the map is cleaned. Looking up only the header
+// spelling holds an empty SHA, and promote then drops the ack as stale —
+// which is how a fitting nested-path read licensed nothing after a correct
+// ack on Windows (PR #157).
+func observationOf(observed map[string]seen.Observation, path string) (seen.Observation, bool) {
+	if o, ok := observed[filepath.Clean(path)]; ok {
+		return o, true
+	}
+	if o, ok := observed[path]; ok {
+		return o, true
+	}
+	return seen.Observation{}, false
+}
+
 // hold files served spans as pending, keyed by checkpoint, against the file
 // whose lines they bracketed (ADR-039). It writes no ledger entry: that is
 // the whole point, and TestAPendingRecordReachesNoLedger pins it.
 func hold(root, path, sha string, spans map[string][2]int) error {
 	if len(spans) == 0 || path == "" {
 		return nil
+	}
+	if sha == "" {
+		return fmt.Errorf("empty sha for %s", path)
 	}
 	store, err := loadPending(root)
 	if err != nil {

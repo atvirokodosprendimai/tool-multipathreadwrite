@@ -371,6 +371,7 @@ func tools() []tool {
 							"anchor= is REQUIRED on a replace addressing more than one " +
 							"line, and may be omitted elsewhere. An anchor is worth most " +
 							"taken from the NNN| content a read printed. " +
+							"Pass the ck ids from that read as ack; a serve licenses nothing until you do. " +
 							"A body line beginning with @@ needs body=<n> raw=true.",
 						// The format is bespoke and no model has it in training
 						// data (ADR-009's premise), so one plan that really

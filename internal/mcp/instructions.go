@@ -95,7 +95,7 @@ A SERVE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT.
 An id you omit leaves its lines unwritable: a host can cut a result before you
 see it and mrw cannot tell, but you can.
 
-WRITING. mrw_write takes one plan. Each hunk is a header line
+WRITING. mrw_write takes one plan and those ck ids as ack. Each hunk is a header line
 
     @@ <path> <address> <op> [guards]
 then its body lines. Ops: replace, insert-after, insert-before, delete, create.

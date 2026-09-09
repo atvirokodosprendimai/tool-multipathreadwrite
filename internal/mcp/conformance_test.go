@@ -412,8 +412,13 @@ func dryRunExample(t *testing.T, text string) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	specs := treeFor(t, root, hunks)
 	readRes := call(t, root, "mrw_read", map[string]any{"specs": specs})
+	served := served0(t, readRes)
+	acks := checkpointsIn(served)
+	if len(acks) == 0 {
+		t.Fatalf("the fitting read of the example tree carried no checkpoints, so a copy-paste caller could not ack:\n%s", served)
+	}
 	got := structured(t, call(t, root, "mrw_write", map[string]any{
-		"plan": text, "dry_run": true, "ack": checkpointsIn(served0(t, readRes))}))
+		"plan": text, "dry_run": true, "ack": acks}))
 	if n, _ := got["failed"].(float64); n != 0 {
 		t.Errorf("the shipped example failed %v hunk(s) on a real dry run: %v", n, got["hunks"])
 	}

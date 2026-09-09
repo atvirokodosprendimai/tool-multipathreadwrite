@@ -604,6 +604,48 @@ func TestAFittingReadLicensesOnlyWhatCameBack(t *testing.T) {
 	}
 }
 
+// TestAFittingReadAcksWhenTheHeaderSpellingIsNotTheLedgerKey is the Windows
+// CI hole on PR #157 wearing a fixture that fails on every OS.
+//
+// read.Run keys observations with filepath.Clean; the ==> header prints the
+// spec as typed. hold then looked up observed[headerPath], so a nested path
+// whose typed spelling is not its Clean form stored an empty SHA, promote
+// dropped the ack as stale, and the write was refused as unread — which is
+// how TestEveryEmbeddedExamplePlanReallyApplies went red on Windows for
+// internal/store/store.go while a.txt fixtures stayed green. "./dir/a.txt"
+// is the spelling that differs from Clean on Unix as well as Windows, so
+// this is not a GOOS switch.
+func TestAFittingReadAcksWhenTheHeaderSpellingIsNotTheLedgerKey(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	dir := filepath.Join(root, "dir")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("one\ntwo\nthree\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	res := call(t, root, "mrw_read", map[string]any{"specs": []any{"./dir/a.txt"}})
+	acks := checkpointsIn(served0(t, res))
+	if len(acks) == 0 {
+		t.Fatal("a fitting read of ./dir/a.txt carried no checkpoints, so nothing can be acknowledged")
+	}
+
+	got := structured(t, call(t, root, "mrw_write", map[string]any{
+		"plan": "@@ dir/a.txt 2 replace\nTWO\n", "ack": acks}))
+	if n, _ := got["failed"].(float64); n != 0 {
+		t.Fatalf("acked write after a ./dir spec failed: %v", got["hunks"])
+	}
+	body, err := os.ReadFile(filepath.Join(dir, "a.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "one\nTWO\nthree\n" {
+		t.Errorf("acked write did not apply: %q", body)
+	}
+}
+
 // TestAFittingReadHoldsPendingPerFile pins the hold reshape. Today's hold
 // picks one path from the observation map, so a two-file fixture is the only
 // shape that can fail if that loop survives.

@@ -429,7 +429,11 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				return errorResult(receiptOverflowMessage(encodedSize(markedServed), cw.limit)), nil
 			}
 			for path, spans := range byPath {
-				if err := hold(root, path, observed[path].SHA, spans); err != nil {
+				o, ok := observationOf(observed, path)
+				if !ok || o.SHA == "" {
+					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: no observation for " + path}
+				}
+				if err := hold(root, path, o.SHA, spans); err != nil {
 					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: " + err.Error()}
 				}
 			}
@@ -921,11 +925,11 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 	if encodedSize(res) > MaxResultChars {
 		return callToolResult{}, false
 	}
-	var sha string
-	if o, ok := observed[path]; ok {
-		sha = o.SHA
+	o, ok := observationOf(observed, path)
+	if !ok || o.SHA == "" {
+		return callToolResult{}, false
 	}
-	if err := hold(root, path, sha, spans); err != nil {
+	if err := hold(root, filepath.Clean(path), o.SHA, spans); err != nil {
 		return callToolResult{}, false
 	}
 	return res, true
