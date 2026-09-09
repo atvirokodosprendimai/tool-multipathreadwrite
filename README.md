@@ -7,7 +7,11 @@ It is an ordinary command-line tool. It was built for AI coding agents, which
 are the ones doing hundreds of small edits a day, but nothing about it requires
 one.
 
-**Status: stable at v1.8.0 (2026-09-08), the tag cut from `fe49ef5`.**
+**Status: stable at v1.9.0 (2026-09-09), the tag cut from `2363abb`.**
+v1.9.0 changes no code. Every commit since v1.8.0 is documentation, so the behaviour is v1.8.0's and
+the published binaries differ from it only by the version and commit stamped into them — the numbers
+below were re-measured on this tree rather than carried over, which is the only way to tell those
+two apart.
 What that word rests on is recorded in this tree. The six promises listed in `AGENTS.md` are each
 an ADR and each a set of rows in `scripts/contract.sh`, which drives the built binary and prints its
 own verdict; no assertion failed on the tree the tag was cut from, in the runs that were measured —
@@ -17,7 +21,7 @@ and is not quoted flat for that reason: **735 pass on darwin/arm64, and the Linu
 reports 732 passing, one skipped and none failing.** The gap is exactly the case-folding family —
 darwin folds case and Linux does not, so three assertions about two spellings of one file do not run
 there, and CI prints one SKIP naming them. Re-measured for this tag rather than carried over: the
-skip line in run 34254748001 says *"a case-sensitive filesystem here: the two-spelling half did not
+skip line in run 34331046690 says *"a case-sensitive filesystem here: the two-spelling half did not
 run; the symlink half above is its twin"*, which is the explanation and not an inference from the
 arithmetic. The v1.5.0 paragraph attributed its own gap to root-user triggers, a different set, and
 would have been wrong here.
@@ -25,24 +29,26 @@ would have been wrong here.
 swing the count by three.** Beside the case-folding family, §24 races 40 concurrent ledger reads and
 emits one SKIP in place of three assertions when the race does not reproduce — this tree was
 measured at both 719 and 722 within an hour on the same host. Here it DID reproduce on both
-platforms (the Linux run says *"concurrent reads lose ledger entries (1/40 kept), as ADR-002
-accepts"*), so it is not confounding this gap; that is checked and stated rather than assumed,
-because a previous reading of these numbers fitted a coincidence and matched the wrong mechanism.
+platforms (the Linux run for this tag says *"concurrent reads lose ledger entries (3/40 kept), as
+ADR-002 accepts"*), so it is not confounding this gap; that is checked and stated rather than
+assumed, because a previous reading of these numbers fitted a coincidence and matched the wrong
+mechanism.
 A break campaign of 47 probes
-(`scripts/break-campaign.sh`, its run in `docs/break/campaign-v1.8.0.txt`) against that same tagged
+(`scripts/break-campaign.sh`, its run in `docs/break/campaign-v1.9.0.txt`) against that same tagged
 tree found no silent wrong write and every refusal in it names its reason; every probe's name and
-exit code is identical to the v1.7.0 run against `8846325`, the v1.6.0 run against `0fffa77`, the
-v1.5.0 run against `07bc664`, the v1.4.0 run against `bd73ee0`, the v1.3.0 run against `3434c35`,
-the v1.2.0 run against `03feb92` and the v1.1.0 run against `d6c62e7`.
-One probe was EDITED for this release — the overlap probe now carries an `anchor=`, because
-ADR-035 would otherwise refuse it for the wrong reason and it would silently stop measuring
-overlap — and its verdict is unchanged, which is the evidence that the edit preserved what the
-probe measures rather than quietly replacing it.
+exit code is identical to the v1.8.0 run against `fe49ef5`, the v1.7.0 run against `8846325`, the
+v1.6.0 run against `0fffa77`, the v1.5.0 run against `07bc664`, the v1.4.0 run against `bd73ee0`,
+the v1.3.0 run against `3434c35`, the v1.2.0 run against `03feb92` and the v1.1.0 run against
+`d6c62e7`. No probe was edited for this release. One was for v1.8.0 — the overlap probe took an
+`anchor=`, because ADR-035 would otherwise have refused it for the wrong reason and it would have
+silently stopped measuring overlap — and its verdict was unchanged, which is the evidence that the
+edit preserved what the probe measures rather than quietly replacing it.
 That identity is evidence of no UNINTENDED change and nothing more: the campaign exercises none of
 what v1.8.0 changes, and contract §73 and §74 with `internal/apply/apply_test.go`,
 `internal/read/read_test.go` and `internal/adversarial/documented_plans_test.go` do.
-**v1.8.0 ships two breaking refusals**, so read the next paragraph before upgrading — v1.5.0's
-alias defect remains the reason to leave anything older.
+**v1.9.0 ships no behaviour change. v1.8.0 shipped two breaking refusals**, so read the next
+paragraph before upgrading from v1.7.0 or older, and v1.5.0's alias defect remains the reason to
+leave anything older than that.
 **Both v1.8.0 refusals make a silent wrong answer loud, and neither changes what a correct plan
 does.** ADR-035: a `replace` whose address resolves to more than one line is refused unless it
 carries `anchor=`. mrw models no target syntax — it puts the lines you gave where you said — so a
