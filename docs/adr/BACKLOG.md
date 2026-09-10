@@ -736,10 +736,28 @@ re-measuring these. Each was driven at the built binary, not read:
 
   ⚠ **AND THE NUMBER MOVED.** ADR-017's Out of Scope, its T1 and its T2 all say
   reach is `ADR-018`. That was true when they were written and is now wrong:
-  **018 is the root guard, and REACH IS ADR-019**, still unwritten. The
-  deferrals point at this entry rather than at a number precisely so a
-  renumbering cannot break them — which is the reason `adr-debt` refused the
-  original `ADR-018` pointer as a pointer to nowhere.
+  **018 is the root guard, and REACH IS ADR-019**. The deferrals point at this
+  entry rather than at a number precisely so a renumbering cannot break them —
+  which is the reason `adr-debt` refused the original `ADR-018` pointer as a
+  pointer to nowhere.
+
+  **RECEIPT, 2026-09-10 — ADR-019 drafted as Proposed.**
+  `docs/adr/ADR-019-desktop-reach-is-one-named-root-per-run.md` exists.
+
+  **RECEIPT, 2026-09-10 — Naming pick: A — launch --root only.**
+  M: *"A"*. Status Accepted. Fork 3: `mrw mcp` stays single-root. Do not
+  measure Desktop `roots/list`. Do not implement B or C. T1 encoded the pick;
+  T2 pins two-root isolation; T3 teaches launch `--root`. The historical
+  analysis above is what the record carried forward; it is not deleted.
+
+  **From ADR-019 Follow-ups, kept here so the record's deferrals have a receipt:**
+  - A Desktop-population measurement of how many trees one session actually
+    needs. The coder count is not that measurement.
+  - Whether Claude Desktop sends `roots/list`. Required before T2 if the pick
+    is C. ADR-011 deferred the same client request here; this is that receipt
+    too — the follow-up trigger (second host; `CLAUDE_PROJECT_DIR`
+    host-specific) is met, and the remaining unknown is whether Desktop
+    actually sends roots.
 
 - **A heredoc-style body terminator for the plan format — DEFERRED.** Raised and
   refused in ADR-015.

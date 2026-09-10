@@ -543,6 +543,36 @@ func TestTheSurfaceSaysTheCLIIsRicher(t *testing.T) {
 	}
 }
 
+// TestTheSurfaceNamesTheRootThePickChose is ADR-019 T3. Pick A points this
+// surface with launch --root DIR mcp. TestTheSurfaceSaysTheCLIIsRicher already
+// greps --root and ONE fixed checkout — those name the CLI and the reach
+// sentence. This asserts how THIS process is pointed, and that a call cannot
+// invent a root.
+func TestTheSurfaceNamesTheRootThePickChose(t *testing.T) {
+	lines := serve(t, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`)
+	res, ok := decode(t, lines[0])["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("no result object in %q", lines[0])
+	}
+	got, _ := res["instructions"].(string)
+	if !strings.Contains(got, "--root DIR mcp") {
+		t.Error("the instructions do not name launch --root DIR mcp as how this surface is pointed")
+	}
+	if !strings.Contains(strings.ToLower(got), "one fixed checkout") {
+		t.Error("pick A keeps ONE fixed checkout; the handshake dropped it")
+	}
+	if strings.Contains(got, "roots/list") {
+		t.Error("the handshake mentions roots/list; pick A does not take that")
+	}
+	for _, tl := range tools() {
+		schema, _ := tl.InputSchema.(map[string]any)
+		props, _ := schema["properties"].(map[string]any)
+		if _, ok := props["root"]; ok {
+			t.Errorf("%s advertises a per-call root; pick A has none", tl.Name)
+		}
+	}
+}
+
 // cliHelp runs the built CLI's help for one subcommand. It builds the binary
 // once per test run into a temp dir rather than trusting ./bin/mrw, which may
 // be stale — a stale binary cost this project a wrong reading earlier today.
