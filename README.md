@@ -48,8 +48,9 @@ verdict was unchanged, which is the evidence that the edit preserved what the pr
 than quietly replacing it.
 That identity is evidence of no UNINTENDED change and nothing more: the campaign exercises none of
 what v1.11.0 changes, and contract §77 with `internal/mcp/ack_test.go` does.
-**v1.11.0 is a breaking refusal for MCP.** A following write without `ack` after a fitting `mrw_read`
-is refused, the same fail-safe ADR-031 already shipped for pages. A correct CLI plan is unchanged.
+**v1.11.0 is a breaking refusal for MCP.** A fitting `mrw_read` grants no licence until `ack`. A
+following write without `ack` is refused unless a prior valid ledger licence already covers the
+lines — the same fail-safe ADR-031 already shipped for pages. A correct CLI plan is unchanged.
 **v1.8.0 shipped two breaking refusals**, so read the next
 paragraph before upgrading from v1.7.0 or older, and v1.5.0's alias defect remains the reason to
 leave anything older than that.
