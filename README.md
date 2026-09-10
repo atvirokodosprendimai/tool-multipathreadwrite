@@ -7,26 +7,25 @@ It is an ordinary command-line tool. It was built for AI coding agents, which
 are the ones doing hundreds of small edits a day, but nothing about it requires
 one.
 
-**Status: stable at v1.11.0 (2026-09-10), the tag cut from `69e1d1f`.**
-v1.11.0 makes a fitting MCP read license only what came back. ADR-039: an MCP
-`mrw_read` that served numbered file content, whether it paged or fit, interleaves
-the same `-- ck` brackets a page does, holds them pending per file, and records
-only the spans whose checkpoints the caller echoes. On a following `mrw_write`
-without `ack`, a fitting MCP read licenses nothing. Same class as ADR-031, now
-even for a result that fit in one answer. CLI `mrw read` is unchanged — there is
-no host between stdout and the caller. `ack` already rides on `mrw_write`, so
-the 2-call recipe stays two calls. §77 drives a fitting serve: checkpoints, an
-unacked write refused, an acked write applied.
+**Status: stable at v1.12.0 (2026-09-10), the tag cut from `c4384f3`.**
+v1.12.0 is Desktop reach: a run has one named root, and the ledger that licenses a
+write is that root's ledger and no other. ADR-019: a Desktop (or other no-shell
+MCP host) names the tree with launch `--root` (`args: ["--root", "/abs/path",
+"mcp"]`). N folders are N named servers. One process, one root, one ledger. CLI
+`--root` is unchanged. Claude Code still uses `CLAUDE_PROJECT_DIR` when the host
+sets it. Pick A does not add `roots/list`, a per-call `root`, or MCP cargo
+(`check` / `iter` / `seen` / `stats`). §78 drives two processes: an ack recorded
+under root A does not license a write under root B, and does license one under A.
 What that word rests on is recorded in this tree. The six promises listed in `AGENTS.md` are each
 an ADR and each a set of rows in `scripts/contract.sh`, which drives the built binary and prints its
 own verdict; no assertion failed on the tree the tag was cut from, in the runs that were measured —
 which is the honest form, because §24 still races 40 concurrent ledger reads (`docs/adr/BACKLOG.md`).
 The tag's CI run had none fail. The COUNT is platform-dependent
-and is not quoted flat for that reason: **745 pass on darwin/arm64, and the Linux CI run for the tag
-reports 742 passing, one skipped and none failing.** The gap is exactly the case-folding family —
+and is not quoted flat for that reason: **749 pass on darwin/arm64, and the Linux CI run for the tag
+reports 746 passing, one skipped and none failing.** The gap is exactly the case-folding family —
 darwin folds case and Linux does not, so three assertions about two spellings of one file do not run
 there, and CI prints one SKIP naming them. Re-measured for this tag rather than carried over: the
-skip line in run 34434326660 says *"a case-sensitive filesystem here: the two-spelling half did not
+skip line in run 34457836283 says *"a case-sensitive filesystem here: the two-spelling half did not
 run; the symlink half above is its twin"*, which is the explanation and not an inference from the
 arithmetic. The v1.5.0 paragraph attributed its own gap to root-user triggers, a different set, and
 would have been wrong here.
@@ -36,18 +35,18 @@ here). The previous paragraph quoted a skip that replaced three assertions when 
 keep 40; that skip is gone, because the lock shipped. Checked rather than assumed, because a previous
 reading of these numbers fitted a coincidence and matched the wrong mechanism.
 A break campaign of 47 probes
-(`scripts/break-campaign.sh`, its run in `docs/break/campaign-v1.11.0.txt`) against that same tagged
+(`scripts/break-campaign.sh`, its run in `docs/break/campaign-v1.12.0.txt`) against that same tagged
 tree found no silent wrong write and every refusal in it names its reason; every probe's name and
-exit code is identical to the v1.10.0 run against `c60b20d`, the v1.9.0 run against `2363abb`, the
-v1.8.0 run against `fe49ef5`, the v1.7.0 run against `8846325`, the v1.6.0 run against `0fffa77`,
-the v1.5.0 run against `07bc664`, the v1.4.0 run against `bd73ee0`, the v1.3.0 run against `3434c35`,
-the v1.2.0 run against `03feb92` and the v1.1.0 run against `d6c62e7`. No probe was edited for this
-release. One was for v1.8.0 — the overlap probe took an `anchor=`, because ADR-035 would otherwise
-have refused it for the wrong reason and it would have silently stopped measuring overlap — and its
-verdict was unchanged, which is the evidence that the edit preserved what the probe measures rather
-than quietly replacing it.
+exit code is identical to the v1.11.0 run against `69e1d1f`, the v1.10.0 run against `c60b20d`, the
+v1.9.0 run against `2363abb`, the v1.8.0 run against `fe49ef5`, the v1.7.0 run against `8846325`, the
+v1.6.0 run against `0fffa77`, the v1.5.0 run against `07bc664`, the v1.4.0 run against `bd73ee0`, the
+v1.3.0 run against `3434c35`, the v1.2.0 run against `03feb92` and the v1.1.0 run against `d6c62e7`.
+No probe was edited for this release. One was for v1.8.0 — the overlap probe took an `anchor=`,
+because ADR-035 would otherwise have refused it for the wrong reason and it would have silently
+stopped measuring overlap — and its verdict was unchanged, which is the evidence that the edit
+preserved what the probe measures rather than quietly replacing it.
 That identity is evidence of no UNINTENDED change and nothing more: the campaign exercises none of
-what v1.11.0 changes, and contract §77 with `internal/mcp/ack_test.go` does.
+what v1.12.0 changes, and contract §78 with `internal/mcp/root_test.go` does.
 **v1.11.0 is a breaking refusal for MCP.** A fitting `mrw_read` grants no licence until `ack`. A
 following write without `ack` is refused unless a prior valid ledger licence already covers the
 lines — the same fail-safe ADR-031 already shipped for pages. A correct CLI plan is unchanged.
