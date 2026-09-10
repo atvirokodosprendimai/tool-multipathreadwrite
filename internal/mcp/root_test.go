@@ -195,3 +195,45 @@ func containsAll(s string, subs ...string) bool {
 	}
 	return true
 }
+
+// TestAWriteCannotSpendAnotherRootsLedger is ADR-019's Enforced-by.
+// Shared XDG_STATE_HOME, two roots, same relative path. A's ack must not
+// license B. Two checkout() calls would each Setenv a fresh state home and
+// never share a pending store — green against a process-global pending map.
+func TestAWriteCannotSpendAnotherRootsLedger(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	rootA := t.TempDir()
+	rootB := t.TempDir()
+	body := []byte("one\ntwo\nthree\n")
+	if err := os.WriteFile(filepath.Join(rootA, "f.txt"), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootB, "f.txt"), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	acks := checkpointsIn(served0(t, call(t, rootA, "mrw_read", map[string]any{"specs": []any{"f.txt"}})))
+	if len(acks) == 0 {
+		t.Fatal("a fitting read of A carried no checkpoints")
+	}
+
+	noB := structured(t, call(t, rootB, "mrw_write", map[string]any{
+		"plan": "@@ f.txt 2 replace\nTWO\n", "ack": acks}))
+	if n, _ := noB["failed"].(float64); n == 0 {
+		t.Fatalf("A's ack licensed a write under B: %v", noB)
+	}
+	gotB, err := os.ReadFile(filepath.Join(rootB, "f.txt"))
+	if err != nil || string(gotB) != string(body) {
+		t.Fatalf("B's tree changed: %q err=%v", gotB, err)
+	}
+
+	okA := structured(t, call(t, rootA, "mrw_write", map[string]any{
+		"plan": "@@ f.txt 2 replace\nTWO\n", "ack": acks}))
+	if n, _ := okA["failed"].(float64); n != 0 {
+		t.Errorf("A's ack did not license A: %v", okA["hunks"])
+	}
+	gotA, err := os.ReadFile(filepath.Join(rootA, "f.txt"))
+	if err != nil || string(gotA) != "one\nTWO\nthree\n" {
+		t.Errorf("acked write on A did not apply: %q err=%v", gotA, err)
+	}
+}

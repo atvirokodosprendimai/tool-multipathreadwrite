@@ -4862,6 +4862,49 @@ assert open(sys.argv[2]).read() == "one\nTWO\nthree\n", "an acked write did not 
 PY
 want 0 $? "an acked fitting write applies"
 
+# 78. ADR-019: a write is licensed only by the ledger of the --root that served the read.
+#
+# m() is "$MRW" -C "$R" and cannot name two roots. Drive --root on mcp.
+# Shared XDG_STATE_HOME (file-wide). Same relative path, same body. A's ack
+# must not license B; the same ack must license A. Pair both halves.
+A78=$(mktemp -d "$WORK/a78-XXXXXX")
+B78=$(mktemp -d "$WORK/b78-XXXXXX")
+printf 'one\ntwo\nthree\n' > "$A78/f.txt"
+printf 'one\ntwo\nthree\n' > "$B78/f.txt"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.txt"]}}}\n' | "$MRW" --root "$A78" mcp 2>/dev/null)
+want 0 $? "root A answers a fitting read"
+printf '%s' "$out" > "$A78/read.json"
+python3 - "$A78/read.json" <<'PY'
+import json,re,sys
+r=json.load(open(sys.argv[1]))["result"]
+t=r["content"][0]["text"]
+assert "-- PARTIAL:" not in t, "the fixture paged; §78 must drive a fitting serve"
+cks=re.findall(r"^-- ck ([0-9a-f]{16}) open ", t, re.M)
+assert cks, "A's fitting serve carried no checkpoints"
+open(sys.argv[1]+".cks","w").write(" ".join(cks))
+PY
+want 0 $? "A's fitting serve carries checkpoints"
+cks=$(cat "$A78/read.json.cks")
+first=$(printf '%s' "$cks" | awk '{print $1}')
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ f.txt 2 replace\\nTWO\\n","ack":["%s"]}}}\n' "$first" | "$MRW" --root "$B78" mcp 2>/dev/null)
+python3 - "$out" "$B78/f.txt" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == 1 and sc.get("applied") is False, "A's ack licensed a write under B: %s" % sc
+assert open(sys.argv[2]).read() == "one\ntwo\nthree\n", "B's tree changed"
+PY
+want 0 $? "A's ack does not license a write under B"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ f.txt 2 replace\\nTWO\\n","ack":["%s"]}}}\n' "$first" | "$MRW" --root "$A78" mcp 2>/dev/null)
+python3 - "$out" "$A78/f.txt" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc["failed"] == 0, "A's ack did not license A: %s" % sc
+assert open(sys.argv[2]).read() == "one\nTWO\nthree\n", "acked write on A did not apply"
+PY
+want 0 $? "A's ack licenses a write under A"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
