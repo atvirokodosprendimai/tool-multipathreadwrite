@@ -26,3 +26,19 @@ func TestWriteHelpNamesHowToQuoteAHeaderOption(t *testing.T) {
 		}
 	}
 }
+
+// TestWriteHelpNamesApplyPatchFormat is ADR-051 T2: a PATH caller who reads
+// write --help must learn --format=apply_patch and that a git patch is not one.
+func TestWriteHelpNamesApplyPatchFormat(t *testing.T) {
+	got := writeCmd().Description
+	for _, must := range []string{
+		"--format=apply_patch",
+		"--format=search_replace",
+		"git patch",
+		"not an apply_patch",
+	} {
+		if !strings.Contains(got, must) {
+			t.Errorf("write --help does not teach %q:\n%s", must, got)
+		}
+	}
+}

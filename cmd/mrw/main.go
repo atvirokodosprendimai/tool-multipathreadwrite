@@ -17,6 +17,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -37,6 +38,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/guide"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/ingest"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
@@ -756,7 +758,13 @@ The checkout is named by global -C DIR or --root DIR before the subcommand
 
 Prefer authoring the plan with your harness's own file tool and passing its
 path, rather than piping it in: a plan on disk is a reviewable artifact and is
-visible to whatever hooks watch file writes.`,
+visible to whatever hooks watch file writes.
+
+--format=apply_patch compiles a Codex apply_patch document (*** Begin Patch)
+into the native plan above, then Parse and Apply run unchanged. A git patch
+is not an apply_patch; --format=git is usage.
+--format=search_replace compiles an Aider SEARCH/REPLACE document
+(<<<<<<< SEARCH / ======= / >>>>>>> REPLACE) the same way. Default --format is plan.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "dry-run",
@@ -779,6 +787,11 @@ visible to whatever hooks watch file writes.`,
 			&cli.BoolFlag{
 				Name:  "check",
 				Usage: "after a successful write, run the project's check scoped to the files it touched",
+			},
+			&cli.StringFlag{
+				Name:  "format",
+				Value: "plan",
+				Usage: "plan (default), apply_patch (Codex *** Begin Patch; a git patch is not one), or search_replace (Aider SEARCH/REPLACE)",
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -814,7 +827,40 @@ visible to whatever hooks watch file writes.`,
 				src, name = f, args[0]
 			}
 
-			hunks, err := plan.Parse(src)
+			var hunks []plan.Hunk
+			var err error
+			switch cmd.String("format") {
+			case "plan", "":
+				hunks, err = plan.Parse(src)
+			case "apply_patch":
+				raw, rerr := io.ReadAll(src)
+				if rerr != nil {
+					return cli.Exit(fmt.Sprintf("%s: %v", name, rerr), exitUsage)
+				}
+				compiled, cerr := ingest.CompileApplyPatch(cmd.Root().String("root"), raw)
+				if cerr != nil {
+					// The document did not become a plan. Same bucket as a
+					// native parse refusal: the FORMAT was the problem.
+					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					return cli.Exit(fmt.Sprintf("%s: %v", name, cerr), exitUsage)
+				}
+				hunks, err = plan.Parse(bytes.NewReader(compiled))
+			case "search_replace":
+				raw, rerr := io.ReadAll(src)
+				if rerr != nil {
+					return cli.Exit(fmt.Sprintf("%s: %v", name, rerr), exitUsage)
+				}
+				compiled, cerr := ingest.CompileSearchReplace(cmd.Root().String("root"), raw)
+				if cerr != nil {
+					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					return cli.Exit(fmt.Sprintf("%s: %v", name, cerr), exitUsage)
+				}
+				hunks, err = plan.Parse(bytes.NewReader(compiled))
+			case "git":
+				return cli.Exit("a git patch is not an apply_patch; --format=apply_patch is for *** Begin Patch documents", exitUsage)
+			default:
+				return cli.Exit(fmt.Sprintf("unknown --format %q (plan, apply_patch, or search_replace)", cmd.String("format")), exitUsage)
+			}
 			if err != nil {
 				// A plan that did not PARSE is the outcome ADR-009 exists to
 				// count: the only one that says the FORMAT was the problem
