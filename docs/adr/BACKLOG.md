@@ -35,7 +35,7 @@ that arms work; silence leaves the row where it is.
 | `mrw version` subcommand | **040 Accepted** — Decision 3 | — |
 | Single quotes parse | **040 Accepted** — Decision 4 | — |
 | `-C` vs `--root` (019 A stands; help names both global flags) | **040 Accepted** — Decision 5 | — |
-| PATH binary vs skill **version skew** | **ADR-041 Accepted** — record only | execute 041 |
+| PATH binary vs skill **version skew** | **ADR-041 Accepted** — record only | — (T1 receipts 2026-09-12; no protocol) |
 | `mrw check` silent in-root fallback | **ADR-042 Accepted** — record only | execute 042 |
 | Torn `Load` / atomic save | **ADR-043 Accepted** — measure, not a lock | a failing tear first |
 | MCP cargo: `check`/`iter`/`seen`/`stats` | **ADR-044 Accepted** — still two tools | execute 044 |

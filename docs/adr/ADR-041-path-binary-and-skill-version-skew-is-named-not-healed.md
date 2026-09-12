@@ -78,4 +78,4 @@ Delete the record. Nothing in the engine depends on it.
 
 ## Follow-ups
 
-- [ ] Execute only on a later quote that names this number.
+- [x] Execute only on a later quote that names this number. — 2026-09-12: M said execute 041; T1 receipts; no engine change.

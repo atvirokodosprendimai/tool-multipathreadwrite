@@ -49,6 +49,7 @@ grep -F -q '**Status:** Accepted' docs/adr/ADR-041-path-binary-and-skill-version
 | 4 — it is used | nothing measures this yet — ADR-009 refused telemetry |
 
 ## Mutation Log
+- 2026-09-12 · 5f532f2* · mutant killed · exit 1 · `docs/adr/ADR-041-path-binary-and-skill-version-skew-is-named-not-healed.md` · without Accepted the record-only fence must fail · acceptance-sha256:0dae686263589b9a7cc147a6b8940075ab2a35287f71a3db69d085f77e185f17
 
 ## Invariants
 
@@ -70,3 +71,7 @@ Stop if the proposed work is a parser, streamer, extra MCP tool, flock-on-Load, 
 
 ## Verification Log
 - 2026-09-12 · 4b70dd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dae686263589b9a7cc147a6b8940075ab2a35287f71a3db69d085f77e185f17 · ms:48
+- 2026-09-12 · 5f532f2* · exit 1 · `set -o pipefail …` · acceptance-sha256:0dae686263589b9a7cc147a6b8940075ab2a35287f71a3db69d085f77e185f17 · ms:55
+  ```
+  ```
+- 2026-09-12 · 5f532f2* · exit 0 · `set -o pipefail …` · acceptance-sha256:0dae686263589b9a7cc147a6b8940075ab2a35287f71a3db69d085f77e185f17 · ms:11
