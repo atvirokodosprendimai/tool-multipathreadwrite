@@ -4938,6 +4938,55 @@ want 0 $? "mrw version exits 0"
 "$MRW" version extra >/dev/null 2>&1
 want 2 $? "version extra is usage"
 
+# 82. ADR-051: apply_patch compiles to the native plan; an unread sibling
+# writes nothing. Pair: unread (exit 1, FAIL+skip, ledger reason, unchanged)
+# / served (exit 0, both replacements) / no flag (exit 2) / git-shaped under
+# the flag (exit 2). A mutant that ignores --format fails the unread half
+# via exit 2 rather than 1.
+patch82=$(printf '%s\n' \
+	'*** Begin Patch' \
+	'*** Update File: a.go' \
+	'@@' \
+	'-func A() int { return 1 }' \
+	'+func A() int { return 10 }' \
+	'@@' \
+	'-func C() int { return 3 }' \
+	'+func C() int { return 30 }' \
+	'*** End Patch')
+R=$(mktemp -d "$WORK/r-XXXXXX")
+printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
+m read 'a.go:3' >/dev/null
+out=$(printf '%s\n' "$patch82" | m write --format=apply_patch - 2>&1); rc=$?
+want 1 "$rc" "two-hunk apply_patch, one unread line -> exit 1"
+grep -q 'FAIL' <<<"$out" && ok "unread apply_patch names FAIL" || bad "unread apply_patch names FAIL"
+grep -q '^skip' <<<"$out" && ok "unread apply_patch siblings skip" || bad "unread apply_patch siblings skip"
+grep -q 'has not been read' <<<"$out" && ok "unread apply_patch is the ledger refusal" || bad "unread apply_patch is the ledger refusal"
+grep -q 'return 1 }' "$R/a.go" && ok "unread apply_patch wrote nothing" || bad "unread apply_patch wrote"
+
+fixture
+out=$(printf '%s\n' "$patch82" | m write --format=apply_patch - 2>&1); rc=$?
+want 0 "$rc" "served two-hunk apply_patch -> exit 0"
+grep -q 'return 10' "$R/a.go" && ok "served apply_patch rewrote A" || bad "served apply_patch rewrote A"
+grep -q 'return 30' "$R/a.go" && ok "served apply_patch rewrote C" || bad "served apply_patch rewrote C"
+
+R=$(mktemp -d "$WORK/r-XXXXXX")
+printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
+out=$(printf '%s\n' "$patch82" | m write - 2>&1); rc=$?
+want 2 "$rc" "apply_patch without --format is a bad native plan"
+grep -q 'return 1 }' "$R/a.go" && ok "no-flag apply_patch wrote nothing" || bad "no-flag apply_patch wrote"
+
+git82=$(printf '%s\n' \
+	'diff --git a/a.go b/a.go' \
+	'--- a/a.go' \
+	'+++ b/a.go' \
+	'@@ -3,1 +3,1 @@' \
+	'-func A() int { return 1 }' \
+	'+func A() int { return 10 }')
+out=$(printf '%s\n' "$git82" | m write --format=apply_patch - 2>&1); rc=$?
+want 2 "$rc" "a git patch under --format=apply_patch is refused"
+printf '' | m write --format=git - >/dev/null 2>&1
+want 2 $? "--format=git is usage"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
