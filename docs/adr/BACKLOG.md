@@ -8,6 +8,53 @@ written in the same commit as the deferral.
 `adr-debt docs/adr` sweeps the deferrals in the records and expects to find them
 here.
 
+## Inventory — M, 2026-09-12: *"I NAME THEM ALL"*
+
+M said *"I NAME THEM ALL"* after the coordinator listed what ADR-040 left out,
+what was dangling, and what every turn treated as noise. That quote **ranked this
+table**. On 2026-09-12 they said *"good, accepted all"*: ADR-040 and every
+backlog-named leftover became its own Accepted record. Engine dreams stay
+unimplemented until a later execute names that number.
+
+The same list is named in ADR-040 Out of Scope. Disposition is the column that
+stops a later turn treating a row as noise. **Next quote** is the exact sentence
+that arms work; silence leaves the row where it is.
+
+| Item | Disposition | Next quote that arms work |
+|---|---|---|
+| Wrap-tail / read past range | **shipped** — `AGENTS.md`; not 040 | — |
+| `raw=true` | **shipped** — ADR-015; not 040 | — |
+| `create` at 0 (`body=0`) | **shipped** — ADR-027; not 040 | — |
+| Insert vs neighbour-replace | **shipped** — plan ops; not 040 | — |
+| ADR-035 `anchor=` on multi-line replace | **shipped** — not 040 | — |
+| Original-file addresses | **shipped** — ADR-001; not 040 | — |
+| Never `write \| head` | **shipped** — `AGENTS.md`; not 040 | — |
+| `body=` is lines | **shipped** — taught; ADR-027 | — |
+| Teach-only quoting on `write --help` | **040 Accepted** — Decision 1 | — |
+| Parse unquoted `anchor=` until next `key=` | **040 Accepted** — Decision 2 | — |
+| `mrw version` subcommand | **040 Accepted** — Decision 3 | — |
+| Single quotes parse | **040 Accepted** — Decision 4 | — |
+| `-C` vs `--root` (019 A stands; help names both global flags) | **040 Accepted** — Decision 5 | — |
+| PATH binary vs skill **version skew** | **ADR-041 Accepted** — record only | — (T1 receipts 2026-09-12; no protocol) |
+| `mrw check` silent in-root fallback | **ADR-042 Accepted** — record only | — (T1 receipts 2026-09-12; fallback stays) |
+| Torn `Load` / atomic save | **ADR-043 Accepted** — measure, not a lock | — (2026-09-12: not observed; Load unlocked) |
+| MCP cargo: `check`/`iter`/`seen`/`stats` | **ADR-044 Accepted** — still two tools | — (T1 receipts 2026-09-12; no cargo tools) |
+| Generate AGENTS.md from `Shared()` | **ADR-045 Accepted** — still refuse the tax | — (T1 receipts 2026-09-12; no generator) |
+| Host-cut under ceiling | **ADR-046 Accepted** — measure, not a lock | — (2026-09-12: live cut not observed; no ack change) |
+| Python `str` body character-split | **ADR-047 Accepted** — taught in 040 help | — (T1 receipts 2026-09-12; already taught) |
+| Syntax awareness | **ADR-048 Accepted** — record only | — (T1 receipts 2026-09-12; no parser) |
+| Streaming apply | **ADR-049 Accepted** — record only | — (T1 receipts 2026-09-12; still waits for a size that hurts) |
+| Windows `%LOCALAPPDATA%` | **ADR-050 Accepted** — record only | — (T1 receipts 2026-09-12; XDG stays) |
+| Playtrix T4 / that paste | **not-this-repo** | — (wing_playtrix) |
+| Other wings' inboxes (quality-harness 28, etc.) | **not-this-repo** | — |
+| Reopen ADR-019 pick B/C or `roots/list` | **not-this-repo** — Accepted A | — |
+| Canvas file | **not-this-repo** — lives outside this repo | — |
+| Installing mrw as a side quest | **not-this-repo** — consumer | — |
+| `keep/` gitignore convention | **not-this-repo** — consumer hygiene | — |
+| "Use CLI not MCP" as this binary's contract | **not-this-repo** — consumer harness | — |
+| ADR-029 alias ledger BACKLOG row | **shipped** — closed on this page, 2026-09-12 | — |
+| `shellArgs` quoting BACKLOG row | **shipped** — closed on this page, 2026-09-12 | — |
+
 ## From ADR-001 (a plan addresses the original file)
 
 - **Streaming or memory-bounded application for very large files.**
@@ -261,8 +308,13 @@ here.
   must be checked against a mutant, because the obvious one trips the
   whole-file gate instead and passes with the ordering reversed.
 
-- **An ALIAS spelling of a partially-read file bypasses the per-line ledger
-  ENTIRELY, so a write to lines the caller was never served APPLIES.** Found by
+- ~~**An ALIAS spelling of a partially-read file bypasses the per-line ledger
+  ENTIRELY, so a write to lines the caller was never served APPLIES.**~~
+  **CLOSED 2026-09-09 by ADR-029 T1+T2** —
+  `internal/adversarial/ledger_test.go::TestAnAliasSpellingIsTheSameFileToThePerLineLedger`,
+  contract §67. Ranked as open until 2026-09-12 because this receipt was never
+  struck (M: *"I NAME THEM ALL"*). The write-back two-key SHA refusal further
+  down this file is a different defect and stays open. Found by
   the Codex review of PR #128, reproduced 2026-09-07 against that branch at
   `1efd1a6`. `internal/apply/apply.go:510` recovers an aliased observation with
   `sameFileEntry` — that is issue #47's fix and it must keep working — but `:553`
@@ -423,19 +475,15 @@ re-measuring these. Each was driven at the built binary, not read:
 
 ## From a Codex review of PR #13 (2026-09-01)
 
-- **`{packages}` and `{files}` are substituted into `sh -c` WITHOUT quoting.**
-  `internal/check/check.go`'s `command()` builds the scoped command with a
-  plain `strings.NewReplacer`, so every character of a derived path reaches the
-  shell as syntax. A path containing a space splits into two arguments; one
-  containing `;`, `$(…)` or a glob is executed. The reviewer's case: a file
-  named `pkg; true #/x.go` with `scoped_check: "go test {packages}"` produces
-  `go test ./pkg; true #` — the package is never tested, the shell exits 0, and
-  both `mrw check` and `write --check` report PASS at exit 0. **This is the
-  silent-PASS class again, one layer down**, and it is not hypothetical for
-  spaces alone. It is HIGH and it is pre-existing, so it gets its own record
-  and its own change rather than riding along in the PR that found it. The fix
-  is to shell-quote each substituted token before joining, plus contract rows
-  driving the real binary with spaces, semicolons, `$()` and glob characters.
+- ~~**`{packages}` and `{files}` are substituted into `sh -c` WITHOUT quoting.**~~
+  **CLOSED 2026-09-09 — `shellArgs` in `internal/check/check.go`**, ADR-003
+  amendment, contract rows around §15. Ranked as open until 2026-09-12 because
+  this receipt was never struck (M: *"I NAME THEM ALL"*). The reviewer's case
+  (`pkg; true #/x.go` → `go test ./pkg; true #`, silent PASS) is the defect that
+  shipped the quoting. Kept because the reasoning is what made it HIGH rather
+  than a drive-by. `internal/check/check.go`'s `command()` once built the scoped
+  command with a plain `strings.NewReplacer`, so every character of a derived
+  path reached the shell as syntax.
 
 - **A declared check can be inert, and mrw cannot tell.** `"check": "true"`,
   `":"`, `"# comment"`, `"$UNSET"`, `"VERIFY="`, or `"exit 7 | true"` all make
@@ -1372,3 +1420,47 @@ the older entry or record that still owns it.
   answer) rather than a shared lock first. The exclusive lock already serializes
   writers, so the only remaining reader is `Load` / `mrw seen` / `apply` at the
   start of a write.
+
+## From ADR-040 (the help a PATH caller trusts names how to quote a header option)
+
+Receipt for M, 2026-09-12: *"I NAME THEM ALL"* ranked the list; *"good, accepted
+all"* recorded each leftover as ADR-041–050. These bullets stay as the 040
+pointer. None of them is an engine change.
+
+- **Putting the four quoting / `body=` / `lines=` sentences in `guide.Shared()`
+  and the MCP handshake.** ADR-040 teaches them on `write --help` and
+  `guide.CLI()` so a PATH caller sees them without paying 4096 on every MCP
+  session. The trap is plan-text, so MCP authors can still hit it. Revisit if
+  a handshake shortening makes room, or if Accept quotes this and the bound
+  still holds. Do not raise `maxInstructionsChars`.
+- **PATH binary vs skill version skew.** The field report that forced the
+  consumer hard rule: PATH `mrw -v` → `dev (0b75313)` (mtime 8 Sep) while this
+  tree and the skill were at v1.12.0. ADR-040 OOS previously said only "old
+  binaries not upgraded". Named here as its own product: a PATH install and a
+  central skill can disagree, and `--help` on the old binary is what the caller
+  trusts. Not 040's Decision. Arm with *"spec version skew"*.
+- **`mrw check` silent in-root fallback.** True, parked since PR #15. An
+  in-root path that cannot be placed still falls back to the whole-project
+  command (`internal/check/check.go`); a typo inside the root can PASS the
+  root's check. Inbox
+  `OPEN, NOT FIXED — mrw check never says whether the scope you asked for was
+  honoured.` Arm with *"spec check in-root fallback"*.
+- **A torn `Load` during `WriteFile`.** Not this record. Still the ADR-038
+  entry above. Do not promote unless M says *"measure torn Load"* — a measure
+  task, not a lock.
+- **MCP cargo: `check` / `iter` / `seen` / `stats`.** Still ADR-010 / ADR-019
+  Decision 5. Not 040. Arm with *"spec MCP cargo"*.
+- **Generate AGENTS.md from `guide.Shared()`.** Still the ADR-037 entry above.
+  Arm with *"spec generate AGENTS.md"*.
+- **Host-cut under the advertised ceiling.** Still the ADR-039 measurement
+  entry above. Arm with *"measure host-cut under ceiling"*.
+- **Python `str` body character-split.** Caller, not the engine. Decision 1
+  already teaches that `body=` is a line count. Arm with *"document Python str
+  in help"* or leave the caller.
+- **Syntax awareness; streaming apply; Windows `%LOCALAPPDATA%`.** Engine
+  dreams. Streaming and the Windows path already have parent entries
+  (ADR-001, ADR-004). Syntax awareness has none and must not ride 040.
+  Parked. Not 040.
+- **Playtrix T4, other wings' inboxes, 019 B/C, a Canvas file, installing
+  mrw, `keep/` gitignore, "use CLI not MCP" as this binary's contract.**
+  Not this repository. Named so they stop arriving as implied 040 work.

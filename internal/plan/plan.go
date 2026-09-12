@@ -305,10 +305,11 @@ func Parse(r io.Reader) ([]Hunk, error) {
 // parseHeader splits an "@@ path addr op key=value..." line. It returns the
 // explicit body line count (-1 when the body runs to the next header).
 func parseHeader(line string, srcLine int) (Hunk, int, error) {
-	fields, err := splitHeader(strings.TrimPrefix(line, "@@ "))
+	fields, quoted, err := splitHeader(strings.TrimPrefix(line, "@@ "))
 	if err != nil {
 		return Hunk{}, 0, err
 	}
+	fields = joinUnquotedAnchorOptions(fields, quoted)
 	if len(fields) < 3 {
 		return Hunk{}, 0, fmt.Errorf("header needs at least <path> <addr> <op>, got %d field(s)", len(fields))
 	}
@@ -335,9 +336,13 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 	// guards on one hunk are two different claims about the same edit, and
 	// picking either one silently is how the caller keeps believing the other.
 	seen := map[string]bool{}
-	for _, opt := range fields[3:] {
+	opts := fields[3:]
+	for i, opt := range opts {
 		k, v, ok := strings.Cut(opt, "=")
 		if !ok {
+			if i > 0 && strings.HasPrefix(opts[i-1], "anchor=") {
+				return Hunk{}, 0, fmt.Errorf("option %q is not key=value: quote a spaced anchor= with double quotes (anchor=\"…\")", opt)
+			}
 			return Hunk{}, 0, fmt.Errorf("option %q is not key=value", opt)
 		}
 		if seen[k] {
@@ -393,14 +398,58 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 	return h, explicit, nil
 }
 
-// splitHeader splits on whitespace but keeps double-quoted fields together, so
-// a path with a space or an anchor= holding a phrase survives.
-func splitHeader(s string) ([]string, error) {
+// joinUnquotedAnchorOptions folds following non-key tokens into an unquoted
+// anchor= so `anchor=func openTestStore body=1` is one option. Only that key:
+// Accept named the field-report fixture, not sha=/lines=/body=/raw=. Path,
+// addr and op are left alone so a file named `anchor=x` is not eaten.
+func joinUnquotedAnchorOptions(fields []string, quoted []bool) []string {
+	if len(fields) < 4 {
+		return fields
+	}
+	out := append([]string{}, fields[:3]...)
+	for i := 3; i < len(fields); {
+		f := fields[i]
+		if !strings.HasPrefix(f, "anchor=") {
+			out = append(out, f)
+			i++
+			continue
+		}
+		// A quoted value is already one field. Joining further tokens would
+		// swallow a leftover (README's `anchor="class=" ← what you meant`).
+		// "Contains a space" is the stripped form of `anchor="func foo"`; a
+		// quoted value with no space still must not join.
+		if (i < len(quoted) && quoted[i]) || strings.Contains(strings.TrimPrefix(f, "anchor="), " ") {
+			out = append(out, f)
+			i++
+			continue
+		}
+		cur := f
+		i++
+		for i < len(fields) && !strings.Contains(fields[i], "=") {
+			if strings.HasSuffix(cur, "=") {
+				cur += fields[i]
+			} else {
+				cur += " " + fields[i]
+			}
+			i++
+		}
+		out = append(out, cur)
+	}
+	return out
+}
+
+// splitHeader splits on whitespace but keeps double-quoted fields together,
+// and single-quoted key=value fields together, so a path with a space or an
+// anchor= holding a phrase survives. A single-quoted path is literal.
+func splitHeader(s string) ([]string, []bool, error) {
 	var (
-		out   []string
-		cur   strings.Builder
-		inTok bool
-		inQ   bool
+		out       []string
+		quoted    []bool
+		cur       strings.Builder
+		inTok     bool
+		inQ       bool
+		inSQ      bool
+		wasQuoted bool
 		// inPat is ADR-013's pattern address. A regex is a single token even
 		// though it contains spaces — `/^func (s *Store) Get/` is the whole
 		// point of the feature and it has two. Without this the header splits
@@ -434,7 +483,7 @@ func splitHeader(s string) ([]string, error) {
 			} else {
 				inPat = false
 			}
-		case r == '/' && !inTok && !inQ:
+		case r == '/' && !inTok && !inQ && !inSQ:
 			inPat, inTok = true, true
 			cur.WriteRune(r)
 		case !inPat && r == '\\' && i+1 < len(rs) && (rs[i+1] == '"' || rs[i+1] == '\\'):
@@ -453,7 +502,8 @@ func splitHeader(s string) ([]string, error) {
 			cur.WriteRune(rs[i+1])
 			inTok = true
 			i++
-		case !inPat && r == '"':
+		case !inPat && !inSQ && r == '"':
+			wasQuoted = true
 			// ⚠ NOT INSIDE A PATTERN. A quote is an ordinary regexp character,
 			// and toggling on it here CONSUMED it: `/^"foo"$/` reached the
 			// parser as `/^foo$/`, a different expression that matched a
@@ -463,11 +513,24 @@ func splitHeader(s string) ([]string, error) {
 			// pattern test called ParseAddr directly, so none of them came
 			// through here. Found by the fourth Codex review of PR #125.
 			inQ, inTok = !inQ, true
-		case (r == ' ' || r == '\t') && !inQ && !inPat:
+		case !inPat && !inQ && r == '\'':
+			// ADR-040 Decision 4: single quotes quote a key=value, so
+			// anchor='func openTestStore' parses. A path written with
+			// quotes stays literal — contract §55 and the hook port
+			// both treat 'docs/adr/x.md' as that name, not docs/adr/x.md.
+			if inSQ || strings.Contains(cur.String(), "=") {
+				wasQuoted = true
+				inSQ, inTok = !inSQ, true
+			} else {
+				cur.WriteRune(r)
+				inTok = true
+			}
+		case (r == ' ' || r == '\t') && !inQ && !inSQ && !inPat:
 			if inTok {
 				out = append(out, cur.String())
+				quoted = append(quoted, wasQuoted)
 				cur.Reset()
-				inTok = false
+				inTok, wasQuoted = false, false
 			}
 		default:
 			cur.WriteRune(r)
@@ -475,15 +538,16 @@ func splitHeader(s string) ([]string, error) {
 		}
 	}
 	if inPat {
-		return nil, fmt.Errorf("unterminated pattern in header: expected a second /")
+		return nil, nil, fmt.Errorf("unterminated pattern in header: expected a second /")
 	}
-	if inQ {
-		return nil, fmt.Errorf("unterminated quote in header")
+	if inQ || inSQ {
+		return nil, nil, fmt.Errorf("unterminated quote in header")
 	}
 	if inTok {
 		out = append(out, cur.String())
+		quoted = append(quoted, wasQuoted)
 	}
-	return out, nil
+	return out, quoted, nil
 }
 
 // parsePattern reads the `/re/` and `/re/,/re/` forms. The syntax is the one

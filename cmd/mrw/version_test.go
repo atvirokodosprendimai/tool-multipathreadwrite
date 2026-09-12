@@ -144,3 +144,25 @@ func TestVersionFlagPrintsWhatVersionStringComposes(t *testing.T) {
 		t.Errorf("--version printed %q, want it to contain %q", got, want)
 	}
 }
+
+// ADR-040 T3. mrw version prints the same string -v already prints.
+func TestVersionCommandPrintsVersionString(t *testing.T) {
+	cmd := rootCommand()
+	var buf bytes.Buffer
+	cmd.Writer = &buf
+	if err := cmd.Run(context.Background(), []string{"mrw", "version"}); err != nil {
+		t.Fatalf("running version: %v", err)
+	}
+	got := strings.TrimSpace(buf.String())
+	if got != versionString() {
+		t.Errorf("version printed %q, want %q", got, versionString())
+	}
+
+	cmd = rootCommand()
+	buf.Reset()
+	cmd.Writer = &buf
+	err := cmd.Run(context.Background(), []string{"mrw", "version", "extra"})
+	if err == nil {
+		t.Fatal("version extra succeeded; extra arguments are usage")
+	}
+}
