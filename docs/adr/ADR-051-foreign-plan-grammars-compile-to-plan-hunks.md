@@ -4,13 +4,13 @@
 **Accepted:** 2026-09-12 by M — *"steal their ideas and apply to us where it matters and makes us ahead."*
 **Date:** 2026-09-12
 **Owner:** M
-**Spec:** None — no spec stage
-**Cross-references:** ADR-001, ADR-002, ADR-030, ADR-035, ADR-048, ADR-049, docs/adr/BACKLOG.md
-**Governs:** `cmd/mrw/main.go`, `scripts/contract.sh`
+**Spec:** docs/adr/ADR-051-foreign-plan-grammars-compile-to-plan-hunks/apply-patch-ingest.md
+**Cross-references:** ADR-001, ADR-002, ADR-030, ADR-035, ADR-048, ADR-049, docs/adr/BACKLOG.md, docs/adr/ADR-051-foreign-plan-grammars-compile-to-plan-hunks/apply-patch-ingest.md
+**Governs:** `cmd/mrw/main.go`, `scripts/contract.sh`, `internal/ingest/applypatch.go`, `internal/mcp/mcp.go`, `internal/mcp/tools.go`, `internal/mcp/instructions.go`
 **Enforced-by:** `internal/ingest/applypatch_test.go::TestATwoHunkApplyPatchWithOneUnreadLineWritesNothing`
 **Invalidates:** none — checked. ADR-001 rejected unified diff as the *native* plan; this record adds a compiler in front of that plan, it does not replace it.
-**Served-path change:** `mrw write --format=apply_patch [PLAN|-]` compiles a Codex `apply_patch` document into `@@` hunks, then `plan.Parse` and `apply.Apply` run unchanged. Default `write` is still the native plan. A git patch is not an `apply_patch`.
-**Notes:** M's quote is Accept of this steal — foreign grammars that compile to the atomic engine — not of Morph/streaming (ADR-049), syntax-aware write (ADR-048), cargo MCP tools (ADR-044), LOCALAPPDATA (ADR-050), or generating AGENTS.md (ADR-045). 4096 stays. 019 A stands.
+**Served-path change:** `mrw write --format=apply_patch [PLAN|-]` compiles a Codex `apply_patch` document into `@@` hunks, then `plan.Parse` and `apply.Apply` run unchanged. Default `write` is still the native plan. A git patch is not an `apply_patch`. Over MCP the same compile is `mrw_write` optional `format` (`plan` default, `apply_patch`); `git` is refuse. No third tool.
+**Notes:** M's quote is Accept of this steal — foreign grammars that compile to the atomic engine — not of Morph/streaming (ADR-049), syntax-aware write (ADR-048), cargo MCP tools (ADR-044), LOCALAPPDATA (ADR-050), or generating AGENTS.md (ADR-045). 4096 stays. 019 A stands. 2026-09-12 amendment: M asked to drill the compile rules after T1/T2 shipped; the child spec names the ingested subset, 0/N match, CRLF, empty add, and the MCP `format` shape. Decision unchanged.
 
 ## Context
 
@@ -20,7 +20,7 @@
 git ls-files cmd/mrw/main.go internal/plan/plan.go internal/apply/apply.go scripts/contract.sh
 ```
 
-Four tracked files on the write path (1+1+1+1). The compiler package is new and is named by the tasks. Members left out: the MCP `plan` argument (deferred, receipt in BACKLOG), Aider SEARCH/REPLACE (deferred), git unified diffs (permanent: they are not this grammar).
+Four tracked files on the write path (1+1+1+1). The compiler package is new and is named by the tasks. Members left out: Aider SEARCH/REPLACE (deferred), git unified diffs (permanent: they are not this grammar). MCP `format` on existing `mrw_write` shipped 2026-09-12 (F-27).
 
 A 2026-09-12 competitor scan (v1.13.0, `d7e39bd`) found Codex `apply_patch` closest on the job: one multi-file document, no line numbers, trained into the models that already emit it. OpenAI leaves atomicity to the harness. Codex-rs applies sequentially; a failed write can already have mutated the target (`delta.exact=false`). That sequential leak is the thing we do not copy.
 
@@ -75,15 +75,18 @@ C4: ingest is a compiler in front of the existing write container. It reads file
 | `mrw write --format` | new flag; `plan` (default) or `apply_patch` | `cmd/mrw/main.go` `writeCmd` | CLI callers; contract §82 |
 | `write --help` | names `--format=apply_patch` and that a git patch is not one | `writeCmd` Usage / Description | PATH callers |
 | contract §82 | two-hunk apply_patch, one unread line writes nothing; paired with the served case and the no-flag case | `scripts/contract.sh` | `adr-verify`, CI |
-| `internal/ingest.CompileApplyPatch` | new | T1 | T2 (`writeCmd`) |
+| `mrw_write.format` | optional; `plan` default or `apply_patch`; `git` refuse | `internal/mcp/mcp.go` `tools()` / `writeTool` | MCP hosts; contract §83 |
+| contract §83 | MCP `format=apply_patch`, one unread line writes nothing; paired with served / no-format / git | `scripts/contract.sh` | `adr-verify`, CI |
+| `internal/ingest.CompileApplyPatch` | new | T1 | T2 (`writeCmd`); MCP `writeTool` |
 
-No MCP `format` argument this slice. No exit-code change: compile refusal is 2 (the document did not become a plan); an unread compiled hunk is 1 (the plan failed and nothing was written).
+No exit-code change: compile refusal is 2 (the document did not become a plan); an unread compiled hunk is 1 (the plan failed and nothing was written). MCP maps those to a tool error / FAIL+skip receipt. No third tool.
 
 ## Inter-task Contracts
 
 | Contract | Producing task | Consuming task(s) | Breaking? |
 |----------|----------------|-------------------|-----------|
-| `ingest.CompileApplyPatch` (T1) | T1 | T2 | No — T2 is the first caller |
+| `ingest.CompileApplyPatch` (T1) | T1 | T2, T3 | No — T2 is the first caller |
+| `write --format=apply_patch` (T2) | T2 | T3 | No — same compiler, new surface |
 
 ## Implementation
 
@@ -106,7 +109,7 @@ See `docs/adr/ADR-051-foreign-plan-grammars-compile-to-plan-hunks/tasks/README.m
 - Treating a git patch as an `apply_patch` (permanent: boundary: they share `@@` and they are not the same grammar)
 - Aider SEARCH/REPLACE (deferred: docs/adr/BACKLOG.md)
 - `*** Delete File:` / `*** Move to:` (deferred: docs/adr/BACKLOG.md)
-- MCP `format` on `mrw_write` (deferred: docs/adr/BACKLOG.md)
+- A third MCP tool named apply_patch (permanent: fact: ADR-044; citation: file `docs/adr/ADR-044-mcp-cargo-stays-two-tools.md:7`)
 - ast-grep-shaped `--grep` (deferred: docs/adr/BACKLOG.md)
 - Raising `maxInstructionsChars` / 4096 (permanent: boundary: ADR-037's go/no-go; 4096 stays)
 - Reopening ADR-019 B/C (permanent: fact: pick A stands; citation: file `docs/adr/ADR-019-desktop-reach-is-one-named-root-per-run.md:106`)
@@ -128,5 +131,5 @@ Delete `--format`, delete `internal/ingest`, delete contract §82. Nothing persi
 ## Follow-ups
 
 - [ ] Aider SEARCH/REPLACE as a second `--format` if models keep emitting it
-- [ ] MCP `format` once the CLI flag has been in use
+- [x] MCP `format` on existing `mrw_write` — M 2026-09-12 *"YES, we have to be competitive"*
 - [ ] `*** Delete File:` only if mrw gains an unlink op

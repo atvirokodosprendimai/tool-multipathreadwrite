@@ -15,6 +15,7 @@ import (
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/ingest"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
@@ -451,6 +452,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	var a struct {
 		Plan   string   `json:"plan"`
+		Format string   `json:"format"`
 		DryRun bool     `json:"dry_run"`
 		Ack    []string `json:"ack"`
 	}
@@ -466,7 +468,23 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "mrw_write needs a plan"}
 	}
 
-	hunks, err := plan.Parse(strings.NewReader(a.Plan))
+	doc := []byte(a.Plan)
+	switch strings.TrimSpace(a.Format) {
+	case "", "plan":
+	case "apply_patch":
+		compiled, cerr := ingest.CompileApplyPatch(root, doc)
+		if cerr != nil {
+			_ = authoring.Record(root, authoring.RefusedParse)
+			return errorResult(cerr.Error()), nil
+		}
+		doc = compiled
+	case "git":
+		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "a git patch is not an apply_patch; format apply_patch is for *** Begin Patch documents"}
+	default:
+		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf("unknown format %q (plan or apply_patch)", a.Format)}
+	}
+
+	hunks, err := plan.Parse(bytes.NewReader(doc))
 	if err != nil {
 		// A plan that did not PARSE is the outcome ADR-009 counts as the one
 		// saying the FORMAT was the problem. Recorded at the site that decided

@@ -349,6 +349,12 @@ func tools() []tool {
 						"description": "Validate and report without writing anything. The receipt is the " +
 							"same shape, with dry_run true and no file written.",
 					},
+					"format": map[string]any{
+						"type":        "string",
+						"enum":        []string{"plan", "apply_patch"},
+						"default":     "plan",
+						"description": "plan (default) is the native @@ document. apply_patch compiles a Codex *** Begin Patch document the same way write --format=apply_patch does, then Parse and Apply run unchanged. git is refused: a git patch is not an apply_patch.",
+					},
 					"plan": map[string]any{
 						"type": "string",
 						"description": "The plan document. Each hunk is a header line " +

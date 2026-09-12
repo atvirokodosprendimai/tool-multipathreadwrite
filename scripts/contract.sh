@@ -4987,6 +4987,132 @@ want 2 "$rc" "a git patch under --format=apply_patch is refused"
 printf '' | m write --format=git - >/dev/null 2>&1
 want 2 $? "--format=git is usage"
 
+# 83. ADR-051 F-27: mrw_write.format=apply_patch is the MCP served path.
+# Pair: unread (failed+skipped, ledger, unchanged) / served (both
+# replacements) / no format (parse refuse) / format=git (usage) / cargo
+# stays two tools and declares format. A mutant that ignores format fails
+# the unread half as a parse error rather than failed+skipped.
+patch83=$(printf '%s\n' \
+	'*** Begin Patch' \
+	'*** Update File: a.go' \
+	'@@' \
+	'-func A() int { return 1 }' \
+	'+func A() int { return 10 }' \
+	'@@' \
+	'-func C() int { return 3 }' \
+	'+func C() int { return 30 }' \
+	'*** End Patch')
+printf '%s\n' "$patch83" > "$WORK/p83.apply"
+R=$(mktemp -d "$WORK/r83-XXXXXX")
+printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:3"]}}}\n' | m mcp 2>/dev/null)
+want 0 $? "MCP serves a.go:3"
+printf '%s' "$out" > "$R/read83.json"
+python3 - "$R/read83.json" <<'PY'
+import json,re,sys
+r=json.load(open(sys.argv[1]))["result"]
+t=r["content"][0]["text"]
+cks=re.findall(r"^-- ck ([0-9a-f]{16}) open ", t, re.M)
+assert cks, "a.go:3 carry no checkpoints"
+open(sys.argv[1]+".cks","w").write("\n".join(cks))
+PY
+want 0 $? "a.go:3 carry checkpoints"
+req=$(python3 - "$WORK/p83.apply" "$R/read83.json.cks" <<'PY'
+import json,sys
+plan=open(sys.argv[1]).read()
+acks=open(sys.argv[2]).read().split()
+print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":plan,"format":"apply_patch","ack":acks}}}))
+PY
+)
+out=$(printf '%s\n' "$req" | m mcp 2>/dev/null)
+python3 - "$out" "$R/a.go" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+assert r.get("isError") is True, "unread apply_patch was not a tool error: %s" % r
+sc=r.get("structuredContent") or {}
+assert sc.get("applied") is False, "unread apply_patch applied: %s" % sc
+assert sc.get("failed") == 1, "unread apply_patch failed=%s want 1: %s" % (sc.get("failed"), sc)
+st=[h.get("status") for h in sc.get("hunks") or []]
+assert "failed" in st and "skipped" in st, "want failed+skipped, got %s" % st
+reason=" ".join((h.get("reason") or "") for h in sc.get("hunks") or [])
+assert "has not been read" in reason, "not the ledger refusal: %s" % reason
+assert "return 1 }" in open(sys.argv[2]).read(), "unread apply_patch wrote"
+PY
+want 0 $? "MCP format apply_patch, one unread line writes nothing"
+
+fixture
+printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}\n' | m mcp 2>/dev/null)
+printf '%s' "$out" > "$R/read83s.json"
+python3 - "$R/read83s.json" <<'PY'
+import json,re,sys
+r=json.load(open(sys.argv[1]))["result"]
+cks=re.findall(r"^-- ck ([0-9a-f]{16}) open ", r["content"][0]["text"], re.M)
+assert cks, "served a.go carry no checkpoints"
+open(sys.argv[1]+".cks","w").write("\n".join(cks))
+PY
+want 0 $? "served a.go carry checkpoints"
+req=$(python3 - "$WORK/p83.apply" "$R/read83s.json.cks" <<'PY'
+import json,sys
+plan=open(sys.argv[1]).read()
+acks=open(sys.argv[2]).read().split()
+print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":plan,"format":"apply_patch","ack":acks}}}))
+PY
+)
+out=$(printf '%s\n' "$req" | m mcp 2>/dev/null)
+python3 - "$out" "$R/a.go" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+assert sc.get("applied") is True and sc.get("failed") == 0, "served apply_patch refused: %s" % sc
+body=open(sys.argv[2]).read()
+assert "return 10" in body and "return 30" in body, "served apply_patch missed a replacement: %r" % body
+PY
+want 0 $? "MCP format apply_patch served writes both replacements"
+
+R=$(mktemp -d "$WORK/r83n-XXXXXX")
+printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
+req=$(python3 - "$WORK/p83.apply" <<'PY'
+import json,sys
+print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":open(sys.argv[1]).read()}}}))
+PY
+)
+out=$(printf '%s\n' "$req" | m mcp 2>/dev/null)
+python3 - "$out" "$R/a.go" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+assert r.get("isError") is True, "no-format apply_patch was not a parse refusal: %s" % r
+assert "structuredContent" not in r, "no-format apply_patch compiled: %s" % r
+assert "return 1 }" in open(sys.argv[2]).read(), "no-format apply_patch wrote"
+PY
+want 0 $? "MCP apply_patch without format is a bad native plan"
+
+req=$(python3 - "$WORK/p83.apply" <<'PY'
+import json,sys
+print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":open(sys.argv[1]).read(),"format":"git"}}}))
+PY
+)
+out=$(printf '%s\n' "$req" | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])
+assert "error" in r, "format=git was not usage: %s" % r
+assert "git patch is not" in r["error"].get("message",""), "git refuse does not name the grammar: %s" % r
+PY
+want 0 $? "MCP format=git is usage"
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+tools={t["name"]:t for t in json.loads(sys.argv[1])["result"]["tools"]}
+assert set(tools)=={"mrw_read","mrw_write"}, "cargo grew: %s" % sorted(tools)
+fmt=(tools["mrw_write"].get("inputSchema") or {}).get("properties") or {}
+assert "format" in fmt, "mrw_write does not declare format"
+assert "plan" in (fmt["format"].get("enum") or []) or "plan" in str(fmt["format"])
+assert "apply_patch" in str(fmt["format"])
+PY
+want 0 $? "tools/list still two tools and mrw_write declares format"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

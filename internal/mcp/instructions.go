@@ -64,14 +64,12 @@ var exampleReadSpecs = []string{
 // format that has no second source.
 func instructionsText() string {
 	return guide.Shared() + "\n\n" + fmt.Sprintf(`mrw reads many ranges and applies many edits in ONE call; every edit gets a verdict.
-A read that finds nothing is obvious; a write that changes nothing is not.
 
-WHICH SURFACE. Below that use your editor: same two calls, more bytes than the file.
-
-Then choose. The CLI is broader — only it has --files-from, --check, and
+WHICH SURFACE. Below that use your editor.
+The CLI is broader — only it has --files-from, --check, and
 check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; --root goes
 BEFORE the subcommand, since after `+"`read`"+` the short -C is the context flag.
-This surface is pointed with launch `+"`--root DIR mcp`"+`. It returns structured JSON (a read's receipt: 2nd text block); one
+This surface is pointed with launch `+"`--root DIR mcp`"+`. It returns structured JSON; one
 server is one writer to the ledger. With a shell prefer the CLI; prefer this
 one with none, or when callers sharing ONE fixed checkout want writes
 serialized.
@@ -95,7 +93,7 @@ A SERVE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT.
 An id you omit leaves its lines unwritable: a host can cut a result before you
 see it and mrw cannot tell, but you can.
 
-WRITING. mrw_write takes one plan and those ck ids as ack. Each hunk is a header line
+WRITING. mrw_write takes one plan and those ck ids as ack. Optional format: plan (default) or apply_patch. git is refused. Each hunk is a header line
 
     @@ <path> <address> <op> [guards]
 then its body lines. Ops: replace, insert-after, insert-before, delete, create.

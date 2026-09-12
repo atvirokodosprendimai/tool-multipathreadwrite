@@ -47,7 +47,7 @@ that arms work; silence leaves the row where it is.
 | Windows `%LOCALAPPDATA%` | **ADR-050 Accepted** — record only | — (T1 receipts 2026-09-12; XDG stays) |
 | Foreign plan grammars / `apply_patch` | **ADR-051 Accepted** — compile to `@@`; first slice is `--format=apply_patch` | — (this steal; not Morph, not syntax-write) |
 | Aider SEARCH/REPLACE as a second `--format` | **deferred** — ADR-051 | *"add SEARCH/REPLACE format"* |
-| MCP `format` on `mrw_write` | **deferred** — ADR-051 | *"MCP format apply_patch"* |
+| MCP `format` on `mrw_write` | **shipped** — ADR-051 F-27 | — (M 2026-09-12: *"YES, we have to be competitive"*) |
 | `apply_patch` `*** Delete File:` / `*** Move to:` | **deferred** — ADR-051 | *"unlink op"* |
 | ast-grep-shaped `--grep` | **deferred** — ADR-051 / ADR-048 | *"structural find only"* |
 | Playtrix T4 / that paste | **not-this-repo** | — (wing_playtrix) |
@@ -1474,8 +1474,8 @@ pointer. None of them is an engine change.
 
 - **Aider SEARCH/REPLACE as a second `--format`.** First slice is Codex
   `apply_patch` only. Arm with *"add SEARCH/REPLACE format"*.
-- **MCP `format` on `mrw_write`.** The CLI flag is the served path this
-  slice. Arm with *"MCP format apply_patch"*.
+- **MCP `format` on `mrw_write`.** Shipped 2026-09-12 (F-27). Optional
+  `format` on the existing write tool (`plan` default, `apply_patch`).
 - **`*** Delete File:` / `*** Move to:`.** mrw has no unlink op; emptying
   a file is not a delete. Arm with *"unlink op"*.
 - **ast-grep-shaped `--grep`.** Structural find only, and only if it does

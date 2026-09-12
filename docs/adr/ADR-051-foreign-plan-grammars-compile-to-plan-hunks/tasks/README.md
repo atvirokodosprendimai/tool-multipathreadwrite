@@ -15,13 +15,15 @@ DAG); Covers-column drift is caught at review. Regenerate rather than hand-edit.
 |-------|------|------------|
 | 1 | T1 | none |
 | 2 | T2 | T1 |
+| 3 | T3 | T2 |
 
 ## Task Index
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Compile apply_patch to plan hunks; an unread sibling writes nothing | done | — | `go test ./internal/ingest/` |
-| T2 | `--format=apply_patch` on write; contract §82 | done | — | `go test ./cmd/mrw/` + `grep '^# 82\. '` |
+| T1 | Compile apply_patch to plan hunks; an unread sibling writes nothing | done | F-7, F-17, F-18, UC1-S2, UC2-S1, UC2-S2 | `go test ./internal/ingest/` |
+| T2 | `--format=apply_patch` on write; contract §82 | done | F-23, UC3-S1, UC3-S2 | `go test ./cmd/mrw/` + `grep '^# 82\. '` |
+| T3 | `mrw_write` grows `format`; contract §83 | pending | F-24, F-25, F-27, UC4-S1, UC4-S2, UC4-S3 | `go test ./internal/mcp/` + `grep '^# 83\. '` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
@@ -41,9 +43,10 @@ Status: `pending` | `partial` | `blocked` | `done`.
 
 | Producer | Contract | Consumer(s) | Ordering note |
 |----------|----------|-------------|---------------|
-| T1 | `ingest.CompileApplyPatch` (T1) | T2 | T1 before T2 |
+| T1 | `ingest.CompileApplyPatch` (T1) | T2, T3 | T1 before T2 and T3 |
+| T2 | `write --format=apply_patch` (T2) | T3 | T2 before T3 |
 
 ## Notes
 
-- First slice is `apply_patch` only. Aider SEARCH/REPLACE, MCP `format`, Delete File / Move, and ast-grep stay in BACKLOG.
+- First slice is `apply_patch` only. MCP `format` on existing `mrw_write` shipped with F-27. Aider SEARCH/REPLACE, Delete File / Move, and ast-grep stay in BACKLOG.
 - 4096 stays. 019 A stands. Do not stream. Do not parse target syntax.

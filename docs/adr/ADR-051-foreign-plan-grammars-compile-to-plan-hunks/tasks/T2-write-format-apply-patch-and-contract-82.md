@@ -1,7 +1,7 @@
 # Task ADR-051-T2: `--format=apply_patch` on write; contract §82
 
 **Depends-on:** T1
-**Covers:** none — no spec
+**Covers:** F-23, UC3-S1, UC3-S2
 **Estimated scope:** M
 **Owner:** unassigned
 **Produces:** `write --format=apply_patch` (T2), contract §82 (T2)
@@ -96,7 +96,7 @@ Stop if the proposed fix is auto-detect, `--format=git`, raising 4096, or applyi
 ## Out of Scope
 
 - Aider SEARCH/REPLACE
-- MCP `format`
+- MCP cargo tools
 - `*** Delete File:` / `*** Move to:`
 - README / AGENTS.md beyond `write --help` (the flag is the served path)
 

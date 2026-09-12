@@ -1,7 +1,7 @@
 # Task ADR-051-T1: Compile apply_patch to plan hunks; an unread sibling writes nothing
 
 **Depends-on:** none
-**Covers:** none — no spec
+**Covers:** F-7, F-17, F-18, UC1-S2, UC2-S1, UC2-S2
 **Estimated scope:** M
 **Owner:** unassigned
 **Produces:** `ingest.CompileApplyPatch` (T1)
