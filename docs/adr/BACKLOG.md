@@ -46,7 +46,7 @@ that arms work; silence leaves the row where it is.
 | Streaming apply | **ADR-049 Accepted** — record only | — (T1 receipts 2026-09-12; still waits for a size that hurts) |
 | Windows `%LOCALAPPDATA%` | **ADR-050 Accepted** — record only | — (T1 receipts 2026-09-12; XDG stays) |
 | Foreign plan grammars / `apply_patch` | **ADR-051 Accepted** — compile to `@@`; first slice is `--format=apply_patch` | — (this steal; not Morph, not syntax-write) |
-| Aider SEARCH/REPLACE as a second `--format` | **deferred** — ADR-051 | *"add SEARCH/REPLACE format"* |
+| Aider SEARCH/REPLACE as a second `--format` | **shipped** — ADR-051 F-26 | — (M 2026-09-12: *"commit, accepted, do work"*; `--format=search_replace`) |
 | MCP `format` on `mrw_write` | **shipped** — ADR-051 F-27 | — (M 2026-09-12: *"YES, we have to be competitive"*) |
 | `apply_patch` `*** Delete File:` / `*** Move to:` | **deferred** — ADR-051 | *"unlink op"* |
 | ast-grep-shaped `--grep` | **deferred** — ADR-051 / ADR-048 | *"structural find only"* |
@@ -1472,8 +1472,9 @@ pointer. None of them is an engine change.
 
 ## From ADR-051 (foreign plan grammars compile to plan hunks)
 
-- **Aider SEARCH/REPLACE as a second `--format`.** First slice is Codex
-  `apply_patch` only. Arm with *"add SEARCH/REPLACE format"*.
+- **Aider SEARCH/REPLACE as a second `--format`.** Shipped 2026-09-12 as
+  `--format=search_replace` / MCP `format=search_replace` (F-26). Exact unique
+  SEARCH only; unread writes nothing.
 - **MCP `format` on `mrw_write`.** Shipped 2026-09-12 (F-27). Optional
   `format` on the existing write tool (`plan` default, `apply_patch`).
 - **`*** Delete File:` / `*** Move to:`.** mrw has no unlink op; emptying

@@ -1,6 +1,7 @@
 // Package ingest compiles a foreign edit grammar into a native mrw plan.
 //
-// The first grammar is Codex apply_patch (ADR-051). Compile emits plan text;
+// The first grammar is Codex apply_patch (ADR-051). The second is Aider
+// SEARCH/REPLACE (--format=search_replace). Compile emits plan text;
 // plan.Parse is the only door into Apply. Context matching locates an old
 // side; it is not a license and it is not a target-syntax parse.
 package ingest
@@ -41,7 +42,11 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 		hunk []string
 	)
 	flush := func() error {
-		if path == "" || len(hunk) == 0 {
+		if path == "" {
+			hunk = nil
+			return nil
+		}
+		if len(hunk) == 0 && kind != "add" {
 			hunk = nil
 			return nil
 		}
@@ -51,6 +56,9 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 		}
 		out.WriteString(text)
 		hunk = nil
+		if kind == "add" {
+			path, kind = "", ""
+		}
 		return nil
 	}
 	for _, line := range strings.Split(body, "\n") {

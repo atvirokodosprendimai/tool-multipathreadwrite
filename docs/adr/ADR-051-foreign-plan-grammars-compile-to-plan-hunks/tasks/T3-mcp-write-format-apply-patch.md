@@ -67,6 +67,9 @@ grep -q '^# 83\. ' scripts/contract.sh \
 | 3 — the caller can discover it | `mrw_write` schema `format` and initialize instructions |
 | 4 — it is used | nothing measures this yet — ADR-009 refused telemetry |
 
+## Mutation Log
+- 2026-09-12 · 71fefa1* · mutant killed · exit 1 · `internal/mcp/tools.go` · format apply_patch is a pass-through: the blob is parsed as a native plan so unread is a parse error, not FAIL+skip · acceptance-sha256:05a95844a0d1681f220d9242833c9eceb13948e2ed98e030613ae8e0ac0bd225 · covers:MCP format apply_patch unread writing nothing
+
 ## Invariants
 
 - Default `format` is `plan`. Native `mrw_write` is unchanged.
@@ -89,3 +92,4 @@ Stop if the proposed fix is a third MCP tool, auto-detect, raising 4096, or appl
 - `*** Delete File:` / `*** Move to:` (deferred: docs/adr/BACKLOG.md)
 
 ## Verification Log
+- 2026-09-12 · 71fefa1* · exit 0 · `set -o pipefail …` · acceptance-sha256:05a95844a0d1681f220d9242833c9eceb13948e2ed98e030613ae8e0ac0bd225 · ms:804

@@ -478,10 +478,17 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			return errorResult(cerr.Error()), nil
 		}
 		doc = compiled
+	case "search_replace":
+		compiled, cerr := ingest.CompileSearchReplace(root, doc)
+		if cerr != nil {
+			_ = authoring.Record(root, authoring.RefusedParse)
+			return errorResult(cerr.Error()), nil
+		}
+		doc = compiled
 	case "git":
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "a git patch is not an apply_patch; format apply_patch is for *** Begin Patch documents"}
 	default:
-		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf("unknown format %q (plan or apply_patch)", a.Format)}
+		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf("unknown format %q (plan, apply_patch, or search_replace)", a.Format)}
 	}
 
 	hunks, err := plan.Parse(bytes.NewReader(doc))

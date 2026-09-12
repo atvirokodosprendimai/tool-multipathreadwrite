@@ -1,7 +1,7 @@
 # Task ADR-051-T2: `--format=apply_patch` on write; contract §82
 
 **Depends-on:** T1
-**Covers:** F-23, UC3-S1, UC3-S2
+**Covers:** F-19, F-20, F-21, F-22, F-23, UC1-S1, UC3-S1, UC3-S2
 **Estimated scope:** M
 **Owner:** unassigned
 **Produces:** `write --format=apply_patch` (T2), contract §82 (T2)

@@ -33,6 +33,7 @@ func TestWriteHelpNamesApplyPatchFormat(t *testing.T) {
 	got := writeCmd().Description
 	for _, must := range []string{
 		"--format=apply_patch",
+		"--format=search_replace",
 		"git patch",
 		"not an apply_patch",
 	} {

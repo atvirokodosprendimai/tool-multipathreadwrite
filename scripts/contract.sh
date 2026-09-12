@@ -5113,6 +5113,105 @@ assert "apply_patch" in str(fmt["format"])
 PY
 want 0 $? "tools/list still two tools and mrw_write declares format"
 
+# 84. ADR-051 F-26: --format=search_replace compiles Aider SEARCH/REPLACE.
+# Pair: unread (exit 1, FAIL+skip, ledger, unchanged) / served (exit 0, both
+# replacements) / no flag (exit 2) / MCP unread writes nothing / cargo still
+# two tools and declares search_replace. A mutant that ignores the flag fails
+# the unread half as exit 2 rather than 1. Exact match only — no fuzzy.
+sr84=$(printf '%s\n' \
+	'a.go' \
+	'<<<<<<< SEARCH' \
+	'func A() int { return 1 }' \
+	'=======' \
+	'func A() int { return 10 }' \
+	'>>>>>>> REPLACE' \
+	'<<<<<<< SEARCH' \
+	'func C() int { return 3 }' \
+	'=======' \
+	'func C() int { return 30 }' \
+	'>>>>>>> REPLACE')
+R=$(mktemp -d "$WORK/r84-XXXXXX")
+printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
+m read 'a.go:3' >/dev/null
+out=$(printf '%s\n' "$sr84" | m write --format=search_replace - 2>&1); rc=$?
+want 1 "$rc" "two-hunk SEARCH/REPLACE, one unread line -> exit 1"
+grep -q 'FAIL' <<<"$out" && ok "unread SEARCH/REPLACE names FAIL" || bad "unread SEARCH/REPLACE names FAIL"
+grep -q '^skip' <<<"$out" && ok "unread SEARCH/REPLACE siblings skip" || bad "unread SEARCH/REPLACE siblings skip"
+grep -q 'has not been read' <<<"$out" && ok "unread SEARCH/REPLACE is the ledger refusal" || bad "unread SEARCH/REPLACE is the ledger refusal"
+grep -q 'return 1 }' "$R/a.go" && ok "unread SEARCH/REPLACE wrote nothing" || bad "unread SEARCH/REPLACE wrote"
+
+fixture
+out=$(printf '%s\n' "$sr84" | m write --format=search_replace - 2>&1); rc=$?
+want 0 "$rc" "served two-hunk SEARCH/REPLACE -> exit 0"
+grep -q 'return 10' "$R/a.go" && ok "served SEARCH/REPLACE rewrote A" || bad "served SEARCH/REPLACE rewrote A"
+grep -q 'return 30' "$R/a.go" && ok "served SEARCH/REPLACE rewrote C" || bad "served SEARCH/REPLACE rewrote C"
+
+R=$(mktemp -d "$WORK/r84n-XXXXXX")
+printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
+out=$(printf '%s\n' "$sr84" | m write - 2>&1); rc=$?
+want 2 "$rc" "SEARCH/REPLACE without --format is a bad native plan"
+grep -q 'return 1 }' "$R/a.go" && ok "no-flag SEARCH/REPLACE wrote nothing" || bad "no-flag SEARCH/REPLACE wrote"
+
+near84=$(printf '%s\n' \
+	'a.go' \
+	'<<<<<<< SEARCH' \
+	'func A() int { return  1 }' \
+	'=======' \
+	'func A() int { return 10 }' \
+	'>>>>>>> REPLACE')
+R=$(mktemp -d "$WORK/r84f-XXXXXX")
+printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
+out=$(printf '%s\n' "$near84" | m write --format=search_replace - 2>&1); rc=$?
+want 2 "$rc" "a near-miss SEARCH is a compile refusal, not fuzzy apply"
+grep -q 'return 1 }' "$R/a.go" && ok "near-miss SEARCH wrote nothing" || bad "near-miss SEARCH wrote"
+
+printf '%s\n' "$sr84" > "$WORK/p84.sr"
+R=$(mktemp -d "$WORK/r84m-XXXXXX")
+printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:3"]}}}\n' | m mcp 2>/dev/null)
+want 0 $? "MCP serves a.go:3 for SEARCH/REPLACE"
+printf '%s' "$out" > "$R/read84.json"
+python3 - "$R/read84.json" <<'PY'
+import json,re,sys
+r=json.load(open(sys.argv[1]))["result"]
+cks=re.findall(r"^-- ck ([0-9a-f]{16}) open ", r["content"][0]["text"], re.M)
+assert cks, "a.go:3 carry no checkpoints"
+open(sys.argv[1]+".cks","w").write("\n".join(cks))
+PY
+want 0 $? "a.go:3 carry checkpoints for SEARCH/REPLACE"
+req=$(python3 - "$WORK/p84.sr" "$R/read84.json.cks" <<'PY'
+import json,sys
+plan=open(sys.argv[1]).read()
+acks=open(sys.argv[2]).read().split()
+print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":plan,"format":"search_replace","ack":acks}}}))
+PY
+)
+out=$(printf '%s\n' "$req" | m mcp 2>/dev/null)
+python3 - "$out" "$R/a.go" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])["result"]
+assert r.get("isError") is True, "unread SEARCH/REPLACE was not a tool error: %s" % r
+sc=r.get("structuredContent") or {}
+assert sc.get("applied") is False, "unread SEARCH/REPLACE applied: %s" % sc
+assert sc.get("failed") == 1, "unread SEARCH/REPLACE failed=%s want 1: %s" % (sc.get("failed"), sc)
+st=[h.get("status") for h in sc.get("hunks") or []]
+assert "failed" in st and "skipped" in st, "want failed+skipped, got %s" % st
+reason=" ".join((h.get("reason") or "") for h in sc.get("hunks") or [])
+assert "has not been read" in reason, "not the ledger refusal: %s" % reason
+assert "return 1 }" in open(sys.argv[2]).read(), "unread SEARCH/REPLACE wrote"
+PY
+want 0 $? "MCP format search_replace, one unread line writes nothing"
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+python3 - "$out" <<'PY'
+import json,sys
+tools={t["name"]:t for t in json.loads(sys.argv[1])["result"]["tools"]}
+assert set(tools)=={"mrw_read","mrw_write"}, "cargo grew: %s" % sorted(tools)
+fmt=(tools["mrw_write"].get("inputSchema") or {}).get("properties") or {}
+assert "search_replace" in str(fmt.get("format")), "mrw_write does not declare search_replace"
+PY
+want 0 $? "tools/list still two tools and mrw_write declares search_replace"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

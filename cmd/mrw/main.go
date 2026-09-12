@@ -762,7 +762,9 @@ visible to whatever hooks watch file writes.
 
 --format=apply_patch compiles a Codex apply_patch document (*** Begin Patch)
 into the native plan above, then Parse and Apply run unchanged. A git patch
-is not an apply_patch; --format=git is usage. Default --format is plan.`,
+is not an apply_patch; --format=git is usage.
+--format=search_replace compiles an Aider SEARCH/REPLACE document
+(<<<<<<< SEARCH / ======= / >>>>>>> REPLACE) the same way. Default --format is plan.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "dry-run",
@@ -789,7 +791,7 @@ is not an apply_patch; --format=git is usage. Default --format is plan.`,
 			&cli.StringFlag{
 				Name:  "format",
 				Value: "plan",
-				Usage: "plan (default) or apply_patch (Codex *** Begin Patch; a git patch is not one)",
+				Usage: "plan (default), apply_patch (Codex *** Begin Patch; a git patch is not one), or search_replace (Aider SEARCH/REPLACE)",
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -843,10 +845,21 @@ is not an apply_patch; --format=git is usage. Default --format is plan.`,
 					return cli.Exit(fmt.Sprintf("%s: %v", name, cerr), exitUsage)
 				}
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
+			case "search_replace":
+				raw, rerr := io.ReadAll(src)
+				if rerr != nil {
+					return cli.Exit(fmt.Sprintf("%s: %v", name, rerr), exitUsage)
+				}
+				compiled, cerr := ingest.CompileSearchReplace(cmd.Root().String("root"), raw)
+				if cerr != nil {
+					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					return cli.Exit(fmt.Sprintf("%s: %v", name, cerr), exitUsage)
+				}
+				hunks, err = plan.Parse(bytes.NewReader(compiled))
 			case "git":
 				return cli.Exit("a git patch is not an apply_patch; --format=apply_patch is for *** Begin Patch documents", exitUsage)
 			default:
-				return cli.Exit(fmt.Sprintf("unknown --format %q (plan or apply_patch)", cmd.String("format")), exitUsage)
+				return cli.Exit(fmt.Sprintf("unknown --format %q (plan, apply_patch, or search_replace)", cmd.String("format")), exitUsage)
 			}
 			if err != nil {
 				// A plan that did not PARSE is the outcome ADR-009 exists to

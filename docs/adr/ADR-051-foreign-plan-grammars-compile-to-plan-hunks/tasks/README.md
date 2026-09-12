@@ -16,14 +16,16 @@ DAG); Covers-column drift is caught at review. Regenerate rather than hand-edit.
 | 1 | T1 | none |
 | 2 | T2 | T1 |
 | 3 | T3 | T2 |
+| 4 | T4 | T3 |
 
 ## Task Index
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Compile apply_patch to plan hunks; an unread sibling writes nothing | done | F-7, F-17, F-18, UC1-S2, UC2-S1, UC2-S2 | `go test ./internal/ingest/` |
-| T2 | `--format=apply_patch` on write; contract §82 | done | F-23, UC3-S1, UC3-S2 | `go test ./cmd/mrw/` + `grep '^# 82\. '` |
-| T3 | `mrw_write` grows `format`; contract §83 | pending | F-24, F-25, F-27, UC4-S1, UC4-S2, UC4-S3 | `go test ./internal/mcp/` + `grep '^# 83\. '` |
+| T1 | Compile apply_patch to plan hunks; an unread sibling writes nothing | done | F-1, F-2, F-3, F-4, F-5, F-6, F-7, F-8, F-9, F-10, F-11, F-12, F-13, F-14, F-15, F-16, F-17, F-18, UC1-S2, UC2-S1, UC2-S2 | `go test ./internal/ingest/` |
+| T2 | `--format=apply_patch` on write; contract §82 | done | F-19, F-20, F-21, F-22, F-23, UC1-S1, UC3-S1, UC3-S2 | `go test ./cmd/mrw/` + `grep '^# 82\. '` |
+| T3 | `mrw_write` grows `format`; contract §83 | done | F-24, F-25, F-27, UC4-S1, UC4-S2, UC4-S3 | `go test ./internal/mcp/` + `grep '^# 83\. '` |
+| T4 | `--format=search_replace` on write and MCP; contract §84 | done | F-26, UC5-S1, UC5-S2, UC5-S3 | `go test ./internal/ingest/ ./cmd/mrw/ ./internal/mcp/` + `grep '^# 84\. '` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
@@ -45,8 +47,9 @@ Status: `pending` | `partial` | `blocked` | `done`.
 |----------|----------|-------------|---------------|
 | T1 | `ingest.CompileApplyPatch` (T1) | T2, T3 | T1 before T2 and T3 |
 | T2 | `write --format=apply_patch` (T2) | T3 | T2 before T3 |
+| T3 | `mrw_write.format` (T3) | T4 | T3 before T4 |
 
 ## Notes
 
-- First slice is `apply_patch` only. MCP `format` on existing `mrw_write` shipped with F-27. Aider SEARCH/REPLACE, Delete File / Move, and ast-grep stay in BACKLOG.
+- MCP `format` on existing `mrw_write` shipped with F-27. SEARCH/REPLACE is `--format=search_replace` (F-26). Delete File / Move and ast-grep stay in BACKLOG.
 - 4096 stays. 019 A stands. Do not stream. Do not parse target syntax.

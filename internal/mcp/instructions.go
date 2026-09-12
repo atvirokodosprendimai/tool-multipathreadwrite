@@ -93,7 +93,7 @@ A SERVE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT.
 An id you omit leaves its lines unwritable: a host can cut a result before you
 see it and mrw cannot tell, but you can.
 
-WRITING. mrw_write takes one plan and those ck ids as ack. Optional format: plan (default) or apply_patch. git is refused. Each hunk is a header line
+WRITING. mrw_write takes one plan and those ck ids as ack. Optional format: plan (default), apply_patch, or search_replace. git is refused. Each hunk is a header line
 
     @@ <path> <address> <op> [guards]
 then its body lines. Ops: replace, insert-after, insert-before, delete, create.

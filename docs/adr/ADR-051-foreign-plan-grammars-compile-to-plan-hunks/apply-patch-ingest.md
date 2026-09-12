@@ -1,6 +1,6 @@
 # Spec: Compile apply_patch to plan hunks
 
-> **Date:** 2026-09-12 · **Status:** Draft
+> **Date:** 2026-09-12 · **Status:** Ready-for-ADR
 > **Owner:** M · **Becomes:** amendment of ADR-051 (`docs/adr/ADR-051-foreign-plan-grammars-compile-to-plan-hunks.md`) — not a competing Decision
 > **Gate:** Status may become Ready-for-ADR only after `spec-verify --spec <this file>` exits 0.
 > **Cross-references:** ADR-001, ADR-002, ADR-019, ADR-027, ADR-030, ADR-035, ADR-037, ADR-044, ADR-048, ADR-049, docs/adr/BACKLOG.md
@@ -22,7 +22,7 @@ One child spec names the ingested `apply_patch` subset, the compile rules, what 
 | CLI caller | human role | Feed a Codex `apply_patch` document to `mrw write` and get a per-hunk verdict |
 | Compiler | system | Turn that document into native plan text, or refuse before anything is written |
 | Apply | system | Apply the compiled plan under ADR-001–004 unchanged |
-| MCP caller | external service | Pass `format` on existing `mrw_write` (`plan` default, `apply_patch`) |
+| MCP caller | external service | Pass `format` on existing `mrw_write` (`plan` default, `apply_patch`, `search_replace`) |
 
 ## Use Cases
 
@@ -58,9 +58,17 @@ One child spec names the ingested `apply_patch` subset, the compile rules, what 
 - **Failure paths:** a. an `apply_patch` blob with no `format` (or `format=plan`) is a bad native plan. b. `format=git` or unknown is usage. c. unread compiled sibling → FAIL+skip, tree unchanged.
 - **Postconditions:** same compile → `plan.Parse` → `apply.Apply` → ledger → ack. 4096 stays.
 
+### UC-5: CLI/MCP caller names SEARCH/REPLACE
+
+- **Trigger:** `write --format=search_replace` or `mrw_write` `format=search_replace` · **Preconditions:** document is Aider SEARCH/REPLACE fences
+- **Main flow:**
+  1. Compile emits `@@` text from unique exact SEARCH matches. Parse and Apply run unchanged.
+- **Failure paths:** a. unread compiled line → exit 1, FAIL+skip. b. 0/N SEARCH matches → compile refuse exit 2. c. near-miss SEARCH → compile refuse, not fuzzy apply. d. no flag → bad native plan.
+- **Postconditions:** explicit flag; no auto-detect; location is not a license.
+
 ## Scenarios
 
-### UC1-S1 [happy] A served two-hunk apply_patch writes both replacements [@draft] → `— to bind`
+### UC1-S1 [happy] A served two-hunk apply_patch writes both replacements [@implemented] → `cmd/mrw/writeformat_test.go::TestWriteFormatApplyPatchServedWritesBoth`
 
 ```gherkin
 Given a two-hunk Update whose old sides were both served
@@ -68,7 +76,7 @@ When the caller runs write --format=apply_patch
 Then both replacements land, exit 0, and --check if asked runs on the touched files
 ```
 
-Contract §82 already drives the served half on the built binary. Bind when this spec is promoted.
+Contract §82 already drives the served half on the built binary.
 
 ### UC1-S2 [failure] An unread compiled sibling writes nothing [@implemented] → `internal/ingest/applypatch_test.go::TestATwoHunkApplyPatchWithOneUnreadLineWritesNothing`
 
@@ -138,38 +146,64 @@ When mrw_write runs with format=apply_patch
 Then one hunk FAILs with has not been read, siblings skip, the file is unchanged
 ```
 
+### UC5-S1 [failure] An unread SEARCH/REPLACE sibling writes nothing [@implemented] → `internal/ingest/searchreplace_test.go::TestATwoHunkSearchReplaceWithOneUnreadLineWritesNothing`
+
+```gherkin
+Given a two-hunk SEARCH/REPLACE whose second SEARCH was never served
+When compile succeeds and Apply runs
+Then one hunk FAILs with has not been read, siblings skip, the file is unchanged
+```
+
+CLI: `cmd/mrw/writeformat_test.go::TestWriteFormatSearchReplaceUnreadWritesNothing`. MCP: `internal/mcp/writeformat_test.go::TestWriteFormatSearchReplaceUnreadWritesNothing`.
+
+### UC5-S2 [failure] A near-miss SEARCH is a compile refusal [@implemented] → `internal/ingest/searchreplace_test.go::TestANearMissSearchIsACompileRefusal`
+
+```gherkin
+Given a SEARCH that differs from the file by one extra space
+When CompileSearchReplace runs
+Then it refuses (matched no lines), writes nothing, and does not fuzzy-apply
+```
+
+### UC5-S3 [failure] SEARCH/REPLACE without format is a bad native plan [@implemented] → `internal/mcp/writeformat_test.go::TestASearchReplaceBlobOnWritePlanIsABadNativePlan`
+
+```gherkin
+Given a SEARCH/REPLACE document and no format
+When write / mrw_write runs
+Then Parse refuses it as a native plan; nothing is written
+```
+
 ## Facts
 
 Class notes sit in the assertion. Members that behave differently are their own row.
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
-| F-1 | The ingested envelope is `*** Begin Patch` … `*** End Patch`. Non-blank text before or after is a compile refusal. | evidence: `internal/ingest/applypatch.go` `patchBody` | @draft | |
-| F-2 | This slice ingests `*** Update File:` and `*** Add File:` only. | evidence: `internal/ingest/applypatch.go` `updateFile` `addFile` | @draft | |
-| F-3 | `*** Delete File:` and `*** Move to:` are compile refusals (exit 2). Emptying a file is not a delete. Deferred until an unlink op. | evidence: `internal/ingest/applypatch.go` delete/move branch | @draft | |
-| F-4 | `*** End of File` is not a marker. A line so named is unexpected or an illegal hunk line. | evidence: `internal/ingest/applypatch.go` (token absent) | @draft | |
-| F-5 | A line beginning `@@` is a hunk delimiter only. Any ChangeContext after `@@` is discarded. Location is the unique old-side run, never that trailer. | evidence: `internal/ingest/applypatch.go` `@@` case | @draft | |
-| F-6 | Old side = context (` `) plus minus lines, prefixes stripped. New side = context plus plus lines. Add File accepts plus lines only. | evidence: `internal/ingest/applypatch.go` `sides` `plusLine` | @draft | |
+| F-1 | The ingested envelope is `*** Begin Patch` … `*** End Patch`. Non-blank text before or after is a compile refusal. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-2 | This slice ingests `*** Update File:` and `*** Add File:` only. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-3 | `*** Delete File:` and `*** Move to:` are compile refusals (exit 2). Emptying a file is not a delete. Deferred until an unlink op. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-4 | `*** End of File` is not a marker. A line so named is unexpected or an illegal hunk line. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-5 | A line beginning `@@` is a hunk delimiter only. Any ChangeContext after `@@` is discarded. Location is the unique old-side run, never that trailer. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-6 | Old side = context (` `) plus minus lines, prefixes stripped. New side = context plus plus lines. Add File accepts plus lines only. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
 | F-7 | The old side must match exactly one contiguous run of on-disk lines (equal after the file's one trailing LF is stripped). Several matches refuse, naming the count. | `internal/ingest/applypatch_test.go::TestAnAmbiguousOldSideIsACompileRefusal` | @implemented | |
-| F-8 | Zero matches refuse (`old side matched no lines`). An Update with no old side refuses (`use Add File, or give context`). | evidence: `internal/ingest/applypatch.go` `compileHunk` | @draft | |
-| F-9 | The document's CR LF and bare CR become LF before parse. | evidence: `internal/ingest/applypatch.go` `CompileApplyPatch` | @draft | |
-| F-10 | The on-disk file is not CR LF-normalised. A CR LF file keeps CR on each line, so an LF old side matches zero times and compile refuses. | evidence: `internal/ingest/applypatch.go` `fileLines` | @draft | |
-| F-11 | `\ No newline at end of file` and other `\`-prefixed hunk lines are skipped, not part of either side. | evidence: `internal/ingest/applypatch.go` `sides` | @draft | |
-| F-12 | Emitted body lines are always LF-terminated. Patch no-newline markers do not change that. | evidence: `internal/ingest/applypatch.go` `emit` | @draft | |
-| F-13 | An Add File with no plus lines compiles to `create` with `body=0` (ADR-027 deliberate empty file). | evidence: `internal/ingest/applypatch.go` `emit` | @draft | |
-| F-14 | A compiled multi-line `replace` carries `anchor=` from the first old-side line (ADR-035). A single-line replace carries none. | evidence: `internal/ingest/applypatch.go` `compileHunk` | @draft | |
-| F-15 | A rooted path is refused (`rooted.IsRooted`, not `filepath.IsAbs`). Compile reads the file only to locate; it writes nothing. | evidence: `internal/ingest/applypatch.go` `compileHunk` | @draft | |
-| F-16 | One `*** Update File:` may carry several `@@`-separated hunks. A blank line flushes the current hunk. | evidence: `internal/ingest/applypatch.go` flush on `@@` / blank | @draft | |
+| F-8 | Zero matches refuse (`old side matched no lines`). An Update with no old side refuses (`use Add File, or give context`). | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-9 | The document's CR LF and bare CR become LF before parse. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-10 | The on-disk file is not CR LF-normalised. A CR LF file keeps CR on each line, so an LF old side matches zero times and compile refuses. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-11 | `\ No newline at end of file` and other `\`-prefixed hunk lines are skipped, not part of either side. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-12 | Emitted body lines are always LF-terminated. Patch no-newline markers do not change that. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-13 | An Add File with no plus lines compiles to `create` with `body=0` (ADR-027 deliberate empty file). | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-14 | A compiled multi-line `replace` carries `anchor=` from the first old-side line (ADR-035). A single-line replace carries none. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-15 | A rooted path is refused (`rooted.IsRooted`, not `filepath.IsAbs`). Compile reads the file only to locate; it writes nothing. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-16 | One `*** Update File:` may carry several `@@`-separated hunks. A blank line flushes the current hunk. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
 | F-17 | Compile emits plan text only. `plan.Parse` is the only door into `apply.Apply`. ingest never builds `apply.Input`. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchGoesThroughParse` | @implemented | |
 | F-18 | Unique old-side match is location, not license. An unread compiled line FAILs, siblings `skip`, tree unchanged, CLI exit 1. | `internal/ingest/applypatch_test.go::TestATwoHunkApplyPatchWithOneUnreadLineWritesNothing` | @implemented | |
-| F-19 | After a successful compile, `--check`, `--force`, and the per-line ledger mean what they mean on a native plan. | evidence: `cmd/mrw/main.go` write Action after the format switch | @draft | |
-| F-20 | Compile refusal is exit 2 and counts as a parse refusal (the document did not become a plan). An unread compiled hunk is exit 1. | evidence: `cmd/mrw/main.go` apply_patch compile error | @draft | |
-| F-21 | `--format` defaults to `plan`. An `apply_patch` document without the flag is a bad native plan (exit 2). No auto-detect from `*** Begin Patch`. | evidence: `cmd/mrw/main.go` format switch; contract §82 no-flag row | @draft | |
-| F-22 | `--format=git` is usage (exit 2) and names that a git patch is not an `apply_patch`. Unknown values are usage. | evidence: `cmd/mrw/main.go` `git` / default cases; contract §82 | @draft | |
+| F-19 | After a successful compile, `--check`, `--force`, and the per-line ledger mean what they mean on a native plan. | `cmd/mrw/writeformat_test.go::TestWriteFormatApplyPatchForceWritesUnread` | @implemented | |
+| F-20 | Compile refusal is exit 2 and counts as a parse refusal (the document did not become a plan). An unread compiled hunk is exit 1. | `cmd/mrw/writeformat_test.go::TestWriteFormatApplyPatchCompileRefusalIsUsage` | @implemented | |
+| F-21 | `--format` defaults to `plan`. An `apply_patch` document without the flag is a bad native plan (exit 2). No auto-detect from `*** Begin Patch`. | `cmd/mrw/writeformat_test.go::TestWriteFormatApplyPatchNoFlagIsUsage` | @implemented | |
+| F-22 | `--format=git` is usage (exit 2) and names that a git patch is not an `apply_patch`. Unknown values are usage. | `cmd/mrw/writeformat_test.go::TestWriteFormatGitIsUsage` | @implemented | |
 | F-23 | A body that looks like git (`diff --git` prefix, `--- a/` prefix, or a `--- a/` line) is refused under `--format=apply_patch`. | `internal/ingest/applypatch_test.go::TestAGitPatchIsNotAnApplyPatch` | @implemented | |
 | F-24 | This slice adds no MCP tool (ADR-044 / ADR-019 cargo). 4096 stays. 019 A stands. | `internal/mcp/writeformat_test.go::TestWriteDeclaresFormatOnTheExistingTool` | @implemented | |
 | F-25 | MCP ingest of `apply_patch` is a `format` string on existing `mrw_write` (`plan` default, `apply_patch`), not a new tool. | `internal/mcp/writeformat_test.go::TestWriteDeclaresFormatOnTheExistingTool` | @implemented | |
-| F-26 | Aider SEARCH/REPLACE is a named second `--format` follow-up (same compile-to-`@@` rule), not silent scope. Arm: add SEARCH/REPLACE format. | evidence: `docs/adr/BACKLOG.md` From ADR-051 | @draft | |
+| F-26 | Aider SEARCH/REPLACE is `--format=search_replace` / MCP `format=search_replace`. Compiles to `@@`. Unread writes nothing. Explicit flag. Exact unique SEARCH only — no fuzzy. | `internal/ingest/searchreplace_test.go::TestATwoHunkSearchReplaceWithOneUnreadLineWritesNothing` | @implemented | |
 | F-27 | `mrw_write` accepts optional `format` now (`plan` default, `apply_patch` same compile path as CLI, `git` refuse). M 2026-09-12: *"YES, we have to be competitive"*. | `internal/mcp/writeformat_test.go::TestWriteFormatApplyPatchUnreadWritesNothing` | @implemented | |
 
 ## Domain
@@ -180,8 +214,8 @@ An **apply_patch document** is a Codex envelope (`*** Begin Patch` … `*** End 
 
 | Surface | Change | Consumers |
 |---------|--------|-----------|
-| `mrw write --format` | already shipped: `plan` (default) or `apply_patch` | CLI; contract §82; `write --help` |
-| `mrw_write` MCP | optional `format` (`plan` default, `apply_patch`); `git` refuse; no third tool | MCP hosts; contract §83 |
+| `mrw write --format` | `plan` (default), `apply_patch`, or `search_replace` | CLI; contract §82, §84; `write --help` |
+| `mrw_write` MCP | optional `format` (`plan` default, `apply_patch`, `search_replace`); `git` refuse; no third tool | MCP hosts; contract §83, §84 |
 
 ADR-051 Wiring inherits this. No exit-code change: compile refuse = 2; unread compiled hunk = 1.
 
@@ -194,7 +228,7 @@ ADR-051 Wiring inherits this. No exit-code change: compile refuse = 2; unread co
 - Morph / Relace / Instant Apply streaming (permanent: fact: ADR-049 waits for a size that hurts; citation: file `docs/adr/ADR-049-streaming-apply-waits-for-a-size-that-hurts.md:31`)
 - Auto-detect vs explicit flag (permanent: boundary: ADR-051 picked the flag)
 - Treating a git patch as an `apply_patch` (permanent: boundary: they share `@@` and they are not the same grammar)
-- Aider SEARCH/REPLACE as `--format` (deferred: docs/adr/BACKLOG.md)
+- Treating SEARCH/REPLACE as apply_patch compile (permanent: boundary: F-26 is a second `--format`)
 - `*** Delete File:` / `*** Move to:` (deferred: docs/adr/BACKLOG.md)
 - A third MCP tool named apply_patch (permanent: fact: ADR-044; citation: file `docs/adr/ADR-044-mcp-cargo-stays-two-tools.md:7`)
 - ast-grep-shaped `--grep` (deferred: docs/adr/BACKLOG.md)
@@ -215,15 +249,13 @@ ADR-051 Risks still apply (unread fixture passing on exit 2, sequential compile,
 
 ## Open Questions
 
-None. OQ-1 closed 2026-09-12 by M — *"YES, we have to be competitive"* — F-27 is yes now: `format` on existing `mrw_write`.
-
 ## Verify
 
 ```bash
-spec-verify --draft docs/adr/ADR-051-foreign-plan-grammars-compile-to-plan-hunks/apply-patch-ingest.md
+spec-verify --spec docs/adr/ADR-051-foreign-plan-grammars-compile-to-plan-hunks/apply-patch-ingest.md
 ```
 
-Ready-for-ADR needs `spec-verify --spec` (empty Open Questions, every @draft bound). F-27 is bound; remaining @draft rows are compile-rule evidence, not this fork.
+F-1…F-27 are bound. SEARCH/REPLACE is `--format=search_replace` (F-26).
 
 ## Grill Log (appendix)
 
