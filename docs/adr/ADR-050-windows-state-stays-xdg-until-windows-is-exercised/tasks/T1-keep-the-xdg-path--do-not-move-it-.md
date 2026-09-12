@@ -49,6 +49,7 @@ grep -F -q '**Status:** Accepted' docs/adr/ADR-050-windows-state-stays-xdg-until
 | 4 — it is used | nothing measures this yet — ADR-009 refused telemetry |
 
 ## Mutation Log
+- 2026-09-12 · 0c810a6 · mutant killed · exit 1 · `docs/adr/ADR-050-windows-state-stays-xdg-until-windows-is-exercised.md` · without Accepted the record-only fence must fail · acceptance-sha256:6cd13861c384057ef9d5bd1da460b81679cddfa3a63beca0dc8b8bbd9db3a333
 
 ## Invariants
 
@@ -70,3 +71,4 @@ Stop if the proposed work is a parser, streamer, extra MCP tool, flock-on-Load, 
 
 ## Verification Log
 - 2026-09-12 · 4b70dd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6cd13861c384057ef9d5bd1da460b81679cddfa3a63beca0dc8b8bbd9db3a333 · ms:59
+- 2026-09-12 · 0c810a6 · exit 0 · `set -o pipefail …` · acceptance-sha256:6cd13861c384057ef9d5bd1da460b81679cddfa3a63beca0dc8b8bbd9db3a333 · ms:18

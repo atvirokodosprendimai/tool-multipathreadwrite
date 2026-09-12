@@ -44,7 +44,7 @@ that arms work; silence leaves the row where it is.
 | Python `str` body character-split | **ADR-047 Accepted** — taught in 040 help | — (T1 receipts 2026-09-12; already taught) |
 | Syntax awareness | **ADR-048 Accepted** — record only | — (T1 receipts 2026-09-12; no parser) |
 | Streaming apply | **ADR-049 Accepted** — record only | — (T1 receipts 2026-09-12; still waits for a size that hurts) |
-| Windows `%LOCALAPPDATA%` | **ADR-050 Accepted** — record only | execute 050 |
+| Windows `%LOCALAPPDATA%` | **ADR-050 Accepted** — record only | — (T1 receipts 2026-09-12; XDG stays) |
 | Playtrix T4 / that paste | **not-this-repo** | — (wing_playtrix) |
 | Other wings' inboxes (quality-harness 28, etc.) | **not-this-repo** | — |
 | Reopen ADR-019 pick B/C or `roots/list` | **not-this-repo** — Accepted A | — |
