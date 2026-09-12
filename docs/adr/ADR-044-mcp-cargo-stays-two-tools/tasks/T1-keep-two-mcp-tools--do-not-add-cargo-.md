@@ -49,6 +49,7 @@ grep -F -q '**Status:** Accepted' docs/adr/ADR-044-mcp-cargo-stays-two-tools.md 
 | 4 — it is used | nothing measures this yet — ADR-009 refused telemetry |
 
 ## Mutation Log
+- 2026-09-12 · 5d5fd0c · mutant killed · exit 1 · `docs/adr/ADR-044-mcp-cargo-stays-two-tools.md` · without Accepted the record-only fence must fail · acceptance-sha256:3ec934fa2ba0228346a110275947e56ccfdcb874d6260e785b3c414b13856d15
 
 ## Invariants
 
@@ -70,3 +71,4 @@ Stop if the proposed work is a parser, streamer, extra MCP tool, flock-on-Load, 
 
 ## Verification Log
 - 2026-09-12 · 4b70dd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:3ec934fa2ba0228346a110275947e56ccfdcb874d6260e785b3c414b13856d15 · ms:43
+- 2026-09-12 · 5d5fd0c · exit 0 · `set -o pipefail …` · acceptance-sha256:3ec934fa2ba0228346a110275947e56ccfdcb874d6260e785b3c414b13856d15 · ms:13
