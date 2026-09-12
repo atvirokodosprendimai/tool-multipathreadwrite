@@ -49,6 +49,7 @@ grep -F -q '**Status:** Accepted' docs/adr/ADR-049-streaming-apply-waits-for-a-s
 | 4 — it is used | nothing measures this yet — ADR-009 refused telemetry |
 
 ## Mutation Log
+- 2026-09-12 · 6f2472d · mutant killed · exit 1 · `docs/adr/ADR-049-streaming-apply-waits-for-a-size-that-hurts.md` · without Accepted the record-only fence must fail · acceptance-sha256:debc94006b8da48452237c01d0be3f9af7712b2065b0bbd88f8ceb131fb586b5
 
 ## Invariants
 
@@ -70,3 +71,4 @@ Stop if the proposed work is a parser, streamer, extra MCP tool, flock-on-Load, 
 
 ## Verification Log
 - 2026-09-12 · 4b70dd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:debc94006b8da48452237c01d0be3f9af7712b2065b0bbd88f8ceb131fb586b5 · ms:45
+- 2026-09-12 · 6f2472d · exit 0 · `set -o pipefail …` · acceptance-sha256:debc94006b8da48452237c01d0be3f9af7712b2065b0bbd88f8ceb131fb586b5 · ms:23
