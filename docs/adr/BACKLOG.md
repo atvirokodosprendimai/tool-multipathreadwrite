@@ -42,7 +42,7 @@ that arms work; silence leaves the row where it is.
 | Generate AGENTS.md from `Shared()` | **ADR-045 Accepted** — still refuse the tax | — (T1 receipts 2026-09-12; no generator) |
 | Host-cut under ceiling | **ADR-046 Accepted** — measure, not a lock | — (2026-09-12: live cut not observed; no ack change) |
 | Python `str` body character-split | **ADR-047 Accepted** — taught in 040 help | — (T1 receipts 2026-09-12; already taught) |
-| Syntax awareness | **ADR-048 Accepted** — record only | execute 048 |
+| Syntax awareness | **ADR-048 Accepted** — record only | — (T1 receipts 2026-09-12; no parser) |
 | Streaming apply | **ADR-049 Accepted** — record only | a size that hurts |
 | Windows `%LOCALAPPDATA%` | **ADR-050 Accepted** — record only | execute 050 |
 | Playtrix T4 / that paste | **not-this-repo** | — (wing_playtrix) |

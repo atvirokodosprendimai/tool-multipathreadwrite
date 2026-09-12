@@ -49,6 +49,7 @@ grep -F -q '**Status:** Accepted' docs/adr/ADR-048-mrw-models-no-target-syntax.m
 | 4 — it is used | nothing measures this yet — ADR-009 refused telemetry |
 
 ## Mutation Log
+- 2026-09-12 · 517ab32 · mutant killed · exit 1 · `docs/adr/ADR-048-mrw-models-no-target-syntax.md` · without Accepted the record-only fence must fail · acceptance-sha256:c24acce6e9ea379381ff6467de2b7c3dfc46b4f6b43f53b44e91f7564d374693
 
 ## Invariants
 
@@ -70,3 +71,4 @@ Stop if the proposed work is a parser, streamer, extra MCP tool, flock-on-Load, 
 
 ## Verification Log
 - 2026-09-12 · 4b70dd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:c24acce6e9ea379381ff6467de2b7c3dfc46b4f6b43f53b44e91f7564d374693 · ms:75
+- 2026-09-12 · 517ab32 · exit 0 · `set -o pipefail …` · acceptance-sha256:c24acce6e9ea379381ff6467de2b7c3dfc46b4f6b43f53b44e91f7564d374693 · ms:15
