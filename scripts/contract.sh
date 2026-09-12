@@ -5212,6 +5212,56 @@ assert "search_replace" in str(fmt.get("format")), "mrw_write does not declare s
 PY
 want 0 $? "tools/list still two tools and mrw_write declares search_replace"
 
+# 85. A failed hunk writes nothing because a write that changed nothing is
+# invisible. A unit test on CLI() cannot prove the shipped binary prints it.
+# Drive $MRW: instructions and initialize both carry the why; Shared's five
+# sentences remain (the why is extra, not a rewrite); pair: handshake stays
+# at most 4096 bytes — funding the sentence by raising the bound fails.
+why85='A failed hunk writes nothing because a write that changed nothing is invisible.'
+out=$(m instructions 2>&1); rc=$?
+want 0 "$rc" "mrw instructions still exits 0"
+python3 - "$out" "$why85" <<'PY'
+import sys
+out, why = sys.argv[1], sys.argv[2]
+assert why in out, "instructions omitted the why: %r" % why
+shared = (
+    "Reach for mrw when the task touches 3 or more edits, 2 or more files, or several ranges you need to read.",
+    "A plan applies whole or not at all: if any hunk fails, nothing is written.",
+    "Read before you write, per line, not per file.",
+    "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
+    "A refusal names the file, the plan line, and the reason.",
+)
+missing = [s for s in shared if s not in out]
+assert not missing, "instructions dropped Shared sentences: %r" % missing
+# The why is extra: Shared's first sentence is still the trigger, not the why.
+assert not out.startswith(why), "the why replaced Shared at the front of instructions"
+PY
+[ $? -eq 0 ] && ok "and the binary prints the why after Shared" \
+             || bad "instructions omitted the why or dropped Shared"
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+want 0 $? "initialize still answers"
+python3 - "$out" "$why85" <<'PY'
+import json,sys
+why = sys.argv[2]
+i=json.loads(sys.argv[1])["result"].get("instructions")
+assert isinstance(i,str) and i.strip(), "initialize carries no instructions"
+assert why in i, "handshake omitted the why"
+shared = (
+    "Reach for mrw when the task touches 3 or more edits, 2 or more files, or several ranges you need to read.",
+    "A plan applies whole or not at all: if any hunk fails, nothing is written.",
+    "Read before you write, per line, not per file.",
+    "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
+    "A refusal names the file, the plan line, and the reason.",
+)
+for s in shared:
+    assert s in i, "handshake dropped Shared sentence: %r" % s
+assert not i.startswith(why), "the why replaced Shared at the front of the handshake"
+assert len(i.encode()) <= 4096, "handshake is %d bytes; do not raise 4096 to fund the why" % len(i.encode())
+PY
+[ $? -eq 0 ] && ok "and the handshake teaches the why without raising 4096" \
+             || bad "handshake omitted the why, dropped Shared, or overflowed 4096"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

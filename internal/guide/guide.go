@@ -17,10 +17,21 @@ Read before you write, per line, not per file.
 mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.
 A refusal names the file, the plan line, and the reason.`
 
-// CLI is Shared plus the operator traps that only the shell surface can hit.
-// Stdout of `mrw instructions` is exactly this string.
+// WhyAllOrNothing is the reason a failed hunk writes nothing. It is not
+// Shared: Shared stays the five ADR-037 sentences (contract §75). CLI and
+// the MCP handshake print this after Shared.
+func WhyAllOrNothing() string {
+	return whyAllOrNothing
+}
+
+const whyAllOrNothing = `A failed hunk writes nothing because a write that changed nothing is invisible.`
+
+// CLI is Shared plus the why and the operator traps that only the shell
+// surface can hit. Stdout of `mrw instructions` is exactly this string.
 func CLI() string {
 	return Shared() + `
+
+` + WhyAllOrNothing() + `
 
 Never read an exit code through a pipe: mrw write plan | head returns head's status.
 Exit 3 means the write applied and the check failed, so the tree is changed and unverified.

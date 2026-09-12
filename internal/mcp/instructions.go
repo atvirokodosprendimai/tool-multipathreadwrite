@@ -59,14 +59,13 @@ var exampleReadSpecs = []string{
 // to be driven.
 //
 // It is a function rather than a constant because it prepends guide.Shared
-// (ADR-037) and interpolates the same examplePlan the tool schema publishes:
+// (ADR-037) and WhyAllOrNothing, then interpolates the same examplePlan
+// the tool schema publishes:
 // one worked plan, quoted twice, so the two copies cannot disagree about a
 // format that has no second source.
 func instructionsText() string {
-	return guide.Shared() + "\n\n" + fmt.Sprintf(`mrw reads many ranges and applies many edits in ONE call; every edit gets a verdict.
-
-WHICH SURFACE. Below that use your editor.
-The CLI is broader — only it has --files-from, --check, and
+	return guide.Shared() + "\n\n" + guide.WhyAllOrNothing() + "\n\n" + fmt.Sprintf(`WHICH SURFACE. Below that use your editor.
+CLI has --files-from, --check, and
 check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; --root goes
 BEFORE the subcommand, since after `+"`read`"+` the short -C is the context flag.
 This surface is pointed with launch `+"`--root DIR mcp`"+`. It returns structured JSON; one
@@ -75,8 +74,9 @@ one with none, or when callers sharing ONE fixed checkout want writes
 serialized.
 
 Only mrw_read serves lines; ack records them. Lines 10-12 do not license line 50.
-A failing hunk's siblings report skipped, never ok.
 
+READING. mrw_read takes specs: a bare path, path:N, path:N-M, path:A,+N (A plus
+the N lines after it), path:$ for the last line, or path:/regexp/ — the read
 READING. mrw_read takes specs: a bare path, path:N, path:N-M, path:A,+N (A plus
 the N lines after it), path:$ for the last line, or path:/regexp/ — the read
 finds its own site. Example: %v
