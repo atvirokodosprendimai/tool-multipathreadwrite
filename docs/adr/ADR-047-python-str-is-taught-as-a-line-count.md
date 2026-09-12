@@ -76,4 +76,4 @@ Delete the record. Nothing in the engine depends on it.
 
 ## Follow-ups
 
-- [ ] Execute only on a later quote that names this number.
+- [x] Execute only on a later quote that names this number. — 2026-09-12: M said execute all till 050; 040 help already teaches body= as a line count and Python str; receipt only.

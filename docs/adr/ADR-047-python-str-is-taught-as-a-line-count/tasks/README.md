@@ -19,7 +19,7 @@ DAG); Covers-column drift is caught at review. Regenerate rather than hand-edit.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The teaching already rides in ADR-040 help. This task is the receipt. | pending | — | `grep` the Accepted record |
+| T1 | The teaching already rides in ADR-040 help. This task is the receipt. | done | — | `grep` the Accepted record |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

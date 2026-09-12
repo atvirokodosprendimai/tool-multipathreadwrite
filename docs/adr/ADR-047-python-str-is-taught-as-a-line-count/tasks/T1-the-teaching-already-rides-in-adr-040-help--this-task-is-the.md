@@ -49,6 +49,7 @@ grep -F -q '**Status:** Accepted' docs/adr/ADR-047-python-str-is-taught-as-a-lin
 | 4 — it is used | nothing measures this yet — ADR-009 refused telemetry |
 
 ## Mutation Log
+- 2026-09-12 · 94d9628 · mutant killed · exit 1 · `docs/adr/ADR-047-python-str-is-taught-as-a-line-count.md` · without Accepted the record-only fence must fail · acceptance-sha256:50a88d98d804f853a53c18038d71992b6b6af33329281916ec25a3bfedfc87bf
 
 ## Invariants
 
@@ -70,3 +71,4 @@ Stop if the proposed work is a parser, streamer, extra MCP tool, flock-on-Load, 
 
 ## Verification Log
 - 2026-09-12 · 4b70dd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:50a88d98d804f853a53c18038d71992b6b6af33329281916ec25a3bfedfc87bf · ms:82
+- 2026-09-12 · 94d9628 · exit 0 · `set -o pipefail …` · acceptance-sha256:50a88d98d804f853a53c18038d71992b6b6af33329281916ec25a3bfedfc87bf · ms:15
