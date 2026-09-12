@@ -49,6 +49,7 @@ grep -F -q '**Status:** Accepted' docs/adr/ADR-046-host-cut-under-the-ceiling-is
 | 4 — it is used | nothing measures this yet — ADR-009 refused telemetry |
 
 ## Mutation Log
+- 2026-09-12 · fc9c240 · mutant killed · exit 1 · `docs/adr/ADR-046-host-cut-under-the-ceiling-is-measured-not-assumed.md` · without Accepted the record-only fence must fail · acceptance-sha256:1d0f4fed1f55648a9929afdceb3156a43566bc1f7c58587f7182094a58eecd9d
 
 ## Invariants
 
@@ -70,3 +71,4 @@ Stop if the proposed work is a parser, streamer, extra MCP tool, flock-on-Load, 
 
 ## Verification Log
 - 2026-09-12 · 4b70dd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:1d0f4fed1f55648a9929afdceb3156a43566bc1f7c58587f7182094a58eecd9d · ms:34
+- 2026-09-12 · fc9c240 · exit 0 · `set -o pipefail …` · acceptance-sha256:1d0f4fed1f55648a9929afdceb3156a43566bc1f7c58587f7182094a58eecd9d · ms:13

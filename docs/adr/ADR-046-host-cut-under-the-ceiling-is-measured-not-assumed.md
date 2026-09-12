@@ -75,6 +75,10 @@ See `docs/adr/ADR-046-host-cut-under-the-ceiling-is-measured-not-assumed/tasks/R
 
 Delete the record. Nothing in the engine depends on it.
 
+## Measurement (2026-09-12)
+
+Attempted: a fitting `mrw_read` of 500 lines encoded at 29808 bytes (ceiling 200000, 3 open / 3 close markers). This session has no mrw MCP host, so a live under-ceiling host-cut was **not observed**. A fixture that truncated that encoded result at 55% left 2 open / 1 close — the shape of a dropped middle span. No ack/licensing change.
+
 ## Follow-ups
 
-- [ ] Execute only on a later quote that names this number.
+- [x] Execute only on a later quote that names this number. — 2026-09-12: M said execute all till 050; measured; live host-cut not observed; licensing stays.

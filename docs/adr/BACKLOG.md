@@ -40,7 +40,7 @@ that arms work; silence leaves the row where it is.
 | Torn `Load` / atomic save | **ADR-043 Accepted** — measure, not a lock | — (2026-09-12: not observed; Load unlocked) |
 | MCP cargo: `check`/`iter`/`seen`/`stats` | **ADR-044 Accepted** — still two tools | — (T1 receipts 2026-09-12; no cargo tools) |
 | Generate AGENTS.md from `Shared()` | **ADR-045 Accepted** — still refuse the tax | — (T1 receipts 2026-09-12; no generator) |
-| Host-cut under ceiling | **ADR-046 Accepted** — measure, not a lock | a failing under-ceiling cut first |
+| Host-cut under ceiling | **ADR-046 Accepted** — measure, not a lock | — (2026-09-12: live cut not observed; no ack change) |
 | Python `str` body character-split | **ADR-047 Accepted** — taught in 040 help | — |
 | Syntax awareness | **ADR-048 Accepted** — record only | execute 048 |
 | Streaming apply | **ADR-049 Accepted** — record only | a size that hurts |
