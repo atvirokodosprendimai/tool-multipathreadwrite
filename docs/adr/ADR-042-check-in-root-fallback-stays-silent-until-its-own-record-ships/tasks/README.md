@@ -19,7 +19,7 @@ DAG); Covers-column drift is caught at review. Regenerate rather than hand-edit.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Keep the record. Do not change the fallback. | pending | — | `grep` the Accepted record |
+| T1 | Keep the record. Do not change the fallback. | done | — | `grep` the Accepted record |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

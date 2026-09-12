@@ -36,7 +36,7 @@ that arms work; silence leaves the row where it is.
 | Single quotes parse | **040 Accepted** — Decision 4 | — |
 | `-C` vs `--root` (019 A stands; help names both global flags) | **040 Accepted** — Decision 5 | — |
 | PATH binary vs skill **version skew** | **ADR-041 Accepted** — record only | — (T1 receipts 2026-09-12; no protocol) |
-| `mrw check` silent in-root fallback | **ADR-042 Accepted** — record only | execute 042 |
+| `mrw check` silent in-root fallback | **ADR-042 Accepted** — record only | — (T1 receipts 2026-09-12; fallback stays) |
 | Torn `Load` / atomic save | **ADR-043 Accepted** — measure, not a lock | a failing tear first |
 | MCP cargo: `check`/`iter`/`seen`/`stats` | **ADR-044 Accepted** — still two tools | execute 044 |
 | Generate AGENTS.md from `Shared()` | **ADR-045 Accepted** — still refuse the tax | execute 045 |

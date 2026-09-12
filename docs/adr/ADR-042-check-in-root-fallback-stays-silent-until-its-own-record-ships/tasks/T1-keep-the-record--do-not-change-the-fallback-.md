@@ -49,6 +49,7 @@ grep -F -q '**Status:** Accepted' docs/adr/ADR-042-check-in-root-fallback-stays-
 | 4 — it is used | nothing measures this yet — ADR-009 refused telemetry |
 
 ## Mutation Log
+- 2026-09-12 · b29f7a0 · mutant killed · exit 1 · `docs/adr/ADR-042-check-in-root-fallback-stays-silent-until-its-own-record-ships.md` · without Accepted the record-only fence must fail · acceptance-sha256:d7abf5959869e668087b932367a747bb737ba37db4e4f76dc49f6b2a8177d2aa
 
 ## Invariants
 
@@ -70,3 +71,4 @@ Stop if the proposed work is a parser, streamer, extra MCP tool, flock-on-Load, 
 
 ## Verification Log
 - 2026-09-12 · 4b70dd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:d7abf5959869e668087b932367a747bb737ba37db4e4f76dc49f6b2a8177d2aa · ms:36
+- 2026-09-12 · b29f7a0 · exit 0 · `set -o pipefail …` · acceptance-sha256:d7abf5959869e668087b932367a747bb737ba37db4e4f76dc49f6b2a8177d2aa · ms:31
