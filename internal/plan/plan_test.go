@@ -656,3 +656,81 @@ func TestACreateWithNoBodyIsRefusedUnlessItSaysBodyZero(t *testing.T) {
 		t.Errorf("an ordinary create was refused: %v", err)
 	}
 }
+
+// ADR-040 T2. The field-report header: unquoted anchor= consumes until the
+// next key=, so body= still binds and the value keeps its spaces.
+func TestAnUnquotedSpacedAnchorParsesUntilTheNextKey(t *testing.T) {
+	hunks, err := Parse(strings.NewReader("@@ f.txt 1 replace anchor=func openTestStore body=1\nX\n"))
+	if err != nil {
+		t.Fatalf("unquoted spaced anchor= was refused: %v", err)
+	}
+	if hunks[0].Anchor != "func openTestStore" {
+		t.Errorf("Anchor = %q, want %q", hunks[0].Anchor, "func openTestStore")
+	}
+	if len(hunks[0].Body) != 1 || hunks[0].Body[0] != "X" {
+		t.Errorf("body=1 did not bind; hunk = %+v", hunks[0])
+	}
+
+	// Other keys do not gain the rule. sha=deadbeef leftover is still usage.
+	_, err = Parse(strings.NewReader("@@ f.txt 1 replace sha=aaaaaaaa leftover\nX\n"))
+	if err == nil {
+		t.Fatal("an unquoted leftover after sha= parsed; consume-to-next-key is anchor= only")
+	}
+	if !strings.Contains(err.Error(), `option "leftover" is not key=value`) {
+		t.Errorf("sha= leftover should stay the generic message, got %v", err)
+	}
+}
+
+// ADR-040 Decision 4. Single quotes parse the same value double quotes do.
+func TestASingleQuotedAnchorParses(t *testing.T) {
+	hunks, err := Parse(strings.NewReader("@@ f.txt 1 replace anchor='func openTestStore' body=1\nX\n"))
+	if err != nil {
+		t.Fatalf("single-quoted anchor= was refused: %v", err)
+	}
+	if hunks[0].Anchor != "func openTestStore" {
+		t.Errorf("Anchor = %q, want %q", hunks[0].Anchor, "func openTestStore")
+	}
+
+	// A path in single quotes is the name including the quotes. Decision 4
+	// is the option, not the path; §55 and the hook keep the literal.
+	hunks, err = Parse(strings.NewReader("@@ 'docs/adr/x.md' 1 replace body=1\nX\n"))
+	if err != nil {
+		t.Fatalf("a single-quoted path was refused rather than taken literally: %v", err)
+	}
+	if hunks[0].Path != "'docs/adr/x.md'" {
+		t.Errorf("Path = %q, want the quotes kept", hunks[0].Path)
+	}
+}
+
+// ADR-040 T1 refusal, rewritten after the parse fork: a leftover AFTER a
+// finished quoted anchor names double quotes. A leftover after replace stays
+// generic. The field-report string itself is T2's success path.
+func TestATrailingTokenAfterAQuotedAnchorNamesDoubleQuotes(t *testing.T) {
+	_, err := Parse(strings.NewReader("@@ f.txt 1 replace anchor=\"func foo\" leftover\nX\n"))
+	if err == nil {
+		t.Fatal("a leftover after a quoted anchor parsed")
+	}
+	if !strings.Contains(err.Error(), "leftover") || !strings.Contains(err.Error(), `anchor="`) {
+		t.Errorf("the refusal does not name leftover and double quotes: %v", err)
+	}
+
+	// Quoted with no space: README's lookalike. Must stay usage, not join.
+	_, err = Parse(strings.NewReader("@@ page.templ 12 replace anchor=\"class=\" leftover\nX\n"))
+	if err == nil {
+		t.Fatal(`quoted anchor="class=" leftover parsed; joining swallowed the leftover`)
+	}
+	if !strings.Contains(err.Error(), "leftover") {
+		t.Errorf("quoted no-space leftover should name leftover, got %v", err)
+	}
+
+	_, err = Parse(strings.NewReader("@@ f.txt 1 replace leftover\nX\n"))
+	if err == nil {
+		t.Fatal("a leftover after replace parsed")
+	}
+	if !strings.Contains(err.Error(), `option "leftover" is not key=value`) {
+		t.Errorf("a non-anchor leftover should stay generic, got %v", err)
+	}
+	if strings.Contains(err.Error(), "double quote") || strings.Contains(err.Error(), `anchor="`) {
+		t.Errorf("a non-anchor leftover named quoting: %v", err)
+	}
+}

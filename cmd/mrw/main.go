@@ -164,7 +164,7 @@ func rootCommand() *cli.Command {
 			cmd.Metadata = map[string]any{"notFound": cli.Exit(
 				fmt.Sprintf("unknown command %q (want %s)", name, strings.Join(names, ", ")), exitUsage)}
 		},
-		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd()},
+		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), versionCmd()},
 	}
 }
 
@@ -302,6 +302,24 @@ func resultBudget(cmd *cli.Command, lookup func(string) (string, bool)) (int, er
 }
 
 // instructionsCmd prints the contract a caller with only this binary is entitled to.
+func versionCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "version",
+		Usage: "print the version string (-v / --version already do this)",
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			if cmd.Args().Len() != 0 {
+				return cli.Exit("version takes no arguments", exitUsage)
+			}
+			out := cmd.Root().Writer
+			if out == nil {
+				out = os.Stdout
+			}
+			_, err := fmt.Fprintln(out, versionString())
+			return err
+		},
+	}
+}
+
 func instructionsCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "instructions",
@@ -725,6 +743,16 @@ The optional guards are what make a batch safe to trust: sha= pins the whole
 file, lines= asserts how many lines the range covers, anchor= requires a
 substring in the range's first line. If any hunk fails, every hunk is reported
 and NOTHING is written.
+
+A value with spaces can be double-quoted (anchor="func openTestStore"),
+single-quoted (anchor='func openTestStore'), or — for anchor= only — left
+unquoted until the next key= (anchor=func openTestStore body=1).
+body= is a line count, not a character count. Python str splits characters;
+do not use len(body) as body=.
+lines= is a guard on how many lines the ADDRESS covers, and is not body=.
+
+The checkout is named by global -C DIR or --root DIR before the subcommand
+(mrw -C repo write plan). After read, -C is context lines, not a checkout.
 
 Prefer authoring the plan with your harness's own file tool and passing its
 path, rather than piping it in: a plan on disk is a reviewable artifact and is

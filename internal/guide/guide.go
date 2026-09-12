@@ -26,5 +26,9 @@ Never read an exit code through a pipe: mrw write plan | head returns head's sta
 Exit 3 means the write applied and the check failed, so the tree is changed and unverified.
 MSYS rewrites a regex address before mrw starts. Export MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL.
 A shell glob and an address suffix do not mix.
+A value with spaces can be double-quoted (anchor="func openTestStore"), single-quoted (anchor='func openTestStore'), or — for anchor= only — left unquoted until the next key=.
+body= is a line count, not a character count. Python str splits characters; do not use len(body) as body=.
+lines= is a guard on how many lines the ADDRESS covers, and is not body=.
+The checkout is named by global -C DIR or --root DIR before the subcommand (mrw -C repo write plan). After read, -C is context lines, not a checkout.
 `
 }

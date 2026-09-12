@@ -33,6 +33,14 @@ func TestCLIContainsSharedAndTheOperatorTraps(t *testing.T) {
 		"Exit 3",
 		"MSYS",
 		"glob",
+		`anchor="`,
+		"single-quot",
+		"body=",
+		"line count",
+		"lines=",
+		"-C",
+		"--root",
+		"Python",
 	} {
 		if !strings.Contains(got, must) {
 			t.Errorf("CLI() does not teach %q:\n%s", must, got)

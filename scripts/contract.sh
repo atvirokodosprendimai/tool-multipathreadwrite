@@ -4905,6 +4905,39 @@ assert open(sys.argv[2]).read() == "one\nTWO\nthree\n", "acked write on A did no
 PY
 want 0 $? "A's ack licenses a write under A"
 
+# 79. ADR-040: write --help names how to quote a header option.
+#
+# A unit test on Description cannot prove the binary prints it. Drive $MRW.
+# Pair: write --help names quoting / body= / -C / --root; an unknown write
+# flag is usage (exit 2), so a binary that always exits 0 cannot pass.
+help79=$(m write --help)
+want 0 $? "write --help exits 0"
+printf '%s' "$help79" | grep -q 'anchor="' && ok "write --help names double-quoted anchor=" || bad "write --help names double-quoted anchor="
+printf '%s' "$help79" | grep -q 'body=' && ok "write --help names body=" || bad "write --help names body="
+printf '%s' "$help79" | grep -q -- '-C' && ok "write --help names -C" || bad "write --help names -C"
+printf '%s' "$help79" | grep -q -- '--root' && ok "write --help names --root" || bad "write --help names --root"
+m write --not-a-flag >/dev/null 2>&1
+want 2 $? "an unknown write flag is usage, not silent help"
+
+# 80. ADR-040: unquoted and single-quoted anchor= parse; a leftover token is still usage.
+fixture
+printf 'func openTestStore\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+printf '@@ f.go 1 replace anchor=func openTestStore\nNEW\n' | m write --dry-run - >/dev/null
+want 0 $? "unquoted spaced anchor= parses"
+printf "@@ f.go 1 replace anchor='func openTestStore'\nNEW\n" | m write --dry-run - >/dev/null
+want 0 $? "single-quoted anchor= parses"
+printf '@@ f.go 1 replace leftover\nNEW\n' | m write --dry-run - >/dev/null 2>&1
+want 2 $? "a trailing token that is not key=value is still usage"
+
+# 81. ADR-040: mrw version prints the same string -v already prints.
+v81=$("$MRW" version)
+want 0 $? "mrw version exits 0"
+[ -n "$v81" ] && ok "mrw version prints a string" || bad "mrw version prints a string"
+"$MRW" -v 2>/dev/null | grep -F -q "$(printf '%s' "$v81" | tr -d '\n')" && ok "-v names the same string" || bad "-v names the same string"
+"$MRW" version extra >/dev/null 2>&1
+want 2 $? "version extra is usage"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
