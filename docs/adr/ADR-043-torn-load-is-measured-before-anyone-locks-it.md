@@ -75,6 +75,11 @@ See `docs/adr/ADR-043-torn-load-is-measured-before-anyone-locks-it/tasks/README.
 
 Delete the record. Nothing in the engine depends on it.
 
+## Measurement (2026-09-12)
+
+Attempted on darwin: 8000-entry ledger (672013 bytes); one `Record` loop and one unlocked `Load` loop for 2s (same process — child `go test` binaries each mint their own `XDG_STATE_HOME` via `TestMain`, so a two-process recipe that does not pin that env cannot see the same file).
+Result: **not observed** as a torn parse (`Load` error other than `fs.ErrNotExist`). 398 Records, 1189 Loads, 0 such errors, 6 empty Loads (`Load` treats a truncated header as stale). No flock-on-Load.
+
 ## Follow-ups
 
-- [ ] Execute only on a later quote that names this number.
+- [x] Execute only on a later quote that names this number. — 2026-09-12: M said execute all till 050; measured; tear not observed; Load stays unlocked.

@@ -49,6 +49,7 @@ grep -F -q '**Status:** Accepted' docs/adr/ADR-043-torn-load-is-measured-before-
 | 4 — it is used | nothing measures this yet — ADR-009 refused telemetry |
 
 ## Mutation Log
+- 2026-09-12 · 46038dd · mutant killed · exit 1 · `docs/adr/ADR-043-torn-load-is-measured-before-anyone-locks-it.md` · without Accepted the record-only fence must fail · acceptance-sha256:6d59f8d06c3ab09d4668c24a0349299cee1894f71401892ec072d894f2d25958
 
 ## Invariants
 
@@ -70,3 +71,4 @@ Stop if the proposed work is a parser, streamer, extra MCP tool, flock-on-Load, 
 
 ## Verification Log
 - 2026-09-12 · 4b70dd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6d59f8d06c3ab09d4668c24a0349299cee1894f71401892ec072d894f2d25958 · ms:58
+- 2026-09-12 · 46038dd · exit 0 · `set -o pipefail …` · acceptance-sha256:6d59f8d06c3ab09d4668c24a0349299cee1894f71401892ec072d894f2d25958 · ms:14
