@@ -49,6 +49,7 @@ grep -F -q '**Status:** Accepted' docs/adr/ADR-045-agents-md-is-not-generated-fr
 | 4 — it is used | nothing measures this yet — ADR-009 refused telemetry |
 
 ## Mutation Log
+- 2026-09-12 · 212d4ac · mutant killed · exit 1 · `docs/adr/ADR-045-agents-md-is-not-generated-from-shared.md` · without Accepted the record-only fence must fail · acceptance-sha256:34ccccd19d5bcdfabf0560c4fbdbbecf042a238725cf3cfe2ed5fc28e45d46bc
 
 ## Invariants
 
@@ -70,3 +71,4 @@ Stop if the proposed work is a parser, streamer, extra MCP tool, flock-on-Load, 
 
 ## Verification Log
 - 2026-09-12 · 4b70dd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:34ccccd19d5bcdfabf0560c4fbdbbecf042a238725cf3cfe2ed5fc28e45d46bc · ms:31
+- 2026-09-12 · 212d4ac · exit 0 · `set -o pipefail …` · acceptance-sha256:34ccccd19d5bcdfabf0560c4fbdbbecf042a238725cf3cfe2ed5fc28e45d46bc · ms:14

@@ -19,7 +19,7 @@ DAG); Covers-column drift is caught at review. Regenerate rather than hand-edit.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Keep AGENTS.md authored. Do not generate it. | pending | — | `grep` the Accepted record |
+| T1 | Keep AGENTS.md authored. Do not generate it. | done | — | `grep` the Accepted record |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
