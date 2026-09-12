@@ -334,6 +334,26 @@ func TestMCPInstructionsContainShared(t *testing.T) {
 	}
 }
 
+func TestMCPInstructionsTeachTheWhy(t *testing.T) {
+	got := instructionsText()
+	why := guide.WhyAllOrNothing()
+	if why == "" {
+		t.Fatal("WhyAllOrNothing() is empty; strings.Contains would pass vacuously")
+	}
+	if !strings.Contains(got, why) {
+		t.Errorf("instructionsText does not teach the why:\n%s", got)
+	}
+	if strings.Contains(guide.Shared(), why) {
+		t.Error("Shared() absorbed the why; it stays extra on the handshake")
+	}
+	if maxInstructionsChars != 4096 {
+		t.Errorf("maxInstructionsChars is %d; do not raise the bound to fund the why", maxInstructionsChars)
+	}
+	if len(got) > maxInstructionsChars {
+		t.Errorf("instructions are %d bytes, over the %d-byte bound", len(got), maxInstructionsChars)
+	}
+}
+
 // TestTheDescriptionsSayWhenToReachForTheTool asserts the trigger, not the
 // behaviour. Over MCP mrw competes with the host's own Edit and Write, and the
 // description is the whole pitch: a caller told what the tool does and not when

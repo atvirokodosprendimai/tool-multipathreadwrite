@@ -42,7 +42,9 @@ These are decided, recorded in `docs/adr/`, and asserted by
 6. **A delete says what it removed.** — ADR-008
 
 The failure the whole design exists to prevent: *a read that returns nothing is
-visible; a write that changes nothing is not.*
+visible; a write that changes nothing is not.* `--format=apply_patch` and
+`--format=search_replace` compile to a native plan; sequential apply_patch is
+the leak, not the feature.
 
 ## Portability — one trap, learned the hard way
 

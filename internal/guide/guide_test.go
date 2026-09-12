@@ -21,6 +21,9 @@ func TestEverySurfaceContainsTheSharedSentences(t *testing.T) {
 	if strings.Contains(got, "@@") {
 		t.Error("Shared() embeds a plan example; examples stay in the MCP file that executes them")
 	}
+	if strings.Contains(got, WhyAllOrNothing()) {
+		t.Error("Shared() absorbed the why; it stays extra on CLI() and the handshake")
+	}
 }
 
 func TestCLIContainsSharedAndTheOperatorTraps(t *testing.T) {
@@ -29,6 +32,7 @@ func TestCLIContainsSharedAndTheOperatorTraps(t *testing.T) {
 		t.Error("CLI() does not contain Shared() verbatim")
 	}
 	for _, must := range []string{
+		WhyAllOrNothing(),
 		"through a pipe",
 		"Exit 3",
 		"MSYS",
