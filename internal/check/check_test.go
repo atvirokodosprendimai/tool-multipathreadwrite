@@ -466,11 +466,10 @@ func TestAShellInjectedScopeStillFails(t *testing.T) {
 	}
 }
 
-// A scope outside the root is refused, not fallen back on. The fallback is
-// what makes the other unplaceable paths safe — a typo, a prose directory —
-// because the whole-project run still covers them. Outside the root it covers
-// nothing the caller named, so the verdict it produces is about a different
-// tree entirely.
+// A scope outside the root is refused, not fallen back on. A miss inside the
+// root is refused too (ADR-042). The fallback that remains is for a path that
+// is there but cannot be placed as a package — prose, testdata. Outside the
+// root the whole-project run covers nothing the caller named.
 //
 // The root's own check is `exit 0` here, so a fallback would report a PASS.
 // Asserting on the error alone would not catch that: the row has to show that
@@ -529,18 +528,60 @@ func TestARefusedScopeDoesNotInheritTheRootsVerdict(t *testing.T) {
 	}
 }
 
-// An in-root path that cannot be placed must still fall back: that is the
-// behaviour the refusal above is carved out of, and breaking it would trade
-// one silent omission for a wall of refusals on ordinary typos.
-func TestAnUnplaceableInRootScopeStillFallsBack(t *testing.T) {
+// An in-root miss is refused, not answered as a whole-project PASS. Honouring
+// it would mean running the scoped form anyway; refusing it means nothing ran.
+// The silent fallback was the leftover ADR-042 parked until M said
+// *"accepted, close"*.
+func TestAnInRootMissIsRefusedNotASilentPass(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(root, "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pkg", "p.go"), []byte("package pkg\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The root's own check is exit 0, so a fallback would report a PASS.
+	// Asserting on the error alone would not catch that: nothing ran.
+	cfg := Config{Check: "exit 0", ScopedCheck: "exit 0", declared: true}
+	for _, miss := range []string{"nosuchdir", "chek.go", "pkg/nope.go"} {
+		res, err := Run(context.Background(), root, cfg, []string{miss})
+		if err == nil {
+			t.Errorf("%s: accepted, result %+v", miss, res)
+			continue
+		}
+		if res.Ran || res.Command != "" || res.OK() {
+			t.Errorf("%s: refused but a result was filled in: %+v", miss, res)
+		}
+		if !strings.Contains(err.Error(), miss) {
+			t.Errorf("%s: error does not name the path: %v", miss, err)
+		}
+		if !strings.Contains(err.Error(), "not there") {
+			t.Errorf("%s: error does not say the path is missing: %v", miss, err)
+		}
+	}
+	res, err := Run(context.Background(), root, cfg, []string{"pkg"})
+	if err != nil || !res.OK() {
+		t.Errorf("an existing package was refused: %v %+v", err, res)
+	}
+}
+
+// A directory of prose still falls back: it is there, and this execute
+// refuses only a miss. Trading that for a refusal would break `mrw check docs`.
+func TestAPresentUnplaceableInRootScopeStillFallsBack(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "docs", "guide.md"), []byte("# prose\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	cfg := Config{Check: "exit 0", ScopedCheck: "exit 7", declared: true}
-	res, err := Run(context.Background(), root, cfg, []string{"nosuchdir"})
+	res, err := Run(context.Background(), root, cfg, []string{"docs"})
 	if err != nil {
-		t.Fatalf("an in-root typo was refused: %v", err)
+		t.Fatalf("a present prose directory was refused: %v", err)
 	}
 	if !res.OK() || res.Command != "exit 0" {
 		t.Errorf("did not fall back to the whole-project command: %+v", res)
@@ -594,10 +635,10 @@ func TestADirectoryThatCannotBeReadIsRefusedNotTreatedAsEmpty(t *testing.T) {
 	}
 }
 
-// The two controls. A readable directory still scopes, and a path that is NOT
-// THERE still falls back — that is the decided behaviour for a typo, and
-// trading it for a refusal would break every ordinary mistyped scope.
-func TestReadableAndMissingScopesAreUnchanged(t *testing.T) {
+// The control: a readable directory still scopes. A missing path is the
+// miss ADR-042 now refuses; that is asserted by
+// TestAnInRootMissIsRefusedNotASilentPass.
+func TestAReadableDirectoryStillScopes(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -612,9 +653,6 @@ func TestReadableAndMissingScopesAreUnchanged(t *testing.T) {
 
 	if res, err := Run(context.Background(), root, cfg, []string{"good"}); err != nil || !res.OK() {
 		t.Errorf("a readable directory was refused: %v %+v", err, res)
-	}
-	if res, err := Run(context.Background(), root, cfg, []string{"nosuchdir"}); err != nil || !res.OK() {
-		t.Errorf("a missing path no longer falls back: %v %+v", err, res)
 	}
 }
 

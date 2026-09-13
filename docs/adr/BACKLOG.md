@@ -36,7 +36,7 @@ that arms work; silence leaves the row where it is.
 | Single quotes parse | **040 Accepted** — Decision 4 | — |
 | `-C` vs `--root` (019 A stands; help names both global flags) | **040 Accepted** — Decision 5 | — |
 | PATH binary vs skill **version skew** | **ADR-041 Accepted** — record only | — (T1 receipts 2026-09-12; no protocol) |
-| `mrw check` silent in-root fallback | **ADR-042 Accepted** — record only | — (T1 receipts 2026-09-12; fallback stays) |
+| `mrw check` silent in-root fallback | **ADR-042 Accepted** — miss refused (T2) | — (2026-09-12: *"accepted, close"*; exit 2, no result) |
 | Torn `Load` / atomic save | **ADR-043 Accepted** — measure, not a lock | — (2026-09-12: not observed; Load unlocked) |
 | MCP cargo: `check`/`iter`/`seen`/`stats` | **ADR-044 Accepted** — still two tools | — (T1 receipts 2026-09-12; no cargo tools) |
 | Generate AGENTS.md from `Shared()` | **ADR-045 Accepted** — still refuse the tax | — (T1 receipts 2026-09-12; no generator) |
@@ -1444,12 +1444,9 @@ pointer. None of them is an engine change.
   binaries not upgraded". Named here as its own product: a PATH install and a
   central skill can disagree, and `--help` on the old binary is what the caller
   trusts. Not 040's Decision. Arm with *"spec version skew"*.
-- **`mrw check` silent in-root fallback.** True, parked since PR #15. An
-  in-root path that cannot be placed still falls back to the whole-project
-  command (`internal/check/check.go`); a typo inside the root can PASS the
-  root's check. Inbox
-  `OPEN, NOT FIXED — mrw check never says whether the scope you asked for was
-  honoured.` Arm with *"spec check in-root fallback"*.
+- ~~**`mrw check` silent in-root fallback.**~~ **CLOSED 2026-09-12** — ADR-042
+  T2. An in-root miss is refused at exit 2; prose and testdata still fall
+  back. M: *"accepted, close"*.
 - **A torn `Load` during `WriteFile`.** Not this record. Still the ADR-038
   entry above. Do not promote unless M says *"measure torn Load"* — a measure
   task, not a lock.

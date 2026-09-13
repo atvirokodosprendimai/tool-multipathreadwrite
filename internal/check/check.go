@@ -120,15 +120,15 @@ func (r Result) OK() bool { return r.Ran && r.ExitCode == 0 }
 
 // Run picks a command for the edited paths and executes it in root.
 //
-// A path resolving outside root is refused before anything runs. Every other
-// unplaceable path falls back to the whole-project command, and that fallback
-// is sound only inside the root, where the complete run covers what the caller
-// named. Outside it the complete run covers nothing they named, so its verdict
-// is about a different tree: `mrw check ../other` answered PASS at exit 0 while
-// ../other did not compile, and exit 3 when the root's own tests went red —
-// the answer tracked the root and never the argument. read and write refuse
-// such a path (ADR-006); reporting a pass for a scope that never ran is the
-// silent pass ADR-003 rule 2 forbids, reached through the fallback.
+// A path resolving outside root is refused before anything runs. A path that
+// is not there is refused the same way (ADR-042): falling back to the
+// whole-project command and calling that PASS hides the miss. A directory of
+// prose or testdata still falls back — those paths exist. Outside the root
+// the complete run covers nothing the caller named: `mrw check ../other`
+// answered PASS at exit 0 while ../other did not compile, and exit 3 when the
+// root's own tests went red. read and write refuse such a path (ADR-006);
+// reporting a pass for a scope that never ran is the silent pass ADR-003
+// rule 2 forbids.
 func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Result, error) {
 	if err := confine(root, editedPaths); err != nil {
 		// Nothing runs and no fields are filled in: a refusal must not hand
@@ -281,7 +281,8 @@ func needsQuoting(r rune) bool {
 	return true
 }
 
-// confine reports the first path that resolves outside root. The trailing
+// confine reports the first path that cannot be honoured: outside root, not
+// there, or an existing directory that cannot be read. The trailing
 // /... of a subtree scope is stripped first, so a scope mrw printed can be
 // handed straight back to it — the same normalisation packages does.
 //
@@ -310,21 +311,29 @@ func confine(root string, paths []string) error {
 		if err != nil {
 			return fmt.Errorf("%v: check it with --root pointed where you mean", err)
 		}
-		// A directory that EXISTS and cannot be READ is refused for the same
-		// reason an out-of-root one is: mrw cannot place a package it cannot
-		// look at, and holdsPackage reports that as "no package here" — a read
-		// error returned as an absence. The scope then falls back to the
-		// whole-project command, which is sound for a typo (the full run covers
-		// the root) and vacuous here: the caller named a directory, mrw could
-		// not open it, and the answer was PASS.
+		// A path that is not there is refused (ADR-042). The fallback used to
+		// run the whole project and call that PASS, so a typo read as green on
+		// the thing the caller meant to check. Honouring the miss would still
+		// run something they did not name; refusing it means nothing ran.
 		//
-		// Only an EXISTING directory. A path that is not there is still a typo
-		// and still falls back, which is the decided behaviour.
-		if fi, statErr := os.Stat(full); statErr == nil && fi.IsDir() {
+		// A directory that EXISTS and cannot be READ is refused for the same
+		// reason: mrw cannot place a package it cannot look at, and
+		// holdsPackage reports that as "no package here" — a read error
+		// returned as an absence. Only os.IsNotExist is a miss. A directory of
+		// prose or testdata is there and still falls back.
+		fi, statErr := os.Stat(full)
+		switch {
+		case statErr == nil && fi.IsDir():
 			if _, readErr := os.ReadDir(full); readErr != nil {
 				return fmt.Errorf("%s cannot be read (%v), so mrw cannot tell whether it holds a "+
 					"package: fix the permissions or scope somewhere readable", p, readErr)
 			}
+		case os.IsNotExist(statErr):
+			return fmt.Errorf("%s is not there, so mrw cannot honour that scope: "+
+				"name a path that exists or run the whole-project check", p)
+		case statErr != nil:
+			return fmt.Errorf("%s cannot be read (%v), so mrw cannot tell whether it holds a "+
+				"package: fix the permissions or scope somewhere readable", p, statErr)
 		}
 	}
 	return nil
@@ -360,22 +369,16 @@ func command(root string, cfg Config, paths []string) (cmdline string, scoped bo
 // trailing /... is stripped before a path is placed, so a scope mrw printed
 // can be handed straight back to it.
 //
-// Two kinds of path are refused, and they are one rule: a scope that covers
-// less than the caller asked for is worse than a slow complete run.
+// Two kinds of path used to share one answer — fall back — and they no longer
+// do. A path that is not there is refused by confine before this is reached
+// (ADR-042). A directory holding no package go will build — prose, or one
+// named testdata, which the ... form excludes by design — still falls back,
+// because those paths exist and `go test` on them exits 1 for a reason that
+// is not about the code.
 //
-//  1. A path that is not there — a directory OR a .go file. A typo has no
-//     extension either, and scoping to it runs a check covering nothing that
-//     then reports PASS. The .go form is the worse half: `mrw check chek.go`
-//     at a module root places `.`, runs the root package and exits 0, so the
-//     file the caller named is never looked at and the answer is success.
-//  2. A directory holding no package go will build — a directory of prose, or
-//     one named testdata, which the ... form excludes by design. Both make
-//     `go test` exit 1 for a reason that is not about the code.
-//
-// Both are safe to answer with the full run, because the full run covers the
-// root and both paths are inside it. A path OUTSIDE the root is not, and is
-// not refused here at all — Run refuses it before this is reached, because
-// falling back would answer about a tree the caller never named.
+// A path OUTSIDE the root is not refused here at all — Run refuses it
+// before this is reached, because falling back would answer about a tree
+// the caller never named.
 //
 // Paths reaching here from a write are always files, so `write --check` meets
 // none of this.

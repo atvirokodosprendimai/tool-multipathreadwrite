@@ -346,13 +346,13 @@ grep -q 'WITHHELD' <<<"$out" && ok "and prints WITHHELD" || bad "wrong word: $ou
 #     directory has no .go extension. Fixing that with `./dir` alone bought a
 #     second silent failure: go's `./dir` is the package at the top, so
 #     `mrw check .` reported PASS with a failing package one level down. A path
-#     mrw cannot place as a package — a typo, a directory of prose, one named
+#     mrw cannot place as a package — a directory of prose, one named
 #     testdata — must still fall back rather than scope to nothing. A path
-#     OUTSIDE the root is the exception and is refused: the fallback runs the
-#     whole project, which covers a typo but covers nothing the caller named
-#     when the name pointed elsewhere, so the PASS it printed was about a
-#     different tree. These rows used to assert that fallback, under the name
-#     "as read and write refuse it".
+#     that is NOT THERE is refused (ADR-042 / §86): the fallback used to PASS
+#     the whole project, so a typo read as green. A path OUTSIDE the root is
+#     refused too: the fallback covers a present unplaceable path, not a name
+#     that pointed elsewhere. These rows used to assert that fallback, under
+#     the name "as read and write refuse it".
 fixture
 mkdir -p "$R/internal/apply/testdata" "$R/docs"
 printf 'package apply\n\nfunc A() int { return 1 }\n' > "$R/internal/apply/a.go"
@@ -376,8 +376,10 @@ out=$(m check internal/apply/a.go 2>&1)
 grep -qF 'SCOPED ./internal/apply' <<<"$out" && ok "a .go file still scopes to its own package" || bad "not scoped: $out"
 out=$(m check . 2>&1)
 grep -qF 'SCOPED ./...' <<<"$out" && ok "the root scopes to every package, not just the top one" || bad "not recursive: $out"
-out=$(m check internal/aply 2>&1)
-grep -q 'echo FULL' <<<"$out" && ok "a mistyped path falls back, not scopes to nothing" || bad "scoped to nothing: $out"
+out=$(m check internal/aply 2>&1); rc=$?
+want 2 "$rc" "a mistyped path is refused, not a silent whole-project PASS"
+grep -q 'FULL' <<<"$out" && bad "fell back and answered about the root: $out" \
+  || ok "and nothing ran under the mistyped path"
 out=$(m check docs 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "a directory with no package falls back" || bad "scoped to a non-package: $out"
 out=$(m check internal/apply/testdata 2>&1)
@@ -418,11 +420,11 @@ grep -q 'exit_code' <<<"$out" && bad "a refusal emitted a result document: $out"
 out=$(m check --full 2>&1)
 grep -q 'echo FULL' <<<"$out" && ok "--full still ignores every scope" || bad "not full: $out"
 
-# 15c. A .go path that is not there falls back, like the directory typo it is.
-#      Placing `filepath.Dir` without asking whether the FILE exists let a
-#      mistyped name at a module root scope to `.`, run the root package and
-#      report PASS — the silent omission section 15 exists to prevent, wearing
-#      the one hat that still fitted.
+# 15c. A .go path that is not there is refused (ADR-042), like the directory
+#      typo it is. Placing `filepath.Dir` without asking whether the FILE
+#      exists let a mistyped name at a module root scope to `.`, run the root
+#      package and report PASS — then the fallback hid the same miss behind
+#      a whole-project PASS. Both are closed.
 fixture
 mkdir -p "$R/pkg"
 printf 'package pkg\n' > "$R/pkg/p.go"
@@ -430,10 +432,14 @@ printf 'package pkg\n' > "$R/pkg/p.go"
 # to fail: without the existence check a phantom .go name places `.` and scopes
 # to the root package, so the run is green and covers nothing the caller named.
 printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
-out=$(m check chek.go 2>&1)
-grep -qF 'FULL' <<<"$out" && ! grep -qF 'SCOPED' <<<"$out" && ok "a mistyped .go file at the root is not scoped" || bad "scoped a phantom: $out"
-out=$(m check nosuchdir/nope.go 2>&1)
-grep -qF 'FULL' <<<"$out" && ! grep -qF 'SCOPED' <<<"$out" && ok "a .go file in a missing directory is not scoped" || bad "scoped a phantom dir: $out"
+out=$(m check chek.go 2>&1); rc=$?
+want 2 "$rc" "a mistyped .go file at the root is refused"
+grep -q 'FULL' <<<"$out" && bad "fell back on a phantom .go: $out" \
+  || ok "and nothing ran under it"
+out=$(m check nosuchdir/nope.go 2>&1); rc=$?
+want 2 "$rc" "a .go file in a missing directory is refused"
+grep -q 'FULL' <<<"$out" && bad "fell back on a phantom dir: $out" \
+  || ok "and nothing ran under the missing dir"
 out=$(m check a.go 2>&1)
 grep -qF 'SCOPED .' <<<"$out" && ok "a .go file that IS there still scopes" || bad "did not scope a real file: $out"
 out=$(m check pkg/p.go 2>&1)
@@ -921,9 +927,9 @@ want "$applied" "$changed" "and no file changed that was not applied"
 #     holding no package. holdsPackage walks the directory and discarded the
 #     walk's error, so a permission failure came back indistinguishable from a
 #     directory of prose — and the scope then fell back to the whole-project
-#     command. That is sound for a typo, where the full run covers the root,
-#     and vacuous here: the caller named a directory, mrw could not open it,
-#     and the answer was PASS at exit 0.
+#     command. That used to be sound for a typo (ADR-042 now refuses a miss)
+#     and is vacuous here: the caller named a directory, mrw could not open
+#     it, and the answer was PASS at exit 0.
 fixture
 mkdir -p "$R/blind" "$R/seen-dir"
 printf 'package blind\n' > "$R/blind/b.go"
@@ -944,13 +950,14 @@ else
   grep -q 'FULL' <<<"$out" && bad "fell back and answered about the whole project: $out" \
     || ok "and nothing ran under it"
 fi
-# CONTROLS: a readable directory still scopes, and a path that is not there
-# still falls back — the decided behaviour for a typo, which this must not trade
-# away for a refusal.
+# CONTROLS: a readable directory still scopes. A path that is not there is
+# refused (ADR-042) — the leftover this row used to protect.
 out=$(m check seen-dir 2>&1)
 grep -qF 'SCOPED ./seen-dir/...' <<<"$out" && ok "while a readable directory still scopes" || bad "readable dir broke: $out"
-out=$(m check nosuchdir 2>&1)
-grep -q 'echo FULL' <<<"$out" && ok "and a mistyped path still falls back" || bad "a typo no longer falls back: $out"
+out=$(m check nosuchdir 2>&1); rc=$?
+want 2 "$rc" "and a mistyped path is refused, not a silent PASS"
+grep -q 'FULL' <<<"$out" && bad "fell back on the typo: $out" \
+  || ok "and nothing ran under the typo"
 
 # 26. `iter add` is the FOURTH way into the tree — after read, write and check —
 #     and it was the one that did not enforce the root boundary. It validated
@@ -5261,6 +5268,31 @@ assert len(i.encode()) <= 4096, "handshake is %d bytes; do not raise 4096 to fun
 PY
 [ $? -eq 0 ] && ok "and the handshake teaches the why without raising 4096" \
              || bad "handshake omitted the why, dropped Shared, or overflowed 4096"
+
+# 86. ADR-042: an in-root miss is refused, not a silent whole-project PASS.
+#     Pair: a real package still scopes (exit 0); a miss is exit 2 and emits
+#     no result document. Prose and testdata still fall back — those paths
+#     are there. 4096 stays; ADR-019 A stands.
+fixture
+mkdir -p "$R/pkg" "$R/docs"
+printf 'package pkg\n' > "$R/pkg/p.go"
+printf '# prose\n' > "$R/docs/guide.md"
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
+out=$(m check pkg 2>&1); rc=$?
+want 0 "$rc" "an existing package still scopes"
+grep -qF 'SCOPED ./pkg/...' <<<"$out" && ok "and the scoped form ran" || bad "not scoped: $out"
+out=$(m check chek.go 2>&1); rc=$?
+want 2 "$rc" "a missing in-root path is refused"
+grep -q 'not there' <<<"$out" && ok "and the reason names the miss" || bad "reason: $out"
+grep -q 'FULL' <<<"$out" && bad "fell back and answered about the root: $out" \
+  || ok "and nothing ran under the miss"
+out=$(m check --json nosuchdir 2>/dev/null); rc=$?
+want 2 "$rc" "--json refuses the same miss"
+grep -q 'exit_code' <<<"$out" && bad "a refusal emitted a result document: $out" \
+  || ok "and emits no result document to read a verdict out of"
+out=$(m check docs 2>&1); rc=$?
+want 0 "$rc" "a present prose directory still falls back"
+grep -q 'echo FULL' <<<"$out" && ok "and the full command ran" || bad "not full: $out"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
