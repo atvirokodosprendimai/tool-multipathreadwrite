@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -84,5 +86,42 @@ func TestQuietAndJSONCarryTheAdvisoryCount(t *testing.T) {
 	}
 	if got.Advisories == nil || *got.Advisories != 1 {
 		t.Errorf("json receipt lacks advisories: 1:\n%s", js)
+	}
+}
+
+// ADR-055 T2: the third write in a row that carries an advisory prints a
+// pattern line on the receipt; the second does not. The tally cannot say
+// "again" — the ring can, and the line is on the receipt because stats is
+// run after the fact and the receipt is read in the turn.
+func TestTheReceiptPrintsThePatternLineOnTheThirdAdvisory(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := braceTree(t)
+	var outs []string
+	for i := 0; i < 3; i++ {
+		// Reset the file each time so the same delta plan applies again.
+		if err := os.WriteFile(filepath.Join(root, "f.go"), []byte("func A() {\n\treturn\n}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := readIn(t, root, "f.go"); err != nil {
+			t.Fatal(err)
+		}
+		out, code := writeIn(t, root, "--no-check", planFile(t, deltaPlan))
+		if code != 0 {
+			t.Fatalf("write %d exit %d:\n%s", i+1, code, out)
+		}
+		outs = append(outs, out)
+	}
+	if strings.Contains(outs[1], "pattern:") {
+		t.Errorf("the second advisory already printed a pattern line:\n%s", outs[1])
+	}
+	if !strings.Contains(outs[2], "pattern: 3 of your last 3 writes carried a balance advisory") {
+		t.Errorf("the third advisory did not print the pattern line:\n%s", outs[2])
+	}
+	st, err := statsIn(t, root)
+	if err != nil {
+		t.Fatalf("stats: %v\n%s", err, st)
+	}
+	if !strings.Contains(st, "recent: 3 write(s) in the window") || !strings.Contains(st, "pattern: 3 of your last 3") {
+		t.Errorf("stats does not show the window and the pattern:\n%s", st)
 	}
 }

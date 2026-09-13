@@ -576,6 +576,11 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		if err := seen.Record(root, wrote); err != nil {
 			return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
 		}
+		// ADR-055: a landed MCP write feeds the same ring the CLI reads, so
+		// "3 of your last 10" counts every landed write on this checkout.
+		// The MCP receipt is structured and carries `advisories`; the
+		// pattern line itself is CLI and stats (BACKLOG).
+		_ = authoring.RecordRecent(root, res.Advisories)
 	}
 
 	switch {

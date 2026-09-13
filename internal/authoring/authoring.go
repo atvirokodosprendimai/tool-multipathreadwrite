@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
@@ -205,4 +206,90 @@ func Reset(root string) error {
 		return err
 	}
 	return nil
+}
+
+// ── ADR-055: the recent-window ring ─────────────────────────────────────────
+
+// recentFile is the ring's name inside the state directory, beside the tally.
+const recentFile = "recent"
+
+// RecentWindow is how many landed writes the ring keeps. By count, not by
+// clock: a session is what the caller is doing, not a time of day.
+const RecentWindow = 10
+
+// PatternThreshold is how many of the window's writes must carry an advisory
+// before the receipt says so. Three is the point at which "again" is a
+// pattern and not a coincidence.
+const PatternThreshold = 3
+
+// RecentEntry is one landed write: when, what class, how many advisories.
+// Nothing ADR-009 refuses — no path, no plan text, no address.
+type RecentEntry struct {
+	Unix       int64
+	Op         string
+	Advisories int
+}
+
+// RecordRecent appends one landed write to the ring and trims it to
+// RecentWindow. Like Record it never fails a write: every error path returns
+// nil and the cost of being wrong is a lost entry.
+func RecordRecent(root string, advisories int) error {
+	entries := Recent(root)
+	entries = append(entries, RecentEntry{Unix: time.Now().Unix(), Op: "write", Advisories: advisories})
+	if len(entries) > RecentWindow {
+		entries = entries[len(entries)-RecentWindow:]
+	}
+	p, err := state.Path(root, recentFile)
+	if err != nil {
+		return nil
+	}
+	var b strings.Builder
+	for _, e := range entries {
+		fmt.Fprintf(&b, "%d %s %d\n", e.Unix, e.Op, e.Advisories)
+	}
+	_ = os.WriteFile(p, []byte(b.String()), 0o600)
+	return nil
+}
+
+// Recent reads the ring, oldest first. It FAILS OPEN like Load: an absent,
+// unreadable or malformed file is an empty ring, and a torn line is skipped.
+func Recent(root string) []RecentEntry {
+	p, err := state.Path(root, recentFile)
+	if err != nil {
+		return nil
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	var out []RecentEntry
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		fields := strings.Fields(sc.Text())
+		if len(fields) != 3 || fields[1] != "write" {
+			continue // a torn or foreign line is skipped, never an error
+		}
+		unix, err1 := strconv.ParseInt(fields[0], 10, 64)
+		n, err2 := strconv.Atoi(fields[2])
+		if err1 != nil || err2 != nil || n < 0 {
+			continue
+		}
+		out = append(out, RecentEntry{Unix: unix, Op: fields[1], Advisories: n})
+	}
+	if len(out) > RecentWindow {
+		out = out[len(out)-RecentWindow:]
+	}
+	return out
+}
+
+// Pattern reports how many of the given entries carried an advisory, how many
+// entries there are, and whether that meets PatternThreshold.
+func Pattern(entries []RecentEntry) (advisory, total int, fires bool) {
+	for _, e := range entries {
+		if e.Advisories > 0 {
+			advisory++
+		}
+	}
+	return advisory, len(entries), advisory >= PatternThreshold
 }

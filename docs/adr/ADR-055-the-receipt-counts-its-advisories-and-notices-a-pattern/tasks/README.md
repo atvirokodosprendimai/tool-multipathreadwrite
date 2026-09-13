@@ -23,11 +23,19 @@ in parallel with T1/T2. T4 teaches once the three surfaces exist.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | Advisory count on the summary line and the receipt; contract §92 | done | — | `docs/adr/ADR-055-the-receipt-counts-its-advisories-and-notices-a-pattern/tasks/T1-advisory-count-and-contract-92.md` fence |
-| T2 | Recent-window ring and the pattern line; contract §93 | pending | — | `docs/adr/ADR-055-the-receipt-counts-its-advisories-and-notices-a-pattern/tasks/T2-repeat-pattern-and-contract-93.md` fence |
+| T2 | Recent-window ring and the pattern line; contract §93 | blocked | — | `docs/adr/ADR-055-the-receipt-counts-its-advisories-and-notices-a-pattern/tasks/T2-repeat-pattern-and-contract-93.md` fence |
 | T3 | `--strict-balance` opt-in refusal; contract §94 | pending | — | `docs/adr/ADR-055-the-receipt-counts-its-advisories-and-notices-a-pattern/tasks/T3-strict-balance-and-contract-94.md` fence |
 | T4 | Teach the three; BACKLOG pre-registration | pending | — | `docs/adr/ADR-055-the-receipt-counts-its-advisories-and-notices-a-pattern/tasks/T4-teach-and-backlog.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
+
+T2 is `blocked` on the word, not the work: its fence passes, three mutants are killed, the
+contract row holds. After its first red, a mutant on the writer's trim SURVIVED and the test
+gained one assertion (the ring FILE's line count) — the strengthening the `stress-testing` skill
+prescribes. The first-red lock (harness ADR-050) then reports `locked test … hash moved — done is
+refused`: it cannot tell a strengthened body from a weakened one. Filed to `wing_quality-harness`
+inbox 2026-09-13. Flip to `done` when the lock can accept a body whose change was recorded as a
+killed mutant against the new assertion.
 
 Contract rows (§92–§94) are cited in each task's Ordered Steps and Acceptance fence, NOT in its
 Tests table: a `§NN` row is a script section, not a function, and the first-red lock (ADR-050 in the

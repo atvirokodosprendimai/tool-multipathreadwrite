@@ -5484,6 +5484,38 @@ jout=$(printf '%s\n' \
 want 0 "$rc" "--json delta replace exits 0"
 [ "$(jq -r .advisories <<<"$jout")" = "1" ] && ok "--json carries advisories: 1" || bad "--json advisories: $(jq -c .advisories <<<"$jout")"
 
+# 93. ADR-055: a recent-window ring beside the tally; the receipt prints a
+# pattern line when three of the last ten landed writes carried an advisory,
+# and stats shows the window. Pair: two delta writes -> no `pattern:` / the
+# third -> `pattern: 3 of your last 3` / stats -> `recent: 3 write(s)` and the
+# line / the ring file holds no path (strings finds no `/` and no `.go`).
+R=$(mktemp -d "$WORK/r93-XXXXXX")
+for i in 1 2 3; do
+  printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+  m read 'f.go:1' >/dev/null
+  out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check - 2>&1); rc=$?
+  want 0 "$rc" "delta write $i exits 0"
+  if [ "$i" -lt 3 ]; then
+    if grep -q '^pattern:' <<<"$out"; then bad "write $i already printed a pattern line: $out"; else ok "write $i prints no pattern line"; fi
+  else
+    grep -q '^pattern: 3 of your last 3 writes carried a balance advisory' <<<"$out" && ok "the third advisory prints the pattern line" || bad "no pattern line on the third: $out"
+  fi
+done
+out=$(m stats 2>&1); rc=$?
+want 0 "$rc" "stats exits 0"
+grep -q 'recent: 3 write(s) in the window' <<<"$out" && ok "stats shows the window" || bad "stats window missing: $out"
+grep -q '^pattern: 3 of your last 3' <<<"$out" && ok "stats repeats the pattern line" || bad "stats lacks the pattern: $out"
+ring="$(m seen | head -1)/recent"
+if [ -f "$ring" ]; then
+  ok "the ring exists beside the tally"
+  [ "$(wc -l < "$ring" | tr -d ' ')" = "3" ] && ok "ring holds three lines" || bad "ring lines: $(wc -l < "$ring")"
+  if grep -qE '/|\.go|f\.go|func' "$ring"; then bad "ring carries a path or plan text: $(cat "$ring")"; else ok "ring carries no path and no plan text"; fi
+else
+  bad "no ring at $ring"
+fi
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

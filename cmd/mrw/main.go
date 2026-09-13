@@ -413,6 +413,12 @@ size is the form that gets quoted out of the population it was measured on.`,
 					"the tree changed. It is not \"wrote and was checked\" — --no-check and prose-only plans count as applied.\n",
 					landed, failed, 100*float64(failed)/float64(landed))
 			}
+			// ADR-055: the window, always, and the pattern line when it holds.
+			recent := authoring.Recent(root)
+			fmt.Printf("\nrecent: %d write(s) in the window (last %d landed writes; op class and advisory count only)\n", len(recent), authoring.RecentWindow)
+			if line := patternLine(recent); line != "" {
+				fmt.Println(line)
+			}
 			fmt.Printf("\n%d plan(s) recorded in this checkout. The rate is valid for THIS population;\n"+
 				"a number from one repository and one family of callers is not a general one.\n", total)
 			return nil
@@ -1038,6 +1044,16 @@ not.`,
 				}
 			}
 
+			// ADR-055: a landed write joins the recent-window ring BEFORE the
+			// receipt is rendered, so the receipt can say "3 of your last 3" —
+			// the line has to be on the receipt, read in the turn, not only in
+			// stats, which is run after the fact. Counts and a timestamp only.
+			var pattern string
+			if res.Applied && !res.DryRun {
+				_ = authoring.RecordRecent(root, res.Advisories)
+				pattern = patternLine(authoring.Recent(root))
+			}
+
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
@@ -1046,6 +1062,11 @@ not.`,
 				}
 			} else {
 				report(os.Stdout, res, cmd.Bool("quiet"))
+				if pattern != "" {
+					// Not hidden by --quiet: quiet drops ok rows, and this
+					// is the opposite of an ok row.
+					fmt.Println(pattern)
+				}
 				reportCheck(os.Stdout, receipt.Check)
 			}
 			// ADR-009: record what became of this plan, from the SAME facts the
@@ -1076,6 +1097,17 @@ not.`,
 			return nil
 		},
 	}
+}
+
+// patternLine renders ADR-055's repeat-pattern line, or "" when the ring
+// holds fewer than PatternThreshold advisory writes. It counts and points;
+// it does not judge the edit — the wording says what was counted.
+func patternLine(entries []authoring.RecentEntry) string {
+	k, n, fires := authoring.Pattern(entries)
+	if !fires {
+		return ""
+	}
+	return fmt.Sprintf("pattern: %d of your last %d writes carried a balance advisory — read past the range before the next one", k, n)
 }
 
 // receipt is what one write produced: the edit and, when asked for, the
