@@ -90,7 +90,7 @@ Stop if the work needs a new exit code, a `Result.Scoped` field, or a change to 
 
 - Honouring a miss by reporting `Scoped` instead of refusing (permanent: boundary: M said refuse when both were allowed)
 - Scope derivation for languages other than Go (deferred: docs/adr/BACKLOG.md)
-- Playtrix (external: wing_playtrix)
+- Playtrix (external: wing_playtrix: wing_playtrix/inbox)
 
 ## Verification Log
 <!-- adr-verify appends here -->

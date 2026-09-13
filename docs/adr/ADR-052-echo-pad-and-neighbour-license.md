@@ -100,7 +100,7 @@ See `docs/adr/ADR-052-echo-pad-and-neighbour-license/tasks/README.md`.
 - Cargo MCP tools / a third write tool (permanent: fact: ADR-044 stays two tools; citation: file `docs/adr/ADR-044-mcp-cargo-stays-two-tools.md:7`)
 - Raising 4096 / rewriting Shared() (permanent: boundary: teach on `write --help`)
 - Reopening ADR-019 B/C (permanent: fact: pick A stands; citation: file `docs/adr/ADR-019-desktop-reach-is-one-named-root-per-run.md:106`)
-- Merging #166 / ADR-042 on this branch (permanent: fact: #166 shipped §86 independently; this record's rows are §87–§88; citation: file `scripts/contract.sh`)
+- Merging #166 / ADR-042 on this branch (permanent: fact: #166 shipped §86 independently; this record's rows are §87–§88; citation: file `scripts/contract.sh:5238`)
 - Indent-reparent with no token after the body (deferred: docs/adr/BACKLOG.md)
 
 ## Risks

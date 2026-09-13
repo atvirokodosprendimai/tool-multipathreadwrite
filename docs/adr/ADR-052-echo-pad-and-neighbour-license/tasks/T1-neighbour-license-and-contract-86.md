@@ -67,6 +67,7 @@ grep -q '^# 87\. ' scripts/contract.sh \
 
 ## Mutation Log
 - 2026-09-13 · 2f49847* · mutant killed · exit 1 · `internal/apply/apply.go` · deleting the End+1 Covers call must fail S1 · acceptance-sha256:3f2dfff3775e397bf7db5878d397353a5461b4d7f02fd8f7f3ed776cf3f3e6fd
+- 2026-09-13 · 4158e26 · mutant killed · exit 1 · `internal/apply/apply.go` · the neighbour licence never fires: a multi-line replace with no served line after End applies, and TestAMultiLineReplaceWithoutAServedLineAfterEndWritesNothing must go red · acceptance-sha256:c39971e1bdc5a742370eed349681d647e0835987a3f680cd631d11f0ece6deca
 
 ## Invariants
 
@@ -93,3 +94,4 @@ A mutant that ignores the neighbour still exits 0 on S1. If the only way to go g
 
 ## Verification Log
 - 2026-09-13 · 2f49847* · exit 0 · `set -o pipefail …` · acceptance-sha256:3f2dfff3775e397bf7db5878d397353a5461b4d7f02fd8f7f3ed776cf3f3e6fd · ms:813
+- 2026-09-13 · 4158e26 · exit 0 · `set -o pipefail …` · acceptance-sha256:c39971e1bdc5a742370eed349681d647e0835987a3f680cd631d11f0ece6deca · ms:1146
