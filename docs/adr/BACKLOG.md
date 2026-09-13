@@ -56,8 +56,8 @@ that arms work; silence leaves the row where it is.
 | Foreign plan grammars / `apply_patch` | **ADR-051 Accepted** — compile to `@@`; first slice is `--format=apply_patch` | — (this steal; not Morph, not syntax-write) |
 | Aider SEARCH/REPLACE as a second `--format` | **shipped** — ADR-051 F-26 | — (M 2026-09-12: *"commit, accepted, do work"*; `--format=search_replace`) |
 | MCP `format` on `mrw_write` | **shipped** — ADR-051 F-27 | — (M 2026-09-12: *"YES, we have to be competitive"*) |
-| `apply_patch` `*** Delete File:` / `*** Move to:` | **deferred** — ADR-051 | *"unlink op"* |
-| ast-grep-shaped `--grep` | **deferred** — ADR-051 / ADR-048 | *"structural find only"* |
+| `apply_patch` `*** Delete File:` / `*** Move to:` | **deferred** — ADR-051; planned 2026-09-13 as ADR-057 | *"unlink op"* |
+| ast-grep-shaped `--grep` | **deferred** — ADR-051 / ADR-048; planned 2026-09-13 as ADR-058 | *"structural find only"* |
 | Playtrix T4 / that paste | **not-this-repo** | — (wing_playtrix) |
 | Other wings' inboxes (quality-harness 28, etc.) | **not-this-repo** | — |
 | Reopen ADR-019 pick B/C or `roots/list` | **not-this-repo** — Accepted A | — |
@@ -1488,9 +1488,28 @@ pointer. None of them is an engine change.
 - **MCP `format` on `mrw_write`.** Shipped 2026-09-12 (F-27). Optional
   `format` on the existing write tool (`plan` default, `apply_patch`).
 - **`*** Delete File:` / `*** Move to:`.** mrw has no unlink op; emptying
-  a file is not a delete. Arm with *"unlink op"*.
+  a file is not a delete. Arm with *"unlink op"*. Planned 2026-09-13, not
+  executed (no quote): next record **ADR-057**. Native op `unlink` is
+  path-level; `delete` stays a line-range (ADR-008). Apply stages the bytes
+  (copy-aside / rename-to-temp) and commits on success, restores on any
+  sibling fail (ADR-001, ADR-004). The ledger must cover the whole file, or
+  `--force`; a one-line read does not license removing the path.
+  `*** Delete File: p` compiles to `@@ p unlink`. `*** Move to: q` is one
+  `rename` hunk, not unlink-then-create: dest-exists is a compile refusal
+  unless dest is also unlinked in this plan. Same `--format=apply_patch`; no
+  third MCP tool (ADR-044). Receipt names the path removed. Rejected:
+  mapping Delete File to `@@ p 1-$ delete` (leaves the empty path);
+  `os.Remove` before siblings succeed.
 - **ast-grep-shaped `--grep`.** Structural find only, and only if it does
   not become a write-time parser (ADR-048). Arm with *"structural find only"*.
+  Planned 2026-09-13, not executed: next record **ADR-058**. READ path only.
+  A flag beside `--grep` (working name `--ast-grep`) walks the same way,
+  shells out to the `ast-grep` CLI if present, maps hits to line ranges, and
+  serves through existing `read`. Missing binary: exit 2, names `ast-grep`.
+  Apply does not change. License is still served lines, not AST nodes.
+  `--grep` stays regex; the two may disagree on the same token — that is the
+  feature. Rejected: tree-sitter inside apply; replacing regex `--grep`;
+  bundling a per-language parser.
 
 ## From ADR-052 (echo pad is opt-in; a multi-line replace needs a served line after End)
 
@@ -1631,3 +1650,27 @@ campaign that reports the true-positive count without the false-positive count
 does not qualify — the number that argues a default is the one that costs the
 caller, not the one that flatters the tool. Arm the campaign with *"price
 strict balance"*.
+
+Ran 2026-09-13 against PATH `mrw` v1.18.0 (`a5c4f24`). `mrw stats --json`
+`.pricing` in each checkout (landed writes are the older tally; pricing only
+counts writes that landed on a binary that prices):
+
+| corpus | landed | candidates | would_refuse | broke | held | unchecked |
+|---|---|---|---|---|---|---|
+| this repository | 307 | 0 | 0 | 0 | 0 | 0 |
+| Zeus | 296 | 0 | 0 | 0 | 0 | 0 |
+| Playtrix | 127 | 0 | 0 | 0 | 0 | 0 |
+
+**Does not qualify** — 0 refusals total; the bar is ≥50. Default stays off.
+v1.18.0 shipped the same day; earlier landed writes were not priced. Same
+quote re-arms a later read. Do not synthesize wrap-tails to fill the
+counters: the criterion is real corpora.
+
+Stress of that same binary, 2026-09-13: `FuzzBalanceDelta` ~2.06e6 execs
+clean; `TestRandomisedApplyBalanceFollowsTheDecision` seeds 54/1/7/13/99
+(400 ops each, all five parser ops) clean; break campaign 47 = 47, no exit
+diff vs `docs/break/campaign-v1.18.0.txt`; random CLI matrix 440 writes
+across seeds 118/7/13/99, exits only in {0,1,2,3}, zero crashes, ADR-001
+held on every exit 1, `--json` receipts carried `pattern`, constructed
+wrap-tails with `--strict-balance` refused at exit 1, `*** Delete File:`
+and `*** Move to:` still compile-refuse at exit 2 and leave the tree.
