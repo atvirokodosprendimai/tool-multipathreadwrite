@@ -56,3 +56,21 @@ func TestWriteHelpNamesEchoPad(t *testing.T) {
 		}
 	}
 }
+
+// TestWriteHelpNamesNoCheck is ADR-054 T4: a PATH caller who reads write
+// --help must learn that the check now runs by default on a non-prose write,
+// that --no-check opts out, and that the balance row never fails a hunk.
+func TestWriteHelpNamesNoCheck(t *testing.T) {
+	got := writeCmd().Description
+	for _, must := range []string{
+		"--no-check",
+		"by default",
+		"prose",
+		"balance",
+		"does not fail the hunk",
+	} {
+		if !strings.Contains(got, must) {
+			t.Errorf("write --help does not teach %q:\n%s", must, got)
+		}
+	}
+}

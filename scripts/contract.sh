@@ -274,7 +274,7 @@ want 0 "$rc" "reading it whole afterwards licenses the edit"
 fixture
 out=$(printf '@@ a.go 3 replace body=1\n@@ b.go 3 replace\n' | m write - 2>&1); rc=$?
 want 2 "$rc" "a valid header inside a counted body -> parse error"
-out=$(printf '@@ a.go 3 replace body=1 raw=true\n@@ b.go 3 replace\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ a.go 3 replace body=1 raw=true\n@@ b.go 3 replace\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "raw=true writes that header as content"
 grep -q '@@ b.go 3 replace' "$R/a.go" && ok "the header landed as text" || bad "the body was not written"
 
@@ -719,7 +719,7 @@ else
   # The ledger consequence: a.go is unchanged, so the recorded hash still
   # matches and an ordinary edit to it still applies. When a.go had been
   # written behind the receipt, this refused.
-  printf '@@ a.go 3 replace\nfunc A() int { return 5 }\n' | m write - >/dev/null 2>&1; rc=$?
+  printf '@@ a.go 3 replace\nfunc A() int { return 5 }\n' | m write --no-check - >/dev/null 2>&1; rc=$?
   want 0 "$rc" "and the ledger still matches the tree, so the next edit applies"
 
   # Staging a create calls MkdirAll, so an abort that unlinked only the temp
@@ -1405,7 +1405,7 @@ grep -q 'without body=' <<<"$out" \
 
 # The LEGITIMATE pairing must still work, or this row has broken the escape
 # hatch that lets a plan carry a line beginning with @@.
-out=$(printf '@@ a.go 3 replace body=1 raw=true\n@@ still just a body line\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ a.go 3 replace body=1 raw=true\n@@ still just a body line\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "body= with raw=true still applies — the escape hatch is intact"
 
 # And a single guard of each kind is untouched. FRESH fixture: the hunk above
@@ -1413,7 +1413,7 @@ want 0 "$rc" "body= with raw=true still applies — the escape hatch is intact"
 # reason that has nothing to do with guards.
 fixture
 m read a.go >/dev/null 2>&1
-out=$(printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 9 }\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 9 }\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "one anchor= still guards an edit"
 
 # 32. A UTF-8 BOM does not disqualify the first header (issue #46). Windows
@@ -1430,7 +1430,7 @@ want 0 "$rc" "one anchor= still guards an edit"
 fixture
 m read a.go >/dev/null 2>&1
 printf '\357\273\277@@ a.go 3 replace\nfunc A() int { return 7 }\n' > "$WORK/bom.mrw"
-out=$(m write "$WORK/bom.mrw" 2>&1); rc=$?
+out=$(m write --no-check "$WORK/bom.mrw" 2>&1); rc=$?
 want 0 "$rc" "a plan with a UTF-8 BOM applies"
 grep -q 'return 7' "$R/a.go" \
   && ok "and the edit actually landed" \
@@ -1441,14 +1441,14 @@ grep -q 'return 7' "$R/a.go" \
 fixture
 m read a.go >/dev/null 2>&1
 printf '@@ a.go 3 replace\nfunc A() int { return 7 }\n' > "$WORK/nobom.mrw"
-m write "$WORK/nobom.mrw" >/dev/null 2>&1
+m write --no-check "$WORK/nobom.mrw" >/dev/null 2>&1
 want 0 $? "and the same plan without a BOM still applies"
 
 # A BOM in the BODY is content, not syntax.
 fixture
 m read a.go >/dev/null 2>&1
 printf '@@ a.go 3 replace\n\357\273\277KEEP\n' > "$WORK/inner.mrw"
-m write "$WORK/inner.mrw" >/dev/null 2>&1
+m write --no-check "$WORK/inner.mrw" >/dev/null 2>&1
 want 0 $? "a BOM inside a body is accepted"
 # tr -s: od on macOS separates bytes with TWO spaces and on GNU with one, so a
 # literal 'ef bb bf' matches on Linux and silently never matches here.
@@ -1529,7 +1529,7 @@ m read a.go >/dev/null 2>&1
 printf '\357\273\277@@ a.go 3 replace\nfunc A() int { return 7 }\n' >  "$WORK/f1.mrw"
 printf '\357\273\277@@ a.go 4 replace\nfunc B() int { return 8 }\n' >  "$WORK/f2.mrw"
 cat "$WORK/f1.mrw" "$WORK/f2.mrw" > "$WORK/both.mrw"
-out=$(m write "$WORK/both.mrw" 2>&1); rc=$?
+out=$(m write --no-check "$WORK/both.mrw" 2>&1); rc=$?
 want 0 "$rc" "two BOM-carrying fragments apply"
 [ "$(grep -c 'ok  ' <<<"$out")" = "2" ] \
   && ok "as TWO hunks, not one" \
@@ -1591,7 +1591,7 @@ grep -q 'MSYS' <<<"$out" \
 fixture
 m read a.go >/dev/null 2>&1
 
-printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' | m write - >/dev/null 2>&1
+printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' | m write --no-check - >/dev/null 2>&1
 want 0 $? "a plan that applies exits 0"
 printf '@@ a.go 3 frobnicate\nx\n' | m write - >/dev/null 2>&1
 want 2 $? "a plan that does not parse is a usage error"
@@ -1646,7 +1646,7 @@ grep -qi 'no plans recorded' <<<"$out" \
   || bad "an empty tally did not announce itself: $(head -1 <<<"$out")"
 
 m read a.go >/dev/null 2>&1
-printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' | m write - >/dev/null 2>&1
+printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' | m write --no-check - >/dev/null 2>&1
 printf '@@ a.go 3 frobnicate\nx\n' | m write - >/dev/null 2>&1
 
 out=$(m stats 2>&1); rc=$?
@@ -1688,7 +1688,7 @@ R_CLI=$R
 PLAN='@@ a.go 3 replace
 func A() int { return 11 }
 '
-cli=$(printf '%s' "$PLAN" | "$MRW" -C "$R_CLI" write --json - 2>/dev/null); rc=$?
+cli=$(printf '%s' "$PLAN" | "$MRW" -C "$R_CLI" write --no-check --json - 2>/dev/null); rc=$?
 want 0 "$rc" "the CLI applies the plan and emits a receipt"
 
 fixture
@@ -1760,7 +1760,7 @@ grep -q '"applied":true' <<<"$out" \
   || bad "the ledger did not survive the kill: $(head -c 200 <<<"$out")"
 
 # And so is the CLI: one ledger, not one per transport.
-out=$(printf '@@ a.go 4 replace\nfunc B() int { return 22 }\n' | "$MRW" -C "$R_KILL" write - 2>&1); rc=$?
+out=$(printf '@@ a.go 4 replace\nfunc B() int { return 22 }\n' | "$MRW" -C "$R_KILL" write --no-check - 2>&1); rc=$?
 want 0 "$rc" "and a CLI write after the killed server is licensed too"
 # 39. ADR-010 T3: mcp is a subcommand this binary has, and it starts a server.
 #
@@ -2165,7 +2165,7 @@ GO
 m read store/store.go >/dev/null 2>&1
 want 0 $? "the fixture reads"
 
-out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Put/ replace\nfunc (s *Store) Put(id, v string) { s.rows[id] = v }\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Put/ replace\nfunc (s *Store) Put(id, v string) { s.rows[id] = v }\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "a pattern that matches exactly one line applies"
 grep -q '^ok .*/\^func' <<<"$out" \
   && ok "and the verdict echoes the PATTERN the caller wrote, not the line it resolved to" \
@@ -2214,7 +2214,7 @@ func (s *Store) Put(id, v string) {
 }
 GO
 m read store/store.go >/dev/null 2>&1
-out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Get/,/^\\}/ replace anchor="Store) Get(id"\nfunc (s *Store) Get(id string) (string, bool) { return s.rows[id], true }\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Get/,/^\\}/ replace anchor="Store) Get(id"\nfunc (s *Store) Get(id string) (string, bool) { return s.rows[id], true }\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "the range form applies on a file where the end pattern matches twice"
 grep -q 'func (s \*Store) Put' "$R/store/store.go" \
   && ok "and it stopped at the FIRST closing brace, leaving Put intact" \
@@ -3691,7 +3691,7 @@ grep -q 'A,+3' <<<"$out" && ok "the read refusal names the fix" || bad "the read
 out=$(m read 'a.go:2,+0' 2>&1); rc=$?
 want 2 "$rc" "a read's ,+0 is refused"
 grep -q '+0' <<<"$out" && ok "the read refusal names what was written" || bad "the read refusal does not name +0: $out"
-out=$(printf '@@ a.go 3,+1 replace anchor="func A()"\nfunc A() int { return 10 }\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ a.go 3,+1 replace anchor="func A()"\nfunc A() int { return 10 }\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "a plan hunk with a relative end applies"
 grep -q 'func B' "$R/a.go" && bad "the relative end did not reach the line after the start" || ok "a plan's relative end replaced the start plus one line"
 grep -q 'func C' "$R/a.go" && ok "the relative end stopped where it said" || bad "the relative end ran past the lines it named"
@@ -3765,7 +3765,7 @@ out=$(printf '@@ new.go 0,+2 create\nX\n' | m write - 2>&1); rc=$?
 want 2 "$rc" "a plan refuses a relative end on create"
 # ...and the ops that DO take a range still work, or the rule above is just a ban.
 fixture
-out=$(printf '@@ a.go 3,+1 delete\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ a.go 3,+1 delete\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "delete still takes a relative end"
 grep -q 'func B' "$R/a.go" && bad "delete with a relative end did not remove the second line" || ok "delete with a relative end removed both lines"
 
@@ -3923,11 +3923,11 @@ grep -q '@@ 3-5' <<<"$out" && ok "the two-pattern read serves its range" || bad 
 fixture
 printf 'package demo\n\nfunc A() int { return 1 }\nconst Q = "quoted"\n' > "$R/q.go"
 m read q.go > /dev/null 2>&1
-out=$(printf '@@ q.go /"quoted"/ replace\nconst Q = "changed"\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ q.go /"quoted"/ replace\nconst Q = "changed"\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "a plan pattern containing quotes applies"
 grep -q 'ok   q.go /"quoted"/ replace' <<<"$out" && ok "the receipt echoes the pattern with its quotes" || bad "the receipt shows a mutated address: $out"
 grep -q 'changed' "$R/q.go" && ok "the quoted pattern reached the line it named" || bad "the quoted pattern edited the wrong line"
-out=$(printf '@@ q.go 3 replace anchor="func A"\nfunc A() int { return 9 }\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ q.go 3 replace anchor="func A"\nfunc A() int { return 9 }\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "a quoted anchor still works, so the toggle was narrowed and not removed"
 
 # 65. ADR-027: an empty file is created on purpose, or not at all.
@@ -4637,7 +4637,7 @@ grep -q 'func B' "$R/a.go" \
   || bad "the refused plan changed the file: $(cat "$R/a.go")"
 # The same plan with the anchor the message asked for. Without this pair the row
 # above passes on a binary that refuses everything.
-out=$(printf '@@ a.go 3-4 replace anchor="func A()"\nfunc A() int { return 10 }\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ a.go 3-4 replace anchor="func A()"\nfunc A() int { return 10 }\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "the same plan applies once it carries an anchor"
 grep -q 'return 10' "$R/a.go" \
   && ok "and the anchored replace wrote what it said" \
@@ -4646,7 +4646,7 @@ grep -q 'return 10' "$R/a.go" \
 # rather than a ban, and it is the assertion a guard keyed on the op instead of
 # the span would fail.
 fixture
-out=$(printf '@@ a.go 3 replace\nfunc A() int { return 99 }\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ a.go 3 replace\nfunc A() int { return 99 }\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "a single-line replace needs no anchor"
 grep -q 'return 99' "$R/a.go" \
   && ok "and it wrote what it said" \
@@ -4654,7 +4654,7 @@ grep -q 'return 99' "$R/a.go" \
 # A multi-line DELETE is untouched: ADR-035 is scoped to replace, because every
 # measured incident is one and ADR-008 already gives delete an expected body.
 fixture
-out=$(printf '@@ a.go 3-4 delete\n' | m write - 2>&1); rc=$?
+out=$(printf '@@ a.go 3-4 delete\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "a multi-line delete still needs no anchor"
 grep -q 'func C' "$R/a.go" \
   && ok "and it removed only the lines it named" \
@@ -4937,7 +4937,7 @@ grep -q 'has not been read' <<<"$out" && ok "unread apply_patch is the ledger re
 grep -q 'return 1 }' "$R/a.go" && ok "unread apply_patch wrote nothing" || bad "unread apply_patch wrote"
 
 fixture
-out=$(printf '%s\n' "$patch82" | m write --format=apply_patch - 2>&1); rc=$?
+out=$(printf '%s\n' "$patch82" | m write --format=apply_patch --no-check - 2>&1); rc=$?
 want 0 "$rc" "served two-hunk apply_patch -> exit 0"
 grep -q 'return 10' "$R/a.go" && ok "served apply_patch rewrote A" || bad "served apply_patch rewrote A"
 grep -q 'return 30' "$R/a.go" && ok "served apply_patch rewrote C" || bad "served apply_patch rewrote C"
@@ -5114,7 +5114,7 @@ grep -q 'has not been read' <<<"$out" && ok "unread SEARCH/REPLACE is the ledger
 grep -q 'return 1 }' "$R/a.go" && ok "unread SEARCH/REPLACE wrote nothing" || bad "unread SEARCH/REPLACE wrote"
 
 fixture
-out=$(printf '%s\n' "$sr84" | m write --format=search_replace - 2>&1); rc=$?
+out=$(printf '%s\n' "$sr84" | m write --format=search_replace --no-check - 2>&1); rc=$?
 want 0 "$rc" "served two-hunk SEARCH/REPLACE -> exit 0"
 grep -q 'return 10' "$R/a.go" && ok "served SEARCH/REPLACE rewrote A" || bad "served SEARCH/REPLACE rewrote A"
 grep -q 'return 30' "$R/a.go" && ok "served SEARCH/REPLACE rewrote C" || bad "served SEARCH/REPLACE rewrote C"
@@ -5319,6 +5319,129 @@ if grep -q '</div>' <<<"$out"; then
 else
   ok "default 0 prints no pad"
 fi
+
+# 89. ADR-054: a write to a non-prose path runs the project's check by default;
+# --no-check opts out; a prose-only plan does not spawn it; a tree with no
+# check command still exits 0. The declared check is `exit 3` so a run that
+# happened (3) and one that did not (0) are one code apart and nothing else
+# produces either. Pair: .go without --check -> 3 / .md without --check -> 0 /
+# .go --no-check -> 0 / no harness, no go.mod -> 0 / --check --no-check -> 2.
+R=$(mktemp -d "$WORK/r89-XXXXXX")
+printf '{"check":"exit 3"}\n' > "$R/.quality-harness.json"
+printf 'package a\nfunc A() {}\n' > "$R/a.go"
+printf '# notes\nline two\n' > "$R/notes.md"
+m read 'a.go:2' 'notes.md:2' >/dev/null
+out=$(printf '%s\n' \
+	'@@ a.go 2 replace anchor="func A"' \
+	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
+want 3 "$rc" "a .go write without --check runs the declared check (exit 3)"
+grep -q 'check FAIL' <<<"$out" && ok "and the receipt shows the failing check" || bad "receipt: $out"
+
+out=$(printf '%s\n' \
+	'@@ notes.md 2 replace anchor="line two"' \
+	'line 2' | m write - 2>&1); rc=$?
+want 0 "$rc" "a markdown-only write does not spawn the check (exit 0)"
+if grep -q 'check' <<<"$out"; then
+  bad "prose write mentioned the check: $out"
+else
+  ok "prose write never mentions the check"
+fi
+
+m read 'a.go:2' >/dev/null
+out=$(printf '%s\n' \
+	'@@ a.go 2 replace anchor="func A"' \
+	'func A() { _ = 2 }' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "--no-check opts out of the default check (exit 0)"
+
+out=$(printf '%s\n' \
+	'@@ a.go 2 replace anchor="func A"' \
+	'func A() { _ = 3 }' | m write --check --no-check - 2>&1); rc=$?
+want 2 "$rc" "--check --no-check is usage (exit 2)"
+
+R=$(mktemp -d "$WORK/r89b-XXXXXX")
+printf 'package a\nfunc A() {}\n' > "$R/a.go"
+m read 'a.go:2' >/dev/null
+out=$(printf '%s\n' \
+	'@@ a.go 2 replace anchor="func A"' \
+	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
+want 0 "$rc" "no harness and no go.mod: the default does not invent exit 2"
+if grep -q 'SKIPPED' <<<"$out"; then
+  bad "the default reported a skipped check nobody demanded: $out"
+else
+  ok "no skipped-check line where none was demanded"
+fi
+
+# 90. ADR-054: a non-prose hunk whose delimiter nets differ between the
+# replaced lines and the body prints a balance row under ok and stays ok; the
+# same replace on a .md file prints none. Pair: .go replace of a `{`-only line
+# with a balanced body -> ok + balance row, exit 0 / .md -> ok, no balance row /
+# .go replace with matching nets -> no balance row.
+R=$(mktemp -d "$WORK/r90-XXXXXX")
+printf 'package f\nfunc A() {\n\treturn\n}\n' > "$R/f.go"
+printf '# t\nfunc A() {\n\treturn\n}\n' > "$R/n.md"
+m read 'f.go:2' 'n.md:2' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 2 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "a .go replace that unbalances braces still exits 0"
+grep -q '^ok' <<<"$out" && ok "and the hunk stays ok" || bad "hunk not ok: $out"
+grep -q 'balance {' <<<"$out" && ok "and the receipt carries the brace delta" || bad "no balance row: $out"
+
+out=$(printf '%s\n' \
+	'@@ n.md 2 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "the same replace on a .md file exits 0"
+if grep -q 'balance' <<<"$out"; then
+  bad "a prose hunk printed a balance row: $out"
+else
+  ok "a prose hunk prints no balance row"
+fi
+
+R=$(mktemp -d "$WORK/r90b-XXXXXX")
+printf 'package f\nfunc A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:2' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 2 replace anchor="func A"' \
+	'func B() {' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "a .go replace with matching nets exits 0"
+if grep -q 'balance' <<<"$out"; then
+  bad "matching nets printed a balance row: $out"
+else
+  ok "matching nets print no balance row"
+fi
+
+# 91. ADR-054: stats prints every vocabulary name at zero, and one landed line
+# whose denominator is applied + failed_check + check_not_run. Pair: a checkout
+# with one --no-check apply prints `failed_check 0 of 1` and `landed writes: 1`
+# / after a default-check write that fails (exit 3) the line reads
+# `landed writes: 2; failed_check 1 of those` / --json carries all five keys
+# plus landed and failed_check_of_landed.
+R=$(mktemp -d "$WORK/r91-XXXXXX")
+printf '{"check":"exit 3"}\n' > "$R/.quality-harness.json"
+printf 'package a\nfunc A() {}\nfunc B() {}\n' > "$R/a.go"
+m read 'a.go:2-3' >/dev/null
+printf '@@ a.go 2 replace\nfunc A() { _ = 1 }\n' | m write --no-check - >/dev/null 2>&1
+out=$(m stats 2>&1); rc=$?
+want 0 "$rc" "stats after one applied plan exits 0"
+grep -qE 'failed_check +0 of 1' <<<"$out" && ok "failed_check prints at zero" || bad "failed_check hidden at zero: $out"
+grep -qE 'check_not_run +0 of 1' <<<"$out" && ok "check_not_run prints at zero" || bad "check_not_run hidden at zero: $out"
+grep -q 'landed writes: 1; failed_check 0 of those' <<<"$out" && ok "the landed line names its denominator" || bad "no landed line: $out"
+
+m read 'a.go:3' >/dev/null
+printf '@@ a.go 3 replace\nfunc B() { _ = 1 }\n' | m write - >/dev/null 2>&1; rc=$?
+want 3 "$rc" "a default-check write against a failing check exits 3"
+out=$(m stats 2>&1); rc=$?
+want 0 "$rc" "stats after the failed check exits 0"
+grep -q 'landed writes: 2; failed_check 1 of those (50.0%)' <<<"$out" && ok "landed counts the failed check as a landed write" || bad "landed line wrong: $out"
+grep -qE 'failed_check +1 of 2' <<<"$out" && ok "failed_check row is 1 of 2" || bad "failed_check row wrong: $out"
+
+jout=$(m stats --json 2>&1); rc=$?
+want 0 "$rc" "stats --json exits 0"
+for k in applied refused_parse refused_apply check_not_run failed_check; do
+  grep -q "\"$k\":" <<<"$jout" && ok "--json carries $k" || bad "--json omits $k: $jout"
+done
+grep -q '"landed": 2' <<<"$jout" && ok "--json landed is 2" || bad "--json landed wrong: $jout"
+grep -q '"failed_check_of_landed": 1' <<<"$jout" && ok "--json failed_check_of_landed is 1" || bad "--json failed_check_of_landed wrong: $jout"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

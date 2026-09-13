@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring"
 )
 
 // A plan file is a SHELL argument, not a path inside the tree being edited, so
@@ -525,4 +527,90 @@ func writePlan(t *testing.T, root, doc string) {
 		cmd.Writer, cmd.ErrWriter = &sink, &sink
 		return cmd.Run(context.Background(), []string{"mrw", "-C", root, "write", p})
 	})
+}
+
+// ── ADR-054 T3: stats prints the whole vocabulary, and names its denominator ──
+
+// Names() iterates only the keys present in the tally, so a counter that never
+// incremented has no key and could not print. Zeus read three names and no
+// failed_check on a checkout where three applied writes had broken the tree.
+// Every vocabulary name prints, zero included.
+func TestStatsPrintsFailedCheckEvenWhenZero(t *testing.T) {
+	root := grepTree(t, map[string]string{"a.go": "package a\nfunc A() {}\n"})
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if _, err := readIn(t, root, "a.go"); err != nil {
+		t.Fatal(err)
+	}
+	writePlan(t, root, "@@ a.go 2 replace\nfunc A() { _ = 1 }\n")
+
+	out, err := statsIn(t, root)
+	if err != nil {
+		t.Fatalf("stats failed: %v\n%s", err, out)
+	}
+	for _, name := range []string{"applied", "refused_parse", "refused_apply", "check_not_run", "failed_check"} {
+		if !strings.Contains(out, name) {
+			t.Errorf("stats omits %q at zero — an all-green tally hides the column:\n%s", name, out)
+		}
+	}
+	if !strings.Contains(out, "failed_check      0 of 1") && !strings.Contains(out, "failed_check    0 of 1") && !strings.Contains(out, "failed_check 0 of 1") {
+		if !strings.Contains(out, "failed_check") || !strings.Contains(out, "0 of 1") {
+			t.Errorf("failed_check is not printed as zero of the denominator:\n%s", out)
+		}
+	}
+}
+
+// The derived line names its denominator: landed = applied + failed_check +
+// check_not_run, because check_not_run is "written, but no check could run"
+// (exit 2) — the tree changed. Landed is not "wrote and was checked". The
+// tally here is 2 applied (one --no-check, one prose), 1 failed_check and
+// 1 check_not_run.
+func TestStatsLandedLineUsesAppliedPlusFailedCheckPlusCheckNotRun(t *testing.T) {
+	root := grepTree(t, map[string]string{
+		"a.go":                  "package a\nfunc A() {}\nfunc B() {}\n",
+		"notes.md":              "# n\nline\n",
+		".quality-harness.json": `{"check":"exit 3"}`,
+	})
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if _, err := readIn(t, root, "a.go", "notes.md"); err != nil {
+		t.Fatal(err)
+	}
+	writeIn(t, root, "--no-check", planFile(t, "@@ a.go 2 replace\nfunc A() { _ = 1 }\n")) // applied
+	writeIn(t, root, planFile(t, "@@ notes.md 2 replace\nline 2\n"))                       // applied (prose skip)
+	writeIn(t, root, planFile(t, "@@ a.go 3 replace\nfunc B() { _ = 1 }\n"))               // failed_check
+	// A written tree whose check could not run (exit 2). Recorded directly:
+	// the fixture declares a check, so no write here can reach that exit,
+	// and without this row a denominator that drops check_not_run passes.
+	if err := authoring.Record(root, authoring.CheckNotRun); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := statsIn(t, root)
+	if err != nil {
+		t.Fatalf("stats failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "landed writes: 4") || !strings.Contains(out, "failed_check 1 of those") {
+		t.Errorf("no landed line naming 4 landed (2 applied + 1 failed_check + 1 check_not_run) and 1 failed_check:\n%s", out)
+	}
+
+	js, err := statsIn(t, root, "--json")
+	if err != nil {
+		t.Fatalf("stats --json failed: %v\n%s", err, js)
+	}
+	var got struct {
+		Plans  int            `json:"plans"`
+		Counts map[string]int `json:"counts"`
+		Landed int            `json:"landed"`
+		Failed int            `json:"failed_check_of_landed"`
+	}
+	if err := json.Unmarshal([]byte(js), &got); err != nil {
+		t.Fatalf("stats --json is not JSON: %v\n%s", err, js)
+	}
+	if got.Landed != 4 || got.Failed != 1 || got.Plans != 4 {
+		t.Errorf("json landed=%d failed_check_of_landed=%d plans=%d, want 4/1/4:\n%s", got.Landed, got.Failed, got.Plans, js)
+	}
+	for _, name := range []string{"applied", "refused_parse", "refused_apply", "check_not_run", "failed_check"} {
+		if _, ok := got.Counts[name]; !ok {
+			t.Errorf("json counts omits %q — the five keys are always present:\n%s", name, js)
+		}
+	}
 }

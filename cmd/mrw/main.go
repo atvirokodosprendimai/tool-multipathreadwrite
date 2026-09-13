@@ -376,12 +376,22 @@ size is the form that gets quoted out of the population it was measured on.`,
 				return nil
 			}
 			if cmd.Bool("json") {
+				// ADR-054: every vocabulary key is present, zero included, so
+				// a script never has to know that an absent key means zero;
+				// and the derived pair is emitted so it is not re-derived
+				// with a different denominator.
+				counts := map[string]int{}
+				for _, name := range authoring.Vocabulary() {
+					counts[name] = t[name]
+				}
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(struct {
 					Plans  int            `json:"plans"`
 					Counts map[string]int `json:"counts"`
-				}{Plans: t.Plans(), Counts: t})
+					Landed int            `json:"landed"`
+					Failed int            `json:"failed_check_of_landed"`
+				}{Plans: t.Plans(), Counts: counts, Landed: t.Landed(), Failed: t["failed_check"]})
 			}
 			total := t.Plans()
 			if total == 0 {
@@ -390,9 +400,18 @@ size is the form that gets quoted out of the population it was measured on.`,
 				fmt.Println("no plans recorded yet — this says nothing has been MEASURED, not that nothing has failed")
 				return nil
 			}
-			for _, name := range t.Names() {
+			// The whole vocabulary, not t.Names(): a name at zero is the one
+			// a reader most needs to see, because its absence reads as "that
+			// never happens" rather than "that was never measured" (ADR-054).
+			for _, name := range authoring.Vocabulary() {
 				n := t[name]
 				fmt.Printf("  %-14s %4d of %d plan(s) (%.1f%%)\n", name, n, total, 100*float64(n)/float64(total))
+			}
+			landed, failed := t.Landed(), t["failed_check"]
+			if landed > 0 {
+				fmt.Printf("\nlanded writes: %d; failed_check %d of those (%.1f%%). Landed = applied + failed_check + check_not_run:\n"+
+					"the tree changed. It is not \"wrote and was checked\" — --no-check and prose-only plans count as applied.\n",
+					landed, failed, 100*float64(failed)/float64(landed))
 			}
 			fmt.Printf("\n%d plan(s) recorded in this checkout. The rate is valid for THIS population;\n"+
 				"a number from one repository and one family of callers is not a general one.\n", total)
@@ -768,7 +787,20 @@ is not an apply_patch; --format=git is usage.
 
 --echo-pad N prints N lines after an applied body so a surviving closer is
 visible. Default 0. It is not a checker: a closer in the pad does not fail
-the hunk. Negative is usage.`,
+the hunk. Negative is usage.
+
+After a successful apply the project's check runs by default when a written
+path is not prose (.md .markdown .txt .rst .adoc) and a check exists — declared
+in .quality-harness.json or inferred from go.mod. A markdown-only plan does
+not spawn it; a tree with no check stays exit 0. --no-check opts out. --check
+is a demand: it runs on prose too, and is exit 2 when nothing can run. A
+failing check is exit 3 and the tree is NOT reverted.
+
+A non-prose hunk whose {} () [] nets differ between the replaced lines and
+the body prints a balance row under ok. It does not fail the hunk and it is
+not a checker: braces in strings miscount, and a balanced insert landing
+inside a function is invisible to it — the check catches that, the row does
+not.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "dry-run",
@@ -789,8 +821,13 @@ the hunk. Negative is usage.`,
 				Usage: "print only failures and the summary line",
 			},
 			&cli.BoolFlag{
-				Name:  "check",
-				Usage: "after a successful write, run the project's check scoped to the files it touched",
+				Name: "check",
+				Usage: "demand the project's check after a successful write, even on a prose-only plan " +
+					"(exit 2 if none can run)",
+			},
+			&cli.BoolFlag{
+				Name:  "no-check",
+				Usage: "do not run the project's check after this write (the default runs it when a written path is not prose)",
 			},
 			&cli.StringFlag{
 				Name:  "format",
@@ -817,6 +854,9 @@ the hunk. Negative is usage.`,
 			if cmd.Bool("check") && cmd.Bool("dry-run") {
 				return cli.Exit("--check cannot run under --dry-run: nothing is written, so there is "+
 					"nothing to verify. Drop one of the two — a check that did not run is not a pass", exitUsage)
+			}
+			if cmd.Bool("check") && cmd.Bool("no-check") {
+				return cli.Exit("--check and --no-check contradict each other: drop one", exitUsage)
 			}
 			if cmd.Int("echo-pad") < 0 {
 				return cli.Exit("--echo-pad must be >= 0", exitUsage)
@@ -967,22 +1007,35 @@ the hunk. Negative is usage.`,
 			}
 
 			receipt := receipt{Result: res}
-			if cmd.Bool("check") && res.Applied && res.Failed == 0 {
+			if res.Applied && res.Failed == 0 && !cmd.Bool("no-check") {
 				var written []string
+				code := false // at least one written path is not prose
 				for _, f := range res.Files {
 					if f.Written {
 						written = append(written, f.Path)
+						code = code || !apply.IsProse(f.Path)
 					}
 				}
 				cfg, err := check.Load(root)
 				if err != nil {
 					return cli.Exit(err, exitUsage)
 				}
-				cr, err := check.Run(ctx, root, cfg, written)
-				if err != nil {
-					return cli.Exit(err, exitUsage)
+				// ADR-054: the check runs by default, but only when the plan
+				// touched a file a check could plausibly cover AND a command
+				// exists. A markdown-only plan does not pay the project
+				// suite; a tree with no harness and no go.mod does not get an
+				// exit 2 it never asked for. --check is a DEMAND and skips
+				// both gates: on a prose plan it runs, and with no command it
+				// is exit 2 (ADR-003).
+				demanded := cmd.Bool("check")
+				hasCommand := cfg.Check != "" || cfg.ScopedCheck != ""
+				if demanded || (code && hasCommand) {
+					cr, err := check.Run(ctx, root, cfg, written)
+					if err != nil {
+						return cli.Exit(err, exitUsage)
+					}
+					receipt.Check = &cr
 				}
-				receipt.Check = &cr
 			}
 
 			if cmd.Bool("json") {
@@ -1281,6 +1334,11 @@ func report(w *os.File, res apply.Result, quiet bool) {
 				bounds = fmt.Sprintf(" from %q to %q", h.RemovedFirst, h.RemovedLast)
 			}
 			fmt.Fprintf(out, "ok   %s %s %s  -%d +%d%s\n", h.Path, h.Addr, h.Op, h.Removed, h.Added, bounds)
+			if h.Balance != "" {
+				// ADR-054: the delta is a row under the ok line, like Echo.
+				// It never fails the hunk; it says the closer count moved.
+				fmt.Fprintf(out, "     balance %s (delimiters in the replaced lines vs the body; not a checker)\n", h.Balance)
+			}
 			for _, line := range h.Echo {
 				fmt.Fprintln(out, line)
 			}

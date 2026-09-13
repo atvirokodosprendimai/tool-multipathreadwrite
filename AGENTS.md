@@ -62,7 +62,7 @@ only — it drives a POSIX shell.
 ## Exit codes are the contract
 
 `0` fine · `1` a hunk failed and nothing was written · `2` usage or filesystem
-failure · `3` the write applied but `--check` failed, so the tree is changed and
+failure · `3` the write applied but the check failed, so the tree is changed and
 unverified. Tests assert these; changing one is a breaking change.
 
 ## Adding behaviour
@@ -317,6 +317,12 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   ⚠ **Loud is not the same as early.** A broken template may not fail until it is
   rendered — for a playbook, mid-run against a live host after earlier tasks have
   already applied; for a Blade view, a 500 on the page rather than a build failure.
+- **A write to a non-prose file runs the project's check by default** (ADR-054).
+  In a Go module, or any tree with `.quality-harness.json`, a `.go`/`.rs`/`.toml`
+  write pays the check and exits 3 when it fails. A markdown-only plan does not
+  spawn it. `--no-check` opts out; `--check` demands it even on prose. A
+  non-prose hunk whose `{}` `()` `[]` nets moved prints a `balance` row under
+  `ok` and stays `ok` — a balanced insert in the wrong place is invisible to it.
 - **Exit `3` means the write APPLIED and the check failed** — the tree is
   changed and unverified. It is not a rollback.
 - **Never read an exit code through a pipe.** `mrw write plan | head` returns
@@ -353,14 +359,17 @@ and #73, one release apart.
   run look green. Exit 0. No flags. A caller who installed mrw and has neither
   this checkout nor the skill can learn the format from this.
 - **`mrw check`** runs the project's check on its own, scoped to the working
-  set or to paths you name. `mrw write --check` is the same runner bolted onto
-  a write; this is it without the write, for when you want the verdict again
+  set or to paths you name. A CLI `write` to a non-prose file runs the same
+  runner by default (ADR-054); this is it without the write, for when you want the verdict again
   without applying another plan. ⚠ It is NOT read-only: the declared command is
   whatever the project declared, run with `sh -c` in the checkout, so a check
   that generates code or writes fixtures does exactly that.
 - **`mrw stats`** prints what became of the plans this checkout has been given
-  — how many applied, how many were refused because the document did not PARSE,
-  and how many parsed but failed to APPLY. That last one is deliberately one
+  — every name at zero: applied, refused because the document did not PARSE,
+  parsed but failed to APPLY, written but no check could run, written and the
+  check FAILED — plus `landed writes: N; failed_check F of those`, where landed
+  is applied + failed_check + check_not_run (the tree changed; it is not "wrote
+  and was checked"). Refused-apply is deliberately one
   bucket and not three: a failed guard, an unread line and a path outside the
   root all land in it, because splitting them would mean matching on free-form
   reason text that changes. Reach for it to see whether the format is costing

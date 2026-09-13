@@ -2339,3 +2339,101 @@ func TestASkippedHunkOmitsEcho(t *testing.T) {
 		t.Errorf("skipped file was written: %q", got)
 	}
 }
+
+// ── ADR-054 T2: delimiter-balance delta ─────────────────────────────────────
+
+// A `{`-only line replaced by a balanced body leaves the file one closer
+// heavy. The hunk stays ok and the file is written; the receipt carries the
+// delta so a wrap-tail is visible without a parser (ADR-048).
+func TestADelimiterBalanceDeltaDoesNotFailTheHunk(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.go", "package f\nfunc A() {\n\treturn\n}\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.go", Start: 2, End: 2, Op: "replace", Body: []string{"func A() { return }"}, Lines: -1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 || res.Hunks[0].Status != StatusOK {
+		t.Fatalf("a balance delta failed the hunk: %+v", res.Hunks[0])
+	}
+	if got, want := read(t, root, "f.go"), "package f\nfunc A() { return }\n\treturn\n}\n"; got != want {
+		t.Errorf("file = %q, want %q", got, want)
+	}
+	if got := res.Hunks[0].Balance; !strings.Contains(got, "{") || !strings.Contains(got, "+1") || !strings.Contains(got, "0") {
+		t.Errorf("Balance = %q, want the brace family, +1 and 0", got)
+	}
+}
+
+// Equal nets say nothing: the field is omitted, so a receipt does not grow a
+// row on every ordinary edit.
+func TestMatchingNetsOmitBalance(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.go", "package f\nfunc A() {\n\treturn\n}\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.go", Start: 2, End: 2, Op: "replace", Body: []string{"func B() {"}, Lines: -1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatal(res.Hunks[0].Reason)
+	}
+	if res.Hunks[0].Balance != "" {
+		t.Errorf("equal nets carried Balance %q", res.Hunks[0].Balance)
+	}
+	b, _ := json.Marshal(res.Hunks[0])
+	if strings.Contains(string(b), `"balance"`) {
+		t.Errorf("an empty Balance was marshalled: %s", b)
+	}
+}
+
+// Prose is exempt even when the nets differ: markdown carries {packages},
+// JSON blocks and shell fences, and a delta there trains the reader to
+// ignore the line. The list is ADR-054's closed five.
+func TestProseOmitsBalance(t *testing.T) {
+	root := t.TempDir()
+	// The consumed line is net +1 and the body net 0: a .go hunk with these
+	// nets reports, so an empty Balance here is the skip and not a matching
+	// pair. A fixture with equal nets passed with the skip deleted.
+	write(t, root, "notes.md", "# t\nopen a fence {\nend\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "notes.md", Start: 2, End: 2, Op: "replace", Body: []string{"open a fence"}, Lines: -1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 || res.Hunks[0].Status != StatusOK {
+		t.Fatalf("a prose hunk did not apply: %+v", res.Hunks[0])
+	}
+	if res.Hunks[0].Balance != "" {
+		t.Errorf("a .md hunk carried Balance %q", res.Hunks[0].Balance)
+	}
+}
+
+// ADR-008 lets a delete carry the lines it expects to remove. That body is a
+// GUARD, not something written, so the Decision's "delete: body net is 0"
+// still holds — and the first implementation fed it into the delta, where it
+// matched the consumed lines exactly and every guarded delete reported
+// nothing. Found by TestRandomisedApplyBalanceFollowsTheDecision on its
+// sixth iteration.
+func TestADeleteWithAnExpectedBodyStillReportsItsNet(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.go", "package f\nfunc A() {\n\treturn\n}\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.go", Start: 2, End: 2, Op: "delete", Body: []string{"func A() {"}, Lines: -1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 || res.Hunks[0].Status != StatusOK {
+		t.Fatalf("guarded delete did not apply: %+v", res.Hunks[0])
+	}
+	if got := res.Hunks[0].Balance; !strings.Contains(got, "{ +1") {
+		t.Errorf("a guarded delete of a `{` line reported Balance %q; the expected body is a guard, not a write", got)
+	}
+}
