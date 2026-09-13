@@ -156,7 +156,15 @@ See `docs/adr/ADR-054-a-write-that-applied-can-still-leave-a-broken-tree/tasks/R
 
 Revert the branch. `--check` becomes opt-in again. Drop `--no-check`, `Balance`, and the stats derived line. Vocabulary on disk does not migrate.
 
+## Stress suite
+
+Added after execute on M's ask, 2026-09-13 (*"can we break it? in unexpected, random ways?"*). Three layers, each with an oracle written from this Decision rather than from the code:
+
+- `internal/apply/balance_fuzz_test.go` — `FuzzBalanceDelta` against an independent `strings.Count` oracle: empty iff nets match, one entry per family in `{ ( [` order, swap reverses arrows, ASCII-only, braces-in-strings count. 4M execs clean at 20s. `TestRandomisedApplyBalanceFollowsTheDecision`: 400 random ops on random paths per seed (`MRW_SEED`) against an independent splice; found the delete-with-expected-body miss on iteration 6 — `3b9f772` fed ADR-008's guard body into the delta, so every guarded delete reported nothing. Fixed to feed the WRITTEN lines. `TestIsProseIsTheClosedListOnTheFinalExtensionOnly`.
+- `internal/adversarial/adr054_test.go` — `TestRandomisedWriteMatrixMatchesTheExitCodeOracle`: random root (1–3 files from prose/code/data/no-ext), harness (none / `exit 0` / `exit 3`), plan, and flag set (11 combinations including contradictions) through the built binary; asserts exit code, check-line presence, bytes written or not, and the tally row. 16 seeds × 120 runs clean. `TestStatsLandedLineIsTheArithmeticItClaims`: random outcome walk, human line parsed back against JSON. The Zeus balanced insert against a real `go test`: exit 3, no balance row. Balance row never moves a verdict or a byte.
+- Hand mutants against the suite, 9 of 9 killed: cover gate inverted; prose skip deleted; no-command guard deleted; `--no-check` ignored; both-flags usage deleted; `check_not_run` dropped from landed; balance prose skip deleted; delete-body regression; `failed_check` recorded as `applied`.
+
 ## Follow-ups
 
-- Execute on Accept. Do not start T1 while Proposed.
 - Neighbour license on single-line addresses stays BACKLOG, unarmed.
+- `--dry-run` records `applied` in the tally (pre-existing; `default:` arm of the switch). Not this record's promise; the matrix oracle skips the tally on dry runs for that reason. Worth its own row if stats are ever read as "plans that wrote".

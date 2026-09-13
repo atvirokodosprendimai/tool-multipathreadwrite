@@ -1064,24 +1064,29 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		// consumes none, so its original net is zero by construction — which
 		// is exactly why a balanced insert in the wrong place is invisible to
 		// arm 2 (ADR-054).
-		var consumed []string
+		var consumed, written []string
 		switch h.Op {
 		case "insert":
 			res = append(res, h.Body...)
 			r.Added = len(h.Body)
+			written = h.Body
 		case "replace":
 			res = append(res, h.Body...)
 			r.Removed, r.Added = h.End-h.Start+1, len(h.Body)
-			consumed = orig[h.Start-1 : h.End]
+			consumed, written = orig[h.Start-1:h.End], h.Body
 			cursor = h.End + 1
 		case "delete":
 			r.Removed = h.End - h.Start + 1
 			r.RemovedFirst, r.RemovedLast = trim(orig[h.Start-1]), trim(orig[h.End-1])
+			// A delete WRITES nothing, so its body net is zero by Decision.
+			// h.Body here may be ADR-008's expected removal — the consumed
+			// lines verbatim — and feeding it in made every guarded delete
+			// report nothing. Found by TestRandomisedApplyBalanceFollowsTheDecision.
 			consumed = orig[h.Start-1 : h.End]
 			cursor = h.End + 1
 		}
 		if !IsProse(path) {
-			r.Balance = balanceDelta(consumed, h.Body)
+			r.Balance = balanceDelta(consumed, written)
 		}
 		if opt.EchoPad > 0 && (h.Op == "replace" || h.Op == "insert") {
 			padAfter = append(padAfter, struct{ index, after int }{h.Index, len(res)})

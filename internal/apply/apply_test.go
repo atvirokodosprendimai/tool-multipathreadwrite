@@ -2413,3 +2413,27 @@ func TestProseOmitsBalance(t *testing.T) {
 		t.Errorf("a .md hunk carried Balance %q", res.Hunks[0].Balance)
 	}
 }
+
+// ADR-008 lets a delete carry the lines it expects to remove. That body is a
+// GUARD, not something written, so the Decision's "delete: body net is 0"
+// still holds — and the first implementation fed it into the delta, where it
+// matched the consumed lines exactly and every guarded delete reported
+// nothing. Found by TestRandomisedApplyBalanceFollowsTheDecision on its
+// sixth iteration.
+func TestADeleteWithAnExpectedBodyStillReportsItsNet(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.go", "package f\nfunc A() {\n\treturn\n}\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.go", Start: 2, End: 2, Op: "delete", Body: []string{"func A() {"}, Lines: -1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 || res.Hunks[0].Status != StatusOK {
+		t.Fatalf("guarded delete did not apply: %+v", res.Hunks[0])
+	}
+	if got := res.Hunks[0].Balance; !strings.Contains(got, "{ +1") {
+		t.Errorf("a guarded delete of a `{` line reported Balance %q; the expected body is a guard, not a write", got)
+	}
+}
