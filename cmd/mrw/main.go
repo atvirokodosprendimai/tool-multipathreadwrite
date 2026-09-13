@@ -1068,6 +1068,7 @@ inside strings count, so drop it for that plan.`,
 				_ = authoring.RecordRecent(root, res.Advisories)
 				pattern = patternLine(authoring.Recent(root))
 			}
+			receipt.Pattern = authoring.PatternOf(root)
 
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
@@ -1132,6 +1133,10 @@ func patternLine(entries []authoring.RecentEntry) string {
 type receipt struct {
 	apply.Result
 	Check *check.Result `json:"check,omitempty"`
+	// Pattern is the recent-window pattern after this write (ADR-056):
+	// always present, so the JSON caller holds the fact the human line
+	// prints. Read from the ring after RecordRecent ran.
+	Pattern authoring.PatternInfo `json:"pattern"`
 }
 
 // iterCmd manages the working set: the files and ranges this piece of work is

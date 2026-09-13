@@ -556,7 +556,7 @@ func TestAPartialApplicationIsNotReportedAsNothingWritten(t *testing.T) {
 		})
 	}
 
-	out, rpcErr := boundedReceipt(res, fmt.Errorf("b.go: rename failed"), true)
+	out, rpcErr := boundedReceipt(t.TempDir(), res, fmt.Errorf("b.go: rename failed"), true)
 	if rpcErr != nil {
 		t.Fatalf("boundedReceipt: %v", rpcErr)
 	}
@@ -605,7 +605,7 @@ func TestTheSecondStageNeverElidesAWrittenFile(t *testing.T) {
 
 	const budget = 4_000
 	MaxResultChars = budget
-	out, rpcErr := boundedReceipt(res, fmt.Errorf("pkg/dir003/file003.go: rename failed"), true)
+	out, rpcErr := boundedReceipt(t.TempDir(), res, fmt.Errorf("pkg/dir003/file003.go: rename failed"), true)
 	if rpcErr != nil {
 		t.Fatalf("boundedReceipt: %v", rpcErr)
 	}

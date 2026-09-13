@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
@@ -147,7 +148,19 @@ func TestTheWriteToolReturnsTheSameResultAsTheCLI(t *testing.T) {
 	if out, err := cliRead.CombinedOutput(); err != nil {
 		t.Fatalf("cli read: %v\n%s", err, out)
 	}
-	want := cliWrite(t, cliRoot, planText)
+	engine := cliWrite(t, cliRoot, planText)
+	// cliWrite is the engine in-process, so it has no ring. The CLI receipt
+	// wraps the engine result with the ring's pattern (ADR-056), and after
+	// ONE landed write in a fresh root that is exactly this. The real
+	// CLI-binary-vs-MCP comparison is contract.sh's equality row.
+	advisoryWrites := 0
+	if engine.Advisories > 0 {
+		advisoryWrites = 1
+	}
+	want := struct {
+		apply.Result
+		Pattern authoring.PatternInfo `json:"pattern"`
+	}{engine, authoring.PatternInfo{AdvisoryWrites: advisoryWrites, Window: 1}}
 
 	// Compare the DECODED structuredContent against the CLI's result marshalled
 	// by the same encoder. Raw JSON-RPC equality would compare the envelope,

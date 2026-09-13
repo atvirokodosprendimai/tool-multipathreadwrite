@@ -5554,6 +5554,30 @@ out=$(printf '%s\n' \
 	'func A() { return }' | m write --no-check --strict-balance - 2>&1); rc=$?
 want 0 "$rc" "--strict-balance leaves prose alone"
 
+# 95. ADR-056: both JSON receipts carry `pattern` on every write. Pair: the
+# CLI --json receipt after one delta write -> pattern {1,1,false} / the
+# mrw_write receipt on the same checkout after the third -> {3,3,true} /
+# the object is present, fires or not.
+R=$(mktemp -d "$WORK/r95-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+jout=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check --json - 2>/dev/null); rc=$?
+want 0 "$rc" "delta write 1 exits 0"
+[ "$(jq -c '.pattern' <<<"$jout")" = '{"advisory_writes":1,"window":1,"fires":false}' ] \
+  && ok "the CLI --json receipt carries pattern {1,1,false}" || bad "CLI pattern: $(jq -c .pattern <<<"$jout")"
+for i in 2 3; do
+  printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+  m read 'f.go:1' >/dev/null
+  req=$(printf '@@ f.go 1 replace anchor="func A"\nfunc A() { return }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
+  mcpout=$(printf '%s\n' "$req" | "$MRW" -C "$R" mcp 2>/dev/null); rc=$?
+  want 0 "$rc" "mrw_write $i over a pipe exits 0"
+done
+pat=$(python3 -c 'import json,sys; print(json.dumps(json.loads(sys.argv[1].splitlines()[0])["result"]["structuredContent"]["pattern"],sort_keys=True))' "$mcpout")
+[ "$pat" = '{"advisory_writes": 3, "fires": true, "window": 3}' ] \
+  && ok "the mrw_write receipt carries pattern {3,3,true} on the third" || bad "MCP pattern: $pat"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

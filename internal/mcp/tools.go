@@ -594,7 +594,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		_ = authoring.Record(root, authoring.Applied)
 	}
 
-	return boundedReceipt(res, applyErr, applyErr != nil || res.Failed > 0)
+	return boundedReceipt(root, res, applyErr, applyErr != nil || res.Failed > 0)
 }
 
 // writeReceipt is what mrw_write returns: the engine's own Result, plus the one
@@ -609,6 +609,9 @@ type writeReceipt struct {
 	// Elided says what this receipt left out to fit the budget. Absent when it
 	// left out nothing, which is every ordinary write.
 	Elided string `json:"elided,omitempty"`
+	// Pattern is the recent-window pattern after this write (ADR-056),
+	// present on every receipt whether or not it fires.
+	Pattern authoring.PatternInfo `json:"pattern"`
 }
 
 // writeReport renders the per-hunk verdicts, the counts, and any elision.
@@ -661,8 +664,9 @@ func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, eli
 // STRUCTURED value and not only in the text because a host measured on
 // 2026-09-05 delivers mrw_write's answer to the model as the structured value
 // alone (ADR-023).
-func boundedReceipt(res apply.Result, applyErr error, isErr bool) (callToolResult, *rpcError) {
-	full, rpcErr := result(writeReceipt{Result: res}, writeReport(res, res.Hunks, applyErr, ""), isErr)
+func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (callToolResult, *rpcError) {
+	pattern := authoring.PatternOf(root)
+	full, rpcErr := result(writeReceipt{Result: res, Pattern: pattern}, writeReport(res, res.Hunks, applyErr, ""), isErr)
 	if rpcErr != nil || encodedSize(full) <= MaxResultChars {
 		return full, rpcErr
 	}
@@ -699,7 +703,7 @@ func boundedReceipt(res apply.Result, applyErr error, isErr bool) (callToolResul
 		note += ". Every FAILED hunk is here, every file that WAS written is here, " +
 			"and the counts are of the whole plan."
 
-		out, rpcErr := result(writeReceipt{Result: short, Elided: note}, writeReport(res, kept, applyErr, note), isErr)
+		out, rpcErr := result(writeReceipt{Result: short, Elided: note, Pattern: pattern}, writeReport(res, kept, applyErr, note), isErr)
 		if rpcErr != nil {
 			return out, rpcErr
 		}

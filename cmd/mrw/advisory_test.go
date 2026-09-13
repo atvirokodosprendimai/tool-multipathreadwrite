@@ -125,3 +125,33 @@ func TestTheReceiptPrintsThePatternLineOnTheThirdAdvisory(t *testing.T) {
 		t.Errorf("stats does not show the window and the pattern:\n%s", st)
 	}
 }
+
+// ADR-056 T1: the CLI JSON receipt carries the same `pattern` object the MCP
+// receipt does — the transport-equality contract row compares them.
+func TestTheCLIJSONReceiptCarriesThePattern(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := braceTree(t)
+	if _, err := readIn(t, root, "f.go"); err != nil {
+		t.Fatal(err)
+	}
+	js, code := writeIn(t, root, "--no-check", "--json", planFile(t, deltaPlan))
+	if code != 0 {
+		t.Fatalf("exit %d:\n%s", code, js)
+	}
+	var got struct {
+		Pattern *struct {
+			AdvisoryWrites int  `json:"advisory_writes"`
+			Window         int  `json:"window"`
+			Fires          bool `json:"fires"`
+		} `json:"pattern"`
+	}
+	if err := json.Unmarshal([]byte(js), &got); err != nil {
+		t.Fatalf("receipt is not JSON: %v\n%s", err, js)
+	}
+	if got.Pattern == nil {
+		t.Fatalf("json receipt has no pattern:\n%s", js)
+	}
+	if got.Pattern.Window != 1 || got.Pattern.AdvisoryWrites != 1 || got.Pattern.Fires {
+		t.Errorf("pattern after one advisory write = %+v, want {1 1 false}", *got.Pattern)
+	}
+}

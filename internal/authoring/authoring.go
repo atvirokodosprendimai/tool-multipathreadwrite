@@ -293,3 +293,19 @@ func Pattern(entries []RecentEntry) (advisory, total int, fires bool) {
 	}
 	return advisory, len(entries), advisory >= PatternThreshold
 }
+
+// PatternInfo is the recent-window pattern as a receipt field (ADR-056): how
+// many of the window's writes carried an advisory, how many the window
+// holds, and whether that meets PatternThreshold. Present on every receipt,
+// both transports, so a caller that reads keys sees the key on a quiet day.
+type PatternInfo struct {
+	AdvisoryWrites int  `json:"advisory_writes"`
+	Window         int  `json:"window"`
+	Fires          bool `json:"fires"`
+}
+
+// PatternOf reads the ring for root and renders it as a PatternInfo.
+func PatternOf(root string) PatternInfo {
+	k, n, fires := Pattern(Recent(root))
+	return PatternInfo{AdvisoryWrites: k, Window: n, Fires: fires}
+}
