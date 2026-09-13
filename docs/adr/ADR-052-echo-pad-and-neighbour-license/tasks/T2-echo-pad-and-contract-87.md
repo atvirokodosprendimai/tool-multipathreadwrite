@@ -89,6 +89,7 @@ grep -q '^# 88\. ' scripts/contract.sh \
 
 ## Mutation Log
 - 2026-09-13 · 2f49847* · mutant killed · exit 1 · `internal/apply/apply.go` · deleting pad attachment must fail the echo tests · acceptance-sha256:8692225ddcdea969be60462122be0c235aa2a64cd4a5a198837bd1dde8151c5f
+- 2026-09-13 · 4158e26* · mutant killed · exit 1 · `internal/apply/apply.go` · echoPad returns nothing for every n: --echo-pad 1 prints no pad line, and TestAPaddedWriteEchoShowsTheLineAfterTheBody plus the CLI/MCP pad tests must go red · acceptance-sha256:58a842a38cb8e82b822a70e81183b791a9673fc911683aa4cbbafacca13d897c
 
 ## Invariants
 
@@ -113,3 +114,4 @@ If the pad refuses a hunk, stop — that is a checker.
 
 ## Verification Log
 - 2026-09-13 · 2f49847* · exit 0 · `set -o pipefail …` · acceptance-sha256:8692225ddcdea969be60462122be0c235aa2a64cd4a5a198837bd1dde8151c5f · ms:700
+- 2026-09-13 · 4158e26* · exit 0 · `set -o pipefail …` · acceptance-sha256:58a842a38cb8e82b822a70e81183b791a9673fc911683aa4cbbafacca13d897c · ms:2233
