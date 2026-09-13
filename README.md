@@ -122,8 +122,7 @@ from the `NNN| content` a read printed; one typed from memory can be wrong in
 the same way the address is. `sha=` and `lines=` are optional and are checked
 on every op, insertions included.
 
-A read clamps a relative end at the last line; a write refuses one that runs
-past it. `/from/,/to/` means the same on both paths: the end is the first match
+Addresses are 1-based and inclusive; `$` is the last line, and `A,+N` is the line `A` plus the `N` lines AFTER it. A read CLAMPS a relative end at the last line; a write REFUSES one that runs past it. `/from/,/to/` means the same on both paths: the end is the first match
 at or after the start. A write refuses unless the start matches exactly once; a
 read serves a span for every start match that is not already inside a span it
 served.
@@ -164,7 +163,23 @@ endings. The records are in [docs/adr/](docs/adr/).
 ## MCP
 
 Two tools: `mrw_read` (`specs`) and `mrw_write` (`plan`). Same engine, same
-ledger. Launch with an explicit root:
+ledger.
+
+### Use it from an MCP host
+
+```json
+{
+  "mcpServers": {
+    "mrw": {
+      "command": "mrw",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Use an absolute path for `command` if `mrw` is not on the host's `PATH`. Launch
+with an explicit root when the host does not set `CLAUDE_PROJECT_DIR`:
 
 ```sh
 mrw --root DIR mcp
