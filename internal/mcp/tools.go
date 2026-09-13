@@ -451,13 +451,17 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 // count the outcome for ADR-009's tally.
 func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	var a struct {
-		Plan   string   `json:"plan"`
-		Format string   `json:"format"`
-		DryRun bool     `json:"dry_run"`
-		Ack    []string `json:"ack"`
+		Plan    string   `json:"plan"`
+		Format  string   `json:"format"`
+		DryRun  bool     `json:"dry_run"`
+		Ack     []string `json:"ack"`
+		EchoPad int      `json:"echo_pad"`
 	}
 	if err := json.Unmarshal(args, &a); err != nil {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "arguments: " + err.Error()}
+	}
+	if a.EchoPad < 0 {
+		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "echo_pad must be >= 0"}
 	}
 	// The checkpoints for the page this plan was written against, promoted
 	// before the ledger is consulted (ADR-031).
@@ -550,7 +554,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				"applied and the tree is unchanged. Raise the ceiling to at least %d.",
 			MaxResultChars, writeFloor())}
 	}
-	res, applyErr := apply.Apply(root, in, apply.Options{DryRun: a.DryRun, Seen: ledger})
+	res, applyErr := apply.Apply(root, in, apply.Options{DryRun: a.DryRun, Seen: ledger, EchoPad: a.EchoPad})
 	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
 	// it is rendered on whichever path we are on rather than discarded.
 
@@ -610,6 +614,9 @@ func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, eli
 	var b bytes.Buffer
 	for _, h := range hunks {
 		fmt.Fprintf(&b, "%s %s %s %s\n", h.Status, h.Path, h.Addr, h.Reason)
+		for _, line := range h.Echo {
+			fmt.Fprintln(&b, line)
+		}
 	}
 	fmt.Fprintf(&b, "%d hunk(s), %d file(s), %d failed\n", len(res.Hunks), len(res.Files), res.Failed)
 	if applyErr != nil {

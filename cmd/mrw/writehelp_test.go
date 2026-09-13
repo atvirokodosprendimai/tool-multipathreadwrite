@@ -42,3 +42,17 @@ func TestWriteHelpNamesApplyPatchFormat(t *testing.T) {
 		}
 	}
 }
+
+// TestWriteHelpNamesEchoPad is ADR-052 T2: write --help names the opt-in pad
+// and that it is not a checker.
+func TestWriteHelpNamesEchoPad(t *testing.T) {
+	got := writeCmd().Description
+	for _, must := range []string{
+		"--echo-pad",
+		"not a checker",
+	} {
+		if !strings.Contains(got, must) {
+			t.Errorf("write --help does not teach %q:\n%s", must, got)
+		}
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	readpkg "github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 )
 
 func write(t *testing.T, root, name, body string) {
@@ -2040,5 +2043,230 @@ func TestAMultiLineReplaceWithAnAnchorStillApplies(t *testing.T) {
 	}
 	if got, want := read(t, root, "f.txt"), "1\n2\nNEW\n7\n"; got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// ADR-052: a multi-line replace whose ledger covers only Start-End is the
+// wrap-tail miss. End+1 was never served, so the hunk fails, the sibling
+// skips, and nothing is written.
+func TestAMultiLineReplaceWithoutAServedLineAfterEndWritesNothing(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "good.txt", "keep\n")
+	write(t, root, "bad.txt", "1\n2\n3\n4\n5\n")
+
+	observed, problems := readpkg.Run(io.Discard, root, []readpkg.Spec{
+		{Path: "good.txt", Ranges: []readpkg.Range{{Start: 1, End: 1}}},
+		{Path: "bad.txt", Ranges: []readpkg.Range{{Start: 2, End: 3}}},
+	}, readpkg.Options{})
+	if problems != 0 {
+		t.Fatalf("read reported %d problem(s)", problems)
+	}
+
+	res, err := Apply(root, []Input{
+		{Path: "good.txt", Start: 1, End: 1, Op: "replace", Body: []string{"KEEP"}, Lines: -1, Index: 0},
+		{Path: "bad.txt", Start: 2, End: 3, Op: "replace", Body: []string{"X", "Y"}, Lines: -1, Anchor: "2", Index: 1},
+	}, Options{Seen: observed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("failed=%d, want 1: %+v", res.Failed, res.Hunks)
+	}
+	if res.Applied {
+		t.Fatal("a neighbour miss applied")
+	}
+	if res.Hunks[0].Status != StatusSkipped {
+		t.Errorf("sibling status=%s, want skipped", res.Hunks[0].Status)
+	}
+	if res.Hunks[1].Status != StatusFailed {
+		t.Errorf("neighbour hunk status=%s, want failed", res.Hunks[1].Status)
+	}
+	if !strings.Contains(res.Hunks[1].Reason, "after 3") && !strings.Contains(res.Hunks[1].Reason, "line 4") {
+		t.Errorf("refusal does not name the missing neighbour: %s", res.Hunks[1].Reason)
+	}
+	if strings.Contains(res.Hunks[1].Reason, "4\n") || strings.Contains(res.Hunks[1].Reason, "\n4") {
+		t.Errorf("refusal reads back the unserved closer: %s", res.Hunks[1].Reason)
+	}
+	if got := read(t, root, "good.txt"); got != "keep\n" {
+		t.Errorf("sibling was written: %q", got)
+	}
+	if got := read(t, root, "bad.txt"); got != "1\n2\n3\n4\n5\n" {
+		t.Errorf("the file was written: %q", got)
+	}
+}
+
+// A single-line replace is not wrap-tail. Serving that one line is enough.
+func TestASingleLineReplaceDoesNotNeedANeighbour(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "1\n2\n3\n")
+
+	observed, problems := readpkg.Run(io.Discard, root, []readpkg.Spec{
+		{Path: "f.txt", Ranges: []readpkg.Range{{Start: 2, End: 2}}},
+	}, readpkg.Options{})
+	if problems != 0 {
+		t.Fatalf("read reported %d problem(s)", problems)
+	}
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 2, Op: "replace", Body: []string{"X"}, Lines: -1},
+	}, Options{Seen: observed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("a single-line replace was refused as if it needed a neighbour: %s", res.Hunks[0].Reason)
+	}
+	if got, want := read(t, root, "f.txt"), "1\nX\n3\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// EOF rule: End is the last line, so there is no End+1. Skip the licence.
+func TestAnEOFMultiLineReplaceDoesNotNeedALineAfterEnd(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "1\n2\n3\n4\n")
+
+	observed, problems := readpkg.Run(io.Discard, root, []readpkg.Spec{
+		{Path: "f.txt", Ranges: []readpkg.Range{{Start: 3, End: 4}}},
+	}, readpkg.Options{})
+	if problems != 0 {
+		t.Fatalf("read reported %d problem(s)", problems)
+	}
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 3, End: 4, Op: "replace", Body: []string{"X", "Y"}, Lines: -1, Anchor: "3"},
+	}, Options{Seen: observed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("an EOF multi-line replace was refused: %s", res.Hunks[0].Reason)
+	}
+	if got, want := read(t, root, "f.txt"), "1\n2\nX\nY\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// EchoPad 1 attaches the line after the new body. A closer there stays ok:
+// the pad is visibility, not a checker (ADR-052).
+func TestAPaddedWriteEchoShowsTheLineAfterTheBody(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "1\n2\n3\n</div>\n5\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "replace", Body: []string{"X", "Y"}, Lines: -1, Anchor: "2"},
+	}, Options{EchoPad: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("a pad that showed a closer failed the hunk: %s", res.Hunks[0].Reason)
+	}
+	if res.Hunks[0].Status != StatusOK {
+		t.Fatalf("status=%s, want ok", res.Hunks[0].Status)
+	}
+	if len(res.Hunks[0].Echo) != 1 {
+		t.Fatalf("echo=%v, want one pad line", res.Hunks[0].Echo)
+	}
+	if !strings.Contains(res.Hunks[0].Echo[0], "</div>") {
+		t.Errorf("pad does not show the closer: %q", res.Hunks[0].Echo[0])
+	}
+	if !strings.Contains(res.Hunks[0].Echo[0], "4|") {
+		t.Errorf("pad is not numbered as it sits in the written file: %q", res.Hunks[0].Echo[0])
+	}
+}
+
+// End+1 was served, so the neighbour licence lets the multi-line replace apply.
+func TestAMultiLineReplaceWithAServedLineAfterEndApplies(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "1\n2\n3\n4\n5\n")
+
+	observed, problems := readpkg.Run(io.Discard, root, []readpkg.Spec{
+		{Path: "f.txt", Ranges: []readpkg.Range{{Start: 2, End: 4}}},
+	}, readpkg.Options{})
+	if problems != 0 {
+		t.Fatalf("read reported %d problem(s)", problems)
+	}
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "replace", Body: []string{"X", "Y"}, Lines: -1, Anchor: "2"},
+	}, Options{Seen: observed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("a served neighbour was refused: %s", res.Hunks[0].Reason)
+	}
+	if !res.Applied {
+		t.Fatal("a served neighbour did not apply")
+	}
+	if got, want := read(t, root, "f.txt"), "1\nX\nY\n4\n5\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// EchoPad 0 (the default) attaches nothing. Deleting the zero-default would
+// start printing a pad on every write.
+func TestEchoPadDefaultPrintsNoLines(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "1\n2\n3\n</div>\n5\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "replace", Body: []string{"X", "Y"}, Lines: -1, Anchor: "2"},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("default pad write failed: %s", res.Hunks[0].Reason)
+	}
+	if len(res.Hunks[0].Echo) != 0 {
+		t.Errorf("default EchoPad printed %v", res.Hunks[0].Echo)
+	}
+}
+
+// EchoPad N attaches exactly N numbered lines after the new body.
+func TestEchoPadNPrintsNNumberedLines(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "1\n2\n3\na\nb\nc\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "replace", Body: []string{"X", "Y"}, Lines: -1, Anchor: "2"},
+	}, Options{EchoPad: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("padded write failed: %s", res.Hunks[0].Reason)
+	}
+	if len(res.Hunks[0].Echo) != 3 {
+		t.Fatalf("echo=%v, want 3 pad lines", res.Hunks[0].Echo)
+	}
+	for i, want := range []string{"4|", "5|", "6|"} {
+		if !strings.Contains(res.Hunks[0].Echo[i], want) {
+			t.Errorf("echo[%d]=%q, want numbered %s", i, res.Hunks[0].Echo[i], want)
+		}
+	}
+}
+
+// A pad larger than the remaining file is clamped, not refused.
+func TestEchoPadClampsAtEOF(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "1\n2\n3\n4\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "replace", Body: []string{"X", "Y"}, Lines: -1, Anchor: "2"},
+	}, Options{EchoPad: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("a clamped pad failed the hunk: %s", res.Hunks[0].Reason)
+	}
+	if len(res.Hunks[0].Echo) != 1 {
+		t.Fatalf("echo=%v, want the one line that remains", res.Hunks[0].Echo)
+	}
+	if !strings.Contains(res.Hunks[0].Echo[0], "4|") {
+		t.Errorf("clamped pad is not the last line: %q", res.Hunks[0].Echo[0])
 	}
 }

@@ -290,6 +290,7 @@ var writeDescriptions = map[string]string{
 	"hunks.plan_line":     "The line of the plan document this hunk's header was on.",
 	"hunks.removed_first": "The first line a delete removes, trimmed for display, so a caller can see what it is losing. Present whenever a delete reaches `ok` — a dry run included, where nothing was actually removed.",
 	"hunks.removed_last":  "The last line a delete removes, on the same terms as `removed_first`.",
+	"hunks.echo":          "N lines after the new body, numbered as they sit in the written file, when echo_pad > 0. Absent at the default of 0. A closer here does not fail the hunk — visibility, not a checker.",
 }
 
 // describeResult attaches the table's prose to a generated schema, in place,

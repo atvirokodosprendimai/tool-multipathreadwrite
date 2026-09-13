@@ -764,7 +764,11 @@ visible to whatever hooks watch file writes.
 into the native plan above, then Parse and Apply run unchanged. A git patch
 is not an apply_patch; --format=git is usage.
 --format=search_replace compiles an Aider SEARCH/REPLACE document
-(<<<<<<< SEARCH / ======= / >>>>>>> REPLACE) the same way. Default --format is plan.`,
+(<<<<<<< SEARCH / ======= / >>>>>>> REPLACE) the same way. Default --format is plan.
+
+--echo-pad N prints N lines after an applied body so a surviving closer is
+visible. Default 0. It is not a checker: a closer in the pad does not fail
+the hunk. Negative is usage.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "dry-run",
@@ -793,6 +797,11 @@ is not an apply_patch; --format=git is usage.
 				Value: "plan",
 				Usage: "plan (default), apply_patch (Codex *** Begin Patch; a git patch is not one), or search_replace (Aider SEARCH/REPLACE)",
 			},
+			&cli.IntFlag{
+				Name:  "echo-pad",
+				Value: 0,
+				Usage: "print N lines after an applied body (opt-in pad; default 0; not a checker)",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args().Slice()
@@ -808,6 +817,9 @@ is not an apply_patch; --format=git is usage.
 			if cmd.Bool("check") && cmd.Bool("dry-run") {
 				return cli.Exit("--check cannot run under --dry-run: nothing is written, so there is "+
 					"nothing to verify. Drop one of the two — a check that did not run is not a pass", exitUsage)
+			}
+			if cmd.Int("echo-pad") < 0 {
+				return cli.Exit("--echo-pad must be >= 0", exitUsage)
 			}
 			if len(args) > 1 {
 				return cli.Exit("write takes at most one plan file", exitUsage)
@@ -907,9 +919,10 @@ is not an apply_patch; --format=git is usage.
 				return cli.Exit(err, exitUsage)
 			}
 			res, err := apply.Apply(root, in, apply.Options{
-				DryRun: cmd.Bool("dry-run"),
-				Seen:   ledger,
-				Force:  cmd.Bool("force"),
+				DryRun:  cmd.Bool("dry-run"),
+				Seen:    ledger,
+				Force:   cmd.Bool("force"),
+				EchoPad: cmd.Int("echo-pad"),
 			})
 			if err != nil {
 				// ADR-001 rule 3: every hunk carries its own verdict, and a
@@ -1268,6 +1281,9 @@ func report(w *os.File, res apply.Result, quiet bool) {
 				bounds = fmt.Sprintf(" from %q to %q", h.RemovedFirst, h.RemovedLast)
 			}
 			fmt.Fprintf(out, "ok   %s %s %s  -%d +%d%s\n", h.Path, h.Addr, h.Op, h.Removed, h.Added, bounds)
+			for _, line := range h.Echo {
+				fmt.Fprintln(out, line)
+			}
 		}
 	}
 	if !quiet {

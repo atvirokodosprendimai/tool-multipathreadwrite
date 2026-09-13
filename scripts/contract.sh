@@ -5294,6 +5294,66 @@ out=$(m check docs 2>&1); rc=$?
 want 0 "$rc" "a present prose directory still falls back"
 grep -q 'echo FULL' <<<"$out" && ok "and the full command ran" || bad "not full: $out"
 
+# 87. ADR-052: a multi-line replace without a served line after End writes
+# nothing. Pair: ranged read of Start-End (exit 1, FAIL+skip, both files
+# unchanged) / ranged read through End+1 (exit 0, body applied).
+# fixture() whole-reads and would license End+1 — do not use it here.
+R=$(mktemp -d "$WORK/r87-XXXXXX")
+printf '1\n2\n3\n4\n5\n' > "$R/f.txt"
+printf 'keep\n' > "$R/g.txt"
+m read 'f.txt:2-3' 'g.txt:1' >/dev/null
+plan87=$(printf '%s\n' \
+	'@@ g.txt 1 replace' \
+	'KEEP' \
+	'@@ f.txt 2-3 replace anchor="2"' \
+	'X' \
+	'Y')
+out=$(printf '%s\n' "$plan87" | m write - 2>&1); rc=$?
+want 1 "$rc" "multi-line replace without End+1 -> exit 1"
+grep -q 'FAIL' <<<"$out" && ok "unread neighbour names FAIL" || bad "unread neighbour names FAIL"
+grep -q '^skip' <<<"$out" && ok "unread neighbour siblings skip" || bad "unread neighbour siblings skip"
+grep -qE 'after 3|line 4' <<<"$out" && ok "unread neighbour names the missing line" || bad "unread neighbour names the missing line"
+grep -qx 'keep' "$R/g.txt" && ok "unread neighbour sibling unchanged" || bad "unread neighbour sibling unchanged"
+grep -q '^2$' "$R/f.txt" && ok "unread neighbour wrote nothing" || bad "unread neighbour wrote"
+
+R=$(mktemp -d "$WORK/r87b-XXXXXX")
+printf '1\n2\n3\n4\n5\n' > "$R/f.txt"
+m read 'f.txt:2-4' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.txt 2-3 replace anchor="2"' \
+	'X' \
+	'Y' | m write - 2>&1); rc=$?
+want 0 "$rc" "served End+1 -> exit 0"
+grep -q '^X$' "$R/f.txt" && ok "served End+1 applied" || bad "served End+1 applied"
+
+# 88. ADR-052: --echo-pad N prints N lines after the body; a closer there
+# stays ok. Pair: --echo-pad 1 shows the line after the body and ok /
+# default 0 prints no pad.
+R=$(mktemp -d "$WORK/r88-XXXXXX")
+printf '1\n2\n3\n</div>\n5\n' > "$R/f.txt"
+m read 'f.txt:2-4' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.txt 2-3 replace anchor="2"' \
+	'X' \
+	'Y' | m write --echo-pad 1 - 2>&1); rc=$?
+want 0 "$rc" "--echo-pad 1 applies"
+grep -q '^ok' <<<"$out" && ok "pad write stays ok" || bad "pad write stays ok"
+grep -q '</div>' <<<"$out" && ok "pad shows the closer" || bad "pad shows the closer"
+
+R=$(mktemp -d "$WORK/r88b-XXXXXX")
+printf '1\n2\n3\n</div>\n5\n' > "$R/f.txt"
+m read 'f.txt:2-4' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.txt 2-3 replace anchor="2"' \
+	'X' \
+	'Y' | m write - 2>&1); rc=$?
+want 0 "$rc" "default echo-pad 0 applies"
+if grep -q '</div>' <<<"$out"; then
+  bad "default 0 printed a pad"
+else
+  ok "default 0 prints no pad"
+fi
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
