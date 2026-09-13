@@ -48,9 +48,9 @@ that arms work; silence leaves the row where it is.
 | Delimiter-balance delta in the receipt | **ADR-054 Accepted** — visibility, not refuse; omitted on prose; a balanced insert is invisible to it; §90 | — (T2) |
 | `stats` row: applied then a failing check | **ADR-054 Accepted** — every name at zero + landed line (`check_not_run` is in N); §91 | — (T3) |
 | Neighbour license on a single-line address | **open question** — not a proposed fix; three Zeus cases would not have fired | — |
-| Advisory count on the write summary + `advisories` in JSON | **ADR-055 Proposed** (T1) — the row fired, the summary M read did not carry it (twice in one hour, v1.16.0 field run) | *"advisory count"* |
-| Repeat-pattern line on the receipt / `stats` | **ADR-055 Proposed** (T2) — recent-window ring beside the ledger (op + advisory bit + time; no paths, ADR-009); "3rd balance advisory in your last 5 replaces" | *"repeat pattern"* |
-| `--strict-balance` opt-in refusal on the wrap-tail signature | **ADR-055 Proposed** (T3) — replace, single-line address, consumed net ≠ 0, body net ≠ consumed; exit 1, nothing written; campaign prices false positives before any default | *"strict balance"* |
+| Advisory count on the write summary + `advisories` in JSON | **ADR-055 Accepted** (T1, §92) — the row fired, the summary M read did not carry it (twice in one hour, v1.16.0 field run) | *"advisory count"* |
+| Repeat-pattern line on the receipt / `stats` | **ADR-055 Accepted** (T2, §93) — recent-window ring beside the ledger (op + advisory bit + time; no paths, ADR-009); "3rd balance advisory in your last 5 replaces" | *"repeat pattern"* |
+| `--strict-balance` opt-in refusal on the wrap-tail signature | **ADR-055 Accepted** (T3, §94; default pre-registered below) — replace, single-line address, consumed net ≠ 0, body net ≠ consumed; exit 1, nothing written; campaign prices false positives before any default | *"strict balance"* |
 | Streaming apply | **ADR-049 Accepted** — record only | — (T1 receipts 2026-09-12; still waits for a size that hurts) |
 | Windows `%LOCALAPPDATA%` | **ADR-050 Accepted** — record only | — (T1 receipts 2026-09-12; XDG stays) |
 | Foreign plan grammars / `apply_patch` | **ADR-051 Accepted** — compile to `@@`; first slice is `--format=apply_patch` | — (this steal; not Morph, not syntax-write) |
@@ -1564,8 +1564,8 @@ shapes; ADR-054 arm 1 caught all four in the turn, arm 2 three of four. What
 follows is what the run showed the receipt still does not do. Ordered by M's
 value-per-work: 1, then 3, then 2. Designed 2026-09-13 as
 `docs/adr/ADR-055-the-receipt-counts-its-advisories-and-notices-a-pattern.md`
-(Proposed; M: *"so plan then backlog"*). Execute on Accept; nothing is armed
-until then. Each line keeps its arming quote.
+(M: *"so plan then backlog"*, then *"accepted."*, 2026-09-13). Executed the same day as
+contract §92–§94. Each line keeps its arming quote as its receipt.
 
 - **Put the advisory count in the summary line, and `advisories: N` in the JSON
   receipt.** The `balance { +1 → +0` row fired correctly and was not acted on,
@@ -1603,3 +1603,19 @@ until then. Each line keeps its arming quote.
 
 - **Not proposed again:** a harness `covers` glob for the `.jsonl` / `.yml`
   cost. ADR-054 rejected it; the cost is real and bounded by `--no-check`.
+
+### Pre-registration: a default `--strict-balance`
+
+Written 2026-09-13, BEFORE any campaign, so the criterion is not shaped by the
+result (this file's rule). ADR-055 T3 ships the flag opt-in. It may be argued
+as a default only if a campaign over three real corpora — Zeus, this
+repository, playtrix — replays every landed single-line `replace` in their
+ledgers with the flag on and reports, per corpus: how many the flag would have
+refused; of those, how many plans went on to break the tree (the check or a
+later build failed) versus how many did not (the false positives). Criterion:
+**false positives under 5% of refusals in every corpus, with at least 50
+refusals total**, or the default stays off and the flag stays what it is. A
+campaign that reports the true-positive count without the false-positive count
+does not qualify — the number that argues a default is the one that costs the
+caller, not the one that flatters the tool. Arm the campaign with *"price
+strict balance"*.

@@ -74,3 +74,22 @@ func TestWriteHelpNamesNoCheck(t *testing.T) {
 		}
 	}
 }
+
+// TestWriteHelpNamesAdvisoriesAndStrictBalance is ADR-055 T4: a PATH caller
+// who reads write --help learns that the summary counts advisories, that a
+// repeated advisory prints a pattern line, and that --strict-balance is an
+// opt-in refusal of the wrap-tail shape.
+func TestWriteHelpNamesAdvisoriesAndStrictBalance(t *testing.T) {
+	got := writeCmd().Description
+	for _, must := range []string{
+		"advisor",
+		"pattern",
+		"--strict-balance",
+		"opt-in",
+		"nothing is written",
+	} {
+		if !strings.Contains(got, must) {
+			t.Errorf("write --help does not teach %q:\n%s", must, got)
+		}
+	}
+}

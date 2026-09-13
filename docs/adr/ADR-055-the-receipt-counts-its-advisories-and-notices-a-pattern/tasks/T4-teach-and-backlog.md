@@ -48,7 +48,7 @@ go test ./cmd/mrw/ -count=1 -v -run 'TestWriteHelpNamesAdvisoriesAndStrictBalanc
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| ~~`TestWriteHelpNamesAdvisoriesAndStrictBalance`~~ | `cmd/mrw/writehelp_test.go` | not yet written — Proposed; T4 S1 writes it | — | S1, S2 |
+| `TestWriteHelpNamesAdvisoriesAndStrictBalance` | `cmd/mrw/writehelp_test.go` | `--help` names the advisory count, the pattern line, and `--strict-balance` as an opt-in refusal | — | S1, S2 |
 | `TestWriteHelpNamesNoCheck` | `cmd/mrw/writehelp_test.go` | ADR-054's teaching still holds | — | S2 |
 
 ## Reachability
@@ -61,8 +61,8 @@ go test ./cmd/mrw/ -count=1 -v -run 'TestWriteHelpNamesAdvisoriesAndStrictBalanc
 | 4 — it is used | PATH callers; the skill mirror |
 
 ## Mutation Log
-
 (empty until execute)
+- 2026-09-13 · a0ec9cc* · mutant killed · exit 1 · `cmd/mrw/main.go` · the flag is misspelt in write --help: a PATH caller cannot learn --strict-balance from the help, and TestWriteHelpNamesAdvisoriesAndStrictBalance must go red · acceptance-sha256:fe3c24d0059722491ecc54d4fc45ca3c0c16c78abe2777c44f661e3410f26743
 
 ## Invariants
 
@@ -84,5 +84,19 @@ If teaching requires raising 4096, stop.
 - The campaign itself and any default
 
 ## Verification Log
-
 (empty until execute)
+- 2026-09-13 · a0ec9cc* · exit 1 · `set -o pipefail …` · acceptance-sha256:fe3c24d0059722491ecc54d4fc45ca3c0c16c78abe2777c44f661e3410f26743 · ms:381 · test-lock-sha256:b9c058f16788b52cf32330ccdf4df60fa74dae17bed15e57ea4e4ff4c07a842d · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvd3JpdGVoZWxwX3Rlc3QuZ28JVGVzdFdyaXRlSGVscE5hbWVzQWR2aXNvcmllc0FuZFN0cmljdEJhbGFuY2UJZjJjY2QzZTA5YjMxNGI2MjA1MGI0MGNlMGM3NzdiMTQ2MWFjYzQ3MmZjOTA1ZjFlZDJkOWVmMjExYzhiNmI0Mgpib2R5CWNtZC9tcncvd3JpdGVoZWxwX3Rlc3QuZ28JVGVzdFdyaXRlSGVscE5hbWVzQXBwbHlQYXRjaEZvcm1hdAljMzg2NTk3NjUyNjYxNWFjNDliYjk3MzkyODZjY2YyN2JhNzEzNmUyM2RiMjc1MGMxOTZmNDkzYzYzYWJjNzVlCmJvZHkJY21kL21ydy93cml0ZWhlbHBfdGVzdC5nbwlUZXN0V3JpdGVIZWxwTmFtZXNFY2hvUGFkCWI0OGMyMDkyMmNiMjJkMmUwYjY5NDg2OGNhNzM0YjIyODdhNzVhZDk5ZWRkMTVkOTZjMzIzNDBmYjRlYWYxODAKYm9keQljbWQvbXJ3L3dyaXRlaGVscF90ZXN0LmdvCVRlc3RXcml0ZUhlbHBOYW1lc0hvd1RvUXVvdGVBSGVhZGVyT3B0aW9uCTU3Njk4NjUwZDQ5NGJmNjgzNGIzMzgwYzQxYzg4MjliZTI3MDM4NWZjYTdlMzAzZjA4ZDcwNmMyZTJmOTZmMmUKYm9keQljbWQvbXJ3L3dyaXRlaGVscF90ZXN0LmdvCVRlc3RXcml0ZUhlbHBOYW1lc05vQ2hlY2sJODA5MzA0NzU1NGI3YTJkY2JjNjY4YTljOWQ2OWU3YTI0NDY0MzExYjA5MWQ5N2U3ZmZmN2Q1YTZjOGVhMWM5Ng
+  ```
+  --- last 10 line(s) of stdout (of 262 after folding 262 raw)
+          
+          A non-prose hunk whose {} () [] nets differ between the replaced lines and
+          the body prints a balance row under ok. It does not fail the hunk and it is
+          not a checker: braces in strings miscount, and a balanced insert landing
+          inside a function is invisible to it — the check catches that, the row does
+          not.
+  --- FAIL: TestWriteHelpNamesAdvisoriesAndStrictBalance (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.166s
+  FAIL
+  ```
+- 2026-09-13 · a0ec9cc* · exit 0 · `set -o pipefail …` · acceptance-sha256:fe3c24d0059722491ecc54d4fc45ca3c0c16c78abe2777c44f661e3410f26743 · ms:2220

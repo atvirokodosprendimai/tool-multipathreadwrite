@@ -323,6 +323,11 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   spawn it. `--no-check` opts out; `--check` demands it even on prose. A
   non-prose hunk whose `{}` `()` `[]` nets moved prints a `balance` row under
   `ok` and stays `ok` — a balanced insert in the wrong place is invisible to it.
+  The summary line counts those rows (`0 failed, 1 advisory — applied`, zero
+  included) and the JSON receipt carries `advisories`; three in your last ten
+  writes print a `pattern:` line on the receipt (ADR-055). `--strict-balance`
+  (MCP `strict_balance`) is opt-in and refuses that shape on a single-line
+  replace as a failed hunk — exit 1, nothing written. Braces in strings count.
 - **Exit `3` means the write APPLIED and the check failed** — the tree is
   changed and unverified. It is not a rollback.
 - **Never read an exit code through a pipe.** `mrw write plan | head` returns

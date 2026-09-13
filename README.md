@@ -147,6 +147,13 @@ These are gates, not a tour of the records behind them.
   spawn it. A non-prose hunk whose `{}` `()` `[]` nets moved prints a balance
   row and stays `ok` — a balanced insert in the wrong place is invisible to it.
   `mrw stats` prints `failed_check` at zero and a landed-writes line.
+- **Advisories are counted where you read.** The summary line says
+  `N failed, A advisories`, zero included, and the JSON receipt carries
+  `advisories`. Three advisories in your last ten writes print a `pattern:`
+  line on the receipt. `--strict-balance` (MCP `strict_balance`) is opt-in and
+  refuses the wrap-tail shape — a single-line replace whose line's delimiters
+  do not balance and whose body does not match — as a failed hunk, exit 1,
+  nothing written.
 - **Check miss refuses.** An in-root `mrw check` miss is exit 2 and names the
   path — not a silent whole-project PASS.
 - **The process is the verdict.** A check that prints `PASS` and exits 1 is a

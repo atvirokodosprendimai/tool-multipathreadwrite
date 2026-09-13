@@ -806,7 +806,16 @@ A non-prose hunk whose {} () [] nets differ between the replaced lines and
 the body prints a balance row under ok. It does not fail the hunk and it is
 not a checker: braces in strings miscount, and a balanced insert landing
 inside a function is invisible to it — the check catches that, the row does
-not.`,
+not.
+
+The summary line counts those rows — "N hunk(s), M file(s), F failed, A
+advisories — applied", zero included — and the JSON receipt carries
+"advisories". When three of your last ten landed writes carried one, the
+receipt prints a pattern line — read past the range before the next one.
+--strict-balance is opt-in: it refuses a single-line replace whose line's
+{} () [] do not balance and whose body does not match them (the wrap-tail
+shape) as a failed hunk — exit 1, nothing is written. Off by default; braces
+inside strings count, so drop it for that plan.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "dry-run",
