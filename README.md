@@ -161,9 +161,10 @@ A plan names a file once, however it is spelled. Two spellings that reach the
 same file — case-folded names, or a file and a symlink to it — are refused with
 both named.
 
-It will not write outside `--root`, will not replace a symlink, will not
-half-apply because the filesystem said no, and will not change your line
-endings. The records are in [docs/adr/](docs/adr/).
+It will not write outside `--root`, will not replace a symlink, and will not
+change your line endings. Staging failures write nothing; a later rename
+failure can leave a partial tree and names the files already written. The
+records are in [docs/adr/](docs/adr/).
 
 ## MCP
 
