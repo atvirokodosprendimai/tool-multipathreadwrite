@@ -48,6 +48,9 @@ that arms work; silence leaves the row where it is.
 | Delimiter-balance delta in the receipt | **ADR-054 Accepted** — visibility, not refuse; omitted on prose; a balanced insert is invisible to it; §90 | — (T2) |
 | `stats` row: applied then a failing check | **ADR-054 Accepted** — every name at zero + landed line (`check_not_run` is in N); §91 | — (T3) |
 | Neighbour license on a single-line address | **open question** — not a proposed fix; three Zeus cases would not have fired | — |
+| Advisory count on the write summary + `advisories` in JSON | **proposed** — the row fired, the summary M read did not carry it (twice in one hour, v1.16.0 field run) | *"advisory count"* |
+| Repeat-pattern line on the receipt / `stats` | **proposed** — recent-window ring beside the ledger (op + advisory bit + time; no paths, ADR-009); "3rd balance advisory in your last 5 replaces" | *"repeat pattern"* |
+| `--strict-balance` opt-in refusal on the wrap-tail signature | **proposed** — replace, single-line address, consumed net ≠ 0, body net ≠ consumed; exit 1, nothing written; campaign prices false positives before any default | *"strict balance"* |
 | Streaming apply | **ADR-049 Accepted** — record only | — (T1 receipts 2026-09-12; still waits for a size that hurts) |
 | Windows `%LOCALAPPDATA%` | **ADR-050 Accepted** — record only | — (T1 receipts 2026-09-12; XDG stays) |
 | Foreign plan grammars / `apply_patch` | **ADR-051 Accepted** — compile to `@@`; first slice is `--format=apply_patch` | — (this steal; not Morph, not syntax-write) |
@@ -1551,3 +1554,50 @@ otherwise fail them at 3.
   this.** The wrap-tail risk is identical whether the address or the body is
   the multi-line half, but the three cases it was meant to fix catch none of
   them. Open question in its own right; not armed.
+
+## From ADR-054 (a write that applied can still leave a broken tree)
+
+Filed 2026-09-13 from M's field run of v1.16.0/v1.16.1 in Zeus (commit
+`ed9dfdb9` there): nine mutants, one survivor, and the survivor was a real hole
+in a test already recorded as mutation-proven that morning. Four breakage
+shapes; ADR-054 arm 1 caught all four in the turn, arm 2 three of four. What
+follows is what the run showed the receipt still does not do. Ordered by M's
+value-per-work: 1, then 3, then 2. Nothing below is armed; each line names its
+arming quote. A served-path change among them needs its own record.
+
+- **Put the advisory count in the summary line, and `advisories: N` in the JSON
+  receipt.** The `balance { +1 → +0` row fired correctly and was not acted on,
+  twice in one hour, because the line actually read every time is
+  `1 hunk(s), 1 file(s), 0 failed — applied`, which omits it; and the JSON
+  consumer printed only `applied` and `failed` because those are the keys the
+  summary taught it to care about. Make it
+  `1 hunk(s), 1 file(s), 0 failed, 1 advisory — applied`. "Advisory" is the
+  class (today: the balance row), not the row; `echo` is opt-in visibility the
+  caller asked for and is not one. One line in `report`, one receipt field, one
+  contract row. Arm with *"advisory count"*.
+
+- **A repeat-pattern line.** The tally is cumulative and per-outcome (ADR-009:
+  counts, no paths, no time axis — on purpose). What it cannot say is "this is
+  the fourth replace in one session that carried a balance advisory", which is
+  the signal that changes method instead of repeating it. Design: a small
+  recent-window ring beside the ledger holding op, advisory bit and time —
+  nothing ADR-009 refuses — and one line when a pattern repeats. It must print
+  on the WRITE receipt, not only in `stats`: `stats` is run after the fact; the
+  receipt is read in the turn. Zeus's reflex-counter idea, applied to the tool
+  that watches the caller. Arm with *"repeat pattern"*.
+
+- **`--strict-balance`, opt-in, refusing the wrap-tail signature only.** ADR-054
+  rejected refusing on *any* delta, correctly (string literals, generated
+  code). The case that has bitten four times is narrower: a `replace` whose
+  addressed range has a non-zero net and whose body has a different one. That
+  is the wrap-tail shape, and it is what ADR-052's neighbour licence already
+  refuses for MULTI-line addresses; the single-line address is the hole. Three
+  of the four Zeus breakages carry the signature; the fourth (balanced insert)
+  has no delta and stays arm 1's. A refusal is a failed hunk — exit 1, nothing
+  written, ADR-001 — not a new exit code. Opt-in first, the way `--echo-pad`
+  went in; a campaign across real corpora (Zeus, this repository, playtrix)
+  prices the false positives before anyone argues a default. Arm with
+  *"strict balance"*.
+
+- **Not proposed again:** a harness `covers` glob for the `.jsonl` / `.yml`
+  cost. ADR-054 rejected it; the cost is real and bounded by `--no-check`.
