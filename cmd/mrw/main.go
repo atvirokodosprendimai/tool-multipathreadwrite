@@ -787,7 +787,20 @@ is not an apply_patch; --format=git is usage.
 
 --echo-pad N prints N lines after an applied body so a surviving closer is
 visible. Default 0. It is not a checker: a closer in the pad does not fail
-the hunk. Negative is usage.`,
+the hunk. Negative is usage.
+
+After a successful apply the project's check runs by default when a written
+path is not prose (.md .markdown .txt .rst .adoc) and a check exists — declared
+in .quality-harness.json or inferred from go.mod. A markdown-only plan does
+not spawn it; a tree with no check stays exit 0. --no-check opts out. --check
+is a demand: it runs on prose too, and is exit 2 when nothing can run. A
+failing check is exit 3 and the tree is NOT reverted.
+
+A non-prose hunk whose {} () [] nets differ between the replaced lines and
+the body prints a balance row under ok. It does not fail the hunk and it is
+not a checker: braces in strings miscount, and a balanced insert landing
+inside a function is invisible to it — the check catches that, the row does
+not.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "dry-run",

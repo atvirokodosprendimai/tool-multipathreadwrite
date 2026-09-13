@@ -44,9 +44,9 @@ that arms work; silence leaves the row where it is.
 | Python `str` body character-split | **ADR-047 Accepted** — taught in 040 help | — (T1 receipts 2026-09-12; already taught) |
 | Syntax awareness | **ADR-048 Accepted** — record only | — (T1 receipts 2026-09-12; no parser). Neighbour license is ADR-052, not a parser. |
 | Padded write echo / neighbour license | **ADR-052 Accepted** — opt-in `--echo-pad`; End+1 license | — (M 2026-09-13: *"echo, license"*) |
-| `--check` by default / `--no-check` | **ADR-054 Proposed** — CLI default when a check exists and a written path is not prose | *"check by default"* (design 2026-09-13; execute on Accept) |
-| Delimiter-balance delta in the receipt | **ADR-054 Proposed** — visibility, not refuse; omitted on prose | *"balance delta"* |
-| `stats` row: applied then a failing check | **ADR-054 Proposed** — print `failed_check` at zero + landed line (`check_not_run` is in N) | *"stats check-fail row"* |
+| `--check` by default / `--no-check` | **ADR-054 Accepted** — CLI default when a check exists and a written path is not prose; §89 | — (M 2026-09-13: *"accepted"*; T1) |
+| Delimiter-balance delta in the receipt | **ADR-054 Accepted** — visibility, not refuse; omitted on prose; a balanced insert is invisible to it; §90 | — (T2) |
+| `stats` row: applied then a failing check | **ADR-054 Accepted** — every name at zero + landed line (`check_not_run` is in N); §91 | — (T3) |
 | Neighbour license on a single-line address | **open question** — not a proposed fix; three Zeus cases would not have fired | — |
 | Streaming apply | **ADR-049 Accepted** — record only | — (T1 receipts 2026-09-12; still waits for a size that hurts) |
 | Windows `%LOCALAPPDATA%` | **ADR-050 Accepted** — record only | — (T1 receipts 2026-09-12; XDG stays) |
@@ -1518,9 +1518,13 @@ that mitigation. ADR-054 takes option 2 after the 2026-09-13 review: default
 only when a written path is not prose; a Zeus `.rs` write still pays the
 whole-project cargo command.
 
-Engine work stays unimplemented until Accept names ADR-054. This
-section is the receipt; the Proposed record is
-`docs/adr/ADR-054-a-write-that-applied-can-still-leave-a-broken-tree.md`.
+Accepted 2026-09-13 by M (*"accepted"*) and executed the same day as
+contract §89–§91: `--no-check`, `apply.IsProse`, `HunkResult.Balance`,
+`authoring.Vocabulary` / `Tally.Landed`. This section is the receipt; the
+record is `docs/adr/ADR-054-a-write-that-applied-can-still-leave-a-broken-tree.md`.
+Twenty-two contract rows that write `.go` into the `go.mod` fixture now say
+`--no-check`: they assert apply semantics, and the inferred `go test` would
+otherwise fail them at 3.
 
 - **`--check` runs by default; `--no-check` opts out.** The only existing
   mechanism that would have caught all three, in the turn that caused them.

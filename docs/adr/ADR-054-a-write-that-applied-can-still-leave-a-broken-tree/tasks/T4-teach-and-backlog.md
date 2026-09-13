@@ -26,7 +26,7 @@
 ## Ordered Steps
 
 1. [S1] Write `TestWriteHelpNamesNoCheck` (or extend the existing help test) and confirm it is RED. [proof: mutation]
-2. [S2] Teach on `write --help` and README. Un-strike `TestWriteHelpNamesNoCheck` when it exists. Confirm S1 GREEN. Deleting `--no-check` from Description must fail S1. [proof: mutation]
+2. [S2] Teach on `write --help` and README. Confirm S1 GREEN. Deleting `--no-check` from Description must fail S1. [proof: mutation]
 3. [S3] Point BACKLOG inventory at ADR-054. `gofmt` / `go vet` unpiped. [proof: acceptance]
 
 ## Acceptance
@@ -47,7 +47,7 @@ go test ./cmd/mrw/ -count=1 -v -run 'TestWriteHelpNamesNoCheck|TestWriteHelpName
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| ~~`TestWriteHelpNamesNoCheck`~~ | `cmd/mrw/writehelp_test.go` | not yet written — Proposed; T4 S1 writes it | — | S1, S2 |
+| `TestWriteHelpNamesNoCheck` | `cmd/mrw/writehelp_test.go` | `--help` names `--no-check`, the default, prose, and that balance does not fail the hunk | — | S1, S2 |
 | `TestWriteHelpNamesHowToQuoteAHeaderOption` | `cmd/mrw/writehelp_test.go` | ADR-040 still holds | — | S2 |
 
 ## Reachability
@@ -60,8 +60,8 @@ go test ./cmd/mrw/ -count=1 -v -run 'TestWriteHelpNamesNoCheck|TestWriteHelpName
 | 4 — it is used | PATH callers; nothing measures this yet |
 
 ## Mutation Log
-
 (empty until execute)
+- 2026-09-13 · e202913* · mutant killed · exit 1 · `cmd/mrw/main.go` · the flag name is misspelt in write --help: a PATH caller reading the help cannot learn --no-check, and TestWriteHelpNamesNoCheck must go red · acceptance-sha256:61eecab372454ff2e91fa4f2cb6bf2c80b5ee07ec8102ae409b887ef52d23af8
 
 ## Invariants
 
@@ -83,5 +83,19 @@ If teaching requires raising 4096, stop.
 - MCP handshake
 
 ## Verification Log
-
 (empty until execute)
+- 2026-09-13 · e202913* · exit 1 · `set -o pipefail …` · acceptance-sha256:61eecab372454ff2e91fa4f2cb6bf2c80b5ee07ec8102ae409b887ef52d23af8 · ms:372 · test-lock-sha256:c23b36055de0b88f3ece05ed8171d639ac21a9b58b466aea3baabd79d0895f49 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwp1bnByb3ZlbgljbWQvbXJ3L3dyaXRlaGVscF90ZXN0LmdvCVRlc3RXcml0ZUhlbHBOYW1lc0hvd1RvUXVvdGVBSGVhZGVyT3B0aW9uCnVucHJvdmVuCWNtZC9tcncvd3JpdGVoZWxwX3Rlc3QuZ28JVGVzdFdyaXRlSGVscE5hbWVzTm9DaGVjaw
+  ```
+  --- last 10 line(s) of stdout (of 197 after folding 197 raw)
+          --format=search_replace compiles an Aider SEARCH/REPLACE document
+          (<<<<<<< SEARCH / ======= / >>>>>>> REPLACE) the same way. Default --format is plan.
+          
+          --echo-pad N prints N lines after an applied body so a surviving closer is
+          visible. Default 0. It is not a checker: a closer in the pad does not fail
+          the hunk. Negative is usage.
+  --- FAIL: TestWriteHelpNamesNoCheck (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.169s
+  FAIL
+  ```
+- 2026-09-13 · e202913* · exit 0 · `set -o pipefail …` · acceptance-sha256:61eecab372454ff2e91fa4f2cb6bf2c80b5ee07ec8102ae409b887ef52d23af8 · ms:743

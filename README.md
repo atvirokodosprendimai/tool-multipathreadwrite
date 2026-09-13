@@ -101,7 +101,7 @@ A plan is a sequence of hunks. Every address resolves against the original file
 ```sh
 mrw write plan.mrw
 mrw write --dry-run plan.mrw
-mrw write --check plan.mrw
+mrw write --no-check plan.mrw
 mrw write --json plan.mrw
 mrw write -
 ```
@@ -142,6 +142,11 @@ These are gates, not a tour of the records behind them.
   `--echo-pad N` (MCP `echo_pad`, default 0) prints N lines after an applied
   body so a surviving closer is visible; the hunk stays `ok`. The pad is not a
   checker.
+- **Check by default.** A CLI write to a non-prose path runs the project's
+  check when one exists; `--no-check` opts out; a markdown-only plan does not
+  spawn it. A non-prose hunk whose `{}` `()` `[]` nets moved prints a balance
+  row and stays `ok` — a balanced insert in the wrong place is invisible to it.
+  `mrw stats` prints `failed_check` at zero and a landed-writes line.
 - **Check miss refuses.** An in-root `mrw check` miss is exit 2 and names the
   path — not a silent whole-project PASS.
 - **The process is the verdict.** A check that prints `PASS` and exits 1 is a
@@ -240,7 +245,7 @@ Line-number, range and `$` addresses are unaffected.
 | 0 | everything asked for succeeded |
 | 1 | a hunk failed, or the answer is incomplete; **nothing written** |
 | 2 | usage, parse or I/O error — including a check miss |
-| 3 | the write applied and `--check` failed; the tree is changed and unverified. Not a rollback |
+| 3 | the write applied and the check failed; the tree is changed and unverified. Not a rollback |
 
 Exit 1 on `read` means incomplete: `UNREADABLE`, `REFUSED`, `no match`, or
 `WITHHELD`. The output always names which.
