@@ -182,7 +182,9 @@ the UNREADABLE line too, but by then you have spent a call.
 
 Every hunk gets a verdict. If any hunk fails, **nothing is written at all** and
 the siblings report `skip`, never `ok`. Ops are `replace`, `insert-after`,
-`insert-before`, `delete`, `create`. Only `delete` may carry no body: a lost
+`insert-before`, `delete`, `create`, `unlink`, `rename`. `@@ path - unlink`
+removes the path (empty body OK). `@@ old - rename` with a one-line dest body
+moves it. Only `delete` may carry no body among the line-range ops: a lost
 body reads exactly like one never written, so an empty file is spelled
 `@@ new.txt 0 create body=0`, and a bare `create` with nothing under it is
 refused and leaves no file behind.

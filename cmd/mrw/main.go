@@ -774,7 +774,8 @@ func writeCmd() *cli.Command {
   @@ <path> <addr> <op> [sha=… lines=… anchor=… body=…]
   <body lines>
 
-Ops are replace, insert-after, insert-before, delete and create. Addresses are
+Ops are replace, insert-after, insert-before, delete, create, unlink and rename.
+unlink and rename take address - (a hyphen, no line number). Other addresses are
 1-based and inclusive, and every one of them resolves against the ORIGINAL
 file — so several hunks in one file need no offset arithmetic.
 
@@ -1033,10 +1034,18 @@ held or went unchecked.`,
 				// every line, so the observation covers the whole file and a
 				// chain of edits needs no re-read between steps.
 				wrote := map[string]seen.Observation{}
+				var gone []string
 				for _, f := range res.Files {
+					if f.Removed {
+						gone = append(gone, f.Path)
+						continue
+					}
 					if f.Written {
 						wrote[f.Path] = seen.Observation{SHA: f.SHAAfter}
 					}
+				}
+				if err := seen.Drop(root, gone); err != nil {
+					return cli.Exit(err, exitUsage)
 				}
 				if err := seen.Record(root, wrote); err != nil {
 					return cli.Exit(err, exitUsage)
@@ -1045,14 +1054,7 @@ held or went unchecked.`,
 
 			receipt := receipt{Result: res}
 			if res.Applied && res.Failed == 0 && !cmd.Bool("no-check") {
-				var written []string
-				code := false // at least one written path is not prose
-				for _, f := range res.Files {
-					if f.Written {
-						written = append(written, f.Path)
-						code = code || !apply.IsProse(f.Path)
-					}
-				}
+				written, code := writeCheckPaths(res.Files)
 				cfg, err := check.Load(root)
 				if err != nil {
 					return cli.Exit(err, exitUsage)
@@ -1154,6 +1156,42 @@ func patternLine(entries []authoring.RecentEntry) string {
 		return ""
 	}
 	return fmt.Sprintf("pattern: %d of your last %d writes carried a balance advisory — read past the range before the next one", k, n)
+}
+
+// writeCheckPaths is the check's working set after a write. Unlinked and
+// rename sources are gone, so confine cannot Stat them; their parent
+// directory still exists and is what the check can honour. A rename dest is
+// a Written file of its own. The source's extension still sets `code`: a
+// .go renamed to .txt removed code.
+func writeCheckPaths(files []apply.FileResult) (paths []string, code bool) {
+	seen := map[string]bool{}
+	add := func(p string) {
+		if p == "" || seen[p] {
+			return
+		}
+		seen[p] = true
+		paths = append(paths, p)
+	}
+	for _, f := range files {
+		if f.Removed {
+			// Unlink and rename sources are gone. Their parent directory
+			// still exists, and the source's own extension is what decides
+			// whether the default check runs — a .go renamed to .txt still
+			// removed code.
+			dir := filepath.Dir(f.Path)
+			if dir == "" {
+				dir = "."
+			}
+			add(dir)
+			code = code || !apply.IsProse(f.Path)
+			continue
+		}
+		if f.Written {
+			add(f.Path)
+			code = code || !apply.IsProse(f.Path)
+		}
+	}
+	return paths, code
 }
 
 // receipt is what one write produced: the edit and, when asked for, the
@@ -1434,6 +1472,9 @@ func report(w *os.File, res apply.Result, quiet bool) {
 			verb := "wrote"
 			if f.Created {
 				verb = "created"
+			}
+			if f.Removed {
+				verb = "removed"
 			}
 			fmt.Fprintf(out, "%s %s  %dL -> %dL  sha %s\n", verb, f.Path, f.LinesFrom, f.LinesTo, short(f.SHAAfter))
 		}

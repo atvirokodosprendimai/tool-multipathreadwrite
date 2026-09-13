@@ -179,8 +179,8 @@ Class notes sit in the assertion. Members that behave differently are their own 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
 | F-1 | The ingested envelope is `*** Begin Patch` … `*** End Patch`. Non-blank text before or after is a compile refusal. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
-| F-2 | This slice ingests `*** Update File:` and `*** Add File:` only. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
-| F-3 | `*** Delete File:` and `*** Move to:` are compile refusals (exit 2). Emptying a file is not a delete. Deferred until an unlink op. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-2 | This slice ingests `*** Update File:` and `*** Add File:`. `*** Delete File:` and hunk-less `*** Move to:` compile as ADR-057. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-3 | `*** Delete File: p` compiles to `@@ p - unlink`. `*** Move to: q` after `*** Update File: p` with an empty hunk compiles to `@@ p - rename`. Extra `@@` hunks with Move to are a compile refusal naming hunks. Emptying a file is still not a delete. | `internal/ingest/applypatch_unlink_test.go::TestCompileDeleteFileIsUnlink` | @implemented | |
 | F-4 | `*** End of File` is not a marker. A line so named is unexpected or an illegal hunk line. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
 | F-5 | A line beginning `@@` is a hunk delimiter only. Any ChangeContext after `@@` is discarded. Location is the unique old-side run, never that trailer. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
 | F-6 | Old side = context (` `) plus minus lines, prefixes stripped. New side = context plus plus lines. Add File accepts plus lines only. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
@@ -229,7 +229,8 @@ ADR-051 Wiring inherits this. No exit-code change: compile refuse = 2; unread co
 - Auto-detect vs explicit flag (permanent: boundary: ADR-051 picked the flag)
 - Treating a git patch as an `apply_patch` (permanent: boundary: they share `@@` and they are not the same grammar)
 - Treating SEARCH/REPLACE as apply_patch compile (permanent: boundary: F-26 is a second `--format`)
-- `*** Delete File:` / `*** Move to:` (deferred: docs/adr/BACKLOG.md)
+- Native unlink/rename for Delete File / hunk-less Move to (permanent: fact: ADR-057; citation: file `docs/adr/ADR-057-unlink-and-rename.md:31`)
+- Move to with in-file hunks (deferred: docs/adr/BACKLOG.md "Move to with hunks")
 - A third MCP tool named apply_patch (permanent: fact: ADR-044; citation: file `docs/adr/ADR-044-mcp-cargo-stays-two-tools.md:7`)
 - ast-grep-shaped `--grep` (deferred: docs/adr/BACKLOG.md)
 - Raising `maxInstructionsChars` / 4096 (permanent: boundary: ADR-037; 4096 stays)

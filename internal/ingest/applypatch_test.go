@@ -174,14 +174,22 @@ func TestCompileApplyPatchRules(t *testing.T) {
 		}
 	})
 
-	t.Run("delete and move are compile refusals", func(t *testing.T) {
+	t.Run("delete and move compile to path ops", func(t *testing.T) {
 		del := "*** Begin Patch\n*** Delete File: a.go\n*** End Patch\n"
-		if _, err := CompileApplyPatch(root, []byte(del)); err == nil || !strings.Contains(err.Error(), "Delete File") {
+		planText, err := CompileApplyPatch(root, []byte(del))
+		if err != nil {
 			t.Fatalf("Delete File: %v", err)
 		}
+		if !strings.Contains(string(planText), "@@ a.go - unlink") {
+			t.Fatalf("Delete File compiled:\n%s", planText)
+		}
 		mov := "*** Begin Patch\n*** Update File: a.go\n*** Move to: b.go\n*** End Patch\n"
-		if _, err := CompileApplyPatch(root, []byte(mov)); err == nil || !strings.Contains(err.Error(), "Move to") {
+		planText, err = CompileApplyPatch(root, []byte(mov))
+		if err != nil {
 			t.Fatalf("Move to: %v", err)
+		}
+		if !strings.Contains(string(planText), "@@ a.go - rename") {
+			t.Fatalf("Move to compiled:\n%s", planText)
 		}
 		got, err := os.ReadFile(filepath.Join(root, "a.go"))
 		if err != nil {

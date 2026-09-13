@@ -52,6 +52,21 @@ func Resolve(root, path string) (string, error) {
 	check := full
 	if real, err := filepath.EvalSymlinks(full); err == nil {
 		check = real
+	} else {
+		// A missing leaf is checked through the deepest existing ancestor.
+		// EvalSymlinks(full) fails for create/rename dests that are not there
+		// yet; walking up is what stops `link/new` from being judged lexical
+		// when `link` is a symlink out of the root.
+		for p := filepath.Dir(full); ; p = filepath.Dir(p) {
+			if real, err := filepath.EvalSymlinks(p); err == nil {
+				check = real
+				break
+			}
+			parent := filepath.Dir(p)
+			if parent == p {
+				break
+			}
+		}
 	}
 	if !Contains(absRoot, check) {
 		return "", fmt.Errorf("%s resolves to %s, which is outside the root %s", path, check, absRoot)

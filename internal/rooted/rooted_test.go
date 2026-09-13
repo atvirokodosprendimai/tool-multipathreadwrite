@@ -78,6 +78,24 @@ func TestResolveRefusesASymlinkOutOfTheRoot(t *testing.T) {
 	}
 }
 
+func TestResolveRefusesAMissingChildUnderAnOutboundSymlink(t *testing.T) {
+	outer := t.TempDir()
+	root := filepath.Join(outer, "repo")
+	outside := filepath.Join(outer, "out")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if _, err := Resolve(root, filepath.Join("link", "new.go")); err == nil {
+		t.Error("a missing child under a symlink out of the root was accepted")
+	}
+}
+
 // The separator in the prefix check is load-bearing: without it a sibling whose
 // name merely STARTS with the root's counts as inside.
 func TestASiblingWithASharedPrefixIsOutside(t *testing.T) {

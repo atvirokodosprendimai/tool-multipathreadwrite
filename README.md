@@ -106,8 +106,10 @@ mrw write --json plan.mrw
 mrw write -
 ```
 
-Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`. Only
-`delete` may carry no body: a lost body reads like one never written, so an
+Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`,
+`unlink`, `rename`. `@@ path - unlink` removes the path. `@@ old - rename`
+with a one-line dest body moves it. Only `delete` may carry no body among
+the line-range ops: a lost body reads like one never written, so an
 empty file is `@@ new.txt 0 create body=0`. A bare `create` with nothing under
 it is refused and leaves no file behind.
 

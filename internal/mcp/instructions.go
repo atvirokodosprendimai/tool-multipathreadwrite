@@ -96,7 +96,7 @@ see it and mrw cannot tell, but you can.
 WRITING. mrw_write takes one plan and those ck ids as ack. Optional format: plan (default), apply_patch, or search_replace. git is refused. Each hunk is a header line
 
     @@ <path> <address> <op> [guards]
-then its body lines. Ops: replace, insert-after, insert-before, delete, create.
+then its body lines. Ops: replace, insert-after, insert-before, delete, create, unlink, rename.
 An address is a line number, an N-M range, A,+N (ONE start
 plus the N lines after; a read clamps at the last line, a write refuses past
 it), $ for the last, or a PATTERN — /regexp/ for one line, /from/,/to/ for

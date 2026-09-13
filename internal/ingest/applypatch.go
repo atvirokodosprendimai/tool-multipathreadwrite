@@ -68,8 +68,33 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 				return nil, err
 			}
 			path, kind = "", ""
-		case strings.HasPrefix(line, deleteFile), strings.HasPrefix(line, moveTo):
-			return nil, fmt.Errorf("apply_patch: %s is not compiled this slice (mrw has no unlink)", trimStar(line))
+		case strings.HasPrefix(line, deleteFile):
+			if err := flush(); err != nil {
+				return nil, err
+			}
+			p := strings.TrimSpace(strings.TrimPrefix(line, deleteFile))
+			text, err := compilePathOp("unlink", p, nil)
+			if err != nil {
+				return nil, err
+			}
+			out.WriteString(text)
+			path, kind = "", ""
+			hunk = nil
+		case strings.HasPrefix(line, moveTo):
+			if kind != "update" || path == "" {
+				return nil, fmt.Errorf("apply_patch: %s with no Update File", trimStar(line))
+			}
+			if len(hunk) > 0 {
+				return nil, fmt.Errorf("apply_patch: Move to with hunks is not compiled this slice")
+			}
+			dest := strings.TrimSpace(strings.TrimPrefix(line, moveTo))
+			text, err := compilePathOp("rename", path, []string{dest})
+			if err != nil {
+				return nil, err
+			}
+			out.WriteString(text)
+			kind = "moved"
+			hunk = nil
 		case strings.HasPrefix(line, updateFile):
 			if err := flush(); err != nil {
 				return nil, err
@@ -88,6 +113,9 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			if path == "" {
 				return nil, fmt.Errorf("apply_patch: hunk with no file")
 			}
+			if kind == "moved" {
+				return nil, fmt.Errorf("apply_patch: Move to with hunks is not compiled this slice")
+			}
 			if kind == "update" && len(hunk) > 0 {
 				if err := flush(); err != nil {
 					return nil, err
@@ -101,7 +129,9 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 		case kind == "update" || kind == "add":
 			hunk = append(hunk, line)
 		case strings.TrimSpace(line) == "":
-			// leading blank inside the envelope
+			// leading blank inside the envelope; trailing blank after Move to
+		case kind == "moved":
+			return nil, fmt.Errorf("apply_patch: Move to with hunks is not compiled this slice")
 		default:
 			return nil, fmt.Errorf("apply_patch: unexpected line %q", line)
 		}
@@ -140,6 +170,26 @@ func patchBody(s string) (string, error) {
 func looksLikeGit(s string) bool {
 	t := strings.TrimSpace(s)
 	return strings.HasPrefix(t, "diff --git") || strings.HasPrefix(t, "--- a/") || strings.Contains(s, "\n--- a/")
+}
+
+func compilePathOp(op, path string, body []string) (string, error) {
+	if path == "" {
+		return "", fmt.Errorf("apply_patch: empty path")
+	}
+	if rooted.IsRooted(path) {
+		return "", fmt.Errorf("apply_patch: %s is not relative to the root", path)
+	}
+	if op == "rename" {
+		if len(body) != 1 || strings.TrimSpace(body[0]) == "" {
+			return "", fmt.Errorf("apply_patch: Move to needs a dest path")
+		}
+		dest := strings.TrimSpace(body[0])
+		if rooted.IsRooted(dest) {
+			return "", fmt.Errorf("apply_patch: %s is not relative to the root", dest)
+		}
+		body = []string{dest}
+	}
+	return emitPath(op, path, body), nil
 }
 
 func compileHunk(root, path, kind string, hunk []string) (string, error) {
@@ -255,13 +305,23 @@ func findUnique(lines, old []string) (start, end, n int) {
 	return start, end, n
 }
 
+func emitPath(op, path string, body []string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "@@ %s - %s\n", quotePlanPath(path), op)
+	for _, line := range body {
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
 func emit(op, path string, start, end int, body []string, anchor string) string {
 	var b strings.Builder
 	addr := fmt.Sprintf("%d", start)
 	if op != "create" && end != start {
 		addr = fmt.Sprintf("%d-%d", start, end)
 	}
-	fmt.Fprintf(&b, "@@ %s %s %s", path, addr, op)
+	fmt.Fprintf(&b, "@@ %s %s %s", quotePlanPath(path), addr, op)
 	if anchor != "" {
 		fmt.Fprintf(&b, " %s", quoteAnchor(anchor))
 	}
@@ -284,6 +344,15 @@ func emit(op, path string, start, end int, body []string, anchor string) string 
 		b.WriteByte('\n')
 	}
 	return b.String()
+}
+
+func quotePlanPath(p string) string {
+	if !strings.ContainsAny(p, " \t\"") {
+		return p
+	}
+	esc := strings.ReplaceAll(p, `\`, `\\`)
+	esc = strings.ReplaceAll(esc, `"`, `\"`)
+	return `"` + esc + `"`
 }
 
 func quoteAnchor(s string) string {

@@ -39,16 +39,14 @@ bundle: **a report that cannot fail is not a report.**
 
 ## Shapes A–D
 
-Measured on this tree at **`9f854a5`** (2026-09-13), with a binary the script
-built from it. Set `MRW` to measure a binary from somewhere else and the header
-says so.
-
-Round trips are unchanged from the v1.15.0 README table: **2 calls for any N.**
-Bytes moved because the tree grew. Shape D is **74** Go files, not 55.
+Measured on this tree at **`30b927f`** (2026-09-13), with PATH `mrw` v1.18.0
+(`a5c4f24`) supplied via `$MRW`. The script header says the binary was not
+built from this tree. Round trips are still **2 calls for any N.** Bytes moved
+because the tree grew. Shape D is **82** Go files, not 74.
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 163,266 | 2,918 | **56.0× less** |
+| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 178,301 | 2,918 | **61.1× less** |
 | | bytes vs a **windowed** `offset`/`limit` read | 2,254 | 2,918 | **1.3× MORE** |
 | | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
 | | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
@@ -57,15 +55,15 @@ Bytes moved because the tree grew. Shape D is **74** Go files, not 55.
 | | calls | 4 / 5 | 2 | 2.0–2.5× fewer |
 | **C.** 1 site, whole small file | bytes (window *is* the whole file) | 13,473 | 16,462 | **1.2× MORE** |
 | | calls | 2 / 3 | 2 | same to 1.5× fewer |
-| **D.** 1 site in **every** Go file — 74 sites, 74 files | calls (reads + edits) | 148 | 2 | **74.0× fewer** |
-| | bytes vs whole | 1,083,923 | 6,503 | 166.7× less |
-| | bytes vs windowed | 1,047 | 6,503 | **6.2× MORE** |
+| **D.** 1 site in **every** Go file — 82 sites, 82 files | calls (reads + edits) | 164 | 2 | **82.0× fewer** |
+| | bytes vs whole | 1,182,566 | 7,238 | 163.4× less |
+| | bytes vs windowed | 1,165 | 7,238 | **6.2× MORE** |
 
 **Shape D is the one to read, and read it for the CALLS, not the bytes.** It is
 the change every codebase gets eventually — a renamed symbol, an added build
 tag, a changed import — one site in each Go file. Its `6.2× MORE` is mrw's
-worst possible input by construction: 74 files at ONE line each, so a per-file
-header and a per-file receipt are charged against 1,047 bytes of payload.
+worst possible input by construction: 82 files at ONE line each, so a per-file
+header and a per-file receipt are charged against 1,165 bytes of payload.
 
 **Shape C is in the table on purpose.** When you need a whole file and there is
 one site, mrw prints *more* than the file holds — it adds a header and a line
@@ -113,11 +111,11 @@ it collapses as the span approaches the whole file.
 
 ## Campaign identity
 
-A break campaign of **47 probes** (`scripts/break-campaign.sh`, run in
-`docs/break/campaign-v1.15.0.txt`) found no silent wrong write, and every
-refusal names its reason. Re-run 2026-09-13 against PATH `mrw` v1.15.0
-(`31422d8`): names and exits **identical** to the v1.14.0 run. Histogram:
-exit=0 ×27, exit=1 ×14, exit=2 ×6.
+A break campaign of **47 probes** (`scripts/break-campaign.sh`) found no silent
+wrong write, and every refusal names its reason. Re-run 2026-09-13 against PATH
+`mrw` v1.18.0 (`a5c4f24`): names and exits **identical** to the tagged
+`docs/break/campaign-v1.18.0.txt` (and to v1.17.0). Same histogram: exit=0 ×27,
+exit=1 ×14, exit=2 ×6.
 
 That identity is evidence of no *unintended* change, not that the campaign
 covers every later record. The receipts live in `docs/break/`.
