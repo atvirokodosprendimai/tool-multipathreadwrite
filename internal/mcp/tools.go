@@ -582,6 +582,10 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// The MCP receipt is structured and carries `advisories`; the
 		// pattern line itself is CLI and stats (BACKLOG).
 		_ = authoring.RecordRecent(root, res.Advisories)
+		// ADR-056: priced as unchecked — this surface never runs a check.
+		if !a.StrictBalance {
+			_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)
+		}
 	}
 
 	switch {

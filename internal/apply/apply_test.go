@@ -2587,3 +2587,56 @@ func TestStrictBalanceIsOffByDefault(t *testing.T) {
 		t.Errorf("without the flag: failed=%d balance=%q advisories=%d; want applied with a row", res.Failed, res.Hunks[0].Balance, res.Advisories)
 	}
 }
+
+// ── ADR-056 T2: pricing --strict-balance ────────────────────────────────────
+
+// The engine counts, per run, the ok single-line non-prose replaces (what the
+// flag looks at) and those the flag would have refused — with the SAME
+// predicate the flag uses. Neither is a receipt field. With the flag on the
+// signature is refused, so both are zero: a refused hunk is not ok.
+func TestStrictWouldRefuseIsCountedOnlyWhenTheFlagIsOff(t *testing.T) {
+	sig := []string{"func A() { return }"}
+	cases := []struct {
+		name          string
+		path, content string
+		in            Input
+		opt           Options
+		single, would int
+		failed        int
+	}{
+		{"signature, flag off", "f.go", "func A() {\n\treturn\n}\n",
+			Input{Path: "f.go", Start: 1, End: 1, Op: "replace", Body: sig, Lines: -1}, Options{}, 1, 1, 0},
+		{"balanced single-line", "f.go", "func A() {\n\treturn\n}\n",
+			Input{Path: "f.go", Start: 1, End: 1, Op: "replace", Body: []string{"func B() {"}, Lines: -1}, Options{}, 1, 0, 0},
+		{"multi-line address", "f.go", "func A() {\n\treturn\n}\n",
+			Input{Path: "f.go", Start: 1, End: 2, Op: "replace", Body: sig, Lines: -1, Anchor: "func A"}, Options{}, 0, 0, 0},
+		{"prose", "n.md", "func A() {\n\treturn\n}\n",
+			Input{Path: "n.md", Start: 1, End: 1, Op: "replace", Body: sig, Lines: -1}, Options{}, 0, 0, 0},
+		{"signature, flag on", "f.go", "func A() {\n\treturn\n}\n",
+			Input{Path: "f.go", Start: 1, End: 1, Op: "replace", Body: sig, Lines: -1}, Options{StrictBalance: true}, 0, 0, 1},
+	}
+	for _, c := range cases {
+		root := t.TempDir()
+		write(t, root, c.path, c.content)
+		res, err := Apply(root, []Input{c.in}, c.opt)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if res.Failed != c.failed || res.StrictSingleLine != c.single || res.StrictWouldRefuse != c.would {
+			t.Errorf("%s: failed=%d single=%d would=%d, want %d/%d/%d", c.name, res.Failed, res.StrictSingleLine, res.StrictWouldRefuse, c.failed, c.single, c.would)
+		}
+		// The counters must not be receipt KEYS. Decode and look at the keys:
+		// the refusal reason says "strict-balance", and the temp root carries
+		// this test's own name, so a substring search would lie both ways.
+		js, _ := json.Marshal(res)
+		var keys map[string]json.RawMessage
+		if err := json.Unmarshal(js, &keys); err != nil {
+			t.Fatal(err)
+		}
+		for k := range keys {
+			if strings.HasPrefix(strings.ToLower(k), "strict") {
+				t.Errorf("%s: pricing input %q leaked into the receipt as a key", c.name, k)
+			}
+		}
+	}
+}

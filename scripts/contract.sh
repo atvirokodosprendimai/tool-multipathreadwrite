@@ -5578,6 +5578,36 @@ pat=$(python3 -c 'import json,sys; print(json.dumps(json.loads(sys.argv[1].split
 [ "$pat" = '{"advisory_writes": 3, "fires": true, "window": 3}' ] \
   && ok "the mrw_write receipt carries pattern {3,3,true} on the third" || bad "MCP pattern: $pat"
 
+# 96. ADR-056: the tally prices --strict-balance as writes land, counts only.
+# Pair: a --no-check delta write -> stats shows 1 candidate, 1 would-refuse,
+# unchecked 1 / a clean single-line write -> candidates 2, would-refuse still
+# 1 / a --strict-balance delta write is refused and NOT priced (unchanged) /
+# --json carries the five keys / the pricing file is `strict_<name> N` lines.
+R=$(mktemp -d "$WORK/r96-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+printf '%s\n' '@@ f.go 1 replace anchor="func A"' 'func A() { return }' | m write --no-check - >/dev/null 2>&1; rc=$?
+want 0 "$rc" "priced delta write exits 0"
+out=$(m stats 2>&1)
+grep -q 'strict-balance pricing: 1 landed writes with a single-line code replace; the flag would have refused 1 — broke 0, held 0, unchecked 1' <<<"$out" \
+  && ok "stats prices the delta write as would-refuse, unchecked" || bad "pricing after one write: $out"
+grep -q 'no checked refusals yet' <<<"$out" && ok "no rate is reported on no checked evidence" || bad "rate on no evidence: $out"
+
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+printf '%s\n' '@@ f.go 1 replace anchor="func A"' 'func B() {' | m write --no-check - >/dev/null 2>&1; rc=$?
+want 0 "$rc" "clean single-line write exits 0"
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+printf '%s\n' '@@ f.go 1 replace anchor="func A"' 'func A() { return }' | m write --no-check --strict-balance - >/dev/null 2>&1; rc=$?
+want 1 "$rc" "--strict-balance write is refused"
+jout=$(m stats --json 2>/dev/null)
+[ "$(jq -c '[.pricing.strict_candidates,.pricing.strict_would_refuse,.pricing.strict_would_refuse_broke,.pricing.strict_would_refuse_held,.pricing.strict_would_refuse_unchecked]' <<<"$jout")" = '[2,1,0,0,1]' ] \
+  && ok "--json pricing is [2,1,0,0,1]: the clean write is a candidate, the flagged write is not priced" || bad "pricing json: $(jq -c .pricing <<<"$jout")"
+pf="$(m seen | head -1)/pricing"
+[ -f "$pf" ] && [ "$(grep -cE '^strict_[a-z_]+ [0-9]+$' "$pf")" = "5" ] && [ "$(wc -l < "$pf" | tr -d ' ')" = "5" ] \
+  && ok "the pricing file is five strict_<name> N lines" || bad "pricing file: $(cat "$pf" 2>&1)"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

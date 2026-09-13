@@ -614,3 +614,78 @@ func TestStatsLandedLineUsesAppliedPlusFailedCheckPlusCheckNotRun(t *testing.T) 
 		}
 	}
 }
+
+// ADR-056 T2: four real writes and the block stats prints for them. A --no-check
+// delta (unchecked); a checked delta in a tree whose check fails (broke); a
+// clean single-line replace (candidate, not refused); a --strict-balance delta
+// (refused: not landed, not priced). Then the block and its JSON.
+func TestStatsPricesStrictBalance(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := grepTree(t, map[string]string{
+		"f.go":                  "func A() {\n\treturn\n}\n",
+		".quality-harness.json": `{"check":"exit 3"}`,
+	})
+	reset := func() {
+		if err := os.WriteFile(filepath.Join(root, "f.go"), []byte("func A() {\n\treturn\n}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := readIn(t, root, "f.go"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const delta = "@@ f.go 1 replace anchor=\"func A\"\nfunc A() { return }\n"
+	const clean = "@@ f.go 1 replace anchor=\"func A\"\nfunc B() {\n"
+	steps := []struct {
+		args []string
+		plan string
+		exit int
+	}{
+		{[]string{"--no-check"}, delta, 0},
+		{nil, delta, 3},
+		{[]string{"--no-check"}, clean, 0},
+		{[]string{"--no-check", "--strict-balance"}, delta, 1},
+	}
+	for i, s := range steps {
+		reset()
+		out, code := writeIn(t, root, append(s.args, planFile(t, s.plan))...)
+		if code != s.exit {
+			t.Fatalf("write %d: exit %d, want %d:\n%s", i+1, code, s.exit, out)
+		}
+	}
+
+	st, err := statsIn(t, root)
+	if err != nil {
+		t.Fatalf("stats: %v\n%s", err, st)
+	}
+	for _, want := range []string{
+		"strict-balance pricing: 3 landed writes with a single-line code replace; the flag would have refused 2 — broke 1, held 0, unchecked 1",
+		"false positives 0 of 1 checked (0.0%)",
+		"pre-registered bar",
+	} {
+		if !strings.Contains(st, want) {
+			t.Errorf("stats lacks %q:\n%s", want, st)
+		}
+	}
+	js, err := statsIn(t, root, "--json")
+	if err != nil {
+		t.Fatalf("stats --json: %v\n%s", err, js)
+	}
+	var got struct {
+		Pricing *struct {
+			Candidates  int `json:"strict_candidates"`
+			WouldRefuse int `json:"strict_would_refuse"`
+			Broke       int `json:"strict_would_refuse_broke"`
+			Held        int `json:"strict_would_refuse_held"`
+			Unchecked   int `json:"strict_would_refuse_unchecked"`
+		} `json:"pricing"`
+	}
+	if err := json.Unmarshal([]byte(js), &got); err != nil {
+		t.Fatalf("stats --json is not JSON: %v\n%s", err, js)
+	}
+	if got.Pricing == nil {
+		t.Fatalf("stats --json has no pricing:\n%s", js)
+	}
+	if p := *got.Pricing; p.Candidates != 3 || p.WouldRefuse != 2 || p.Broke != 1 || p.Held != 0 || p.Unchecked != 1 {
+		t.Errorf("pricing json = %+v, want 3/2/1/0/1", p)
+	}
+}
