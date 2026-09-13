@@ -42,7 +42,8 @@ that arms work; silence leaves the row where it is.
 | Generate AGENTS.md from `Shared()` | **ADR-045 Accepted** — still refuse the tax | — (T1 receipts 2026-09-12; no generator) |
 | Host-cut under ceiling | **ADR-046 Accepted** — measure, not a lock | — (2026-09-12: live cut not observed; no ack change) |
 | Python `str` body character-split | **ADR-047 Accepted** — taught in 040 help | — (T1 receipts 2026-09-12; already taught) |
-| Syntax awareness | **ADR-048 Accepted** — record only | — (T1 receipts 2026-09-12; no parser) |
+| Syntax awareness | **ADR-048 Accepted** — record only | — (T1 receipts 2026-09-12; no parser). Neighbour license is ADR-052, not a parser. |
+| Padded write echo / neighbour license | **ADR-052 Accepted** — opt-in `--echo-pad`; End+1 license | — (M 2026-09-13: *"echo, license"*) |
 | Streaming apply | **ADR-049 Accepted** — record only | — (T1 receipts 2026-09-12; still waits for a size that hurts) |
 | Windows `%LOCALAPPDATA%` | **ADR-050 Accepted** — record only | — (T1 receipts 2026-09-12; XDG stays) |
 | Foreign plan grammars / `apply_patch` | **ADR-051 Accepted** — compile to `@@`; first slice is `--format=apply_patch` | — (this steal; not Morph, not syntax-write) |
@@ -1036,6 +1037,10 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   lines and understands none of them — so it does not cross that line. Whether it is worth its bytes
   is the open question. Anyone taking it up needs a record, an opt-in shape (a flag, not a default),
   and a contract row.
+
+  **Receipted 2026-09-13 as ADR-052** — M said *"echo, license"*. Opt-in `--echo-pad` /
+  `echo_pad` (default 0); a multi-line replace without a served line after End is refused.
+  Still not a checker.
 
 - **UNMEASURED, and deliberately not written into the docs: a balanced-but-wrongly-nested JSX
   subtree.** Predicted by the React session to be valid TypeScript that renders differently — `tsc`

@@ -28,7 +28,7 @@ Audited and **NOT taken** as an engine change this turn. The primitive that alre
 
 ## Decision
 
-Record the refusal. Do **not** write a syntax-aware parser this turn. mrw puts the lines you gave where you said. Wrap-tail stays teaching.
+Record the refusal. Do **not** write a syntax-aware parser this turn. mrw puts the lines you gave where you said. Wrap-tail stays teaching except the neighbour license in ADR-052.
 
 ## Alternatives Considered
 
@@ -60,7 +60,7 @@ See `docs/adr/ADR-048-mrw-models-no-target-syntax/tasks/README.md`.
 ## Out of Scope
 
 - A parser this turn (permanent: boundary: record only; line-oriented is ADR-001)
-- A padded write echo (deferred: docs/adr/BACKLOG.md)
+- A padded write echo (permanent: fact: opted-in by ADR-052; citation: docs/adr/ADR-052-echo-pad-and-neighbour-license.md)
 - Playtrix (external: wing_playtrix: wing_playtrix/inbox)
 - Implementing an engine dream in the same turn as this record (permanent: boundary: M said record only)
 

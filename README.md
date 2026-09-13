@@ -1102,6 +1102,13 @@ looks plausible in a receipt where a one-line one would not.
 Every one of those receipts read `ok`, with a true removed count and a true added
 count.
 
+A multi-line `replace` is now refused unless a prior read already covered at
+least one line after `End` (ADR-052). That is the licence half of wrap-tail —
+line spans only, not a parser. When `End` is the last line there is no neighbour
+to require. `--echo-pad N` (MCP `echo_pad`, default 0) prints N lines after the
+new body so a surviving closer is visible; the hunk stays `ok`. The pad is not
+a checker.
+
 ⚠ **A lint or syntax gate is not a substitute, and some are vacuous.** Measured
 green on files already broken: `yamllint`, `ansible-lint --profile production` and
 `ansible-playbook --syntax-check`, all three against YAML whose meaning had

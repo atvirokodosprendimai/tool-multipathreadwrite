@@ -68,6 +68,11 @@ type HunkResult struct {
 	// non-empty: see MarshalJSON.
 	RemovedFirst string `json:"removed_first"`
 	RemovedLast  string `json:"removed_last"`
+
+	// Echo is the opt-in pad (ADR-052): N lines after the new body, numbered
+	// as they sit in the written file, so a surviving closer is visible.
+	// Empty unless Options.EchoPad > 0. A closer here does not fail the hunk.
+	Echo []string `json:"echo,omitempty"`
 }
 
 // MarshalJSON emits removed_first/removed_last on a delete hunk and on no
@@ -208,6 +213,11 @@ type Options struct {
 
 	// Force bypasses the Seen check. The escape hatch, not the habit.
 	Force bool
+
+	// EchoPad is how many lines after an applied body to attach on the
+	// hunk's Echo. 0 (the default) attaches nothing. Not a checker: a
+	// closer in the pad does not fail the hunk (ADR-052).
+	EchoPad int
 }
 
 // Apply validates every hunk against the working tree rooted at root and, if
@@ -371,6 +381,10 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		for i := range res.Hunks {
 			if res.Hunks[i].Status == StatusOK {
 				res.Hunks[i].Status = StatusSkipped
+				// A pad describes a write. Skip means nothing was written,
+				// so leaving Echo would report the original tail (or a
+				// sibling's closer) as if the hunk had landed (ADR-052).
+				res.Hunks[i].Echo = nil
 			}
 		}
 		reportAddressed()
@@ -451,6 +465,7 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 					continue
 				}
 				res.Hunks[i].Status = StatusSkipped
+				res.Hunks[i].Echo = nil
 			}
 			reportAddressed()
 			return res, fmt.Errorf("%s: %w", w.file.Path, err)
@@ -929,6 +944,24 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 					addrString(start, end), end-start+1)
 				continue
 			}
+			// ADR-052. A multi-line replace whose ledger never covered the
+			// line after End is the wrap-tail miss: the surviving closer sits
+			// there, and the receipt cannot show it. Line spans only. Force
+			// does not waive a partial observation — Force is for the hunk's
+			// own lines. A nil ledger still skips every ledger check, which
+			// is what the engine's own tests use.
+			//
+			// EOF (end == last line) skips: there is no End+1. Requiring
+			// Start-1 would be a different miss. Insert falls out.
+			//
+			// The refusal names the line number, not the closer's text:
+			// quoting End+1 would read back a line nobody was served
+			// (ADR-028).
+			if h.Op == "replace" && end > start && end < total && haveObs && !obs.Covers(end+1, end+1) {
+				fail(h, "replace of %s needs a served line after %d: read line %d (the closer sits below the body)",
+					addrString(start, end), end, end+1)
+				continue
+			}
 			// A delete is the only op with no body, so a body on one is not
 			// content to write: it is the caller's expectation of what the
 			// range holds, and it is the one guard mrw cannot compute for them
@@ -1000,6 +1033,12 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 	var (
 		res    []string
 		cursor = 1
+		// padAfter is the written-file index (len(res) after this hunk's
+		// body) at which a later echoPad should start. Attaching during
+		// the splice used the original tail; a later hunk that rewrites
+		// that tail then left the receipt describing a line the file
+		// no longer holds (ADR-052).
+		padAfter []struct{ index, after int }
 	)
 	for _, h := range resolved {
 		if h.Start < cursor {
@@ -1024,12 +1063,20 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 			r.RemovedFirst, r.RemovedLast = trim(orig[h.Start-1]), trim(orig[h.End-1])
 			cursor = h.End + 1
 		}
+		if opt.EchoPad > 0 && (h.Op == "replace" || h.Op == "insert") {
+			padAfter = append(padAfter, struct{ index, after int }{h.Index, len(res)})
+		}
 		out[h.Index] = r
 	}
 	if !ok {
 		return nil, false
 	}
 	res = append(res, orig[cursor-1:]...)
+	for _, p := range padAfter {
+		r := out[p.index]
+		r.Echo = echoPad(res[:p.after], res[p.after:], opt.EchoPad)
+		out[p.index] = r
+	}
 	return res, true
 }
 
@@ -1054,6 +1101,23 @@ func matchLines(re *regexp.Regexp, lines []string) []int {
 		}
 	}
 	return at
+}
+
+// echoPad is the ADR-052 opt-in pad: the first n lines of after, numbered
+// as they sit in the written file (one past the body already in written).
+func echoPad(written, after []string, n int) []string {
+	if n <= 0 || len(after) == 0 {
+		return nil
+	}
+	if n > len(after) {
+		n = len(after)
+	}
+	out := make([]string, n)
+	start := len(written) + 1
+	for i := 0; i < n; i++ {
+		out[i] = fmt.Sprintf("%5d| %s", start+i, after[i])
+	}
+	return out
 }
 
 // joinInts renders line numbers for a refusal message.

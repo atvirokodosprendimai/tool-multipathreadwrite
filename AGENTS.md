@@ -281,6 +281,12 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   `3088-3108` was meant left sixteen dangling lines ABOVE. So read from before
   your first line through past the closer.
 
+  A multi-line `replace` is refused unless the ledger already covers a line after
+  `End` (ADR-052). Single-line replace is unchanged. When `End` is the last line
+  the licence is skipped. `--echo-pad N` (MCP `echo_pad`, default 0) prints N
+  lines after the body so a surviving closer is visible; the hunk stays `ok`.
+  The pad is not a checker.
+
   ⚠ **A lint or syntax gate is not a substitute, and some are vacuous here.**
   Measured green on files already broken: `yamllint`, `ansible-lint --profile
   production` and `ansible-playbook --syntax-check`, all three on YAML whose

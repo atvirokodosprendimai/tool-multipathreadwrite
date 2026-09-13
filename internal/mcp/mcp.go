@@ -349,6 +349,12 @@ func tools() []tool {
 						"description": "Validate and report without writing anything. The receipt is the " +
 							"same shape, with dry_run true and no file written.",
 					},
+					"echo_pad": map[string]any{
+						"type":    "integer",
+						"default": 0,
+						"description": "Print N lines after an applied body so a surviving closer is visible. " +
+							"Default 0. Not a checker: a closer in the pad does not fail the hunk. Negative is refused.",
+					},
 					"format": map[string]any{
 						"type":        "string",
 						"enum":        []string{"plan", "apply_patch", "search_replace"},
