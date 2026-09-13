@@ -1,12 +1,13 @@
 # ADR-055: The receipt counts its advisories, notices a pattern, and can refuse the wrap-tail shape
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-09-13 by M — *"accepted."*
 **Date:** 2026-09-13
 **Owner:** M
 **Spec:** None — no spec stage
 **Cross-references:** ADR-001, ADR-009, ADR-035, ADR-044, ADR-048, ADR-052, ADR-054, docs/adr/BACKLOG.md
 **Governs:** `cmd/mrw/main.go`, `internal/apply/apply.go`, `internal/authoring/authoring.go`, `internal/mcp/schema.go`, `scripts/contract.sh`
-**Enforced-by:** None — Proposed; T1 writes `cmd/mrw/advisory_test.go::TestTheSummaryLineCountsAdvisories` before the count exists
+**Enforced-by:** `cmd/mrw/advisory_test.go::TestTheSummaryLineCountsAdvisories`
 **Invalidates:** None — extends ADR-054 arm 2; ADR-054's "refuse on a balance delta" rejection stands for the general case and is narrowed here to one signature, opt-in
 **Served-path change:** the write summary line gains `, N advisory/advisories`; the receipt gains `advisories: N`; the CLI receipt and `mrw stats` print one line when three of the last ten writes carried an advisory; `--strict-balance` refuses a single-line `replace` whose consumed lines have a non-zero delimiter net that the body does not match (exit 1, nothing written).
 **Notes:** M's field run of v1.16.0/v1.16.1 in Zeus, 2026-09-13 (BACKLOG, From ADR-054). M's order by value per work: advisory count, then repeat pattern, then strict balance; the tasks follow it. M, 2026-09-13: *"so plan then backlog"* — design only. Execute on Accept. No default refusal. No harness `covers` glob. 4096 stays. MCP stays two tools.
