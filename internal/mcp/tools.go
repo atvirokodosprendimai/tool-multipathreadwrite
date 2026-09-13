@@ -451,11 +451,12 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 // count the outcome for ADR-009's tally.
 func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	var a struct {
-		Plan    string   `json:"plan"`
-		Format  string   `json:"format"`
-		DryRun  bool     `json:"dry_run"`
-		Ack     []string `json:"ack"`
-		EchoPad int      `json:"echo_pad"`
+		Plan          string   `json:"plan"`
+		Format        string   `json:"format"`
+		DryRun        bool     `json:"dry_run"`
+		Ack           []string `json:"ack"`
+		EchoPad       int      `json:"echo_pad"`
+		StrictBalance bool     `json:"strict_balance"`
 	}
 	if err := json.Unmarshal(args, &a); err != nil {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "arguments: " + err.Error()}
@@ -554,7 +555,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				"applied and the tree is unchanged. Raise the ceiling to at least %d.",
 			MaxResultChars, writeFloor())}
 	}
-	res, applyErr := apply.Apply(root, in, apply.Options{DryRun: a.DryRun, Seen: ledger, EchoPad: a.EchoPad})
+	res, applyErr := apply.Apply(root, in, apply.Options{DryRun: a.DryRun, Seen: ledger, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance})
 	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
 	// it is rendered on whichever path we are on rather than discarded.
 
@@ -576,6 +577,11 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		if err := seen.Record(root, wrote); err != nil {
 			return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
 		}
+		// ADR-055: a landed MCP write feeds the same ring the CLI reads, so
+		// "3 of your last 10" counts every landed write on this checkout.
+		// The MCP receipt is structured and carries `advisories`; the
+		// pattern line itself is CLI and stats (BACKLOG).
+		_ = authoring.RecordRecent(root, res.Advisories)
 	}
 
 	switch {

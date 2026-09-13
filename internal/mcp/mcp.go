@@ -355,6 +355,14 @@ func tools() []tool {
 						"description": "Print N lines after an applied body so a surviving closer is visible. " +
 							"Default 0. Not a checker: a closer in the pad does not fail the hunk. Negative is refused.",
 					},
+					"strict_balance": map[string]any{
+						"type":    "boolean",
+						"default": false,
+						"description": "Refuse a single-line replace on a non-prose path whose line's {} () [] do not " +
+							"balance and whose body does not match them — the wrap-tail shape. A refusal is a failed " +
+							"hunk: siblings skip, nothing is written. Off by default; the same hunk then applies with " +
+							"a balance row. Braces inside string literals count, so drop it for that plan.",
+					},
 					"format": map[string]any{
 						"type":        "string",
 						"enum":        []string{"plan", "apply_patch", "search_replace"},

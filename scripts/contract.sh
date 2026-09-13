@@ -702,7 +702,7 @@ else
     || bad "the sibling hunk got no skip verdict: $(head -2 <<<"$out" | tr '\n' ' ')"
   # "2 file(s)" IS the rule-3 claim. Asserting only on the FAIL line would pass
   # on a receipt that forgot the sibling file entirely.
-  grep -qE '2 hunk\(s\), 2 file\(s\), 1 failed — NOTHING WRITTEN' <<<"$out" \
+  grep -qE '2 hunk\(s\), 2 file\(s\), 1 failed, 0 advisories — NOTHING WRITTEN' <<<"$out" \
     && ok "and the summary names every file the plan addressed" \
     || bad "summary does not name both addressed files: $(grep 'hunk(s)' <<<"$out")"
   # --json used to emit a bare error and no JSON at all. jq -e is the assertion
@@ -5442,6 +5442,117 @@ for k in applied refused_parse refused_apply check_not_run failed_check; do
 done
 grep -q '"landed": 2' <<<"$jout" && ok "--json landed is 2" || bad "--json landed wrong: $jout"
 grep -q '"failed_check_of_landed": 1' <<<"$jout" && ok "--json failed_check_of_landed is 1" || bad "--json failed_check_of_landed wrong: $jout"
+
+# 92. ADR-055: the summary line carries the advisory count, zero included, and
+# the JSON receipt carries `advisories`. Pair: a `{`-only replace with a
+# balanced body -> `1 advisory` on the summary and "advisories": 1 in JSON /
+# a clean replace -> `0 advisories` (the clause is never omitted) / --quiet
+# still carries it.
+R=$(mktemp -d "$WORK/r92-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "a delta replace exits 0"
+grep -q '0 failed, 1 advisory — applied' <<<"$out" && ok "the summary says 1 advisory" || bad "summary lacks the count: $out"
+
+R=$(mktemp -d "$WORK/r92b-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func B() {' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "a clean replace exits 0"
+grep -q '0 failed, 0 advisories — applied' <<<"$out" && ok "the summary says 0 advisories, not nothing" || bad "clean summary omits the clause: $out"
+
+R=$(mktemp -d "$WORK/r92c-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check --quiet - 2>&1); rc=$?
+want 0 "$rc" "--quiet delta replace exits 0"
+grep -q '1 advisory' <<<"$out" && ok "--quiet keeps the advisory count" || bad "--quiet dropped it: $out"
+
+R=$(mktemp -d "$WORK/r92d-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+jout=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check --json - 2>/dev/null); rc=$?
+want 0 "$rc" "--json delta replace exits 0"
+[ "$(jq -r .advisories <<<"$jout")" = "1" ] && ok "--json carries advisories: 1" || bad "--json advisories: $(jq -c .advisories <<<"$jout")"
+
+# 93. ADR-055: a recent-window ring beside the tally; the receipt prints a
+# pattern line when three of the last ten landed writes carried an advisory,
+# and stats shows the window. Pair: two delta writes -> no `pattern:` / the
+# third -> `pattern: 3 of your last 3` / stats -> `recent: 3 write(s)` and the
+# line / the ring file holds no path (strings finds no `/` and no `.go`).
+R=$(mktemp -d "$WORK/r93-XXXXXX")
+for i in 1 2 3; do
+  printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+  m read 'f.go:1' >/dev/null
+  out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check - 2>&1); rc=$?
+  want 0 "$rc" "delta write $i exits 0"
+  if [ "$i" -lt 3 ]; then
+    if grep -q '^pattern:' <<<"$out"; then bad "write $i already printed a pattern line: $out"; else ok "write $i prints no pattern line"; fi
+  else
+    grep -q '^pattern: 3 of your last 3 writes carried a balance advisory' <<<"$out" && ok "the third advisory prints the pattern line" || bad "no pattern line on the third: $out"
+  fi
+done
+out=$(m stats 2>&1); rc=$?
+want 0 "$rc" "stats exits 0"
+grep -q 'recent: 3 write(s) in the window' <<<"$out" && ok "stats shows the window" || bad "stats window missing: $out"
+grep -q '^pattern: 3 of your last 3' <<<"$out" && ok "stats repeats the pattern line" || bad "stats lacks the pattern: $out"
+ring="$(m seen | head -1)/recent"
+if [ -f "$ring" ]; then
+  ok "the ring exists beside the tally"
+  [ "$(wc -l < "$ring" | tr -d ' ')" = "3" ] && ok "ring holds three lines" || bad "ring lines: $(wc -l < "$ring")"
+  if grep -qE '/|\.go|f\.go|func' "$ring"; then bad "ring carries a path or plan text: $(cat "$ring")"; else ok "ring carries no path and no plan text"; fi
+else
+  bad "no ring at $ring"
+fi
+
+# 94. ADR-055: --strict-balance refuses the wrap-tail signature and nothing
+# else. Pair: flag + single-line replace of a `{`-only line with a balanced
+# body -> exit 1, file unchanged, reason names `{ +1` and the flag / same
+# plan without the flag -> exit 0 with a balance row / flag + balanced body
+# -> exit 0 / flag + the same shape in a .md -> exit 0.
+R=$(mktemp -d "$WORK/r94-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+printf 'func A() {\n\treturn\n}\n' > "$R/n.md"
+m read 'f.go:1' 'n.md:1' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check --strict-balance - 2>&1); rc=$?
+want 1 "$rc" "--strict-balance refuses the wrap-tail signature (exit 1)"
+grep -q 'strict-balance' <<<"$out" && grep -q '{ +1' <<<"$out" && ok "the reason names the flag and the net" || bad "reason: $out"
+grep -q '^func A() {$' "$R/f.go" && ok "nothing was written" || bad "the refused plan wrote: $(head -1 "$R/f.go")"
+
+out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "the same plan without the flag applies (exit 0)"
+grep -q 'balance {' <<<"$out" && ok "and carries the balance row" || bad "no balance row without the flag: $out"
+
+R=$(mktemp -d "$WORK/r94b-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func B() {' | m write --no-check --strict-balance - 2>&1); rc=$?
+want 0 "$rc" "--strict-balance leaves a balanced single-line replace alone"
+
+R=$(mktemp -d "$WORK/r94c-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/n.md"
+m read 'n.md:1' >/dev/null
+out=$(printf '%s\n' \
+	'@@ n.md 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check --strict-balance - 2>&1); rc=$?
+want 0 "$rc" "--strict-balance leaves prose alone"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

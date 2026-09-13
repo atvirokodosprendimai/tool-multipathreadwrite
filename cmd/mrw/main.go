@@ -413,6 +413,12 @@ size is the form that gets quoted out of the population it was measured on.`,
 					"the tree changed. It is not \"wrote and was checked\" — --no-check and prose-only plans count as applied.\n",
 					landed, failed, 100*float64(failed)/float64(landed))
 			}
+			// ADR-055: the window, always, and the pattern line when it holds.
+			recent := authoring.Recent(root)
+			fmt.Printf("\nrecent: %d write(s) in the window (last %d landed writes; op class and advisory count only)\n", len(recent), authoring.RecentWindow)
+			if line := patternLine(recent); line != "" {
+				fmt.Println(line)
+			}
 			fmt.Printf("\n%d plan(s) recorded in this checkout. The rate is valid for THIS population;\n"+
 				"a number from one repository and one family of callers is not a general one.\n", total)
 			return nil
@@ -800,7 +806,16 @@ A non-prose hunk whose {} () [] nets differ between the replaced lines and
 the body prints a balance row under ok. It does not fail the hunk and it is
 not a checker: braces in strings miscount, and a balanced insert landing
 inside a function is invisible to it — the check catches that, the row does
-not.`,
+not.
+
+The summary line counts those rows — "N hunk(s), M file(s), F failed, A
+advisories — applied", zero included — and the JSON receipt carries
+"advisories". When three of your last ten landed writes carried one, the
+receipt prints a pattern line — read past the range before the next one.
+--strict-balance is opt-in: it refuses a single-line replace whose line's
+{} () [] do not balance and whose body does not match them (the wrap-tail
+shape) as a failed hunk — exit 1, nothing is written. Off by default; braces
+inside strings count, so drop it for that plan.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "dry-run",
@@ -838,6 +853,11 @@ not.`,
 				Name:  "echo-pad",
 				Value: 0,
 				Usage: "print N lines after an applied body (opt-in pad; default 0; not a checker)",
+			},
+			&cli.BoolFlag{
+				Name: "strict-balance",
+				Usage: "refuse a single-line replace whose line's {} () [] do not balance and whose body does not match them " +
+					"(the wrap-tail shape); exit 1, nothing written. Off by default",
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -959,10 +979,11 @@ not.`,
 				return cli.Exit(err, exitUsage)
 			}
 			res, err := apply.Apply(root, in, apply.Options{
-				DryRun:  cmd.Bool("dry-run"),
-				Seen:    ledger,
-				Force:   cmd.Bool("force"),
-				EchoPad: cmd.Int("echo-pad"),
+				DryRun:        cmd.Bool("dry-run"),
+				Seen:          ledger,
+				Force:         cmd.Bool("force"),
+				EchoPad:       cmd.Int("echo-pad"),
+				StrictBalance: cmd.Bool("strict-balance"),
 			})
 			if err != nil {
 				// ADR-001 rule 3: every hunk carries its own verdict, and a
@@ -1038,6 +1059,16 @@ not.`,
 				}
 			}
 
+			// ADR-055: a landed write joins the recent-window ring BEFORE the
+			// receipt is rendered, so the receipt can say "3 of your last 3" —
+			// the line has to be on the receipt, read in the turn, not only in
+			// stats, which is run after the fact. Counts and a timestamp only.
+			var pattern string
+			if res.Applied && !res.DryRun {
+				_ = authoring.RecordRecent(root, res.Advisories)
+				pattern = patternLine(authoring.Recent(root))
+			}
+
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
@@ -1046,6 +1077,11 @@ not.`,
 				}
 			} else {
 				report(os.Stdout, res, cmd.Bool("quiet"))
+				if pattern != "" {
+					// Not hidden by --quiet: quiet drops ok rows, and this
+					// is the opposite of an ok row.
+					fmt.Println(pattern)
+				}
 				reportCheck(os.Stdout, receipt.Check)
 			}
 			// ADR-009: record what became of this plan, from the SAME facts the
@@ -1076,6 +1112,17 @@ not.`,
 			return nil
 		},
 	}
+}
+
+// patternLine renders ADR-055's repeat-pattern line, or "" when the ring
+// holds fewer than PatternThreshold advisory writes. It counts and points;
+// it does not judge the edit — the wording says what was counted.
+func patternLine(entries []authoring.RecentEntry) string {
+	k, n, fires := authoring.Pattern(entries)
+	if !fires {
+		return ""
+	}
+	return fmt.Sprintf("pattern: %d of your last %d writes carried a balance advisory — read past the range before the next one", k, n)
 }
 
 // receipt is what one write produced: the edit and, when asked for, the
@@ -1364,8 +1411,11 @@ func report(w *os.File, res apply.Result, quiet bool) {
 	case res.DryRun:
 		state = "dry run, nothing written"
 	}
-	fmt.Fprintf(out, "%d hunk(s), %d file(s), %d failed — %s\n",
-		len(res.Hunks), len(res.Files), res.Failed, state)
+	// ADR-055: the advisory count rides on the one line every caller reads,
+	// zero included — a column that appears only when non-zero is a column
+	// the reader learns does not exist (ADR-054's failed_check lesson).
+	fmt.Fprintf(out, "%d hunk(s), %d file(s), %d failed, %d %s — %s\n",
+		len(res.Hunks), len(res.Files), res.Failed, res.Advisories, plural(res.Advisories, "advisory", "advisories"), state)
 }
 
 // prune removes the state directories whose checkout is gone, and SAYS what it
