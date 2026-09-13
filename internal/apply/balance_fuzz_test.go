@@ -217,8 +217,29 @@ func TestRandomisedApplyBalanceFollowsTheDecision(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		path := pathPool[r.Intn(len(pathPool))]
 		orig := randomLines(r, 3+r.Intn(8))
-		ops := []string{"replace", "insert-before", "insert-after", "delete"}
+		// All five ops. create was missing from this pool when a review
+		// found that a create with an unbalanced body printed a balance row:
+		// resolve turns create into insert, and the pool never asked.
+		ops := []string{"replace", "insert-before", "insert-after", "delete", "create"}
 		op := ops[r.Intn(len(ops))]
+		if op == "create" {
+			body := randomLines(r, 1+r.Intn(4))
+			root := t.TempDir()
+			res, err := Apply(root, []Input{{Path: path, Op: "create", Body: body, Lines: -1}}, Options{})
+			label := fmt.Sprintf("seed=%d iter=%d path=%s op=create body=%q", seed, i, path, body)
+			if err != nil {
+				t.Fatalf("%s: %v", label, err)
+			}
+			if h := res.Hunks[0]; h.Status != StatusOK {
+				t.Fatalf("%s: status %s: %s", label, h.Status, h.Reason)
+			} else if h.Balance != "" {
+				t.Fatalf("%s: a create carried Balance %q; there are no replaced lines to compare", label, h.Balance)
+			}
+			if got, want := read(t, root, path), strings.Join(body, "\n")+"\n"; got != want {
+				t.Fatalf("%s: file %q, want %q", label, got, want)
+			}
+			continue
+		}
 		start := 1 + r.Intn(len(orig))
 		end := start
 		if op == "replace" || op == "delete" {

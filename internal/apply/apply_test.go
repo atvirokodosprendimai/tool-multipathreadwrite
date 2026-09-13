@@ -2437,3 +2437,29 @@ func TestADeleteWithAnExpectedBodyStillReportsItsNet(t *testing.T) {
 		t.Errorf("a guarded delete of a `{` line reported Balance %q; the expected body is a guard, not a write", got)
 	}
 }
+
+// A create has no replaced lines for its body to be compared against, so the
+// Decision (ADR-054 §2) and the field doc both say it carries no Balance.
+// The first implementation keyed on the resolved op, and resolve turns a
+// create into an insert at line 1 of an empty file — so a new file whose body
+// opened more braces than it closed printed `balance { +0 → +1`, a row about
+// nothing. Keyed on SrcOp, which is what the caller wrote.
+func TestACreateCarriesNoBalance(t *testing.T) {
+	root := t.TempDir()
+
+	res, err := Apply(root, []Input{
+		{Path: "new.go", Start: 0, End: 0, Op: "create", Body: []string{"package x", "func A() {"}, Lines: -1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 || res.Hunks[0].Status != StatusOK {
+		t.Fatalf("create did not apply: %+v", res.Hunks[0])
+	}
+	if got := res.Hunks[0].Balance; got != "" {
+		t.Errorf("a create carried Balance %q; there are no replaced lines to compare against", got)
+	}
+	if got, want := read(t, root, "new.go"), "package x\nfunc A() {\n"; got != want {
+		t.Errorf("file = %q, want %q", got, want)
+	}
+}
