@@ -370,9 +370,20 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// with nothing folded. Only an EXISTING file has an inode to compare; two
 	// creates that would collide are deferred, not claimed.
 	unlinked := map[string]bool{}
+	produced := map[string]bool{}
+	destCount := map[string]int{}
 	for _, i := range in {
+		p := filepath.Clean(i.Path)
 		if i.Op == "unlink" {
-			unlinked[filepath.Clean(i.Path)] = true
+			unlinked[p] = true
+		}
+		if i.Op != "unlink" && i.Op != "rename" {
+			produced[p] = true
+		}
+		if i.Op == "rename" && len(i.Body) == 1 {
+			if d := filepath.Clean(strings.TrimSpace(i.Body[0])); d != "" && d != "." {
+				destCount[d]++
+			}
 		}
 	}
 	var seenFiles []groupedFile
@@ -422,7 +433,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			fr.SHABefore = shaOf(orig)
 		}
 
-		out, ok, kind := planFile(root, path, full, hs, orig.lines, existed, fr.SHABefore, opt, unlinked, results)
+		out, ok, kind := planFile(root, path, full, hs, orig.lines, existed, fr.SHABefore, opt, unlinked, produced, destCount, results)
 		if !ok {
 			// The plan ADDRESSED this file even though nothing will be written
 			// to it. Dropping it here is how a two-file plan reported one file
@@ -618,7 +629,7 @@ func writtenSoFar(files []FileResult) string {
 
 // planFile validates one file's hunks and splices its new content. It records a
 // verdict for every hunk and returns ok=false if any of them failed.
-func planFile(root, path, full string, hs []hunk, orig []string, existed bool, shaBefore string, opt Options, unlinked map[string]bool, out map[int]HunkResult) ([]string, bool, string) {
+func planFile(root, path, full string, hs []hunk, orig []string, existed bool, shaBefore string, opt Options, unlinked, produced map[string]bool, destCount map[string]int, out map[int]HunkResult) ([]string, bool, string) {
 	total := len(orig)
 	ok := true
 	fail := func(h hunk, format string, a ...any) {
@@ -720,7 +731,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		return nil, false, ""
 	}
 	if pathLevel {
-		if !planPathOp(root, path, full, hs[0], orig, existed, shaBefore, unlinked, covered, fail, out) {
+		if !planPathOp(root, path, full, hs[0], orig, existed, shaBefore, unlinked, produced, destCount, covered, fail, out) {
 			return nil, false, ""
 		}
 		return nil, true, hs[0].Op
@@ -735,7 +746,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				fail(h, "sha=%s given but %s does not exist", h.SHA, path)
 				continue
 			case !strings.HasPrefix(shaBefore, h.SHA):
-				fail(h, "file changed: sha is %s, plan expected %s", shaBefore[:len(h.SHA)], h.SHA)
+				fail(h, "file changed: sha is %s, plan expected %s", shaShown(shaBefore, h.SHA), h.SHA)
 				continue
 			}
 		}
@@ -1602,6 +1613,15 @@ func short(sha string) string {
 		return sha[:8]
 	}
 	return sha
+}
+
+// shaShown is the on-disk prefix to print next to a mismatched sha= guard.
+// Slicing to len(want) panics when the guard is longer than SHA-256.
+func shaShown(have, want string) string {
+	if len(want) <= len(have) {
+		return have[:len(want)]
+	}
+	return have
 }
 
 // resolve turns a hunk's path into the absolute file it names, and refuses one

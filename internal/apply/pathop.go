@@ -15,7 +15,7 @@ func isPathOp(op string) bool {
 
 // planPathOp validates a single unlink or rename hunk. The caller has already
 // refused mixing those ops with line-edits on the same path.
-func planPathOp(root, path, full string, h hunk, orig []string, existed bool, shaBefore string, unlinked map[string]bool, covered func(hunk, int, int) bool, fail func(hunk, string, ...any), out map[int]HunkResult) bool {
+func planPathOp(root, path, full string, h hunk, orig []string, existed bool, shaBefore string, unlinked, produced map[string]bool, destCount map[string]int, covered func(hunk, int, int) bool, fail func(hunk, string, ...any), out map[int]HunkResult) bool {
 	if h.StartPat != nil || h.Start != 0 || h.End != 0 || h.RelEnd > 0 {
 		fail(h, "%s takes no address, use %q", h.Op, "-")
 		return false
@@ -38,7 +38,7 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 			fail(h, "sha=%s given but %s does not exist", h.SHA, path)
 			return false
 		case !strings.HasPrefix(shaBefore, h.SHA):
-			fail(h, "file changed: sha is %s, plan expected %s", shaBefore[:len(h.SHA)], h.SHA)
+			fail(h, "file changed: sha is %s, plan expected %s", shaShown(shaBefore, h.SHA), h.SHA)
 			return false
 		}
 	}
@@ -67,12 +67,20 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 			fail(h, "rename dest %s is the source", dest)
 			return false
 		}
+		if destCount[dest] > 1 {
+			fail(h, "rename dest %s is named by more than one hunk", dest)
+			return false
+		}
+		if produced[dest] {
+			fail(h, "rename dest %s is also written by another hunk in this plan", dest)
+			return false
+		}
 		destFull, err := resolve(root, dest)
 		if err != nil {
 			fail(h, "%s", err.Error())
 			return false
 		}
-		if _, err := os.Stat(destFull); err == nil && !unlinked[dest] {
+		if _, err := os.Lstat(destFull); err == nil && !unlinked[dest] {
 			fail(h, "rename dest %s already exists — unlink it in this plan, or pick another path", dest)
 			return false
 		}
@@ -124,10 +132,8 @@ func commitPathOps(res *Result, pathOps []pending) error {
 		if err := os.MkdirAll(filepath.Dir(w.renameTo), 0o755); err != nil {
 			return err
 		}
-		if _, err := os.Stat(w.renameTo); err == nil {
-			if err := os.Remove(w.renameTo); err != nil {
-				return err
-			}
+		if _, err := os.Lstat(w.renameTo); err == nil {
+			return fmt.Errorf("rename dest %s appeared before commit", w.destRel)
 		}
 		if err := os.Rename(w.full, w.renameTo); err != nil {
 			return err

@@ -1054,14 +1054,7 @@ held or went unchecked.`,
 
 			receipt := receipt{Result: res}
 			if res.Applied && res.Failed == 0 && !cmd.Bool("no-check") {
-				var written []string
-				code := false // at least one written path is not prose
-				for _, f := range res.Files {
-					if f.Written {
-						written = append(written, f.Path)
-						code = code || !apply.IsProse(f.Path)
-					}
-				}
+				written, code := writeCheckPaths(res.Files)
 				cfg, err := check.Load(root)
 				if err != nil {
 					return cli.Exit(err, exitUsage)
@@ -1163,6 +1156,39 @@ func patternLine(entries []authoring.RecentEntry) string {
 		return ""
 	}
 	return fmt.Sprintf("pattern: %d of your last %d writes carried a balance advisory — read past the range before the next one", k, n)
+}
+
+// writeCheckPaths is the check's working set after a write. Unlinked sources
+// are gone, so confine cannot Stat them; their parent directory still exists
+// and is what the check can honour. A rename dest is a Written file of its own.
+func writeCheckPaths(files []apply.FileResult) (paths []string, code bool) {
+	seen := map[string]bool{}
+	add := func(p string) {
+		if p == "" || seen[p] {
+			return
+		}
+		seen[p] = true
+		paths = append(paths, p)
+	}
+	for _, f := range files {
+		if f.Removed {
+			if f.RenamedTo != "" {
+				continue
+			}
+			dir := filepath.Dir(f.Path)
+			if dir == "" {
+				dir = "."
+			}
+			add(dir)
+			code = code || !apply.IsProse(f.Path)
+			continue
+		}
+		if f.Written {
+			add(f.Path)
+			code = code || !apply.IsProse(f.Path)
+		}
+	}
+	return paths, code
 }
 
 // receipt is what one write produced: the edit and, when asked for, the

@@ -307,7 +307,7 @@ func findUnique(lines, old []string) (start, end, n int) {
 
 func emitPath(op, path string, body []string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "@@ %s - %s\n", path, op)
+	fmt.Fprintf(&b, "@@ %s - %s\n", quotePlanPath(path), op)
 	for _, line := range body {
 		b.WriteString(line)
 		b.WriteByte('\n')
@@ -321,7 +321,7 @@ func emit(op, path string, start, end int, body []string, anchor string) string 
 	if op != "create" && end != start {
 		addr = fmt.Sprintf("%d-%d", start, end)
 	}
-	fmt.Fprintf(&b, "@@ %s %s %s", path, addr, op)
+	fmt.Fprintf(&b, "@@ %s %s %s", quotePlanPath(path), addr, op)
 	if anchor != "" {
 		fmt.Fprintf(&b, " %s", quoteAnchor(anchor))
 	}
@@ -344,6 +344,15 @@ func emit(op, path string, start, end int, body []string, anchor string) string 
 		b.WriteByte('\n')
 	}
 	return b.String()
+}
+
+func quotePlanPath(p string) string {
+	if !strings.ContainsAny(p, " \t\"") {
+		return p
+	}
+	esc := strings.ReplaceAll(p, `\`, `\\`)
+	esc = strings.ReplaceAll(esc, `"`, `\"`)
+	return `"` + esc + `"`
 }
 
 func quoteAnchor(s string) string {

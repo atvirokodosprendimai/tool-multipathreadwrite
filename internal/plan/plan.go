@@ -361,6 +361,9 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 			if len(v) < 8 {
 				return Hunk{}, 0, fmt.Errorf("sha= needs at least 8 hex characters, got %q", v)
 			}
+			if len(v) > 64 {
+				return Hunk{}, 0, fmt.Errorf("sha= is at most 64 hex characters, got %d", len(v))
+			}
 			if strings.TrimLeft(strings.ToLower(v), "0123456789abcdef") != "" {
 				return Hunk{}, 0, fmt.Errorf("sha= is not hexadecimal: %q", v)
 			}
