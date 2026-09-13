@@ -73,6 +73,16 @@ type HunkResult struct {
 	// as they sit in the written file, so a surviving closer is visible.
 	// Empty unless Options.EchoPad > 0. A closer here does not fail the hunk.
 	Echo []string `json:"echo,omitempty"`
+
+	// Balance is ADR-054's delimiter-balance delta: for an applied hunk on a
+	// non-prose path, each family among `{}` `()` `[]` whose net count in the
+	// original addressed lines differs from the net in the body, rendered as
+	// `{ +1 → 0}`. Empty when every family matches, on a prose path, on a
+	// failed or skipped hunk, and on create. It is visibility, not a
+	// checker: the hunk stays ok. Naive rune counts — braces inside string
+	// literals miscount, which is why this reports rather than refuses
+	// (ADR-048), and a balanced insert in the wrong place is invisible to it.
+	Balance string `json:"balance,omitempty"`
 }
 
 // MarshalJSON emits removed_first/removed_last on a delete hunk and on no
@@ -1050,6 +1060,11 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		cursor = h.Start
 
 		r := HunkResult{Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine, Status: StatusOK}
+		// The lines this hunk CONSUMES, for the balance delta: an insert
+		// consumes none, so its original net is zero by construction — which
+		// is exactly why a balanced insert in the wrong place is invisible to
+		// arm 2 (ADR-054).
+		var consumed []string
 		switch h.Op {
 		case "insert":
 			res = append(res, h.Body...)
@@ -1057,11 +1072,16 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		case "replace":
 			res = append(res, h.Body...)
 			r.Removed, r.Added = h.End-h.Start+1, len(h.Body)
+			consumed = orig[h.Start-1 : h.End]
 			cursor = h.End + 1
 		case "delete":
 			r.Removed = h.End - h.Start + 1
 			r.RemovedFirst, r.RemovedLast = trim(orig[h.Start-1]), trim(orig[h.End-1])
+			consumed = orig[h.Start-1 : h.End]
 			cursor = h.End + 1
+		}
+		if !IsProse(path) {
+			r.Balance = balanceDelta(consumed, h.Body)
 		}
 		if opt.EchoPad > 0 && (h.Op == "replace" || h.Op == "insert") {
 			padAfter = append(padAfter, struct{ index, after int }{h.Index, len(res)})
@@ -1118,6 +1138,40 @@ func echoPad(written, after []string, n int) []string {
 		out[i] = fmt.Sprintf("%5d| %s", start+i, after[i])
 	}
 	return out
+}
+
+// balanceDelta renders ADR-054's delimiter-balance delta between the lines a
+// hunk consumed and the body it wrote: for each of `{}` `()` `[]`, the net
+// (opens minus closes) in each, and a `{ +1 → 0}` entry for every family
+// whose nets differ. Empty when they all match. Rune counting only — no
+// lexer, so a brace inside a string literal counts (ADR-048). A family
+// with matching nets says nothing; a mismatch says the file's closer count
+// moved, which is the wrap-tail shape, and the hunk stays ok regardless.
+func balanceDelta(consumed, body []string) string {
+	type family struct{ open, close rune }
+	families := []family{{'{', '}'}, {'(', ')'}, {'[', ']'}}
+	net := func(lines []string, f family) int {
+		n := 0
+		for _, l := range lines {
+			for _, c := range l {
+				switch c {
+				case f.open:
+					n++
+				case f.close:
+					n--
+				}
+			}
+		}
+		return n
+	}
+	var parts []string
+	for _, f := range families {
+		before, after := net(consumed, f), net(body, f)
+		if before != after {
+			parts = append(parts, fmt.Sprintf("%c %+d → %+d", f.open, before, after))
+		}
+	}
+	return strings.Join(parts, "; ")
 }
 
 // joinInts renders line numbers for a refusal message.

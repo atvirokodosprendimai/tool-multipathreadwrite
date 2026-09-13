@@ -1302,6 +1302,11 @@ func report(w *os.File, res apply.Result, quiet bool) {
 				bounds = fmt.Sprintf(" from %q to %q", h.RemovedFirst, h.RemovedLast)
 			}
 			fmt.Fprintf(out, "ok   %s %s %s  -%d +%d%s\n", h.Path, h.Addr, h.Op, h.Removed, h.Added, bounds)
+			if h.Balance != "" {
+				// ADR-054: the delta is a row under the ok line, like Echo.
+				// It never fails the hunk; it says the closer count moved.
+				fmt.Fprintf(out, "     balance %s (delimiters in the replaced lines vs the body; not a checker)\n", h.Balance)
+			}
 			for _, line := range h.Echo {
 				fmt.Fprintln(out, line)
 			}

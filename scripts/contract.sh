@@ -5371,6 +5371,45 @@ else
   ok "no skipped-check line where none was demanded"
 fi
 
+# 90. ADR-054: a non-prose hunk whose delimiter nets differ between the
+# replaced lines and the body prints a balance row under ok and stays ok; the
+# same replace on a .md file prints none. Pair: .go replace of a `{`-only line
+# with a balanced body -> ok + balance row, exit 0 / .md -> ok, no balance row /
+# .go replace with matching nets -> no balance row.
+R=$(mktemp -d "$WORK/r90-XXXXXX")
+printf 'package f\nfunc A() {\n\treturn\n}\n' > "$R/f.go"
+printf '# t\nfunc A() {\n\treturn\n}\n' > "$R/n.md"
+m read 'f.go:2' 'n.md:2' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 2 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "a .go replace that unbalances braces still exits 0"
+grep -q '^ok' <<<"$out" && ok "and the hunk stays ok" || bad "hunk not ok: $out"
+grep -q 'balance {' <<<"$out" && ok "and the receipt carries the brace delta" || bad "no balance row: $out"
+
+out=$(printf '%s\n' \
+	'@@ n.md 2 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "the same replace on a .md file exits 0"
+if grep -q 'balance' <<<"$out"; then
+  bad "a prose hunk printed a balance row: $out"
+else
+  ok "a prose hunk prints no balance row"
+fi
+
+R=$(mktemp -d "$WORK/r90b-XXXXXX")
+printf 'package f\nfunc A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:2' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 2 replace anchor="func A"' \
+	'func B() {' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "a .go replace with matching nets exits 0"
+if grep -q 'balance' <<<"$out"; then
+  bad "matching nets printed a balance row: $out"
+else
+  ok "matching nets print no balance row"
+fi
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
