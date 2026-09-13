@@ -1364,8 +1364,11 @@ func report(w *os.File, res apply.Result, quiet bool) {
 	case res.DryRun:
 		state = "dry run, nothing written"
 	}
-	fmt.Fprintf(out, "%d hunk(s), %d file(s), %d failed — %s\n",
-		len(res.Hunks), len(res.Files), res.Failed, state)
+	// ADR-055: the advisory count rides on the one line every caller reads,
+	// zero included — a column that appears only when non-zero is a column
+	// the reader learns does not exist (ADR-054's failed_check lesson).
+	fmt.Fprintf(out, "%d hunk(s), %d file(s), %d failed, %d %s — %s\n",
+		len(res.Hunks), len(res.Files), res.Failed, res.Advisories, plural(res.Advisories, "advisory", "advisories"), state)
 }
 
 // prune removes the state directories whose checkout is gone, and SAYS what it

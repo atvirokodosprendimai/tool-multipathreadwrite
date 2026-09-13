@@ -131,6 +131,11 @@ type Result struct {
 	Files   []FileResult `json:"files"`
 	Hunks   []HunkResult `json:"hunks"`
 	Failed  int          `json:"failed"`
+	// Advisories is how many ok hunks carry a Balance (ADR-055): the count
+	// the summary line and every receipt consumer read, so a row that
+	// reports without failing is not invisible to a caller who reads only
+	// the summary. Skipped and failed hunks contribute nothing.
+	Advisories int `json:"advisories"`
 }
 
 // hunk is the subset of plan.Hunk this package needs. It is declared here so
@@ -234,7 +239,22 @@ type Options struct {
 // all of them pass and opt.DryRun is false, writes the results. It returns a
 // receipt in every case; err is non-nil only for an I/O failure that made the
 // verdict itself unknowable.
+//
+// The advisory count is taken here, once, over whatever the run returned —
+// apply has several return points (refused plan, dry run, staging failure,
+// success) and a count taken at one of them is a count the others forget
+// (ADR-055).
 func Apply(root string, in []Input, opt Options) (Result, error) {
+	res, err := apply(root, in, opt)
+	for _, h := range res.Hunks {
+		if h.Status == StatusOK && h.Balance != "" {
+			res.Advisories++
+		}
+	}
+	return res, err
+}
+
+func apply(root string, in []Input, opt Options) (Result, error) {
 	dryRun := opt.DryRun
 	res := Result{Root: root, DryRun: dryRun}
 
@@ -394,7 +414,11 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 				// A pad describes a write. Skip means nothing was written,
 				// so leaving Echo would report the original tail (or a
 				// sibling's closer) as if the hunk had landed (ADR-052).
+				// Balance is the same kind of claim about a write that did
+				// not happen, and it was left in place until ADR-055 T1's
+				// test asked (ADR-054 T2 said skip omits it; nothing pinned it).
 				res.Hunks[i].Echo = nil
+				res.Hunks[i].Balance = ""
 			}
 		}
 		reportAddressed()
@@ -476,6 +500,7 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 				}
 				res.Hunks[i].Status = StatusSkipped
 				res.Hunks[i].Echo = nil
+				res.Hunks[i].Balance = ""
 			}
 			reportAddressed()
 			return res, fmt.Errorf("%s: %w", w.file.Path, err)

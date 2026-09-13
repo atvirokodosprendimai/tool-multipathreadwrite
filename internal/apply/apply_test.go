@@ -2463,3 +2463,42 @@ func TestACreateCarriesNoBalance(t *testing.T) {
 		t.Errorf("file = %q, want %q", got, want)
 	}
 }
+
+// ADR-055 T1: Result.Advisories counts ok hunks that carry a Balance, and
+// nothing else. When a sibling fails, the plan writes nothing and every ok
+// hunk becomes skipped — a skipped hunk carries no Balance (the same rule
+// as Echo) and is not counted, because an advisory about a write that did
+// not happen is a row about nothing.
+func TestAdvisoriesCountsOnlyOkHunksWithABalance(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.go", "func A() {\n\treturn\n}\n")
+	write(t, root, "g.go", "package g\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.go", Start: 1, End: 1, Op: "replace", Body: []string{"func A() { return }"}, Lines: -1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Advisories != 1 {
+		t.Errorf("one delta hunk: Advisories = %d, want 1", res.Advisories)
+	}
+
+	write(t, root, "f.go", "func A() {\n\treturn\n}\n")
+	res, err = Apply(root, []Input{
+		{Path: "f.go", Start: 1, End: 1, Op: "replace", Body: []string{"func A() { return }"}, Lines: -1, Index: 0},
+		{Path: "g.go", Start: 1, End: 1, Op: "replace", Body: []string{"x"}, Anchor: "NOT HERE", Lines: -1, Index: 1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 || res.Hunks[0].Status != StatusSkipped {
+		t.Fatalf("expected f.go skipped beside a failing sibling: %+v", res.Hunks)
+	}
+	if res.Advisories != 0 {
+		t.Errorf("a skipped hunk was counted as an advisory: %d", res.Advisories)
+	}
+	if res.Hunks[0].Balance != "" {
+		t.Errorf("a skipped hunk kept Balance %q; nothing was written", res.Hunks[0].Balance)
+	}
+}

@@ -291,6 +291,7 @@ var writeDescriptions = map[string]string{
 	"hunks.removed_first": "The first line a delete removes, trimmed for display, so a caller can see what it is losing. Present whenever a delete reaches `ok` — a dry run included, where nothing was actually removed.",
 	"hunks.removed_last":  "The last line a delete removes, on the same terms as `removed_first`.",
 	"hunks.echo":          "N lines after the new body, numbered as they sit in the written file, when echo_pad > 0. Absent at the default of 0. A closer here does not fail the hunk — visibility, not a checker.",
+	"advisories":          "How many ok hunks carry a balance delta (ADR-055). Zero on a clean write, and always present, so a caller that reads only this key still sees that a row reported something. Skipped and failed hunks contribute nothing.",
 	"hunks.balance":       "Delimiter-balance delta on a non-prose hunk: each of `{}` `()` `[]` whose net count in the replaced lines differs from the body, as `{ +1 → 0`. Absent when they match, on prose (.md .markdown .txt .rst .adoc), and on a balanced insert — which is invisible to it. Rune counts, no lexer; never fails the hunk.",
 }
 

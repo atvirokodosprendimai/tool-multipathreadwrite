@@ -702,7 +702,7 @@ else
     || bad "the sibling hunk got no skip verdict: $(head -2 <<<"$out" | tr '\n' ' ')"
   # "2 file(s)" IS the rule-3 claim. Asserting only on the FAIL line would pass
   # on a receipt that forgot the sibling file entirely.
-  grep -qE '2 hunk\(s\), 2 file\(s\), 1 failed — NOTHING WRITTEN' <<<"$out" \
+  grep -qE '2 hunk\(s\), 2 file\(s\), 1 failed, 0 advisories — NOTHING WRITTEN' <<<"$out" \
     && ok "and the summary names every file the plan addressed" \
     || bad "summary does not name both addressed files: $(grep 'hunk(s)' <<<"$out")"
   # --json used to emit a bare error and no JSON at all. jq -e is the assertion
@@ -5442,6 +5442,47 @@ for k in applied refused_parse refused_apply check_not_run failed_check; do
 done
 grep -q '"landed": 2' <<<"$jout" && ok "--json landed is 2" || bad "--json landed wrong: $jout"
 grep -q '"failed_check_of_landed": 1' <<<"$jout" && ok "--json failed_check_of_landed is 1" || bad "--json failed_check_of_landed wrong: $jout"
+
+# 92. ADR-055: the summary line carries the advisory count, zero included, and
+# the JSON receipt carries `advisories`. Pair: a `{`-only replace with a
+# balanced body -> `1 advisory` on the summary and "advisories": 1 in JSON /
+# a clean replace -> `0 advisories` (the clause is never omitted) / --quiet
+# still carries it.
+R=$(mktemp -d "$WORK/r92-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "a delta replace exits 0"
+grep -q '0 failed, 1 advisory — applied' <<<"$out" && ok "the summary says 1 advisory" || bad "summary lacks the count: $out"
+
+R=$(mktemp -d "$WORK/r92b-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func B() {' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "a clean replace exits 0"
+grep -q '0 failed, 0 advisories — applied' <<<"$out" && ok "the summary says 0 advisories, not nothing" || bad "clean summary omits the clause: $out"
+
+R=$(mktemp -d "$WORK/r92c-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check --quiet - 2>&1); rc=$?
+want 0 "$rc" "--quiet delta replace exits 0"
+grep -q '1 advisory' <<<"$out" && ok "--quiet keeps the advisory count" || bad "--quiet dropped it: $out"
+
+R=$(mktemp -d "$WORK/r92d-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+jout=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check --json - 2>/dev/null); rc=$?
+want 0 "$rc" "--json delta replace exits 0"
+[ "$(jq -r .advisories <<<"$jout")" = "1" ] && ok "--json carries advisories: 1" || bad "--json advisories: $(jq -c .advisories <<<"$jout")"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
