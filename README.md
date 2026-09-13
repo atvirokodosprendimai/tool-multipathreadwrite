@@ -1,920 +1,92 @@
 # mrw — multi-path read and write
 
-Read many parts of many files, and make many edits across them, in one command
-instead of a dozen — and be told, for every single edit, whether it landed.
+Read many ranges across many files, and apply many edits across them, in one
+invocation — and get a verdict for every edit. A failed hunk writes nothing,
+because a write that changed nothing is invisible.
 
-It is an ordinary command-line tool. It was built for AI coding agents, which
-are the ones doing hundreds of small edits a day, but nothing about it requires
-one.
+The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
 
 **Status: stable at v1.15.0 (2026-09-13), the tag cut from `31422d8`.**
-v1.15.0 is check-miss refuse plus echo-pad and the neighbour license: an
-in-root `mrw check` miss is refused at exit 2 instead of a silent
-whole-project PASS; `--echo-pad N` (MCP `echo_pad`, default 0) prints N
-lines after an applied body so a surviving closer is visible; a
-multi-line replace is refused unless the ledger already covers a line
-after End. Single-line replace is unchanged. When End is the last line
-the licence is skipped. §86–88 drive the shipped binary: a miss names
-the path and writes no result document, an unread neighbour writes
-nothing, and a pad stays `ok`.
-What that word rests on is recorded in this tree. The six promises listed in `AGENTS.md` are each
-an ADR and each a set of rows in `scripts/contract.sh`, which drives the built binary and prints its
-own verdict; no assertion failed on the tree the tag was cut from, in the runs that were measured —
-which is the honest form, because §24 still races 40 concurrent ledger reads (`docs/adr/BACKLOG.md`).
-The tag's CI run had none fail. The COUNT is platform-dependent
-and is not quoted flat for that reason: **828 pass on darwin/arm64, and the Linux CI run for the tag
-reports 825 passing, one skipped and none failing.** The gap is exactly the case-folding family —
-darwin folds case and Linux does not, so three assertions about two spellings of one file do not run
-there, and CI prints one SKIP naming them. Re-measured for this tag rather than carried over: the
-skip line in run 34751021658 says *"a case-sensitive filesystem here: the two-spelling half did not
-run; the symlink half above is its twin"*, which is the explanation and not an inference from the
-arithmetic. The v1.5.0 paragraph attributed its own gap to root-user triggers, a different set, and
-would have been wrong here.
-⚠ **And the arithmetic could not have attributed it to §24.** That row now PASSES on both platforms
-(the Linux run for this tag says *"concurrent reads keep every entry (40/40 kept)"*; the same words
-here). The previous paragraph quoted a skip that replaced three assertions when the race did not
-keep 40; that skip is gone, because the lock shipped. Checked rather than assumed, because a previous
-reading of these numbers fitted a coincidence and matched the wrong mechanism.
-A break campaign of 47 probes
-(`scripts/break-campaign.sh`, its run in `docs/break/campaign-v1.15.0.txt`) against that same tagged
-tree found no silent wrong write and every refusal in it names its reason; every probe's name and
-exit code is identical to the v1.14.0 run against `085ad95`, the v1.13.0 run against `d7e39bd`, the
-v1.12.0 run against `c4384f3`, the v1.11.0 run against `69e1d1f`, the v1.10.0 run against `c60b20d`, the
-v1.9.0 run against `2363abb`, the v1.8.0 run against `fe49ef5`, the v1.7.0 run against `8846325`, the
-v1.6.0 run against `0fffa77`, the v1.5.0 run against `07bc664`, the v1.4.0 run against `bd73ee0`, the
-v1.3.0 run against `3434c35`, the v1.2.0 run against `03feb92` and the v1.1.0 run against `d6c62e7`.
-No probe was edited for this release. One was for v1.8.0 — the overlap probe took an `anchor=`,
-because ADR-035 would otherwise have refused it for the wrong reason and it would have silently
-stopped measuring overlap — and its verdict was unchanged, which is the evidence that the edit
-preserved what the probe measures rather than quietly replacing it.
-That identity is evidence of no UNINTENDED change and nothing more: the campaign exercises none of
-what v1.15.0 changes, and contract §86–88 do.
-**v1.11.0 is a breaking refusal for MCP.** A fitting `mrw_read` grants no licence until `ack`. A
-following write without `ack` is refused unless a prior valid ledger licence already covers the
-lines — the same fail-safe ADR-031 already shipped for pages. A correct CLI plan is unchanged.
-**v1.8.0 shipped two breaking refusals**, so read the next
-paragraph before upgrading from v1.7.0 or older, and v1.5.0's alias defect remains the reason to
-leave anything older than that.
-**Both v1.8.0 refusals make a silent wrong answer loud, and neither changes what a correct plan
-does.** ADR-035: a `replace` whose address resolves to more than one line is refused unless it
-carries `anchor=`. mrw models no target syntax — it puts the lines you gave where you said — so a
-range wrong by a few lines writes your body over content nobody looked at, and the receipt cannot
-show it, because the damage falls outside the lines the hunk named. Two such ranges reached a build.
-`anchor=` and not `lines=` or `sha=`, because it is the only one of the three that speaks about the
-content AT the address: `sha=` never reads the address at all (`internal/apply/apply.go:583`), so it
-cannot discriminate a wrong one for any file state. Scoped to `replace` — every measured incident is
-one, and `delete` already has the stronger optional guard of an expected body.
-ADR-036: `/from/,/to/` now means one thing on both paths. The end is the first match **at or after**
-the start, so an end on the start line closes the span there; and a paired pattern whose end never
-matches is reported and exits 1 rather than served silently to the end of the file. That second one
-is why it is a record: a read that quietly serves MORE than its address named is exactly as
-invisible as a write that quietly changes less, and the line numbers it hands back then reach a
-plan. One difference is KEPT — a read serves a span for every match of the start that is not already
-inside a span it served, a write refuses unless the start matches exactly once — because
-exactly-once answers *which site did you mean*, which a plan must know and an exploratory read need
-not.
-**Upgrading:** add `anchor=` to multi-line replaces, taking the text from the `NNN| content` a read
-printed, where it is a real check rather than a guess — an anchor typed from memory can be wrong in
-the same way the address is, and mrw cannot tell which it got.
-Where you relied on a paired pattern running to end of file, there is no pattern-anchored spelling
-that reaches EOF, so name the start by LINE — `f.go:2-$` or `f.go:2-` — or give a real end pattern,
-or bound it with `A,+N`. Those three are what the refusal itself names: *"write /re/, /from/,/to/ or
-A,+N"*.
-⚠ **Not `f.go:/a/,$`.** An earlier draft of this paragraph advised it and it is wrong in the way
-this release is about: on the read path `,` separates SPECS, not the ends of a range, so
-`f.go:/^bbb$/,$` returns two disjoint single-line spans — the `bbb` line and the last line — and
-exits 0, handing back numbers for something nobody asked for. On the write path the same string does
-not parse. Caught in review of the release note announcing ADR-036, which is the same failure one
-level up.
-Three things arrived in v1.6.0 and still stand. ADR-031 and ADR-039 make a served MCP read license only the part the caller echoes back.
-ADR-032 makes the MCP result ceiling the CALLER's (`--max-result-chars`, `MRW_MAX_RESULT_CHARS`) and
-bounds the WHOLE answer rather than the read path alone: measured, a 4,000-hunk dry run returned
-453,632 characters against an advertised 200,000, and a host that trusts the number truncates. An
-oversized write receipt now drops successes, then unwritten file records, and says so — a FAILED
-hunk and a WRITTEN file never go, because for a partial application those records are the only thing
-in the receipt saying the tree changed. ADR-033 makes `--max-lines 0` a cap of zero rather than
-"no cap", so zero means zero in all three places this format counts.
-**`mrw seen --prune` arrives in v1.7.0, and it is the first thing mrw deletes that it did not write.**
-Per-checkout state had accumulated without bound since ADR-004: 24,067 directories and 256 MB of
-disk on one machine, 98.9% of them naming a checkout that no longer exists, with
-`scripts/contract.sh` in THIS repository the heaviest producer at +111 entries per run. ADR-034
-removes the ones whose `root` marker names a path that is gone, says which, and runs ONLY when you
-ask; ADR-034 T4 stops the gate producing them. Nothing reaps anything on its own.
-It went through four review rounds and the record says what each one found, including the two
-occasions the fix was right and the account of it was wrong. Two properties are worth knowing before
-you run it: `os.Root` confines a path to its root but FOLLOWS a symlink that stays inside it, which
-is why the base is opened and then verified by identity rather than checked and then opened; and a
-wrong prune costs more than the ledger, because the iteration working set and the plan tally live in
-the same directory and do not come back from your source.
-And the served-size curve is measured rather than asserted: a strong client
-at the ceiling on the fixture built to be failed (reading 3), the one recurring miss identified as a
-row index (reading 5), the weaker client at the ceiling once the served text reached it without
-a second number that reads as a line address (readings 8, 9, 10), that number put back
-bringing the miss back in five of fifteen trials (reading 11), and the ceiling holding on a
-thirteen-service fixture (reading 17) and for a client from a second vendor (reading 16); the
-section *Does serving more hurt?* has the numbers and their limits.
-Stable means the public contract — the plan grammar, the exit codes, read-before-write, the MCP
-tools — changes only through a record, and a record that relaxes or replaces an earlier promise
-retires it. **Since v1.0.0 that has happened five times, all on the MCP surface and none on the CLI:**
 
-ADR-023 retires half of ADR-011's T2, so `mrw_read` returns no `structuredContent` and declares no
-`outputSchema`; its receipt is the second text block, unchanged in shape. A caller that read
-`result.structuredContent` off a read parses the JSON string in `result.content[1].text` instead —
-the same object, one block over.
-
-ADR-024 retires the clause of ADR-014's Decision 2 that marked a page `isError: true`, and the
-matching assertion in ADR-017's Enforced-by test, so **an `mrw_read` answer that SERVED something no
-longer sets `isError`** — a page, an oversized grep index, and a read that served content beside a
-path it could not use. A refusal that served nothing still carries the flag. A caller that branched
-on `isError` to notice a partial answer branches on the PRESENCE of `next_read` instead — its
-absence is how you know you have the whole file, which was always the documented exit condition. The
-page still says what it is in its served text too, with
-`-- PARTIAL: lines N-M of T. K line(s) remain.` Why it changed is measured rather than argued: with
-the flag set, a host truncated a 152,594-character page to about 150 of its 2,380 lines before the
-model saw it, while the ledger recorded the whole page and licensed a write to a line nobody had
-seen; with the flag absent, the same page arrives whole.
-
-ADR-025 narrows that last clause. The served-read return had been left flagging nothing at all, so a
-read whose every path was unusable came back with the key absent while the same emptiness reached
-through `grep` came back flagged — what decided was whether `grep` was passed, not what the caller
-received. **An `mrw_read` on the served-read path that served NOTHING now sets `isError: true`.**
-A `grep` that searched successfully and matched nothing is not that shape and is not flagged: it
-answered the question, and it returns before this path.
-An answer that served anything is unchanged, and that includes the two shapes it is easy to
-mistake for emptiness: a range that matches no line, and an empty file. Both are still OBSERVED — mrw
-opened them and recorded their sha — so both stay unflagged, and the observation count rather than the
-problem count is what separates them.
-
-ADR-031 retires the clause of ADR-014's Decision 3 that recorded a page ON SERVE. The reasoning is
-kept — a page licenses its own lines and no more — but the licence now attaches on ACKNOWLEDGEMENT
-rather than on delivery, because mrw cannot see the difference between a page that arrived and one a
-host cut in half. A paged answer brackets each run of lines with `-- ck <id> open lines A-B (N lines
-follow)` and `-- ck <id> close`, and licenses nothing until the caller sends those ids back as
-`ack`. Measured 2026-09-05, and it is the same failure the `isError` clause above was retired for,
-one level down: the host cut the MIDDLE out of a 2,727-line page, the model saw the two ends, mrw
-recorded all of it, and a write to a line in the discarded middle applied at exit 0.
-
-ADR-039 retires the remaining half of that serve-then-record path: a fitting MCP read, the case
-ADR-031 left recording on serve because nothing was paged. The licence is now the same for a
-3-line file and a 2,727-line page. CLI `mrw read` is still unchanged.
-
-`mrw_write`'s plan grammar is untouched, and so is every CLI behaviour.
-
-Install it with one command — see [Install](#install) for the details:
-
-```sh
-curl -fsSL -o mrw "https://github.com/atvirokodosprendimai/tool-multipathreadwrite/releases/latest/download/mrw-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')" && chmod +x mrw
-```
-
-## The problem it solves
-
-Say you need to change four things, in four different files.
-
-The usual way is eight steps: open each file, then edit each file. The tedium is
-not the real problem. The real problem is this:
-
-> **An edit that changes nothing usually still reports success.**
-
-If your third replacement matched no text — the line moved, someone renamed the
-function, you had a typo — most tools still say "done". You find out later, when
-something breaks, that one of your four changes never happened.
-
-It is worth seeing why that asymmetry exists. A *read* that finds nothing is
-obvious: you get an empty result and you know immediately. A *write* that
-changes nothing looks exactly like a write that worked. That is the bug mrw is
-built to make impossible.
-
-## How you use it
-
-Two commands: look, then change.
-
-You have to look before you change. That is not a style suggestion — mrw
-enforces it, and will refuse to edit a file it has not shown you. The reason is
-in the list further down: it is how it can tell "the file is as you last saw it"
-from "someone else changed it while you were working".
-
-**Look** — several places in several files, one call:
-
-```sh
-mrw read config.go:3 'server.go:/func Start/'
-```
-
-```
-==> config.go  4L  51B  sha f5cad94e
-@@ 3-3
-    3| const timeout = 30
-==> server.go  5L  49B  sha 075a39fa
-@@ 3-3
-    3| func Start() error {
-```
-
-You asked for one line by number and one line by a search pattern, in two files,
-and got back exactly those lines — not the whole files.
-
-**Change** — write a short plan listing every edit, then apply it in one call:
-
-```
-@@ config.go 3 replace
-const timeout = 60
-@@ server.go 99 replace
-	panic("x")
-```
-
-```sh
-mrw write plan.mrw
-```
-
-```
-skip config.go 3 replace
-FAIL server.go 99 replace (plan line 3): range 99 is out of range (file has 5 lines)
-2 hunk(s), 2 file(s), 1 failed — NOTHING WRITTEN
-```
-
-The second edit was wrong — line 99 does not exist in a 5-line file. So:
-
-- **Every edit gets its own line.** Nothing is summarised into one "success".
-- **One bad edit means nothing is written at all.** `config.go` was not touched.
-  You never end up with a half-changed set of files, which is worse than no
-  change, because it looks finished.
-- **The exit status says so too** (`1` here), so a script notices without
-  reading the text.
-
-Fix the plan, run it again, and you get a verdict per edit and a summary of what
-changed on disk.
-
-## What you get
-
-- **One call instead of many.** Two round trips, whatever N is.
-- **A verdict for every edit** — `ok`, `FAIL` with a reason, or `skip` because a
-  sibling failed. Never a bare "success".
-- **All-or-nothing.** Any failure and the files are left exactly as they were.
-- **It refuses to edit a file it has not shown you.** If the file changed behind
-  its back, it stops and says so instead of overwriting your colleague's work.
-- **It can run your tests for you.** `mrw write --check plan.mrw` applies the
-  edits and then runs your project's tests for the code you just changed, in the
-  same call, and reports whether they passed. (`mrw check --full` runs
-  everything.)
-
-## What it is not
-
-It is not a replacement for ordinary editing tools. If you need one change in
-one file, use whatever you already use — see the honest measurement below, where
-mrw *loses* on that shape. It pays off when there are many edits, many files, or
-both.
-
-
-## Where it fits — the QAM stack
-
-mrw is one of three tools in the **[QAM stack](https://atvirokodosprendimai.github.io/qamstack/)**:
-
-> Three tools that make Claude's work checkable: gates that exit non-zero, memory
-> that outlives the session, edits that come back with a receipt.
-
-| | | |
-|---|---|---|
-| **Quality Harness** | *Gates, not vibes* | a Claude Code plugin whose gates report through exit codes rather than assertions |
-| **AI Agent Memory** | *The reasoning survives* | an MCP server letting agents read and write shared memory across sessions, decisions and rejected alternatives included |
-| **mrw** | *Edits with a receipt* | this: batched edits applied atomically, with a verdict per hunk |
-
-**mrw stands alone and needs neither of them.** It is an ordinary binary; nothing
-here depends on a plugin or a server, and `AGENTS.md` carries everything an agent
-needs to drive it from a plain checkout.
-
-**With AI Agent Memory it gets a memory.** The same guidance is mirrored as a
-centralised `mrw` skill, so a session working in a *different* repository — where
-this README is not visible, but the globally installed binary is — loads it with
-`am_load_skill("mrw")`. More usefully, corrections accumulate: two facts in that
-guidance were learned the hard way in one session and now reach every project
-rather than being rediscovered per repo.
-
-The three overlap on one conviction, which is why they are a stack rather than a
-bundle: **a report that cannot fail is not a report.** A gate that cannot exit
-non-zero, a decision nobody wrote down, and an edit that matched nothing but said
-"done" are the same bug wearing three hats.
-
-
-## Does it actually save anything?
-
-**The unit is agent turns, not seconds.** mrw does not make anything faster to
-execute, and no figure here is a wall-clock figure. What it removes is *steps* —
-the read-edit-read-edit round trips an agent spends to change N places, each one
-a full model turn with its own latency, its own context, and its own chance to
-lose track. Two calls, for any N. That is the whole product.
-
-Measured on this repository, by a script you can re-run — a number nobody can
-reproduce is a claim, not a measurement:
-
-```sh
-./scripts/measure.sh
-```
-
-> **Windows:** the two reproduction scripts are `bash`, so run them under **WSL**
-> or **Git Bash** — they are POSIX shell, not PowerShell. The binary itself is
-> native; only these scripts need a shell. See [Prerequisites](#from-source).
-
-**This is the only benchmark in the repository, and it measures round trips and
-input bytes — not time.** There are no `go test -bench` benchmarks, on purpose: a
-CPU figure for a tool that spends its life blocked on a file read would measure
-nothing anyone is paying, and it is not the axis the tool competes on.
-
-**Round trips are the claim that survives every reading: 2 calls, for any N.**
-Bytes depend entirely on what you compare against, so the table gives both
-baselines rather than the flattering one — and every one of the four shapes in
-it sends MORE bytes than a windowed read on at least one comparison. C loses on
-both, because for a file that small the window IS the whole file.
-
-| shape | | baseline | mrw | |
-|---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 147,971 | 2,918 | **50.7× less** |
-| | bytes vs a **windowed** `offset`/`limit` read | 2,254 | 2,918 | **1.3× MORE** |
-| | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
-| | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
-| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 20,145 | 1,329 | 15.2× less |
-| | bytes vs windowed | 866 | 1,329 | 1.5× MORE |
-| | calls | 4 / 5 | 2 | 2.0–2.5× fewer |
-| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 12,396 | 15,133 | **1.2× MORE** |
-| | calls | 2 / 3 | 2 | same to 1.5× fewer |
-| **D.** 1 site in **every** Go file — 55 sites, 55 files | calls (reads + edits) | 110 | 2 | **55.0× fewer** |
-| | bytes vs whole | 897,917 | 4,814 | 186.5× less |
-| | bytes vs windowed | 782 | 4,814 | **6.2× MORE** |
-
-**Measured at `0fffa77`, which is the tree v1.6.0 was tagged from**, with a binary the script built
-from it. Set `MRW` to measure a binary from somewhere else and the header says so, because the
-commit then describes the fixtures and the file list rather than the code that produced the bytes.
-
-⚠ **A stamp names a commit you can actually check out, and one whose `scripts/measure.sh` is the
-script that produced the numbers.** This line said `4d01620` until v1.6.0 and neither was true of it:
-`main` takes SQUASH merges, so every commit on a merged branch survives only under
-`refs/pull/<n>/head` and `git clone && git checkout 4d01620` fails — and `scripts/measure.sh` at
-that commit is a different blob (`cd1159fe`) from the released one (`5924286f`), so a reader who did
-reach the tree would have run different code than produced the quoted figures. Found from outside
-the repository by a peer session reading the public remote, which is the vantage point that makes an
-unreachable SHA obvious and the one nobody working on the branch has.
-
-**Every figure here drifts, and shape D drifts fastest** — its file list is `git ls-files '*.go'`,
-so it grew from 27 files to 54 to **55** across three releases while an earlier version of this table
-still said 27. Shape A's whole-file baseline moves whenever the four files it reads do, and it moved
-here: 145,952 → 147,971 bytes between the previous stamp and this one, without a line of `measure.sh`
-changing. Re-run the script; the stamp is what tells you how old the number beside it is.
-
-**Shape D is the one to read.** It is the change every codebase gets eventually —
-a renamed symbol, an added build tag, a changed import — one site in each of 55
-files, and the file list comes from `git ls-files` so it grows with the
-repository instead of measuring a subset somebody typed once.
-
-⚠ **And read shape D for the CALLS, not the bytes.** Its `6.2× MORE` is mrw's
-worst possible input by construction: 55 files at ONE line each, so a per-file
-header and a per-file receipt are charged against 782 bytes of payload. **Shape E
-holds the task still and varies the span instead**, on one 1.06 MB file:
-
-| span | whole file | windowed | mrw | | |
-|---|---|---|---|---|---|
-| 100 lines | 1,060,000 | 5,300 | 6,052 | **175.15× less** than whole | 1.14× more than windowed |
-| 2,000 lines | 1,060,000 | 106,000 | 120,053 | **8.83× less** | 1.13× more |
-| 20,000 lines | 1,060,000 | 1,060,000 | 1,200,054 | 1.13× more | 1.13× more |
-
-Two things fall out. The overhead against a windowed read is **flat at ~13%** and
-does not grow — it is the line-number gutter, which is what makes a served line
-addressable by a later write. And the *saving* is not a property of file size at
-all: it is the part of the file you were never going to look at, so it collapses
-as the span approaches the whole file. The large ratios in shape D are what one
-line per file looks like, not what scale looks like.
-
-The arithmetic is the product, and it does not depend on this repository:
-
-| sites across files | Read + Edit | mrw | |
-|---|---|---|---|
-| 4 in 4 | 8 calls | 2 | 4× fewer |
-| 13 in 1 | 14 calls | 2 | 7× fewer |
-| 27 in 27 | 54 calls | 2 | **27× fewer** |
-| 36 in 36 | 72 calls | 2 | **36× fewer** |
-| N in M | M + N | **2** | — |
-
-Each of those calls is a **full model turn**: a request, a response, a result
-block read back, and one more opportunity to lose the thread between site 19 and
-site 20. That is the cost mrw removes, and it is why the floor is 2 rather than
-"fewer".
-
-**Shape D also sends 6.2× MORE bytes than a windowed reader, and that is fine.**
-Each site is a single line, so mrw is paying a per-file header and a per-line
-number on the smallest possible payload — the worst byte case there is. It is in
-the table at its worst because the calls column is the claim, and a table that
-hid the row where the other axis loses would not be worth reading.
-
-**Read the two byte rows together or neither.** `Read` takes `offset`/`limit`, so
-the windowed reader is the documented interface, not a strawman — and against it
-mrw costs *more* bytes, because it adds a header and a line number per line. The
-whole-file ratio in shape A's first row is real for the case an agent is usually
-in: it does not yet know where to look, so it reads whole files. Once it knows,
-the byte advantage is gone and the round trips are what is left.
-
-⚠ **That sentence deliberately does not repeat the number.** Prose beside a table
-drifts differently from the table, because a re-measurement looks for the figures
-it expects to move and prose is not where they live. This line still said `50.0×`
-after the re-measurement in `1dd1f21` had already changed shape A's row to 50.7×
-— caught within the hour, and only because a peer session had just named the
-class: it found a file count of `52` on its own page that had never been a
-measured value at ANY point, surviving every re-stamp because nobody looks for a
-number that is wrong on its own terms rather than merely out of date. A sentence
-that POINTS at a row cannot go stale; one that restates it can only be kept true
-by hand, and the hand that re-measures is looking at the table.
-
-⚠ **This is a rule about DUPLICATION, not a ban on numbers**, and the boundary
-matters because the unqualified version is wrong. Point when the figure already
-exists in an adjacent table and the sentence is repeating it. **State the figure,
-with a stamp, when it IS the claim** — the 453,632-character receipt above, or
-the state-directory counts: there is no row to point at, and pointing would leave
-the sentence saying nothing. **And state it when it cannot drift**: shape E's
-175.15× and 8.83× come from a generated file of 20,000 lines of IDENTICAL LENGTH
-— 52 characters plus the newline, 53 bytes, 1,060,000 in total — but of DISTINCT
-content (`item%05d`, all 20,000 different). Both properties are load-bearing and
-neither is incidental: uniform length isolates the line-number gutter from any
-variation in line length, and distinct content keeps the file reading like real
-source rather than a degenerate one. That makes those ratios a property of the
-construction rather than of a file list, which is exactly what shape D's are not.
-
-The boundary was drawn by the peer session that named the class, after applying
-the fix to its own pages and finding one place it should not go: a landing page
-with no table at all, where the number is the content and the mitigation has to
-be a stamp instead. Their sweep had checked that every figure MATCHED the new
-measurement, and every one did — while creating four sentences that could only
-stay true by hand. Matching is not the property to want; not needing to match is.
-
-That is also why the calls row splits. Reading whole files needs no search — the
-file reveals the site. Reading windows presupposes knowing where the window is,
-and finding it costs a call. mrw needs neither: these specs are regexes, so the
-finding happens inside the read.
-
-**Re-run it rather than quoting this table.** The figures it replaced claimed
-22.0× for shape A and were understated by a third within a day — these ratios
-track how large this repository's own files are. Shape C is the only byte figure
-that is drift-proof, because it reads a whole file either way, and it is the
-shape where mrw LOSES, which is why it is here.
-
-**Shape C is in the table on purpose.** When you need a whole file and there is
-one site, mrw prints *more* than the file holds — it adds a header and a line
-number per line — and saves no round trips. Use Read + Edit there. The saving
-scales with how much of each file you *don't* need, and with N.
-
-The method, and its biases: the Read+Edit column counts each file's **raw**
-bytes, which understates it, because the real Read tool numbers every line. The
-mrw column counts its **actual** output, headers and line numbers included.
-Output tokens are not measured — the plan you emit for mrw and the
-old_string/new_string pairs Edit needs are the same order of magnitude — so
-this is an input-side and round-trip result, not a total-cost one.
-
-## Why it exists — the design gap
-
-This section is the technical version of the problem described at the top.
-Skip it if the top was enough.
-
-mrw sits in a gap between two primitives an agent already has:
-
-| | batches | fails loudly |
-|---|---|---|
-| `Edit` | no — one replacement per call | yes, on a bad anchor |
-| `Write` | yes — whole file | no, it cannot say which change did not land |
-| `mrw` | yes — N hunks across M files | yes, per hunk, and writes nothing on any failure |
-
-The failure it is built around, stated exactly: **a read that returns nothing is
-visible; a write that changes nothing is not.** Batching four replacements into
-one script and getting "success" while one of them silently matched nothing is
-the bug this refuses to reproduce.
-
-## Does the contract hold under abuse?
-
-Every row below is asserted by a script, against the real binary in a throwaway
-repo, by making each promise go wrong on purpose:
-
-```sh
-./scripts/contract.sh      # exit 0 only if every assertion holds; the script prints its own total
-```
-
-The count moves as rows are added, so the script prints its own total rather
-than being trusted to match a number written here. Same shell requirement as
-above: **WSL or Git Bash** on Windows.
-
-| test | result |
-|---|---|
-| 3 hunks, 1 bad anchor | offender FAILs naming the line, siblings `skip` (never `ok`), nothing written, exit 1 |
-| 3 hunks / 2 files valid, `--check` | applied, scoped `go test .` PASS, exit 0 |
-| good write + deliberately red test | write **kept**, no revert, exit 3, failing tail in `--json` |
-| `@1`, `@3`, `@1:1-2` pointers | resolve; `@9` errors with the entry count, exit 2 — never an empty result |
-| check whose output says `PASS` but exits 1 | reported FAIL, exit 3 — the process is believed, never the text |
-
-The last row is the one worth staring at. The check printed `PASS` and returned
-1; mrw reported failure, because output goes to a file and the verdict comes
-from the process's real status. A tail in the pipeline would have believed the
-word.
+Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
+Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
 
 ## Install
-
-Download a released binary — raw, so there is nothing to unpack:
 
 ```sh
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')   # linux | darwin
 ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 curl -fsSL -o mrw \
   "https://github.com/atvirokodosprendimai/tool-multipathreadwrite/releases/latest/download/mrw-${OS}-${ARCH}"
-chmod +x mrw && ./mrw --version
+chmod +x mrw && ./mrw version
 ```
 
-Windows: `mrw-windows-amd64.exe`. Every release also carries conventional
-archives (`mrw_<os>_<arch>.tar.gz` / `.zip`) and a `SHA256SUMS.txt` covering
-every asset.
+Windows: `mrw-windows-amd64.exe`. Every release also carries archives
+(`mrw_<os>_<arch>.tar.gz` / `.zip`) and a `SHA256SUMS.txt`.
+
+`mrw version` prints the same string `-v` / `--version` already print. Extra
+arguments are usage (exit 2).
+
+`mrw instructions` prints the contract from the binary: when to reach for mrw,
+the two rules that produce most refusals, and the traps that make a red run look
+green. Exit 0. No flags.
 
 ### From source
 
-Prerequisites: **Go 1.26.6 or newer** — the version in `go.mod` — and nothing
-else. mrw has one dependency and no cgo, so the build is one command anywhere
-Go runs:
+Go 1.26.6 or newer (`go.mod`). One dependency, no cgo:
 
 ```sh
 go build -o bin/mrw ./cmd/mrw          # Linux, macOS
 go build -o bin/mrw.exe ./cmd/mrw      # Windows
 ```
 
-Running the tests needs only Go (`go test ./...`). Running the two reproduction
-scripts additionally needs **bash**, **git**, **awk** and a POSIX userland — the
-ordinary `sed`, `tr`, `wc`, `mktemp` and friends — on `PATH`.
-`scripts/contract.sh` needs more than that: **python3** (it builds and inspects
-JSON throughout), plus **perl**, **jq**, **shasum**, **pgrep** and **seq** — the
-last is not in POSIX.
-None of those four was ever listed. Neither script needs `bc` any more:
-`measure.sh` was its only user, and `bc scale=1` TRUNCATES, so a ratio of
-1.29 printed as 1.2 and understated mrw's own loss. On Windows both scripts
-need WSL or Git Bash.
-
-
-### Use it from an MCP host
-
-**Which surface, and where to register it.** On a host that has a shell, prefer
-the CLI. It is the broader one — `--files-from`, `--check`, and the `check`,
-`iter`, `seen` and `stats` subcommands exist only there — and it needs no
-registration at all. It is not simply the better one, and the handshake says so:
-one server is one writer to the ledger and serializes in-process, so
-callers sharing ONE fixed checkout may still want that rather than waiting
-on the flock a CLI process takes. Where that does not apply, register this server for the ONE
-project that needs it rather than for your user account, because a user-scope
-registration loads `mrw_read` and `mrw_write` into every project on the machine,
-and an instruction written in one repository does not reach the others. In Claude
-Code that is `claude mcp add -s project mrw -- mrw mcp`, which writes a
-`.mcp.json` in the repository; user scope lives in `~/.claude.json`. Measured on
-one machine on
-2026-09-09: the repository whose own instructions said to drive mrw through the
-shell made 9 MCP calls in a week, every one a deliberate probe of this arm,
-while a repository with no such instruction and the same machine-wide
-registration made 57 MCP writes in a single day. Register for the user account
-on a host WITHOUT a shell, where these two tools are the whole interface.
-
-`mrw mcp` speaks the Model Context Protocol on stdio, so an agent reaches the
-same engine without shell access. Add one block to your host's config:
-
-```json
-{
-  "mcpServers": {
-    "mrw": {
-      "command": "mrw",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-Use an absolute path for `command` if `mrw` is not on the host's `PATH` — a host
-does not always inherit your shell's.
-
-**Which checkout it serves — and Claude Desktop needs `--root`.** With no
-`--root`, the server uses `CLAUDE_PROJECT_DIR` when the host sets it and falls
-back to its own working directory otherwise.
-
-**Claude Code sets that variable**, naming the project you are working in, so
-the block above serves the right tree.
-
-**A host that does not set it binds to its own working directory instead.** That
-is the case to watch, because the fallback is silent and the resulting root can
-be anything. Claude Desktop is the one reported in practice (issue #75).
-
-**Two fallback roots are REFUSED rather than served** (issue #81): a filesystem
-root, and your home directory. Neither can be a project, and serving one would
-scope every read and write to everything below it — correctly, which is what
-makes it dangerous. `mrw mcp` exits 2 and names the flag that fixes it.
-
-The guard is on how the root was CHOSEN, not on which directory it is. **An
-explicit `--root` is always honoured, including `--root /` and `--root "$HOME"`**,
-and so is a host-set `CLAUDE_PROJECT_DIR`. Only the silent fallback is
-second-guessed, and an ordinary checkout reached by fallback — `cd myrepo && mrw
-mcp` — still serves.
-The fallback itself, shown directly — this demonstrates mrw, not Desktop:
-
-```sh
-$ cd / && env -u CLAUDE_PROJECT_DIR mrw mcp
-mrw mcp: serving / (from the working directory)
-```
-
-A root of `/` is almost never what anyone means. Every refusal stays correct
-and confinement is to the whole filesystem, which is the same class of defect
-as binding to the wrong repository — correct-looking answers about a tree
-nobody asked about — except the wrong tree is everything.
-
-So on Claude Desktop, and on any host that does not set the variable, pass an
-absolute `--root`, and use an absolute `command` while you are there:
-
-```json
-{
-  "mcpServers": {
-    "mrw": {
-      "command": "/absolute/path/to/mrw",
-      "args": ["--root", "/absolute/path/to/repo", "mcp"]
-    }
-  }
-}
-```
-
-**Check the binary the host actually launches.** MCP first shipped in v0.0.19,
-and neither v0.0.19 nor v0.0.20 sends `instructions` at all — the field is
-absent from the handshake, so a host registered against either gets a server
-that works and teaches nothing. **v0.1.0 is the first release that sends them.**
-`"command"` is often a path you installed to once and forgot, so run `--version`
-on that exact path rather than on whatever `mrw` your shell resolves.
-
-The trade is that one entry serves one fixed checkout. For several projects,
-add several entries under distinct names.
-
-Whichever wins, the server prints the tree it chose and the reason to stderr at
-startup, so a host log answers "which checkout is this?" without guessing.
-
-**An answer over MCP is bounded; the CLI is not.** Neither tool will return more
-than 200,000 characters in one call, and that number is the caller's to set:
-`mrw mcp --max-result-chars N`, or `MRW_MAX_RESULT_CHARS` for a host config that
-can only pass an environment. The flag beats the variable, absence takes the
-200,000 default, and `0` means zero — a server that may return nothing, the same
-reading `--max-lines 0` takes. What is bounded is the ENCODED result, receipt
-included, rather than the served text alone.
-A `mrw_read` request over the ceiling comes back as the FIRST
-PAGE — the lines that fit, a `next_read` field naming the
-spec that asks for the rest. Send it to continue, and repeat until `next_read`
-is absent; its absence is how a caller knows it has the whole file, and each
-page licenses a write to exactly the lines it served **that you acknowledge**. Nothing is ever
-truncated: a part that arrives looking like the whole file is the silent wrong
-answer this tool exists to refuse, which is why a page says in its own text
-what remains — a page is not flagged `isError`, since ADR-024 moved that promise onto the served
-text. Naming several specs at once cannot page — mrw cannot know which
-of them to narrow — so that case is still refused outright, with the limit and a
-per-file line budget — unless no line of the file fits at all, where a budget would name a range
-that fails the same way, and the refusal says so and points at the CLI instead. The limit is also declared in `tools/list` as
-`_meta["anthropic/maxResultSizeChars"]`, so a host knows it before it hits it.
-
-`mrw_write` obeys the same ceiling. A receipt too large for it drops SUCCESSFUL
-and skipped hunk verdicts, then file records, and says in an `elided` field
-exactly what it left out; every FAILED hunk stays, because under all-or-nothing a
-failure is why nothing was written and is the one verdict a caller cannot act
-without. The counts describe the whole plan whatever was dropped.
-
-Two edges of that, both deliberate. If even the failures alone will not fit, the
-answer is a plain refusal naming the counts rather than a receipt shortened past
-the verdicts it exists to carry — the elision never eats a failure, it stops. And
-**a ceiling too small to report a write refuses the write itself**, before
-anything is applied and with the tree untouched: once a plan has applied, every
-answer must be true about your files, so the honest moment to refuse is before.
-That refusal is a JSON-RPC error, which carries no result and is therefore
-outside the ceiling it is reporting on — which is how `--max-result-chars 0` can
-be answered honestly at all.
-
-⚠ **A served MCP read licenses nothing until you acknowledge it** (ADR-031, ADR-039). Its served text carries `-- ck`
-markers: each run of 200 lines is BRACKETED by `-- ck <id> open lines A-B (N lines follow)` and
-`-- ck <id> close`. Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.
-Omit an id and its lines stay unwritable, which is the point: on 2026-09-05 a host cut the middle out of a 2,727-line page, the model saw the two ends,
-mrw recorded the whole thing, and a write to a line in the discarded middle applied at exit 0. mrw
-cannot see that from inside the server — a cut result and a delivered one are identical to it — so
-the licence comes from the caller rather than from the send. The CLI takes no `ack` and needs none:
-nothing sits between `mrw read` and you.
-
-
-`mrw read` on the command line has no such limit and no paging: it streams.
-
-Two tools are exposed. `mrw_read` takes `specs` — the same range syntax the CLI
-takes — and `mrw_write` takes `plan`, the same plan text. Nothing listens on a
-port; the server speaks over the pipe the host already opened, and it writes
-only MCP messages to stdout.
-
-**`mrw_read` can also FIND.** Set `grep` to a regexp and it walks the paths in
-`specs` — or the whole root when you give none — and serves every match, which
-is `mrw read --grep` over the wire. `exclude` takes globs to skip. A path in
-`specs` may not carry a range when `grep` is set: a range and a grep are two
-answers to one question, and both surfaces refuse it in the same words.
-
-This matters most where there is no shell. A caller with a terminal finds its
-sites with `rg -l | mrw read --files-from -`; a caller that only has this server
-could not previously answer "which files" at all.
-
-**A grep too large to serve returns an INDEX, not a refusal.** The result
-carries one spec per matching file with no content, plus the count, and you send
-entries back as `specs` to read the ones you want. Nothing is recorded for an
-index, because nothing was served — so it licenses no write. If the index itself
-will not fit, it is cut and `next_index` names the file to resume at.
-
-`--files-from` has no MCP equivalent and does not need one. It exists so a
-shell pipeline composes without word-splitting mangling the list; `specs` is
-already a JSON array, which is the thing it reconstructs.
-
-**What the server does not change.** It is the same engine: the same read-before-write
-ledger, shared with the CLI so a file read over MCP can be edited from a shell
-and the reverse; the same plan format; the same per-hunk verdict, carried in the
-write result's `structuredContent` and identical field for field to what
-`mrw write --json` prints, apart from `root` — the CLI reports the root you gave
-it and the server reports the checkout it was bound to; and the same meanings for
-every exit status when you go back to the shell. There is nothing to choose
-between the two paths and no behaviour to
-learn twice — the server is a second caller of one engine, not a second product.
-The single difference is the concurrency note above. One shape to know: a read's
-answer is its first text block and its receipt (observed spans, problems, `next_read`)
-the JSON string in its second, with no `structuredContent` — because a host was measured rendering
-`structuredContent` in place of the text, which for a read is the receipt without the
-lines (ADR-023, issue #109). A write's receipt is its `structuredContent`, and the
-measured host shows exactly that.
-
-### ⚠ Git Bash on Windows mangles a regex address
-
-`mrw read 'f.go:/^func main/'` **fails in Git Bash**, and the error names a line
-number you never typed:
-
-```
-mrw: "cmd\mrw\main.go;C:\...\Git\^func main\": bad line number "\Users\..."
-```
-
-MSYS2 rewrites the argument *before* mrw is started: it reads `a:b` as a POSIX
-path list so the `:` becomes `;`, and `/^func main/` looks root-relative so it is
-expanded against the Git installation prefix. **Quoting does not prevent this** —
-it happens in the process-spawn layer, after the shell has finished.
-
-| environment | regex addresses |
-|---|---|
-| Git Bash / MSYS2 | **fail** |
-| Git Bash with `MSYS2_ARG_CONV_EXCL='*'` | work |
-| PowerShell | work |
-| WSL | work (a Linux environment; no MSYS layer) |
-
-Line-number, range and `$` addresses are unaffected — they carry no leading `/`.
-mrw recognises the wreckage and says so, but it cannot undo it: the bytes it
-receives are already the mangled ones.
-
-
-**A shell glob and an address suffix do not mix, on any platform.** This one is
-not Windows-specific and it bites on macOS's default shell:
-
-```
-$ mrw read internal/mcp/*.go:1-3
-zsh: no matches found: internal/mcp/*.go:1-3
-```
-
-zsh refuses before mrw is started, because `internal/mcp/*.go:1-3` matches no
-file — the `:1-3` is part of the pattern. Quoting is the obvious next move and
-it is the wrong half of the fix: the star then reaches mrw literally and the
-path is reported UNREADABLE. Use `--grep` to walk and serve in one call, or
-`--files-from` to pipe a list in and add the suffix per line. mrw says as much
-in the UNREADABLE line, but by then a call has been spent.
-## Releasing
-
-`.github/workflows/ci.yml` runs gofmt, `go vet`, `go test ./...` and
-`go test -race ./...` on every push and PR — on **Linux and Windows**, because
-this project ships a windows/amd64 binary and cross-compiling one proves only
-that it links. `scripts/contract.sh` runs on Linux, being POSIX shell. Pushing a
-**strict** `vX.Y.Z` tag additionally cross-compiles five targets and publishes
-them:
-
-```sh
-git tag v0.1.0 && git push origin v0.1.0
-```
-
-The tag filter on `push` is a glob and cannot express "digits only", so a
-`check` job re-matches the tag with a regex and everything downstream gates on
-it — `v1.2.3-rc1` builds nothing. Binaries publish only after the tests and the
-race detector are green.
-
-The build stamps `-X main.version=<tag>`; `cmd/mrw/version_test.go` keeps that
-symbol reachable, because the linker discards a `-X` for a symbol that no
-longer exists and says nothing.
+`go test ./...` needs only Go. `scripts/contract.sh` and `scripts/measure.sh`
+need bash (WSL or Git Bash on Windows) — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Read
 
 ```sh
 mrw read internal/apply/apply.go:1-40
 mrw read a.go:1-8,100-130 b.go:/func Handle/,/^}/ c.go --stat
-```
-
-A range is `3-6`, `5`, `3-` (to EOF), `-20` (from the start), `A,+N` (the line
-`A` plus the `N` lines after it, so `12,+2` is lines 12 through 14), `/pattern/`
-(each matching line, with `-C N` context) or `/start/,/end/`. A relative end
-takes a single start — `5-7,+3` and a bare `,+3` are refused, because the count
-replaces the end rather than joining it — and where an explicit `-C` also
-applies, the relative end wins for the lines BELOW the match. Overlapping ranges
-are merged, so no line is printed — or paid for — twice.
-
-Output ranges print as `@@ 3-6`, which is exactly the address a write plan takes.
-
-| flag | effect |
-|---|---|
-| `--stat` | length, bytes and sha only — no content |
-| `-C N` | context lines around a single-pattern match |
-| `--max-lines N` | cap per SPEC, where zero means zero: `--max-lines 0` serves nothing and reports every line withheld, and omitting the flag is how you ask for no cap. Whatever is withheld is always reported. Two hand-written specs naming one file therefore get two budgets — `--max-lines 2 f.txt f.txt` prints four lines. `--grep` deduplicates, so it is per file for everything the walk produces. |
-| `-N` | drop line numbers |
-| `--grep PATTERN` | serve every matching range in the files under the given paths; a directory is walked, and with no paths the walk starts at `--root` |
-| `--exclude GLOB` | skip paths matching GLOB (repeatable); needs `--grep` |
-| `--files-from FILE\|-` | read one spec per line from a file, or from stdin |
-
-### mrw finds the files it serves
-
-Without `--grep`, `mrw read` has to be **told** which files to serve, so every
-use of it is a searcher followed by a read — two calls, and a spec list composed
-in a shell. That composition is where it broke on first contact: a
-newline-separated list from `grep -rl` collapses into a single argument under
-ordinary word splitting, and mrw then faithfully reports a file named
-`"a.go\nb.go\nc.go"` as unreadable.
-
-```sh
 mrw read --grep 'func Handle' -C 3 --exclude vendor --exclude '*_test.go' internal/
 ```
 
-One call. The walk serves the same `@@` ranges a hand-written
-`path:/func Handle/` spec would, for every file that matches.
+A range is `3-6`, `5`, `3-` (to EOF), `-20` (from the start), `A,+N` (line `A`
+plus the `N` lines after it, so `12,+2` is 12–14), `/pattern/`, or
+`/start/,/end/`. `$` is the last line. Output ranges print as `@@ 3-6`, which is
+the address a write plan takes.
 
-**`--files-from` is the same idea for a searcher you already trust**, and it
-ships whether or not you use `--grep`:
+`--grep` walks and serves in one call. A named directory is walked; with no
+paths the walk starts at `--root`. `--exclude GLOB` is repeatable and matches
+both the root-relative path and the basename — that is what makes `'*_test.go'`
+work at any depth. It does not read `.gitignore` and does not sniff for binary
+files. `.git/` is always skipped.
+
+`--files-from FILE|-` is the same idea for a searcher you already trust:
 
 ```sh
 rg -l 'func Handle' | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 ```
 
-Blank lines are skipped and a leading `#` is a comment, so a generated list can
-carry its own provenance.
-
-**What it does not do:** it does not read `.gitignore` — mrw has no git
-dependency, and `--exclude` is the control — and it does not sniff for binary
-files. A regular file is a candidate, so a build artifact in the tree is served
-like anything else; exclude it by name. `.git/` is always skipped.
-
-#### Precedence
-
-| combination | behaviour |
+| flag | effect |
 |---|---|
-| `--grep P`, no paths | walk `--root` |
-| `--grep P` with paths | walk those paths |
-| `--grep P` + a positional spec carrying its own `:RANGE` | usage error — two answers to one question |
-| `--grep P` + `--files-from` | usage error — two sources of specs |
-| `--files-from` + positional paths | usage error — same reason |
-| `--exclude` without `--grep` | usage error — nothing to exclude from |
-| `--grep P`, no paths, non-empty working set | walks `--root`, **not** the working set — `iter` holds its own specs; write `mrw read --grep P @1 @2` for both |
-| `--grep P` + `--stat` | allowed: the matching files' headers, no content, observing nothing |
-| no `--grep`, no paths | unchanged — the working set |
+| `--stat` | length, bytes and sha only — no content, so it licenses nothing |
+| `-C N` | context around a single-pattern match |
+| `--max-lines N` | cap per spec; `0` means zero. Omit the flag for no cap |
+| `--grep PATTERN` | serve every match under the given paths |
+| `--exclude GLOB` | skip matching paths (needs `--grep`) |
+| `--files-from FILE\|-` | one spec per line |
 
-A pattern that matches no file is **reported by name** and exits 1. A path the
-walk cannot serve is printed with its reason and counts as a problem, while
-every valid sibling is still served.
+A pattern that matches no file is reported by name and exits 1.
 
-#### What `--exclude` matches
-
-Each glob is matched with `path.Match` against **both** the cleaned
-root-relative path **and** the basename, and a match on either excludes.
-Matching a directory prunes everything under it. An explicitly named path is
-never pruned.
-
-The basename half is not a convenience — it is the difference between the flag
-working and doing nothing. `path.Match`'s `*` does not cross `/`, and `**` is
-not a token, it is two `*`, neither of which crosses either:
-
-    glob "*.go"      vs "internal/read/walk.go"      -> false
-    glob "*_test.go" vs "internal/read/read_test.go" -> false
-    glob "**/*.go"   vs "internal/read/walk.go"      -> false
-
-None of those is a bad pattern, so nothing would warn you: `--exclude
-'*_test.go'` matched against the full path alone gives you every test file.
-Matching the basename makes the first two work as written. The third has no
-working spelling — write `*.go` for every Go file, or a path like
-`internal/read/testdata`. A glob `path.Match` rejects is a usage error, not a
-pattern that silently matches nothing. Matching is case-sensitive everywhere.
-
-#### Is the walk worth it?
-
-The concern was that `--grep` reads each candidate twice — once to match, once
-to serve — where `grep -rl` reads it once. This was measured 2026-09-03 on this
-repository, on an Apple M5 (darwin/arm64), pattern `EvalSymlinks`, with both
-sides verified to select the **same 12 files** before any ratio was taken:
-
-| | best of 5 |
-|---|---|
-| `grep -rl --exclude-dir=.git … \| mrw read -C 3 --files-from -` | 38 ms |
-| `mrw read --grep EvalSymlinks -C 3 .` | **29 ms** |
-
-**0.76×** — the walk is *faster*, because it spawns no second process and moves
-nothing through a pipe. The decision that introduced it set 2× as the point at
-which `--grep` would be withdrawn.
+**A shell glob and an address suffix do not mix.** `mrw read 'dir/*.go:1-3'`
+takes the star literally and reports the path UNREADABLE; unquoted, zsh refuses
+it first. Use `--grep` or `--files-from`.
 
 ## Write
 
-A plan is a sequence of hunks. It is deliberately not JSON: an output token
-costs ~5× an input one, and JSON would escape every newline and quote in every
-code body — the one part of the document that is already large.
+A plan is a sequence of hunks. Every address resolves against the original file
+— no offset arithmetic between hunks.
 
 ```
 @@ internal/apply/apply.go 42-58 replace anchor="func Apply" lines=17
@@ -927,749 +99,158 @@ code body — the one part of the document that is already large.
 ```
 
 ```sh
-mrw write plan.mrw            # apply
-mrw write --dry-run plan.mrw  # validate only
-mrw write --check plan.mrw    # apply, then run the tests for what changed
-mrw write --json plan.mrw     # machine-readable receipt
-mrw write -                   # read the plan from stdin
-```
-
-**Generate the plan when there are many sites.** A plan is line-oriented text,
-so anything that prints lines can build one — and at real scale that is how it
-is done. Observed in use: thirteen hunks in a single `mrw write`, from a plan
-built by a one-liner.
-
-```sh
-# thirteen replacements, one read, one write — 2 round trips instead of 14
-mrw read 'app.css:40,80,102-103,126,244,446,500,600,700,800,900,978'
-for n in 40 80 102 126 244 446 500 600 700 800 900 978; do
-  printf '@@ app.css %d replace\nCHANGED-%d\n' "$n" "$n"
-done | mrw write --check -
-```
-
-The read comes first because of the guard, not as a courtesy: a hunk addressing
-a line mrw has not served you is refused, and refused as a whole — so a plan
-whose sites you only partly read applies none of itself, and says which hunks
-were short. That is the intended loop, not an obstacle to route around.
-
-**Every address resolves against the original file.** Read once, note several
-ranges, edit them all — no offset arithmetic between hunks.
-
-Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`. A hunk
-that carries no body is refused for every op except `delete` — a body lost in
-transit is indistinguishable from one never written, and the receipt cannot tell
-you which happened. To create an EMPTY file, say so: `@@ new.txt 0 create
-body=0` applies and leaves a zero-byte file, where `@@ new.txt 0 create` alone
-is refused and leaves nothing behind.
-Addresses are 1-based and inclusive; `$` is the last line, `0` is before the
-first, `N-` runs to EOF, and `A,+N` is the line `A` plus the `N` lines AFTER it
-— so `f.go:12,+2` is three lines, 12 through 14, and `f.go:/func Start/,+20` is
-the match and the twenty below it. **A read CLAMPS a relative end at the last
-line; a write REFUSES one that runs past it.** That is each path's own rule
-rather than a difference invented here: `mrw read f.go:2-99` serves what exists,
-while `@@ f.go 5-9999 replace` is already refused as out of range, and a write
-that quietly did less than its address said is the thing this tool exists to
-make visible. There is no backwards form, and `,+0` is refused because it says
-what `A` alone says. A LINE address means the
-same thing to `read` and to `write` — `mrw read f.go:$` prints one line and
-`@@ f.go $ replace` changes one. `read` used to disagree, because it shared one
-sentinel between `$` and an omitted end and so served the whole file for
-`f.go:$`.
-
-⚠ **A PAIRED PATTERN `/from/,/to/` RESOLVES THE SAME WAY ON BOTH PATHS, and it
-did not until ADR-036.** The end is the first match **at or after** the start, so
-an end matching the start line closes the span there; and a paired pattern whose
-end never matches is **reported and exits 1** rather than served to the end of
-the file. That second one was the reason to change it: a read that quietly
-served MORE than the address named is exactly as invisible as a write that
-quietly changed less, and the line numbers it hands back describe a span mrw
-never agreed to. Say `f.go:/a/,$` when you mean "from here to the end".
-
-One difference remains, on purpose: **a read serves a span for every match of the
-start that is not already inside a span it served, and a write refuses unless the
-start matches exactly once**
-(`internal/apply/apply.go:728`). The exactly-once rule answers *which site did
-you mean*, which a plan must know and an exploratory read need not — making
-`read` strict would refuse `mrw read f.go:/func /,/^}/` on any file with two
-functions, which is the reading it is most useful for. Contract §64 asserts the
-two grammars agree on the shapes it NAMES; §74 drives the rules above.
-
-Three guards make a batch safe to trust, and all three are cheap to write, which
-is the point. Two are optional. **`anchor=` is required on a `replace` that
-addresses more than one line** — see below the table for why:
-
-| guard | asserts |
-|---|---|
-| `sha=<8+ hex>` | the whole file is what you read |
-| `lines=N` | the addressed range covers exactly N lines — an insertion's address is a position, so it covers `1` at a real line and `0` at the two boundary positions below |
-| `anchor=<substring>` | it appears in the addressed range's first line |
-
-A multi-line `replace` without an `anchor=` is refused, and the refusal names
-the remedy. mrw models no target syntax: it puts the lines you gave where you
-said, so a range wrong by a few lines writes your body over content nobody
-looked at — and the receipt cannot show that, because the damage is outside the
-lines the hunk named. Two such ranges have reached a build: a short address, and
-a stale one where the file had not changed at all and only the belief about
-which line held what was wrong. `anchor=` is the only one of the three that
-speaks about the content AT the address, which is why it is the one required:
-`lines=` compares the address against its own arithmetic, and `sha=` asks
-whether the whole file moved, which the stale case answers "no". The requirement
-is on `replace` alone — a wrong `delete` leaves an absence rather than plausible
-wrong content, and it already has the stronger optional guard of an expected
-body (ADR-035, ADR-008).
-
-⚠ **The anchor is worth what its source is worth.** Copied out of the
-`NNN| content` a read printed, it is a real check. Typed from memory, it can be
-wrong in the same way the address is wrong, and mrw cannot tell which it got.
-
-All three are checked on **every** op, insertions included. An insertion at a
-drifted address puts the right text in the wrong place exactly as a replacement
-does, so a guard that is parsed and then discarded would be worse than no guard
-at all — the caller believes the edit is pinned.
-
-The two boundary addresses have no line to check, and say so rather than
-passing: `insert-after 0` (before the first line) and `insert-before` one past
-the last line **refuse** an `anchor=`, because there is nothing there for it to
-appear in. Prepend and append are the two edits an anchor cannot guard.
-
-`anchor=` is matched as a substring, and a backslash escapes a quote or another
-backslash — an anchor names a line of source, and source contains quotes:
-
-    @@ page.templ 12 replace anchor="class=\"muted\""   ← searches for class="muted"
-    @@ page.templ 12 replace anchor="class="            ← shorter, and usually better
-
-Nothing else is escape-processed: `\t` is still the two characters backslash and
-`t`, not a tab. Quote the whole value if it contains spaces, keep it short, and
-prefer a distinctive fragment of the line over the whole line.
-
-A wrong anchor fails loudly and prints your anchor beside the real line, so it
-costs one attempt rather than a bad write. (This very edit needed `body=30`,
-because those two example lines begin with `@@ ` and would otherwise be read as
-headers — the escape hatch documented above.)
-
-`body=N` takes exactly N following lines as the body, so a body may itself
-contain lines starting with `@@ `. The count is checked in both directions: a
-plan that ends before it is satisfied is refused, and so is text after it is
-satisfied.
-
-One case is checked more closely, because it is the only way left to lose a
-hunk in silence. If a counted body line is a **complete, valid header**, an
-overcount would swallow that hunk and the plan would still apply — so it is
-refused, and the message names the hunk. Prose about the format is unaffected:
-these two lines are not valid headers, because their trailing text is not
-`key=value`.
-
-    @@ page.templ 12 replace anchor="class="  ← what you meant
-    @@ page.templ 12 replace lines=1          ← and this
-
-When a body really does contain a real header — a plan editing this README, or
-a test fixture — say `raw=true` and the check stands down for that hunk:
-
-    @@ docs/example.md 4 replace body=1 raw=true
-    @@ a.go 1 replace
-
-If any hunk fails, **every** hunk is reported and nothing is written. Siblings
-report `skip` in the human output and `"skipped"` in `--json`, never `ok`.
-
-### Read on past a multi-line body until you see the structure close
-
-The `@@` guard above protects mrw's OWN parse. Nothing protects the target's, and
-nothing can: a checker for markdown fences is a checker for braces is a checker
-for Blade directives, and the moment mrw models one target syntax it stops being
-the one line-oriented editor that takes Go, shell, markdown, JSON and YAML hunks
-in a single all-or-nothing plan.
-
-So the rule is a habit, and it is unconditional. **After any multi-line body,
-read from before your first written line through past the point where the
-enclosing structure closes.** Not "if you think you closed something": every
-session that met this in the field reported the condition was invisible at the
-time, which is what a trigger clause cannot survive.
-
-**The damage is never inside the lines you named** — which is exactly why the
-receipt cannot show it, and why re-reading only what you wrote is the one check
-guaranteed to miss. A surviving closer is BELOW your body by construction, since
-it is the closer the file already had. Measured 2026-09-06 across four sessions:
-
-| stack | replaced | wrote | orphan at |
-|---|---|---|---|
-| Blade `@endif` | 7 | 7-9 | 10 |
-| HTML `</div>` | 5 | 5-7 | 8 |
-| YAML block scalar | 8 | 8-10 | 11 |
-| markdown fence | 333 | 333-336 | 340 |
-
-A short ADDRESS orphans the other way: `3104-3108` where `3088-3108` was meant
-left sixteen dangling lines ABOVE, and a 34-line body at a wrong address still
-looks plausible in a receipt where a one-line one would not.
-
-Every one of those receipts read `ok`, with a true removed count and a true added
-count.
-
-A multi-line `replace` is now refused unless a prior read already covered at
-least one line after `End` (ADR-052). That is the licence half of wrap-tail —
-line spans only, not a parser. When `End` is the last line there is no neighbour
-to require. `--echo-pad N` (MCP `echo_pad`, default 0) prints N lines after the
-new body so a surviving closer is visible; the hunk stays `ok`. The pad is not
-a checker.
-
-⚠ **A lint or syntax gate is not a substitute, and some are vacuous.** Measured
-green on files already broken: `yamllint`, `ansible-lint --profile production` and
-`ansible-playbook --syntax-check`, all three against YAML whose meaning had
-changed; and `php -l` against a `.blade.php`, which to the PHP lexer is inline
-HTML. `--check` runs the project's own tests, so it cannot reach a file no test
-exercises — most templates. Where a parser does see the file (`node --check`,
-`python3 -m py_compile`, `jq .`) run it, it costs milliseconds and it caught a
-real 34-line splice; just never in place of the read.
-
-⚠ **And "the language could catch it" is not "the gate that runs catches it."**
-Three stacks, three ways the running gate is narrower than the checker: a
-`php -l` hook fires on `.blade.php` and passes it, because to the PHP lexer a
-template is inline HTML; a React repo's `vite build` does not type-check at all,
-its `tsc` carries a standing baseline of 436 errors so only the DELTA a change
-introduces carries information, and its pre-push gate covers eight crash codes
-rather than the type system. Know which of those your gate is before you lean on
-it.
-
-⚠ **Delimiters are only the sub-case that leaves a token.** Where structure is
-indentation, nothing survives to be found: a body at the wrong indent silently
-REPARENTS keys and the file stays valid while meaning something else. Measured on
-Ansible task YAML — a task-level `when:` re-indented by two spaces became an
-argument of the module below it, deleting the condition that gated the task. It
-concentrates in keys that are legal at two levels: `when`, `tags`, `become`,
-`vars`, `loop`. There, compare the parsed structure, or check each body line's
-indent against the lines above AND below the replaced range.
-
-⚠ **Loud is not early.** A broken template may not fail until it renders — for a
-playbook that is mid-run against a live host, after earlier tasks have applied.
-### A delete says what it removed
-
-Every other op carries a body you wrote. For `replace` that body is itself
-proof you looked at what you were addressing — you cannot write the new lines
-without reading the old ones. An insertion's body proves less than it appears
-to: its address is a position, so the body says what to add and nothing about
-where, and `anchor=` is what pins that. `delete` has neither, so it is the one
-op where a range that is a line too long removes something you never
-saw. The receipt closes that gap: a delete names the first and last line it
-took.
-
-```
-ok   a.go 201-204 delete  -4 +0 from "}" to "var _ = fmt.Sprintf"
-```
-
-Two strings, whatever the size of the range — a 500-line delete prints the same
-two — each trimmed to 60 characters the way a failed `anchor=` trims the line it
-prints. In `--json` they are `removed_first` and `removed_last`, present on
-delete hunks only.
-
-### A delete may say which lines it expects to remove
-
-The receipt tells you afterwards. To be told *before* anything is written, give
-the `delete` a body: the lines you expect it to remove.
-
-```
-@@ a.go 201-204 delete
-	}
-	return out, nil
-}
-var _ = fmt.Sprintf
-```
-
-If those lines are not exactly what the range holds, the hunk fails, the message
-names the first line that differed — your text beside the file's — and, as
-always, **nothing in the plan is written**. A `delete` with no body is unchanged
-and still the right thing to write for a two-line removal.
-
-This is the fourth guard, and the only one you cannot get wrong by accident:
-
-| guard | asserts | who computes it |
-|---|---|---|
-| `sha=`, `lines=`, `anchor=` | the file, the range, the line | you, from what you read |
-| a body on `delete` | every line the range holds | you, from what you *believe* it holds |
-
-The distinction is the whole point. mrw can check a range against the file it
-just served you, but any guard it derives for you is computed from the same
-bytes it would check against, so it always passes. What the caller believed
-lines 201-204 contained is the one fact not already in the system — which is
-also why writing the body by copying it back out of `mrw read` asserts nothing.
-Write it from your intent, or leave it off.
-
-## Instructions — the contract from the binary
-
-`mrw instructions` prints when to reach for mrw, the two rules that produce most
-refusals, and the traps that make a red run look green. Exit 0. No flags. A
-caller who installed the binary and has neither this checkout nor the skill can
-learn the format from that.
-
-## Stats — can a caller actually author a plan?
-
-```sh
-mrw stats            # what became of the plans this checkout has been given
-mrw stats --json     # the same numbers, machine-readable
-mrw stats --reset    # empty the tally, saying how many records it discarded
-```
-
-Every number this project publishes about mrw — the byte savings, the round
-trips — assumes the plan was authored correctly. Nothing measured that. `mrw
-stats` does:
-
-```
-  applied           1 of 3 plan(s) (33.3%)
-  refused_apply     1 of 3 plan(s) (33.3%)
-  refused_parse     1 of 3 plan(s) (33.3%)
-```
-
-**`refused_parse` is the one that matters.** It is the only outcome that says
-the FORMAT was the problem rather than your picture of a file. ADR-009
-pre-registers the reading: above **5% of plans**, the format is what needs
-changing, not the caller.
-
-### The first reading — above the floor, and still not a general number
-
-Taken 2026-09-04 on this repository, on an Apple M5, from the tally this
-repository's own development produced:
-
-```
-  applied          65 of 68 plan(s) (95.6%)
-  refused_apply     2 of 68 plan(s) (2.9%)
-  refused_parse     1 of 68 plan(s) (1.5%)
-```
-
-**`refused_parse` is 1.5% of RECORDED OUTCOMES, and ADR-009's pre-registered
-criterion is 5%.** The criterion was written before the number, which is the
-only order in which a threshold means anything: above 5% the FORMAT is what
-needs changing rather than the caller. At 1.5% this reading does not ask for a
-format change. One parse refusal in 68 is a single malformed plan, not a
-pattern.
-
-**"Recorded outcomes" is not "plans handed to mrw", and the difference is not
-rounding.** A plan that fails to parse is counted immediately, but several other
-terminal paths in `mrw write` return before any outcome is recorded — an
-unreadable plan file, a working-set pointer that resolves to none or many, a
-ledger or check-config that will not load. `authoring.Record` also fails open by
-design: it must never fail a write, so a tally it cannot write is silently not
-written. Every one of those is a plan mrw was handed and this denominator does
-not contain. The direction of the bias is unknown, which is worse than a known
-one, and it is the reason the comparison above is stated against recorded
-outcomes rather than against plans.
-
-**Sixty-eight is above the floor of thirty, and the floor was the smaller
-problem.** An earlier reading here published nine plans and said so — nine is
-below the floor, and a percentage on nine samples is noise wearing a decimal
-point. That has been fixed by time rather than by design: the sample grew
-because the authoring machine was finally running a binary new enough to record
-one. Which is the caveat that outlived the floor.
-
-**The population is still the narrowest one possible.** Sixty-eight plans, one
-repository, one model, one family of sessions, authored by whoever had most
-recently read the format's documentation. Crossing a sample-size floor does not
-make a population representative — it only stops the arithmetic being silly.
-Nothing here supports a claim about a different model, a different repository or
-a caller meeting the format for the first time.
-
-**The tally under-counts by construction, and this is the sharpest caveat.** It
-records only what a binary carrying the recorder applied, so plans applied by an
-older binary are invisible. That is not hypothetical: this reading sat at nine
-for weeks while the authoring machine ran a v0.0.14 binary that predates the
-recorder entirely, and it jumped to sixty-eight the day that machine was
-rebuilt. The heaviest users of a tool are the likeliest to be running a stale
-copy of it, so the denominator is biased toward the traffic that already
-upgraded.
-
-**What the tally cannot show, at any sample size.** It counts parse refusals,
-and only those are about the format. It cannot distinguish a model that could
-not author a plan from a model that authored a correct plan for a file that had
-moved — that shows up as `refused_apply`, which is about the caller's picture of
-the tree rather than about the document. And it says nothing about plans that
-were never attempted because the author reached for a different tool.
-
-Re-run `mrw stats` in your own checkout rather than quoting this. A reading from
-a different model or a different repository is the one that would test ADR-009's
-criterion; this one only fails to trip it.
-
-**Counts only.** No plan text, no paths, no anchors, no SHAs, no command lines —
-the tally is something you can read in full and find nothing of your work in,
-and a test reads the written bytes to keep it that way. Nothing is ever
-transmitted; it lives beside the ledger in the directory `mrw seen` names, and
-this command is the only reader.
-
-A rate always carries its denominator, because a percentage without its sample
-size is the form that gets quoted out of the population it was measured on. An
-empty tally says so in words rather than printing zeros — nothing measured is
-not the same as nothing failed.
-
-## Does serving more hurt? — the served-size curve, measured
-
-
-The measurement note that draws these readings together — the instrument, the two results, the method
-and its limits — is `docs/notes/served-size-and-delivery.md`.
-
-The DEFAULT `MaxResultChars` is 200,000, and `mrw mcp --max-result-chars N` overrides it. Nothing in this repository knew whether that number was right, so
-ADR-020 built an instrument to find out rather than argue about it: `curve` generates a fixture, a
-client authors a plan against what mrw would serve, and the scorer applies the plan and reports which
-line changed. The pre-registration in `docs/adr/BACKLOG.md` fixed the criterion before a cell existed
-— correct-address rate against served bytes, stratified by position, **a flat curve accepted as an
-answer** — and twenty readings have been taken under it: seven void under their own rules (1, 6, 7 and 15 on format; 12 on unverifiable compliance; 18 on a host defect; 19 on the author's own deviations), one evidence-limited under its own (14), and twelve with results — the last of them reading 20, which measured the MCP delivery arm, the path mrw ships, at 30 of 30 at 2 KB and 20 KB. Every plan was committed before its trials
-ran, every score file is committed, and every table below recomputes from them.
-
-| Reading | Client | Fixture | 2 KB | 20 KB | 200 KB | What it settled |
-|---|---|---|---|---|---|---|
-| 1 | Sonnet | named | — | — | — | **Void.** Clients searched for the name instead of reading, so served bytes were never manipulated. `docs/curve/reading-01-void.md` |
-| 2 | Sonnet | named, read arm | 14/15 | 14/15 | 14/15 | Flat, at a ceiling. Three misses, one at each size. |
-| 3 | Sonnet | relational | 15/15 | 15/15 | 15/15 | Flat. **Refuted its own prediction** that the harder fixture would be harder. |
-| 4 | **Haiku** | relational | 15/15 | 12/15 | **8/15** | **The curve bends.** Intervals at 2 KB and 200 KB do not overlap. |
-| 5 | Haiku | relational, window from line 120 | — | — | 12/15 | **Every miss moved from +2 to −117.** The miss is the row index of the served text; whose number the client took, readings 10 and 11 separated. |
-| 6 | Haiku | relational, tool-result arm | — | — | (15/15) | **Void under its own rule**: 0 of 15 compliant — ranges over the cap, searches, early stops. Reported, not counted. |
-| 7 | Haiku | relational, scripted arm | — | — | (15/15) | **Void under its own rule**: 14 of 15 merged the two listed tail ranges; no tolerance granted. Reported, not counted. |
-| 8 | Haiku | relational, scripted arm | — | — | **15/15** | **Compliant 15 of 15.** mrw's gutter the only gutter, no miss at all; 7 discordant pairs against reading 4, all one way. |
-| 9 | Haiku | relational, scripted arm | 15/15 | 15/15 | (15/15, reading 8) | **Flat at the ceiling through the tool-result arm**, 45/45 pooled; the read arm's 15, 12, 8 on the same cells becomes 15, 15, 15. Cost within 3% of the read arm's at 2 KB and 20 KB, 7% lower at 200 KB. |
-| 10 | Haiku | relational, scripted arm, `nl` per range | — | — | 14/14 | **A second number that restarts per range was not taken by this client in these trials.** Compliant 14 of 15 (one merge spilled, void); no miss; predicted misses did not appear. |
-| 11 | Haiku | relational, scripted arm, `nl -v` from the top | — | — | **10/15** | **Reading 4's number put back, the miss comes back**: five misses, every one at +2, all five late. Against reading 10, 5 discordant pairs, all one way. |
-| 13 | Haiku | relational, scripted arm, `nl -v` from the top | 14/15 | 13/15 | (reading 11) | **The same number at the smaller sizes**: three misses in thirty, every one at +2, two late and one middle. Observed points with the number 14, 13, 10; without it (readings 9, 8) 15, 15, 15; no size trend established. |
-| 14 | Sonnet | relational, twelve distractors, scripted arm | (6/6) | (7/7) | (2/2) | **Evidence-limited.** Thirty of forty-five replied through a channel the rule did not name and are void; the fifteen strict trials all hit; all forty-five as sensitivity: 14, 15, 15, the one miss the right service's line above the target. Reading 17 re-runs it with the channel named. |
-| 15 | **gpt-5.6-sol** (Codex) | relational, prompt delivery, shape not shown | 8 parsed | 2 parsed | 1 parsed | **Void on format, 34 of 45**: the client wrote its own grammar (apply_patch, JSON, prose headers); every parsed plan hit, and every void message named the target line. A finding for ADR-012, not about size. |
-| 16 | **gpt-5.6-sol** (Codex) | relational, prompt delivery, shape shown | 15/15 | 15/15 | 15/15 | **A second family at the ceiling at every size**, 45/45; 10 discordant pairs against reading 4, all one way. |
-| 17 | Sonnet | relational, twelve distractors, scripted arm | 15/15 | 15/15 | 15/15 | **The strong client at the ceiling on a thirteen-service fixture**, 45/45, compliant 45 of 45 under a rule that names the reply channel. Cost 2.41× from 2 KB to 200 KB. |
-| 20 | Haiku | relational, MCP delivery (`mrw_read`) | 15/15 | 15/15 | — | **The delivery mrw ships, at the ceiling at both sizes.** 30/30 correct addresses, 0 paged reads, both computed from committed data. Two secondary counts its own plan promised from committed data are not derivable from the tree and are withdrawn; 200 KB cannot be measured on this host at all (reading 18). |
-
-**For a strong client, serving a hundred times more bytes costs about 2.5× the tokens and loses
-nothing.** Measured twice, on two different tasks, through the reader; a thirteen-service fixture through the tool result says the same at the pre-registered strength (reading 17: 45 of 45, cost 2.41×; reading 14 before it, evidence-limited). The "serve 10k and call it a day" instinct is not
-supported: the fixed cost of a session dominates until the window is very large, so a small window
-buys almost nothing.
-
-**For a weaker client through the harness's read arm it costs 2.95× and loses 47 points at 200 KB;
-through a tool-result path it costs 2.66× and loses nothing at any size.** Reading 4's 45 trials read
-every byte at every size, verified from the transcripts, and still missed 7 of 15 at 200 KB; readings
-8 and 9 delivered the same client the same forty-five cells as a Bash tool result and it scored
-15, 15, 15 — the cost within 3% of the read arm's at 2 KB and 20 KB, and 7% lower at 200 KB.
-
-**Every miss in readings 2–5 is the same miss, and reading 5 says what it is.** Across the 150
-read-arm trials of readings 2–5 there are 16 misses; the committed scores show all 16 changed exactly
-one line, and the offset is the **row index of the served text** — the target's row counted from the
-`==>` header — two below the target when the window starts at line 1 (13 of 13 in readings 2–4), and
-117 above it when the window starts at line 120 (3 of 3 in reading 5). The transcript shows the row
-as the client saw it, `634	  751| timeout = 30`: the harness reader's number first, mrw's second, and
-the client addressing 634. That excerpt suggests the client read the first number; the scores cannot
-tell reading a gutter from counting rows, and the transcript is not committed. Each miss found the
-right service and wrote the right text; the plans are not committed, so that half is reported rather
-than recomputable.
-
-All 16 apply silently through a green receipt without a guard, and **all 16 are refused with
-`anchor=`** — run against each cell's own fixture with the built binary, and reported in each result
-document rather than reproducible from a committed receipt. That is the case for the guard, measured.
-
-What readings 5, 8, 9, 10 and 11 settle between them: the bend was the harness read arm's delivery,
-not mrw's rendering. The miss is the row index of the served text (reading 5: −117 with the window
-from line 120), and when mrw's `N|` is the only number on any row — the served text arriving as a
-Bash tool result, the delivery most readings ran, and through `mrw_read` itself at 2 KB and 20 KB
-(reading 20, 30 of 30) — the client that missed
-seven of fifteen at 200 KB and three of fifteen at 20 KB through its file reader addressed all
-forty-five exactly, at every size, at the read arm's cost or below it (readings 8 and 9, compliant
-45 of 45 under pre-registered rules). Readings 10 and 11 then separated the second number from the
-chunking: with a second number that restarts per range this client addressed 14 of 14, and a second number
-equal to the reader's — the row index from the top — brought the miss back at exactly that number
-under the same chunking (10 of 15, all five misses late), and reading 13 took that number to 2 KB and 20 KB: 14 and 13 of 15,
-three misses at +2 — so with a plausible second number this client missed at every size measured,
-through either delivery, where the bare arm had no miss at any (observed points 14, 13, 10 against
-15, 15, 15; thirty trials do not establish a size trend). So the default stays at 200,000 with evidence, the served format is
-not changed, and the stability claim rests on readings 3, 5, 8, 9, 10 and 11 together. What stands
-from reading 4 is a fact about the two delivery forms measured: lay a plausible line number beside
-mrw's and a weaker client takes it some of the time. Two readings between 5 and 8 were void under their own compliance rules
-and are recorded, not counted.
-
-Compliance, coverage and cost come from transcripts and request records that are not committed, and
-each result document says so. Reading 20 is the one attempt to do better: it commits its coverage
-reports, and it records the two counts it promised to derive from them and could not. The tables,
-the intervals and the offsets recompute from `docs/curve/reading-NN-scores/`.
-
-## Read before modify
-
-`mrw` refuses to edit a file whose current contents it has not seen.
-
-```
-$ mrw write plan.mrw
-FAIL f.txt 2 replace (plan line 1): f.txt has not been read: mrw does not know
-what it currently holds, and a line address means nothing without that.
-Run `mrw read f.txt` first, or pass --force
-```
-
-This is the guarantee the harness's own `Write` tool has — it will not
-overwrite a file you have not `Read` — and a *range* edit needs it more, not
-less: `replace 42-58` means nothing without the version of the file those line
-numbers were counted in.
-
-`mrw read` and `mrw write` both record what each file now holds, in
-a per-checkout state directory **outside the working tree** — mrw creates
-nothing in your repository. `mrw seen` prints where it is and what it holds.
-
-Each read rewrites the whole ledger for that checkout. Parallel CLI invocations
-serialize on that rewrite (ADR-038): every concurrent read keeps its entry.
-Naming every path in ONE `mrw read` is still faster, which is the call shape
-the tool is built around anyway.
-
-Calls made **through the server** serialize in-process and do not wait on the
-flock. A `mrw` invocation running *beside* a server takes the same lock, so the
-pair queues rather than overwriting.
-
-What is recorded is **what you were shown**, not what mrw hashed. A read that
-printed no content observes nothing, and a read of lines 1-5 observes lines
-1-5: you are the one counting line numbers, so an address in lines you never
-saw is exactly the stale picture this refuses.
-
-| you do | result |
-|---|---|
-| edit a file never read | refused — read it first |
-| read it, then edit | applies |
-| `mrw read f.go --stat`, then edit | **refused** — a stat prints no content |
-| `mrw read f.go:1-5`, then edit line 40 | **refused** — you have not seen line 40 |
-| `mrw read f.go:1-5`, then edit line 3 | applies |
-| `mrw read f.go:/nomatch/`, then edit | **refused** — it printed nothing, so it observed nothing |
-| edit again straight after | applies — mrw knows what it just wrote, all of it |
-| something else changes the file, then you edit | **refused** — changed since mrw last saw it |
-| `mrw write --force` | applies regardless |
-| `create` a new file | applies — no existing content to be stale about |
-
-The "changed since" row is the one that matters. Because the ledger is written on
-**write** as well as on read, a chain of edits needs no re-read between steps,
-while an edit made behind mrw's back leaves the recorded sha and the real one
-disagreeing:
-
-```
-FAIL f.txt 1 replace: f.txt changed since mrw last saw it
-(recorded 4b7a79c7, now 58ae9445): re-read it before editing,
-or pass --force to overwrite blind
-```
-
-A per-hunk `sha=` guard is still available and is stronger where you want it
-pinned in the plan itself; the ledger is the ambient default that costs no
-tokens to use.
-
-## What a write will not do
-
-Five boundaries, each one a bug that was found by trying to break the tool
-rather than by reading it:
-
-- **It will not write outside `--root`.** A `../` in a hunk's path is refused,
-  and so is a symlink whose target leaves the tree. `-C` names the scope of
-  what a plan may change, and used to only name where paths start from.
-- **It will not replace a symlink.** The write goes to the file the link points
-  at. (Writing by rename is what makes a crash mid-write safe; renaming over
-  the link would leave the edit in a new regular file and the real one
-  untouched.)
-- **It will not half-apply a plan because the filesystem said no.** Every file
-  is staged beside its target first, and only then are they all renamed into
-  place. A write phase that wrote each file and moved on left the earlier ones
-  already applied when a later one could not be written — with no receipt, and
-  with the ledger still holding the pre-write hash, so the next edit to a file
-  mrw had itself changed was refused as "changed since mrw last saw it". An
-  unwritable directory, a read-only mount and a full disk all fail during
-  staging, when nothing has been renamed. If a *rename* fails after earlier
-  renames succeeded, the tree really is partial and the error says which files
-  are already written.
-- **It will not change your line endings.** A CRLF file comes back CRLF, an LF
-  file LF, and a file that mixes them is left mixed — the lines a hunk did not
-  address survive byte for byte. A file terminated with lone `\r` has
-  addressable lines like any other.
-- **It will not let one plan name one file twice.** Two spellings that reach the
-  same file — `Same.txt` and `same.txt` where the filesystem folds case, or a
-  file and a symlink to it anywhere — are refused with both spellings named, and
-  nothing is written. Until v0.1.0 that plan applied: both spellings staged a
-  copy of the same bytes, the last rename won, and the receipt said
-  `2 hunk(s), 2 file(s), 0 failed — applied` while the first edit was gone. That
-  is the failure this tool exists to prevent, arriving through a green receipt,
-  so the fix is a break: put all of one file's hunks under one spelling.
-
-## The working set — write once, use many
-
-```sh
-mrw iter note "scoped check wiring"
-mrw iter add internal/check/check.go internal/check/check_test.go
-mrw iter add 'internal/read/read.go:/func Run/,/^}/'
-mrw iter                       # list, numbered
-```
-
-```
-@1   internal/check/check.go
-@2   internal/check/check_test.go
-@3   internal/read/read.go:/func Run/,/^}/
-```
-
-Those numbers are addresses — a shared symbol table between your context and the
-tool, so a later call costs `@3` instead of a path:
-
-```sh
-mrw read                 # the whole working set, at its recorded ranges
-mrw read @1:20-40        # entry 1's path, this range instead of its own
-mrw read @1-2 @3
-```
-
-```
-@@ @2 88 insert-after
-        // a hunk can point into the set too
-```
-
-The `@` sigil is required: a bare number is a legal filename, and would resolve
-silently to the wrong thing. An out-of-range pointer is an error, never an empty
-result. Entries live in `.mrw/iteration` — plain text, diffable, hand-editable.
-
-## Check — the tests for what you are working on
-
-```sh
-mrw check                # scoped to the working set
-mrw check internal/apply # that package and everything under it
-mrw check .              # every package in the tree, scoped
-mrw check --full         # the whole project, unscoped
+mrw write plan.mrw
+mrw write --dry-run plan.mrw
 mrw write --check plan.mrw
+mrw write --json plan.mrw
+mrw write -
 ```
 
-The command comes from `.quality-harness.json`:
+Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`. Only
+`delete` may carry no body: a lost body reads like one never written, so an
+empty file is `@@ new.txt 0 create body=0`. A bare `create` with nothing under
+it is refused and leaves no file behind.
+
+`--format=apply_patch` compiles a Codex `*** Begin Patch` document to that same
+native plan. `--format=search_replace` compiles Aider SEARCH/REPLACE. Both still
+refuse an unread sibling and write nothing. A git patch is not an apply_patch;
+`--format=git` is usage. The flag is required — there is no auto-detect.
+Sequential apply_patch — one hunk, then another — is the leak, not the feature.
+
+`anchor=` is required on a `replace` that addresses more than one line. Take it
+from the `NNN| content` a read printed; one typed from memory can be wrong in
+the same way the address is. `sha=` and `lines=` are optional and are checked
+on every op, insertions included.
+
+Addresses are 1-based and inclusive; `$` is the last line, and `A,+N` is the line `A` plus the `N` lines AFTER it. A read CLAMPS a relative end at the last line; a write REFUSES one that runs past it. `/from/,/to/` means the same on both paths: the end is the first match
+at or after the start. A write refuses unless the start matches exactly once; a
+read serves a span for every start match that is not already inside a span it
+served.
+
+## Safety
+
+These are gates, not a tour of the records behind them.
+
+- **All-or-nothing.** Any failing hunk writes nothing. Siblings report `skip`,
+  never `ok`.
+- **Per-line licence.** Being served lines 1–5 does not license line 40.
+  `--stat` and a match that printed nothing observe nothing.
+- **MCP ack.** A served `mrw_read` licenses nothing until you send `ack` ids.
+  Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.
+- **Neighbour licence.** A multi-line `replace` is refused unless a prior read
+  already covered a line after End. Last line of the file is exempt.
+  `--echo-pad N` (MCP `echo_pad`, default 0) prints N lines after an applied
+  body so a surviving closer is visible; the hunk stays `ok`. The pad is not a
+  checker.
+- **Check miss refuses.** An in-root `mrw check` miss is exit 2 and names the
+  path — not a silent whole-project PASS.
+- **The process is the verdict.** A check that prints `PASS` and exits 1 is a
+  failure. Never read an exit code through a pipe: `mrw write plan | head` is
+  `head`'s status.
+
+After any multi-line body, read on past the range until the enclosing structure
+closes. mrw models no target syntax; the damage is never inside the lines you
+named, which is why the receipt cannot show it.
+
+A plan names a file once, however it is spelled. Two spellings that reach the
+same file — case-folded names, or a file and a symlink to it — are refused with
+both named.
+
+It will not write outside `--root`, will not replace a symlink, will not
+half-apply because the filesystem said no, and will not change your line
+endings. The records are in [docs/adr/](docs/adr/).
+
+## MCP
+
+Two tools: `mrw_read` (`specs`) and `mrw_write` (`plan`). Same engine, same
+ledger.
+
+### Use it from an MCP host
 
 ```json
 {
-  "check": "go test ./...",
-  "scoped_check": "go test {packages}",
-  "timeout_seconds": 300,
-  "tail_lines": 30
+  "mcpServers": {
+    "mrw": {
+      "command": "mrw",
+      "args": ["mcp"]
+    }
+  }
 }
 ```
 
-**A codegen step belongs inside the check.** `check` is arbitrary shell, so a
-stack with a generate step between edit and test chains it there rather than
-losing `--check` entirely:
+Use an absolute path for `command` if `mrw` is not on the host's `PATH`. Launch
+with an explicit root when the host does not set `CLAUDE_PROJECT_DIR`:
 
-```json
-{"check": "templ generate && go test ./...",
- "scoped_check": "templ generate && go test {packages}"}
+```sh
+mrw --root DIR mcp
 ```
 
-It composes: editing a `.templ` is not a `.go` path, so the scope falls back to
-the full command — which is what you want after regenerating anyway.
+```json
+{
+  "mcpServers": {
+    "mrw": {
+      "command": "/absolute/path/to/mrw",
+      "args": ["--root", "/absolute/path/to/repo", "mcp"]
+    }
+  }
+}
+```
 
-**Where state lives.** `mrw seen` prints the per-checkout state directory
-(`$XDG_STATE_HOME/mrw/<key>/`, or `~/.local/state/mrw/<key>/`), how many such
-directories the base holds, and the ledger. mrw writes nothing into your
-repository; a pre-existing `.mrw/` from an older version is copied across once,
-announced, and never deleted.
+On a host with a shell, prefer the CLI. Register the server for the one project
+that needs it, not the user account: a user-scope registration loads both tools
+into every project on the machine.
 
-**Clearing the dead ones.** One directory is kept per checkout mrw has ever
-seen, keyed by a hash of its path, and for mrw's whole life before ADR-034
-nothing ever removed one — so a machine that runs mrw against temporary
-directories accumulates them for ever. Measured on one machine on 2026-09-07:
-**22,836 directories, of which 22,591 named a checkout that no longer existed**
-— 242 MB of disk. ⚠ That is `du`, the space a prune RETURNS; the files
-themselves were 10.7 MB across 65,235 of them, and the difference is one block
-per tiny file plus one per directory. It is spending inodes, not bytes, and the
-`--prune` report counts file content because block size is not something mrw can
-portably ask a filesystem about.
+`format`, `echo_pad`, and `ack` sit on the existing write/read — not a third
+tool. `format` is `plan` (default), `apply_patch`, or `search_replace`.
+`echo_pad` is the same opt-in pad as `--echo-pad`. `ack` is how a served read
+becomes a licence.
 
-`mrw seen --prune` removes those and names each one it removed, with the
-checkout it belonged to — a 16-hex-character directory name tells a human
-nothing on its own. `mrw seen --prune --dry-run` prints the identical list and
-removes nothing.
+Without `--root`, the server uses `CLAUDE_PROJECT_DIR` when the host sets it,
+else its working directory. A silent fallback to `/` or `$HOME` is refused
+(exit 2). An explicit `--root` is always honoured, including `--root /`.
 
-It is deliberately narrow. It **never** removes an entry whose `root` marker is
-missing, unreadable, empty or not an absolute path — mrw did not write those, so
-it does not know what they are, and deleting something of unknown provenance is
-the one mistake here that re-reading a file cannot undo. It never removes the
-entry for the root you are running in — including when that checkout has been deleted underneath the
-run, which is the case the guard exists for. It reads one directory and follows no symlink out of
-it, and it **refuses outright** if `<state>/mrw` is itself a symlink: mrw did not create that, so it
-cannot tell what is on the far side. And it never runs on its own: a path that is gone may be a
-deleted checkout or a volume that is not mounted, and only you can tell which. A path it cannot stat
-for any other reason — a denied parent, an unmounted point, a network timeout — is INDETERMINATE and
-kept, because only "it is not there" answers the question the prune asks.
+An answer is bounded at 200,000 characters of encoded result. Set it with
+`mrw mcp --max-result-chars N` or `MRW_MAX_RESULT_CHARS`. The flag beats the
+variable; `0` means zero. A ceiling too small to report a write refuses the
+write before anything is applied.
 
-If a prune is wrong, it costs a re-read — and, beside the ledger, the iteration
-working set and the plan tally that live in the same directory, which do not
-come back from your source. A ledger is a licence to edit, not a record of
-content, so the next write to those files is refused until you read them again;
-there is no shape of this mistake that produces a wrong edit. See ADR-034.
+`grep` / `exclude` map onto `--grep` / `--exclude`. A grep too large to serve
+returns an index — one spec per matching file, no content — which licenses
+nothing.
 
-`{packages}` expands to the Go packages your paths cover, `{files}` to the paths
-themselves. **Write the placeholder unquoted**: each value arrives already
-quoted as one shell argument, so a path holding a space, a `;` or a `$(…)` is
-one argument and not shell syntax — `go test {packages}` is right, `go test
-"{packages}"` nests the quotes inside the argument. A **file** maps to its own package, `./dir`. A **directory** maps to
-its subtree, `./dir/...` — because `mrw check .` is how you say "check
-everything here", and go's `./dir` is the one package at the top: scoping a
-directory that way reported PASS with a failing package one level down. The
-trailing `/...` is stripped before a path is placed, so the scope mrw prints can
-be handed straight back to it.
+### Git Bash on Windows mangles a regex address
 
-Anything mrw cannot place as a package, but that **is there**, abandons the
-scoped form for the full one: a `.md` or a `.templ`, a directory holding no
-package go will build (prose, or one named `testdata`). A path that **is not
-there** is refused (exit 2) — falling back used to PASS the whole project, so a
-typo read as green on the thing you meant to check. A directory that exists
-and **cannot be read** is refused for the same reason: mrw cannot tell a
-package it cannot look at from an absent one. A scoped run that
-quietly omits a changed file is worse than a slow complete one, and a run scoped
-to nothing that reports PASS is worse than both.
+`mrw read 'f.go:/^func main/'` **fails in Git Bash**, and the error names a line
+number you never typed. MSYS2 rewrites the argument *before* mrw is started.
+Quoting does not prevent this.
 
-A path resolving **outside the root** is refused (exit 2). The fallback covers
-a present unplaceable path, not a miss and not a name that pointed elsewhere.
-`mrw check ../other` answered PASS at exit 0 while `../other` did not compile,
-and answered 3 when this repository's own tests went red: it tracked the root
-and never the argument. `read` and `write` refuse such a path already; so does
-`check`. An absolute path is the same escape in the spelling that hides it —
-it is joined onto the root rather than honoured, so it lands inside, places
-nothing and would fall back — and it is refused for the same reason.
+| environment | regex addresses |
+|---|---|
+| Git Bash / MSYS2 | **fail** |
+| Git Bash with `MSYS2_ARG_CONV_EXCL='*'` | work |
+| PowerShell | work |
+| WSL | work |
 
-Three rules it will not bend, each from a check that lied:
-
-- **The exit code is never inferred from output.** Output goes to a file, a
-  bounded tail is shown, the process's real status is reported. A `tail` in the
-  pipeline would make the pipeline's status the tail's, so a failing suite would
-  surface as a pass.
-- **A check that did not run is not a pass.** No `.quality-harness.json` and no
-  `go.mod` means no evidence, and it says so.
-- **A red check never triggers a revert.** You are told, with a distinct exit
-  status; undoing your edit could destroy work you wanted to inspect.
-
-An inferred command is labelled `inferred`. That matters: an inferred check can
-be red on a tree you never touched, and that finding is about the machine, not
-about your change.
+Line-number, range and `$` addresses are unaffected.
 
 ## Exit status
 
-| code | meaning | what to do |
-|---|---|---|
-| 0 | everything asked for succeeded | — |
-| 1 | a hunk failed, or the answer is incomplete; **nothing written** | fix the plan, or read the output |
-| 2 | usage, parse or I/O error | fix the call |
-| 3 | a check ran and did not pass | read the test output |
-
-Exit 1 on `read` means **incomplete**, not necessarily wrong. Four things
-produce it, because a partial answer that looks whole is the failure this tool
-is built around:
-
-| the output says | what happened |
+| code | meaning |
 |---|---|
-| `UNREADABLE` | the file could not be opened |
-| `REFUSED` | the path resolves outside `--root` (ADR-006) |
-| `no match for …` | a pattern matched nothing |
-| `WITHHELD` / `more line(s) withheld` | a `--max-lines` cap you asked for |
+| 0 | everything asked for succeeded |
+| 1 | a hunk failed, or the answer is incomplete; **nothing written** |
+| 2 | usage, parse or I/O error — including a check miss |
+| 3 | the write applied and `--check` failed; the tree is changed and unverified. Not a rollback |
 
-The exit status does not tell them apart; the output always does, and each one
-names what is missing.
+Exit 1 on `read` means incomplete: `UNREADABLE`, `REFUSED`, `no match`, or
+`WITHHELD`. The output always names which.
 
-`--root`/`-C` moves the paths **inside** a plan. The plan file itself is a shell
-argument like any other and resolves against your working directory, so
-`mrw -C repo write plan.mrw` looks for `plan.mrw` beside you and not in `repo`.
-A miss says which directory it looked in.
+## Other commands
 
-## A note on hooks
+`mrw check`, `mrw iter`, `mrw seen`, `mrw seen --prune`, and `mrw stats` exist
+only on the CLI. `mrw check` is not read-only: it runs whatever the project
+declared. Nothing calls `--prune` for you. Details: [AGENTS.md](AGENTS.md).
 
-`mrw` writes files from a shell, which is normally the thing to avoid: harness
-gates keyed to `Edit`/`Write` cannot see a `sed`, a heredoc or a `python -`, so
-those bypass a guardrail silently.
-
-`mrw` is different in the way that matters — it is **one named binary with a
-machine-readable receipt**, so a `Bash` hook can recognise and inspect it in a
-line or two. `sed`, `awk`, `cat >`, `echo >>`, `python -`, `perl -i`, `tee` and
-`printf >` are eight spellings with the paths buried in arbitrary shell, and no
-hook can reliably read them. Gate-ability is the whole argument; `mrw --json`
-exists to serve it.
-
-For anything material, author the plan with your harness's own file tool and
-pass its path rather than piping it in. A plan on disk is reviewable, is visible
-to whatever watches file writes, and — the token-economics point — can be
-`--dry-run` and then applied from **one** emission instead of two.
+Round trips are 2 for any N. Re-run `./scripts/measure.sh` rather than quoting
+a table — the ratios track this repository's own files. The contract is
+`./scripts/contract.sh`; it prints its own total.

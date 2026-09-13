@@ -393,7 +393,7 @@ func TestEverySurfaceCarriesTheOneRule(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := filepath.Dir(filepath.Dir(root))
-	for _, f := range []string{"README.md", "AGENTS.md"} {
+	for _, f := range []string{"README.md", "AGENTS.md", "BESTPRACTICES.md"} {
 		b, err := os.ReadFile(filepath.Join(repo, f))
 		if err != nil {
 			t.Fatalf("%s: %v", f, err)
