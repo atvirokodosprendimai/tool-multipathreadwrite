@@ -2270,3 +2270,72 @@ func TestEchoPadClampsAtEOF(t *testing.T) {
 		t.Errorf("clamped pad is not the last line: %q", res.Hunks[0].Echo[0])
 	}
 }
+
+// Two sequential replaces: the first hunk's pad is the written file's next
+// line, not the original tail. Replace 2-3 then 4 used to echo "4| OLD4"
+// while the file held NEW4 (ADR-052).
+func TestAPaddedWriteEchoShowsTheWrittenFileNotTheOriginalTail(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "1\nOLD2\nOLD3\nOLD4\n5\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "replace", Body: []string{"NEW2", "NEW3"}, Lines: -1, Anchor: "OLD2", Index: 0},
+		{Path: "f.txt", Start: 4, End: 4, Op: "replace", Body: []string{"NEW4"}, Lines: -1, Index: 1},
+	}, Options{EchoPad: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		t.Fatalf("sequential padded write failed: %+v", res.Hunks)
+	}
+	if got, want := read(t, root, "f.txt"), "1\nNEW2\nNEW3\nNEW4\n5\n"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if len(res.Hunks[0].Echo) != 1 {
+		t.Fatalf("echo=%v, want one pad line on the first hunk", res.Hunks[0].Echo)
+	}
+	if !strings.Contains(res.Hunks[0].Echo[0], "NEW4") {
+		t.Errorf("pad is not the written file's line: %q", res.Hunks[0].Echo[0])
+	}
+	if strings.Contains(res.Hunks[0].Echo[0], "OLD4") {
+		t.Errorf("pad still names the original tail: %q", res.Hunks[0].Echo[0])
+	}
+	if !strings.Contains(res.Hunks[0].Echo[0], "4|") {
+		t.Errorf("pad is not numbered as it sits in the written file: %q", res.Hunks[0].Echo[0])
+	}
+}
+
+// A skipped hunk must not keep the pad of a write that never happened.
+// Sibling fail used to leave echo on the skipped hunk in --json (ADR-052).
+func TestASkippedHunkOmitsEcho(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.txt", "1\n2\n3\n</div>\n5\n")
+	write(t, root, "g.txt", "keep\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.txt", Start: 2, End: 3, Op: "replace", Body: []string{"X", "Y"}, Lines: -1, Anchor: "2", Index: 0},
+		{Path: "g.txt", Start: 1, End: 1, Op: "replace", Body: []string{"Z"}, Anchor: "zzz", Lines: -1, Index: 1},
+	}, Options{EchoPad: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Applied {
+		t.Fatal("a sibling fail applied")
+	}
+	if res.Hunks[0].Status != StatusSkipped {
+		t.Fatalf("status=%s, want skipped", res.Hunks[0].Status)
+	}
+	if len(res.Hunks[0].Echo) != 0 {
+		t.Errorf("skipped hunk kept echo %v", res.Hunks[0].Echo)
+	}
+	b, err := json.Marshal(res.Hunks[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), `"echo"`) {
+		t.Errorf("skipped hunk JSON still carries echo: %s", b)
+	}
+	if got := read(t, root, "f.txt"); got != "1\n2\n3\n</div>\n5\n" {
+		t.Errorf("skipped file was written: %q", got)
+	}
+}

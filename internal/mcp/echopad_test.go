@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -122,6 +124,52 @@ func TestAnMCPWriteEchoPadKeepsACloserOk(t *testing.T) {
 	}
 	if !strings.Contains(echo[0], "</div>") {
 		t.Errorf("pad does not show the closer: %q", echo[0])
+	}
+}
+
+// A sibling fail must not keep echo on the skipped hunk in MCP JSON or
+// the text report. The pad describes a write that never happened (ADR-052).
+func TestAnMCPSkippedHunkOmitsEcho(t *testing.T) {
+	root, path := checkout(t, "f.txt", "1\n2\n3\n</div>\n5\n")
+	if err := os.WriteFile(filepath.Join(root, "g.txt"), []byte("keep\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	acks := checkpointsIn(served0(t, call(t, root, "mrw_read", map[string]any{
+		"specs": []any{path + ":2-4", "g.txt:1"},
+	})))
+	res := call(t, root, "mrw_write", map[string]any{
+		"plan":     "@@ f.txt 2-3 replace anchor=\"2\"\nX\nY\n@@ g.txt 1 replace anchor=\"zzz\"\nZ\n",
+		"ack":      acks,
+		"echo_pad": 1,
+	})
+	got := structured(t, res)
+	if applied, _ := got["applied"].(bool); applied {
+		t.Fatalf("sibling fail applied: %v", got)
+	}
+	hunks, _ := got["hunks"].([]any)
+	var skipped map[string]any
+	for _, raw := range hunks {
+		h, _ := raw.(map[string]any)
+		if p, _ := h["path"].(string); p == "f.txt" {
+			skipped = h
+			break
+		}
+	}
+	if skipped == nil {
+		t.Fatalf("no f.txt hunk: %v", got)
+	}
+	if status, _ := skipped["status"].(string); status != "skipped" {
+		t.Fatalf("f.txt status=%v, want skipped: %v", skipped["status"], skipped)
+	}
+	if raw, ok := skipped["echo"]; ok && raw != nil {
+		if arr, _ := raw.([]any); len(arr) > 0 {
+			t.Errorf("skipped hunk JSON kept echo %v", raw)
+		}
+	}
+	blocks, _ := res["content"].([]any)
+	text, _ := blocks[0].(map[string]any)["text"].(string)
+	if strings.Contains(text, "</div>") {
+		t.Errorf("MCP text report printed pad on a skipped hunk:\n%s", text)
 	}
 }
 

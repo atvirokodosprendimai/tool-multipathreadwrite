@@ -614,8 +614,12 @@ func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, eli
 	var b bytes.Buffer
 	for _, h := range hunks {
 		fmt.Fprintf(&b, "%s %s %s %s\n", h.Status, h.Path, h.Addr, h.Reason)
-		for _, line := range h.Echo {
-			fmt.Fprintln(&b, line)
+		// Same as CLI report: a pad describes an applied body. Skip and
+		// fail write nothing, so their Echo (if any) must not print.
+		if h.Status == apply.StatusOK {
+			for _, line := range h.Echo {
+				fmt.Fprintln(&b, line)
+			}
 		}
 	}
 	fmt.Fprintf(&b, "%d hunk(s), %d file(s), %d failed\n", len(res.Hunks), len(res.Files), res.Failed)

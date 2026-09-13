@@ -381,6 +381,10 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		for i := range res.Hunks {
 			if res.Hunks[i].Status == StatusOK {
 				res.Hunks[i].Status = StatusSkipped
+				// A pad describes a write. Skip means nothing was written,
+				// so leaving Echo would report the original tail (or a
+				// sibling's closer) as if the hunk had landed (ADR-052).
+				res.Hunks[i].Echo = nil
 			}
 		}
 		reportAddressed()
@@ -461,6 +465,7 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 					continue
 				}
 				res.Hunks[i].Status = StatusSkipped
+				res.Hunks[i].Echo = nil
 			}
 			reportAddressed()
 			return res, fmt.Errorf("%s: %w", w.file.Path, err)
@@ -1028,6 +1033,12 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 	var (
 		res    []string
 		cursor = 1
+		// padAfter is the written-file index (len(res) after this hunk's
+		// body) at which a later echoPad should start. Attaching during
+		// the splice used the original tail; a later hunk that rewrites
+		// that tail then left the receipt describing a line the file
+		// no longer holds (ADR-052).
+		padAfter []struct{ index, after int }
 	)
 	for _, h := range resolved {
 		if h.Start < cursor {
@@ -1053,7 +1064,7 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 			cursor = h.End + 1
 		}
 		if opt.EchoPad > 0 && (h.Op == "replace" || h.Op == "insert") {
-			r.Echo = echoPad(res, orig[cursor-1:], opt.EchoPad)
+			padAfter = append(padAfter, struct{ index, after int }{h.Index, len(res)})
 		}
 		out[h.Index] = r
 	}
@@ -1061,6 +1072,11 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		return nil, false
 	}
 	res = append(res, orig[cursor-1:]...)
+	for _, p := range padAfter {
+		r := out[p.index]
+		r.Echo = echoPad(res[:p.after], res[p.after:], opt.EchoPad)
+		out[p.index] = r
+	}
 	return res, true
 }
 
