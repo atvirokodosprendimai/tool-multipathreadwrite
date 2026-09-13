@@ -5516,6 +5516,44 @@ else
   bad "no ring at $ring"
 fi
 
+# 94. ADR-055: --strict-balance refuses the wrap-tail signature and nothing
+# else. Pair: flag + single-line replace of a `{`-only line with a balanced
+# body -> exit 1, file unchanged, reason names `{ +1` and the flag / same
+# plan without the flag -> exit 0 with a balance row / flag + balanced body
+# -> exit 0 / flag + the same shape in a .md -> exit 0.
+R=$(mktemp -d "$WORK/r94-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+printf 'func A() {\n\treturn\n}\n' > "$R/n.md"
+m read 'f.go:1' 'n.md:1' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check --strict-balance - 2>&1); rc=$?
+want 1 "$rc" "--strict-balance refuses the wrap-tail signature (exit 1)"
+grep -q 'strict-balance' <<<"$out" && grep -q '{ +1' <<<"$out" && ok "the reason names the flag and the net" || bad "reason: $out"
+grep -q '^func A() {$' "$R/f.go" && ok "nothing was written" || bad "the refused plan wrote: $(head -1 "$R/f.go")"
+
+out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "the same plan without the flag applies (exit 0)"
+grep -q 'balance {' <<<"$out" && ok "and carries the balance row" || bad "no balance row without the flag: $out"
+
+R=$(mktemp -d "$WORK/r94b-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+out=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func B() {' | m write --no-check --strict-balance - 2>&1); rc=$?
+want 0 "$rc" "--strict-balance leaves a balanced single-line replace alone"
+
+R=$(mktemp -d "$WORK/r94c-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/n.md"
+m read 'n.md:1' >/dev/null
+out=$(printf '%s\n' \
+	'@@ n.md 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check --strict-balance - 2>&1); rc=$?
+want 0 "$rc" "--strict-balance leaves prose alone"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

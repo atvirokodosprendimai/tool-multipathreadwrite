@@ -845,6 +845,11 @@ not.`,
 				Value: 0,
 				Usage: "print N lines after an applied body (opt-in pad; default 0; not a checker)",
 			},
+			&cli.BoolFlag{
+				Name: "strict-balance",
+				Usage: "refuse a single-line replace whose line's {} () [] do not balance and whose body does not match them " +
+					"(the wrap-tail shape); exit 1, nothing written. Off by default",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args().Slice()
@@ -965,10 +970,11 @@ not.`,
 				return cli.Exit(err, exitUsage)
 			}
 			res, err := apply.Apply(root, in, apply.Options{
-				DryRun:  cmd.Bool("dry-run"),
-				Seen:    ledger,
-				Force:   cmd.Bool("force"),
-				EchoPad: cmd.Int("echo-pad"),
+				DryRun:        cmd.Bool("dry-run"),
+				Seen:          ledger,
+				Force:         cmd.Bool("force"),
+				EchoPad:       cmd.Int("echo-pad"),
+				StrictBalance: cmd.Bool("strict-balance"),
 			})
 			if err != nil {
 				// ADR-001 rule 3: every hunk carries its own verdict, and a

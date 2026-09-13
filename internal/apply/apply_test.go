@@ -2502,3 +2502,88 @@ func TestAdvisoriesCountsOnlyOkHunksWithABalance(t *testing.T) {
 		t.Errorf("a skipped hunk kept Balance %q; nothing was written", res.Hunks[0].Balance)
 	}
 }
+
+// ── ADR-055 T3: --strict-balance ────────────────────────────────────────────
+
+// The wrap-tail signature: a single-line replace whose consumed line has a
+// non-zero net in some family and whose body's net for that family differs.
+// With StrictBalance the hunk is REFUSED — a failed hunk, siblings skip,
+// nothing written (ADR-001) — and the reason names the family and both nets.
+func TestStrictBalanceRefusesTheWrapTailSignature(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.go", "func A() {\n\treturn\n}\n")
+	write(t, root, "g.go", "package g\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.go", Start: 1, End: 1, Op: "replace", Body: []string{"func A() { return }"}, Lines: -1, Index: 0},
+		{Path: "g.go", Start: 1, End: 1, Op: "replace", Body: []string{"package h"}, Lines: -1, Index: 1},
+	}, Options{StrictBalance: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 || res.Hunks[0].Status != StatusFailed {
+		t.Fatalf("the signature was not refused: %+v", res.Hunks)
+	}
+	if r := res.Hunks[0].Reason; !strings.Contains(r, "{") || !strings.Contains(r, "+1") || !strings.Contains(r, "strict-balance") {
+		t.Errorf("reason %q does not name the family, the nets and the flag", r)
+	}
+	if res.Hunks[1].Status != StatusSkipped {
+		t.Errorf("the sibling was %s, want skipped", res.Hunks[1].Status)
+	}
+	if read(t, root, "f.go") != "func A() {\n\treturn\n}\n" || read(t, root, "g.go") != "package g\n" {
+		t.Error("a refused plan wrote something")
+	}
+	if res.Advisories != 0 {
+		t.Errorf("a refused plan carried %d advisories", res.Advisories)
+	}
+}
+
+// Three shapes the flag must leave alone: a single-line replace whose nets
+// match (balanced); a MULTI-line address, which is ADR-052's licence and not
+// this check's, even when the nets differ; and prose, exempt as in ADR-054.
+func TestStrictBalanceLeavesBalancedMultiLineAndProseAlone(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "bal.go", "func A() {\n\treturn\n}\n")
+	write(t, root, "multi.go", "func A() {\n\treturn\n}\n")
+	write(t, root, "notes.md", "open {\nend\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "bal.go", Start: 1, End: 1, Op: "replace", Body: []string{"func B() {"}, Lines: -1, Index: 0},
+		{Path: "multi.go", Start: 1, End: 2, Op: "replace", Body: []string{"func A() { return }"}, Lines: -1, Anchor: "func A", Index: 1},
+		{Path: "notes.md", Start: 1, End: 1, Op: "replace", Body: []string{"open"}, Lines: -1, Index: 2},
+	}, Options{StrictBalance: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 {
+		for _, h := range res.Hunks {
+			if h.Status == StatusFailed {
+				t.Errorf("%s refused under strict-balance: %s", h.Path, h.Reason)
+			}
+		}
+		t.FailNow()
+	}
+	if got := read(t, root, "multi.go"); got != "func A() { return }\n}\n" {
+		t.Errorf("multi-line replace did not apply: %q", got)
+	}
+	if res.Hunks[1].Balance == "" {
+		t.Error("the multi-line replace should still carry its balance row; only the refusal is scoped to single lines")
+	}
+}
+
+// Off by default: the same signature applies, carries the balance row, and
+// counts as one advisory.
+func TestStrictBalanceIsOffByDefault(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "f.go", "func A() {\n\treturn\n}\n")
+
+	res, err := Apply(root, []Input{
+		{Path: "f.go", Start: 1, End: 1, Op: "replace", Body: []string{"func A() { return }"}, Lines: -1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 || res.Hunks[0].Balance == "" || res.Advisories != 1 {
+		t.Errorf("without the flag: failed=%d balance=%q advisories=%d; want applied with a row", res.Failed, res.Hunks[0].Balance, res.Advisories)
+	}
+}

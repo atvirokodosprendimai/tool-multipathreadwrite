@@ -233,6 +233,13 @@ type Options struct {
 	// hunk's Echo. 0 (the default) attaches nothing. Not a checker: a
 	// closer in the pad does not fail the hunk (ADR-052).
 	EchoPad int
+
+	// StrictBalance (ADR-055, opt-in) refuses a single-line replace on a
+	// non-prose path whose consumed line has a non-zero delimiter net that
+	// the body does not match — the wrap-tail signature. A refusal is a
+	// failed hunk: siblings skip, nothing is written. Off by default; the
+	// same hunk then applies with a balance row.
+	StrictBalance bool
 }
 
 // Apply validates every hunk against the working tree rooted at root and, if
@@ -997,6 +1004,20 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 					addrString(start, end), end, end+1)
 				continue
 			}
+			// ADR-055 --strict-balance: the single-line sibling of the licence
+			// above, keyed on nets rather than the ledger. A replace of ONE
+			// line whose consumed line opens (or closes) more than it closes
+			// (or opens), replaced by a body that does not — the wrap-tail
+			// shape, three of the four field breakages. Opt-in: the general
+			// "refuse on any delta" was rejected in ADR-054 (strings, generated
+			// code). Prose is exempt as in ADR-054; multi-line is the licence's.
+			if opt.StrictBalance && h.Op == "replace" && end == start && !IsProse(path) {
+				if d := wrapTailDelta(orig[start-1], h.Body); d != "" {
+					fail(h, "replace of %s under --strict-balance: %s — the replaced line's delimiters do not balance and the body does not match them (the wrap-tail shape); drop the flag for this plan if the brace is inside a string",
+						addrString(start, end), d)
+					continue
+				}
+			}
 			// A delete is the only op with no body, so a body on one is not
 			// content to write: it is the caller's expectation of what the
 			// range holds, and it is the one guard mrw cannot compute for them
@@ -1202,6 +1223,38 @@ func balanceDelta(consumed, body []string) string {
 	for _, f := range families {
 		before, after := net(consumed, f), net(body, f)
 		if before != after {
+			parts = append(parts, fmt.Sprintf("%c %+d → %+d", f.open, before, after))
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+// wrapTailDelta is balanceDelta narrowed to the signature --strict-balance
+// refuses: it reports only families whose net in the ONE consumed line is
+// non-zero and differs from the body's. A consumed line that is itself
+// balanced (net 0) is never the wrap-tail shape, whatever the body does, so
+// a delta there is left to the advisory row (ADR-055).
+func wrapTailDelta(consumed string, body []string) string {
+	type family struct{ open, close rune }
+	families := []family{{'{', '}'}, {'(', ')'}, {'[', ']'}}
+	net := func(lines []string, f family) int {
+		n := 0
+		for _, l := range lines {
+			for _, c := range l {
+				switch c {
+				case f.open:
+					n++
+				case f.close:
+					n--
+				}
+			}
+		}
+		return n
+	}
+	var parts []string
+	for _, f := range families {
+		before, after := net([]string{consumed}, f), net(body, f)
+		if before != 0 && before != after {
 			parts = append(parts, fmt.Sprintf("%c %+d → %+d", f.open, before, after))
 		}
 	}
