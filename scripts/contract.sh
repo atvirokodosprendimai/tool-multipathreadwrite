@@ -5283,7 +5283,7 @@ want 0 "$rc" "an existing package still scopes"
 grep -qF 'SCOPED ./pkg/...' <<<"$out" && ok "and the scoped form ran" || bad "not scoped: $out"
 out=$(m check chek.go 2>&1); rc=$?
 want 2 "$rc" "a missing in-root path is refused"
-grep -q 'not there' <<<"$out" && ok "and the reason names the miss" || bad "reason: $out"
+grep -qF 'chek.go is not there' <<<"$out" && ok "and the reason names the miss" || bad "reason: $out"
 grep -q 'FULL' <<<"$out" && bad "fell back and answered about the root: $out" \
   || ok "and nothing ran under the miss"
 out=$(m check --json nosuchdir 2>/dev/null); rc=$?
