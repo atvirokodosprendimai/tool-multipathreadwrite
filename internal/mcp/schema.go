@@ -269,7 +269,9 @@ var writeDescriptions = map[string]string{
 	"files":              "One entry per file the plan addressed, including files it could not validate. If the run died on an I/O error partway through, files already written are named and the rest may be missing.",
 	"files.path":         "The file's path, relative to root.",
 	"files.created":      "True when the file did not exist and a create hunk made it.",
-	"files.written":      "True when this file's new content reached disk. False on a dry run, and false for every file when any hunk failed.",
+	"files.removed":      "True when this path was unlinked, or was the source of a rename. Absent otherwise.",
+	"files.renamed_to":   "The dest path of a rename, root-relative. Absent unless this file is the rename source.",
+	"files.written":      "True when this file's new content reached disk, or when an unlink/rename of this path committed. False on a dry run, and false for every file when any hunk failed.",
 	"files.sha_before":   "The sha256 of the file before the plan was applied.",
 	"files.sha_after":    "The sha256 the file WOULD have after this plan. Computed before the write, so on a dry run or a failed plan it describes proposed content that is not on disk — `written` says which.",
 	"files.lines_before": "How many lines the file held before the plan was applied.",
@@ -277,7 +279,7 @@ var writeDescriptions = map[string]string{
 	"hunks":              "One verdict per hunk, in plan order. This is the field to read: a replacement that matched nothing is reported here rather than silently skipped.",
 	"hunks.path":         "The file this hunk addressed, as written in the plan.",
 	"hunks.addr":         "The address as written in the plan, so a verdict can be matched back to the plan line that produced it.",
-	"hunks.op":           "The op as written: replace, insert-after, insert-before, delete or create.",
+	"hunks.op":           "The op as written: replace, insert-after, insert-before, delete, create, unlink or rename.",
 	// ⚠ THESE THREE ARE THE WIRE VALUES, verbatim from apply.Status. An earlier
 	// draft of this line taught `fail` and `skip`, which the engine never
 	// sends: a host filtering hunks[].status == "fail" would have seen a clean

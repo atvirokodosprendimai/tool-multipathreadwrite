@@ -774,7 +774,8 @@ func writeCmd() *cli.Command {
   @@ <path> <addr> <op> [sha=… lines=… anchor=… body=…]
   <body lines>
 
-Ops are replace, insert-after, insert-before, delete and create. Addresses are
+Ops are replace, insert-after, insert-before, delete, create, unlink and rename.
+unlink and rename take address - (a hyphen, no line number). Other addresses are
 1-based and inclusive, and every one of them resolves against the ORIGINAL
 file — so several hunks in one file need no offset arithmetic.
 
@@ -1033,10 +1034,18 @@ held or went unchecked.`,
 				// every line, so the observation covers the whole file and a
 				// chain of edits needs no re-read between steps.
 				wrote := map[string]seen.Observation{}
+				var gone []string
 				for _, f := range res.Files {
+					if f.Removed {
+						gone = append(gone, f.Path)
+						continue
+					}
 					if f.Written {
 						wrote[f.Path] = seen.Observation{SHA: f.SHAAfter}
 					}
+				}
+				if err := seen.Drop(root, gone); err != nil {
+					return cli.Exit(err, exitUsage)
 				}
 				if err := seen.Record(root, wrote); err != nil {
 					return cli.Exit(err, exitUsage)
@@ -1434,6 +1443,9 @@ func report(w *os.File, res apply.Result, quiet bool) {
 			verb := "wrote"
 			if f.Created {
 				verb = "created"
+			}
+			if f.Removed {
+				verb = "removed"
 			}
 			fmt.Fprintf(out, "%s %s  %dL -> %dL  sha %s\n", verb, f.Path, f.LinesFrom, f.LinesTo, short(f.SHAAfter))
 		}

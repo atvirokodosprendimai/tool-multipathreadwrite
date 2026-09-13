@@ -373,8 +373,8 @@ func tools() []tool {
 						"type": "string",
 						"description": "The plan document. Each hunk is a header line " +
 							"`@@ <path> <address> <op> [guards]` followed by its body lines. " +
-							"Ops: replace, insert-after, insert-before, delete, create. " +
-							"ONLY delete may carry no body: an empty file is `@@ new.txt 0 " +
+							"Ops: replace, insert-after, insert-before, delete, create, unlink, rename. " +
+							"unlink takes address `-` and no body. Among line-range ops, ONLY delete may carry no body: an empty file is `@@ new.txt 0 " +
 							"create body=0`, and a bare create with nothing under it is " +
 							"refused, because a lost body reads exactly like one never " +
 							"written. An address " +

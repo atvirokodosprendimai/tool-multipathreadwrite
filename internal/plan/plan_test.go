@@ -203,6 +203,8 @@ func TestDeleteIsTheOnlyRangeConsumingOpThatNeedsNoBody(t *testing.T) {
 		// is untouched — it is the CONJUNCTION below, and create fails the
 		// range half either way.
 		{op: "create", addr: "-", consumesRange: false, emptyBodyOK: false},
+		{op: "unlink", addr: "-", consumesRange: false, emptyBodyOK: true},
+		{op: "rename", addr: "-", consumesRange: false, emptyBodyOK: false},
 		{op: "replace", addr: "2", consumesRange: true, emptyBodyOK: false},
 		{op: "delete", addr: "2", consumesRange: true, emptyBodyOK: true},
 		{op: "insert-after", addr: "2", consumesRange: false, emptyBodyOK: false},

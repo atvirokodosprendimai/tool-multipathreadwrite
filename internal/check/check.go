@@ -47,6 +47,10 @@ type Config struct {
 	ScopedCheck string `json:"scoped_check"`
 	// TimeoutSeconds bounds the run. Zero means the built-in default.
 	TimeoutSeconds int `json:"timeout_seconds"`
+	// FenceTimeout is quality-harness's camelCase alias of TimeoutSeconds.
+	// Load copies it into TimeoutSeconds when that field is unset, and
+	// refuses when both are set to different values (ADR-059).
+	FenceTimeout int `json:"fenceTimeout"`
 	// TailLines is how many trailing lines of output to show. Zero means the
 	// built-in default; the full output is always kept in a file.
 	TailLines int `json:"tail_lines"`
@@ -89,6 +93,9 @@ func Load(root string) (Config, error) {
 		// sends this config down the same path an empty value already took.
 		c.Check, c.ScopedCheck = strings.TrimSpace(c.Check), strings.TrimSpace(c.ScopedCheck)
 		c.declared = c.Check != "" || c.ScopedCheck != ""
+		if err := resolveTimeout(&c); err != nil {
+			return c, err
+		}
 	case !os.IsNotExist(err):
 		return c, err
 	}
@@ -98,6 +105,20 @@ func Load(root string) (Config, error) {
 		}
 	}
 	return c, nil
+}
+
+// resolveTimeout folds fenceTimeout into TimeoutSeconds. Two different
+// numbers are a config error, not a preference: silently picking one is
+// how a caller keeps believing the other (ADR-059).
+func resolveTimeout(c *Config) error {
+	if c.FenceTimeout > 0 && c.TimeoutSeconds > 0 && c.FenceTimeout != c.TimeoutSeconds {
+		return fmt.Errorf(".quality-harness.json: timeout_seconds (%d) and fenceTimeout (%d) disagree",
+			c.TimeoutSeconds, c.FenceTimeout)
+	}
+	if c.TimeoutSeconds == 0 {
+		c.TimeoutSeconds = c.FenceTimeout
+	}
+	return nil
 }
 
 // Result is what one check run produced.

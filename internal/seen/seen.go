@@ -282,6 +282,28 @@ var beforeLock func()
 // ONE WRITER, EVEN ACROSS PROCESSES (ADR-038). The whole load-merge-save is
 // held under an exclusive lock on seen.lock, so N concurrent CLI processes
 // keep N entries. The format is unchanged.
+// Drop removes paths from the ledger. An unlinked file is gone; keeping its
+// observation would license a recreate against a SHA that no longer exists
+// on disk, or refuse a create because the ledger still names it.
+func Drop(root string, paths []string) error {
+	if len(paths) == 0 {
+		return nil
+	}
+	if beforeLock != nil {
+		beforeLock()
+	}
+	return withLock(root, func() error {
+		l, err := Load(root)
+		if err != nil {
+			return err
+		}
+		for _, p := range paths {
+			delete(l, p)
+		}
+		return save(root, l)
+	})
+}
+
 func Record(root string, obs map[string]Observation) error {
 	if len(obs) == 0 {
 		return nil

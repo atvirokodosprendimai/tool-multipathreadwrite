@@ -5608,6 +5608,87 @@ pf="$(m seen | head -1)/pricing"
 [ -f "$pf" ] && [ "$(grep -cE '^strict_[a-z_]+ [0-9]+$' "$pf")" = "5" ] && [ "$(wc -l < "$pf" | tr -d ' ')" = "5" ] \
   && ok "the pricing file is five strict_<name> N lines" || bad "pricing file: $(cat "$pf" 2>&1)"
 
+# 97. ADR-059: fenceTimeout bounds the check the same way timeout_seconds does.
+# Pair: Zeus-shaped fenceTimeout 1 times out sleep 5 on a .go write (exit 3) /
+# timeout_seconds and fenceTimeout set differently refuse mrw check at exit 2.
+R=$(mktemp -d "$WORK/r97-XXXXXX")
+printf '{"check":"sleep 5","fenceTimeout":1}\n' > "$R/.quality-harness.json"
+printf 'package a\nfunc A() {}\n' > "$R/a.go"
+m read 'a.go:2' >/dev/null
+out=$(printf '%s\n' \
+	'@@ a.go 2 replace anchor="func A"' \
+	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
+want 3 "$rc" "fenceTimeout 1 times out the check (exit 3)"
+grep -q 'timed out' <<<"$out" && ok "receipt names the timeout" || bad "timeout text: $out"
+
+R=$(mktemp -d "$WORK/r97b-XXXXXX")
+printf '{"check":"true","timeout_seconds":300,"fenceTimeout":1}\n' > "$R/.quality-harness.json"
+out=$(m check 2>&1); rc=$?
+want 2 "$rc" "disagreeing timeout keys refuse mrw check (exit 2)"
+echo "$out" | grep -q '300' && echo "$out" | grep -q '1' \
+  && ok "refusal names both values" || bad "disagree text: $out"
+
+# 98. ADR-057: native unlink/rename. Pair: whole-file read then unlink
+# (exit 0, path gone, receipt `removed`) / unlink plus an unread sibling
+# (exit 1, path stays). Rename of a served file lands the dest.
+R=$(mktemp -d "$WORK/r98-XXXXXX")
+printf 'gone\n' > "$R/gone.txt"
+m read gone.txt >/dev/null
+out=$(printf '%s\n' '@@ gone.txt - unlink' | m write - 2>&1); rc=$?
+want 0 "$rc" "whole-file read then unlink -> exit 0"
+grep -q 'removed gone.txt' <<<"$out" && ok "receipt names removed" || bad "receipt names removed: $out"
+[ ! -e "$R/gone.txt" ] && ok "unlinked path is gone" || bad "gone.txt still exists"
+
+R=$(mktemp -d "$WORK/r98b-XXXXXX")
+printf 'gone\n' > "$R/gone.txt"
+printf 'keep\n' > "$R/keep.txt"
+m read gone.txt >/dev/null
+out=$(printf '%s\n' \
+	'@@ gone.txt - unlink' \
+	'@@ keep.txt 1 replace anchor="keep"' \
+	'nope' | m write - 2>&1); rc=$?
+want 1 "$rc" "unlink plus unread sibling -> exit 1"
+grep -q '^skip' <<<"$out" && ok "unread sibling skips the unlink" || bad "sibling skip: $out"
+[ -f "$R/gone.txt" ] && ok "sibling fail restores gone.txt" || bad "gone.txt was removed on sibling fail"
+
+R=$(mktemp -d "$WORK/r98c-XXXXXX")
+printf 'moved\n' > "$R/old.txt"
+m read old.txt >/dev/null
+out=$(printf '%s\n' '@@ old.txt - rename' 'new.txt' | m write - 2>&1); rc=$?
+want 0 "$rc" "whole-file read then rename -> exit 0"
+[ ! -e "$R/old.txt" ] && [ -f "$R/new.txt" ] && grep -qx 'moved' "$R/new.txt" \
+  && ok "rename lands dest and removes source" || bad "rename tree: $(ls -l "$R")"
+
+# 99. ADR-057: apply_patch Delete File / Move to. Pair: Delete File after a
+# whole-file read applies / Move to with extra @@ hunks is exit 2 and the
+# tree is unchanged.
+R=$(mktemp -d "$WORK/r99-XXXXXX")
+printf 'gone\n' > "$R/gone.txt"
+m read gone.txt >/dev/null
+patch99=$(printf '%s\n' \
+	'*** Begin Patch' \
+	'*** Delete File: gone.txt' \
+	'*** End Patch')
+out=$(printf '%s\n' "$patch99" | m write --format=apply_patch - 2>&1); rc=$?
+want 0 "$rc" "Delete File after whole-file read -> exit 0"
+[ ! -e "$R/gone.txt" ] && ok "Delete File removes the path" || bad "Delete File left gone.txt"
+
+R=$(mktemp -d "$WORK/r99b-XXXXXX")
+printf 'stay\n' > "$R/a.txt"
+patch99b=$(printf '%s\n' \
+	'*** Begin Patch' \
+	'*** Update File: a.txt' \
+	'*** Move to: b.txt' \
+	'@@' \
+	'-stay' \
+	'+gone' \
+	'*** End Patch')
+out=$(printf '%s\n' "$patch99b" | m write --format=apply_patch - 2>&1); rc=$?
+want 2 "$rc" "Move to with extra @@ hunks -> exit 2"
+grep -q 'hunks' <<<"$out" && ok "Move to with hunks names hunks" || bad "Move to with hunks text: $out"
+grep -qx 'stay' "$R/a.txt" && [ ! -e "$R/b.txt" ] \
+  && ok "Move to with hunks wrote nothing" || bad "Move to with hunks wrote: $(ls -l "$R")"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

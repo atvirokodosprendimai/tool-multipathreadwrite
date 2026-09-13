@@ -47,6 +47,8 @@ const (
 	OpInsertBefore Op = "insert-before"
 	OpDelete       Op = "delete"
 	OpCreate       Op = "create"
+	OpUnlink       Op = "unlink"
+	OpRename       Op = "rename"
 )
 
 // Addr is an inclusive 1-based line range, or a pair of patterns that resolve
@@ -316,9 +318,9 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 
 	h := Hunk{Path: fields[0], Op: Op(fields[2]), Lines: -1, SrcLine: srcLine}
 	switch h.Op {
-	case OpReplace, OpInsertAfter, OpInsertBefore, OpDelete, OpCreate:
+	case OpReplace, OpInsertAfter, OpInsertBefore, OpDelete, OpCreate, OpUnlink, OpRename:
 	default:
-		return Hunk{}, 0, fmt.Errorf("unknown op %q (want replace, insert-after, insert-before, delete or create)", fields[2])
+		return Hunk{}, 0, fmt.Errorf("unknown op %q (want replace, insert-after, insert-before, delete, create, unlink or rename)", fields[2])
 	}
 	if h.Addr, err = ParseAddr(fields[1]); err != nil {
 		return Hunk{}, 0, err
@@ -705,6 +707,25 @@ func validate(h *Hunk) error {
 		}
 		if h.Anchor != "" || h.Lines >= 0 {
 			return fmt.Errorf("create takes no anchor= or lines= (the file must not exist yet)")
+		}
+	case OpUnlink, OpRename:
+		if h.Op == OpUnlink && len(h.Body) != 0 {
+			return fmt.Errorf("unlink takes no body")
+		}
+		if h.Op == OpRename && (len(h.Body) != 1 || strings.TrimSpace(h.Body[0]) == "") {
+			return fmt.Errorf("rename body is the dest path: one line")
+		}
+		if h.Addr.StartPat != nil {
+			return fmt.Errorf("%s takes no address, use %q", h.Op, "-")
+		}
+		if !patterned && (h.Addr.Start != 0 || h.Addr.End != 0) {
+			return fmt.Errorf("%s takes no address, use %q", h.Op, "-")
+		}
+		if h.Addr.RelEnd > 0 {
+			return fmt.Errorf("%s takes no address, so it takes no relative end either: use %q", h.Op, "-")
+		}
+		if h.Anchor != "" || h.Lines >= 0 {
+			return fmt.Errorf("%s takes no anchor= or lines=", h.Op)
 		}
 	case OpInsertAfter, OpInsertBefore:
 		// A RANGE is a range whether it is written 3-6 or /a/,/b/, and an

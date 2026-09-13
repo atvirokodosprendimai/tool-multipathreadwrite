@@ -134,4 +134,4 @@ Delete `--format`, delete `internal/ingest`, delete contract §82. Nothing persi
 
 - [x] Aider SEARCH/REPLACE as `--format=search_replace` — M 2026-09-12 *"commit, accepted, do work"*
 - [x] MCP `format` on existing `mrw_write` — M 2026-09-12 *"YES, we have to be competitive"*
-- [ ] `*** Delete File:` only if mrw gains an unlink op
+- [x] `*** Delete File:` / `*** Move to:` — ADR-057, Accepted 2026-09-13 *"both"*

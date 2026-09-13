@@ -217,9 +217,10 @@ func TestRandomisedApplyBalanceFollowsTheDecision(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		path := pathPool[r.Intn(len(pathPool))]
 		orig := randomLines(r, 3+r.Intn(8))
-		// All five ops. create was missing from this pool when a review
-		// found that a create with an unbalanced body printed a balance row:
-		// resolve turns create into insert, and the pool never asked.
+		// Line-range ops only. Parser lists seven (`Op =` in plan.go): these
+		// five plus unlink/rename. Path ops have no consumed/body nets;
+		// ADR-057 covers them in pathop_rand_test.go. Adding them here would
+		// skip the delta oracle, which is how a four-op pool hid create.
 		ops := []string{"replace", "insert-before", "insert-after", "delete", "create"}
 		op := ops[r.Intn(len(ops))]
 		if op == "create" {

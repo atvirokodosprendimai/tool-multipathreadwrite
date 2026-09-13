@@ -96,4 +96,22 @@ out=$(printf 'not json at all\n{"jsonrpc":"2.0","id":2,"method":"tools/list"}\n'
 # ---------- 9. state and env ----------
 fresh; printf 'x\n' > f.txt; out=$(t env -u HOME -u XDG_STATE_HOME "$MRW" read f.txt 2>&1); say "no-HOME-no-XDG" $? "$out"
 out=$(XDG_STATE_HOME=/dev/null/nope t "$MRW" read f.txt 2>&1); say "unwritable-state-home" $? "$out"
+
+# ---------- 10. ADR-057 native unlink / rename ----------
+fresh; printf 'gone\n' > gone.txt; t "$MRW" read gone.txt >/dev/null
+plan '@@ gone.txt - unlink\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "unlink-after-whole-read" $? "exists=$([ -e gone.txt ] && echo yes || echo no) | $out"
+fresh; printf 'gone\n' > gone.txt; printf 'keep\n' > keep.txt; t "$MRW" read gone.txt >/dev/null
+plan '@@ gone.txt - unlink\n@@ keep.txt 1 replace anchor="keep"\nnope\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "unlink-unread-sibling" $? "gone=$([ -e gone.txt ] && echo yes || echo no) keep=$(cat keep.txt) | $out"
+fresh; printf 'moved\n' > old.txt; t "$MRW" read old.txt >/dev/null
+plan '@@ old.txt - rename\nnew.txt\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "rename-after-whole-read" $? "old=$([ -e old.txt ] && echo yes || echo no) new=$(cat new.txt 2>/dev/null) | $out"
+fresh; printf 'src\n' > old.txt; printf 'stay\n' > dest.txt; t "$MRW" read old.txt dest.txt >/dev/null
+plan '@@ old.txt - rename\ndest.txt\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "rename-onto-existing" $? "old=$(cat old.txt) dest=$(cat dest.txt) | $out"
+fresh; printf 'gone\n' > gone.txt
+plan '@@ gone.txt - unlink\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "unlink-without-read" $? "exists=$([ -e gone.txt ] && echo yes || echo no) | $out"
+fresh; printf 'stay\n' > a.txt; t "$MRW" read a.txt >/dev/null
+plan '@@ a.txt - unlink\n@@ a.txt 1 replace\nx\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "unlink-mix-same-path" $? "file=$(cat a.txt) | $out"
+fresh; printf 'gone\n' > gone.txt; t "$MRW" read gone.txt >/dev/null
+plan '*** Begin Patch\n*** Delete File: gone.txt\n*** End Patch\n'; out=$(t "$MRW" write --quiet --format=apply_patch p.plan 2>&1); say "apply-patch-delete-file" $? "exists=$([ -e gone.txt ] && echo yes || echo no) | $out"
+fresh; printf 'stay\n' > a.txt
+plan '*** Begin Patch\n*** Update File: a.txt\n*** Move to: b.txt\n@@\n-stay\n+gone\n*** End Patch\n'; out=$(t "$MRW" write --quiet --format=apply_patch p.plan 2>&1); say "apply-patch-move-with-hunks" $? "a=$(cat a.txt) b=$([ -e b.txt ] && echo yes || echo no) | $out"
 echo "campaign dir: $W"

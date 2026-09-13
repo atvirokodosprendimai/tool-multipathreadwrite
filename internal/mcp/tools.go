@@ -569,10 +569,18 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if res.Applied && !res.DryRun {
 		// A file mrw just wrote is one it knows WHOLLY: it produced every line.
 		wrote := map[string]seen.Observation{}
+		var gone []string
 		for _, f := range res.Files {
+			if f.Removed {
+				gone = append(gone, f.Path)
+				continue
+			}
 			if f.Written {
 				wrote[f.Path] = seen.Observation{SHA: f.SHAAfter}
 			}
+		}
+		if err := seen.Drop(root, gone); err != nil {
+			return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
 		}
 		if err := seen.Record(root, wrote); err != nil {
 			return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}

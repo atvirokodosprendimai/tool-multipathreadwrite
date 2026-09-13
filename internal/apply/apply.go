@@ -127,6 +127,10 @@ type FileResult struct {
 	SHAAfter  string `json:"sha_after,omitempty"`
 	LinesFrom int    `json:"lines_before"`
 	LinesTo   int    `json:"lines_after"`
+	// Removed is true when this path was unlinked, or was the source of a rename.
+	Removed bool `json:"removed,omitempty"`
+	// RenamedTo is the dest path of a rename, root-relative.
+	RenamedTo string `json:"renamed_to,omitempty"`
 }
 
 // Result is the whole run's receipt.
@@ -150,6 +154,17 @@ type Result struct {
 	// because a refused hunk is not ok.
 	StrictSingleLine  int `json:"-"`
 	StrictWouldRefuse int `json:"-"`
+}
+
+// pending is one file the run is about to commit: a content write, an unlink,
+// or a rename. Declared at package scope so commitPathOps can see it.
+type pending struct {
+	file     FileResult
+	out      text
+	full     string
+	unlink   bool
+	renameTo string // absolute dest; empty if not a rename
+	destRel  string // root-relative dest
 }
 
 // hunk is the subset of plan.Hunk this package needs. It is declared here so
@@ -310,11 +325,6 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		})
 	}
 
-	type pending struct {
-		file FileResult
-		out  text
-		full string // the resolved absolute path this text is written to
-	}
 	var (
 		writes []pending
 		// failed holds files the plan addressed but could not validate. They
@@ -359,6 +369,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// grouped: the filesystem's own answer, as issue #47 chose for the ledger,
 	// with nothing folded. Only an EXISTING file has an inode to compare; two
 	// creates that would collide are deferred, not claimed.
+	unlinked := map[string]bool{}
+	for _, i := range in {
+		if i.Op == "unlink" {
+			unlinked[filepath.Clean(i.Path)] = true
+		}
+	}
 	var seenFiles []groupedFile
 	for _, path := range order {
 		hs := byPath[path]
@@ -406,13 +422,34 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			fr.SHABefore = shaOf(orig)
 		}
 
-		out, ok := planFile(path, full, hs, orig.lines, existed, fr.SHABefore, opt, results)
+		out, ok, kind := planFile(root, path, full, hs, orig.lines, existed, fr.SHABefore, opt, unlinked, results)
 		if !ok {
 			// The plan ADDRESSED this file even though nothing will be written
 			// to it. Dropping it here is how a two-file plan reported one file
 			// and left the failing one out of --json's files[] — the caller
 			// then under-reads how much the run was about to touch.
 			failed = append(failed, fr)
+			continue
+		}
+		switch kind {
+		case "unlink":
+			writes = append(writes, pending{file: fr, full: full, unlink: true})
+			continue
+		case "rename":
+			destRel := filepath.Clean(strings.TrimSpace(hs[0].Body[0]))
+			destFull, err := resolve(root, destRel)
+			if err != nil {
+				for _, h := range hs {
+					results[h.Index] = HunkResult{
+						Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine,
+						Status: StatusFailed, Reason: err.Error(),
+					}
+				}
+				failed = append(failed, fr)
+				continue
+			}
+			fr.RenamedTo = destRel
+			writes = append(writes, pending{file: fr, out: orig, full: full, renameTo: destFull, destRel: destRel})
 			continue
 		}
 		fr.Created = !existed
@@ -480,7 +517,15 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// any directories staging created removed with them. Only the rename loop
 	// can still leave it partial, and a rename that fails says which files
 	// were already written rather than leaving the caller to find out.
-	staged := make([]staged, 0, len(writes))
+	var content, pathOps []pending
+	for _, w := range writes {
+		if w.unlink || w.renameTo != "" {
+			pathOps = append(pathOps, w)
+		} else {
+			content = append(content, w)
+		}
+	}
+	staged := make([]staged, 0, len(content))
 	// ADR-004: mrw leaves nothing in the working tree. An abort must unlink
 	// what it staged, or a failed plan litters .mrw-* beside every target it
 	// got to — and it must take the DIRECTORIES back too. Staging a create
@@ -504,7 +549,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			os.Remove(d)
 		}
 	}
-	for _, w := range writes {
+	for _, w := range content {
 		sf, err := stageFileFn(w.full, w.out)
 		if err != nil {
 			// The FAILING stage counts too. It may have created directories
@@ -537,13 +582,16 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		}
 		staged = append(staged, sf)
 	}
-	for i, w := range writes {
+	for i, w := range content {
 		if err := os.Rename(staged[i].tmp, staged[i].target); err != nil {
 			discard(i)
 			return res, fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files))
 		}
 		w.file.Written = true
 		res.Files = append(res.Files, w.file)
+	}
+	if err := commitPathOps(&res, pathOps); err != nil {
+		return res, err
 	}
 	res.Applied = true
 	return res, nil
@@ -570,7 +618,7 @@ func writtenSoFar(files []FileResult) string {
 
 // planFile validates one file's hunks and splices its new content. It records a
 // verdict for every hunk and returns ok=false if any of them failed.
-func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefore string, opt Options, out map[int]HunkResult) ([]string, bool) {
+func planFile(root, path, full string, hs []hunk, orig []string, existed bool, shaBefore string, opt Options, unlinked map[string]bool, out map[int]HunkResult) ([]string, bool, string) {
 	total := len(orig)
 	ok := true
 	fail := func(h hunk, format string, a ...any) {
@@ -632,7 +680,7 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 				"editing, or pass --force to overwrite blind", path, short(recorded.SHA), short(shaBefore))
 		}
 		if !ok {
-			return nil, false
+			return nil, false, ""
 		}
 	}
 
@@ -655,6 +703,27 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 			"you have not seen — read them, or pass --force",
 			addrString(from, to), path, obs.Served())
 		return false
+	}
+
+	var pathLevel, lineLevel bool
+	for _, h := range hs {
+		if isPathOp(h.Op) {
+			pathLevel = true
+		} else {
+			lineLevel = true
+		}
+	}
+	if pathLevel && (lineLevel || len(hs) != 1) {
+		for _, h := range hs {
+			fail(h, "unlink/rename cannot mix with other hunks on %s", path)
+		}
+		return nil, false, ""
+	}
+	if pathLevel {
+		if !planPathOp(root, path, full, hs[0], orig, existed, shaBefore, unlinked, covered, fail, out) {
+			return nil, false, ""
+		}
+		return nil, true, hs[0].Op
 	}
 
 	// Resolve EOF sentinels and check each hunk in isolation.
@@ -1091,7 +1160,7 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		}
 	}
 	if !ok {
-		return nil, false
+		return nil, false, ""
 	}
 
 	// Order by the original line each hunk begins at. Insertions sort before
@@ -1174,7 +1243,7 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		out[h.Index] = r
 	}
 	if !ok {
-		return nil, false
+		return nil, false, ""
 	}
 	res = append(res, orig[cursor-1:]...)
 	for _, p := range padAfter {
@@ -1182,7 +1251,7 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		r.Echo = echoPad(res[:p.after], res[p.after:], opt.EchoPad)
 		out[p.index] = r
 	}
-	return res, true
+	return res, true, ""
 }
 
 // text is a file's contents split for editing: its lines with their terminator
