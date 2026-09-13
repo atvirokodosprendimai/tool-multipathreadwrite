@@ -1085,7 +1085,11 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 			consumed = orig[h.Start-1 : h.End]
 			cursor = h.End + 1
 		}
-		if !IsProse(path) {
+		// Keyed on SrcOp, not h.Op: resolve turns a create into an insert at
+		// line 1 of an empty file, and a create has no replaced lines for its
+		// body to be compared against — a row there would be about nothing
+		// (ADR-054 §2; found in review after 3b9f772).
+		if !IsProse(path) && h.SrcOp != "create" {
 			r.Balance = balanceDelta(consumed, written)
 		}
 		if opt.EchoPad > 0 && (h.Op == "replace" || h.Op == "insert") {

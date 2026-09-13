@@ -38,11 +38,12 @@ An applied replace/insert/delete whose path is not prose and whose net `{`/`}` `
 set -o pipefail
 grep -q '^# 90\. ' scripts/contract.sh \
   && go test ./internal/apply/ -count=1 -v \
-    -run 'TestADelimiterBalanceDeltaDoesNotFailTheHunk|TestMatchingNetsOmitBalance|TestProseOmitsBalance|TestADeleteWithAnExpectedBodyStillReportsItsNet|TestRandomisedApplyBalanceFollowsTheDecision' 2>&1 | tee /tmp/adr054-t2.out \
+    -run 'TestADelimiterBalanceDeltaDoesNotFailTheHunk|TestMatchingNetsOmitBalance|TestProseOmitsBalance|TestADeleteWithAnExpectedBodyStillReportsItsNet|TestACreateCarriesNoBalance|TestRandomisedApplyBalanceFollowsTheDecision' 2>&1 | tee /tmp/adr054-t2.out \
   && grep -q '^--- PASS: TestADelimiterBalanceDeltaDoesNotFailTheHunk' /tmp/adr054-t2.out \
   && grep -q '^--- PASS: TestMatchingNetsOmitBalance' /tmp/adr054-t2.out \
   && grep -q '^--- PASS: TestProseOmitsBalance' /tmp/adr054-t2.out \
   && grep -q '^--- PASS: TestADeleteWithAnExpectedBodyStillReportsItsNet' /tmp/adr054-t2.out \
+  && grep -q '^--- PASS: TestACreateCarriesNoBalance' /tmp/adr054-t2.out \
   && grep -q '^--- PASS: TestRandomisedApplyBalanceFollowsTheDecision' /tmp/adr054-t2.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr054-t2.out \
   && [ -z "$(gofmt -l .)" ] \
@@ -57,6 +58,7 @@ grep -q '^# 90\. ' scripts/contract.sh \
 | `TestMatchingNetsOmitBalance` | `internal/apply/apply_test.go` | Equal nets → empty Balance, not marshalled | — | S2, S3 |
 | `TestProseOmitsBalance` | `internal/apply/apply_test.go` | A `.md` hunk with differing nets has empty Balance and stays ok | — | S2, S3 |
 | `TestADeleteWithAnExpectedBodyStillReportsItsNet` | `internal/apply/apply_test.go` | ADR-008's expected body is a guard, not a write: delete's body net stays 0 | — | S3 |
+| `TestACreateCarriesNoBalance` | `internal/apply/apply_test.go` | resolve turns create into insert; Balance keys on SrcOp and a create carries none | — | S3 |
 | `TestRandomisedApplyBalanceFollowsTheDecision` | `internal/apply/balance_fuzz_test.go` | 400 random ops/paths per seed against an independent splice and net oracle; found the delete-with-body miss | — | S3 |
 | `§90` | `scripts/contract.sh` | Built binary prints the delta on `.go` and exits 0; omits it on `.md` | — | S4 |
 
@@ -82,6 +84,7 @@ grep -q '^# 90\. ' scripts/contract.sh \
   the fence failed on a build/parse error, not an assertion
   ```
 - 2026-09-13 · 38d3831* · mutant killed · exit 1 · `internal/apply/apply.go` · the delete regression: the ADR-008 expected body is treated as written and cancels every guarded delete; TestADeleteWithAnExpectedBodyStillReportsItsNet and TestRandomisedApplyBalanceFollowsTheDecision must go red · acceptance-sha256:a52c9e07b166ce9f93bc47a22e50b72ae37ad7fcec561d7365090a247f4eddb4
+- 2026-09-13 · f8ab3aa* · mutant killed · exit 1 · `internal/apply/apply.go` · the create guard is deleted: resolve has turned create into insert, so a new file with an unbalanced body prints a balance row about nothing; TestACreateCarriesNoBalance and the randomised test must go red · acceptance-sha256:2248ac73f2bcb5f8eca66fbe640683263b682a17878b55f2f76dba8d00c52f2c
 
 ## Invariants
 
@@ -95,6 +98,7 @@ grep -q '^# 90\. ' scripts/contract.sh \
 ## Risks
 
 - Braces in strings in code still false-positive. Accepted; report only.
+- resolve turns `create` into `insert` at line 1; keying the delta on `h.Op` printed a row on a new file with an unbalanced body (found in review, 2026-09-13). Keyed on `SrcOp`; `create` added to the randomised op pool.
 - A delete's ADR-008 expected body is the consumed lines verbatim; fed into the delta it cancels every guarded delete. Shipped that way in 3b9f772, found by the randomised test the same day, fixed to feed the WRITTEN lines (nil for delete).
 - Four files in Affected. `report` must print the field or the engine-only test is unreachable from the CLI. Deleting the `report` loop must fail §90.
 
@@ -121,3 +125,4 @@ If the only way to go green is to print a delta on a balanced insert (net 0 → 
 - 2026-09-13 · f965704* · exit 0 · `set -o pipefail …` · acceptance-sha256:dfb357dc10e031d0f4b5c4d2a93bb0f73cda049336d5de401eb625a9679660f1 · ms:657
 - 2026-09-13 · 38d3831* · exit 0 · `set -o pipefail …` · acceptance-sha256:a52c9e07b166ce9f93bc47a22e50b72ae37ad7fcec561d7365090a247f4eddb4 · ms:601
 - 2026-09-13 · 38d3831* · exit 0 · `set -o pipefail …` · acceptance-sha256:a52c9e07b166ce9f93bc47a22e50b72ae37ad7fcec561d7365090a247f4eddb4 · ms:865
+- 2026-09-13 · f8ab3aa* · exit 0 · `set -o pipefail …` · acceptance-sha256:2248ac73f2bcb5f8eca66fbe640683263b682a17878b55f2f76dba8d00c52f2c · ms:1020
