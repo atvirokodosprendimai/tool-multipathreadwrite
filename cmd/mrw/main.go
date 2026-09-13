@@ -789,8 +789,13 @@ the hunk. Negative is usage.`,
 				Usage: "print only failures and the summary line",
 			},
 			&cli.BoolFlag{
-				Name:  "check",
-				Usage: "after a successful write, run the project's check scoped to the files it touched",
+				Name: "check",
+				Usage: "demand the project's check after a successful write, even on a prose-only plan " +
+					"(exit 2 if none can run)",
+			},
+			&cli.BoolFlag{
+				Name:  "no-check",
+				Usage: "do not run the project's check after this write (the default runs it when a written path is not prose)",
 			},
 			&cli.StringFlag{
 				Name:  "format",
@@ -817,6 +822,9 @@ the hunk. Negative is usage.`,
 			if cmd.Bool("check") && cmd.Bool("dry-run") {
 				return cli.Exit("--check cannot run under --dry-run: nothing is written, so there is "+
 					"nothing to verify. Drop one of the two — a check that did not run is not a pass", exitUsage)
+			}
+			if cmd.Bool("check") && cmd.Bool("no-check") {
+				return cli.Exit("--check and --no-check contradict each other: drop one", exitUsage)
 			}
 			if cmd.Int("echo-pad") < 0 {
 				return cli.Exit("--echo-pad must be >= 0", exitUsage)
@@ -967,22 +975,35 @@ the hunk. Negative is usage.`,
 			}
 
 			receipt := receipt{Result: res}
-			if cmd.Bool("check") && res.Applied && res.Failed == 0 {
+			if res.Applied && res.Failed == 0 && !cmd.Bool("no-check") {
 				var written []string
+				code := false // at least one written path is not prose
 				for _, f := range res.Files {
 					if f.Written {
 						written = append(written, f.Path)
+						code = code || !apply.IsProse(f.Path)
 					}
 				}
 				cfg, err := check.Load(root)
 				if err != nil {
 					return cli.Exit(err, exitUsage)
 				}
-				cr, err := check.Run(ctx, root, cfg, written)
-				if err != nil {
-					return cli.Exit(err, exitUsage)
+				// ADR-054: the check runs by default, but only when the plan
+				// touched a file a check could plausibly cover AND a command
+				// exists. A markdown-only plan does not pay the project
+				// suite; a tree with no harness and no go.mod does not get an
+				// exit 2 it never asked for. --check is a DEMAND and skips
+				// both gates: on a prose plan it runs, and with no command it
+				// is exit 2 (ADR-003).
+				demanded := cmd.Bool("check")
+				hasCommand := cfg.Check != "" || cfg.ScopedCheck != ""
+				if demanded || (code && hasCommand) {
+					cr, err := check.Run(ctx, root, cfg, written)
+					if err != nil {
+						return cli.Exit(err, exitUsage)
+					}
+					receipt.Check = &cr
 				}
-				receipt.Check = &cr
 			}
 
 			if cmd.Bool("json") {

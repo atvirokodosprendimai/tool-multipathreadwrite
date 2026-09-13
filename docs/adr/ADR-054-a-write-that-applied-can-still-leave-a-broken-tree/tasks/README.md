@@ -21,12 +21,19 @@ T1 first: it is the arm that would have caught the three Zeus `.rs` breakages in
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | CLI write runs the check by default; `--no-check`; contract §89 | pending | — | `docs/adr/ADR-054-a-write-that-applied-can-still-leave-a-broken-tree/tasks/T1-write-check-by-default-and-contract-89.md` fence |
+| T1 | CLI write runs the check by default; `--no-check`; contract §89 | blocked | — | `docs/adr/ADR-054-a-write-that-applied-can-still-leave-a-broken-tree/tasks/T1-write-check-by-default-and-contract-89.md` fence |
 | T2 | Delimiter-balance delta; contract §90 | pending | — | `docs/adr/ADR-054-a-write-that-applied-can-still-leave-a-broken-tree/tasks/T2-delimiter-balance-delta-and-contract-90.md` fence |
 | T3 | stats always prints `failed_check`; landed line; contract §91 | pending | — | `docs/adr/ADR-054-a-write-that-applied-can-still-leave-a-broken-tree/tasks/T3-stats-failed-check-row-and-contract-91.md` fence |
 | T4 | Teach `--no-check` / balance / stats; BACKLOG 054 | pending | — | `docs/adr/ADR-054-a-write-that-applied-can-still-leave-a-broken-tree/tasks/T4-teach-and-backlog.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
+
+`blocked` here means the word `done`, not the work. Each task's Verification Log carries the
+tool-written chain — a first-red row, killed mutants, an exit-0 entry under the current digest —
+but `adr-lint` 2.98.0's first-red test-body lock (`lib/record.py` `extract_test_names`) extracts
+Python `test_*` and JS `it("…")` bodies only, so every Go `func TestX` row is UNPROVEN and `done`
+is refused from `TEST_HASH_REQUIRED_FROM = 2026-09-13`. ADR-052 on `main` fails the same gate.
+Filed to `wing_quality-harness` inbox 2026-09-13. Flip to `done` when the lock can read Go.
 
 ## Contract Coupling
 

@@ -27,7 +27,7 @@ After a successful apply, CLI `write` runs `check.Load`+`Run` when a command exi
 
 1. [S1] Write `TestWriteRunsTheCheckByDefault` and confirm it is RED (a Go fixture write without `--check` must run the inferred/declared check). [proof: mutation]
 2. [S2] Write `TestWriteOfProseDoesNotRunTheDefaultCheck`, `TestExplicitCheckStillRunsOnProse`, `TestNoCheckOptsOut`, `TestWriteWithoutACheckCommandStillApplies`, and `TestCheckAndNoCheckTogetherIsUsage` — RED until the flags and the prose skip exist. [proof: mutation]
-3. [S3] Implement default check / `--no-check` / prose skip in `writeCmd`. Both flags = usage. Dry-run does not run a check unless `--check` was also passed (then usage, as today). Un-strike the Tests rows when the funcs exist. Confirm S1–S2 GREEN. Deleting the default-run call must fail S1. Deleting the prose skip must fail `TestWriteOfProseDoesNotRunTheDefaultCheck`. [proof: mutation]
+3. [S3] Implement default check / `--no-check` / prose skip in `writeCmd`. Both flags = usage. Dry-run does not run a check unless `--check` was also passed (then usage, as today). Confirm S1–S2 GREEN. Deleting the default-run call must fail S1. Deleting the prose skip must fail `TestWriteOfProseDoesNotRunTheDefaultCheck`. [proof: mutation]
 4. [S4] Write §89 against a binary that still opts in `--check` and confirm it is RED, then rebuild and confirm GREEN. The `.md` half must fail if the binary runs the check on prose. [proof: mutation]
 5. [S5] Run the scoped tests and `gofmt` / `go vet` unpiped. [proof: acceptance]
 
@@ -53,12 +53,12 @@ grep -q '^# 89\. ' scripts/contract.sh \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| ~~`TestWriteRunsTheCheckByDefault`~~ | `cmd/mrw/writecheck_test.go` | not yet written — Proposed; T1 S1 writes it | — | S1, S3 |
-| ~~`TestWriteOfProseDoesNotRunTheDefaultCheck`~~ | `cmd/mrw/writecheck_test.go` | not yet written — Proposed; T1 S2 writes it | — | S2, S3 |
-| ~~`TestExplicitCheckStillRunsOnProse`~~ | `cmd/mrw/writecheck_test.go` | not yet written — Proposed; T1 S2 writes it | — | S2, S3 |
-| ~~`TestNoCheckOptsOut`~~ | `cmd/mrw/writecheck_test.go` | not yet written — Proposed; T1 S2 writes it | — | S2, S3 |
-| ~~`TestWriteWithoutACheckCommandStillApplies`~~ | `cmd/mrw/writecheck_test.go` | not yet written — Proposed; T1 S2 writes it | — | S2, S3 |
-| ~~`TestCheckAndNoCheckTogetherIsUsage`~~ | `cmd/mrw/writecheck_test.go` | not yet written — Proposed; T1 S2 writes it | — | S2, S3 |
+| `TestWriteRunsTheCheckByDefault` | `cmd/mrw/writecheck_test.go` | Write without `--check` on a `.go` file runs the declared check; exit 3 | — | S1, S3 |
+| `TestWriteOfProseDoesNotRunTheDefaultCheck` | `cmd/mrw/writecheck_test.go` | Markdown-only write in a harnessed tree does not spawn the check; exit 0 | — | S2, S3 |
+| `TestExplicitCheckStillRunsOnProse` | `cmd/mrw/writecheck_test.go` | `--check` on markdown still runs; exit 3 | — | S2, S3 |
+| `TestNoCheckOptsOut` | `cmd/mrw/writecheck_test.go` | `--no-check` does not run it; exit 0 even though the check would fail | — | S2, S3 |
+| `TestWriteWithoutACheckCommandStillApplies` | `cmd/mrw/writecheck_test.go` | No harness, no `go.mod`: exit 0, not 2 | — | S2, S3 |
+| `TestCheckAndNoCheckTogetherIsUsage` | `cmd/mrw/writecheck_test.go` | Both flags → exit 2; file untouched | — | S2, S3 |
 | `§89` | `scripts/contract.sh` | Built binary: default check on `.go`, skip on `.md`, `--no-check`, no-command apply | — | S4 |
 
 ## Reachability
@@ -71,8 +71,9 @@ grep -q '^# 89\. ' scripts/contract.sh \
 | 4 — it is used | T3's `failed_check` column; ADR-009 refused telemetry |
 
 ## Mutation Log
-
 (empty until execute)
+- 2026-09-13 · b68df7d* · mutant killed · exit 1 · `cmd/mrw/main.go` · the cover gate is inverted: the default check runs on a prose-only plan and not on a .go write, so TestWriteRunsTheCheckByDefault (exit 0, want 3) and TestWriteOfProseDoesNotRunTheDefaultCheck (exit 3, want 0) must both go red · acceptance-sha256:44ecb5fe0b5ec4a0422dfa6765dbc0a4e7bbf7e6917f54021aa714b95fd667f5
+- 2026-09-13 · b68df7d* · mutant killed · exit 1 · `cmd/mrw/main.go` · the prose skip is deleted: every written path counts as code, so a markdown-only plan spawns the check and TestWriteOfProseDoesNotRunTheDefaultCheck (exit 3, want 0) must go red · acceptance-sha256:44ecb5fe0b5ec4a0422dfa6765dbc0a4e7bbf7e6917f54021aa714b95fd667f5
 
 ## Invariants
 
@@ -102,5 +103,21 @@ If the only way to go green is to spawn the check on a markdown-only plan, stop 
 - A harness `covers` glob / a non-Go `packages()`
 
 ## Verification Log
-
 (empty until execute)
+- 2026-09-13 · b68df7d* · exit 1 · `set -o pipefail …` · acceptance-sha256:44ecb5fe0b5ec4a0422dfa6765dbc0a4e7bbf7e6917f54021aa714b95fd667f5 · ms:839 · test-lock-sha256:edad48a112a65a8266624fda782a0008319c74d1da9d9a777f7091d3aca29f98 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwp1bnByb3ZlbgljbWQvbXJ3L3dyaXRlY2hlY2tfdGVzdC5nbwlUZXN0Q2hlY2tBbmROb0NoZWNrVG9nZXRoZXJJc1VzYWdlCnVucHJvdmVuCWNtZC9tcncvd3JpdGVjaGVja190ZXN0LmdvCVRlc3RFeHBsaWNpdENoZWNrU3RpbGxSdW5zT25Qcm9zZQp1bnByb3ZlbgljbWQvbXJ3L3dyaXRlY2hlY2tfdGVzdC5nbwlUZXN0Tm9DaGVja09wdHNPdXQKdW5wcm92ZW4JY21kL21ydy93cml0ZWNoZWNrX3Rlc3QuZ28JVGVzdFdyaXRlT2ZQcm9zZURvZXNOb3RSdW5UaGVEZWZhdWx0Q2hlY2sKdW5wcm92ZW4JY21kL21ydy93cml0ZWNoZWNrX3Rlc3QuZ28JVGVzdFdyaXRlUnVuc1RoZUNoZWNrQnlEZWZhdWx0CnVucHJvdmVuCWNtZC9tcncvd3JpdGVjaGVja190ZXN0LmdvCVRlc3RXcml0ZVdpdGhvdXRBQ2hlY2tDb21tYW5kU3RpbGxBcHBsaWVzCnVucHJvdmVuCXNjcmlwdHMvY29udHJhY3Quc2gJwqc4OQ
+  ```
+  --- last 10 line(s) of stdout (of 20 after folding 20 raw)
+  === RUN   TestNoCheckOptsOut
+      writecheck_test.go:125: --no-check exited 2, want 0:
+  --- FAIL: TestNoCheckOptsOut (0.00s)
+  === RUN   TestWriteWithoutACheckCommandStillApplies
+  --- PASS: TestWriteWithoutACheckCommandStillApplies (0.00s)
+  === RUN   TestCheckAndNoCheckTogetherIsUsage
+  --- PASS: TestCheckAndNoCheckTogetherIsUsage (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.356s
+  FAIL
+  ```
+- 2026-09-13 · b68df7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:44ecb5fe0b5ec4a0422dfa6765dbc0a4e7bbf7e6917f54021aa714b95fd667f5 · ms:1155
+- 2026-09-13 · b68df7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:44ecb5fe0b5ec4a0422dfa6765dbc0a4e7bbf7e6917f54021aa714b95fd667f5 · ms:509
+- 2026-09-13 · b68df7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:44ecb5fe0b5ec4a0422dfa6765dbc0a4e7bbf7e6917f54021aa714b95fd667f5 · ms:935
