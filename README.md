@@ -209,7 +209,8 @@ into every project on the machine.
 `format`, `echo_pad`, and `ack` sit on the existing write/read — not a third
 tool. `format` is `plan` (default), `apply_patch`, or `search_replace`.
 `echo_pad` is the same opt-in pad as `--echo-pad`. `ack` is how a served read
-becomes a licence.
+becomes a licence. `mrw_write` runs no check (ADR-044); its receipt's hunks carry
+the same `balance` field the CLI prints.
 
 Without `--root`, the server uses `CLAUDE_PROJECT_DIR` when the host sets it,
 else its working directory. A silent fallback to `/` or `$HOME` is refused
