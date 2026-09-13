@@ -1,16 +1,16 @@
 # ADR-042: Check in-root fallback stays silent until its own record ships
 
 **Status:** Accepted
-**Accepted:** 2026-09-12 by M — *"good, accepted all"*
+**Accepted:** 2026-09-12 by M — *"good, accepted all"* (T1, record only); *"accepted, close"* (this execute)
 **Date:** 2026-09-12
 **Owner:** M
 **Spec:** None — no spec stage
 **Cross-references:** ADR-003, ADR-040, docs/adr/BACKLOG.md
 **Governs:** `internal/check/check.go`
-**Enforced-by:** None — record only this turn; no engine change
+**Enforced-by:** `internal/check/check_test.go::TestAnInRootMissIsRefusedNotASilentPass`
 **Invalidates:** none — checked
-**Served-path change:** None — this ADR changes only the record
-**Notes:** M, 2026-09-12: *"good, accepted all"* after the inventory of arming quotes. This leftover is recorded, not executed as an engine dream.
+**Served-path change:** `mrw check` on a missing in-root path exits 2 and names the path; it no longer PASSes the whole project
+**Notes:** M, 2026-09-12: *"good, accepted all"* after the inventory of arming quotes (T1 was record only). Same day: *"accepted, close"* after 042 was named as the only armed leftover.
 
 ## Context
 
@@ -24,15 +24,18 @@ Parked since PR #15. An in-root typo can PASS the root's check. Inbox: `mrw chec
 
 ## Existing Primitives Audit
 
-Audited and **NOT taken** as an engine change this turn. The primitive that already exists is named in Decision.
+Audited at T1 and **not taken** then. The primitive is `confine`: it already refuses what cannot be honoured. This execute extends it to a miss.
 
 ## Decision
 
-Record the defect. Do not change the fallback this turn. The next execute must make a miss honoured-or-refused, not a silent whole-project PASS. ADR-003 rule 2 still owns the verdict.
+An in-root miss is refused, not a silent whole-project PASS. `confine` rejects a path that is not there (`os.IsNotExist` after `rooted.Resolve`) the same way it already rejects an unreadable directory or a path outside the root. The process exits 2. Nothing ran. No result document. ADR-003 rule 2 still owns a verdict that *did* run.
+
+T1 was record only. This execute closes the fallback for a miss. Honouring it (report `Scoped` and still run the full check) was the other allowed reading; both were allowed, so refuse. A directory of prose or `testdata` still falls back — those paths are there.
 
 ## Alternatives Considered
 
-- **Refuse every unplaceable in-root path tonight — rejected: needs its own execute, not a drive-by in 040.**
+- **Refuse every unplaceable in-root path tonight — rejected at T1: needs its own execute, not a drive-by in 040.** Taken now, for a miss only.
+- **Honour the miss: keep the fallback and report `Result.Scoped`.** Rejected: both were allowed; M's close quote plus the execute brief pick refuse.
 - **Fold this into ADR-040.** Rejected: 040 owns help / parse / version. This leftover is a different question.
 
 ## Component / Boundary Impact
@@ -41,7 +44,7 @@ None — internal to the named `Governs` files; no ownership change.
 
 ## Wiring & Contract Changes
 
-None — implementation-internal only. No contract row this turn.
+§86 — a miss exits 2 and emits no result; a real package still scopes. §15/§15c stop asserting that a typo falls back.
 
 ## Inter-task Contracts
 
@@ -53,28 +56,28 @@ See `docs/adr/ADR-042-check-in-root-fallback-stays-silent-until-its-own-record-s
 
 ## Consequences
 
-- **Positive:** the leftover is a numbered decision, not chat noise.
-- **Negative:** the engine does not change.
-- **Neutral:** a later execute starts from this record, not from BACKLOG prose.
+- **Positive:** a typo in a check scope is visible (exit 2), not a green on the whole tree.
+- **Negative:** callers who relied on the silent fallback must name a path that exists, or run the whole-project check.
+- **Neutral:** T1 remains the pin that the leftover was recorded before it was closed.
 
 ## Out of Scope
 
-- Changing `internal/check` this turn (permanent: boundary: record only)
+- Honouring a miss by reporting `Scoped` (permanent: boundary: refuse when both were allowed)
 - Scope derivation for languages other than Go (deferred: docs/adr/BACKLOG.md)
 - Playtrix or another wing (external: wing_playtrix: wing_playtrix/inbox)
-- Implementing an engine dream in the same turn as this record (permanent: boundary: M said record only)
+- T1's record-only pin (permanent: boundary: T1 was the record-only pin)
 
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| A later turn reads Accepted as "implement now" | Med | High | Decision says record only; T1 Stop Condition |
+| A later turn reopens honour-by-reporting-Scoped | Low | Med | Decision names refuse; T2 Stop Condition |
 | Folding this back into 040 | Low | Med | Separate number |
 
 ## Rollback
 
-Delete the record. Nothing in the engine depends on it.
+Revert T2. T1's record-only receipts stay. The previous silent fallback returns.
 
 ## Follow-ups
 
-- [x] Execute only on a later quote that names this number. — 2026-09-12: M said execute all till 050; T1 receipts; fallback stays silent.
+- [x] Execute only on a later quote that names this number. — 2026-09-12: M said *"accepted, close"*; T2 refuses a miss.

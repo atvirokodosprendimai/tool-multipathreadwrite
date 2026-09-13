@@ -1585,25 +1585,24 @@ directory that way reported PASS with a failing package one level down. The
 trailing `/...` is stripped before a path is placed, so the scope mrw prints can
 be handed straight back to it.
 
-Anything mrw cannot place as a package abandons the scoped form for the full
-one: a `.md` or a `.templ`, a path that is not there, a directory holding no
-package go will build (prose, or one named `testdata`). A directory that exists
-and **cannot be read** is refused instead — mrw cannot tell a package it cannot
-look at from an absent one, and falling back would answer about the whole
-project for a scope it never opened. A scoped run that
+Anything mrw cannot place as a package, but that **is there**, abandons the
+scoped form for the full one: a `.md` or a `.templ`, a directory holding no
+package go will build (prose, or one named `testdata`). A path that **is not
+there** is refused (exit 2) — falling back used to PASS the whole project, so a
+typo read as green on the thing you meant to check. A directory that exists
+and **cannot be read** is refused for the same reason: mrw cannot tell a
+package it cannot look at from an absent one. A scoped run that
 quietly omits a changed file is worse than a slow complete one, and a run scoped
 to nothing that reports PASS is worse than both.
 
-A path resolving **outside the root** is the one exception, and is refused (exit
-2). The fallback is what makes every case above safe, because the whole-project
-run still covers a typo — but it covers nothing you named when the name pointed
-elsewhere, so the verdict it printed was about a different tree. `mrw check
-../other` answered PASS at exit 0 while `../other` did not compile, and answered
-3 when this repository's own tests went red: it tracked the root and never the
-argument. `read` and `write` refuse such a path already; so does `check` now. An
-absolute path is the same escape in the spelling that hides it — it is joined
-onto the root rather than honoured, so it lands inside, places nothing and fell
-back — and it is refused for the same reason.
+A path resolving **outside the root** is refused (exit 2). The fallback covers
+a present unplaceable path, not a miss and not a name that pointed elsewhere.
+`mrw check ../other` answered PASS at exit 0 while `../other` did not compile,
+and answered 3 when this repository's own tests went red: it tracked the root
+and never the argument. `read` and `write` refuse such a path already; so does
+`check`. An absolute path is the same escape in the spelling that hides it —
+it is joined onto the root rather than honoured, so it lands inside, places
+nothing and would fall back — and it is refused for the same reason.
 
 Three rules it will not bend, each from a check that lied:
 

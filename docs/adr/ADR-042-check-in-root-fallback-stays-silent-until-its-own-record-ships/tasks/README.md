@@ -14,12 +14,14 @@ DAG); Covers-column drift is caught at review. Regenerate rather than hand-edit.
 | Order | Task | Depends-on |
 |-------|------|------------|
 | 1 | T1 | none |
+| 2 | T2 | T1 |
 
 ## Task Index
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | Keep the record. Do not change the fallback. | done | — | `grep` the Accepted record |
+| T2 | Refuse an in-root miss | done | — | `TestAnInRootMissIsRefusedNotASilentPass` + §86 |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
@@ -34,4 +36,4 @@ None.
 
 ## Notes
 
-- *"good, accepted all"* records this leftover. It does not mean implement an engine dream.
+- T1 recorded the leftover. T2 closes it: a miss is refused, not a silent PASS.
