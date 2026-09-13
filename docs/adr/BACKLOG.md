@@ -44,6 +44,10 @@ that arms work; silence leaves the row where it is.
 | Python `str` body character-split | **ADR-047 Accepted** — taught in 040 help | — (T1 receipts 2026-09-12; already taught) |
 | Syntax awareness | **ADR-048 Accepted** — record only | — (T1 receipts 2026-09-12; no parser). Neighbour license is ADR-052, not a parser. |
 | Padded write echo / neighbour license | **ADR-052 Accepted** — opt-in `--echo-pad`; End+1 license | — (M 2026-09-13: *"echo, license"*) |
+| `--check` by default / `--no-check` | **proposed** — not an ADR; wrap-tail miss already 052 | *"check by default"* |
+| Delimiter-balance delta in the receipt | **proposed** — visibility, not refuse; stays inside 048 | *"balance delta"* |
+| `stats` row: applied then a failing check | **proposed** — "writes succeed and files break" | *"stats check-fail row"* |
+| Neighbour license on a single-line address | **open question** — not a proposed fix; three Zeus cases would not have fired | — |
 | Streaming apply | **ADR-049 Accepted** — record only | — (T1 receipts 2026-09-12; still waits for a size that hurts) |
 | Windows `%LOCALAPPDATA%` | **ADR-050 Accepted** — record only | — (T1 receipts 2026-09-12; XDG stays) |
 | Foreign plan grammars / `apply_patch` | **ADR-051 Accepted** — compile to `@@`; first slice is `--format=apply_patch` | — (this steal; not Morph, not syntax-write) |
@@ -1040,7 +1044,8 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
 
   **Receipted 2026-09-13 as ADR-052** — M said *"echo, license"*. Opt-in `--echo-pad` /
   `echo_pad` (default 0); a multi-line replace without a served line after End is refused.
-  Still not a checker.
+  Still not a checker. Follow-ups that 052 does not catch (Zeus, 2026-09-13) are
+  under **From ADR-052** at the end of this file.
 
 - **UNMEASURED, and deliberately not written into the docs: a balanced-but-wrongly-nested JSX
   subtree.** Predicted by the React session to be valid TypeScript that renders differently — `tsc`
@@ -1483,3 +1488,53 @@ pointer. None of them is an engine change.
   a file is not a delete. Arm with *"unlink op"*.
 - **ast-grep-shaped `--grep`.** Structural find only, and only if it does
   not become a write-time parser (ADR-048). Arm with *"structural find only"*.
+
+## From ADR-052 (echo pad is opt-in; a multi-line replace needs a served line after End)
+
+Filed 2026-09-13 from a Zeus field report that read `internal/apply/apply.go:960`
+before proposing, and that dropped two ideas after that read. ADR-052 already
+refuses the wrap-tail miss (`end > start` and ledger does not cover `End+1`).
+`--check`, `--echo-pad`, `sha=` and the ledger already exist. Nothing below is
+new capability.
+
+The licence would not have caught the three Zeus breakages: they were
+**single-line addresses with multi-line bodies**, so `end > start` is false.
+Extending the trigger to "multi-line body" would not have caught them either —
+the rule asks whether the ledger covers `End+1`, and those lines had been
+served. No ledger rule catches this. The ledger knows what was seen, not what
+the body did to the structure.
+
+Evidence from that checkout's `mrw stats`: 259 plans, 251 applied (96.9%).
+Three of those 251 left the tree uncompilable and mrw reported success on every
+one. The tool measures its contract — did the hunk apply — and the outcome
+diverged silently.
+
+ADR-052 rejected a **default** echo on cost grounds. That reasoning does not
+transfer to (1): echo prints on every write; scoped `--check` runs the
+project's own narrow command, and most plans touch one package.
+
+Engine work stays unimplemented until a later execute names the quote. This
+section is the receipt so a later turn does not treat the rows as noise.
+
+- **`--check` runs by default; `--no-check` opts out.** The only existing
+  mechanism that would have caught all three, in the turn that caused them.
+  Arm with *"check by default"*.
+
+- **A delimiter-balance delta in the receipt — visibility, not a refuse.**
+  Echo's sibling; stays inside ADR-048 (no AST). Arithmetic on the hunk: count
+  `{}`, `()`, `[]` in the replaced range and in the body; if they differ, say
+  so in the receipt. Replacing a line whose balance is +1 with a body whose
+  balance is 0 means something below is now unmatched — the Zeus failure, three
+  times. Naive counting will miscount braces inside string literals, which is
+  why this reports rather than refuses. Arm with *"balance delta"*.
+
+- **`mrw stats` gains one row: of the applied plans, how many were followed by
+  a failing check.** Today's tally is `applied` / `refused_apply` /
+  `refused_parse` — facts about mrw's contract. The number that would have
+  shown up after the first occurrence instead of the third is "your writes
+  succeed and your files break". Arm with *"stats check-fail row"*.
+
+- **Do not extend the neighbour licence to single-line addresses as a fix for
+  this.** The wrap-tail risk is identical whether the address or the body is
+  the multi-line half, but the three cases it was meant to fix catch none of
+  them. Open question in its own right; not armed.
