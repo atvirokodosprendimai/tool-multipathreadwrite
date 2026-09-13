@@ -53,7 +53,7 @@ output and check `$?`, or let the command stand alone.
   that restate the code are noise.
 - **One logical change per commit.** The message says why, not what.
 
-## Reproducing the numbers in the README
+## Reproducing the numbers in docs/measure.md
 
 ```sh
 ./scripts/measure.sh
@@ -70,6 +70,13 @@ bytes; nothing here is a wall-clock figure and there are no `go test -bench`
 benchmarks. Shape D — one site in every Go file, from `git ls-files` — is the
 row that carries the claim: M reads plus N edits versus 2 calls, for any N.
 
+Model × score readings (stats 65/68, served-size 1–20) live in
+[docs/model-benches.md](docs/model-benches.md). The README is a scannable
+page, not the 1676-line essay. Caller practices for someone who installed
+the binary: [BESTPRACTICES.md](BESTPRACTICES.md). How to update it:
+[UPDATE.md](UPDATE.md). The Git Bash regex rewrite and the pipe-exit trap
+above still apply; they did not move with the README tidy.
+
 ## Releasing
 
 Push a strict `vX.Y.Z` tag:
@@ -83,6 +90,9 @@ job re-matches with a regex and everything downstream gates on it —
 `v1.2.3-rc1` builds nothing. Five targets cross-compile (linux and darwin on
 amd64 and arm64, windows on amd64) and publish as raw binaries, conventional
 archives, and a `SHA256SUMS.txt`.
+
+The README **Status** line names the **tagged** SHA (`v1.15.0` is `31422d8`),
+never a later squash or docs commit. Bump it only when a new tag is cut.
 
 ## Licence
 

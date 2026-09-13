@@ -4,9 +4,12 @@ Read many ranges across many files, and apply many edits across them, in one
 invocation — and get a verdict for every edit. A failed hunk writes nothing,
 because a write that changed nothing is invisible.
 
+The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
+
 **Status: stable at v1.15.0 (2026-09-13), the tag cut from `31422d8`.**
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
+Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
 
 ## Install
 
@@ -133,10 +136,8 @@ These are gates, not a tour of the records behind them.
   never `ok`.
 - **Per-line licence.** Being served lines 1–5 does not license line 40.
   `--stat` and a match that printed nothing observe nothing.
-- **MCP ack.** A served `mrw_read` licenses nothing until you send `ack` ids
-  you actually hold — both `-- ck` markers, and the N numbered lines the open
-  marker promised. One marker is not enough: a cut starting inside a span
-  leaves the other end.
+- **MCP ack.** A served `mrw_read` licenses nothing until you send `ack` ids.
+  Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.
 - **Neighbour licence.** A multi-line `replace` is refused unless a prior read
   already covered a line after End. Last line of the file is exempt.
   `--echo-pad N` (MCP `echo_pad`, default 0) prints N lines after an applied
