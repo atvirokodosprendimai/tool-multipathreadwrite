@@ -1158,9 +1158,11 @@ func patternLine(entries []authoring.RecentEntry) string {
 	return fmt.Sprintf("pattern: %d of your last %d writes carried a balance advisory — read past the range before the next one", k, n)
 }
 
-// writeCheckPaths is the check's working set after a write. Unlinked sources
-// are gone, so confine cannot Stat them; their parent directory still exists
-// and is what the check can honour. A rename dest is a Written file of its own.
+// writeCheckPaths is the check's working set after a write. Unlinked and
+// rename sources are gone, so confine cannot Stat them; their parent
+// directory still exists and is what the check can honour. A rename dest is
+// a Written file of its own. The source's extension still sets `code`: a
+// .go renamed to .txt removed code.
 func writeCheckPaths(files []apply.FileResult) (paths []string, code bool) {
 	seen := map[string]bool{}
 	add := func(p string) {
@@ -1172,9 +1174,10 @@ func writeCheckPaths(files []apply.FileResult) (paths []string, code bool) {
 	}
 	for _, f := range files {
 		if f.Removed {
-			if f.RenamedTo != "" {
-				continue
-			}
+			// Unlink and rename sources are gone. Their parent directory
+			// still exists, and the source's own extension is what decides
+			// whether the default check runs — a .go renamed to .txt still
+			// removed code.
 			dir := filepath.Dir(f.Path)
 			if dir == "" {
 				dir = "."

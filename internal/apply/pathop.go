@@ -13,6 +13,23 @@ func isPathOp(op string) bool {
 	return op == "unlink" || op == "rename"
 }
 
+// nestedPath reports whether a and b name the same location or one sits
+// under the other. Exact-string dest collisions have their own messages;
+// this is the ancestor/descendant hole those miss: create new/child.txt
+// then rename onto new validates, content commits first, and the rename
+// then fails after the tree has already changed.
+func nestedPath(a, b string) bool {
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	if a == "." || b == "." {
+		return a == b
+	}
+	if a == b {
+		return true
+	}
+	sep := string(filepath.Separator)
+	return strings.HasPrefix(a+sep, b+sep) || strings.HasPrefix(b+sep, a+sep)
+}
+
 // planPathOp validates a single unlink or rename hunk. The caller has already
 // refused mixing those ops with line-edits on the same path.
 func planPathOp(root, path, full string, h hunk, orig []string, existed bool, shaBefore string, unlinked, produced map[string]bool, destCount map[string]int, covered func(hunk, int, int) bool, fail func(hunk, string, ...any), out map[int]HunkResult) bool {
@@ -74,6 +91,18 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 		if produced[dest] {
 			fail(h, "rename dest %s is also written by another hunk in this plan", dest)
 			return false
+		}
+		for other := range destCount {
+			if other != dest && nestedPath(dest, other) {
+				fail(h, "rename dest %s nests with rename dest %s", dest, other)
+				return false
+			}
+		}
+		for p := range produced {
+			if nestedPath(dest, p) {
+				fail(h, "rename dest %s nests with %s written by another hunk in this plan", dest, p)
+				return false
+			}
 		}
 		destFull, err := resolve(root, dest)
 		if err != nil {

@@ -111,3 +111,43 @@ func TestOverlongSHADoesNotPanicOnUnlink(t *testing.T) {
 		t.Fatal("overlong sha still unlinked the path")
 	}
 }
+
+func TestCreateUnderRenameDestIsRefused(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "old.txt", "src\n")
+	res, err := Apply(root, []Input{
+		{Path: "new/child.txt", Op: "create", Body: []string{"created"}, Index: 0},
+		{Path: "old.txt", Op: "rename", Body: []string{"new"}, Lines: -1, Index: 1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Applied {
+		t.Fatal("create under a rename dest applied")
+	}
+	if exists(t, root, filepath.Join("new", "child.txt")) {
+		t.Fatal("nested create was written despite the refusal")
+	}
+	if read(t, root, "old.txt") != "src\n" {
+		t.Fatal("source was moved despite the refusal")
+	}
+}
+
+func TestRenameDestsThatNestAreRefused(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "a.txt", "aaa\n")
+	write(t, root, "b.txt", "bbb\n")
+	res, err := Apply(root, []Input{
+		{Path: "a.txt", Op: "rename", Body: []string{"new"}, Lines: -1, Index: 0},
+		{Path: "b.txt", Op: "rename", Body: []string{"new/child.txt"}, Lines: -1, Index: 1},
+	}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Applied {
+		t.Fatal("nested rename dests applied")
+	}
+	if exists(t, root, "new") || exists(t, root, filepath.Join("new", "child.txt")) {
+		t.Fatal("a nested dest was written")
+	}
+}
