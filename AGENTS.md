@@ -328,6 +328,9 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   writes print a `pattern:` line on the receipt (ADR-055). `--strict-balance`
   (MCP `strict_balance`) is opt-in and refuses that shape on a single-line
   replace as a failed hunk — exit 1, nothing written. Braces in strings count.
+  Both JSON receipts carry `pattern` `{advisory_writes, window, fires}` on
+  every write (ADR-056), so a `--json` or `mrw_write` caller holds the fact
+  the human line prints.
 - **Exit `3` means the write APPLIED and the check failed** — the tree is
   changed and unverified. It is not a rollback.
 - **Never read an exit code through a pipe.** `mrw write plan | head` returns
@@ -374,7 +377,11 @@ and #73, one release apart.
   parsed but failed to APPLY, written but no check could run, written and the
   check FAILED — plus `landed writes: N; failed_check F of those`, where landed
   is applied + failed_check + check_not_run (the tree changed; it is not "wrote
-  and was checked"). Refused-apply is deliberately one
+  and was checked"); `recent:` and the `pattern:` line (ADR-055); and a
+  `strict-balance pricing:` block (ADR-056) — landed writes with a single-line
+  code replace, how many the flag would have refused, and whether those broke,
+  held (the false positive) or went unchecked, beside the pre-registered bar.
+  `--json` carries `pricing`. Refused-apply is deliberately one
   bucket and not three: a failed guard, an unread line and a path outside the
   root all land in it, because splitting them would mean matching on free-form
   reason text that changes. Reach for it to see whether the format is costing

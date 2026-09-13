@@ -1604,15 +1604,27 @@ contract §92–§94. Each line keeps its arming quote as its receipt.
 - **Not proposed again:** a harness `covers` glob for the `.jsonl` / `.yml`
   cost. ADR-054 rejected it; the cost is real and bounded by `--no-check`.
 
+### From ADR-055 (v1.17.0)
+
+- **`pattern` on the MCP receipt** — ADR-055 T2 deferred it. **Closed by
+  ADR-056 T1** (both JSON receipts, every write; contract §95). M, 2026-09-13:
+  *"address these tow"*.
+- **The pricing campaign had no data source** — **closed by ADR-056 T2**
+  (`mrw stats` pricing block; contract §96). The criterion above is unchanged;
+  only its source sentence was corrected.
+
 ### Pre-registration: a default `--strict-balance`
 
 Written 2026-09-13, BEFORE any campaign, so the criterion is not shaped by the
 result (this file's rule). ADR-055 T3 ships the flag opt-in. It may be argued
 as a default only if a campaign over three real corpora — Zeus, this
-repository, playtrix — replays every landed single-line `replace` in their
-ledgers with the flag on and reports, per corpus: how many the flag would have
-refused; of those, how many plans went on to break the tree (the check or a
-later build failed) versus how many did not (the false positives). Criterion:
+repository, playtrix — reads `mrw stats --json` `.pricing` in each checkout
+(ADR-056: mrw prices the flag as writes land, because ADR-009 holds no plan
+text to replay after the fact) and reports, per corpus: how many landed writes
+the flag would have refused (`strict_would_refuse`); of those, how many went on
+to break the tree (`_broke`: the check ran and failed) versus how many did not
+(`_held`: the false positives). `_unchecked` counts neither way and is reported
+so an MCP-heavy corpus cannot flatter the flag. Criterion:
 **false positives under 5% of refusals in every corpus, with at least 50
 refusals total**, or the default stays off and the flag stays what it is. A
 campaign that reports the true-positive count without the false-positive count

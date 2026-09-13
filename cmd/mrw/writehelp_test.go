@@ -93,3 +93,14 @@ func TestWriteHelpNamesAdvisoriesAndStrictBalance(t *testing.T) {
 		}
 	}
 }
+
+// TestWriteHelpNamesThePatternField is ADR-056 T3: the help says the JSON
+// receipt carries `pattern` and that stats prices --strict-balance.
+func TestWriteHelpNamesThePatternField(t *testing.T) {
+	got := writeCmd().Description
+	for _, must := range []string{`"pattern"`, "pricing"} {
+		if !strings.Contains(got, must) {
+			t.Errorf("write --help does not teach %q:\n%s", must, got)
+		}
+	}
+}

@@ -827,7 +827,11 @@ receipt prints a pattern line — read past the range before the next one.
 --strict-balance is opt-in: it refuses a single-line replace whose line's
 {} () [] do not balance and whose body does not match them (the wrap-tail
 shape) as a failed hunk — exit 1, nothing is written. Off by default; braces
-inside strings count, so drop it for that plan.`,
+inside strings count, so drop it for that plan. Both JSON receipts (--json
+and mrw_write) carry "pattern" {advisory_writes, window, fires} on every
+write, and mrw stats prints a "strict-balance pricing" block as writes land —
+how many the flag would have refused, and whether those writes then broke,
+held or went unchecked.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "dry-run",

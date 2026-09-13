@@ -6,7 +6,7 @@ Execution order: T1 → T2 → T3. T1 and T2 are independent in code; T3 teaches
 |------|-------|--------|
 | T1 | `pattern` on both JSON receipts; MCP schema; contract §95 | done |
 | T2 | `Result.StrictWouldRefuse`; the `pricing` counters; stats block; contract §96 | done |
-| T3 | Teach; correct the BACKLOG pre-registration's data source | pending |
+| T3 | Teach; correct the BACKLOG pre-registration's data source | done |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

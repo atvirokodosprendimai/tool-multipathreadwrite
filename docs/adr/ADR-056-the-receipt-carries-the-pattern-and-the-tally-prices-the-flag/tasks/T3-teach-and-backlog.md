@@ -56,8 +56,8 @@ go test ./cmd/mrw/ -count=1 -v -run 'TestWriteHelpNamesThePatternField' 2>&1 | t
 | 4 — it is used | the BACKLOG campaign reads the block |
 
 ## Mutation Log
-
 _(tool-written)_
+- 2026-09-13 · a4020e7* · mutant killed · exit 1 · `cmd/mrw/main.go` · the help misspells the pricing block: a PATH caller cannot find it from the help, and TestWriteHelpNamesThePatternField must go red · acceptance-sha256:75ca63e300f4c59c84ab87849f07f2aaea97150895e0d2af58287229c1505459
 
 ## Invariants
 
@@ -78,5 +78,33 @@ None.
 - The mrw skill update happens at release, outside the record.
 
 ## Verification Log
-
 _(tool-written)_
+- 2026-09-13 · a4020e7* · exit 1 · `set -o pipefail …` · acceptance-sha256:75ca63e300f4c59c84ab87849f07f2aaea97150895e0d2af58287229c1505459 · ms:597 · test-lock-sha256:1d99180c639c2f19c7358289a3fafb7b239bf18f3d9dfbd96d4ab95e1a9bbf6f · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvd3JpdGVoZWxwX3Rlc3QuZ28JVGVzdFdyaXRlSGVscE5hbWVzQWR2aXNvcmllc0FuZFN0cmljdEJhbGFuY2UJZjJjY2QzZTA5YjMxNGI2MjA1MGI0MGNlMGM3NzdiMTQ2MWFjYzQ3MmZjOTA1ZjFlZDJkOWVmMjExYzhiNmI0Mgpib2R5CWNtZC9tcncvd3JpdGVoZWxwX3Rlc3QuZ28JVGVzdFdyaXRlSGVscE5hbWVzQXBwbHlQYXRjaEZvcm1hdAljMzg2NTk3NjUyNjYxNWFjNDliYjk3MzkyODZjY2YyN2JhNzEzNmUyM2RiMjc1MGMxOTZmNDkzYzYzYWJjNzVlCmJvZHkJY21kL21ydy93cml0ZWhlbHBfdGVzdC5nbwlUZXN0V3JpdGVIZWxwTmFtZXNFY2hvUGFkCWI0OGMyMDkyMmNiMjJkMmUwYjY5NDg2OGNhNzM0YjIyODdhNzVhZDk5ZWRkMTVkOTZjMzIzNDBmYjRlYWYxODAKYm9keQljbWQvbXJ3L3dyaXRlaGVscF90ZXN0LmdvCVRlc3RXcml0ZUhlbHBOYW1lc0hvd1RvUXVvdGVBSGVhZGVyT3B0aW9uCTU3Njk4NjUwZDQ5NGJmNjgzNGIzMzgwYzQxYzg4MjliZTI3MDM4NWZjYTdlMzAzZjA4ZDcwNmMyZTJmOTZmMmUKYm9keQljbWQvbXJ3L3dyaXRlaGVscF90ZXN0LmdvCVRlc3RXcml0ZUhlbHBOYW1lc05vQ2hlY2sJODA5MzA0NzU1NGI3YTJkY2JjNjY4YTljOWQ2OWU3YTI0NDY0MzExYjA5MWQ5N2U3ZmZmN2Q1YTZjOGVhMWM5Ngpib2R5CWNtZC9tcncvd3JpdGVoZWxwX3Rlc3QuZ28JVGVzdFdyaXRlSGVscE5hbWVzVGhlUGF0dGVybkZpZWxkCTIyYjZmYjU0NmM0ZTA0ZDg1Yzc0MzI4Y2IwZjQyZTA5MjQ4NjdlM2NlZDFmZjg3NzY4YzBkMTdjMjBlODM2MWM
+  ```
+  --- last 10 line(s) of stdout (of 125 after folding 125 raw)
+          "advisories". When three of your last ten landed writes carried one, the
+          receipt prints a pattern line — read past the range before the next one.
+          --strict-balance is opt-in: it refuses a single-line replace whose line's
+          {} () [] do not balance and whose body does not match them (the wrap-tail
+          shape) as a failed hunk — exit 1, nothing is written. Off by default; braces
+          inside strings count, so drop it for that plan.
+  --- FAIL: TestWriteHelpNamesThePatternField (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.201s
+  FAIL
+  ```
+- 2026-09-13 · a4020e7* · exit 1 · `set -o pipefail …` · acceptance-sha256:75ca63e300f4c59c84ab87849f07f2aaea97150895e0d2af58287229c1505459 · ms:635
+  ```
+  --- last 10 line(s) of stdout (of 68 after folding 68 raw)
+          {} () [] do not balance and whose body does not match them (the wrap-tail
+          shape) as a failed hunk — exit 1, nothing is written. Off by default; braces
+          inside strings count, so drop it for that plan. Both JSON receipts (--json
+          and mrw_write) carry "pattern" {advisory_writes, window, fires} on every
+          write, and mrw stats prices the flag as writes land — how many the flag would
+          have refused, and whether those writes then broke, held or went unchecked.
+  --- FAIL: TestWriteHelpNamesThePatternField (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.207s
+  FAIL
+  ```
+- 2026-09-13 · a4020e7* · exit 0 · `set -o pipefail …` · acceptance-sha256:75ca63e300f4c59c84ab87849f07f2aaea97150895e0d2af58287229c1505459 · ms:446

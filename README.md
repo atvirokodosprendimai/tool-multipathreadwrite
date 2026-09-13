@@ -153,7 +153,10 @@ These are gates, not a tour of the records behind them.
   line on the receipt. `--strict-balance` (MCP `strict_balance`) is opt-in and
   refuses the wrap-tail shape — a single-line replace whose line's delimiters
   do not balance and whose body does not match — as a failed hunk, exit 1,
-  nothing written.
+  nothing written. Both JSON receipts carry `pattern` on every write, and
+  `mrw stats` prices the flag as writes land: how many it would have refused,
+  and whether those writes then broke, held or went unchecked — the numbers the
+  pre-registered default question (BACKLOG) is decided on.
 - **Check miss refuses.** An in-root `mrw check` miss is exit 2 and names the
   path — not a silent whole-project PASS.
 - **The process is the verdict.** A check that prints `PASS` and exits 1 is a
