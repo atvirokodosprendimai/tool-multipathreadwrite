@@ -1762,49 +1762,24 @@ grep -q '"applied":true' <<<"$out" \
 # And so is the CLI: one ledger, not one per transport.
 out=$(printf '@@ a.go 4 replace\nfunc B() int { return 22 }\n' | "$MRW" -C "$R_KILL" write - 2>&1); rc=$?
 want 0 "$rc" "and a CLI write after the killed server is licensed too"
-# 39. ADR-010 T3: the documented host config names a subcommand this binary has.
+# 39. ADR-010 T3: mcp is a subcommand this binary has, and it starts a server.
 #
-# A config example naming a command the binary does not have is the
-# documentation equivalent of a dangling pointer, and this repository shipped
-# one on 2026-09-03. The README block is the install path for every MCP user, so
-# it is checked against the binary rather than against a reader's patience.
+# README heading / mcpServers JSON-fixture greps retired — ADR-053. A tidy of
+# a tutorial heading is not a product break. This drives --help and the built
+# binary.
 #
-# This drives `--help` and greps the README; it does not restate what the block
-# should say, because a copy of the answer beside the answer is not a check.
-args=$(python3 - "$(cat README.md)" <<'PY'
-import json,re,sys
-m=re.search(r'### Use it from an MCP host.*?```json\n(.*?)```', sys.argv[1], re.S)
-if not m: print("NO-BLOCK"); sys.exit(0)
-cfg=json.loads(m.group(1))
-srv=cfg["mcpServers"]["mrw"]
-print(srv["command"], " ".join(srv["args"]))
-PY
-)
-[ "$args" != "NO-BLOCK" ] \
-  && ok "the README carries a parseable MCP host config block" \
-  || bad "the documented config block is missing or is not valid JSON"
-
-cmdname=${args%% *}
-subcmd=$(printf '%s' "${args#* }" | awk '{print $NF}')
-[ "$cmdname" = "mrw" ] \
-  && ok "and it invokes the binary by name" \
-  || bad "the block invokes '$cmdname', not mrw"
-
 # Redirect before grepping. Under this file's `set -o pipefail`, `grep -q` exits
 # on its first match, `--help` takes SIGPIPE writing the rest, and the pipeline
 # reports 141 — a row that fails for a reason having nothing to do with what it
 # asks. The same trap ate ADR-010-T1's fence earlier the same day.
 "$MRW" --help > "$WORK/help.out" 2>&1
-grep -qE "^[[:space:]]+$subcmd[[:space:]]" "$WORK/help.out" \
-  && ok "and names a subcommand mrw --help lists ($subcmd)" \
-  || bad "the documented block names '$subcmd', which this binary does not have"
-
-# And it must actually start: a subcommand that exists but rejects the args the
-# README prints is the same dangling pointer one step later.
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | "$MRW" "$subcmd" 2>&1); rc=$?
-want 0 "$rc" "and the documented invocation actually starts a server"
+grep -qE '^[[:space:]]+mcp[[:space:]]' "$WORK/help.out" \
+  && ok "mrw --help lists mcp" \
+  || bad "mrw --help does not list mcp"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | "$MRW" mcp 2>&1); rc=$?
+want 0 "$rc" "mrw mcp starts a server"
 grep -q 'mrw_write' <<<"$out" \
-  && ok "which advertises the tools the README says it does" \
+  && ok "which advertises mrw_write" \
   || bad "the server started but did not advertise mrw_write: $(head -c 120 <<<"$out")"
 
 
@@ -3821,12 +3796,9 @@ grep -q '4,+99' <<<"$out" && ok "the write refusal names the address the caller 
 # `grep -q ',+N' README.md` passed from the Write passage alone while the Read
 # passage and `mrw read --help` did not mention the form at all — one grep for
 # several places is a gate that reports the best of them (Codex review of #125).
-grep -qE '^A range is .*`A,\+N`' README.md \
-  && ok "README's Read grammar carries the relative end" \
-  || bad "README's Read grammar does not carry the relative end"
-grep -q 'and `A,+N` is the line `A` plus the `N` lines AFTER it' README.md \
-  && ok "README's Write grammar carries the relative end" \
-  || bad "README's Write grammar does not carry the relative end"
+#
+# README tutorial-phrase greps retired — ADR-053. Keep AGENTS.md, --help, and
+# the MCP wire. A tidy of a README sentence is not a product break.
 grep -q 'Addresses are line numbers, .*`A,+N` for the' AGENTS.md \
   && ok "AGENTS.md section 1 carries the relative end" \
   || bad "AGENTS.md section 1 does not carry the relative end"
@@ -3843,13 +3815,7 @@ help=$("$MRW" read --help 2>&1)
 grep -q 'A,+N' <<<"$help" \
   && ok "mrw read --help names the relative end" \
   || bad "mrw read --help does not name the relative end"
-# ...and the one claim that was FALSE: a relative end does not clamp on a write.
-grep -q 'A read CLAMPS a relative end at the last' README.md \
-  && ok "README says which path clamps and which refuses" \
-  || bad "README does not distinguish the read clamp from the write refusal"
-grep -qi 'clamps.*exactly as `12-9999`' README.md \
-  && bad "README still claims a relative end clamps like an explicit over-range, which a write refuses" \
-  || ok "the false clamp claim is gone from README"
+# README CLAMPS / false-clamp greps retired — ADR-053.
 # AGENTS.md is the plan grammar every non-Claude agent reads, and it said a
 # relative end "clamps at the last line" after the write path started refusing
 # one — advice that makes a caller build a plan the tool rejects. Gated on the
