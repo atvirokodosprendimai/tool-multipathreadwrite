@@ -46,6 +46,12 @@ type Seen = seen.Observation
 
 // HunkResult is the per-hunk report. Reason is empty unless Status is failed.
 type HunkResult struct {
+	// singleLineCode and wrapTail are ADR-056's pricing inputs, set where
+	// Balance is: an ok single-line replace on a non-prose path, and whether
+	// --strict-balance would have refused it. Unexported: not receipt fields.
+	singleLineCode bool
+	wrapTail       bool
+
 	Path    string `json:"path"`
 	Addr    string `json:"addr"`
 	Op      string `json:"op"`
@@ -136,6 +142,14 @@ type Result struct {
 	// reports without failing is not invisible to a caller who reads only
 	// the summary. Skipped and failed hunks contribute nothing.
 	Advisories int `json:"advisories"`
+	// StrictSingleLine and StrictWouldRefuse feed ADR-056's pricing of
+	// --strict-balance and are NOT receipt fields: the balance rows already
+	// show the hunks. StrictSingleLine counts ok single-line replaces on
+	// non-prose paths (what the flag looks at); StrictWouldRefuse counts
+	// those the flag would have refused. Both are zero when the flag is on,
+	// because a refused hunk is not ok.
+	StrictSingleLine  int `json:"-"`
+	StrictWouldRefuse int `json:"-"`
 }
 
 // hunk is the subset of plan.Hunk this package needs. It is declared here so
@@ -254,8 +268,17 @@ type Options struct {
 func Apply(root string, in []Input, opt Options) (Result, error) {
 	res, err := apply(root, in, opt)
 	for _, h := range res.Hunks {
-		if h.Status == StatusOK && h.Balance != "" {
+		if h.Status != StatusOK {
+			continue
+		}
+		if h.Balance != "" {
 			res.Advisories++
+		}
+		if h.singleLineCode {
+			res.StrictSingleLine++
+		}
+		if h.wrapTail {
+			res.StrictWouldRefuse++
 		}
 	}
 	return res, err
@@ -1137,6 +1160,13 @@ func planFile(path, full string, hs []hunk, orig []string, existed bool, shaBefo
 		// (ADR-054 §2; found in review after 3b9f772).
 		if !IsProse(path) && h.SrcOp != "create" {
 			r.Balance = balanceDelta(consumed, written)
+			// ADR-056: price --strict-balance with the flag's own predicate.
+			// With the flag ON this hunk was already refused above if it
+			// matched, so an ok hunk here never counts as would-refuse.
+			if h.SrcOp == "replace" && h.End == h.Start {
+				r.singleLineCode = true
+				r.wrapTail = wrapTailDelta(orig[h.Start-1], h.Body) != ""
+			}
 		}
 		if opt.EchoPad > 0 && (h.Op == "replace" || h.Op == "insert") {
 			padAfter = append(padAfter, struct{ index, after int }{h.Index, len(res)})

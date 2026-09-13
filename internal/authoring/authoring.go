@@ -293,3 +293,144 @@ func Pattern(entries []RecentEntry) (advisory, total int, fires bool) {
 	}
 	return advisory, len(entries), advisory >= PatternThreshold
 }
+
+// PatternInfo is the recent-window pattern as a receipt field (ADR-056): how
+// many of the window's writes carried an advisory, how many the window
+// holds, and whether that meets PatternThreshold. Present on every receipt,
+// both transports, so a caller that reads keys sees the key on a quiet day.
+type PatternInfo struct {
+	AdvisoryWrites int  `json:"advisory_writes"`
+	Window         int  `json:"window"`
+	Fires          bool `json:"fires"`
+}
+
+// PatternOf reads the ring for root and renders it as a PatternInfo.
+func PatternOf(root string) PatternInfo {
+	k, n, fires := Pattern(Recent(root))
+	return PatternInfo{AdvisoryWrites: k, Window: n, Fires: fires}
+}
+
+// ── ADR-056: pricing --strict-balance ───────────────────────────────────────
+
+// pricingFile is the counters file beside the tally and the ring.
+const pricingFile = "pricing"
+
+// PricingOutcome is how a would-refuse write ended: the check ran and failed
+// (the flag would have prevented a broken tree), the check ran and passed (a
+// false positive), or no check ran (neither — MCP, --no-check, no command).
+type PricingOutcome string
+
+// The three outcomes. Exactly one is recorded per would-refuse write.
+const (
+	PricedBroke     PricingOutcome = "broke"
+	PricedHeld      PricingOutcome = "held"
+	PricedUnchecked PricingOutcome = "unchecked"
+)
+
+// Pricing is the five counters the BACKLOG pre-registration reads. Counts
+// only — nothing ADR-009 refuses.
+type Pricing struct {
+	Candidates  int `json:"strict_candidates"`
+	WouldRefuse int `json:"strict_would_refuse"`
+	Broke       int `json:"strict_would_refuse_broke"`
+	Held        int `json:"strict_would_refuse_held"`
+	Unchecked   int `json:"strict_would_refuse_unchecked"`
+}
+
+// RecordPricing counts one landed flag-off write. A write with no single-line
+// code replace is not a candidate and counts nothing. Like Record it never
+// fails the write.
+func RecordPricing(root string, candidate, wouldRefuse bool, outcome PricingOutcome) error {
+	if !candidate {
+		return nil
+	}
+	p := LoadPricing(root)
+	p.Candidates++
+	if wouldRefuse {
+		p.WouldRefuse++
+		switch outcome {
+		case PricedBroke:
+			p.Broke++
+		case PricedHeld:
+			p.Held++
+		default:
+			p.Unchecked++
+		}
+	}
+	path, err := state.Path(root, pricingFile)
+	if err != nil {
+		return nil
+	}
+	var b strings.Builder
+	for _, kv := range p.lines() {
+		fmt.Fprintf(&b, "%s %d\n", kv.name, kv.n)
+	}
+	_ = os.WriteFile(path, []byte(b.String()), 0o600)
+	return nil
+}
+
+// lines is the file order: fixed, so a diff of two pricing files reads.
+func (p Pricing) lines() []struct {
+	name string
+	n    int
+} {
+	return []struct {
+		name string
+		n    int
+	}{
+		{"strict_candidates", p.Candidates},
+		{"strict_would_refuse", p.WouldRefuse},
+		{"strict_would_refuse_broke", p.Broke},
+		{"strict_would_refuse_held", p.Held},
+		{"strict_would_refuse_unchecked", p.Unchecked},
+	}
+}
+
+// LoadPricing reads the counters. It fails open: absent or garbage is zero.
+func LoadPricing(root string) Pricing {
+	var p Pricing
+	path, err := state.Path(root, pricingFile)
+	if err != nil {
+		return p
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return p
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		fields := strings.Fields(sc.Text())
+		if len(fields) != 2 {
+			continue
+		}
+		n, err := strconv.Atoi(fields[1])
+		if err != nil || n < 0 {
+			continue
+		}
+		switch fields[0] {
+		case "strict_candidates":
+			p.Candidates = n
+		case "strict_would_refuse":
+			p.WouldRefuse = n
+		case "strict_would_refuse_broke":
+			p.Broke = n
+		case "strict_would_refuse_held":
+			p.Held = n
+		case "strict_would_refuse_unchecked":
+			p.Unchecked = n
+		}
+	}
+	return p
+}
+
+// FalsePositiveRate is held / (broke + held); ok is false when nothing
+// would-refused was checked, so a caller never divides by zero or reports
+// 0% on no evidence.
+func (p Pricing) FalsePositiveRate() (rate float64, ok bool) {
+	checked := p.Broke + p.Held
+	if checked == 0 {
+		return 0, false
+	}
+	return float64(p.Held) / float64(checked), true
+}

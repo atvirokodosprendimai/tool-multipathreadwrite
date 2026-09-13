@@ -283,16 +283,20 @@ var writeDescriptions = map[string]string{
 	// sends: a host filtering hunks[].status == "fail" would have seen a clean
 	// run through every failure. Caught in review of PR #72 and pinned by
 	// TestTheStatusDescriptionNamesTheValuesTheEngineSends.
-	"hunks.status":        "`ok` when this hunk applied, `failed` when it did not, `skipped` when a sibling failed and the whole plan was abandoned. A skipped hunk is never an applied one.",
-	"hunks.reason":        "Why a failing hunk failed: a guard that did not hold, a file mrw had not served, a path outside the root. Absent when the hunk passed.",
-	"hunks.removed":       "How many lines this hunk removes. Computed during validation, so on a dry run or a failed plan it is a proposed delta.",
-	"hunks.added":         "How many lines this hunk adds, on the same terms as `removed`.",
-	"hunks.plan_line":     "The line of the plan document this hunk's header was on.",
-	"hunks.removed_first": "The first line a delete removes, trimmed for display, so a caller can see what it is losing. Present whenever a delete reaches `ok` — a dry run included, where nothing was actually removed.",
-	"hunks.removed_last":  "The last line a delete removes, on the same terms as `removed_first`.",
-	"hunks.echo":          "N lines after the new body, numbered as they sit in the written file, when echo_pad > 0. Absent at the default of 0. A closer here does not fail the hunk — visibility, not a checker.",
-	"advisories":          "How many ok hunks carry a balance delta (ADR-055). Zero on a clean write, and always present, so a caller that reads only this key still sees that a row reported something. Skipped and failed hunks contribute nothing.",
-	"hunks.balance":       "Delimiter-balance delta on a non-prose hunk: each of `{}` `()` `[]` whose net count in the replaced lines differs from the body, as `{ +1 → 0`. Absent when they match, on prose (.md .markdown .txt .rst .adoc), and on a balanced insert — which is invisible to it. Rune counts, no lexer; never fails the hunk.",
+	"hunks.status":            "`ok` when this hunk applied, `failed` when it did not, `skipped` when a sibling failed and the whole plan was abandoned. A skipped hunk is never an applied one.",
+	"hunks.reason":            "Why a failing hunk failed: a guard that did not hold, a file mrw had not served, a path outside the root. Absent when the hunk passed.",
+	"hunks.removed":           "How many lines this hunk removes. Computed during validation, so on a dry run or a failed plan it is a proposed delta.",
+	"hunks.added":             "How many lines this hunk adds, on the same terms as `removed`.",
+	"hunks.plan_line":         "The line of the plan document this hunk's header was on.",
+	"hunks.removed_first":     "The first line a delete removes, trimmed for display, so a caller can see what it is losing. Present whenever a delete reaches `ok` — a dry run included, where nothing was actually removed.",
+	"hunks.removed_last":      "The last line a delete removes, on the same terms as `removed_first`.",
+	"hunks.echo":              "N lines after the new body, numbered as they sit in the written file, when echo_pad > 0. Absent at the default of 0. A closer here does not fail the hunk — visibility, not a checker.",
+	"pattern":                 "The recent-window pattern after this write (ADR-056): the last ten landed writes on this checkout, CLI and MCP alike. Present on every receipt, fires or not, so a caller that reads keys sees it on a quiet day.",
+	"pattern.advisory_writes": "How many of the window's writes carried at least one balance advisory.",
+	"pattern.window":          "How many landed writes the window currently holds (at most ten).",
+	"pattern.fires":           "True when advisory_writes has reached three: the same shape has reported three times in the last ten writes — read past the range before the next one.",
+	"advisories":              "How many ok hunks carry a balance delta (ADR-055). Zero on a clean write, and always present, so a caller that reads only this key still sees that a row reported something. Skipped and failed hunks contribute nothing.",
+	"hunks.balance":           "Delimiter-balance delta on a non-prose hunk: each of `{}` `()` `[]` whose net count in the replaced lines differs from the body, as `{ +1 → 0`. Absent when they match, on prose (.md .markdown .txt .rst .adoc), and on a balanced insert — which is invisible to it. Rune counts, no lexer; never fails the hunk.",
 }
 
 // describeResult attaches the table's prose to a generated schema, in place,

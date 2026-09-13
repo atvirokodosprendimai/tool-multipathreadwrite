@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -237,5 +238,71 @@ func TestPatternFiresAtThreeOfTenAndNotAtTwo(t *testing.T) {
 	}
 	if got := Recent(root); len(got) != 0 {
 		t.Errorf("a garbage ring read as %d entries, want 0 (fail open)", len(got))
+	}
+}
+
+// ── ADR-056 T2: pricing --strict-balance ────────────────────────────────────
+
+// Five counters, `name N` lines only, one outcome per would-refuse write; a
+// non-candidate counts nothing; garbage reads as zero; the rate refuses to
+// divide by nothing.
+func TestPricingCountsCandidatesRefusalsAndOutcomes(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	if _, ok := LoadPricing(root).FalsePositiveRate(); ok {
+		t.Error("a fresh root reports a false-positive rate on no evidence")
+	}
+	seq := []struct {
+		candidate, would bool
+		outcome          PricingOutcome
+	}{
+		{true, true, PricedBroke},
+		{true, true, PricedUnchecked},
+		{true, false, PricedHeld},  // not would-refuse: its outcome is not counted
+		{false, false, PricedHeld}, // not a candidate: counts nothing at all
+		{true, true, PricedHeld},
+	}
+	for _, s := range seq {
+		if err := RecordPricing(root, s.candidate, s.would, s.outcome); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := LoadPricing(root)
+	want := Pricing{Candidates: 4, WouldRefuse: 3, Broke: 1, Held: 1, Unchecked: 1}
+	if got != want {
+		t.Errorf("pricing = %+v, want %+v", got, want)
+	}
+	if rate, ok := got.FalsePositiveRate(); !ok || rate != 0.5 {
+		t.Errorf("rate = %v ok=%v, want 0.5 true (held 1 of broke+held 2)", rate, ok)
+	}
+
+	p, err := state.Path(root, pricingFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(lines) != 5 {
+		t.Errorf("pricing file has %d lines, want 5:\n%s", len(lines), raw)
+	}
+	for _, l := range lines {
+		f := strings.Fields(l)
+		if len(f) != 2 || !strings.HasPrefix(f[0], "strict_") {
+			t.Errorf("pricing line %q is not `strict_<name> N`", l)
+		}
+		if _, err := strconv.Atoi(f[len(f)-1]); err != nil {
+			t.Errorf("pricing line %q does not end in a count", l)
+		}
+	}
+
+	if err := os.WriteFile(p, []byte("strict_candidates x\n\x00\nnot a counter\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadPricing(root); got != (Pricing{}) {
+		t.Errorf("garbage read as %+v, want zero (fail open)", got)
 	}
 }

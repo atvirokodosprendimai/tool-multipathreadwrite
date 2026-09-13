@@ -5554,6 +5554,60 @@ out=$(printf '%s\n' \
 	'func A() { return }' | m write --no-check --strict-balance - 2>&1); rc=$?
 want 0 "$rc" "--strict-balance leaves prose alone"
 
+# 95. ADR-056: both JSON receipts carry `pattern` on every write. Pair: the
+# CLI --json receipt after one delta write -> pattern {1,1,false} / the
+# mrw_write receipt on the same checkout after the third -> {3,3,true} /
+# the object is present, fires or not.
+R=$(mktemp -d "$WORK/r95-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+jout=$(printf '%s\n' \
+	'@@ f.go 1 replace anchor="func A"' \
+	'func A() { return }' | m write --no-check --json - 2>/dev/null); rc=$?
+want 0 "$rc" "delta write 1 exits 0"
+[ "$(jq -c '.pattern' <<<"$jout")" = '{"advisory_writes":1,"window":1,"fires":false}' ] \
+  && ok "the CLI --json receipt carries pattern {1,1,false}" || bad "CLI pattern: $(jq -c .pattern <<<"$jout")"
+for i in 2 3; do
+  printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+  m read 'f.go:1' >/dev/null
+  req=$(printf '@@ f.go 1 replace anchor="func A"\nfunc A() { return }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
+  mcpout=$(printf '%s\n' "$req" | "$MRW" -C "$R" mcp 2>/dev/null); rc=$?
+  want 0 "$rc" "mrw_write $i over a pipe exits 0"
+done
+pat=$(python3 -c 'import json,sys; print(json.dumps(json.loads(sys.argv[1].splitlines()[0])["result"]["structuredContent"]["pattern"],sort_keys=True))' "$mcpout")
+[ "$pat" = '{"advisory_writes": 3, "fires": true, "window": 3}' ] \
+  && ok "the mrw_write receipt carries pattern {3,3,true} on the third" || bad "MCP pattern: $pat"
+
+# 96. ADR-056: the tally prices --strict-balance as writes land, counts only.
+# Pair: a --no-check delta write -> stats shows 1 candidate, 1 would-refuse,
+# unchecked 1 / a clean single-line write -> candidates 2, would-refuse still
+# 1 / a --strict-balance delta write is refused and NOT priced (unchanged) /
+# --json carries the five keys / the pricing file is `strict_<name> N` lines.
+R=$(mktemp -d "$WORK/r96-XXXXXX")
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+printf '%s\n' '@@ f.go 1 replace anchor="func A"' 'func A() { return }' | m write --no-check - >/dev/null 2>&1; rc=$?
+want 0 "$rc" "priced delta write exits 0"
+out=$(m stats 2>&1)
+grep -q 'strict-balance pricing: 1 landed writes with a single-line code replace; the flag would have refused 1 — broke 0, held 0, unchecked 1' <<<"$out" \
+  && ok "stats prices the delta write as would-refuse, unchecked" || bad "pricing after one write: $out"
+grep -q 'no checked refusals yet' <<<"$out" && ok "no rate is reported on no checked evidence" || bad "rate on no evidence: $out"
+
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+printf '%s\n' '@@ f.go 1 replace anchor="func A"' 'func B() {' | m write --no-check - >/dev/null 2>&1; rc=$?
+want 0 "$rc" "clean single-line write exits 0"
+printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
+m read 'f.go:1' >/dev/null
+printf '%s\n' '@@ f.go 1 replace anchor="func A"' 'func A() { return }' | m write --no-check --strict-balance - >/dev/null 2>&1; rc=$?
+want 1 "$rc" "--strict-balance write is refused"
+jout=$(m stats --json 2>/dev/null)
+[ "$(jq -c '[.pricing.strict_candidates,.pricing.strict_would_refuse,.pricing.strict_would_refuse_broke,.pricing.strict_would_refuse_held,.pricing.strict_would_refuse_unchecked]' <<<"$jout")" = '[2,1,0,0,1]' ] \
+  && ok "--json pricing is [2,1,0,0,1]: the clean write is a candidate, the flagged write is not priced" || bad "pricing json: $(jq -c .pricing <<<"$jout")"
+pf="$(m seen | head -1)/pricing"
+[ -f "$pf" ] && [ "$(grep -cE '^strict_[a-z_]+ [0-9]+$' "$pf")" = "5" ] && [ "$(wc -l < "$pf" | tr -d ' ')" = "5" ] \
+  && ok "the pricing file is five strict_<name> N lines" || bad "pricing file: $(cat "$pf" 2>&1)"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

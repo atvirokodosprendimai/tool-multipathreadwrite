@@ -387,11 +387,12 @@ size is the form that gets quoted out of the population it was measured on.`,
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(struct {
-					Plans  int            `json:"plans"`
-					Counts map[string]int `json:"counts"`
-					Landed int            `json:"landed"`
-					Failed int            `json:"failed_check_of_landed"`
-				}{Plans: t.Plans(), Counts: counts, Landed: t.Landed(), Failed: t["failed_check"]})
+					Plans   int               `json:"plans"`
+					Counts  map[string]int    `json:"counts"`
+					Landed  int               `json:"landed"`
+					Failed  int               `json:"failed_check_of_landed"`
+					Pricing authoring.Pricing `json:"pricing"`
+				}{Plans: t.Plans(), Counts: counts, Landed: t.Landed(), Failed: t["failed_check"], Pricing: authoring.LoadPricing(root)})
 			}
 			total := t.Plans()
 			if total == 0 {
@@ -418,6 +419,17 @@ size is the form that gets quoted out of the population it was measured on.`,
 			fmt.Printf("\nrecent: %d write(s) in the window (last %d landed writes; op class and advisory count only)\n", len(recent), authoring.RecentWindow)
 			if line := patternLine(recent); line != "" {
 				fmt.Println(line)
+			}
+			// ADR-056: the pricing block, with the bar it is measured against,
+			// so the number and the criterion are read together.
+			pr := authoring.LoadPricing(root)
+			fmt.Printf("\nstrict-balance pricing: %d landed writes with a single-line code replace; the flag would have refused %d — broke %d, held %d, unchecked %d\n",
+				pr.Candidates, pr.WouldRefuse, pr.Broke, pr.Held, pr.Unchecked)
+			if rate, ok := pr.FalsePositiveRate(); ok {
+				fmt.Printf("  false positives %d of %d checked (%.1f%%) — pre-registered bar: under 5%% in every corpus, 50 refusals total (BACKLOG)\n",
+					pr.Held, pr.Broke+pr.Held, 100*rate)
+			} else {
+				fmt.Printf("  no checked refusals yet — pre-registered bar: under 5%% false positives in every corpus, 50 refusals total (BACKLOG)\n")
 			}
 			fmt.Printf("\n%d plan(s) recorded in this checkout. The rate is valid for THIS population;\n"+
 				"a number from one repository and one family of callers is not a general one.\n", total)
@@ -815,7 +827,11 @@ receipt prints a pattern line — read past the range before the next one.
 --strict-balance is opt-in: it refuses a single-line replace whose line's
 {} () [] do not balance and whose body does not match them (the wrap-tail
 shape) as a failed hunk — exit 1, nothing is written. Off by default; braces
-inside strings count, so drop it for that plan.`,
+inside strings count, so drop it for that plan. Both JSON receipts (--json
+and mrw_write) carry "pattern" {advisory_writes, window, fires} on every
+write, and mrw stats prints a "strict-balance pricing" block as writes land —
+how many the flag would have refused, and whether those writes then broke,
+held or went unchecked.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "dry-run",
@@ -1068,6 +1084,7 @@ inside strings count, so drop it for that plan.`,
 				_ = authoring.RecordRecent(root, res.Advisories)
 				pattern = patternLine(authoring.Recent(root))
 			}
+			receipt.Pattern = authoring.PatternOf(root)
 
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
@@ -1097,6 +1114,20 @@ inside strings count, so drop it for that plan.`,
 				_ = authoring.Record(root, authoring.FailedCheck)
 			default:
 				_ = authoring.Record(root, authoring.Applied)
+			}
+			// ADR-056: price --strict-balance from the SAME check verdict. A
+			// flag-on write is not priced — the question is what the flag
+			// WOULD have done, and it just did it.
+			if res.Applied && !res.DryRun && !cmd.Bool("strict-balance") {
+				outcome := authoring.PricedUnchecked
+				if receipt.Check != nil && receipt.Check.Ran {
+					if receipt.Check.OK() {
+						outcome = authoring.PricedHeld
+					} else {
+						outcome = authoring.PricedBroke
+					}
+				}
+				_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, outcome)
 			}
 			switch {
 			case res.Failed > 0:
@@ -1132,6 +1163,10 @@ func patternLine(entries []authoring.RecentEntry) string {
 type receipt struct {
 	apply.Result
 	Check *check.Result `json:"check,omitempty"`
+	// Pattern is the recent-window pattern after this write (ADR-056):
+	// always present, so the JSON caller holds the fact the human line
+	// prints. Read from the ring after RecordRecent ran.
+	Pattern authoring.PatternInfo `json:"pattern"`
 }
 
 // iterCmd manages the working set: the files and ranges this piece of work is
