@@ -376,12 +376,22 @@ size is the form that gets quoted out of the population it was measured on.`,
 				return nil
 			}
 			if cmd.Bool("json") {
+				// ADR-054: every vocabulary key is present, zero included, so
+				// a script never has to know that an absent key means zero;
+				// and the derived pair is emitted so it is not re-derived
+				// with a different denominator.
+				counts := map[string]int{}
+				for _, name := range authoring.Vocabulary() {
+					counts[name] = t[name]
+				}
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(struct {
 					Plans  int            `json:"plans"`
 					Counts map[string]int `json:"counts"`
-				}{Plans: t.Plans(), Counts: t})
+					Landed int            `json:"landed"`
+					Failed int            `json:"failed_check_of_landed"`
+				}{Plans: t.Plans(), Counts: counts, Landed: t.Landed(), Failed: t["failed_check"]})
 			}
 			total := t.Plans()
 			if total == 0 {
@@ -390,9 +400,18 @@ size is the form that gets quoted out of the population it was measured on.`,
 				fmt.Println("no plans recorded yet — this says nothing has been MEASURED, not that nothing has failed")
 				return nil
 			}
-			for _, name := range t.Names() {
+			// The whole vocabulary, not t.Names(): a name at zero is the one
+			// a reader most needs to see, because its absence reads as "that
+			// never happens" rather than "that was never measured" (ADR-054).
+			for _, name := range authoring.Vocabulary() {
 				n := t[name]
 				fmt.Printf("  %-14s %4d of %d plan(s) (%.1f%%)\n", name, n, total, 100*float64(n)/float64(total))
+			}
+			landed, failed := t.Landed(), t["failed_check"]
+			if landed > 0 {
+				fmt.Printf("\nlanded writes: %d; failed_check %d of those (%.1f%%). Landed = applied + failed_check + check_not_run:\n"+
+					"the tree changed. It is not \"wrote and was checked\" — --no-check and prose-only plans count as applied.\n",
+					landed, failed, 100*float64(failed)/float64(landed))
 			}
 			fmt.Printf("\n%d plan(s) recorded in this checkout. The rate is valid for THIS population;\n"+
 				"a number from one repository and one family of callers is not a general one.\n", total)

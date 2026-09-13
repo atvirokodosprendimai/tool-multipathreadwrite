@@ -100,6 +100,28 @@ func (t Tally) Plans() int {
 	return n
 }
 
+// Vocabulary returns every counter name in the closed vocabulary, in the order
+// a reader meets the exits they project (0, 2, 1, 2, 3). It is the list a
+// renderer iterates when it must print a name at zero: Names() walks the keys
+// PRESENT in a tally, so a counter that never incremented has no key and
+// cannot print — which is how a checkout with three broken trees read as
+// `applied 96.9%` and nothing else (ADR-054). Not a sixth name: this is the
+// same five `names` holds.
+func Vocabulary() []string {
+	return []string{"applied", "refused_parse", "refused_apply", "check_not_run", "failed_check"}
+}
+
+// Landed is how many plans WROTE the tree, whatever happened next: applied,
+// plus failed_check (written, then the check failed — exit 3), plus
+// check_not_run (written, and no check could run — exit 2). It is NOT "wrote
+// and was checked": --no-check and a prose-only plan both record applied and
+// sit here as successes. A reader who takes failed_check over Landed as "of
+// those we verified" misreads the rate in the direction that flatters the
+// tool, which is why the derived line names the denominator (ADR-054).
+func (t Tally) Landed() int {
+	return t["applied"] + t["failed_check"] + t["check_not_run"]
+}
+
 // Names returns the recorded counter names, sorted, so a caller renders a
 // stable order without knowing the vocabulary.
 func (t Tally) Names() []string {

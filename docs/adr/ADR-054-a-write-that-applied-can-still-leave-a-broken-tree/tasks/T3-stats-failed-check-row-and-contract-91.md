@@ -19,6 +19,7 @@
 | File | Change | Why |
 |------|--------|-----|
 | `cmd/mrw/main.go` | edit | `statsCmd` rendering. The selector. |
+| `internal/authoring/authoring.go` | edit | `Vocabulary()` — the five names in exit order, so the renderer does not hold a second copy of the list — and `Tally.Landed()`. Not a sixth Outcome; `names` is unchanged. |
 | `cmd/mrw/planpath_test.go` | edit | Or a dedicated stats test: zeros print; derived line; json keys. |
 | `scripts/contract.sh` | edit | **§91** — a checkout with only `applied` still prints `failed_check 0` and the landed line. |
 
@@ -26,7 +27,7 @@
 
 1. [S1] Write `TestStatsPrintsFailedCheckEvenWhenZero` and confirm it is RED. [proof: mutation]
 2. [S2] Write `TestStatsLandedLineUsesAppliedPlusFailedCheckPlusCheckNotRun` — RED until the derived line exists. [proof: mutation]
-3. [S3] Render all five names from the closed vocabulary (not `t.Names()` alone). Un-strike the Tests rows when the funcs exist. Confirm S1–S2 GREEN. Deleting the zero-print must fail S1. [proof: mutation]
+3. [S3] Render all five names from the closed vocabulary (not `t.Names()` alone). Confirm S1–S2 GREEN. Deleting the zero-print must fail S1. [proof: mutation]
 4. [S4] Write §91 RED then GREEN. [proof: mutation]
 5. [S5] Scoped tests and `gofmt` / `go vet` unpiped. [proof: acceptance]
 
@@ -48,8 +49,8 @@ grep -q '^# 91\. ' scripts/contract.sh \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| ~~`TestStatsPrintsFailedCheckEvenWhenZero`~~ | `cmd/mrw/planpath_test.go` | not yet written — Proposed; T3 S1 writes it | — | S1, S3 |
-| ~~`TestStatsLandedLineUsesAppliedPlusFailedCheckPlusCheckNotRun`~~ | `cmd/mrw/planpath_test.go` | not yet written — Proposed; T3 S2 writes it | — | S2, S3 |
+| `TestStatsPrintsFailedCheckEvenWhenZero` | `cmd/mrw/planpath_test.go` | `failed_check` and every other name appear at 0 | — | S1, S3 |
+| `TestStatsLandedLineUsesAppliedPlusFailedCheckPlusCheckNotRun` | `cmd/mrw/planpath_test.go` | derived line and json `landed` / `failed_check_of_landed`; five keys always | — | S2, S3 |
 | `§91` | `scripts/contract.sh` | Built binary: zeros and landed line | — | S4 |
 
 ## Reachability
@@ -62,8 +63,13 @@ grep -q '^# 91\. ' scripts/contract.sh \
 | 4 — it is used | the Zeus population is this repository's next `mrw stats` |
 
 ## Mutation Log
-
 (empty until execute)
+- 2026-09-13 · 3b9f772* · mutant killed · exit 1 · `cmd/mrw/main.go` · the zero-print is deleted: the human renderer walks the keys present again, so failed_check vanishes at zero and TestStatsPrintsFailedCheckEvenWhenZero must go red · acceptance-sha256:7a9df4467587a39c4f0411cce95782312c0029832a99e125db6e1a60edc0eddb
+- 2026-09-13 · 3b9f772* · mutant survived · exit 0 · `internal/authoring/authoring.go` · check_not_run is dropped from the landed denominator; the doc says landed includes a write whose check could not run, and TestStatsLandedLineUsesAppliedPlusFailedCheckPlusCheckNotRun pins the sum · acceptance-sha256:7a9df4467587a39c4f0411cce95782312c0029832a99e125db6e1a60edc0eddb
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-13 · 3b9f772* · mutant killed · exit 1 · `internal/authoring/authoring.go` · check_not_run is dropped from the landed denominator; the doc says landed includes a write whose check could not run, and TestStatsLandedLineUsesAppliedPlusFailedCheckPlusCheckNotRun pins the sum at 4 · acceptance-sha256:7a9df4467587a39c4f0411cce95782312c0029832a99e125db6e1a60edc0eddb
 
 ## Invariants
 
@@ -87,5 +93,10 @@ If the only way to go green is a sixth Outcome, stop.
 - Teaching (T4)
 
 ## Verification Log
-
 (empty until execute)
+- 2026-09-13 · 3b9f772* · exit 1 · `set -o pipefail …` · acceptance-sha256:7a9df4467587a39c4f0411cce95782312c0029832a99e125db6e1a60edc0eddb · ms:26 · test-lock-sha256:3a9d38db1319c497c747926a07b70f4420ba4d9312efdaf5ed6d7d83a6180248 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwp1bnByb3ZlbgljbWQvbXJ3L3BsYW5wYXRoX3Rlc3QuZ28JVGVzdFN0YXRzTGFuZGVkTGluZVVzZXNBcHBsaWVkUGx1c0ZhaWxlZENoZWNrUGx1c0NoZWNrTm90UnVuCnVucHJvdmVuCWNtZC9tcncvcGxhbnBhdGhfdGVzdC5nbwlUZXN0U3RhdHNQcmludHNGYWlsZWRDaGVja0V2ZW5XaGVuWmVybwp1bnByb3ZlbglzY3JpcHRzL2NvbnRyYWN0LnNoCcKnOTE
+  ```
+  ```
+- 2026-09-13 · 3b9f772* · exit 0 · `set -o pipefail …` · acceptance-sha256:7a9df4467587a39c4f0411cce95782312c0029832a99e125db6e1a60edc0eddb · ms:510
+- 2026-09-13 · 3b9f772* · exit 0 · `set -o pipefail …` · acceptance-sha256:7a9df4467587a39c4f0411cce95782312c0029832a99e125db6e1a60edc0eddb · ms:450
+- 2026-09-13 · 3b9f772* · exit 0 · `set -o pipefail …` · acceptance-sha256:7a9df4467587a39c4f0411cce95782312c0029832a99e125db6e1a60edc0eddb · ms:515

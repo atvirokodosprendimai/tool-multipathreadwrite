@@ -5410,6 +5410,39 @@ else
   ok "matching nets print no balance row"
 fi
 
+# 91. ADR-054: stats prints every vocabulary name at zero, and one landed line
+# whose denominator is applied + failed_check + check_not_run. Pair: a checkout
+# with one --no-check apply prints `failed_check 0 of 1` and `landed writes: 1`
+# / after a default-check write that fails (exit 3) the line reads
+# `landed writes: 2; failed_check 1 of those` / --json carries all five keys
+# plus landed and failed_check_of_landed.
+R=$(mktemp -d "$WORK/r91-XXXXXX")
+printf '{"check":"exit 3"}\n' > "$R/.quality-harness.json"
+printf 'package a\nfunc A() {}\nfunc B() {}\n' > "$R/a.go"
+m read 'a.go:2-3' >/dev/null
+printf '@@ a.go 2 replace\nfunc A() { _ = 1 }\n' | m write --no-check - >/dev/null 2>&1
+out=$(m stats 2>&1); rc=$?
+want 0 "$rc" "stats after one applied plan exits 0"
+grep -qE 'failed_check +0 of 1' <<<"$out" && ok "failed_check prints at zero" || bad "failed_check hidden at zero: $out"
+grep -qE 'check_not_run +0 of 1' <<<"$out" && ok "check_not_run prints at zero" || bad "check_not_run hidden at zero: $out"
+grep -q 'landed writes: 1; failed_check 0 of those' <<<"$out" && ok "the landed line names its denominator" || bad "no landed line: $out"
+
+m read 'a.go:3' >/dev/null
+printf '@@ a.go 3 replace\nfunc B() { _ = 1 }\n' | m write - >/dev/null 2>&1; rc=$?
+want 3 "$rc" "a default-check write against a failing check exits 3"
+out=$(m stats 2>&1); rc=$?
+want 0 "$rc" "stats after the failed check exits 0"
+grep -q 'landed writes: 2; failed_check 1 of those (50.0%)' <<<"$out" && ok "landed counts the failed check as a landed write" || bad "landed line wrong: $out"
+grep -qE 'failed_check +1 of 2' <<<"$out" && ok "failed_check row is 1 of 2" || bad "failed_check row wrong: $out"
+
+jout=$(m stats --json 2>&1); rc=$?
+want 0 "$rc" "stats --json exits 0"
+for k in applied refused_parse refused_apply check_not_run failed_check; do
+  grep -q "\"$k\":" <<<"$jout" && ok "--json carries $k" || bad "--json omits $k: $jout"
+done
+grep -q '"landed": 2' <<<"$jout" && ok "--json landed is 2" || bad "--json landed wrong: $jout"
+grep -q '"failed_check_of_landed": 1' <<<"$jout" && ok "--json failed_check_of_landed is 1" || bad "--json failed_check_of_landed wrong: $jout"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
