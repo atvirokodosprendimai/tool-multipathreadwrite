@@ -118,6 +118,16 @@ Tasks in `docs/adr/ADR-060-plan-ux-from-the-v1-19-field-report/tasks/`. Red test
 
 Revert leftover wording, the `parsed:` lines, the read note, the quote refuse, `BodyFile` / `LoadBodyFiles`, `check last:`, §100–§104, and the teach. Native `body=N` and ADR-052 stay.
 
+## Stress suite
+
+Measured 2026-09-14 against this record's Decisions, not the code. `internal/adversarial/adr060_test.go`.
+
+- Arm 1: 400 leftover parse iterations × 12 seeds (`MRW_SEED` 1,2,3,7,11,13,17,29,41,54,60,99); 200 unquoted/quoted/ADR-040 forms; 80 `body=@` loads vs `bufio.Scanner`.
+- Arm 2: trailing hunks drawn from the five native ops leftover headers do not use. Parser list, measured the same day: `grep -E 'Op[A-Za-z]+ +Op = "' internal/plan/plan.go` → 7 (`replace`, `insert-after`, `insert-before`, `delete`, `create`, `unlink`, `rename`).
+- Arm 3: 80 binary iterations, `kind = i % 7`, so every Decision has a column.
+- Found: none.
+- Hand mutants against that suite: 9 killed / 9 (leftover extra count dropped; blanks counted as extra; unquoted `"` accepted; `parsed:` only on `--json`; neighbour note suppressed; `LoadBodyFiles` no-op; `check last:` on PASS not FAIL; one leftover error per extra line; declared N forced to 0). Baseline green, each mutant compiled, restore verified against a pre-sweep copy.
+
 ## Follow-ups
 
 - [ ] Close inbox drawer `23c3061…` after ship (T5).
