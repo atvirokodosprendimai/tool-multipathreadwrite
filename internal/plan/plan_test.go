@@ -739,3 +739,47 @@ func TestATrailingTokenAfterAQuotedAnchorNamesDoubleQuotes(t *testing.T) {
 		t.Errorf("a non-anchor leftover named quoting: %v", err)
 	}
 }
+
+// ADR-060 T1: leftover body= names declared N vs extra M, still one error.
+func TestASatisfiedBodyCountNamesTheExtraLines(t *testing.T) {
+	doc := "@@ a.go 1 replace body=1\nthe body\nextra one\nextra two\n"
+	_, err := Parse(strings.NewReader(doc))
+	if err == nil {
+		t.Fatal("extra lines after body=1 parsed clean")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "body=1") {
+		t.Errorf("error does not name declared body=1:\n%s", msg)
+	}
+	if !strings.Contains(msg, "2 extra") {
+		t.Errorf("error does not name 2 extra:\n%s", msg)
+	}
+	if n := strings.Count(msg, "is not part of any hunk"); n != 1 {
+		t.Errorf("got %d leftover errors, want 1:\n%s", n, msg)
+	}
+}
+
+// ADR-060 T3: unquoted anchor= with embedded " is refused; quoted form parses.
+func TestUnquotedAnchorWithEmbeddedQuotesIsRefused(t *testing.T) {
+	t.Run("unquoted", func(t *testing.T) {
+		doc := "@@ f.ts 1 replace anchor=import { inject, vi } from \"vitest\"; body=1\nX\n"
+		_, err := Parse(strings.NewReader(doc))
+		if err == nil {
+			t.Fatal("unquoted anchor= with embedded quotes parsed; it must refuse")
+		}
+		if !strings.Contains(err.Error(), `anchor="`) {
+			t.Errorf("refusal does not tell them to write anchor=\"…\":\n%s", err)
+		}
+	})
+	t.Run("quoted", func(t *testing.T) {
+		doc := "@@ f.ts 1 replace anchor=\"import { inject, vi } from \\\"vitest\\\";\" body=1\nX\n"
+		hunks, err := Parse(strings.NewReader(doc))
+		if err != nil {
+			t.Fatalf("quoted anchor with embedded quotes: %v", err)
+		}
+		want := `import { inject, vi } from "vitest";`
+		if hunks[0].Anchor != want {
+			t.Errorf("Anchor = %q, want %q", hunks[0].Anchor, want)
+		}
+	})
+}

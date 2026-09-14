@@ -187,7 +187,11 @@ removes the path (empty body OK). `@@ old - rename` with a one-line dest body
 moves it. Only `delete` may carry no body among the line-range ops: a lost
 body reads exactly like one never written, so an empty file is spelled
 `@@ new.txt 0 create body=0`, and a bare `create` with nothing under it is
-refused and leaves no file behind.
+refused and leaves no file behind. `body=@path` loads those lines from a
+root-relative file (empty file ≡ `body=0`); that path is not a ledger read.
+An unquoted `anchor=` that contains `"` is refused — write `anchor="…"`.
+`--dry-run` prints each parsed hunk's `body=N`. A leftover `body=` names
+declared vs extra.
 
 ```
 @@ internal/apply/apply.go 42-58 replace anchor="func Apply" lines=17
@@ -285,7 +289,9 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 
   A multi-line `replace` is refused unless the ledger already covers a line after
   `End` (ADR-052). Single-line replace is unchanged. When `End` is the last line
-  the licence is skipped. `--echo-pad N` (MCP `echo_pad`, default 0) prints N
+  the licence is skipped. A ranged multi-line read that is not through last line
+  prints a note that a multi-line replace needs a served line after End.
+  `--echo-pad N` (MCP `echo_pad`, default 0) prints N
   lines after the body so a surviving closer is visible; the hunk stays `ok`.
   The pad is not a checker.
 
@@ -334,7 +340,8 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   every write (ADR-056), so a `--json` or `mrw_write` caller holds the fact
   the human line prints.
 - **Exit `3` means the write APPLIED and the check failed** — the tree is
-  changed and unverified. It is not a rollback.
+  changed and unverified. It is not a rollback. A failing check prints
+  `check last:` (the last non-empty tail line) immediately above `full output:`.
 - **Never read an exit code through a pipe.** `mrw write plan | head` returns
   head's status. This is the single most common way a red run reads as green.
 - A refusal is the tool working. It names the file, the plan line and the

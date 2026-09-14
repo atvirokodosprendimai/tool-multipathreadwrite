@@ -468,6 +468,11 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				whole = false
 			}
 			fmt.Fprintf(w, "@@ %d-%d\n", sn.start, sn.start+n-1)
+			servedEnd := sn.start + n - 1
+			if n >= 2 && servedEnd < len(lines) {
+				fmt.Fprintf(w, "-- note: a multi-line replace of %d-%d needs a served line after %d\n",
+					sn.start, servedEnd, servedEnd)
+			}
 			served = append(served, [2]int{sn.start, sn.start + n - 1})
 			for i := 0; i < n; i++ {
 				if opt.Numbers {

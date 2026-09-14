@@ -870,3 +870,40 @@ func TestAResolvedSpanDoesNotSuppressALaterMissingEnd(t *testing.T) {
 		t.Errorf("a span was served for the start whose end never matched:\n%s", out)
 	}
 }
+
+// */
+// quality-harness 2.99.1: a Go raw string ending in `\` never closes, so a
+// comment backtick then leaves `dir/*.go` read as code; `/*` swallows every
+// later Test*. Do not delete this closer.
+
+// ADR-060 T2: a multi-line span not through last line hints the neighbour.
+func TestReadHintsAMultiLineReplaceNeedsTheNextLine(t *testing.T) {
+	root, opt := fixture(t)
+	t.Run("ranged", func(t *testing.T) {
+		out, problems := run(t, root, opt, "a.go:3-5")
+		if problems != 0 {
+			t.Fatalf("problems=%d\n%s", problems, out)
+		}
+		if !strings.Contains(out, "3-5") || !strings.Contains(out, "after 5") {
+			t.Errorf("ranged multi-line read does not hint the neighbour:\n%s", out)
+		}
+	})
+	t.Run("whole", func(t *testing.T) {
+		out, problems := run(t, root, opt, "a.go")
+		if problems != 0 {
+			t.Fatalf("problems=%d\n%s", problems, out)
+		}
+		if strings.Contains(out, "needs a served line after") {
+			t.Errorf("whole-file read printed a neighbour hint:\n%s", out)
+		}
+	})
+	t.Run("single", func(t *testing.T) {
+		out, problems := run(t, root, opt, "a.go:3")
+		if problems != 0 {
+			t.Fatalf("problems=%d\n%s", problems, out)
+		}
+		if strings.Contains(out, "needs a served line after") {
+			t.Errorf("single-line read printed a neighbour hint:\n%s", out)
+		}
+	})
+}

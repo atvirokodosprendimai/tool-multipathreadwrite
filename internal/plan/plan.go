@@ -23,11 +23,13 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
 // EOF is the sentinel address component meaning "the last line of the file".
@@ -142,6 +144,9 @@ type Hunk struct {
 	// body went missing could report ok (ADR-027). The count itself is spent
 	// during parsing; this is the declaration surviving it.
 	CountedBody bool
+	// BodyFile, if set, is a root-relative path whose contents are the hunk
+	// body (ADR-060). Parse stores the path; LoadBodyFiles fills Body.
+	BodyFile string
 
 	// SrcLine is the plan's own line number, for diagnostics.
 	SrcLine int
@@ -155,13 +160,15 @@ type Hunk struct {
 // about all of its mistakes in one round trip.
 func Parse(r io.Reader) ([]Hunk, error) {
 	var (
-		hunks []Hunk
-		errs  []string
-		cur   *Hunk
-		body  []string
-		want  int  // remaining explicit body lines, -1 when scanning to next @@
-		fixed bool // whether this hunk declared body=N at all
-		stray bool // whether this hunk already reported an unaccounted line
+		hunks      []Hunk
+		errs       []string
+		cur        *Hunk
+		body       []string
+		want       int  // remaining explicit body lines, -1 when scanning to next @@
+		fixed      bool // whether this hunk declared body=N at all
+		strayN     int  // extra non-empty lines after a satisfied body=
+		strayFirst string
+		strayAt    int
 	)
 	flush := func() {
 		if cur == nil {
@@ -174,10 +181,14 @@ func Parse(r io.Reader) ([]Hunk, error) {
 			errs = append(errs, fmt.Sprintf("line %d: body= asked for %d more line(s) than the plan contains",
 				cur.SrcLine, want))
 		}
+		if strayN > 0 {
+			errs = append(errs, fmt.Sprintf("line %d: body=%d is satisfied; %d extra line(s) before the next @@; %q is not part of any hunk — recount, omit body=, or body=@path",
+				strayAt, len(body), strayN, strayFirst))
+		}
 		cur.Body = body
 		cur.CountedBody = fixed
 		hunks = append(hunks, *cur)
-		cur, body, want, fixed, stray = nil, nil, -1, false, false
+		cur, body, want, fixed, strayN, strayFirst, strayAt = nil, nil, -1, false, 0, "", 0
 	}
 
 	sc := bufio.NewScanner(r)
@@ -240,13 +251,14 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		// next header is text the caller did not account for; absorbing it
 		// silently is what made body=0 mean "unbounded" instead of "empty".
 		if cur != nil && fixed && want == 0 && !strings.HasPrefix(hdr, "@@ ") {
-			// Reported once per hunk, not once per line: a satisfied count
-			// followed by a hundred lines is one mistake, and a hundred
-			// identical errors would bury the other hunks' diagnostics.
-			if t := strings.TrimSpace(line); t != "" && !stray {
-				errs = append(errs, fmt.Sprintf("line %d: body= is satisfied; %q is not part of any hunk "+
-					"(further lines before the next @@ header are not reported)", n, line))
-				stray = true
+			// Counted once per hunk, reported at flush: a satisfied count
+			// followed by a hundred lines is one mistake. The message names
+			// declared N vs extra M so a miscount is visible (ADR-060).
+			if t := strings.TrimSpace(line); t != "" {
+				strayN++
+				if strayN == 1 {
+					strayFirst, strayAt = line, n
+				}
 			}
 			continue
 		}
@@ -283,7 +295,7 @@ func Parse(r io.Reader) ([]Hunk, error) {
 			continue
 		}
 		h.Index = len(hunks)
-		cur, body, want, fixed, stray = &h, nil, explicit, explicit >= 0, false
+		cur, body, want, fixed, strayN, strayFirst, strayAt = &h, nil, explicit, explicit >= 0, 0, "", 0
 	}
 	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("reading plan: %w", err)
@@ -307,6 +319,9 @@ func Parse(r io.Reader) ([]Hunk, error) {
 // parseHeader splits an "@@ path addr op key=value..." line. It returns the
 // explicit body line count (-1 when the body runs to the next header).
 func parseHeader(line string, srcLine int) (Hunk, int, error) {
+	if err := refuseUnquotedAnchorQuote(line); err != nil {
+		return Hunk{}, 0, err
+	}
 	fields, quoted, err := splitHeader(strings.TrimPrefix(line, "@@ "))
 	if err != nil {
 		return Hunk{}, 0, err
@@ -385,7 +400,14 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 			}
 			h.Raw = true
 		case "body":
-			if explicit, err = strconv.Atoi(v); err != nil || explicit < 0 {
+			if strings.HasPrefix(v, "@") {
+				p := strings.TrimPrefix(v, "@")
+				if p == "" {
+					return Hunk{}, 0, fmt.Errorf("body=@ needs a path")
+				}
+				h.BodyFile = p
+				explicit = 0
+			} else if explicit, err = strconv.Atoi(v); err != nil || explicit < 0 {
 				return Hunk{}, 0, fmt.Errorf("body= wants a non-negative integer, got %q", v)
 			}
 		default:
@@ -768,4 +790,81 @@ func validate(h *Hunk) error {
 		return fmt.Errorf("address %s ends before it starts", h.Addr)
 	}
 	return nil
+}
+
+// LoadBodyFiles fills each hunk's Body from BodyFile, under root. A hunk
+// with no BodyFile is left alone. Call after Parse and before Apply.
+func LoadBodyFiles(root string, hunks []Hunk) error {
+	for i := range hunks {
+		p := hunks[i].BodyFile
+		if p == "" {
+			continue
+		}
+		if rooted.IsRooted(p) {
+			return fmt.Errorf("line %d: body=@%s is a rooted path; body=@ takes a path relative to the root", hunks[i].SrcLine, p)
+		}
+		full, err := rooted.Resolve(root, p)
+		if err != nil {
+			return fmt.Errorf("line %d: body=@%s: %w", hunks[i].SrcLine, p, err)
+		}
+		st, err := os.Stat(full)
+		if err != nil {
+			return fmt.Errorf("line %d: body=@%s: %w", hunks[i].SrcLine, p, err)
+		}
+		if !st.Mode().IsRegular() {
+			return fmt.Errorf("line %d: body=@%s is not a regular file", hunks[i].SrcLine, p)
+		}
+		b, err := os.ReadFile(full)
+		if err != nil {
+			return fmt.Errorf("line %d: body=@%s: %w", hunks[i].SrcLine, p, err)
+		}
+		if len(b) == 0 {
+			hunks[i].Body = nil
+			continue
+		}
+		hunks[i].Body = strings.Split(strings.TrimSuffix(string(b), "\n"), "\n")
+	}
+	return nil
+}
+
+// refuseUnquotedAnchorQuote is ADR-060 T3: splitHeader treats " as a quote
+// toggle, so an unquoted anchor= with embedded quotes silently matches the
+// wrong line. Refuse and name the quoted form.
+func refuseUnquotedAnchorQuote(header string) error {
+	rest := strings.TrimPrefix(header, "@@ ")
+	const key = "anchor="
+	for {
+		i := strings.Index(rest, key)
+		if i < 0 {
+			return nil
+		}
+		if i > 0 {
+			c := rest[i-1]
+			if c != ' ' && c != '\t' {
+				rest = rest[i+len(key):]
+				continue
+			}
+		}
+		v := rest[i+len(key):]
+		if strings.HasPrefix(v, `"`) || strings.HasPrefix(v, "'") {
+			return nil
+		}
+		if strings.Contains(spanUntilNextKey(v), `"`) {
+			return fmt.Errorf("unquoted anchor= contains a double quote: write it as anchor=\"…\"")
+		}
+		return nil
+	}
+}
+
+func spanUntilNextKey(v string) string {
+	lowest := len(v)
+	for _, k := range []string{"sha", "lines", "anchor", "body", "raw"} {
+		for _, sp := range []string{" ", "\t"} {
+			pat := sp + k + "="
+			if i := strings.Index(v, pat); i >= 0 && i < lowest {
+				lowest = i
+			}
+		}
+	}
+	return v[:lowest]
 }
