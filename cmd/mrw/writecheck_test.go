@@ -165,3 +165,42 @@ func TestCheckAndNoCheckTogetherIsUsage(t *testing.T) {
 		t.Errorf("a usage refusal wrote the file:\n%s", got)
 	}
 }
+
+// ADR-060 T5: FAIL prints check last: above full output:; PASS does not.
+func TestFailedCheckPrintsTheLastErrorLine(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Run("fail", func(t *testing.T) {
+		root := grepTree(t, map[string]string{
+			"a.go":                  "package a\nfunc A() {}\n",
+			".quality-harness.json": `{"check":"sh -c 'echo unique-last-error-line; exit 1'"}`,
+		})
+		if _, err := readIn(t, root, "a.go"); err != nil {
+			t.Fatal(err)
+		}
+		out, code := writeIn(t, root, planFile(t, goPlan))
+		if code != exitCheckFailed {
+			t.Fatalf("exited %d, want %d:\n%s", code, exitCheckFailed, out)
+		}
+		last := strings.Index(out, "check last: unique-last-error-line")
+		full := strings.Index(out, "full output:")
+		if last < 0 || full < 0 || last > full {
+			t.Errorf("check last: must sit above full output:\n%s", out)
+		}
+	})
+	t.Run("pass", func(t *testing.T) {
+		root := grepTree(t, map[string]string{
+			"a.go":                  "package a\nfunc A() {}\n",
+			".quality-harness.json": `{"check":"true"}`,
+		})
+		if _, err := readIn(t, root, "a.go"); err != nil {
+			t.Fatal(err)
+		}
+		out, code := writeIn(t, root, planFile(t, goPlan))
+		if code != 0 {
+			t.Fatalf("passing check exited %d:\n%s", code, out)
+		}
+		if strings.Contains(out, "check last:") {
+			t.Errorf("PASS printed check last:\n%s", out)
+		}
+	})
+}

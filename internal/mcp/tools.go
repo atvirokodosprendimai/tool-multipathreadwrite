@@ -504,6 +504,10 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		_ = authoring.Record(root, authoring.RefusedParse)
 		return errorResult(err.Error()), nil
 	}
+	if err := plan.LoadBodyFiles(root, hunks); err != nil {
+		_ = authoring.Record(root, authoring.RefusedParse)
+		return errorResult(err.Error()), nil
+	}
 
 	set, err := iter.Load(root)
 	if err != nil {

@@ -104,3 +104,11 @@ func TestWriteHelpNamesThePatternField(t *testing.T) {
 		}
 	}
 }
+
+// ADR-060 T5: write --help names body=@ as a file-backed body.
+func TestWriteHelpNamesBodyAtPath(t *testing.T) {
+	got := writeCmd().Description
+	if !strings.Contains(got, "body=@") {
+		t.Errorf("write --help does not teach body=@:\n%s", got)
+	}
+}

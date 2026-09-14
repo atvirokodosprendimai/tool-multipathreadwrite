@@ -47,7 +47,7 @@ that arms work; silence leaves the row where it is.
 | `--check` by default / `--no-check` | **ADR-054 Accepted** — CLI default when a check exists and a written path is not prose; §89 | — (M 2026-09-13: *"accepted"*; T1) |
 | Delimiter-balance delta in the receipt | **ADR-054 Accepted** — visibility, not refuse; omitted on prose; a balanced insert is invisible to it; §90 | — (T2) |
 | `stats` row: applied then a failing check | **ADR-054 Accepted** — every name at zero + landed line (`check_not_run` is in N); §91 | — (T3) |
-| Neighbour license on a single-line address | **open question** — not a proposed fix; three Zeus cases would not have fired | — |
+| Neighbour license on a single-line address | **open question** — not a proposed fix; three Zeus cases would not have fired. ADR-060 Out of Scope (hint is multi-line only). | — |
 | Advisory count on the write summary + `advisories` in JSON | **ADR-055 Accepted** (T1, §92) — the row fired, the summary M read did not carry it (twice in one hour, v1.16.0 field run) | *"advisory count"* |
 | Repeat-pattern line on the receipt / `stats` | **ADR-055 Accepted** (T2, §93) — recent-window ring beside the ledger (op + advisory bit + time; no paths, ADR-009); "3rd balance advisory in your last 5 replaces" | *"repeat pattern"* |
 | `--strict-balance` opt-in refusal on the wrap-tail signature | **ADR-055 Accepted** (T3, §94; default pre-registered below) — replace, single-line address, consumed net ≠ 0, body net ≠ consumed; exit 1, nothing written; campaign prices false positives before any default | *"strict balance"* |
@@ -59,6 +59,7 @@ that arms work; silence leaves the row where it is.
 | `apply_patch` `*** Delete File:` / `*** Move to:` | **shipped** — ADR-057 | *"unlink op"* |
 | `apply_patch` Move to with hunks | **deferred** — ADR-057 Out of Scope | — |
 | Honour quality-harness `fenceTimeout` | **ADR-059 Accepted** — alias of `timeout_seconds`; disagreeing keys refuse | *"both"* |
+| leftover `body=` extra count, `--dry-run` parsed hunks, read neighbour hint, unquoted `anchor=` `"`, `body=@path`, check last-error line | **shipped** — ADR-060 | — |
 | Per-extension check skip (`.jsonl` vs Cargo.toml) | **deferred** — ADR-054 / ADR-059; widening prose takes `.toml` | *"per-extension check"* |
 | ast-grep-shaped `--grep` | **deferred** — ADR-051 / ADR-048; planned 2026-09-13 as ADR-058 | *"structural find only"* |
 | Playtrix T4 / that paste | **not-this-repo** | — (wing_playtrix) |

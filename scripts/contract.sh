@@ -5689,6 +5689,105 @@ grep -q 'hunks' <<<"$out" && ok "Move to with hunks names hunks" || bad "Move to
 grep -qx 'stay' "$R/a.txt" && [ ! -e "$R/b.txt" ] \
   && ok "Move to with hunks wrote nothing" || bad "Move to with hunks wrote: $(ls -l "$R")"
 
+# 100. ADR-060 T1: leftover body= names declared vs extra; dry-run prints parsed.
+# Pair: body=1 plus two extras -> exit 2, names body=1 and 2 extra /
+# a valid --dry-run prints parsed: body=1.
+R=$(mktemp -d "$WORK/r100-XXXXXX")
+printf 'package a\nfunc A() {}\n' > "$R/a.go"
+out=$(printf '%s\n' \
+	'@@ a.go 1 replace body=1' \
+	'the body' \
+	'extra one' \
+	'extra two' | m write --no-check - 2>&1); rc=$?
+want 2 "$rc" "leftover body=1 is exit 2"
+echo "$out" | grep -q 'body=1' && echo "$out" | grep -q '2 extra' \
+	&& ok "leftover names declared vs extra" || bad "leftover: $out"
+
+m read a.go >/dev/null
+out=$(printf '%s\n' \
+	'@@ a.go 2 replace anchor="func A" body=1' \
+	'func A() { _ = 1 }' | m write --dry-run --no-check - 2>&1); rc=$?
+want 0 "$rc" "dry-run of a counted hunk exits 0"
+echo "$out" | grep -q 'parsed:' && echo "$out" | grep -q 'body=1' \
+	&& ok "dry-run prints parsed body=1" || bad "parsed: $out"
+
+# 101. ADR-060 T2: a ranged multi-line read hints the neighbour line.
+# Pair: read f:1-2 on a 3-line file greps after 2 / whole-file read has no note.
+R=$(mktemp -d "$WORK/r101-XXXXXX")
+printf 'a\nb\nc\n' > "$R/f.txt"
+out=$(m read 'f.txt:1-2' 2>&1); rc=$?
+want 0 "$rc" "ranged multi-line read exits 0"
+echo "$out" | grep -q 'after 2' \
+	&& ok "ranged multi-line read hints the neighbour" || bad "hint: $out"
+out=$(m read f.txt 2>&1); rc=$?
+want 0 "$rc" "whole-file read exits 0"
+echo "$out" | grep -q 'needs a served line after' \
+	&& bad "whole-file printed a neighbour hint: $out" \
+	|| ok "whole-file read is quiet"
+
+# 102. ADR-060 T3: unquoted anchor= containing " is refused.
+# Pair: unquoted vitest-style header exit 2 with anchor=" / quoted form dry-run ok.
+R=$(mktemp -d "$WORK/r102-XXXXXX")
+printf 'import { inject, vi } from "vitest";\n' > "$R/f.ts"
+out=$(printf '%s\n' \
+	'@@ f.ts 1 replace anchor=import { inject, vi } from "vitest"; body=1' \
+	'X' | m write --no-check - 2>&1); rc=$?
+want 2 "$rc" "unquoted anchor with embedded quotes is exit 2"
+echo "$out" | grep -q 'anchor="' \
+	&& ok "refusal names the quoted form" || bad "unquoted: $out"
+
+m read f.ts >/dev/null
+cat > "$R/quoted.mrw" <<'EOF'
+@@ f.ts 1 replace anchor="import { inject, vi } from \"vitest\";" body=1
+X
+EOF
+out=$(m write --dry-run --no-check "$R/quoted.mrw" 2>&1); rc=$?
+want 0 "$rc" "quoted anchor with embedded quotes dry-runs"
+
+# 103. ADR-060 T4: body=@path loads the body from a rooted file.
+# Pair: create body=@src.txt writes dest / body=@/etc/hosts refuses naming the path.
+R=$(mktemp -d "$WORK/r103-XXXXXX")
+printf 'alpha\nbeta\n' > "$R/src.txt"
+out=$(printf '%s\n' '@@ dest.txt 0 create body=@src.txt' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "create body=@src.txt exits 0"
+if [ -f "$R/dest.txt" ] && grep -qx 'alpha' "$R/dest.txt" && grep -qx 'beta' "$R/dest.txt"; then
+	ok "body=@src.txt wrote dest from the file"
+else
+	bad "dest.txt: $(cat "$R/dest.txt" 2>&1)"
+fi
+out=$(printf '%s\n' '@@ dest2.txt 0 create body=@/etc/hosts' | m write --no-check - 2>&1); rc=$?
+want 2 "$rc" "rooted body=@/etc/hosts is exit 2"
+echo "$out" | grep -q '/etc/hosts' \
+	&& ok "rooted body=@ names the path" || bad "rooted: $out"
+[ ! -e "$R/dest2.txt" ] && ok "rooted body=@ wrote nothing" || bad "dest2.txt exists"
+
+# 104. ADR-060 T5: a failing check prints its last error above the log path.
+# Pair: failing check greps check last: unique-last-error-line before full output: /
+# check: true has no check last:.
+R=$(mktemp -d "$WORK/r104-XXXXXX")
+printf '%s\n' '{"check":"sh -c '"'"'echo unique-last-error-line; exit 1'"'"'"}' > "$R/.quality-harness.json"
+printf 'package a\nfunc A() {}\n' > "$R/a.go"
+m read a.go >/dev/null
+out=$(printf '%s\n' \
+	'@@ a.go 2 replace anchor="func A"' \
+	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
+want 3 "$rc" "failing check is exit 3"
+last=$(printf '%s\n' "$out" | grep -n 'check last: unique-last-error-line' | head -1 | cut -d: -f1)
+full=$(printf '%s\n' "$out" | grep -n 'full output:' | head -1 | cut -d: -f1)
+[ -n "$last" ] && [ -n "$full" ] && [ "$last" -lt "$full" ] \
+	&& ok "check last: sits above full output:" || bad "check last order: $out"
+
+R=$(mktemp -d "$WORK/r104b-XXXXXX")
+printf '%s\n' '{"check":"true"}' > "$R/.quality-harness.json"
+printf 'package a\nfunc A() {}\n' > "$R/a.go"
+m read a.go >/dev/null
+out=$(printf '%s\n' \
+	'@@ a.go 2 replace anchor="func A"' \
+	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
+want 0 "$rc" "passing check is exit 0"
+echo "$out" | grep -q 'check last:' \
+	&& bad "PASS printed check last: $out" || ok "PASS has no check last:"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

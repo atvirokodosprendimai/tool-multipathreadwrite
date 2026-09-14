@@ -377,7 +377,7 @@ func tools() []tool {
 							"unlink takes address `-` and no body. Among line-range ops, ONLY delete may carry no body: an empty file is `@@ new.txt 0 " +
 							"create body=0`, and a bare create with nothing under it is " +
 							"refused, because a lost body reads exactly like one never " +
-							"written. An address " +
+							"written. body=@path loads the body from a root-relative file. An address " +
 							"is a line number, an N-M range, A,+N (the line A plus the N lines " +
 							"after it, refused if it runs past the last line), $ for the last " +
 							"line, or a pattern — " +

@@ -789,6 +789,10 @@ single-quoted (anchor='func openTestStore'), or — for anchor= only — left
 unquoted until the next key= (anchor=func openTestStore body=1).
 body= is a line count, not a character count. Python str splits characters;
 do not use len(body) as body=.
+body=@path loads the body from a root-relative file (an empty file is the
+same as body=0). An unquoted anchor= that contains a double quote is refused;
+write it as anchor="…". A leftover body= names the declared count and how
+many extra lines sat before the next @@.
 lines= is a guard on how many lines the ADDRESS covers, and is not body=.
 
 The checkout is named by global -C DIR or --root DIR before the subcommand
@@ -961,6 +965,15 @@ held or went unchecked.`,
 			}
 
 			root := cmd.Root().String("root")
+			if err := plan.LoadBodyFiles(root, hunks); err != nil {
+				_ = authoring.Record(root, authoring.RefusedParse)
+				return cli.Exit(fmt.Sprintf("%s: %v", name, err), 2)
+			}
+			if cmd.Bool("dry-run") && !cmd.Bool("json") {
+				for _, h := range hunks {
+					fmt.Fprintf(os.Stdout, "parsed: %s %s %s body=%d\n", h.Path, h.Addr.String(), h.Op, len(h.Body))
+				}
+			}
 			set, err := iter.Load(root)
 			if err != nil {
 				return cli.Exit(err, exitUsage)
@@ -1393,6 +1406,14 @@ func reportCheck(w *os.File, r *check.Result) {
 	}
 	for _, l := range r.Tail {
 		fmt.Fprintf(out, "  | %s\n", l)
+	}
+	if !r.OK() {
+		for i := len(r.Tail) - 1; i >= 0; i-- {
+			if strings.TrimSpace(r.Tail[i]) != "" {
+				fmt.Fprintf(out, "check last: %s\n", r.Tail[i])
+				break
+			}
+		}
 	}
 	verdict := "PASS"
 	if !r.OK() {
