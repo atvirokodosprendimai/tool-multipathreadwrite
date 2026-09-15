@@ -129,6 +129,8 @@ Measured 2026-09-14 against this record's Decisions, not the code. `internal/adv
 - Found: none.
 - Hand mutants against that suite: 9 killed / 9 (leftover extra count dropped; blanks counted as extra; unquoted `"` accepted; `parsed:` only on `--json`; neighbour note suppressed; `LoadBodyFiles` no-op; `check last:` on PASS not FAIL; one leftover error per extra line; declared N forced to 0). Baseline green, each mutant compiled, restore verified against a pre-sweep copy.
 
+Re-measured 2026-09-15 after T6/T7 (`body=@` on replace/insert, and the curve scorer). Same 12 seeds × `TestRandomBodyAtPathMatchesTheFileOracle` (now create+replace+insert) and `TestADR060BinaryMatrixMatchesTheExitCodeOracle` (replace `body=@` when the file is non-empty). Found: none. Hand mutants 10 killed / 10 (always-refuse empty; never-refuse empty; insert ignores `BodyFile`; `LoadBodyFiles` no-op; curve skips load; curve swallows load error; CLI skips load; `CountedBody` instead of `BodyFile`; replace ignores `BodyFile`; rooted refusal drops the path). Baseline green, restore via `git checkout --`.
+
 ## Follow-ups
 
 - [ ] Close inbox drawer `23c3061…` after ship (T5).
