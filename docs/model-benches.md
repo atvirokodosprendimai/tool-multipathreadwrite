@@ -101,6 +101,21 @@ and a test reads the written bytes to keep it that way. Nothing is ever
 transmitted; it lives beside the ledger in the directory `mrw seen` names, and
 this command is the only reader.
 
+### The second reading — 2026-09-15, same population, larger sample
+
+Taken on this checkout, from `mrw stats` (not `--reset`):
+
+    applied         314 of 343 plan(s) (91.5%)
+    refused_parse     4 of 343 plan(s) (1.2%)
+    refused_apply    23 of 343 plan(s) (6.7%)
+    check_not_run     0 of 343 plan(s) (0.0%)
+    failed_check      2 of 343 plan(s) (0.6%)
+
+**`refused_parse` is 1.2% of 343 recorded outcomes.** ADR-009's 5% criterion
+held. A fall from 1.5% of 68 is not "the format improved": the sample grew in
+the same repository, same family of callers. `refused_apply` at 6.7% is the
+caller's picture of the tree, not the document. The caveats above still apply.
+
 ## Does serving more hurt? — the served-size curve
 
 The DEFAULT `MaxResultChars` is 200,000, and `mrw mcp --max-result-chars N`

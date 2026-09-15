@@ -4,7 +4,7 @@ Read many ranges across many files, and apply many edits across them, in one
 invocation — and get a verdict for every edit. A failed hunk writes nothing,
 because a write that changed nothing is invisible.
 
-The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
+The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). The six-guarantee comparison lives in [docs/comparison.md](docs/comparison.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
 
 **Status: stable at v1.21.0 (2026-09-15), the tag cut from `fb40ec1`.** Break campaign for it: [docs/break/campaign-v1.21.0.txt](docs/break/campaign-v1.21.0.txt), 55 probes, exit codes identical to v1.20.1.
 
