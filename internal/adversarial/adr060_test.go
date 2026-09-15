@@ -33,9 +33,10 @@ import (
 // Op pool (v2), measured 2026-09-14:
 //   grep -E 'Op[A-Za-z]+ +Op = "' internal/plan/plan.go | sort -u
 //   → 7: replace, insert-after, insert-before, delete, create, unlink, rename
-// Leftover/body=@ headers use replace and create (ops that take a counted
-// body). The other five sit in the trailing hunk when leftover extra is 0, so
-// a clean counted body still parses beside every native op.
+// Leftover headers use replace and create. body=@ headers now use replace,
+// insert-after, insert-before and create (T7: those ops parse with BodyFile).
+// The other ops sit in the trailing hunk when leftover extra is 0, so a
+// clean counted body still parses beside every native op.
 
 var bodyOptRe = regexp.MustCompile(`(?:^|[\t ])body=(\S+)`)
 
@@ -254,18 +255,37 @@ func TestRandomBodyAtPathMatchesTheFileOracle(t *testing.T) {
 		}
 		hunks, err := plan.Parse(strings.NewReader("@@ dest.txt 0 create body=@src.txt\n"))
 		if err != nil {
-			t.Fatalf("seed=%d iter=%d parse: %v", seed, i, err)
+			t.Fatalf("seed=%d iter=%d parse create: %v", seed, i, err)
 		}
 		if err := plan.LoadBodyFiles(root, hunks); err != nil {
-			t.Fatalf("seed=%d iter=%d LoadBodyFiles: %v", seed, i, err)
+			t.Fatalf("seed=%d iter=%d LoadBodyFiles create: %v", seed, i, err)
 		}
 		want := fileLinesOracle(raw)
 		got := hunks[0].Body
 		if strings.Join(got, "\n") != strings.Join(want, "\n") {
-			t.Fatalf("seed=%d iter=%d Body=%q want %q", seed, i, got, want)
+			t.Fatalf("seed=%d iter=%d create Body=%q want %q", seed, i, got, want)
 		}
 		if n == 0 && got != nil && len(got) != 0 {
 			t.Fatalf("seed=%d iter=%d empty file Body=%q want empty", seed, i, got)
+		}
+		// T7: replace/insert body=@ must parse with empty Body at Parse.
+		// Skipping these left the empty-body refuse untested for those ops.
+		for _, hdr := range []string{
+			"@@ dest.txt 1 replace body=@src.txt\n",
+			"@@ dest.txt 1 insert-after body=@src.txt\n",
+			"@@ dest.txt 1 insert-before body=@src.txt\n",
+		} {
+			hunks, err = plan.Parse(strings.NewReader(hdr))
+			if err != nil {
+				t.Fatalf("seed=%d iter=%d parse %q: %v", seed, i, hdr, err)
+			}
+			if err := plan.LoadBodyFiles(root, hunks); err != nil {
+				t.Fatalf("seed=%d iter=%d LoadBodyFiles %q: %v", seed, i, hdr, err)
+			}
+			got = hunks[0].Body
+			if strings.Join(got, "\n") != strings.Join(want, "\n") {
+				t.Fatalf("seed=%d iter=%d %q Body=%q want %q", seed, i, hdr, got, want)
+			}
 		}
 	}
 
@@ -410,6 +430,25 @@ func adr060BodyAtPathBinary(t *testing.T, label, state string, r *rand.Rand) {
 	body := "alpha\nbeta\n"
 	if r.Intn(3) == 0 {
 		body = ""
+	}
+	if body != "" && r.Intn(2) == 0 {
+		root := tree(t, map[string]string{"dest.txt": "old\n", "src.txt": body})
+		if _, code := run(t, state, root, "read", "dest.txt"); code != 0 {
+			t.Fatalf("%s read dest.txt failed", label)
+		}
+		planFile := filepath.Join(t.TempDir(), "p.mrw")
+		if err := os.WriteFile(planFile, []byte("@@ dest.txt 1 replace body=@src.txt\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		out, code := run(t, state, root, "write", "--no-check", planFile)
+		if code != 0 {
+			t.Fatalf("%s body=@ replace exit %d\n%s", label, code, out)
+		}
+		got := readFile(t, root, "dest.txt")
+		if got != body && got != strings.TrimSuffix(body, "\n") {
+			t.Fatalf("%s dest.txt after replace=%q want %q", label, got, body)
+		}
+		return
 	}
 	root := tree(t, map[string]string{"src.txt": body})
 	planFile := filepath.Join(t.TempDir(), "p.mrw")
