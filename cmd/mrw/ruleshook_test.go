@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestThePathScopedRulesHookDeliversOnAnMrwRead is ADR-022's Enforced-by. It
@@ -125,4 +128,85 @@ func hookFromSettings(t *testing.T) string {
 	}
 	t.Fatal("no PostToolUse entry matches exactly Bash|Write|mcp__mrw__mrw_read|mcp__mrw__mrw_write")
 	return ""
+}
+
+// hangingHook copies the wired hook and inserts a 30 s sleep at the start of
+// run(), so a missing wall-clock bound is a hang the test must kill — not a
+// 15-hour regex.
+func hangingHook(t *testing.T) (py, path string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("SIGALRM is not a Windows signal")
+	}
+	py, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 is not on PATH; the hook cannot run here")
+	}
+	src, err := os.ReadFile(hookFromSettings(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mut := strings.Replace(string(src), "def run(data):", "def run(data):\n    import time\n    time.sleep(30)\n", 1)
+	if mut == string(src) {
+		t.Fatal("could not inject a hang: def run(data): not found")
+	}
+	path = filepath.Join(t.TempDir(), "rules-on-read.py")
+	if err := os.WriteFile(path, []byte(mut), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return py, path
+}
+
+func runHangingHook(t *testing.T, timeout time.Duration) (elapsed time.Duration, code int, killed bool) {
+	t.Helper()
+	py, hook := hangingHook(t)
+	proj, home := t.TempDir(), t.TempDir()
+	in, _ := json.Marshal(map[string]any{
+		"hook_event_name": "PostToolUse", "session_id": "s-timeout",
+		"cwd": proj, "tool_name": "Bash",
+		"tool_input": map[string]any{"command": "mrw read x.md:1"},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	c := exec.CommandContext(ctx, py, hook)
+	c.Stdin = strings.NewReader(string(in))
+	c.Env = append(os.Environ(), "CLAUDE_PROJECT_DIR="+proj, "HOME="+home, "XDG_CACHE_HOME="+filepath.Join(home, ".cache"))
+	start := time.Now()
+	err := c.Run()
+	elapsed = time.Since(start)
+	if ctx.Err() == context.DeadlineExceeded {
+		return elapsed, -1, true
+	}
+	if err == nil {
+		return elapsed, 0, false
+	}
+	if ee, ok := err.(*exec.ExitError); ok {
+		return elapsed, ee.ExitCode(), false
+	}
+	t.Fatalf("hook run: %v", err)
+	return 0, -1, false
+}
+
+// TestTheRulesHookReturnsWithinTheWallClockBound: even if matching hangs,
+// main returns within 2 s. The test waits 3 s and fails if it had to kill.
+func TestTheRulesHookReturnsWithinTheWallClockBound(t *testing.T) {
+	elapsed, _, killed := runHangingHook(t, 3*time.Second)
+	if killed {
+		t.Fatalf("the hook was still running at 3 s; want return within 2 s")
+	}
+	if elapsed > 2500*time.Millisecond {
+		t.Fatalf("hook returned after %s, want within 2 s", elapsed)
+	}
+}
+
+// TestTheRulesHookStillExitsZeroAfterTimeout: the bound must not take the
+// turn down (module comment: exit 0 is unconditional).
+func TestTheRulesHookStillExitsZeroAfterTimeout(t *testing.T) {
+	_, code, killed := runHangingHook(t, 3*time.Second)
+	if killed {
+		t.Fatal("the hook was killed by the test; the bound never fired")
+	}
+	if code != 0 {
+		t.Fatalf("timeout exited %d, want 0", code)
+	}
 }

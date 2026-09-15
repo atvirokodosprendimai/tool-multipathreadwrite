@@ -366,6 +366,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		}
 		observed[key] = seen.Observation{SHA: sha, Spans: spans}
 	}
+	englishUnreadables := 0
 	for _, sp := range specs {
 		// An ABSOLUTE path is honoured on this surface, not joined onto the
 		// root. A plan is a document whose paths are relative by design, and
@@ -416,7 +417,11 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		}
 		b, err := os.ReadFile(full)
 		if err != nil {
-			fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, hintUnexpandedGlob(sp.Path))
+			glob := hintUnexpandedGlob(sp.Path)
+			fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
+			if glob == "" && isEnglishWordToken(sp.Path) {
+				englishUnreadables++
+			}
 			problems++
 			continue
 		}
@@ -492,6 +497,9 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		} else {
 			note(sp.Path, sha, served)
 		}
+	}
+	if englishUnreadables >= 2 {
+		fmt.Fprint(w, hintSplitRegexAddress())
 	}
 	return observed, problems
 }
@@ -718,4 +726,22 @@ func hintUnexpandedGlob(path string) string {
 	return "\n    (that path holds a glob your shell did not expand. An address suffix like" +
 		" `:1-3` stops most shells matching, and quoting keeps the star literal." +
 		" Use --grep to walk and serve in one call, or --files-from to pipe a list in.)"
+}
+
+var englishWordToken = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
+
+// isEnglishWordToken reports the shell-split class: a single token with no
+// glob metacharacter. mrw sees arguments, not the shell (ADR-015 D4).
+func isEnglishWordToken(path string) bool {
+	if strings.ContainsAny(path, "*?[") {
+		return false
+	}
+	return englishWordToken.MatchString(path)
+}
+
+// hintSplitRegexAddress is one hint per read invocation when two or more
+// UNREADABLE paths looked like English-word tokens. A single missing nope.go
+// stays silent.
+func hintSplitRegexAddress() string {
+	return "\n    (those paths look like a shell-split regex address. quoting the spec, or --grep, is the fix.)\n"
 }

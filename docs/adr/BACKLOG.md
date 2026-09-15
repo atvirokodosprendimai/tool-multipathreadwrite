@@ -61,7 +61,7 @@ that arms work; silence leaves the row where it is.
 | Honour quality-harness `fenceTimeout` | **ADR-059 Accepted** — alias of `timeout_seconds`; disagreeing keys refuse | *"both"* |
 | leftover `body=` extra count, `--dry-run` parsed hunks, read neighbour hint, unquoted `anchor=` `"`, `body=@path`, check last-error line | **shipped** — ADR-060 | — |
 | Per-extension check skip (`.jsonl` vs Cargo.toml) | **deferred** — ADR-054 / ADR-059; widening prose takes `.toml` | *"per-extension check"* |
-| ast-grep-shaped `--grep` | **deferred** — ADR-051 / ADR-048; planned 2026-09-13 as ADR-058 | *"structural find only"* |
+| ast-grep-shaped `--grep` | **shipped** — ADR-058; Shipped 2026-09-15 as ADR-058 | *"structural find only"* |
 | Playtrix T4 / that paste | **not-this-repo** | — (wing_playtrix) |
 | Other wings' inboxes (quality-harness 28, etc.) | **not-this-repo** | — |
 | Reopen ADR-019 pick B/C or `roots/list` | **not-this-repo** — Accepted A | — |
@@ -1495,16 +1495,15 @@ pointer. None of them is an engine change.
   (`@@ path - unlink` / `@@ old - rename`; `*** Delete File:` / `*** Move to:`
   compile to those hunks). `delete` stays a line-range (ADR-008). Move to
   with extra `@@` hunks is still refused — see From ADR-057.
-- **ast-grep-shaped `--grep`.** Structural find only, and only if it does
-  not become a write-time parser (ADR-048). Arm with *"structural find only"*.
-  Planned 2026-09-13, not executed: next record **ADR-058**. READ path only.
-  A flag beside `--grep` (working name `--ast-grep`) walks the same way,
-  shells out to the `ast-grep` CLI if present, maps hits to line ranges, and
-  serves through existing `read`. Missing binary: exit 2, names `ast-grep`.
-  Apply does not change. License is still served lines, not AST nodes.
-  `--grep` stays regex; the two may disagree on the same token — that is the
-  feature. Rejected: tree-sitter inside apply; replacing regex `--grep`;
-  bundling a per-language parser.
+- **ast-grep-shaped `--grep`.** Shipped 2026-09-15 as ADR-058. Structural
+  find only, and only if it does not become a write-time parser (ADR-048).
+  READ path only. Flag `--ast-grep` (MCP `ast_grep`) beside `--grep` shells
+  out to the `ast-grep` CLI if present, maps hits to line ranges, and serves
+  through existing `read`. Missing binary: exit 2, names `ast-grep`. Apply
+  does not change. License is still served lines, not AST nodes. `--grep`
+  stays regex; the two may disagree on the same token — that is the feature.
+  Rejected: tree-sitter inside apply; replacing regex `--grep`; bundling a
+  per-language parser.
 
 ## From ADR-052 (echo pad is opt-in; a multi-line replace needs a served line after End)
 

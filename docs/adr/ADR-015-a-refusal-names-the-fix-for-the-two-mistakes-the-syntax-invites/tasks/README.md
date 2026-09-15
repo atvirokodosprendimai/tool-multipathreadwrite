@@ -1,7 +1,7 @@
 # ADR-015 Tasks
 
 Implementation tasks for ADR-015: a refusal names the fix, for the two mistakes the syntax invites.
-See the parent ADR for the decision and for the heredoc terminator it refuses.
+See the parent ADR for the decision and for the 2026-09-15 English-word amendment.
 
 **Source of truth:** the task file's headers. This README is a derived index.
 
@@ -10,17 +10,27 @@ See the parent ADR for the decision and for the heredoc terminator it refuses.
 | Order | Task | Depends-on |
 |-------|------|------------|
 | 1 | T1 | none |
-
-One task. The two hints are independent code paths but one idea, one review and one contract row;
-splitting them would triple the ceremony for four lines of Go each.
+| 2 | T2 | none |
 
 ## Task Index
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | Say the escape, on both failure paths | done | — | 4 named `--- PASS:` lines, `# 49.` in `contract.sh`, gofmt + vet, `./scripts/contract.sh` |
+| T2 | English-word UNREADABLE paths name quoting | done | F-2, F-10, F-14, UC1-S1, UC1-S2, UC1-S3 | 3 named `--- PASS:` lines, `# 106.` in `contract.sh`, gofmt + vet |
 
-Status: `pending` | `partial` | `blocked` | `done` | `withdrawn`.
+Status: `pending` | `partial` | `blocked` | `done`.
+
+## Inter-task Contracts
+
+| Contract | Produced by | Consumed by | Breaking? |
+|----------|-------------|----------------|-----------|
+| the two hints and their conditions | T1 | — | No |
+| English-word UNREADABLE hint | T2 | — | No |
+
+## Contract Coupling
+
+None.
 
 ## Notes
 
@@ -53,3 +63,4 @@ Status: `pending` | `partial` | `blocked` | `done` | `withdrawn`.
   `TestAnOrdinaryMissingFileGetsNoGlobHint` existed and passed while the Tests table listed three
   tests and the fence counted three, so `Rests-on: both stay quiet when they should` had only half a
   test bound to it. Caught in review; the table and the fence now count four.
+- T2 does not depend on T1's code path: glob hint and English-word hint are siblings in `read.Run`.

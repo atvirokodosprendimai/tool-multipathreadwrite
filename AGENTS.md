@@ -119,8 +119,9 @@ get a refusal naming the counts instead of a receipt cut past them. And a ceilin
 a write REFUSES THE WRITE, before anything is applied — as a JSON-RPC error, which carries no result
 and so is not itself bound by the ceiling it is reporting on.
 
-`mrw read --grep P` maps onto the `grep` argument, and `--exclude` onto
-`exclude`. When the matches are too large to serve, the tool returns an INDEX —
+`mrw read --grep P` maps onto the `grep` argument, `--ast-grep P` onto
+`ast_grep`, and `--exclude` onto `exclude`. A present `ast-grep` that hangs is
+killed at 2 s (exit 2, names `timed out`). When the matches are too large to serve, the tool returns an INDEX —
 one spec per matching file, no content — which you send back as `specs` to read
 the ones you want. `--files-from` has no MCP equivalent and does not need one:
 it exists to undo shell word-splitting, and `specs` is already a list.

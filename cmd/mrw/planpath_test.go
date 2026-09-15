@@ -303,6 +303,7 @@ func TestTheDocumentedUsageErrorsAreErrors(t *testing.T) {
 		args []string
 	}{
 		{"--exclude without --grep", []string{"--exclude", "*.go"}},
+		{"--grep with --ast-grep", []string{"--grep", "X", "--ast-grep", "X"}},
 		{"--grep with --files-from", []string{"--grep", "X", "--files-from", "-"}},
 		{"--files-from with positional paths", []string{"--files-from", "-", "a.go"}},
 		{"--grep with a positional spec carrying a range", []string{"--grep", "X", "a.go:1-2"}},

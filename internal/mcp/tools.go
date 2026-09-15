@@ -185,6 +185,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// `mrw read --grep` over the wire, calling the same primitive in the
 		// same order the CLI calls it (cmd/mrw/main.go:510).
 		Grep    string   `json:"grep"`
+		AstGrep string   `json:"ast_grep"`
 		Exclude []string `json:"exclude"`
 		// After resumes a paged INDEX. It is the missing half of next_index:
 		// without an argument that accepts it, the index named a continuation
@@ -209,10 +210,13 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// With grep, no spec is required at all — the walk starts at the root, the
 	// way `mrw read --grep P` with no paths does. Without it, a read with
 	// nothing to read is the caller's mistake.
-	if len(a.Specs) == 0 && a.Grep == "" {
+	if a.Grep != "" && a.AstGrep != "" {
+		return errorResult("--grep and --ast-grep are two sources of specs; use one"), nil
+	}
+	if len(a.Specs) == 0 && a.Grep == "" && a.AstGrep == "" {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "mrw_read needs at least one spec"}
 	}
-	if len(a.Exclude) > 0 && a.Grep == "" {
+	if len(a.Exclude) > 0 && a.Grep == "" && a.AstGrep == "" {
 		return errorResult("exclude without grep: there is nothing to exclude from"), nil
 	}
 	// `after` resumes a grep's index, so without one it means nothing. Silently
@@ -232,7 +236,25 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// file matches" — a clean answer about a question nobody asked. With a
 	// valid sibling path the bad one vanished entirely. Found by review of #80.
 	var walkProblems []read.Problem
-	if a.Grep != "" {
+	if a.AstGrep != "" {
+		var err error
+		specs, walkProblems, err = astGrepSpecs(root, a.Specs, a.AstGrep, a.Exclude)
+		if err != nil {
+			return errorResult(err.Error()), nil
+		}
+		walked = true
+		if len(specs) == 0 {
+			report := fmt.Sprintf("no file under the root matches /%s/.", a.AstGrep)
+			for _, p := range walkProblems {
+				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
+			}
+			return readResult(map[string]any{
+				"observed": map[string]seen.Observation{},
+				"problems": len(walkProblems),
+				"matches":  0,
+			}, report, len(walkProblems) > 0)
+		}
+	} else if a.Grep != "" {
 		var err error
 		specs, walkProblems, err = grepSpecs(root, a.Specs, a.Grep, a.Exclude, a.After)
 		if err != nil {
@@ -1209,6 +1231,21 @@ func grepSpecs(root string, paths []string, pattern string, exclude []string, af
 		specs = specs[i:]
 	}
 	return specs, problems, nil
+}
+
+// astGrepSpecs is grepSpecs for --ast-grep: the same refusals, the same
+// primitive the CLI calls. ADR-016: the two surfaces must not disagree.
+func astGrepSpecs(root string, paths []string, pattern string, exclude []string) ([]read.Spec, []read.Problem, error) {
+	for _, p := range paths {
+		sp, err := read.ParseSpec(p)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %v", p, err)
+		}
+		if len(sp.Ranges) > 0 {
+			return nil, nil, fmt.Errorf("%s: a range and ast-grep are two answers to one question", p)
+		}
+	}
+	return read.AstGrep(root, paths, pattern, exclude)
 }
 
 // matchIndex is the answer to a grep whose CONTENT will not fit: the addresses,

@@ -289,10 +289,15 @@ func tools() []tool {
 						"description": "A regexp. Walks the paths in `specs` (or the whole root when they are omitted) and serves every matching range, so you can find files you cannot name. If the matches are too large to serve you get an INDEX instead — one spec per matching file, no content — which you send back as `specs` to read the ones you want. A path in `specs` may not carry a range when this is set: a range and a grep are two answers to one question.",
 						"examples":    []any{"func Serve\\(", "TODO|FIXME"},
 					},
+					"ast_grep": map[string]any{
+						"type":        "string",
+						"description": "A structural pattern for the ast-grep CLI on PATH. Walks like grep, maps hits to line ranges, and serves them through the same read. Missing ast-grep names ast-grep. Do not set grep at the same time: they are two sources of specs.",
+						"examples":    []any{"fmt.Println($A)"},
+					},
 					"exclude": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": "Globs to skip, matched against BOTH the root-relative path and the basename. Only meaningful with `grep`. Note that `*` does not cross a separator, which is why the basename is matched too: \"*_test.go\" against the full path alone matches no test file anywhere below the root.",
+						"description": "Globs to skip, matched against BOTH the root-relative path and the basename. Only meaningful with `grep` or `ast_grep`. Note that `*` does not cross a separator, which is why the basename is matched too: \"*_test.go\" against the full path alone matches no test file anywhere below the root.",
 						"examples":    []any{[]any{"*_test.go", "vendor"}},
 					},
 					"ack": map[string]any{

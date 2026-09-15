@@ -26,7 +26,9 @@ Decisions the record makes and this file keeps:
   is never inside the project; a claim that cannot be filed delivers anyway,
   and a claim whose envelope never reached the harness is withdrawn;
 - exit 0 is unconditional, closed stdout included: a hook must never take
-  the turn down.
+  the turn down;
+- main arms a 2 s SIGALRM (where the platform has one) and _exit(0) if it
+  fires, so a pathological matcher cannot outlive the turn.
 
 An early delivery is never a silence. Every path the hook takes from a call is
 a guess that a file was read — `echo docs/adr/x.md` names the record without
@@ -46,6 +48,7 @@ import json
 import os
 import re
 import shlex
+import signal
 import sys
 import time
 
@@ -73,7 +76,14 @@ _BOM = "\ufeff"
 _STATE_MAX_AGE = 7 * 24 * 3600
 
 
+def _on_alarm(_signum, _frame):
+    os._exit(0)
+
+
 def main():
+    if hasattr(signal, "SIGALRM"):
+        signal.signal(signal.SIGALRM, _on_alarm)
+        signal.alarm(2)
     out, claimed = None, []
     try:
         out, claimed = run(json.loads(sys.stdin.read()))

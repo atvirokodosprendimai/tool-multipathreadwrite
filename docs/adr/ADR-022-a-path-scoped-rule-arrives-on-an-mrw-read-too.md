@@ -4,9 +4,9 @@
 **Accepted:** 2026-09-04 by M — the hook was one of three items flagged as M's call (issue #86, option 3, "project config"); M answered *"fix of course"*. The record exists because the hook keeps persistent state outside the tree and runs on every matching tool call for every clone, which `CONTRIBUTING.md` says needs one.
 **Date:** 2026-09-04
 **Owner:** M
-**Spec:** None — no spec stage
+**Spec:** None — UC-4 of `docs/specs/2026-09-15-find-hint-probe-hook.md` fans across four records; adr-lint coverage is per-record
 **Served-path change:** none to `mrw`. A Claude Code session in THIS repository receives a path-scoped `.claude/rules/*.md` file when a Bash, Write, `mrw_read` or `mrw_write` call touches a file its globs match — where before only the harness's Read tool delivered it.
-**Cross-references:** ADR-004 (owns "nothing is left in the working tree": the hook's only state lives outside it), ADR-001 (owns the plan grammar the hook must read the way `mrw` does), issue #86 (the measurement), PR #84 (the rules this delivers), PR #87 (the sentence this supersedes as the fallback)
+**Cross-references:** ADR-004 (owns "nothing is left in the working tree": the hook's only state lives outside it), ADR-001 (owns the plan grammar the hook must read the way `mrw` does), issue #86 (the measurement), PR #84 (the rules this delivers), PR #87 (the sentence this supersedes as the fallback), `docs/specs/2026-09-15-find-hint-probe-hook.md` (UC-4)
 **Governs:** `.claude/hooks/**`, `.claude/settings.json`
 **Enforced-by:** `cmd/mrw/ruleshook_test.go::TestThePathScopedRulesHookDeliversOnAnMrwRead`
 **Invalidates:** none. #87's "Read one such file first" becomes the fallback when hooks are off, not the rule.
@@ -246,11 +246,12 @@ against expectations written in the same language as the hook.
 | Contract | Produced by | Consumed by | Breaking? |
 |---|---|---|---|
 | the hook, its wiring, and the Enforced-by test | T1 | — | No |
+| 2 s wall-clock bound, still exit 0 | T2 | — | No |
 
 ## Implementation
 
-One task. The reworked hook, the Go test that drives it as the harness does, the strengthened §55,
-and the wording.
+Tasks in `docs/adr/ADR-022-a-path-scoped-rule-arrives-on-an-mrw-read-too/tasks/`.
+T1 shipped the hook and §55. T2 is the 2026-09-15 amendment: any hang, 2 s, still exit 0.
 
 ## Consequences
 
@@ -293,3 +294,16 @@ is the behaviour that remains.
 
 - [ ] If Claude Code starts delivering path-scoped rules on MCP and Bash reads natively, retire this
       record and the hook with it.
+
+## Amendment, 2026-09-15: any hang is bounded at 2 s and still exits 0
+
+**Accepted:** 2026-09-15 by M — *"Implement the plan as specified"*, on the four-leftovers spec.
+
+`seg_match` already replaced a backtracking regex after a 2 s alarm. The remaining class is **any
+hang in `run()`**, not only the matcher. `main` arms `signal.alarm(2)` where the platform has
+SIGALRM; the handler `_exit(0)`. Exit 0 stays unconditional: a hook must never take the turn down.
+Contract **§110**. T2. Windows SIGALRM stays deferred (BACKLOG rules-hook-on-Windows).
+
+## Stress suite
+
+Added 2026-09-15 after execute. Oracle is this amendment: 2 s, still exit 0, alarm before matching. `cmd/mrw/leftovers_stress_test.go` asserts `signal.alarm(2)` precedes `run(json.loads` and `_on_alarm` calls `os._exit(0)`; a 30 s sleep injected into `seg_match` still returns within 3 s at exit 0. The existing T2 tests hang `run()` itself. Windows SIGALRM remains a skip, not a pass.
