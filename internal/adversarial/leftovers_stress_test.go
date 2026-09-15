@@ -21,9 +21,9 @@ import (
 // hit are the UC-2 outcomes. Oracle is ADR-058 Decision 1–2 plus the pre-
 // existing two-source table, not the switch in main.go.
 //
-// Left out on purpose: a hanging ast-grep on PATH. The record does not bound
-// that subprocess; encoding today's lack of a timeout as a promise would go
-// red if anyone added one.
+// A hanging ast-grep on PATH is bounded by ADR-058 Decision 5 / T3
+// (cmd/mrw/astgrep_timeout_test.go, contract §111). This matrix still
+// does not spawn a sleeper: that is a different fixture.
 
 var (
 	fakeAstOnce sync.Once

@@ -220,11 +220,11 @@ spec-verify --implemented docs/specs/2026-09-15-find-hint-probe-hook.md
 Added after execute, 2026-09-15. Oracles from this spec (F-2, F-10, F-12, F-14, ADR-058 D1–D2, UC-4), never from the implementation. Named attacks are the shapes a shell, a hostile PATH binary, or a hanging matcher would use to make a green look like coverage.
 
 - `internal/read/leftovers_stress_test.go` — F-10 token iff the spec regex; 400 random argv mixes against an independent English-count; JSON mapper never panics; 0-based line 0 serves line 1 and line 1 serves line 2 (the +1 drop survived the line-0 fixture because of the `< 1` clamp); `{}` is not zero hits; a `../` hit is a Problem; Walk's source still names no ast-grep.
-- `internal/adversarial/leftovers_stress_test.go` — built-binary matrix over the two-source table (`rg 'two sources of specs|two answers|exclude without'`). A hanging `ast-grep` on PATH is not this record's promise.
+- `internal/adversarial/leftovers_stress_test.go` — built-binary matrix over the two-source table (`rg 'two sources of specs|two answers|exclude without'`). A hanging `ast-grep` is ADR-058 Decision 5 (T3, §111); this matrix still does not spawn a sleeper.
 - `cmd/mrw/leftovers_stress_test.go` — `--files-from`+`--ast-grep`; `--exclude` with `--ast-grep`; range+finder; exit 1 plus `[]`; alarm armed before `run`; hang in `seg_match` still exits 0.
 - `internal/mcp/leftovers_stress_test.go` — MCP `specs` of English-word fragments; range+`ast_grep`; instructions name `ast_grep` not `--ast-grep`.
 
-Arm 3 does not bound a hanging `ast-grep` subprocess. Encoding that gap as a pass would go red if anyone added a timeout.
+Arm 3's hanging-subprocess gap is closed by ADR-058 Decision 5. This stress arm still does not spawn a sleeper.
 
 ## Grill Log (appendix)
 

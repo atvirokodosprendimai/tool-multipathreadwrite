@@ -5886,6 +5886,27 @@ want 0 "$rc" "a hanging matcher still exits 0"
 dur=$((t1 - t0))
 [ "$dur" -le 3 ] && ok "and returns within 3 s (bound is 2 s)" || bad "hook hung ${dur}s"
 
+# 111. ADR-058 T3: a hanging ast-grep on PATH is killed at 2 s.
+# Outer perl alarm is the same idiom §55 uses so a missing bound cannot orphan.
+fixture
+d111=$(mktemp -d)
+printf '%s\n' '#!/bin/sh' 'exec sleep 30' > "$d111/ast-grep"
+chmod +x "$d111/ast-grep"
+t0=$(date +%s)
+out=$(PATH="$d111:$PATH" perl -e 'alarm shift; exec @ARGV' 5 "$MRW" -C "$R" read --ast-grep zzz-absent 2>&1); rc=$?
+t1=$(date +%s)
+want 2 "$rc" "hanging ast-grep is usage"
+grep -q 'timed out' <<<"$out" && ok "and the reason says timed out" || bad "timeout: $out"
+grep -q 'ast-grep' <<<"$out" && ok "and names ast-grep" || bad "timeout name: $out"
+grep -qE 'not found|PATH' <<<"$out" \
+	&& bad "timeout reported as a missing binary: $out" \
+	|| ok "and it is not the missing-binary path"
+grep -q 'no file matched' <<<"$out" \
+	&& bad "timeout reported as zero hits: $out" \
+	|| ok "and it is not zero hits"
+dur=$((t1 - t0))
+[ "$dur" -le 3 ] && ok "and returns within 3 s (bound is 2 s)" || bad "ast-grep hung ${dur}s"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

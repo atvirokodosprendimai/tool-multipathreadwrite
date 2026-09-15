@@ -9,7 +9,7 @@
 **Governs:** `internal/read/**`, `cmd/mrw/main.go`, `internal/mcp/**`, `scripts/contract.sh`
 **Enforced-by:** `cmd/mrw/astgrep_test.go::TestMissingAstGrepIsUsageAndNamesTheBinary`
 **Invalidates:** none — checked. ADR-007's Walk go/no-go still forbids a fifth matching rule inside `Walk`; this is a separate primitive that produces specs `read.Run` already serves.
-**Served-path change:** `mrw read --ast-grep PATTERN` (MCP `ast_grep`) finds by structure through the `ast-grep` CLI on PATH, maps hits to line ranges, and serves them through existing `read`; missing binary is exit 2 and names `ast-grep`.
+**Served-path change:** `mrw read --ast-grep PATTERN` (MCP `ast_grep`) finds by structure through the `ast-grep` CLI on PATH, maps hits to line ranges, and serves them through existing `read`; missing binary is exit 2 and names `ast-grep`; a hang is killed at 2 s (exit 2, names `timed out`).
 
 ## Context
 
@@ -36,6 +36,10 @@ Class enumerated 2026-09-15: every finder that turns a pattern plus paths into `
 
 **4. Surfaces must not disagree (ADR-016).** MCP calls the same `read.AstGrep`. Missing binary names `ast-grep` on both. Two finders are two sources on both.
 
+**5. A hanging `ast-grep` is bounded at 2 s.** Same failure class as the PostToolUse hook (Decision of ADR-022 T2): a child on PATH must not outlive the turn. `LookPath` hit, then `exec.CommandContext` with a 2 s deadline. Deadline: exit 2, reason names `ast-grep` and `timed out`, not the missing-binary path, not zero hits. Contract **§111**. T3.
+
+Class enumerated 2026-09-15: PATH binaries mrw shells out to on the served read path. Command: `rg -n 'exec.Command\\("' --type go` in production (`internal/` `cmd/mrw/`, tests excluded). One member: `read.AstGrep`. Left out: `internal/check` already uses `CommandContext` (ADR-003 / ADR-059); the hook uses SIGALRM (ADR-022).
+
 ## Alternatives Considered
 
 - **A fifth matching rule inside `Walk`** — rejected: ADR-007 go/no-go. Separate primitive.
@@ -54,14 +58,15 @@ Inherited from spec §Contracts Touched; delta:
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
 | `mrw read --ast-grep` / MCP `ast_grep` | new finder | `read.AstGrep` | CLI and MCP readers |
-| `scripts/contract.sh` | §107–§109 | T2 | CI Linux |
+| `scripts/contract.sh` | §107–§109, §111 | T2, T3 | CI Linux |
 
 ## Inter-task Contracts
 
 | Contract | Producing task | Consuming task(s) | Breaking? |
 |----------|----------------|-------------------|-----------|
-| `read.AstGrep` + CLI `--ast-grep` | T1 | T2 | No |
+| `read.AstGrep` + CLI `--ast-grep` | T1 | T2, T3 | No |
 | MCP `ast_grep` | T1 | T2 | No |
+| hanging ast-grep times out (Decision 5) | T3 | — | No |
 
 ## Implementation
 
@@ -81,6 +86,12 @@ Inherited from spec §Non-Goals; delta: none.
 - Replacing regex `--grep`; bundling `ast-grep` (permanent: boundary: disagreement is the feature)
 - Apply/plan/seen/check/state edits (permanent: boundary: engine go/no-go)
 
+## Amendment, 2026-09-15: a hanging ast-grep is bounded at 2 s
+
+**Accepted:** 2026-09-15 by M — *"fix that 'a hanging ast-grep on PATH has no timeout'"*, after the leftovers stress suite named the gap.
+
+The 2026-09-15 stress suite recorded that a hanging `ast-grep` on PATH was not this record's promise, because encoding the gap as a pass would go red the moment anyone added a bound. The bound is now the promise: 2 s, exit 2, names `timed out`. A present binary that finishes inside the bound is unchanged (zero hits stay exit 1; hits still serve).
+
 ## Risks
 
 Inherited from spec §Risks; delta:
@@ -98,4 +109,4 @@ Revert. `--ast-grep` disappears; `--grep` is unchanged.
 
 ## Stress suite
 
-Added 2026-09-15 after execute. Oracle is Decision 1–2, not the `astSet` switch. `internal/read/leftovers_stress_test.go` maps 0-based JSON independently; a JSON object is not zero hits; a `../` hit is a Problem; Walk still has no ast-grep branch. `internal/adversarial/leftovers_stress_test.go` drives the built binary through a random flag matrix whose pool was grepped from `cmd/mrw/main.go` (`two sources of specs`, `two answers`, `exclude without`). `cmd/mrw/leftovers_stress_test.go` pins `--files-from`+`--ast-grep`, `--exclude` with `--ast-grep`, and exit 1 plus `[]`. A hanging `ast-grep` on PATH is not this record's promise.
+Added 2026-09-15 after execute. Oracle is Decision 1–2, not the `astSet` switch. `internal/read/leftovers_stress_test.go` maps 0-based JSON independently; a JSON object is not zero hits; a `../` hit is a Problem; Walk still has no ast-grep branch. `internal/adversarial/leftovers_stress_test.go` drives the built binary through a random flag matrix whose pool was grepped from `cmd/mrw/main.go` (`two sources of specs`, `two answers`, `exclude without`). `cmd/mrw/leftovers_stress_test.go` pins `--files-from`+`--ast-grep`, `--exclude` with `--ast-grep`, and exit 1 plus `[]`. Decision 5 / T3: a hanging `ast-grep` is bounded; `cmd/mrw/astgrep_timeout_test.go` is the named kill.

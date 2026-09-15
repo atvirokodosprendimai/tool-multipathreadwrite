@@ -74,7 +74,7 @@ rg -l 'func Handle' | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 | `-C N` | context around a single-pattern match |
 | `--max-lines N` | cap per spec; `0` means zero. Omit the flag for no cap |
 | `--grep PATTERN` | serve every regexp match under the given paths |
-| `--ast-grep PATTERN` | serve every `ast-grep` hit (binary on PATH; missing is exit 2) |
+| `--ast-grep PATTERN` | serve every `ast-grep` hit (binary on PATH; missing is exit 2; a hang is killed at 2 s) |
 | `--exclude GLOB` | skip matching paths (needs `--grep` or `--ast-grep`) |
 | `--files-from FILE\|-` | one spec per line |
 

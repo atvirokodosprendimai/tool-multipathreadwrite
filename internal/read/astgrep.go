@@ -1,6 +1,7 @@
 package read
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
@@ -18,6 +20,13 @@ import (
 // not. Callers print this at exit 2. A present binary with zero hits is a
 // different error and must not wrap this sentinel.
 var ErrAstGrepMissing = errors.New("ast-grep: not found on PATH")
+
+// ErrAstGrepTimeout is a present binary that did not return within
+// astGrepTimeout. Callers print this at exit 2. It must not wrap
+// ErrAstGrepMissing, and it must not look like zero hits.
+var ErrAstGrepTimeout = errors.New("ast-grep: timed out")
+
+const astGrepTimeout = 2 * time.Second
 
 // astGrepHit is the slice of ast-grep --json this mapper needs. Lines are
 // 0-based, the way the CLI documents them.
@@ -62,9 +71,14 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	} else {
 		args = append(args, paths...)
 	}
-	cmd := exec.Command("ast-grep", args...)
+	ctx, cancel := context.WithTimeout(context.Background(), astGrepTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "ast-grep", args...)
 	cmd.Dir = absRoot
 	out, cmdErr := cmd.Output()
+	if ctx.Err() == context.DeadlineExceeded {
+		return nil, nil, ErrAstGrepTimeout
+	}
 	hits, parseErr := parseAstGrepJSON(out)
 	if parseErr != nil {
 		if cmdErr != nil {
