@@ -5822,6 +5822,70 @@ want 2 "$rc" "empty replace without body=@ is still exit 2"
 echo "$out" | grep -q 'would delete' \
 	&& ok "empty replace still names delete" || bad "empty replace: $out"
 
+# 106. ADR-015 T2: several English-word UNREADABLE paths name quoting; one miss stays silent.
+fixture
+out=$(m read rules that will 2>&1); rc=$?
+want 1 "$rc" "three English-word misses exit 1"
+n=$(grep -c UNREADABLE <<<"$out")
+[ "$n" = 3 ] && ok "three UNREADABLE reports" || bad "UNREADABLE count $n: $out"
+grep -q quot <<<"$out" && grep -q -- '--grep' <<<"$out" \
+	&& ok "and the hint names quoting and --grep" || bad "English-word hint: $out"
+grep -q 'glob your shell did not expand' <<<"$out" \
+	&& bad "glob hint fired on English-word paths: $out" \
+	|| ok "and it is not the glob hint"
+
+out=$(m read nope.go 2>&1)
+grep -q quot <<<"$out" \
+	&& bad "a single missing nope.go got the English-word hint: $out" \
+	|| ok "a single missing nope.go stays silent"
+
+# 107. ADR-058: missing ast-grep is exit 2 and names the binary, not an unknown flag.
+fixture
+empty=$(mktemp -d)
+out=$(PATH="$empty" m read --ast-grep 'fmt.Println' 2>&1); rc=$?
+want 2 "$rc" "missing ast-grep is usage"
+grep -q 'ast-grep' <<<"$out" && ok "and the reason names ast-grep" || bad "missing binary: $out"
+grep -qE 'flag provided|unknown flag' <<<"$out" \
+	&& bad "missing binary looks like an unknown flag: $out" \
+	|| ok "and it is not an unknown-flag refusal"
+
+# 108. ADR-058: --grep and --ast-grep together are two sources of specs.
+fixture
+out=$(m read --grep package --ast-grep 'fmt.Println' 2>&1); rc=$?
+want 2 "$rc" "grep plus ast-grep is usage"
+grep -q 'two sources' <<<"$out" && ok "and the refusal says two sources" || bad "two sources: $out"
+
+# 109. ADR-058: a present ast-grep with zero hits names the pattern, not PATH.
+fixture
+d=$(mktemp -d)
+printf '#!/bin/sh\necho []\n' > "$d/ast-grep"
+chmod +x "$d/ast-grep"
+out=$(PATH="$d" m read --ast-grep zzz-absent 2>&1); rc=$?
+want 1 "$rc" "zero ast-grep hits exit 1"
+grep -q zzz-absent <<<"$out" && ok "and the reason names the pattern" || bad "zero hits: $out"
+grep -qE 'not found|PATH' <<<"$out" \
+	&& bad "zero hits reported as a missing binary: $out" \
+	|| ok "and it is not the missing-binary path"
+
+# 110. ADR-022 T2: the hook's own 2 s wall-clock bound still exits 0.
+# Outer perl alarm is the same idiom §55 uses so a missing bound cannot orphan.
+HANG110=$(mktemp)
+python3 -c '
+import pathlib, sys
+src = pathlib.Path(sys.argv[1]).read_text()
+mut = src.replace("def run(data):", "def run(data):\n    import time\n    time.sleep(30)\n", 1)
+assert mut != src, "could not inject hang"
+pathlib.Path(sys.argv[2]).write_text(mut)
+' "$PWD/.claude/hooks/rules-on-read.py" "$HANG110"
+t0=$(date +%s)
+printf '%s\n' '{"hook_event_name":"PostToolUse","session_id":"s110","cwd":"/tmp","tool_name":"Bash","tool_input":{"command":"mrw read x.md:1"}}' \
+	| perl -e 'alarm shift; exec @ARGV' 5 python3 "$HANG110" >/dev/null 2>/dev/null
+rc=$?
+t1=$(date +%s)
+want 0 "$rc" "a hanging matcher still exits 0"
+dur=$((t1 - t0))
+[ "$dur" -le 3 ] && ok "and returns within 3 s (bound is 2 s)" || bad "hook hung ${dur}s"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

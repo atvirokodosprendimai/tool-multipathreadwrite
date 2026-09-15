@@ -5,7 +5,7 @@
 **Estimated scope:** M (three source files, three test files, one contract section, two wording sites)
 **Owner:** unassigned
 **Produces:** `mrw_read` results with no `structuredContent` and no declared `outputSchema`; the receipt at `content[1]`
-**Consumes:** `result()`, `pagedResult()`, `indexResult()` and `tools()` in `internal/mcp` (ADR-011 T2, ADR-014, ADR-017)
+**Consumes:** `result()`, `pagedResult()`, `indexResult()` and `tools()` in `internal/mcp` (ADR-011 envelope task, ADR-014, ADR-017)
 **Data dependency:** hermetic for the fence; the sign-off run needs Claude Code on PATH (see S6)
 **Proof map:** v1
 **Rests-on:** `a served read carries no structuredContent`, `a page and an index carry none either`, `mrw_read declares no outputSchema while mrw_write still does`, `content[1] is still the receipt`

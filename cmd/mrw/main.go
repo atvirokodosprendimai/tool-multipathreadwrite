@@ -565,6 +565,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "grep",
 				Usage: "serve every range matching `PATTERN` in the files under the given paths (a directory is walked)",
 			},
+			&cli.StringFlag{
+				Name:  "ast-grep",
+				Usage: "serve every range `ast-grep` reports for `PATTERN` in the files under the given paths (a directory is walked). The binary must be on PATH",
+			},
 			&cli.StringSliceFlag{
 				Name:  "exclude",
 				Usage: "skip paths matching `GLOB`, matched against the root-relative path AND the basename (repeatable)",
@@ -608,8 +612,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// `--grep ""` read the working set instead of walking --root.
 			// Found by an independent review, 2026-09-03.
 			grepSet := cmd.IsSet("grep")
+			astSet := cmd.IsSet("ast-grep")
 			filesFromSet := cmd.IsSet("files-from")
 			pattern := cmd.String("grep")
+			astPattern := cmd.String("ast-grep")
 			excludes := cmd.StringSlice("exclude")
 			filesFrom := cmd.String("files-from")
 			posArgs := cmd.Args().Slice()
@@ -623,8 +629,14 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				return cli.Exit("--files-from needs a FILE or -", exitUsage)
 			}
 
-			if len(excludes) > 0 && !grepSet {
+			if len(excludes) > 0 && !grepSet && !astSet {
 				return cli.Exit("--exclude without --grep: there is nothing to exclude from", exitUsage)
+			}
+			if grepSet && astSet {
+				return cli.Exit("--grep and --ast-grep are two sources of specs; use one", exitUsage)
+			}
+			if astSet && filesFromSet {
+				return cli.Exit("--ast-grep and --files-from are two sources of specs; use one", exitUsage)
 			}
 			if grepSet && filesFromSet {
 				return cli.Exit("--grep and --files-from are two sources of specs; use one", exitUsage)
@@ -645,6 +657,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			var (
 				specs    []read.Spec
 				refusals []read.Problem
+				err      error
 			)
 
 			// Working-set pointers resolve here too. The ADR's precedence
@@ -677,15 +690,32 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 						return cli.Exit(fmt.Sprintf("%s: a range and --grep are two answers to one question", a), exitUsage)
 					}
 				}
-				re, err := regexp.Compile(pattern)
-				if err != nil {
-					return cli.Exit(fmt.Sprintf("--grep %q: %v", pattern, err), exitUsage)
+				re, compileErr := regexp.Compile(pattern)
+				if compileErr != nil {
+					return cli.Exit(fmt.Sprintf("--grep %q: %v", pattern, compileErr), exitUsage)
 				}
 				// Walk starts at the root when given no paths. The working set
 				// is deliberately NOT consulted: iter holds read specs and
 				// --grep supplies its own, so a caller who wants both writes
 				// them out (mrw read --grep P @1 @2).
 				specs, refusals, err = read.Walk(root, posArgs, read.WalkOptions{Pattern: re, Exclude: excludes})
+				if err != nil {
+					return cli.Exit(err, exitUsage)
+				}
+			case astSet:
+				for _, a := range posArgs {
+					sp, err := read.ParseSpec(a)
+					if err != nil {
+						return cli.Exit(err, exitUsage)
+					}
+					if len(sp.Ranges) > 0 {
+						return cli.Exit(fmt.Sprintf("%s: a range and --ast-grep are two answers to one question", a), exitUsage)
+					}
+				}
+				specs, refusals, err = read.AstGrep(root, posArgs, astPattern, excludes)
+				if errors.Is(err, read.ErrAstGrepMissing) {
+					return cli.Exit(err.Error(), exitUsage)
+				}
 				if err != nil {
 					return cli.Exit(err, exitUsage)
 				}
@@ -741,6 +771,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if grepSet && len(specs) == 0 {
 				out.Flush()
 				return cli.Exit(fmt.Sprintf("no file matched /%s/", pattern), 1)
+			}
+			if astSet && len(specs) == 0 {
+				out.Flush()
+				return cli.Exit(fmt.Sprintf("no file matched /%s/", astPattern), 1)
 			}
 
 			observed, problems := read.Run(out, root, specs, read.Options{

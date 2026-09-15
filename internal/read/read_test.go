@@ -907,3 +907,83 @@ func TestReadHintsAMultiLineReplaceNeedsTheNextLine(t *testing.T) {
 		}
 	})
 }
+
+// The tests below sit AFTER the `// */` closer so spec-verify's Go masker can
+// see them. A raw string that never closes above that closer swallows every
+// earlier Test* (hasher UNPROVEN; do not delete the closer).
+
+func TestAGlobUnreadablePathNamesTheGlobEscape(t *testing.T) {
+	TestAGlobThatTheShellDidNotExpandSaysSo(t)
+}
+
+// TestSeveralEnglishWordUnreadablePathsNameQuoting is the shell-split class
+// ADR-015's glob hint does not cover: consecutive UNREADABLE paths that look
+// like English words, which is what an unquoted regex address becomes after
+// the shell splits it. mrw never sees the original spec.
+func TestSeveralEnglishWordUnreadablePathsNameQuoting(t *testing.T) {
+	root := t.TempDir()
+	var specs []Spec
+	for _, p := range []string{"rules", "that", "will"} {
+		sp, err := ParseSpec(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		specs = append(specs, sp)
+	}
+	var b strings.Builder
+	Run(&b, root, specs, Options{})
+	got := b.String()
+	if n := strings.Count(got, "UNREADABLE"); n != 3 {
+		t.Fatalf("want 3 UNREADABLE reports, got %d:\n%s", n, got)
+	}
+	if !strings.Contains(got, "quot") {
+		t.Errorf("the report never mentions quoting, so a caller reads N missing files:\n%s", got)
+	}
+	if !strings.Contains(got, "--grep") {
+		t.Errorf("the report never mentions --grep:\n%s", got)
+	}
+	if strings.Contains(got, "glob your shell did not expand") {
+		t.Errorf("the glob hint fired on English-word paths:\n%s", got)
+	}
+}
+
+// TestAnOrdinaryMissingFileGetsNoEnglishWordHint is the silence sibling of
+// TestAnOrdinaryMissingFileGetsNoGlobHint: one missing nope.go is still just
+// missing, even after the English-word hint exists.
+func TestAnOrdinaryMissingFileGetsNoEnglishWordHint(t *testing.T) {
+	root := t.TempDir()
+	var b strings.Builder
+	sp, err := ParseSpec("nope.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	Run(&b, root, []Spec{sp}, Options{})
+	got := b.String()
+	if !strings.Contains(got, "UNREADABLE") {
+		t.Fatalf("expected an unreadable report, got:\n%s", got)
+	}
+	if strings.Contains(got, "quot") {
+		t.Errorf("the English-word hint fired for a single missing file:\n%s", got)
+	}
+}
+
+// TestAGlobPathKeepsTheGlobHintNotTheEnglishWordHint: a *?[ path keeps D4's
+// glob wording. Two English-word siblings in the same invocation do not rewrite
+// it.
+func TestAGlobPathKeepsTheGlobHintNotTheEnglishWordHint(t *testing.T) {
+	root := t.TempDir()
+	var specs []Spec
+	for _, p := range []string{"rules", "that", "sub/*.go:1-3"} {
+		sp, err := ParseSpec(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		specs = append(specs, sp)
+	}
+	var b strings.Builder
+	Run(&b, root, specs, Options{})
+	got := b.String()
+	if !strings.Contains(got, "glob your shell did not expand") {
+		t.Errorf("the glob hint was lost when English-word paths sat beside it:\n%s", got)
+	}
+}

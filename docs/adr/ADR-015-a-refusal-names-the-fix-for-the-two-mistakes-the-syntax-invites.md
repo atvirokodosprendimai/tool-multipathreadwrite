@@ -4,8 +4,8 @@
 **Accepted:** 2026-09-04 by M — *"good, solve the remaining things"*, given after the six defects were enumerated and D1–D3 were recorded. These are D4 and D5, the two that were classed cheap.
 **Date:** 2026-09-04
 **Owner:** M
-**Spec:** None — no spec stage
-**Cross-references:** ADR-001 (owns the plan grammar and the `body=`/`raw=` escape this points at), ADR-007 (owns the read whose path error this improves), ADR-013 (also governs `internal/plan`, for addressing rather than diagnostics)
+**Spec:** None — UC-1 of `docs/specs/2026-09-15-find-hint-probe-hook.md` fans across four records; adr-lint coverage is per-record
+**Cross-references:** ADR-001 (owns the plan grammar and the `body=`/`raw=` escape this points at), ADR-007 (owns the read whose path error this improves), ADR-013 (also governs `internal/plan`, for addressing rather than diagnostics), `docs/specs/2026-09-15-find-hint-probe-hook.md` (UC-1)
 **Governs:** `internal/plan/**`, `internal/read/**`
 **Enforced-by:** `internal/plan/plan_test.go::TestABodyLineThatLooksLikeAHeaderSaysSo`
 **Invalidates:** none — checked. Neither the grammar nor the read syntax changes; only what mrw says when a caller gets them wrong. ADR-013 governs `internal/plan` for addressing and is untouched: no address form gains or loses meaning here.
@@ -119,6 +119,7 @@ on the failure paths.
 |---|---|---|
 | A parse error may carry a `body=`/`raw=` hint | Public contract, additive text | Anyone reading a parse error |
 | An UNREADABLE line may carry a glob hint | Public contract, additive text | Anyone reading a read report |
+| Several English-word UNREADABLE paths may carry a quoting hint | Public contract, additive text (2026-09-15) | Anyone reading a read report |
 | No input's meaning changes | — | — |
 
 ## Inter-task Contracts
@@ -126,11 +127,12 @@ on the failure paths.
 | Contract | Produced by | Consumed by | Breaking? |
 |---|---|---|---|
 | the two hints and their conditions | T1 | — | No — additive text |
+| English-word UNREADABLE hint (Decision 4) | T2 | — | No — additive text |
 
 ## Implementation
 
-One task. The two hints are independent code paths but one idea, one review, and one contract row;
-splitting them would triple the ceremony for four lines of Go each.
+Tasks in `docs/adr/ADR-015-a-refusal-names-the-fix-for-the-two-mistakes-the-syntax-invites/tasks/`.
+T1 shipped the glob and body-line hints. T2 is the 2026-09-15 amendment: the English-word class.
 
 ## Consequences
 
@@ -166,3 +168,19 @@ their presence.
 
 - [ ] If the body-line hint proves insufficient — if callers still lose time to `@@` in a body —
       revisit the heredoc terminator with that as the evidence
+
+## Amendment, 2026-09-15: the shell-split class names quoting
+
+**Accepted:** 2026-09-15 by M — *"Implement the plan as specified"*, on the four-leftovers spec.
+
+Decision 2 covered an UNREADABLE path holding `*?[`. The remaining class is **several consecutive
+UNREADABLE fragments that look like English words**, produced when the shell splits an unquoted
+regex address. mrw still sees arguments, not the shell (Decision 2 / D4 ethos).
+
+**4. Two or more such paths in one `read` add one hint naming quoting and `--grep`.** A single
+missing `nope.go` stays silent. A `*?[` path keeps Decision 2's glob wording. Additive text on
+paths that already failed. Contract **§106**. T2.
+
+## Stress suite
+
+Added 2026-09-15 after execute. Oracle is Decision 4 / spec F-10 (`/^[A-Za-z][A-Za-z0-9_-]*$/`, no `*?[`, floor two UNREADABLE in one `read`), not `isEnglishWordToken`. `internal/read/leftovers_stress_test.go`: token fuzz; 400 random mixes; two dotted misses stay silent; one English plus one glob does not fire the English hint (`quot` is the wrong detector — it also sits in the glob wording); duplicate token still counts twice. MCP twin in `internal/mcp/leftovers_stress_test.go`.

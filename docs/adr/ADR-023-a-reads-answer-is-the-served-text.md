@@ -4,8 +4,8 @@
 **Accepted:** 2026-09-05 by M — *"Ok close these"*, given to the four open items of the served-size curve, under the standing instruction to fix the real defects first; the first open item, the MCP delivery arm, is what found this one.
 **Date:** 2026-09-05
 **Owner:** M
-**Spec:** None — no spec stage
-**Cross-references:** ADR-011 (the record whose T2 declared `outputSchema` and `structuredContent` on both tools; this retires that half for `mrw_read`), ADR-002 (the ledger promise this transport inverted), ADR-010 (the transport), ADR-014 (paged reads — their result shape changes here too), ADR-017 (the index — likewise), ADR-020 (the MCP delivery arm it left open cannot run until this ships), issue #109 (the measurement)
+**Spec:** None — UC-3 of `docs/specs/2026-09-15-find-hint-probe-hook.md` fans across four records; adr-lint coverage is per-record
+**Cross-references:** ADR-011 (the record whose T2 declared `outputSchema` and `structuredContent` on both tools; this retires that half for `mrw_read`), ADR-002 (the ledger promise this transport inverted), ADR-010 (the transport), ADR-014 (paged reads — their result shape changes here too), ADR-017 (the index — likewise), ADR-020 (the MCP delivery arm it left open cannot run until this ships), issue #109 (the measurement), `docs/specs/2026-09-15-find-hint-probe-hook.md` (UC-3)
 **Governs:** `internal/mcp/**`
 **Enforced-by:** `internal/mcp/conformance_test.go::TestAReadResultCarriesNoStructuredContent`
 **Invalidates:** ADR-011 — the clause of its Decision and T2 reading "every declared `outputSchema` validates a REAL response" and "`content[1]` is the serialized `structuredContent`" as they apply to `mrw_read`; `mrw_write` keeps both
@@ -143,13 +143,20 @@ its Verification Log with the Claude Code version it was taken against.
 
 ## Inter-task Contracts
 
-None — one task.
+| Contract | Produced by | Consumed by | Breaking? |
+|---|---|---|---|
+| `mrw_read` results with no `structuredContent` and no declared `outputSchema`; the receipt at `content[1]` | T1 | — | Yes for a caller reading `result.structuredContent` off `mrw_read`; `content[1]` is the same object |
+| Desktop envelope probe recipe on this record's Verification Log | T2 | — | No — docs only; BACKLOG stays not blocking |
 
 ## Implementation
 
-One task, `tasks/T1-the-read-result-drops-its-structured-envelope.md`: the failing tests, the
+T1, `tasks/T1-the-read-result-drops-its-structured-envelope.md`: the failing tests, the
 server change, the conformance and contract rows moved to `content[1]`, the wording, and the `-p`
 sign-off against the real host.
+
+T2, `tasks/T2-desktop-envelope-probe-recipe.md`: file the Desktop envelope probe recipe on this
+record's Verification Log. Human-observed when a session is at hand; an unrun probe is not a miss
+rate.
 
 ## Consequences
 
@@ -192,3 +199,15 @@ the previous binary — through every host except the one this record was measur
       2 KB and 20 KB against the `d6c62e7` build. Staging it also found the neighbouring defect at
       200 KB — the host truncates mrw's page while the ledger records it whole — which is filed in
       `docs/adr/BACKLOG.md` under this record's section and is not fixed here.
+
+## Verification Log
+
+**Desktop envelope probe** (recipe; not yet observed). One Desktop `mrw_read` of a two-line fixture.
+Record whether the model quoted the served line or only the receipt. An unrun probe is not a miss
+rate: BACKLOG "ADR-023: other hosts" stays open and not blocking until that observation lands.
+Reading 12 stays VOID (`docs/curve/reading-12-void.md`). No engine change unless the probe finds a
+defect.
+
+## Stress suite
+
+Added 2026-09-15 after execute. `internal/adversarial/leftovers_stress_test.go` requires the recipe to name the served line versus the receipt, and requires the BACKLOG other-hosts window not to say "miss rate". Arm 3 (binary matrix) does not apply: UC-3 is a human-observed probe, not an engine path.

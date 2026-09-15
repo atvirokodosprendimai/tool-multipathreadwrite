@@ -73,8 +73,9 @@ rg -l 'func Handle' | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 | `--stat` | length, bytes and sha only — no content, so it licenses nothing |
 | `-C N` | context around a single-pattern match |
 | `--max-lines N` | cap per spec; `0` means zero. Omit the flag for no cap |
-| `--grep PATTERN` | serve every match under the given paths |
-| `--exclude GLOB` | skip matching paths (needs `--grep`) |
+| `--grep PATTERN` | serve every regexp match under the given paths |
+| `--ast-grep PATTERN` | serve every `ast-grep` hit (binary on PATH; missing is exit 2) |
+| `--exclude GLOB` | skip matching paths (needs `--grep` or `--ast-grep`) |
 | `--files-from FILE\|-` | one spec per line |
 
 A pattern that matches no file is reported by name and exits 1.
@@ -233,9 +234,9 @@ An answer is bounded at 200,000 characters of encoded result. Set it with
 variable; `0` means zero. A ceiling too small to report a write refuses the
 write before anything is applied.
 
-`grep` / `exclude` map onto `--grep` / `--exclude`. A grep too large to serve
-returns an index — one spec per matching file, no content — which licenses
-nothing.
+`grep` / `exclude` map onto `--grep` / `--exclude`. `ast_grep` maps onto
+`--ast-grep`. A grep too large to serve returns an index — one spec per
+matching file, no content — which licenses nothing.
 
 ### Git Bash on Windows mangles a regex address
 
