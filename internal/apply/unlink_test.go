@@ -47,8 +47,36 @@ func TestUnlinkWithoutWholeFileReadIsRefused(t *testing.T) {
 	if res.Failed != 1 {
 		t.Fatalf("partial read licensed unlink: failed=%d hunks=%+v", res.Failed, res.Hunks)
 	}
-	if !strings.Contains(res.Hunks[0].Reason, "has not been read") {
-		t.Fatalf("reason = %q, want unread/whole-file licence", res.Hunks[0].Reason)
+	if !strings.Contains(res.Hunks[0].Reason, "takes no line address") {
+		t.Fatalf("reason = %q, want path-op unread wording", res.Hunks[0].Reason)
+	}
+	if strings.Contains(strings.ToLower(res.Hunks[0].Reason), "line address means nothing") {
+		t.Fatalf("reason = %q, unlink has no line address", res.Hunks[0].Reason)
+	}
+	if read(t, root, "gone.txt") != abcde {
+		t.Fatal("a refused unlink wrote the tree")
+	}
+}
+
+func TestUnlinkOfAnUnreadFileDoesNotTalkAboutALineAddress(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "gone.txt", abcde)
+
+	res, err := Apply(root, []Input{
+		{Path: "gone.txt", Op: "unlink", Lines: -1, Index: 0},
+	}, Options{Seen: map[string]Seen{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("unread unlink applied: failed=%d hunks=%+v", res.Failed, res.Hunks)
+	}
+	reason := res.Hunks[0].Reason
+	if !strings.Contains(reason, "takes no line address") {
+		t.Fatalf("reason = %q, want path-op unread wording", reason)
+	}
+	if strings.Contains(strings.ToLower(reason), "line address means nothing") {
+		t.Fatalf("reason = %q, unlink has no line address", reason)
 	}
 	if read(t, root, "gone.txt") != abcde {
 		t.Fatal("a refused unlink wrote the tree")

@@ -672,6 +672,21 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		}
 	}
 
+	var pathLevel, lineLevel bool
+	for _, h := range hs {
+		if isPathOp(h.Op) {
+			pathLevel = true
+		} else {
+			lineLevel = true
+		}
+	}
+	if pathLevel && (lineLevel || len(hs) != 1) {
+		for _, h := range hs {
+			fail(h, "unlink/rename cannot mix with other hunks on %s", path)
+		}
+		return nil, false, ""
+	}
+
 	// READ BEFORE MODIFY. An existing file may only be edited if mrw has seen
 	// what it currently holds. Checked once per file, before any hunk, because
 	// it is a fact about the file rather than about a hunk — but reported
@@ -680,8 +695,13 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	if existed && opt.Seen != nil && !opt.Force {
 		switch {
 		case !known:
-			fail(hs[0], "%s has not been read: mrw does not know what it currently holds, and a "+
-				"line address means nothing without that. Run `mrw read %s` first, or pass --force", path, path)
+			if pathLevel {
+				fail(hs[0], "%s has not been read: mrw does not know what it currently holds. %s "+
+					"takes no line address — read the path, or pass --force", path, hs[0].Op)
+			} else {
+				fail(hs[0], "%s has not been read: mrw does not know what it currently holds, and a "+
+					"line address means nothing without that. Run `mrw read %s` first, or pass --force", path, path)
+			}
 		case recorded.SHA != shaBefore:
 			// The dangerous case, and the reason the ledger is written on WRITE
 			// as well as on read: mrw produced or read this file, something else
@@ -710,26 +730,17 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		if obs.Covers(from, to) {
 			return true
 		}
+		if isPathOp(h.Op) {
+			fail(h, "%s has not been fully read: mrw served %s. %s takes no line address — read "+
+				"the whole path, or pass --force", path, obs.Served(), h.Op)
+			return false
+		}
 		fail(h, "%s of %s has not been read: mrw served %s. A line address means nothing in lines "+
 			"you have not seen — read them, or pass --force",
 			addrString(from, to), path, obs.Served())
 		return false
 	}
 
-	var pathLevel, lineLevel bool
-	for _, h := range hs {
-		if isPathOp(h.Op) {
-			pathLevel = true
-		} else {
-			lineLevel = true
-		}
-	}
-	if pathLevel && (lineLevel || len(hs) != 1) {
-		for _, h := range hs {
-			fail(h, "unlink/rename cannot mix with other hunks on %s", path)
-		}
-		return nil, false, ""
-	}
 	if pathLevel {
 		if !planPathOp(root, path, full, hs[0], orig, existed, shaBefore, unlinked, produced, destCount, covered, fail, out) {
 			return nil, false, ""

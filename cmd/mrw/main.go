@@ -809,9 +809,10 @@ func writeCmd() *cli.Command {
   <body lines>
 
 Ops are replace, insert-after, insert-before, delete, create, unlink and rename.
-unlink and rename take address - (a hyphen, no line number). Other addresses are
-1-based and inclusive, and every one of them resolves against the ORIGINAL
-file — so several hunks in one file need no offset arithmetic.
+unlink and rename take address - (a hyphen, no line number). unlink's body is
+empty. rename's destination is the one-line body (not a to= key). Other
+addresses are 1-based and inclusive, and every one of them resolves against
+the ORIGINAL file — so several hunks in one file need no offset arithmetic.
 
 The optional guards are what make a batch safe to trust: sha= pins the whole
 file, lines= asserts how many lines the range covers, anchor= requires a

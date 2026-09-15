@@ -1542,6 +1542,16 @@ Twenty-two contract rows that write `.go` into the `go.mod` fixture now say
 `--no-check`: they assert apply semantics, and the inferred `go test` would
 otherwise fail them at 3.
 
+Reconfirmed 2026-09-15 against v1.21.0 in a Zeus scratch repo: a `.rs` edit
+with **both** `scoped_check` and `check` declared still ran the whole-project
+command (`echo FULL`), because `command()` only scopes when `packages()` maps
+every path and `packages()` is Go-only (`internal/check/check.go`). Declaring
+`scoped_check` is not enough. The lever that is not a Rust `packages()` is
+honoring `{files}` when `packages()` cannot map — that changes the ADR-054
+Decision ("when packages() cannot map, whole-project Check runs") and needs a
+new record. `--no-check` on intermediate writes remains the escape. FenceTimeout
+1800 now binds (ADR-059).
+
 - **`--check` runs by default; `--no-check` opts out.** The only existing
   mechanism that would have caught all three, in the turn that caused them.
   Arm with *"check by default"*.
@@ -1675,6 +1685,12 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
 - **Move to with hunks.** `*** Move to:` after `*** Update File:` with extra
   `@@` hunks (content change plus rename) is refused this slice. Arm when a
   caller hits it.
+
+- **Teaching nits from the 2026-09-15 Zeus v1.21.0 field report.** `write --help`
+  named address `-` for rename but not that the dest is the body (`to=` was
+  guessed → exit 2). Unread unlink said "a line address means nothing" though
+  unlink has no line address. Fixed in the same commit as contract §112; this
+  line is the receipt.
 
 ## From ADR-059 (honour `fenceTimeout`)
 
