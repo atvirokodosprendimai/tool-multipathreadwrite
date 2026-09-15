@@ -39,31 +39,30 @@ bundle: **a report that cannot fail is not a report.**
 
 ## Shapes A–D
 
-Measured on this tree at **`30b927f`** (2026-09-13), with PATH `mrw` v1.18.0
-(`a5c4f24`) supplied via `$MRW`. The script header says the binary was not
-built from this tree. Round trips are still **2 calls for any N.** Bytes moved
-because the tree grew. Shape D is **82** Go files, not 74.
+Measured on this tree at **`4a5a9d4`** (2026-09-15). `./scripts/measure.sh`
+built the binary from that commit. Round trips are still **2 calls for any N.**
+Bytes moved because the tree grew. Shape D is **113** Go files, not 82.
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 178,301 | 2,918 | **61.1× less** |
-| | bytes vs a **windowed** `offset`/`limit` read | 2,254 | 2,918 | **1.3× MORE** |
+| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 186,161 | 3,203 | **58.1× less** |
+| | bytes vs a **windowed** `offset`/`limit` read | 2,258 | 3,203 | **1.4× MORE** |
 | | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
 | | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
-| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 21,222 | 1,456 | 14.6× less |
-| | bytes vs windowed | 958 | 1,456 | 1.5× MORE |
+| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 21,743 | 1,595 | 13.6× less |
+| | bytes vs windowed | 958 | 1,595 | 1.7× MORE |
 | | calls | 4 / 5 | 2 | 2.0–2.5× fewer |
-| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 13,473 | 16,462 | **1.2× MORE** |
+| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 13,994 | 17,137 | **1.2× MORE** |
 | | calls | 2 / 3 | 2 | same to 1.5× fewer |
-| **D.** 1 site in **every** Go file — 82 sites, 82 files | calls (reads + edits) | 164 | 2 | **82.0× fewer** |
-| | bytes vs whole | 1,182,566 | 7,238 | 163.4× less |
-| | bytes vs windowed | 1,165 | 7,238 | **6.2× MORE** |
+| **D.** 1 site in **every** Go file — 113 sites, 113 files | calls (reads + edits) | 226 | 2 | **113.0× fewer** |
+| | bytes vs whole | 1,337,347 | 10,139 | 131.9× less |
+| | bytes vs windowed | 1,612 | 10,139 | **6.3× MORE** |
 
 **Shape D is the one to read, and read it for the CALLS, not the bytes.** It is
 the change every codebase gets eventually — a renamed symbol, an added build
-tag, a changed import — one site in each Go file. Its `6.2× MORE` is mrw's
-worst possible input by construction: 82 files at ONE line each, so a per-file
-header and a per-file receipt are charged against 1,165 bytes of payload.
+tag, a changed import — one site in each Go file. Its `6.3× MORE` is mrw's
+worst possible input by construction: 113 files at ONE line each, so a per-file
+header and a per-file receipt are charged against 1,612 bytes of payload.
 
 **Shape C is in the table on purpose.** When you need a whole file and there is
 one site, mrw prints *more* than the file holds — it adds a header and a line
@@ -100,8 +99,8 @@ the construction, not of a file list:
 
 | span | whole file | windowed | mrw | | |
 |---|---|---|---|---|---|
-| 100 lines | 1,060,000 | 5,300 | 6,052 | **175.15× less** than whole | 1.14× more than windowed |
-| 2,000 lines | 1,060,000 | 106,000 | 120,053 | **8.83× less** | 1.13× more |
+| 100 lines | 1,060,000 | 5,300 | 6,121 | **173.17× less** than whole | 1.15× more than windowed |
+| 2,000 lines | 1,060,000 | 106,000 | 120,124 | **8.82× less** | 1.13× more |
 | 20,000 lines | 1,060,000 | 1,060,000 | 1,200,054 | 1.13× more | 1.13× more |
 
 The overhead against a windowed read is **flat at ~13%** — it is the
