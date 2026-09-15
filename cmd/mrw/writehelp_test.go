@@ -112,3 +112,19 @@ func TestWriteHelpNamesBodyAtPath(t *testing.T) {
 		t.Errorf("write --help does not teach body=@:\n%s", got)
 	}
 }
+
+// TestWriteHelpNamesRenameDestIsTheBody is the 2026-09-15 Zeus field miss:
+// write --help named address - for rename but not that the dest is the body,
+// so a caller guessed to= and got exit 2.
+func TestWriteHelpNamesRenameDestIsTheBody(t *testing.T) {
+	got := writeCmd().Description
+	for _, must := range []string{
+		"to=",
+		"destination",
+		"one-line body",
+	} {
+		if !strings.Contains(got, must) {
+			t.Errorf("write --help does not teach rename dest as the body (%q):\n%s", must, got)
+		}
+	}
+}

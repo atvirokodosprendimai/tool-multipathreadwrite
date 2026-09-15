@@ -5907,6 +5907,32 @@ grep -q 'no file matched' <<<"$out" \
 dur=$((t1 - t0))
 [ "$dur" -le 3 ] && ok "and returns within 3 s (bound is 2 s)" || bad "ast-grep hung ${dur}s"
 
+# 112. ADR-057 teaching from the 2026-09-15 Zeus field report.
+# Pair: write --help names rename dest as the one-line body (not to=) /
+# unlink of an unread file is exit 1, says "takes no line address", and does
+# not say "a line address means nothing".
+help112=$(m write --help)
+want 0 $? "write --help exits 0"
+printf '%s' "$help112" | grep -q 'to=' && ok "write --help names to=" || bad "write --help names to="
+printf '%s' "$help112" | grep -q 'one-line body' && ok "write --help names dest as one-line body" || bad "write --help dest body: $help112"
+printf '%s' "$help112" | grep -q 'destination' && ok "write --help names destination" || bad "write --help destination"
+
+R=$(mktemp -d "$WORK/r112-XXXXXX")
+printf 'gone\n' > "$R/gone.txt"
+out=$(printf '%s\n' '@@ gone.txt - unlink' | m write - 2>&1); rc=$?
+want 1 "$rc" "unread unlink is exit 1"
+echo "$out" | grep -q 'takes no line address' \
+	&& ok "unread unlink names no line address" || bad "unread unlink wording: $out"
+echo "$out" | grep -q 'a line address means nothing' \
+	&& bad "unread unlink still talks about a line address: $out" \
+	|| ok "unread unlink does not say a line address means nothing"
+[ -f "$R/gone.txt" ] && ok "unread unlink wrote nothing" || bad "gone.txt was removed unread"
+
+out=$(printf '%s\n' '@@ gone.txt - rename to=new.txt' | m write - 2>&1); rc=$?
+want 2 "$rc" "rename to= is usage"
+echo "$out" | grep -q 'unknown option' \
+	&& ok "to= is an unknown option" || bad "to= refusal: $out"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
