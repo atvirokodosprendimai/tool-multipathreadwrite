@@ -37,6 +37,8 @@ an agent needs to drive it from a plain checkout.
 The three overlap on one conviction, which is why they are a stack rather than a
 bundle: **a report that cannot fail is not a report.**
 
+The six-guarantee grid against git apply, Codex apply_patch, and Claude Edit is [comparison.md](comparison.md).
+
 ## Shapes A–D
 
 Measured on this tree at **`30b927f`** (2026-09-13), with PATH `mrw` v1.18.0
@@ -91,6 +93,29 @@ bytes, which understates it, because the real Read tool numbers every line. The
 mrw column counts its **actual** output, headers and line numbers included.
 Output tokens are not measured, so this is an input-side and round-trip result,
 not a total-cost one.
+
+## Shape F — the search is charged
+
+A–D count a windowed search as **+1 call and 0 bytes**. Shape F runs a real
+`rg -n` (`grep -nH` if rg is missing) on `git ls-files '*.go'` for `^package `,
+adds those bytes to the matching lines, and compares that to
+`mrw read --grep` on the same files. Calls stay 2 (read + write). The
+windowed-only row is still printed so a byte win cannot be quoted against the
+documented Read interface.
+
+Measured on a dirty tree at `f28e656` (2026-09-15). Shape D in the same run was
+**112** Go files. `ast-grep` was not on PATH; that arm is skipped, not failed.
+
+| | baseline | mrw | |
+|---|---|---|---|
+| bytes vs whole | 1,322,775 | 10,031 | 131.9× less |
+| bytes vs windowed | 1,592 | 10,031 | **6.3× MORE** |
+| bytes vs rg+windowed | 6,789 | 10,031 | **1.5× MORE** |
+| calls, windowed (search+reads+edits) | 225 | 2 | **112.5× fewer** |
+
+Charging the search **does not flip the byte comparison**. The win is still
+turns. Re-run `./scripts/measure.sh` rather than quoting this table after the
+file list moves.
 
 ## Shape E — the overhead, held still
 

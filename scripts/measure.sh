@@ -24,11 +24,12 @@
 # same order of magnitude, so this is an INPUT-side and round-trip result, not
 # a total-cost one.
 #
-# FIVE shapes are measured, and the ones where mrw LOSES are in on purpose:
+# SIX shapes are measured, and the ones where mrw LOSES are in on purpose:
 # a benchmark that shows only the favourable shape is marketing. Shapes A, B and
 # D each carry a losing byte comparison against a windowed read, C loses against
-# both baselines, and E shows what the loss actually is once the payload is not
-# a single line.
+# both baselines, E shows what the loss actually is once the payload is not
+# a single line, and F charges the search for BYTES (A–D's windowed +1 call
+# carries none).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -195,6 +196,93 @@ EOF
     "$windowcalls" "$mrwcalls" "$(fewer "$windowcalls" "$mrwcalls")"
 }
 
+# measure_find: shape F. A–D count a windowed search as +1 CALL and 0 bytes.
+# Here the search is real: rg (or grep -nH) output PLUS the matching lines,
+# against `mrw read --grep` on the same git-tracked Go files. Same pattern as D
+# (`^package `), so the call arithmetic should match D's windowed row; the
+# finding is whether charging the search for bytes flips the byte comparison.
+# Do not quote a byte win against the windowed-only row — that row is still
+# the documented Read interface.
+#
+# ast-grep is a second arm when the binary is on PATH. Missing is skipped, not
+# a failed measurement. A hang is killed at 2s (ADR-058); this arm does not
+# wait it out.
+measure_find() {
+  local pattern=$1
+  local GOFILES=()
+  while IFS= read -r f; do GOFILES+=("$f"); done < <(git ls-files '*.go')
+  if [ ${#GOFILES[@]} -eq 0 ]; then
+    echo "F skipped: no git-tracked Go files" >&2
+    return
+  fi
+
+  local search_out search_cmd search_bytes=0
+  if command -v rg >/dev/null 2>&1; then
+    search_cmd=rg
+    # rg exits 1 on no matches; that is a result, not a script failure.
+    search_out=$(rg -n --color never --no-heading -- "$pattern" "${GOFILES[@]}") || true
+  else
+    search_cmd=grep
+    search_out=$(grep -nH -- "$pattern" "${GOFILES[@]}") || true
+  fi
+  if [ -n "$search_out" ]; then
+    search_bytes=$(printf '%s\n' "$search_out" | wc -c | tr -d ' ')
+  fi
+
+  local windowed=0 nsites=0 files=() ln file rest line
+  while IFS= read -r ln; do
+    [ -z "$ln" ] && continue
+    file=${ln%%:*}
+    rest=${ln#*:}
+    line=${rest%%:*}
+    nsites=$((nsites + 1))
+    case " ${files[*]-} " in *" $file "*) ;; *) files+=("$file") ;; esac
+    windowed=$(( windowed + $(sed -n "${line}p" "$file" | wc -c) ))
+  done <<EOF
+$search_out
+EOF
+
+  local whole=0 f
+  if [ ${#files[@]} -gt 0 ]; then
+    for f in "${files[@]}"; do
+      whole=$(( whole + $(wc -c < "$f") ))
+    done
+  fi
+
+  local ranged
+  ranged=$("$MRW" read --grep "$pattern" -- "${GOFILES[@]}" | wc -c | tr -d ' ')
+
+  local nfiles=${#files[@]}
+  local wholecalls=$(( nfiles + nsites ))
+  local windowcalls=$(( 1 + nfiles + nsites ))
+  local mrwcalls=2
+  local search_plus=$(( search_bytes + windowed ))
+
+  rule
+  printf '%s\n' "F. --grep on every Go file — the search is charged"
+  printf '  %d site(s) across %d file(s); search tool: %s\n\n' "$nsites" "$nfiles" "$search_cmd"
+  printf '  %-38s %10s %10s   %s\n' ""                          "baseline" "mrw" ""
+  printf '  %-38s %10s %10s   %s\n' "bytes, vs reading files WHOLE" \
+    "$whole" "$ranged" "$(ratio "$whole" "$ranged") input"
+  printf '  %-38s %10s %10s   %s\n' "bytes, vs a WINDOWED read" \
+    "$windowed" "$ranged" "$(ratio "$windowed" "$ranged") input"
+  printf '  %-38s %10s %10s   %s\n' "bytes, vs ${search_cmd}+windowed" \
+    "$search_plus" "$ranged" "$(ratio "$search_plus" "$ranged") input"
+  printf '  %-38s %10s %10s   %s\n' "calls, whole-file (reads+edits)" \
+    "$wholecalls" "$mrwcalls" "$(fewer "$wholecalls" "$mrwcalls")"
+  printf '  %-38s %10s %10s   %s\n' "calls, windowed (search+reads+edits)" \
+    "$windowcalls" "$mrwcalls" "$(fewer "$windowcalls" "$mrwcalls")"
+
+  if command -v ast-grep >/dev/null 2>&1; then
+    local ast_ranged
+    ast_ranged=$("$MRW" read --ast-grep 'package $P' -- "${GOFILES[@]}" | wc -c | tr -d ' ')
+    printf '  %-38s %10s %10s   %s\n' "bytes, --ast-grep package \$P" \
+      "$search_plus" "$ast_ranged" "$(ratio "$search_plus" "$ast_ranged") input"
+  else
+    printf '  ast-grep arm skipped: binary not on PATH\n'
+  fi
+}
+
 # ⚠ PORCELAIN, NOT `git diff --quiet`. That misses STAGED and UNTRACKED changes,
 # so a tree with an untracked .go file — which `go build` sees and shape D's
 # `git ls-files` does not — was stamped with a bare commit and could not be
@@ -249,7 +337,9 @@ DSPECS=()
 for f in "${GOFILES[@]}"; do DSPECS+=("$f:/^package /"); done
 measure "D. One site in every Go file — the shape mrw is for" "${DSPECS[@]}"
 
-# Shape E: ONE file, three spans. The other four shapes vary the task; this one
+measure_find '^package '
+
+# Shape E: ONE file, three spans. The other shapes vary the task; this one
 # holds the task still and varies how much of a file it needs, which is the only
 # way to see what the overhead actually IS.
 #
