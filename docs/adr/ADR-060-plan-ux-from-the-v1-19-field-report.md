@@ -6,10 +6,10 @@
 **Owner:** M
 **Spec:** None — no spec stage
 **Cross-references:** ADR-003, ADR-015, ADR-027, ADR-040, ADR-052, ADR-054, docs/adr/BACKLOG.md
-**Governs:** `internal/plan/plan.go`, `internal/read/read.go`, `cmd/mrw/main.go`, `internal/mcp/tools.go`, `internal/guide/guide.go`, `scripts/contract.sh` (§100–§104)
+**Governs:** `internal/plan/plan.go`, `internal/read/read.go`, `cmd/mrw/main.go`, `internal/mcp/tools.go`, `internal/guide/guide.go`, `internal/curve/score.go`, `scripts/contract.sh` (§100–§105)
 **Enforced-by:** `internal/plan/plan_test.go::TestASatisfiedBodyCountNamesTheExtraLines`
 **Invalidates:** none — checked. ADR-040's unquoted-until-next-key still holds for `anchor=func openTestStore body=1`. ADR-052's neighbour licence is unchanged; this record only hints. ADR-003 still reads the process exit; this record only prints the check's last line. ADR-027 `body=0` is unchanged; `body=@path` is another way to declare a counted body.
-**Served-path change:** a leftover `body=` names declared vs extra lines and `--dry-run` prints parsed hunk body counts; a ranged `read` whose span is not through last line hints that a multi-line replace needs a served neighbour; an unquoted `anchor=` containing `"` is refused with a quote instruction; `body=@path` loads the body from a root-relative file; a failing check prints its last error line above the log path.
+**Served-path change:** a leftover `body=` names declared vs extra lines and `--dry-run` prints parsed hunk body counts; a ranged `read` whose span is not through last line hints that a multi-line replace needs a served neighbour; an unquoted `anchor=` containing `"` is refused with a quote instruction; `body=@path` loads the body from a root-relative file, including `replace` and `insert-*`; a failing check prints its last error line above the log path.
 **Notes:** quality-blueprints inbox `23c3061…`, filed 2026-09-14, mrw v1.19.0 (`93c8a1a`), ~12 subagents, ~30 plans. Ledger held. M: *"all. we have to address these"*.
 
 ## Context
@@ -20,7 +20,7 @@
 git ls-files internal/plan/plan.go internal/read/read.go cmd/mrw/main.go internal/mcp/tools.go internal/guide/guide.go
 ```
 
-Five tracked files. Members left out, and why:
+Five tracked files at T1–T5. T6 adds `internal/curve/score.go` — the remaining production Parse-then-Apply caller (`git grep -l 'plan.Parse' -- '*.go' | grep -v _test.go`). Members left out, and why:
 
 - `internal/apply/apply.go` — bodies are loaded into `plan.Hunk` before `Apply`. Apply still splices lines.
 - `internal/check/check.go` — `Result.Tail` already exists. The last-error line is a `reportCheck` print.
@@ -48,7 +48,7 @@ Five tracked files. Members left out, and why:
 
 **3. Unquoted `anchor=` containing `"` is refused.** Scan the raw header: if `anchor=` is not immediately `"…"` or `'…'` and the unquoted span contains `"`, refuse and tell them to write `anchor="…"`. Quoted form, including escaped quotes inside, is unchanged. ADR-040 `anchor=func openTestStore body=1` stays valid.
 
-**4. `body=@path` loads the body from a file.** Same `body=` key. `@` plus a root-relative path. `rooted.IsRooted` / `Resolve`; name the path on failure. An empty file is `body=0`. Inline `body=N` is unchanged. A `create` of hundreds of lines is the motivating path. The body file is not an edit: ADR-002 does not require it to have been served. Load after parse, before apply, so CLI and MCP share one function.
+**4. `body=@path` loads the body from a file.** Same `body=` key. `@` plus a root-relative path. `rooted.IsRooted` / `Resolve`; name the path on failure. An empty file is `body=0`. Inline `body=N` is unchanged. A `create` of hundreds of lines is the motivating path; `replace` and `insert-*` are the same load. At parse those ops see an empty Body plus `BodyFile` — validate skips the empty-body refuse while `BodyFile` is set, then Load fills Body. After load, empty replace/insert still refuse (Apply; ADR-006). The body file is not an edit: ADR-002 does not require it to have been served. Load after parse, before apply, so CLI, MCP and the curve scorer share one function.
 
 **5. A failing check prints its last error above the log path.** On FAIL, one `check last:` line — the last non-empty Tail line — immediately above the `full output:` verdict line. Tail dump stays. PASS is unchanged. Verdict still from the process (ADR-003).
 
@@ -62,7 +62,7 @@ Five tracked files. Members left out, and why:
 
 ## Component / Boundary Impact
 
-Parser leftover message and two header options (`"` refuse, `body=@path`). `read` prints one extra note. CLI `--dry-run` and `reportCheck` print one extra line each. MCP calls the same `LoadBodyFiles` the CLI does. Apply, seen, check engine, state: unchanged.
+Parser leftover message and two header options (`"` refuse, `body=@path`). `read` prints one extra note. CLI `--dry-run` and `reportCheck` print one extra line each. MCP and the curve scorer call the same `LoadBodyFiles` the CLI does. Apply, seen, check engine, state: unchanged.
 
 ## Wiring & Contract Changes
 
@@ -72,28 +72,29 @@ Parser leftover message and two header options (`"` refuse, `body=@path`). `read
 | `write --dry-run` | `parsed:` lines | `cmd/mrw` | human dry-run |
 | `read` span | neighbour note | `read.Run` | CLI/MCP read |
 | `anchor=` | unquoted `"` refuse | `plan.parseHeader` | CLI/MCP parse refusal |
-| `body=@path` | `Hunk.BodyFile`; `plan.LoadBodyFiles` | parse + load | CLI/MCP write |
+| `body=@path` | `Hunk.BodyFile`; `plan.LoadBodyFiles` | parse + load | CLI/MCP write; curve score |
 | `reportCheck` | `check last:` | `cmd/mrw` | exit 3 receipt |
-| contract | §100–§104 | `scripts/contract.sh` | CI |
+| contract | §100–§105 | `scripts/contract.sh` | CI |
 
 ## Inter-task Contracts
 
 | Contract | Producing task | Consuming task(s) | Breaking? |
 |----------|----------------|-------------------|-----------|
 | leftover names extra count | T1 | T4 message may mention `body=@path` | No — T1 wording allows the later clause |
-| `Hunk.BodyFile` + `LoadBodyFiles` | T4 | CLI/MCP in T4 | No |
+| `Hunk.BodyFile` + `LoadBodyFiles` | T4 | CLI/MCP in T4; curve in T6; T7 parse | No |
+| empty-body refuse waits on `BodyFile` | T7 | CLI/MCP/curve replace and insert `body=@` | No |
 | none otherwise | T2, T3, T5 | — | No |
 
 ## Implementation
 
-Tasks in `docs/adr/ADR-060-plan-ux-from-the-v1-19-field-report/tasks/`. Red tests that fail on assertion → implement → mutants → §100–§104 → teach.
+Tasks in `docs/adr/ADR-060-plan-ux-from-the-v1-19-field-report/tasks/`. T1–T5 shipped in v1.20.0. T6 wires the curve scorer. T7 lets `replace` / `insert-*` `body=@` parse. Red tests that fail on assertion → implement → mutants → §100–§105 → teach.
 
 ## Consequences
 
 - A miscounted `body=` says how far off the count was, and `--dry-run` shows what parsed.
 - A first ranged read of A–B that will be a multi-line replace names the neighbour before the write refuses.
 - An unquoted import-line `anchor=` fails at parse with a quote instruction instead of matching the wrong line.
-- A 600-line create can be `body=@path` instead of a counted paste.
+- A 600-line create, replace, or insert can be `body=@path` instead of a counted paste.
 - Exit 3 still means applied-and-unverified; the last check line is visible without opening the log.
 
 ## Out of Scope
@@ -116,7 +117,7 @@ Tasks in `docs/adr/ADR-060-plan-ux-from-the-v1-19-field-report/tasks/`. Red test
 
 ## Rollback
 
-Revert leftover wording, the `parsed:` lines, the read note, the quote refuse, `BodyFile` / `LoadBodyFiles`, `check last:`, §100–§104, and the teach. Native `body=N` and ADR-052 stay.
+Revert leftover wording, the `parsed:` lines, the read note, the quote refuse, `BodyFile` / `LoadBodyFiles`, the replace/insert empty-body deferral, `check last:`, §100–§105, and the teach. Native `body=N` and ADR-052 stay.
 
 ## Stress suite
 

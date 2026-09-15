@@ -678,6 +678,15 @@ func ParseAddr(s string) (Addr, error) {
 	return Addr{Start: start, End: end, RelEnd: rel}, nil
 }
 
+// emptyBodyAtParse is the empty-body refuse at Parse. body=@ arrives as an
+// empty Body plus BodyFile; LoadBodyFiles fills Body after parse. Refusing
+// here means replace/insert body=@ never load (ADR-060 T7). replace body=0
+// has no BodyFile, so it still refuses (ADR-006). After load, Apply still
+// refuses a still-empty replace or insert.
+func emptyBodyAtParse(h *Hunk) bool {
+	return len(h.Body) == 0 && h.BodyFile == ""
+}
+
 // validate checks the parts of a hunk that need no file on disk: op/address
 // agreement and whether a body is meaningful for the op.
 func validate(h *Hunk) error {
@@ -766,7 +775,7 @@ func validate(h *Hunk) error {
 		if !patterned && h.Addr.Start != h.Addr.End {
 			return fmt.Errorf("%s takes a single line, not the range %s", h.Op, h.Addr)
 		}
-		if len(h.Body) == 0 {
+		if emptyBodyAtParse(h) {
 			return fmt.Errorf("%s with an empty body would change nothing", h.Op)
 		}
 	case OpReplace:
@@ -780,7 +789,7 @@ func validate(h *Hunk) error {
 		// exists to refuse. The mirror image was already policed: `delete` with
 		// a body is an error. Nothing is lost by refusing this one, because
 		// deleting lines is what `delete` is for.
-		if len(h.Body) == 0 {
+		if emptyBodyAtParse(h) {
 			return fmt.Errorf("replace with an empty body would delete %s — say delete if that is "+
 				"what you mean, and check the body did not go missing if it is not", h.Addr)
 		}

@@ -5788,6 +5788,40 @@ want 0 "$rc" "passing check is exit 0"
 echo "$out" | grep -q 'check last:' \
 	&& bad "PASS printed check last: $out" || ok "PASS has no check last:"
 
+# 105. ADR-060 T7: replace/insert body=@ parse and load after parse.
+# Pair: replace body=@src.txt writes those bytes / empty replace (no body=@) still exit 2.
+R=$(mktemp -d "$WORK/r105-XXXXXX")
+printf 'package a\nfunc A() {}\n' > "$R/a.go"
+printf 'func A() { _ = 1 }\n' > "$R/src.txt"
+m read a.go >/dev/null
+out=$(printf '%s\n' '@@ a.go 2 replace anchor="func A" body=@src.txt' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "replace body=@src.txt exits 0"
+if grep -Fq 'func A() { _ = 1 }' "$R/a.go"; then
+	ok "replace body=@ wrote src.txt into a.go"
+else
+	bad "a.go after replace body=@: $(cat "$R/a.go" 2>&1)"
+fi
+
+R=$(mktemp -d "$WORK/r105b-XXXXXX")
+printf 'alpha\nbeta\n' > "$R/notes.md"
+printf 'INSERTED\n' > "$R/src.txt"
+m read notes.md >/dev/null
+out=$(printf '%s\n' '@@ notes.md 1 insert-after body=@src.txt' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "insert-after body=@src.txt exits 0"
+if grep -qx 'INSERTED' "$R/notes.md"; then
+	ok "insert-after body=@ wrote src.txt"
+else
+	bad "notes.md after insert-after body=@: $(cat "$R/notes.md" 2>&1)"
+fi
+
+R=$(mktemp -d "$WORK/r105c-XXXXXX")
+printf 'package a\nfunc A() {}\n' > "$R/a.go"
+m read a.go >/dev/null
+out=$(printf '%s\n' '@@ a.go 2 replace anchor="func A"' | m write --no-check - 2>&1); rc=$?
+want 2 "$rc" "empty replace without body=@ is still exit 2"
+echo "$out" | grep -q 'would delete' \
+	&& ok "empty replace still names delete" || bad "empty replace: $out"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

@@ -64,10 +64,11 @@ type Score struct {
 // breakage.
 //
 // The primary variable is measured by applying, not by comparing addresses.
-// The plan runs through plan.Parse and apply.Apply exactly as mrw runs it, on
-// a copy of the fixture, and the lines that differ afterwards are the answer.
-// A hit is a plan that changed exactly the planted line AND wrote no other
-// file; anything else that applied is a miss.
+// The plan runs through plan.Parse, plan.LoadBodyFiles, and apply.Apply
+// exactly as mrw runs it, on a copy of the fixture, and the lines that
+// differ afterwards are the answer. A hit is a plan that changed exactly
+// the planted line AND wrote no other file; anything else that applied is
+// a miss.
 func ScoreTrial(dir string, r Result) (Score, error) {
 	m, a, err := Load(dir)
 	if err != nil {
@@ -97,6 +98,10 @@ func ScoreTrial(dir string, r Result) (Score, error) {
 	defer os.RemoveAll(scratch)
 	if err := copyTree(m.Tree, scratch); err != nil {
 		return Score{}, err
+	}
+	if err := plan.LoadBodyFiles(scratch, hunks); err != nil {
+		s.Outcome, s.Reason = RefusedParse, err.Error()
+		return s, nil
 	}
 	before, err := os.ReadFile(filepath.Join(scratch, m.File))
 	if err != nil {
