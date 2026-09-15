@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -134,6 +135,9 @@ func hookFromSettings(t *testing.T) string {
 // 15-hour regex.
 func hangingHook(t *testing.T) (py, path string) {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("SIGALRM is not a Windows signal")
+	}
 	py, err := exec.LookPath("python3")
 	if err != nil {
 		t.Skip("python3 is not on PATH; the hook cannot run here")

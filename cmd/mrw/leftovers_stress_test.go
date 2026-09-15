@@ -122,6 +122,9 @@ func TestTheRulesHookArmsTheAlarmBeforeRun(t *testing.T) {
 }
 
 func TestTheRulesHookHangInMatchingStillExitsZero(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("SIGALRM is not a Windows signal")
+	}
 	py, err := exec.LookPath("python3")
 	if err != nil {
 		t.Skip("python3 is not on PATH; the hook cannot run here")
