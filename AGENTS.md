@@ -330,6 +330,9 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   In a Go module, or any tree with `.quality-harness.json`, a `.go`/`.rs`/`.toml`
   write pays the check and exits 3 when it fails. A markdown-only plan does not
   spawn it. `--no-check` opts out; `--check` demands it even on prose. A
+  `scoped_check` whose template contains `{files}` and not `{packages}` still
+  runs on a `.rs` write when `packages()` cannot map (ADR-061); `{packages}`-only
+  still falls back. A
   non-prose hunk whose `{}` `()` `[]` nets moved prints a `balance` row under
   `ok` and stays `ok` — a balanced insert in the wrong place is invisible to it.
   The summary line counts those rows (`0 failed, 1 advisory — applied`, zero

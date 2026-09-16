@@ -5933,6 +5933,31 @@ want 2 "$rc" "rename to= is usage"
 echo "$out" | grep -q 'unknown option' \
 	&& ok "to= is an unknown option" || bad "to= refusal: $out"
 
+# 113. ADR-061: a {files}-only scoped_check runs when packages() cannot map.
+# Pair: mrw check a.rs with scoped_check echo SCOPED {files} prints SCOPED a.rs /
+# the same path with {packages}-only (and mixed) still prints the whole-project
+# command. No go.mod: an inferred go test would hide the fallback.
+R=$(mktemp -d "$WORK/r113-XXXXXX")
+printf 'fn main() {}\n' > "$R/a.rs"
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {files}"}\n' > "$R/.quality-harness.json"
+out=$(m check a.rs 2>&1); rc=$?
+want 0 "$rc" "{files}-only scoped_check on .rs runs"
+grep -qF 'SCOPED a.rs' <<<"$out" && ok "and scopes to the named file" || bad "not files-scoped: $out"
+grep -q 'FULL' <<<"$out" && bad "fell back to the whole-project check: $out" \
+  || ok "and did not run FULL"
+
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
+out=$(m check a.rs 2>&1); rc=$?
+want 0 "$rc" "{packages}-only on .rs still runs"
+grep -q 'echo FULL' <<<"$out" && ok "and falls back to the whole-project check" || bad "scoped an empty packages map: $out"
+grep -qF 'SCOPED' <<<"$out" && bad "substituted an empty {packages}: $out" \
+  || ok "and did not print SCOPED"
+
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages} {files}"}\n' > "$R/.quality-harness.json"
+out=$(m check a.rs 2>&1); rc=$?
+want 0 "$rc" "mixed placeholders on .rs still run"
+grep -q 'echo FULL' <<<"$out" && ok "and mixed still falls back" || bad "mixed scoped with empty packages: $out"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
