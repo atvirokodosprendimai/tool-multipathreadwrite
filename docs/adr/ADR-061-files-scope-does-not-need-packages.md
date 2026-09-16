@@ -94,6 +94,16 @@ See `docs/adr/ADR-061-files-scope-does-not-need-packages/tasks/README.md`.
 
 Revert the branch. Non-Go paths fall back to `Check` again.
 
+## Stress suite
+
+Measured 2026-09-16 against this Decision, not `command()`. New files only — T1's leftover lock hashed every `Test*` in `check_test.go`.
+
+- Layer 1: `internal/check/adr061_stress_test.go` — `refShellArg` walks bytes against an inert charset string; `shellArg` uses `ContainsFunc` + a switch. Named examples plus `FuzzShellArg` (2.3M execs / 8s, 45 new interesting, no disagreement).
+- Layer 2: same file, `TestRandomisedCommandMatchesTheFilesScopeOracle` — 400 iters × 12 seeds (`MRW_SEED` 1,2,3,7,11,13,17,19,29,41,61,99). Template × path class (empty / allGo / unmapped). Mapped class is a root-level `.go` fixture so the oracle substitutes `.` and never calls `packages()`. Left out: `{files_extra}`; nested package trees; Zeus's real JSON.
+- Layer 3: `internal/adversarial/adr061_test.go` — 120 iters × 4 seeds through the built binary (`mrw check` + `--json` / `--full`). `TestAFilesOnlyWriteOnRustRunsTheScopedCheck` is the Zeus-shaped write: `{files}`-only on `a.rs` prints `echo SCOPED a.rs`, not `echo FULL`. Template, not their checkout file.
+- Found: none.
+- Hand mutants against that suite, 4 of 4 killed: files-only arm deleted; `!{packages}` guard dropped; `len(paths)>0` dropped; arm fires on any non-empty path list. Baseline green, each compiled, restore from a pre-sweep copy (not `git checkout --`: uncommitted stress files).
+
 ## Follow-ups
 
 - Relock ADR-054 T1–T4 with quality-harness 2.99.5 so Go test bodies hash; `§89` in that Tests table stays UNPROVEN and `done` stays refused until the section row leaves the table.
