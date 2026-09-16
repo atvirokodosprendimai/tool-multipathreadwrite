@@ -8,15 +8,15 @@ description: >-
   installed: use Read/Edit/Write, and do not install it or improvise a
   substitute with sed/awk/python. In short, mrw reads many file ranges and
   applies many edits in ONE call, with a per-hunk verdict and a
-  read-before-modify guard; use it for 3+ edits, edits across 2+ files, or
-  several ranges read. One or two targeted edits stay on Edit; a new file stays
-  on Write. NOT a licence to use shell for ordinary file edits.
+  read-before-modify guard; use it always, and plan the activity as one read
+  of every site, then one plan, then one write. A new file is `@@ path 0 create`.
+  NOT a licence to use shell for ordinary file edits.
 ---
 
 # mrw — AGENTS.md is the source, the AAM skill is the copy
 
 **The guidance lives in [`AGENTS.md`](../../../AGENTS.md), section "Using mrw".**
-That is the authored source: trigger-first, carrying the plan-generation loop
+That is the authored source: always + plan, carrying the plan-generation loop
 that turns 54 calls into 2, and it is the same text every other agent in this
 repository sees — with or without a memory server.
 
@@ -116,5 +116,7 @@ how the file-edit ban gets broken by a good intention.
   so four root-relative guards were skipped — use `rooted.IsRooted`, never
   `filepath.IsAbs`, to ask whether a caller's path is relative to the root.
 - `.quality-harness.json` declares the check: `go test ./...`.
+- A `{files}`-only `scoped_check` still runs on a `.rs` write when `packages()`
+  cannot map (ADR-061); `{packages}`-only still falls back.
 - The read-before-modify guard arrived in **v0.0.2**. A `bin/mrw` built from a
   working tree reports `dev`, which is newer than any tag, not older.

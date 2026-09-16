@@ -84,10 +84,8 @@ not tool documentation, which is why they are there and not here.
 
 ## Using mrw — read this before you edit anything
 
-**Reach for mrw when the task touches 3 or more edits, 2 or more files, or
-several ranges you need to read.** Below that, use your normal editor: one edit
-in one file costs mrw the same two calls and prints *more* bytes than the file
-holds. It is for scattered sites, not for every edit.
+**Use mrw always: plan the activity as one read of every site, then one plan, then one write.**
+One edit in one file still goes through mrw: the cost is two calls, and the ledger is the point. Batch every site into that one read and one write — do not spend a turn per site.
 
 `./bin/mrw` after `go build`. Building and using it here is fine — it is the
 project.
@@ -330,6 +328,9 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   In a Go module, or any tree with `.quality-harness.json`, a `.go`/`.rs`/`.toml`
   write pays the check and exits 3 when it fails. A markdown-only plan does not
   spawn it. `--no-check` opts out; `--check` demands it even on prose. A
+  `scoped_check` whose template contains `{files}` and not `{packages}` still
+  runs on a `.rs` write when `packages()` cannot map (ADR-061); `{packages}`-only
+  still falls back. A
   non-prose hunk whose `{}` `()` `[]` nets moved prints a `balance` row under
   `ok` and stays `ok` — a balanced insert in the wrong place is invisible to it.
   The summary line counts those rows (`0 failed, 1 advisory — applied`, zero
@@ -372,10 +373,10 @@ and #73, one release apart.
 - **`mrw version`** prints the same string `-v` / `--version` already print.
   Extra arguments are usage (exit 2). A PATH binary that predates the
   subcommand still answers `-v`.
-- **`mrw instructions`** prints the contract from the binary: when to reach for
-  mrw, the two rules that produce most refusals, and the traps that make a red
-  run look green. Exit 0. No flags. A caller who installed mrw and has neither
-  this checkout nor the skill can learn the format from this.
+- **`mrw instructions`** prints the contract from the binary: use mrw always
+  and plan the activity, the two rules that produce most refusals, and the traps
+  that make a red run look green. Exit 0. No flags. A caller who installed mrw
+  and has neither this checkout nor the skill can learn the format from this.
 - **`mrw check`** runs the project's check on its own, scoped to the working
   set or to paths you name. A CLI `write` to a non-prose file runs the same
   runner by default (ADR-054); this is it without the write, for when you want the verdict again

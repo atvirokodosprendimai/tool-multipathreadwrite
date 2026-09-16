@@ -150,6 +150,55 @@ func TestFilesPlaceholder(t *testing.T) {
 	}
 }
 
+// A {files}-only template names every path the caller wrote, so it cannot omit
+// the way {packages} can. packages() is Go-only; that is not a reason to drop
+// a scoped_check that never asked it for a map (ADR-061).
+func TestFilesPlaceholderDoesNotNeedPackages(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.rs"), []byte("fn main() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{Check: "FULL", ScopedCheck: "lint {files}"}
+	got, scoped := command(root, cfg, []string{"a.rs"})
+	if got != "lint a.rs" || !scoped {
+		t.Errorf("got %q scoped=%v, want lint a.rs scoped", got, scoped)
+	}
+}
+
+func TestPackagesOnlyNonGoStillFallsBack(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.rs"), []byte("fn main() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{Check: "FULL", ScopedCheck: "go test {packages}"}
+	got, scoped := command(root, cfg, []string{"a.rs"})
+	if got != "FULL" || scoped {
+		t.Errorf("got %q scoped=%v, want FULL unscoped", got, scoped)
+	}
+}
+
+func TestMixedPlaceholdersFallBackWhenUnmapped(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.rs"), []byte("fn main() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{Check: "FULL", ScopedCheck: "go test {packages} && lint {files}"}
+	got, scoped := command(root, cfg, []string{"a.rs"})
+	if got != "FULL" || scoped {
+		t.Errorf("got %q scoped=%v, want FULL unscoped", got, scoped)
+	}
+}
+
+// --full and an empty working set pass a nil path list. Scoping {files} with
+// nothing named would run a command that covers no file.
+func TestFilesOnlyWithNoPathsStillFallsBack(t *testing.T) {
+	cfg := Config{Check: "FULL", ScopedCheck: "lint {files}"}
+	got, scoped := command(t.TempDir(), cfg, nil)
+	if got != "FULL" || scoped {
+		t.Errorf("got %q scoped=%v, want FULL unscoped", got, scoped)
+	}
+}
+
 func TestRunReportsTheRealExitCode(t *testing.T) {
 	root := t.TempDir()
 	res, err := Run(context.Background(), root, Config{Check: "echo hi; exit 7"}, nil)

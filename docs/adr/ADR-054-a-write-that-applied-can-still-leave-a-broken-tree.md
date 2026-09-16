@@ -5,12 +5,12 @@
 **Date:** 2026-09-13
 **Owner:** M
 **Spec:** None — no spec stage
-**Cross-references:** ADR-003, ADR-009, ADR-044, ADR-048, ADR-052, docs/adr/BACKLOG.md
+**Cross-references:** ADR-003, ADR-009, ADR-044, ADR-048, ADR-052, ADR-061, docs/adr/BACKLOG.md
 **Governs:** `cmd/mrw/main.go`, `internal/apply/apply.go`, `internal/authoring/authoring.go`, `scripts/contract.sh`
 **Enforced-by:** `cmd/mrw/writecheck_test.go::TestWriteRunsTheCheckByDefault`
 **Invalidates:** ADR-009 — the clause of its Decision reading "the decision to leave `--check` opt-in"
 **Served-path change:** `mrw write` runs the project's check after a successful apply when at least one written path is not prose, unless `--no-check`; a delimiter-balance delta prints on a non-prose hunk and does not fail it; `mrw stats` always prints `failed_check`, including zero, plus how many landed writes then failed the check.
-**Notes:** Zeus field report 2026-09-13, filed to BACKLOG under From ADR-052. The author read `internal/apply/apply.go:960` before proposing and dropped two ideas after that read. M, 2026-09-13: *"okay, design these features, they seem important"*. Codex reviews of this Proposed record, 2026-09-13: Names() claim held; `packages()` is Go-only; balance on markdown would be loud; landed denominator includes `check_not_run`; arm 2 does not catch a balanced insert (one of three Zeus cases); data files (`.jsonl`) are not prose and still pay the suite. Folded below. Execute only on Accept. Branch from `origin/main` (ADR-053 is there; this working tree may not be). 4096 stays. 019 A stands. No parser. No MCP check. No default echo. No Rust `packages()`. No harness `covers` glob.
+**Notes:** Zeus field report 2026-09-13, filed to BACKLOG under From ADR-052. The author read `internal/apply/apply.go:960` before proposing and dropped two ideas after that read. M, 2026-09-13: *"okay, design these features, they seem important"*. Codex reviews of this Proposed record, 2026-09-13: Names() claim held; `packages()` is Go-only; balance on markdown would be loud; landed denominator includes `check_not_run`; arm 2 does not catch a balanced insert (one of three Zeus cases); data files (`.jsonl`) are not prose and still pay the suite. Folded below. Execute only on Accept. Branch from `origin/main` (ADR-053 is there; this working tree may not be). 4096 stays. 019 A stands. No parser. No MCP check. No default echo. No Rust `packages()`. No harness `covers` glob. ADR-061 (2026-09-16) invalidated the unmapped-fallback clause of the Decision for `{files}`-only templates; `{packages}`-only and mixed still fall back. The Decision text is left standing because it was true when it was written.
 
 ## Context
 

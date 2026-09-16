@@ -252,11 +252,10 @@ func tools() []tool {
 				"openWorldHint":   false,
 			},
 			Meta: map[string]any{"anthropic/maxResultSizeChars": MaxResultChars},
-			Description: "Reach for this instead of your own file reader when the task touches " +
-				triggerRule + " — one call serves them all, and each served line is recorded so " +
+			Description: triggerRule +
+				" One mrw_read serves every site, and each served line is recorded so " +
 				"mrw_write may later edit it — served lines record nothing until you acknowledge " +
-				"them (see ack). Below that a single read is cheaper in your own " +
-				"editor. Specs use mrw's own syntax: path, path:10-20, path:A,+N for the line A " +
+				"them (see ack). Specs use mrw's own syntax: path, path:10-20, path:A,+N for the line A " +
 				"plus the N lines after it, path:/regexp/ so the read " +
 				"finds its own site, or path:$ for the last line. A read too large for one answer " +
 				"comes back as a PAGE, not a failure: the lines that fit, a -- PARTIAL: line, and a " +
@@ -330,8 +329,8 @@ func tools() []tool {
 				"openWorldHint":  false,
 			},
 			Meta: map[string]any{"anthropic/maxResultSizeChars": MaxResultChars},
-			Description: "Reach for this instead of your own file editor when the task touches " +
-				triggerRule + " — every edit travels in ONE plan and every hunk gets a verdict, so " +
+			Description: triggerRule +
+				" Every edit travels in ONE plan and every hunk gets a verdict, so " +
 				"a replacement that matched nothing is reported rather than silently skipped. All " +
 				"or nothing: if any hunk fails, nothing is written. Every address resolves against " +
 				"the ORIGINAL file, so several hunks in one file need no offset arithmetic. mrw " +

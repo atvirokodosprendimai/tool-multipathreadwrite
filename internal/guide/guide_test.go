@@ -8,7 +8,7 @@ import (
 func TestEverySurfaceContainsTheSharedSentences(t *testing.T) {
 	got := Shared()
 	for _, must := range []string{
-		"3 or more edits, 2 or more files, or several ranges you need to read",
+		"Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
 		"nothing is written",
 		"per line, not per file",
 		"models no target syntax",
@@ -49,5 +49,24 @@ func TestCLIContainsSharedAndTheOperatorTraps(t *testing.T) {
 		if !strings.Contains(got, must) {
 			t.Errorf("CLI() does not teach %q:\n%s", must, got)
 		}
+	}
+}
+
+func TestCLITeachesAlwaysAndAPlan(t *testing.T) {
+	got := CLI()
+	for _, must := range []string{
+		"Use mrw always",
+		"one read of every site, then one plan, then one write",
+		"@@ path 0 create",
+	} {
+		if !strings.Contains(got, must) {
+			t.Errorf("CLI() does not teach %q:\n%s", must, got)
+		}
+	}
+	if strings.Contains(got, "3 or more edits") {
+		t.Error("CLI still teaches the threshold that trains agents never to use mrw")
+	}
+	if strings.Contains(Shared(), "@@ path 0 create") {
+		t.Error("Shared() absorbed the cookbook; the handshake would carry it")
 	}
 }

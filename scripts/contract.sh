@@ -1950,12 +1950,12 @@ want 0 "$rc" "and the same file still reads whole on the CLI"
 # rather than trusted.
 fixture
 
-rule='3 or more edits, 2 or more files, or several ranges you need to read'
-# AGENTS.md wraps the sentence across two lines, so compare on a whitespace-
+rule='Use mrw always: plan the activity as one read of every site, then one plan, then one write.'
+# AGENTS.md may wrap the sentence across two lines, so compare on a whitespace-
 # folded copy: the rule is the words, not where the paragraph happened to break.
 tr -s '[:space:]' ' ' < "$SRC/AGENTS.md" | grep -qF "$rule" \
-  && ok "AGENTS.md still states the trigger threshold this row holds the wire against" \
-  || bad "the threshold sentence moved in AGENTS.md; the wire and the repository now teach different rules"
+  && ok "AGENTS.md still states the always + plan sentence this row holds the wire against" \
+  || bad "the always + plan sentence moved in AGENTS.md; the wire and the repository now teach different rules"
 
 out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
 want 0 $? "initialize answers"
@@ -1973,7 +1973,7 @@ assert len(i.encode()) <= 4096, "the instructions are %d bytes; they are paid on
 # does. Five literals, not a package import — a drifted splice that still
 # compiles must fail here.
 shared = (
-    "Reach for mrw when the task touches 3 or more edits, 2 or more files, or several ranges you need to read.",
+    "Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
     "A plan applies whole or not at all: if any hunk fails, nothing is written.",
     "Read before you write, per line, not per file.",
     "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
@@ -4755,7 +4755,7 @@ python3 - "$out" <<'PY'
 import sys
 out = sys.argv[1]
 shared = (
-    "Reach for mrw when the task touches 3 or more edits, 2 or more files, or several ranges you need to read.",
+    "Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
     "A plan applies whole or not at all: if any hunk fails, nothing is written.",
     "Read before you write, per line, not per file.",
     "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
@@ -5198,7 +5198,7 @@ import sys
 out, why = sys.argv[1], sys.argv[2]
 assert why in out, "instructions omitted the why: %r" % why
 shared = (
-    "Reach for mrw when the task touches 3 or more edits, 2 or more files, or several ranges you need to read.",
+    "Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
     "A plan applies whole or not at all: if any hunk fails, nothing is written.",
     "Read before you write, per line, not per file.",
     "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
@@ -5221,7 +5221,7 @@ i=json.loads(sys.argv[1])["result"].get("instructions")
 assert isinstance(i,str) and i.strip(), "initialize carries no instructions"
 assert why in i, "handshake omitted the why"
 shared = (
-    "Reach for mrw when the task touches 3 or more edits, 2 or more files, or several ranges you need to read.",
+    "Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
     "A plan applies whole or not at all: if any hunk fails, nothing is written.",
     "Read before you write, per line, not per file.",
     "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
@@ -5932,6 +5932,61 @@ out=$(printf '%s\n' '@@ gone.txt - rename to=new.txt' | m write - 2>&1); rc=$?
 want 2 "$rc" "rename to= is usage"
 echo "$out" | grep -q 'unknown option' \
 	&& ok "to= is an unknown option" || bad "to= refusal: $out"
+
+# 113. ADR-061: a {files}-only scoped_check runs when packages() cannot map.
+# Pair: mrw check a.rs with scoped_check echo SCOPED {files} prints SCOPED a.rs /
+# the same path with {packages}-only (and mixed) still prints the whole-project
+# command. No go.mod: an inferred go test would hide the fallback.
+R=$(mktemp -d "$WORK/r113-XXXXXX")
+printf 'fn main() {}\n' > "$R/a.rs"
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {files}"}\n' > "$R/.quality-harness.json"
+out=$(m check a.rs 2>&1); rc=$?
+want 0 "$rc" "{files}-only scoped_check on .rs runs"
+grep -qF 'SCOPED a.rs' <<<"$out" && ok "and scopes to the named file" || bad "not files-scoped: $out"
+grep -q 'FULL' <<<"$out" && bad "fell back to the whole-project check: $out" \
+  || ok "and did not run FULL"
+
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
+out=$(m check a.rs 2>&1); rc=$?
+want 0 "$rc" "{packages}-only on .rs still runs"
+grep -q 'echo FULL' <<<"$out" && ok "and falls back to the whole-project check" || bad "scoped an empty packages map: $out"
+grep -qF 'SCOPED' <<<"$out" && bad "substituted an empty {packages}: $out" \
+  || ok "and did not print SCOPED"
+
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {packages} {files}"}\n' > "$R/.quality-harness.json"
+out=$(m check a.rs 2>&1); rc=$?
+want 0 "$rc" "mixed placeholders on .rs still run"
+grep -q 'echo FULL' <<<"$out" && ok "and mixed still falls back" || bad "mixed scoped with empty packages: $out"
+
+# 114. ADR-062: mrw instructions teaches always and a plan, not a 3+ threshold.
+# Pair: CLI stdout carries @@ path 0 create / initialize does not (cookbook
+# stays off the handshake) and still names Shared's first sentence, ≤ 4096.
+out=$(m instructions 2>&1); rc=$?
+want 0 "$rc" "mrw instructions still exits 0"
+python3 - "$out" <<'PY'
+import sys
+out = sys.argv[1]
+assert "Use mrw always" in out, "instructions omitted always: %r" % out[:200]
+assert "one read of every site, then one plan, then one write" in out, "instructions omitted the plan: %r" % out[:200]
+assert "@@ path 0 create" in out, "instructions omitted the create op: %r" % out[:400]
+assert "3 or more edits" not in out, "instructions still teaches the 3+ threshold"
+PY
+[ $? -eq 0 ] && ok "and it teaches always + plan plus @@ path 0 create" \
+             || bad "instructions still teach 3+ or omit the cookbook"
+
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+want 0 $? "initialize still answers"
+python3 - "$out" <<'PY'
+import json,sys
+i=json.loads(sys.argv[1])["result"].get("instructions")
+assert isinstance(i,str) and i.strip(), "initialize carries no instructions"
+assert "Use mrw always: plan the activity as one read of every site, then one plan, then one write." in i, "handshake omitted Shared first sentence"
+assert "@@ path 0 create" not in i, "handshake absorbed the CLI cookbook"
+assert "3 or more edits" not in i, "handshake still teaches the 3+ threshold"
+assert len(i.encode()) <= 4096, "handshake is %d bytes; do not raise 4096" % len(i.encode())
+PY
+[ $? -eq 0 ] && ok "and the handshake carries always + plan without the cookbook or a 4096 raise" \
+             || bad "handshake omitted always, carried the cookbook, or overflowed 4096"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

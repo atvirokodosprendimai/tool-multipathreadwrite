@@ -59,6 +59,9 @@ that arms work; silence leaves the row where it is.
 | `apply_patch` `*** Delete File:` / `*** Move to:` | **shipped** — ADR-057 | *"unlink op"* |
 | `apply_patch` Move to with hunks | **deferred** — ADR-057 Out of Scope | — |
 | Honour quality-harness `fenceTimeout` | **ADR-059 Accepted** — alias of `timeout_seconds`; disagreeing keys refuse | *"both"* |
+| Honour `{files}` when `packages()` cannot map | **ADR-061 Accepted** — `{files}`-only `scoped_check` runs on `.rs`; `{packages}`-only and mixed still fall back | *"so work on 054"* |
+| `mrw instructions` as effective-use; always + plan (not 3+) | **ADR-062 Accepted** — Shared() first sentence is always + plan; CLI() cookbook includes `@@ path 0 create`; handshake stays Shared, 4096 | *"accept"* then *"use it always and plan activity"* |
+| Centralised `mrw` skill always + plan (v20) | **deferred** — ADR-062 Follow-ups; AGENTS.md / repo skill updated in this record, palace POST is another session | — |
 | leftover `body=` extra count, `--dry-run` parsed hunks, read neighbour hint, unquoted `anchor=` `"`, `body=@path`, check last-error line | **shipped** — ADR-060 | — |
 | Per-extension check skip (`.jsonl` vs Cargo.toml) | **deferred** — ADR-054 / ADR-059; widening prose takes `.toml` | *"per-extension check"* |
 | ast-grep-shaped `--grep` | **shipped** — ADR-058; Shipped 2026-09-15 as ADR-058 | *"structural find only"* |
@@ -1551,6 +1554,18 @@ honoring `{files}` when `packages()` cannot map — that changes the ADR-054
 Decision ("when packages() cannot map, whole-project Check runs") and needs a
 new record. `--no-check` on intermediate writes remains the escape. FenceTimeout
 1800 now binds (ADR-059).
+
+Closed 2026-09-16 as ADR-061 (M: *"so work on 054"* after quality-harness
+v2.99.5). `command()` returns the `{files}`-only template when the map is
+empty and the path list is non-empty. `{packages}`-only and mixed still fall
+back. No Rust `packages()`. Contract §113. `--no-check` remains the escape
+when the project declared only `check`.
+
+Closed 2026-09-16 as ADR-062 (M: *"accept"*, then *"use it always and plan
+activity"*). The 3+ When trained one-turn agents never to call mrw.
+`guide.Shared()` first sentence is always + plan; `guide.CLI()` is the
+effective-use document (`@@ path 0 create`); MCP handshake stays Shared,
+4096. Centralised skill POST is deferred (inventory row).
 
 - **`--check` runs by default; `--no-check` opts out.** The only existing
   mechanism that would have caught all three, in the turn that caused them.

@@ -356,19 +356,22 @@ func TestMCPInstructionsTeachTheWhy(t *testing.T) {
 
 // TestTheDescriptionsSayWhenToReachForTheTool asserts the trigger, not the
 // behaviour. Over MCP mrw competes with the host's own Edit and Write, and the
-// description is the whole pitch: a caller told what the tool does and not when
-// it wins will keep using the editor it already has.
+// description is the whole pitch. ADR-062: that pitch is always + plan; a 3+
+// threshold trains a one-turn agent never to call the tool.
 func TestTheDescriptionsSayWhenToReachForTheTool(t *testing.T) {
 	for _, tl := range tools() {
 		if !strings.Contains(tl.Description, triggerRule) {
-			t.Errorf("tool %q does not say when to reach for it; want the threshold %q in:\n%s", tl.Name, triggerRule, tl.Description)
+			t.Errorf("tool %q does not say when to reach for it; want %q in:\n%s", tl.Name, triggerRule, tl.Description)
+		}
+		if strings.Contains(tl.Description, "3 or more edits") {
+			t.Errorf("tool %q still teaches the 3+ threshold:\n%s", tl.Name, tl.Description)
 		}
 	}
-	// The counter-advice belongs with the pitch: a tool that never says when
-	// NOT to use it is advertising, and a single edit really does cost more
-	// through mrw than through an ordinary editor.
-	if !strings.Contains(instructionsText(), "Below that") {
-		t.Error("the instructions never say when NOT to reach for mrw")
+	if strings.Contains(instructionsText(), "3 or more edits") {
+		t.Error("the handshake still teaches the threshold that trains agents never to use mrw")
+	}
+	if strings.Contains(instructionsText(), "@@ path 0 create") {
+		t.Error("the handshake absorbed the CLI cookbook")
 	}
 }
 

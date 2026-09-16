@@ -360,17 +360,31 @@ func confine(root string, paths []string) error {
 	return nil
 }
 
-// command chooses between the scoped and whole-project forms. It returns the
-// scoped one only when every path maps to a Go package, because a scoped run
-// that quietly omits a changed file is worse than a slow complete one.
+// command chooses between the scoped and whole-project forms.
+//
+// When every path maps to a Go package, the scoped form runs and both
+// {packages} and {files} are substituted.
+//
+// When the map is empty, a template that contains {files} and not
+// {packages} still runs scoped if the path list is non-empty: {files}
+// names every path the caller wrote, so it cannot omit the way an empty
+// {packages} can (ADR-061). A {packages}-only or mixed template still
+// falls back, as does an empty path list (mrw check --full). A scoped
+// run that quietly omits a changed file is worse than a slow complete one.
 //
 // root is needed to tell a directory from a typo; see packages.
 func command(root string, cfg Config, paths []string) (cmdline string, scoped bool) {
-	if cfg.ScopedCheck != "" {
-		if pkgs := packages(root, paths); len(pkgs) > 0 {
-			r := strings.NewReplacer("{packages}", shellArgs(pkgs), "{files}", shellArgs(paths))
-			return r.Replace(cfg.ScopedCheck), true
-		}
+	if cfg.ScopedCheck == "" {
+		return cfg.Check, false
+	}
+	pkgs := packages(root, paths)
+	if len(pkgs) > 0 {
+		r := strings.NewReplacer("{packages}", shellArgs(pkgs), "{files}", shellArgs(paths))
+		return r.Replace(cfg.ScopedCheck), true
+	}
+	if len(paths) > 0 && strings.Contains(cfg.ScopedCheck, "{files}") && !strings.Contains(cfg.ScopedCheck, "{packages}") {
+		r := strings.NewReplacer("{files}", shellArgs(paths))
+		return r.Replace(cfg.ScopedCheck), true
 	}
 	return cfg.Check, false
 }

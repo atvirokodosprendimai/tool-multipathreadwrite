@@ -20,11 +20,12 @@ import (
 // has stopped being VALID, and the example is the one thing a caller copies
 // verbatim. ADR-012 records the decision.
 
-// triggerRule is the threshold, quoted from this project's own agent
-// instructions so the wire says what the repository says. The duplication is
-// deliberate — a host cannot read a file in this checkout — and it is asserted
-// rather than trusted: contract §43 greps the same sentence out of both.
-const triggerRule = "3 or more edits, 2 or more files, or several ranges you need to read"
+// triggerRule is Shared's first sentence, quoted so the wire says what the
+// repository says. The duplication is deliberate — a host cannot read a file
+// in this checkout — and it is asserted rather than trusted: contract §43
+// greps the same sentence out of both. ADR-062: this is always + plan, not a
+// 3+ threshold.
+const triggerRule = "Use mrw always: plan the activity as one read of every site, then one plan, then one write."
 
 // maxInstructionsChars bounds the handshake document. A host that supports the
 // field puts it in front of the model once per session, whether or not a tool
@@ -34,9 +35,7 @@ const triggerRule = "3 or more edits, 2 or more files, or several ranges you nee
 const maxInstructionsChars = 4096
 
 // examplePlan is a worked plan: two hunks, two files, one guard. Two rather
-// than one because a single edit in a single file is the case a caller should
-// not have reached for mrw at all — showing it as the example would teach the
-// wrong trigger alongside the right grammar.
+// than one so the example is a plan, not a single hunk.
 const examplePlan = `@@ internal/store/store.go 42-44 replace anchor="func (s *Store) Get"
 func (s *Store) Get(id string) (Row, bool) {
 	r, ok := s.rows[id]
@@ -64,7 +63,7 @@ var exampleReadSpecs = []string{
 // one worked plan, quoted twice, so the two copies cannot disagree about a
 // format that has no second source.
 func instructionsText() string {
-	return guide.Shared() + "\n\n" + guide.WhyAllOrNothing() + "\n\n" + fmt.Sprintf(`WHICH SURFACE. Below that use your editor.
+	return guide.Shared() + "\n\n" + guide.WhyAllOrNothing() + "\n\n" + fmt.Sprintf(`WHICH SURFACE. With a shell prefer the CLI.
 CLI has --files-from, --check, and
 check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; --root goes
 BEFORE the subcommand, since after `+"`read`"+` the short -C is the context flag.
