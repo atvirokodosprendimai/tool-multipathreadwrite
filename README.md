@@ -147,8 +147,10 @@ These are gates, not a tour of the records behind them.
   checker.
 - **Check by default.** A CLI write to a non-prose path runs the project's
   check when one exists; `--no-check` opts out; a markdown-only plan does not
-  spawn it. A non-prose hunk whose `{}` `()` `[]` nets moved prints a balance
-  row and stays `ok` — a balanced insert in the wrong place is invisible to it.
+  spawn it. A `{files}`-only `scoped_check` still runs on a `.rs` write when
+  `packages()` cannot map; `{packages}`-only still falls back. A non-prose hunk
+  whose `{}` `()` `[]` nets moved prints a balance row and stays `ok` — a
+  balanced insert in the wrong place is invisible to it.
   `mrw stats` prints `failed_check` at zero and a landed-writes line.
 - **Advisories are counted where you read.** The summary line says
   `N failed, A advisories`, zero included, and the JSON receipt carries

@@ -10,7 +10,10 @@ Scan dated **2026-09-12**, mrw **v1.13.0** (`d7e39bd`). Re-read against
 `--ast-grep` on read ([ADR-058](adr/ADR-058-structural-find-shells-out-to-ast-grep.md)),
 and a default project check on non-prose writes
 ([ADR-054](adr/ADR-054-a-write-that-applied-can-still-leave-a-broken-tree.md)).
-Those three do not add a seventh guarantee. The grid below is the scan's.
+A `{files}`-only `scoped_check` still runs when `packages()` cannot map
+([ADR-061](adr/ADR-061-files-scope-does-not-need-packages.md)); `{packages}`-only
+still falls back. None of those add a seventh guarantee. The grid below is the
+scan's.
 
 Turns live in [measure.md](measure.md). This page is the contract comparison.
 
