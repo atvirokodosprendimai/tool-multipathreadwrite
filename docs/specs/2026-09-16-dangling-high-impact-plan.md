@@ -106,17 +106,18 @@ State is per-root under XDG. Running `mrw stats` in a different clone of the sam
 
 Let `R` = sum of `strict_would_refuse` across the three corpora.
 
-Per corpus, if `broke + held == 0` then that corpus has `ok=false` (no checked refusals) — it cannot pass "under 5% in every corpus" and it cannot flatter. Report `unchecked` anyway.
+Per corpus, if `broke + held == 0` then that corpus has `ok=false` (no checked refusals) — it cannot pass "under 5% in every corpus" and it cannot flatter. Report `unchecked` anyway. A named corpus with no defined FP rate means the campaign does not qualify.
 
-If `broke + held > 0`, FP rate = `held / (broke + held)`. Must be `< 0.05` in **every** corpus that has checked refusals. A corpus with only `unchecked` would-refuse does not count toward the 5% (BACKLOG: `_unchecked` counts neither way) but those refusals **do** count toward `R`.
+If `broke + held > 0`, FP rate = `held / (broke + held)`. Must be `< 0.05` in **every named corpus** (this repository, Zeus, Playtrix). A corpus with only `unchecked` would-refuse does not count those toward the 5% (BACKLOG: `_unchecked` counts neither way) but those refusals **do** count toward `R`.
 
 Verdict:
 
 | Condition | Verdict |
 |-----------|---------|
 | `R < 50` | Does not qualify. Default stays off. |
-| `R ≥ 50` and any corpus with `broke+held > 0` has FP ≥ 5% | Does not qualify. Default stays off. |
-| `R ≥ 50` and every corpus with `broke+held > 0` has FP < 5%, and no corpus is all-unchecked while being the only data | Qualifies as *evidence*. Do **not** flip the default in this task. |
+| any named corpus has `broke+held == 0` | Does not qualify. Insufficient evidence. Default stays off. |
+| `R ≥ 50` and any named corpus has FP ≥ 5% | Does not qualify. Default stays off. |
+| `R ≥ 50` and every named corpus has `broke+held > 0` and FP < 5% | Qualifies as *evidence*. Do **not** flip the default in this task. |
 
 Do not fill counters with constructed wrap-tails.
 

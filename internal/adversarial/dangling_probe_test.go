@@ -34,6 +34,22 @@ func windowAfter(t *testing.T, got, needle string, n int) string {
 	return w
 }
 
+// jsxInnerSitsBeforeWrapperCloser is the pin Codex found Index(wrap)<Index(inner)
+// too weak for: an empty wrapper then a sibling #inner still had wrap < inner.
+func jsxInnerSitsBeforeWrapperCloser(s string) bool {
+	if !strings.Contains(s, `id="intended-parent"`) {
+		return false
+	}
+	open := strings.Index(s, `<div id="accidental-wrapper">`)
+	if open < 0 {
+		return false
+	}
+	rest := s[open:]
+	closer := strings.Index(rest, `</div>`)
+	inner := strings.Index(rest, `id="inner"`)
+	return closer >= 0 && inner >= 0 && inner <= closer
+}
+
 // TestADesktopReachRecipeNamesTreesPerSessionAndRootsList is UC-1 happy:
 // remaining reach work is a Desktop-population trees-per-session measure and
 // whether Desktop sends roots/list.
@@ -126,6 +142,9 @@ func TestTheStrictBalanceDefaultCampaignCriterionIsFiled(t *testing.T) {
 	if !strings.Contains(w, "at least 50 refusals") {
 		t.Error("campaign criterion does not name at least 50 refusals")
 	}
+	if !strings.Contains(w, "has no defined rate and does not pass") {
+		t.Error("campaign criterion no longer refuses a corpus with no defined FP rate")
+	}
 }
 
 // TestAnUnrunStrictBalanceCampaignDoesNotQualifyADefault: TP-without-FP is not a pass.
@@ -163,18 +182,14 @@ func TestAnUnrunJsxNestProbeIsNotAFinding(t *testing.T) {
 
 // TestAJsxNestFixtureKeepsTheExtraWrapper pins the 2026-09-16 probe artifact.
 // Tidying App.tsx so #inner's parent is #intended-parent is the mutant.
+// An empty wrapper followed by a sibling #inner used to keep Index(wrap)<Index(inner)
+// green; #inner must sit before the wrapper's first closer.
 func TestAJsxNestFixtureKeepsTheExtraWrapper(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join(repoRoot(t), "docs", "break", "jsx-nest", "App.tsx"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := string(b)
-	wrap := strings.Index(s, `id="accidental-wrapper"`)
-	inner := strings.Index(s, `id="inner"`)
-	if !strings.Contains(s, `id="intended-parent"`) {
-		t.Error("fixture lost #intended-parent")
-	}
-	if wrap < 0 || inner < 0 || wrap > inner {
+	if !jsxInnerSitsBeforeWrapperCloser(string(b)) {
 		t.Error("#inner is no longer inside the extra wrapper; the attack was tidied")
 	}
 }

@@ -1673,6 +1673,7 @@ campaign that reports the true-positive count without the false-positive count
 does not qualify — the number that argues a default is the one that costs the
 caller, not the one that flatters the tool. Arm the campaign with *"price
 strict balance"*.
+A named corpus with no checked refusals (`broke+held == 0`) has no defined rate and does not pass.
 
 Ran 2026-09-13 against PATH `mrw` v1.18.0 (`a5c4f24`). `mrw stats --json`
 `.pricing` in each checkout (landed writes are the older tally; pricing only
