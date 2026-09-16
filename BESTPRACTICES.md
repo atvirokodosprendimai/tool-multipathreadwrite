@@ -6,9 +6,9 @@ Agents changing this repository read [AGENTS.md](AGENTS.md).
 
 ## When to reach for mrw
 
-Three or more edits, two or more files, or several ranges you need to read.
-Below that, your editor is cheaper: one edit in one file costs mrw two calls
-and prints more bytes than the file holds.
+Always. Plan the activity as one read of every site, then one plan, then one
+write. One edit in one file still goes through mrw: the cost is two calls, and
+the ledger is the point. `mrw instructions` prints this from the binary.
 
 ## Read before write
 

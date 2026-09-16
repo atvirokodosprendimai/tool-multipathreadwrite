@@ -27,9 +27,9 @@ Windows: `mrw-windows-amd64.exe`. Every release also carries archives
 `mrw version` prints the same string `-v` / `--version` already print. Extra
 arguments are usage (exit 2).
 
-`mrw instructions` prints the contract from the binary: when to reach for mrw,
-the two rules that produce most refusals, and the traps that make a red run look
-green. Exit 0. No flags.
+`mrw instructions` prints the contract from the binary: use mrw always and plan
+the activity, the two rules that produce most refusals, and the traps that make
+a red run look green. Exit 0. No flags.
 
 ### From source
 

@@ -8,15 +8,15 @@ description: >-
   installed: use Read/Edit/Write, and do not install it or improvise a
   substitute with sed/awk/python. In short, mrw reads many file ranges and
   applies many edits in ONE call, with a per-hunk verdict and a
-  read-before-modify guard; use it for 3+ edits, edits across 2+ files, or
-  several ranges read. One or two targeted edits stay on Edit; a new file stays
-  on Write. NOT a licence to use shell for ordinary file edits.
+  read-before-modify guard; use it always, and plan the activity as one read
+  of every site, then one plan, then one write. A new file is `@@ path 0 create`.
+  NOT a licence to use shell for ordinary file edits.
 ---
 
 # mrw — AGENTS.md is the source, the AAM skill is the copy
 
 **The guidance lives in [`AGENTS.md`](../../../AGENTS.md), section "Using mrw".**
-That is the authored source: trigger-first, carrying the plan-generation loop
+That is the authored source: always + plan, carrying the plan-generation loop
 that turns 54 calls into 2, and it is the same text every other agent in this
 repository sees — with or without a memory server.
 

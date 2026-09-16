@@ -57,7 +57,7 @@ Source: vendor docs and git-apply(1), 2026-09-12. Not a live bake-off.
 | Fuzzy, no line numbers | apply_patch / Aider / Desktop Commander fallback | **Don't.** Steal the grammar ([ADR-051](adr/ADR-051-foreign-plan-grammars-compile-to-plan-hunks.md)), keep exact apply. |
 | IDE UX and adoption | Cursor / Claude / Cline sit where the human already works | **Not this binary.** Teach (`mrw instructions`, the skill). Do not grow an IDE. |
 | git already on PATH | every machine has it | Same as row 1. We are not a `patch(1)`. A git patch is not an apply_patch. |
-| One-file one-edit | `StrReplace` is shorter | **Stay out.** `AGENTS.md`: reach for mrw at 3+ edits, 2+ files, or several ranges. Below that we lose on purpose. |
+| One-file one-edit | `StrReplace` is shorter on bytes | **Use mrw anyway.** Agents batch one read + one write or they never come back. The 3+ threshold trained them out ([ADR-062](adr/ADR-062-instructions-teach-always-and-a-plan.md)). |
 
 Named, not healed: PATH/skill skew
 ([ADR-041](adr/ADR-041-path-binary-and-skill-version-skew-is-named-not-healed.md)),
