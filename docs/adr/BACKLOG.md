@@ -62,6 +62,7 @@ that arms work; silence leaves the row where it is.
 | Honour `{files}` when `packages()` cannot map | **ADR-061 Accepted** — `{files}`-only `scoped_check` runs on `.rs`; `{packages}`-only and mixed still fall back | *"so work on 054"* |
 | `mrw instructions` as effective-use; always + plan (not 3+) | **ADR-062 Accepted** — Shared() first sentence is always + plan; CLI() cookbook includes `@@ path 0 create`; handshake stays Shared, 4096 | *"accept"* then *"use it always and plan activity"* |
 | Centralised `mrw` skill always + plan (v20) | **deferred** — ADR-062 Follow-ups; AGENTS.md / repo skill updated in this record, palace POST is another session | — |
+| Desktop reach measure, under-ceiling host-cut, concurrent silent apply, strict-balance campaign, JSX nest probe | **spec** — `docs/specs/2026-09-16-dangling-high-impact.md` | *"write a spec for these findings"* |
 | leftover `body=` extra count, `--dry-run` parsed hunks, read neighbour hint, unquoted `anchor=` `"`, `body=@path`, check last-error line | **shipped** — ADR-060 | — |
 | Per-extension check skip (`.jsonl` vs Cargo.toml) | **deferred** — ADR-054 / ADR-059; widening prose takes `.toml` | *"per-extension check"* |
 | ast-grep-shaped `--grep` | **shipped** — ADR-058; Shipped 2026-09-15 as ADR-058 | *"structural find only"* |
@@ -826,6 +827,7 @@ re-measuring these. Each was driven at the built binary, not read:
     too — the follow-up trigger (second host; `CLAUDE_PROJECT_DIR`
     host-specific) is met, and the remaining unknown is whether Desktop
     actually sends roots.
+    Not run 2026-09-16 — this session is Cursor, not a Claude Desktop MCP session. Still not the coder count. Pick A stands.
 
 - **A heredoc-style body terminator for the plan format — DEFERRED.** Raised and
   refused in ADR-015.
@@ -1057,7 +1059,7 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   Still not a checker. Follow-ups that 052 does not catch (Zeus, 2026-09-13) are
   under **From ADR-052** at the end of this file.
 
-- **UNMEASURED, and deliberately not written into the docs: a balanced-but-wrongly-nested JSX
+- **PROBED 2026-09-16, still not a finding: a balanced-but-wrongly-nested JSX
   subtree.** Predicted by the React session to be valid TypeScript that renders differently — `tsc`
   green, DOM wrong — which would be the JSX analogue of the YAML case where a body at the wrong
   indent silently reparents keys and every linter stays green. Its author declined to speculate and
@@ -1065,6 +1067,7 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   scope. It is here as a probe someone could run, not as a finding. If it reproduces it is the worst
   shape reported so far, because the file stays valid in a language whose type checker is the one
   gate that was expected to work.
+  Probed 2026-09-16: `tsc --jsx react-jsx --strict` exit 0; `renderToStaticMarkup` parent of `#inner` was `#accidental-wrapper` not `#intended-parent`. Fixture `docs/break/jsx-nest/`. Still not a parser. Needs a quote for any record. Still not as a finding.
 
 ## From ADR-026 (an address may say how many lines follow)
 
@@ -1246,6 +1249,7 @@ a paged cut (Claude Code 2.1.261, 2026-09-05, `docs/curve/reading-18-result.md`)
 under-ceiling measurement beside that reading rather than treating ADR-039 as it.
 
 Deferred by `docs/adr/ADR-039-a-fitting-read-licenses-only-what-came-back.md`, Out of Scope.
+Observed 2026-09-16: wire (`mrw mcp` stdio) fitting+paged continuous, `isError` absent; model check not run (Cursor, no mrw MCP tools). Class still open. File: `docs/curve/reading-under-ceiling-result.md`. This is not ADR-039.
 
 ## From the Codex review of PR #136 (2026-09-07)
 
@@ -1669,6 +1673,7 @@ campaign that reports the true-positive count without the false-positive count
 does not qualify — the number that argues a default is the one that costs the
 caller, not the one that flatters the tool. Arm the campaign with *"price
 strict balance"*.
+A named corpus with no checked refusals (`broke+held == 0`) has no defined rate and does not pass.
 
 Ran 2026-09-13 against PATH `mrw` v1.18.0 (`a5c4f24`). `mrw stats --json`
 `.pricing` in each checkout (landed writes are the older tally; pricing only
@@ -1684,6 +1689,15 @@ counts writes that landed on a binary that prices):
 v1.18.0 shipped the same day; earlier landed writes were not priced. Same
 quote re-arms a later read. Do not synthesize wrap-tails to fill the
 counters: the criterion is real corpora.
+Ran 2026-09-16 against PATH `mrw` v1.22.0 (`6896442`). Same three checkouts as 2026-09-13. `mrw stats --json` `.pricing` (landed is the tally, not `.pricing`):
+
+| corpus | landed | candidates | would_refuse | broke | held | unchecked |
+|---|---|---|---|---|---|---|
+| this repository | 320 | 0 | 0 | 0 | 0 | 0 |
+| Zeus | 360 | 26 | 1 | 0 | 0 | 1 |
+| Playtrix | 135 | 4 | 0 | 0 | 0 | 0 |
+
+**Does not qualify** — 1 refusal total (Zeus, `_unchecked`); the bar is ≥50. Zeus `broke+held == 0` so the FP rate is undefined and that corpus cannot pass "under 5% in every corpus with checked refusals". Default stays off. Same quote re-arms a later read. Do not synthesize wrap-tails.
 
 Stress of that same binary, 2026-09-13: `FuzzBalanceDelta` ~2.06e6 execs
 clean; `TestRandomisedApplyBalanceFollowsTheDecision` seeds 54/1/7/13/99
@@ -1719,3 +1733,14 @@ line — is not an alias.
   takes `.toml` (Cargo.toml) unless the rule is per-extension rather than
   "not code". Arm with *"per-extension check"*. Rejected as part of 059:
   treating `.jsonl` as prose.
+
+## From the 2026-09-16 dangling spec
+
+Receipt for `docs/specs/2026-09-16-dangling-high-impact.md`. Pins, not engine work. Unrun is not coverage.
+Execution plan: `docs/specs/2026-09-16-dangling-high-impact-plan.md` (campaign first; no engine ADR unless a probe finds a defect).
+
+- Desktop reach measure (UC-1) — trees-per-session on the Desktop population; coder plan count is the wrong population. Pick A stands. Not run 2026-09-16 (no Desktop session).
+- Under-ceiling host-cut (UC-2) — beside reading 18; do not treat ADR-039 as that evidence. Observed 2026-09-16 wire-only; model not run; still Deferred.
+- Concurrent silent apply (UC-3) — last-writer-wins; locking stays out of scope (ADR-002).
+- Strict-balance default campaign (UC-4) — 5% / 50 / three corpora; default stays off.
+- JSX nest probe (UC-5) — probed 2026-09-16, `tsc` 0, DOM parent `#accidental-wrapper`; still not a finding.
