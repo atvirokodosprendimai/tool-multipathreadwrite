@@ -84,8 +84,20 @@ None of them changed a verdict here, and this was checked on all nine transcript
 The gaps are recorded in `docs/adr/BACKLOG.md` for the next reading. The scorer is left as this
 reading ran it, because changing it now would change the instrument after its scores were produced.
 
-The transcripts stay on the machine that ran them and are not committed, as in readings 01 and 02.
-The scores are.
+## Replay
+
+`blind-03-replay/<trial>/` holds what the scorer reads for each of the nine trials:
+- `answer-key.json`;
+- the final `tree/docs/meta.yaml` and `tree/docs/notes.txt`;
+- `transcript.jsonl`, the full subagent transcript reduced to the assistant's text and tool calls.
+
+Tool results and everything else are dropped, and nothing kept is edited. Run the unchanged scorer on
+each kit and it reproduces the committed score exactly:
+
+    for t in h1 h2 h3 h4 h5 h6 s1 s2 s3; do d=docs/blind/blind-03-replay/$t
+      python3 scripts/blind-score.py $d $d/transcript.jsonl | diff - docs/blind/blind-03-scores/$t.json; done
+
+The audit above can be rerun on the same files. Readings 01 and 02 committed only their scores.
 
 ## Teaching leads the agents reported
 
