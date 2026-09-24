@@ -70,7 +70,8 @@ that arms work; silence leaves the row where it is.
 | ast-grep symlink spellings: a named path through a symlinked directory and then `..`, and a hit reached through a symlink | **deferred** — ADR-064 Out of Scope: exclusion matches the resolved path `astGrepRel` returns (it cleans before resolving), which can differ from the spelling `Walk` discovers; unpromised, no fixture yet | — |
 | A rename whose destination cannot be made half-applies the plan with every hunk `ok`; a failed path-op commit restores an unlink over a file renamed onto it (data loss since v1.19.0) | **ADR-066 Accepted** — destinations checked at validation and staged; path-op commit undone as a unit; truthful commit-failure receipts; contract §118/§119 | *"accepted"* |
 | A CR-only file is one line to read and several to write (a write to an unserved line applied); CRLF lines served with their `\r`; apply_patch/search_replace refuse CRLF targets | **ADR-065 Accepted** — one `lines.Split` for read, write, `--grep`, MCP paging and both compilers; ast-grep CR-only hits reported; ADR-051 F-10 superseded; contract §120/§121 | *"accepted"*, *"Supersede F-10 in ADR-065"* |
-| `mrw read f.go:/a/,$` is taught as "from here to the end" (ADR-036 Consequences, AGENTS.md:239) but serves the match line and the last line as two ranges, exit 0; as a write address it is refused | **open** — found 2026-09-24 while executing ADR-066; a docs/grammar mismatch, no record owns it yet | — |
+| `mrw read f.go:/a/,$` was taught as "from here to the end" (ADR-036 Consequences, AGENTS.md) but serves the match line and the last line as two ranges, exit 0; as a write address it is refused | **docs fixed** — 2026-09-24 housekeeping: AGENTS.md now teaches `f.go:/a/,+99999` (a read clamps a relative end) and says `/a/,$` is two ranges; ADR-036's Consequences sentence is left as the historical record. A real pattern-to-end form is not built | — |
+| A failing or truncated check keeps its `mrw-check-*.log` in the system temp directory for good, and nothing bounds how many accumulate | **open** — found 2026-09-24 while fixing contract.sh's leak (3,103 on one macOS machine). A passing, untruncated check already removes its log (`internal/check/check.go:251`, contract §29); the rest are kept on purpose because `full output:` points at them, so the decision is retention — a bounded set, or an age — not deletion on success | — |
 | An MCP `ast_grep` answer too large to serve comes back as an INDEX that carries only the COUNT of problems, so a CR-only file ADR-065 refuses is not named there | **open** — Codex review of #208 (P2, source-traced): `matchIndex` (`internal/mcp/tools.go:347`) gets the problem count, not the problems. Merged as a known, recorded finding by M's call (*"Do it"*); fix by carrying named problems in the bounded index | — |
 | `contract.sh` run as `./contract.sh` from inside `scripts/` resolves `SRC` to the repository's parent | **open** — found by Codex reviewing #204 (2026-09-24): `SRC` is computed after the script's first `cd`, so §30 (and §117, which inherits `SRC`) read the wrong `AGENTS.md`; invoking by absolute path or from the repo root works. Fix: capture the absolute repository directory once at entry | — |
 | Desktop reach measure, under-ceiling host-cut, concurrent silent apply, strict-balance campaign, JSX nest probe | **spec** — `docs/specs/2026-09-16-dangling-high-impact.md` | *"write a spec for these findings"* |
@@ -885,6 +886,21 @@ re-measuring these. Each was driven at the built binary, not read:
   machine, where the CLI is the tool of choice. It says Desktop reach is idle
   here; it says nothing about what an analyst session needs. Trees-per-session
   stays unmeasured. Reading 1 is one analyst task M runs in Desktop.
+
+  **Desktop reading 1 — 2026-09-24, a Windows 11 Pro 10.0.26200 machine, Claude
+  Desktop Store build, mrw v1.22.3 (`63729bd`, checksum matched SHA256SUMS). A
+  CODER task, NOT the analyst measure** — the folder M picked was the
+  quality-harness repository. Task: compare two ADR task folders in different
+  branches of the tree and write a summary into a third place. From the
+  Desktop log (`%LOCALAPPDATA%\Claude\Logs\mcp-server-mrw-docs.log`; the Store
+  build's config lives under `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Claude\`,
+  not `%APPDATA%\Claude`): 3 `serving` lines, all one root; Desktop launched
+  the server twice within 0.4 s and shut the first down before `initialize`;
+  5 `tools/call` over ~66 s; 0 `roots/list`; 0 `outside the root`. Per-tool
+  counts are NOT observable — this log format omits the tool name; the 4 reads
+  + 1 write split is inferred from the output file's mtime. Trees this session
+  needed: 1. Taken by a peer session on M's machine; reading 2 (an analyst task
+  over documents) is still the open measure.
 
 - **A heredoc-style body terminator for the plan format — DEFERRED.** Raised and
   refused in ADR-015.

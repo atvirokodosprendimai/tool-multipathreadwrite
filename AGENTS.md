@@ -163,6 +163,9 @@ A `.git/` the walk meets is skipped; one you name (`--grep X .git`) is walked.
 rg -l 'func Handle' . | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 ```
 
+Name rg's path (`.`): with none, rg searches a piped stdin and waits — measured
+2026-09-24, it hung an agent-shaped shell until a timeout.
+
 Blank lines are skipped and a leading `#` is a comment. Use it when your own
 index is better than a walk, or when `--grep` is not what you want.
 
@@ -241,8 +244,9 @@ functions, because `^}` closes both (`internal/apply/apply.go:748`, pinned by
 And the END is resolved the same way by `read` and by `write` (ADR-036): the
 first match **at or after** the start, so an end matching the start line closes
 the span there, and a paired pattern whose end never matches is **reported and
-exits 1** rather than served to the end of the file — say `f.go:/a/,$` when you
-mean "to the end". One difference is kept on purpose: a read serves a span for
+exits 1** rather than served to the end of the file. For "from the match to the
+end", give a relative end past it — `f.go:/a/,+99999` — which a read clamps at
+the last line; `f.go:/a/,$` is TWO ranges, the match and the last line. One difference is kept on purpose: a read serves a span for
 every match of the start that is not already inside a span it served, and a write
 refuses unless the start matches exactly once.
 A relative end has no backwards form and may not be combined with
