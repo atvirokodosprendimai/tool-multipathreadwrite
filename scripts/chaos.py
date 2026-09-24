@@ -36,9 +36,18 @@ MRW = os.path.abspath(sys.argv[1])
 WORK = os.path.abspath(sys.argv[2])
 # WORKDIR is created, filled and pruned (`fresh()` removes runs/ under it), so
 # it must not sit inside this checkout: the harness never touches the tree.
-REPO = os.path.realpath(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if os.path.commonpath([os.path.realpath(WORK), REPO]) == REPO:
-    sys.exit(f"chaos.py: WORKDIR {WORK} is inside the checkout {REPO}; use a scratch directory")
+# Compared by file IDENTITY, not by spelling: on a case-insensitive filesystem
+# /users/x and /Users/x are one directory, and a path on another drive has no
+# common prefix to compare. Walk WORKDIR's existing ancestors and ask each.
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_p = WORK
+while True:
+    if os.path.exists(_p) and os.path.samefile(_p, REPO):
+        sys.exit(f"chaos.py: WORKDIR {WORK} is inside the checkout {REPO}; use a scratch directory")
+    _up = os.path.dirname(_p)
+    if _up == _p:
+        break
+    _p = _up
 SEED = int(sys.argv[sys.argv.index("--seed") + 1]) if "--seed" in sys.argv else int(time.time())
 SCALE = float(sys.argv[sys.argv.index("--scale") + 1]) if "--scale" in sys.argv else 1.0
 rng = random.Random(SEED)
