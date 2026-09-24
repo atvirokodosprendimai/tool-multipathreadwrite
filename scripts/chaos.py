@@ -40,7 +40,7 @@ WORK = os.path.abspath(sys.argv[2])
 # /users/x and /Users/x are one directory, and a path on another drive has no
 # common prefix to compare. Walk WORKDIR's existing ancestors and ask each.
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_p = WORK
+_p = os.path.realpath(WORK)
 while True:
     if os.path.exists(_p) and os.path.samefile(_p, REPO):
         sys.exit(f"chaos.py: WORKDIR {WORK} is inside the checkout {REPO}; use a scratch directory")
