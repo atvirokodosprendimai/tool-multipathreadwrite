@@ -10,6 +10,8 @@ description: >-
   applies many edits in ONE call, with a per-hunk verdict and a
   read-before-modify guard; use it always, and plan the activity as one read
   of every site, then one plan, then one write. A new file is `@@ path 0 create`.
+  A read addresses by N, N-M, A,+N, $ or /regexp/, and --grep walks files you
+  cannot name; `mrw instructions` teaches the rest.
   NOT a licence to use shell for ordinary file edits.
 ---
 
