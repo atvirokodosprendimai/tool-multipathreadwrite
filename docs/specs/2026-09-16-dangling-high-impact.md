@@ -75,7 +75,7 @@ One spec, five use cases: each leftover has a named test that goes red if the re
 Given ADR-019 pick A shipped
 When a reader looks for the remaining reach work
 Then BACKLOG names a Desktop-population measurement of how many trees one session needs
-And it names whether Desktop sends roots/list
+And it files whether Desktop sends roots/list for pick C only
 ```
 
 ### UC1-S2 [failure] A coder plan count is not Desktop reach evidence [@spec] → `internal/adversarial/dangling_probe_test.go::TestACoderPlanCountIsNotDesktopReachEvidence` cmd:`go test ./internal/adversarial/ -count=1 -run '^TestACoderPlanCountIsNotDesktopReachEvidence$'`

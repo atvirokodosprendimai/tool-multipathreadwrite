@@ -64,6 +64,8 @@ that arms work; silence leaves the row where it is.
 | Centralised `mrw` skill always + plan (v20) | **deferred** — ADR-062 Follow-ups; AGENTS.md / repo skill updated in this record, palace POST is another session | — |
 | `mrw instructions` teaches the read side (addresses, `--grep`, `--ast-grep`, `--exclude`, `--files-from`) | **ADR-063 Accepted** — read section on CLI(); every read flag named; root, `read` and `--ast-grep` Usage name finding; handshake unchanged | *"approve"* |
 | Centralised `mrw` skill description names the read side | **shipped** — palace skill `mrw` v21 (2026-09-24), pinned at v1.22.2: description and body name the read side | *"release"* |
+| `read` exits 1 when a `--max-lines` cap withholds lines | **decided** — M 2026-09-24: keep; ADR-033 stands; the two `TestKnownGap_*` read tests became decided tests | *"Keep exit 1"* |
+| MCP registration scope (open since 2026-09-09) | **decided** — M 2026-09-24: user scope stays; README describes both scopes instead of prescribing one | *"Keep user scope"* |
 | Desktop reach measure, under-ceiling host-cut, concurrent silent apply, strict-balance campaign, JSX nest probe | **spec** — `docs/specs/2026-09-16-dangling-high-impact.md` | *"write a spec for these findings"* |
 | leftover `body=` extra count, `--dry-run` parsed hunks, read neighbour hint, unquoted `anchor=` `"`, `body=@path`, check last-error line | **shipped** — ADR-060 | — |
 | Per-extension check skip (`.jsonl` vs Cargo.toml) | **deferred** — ADR-054 / ADR-059; widening prose takes `.toml` | *"per-extension check"* |
@@ -262,6 +264,18 @@ that arms work; silence leaves the row where it is.
   an API key, costs money per run, cannot run in CI, and measures the model available on the day
   rather than the format. ADR-009's tally answers the same question from production for nothing;
   build this when the tally says WHICH parse failures dominate, so the benchmark knows what to probe.
+
+- **A blind-agent bench: a fresh agent given only `mrw instructions` and a tree it has never seen.**
+  PRE-REGISTERED 2026-09-24, before the harness exists (`.claude/rules/adr.md`). Criterion: on the
+  nine read/plan tasks of the 2026-09-24 ADR-063 chaos pass, a fresh agent answers at least 8 of 9
+  correctly, using at most 20 mrw calls in the whole run, on Haiku and on Sonnet, 3 runs each. A run
+  that used a banned tool (grep, rg, find, ls, cat, sed, awk, head, tail, the Read/Grep/Glob/Edit/Write
+  tools, or any `--help`) is VOID, not a miss, and is replaced by a fresh trial, at most 3 replacements
+  per model. The verdict per model, first rule that applies: FAIL if any non-void run misses the
+  criterion; otherwise INCONCLUSIVE if it has fewer than 3 non-void runs after its replacements;
+  otherwise PASS. The bench passes only if both models PASS. The 2026-09-24 one-off (Haiku, 9 of 9) predates this
+  criterion and is not a reading. Harness `scripts/blind-agent.sh`; plan and results under
+  `docs/blind/`.
 
 - **A fixture corpus of recorded model-authored plans, graded hermetically.** Better than a live
   benchmark — repeatable, no key, runs in CI — and blocked on the same thing: somebody has to
@@ -824,12 +838,21 @@ re-measuring these. Each was driven at the built binary, not read:
   **From ADR-019 Follow-ups, kept here so the record's deferrals have a receipt:**
   - A Desktop-population measurement of how many trees one session actually
     needs. The coder count is not that measurement.
-  - Whether Claude Desktop sends `roots/list`. Required before T2 if the pick
-    is C. ADR-011 deferred the same client request here; this is that receipt
-    too — the follow-up trigger (second host; `CLAUDE_PROJECT_DIR`
-    host-specific) is met, and the remaining unknown is whether Desktop
-    actually sends roots.
+  - Whether Claude Desktop sends `roots/list` — filed for pick C only. Pick A
+    (ADR-019:108-110) wires no client request, so this is measured only if a
+    reading ever argues for C. ADR-011 deferred the same client request here;
+    this is that receipt too — the follow-up trigger (second host;
+    `CLAUDE_PROJECT_DIR` host-specific) is met.
     Not run 2026-09-16 — this session is Cursor, not a Claude Desktop MCP session. Still not the coder count. Pick A stands.
+
+  **Desktop reading 0 — 2026-09-24, this Mac. NOT the analyst measure.** Claude
+  Desktop has `mrw` registered as `--root /Users/zy/GolandProjects/tool-multipathreadwrite
+  mcp`. `~/Library/Logs/Claude/mcp-server-mrw.log`, 2026-09-04 → 2026-09-24:
+  84 launches (`mrw mcp: serving` lines, all this one root), 34 `initialize`,
+  1 `tools/call`, 0 `roots/list`, 0 `outside the root`. Population: one coder's
+  machine, where the CLI is the tool of choice. It says Desktop reach is idle
+  here; it says nothing about what an analyst session needs. Trees-per-session
+  stays unmeasured. Reading 1 is one analyst task M runs in Desktop.
 
 - **A heredoc-style body terminator for the plan format — DEFERRED.** Raised and
   refused in ADR-015.
