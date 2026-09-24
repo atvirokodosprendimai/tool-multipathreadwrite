@@ -286,6 +286,17 @@ that arms work; silence leaves the row where it is.
   `scripts/blind-score.py`); plan and results under `docs/blind/`, first as blind reading 01.
   **Reading 03 (2026-09-24): PASS**, both models (`docs/blind/blind-03-result.md`). Readings 01 and
   02 are void on scorer defects. Haiku needed all three replacements, each VOID for `cat`.
+  **Reading 04 (2026-09-24): FAIL**, both models, on the call budget: h3 and s2 took 21 calls with
+  9 of 9 correct (`docs/blind/blind-04-result.md`). It removes reading 03's confound: headless
+  `claude -p --safe-mode` under `/tmp`, so no repository documentation in context. Sonnet's calls
+  roughly doubled (non-void runs, 23 → 49); Haiku's rose 45 → 55; correctness did not move.
+
+- **`mrw instructions` does not show where `body=` goes.** It says what `body=` means but never shows
+  it on an `@@` header. In blind reading 04, 4 of 7 trials put `body=` on a plan line of its own (3 as
+  `body=N`), where it is body text: mrw wrote `body=1` into s2's file, and undoing it cost s2 six Bash
+  calls, seven of its 21 mrw invocations.
+  **open** — a change to the served instructions (ADR-062/063), so it gets a record. Reading 05
+  re-runs `blind-04-plan.md` on the build that ships it.
 
 - **The blind-bench scorer misreads several shell and answer shapes.** Two gaps in
   `scripts/blind-score.py` were found in blind reading 03:
@@ -301,9 +312,10 @@ that arms work; silence leaves the row where it is.
 
   None changed a reading 03 verdict (`docs/blind/blind-03-result.md`, "Known limitations"). The
   criterion also sets no minimum number of mrw calls: 8 of 9 matching answers with zero calls would
-  score MEETS. Every reading 03 run made at least 7 calls. Fix the scorer before reading 04, with
-  a synthetic transcript of each shape. Any change to the criterion must be pre-registered here
-  before that reading's first trial.
+  score MEETS. Every reading 03 run made at least 7 calls. **Reading 04 ran with the scorer
+  unchanged, on purpose** (`blind-04-plan.md`), and none of these shapes appears in its transcripts.
+  Re-deferred: fix the scorer before reading 05, with a synthetic transcript of each shape. Any change
+  to the criterion must be pre-registered here before that reading's first trial.
 
 - **Teaching leads from blind reading 03, not yet acted on.** A write's `-M` refusal is a bare parse
   error; a write's exit 1 and exit 2 are not taught; `--exclude` does not say it prunes a bare
