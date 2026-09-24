@@ -85,10 +85,10 @@ export XDG_STATE_HOME="$WORK/state"
 mkdir -p "$XDG_STATE_HOME"
 
 # And pin TMPDIR into $WORK. mrw's check writes a `mrw-check-*.log` into the
-# system temp directory on every run and keeps it, so a contract run left one
-# per check-running row behind (13 per run, reported by the WSL peer on
-# 2026-09-24; 3,103 had accumulated on one macOS machine). Everything this run
-# writes to a temp directory now goes with $WORK.
+# system temp directory and keeps it whenever the check FAILS or is truncated
+# (a passing one removes its own), and many rows here fail a check on purpose —
+# so a contract run left 13 behind (reported by the WSL peer on 2026-09-24).
+# Everything this run writes to a temp directory now goes with $WORK.
 export TMPDIR="$WORK/tmp"
 mkdir -p "$TMPDIR"
 

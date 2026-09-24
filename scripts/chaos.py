@@ -34,6 +34,11 @@ import json, os, random, re, shutil, subprocess, sys, threading, time, hashlib
 
 MRW = os.path.abspath(sys.argv[1])
 WORK = os.path.abspath(sys.argv[2])
+# WORKDIR is created, filled and pruned (`fresh()` removes runs/ under it), so
+# it must not sit inside this checkout: the harness never touches the tree.
+REPO = os.path.realpath(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if os.path.commonpath([os.path.realpath(WORK), REPO]) == REPO:
+    sys.exit(f"chaos.py: WORKDIR {WORK} is inside the checkout {REPO}; use a scratch directory")
 SEED = int(sys.argv[sys.argv.index("--seed") + 1]) if "--seed" in sys.argv else int(time.time())
 SCALE = float(sys.argv[sys.argv.index("--scale") + 1]) if "--scale" in sys.argv else 1.0
 rng = random.Random(SEED)
