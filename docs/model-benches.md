@@ -116,6 +116,23 @@ held. A fall from 1.5% of 68 is not "the format improved": the sample grew in
 the same repository, same family of callers. `refused_apply` at 6.7% is the
 caller's picture of the tree, not the document. The caveats above still apply.
 
+## Instructions only — can a caller with only the binary find, read and plan?
+
+A fresh agent is given only `mrw instructions` and a small tree it has never seen, then asked nine
+read and plan tasks: find functions across files while excluding two directories, address forms, a
+pattern range, a multi-range spec, an ambiguous write pattern, and a form a write plan refuses. The
+criterion is pre-registered in `docs/adr/BACKLOG.md` ("From ADR-009"). The harness is
+`scripts/blind-agent.sh`, and scoring is `scripts/blind-score.py`.
+
+| Reading | Build | Haiku | Sonnet | Bench |
+|---|---|---|---|---|
+| 01 | v1.22.3 | void | void | void: the scorer read the wrong answer channel |
+| 02 | v1.22.3 | void | void | void: the scorer miscounted calls |
+| 03 | v1.22.3 | PASS (8, 9, 9 correct; 14–16 calls) | PASS (9, 9, 9; 7–8 calls) | **PASS** |
+
+Files: [blind/blind-03-result.md](blind/blind-03-result.md), with its plan and scores beside it.
+Haiku kept the tool ban in only three of six runs, so its PASS used every replacement allowed.
+
 ## Does serving more hurt? — the served-size curve
 
 The DEFAULT `MaxResultChars` is 200,000, and `mrw mcp --max-result-chars N`

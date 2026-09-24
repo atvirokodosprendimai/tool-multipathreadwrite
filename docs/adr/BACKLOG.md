@@ -279,6 +279,19 @@ that arms work; silence leaves the row where it is.
   otherwise PASS. The bench passes only if both models PASS. The 2026-09-24 one-off (Haiku, 9 of 9) predates this
   criterion and is not a reading. Harness `scripts/blind-agent.sh` (scoring
   `scripts/blind-score.py`); plan and results under `docs/blind/`, first as blind reading 01.
+  **Reading 03 (2026-09-24): PASS**, both models (`docs/blind/blind-03-result.md`). Readings 01 and
+  02 are void on scorer defects. Haiku needed all three replacements, each VOID for `cat`.
+
+- **The blind-bench scorer reads backslash continuations and heredoc bodies as commands.**
+  `command_words` in `scripts/blind-score.py` splits on an unquoted newline even after `\`, and
+  parses each heredoc body line as a command. Found in blind reading 03, where neither changed a
+  verdict (`docs/blind/blind-03-result.md`, "Known limitations"). Fix before reading 04, with a
+  synthetic transcript of each shape, and write the change into that reading's plan.
+
+- **Teaching leads from blind reading 03, not yet acted on.** A write's `-M` refusal is a bare parse
+  error; a write's exit 1 and exit 2 are not taught; `--exclude` does not say it prunes a bare
+  directory name. Each needs its own decision on whether `mrw instructions` should carry it, since
+  the handshake and the CLI text are budgeted (`docs/blind/blind-03-result.md`, "Teaching leads").
 
 - **A fixture corpus of recorded model-authored plans, graded hermetically.** Better than a live
   benchmark — repeatable, no key, runs in CI — and blocked on the same thing: somebody has to
