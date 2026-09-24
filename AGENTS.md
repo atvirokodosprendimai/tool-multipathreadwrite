@@ -152,7 +152,7 @@ no file is reported by name and exits 1.
 
 It does **not** read `.gitignore` and does not sniff for binary files: a regular
 file is a candidate, so exclude build artifacts by name (`--exclude bin`).
-`.git/` is always skipped.
+A `.git/` the walk meets is skipped; one you name (`--grep X .git`) is walked.
 
 **`--files-from` is the same idea for a searcher you already trust:**
 
@@ -374,9 +374,11 @@ and #73, one release apart.
   Extra arguments are usage (exit 2). A PATH binary that predates the
   subcommand still answers `-v`.
 - **`mrw instructions`** prints the contract from the binary: use mrw always
-  and plan the activity, the two rules that produce most refusals, and the traps
-  that make a red run look green. Exit 0. No flags. A caller who installed mrw
-  and has neither this checkout nor the skill can learn the format from this.
+  and plan the activity, the two rules that produce most refusals, the traps
+  that make a red run look green, the plan ops, and the read side — address
+  forms, `--grep`, `--files-from`, and where a plan reads an address
+  differently (ADR-063). Exit 0. No flags. A caller who installed mrw and has
+  neither this checkout nor the skill can learn the format from this.
 - **`mrw check`** runs the project's check on its own, scoped to the working
   set or to paths you name. A CLI `write` to a non-prose file runs the same
   runner by default (ADR-054); this is it without the write, for when you want the verdict again

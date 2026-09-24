@@ -60,7 +60,7 @@ the address a write plan takes.
 paths the walk starts at `--root`. `--exclude GLOB` is repeatable and matches
 both the root-relative path and the basename — that is what makes `'*_test.go'`
 work at any depth. It does not read `.gitignore` and does not sniff for binary
-files. `.git/` is always skipped.
+files. A `.git/` the walk meets is skipped; one you name is walked.
 
 `--files-from FILE|-` is the same idea for a searcher you already trust:
 
