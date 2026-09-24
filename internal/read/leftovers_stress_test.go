@@ -528,3 +528,102 @@ func TestAstGrepNeverRecords(t *testing.T) {
 		t.Fatalf("hit was not served:\n%s", buf.String())
 	}
 }
+
+// ── ADR-064: ast-grep applies ADR-007's exclusion rule in both halves ──────
+//
+// ADR-007:206-210: a glob matches a candidate's root-relative path or its
+// basename; matching a directory prunes it and everything under it; a path the
+// caller NAMED is never pruned. read.Walk does all three. These pin AstGrep to
+// the same rule with a fake ast-grep, so the mapping is tested without the
+// real binary.
+
+// astGrepFixture writes one-line Go files under a fresh root.
+func astGrepFixture(t *testing.T, files ...string) string {
+	t.Helper()
+	root := t.TempDir()
+	for _, f := range files {
+		p := filepath.Join(root, filepath.FromSlash(f))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("package x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+// oneAstGrepHit is the fake's JSON for a single hit on the first line of file.
+func oneAstGrepHit(file string) string {
+	return fmt.Sprintf(`[{"file":%q,"range":{"start":{"line":0},"end":{"line":0}}}]`, file)
+}
+
+// astGrepServed runs AstGrep and returns the paths it would serve.
+func astGrepServed(t *testing.T, root string, paths, exclude []string) []string {
+	t.Helper()
+	specs, _, err := AstGrep(root, paths, "x", exclude)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, s := range specs {
+		got = append(got, s.Path)
+	}
+	return got
+}
+
+func TestAstGrepServesANamedFileTheGlobWouldExclude(t *testing.T) {
+	root := astGrepFixture(t, "hit.go")
+	installFakeAstGrepJSON(t, oneAstGrepHit("hit.go"), 0)
+	if got := astGrepServed(t, root, []string{"hit.go"}, []string{"*.go"}); len(got) != 1 || got[0] != "hit.go" {
+		t.Fatalf("a named file must not be pruned by --exclude (ADR-007:208), got %q", got)
+	}
+}
+
+func TestAstGrepServesANamedFileGivenAsAnAbsolutePath(t *testing.T) {
+	root := astGrepFixture(t, "hit.go")
+	installFakeAstGrepJSON(t, oneAstGrepHit("hit.go"), 0)
+	named := filepath.Join(root, "hit.go")
+	if got := astGrepServed(t, root, []string{named}, []string{"*.go"}); len(got) != 1 {
+		t.Fatalf("an absolute spelling of a named file must be exempt too, got %q", got)
+	}
+}
+
+func TestAstGrepPrunesAnExcludedDirectoryItWalked(t *testing.T) {
+	root := astGrepFixture(t, "vendor/v.go")
+	installFakeAstGrepJSON(t, oneAstGrepHit("vendor/v.go"), 0)
+	if got := astGrepServed(t, root, nil, []string{"vendor"}); len(got) != 0 {
+		t.Fatalf("--exclude vendor must prune a walked vendor/ as Walk does, got %q", got)
+	}
+}
+
+func TestAstGrepDoesNotPruneANamedDirectory(t *testing.T) {
+	root := astGrepFixture(t, "vendor/v.go")
+	installFakeAstGrepJSON(t, oneAstGrepHit("vendor/v.go"), 0)
+	if got := astGrepServed(t, root, []string{"vendor"}, []string{"vendor"}); len(got) != 1 {
+		t.Errorf("a named directory is never pruned (walk.go:151-153), got %q", got)
+	}
+	root = astGrepFixture(t, "sub/gen/x.go")
+	installFakeAstGrepJSON(t, oneAstGrepHit("sub/gen/x.go"), 0)
+	if got := astGrepServed(t, root, []string{"sub"}, []string{"gen"}); len(got) != 0 {
+		t.Errorf("a directory the walk meets below a named one is still pruned, got %q", got)
+	}
+}
+
+func TestAstGrepAdmitsAHitThroughAnyContainingStart(t *testing.T) {
+	for _, paths := range [][]string{{".", "vendor/sub"}, {"vendor/sub", "."}} {
+		root := astGrepFixture(t, "vendor/sub/x.go")
+		installFakeAstGrepJSON(t, oneAstGrepHit("vendor/sub/x.go"), 0)
+		if got := astGrepServed(t, root, paths, []string{"vendor"}); len(got) != 1 {
+			t.Errorf("paths %q: vendor/sub is a start, so the hit is admitted through it whatever the order, got %q", paths, got)
+		}
+	}
+}
+
+func TestAstGrepTestsAnUncontainedHitFromTheRoot(t *testing.T) {
+	root := astGrepFixture(t, "sub/a.go", "other/y.go")
+	installFakeAstGrepJSON(t, oneAstGrepHit("other/y.go"), 0)
+	if got := astGrepServed(t, root, []string{"sub"}, []string{"other"}); len(got) != 0 {
+		t.Fatalf("a hit no named path contains is tested from the root, got %q", got)
+	}
+}

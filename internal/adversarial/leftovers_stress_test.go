@@ -134,7 +134,9 @@ func oracleFind(c findCombo) (code int, must, mustNot []string) {
 	if c.ast && c.astPresent && !c.hits {
 		return 1, []string{"needle"}, []string{"not found"}
 	}
-	if c.ast && c.astPresent && c.hits && c.exclude {
+	// ADR-064: a named file is never pruned (ADR-007:208), so with hit.go
+	// named its hit survives --exclude '*.go', exactly as it does on --grep.
+	if c.ast && c.astPresent && c.hits && c.exclude && !c.pos {
 		return 1, []string{"needle"}, nil
 	}
 	if c.ast && c.astPresent && c.hits {

@@ -293,6 +293,19 @@ func TestExcludeDropsAMatchingFileAndPrunesADirectory(t *testing.T) {
 	}
 }
 
+// ADR-007:208 on the --grep path: a file the caller names is never pruned by a
+// glob that matches it. The walker always did this; nothing tested it.
+func TestANamedFileIsServedThroughGrepDespiteExclude(t *testing.T) {
+	root := grepTree(t, map[string]string{"drop.go": "WANTED\n", "keep.txt": "WANTED\n"})
+	out, err := readIn(t, root, "--grep", "WANTED", "--exclude", "*.go", "drop.go")
+	if err != nil {
+		t.Fatalf("a named excluded file must be served: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "drop.go") {
+		t.Fatalf("the named file was pruned:\n%s", out)
+	}
+}
+
 // Every row of the ADR's precedence table that says "usage error" is one. This
 // test fails if any of them stops being an error — the precedence table is
 // where a caller's mental model breaks, so it is pinned rather than described.

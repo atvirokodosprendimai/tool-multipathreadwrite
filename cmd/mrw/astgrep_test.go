@@ -126,3 +126,17 @@ func installFakeAstGrep(t *testing.T, stdout string, exit int) {
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
+
+// ADR-064: the CLI serves a named file the glob would drop through --ast-grep,
+// the same answer --grep gives.
+func TestANamedFileIsServedThroughAstGrepDespiteExclude(t *testing.T) {
+	root := grepTree(t, map[string]string{"b.go": "package b\nfunc D() {}\n"})
+	installFakeAstGrep(t, `[{"file":"b.go","range":{"start":{"line":1},"end":{"line":1}}}]`, 0)
+	out, err := readIn(t, root, "--ast-grep", "D", "--exclude", "b.go", "b.go")
+	if err != nil {
+		t.Fatalf("a named excluded file must be served: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "==> b.go") {
+		t.Fatalf("the named file was pruned:\n%s", out)
+	}
+}
