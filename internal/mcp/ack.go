@@ -39,6 +39,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -182,6 +183,13 @@ type servedSlice struct {
 
 // splitServed cuts a read.Run report on `==> path` headers. A slice with no
 // numbered lines produces no checkpoints — UNREADABLE and REFUSED stay unmarked.
+// servedHeader is the header read.Run prints above a served file —
+// `==> <path>  <N>L  <B>B  sha <hex>` — anchored at its END, because the path
+// itself may hold spaces, even two in a row. Cutting at the first space turned
+// `x y.txt` into `x`, which has no observation, so every MCP read of such a
+// file failed with -32603 (found by the chaos harness, 2026-09-24).
+var servedHeader = regexp.MustCompile(`^(.*)  \d+L  \d+B  sha [0-9a-f]+$`)
+
 func splitServed(report string) []servedSlice {
 	if report == "" {
 		return nil
@@ -202,8 +210,12 @@ func splitServed(report string) []servedSlice {
 	for _, line := range lines {
 		if rest, ok := strings.CutPrefix(line, "==> "); ok {
 			flush()
+			// A REFUSED or UNREADABLE header serves no lines, so its path is
+			// only a label; a served header's path is exact.
 			path := rest
-			if i := strings.IndexAny(rest, " \t"); i >= 0 {
+			if m := servedHeader.FindStringSubmatch(rest); m != nil {
+				path = m[1]
+			} else if i := strings.Index(rest, "  "); i >= 0 {
 				path = rest[:i]
 			}
 			cur.path = path

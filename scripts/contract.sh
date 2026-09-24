@@ -6379,6 +6379,33 @@ assert e.get("code")==-32022 and e.get("data",{}).get("supported")==["2026-07-28
 PY
 want 0 $? "a modern request naming an unknown version is refused with the supported list"
 
+# 126. An MCP read of a file whose name holds a space is served, with the
+# checkpoints that license a write. From ADR-039 (v1.11.0) to v1.24.0 it was
+# refused with -32603 "holding checkpoints: no observation for x": the served
+# header's path was cut at its first space. Found by the chaos harness's MCP
+# suite, 2026-09-24. The pair: a spaced path that does not exist is reported as
+# a problem naming it, not as an internal error.
+fixture
+printf 'hello\n' > "$R/x y.txt"
+{
+  printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["x y.txt"]}}}'
+  printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["no such.txt"]}}}'
+} | m mcp > "$WORK/126.out" 2>/dev/null
+python3 - "$WORK/126.out" <<'PY'
+import json,sys
+r=[json.loads(l) for l in open(sys.argv[1]) if l.strip()][0]
+assert "error" not in r, "a spaced file was refused: %s" % r
+t=r["result"]["content"][0]["text"]
+assert "    1| hello" in t and "-- ck " in t, "a spaced file was not served with checkpoints: %s" % t[:300]
+PY
+want 0 $? "an MCP read of a file with a space in its name is served"
+python3 - "$WORK/126.out" <<'PY'
+import json,sys
+r=[json.loads(l) for l in open(sys.argv[1]) if l.strip()][1]
+assert "error" not in r and "no such.txt" in r["result"]["content"][0]["text"], "a missing spaced path: %s" % r
+PY
+want 0 $? "and a missing spaced path is reported by name, not as an internal error"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
