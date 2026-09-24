@@ -70,3 +70,4 @@ does not start until the build is recorded here.
 - Two models, one fixture family, three runs each. That is enough to fail the claim, and not enough
   to put a rate on it.
 - Subagents run inside this session's host, so this is not a Desktop or a Codex population.
+- **Instructions-only is enforced at the tool level, not the context level.** A subagent started from this session probably loads this repository's CLAUDE.md and AGENTS.md, plus the user's global CLAUDE.md, and all of them teach mrw at length. So a PASS here shows that an agent can do the tasks with mrw, the binary and the instructions. It does not show that the binary's instructions ALONE were enough. Taking that measure needs a trial started outside any repository that documents mrw. Added before the first trial.
