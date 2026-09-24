@@ -282,11 +282,23 @@ that arms work; silence leaves the row where it is.
   **Reading 03 (2026-09-24): PASS**, both models (`docs/blind/blind-03-result.md`). Readings 01 and
   02 are void on scorer defects. Haiku needed all three replacements, each VOID for `cat`.
 
-- **The blind-bench scorer reads backslash continuations and heredoc bodies as commands.**
-  `command_words` in `scripts/blind-score.py` splits on an unquoted newline even after `\`, and
-  parses each heredoc body line as a command. Found in blind reading 03, where neither changed a
-  verdict (`docs/blind/blind-03-result.md`, "Known limitations"). Fix before reading 04, with a
-  synthetic transcript of each shape, and write the change into that reading's plan.
+- **The blind-bench scorer misreads several shell and answer shapes.** Two gaps in
+  `scripts/blind-score.py` were found in blind reading 03:
+  - `command_words` splits on an unquoted newline even after `\`;
+  - it parses each heredoc body line as a command.
+
+  The Codex review of PR #206 reproduced more:
+  - `command cat` and a `cat` in `"$(…)"` escape the ban;
+  - `env mrw` is not counted;
+  - a banned word printed in a quoted argument after `;` voids a run;
+  - a final non-object JSON fence is skipped;
+  - a wrongly typed answer crashes the scorer.
+
+  None changed a reading 03 verdict (`docs/blind/blind-03-result.md`, "Known limitations"). The
+  criterion also sets no minimum number of mrw calls: 8 of 9 matching answers with zero calls would
+  score MEETS. Every reading 03 run made at least 7 calls. Fix the scorer before reading 04, with
+  a synthetic transcript of each shape. Any change to the criterion must be pre-registered here
+  before that reading's first trial.
 
 - **Teaching leads from blind reading 03, not yet acted on.** A write's `-M` refusal is a bare parse
   error; a write's exit 1 and exit 2 are not taught; `--exclude` does not say it prunes a bare

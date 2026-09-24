@@ -1,9 +1,18 @@
 # Blind reading 03: PASS
 
 **Both models PASS the criterion pre-registered in `docs/adr/BACKLOG.md` ("From ADR-009"), so the
-bench passes.** A fresh agent given only `mrw instructions` and a tree it had never seen answered the
-nine read/plan tasks within the limits: at least 8 of 9 correct, at most 20 mrw calls. It did so in
-every run that kept the tool ban, on Haiku and on Sonnet.
+bench passes.** A fresh agent whose prompt gave it only `mrw instructions` and a tree it had never
+seen answered the nine read/plan tasks within the limits: at least 8 of 9 correct, at most 20 mrw
+calls. It did so in every run that kept the tool ban, on Haiku and on Sonnet.
+
+**What this PASS does not show.** The prompt restricts the tools, not what is in the agent's
+context. `blind-01-plan.md` names this confound, and readings 02 and 03 inherit it. Each trial
+was a subagent started from a session in this repository, so it probably also loaded this
+repository's CLAUDE.md and AGENTS.md and the user's global CLAUDE.md, all of which teach mrw at
+length. All three Sonnet runs reported that a SubagentStart hook asked them to search team memory,
+and that they skipped it. So the PASS shows an agent can do these tasks with the binary and the
+instructions. It does not show that the binary's instructions alone are enough. Measuring that
+needs a trial started outside any repository that documents mrw.
 
 The plan is `blind-03-plan.md`, committed at `716609c` before any trial ran. Build v1.22.3 (`63729bd`), as
 `mrw version` printed before dispatch. Every trial's prompt was compared byte for byte with its
@@ -51,17 +60,28 @@ Every verdict was checked against its transcript by hand, and no score was chang
 
 ## Known limitations, found in this reading
 
-`command_words` has two gaps that `blind-03-plan.md` does not list:
+`command_words` has gaps that `blind-03-plan.md` does not list. This reading found two:
 - **Backslash continuations.** It turns an unquoted newline into a separator even after a backslash,
   so the first word of each continued line is read as a command.
 - **Heredoc bodies.** It reads each line of a heredoc body as a command.
 
-Neither changed a verdict here, and this was checked on all nine transcripts:
+The Codex review of PR #206 reproduced more of them on synthetic transcripts:
+- `command cat f`, and a `cat` inside `"$(…)"`, score MEETS instead of VOID;
+- `env mrw read f` is not counted as a call;
+- a banned word printed inside a double-quoted argument after `;` scores VOID;
+- a final JSON fence that is not an object is skipped, so an earlier one wins;
+- a task answer of the wrong type crashes the scorer instead of scoring a miss.
+
+None of them changed a verdict here, and this was checked on all nine transcripts:
 - **Continuations:** joining them before parsing changes no ban and no call count.
 - **Heredocs:** only h1, h3 and h5 contain one, and each wraps a real `cat`, which voids the run by
   itself.
+- **Other banned words:** outside single-quoted literals, every `grep` is mrw's `--grep` flag. Every
+  `find` is in a `#` comment. The only backticks are in comments and in h5's heredoc.
+- **Other shapes:** no transcript uses `env`, `command`, `$(`, `eval` or `xargs`.
+- **Answers:** every JSON fence is an object, and all nine transcripts scored with exit 0.
 
-Both gaps are recorded in `docs/adr/BACKLOG.md` for the next reading. The scorer is left as this
+The gaps are recorded in `docs/adr/BACKLOG.md` for the next reading. The scorer is left as this
 reading ran it, because changing it now would change the instrument after its scores were produced.
 
 The transcripts stay on the machine that ran them and are not committed, as in readings 01 and 02.

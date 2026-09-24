@@ -118,11 +118,14 @@ caller's picture of the tree, not the document. The caveats above still apply.
 
 ## Instructions only — can a caller with only the binary find, read and plan?
 
-A fresh agent is given only `mrw instructions` and a small tree it has never seen, then asked nine
-read and plan tasks: find functions across files while excluding two directories, address forms, a
-pattern range, a multi-range spec, an ambiguous write pattern, and a form a write plan refuses. The
+A fresh agent's prompt gives it only `mrw instructions` and a small tree it has never seen, then asks
+nine read and plan tasks: find functions across files while excluding two directories, address forms,
+a pattern range, a multi-range spec, an ambiguous write pattern, and a form a write plan refuses. The
 criterion is pre-registered in `docs/adr/BACKLOG.md` ("From ADR-009"). The harness is
-`scripts/blind-agent.sh`, and scoring is `scripts/blind-score.py`.
+`scripts/blind-agent.sh`, and scoring is `scripts/blind-score.py`. The prompt restricts tools, not
+context: the trials ran as subagents of a session in this repository, whose CLAUDE.md and AGENTS.md
+teach mrw. So a PASS shows the tasks can be done with the binary and its instructions, not that the
+instructions alone suffice (`blind/blind-01-plan.md`, "Known limitations").
 
 | Reading | Build | Haiku | Sonnet | Bench |
 |---|---|---|---|---|
