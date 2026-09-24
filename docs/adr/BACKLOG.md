@@ -286,6 +286,16 @@ that arms work; silence leaves the row where it is.
   `scripts/blind-score.py`); plan and results under `docs/blind/`, first as blind reading 01.
   **Reading 03 (2026-09-24): PASS**, both models (`docs/blind/blind-03-result.md`). Readings 01 and
   02 are void on scorer defects. Haiku needed all three replacements, each VOID for `cat`.
+  **Reading 04 (2026-09-24): FAIL**, both models, on the call budget: h3 and s2 took 21 calls with
+  9 of 9 correct (`docs/blind/blind-04-result.md`). It removes reading 03's confound: headless
+  `claude -p --safe-mode` under `/tmp`, so no repository documentation in context. Calls roughly
+  doubled, and correctness did not move.
+
+- **`mrw instructions` does not show where `body=` goes.** It says what `body=` means but never shows
+  it on an `@@` header. In blind reading 04, 3 of 7 trials put `body=N` on a plan line of its own,
+  where it is body text: mrw wrote `body=1` into s2's file, and fixing it cost s2 six of its 21 calls.
+  **open** — a change to the served instructions (ADR-062/063), so it gets a record. Reading 05
+  re-runs `blind-04-plan.md` on the build that ships it.
 
 - **The blind-bench scorer misreads several shell and answer shapes.** Two gaps in
   `scripts/blind-score.py` were found in blind reading 03:
