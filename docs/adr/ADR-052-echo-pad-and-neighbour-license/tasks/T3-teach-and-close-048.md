@@ -47,7 +47,6 @@ grep -q 'ADR-052' docs/adr/ADR-048-mrw-models-no-target-syntax.md \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `Acceptance fence` | `docs/adr/ADR-048-mrw-models-no-target-syntax.md` / `docs/adr/BACKLOG.md` / README / AGENTS | 048 names 052; leftover receipted; Shared() intact | — | S1, S2, S3 |
 
 ## Reachability
 
@@ -86,3 +85,11 @@ A rewrite of Shared() to mention the license.
 ## Verification Log
 - 2026-09-13 · 2f49847* · exit 0 · `set -o pipefail …` · acceptance-sha256:53bd1cbc35cdf3742f054394b2e92b0e9c9bee70bd9ed7933ede1e6fe7f4ef90 · ms:45
 - 2026-09-13 · 2f49847* · exit 0 · `set -o pipefail …` · acceptance-sha256:53bd1cbc35cdf3742f054394b2e92b0e9c9bee70bd9ed7933ede1e6fe7f4ef90 · ms:47
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:53bd1cbc35cdf3742f054394b2e92b0e9c9bee70bd9ed7933ede1e6fe7f4ef90 · ms:65
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:53bd1cbc35cdf3742f054394b2e92b0e9c9bee70bd9ed7933ede1e6fe7f4ef90 · ms:62
+- 2026-09-24 · 89572e8* · exit 1 · `set -o pipefail …` · acceptance-sha256:53bd1cbc35cdf3742f054394b2e92b0e9c9bee70bd9ed7933ede1e6fe7f4ef90 · ms:32 · test-lock-sha256:15e3bbe7891447ac8edc394dbac54bbe9ee3d0289eae2f0c24ce62fd3d8d807c · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwp1bnByb3Zlbglkb2NzL2Fkci9BRFItMDQ4LW1ydy1tb2RlbHMtbm8tdGFyZ2V0LXN5bnRheC5tZAlBY2NlcHRhbmNlIGZlbmNl
+  ```
+  ```
+- 2026-09-24 · 89572e8* · exit 0 · `set -o pipefail …` · acceptance-sha256:53bd1cbc35cdf3742f054394b2e92b0e9c9bee70bd9ed7933ede1e6fe7f4ef90 · ms:63
+- 2026-09-24 · 89572e8* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:53bd1cbc35cdf3742f054394b2e92b0e9c9bee70bd9ed7933ede1e6fe7f4ef90 · ms:0 · test-lock-sha256:d0a88974807379b1a850b3ee812a98f67f902bffe32b9e36b9a17cac84f8be11 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMw · test-lock-kind:replace
+- 2026-09-24 · 89572e8* · exit 0 · `set -o pipefail …` · acceptance-sha256:53bd1cbc35cdf3742f054394b2e92b0e9c9bee70bd9ed7933ede1e6fe7f4ef90 · ms:59
