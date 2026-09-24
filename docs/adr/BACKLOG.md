@@ -277,8 +277,33 @@ that arms work; silence leaves the row where it is.
   per model. The verdict per model, first rule that applies: FAIL if any non-void run misses the
   criterion; otherwise INCONCLUSIVE if it has fewer than 3 non-void runs after its replacements;
   otherwise PASS. The bench passes only if both models PASS. The 2026-09-24 one-off (Haiku, 9 of 9) predates this
-  criterion and is not a reading. Harness `scripts/blind-agent.sh`; plan and results under
-  `docs/blind/`.
+  criterion and is not a reading. Harness `scripts/blind-agent.sh` (scoring
+  `scripts/blind-score.py`); plan and results under `docs/blind/`, first as blind reading 01.
+  **Reading 03 (2026-09-24): PASS**, both models (`docs/blind/blind-03-result.md`). Readings 01 and
+  02 are void on scorer defects. Haiku needed all three replacements, each VOID for `cat`.
+
+- **The blind-bench scorer misreads several shell and answer shapes.** Two gaps in
+  `scripts/blind-score.py` were found in blind reading 03:
+  - `command_words` splits on an unquoted newline even after `\`;
+  - it parses each heredoc body line as a command.
+
+  The Codex review of PR #206 reproduced more:
+  - `command cat` and a `cat` in `"$(…)"` escape the ban;
+  - `env mrw` is not counted;
+  - a banned word printed in a quoted argument after `;` voids a run;
+  - a final non-object JSON fence is skipped;
+  - a wrongly typed answer crashes the scorer.
+
+  None changed a reading 03 verdict (`docs/blind/blind-03-result.md`, "Known limitations"). The
+  criterion also sets no minimum number of mrw calls: 8 of 9 matching answers with zero calls would
+  score MEETS. Every reading 03 run made at least 7 calls. Fix the scorer before reading 04, with
+  a synthetic transcript of each shape. Any change to the criterion must be pre-registered here
+  before that reading's first trial.
+
+- **Teaching leads from blind reading 03, not yet acted on.** A write's `-M` refusal is a bare parse
+  error; a write's exit 1 and exit 2 are not taught; `--exclude` does not say it prunes a bare
+  directory name. Each needs its own decision on whether `mrw instructions` should carry it, since
+  the handshake and the CLI text are budgeted (`docs/blind/blind-03-result.md`, "Teaching leads").
 
 - **A fixture corpus of recorded model-authored plans, graded hermetically.** Better than a live
   benchmark — repeatable, no key, runs in CI — and blocked on the same thing: somebody has to
