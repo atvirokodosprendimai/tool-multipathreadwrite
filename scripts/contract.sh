@@ -84,6 +84,19 @@ trap 'trap "" TERM; rm -rf "$WORK"; kill -- -$$ 2>/dev/null' EXIT
 export XDG_STATE_HOME="$WORK/state"
 mkdir -p "$XDG_STATE_HOME"
 
+# And pin TMPDIR into $WORK. mrw's check writes a `mrw-check-*.log` into the
+# system temp directory on every run and keeps it, so a contract run left one
+# per check-running row behind (13 per run, reported by the WSL peer on
+# 2026-09-24; 3,103 had accumulated on one macOS machine). Everything this run
+# writes to a temp directory now goes with $WORK.
+export TMPDIR="$WORK/tmp"
+mkdir -p "$TMPDIR"
+
+# jq is required, not optional: 16 rows parse a --json receipt with it, most
+# without a guard, so a machine without jq failed those rows as if mrw were
+# wrong. Say so once, before anything runs (reported by the WSL peer).
+command -v jq >/dev/null 2>&1 || { echo "contract.sh needs jq on PATH (the --json rows parse receipts with it)" >&2; exit 2; }
+
 # Build our OWN binary inside WORK rather than sharing bin/mrw. Two fences ran
 # concurrently under `adr-verify --sweep` on 2026-08-31 — one starting with
 # `go build -o bin/mrw`, two others executing it — and the binary was rewritten
