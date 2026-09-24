@@ -14,7 +14,7 @@ func Shared() string {
 }
 
 const shared = `Use mrw always: plan the activity as one read of every site, then one plan, then one write.
-A plan applies whole or not at all: if any hunk fails, nothing is written.
+A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit reports what reached disk (CLI: PARTIALLY APPLIED).
 Read before you write, per line, not per file.
 mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.
 A refusal names the file, the plan line, and the reason.`
@@ -26,7 +26,7 @@ func WhyAllOrNothing() string {
 	return whyAllOrNothing
 }
 
-const whyAllOrNothing = `A failed hunk writes nothing because a write that changed nothing is invisible.`
+const whyAllOrNothing = `A plan that fails validation writes nothing because a write that changed nothing is invisible.`
 
 // CLI is Shared plus the why, the operator traps that only the shell
 // surface can hit, the plan ops a PATH caller needs to drive a write, and

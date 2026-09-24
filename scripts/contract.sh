@@ -1974,7 +1974,7 @@ assert len(i.encode()) <= 4096, "the instructions are %d bytes; they are paid on
 # compiles must fail here.
 shared = (
     "Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
-    "A plan applies whole or not at all: if any hunk fails, nothing is written.",
+    "A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit reports what reached disk (CLI: PARTIALLY APPLIED).",
     "Read before you write, per line, not per file.",
     "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
     "A refusal names the file, the plan line, and the reason.",
@@ -4756,7 +4756,7 @@ import sys
 out = sys.argv[1]
 shared = (
     "Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
-    "A plan applies whole or not at all: if any hunk fails, nothing is written.",
+    "A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit reports what reached disk (CLI: PARTIALLY APPLIED).",
     "Read before you write, per line, not per file.",
     "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
     "A refusal names the file, the plan line, and the reason.",
@@ -5185,12 +5185,12 @@ assert "search_replace" in str(fmt.get("format")), "mrw_write does not declare s
 PY
 want 0 $? "tools/list still two tools and mrw_write declares search_replace"
 
-# 85. A failed hunk writes nothing because a write that changed nothing is
+# 85. A plan that fails validation writes nothing because a write that changed nothing is
 # invisible. A unit test on CLI() cannot prove the shipped binary prints it.
 # Drive $MRW: instructions and initialize both carry the why; Shared's five
 # sentences remain (the why is extra, not a rewrite); pair: handshake stays
 # at most 4096 bytes — funding the sentence by raising the bound fails.
-why85='A failed hunk writes nothing because a write that changed nothing is invisible.'
+why85='A plan that fails validation writes nothing because a write that changed nothing is invisible.'
 out=$(m instructions 2>&1); rc=$?
 want 0 "$rc" "mrw instructions still exits 0"
 python3 - "$out" "$why85" <<'PY'
@@ -5199,7 +5199,7 @@ out, why = sys.argv[1], sys.argv[2]
 assert why in out, "instructions omitted the why: %r" % why
 shared = (
     "Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
-    "A plan applies whole or not at all: if any hunk fails, nothing is written.",
+    "A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit reports what reached disk (CLI: PARTIALLY APPLIED).",
     "Read before you write, per line, not per file.",
     "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
     "A refusal names the file, the plan line, and the reason.",
@@ -5222,7 +5222,7 @@ assert isinstance(i,str) and i.strip(), "initialize carries no instructions"
 assert why in i, "handshake omitted the why"
 shared = (
     "Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
-    "A plan applies whole or not at all: if any hunk fails, nothing is written.",
+    "A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit reports what reached disk (CLI: PARTIALLY APPLIED).",
     "Read before you write, per line, not per file.",
     "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
     "A refusal names the file, the plan line, and the reason.",
@@ -6119,6 +6119,96 @@ if command -v rg >/dev/null 2>&1; then
   kill "$hold117" 2>/dev/null; wait "$hold117" 2>/dev/null
 else
   skip "rg absent — taught pipeline not executed"
+fi
+
+# 118. ADR-066: a rename's destination is checked before anything is written.
+# A destination directory that cannot be created used to be discovered at
+# COMMIT, after the plan's other files were already renamed into place, while
+# every hunk read `ok` and the summary said `applied`. A 300-byte component is
+# ENAMETOOLONG on every OS mrw runs on, so the row needs no permissions and
+# works as root. The good case is the same plan with a short name.
+fixture
+L118=$(printf '%0300d' 0 | tr 0 x)
+printf 'sib\n' > "$R/s.txt"; printf 'bee\n' > "$R/b.txt"; m read s.txt b.txt >/dev/null
+printf '@@ s.txt 1 replace\nSIB\n@@ b.txt - rename\nd/short/f.txt\n' | m write --no-check - >"$WORK/118.out" 2>&1
+want 0 $? "a sibling edit and a rename into a new directory exit 0"
+{ grep -q -- '— applied' "$WORK/118.out" && [ -f "$R/d/short/f.txt" ]; } \
+  && ok "a rename into a new directory applies" \
+  || bad "a rename into a new directory did not apply: $(tr '\n' ' ' < "$WORK/118.out")"
+fixture
+printf 'sib\n' > "$R/s.txt"; printf 'bee\n' > "$R/b.txt"; m read s.txt b.txt >/dev/null
+plan118="$(printf '@@ s.txt 1 replace\nSIB\n@@ b.txt - rename\nn/%s/f.txt\n' "$L118")"
+printf '%s\n' "$plan118" | m write --no-check - >"$WORK/118.out" 2>&1
+want 2 $? "a rename whose destination directory cannot be made exits 2"
+{ [ "$(cat "$R/s.txt")" = "sib" ] && [ -f "$R/b.txt" ] && [ ! -e "$R/n" ] \
+    && grep -q '^FAIL' "$WORK/118.out" && grep -q '^skip' "$WORK/118.out" \
+    && ! grep -q -- '— applied' "$WORK/118.out"; } \
+  && ok "a rename whose directory cannot be made writes nothing" \
+  || bad "a rename whose directory cannot be made changed the tree or claimed success: $(tr '\n' ' ' < "$WORK/118.out" | cut -c1-300)"
+if command -v jq >/dev/null 2>&1; then
+  # Into a file first: under this file's pipefail, mrw's exit 2 would fail the
+  # pipeline whatever jq decided.
+  printf '%s\n' "$plan118" | m write --no-check --json - >"$WORK/118.json" 2>/dev/null
+  jq -e '.failed==1 and .applied==false and ([.files[]|select(.written)]|length==0)' "$WORK/118.json" >/dev/null \
+    && ok "and its --json receipt says one failed, nothing written" \
+    || bad "the --json receipt of an uncreatable rename directory is not failed==1, applied==false, nothing written"
+else
+  skip "jq absent — the --json half of §118 not checked"
+fi
+mkdir -p "$R/ok"
+printf '@@ s.txt 1 replace\nSIB\n@@ b.txt - rename\nok/%s\n' "$L118" | m write --no-check - >"$WORK/118.out" 2>&1
+want 1 $? "a rename whose name the filesystem rejects fails validation (exit 1)"
+{ [ "$(cat "$R/s.txt")" = "sib" ] && [ -f "$R/b.txt" ]; } \
+  && ok "a rename whose name the filesystem rejects is refused" \
+  || bad "a rejected rename name reached the tree: $(tr '\n' ' ' < "$WORK/118.out" | cut -c1-300)"
+printf '@@ s.txt 1 replace\nSIB\n@@ b.txt - rename\nn2/%s\n' "$L118" | m write --no-check - >"$WORK/118.out" 2>&1
+want 2 $? "a rename whose leaf is rejected under a new parent exits 2"
+{ [ "$(cat "$R/s.txt")" = "sib" ] && [ -f "$R/b.txt" ] && [ ! -e "$R/n2" ]; } \
+  && ok "a rename whose leaf is rejected under a new parent writes nothing" \
+  || bad "a rejected leaf under a new parent reached the tree: $(tr '\n' ' ' < "$WORK/118.out" | cut -c1-300)"
+
+# 119. ADR-066: a failed unlink/rename commit is undone as a unit, and a commit
+# that wrote some files before failing says PARTIALLY APPLIED. The failure is a
+# rename into a directory made read-only, which only bites for a non-root user,
+# so the row probes it first and SKIPs visibly when the write goes through, as
+# §21 does; the Go tests drive the same paths through a seam as root too. The
+# must-fail replacing plan is the shape that lost data on v1.22.3: unlink c,
+# rename b onto c, then a rename that fails — the old restore moved c back over
+# b and B-CONTENT existed nowhere.
+fixture
+mkdir -p "$R/ro" "$R/w"; chmod 555 "$R/ro"
+if ( : > "$R/ro/.probe" ) 2>/dev/null; then
+  rm -f "$R/ro/.probe"; chmod 755 "$R/ro"
+  skip "a read-only directory is writable here — §119 not driven through the binary"
+else
+  setup119() { printf 'OLD-C\n' > "$R/c.txt"; printf 'B-CONTENT\n' > "$R/b.txt"; printf 'D\n' > "$R/d.txt"; printf 'sib\n' > "$R/s.txt"; m read c.txt b.txt d.txt s.txt >/dev/null; }
+  setup119
+  printf '@@ c.txt - unlink\n@@ b.txt - rename\nc.txt\n@@ d.txt - rename\nw/d.txt\n' | m write --no-check - >"$WORK/119.out" 2>&1
+  want 0 $? "a replacing rename plan into a writable directory exits 0"
+  rm -f "$R/w/d.txt"; setup119
+  printf '@@ c.txt - unlink\n@@ b.txt - rename\nc.txt\n@@ d.txt - rename\nro/d.txt\n' | m write --no-check - >"$WORK/119.out" 2>&1
+  want 2 $? "a replacing rename plan whose last rename cannot land exits 2"
+  { [ "$(cat "$R/c.txt")" = "OLD-C" ] && [ "$(cat "$R/b.txt" 2>/dev/null)" = "B-CONTENT" ] && [ "$(cat "$R/d.txt")" = "D" ] \
+      && ! grep -q -- '— applied' "$WORK/119.out"; } \
+    && ok "a failed rename after a replacing rename loses no file" \
+    || bad "a failed rename after a replacing rename lost or moved a file: c=$(cat "$R/c.txt" 2>&1) b=$(cat "$R/b.txt" 2>&1) :: $(tr '\n' ' ' < "$WORK/119.out" | cut -c1-300)"
+  setup119
+  printf '@@ s.txt 1 replace\nSIB\n@@ d.txt - rename\nro/d.txt\n' | m write --no-check - >"$WORK/119.out" 2>&1
+  want 2 $? "a mixed plan whose rename cannot land exits 2"
+  { [ "$(cat "$R/s.txt")" = "SIB" ] && grep -q '^ok' "$WORK/119.out" && grep -q '^FAIL' "$WORK/119.out" \
+      && grep -q 'PARTIALLY APPLIED' "$WORK/119.out"; } \
+    && ok "a partial commit is reported as partially applied" \
+    || bad "a partial commit was not reported as partially applied: $(tr '\n' ' ' < "$WORK/119.out" | cut -c1-300)"
+  if command -v jq >/dev/null 2>&1; then
+    setup119
+    printf '@@ s.txt 1 replace\nSIB\n@@ d.txt - rename\nro/d.txt\n' | m write --no-check --json - >"$WORK/119.json" 2>/dev/null
+    jq -e '.failed==1 and .applied==false and ([.files[]|select(.written)]|length==1)' "$WORK/119.json" >/dev/null \
+      && ok "and its --json receipt says one failed and one file written" \
+      || bad "the --json receipt of a partial commit is not failed==1, applied==false, one file written"
+  else
+    skip "jq absent — the --json half of §119 not checked"
+  fi
+  chmod 755 "$R/ro"
 fi
 
 if [ "$fails" -eq 0 ]; then

@@ -801,7 +801,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 func writeCmd() *cli.Command {
 	return &cli.Command{
 		Name:      "write",
-		Usage:     "apply an edit plan across one or more files, all or nothing",
+		Usage:     "apply an edit plan across one or more files; a plan that fails validation writes nothing",
 		ArgsUsage: "[PLAN|-]",
 		Description: `A plan is a sequence of hunks:
 
@@ -816,8 +816,9 @@ the ORIGINAL file — so several hunks in one file need no offset arithmetic.
 
 The optional guards are what make a batch safe to trust: sha= pins the whole
 file, lines= asserts how many lines the range covers, anchor= requires a
-substring in the range's first line. If any hunk fails, every hunk is reported
-and NOTHING is written.
+substring in the range's first line. If any hunk fails validation, every hunk is
+reported and NOTHING is written. A filesystem failure while committing can leave
+some files written: the receipt says PARTIALLY APPLIED and names them.
 
 A value with spaces can be double-quoted (anchor="func openTestStore"),
 single-quoted (anchor='func openTestStore'), or — for anchor= only — left
@@ -1536,8 +1537,19 @@ func report(w *os.File, res apply.Result, quiet bool) {
 		}
 	}
 
+	// ADR-066: a plan that wrote some files and then failed a commit step is
+	// neither applied nor nothing-written. Tested first, or the partial case
+	// would read NOTHING WRITTEN — the opposite lie of the one it replaces.
+	wrote := false
+	for _, f := range res.Files {
+		if f.Written {
+			wrote = true
+		}
+	}
 	state := "applied"
 	switch {
+	case res.Failed > 0 && wrote:
+		state = "PARTIALLY APPLIED"
 	case res.Failed > 0:
 		state = "NOTHING WRITTEN"
 	case res.DryRun:

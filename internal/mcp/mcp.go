@@ -332,7 +332,7 @@ func tools() []tool {
 			Description: triggerRule +
 				" Every edit travels in ONE plan and every hunk gets a verdict, so " +
 				"a replacement that matched nothing is reported rather than silently skipped. All " +
-				"or nothing: if any hunk fails, nothing is written. Every address resolves against " +
+				"or nothing: if any hunk fails validation, nothing is written. Every address resolves against " +
 				"the ORIGINAL file, so several hunks in one file need no offset arithmetic. mrw " +
 				"will not edit a line it has not served you — read it with mrw_read first. If you " +
 				"can run shell commands, prefer the CLI `mrw write` — it also has --check, which " +

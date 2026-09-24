@@ -30,13 +30,16 @@ pipeline reports the *last* command's status, not the script's.
 These are decided, recorded in `docs/adr/`, and asserted by
 `scripts/contract.sh`. Do not relax one without retiring the ADR.
 
-1. **A plan applies whole or not at all.** Any failing hunk writes nothing.
-   Siblings report `skip`, never `ok`. — ADR-001
+1. **A plan applies whole or not at all.** Any hunk that fails validation writes
+   nothing. Siblings report `skip`, never `ok`; a filesystem failure while
+   committing reports what reached disk — `PARTIALLY APPLIED` when files remain
+   written, `NOTHING WRITTEN` when the undo put everything back. — ADR-001, ADR-066
 2. **mrw will not edit a file it has not read**, and the guard is per *line*,
    not per file. — ADR-002
 3. **A check's verdict comes from the process, never its output.** A check that
    prints `PASS` and exits 1 is a failure. — ADR-003
-4. **Nothing is left in the working tree** by a failed run. — ADR-004
+4. **Nothing is left in the working tree** by a failed run — except, when an
+   undo step itself fails, the named `.mrw-aside-*` recovery file. — ADR-004, ADR-066
 5. **mrw finds the files it serves**, and says which path it looked for when it
    cannot. — ADR-007
 6. **A delete says what it removed.** — ADR-008
@@ -112,7 +115,7 @@ Both tools are bounded at 200,000 characters of ENCODED result, and the number i
 `mrw mcp --max-result-chars N` or `MRW_MAX_RESULT_CHARS`. The flag beats the variable, omitting both
 takes the default, and `0` means zero — the same reading `--max-lines 0` takes. An oversized
 `mrw_write` receipt drops successful and skipped verdicts and says so in an `elided` field; every
-FAILED hunk survives, because a failure is why nothing was written. If not even the failures fit, you
+FAILED hunk survives, because a failure is what explains the receipt — for a validation failure, why nothing was written; for a commit failure, which step stopped, beside `files[].written`. If not even the failures fit, you
 get a refusal naming the counts instead of a receipt cut past them. And a ceiling too small to report
 a write REFUSES THE WRITE, before anything is applied — as a JSON-RPC error, which carries no result
 and so is not itself bound by the ceiling it is reporting on.
@@ -179,8 +182,10 @@ the UNREADABLE line too, but by then you have spent a call.
 
 ### 2. One plan, not N writes
 
-Every hunk gets a verdict. If any hunk fails, **nothing is written at all** and
-the siblings report `skip`, never `ok`. Ops are `replace`, `insert-after`,
+Every hunk gets a verdict. If any hunk fails validation, **nothing is written at
+all** and the siblings report `skip`, never `ok`; a filesystem failure while
+committing reports what reached disk (`PARTIALLY APPLIED` naming what landed, or
+`NOTHING WRITTEN` when the undo put everything back). Ops are `replace`, `insert-after`,
 `insert-before`, `delete`, `create`, `unlink`, `rename`. `@@ path - unlink`
 removes the path (empty body OK). `@@ old - rename` with a one-line dest body
 moves it. Only `delete` may carry no body among the line-range ops: a lost

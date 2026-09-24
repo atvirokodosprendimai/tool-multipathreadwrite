@@ -68,6 +68,7 @@ that arms work; silence leaves the row where it is.
 | MCP registration scope (open since 2026-09-09) | **decided** — M 2026-09-24: user scope stays; README describes both scopes instead of prescribing one | *"Keep user scope"* |
 | `--ast-grep` breaks ADR-007's exclusion rule in both halves (drops a named file; ignores a walked excluded directory); taught pipelines never run under an agent stdin | **ADR-064 Accepted** — named/ancestor-aware check in `astgrep.go`; contract §116/§117 | *"accepted"* |
 | ast-grep symlink spellings: a named path through a symlinked directory and then `..`, and a hit reached through a symlink | **deferred** — ADR-064 Out of Scope: exclusion matches the resolved path `astGrepRel` returns (it cleans before resolving), which can differ from the spelling `Walk` discovers; unpromised, no fixture yet | — |
+| A rename whose destination cannot be made half-applies the plan with every hunk `ok`; a failed path-op commit restores an unlink over a file renamed onto it (data loss since v1.19.0) | **ADR-066 Accepted** — destinations checked at validation and staged; path-op commit undone as a unit; truthful commit-failure receipts; contract §118/§119 | *"accepted"* |
 | `contract.sh` run as `./contract.sh` from inside `scripts/` resolves `SRC` to the repository's parent | **open** — found by Codex reviewing #204 (2026-09-24): `SRC` is computed after the script's first `cd`, so §30 (and §117, which inherits `SRC`) read the wrong `AGENTS.md`; invoking by absolute path or from the repo root works. Fix: capture the absolute repository directory once at entry | — |
 | Desktop reach measure, under-ceiling host-cut, concurrent silent apply, strict-balance campaign, JSX nest probe | **spec** — `docs/specs/2026-09-16-dangling-high-impact.md` | *"write a spec for these findings"* |
 | leftover `body=` extra count, `--dry-run` parsed hunks, read neighbour hint, unquoted `anchor=` `"`, `body=@path`, check last-error line | **shipped** — ADR-060 | — |
@@ -1773,6 +1774,31 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
   guessed → exit 2). Unread unlink said "a line address means nothing" though
   unlink has no line address. Fixed in the same commit as contract §112; this
   line is the receipt.
+
+- **ADR-066 found this record's commit path losing data.** A plan that unlinks
+  `c`, renames `b → c`, then fails a later rename had `restore()` rename the
+  unlinked `c` back over the file just renamed onto it (reproduced on v1.22.3,
+  2026-09-24). The stress table's surviving "restore() no-op" mutant marked the
+  path. Fixed by ADR-066; this line is the receipt.
+
+## From ADR-066 (a plan that cannot commit whole says what it wrote)
+
+- **The ledger after a partial commit.** Only an applied plan records what it
+  wrote, so a file a partial commit DID write is refused as "changed since mrw
+  last saw it" on the next edit. Loud, not silent; arm if a caller hits it.
+- **Staging the unlink placeholder, or probing directory writability.** The
+  aside placeholder (`pathop.go`, `CreateTemp`/`Remove`) and an unwritable
+  destination or source directory still fail only at commit. ADR-066's unit
+  undo makes that failure non-destructive and its receipt truthful; moving
+  them earlier is the next step if one is ever seen.
+- **A `.mrw-aside-*` left behind.** When the final aside removal fails after a
+  plan that applied, the placeholder stays in the tree (ADR-004 hygiene, not a
+  false receipt). Say so on the receipt if it is ever observed.
+- **The handshake said "if any hunk fails, nothing is written".** After ADR-066
+  a commit failure can leave some files written with a hunk `failed`. Fixed in
+  ADR-066 T3 after the Codex review of #207: the Shared sentence now reads "if
+  any hunk fails validation, nothing is written; a failed commit says PARTIALLY
+  APPLIED". This line is the receipt.
 
 ## From ADR-059 (honour `fenceTimeout`)
 

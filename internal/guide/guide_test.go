@@ -107,3 +107,30 @@ func TestCLITeachesTheReadSide(t *testing.T) {
 		}
 	}
 }
+
+// ADR-066 (Codex review of #207). A commit that fails after some files landed
+// is reported PARTIALLY APPLIED, so the Shared sentence both surfaces serve
+// cannot promise that any failed hunk means nothing was written.
+func TestSharedSaysAFailedCommitIsReportedPartial(t *testing.T) {
+	got := Shared()
+	if strings.Contains(got, "if any hunk fails, nothing is written") {
+		t.Errorf("Shared still promises nothing is written whenever a hunk fails:\n%s", got)
+	}
+	if !strings.Contains(got, "PARTIALLY APPLIED") {
+		t.Errorf("Shared does not say a failed commit is reported PARTIALLY APPLIED:\n%s", got)
+	}
+}
+
+// ADR-066 (Codex review of #207, round 3). Every sentence the binary serves
+// about failure is read, not just Shared: a commit failure can leave some files
+// written with a hunk failed, so no served text may promise that any failed
+// hunk means nothing was written.
+func TestNoServedTextPromisesNothingWrittenOnAnyFailure(t *testing.T) {
+	for _, text := range []string{Shared(), WhyAllOrNothing(), CLI()} {
+		for _, stale := range []string{"if any hunk fails, nothing is written", "A failed hunk writes nothing"} {
+			if strings.Contains(text, stale) {
+				t.Errorf("served text still says %q:\n%s", stale, text)
+			}
+		}
+	}
+}

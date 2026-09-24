@@ -1034,9 +1034,15 @@ func TestAPartialWriteNamesWhatWasAlreadyWritten(t *testing.T) {
 	if got := writtenSoFar(nil); !strings.Contains(got, "nothing was written") {
 		t.Errorf("empty case = %q", got)
 	}
-	got := writtenSoFar([]FileResult{{Path: "a.go"}, {Path: "b.go"}})
+	got := writtenSoFar([]FileResult{{Path: "a.go", Written: true}, {Path: "b.go", Written: true}, {Path: "skipped.go"}})
 	if !strings.Contains(got, "a.go") || !strings.Contains(got, "b.go") {
 		t.Errorf("a partial write did not name its files: %q", got)
+	}
+	// ADR-066: a record whose file was NOT written is not named. A receipt
+	// listing an addressed-but-unwritten file as "ALREADY WRITTEN" sends the
+	// caller to inspect a file mrw never touched.
+	if strings.Contains(got, "skipped.go") {
+		t.Errorf("an unwritten record was named as written: %q", got)
 	}
 }
 
