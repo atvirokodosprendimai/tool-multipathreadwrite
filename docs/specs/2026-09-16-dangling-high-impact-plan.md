@@ -254,7 +254,7 @@ Reproduced → tell M, wait. Do not start ADR-048 invalidation.
 
 **Interfaces:**
 - Consumes: ADR-019 pick A; BACKLOG "coder count is not evidence about Desktop"
-- Produces: an integer "trees this session needed" plus whether `roots/list` arrived. Not a B/C implementation.
+- Produces: an integer "trees this session needed", plus — for pick C only — whether `roots/list` arrived. Not a B/C implementation.
 
 - [ ] **Step 1: If no Desktop session is at hand, file that and skip**
 

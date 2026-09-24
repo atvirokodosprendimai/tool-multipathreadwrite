@@ -51,8 +51,11 @@ func jsxInnerSitsBeforeWrapperCloser(s string) bool {
 }
 
 // TestADesktopReachRecipeNamesTreesPerSessionAndRootsList is UC-1 happy:
-// remaining reach work is a Desktop-population trees-per-session measure and
-// whether Desktop sends roots/list.
+// remaining reach work is a Desktop-population trees-per-session measure, and
+// roots/list is filed for pick C only. The roots/list needle is the recipe's
+// own phrase: a bare "roots/list" also matched ADR-019's "Do not measure Desktop
+// `roots/list`" receipt earlier in the window, so deleting the recipe line left
+// this green (found 2026-09-24).
 func TestADesktopReachRecipeNamesTreesPerSessionAndRootsList(t *testing.T) {
 	got := backlog(t)
 	w := windowAfter(t, got, "MCP coverage for the Desktop population", 8000)
@@ -62,8 +65,8 @@ func TestADesktopReachRecipeNamesTreesPerSessionAndRootsList(t *testing.T) {
 	if !strings.Contains(w, "how many trees one session actually needs") {
 		t.Error("Desktop reach receipt does not name trees-per-session")
 	}
-	if !strings.Contains(w, "roots/list") {
-		t.Error("Desktop reach receipt does not name roots/list")
+	if !strings.Contains(w, "sends `roots/list` — filed for pick C only") {
+		t.Error("Desktop reach receipt does not file roots/list for pick C")
 	}
 }
 

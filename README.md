@@ -217,9 +217,12 @@ mrw --root DIR mcp
 }
 ```
 
-On a host with a shell, prefer the CLI. Register the server for the one project
-that needs it, not the user account: a user-scope registration loads both tools
-into every project on the machine.
+On a host with a shell, prefer the CLI. Where you register the server decides
+where its tools appear. At user scope (`claude mcp add -s user mrw -- mrw mcp`)
+both tools load in every project on the machine; at local scope, run from one
+checkout (`claude mcp add -s local mrw -- mrw mcp`), they load only there.
+Choose user scope when every project should reach mrw over MCP, and local scope
+when only one should.
 
 `format`, `echo_pad`, and `ack` sit on the existing write/read — not a third
 tool. `format` is `plan` (default), `apply_patch`, or `search_replace`.

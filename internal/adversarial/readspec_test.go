@@ -76,38 +76,33 @@ func TestAPatternThatMatchesNothingSaysSo(t *testing.T) {
 	}
 }
 
-// DECISION POINT, pinned rather than changed: `read` exits 1 whenever its
-// answer is incomplete — including when a --max-lines cap the caller ASKED FOR
-// fires. internal/read/read_test.go::TestMaxLinesReportsWhatItWithheld already
-// asserts that, so it is the project's stated intent and not an accident.
+// DECIDED 2026-09-24 by M — *"Keep exit 1"*: `read` exits 1 whenever its
+// answer is incomplete, including when a --max-lines cap the caller ASKED FOR
+// fires. internal/read/read_test.go::TestMaxLinesReportsWhatItWithheld asserts
+// the same, contract §14 drives it through the binary, ADR-033 carried it
+// forward, and `mrw instructions` teaches it (ADR-063).
 //
-// The argument against it is real and worth writing down: an agent that runs
-// `mrw read --max-lines 200 …` routinely gets a non-zero status on every
-// ordinary call, and a status that cries wolf is one people learn to ignore —
-// the exact harm this tool is built around. The argument FOR it is the tool's
-// own thesis: an incomplete answer must be visible, and the exit code is the
-// machine-readable half of visible. "Some of what you asked for is missing" is
-// true of a withheld span and of an unreadable file alike.
+// The argument against it is real and stays written down: an agent that runs
+// `mrw read --max-lines 200 …` routinely gets a non-zero status on an ordinary
+// call, and a status that cries wolf is one people learn to ignore. The
+// argument FOR it is the tool's own thesis: an incomplete answer must be
+// visible, and the exit code is the machine-readable half of visible. "Some of
+// what you asked for is missing" is true of a withheld span and of an
+// unreadable file alike, and exit 1 is what sends a reader to look — as it did
+// for `mrw read 'a.txt:/nosuchpattern/'` in review.
 //
-// The case that argues hardest FOR the current rule came from outside, in
-// review: `mrw read 'a.txt:/nosuchpattern/'` exited 1, and the reader had to
-// look at the output to learn whether the file was missing or the pattern
-// simply matched nothing. Exit 1 is what sent them to look. So the complaint is
-// narrower than it first appeared — it is about ONE flag, and its fix is a
-// distinct code or a flag-scoped exemption, not flattening exit 1.
-//
-// Left as it is, because changing it is a served-path change to the exit
-// contract and that is M's call, not mine. These tests hold the current answer
-// in BOTH directions so it cannot drift unnoticed while the question is open.
-func TestKnownGap_ARequestedCapCountsAsAProblem(t *testing.T) {
+// These tests were `TestKnownGap_*` while the question was open. They now pin
+// the decision in BOTH directions; changing it is a served-path change to the
+// exit contract and needs a record that retires ADR-033's clause.
+func TestARequestedCapCountsAsAProblem(t *testing.T) {
 	root := tree(t, map[string]string{"big.txt": strings.Repeat("line\n", 40)})
 
 	var buf bytes.Buffer
 	_, problems := read.Run(&buf, root, []read.Spec{{Path: "big.txt"}}, read.Options{MaxLines: intp(5)})
 
 	if problems == 0 {
-		t.Error("a fired --max-lines cap no longer counts as a problem — if that is deliberate, " +
-			"say so in the README's exit table and delete this test")
+		t.Error("a fired --max-lines cap no longer counts as a problem; M decided 2026-09-24 that it does " +
+			"(exit 1 on an incomplete read) — changing that needs a record retiring ADR-033's clause")
 	}
 	if !strings.Contains(buf.String(), "withheld") {
 		t.Errorf("the cap fired without saying so:\n%s", buf.String())
@@ -116,7 +111,7 @@ func TestKnownGap_ARequestedCapCountsAsAProblem(t *testing.T) {
 
 // The same for a span withheld whole rather than cut in half — the other branch
 // of the budget check, and the one a multi-range read hits first.
-func TestKnownGap_AWhollyWithheldSpanCountsAsAProblem(t *testing.T) {
+func TestAWhollyWithheldSpanCountsAsAProblem(t *testing.T) {
 	root := tree(t, map[string]string{"big.txt": strings.Repeat("line\n", 40)})
 
 	spec, err := read.ParseSpec("big.txt:1-3,20-25")
