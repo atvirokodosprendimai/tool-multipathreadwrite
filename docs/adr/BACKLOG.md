@@ -277,8 +277,8 @@ that arms work; silence leaves the row where it is.
   per model. The verdict per model, first rule that applies: FAIL if any non-void run misses the
   criterion; otherwise INCONCLUSIVE if it has fewer than 3 non-void runs after its replacements;
   otherwise PASS. The bench passes only if both models PASS. The 2026-09-24 one-off (Haiku, 9 of 9) predates this
-  criterion and is not a reading. Harness `scripts/blind-agent.sh`; plan and results under
-  `docs/blind/`.
+  criterion and is not a reading. Harness `scripts/blind-agent.sh` (scoring
+  `scripts/blind-score.py`); plan and results under `docs/blind/`, first as blind reading 01.
 
 - **A fixture corpus of recorded model-authored plans, graded hermetically.** Better than a live
   benchmark — repeatable, no key, runs in CI — and blocked on the same thing: somebody has to
