@@ -6083,7 +6083,9 @@ grep -q '^==> vendor/v.go' <<<"$out" && ok "and a directory the caller names is 
 # line names `.`. This row executes the line the BINARY prints and the one
 # AGENTS.md carries, and pairs them with the path-less line, which the bound must
 # kill — the case that proves the row can see the hang at all. The open stdin is
-# a FIFO held by a sleep this row kills, so nothing it starts outlives it.
+# a FIFO held by a sleep this row kills. The alarm kills bash, not the pipeline's
+# children; they exit when the FIFO's writer goes, and the runner's group kill
+# on EXIT reaps anything left.
 if command -v rg >/dev/null 2>&1; then
   fixture
   printf 'package demo\n\nfunc Handle() {}\n' > "$R/h.go"
