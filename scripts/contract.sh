@@ -6211,6 +6211,65 @@ else
   chmod 755 "$R/ro"
 fi
 
+# 120. ADR-065: read and write number a file's lines the same way. A CR-only
+# file used to be served as ONE line while the write engine addressed three, so
+# a write to its line 2 applied though read had never served it; a CRLF line was
+# served with its \r, so a read's /one$/ missed where the write's matched.
+fixture
+printf 'one\rtwo\rthree\r' > "$R/cr.txt"
+out=$(m read cr.txt 2>&1)
+{ grep -q '^==> cr.txt  3L' <<<"$out" && ! grep -q '^==> cr.txt  1L' <<<"$out"; } \
+  && ok "a CR-only file is served as its three lines" \
+  || bad "a CR-only file was not served as 3L: $(head -1 <<<"$out")"
+fixture
+printf 'one\rtwo\rthree\r' > "$R/cr.txt"
+m read cr.txt:2 >/dev/null
+printf '@@ cr.txt 2 replace\nTWO\n' | m write --no-check - >"$WORK/120.out" 2>&1
+want 0 $? "a write to the served line 2 of a CR-only file exits 0"
+[ "$(od -An -c "$R/cr.txt" | tr -d ' \n')" = 'one\rTWO\rthree\r' ] \
+  && ok "a CR-only line read is the line a write addresses" \
+  || bad "the CR-only write did not replace exactly line 2: $(od -An -c "$R/cr.txt" | tr -d '\n')"
+printf 'one\r\ntwo\r\nthree\r\n' > "$R/crlf.txt"
+m read crlf.txt >/dev/null
+printf '@@ crlf.txt 1 replace\nONE\n' | m write --no-check - >"$WORK/120.out" 2>&1
+want 0 $? "a write after a whole read of a CRLF file exits 0"
+[ "$(od -An -c "$R/crlf.txt" | tr -d ' \n')" = 'ONE\r\ntwo\r\nthree\r\n' ] \
+  && ok "a CRLF file read whole is written without changing its endings" \
+  || bad "the CRLF write changed its endings: $(od -An -c "$R/crlf.txt" | tr -d '\n')"
+m read 'crlf.txt:/two$/' >/dev/null 2>&1
+want 0 $? "a CRLF line is served without its \\r, so /two$/ matches line 2"
+m read 'crlf.txt:/two\r$/' >/dev/null 2>&1
+want 1 $? "a read pattern that needs the \\r a CRLF line no longer carries matches nothing"
+
+# 121. ADR-065: the foreign plan formats compile against the lines the write
+# engine numbers. The document is LF-normalised (ADR-051 F-9), so on a CRLF or
+# CR-only target an old side used to meet "two\r" (or one whole-file line) and
+# the edit was refused with "matched no lines", exit 2. The must-fail case is an
+# old side the file does not hold, which must still refuse and write nothing.
+fixture
+printf 'one\r\ntwo\r\nthree\r\n' > "$R/crlf.txt"
+m read crlf.txt >/dev/null
+printf '*** Begin Patch\n*** Update File: crlf.txt\n@@\n one\n-two\n+TWO\n three\n*** End Patch\n' \
+  | m write --no-check --format=apply_patch - >"$WORK/121.out" 2>&1
+want 0 $? "an apply_patch edit of a CRLF file exits 0"
+[ "$(od -An -c "$R/crlf.txt" | tr -d ' \n')" = 'one\r\nTWO\r\nthree\r\n' ] \
+  && ok "apply_patch edits a CRLF file" \
+  || bad "apply_patch did not edit the CRLF file: $(tr '\n' ' ' < "$WORK/121.out" | cut -c1-200)"
+printf 'one\rtwo\rthree\r' > "$R/cr.txt"
+m read cr.txt >/dev/null
+printf 'cr.txt\n<<<<<<< SEARCH\ntwo\n=======\nTWO\n>>>>>>> REPLACE\n' \
+  | m write --no-check --format=search_replace - >"$WORK/121.out" 2>&1
+want 0 $? "a search_replace edit of a CR-only file exits 0"
+[ "$(od -An -c "$R/cr.txt" | tr -d ' \n')" = 'one\rTWO\rthree\r' ] \
+  && ok "search_replace edits a CR-only file" \
+  || bad "search_replace did not edit the CR-only file: $(tr '\n' ' ' < "$WORK/121.out" | cut -c1-200)"
+printf '*** Begin Patch\n*** Update File: crlf.txt\n@@\n one\n-absent\n+X\n*** End Patch\n' \
+  | m write --no-check --format=apply_patch - >"$WORK/121.out" 2>&1
+want 2 $? "an apply_patch old side the CRLF file lacks still refuses"
+[ "$(od -An -c "$R/crlf.txt" | tr -d ' \n')" = 'one\r\nTWO\r\nthree\r\n' ] \
+  && ok "and the refused apply_patch wrote nothing" \
+  || bad "a refused apply_patch changed the CRLF file"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

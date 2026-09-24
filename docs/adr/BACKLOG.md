@@ -69,6 +69,8 @@ that arms work; silence leaves the row where it is.
 | `--ast-grep` breaks ADR-007's exclusion rule in both halves (drops a named file; ignores a walked excluded directory); taught pipelines never run under an agent stdin | **ADR-064 Accepted** — named/ancestor-aware check in `astgrep.go`; contract §116/§117 | *"accepted"* |
 | ast-grep symlink spellings: a named path through a symlinked directory and then `..`, and a hit reached through a symlink | **deferred** — ADR-064 Out of Scope: exclusion matches the resolved path `astGrepRel` returns (it cleans before resolving), which can differ from the spelling `Walk` discovers; unpromised, no fixture yet | — |
 | A rename whose destination cannot be made half-applies the plan with every hunk `ok`; a failed path-op commit restores an unlink over a file renamed onto it (data loss since v1.19.0) | **ADR-066 Accepted** — destinations checked at validation and staged; path-op commit undone as a unit; truthful commit-failure receipts; contract §118/§119 | *"accepted"* |
+| A CR-only file is one line to read and several to write (a write to an unserved line applied); CRLF lines served with their `\r`; apply_patch/search_replace refuse CRLF targets | **ADR-065 Accepted** — one `lines.Split` for read, write, `--grep`, MCP paging and both compilers; ast-grep CR-only hits reported; ADR-051 F-10 superseded; contract §120/§121 | *"accepted"*, *"Supersede F-10 in ADR-065"* |
+| `mrw read f.go:/a/,$` is taught as "from here to the end" (ADR-036 Consequences, AGENTS.md:239) but serves the match line and the last line as two ranges, exit 0; as a write address it is refused | **open** — found 2026-09-24 while executing ADR-066; a docs/grammar mismatch, no record owns it yet | — |
 | `contract.sh` run as `./contract.sh` from inside `scripts/` resolves `SRC` to the repository's parent | **open** — found by Codex reviewing #204 (2026-09-24): `SRC` is computed after the script's first `cd`, so §30 (and §117, which inherits `SRC`) read the wrong `AGENTS.md`; invoking by absolute path or from the repo root works. Fix: capture the absolute repository directory once at entry | — |
 | Desktop reach measure, under-ceiling host-cut, concurrent silent apply, strict-balance campaign, JSX nest probe | **spec** — `docs/specs/2026-09-16-dangling-high-impact.md` | *"write a spec for these findings"* |
 | leftover `body=` extra count, `--dry-run` parsed hunks, read neighbour hint, unquoted `anchor=` `"`, `body=@path`, check last-error line | **shipped** — ADR-060 | — |
@@ -1780,6 +1782,13 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
   unlinked `c` back over the file just renamed onto it (reproduced on v1.22.3,
   2026-09-24). The stress table's surviving "restore() no-op" mutant marked the
   path. Fixed by ADR-066; this line is the receipt.
+
+## From ADR-065 (read and write split a file into the same lines)
+
+- **ast-grep on a CR-only file.** ast-grep numbers rows by `\n`, so a hit in a
+  CR-only file is reported as a problem rather than served on the wrong line.
+  Translating ast-grep's byte offsets into mrw's lines would serve it; arm
+  if a caller hits the problem line.
 
 ## From ADR-066 (a plan that cannot commit whole says what it wrote)
 

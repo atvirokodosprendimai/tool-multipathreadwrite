@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -1512,12 +1513,8 @@ func (t text) with(lines []string) text { t.lines = lines; return t }
 // whether it existed at all. A missing file is not an error here — create needs
 // to know, and so does a hunk that must fail loudly.
 //
-// Three terminators are recognised, in the order that makes each unambiguous:
-// a file whose every line ends "\r\n" is CRLF; a file with no "\n" at all but
-// containing "\r" is the old-Mac form, whose interior would otherwise be one
-// unaddressable line; anything else is LF, including a file that MIXES them —
-// there a stray "\r" stays part of its line's content, which is what keeps the
-// untouched lines byte-identical.
+// The terminators are lines.Split's (ADR-005 §3, moved there by ADR-065 so read,
+// --grep, MCP paging and the plan compilers number a file exactly as this does).
 func readLines(path string) (t text, existed bool, err error) {
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -1530,29 +1527,8 @@ func readLines(path string) (t text, existed bool, err error) {
 		return text{eol: "\n"}, true, nil
 	}
 
-	s := string(b)
-	t.eol = eolOf(s)
-	t.final = strings.HasSuffix(s, t.eol)
-	if t.final {
-		s = s[:len(s)-len(t.eol)]
-	}
-	t.lines = strings.Split(s, t.eol)
+	t.lines, t.eol, t.final = lines.Split(string(b))
 	return t, true, nil
-}
-
-func eolOf(s string) string {
-	if !strings.Contains(s, "\n") {
-		if strings.Contains(s, "\r") {
-			return "\r"
-		}
-		return "\n"
-	}
-	// CRLF only when EVERY newline is one: a mixed file is left alone.
-	if strings.Contains(s, "\r\n") &&
-		strings.Count(s, "\r\n") == strings.Count(s, "\n") {
-		return "\r\n"
-	}
-	return "\n"
 }
 
 // stageFileFn is the seam the staging phase is driven through. A test swaps it

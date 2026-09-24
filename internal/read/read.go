@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -696,14 +697,14 @@ func merge(in []span) []span {
 	return out
 }
 
+// split numbers b's lines as the write engine does (ADR-065, lines.Split) and
+// hashes the RAW bytes: the ledger's sha must agree with seen.SHA, and a hash of
+// rejoined lines would make every CRLF file read as changed behind mrw's back.
 func split(b []byte) ([]string, string) {
 	sum := sha256.Sum256(b)
 	sha := hex.EncodeToString(sum[:])
-	if len(b) == 0 {
-		return nil, sha
-	}
-	s := strings.TrimSuffix(string(b), "\n")
-	return strings.Split(s, "\n"), sha
+	ls, _, _ := lines.Split(string(b))
+	return ls, sha
 }
 
 // hintUnexpandedGlob explains an unreadable path that holds a glob

@@ -17,6 +17,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/ingest"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
@@ -1037,22 +1038,18 @@ func openEnded(spec string) (path string, start int, ok bool) {
 	return spec[:i], n, true
 }
 
-// countFileLines counts newline-terminated lines without holding the file, so
-// the page arithmetic knows where the end is without spending the memory the
-// cap exists to save.
+// countFileLines counts the file's lines exactly as read serves them
+// (lines.Split, ADR-065). A bufio.Scanner counted "\n" only, so a CR-only file
+// was one line to the page arithmetic and several to read. It holds the file
+// while counting; firstPage reads the same file straight after, so the peak is
+// unchanged.
 func countFileLines(full string) (int, error) {
-	f, err := os.Open(full)
+	b, err := os.ReadFile(full)
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
-	n := 0
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
-	for sc.Scan() {
-		n++
-	}
-	return n, sc.Err()
+	ls, _, _ := lines.Split(string(b))
+	return len(ls), nil
 }
 
 // overflowMessage explains a refused read and, where it honestly can, names the
