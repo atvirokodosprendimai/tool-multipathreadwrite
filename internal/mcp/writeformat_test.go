@@ -92,12 +92,13 @@ func TestWriteFormatGitIsRefused(t *testing.T) {
 		"plan":   twoHunkApplyPatch,
 		"format": "git",
 	})
-	e, ok := resp["error"].(map[string]any)
-	if !ok {
-		t.Fatalf("format=git was not a JSON-RPC error: %v", resp)
+	// ADR-067 T3: a caller's argument mistake is a tool execution error, so the
+	// refusal is an isError result whose text names the grammar.
+	res, ok := resp["result"].(map[string]any)
+	if !ok || res["isError"] != true {
+		t.Fatalf("format=git was not an isError result: %v", resp)
 	}
-	msg, _ := e["message"].(string)
-	if !strings.Contains(msg, "git patch is not") {
+	if msg := served0(t, res); !strings.Contains(msg, "git patch is not") {
 		t.Errorf("git refuse does not name that a git patch is not an apply_patch: %q", msg)
 	}
 	b, err := os.ReadFile(filepath.Join(root, "a.go"))
