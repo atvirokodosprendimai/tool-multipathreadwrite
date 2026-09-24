@@ -288,8 +288,8 @@ that arms work; silence leaves the row where it is.
   02 are void on scorer defects. Haiku needed all three replacements, each VOID for `cat`.
   **Reading 04 (2026-09-24): FAIL**, both models, on the call budget: h3 and s2 took 21 calls with
   9 of 9 correct (`docs/blind/blind-04-result.md`). It removes reading 03's confound: headless
-  `claude -p --safe-mode` under `/tmp`, so no repository documentation in context. Calls roughly
-  doubled, and correctness did not move.
+  `claude -p --safe-mode` under `/tmp`, so no repository documentation in context. Sonnet's calls
+  roughly doubled (non-void runs, 23 → 49); Haiku's rose 45 → 55; correctness did not move.
 
 - **`mrw instructions` does not show where `body=` goes.** It says what `body=` means but never shows
   it on an `@@` header. In blind reading 04, 4 of 7 trials put `body=` on a plan line of its own (3 as
