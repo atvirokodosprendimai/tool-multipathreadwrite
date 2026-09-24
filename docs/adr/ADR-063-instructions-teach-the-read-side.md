@@ -35,7 +35,7 @@ That lists `guide.CLI()`, the skill `description:`, and every command and flag `
 ## Existing Primitives Audit
 
 - **`guide.CLI()`.** Reused. The read section goes after the write cookbook ADR-062 added; Shared() is untouched and stays five sentences (§75, §85).
-- **`readCmd()` in `cmd/mrw/main.go`.** Reused as the authority: its `Flags` are what the new cmd test iterates, so a flag added, renamed or removed there without the instructions following turns the test red. The instructions teach what the binary accepts, not a list kept beside it.
+- **`readCmd()` in `cmd/mrw/main.go`.** Reused as the authority: its `Flags` are what the new cmd test iterates, so a flag added or renamed there without the instructions following turns the test red. The other direction — the instructions still naming a flag `read` no longer has — is contract §115's, which checks every taught `--flag` against `read --help`. The instructions teach what the binary accepts, not a list kept beside it.
 - **`instructionsText()` / `maxInstructionsChars`.** Unchanged. The handshake already teaches the read forms, at 3,890 of 4,096 bytes (measured 2026-09-23 through `mrw mcp` `initialize` on v1.22.1; the 4,095 in BACKLOG.md is dated 2026-09-08 and stale). Nothing here moves it.
 - **`TestInstructionsCommandPrintsCLI`.** Reused: it already proves `mrw instructions` prints `guide.CLI()` byte for byte, so the new text needs no new wiring.
 
