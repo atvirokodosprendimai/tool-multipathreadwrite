@@ -1,8 +1,8 @@
 # mrw — multi-path read and write
 
 Read many ranges across many files, and apply many edits across them, in one
-invocation — and get a verdict for every edit. A failed hunk writes nothing,
-because a write that changed nothing is invisible.
+invocation — and get a verdict for every edit. A plan that fails validation
+writes nothing, because a write that changed nothing is invisible.
 
 The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). The six-guarantee comparison lives in [docs/comparison.md](docs/comparison.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
 
@@ -134,8 +134,9 @@ served.
 
 These are gates, not a tour of the records behind them.
 
-- **All-or-nothing.** Any failing hunk writes nothing. Siblings report `skip`,
-  never `ok`.
+- **All-or-nothing.** Any hunk that fails validation writes nothing. Siblings
+  report `skip`, never `ok`. A filesystem failure while committing is reported
+  `PARTIALLY APPLIED`, naming what landed.
 - **Per-line licence.** Being served lines 1–5 does not license line 40.
   `--stat` and a match that printed nothing observe nothing.
 - **MCP ack.** A served `mrw_read` licenses nothing until you send `ack` ids.

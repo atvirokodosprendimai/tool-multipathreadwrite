@@ -816,8 +816,9 @@ the ORIGINAL file — so several hunks in one file need no offset arithmetic.
 
 The optional guards are what make a batch safe to trust: sha= pins the whole
 file, lines= asserts how many lines the range covers, anchor= requires a
-substring in the range's first line. If any hunk fails, every hunk is reported
-and NOTHING is written.
+substring in the range's first line. If any hunk fails validation, every hunk is
+reported and NOTHING is written. A filesystem failure while committing can leave
+some files written: the receipt says PARTIALLY APPLIED and names them.
 
 A value with spaces can be double-quoted (anchor="func openTestStore"),
 single-quoted (anchor='func openTestStore'), or — for anchor= only — left

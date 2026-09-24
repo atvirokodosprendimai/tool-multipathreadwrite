@@ -26,7 +26,7 @@ func WhyAllOrNothing() string {
 	return whyAllOrNothing
 }
 
-const whyAllOrNothing = `A failed hunk writes nothing because a write that changed nothing is invisible.`
+const whyAllOrNothing = `A plan that fails validation writes nothing because a write that changed nothing is invisible.`
 
 // CLI is Shared plus the why, the operator traps that only the shell
 // surface can hit, the plan ops a PATH caller needs to drive a write, and

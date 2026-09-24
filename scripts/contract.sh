@@ -5185,12 +5185,12 @@ assert "search_replace" in str(fmt.get("format")), "mrw_write does not declare s
 PY
 want 0 $? "tools/list still two tools and mrw_write declares search_replace"
 
-# 85. A failed hunk writes nothing because a write that changed nothing is
+# 85. A plan that fails validation writes nothing because a write that changed nothing is
 # invisible. A unit test on CLI() cannot prove the shipped binary prints it.
 # Drive $MRW: instructions and initialize both carry the why; Shared's five
 # sentences remain (the why is extra, not a rewrite); pair: handshake stays
 # at most 4096 bytes — funding the sentence by raising the bound fails.
-why85='A failed hunk writes nothing because a write that changed nothing is invisible.'
+why85='A plan that fails validation writes nothing because a write that changed nothing is invisible.'
 out=$(m instructions 2>&1); rc=$?
 want 0 "$rc" "mrw instructions still exits 0"
 python3 - "$out" "$why85" <<'PY'
