@@ -157,7 +157,7 @@ file is a candidate, so exclude build artifacts by name (`--exclude bin`).
 **`--files-from` is the same idea for a searcher you already trust:**
 
 ```sh
-rg -l 'func Handle' | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
+rg -l 'func Handle' . | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 ```
 
 Blank lines are skipped and a leading `#` is a comment. Use it when your own

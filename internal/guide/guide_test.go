@@ -70,3 +70,38 @@ func TestCLITeachesAlwaysAndAPlan(t *testing.T) {
 		t.Error("Shared() absorbed the cookbook; the handshake would carry it")
 	}
 }
+
+// TestCLITeachesTheReadSide holds ADR-063: a caller with only the binary is
+// told to plan one read of every site, so the document must teach the address
+// forms and the flags that find sites it cannot name — and where a plan reads
+// an address differently from a read.
+func TestCLITeachesTheReadSide(t *testing.T) {
+	got := CLI()
+	for _, must := range []string{
+		"'b.go:/func Start/,+12'",
+		"PATH:RANGE[,RANGE...]",
+		"N- (to the end)",
+		"-M (from the start)",
+		"A,+N",
+		"$ (the last line)",
+		"/from/,/to/",
+		"but not -M or a comma list",
+		"must match exactly once",
+		"--grep PATTERN",
+		"--exclude GLOB",
+		"--ast-grep PATTERN",
+		"--files-from FILE",
+		"rg -l X . |",
+		"A read exits 1 when any range could not be served whole",
+		".gitignore",
+	} {
+		if !strings.Contains(got, must) {
+			t.Errorf("CLI() does not teach %q:\n%s", must, got)
+		}
+	}
+	for _, leak := range []string{"--grep", "--files-from", "exactly once"} {
+		if strings.Contains(Shared(), leak) {
+			t.Errorf("Shared() absorbed %q; the read section stays on CLI()", leak)
+		}
+	}
+}

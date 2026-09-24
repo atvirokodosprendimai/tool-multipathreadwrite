@@ -65,7 +65,7 @@ files. `.git/` is always skipped.
 `--files-from FILE|-` is the same idea for a searcher you already trust:
 
 ```sh
-rg -l 'func Handle' | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
+rg -l 'func Handle' . | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 ```
 
 | flag | effect |

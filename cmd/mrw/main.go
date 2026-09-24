@@ -120,7 +120,7 @@ func versionFrom(v string, settings []debug.BuildSetting) string {
 func rootCommand() *cli.Command {
 	return &cli.Command{
 		Name:    "mrw",
-		Usage:   "read and write many file ranges in one call",
+		Usage:   "find, read and write many file ranges in one call",
 		Version: versionString(),
 		// The framework's default handler PRINTS the error and calls os.Exit
 		// itself, which made main's own reporting dead code — the "mrw:" prefix
@@ -532,7 +532,7 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 func readCmd() *cli.Command {
 	return &cli.Command{
 		Name:      "read",
-		Usage:     "print line ranges from one or more files",
+		Usage:     "print line ranges, pattern matches or --grep hits from one or more files",
 		ArgsUsage: "PATH[:RANGE[,RANGE...]] ...",
 		Description: `A RANGE is 3-6, 5, 3- (to end of file), -20 (from the start),
 A,+N (the line A plus the N lines after it, so 12,+2 is lines 12 through 14),
@@ -567,7 +567,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.StringFlag{
 				Name:  "ast-grep",
-				Usage: "serve every range `ast-grep` reports for `PATTERN` in the files under the given paths (a directory is walked). The binary must be on PATH",
+				Usage: "serve every range the ast-grep binary reports for `PATTERN` in the files under the given paths (a directory is walked). The binary must be on PATH",
 			},
 			&cli.StringSliceFlag{
 				Name:  "exclude",

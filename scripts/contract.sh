@@ -5988,6 +5988,62 @@ PY
 [ $? -eq 0 ] && ok "and the handshake carries always + plan without the cookbook or a 4096 raise" \
              || bad "handshake omitted always, carried the cookbook, or overflowed 4096"
 
+# 115. ADR-063: mrw instructions teaches the read side, and the forms it
+# teaches behave as taught on the built binary.
+#
+# Good half: the address list (written literally here, never parsed out of
+# help) and every flag in the OPTIONS block of `read --help` except --help are
+# in the instructions, the instructions name no read flag the binary lacks, and
+# --ast-grep's placeholder is PATTERN; the quoted example spec, a -M read, a
+# clamped relative read and --files-from - all exit 0. The pair, each of which
+# must fail and leave the file alone: a plan start pattern matching twice, a
+# plan relative end past the last line, and a plan -M address.
+out=$(m instructions 2>&1); rc=$?
+want 0 "$rc" "mrw instructions exits 0 with the read side"
+help=$(m read --help 2>&1)
+python3 - "$out" "$help" <<'PY'
+import re, sys
+out, help = sys.argv[1], sys.argv[2]
+forms = ("PATH:RANGE[,RANGE...]", "N-M", "N- (to the end)", "-M (from the start)",
+         "A,+N", "$ (the last line)", "/regexp/", "/from/,/to/",
+         "but not -M or a comma list", "must match exactly once",
+         "'b.go:/func Start/,+12'")
+missing = [f for f in forms if f not in out]
+assert not missing, "instructions omit read forms: %r" % missing
+opts = help.split("OPTIONS:", 1)[1].split("GLOBAL OPTIONS:", 1)[0]
+flags = [f for f in re.findall(r"^\s+--([a-z][a-z-]*)", opts, re.M) if f != "help"]
+assert len(flags) >= 8, "read --help lists only %r" % flags
+untaught = [f for f in flags if not re.search(r"--%s(?![A-Za-z0-9-])" % re.escape(f), out)]
+assert not untaught, "instructions omit read flags: %r" % untaught
+unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help"}
+assert not unknown, "instructions teach flags read does not have: %r" % sorted(unknown)
+assert re.search(r"^\s+--ast-grep PATTERN\b", opts, re.M), "read --help does not show --ast-grep PATTERN"
+PY
+[ $? -eq 0 ] && ok "and it names every read form and read flag, and --ast-grep shows PATTERN" \
+             || bad "instructions omit a read form or flag, or --ast-grep shows the wrong placeholder"
+
+fixture
+printf 'func Start\nX one\ny\nX two\nz\n' > "$R/t.txt"
+m read t.txt >/dev/null 2>&1
+m read 't.txt:/func Start/,+12' >/dev/null 2>&1
+want 0 $? "the quoted example spec serves"
+m read t.txt:-2 >/dev/null 2>&1
+want 0 $? "a read takes -M"
+out=$(m read 't.txt:4,+9' 2>&1); rc=$?
+want 0 "$rc" "a read clamps a relative end past the last line"
+grep -q '^@@ 4-5' <<<"$out" && ok "and serves @@ 4-5" || bad "the clamped read served: $out"
+printf 't.txt:/X/\n' | m read --files-from - >/dev/null 2>&1
+want 0 $? "--files-from - takes specs on stdin"
+before=$(cat "$R/t.txt")
+printf '@@ t.txt /X/ replace\nQ\n' | m write --no-check - >/dev/null 2>&1
+want 1 $? "a plan start pattern matching twice is refused"
+printf '@@ t.txt 4,+9 delete\n' | m write --no-check - >/dev/null 2>&1
+want 1 $? "a plan relative end past the last line is refused"
+printf '@@ t.txt -2 delete\n' | m write --no-check - >/dev/null 2>&1
+want 2 $? "a plan -M address is refused"
+[ "$(cat "$R/t.txt")" = "$before" ] && ok "and none of the three refusals changed the file" \
+                                     || bad "a refused plan changed t.txt"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
