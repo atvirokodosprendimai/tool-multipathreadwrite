@@ -725,18 +725,48 @@ def suite_mcp(n):
             if isinstance(want, int):
                 if (g.get("error") or {}).get("code") != want:
                     fail("mcp", f"{method} version={version!r} caps={caps!r}: want error {want}, got {str(g)[:200]}", root, None, data, (p.returncode, o, e, 0))
-                elif want == -32022 and (g["error"].get("data") or {}).get("supported") != SUPPORTED:
-                    fail("mcp", f"-32022 without the supported list: {str(g)[:200]}", root, None, data, (p.returncode, o, e, 0))
+                elif want == -32022:
+                    # A non-string version is reported as its JSON text (ADR-067).
+                    want_req = version if isinstance(version, str) else json.dumps(version)
+                    d = g["error"].get("data") or {}
+                    if d.get("supported") != SUPPORTED or d.get("requested") != want_req:
+                        fail("mcp", f"-32022 data {d} does not carry supported={SUPPORTED} and requested={want_req!r}", root, None, data, (p.returncode, o, e, 0))
                 continue
             r = g.get("result")
             if not isinstance(r, dict):
                 fail("mcp", f"{method} version={version!r} caps={caps!r}: want a result, got {str(g)[:200]}", root, None, data, (p.returncode, o, e, 0)); continue
             if (r.get("resultType") == "complete") != (want == "modern"):
                 fail("mcp", f"{method} version={version!r} caps={caps!r}: decorated={r.get('resultType')!r}, want {want}", root, None, data, (p.returncode, o, e, 0))
-            if method == "server/discover" and r.get("supportedVersions") != SUPPORTED:
-                fail("mcp", f"discover lists {r.get('supportedVersions')}", root, None, data, (p.returncode, o, e, 0))
-            if want == "modern" and method == "tools/list" and (r.get("cacheScope") != "public" or not isinstance(r.get("ttlMs"), int)):
-                fail("mcp", f"a modern tools/list lacks caching hints: {str(r)[:200]}", root, None, data, (p.returncode, o, e, 0))
+            # The modern shape in full (ADR-067 Decision 4): serverInfo in _meta on
+            # every modern result; discover's capabilities, instructions and hints;
+            # the exact ttlMs, an int and not a bool (Python's bool is an int).
+            info = ((r.get("_meta") or {}).get("io.modelcontextprotocol/serverInfo") or {}) if want == "modern" else {}
+            if want == "modern" and info.get("name") != "mrw":
+                fail("mcp", f"{method}: a modern result carries no serverInfo naming mrw: {str(r)[:200]}", root, None, data, (p.returncode, o, e, 0))
+            exact_ttl = lambda v: type(v) is int and v == 3_600_000
+            if method == "server/discover":
+                if (r.get("supportedVersions") != SUPPORTED or "tools" not in (r.get("capabilities") or {})
+                        or not isinstance(r.get("instructions"), str) or not r.get("instructions")
+                        or not exact_ttl(r.get("ttlMs")) or r.get("cacheScope") != "public"):
+                    fail("mcp", f"discover is not the full modern shape: {str(r)[:300]}", root, None, data, (p.returncode, o, e, 0))
+            if want == "modern" and method == "tools/list" and (r.get("cacheScope") != "public" or not exact_ttl(r.get("ttlMs"))):
+                fail("mcp", f"a modern tools/list lacks exact caching hints: {str(r)[:200]}", root, None, data, (p.returncode, o, e, 0))
+        # Notification silence, checked where it can be COUNTED (the session above
+        # answers garbage too, so its line count proves nothing): a fresh server
+        # given only notifications and one request must write exactly one line.
+        notes = [{"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "1900-01-01"}}},
+                 {"jsonrpc": "2.0", "method": "tools/list", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": MODERN}}},
+                 {"jsonrpc": "2.0", "method": "server/discover"},
+                 {"jsonrpc": "2.0", "id": 500, "method": "ping"}]
+        try:
+            q = subprocess.run([MRW, "--root", root, "mcp"], input=b"\n".join(json.dumps(x).encode() for x in notes) + b"\n",
+                               capture_output=True, env=ENV, timeout=20)
+            qo = q.stdout.decode("utf-8", "replace")
+            lines = [l for l in qo.splitlines() if l.strip()]
+            if len(lines) != 1 or json.loads(lines[0]).get("id") != 500:
+                fail("mcp", f"a notification was answered: {lines[:3]}", root, None, None, (q.returncode, qo, q.stderr.decode("utf-8", "replace"), 0))
+        except (subprocess.TimeoutExpired, ValueError) as ex:
+            fail("mcp", f"the notification-silence exchange broke: {ex}", root, None, None, None)
         shutil.rmtree(root, ignore_errors=True)
 
 
