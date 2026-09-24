@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -91,6 +92,7 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	order := []string{}
 	var problems []Problem
 	named, starts := astGrepStarts(absRoot, paths)
+	crOnly := map[string]bool{}
 	for _, h := range hits {
 		rel, ok := astGrepRel(absRoot, h.name())
 		if !ok {
@@ -98,6 +100,22 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 			continue
 		}
 		if astGrepExcluded(rel, exclude, named, starts) {
+			continue
+		}
+		// ADR-065: ast-grep numbers rows by "\n". On a CR-only file that is
+		// not mrw's numbering, so its row would be served as a different line;
+		// the file is reported once instead of served wrong.
+		cr, known := crOnly[rel]
+		if !known {
+			b, err := os.ReadFile(filepath.Join(absRoot, filepath.FromSlash(rel)))
+			_, eol, _ := lines.Split(string(b))
+			cr = err == nil && eol == "\r"
+			crOnly[rel] = cr
+			if cr {
+				problems = append(problems, Problem{Path: rel, Reason: "ends its lines with \\r alone, and ast-grep numbers rows by \\n, so its hit would name a different line"})
+			}
+		}
+		if cr {
 			continue
 		}
 		start := h.Range.Start.Line + 1

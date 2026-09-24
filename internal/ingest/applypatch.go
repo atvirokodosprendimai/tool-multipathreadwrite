@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -275,14 +276,10 @@ func fileLines(root, path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("apply_patch: %s: %w", path, err)
 	}
-	if len(b) == 0 {
-		return nil, nil
-	}
-	s := string(b)
-	if strings.HasSuffix(s, "\n") {
-		s = s[:len(s)-1]
-	}
-	return strings.Split(s, "\n"), nil
+	// The target's lines as the write engine numbers them (ADR-065): an LF
+	// patch then meets "two", not "two\r", in a CRLF or CR-only file.
+	ls, _, _ := lines.Split(string(b))
+	return ls, nil
 }
 
 func findUnique(lines, old []string) (start, end, n int) {

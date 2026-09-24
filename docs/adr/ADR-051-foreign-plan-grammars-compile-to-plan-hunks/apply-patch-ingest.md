@@ -184,10 +184,10 @@ Class notes sit in the assertion. Members that behave differently are their own 
 | F-4 | `*** End of File` is not a marker. A line so named is unexpected or an illegal hunk line. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
 | F-5 | A line beginning `@@` is a hunk delimiter only. Any ChangeContext after `@@` is discarded. Location is the unique old-side run, never that trailer. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
 | F-6 | Old side = context (` `) plus minus lines, prefixes stripped. New side = context plus plus lines. Add File accepts plus lines only. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
-| F-7 | The old side must match exactly one contiguous run of on-disk lines (equal after the file's one trailing LF is stripped). Several matches refuse, naming the count. | `internal/ingest/applypatch_test.go::TestAnAmbiguousOldSideIsACompileRefusal` | @implemented | |
+| F-7 | The old side must match exactly one contiguous run of on-disk lines, the lines as `lines.Split` numbers the file (its terminator is not part of a line; ADR-065 replaced "equal after the file's one trailing LF is stripped"). Several matches refuse, naming the count. | `internal/ingest/applypatch_test.go::TestAnAmbiguousOldSideIsACompileRefusal` | @implemented | |
 | F-8 | Zero matches refuse (`old side matched no lines`). An Update with no old side refuses (`use Add File, or give context`). | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
 | F-9 | The document's CR LF and bare CR become LF before parse. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
-| F-10 | The on-disk file is not CR LF-normalised. A CR LF file keeps CR on each line, so an LF old side matches zero times and compile refuses. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
+| F-10 | ~~The on-disk file is not CR LF-normalised; an LF old side matches zero times against a CR LF file and compile refuses.~~ **Superseded by ADR-065 (2026-09-24):** the target's lines are read as the write engine numbers them (`lines.Split`), so an LF old side matches a CR LF or CR-only file; the write engine keeps the file's line endings when it writes. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
 | F-11 | `\ No newline at end of file` and other `\`-prefixed hunk lines are skipped, not part of either side. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
 | F-12 | Emitted body lines are always LF-terminated. Patch no-newline markers do not change that. | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
 | F-13 | An Add File with no plus lines compiles to `create` with `body=0` (ADR-027 deliberate empty file). | `internal/ingest/applypatch_test.go::TestCompileApplyPatchRules` | @implemented | |
@@ -242,7 +242,7 @@ ADR-051 Wiring inherits this. No exit-code change: compile refuse = 2; unread co
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | A later grammar treats unique context match as a license | High | High — drops ADR-002 | F-18; unread two-hunk fixture |
-| On-disk CR LF looks like a missing old side | Med | Med — exit 2 instead of apply | F-10 names it; do not silently strip file CR |
+| On-disk CR LF looks like a missing old side | Med | Med — exit 2 instead of apply | Superseded by ADR-065: compile against the write engine's lines; the file's CR LF is kept on write, not stripped |
 | MCP grows a third tool named apply_patch | Med | High — 044/019 cargo | F-24, F-25, F-27 |
 | SEARCH/REPLACE is implemented inside apply_patch compile | Med | High — silent scope | F-26; second `--format` or a new ADR |
 
@@ -266,7 +266,7 @@ Scouted from ADR-051, `internal/ingest/applypatch.go`, `cmd/mrw/main.go`, contra
 |---|----------|------|----------|
 | 1 | Which apply_patch ops do we ingest? | F-2 F-3 F-4 | Update + Add this slice; Delete/Move refuse; End of File is not a marker |
 | 2 | How does context become a line range? | F-5 F-6 F-7 F-8 F-16 | Unique exact old-side run; @@ trailer discarded; 0/N/empty-old refuse |
-| 3 | CRLF, trailing newline, empty add? | F-9 F-10 F-11 F-12 F-13 | Document normalised; file not; `\` markers skipped; emit LF; empty add is body=0 |
+| 3 | CRLF, trailing newline, empty add? | F-9 F-10 F-11 F-12 F-13 | Document normalised; file read as the write engine numbers it (F-10, ADR-065); `\` markers skipped; emit LF; empty add is body=0 |
 | 4 | What still goes through Parse / Apply / ledger / --check? | F-17 F-18 F-19 F-20 | Compile emits text; unread is Apply exit 1; compile refuse is exit 2 |
 | 5 | --format vs auto-detect vs git? | F-21 F-22 F-23 | Explicit flag; default plan; git is usage; git-shaped body refused |
 | 6 | Does mrw_write grow format? | F-24 F-25 F-27 | Yes now (M 2026-09-12 competitive). Existing tool only; no cargo |

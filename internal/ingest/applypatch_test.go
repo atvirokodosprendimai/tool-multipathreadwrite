@@ -242,9 +242,16 @@ func TestCompileApplyPatchRules(t *testing.T) {
 		if bytes.Contains(planText, []byte("\r")) {
 			t.Fatalf("compiled plan kept CR:\n%q", planText)
 		}
+		// ADR-065 supersedes F-10: the compiler reads the target's lines as the
+		// write engine numbers them, so an LF old side matches a CR LF file, and
+		// the write engine keeps the file's CR LF when it writes.
 		crRoot := writeTree(t, map[string]string{"a.go": strings.ReplaceAll(demo, "\n", "\r\n")})
-		if _, err := CompileApplyPatch(crRoot, []byte(twoHunkPatch)); err == nil || !strings.Contains(err.Error(), "matched no lines") {
-			t.Fatalf("LF old side against CR LF file: %v", err)
+		crPlan, err := CompileApplyPatch(crRoot, []byte(twoHunkPatch))
+		if err != nil {
+			t.Fatalf("LF old side against CR LF file was refused: %v", err)
+		}
+		if bytes.Contains(crPlan, []byte("\r")) {
+			t.Fatalf("compiled plan for a CR LF file carries CR:\n%q", crPlan)
 		}
 	})
 
