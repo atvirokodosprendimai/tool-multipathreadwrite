@@ -91,7 +91,7 @@ job re-matches with a regex and everything downstream gates on it —
 amd64 and arm64, windows on amd64) and publish as raw binaries, conventional
 archives, and a `SHA256SUMS.txt`.
 
-The README **Status** line names the **tagged** SHA (`v1.22.1` is `e1f73e4`),
+The README **Status** line names the **tagged** SHA (`v1.22.2` is `47b8fe9`),
 never a later squash or docs commit. Bump it only when a new tag is cut.
 
 ## Licence
