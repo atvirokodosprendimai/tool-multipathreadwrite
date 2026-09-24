@@ -1,0 +1,140 @@
+# Task ADR-067-T1: an index names every path the walk could not use; contract §122
+
+**Depends-on:** none
+**Covers:** none — no spec
+**Estimated scope:** S
+**Owner:** unassigned
+**Produces:** problem lines in the `mrw_read` index report
+**Consumes:** none
+**Data dependency:** hermetic
+**Proof map:** v1
+**Rests-on:** `the index report names each walk problem`, `each of the three index returns passes the problems`, `problem lines survive the trim`, `oversized problem text is refused legibly`, `the binary names the missing path in an index`, `no engine file changes`
+
+## Goal
+
+`matchIndex` (`internal/mcp/tools.go:1264`) takes the walk's problems as `[]read.Problem` plus a count of any other problems. Its report prints one `-- <path>: <reason>` line per walk problem, in the format the served answer uses (`tools.go:364-366`), and one sentence for any other problems. The trim loop drops index entries only. All three call sites (`:348`, `:425`, `:448`) pass the walk's problems. When the problem lines alone cannot fit, the answer is `withinCeiling`'s legible refusal. `problems` in `content[1]` stays a count. BACKLOG's "An MCP `ast_grep` answer too large to serve…" row is closed.
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `internal/mcp/tools.go` | edit | `matchIndex` signature and report; its three call sites |
+| `internal/mcp/index_problems_test.go` | new | the five tests below, and a fake `ast-grep` built with `go build` (the helper in `internal/read/leftovers_stress_test.go:474`, copied, because test helpers do not cross packages) |
+| `scripts/contract.sh` | edit | §122 |
+| `docs/adr/BACKLOG.md` | edit | the P2 row → fixed by ADR-067 T1 |
+
+## Ordered Steps
+
+1. [S1] Write the tests and confirm each RED on `main` on an assertion. Each index test reaches its return by a fixture shaped like the limit test that already reaches it, and asserts it reached it. [proof: mutation]
+   - `TestAnIndexNamesEveryPathTheWalkCouldNotUse` reaches `:348`, the raw report overflowing. It uses the `grepTree` fixture of `TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd`, specs `["no-such-dir", "."]` and `grep: "NEEDLE"`. `content[0]` reads as an index and has `-- no-such-dir:`; `problems` is 1. A sibling call without `no-such-dir` has no such line.
+   - `TestAnIndexFromAnOverflowingReceiptNamesTheProblem` reaches `:425`: the report fits and the receipt does not, the shape `TestAReadWhoseReceiptOverflowsIsNotServed` builds at a lowered `MaxResultChars`. The index names `no-such-dir`.
+   - `TestAnIndexFromOverflowingCheckpointsNamesTheProblem` reaches `:448`: the unmarked answer fits and the checkpoint-marked one does not. The ceiling is chosen between the two measured sizes, and the test asserts both sizes before asserting the line.
+   - `TestAnAstGrepIndexNamesACROnlyFileItRefused`: a fake `ast-grep` reports hits in 60 large files and in `cr.go`, which is CR-only. The index names `cr.go`.
+   - `TestProblemLinesTooLargeForTheCeilingAreRefusedLegibly`: enough missing paths that their lines alone exceed a lowered ceiling. The answer is the ceiling refusal, `isError`, within the ceiling, never an index missing lines.
+2. [S2] Implement; confirm GREEN, and that `TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd` and the limit tests stay green. [proof: mutation]
+   Mutants, one per return so each fixture proves its own site:
+   - `:348` passes no problems: kills the first test;
+   - `:425` passes no problems: kills the receipt test;
+   - `:448` passes no problems: kills the checkpoint test;
+   - the trim loop drops problem lines before entries: kills the first test run at a ceiling where the entries alone overflow.
+3. [S3] §122 through the binary. Must-fail: an oversized grep naming `no-such-dir` beside a real tree returns an index whose text names `no-such-dir`. Good: the same grep without it names nothing. RED against v1.23.0 in a mini-harness, GREEN in the full `./scripts/contract.sh`. [proof: mutation]
+4. [S4] Close the BACKLOG row; `gofmt`, `go vet`, unpiped. [proof: acceptance]
+
+## Acceptance
+
+```bash
+set -o pipefail
+grep -q '^# 122\. ' scripts/contract.sh \
+  && go test ./internal/mcp/ -count=1 -v \
+    -run 'TestAnIndexNamesEveryPathTheWalkCouldNotUse|TestAnIndexFromAnOverflowingReceiptNamesTheProblem|TestAnIndexFromOverflowingCheckpointsNamesTheProblem|TestAnAstGrepIndexNamesACROnlyFileItRefused|TestProblemLinesTooLargeForTheCeilingAreRefusedLegibly|TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd' 2>&1 | tee /tmp/adr067-t1.out \
+  && grep -q '^--- PASS: TestAnIndexNamesEveryPathTheWalkCouldNotUse ' /tmp/adr067-t1.out \
+  && grep -q '^--- PASS: TestAnIndexFromAnOverflowingReceiptNamesTheProblem ' /tmp/adr067-t1.out \
+  && grep -q '^--- PASS: TestAnIndexFromOverflowingCheckpointsNamesTheProblem ' /tmp/adr067-t1.out \
+  && grep -q '^--- PASS: TestAnAstGrepIndexNamesACROnlyFileItRefused ' /tmp/adr067-t1.out \
+  && grep -q '^--- PASS: TestProblemLinesTooLargeForTheCeilingAreRefusedLegibly ' /tmp/adr067-t1.out \
+  && grep -q '^--- PASS: TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd ' /tmp/adr067-t1.out \
+  && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr067-t1.out \
+  && ./scripts/contract.sh > /tmp/adr067-t1-contract.out 2>&1 \
+  && grep -q '^  PASS  an oversized grep index names the path it could not use' /tmp/adr067-t1-contract.out \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check internal/state internal/lines cmd/mrw \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check internal/state internal/lines cmd/mrw)" ] \
+  && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ] \
+  && [ -z "$(gofmt -l internal/mcp)" ] \
+  && go vet ./internal/mcp/
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `TestAnIndexNamesEveryPathTheWalkCouldNotUse` | `internal/mcp/index_problems_test.go` | the raw-overflow index (`:348`) names a walk problem, and the line survives the trim | — | S1, S2 |
+| `TestAnIndexFromAnOverflowingReceiptNamesTheProblem` | `internal/mcp/index_problems_test.go` | the receipt-overflow index (`:425`) names it | — | S1, S2 |
+| `TestAnIndexFromOverflowingCheckpointsNamesTheProblem` | `internal/mcp/index_problems_test.go` | the checkpoint-overflow index (`:448`) names it | — | S1, S2 |
+| `TestAnAstGrepIndexNamesACROnlyFileItRefused` | `internal/mcp/index_problems_test.go` | the BACKLOG P2: a CR-only hit refused by ADR-065 is named | — | S1, S2 |
+| `TestProblemLinesTooLargeForTheCeilingAreRefusedLegibly` | `internal/mcp/index_problems_test.go` | problem text that cannot fit is the ceiling refusal, not a gapped index | — | S1, S2 |
+| `TestAnOversizedGrepReturnsTheIndexAndNotADeadEnd` | `internal/mcp/tools_test.go` | guard: the index itself is unchanged | — | S2 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | the five tests and §122 |
+| 2 — something selects it | all three `matchIndex` call sites pass the walk's problems, each proved by its own mutant |
+| 3 — the caller can discover it | the line is in `content[0]`, the block every measured host renders |
+| 4 — it is used | found by the Codex review of #208; ADR-009 refuses telemetry |
+
+## Verification Log
+(empty until execute)
+- 2026-09-24 · ae040e4* · exit 1 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:87 · test-lock-sha256:dfd0b219b396486773a381a302ca5d5324889b9c9bd410bca6be64266c9628b1 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL21jcC9pbmRleF9wcm9ibGVtc190ZXN0LmdvCVRlc3RBbkFzdEdyZXBJbmRleE5hbWVzQUNST25seUZpbGVJdFJlZnVzZWQJNGEzNGRjYmViN2MwODQwMWVkNWQyYmMzZDk5NWQxZjkzMTc1N2U4OWE2MzViODE3OTZkNGFjMTNmNGQ5NTkzYQpib2R5CWludGVybmFsL21jcC9pbmRleF9wcm9ibGVtc190ZXN0LmdvCVRlc3RBbkluZGV4RnJvbUFuT3ZlcmZsb3dpbmdSZWNlaXB0TmFtZXNUaGVQcm9ibGVtCWExMjYwYTVhNTYwZDk5MzgzMzk2MzZlYWJhMmUyNzczMjM3Y2IyMTAwZmU4NTc5OWVhNmQ4MDlmMTM0MzdmYjQKYm9keQlpbnRlcm5hbC9tY3AvaW5kZXhfcHJvYmxlbXNfdGVzdC5nbwlUZXN0QW5JbmRleEZyb21PdmVyZmxvd2luZ0NoZWNrcG9pbnRzTmFtZXNUaGVQcm9ibGVtCWRkMzFkYzdkNDllYTA4OGVhMWNlNmZiODE2ZDlkMTNmNDBiZmY0ZGEyODQ0OGYwZTMwZWNiY2NjNTg1ZTk5YjkKYm9keQlpbnRlcm5hbC9tY3AvaW5kZXhfcHJvYmxlbXNfdGVzdC5nbwlUZXN0QW5JbmRleE5hbWVzRXZlcnlQYXRoVGhlV2Fsa0NvdWxkTm90VXNlCWM1ZThmMDFmMTIzY2U2Y2NmNzk4ZWU0NDM5ODk4NzhkMjA1MzMwYWNkNGJiMTI3ZmVjMDljMzZjOGI0N2IxOGIKYm9keQlpbnRlcm5hbC9tY3AvaW5kZXhfcHJvYmxlbXNfdGVzdC5nbwlUZXN0UHJvYmxlbUxpbmVzVG9vTGFyZ2VGb3JUaGVDZWlsaW5nQXJlUmVmdXNlZExlZ2libHkJYmFhM2Y3OThhY2NmNmZjYTUyNzk2YWRjMmIxYzYyN2JiMWNkZGZiYmQwODJhMWIwZjMyYjA4MDNlZTQ2NDUzZgpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUGFnZUlzS25vd25CeUl0c1NlcnZlZFRleHQJMGM3NWY4NGI2MTExZWU5NTI1ODYyMWNhOTU1NDdiYWE2ZTRiNDU1OTZmM2Y5MDUwYTY3ZjI0Zjc2NmZkZmQyOQpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUGFnZUlzTWVhc3VyZWRBZnRlckl0c01hcmtlcnNBbmRGb290ZXIJZWQ2MzBiNjg4YTkyMWNlMTk0ZTgyNWY3NTJlYzlmZGQ4ZWVkZDg0MWQxODBmNTczOTY1YjNmMDllNTNkMTVhOApib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUGFnZUxpY2Vuc2VzT25seVdoYXRJdFNlcnZlZAk0YWQ1N2FlYjhmNjU1OGQ4Mjc4M2JkNDJiNDA0MmU1ZWJmZDliZjE1MjRhNGQ4MDAxMzFkOGM1NTE1Y2VkNTM3CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFQYWdlVGhhdENhbm5vdEZpdElzTm90QVBhZ2UJNjU3Nzg3OTNmMWY1Y2IyYzlmOTE4NGM3NzFjNzA1NjQzNjRjZDc5ODllNGQ1YjA2OGRlNzhjYTM1NTZkZDRmNApib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUGFnZWRGb290ZXJDYXJyaWVzVGhlT25lUnVsZQlhNGQxZWQxNDQzYTBmMmJhZTNlNDU0MTZjNjI5NGNhMjliNzdhNGVlYzgyNmMxYzg3MDhkN2FhOGE2MDViNmY2CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFQYWdlZFJlYWRSZWFzc2VtYmxlc1RoZVdob2xlRmlsZQkzMzUzZjg1MzQ2YWMzM2IwNzE0ZWNmOGI4ZGIzMWY4MDMwZjViYjgwZGQzN2U5YjIxYzZkMTEyMzQxODQwNDQ3CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFSZWFkT3ZlclRoZUxpbWl0SXNSZWZ1c2VkTm90VHJ1bmNhdGVkCTAwZmNiZWNkOGRiY2JmZjAxMjdlYmYzNjQwYTQ0M2Q5ZTdlM2Q3Y2ExMmFjNjcwOTgyNDJmMTIyNzc3M2RlZjYKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QVJlYWRUaGF0U2VydmVkTm90aGluZ0lzQW5FcnJvcgk2YTdhNDQzNDU4ZTBmNjVkMjVlMzBiNDkxNTY4ZWVkOTI0ZGE1OTE1ZjIzOGViMGQ5MWM5ZTZjY2NjZmQ3MWI5CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFSZWFkVW5kZXJUaGVMaW1pdElzVW5jaGFuZ2VkCTcxNDczYTViOTE3MzFkZmUxOTA5NTJhZTQyOWU1NWU0MWRlMWJhODQxM2JlYmFmYmY2YjM2YmY3NWVjZDRlODcKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QVdhbGtQcm9ibGVtSXNSZXBvcnRlZEFuZE5vdFN3YWxsb3dlZAkzZTZlNjI5MDhiZTZhYjg5ZjZiOWFiOTE1MDEwODM0ZWU5NDQxM2Q1MmRiMTIwYjQ3NzRlZjhkYjU1MjU5ODE1CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFXYWxrUHJvYmxlbVN1cnZpdmVzQVZhbGlkU2libGluZwliZWU3MDg4ZTVjYzIyMWU3NzUyNjk1NDUyNDA1NWM1ODlmOGYwMjBlNjI5OGM1MGY4MWNhYzk3NWM0YWI5MWJiCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFXcml0ZVRvQW5VbnJlYWRGaWxlSXNSZWZ1c2VkT3Zlck1DUAliYjJhNGUxZmMyNDE0YTNjYzUwNjMxNzVhMDM0Yzk3MGNlZDkwNWE3NTdlMGI2ZGEyZGYwN2VjYTliOWU5OWFjCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFja09uQVJlYWRQcm9tb3Rlc1Rvbwk3N2I4NzFjYzNkMzIwOWE4NzU0YzI5MTY1ZWY0ZGFhOTBlN2RmNTIxZDZhZDA1NGUwODMyNjY4MGI1ZWQ3NTA4CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFmdGVyV2l0aG91dEdyZXBJc1JlZnVzZWQJOTE3NTJiMDdiZGY2NjcwMzhiNWFjYjhmZTgyODIzZmM0MmMyYjcxZjg1NjFiZmM0M2IwNWQzYmUwMWE1Y2IyOApib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBbkluZGV4VG9vTGFyZ2VUb1NlcnZlUGFnZXNCeUZpbGUJNmI2MjQxNGVjYTlkMzgxMmNhNTY4NGQxMTQ2OWZlNjM1NTYwZGZlZGZjNGI3YzBhMTgxZjcxYWMwNzYxMmI3Ygpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBbk1DUFJlYWRMaWNlbnNlc0FDTElXcml0ZQk5MzZlMWRiOGQ3ZmU2NTZiZTcxNTI0NTM5MTM1MTc1ZWVjMmI5MDI5MmJkMzkyMTYxNzYzZDc5N2FhZDZjZmQxCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFuT3ZlcnNpemVkR3JlcFJldHVybnNUaGVJbmRleEFuZE5vdEFEZWFkRW5kCTczZDUyZDcwNWIyODc1YTIxYzNjNDM3YmUxZjVhN2M2NTE1NDczN2MzMWM0MjVmYmQ5MDQwZDk2YWMyY2VkNTEKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QW5PdmVyc2l6ZWRSZWFkU3RpbGxSZWFkc0FzSW5jb21wbGV0ZQkzOGYyNTRiNjVmM2RiYzAxZjhkMmZmMWU2OGM0ODVkMzk4NjE1NThjOTU2ZGY0ZTY5ZjA1MzAwODI3Mzg4OWMxCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEJvdGhUb29sc0FkdmVydGlzZUFjawk5YTM2MTNlMzBhZjYxNWVmNjA4NGI0ZjMwZjRmNGYwZWQxZjIxMzZmMzY2MTM2Y2ZmNDBkOWU5ZWIxNTM0Y2I5CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdENvbmN1cnJlbnRUb29sQ2FsbHNEb05vdExvc2VBTGVkZ2VyRW50cnkJNzI3NWRlMWM3ZDUxNTE3ZWUxOTc5YjBlZjY5YzExNzU2ODJlNTQ1YTEzMGQ3ZDdmMjZjMDhmNWNjN2I5ZWMwMgpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RHcmVwUmVmdXNlc0FSYW5nZWRTcGVjCTg0NjE5YjhhNGUyYzNiOTkyNjJjNzQ1NTJlZWE0MjA3N2I0ZjMwZmIzZTgwOGRkODM5OGVhMzE3ODE2ZjkyMzQKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0R3JlcFNlcnZlc1doYXRJdEZpbmRzQW5kUmVjb3Jkc0l0CTUyOTE3MTNiODBjZmM4OGYyMzg5MmRlZGY4MDM0MGU2MmNhZjg2MTY2MWRhNmYyMTRmYjFiNDYwYzExZDY2ZjIKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0Tm9HcmVwQW5zd2VyRXhjZWVkc1RoZURlY2xhcmVkQ2FwCTBlMzJmMzdjMjUwMzQ0ZTdkN2FkNTYyNDgyZjYzZGZiM2ZiYmFhMTAwZDg0NDE4ZDhmZTU2OTQxOGU4N2I2YTMKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlQ0xJUmVhZElzVW5hZmZlY3RlZEJ5VGhlTUNQTGltaXQJNGU1ODBlYjE4ZWU2MTQwZTYwZWRmZjMzNDc2OTdlNmYwZWY2NTM1MjI4Y2UzNGQzZDg5NTI3NDk5MWUxZGZmNQpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RUaGVDYXBwZWRXcml0ZXJSZXRhaW5zTm9Nb3JlVGhhbkl0c0xpbWl0CTU3NzdjMTI1N2I0YWVhZTg3Nzg1NDk5NDY3NDM1MmIwYTY3ZTNiNTYxYmZhMzg2MjU2OGE1OGJjMWY3Zjk4MTEKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlSW5kZXhTdXJ2aXZlc0FQYXR0ZXJuVGhhdExvb2tzTGlrZUFSYW5nZQliMjYwODIxZDk1ZTU1ZTQ3ZGE4YjdjZjM3MjhjNzRiZTYxMGQ1Mjk4MDIwOGQ0MzQ3MTBkZTEyZWQ3NTA0N2UxCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdFRoZVJlYWRUb29sT2JzZXJ2ZXNXaGF0VGhlQ0xJV291bGRPYnNlcnZlCWJhNDZiYmJlMjE5OWI5MDM5OTFhMDk0NjFhMTM0NDgzZTIzYTdkNWYyMTc4NTM0ZTZiNjhmYzkwNDY3YmEwNGYKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlUmVmdXNhbERvZXNOb3RJbnZlbnRBbkludmFsaWRTcGVjCTFiZjVmZWFkZGFkYTgyMmQyZWQ0YzU2MzY4YzU2NzQ3ODdlNzVmY2I4ODEzNzgxMjZmY2FkMGY4ZWFjMTgyMDEKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlUmVmdXNhbE5hbWVzVGhlTGltaXRBbmRBUmFuZ2VUb1JldHJ5CTM4MTZmYTAxMjk3Mjk2NDU4NDk2NzFlOTM1MzYwMjFjNGRmN2M5OTE1NzA5ZDM5OWVmYmYzNDJhNzQzMTRkMjgKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlVG9vbFJlc3VsdENhcnJpZXNDb250ZW50QW5kU3RydWN0dXJlZENvbnRlbnQJMGFkMmIzN2ZmOTBkODNmNWI1MjgxN2YxOWJjMTZmYTkwZjIwZTcxZDIyNTg4NWM4NGY2ZmI0NDliOGY5YjFhNwpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RUaGVVbnNlcnZhYmxlTGluZUlzRGlhZ25vc2VkUGVyRmlsZQlhNjQzZDJjYWMzZDI5OThhODE0MjY4ZDU3ZjQ1MWMwYWM3YWIyNWVhZjI1OTUzMzA5ZTk0Y2UwYzM5ZjA2ZDEwCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdFRoZVdyaXRlVG9vbFJldHVybnNUaGVTYW1lUmVzdWx0QXNUaGVDTEkJYWEyNzIwZTcwM2Q4ZDFhY2MzZTI4ZjIwMTI0Y2U0ODM2YzM2M2EyYjE5N2UwNmU4M2Q4NDRkMDQwNDU4OGQzOA
+  ```
+  ```
+- 2026-09-24 · ae040e4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:70046
+- 2026-09-24 · ae040e4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:49356
+- 2026-09-24 · ae040e4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:44057
+- 2026-09-24 · ae040e4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:48039
+- 2026-09-24 · ae040e4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:55822
+- 2026-09-24 · ae040e4* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:0 · test-lock-sha256:71f2481b7635917cf480ec4f9f8a03f2316af42a58ba75e69e9ed96b378dd570 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL21jcC9pbmRleF9wcm9ibGVtc190ZXN0LmdvCVRlc3RBbkFzdEdyZXBJbmRleE5hbWVzQUNST25seUZpbGVJdFJlZnVzZWQJNGEzNGRjYmViN2MwODQwMWVkNWQyYmMzZDk5NWQxZjkzMTc1N2U4OWE2MzViODE3OTZkNGFjMTNmNGQ5NTkzYQpib2R5CWludGVybmFsL21jcC9pbmRleF9wcm9ibGVtc190ZXN0LmdvCVRlc3RBbkluZGV4RnJvbUFuT3ZlcmZsb3dpbmdSZWNlaXB0TmFtZXNUaGVQcm9ibGVtCWI0Y2UyMzI3ZmUxZDAxZTMxZGRhMWEzYzgxODcwNmNhNDJiMjhjOTAyYWJkYTYxZGVlNGVmNTc4NzZkZjNmMTQKYm9keQlpbnRlcm5hbC9tY3AvaW5kZXhfcHJvYmxlbXNfdGVzdC5nbwlUZXN0QW5JbmRleEZyb21PdmVyZmxvd2luZ0NoZWNrcG9pbnRzTmFtZXNUaGVQcm9ibGVtCTNjZWNhNTIxNGI3MmJkMjE0MDg1MmJjYzM2MGQ5NjU3ZDRhZjQ3OWVmNzlhNmU3ZDYzMjg4NzE5MzllYjVlYjcKYm9keQlpbnRlcm5hbC9tY3AvaW5kZXhfcHJvYmxlbXNfdGVzdC5nbwlUZXN0QW5JbmRleE5hbWVzRXZlcnlQYXRoVGhlV2Fsa0NvdWxkTm90VXNlCWM1ZThmMDFmMTIzY2U2Y2NmNzk4ZWU0NDM5ODk4NzhkMjA1MzMwYWNkNGJiMTI3ZmVjMDljMzZjOGI0N2IxOGIKYm9keQlpbnRlcm5hbC9tY3AvaW5kZXhfcHJvYmxlbXNfdGVzdC5nbwlUZXN0UHJvYmxlbUxpbmVzVG9vTGFyZ2VGb3JUaGVDZWlsaW5nQXJlUmVmdXNlZExlZ2libHkJYmFhM2Y3OThhY2NmNmZjYTUyNzk2YWRjMmIxYzYyN2JiMWNkZGZiYmQwODJhMWIwZjMyYjA4MDNlZTQ2NDUzZgpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUGFnZUlzS25vd25CeUl0c1NlcnZlZFRleHQJMGM3NWY4NGI2MTExZWU5NTI1ODYyMWNhOTU1NDdiYWE2ZTRiNDU1OTZmM2Y5MDUwYTY3ZjI0Zjc2NmZkZmQyOQpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUGFnZUlzTWVhc3VyZWRBZnRlckl0c01hcmtlcnNBbmRGb290ZXIJZWQ2MzBiNjg4YTkyMWNlMTk0ZTgyNWY3NTJlYzlmZGQ4ZWVkZDg0MWQxODBmNTczOTY1YjNmMDllNTNkMTVhOApib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUGFnZUxpY2Vuc2VzT25seVdoYXRJdFNlcnZlZAk0YWQ1N2FlYjhmNjU1OGQ4Mjc4M2JkNDJiNDA0MmU1ZWJmZDliZjE1MjRhNGQ4MDAxMzFkOGM1NTE1Y2VkNTM3CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFQYWdlVGhhdENhbm5vdEZpdElzTm90QVBhZ2UJNjU3Nzg3OTNmMWY1Y2IyYzlmOTE4NGM3NzFjNzA1NjQzNjRjZDc5ODllNGQ1YjA2OGRlNzhjYTM1NTZkZDRmNApib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUGFnZWRGb290ZXJDYXJyaWVzVGhlT25lUnVsZQlhNGQxZWQxNDQzYTBmMmJhZTNlNDU0MTZjNjI5NGNhMjliNzdhNGVlYzgyNmMxYzg3MDhkN2FhOGE2MDViNmY2CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFQYWdlZFJlYWRSZWFzc2VtYmxlc1RoZVdob2xlRmlsZQkzMzUzZjg1MzQ2YWMzM2IwNzE0ZWNmOGI4ZGIzMWY4MDMwZjViYjgwZGQzN2U5YjIxYzZkMTEyMzQxODQwNDQ3CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFSZWFkT3ZlclRoZUxpbWl0SXNSZWZ1c2VkTm90VHJ1bmNhdGVkCTAwZmNiZWNkOGRiY2JmZjAxMjdlYmYzNjQwYTQ0M2Q5ZTdlM2Q3Y2ExMmFjNjcwOTgyNDJmMTIyNzc3M2RlZjYKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QVJlYWRUaGF0U2VydmVkTm90aGluZ0lzQW5FcnJvcgk2YTdhNDQzNDU4ZTBmNjVkMjVlMzBiNDkxNTY4ZWVkOTI0ZGE1OTE1ZjIzOGViMGQ5MWM5ZTZjY2NjZmQ3MWI5CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFSZWFkVW5kZXJUaGVMaW1pdElzVW5jaGFuZ2VkCTcxNDczYTViOTE3MzFkZmUxOTA5NTJhZTQyOWU1NWU0MWRlMWJhODQxM2JlYmFmYmY2YjM2YmY3NWVjZDRlODcKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QVdhbGtQcm9ibGVtSXNSZXBvcnRlZEFuZE5vdFN3YWxsb3dlZAkzZTZlNjI5MDhiZTZhYjg5ZjZiOWFiOTE1MDEwODM0ZWU5NDQxM2Q1MmRiMTIwYjQ3NzRlZjhkYjU1MjU5ODE1CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFXYWxrUHJvYmxlbVN1cnZpdmVzQVZhbGlkU2libGluZwliZWU3MDg4ZTVjYzIyMWU3NzUyNjk1NDUyNDA1NWM1ODlmOGYwMjBlNjI5OGM1MGY4MWNhYzk3NWM0YWI5MWJiCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFXcml0ZVRvQW5VbnJlYWRGaWxlSXNSZWZ1c2VkT3Zlck1DUAliYjJhNGUxZmMyNDE0YTNjYzUwNjMxNzVhMDM0Yzk3MGNlZDkwNWE3NTdlMGI2ZGEyZGYwN2VjYTliOWU5OWFjCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFja09uQVJlYWRQcm9tb3Rlc1Rvbwk3N2I4NzFjYzNkMzIwOWE4NzU0YzI5MTY1ZWY0ZGFhOTBlN2RmNTIxZDZhZDA1NGUwODMyNjY4MGI1ZWQ3NTA4CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFmdGVyV2l0aG91dEdyZXBJc1JlZnVzZWQJOTE3NTJiMDdiZGY2NjcwMzhiNWFjYjhmZTgyODIzZmM0MmMyYjcxZjg1NjFiZmM0M2IwNWQzYmUwMWE1Y2IyOApib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBbkluZGV4VG9vTGFyZ2VUb1NlcnZlUGFnZXNCeUZpbGUJNmI2MjQxNGVjYTlkMzgxMmNhNTY4NGQxMTQ2OWZlNjM1NTYwZGZlZGZjNGI3YzBhMTgxZjcxYWMwNzYxMmI3Ygpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBbk1DUFJlYWRMaWNlbnNlc0FDTElXcml0ZQk5MzZlMWRiOGQ3ZmU2NTZiZTcxNTI0NTM5MTM1MTc1ZWVjMmI5MDI5MmJkMzkyMTYxNzYzZDc5N2FhZDZjZmQxCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFuT3ZlcnNpemVkR3JlcFJldHVybnNUaGVJbmRleEFuZE5vdEFEZWFkRW5kCTczZDUyZDcwNWIyODc1YTIxYzNjNDM3YmUxZjVhN2M2NTE1NDczN2MzMWM0MjVmYmQ5MDQwZDk2YWMyY2VkNTEKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QW5PdmVyc2l6ZWRSZWFkU3RpbGxSZWFkc0FzSW5jb21wbGV0ZQkzOGYyNTRiNjVmM2RiYzAxZjhkMmZmMWU2OGM0ODVkMzk4NjE1NThjOTU2ZGY0ZTY5ZjA1MzAwODI3Mzg4OWMxCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEJvdGhUb29sc0FkdmVydGlzZUFjawk5YTM2MTNlMzBhZjYxNWVmNjA4NGI0ZjMwZjRmNGYwZWQxZjIxMzZmMzY2MTM2Y2ZmNDBkOWU5ZWIxNTM0Y2I5CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdENvbmN1cnJlbnRUb29sQ2FsbHNEb05vdExvc2VBTGVkZ2VyRW50cnkJNzI3NWRlMWM3ZDUxNTE3ZWUxOTc5YjBlZjY5YzExNzU2ODJlNTQ1YTEzMGQ3ZDdmMjZjMDhmNWNjN2I5ZWMwMgpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RHcmVwUmVmdXNlc0FSYW5nZWRTcGVjCTg0NjE5YjhhNGUyYzNiOTkyNjJjNzQ1NTJlZWE0MjA3N2I0ZjMwZmIzZTgwOGRkODM5OGVhMzE3ODE2ZjkyMzQKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0R3JlcFNlcnZlc1doYXRJdEZpbmRzQW5kUmVjb3Jkc0l0CTUyOTE3MTNiODBjZmM4OGYyMzg5MmRlZGY4MDM0MGU2MmNhZjg2MTY2MWRhNmYyMTRmYjFiNDYwYzExZDY2ZjIKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0Tm9HcmVwQW5zd2VyRXhjZWVkc1RoZURlY2xhcmVkQ2FwCTBlMzJmMzdjMjUwMzQ0ZTdkN2FkNTYyNDgyZjYzZGZiM2ZiYmFhMTAwZDg0NDE4ZDhmZTU2OTQxOGU4N2I2YTMKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlQ0xJUmVhZElzVW5hZmZlY3RlZEJ5VGhlTUNQTGltaXQJNGU1ODBlYjE4ZWU2MTQwZTYwZWRmZjMzNDc2OTdlNmYwZWY2NTM1MjI4Y2UzNGQzZDg5NTI3NDk5MWUxZGZmNQpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RUaGVDYXBwZWRXcml0ZXJSZXRhaW5zTm9Nb3JlVGhhbkl0c0xpbWl0CTU3NzdjMTI1N2I0YWVhZTg3Nzg1NDk5NDY3NDM1MmIwYTY3ZTNiNTYxYmZhMzg2MjU2OGE1OGJjMWY3Zjk4MTEKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlSW5kZXhTdXJ2aXZlc0FQYXR0ZXJuVGhhdExvb2tzTGlrZUFSYW5nZQliMjYwODIxZDk1ZTU1ZTQ3ZGE4YjdjZjM3MjhjNzRiZTYxMGQ1Mjk4MDIwOGQ0MzQ3MTBkZTEyZWQ3NTA0N2UxCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdFRoZVJlYWRUb29sT2JzZXJ2ZXNXaGF0VGhlQ0xJV291bGRPYnNlcnZlCWJhNDZiYmJlMjE5OWI5MDM5OTFhMDk0NjFhMTM0NDgzZTIzYTdkNWYyMTc4NTM0ZTZiNjhmYzkwNDY3YmEwNGYKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlUmVmdXNhbERvZXNOb3RJbnZlbnRBbkludmFsaWRTcGVjCTFiZjVmZWFkZGFkYTgyMmQyZWQ0YzU2MzY4YzU2NzQ3ODdlNzVmY2I4ODEzNzgxMjZmY2FkMGY4ZWFjMTgyMDEKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlUmVmdXNhbE5hbWVzVGhlTGltaXRBbmRBUmFuZ2VUb1JldHJ5CTM4MTZmYTAxMjk3Mjk2NDU4NDk2NzFlOTM1MzYwMjFjNGRmN2M5OTE1NzA5ZDM5OWVmYmYzNDJhNzQzMTRkMjgKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlVG9vbFJlc3VsdENhcnJpZXNDb250ZW50QW5kU3RydWN0dXJlZENvbnRlbnQJMGFkMmIzN2ZmOTBkODNmNWI1MjgxN2YxOWJjMTZmYTkwZjIwZTcxZDIyNTg4NWM4NGY2ZmI0NDliOGY5YjFhNwpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RUaGVVbnNlcnZhYmxlTGluZUlzRGlhZ25vc2VkUGVyRmlsZQlhNjQzZDJjYWMzZDI5OThhODE0MjY4ZDU3ZjQ1MWMwYWM3YWIyNWVhZjI1OTUzMzA5ZTk0Y2UwYzM5ZjA2ZDEwCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdFRoZVdyaXRlVG9vbFJldHVybnNUaGVTYW1lUmVzdWx0QXNUaGVDTEkJYWEyNzIwZTcwM2Q4ZDFhY2MzZTI4ZjIwMTI0Y2U0ODM2YzM2M2EyYjE5N2UwNmU4M2Q4NDRkMDQwNDU4OGQzOA · test-lock-kind:replace
+- 2026-09-24 · ae040e4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:62140
+- 2026-09-24 · ae040e4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:32271
+- 2026-09-24 · ae040e4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:31727
+- 2026-09-24 · ae040e4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:33435
+- 2026-09-24 · ae040e4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:33784
+- 2026-09-24 · ae040e4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:41524
+- 2026-09-24 · ae040e4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · ms:45929
+
+## Mutation Log
+(empty until execute)
+- 2026-09-24 · ae040e4* · mutant killed · exit 1 · `internal/mcp/tools.go` · the raw-overflow return (:348) passes no walk problems: TestAnIndexNamesEveryPathTheWalkCouldNotUse and §122 must go red · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17
+- 2026-09-24 · ae040e4* · mutant survived · exit 0 · `internal/mcp/tools.go` · the receipt-overflow return (:425) passes no walk problems: TestAnIndexFromAnOverflowingReceiptNamesTheProblem must go red · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-24 · ae040e4* · mutant killed · exit 1 · `internal/mcp/tools.go` · the checkpoint-overflow return (:448) passes no walk problems: TestAnIndexFromOverflowingCheckpointsNamesTheProblem must go red · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17
+- 2026-09-24 · ae040e4* · mutant killed · exit 1 · `internal/mcp/tools.go` · the receipt-overflow return (:425) passes no walk problems: TestAnIndexFromAnOverflowingReceiptNamesTheProblem must go red · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17
+- 2026-09-24 · ae040e4* · mutant killed · exit 1 · `internal/mcp/tools.go` · the trim loop drops problem lines once entries are trimmed: TestAnIndexNamesEveryPathTheWalkCouldNotUse must go red · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17
+- 2026-09-24 · ae040e4* · mutant killed · exit 1 · `internal/mcp/tools.go` · the raw-overflow return (:348) passes no walk problems: §122 and TestAnIndexNamesEveryPathTheWalkCouldNotUse must go red · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · covers:the binary names the missing path in an index
+- 2026-09-24 · ae040e4* · mutant killed · exit 1 · `internal/mcp/tools.go` · the receipt-overflow return (:425) passes no walk problems · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · covers:each of the three index returns passes the problems
+- 2026-09-24 · ae040e4* · mutant killed · exit 1 · `internal/mcp/tools.go` · the checkpoint-overflow return (:448) passes no walk problems · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · covers:each of the three index returns passes the problems
+- 2026-09-24 · ae040e4* · mutant killed · exit 1 · `internal/mcp/tools.go` · the trim loop drops problem lines once entries are trimmed · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · covers:problem lines survive the trim
+- 2026-09-24 · ae040e4* · mutant killed · exit 1 · `internal/mcp/tools.go` · the index prints no problem line at all · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · covers:the index report names each walk problem
+- 2026-09-24 · ae040e4* · mutant killed · exit 1 · `internal/mcp/tools.go` · the ceiling funnel is bypassed, so oversized problem text is served past the ceiling · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · covers:oversized problem text is refused legibly
+- 2026-09-24 · ae040e4* · mutant killed · exit 1 · `internal/lines/lines.go` · a behaviour-neutral engine edit: only the fence engine guard can see it · acceptance-sha256:d093eaad7a29489462f20bef8bb728e8a1d0d7c60411ea781ce498c44f7e7c17 · covers:no engine file changes
+
+## Invariants
+
+- `problems` in `content[1]` stays a count; no receipt field is added.
+- The index still carries no `isError` (ADR-024).
+- The index writes nothing to the ledger (ADR-017).
+
+## Risks
+
+- The fake `ast-grep` needs `go build` at test time, as the read package's tests already do.
+- The `:448` fixture depends on marker overhead; the test asserts the two measured sizes first, so a fixture that stops reaching the site fails loudly instead of passing.
+
+## Out of Scope
+
+- Naming the problems of read.Run on walked specs, which can only arise from a race between walk and read (permanent: boundary: they are counted in the sentence for other problems; naming them would mean parsing an overflowing report)
+
+## Stop Condition
+
+Stop if naming the problems requires a new receipt field, or changes the index's page arithmetic (ADR-017).

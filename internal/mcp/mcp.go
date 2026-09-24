@@ -14,16 +14,112 @@ package mcp
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 )
 
-// protocolVersion is the specification revision this server implements and
-// reports during initialize.
-const protocolVersion = "2025-06-18"
+// legacyVersions are the handshake-era revisions mrw speaks, latest first
+// (ADR-067). initialize answers the requested one when it is here, and the
+// first otherwise — the lifecycle's "the latest version supported by the
+// server". Claude Code 2.1.281 asks for 2025-11-25 (wire capture, 2026-09-24).
+var legacyVersions = []string{"2025-11-25", "2025-06-18"}
+
+// negotiate picks the version initialize answers with.
+func negotiate(requested string) string {
+	for _, v := range legacyVersions {
+		if v == requested {
+			return v
+		}
+	}
+	return legacyVersions[0]
+}
+
+// The 2026-07-28 era (ADR-067 Decision 4). A request carrying
+// _meta[metaVersion] is served per request; one without it is served exactly
+// as before. mrw keeps no session state, so every version it lists is
+// servable on any request — which is what keeps one supported list true on
+// -32022, on server/discover and on a retry.
+const (
+	modernVersion          = "2026-07-28"
+	metaVersion            = "io.modelcontextprotocol/protocolVersion"
+	metaCapabilities       = "io.modelcontextprotocol/clientCapabilities"
+	codeUnsupportedVersion = -32022
+	// cacheTTLMs: the tool list is fixed for the binary's life and the same
+	// for every caller, so an hour of freshness is honest and cacheScope is
+	// "public". A new binary is a new process.
+	cacheTTLMs = 3_600_000
+)
+
+// supportedVersions is every revision mrw speaks, latest first.
+func supportedVersions() []string { return append([]string{modernVersion}, legacyVersions...) }
+
+// era is what one request's _meta asks for. modern means the result is
+// decorated with resultType, serverInfo and, on a list, caching hints.
+type era struct{ modern bool }
+
+// requestEra reads params._meta once. hasVersion reports whether the request
+// named a version at all; a non-nil error refuses the request.
+func requestEra(params json.RawMessage) (e era, hasVersion bool, refusal *rpcError) {
+	var p struct {
+		Meta map[string]json.RawMessage `json:"_meta"`
+	}
+	if json.Unmarshal(params, &p) != nil {
+		return era{}, false, nil
+	}
+	raw, ok := p.Meta[metaVersion]
+	if !ok {
+		return era{}, false, nil
+	}
+	var v string
+	if json.Unmarshal(raw, &v) != nil {
+		v = string(raw)
+	}
+	if !slices.Contains(supportedVersions(), v) {
+		return era{}, true, &rpcError{Code: codeUnsupportedVersion, Message: "Unsupported protocol version",
+			Data: map[string]any{"supported": supportedVersions(), "requested": v}}
+	}
+	if v != modernVersion {
+		return era{}, true, nil
+	}
+	if caps := bytes.TrimSpace(p.Meta[metaCapabilities]); len(caps) == 0 || caps[0] != '{' {
+		return era{}, true, &rpcError{Code: codeInvalidParams,
+			Message: "invalid params: a " + modernVersion + " request must carry _meta " + metaCapabilities}
+	}
+	return era{modern: true}, true, nil
+}
+
+// modernResultMeta is the _meta every modern result carries.
+func modernResultMeta() map[string]any {
+	return map[string]any{"io.modelcontextprotocol/serverInfo": serverInfo()}
+}
+
+// decorate adds the modern result fields to m when the request was modern.
+func (e era) decorate(m map[string]any) map[string]any {
+	if e.modern {
+		m["resultType"] = "complete"
+		m["_meta"] = modernResultMeta()
+	}
+	return m
+}
+
+// discoverResult answers server/discover. It is modern-shaped whatever
+// version the request named, because the method exists only in that era.
+func discoverResult() map[string]any {
+	return map[string]any{
+		"resultType":        "complete",
+		"supportedVersions": supportedVersions(),
+		"capabilities":      map[string]any{"tools": map[string]any{}},
+		"_meta":             modernResultMeta(),
+		"instructions":      instructionsText(),
+		"ttlMs":             cacheTTLMs,
+		"cacheScope":        "public",
+	}
+}
 
 // JSON-RPC 2.0 error codes, named so a reader does not have to look them up.
 const (
@@ -59,6 +155,9 @@ type response struct {
 type rpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+	// Data carries the error's structured detail when the specification
+	// defines one — UnsupportedProtocolVersion's supported/requested (ADR-067).
+	Data any `json:"data,omitempty"`
 }
 
 // tool is one entry of tools/list. A host reads this list rather than the
@@ -175,17 +274,40 @@ func handle(line string, serveRoot string) (response, bool) {
 		return response{}, false
 	}
 
+	// MCP: a request id MUST NOT be null. It is answered as an invalid request,
+	// with the null id it arrived with, and never dispatched (ADR-067).
+	if string(req.ID) == "null" {
+		return errorResponse(req.ID, codeInvalidRequest, "invalid request: an id must not be null"), true
+	}
+
 	if req.JSONRPC != "2.0" {
 		return errorResponse(req.ID, codeInvalidRequest, `invalid request: jsonrpc must be "2.0"`), true
 	}
 
+	// initialize always selects the legacy era, whatever _meta it carries
+	// (ADR-067: precedence 2). Every other method takes its era from _meta.
+	if req.Method == "initialize" {
+		return resultResponse(req.ID, initializeResult(req.Params))
+	}
+	e, hasVersion, refusal := requestEra(req.Params)
+	if refusal != nil {
+		return response{JSONRPC: "2.0", ID: req.ID, Error: refusal}, true
+	}
+
 	switch req.Method {
-	case "initialize":
-		return resultResponse(req.ID, initializeResult())
+	case "server/discover":
+		// Without a version it is malformed, which a dual-era client reads
+		// as "legacy" and answers with initialize.
+		if !hasVersion {
+			return errorResponse(req.ID, codeInvalidParams, "invalid params: server/discover must carry _meta "+metaVersion), true
+		}
+		return resultResponse(req.ID, discoverResult())
 	case "tools/call":
 		// The handlers are adapters over the same engine functions cmd/mrw
-		// calls; the root is what binds them to this checkout.
-		res, rpcErr := callTool(serveRoot, req.Params)
+		// calls; the root is what binds them to this checkout. The era goes
+		// in, because a modern result is decorated INSIDE the call, where
+		// every ceiling measurement can reserve room for it.
+		res, rpcErr := callTool(serveRoot, req.Params, e.modern)
 		if rpcErr != nil {
 			return response{JSONRPC: "2.0", ID: req.ID, Error: rpcErr}, true
 		}
@@ -195,11 +317,17 @@ func handle(line string, serveRoot string) (response, bool) {
 		// empty response". Hosts send these on a timer to check connection
 		// health, and a server that errors every health check is one a host is
 		// entitled to drop — so this is a base-protocol obligation, not a
-		// capability the ADR chose not to implement.
+		// capability the ADR chose not to implement. 2026-07-28 removed it; a
+		// modern client does not send it, and answering costs nothing.
 		// https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/ping
-		return resultResponse(req.ID, map[string]any{})
+		return resultResponse(req.ID, e.decorate(map[string]any{}))
 	case "tools/list":
-		return resultResponse(req.ID, map[string]any{"tools": tools()})
+		list := map[string]any{"tools": tools()}
+		if e.modern {
+			list["ttlMs"] = cacheTTLMs
+			list["cacheScope"] = "public"
+		}
+		return resultResponse(req.ID, e.decorate(list))
 	default:
 		// tools/call lands here until T2 implements the handlers. Declaring the
 		// schemas before implementing them keeps tools/list honest from the
@@ -212,13 +340,16 @@ func handle(line string, serveRoot string) (response, bool) {
 // initializeResult is the whole lifecycle response, not just a version. A reply
 // carrying only protocolVersion parses as JSON and still fails negotiation,
 // because a host that sees no tools capability never calls tools/list.
-func initializeResult() map[string]any {
+func initializeResult(params json.RawMessage) map[string]any {
+	var p struct {
+		ProtocolVersion string `json:"protocolVersion"`
+	}
+	// A missing or malformed params is answered with the latest version, not
+	// refused: the handshake is how a host learns what this server speaks.
+	_ = json.Unmarshal(params, &p)
 	return map[string]any{
-		"protocolVersion": protocolVersion,
-		"serverInfo": map[string]any{
-			"name":    "mrw",
-			"version": Version,
-		},
+		"protocolVersion": negotiate(p.ProtocolVersion),
+		"serverInfo":      serverInfo(),
 		"capabilities": map[string]any{
 			"tools": map[string]any{},
 		},
@@ -226,6 +357,16 @@ func initializeResult() map[string]any {
 		// only documentation an MCP-only caller has: it is in a checkout it did
 		// not clone from here, so the format has to travel on the wire.
 		"instructions": instructionsText(),
+	}
+}
+
+// serverInfo says what mrw is: the one Implementation every era reports.
+func serverInfo() map[string]any {
+	return map[string]any{
+		"name":        "mrw",
+		"title":       "mrw",
+		"version":     Version,
+		"description": "Reads many file ranges and applies many edits in one call, with a verdict for every edit.",
 	}
 }
 
@@ -415,7 +556,7 @@ func tools() []tool {
 func resultResponse(id json.RawMessage, result any) (response, bool) {
 	b, err := json.Marshal(result)
 	if err != nil {
-		return errorResponse(id, codeInvalidRequest, "could not encode result: "+err.Error()), true
+		return errorResponse(id, codeInternal, "could not encode result: "+err.Error()), true
 	}
 	return response{JSONRPC: "2.0", ID: id, Result: b}, true
 }

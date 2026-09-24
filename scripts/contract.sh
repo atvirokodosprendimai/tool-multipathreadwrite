@@ -5082,10 +5082,11 @@ out=$(printf '%s\n' "$req" | m mcp 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])
-assert "error" in r, "format=git was not usage: %s" % r
-assert "git patch is not" in r["error"].get("message",""), "git refuse does not name the grammar: %s" % r
+r=r["result"]
+assert r.get("isError") is True, "format=git was not an isError result: %s" % r
+assert "git patch is not" in r["content"][0]["text"], "git refuse does not name the grammar: %s" % r
 PY
-want 0 $? "MCP format=git is usage"
+want 0 $? "MCP format=git is refused, naming the grammar"
 
 out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
 python3 - "$out" <<'PY'
@@ -6282,6 +6283,101 @@ want 2 $? "an apply_patch old side the CRLF file lacks still refuses"
 [ "$(od -An -c "$R/crlf.txt" | tr -d ' \n')" = 'one\r\nTWO\r\nthree\r\n' ] \
   && ok "and the refused apply_patch wrote nothing" \
   || bad "a refused apply_patch changed the CRLF file"
+
+# 122. ADR-067 T1: an mrw_read grep too large to serve degrades to an index,
+# and the index now names every path the walk could not use, as a served answer
+# does. It used to carry only their count. The pair: the same grep without the
+# missing path names nothing, so the line comes from the problem.
+fixture
+mkdir -p "$R/g"
+for i in $(seq 1 60); do
+  awk 'BEGIN { print "none"; for (j = 0; j < 400; j++) print "the NEEDLE is here" }' > "$R/g/d$i.csv"
+done
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["no-such-dir","g"],"grep":"NEEDLE"}}}' \
+  | m mcp > "$WORK/122.out" 2>/dev/null
+python3 - "$WORK/122.out" <<'PY'
+import json,sys
+t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"]
+assert "-- INDEX:" in t, "not an index: %s" % t[:300]
+assert "-- no-such-dir:" in t, "the index does not name the missing path: %s" % t[:600]
+PY
+want 0 $? "an oversized grep index names the path it could not use"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["g"],"grep":"NEEDLE"}}}' \
+  | m mcp > "$WORK/122b.out" 2>/dev/null
+python3 - "$WORK/122b.out" <<'PY'
+import json,sys
+t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"]
+assert "-- INDEX:" in t and "no-such-dir" not in t, "the clean grep index names a missing path: %s" % t[:600]
+PY
+want 0 $? "and the same grep without the missing path names nothing"
+
+# 123. ADR-067 T2: initialize answers the version the host asked for when mrw
+# speaks it. Claude Code 2.1.281 asks for 2025-11-25 (wire capture, 2026-09-24),
+# and mrw used to answer 2025-06-18 whatever was asked. The pair: a host asking
+# 2025-06-18 still gets 2025-06-18.
+fixture
+for v in 2025-11-25 2025-06-18; do
+  printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"%s"}}\n' "$v" \
+    | m mcp > "$WORK/123-$v.out" 2>/dev/null
+done
+python3 - "$WORK/123-2025-11-25.out" "$WORK/123-2025-06-18.out" <<'PY'
+import json,sys
+for path, want in zip(sys.argv[1:], ["2025-11-25", "2025-06-18"]):
+    got = json.load(open(path))["result"]["protocolVersion"]
+    assert got == want, "asked for %s, answered %s" % (want, got)
+PY
+want 0 $? "initialize answers the version the host asked for"
+
+# 124. ADR-067 T3: a caller's argument mistake is a tool execution error — a
+# result with isError that a host hands the model (SEP-1303) — not a JSON-RPC
+# -32602. The pair: a call whose params are not even an object is still one.
+fixture
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"x","echo_pad":-1}}}' \
+  | m mcp > "$WORK/124.out" 2>/dev/null
+python3 - "$WORK/124.out" <<'PY'
+import json,sys
+r=json.load(open(sys.argv[1]))
+assert "error" not in r, "an argument mistake was a JSON-RPC error: %s" % r
+r=r["result"]
+assert r.get("isError") is True and "echo_pad" in r["content"][0]["text"], "not an isError result naming echo_pad: %s" % r
+PY
+want 0 $? "an argument mistake is a tool result the model reads"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":"x"}' | m mcp > "$WORK/124b.out" 2>/dev/null
+python3 - "$WORK/124b.out" <<'PY'
+import json,sys
+r=json.load(open(sys.argv[1]))
+assert r.get("error",{}).get("code") == -32602, "a malformed call was not -32602: %s" % r
+PY
+want 0 $? "and a malformed call is still a protocol error"
+
+# 125. ADR-067 T4: mrw is dual-era. A request carrying the 2026-07-28 per-request
+# _meta is served per request — server/discover answers, a tools/call result
+# carries resultType — and a request naming a version mrw does not speak gets
+# -32022 with the supported list. No measured host sends this era yet (Claude
+# Code 2.1.281 opens with initialize, 2026-09-24), so this is a replayed probe.
+fixture
+M='"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}'
+{
+  printf '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{%s}}\n' "$M"
+  printf '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["b.go"]},%s}}\n' "$M"
+  printf '%s\n' '{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"1900-01-01","io.modelcontextprotocol/clientCapabilities":{}}}}'
+} | m mcp > "$WORK/125.out" 2>/dev/null
+python3 - "$WORK/125.out" <<'PY'
+import json,sys
+lines=[json.loads(l) for l in open(sys.argv[1]) if l.strip()]
+d=lines[0]["result"]
+assert d["supportedVersions"]==["2026-07-28","2025-11-25","2025-06-18"], "discover: %s" % d
+c=lines[1]["result"]
+assert c.get("resultType")=="complete" and "func D()" in c["content"][0]["text"], "modern tools/call: %s" % c
+PY
+want 0 $? "a modern request is served per request"
+python3 - "$WORK/125.out" <<'PY'
+import json,sys
+lines=[json.loads(l) for l in open(sys.argv[1]) if l.strip()]
+e=lines[2].get("error",{})
+assert e.get("code")==-32022 and e.get("data",{}).get("supported")==["2026-07-28","2025-11-25","2025-06-18"], "unknown version: %s" % lines[2]
+PY
+want 0 $? "a modern request naming an unknown version is refused with the supported list"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

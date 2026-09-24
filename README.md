@@ -243,7 +243,16 @@ write before anything is applied.
 
 `grep` / `exclude` map onto `--grep` / `--exclude`. `ast_grep` maps onto
 `--ast-grep`. A grep too large to serve returns an index — one spec per
-matching file, no content — which licenses nothing.
+matching file, no content — which licenses nothing — and names every path the
+walk could not use.
+
+The server speaks MCP `2025-11-25` and `2025-06-18` through `initialize`, and
+answers the version the host asked for. It also speaks `2026-07-28`: a request
+carrying `_meta["io.modelcontextprotocol/protocolVersion"]` is served per
+request, with `server/discover`, `resultType`, and caching hints on
+`tools/list`. A version it does not speak gets `-32022` naming the ones it does.
+A mistake inside a tool's arguments comes back as a tool result with `isError`,
+which the model reads. A call that is not a valid request stays a JSON-RPC error.
 
 ### Git Bash on Windows mangles a regex address
 

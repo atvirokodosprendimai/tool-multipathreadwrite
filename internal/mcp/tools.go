@@ -48,6 +48,35 @@ type callToolResult struct {
 	Content           []contentBlock `json:"content"`
 	StructuredContent any            `json:"structuredContent,omitempty"`
 	IsError           bool           `json:"isError,omitempty"`
+	// ResultType and Meta are set only for a 2026-07-28 request (ADR-067), by
+	// decorateCall, so a legacy answer's bytes are unchanged.
+	ResultType string         `json:"resultType,omitempty"`
+	Meta       map[string]any `json:"_meta,omitempty"`
+}
+
+// callModern and callReserve are the one call's era, set and cleared by
+// callTool while it holds gate — the ledger mutex every call already
+// serializes on. ceiling() is what every in-call measurement reads: the
+// caller's ceiling minus what the modern decoration will add. Decorating only
+// the final answer left the pre-apply write floor and the receipt sizing
+// measuring an answer smaller than the one sent, so a write could apply and
+// then have its receipt replaced by a refusal (ADR-067; found by the cold
+// review of the record).
+var (
+	callModern  bool
+	callReserve int
+)
+
+// ceiling is the budget an in-call measurement compares against.
+func ceiling() int { return MaxResultChars - callReserve }
+
+// decorateCall adds the modern result fields when this call is modern.
+func decorateCall(res callToolResult) callToolResult {
+	if callModern {
+		res.ResultType = "complete"
+		res.Meta = modernResultMeta()
+	}
+	return res
 }
 
 type contentBlock struct {
@@ -111,16 +140,31 @@ func readResult(structured any, report string, isErr bool) (callToolResult, *rpc
 // CLI parses, call the function the CLI calls, and return what it returned. The
 // moment one computes a verdict of its own there are two answers to "did this
 // apply?", which is the defect class this project exists to refuse.
-func callTool(root string, raw json.RawMessage) (callToolResult, *rpcError) {
+func callTool(root string, raw json.RawMessage, modern bool) (callToolResult, *rpcError) {
 	var p callParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "params: " + err.Error()}
+	}
+	// ADR-067: `arguments`, when present, must be an object. A number, string,
+	// array or null is a malformed CallToolRequest — a protocol error — and it
+	// used to reach the argument decoders below, whose mistakes are now tool
+	// execution errors. Absent means no arguments, the same as {}.
+	if a := bytes.TrimSpace(p.Arguments); len(a) > 0 && a[0] != '{' {
+		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "params: arguments must be an object"}
+	}
+	if len(p.Arguments) == 0 {
+		p.Arguments = json.RawMessage("{}")
 	}
 
 	// One writer at a time, for the whole call: the read and the ledger record
 	// that follows it are one transaction as far as another caller is concerned.
 	gate.Lock()
 	defer gate.Unlock()
+	callModern, callReserve = modern, 0
+	if modern {
+		callReserve = encodedSize(decorateCall(callToolResult{})) - encodedSize(callToolResult{})
+	}
+	defer func() { callModern, callReserve = false, 0 }()
 
 	var res callToolResult
 	var rpcErr *rpcError
@@ -142,7 +186,7 @@ func callTool(root string, raw json.RawMessage) (callToolResult, *rpcError) {
 	// the promise the record is named after. Enumerating return sites is how
 	// that happened; a funnel cannot be forgotten. Found by the Codex review of
 	// #135.
-	return withinCeiling(res)
+	return withinCeiling(decorateCall(res))
 }
 
 // withinCeiling is the last thing every tool result passes through.
@@ -164,9 +208,9 @@ func withinCeiling(res callToolResult) (callToolResult, *rpcError) {
 	if n <= MaxResultChars {
 		return res, nil
 	}
-	small := errorResult(fmt.Sprintf("this answer came to %d bytes and the ceiling in force is %d, "+
+	small := decorateCall(errorResult(fmt.Sprintf("this answer came to %d bytes and the ceiling in force is %d, "+
 		"so it is not being sent. Ask for less in one call, or raise the ceiling with "+
-		"--max-result-chars.", n, MaxResultChars))
+		"--max-result-chars.", n, MaxResultChars)))
 	if encodedSize(small) <= MaxResultChars {
 		return small, nil
 	}
@@ -201,7 +245,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		Ack []string `json:"ack"`
 	}
 	if err := json.Unmarshal(args, &a); err != nil {
-		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "arguments: " + err.Error()}
+		return errorResult("arguments: " + err.Error()), nil
 	}
 	// Promote before serving: the caller is acknowledging the PREVIOUS page,
 	// and a write in the same turn must see the licence this call grants.
@@ -215,7 +259,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return errorResult("--grep and --ast-grep are two sources of specs; use one"), nil
 	}
 	if len(a.Specs) == 0 && a.Grep == "" && a.AstGrep == "" {
-		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "mrw_read needs at least one spec"}
+		return errorResult("mrw_read needs at least one spec"), nil
 	}
 	if len(a.Exclude) > 0 && a.Grep == "" && a.AstGrep == "" {
 		return errorResult("exclude without grep: there is nothing to exclude from"), nil
@@ -300,7 +344,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// capped discards past the limit and remembers that it did, so peak memory
 	// is the limit plus one write however large the request was. Measured
 	// 2026-09-03: the same 40 x 18 MB request now peaks at 87 MB.
-	cw := &capped{limit: MaxResultChars}
+	cw := &capped{limit: ceiling()}
 	w := bufio.NewWriter(cw)
 	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true})
 	w.Flush()
@@ -345,7 +389,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// dead end ADR-014 removed reappearing through a new door, firing on
 		// this population's ordinary case rather than an exotic one.
 		if walked {
-			return matchIndex(specs, len(walkProblems), cw), nil
+			return matchIndex(specs, walkProblems, problems, cw), nil
 		}
 		if page, ok := firstPage(root, a.Specs, cw); ok {
 			return page, nil
@@ -422,7 +466,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// says why — with its own sentence, because "your read was too large"
 		// is not what happened here.
 		if walked {
-			return matchIndex(specs, problems, cw), nil
+			return matchIndex(specs, walkProblems, problems-len(walkProblems), cw), nil
 		}
 		if page, ok := firstPage(root, a.Specs, cw); ok {
 			return page, nil
@@ -445,7 +489,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			}
 			if encodedSize(markedServed) > cw.limit {
 				if walked {
-					return matchIndex(specs, problems, cw), nil
+					return matchIndex(specs, walkProblems, problems-len(walkProblems), cw), nil
 				}
 				if page, ok := firstPage(root, a.Specs, cw); ok {
 					return page, nil
@@ -482,10 +526,10 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		StrictBalance bool     `json:"strict_balance"`
 	}
 	if err := json.Unmarshal(args, &a); err != nil {
-		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "arguments: " + err.Error()}
+		return errorResult("arguments: " + err.Error()), nil
 	}
 	if a.EchoPad < 0 {
-		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "echo_pad must be >= 0"}
+		return errorResult("echo_pad must be >= 0"), nil
 	}
 	// The checkpoints for the page this plan was written against, promoted
 	// before the ledger is consulted (ADR-031).
@@ -493,7 +537,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + err.Error()}
 	}
 	if strings.TrimSpace(a.Plan) == "" {
-		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "mrw_write needs a plan"}
+		return errorResult("mrw_write needs a plan"), nil
 	}
 
 	doc := []byte(a.Plan)
@@ -514,9 +558,9 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		}
 		doc = compiled
 	case "git":
-		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "a git patch is not an apply_patch; format apply_patch is for *** Begin Patch documents"}
+		return errorResult("a git patch is not an apply_patch; format apply_patch is for *** Begin Patch documents"), nil
 	default:
-		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf("unknown format %q (plan, apply_patch, or search_replace)", a.Format)}
+		return errorResult(fmt.Sprintf("unknown format %q (plan, apply_patch, or search_replace)", a.Format)), nil
 	}
 
 	hunks, err := plan.Parse(bytes.NewReader(doc))
@@ -580,7 +624,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf(
 			"--max-result-chars %d is too small to report what a write did, so nothing was "+
 				"applied and the tree is unchanged. Raise the ceiling to at least %d.",
-			MaxResultChars, writeFloor())}
+			MaxResultChars, minWriteCeiling())}
 	}
 	res, applyErr := apply.Apply(root, in, apply.Options{DryRun: a.DryRun, Seen: ledger, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance})
 	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
@@ -706,7 +750,7 @@ func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, eli
 func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (callToolResult, *rpcError) {
 	pattern := authoring.PatternOf(root)
 	full, rpcErr := result(writeReceipt{Result: res, Pattern: pattern}, writeReport(res, res.Hunks, applyErr, ""), isErr)
-	if rpcErr != nil || encodedSize(full) <= MaxResultChars {
+	if rpcErr != nil || encodedSize(full) <= ceiling() {
 		return full, rpcErr
 	}
 	whole := encodedSize(full)
@@ -746,7 +790,7 @@ func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (
 		if rpcErr != nil {
 			return out, rpcErr
 		}
-		if encodedSize(out) <= MaxResultChars {
+		if encodedSize(out) <= ceiling() {
 			return out, nil
 		}
 	}
@@ -799,6 +843,12 @@ func writtenFiles(files []apply.FileResult) []apply.FileResult {
 // receipt naming the change will not fit. One function so the message the floor
 // is measured against and the message actually sent cannot drift apart.
 func appliedButUnreportable(written, hunks, failed int, partial bool) string {
+	return unreportableAt(MaxResultChars, written, hunks, failed, partial)
+}
+
+// unreportableAt is appliedButUnreportable's sentence as it reads at ceiling
+// c. The sentence prints the ceiling, so its size moves with c's digit count.
+func unreportableAt(c, written, hunks, failed int, partial bool) string {
 	state := "the plan APPLIED"
 	if partial {
 		state = "the plan PARTIALLY APPLIED — a later file failed after earlier ones were already written"
@@ -806,7 +856,7 @@ func appliedButUnreportable(written, hunks, failed int, partial bool) string {
 	return fmt.Sprintf("%s: %d file(s) changed on disk, %d hunk(s), %d failed. NAMING them takes "+
 		"more than the %d-byte ceiling this server advertises, so the per-hunk detail is not here "+
 		"— but the write HAPPENED. Read the files, or re-run with a larger --max-result-chars.",
-		state, written, hunks, failed, MaxResultChars)
+		state, written, hunks, failed, c)
 }
 
 // writeFloor is the size of the smallest truthful thing this server can say
@@ -826,11 +876,31 @@ func appliedButUnreportable(written, hunks, failed int, partial bool) string {
 // consistent, because the guard and the real message read MaxResultChars at the
 // same moment — but it means a floor computed at one ceiling says nothing about
 // another, which is what TestTheWriteFloorIsAFloor asserts across ten of them.
-func writeFloor() int {
-	return encodedSize(errorResult(appliedButUnreportable(math.MaxInt, math.MaxInt, math.MaxInt, true)))
+func writeFloor() int { return floorAt(MaxResultChars) }
+
+// floorAt is the write floor as it would be at ceiling c.
+func floorAt(c int) int {
+	return encodedSize(errorResult(unreportableAt(c, math.MaxInt, math.MaxInt, math.MaxInt, true)))
 }
 
-func writeFloorFits() bool { return writeFloor() <= MaxResultChars }
+// minWriteCeiling is the smallest ceiling at which this call's write would
+// not be refused: the floor plus this call's reserve (ADR-067), iterated
+// because raising the ceiling can add a digit to the floor's own sentence.
+// Naming writeFloor() alone told a modern caller a number that refused again
+// (Codex on #212).
+func minWriteCeiling() int {
+	c := writeFloor() + callReserve
+	for i := 0; i < 4; i++ {
+		next := floorAt(c) + callReserve
+		if next <= c {
+			return c
+		}
+		c = next
+	}
+	return c
+}
+
+func writeFloorFits() bool { return writeFloor() <= ceiling() }
 
 // errorResult reports a failure the CALLER caused, inside a normal tool result.
 // A tool error is not a protocol error: the request was well-formed and the
@@ -859,7 +929,7 @@ func suggestLines(chars, lines int) int {
 		perLine = 1
 	}
 	// Three quarters of the limit, so the suggestion has room to be wrong.
-	n := (MaxResultChars * 3 / 4) / perLine
+	n := (ceiling() * 3 / 4) / perLine
 	if n < 1 {
 		n = 1
 	}
@@ -1007,7 +1077,7 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 	// checkpoints say what is pending; the receipt goes back to telling the
 	// truth about service. Eighth review of PR #132.
 	res := pagedResult(report, observed, problems, next)
-	if encodedSize(res) > MaxResultChars {
+	if encodedSize(res) > ceiling() {
 		return callToolResult{}, false
 	}
 	o, ok := observationOf(observed, path)
@@ -1261,7 +1331,15 @@ func astGrepSpecs(root string, paths []string, pattern string, exclude []string)
 // NOTHING IS RECORDED. The index served no lines, so it licenses no write; an
 // index that licensed edits to files the caller never saw would be ADR-002's
 // guarantee spent on a convenience.
-func matchIndex(specs []read.Spec, problems int, cw *capped) callToolResult {
+//
+// ADR-067: it names every path the WALK could not use, one `-- <path>:
+// <reason>` line each, in the form the served answer uses — it used to carry
+// only their count, so a CR-only file ADR-065 refuses was never named. Those
+// lines are never trimmed; only index entries are. When the lines alone cannot
+// fit, the oversized answer reaches withinCeiling, which refuses it legibly.
+// others counts problems that are not the walk's (a walked file that became
+// unreadable before it was read); they are counted in one sentence.
+func matchIndex(specs []read.Spec, walkProblems []read.Problem, others int, cw *capped) callToolResult {
 	entries := make([]string, 0, len(specs))
 	for _, sp := range specs {
 		entries = append(entries, sp.Path)
@@ -1317,6 +1395,12 @@ func matchIndex(specs []read.Spec, problems int, cw *capped) callToolResult {
 		// block below, and a second copy is a second share of the cap spent
 		// saying the same thing.
 		b.WriteString("-- The matching files are listed in this result's index field. Send any of them back as specs WITH the same grep to read its matches, or on its own to read the file.\n")
+		for _, p := range walkProblems {
+			fmt.Fprintf(&b, "-- %s: %s\n", p.Path, p.Reason)
+		}
+		if others > 0 {
+			fmt.Fprintf(&b, "-- %d further problem(s) in files whose content was not served; read them by name to see why.\n", others)
+		}
 
 		structured := map[string]any{
 			"matches":    len(entries),
@@ -1327,7 +1411,7 @@ func matchIndex(specs []read.Spec, problems int, cw *capped) callToolResult {
 			// served nothing, so observed is empty rather than absent —
 			// absent would be a different claim.
 			"observed": map[string]seen.Observation{},
-			"problems": problems,
+			"problems": len(walkProblems) + others,
 		}
 		var err error
 		raw, err = json.Marshal(structured)
