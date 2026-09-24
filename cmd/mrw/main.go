@@ -1536,8 +1536,19 @@ func report(w *os.File, res apply.Result, quiet bool) {
 		}
 	}
 
+	// ADR-066: a plan that wrote some files and then failed a commit step is
+	// neither applied nor nothing-written. Tested first, or the partial case
+	// would read NOTHING WRITTEN — the opposite lie of the one it replaces.
+	wrote := false
+	for _, f := range res.Files {
+		if f.Written {
+			wrote = true
+		}
+	}
 	state := "applied"
 	switch {
+	case res.Failed > 0 && wrote:
+		state = "PARTIALLY APPLIED"
 	case res.Failed > 0:
 		state = "NOTHING WRITTEN"
 	case res.DryRun:

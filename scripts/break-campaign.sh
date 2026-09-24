@@ -119,4 +119,9 @@ fresh; mkdir -p "$W/fakeag"; printf '[{"file":"b.go","range":{"start":{"line":1}
 printf '#!/bin/sh\ncat "%s"\n' "$W/fakeag/hit.json" > "$W/fakeag/ast-grep"; chmod +x "$W/fakeag/ast-grep"; printf 'package b\nfunc D() {}\n' > b.go
 out=$(PATH="$W/fakeag:$PATH" t "$MRW" read --ast-grep D --exclude b.go b.go 2>&1); say "astgrep-named-excluded" $? "$out"
 
+# ---------- ADR-066: a rename whose destination directory cannot be made writes nothing ----------
+fresh; printf 'sib\n' > s.txt; printf 'bee\n' > b.txt; "$MRW" read s.txt b.txt >/dev/null 2>&1
+printf '@@ s.txt 1 replace\nSIB\n@@ b.txt - rename\nn/%s/f.txt\n' "$(printf '%0300d' 0 | tr 0 x)" > plan.txt
+out=$(t "$MRW" write --no-check plan.txt 2>/dev/null); rc=$?; say "rename-dest-toolong" $rc "$(tail -1 <<<"$out") s.txt=$(cat s.txt)"
+
 echo "campaign dir: $W"

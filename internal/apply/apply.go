@@ -30,8 +30,10 @@ import (
 // Status is a hunk's verdict.
 type Status string
 
-// Hunk verdicts. Skipped means the hunk was valid but a sibling hunk in the run
-// failed, so nothing was written.
+// Hunk verdicts. Skipped means the hunk's file was not written: a sibling hunk
+// failed validation or staging so nothing was written, or a later commit step
+// failed and this hunk's file was never renamed into place or was put back
+// (ADR-066). A hunk is ok only when its file reached disk.
 const (
 	StatusOK      Status = "ok"
 	StatusFailed  Status = "failed"
@@ -560,6 +562,78 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			os.Remove(d)
 		}
 	}
+	// abortStage assigns the verdicts of a staging failure: the hunks of the
+	// file that could not be staged are failed with the filesystem error, and
+	// every other hunk is skipped, because nothing was written.
+	//
+	// ADR-001 rule 3 stayed OPEN on exactly this path: a filesystem failure
+	// returned here with no receipt at all, so a caller learned which error
+	// occurred but not which hunks it affected or which files the plan had
+	// addressed. The verdicts are assigned here rather than by the validation
+	// loop above, which has already run by the time staging begins — every
+	// hunk was still StatusOK, and "ok but not written" is the one lie this
+	// format exists to avoid. ADR-066 shares it with the rename-directory loop.
+	// commitFailed assigns the verdicts of a failure AFTER the first commit
+	// rename (ADR-066). Some files may already be on disk, so the staging
+	// rule — everything else skipped — would deny a write that happened:
+	// a hunk whose file is recorded written stays ok, the hunk whose commit
+	// failed is failed, and every other hunk is skipped. A hunk that is not
+	// ok describes no write, so it carries no Echo or Balance. files[] keeps
+	// the written records and lists every other addressed file unwritten.
+	commitFailed := func(path string, cause, ret error) (Result, error) {
+		written := map[string]bool{}
+		have := map[string]bool{}
+		for _, f := range res.Files {
+			have[f.Path] = true
+			if f.Written {
+				written[f.Path] = true
+			}
+		}
+		for i := range res.Hunks {
+			h := &res.Hunks[i]
+			switch {
+			case h.Path == path:
+				h.Status = StatusFailed
+				h.Reason = cause.Error()
+				res.Failed++
+			case written[h.Path]:
+			default:
+				h.Status = StatusSkipped
+			}
+			if h.Status != StatusOK {
+				h.Echo = nil
+				h.Balance = ""
+			}
+		}
+		for _, p := range order {
+			if have[p] {
+				continue
+			}
+			for _, w := range writes {
+				if w.file.Path == p {
+					f := w.file
+					f.Written = false
+					res.Files = append(res.Files, f)
+				}
+			}
+		}
+		return res, ret
+	}
+	abortStage := func(path string, err error) (Result, error) {
+		for i := range res.Hunks {
+			if res.Hunks[i].Path == path {
+				res.Hunks[i].Status = StatusFailed
+				res.Hunks[i].Reason = err.Error()
+				res.Failed++
+				continue
+			}
+			res.Hunks[i].Status = StatusSkipped
+			res.Hunks[i].Echo = nil
+			res.Hunks[i].Balance = ""
+		}
+		reportAddressed()
+		return res, fmt.Errorf("%s: %w", path, err)
+	}
 	for _, w := range content {
 		sf, err := stageFileFn(w.full, w.out)
 		if err != nil {
@@ -570,39 +644,45 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// back. ENOSPC is one of the three failures that comment names.
 			staged = append(staged, sf)
 			discard(0)
-			// ADR-001 rule 3 stayed OPEN on exactly this path: a filesystem
-			// failure returned here with no receipt at all, so a caller learned
-			// which error occurred but not which hunks it affected or which
-			// files the plan had addressed. The verdicts are assigned here
-			// rather than by the validation loop above, which has already run
-			// by the time staging begins — every hunk was still StatusOK, and
-			// "ok but not written" is the one lie this format exists to avoid.
-			for i := range res.Hunks {
-				if res.Hunks[i].Path == w.file.Path {
-					res.Hunks[i].Status = StatusFailed
-					res.Hunks[i].Reason = err.Error()
-					res.Failed++
-					continue
-				}
-				res.Hunks[i].Status = StatusSkipped
-				res.Hunks[i].Echo = nil
-				res.Hunks[i].Balance = ""
-			}
-			reportAddressed()
-			return res, fmt.Errorf("%s: %w", w.file.Path, err)
+			return abortStage(w.file.Path, err)
 		}
 		staged = append(staged, sf)
 	}
+	// ADR-066: a rename's destination directory is made HERE, while nothing
+	// has been written, and not at commit. Made at commit, a directory that
+	// could not be created (a component too long for the filesystem, a byte
+	// it refuses) was found after the plan's other files were already renamed
+	// into place, and every hunk still read ok. The entries are appended
+	// after the content entries so staged[i] still pairs with content[i] in
+	// the commit loop, and discard takes these directories back like any
+	// other staged directory.
+	for _, w := range pathOps {
+		if w.renameTo == "" {
+			continue
+		}
+		dir := filepath.Dir(w.renameTo)
+		sf := dirsOnly(missingDirs(dir))
+		err := os.MkdirAll(dir, 0o755)
+		staged = append(staged, sf)
+		if err != nil {
+			discard(0)
+			return abortStage(w.file.Path, err)
+		}
+	}
 	for i, w := range content {
-		if err := os.Rename(staged[i].tmp, staged[i].target); err != nil {
+		if err := commitRenameFn(staged[i].tmp, staged[i].target); err != nil {
 			discard(i)
-			return res, fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files))
+			return commitFailed(w.file.Path, err, fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files)))
 		}
 		w.file.Written = true
 		res.Files = append(res.Files, w.file)
 	}
-	if err := commitPathOps(&res, pathOps); err != nil {
-		return res, err
+	if path, err := commitPathOps(&res, pathOps); err != nil {
+		// The rename directories staging made for renames that never ran
+		// (ADR-066 T1) are taken back; one a completed rename still uses is
+		// not empty, and os.Remove leaves it.
+		discard(len(content))
+		return commitFailed(path, err, err)
 	}
 	res.Applied = true
 	return res, nil
@@ -620,9 +700,16 @@ func writtenSoFar(files []FileResult) string {
 		// grows one entry per successful rename.
 		return "nothing was written"
 	}
-	names := make([]string, len(files))
-	for i, f := range files {
-		names[i] = f.Path
+	// Only records whose file reached disk: an addressed-but-unwritten record
+	// named here would send the caller to inspect a file mrw never touched.
+	var names []string
+	for _, f := range files {
+		if f.Written {
+			names = append(names, f.Path)
+		}
+	}
+	if len(names) == 0 {
+		return "nothing was written"
 	}
 	return "ALREADY WRITTEN: " + strings.Join(names, ", ")
 }
@@ -1464,6 +1551,13 @@ func eolOf(s string) string {
 // which is the defect class this whole guard exists to catch.
 var stageFileFn = stageFile
 
+// commitRenameFn is the seam every COMMIT rename goes through: a content
+// temp onto its target, an unlink's file into its aside, a rename, and each
+// step of the undo that follows a failure (ADR-066). A realistic trigger — a
+// directory that becomes unwritable between staging and commit — is not one a
+// test can rely on, so the tests fail one chosen rename here instead.
+var commitRenameFn = os.Rename
+
 // stageFile writes t to a temp file beside the RESOLVED target, leaving the
 // target untouched. It returns the temp file AND the resolved path to rename
 // it onto — both, because resolving here and renaming onto the unresolved path
@@ -1524,6 +1618,11 @@ type staged struct {
 	target string   // the RESOLVED path to rename onto; see stageFile
 	dirs   []string // directories this run created, to be taken back on abort
 }
+
+// dirsOnly is a staged entry that holds only directories: a rename's
+// destination directories made during staging (ADR-066), which discard takes
+// back like any other. Its tmp is empty, and os.Remove("") is a harmless no-op.
+func dirsOnly(dirs []string) staged { return staged{dirs: dirs} }
 
 // missingDirs returns dir and each of its ancestors that does not exist yet,
 // nearest first. It is called BEFORE MkdirAll, which is the only moment the

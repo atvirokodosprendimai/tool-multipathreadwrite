@@ -136,6 +136,19 @@ Three properties are the decision, and each is load-bearing:
    removed from the error path; the other two are nested behind the parse row
    and are guarded by it rather than independently proven.
 
+   **Amended 2026-09-24 by ADR-066 — `skipped` means "this hunk's file was not
+   written".** Two things changed on the commit path. A rename's destination is
+   now checked at validation and its directory made while staging, so what used
+   to fail after other files landed now aborts with nothing written. And a
+   failure after the first commit rename no longer leaves every hunk `ok`: hunks
+   whose file reached disk stay `ok`, the hunk whose commit failed is `failed`,
+   every other hunk is `skipped`, and the CLI summary reads `PARTIALLY APPLIED`.
+   A failed unlink or rename commit is undone as a unit first — renames reversed
+   newest first, then the unlinked files restored, never onto a path a rename
+   still holds — because the old restore moved an unlinked file back over one
+   renamed onto it and lost data. The partial tree ADR-001 accepts is now only
+   the content files already renamed into place, named by `ALREADY WRITTEN`.
+
 Optional per-hunk guards make a batch safe to trust and are cheap to emit:
 `sha=` (whole file), `lines=` (range size), `anchor=` (substring in the range's
 first line).

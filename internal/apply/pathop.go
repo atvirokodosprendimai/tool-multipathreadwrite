@@ -109,8 +109,16 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 			fail(h, "%s", err.Error())
 			return false
 		}
+		// ADR-066: only "does not exist" clears a destination. Acting on
+		// err == nil alone let every OTHER error through — a name too long
+		// for the filesystem, a parent that is a file — and each of those
+		// failed at the commit rename, after the plan's other files had
+		// landed. It is a fact about the plan, so it fails the hunk here.
 		if _, err := os.Lstat(destFull); err == nil && !unlinked[dest] {
 			fail(h, "rename dest %s already exists — unlink it in this plan, or pick another path", dest)
+			return false
+		} else if err != nil && !os.IsNotExist(err) {
+			fail(h, "rename dest %s cannot be used: %v", dest, err)
 			return false
 		}
 	}
@@ -120,17 +128,68 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 	return true
 }
 
+// aside is an unlinked file moved beside its path until the plan commits, so a
+// later failure can put it back. rec is its record's index in res.Files.
 type aside struct {
 	tmp  string
 	orig string
+	rec  int
 }
 
-func commitPathOps(res *Result, pathOps []pending) error {
+// moved is a rename that completed, kept so a later failure can undo it. recs
+// are the indices of its source and destination records in res.Files.
+type moved struct {
+	from, to string
+	recs     [2]int
+}
+
+func commitPathOps(res *Result, pathOps []pending) (string, error) {
 	var asides []aside
-	restore := func() {
-		for i := len(asides) - 1; i >= 0; i-- {
-			_ = os.Rename(asides[i].tmp, asides[i].orig)
+	var renames []moved
+	// undo puts the plan's unlinks and renames back after a failure, as a
+	// unit (ADR-066). Every completed rename is reversed FIRST, newest first,
+	// and only then are the unlinked files restored. The old restore() did
+	// only the second half, so a plan that unlinked c, renamed b onto c and
+	// then failed a later rename moved the unlinked c back OVER the renamed
+	// b, and b's content existed nowhere (reproduced on v1.22.3).
+	//
+	// No undo step overwrites a file: an aside whose path is still held by a
+	// rename that could not be undone stays where it is, as a recovery file.
+	// It returns what it could not undo — empty when the tree is back — and
+	// drops the records of everything it did undo from res.Files.
+	undo := func() string {
+		drop := map[int]bool{}
+		occupied := map[string]bool{}
+		var left []string
+		for i := len(renames) - 1; i >= 0; i-- {
+			r := renames[i]
+			if err := commitRenameFn(r.to, r.from); err != nil {
+				occupied[r.to] = true
+				left = append(left, fmt.Sprintf("could not move %s back to %s: %v", r.to, r.from, err))
+				continue
+			}
+			drop[r.recs[0]], drop[r.recs[1]] = true, true
 		}
+		for i := len(asides) - 1; i >= 0; i-- {
+			a := asides[i]
+			if occupied[a.orig] {
+				left = append(left, fmt.Sprintf("%s is kept in %s, because the rename onto %s could not be undone", filepath.Base(a.orig), a.tmp, a.orig))
+				continue
+			}
+			if err := commitRenameFn(a.tmp, a.orig); err != nil {
+				left = append(left, fmt.Sprintf("could not restore %s from %s: %v", a.orig, a.tmp, err))
+				continue
+			}
+			drop[a.rec] = true
+		}
+		kept := make([]FileResult, 0, len(res.Files))
+		for i, f := range res.Files {
+			if !drop[i] {
+				kept = append(kept, f)
+			}
+		}
+		res.Files = kept
+		return strings.Join(left, "; ")
 	}
 	unlinkOne := func(w pending) error {
 		dir := filepath.Dir(w.full)
@@ -146,10 +205,10 @@ func commitPathOps(res *Result, pathOps []pending) error {
 		if err := os.Remove(name); err != nil {
 			return err
 		}
-		if err := os.Rename(w.full, name); err != nil {
+		if err := commitRenameFn(w.full, name); err != nil {
 			return err
 		}
-		asides = append(asides, aside{tmp: name, orig: w.full})
+		asides = append(asides, aside{tmp: name, orig: w.full, rec: len(res.Files)})
 		w.file.Written = true
 		w.file.Removed = true
 		w.file.LinesTo = 0
@@ -164,9 +223,10 @@ func commitPathOps(res *Result, pathOps []pending) error {
 		if _, err := os.Lstat(w.renameTo); err == nil {
 			return fmt.Errorf("rename dest %s appeared before commit", w.destRel)
 		}
-		if err := os.Rename(w.full, w.renameTo); err != nil {
+		if err := commitRenameFn(w.full, w.renameTo); err != nil {
 			return err
 		}
+		renames = append(renames, moved{from: w.full, to: w.renameTo, recs: [2]int{len(res.Files), len(res.Files) + 1}})
 		w.file.Written = true
 		w.file.Removed = true
 		w.file.LinesTo = 0
@@ -188,29 +248,35 @@ func commitPathOps(res *Result, pathOps []pending) error {
 			renameDest[w.destRel] = true
 		}
 	}
-	run := func(pred func(pending) bool, fn func(pending) error) error {
+	// run commits one phase and, on a failure, undoes the whole of the path-op
+	// commit and returns the path whose step failed, so the receipt can mark
+	// that hunk failed (ADR-066).
+	run := func(pred func(pending) bool, fn func(pending) error) (string, error) {
 		for _, w := range pathOps {
 			if !pred(w) {
 				continue
 			}
 			if err := fn(w); err != nil {
-				restore()
-				return fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files))
+				suffix := ""
+				if left := undo(); left != "" {
+					suffix = "; UNDO INCOMPLETE: " + left
+				}
+				return w.file.Path, fmt.Errorf("%s: %w (%s)%s", w.file.Path, err, writtenSoFar(res.Files), suffix)
 			}
 		}
-		return nil
+		return "", nil
 	}
-	if err := run(func(w pending) bool { return w.unlink && renameDest[w.file.Path] }, unlinkOne); err != nil {
-		return err
+	if path, err := run(func(w pending) bool { return w.unlink && renameDest[w.file.Path] }, unlinkOne); err != nil {
+		return path, err
 	}
-	if err := run(func(w pending) bool { return w.renameTo != "" }, renameOne); err != nil {
-		return err
+	if path, err := run(func(w pending) bool { return w.renameTo != "" }, renameOne); err != nil {
+		return path, err
 	}
-	if err := run(func(w pending) bool { return w.unlink && !renameDest[w.file.Path] }, unlinkOne); err != nil {
-		return err
+	if path, err := run(func(w pending) bool { return w.unlink && !renameDest[w.file.Path] }, unlinkOne); err != nil {
+		return path, err
 	}
 	for _, a := range asides {
 		os.Remove(a.tmp)
 	}
-	return nil
+	return "", nil
 }
