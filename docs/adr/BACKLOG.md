@@ -1794,11 +1794,11 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
 - **A `.mrw-aside-*` left behind.** When the final aside removal fails after a
   plan that applied, the placeholder stays in the tree (ADR-004 hygiene, not a
   false receipt). Say so on the receipt if it is ever observed.
-- **The handshake says "if any hunk fails, nothing is written".** After ADR-066
-  a commit failure can leave some files written with a hunk `failed`, and the
-  receipt says so (`PARTIALLY APPLIED`, `files[].written`). The sentence is in
-  `internal/guide/guide.go:17`, inside the byte-budgeted text ADR-062 governs,
-  so rewording it is that record's call, not ADR-066's.
+- **The handshake said "if any hunk fails, nothing is written".** After ADR-066
+  a commit failure can leave some files written with a hunk `failed`. Fixed in
+  ADR-066 T3 after the Codex review of #207: the Shared sentence now reads "if
+  any hunk fails validation, nothing is written; a failed commit says PARTIALLY
+  APPLIED". This line is the receipt.
 
 ## From ADR-059 (honour `fenceTimeout`)
 

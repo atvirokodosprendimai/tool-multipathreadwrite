@@ -35,6 +35,8 @@ Both commit-failure returns (`internal/apply/apply.go:599`, and `commitPathOps`)
 | `internal/mcp/partial_receipt_test.go` | new | `TestTheMCPReceiptOfAPartialCommitNamesEachHunk` |
 | `internal/mcp/schema.go`, `internal/mcp/mcp.go` | edit | `failed`, `files.written`, `hunks.status` and `mrw_write`'s all-or-nothing sentence describe a partial commit truthfully (Codex review of #207) |
 | `internal/mcp/partial_description_test.go` | new | `TestTheReceiptDescriptionsAllowAPartialCommit` |
+| `internal/guide/guide.go`, `internal/guide/guide_test.go` | edit | the Shared sentence no longer promises that any failed hunk means nothing was written; `TestSharedSaysAFailedCommitIsReportedPartial` |
+| `scripts/contract.sh` | edit | the four Shared-sentence literals (§75 and its siblings) follow the new wording |
 | `scripts/contract.sh` | edit | §119 |
 | `docs/adr/ADR-001-a-plan-addresses-the-original-file-and-applies-whole-or-not-at-all.md` | edit | amendment: `skipped` after ADR-066 |
 
@@ -78,13 +80,15 @@ grep -q '^# 119\. ' scripts/contract.sh \
   && grep -q '^--- PASS: TestTheMCPReceiptOfAPartialCommitNamesEachHunk ' /tmp/adr066-t3.out \
   && grep -q '^--- PASS: TestTheReceiptDescriptionsAllowAPartialCommit ' /tmp/adr066-t3.out \
   && grep -q '^--- PASS: TestAFailedRenameAfterAReplacingRenameLosesNoFile ' /tmp/adr066-t3.out \
+  && go test ./internal/guide/ -count=1 -v -run 'TestSharedSaysAFailedCommitIsReportedPartial' 2>&1 | tee /tmp/adr066-t3g.out \
+  && grep -q '^--- PASS: TestSharedSaysAFailedCommitIsReportedPartial ' /tmp/adr066-t3g.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr066-t3.out \
   && ./scripts/contract.sh > /tmp/adr066-t3-contract.out 2>&1 \
   && grep -qE '^  (PASS  a failed rename after a replacing rename loses no file|SKIP  a read-only directory is writable here)' /tmp/adr066-t3-contract.out \
   && grep -qE '^  (PASS  a partial commit is reported as partially applied|SKIP  a read-only directory is writable here)' /tmp/adr066-t3-contract.out \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/plan internal/seen internal/check internal/state \
-  && [ -z "$(gofmt -l internal/apply cmd/mrw internal/mcp)" ] \
-  && go vet ./internal/apply/ ./cmd/mrw/ ./internal/mcp/
+  && [ -z "$(gofmt -l internal/apply cmd/mrw internal/mcp internal/guide)" ] \
+  && go vet ./internal/apply/ ./cmd/mrw/ ./internal/mcp/ ./internal/guide/
 ```
 
 ## Tests
@@ -97,6 +101,7 @@ grep -q '^# 119\. ' scripts/contract.sh \
 | `TestTheMCPReceiptOfAPartialCommitNamesEachHunk` | `internal/mcp/partial_receipt_test.go` | guard: the MCP report prints each hunk's verdict | — | S1 |
 | `TestAPartialWriteNamesWhatWasAlreadyWritten` | `internal/apply/apply_test.go` | only written records are named | — | S1, S2 |
 | `TestTheReceiptDescriptionsAllowAPartialCommit` | `internal/mcp/partial_description_test.go` | the MCP receipt descriptions no longer say a non-zero `failed` means nothing was written | — | S1, S2 |
+| `TestSharedSaysAFailedCommitIsReportedPartial` | `internal/guide/guide_test.go` | the Shared sentence says a failed commit is reported PARTIALLY APPLIED | — | S1, S2 |
 
 ## Reachability
 
@@ -122,6 +127,14 @@ grep -q '^# 119\. ' scripts/contract.sh \
 - 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `cmd/mrw/main.go` · the partial case is tested after NOTHING WRITTEN: TestAPartialCommitIsNotSummarisedAsApplied and §119 must go red · acceptance-sha256:a35f00f2d899289b4fd643e3d18fd61cbc2ba0cab56fc1d6930df3e941d94369 · covers:the summary does not say applied
 - 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `internal/mcp/tools.go` · the MCP report prints every hunk as ok: TestTheMCPReceiptOfAPartialCommitNamesEachHunk must go red · acceptance-sha256:a35f00f2d899289b4fd643e3d18fd61cbc2ba0cab56fc1d6930df3e941d94369 · covers:the binary loses nothing and says what it wrote
 - 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `internal/mcp/schema.go` · the failed description again says any failure wrote nothing: TestTheReceiptDescriptionsAllowAPartialCommit must go red · acceptance-sha256:a35f00f2d899289b4fd643e3d18fd61cbc2ba0cab56fc1d6930df3e941d94369 · covers:the summary does not say applied
+- 2026-09-24 · a87ba4d* · mutant killed · exit 1 · `internal/apply/apply.go` · hunks on written files are marked skipped: TestAFailedContentCommitReportsWrittenHunksOkAndTheRestSkipped and §119 must go red · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · covers:written hunks stay ok and the rest are skipped
+- 2026-09-24 · a87ba4d* · mutant killed · exit 1 · `internal/apply/apply.go` · a skipped hunk keeps its Echo: TestAFailedContentCommitReportsWrittenHunksOkAndTheRestSkipped must go red · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · covers:a hunk that is not ok carries no write detail
+- 2026-09-24 · a87ba4d* · mutant killed · exit 1 · `internal/apply/apply.go` · a content commit failure leaves the staged rename directory: TestAFailedContentCommitReportsWrittenHunksOkAndTheRestSkipped must go red · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · covers:unused rename directories are taken back after a commit failure
+- 2026-09-24 · a87ba4d* · mutant killed · exit 1 · `internal/apply/apply.go` · writtenSoFar names unwritten records: TestAPartialWriteNamesWhatWasAlreadyWritten must go red · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · covers:written hunks stay ok and the rest are skipped
+- 2026-09-24 · a87ba4d* · mutant killed · exit 1 · `cmd/mrw/main.go` · the partial case is tested after NOTHING WRITTEN: TestAPartialCommitIsNotSummarisedAsApplied and §119 must go red · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · covers:the summary does not say applied
+- 2026-09-24 · a87ba4d* · mutant killed · exit 1 · `internal/mcp/tools.go` · the MCP report prints every hunk as ok: TestTheMCPReceiptOfAPartialCommitNamesEachHunk must go red · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · covers:the binary loses nothing and says what it wrote
+- 2026-09-24 · a87ba4d* · mutant killed · exit 1 · `internal/mcp/schema.go` · the failed description again says any failure wrote nothing: TestTheReceiptDescriptionsAllowAPartialCommit must go red · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · covers:the summary does not say applied
+- 2026-09-24 · a87ba4d* · mutant killed · exit 1 · `internal/guide/guide.go` · the Shared sentence again promises nothing is written on any failure: TestSharedSaysAFailedCommitIsReportedPartial and the contract Shared rows must go red · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · covers:the summary does not say applied
 
 ## Invariants
 
@@ -175,3 +188,11 @@ grep -q '^# 119\. ' scripts/contract.sh \
 - 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:a35f00f2d899289b4fd643e3d18fd61cbc2ba0cab56fc1d6930df3e941d94369 · ms:29393
 - 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:a35f00f2d899289b4fd643e3d18fd61cbc2ba0cab56fc1d6930df3e941d94369 · ms:31804
 - 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:a35f00f2d899289b4fd643e3d18fd61cbc2ba0cab56fc1d6930df3e941d94369 · ms:37513
+- 2026-09-24 · a87ba4d* · exit 0 · `set -o pipefail …` · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · ms:29682
+- 2026-09-24 · a87ba4d* · exit 0 · `set -o pipefail …` · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · ms:29113
+- 2026-09-24 · a87ba4d* · exit 0 · `set -o pipefail …` · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · ms:29274
+- 2026-09-24 · a87ba4d* · exit 0 · `set -o pipefail …` · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · ms:29496
+- 2026-09-24 · a87ba4d* · exit 0 · `set -o pipefail …` · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · ms:29230
+- 2026-09-24 · a87ba4d* · exit 0 · `set -o pipefail …` · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · ms:29135
+- 2026-09-24 · a87ba4d* · exit 0 · `set -o pipefail …` · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · ms:29386
+- 2026-09-24 · a87ba4d* · exit 0 · `set -o pipefail …` · acceptance-sha256:30855c209e9322ca88aaadbbaaa45f88fbfc81c5fa0a9cc2b6bc84a475722717 · ms:29061

@@ -107,3 +107,16 @@ func TestCLITeachesTheReadSide(t *testing.T) {
 		}
 	}
 }
+
+// ADR-066 (Codex review of #207). A commit that fails after some files landed
+// is reported PARTIALLY APPLIED, so the Shared sentence both surfaces serve
+// cannot promise that any failed hunk means nothing was written.
+func TestSharedSaysAFailedCommitIsReportedPartial(t *testing.T) {
+	got := Shared()
+	if strings.Contains(got, "if any hunk fails, nothing is written") {
+		t.Errorf("Shared still promises nothing is written whenever a hunk fails:\n%s", got)
+	}
+	if !strings.Contains(got, "PARTIALLY APPLIED") {
+		t.Errorf("Shared does not say a failed commit is reported PARTIALLY APPLIED:\n%s", got)
+	}
+}

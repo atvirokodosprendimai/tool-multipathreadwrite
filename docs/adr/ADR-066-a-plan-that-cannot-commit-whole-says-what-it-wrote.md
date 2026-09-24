@@ -13,6 +13,7 @@
 - A rename whose destination name the filesystem rejects is refused at validation, exit 1, nothing written.
 - A failure while committing unlinks and renames undoes every unlink and rename of the plan, instead of restoring only the unlinked files over files already renamed into place, which destroyed data.
 - The receipt reports each hunk by what reached disk, and the text summary reads `PARTIALLY APPLIED` when some file was written and a hunk failed.
+- `mrw instructions` and the MCP handshake no longer promise that any failed hunk means nothing was written: "if any hunk fails validation, nothing is written; a failed commit says PARTIALLY APPLIED".
 
 ## Context
 
@@ -110,6 +111,7 @@ Not governed here, with reasons:
 - `internal/apply` owns all three decisions.
 - `cmd/mrw` changes `report()`'s summary word.
 - `internal/mcp` changes only descriptions: the receipt's `failed`, `files.written` and `hunks.status` fields and `mrw_write`'s all-or-nothing sentence now allow a partial commit (Codex review of #207). `writeReport` already prints each hunk's status and elision keeps written files (`internal/mcp/tools.go:660-680`, `:753-777`); a test pins both.
+- `internal/guide` changes one Shared sentence, served by `mrw instructions` and the MCP handshake: "if any hunk fails validation, nothing is written; a failed commit says PARTIALLY APPLIED" (Codex review of #207; the handshake stays under its 4096-byte bound).
 - Byte-identical: `internal/read`, `internal/plan`, `internal/seen`, `internal/check`, `internal/state`.
 
 ## Wiring & Contract Changes
@@ -152,7 +154,6 @@ See `docs/adr/ADR-066-a-plan-that-cannot-commit-whole-says-what-it-wrote/tasks/R
 - A `.mrw-aside-*` left when the final removal at `pathop.go:213` fails after a plan that applied (deferred: docs/adr/BACKLOG.md)
 - Concurrent writers to one file (permanent: boundary: ADR-002 keeps locking out of scope; BACKLOG:502 records the measured loss)
 - Undoing content renames already committed (permanent: boundary: ADR-001 accepts a partial tree on a failing rename and names what was written)
-- The handshake's shared sentence "if any hunk fails, nothing is written" (`internal/guide/guide.go:17`), which a commit failure now contradicts in the rare partial case (deferred: docs/adr/BACKLOG.md)
 
 ## Risks
 

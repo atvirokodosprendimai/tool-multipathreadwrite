@@ -148,8 +148,9 @@ Three properties are the decision, and each is load-bearing:
    still holds — because the old restore moved an unlinked file back over one
    renamed onto it and lost data. The partial tree ADR-001 accepts is now the
    content files already renamed into place, named by `ALREADY WRITTEN`, plus —
-   only when an undo step itself fails — the unlink or rename that could not be
-   put back, whose original is kept in a named `.mrw-aside-*` recovery file.
+   only when an undo step itself fails — what could not be put back: a rename
+   stays at its destination, reported written, and an unlinked file whose path
+   that rename holds is kept in a named `.mrw-aside-*` recovery file.
 
 Optional per-hunk guards make a batch safe to trust and are cheap to emit:
 `sha=` (whole file), `lines=` (range size), `anchor=` (substring in the range's
