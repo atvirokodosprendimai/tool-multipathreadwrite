@@ -24,9 +24,11 @@ func TestInstructionsCommandPrintsCLI(t *testing.T) {
 }
 
 // TestEveryReadFlagIsTaughtByInstructions reads the flags from readCmd()
-// itself, so a flag added, renamed or removed there without guide.CLI()
-// following turns this red (ADR-063). A flag must appear as --name followed by
-// a character that cannot continue a flag name, so --x does not pass on --x-y.
+// itself, so a flag added or renamed there without guide.CLI() following
+// turns this red (ADR-063). The other direction — the instructions naming a
+// flag read no longer has — is contract §115's half. A flag must appear as
+// --name followed by a character that cannot continue a flag name, so --x
+// does not pass on --x-y.
 func TestEveryReadFlagIsTaughtByInstructions(t *testing.T) {
 	doc := guide.CLI()
 	for _, f := range readCmd().Flags {
@@ -54,14 +56,19 @@ func TestHelpSummariesNameTheReadSide(t *testing.T) {
 	// urfave/cli takes the FIRST backticked word of a flag's Usage as the
 	// placeholder --help prints, so this is what read --help shows; §115
 	// checks the rendered help on the built binary.
+	found := false
 	for _, f := range readCmd().Flags {
 		sf, ok := f.(*cli.StringFlag)
 		if !ok || sf.Name != "ast-grep" {
 			continue
 		}
+		found = true
 		m := regexp.MustCompile("`([^`]*)`").FindStringSubmatch(sf.Usage)
 		if m == nil || m[1] != "PATTERN" {
 			t.Errorf("--ast-grep's placeholder is not PATTERN: %q", sf.Usage)
 		}
+	}
+	if !found {
+		t.Error("read has no --ast-grep string flag; the placeholder check reached nothing")
 	}
 }

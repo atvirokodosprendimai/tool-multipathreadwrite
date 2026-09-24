@@ -92,7 +92,9 @@ func TestCLITeachesTheReadSide(t *testing.T) {
 		"--ast-grep PATTERN",
 		"--files-from FILE",
 		"rg -l X . |",
-		"A read exits 1 when any range could not be served whole",
+		"A read exits 1 when a range cannot be served",
+		"an end past the last line is clamped, not an error",
+		"a .git directory the walk meets is skipped, but one you name is walked",
 		".gitignore",
 	} {
 		if !strings.Contains(got, must) {

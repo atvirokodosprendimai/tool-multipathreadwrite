@@ -53,9 +53,9 @@ A multi-line replace requires anchor= taken from the served first line.
 Read every site in one call: mrw read a.go:40-60 'b.go:/func Start/,+12' c.go:$
 A spec is a bare path (the whole file) or PATH:RANGE[,RANGE...]. A RANGE is N, N-M, N- (to the end), -M (from the start), A,+N (A plus the N lines after it), $ (the last line), /regexp/ (every matching line; -C N, or --context N, adds lines either side) or /from/,/to/ (to the first match of to at or after from). Quote a spec that contains a space.
 A write plan takes N, N-M, N-, $, A,+N, /regexp/ and /from/,/to/, but not -M or a comma list; its start pattern must match exactly once, and it refuses a relative end past the last line where a read clamps.
-To find files you cannot name: --grep PATTERN walks the paths given, or the root when none are, and serves each match as /regexp/ would. --exclude GLOB drops files the walk finds, by root-relative path or basename, and repeats. --grep does not read .gitignore; .git is always skipped.
+To find files you cannot name: --grep PATTERN walks the paths given, or the root when none are, and serves each match as /regexp/ would. --exclude GLOB drops files the walk finds, by root-relative path or basename, and repeats. --grep does not read .gitignore; a .git directory the walk meets is skipped, but one you name is walked.
 --ast-grep PATTERN is structural search run by the ast-grep binary, which must be on PATH: a missing one exits 2 naming it, and one that hangs is killed at 2 s.
 --files-from FILE takes one spec per line, - for stdin: rg -l X . | sed 's|$|:/X/|' | mrw read --files-from - (name rg's path: with none, rg reads a piped stdin and waits)
---stat prints only length, size and sha; --max-lines N caps each spec; --no-numbers drops the numbers a plan addresses by. A read exits 1 when any range could not be served whole (no match, a start past the end, lines --max-lines withheld), and still prints the rest.
+--stat prints only length, size and sha; --max-lines N caps each spec; --no-numbers drops the numbers a plan addresses by. A read exits 1 when a range cannot be served (a pattern with no match, a start past the end, lines --max-lines withheld) and still prints the rest; an end past the last line is clamped, not an error.
 `
 }
