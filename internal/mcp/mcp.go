@@ -290,7 +290,7 @@ func tools() []tool {
 					},
 					"ast_grep": map[string]any{
 						"type":        "string",
-						"description": "A structural pattern for the ast-grep CLI on PATH. Walks like grep, maps hits to line ranges, and serves them through the same read. Missing ast-grep names ast-grep. Do not set grep at the same time: they are two sources of specs.",
+						"description": "A structural pattern for the ast-grep CLI on PATH. Walks like grep, maps hits to line ranges, and serves them through the same read. Missing ast-grep names ast-grep. A hit in a file whose lines end in \\r alone is reported, not served; read that file directly. Do not set grep at the same time: they are two sources of specs.",
 						"examples":    []any{"fmt.Println($A)"},
 					},
 					"exclude": map[string]any{

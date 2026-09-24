@@ -567,7 +567,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.StringFlag{
 				Name:  "ast-grep",
-				Usage: "serve every range the ast-grep binary reports for `PATTERN` in the files under the given paths (a directory is walked). The binary must be on PATH",
+				Usage: "serve every range the ast-grep binary reports for `PATTERN` in the files under the given paths (a directory is walked). The binary must be on PATH. A hit in a file whose lines end in \\r alone is reported, not served (ADR-065)",
 			},
 			&cli.StringSliceFlag{
 				Name:  "exclude",
