@@ -56,6 +56,16 @@ FAILS, STATS = [], {}
 os.makedirs(os.path.join(WORK, "fail"), exist_ok=True)
 
 
+def rd(path, mode="rb"):
+    with open(path, mode) as f:
+        return f.read()
+
+
+def wr(path, data, mode):
+    with open(path, mode) as f:
+        f.write(data)
+
+
 def run(args, stdin=None, cwd=None, timeout=20):
     t0 = time.time()
     try:
@@ -71,7 +81,7 @@ def snapshot(root):
         for n in fns + [d for d in dns if os.path.islink(os.path.join(dp, d))]:
             p = os.path.join(dp, n)
             rel = os.path.relpath(p, root)
-            out[rel] = ("L:" + os.readlink(p)).encode() if os.path.islink(p) else open(p, "rb").read()
+            out[rel] = ("L:" + os.readlink(p)).encode() if os.path.islink(p) else rd(p)
         for d in dns:
             p = os.path.join(dp, d)
             if not os.listdir(p):
@@ -87,10 +97,10 @@ def fail(suite, why, root=None, cmd=None, stdin=None, res=None, extra=None):
     if res:
         rec.update(rc=res[0], stdout=res[1][-4000:], stderr=res[2][-4000:])
     if stdin is not None:
-        open(os.path.join(d, "stdin"), "wb").write(stdin if isinstance(stdin, bytes) else stdin.encode())
+        wr(os.path.join(d, "stdin"), stdin if isinstance(stdin, bytes) else stdin.encode(), "wb")
     if root and os.path.isdir(root):
         shutil.copytree(root, os.path.join(d, "tree"), symlinks=True, dirs_exist_ok=True)
-    json.dump(rec, open(os.path.join(d, "case.json"), "w"), indent=1, default=str)
+    wr(os.path.join(d, "case.json"), json.dumps(rec, indent=1, default=str), "w")
     FAILS.append((suite, why, d))
 
 
@@ -172,8 +182,8 @@ NAMES = ["a.txt", "b.go", "c.md", "notes.txt", "x y.txt", "ünï.txt", "-dash.tx
          "UP.TXT", "deep/one/two.txt", "sub/a.txt", "sub/b.go", "vendor/v.go", "build/g.go", ".hidden"]
 
 
-CORPUS = [l.strip() for l in open(os.environ["CORPUS"])] if os.environ.get("CORPUS") else None
-CRLF_POOL = [p for p in CORPUS if b"\r\n" in open(p, "rb").read()] if CORPUS else []
+CORPUS = [l.strip() for l in rd(os.environ["CORPUS"], "r").splitlines()] if os.environ.get("CORPUS") else None
+CRLF_POOL = [p for p in CORPUS if b"\r\n" in rd(p)] if CORPUS else []
 
 
 def make_tree(root, k=None):
@@ -193,7 +203,7 @@ def make_tree(root, k=None):
     for n in names:
         p = os.path.join(root, n)
         os.makedirs(os.path.dirname(p), exist_ok=True)
-        open(p, "wb").write(rand_content())
+        wr(p, rand_content(), "wb")
     return names
 
 
@@ -222,7 +232,7 @@ def suite_read(n):
         root = fresh("read", i)
         names = make_tree(root)
         f = rng.choice(names)
-        b = open(os.path.join(root, f), "rb").read()
+        b = rd(os.path.join(root, f))
         lines, e = rsplit_(b), eol_of(b.decode("utf-8", "surrogateescape"))
         L = len(lines)
         kind = rng.choice(["N", "N-M", "N-", "-M", "A,+N", "$", "list", "whole"])
@@ -350,7 +360,7 @@ CORRUPT = ["range", "anchor", "sha", "lines", "unread", "escape", "abs", "overla
 def corrupt(plan, root, names):
     kind = rng.choice(CORRUPT)
     f = rng.choice(names)
-    lines = split(open(os.path.join(root, f), "rb").read())[0]
+    lines = split(rd(os.path.join(root, f)))[0]
     L = len(lines)
     bad = {
         "range": f"@@ {q(f)} {L + rng.randint(1, 50)} replace\nX",
@@ -385,8 +395,8 @@ def suite_write(n):
     for i in range(n):
         root = fresh("write", i)
         names = make_tree(root)
-        open(os.path.join(WORK, "outside.txt"), "w").write("outside\n")
-        open(os.path.join(root, "unread.txt"), "w").write("never served\nline2\n")
+        wr(os.path.join(WORK, "outside.txt"), "outside\n", "w")
+        wr(os.path.join(root, "unread.txt"), "never served\nline2\n", "w")
         rc, out, err, _ = run(["--root", root, "read", "--"] + names)
         if rc not in (0, 1): fail("write", f"setup read exit {rc}", root, None, None, (rc, out, err, 0)); continue
         g = gen_plan(root, names)
@@ -412,7 +422,7 @@ def suite_write(n):
             if " ok " in out and kind not in ("atat", "dupkey", "badop"):
                 if re.search(r"^ok ", out, re.M) and rc == 1:
                     fail("write", f"a hunk reported ok in a failed plan ({kind})", root, cmd, plan, res)
-            if open(os.path.join(WORK, "outside.txt")).read() != "outside\n":
+            if rd(os.path.join(WORK, "outside.txt"), "r") != "outside\n":
                 fail("write", "file outside the root changed", root, cmd, plan, res)
         else:
             if rc != 0:
@@ -457,7 +467,7 @@ def model_grep(root, pat, ex, paths):
                     rel = os.path.normpath(os.path.relpath(os.path.join(dp, fn), root))
                     if not excluded(rel, ex): files.append(rel)
         for rel in files:
-            for i, l in enumerate(rsplit_(open(os.path.join(root, rel), "rb").read()), 1):
+            for i, l in enumerate(rsplit_(rd(os.path.join(root, rel))), 1):
                 if pat in l: hits.add((os.path.normpath(rel), i))
     return hits
 
@@ -467,7 +477,7 @@ def suite_grep(n):
         root = fresh("grep", i)
         names = make_tree(root, rng.randint(4, 9))
         os.makedirs(os.path.join(root, ".git"), exist_ok=True)
-        open(os.path.join(root, ".git", "HEAD"), "w").write("TOKEN in git\n")
+        wr(os.path.join(root, ".git", "HEAD"), "TOKEN in git\n", "w")
         ex = rng.sample(["vendor", "*.md", "sub", "build", "*.go", "deep/one", "one", "a.txt", ".hidden"], rng.randint(0, 3))
         cand = [n for n in names] + ["sub", "deep", "vendor"]
         paths = [p for p in rng.sample(cand, rng.randint(0, 2)) if os.path.exists(os.path.join(root, p))]
@@ -553,7 +563,7 @@ def suite_race(n):
         os.makedirs(root)
         L = 16
         orig = [f"line {k}" for k in range(1, L + 1)]
-        open(os.path.join(root, "f.txt"), "w").write("\n".join(orig) + "\n")
+        wr(os.path.join(root, "f.txt"), "\n".join(orig) + "\n", "w")
         run(["--root", root, "read", "f.txt"])
         W = 8
         results = [None] * W
@@ -561,7 +571,7 @@ def suite_race(n):
             results[j] = run(["--root", root, "write", "-"], f"@@ f.txt {j+1} replace\nwriter {j}\n".encode())
         ts = [threading.Thread(target=w, args=(j,)) for j in range(W)]
         [t.start() for t in ts]; [t.join() for t in ts]
-        final = open(os.path.join(root, "f.txt")).read().split("\n")[:-1]
+        final = rd(os.path.join(root, "f.txt"), "r").split("\n")[:-1]
         for j, r in enumerate(results):
             generic("race", r, root)
         if len(final) != L:
@@ -584,10 +594,10 @@ def suite_race(n):
 def suite_symlink():
     root = fresh("sym", 0); os.makedirs(root)
     out_dir = os.path.join(WORK, "outside-dir"); os.makedirs(out_dir, exist_ok=True)
-    secret = os.path.join(out_dir, "secret.txt"); open(secret, "w").write("SECRET-OUTSIDE\n")
+    secret = os.path.join(out_dir, "secret.txt"); wr(secret, "SECRET-OUTSIDE\n", "w")
     os.symlink(secret, os.path.join(root, "link.txt"))
     os.symlink(out_dir, os.path.join(root, "linkdir"))
-    open(os.path.join(root, "in.txt"), "w").write("inside\n")
+    wr(os.path.join(root, "in.txt"), "inside\n", "w")
     os.symlink("in.txt", os.path.join(root, "inlink.txt"))
     cases = [(["read", "link.txt"], "read via file link"), (["read", "linkdir/secret.txt"], "read via dir link"),
              (["read", "--grep", "SECRET"], "grep walk"), (["read", "--grep", "SECRET", "linkdir"], "grep named link dir")]
@@ -602,12 +612,12 @@ def suite_symlink():
                       ("@@ linkdir/new.txt 0 create body=1\nPWNED\n", "create via dir link")]:
         res = run(["--root", root, "write", "-"], plan.encode())
         generic("symlink", res, root, plan)
-        if open(secret).read() != "SECRET-OUTSIDE\n" or os.path.exists(os.path.join(out_dir, "moved.txt")) or os.path.exists(os.path.join(out_dir, "new.txt")):
+        if rd(secret, "r") != "SECRET-OUTSIDE\n" or os.path.exists(os.path.join(out_dir, "moved.txt")) or os.path.exists(os.path.join(out_dir, "new.txt")):
             fail("symlink", f"{why}: outside the root changed (exit {res[0]})", root, None, plan, res)
-            open(secret, "w").write("SECRET-OUTSIDE\n")
+            wr(secret, "SECRET-OUTSIDE\n", "w")
             for x in ("moved.txt", "new.txt"):
                 if os.path.exists(os.path.join(out_dir, x)): os.remove(os.path.join(out_dir, x))
-            if not os.path.exists(os.path.join(root, "in.txt")): open(os.path.join(root, "in.txt"), "w").write("inside\n")
+            if not os.path.exists(os.path.join(root, "in.txt")): wr(os.path.join(root, "in.txt"), "inside\n", "w")
 
 
 # ---------- suite: MCP garbage ----------
@@ -660,7 +670,7 @@ def suite_mcp(n):
             fail("mcp", "no answer to the final tools/list: the server stopped serving", root, None, data, (p.returncode, o, e, 0)); continue
         if "root:x:0:0" in o: fail("mcp", "served /etc/passwd", root, None, data, (p.returncode, o, e, 0))
         wr = [r for r in resp if isinstance(r, dict) and r.get("id") == 4]
-        if open(os.path.join(root, names[0]), "rb").read().startswith(b"X\n"):
+        if rd(os.path.join(root, names[0])).startswith(b"X\n"):
             fail("mcp", "mrw_write applied with a bogus ack / no read", root, None, data, (p.returncode, o, e, 0))
         shutil.rmtree(root, ignore_errors=True)
 
@@ -673,7 +683,7 @@ def suite_foreign(n):
         if not names: continue
         run(["--root", root, "read", "--"] + names)
         f = rng.choice(names)
-        lines = split(open(os.path.join(root, f), "rb").read())[0] or [""]
+        lines = split(rd(os.path.join(root, f)))[0] or [""]
         ln = rng.choice(lines)
         fmt = rng.choice(["apply_patch", "search_replace", "files-from"])
         if fmt == "apply_patch":
