@@ -52,7 +52,6 @@ go test ./internal/adversarial/ -count=1 -v \
 | `TestContractDoesNotGrepReadmeForTutorialPhrases` | `internal/adversarial/contract_prose_test.go` | Live contract.sh lines do not assert README heading / `A,+N` AFTER / CLAMPS / mcpServers-from-README | — | S1, S2, S3 |
 | `TestAReadmeWithoutTheMcpHostHeadingIsNotAGoTestFailure` | `internal/adversarial/contract_prose_test.go` | AckRule still exists and does not require the MCP host heading | — | S1, S4 |
 | `TestEverySurfaceCarriesTheOneRule` | `internal/mcp/ack_test.go` | Unchanged: teaching still matches the server | — | S4 |
-| `§75` | `scripts/contract.sh` | `mrw instructions` / Shared() through the binary still present | — | S4 |
 
 ## Reachability
 
@@ -64,6 +63,7 @@ go test ./internal/adversarial/ -count=1 -v \
 | 4 — it is used | nothing measures this yet — ADR-009 refused telemetry |
 
 ## Mutation Log
+- 2026-09-24 · c940c54* · mutant killed · exit 1 · `scripts/contract.sh` · a live line greps README for the retired MCP-host heading: TestContractDoesNotGrepReadmeForTutorialPhrases must go red · acceptance-sha256:5fea9524cda3b4a1ae88df49196b951f4d1cad99e46d077b0748195464333e33 · covers:the pin fails on a live README prose grep
 
 ## Invariants
 
@@ -89,3 +89,7 @@ Stop if the proposed fix is deleting AckRule, deleting §75, raising 4096, or gu
 - Engine behaviour
 
 ## Verification Log
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:5fea9524cda3b4a1ae88df49196b951f4d1cad99e46d077b0748195464333e33 · ms:1009
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:5fea9524cda3b4a1ae88df49196b951f4d1cad99e46d077b0748195464333e33 · ms:612
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:5fea9524cda3b4a1ae88df49196b951f4d1cad99e46d077b0748195464333e33 · ms:427
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:5fea9524cda3b4a1ae88df49196b951f4d1cad99e46d077b0748195464333e33 · ms:407

@@ -86,3 +86,5 @@ A rewrite of Shared() to mention the license.
 ## Verification Log
 - 2026-09-13 · 2f49847* · exit 0 · `set -o pipefail …` · acceptance-sha256:53bd1cbc35cdf3742f054394b2e92b0e9c9bee70bd9ed7933ede1e6fe7f4ef90 · ms:45
 - 2026-09-13 · 2f49847* · exit 0 · `set -o pipefail …` · acceptance-sha256:53bd1cbc35cdf3742f054394b2e92b0e9c9bee70bd9ed7933ede1e6fe7f4ef90 · ms:47
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:53bd1cbc35cdf3742f054394b2e92b0e9c9bee70bd9ed7933ede1e6fe7f4ef90 · ms:65
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:53bd1cbc35cdf3742f054394b2e92b0e9c9bee70bd9ed7933ede1e6fe7f4ef90 · ms:62

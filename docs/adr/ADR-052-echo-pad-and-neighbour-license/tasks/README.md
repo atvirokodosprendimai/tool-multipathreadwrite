@@ -18,7 +18,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Neighbour license on multi-line replace; contract §87 | blocked | — | `docs/adr/ADR-052-echo-pad-and-neighbour-license/tasks/T1-neighbour-license-and-contract-86.md` fence |
+| T1 | Neighbour license on multi-line replace; contract §87 | partial | — | `docs/adr/ADR-052-echo-pad-and-neighbour-license/tasks/T1-neighbour-license-and-contract-86.md` fence |
 | T2 | `--echo-pad` / `echo_pad`; contract §88 | blocked | — | `docs/adr/ADR-052-echo-pad-and-neighbour-license/tasks/T2-echo-pad-and-contract-87.md` fence |
 | T3 | Teach the two arms; close 048 / BACKLOG | blocked | — | `docs/adr/ADR-052-echo-pad-and-neighbour-license/tasks/T3-teach-and-close-048.md` fence |
 

@@ -76,7 +76,6 @@ grep -q '^# 88\. ' scripts/contract.sh \
 | `TestWriteEchoPadClampsAtEOF` | `cmd/mrw/echopad_test.go` | CLI pad clamps at EOF | — | S3 |
 | `TestAnMCPWriteEchoPadPrintsNNumberedLines` | `internal/mcp/echopad_test.go` | `echo_pad` 3 prints three numbered lines | — | S3 |
 | `TestAnMCPWriteOmitsEchoAtDefaultZero` | `internal/mcp/echopad_test.go` | omitted `echo_pad` prints no pad | — | S3 |
-| `§88` | `scripts/contract.sh` | Built binary: pad shows closer and `ok`; default 0 has no pad | — | S4 |
 
 ## Reachability
 
@@ -115,3 +114,5 @@ If the pad refuses a hunk, stop — that is a checker.
 ## Verification Log
 - 2026-09-13 · 2f49847* · exit 0 · `set -o pipefail …` · acceptance-sha256:8692225ddcdea969be60462122be0c235aa2a64cd4a5a198837bd1dde8151c5f · ms:700
 - 2026-09-13 · 4158e26* · exit 0 · `set -o pipefail …` · acceptance-sha256:58a842a38cb8e82b822a70e81183b791a9673fc911683aa4cbbafacca13d897c · ms:2233
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:58a842a38cb8e82b822a70e81183b791a9673fc911683aa4cbbafacca13d897c · ms:403
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:58a842a38cb8e82b822a70e81183b791a9673fc911683aa4cbbafacca13d897c · ms:368

@@ -54,7 +54,6 @@ grep -q '^# 87\. ' scripts/contract.sh \
 | `TestASingleLineReplaceDoesNotNeedANeighbour` | `internal/apply/apply_test.go` | Single-line replace with only that line served still applies | — | S2, S3 |
 | `TestAnEOFMultiLineReplaceDoesNotNeedALineAfterEnd` | `internal/apply/apply_test.go` | End = last line skips the licence | — | S2, S3 |
 | `TestAMultiLineReplaceWithAServedLineAfterEndApplies` | `internal/apply/apply_test.go` | Served End+1 applies the multi-line replace | — | S1, S3 |
-| `§87` | `scripts/contract.sh` | Built binary: unread neighbour writes nothing; served End+1 applies | — | S4 |
 
 ## Reachability
 
@@ -95,3 +94,7 @@ A mutant that ignores the neighbour still exits 0 on S1. If the only way to go g
 ## Verification Log
 - 2026-09-13 · 2f49847* · exit 0 · `set -o pipefail …` · acceptance-sha256:3f2dfff3775e397bf7db5878d397353a5461b4d7f02fd8f7f3ed776cf3f3e6fd · ms:813
 - 2026-09-13 · 4158e26 · exit 0 · `set -o pipefail …` · acceptance-sha256:c39971e1bdc5a742370eed349681d647e0835987a3f680cd631d11f0ece6deca · ms:1146
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:c39971e1bdc5a742370eed349681d647e0835987a3f680cd631d11f0ece6deca · ms:271
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:c39971e1bdc5a742370eed349681d647e0835987a3f680cd631d11f0ece6deca · ms:577
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:c39971e1bdc5a742370eed349681d647e0835987a3f680cd631d11f0ece6deca · ms:274
+- 2026-09-24 · c940c54* · exit 0 · `set -o pipefail …` · acceptance-sha256:c39971e1bdc5a742370eed349681d647e0835987a3f680cd631d11f0ece6deca · ms:267
