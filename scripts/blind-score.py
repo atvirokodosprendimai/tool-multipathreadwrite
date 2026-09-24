@@ -9,6 +9,7 @@ reported as VOID with the reason, never as a score.
 """
 import json
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -65,16 +66,66 @@ def final_answer(transcript):
     return found
 
 
-def segments(cmd):
-    # First word of every pipeline or list segment; quoted text is removed first
-    # so a word inside a plan body or a pattern is not read as a command.
-    stripped = re.sub(r"'[^']*'|\"(?:\\.|[^\"\\])*\"", "''", cmd)
-    for seg in re.split(r"\|\||&&|[|;&\n()]", stripped):
-        words = seg.strip().split()
-        while words and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", words[0]):
-            words = words[1:]
-        if words:
-            yield words[0].rsplit("/", 1)[-1]
+SEPARATORS = {";", "&", "&&", "|", "||", "|&", ";;", "(", ")"}
+ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def command_words(cmd):
+    """The command word of every pipeline or list segment, quotes removed.
+
+    Quote-aware, so a plan body or a pattern inside printf '...' is never read
+    as a command, and "$MRW" read … counts as an invocation of the binary while
+    MRW=/path/mrw (an assignment) and ls -la $MRW (an argument) do not. Blind
+    reading 02 is void because a regex over the raw command did both wrong: it
+    counted `MRW=…/mrw` and missed `"$MRW"`. Leading VAR=value words are
+    skipped; `$(` opens a segment.
+    """
+    # One pass, quote-aware: drop a `#` comment that starts a word outside
+    # quotes (through end of line), and turn an unquoted newline into `;`.
+    # shlex's own comment handling is off, because once newlines are `;` a
+    # comment would swallow the rest of the command (found on reading 02's
+    # Haiku transcripts, whose commands carry `# Task 1: …` lines).
+    marked, q, comment, prev = [], None, False, "\n"
+    for ch in cmd:
+        if comment:
+            if ch == "\n":
+                comment = False
+                marked.append(";")
+            prev = ch
+            continue
+        if q is None and ch == "#" and prev in " \t\n;&|(":
+            comment = True
+            prev = ch
+            continue
+        if q is None and ch in "'\"":
+            q = ch
+        elif q is not None and ch == q:
+            q = None
+        marked.append(";" if (ch == "\n" and q is None) else ch)
+        prev = ch
+    try:
+        lex = shlex.shlex("".join(marked), posix=True, punctuation_chars=True)
+        lex.commenters = ""
+        lex.whitespace_split = True
+        tokens = list(lex)
+    except ValueError:
+        stripped = re.sub(r"'[^']*'|\"(?:\\.|[^\"\\])*\"", "''", cmd)
+        tokens = re.sub(r"(\|\||&&|[|;&\n()])", r" \1 ", stripped).split()
+    words, seg = [], []
+    for tok in tokens + [";"]:
+        if tok in SEPARATORS or (tok and set(tok) <= set(";&|()")):
+            while seg and ASSIGNMENT.match(seg[0]):
+                seg = seg[1:]
+            if seg:
+                words.append(seg[0])
+            seg = []
+        else:
+            seg.append(tok)
+    return words
+
+
+def is_mrw(word):
+    return word in ("$MRW", "${MRW}", "mrw") or word.endswith("/mrw")
 
 
 def main():
@@ -98,10 +149,11 @@ def main():
         cmd = inp.get("command", "")
         if "--help" in cmd:
             violations.append("--help")
-        for w in segments(cmd):
-            if w in BANNED_CMDS:
-                violations.append(f"command {w}")
-        mrw_calls += len(re.findall(r"(?:^|[\s|;&(])(?:\S*/)?(?:mrw|\$MRW|\$\{MRW\})(?=\s)", cmd))
+        for w in command_words(cmd):
+            if w.rsplit("/", 1)[-1] in BANNED_CMDS:
+                violations.append(f"command {w.rsplit('/', 1)[-1]}")
+            if is_mrw(w):
+                mrw_calls += 1
     out["mrw_calls"] = mrw_calls
     if violations:
         out.update(verdict="VOID", reason="banned: " + ", ".join(sorted(set(violations))))
