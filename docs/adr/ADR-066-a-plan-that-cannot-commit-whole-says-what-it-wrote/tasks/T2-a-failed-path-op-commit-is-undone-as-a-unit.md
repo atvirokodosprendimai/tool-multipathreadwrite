@@ -52,7 +52,7 @@ go test ./internal/apply/ -count=1 -v \
   && grep -q '^--- PASS: TestAnUndoThatFailsLosesNoFile ' /tmp/adr066-t2.out \
   && grep -q '^--- PASS: TestRenameMovesThePath ' /tmp/adr066-t2.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr066-t2.out \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/plan internal/seen internal/check internal/state internal/mcp ':!internal/mcp/*_test.go' \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/plan internal/seen internal/check internal/state \
   && [ -z "$(gofmt -l internal/apply)" ] \
   && go vet ./internal/apply/
 ```
@@ -79,6 +79,10 @@ go test ./internal/apply/ -count=1 -v \
 - 2026-09-24 · c3f5661* · mutant killed · exit 1 · `internal/apply/pathop.go` · the asides are never restored (ADR-057 surviving mutant): TestAFailedRenameAfterAReplacingRenameLosesNoFile must go red · acceptance-sha256:a628f24f8e2a099195c1ca25ade7bf865a74efa73fb0f4a1a6830815b338a6bd · covers:a replacing rename is undone before its unlink is restored
 - 2026-09-24 · c3f5661* · mutant killed · exit 1 · `internal/apply/pathop.go` · an aside is restored onto a path whose rename undo failed: TestAnUndoThatFailsLosesNoFile must go red · acceptance-sha256:a628f24f8e2a099195c1ca25ade7bf865a74efa73fb0f4a1a6830815b338a6bd · covers:an undo that fails overwrites nothing
 - 2026-09-24 · c3f5661* · mutant killed · exit 1 · `internal/apply/pathop.go` · a failed rename undo is not recorded as holding its path: TestAnUndoThatFailsLosesNoFile must go red · acceptance-sha256:a628f24f8e2a099195c1ca25ade7bf865a74efa73fb0f4a1a6830815b338a6bd · covers:an undo that fails overwrites nothing
+- 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `internal/apply/pathop.go` · completed renames are not undone before the asides: TestAFailedRenameAfterAReplacingRenameLosesNoFile must go red · acceptance-sha256:55d640207594245a472cca1c179024ed95d933a2b130396fb96b42bc9b8bc838 · covers:a replacing rename is undone before its unlink is restored
+- 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `internal/apply/pathop.go` · the asides are never restored (ADR-057 surviving mutant): TestAFailedRenameAfterAReplacingRenameLosesNoFile must go red · acceptance-sha256:55d640207594245a472cca1c179024ed95d933a2b130396fb96b42bc9b8bc838 · covers:a replacing rename is undone before its unlink is restored
+- 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `internal/apply/pathop.go` · an aside is restored onto a path whose rename undo failed: TestAnUndoThatFailsLosesNoFile must go red · acceptance-sha256:55d640207594245a472cca1c179024ed95d933a2b130396fb96b42bc9b8bc838 · covers:an undo that fails overwrites nothing
+- 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `internal/apply/pathop.go` · a failed rename undo is not recorded as holding its path: TestAnUndoThatFailsLosesNoFile must go red · acceptance-sha256:55d640207594245a472cca1c179024ed95d933a2b130396fb96b42bc9b8bc838 · covers:an undo that fails overwrites nothing
 
 ## Invariants
 
@@ -119,3 +123,7 @@ go test ./internal/apply/ -count=1 -v \
 - 2026-09-24 · c3f5661* · exit 0 · `set -o pipefail …` · acceptance-sha256:a628f24f8e2a099195c1ca25ade7bf865a74efa73fb0f4a1a6830815b338a6bd · ms:626
 - 2026-09-24 · c3f5661* · exit 0 · `set -o pipefail …` · acceptance-sha256:a628f24f8e2a099195c1ca25ade7bf865a74efa73fb0f4a1a6830815b338a6bd · ms:687
 - 2026-09-24 · c3f5661* · exit 0 · `set -o pipefail …` · acceptance-sha256:a628f24f8e2a099195c1ca25ade7bf865a74efa73fb0f4a1a6830815b338a6bd · ms:723
+- 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:55d640207594245a472cca1c179024ed95d933a2b130396fb96b42bc9b8bc838 · ms:274
+- 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:55d640207594245a472cca1c179024ed95d933a2b130396fb96b42bc9b8bc838 · ms:268
+- 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:55d640207594245a472cca1c179024ed95d933a2b130396fb96b42bc9b8bc838 · ms:254
+- 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:55d640207594245a472cca1c179024ed95d933a2b130396fb96b42bc9b8bc838 · ms:254

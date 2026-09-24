@@ -55,10 +55,13 @@ The verdict block at `internal/apply/apply.go:575-591` becomes `abortStage(path,
 set -o pipefail
 grep -q '^# 118\. ' scripts/contract.sh \
   && go test ./internal/apply/ -count=1 -v \
-    -run 'TestARenameWhoseDestinationDirectoryCannotBeCreatedWritesNothing|TestARenameWhoseDestinationNameIsRejectedFailsValidation|TestAStagedRenameDirectoryIsTakenBackWhenALaterRenameCannotStage|TestAFailedStageLeavesTheTreeUntouched|TestAnAbortedStageTakesBackOnlyTheDirectoriesItMade|TestRenameMovesThePath' 2>&1 | tee /tmp/adr066-t1.out \
+    -run 'TestARenameWhoseDestinationDirectoryCannotBeCreatedWritesNothing|TestARenameWhoseDestinationNameIsRejectedFailsValidation|TestAStagedRenameDirectoryIsTakenBackWhenALaterRenameCannotStage|TestAStagingAbortKeepsAPreExistingDanglingSymlink|TestARenameWhoseLeafIsRejectedUnderANewParentWritesNothing|TestAStagingFailureLeavesNoWriteDetailOnTheFailedHunk|TestAFailedStageLeavesTheTreeUntouched|TestAnAbortedStageTakesBackOnlyTheDirectoriesItMade|TestRenameMovesThePath' 2>&1 | tee /tmp/adr066-t1.out \
   && grep -q '^--- PASS: TestARenameWhoseDestinationDirectoryCannotBeCreatedWritesNothing ' /tmp/adr066-t1.out \
   && grep -q '^--- PASS: TestARenameWhoseDestinationNameIsRejectedFailsValidation ' /tmp/adr066-t1.out \
   && grep -q '^--- PASS: TestAStagedRenameDirectoryIsTakenBackWhenALaterRenameCannotStage ' /tmp/adr066-t1.out \
+  && grep -q '^--- PASS: TestAStagingAbortKeepsAPreExistingDanglingSymlink ' /tmp/adr066-t1.out \
+  && grep -q '^--- PASS: TestARenameWhoseLeafIsRejectedUnderANewParentWritesNothing ' /tmp/adr066-t1.out \
+  && grep -q '^--- PASS: TestAStagingFailureLeavesNoWriteDetailOnTheFailedHunk ' /tmp/adr066-t1.out \
   && grep -q '^--- PASS: TestAFailedStageLeavesTheTreeUntouched ' /tmp/adr066-t1.out \
   && grep -q '^--- PASS: TestRenameMovesThePath ' /tmp/adr066-t1.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr066-t1.out \
@@ -66,10 +69,11 @@ grep -q '^# 118\. ' scripts/contract.sh \
   && grep -q '^  PASS  a rename into a new directory applies' /tmp/adr066-t1-contract.out \
   && grep -q '^  PASS  a rename whose directory cannot be made writes nothing' /tmp/adr066-t1-contract.out \
   && grep -q '^  PASS  a rename whose name the filesystem rejects is refused' /tmp/adr066-t1-contract.out \
+  && grep -q '^  PASS  a rename whose leaf is rejected under a new parent writes nothing' /tmp/adr066-t1-contract.out \
   && go build -o /tmp/adr066-mrw ./cmd/mrw \
   && MRW=/tmp/adr066-mrw bash scripts/break-campaign.sh > /tmp/adr066-campaign.out 2>/dev/null \
   && grep -q '^\[rename-dest-toolong\] exit=2' /tmp/adr066-campaign.out \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/plan internal/seen internal/check internal/state internal/mcp ':!internal/mcp/*_test.go' \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/plan internal/seen internal/check internal/state \
   && [ -z "$(gofmt -l internal/apply)" ] \
   && go vet ./internal/apply/
 ```
@@ -81,6 +85,9 @@ grep -q '^# 118\. ' scripts/contract.sh \
 | `TestARenameWhoseDestinationDirectoryCannotBeCreatedWritesNothing` | `internal/apply/pathop_commit_test.go` | a 300-byte destination directory aborts at staging with nothing written | — | S1, S2 |
 | `TestARenameWhoseDestinationNameIsRejectedFailsValidation` | `internal/apply/pathop_commit_test.go` | a 300-byte leaf fails validation instead of commit | — | S1, S2 |
 | `TestAStagedRenameDirectoryIsTakenBackWhenALaterRenameCannotStage` | `internal/apply/pathop_commit_test.go` | an earlier rename's staged directories are removed on abort | — | S1, S2 |
+| `TestAStagingAbortKeepsAPreExistingDanglingSymlink` | `internal/apply/pathop_commit_test.go` | an abort does not remove a dangling symlink the run did not make (`missingDirs` uses Lstat) | — | S1, S2 |
+| `TestARenameWhoseLeafIsRejectedUnderANewParentWritesNothing` | `internal/apply/pathop_commit_test.go` | a leaf rejected under a new parent aborts at staging, and the parent is taken back | — | S1, S2 |
+| `TestAStagingFailureLeavesNoWriteDetailOnTheFailedHunk` | `internal/apply/pathop_commit_test.go` | the staging-failed hunk carries no Echo or Balance | — | S1, S2 |
 
 ## Reachability
 
@@ -96,6 +103,12 @@ grep -q '^# 118\. ' scripts/contract.sh \
 - 2026-09-24 · c3f5661* · mutant killed · exit 1 · `internal/apply/apply.go` · staging no longer makes the rename directory: TestARenameWhoseDestinationDirectoryCannotBeCreatedWritesNothing and §118 must go red · acceptance-sha256:56aef2057b4fff04354a6ce8416665de5f5f956f01e0c6cb1876fec8a3c5b617 · covers:a rename directory that cannot be made writes nothing
 - 2026-09-24 · c3f5661* · mutant killed · exit 1 · `internal/apply/apply.go` · the staged rename directories are not recorded for discard: TestAStagedRenameDirectoryIsTakenBackWhenALaterRenameCannotStage and §118 must go red · acceptance-sha256:56aef2057b4fff04354a6ce8416665de5f5f956f01e0c6cb1876fec8a3c5b617 · covers:staged rename directories are taken back on abort
 - 2026-09-24 · c3f5661* · mutant killed · exit 1 · `internal/apply/pathop.go` · a destination Lstat error other than not-exist passes validation again: TestARenameWhoseDestinationNameIsRejectedFailsValidation and §118 must go red · acceptance-sha256:56aef2057b4fff04354a6ce8416665de5f5f956f01e0c6cb1876fec8a3c5b617 · covers:a destination the filesystem rejects is refused before any write
+- 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `internal/apply/apply.go` · staging no longer makes the rename directory: TestARenameWhoseDestinationDirectoryCannotBeCreatedWritesNothing and §118 must go red · acceptance-sha256:c954f084e978f9362b6fe53d824a4a1674b1494a29aed5b4b9662d8f6bc77da3 · covers:a rename directory that cannot be made writes nothing
+- 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `internal/apply/apply.go` · the staged rename directories are not recorded for discard: TestAStagedRenameDirectoryIsTakenBackWhenALaterRenameCannotStage must go red · acceptance-sha256:c954f084e978f9362b6fe53d824a4a1674b1494a29aed5b4b9662d8f6bc77da3 · covers:staged rename directories are taken back on abort
+- 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `internal/apply/pathop.go` · a destination Lstat error other than not-exist passes validation: TestARenameWhoseDestinationNameIsRejectedFailsValidation and §118 must go red · acceptance-sha256:c954f084e978f9362b6fe53d824a4a1674b1494a29aed5b4b9662d8f6bc77da3 · covers:a destination the filesystem rejects is refused before any write
+- 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `internal/apply/apply.go` · missingDirs lists a dangling symlink as missing and discard removes it: TestAStagingAbortKeepsAPreExistingDanglingSymlink must go red · acceptance-sha256:c954f084e978f9362b6fe53d824a4a1674b1494a29aed5b4b9662d8f6bc77da3 · covers:staged rename directories are taken back on abort
+- 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `internal/apply/apply.go` · the destination is not asked again after its parents are made: TestARenameWhoseLeafIsRejectedUnderANewParentWritesNothing and §118 must go red · acceptance-sha256:c954f084e978f9362b6fe53d824a4a1674b1494a29aed5b4b9662d8f6bc77da3 · covers:a destination the filesystem rejects is refused before any write
+- 2026-09-24 · b7df6e1* · mutant killed · exit 1 · `internal/apply/apply.go` · the staging-failed hunk keeps its Echo: TestAStagingFailureLeavesNoWriteDetailOnTheFailedHunk must go red · acceptance-sha256:c954f084e978f9362b6fe53d824a4a1674b1494a29aed5b4b9662d8f6bc77da3 · covers:a rename directory that cannot be made writes nothing
 
 ## Invariants
 
@@ -139,3 +152,9 @@ grep -q '^# 118\. ' scripts/contract.sh \
 - 2026-09-24 · c3f5661* · exit 0 · `set -o pipefail …` · acceptance-sha256:56aef2057b4fff04354a6ce8416665de5f5f956f01e0c6cb1876fec8a3c5b617 · ms:40046
 - 2026-09-24 · c3f5661* · exit 0 · `set -o pipefail …` · acceptance-sha256:56aef2057b4fff04354a6ce8416665de5f5f956f01e0c6cb1876fec8a3c5b617 · ms:35185
 - 2026-09-24 · c3f5661* · exit 0 · `set -o pipefail …` · acceptance-sha256:56aef2057b4fff04354a6ce8416665de5f5f956f01e0c6cb1876fec8a3c5b617 · ms:33006
+- 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:c954f084e978f9362b6fe53d824a4a1674b1494a29aed5b4b9662d8f6bc77da3 · ms:33110
+- 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:c954f084e978f9362b6fe53d824a4a1674b1494a29aed5b4b9662d8f6bc77da3 · ms:31762
+- 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:c954f084e978f9362b6fe53d824a4a1674b1494a29aed5b4b9662d8f6bc77da3 · ms:31861
+- 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:c954f084e978f9362b6fe53d824a4a1674b1494a29aed5b4b9662d8f6bc77da3 · ms:31709
+- 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:c954f084e978f9362b6fe53d824a4a1674b1494a29aed5b4b9662d8f6bc77da3 · ms:31869
+- 2026-09-24 · b7df6e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:c954f084e978f9362b6fe53d824a4a1674b1494a29aed5b4b9662d8f6bc77da3 · ms:31531

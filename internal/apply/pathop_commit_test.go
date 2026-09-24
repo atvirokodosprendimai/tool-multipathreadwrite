@@ -351,3 +351,73 @@ func TestAFailedPathOpCommitReportsNothingWrittenAfterTheUndo(t *testing.T) {
 		t.Errorf("the error does not say nothing was written: %v", err)
 	}
 }
+
+// ADR-066 T1 (Codex review of #207). A dangling symlink the run did not make
+// survives an abort. missingDirs used Stat, which reports a dangling link as
+// missing, so staging listed it and discard removed it — deleting a link while
+// the receipt said nothing was written.
+func TestAStagingAbortKeepsAPreExistingDanglingSymlink(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "b.txt", "bee\n")
+	if err := os.Symlink("missing", filepath.Join(root, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	_, err := Apply(root, []Input{
+		{Path: "b.txt", Op: "rename", Body: []string{"link/b.txt"}, Lines: -1, Index: 0},
+	}, Options{})
+	if err == nil {
+		t.Fatal("a rename under a dangling symlink was not refused")
+	}
+	if got, lerr := os.Readlink(filepath.Join(root, "link")); lerr != nil || got != "missing" {
+		t.Fatalf("the aborted plan removed or changed a symlink it did not make: %q %v", got, lerr)
+	}
+	if got := read(t, root, "b.txt"); got != "bee\n" {
+		t.Fatalf("b.txt = %q, want it untouched", got)
+	}
+}
+
+// ADR-066 T1 (Codex review of #207). A leaf the filesystem rejects under a
+// parent that does not exist answers "does not exist" at validation; staging
+// makes the parent and then asks again, so the plan aborts before the sibling
+// edit is written, and the parent it made is taken back.
+func TestARenameWhoseLeafIsRejectedUnderANewParentWritesNothing(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "a.txt", abcde)
+	write(t, root, "b.txt", "bee\n")
+	res, err := Apply(root, []Input{
+		{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"CHANGED"}, Lines: -1, Index: 0},
+		{Path: "b.txt", Op: "rename", Body: []string{"new/" + long}, Lines: -1, Index: 1},
+	}, Options{})
+	if err == nil {
+		t.Fatalf("a rejected leaf under a new parent was not reported: %+v", res)
+	}
+	if got := read(t, root, "a.txt"); got != abcde {
+		t.Fatalf("a.txt was written: %q", got)
+	}
+	if _, serr := os.Stat(filepath.Join(root, "new")); !os.IsNotExist(serr) {
+		t.Fatalf("the parent staging made was not taken back: %v", serr)
+	}
+	if h := hunkFor(t, res, "b.txt"); h.Status != StatusFailed {
+		t.Fatalf("rename status %s, want failed", h.Status)
+	}
+}
+
+// ADR-066 T1. The hunk whose file could not be staged describes no write, so
+// it carries no Echo or Balance, like its skipped siblings.
+func TestAStagingFailureLeavesNoWriteDetailOnTheFailedHunk(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "a.go", "x\ny\nz\n")
+	real := stageFileFn
+	t.Cleanup(func() { stageFileFn = real })
+	stageFileFn = func(string, text) (staged, error) { return staged{}, errors.New("staging refused") }
+	res, err := Apply(root, []Input{
+		{Path: "a.go", Start: 1, End: 1, Op: "replace", Body: []string{"{"}, Lines: -1, Index: 0},
+	}, Options{EchoPad: 1})
+	if err == nil {
+		t.Fatal("a failed stage was not reported")
+	}
+	h := hunkFor(t, res, "a.go")
+	if h.Status != StatusFailed || h.Balance != "" || len(h.Echo) != 0 {
+		t.Fatalf("failed hunk = status %s balance %q echo %v, want failed with no write detail", h.Status, h.Balance, h.Echo)
+	}
+}

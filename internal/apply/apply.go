@@ -624,6 +624,8 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			if res.Hunks[i].Path == path {
 				res.Hunks[i].Status = StatusFailed
 				res.Hunks[i].Reason = err.Error()
+				res.Hunks[i].Echo = nil
+				res.Hunks[i].Balance = ""
 				res.Failed++
 				continue
 			}
@@ -664,6 +666,15 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		sf := dirsOnly(missingDirs(dir))
 		err := os.MkdirAll(dir, 0o755)
 		staged = append(staged, sf)
+		// With its parents made, the destination is asked again: a name the
+		// filesystem rejects under a parent that did not exist answered "does
+		// not exist" at validation and would otherwise fail at commit, after
+		// the plan's other files had landed.
+		if err == nil {
+			if _, lerr := os.Lstat(w.renameTo); lerr != nil && !os.IsNotExist(lerr) {
+				err = lerr
+			}
+		}
 		if err != nil {
 			discard(0)
 			return abortStage(w.file.Path, err)
@@ -1631,7 +1642,10 @@ func dirsOnly(dirs []string) staged { return staged{dirs: dirs} }
 func missingDirs(dir string) []string {
 	var missing []string
 	for d := dir; ; {
-		if _, err := os.Stat(d); err == nil {
+		// Lstat, not Stat: a dangling symlink EXISTS. Stat reports it
+		// missing, so it was listed here and discard removed it on abort —
+		// deleting a link the run did not make (Codex review of #207).
+		if _, err := os.Lstat(d); err == nil {
 			break
 		}
 		missing = append(missing, d)

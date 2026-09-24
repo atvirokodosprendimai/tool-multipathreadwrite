@@ -6161,6 +6161,11 @@ want 1 $? "a rename whose name the filesystem rejects fails validation (exit 1)"
 { [ "$(cat "$R/s.txt")" = "sib" ] && [ -f "$R/b.txt" ]; } \
   && ok "a rename whose name the filesystem rejects is refused" \
   || bad "a rejected rename name reached the tree: $(tr '\n' ' ' < "$WORK/118.out" | cut -c1-300)"
+printf '@@ s.txt 1 replace\nSIB\n@@ b.txt - rename\nn2/%s\n' "$L118" | m write --no-check - >"$WORK/118.out" 2>&1
+want 2 $? "a rename whose leaf is rejected under a new parent exits 2"
+{ [ "$(cat "$R/s.txt")" = "sib" ] && [ -f "$R/b.txt" ] && [ ! -e "$R/n2" ]; } \
+  && ok "a rename whose leaf is rejected under a new parent writes nothing" \
+  || bad "a rejected leaf under a new parent reached the tree: $(tr '\n' ' ' < "$WORK/118.out" | cut -c1-300)"
 
 # 119. ADR-066: a failed unlink/rename commit is undone as a unit, and a commit
 # that wrote some files before failing says PARTIALLY APPLIED. The failure is a
