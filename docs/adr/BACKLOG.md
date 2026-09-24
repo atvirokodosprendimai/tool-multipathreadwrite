@@ -271,9 +271,9 @@ that arms work; silence leaves the row where it is.
   correctly, using at most 20 mrw calls in the whole run, on Haiku and on Sonnet, 3 runs each. A run
   that used a banned tool (grep, rg, find, ls, cat, sed, awk, head, tail, the Read/Grep/Glob/Edit/Write
   tools, or any `--help`) is VOID, not a miss, and is replaced by a fresh trial, at most 3 replacements
-  per model. Pass: each model has 3 non-void runs and every one of them meets the criterion. Fail: any
-  non-void run misses it, reported per model. INCONCLUSIVE, never pass: a model still short of 3
-  non-void runs after its replacements. The 2026-09-24 one-off (Haiku, 9 of 9) predates this
+  per model. The verdict per model, first rule that applies: FAIL if any non-void run misses the
+  criterion; otherwise INCONCLUSIVE if it has fewer than 3 non-void runs after its replacements;
+  otherwise PASS. The bench passes only if both models PASS. The 2026-09-24 one-off (Haiku, 9 of 9) predates this
   criterion and is not a reading. Harness `scripts/blind-agent.sh`; plan and results under
   `docs/blind/`.
 
