@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -187,11 +188,27 @@ func legacyTranscript(t *testing.T) string {
 	if err := Serve(strings.NewReader(strings.Join(reqs, "\n")+"\n"), &out, root); err != nil {
 		t.Fatalf("Serve: %v", err)
 	}
-	s := strings.ReplaceAll(out.String(), root, "<root>")
+	// The root appears raw, JSON-escaped once (structuredContent.root) and
+	// twice (the JSON text block); on Windows the backslashes differ in each,
+	// so all three forms are replaced, the longest first (Codex on #212).
+	s := out.String()
+	paths := []string{root}
 	if real, err := filepath.EvalSymlinks(root); err == nil {
-		s = strings.ReplaceAll(s, real, "<root>")
+		paths = append(paths, real)
+	}
+	for _, p := range paths {
+		once := jsonInner(p)
+		for _, form := range []string{jsonInner(once), once, p} {
+			s = strings.ReplaceAll(s, form, "<root>")
+		}
 	}
 	return ckID.ReplaceAllString(s, "<ck>")
+}
+
+// jsonInner is s as it appears inside a JSON string, without the quotes.
+func jsonInner(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b[1 : len(b)-1])
 }
 
 // A guard, captured on T1–T3's tree before any T4 edit: legacy answers are
@@ -301,17 +318,40 @@ func TestAModernWriteReceiptIsBudgetedWithItsDecoration(t *testing.T) {
 		t.Fatal("a modern write refused for its ceiling changed the tree")
 	}
 
-	// At the decorated floor: it applies, and the elided answer fits and says so.
-	withCeiling(t, floor+d)
+	// The refusal names the ceiling that works: retrying at exactly that
+	// number applies, and the answer — too small for the receipt — still says
+	// the write happened (Codex on #212: a generic refusal passed this before).
+	e, _ := got["error"].(map[string]any)
+	msg, _ := e["message"].(string)
+	named := regexp.MustCompile(`at least (\d+)`).FindStringSubmatch(msg)
+	if named == nil {
+		t.Fatalf("the refusal names no ceiling to retry at: %q", msg)
+	}
+	c2, _ := strconv.Atoi(named[1])
+	withCeiling(t, c2)
 	raw := rawResultOf(t, root, callReq("mrw_write", string(args), modernMeta))
 	if len(raw) > MaxResultChars {
 		t.Fatalf("the modern write answered %d bytes against a %d ceiling", len(raw), MaxResultChars)
 	}
 	if b, _ := os.ReadFile(filepath.Join(root, name)); !strings.Contains(string(b), "MUTATED") {
-		t.Error("a modern write at its decorated floor did not apply")
+		t.Fatalf("a modern write at the ceiling its refusal named (%d) did not apply", c2)
 	}
-	if strings.Contains(string(raw), "nothing was written") || !strings.Contains(string(raw), `"resultType":"complete"`) {
-		t.Errorf("the modern write's answer is untrue or undecorated: %s", raw)
+	if !strings.Contains(string(raw), "the write HAPPENED") || !strings.Contains(string(raw), `"resultType":"complete"`) {
+		t.Errorf("the modern write's answer does not say it applied, or is undecorated: %s", raw)
+	}
+
+	// Where the undecorated receipt fits and the decorated one would not, the
+	// answer is still the receipt — elided, applied — never a refusal. This is
+	// the case that proves receipt sizing reads the reserve.
+	withCeiling(t, DefaultMaxResultChars)
+	legacy := rawResultOf(t, root, callReq("mrw_write", string(args), ""))
+	withCeiling(t, len(legacy)+d-1)
+	modern := rawResultOf(t, root, callReq("mrw_write", string(args), modernMeta))
+	if len(modern) > MaxResultChars {
+		t.Fatalf("the modern receipt is %d bytes against a %d ceiling", len(modern), MaxResultChars)
+	}
+	if strings.Contains(string(modern), `"isError":true`) || !strings.Contains(string(modern), `"applied":true`) {
+		t.Errorf("a modern write whose undecorated receipt fits was not answered with its receipt: %.400s", modern)
 	}
 }
 

@@ -624,7 +624,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf(
 			"--max-result-chars %d is too small to report what a write did, so nothing was "+
 				"applied and the tree is unchanged. Raise the ceiling to at least %d.",
-			MaxResultChars, writeFloor())}
+			MaxResultChars, minWriteCeiling())}
 	}
 	res, applyErr := apply.Apply(root, in, apply.Options{DryRun: a.DryRun, Seen: ledger, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance})
 	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
@@ -843,6 +843,12 @@ func writtenFiles(files []apply.FileResult) []apply.FileResult {
 // receipt naming the change will not fit. One function so the message the floor
 // is measured against and the message actually sent cannot drift apart.
 func appliedButUnreportable(written, hunks, failed int, partial bool) string {
+	return unreportableAt(MaxResultChars, written, hunks, failed, partial)
+}
+
+// unreportableAt is appliedButUnreportable's sentence as it reads at ceiling
+// c. The sentence prints the ceiling, so its size moves with c's digit count.
+func unreportableAt(c, written, hunks, failed int, partial bool) string {
 	state := "the plan APPLIED"
 	if partial {
 		state = "the plan PARTIALLY APPLIED — a later file failed after earlier ones were already written"
@@ -850,7 +856,7 @@ func appliedButUnreportable(written, hunks, failed int, partial bool) string {
 	return fmt.Sprintf("%s: %d file(s) changed on disk, %d hunk(s), %d failed. NAMING them takes "+
 		"more than the %d-byte ceiling this server advertises, so the per-hunk detail is not here "+
 		"— but the write HAPPENED. Read the files, or re-run with a larger --max-result-chars.",
-		state, written, hunks, failed, MaxResultChars)
+		state, written, hunks, failed, c)
 }
 
 // writeFloor is the size of the smallest truthful thing this server can say
@@ -870,8 +876,28 @@ func appliedButUnreportable(written, hunks, failed int, partial bool) string {
 // consistent, because the guard and the real message read MaxResultChars at the
 // same moment — but it means a floor computed at one ceiling says nothing about
 // another, which is what TestTheWriteFloorIsAFloor asserts across ten of them.
-func writeFloor() int {
-	return encodedSize(errorResult(appliedButUnreportable(math.MaxInt, math.MaxInt, math.MaxInt, true)))
+func writeFloor() int { return floorAt(MaxResultChars) }
+
+// floorAt is the write floor as it would be at ceiling c.
+func floorAt(c int) int {
+	return encodedSize(errorResult(unreportableAt(c, math.MaxInt, math.MaxInt, math.MaxInt, true)))
+}
+
+// minWriteCeiling is the smallest ceiling at which this call's write would
+// not be refused: the floor plus this call's reserve (ADR-067), iterated
+// because raising the ceiling can add a digit to the floor's own sentence.
+// Naming writeFloor() alone told a modern caller a number that refused again
+// (Codex on #212).
+func minWriteCeiling() int {
+	c := writeFloor() + callReserve
+	for i := 0; i < 4; i++ {
+		next := floorAt(c) + callReserve
+		if next <= c {
+			return c
+		}
+		c = next
+	}
+	return c
 }
 
 func writeFloorFits() bool { return writeFloor() <= ceiling() }
