@@ -6,7 +6,7 @@ writes nothing, because a write that changed nothing is invisible.
 
 The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). The six-guarantee comparison lives in [docs/comparison.md](docs/comparison.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
 
-**Status: stable at v1.22.3 (2026-09-24), the tag cut from `63729bd`.** Break campaign for it: [docs/break/campaign-v1.22.3.txt](docs/break/campaign-v1.22.3.txt), 56 probes: exit codes identical to v1.22.2 for its 55, plus `[astgrep-named-excluded]` (ADR-064), exit 0.
+**Status: stable at v1.23.0 (2026-09-24), the tag cut from `5d30d50`.** Break campaign for it: [docs/break/campaign-v1.23.0.txt](docs/break/campaign-v1.23.0.txt), 57 probes: exit codes identical to v1.22.3 for its 56, plus `[rename-dest-toolong]` (ADR-066), exit 2; `[cr-only-file-read]` now serves `3L` (ADR-065).
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
