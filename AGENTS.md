@@ -32,7 +32,8 @@ These are decided, recorded in `docs/adr/`, and asserted by
 
 1. **A plan applies whole or not at all.** Any hunk that fails validation writes
    nothing. Siblings report `skip`, never `ok`; a filesystem failure while
-   committing is reported `PARTIALLY APPLIED`. — ADR-001, ADR-066
+   committing reports what reached disk — `PARTIALLY APPLIED` when files remain
+   written, `NOTHING WRITTEN` when the undo put everything back. — ADR-001, ADR-066
 2. **mrw will not edit a file it has not read**, and the guard is per *line*,
    not per file. — ADR-002
 3. **A check's verdict comes from the process, never its output.** A check that
@@ -183,7 +184,8 @@ the UNREADABLE line too, but by then you have spent a call.
 
 Every hunk gets a verdict. If any hunk fails validation, **nothing is written at
 all** and the siblings report `skip`, never `ok`; a filesystem failure while
-committing is reported `PARTIALLY APPLIED` and names what landed. Ops are `replace`, `insert-after`,
+committing reports what reached disk (`PARTIALLY APPLIED` naming what landed, or
+`NOTHING WRITTEN` when the undo put everything back). Ops are `replace`, `insert-after`,
 `insert-before`, `delete`, `create`, `unlink`, `rename`. `@@ path - unlink`
 removes the path (empty body OK). `@@ old - rename` with a one-line dest body
 moves it. Only `delete` may carry no body among the line-range ops: a lost

@@ -135,8 +135,9 @@ served.
 These are gates, not a tour of the records behind them.
 
 - **All-or-nothing.** Any hunk that fails validation writes nothing. Siblings
-  report `skip`, never `ok`. A filesystem failure while committing is reported
-  `PARTIALLY APPLIED`, naming what landed.
+  report `skip`, never `ok`. A filesystem failure while committing reports what
+  reached disk: `PARTIALLY APPLIED` naming what landed, or `NOTHING WRITTEN`
+  when the undo put everything back.
 - **Per-line licence.** Being served lines 1–5 does not license line 40.
   `--stat` and a match that printed nothing observe nothing.
 - **MCP ack.** A served `mrw_read` licenses nothing until you send `ack` ids.
