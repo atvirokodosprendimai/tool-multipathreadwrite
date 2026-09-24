@@ -89,6 +89,7 @@ Rules:
 - The project you work on is the directory F=$T . Point mrw at it the way the instructions say.
 - Do NOT use grep, rg, find, ls, cat, sed, awk, head, tail, or the Read/Grep/Glob/Edit/Write tools, and do not read any other directory. Use only \$MRW (printf and echo to build a plan are fine). Do not run --help on anything. The instructions below are all you get.
 - To build a write plan, pipe printf or echo into \$MRW write - . Do NOT use cat for anything, not even to write a plan file (cat > file <<EOF counts as cat).
+- Every command you run is recorded. One banned command voids the whole run, including one used only to print, save or format your answer. Give your answer as text.
 - Try to do each task in as few mrw calls as the instructions allow.
 
 Instructions (this is the tool's own \`mrw instructions\` output, verbatim):

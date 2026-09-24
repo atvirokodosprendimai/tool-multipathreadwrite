@@ -32,19 +32,37 @@ def tool_calls(transcript):
     return calls
 
 
-def final_text(transcript):
-    texts = []
+def final_answer(transcript):
+    """The LAST fenced ```json block the agent emitted, wherever it put it.
+
+    An agent's output arrives on two channels: its assistant text, and the
+    SubagentHandback tool call that carries its final report. Blind reading 01
+    read only the last assistant text and missed reports sent through the
+    hand-back and blocks followed by more text (void, docs/blind/blind-01-void.md).
+    The rule since blind reading 02: every assistant text and every hand-back
+    message, in transcript order, and the last json block among them wins.
+    """
+    found = None
     for line in transcript.read_text(errors="replace").splitlines():
         try:
             o = json.loads(line)
         except ValueError:
             continue
         m = o.get("message") or {}
-        if m.get("role") == "assistant" and isinstance(m.get("content"), list):
-            for b in m["content"]:
-                if isinstance(b, dict) and b.get("type") == "text":
-                    texts.append(b["text"])
-    return texts[-1] if texts else ""
+        if m.get("role") != "assistant" or not isinstance(m.get("content"), list):
+            continue
+        for b in m["content"]:
+            if not isinstance(b, dict):
+                continue
+            s = ""
+            if b.get("type") == "text":
+                s = b.get("text", "")
+            elif b.get("type") == "tool_use" and b.get("name") == "SubagentHandback":
+                s = (b.get("input") or {}).get("message", "")
+            blocks = re.findall(r"```json\s*(\{.*?\})\s*```", s, re.S)
+            if blocks:
+                found = blocks[-1]
+    return found
 
 
 def segments(cmd):
@@ -88,12 +106,12 @@ def main():
     if violations:
         out.update(verdict="VOID", reason="banned: " + ", ".join(sorted(set(violations))))
         print(json.dumps(out)); return
-    m = re.search(r"```json\s*(\{.*?\})\s*```\s*$", final_text(transcript), re.S)
-    if not m:
-        out.update(verdict="MISS", correct=0, reason="no final json block", per_task={})
+    block = final_answer(transcript)
+    if block is None:
+        out.update(verdict="MISS", correct=0, reason="no json block anywhere in the output", per_task={})
         print(json.dumps(out)); return
     try:
-        a = json.loads(m.group(1))
+        a = json.loads(block)
     except ValueError as e:
         out.update(verdict="MISS", correct=0, reason=f"json: {e}", per_task={})
         print(json.dumps(out)); return
