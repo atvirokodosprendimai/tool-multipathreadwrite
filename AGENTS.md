@@ -37,7 +37,8 @@ These are decided, recorded in `docs/adr/`, and asserted by
    not per file. — ADR-002
 3. **A check's verdict comes from the process, never its output.** A check that
    prints `PASS` and exits 1 is a failure. — ADR-003
-4. **Nothing is left in the working tree** by a failed run. — ADR-004
+4. **Nothing is left in the working tree** by a failed run — except, when an
+   undo step itself fails, the named `.mrw-aside-*` recovery file. — ADR-004, ADR-066
 5. **mrw finds the files it serves**, and says which path it looked for when it
    cannot. — ADR-007
 6. **A delete says what it removed.** — ADR-008
@@ -113,7 +114,7 @@ Both tools are bounded at 200,000 characters of ENCODED result, and the number i
 `mrw mcp --max-result-chars N` or `MRW_MAX_RESULT_CHARS`. The flag beats the variable, omitting both
 takes the default, and `0` means zero — the same reading `--max-lines 0` takes. An oversized
 `mrw_write` receipt drops successful and skipped verdicts and says so in an `elided` field; every
-FAILED hunk survives, because a failure is why nothing was written. If not even the failures fit, you
+FAILED hunk survives, because a failure is what explains the receipt — for a validation failure, why nothing was written; for a commit failure, which step stopped, beside `files[].written`. If not even the failures fit, you
 get a refusal naming the counts instead of a receipt cut past them. And a ceiling too small to report
 a write REFUSES THE WRITE, before anything is applied — as a JSON-RPC error, which carries no result
 and so is not itself bound by the ceiling it is reporting on.

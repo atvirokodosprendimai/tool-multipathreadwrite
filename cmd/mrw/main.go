@@ -801,7 +801,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 func writeCmd() *cli.Command {
 	return &cli.Command{
 		Name:      "write",
-		Usage:     "apply an edit plan across one or more files, all or nothing",
+		Usage:     "apply an edit plan across one or more files; a plan that fails validation writes nothing",
 		ArgsUsage: "[PLAN|-]",
 		Description: `A plan is a sequence of hunks:
 

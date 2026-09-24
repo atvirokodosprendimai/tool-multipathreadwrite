@@ -14,7 +14,7 @@ func Shared() string {
 }
 
 const shared = `Use mrw always: plan the activity as one read of every site, then one plan, then one write.
-A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit says PARTIALLY APPLIED.
+A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit reports what reached disk (CLI: PARTIALLY APPLIED).
 Read before you write, per line, not per file.
 mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.
 A refusal names the file, the plan line, and the reason.`

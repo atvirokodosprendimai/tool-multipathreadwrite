@@ -1974,7 +1974,7 @@ assert len(i.encode()) <= 4096, "the instructions are %d bytes; they are paid on
 # compiles must fail here.
 shared = (
     "Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
-    "A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit says PARTIALLY APPLIED.",
+    "A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit reports what reached disk (CLI: PARTIALLY APPLIED).",
     "Read before you write, per line, not per file.",
     "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
     "A refusal names the file, the plan line, and the reason.",
@@ -4756,7 +4756,7 @@ import sys
 out = sys.argv[1]
 shared = (
     "Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
-    "A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit says PARTIALLY APPLIED.",
+    "A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit reports what reached disk (CLI: PARTIALLY APPLIED).",
     "Read before you write, per line, not per file.",
     "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
     "A refusal names the file, the plan line, and the reason.",
@@ -5199,7 +5199,7 @@ out, why = sys.argv[1], sys.argv[2]
 assert why in out, "instructions omitted the why: %r" % why
 shared = (
     "Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
-    "A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit says PARTIALLY APPLIED.",
+    "A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit reports what reached disk (CLI: PARTIALLY APPLIED).",
     "Read before you write, per line, not per file.",
     "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
     "A refusal names the file, the plan line, and the reason.",
@@ -5222,7 +5222,7 @@ assert isinstance(i,str) and i.strip(), "initialize carries no instructions"
 assert why in i, "handshake omitted the why"
 shared = (
     "Use mrw always: plan the activity as one read of every site, then one plan, then one write.",
-    "A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit says PARTIALLY APPLIED.",
+    "A plan applies whole or not at all: if any hunk fails validation, nothing is written; a failed commit reports what reached disk (CLI: PARTIALLY APPLIED).",
     "Read before you write, per line, not per file.",
     "mrw models no target syntax: after a multi-line body, read on past the range until the enclosing structure closes.",
     "A refusal names the file, the plan line, and the reason.",
