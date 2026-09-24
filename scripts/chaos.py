@@ -182,7 +182,13 @@ NAMES = ["a.txt", "b.go", "c.md", "notes.txt", "x y.txt", "ünï.txt", "-dash.tx
          "UP.TXT", "deep/one/two.txt", "sub/a.txt", "sub/b.go", "vendor/v.go", "build/g.go", ".hidden"]
 
 
-CORPUS = [l.strip() for l in rd(os.environ["CORPUS"], "r").splitlines()] if os.environ.get("CORPUS") else None
+# Iterate the file, not splitlines(): splitlines() also breaks on \v, \f and
+# U+2028, which are legal in a path (Codex on #211).
+if os.environ.get("CORPUS"):
+    with open(os.environ["CORPUS"]) as _f:
+        CORPUS = [l.strip() for l in _f]
+else:
+    CORPUS = None
 CRLF_POOL = [p for p in CORPUS if b"\r\n" in rd(p)] if CORPUS else []
 
 
