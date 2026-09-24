@@ -63,7 +63,7 @@ that arms work; silence leaves the row where it is.
 | `mrw instructions` as effective-use; always + plan (not 3+) | **ADR-062 Accepted** — Shared() first sentence is always + plan; CLI() cookbook includes `@@ path 0 create`; handshake stays Shared, 4096 | *"accept"* then *"use it always and plan activity"* |
 | Centralised `mrw` skill always + plan (v20) | **deferred** — ADR-062 Follow-ups; AGENTS.md / repo skill updated in this record, palace POST is another session | — |
 | `mrw instructions` teaches the read side (addresses, `--grep`, `--ast-grep`, `--exclude`, `--files-from`) | **ADR-063 Accepted** — read section on CLI(); every read flag named; root, `read` and `--ast-grep` Usage name finding; handshake unchanged | *"approve"* |
-| Centralised `mrw` skill description names the read side | **deferred** — ADR-063 Out of Scope; repo skill updated in that record, palace POST is another session | — |
+| Centralised `mrw` skill description names the read side | **shipped** — palace skill `mrw` v21 (2026-09-24), pinned at v1.22.2: description and body name the read side | *"release"* |
 | Desktop reach measure, under-ceiling host-cut, concurrent silent apply, strict-balance campaign, JSX nest probe | **spec** — `docs/specs/2026-09-16-dangling-high-impact.md` | *"write a spec for these findings"* |
 | leftover `body=` extra count, `--dry-run` parsed hunks, read neighbour hint, unquoted `anchor=` `"`, `body=@path`, check last-error line | **shipped** — ADR-060 | — |
 | Per-extension check skip (`.jsonl` vs Cargo.toml) | **deferred** — ADR-054 / ADR-059; widening prose takes `.toml` | *"per-extension check"* |
