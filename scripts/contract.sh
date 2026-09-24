@@ -6044,6 +6044,81 @@ want 2 $? "a plan -M address is refused"
 [ "$(cat "$R/t.txt")" = "$before" ] && ok "and none of the three refusals changed the file" \
                                      || bad "a refused plan changed t.txt"
 
+# 116. ADR-064: both finders apply ADR-007's exclusion rule. A file the caller
+# NAMES is never pruned by a glob that matches it, and a directory the search
+# walks into is pruned when the glob matches it. The fake ast-grep is §111's
+# shape — a script that prints a fixed JSON hit whatever it is asked — so each
+# case installs the hit it needs. Every $MRW call is bounded by an alarm.
+fixture
+d116="$WORK/fake116"; mkdir -p "$d116"
+fake116() { printf '%s\n' "$1" > "$d116/hit.json"; printf '#!/bin/sh\ncat "%s"\n' "$d116/hit.json" > "$d116/ast-grep"; chmod +x "$d116/ast-grep"; }
+m116() { PATH="$d116:$PATH" perl -e 'alarm shift; exec @ARGV' 5 "$MRW" -C "$R" "$@"; }
+fake116 '[{"file":"b.go","range":{"start":{"line":2},"end":{"line":2}}}]'
+out=$(m116 read --ast-grep D --exclude b.go b.go 2>&1); rc=$?
+want 0 "$rc" "ast-grep with b.go named and excluded exits 0"
+grep -q '^==> b.go' <<<"$out" && ok "ast-grep serves a named file the glob matches" \
+                              || bad "ast-grep dropped a file the caller named: $out"
+m116 read --ast-grep D --exclude b.go >/dev/null 2>&1
+want 1 $? "with nothing named, ast-grep's hit on b.go meets the glob"
+out=$(m116 read --grep 'func D' --exclude b.go b.go 2>&1); rc=$?
+want 0 "$rc" "grep with b.go named and excluded exits 0"
+grep -q '^==> b.go' <<<"$out" && ok "grep serves a named file the glob matches" \
+                              || bad "grep dropped a file the caller named: $out"
+m116 read --grep 'func D' --exclude b.go >/dev/null 2>&1
+want 1 $? "with nothing named, grep's hit on b.go meets the glob"
+mkdir -p "$R/vendor"; printf 'package v\nfunc D() {}\n' > "$R/vendor/v.go"
+fake116 '[{"file":"vendor/v.go","range":{"start":{"line":1},"end":{"line":1}}}]'
+out=$(m116 read --ast-grep D --exclude vendor 2>&1); rc=$?
+want 1 "$rc" "ast-grep's only hit sits under an excluded walked directory"
+grep -q 'vendor/v.go' <<<"$out" && bad "ast-grep served a hit under an excluded walked directory: $out" \
+                                || ok "ast-grep prunes a walked directory the glob matches"
+out=$(m116 read --ast-grep D --exclude vendor vendor 2>&1); rc=$?
+want 0 "$rc" "ast-grep with vendor named and excluded exits 0"
+grep -q '^==> vendor/v.go' <<<"$out" && ok "and a directory the caller names is not pruned" \
+                                     || bad "ast-grep pruned a directory the caller named: $out"
+
+# 117. ADR-064: every pipeline mrw teaches for agents runs as an agent runs it —
+# stdin an open pipe, under a 5 s bound. rg given no path searches a piped stdin
+# and waits (found 2026-09-24 by the ADR-063 chaos pass), which is why the taught
+# line names `.`. This row executes the line the BINARY prints and the one
+# AGENTS.md carries, and pairs them with the path-less line, which the bound must
+# kill — the case that proves the row can see the hang at all. The open stdin is
+# a FIFO held by a sleep this row kills, so nothing it starts outlives it.
+if command -v rg >/dev/null 2>&1; then
+  fixture
+  printf 'package demo\n\nfunc Handle() {}\n' > "$R/h.go"
+  SRC117=${SRC:-$(cd "$(dirname "$0")/.." && pwd)}
+  rm -f "$WORK/117.fifo"; mkfifo "$WORK/117.fifo"; sleep 60 > "$WORK/117.fifo" & hold117=$!
+  run117() { ( cd "$R" && PATH="$(dirname "$MRW"):$PATH" perl -e 'alarm shift; exec @ARGV' 5 bash -c "$1" < "$WORK/117.fifo" > "$WORK/117.out" 2>&1 ); }
+  line=$("$MRW" instructions | grep -oE "rg -l X \. \| sed '[^']*' \| mrw read --files-from -")
+  if [ -z "$line" ]; then
+    bad "the binary teaches no rg pipeline that names its path"
+  else
+    cmd=${line//X/Handle}
+    run117 "$cmd"; rc=$?
+    { [ "$rc" -eq 0 ] && grep -q '^==> ' "$WORK/117.out"; } \
+      && ok "the taught rg pipeline completes under an open stdin" \
+      || bad "the taught rg pipeline did not complete under an open stdin (exit $rc): $(head -2 "$WORK/117.out" | tr '\n' ' ')"
+    hung=${cmd/ . |/ |}
+    t0=$(date +%s); run117 "$hung"; rc=$?; t1=$(date +%s)
+    { [ "$rc" -gt 128 ] && [ $((t1 - t0)) -ge 4 ]; } \
+      && ok "without its path, rg reads the pipe and the bound kills it" \
+      || bad "the path-less pipeline was not held by stdin (exit $rc after $((t1 - t0)) s): the row cannot see the hang"
+  fi
+  aline=$(grep -m1 -E "^rg -l .* \| mrw read .*--files-from -$" "$SRC117/AGENTS.md")
+  if [ -z "$aline" ]; then
+    bad "AGENTS.md carries no rg | mrw read --files-from - pipeline"
+  else
+    run117 "$aline"; rc=$?
+    { [ "$rc" -eq 0 ] && grep -q '^==> ' "$WORK/117.out"; } \
+      && ok "AGENTS.md's rg pipeline completes under an open stdin" \
+      || bad "AGENTS.md's rg pipeline did not complete under an open stdin (exit $rc): $(head -2 "$WORK/117.out" | tr '\n' ' ')"
+  fi
+  kill "$hold117" 2>/dev/null; wait "$hold117" 2>/dev/null
+else
+  skip "rg absent — taught pipeline not executed"
+fi
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

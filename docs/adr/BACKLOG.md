@@ -66,6 +66,8 @@ that arms work; silence leaves the row where it is.
 | Centralised `mrw` skill description names the read side | **shipped** — palace skill `mrw` v21 (2026-09-24), pinned at v1.22.2: description and body name the read side | *"release"* |
 | `read` exits 1 when a `--max-lines` cap withholds lines | **decided** — M 2026-09-24: keep; ADR-033 stands; the two `TestKnownGap_*` read tests became decided tests | *"Keep exit 1"* |
 | MCP registration scope (open since 2026-09-09) | **decided** — M 2026-09-24: user scope stays; README describes both scopes instead of prescribing one | *"Keep user scope"* |
+| `--ast-grep` breaks ADR-007's exclusion rule in both halves (drops a named file; ignores a walked excluded directory); taught pipelines never run under an agent stdin | **ADR-064 Accepted** — named/ancestor-aware check in `astgrep.go`; contract §116/§117 | *"accepted"* |
+| ast-grep symlink spellings: a named path through a symlinked directory and then `..`, and a hit reached through a symlink | **deferred** — ADR-064 Out of Scope: exclusion matches the resolved path `astGrepRel` returns (it cleans before resolving), which can differ from the spelling `Walk` discovers; unpromised, no fixture yet | — |
 | Desktop reach measure, under-ceiling host-cut, concurrent silent apply, strict-balance campaign, JSX nest probe | **spec** — `docs/specs/2026-09-16-dangling-high-impact.md` | *"write a spec for these findings"* |
 | leftover `body=` extra count, `--dry-run` parsed hunks, read neighbour hint, unquoted `anchor=` `"`, `body=@path`, check last-error line | **shipped** — ADR-060 | — |
 | Per-extension check skip (`.jsonl` vs Cargo.toml) | **deferred** — ADR-054 / ADR-059; widening prose takes `.toml` | *"per-extension check"* |

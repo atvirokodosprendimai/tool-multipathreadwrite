@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
@@ -89,13 +90,14 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	grouped := map[string][]Range{}
 	order := []string{}
 	var problems []Problem
+	named, starts := astGrepStarts(absRoot, paths)
 	for _, h := range hits {
 		rel, ok := astGrepRel(absRoot, h.name())
 		if !ok {
 			problems = append(problems, Problem{Path: h.name(), Reason: "is outside the root " + absRoot})
 			continue
 		}
-		if pathExcluded(rel, exclude) {
+		if astGrepExcluded(rel, exclude, named, starts) {
 			continue
 		}
 		start := h.Range.Start.Line + 1
@@ -165,6 +167,73 @@ func pathExcluded(rel string, globs []string) bool {
 			return true
 		}
 		if ok, err := path.Match(g, base); err == nil && ok {
+			return true
+		}
+	}
+	return false
+}
+
+// astGrepStarts splits the caller's paths the way read.Walk treats them
+// (ADR-007:206-210, ADR-064): a named regular file is exempt from --exclude,
+// and a named directory is a walk start that is never itself tested. "." names
+// the root. Both are normalised through astGrepRel, so a named path and a hit
+// compare in one root-relative form.
+func astGrepStarts(absRoot string, paths []string) (map[string]bool, []string) {
+	named := map[string]bool{}
+	var starts []string
+	for _, p := range paths {
+		rel, ok := astGrepRel(absRoot, p)
+		if !ok {
+			continue
+		}
+		st, err := os.Stat(filepath.Join(absRoot, filepath.FromSlash(rel)))
+		if err != nil {
+			continue
+		}
+		if st.Mode().IsRegular() {
+			named[rel] = true
+		} else if st.IsDir() {
+			starts = append(starts, rel)
+		}
+	}
+	return named, starts
+}
+
+// astGrepExcluded reports whether --exclude drops a hit, by read.Walk's rule.
+// A named file never. Otherwise the hit, and every ancestor directory strictly
+// below a start that contains it, meet the glob — and the hit is kept if ANY
+// containing start admits it, so the order paths were named in cannot matter.
+// A hit no named directory contains is tested from the root, as a walk with
+// nothing named would test it.
+func astGrepExcluded(rel string, exclude []string, named map[string]bool, starts []string) bool {
+	if len(exclude) == 0 || named[rel] {
+		return false
+	}
+	if pathExcluded(rel, exclude) {
+		return true
+	}
+	var containing []string
+	for _, s := range starts {
+		if s == "." || strings.HasPrefix(rel, s+"/") {
+			containing = append(containing, s)
+		}
+	}
+	if len(containing) == 0 {
+		containing = []string{"."}
+	}
+	for _, s := range containing {
+		if !ancestorExcluded(rel, s, exclude) {
+			return false
+		}
+	}
+	return true
+}
+
+// ancestorExcluded reports whether a directory strictly between start and rel
+// matches a glob: the directories a walk from start would meet on its way down.
+func ancestorExcluded(rel, start string, exclude []string) bool {
+	for dir := path.Dir(rel); dir != "." && dir != start; dir = path.Dir(dir) {
+		if pathExcluded(dir, exclude) {
 			return true
 		}
 	}

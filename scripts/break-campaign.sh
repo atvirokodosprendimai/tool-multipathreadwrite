@@ -114,4 +114,9 @@ fresh; printf 'gone\n' > gone.txt; t "$MRW" read gone.txt >/dev/null
 plan '*** Begin Patch\n*** Delete File: gone.txt\n*** End Patch\n'; out=$(t "$MRW" write --quiet --format=apply_patch p.plan 2>&1); say "apply-patch-delete-file" $? "exists=$([ -e gone.txt ] && echo yes || echo no) | $out"
 fresh; printf 'stay\n' > a.txt
 plan '*** Begin Patch\n*** Update File: a.txt\n*** Move to: b.txt\n@@\n-stay\n+gone\n*** End Patch\n'; out=$(t "$MRW" write --quiet --format=apply_patch p.plan 2>&1); say "apply-patch-move-with-hunks" $? "a=$(cat a.txt) b=$([ -e b.txt ] && echo yes || echo no) | $out"
+# ---------- ADR-064: a file the caller names survives --exclude on the ast-grep finder ----------
+fresh; mkdir -p "$W/fakeag"; printf '[{"file":"b.go","range":{"start":{"line":1},"end":{"line":1}}}]\n' > "$W/fakeag/hit.json"
+printf '#!/bin/sh\ncat "%s"\n' "$W/fakeag/hit.json" > "$W/fakeag/ast-grep"; chmod +x "$W/fakeag/ast-grep"; printf 'package b\nfunc D() {}\n' > b.go
+out=$(PATH="$W/fakeag:$PATH" t "$MRW" read --ast-grep D --exclude b.go b.go 2>&1); say "astgrep-named-excluded" $? "$out"
+
 echo "campaign dir: $W"
