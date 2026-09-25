@@ -130,7 +130,12 @@ func TestACheckThatCannotRunIsCountedAsCheckNotRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan := planFile(t, goPlan)
-	t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
+	// The check's log cannot be created, so the check cannot start. Windows
+	// takes its temp directory from TMP and TEMP, not TMPDIR (CI, #229).
+	missing := filepath.Join(t.TempDir(), "missing")
+	for _, v := range []string{"TMPDIR", "TMP", "TEMP"} {
+		t.Setenv(v, missing)
+	}
 	if out, code := writeIn(t, root, plan); code != exitUsage {
 		t.Fatalf("exit %d, want %d for a check that could not run:\n%s", code, exitUsage, out)
 	}

@@ -97,6 +97,7 @@ go test ./cmd/mrw/ ./internal/authoring/ -count=1 -timeout 180s -run 'TestTheRec
 - 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:683
 - 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:757
 - 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:770
+- 2026-09-25 · fa1ddf4* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:987
 
 ## Mutation Log
 (empty until execute)
