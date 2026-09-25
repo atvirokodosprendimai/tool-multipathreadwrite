@@ -25,6 +25,8 @@ symlink or junction with its `os.Readlink` target, before the boundary compares.
 | `internal/rooted/links_windows.go` | new | `followLinks = true`, the OS-backed `linkFS` (`ModeSymlink` or `ModeIrregular`) |
 | `internal/rooted/links_other.go` | new | `followLinks = false`: POSIX is unchanged |
 | `internal/rooted/rooted.go` | edit | `Resolve` and `Abs` walk first when `followLinks` |
+| `internal/rooted/rooted.go` | edit | `Real`: an absolute argument resolved the way `Abs` resolves a root (review of #228) |
+| `internal/read/read.go`, `internal/read/walk.go` | edit | the absolute-path pre-screens call `rooted.Real` |
 | `internal/rooted/links_test.go` | new | the walk against a fake filesystem, on every platform |
 | `internal/rooted/links_windows_test.go` | new | a real junction (`mklink /J`) through `Resolve` |
 | `cmd/mrw/junction_windows_test.go` | new | read, replace, create, rename, unlink through a junction, each refused |
@@ -39,14 +41,15 @@ symlink or junction with its `os.Readlink` target, before the boundary compares.
 
 ```bash
 set -o pipefail
-go test ./internal/rooted/ ./cmd/mrw/ -count=1 -timeout 120s -run 'TestTheLinkWalk|TestResolveRefusesAJunctionOutOfTheRoot|TestAJunctionCannotCarryAnyOpOutOfTheRoot' -v 2>&1 | tee /tmp/adr071-T1.out \
-  && missing=$(for t in TestTheLinkWalkReplacesALinkWithItsTarget TestTheLinkWalkLeavesAPlaceholderAlone TestTheLinkWalkRefusesALinkItCannotRead TestTheLinkWalkStopsAtAMissingComponent TestTheLinkWalkBoundsALoop; do grep -qE "^--- PASS: $t \(" /tmp/adr071-T1.out || echo "$t"; done) \
+go test ./internal/rooted/ ./cmd/mrw/ -count=1 -timeout 120s -run 'TestTheLinkWalk|TestResolveRefusesAJunctionOutOfTheRoot|TestAJunctionCannotCarryAnyOpOutOfTheRoot|TestAnAbsolutePathUnderAJunctionedRootIsServed' -v 2>&1 | tee /tmp/adr071-T1.out \
+  && missing=$(for t in TestTheLinkWalkReplacesALinkWithItsTarget TestTheLinkWalkLeavesAPlaceholderAlone TestTheLinkWalkRefusesALinkItCannotRead TestTheLinkWalkStopsAtAMissingComponent TestTheLinkWalkBoundsALoop TestTheLinkWalkRefusesASymlinkItCannotRead TestTheLinkWalkRefusesAComponentItCannotExamine; do grep -qE "^--- PASS: $t \(" /tmp/adr071-T1.out || echo "$t"; done) \
   && [ -z "$missing" ] \
   && GOOS=windows go vet ./internal/rooted/ ./cmd/mrw/ \
   && grep -q '^func TestResolveRefusesAJunctionOutOfTheRoot(' internal/rooted/links_windows_test.go \
   && grep -q '^func TestAJunctionCannotCarryAnyOpOutOfTheRoot(' cmd/mrw/junction_windows_test.go \
-&& git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go' \
-  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go')" ] \
+  && grep -q '^func TestAnAbsolutePathUnderAJunctionedRootIsServed(' cmd/mrw/junction_windows_test.go \
+&& git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read ':(exclude)internal/read/read.go' ':(exclude)internal/read/walk.go' internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go' \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read ':(exclude)internal/read/read.go' ':(exclude)internal/read/walk.go' internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go')" ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -61,6 +64,9 @@ go test ./internal/rooted/ ./cmd/mrw/ -count=1 -timeout 120s -run 'TestTheLinkWa
 | `TestTheLinkWalkBoundsALoop` | `internal/rooted/links_test.go` | two links pointing at each other refuse rather than spin | — | S1, S2 |
 | `TestResolveRefusesAJunctionOutOfTheRoot` | `internal/rooted/links_windows_test.go` | a real junction out is refused; one that stays inside resolves | — | S1, S2 |
 | `TestAJunctionCannotCarryAnyOpOutOfTheRoot` | `cmd/mrw/junction_windows_test.go` | read, replace, create, rename, unlink through it: refused, the outside file unchanged | — | S1, S2 |
+| `TestAnAbsolutePathUnderAJunctionedRootIsServed` | `cmd/mrw/junction_windows_test.go` | a root reached through a junction still serves an absolute path inside it (review of #228, S1) | — | S2 |
+| `TestTheLinkWalkRefusesASymlinkItCannotRead` | `internal/rooted/links_test.go` | a symlink whose Readlink says ENOENT is refused, not kept as a placeholder (review A2) | — | S2 |
+| `TestTheLinkWalkRefusesAComponentItCannotExamine` | `internal/rooted/links_test.go` | only a missing component ends the walk; one Lstat cannot examine is refused (review A1) | — | S2 |
 
 ## Reachability
 
@@ -99,6 +105,14 @@ go test ./internal/rooted/ ./cmd/mrw/ -count=1 -timeout 120s -run 'TestTheLinkWa
 - 2026-09-25 · 77a408a* · exit 0 · `set -o pipefail …` · acceptance-sha256:1bb7d3efd60543a9e01454df1230b7c631dfb3cc4a839516ea4232521752f923 · ms:490
 - 2026-09-25 · 77a408a* · exit 0 · `set -o pipefail …` · acceptance-sha256:1bb7d3efd60543a9e01454df1230b7c631dfb3cc4a839516ea4232521752f923 · ms:1516
 - 2026-09-25 · 77a408a* · exit 0 · `set -o pipefail …` · acceptance-sha256:1bb7d3efd60543a9e01454df1230b7c631dfb3cc4a839516ea4232521752f923 · ms:949
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:1247
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:413
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:429
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:433
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:397
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:397
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:508
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:396
 
 ## Mutation Log
 (empty until execute)
@@ -111,6 +125,13 @@ go test ./internal/rooted/ ./cmd/mrw/ -count=1 -timeout 120s -run 'TestTheLinkWa
 - 2026-09-25 · 77a408a* · mutant killed · exit 1 · `internal/rooted/links.go` · an unreadable link is walked past lexically instead of refused · acceptance-sha256:1bb7d3efd60543a9e01454df1230b7c631dfb3cc4a839516ea4232521752f923 · covers:an unreadable link refuses
 - 2026-09-25 · 77a408a* · mutant killed · exit 1 · `internal/rooted/links.go` · the hop bound is gone, so two links pointing at each other spin until the test timeout · acceptance-sha256:1bb7d3efd60543a9e01454df1230b7c631dfb3cc4a839516ea4232521752f923 · covers:a link loop is bounded
 - 2026-09-25 · 77a408a* · mutant killed · exit 1 · `internal/rooted/links.go` · a missing component refuses the whole path, so a create through a followed junction is refused as unreadable · acceptance-sha256:1bb7d3efd60543a9e01454df1230b7c631dfb3cc4a839516ea4232521752f923 · covers:a missing component ends the walk
+- 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · a link is kept as written instead of replaced by its target · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · covers:a link is replaced by its target
+- 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · every Readlink ENOENT refuses, so a OneDrive placeholder is refused as a link · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · covers:a placeholder redirects nothing
+- 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · a symlink whose Readlink says ENOENT is kept as a placeholder instead of refused · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · covers:an unreadable link refuses
+- 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · an unreadable link is walked past lexically instead of refused · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · covers:an unreadable link refuses
+- 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · the hop bound is gone, so two links pointing at each other spin until the test timeout · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · covers:a link loop is bounded
+- 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · a missing component refuses the whole path, so a create through a followed junction is refused · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · covers:a missing component ends the walk
+- 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · any Lstat error ends the walk, so a component that cannot be examined is judged by its spelling · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · covers:a missing component ends the walk
 
 ## Invariants
 

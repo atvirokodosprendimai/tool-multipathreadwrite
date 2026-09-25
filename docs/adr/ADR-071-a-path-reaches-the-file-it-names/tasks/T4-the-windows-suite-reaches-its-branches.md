@@ -38,8 +38,8 @@ go test ./cmd/mrw/ ./internal/check/ -count=1 -timeout 120s -run 'TestAFlagValue
   && [ -z "$missing" ] \
   && grep -q '^func needSh(' internal/check/check_test.go \
   && grep -q '^func plainTree(' cmd/mrw/paddedflag_test.go \
-&& git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go' \
-  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go')" ] \
+&& git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read ':(exclude)internal/read/read.go' ':(exclude)internal/read/walk.go' internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go' \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read ':(exclude)internal/read/read.go' ':(exclude)internal/read/walk.go' internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go')" ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -78,10 +78,13 @@ go test ./cmd/mrw/ ./internal/check/ -count=1 -timeout 120s -run 'TestAFlagValue
 - 2026-09-25 · 77a408a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6350300fa3fe07d431d62e1b19d6d0ee92dfb298377da8a1eb63b5a5a18eccbf · ms:1733
 - 2026-09-25 · 77a408a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6350300fa3fe07d431d62e1b19d6d0ee92dfb298377da8a1eb63b5a5a18eccbf · ms:627
 - 2026-09-25 · 1357828* · exit 0 · `set -o pipefail …` · acceptance-sha256:6350300fa3fe07d431d62e1b19d6d0ee92dfb298377da8a1eb63b5a5a18eccbf · ms:1127
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:88e650968c914aa273c7f9343ce4609bb083545909e0a4720fd56743ee7cc5a9 · ms:557
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:88e650968c914aa273c7f9343ce4609bb083545909e0a4720fd56743ee7cc5a9 · ms:309
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-25 · 77a408a* · mutant killed · exit 1 · `internal/check/check_test.go` · needSh skips where sh IS present, so the tail test never runs and its PASS line is missing · acceptance-sha256:6350300fa3fe07d431d62e1b19d6d0ee92dfb298377da8a1eb63b5a5a18eccbf · covers:a test that needs sh says so
+- 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/check/check_test.go` · needSh skips where sh IS present, so the tail test never runs and its PASS line is missing · acceptance-sha256:88e650968c914aa273c7f9343ce4609bb083545909e0a4720fd56743ee7cc5a9 · covers:a test that needs sh says so
 
 ## Invariants
 

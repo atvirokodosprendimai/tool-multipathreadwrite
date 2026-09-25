@@ -71,3 +71,28 @@ func TestAJunctionCannotCarryAnyOpOutOfTheRoot(t *testing.T) {
 		t.Errorf("a.txt is gone from the root: %v", err)
 	}
 }
+
+// ADR-071, review of #228 (S1). A root reached through a junction must still
+// serve an absolute path inside it: read's pre-screen compared the argument,
+// resolved only by EvalSymlinks (which stops at a junction), with a root that
+// Abs had followed through it, so the two were spelled differently.
+func TestAnAbsolutePathUnderAJunctionedRootIsServed(t *testing.T) {
+	base := t.TempDir()
+	root, alias := filepath.Join(base, "root"), filepath.Join(base, "alias")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("inside\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("cmd", "/c", "mklink", "/J", alias, root).CombinedOutput(); err != nil {
+		t.Fatalf("mklink /J: %v\n%s", err, out)
+	}
+	abs := filepath.Join(alias, "a.txt")
+	if out, code := runIn(t, alias, "read", abs); code != 0 || !strings.Contains(out, "| inside") {
+		t.Errorf("read %s under a root reached through a junction: exit %d:\n%s", abs, code, out)
+	}
+	if out, code := runIn(t, alias, "read", "--grep", "inside", abs); code != 0 || !strings.Contains(out, "| inside") {
+		t.Errorf("read --grep inside %s under a junctioned root: exit %d:\n%s", abs, code, out)
+	}
+}

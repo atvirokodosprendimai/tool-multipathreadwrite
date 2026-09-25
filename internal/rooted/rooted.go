@@ -35,7 +35,7 @@ import (
 func Abs(root string) (string, error) {
 	if followLinks {
 		if c, r := win32Alias(root); c != "" {
-			return "", fmt.Errorf("root %s: Windows reads %q as %q, a different directory than written; name it as it is on disk", root, c, r)
+			return "", fmt.Errorf("root %s: Windows does not keep %q as written (it drops a trailing dot or space and reads ':' as a stream; it would reach %q); name it as it is on disk", root, c, r)
 		}
 	}
 	absRoot, err := filepath.Abs(root)
@@ -57,7 +57,7 @@ func Abs(root string) (string, error) {
 func Resolve(root, path string) (string, error) {
 	if followLinks {
 		if c, r := win32Alias(path); c != "" {
-			return "", fmt.Errorf("%s: Windows reads %q as %q, a different file than written; name the file as it is on disk", path, c, r)
+			return "", fmt.Errorf("%s: Windows does not keep %q as written (it drops a trailing dot or space and reads ':' as a stream; it would reach %q); name the file as it is on disk", path, c, r)
 		}
 	}
 	absRoot, err := Abs(root)
@@ -97,6 +97,25 @@ func Resolve(root, path string) (string, error) {
 		return "", fmt.Errorf("%s resolves to %s, which is outside the root %s", path, check, absRoot)
 	}
 	return full, nil
+}
+
+// Real is p as the boundary compares it: cleaned, and with its links resolved
+// the way Abs resolves a root — on Windows through junctions as well (ADR-071)
+// — so an absolute argument and the root it is checked against are spelled the
+// same way. Resolving only with EvalSymlinks, which stops at a junction,
+// refused an absolute path inside a root reached through one (review of #228).
+// A path that cannot be resolved comes back cleaned; Resolve still judges it.
+func Real(p string) string {
+	p = filepath.Clean(p)
+	if followLinks {
+		if t, err := throughLinks(p, osLinks); err == nil {
+			p = t
+		}
+	}
+	if real, err := filepath.EvalSymlinks(p); err == nil {
+		return real
+	}
+	return p
 }
 
 // Contains reports whether p is absRoot itself or something beneath it. The

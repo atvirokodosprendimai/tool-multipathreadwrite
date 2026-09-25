@@ -63,6 +63,17 @@ func TestTwoCreatesThatCouldBeOneFileAreRefused(t *testing.T) {
 			{Path: "src.txt", Op: "rename", Body: []string{"Dest.txt"}, SrcLine: 1},
 			{Path: "dest.txt", Op: "create", Body: []string{"x"}, SrcLine: 3},
 		}, "Dest.txt", "dest.txt"},
+		// strings.ToLower is not the filesystem's fold: these differ only by
+		// case under Unicode's simple folding, and APFS kept one file for each
+		// pair at exit 0 (review of #228, B1).
+		{"s and long s", []Input{
+			{Path: "s.txt", Op: "create", Body: []string{"one"}, SrcLine: 1},
+			{Path: "ſ.txt", Op: "create", Body: []string{"two"}, SrcLine: 3},
+		}, "s.txt", "ſ.txt"},
+		{"sigma and final sigma", []Input{
+			{Path: "σ.txt", Op: "create", Body: []string{"one"}, SrcLine: 1},
+			{Path: "ς.txt", Op: "create", Body: []string{"two"}, SrcLine: 3},
+		}, "σ.txt", "ς.txt"},
 	} {
 		t.Run(tc.why, func(t *testing.T) {
 			root := t.TempDir()
@@ -182,5 +193,32 @@ func TestTheCaseComparisonLeavesTwoExistingFilesToSameFile(t *testing.T) {
 	got := foldClashes(in, func(name string) bool { return name == "a.txt" })
 	if reason := got[1]; !strings.Contains(reason, "A.txt may name the same file as a.txt (plan line 1)") {
 		t.Fatalf("a name that does not exist yet was not compared: %v", got)
+	}
+}
+
+// Folds no name comparison here can see — ß and ss, NFC and NFD — still reach
+// one file on APFS. The commit stops at the second create instead of renaming
+// over the first: PARTIALLY APPLIED and an error, never a lost body at exit 0
+// (review of #228, B2). It runs where the filesystem folds ß into ss.
+func TestACollisionTheNamesCannotShowIsCaughtAtCommit(t *testing.T) {
+	root := t.TempDir()
+	probe := filepath.Join(root, "ß.probe")
+	if err := os.WriteFile(probe, nil, 0o644); err != nil {
+		t.Skipf("cannot write %q: %v", probe, err)
+	}
+	_, err := os.Stat(filepath.Join(root, "ss.probe"))
+	_ = os.Remove(probe)
+	if err != nil {
+		t.Skip("this filesystem keeps ß and ss apart")
+	}
+	res, err := Apply(root, indexed([]Input{
+		{Path: "ß.txt", Op: "create", Body: []string{"one"}, SrcLine: 1},
+		{Path: "ss.txt", Op: "create", Body: []string{"two"}, SrcLine: 3},
+	}), Options{})
+	if err == nil || !strings.Contains(err.Error(), "appeared before commit") {
+		t.Fatalf("the second create renamed over the first: err %v, hunks %+v", err, res.Hunks)
+	}
+	if got := read(t, root, "ß.txt"); got != "one\n" {
+		t.Fatalf("the first body was lost: %q", got)
 	}
 }

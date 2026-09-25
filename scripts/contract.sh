@@ -6651,6 +6651,20 @@ out=$(m write --no-check "$R/p141c.mrw" 2>&1); rc=$?
 want 1 "$rc" "one path created twice is refused"
 grep -q 'd.txt is created twice in this plan (plan lines 1 and 3)' <<<"$out" && ok "and the refusal names both plan lines" || bad "refusal: $out"
 [ ! -e "$R/d.txt" ] && ok "and nothing was written" || bad "a path created twice was written: $(cat "$R/d.txt")"
+# The folds no name comparison can see (ß and ss on APFS): the commit stops at
+# the second create instead of renaming over the first — PARTIALLY APPLIED,
+# exit 2, the first body kept. Skipped where the filesystem keeps them apart.
+fixture
+printf 'x' > "$R/$(printf '\303\237').probe"
+if [ -e "$R/ss.probe" ]; then
+  printf '@@ \303\237.txt - create\none\n@@ ss.txt - create\ntwo\n' > "$R/p141d.mrw"
+  out=$(m write --no-check "$R/p141d.mrw" 2>&1); rc=$?
+  want 2 "$rc" "a create the filesystem folds into an earlier one stops the commit"
+  grep -q 'appeared before commit' <<<"$out" && grep -q 'PARTIALLY APPLIED' <<<"$out" && ok "and says so, naming what landed" || bad "fold at commit: $out"
+  [ "$(cat "$R/ss.txt")" = "one" ] && ok "and the first body survives" || bad "the first body was lost: $(cat "$R/ss.txt")"
+else
+  skip "this filesystem keeps ß and ss apart"
+fi
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

@@ -91,10 +91,7 @@ func (w *walker) consider(p string, named bool) {
 			w.problems = append(w.problems, Problem{Path: p, Reason: absErr.Error()})
 			return
 		}
-		cleaned := filepath.Clean(p)
-		if real, evalErr := filepath.EvalSymlinks(cleaned); evalErr == nil {
-			cleaned = real
-		}
+		cleaned := rooted.Real(p)
 		if !rooted.Contains(absRoot, cleaned) {
 			// Named, so it is reported rather than skipped: rule 5.
 			w.problems = append(w.problems, Problem{

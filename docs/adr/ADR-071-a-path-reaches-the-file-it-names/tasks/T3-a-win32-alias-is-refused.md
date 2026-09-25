@@ -40,8 +40,8 @@ go test ./internal/rooted/ -count=1 -timeout 120s -run 'TestWin32Alias|TestResol
   && [ -z "$missing" ] \
   && GOOS=windows go vet ./internal/rooted/ \
   && grep -q '^func TestResolveRefusesAWin32Alias(' internal/rooted/links_windows_test.go \
-&& git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go' \
-  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go')" ] \
+&& git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read ':(exclude)internal/read/read.go' ':(exclude)internal/read/walk.go' internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go' \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read ':(exclude)internal/read/read.go' ':(exclude)internal/read/walk.go' internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go')" ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -87,6 +87,10 @@ go test ./internal/rooted/ -count=1 -timeout 120s -run 'TestWin32Alias|TestResol
   FAIL
   ```
 - 2026-09-25 · 77a408a* · exit 0 · `set -o pipefail …` · acceptance-sha256:d1b5bac5a3cf13917be9d9fc9b7722eb8771301fb0796651fdf47ce153b2fad5 · ms:795
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:5b5df0c361a553a1117383c05ca0dee0e777ce37414a32ee5640695a79606d1d · ms:345
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:5b5df0c361a553a1117383c05ca0dee0e777ce37414a32ee5640695a79606d1d · ms:271
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:5b5df0c361a553a1117383c05ca0dee0e777ce37414a32ee5640695a79606d1d · ms:333
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:5b5df0c361a553a1117383c05ca0dee0e777ce37414a32ee5640695a79606d1d · ms:299
 
 ## Mutation Log
 (empty until execute)
@@ -96,6 +100,9 @@ go test ./internal/rooted/ -count=1 -timeout 120s -run 'TestWin32Alias|TestResol
 - 2026-09-25 · 77a408a* · mutant killed · exit 1 · `internal/rooted/links.go` · a trailing dot is no longer an alias, so b.txt. reaches b.txt · acceptance-sha256:d1b5bac5a3cf13917be9d9fc9b7722eb8771301fb0796651fdf47ce153b2fad5 · covers:a trailing dot or space is an alias
 - 2026-09-25 · 77a408a* · mutant killed · exit 1 · `internal/rooted/links.go` · a colon is no longer a stream, so b.txt::$DATA reaches b.txt · acceptance-sha256:d1b5bac5a3cf13917be9d9fc9b7722eb8771301fb0796651fdf47ce153b2fad5 · covers:a colon is a stream
 - 2026-09-25 · 77a408a* · mutant killed · exit 1 · `internal/rooted/links.go` · dot and dot-dot are no longer exempt, so a cleaned ./a.txt would be refused on Windows · acceptance-sha256:d1b5bac5a3cf13917be9d9fc9b7722eb8771301fb0796651fdf47ce153b2fad5 · covers:. and .. are not aliases
+- 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · a trailing dot is no longer an alias, so b.txt. reaches b.txt · acceptance-sha256:5b5df0c361a553a1117383c05ca0dee0e777ce37414a32ee5640695a79606d1d · covers:a trailing dot or space is an alias
+- 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · a colon is no longer a stream, so b.txt::$DATA reaches b.txt · acceptance-sha256:5b5df0c361a553a1117383c05ca0dee0e777ce37414a32ee5640695a79606d1d · covers:a colon is a stream
+- 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · dot and dot-dot are no longer exempt, so a cleaned ./a.txt would be refused on Windows · acceptance-sha256:5b5df0c361a553a1117383c05ca0dee0e777ce37414a32ee5640695a79606d1d · covers:. and .. are not aliases
 
 ## Invariants
 

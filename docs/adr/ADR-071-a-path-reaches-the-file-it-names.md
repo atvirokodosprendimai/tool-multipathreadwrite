@@ -6,10 +6,10 @@
 **Owner:** M
 **Spec:** None — no spec stage
 **Cross-references:** ADR-002, ADR-004, ADR-005, ADR-006, ADR-021, ADR-029, ADR-069, docs/adr/BACKLOG.md
-**Governs:** `internal/rooted/**`, `internal/apply/apply.go`, `internal/apply/create_identity_test.go`, `internal/check/*_test.go`, `cmd/mrw/paddedflag_test.go`, `cmd/mrw/junction_windows_test.go`, `scripts/contract.sh`, `AGENTS.md`, `README.md`, `internal/guide/guide.go`, `internal/guide/guide_test.go`
+**Governs:** `internal/rooted/**`, `internal/apply/apply.go`, `internal/read/read.go`, `internal/read/walk.go`, `internal/apply/create_identity_test.go`, `internal/check/*_test.go`, `cmd/mrw/paddedflag_test.go`, `cmd/mrw/junction_windows_test.go`, `scripts/contract.sh`, `AGENTS.md`, `README.md`, `internal/guide/guide.go`, `internal/guide/guide_test.go`
 **Enforced-by:** `internal/apply/create_identity_test.go::TestTwoCreatesThatCouldBeOneFileAreRefused`
 **Invalidates:** ADR-021 Decision 4 ("Only existing files are checked") — two creates are now checked by name; ADR-021 Decision 5 ("Nothing folds case") now holds for EXISTING files only
-**Served-path change:** On Windows a junction under `--root` is followed and judged like a symlink, so a read, replace, create, rename or unlink through a junction that leaves the root is refused; a path component ending in `.` or a space, or holding a `:`, is refused by name on Windows. On every platform a plan that creates one path twice, or leaves two paths on disk that differ only by case where at least one does not exist yet, is refused, exit 1, nothing written.
+**Served-path change:** On Windows a junction under `--root` is followed and judged like a symlink, so a read, replace, create, rename or unlink through a junction that leaves the root is refused; a path component ending in `.` or a space, or holding a `:`, is refused by name on Windows. On every platform a plan that creates one path twice, or leaves two paths on disk that differ only by case (Unicode simple case folding) where at least one does not exist yet, is refused, exit 1, nothing written; a create whose name the filesystem folds into one an earlier create made (ß and ss, NFC and NFD) stops the commit there, PARTIALLY APPLIED, exit 2, instead of renaming over it.
 
 ## Context
 
@@ -54,25 +54,36 @@
 1. **A junction is followed like a symlink, in the one boundary.** On Windows, `Resolve` and `Abs`
    first walk the path component by component; a component whose `Lstat` mode is `ModeSymlink` or
    `ModeIrregular` is replaced by its `os.Readlink` target, and the walk restarts on the result.
-   A `Readlink` that fails with Go's "another type of reparse point" `ENOENT` leaves the component
-   as it is: it redirects nothing (a OneDrive placeholder). Any other failure refuses the path:
-   `<path> is a link or junction mrw cannot follow`. The walk is platform-independent code driven
-   through an injected `Lstat`/`Readlink`; only the choice to run it is Windows-only, so the POSIX
-   path is byte-for-byte what it was.
+   A `Readlink` that fails with Go's "another type of reparse point" `ENOENT` leaves an irregular
+   component as it is: it redirects nothing (a OneDrive placeholder). Any other failure, a symlink
+   that cannot be read, or a component `Lstat` cannot examine, refuses the path; only a component
+   that does not exist ends the walk. The walk is platform-independent code driven through an
+   injected `Lstat`/`Readlink`; only the choice to run it is Windows-only, so the POSIX path is
+   byte-for-byte what it was. `rooted.Real` resolves an absolute argument the same way, and
+   `read` and the `--grep` walk use it, so a root reached through a junction and a path inside it
+   are compared in one spelling.
 2. **A create is the only hunk of its file.** A second `create` of one path fails:
    `<path> is created twice in this plan (plan lines A and B); one create per file`.
 3. **Names that differ only by case are one file, whatever the filesystem.** Every name the plan
-   will leave on disk (a path with a non-path op, and every rename destination) is compared
-   lowercased. Two different names with one lowercase form, where at least one does not exist yet,
-   are refused on the later one: `<b> may name the same file as <a> (plan line N) on a
+   will leave on disk (a path with a non-path op, and every rename destination) is compared under
+   Unicode simple case folding, the equality `strings.EqualFold` uses (`s` and `ſ`, `σ` and
+   `ς`). Two different names with one folded form, where at least one does not exist yet, are
+   refused on the later one: `<b> may name the same file as <a> (plan line N) on a
    case-insensitive filesystem; one file, one spelling per plan`. Two EXISTING files are left to
    ADR-021's `os.SameFile`, so `a.txt` and `A.txt` on ext4 still both apply. A rename's own source
    is not a name the plan leaves, so a case-only rename is untouched. Trailing dots, spaces and
    `:` are NOT folded here: on POSIX `10:00.log` and `10:01.log` are two files, and on Windows
    Decision 4 refuses those spellings before any comparison.
+
+   **And the commit catches the folds a name cannot show.** APFS also folds full case forms (`ß`
+   and `ss`, `ﬁ` and `fi`) and ignores Unicode normalization (NFC and NFD), and comparing
+   those needs tables the standard library does not carry. So a create whose target exists by the
+   time it is committed stops the commit there: PARTIALLY APPLIED, exit 2, naming what landed,
+   instead of renaming over the earlier file at exit 0. It also catches another process creating
+   the file between validation and commit.
 4. **Win32 aliases are refused on Windows.** A component of a caller's path, or of the root, that
    ends in `.` or a space (other than `.` and `..`), or that holds a `:`, is refused by name:
-   `<path>: Windows reads "<component>" as "<mapped>"; name the file as it is on disk`.
+   Windows drops the trailing characters, cannot create such a name, and reads `:` as a stream.
 5. **The Windows suite reaches its branches.** Tests that need `sh` skip without it; the tail test
    stops before indexing; the padded-path refusals, which fire before any I/O, get a fixture that
    does not need a file named `x `.
@@ -95,10 +106,12 @@ a symlink nor a junction, which `Readlink` cannot follow and the walk then treat
 
 ## Component / Boundary Impact
 
-`internal/apply` is an engine package and this record owns its create checks (Decisions 2 and 3).
-`internal/rooted` is the boundary package (ADR-006). `internal/check` changes in its test file only.
-Byte-identical: `internal/read`, `internal/plan`, `internal/seen`, `internal/state`,
-`internal/lines`, `internal/iter`, and `internal/check` outside its test files.
+`internal/apply` is an engine package and this record owns its create checks and the commit guard
+(Decisions 2 and 3). `internal/rooted` is the boundary package (ADR-006). `internal/read` changes in
+two lines, the absolute-path pre-screens of `read.go` and `walk.go`, which now call
+`rooted.Real`. `internal/check` changes in its test files only. Byte-identical: `internal/plan`,
+`internal/seen`, `internal/state`, `internal/lines`, `internal/iter`, the rest of
+`internal/read`, and `internal/check` outside its test files.
 
 ## Wiring & Contract Changes
 
@@ -119,8 +132,9 @@ See `docs/adr/ADR-071-a-path-reaches-the-file-it-names/tasks/README.md`.
 
 ## Consequences
 
-- **Positive:** the only confinement escape the round found is closed; no create can silently lose
-  a body.
+- **Positive:** the only confinement escape the round found is closed, and no create loses a body
+  at exit 0: a case pair is refused before anything is written, and a fold only the filesystem
+  knows stops the commit, PARTIALLY APPLIED, exit 2.
 - **Negative:** on a case-sensitive filesystem a plan that creates `n.txt` and `N.TXT` together is
   refused; the message says why, and two plans do it.
 - **Neutral:** no exit code changes meaning.

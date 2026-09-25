@@ -50,7 +50,13 @@ func throughLinks(p string, lfs linkFS) (string, error) {
 		next := filepath.Join(cur, rest[0])
 		fi, err := lfs.lstat(next)
 		if err != nil {
-			return filepath.Join(append([]string{next}, rest[1:]...)...), nil
+			// Only a component that is not there ends the walk: a create names
+			// a file that does not exist yet. One that cannot be examined is
+			// not knowledge of where the path leads (review of #228, A1).
+			if errors.Is(err, fs.ErrNotExist) {
+				return filepath.Join(append([]string{next}, rest[1:]...)...), nil
+			}
+			return "", fmt.Errorf("%s cannot be examined, so mrw cannot tell where it leads: %w", next, err)
 		}
 		rest = rest[1:]
 		if fi.Mode()&(os.ModeSymlink|os.ModeIrregular) == 0 {
@@ -88,15 +94,16 @@ func components(p string) []string {
 	return strings.FieldsFunc(p, func(r rune) bool { return os.IsPathSeparator(uint8(r)) })
 }
 
-// win32Alias reports the first component of p that Windows reads as a
-// different name, and the name it reads.
+// win32Alias reports the first component of p that Windows does not keep as
+// written, and the name left once the characters Windows drops are dropped.
 //
-// Win32 strips a trailing dot or space from every component, so "b.txt." and
-// "b.txt " open b.txt; and a colon names an NTFS stream, so "b.txt::$DATA"
-// opens b.txt's data. On Windows each let a write or an unlink land through a
-// name that is not on disk while the receipt named the alias (ADR-071). "." and
-// ".." end in a dot and mean what they say. Both separators are split because
-// the function models Windows, wherever it is tested.
+// Win32 drops a trailing dot or space from a name, so "b.txt." and "b.txt "
+// open b.txt, and it cannot create a name that ends in one; and a colon names
+// an NTFS stream, so "b.txt::$DATA" opens b.txt's data. On Windows each let a
+// write or an unlink land through a name that is not on disk while the receipt
+// named the alias (ADR-071). "." and ".." end in a dot and mean what they say.
+// Both separators are split because the function models Windows, wherever it
+// is tested.
 func win32Alias(p string) (comp, reads string) {
 	p = p[len(filepath.VolumeName(p)):]
 	for _, c := range strings.FieldsFunc(p, func(r rune) bool { return r == '/' || r == '\\' }) {

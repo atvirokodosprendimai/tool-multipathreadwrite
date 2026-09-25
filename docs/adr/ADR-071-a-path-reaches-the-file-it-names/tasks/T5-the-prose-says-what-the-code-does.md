@@ -43,8 +43,8 @@ go test ./internal/guide/ -count=1 -timeout 120s -run 'TestInstructionsSayAWritt
   && [ -z "$missing" ] \
   && grep -q 'junction' AGENTS.md \
   && grep -q 'junction' README.md \
-&& git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go' \
-  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go')" ] \
+&& git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read ':(exclude)internal/read/read.go' ':(exclude)internal/read/walk.go' internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go' \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read ':(exclude)internal/read/read.go' ':(exclude)internal/read/walk.go' internal/plan internal/seen internal/state internal/lines internal/iter internal/check ':(exclude)internal/check/*_test.go')" ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -78,10 +78,13 @@ go test ./internal/guide/ -count=1 -timeout 120s -run 'TestInstructionsSayAWritt
 - 2026-09-25 · 77a408a* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd2651fa22bc6e1f08efb1162c17ed07393c877ef51bd08defced5473447685e · ms:665
 - 2026-09-25 · 77a408a* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd2651fa22bc6e1f08efb1162c17ed07393c877ef51bd08defced5473447685e · ms:219
 - 2026-09-25 · 77a408a* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd2651fa22bc6e1f08efb1162c17ed07393c877ef51bd08defced5473447685e · ms:719
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:f8b0cfae886d5e975d754cfed2a2d937dce1594d0ede879452b65ed7559136a8 · ms:377
+- 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:f8b0cfae886d5e975d754cfed2a2d937dce1594d0ede879452b65ed7559136a8 · ms:240
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-25 · 77a408a* · mutant killed · exit 1 · `internal/guide/guide.go` · mrw instructions no longer state the write exception to the per-line rule · acceptance-sha256:bd2651fa22bc6e1f08efb1162c17ed07393c877ef51bd08defced5473447685e · covers:a file mrw wrote is wholly known
+- 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/guide/guide.go` · mrw instructions no longer state the write exception to the per-line rule · acceptance-sha256:f8b0cfae886d5e975d754cfed2a2d937dce1594d0ede879452b65ed7559136a8 · covers:a file mrw wrote is wholly known
 
 ## Invariants
 

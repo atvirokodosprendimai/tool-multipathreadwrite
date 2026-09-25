@@ -1946,6 +1946,8 @@ Contract breaks, reproduced on macOS:
   to stat. Mixed create-and-rename variants are caught only at commit (`PARTIALLY APPLIED`).
   **Fixed by ADR-071 T2**, contract §141: a second create of one path, and names that differ only
   by case where one does not exist yet, are refused on every platform before anything is written.
+  Folds only the filesystem knows (ß and ss, NFC and NFD, found by the review of #228) stop the
+  commit at the second create, PARTIALLY APPLIED, exit 2, instead of losing the first body.
 - **Two writers off one read can both exit 0 with one edit lost.** `scripts/chaos.py` already
   counts this as a known, accepted risk (race suite, "concurrent writes"); the Windows chaos runs
   measured it at 45–53% of racing writers over five full-scale corpora, and it reproduces on

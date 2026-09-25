@@ -15,7 +15,7 @@ import (
 // "another type of reparse point" (ENOENT), and an unreadable one answers
 // permission denied.
 type fakeEntry struct {
-	kind   string // "dir", "link", "placeholder", "unreadable"
+	kind   string // "dir", "link", "placeholder", "unreadable", "denied", "brokensymlink"
 	target string
 }
 
@@ -45,17 +45,22 @@ func fakeLinks(entries map[string]fakeEntry) linkFS {
 			if !ok {
 				return nil, &fs.PathError{Op: "lstat", Path: p, Err: fs.ErrNotExist}
 			}
-			mode := os.ModeDir
-			if e.kind != "dir" {
-				mode = os.ModeIrregular
+			switch e.kind {
+			case "dir":
+				return fakeInfo{filepath.Base(p), os.ModeDir}, nil
+			case "denied":
+				return nil, &fs.PathError{Op: "lstat", Path: p, Err: fs.ErrPermission}
+			case "brokensymlink":
+				return fakeInfo{filepath.Base(p), os.ModeSymlink}, nil
 			}
+			mode := os.ModeIrregular
 			return fakeInfo{filepath.Base(p), mode}, nil
 		},
 		readlink: func(p string) (string, error) {
 			switch e := byPath[filepath.Clean(p)]; e.kind {
 			case "link":
 				return filepath.FromSlash(e.target), nil
-			case "placeholder":
+			case "placeholder", "brokensymlink":
 				return "", &fs.PathError{Op: "readlink", Path: p, Err: fs.ErrNotExist}
 			default:
 				return "", &fs.PathError{Op: "readlink", Path: p, Err: fs.ErrPermission}
@@ -161,9 +166,9 @@ func TestTheLinkWalkBoundsALoop(t *testing.T) {
 	}
 }
 
-// Win32 strips a trailing dot or space from every component and reads a colon
-// as an NTFS stream, so each of these names reaches a different file than the
-// one written. The check names the component and what Windows reads.
+// Win32 drops a trailing dot or space from a name and reads a colon as an NTFS
+// stream, so each of these names does not reach the file written. The check
+// names the component and what is left once those characters are dropped.
 func TestWin32AliasNamesTheComponentWindowsWouldRemap(t *testing.T) {
 	for in, want := range map[string][2]string{
 		"b.txt.":        {"b.txt.", "b.txt"},
@@ -187,5 +192,30 @@ func TestWin32AliasLeavesDotAndDotDotAlone(t *testing.T) {
 		if comp, _ := win32Alias(in); comp != "" {
 			t.Errorf("win32Alias(%q) named %q, which Windows reads as written", in, comp)
 		}
+	}
+}
+
+// A symlink whose Readlink answers ENOENT is a link mrw cannot follow, not a
+// placeholder: only an irregular entry may say "not a link" and be kept
+// (review of #228, A2).
+func TestTheLinkWalkRefusesASymlinkItCannotRead(t *testing.T) {
+	links := fakeLinks(map[string]fakeEntry{
+		"/r":   {kind: "dir"},
+		"/r/s": {kind: "brokensymlink"},
+	})
+	if _, err := throughLinks(filepath.FromSlash("/r/s/x"), links); err == nil {
+		t.Fatal("a symlink that could not be read was kept as a plain component")
+	}
+}
+
+// Only a component that is not there ends the walk. One that cannot be
+// examined is refused, not judged by its spelling (review of #228, A1).
+func TestTheLinkWalkRefusesAComponentItCannotExamine(t *testing.T) {
+	links := fakeLinks(map[string]fakeEntry{
+		"/r":   {kind: "dir"},
+		"/r/d": {kind: "denied"},
+	})
+	if _, err := throughLinks(filepath.FromSlash("/r/d/x"), links); err == nil {
+		t.Fatal("a component that could not be examined ended the walk as if it were missing")
 	}
 }

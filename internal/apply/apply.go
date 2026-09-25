@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -697,6 +698,20 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		}
 	}
 	for i, w := range content {
+		// ADR-071: a create whose target exists by now was made by an earlier
+		// rename in this commit under a name the filesystem folds into this one
+		// — ß.txt and ss.txt on APFS, the NFC and NFD spellings of one name —
+		// or by another process. Renaming over it would lose that body at exit
+		// 0, so the commit stops and says what already landed. foldClashes
+		// refuses the case pairs before anything is written; this catches the
+		// folds no name comparison can see (review of #228).
+		if w.file.Created {
+			if _, err := os.Stat(staged[i].target); err == nil {
+				discard(i)
+				err := fmt.Errorf("%s appeared before commit: another name in this plan reaches the same file, or another process created it", w.file.Path)
+				return commitFailed(w.file.Path, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
+			}
+		}
 		if err := commitRenameFn(staged[i].tmp, staged[i].target); err != nil {
 			discard(i)
 			return commitFailed(w.file.Path, err, fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files)))
@@ -1850,7 +1865,7 @@ func foldClashes(in []Input, exists func(string) bool) map[int]string {
 		if name == "." {
 			continue
 		}
-		key := strings.ToLower(name)
+		key := foldKey(name)
 		prior, seen := first[key]
 		if !seen {
 			first[key] = named{name, i.SrcLine}
@@ -1887,4 +1902,24 @@ func clashAt(hs []hunk, clash map[int]string) int {
 		}
 	}
 	return -1
+}
+
+// foldKey is name with every rune replaced by the smallest rune of its Unicode
+// simple case-folding orbit — the equality strings.EqualFold uses — so s and ſ,
+// σ and ς, K and the Kelvin sign are one key. strings.ToLower is not the
+// filesystem's fold: s.txt and ſ.txt passed it and APFS kept one of them
+// (review of #228). Full folding (ß and ss) and normalization (NFC and NFD)
+// need tables the standard library does not carry; the commit catches those.
+func foldKey(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		least := r
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			if f < least {
+				least = f
+			}
+		}
+		b.WriteRune(least)
+	}
+	return b.String()
 }
