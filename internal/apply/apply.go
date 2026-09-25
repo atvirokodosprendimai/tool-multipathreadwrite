@@ -425,7 +425,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// ADR-073: a FIFO, a socket or a device named in a plan blocked the
 			// write in os.ReadFile below. It is refused before it is opened.
 			if !info.Mode().IsRegular() && !info.IsDir() {
-				refuseFile(results, path, hs, fmt.Sprintf("%s is not a regular file: mrw would block on a pipe or stream a device without end", path))
+				refuseFile(results, path, hs, 0, fmt.Sprintf("%s is %s", path, lines.NotRegular))
 				failed = append(failed, FileResult{Path: path})
 				continue
 			}
@@ -456,9 +456,11 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// ADR-073: a line edit to a file mrw cannot split into lines — a UTF-16
 		// or UTF-32 byte-order mark, or a NUL in its first 8 KiB — rewrote it at
 		// exit 0 with its encodings mixed. unlink and rename do not split it.
-		if orig.foreign != "" && splitsLines(hs) {
-			refuseFile(results, path, hs, fmt.Sprintf("%s %s: mrw edits UTF-8 text line by line, and a line edit would corrupt it", path, orig.foreign))
-			failed = append(failed, FileResult{Path: path})
+		// The refusal is carried by the hunk that would split the file, and the
+		// receipt reports the file as it is (review of #230).
+		if at := lineEditAt(hs); orig.foreign != "" && at >= 0 {
+			refuseFile(results, path, hs, at, fmt.Sprintf("%s %s: mrw edits UTF-8 text line by line, and a line edit would corrupt it", path, orig.foreign))
+			failed = append(failed, FileResult{Path: path, LinesFrom: len(orig.lines), SHABefore: shaOf(orig)})
 			continue
 		}
 
@@ -1942,25 +1944,27 @@ func foldKey(name string) string {
 	return b.String()
 }
 
-// refuseFile fails a file's first hunk with reason and skips its siblings: one
+// refuseFile fails hs[at] with reason and skips the file's other hunks: one
 // refusal per file, the shape ADR-021 Decision 3 set, reused by ADR-073.
-func refuseFile(results map[int]HunkResult, path string, hs []hunk, reason string) {
+func refuseFile(results map[int]HunkResult, path string, hs []hunk, at int, reason string) {
 	for i, h := range hs {
 		r := HunkResult{Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine, Status: StatusSkipped}
-		if i == 0 {
+		if i == at {
 			r.Status, r.Reason = StatusFailed, reason
 		}
 		results[h.Index] = r
 	}
 }
 
-// splitsLines reports whether any of a file's hunks edits it by line, as every
-// op but unlink and rename does (ADR-073).
-func splitsLines(hs []hunk) bool {
-	for _, h := range hs {
-		if h.Op != "unlink" && h.Op != "rename" {
-			return true
+// lineEditAt is the first of a file's hunks that edits it by line, or -1
+// (ADR-073). An unlink or a rename moves the file whole, and a create over an
+// existing file is refused later with its own reason, which this must not hide
+// (review of #230).
+func lineEditAt(hs []hunk) int {
+	for i, h := range hs {
+		if h.Op != "unlink" && h.Op != "rename" && h.Op != "create" {
+			return i
 		}
 	}
-	return false
+	return -1
 }

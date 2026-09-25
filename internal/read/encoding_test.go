@@ -22,10 +22,10 @@ func TestAForeignFileIsServedWithANote(t *testing.T) {
 	var b strings.Builder
 	observed, problems := Run(&b, root, []Spec{sp}, Options{Numbers: true})
 	if problems != 0 || len(observed) != 1 {
-		t.Fatalf("an encoded file was not served: problems %d, observed %v\n%s", problems, observed, b.String())
+		t.Fatalf("an encoded file was not served: problems %d, observed %v\n%q", problems, observed, b.String())
 	}
 	if !strings.Contains(b.String(), "-- note: u.txt is UTF-16 (BOM FF FE): served as bytes; a write to it is refused") {
-		t.Fatalf("no note names the encoding:\n%s", b.String())
+		t.Fatalf("no note names the encoding:\n%q", b.String())
 	}
 }
 
@@ -42,6 +42,6 @@ func TestAUTF8FileGetsNoNote(t *testing.T) {
 	var b strings.Builder
 	Run(&b, root, []Spec{sp}, Options{Numbers: true})
 	if strings.Contains(b.String(), "-- note:") {
-		t.Fatalf("a UTF-8 file got a note:\n%s", b.String())
+		t.Fatalf("a UTF-8 file got a note:\n%q", b.String())
 	}
 }

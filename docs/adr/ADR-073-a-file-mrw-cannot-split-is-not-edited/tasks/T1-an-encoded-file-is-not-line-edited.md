@@ -25,21 +25,23 @@ before anything is written.
 | `internal/apply/apply.go` | edit | `text.foreign` set by `readLines`; the per-file refusal; the regular-file check beside the ADR-021 stat |
 | `internal/apply/encoding_test.go` | new | refusals, the byte bound, the path ops |
 | `internal/apply/encoding_unix_test.go` | new | the FIFO (Mkfifo is unix-only) |
+| `internal/ingest/applypatch.go`, `internal/ingest/searchreplace.go` | edit | the compilers look before they open the target (review of #230) |
+| `internal/ingest/fifo_unix_test.go` | new | a FIFO named in either `--format` document |
 | `scripts/contract.sh` | edit | §146 |
 
 ## Ordered Steps
 
 1. [S1] Write the tests; confirm RED. [proof: mutation]
 2. [S2] Implement; GREEN; the apply suite stays green. [proof: mutation]
-   Mutants: the `FF FE` branch dropped; UTF-16 checked before UTF-32; the 8192 bound halved; the guard applied to unlink; the regular-file check dropped.
+   Mutants: the `FF FE` branch dropped; UTF-16 checked before UTF-32; the 8192 bound halved; the guard applied to unlink; the regular-file check dropped; the compilers open before they look; the refusal carried by the first hunk.
 3. [S3] Contract §146: a UTF-16 file refused, bytes unchanged; the UTF-8 pair applies; unlink of the UTF-16 file applies. [proof: acceptance]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
-go test ./internal/lines/ ./internal/apply/ -count=1 -timeout 120s -run 'TestUnsplittable|TestAUTF16File|TestANULInTheFirst8KiB|TestUnlinkAndRenameOfAForeign|TestAFIFONamedInAPlan' -v 2>&1 | tee /tmp/adr073-T1.out \
-  && missing=$(for t in TestUnsplittableNamesEveryEncodingItKnows TestAUTF16FileIsRefusedNotRewrittenAsMixedEncodings TestANULInTheFirst8KiBIsRefusedAndOneAfterItIsNot TestUnlinkAndRenameOfAForeignFileStillApply TestAFIFONamedInAPlanIsRefusedNotWaitedOn; do grep -qE "^--- PASS: $t \(" /tmp/adr073-T1.out || echo "$t"; done) \
+go test ./internal/lines/ ./internal/apply/ ./internal/ingest/ -count=1 -timeout 120s -run 'TestUnsplittable|TestAUTF16File|TestANULInTheFirst8KiB|TestUnlinkAndRenameOfAForeign|TestAFIFONamedInAPlan|TestAFIFOTargetIsRefused|TestTheEncodingRefusalNamesTheLineEdit' -v 2>&1 | tee /tmp/adr073-T1.out \
+  && missing=$(for t in TestUnsplittableNamesEveryEncodingItKnows TestAUTF16FileIsRefusedNotRewrittenAsMixedEncodings TestANULInTheFirst8KiBIsRefusedAndOneAfterItIsNot TestUnlinkAndRenameOfAForeignFileStillApply TestAFIFONamedInAPlanIsRefusedNotWaitedOn TestAFIFOTargetIsRefusedNotWaitedOn TestTheEncodingRefusalNamesTheLineEditAndTheFile; do grep -qE "^--- PASS: $t \(" /tmp/adr073-T1.out || echo "$t"; done) \
   && [ -z "$missing" ] \
   && grep -q '^# 146\. ' scripts/contract.sh \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/plan internal/seen internal/check internal/state internal/iter internal/rooted internal/read ':(exclude)internal/read/read.go' ':(exclude)internal/read/encoding_test.go' \
@@ -56,6 +58,8 @@ go test ./internal/lines/ ./internal/apply/ -count=1 -timeout 120s -run 'TestUns
 | `TestANULInTheFirst8KiBIsRefusedAndOneAfterItIsNot` | `internal/apply/encoding_test.go` | offset 8191 refused, 8192 edited | — | S1, S2 |
 | `TestUnlinkAndRenameOfAForeignFileStillApply` | `internal/apply/encoding_test.go` | unlink, rename and create still apply | — | S1, S2 |
 | `TestAFIFONamedInAPlanIsRefusedNotWaitedOn` | `internal/apply/encoding_unix_test.go` | refused within 3 s, not blocked | — | S1, S2 |
+| `TestAFIFOTargetIsRefusedNotWaitedOn` | `internal/ingest/fifo_unix_test.go` | an `apply_patch` and a `search_replace` document naming a FIFO are refused within 3 s | — | S2 |
+| `TestTheEncodingRefusalNamesTheLineEditAndTheFile` | `internal/apply/encoding_test.go` | the refusal on the line edit beside an unlink; the file's sha and line count; a create keeps "already exists" | — | S2 |
 
 ## Reachability
 
@@ -90,6 +94,19 @@ go test ./internal/lines/ ./internal/apply/ -count=1 -timeout 120s -run 'TestUns
 - 2026-09-25 · 59a91a8* · exit 0 · `set -o pipefail …` · acceptance-sha256:a52c1ea755f0ff244be25d88eaf5490736bd1dafe6ce0edba8d1ea3c72892814 · ms:298
 - 2026-09-25 · 59a91a8* · exit 0 · `set -o pipefail …` · acceptance-sha256:a52c1ea755f0ff244be25d88eaf5490736bd1dafe6ce0edba8d1ea3c72892814 · ms:442
 - 2026-09-25 · 59a91a8* · exit 0 · `set -o pipefail …` · acceptance-sha256:a52c1ea755f0ff244be25d88eaf5490736bd1dafe6ce0edba8d1ea3c72892814 · ms:377
+- 2026-09-25 · 7560857 · exit 0 · `set -o pipefail …` · acceptance-sha256:a52c1ea755f0ff244be25d88eaf5490736bd1dafe6ce0edba8d1ea3c72892814 · ms:436
+- 2026-09-25 · 7560857* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:0 · test-lock-sha256:7130fa3d6840d32710592cd78ace618fdeee35761efc8143678fcfa4766cca85 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL2FwcGx5L2VuY29kaW5nX3Rlc3QuZ28JVGVzdEFOVUxJblRoZUZpcnN0OEtpQklzUmVmdXNlZEFuZE9uZUFmdGVySXRJc05vdAkyMzZhNDU5NjYwYzM0M2JlNTE1MDZlOTM4OWYyZjdlODkzYjc3MDVhNjhmYjEwNzVkNGRkMWYyMjg2NmI1MjNmCmJvZHkJaW50ZXJuYWwvYXBwbHkvZW5jb2RpbmdfdGVzdC5nbwlUZXN0QVVURjE2RmlsZUlzUmVmdXNlZE5vdFJld3JpdHRlbkFzTWl4ZWRFbmNvZGluZ3MJMmNmNWI5MmZlYTI2MjE0MTFkMzU1NTkwNWQ3OGJiOGQ1ZTFlMzIxNjRkYzc3NmUzMTc5MzdjNDcxZmZlNzUwMApib2R5CWludGVybmFsL2FwcGx5L2VuY29kaW5nX3Rlc3QuZ28JVGVzdFRoZUVuY29kaW5nUmVmdXNhbE5hbWVzVGhlTGluZUVkaXRBbmRUaGVGaWxlCWUxMzMxYzAyMmJiM2UxNzdiMWM5MGUzYWQ5OTFlMzFlN2UzMjE3ODhmYTczZjBlMzRiNjUzNWZhYmM5MmQ0ZTUKYm9keQlpbnRlcm5hbC9hcHBseS9lbmNvZGluZ190ZXN0LmdvCVRlc3RVbmxpbmtBbmRSZW5hbWVPZkFGb3JlaWduRmlsZVN0aWxsQXBwbHkJNDIwY2UxODEwN2YzZDQyM2I4MDc1MmVkMzAxY2NlYWVhMWEyNTgwNjI4MjFkYTIyZmU3MjhjN2YxMTEzNGEwNwpib2R5CWludGVybmFsL2FwcGx5L2VuY29kaW5nX3VuaXhfdGVzdC5nbwlUZXN0QUZJRk9OYW1lZEluQVBsYW5Jc1JlZnVzZWROb3RXYWl0ZWRPbgljNjYzZTc4MjVhY2JmMzk5N2Q4MDljOGE3N2E0NjQ5ZjJjYjA5YzE2OTQ4ZmI1MGUwMTkyZDU3MDM2YzYxODcyCmJvZHkJaW50ZXJuYWwvaW5nZXN0L2ZpZm9fdW5peF90ZXN0LmdvCVRlc3RBRklGT1RhcmdldElzUmVmdXNlZE5vdFdhaXRlZE9uCTZlNDM1OThjNjcyOGZlOTc4MmY2NjU0OTRhMjhiMmQwZmIzZWU4YjVmZTljYWQ4NTY0YTA1N2EwMmE4Y2JiYjcKYm9keQlpbnRlcm5hbC9saW5lcy9saW5lc190ZXN0LmdvCVRlc3RTcGxpdE9mQW5FbXB0eUZpbGVIYXNOb0xpbmVzCTY4OTI5MTM4OWViYTgwOTFhNjFmMTZmMGE0ZTg1MzFhMDVlNjBkZTE0MDI1NDY3MzQyZjM1ZGZkYjAzZDRkZTUKYm9keQlpbnRlcm5hbC9saW5lcy9saW5lc190ZXN0LmdvCVRlc3RVbnNwbGl0dGFibGVOYW1lc0V2ZXJ5RW5jb2RpbmdJdEtub3dzCTI5MDg4Y2YzYzhkYjU3YzdiYjMwZjMxYjI3ZTEwMWM0MGUzNGNhYWE2NmY2MjdkMjJkMDQ2OWRiYzBjZWEzNmE · test-lock-kind:replace
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:541
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:492
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:259
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:260
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:259
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:271
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:275
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:262
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:285
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:277
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:322
 
 ## Mutation Log
 (empty until execute)
@@ -101,11 +118,20 @@ go test ./internal/lines/ ./internal/apply/ -count=1 -timeout 120s -run 'TestUns
   the fence failed on a build/parse error, not an assertion
   ```
 - 2026-09-25 · 59a91a8* · mutant killed · exit 1 · `internal/apply/apply.go` · a FIFO named in a plan is opened and the write blocks · acceptance-sha256:a52c1ea755f0ff244be25d88eaf5490736bd1dafe6ce0edba8d1ea3c72892814 · covers:a non-regular file is refused before it is read
-- 2026-09-25 · 59a91a8* · mutant inconclusive · exit 1 · `internal/apply/apply.go` · x · acceptance-sha256:a52c1ea755f0ff244be25d88eaf5490736bd1dafe6ce0edba8d1ea3c72892814 · covers:path ops are not line edits
+- 2026-09-25 · 59a91a8* · mutant inconclusive · exit 1 · `internal/apply/apply.go` · a second spelling of the path-op mutant, which did not compile either (an unused variable); superseded by the killed row below · acceptance-sha256:a52c1ea755f0ff244be25d88eaf5490736bd1dafe6ce0edba8d1ea3c72892814 · covers:path ops are not line edits
   ```
   the fence failed on a build/parse error, not an assertion
   ```
 - 2026-09-25 · 59a91a8* · mutant killed · exit 1 · `internal/apply/apply.go` · an unlink of an encoded file is refused as if it were a line edit · acceptance-sha256:a52c1ea755f0ff244be25d88eaf5490736bd1dafe6ce0edba8d1ea3c72892814 · covers:path ops are not line edits
+- 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/lines/lines.go` · a UTF-16LE file is splittable again and a line edit rewrites it · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:a BOM names its encoding
+- 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/lines/lines.go` · UTF-32LE is no longer recognised first, so it is named UTF-16 · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:UTF-32 is checked before UTF-16
+- 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/lines/lines.go` · the NUL scan stops at 4 KiB, so a NUL at offset 8191 is missed · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:the NUL scan is bounded in bytes
+- 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/apply/apply.go` · an unlink of an encoded file is refused as if it were a line edit · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:path ops are not line edits
+- 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/apply/apply.go` · a create over an existing encoded file is refused for its encoding, hiding already exists · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:path ops are not line edits
+- 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/apply/apply.go` · the encoding refusal lands on an unlink beside the line edit · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:path ops are not line edits
+- 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/apply/apply.go` · the receipt reports a refused encoded file with no sha and zero lines · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:a BOM names its encoding
+- 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/apply/apply.go` · a FIFO named in a plan is opened and the write blocks · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:a non-regular file is refused before it is read
+- 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/ingest/applypatch.go` · a FIFO named in an apply_patch or search_replace document is opened and the write blocks · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:a non-regular file is refused before it is read
 
 ## Invariants
 

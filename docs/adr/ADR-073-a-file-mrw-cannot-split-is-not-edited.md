@@ -6,7 +6,7 @@
 **Owner:** M
 **Spec:** None — no spec stage
 **Cross-references:** ADR-002, ADR-005, ADR-007, ADR-065, docs/adr/BACKLOG.md
-**Governs:** `internal/lines/lines.go`, `internal/lines/lines_test.go`, `internal/apply/apply.go`, `internal/apply/encoding_test.go`, `internal/read/read.go`, `internal/read/encoding_test.go`, `scripts/contract.sh`
+**Governs:** `internal/lines/lines.go`, `internal/lines/lines_test.go`, `internal/apply/apply.go`, `internal/apply/encoding_test.go`, `internal/apply/encoding_unix_test.go`, `internal/ingest/applypatch.go`, `internal/ingest/searchreplace.go`, `internal/ingest/fifo_unix_test.go`, `internal/read/read.go`, `internal/read/encoding_test.go`, `scripts/contract.sh`
 **Enforced-by:** `internal/apply/encoding_test.go::TestAUTF16FileIsRefusedNotRewrittenAsMixedEncodings`
 **Invalidates:** none — checked: ADR-007 rules out encoding detection for DISCOVERED walk candidates, whose failure mode is silent omission; this refuses a named file by name and leaves the walk alone
 **Served-path change:** A line edit to an existing file that begins with a UTF-16 or UTF-32 byte-order mark, or holds a NUL byte in its first 8 KiB, is refused per hunk, exit 1, nothing written, naming the encoding; so is any edit of a path that is not a regular file (a FIFO no longer blocks the write). `create`, `unlink` and `rename` of an encoded file are unaffected. `mrw read` serves such a file as before, with one `-- note:` line under its header.
@@ -21,27 +21,33 @@ a write to a file mrw cannot split into lines. The splitter, `internal/lines.Spl
 is half a character pair and a replace body in UTF-8 lands between them.
 
 The same round found that a FIFO named in `mrw read` blocked forever. The write path has the same
-shape: `readLines` (`apply.go:1518`) calls `os.ReadFile` on whatever the plan names.
+shape: `readLines` in `internal/apply/apply.go` calls `os.ReadFile` on whatever the plan names, and
+the two `--format` compilers read the target earlier still, to locate an old side
+(`internal/ingest/applypatch.go`, `searchreplace.go`; found by the review of #230).
 
 ## Existing Primitives Audit
 
 | Primitive | Where | Finding |
 |-----------|-------|---------|
 | `lines.Split` | `internal/lines/lines.go:17` | The one splitter (ADR-065); no encoding step. |
-| `readLines` | `internal/apply/apply.go:1518` | Reads the whole file, then splits. The bytes are in hand. |
+| `readLines` | `internal/apply/apply.go` | Reads the whole file, then splits. The bytes are in hand. |
 | The ADR-021 stat | `internal/apply/apply.go:408` | Already stats every addressed file before reading it. |
-| walk's regular-file rule | `internal/read/walk.go:124-128` | "not a regular file: mrw would block on a pipe or stream a device without end" — the wording to reuse. |
+| walk's regular-file rule | `internal/read/walk.go:124-128` | "not a regular file: mrw would block on a pipe or stream a device without end" — the wording to reuse, now `lines.NotRegular` for apply and the compilers. |
 
 ## Decision
 
 1. **`lines.Unsplittable(b)` names what makes bytes unsplittable**: a UTF-32 BOM (`FF FE 00 00`,
    `00 00 FE FF`, checked first because `FF FE` is its prefix), a UTF-16 BOM (`FF FE`, `FE FF`), or
    a NUL byte in the first 8 KiB; otherwise nothing.
-2. **A line edit to such a file is refused**, one refusal per file on its first hunk, siblings
-   skipped: `<path> is UTF-16 (BOM FF FE): mrw edits UTF-8 text by line and would mix encodings`.
+2. **A line edit to such a file is refused**, one refusal per file on the first hunk that edits it
+   by line, siblings skipped, the receipt naming the file's sha and line count:
+   `<path> is UTF-16 (BOM FF FE): mrw edits UTF-8 text line by line, and a line edit would corrupt it`.
    `--force` does not bypass it: it overrides the read ledger, not the file's encoding. `unlink` and
-   `rename` do not split lines and are unaffected; a `create` has no existing bytes.
-3. **A path that is not a regular file is refused before it is read**, with walk.go's reason.
+   `rename` do not split lines and are unaffected; a `create` over an existing file keeps its own
+   refusal.
+3. **A path that is not a regular file is refused before it is read**, with walk.go's reason
+   (`lines.NotRegular`) — in a native plan, and in the two `--format` compilers, which read the
+   target first.
 4. **`mrw read` notes it and serves as before**: `-- note: <path> is UTF-16 (BOM FF FE): served as
    bytes; a write to it is refused`. No exit-code change: the read still served what was asked.
 

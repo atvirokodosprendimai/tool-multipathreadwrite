@@ -81,4 +81,53 @@ func TestUnlinkAndRenameOfAForeignFileStillApply(t *testing.T) {
 	if err != nil || !res.Applied {
 		t.Fatalf("an unlink, a rename and a create beside encoded files were refused: %v %+v", err, res.Hunks)
 	}
+	if _, err := os.Stat(filepath.Join(root, "a.txt")); !os.IsNotExist(err) {
+		t.Errorf("a.txt was not removed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "b.txt")); !os.IsNotExist(err) {
+		t.Errorf("b.txt was not moved away: %v", err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "c.txt")); string(got) != "\xff\xfeb\x00\n\x00" {
+		t.Errorf("c.txt holds %q, want b.txt's bytes unchanged", got)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "new.txt")); string(got) != "fresh\n" {
+		t.Errorf("new.txt holds %q", got)
+	}
+}
+
+// Review of #230. The refusal is carried by the hunk that would split the file,
+// not by a path op beside it, and the receipt reports the refused file as it
+// is. A create over an existing encoded file keeps its own reason.
+func TestTheEncodingRefusalNamesTheLineEditAndTheFile(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "a.txt", "\xff\xfea\x00\n\x00")
+	sha := shaOfFile(t, root, "a.txt")
+	seen := map[string]Seen{"a.txt": {SHA: sha}}
+	res, err := Apply(root, []Input{
+		{Path: "a.txt", Op: "unlink", Lines: -1, Index: 0},
+		{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1, Index: 1},
+	}, Options{Seen: seen})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Applied || len(res.Hunks) != 2 || res.Hunks[0].Status != StatusSkipped ||
+		res.Hunks[1].Status != StatusFailed || !strings.Contains(res.Hunks[1].Reason, "UTF-16") {
+		t.Fatalf("the refusal is not on the line edit: %+v", res.Hunks)
+	}
+	var reported bool
+	for _, f := range res.Files {
+		if f.Path == "a.txt" {
+			reported = f.SHABefore == sha && f.LinesFrom > 0
+		}
+	}
+	if !reported {
+		t.Fatalf("the refused file is not reported with its sha and line count: %+v", res.Files)
+	}
+	res, err = Apply(root, []Input{{Path: "a.txt", Op: "create", Body: []string{"x"}, Lines: -1, Index: 0}}, Options{Seen: seen})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Applied || len(res.Hunks) != 1 || !strings.Contains(res.Hunks[0].Reason, "already exists") {
+		t.Fatalf("a create over an existing encoded file does not say it exists: %+v", res.Hunks)
+	}
 }

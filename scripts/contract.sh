@@ -6769,6 +6769,34 @@ printf '@@ u16.txt - unlink\n' > "$R/p146c.mrw"
 m write --no-check "$R/p146c.mrw" >/dev/null 2>&1; rc=$?
 want 0 "$rc" "and an unlink of the UTF-16 file applies"
 [ ! -e "$R/u16.txt" ] && ok "and removes it" || bad "u16.txt is still there"
+# --force overrides the read ledger, not the file's encoding; and a NUL in the
+# first 8 KiB refuses as a byte-order mark does (review of #230).
+cp "$R/u16.bak" "$R/u16.txt"; m read u16.txt >/dev/null
+m write --no-check --force "$R/p146.mrw" >/dev/null 2>&1; rc=$?
+want 1 "$rc" "--force does not bypass the encoding refusal"
+cmp -s "$R/u16.txt" "$R/u16.bak" && ok "and the bytes are unchanged" || bad "u16.txt changed under --force"
+printf 'a\000b\nc\n' > "$R/nul.txt"; m read nul.txt >/dev/null
+printf '@@ nul.txt 2 replace\nX\n' > "$R/p146d.mrw"
+out=$(m write --no-check "$R/p146d.mrw" 2>&1); rc=$?
+want 1 "$rc" "a line edit to a file with a NUL in its first 8 KiB is refused"
+grep -q 'holds a NUL byte at offset 1' <<<"$out" && ok "and the refusal names the offset" || bad "nul: $out"
+# A FIFO named in a native plan or an apply_patch document is refused before it
+# is opened. Bounded by polling and a kill, not an alarm: Go ignores SIGALRM.
+mkfifo "$R/p146"
+printf '@@ p146 1 replace\nX\n' > "$R/p146e.mrw"
+printf '*** Begin Patch\n*** Update File: p146\n@@\n-x\n+y\n*** End Patch\n' > "$R/p146f.patch"
+for how in plan apply_patch; do
+	src="$R/p146e.mrw"; [ "$how" = apply_patch ] && src="$R/p146f.patch"
+	"$MRW" -C "$R" write --no-check --format="$how" "$src" > "$R/out146" 2>&1 & pid=$!
+	done146=0; for i in $(seq 1 30); do kill -0 "$pid" 2>/dev/null || { done146=1; break; }; sleep 0.1; done
+	if [ "$done146" = 1 ]; then
+		wait "$pid"; rc=$?
+		[ "$rc" != 0 ] && grep -q 'not a regular file' "$R/out146" && ok "a FIFO in a $how write is refused by name" || bad "$how fifo: rc $rc $(cat "$R/out146")"
+	else
+		kill -9 "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+		bad "a FIFO in a $how write blocked for 3 s"
+	fi
+done
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

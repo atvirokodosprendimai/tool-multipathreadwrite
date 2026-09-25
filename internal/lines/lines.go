@@ -45,6 +45,12 @@ func eolOf(s string) string {
 	return "\n"
 }
 
+// NotRegular is why mrw does not open a pipe, a socket or a device to split it
+// into lines, wherever the path came from: opening a FIFO for reading blocks
+// until something writes to it, and a device can stream without end (ADR-007,
+// ADR-073).
+const NotRegular = "not a regular file: mrw would block on a pipe or stream a device without end"
+
 // nulScan is how many leading bytes Unsplittable searches for a NUL.
 const nulScan = 8192
 

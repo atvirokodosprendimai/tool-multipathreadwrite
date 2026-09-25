@@ -7,6 +7,7 @@
 package ingest
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -284,7 +285,7 @@ func fileLines(root, path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("apply_patch: %w", err)
 	}
-	b, err := os.ReadFile(full)
+	b, err := targetBytes(full)
 	if err != nil {
 		return nil, fmt.Errorf("apply_patch: %s: %w", path, err)
 	}
@@ -292,6 +293,18 @@ func fileLines(root, path string) ([]string, error) {
 	// patch then meets "two", not "two\r", in a CRLF or CR-only file.
 	ls, _, _ := lines.Split(string(b))
 	return ls, nil
+}
+
+// targetBytes reads the file a foreign document edits, to locate its old side.
+// It looks before it opens: the compilers read the target before apply's own
+// regular-file check (ADR-073), so a FIFO named in a document blocked the write
+// until something wrote to the pipe (review of #230). A directory keeps
+// ReadFile's own error.
+func targetBytes(full string) ([]byte, error) {
+	if fi, err := os.Stat(full); err == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
+		return nil, errors.New(lines.NotRegular)
+	}
+	return os.ReadFile(full)
 }
 
 func findUnique(lines, old []string) (start, end, n int) {
