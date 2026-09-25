@@ -77,7 +77,7 @@ WRAPPERS = {"command", "builtin", "exec", "env", "nohup", "time", "sudo", "xargs
 # A wrapper option that takes the next word as its operand: `env -u VAR mrw`
 # runs mrw, not VAR (Codex review of v1.25.0; ADR-070 T4).
 WRAPPER_OPERANDS = {
-    "env": {"-u", "-C", "-S", "--unset", "--chdir", "--split-string"},
+    "env": {"-u", "-C", "--unset", "--chdir"},
     "xargs": {"-n", "-I", "-L", "-P", "-s", "-d", "-a", "-E", "--max-args", "--replace",
               "--max-lines", "--max-procs", "--arg-file", "--delimiter", "--eof"},
     "sudo": {"-u", "-g", "-C", "-h", "-p", "-U", "-D", "--user", "--group"},
@@ -166,6 +166,15 @@ def strip_wrappers(seg):
             return []
         while seg and seg[0].startswith("-") and seg[0] != "-":
             opt, seg = seg[0], seg[1:]
+            if w == "env" and opt in ("-S", "--split-string") and seg:
+                # -S runs its operand as the command line: `env -S cat f` and
+                # `env -S 'cat f'` both run cat (ADR-070 T6).
+                try:
+                    words = shlex.split(seg[0])
+                except ValueError:
+                    words = seg[0].split()
+                seg = words + seg[1:]
+                break
             if opt in WRAPPER_OPERANDS.get(w, ()) and seg:
                 seg = seg[1:]
     return seg
@@ -256,7 +265,7 @@ def segments(cmd, raw=False):
     for b in bodies:
         # An unquoted heredoc still honours a backslash before $, ` and \:
         # `\$(cat f)` is literal text (Codex review of PR #222; ADR-070 T5).
-        inner.extend(substitutions(re.sub(r"\\[\\$`]", "", b)))
+        inner.extend(substitutions(re.sub(r"\\[\\$`]", " ", b)))
     for s in inner:
         out.extend(segments(s, raw))
     return out

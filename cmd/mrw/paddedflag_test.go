@@ -152,3 +152,52 @@ func TestAnAttachedValueEndingInAnyWhitespaceIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// ADR-069 T7, from the second Codex review of PR #222. A parent's persistent
+// flag is accepted by a subcommand that has no flag of the same name
+// (command_parse.go:43-57): write and iter take --root after the verb; read,
+// whose -C is context, does not. Neither guard knew it, so `write --root --
+// --root='dir '` ended the walk at the -- the root flag consumed, and
+// `iter --root ' x' add x` was falsely refused. Both guards read the flags
+// the parser accepts for the command, ancestors included.
+func TestAnInheritedRootFlagIsReadByBothGuards(t *testing.T) {
+	root := rootCommand()
+	if err := refusePaddedFlagValues(root, []string{"write", "--root", "--", "--root=dir ", "p.mrw"}); err == nil {
+		t.Error("a padded attached root after a -- the inherited root flag consumed was not refused")
+	}
+	if err := refusePaddedFlagValues(root, []string{"iter", "--root", "--", "add", "x"}); err != nil {
+		t.Errorf("a -- consumed by the inherited root flag was refused: %v", err)
+	}
+	tree := paddedTree(t)
+	if err := os.MkdirAll(filepath.Join(tree, " x"), 0o755); err != nil {
+		t.Skipf("cannot make %q: %v", " x", err)
+	}
+	if err := os.WriteFile(filepath.Join(tree, " x", "x"), []byte("q\n"), 0o644); err != nil {
+		t.Skipf("cannot write under %q: %v", " x", err)
+	}
+	t.Chdir(tree)
+	if out, code := runIn(t, tree, "iter", "--root", " x", "add", "x"); code != 0 {
+		t.Errorf("iter --root ' x' add x was refused, exit %d:\n%s", code, out)
+	}
+	if out, code := runIn(t, tree, "iter", "--root", " x", "add", "x "); code != exitUsage {
+		t.Errorf("iter --root ' x' add 'x ' exited %d, want %d:\n%s", code, exitUsage, out)
+	}
+}
+
+// ADR-069 T7. A single dash before a non-letter stops the parser, which keeps
+// every remaining token as given (command_parse.go:134-138); the guard read
+// ` -1= ` as an attached flag value and refused it. It stops where the parser
+// stops, and a real attached padded value is still refused.
+func TestASingleDashNonLetterTokenStopsTheParserAndTheGuard(t *testing.T) {
+	root := paddedTree(t)
+	if err := os.WriteFile(filepath.Join(root, " -1= "), []byte("dashfile\n"), 0o644); err != nil {
+		t.Skipf("cannot write %q: %v", " -1= ", err)
+	}
+	t.Chdir(root)
+	if out, code := runIn(t, root, "read", " -1= "); code != 0 || !strings.Contains(out, "dashfile") {
+		t.Errorf("read ' -1= ' exited %d or did not serve the file:\n%s", code, out)
+	}
+	if out, code := runIn(t, root, "read", "--max-lines=1 ", "x"); code != exitUsage || !strings.Contains(out, "own argument") {
+		t.Errorf("--max-lines='1 ' exited %d, want %d as an attached padded value:\n%s", code, exitUsage, out)
+	}
+}

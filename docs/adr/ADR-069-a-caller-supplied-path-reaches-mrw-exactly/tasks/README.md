@@ -9,13 +9,14 @@ README must be regenerated.
 ## Waves
 
 T1–T4 are independent. T5 amends T1's guard after the Codex review of v1.25.0; T6 amends T5's
-after the Codex review of PR #222.
+after the Codex review of PR #222; T7 amends T6's after that review's second round.
 
 | Wave | Tasks | Depends-on |
 |------|-------|------------|
 | 1 | T1, T2, T3, T4 | none |
 | 2 | T5 | none |
 | 3 | T6 | T5 |
+| 4 | T7 | T6 |
 
 ## Execution Order
 
@@ -27,6 +28,7 @@ after the Codex review of PR #222.
 | 4 | T4 | none |
 | 5 | T5 | none |
 | 6 | T6 | T5 |
+| 7 | T7 | T6 |
 
 ## Task Index
 
@@ -38,6 +40,7 @@ after the Codex review of PR #222.
 | T4 | apply_patch and search_replace keep a path's trailing space; contract §131 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T4-foreign-formats-keep-the-path.md` fence |
 | T5 | A flag value does not end the guard; an attached padded value is refused; contract §134 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T5-flag-values-and-attached-values.md` fence |
 | T6 | A flag name is read trimmed; the whole-argv guard reads values and the terminator; any trailing whitespace refuses an attached value; contract §135 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T6-flag-names-argv-walk-and-any-whitespace.md` fence |
+| T7 | Both guards read the flags the parser accepts, ancestors included, and stop where it stops; contract §136 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T7-inherited-flags-and-the-parsers-stop.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

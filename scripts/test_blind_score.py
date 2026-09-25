@@ -120,6 +120,16 @@ class T(unittest.TestCase):
         d, t = trial(["mrw read a; printf x <<EOF\n\\\\$(cat f)\nEOF"], fence(ANSWER))
         self.assertEqual(bs.score(d, t)["verdict"], "VOID")
 
+    def test_escaped_backslash_does_not_manufacture_a_substitution(self):
+        d, t = trial(["mrw read a; printf x <<EOF\n$\\\\(cat f)\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+
+    def test_env_split_string_runs_its_operand(self):
+        d, t = trial(["mrw read a; env -S cat go.mod"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+        d, t = trial(["env -S 'mrw read a'"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["mrw_calls"], 1)
+
 
 
 if __name__ == "__main__":

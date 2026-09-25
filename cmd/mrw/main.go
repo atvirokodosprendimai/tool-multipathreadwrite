@@ -1727,17 +1727,18 @@ func refusePaddedArgs(cmd *cli.Command) error {
 	if len(raw) > 0 {
 		raw = raw[1:] // the subcommand's own name
 	}
-	kinds := takesValue(cmd.Flags)
+	kinds := flagKinds(cmd.Lineage()...)
 	value := false
 	for _, tok := range raw {
 		if value {
 			value = false
 			continue
 		}
-		if strings.TrimSpace(tok) == "--" {
-			break
+		role, next := flagRole(tok, kinds)
+		if role == roleTerminator || role == roleStop {
+			break // what follows is kept as given
 		}
-		if isFlag, next := flagRole(tok, kinds); isFlag {
+		if role == roleFlag {
 			if err := padAttached(tok); err != nil {
 				return err
 			}
@@ -1766,22 +1767,83 @@ func takesValue(flags []cli.Flag) map[string]bool {
 	return m
 }
 
+// flagKinds is takesValue over every flag the parser accepts for the command
+// at lineage[0] (lineage runs from it up to the root, as cmd.Lineage() does):
+// its own flags, then each ancestor's non-local ones — an ancestor flag is
+// skipped WHOLE when any of its names is already one of the command's own
+// (command_parse.go:43-57). That is why `write` and `iter` take --root after
+// the verb while `read`, whose -C is context, does not. Neither guard knew
+// it, so `write --root -- --root='dir '` ended at the -- the root flag
+// consumed, and `iter --root ' x' add x` was falsely refused (Codex review of
+// PR #222, second round; ADR-069 T7).
+func flagKinds(lineage ...*cli.Command) map[string]bool {
+	kinds := takesValue(lineage[0].Flags)
+	own := map[string]bool{}
+	for _, f := range lineage[0].Flags {
+		for _, n := range f.Names() {
+			own[n] = true
+		}
+	}
+	for _, anc := range lineage[1:] {
+		for _, f := range anc.Flags {
+			if lf, ok := f.(cli.LocalFlag); ok && lf.IsLocal() {
+				continue
+			}
+			clash := false
+			for _, n := range f.Names() {
+				if own[n] {
+					clash = true
+					break
+				}
+			}
+			if clash {
+				continue
+			}
+			_, isBool := f.(*cli.BoolFlag)
+			for _, n := range f.Names() {
+				kinds[n] = !isBool
+			}
+		}
+	}
+	return kinds
+}
+
+// tokenRole is how the parser reads one token (command_parse.go:112-139).
+type tokenRole int
+
+const (
+	rolePositional tokenRole = iota
+	roleFlag                 // begins with "-" after the parser's trim
+	roleTerminator           // a bare "--": what follows is positional, kept as given
+	roleStop                 // a single "-" before a non-letter: parsing stops, the rest is kept as given
+)
+
 // flagRole classifies tok the way the parser does. The parser trims a token
-// before it looks at it (command_parse.go:81), so a flag is one that begins
-// with "-" after that trim, and its name is looked up trimmed. consumesNext is
-// true for a known flag that takes a separate value; an attached value
-// (name=value) consumes nothing, and an unknown name is left to the parser,
-// which refuses it by name before any Action runs.
-func flagRole(tok string, kinds map[string]bool) (isFlag, consumesNext bool) {
+// before it looks at it (command_parse.go:81), so the name is looked up
+// trimmed: looked up as typed, a padded boolean name (`'--no-numbers '`) read
+// as value-taking and hid the padded path after it (ADR-069 T6). A single
+// dash before a non-letter is where the parser stops and keeps every
+// remaining token as given, so a file named ` -1= ` is served, not refused
+// as an attached value (ADR-069 T7). consumesNext is true for a known flag
+// that takes a separate value; an attached value (name=value) consumes
+// nothing, and an unknown name is left to the parser, which refuses it by
+// name before any Action runs.
+func flagRole(tok string, kinds map[string]bool) (role tokenRole, consumesNext bool) {
 	t := strings.TrimSpace(tok)
-	if len(t) < 2 || !strings.HasPrefix(t, "-") || t == "--" {
-		return false, false
+	if t == "--" {
+		return roleTerminator, false
+	}
+	if len(t) < 2 || t[0] != '-' {
+		return rolePositional, false
+	}
+	if t[1] != '-' && !unicode.IsLetter(rune(t[1])) {
+		return roleStop, false
 	}
 	name := strings.TrimLeft(t, "-")
 	if strings.Contains(name, "=") {
-		return true, false
+		return roleFlag, false
 	}
-	return true, kinds[name]
+	return roleFlag, kinds[name]
 }
 
 // padAttached refuses an attached flag value that ends in whitespace. urfave
@@ -1804,18 +1866,22 @@ func padAttached(tok string) error {
 // values — so a separate value that looks like a flag (`--files-from
 // '--list= '`) is not judged, and a "--" a flag consumed does not end the walk
 // (`--root -- --root='dir '` reached dir; Codex review of PR #222, ADR-069 T6).
+// The flags in force below a subcommand include its ancestors' persistent
+// ones, as the parser's do (ADR-069 T7).
 func refusePaddedFlagValues(root *cli.Command, argv []string) error {
-	kinds, cmds := takesValue(root.Flags), root.Commands
+	lineage := []*cli.Command{root}
+	kinds, cmds := flagKinds(lineage...), root.Commands
 	value := false
 	for _, tok := range argv {
 		if value {
 			value = false
 			continue
 		}
-		if strings.TrimSpace(tok) == "--" {
-			return nil
+		role, next := flagRole(tok, kinds)
+		if role == roleTerminator || role == roleStop {
+			return nil // what follows is kept as given
 		}
-		if isFlag, next := flagRole(tok, kinds); isFlag {
+		if role == roleFlag {
 			if err := padAttached(tok); err != nil {
 				return err
 			}
@@ -1823,8 +1889,9 @@ func refusePaddedFlagValues(root *cli.Command, argv []string) error {
 			continue
 		}
 		// A positional: at the root it names the subcommand whose flags are
-		// in force from here; below one it is a path for that command's own
-		// guard. An unknown name is the parser's to refuse.
+		// in force from here, its ancestors' persistent ones included; below
+		// one it is a path for that command's own guard. An unknown name is
+		// the parser's to refuse.
 		if len(cmds) == 0 {
 			continue
 		}
@@ -1832,7 +1899,8 @@ func refusePaddedFlagValues(root *cli.Command, argv []string) error {
 		if sub == nil {
 			return nil
 		}
-		kinds, cmds = takesValue(sub.Flags), sub.Commands
+		lineage = append([]*cli.Command{sub}, lineage...)
+		kinds, cmds = flagKinds(lineage...), sub.Commands
 	}
 	return nil
 }

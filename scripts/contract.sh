@@ -6550,6 +6550,30 @@ want 2 "$rc" "an attached value ending in a newline is refused"
 grep -q 'own argument' <<<"$out" && ok "and the newline refusal names the separate spelling" || bad "refusal: $out"
 out=$(m read --files-from "$WORK/135 list"$'\n' 2>&1); rc=$?
 want 0 "$rc" "and the separate spelling serves the newline-named list"
+
+# 136. ADR-069 T7 (the Codex review of PR #222, second round): a parent's
+# persistent flag is accepted by a subcommand that has no flag of the same
+# name (--root after write or iter; not after read, whose -C is context), and
+# neither guard knew it; and a single dash before a non-letter stops the
+# parser, which keeps the rest as given, while the guard read it as a flag.
+fixture
+printf 'padded\n' > "$R/x "
+mkdir "$R/d "; printf 'in d\n' > "$R/d /x"; printf '@@ x 1 replace\nnew\n' > "$WORK/136.mrw"
+out=$(m write --no-check --root -- --root="$R " "$WORK/136.mrw" 2>&1); rc=$?
+want 2 "$rc" "an inherited root flag after the verb is read by the whole-argv guard"
+grep -q 'own argument' <<<"$out" && ok "and its refusal names the separate spelling" || bad "refusal: $out"
+"$MRW" -C "$R/d " read x >/dev/null
+"$MRW" --root -- --root "$R/d " write --no-check --dry-run "$WORK/136.mrw" >/dev/null 2>&1
+want 0 $? "and a -- the root flag consumed, then a separate padded root, is accepted"
+mkdir "$R/ x"; printf 'q\n' > "$R/ x/x"
+(cd "$R" && "$MRW" -C "$R" iter --root ' x' add x) >/dev/null 2>&1
+want 0 $? "an inherited root value equal to a positional after its trim is not refused"
+(cd "$R" && "$MRW" -C "$R" iter --root ' x' add 'x ') >/dev/null 2>&1
+want 2 $? "and a padded positional after it still is"
+printf 'dashfile\n' > "$R/ -1= "
+out=$(cd "$R" && "$MRW" -C "$R" read ' -1= ' 2>&1); rc=$?
+want 0 "$rc" "a single dash before a non-letter stops the parser and the guard"
+grep -q 'dashfile' <<<"$out" && ok "and the path is served as given" || bad "served: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

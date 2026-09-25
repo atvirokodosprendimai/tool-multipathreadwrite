@@ -69,6 +69,12 @@ a wrongly typed answer, and no minimum mrw-call count.
    with correct answers scored `VOID: banned: command cat`. Now a backslash before `$`, `` ` `` or
    `\` in an unquoted body is honoured before substitutions are read; `\\$(cat f)` (an escaped
    backslash, then a real substitution) is still scanned.
+6. **Amended 2026-09-25 after the second Codex review of PR #222 (T6).** Item 5 deleted an
+   escaped pair, which joined its neighbours: `$\\(cat f)`, a literal `$` and an escaped backslash,
+   became `$(cat f)` and voided a run. The pair is now replaced by a space, so nothing joins. And
+   `env -S` / `--split-string` was read as an option with an operand, so `env -S cat go.mod` scored
+   `go.mod` as the command word while `cat` ran; the operand is now split into words and read as
+   the command line it is.
 
 **What would make this decision fail:** a file whose first line really begins `body=` (an `.env`,
 an `.ini`), edited by a hand-written hunk with no count. It is refused, and the message names the

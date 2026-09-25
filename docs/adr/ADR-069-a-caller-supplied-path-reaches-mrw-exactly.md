@@ -91,6 +91,16 @@ Recovering it means re-implementing urfave's flag arity and short-flag grouping 
    values, the subcommand, its flags and their values; only a bare `--` ends it), and any trailing
    whitespace on an attached value is refused. Item 5's invariant holds again: a separate value is
    never refused.
+7. **Amended 2026-09-25 after the second Codex review of PR #222 (T7).** Two gaps in item 6. A
+   parent's persistent flag is accepted by a subcommand that has no flag of the same name
+   (`command_parse.go:43-57`): `write` and `iter` take `--root` after the verb, `read`, whose `-C`
+   is context, does not. Neither guard read the inherited flag, so `write --root -- --root='dir '`
+   ended the walk at the `--` the root flag consumed and reached `dir`, and `iter --root ' x' add x`
+   was falsely refused. And a single dash before a non-letter is where the parser stops and keeps
+   every remaining token as given (`command_parse.go:134-138`), so a file named ` -1= ` was served
+   by v1.25.0 and refused by item 6's walker as an attached value. Now both guards read the flags
+   the parser accepts for the command, ancestors' persistent ones included, and stop where the
+   parser stops.
 
 **What would make this decision fail:** a caller who relies on the trim, e.g. a generated
 `--files-from` list with trailing spaces after every path. That caller now gets a read of a
