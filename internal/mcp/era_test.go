@@ -213,7 +213,8 @@ func jsonInner(s string) string {
 
 // A guard, captured on T1–T3's tree before any T4 edit: legacy answers are
 // byte-identical after normalisation, and none carries resultType.
-// MRW_UPDATE_LEGACY_GOLDEN=1 rewrites the file; that is only ever done before T4.
+// MRW_UPDATE_LEGACY_GOLDEN=1 rewrites the file. It was done before ADR-067 T4, and once by ADR-070,
+// whose worked plan gained " body=4": the diff was that token and nothing else.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
 	got := legacyTranscript(t)
 	golden := filepath.Join("testdata", "legacy_golden.jsonl")

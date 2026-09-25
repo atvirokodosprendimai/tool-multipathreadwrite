@@ -155,6 +155,12 @@ type Hunk struct {
 	Index int
 }
 
+// bodyCountLine is a body= option written on a line of its own. In blind
+// reading 04 four of seven trials put it under the header (body=1, and
+// body=status: x), where an uncounted hunk took it as content and mrw wrote it
+// into the file (ADR-070).
+var bodyCountLine = regexp.MustCompile(`^\s*body=`)
+
 // Parse reads a plan document. It returns every syntax error it found rather
 // than the first, because a caller that has to re-emit the plan should learn
 // about all of its mistakes in one round trip.
@@ -264,6 +270,15 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		}
 		if !strings.HasPrefix(hdr, "@@ ") {
 			if cur != nil {
+				// Only the first line of an uncounted body, and never a
+				// rename's, whose body is a path: that is where the mistake
+				// lands. A counted body is the escape for a file that really
+				// starts with such a line (ADR-070).
+				if len(body) == 0 && cur.Op != OpRename && bodyCountLine.MatchString(line) {
+					errs = append(errs, fmt.Sprintf("line %d: %q sits under the @@ header; body= belongs ON "+
+						"the header line: @@ <path> <addr> <op> body=<n>. To write this line as content, "+
+						"count the body on the header", n, line))
+				}
 				body = append(body, line)
 				continue
 			}

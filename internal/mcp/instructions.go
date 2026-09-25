@@ -36,7 +36,7 @@ const maxInstructionsChars = 4096
 
 // examplePlan is a worked plan: two hunks, two files, one guard. Two rather
 // than one so the example is a plan, not a single hunk.
-const examplePlan = `@@ internal/store/store.go 42-44 replace anchor="func (s *Store) Get"
+const examplePlan = `@@ internal/store/store.go 42-44 replace anchor="func (s *Store) Get" body=4
 func (s *Store) Get(id string) (Row, bool) {
 	r, ok := s.rows[id]
 	return r, ok

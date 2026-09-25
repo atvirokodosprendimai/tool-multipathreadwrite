@@ -44,6 +44,7 @@ MSYS rewrites a regex address before mrw starts. Export MSYS2_ARG_CONV_EXCL='*',
 A shell glob and an address suffix do not mix.
 A value with spaces can be double-quoted (anchor="func openTestStore"), single-quoted (anchor='func openTestStore'), or — for anchor= only — left unquoted until the next key=. An unquoted anchor= that contains a double quote is refused; write it as anchor="…".
 body= is a line count, not a character count. Python str splits characters; do not use len(body) as body=.
+body= goes ON the header, never on a line of its own: @@ a.go 12-14 replace anchor="func A" body=3, then exactly 3 body lines.
 body=@path loads the body from a root-relative file.
 lines= is a guard on how many lines the ADDRESS covers, and is not body=.
 The checkout is named by global -C DIR or --root DIR before the subcommand (mrw -C repo write plan). After read, -C is context lines, not a checkout.

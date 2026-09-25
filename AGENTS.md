@@ -203,7 +203,9 @@ refused and leaves no file behind. `body=@path` loads those lines from a
 root-relative file (empty file ≡ `body=0`); that path is not a ledger read.
 An unquoted `anchor=` that contains `"` is refused — write `anchor="…"`.
 `--dry-run` prints each parsed hunk's `body=N`. A leftover `body=` names
-declared vs extra.
+declared vs extra. `body=<n>` goes ON the header — `@@ a.go 12-14 replace anchor="func A" body=3` —
+never on a line of its own: a hunk with no count whose first body line begins `body=` is refused
+(ADR-070), because in blind reading 04 that line was written into the file.
 
 ```
 @@ internal/apply/apply.go 42-58 replace anchor="func Apply" lines=17

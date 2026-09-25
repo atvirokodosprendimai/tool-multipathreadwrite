@@ -334,16 +334,20 @@ func emit(op, path string, start, end int, body []string, anchor string) string 
 	if anchor != "" {
 		fmt.Fprintf(&b, " %s", quoteAnchor(anchor))
 	}
-	needCount := false
+	// A body with an @@ line needs a count so the parser knows where it ends;
+	// one whose first line begins body= needs one so the parser does not refuse
+	// it as an option written under the header (ADR-070).
+	needCount := len(body) > 0 && strings.HasPrefix(strings.TrimSpace(body[0]), "body=")
+	raw := false
 	for _, line := range body {
 		if strings.HasPrefix(line, "@@") {
-			needCount = true
+			needCount, raw = true, true
 			break
 		}
 	}
 	if needCount || (op == "create" && len(body) == 0) {
 		fmt.Fprintf(&b, " body=%d", len(body))
-		if needCount {
+		if raw {
 			b.WriteString(" raw=true")
 		}
 	}
