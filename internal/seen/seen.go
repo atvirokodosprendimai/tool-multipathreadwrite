@@ -25,6 +25,7 @@ package seen
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -131,6 +132,7 @@ func Load(root string) (Ledger, error) {
 	defer f.Close()
 
 	sc := bufio.NewScanner(f)
+	sc.Split(scanLF)
 	if !sc.Scan() {
 		return l, sc.Err()
 	}
@@ -184,6 +186,7 @@ func IsStale(root string) (bool, error) {
 	}
 	defer f.Close()
 	sc := bufio.NewScanner(f)
+	sc.Split(scanLF)
 	if !sc.Scan() {
 		return false, sc.Err() // an empty file is not a stale one
 	}
@@ -195,12 +198,31 @@ const StaleNotice = "mrw: the read ledger was written by an older mrw and has be
 	"up to v0.0.11 a read that served nothing recorded the whole file, and such an entry cannot be " +
 	"told from a real one. Read the files you mean to edit again."
 
+// scanLF splits the ledger on "\n" alone. bufio.ScanLines also drops a "\r"
+// before it, which loaded the observation of a file named "x\r" under "x"
+// (ADR-068). save ends every line with a bare "\n", so nothing else is a
+// terminator; a ledger with CRLF endings was not written by mrw, and its
+// header no longer matches, so it is discarded as stale — a refusal, never a
+// wrong licence.
+func scanLF(data []byte, atEOF bool) (int, []byte, error) {
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		return i + 1, data[:i], nil
+	}
+	if atEOF && len(data) > 0 {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
+}
+
 // parseLine reads one ledger line. Two shapes are accepted: the current
 // "<sha>  <spans>  <path>" and the pre-span "<sha>  <path>", which is read as a
 // whole-file observation — a ledger written by an older mrw stays usable rather
 // than reading as "never seen".
 func parseLine(text string) (string, Observation, bool) {
-	sha, rest, ok := strings.Cut(strings.TrimSpace(text), "  ")
+	// Nothing is trimmed: the writer emits the path verbatim as the last field,
+	// so trimming the line turned an observation of "x " into a licence for "x"
+	// (ADR-068). scanLF has already removed the "\n" and nothing else.
+	sha, rest, ok := strings.Cut(text, "  ")
 	if !ok || sha == "" || rest == "" {
 		return "", Observation{}, false
 	}
