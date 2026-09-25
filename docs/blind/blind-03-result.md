@@ -112,3 +112,7 @@ These are what the agents said the instructions left unclear. They are leads, no
   --exclude build` and got it right.
 - **Pattern matching.** One Sonnet run noted that `/regexp/` is a substring match unless anchored,
   which is why `/status:/` matched two lines.
+
+Re-scored with the ADR-070 scorer (2026-09-25): all nine trials in `blind-03-replay/`, old scorer
+(`main` at `c43095d`) against the fixed one. Every verdict, correct count and mrw call count is
+unchanged, so this reading's PASS stands.

@@ -111,3 +111,7 @@ in `docs/adr/BACKLOG.md`. A reading 05 on the build that ships it re-runs this e
 (backslash-newline, heredocs, `command cat`, `cat` inside `$(…)`, `env mrw`). None appears in any
 reading-04 transcript, checked 2026-09-24 over the committed replay kits, so no verdict here
 depends on them.
+
+Re-scored with the ADR-070 scorer (2026-09-25): all seven trials in `blind-04-replay/`, old scorer
+(`main` at `c43095d`) against the fixed one. Every verdict, correct count and mrw call count is
+unchanged, so this reading's FAIL stands.

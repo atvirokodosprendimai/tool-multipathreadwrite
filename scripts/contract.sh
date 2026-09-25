@@ -6483,6 +6483,30 @@ m write --no-check --format=apply_patch "$WORK/131.patch" >/dev/null 2>&1
 want 0 $? "an apply_patch update of a trailing-space path applies"
 [ "$(cat "$R/x ")" = "$(printf 'one\nTWO')" ] && [ "$(cat "$R/x")" = "$(printf 'one\ntwo')" ] \
 	&& ok "an apply_patch path keeps its trailing space" || bad "x-space: $(cat "$R/x "); x: $(cat "$R/x")"
+
+# 132. ADR-070 T1: blind reading 04's agents saw body= described and never on
+# a header, and four of seven wrote it on a line of its own. mrw instructions
+# carries a worked replace header that counts its body.
+fixture
+out=$(m instructions 2>&1)
+grep -qE '@@ [^ ]+ [0-9]+(-[0-9]+)? replace [^ ].* body=[1-9]' <<<"$out" \
+	&& ok "mrw instructions shows body= on a header" || bad "no worked body= header in: $out"
+
+# 133. ADR-070 T2: a hunk with no body= count whose first body line begins
+# body= is refused, exit 2 (the plan does not parse), nothing written; reading 04 had it written into
+# s2's docs/meta.yaml. The pair: counting the body writes that line.
+fixture
+printf 'title: x\n' > "$R/meta.yaml"
+m read meta.yaml >/dev/null 2>&1
+printf '@@ meta.yaml 1 replace\nbody=1\ntitle: y\n' > "$WORK/133a.mrw"
+out=$(m write --no-check "$WORK/133a.mrw" 2>&1); rc=$?
+want 2 "$rc" "a body= line under the header is refused"
+[ "$(cat "$R/meta.yaml")" = 'title: x' ] && ok "and nothing was written" || bad "meta.yaml: $(cat "$R/meta.yaml")"
+grep -q 'belongs ON' <<<"$out" && ok "and the refusal says body= belongs on the header" || bad "refusal: $out"
+printf '@@ meta.yaml 1 replace body=1\nbody=1\n' > "$WORK/133b.mrw"
+m write --no-check "$WORK/133b.mrw" >/dev/null 2>&1
+want 0 $? "and a counted body writes a body= line as content"
+[ "$(cat "$R/meta.yaml")" = 'body=1' ] && ok "and the file holds it" || bad "meta.yaml: $(cat "$R/meta.yaml")"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
