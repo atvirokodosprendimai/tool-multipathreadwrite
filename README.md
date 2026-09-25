@@ -6,7 +6,7 @@ writes nothing, because a write that changed nothing is invisible.
 
 The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). The six-guarantee comparison lives in [docs/comparison.md](docs/comparison.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
 
-**Status: stable at v1.25.1 (2026-09-25), the tag cut from `5cf522c`.** Break campaign for it: [docs/break/campaign-v1.25.1.txt](docs/break/campaign-v1.25.1.txt), 57 probes, exit codes identical to v1.25.0.
+**Status: stable at v1.26.0 (2026-09-26), the tag cut from `9bed12e`.** Break campaign for it: [docs/break/campaign-v1.26.0.txt](docs/break/campaign-v1.26.0.txt), 57 probes; one exit code changed from v1.25.1, as intended: `binary-nul-write` 0 → 1, ADR-073's refusal of a line edit to a file with a NUL in its first 8 KiB.
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
