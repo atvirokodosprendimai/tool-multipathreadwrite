@@ -95,6 +95,7 @@ go test ./cmd/mrw/ -count=1 -timeout 180s -run 'IsAJSONDocumentUnderJSON' -v 2>&
 - 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:7e2b5deb3501645914eb80e1a615bc42f8baa7cb4000d875df55e4798fec7c8c · ms:1496
 - 2026-09-25 · e3f7978* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:7e2b5deb3501645914eb80e1a615bc42f8baa7cb4000d875df55e4798fec7c8c · ms:0 · test-lock-sha256:9bdae1f58180ff37f296a0aa2be467a66c489639b36aa3299d718e4eb55f33df · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvanNvbl9yZWZ1c2FsX3Rlc3QuZ28JVGVzdEFNYWxmb3JtZWRIYXJuZXNzSXNBSlNPTkRvY3VtZW50VW5kZXJKU09OCWRhNWIwOGM2MzQyODllZDcyODBlMTVhOTc2ZDY5YmQ3NTcwN2QxNzM2ZGNhODVmZDlhODk3NDFiZTRiZjhhZDYKYm9keQljbWQvbXJ3L2pzb25fcmVmdXNhbF90ZXN0LmdvCVRlc3RBTWlzc2luZ0JvZHlGaWxlSXNBSlNPTkRvY3VtZW50VW5kZXJKU09OCWJiODk5ZWNlNDkzMWMyNDllNWY0Njc0ZjFhNThhMTZmZGU2MGVhN2NmMDJjZmJmMTc3ZGM2MjUwZmU3ZGFiNWMKYm9keQljbWQvbXJ3L2pzb25fcmVmdXNhbF90ZXN0LmdvCVRlc3RBUGxhblRoYXREb2VzTm90UGFyc2VJc0FKU09ORG9jdW1lbnRVbmRlckpTT04JNmIxZjlhNzA0YjhhNjVlYmYzNWZiZmVkYWVkY2Y5YTMxYzlhNjE3ZjY0ZDcwOGNiNDViMGU4MTQ2MmY2MmRjOA · test-lock-kind:replace
 - 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:7e2b5deb3501645914eb80e1a615bc42f8baa7cb4000d875df55e4798fec7c8c · ms:934
+- 2026-09-25 · 7836e8d* · exit 0 · `set -o pipefail …` · acceptance-sha256:7e2b5deb3501645914eb80e1a615bc42f8baa7cb4000d875df55e4798fec7c8c · ms:349
 
 ## Mutation Log
 (empty until execute)

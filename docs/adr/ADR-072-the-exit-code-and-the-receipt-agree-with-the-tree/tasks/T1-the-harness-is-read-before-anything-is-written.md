@@ -95,6 +95,7 @@ go test ./cmd/mrw/ -count=1 -timeout 180s -run 'TestAMalformedHarness|TestAMarkd
 - 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:01001c2816d767067181c26d24e79776efa8c6c2662b58625f15983bb6893db3 · ms:348
 - 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:01001c2816d767067181c26d24e79776efa8c6c2662b58625f15983bb6893db3 · ms:328
 - 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:01001c2816d767067181c26d24e79776efa8c6c2662b58625f15983bb6893db3 · ms:418
+- 2026-09-25 · 7836e8d* · exit 0 · `set -o pipefail …` · acceptance-sha256:01001c2816d767067181c26d24e79776efa8c6c2662b58625f15983bb6893db3 · ms:1243
 
 ## Mutation Log
 (empty until execute)
