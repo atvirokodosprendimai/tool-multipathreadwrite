@@ -1992,8 +1992,8 @@ Windows only, each hand-confirmed by at least two sessions:
   a fixture that does not need the file, since every refusal fires before any I/O. `go test ./...`
   hung once after `internal/lines` (n=1; every package passes alone; not retried as a whole under
   either shell). `-race` needs cgo there, and `contract.sh` needs `jq`.
-  **Fixed by ADR-071 T4** for the check tests, the tail panic and the padded fixture (ten of the
-  thirteen no longer need a file named `x `; three serve such a file and keep their skip). The
+  **Fixed by ADR-071 T4** for the check tests, the tail panic and the padded fixture (eight of the
+  thirteen no longer need a file named with trailing whitespace; five serve one and keep their skip). The
   one hang of `go test ./...` under PowerShell is not reproduced (n=1) and stays open.
 
 Smaller, recorded as found: an in-root symlink is followed on write and the target is absent from

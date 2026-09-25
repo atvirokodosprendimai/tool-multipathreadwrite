@@ -27,7 +27,7 @@ because their fixture needs a file named `x `. The refusals those tests pin fire
 ## Ordered Steps
 
 1. [S1] The fence is RED: `needSh` and `plainTree` do not exist, and under PowerShell the tail test panics (Windows report). Add `needSh` and the `Fatalf`; split the fixture; GREEN, and the suite stays green on macOS and Linux. [proof: acceptance]
-2. [S2] The Windows shards run the padded tests instead of skipping them; the task quotes the CI job's `--- PASS` lines. [proof: acceptance]
+2. [S2] The Windows shards run the eight padded tests that need no such file. CI runs `go test` without `-v`, so a pass prints no per-test line: the evidence is the `cmd/mrw` package passing on the shard, where these tests had skipped. The first Windows run of this change failed two tests that create their own ` -1= ` (NTFS stores it as ` -1=`); they went back to `paddedTree` and its skip. [proof: acceptance]
 
 ## Acceptance
 
@@ -77,6 +77,7 @@ go test ./cmd/mrw/ ./internal/check/ -count=1 -timeout 120s -run 'TestAFlagValue
 - 2026-09-25 · 77a408a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6350300fa3fe07d431d62e1b19d6d0ee92dfb298377da8a1eb63b5a5a18eccbf · ms:396
 - 2026-09-25 · 77a408a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6350300fa3fe07d431d62e1b19d6d0ee92dfb298377da8a1eb63b5a5a18eccbf · ms:1733
 - 2026-09-25 · 77a408a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6350300fa3fe07d431d62e1b19d6d0ee92dfb298377da8a1eb63b5a5a18eccbf · ms:627
+- 2026-09-25 · 1357828* · exit 0 · `set -o pipefail …` · acceptance-sha256:6350300fa3fe07d431d62e1b19d6d0ee92dfb298377da8a1eb63b5a5a18eccbf · ms:1127
 
 ## Mutation Log
 (empty until execute)

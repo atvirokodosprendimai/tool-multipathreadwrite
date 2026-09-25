@@ -26,8 +26,10 @@ func paddedTree(t *testing.T) string {
 // plainTree holds x alone. The refusals these tests pin fire before any I/O
 // and the reads they pair them with serve x, so they need no file named "x "
 // — which Win32 cannot hold beside x, and whose absence skipped all thirteen
-// padded-path tests on NTFS (ADR-071 T4). paddedTree stays for the three that
-// serve a file whose name ends in whitespace.
+// padded-path tests on NTFS (ADR-071 T4). paddedTree stays for the five that
+// serve a file whose name ends in whitespace — two of them create their own
+// (" -1= "), which NTFS stores silently as " -1=" (found by the first Windows
+// run of this change).
 func plainTree(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -203,7 +205,7 @@ func TestAnInheritedRootFlagIsReadByBothGuards(t *testing.T) {
 // ` -1= ` as an attached flag value and refused it. It stops where the parser
 // stops, and a real attached padded value is still refused.
 func TestASingleDashNonLetterTokenStopsTheParserAndTheGuard(t *testing.T) {
-	root := plainTree(t)
+	root := paddedTree(t)
 	if err := os.WriteFile(filepath.Join(root, " -1= "), []byte("dashfile\n"), 0o644); err != nil {
 		t.Skipf("cannot write %q: %v", " -1= ", err)
 	}
@@ -288,7 +290,7 @@ func TestAPaddedLoneDashIsRefusedBeforeTheGuardStops(t *testing.T) {
 // because the first's trimmed spelling is the second. Only the lone "-",
 // which the parser trims and keeps, is judged before the stop.
 func TestAPreservedStopTokenIsNotJudgedAgainstAPositional(t *testing.T) {
-	root := plainTree(t)
+	root := paddedTree(t)
 	for n, b := range map[string]string{" -1= ": "padded\n", "-1=": "plain\n"} {
 		if err := os.WriteFile(filepath.Join(root, n), []byte(b), 0o644); err != nil {
 			t.Skipf("cannot write %q: %v", n, err)
