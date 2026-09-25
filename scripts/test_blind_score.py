@@ -90,6 +90,78 @@ class T(unittest.TestCase):
         r = bs.score(d, t)
         self.assertEqual(r["correct"], 9, r)
         self.assertEqual(r["verdict"], "MISS", r)
+    # ADR-070 T4, from the Codex review of v1.25.0.
+    def test_command_v_is_a_lookup_not_a_call(self):
+        d, t = trial(["command -v mrw"], fence(ANSWER))
+        r = bs.score(d, t)
+        self.assertEqual((r["mrw_calls"], r["verdict"]), (0, "MISS"), r)
+        d, t = trial(["mrw read a; command -v cat"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+
+    def test_wrapper_option_operands_are_skipped(self):
+        d, t = trial(["env -u SOME_VAR mrw read a", "xargs -n 1 mrw read < list"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["mrw_calls"], 2)
+        d, t = trial(["mrw read a; xargs -I {} cat {} < list"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+
+    def test_wrapper_help_is_banned(self):
+        d, t = trial(["mrw read a; env --help"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+
+    def test_expandable_heredoc_substitution_is_scanned(self):
+        d, t = trial(["mrw read a; printf x <<EOF\n$(cat f)\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+        d, t = trial(["mrw read a; printf x <<'EOF'\n$(cat f)\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+
+    def test_escaped_heredoc_substitution_is_literal(self):
+        d, t = trial(["mrw read a; printf x <<EOF\n\\$(cat f) \\`cat g\\`\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+        d, t = trial(["mrw read a; printf x <<EOF\n\\\\$(cat f)\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+
+    def test_escaped_backslash_does_not_manufacture_a_substitution(self):
+        d, t = trial(["mrw read a; printf x <<EOF\n$\\\\(cat f)\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+
+    def test_env_split_string_runs_its_operand(self):
+        d, t = trial(["mrw read a; env -S cat go.mod"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+        d, t = trial(["env -S 'mrw read a'"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["mrw_calls"], 1)
+
+    def test_env_split_string_is_expanded_before_help_and_options(self):
+        d, t = trial(["env -S 'mrw --help'"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+        for cmd in ["mrw read a; env -S '-u X cat /dev/null'", "mrw read a; env --split-string='cat /dev/null'",
+                    "mrw read a; X=1 env -u Y -S 'cat /dev/null'"]:
+            d, t = trial([cmd], fence(ANSWER))
+            self.assertEqual(bs.score(d, t)["verdict"], "VOID", cmd)
+
+    def test_the_escape_mask_keeps_a_substitution_interior(self):
+        d, t = trial(["mrw read a; printf x <<EOF\n$(cat\\$suffix)\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+        d, t = trial(["mrw read a; printf x <<EOF\n$(cat f)\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+
+    def test_split_string_is_expanded_behind_a_wrapper(self):
+        d, t = trial(["mrw read a; command env -S 'cat /dev/null'"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+        d, t = trial(["command env -S 'mrw read a'"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["mrw_calls"], 1)
+
+    def test_the_mask_keeps_its_length(self):
+        d, t = trial(["mrw read a; printf x <<EOF\n\\$ `cat /dev/null`\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+        d, t = trial(["mrw read a; printf x <<EOF\n\\$ \\`cat /dev/null\\`\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+
+    def test_expansion_stops_at_a_lookup_only_wrapper(self):
+        d, t = trial(["mrw read a; command -v env -S 'mrw --help'"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+        d, t = trial(["mrw read a; command env -S 'mrw --help'"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+
 
 
 if __name__ == "__main__":

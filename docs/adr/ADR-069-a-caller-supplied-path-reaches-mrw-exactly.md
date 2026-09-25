@@ -70,6 +70,70 @@ Recovering it means re-implementing urfave's flag arity and short-flag grouping 
    and a search/replace filename line is kept as written. Whether a path is PRESENT is still decided
    on a trimmed copy, so a marker followed only by whitespace means "no path", as today (a
    `<<<<<<< SEARCH` line with trailing blanks falls back to the previous filename).
+5. **Amended 2026-09-25 after the Codex review of v1.25.0 (T5).** The first helper stopped at
+   every `--`, including one consumed as a flag's value, so `read --grep -- 'x '` still reached `x`;
+   and urfave trims an ATTACHED value with its token, so `--files-from='list '` opened `list` and
+   `--root='dir '` named `dir`. Now a flag's own value is skipped (the parser keeps a separate value
+   as given), so only a `--` in argument position ends the guard; an attached value that ends in
+   whitespace is refused, exit 2, naming the separate spelling; `main` checks the whole argv first,
+   because a root flag never reaches a subcommand's tail. The iter refusal keeps its verb
+   (`mrw iter add -- 'x '`). Skipping flag values also retires the false refusal this record listed
+   under Risks: a padded flag value beside an equal positional (`--exclude ' x' x`) is accepted.
+6. **Amended 2026-09-25 after the Codex review of PR #222 (T6).** Three gaps in item 5. The guard
+   looked a flag name up as typed, so a padded boolean name (`'--no-numbers '`, which the parser
+   trims to the flag) read as value-taking and the padded path after it was skipped: `read
+   '--no-numbers ' 'x '` served `x`. The whole-argv check read every `-` token as a flag, so a
+   separate value that looks like one (`--files-from '--list= '`) was refused though the parser
+   keeps it, and it stopped at any `--`, including one a root flag consumed, so
+   `--root -- --root='dir '` reached `dir`. And `padAttached` checked for space and tab while the
+   parser's trim is `strings.TrimSpace`, so `--files-from=$'list\n'` opened `list`. Now a flag name
+   is classified trimmed, the whole-argv check reads argv as the parser does (root flags and their
+   values, the subcommand, its flags and their values; only a bare `--` ends it), and any trailing
+   whitespace on an attached value is refused. Item 5's invariant holds again: a separate value is
+   never refused.
+7. **Amended 2026-09-25 after the second Codex review of PR #222 (T7).** Two gaps in item 6. A
+   parent's persistent flag is accepted by a subcommand that has no flag of the same name
+   (`command_parse.go:43-57`): `write` and `iter` take `--root` after the verb, `read`, whose `-C`
+   is context, does not. Neither guard read the inherited flag, so `write --root -- --root='dir '`
+   ended the walk at the `--` the root flag consumed and reached `dir`, and `iter --root ' x' add x`
+   was falsely refused. And a single dash before a non-letter is where the parser stops and keeps
+   every remaining token as given (`command_parse.go:134-138`), so a file named ` -1= ` was served
+   by v1.25.0 and refused by item 6's walker as an attached value. Now both guards read the flags
+   the parser accepts for the command, ancestors' persistent ones included, and stop where the
+   parser stops.
+8. **Amended 2026-09-25 after the third Codex review of PR #222 (T8).** Two gaps in item 7. A `--`
+   before the subcommand ends the ROOT's options only: the parser still dispatches the subcommand,
+   which parses its own flags (`command_run.go:282-315`). The whole-argv guard ended its walk there
+   and the iter guard exempted a note entirely, so `-- iter note --root='dir ' x` and
+   `-- stats --root='dir '` reached `dir`. And a lone `-` ends the parse: the parser keeps it as a
+   positional and drops every token after it (`command_parse.go:123-125`), so the guard, reading on,
+   refused `write - '--format=plan '`, which v1.25.0 accepted. Now the whole-argv walk continues
+   below the subcommand after a root `--`, the note exemption covers the note's words and not the
+   flags beside them, and both guards stop at a lone `-`.
+
+9. **Amended 2026-09-25 after the fourth Codex review of PR #222 (T9).** One gap item 8 opened. The
+   parser trims a lone `-` and KEEPS it as the positional that ends its parse, so `write ' - '`
+   read stdin once the guard stopped at the `-` before judging the token — which item 7's guard
+   had refused. Now the stop token is judged like any positional first, then the walk ends; after
+   a `--` the parser keeps ` - ` as given, and a bare `-` is stdin.
+
+10. **Amended 2026-09-25 after the fifth Codex review of PR #222 (T10).** One gap item 9 opened. Of
+    the two tokens the parser stops at, only the lone `-` is trimmed and kept; a single dash before
+    a non-letter is kept as given with everything after it. Item 9 judged both before stopping, so
+    `read ' -1= ' '-1='`, both files present, was refused because the first's trimmed spelling is the
+    second. Now only the lone `-` is judged before the stop.
+
+11. **Amended 2026-09-25 after a random differential test (T11).** Six Codex rounds each found one
+    more edge of the parser the guards model, so the model is now checked against the parser
+    itself: `TestTheGuardsAgreeWithTheParserOnRandomArgv` drives random argv (every subcommand,
+    every flag own and inherited, padded names and values, attached values, `--`, `-`, a dash
+    before a digit) through the real guards, and through the same command tree with every Action
+    replaced by a recorder, so the parser itself says which strings mrw would act on. The guard
+    must refuse exactly when the parser trims a token and acts on it, or consumes an attached
+    value that ends in whitespace (item 5); provenance is settled by re-parsing with a sentinel in
+    the token's place. 40,000 cases over eight seeds agree. The run found one gap: an iter VERB
+    was judged like a path, so `iter 'add ' x` was refused. The verb is not a path and is not
+    judged. The test runs 300 cases under `go test`; `MRW_STRESS_N` and `MRW_STRESS_SEED` widen it.
 
 **What would make this decision fail:** a caller who relies on the trim, e.g. a generated
 `--files-from` list with trailing spaces after every path. That caller now gets a read of a
@@ -129,13 +193,13 @@ See `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/README.md
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| A padded flag VALUE equal to a positional's trim is refused (`--exclude ' x' x`) | Low | Low | loud exit 2 naming `--`; measured: flag values are not trimmed, so only this coincidence refuses |
+| A padded flag VALUE equal to a positional's trim (`--exclude ' x' x`) | — | — | retired by T5: flag values are skipped, not compared |
 | A caller's generated list carries trailing spaces | Low | Med | the read reports the padded path UNREADABLE, exit 1 |
 | Windows cannot hold `x` and `x ` apart | High on Windows | Low | the space fixtures skip there, as ADR-068's do; the Go logic is platform-free |
 
 ## Rollback
 
-Revert the helper and the four trims, the tests and §128–§131. Nothing persistent moves: a
+Revert the helper, `padAttached`, `refusePaddedFlagValues`, the four trims, the tests and §128–§131 and §134. Nothing persistent moves: a
 working-set file written with a trailing space is read back trimmed by the old binary.
 
 ## Follow-ups

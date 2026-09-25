@@ -74,6 +74,15 @@ ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 # Words that run the NEXT word as the command: `command cat f` runs cat, and
 # `env mrw read f` runs mrw (Codex review of #206; ADR-070 T3).
 WRAPPERS = {"command", "builtin", "exec", "env", "nohup", "time", "sudo", "xargs"}
+# A wrapper option that takes the next word as its operand: `env -u VAR mrw`
+# runs mrw, not VAR (Codex review of v1.25.0; ADR-070 T4).
+WRAPPER_OPERANDS = {
+    "env": {"-u", "-C", "--unset", "--chdir"},
+    "xargs": {"-n", "-I", "-L", "-P", "-s", "-d", "-a", "-E", "--max-args", "--replace",
+              "--max-lines", "--max-procs", "--arg-file", "--delimiter", "--eof"},
+    "sudo": {"-u", "-g", "-C", "-h", "-p", "-U", "-D", "--user", "--group"},
+    "exec": {"-a"},
+}
 HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
 
 
@@ -100,8 +109,10 @@ def unquoted_spans(line):
 
 def strip_heredocs(cmd):
     """Drop every heredoc body: its lines are data, not commands. Reading 03
-    parsed each body line as a command (ADR-070 T3)."""
-    lines, out, i = cmd.split("\n"), [], 0
+    parsed each body line as a command (ADR-070 T3). Returns the command
+    without bodies and the bodies of UNQUOTED heredocs, whose `$(…)` and
+    backticks the shell does run (Codex review of v1.25.0; ADR-070 T4)."""
+    lines, out, bodies, i = cmd.split("\n"), [], [], 0
     while i < len(lines):
         line = lines[i]
         out.append(line)
@@ -110,16 +121,109 @@ def strip_heredocs(cmd):
         for m in HEREDOC.finditer(line):
             if m.start() not in free:
                 continue
-            dash, word = m.group(1), m.group(3)
+            dash, quoted, word = m.group(1), m.group(2), m.group(3)
+            body = []
             while i < len(lines):
-                body = lines[i]
+                b = lines[i]
                 i += 1
-                if (body.lstrip("\t") if dash else body) == word:
+                if (b.lstrip("\t") if dash else b) == word:
                     break
-    return "\n".join(out)
+                body.append(b)
+            if not quoted:
+                bodies.append("\n".join(body))
+    return "\n".join(out), bodies
 
 
-def segments(cmd):
+def substitutions(text, mask=None):
+    """The inner text of every `$(…)` and backtick pair in text. Boundaries
+    are found in mask when given — text with each escaped pair blanked to the
+    SAME length — so an escaped `\\$(`, backtick or backslash opens nothing,
+    and the interior is returned as written: a mask that shortened the text
+    turned `$(cat\\$suffix)` into `cat suffix` (ADR-070 T5, T7)."""
+    m = text if mask is None else mask
+    found, i = [], 0
+    while i < len(m):
+        if m.startswith("$(", i):
+            depth, j = 1, i + 2
+            while j < len(m) and depth:
+                depth += {"(": 1, ")": -1}.get(m[j], 0)
+                j += 1
+            found.append(text[i + 2 : j - 1])
+            i = j
+        elif m[i] == "`":
+            j = m.find("`", i + 1)
+            if j < 0:
+                break
+            found.append(text[i + 1 : j])
+            i = j + 1
+        else:
+            i += 1
+    return found
+
+
+def split_words(text):
+    """The words of a command line, as `env -S` splits its operand."""
+    try:
+        return shlex.split(text)
+    except ValueError:
+        return text.split()
+
+
+def expand_split_string(seg):
+    """`env -S X`, `-SX` and `env --split-string[=]X` run X as a command
+    line: X's words take the option's place and env's remaining options still
+    apply, so `env -S '-u X cat f'` runs cat. Expanded before help detection
+    as well as before wrappers are stripped, so `env -S 'mrw --help'` is seen
+    (Codex review of PR #222, third round; ADR-070 T7) — and behind the
+    wrappers strip_wrappers knows, so `command env -S 'cat f'` runs cat too
+    (fourth round; ADR-070 T8)."""
+    i = 0
+    while i < len(seg) and seg[i] != "env":
+        w = seg[i]
+        if ASSIGNMENT.match(w):
+            i += 1
+            continue
+        if w not in WRAPPERS:
+            return seg
+        if w == "command" and i + 1 < len(seg) and seg[i + 1] in ("-v", "-V"):
+            # A lookup runs nothing, so nothing behind it is expanded: the
+            # help pass read a manufactured --help (ADR-070 T9).
+            return seg
+        i += 1
+        while i < len(seg) and seg[i].startswith("-") and seg[i] != "-":
+            i += 2 if seg[i] in WRAPPER_OPERANDS.get(w, ()) else 1
+    if i >= len(seg):
+        return seg
+    i += 1
+    while i < len(seg) and seg[i].startswith("-") and seg[i] != "-":
+        tok = seg[i]
+        if tok in ("-S", "--split-string") and i + 1 < len(seg):
+            return seg[:i] + split_words(seg[i + 1]) + seg[i + 2 :]
+        if tok.startswith("--split-string="):
+            return seg[:i] + split_words(tok[len("--split-string=") :]) + seg[i + 1 :]
+        if tok.startswith("-S") and len(tok) > 2:
+            return seg[:i] + split_words(tok[2:]) + seg[i + 1 :]
+        i += 2 if tok in WRAPPER_OPERANDS["env"] else 1
+    return seg
+
+
+def strip_wrappers(seg):
+    """Drop leading VAR=value words and wrappers, with their options and
+    operands, so the command word is the one that runs. `command -v X` and
+    `command -V X` only look X up: they run nothing (ADR-070 T4). An `env -S`
+    operand has already been expanded into words by expand_split_string."""
+    while seg and (ASSIGNMENT.match(seg[0]) or seg[0] in WRAPPERS):
+        w, seg = seg[0], seg[1:]
+        if w == "command" and seg and seg[0] in ("-v", "-V"):
+            return []
+        while seg and seg[0].startswith("-") and seg[0] != "-":
+            opt, seg = seg[0], seg[1:]
+            if opt in WRAPPER_OPERANDS.get(w, ()) and seg:
+                seg = seg[1:]
+    return seg
+
+
+def segments(cmd, raw=False):
     """The token list of every pipeline or list segment, quotes removed, with
     the words of every `$(…)` inside double quotes as segments of their own.
 
@@ -130,7 +234,7 @@ def segments(cmd):
     counted `MRW=…/mrw` and missed `"$MRW"`. Leading VAR=value words are
     skipped; `$(` opens a segment.
     """
-    cmd = strip_heredocs(cmd)
+    cmd, bodies = strip_heredocs(cmd)
     # One pass, quote-aware: drop a `#` comment that starts a word outside
     # quotes (through end of line), and turn an unquoted newline into `;`.
     # shlex's own comment handling is off, because once newlines are `;` a
@@ -194,17 +298,20 @@ def segments(cmd):
     out, seg = [], []
     for tok in tokens + [";"]:
         if tok in SEPARATORS or (tok and set(tok) <= set(";&|()")):
-            while seg and (ASSIGNMENT.match(seg[0]) or seg[0] in WRAPPERS):
-                seg = seg[1:]
-                while seg and seg[0].startswith("-"):
-                    seg = seg[1:]  # a wrapper's own flags: env -i, xargs -n1
+            seg = expand_split_string(seg)
+            if not raw:
+                seg = strip_wrappers(seg)
             if seg:
                 out.append(seg)
             seg = []
         else:
             seg.append(tok)
+    for b in bodies:
+        # An unquoted heredoc still honours a backslash before $, ` and \:
+        # `\$(cat f)` is literal text (Codex review of PR #222; ADR-070 T5).
+        inner.extend(substitutions(b, re.sub(r"\\[\\$`]", "  ", b)))
     for s in inner:
-        out.extend(segments(s))
+        out.extend(segments(s, raw))
     return out
 
 
@@ -249,10 +356,12 @@ def score(d, transcript):
                 violations.append(f"command {w.rsplit('/', 1)[-1]}")
             if is_mrw(w):
                 mrw_calls += 1
-            # Any --help is banned (the criterion), as an argument WORD of any
-            # command. A raw substring test also voided text that only
-            # mentions it, `echo "see --help"` (Codex review of #206; ADR-070 T3).
-            if any(tok == "--help" or tok.startswith("--help=") for tok in seg[1:]):
+        # Any --help is banned (the criterion), as an argument WORD of any
+        # command, a wrapper included (`env --help`). A raw substring test also
+        # voided text that only mentions it, `echo "see --help"` (Codex review
+        # of #206 and of v1.25.0; ADR-070 T3, T4).
+        for seg in segments(inp.get("command", ""), raw=True):
+            if any(tok == "--help" or tok.startswith("--help=") for tok in seg):
                 violations.append("--help")
     out["mrw_calls"] = mrw_calls
     if violations:

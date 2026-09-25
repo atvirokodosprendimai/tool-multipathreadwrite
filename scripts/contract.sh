@@ -6507,6 +6507,120 @@ printf '@@ meta.yaml 1 replace body=1\nbody=1\n' > "$WORK/133b.mrw"
 m write --no-check "$WORK/133b.mrw" >/dev/null 2>&1
 want 0 $? "and a counted body writes a body= line as content"
 [ "$(cat "$R/meta.yaml")" = 'body=1' ] && ok "and the file holds it" || bad "meta.yaml: $(cat "$R/meta.yaml")"
+
+# 134. ADR-069 T5 (the Codex review of v1.25.0): a "--" consumed as a flag
+# value ended the padded-path guard, and urfave trims an attached flag value
+# with its token, so `read --grep -- 'x '` and `--files-from='list '` still
+# reached the trimmed name. Both are refused, exit 2, and so is a padded
+# attached root flag. The pair: the separate spelling serves the path.
+fixture
+printf 'padded\n' > "$R/x "
+m read --grep -- 'x ' >/dev/null 2>&1
+want 2 $? "a -- consumed as a flag value does not end the guard"
+printf 'x \n' > "$WORK/134 list "
+m read --files-from="$WORK/134 list " >/dev/null 2>&1
+want 2 $? "an attached flag value ending in a space is refused"
+"$MRW" --root="$R " read -- 'x ' >/dev/null 2>&1
+want 2 $? "and so is a padded attached root flag"
+out=$(m read --files-from "$WORK/134 list " 2>&1); rc=$?
+want 0 "$rc" "and the separate spelling is served"
+grep -q 'padded' <<<"$out" && ok "and it serves the padded path" || bad "served: $out"
+
+# 135. ADR-069 T6 (the Codex review of PR #222): the guard looked a flag name
+# up as typed, so a padded boolean name ('--no-numbers ') read as value-taking
+# and hid the padded path after it; the whole-argv check read a separate value
+# as a flag and stopped at a "--" a root flag had consumed; and an attached
+# value was checked for space and tab while the parser trims every whitespace.
+# Each is paired with the spelling the parser keeps.
+fixture
+printf 'plain\n' > "$R/x"; printf 'padded\n' > "$R/x "
+m read '--no-numbers ' 'x ' >/dev/null 2>&1
+want 2 $? "a padded boolean flag name does not hide a padded path"
+out=$(m read --no-numbers x 2>&1); rc=$?
+want 0 "$rc" "and the trimmed spelling serves x"
+printf 'x \n' > "$R/--list= "
+out=$(cd "$R" && "$MRW" -C "$R" read --files-from '--list= ' 2>&1); rc=$?
+want 0 "$rc" "a separate value that looks like an attached flag is served"
+grep -q 'padded' <<<"$out" && ok "and it reaches the padded path" || bad "served: $out"
+"$MRW" --root -- --root="$R " read x >/dev/null 2>&1
+want 2 $? "a -- consumed by a root flag does not end the whole-argv guard"
+printf 'x \n' > "$WORK/135 list"$'\n'
+out=$(m read --files-from="$WORK/135 list"$'\n' 2>&1); rc=$?
+want 2 "$rc" "an attached value ending in a newline is refused"
+grep -q 'own argument' <<<"$out" && ok "and the newline refusal names the separate spelling" || bad "refusal: $out"
+out=$(m read --files-from "$WORK/135 list"$'\n' 2>&1); rc=$?
+want 0 "$rc" "and the separate spelling serves the newline-named list"
+
+# 136. ADR-069 T7 (the Codex review of PR #222, second round): a parent's
+# persistent flag is accepted by a subcommand that has no flag of the same
+# name (--root after write or iter; not after read, whose -C is context), and
+# neither guard knew it; and a single dash before a non-letter stops the
+# parser, which keeps the rest as given, while the guard read it as a flag.
+fixture
+printf 'padded\n' > "$R/x "
+mkdir "$R/d "; printf 'in d\n' > "$R/d /x"; printf '@@ x 1 replace\nnew\n' > "$WORK/136.mrw"
+out=$(m write --no-check --root -- --root="$R " "$WORK/136.mrw" 2>&1); rc=$?
+want 2 "$rc" "an inherited root flag after the verb is read by the whole-argv guard"
+grep -q 'own argument' <<<"$out" && ok "and its refusal names the separate spelling" || bad "refusal: $out"
+"$MRW" -C "$R/d " read x >/dev/null
+"$MRW" --root -- --root "$R/d " write --no-check --dry-run "$WORK/136.mrw" >/dev/null 2>&1
+want 0 $? "and a -- the root flag consumed, then a separate padded root, is accepted"
+mkdir "$R/ x"; printf 'q\n' > "$R/ x/x"
+(cd "$R" && "$MRW" -C "$R" iter --root ' x' add x) >/dev/null 2>&1
+want 0 $? "an inherited root value equal to a positional after its trim is not refused"
+(cd "$R" && "$MRW" -C "$R" iter --root ' x' add 'x ') >/dev/null 2>&1
+want 2 $? "and a padded positional after it still is"
+printf 'dashfile\n' > "$R/ -1= "
+out=$(cd "$R" && "$MRW" -C "$R" read ' -1= ' 2>&1); rc=$?
+want 0 "$rc" "a single dash before a non-letter stops the parser and the guard"
+grep -q 'dashfile' <<<"$out" && ok "and the path is served as given" || bad "served: $out"
+
+# 137. ADR-069 T8 (the Codex review of PR #222, third round): a "--" before
+# the subcommand ends the ROOT's options only — the parser still dispatches
+# the subcommand, which parses its own flags — and both guards went quiet
+# there, so `-- iter note --root='dir '` and `-- stats --root='dir '` reached
+# the trimmed root. And a lone "-" ends the parse (the parser keeps it and
+# drops the rest) while the guard read on and refused what the parser never
+# saw. Each is paired with the shape the parser keeps.
+fixture
+mkdir "$R/d "; printf 'in d\n' > "$R/d /x"
+out=$("$MRW" -C "$R" -- iter note --root="$R/d " revised 2>&1); rc=$?
+want 2 "$rc" "a -- before the subcommand does not end the guard for its flags"
+grep -q 'own argument' <<<"$out" && ok "and that refusal names the separate spelling" || bad "refusal: $out"
+"$MRW" -C "$R" -- iter note --root "$R/d " revised >/dev/null 2>&1
+want 0 $? "and the separate spelling is accepted after the --"
+"$MRW" -C "$R" -- stats --root="$R/d " >/dev/null 2>&1
+want 2 $? "a subcommand with no guard of its own is covered by the whole-argv guard"
+"$MRW" -C "$R" -- stats --root "$R/d " >/dev/null 2>&1
+want 0 $? "and its separate spelling is accepted"
+printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run - '--format=plan ' >/dev/null 2>&1
+want 0 "${PIPESTATUS[1]}" "a lone - ends the parse and the guard: a token the parser drops is not refused"
+printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run '--format=plan ' - >/dev/null 2>&1
+want 2 "${PIPESTATUS[1]}" "and the same token before the - is refused"
+
+# 138. ADR-069 T9 (the Codex review of PR #222, fourth round): the parser
+# trims a lone "-" and KEEPS it as the positional that ends its parse, so
+# `write ' - '` read stdin once T8 stopped the guard there. The token is
+# judged first; after a "--" it is kept as given, and a bare "-" is stdin.
+fixture
+out=$(printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run ' - ' 2>&1); rc=$?
+want 2 "$rc" "a padded lone - is refused before the guard stops"
+grep -q 'edge whitespace' <<<"$out" && ok "and the refusal names the --" || bad "refusal: $out"
+printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run -- - >/dev/null 2>&1
+want 0 "${PIPESTATUS[1]}" "and a bare - after -- is stdin"
+
+# 139. ADR-069 T10 (the Codex review of PR #222, fifth round): a single dash
+# before a non-letter stops the parser, which keeps that token and the rest
+# as given; T9 judged it before stopping, so a padded name beside its trimmed
+# twin was refused. Only the lone "-", which the parser trims and keeps, is
+# judged before the stop.
+fixture
+printf 'padded\n' > "$R/ -1= "; printf 'plain\n' > "$R/-1="
+out=$(cd "$R" && "$MRW" -C "$R" read ' -1= ' '-1=' 2>&1); rc=$?
+want 0 "$rc" "a preserved stop token is not judged against a sibling"
+grep -q 'padded' <<<"$out" && grep -q 'plain' <<<"$out" && ok "and both names are served as given" || bad "served: $out"
+m read ' - ' a.go >/dev/null 2>&1
+want 2 $? "and the padded lone - is still refused"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

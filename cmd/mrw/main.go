@@ -31,6 +31,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/urfave/cli/v3"
 
@@ -182,7 +183,13 @@ func main() {
 	}
 
 	root := rootCommand()
-	err := root.Run(context.Background(), os.Args)
+	// A padded ATTACHED flag value (--root='dir ') is trimmed by the parser
+	// before any Action runs, and a root flag never reaches a subcommand's raw
+	// tail, so the whole argv is checked here (ADR-069 T5).
+	err := refusePaddedFlagValues(root, os.Args[1:])
+	if err == nil {
+		err = root.Run(context.Background(), os.Args)
+	}
 	// An unknown subcommand cannot be reported by returning an error: the
 	// framework's CommandNotFound hook returns nothing, so it leaves its
 	// verdict on the command and main is what turns that into a status.
@@ -1693,28 +1700,269 @@ func planOpenError(path, root string, err error) error {
 // :117), so `mrw read 'x '` acted on x, a file the caller did not name
 // (ADR-069). The untrimmed token survives only in the root's raw tail. A token
 // that differs from its trim, and whose trim is one of this command's
-// arguments, is refused with the `--` that reaches it. A padded flag value is
-// refused only in the rare case that its trim equals a positional.
+// arguments, is refused with the `--` that reaches it.
+//
+// A flag's own value is skipped: the parser keeps a separate value as given
+// (command_parse.go:182), and a "--" consumed as a value is not the terminator,
+// which is how `read --grep -- 'x '` got past the first version (Codex review
+// of v1.25.0, ADR-069 T5). An attached value is checked by padAttached. A flag
+// name is classified TRIMMED, as the parser reads it: looked up as typed, a
+// padded boolean name (`'--no-numbers '`) read as value-taking and hid the
+// padded path after it (Codex review of PR #222, ADR-069 T6).
 func refusePaddedArgs(cmd *cli.Command) error {
 	args := cmd.Args().Slice()
-	if cmd.Name == "iter" && len(args) > 0 && args[0] == "note" {
-		return nil // a note is free text, not a path
-	}
+	// A note is free text, not a path, so its words are never judged — but
+	// the flags beside it still are: `iter note --root='dir ' x` reached dir
+	// while the whole exemption returned here (ADR-069 T8).
+	noteText := cmd.Name == "iter" && len(args) > 0 && args[0] == "note"
 	got := make(map[string]bool, len(args))
 	for _, a := range args {
 		got[a] = true
+	}
+	// The iter refusal keeps its verb: `mrw iter -- 'x '` makes the path the verb.
+	prefix := cmd.Name
+	if cmd.Name == "iter" && len(args) > 0 {
+		prefix += " " + args[0]
 	}
 	raw := cmd.Root().Args().Slice()
 	if len(raw) > 0 {
 		raw = raw[1:] // the subcommand's own name
 	}
+	kinds := flagKinds(cmd.Lineage()...)
+	positionals := 0
+	value := false
 	for _, tok := range raw {
-		if tok == "--" {
+		if value {
+			value = false
+			continue
+		}
+		role, next := flagRole(tok, kinds)
+		if role == roleTerminator {
+			break // what follows is kept as given
+		}
+		if role == roleFlag {
+			if err := padAttached(tok); err != nil {
+				return err
+			}
+			value = next
+			continue
+		}
+		// A positional, or the token the parser stops at. Of the two stop
+		// tokens only the lone "-" is trimmed and kept, so only it is judged
+		// before the walk ends (`write ' - '` read stdin; ADR-069 T9). A
+		// single dash before a non-letter is kept as given with everything
+		// after it, so judging it against a sibling's trimmed spelling refused
+		// `read ' -1= ' '-1='` with both files present (ADR-069 T10).
+		if role == roleStop && strings.TrimSpace(tok) != "-" {
 			break
 		}
-		if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
-			return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
-				"put -- before the path: mrw %s -- '%s'", tok, cmd.Name, tok), exitUsage)
+		// An iter VERB is not a path either: `iter 'add ' x` names the verb
+		// with padding the parser trims, and nothing reaches a file by it
+		// (found by the random differential test, ADR-069 T11).
+		if cmd.Name == "iter" && positionals == 0 {
+			positionals++
+		} else if !noteText {
+			if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
+				return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
+					"put -- before the path: mrw %s -- '%s'", tok, prefix, tok), exitUsage)
+			}
+		}
+		if role == roleStop {
+			break // what follows is dropped
+		}
+	}
+	return nil
+}
+
+// takesValue maps every name of every flag in flags to whether the parser
+// consumes the NEXT token as its value: false for a boolean, true otherwise.
+// The framework's own --help/-h and --version/-v are booleans it adds itself.
+func takesValue(flags []cli.Flag) map[string]bool {
+	m := map[string]bool{"help": false, "h": false, "version": false, "v": false}
+	for _, f := range flags {
+		_, isBool := f.(*cli.BoolFlag)
+		for _, n := range f.Names() {
+			m[n] = !isBool
+		}
+	}
+	return m
+}
+
+// flagKinds is takesValue over every flag the parser accepts for the command
+// at lineage[0] (lineage runs from it up to the root, as cmd.Lineage() does):
+// its own flags, then each ancestor's non-local ones — an ancestor flag is
+// skipped WHOLE when any of its names is already one of the command's own
+// (command_parse.go:43-57). That is why `write` and `iter` take --root after
+// the verb while `read`, whose -C is context, does not. Neither guard knew
+// it, so `write --root -- --root='dir '` ended at the -- the root flag
+// consumed, and `iter --root ' x' add x` was falsely refused (Codex review of
+// PR #222, second round; ADR-069 T7).
+func flagKinds(lineage ...*cli.Command) map[string]bool {
+	kinds := takesValue(lineage[0].Flags)
+	own := map[string]bool{}
+	for _, f := range lineage[0].Flags {
+		for _, n := range f.Names() {
+			own[n] = true
+		}
+	}
+	for _, anc := range lineage[1:] {
+		for _, f := range anc.Flags {
+			if lf, ok := f.(cli.LocalFlag); ok && lf.IsLocal() {
+				continue
+			}
+			clash := false
+			for _, n := range f.Names() {
+				if own[n] {
+					clash = true
+					break
+				}
+			}
+			if clash {
+				continue
+			}
+			_, isBool := f.(*cli.BoolFlag)
+			for _, n := range f.Names() {
+				kinds[n] = !isBool
+			}
+		}
+	}
+	return kinds
+}
+
+// tokenRole is how the parser reads one token (command_parse.go:112-139).
+type tokenRole int
+
+const (
+	rolePositional tokenRole = iota
+	roleFlag                 // begins with "-" after the parser's trim
+	roleTerminator           // a bare "--": what follows is positional, kept as given
+	roleStop                 // a single "-" before a non-letter: parsing stops, the rest is kept as given
+)
+
+// flagRole classifies tok the way the parser does. The parser trims a token
+// before it looks at it (command_parse.go:81), so the name is looked up
+// trimmed: looked up as typed, a padded boolean name (`'--no-numbers '`) read
+// as value-taking and hid the padded path after it (ADR-069 T6). A single
+// dash before a non-letter is where the parser stops and keeps every
+// remaining token as given, so a file named ` -1= ` is served, not refused
+// as an attached value (ADR-069 T7). consumesNext is true for a known flag
+// that takes a separate value; an attached value (name=value) consumes
+// nothing, and an unknown name is left to the parser, which refuses it by
+// name before any Action runs.
+func flagRole(tok string, kinds map[string]bool) (role tokenRole, consumesNext bool) {
+	t := strings.TrimSpace(tok)
+	if t == "--" {
+		return roleTerminator, false
+	}
+	if t == "-" {
+		// The parser keeps a lone "-" as a positional and ends its parse
+		// there, DROPPING every token after it (command_parse.go:123-125):
+		// `write - '--format=plan '` reads stdin with the default format, so
+		// the token the guard refused was one the parser never saw
+		// (ADR-069 T8).
+		return roleStop, false
+	}
+	if len(t) < 2 || t[0] != '-' {
+		return rolePositional, false
+	}
+	if t[1] != '-' && !unicode.IsLetter(rune(t[1])) {
+		return roleStop, false
+	}
+	name := strings.TrimLeft(t, "-")
+	if strings.Contains(name, "=") {
+		return roleFlag, false
+	}
+	return roleFlag, kinds[name]
+}
+
+// padAttached refuses an attached flag value that ends in whitespace. urfave
+// trims the whole token, so --files-from='list ' opened list (ADR-069 T5). The
+// trim is strings.TrimSpace, so ANY trailing whitespace counts: checked for
+// space and tab only, --files-from=$'list\n' still opened list (ADR-069 T6).
+func padAttached(tok string) error {
+	name, val, ok := strings.Cut(tok, "=")
+	if !ok || strings.TrimRightFunc(tok, unicode.IsSpace) == tok {
+		return nil
+	}
+	return cli.Exit(fmt.Sprintf("'%s' ends in whitespace the argument parser strips; pass the value "+
+		"as its own argument: %s '%s'", tok, name, val), exitUsage)
+}
+
+// refusePaddedFlagValues checks every attached flag value before the option
+// terminator, root flags included; main calls it because a root flag never
+// reaches a subcommand's raw tail (ADR-069 T5). It reads argv as the parser
+// does — root flags and their values, the subcommand, its flags and their
+// values — so a separate value that looks like a flag (`--files-from
+// '--list= '`) is not judged, and a "--" a flag consumed does not end the walk
+// (`--root -- --root='dir '` reached dir; Codex review of PR #222, ADR-069 T6).
+// The flags in force below a subcommand include its ancestors' persistent
+// ones, as the parser's do (ADR-069 T7).
+func refusePaddedFlagValues(root *cli.Command, argv []string) error {
+	lineage := []*cli.Command{root}
+	kinds, cmds := flagKinds(lineage...), root.Commands
+	value, optionsOff := false, false
+	for _, tok := range argv {
+		if value {
+			value = false
+			continue
+		}
+		role, next := rolePositional, false
+		if !optionsOff {
+			role, next = flagRole(tok, kinds)
+		}
+		switch role {
+		case roleStop:
+			return nil // the parser ends here; the rest is kept as given, or dropped
+		case roleTerminator:
+			// Options are over for THIS command only. At one with
+			// subcommands the parser still dispatches the first positional,
+			// whose own parse starts afresh (command_run.go:282-315), so
+			// `mrw -- iter note --root='dir '` reached dir while the walk
+			// ended here (Codex review of PR #222, third round; ADR-069 T8).
+			if len(cmds) == 0 {
+				return nil
+			}
+			optionsOff = true
+			continue
+		case roleFlag:
+			if err := padAttached(tok); err != nil {
+				return err
+			}
+			value = next
+			continue
+		}
+		// A positional: at the root it names the subcommand whose flags are
+		// in force from here, its ancestors' persistent ones included; below
+		// one it is a path for that command's own guard. An unknown name is
+		// the parser's to refuse. After a "--" the parser hands the token on
+		// as given; otherwise it has trimmed it (command_parse.go:81).
+		if len(cmds) == 0 {
+			continue
+		}
+		name := tok
+		if !optionsOff {
+			name = strings.TrimSpace(tok)
+		}
+		sub := subcommand(cmds, name)
+		if sub == nil {
+			return nil
+		}
+		lineage = append([]*cli.Command{sub}, lineage...)
+		kinds, cmds, optionsOff = flagKinds(lineage...), sub.Commands, false
+	}
+	return nil
+}
+
+// subcommand finds name among cmds, by name or alias.
+func subcommand(cmds []*cli.Command, name string) *cli.Command {
+	for _, c := range cmds {
+		if c.Name == name {
+			return c
+		}
+		for _, a := range c.Aliases {
+			if a == name {
+				return c
+			}
 		}
 	}
 	return nil

@@ -58,6 +58,43 @@ a wrongly typed answer, and no minimum mrw-call count.
 3. **Fix the scorer** for each BACKLOG shape, each pinned by a synthetic transcript. Pre-register
    in BACKLOG, before reading 05's first trial, the one criterion change: at least one mrw call per
    non-void run.
+4. **Amended 2026-09-25 after the Codex review of v1.25.0 (T4).** The T3 scorer counted
+   `command -v mrw` (a lookup) as a call and voided `command -v cat`; it read `env -u VAR mrw` as
+   running `VAR`; it dropped a wrapper's `--help`; and it discarded every heredoc body, hiding a
+   `$(cat f)` that an UNQUOTED heredoc runs. Now `command -v`/`-V` runs nothing, a wrapper's option
+   operands are skipped, `--help` is checked on the unstripped segment, and the `$(…)` and backticks
+   of an unquoted heredoc body are scanned. Re-scoring readings 03 and 04 moved nothing.
+5. **Amended 2026-09-25 after the Codex review of PR #222 (T5).** The T4 scan of an unquoted
+   heredoc body read `\$(cat f)` as a substitution, though the shell keeps it literal: a transcript
+   with correct answers scored `VOID: banned: command cat`. Now a backslash before `$`, `` ` `` or
+   `\` in an unquoted body is honoured before substitutions are read; `\\$(cat f)` (an escaped
+   backslash, then a real substitution) is still scanned.
+6. **Amended 2026-09-25 after the second Codex review of PR #222 (T6).** Item 5 deleted an
+   escaped pair, which joined its neighbours: `$\\(cat f)`, a literal `$` and an escaped backslash,
+   became `$(cat f)` and voided a run. The pair is now replaced by a space, so nothing joins. And
+   `env -S` / `--split-string` was read as an option with an operand, so `env -S cat go.mod` scored
+   `go.mod` as the command word while `cat` ran; the operand is now split into words and read as
+   the command line it is.
+7. **Amended 2026-09-25 after the third Codex review of PR #222 (T7).** Item 6's `-S` expansion
+   ran only where wrappers are stripped, so help detection, which reads the unstripped segment,
+   saw `env -S 'mrw --help'` as one word and the call count saw an mrw call: a run that asked for
+   help scored MEETS. It also stopped at the first option, so `env -S '-u X cat f'` and
+   `env --split-string=…` still hid `cat`. And item 6's mask shortened the text, so the interior
+   of a real substitution moved: `$(cat\$suffix)` was read as `cat suffix`. Now the operand is
+   expanded into words before either pass, in every spelling, with env's remaining options still
+   applied; and the mask keeps the text's length, so boundaries are found in the mask and the
+   interior is taken from the text as written.
+
+8. **Amended 2026-09-25 after the fourth Codex review of PR #222 (T8).** Item 7's expansion looked
+   for `env` only at the front of a segment, so `command env -S 'cat f'` hid `cat` again. It is now
+   reached behind the wrappers the scorer knows. And item 7's mask-length claim had no fixture
+   that could fail: a mask one character short left `cat$suffix` reading as `cat$suffi`, no banned
+   word either way. An escaped `$` before a backtick pair is the fixture that flips: the short mask
+   extracts `` `cat `` instead of `cat /dev/null`.
+
+9. **Amended 2026-09-25 after the fifth Codex review of PR #222 (T9).** Item 8's walk to `env`
+   crossed `command -v`, a lookup that runs nothing, so `command -v env -S 'mrw --help'` scored a
+   `--help` that never ran. The walk now stops at `command -v` and `-V`.
 
 **What would make this decision fail:** a file whose first line really begins `body=` (an `.env`,
 an `.ini`), edited by a hand-written hunk with no count. It is refused, and the message names the
