@@ -22,7 +22,9 @@ not against mrw's own output:
   symlink  no read, grep, write, unlink, rename or create reaches outside the root
   foreign  mutated apply_patch/search_replace/--files-from documents
   mcp      garbage JSON-RPC: the server keeps answering and never applies a
-           write without an acknowledged read
+           write without an acknowledged read; and random 2026-07-28 requests
+           (ADR-067) — version modern/legacy/junk/absent, clientCapabilities
+           present or not — each answered as the ADR's rules predict
 
 Every failure is kept under WORKDIR/fail/<suite>-<n>/ with the command, stdin,
 output and the tree as it was. mrw's state goes to WORKDIR/state, never the
@@ -627,6 +629,25 @@ def suite_symlink():
 
 
 # ---------- suite: MCP garbage ----------
+MODERN = "2026-07-28"
+SUPPORTED = [MODERN, "2025-11-25", "2025-06-18"]
+ABSENT = object()
+
+
+def modern_expect(method, version, caps):
+    """ADR-067 Decision 4, restated as an oracle: an int is the JSON-RPC error
+    code the request must get; "modern" or "legacy" is the result shape."""
+    if version is ABSENT:
+        return -32602 if method == "server/discover" else "legacy"
+    if not isinstance(version, str) or version not in SUPPORTED:
+        return -32022
+    if version == MODERN and not isinstance(caps, dict):
+        return -32602
+    if method == "server/discover":
+        return "modern"
+    return "modern" if version == MODERN else "legacy"
+
+
 def suite_mcp(n):
     for i in range(n):
         root = fresh("mcp", i); names = make_tree(root, 3)
@@ -656,6 +677,23 @@ def suite_mcp(n):
                    json.dumps({"jsonrpc": "2.0", "id": 12, "method": "tools/call", "params": {"name": "mrw_read", "arguments": {"specs": [names[0] + ":1-" + "9" * 30]}}}).encode()]
         for g in rng.sample(garbage, len(garbage)):
             msgs.append(g)
+        # ADR-067: random 2026-07-28 requests, each with the answer the record's
+        # rules predict — the oracle is written from the ADR, not from the code.
+        modern = {}
+        for k in range(rng.randint(3, 8)):
+            rid = 200 + k
+            method = rng.choice(["tools/list", "server/discover", "tools/call", "ping"])
+            version = rng.choice([MODERN, "2025-11-25", "2025-06-18", "1900-01-01", "2026-07-28 ", "", 42, ABSENT])
+            caps = rng.choice([{}, {"x": 1}, ABSENT, [], "caps"])
+            meta = {}
+            if version is not ABSENT: meta["io.modelcontextprotocol/protocolVersion"] = version
+            if caps is not ABSENT: meta["io.modelcontextprotocol/clientCapabilities"] = caps
+            params = {"_meta": meta} if meta else {}
+            if method == "tools/call": params.update({"name": "mrw_read", "arguments": {"specs": [names[0]]}})
+            send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params}, True)
+            modern[rid] = (method, version, caps)
+        # A notification carrying a bad version is never answered.
+        send({"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "1900-01-01"}}}, False)
         msgs.append(json.dumps({"jsonrpc": "2.0", "id": 99, "method": "tools/list"}).encode())
         data = b"\n".join(msgs) + b"\n"
         try:
@@ -678,6 +716,57 @@ def suite_mcp(n):
         wr = [r for r in resp if isinstance(r, dict) and r.get("id") == 4]
         if rd(os.path.join(root, names[0])).startswith(b"X\n"):
             fail("mcp", "mrw_write applied with a bogus ack / no read", root, None, data, (p.returncode, o, e, 0))
+        for rid, (method, version, caps) in modern.items():
+            got = [r for r in resp if isinstance(r, dict) and r.get("id") == rid]
+            want = modern_expect(method, version, caps)
+            if len(got) != 1:
+                fail("mcp", f"modern request {rid} ({method}, {version!r}, {caps!r}) answered {len(got)} times", root, None, data, (p.returncode, o, e, 0)); continue
+            g = got[0]
+            if isinstance(want, int):
+                if (g.get("error") or {}).get("code") != want:
+                    fail("mcp", f"{method} version={version!r} caps={caps!r}: want error {want}, got {str(g)[:200]}", root, None, data, (p.returncode, o, e, 0))
+                elif want == -32022:
+                    # A non-string version is reported as its JSON text (ADR-067).
+                    want_req = version if isinstance(version, str) else json.dumps(version)
+                    d = g["error"].get("data") or {}
+                    if d.get("supported") != SUPPORTED or d.get("requested") != want_req:
+                        fail("mcp", f"-32022 data {d} does not carry supported={SUPPORTED} and requested={want_req!r}", root, None, data, (p.returncode, o, e, 0))
+                continue
+            r = g.get("result")
+            if not isinstance(r, dict):
+                fail("mcp", f"{method} version={version!r} caps={caps!r}: want a result, got {str(g)[:200]}", root, None, data, (p.returncode, o, e, 0)); continue
+            if (r.get("resultType") == "complete") != (want == "modern"):
+                fail("mcp", f"{method} version={version!r} caps={caps!r}: decorated={r.get('resultType')!r}, want {want}", root, None, data, (p.returncode, o, e, 0))
+            # The modern shape in full (ADR-067 Decision 4): serverInfo in _meta on
+            # every modern result; discover's capabilities, instructions and hints;
+            # the exact ttlMs, an int and not a bool (Python's bool is an int).
+            info = ((r.get("_meta") or {}).get("io.modelcontextprotocol/serverInfo") or {}) if want == "modern" else {}
+            if want == "modern" and info.get("name") != "mrw":
+                fail("mcp", f"{method}: a modern result carries no serverInfo naming mrw: {str(r)[:200]}", root, None, data, (p.returncode, o, e, 0))
+            exact_ttl = lambda v: type(v) is int and v == 3_600_000
+            if method == "server/discover":
+                if (r.get("supportedVersions") != SUPPORTED or "tools" not in (r.get("capabilities") or {})
+                        or not isinstance(r.get("instructions"), str) or not r.get("instructions")
+                        or not exact_ttl(r.get("ttlMs")) or r.get("cacheScope") != "public"):
+                    fail("mcp", f"discover is not the full modern shape: {str(r)[:300]}", root, None, data, (p.returncode, o, e, 0))
+            if want == "modern" and method == "tools/list" and (r.get("cacheScope") != "public" or not exact_ttl(r.get("ttlMs"))):
+                fail("mcp", f"a modern tools/list lacks exact caching hints: {str(r)[:200]}", root, None, data, (p.returncode, o, e, 0))
+        # Notification silence, checked where it can be COUNTED (the session above
+        # answers garbage too, so its line count proves nothing): a fresh server
+        # given only notifications and one request must write exactly one line.
+        notes = [{"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "1900-01-01"}}},
+                 {"jsonrpc": "2.0", "method": "tools/list", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": MODERN}}},
+                 {"jsonrpc": "2.0", "method": "server/discover"},
+                 {"jsonrpc": "2.0", "id": 500, "method": "ping"}]
+        try:
+            q = subprocess.run([MRW, "--root", root, "mcp"], input=b"\n".join(json.dumps(x).encode() for x in notes) + b"\n",
+                               capture_output=True, env=ENV, timeout=20)
+            qo = q.stdout.decode("utf-8", "replace")
+            lines = [l for l in qo.splitlines() if l.strip()]
+            if len(lines) != 1 or json.loads(lines[0]).get("id") != 500:
+                fail("mcp", f"a notification was answered: {lines[:3]}", root, None, None, (q.returncode, qo, q.stderr.decode("utf-8", "replace"), 0))
+        except (subprocess.TimeoutExpired, ValueError) as ex:
+            fail("mcp", f"the notification-silence exchange broke: {ex}", root, None, None, None)
         shutil.rmtree(root, ignore_errors=True)
 
 

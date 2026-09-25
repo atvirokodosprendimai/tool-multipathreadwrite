@@ -165,7 +165,11 @@ measure() {
   local windowed=0 cur="" ln a b
   while IFS= read -r ln; do
     case $ln in
-      '==> '*) cur=${ln#'==> '}; cur=${cur%% *} ;;
+      # The header is `==> <path>  <N>L  <B>B  sha <hex>`; the path may hold
+      # spaces, so it is taken off the anchored suffix, never cut at the first
+      # space (which made `x y.txt` read as `x`; Codex on #214).
+      '==> '*) cur=${ln#'==> '}
+               if [[ $cur =~ ^(.*)\ \ [0-9]+L\ \ [0-9]+B\ \ sha\ [0-9a-f]+$ ]]; then cur=${BASH_REMATCH[1]}; else cur=""; fi ;;
       '@@ '*)  a=${ln#'@@ '}; b=${a#*-}; a=${a%%-*}
                [ -n "$cur" ] && windowed=$(( windowed + $(sed -n "${a},${b}p" "$cur" | wc -c) )) ;;
     esac
