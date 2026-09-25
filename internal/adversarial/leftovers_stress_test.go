@@ -68,6 +68,11 @@ func main() {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			fakeAstErr = fmt.Errorf("build fake ast-grep: %v\n%s", err, out)
 		}
+		if fakeAstErr == nil {
+			// Run it once, untimed, before any test times it: the first start of
+			// a freshly built .exe on a Windows runner can spend the 2 s bound.
+			_ = exec.Command(fakeAstPath).Run()
+		}
 	})
 	if fakeAstErr != nil {
 		t.Fatal(fakeAstErr)

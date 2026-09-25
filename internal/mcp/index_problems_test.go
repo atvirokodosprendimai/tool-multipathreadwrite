@@ -147,6 +147,9 @@ func installFakeAstGrep(t *testing.T, stdout string) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build fake ast-grep: %v\n%s", err, out)
 	}
+	// Run it once, untimed, before any test times it: the first start of a
+	// freshly built .exe on a Windows runner can spend the whole 2 s bound.
+	_ = exec.Command(bin).Run()
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
