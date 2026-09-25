@@ -557,6 +557,8 @@ re-measuring these. Each was driven at the built binary, not read:
   guard makes the race unlikely, and SOMETIMES loud; when it loses it can lose
   silently, with a receipt that says applied. Locking stays permanently out of
   scope (ADR-002); this only sharpens the risk that scope accepts.
+  **Invalidated by ADR-075** (2026-09-25): writers take a per-checkout lock through apply and the
+  ledger update, so none exits 0 having lost its edit; a stale one is refused (contract §150).
   line that only exists after the earlier writes resolves correctly.
 - Pattern addresses, `/start/,/end/` pairs, pointer resolution (`@0`, `@-1`,
   `@abc`, `@N` out of range), overlapping and descending range lists, filenames
@@ -1872,7 +1874,7 @@ Execution plan: `docs/specs/2026-09-16-dangling-high-impact-plan.md` (campaign f
 
 - Desktop reach measure (UC-1) — trees-per-session on the Desktop population; coder plan count is the wrong population. Pick A stands. Not run 2026-09-16 (no Desktop session).
 - Under-ceiling host-cut (UC-2) — beside reading 18; do not treat ADR-039 as that evidence. Observed 2026-09-16 wire-only; model not run; still Deferred.
-- Concurrent silent apply (UC-3) — last-writer-wins; locking stays out of scope (ADR-002).
+- Concurrent silent apply (UC-3) — last-writer-wins; locking stays out of scope (ADR-002). — superseded by ADR-075: one writer per checkout.
 - Strict-balance default campaign (UC-4) — 5% / 50 / three corpora; default stays off.
 - JSX nest probe (UC-5) — probed 2026-09-16, `tsc` 0, DOM parent `#accidental-wrapper`; still not a finding.
 
@@ -1958,6 +1960,15 @@ Contract breaks, reproduced on macOS:
   counts this as a known, accepted risk (race suite, "concurrent writes"); the Windows chaos runs
   measured it at 45–53% of racing writers over five full-scale corpora, and it reproduces on
   macOS. The acceptance was recorded before the rate was known: a decision for M.
+  **Fixed by ADR-075**, contract §150: a per-checkout write lock is held from apply through the
+  ledger update, with the ledger loaded before it under its own lock (`seen.Snapshot`, so never half-saved), so a writer whose file changed while it waited is
+  refused, exit 1, "changed since mrw last saw it"; none exits 0 without its edit. `chaos.py`'s race
+  suite fails on a lost edit by default. A writer that starts after another finished still writes on
+  that writer's whole-file licence (ADR-002, kept by M the same day).
+- **Unlocked state beside the ledger** (the klientams peer's leads, not measured): `internal/iter`
+  and `internal/authoring` rewrite their files without a lock, and `mrw seen` loads the ledger
+  unlocked. Racing processes could lose a working-set entry or a tally count, never an edit. Deferred
+  from ADR-075.
 - **A UTF-16LE file is rewritten with exit 0**: served as byte-split lines, and a replace drops the
   BOM and mixes encodings. Nothing refuses a write to such a file.
   **Fixed by ADR-073**, contract §146: a line edit to a file that begins with a UTF-16 or UTF-32
@@ -1973,6 +1984,10 @@ Contract breaks, reproduced on macOS:
   the default ceiling without a hand-picked range.
   **Fixed by ADR-074 T3**, contract §149: the first page is sized by the JSON-encoded length the
   ceiling measures, and a closed range that still overflows is refused naming the encoding.
+  Waived in the review of #232, open: a file whose line 1 alone encodes past the ceiling is refused
+  first by `overflowMessage` with range advice, and only a second call names the CLI; that sentence
+  says "no narrower range", though a range after the long line serves. Fix: the same
+  `longestEncodedLine` check in `overflowMessage`, naming the line.
 - **The 2 s `--ast-grep` kill fails when a grandchild holds stdout**: 30 s with a `sh` wrapper that
   runs `sleep 30`; the grandchild is orphaned when its stdio is redirected.
   `internal/read/astgrep.go` sets no `WaitDelay` and no process group (the finder's reading).
@@ -1980,6 +1995,9 @@ Contract breaks, reproduced on macOS:
   group is killed at the 2 s bound and the wait for held pipes is bounded; an interrupt, terminate
   or hangup sent to mrw stops it. On Windows only the wait bound applies (deferred with the check's
   job object, above).
+  Waived in the review of #232, unverified (read from Go's exec code): a wrapper that exits 0 and
+  leaves a background grandchild returns through `WaitDelay` without its context being cancelled, so
+  its group is never killed and the grandchild outlives mrw.
 - **A FIFO hangs `read`**, and `--stat`, a symlink to it, and `--files-from` on it; nothing is
   printed. A socket and a directory are reported by name.
   **Partly fixed by ADR-073**: a FIFO, socket or device named in a WRITE plan is refused before it

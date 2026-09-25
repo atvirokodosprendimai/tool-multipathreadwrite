@@ -47,7 +47,7 @@ One spec, five use cases: each leftover has a named test that goes red if the re
 - **Main flow:**
   1. BACKLOG states the observed class: last-writer-wins; a loser can print a full success receipt and exit 0; the sha guard is sometimes loud.
 - **Failure paths:** a. "cannot both land" / "loud when it loses" as a guarantee → those clauses are already struck; the silent-applied observation must remain. b. adding a lock to "close" it → refused here; needs a new quote that invalidates ADR-002's scope.
-- **Postconditions:** no lock, no CAS; the risk stays described accurately.
+- **Postconditions:** no lock, no CAS; the risk stays described accurately. — superseded by ADR-075 (2026-09-25): M's answer to the plan for the v1.25.1 round is the quote failure path b asks for; writers take a per-checkout lock and a stale one is refused.
 
 ### UC-4: Operator knows `--strict-balance` as default is a campaign, not a flip
 

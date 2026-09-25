@@ -47,6 +47,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
 
 // Exit statuses. They are distinguished because the caller's next move differs:
@@ -1106,18 +1107,24 @@ held or went unchecked.`,
 					return refuse(fmt.Sprintf("%v: nothing was written", err))
 				}
 			}
-			ledger, err := seen.Load(root)
+			ledger, err := seen.Snapshot(root)
 			if err != nil {
 				return refuse(err.Error())
 			}
-			res, err := apply.Apply(root, in, apply.Options{
+			res, err := writer.Apply(root, in, apply.Options{
 				DryRun:        cmd.Bool("dry-run"),
 				Seen:          ledger,
 				Force:         cmd.Bool("force"),
 				EchoPad:       cmd.Int("echo-pad"),
 				StrictBalance: cmd.Bool("strict-balance"),
 			})
-			if err != nil {
+			// ADR-075: writer.Apply recorded what landed before it released the
+			// write lock. A LedgerError says the plan landed and the ledger could
+			// not record it; that is refused below with the landed receipt, once
+			// the closures that count it exist.
+			var ledgerErr *writer.LedgerError
+			isLedgerErr := errors.As(err, &ledgerErr)
+			if err != nil && !isLedgerErr {
 				// ADR-001 rule 3: every hunk carries its own verdict, and a
 				// filesystem failure is not an exception. Apply now fills the
 				// receipt before returning the error, so render it on whichever
@@ -1161,34 +1168,13 @@ held or went unchecked.`,
 				return refuseWith(res, err.Error())
 			}
 
-			// The check runs only on a real, successful write: verifying a tree
-			// the plan did not touch would attribute someone else's red suite
-			// to this edit.
-			// Record what the files now hold. This is why a chain of edits needs
-			// no re-read between steps — mrw knows what it just produced — while
-			// a change made behind its back still leaves the ledger disagreeing
-			// with the disk, and the next write refused.
-			if res.Applied {
-				// A file mrw just wrote is one it knows WHOLLY: it produced
-				// every line, so the observation covers the whole file and a
-				// chain of edits needs no re-read between steps.
-				wrote := map[string]seen.Observation{}
-				var gone []string
-				for _, f := range res.Files {
-					if f.Removed {
-						gone = append(gone, f.Path)
-						continue
-					}
-					if f.Written {
-						wrote[f.Path] = seen.Observation{SHA: f.SHAAfter}
-					}
-				}
-				if err := seen.Drop(root, gone); err != nil {
-					return ledgerFailed(res, err)
-				}
-				if err := seen.Record(root, wrote); err != nil {
-					return ledgerFailed(res, err)
-				}
+			// writer.Apply recorded what the files now hold before it released
+			// the write lock. This is why a chain of edits needs no re-read
+			// between steps — mrw knows what it just produced — while a change
+			// made behind its back still leaves the ledger disagreeing with the
+			// disk, and the next write refused.
+			if isLedgerErr {
+				return ledgerFailed(res, ledgerErr.Err)
 			}
 
 			receipt := receipt{Result: res}

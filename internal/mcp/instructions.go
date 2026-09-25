@@ -67,10 +67,9 @@ func instructionsText() string {
 CLI has --files-from, --check, and
 check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; --root goes
 BEFORE the subcommand, since after `+"`read`"+` the short -C is the context flag.
-This surface is pointed with launch `+"`--root DIR mcp`"+`. It returns structured JSON; one
-server is one writer to the ledger. With a shell prefer the CLI; prefer this
-one with none, or when callers sharing ONE fixed checkout want writes
-serialized.
+This surface serves ONE fixed checkout, chosen at launch with `+"`--root DIR mcp`"+`,
+and returns structured JSON. With a shell prefer the CLI; prefer this one with
+none. Writers take turns on either surface: one writer per checkout.
 
 Only mrw_read serves lines; ack records them. Lines 10-12 do not license line 50.
 

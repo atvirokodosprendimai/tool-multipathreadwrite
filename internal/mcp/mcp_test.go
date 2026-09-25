@@ -520,11 +520,14 @@ func TestTheSurfaceSaysTheCLIIsRicher(t *testing.T) {
 	if strings.Contains(got, "-C, which points") || strings.Contains(got, "-C for any checkout") {
 		t.Error("the instructions recommend -C for choosing a checkout; that is the context flag after `read` and the recommendation errors")
 	}
-	// And the honest counterweight: this surface is not simply poorer. One
-	// server is one writer and serializes in-process; a caller told only
-	// "the CLI is fuller" has been given half the picture.
-	if !strings.Contains(got, "serialized") {
-		t.Error("the instructions do not say this surface serializes ledger writes, which is the one thing it does better")
+	// ADR-075: writes take turns on the CLI too, one writer per checkout, so
+	// serialized writes are no longer this surface's advantage, and selling
+	// them would send a caller with a shell to the poorer surface for nothing.
+	if strings.Contains(got, "writes serialized") || strings.Contains(got, "serializes in-process") {
+		t.Error("the instructions still sell serialized writes as this surface's advantage; since ADR-075 the CLI's writes take turns too")
+	}
+	if !strings.Contains(got, "one writer per checkout") {
+		t.Error("the instructions do not say that writers take turns on either surface")
 	}
 	// The reach difference, which is deliberate and therefore worth stating
 	// rather than leaving as a surprise refusal.
@@ -544,6 +547,9 @@ func TestTheSurfaceSaysTheCLIIsRicher(t *testing.T) {
 		}
 		if !strings.Contains(tl.Description, "Prefer THIS tool") {
 			t.Errorf("%s's description does not say when this surface is the right one:\n%s", tl.Name, tl.Description)
+		}
+		if strings.Contains(tl.Description, "writes serialized") {
+			t.Errorf("%s's description still sells serialized writes as this surface's advantage:\n%s", tl.Name, tl.Description)
 		}
 	}
 

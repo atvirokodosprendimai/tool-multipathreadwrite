@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
 
 // gate serializes tool calls, and it is worth being exact about what it does
@@ -603,7 +605,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		})
 	}
 
-	ledger, err := seen.Load(root)
+	ledger, err := seen.Snapshot(root)
 	if err != nil {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
 	}
@@ -626,7 +628,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				"applied and the tree is unchanged. Raise the ceiling to at least %d.",
 			MaxResultChars, minWriteCeiling())}
 	}
-	res, applyErr := apply.Apply(root, in, apply.Options{DryRun: a.DryRun, Seen: ledger, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance})
+	res, applyErr := writer.Apply(root, in, apply.Options{DryRun: a.DryRun, Seen: ledger, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance})
 	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
 	// it is rendered on whichever path we are on rather than discarded.
 
@@ -637,25 +639,13 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// really is something pending to acknowledge.
 	nameTheAck(root, &res)
 
+	// ADR-075: writer.Apply recorded what landed before it released the write
+	// lock. A failure there is a ledger failure after the tree changed.
+	var ledgerErr *writer.LedgerError
+	if errors.As(applyErr, &ledgerErr) {
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: applyErr.Error()}
+	}
 	if res.Applied && !res.DryRun {
-		// A file mrw just wrote is one it knows WHOLLY: it produced every line.
-		wrote := map[string]seen.Observation{}
-		var gone []string
-		for _, f := range res.Files {
-			if f.Removed {
-				gone = append(gone, f.Path)
-				continue
-			}
-			if f.Written {
-				wrote[f.Path] = seen.Observation{SHA: f.SHAAfter}
-			}
-		}
-		if err := seen.Drop(root, gone); err != nil {
-			return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
-		}
-		if err := seen.Record(root, wrote); err != nil {
-			return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
-		}
 		// ADR-055: a landed MCP write feeds the same ring the CLI reads, so
 		// "3 of your last 10" counts every landed write on this checkout.
 		// The MCP receipt is structured and carries `advisories`; the

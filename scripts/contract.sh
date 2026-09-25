@@ -2275,7 +2275,9 @@ out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolV
 python3 - "$out" <<'PY'
 import json,sys
 i=json.loads(sys.argv[1])["result"]["instructions"]
-for w in ("--files-from","--check","--root","shell","serialized","ONE fixed checkout","ack","LICENSES NOTHING"):
+# ADR-075: "one writer per checkout" replaced "serialized" — the CLI's writes
+# take turns too, so serialized writes are no longer this surface's advantage.
+for w in ("--files-from","--check","--root","shell","one writer per checkout","ONE fixed checkout","ack","LICENSES NOTHING"):
     assert w in i, "the instructions never mention %r" % w
 # The routing must come BEFORE the format details. It is no longer literally
 # first: it is merged into the WHEN TO REACH paragraph, because a separate
@@ -6866,6 +6868,33 @@ assert res.get("isError"), "served"
 t = res["content"][0]["text"]
 assert "encoded" in t and "per-file receipt" not in t, t
 PY
+
+# 150. ADR-075: eight writers off one read, each replacing a different line of
+# one file. Every writer that exits 0 has its edit in the file, and every other
+# is refused as stale, exit 1. Before the write lock a later rename discarded
+# earlier edits while every writer printed "applied" (the v1.25.1 round: 45-53%
+# lost). The pair is every single-writer row above: one writer lands.
+fixture
+seq -f 'line %g' 1 16 > "$R/f150.txt"
+m read f150.txt >/dev/null
+for j in 0 1 2 3 4 5 6 7; do
+	printf '@@ f150.txt %d replace\nwriter %d\n' $((j + 1)) "$j" | m write --no-check - > "$R/out150.$j" 2>&1 &
+	pids150[$j]=$!
+done
+for j in 0 1 2 3 4 5 6 7; do
+	wait "${pids150[$j]}"; rcs150[$j]=$?
+done
+lost=0; odd=0
+for j in 0 1 2 3 4 5 6 7; do
+	line=$(sed -n "$((j + 1))p" "$R/f150.txt")
+	case "${rcs150[$j]}" in
+		0) [ "$line" = "writer $j" ] || lost=$((lost + 1)) ;;
+		1) grep -q 'changed since' "$R/out150.$j" || odd=$((odd + 1)) ;;
+		*) odd=$((odd + 1)) ;;
+	esac
+done
+[ "$lost" = 0 ] && ok "no writer exits 0 and loses its edit" || bad "$lost writer(s) exited 0 and lost their edit"
+[ "$odd" = 0 ] && ok "and every other writer is refused as stale" || bad "$odd writer(s) ended oddly: $(cat "$R"/out150.*)"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

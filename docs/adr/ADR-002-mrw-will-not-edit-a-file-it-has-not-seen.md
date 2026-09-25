@@ -162,6 +162,8 @@ tasks: the ledger, and the refusal that uses it.
 - Locking, or any protection against two processes writing concurrently
   (permanent: mrw is a one-shot command, not a daemon; the ledger detects a
   change after the fact, it does not prevent one)
+  — **invalidated by ADR-075** (2026-09-25) for writers that are mrw: one writer per
+  checkout, so a writer whose file changed while it waited is refused
 - Content-aware staleness ("this change did not affect your lines") (permanent:
   a hash is all-or-nothing by design, and the alternative is a merge algorithm)
 - A `mrw forget <path>` subcommand to drop ledger entries — `seen.Forget` exists
