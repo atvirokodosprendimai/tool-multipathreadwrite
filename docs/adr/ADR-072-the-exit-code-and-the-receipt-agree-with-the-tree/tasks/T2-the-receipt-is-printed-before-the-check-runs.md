@@ -35,8 +35,8 @@ A write killed during its check printed nothing, and `mrw stats` never counted i
 
 ```bash
 set -o pipefail
-go test ./cmd/mrw/ ./internal/authoring/ -count=1 -timeout 180s -run 'TestTheReceiptIsOnStdout|TestAFailedCheckIsCountedOnce|TestReclassify|TestALandingWhoseLedger|TestACheckThatCannotRun' -v 2>&1 | tee /tmp/adr072-T2.out \
-  && missing=$(for t in TestTheReceiptIsOnStdoutBeforeTheCheckStarts TestAFailedCheckIsCountedOnceInStats TestReclassifyMovesOneCountAndNeverAddsOne TestALandingWhoseLedgerCannotBeWrittenStillPrintsItsReceipt TestACheckThatCannotRunIsCountedAsCheckNotRun; do grep -qE "^--- PASS: $t \(" /tmp/adr072-T2.out || echo "$t"; done) \
+go test ./cmd/mrw/ ./internal/authoring/ -count=1 -timeout 180s -run 'TestTheReceiptIsOnStdout|TestAFailedCheckIsCountedOnce|TestReclassify|TestALandingWhoseLedger|TestACheckThatCannotRun|TestALedgerFailureWithACheckDue' -v 2>&1 | tee /tmp/adr072-T2.out \
+  && missing=$(for t in TestTheReceiptIsOnStdoutBeforeTheCheckStarts TestAFailedCheckIsCountedOnceInStats TestReclassifyMovesOneCountAndNeverAddsOne TestALandingWhoseLedgerCannotBeWrittenStillPrintsItsReceipt TestACheckThatCannotRunIsCountedAsCheckNotRun TestALedgerFailureWithACheckDueIsCountedAsCheckNotRun; do grep -qE "^--- PASS: $t \(" /tmp/adr072-T2.out || echo "$t"; done) \
   && [ -z "$missing" ] \
   && grep -q '^# 143\. ' scripts/contract.sh \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted \
@@ -53,6 +53,7 @@ go test ./cmd/mrw/ ./internal/authoring/ -count=1 -timeout 180s -run 'TestTheRec
 | `TestReclassifyMovesOneCountAndNeverAddsOne` | `internal/authoring/reclassify_test.go` | the move, and its floor at zero | — | S1, S2 |
 | `TestALandingWhoseLedgerCannotBeWrittenStillPrintsItsReceipt` | `cmd/mrw/receipt_before_check_test.go` | a write whose ledger save fails after it landed still prints its receipt and is counted, once (review of #229) | — | S2 |
 | `TestACheckThatCannotRunIsCountedAsCheckNotRun` | `cmd/mrw/receipt_before_check_test.go` | a check that could not run after the write landed is counted as check_not_run, not applied (review of #229) | — | S2 |
+| `TestALedgerFailureWithACheckDueIsCountedAsCheckNotRun` | `cmd/mrw/receipt_before_check_test.go` | a landing whose ledger save fails while its check was due is counted as check_not_run; under `--no-check` it stays applied (second review of #229) | — | S2 |
 
 ## Reachability
 
@@ -98,6 +99,8 @@ go test ./cmd/mrw/ ./internal/authoring/ -count=1 -timeout 180s -run 'TestTheRec
 - 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:757
 - 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:770
 - 2026-09-25 · fa1ddf4* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:987
+- 2026-09-25 · d01c36b* · exit 0 · `set -o pipefail …` · acceptance-sha256:9695f68a52f5f80f26cf68c6310f6806267e2d26d3373fc164a7892fa349884a · ms:1193
+- 2026-09-25 · d01c36b* · exit 0 · `set -o pipefail …` · acceptance-sha256:9695f68a52f5f80f26cf68c6310f6806267e2d26d3373fc164a7892fa349884a · ms:646
 
 ## Mutation Log
 (empty until execute)
@@ -115,6 +118,7 @@ go test ./cmd/mrw/ ./internal/authoring/ -count=1 -timeout 180s -run 'TestTheRec
 - 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · a landing whose ledger cannot be written prints no receipt in human form · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · covers:the receipt is on stdout before the check starts
 - 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · a landing whose ledger cannot be written is not counted in stats · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · covers:a landing is counted before the check
 - 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · a check that could not run is left counted as applied · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · covers:a landing is counted before the check
+- 2026-09-25 · d01c36b* · mutant killed · exit 1 · `cmd/mrw/main.go` · a landing whose ledger cannot be written while its check was due is counted as applied · acceptance-sha256:9695f68a52f5f80f26cf68c6310f6806267e2d26d3373fc164a7892fa349884a · covers:a landing is counted before the check
 
 ## Invariants
 

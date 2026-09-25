@@ -6724,10 +6724,13 @@ gone=0; for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$(cat "$R/gc.pid")" 2>/dev/nu
 # A hangup too: it ends mrw, and the check in its own group would not hear it.
 # (TERM and HUP, not INT: a shell starts a background job with SIGINT ignored,
 # and mrw leaves an ignored signal ignored.)
+# perl sets SIGHUP back to default first: under `nohup ./scripts/contract.sh`
+# mrw would inherit it ignored, rightly keep ignoring it, and this row would
+# read that as a failure (second review of #229).
 fixture
 printf '{"check":"echo $$ > gc.pid; exec sleep 30"}' > "$R/.quality-harness.json"
 printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 4 }\n' > "$R/p145c.mrw"
-"$MRW" -C "$R" write "$R/p145c.mrw" > "$R/out145c" 2>&1 & pid=$!
+perl -e '$SIG{HUP}="DEFAULT"; exec @ARGV' "$MRW" -C "$R" write "$R/p145c.mrw" > "$R/out145c" 2>&1 & pid=$!
 for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
 kill -HUP "$pid"; wait "$pid"; rc=$?
 want 3 "$rc" "a hangup during the check is exit 3"

@@ -120,6 +120,46 @@ func TestALandingWhoseLedgerCannotBeWrittenStillPrintsItsReceipt(t *testing.T) {
 	}
 }
 
+// Second review of #229. A landing whose ledger cannot be written, on a write
+// whose check was due, is counted check_not_run, as a check that could not
+// start is: the tree changed and nothing verified it. Under --no-check it is
+// applied (the test above).
+func TestALedgerFailureWithACheckDueIsCountedAsCheckNotRun(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("a read-only file does not stop this user from writing it")
+	}
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := checkTree(t)
+	if _, err := readIn(t, root, "a.go"); err != nil {
+		t.Fatal(err)
+	}
+	ledger, err := seen.ReadPath(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(ledger, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(ledger, 0o600) })
+	if out, code := writeIn(t, root, planFile(t, goPlan)); code != exitUsage {
+		t.Fatalf("exit %d, want %d for a landing whose ledger could not be written:\n%s", code, exitUsage, out)
+	}
+	out, code := runIn(t, root, "stats", "--json")
+	if code != 0 {
+		t.Fatalf("stats exited %d:\n%s", code, out)
+	}
+	var s struct {
+		Counts map[string]int `json:"counts"`
+		Landed int            `json:"landed"`
+	}
+	if err := json.Unmarshal([]byte(out), &s); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if s.Counts["check_not_run"] != 1 || s.Counts["applied"] != 0 || s.Landed != 1 {
+		t.Fatalf("counts %v landed %d, want check_not_run 1, applied 0, landed 1", s.Counts, s.Landed)
+	}
+}
+
 // A check that could not run after the write landed (its log file could not
 // be created) was counted as applied: the error return skipped the move to
 // the check's verdict. It is check_not_run (review of #229).

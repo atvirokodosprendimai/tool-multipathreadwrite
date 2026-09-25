@@ -5,6 +5,7 @@ package check
 import (
 	"context"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -68,10 +69,12 @@ func TestAnInterruptedCheckSaysSo(t *testing.T) {
 // ADR-072, review of #229 (B1). A hangup ends mrw, and the check, in a process
 // group of its own, never hears it, so a hangup stops the check too. A signal
 // the process was started with ignored stays ignored: nohup ignores SIGHUP.
+//
+// The ignored case runs in a child of this test binary. signal.Reset does not
+// undo signal.Ignore, so ignoring SIGHUP here would leave it ignored for every
+// later test in this binary and skip a second run of this one (second review
+// of #229).
 func TestTheCheckStopsOnHangupUnlessHangupIsIgnored(t *testing.T) {
-	if signal.Ignored(syscall.SIGHUP) {
-		t.Skip("this test process was started with SIGHUP ignored")
-	}
 	has := func(s os.Signal) bool {
 		for _, x := range checkSignals() {
 			if x == s {
@@ -80,12 +83,23 @@ func TestTheCheckStopsOnHangupUnlessHangupIsIgnored(t *testing.T) {
 		}
 		return false
 	}
+	if os.Getenv("MRW_TEST_HANGUP_IGNORED") == "1" {
+		signal.Ignore(syscall.SIGHUP)
+		if has(syscall.SIGHUP) {
+			t.Fatal("a hangup the process ignores was switched back on for the check")
+		}
+		return
+	}
+	if signal.Ignored(syscall.SIGHUP) {
+		t.Skip("this test process was started with SIGHUP ignored")
+	}
 	if !has(syscall.SIGHUP) || !has(syscall.SIGTERM) || !has(os.Interrupt) {
 		t.Fatalf("a check does not stop on hangup, terminate and interrupt: %v", checkSignals())
 	}
-	signal.Ignore(syscall.SIGHUP)
-	defer signal.Reset(syscall.SIGHUP)
-	if has(syscall.SIGHUP) {
-		t.Fatal("a hangup the process ignores was switched back on for the check")
+	child := exec.Command(os.Args[0], "-test.run=^TestTheCheckStopsOnHangupUnlessHangupIsIgnored$", "-test.count=1", "-test.v")
+	child.Env = append(os.Environ(), "MRW_TEST_HANGUP_IGNORED=1")
+	out, err := child.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "--- PASS: TestTheCheckStopsOnHangupUnlessHangupIsIgnored") {
+		t.Fatalf("with SIGHUP ignored, the check still stops on it (%v):\n%s", err, out)
 	}
 }

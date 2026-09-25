@@ -99,6 +99,8 @@ go test ./internal/subproc/ ./internal/check/ -count=1 -timeout 180s -run 'TestA
 - 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2115
 - 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2395
 - 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2153
+- 2026-09-25 · d01c36b* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2247
+- 2026-09-25 · d01c36b* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2138
 
 ## Mutation Log
 (empty until execute)
@@ -113,6 +115,7 @@ go test ./internal/subproc/ ./internal/check/ -count=1 -timeout 180s -run 'TestA
 - 2026-09-25 · d3f63be* · mutant killed · exit 1 · `internal/check/check.go` · a hangup ends mrw and leaves the check, in its own group, running · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · covers:an interrupt is reported
 - 2026-09-25 · d3f63be* · mutant killed · exit 1 · `internal/check/check.go` · a signal the process started with ignored (nohup's SIGHUP) is switched back on · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · covers:an interrupt is reported
 - 2026-09-25 · d3f63be* · mutant killed · exit 1 · `internal/check/check.go` · an interrupted check is not reported as interrupted · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · covers:an interrupt is reported
+- 2026-09-25 · d01c36b* · mutant killed · exit 1 · `internal/check/check.go` · a signal the process started with ignored (nohup's SIGHUP) is switched back on, now caught through a child test process · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · covers:an interrupt is reported
 
 ## Invariants
 

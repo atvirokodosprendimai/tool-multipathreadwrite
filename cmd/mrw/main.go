@@ -1138,6 +1138,29 @@ held or went unchecked.`,
 				return cli.Exit(err, exitUsage)
 			}
 
+			// checkDue says whether this write's check runs (ADR-054): only on a
+			// real landing and not under --no-check, and then when --check
+			// demands it, or when the plan touched a file a check could cover
+			// and a command exists.
+			checkDue := func(res apply.Result) bool {
+				if !res.Applied || res.Failed > 0 || cmd.Bool("no-check") {
+					return false
+				}
+				_, code := writeCheckPaths(res.Files)
+				return cmd.Bool("check") || (code && (cfg.Check != "" || cfg.ScopedCheck != ""))
+			}
+			// ledgerFailed refuses a write that landed and whose ledger could
+			// not record it. One whose check was due is counted check_not_run,
+			// as a check that could not start is: the tree changed and nothing
+			// verified it (second review of #229).
+			ledgerFailed := func(res apply.Result, err error) error {
+				if checkDue(res) {
+					_ = authoring.Record(root, authoring.CheckNotRun)
+					tallied = true
+				}
+				return refuseWith(res, err.Error())
+			}
+
 			// The check runs only on a real, successful write: verifying a tree
 			// the plan did not touch would attribute someone else's red suite
 			// to this edit.
@@ -1161,10 +1184,10 @@ held or went unchecked.`,
 					}
 				}
 				if err := seen.Drop(root, gone); err != nil {
-					return refuseWith(res, err.Error())
+					return ledgerFailed(res, err)
 				}
 				if err := seen.Record(root, wrote); err != nil {
-					return refuseWith(res, err.Error())
+					return ledgerFailed(res, err)
 				}
 			}
 
@@ -1207,27 +1230,22 @@ held or went unchecked.`,
 				tallied = true
 			}
 
-			if res.Applied && res.Failed == 0 && !cmd.Bool("no-check") {
-				written, code := writeCheckPaths(res.Files)
-				// ADR-054: the check runs by default, but only when the plan
-				// touched a file a check could plausibly cover AND a command
-				// exists. A markdown-only plan does not pay the project
-				// suite; a tree with no harness and no go.mod does not get an
-				// exit 2 it never asked for. --check is a DEMAND and skips
-				// both gates: on a prose plan it runs, and with no command it
-				// is exit 2 (ADR-003).
-				demanded := cmd.Bool("check")
-				hasCommand := cfg.Check != "" || cfg.ScopedCheck != ""
-				if demanded || (code && hasCommand) {
-					cr, err := check.Run(ctx, root, cfg, written)
-					if err != nil {
-						// The write landed and its check could not run: that is
-						// check_not_run, not applied (review of #229).
-						_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
-						return refuseWith(res, err.Error())
-					}
-					receipt.Check = &cr
+			// ADR-054: the check runs by default, but only when the plan
+			// touched a file a check could plausibly cover AND a command
+			// exists. A markdown-only plan does not pay the project suite; a
+			// tree with no harness and no go.mod does not get an exit 2 it
+			// never asked for. --check is a DEMAND and skips both gates: on a
+			// prose plan it runs, and with no command it is exit 2 (ADR-003).
+			if checkDue(res) {
+				written, _ := writeCheckPaths(res.Files)
+				cr, err := check.Run(ctx, root, cfg, written)
+				if err != nil {
+					// The write landed and its check could not run: that is
+					// check_not_run, not applied (review of #229).
+					_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
+					return refuseWith(res, err.Error())
 				}
+				receipt.Check = &cr
 			}
 
 			if cmd.Bool("json") {
