@@ -12,7 +12,7 @@
 
 ## Goal
 
-Six Codex rounds each found one more edge of the parser that T5–T10 model. Instead of a seventh, the model is checked against the parser itself. `TestTheGuardsAgreeWithTheParserOnRandomArgv` drives random argv — every subcommand and iter verb, every flag own and inherited, padded names and values, attached values, `--`, `-`, a dash before a digit, unicode whitespace — through the real guards, and through the same command tree with every Action replaced by a recorder, so urfave itself reports the strings mrw would act on. The guard must refuse exactly when the parser trims a token and acts on it, or consumes an attached value that ends in whitespace (Decision item 5); a token's provenance is settled by re-parsing with a sentinel in its place, and whether the parser read a token as a flag by re-parsing with an unknown flag there. Pools are enumerated from the live command tree. The run found one gap: an iter verb was judged like a path, so `iter 'add ' x` was refused; the verb is exempt now. 40,000 cases over eight seeds agree at the time of writing.
+Six Codex rounds each found one more edge of the parser that T5–T10 model. Instead of a seventh, the model is checked against the parser itself. `TestTheGuardsAgreeWithTheParserOnRandomArgv` drives random argv — every subcommand and iter verb, every flag own and inherited, padded names and values, attached values, `--`, `-`, a dash before a digit, unicode whitespace — through the real guards, and through the same command tree with every Action replaced by a recorder, so urfave itself reports the strings mrw would act on. The guard must refuse exactly when the parser trims a token and acts on it, or consumes an attached value that ends in whitespace (Decision item 5); a token's provenance is settled by re-parsing with a sentinel in its place, and whether the parser read a token as a flag by re-parsing with an unknown flag there. Pools are enumerated from the live command tree. The run found one gap: an iter verb was judged like a path, so `iter 'add ' x` was refused; the verb is exempt now. 40,000 cases over eight seeds agree on macOS at the time of writing; on NTFS the test SKIPS, because its fixture needs a file named `x ` that Windows folds to `x`, so it has no Windows agreement data (BACKLOG, the v1.25.1 adversarial round).
 
 ## Affected Files
 
@@ -58,7 +58,7 @@ go test ./cmd/mrw/ -count=1 -v -run 'TestAnIterVerbIsNotJudgedAsAPath' 2>&1 | te
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | the two tests |
-| 2 — something selects it | `go test ./...` runs 300 random cases on every run |
+| 2 — something selects it | `go test ./...` runs 300 random cases on every run on a filesystem that keeps `x ` and `x` apart; on NTFS (the Windows CI shards) it skips |
 | 3 — the caller can discover it | a mismatch prints seed, case, argv, what the parser delivered and what mrw said |
 | 4 — it is used | it found the verb gap and retracted a false alarm (a padded ` --` is the terminator) before any Codex round did |
 
