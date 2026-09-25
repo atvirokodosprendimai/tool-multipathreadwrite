@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `a BOM names its encoding`, `UTF-32 is checked before UTF-16`, `the NUL scan is bounded in bytes`, `path ops are not line edits`, `a non-regular file is refused before it is read`, `a contract row drives the binary`, `the engine packages are unchanged`
+**Rests-on:** `a BOM names its encoding`, `UTF-32 is checked before UTF-16`, `the NUL scan is bounded in bytes`, `path ops are not line edits`, `the receipt reports the refused file`, `a non-regular file is refused before it is read`, `a contract row drives the binary`, `the engine packages are unchanged`
 
 ## Goal
 
@@ -129,7 +129,7 @@ go test ./internal/lines/ ./internal/apply/ ./internal/ingest/ -count=1 -timeout
 - 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/apply/apply.go` · an unlink of an encoded file is refused as if it were a line edit · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:path ops are not line edits
 - 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/apply/apply.go` · a create over an existing encoded file is refused for its encoding, hiding already exists · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:path ops are not line edits
 - 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/apply/apply.go` · the encoding refusal lands on an unlink beside the line edit · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:path ops are not line edits
-- 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/apply/apply.go` · the receipt reports a refused encoded file with no sha and zero lines · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:a BOM names its encoding
+- 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/apply/apply.go` · the receipt reports a refused encoded file with no sha and zero lines · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:the receipt reports the refused file
 - 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/apply/apply.go` · a FIFO named in a plan is opened and the write blocks · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:a non-regular file is refused before it is read
 - 2026-09-25 · 7560857* · mutant killed · exit 1 · `internal/ingest/applypatch.go` · a FIFO named in an apply_patch or search_replace document is opened and the write blocks · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · covers:a non-regular file is refused before it is read
 

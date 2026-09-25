@@ -6791,7 +6791,8 @@ for how in plan apply_patch; do
 	done146=0; for i in $(seq 1 30); do kill -0 "$pid" 2>/dev/null || { done146=1; break; }; sleep 0.1; done
 	if [ "$done146" = 1 ]; then
 		wait "$pid"; rc=$?
-		[ "$rc" != 0 ] && grep -q 'not a regular file' "$R/out146" && ok "a FIFO in a $how write is refused by name" || bad "$how fifo: rc $rc $(cat "$R/out146")"
+		want146=1; [ "$how" = apply_patch ] && want146=2
+		[ "$rc" = "$want146" ] && grep -q 'not a regular file' "$R/out146" && ok "a FIFO named in the $how write is refused by name, exit $want146" || bad "$how fifo: rc $rc (want $want146) $(cat "$R/out146")"
 	else
 		kill -9 "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
 		bad "a FIFO in a $how write blocked for 3 s"

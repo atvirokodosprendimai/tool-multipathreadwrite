@@ -31,7 +31,7 @@ the two `--format` compilers read the target earlier still, to locate an old sid
 |-----------|-------|---------|
 | `lines.Split` | `internal/lines/lines.go:17` | The one splitter (ADR-065); no encoding step. |
 | `readLines` | `internal/apply/apply.go` | Reads the whole file, then splits. The bytes are in hand. |
-| The ADR-021 stat | `internal/apply/apply.go:408` | Already stats every addressed file before reading it. |
+| The ADR-021 stat | `internal/apply/apply.go`, beside the same-file check | Already stats every addressed file before reading it. |
 | walk's regular-file rule | `internal/read/walk.go:124-128` | "not a regular file: mrw would block on a pipe or stream a device without end" — the wording to reuse, now `lines.NotRegular` for apply and the compilers. |
 
 ## Decision
@@ -98,6 +98,7 @@ See `docs/adr/ADR-073-a-file-mrw-cannot-split-is-not-edited/tasks/README.md`.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | A UTF-16LE file whose first character is U+0000 reads as UTF-32 | Low | Low | the refusal names the wrong width; the file is still refused |
+| On Windows, Go reports a reparse point that is neither a link nor a junction (a OneDrive placeholder, for one) as irregular, so a plan naming such a file may be refused as not a regular file | Medium | Low | the refusal names the path and nothing is written; unmeasured, and on the owed Windows peer run with the junction repro (review of #230) |
 
 ## Rollback
 
