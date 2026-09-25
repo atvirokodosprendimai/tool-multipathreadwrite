@@ -1933,8 +1933,9 @@ Contract breaks, reproduced on macOS:
   per-line promise, or refines it; either way a record. Finders: the general and MCP sessions.
 - **A malformed `.quality-harness.json` applies the write and exits 2 with only the JSON error.**
   No receipt; exit 2 is documented as usage or filesystem. The config is parsed after the commit.
-- **A killed check leaves an applied write with zero bytes printed.** The receipt is not flushed
-  before the check starts, and mrw has no timeout of its own on a check (see "From ADR-059").
+- **A killed check leaves an applied write with zero bytes printed.** The receipt is rendered only
+  after the check returns, so an outer kill of mrw during the check prints nothing. mrw's own bound
+  (five minutes by default, `timeout_seconds`) kills only `sh`, and a grandchild survives it.
 - **Creates are not cross-checked.** Two `create` hunks for one path both report ok and the bodies
   are concatenated; two spellings of a NEW file on a case-insensitive filesystem (`n.txt` +
   `N.TXT`, macOS and NTFS; `n.txt` + `n.txt.` on NTFS) both report "created", one file remains, and
