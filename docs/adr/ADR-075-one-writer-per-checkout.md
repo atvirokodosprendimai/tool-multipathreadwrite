@@ -8,7 +8,7 @@
 **Cross-references:** ADR-001, ADR-002, ADR-004, ADR-005, ADR-010, ADR-038, ADR-072, docs/adr/BACKLOG.md, docs/specs/2026-09-16-dangling-high-impact.md
 **Governs:** `internal/writer/**`, `internal/seen/seen.go`, `internal/seen/writelock_test.go`, `cmd/mrw/main.go`, `internal/mcp/tools.go`, `internal/mcp/instructions.go`, `internal/mcp/mcp.go`, `internal/mcp/mcp_test.go`, `internal/mcp/era_test.go`, `internal/mcp/testdata/legacy_golden.jsonl`, `internal/adversarial/concurrent_write_test.go`, `scripts/contract.sh`, `scripts/chaos.py`, `AGENTS.md`, `docs/adr/BACKLOG.md`, `docs/adr/ADR-002-mrw-will-not-edit-a-file-it-has-not-seen.md`, `docs/specs/2026-09-16-dangling-high-impact.md`
 **Enforced-by:** `internal/writer/writer_test.go::TestNoTwoWritersAreInsideAtOnce`
-**Invalidates:** ADR-002 Out of Scope *"Locking, or any protection against two processes writing concurrently"*, for writers that are mrw; the BACKLOG "concurrent writes" entry's *"Locking stays permanently out of scope (ADR-002)"*; the 2026-09-16 spec's UC-3 postcondition *"no lock, no CAS"*; ADR-016 Decision 1b's routing clause *"OR when several callers share one checkout and want their ledger writes serialized"*, since the CLI's writes now take turns too
+**Invalidates:** ADR-002 Out of Scope *"Locking, or any protection against two processes writing concurrently"*, for writers that are mrw; the BACKLOG "concurrent writes" entry's *"Locking stays permanently out of scope (ADR-002)"*; the 2026-09-16 spec's UC-3 postcondition *"no lock, no CAS"*; ADR-016 Decision 1b's routing clause *"OR when several callers share one checkout and want their ledger writes serialized"*, since the CLI's writes now take turns too; ADR-038 Decision 2's *"A reader sees either the previous complete file or the next one"*, which a save by truncate-and-rewrite never guaranteed (review of #233)
 **Served-path change:** two `mrw write` processes on one checkout, or a write beside an `mrw mcp` server, no longer interleave. Each takes a per-checkout write lock after loading the ledger and holds it through apply and the ledger update; a writer whose file changed while it waited is refused, exit 1, "changed since mrw last saw it", nothing written. No writer exits 0 and loses its edit. The check runs after the lock is released. The MCP handshake and both tool descriptions stop routing callers who share a checkout to `mrw mcp` for serialized writes.
 
 ## Context
@@ -40,6 +40,13 @@ from an older read, would apply to the new content with exit 0 — an edit misad
 lost. Loaded outside, the snapshot is what this process read, and apply's own sha check, run under
 the lock, refuses a file another writer changed meanwhile.
 
+**And the load must not be torn.** `save` empties the ledger and rewrites it (`os.WriteFile`), and
+`Load` takes no lock (ADR-038 Decision 2), so a writer loading while another saved could find the
+file half-written or empty — and a `Load` that finds no header discards the ledger. That writer was
+refused "has not been read" for a file it had read: 5 of 12 runs of the concurrent-writers test on
+darwin (review of #233). The write paths load through `seen.Snapshot`, which takes `seen.lock` for
+the load and releases it before the write lock is taken.
+
 ## Existing Primitives Audit
 
 | Primitive | Where | Finding |
@@ -57,7 +64,7 @@ the lock, refuses a file another writer changed meanwhile.
 2. **The write lock is its own file, `seen.write.lock`,** beside `seen.lock` in mrw's state
    directory (ADR-004). The order is always the write lock, then `seen.lock`; a read takes only
    `seen.lock`.
-3. **The caller loads the ledger before the lock** (Context, "Where the lock must start").
+3. **The caller loads the ledger before the lock, through `seen.Snapshot`** (Context, "Where the lock must start").
 4. **The surfaces stop selling serialized writes.** The MCP handshake and both tool descriptions
    route by shell alone, and say that writers take turns on either surface.
 5. **The check runs after the lock is released.** A five-minute check must not hold every other
@@ -82,7 +89,7 @@ the lock, refuses a file another writer changed meanwhile.
 
 ## Component / Boundary Impact
 
-`internal/seen` gains `LockWrites`; `internal/writer` is new. `internal/apply`, `internal/plan`,
+`internal/seen` gains `LockWrites` and `Snapshot`; `internal/writer` is new. `internal/apply`, `internal/plan`,
 `internal/read`, `internal/check`, `internal/state`, `internal/lines`, `internal/iter`,
 `internal/rooted` and `internal/subproc` stay byte-identical.
 
@@ -110,6 +117,8 @@ See `docs/adr/ADR-075-one-writer-per-checkout/tasks/README.md`.
   gone.
 - **Negative:** a writer waits for another writer's apply and ledger update, not its check. A process
   that hangs while holding the lock stalls the others until the kernel drops the lock.
+  A `--dry-run` takes the lock too, so it waits behind a concurrent writer, and a lock that cannot be
+  opened is exit 2 for it as for a write (review of #233).
 - **Neutral:** exit codes keep their meanings; the refusal is the existing stale-sha one.
 
 ## Out of Scope
@@ -124,6 +133,7 @@ See `docs/adr/ADR-075-one-writer-per-checkout/tasks/README.md`.
 |------|------------|--------|------------|
 | A filesystem without working flock lets two writers in | Low | Medium | ADR-038 rests on the same primitive; `chaos.py`'s race suite fails on any lost edit |
 | A writer killed while holding the lock | Low | Low | the kernel releases a flock with its process |
+| An `mrw mcp` write waiting on a CLI writer's lock holds the server's `gate`, so MCP reads queued behind it wait too | Low | Low | the wait covers the other writer's apply and ledger update, not its check; noted by the review of #233 |
 
 ## Rollback
 

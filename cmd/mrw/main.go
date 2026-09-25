@@ -1107,7 +1107,7 @@ held or went unchecked.`,
 					return refuse(fmt.Sprintf("%v: nothing was written", err))
 				}
 			}
-			ledger, err := seen.Load(root)
+			ledger, err := seen.Snapshot(root)
 			if err != nil {
 				return refuse(err.Error())
 			}

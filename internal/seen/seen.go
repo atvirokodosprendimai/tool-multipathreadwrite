@@ -366,6 +366,22 @@ func LockWrites(root string) (release func(), err error) {
 	return hold(root, Name+".write.lock")
 }
 
+// Snapshot loads the ledger under the ledger's own lock, for a writer to
+// validate against before it takes the write lock (ADR-075). save empties the
+// file and rewrites it, so a Load taken while another writer saves can find it
+// half-written or empty — and a Load that finds no header discards the ledger —
+// which refused a writer "has not been read" for a file it had read (review of
+// #233). Load stays unlocked for readers that only report (ADR-038).
+func Snapshot(root string) (Ledger, error) {
+	var l Ledger
+	err := withLock(root, func() error {
+		var err error
+		l, err = Load(root)
+		return err
+	})
+	return l, err
+}
+
 // hold opens the named lock file in root's state directory and takes it
 // exclusively, waiting while another holder has it. The kernel releases it if
 // the process dies holding it.

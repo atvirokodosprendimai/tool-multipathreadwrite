@@ -605,7 +605,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		})
 	}
 
-	ledger, err := seen.Load(root)
+	ledger, err := seen.Snapshot(root)
 	if err != nil {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
 	}

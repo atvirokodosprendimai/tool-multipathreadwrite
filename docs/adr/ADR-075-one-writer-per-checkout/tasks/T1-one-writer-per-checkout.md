@@ -4,7 +4,7 @@
 **Covers:** none — no spec
 **Estimated scope:** M
 **Owner:** unassigned
-**Produces:** `seen.LockWrites`; `internal/writer.Apply` and `LedgerError`; both write surfaces through it
+**Produces:** `seen.LockWrites`, `seen.Snapshot`; `internal/writer.Apply` and `LedgerError`; both write surfaces through it
 **Consumes:** `apply.Apply`, `seen.Drop`, `seen.Record` (ADR-038's lock primitive)
 **Data dependency:** hermetic
 **Proof map:** v1
@@ -24,7 +24,7 @@ so a writer is refused or lands and is never told "applied" for an edit that is 
 | `internal/writer/writer.go` | new | lock, apply, drop and record, release |
 | `cmd/mrw/main.go` | edit | the write Action calls `writer.Apply`; its ledger loop moves there |
 | `internal/mcp/tools.go` | edit | the write tool calls `writer.Apply`; its ledger loop moves there |
-| `internal/seen/writelock_test.go` | new | the lock excludes, and is not the ledger's |
+| `internal/seen/writelock_test.go` | new | the lock excludes, and is not the ledger's; a snapshot is never a half-saved ledger |
 | `internal/writer/writer_test.go` | new | no overlap; a stale writer refused; what landed recorded |
 | `internal/adversarial/concurrent_write_test.go` | new | eight processes of the built binary lose nothing |
 | `scripts/contract.sh` | edit | §150 |
@@ -33,15 +33,15 @@ so a writer is refused or lands and is never told "applied" for an edit that is 
 
 1. [S1] Write the tests; confirm RED. [proof: mutation]
 2. [S2] Implement; GREEN; the ADR-038 ledger test stays green. [proof: mutation]
-   Mutants: `writer.Apply` takes no lock; `LockWrites` locks `seen.lock`; `writer.Apply` reloads the ledger under the lock; the ledger update removed; the MCP write tool back on `apply.Apply`.
+   Mutants: `writer.Apply` takes no lock; `LockWrites` locks `seen.lock`; `writer.Apply` reloads the ledger under the lock; the ledger update removed; the MCP write tool back on `apply.Apply`; `Snapshot` loads without the lock.
 3. [S3] Contract §150: eight writers off one read, each a different line — none exits 0 without its edit, every other exits 1 naming the change. [proof: acceptance]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
-go test ./internal/writer/ ./internal/seen/ ./internal/adversarial/ -count=1 -timeout 300s -run 'TestNoTwoWritersAreInsideAtOnce|TestAWriterWhoseFileChangedWhileItWaitedIsRefused|TestWhatLandedIsRecordedBeforeTheLockIsReleased|TestAWriteLockExcludesASecondWriter|TestTheLedgerCanBeWrittenUnderTheWriteLock|TestConcurrentWritersOffOneReadLoseNothing|TestConcurrentRecordsKeepEveryPath' -v 2>&1 | tee /tmp/adr075-T1.out \
-  && missing=$(for t in TestNoTwoWritersAreInsideAtOnce TestAWriterWhoseFileChangedWhileItWaitedIsRefused TestWhatLandedIsRecordedBeforeTheLockIsReleased TestAWriteLockExcludesASecondWriter TestTheLedgerCanBeWrittenUnderTheWriteLock TestConcurrentWritersOffOneReadLoseNothing TestConcurrentRecordsKeepEveryPath; do grep -qE "^--- PASS: $t \(" /tmp/adr075-T1.out || echo "$t"; done) \
+go test ./internal/writer/ ./internal/seen/ ./internal/adversarial/ -count=1 -timeout 300s -run 'TestNoTwoWritersAreInsideAtOnce|TestASnapshotNeverSeesAHalfSavedLedger|TestAWriterWhoseFileChangedWhileItWaitedIsRefused|TestWhatLandedIsRecordedBeforeTheLockIsReleased|TestAWriteLockExcludesASecondWriter|TestTheLedgerCanBeWrittenUnderTheWriteLock|TestConcurrentWritersOffOneReadLoseNothing|TestConcurrentRecordsKeepEveryPath' -v 2>&1 | tee /tmp/adr075-T1.out \
+  && missing=$(for t in TestNoTwoWritersAreInsideAtOnce TestASnapshotNeverSeesAHalfSavedLedger TestAWriterWhoseFileChangedWhileItWaitedIsRefused TestWhatLandedIsRecordedBeforeTheLockIsReleased TestAWriteLockExcludesASecondWriter TestTheLedgerCanBeWrittenUnderTheWriteLock TestConcurrentWritersOffOneReadLoseNothing TestConcurrentRecordsKeepEveryPath; do grep -qE "^--- PASS: $t \(" /tmp/adr075-T1.out || echo "$t"; done) \
   && [ -z "$missing" ] \
   && grep -q 'writer\.Apply(' cmd/mrw/main.go \
   && grep -q 'writer\.Apply(' internal/mcp/tools.go \
@@ -62,6 +62,7 @@ go test ./internal/writer/ ./internal/seen/ ./internal/adversarial/ -count=1 -ti
 | `TestWhatLandedIsRecordedBeforeTheLockIsReleased` | `internal/writer/writer_test.go` | a written file recorded wholly, an unlinked one dropped | — | S1, S2 |
 | `TestAWriteLockExcludesASecondWriter` | `internal/seen/writelock_test.go` | a second holder waits; a release twice is harmless | — | S1, S2 |
 | `TestTheLedgerCanBeWrittenUnderTheWriteLock` | `internal/seen/writelock_test.go` | `Record` completes while the write lock is held | — | S1, S2 |
+| `TestASnapshotNeverSeesAHalfSavedLedger` | `internal/seen/writelock_test.go` | 2,000 snapshots against a writer rewriting the ledger never see fewer entries than it holds (review of #233) | — | S2 |
 | `TestConcurrentWritersOffOneReadLoseNothing` | `internal/adversarial/concurrent_write_test.go` | eight processes, three rounds: exit 0 means the edit is there, exit 1 names the change | — | S1, S2 |
 | `TestConcurrentRecordsKeepEveryPath` | `internal/seen/seen_test.go` | ADR-038, unchanged | — | S2 |
 
@@ -110,6 +111,13 @@ go test ./internal/writer/ ./internal/seen/ ./internal/adversarial/ -count=1 -ti
   ```
 - 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b14bc53a98cb54454c1fe1a960ed20813e73167059add05e104d1d7c9463dd12 · ms:1176
 - 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b14bc53a98cb54454c1fe1a960ed20813e73167059add05e104d1d7c9463dd12 · ms:1529
+- 2026-09-26 · 2463a7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · ms:1581
+- 2026-09-26 · 2463a7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · ms:1093
+- 2026-09-26 · 2463a7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · ms:1161
+- 2026-09-26 · 2463a7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · ms:1150
+- 2026-09-26 · 2463a7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · ms:1484
+- 2026-09-26 · 2463a7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · ms:1215
+- 2026-09-26 · 2463a7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · ms:1467
 
 ## Mutation Log
 (empty until execute)
@@ -118,6 +126,12 @@ go test ./internal/writer/ ./internal/seen/ ./internal/adversarial/ -count=1 -ti
 - 2026-09-26 · da2fd0a* · mutant killed · exit 1 · `internal/writer/writer.go` · what landed is not recorded before the lock is released · acceptance-sha256:b14bc53a98cb54454c1fe1a960ed20813e73167059add05e104d1d7c9463dd12 · covers:what landed is recorded under the lock
 - 2026-09-26 · da2fd0a* · mutant killed · exit 1 · `internal/seen/seen.go` · the write lock is the ledger's own lock, and Record under it waits on itself · acceptance-sha256:b14bc53a98cb54454c1fe1a960ed20813e73167059add05e104d1d7c9463dd12 · covers:the write lock is not the ledger lock
 - 2026-09-26 · da2fd0a* · mutant killed · exit 1 · `internal/mcp/tools.go` · the MCP write tool bypasses the write lock · acceptance-sha256:b14bc53a98cb54454c1fe1a960ed20813e73167059add05e104d1d7c9463dd12 · covers:both surfaces write through writer.Apply
+- 2026-09-26 · 2463a7d* · mutant killed · exit 1 · `internal/seen/seen.go` · the snapshot loads without the ledger's lock and can see a half-saved ledger · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · covers:a stale writer is refused, not rebased
+- 2026-09-26 · 2463a7d* · mutant killed · exit 1 · `internal/writer/writer.go` · writer.Apply takes no lock, so two writers validate and commit at once · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · covers:no two writers are inside at once
+- 2026-09-26 · 2463a7d* · mutant killed · exit 1 · `internal/writer/writer.go` · the ledger is reloaded under the lock, so a stale writer inherits the previous writer's whole-file licence and is rebased · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · covers:a stale writer is refused, not rebased
+- 2026-09-26 · 2463a7d* · mutant killed · exit 1 · `internal/writer/writer.go` · what landed is not recorded before the lock is released · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · covers:what landed is recorded under the lock
+- 2026-09-26 · 2463a7d* · mutant killed · exit 1 · `internal/mcp/tools.go` · the MCP write tool bypasses the write lock · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · covers:both surfaces write through writer.Apply
+- 2026-09-26 · 2463a7d* · mutant killed · exit 1 · `internal/seen/seen.go` · the write lock is the ledger's own lock, and Record under it waits on itself · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · covers:the write lock is not the ledger lock
 
 ## Invariants
 
