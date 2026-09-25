@@ -64,7 +64,10 @@ signal takes both.
 3. **The MCP page is sized by its encoded length**: the per-line cost comes from the JSON-encoded
    text, the measure the ceiling checks. When a read's text renders inside the limit and its
    encoded answer does not, the refusal names the cause that fits the remedy: the encoding (ask for
-   a narrower range) when the text alone encodes past the limit, the per-file receipt otherwise.
+   a narrower range) when the text alone encodes past the limit, the per-file receipt otherwise. A
+   page that still overflows — its lines more escaped than the sample's — is halved, at most three
+   times, before the call declines, and a line that alone encodes past the limit is refused naming
+   the CLI, since no range can serve it (both found by the review of #232).
 4. **The one-liners**: `--files-from` names the line that exceeds 8 MiB; the MSYS hint names both
    variables, and AGENTS.md, README and the served guide say when the rewrite fires.
 
@@ -72,9 +75,10 @@ signal takes both.
 
 - **Estimate the escape cost by counting `<>&`.** Rejected: the encoder's table (control bytes,
   U+2028, invalid UTF-8) is the truth, and a second table drifts from it.
-- **Halve a page that still does not fit, up to three times.** Rejected for now: sizing by the
-  encoded length fits the measured fixture on the first page, and a retry loop is code no fixture
-  exercises. `firstPage` still declines a page that does not fit (ADR-031).
+- **Size each page once and never retry.** Rejected after the review of #232 found the fixture: a
+  file whose escaped half comes first paged once and then refused `next_read` mid-file, because the
+  sample mixed both halves. The page halves instead, at most three times; `firstPage` still declines
+  a page that does not fit after that (ADR-031).
 - **Stat every spec on MCP only.** Rejected: the CLI hung the same way.
 - **Give ast-grep its own signal handling.** Rejected: that is ADR-072's list of signals a second
   time, and the two would drift. One function in `subproc` serves both children.
@@ -127,8 +131,9 @@ See `docs/adr/ADR-074-a-read-is-served-or-reported-never-hung/tasks/README.md`.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| A first page sized by the encoded average still does not fit, because a file's heavily escaped lines sit at its start | Low | Low | `firstPage` declines as before (ADR-031) and the refusal names the encoding and a narrower range |
+| A page sized by the encoded average still does not fit, because its lines are more heavily escaped than the sample's | Low | Low | the page halves, at most three times; a line that alone encodes past the ceiling is refused naming the CLI, which has no such limit |
 | A signal arrives in the moment before `Interruptible` installs its handler | Low | Low | as ADR-072 records for the check: mrw dies by the default action, and the child has not started |
+| A ^C that lands after ast-grep exited cleanly, before mrw stops listening, is consumed and the read completes | Low | Low | only a run that ended badly is read as interrupted, so valid output is served; a second ^C meets the default action (review of #232) |
 | Under `mrw mcp`, a terminate that arrives while a check or an ast-grep runs stops the child and leaves the server serving, where before it ended the server | Low | Low | a host stops a stdio server by closing its stdin first, and the server exits at the end of that call; a second signal meets the default action. ADR-072's check has the same property |
 
 ## Rollback

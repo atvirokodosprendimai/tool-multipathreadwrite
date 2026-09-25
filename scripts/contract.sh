@@ -6855,6 +6855,16 @@ assert "-- PARTIAL:" in res["content"][0]["text"], "not a page"
 assert "next_read" in json.dumps(res), "no next_read"
 assert len(line) <= 200100, "over the ceiling"
 PY
+# The pair: a CLOSED range over the same file is not paged (ADR-014), so it is
+# refused, and the refusal names the encoding, not the per-file receipt.
+out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["m.tsx:1-5000"]}}}' | m mcp 2>/dev/null)
+python3 - "$out" <<'PY' && ok "a closed markup range over the ceiling is refused, naming the encoding" || bad "closed markup range: $(head -c 300 <<<"$out")"
+import json, sys
+res = json.loads(sys.argv[1].strip().splitlines()[-1])["result"]
+assert res.get("isError"), "served"
+t = res["content"][0]["text"]
+assert "encoded" in t and "per-file receipt" not in t, t
+PY
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

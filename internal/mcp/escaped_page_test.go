@@ -98,3 +98,87 @@ func TestAClosedMarkupRangeRefusalNamesTheEncoding(t *testing.T) {
 		t.Errorf("the refusal blames the receipt for an encoding overflow:\n%s", txt)
 	}
 }
+
+// Review of #232. A line that alone encodes past the ceiling fits no range, as
+// mrw serves whole lines. The refusal advised "around 1 lines", and following
+// it was refused the same way, for ever. It sends the caller to the CLI,
+// whether the spec names the file or that one line.
+func TestALineThatEncodesPastTheCeilingIsSentToTheCLI(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	body := strings.Repeat("<", 150000) + "\nsecond\n"
+	if err := os.WriteFile(filepath.Join(root, "f.svg"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, spec := range []string{"f.svg", "f.svg:1-1"} {
+		res := call(t, root, "mrw_read", map[string]any{"specs": []any{spec}})
+		content, _ := res["content"].([]any)
+		if len(content) == 0 {
+			t.Fatalf("%s: the answer carried no text", spec)
+		}
+		txt, _ := content[0].(map[string]any)["text"].(string)
+		if isErr, _ := res["isError"].(bool); !isErr {
+			t.Fatalf("%s: a line that encodes past the ceiling was served:\n%.300s", spec, txt)
+		}
+		if strings.Contains(txt, "around 1 lines") || strings.Contains(txt, ":1-1") {
+			t.Errorf("%s: the refusal sends the caller back to the same unservable line:\n%s", spec, txt)
+		}
+		if !strings.Contains(txt, "serves whole lines") || !strings.Contains(txt, "mrw read") {
+			t.Errorf("%s: the refusal does not say why no range helps, nor name a reader that can:\n%s", spec, txt)
+		}
+	}
+}
+
+// Review of #232. A page is sized from a sample's average, and a file whose
+// heavily escaped half comes first paged once, then refused next_read in the
+// middle of the file: the sample mixed both halves, and a page of the escaped
+// half alone encoded past the ceiling. Following next_read must reach the end.
+func TestAFileWhoseEscapedHalfComesFirstPagesToItsEnd(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	var want []string
+	for i := 0; i < 2500; i++ {
+		want = append(want, strings.Repeat("<", 60))
+	}
+	for i := 0; i < 2500; i++ {
+		want = append(want, strings.Repeat("a", 60))
+	}
+	if err := os.WriteFile(filepath.Join(root, "mixed.html"), []byte(strings.Join(want, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	spec := "mixed.html"
+	for page := 0; ; page++ {
+		if page > 40 {
+			t.Fatalf("still paging after %d pages", page)
+		}
+		res := call(t, root, "mrw_read", map[string]any{"specs": []any{spec}})
+		content, _ := res["content"].([]any)
+		if len(content) == 0 {
+			t.Fatalf("page %d carried no content", page)
+		}
+		txt, _ := content[0].(map[string]any)["text"].(string)
+		if isErr, _ := res["isError"].(bool); isErr {
+			t.Fatalf("page %d (%s) was refused, so next_read breaks mid-file:\n%.400s", page, spec, txt)
+		}
+		raw, err := json.Marshal(res)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(raw) > MaxResultChars {
+			t.Fatalf("page %d encodes to %d, over the %d ceiling", page, len(raw), MaxResultChars)
+		}
+		got = append(got, numberedLines(t, txt)...)
+		next := nextOf(t, res)
+		if next == "" {
+			break
+		}
+		if next == spec {
+			t.Fatalf("page %d hands back its own spec %q", page, next)
+		}
+		spec = next
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("the pages reassemble %d lines, want %d, or not in order", len(got), len(want))
+	}
+}

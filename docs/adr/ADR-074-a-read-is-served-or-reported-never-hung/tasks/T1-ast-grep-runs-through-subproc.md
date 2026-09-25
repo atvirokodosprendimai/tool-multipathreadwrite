@@ -103,6 +103,7 @@ go test ./internal/subproc/ ./internal/check/ ./cmd/mrw/ -count=1 -timeout 180s 
 - 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:3f74b42470ba28b910f1a769b45ee3466099c36e1547e740f93026e84c2cc578 · ms:4968
 - 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:3f74b42470ba28b910f1a769b45ee3466099c36e1547e740f93026e84c2cc578 · ms:4842
 - 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:3f74b42470ba28b910f1a769b45ee3466099c36e1547e740f93026e84c2cc578 · ms:4674
+- 2026-09-26 · d9263c5* · exit 0 · `set -o pipefail …` · acceptance-sha256:3f74b42470ba28b910f1a769b45ee3466099c36e1547e740f93026e84c2cc578 · ms:5079
 
 ## Mutation Log
 (empty until execute)
@@ -117,6 +118,7 @@ go test ./internal/subproc/ ./internal/check/ ./cmd/mrw/ -count=1 -timeout 180s 
 ## Risks
 
 - See the record.
+- The guard that reads a timed-out or interrupted verdict only from a run that ended badly has no fixture: its window is a signal between a clean exit and the check (review of #232). Declared uncovered.
 
 ## Out of Scope
 

@@ -81,7 +81,7 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	// ADR-074: through subproc, so the 2 s bound kills a wrapper's grandchild
 	// too and does not wait on a pipe the grandchild still holds. ast-grep's
 	// process group no longer hears the terminal's ^C, so mrw listens for it
-	// and passes it on.
+	// and kills the group instead.
 	sctx, stopSignals := subproc.Interruptible(context.Background())
 	defer stopSignals()
 	ctx, cancel := context.WithTimeout(sctx, astGrepTimeout)
@@ -89,11 +89,16 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	cmd := subproc.Command(ctx, "ast-grep", args...)
 	cmd.Dir = absRoot
 	out, cmdErr := cmd.Output()
-	switch ctx.Err() {
-	case context.DeadlineExceeded:
-		return nil, nil, ErrAstGrepTimeout
-	case context.Canceled:
-		return nil, nil, errAstGrepInterrupted
+	// Only a run that ended badly is read for why: one that exited cleanly a
+	// moment before a deadline or a signal answered, and its output stands
+	// (review of #232; no test can reach that window).
+	if cmdErr != nil {
+		switch ctx.Err() {
+		case context.DeadlineExceeded:
+			return nil, nil, ErrAstGrepTimeout
+		case context.Canceled:
+			return nil, nil, errAstGrepInterrupted
+		}
 	}
 	hits, parseErr := parseAstGrepJSON(out)
 	if parseErr != nil {

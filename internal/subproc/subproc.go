@@ -9,8 +9,9 @@
 // its own on unix and kills the whole group on cancel, and on every platform it
 // bounds how long Wait waits for pipes a grandchild still holds. On Windows only
 // that bound applies: a grandchild there can outlive the kill.
-// Interruptible passes a signal sent to mrw on to such a child, which its own
-// process group no longer hears from the terminal (ADR-074).
+// Interruptible listens, for such a child, for the ^C, terminate or hangup its
+// own process group no longer hears, and cancels the context it runs under, so
+// its group is killed (ADR-074).
 package subproc
 
 import (
