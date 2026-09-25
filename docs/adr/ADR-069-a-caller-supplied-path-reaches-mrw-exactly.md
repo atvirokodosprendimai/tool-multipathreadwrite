@@ -135,6 +135,12 @@ Recovering it means re-implementing urfave's flag arity and short-flag grouping 
     was judged like a path, so `iter 'add ' x` was refused. The verb is not a path and is not
     judged. The test runs 300 cases under `go test`; `MRW_STRESS_N` and `MRW_STRESS_SEED` widen it.
 
+12. **Amended 2026-09-25 after the v1.25.1 field test (T12).** A Windows session testing the
+    downloaded release asset found that `mrw instructions` said nothing about the padded-path
+    refusal or the `--` escape, so a caller with only the binary learned the rule at the refusal.
+    ADR-063 promised the read side's traps there. The rule is taught now: a padded path goes after
+    `--`, and an attached value ending in whitespace is passed as its own argument.
+
 **What would make this decision fail:** a caller who relies on the trim, e.g. a generated
 `--files-from` list with trailing spaces after every path. That caller now gets a read of a
 missing file, `x ` UNREADABLE, exit 1. That is loud, and it names the path mrw looked for.

@@ -22,6 +22,7 @@ the parser at random and amends what that found.
 | 6 | T9 | T8 |
 | 7 | T10 | T9 |
 | 8 | T11 | T10 |
+| 9 | T12 | T11 |
 
 ## Execution Order
 
@@ -38,6 +39,7 @@ the parser at random and amends what that found.
 | 9 | T9 | T8 |
 | 10 | T10 | T9 |
 | 11 | T11 | T10 |
+| 12 | T12 | T11 |
 
 ## Task Index
 
@@ -54,6 +56,7 @@ the parser at random and amends what that found.
 | T9 | The stop token is judged before the guard stops; contract §138 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T9-the-stop-token-is-judged-first.md` fence |
 | T10 | A preserved stop token is not judged against a sibling; contract §139 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T10-a-preserved-stop-token-is-not-judged.md` fence |
 | T11 | The guards agree with the parser on random argv; an iter verb is not judged | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T11-the-guards-agree-with-the-parser.md` fence |
+| T12 | `mrw instructions` teaches the padded-path rule; contract §140 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T12-instructions-teach-the-padded-path-rule.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

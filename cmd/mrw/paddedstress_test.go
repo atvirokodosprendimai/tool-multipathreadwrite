@@ -109,6 +109,7 @@ func TestTheGuardsAgreeWithTheParserOnRandomArgv(t *testing.T) {
 	}
 
 	mismatches := 0
+	t.Logf("%d cases, seed %d", n, seed) // so a fast PASS is not mistaken for the 300-case default
 	for i := 0; i < n && mismatches < 20; i++ {
 		sub := subs[rng.Intn(len(subs))]
 		var argv []string

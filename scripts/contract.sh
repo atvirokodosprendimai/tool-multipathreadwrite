@@ -6621,6 +6621,16 @@ want 0 "$rc" "a preserved stop token is not judged against a sibling"
 grep -q 'padded' <<<"$out" && grep -q 'plain' <<<"$out" && ok "and both names are served as given" || bad "served: $out"
 m read ' - ' a.go >/dev/null 2>&1
 want 2 $? "and the padded lone - is still refused"
+
+# 140. ADR-069 T12: `mrw instructions` teaches the padded-path rule. A caller
+# with only the binary learned it at the refusal (the v1.25.1 field test of
+# the downloaded Windows asset found the gap). The pair: the same text must
+# not teach the trim as the rule.
+out=$("$MRW" instructions 2>&1); rc=$?
+want 0 "$rc" "mrw instructions exits 0"
+grep -q "goes after --" <<<"$out" && grep -q "mrw read -- 'x '" <<<"$out" && ok "instructions teach that a padded path goes after --" || bad "instructions: no -- rule"
+grep -q "as its own argument" <<<"$out" && ok "and that an attached padded value is passed separately" || bad "instructions: no attached-value rule"
+grep -q "would reach x, so mrw reads x" <<<"$out" && bad "instructions teach the trim as the rule" || ok "and they do not teach the trim as the rule"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
