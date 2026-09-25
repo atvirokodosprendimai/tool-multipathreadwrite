@@ -6608,6 +6608,19 @@ want 2 "$rc" "a padded lone - is refused before the guard stops"
 grep -q 'edge whitespace' <<<"$out" && ok "and the refusal names the --" || bad "refusal: $out"
 printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run -- - >/dev/null 2>&1
 want 0 "${PIPESTATUS[1]}" "and a bare - after -- is stdin"
+
+# 139. ADR-069 T10 (the Codex review of PR #222, fifth round): a single dash
+# before a non-letter stops the parser, which keeps that token and the rest
+# as given; T9 judged it before stopping, so a padded name beside its trimmed
+# twin was refused. Only the lone "-", which the parser trims and keeps, is
+# judged before the stop.
+fixture
+printf 'padded\n' > "$R/ -1= "; printf 'plain\n' > "$R/-1="
+out=$(cd "$R" && "$MRW" -C "$R" read ' -1= ' '-1=' 2>&1); rc=$?
+want 0 "$rc" "a preserved stop token is not judged against a sibling"
+grep -q 'padded' <<<"$out" && grep -q 'plain' <<<"$out" && ok "and both names are served as given" || bad "served: $out"
+m read ' - ' a.go >/dev/null 2>&1
+want 2 $? "and the padded lone - is still refused"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

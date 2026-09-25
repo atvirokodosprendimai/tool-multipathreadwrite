@@ -92,6 +92,10 @@ a wrongly typed answer, and no minimum mrw-call count.
    word either way. An escaped `$` before a backtick pair is the fixture that flips: the short mask
    extracts `` `cat `` instead of `cat /dev/null`.
 
+9. **Amended 2026-09-25 after the fifth Codex review of PR #222 (T9).** Item 8's walk to `env`
+   crossed `command -v`, a lookup that runs nothing, so `command -v env -S 'mrw --help'` scored a
+   `--help` that never ran. The walk now stops at `command -v` and `-V`.
+
 **What would make this decision fail:** a file whose first line really begins `body=` (an `.env`,
 an `.ini`), edited by a hand-written hunk with no count. It is refused, and the message names the
 escape (count the body).

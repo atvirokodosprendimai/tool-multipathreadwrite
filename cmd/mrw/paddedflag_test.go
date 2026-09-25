@@ -266,3 +266,25 @@ func TestAPaddedLoneDashIsRefusedBeforeTheGuardStops(t *testing.T) {
 		t.Errorf("read ' - ' x was not refused as a padded positional:\n%s", out)
 	}
 }
+
+// ADR-069 T10, from the fifth Codex review of PR #222. A single dash before a
+// non-letter stops the parser, which keeps that token and everything after it
+// as given (command_parse.go:134-138); T9 judged every stop token before
+// ending the walk, so `read ' -1= ' '-1='`, both files present, was refused
+// because the first's trimmed spelling is the second. Only the lone "-",
+// which the parser trims and keeps, is judged before the stop.
+func TestAPreservedStopTokenIsNotJudgedAgainstAPositional(t *testing.T) {
+	root := paddedTree(t)
+	for n, b := range map[string]string{" -1= ": "padded\n", "-1=": "plain\n"} {
+		if err := os.WriteFile(filepath.Join(root, n), []byte(b), 0o644); err != nil {
+			t.Skipf("cannot write %q: %v", n, err)
+		}
+	}
+	t.Chdir(root)
+	if out, code := runIn(t, root, "read", " -1= ", "-1="); code != 0 || !strings.Contains(out, "padded") || !strings.Contains(out, "plain") {
+		t.Errorf("read ' -1= ' '-1=' exited %d or did not serve both as given:\n%s", code, out)
+	}
+	if out, code := runIn(t, root, "read", " - ", "x"); code != exitUsage || !strings.Contains(out, "edge whitespace") {
+		t.Errorf("read ' - ' x exited %d, want %d as a padded lone dash:\n%s", code, exitUsage, out)
+	}
+}

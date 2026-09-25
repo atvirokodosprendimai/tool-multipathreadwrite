@@ -1746,11 +1746,15 @@ func refusePaddedArgs(cmd *cli.Command) error {
 			value = next
 			continue
 		}
-		// A positional, or the token the parser stops at. The stop token is
-		// judged FIRST: the parser trims a lone "-" and keeps it, so
-		// `write ' - '` read stdin once the walk ended before this check
-		// (Codex review of PR #222, fourth round; ADR-069 T9). A single dash
-		// before a non-letter is kept as given, so its trim never differs.
+		// A positional, or the token the parser stops at. Of the two stop
+		// tokens only the lone "-" is trimmed and kept, so only it is judged
+		// before the walk ends (`write ' - '` read stdin; ADR-069 T9). A
+		// single dash before a non-letter is kept as given with everything
+		// after it, so judging it against a sibling's trimmed spelling refused
+		// `read ' -1= ' '-1='` with both files present (ADR-069 T10).
+		if role == roleStop && strings.TrimSpace(tok) != "-" {
+			break
+		}
 		if !noteText {
 			if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
 				return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
@@ -1758,7 +1762,7 @@ func refusePaddedArgs(cmd *cli.Command) error {
 			}
 		}
 		if role == roleStop {
-			break // what follows is kept as given, or dropped
+			break // what follows is dropped
 		}
 	}
 	return nil

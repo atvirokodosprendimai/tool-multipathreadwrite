@@ -117,6 +117,12 @@ Recovering it means re-implementing urfave's flag arity and short-flag grouping 
    had refused. Now the stop token is judged like any positional first, then the walk ends; after
    a `--` the parser keeps ` - ` as given, and a bare `-` is stdin.
 
+10. **Amended 2026-09-25 after the fifth Codex review of PR #222 (T10).** One gap item 9 opened. Of
+    the two tokens the parser stops at, only the lone `-` is trimmed and kept; a single dash before
+    a non-letter is kept as given with everything after it. Item 9 judged both before stopping, so
+    `read ' -1= ' '-1='`, both files present, was refused because the first's trimmed spelling is the
+    second. Now only the lone `-` is judged before the stop.
+
 **What would make this decision fail:** a caller who relies on the trim, e.g. a generated
 `--files-from` list with trailing spaces after every path. That caller now gets a read of a
 missing file, `x ` UNREADABLE, exit 1. That is loud, and it names the path mrw looked for.

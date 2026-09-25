@@ -185,6 +185,10 @@ def expand_split_string(seg):
             continue
         if w not in WRAPPERS:
             return seg
+        if w == "command" and i + 1 < len(seg) and seg[i + 1] in ("-v", "-V"):
+            # A lookup runs nothing, so nothing behind it is expanded: the
+            # help pass read a manufactured --help (ADR-070 T9).
+            return seg
         i += 1
         while i < len(seg) and seg[i].startswith("-") and seg[i] != "-":
             i += 2 if seg[i] in WRAPPER_OPERANDS.get(w, ()) else 1

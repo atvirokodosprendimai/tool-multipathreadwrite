@@ -156,6 +156,12 @@ class T(unittest.TestCase):
         d, t = trial(["mrw read a; printf x <<EOF\n\\$ \\`cat /dev/null\\`\nEOF"], fence(ANSWER))
         self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
 
+    def test_expansion_stops_at_a_lookup_only_wrapper(self):
+        d, t = trial(["mrw read a; command -v env -S 'mrw --help'"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+        d, t = trial(["mrw read a; command env -S 'mrw --help'"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+
 
 
 if __name__ == "__main__":

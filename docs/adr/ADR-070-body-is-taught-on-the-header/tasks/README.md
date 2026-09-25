@@ -8,8 +8,8 @@ README must be regenerated.
 
 ## Waves
 
-T1–T3 are independent. T4 amends the T3 scorer after the Codex review of v1.25.0; T5, T6, T7 and
-T8 each amend the one before after a round of the Codex review of PR #222.
+T1–T3 are independent. T4 amends the T3 scorer after the Codex review of v1.25.0; T5 to T9 each
+amend the one before after a round of the Codex review of PR #222.
 
 | Wave | Tasks | Depends-on |
 |------|-------|------------|
@@ -18,6 +18,7 @@ T8 each amend the one before after a round of the Codex review of PR #222.
 | 3 | T6 | T5 |
 | 4 | T7 | T6 |
 | 5 | T8 | T7 |
+| 6 | T9 | T8 |
 
 ## Execution Order
 
@@ -31,6 +32,7 @@ T8 each amend the one before after a round of the Codex review of PR #222.
 | 6 | T6 | T5 |
 | 7 | T7 | T6 |
 | 8 | T8 | T7 |
+| 9 | T9 | T8 |
 
 ## Task Index
 
@@ -44,6 +46,7 @@ T8 each amend the one before after a round of the Codex review of PR #222.
 | T6 | The scorer masks an escaped pair without joining its neighbours, and reads `env -S` as a command line | done | — | `docs/adr/ADR-070-body-is-taught-on-the-header/tasks/T6-escape-masking-and-env-split-string.md` fence |
 | T7 | `env -S` is expanded before help detection in every spelling; the escape mask keeps a substitution's interior | done | — | `docs/adr/ADR-070-body-is-taught-on-the-header/tasks/T7-split-string-expansion-and-a-same-length-mask.md` fence |
 | T8 | `env -S` is expanded behind a wrapper; the mask's length is pinned | done | — | `docs/adr/ADR-070-body-is-taught-on-the-header/tasks/T8-expansion-behind-a-wrapper-and-the-masks-length.md` fence |
+| T9 | The expansion walk stops at a lookup-only `command -v` | done | — | `docs/adr/ADR-070-body-is-taught-on-the-header/tasks/T9-expansion-stops-at-a-lookup.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
