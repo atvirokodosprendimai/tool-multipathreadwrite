@@ -1913,3 +1913,86 @@ Execution plan: `docs/specs/2026-09-16-dangling-high-impact-plan.md` (campaign f
   (20,000 cases, 13 s; the 5–8 minute estimate in the brief was wrong, measured under load 33).
   Three macOS sessions held their run for their user (load above the core count, or a permission
   classifier refusing another project's code) — correctly, per costly-runs.
+
+## From the v1.25.1 adversarial round (2026-09-25, peer sessions told to break it on purpose)
+
+M, 2026-09-25: *"ask session to go crazy, random, try to break, brute force cases, unexpected,
+intentionally broken"*. Surfaces were split across sessions; every cross-platform claim below was
+reproduced by the coordinating session on macOS with the shipped v1.25.1 (`5cf522c`) before it was
+listed. The finders' full reports, repro commands and the long "what held" lists are in the team
+memory (wing `wing_tool-multipathreadwrite`, room `llm_open_threads`, "WHAT DID THE v1.25.1
+ADVERSARIAL ROUND FIND", and its read-side addendum; the junction repro script is in room
+`incidents`). Nothing below is fixed. Pending when this was written: the write/check surface and,
+held for M's approval in their sessions, concurrency and the state directory; a late report is an
+append to this section.
+
+Contract breaks, reproduced on macOS:
+
+- **After any write the ledger licenses the whole file.** Read line 3, write line 3, then write
+  line 1: applied, exit 0; `mrw seen` says "the whole file". Over MCP too. Contradicts ADR-002's
+  per-line promise, or refines it; either way a record. Finders: the general and MCP sessions.
+- **A malformed `.quality-harness.json` applies the write and exits 2 with only the JSON error.**
+  No receipt; exit 2 is documented as usage or filesystem. The config is parsed after the commit.
+- **A killed check leaves an applied write with zero bytes printed.** The receipt is not flushed
+  before the check starts, and mrw has no timeout of its own on a check (see "From ADR-059").
+- **Creates are not cross-checked.** Two `create` hunks for one path both report ok and the bodies
+  are concatenated; two spellings of a NEW file on a case-insensitive filesystem (`n.txt` +
+  `N.TXT`, macOS and NTFS; `n.txt` + `n.txt.` on NTFS) both report "created", one file remains, and
+  the first body is lost, exit 0. ADR-021's check works for files that exist; a create has nothing
+  to stat. Mixed create-and-rename variants are caught only at commit (`PARTIALLY APPLIED`).
+- **Two writers off one read can both exit 0 with one edit lost.** `scripts/chaos.py` already
+  counts this as a known, accepted risk (race suite, "concurrent writes"); the Windows chaos runs
+  measured it at 45–53% of racing writers over five full-scale corpora, and it reproduces on
+  macOS. The acceptance was recorded before the rate was known: a decision for M.
+- **A UTF-16LE file is rewritten with exit 0**: served as byte-split lines, and a replace drops the
+  BOM and mixes encodings. Nothing refuses a write to such a file.
+- **`--json` prints text on a plan parse error.** The documentation promises a receipt on failure;
+  a failed hunk does get JSON, an unparseable plan does not.
+- **The MCP page budget ignores JSON escaping.** A 153,600 B TSX file (many `<`, `>`, `&`, each six
+  bytes on the wire) is refused whole with no `next_read`, while a 275,200 B plain file pages. The
+  refusal blames the per-file receipt. Any markup file above roughly 110–150 KB is unreadable at
+  the default ceiling without a hand-picked range.
+- **The 2 s `--ast-grep` kill fails when a grandchild holds stdout**: 30 s with a `sh` wrapper that
+  runs `sleep 30`; the grandchild is orphaned when its stdio is redirected.
+  `internal/read/astgrep.go` sets no `WaitDelay` and no process group (the finder's reading).
+- **A FIFO hangs `read`**, and `--stat`, a symlink to it, and `--files-from` on it; nothing is
+  printed. A socket and a directory are reported by name.
+
+Windows only, each hand-confirmed by at least two sessions:
+
+- **A junction inside `--root` escapes it.** Read, replace, create, rename into it and unlink
+  through it all land outside the root with exit 0; `..` and POSIX symlinks are refused. A junction
+  needs no privilege. Likely cause: Go reports a junction as irregular rather than as a symlink.
+  `chaos.py`'s junction suite (PR #226) measures five escapes. Owed: a Windows CI test built from
+  the repro (`mklink /J`, expect REFUSED and NOTHING WRITTEN).
+- **Win32 name aliasing.** A trailing dot, a trailing space, case, `::$DATA` and 8.3 names reach one
+  file, so writes and unlinks land through a name that does not exist and the receipt names the
+  alias; `-C 'dir '` and `-C 'dir.'` are accepted. The ledger resolves the aliases to one entry
+  (that held). The guard needs the OS's canonical name: an ADR, with the junction item.
+- **MSYS (Git Bash) rewrites more than the docs say.** The documented example `f.go:/^func main/`
+  is NOT rewritten; the trap fires when the file part contains a `/`, and a one-letter pattern
+  becomes a drive (`/x/` → `X:\`). `--grep` patterns such as `/usr` or `NAME=/path` are rewritten
+  into a false "no match" with no hint. `MSYS_NO_PATHCONV=1` works as well as
+  `MSYS2_ARG_CONV_EXCL='*'`, and the hint names only the second. A leading-slash `--exclude` can
+  never match. An attached `-C/path` arrives as `-CC:/…`.
+- **The Go suite under PowerShell.** Eleven check tests FAIL instead of skipping when `sh` is not
+  on PATH (green from Git Bash on the same tree), and `TestTailAnnouncesWhatItLeftOut` panics.
+  All thirteen padded-path tests SKIP on NTFS because their fixture needs a file named `x `. Owed:
+  a fixture that does not need the file, since every refusal fires before any I/O. `go test ./...`
+  hung once after `internal/lines` (n=1; every package passes alone; not retried as a whole under
+  either shell). `-race` needs cgo there, and `contract.sh` needs `jq`.
+
+Smaller, recorded as found: an in-root symlink is followed on write and the target is absent from
+the receipt; plan-header paths are cleaned rather than refused (`a.txt/`, `"a.txt"`, `./a.txt`, and
+a rename to `d/` makes a FILE `d`); inserts into an empty file produce no trailing newline; a rename
+receipt carries an empty sha and creates missing directories silently; a killed write is missing
+from `stats`; `NUL` reads as an empty file; unlink deletes a read-only file; a Hidden attribute is
+stripped by a write; every header parse error is followed by a bogus "text before the first @@
+header"; a tab-separated header is reported as no header; a nonexistent `-C` root reports "resolves
+to /"; a file literally named `c:1-2` is unreachable even after `--`; `--files-from` dies on a line
+over 8 MiB with no line number; `a.go:$-1` and `a.go:5-3` get different exit classes; `-C N` is
+ignored on a numeric range; over MCP, ids of any JSON type are accepted, invalid UTF-8 becomes
+U+FFFD so the engine looks for a path never sent, a bad flag prints usage on stdout at startup,
+100,000 specs block the server past 120 s, and `exclude: ["["]` is not refused.
+
+Not a finding: `a.txt:-1` serves line 1; `-M` is documented as "from the start to M".

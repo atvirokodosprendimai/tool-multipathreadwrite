@@ -131,9 +131,9 @@ Recovering it means re-implementing urfave's flag arity and short-flag grouping 
     replaced by a recorder, so the parser itself says which strings mrw would act on. The guard
     must refuse exactly when the parser trims a token and acts on it, or consumes an attached
     value that ends in whitespace (item 5); provenance is settled by re-parsing with a sentinel in
-    the token's place. 40,000 cases over eight seeds agree. The run found one gap: an iter VERB
+    the token's place. 40,000 cases over eight seeds agree on macOS. The run found one gap: an iter VERB
     was judged like a path, so `iter 'add ' x` was refused. The verb is not a path and is not
-    judged. The test runs 300 cases under `go test`; `MRW_STRESS_N` and `MRW_STRESS_SEED` widen it.
+    judged. The test runs 300 cases under `go test`; `MRW_STRESS_N` and `MRW_STRESS_SEED` widen it. On NTFS it skips (its fixture needs a file named `x `), so Windows agreement is unmeasured.
 
 12. **Amended 2026-09-25 after the v1.25.1 field test (T12).** A Windows session testing the
     downloaded release asset found that `mrw instructions` said nothing about the padded-path
