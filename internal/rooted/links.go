@@ -50,10 +50,12 @@ func throughLinks(p string, lfs linkFS) (string, error) {
 		next := filepath.Join(cur, rest[0])
 		fi, err := lfs.lstat(next)
 		if err != nil {
-			// Only a component that is not there ends the walk: a create names
-			// a file that does not exist yet. One that cannot be examined is
-			// not knowledge of where the path leads (review of #228, A1).
-			if errors.Is(err, fs.ErrNotExist) {
+			// A component that is not there, or cannot be (an invalid name, a
+			// glob a shell left unexpanded), ends the walk: a create names a
+			// file that does not exist yet, and a name that cannot exist cannot
+			// be a link. One that exists but may not be examined is refused: it
+			// is not knowledge of where the path leads (review of #228, A1).
+			if !errors.Is(err, fs.ErrPermission) {
 				return filepath.Join(append([]string{next}, rest[1:]...)...), nil
 			}
 			return "", fmt.Errorf("%s cannot be examined, so mrw cannot tell where it leads: %w", next, err)
@@ -70,17 +72,6 @@ func throughLinks(p string, lfs linkFS) (string, error) {
 				continue
 			}
 			return "", fmt.Errorf("%s is a link or junction mrw cannot follow: %w", next, err)
-		}
-		// A folder with a whole volume mounted on it is a mount point whose
-		// target is the volume itself, \\?\Volume{GUID}\. Its contents are that
-		// volume, placed there on purpose, and nothing beside it is reachable
-		// through it, so it is kept as the folder the path names. Followed, the
-		// GUID spelling never matched the root's drive, and every path under a
-		// mounted folder inside the root was refused (review of #228, A4). A
-		// target INSIDE another volume is followed and judged like any other.
-		if isVolumeRoot(target) {
-			cur = next
-			continue
 		}
 		if hops++; hops > maxLinks {
 			return "", fmt.Errorf("%s leads through more than %d links", p, maxLinks)
@@ -129,20 +120,4 @@ func win32Alias(p string) (comp, reads string) {
 		}
 	}
 	return "", ""
-}
-
-// isVolumeRoot reports whether a link target is a whole volume,
-// \\?\Volume{GUID}\ — what Readlink answers for a folder a volume is mounted on
-// — rather than a directory on one.
-func isVolumeRoot(target string) bool {
-	const prefix = `\\?\Volume{`
-	if !strings.HasPrefix(target, prefix) {
-		return false
-	}
-	i := strings.IndexByte(target[len(prefix):], '}')
-	if i < 0 {
-		return false
-	}
-	rest := target[len(prefix)+i+1:]
-	return rest == "" || rest == `\`
 }

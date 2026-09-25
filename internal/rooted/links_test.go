@@ -15,7 +15,7 @@ import (
 // "another type of reparse point" (ENOENT), and an unreadable one answers
 // permission denied.
 type fakeEntry struct {
-	kind   string // "dir", "link", "placeholder", "unreadable", "denied", "brokensymlink"
+	kind   string // "dir", "link", "placeholder", "unreadable", "denied", "brokensymlink", "invalid"
 	target string
 }
 
@@ -48,6 +48,8 @@ func fakeLinks(entries map[string]fakeEntry) linkFS {
 			switch e.kind {
 			case "dir":
 				return fakeInfo{filepath.Base(p), os.ModeDir}, nil
+			case "invalid":
+				return nil, &fs.PathError{Op: "lstat", Path: p, Err: fs.ErrInvalid}
 			case "denied":
 				return nil, &fs.PathError{Op: "lstat", Path: p, Err: fs.ErrPermission}
 			case "brokensymlink":
@@ -220,37 +222,20 @@ func TestTheLinkWalkRefusesAComponentItCannotExamine(t *testing.T) {
 	}
 }
 
-// A folder a volume is mounted on reads as a link to \\?\Volume{GUID}\. That is
-// the folder's contents, not a way out: it is kept as the folder the path
-// names, so a mounted volume inside the root stays inside it (review of #228,
-// A4). Followed, its GUID spelling never matched the root and every path under
-// it was refused.
-func TestTheLinkWalkKeepsAMountedVolumeAsTheFolderItIs(t *testing.T) {
+// A name that cannot exist (Windows answers "invalid name" for a "*" a shell
+// left unexpanded) ends the walk like a missing one: it cannot be a link, and
+// refusing it replaced read's own report of the missing file and its glob hint
+// (found by the Windows shard on 1be35ef).
+func TestTheLinkWalkEndsAtANameThatCannotExist(t *testing.T) {
 	links := fakeLinks(map[string]fakeEntry{
-		"/r":     {kind: "dir"},
-		"/r/vol": {kind: "link", target: `\\?\Volume{0a1b2c3d-0000-0000-0000-000000000000}\`},
+		"/r":      {kind: "dir"},
+		"/r/*.go": {kind: "invalid"},
 	})
-	got, err := throughLinks(filepath.FromSlash("/r/vol/f.txt"), links)
+	got, err := throughLinks(filepath.FromSlash("/r/*.go"), links)
 	if err != nil {
-		t.Fatalf("a mounted volume was refused: %v", err)
+		t.Fatalf("a name that cannot exist was refused: %v", err)
 	}
-	if slash(got) != "/r/vol/f.txt" {
-		t.Fatalf("a mounted volume was rewritten to %s", slash(got))
-	}
-}
-
-// Only a whole volume is kept: a junction to a directory ON another volume is
-// a way out of the root and is followed and judged.
-func TestTheLinkWalkKnowsAWholeVolumeFromADirectoryOnIt(t *testing.T) {
-	for target, whole := range map[string]bool{
-		`\\?\Volume{0a1b}\`:       true,
-		`\\?\Volume{0a1b}`:        true,
-		`\\?\Volume{0a1b}\secret`: false,
-		`\\?\Volume{0a1b`:         false,
-		`C:\outside`:              false,
-	} {
-		if got := isVolumeRoot(target); got != whole {
-			t.Errorf("isVolumeRoot(%q) = %v, want %v", target, got, whole)
-		}
+	if slash(got) != "/r/*.go" {
+		t.Fatalf("got %s, want the name kept as written", slash(got))
 	}
 }

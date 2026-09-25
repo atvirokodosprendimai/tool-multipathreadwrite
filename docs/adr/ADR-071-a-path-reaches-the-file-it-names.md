@@ -61,9 +61,8 @@
    injected `Lstat`/`Readlink`; only the choice to run it is Windows-only, so the POSIX path is
    byte-for-byte what it was. `rooted.Real` resolves an absolute argument the same way, and
    `read` and the `--grep` walk use it, so a root reached through a junction and a path inside it
-   are compared in one spelling. A folder with a whole volume mounted on it (`Readlink` answers
-   `\\?\Volume{GUID}\`) is kept as the folder it is: its contents are that volume. A link to a
-   directory ON another volume is followed and judged.
+   are compared in one spelling. A component that cannot exist (an invalid name) ends the walk
+   like a missing one; only one that may not be examined is refused.
 2. **A create is the only hunk of its file.** A second `create` of one path fails:
    `<path> is created twice in this plan (plan lines A and B); one create per file`.
 3. **Names that differ only by case are one file, whatever the filesystem.** Every name the plan
@@ -155,6 +154,7 @@ See `docs/adr/ADR-071-a-path-reaches-the-file-it-names/tasks/README.md`.
 | A non-junction name-surrogate reparse point (WCI, a WSL symlink) redirects a path | Low | Med | Win32 cannot traverse a WSL symlink; a WCI link lives inside containers; the Windows junction test pins the common case |
 | The walk runs per component on every Resolve on Windows | Med | Low | one `Lstat` per component; POSIX is untouched |
 | A OneDrive placeholder whose reparse data cannot be read makes `Readlink` fail with something other than ENOENT, which refuses every path under it | Low | Med | fails closed, naming the component; no CI job has a real placeholder, so this is unmeasured |
+| A folder with a volume mounted on it inside the root is refused: its `Readlink` target is `\\?\Volume{GUID}\`, which never matches the root's drive | Low | Med | a false refusal, deliberately: a junction to `\\??\Volume{GUID}\` is also how a way out to another volume, or to the root's own volume, is spelled (review of #228, which found that keeping it opened that way) |
 | The case comparison refuses a legitimate case-sensitive plan | Low | Low | the refusal names both paths; split the plan |
 
 ## Rollback

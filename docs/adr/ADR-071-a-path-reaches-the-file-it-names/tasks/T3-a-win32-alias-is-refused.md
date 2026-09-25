@@ -91,6 +91,7 @@ go test ./internal/rooted/ -count=1 -timeout 120s -run 'TestWin32Alias|TestResol
 - 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:5b5df0c361a553a1117383c05ca0dee0e777ce37414a32ee5640695a79606d1d · ms:271
 - 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:5b5df0c361a553a1117383c05ca0dee0e777ce37414a32ee5640695a79606d1d · ms:333
 - 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:5b5df0c361a553a1117383c05ca0dee0e777ce37414a32ee5640695a79606d1d · ms:299
+- 2026-09-25 · 1be35ef* · exit 0 · `set -o pipefail …` · acceptance-sha256:5b5df0c361a553a1117383c05ca0dee0e777ce37414a32ee5640695a79606d1d · ms:366
 
 ## Mutation Log
 (empty until execute)
