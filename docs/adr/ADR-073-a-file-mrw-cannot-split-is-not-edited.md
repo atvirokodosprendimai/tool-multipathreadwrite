@@ -98,7 +98,7 @@ See `docs/adr/ADR-073-a-file-mrw-cannot-split-is-not-edited/tasks/README.md`.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | A UTF-16LE file whose first character is U+0000 reads as UTF-32 | Low | Low | the refusal names the wrong width; the file is still refused |
-| On Windows, Go reports a reparse point that is neither a link nor a junction (a OneDrive placeholder, for one) as irregular, so a plan naming such a file may be refused as not a regular file | Medium | Low | the refusal names the path and nothing is written; unmeasured, and on the owed Windows peer run with the junction repro (review of #230) |
+| On Windows, Go reports a reparse point that is neither a link nor a junction as irregular, so a plan naming such a file — possibly a OneDrive placeholder, unmeasured — may be refused as not a regular file | Medium | Low | the refusal names the path and nothing is written; to be probed on the Windows peer run still owed for the junction repro (`docs/adr/BACKLOG.md`, "A junction inside `--root` escapes it") |
 
 ## Rollback
 
