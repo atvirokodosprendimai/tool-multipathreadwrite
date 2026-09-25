@@ -124,6 +124,12 @@ func installFakeAstGrep(t *testing.T, stdout string, exit int) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build fake ast-grep: %v\n%s", err, out)
 	}
+	// Run it once, untimed, before any test times it. The first start of a
+	// freshly built .exe on a Windows runner (a Defender scan) took long enough
+	// to hit the 2 s ast-grep bound: CI 2026-09-25, 4.55 s, "zero hits does not
+	// name the pattern" because the answer was "timed out". The bound is a
+	// promise and stays; the fixture must not spend it.
+	_ = exec.Command(bin).Run()
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
