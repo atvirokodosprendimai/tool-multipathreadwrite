@@ -1961,7 +1961,7 @@ Contract breaks, reproduced on macOS:
   measured it at 45–53% of racing writers over five full-scale corpora, and it reproduces on
   macOS. The acceptance was recorded before the rate was known: a decision for M.
   **Fixed by ADR-075**, contract §150: a per-checkout write lock is held from apply through the
-  ledger update, with the ledger loaded before it, so a writer whose file changed while it waited is
+  ledger update, with the ledger loaded before it under its own lock (`seen.Snapshot`, so never half-saved), so a writer whose file changed while it waited is
   refused, exit 1, "changed since mrw last saw it"; none exits 0 without its edit. `chaos.py`'s race
   suite fails on a lost edit by default. A writer that starts after another finished still writes on
   that writer's whole-file licence (ADR-002, kept by M the same day).
@@ -1984,6 +1984,10 @@ Contract breaks, reproduced on macOS:
   the default ceiling without a hand-picked range.
   **Fixed by ADR-074 T3**, contract §149: the first page is sized by the JSON-encoded length the
   ceiling measures, and a closed range that still overflows is refused naming the encoding.
+  Waived in the review of #232, open: a file whose line 1 alone encodes past the ceiling is refused
+  first by `overflowMessage` with range advice, and only a second call names the CLI; that sentence
+  says "no narrower range", though a range after the long line serves. Fix: the same
+  `longestEncodedLine` check in `overflowMessage`, naming the line.
 - **The 2 s `--ast-grep` kill fails when a grandchild holds stdout**: 30 s with a `sh` wrapper that
   runs `sleep 30`; the grandchild is orphaned when its stdio is redirected.
   `internal/read/astgrep.go` sets no `WaitDelay` and no process group (the finder's reading).
@@ -1991,6 +1995,9 @@ Contract breaks, reproduced on macOS:
   group is killed at the 2 s bound and the wait for held pipes is bounded; an interrupt, terminate
   or hangup sent to mrw stops it. On Windows only the wait bound applies (deferred with the check's
   job object, above).
+  Waived in the review of #232, unverified (read from Go's exec code): a wrapper that exits 0 and
+  leaves a background grandchild returns through `WaitDelay` without its context being cancelled, so
+  its group is never killed and the grandchild outlives mrw.
 - **A FIFO hangs `read`**, and `--stat`, a symlink to it, and `--files-from` on it; nothing is
   printed. A socket and a directory are reported by name.
   **Partly fixed by ADR-073**: a FIFO, socket or device named in a WRITE plan is refused before it

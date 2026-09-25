@@ -91,6 +91,7 @@ go test ./internal/mcp/ -count=1 -timeout 180s -run 'TestTheSurfaceSaysTheCLIIsR
 - 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6587edaff54c72f27fb94d5e964ba19e0055d68c3466b84337f25ff993e0e85e · ms:975
 - 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6587edaff54c72f27fb94d5e964ba19e0055d68c3466b84337f25ff993e0e85e · ms:624
 - 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6587edaff54c72f27fb94d5e964ba19e0055d68c3466b84337f25ff993e0e85e · ms:735
+- 2026-09-26 · 2c23bd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6587edaff54c72f27fb94d5e964ba19e0055d68c3466b84337f25ff993e0e85e · ms:956
 
 ## Mutation Log
 (empty until execute)
