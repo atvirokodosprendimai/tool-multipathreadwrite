@@ -61,7 +61,7 @@ different. Enumerated 2026-09-24 with
 
 - **`parseLine`** (`seen.go:202`) and the ledger scanner. Reshaped: `Load` and `IsStale` split on
   `\n` alone (`scanLF`), and `parseLine` trims nothing.
-- **The ledger header** (`seen.go:150`). Unchanged. No format change, so no ledger is discarded. A
+- **The ledger header** (`seen.go:150`). Unchanged. No format change, so every LF-terminated v2 ledger mrw wrote is still accepted; one converted to CRLF by outside tooling now fails the header check and is discarded as stale. A
   line the writer emitted is read back exactly. One residue: an older mrw that LOADED `x ` as `x`
   and then saved the ledger wrote it back under `x`. That entry is kept, and it licenses `x` only
   while `x` still holds the bytes it was hashed from (Risks).

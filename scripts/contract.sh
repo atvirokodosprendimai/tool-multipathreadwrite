@@ -6430,9 +6430,14 @@ fixture
 printf 'same\n' > "$R/x"
 printf 'same\n' > "$R/x"$'\r'
 m read -- "x"$'\r' >/dev/null 2>&1
+want 0 $? "a read of a trailing-CR path is served"
 m write --no-check "$WORK/127a.mrw" >/dev/null 2>&1
 want 1 $? "a read of a trailing-CR path does not license its trimmed sibling"
 [ "$(cat "$R/x")" = same ] && ok "and that sibling is unchanged" || bad "x now holds: $(cat "$R/x")"
+printf '@@ "x\r" 1 replace\nWROTE\n' > "$WORK/127c.mrw"
+m write --no-check "$WORK/127c.mrw" >/dev/null 2>&1
+want 0 $? "and the trailing-CR file that was read is writable"
+[ "$(cat "$R/x"$'\r')" = WROTE ] && ok "and the write to it landed" || bad "x-CR holds: $(cat "$R/x"$'\r')"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
