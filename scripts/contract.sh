@@ -6380,9 +6380,9 @@ PY
 want 0 $? "a modern request naming an unknown version is refused with the supported list"
 
 # 126. An MCP read of a file whose name holds a space is served, with the
-# checkpoints that license a write. From ADR-039 (v1.11.0) to v1.24.0 it was
-# refused with -32603 "holding checkpoints: no observation for x": the served
-# header's path was cut at its first space. Found by the chaos harness's MCP
+# checkpoints that license a write. From ADR-039 (v1.11.0) to v1.24.0 a read
+# that fit on one page was refused with -32603 "holding checkpoints: no
+# observation for x": the served header's path was cut at its first space. Found by the chaos harness's MCP
 # suite, 2026-09-24. The pair: a spaced path that does not exist is reported as
 # a problem naming it, not as an internal error.
 fixture
@@ -6406,12 +6406,13 @@ assert "error" not in r and "no such.txt" in r["result"]["content"][0]["text"], 
 PY
 want 0 $? "and a missing spaced path is reported by name, not as an internal error"
 
-# 127. A read of a file whose name ends in a space licenses that file, not the
-# one whose name is it trimmed (ADR-068). Through v1.24.0 the ledger loaded the
-# observation of "x " under the key "x", and the SHA guard could not tell the
-# two apart because they held the same bytes, so a write to the unread "x"
-# applied, exit 0. The read passes `--` because urfave/cli trims a positional
-# argument before it (BACKLOG, From ADR-068). The pair: the file that WAS read
+# 127. A read of a file whose name ends in a space or a carriage return licenses
+# that file, not the one whose name is it trimmed (ADR-068). Through v1.24.0 the
+# ledger loaded the observation of "x " under the key "x" (parseLine trimmed the
+# line) and of "x\r" under "x" (bufio.ScanLines dropped the \r), and the SHA
+# guard could not tell them apart because they held the same bytes, so a write
+# to the unread "x" applied, exit 0. The read passes `--` because urfave/cli
+# trims a positional argument before it (BACKLOG, From ADR-068). The pair: the
 # is still writable.
 fixture
 printf 'same\n' > "$R/x"
@@ -6425,6 +6426,13 @@ printf '@@ "x " 1 replace\nWROTE\n' > "$WORK/127b.mrw"
 m write --no-check "$WORK/127b.mrw" >/dev/null 2>&1
 want 0 $? "and the file that was read is writable"
 [ "$(cat "$R/x ")" = WROTE ] && ok "and the write to it landed" || bad "x-space holds: $(cat "$R/x ")"
+fixture
+printf 'same\n' > "$R/x"
+printf 'same\n' > "$R/x"$'\r'
+m read -- "x"$'\r' >/dev/null 2>&1
+m write --no-check "$WORK/127a.mrw" >/dev/null 2>&1
+want 1 $? "a read of a trailing-CR path does not license its trimmed sibling"
+[ "$(cat "$R/x")" = same ] && ok "and that sibling is unchanged" || bad "x now holds: $(cat "$R/x")"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

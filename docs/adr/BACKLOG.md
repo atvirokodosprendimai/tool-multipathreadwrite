@@ -1874,3 +1874,12 @@ Execution plan: `docs/specs/2026-09-16-dangling-high-impact-plan.md` (campaign f
   shows the path that was served, so a read is visible, not silent. Fixing it means parsing arguments without the
   library's trim (reading them after `--` implicitly, or a patched parser),
   which touches every subcommand's flags. Arm when a caller hits it.
+- **Other places a caller-supplied path is trimmed** (from the Codex review of
+  #214, 2026-09-25; enumerated with `git grep -n TrimSpace -- '*.go' ':!*_test.go'`):
+  `--files-from` lines (`cmd/mrw/main.go:1706`), a rename destination
+  (`internal/apply/apply.go:387`, `:453`, `pathop.go:76`), apply_patch paths
+  (`internal/ingest/applypatch.go:76`, `:91`, `:103`, `:110`, `:187`) and the
+  search/replace path (`searchreplace.go:83`). Each resolves `x ` to `x`, in the
+  open: the refusal or the receipt names `x`. None of them licenses a file the
+  caller did not read, which is what ADR-068 fixed. Arm per surface when a caller
+  names such a file.

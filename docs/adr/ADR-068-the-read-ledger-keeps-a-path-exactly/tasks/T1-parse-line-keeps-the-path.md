@@ -4,7 +4,7 @@
 **Covers:** none — no spec
 **Estimated scope:** S
 **Owner:** unassigned
-**Produces:** exact ledger keys for paths with edge whitespace
+**Produces:** exact ledger keys for paths with a trailing space or carriage return
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
@@ -12,15 +12,16 @@
 
 ## Goal
 
-`parseLine` (`internal/seen/seen.go:202`) strips only a trailing `\r`, never the path's spaces, so an
-observation of `x ` loads under `x ` and licenses nothing else. After `mrw read "x "`, a write to `x`
-is refused as unread (exit 1, nothing written), and a write to `x ` applies.
+The ledger reader trims nothing: `Load` and `IsStale` split on `\n` alone (`scanLF`), and
+`parseLine` (`internal/seen/seen.go`) keeps the path. An observation of `x ` or `x\r` loads under
+its own key and licenses nothing else. After `mrw read -- "x "`, a write to `x` is refused as unread
+(exit 1, nothing written), and a write to `x ` applies. The same holds for `x\r`.
 
 ## Affected Files
 
 | File | Change | Why |
 |------|--------|-----|
-| `internal/seen/seen.go` | edit | `parseLine`: `\r`, not `TrimSpace` |
+| `internal/seen/seen.go` | edit | `parseLine` trims nothing; `scanLF` for `Load` and `IsStale` |
 | `internal/seen/ledgerpath_test.go` | new | `TestALedgerPathKeepsItsSurroundingSpaces` |
 | `cmd/mrw/ledgerpath_test.go` | new | `TestAReadOfATrailingSpacePathDoesNotLicenseItsTrimmedSibling` |
 | `scripts/contract.sh` | edit | §127 |
@@ -29,11 +30,11 @@ is refused as unread (exit 1, nothing written), and a write to `x ` applies.
 ## Ordered Steps
 
 1. [S1] Write the tests and confirm each RED on the current tree on an assertion. [proof: mutation]
-   - `TestALedgerPathKeepsItsSurroundingSpaces`: `Record` observations for `x `, ` y` and `a  b`,
-     then `Load`. Each loads under its exact key; `x` and `y` are absent.
-   - `TestAReadOfATrailingSpacePathDoesNotLicenseItsTrimmedSibling`: files `x` and `x ` with
-     identical bytes; the CLI reads only `x `. A write to `x` exits 1 with `x` unchanged; a write to
-     `"x "` (quoted in the plan) exits 0 and lands.
+   - `TestALedgerPathKeepsItsSurroundingSpaces`: `Record` observations for `x `, ` y`, `a  b` and
+     `z\r`, then `Load`. Each loads under its exact key; `x`, `y` and `z` are absent.
+   - `TestAReadOfATrailingSpacePathDoesNotLicenseItsTrimmedSibling`, one subtest each for `x ` and
+     `x\r`: files `x` and the name with identical bytes; the CLI reads only the name (after `--`).
+     A write to `x` exits 1 with `x` unchanged; a write to the name (quoted in the plan) exits 0.
 2. [S2] Change `parseLine`; confirm GREEN, and that every `internal/seen` and `cmd/mrw` test stays
    green. [proof: mutation]
    Mutant: `TrimSpace` restored, which kills both tests.
@@ -87,6 +88,10 @@ grep -q '^# 127\. ' scripts/contract.sh \
 - 2026-09-25 · 9efc095* · exit 0 · `set -o pipefail …` · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · ms:30920
 - 2026-09-25 · 9efc095* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · ms:0 · test-lock-sha256:cb99ac20b580d5d40c1fd616f53c0afe19221b1ba7da768bf2d54eab24eef440 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvbGVkZ2VycGF0aF90ZXN0LmdvCVRlc3RBUmVhZE9mQVRyYWlsaW5nU3BhY2VQYXRoRG9lc05vdExpY2Vuc2VJdHNUcmltbWVkU2libGluZwk0YTg4MmI3OTAzNDE1MzExNWU0NDVhZjZiNGM5ZjZhMTBhOGNhNjBmMDdmYjA2ODZlZWQ0MjQ4NGUxMGYzMjUwCmJvZHkJaW50ZXJuYWwvc2Vlbi9sZWRnZXJwYXRoX3Rlc3QuZ28JVGVzdEFMZWRnZXJQYXRoS2VlcHNJdHNTdXJyb3VuZGluZ1NwYWNlcwk2MDhiOGViMzM0OTBkYTBlYmNlMTllOWI0ZWUzMGI4Yzg2ZTdhNmE2MmFlMWE5YmFkZGE1NjhhNzhjNmM3MTVi · test-lock-kind:replace
 - 2026-09-25 · 9efc095* · exit 0 · `set -o pipefail …` · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · ms:31280
+- 2026-09-25 · 01b07d7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · ms:0 · test-lock-sha256:485223008a6d290672fc150b20f40305bbadee9c223f9a152c3df9b5549847d8 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvbGVkZ2VycGF0aF90ZXN0LmdvCVRlc3RBUmVhZE9mQVRyYWlsaW5nU3BhY2VQYXRoRG9lc05vdExpY2Vuc2VJdHNUcmltbWVkU2libGluZwk2OTc4Y2IzNzg1ZjdkNTc1MTNlYWFmMzUxZWQ5NzdmODgwODNlMDliYTgxOWM4ZGNiOWVhNmJjNTljNTg0OTM5CmJvZHkJaW50ZXJuYWwvc2Vlbi9sZWRnZXJwYXRoX3Rlc3QuZ28JVGVzdEFMZWRnZXJQYXRoS2VlcHNJdHNTdXJyb3VuZGluZ1NwYWNlcwkyZDQxYzJkNWVjZDdjZTIyZWViMTA2YTU0YmU4NjMzYTJjZTQ0MmI3NWZmMmU3YjBjNGIxNTMxNDU4MmI4NDQy · test-lock-kind:replace
+- 2026-09-25 · 01b07d7* · exit 0 · `set -o pipefail …` · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · ms:32479
+- 2026-09-25 · 01b07d7* · exit 0 · `set -o pipefail …` · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · ms:31821
+- 2026-09-25 · 01b07d7* · exit 0 · `set -o pipefail …` · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · ms:31699
 
 ## Mutation Log
 (empty until execute)
@@ -94,15 +99,18 @@ grep -q '^# 127\. ' scripts/contract.sh \
 - 2026-09-25 · 9efc095* · mutant killed · exit 1 · `internal/seen/seen.go` · parseLine trims the whole line again: both tests and §127 must go red · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · covers:a loaded path keeps its spaces
 - 2026-09-25 · 9efc095* · mutant killed · exit 1 · `internal/seen/seen.go` · parseLine trims the whole line again: both tests and §127 must go red · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · covers:a read of x-space does not license x
 - 2026-09-25 · 9efc095* · mutant killed · exit 1 · `internal/iter/iter.go` · an engine file outside internal/seen changes: the go/no-go guard must go red · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · covers:no engine file changes but seen
+- 2026-09-25 · 01b07d7* · mutant killed · exit 1 · `internal/seen/seen.go` · scanLF drops a CR before the newline, as bufio.ScanLines did: the z\r key and the x\r subtest must go red · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · covers:a loaded path keeps its spaces
+- 2026-09-25 · 01b07d7* · mutant killed · exit 1 · `internal/seen/seen.go` · scanLF drops a CR before the newline, as bufio.ScanLines did: the x\r subtest and §127 CR row must go red · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · covers:the binary refuses the trimmed sibling
+- 2026-09-25 · 01b07d7* · mutant killed · exit 1 · `internal/seen/seen.go` · parseLine trims the whole line again: the x-space key, subtest and §127 must go red · acceptance-sha256:ba7596f570227a692e8ac9e9ec6a1bf32c7379a8512945bf6e3e99bc77bc4345 · covers:a read of x-space does not license x
 
 ## Invariants
 
-- The ledger format and header are unchanged; no ledger is discarded.
+- The ledger format and header are unchanged; no ledger mrw wrote is discarded.
 - A path with no edge spaces loads exactly as before.
 
 ## Risks
 
-- A filesystem that cannot hold both `x` and `x ` (none known on macOS, Linux or Windows NTFS for trailing spaces via Go; Windows Explorer strips them) would make the CLI test's fixture impossible. The test skips visibly if it cannot create both.
+- Windows cannot hold both names: Win32 strips a trailing space from a short path, and `\r` is not a legal name character. The CLI subtests skip there, visibly; `internal/seen`'s test covers the ledger on every platform.
 
 ## Out of Scope
 

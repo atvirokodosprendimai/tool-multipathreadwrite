@@ -186,8 +186,8 @@ type servedSlice struct {
 // servedHeader is the header read.Run prints above a served file —
 // `==> <path>  <N>L  <B>B  sha <hex>` — anchored at its END, because the path
 // itself may hold spaces, even two in a row. Cutting at the first space turned
-// `x y.txt` into `x`, which has no observation, so every MCP read of such a
-// file failed with -32603 (found by the chaos harness, 2026-09-24).
+// `x y.txt` into `x`, which has no observation, so an MCP read of such a file
+// that fit on one page failed with -32603 (found by the chaos harness, 2026-09-24).
 var servedHeader = regexp.MustCompile(`^(.*)  \d+L  \d+B  sha [0-9a-f]+$`)
 
 func splitServed(report string) []servedSlice {

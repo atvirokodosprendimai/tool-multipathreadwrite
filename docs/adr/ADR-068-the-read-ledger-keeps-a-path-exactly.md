@@ -9,7 +9,7 @@
 **Governs:** `internal/seen/seen.go`, `scripts/contract.sh`
 **Enforced-by:** `cmd/mrw/ledgerpath_test.go::TestAReadOfATrailingSpacePathDoesNotLicenseItsTrimmedSibling`
 **Invalidates:** none — checked
-**Served-path change:** A read of a file whose name ends (or starts) in a space no longer licenses a write to the file whose name is that one trimmed. Reproduced on v1.24.0, 2026-09-24: after `mrw read -- "x "`, a write to `x` applied, exit 0. Now it is refused as unread, exit 1, and a write to `x ` still applies.
+**Served-path change:** A read of a file whose name ends in a space or a carriage return no longer licenses a write to the file whose name is that one trimmed. Reproduced on v1.24.0, 2026-09-24: after `mrw read -- "x "`, a write to `x` applied, exit 0. Now it is refused as unread, exit 1, and a write to `x ` still applies. A ledger with CRLF line endings, which mrw never writes, is now discarded as stale.
 
 ## Context
 
@@ -32,15 +32,20 @@ deferred below.
 - The ledger writes each observation as `<sha>  <spans>  <path>` with the path verbatim
   (`internal/seen/seen.go:399`).
 - `parseLine` reads it back with `strings.TrimSpace(text)` (`seen.go:203`), which removes the
-  path's trailing (and leading) spaces.
+  path's trailing spaces. Leading spaces survive: they sit after the SHA and the spans.
 - So the observation of `x ` is loaded under the key `x`. `apply` finds a licence for `x`, and its
   SHA guard passes because the two files hold the same bytes.
 - ADR-002's guarantee, that mrw will not edit a file it has not read, fails for any pair of names
-  that differ only in edge whitespace. Its SHA check is the only thing standing in the way, and it
+  that differ only in trailing whitespace. Its SHA check is the only thing standing in the way, and it
   stands only when the contents differ.
+- **Amended 2026-09-25, from the Codex review of #214.** A trailing `\r` was trimmed one layer
+  lower: `Load` scanned with `bufio.ScanLines`, which drops a `\r` before the `\n`. A read of a
+  file named `x\r` licensed `x`. The first draft of this record kept that strip on purpose and
+  claimed such a file could not be named in a plan; a quoted plan path carries the `\r` mid-line,
+  so it can. Executed RED before the fix.
 
-**Why now.** Until #214, an MCP read of any spaced name failed with `-32603`, which hid the
-MCP half of this. #214 makes those reads work, so the ledger must key them exactly first.
+**Why now.** Until #214, an MCP read of a spaced name that fit on one page failed with `-32603`,
+which hid the MCP half of this. #214 makes those reads work, so the ledger must key them exactly first.
 
 **The class this record governs:** a path that round-trips through a state file and can come back
 different. Enumerated 2026-09-24 with
@@ -54,8 +59,8 @@ different. Enumerated 2026-09-24 with
 
 ## Existing Primitives Audit
 
-- **`parseLine`** (`seen.go:202`). Reshaped: it strips only a trailing `\r`, which a line-oriented
-  reader can leave on a ledger that passed through CRLF tooling. It never trims the path.
+- **`parseLine`** (`seen.go:202`) and the ledger scanner. Reshaped: `Load` and `IsStale` split on
+  `\n` alone (`scanLF`), and `parseLine` trims nothing.
 - **The ledger header** (`seen.go:150`). Unchanged. No format change, so no ledger is discarded. A
   line the writer emitted is read back exactly. One residue: an older mrw that LOADED `x ` as `x`
   and then saved the ledger wrote it back under `x`. That entry is kept, and it licenses `x` only
@@ -63,13 +68,14 @@ different. Enumerated 2026-09-24 with
 
 ## Decision
 
-`parseLine` keeps the path byte for byte as it was written, trimming nothing but a line
-terminator's `\r`. A read of `x ` licenses `x ` and nothing else. No ledger format change, no
-migration, no exit code change.
+The ledger reader keeps the path byte for byte as it was written: `Load` and `IsStale` split on
+`\n` alone, the terminator `save` writes, and `parseLine` trims nothing. A read of `x ` licenses
+`x ` and nothing else, and a read of `x\r` licenses `x\r`. No ledger format change, no migration,
+no exit code change.
 
-**What would make this decision fail:** a ledger line whose path genuinely ended in `\r` (a
-filename with a trailing carriage return) would lose it. Such a file cannot be named in a plan
-either, since plans are line-oriented, so it is not reachable today.
+**What would make this decision fail:** a ledger mrw did not write, with CRLF endings. Its header
+no longer matches, so it is discarded as stale and every write needs a fresh read: a refusal, never a
+wrong licence.
 
 ## Alternatives Considered
 
@@ -93,7 +99,7 @@ either, since plans are line-oriented, so it is not reachable today.
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
 | read ledger parsing | a path keeps its edge spaces | T1 | `mrw write`, MCP `mrw_write` |
-| contract §127 | `read "x "` then a write to `x` exits 1, nothing written; to `x ` applies | T1 | CI, `adr-verify` |
+| contract §127 | `read -- "x "` then a write to `x` exits 1, nothing written; to `x ` applies; the same for `x\r` | T1 | CI, `adr-verify` |
 
 ## Inter-task Contracts
 
@@ -105,9 +111,9 @@ See `docs/adr/ADR-068-the-read-ledger-keeps-a-path-exactly/tasks/README.md`.
 
 ## Consequences
 
-- **Positive:** ADR-002 holds for names that differ only in edge whitespace.
+- **Positive:** ADR-002 holds for names that differ only in a trailing space or carriage return.
 - **Negative:** none known.
-- **Neutral:** no format change; an existing ledger reads back correctly.
+- **Neutral:** no format change; a ledger mrw wrote reads back correctly. One with CRLF endings, which mrw never writes, is discarded as stale.
 
 ## Out of Scope
 
@@ -119,12 +125,12 @@ See `docs/adr/ADR-068-the-read-ledger-keeps-a-path-exactly/tasks/README.md`.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| A ledger line carries trailing whitespace the writer did not put there | Low | Low | only mrw writes the ledger (`seen.go:399`), with a single `\n`; `\r` is still stripped |
+| A ledger line carries a `\r` the writer did not put there | Low | Low | only mrw writes the ledger (`seen.go`, `save`), with a bare `\n`; a CRLF ledger fails the header check and is discarded, so the failure is a refusal |
 | A ledger saved by an older mrw already holds a trimmed key (`x` for a read of `x `) | Low | Med | it licenses `x` only while `x` holds the hashed bytes; the SHA guard refuses once `x` changes, and a fresh read of `x ` records the exact key |
 
 ## Rollback
 
-Revert `parseLine`, the tests and §127. Nothing persistent moves.
+Revert `parseLine`, `scanLF`, the tests and §127. Nothing persistent moves.
 
 ## Follow-ups
 
