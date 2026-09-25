@@ -118,9 +118,9 @@ tell, which is what this exists for.
 Which surface you are on is not purely your choice: it follows from where the
 server was registered, and a user-scope registration puts these two tools in
 every project on the machine, including the ones whose instructions say to use
-the shell. See the README, "Use it from an MCP host" — which also carries the one
-thing this surface does better, since one server is one writer to the ledger
-and serializes in-process.
+the shell. See the README, "Use it from an MCP host". Writers take turns on
+either surface, one writer per checkout (ADR-075), so neither is the safer one
+for callers sharing a checkout.
 
 Both tools are bounded at 200,000 characters of ENCODED result, and the number is yours to set:
 `mrw mcp --max-result-chars N` or `MRW_MAX_RESULT_CHARS`. The flag beats the variable, omitting both

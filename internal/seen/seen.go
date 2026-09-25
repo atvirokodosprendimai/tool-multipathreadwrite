@@ -34,6 +34,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
@@ -346,23 +347,51 @@ func Record(root string, obs map[string]Observation) error {
 }
 
 func withLock(root string, fn func() error) error {
-	path, err := state.Path(root, Name+".lock")
+	release, err := hold(root, Name+".lock")
 	if err != nil {
 		return err
 	}
+	defer release()
+	return fn()
+}
+
+// LockWrites takes this checkout's write lock and returns the function that
+// releases it; calling that function again does nothing (ADR-075). One mrw
+// writer holds it from apply through the ledger update, so two writers never
+// validate and commit at once. It is its own file, not seen.lock: Record and
+// Drop take seen.lock while it is held, and one process opening a lock a
+// second time waits on itself. The order is always this lock, then seen.lock;
+// a read takes only seen.lock.
+func LockWrites(root string) (release func(), err error) {
+	return hold(root, Name+".write.lock")
+}
+
+// hold opens the named lock file in root's state directory and takes it
+// exclusively, waiting while another holder has it. The kernel releases it if
+// the process dies holding it.
+func hold(root, name string) (func(), error) {
+	path, err := state.Path(root, name)
+	if err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+		return nil, err
 	}
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer f.Close()
 	if err := lock(f); err != nil {
-		return err
+		f.Close()
+		return nil, err
 	}
-	defer unlock(f)
-	return fn()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			_ = unlock(f)
+			f.Close()
+		})
+	}, nil
 }
 
 // merge combines a new observation with what was already recorded for the same

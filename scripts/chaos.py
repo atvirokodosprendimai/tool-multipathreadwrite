@@ -3,7 +3,7 @@
 
 Run by hand, like scripts/break-campaign.sh; never in CI (it spends minutes).
 
-    python3 scripts/chaos.py MRW WORKDIR [--seed N] [--scale K] [--race-strict] [--junction-strict]
+    python3 scripts/chaos.py MRW WORKDIR [--seed N] [--scale K] [--junction-strict]
     CORPUS=list.txt python3 scripts/chaos.py …   # trees built from real files
 
 Each suite drives the BUILT binary and checks it against an independent model,
@@ -17,8 +17,8 @@ not against mrw's own output:
   grep     --grep/--exclude hits equal a model of ADR-007's walk
   spec     hostile read specs: no panic, no hang, no read outside the root
   mutate   byte-mutated plans: a refused plan changes nothing
-  race     8 concurrent writers on one file: counts lost updates (a known,
-           accepted risk — BACKLOG "concurrent writes"); --race-strict fails on it
+  race     8 concurrent writers on one file: none may exit 0 and lose its edit, and
+           every other is refused as stale (ADR-075, one writer per checkout)
   symlink  no read, grep, write, unlink, rename or create reaches outside the root
   junction the same escapes through an NTFS junction (Windows; mklink /J needs no
            privilege, so it runs where symlink skips): each escape is REPORTED
@@ -598,7 +598,7 @@ def suite_race(n):
         lost = [j for j, r in enumerate(results) if r[0] == 0 and final[j] != f"writer {j}"]
         torn = [k for k, l in enumerate(final) if l != orig[k] and l != f"writer {k}"]
         STATS["race_lost"] = STATS.get("race_lost", 0) + len(lost)
-        if lost and "--race-strict" in sys.argv:
+        if lost:
             fail("race", f"{len(lost)} writer(s) exited 0 but their edit is gone: {lost}", root, None, None, None,
                  {"rcs": [r[0] for r in results], "final": final, "outs": [r[1][-200:] + r[2][-200:] for r in results]}); continue
         if torn: fail("race", f"torn lines {torn}", root)

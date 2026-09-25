@@ -410,7 +410,7 @@ func tools() []tool {
 				"With a shell and mrw on PATH, prefer the CLI `mrw read` — it also has " +
 				"--files-from, and `mrw --root DIR read` for any checkout (--root BEFORE the " +
 				"subcommand; after `read`, -C is the context flag). Prefer THIS tool with no " +
-				"shell, or when callers sharing one checkout want their ledger writes serialized.",
+				"shell.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -478,8 +478,7 @@ func tools() []tool {
 				"will not edit a line it has not served you — read it with mrw_read first. If you " +
 				"can run shell commands, prefer the CLI `mrw write` — it also has --check, which " +
 				"runs the project's tests scoped to what it just wrote. Prefer THIS tool with no " +
-				"shell, or when callers sharing one checkout want their ledger writes serialized; " +
-				"it needs no --json because its answer is already structured.",
+				"shell; it needs no --json because its answer is already structured.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
