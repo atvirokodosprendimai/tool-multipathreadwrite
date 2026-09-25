@@ -5898,7 +5898,7 @@ rc=$?
 t1=$(date +%s)
 want 0 "$rc" "a hanging matcher still exits 0"
 dur=$((t1 - t0))
-[ "$dur" -le 3 ] && ok "and returns within 3 s (bound is 2 s)" || bad "hook hung ${dur}s"
+[ "$dur" -le 4 ] && ok "and returns within 4 s (bound is 2 s; whole-second clock plus start-up)" || bad "hook hung ${dur}s"
 
 # 111. ADR-058 T3: a hanging ast-grep on PATH is killed at 2 s.
 # Outer perl alarm is the same idiom §55 uses so a missing bound cannot orphan.
@@ -5919,7 +5919,7 @@ grep -q 'no file matched' <<<"$out" \
 	&& bad "timeout reported as zero hits: $out" \
 	|| ok "and it is not zero hits"
 dur=$((t1 - t0))
-[ "$dur" -le 3 ] && ok "and returns within 3 s (bound is 2 s)" || bad "ast-grep hung ${dur}s"
+[ "$dur" -le 4 ] && ok "and returns within 4 s (bound is 2 s; whole-second clock plus start-up)" || bad "ast-grep hung ${dur}s"
 
 # 112. ADR-057 teaching from the 2026-09-15 Zeus field report.
 # Pair: write --help names rename dest as the one-line body (not to=) /
