@@ -34,12 +34,23 @@ import (
 // prints the seed, the iteration, the argv, what the parser delivered and
 // what mrw said, so it replays by hand.
 func TestTheGuardsAgreeWithTheParserOnRandomArgv(t *testing.T) {
+	// A mistyped MRW_STRESS_N must not become zero cases and a green run: a
+	// test that cannot fail is the failure mode this repository names first
+	// (found by a peer session running seed 105).
 	n, seed := 300, int64(1)
 	if s := os.Getenv("MRW_STRESS_N"); s != "" {
-		n, _ = strconv.Atoi(s)
+		v, err := strconv.Atoi(s)
+		if err != nil || v <= 0 {
+			t.Fatalf("MRW_STRESS_N=%q is not a positive case count", s)
+		}
+		n = v
 	}
 	if s := os.Getenv("MRW_STRESS_SEED"); s != "" {
-		seed, _ = strconv.ParseInt(s, 10, 64)
+		v, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			t.Fatalf("MRW_STRESS_SEED=%q is not an integer", s)
+		}
+		seed = v
 	}
 	rng := rand.New(rand.NewSource(seed))
 
