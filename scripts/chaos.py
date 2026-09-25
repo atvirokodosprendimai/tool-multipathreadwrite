@@ -3,7 +3,7 @@
 
 Run by hand, like scripts/break-campaign.sh; never in CI (it spends minutes).
 
-    python3 scripts/chaos.py MRW WORKDIR [--seed N] [--scale K] [--race-strict]
+    python3 scripts/chaos.py MRW WORKDIR [--seed N] [--scale K] [--race-strict] [--junction-strict]
     CORPUS=list.txt python3 scripts/chaos.py …   # trees built from real files
 
 Each suite drives the BUILT binary and checks it against an independent model,
@@ -20,6 +20,10 @@ not against mrw's own output:
   race     8 concurrent writers on one file: counts lost updates (a known,
            accepted risk — BACKLOG "concurrent writes"); --race-strict fails on it
   symlink  no read, grep, write, unlink, rename or create reaches outside the root
+  junction the same escapes through an NTFS junction (Windows; mklink /J needs no
+           privilege, so it runs where symlink skips): each escape is REPORTED
+           with the path it reached (an open field finding, 2026-09-25);
+           --junction-strict fails on it
   foreign  mutated apply_patch/search_replace/--files-from documents
   mcp      garbage JSON-RPC: the server keeps answering and never applies a
            write without an acknowledged read; and random 2026-07-28 requests
@@ -33,6 +37,11 @@ rename (ADR-066) on 2026-09-24; a failure it reports is a LEAD — confirm it by
 hand before calling it a defect, since the model can be wrong too.
 """
 import json, os, random, re, shutil, subprocess, sys, threading, time, hashlib
+
+# The Windows console's code page cannot print U+FFFD; write UTF-8 everywhere
+# rather than asking every caller for PYTHONIOENCODING (2026-09-25).
+for _s in (sys.stdout, sys.stderr):
+    _s.reconfigure(encoding="utf-8", errors="replace")
 
 MRW = os.path.abspath(sys.argv[1])
 WORK = os.path.abspath(sys.argv[2])
@@ -636,6 +645,77 @@ def suite_symlink():
             if not os.path.exists(os.path.join(root, "in.txt")): wr(os.path.join(root, "in.txt"), "inside\n", "w")
 
 
+# ---------- suite: junction escapes (Windows) ----------
+JUNCTION_ESCAPES = []
+
+
+def mkjunction(link, target):
+    # mklink /J needs no privilege, unlike a symlink (WinError 1314), so this
+    # runs on the accounts where suite_symlink skips.
+    p = subprocess.run(["cmd", "/c", "mklink", "/J", link, target], capture_output=True)
+    return p.returncode == 0, (p.stdout + p.stderr).decode("utf-8", "replace").strip()
+
+
+def suite_junction():
+    """A junction inside the root that points outside it. An escape is REPORTED
+    — a count in STATS and the path it reached — not failed: it is an open field
+    finding (2026-09-25), and a suite that fails every run is a suite people
+    turn off. --junction-strict makes each escape a failure once the fix ships."""
+    if os.name != "nt":
+        print("junction SKIPPED: junctions are Windows-only", flush=True)
+        return
+    root = fresh("junc", 0); os.makedirs(root)
+    out_dir = os.path.join(WORK, "outside-junction")
+    shutil.rmtree(out_dir, ignore_errors=True); os.makedirs(out_dir)
+    secret = os.path.join(out_dir, "secret.txt")
+    jdir = os.path.join(root, "jdir")
+
+    def reset():
+        wr(secret, "SECRET-OUTSIDE\n", "w")
+        for x in ("moved.txt", "new.txt"):
+            if os.path.exists(os.path.join(out_dir, x)): os.remove(os.path.join(out_dir, x))
+        if not os.path.exists(os.path.join(root, "in.txt")): wr(os.path.join(root, "in.txt"), "inside\n", "w")
+        return mkjunction(jdir, out_dir) if not os.path.lexists(jdir) else (True, "")
+
+    ok, msg = reset()
+    if not ok:
+        print(f"junction SKIPPED: cannot create a junction here: {msg}", flush=True)
+        return
+
+    def escape(why, where, res, args=None, plan=None):
+        STATS["junction_escape"] = STATS.get("junction_escape", 0) + 1
+        line = f"{why}: {where} (exit {res[0]})"
+        JUNCTION_ESCAPES.append(line)
+        print(f"junction ESCAPE: {line}", flush=True)
+        if "--junction-strict" in sys.argv:
+            fail("junction", f"{why}: reached outside the root", root, args, plan, res)
+
+    for args, why in [(["read", "jdir/secret.txt"], "read via junction"), (["read", "--grep", "SECRET"], "grep walk"),
+                      (["read", "--grep", "SECRET", "jdir"], "grep named junction")]:
+        res = run(["--root", root] + args)
+        generic("junction", res, root, args)
+        if "SECRET-OUTSIDE" in res[1]:
+            escape(why, f"served {secret}", res, args=args)
+    for plan, why in [("@@ jdir/secret.txt 1 replace\nPWNED\n", "write via junction"),
+                      ("@@ jdir/new.txt 0 create body=1\nPWNED\n", "create via junction"),
+                      ("@@ in.txt - rename\njdir/moved.txt\n", "rename into junction"),
+                      ("@@ jdir/secret.txt - unlink\n", "unlink via junction"),
+                      ("@@ jdir - unlink\n", "unlink the junction")]:
+        # Read what the plan names first, so read-before-write is not what stops
+        # it: this suite measures the root boundary, not the ledger.
+        run(["--root", root, "read", "in.txt", "jdir/secret.txt"])
+        res = run(["--root", root, "write", "-"], plan.encode())
+        generic("junction", res, root, plan)
+        landed = [p for p in (os.path.join(out_dir, "moved.txt"), os.path.join(out_dir, "new.txt")) if os.path.exists(p)]
+        if not os.path.exists(secret) or rd(secret, "r") != "SECRET-OUTSIDE\n":
+            landed.insert(0, secret)
+        if landed:
+            escape(why, ", ".join(landed), res, plan=plan)
+        reset()
+    if os.path.lexists(jdir):
+        os.rmdir(jdir)  # removes the junction, never what it points at
+
+
 # ---------- suite: MCP garbage ----------
 MODERN = "2026-07-28"
 SUPPORTED = [MODERN, "2025-11-25", "2025-06-18"]
@@ -819,9 +899,12 @@ def main():
     k = SCALE
     for name, fn, arg in [("read", suite_read, int(400 * k)), ("write", suite_write, int(500 * k)), ("grep", suite_grep, int(250 * k)),
                           ("spec", suite_specs, int(300 * k)), ("mutate", suite_mutate, int(300 * k)), ("race", suite_race, int(25 * k)),
-                          ("symlink", lambda _: suite_symlink(), 0), ("foreign", suite_foreign, int(400 * k)), ("mcp", suite_mcp, int(20 * k))]:
+                          ("symlink", lambda _: suite_symlink(), 0), ("junction", lambda _: suite_junction(), 0),
+                          ("foreign", suite_foreign, int(400 * k)), ("mcp", suite_mcp, int(20 * k))]:
         t = time.time(); fn(arg)
         print(f"{name:8s} done in {time.time()-t:5.1f}s  fails so far {len(FAILS)}", flush=True)
+    for e in JUNCTION_ESCAPES:
+        print(f"ESCAPE [junction] {e}")
     by = {}
     for s, why, d in FAILS:
         key = (s, re.sub(r"\d+", "N", why)[:90])
