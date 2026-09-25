@@ -954,6 +954,32 @@ held or went unchecked.`,
 			if len(args) > 1 {
 				return cli.Exit("write takes at most one plan file", exitUsage)
 			}
+			// ADR-072: under --json every refusal after the plan is named is
+			// one JSON document — the receipt's shape with an error field — so
+			// a consumer that parses stdout never meets text. A refusal after
+			// the write landed carries the real result; one before it carries
+			// an empty one, with applied false and empty arrays, not null.
+			refuseWith := func(res apply.Result, msg string) error {
+				if cmd.Bool("json") {
+					if res.Files == nil {
+						res.Files = []apply.FileResult{}
+					}
+					if res.Hunks == nil {
+						res.Hunks = []apply.HunkResult{}
+					}
+					root := cmd.Root().String("root")
+					if res.Root == "" {
+						res.Root = root
+					}
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					_ = enc.Encode(receipt{Result: res, Pattern: authoring.PatternOf(root), Error: msg})
+				}
+				return cli.Exit(msg, exitUsage)
+			}
+			refuse := func(msg string) error {
+				return refuseWith(apply.Result{DryRun: cmd.Bool("dry-run")}, msg)
+			}
 			src, name := os.Stdin, "<stdin>"
 			if len(args) == 1 && args[0] != "-" {
 				f, err := os.Open(args[0])
@@ -963,7 +989,7 @@ held or went unchecked.`,
 					// the working directory. That split is defensible and
 					// invisible, so a miss says where it looked rather than
 					// leaving the caller to doubt the plan instead of the path.
-					return cli.Exit(planOpenError(args[0], cmd.String("root"), err), exitUsage)
+					return refuse(planOpenError(args[0], cmd.String("root"), err).Error())
 				}
 				defer f.Close()
 				src, name = f, args[0]
@@ -977,31 +1003,31 @@ held or went unchecked.`,
 			case "apply_patch":
 				raw, rerr := io.ReadAll(src)
 				if rerr != nil {
-					return cli.Exit(fmt.Sprintf("%s: %v", name, rerr), exitUsage)
+					return refuse(fmt.Sprintf("%s: %v", name, rerr))
 				}
 				compiled, cerr := ingest.CompileApplyPatch(cmd.Root().String("root"), raw)
 				if cerr != nil {
 					// The document did not become a plan. Same bucket as a
 					// native parse refusal: the FORMAT was the problem.
 					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
-					return cli.Exit(fmt.Sprintf("%s: %v", name, cerr), exitUsage)
+					return refuse(fmt.Sprintf("%s: %v", name, cerr))
 				}
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
 			case "search_replace":
 				raw, rerr := io.ReadAll(src)
 				if rerr != nil {
-					return cli.Exit(fmt.Sprintf("%s: %v", name, rerr), exitUsage)
+					return refuse(fmt.Sprintf("%s: %v", name, rerr))
 				}
 				compiled, cerr := ingest.CompileSearchReplace(cmd.Root().String("root"), raw)
 				if cerr != nil {
 					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
-					return cli.Exit(fmt.Sprintf("%s: %v", name, cerr), exitUsage)
+					return refuse(fmt.Sprintf("%s: %v", name, cerr))
 				}
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
 			case "git":
-				return cli.Exit("a git patch is not an apply_patch; --format=apply_patch is for *** Begin Patch documents", exitUsage)
+				return refuse("a git patch is not an apply_patch; --format=apply_patch is for *** Begin Patch documents")
 			default:
-				return cli.Exit(fmt.Sprintf("unknown --format %q (plan, apply_patch, or search_replace)", cmd.String("format")), exitUsage)
+				return refuse(fmt.Sprintf("unknown --format %q (plan, apply_patch, or search_replace)", cmd.String("format")))
 			}
 			if err != nil {
 				// A plan that did not PARSE is the outcome ADR-009 exists to
@@ -1010,13 +1036,13 @@ held or went unchecked.`,
 				// at the site that already decided it, so the tally is a
 				// projection of that decision and never a second opinion.
 				_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
-				return cli.Exit(fmt.Sprintf("%s: %v", name, err), 2)
+				return refuse(fmt.Sprintf("%s: %v", name, err))
 			}
 
 			root := cmd.Root().String("root")
 			if err := plan.LoadBodyFiles(root, hunks); err != nil {
 				_ = authoring.Record(root, authoring.RefusedParse)
-				return cli.Exit(fmt.Sprintf("%s: %v", name, err), 2)
+				return refuse(fmt.Sprintf("%s: %v", name, err))
 			}
 			if cmd.Bool("dry-run") && !cmd.Bool("json") {
 				for _, h := range hunks {
@@ -1025,7 +1051,7 @@ held or went unchecked.`,
 			}
 			set, err := iter.Load(root)
 			if err != nil {
-				return cli.Exit(err, exitUsage)
+				return refuse(err.Error())
 			}
 
 			in := make([]apply.Input, 0, len(hunks))
@@ -1037,11 +1063,11 @@ held or went unchecked.`,
 				if iter.IsPointer(path) {
 					got, err := set.Resolve(path)
 					if err != nil {
-						return cli.Exit(fmt.Sprintf("%s line %d: %v", name, h.SrcLine, err), exitUsage)
+						return refuse(fmt.Sprintf("%s line %d: %v", name, h.SrcLine, err))
 					}
 					if len(got) != 1 {
-						return cli.Exit(fmt.Sprintf("%s line %d: %s names %d entries; a hunk needs exactly one",
-							name, h.SrcLine, path, len(got)), exitUsage)
+						return refuse(fmt.Sprintf("%s line %d: %s names %d entries; a hunk needs exactly one",
+							name, h.SrcLine, path, len(got)))
 					}
 					path = iter.Path(got[0])
 				}
@@ -1053,9 +1079,19 @@ held or went unchecked.`,
 				})
 			}
 
+			// ADR-072: the harness is read BEFORE anything is written. Read
+			// after the commit, a malformed .quality-harness.json applied the
+			// write and then exited 2 with only the JSON error. --no-check and
+			// --dry-run never run a check, so they never read it.
+			var cfg check.Config
+			if !cmd.Bool("no-check") && !cmd.Bool("dry-run") {
+				if cfg, err = check.Load(root); err != nil {
+					return refuse(fmt.Sprintf("%v: nothing was written", err))
+				}
+			}
 			ledger, err := seen.Load(root)
 			if err != nil {
-				return cli.Exit(err, exitUsage)
+				return refuse(err.Error())
 			}
 			res, err := apply.Apply(root, in, apply.Options{
 				DryRun:        cmd.Bool("dry-run"),
@@ -1107,37 +1143,14 @@ held or went unchecked.`,
 					}
 				}
 				if err := seen.Drop(root, gone); err != nil {
-					return cli.Exit(err, exitUsage)
+					return refuseWith(res, err.Error())
 				}
 				if err := seen.Record(root, wrote); err != nil {
-					return cli.Exit(err, exitUsage)
+					return refuseWith(res, err.Error())
 				}
 			}
 
 			receipt := receipt{Result: res}
-			if res.Applied && res.Failed == 0 && !cmd.Bool("no-check") {
-				written, code := writeCheckPaths(res.Files)
-				cfg, err := check.Load(root)
-				if err != nil {
-					return cli.Exit(err, exitUsage)
-				}
-				// ADR-054: the check runs by default, but only when the plan
-				// touched a file a check could plausibly cover AND a command
-				// exists. A markdown-only plan does not pay the project
-				// suite; a tree with no harness and no go.mod does not get an
-				// exit 2 it never asked for. --check is a DEMAND and skips
-				// both gates: on a prose plan it runs, and with no command it
-				// is exit 2 (ADR-003).
-				demanded := cmd.Bool("check")
-				hasCommand := cfg.Check != "" || cfg.ScopedCheck != ""
-				if demanded || (code && hasCommand) {
-					cr, err := check.Run(ctx, root, cfg, written)
-					if err != nil {
-						return cli.Exit(err, exitUsage)
-					}
-					receipt.Check = &cr
-				}
-			}
 
 			// ADR-055: a landed write joins the recent-window ring BEFORE the
 			// receipt is rendered, so the receipt can say "3 of your last 3" —
@@ -1150,6 +1163,50 @@ held or went unchecked.`,
 			}
 			receipt.Pattern = authoring.PatternOf(root)
 
+			// ADR-072: the human receipt is printed, and the landing counted,
+			// BEFORE the check runs. Rendered after it, a write killed during
+			// its check printed nothing and was missing from stats. --json
+			// stays one document, rendered once the check is done; the
+			// ledger and the tally carry the landing if mrw is killed first.
+			if !cmd.Bool("json") {
+				report(os.Stdout, res, cmd.Bool("quiet"))
+				if pattern != "" {
+					// Not hidden by --quiet: quiet drops ok rows, and this
+					// is the opposite of an ok row.
+					fmt.Println(pattern)
+				}
+			}
+			// ADR-009: record what became of this plan, from the SAME facts the
+			// exit switch below uses. Never fails a write — Record swallows
+			// every error, because measurement that can break the tool it
+			// measures is worse than no measurement. A landing is counted as
+			// applied here and moved to the check's verdict after it runs.
+			if res.Failed > 0 {
+				_ = authoring.Record(root, authoring.RefusedApply)
+			} else {
+				_ = authoring.Record(root, authoring.Applied)
+			}
+
+			if res.Applied && res.Failed == 0 && !cmd.Bool("no-check") {
+				written, code := writeCheckPaths(res.Files)
+				// ADR-054: the check runs by default, but only when the plan
+				// touched a file a check could plausibly cover AND a command
+				// exists. A markdown-only plan does not pay the project
+				// suite; a tree with no harness and no go.mod does not get an
+				// exit 2 it never asked for. --check is a DEMAND and skips
+				// both gates: on a prose plan it runs, and with no command it
+				// is exit 2 (ADR-003).
+				demanded := cmd.Bool("check")
+				hasCommand := cfg.Check != "" || cfg.ScopedCheck != ""
+				if demanded || (code && hasCommand) {
+					cr, err := check.Run(ctx, root, cfg, written)
+					if err != nil {
+						return refuseWith(res, err.Error())
+					}
+					receipt.Check = &cr
+				}
+			}
+
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
@@ -1157,27 +1214,13 @@ held or went unchecked.`,
 					return cli.Exit(err, exitUsage)
 				}
 			} else {
-				report(os.Stdout, res, cmd.Bool("quiet"))
-				if pattern != "" {
-					// Not hidden by --quiet: quiet drops ok rows, and this
-					// is the opposite of an ok row.
-					fmt.Println(pattern)
-				}
 				reportCheck(os.Stdout, receipt.Check)
 			}
-			// ADR-009: record what became of this plan, from the SAME facts the
-			// switch below uses to choose an exit status. Never fails a write —
-			// Record swallows every error, because measurement that can break
-			// the tool it measures is worse than no measurement.
 			switch {
-			case res.Failed > 0:
-				_ = authoring.Record(root, authoring.RefusedApply)
 			case receipt.Check != nil && !receipt.Check.Ran:
-				_ = authoring.Record(root, authoring.CheckNotRun)
+				_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
 			case receipt.Check != nil && !receipt.Check.OK():
-				_ = authoring.Record(root, authoring.FailedCheck)
-			default:
-				_ = authoring.Record(root, authoring.Applied)
+				_ = authoring.Reclassify(root, authoring.Applied, authoring.FailedCheck)
 			}
 			// ADR-056: price --strict-balance from the SAME check verdict. A
 			// flag-on write is not priced — the question is what the flag
@@ -1267,6 +1310,9 @@ type receipt struct {
 	// always present, so the JSON caller holds the fact the human line
 	// prints. Read from the ring after RecordRecent ran.
 	Pattern authoring.PatternInfo `json:"pattern"`
+	// Error is why a write was refused after its plan was named (ADR-072):
+	// under --json every such refusal is this document, not text.
+	Error string `json:"error,omitempty"`
 }
 
 // iterCmd manages the working set: the files and ranges this piece of work is

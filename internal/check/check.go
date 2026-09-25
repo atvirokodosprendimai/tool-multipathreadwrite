@@ -23,13 +23,15 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
 )
 
 // Config is the project's declared verification, read from
@@ -195,6 +197,13 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		}
 		timeout = time.Duration(secs) * time.Second
 	}
+	// ADR-072: the check runs in a process group of its own (subproc), so the
+	// terminal's ^C reaches mrw and not the check. While the check runs, an
+	// interrupt or terminate sent to mrw cancels it instead: the group is
+	// killed and the receipt says "interrupted". The handler lives exactly as
+	// long as the check, so a ^C anywhere else behaves as it always did.
+	ctx, stopSignals := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -206,7 +215,7 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	}
 	res.OutputFile = f.Name()
 
-	c := exec.CommandContext(ctx, "sh", "-c", cmdline)
+	c := subproc.Command(ctx, "sh", "-c", cmdline)
 	c.Dir = root
 	c.Stdout, c.Stderr = f, f
 
@@ -229,9 +238,16 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		res.ExitCode = -1
 		res.Skipped = "could not start: " + runErr.Error()
 	}
-	if ctx.Err() == context.DeadlineExceeded {
+	switch {
+	case ctx.Err() == context.DeadlineExceeded:
 		res.ExitCode = -1
 		res.Skipped = fmt.Sprintf("timed out after %s", timeout)
+	case ctx.Err() == context.Canceled && res.Ran:
+		// It started and was stopped from outside — an interrupt, or the
+		// caller's own cancel. A check that never started stays "could not
+		// start" above: nothing ran for an interrupt to stop.
+		res.ExitCode = -1
+		res.Skipped = "interrupted"
 	}
 
 	tail := cfg.TailLines

@@ -90,3 +90,12 @@ Remove `FenceTimeout` and the resolve step; delete §97. Existing `timeout_secon
 ## Follow-ups
 
 - Per-extension check skip, if a later record takes it — BACKLOG "Per-extension check skip".
+
+## Amendment, 2026-09-25: the harness is read before apply (ADR-072)
+
+Out of Scope called loading the harness before apply permanent, on the fact that corrupt JSON
+already loaded after it (its citation had drifted from `cmd/mrw/main.go:1056` to `:1120`). The
+v1.25.1 adversarial round showed what that order costs: a malformed `.quality-harness.json` applied
+the write and then exited 2 with only the JSON error. ADR-072 reverses it: `mrw write` reads the
+harness first and refuses, exit 2, nothing written. A disagreeing `timeout_seconds` and
+`fenceTimeout` pair is refused the same way, before the write.
