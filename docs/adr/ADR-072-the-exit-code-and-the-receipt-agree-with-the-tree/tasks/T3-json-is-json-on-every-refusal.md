@@ -34,7 +34,7 @@
 ```bash
 set -o pipefail
 go test ./cmd/mrw/ -count=1 -timeout 180s -run 'IsAJSONDocumentUnderJSON' -v 2>&1 | tee /tmp/adr072-T3.out \
-  && missing=$(for t in TestAPlanThatDoesNotParseIsAJSONDocumentUnderJSON TestAMissingBodyFileIsAJSONDocumentUnderJSON TestAMalformedHarnessIsAJSONDocumentUnderJSON; do grep -qE "^--- PASS: $t \(" /tmp/adr072-T3.out || echo "$t"; done) \
+  && missing=$(for t in TestAPlanThatDoesNotParseIsAJSONDocumentUnderJSON TestAMissingBodyFileIsAJSONDocumentUnderJSON TestAMalformedHarnessIsAJSONDocumentUnderJSON TestAFilesystemFailureBeforeAnyHunkIsAJSONDocumentUnderJSON; do grep -qE "^--- PASS: $t \(" /tmp/adr072-T3.out || echo "$t"; done) \
   && [ -z "$missing" ] \
   && grep -q '^# 144\. ' scripts/contract.sh \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted \
@@ -49,6 +49,7 @@ go test ./cmd/mrw/ -count=1 -timeout 180s -run 'IsAJSONDocumentUnderJSON' -v 2>&
 | `TestAPlanThatDoesNotParseIsAJSONDocumentUnderJSON` | `cmd/mrw/json_refusal_test.go` | exit 2; parses; `applied` false; `error` names the plan; `hunks` is `[]` | — | S1, S2 |
 | `TestAMissingBodyFileIsAJSONDocumentUnderJSON` | `cmd/mrw/json_refusal_test.go` | `body=@nope` the same way | — | S1, S2 |
 | `TestAMalformedHarnessIsAJSONDocumentUnderJSON` | `cmd/mrw/json_refusal_test.go` | T1's refusal the same way | — | S1, S2 |
+| `TestAFilesystemFailureBeforeAnyHunkIsAJSONDocumentUnderJSON` | `cmd/mrw/json_refusal_test.go` | a failure before any hunk has a verdict (a plan naming a directory) is a document too (review of #229, B2) | — | S2 |
 
 ## Reachability
 
@@ -96,12 +97,21 @@ go test ./cmd/mrw/ -count=1 -timeout 180s -run 'IsAJSONDocumentUnderJSON' -v 2>&
 - 2026-09-25 · e3f7978* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:7e2b5deb3501645914eb80e1a615bc42f8baa7cb4000d875df55e4798fec7c8c · ms:0 · test-lock-sha256:9bdae1f58180ff37f296a0aa2be467a66c489639b36aa3299d718e4eb55f33df · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvanNvbl9yZWZ1c2FsX3Rlc3QuZ28JVGVzdEFNYWxmb3JtZWRIYXJuZXNzSXNBSlNPTkRvY3VtZW50VW5kZXJKU09OCWRhNWIwOGM2MzQyODllZDcyODBlMTVhOTc2ZDY5YmQ3NTcwN2QxNzM2ZGNhODVmZDlhODk3NDFiZTRiZjhhZDYKYm9keQljbWQvbXJ3L2pzb25fcmVmdXNhbF90ZXN0LmdvCVRlc3RBTWlzc2luZ0JvZHlGaWxlSXNBSlNPTkRvY3VtZW50VW5kZXJKU09OCWJiODk5ZWNlNDkzMWMyNDllNWY0Njc0ZjFhNThhMTZmZGU2MGVhN2NmMDJjZmJmMTc3ZGM2MjUwZmU3ZGFiNWMKYm9keQljbWQvbXJ3L2pzb25fcmVmdXNhbF90ZXN0LmdvCVRlc3RBUGxhblRoYXREb2VzTm90UGFyc2VJc0FKU09ORG9jdW1lbnRVbmRlckpTT04JNmIxZjlhNzA0YjhhNjVlYmYzNWZiZmVkYWVkY2Y5YTMxYzlhNjE3ZjY0ZDcwOGNiNDViMGU4MTQ2MmY2MmRjOA · test-lock-kind:replace
 - 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:7e2b5deb3501645914eb80e1a615bc42f8baa7cb4000d875df55e4798fec7c8c · ms:934
 - 2026-09-25 · 7836e8d* · exit 0 · `set -o pipefail …` · acceptance-sha256:7e2b5deb3501645914eb80e1a615bc42f8baa7cb4000d875df55e4798fec7c8c · ms:349
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · ms:685
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · ms:326
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · ms:303
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · ms:304
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · ms:337
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-25 · e3f7978* · mutant killed · exit 1 · `cmd/mrw/main.go` · a plan that does not parse prints text under --json again · acceptance-sha256:7e2b5deb3501645914eb80e1a615bc42f8baa7cb4000d875df55e4798fec7c8c · covers:a refusal under --json is a document
 - 2026-09-25 · e3f7978* · mutant killed · exit 1 · `cmd/mrw/main.go` · hunks is null in a refusal, which breaks .hunks[] in jq · acceptance-sha256:7e2b5deb3501645914eb80e1a615bc42f8baa7cb4000d875df55e4798fec7c8c · covers:the arrays are empty, not null
 - 2026-09-25 · e3f7978* · mutant killed · exit 1 · `cmd/mrw/main.go` · the refusal document carries no error, so a consumer cannot say why · acceptance-sha256:7e2b5deb3501645914eb80e1a615bc42f8baa7cb4000d875df55e4798fec7c8c · covers:the error names the cause
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · a plan that does not parse prints text under --json again · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · covers:a refusal under --json is a document
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · hunks is null in a refusal, which breaks .hunks[] in jq · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · covers:the arrays are empty, not null
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · the refusal document carries no error, so a consumer cannot say why · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · covers:the error names the cause
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · a filesystem failure before any hunk prints nothing under --json again · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · covers:a refusal under --json is a document
 
 ## Invariants
 

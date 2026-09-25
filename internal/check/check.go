@@ -198,11 +198,17 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		timeout = time.Duration(secs) * time.Second
 	}
 	// ADR-072: the check runs in a process group of its own (subproc), so the
-	// terminal's ^C reaches mrw and not the check. While the check runs, an
-	// interrupt or terminate sent to mrw cancels it instead: the group is
-	// killed and the receipt says "interrupted". The handler lives exactly as
-	// long as the check, so a ^C anywhere else behaves as it always did.
-	ctx, stopSignals := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	// terminal's ^C and a hangup reach mrw and not the check. While the check
+	// runs, an interrupt, terminate or hangup sent to mrw cancels it instead:
+	// the group is killed and the receipt says "interrupted". The handler
+	// lives exactly as long as the check, so a ^C anywhere else behaves as it
+	// always did.
+	var stopSignals context.CancelFunc = func() {}
+	if sigs := checkSignals(); len(sigs) > 0 {
+		// Only with signals to name: NotifyContext with none relays EVERY
+		// signal the process receives.
+		ctx, stopSignals = signal.NotifyContext(ctx, sigs...)
+	}
 	defer stopSignals()
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -238,11 +244,15 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		res.ExitCode = -1
 		res.Skipped = "could not start: " + runErr.Error()
 	}
+	// Only a run that ended badly is read for why: a check that exited 0 a
+	// moment before a deadline or a signal passed, and saying "timed out" or
+	// "interrupted" of it would be a verdict the process did not give (review
+	// of #229). No test can reach that window; it is microseconds wide.
 	switch {
-	case ctx.Err() == context.DeadlineExceeded:
+	case runErr != nil && ctx.Err() == context.DeadlineExceeded:
 		res.ExitCode = -1
 		res.Skipped = fmt.Sprintf("timed out after %s", timeout)
-	case ctx.Err() == context.Canceled && res.Ran:
+	case runErr != nil && ctx.Err() == context.Canceled && res.Ran:
 		// It started and was stopped from outside — an interrupt, or the
 		// caller's own cancel. A check that never started stays "could not
 		// start" above: nothing ran for an interrupt to stop.
@@ -606,4 +616,21 @@ func lastLines(path string, n int) ([]string, int) {
 		return lines, 0
 	}
 	return lines[len(lines)-n:], len(lines) - n
+}
+
+// checkSignals are the signals that stop a running check (ADR-072): an
+// interrupt, a terminate and a hangup, each of which would otherwise end mrw
+// and leave the check, in a process group of its own, running — a hangup was
+// the one the first cut missed (review of #229). A signal the process was
+// started with IGNORED stays ignored: nohup ignores SIGHUP and a shell starts
+// a background job with SIGINT ignored, and signal.Notify would switch either
+// back on.
+func checkSignals() []os.Signal {
+	var out []os.Signal
+	for _, s := range []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP} {
+		if !signal.Ignored(s) {
+			out = append(out, s)
+		}
+	}
+	return out
 }

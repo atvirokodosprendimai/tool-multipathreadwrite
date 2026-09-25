@@ -959,7 +959,24 @@ held or went unchecked.`,
 			// a consumer that parses stdout never meets text. A refusal after
 			// the write landed carries the real result; one before it carries
 			// an empty one, with applied false and empty arrays, not null.
+			// printed and tallied say the human receipt is on stdout and the
+			// landing is counted, so a refusal after either does neither twice.
+			printed, tallied := false, false
 			refuseWith := func(res apply.Result, msg string) error {
+				// A refusal after the write landed (the ledger could not be
+				// written, the check could not start) still says what landed
+				// and counts it: the tree changed either way. In human form the
+				// ledger failure printed nothing, and the landing went
+				// uncounted (review of #229, advisory 1).
+				landed := res.Applied && !res.DryRun
+				if landed && !tallied {
+					_ = authoring.Record(cmd.Root().String("root"), authoring.Applied)
+					tallied = true
+				}
+				if !cmd.Bool("json") && landed && !printed {
+					report(os.Stdout, res, cmd.Bool("quiet"))
+					printed = true
+				}
 				if cmd.Bool("json") {
 					if res.Files == nil {
 						res.Files = []apply.FileResult{}
@@ -1108,14 +1125,15 @@ held or went unchecked.`,
 				// bare "mrw: …: permission denied" had nothing to parse — and
 				// only then exit. The exit code is unchanged: a filesystem
 				// failure stays 2, distinct from a failing hunk's 1.
+				if cmd.Bool("json") {
+					// ADR-072: one document whether or not any hunk has a
+					// verdict yet. Rendered only when it had hunks, a failure
+					// before the first one — a plan naming a directory —
+					// printed nothing under --json (review of #229, B2).
+					return refuseWith(res, err.Error())
+				}
 				if len(res.Hunks) > 0 {
-					if cmd.Bool("json") {
-						enc := json.NewEncoder(os.Stdout)
-						enc.SetIndent("", "  ")
-						_ = enc.Encode(receipt{Result: res})
-					} else {
-						report(os.Stdout, res, cmd.Bool("quiet"))
-					}
+					report(os.Stdout, res, cmd.Bool("quiet"))
 				}
 				return cli.Exit(err, exitUsage)
 			}
@@ -1170,6 +1188,7 @@ held or went unchecked.`,
 			// ledger and the tally carry the landing if mrw is killed first.
 			if !cmd.Bool("json") {
 				report(os.Stdout, res, cmd.Bool("quiet"))
+				printed = true
 				if pattern != "" {
 					// Not hidden by --quiet: quiet drops ok rows, and this
 					// is the opposite of an ok row.
@@ -1185,6 +1204,7 @@ held or went unchecked.`,
 				_ = authoring.Record(root, authoring.RefusedApply)
 			} else {
 				_ = authoring.Record(root, authoring.Applied)
+				tallied = true
 			}
 
 			if res.Applied && res.Failed == 0 && !cmd.Bool("no-check") {
@@ -1201,6 +1221,9 @@ held or went unchecked.`,
 				if demanded || (code && hasCommand) {
 					cr, err := check.Run(ctx, root, cfg, written)
 					if err != nil {
+						// The write landed and its check could not run: that is
+						// check_not_run, not applied (review of #229).
+						_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
 						return refuseWith(res, err.Error())
 					}
 					receipt.Check = &cr

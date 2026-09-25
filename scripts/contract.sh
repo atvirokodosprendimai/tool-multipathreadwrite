@@ -6716,11 +6716,33 @@ printf '{"check":"echo $$ > gc.pid; exec sleep 30"}' > "$R/.quality-harness.json
 printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 6 }\n' > "$R/p145b.mrw"
 "$MRW" -C "$R" write "$R/p145b.mrw" > "$R/out145" 2>&1 & pid=$!
 for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
-kill -INT "$pid"; wait "$pid"; rc=$?
-want 3 "$rc" "an interrupt during the check is exit 3"
-grep -q 'interrupted' "$R/out145" && ok "and the receipt says interrupted" || bad "interrupt: $(cat "$R/out145")"
+kill -TERM "$pid"; wait "$pid"; rc=$?
+want 3 "$rc" "a terminate during the check is exit 3"
+grep -q 'interrupted' "$R/out145" && ok "and the receipt says interrupted" || bad "terminate: $(cat "$R/out145")"
 gone=0; for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$(cat "$R/gc.pid")" 2>/dev/null || { gone=1; break; }; sleep 0.3; done
 [ "$gone" = 1 ] && ok "and the check is gone" || { kill -9 "$(cat "$R/gc.pid")" 2>/dev/null; bad "the check outlived the interrupt"; }
+# A hangup too: it ends mrw, and the check in its own group would not hear it.
+# (TERM and HUP, not INT: a shell starts a background job with SIGINT ignored,
+# and mrw leaves an ignored signal ignored.)
+fixture
+printf '{"check":"echo $$ > gc.pid; exec sleep 30"}' > "$R/.quality-harness.json"
+printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 4 }\n' > "$R/p145c.mrw"
+"$MRW" -C "$R" write "$R/p145c.mrw" > "$R/out145c" 2>&1 & pid=$!
+for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
+kill -HUP "$pid"; wait "$pid"; rc=$?
+want 3 "$rc" "a hangup during the check is exit 3"
+gone=0; for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$(cat "$R/gc.pid")" 2>/dev/null || { gone=1; break; }; sleep 0.3; done
+[ "$gone" = 1 ] && ok "and the check is gone" || { kill -9 "$(cat "$R/gc.pid")" 2>/dev/null; bad "the check outlived the hangup"; }
+# The pair: under nohup a hangup is ignored, as it always was, and the check
+# runs on — mrw leaves a signal it was started with ignored alone.
+fixture
+printf '{"check":"echo $$ > gc.pid; exec sleep 30"}' > "$R/.quality-harness.json"
+printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 3 }\n' > "$R/p145d.mrw"
+nohup "$MRW" -C "$R" write "$R/p145d.mrw" > "$R/out145d" 2>&1 & pid=$!
+for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
+kill -HUP "$pid"; sleep 0.5
+kill -0 "$(cat "$R/gc.pid")" 2>/dev/null && ok "under nohup a hangup leaves the check running" || bad "under nohup a hangup stopped the check"
+kill -9 "$(cat "$R/gc.pid")" 2>/dev/null; wait "$pid"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

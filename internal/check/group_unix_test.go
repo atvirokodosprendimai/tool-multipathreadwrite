@@ -5,6 +5,7 @@ package check
 import (
 	"context"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -61,5 +62,30 @@ func TestAnInterruptedCheckSaysSo(t *testing.T) {
 	}
 	if !res.Ran || res.OK() || res.Skipped != "interrupted" {
 		t.Fatalf("want a check that ran, did not pass, and says interrupted: %+v", res)
+	}
+}
+
+// ADR-072, review of #229 (B1). A hangup ends mrw, and the check, in a process
+// group of its own, never hears it, so a hangup stops the check too. A signal
+// the process was started with ignored stays ignored: nohup ignores SIGHUP.
+func TestTheCheckStopsOnHangupUnlessHangupIsIgnored(t *testing.T) {
+	if signal.Ignored(syscall.SIGHUP) {
+		t.Skip("this test process was started with SIGHUP ignored")
+	}
+	has := func(s os.Signal) bool {
+		for _, x := range checkSignals() {
+			if x == s {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(syscall.SIGHUP) || !has(syscall.SIGTERM) || !has(os.Interrupt) {
+		t.Fatalf("a check does not stop on hangup, terminate and interrupt: %v", checkSignals())
+	}
+	signal.Ignore(syscall.SIGHUP)
+	defer signal.Reset(syscall.SIGHUP)
+	if has(syscall.SIGHUP) {
+		t.Fatal("a hangup the process ignores was switched back on for the check")
 	}
 }

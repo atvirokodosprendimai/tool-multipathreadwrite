@@ -58,3 +58,15 @@ func TestAMalformedHarnessIsAJSONDocumentUnderJSON(t *testing.T) {
 	out, code := writeIn(t, root, "--json", planFile(t, goPlan))
 	jsonRefusal(t, out, code, ".quality-harness.json")
 }
+
+// A filesystem failure before any hunk has a verdict — a plan naming a
+// directory — printed nothing under --json: only a result that already had
+// hunks was rendered (review of #229, B2).
+func TestAFilesystemFailureBeforeAnyHunkIsAJSONDocumentUnderJSON(t *testing.T) {
+	root := checkTree(t)
+	if err := os.Mkdir(filepath.Join(root, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out, code := writeIn(t, root, "--json", planFile(t, "@@ sub 1 replace\nX\n"))
+	jsonRefusal(t, out, code, "sub")
+}

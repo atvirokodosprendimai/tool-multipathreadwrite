@@ -2036,3 +2036,9 @@ exec @ARGV'`, cannot stop mrw. A Go program ignores SIGALRM unless it asks for t
 runtime's signal table marks it notify-only), so a row that wraps `$MRW` in the alarm is unbounded
 if mrw hangs; it bounds only non-Go children such as §55's Python hook. §143 kills mrw with SIGKILL
 instead. The rows that still wrap `$MRW` in the alarm need a guard that can actually fire.
+
+From the review of #229 (ADR-072), outside that record: a `--dry-run` is tallied as `applied`
+and so counted among `landed writes` in `mrw stats`, though nothing landed; `main` did the same
+before ADR-072. And a signal that lands between the check's signal handler being installed and
+its process starting reports "could not start: context canceled" (exit 2, with advice to declare a
+check) rather than "interrupted"; the window is microseconds, and nothing reaches it in a test.

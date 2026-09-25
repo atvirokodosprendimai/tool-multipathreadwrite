@@ -35,8 +35,8 @@ A write killed during its check printed nothing, and `mrw stats` never counted i
 
 ```bash
 set -o pipefail
-go test ./cmd/mrw/ ./internal/authoring/ -count=1 -timeout 180s -run 'TestTheReceiptIsOnStdout|TestAFailedCheckIsCountedOnce|TestReclassify' -v 2>&1 | tee /tmp/adr072-T2.out \
-  && missing=$(for t in TestTheReceiptIsOnStdoutBeforeTheCheckStarts TestAFailedCheckIsCountedOnceInStats TestReclassifyMovesOneCountAndNeverAddsOne; do grep -qE "^--- PASS: $t \(" /tmp/adr072-T2.out || echo "$t"; done) \
+go test ./cmd/mrw/ ./internal/authoring/ -count=1 -timeout 180s -run 'TestTheReceiptIsOnStdout|TestAFailedCheckIsCountedOnce|TestReclassify|TestALandingWhoseLedger|TestACheckThatCannotRun' -v 2>&1 | tee /tmp/adr072-T2.out \
+  && missing=$(for t in TestTheReceiptIsOnStdoutBeforeTheCheckStarts TestAFailedCheckIsCountedOnceInStats TestReclassifyMovesOneCountAndNeverAddsOne TestALandingWhoseLedgerCannotBeWrittenStillPrintsItsReceipt TestACheckThatCannotRunIsCountedAsCheckNotRun; do grep -qE "^--- PASS: $t \(" /tmp/adr072-T2.out || echo "$t"; done) \
   && [ -z "$missing" ] \
   && grep -q '^# 143\. ' scripts/contract.sh \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted \
@@ -51,6 +51,8 @@ go test ./cmd/mrw/ ./internal/authoring/ -count=1 -timeout 180s -run 'TestTheRec
 | `TestTheReceiptIsOnStdoutBeforeTheCheckStarts` | `cmd/mrw/receipt_before_check_test.go` | a check that kills mrw (`kill -9 $PPID`) finds the receipt already printed, and `stats` counts the landing | — | S1, S2 |
 | `TestAFailedCheckIsCountedOnceInStats` | `cmd/mrw/receipt_before_check_test.go` | a failing check: `failed_check` 1, `applied` 0, landed 1 | — | S1, S2 |
 | `TestReclassifyMovesOneCountAndNeverAddsOne` | `internal/authoring/reclassify_test.go` | the move, and its floor at zero | — | S1, S2 |
+| `TestALandingWhoseLedgerCannotBeWrittenStillPrintsItsReceipt` | `cmd/mrw/receipt_before_check_test.go` | a write whose ledger save fails after it landed still prints its receipt and is counted, once (review of #229) | — | S2 |
+| `TestACheckThatCannotRunIsCountedAsCheckNotRun` | `cmd/mrw/receipt_before_check_test.go` | a check that could not run after the write landed is counted as check_not_run, not applied (review of #229) | — | S2 |
 
 ## Reachability
 
@@ -82,12 +84,36 @@ go test ./cmd/mrw/ ./internal/authoring/ -count=1 -timeout 180s -run 'TestTheRec
 - 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:0f4e6e53a426b156c70e052c3499ebac6efa171d420aaa91ee577c7c85078d7a · ms:1447
 - 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:0f4e6e53a426b156c70e052c3499ebac6efa171d420aaa91ee577c7c85078d7a · ms:2114
 - 2026-09-25 · 7836e8d* · exit 0 · `set -o pipefail …` · acceptance-sha256:0f4e6e53a426b156c70e052c3499ebac6efa171d420aaa91ee577c7c85078d7a · ms:999
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:3bb8edcd004fcd4d0d674c7924cc11906a7cc53c4276be45a3b4f6551fa4b37e · ms:1019
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:3bb8edcd004fcd4d0d674c7924cc11906a7cc53c4276be45a3b4f6551fa4b37e · ms:656
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:3bb8edcd004fcd4d0d674c7924cc11906a7cc53c4276be45a3b4f6551fa4b37e · ms:755
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:3bb8edcd004fcd4d0d674c7924cc11906a7cc53c4276be45a3b4f6551fa4b37e · ms:716
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:3bb8edcd004fcd4d0d674c7924cc11906a7cc53c4276be45a3b4f6551fa4b37e · ms:816
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:3bb8edcd004fcd4d0d674c7924cc11906a7cc53c4276be45a3b4f6551fa4b37e · ms:672
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:1356
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:708
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:632
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:669
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:683
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:757
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · ms:770
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-25 · e3f7978* · mutant killed · exit 1 · `cmd/mrw/main.go` · the human receipt is not printed before the check, so a killed write prints nothing · acceptance-sha256:0f4e6e53a426b156c70e052c3499ebac6efa171d420aaa91ee577c7c85078d7a · covers:the receipt is on stdout before the check starts
 - 2026-09-25 · e3f7978* · mutant killed · exit 1 · `cmd/mrw/main.go` · the landing is not counted before the check, so a killed write is missing from stats · acceptance-sha256:0f4e6e53a426b156c70e052c3499ebac6efa171d420aaa91ee577c7c85078d7a · covers:a landing is counted before the check
 - 2026-09-25 · e3f7978* · mutant killed · exit 1 · `internal/authoring/authoring.go` · a reclassify adds a plan instead of moving one · acceptance-sha256:0f4e6e53a426b156c70e052c3499ebac6efa171d420aaa91ee577c7c85078d7a · covers:a reclassify never adds a plan
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · the human receipt is not printed before the check, so a killed write prints nothing · acceptance-sha256:3bb8edcd004fcd4d0d674c7924cc11906a7cc53c4276be45a3b4f6551fa4b37e · covers:the receipt is on stdout before the check starts
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · the landing is not counted before the check, so a killed write is missing from stats · acceptance-sha256:3bb8edcd004fcd4d0d674c7924cc11906a7cc53c4276be45a3b4f6551fa4b37e · covers:a landing is counted before the check
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `internal/authoring/authoring.go` · a reclassify adds a plan instead of moving one · acceptance-sha256:3bb8edcd004fcd4d0d674c7924cc11906a7cc53c4276be45a3b4f6551fa4b37e · covers:a reclassify never adds a plan
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · a landing whose ledger cannot be written prints no receipt in human form · acceptance-sha256:3bb8edcd004fcd4d0d674c7924cc11906a7cc53c4276be45a3b4f6551fa4b37e · covers:the receipt is on stdout before the check starts
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · a landing whose ledger cannot be written is not counted in stats · acceptance-sha256:3bb8edcd004fcd4d0d674c7924cc11906a7cc53c4276be45a3b4f6551fa4b37e · covers:a landing is counted before the check
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · the human receipt is not printed before the check, so a killed write prints nothing · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · covers:the receipt is on stdout before the check starts
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · the landing is not counted before the check, so a killed write is missing from stats · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · covers:a landing is counted before the check
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `internal/authoring/authoring.go` · a reclassify adds a plan instead of moving one · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · covers:a reclassify never adds a plan
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · a landing whose ledger cannot be written prints no receipt in human form · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · covers:the receipt is on stdout before the check starts
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · a landing whose ledger cannot be written is not counted in stats · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · covers:a landing is counted before the check
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `cmd/mrw/main.go` · a check that could not run is left counted as applied · acceptance-sha256:86e6a07aac6998aece9c3148fe470c9c63551a37992090d6f6a4eebc84e7e1f3 · covers:a landing is counted before the check
 
 ## Invariants
 

@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
 // ADR-072 T2. A write killed while its check ran printed nothing: the receipt
@@ -84,5 +86,66 @@ func TestAFailedCheckIsCountedOnceInStats(t *testing.T) {
 	}
 	if s.Counts["failed_check"] != 1 || s.Counts["applied"] != 0 || s.Landed != 1 {
 		t.Fatalf("counts %v landed %d, want failed_check 1, applied 0, landed 1", s.Counts, s.Landed)
+	}
+}
+
+// A write that landed and then could not record itself in the ledger exited 2
+// with nothing printed in human form, and the landing went uncounted: the tree
+// changed and neither the receipt nor stats said so (review of #229). The
+// ledger file is made read-only so its save fails after the commit.
+func TestALandingWhoseLedgerCannotBeWrittenStillPrintsItsReceipt(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("a read-only file does not stop this user from writing it")
+	}
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := checkTree(t)
+	if _, err := readIn(t, root, "a.go"); err != nil {
+		t.Fatal(err)
+	}
+	ledger, err := seen.ReadPath(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(ledger, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(ledger, 0o600) })
+	out, code := writeIn(t, root, "--no-check", planFile(t, goPlan))
+	if code != exitUsage || !strings.Contains(out, "— applied") {
+		t.Fatalf("exit %d, want %d with the receipt printed:\n%s", code, exitUsage, out)
+	}
+	stats, code := runIn(t, root, "stats")
+	if code != 0 || !strings.Contains(stats, "landed writes: 1;") {
+		t.Fatalf("stats does not count the landing:\n%s", stats)
+	}
+}
+
+// A check that could not run after the write landed (its log file could not
+// be created) was counted as applied: the error return skipped the move to
+// the check's verdict. It is check_not_run (review of #229).
+func TestACheckThatCannotRunIsCountedAsCheckNotRun(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := checkTree(t)
+	if _, err := readIn(t, root, "a.go"); err != nil {
+		t.Fatal(err)
+	}
+	plan := planFile(t, goPlan)
+	t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
+	if out, code := writeIn(t, root, plan); code != exitUsage {
+		t.Fatalf("exit %d, want %d for a check that could not run:\n%s", code, exitUsage, out)
+	}
+	out, code := runIn(t, root, "stats", "--json")
+	if code != 0 {
+		t.Fatalf("stats exited %d:\n%s", code, out)
+	}
+	var s struct {
+		Counts map[string]int `json:"counts"`
+		Landed int            `json:"landed"`
+	}
+	if err := json.Unmarshal([]byte(out), &s); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if s.Counts["check_not_run"] != 1 || s.Counts["applied"] != 0 || s.Landed != 1 {
+		t.Fatalf("counts %v landed %d, want check_not_run 1, applied 0, landed 1", s.Counts, s.Landed)
 	}
 }

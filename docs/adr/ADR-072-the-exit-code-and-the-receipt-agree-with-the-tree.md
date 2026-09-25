@@ -56,12 +56,14 @@ And one the round's read side found in the same code shape: the check's timeout 
    before any plan exists stay text.
 4. **A check's child is stopped with its descendants.** `internal/subproc` starts a child in its own
    process group on unix and kills the group on cancel, and bounds the wait for held pipes at one
-   second everywhere. While the check runs, an interrupt or terminate sent to mrw cancels it: the
+   second everywhere. While the check runs, an interrupt, terminate or hangup sent to mrw (unless the process started with it ignored, as nohup and a shell's background jobs do) cancels it: the
    group is killed and the check reports `interrupted`, exit 3, the tree changed and unverified. On
    Windows only the wait bound applies.
 
 **What would make this decision fail:** a check that depends on sharing the terminal's process
-group; its stdin is already `/dev/null` and its output a file, so none is known.
+group; its stdin is already `/dev/null` and its output a file, so none is known. And a signal
+mrw cannot catch: a SIGKILL sent to mrw's process group, or ^Z, no longer reaches the check,
+which runs on (or keeps running) with nothing left to enforce its timeout.
 
 ## Alternatives Considered
 
@@ -117,6 +119,8 @@ See `docs/adr/ADR-072-the-exit-code-and-the-receipt-agree-with-the-tree/tasks/RE
 |------|------------|--------|------------|
 | A check reads the terminal | Low | Med | its stdin is `/dev/null`; a TTY read from a background group stops it, and the timeout still ends it |
 | A second ^C during the one-second wait is swallowed | Low | Low | the wait is bounded; mrw exits right after |
+| SIGKILL to mrw's process group, or ^Z (SIGTSTP), during a check: the check, in its own group, is neither killed nor stopped | Low | Med | no handler can catch SIGKILL or pass ^Z on; the check's own command finishes as it would have |
+| ^\\ (SIGQUIT) during a check ends mrw with a goroutine dump and leaves the check running | Low | Low | deliberately not caught, so ^\\ keeps its dump |
 
 ## Rollback
 
