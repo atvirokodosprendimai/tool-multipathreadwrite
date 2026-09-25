@@ -71,6 +71,17 @@ func throughLinks(p string, lfs linkFS) (string, error) {
 			}
 			return "", fmt.Errorf("%s is a link or junction mrw cannot follow: %w", next, err)
 		}
+		// A folder with a whole volume mounted on it is a mount point whose
+		// target is the volume itself, \\?\Volume{GUID}\. Its contents are that
+		// volume, placed there on purpose, and nothing beside it is reachable
+		// through it, so it is kept as the folder the path names. Followed, the
+		// GUID spelling never matched the root's drive, and every path under a
+		// mounted folder inside the root was refused (review of #228, A4). A
+		// target INSIDE another volume is followed and judged like any other.
+		if isVolumeRoot(target) {
+			cur = next
+			continue
+		}
 		if hops++; hops > maxLinks {
 			return "", fmt.Errorf("%s leads through more than %d links", p, maxLinks)
 		}
@@ -118,4 +129,20 @@ func win32Alias(p string) (comp, reads string) {
 		}
 	}
 	return "", ""
+}
+
+// isVolumeRoot reports whether a link target is a whole volume,
+// \\?\Volume{GUID}\ — what Readlink answers for a folder a volume is mounted on
+// — rather than a directory on one.
+func isVolumeRoot(target string) bool {
+	const prefix = `\\?\Volume{`
+	if !strings.HasPrefix(target, prefix) {
+		return false
+	}
+	i := strings.IndexByte(target[len(prefix):], '}')
+	if i < 0 {
+		return false
+	}
+	rest := target[len(prefix)+i+1:]
+	return rest == "" || rest == `\`
 }

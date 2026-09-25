@@ -49,7 +49,7 @@ go test ./internal/rooted/ -count=1 -timeout 120s -run 'TestWin32Alias|TestResol
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestWin32AliasNamesTheComponentWindowsWouldRemap` | `internal/rooted/links_test.go` | `b.txt.`, `sp.txt `, `b.txt::$DATA`, `dir /a.txt`, a volume and a UNC prefix | — | S1, S2 |
+| `TestWin32AliasNamesTheComponentWindowsWouldRemap` | `internal/rooted/links_test.go` | `b.txt.`, `sp.txt `, `b.txt::$DATA`, `dir /a.txt`, `...` (a volume prefix is covered on Windows by `TestResolveRefusesAWin32Alias`, whose `C:\` root would otherwise be refused; a UNC prefix by nothing yet) | — | S1, S2 |
 | `TestWin32AliasLeavesDotAndDotDotAlone` | `internal/rooted/links_test.go` | `.`, `..`, `a/./b` and ordinary names are not aliases | — | S1, S2 |
 | `TestResolveRefusesAWin32Alias` | `internal/rooted/links_windows_test.go` | the real `Resolve` and `Abs` on Windows | — | S1, S2 |
 

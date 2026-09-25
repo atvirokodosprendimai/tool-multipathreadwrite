@@ -67,6 +67,8 @@ go test ./internal/rooted/ ./cmd/mrw/ -count=1 -timeout 120s -run 'TestTheLinkWa
 | `TestAnAbsolutePathUnderAJunctionedRootIsServed` | `cmd/mrw/junction_windows_test.go` | a root reached through a junction still serves an absolute path inside it (review of #228, S1) | — | S2 |
 | `TestTheLinkWalkRefusesASymlinkItCannotRead` | `internal/rooted/links_test.go` | a symlink whose Readlink says ENOENT is refused, not kept as a placeholder (review A2) | — | S2 |
 | `TestTheLinkWalkRefusesAComponentItCannotExamine` | `internal/rooted/links_test.go` | only a missing component ends the walk; one Lstat cannot examine is refused (review A1) | — | S2 |
+| `TestTheLinkWalkKeepsAMountedVolumeAsTheFolderItIs` | `internal/rooted/links_test.go` | a folder with a whole volume mounted on it is kept, not refused (review A4) | — | S2 |
+| `TestTheLinkWalkKnowsAWholeVolumeFromADirectoryOnIt` | `internal/rooted/links_test.go` | only `\\?\Volume{GUID}\` is kept; a directory on another volume is followed | — | S2 |
 
 ## Reachability
 
@@ -113,6 +115,8 @@ go test ./internal/rooted/ ./cmd/mrw/ -count=1 -timeout 120s -run 'TestTheLinkWa
 - 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:397
 - 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:508
 - 2026-09-25 · fb7d18d* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:396
+- 2026-09-25 · 52e730c* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:1405
+- 2026-09-25 · 52e730c* · exit 0 · `set -o pipefail …` · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · ms:506
 
 ## Mutation Log
 (empty until execute)
@@ -132,6 +136,7 @@ go test ./internal/rooted/ ./cmd/mrw/ -count=1 -timeout 120s -run 'TestTheLinkWa
 - 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · the hop bound is gone, so two links pointing at each other spin until the test timeout · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · covers:a link loop is bounded
 - 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · a missing component refuses the whole path, so a create through a followed junction is refused · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · covers:a missing component ends the walk
 - 2026-09-25 · fb7d18d* · mutant killed · exit 1 · `internal/rooted/links.go` · any Lstat error ends the walk, so a component that cannot be examined is judged by its spelling · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · covers:a missing component ends the walk
+- 2026-09-25 · 52e730c* · mutant killed · exit 1 · `internal/rooted/links.go` · a folder with a whole volume mounted on it is followed to its GUID spelling, and every path under it is refused · acceptance-sha256:456cb74ed1be95a43fb3946be9046c4c3b461bb620a6e6a50c503af4f93c90c1 · covers:a link is replaced by its target
 
 ## Invariants
 

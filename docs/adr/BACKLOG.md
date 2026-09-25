@@ -2011,6 +2011,12 @@ ignored on a numeric range; over MCP, ids of any JSON type are accepted, invalid
 U+FFFD so the engine looks for a path never sent, a bad flag prints usage on stdout at startup,
 100,000 specs block the server past 120 s, and `exclude: ["["]` is not refused.
 
+Found by the review of #228 (Windows, from the documentation): Win32 also maps device names —
+`CON`, `NUL`, `AUX`, `PRN`, `COM1`–`COM9`, `LPT1`–`LPT9`, and before Windows 11 the same names
+with an extension (`nul.txt`) — to devices, so a plan naming one writes to a device, not a file.
+ADR-071 refuses a trailing dot, a trailing space and a `:`; device names are the same class and
+are not yet refused.
+
 Found after the list: every padded-path refusal suggests its fix in POSIX single quotes
 (`mrw read -- 'x '`), which cmd.exe keeps as literal characters, so a cmd.exe user who pastes it
 names a path with quotes in it (a Windows cmd.exe session, 2026-09-25).

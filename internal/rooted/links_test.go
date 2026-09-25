@@ -219,3 +219,38 @@ func TestTheLinkWalkRefusesAComponentItCannotExamine(t *testing.T) {
 		t.Fatal("a component that could not be examined ended the walk as if it were missing")
 	}
 }
+
+// A folder a volume is mounted on reads as a link to \\?\Volume{GUID}\. That is
+// the folder's contents, not a way out: it is kept as the folder the path
+// names, so a mounted volume inside the root stays inside it (review of #228,
+// A4). Followed, its GUID spelling never matched the root and every path under
+// it was refused.
+func TestTheLinkWalkKeepsAMountedVolumeAsTheFolderItIs(t *testing.T) {
+	links := fakeLinks(map[string]fakeEntry{
+		"/r":     {kind: "dir"},
+		"/r/vol": {kind: "link", target: `\\?\Volume{0a1b2c3d-0000-0000-0000-000000000000}\`},
+	})
+	got, err := throughLinks(filepath.FromSlash("/r/vol/f.txt"), links)
+	if err != nil {
+		t.Fatalf("a mounted volume was refused: %v", err)
+	}
+	if slash(got) != "/r/vol/f.txt" {
+		t.Fatalf("a mounted volume was rewritten to %s", slash(got))
+	}
+}
+
+// Only a whole volume is kept: a junction to a directory ON another volume is
+// a way out of the root and is followed and judged.
+func TestTheLinkWalkKnowsAWholeVolumeFromADirectoryOnIt(t *testing.T) {
+	for target, whole := range map[string]bool{
+		`\\?\Volume{0a1b}\`:       true,
+		`\\?\Volume{0a1b}`:        true,
+		`\\?\Volume{0a1b}\secret`: false,
+		`\\?\Volume{0a1b`:         false,
+		`C:\outside`:              false,
+	} {
+		if got := isVolumeRoot(target); got != whole {
+			t.Errorf("isVolumeRoot(%q) = %v, want %v", target, got, whole)
+		}
+	}
+}
