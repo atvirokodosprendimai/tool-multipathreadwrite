@@ -254,7 +254,9 @@ def segments(cmd, raw=False):
         else:
             seg.append(tok)
     for b in bodies:
-        inner.extend(substitutions(b))
+        # An unquoted heredoc still honours a backslash before $, ` and \:
+        # `\$(cat f)` is literal text (Codex review of PR #222; ADR-070 T5).
+        inner.extend(substitutions(re.sub(r"\\[\\$`]", "", b)))
     for s in inner:
         out.extend(segments(s, raw))
     return out

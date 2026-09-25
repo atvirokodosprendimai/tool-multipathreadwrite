@@ -6,6 +6,17 @@ Implementation tasks for ADR-069: a caller-supplied path reaches mrw exactly as 
 This README is a derived index — when it disagrees with a task file, the task file wins and the
 README must be regenerated.
 
+## Waves
+
+T1–T4 are independent. T5 amends T1's guard after the Codex review of v1.25.0; T6 amends T5's
+after the Codex review of PR #222.
+
+| Wave | Tasks | Depends-on |
+|------|-------|------------|
+| 1 | T1, T2, T3, T4 | none |
+| 2 | T5 | none |
+| 3 | T6 | T5 |
+
 ## Execution Order
 
 | Order | Task | Depends-on |
@@ -15,6 +26,7 @@ README must be regenerated.
 | 3 | T3 | none |
 | 4 | T4 | none |
 | 5 | T5 | none |
+| 6 | T6 | T5 |
 
 ## Task Index
 
@@ -25,6 +37,7 @@ README must be regenerated.
 | T3 | A rename destination keeps its trailing space; contract §130 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T3-rename-destination-keeps-the-path.md` fence |
 | T4 | apply_patch and search_replace keep a path's trailing space; contract §131 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T4-foreign-formats-keep-the-path.md` fence |
 | T5 | A flag value does not end the guard; an attached padded value is refused; contract §134 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T5-flag-values-and-attached-values.md` fence |
+| T6 | A flag name is read trimmed; the whole-argv guard reads values and the terminator; any trailing whitespace refuses an attached value; contract §135 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T6-flag-names-argv-walk-and-any-whitespace.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

@@ -31,6 +31,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/urfave/cli/v3"
 
@@ -185,7 +186,7 @@ func main() {
 	// A padded ATTACHED flag value (--root='dir ') is trimmed by the parser
 	// before any Action runs, and a root flag never reaches a subcommand's raw
 	// tail, so the whole argv is checked here (ADR-069 T5).
-	err := refusePaddedFlagValues(os.Args[1:])
+	err := refusePaddedFlagValues(root, os.Args[1:])
 	if err == nil {
 		err = root.Run(context.Background(), os.Args)
 	}
@@ -1704,7 +1705,10 @@ func planOpenError(path, root string, err error) error {
 // A flag's own value is skipped: the parser keeps a separate value as given
 // (command_parse.go:182), and a "--" consumed as a value is not the terminator,
 // which is how `read --grep -- 'x '` got past the first version (Codex review
-// of v1.25.0, ADR-069 T5). An attached value is checked by padAttached.
+// of v1.25.0, ADR-069 T5). An attached value is checked by padAttached. A flag
+// name is classified TRIMMED, as the parser reads it: looked up as typed, a
+// padded boolean name (`'--no-numbers '`) read as value-taking and hid the
+// padded path after it (Codex review of PR #222, ADR-069 T6).
 func refusePaddedArgs(cmd *cli.Command) error {
 	args := cmd.Args().Slice()
 	if cmd.Name == "iter" && len(args) > 0 && args[0] == "note" {
@@ -1713,14 +1717,6 @@ func refusePaddedArgs(cmd *cli.Command) error {
 	got := make(map[string]bool, len(args))
 	for _, a := range args {
 		got[a] = true
-	}
-	boolFlag := map[string]bool{}
-	for _, f := range cmd.Flags {
-		if _, ok := f.(*cli.BoolFlag); ok {
-			for _, n := range f.Names() {
-				boolFlag[n] = true
-			}
-		}
 	}
 	// The iter refusal keeps its verb: `mrw iter -- 'x '` makes the path the verb.
 	prefix := cmd.Name
@@ -1731,22 +1727,21 @@ func refusePaddedArgs(cmd *cli.Command) error {
 	if len(raw) > 0 {
 		raw = raw[1:] // the subcommand's own name
 	}
+	kinds := takesValue(cmd.Flags)
 	value := false
 	for _, tok := range raw {
 		if value {
 			value = false
 			continue
 		}
-		if tok == "--" {
+		if strings.TrimSpace(tok) == "--" {
 			break
 		}
-		if len(tok) > 1 && strings.HasPrefix(tok, "-") {
+		if isFlag, next := flagRole(tok, kinds); isFlag {
 			if err := padAttached(tok); err != nil {
 				return err
 			}
-			if name := strings.TrimLeft(tok, "-"); !strings.Contains(name, "=") && !boolFlag[name] {
-				value = true
-			}
+			value = next
 			continue
 		}
 		if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
@@ -1757,28 +1752,100 @@ func refusePaddedArgs(cmd *cli.Command) error {
 	return nil
 }
 
+// takesValue maps every name of every flag in flags to whether the parser
+// consumes the NEXT token as its value: false for a boolean, true otherwise.
+// The framework's own --help/-h and --version/-v are booleans it adds itself.
+func takesValue(flags []cli.Flag) map[string]bool {
+	m := map[string]bool{"help": false, "h": false, "version": false, "v": false}
+	for _, f := range flags {
+		_, isBool := f.(*cli.BoolFlag)
+		for _, n := range f.Names() {
+			m[n] = !isBool
+		}
+	}
+	return m
+}
+
+// flagRole classifies tok the way the parser does. The parser trims a token
+// before it looks at it (command_parse.go:81), so a flag is one that begins
+// with "-" after that trim, and its name is looked up trimmed. consumesNext is
+// true for a known flag that takes a separate value; an attached value
+// (name=value) consumes nothing, and an unknown name is left to the parser,
+// which refuses it by name before any Action runs.
+func flagRole(tok string, kinds map[string]bool) (isFlag, consumesNext bool) {
+	t := strings.TrimSpace(tok)
+	if len(t) < 2 || !strings.HasPrefix(t, "-") || t == "--" {
+		return false, false
+	}
+	name := strings.TrimLeft(t, "-")
+	if strings.Contains(name, "=") {
+		return true, false
+	}
+	return true, kinds[name]
+}
+
 // padAttached refuses an attached flag value that ends in whitespace. urfave
-// trims the whole token, so --files-from='list ' opened list (ADR-069 T5).
+// trims the whole token, so --files-from='list ' opened list (ADR-069 T5). The
+// trim is strings.TrimSpace, so ANY trailing whitespace counts: checked for
+// space and tab only, --files-from=$'list\n' still opened list (ADR-069 T6).
 func padAttached(tok string) error {
 	name, val, ok := strings.Cut(tok, "=")
-	if !ok || strings.TrimRight(tok, " \t") == tok {
+	if !ok || strings.TrimRightFunc(tok, unicode.IsSpace) == tok {
 		return nil
 	}
 	return cli.Exit(fmt.Sprintf("'%s' ends in whitespace the argument parser strips; pass the value "+
 		"as its own argument: %s '%s'", tok, name, val), exitUsage)
 }
 
-// refusePaddedFlagValues checks every attached flag value before the first
-// "--", root flags included; main calls it because a root flag never reaches a
-// subcommand's raw tail (ADR-069 T5).
-func refusePaddedFlagValues(argv []string) error {
+// refusePaddedFlagValues checks every attached flag value before the option
+// terminator, root flags included; main calls it because a root flag never
+// reaches a subcommand's raw tail (ADR-069 T5). It reads argv as the parser
+// does — root flags and their values, the subcommand, its flags and their
+// values — so a separate value that looks like a flag (`--files-from
+// '--list= '`) is not judged, and a "--" a flag consumed does not end the walk
+// (`--root -- --root='dir '` reached dir; Codex review of PR #222, ADR-069 T6).
+func refusePaddedFlagValues(root *cli.Command, argv []string) error {
+	kinds, cmds := takesValue(root.Flags), root.Commands
+	value := false
 	for _, tok := range argv {
-		if tok == "--" {
-			break
+		if value {
+			value = false
+			continue
 		}
-		if len(tok) > 1 && strings.HasPrefix(tok, "-") {
+		if strings.TrimSpace(tok) == "--" {
+			return nil
+		}
+		if isFlag, next := flagRole(tok, kinds); isFlag {
 			if err := padAttached(tok); err != nil {
 				return err
+			}
+			value = next
+			continue
+		}
+		// A positional: at the root it names the subcommand whose flags are
+		// in force from here; below one it is a path for that command's own
+		// guard. An unknown name is the parser's to refuse.
+		if len(cmds) == 0 {
+			continue
+		}
+		sub := subcommand(cmds, strings.TrimSpace(tok))
+		if sub == nil {
+			return nil
+		}
+		kinds, cmds = takesValue(sub.Flags), sub.Commands
+	}
+	return nil
+}
+
+// subcommand finds name among cmds, by name or alias.
+func subcommand(cmds []*cli.Command, name string) *cli.Command {
+	for _, c := range cmds {
+		if c.Name == name {
+			return c
+		}
+		for _, a := range c.Aliases {
+			if a == name {
+				return c
 			}
 		}
 	}

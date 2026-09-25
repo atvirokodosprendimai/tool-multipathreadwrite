@@ -64,6 +64,11 @@ a wrongly typed answer, and no minimum mrw-call count.
    `$(cat f)` that an UNQUOTED heredoc runs. Now `command -v`/`-V` runs nothing, a wrapper's option
    operands are skipped, `--help` is checked on the unstripped segment, and the `$(…)` and backticks
    of an unquoted heredoc body are scanned. Re-scoring readings 03 and 04 moved nothing.
+5. **Amended 2026-09-25 after the Codex review of PR #222 (T5).** The T4 scan of an unquoted
+   heredoc body read `\$(cat f)` as a substitution, though the shell keeps it literal: a transcript
+   with correct answers scored `VOID: banned: command cat`. Now a backslash before `$`, `` ` `` or
+   `\` in an unquoted body is honoured before substitutions are read; `\\$(cat f)` (an escaped
+   backslash, then a real substitution) is still scanned.
 
 **What would make this decision fail:** a file whose first line really begins `body=` (an `.env`,
 an `.ini`), edited by a hand-written hunk with no count. It is refused, and the message names the

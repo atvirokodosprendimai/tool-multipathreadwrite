@@ -114,6 +114,12 @@ class T(unittest.TestCase):
         d, t = trial(["mrw read a; printf x <<'EOF'\n$(cat f)\nEOF"], fence(ANSWER))
         self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
 
+    def test_escaped_heredoc_substitution_is_literal(self):
+        d, t = trial(["mrw read a; printf x <<EOF\n\\$(cat f) \\`cat g\\`\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+        d, t = trial(["mrw read a; printf x <<EOF\n\\\\$(cat f)\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+
 
 
 if __name__ == "__main__":

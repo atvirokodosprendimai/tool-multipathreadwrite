@@ -61,10 +61,10 @@ func TestAnAttachedFlagValueWithTrailingSpaceIsRefused(t *testing.T) {
 	if out, code := runIn(t, root, "read", "--files-from", list+" "); code != 0 || !strings.Contains(out, "padded") {
 		t.Errorf("--files-from 'list ' exited %d or did not serve x-space:\n%s", code, out)
 	}
-	if err := refusePaddedFlagValues([]string{"--root=/tmp/d ", "read", "x"}); err == nil {
+	if err := refusePaddedFlagValues(rootCommand(), []string{"--root=/tmp/d ", "read", "x"}); err == nil {
 		t.Error("a padded attached --root value was not refused")
 	}
-	if err := refusePaddedFlagValues([]string{"read", "--", "--root=x "}); err != nil {
+	if err := refusePaddedFlagValues(rootCommand(), []string{"read", "--", "--root=x "}); err != nil {
 		t.Errorf("a path after -- was refused: %v", err)
 	}
 }
@@ -76,5 +76,79 @@ func TestTheIterRefusalKeepsTheVerb(t *testing.T) {
 	out, code := runIn(t, root, "iter", "add", "x ")
 	if code != exitUsage || !strings.Contains(out, "mrw iter add -- 'x '") {
 		t.Errorf("iter add 'x ' exited %d, want %d suggesting mrw iter add -- 'x ':\n%s", code, exitUsage, out)
+	}
+}
+
+// ADR-069 T6, from the Codex review of PR #222. The guard looked a flag name
+// up as typed, so a padded boolean name (`'--no-numbers '`, which the parser
+// trims to the flag) read as value-taking, and the padded path after it was
+// skipped: `read '--no-numbers ' 'x '` served x. The name is classified the
+// way the parser reads it, trimmed.
+func TestAPaddedBooleanFlagNameDoesNotHideAPaddedPath(t *testing.T) {
+	root := paddedTree(t)
+	out, code := runIn(t, root, "read", "--no-numbers ", "x ")
+	if code != exitUsage || !strings.Contains(out, "'x '") {
+		t.Errorf("read '--no-numbers ' 'x ' exited %d, want %d naming 'x ':\n%s", code, exitUsage, out)
+	}
+	if out, code := runIn(t, root, "read", "--no-numbers", "x"); code != 0 || !strings.Contains(out, "plain") {
+		t.Errorf("read --no-numbers x exited %d or did not serve x:\n%s", code, out)
+	}
+	// A padded flag NAME before a padded value that equals a positional: the
+	// trimmed lookup sees --exclude and consumes ' x'; looked up as typed it
+	// is unknown, ' x' is judged as a positional, and x is falsely refused.
+	// (--exclude needs --grep, or read refuses the pair as a usage error.)
+	if out, code := runIn(t, root, "read", "--grep ", "plain", "--exclude ", " x", "x"); code != 0 || !strings.Contains(out, "plain") {
+		t.Errorf("read '--grep ' plain '--exclude ' ' x' x exited %d or did not serve x:\n%s", code, out)
+	}
+}
+
+// ADR-069 T6. The whole-argv check read every "-" token as a flag, so a
+// separate value that looks like one (`--files-from '--list= '`) was refused
+// though the parser keeps it; and it stopped at any "--", including one a
+// root flag consumed, so `--root -- --root='dir '` reached the trimmed dir.
+// It reads argv as the parser does: root flags and their values, the
+// subcommand, its flags and their values; only a bare "--" ends it.
+func TestTheWholeArgvGuardReadsFlagValuesAndTheTerminator(t *testing.T) {
+	root := rootCommand()
+	if err := refusePaddedFlagValues(root, []string{"read", "--files-from", "--list= "}); err != nil {
+		t.Errorf("a separate value that looks like an attached flag was refused: %v", err)
+	}
+	if err := refusePaddedFlagValues(root, []string{"--root", "--", "--root=dir ", "read", "x"}); err == nil {
+		t.Error("a padded root value after a -- the first root flag consumed was not refused")
+	}
+	if err := refusePaddedFlagValues(root, []string{"read", "--grep", "--", "--exclude=x "}); err == nil {
+		t.Error("a padded attached value after a -- that --grep consumed was not refused")
+	}
+	if err := refusePaddedFlagValues(root, []string{"read", "--", "--exclude=x "}); err != nil {
+		t.Errorf("a path after a bare -- was refused: %v", err)
+	}
+	tree := paddedTree(t)
+	if err := os.WriteFile(filepath.Join(tree, "--list= "), []byte("x \n"), 0o644); err != nil {
+		t.Skipf("cannot write %q: %v", "--list= ", err)
+	}
+	t.Chdir(tree)
+	if out, code := runIn(t, tree, "read", "--files-from", "--list= "); code != 0 || !strings.Contains(out, "padded") {
+		t.Errorf("read --files-from '--list= ' exited %d or did not serve x-space:\n%s", code, out)
+	}
+}
+
+// ADR-069 T6. padAttached checked for a trailing space or tab, while the
+// parser trims every whitespace (strings.TrimSpace), so --files-from=$'list\n'
+// opened list. Any trailing whitespace is refused; the separate spelling,
+// which the parser keeps, serves the file.
+func TestAnAttachedValueEndingInAnyWhitespaceIsRefused(t *testing.T) {
+	root := paddedTree(t)
+	list := filepath.Join(t.TempDir(), "list")
+	for _, ws := range []string{"\n", "\u00a0"} {
+		if err := os.WriteFile(list+ws, []byte("x \n"), 0o644); err != nil {
+			t.Skipf("cannot write %q: %v", list+ws, err)
+		}
+		out, code := runIn(t, root, "read", "--files-from="+list+ws)
+		if code != exitUsage || !strings.Contains(out, "own argument") {
+			t.Errorf("--files-from=%q exited %d, want %d saying to pass the value as its own argument:\n%s", list+ws, code, exitUsage, out)
+		}
+		if out, code := runIn(t, root, "read", "--files-from", list+ws); code != 0 || !strings.Contains(out, "padded") {
+			t.Errorf("--files-from %q exited %d or did not serve x-space:\n%s", list+ws, code, out)
+		}
 	}
 }

@@ -6525,6 +6525,31 @@ want 2 $? "and so is a padded attached root flag"
 out=$(m read --files-from "$WORK/134 list " 2>&1); rc=$?
 want 0 "$rc" "and the separate spelling is served"
 grep -q 'padded' <<<"$out" && ok "and it serves the padded path" || bad "served: $out"
+
+# 135. ADR-069 T6 (the Codex review of PR #222): the guard looked a flag name
+# up as typed, so a padded boolean name ('--no-numbers ') read as value-taking
+# and hid the padded path after it; the whole-argv check read a separate value
+# as a flag and stopped at a "--" a root flag had consumed; and an attached
+# value was checked for space and tab while the parser trims every whitespace.
+# Each is paired with the spelling the parser keeps.
+fixture
+printf 'plain\n' > "$R/x"; printf 'padded\n' > "$R/x "
+m read '--no-numbers ' 'x ' >/dev/null 2>&1
+want 2 $? "a padded boolean flag name does not hide a padded path"
+out=$(m read --no-numbers x 2>&1); rc=$?
+want 0 "$rc" "and the trimmed spelling serves x"
+printf 'x \n' > "$R/--list= "
+out=$(cd "$R" && "$MRW" -C "$R" read --files-from '--list= ' 2>&1); rc=$?
+want 0 "$rc" "a separate value that looks like an attached flag is served"
+grep -q 'padded' <<<"$out" && ok "and it reaches the padded path" || bad "served: $out"
+"$MRW" --root -- --root="$R " read x >/dev/null 2>&1
+want 2 $? "a -- consumed by a root flag does not end the whole-argv guard"
+printf 'x \n' > "$WORK/135 list"$'\n'
+out=$(m read --files-from="$WORK/135 list"$'\n' 2>&1); rc=$?
+want 2 "$rc" "an attached value ending in a newline is refused"
+grep -q 'own argument' <<<"$out" && ok "and the newline refusal names the separate spelling" || bad "refusal: $out"
+out=$(m read --files-from "$WORK/135 list"$'\n' 2>&1); rc=$?
+want 0 "$rc" "and the separate spelling serves the newline-named list"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

@@ -79,6 +79,18 @@ Recovering it means re-implementing urfave's flag arity and short-flag grouping 
    because a root flag never reaches a subcommand's tail. The iter refusal keeps its verb
    (`mrw iter add -- 'x '`). Skipping flag values also retires the false refusal this record listed
    under Risks: a padded flag value beside an equal positional (`--exclude ' x' x`) is accepted.
+6. **Amended 2026-09-25 after the Codex review of PR #222 (T6).** Three gaps in item 5. The guard
+   looked a flag name up as typed, so a padded boolean name (`'--no-numbers '`, which the parser
+   trims to the flag) read as value-taking and the padded path after it was skipped: `read
+   '--no-numbers ' 'x '` served `x`. The whole-argv check read every `-` token as a flag, so a
+   separate value that looks like one (`--files-from '--list= '`) was refused though the parser
+   keeps it, and it stopped at any `--`, including one a root flag consumed, so
+   `--root -- --root='dir '` reached `dir`. And `padAttached` checked for space and tab while the
+   parser's trim is `strings.TrimSpace`, so `--files-from=$'list\n'` opened `list`. Now a flag name
+   is classified trimmed, the whole-argv check reads argv as the parser does (root flags and their
+   values, the subcommand, its flags and their values; only a bare `--` ends it), and any trailing
+   whitespace on an attached value is refused. Item 5's invariant holds again: a separate value is
+   never refused.
 
 **What would make this decision fail:** a caller who relies on the trim, e.g. a generated
 `--files-from` list with trailing spaces after every path. That caller now gets a read of a
