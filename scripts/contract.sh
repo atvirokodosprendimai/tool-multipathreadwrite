@@ -6843,12 +6843,13 @@ fi
 # was sized from raw bytes while the ceiling measures the encoded answer.
 fixture
 python3 -c "import sys; sys.stdout.write('<div class=\"a\">&amp;</div>\n' * 5688)" > "$R/m.tsx"
-out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["m.tsx"]}}}' | m mcp 2>/dev/null)
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["m.tsx"]}}}' | m mcp > "$R/out149" 2>/dev/null
 # The result is bounded at 200,000 encoded bytes; the JSON-RPC envelope around
-# it adds under a hundred.
-python3 - "$out" <<'PY' && ok "a markup file over MCP is a first page with next_read, within the ceiling" || bad "markup page: $(head -c 300 <<<"$out")"
+# it adds under a hundred. Read from a file, not argv: Linux caps one argument
+# at 128 KiB, and this answer is near 200,000 bytes (CI on #232).
+python3 - "$R/out149" <<'PY' && ok "a markup file over MCP is a first page with next_read, within the ceiling" || bad "markup page: $(head -c 300 "$R/out149")"
 import json, sys
-line = sys.argv[1].strip().splitlines()[-1]
+line = open(sys.argv[1]).read().strip().splitlines()[-1]
 res = json.loads(line)["result"]
 assert not res.get("isError"), "refused"
 assert "-- PARTIAL:" in res["content"][0]["text"], "not a page"
@@ -6857,10 +6858,10 @@ assert len(line) <= 200100, "over the ceiling"
 PY
 # The pair: a CLOSED range over the same file is not paged (ADR-014), so it is
 # refused, and the refusal names the encoding, not the per-file receipt.
-out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["m.tsx:1-5000"]}}}' | m mcp 2>/dev/null)
-python3 - "$out" <<'PY' && ok "a closed markup range over the ceiling is refused, naming the encoding" || bad "closed markup range: $(head -c 300 <<<"$out")"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["m.tsx:1-5000"]}}}' | m mcp > "$R/out149b" 2>/dev/null
+python3 - "$R/out149b" <<'PY' && ok "a closed markup range over the ceiling is refused, naming the encoding" || bad "closed markup range: $(head -c 300 "$R/out149b")"
 import json, sys
-res = json.loads(sys.argv[1].strip().splitlines()[-1])["result"]
+res = json.loads(open(sys.argv[1]).read().strip().splitlines()[-1])["result"]
 assert res.get("isError"), "served"
 t = res["content"][0]["text"]
 assert "encoded" in t and "per-file receipt" not in t, t
