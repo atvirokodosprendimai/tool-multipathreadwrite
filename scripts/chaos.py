@@ -82,12 +82,14 @@ def snapshot(root):
     for dp, dns, fns in os.walk(root, followlinks=False):
         for n in fns + [d for d in dns if os.path.islink(os.path.join(dp, d))]:
             p = os.path.join(dp, n)
-            rel = os.path.relpath(p, root)
+            # "/" on every OS: make_tree() and the models name files with "/",
+            # and on Windows relpath answers "c0\a.go" (all five 2026-09-25 runs).
+            rel = os.path.relpath(p, root).replace(os.sep, "/")
             out[rel] = ("L:" + os.readlink(p)).encode() if os.path.islink(p) else rd(p)
         for d in dns:
             p = os.path.join(dp, d)
             if not os.listdir(p):
-                out[os.path.relpath(p, root) + "/"] = b"<emptydir>"
+                out[os.path.relpath(p, root).replace(os.sep, "/") + "/"] = b"<emptydir>"
     return out
 
 
@@ -467,12 +469,12 @@ def model_grep(root, pat, ex, paths):
             for dp, dns, fns in os.walk(full):
                 keep = []
                 for d in sorted(dns):
-                    rel = os.path.normpath(os.path.relpath(os.path.join(dp, d), root))
+                    rel = os.path.normpath(os.path.relpath(os.path.join(dp, d), root)).replace(os.sep, "/")
                     if d == ".git" or excluded(rel, ex): continue
                     keep.append(d)
                 dns[:] = keep
                 for fn in fns:
-                    rel = os.path.normpath(os.path.relpath(os.path.join(dp, fn), root))
+                    rel = os.path.normpath(os.path.relpath(os.path.join(dp, fn), root)).replace(os.sep, "/")
                     if not excluded(rel, ex): files.append(rel)
         for rel in files:
             for i, l in enumerate(rsplit_(rd(os.path.join(root, rel))), 1):
@@ -603,7 +605,13 @@ def suite_symlink():
     root = fresh("sym", 0); os.makedirs(root)
     out_dir = os.path.join(WORK, "outside-dir"); os.makedirs(out_dir, exist_ok=True)
     secret = os.path.join(out_dir, "secret.txt"); wr(secret, "SECRET-OUTSIDE\n", "w")
-    os.symlink(secret, os.path.join(root, "link.txt"))
+    # Windows without Developer Mode or admin refuses symlinks (WinError 1314);
+    # say so and skip the suite rather than end the whole run (2026-09-25).
+    try:
+        os.symlink(secret, os.path.join(root, "link.txt"))
+    except OSError as e:
+        print(f"symlink  SKIPPED: cannot create a symlink here: {e}", flush=True)
+        return
     os.symlink(out_dir, os.path.join(root, "linkdir"))
     wr(os.path.join(root, "in.txt"), "inside\n", "w")
     os.symlink("in.txt", os.path.join(root, "inlink.txt"))
