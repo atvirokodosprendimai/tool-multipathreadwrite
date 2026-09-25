@@ -6507,6 +6507,24 @@ printf '@@ meta.yaml 1 replace body=1\nbody=1\n' > "$WORK/133b.mrw"
 m write --no-check "$WORK/133b.mrw" >/dev/null 2>&1
 want 0 $? "and a counted body writes a body= line as content"
 [ "$(cat "$R/meta.yaml")" = 'body=1' ] && ok "and the file holds it" || bad "meta.yaml: $(cat "$R/meta.yaml")"
+
+# 134. ADR-069 T5 (the Codex review of v1.25.0): a "--" consumed as a flag
+# value ended the padded-path guard, and urfave trims an attached flag value
+# with its token, so `read --grep -- 'x '` and `--files-from='list '` still
+# reached the trimmed name. Both are refused, exit 2, and so is a padded
+# attached root flag. The pair: the separate spelling serves the path.
+fixture
+printf 'padded\n' > "$R/x "
+m read --grep -- 'x ' >/dev/null 2>&1
+want 2 $? "a -- consumed as a flag value does not end the guard"
+printf 'x \n' > "$WORK/134 list "
+m read --files-from="$WORK/134 list " >/dev/null 2>&1
+want 2 $? "an attached flag value ending in a space is refused"
+"$MRW" --root="$R " read -- 'x ' >/dev/null 2>&1
+want 2 $? "and so is a padded attached root flag"
+out=$(m read --files-from "$WORK/134 list " 2>&1); rc=$?
+want 0 "$rc" "and the separate spelling is served"
+grep -q 'padded' <<<"$out" && ok "and it serves the padded path" || bad "served: $out"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

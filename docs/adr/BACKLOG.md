@@ -1878,22 +1878,13 @@ Execution plan: `docs/specs/2026-09-16-dangling-high-impact-plan.md` (campaign f
 
 ## From ADR-068 (the read ledger keeps a path exactly)
 
-- **`internal/iter` trims a working-set line** (`iter.go:60`, `:109`, `:125`),
-  so an `@N` pointer to `x ` can resolve to `x`. Same class as ADR-068's
-  `parseLine`, a different store. Arm with a fixture that reads `x ` through
-  the working set and edits by pointer.
-- **urfave/cli trims a positional argument before `--`** (v3.11.0,
-  `command_parse.go:81` and `:118`). `mrw read 'x '` serves `x`; every
-  subcommand's positional arguments pass through the same parser. The header
-  shows the path that was served, so a read is visible, not silent. Fixing it means parsing arguments without the
-  library's trim (reading them after `--` implicitly, or a patched parser),
-  which touches every subcommand's flags. Arm when a caller hits it.
-- **Other places a caller-supplied path is trimmed** (from the Codex review of
-  #214, 2026-09-25; enumerated with `git grep -n TrimSpace -- '*.go' ':!*_test.go'`):
-  `--files-from` lines (`cmd/mrw/main.go:1706`), a rename destination
-  (`internal/apply/apply.go:387`, `:453`, `pathop.go:76`), apply_patch paths
-  (`internal/ingest/applypatch.go:76`, `:91`, `:103`, `:110`, `:187`) and the
-  search/replace path (`searchreplace.go:83`). Each resolves `x ` to `x`, in the
-  open: the refusal or the receipt names `x`. None of them licenses a file the
-  caller did not read, which is what ADR-068 fixed. Arm per surface when a caller
-  names such a file.
+- **`internal/iter` trims a working-set line.** **Closed by ADR-069 T2** (v1.25.0): Load, Add and
+  Remove keep the entry as written.
+- **urfave/cli trims a positional argument before `--`.** **Closed by ADR-069 T1 and T5**
+  (v1.25.0, and the follow-up to the Codex review of v1.25.0): a padded positional is refused, exit
+  2, naming `--`; a `--` consumed as a flag value no longer ends that guard; an attached flag value
+  ending in whitespace (`--files-from='list '`, `--root='dir '`) is refused, naming the separate
+  spelling, which the parser keeps as given.
+- **Other places a caller-supplied path is trimmed.** **Closed by ADR-069 T2–T4** (v1.25.0):
+  `--files-from`, a rename destination, and apply_patch / search_replace paths keep the path as
+  written.

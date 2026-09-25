@@ -14,15 +14,17 @@ README must be regenerated.
 | 2 | T2 | none |
 | 3 | T3 | none |
 | 4 | T4 | none |
+| 5 | T5 | none |
 
 ## Task Index
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|-------------|
 | T1 | The CLI refuses a positional its parser trimmed; contract §128 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T1-refuse-a-padded-positional.md` fence |
-| T2 | `--files-from` and the working set keep a line's trailing space; contract §129 | pending | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T2-line-formats-keep-the-path.md` fence |
-| T3 | A rename destination keeps its trailing space; contract §130 | pending | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T3-rename-destination-keeps-the-path.md` fence |
-| T4 | apply_patch and search_replace keep a path's trailing space; contract §131 | pending | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T4-foreign-formats-keep-the-path.md` fence |
+| T2 | `--files-from` and the working set keep a line's trailing space; contract §129 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T2-line-formats-keep-the-path.md` fence |
+| T3 | A rename destination keeps its trailing space; contract §130 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T3-rename-destination-keeps-the-path.md` fence |
+| T4 | apply_patch and search_replace keep a path's trailing space; contract §131 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T4-foreign-formats-keep-the-path.md` fence |
+| T5 | A flag value does not end the guard; an attached padded value is refused; contract §134 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T5-flag-values-and-attached-values.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

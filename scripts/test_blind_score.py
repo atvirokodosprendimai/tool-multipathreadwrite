@@ -90,6 +90,30 @@ class T(unittest.TestCase):
         r = bs.score(d, t)
         self.assertEqual(r["correct"], 9, r)
         self.assertEqual(r["verdict"], "MISS", r)
+    # ADR-070 T4, from the Codex review of v1.25.0.
+    def test_command_v_is_a_lookup_not_a_call(self):
+        d, t = trial(["command -v mrw"], fence(ANSWER))
+        r = bs.score(d, t)
+        self.assertEqual((r["mrw_calls"], r["verdict"]), (0, "MISS"), r)
+        d, t = trial(["mrw read a; command -v cat"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+
+    def test_wrapper_option_operands_are_skipped(self):
+        d, t = trial(["env -u SOME_VAR mrw read a", "xargs -n 1 mrw read < list"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["mrw_calls"], 2)
+        d, t = trial(["mrw read a; xargs -I {} cat {} < list"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+
+    def test_wrapper_help_is_banned(self):
+        d, t = trial(["mrw read a; env --help"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+
+    def test_expandable_heredoc_substitution_is_scanned(self):
+        d, t = trial(["mrw read a; printf x <<EOF\n$(cat f)\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+        d, t = trial(["mrw read a; printf x <<'EOF'\n$(cat f)\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+
 
 
 if __name__ == "__main__":

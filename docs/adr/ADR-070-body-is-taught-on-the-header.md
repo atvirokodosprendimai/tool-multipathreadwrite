@@ -58,6 +58,12 @@ a wrongly typed answer, and no minimum mrw-call count.
 3. **Fix the scorer** for each BACKLOG shape, each pinned by a synthetic transcript. Pre-register
    in BACKLOG, before reading 05's first trial, the one criterion change: at least one mrw call per
    non-void run.
+4. **Amended 2026-09-25 after the Codex review of v1.25.0 (T4).** The T3 scorer counted
+   `command -v mrw` (a lookup) as a call and voided `command -v cat`; it read `env -u VAR mrw` as
+   running `VAR`; it dropped a wrapper's `--help`; and it discarded every heredoc body, hiding a
+   `$(cat f)` that an UNQUOTED heredoc runs. Now `command -v`/`-V` runs nothing, a wrapper's option
+   operands are skipped, `--help` is checked on the unstripped segment, and the `$(…)` and backticks
+   of an unquoted heredoc body are scanned. Re-scoring readings 03 and 04 moved nothing.
 
 **What would make this decision fail:** a file whose first line really begins `body=` (an `.env`,
 an `.ini`), edited by a hand-written hunk with no count. It is refused, and the message names the

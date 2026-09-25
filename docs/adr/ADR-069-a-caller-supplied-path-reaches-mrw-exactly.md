@@ -70,6 +70,15 @@ Recovering it means re-implementing urfave's flag arity and short-flag grouping 
    and a search/replace filename line is kept as written. Whether a path is PRESENT is still decided
    on a trimmed copy, so a marker followed only by whitespace means "no path", as today (a
    `<<<<<<< SEARCH` line with trailing blanks falls back to the previous filename).
+5. **Amended 2026-09-25 after the Codex review of v1.25.0 (T5).** The first helper stopped at
+   every `--`, including one consumed as a flag's value, so `read --grep -- 'x '` still reached `x`;
+   and urfave trims an ATTACHED value with its token, so `--files-from='list '` opened `list` and
+   `--root='dir '` named `dir`. Now a flag's own value is skipped (the parser keeps a separate value
+   as given), so only a `--` in argument position ends the guard; an attached value that ends in
+   whitespace is refused, exit 2, naming the separate spelling; `main` checks the whole argv first,
+   because a root flag never reaches a subcommand's tail. The iter refusal keeps its verb
+   (`mrw iter add -- 'x '`). Skipping flag values also retires the false refusal this record listed
+   under Risks: a padded flag value beside an equal positional (`--exclude ' x' x`) is accepted.
 
 **What would make this decision fail:** a caller who relies on the trim, e.g. a generated
 `--files-from` list with trailing spaces after every path. That caller now gets a read of a
@@ -129,13 +138,13 @@ See `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/README.md
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| A padded flag VALUE equal to a positional's trim is refused (`--exclude ' x' x`) | Low | Low | loud exit 2 naming `--`; measured: flag values are not trimmed, so only this coincidence refuses |
+| A padded flag VALUE equal to a positional's trim (`--exclude ' x' x`) | — | — | retired by T5: flag values are skipped, not compared |
 | A caller's generated list carries trailing spaces | Low | Med | the read reports the padded path UNREADABLE, exit 1 |
 | Windows cannot hold `x` and `x ` apart | High on Windows | Low | the space fixtures skip there, as ADR-068's do; the Go logic is platform-free |
 
 ## Rollback
 
-Revert the helper and the four trims, the tests and §128–§131. Nothing persistent moves: a
+Revert the helper, `padAttached`, `refusePaddedFlagValues`, the four trims, the tests and §128–§131 and §134. Nothing persistent moves: a
 working-set file written with a trailing space is read back trimmed by the old binary.
 
 ## Follow-ups

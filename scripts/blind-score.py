@@ -74,6 +74,15 @@ ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 # Words that run the NEXT word as the command: `command cat f` runs cat, and
 # `env mrw read f` runs mrw (Codex review of #206; ADR-070 T3).
 WRAPPERS = {"command", "builtin", "exec", "env", "nohup", "time", "sudo", "xargs"}
+# A wrapper option that takes the next word as its operand: `env -u VAR mrw`
+# runs mrw, not VAR (Codex review of v1.25.0; ADR-070 T4).
+WRAPPER_OPERANDS = {
+    "env": {"-u", "-C", "-S", "--unset", "--chdir", "--split-string"},
+    "xargs": {"-n", "-I", "-L", "-P", "-s", "-d", "-a", "-E", "--max-args", "--replace",
+              "--max-lines", "--max-procs", "--arg-file", "--delimiter", "--eof"},
+    "sudo": {"-u", "-g", "-C", "-h", "-p", "-U", "-D", "--user", "--group"},
+    "exec": {"-a"},
+}
 HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
 
 
@@ -100,8 +109,10 @@ def unquoted_spans(line):
 
 def strip_heredocs(cmd):
     """Drop every heredoc body: its lines are data, not commands. Reading 03
-    parsed each body line as a command (ADR-070 T3)."""
-    lines, out, i = cmd.split("\n"), [], 0
+    parsed each body line as a command (ADR-070 T3). Returns the command
+    without bodies and the bodies of UNQUOTED heredocs, whose `$(…)` and
+    backticks the shell does run (Codex review of v1.25.0; ADR-070 T4)."""
+    lines, out, bodies, i = cmd.split("\n"), [], [], 0
     while i < len(lines):
         line = lines[i]
         out.append(line)
@@ -110,16 +121,57 @@ def strip_heredocs(cmd):
         for m in HEREDOC.finditer(line):
             if m.start() not in free:
                 continue
-            dash, word = m.group(1), m.group(3)
+            dash, quoted, word = m.group(1), m.group(2), m.group(3)
+            body = []
             while i < len(lines):
-                body = lines[i]
+                b = lines[i]
                 i += 1
-                if (body.lstrip("\t") if dash else body) == word:
+                if (b.lstrip("\t") if dash else b) == word:
                     break
-    return "\n".join(out)
+                body.append(b)
+            if not quoted:
+                bodies.append("\n".join(body))
+    return "\n".join(out), bodies
 
 
-def segments(cmd):
+def substitutions(text):
+    """The inner text of every `$(…)` and backtick pair in text."""
+    found, i = [], 0
+    while i < len(text):
+        if text.startswith("$(", i):
+            depth, j = 1, i + 2
+            while j < len(text) and depth:
+                depth += {"(": 1, ")": -1}.get(text[j], 0)
+                j += 1
+            found.append(text[i + 2 : j - 1])
+            i = j
+        elif text[i] == "`":
+            j = text.find("`", i + 1)
+            if j < 0:
+                break
+            found.append(text[i + 1 : j])
+            i = j + 1
+        else:
+            i += 1
+    return found
+
+
+def strip_wrappers(seg):
+    """Drop leading VAR=value words and wrappers, with their options and
+    operands, so the command word is the one that runs. `command -v X` and
+    `command -V X` only look X up: they run nothing (ADR-070 T4)."""
+    while seg and (ASSIGNMENT.match(seg[0]) or seg[0] in WRAPPERS):
+        w, seg = seg[0], seg[1:]
+        if w == "command" and seg and seg[0] in ("-v", "-V"):
+            return []
+        while seg and seg[0].startswith("-") and seg[0] != "-":
+            opt, seg = seg[0], seg[1:]
+            if opt in WRAPPER_OPERANDS.get(w, ()) and seg:
+                seg = seg[1:]
+    return seg
+
+
+def segments(cmd, raw=False):
     """The token list of every pipeline or list segment, quotes removed, with
     the words of every `$(…)` inside double quotes as segments of their own.
 
@@ -130,7 +182,7 @@ def segments(cmd):
     counted `MRW=…/mrw` and missed `"$MRW"`. Leading VAR=value words are
     skipped; `$(` opens a segment.
     """
-    cmd = strip_heredocs(cmd)
+    cmd, bodies = strip_heredocs(cmd)
     # One pass, quote-aware: drop a `#` comment that starts a word outside
     # quotes (through end of line), and turn an unquoted newline into `;`.
     # shlex's own comment handling is off, because once newlines are `;` a
@@ -194,17 +246,17 @@ def segments(cmd):
     out, seg = [], []
     for tok in tokens + [";"]:
         if tok in SEPARATORS or (tok and set(tok) <= set(";&|()")):
-            while seg and (ASSIGNMENT.match(seg[0]) or seg[0] in WRAPPERS):
-                seg = seg[1:]
-                while seg and seg[0].startswith("-"):
-                    seg = seg[1:]  # a wrapper's own flags: env -i, xargs -n1
+            if not raw:
+                seg = strip_wrappers(seg)
             if seg:
                 out.append(seg)
             seg = []
         else:
             seg.append(tok)
+    for b in bodies:
+        inner.extend(substitutions(b))
     for s in inner:
-        out.extend(segments(s))
+        out.extend(segments(s, raw))
     return out
 
 
@@ -249,10 +301,12 @@ def score(d, transcript):
                 violations.append(f"command {w.rsplit('/', 1)[-1]}")
             if is_mrw(w):
                 mrw_calls += 1
-            # Any --help is banned (the criterion), as an argument WORD of any
-            # command. A raw substring test also voided text that only
-            # mentions it, `echo "see --help"` (Codex review of #206; ADR-070 T3).
-            if any(tok == "--help" or tok.startswith("--help=") for tok in seg[1:]):
+        # Any --help is banned (the criterion), as an argument WORD of any
+        # command, a wrapper included (`env --help`). A raw substring test also
+        # voided text that only mentions it, `echo "see --help"` (Codex review
+        # of #206 and of v1.25.0; ADR-070 T3, T4).
+        for seg in segments(inp.get("command", ""), raw=True):
+            if any(tok == "--help" or tok.startswith("--help=") for tok in seg):
                 violations.append("--help")
     out["mrw_calls"] = mrw_calls
     if violations:

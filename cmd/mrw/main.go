@@ -182,7 +182,13 @@ func main() {
 	}
 
 	root := rootCommand()
-	err := root.Run(context.Background(), os.Args)
+	// A padded ATTACHED flag value (--root='dir ') is trimmed by the parser
+	// before any Action runs, and a root flag never reaches a subcommand's raw
+	// tail, so the whole argv is checked here (ADR-069 T5).
+	err := refusePaddedFlagValues(os.Args[1:])
+	if err == nil {
+		err = root.Run(context.Background(), os.Args)
+	}
 	// An unknown subcommand cannot be reported by returning an error: the
 	// framework's CommandNotFound hook returns nothing, so it leaves its
 	// verdict on the command and main is what turns that into a status.
@@ -1693,8 +1699,12 @@ func planOpenError(path, root string, err error) error {
 // :117), so `mrw read 'x '` acted on x, a file the caller did not name
 // (ADR-069). The untrimmed token survives only in the root's raw tail. A token
 // that differs from its trim, and whose trim is one of this command's
-// arguments, is refused with the `--` that reaches it. A padded flag value is
-// refused only in the rare case that its trim equals a positional.
+// arguments, is refused with the `--` that reaches it.
+//
+// A flag's own value is skipped: the parser keeps a separate value as given
+// (command_parse.go:182), and a "--" consumed as a value is not the terminator,
+// which is how `read --grep -- 'x '` got past the first version (Codex review
+// of v1.25.0, ADR-069 T5). An attached value is checked by padAttached.
 func refusePaddedArgs(cmd *cli.Command) error {
 	args := cmd.Args().Slice()
 	if cmd.Name == "iter" && len(args) > 0 && args[0] == "note" {
@@ -1704,17 +1714,72 @@ func refusePaddedArgs(cmd *cli.Command) error {
 	for _, a := range args {
 		got[a] = true
 	}
+	boolFlag := map[string]bool{}
+	for _, f := range cmd.Flags {
+		if _, ok := f.(*cli.BoolFlag); ok {
+			for _, n := range f.Names() {
+				boolFlag[n] = true
+			}
+		}
+	}
+	// The iter refusal keeps its verb: `mrw iter -- 'x '` makes the path the verb.
+	prefix := cmd.Name
+	if cmd.Name == "iter" && len(args) > 0 {
+		prefix += " " + args[0]
+	}
 	raw := cmd.Root().Args().Slice()
 	if len(raw) > 0 {
 		raw = raw[1:] // the subcommand's own name
 	}
+	value := false
 	for _, tok := range raw {
+		if value {
+			value = false
+			continue
+		}
 		if tok == "--" {
 			break
 		}
+		if len(tok) > 1 && strings.HasPrefix(tok, "-") {
+			if err := padAttached(tok); err != nil {
+				return err
+			}
+			if name := strings.TrimLeft(tok, "-"); !strings.Contains(name, "=") && !boolFlag[name] {
+				value = true
+			}
+			continue
+		}
 		if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
 			return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
-				"put -- before the path: mrw %s -- '%s'", tok, cmd.Name, tok), exitUsage)
+				"put -- before the path: mrw %s -- '%s'", tok, prefix, tok), exitUsage)
+		}
+	}
+	return nil
+}
+
+// padAttached refuses an attached flag value that ends in whitespace. urfave
+// trims the whole token, so --files-from='list ' opened list (ADR-069 T5).
+func padAttached(tok string) error {
+	name, val, ok := strings.Cut(tok, "=")
+	if !ok || strings.TrimRight(tok, " \t") == tok {
+		return nil
+	}
+	return cli.Exit(fmt.Sprintf("'%s' ends in whitespace the argument parser strips; pass the value "+
+		"as its own argument: %s '%s'", tok, name, val), exitUsage)
+}
+
+// refusePaddedFlagValues checks every attached flag value before the first
+// "--", root flags included; main calls it because a root flag never reaches a
+// subcommand's raw tail (ADR-069 T5).
+func refusePaddedFlagValues(argv []string) error {
+	for _, tok := range argv {
+		if tok == "--" {
+			break
+		}
+		if len(tok) > 1 && strings.HasPrefix(tok, "-") {
+			if err := padAttached(tok); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

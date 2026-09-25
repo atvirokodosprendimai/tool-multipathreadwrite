@@ -13,14 +13,16 @@ README must be regenerated.
 | 1 | T1 | none |
 | 2 | T2 | none |
 | 3 | T3 | none |
+| 4 | T4 | none |
 
 ## Task Index
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|-------------|
 | T1 | `mrw instructions` and the handshake show `body=` on a header; contract §132 | done | — | `docs/adr/ADR-070-body-is-taught-on-the-header/tasks/T1-teach-body-on-the-header.md` fence |
-| T2 | An uncounted hunk whose first body line is `body=` is refused; contract §133 | pending | — | `docs/adr/ADR-070-body-is-taught-on-the-header/tasks/T2-refuse-a-misplaced-body-count.md` fence |
-| T3 | The blind scorer reads every BACKLOG shape; minimum one mrw call | pending | — | `docs/adr/ADR-070-body-is-taught-on-the-header/tasks/T3-fix-the-blind-scorer.md` fence |
+| T2 | An uncounted hunk whose first body line is `body=` is refused; contract §133 | done | — | `docs/adr/ADR-070-body-is-taught-on-the-header/tasks/T2-refuse-a-misplaced-body-count.md` fence |
+| T3 | The blind scorer reads every BACKLOG shape; minimum one mrw call | done | — | `docs/adr/ADR-070-body-is-taught-on-the-header/tasks/T3-fix-the-blind-scorer.md` fence |
+| T4 | The scorer reads wrapper modes, wrapper help and expandable heredocs | done | — | `docs/adr/ADR-070-body-is-taught-on-the-header/tasks/T4-scorer-wrappers-and-heredocs.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
