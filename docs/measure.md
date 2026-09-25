@@ -41,31 +41,31 @@ The six-guarantee grid against git apply, Codex apply_patch, and Claude Edit is 
 
 ## Shapes A–D
 
-Measured on this tree at **`30b927f`** (2026-09-13), with PATH `mrw` v1.18.0
-(`a5c4f24`) supplied via `$MRW`. The script header says the binary was not
-built from this tree. Round trips are still **2 calls for any N.** Bytes moved
-because the tree grew. Shape D is **82** Go files, not 74.
+Measured on this tree at **`b3c5b8b`** (2026-09-24, the v1.24.0 code: `measure.sh`
+built its own binary from the tree). Round trips are still **2 calls for any N.**
+Bytes moved because the tree grew. Shape D is **132** Go files, not 82 (the
+v1.18.0 reading of 2026-09-13).
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 178,301 | 2,918 | **61.1× less** |
-| | bytes vs a **windowed** `offset`/`limit` read | 2,254 | 2,918 | **1.3× MORE** |
+| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 192,022 | 3,730 | **51.5× less** |
+| | bytes vs a **windowed** `offset`/`limit` read | 2,708 | 3,730 | **1.4× MORE** |
 | | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
 | | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
-| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 21,222 | 1,456 | 14.6× less |
-| | bytes vs windowed | 958 | 1,456 | 1.5× MORE |
+| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 21,743 | 1,595 | 13.6× less |
+| | bytes vs windowed | 958 | 1,595 | 1.7× MORE |
 | | calls | 4 / 5 | 2 | 2.0–2.5× fewer |
-| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 13,473 | 16,462 | **1.2× MORE** |
+| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 13,994 | 17,137 | **1.2× MORE** |
 | | calls | 2 / 3 | 2 | same to 1.5× fewer |
-| **D.** 1 site in **every** Go file — 82 sites, 82 files | calls (reads + edits) | 164 | 2 | **82.0× fewer** |
-| | bytes vs whole | 1,182,566 | 7,238 | 163.4× less |
-| | bytes vs windowed | 1,165 | 7,238 | **6.2× MORE** |
+| **D.** 1 site in **every** Go file — 132 sites, 132 files | calls (reads + edits) | 264 | 2 | **132.0× fewer** |
+| | bytes vs whole | 1,468,588 | 11,899 | 123.4× less |
+| | bytes vs windowed | 1,879 | 11,899 | **6.3× MORE** |
 
 **Shape D is the one to read, and read it for the CALLS, not the bytes.** It is
 the change every codebase gets eventually — a renamed symbol, an added build
-tag, a changed import — one site in each Go file. Its `6.2× MORE` is mrw's
-worst possible input by construction: 82 files at ONE line each, so a per-file
-header and a per-file receipt are charged against 1,165 bytes of payload.
+tag, a changed import — one site in each Go file. Its `6.3× MORE` is mrw's
+worst possible input by construction: 132 files at ONE line each, so a per-file
+header and a per-file receipt are charged against 1,879 bytes of payload.
 
 **Shape C is in the table on purpose.** When you need a whole file and there is
 one site, mrw prints *more* than the file holds — it adds a header and a line
@@ -103,15 +103,15 @@ adds those bytes to the matching lines, and compares that to
 windowed-only row is still printed so a byte win cannot be quoted against the
 documented Read interface.
 
-Measured on a dirty tree at `f28e656` (2026-09-15). Shape D in the same run was
-**112** Go files. `ast-grep` was not on PATH; that arm is skipped, not failed.
+Measured in the same run as A–D above (`b3c5b8b`, 2026-09-24), on the same 132
+Go files. `ast-grep` was not on PATH; that arm is skipped, not failed.
 
 | | baseline | mrw | |
 |---|---|---|---|
-| bytes vs whole | 1,322,775 | 10,031 | 131.9× less |
-| bytes vs windowed | 1,592 | 10,031 | **6.3× MORE** |
-| bytes vs rg+windowed | 6,789 | 10,031 | **1.5× MORE** |
-| calls, windowed (search+reads+edits) | 225 | 2 | **112.5× fewer** |
+| bytes vs whole | 1,468,588 | 11,899 | 123.4× less |
+| bytes vs windowed | 1,879 | 11,899 | **6.3× MORE** |
+| bytes vs rg+windowed | 8,094 | 11,899 | **1.5× MORE** |
+| calls, windowed (search+reads+edits) | 265 | 2 | **132.5× fewer** |
 
 Charging the search **does not flip the byte comparison**. The win is still
 turns. Re-run `./scripts/measure.sh` rather than quoting this table after the
@@ -125,8 +125,8 @@ the construction, not of a file list:
 
 | span | whole file | windowed | mrw | | |
 |---|---|---|---|---|---|
-| 100 lines | 1,060,000 | 5,300 | 6,052 | **175.15× less** than whole | 1.14× more than windowed |
-| 2,000 lines | 1,060,000 | 106,000 | 120,053 | **8.83× less** | 1.13× more |
+| 100 lines | 1,060,000 | 5,300 | 6,121 | **173.17× less** than whole | 1.15× more than windowed |
+| 2,000 lines | 1,060,000 | 106,000 | 120,124 | **8.82× less** | 1.13× more |
 | 20,000 lines | 1,060,000 | 1,060,000 | 1,200,054 | 1.13× more | 1.13× more |
 
 The overhead against a windowed read is **flat at ~13%** — it is the
@@ -136,11 +136,11 @@ it collapses as the span approaches the whole file.
 
 ## Campaign identity
 
-A break campaign of **47 probes** (`scripts/break-campaign.sh`) found no silent
-wrong write, and every refusal names its reason. Re-run 2026-09-13 against PATH
-`mrw` v1.18.0 (`a5c4f24`): names and exits **identical** to the tagged
-`docs/break/campaign-v1.18.0.txt` (and to v1.17.0). Same histogram: exit=0 ×27,
-exit=1 ×14, exit=2 ×6.
+A break campaign of **57 probes** (`scripts/break-campaign.sh`) found no silent
+wrong write, and every refusal names its reason. Run 2026-09-24 against v1.24.0
+(`7da61c1`): exit codes **identical** to `docs/break/campaign-v1.23.0.txt`, probe
+for probe; `docs/break/campaign-v1.24.0.txt` is the receipt. Histogram: exit=0
+×31, exit=1 ×18, exit=2 ×8.
 
 That identity is evidence of no *unintended* change, not that the campaign
 covers every later record. The receipts live in `docs/break/`.
