@@ -134,3 +134,20 @@ func TestNoServedTextPromisesNothingWrittenOnAnyFailure(t *testing.T) {
 		}
 	}
 }
+
+// ADR-069 T12, from the v1.25.1 field test of the downloaded Windows asset:
+// `mrw instructions` said nothing about the padded-path refusal or the --
+// escape, so a caller who has only the binary learns the rule at the
+// refusal. ADR-063 promised the read side's traps here; this is one.
+func TestInstructionsTeachThePaddedPathRule(t *testing.T) {
+	got := CLI()
+	for _, must := range []string{
+		"goes after --",
+		"mrw read -- 'x '",
+		"--files-from 'list '",
+	} {
+		if !strings.Contains(got, must) {
+			t.Errorf("mrw instructions lacks %q", must)
+		}
+	}
+}

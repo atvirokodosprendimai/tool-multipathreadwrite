@@ -1888,3 +1888,28 @@ Execution plan: `docs/specs/2026-09-16-dangling-high-impact-plan.md` (campaign f
 - **Other places a caller-supplied path is trimmed.** **Closed by ADR-069 T2–T4** (v1.25.0):
   `--files-from`, a rename destination, and apply_patch / search_replace paths keep the path as
   written.
+
+## From the v1.25.1 field tests (2026-09-25, twelve peer sessions, macOS and Windows)
+
+- **`mrw instructions` did not teach the ADR-069 rule.** **Closed by ADR-069 T12.** Found by the
+  session that tested the downloaded Windows asset: no line mentioned `--` or the attached-value
+  refusal, though ADR-063 promised the read side's traps there.
+- **On Windows a spec with a trailing space reaches the OS as given and the OS folds it.** Over
+  MCP, `mrw_read` with `specs: ["x "]` kept the spelling (the ADR-068 promise: the header printed
+  `x ` with its space) and Win32 path normalisation then opened `x`, so the ledger holds `x ` and `x`
+  as two keys over one file, each with its own ack id. Whether a plan naming both spellings is
+  refused as one file (ADR-021 uses the filesystem's identity, and on NTFS the two ARE one) is
+  untested there; `mrw_write` on the folded pair was deliberately not tried by the finder. Arm with a
+  Windows fixture in `internal/apply` before trusting ADR-021 on that platform. Evidence: the
+  desktop-3laqmbq MCP probe, v1.25.1 built from a partial checkout (see the next item).
+- **Nine task paths exceed the Windows path limit without `core.longpaths`.** A plain `git clone`
+  on Windows 11 aborts with "Filename too long"; two of the paths are ADR-027 T1 and ADR-041 T1.
+  `git clone -c core.longpaths=true` works. A rename shortens them; a CONTRIBUTING note is the
+  cheaper fix. Found by two independent Windows sessions.
+- **`scripts/contract.sh` is unmeasured on a Windows bash.** Git Bash there has Go but no `jq`, so
+  the script exits 2 at its `jq` check before any assertion; WSL there has `jq`'s absence and no Go.
+  Documented as Linux-only; this row records that the documentation was tested, not the script.
+- **The random differential test (T11) agreed on every peer seed that ran**: 101 on macOS
+  (20,000 cases, 13 s; the 5–8 minute estimate in the brief was wrong, measured under load 33).
+  Three macOS sessions held their run for their user (load above the core count, or a permission
+  classifier refusing another project's code) — correctly, per costly-runs.
