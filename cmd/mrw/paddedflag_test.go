@@ -201,3 +201,48 @@ func TestASingleDashNonLetterTokenStopsTheParserAndTheGuard(t *testing.T) {
 		t.Errorf("--max-lines='1 ' exited %d, want %d as an attached padded value:\n%s", code, exitUsage, out)
 	}
 }
+
+// ADR-069 T8, from the third Codex review of PR #222. A "--" before the
+// subcommand ends the ROOT's options only: the parser still dispatches the
+// subcommand, which parses its own flags (command_run.go:282-315). The
+// whole-argv guard ended its walk there, and the iter guard exempted a note
+// entirely, so `-- iter note --root='dir ' revised` reached dir; stats has no
+// guard of its own. The walk continues below the subcommand, and the note
+// exemption covers the note's words, not the flags beside them.
+func TestARootTerminatorDoesNotEndTheGuardBelowIt(t *testing.T) {
+	root := rootCommand()
+	if err := refusePaddedFlagValues(root, []string{"--", "iter", "note", "--root=dir ", "revised"}); err == nil {
+		t.Error("a padded attached root below a root-level -- was not refused")
+	}
+	if err := refusePaddedFlagValues(root, []string{"--", "stats", "--root=dir "}); err == nil {
+		t.Error("a padded attached root on stats below a root-level -- was not refused")
+	}
+	if err := refusePaddedFlagValues(root, []string{"--", "read", "--", "--root=x "}); err != nil {
+		t.Errorf("a path after the subcommand's own -- was refused: %v", err)
+	}
+	tree := paddedTree(t)
+	if out, code := runIn(t, tree, "iter", "note", "--root=dir ", "revised"); code != exitUsage || !strings.Contains(out, "own argument") {
+		t.Errorf("iter note --root='dir ' exited %d, want %d as an attached padded value:\n%s", code, exitUsage, out)
+	}
+	if out, code := runIn(t, tree, "iter", "note", "revised "); code != 0 {
+		t.Errorf("a note's words are free: iter note 'revised ' exited %d:\n%s", code, out)
+	}
+}
+
+// ADR-069 T8. A lone "-" ends the parse: the parser keeps it as a positional
+// and drops every token after it (command_parse.go:123-125), so the guard,
+// reading on, refused `write - '--format=plan '`, which v1.25.0 accepted.
+// Both guards stop there; the same token before the "-" is still refused.
+func TestALoneDashEndsTheParseAndTheGuard(t *testing.T) {
+	root := rootCommand()
+	if err := refusePaddedFlagValues(root, []string{"write", "-", "--format=plan "}); err != nil {
+		t.Errorf("a token the parser drops after a lone - was refused: %v", err)
+	}
+	if err := refusePaddedFlagValues(root, []string{"write", "--format=plan ", "-"}); err == nil {
+		t.Error("an attached padded value before a lone - was not refused")
+	}
+	tree := paddedTree(t)
+	if out, code := runIn(t, tree, "read", "-", "--max-lines=1 "); strings.Contains(out, "own argument") {
+		t.Errorf("read - '--max-lines=1 ' was refused by the subcommand guard (exit %d):\n%s", code, out)
+	}
+}

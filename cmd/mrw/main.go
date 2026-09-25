@@ -1711,9 +1711,10 @@ func planOpenError(path, root string, err error) error {
 // padded path after it (Codex review of PR #222, ADR-069 T6).
 func refusePaddedArgs(cmd *cli.Command) error {
 	args := cmd.Args().Slice()
-	if cmd.Name == "iter" && len(args) > 0 && args[0] == "note" {
-		return nil // a note is free text, not a path
-	}
+	// A note is free text, not a path, so its words are never judged — but
+	// the flags beside it still are: `iter note --root='dir ' x` reached dir
+	// while the whole exemption returned here (ADR-069 T8).
+	noteText := cmd.Name == "iter" && len(args) > 0 && args[0] == "note"
 	got := make(map[string]bool, len(args))
 	for _, a := range args {
 		got[a] = true
@@ -1736,13 +1737,16 @@ func refusePaddedArgs(cmd *cli.Command) error {
 		}
 		role, next := flagRole(tok, kinds)
 		if role == roleTerminator || role == roleStop {
-			break // what follows is kept as given
+			break // what follows is kept as given, or dropped
 		}
 		if role == roleFlag {
 			if err := padAttached(tok); err != nil {
 				return err
 			}
 			value = next
+			continue
+		}
+		if noteText {
 			continue
 		}
 		if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
@@ -1833,6 +1837,14 @@ func flagRole(tok string, kinds map[string]bool) (role tokenRole, consumesNext b
 	if t == "--" {
 		return roleTerminator, false
 	}
+	if t == "-" {
+		// The parser keeps a lone "-" as a positional and ends its parse
+		// there, DROPPING every token after it (command_parse.go:123-125):
+		// `write - '--format=plan '` reads stdin with the default format, so
+		// the token the guard refused was one the parser never saw
+		// (ADR-069 T8).
+		return roleStop, false
+	}
 	if len(t) < 2 || t[0] != '-' {
 		return rolePositional, false
 	}
@@ -1871,17 +1883,31 @@ func padAttached(tok string) error {
 func refusePaddedFlagValues(root *cli.Command, argv []string) error {
 	lineage := []*cli.Command{root}
 	kinds, cmds := flagKinds(lineage...), root.Commands
-	value := false
+	value, optionsOff := false, false
 	for _, tok := range argv {
 		if value {
 			value = false
 			continue
 		}
-		role, next := flagRole(tok, kinds)
-		if role == roleTerminator || role == roleStop {
-			return nil // what follows is kept as given
+		role, next := rolePositional, false
+		if !optionsOff {
+			role, next = flagRole(tok, kinds)
 		}
-		if role == roleFlag {
+		switch role {
+		case roleStop:
+			return nil // the parser ends here; the rest is kept as given, or dropped
+		case roleTerminator:
+			// Options are over for THIS command only. At one with
+			// subcommands the parser still dispatches the first positional,
+			// whose own parse starts afresh (command_run.go:282-315), so
+			// `mrw -- iter note --root='dir '` reached dir while the walk
+			// ended here (Codex review of PR #222, third round; ADR-069 T8).
+			if len(cmds) == 0 {
+				return nil
+			}
+			optionsOff = true
+			continue
+		case roleFlag:
 			if err := padAttached(tok); err != nil {
 				return err
 			}
@@ -1891,16 +1917,21 @@ func refusePaddedFlagValues(root *cli.Command, argv []string) error {
 		// A positional: at the root it names the subcommand whose flags are
 		// in force from here, its ancestors' persistent ones included; below
 		// one it is a path for that command's own guard. An unknown name is
-		// the parser's to refuse.
+		// the parser's to refuse. After a "--" the parser hands the token on
+		// as given; otherwise it has trimmed it (command_parse.go:81).
 		if len(cmds) == 0 {
 			continue
 		}
-		sub := subcommand(cmds, strings.TrimSpace(tok))
+		name := tok
+		if !optionsOff {
+			name = strings.TrimSpace(tok)
+		}
+		sub := subcommand(cmds, name)
 		if sub == nil {
 			return nil
 		}
 		lineage = append([]*cli.Command{sub}, lineage...)
-		kinds, cmds = flagKinds(lineage...), sub.Commands
+		kinds, cmds, optionsOff = flagKinds(lineage...), sub.Commands, false
 	}
 	return nil
 }

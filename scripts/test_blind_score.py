@@ -130,6 +130,20 @@ class T(unittest.TestCase):
         d, t = trial(["env -S 'mrw read a'"], fence(ANSWER))
         self.assertEqual(bs.score(d, t)["mrw_calls"], 1)
 
+    def test_env_split_string_is_expanded_before_help_and_options(self):
+        d, t = trial(["env -S 'mrw --help'"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+        for cmd in ["mrw read a; env -S '-u X cat /dev/null'", "mrw read a; env --split-string='cat /dev/null'",
+                    "mrw read a; X=1 env -u Y -S 'cat /dev/null'"]:
+            d, t = trial([cmd], fence(ANSWER))
+            self.assertEqual(bs.score(d, t)["verdict"], "VOID", cmd)
+
+    def test_the_escape_mask_keeps_a_substitution_interior(self):
+        d, t = trial(["mrw read a; printf x <<EOF\n$(cat\\$suffix)\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+        d, t = trial(["mrw read a; printf x <<EOF\n$(cat f)\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+
 
 
 if __name__ == "__main__":

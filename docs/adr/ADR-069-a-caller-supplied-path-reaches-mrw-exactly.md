@@ -101,6 +101,15 @@ Recovering it means re-implementing urfave's flag arity and short-flag grouping 
    by v1.25.0 and refused by item 6's walker as an attached value. Now both guards read the flags
    the parser accepts for the command, ancestors' persistent ones included, and stop where the
    parser stops.
+8. **Amended 2026-09-25 after the third Codex review of PR #222 (T8).** Two gaps in item 7. A `--`
+   before the subcommand ends the ROOT's options only: the parser still dispatches the subcommand,
+   which parses its own flags (`command_run.go:282-315`). The whole-argv guard ended its walk there
+   and the iter guard exempted a note entirely, so `-- iter note --root='dir ' x` and
+   `-- stats --root='dir '` reached `dir`. And a lone `-` ends the parse: the parser keeps it as a
+   positional and drops every token after it (`command_parse.go:123-125`), so the guard, reading on,
+   refused `write - '--format=plan '`, which v1.25.0 accepted. Now the whole-argv walk continues
+   below the subcommand after a root `--`, the note exemption covers the note's words and not the
+   flags beside them, and both guards stop at a lone `-`.
 
 **What would make this decision fail:** a caller who relies on the trim, e.g. a generated
 `--files-from` list with trailing spaces after every path. That caller now gets a read of a

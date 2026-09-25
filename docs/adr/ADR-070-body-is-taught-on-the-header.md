@@ -75,6 +75,15 @@ a wrongly typed answer, and no minimum mrw-call count.
    `env -S` / `--split-string` was read as an option with an operand, so `env -S cat go.mod` scored
    `go.mod` as the command word while `cat` ran; the operand is now split into words and read as
    the command line it is.
+7. **Amended 2026-09-25 after the third Codex review of PR #222 (T7).** Item 6's `-S` expansion
+   ran only where wrappers are stripped, so help detection, which reads the unstripped segment,
+   saw `env -S 'mrw --help'` as one word and the call count saw an mrw call: a run that asked for
+   help scored MEETS. It also stopped at the first option, so `env -S '-u X cat f'` and
+   `env --split-string=…` still hid `cat`. And item 6's mask shortened the text, so the interior
+   of a real substitution moved: `$(cat\$suffix)` was read as `cat suffix`. Now the operand is
+   expanded into words before either pass, in every spelling, with env's remaining options still
+   applied; and the mask keeps the text's length, so boundaries are found in the mask and the
+   interior is taken from the text as written.
 
 **What would make this decision fail:** a file whose first line really begins `body=` (an `.env`,
 an `.ini`), edited by a hand-written hunk with no count. It is refused, and the message names the

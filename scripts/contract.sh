@@ -6574,6 +6574,29 @@ printf 'dashfile\n' > "$R/ -1= "
 out=$(cd "$R" && "$MRW" -C "$R" read ' -1= ' 2>&1); rc=$?
 want 0 "$rc" "a single dash before a non-letter stops the parser and the guard"
 grep -q 'dashfile' <<<"$out" && ok "and the path is served as given" || bad "served: $out"
+
+# 137. ADR-069 T8 (the Codex review of PR #222, third round): a "--" before
+# the subcommand ends the ROOT's options only — the parser still dispatches
+# the subcommand, which parses its own flags — and both guards went quiet
+# there, so `-- iter note --root='dir '` and `-- stats --root='dir '` reached
+# the trimmed root. And a lone "-" ends the parse (the parser keeps it and
+# drops the rest) while the guard read on and refused what the parser never
+# saw. Each is paired with the shape the parser keeps.
+fixture
+mkdir "$R/d "; printf 'in d\n' > "$R/d /x"
+out=$("$MRW" -C "$R" -- iter note --root="$R/d " revised 2>&1); rc=$?
+want 2 "$rc" "a -- before the subcommand does not end the guard for its flags"
+grep -q 'own argument' <<<"$out" && ok "and that refusal names the separate spelling" || bad "refusal: $out"
+"$MRW" -C "$R" -- iter note --root "$R/d " revised >/dev/null 2>&1
+want 0 $? "and the separate spelling is accepted after the --"
+"$MRW" -C "$R" -- stats --root="$R/d " >/dev/null 2>&1
+want 2 $? "a subcommand with no guard of its own is covered by the whole-argv guard"
+"$MRW" -C "$R" -- stats --root "$R/d " >/dev/null 2>&1
+want 0 $? "and its separate spelling is accepted"
+printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run - '--format=plan ' >/dev/null 2>&1
+want 0 "${PIPESTATUS[1]}" "a lone - ends the parse and the guard: a token the parser drops is not refused"
+printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run '--format=plan ' - >/dev/null 2>&1
+want 2 "${PIPESTATUS[1]}" "and the same token before the - is refused"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

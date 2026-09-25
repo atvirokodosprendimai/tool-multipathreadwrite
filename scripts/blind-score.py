@@ -134,19 +134,24 @@ def strip_heredocs(cmd):
     return "\n".join(out), bodies
 
 
-def substitutions(text):
-    """The inner text of every `$(…)` and backtick pair in text."""
+def substitutions(text, mask=None):
+    """The inner text of every `$(…)` and backtick pair in text. Boundaries
+    are found in mask when given — text with each escaped pair blanked to the
+    SAME length — so an escaped `\\$(`, backtick or backslash opens nothing,
+    and the interior is returned as written: a mask that shortened the text
+    turned `$(cat\\$suffix)` into `cat suffix` (ADR-070 T5, T7)."""
+    m = text if mask is None else mask
     found, i = [], 0
-    while i < len(text):
-        if text.startswith("$(", i):
+    while i < len(m):
+        if m.startswith("$(", i):
             depth, j = 1, i + 2
-            while j < len(text) and depth:
-                depth += {"(": 1, ")": -1}.get(text[j], 0)
+            while j < len(m) and depth:
+                depth += {"(": 1, ")": -1}.get(m[j], 0)
                 j += 1
             found.append(text[i + 2 : j - 1])
             i = j
-        elif text[i] == "`":
-            j = text.find("`", i + 1)
+        elif m[i] == "`":
+            j = m.find("`", i + 1)
             if j < 0:
                 break
             found.append(text[i + 1 : j])
@@ -156,25 +161,49 @@ def substitutions(text):
     return found
 
 
+def split_words(text):
+    """The words of a command line, as `env -S` splits its operand."""
+    try:
+        return shlex.split(text)
+    except ValueError:
+        return text.split()
+
+
+def expand_split_string(seg):
+    """`env -S X`, `-SX` and `env --split-string[=]X` run X as a command
+    line: X's words take the option's place and env's remaining options still
+    apply, so `env -S '-u X cat f'` runs cat. Expanded before help detection
+    as well as before wrappers are stripped, so `env -S 'mrw --help'` is seen
+    (Codex review of PR #222, third round; ADR-070 T7)."""
+    i = 0
+    while i < len(seg) and ASSIGNMENT.match(seg[i]):
+        i += 1
+    if i >= len(seg) or seg[i] != "env":
+        return seg
+    i += 1
+    while i < len(seg) and seg[i].startswith("-") and seg[i] != "-":
+        tok = seg[i]
+        if tok in ("-S", "--split-string") and i + 1 < len(seg):
+            return seg[:i] + split_words(seg[i + 1]) + seg[i + 2 :]
+        if tok.startswith("--split-string="):
+            return seg[:i] + split_words(tok[len("--split-string=") :]) + seg[i + 1 :]
+        if tok.startswith("-S") and len(tok) > 2:
+            return seg[:i] + split_words(tok[2:]) + seg[i + 1 :]
+        i += 2 if tok in WRAPPER_OPERANDS["env"] else 1
+    return seg
+
+
 def strip_wrappers(seg):
     """Drop leading VAR=value words and wrappers, with their options and
     operands, so the command word is the one that runs. `command -v X` and
-    `command -V X` only look X up: they run nothing (ADR-070 T4)."""
+    `command -V X` only look X up: they run nothing (ADR-070 T4). An `env -S`
+    operand has already been expanded into words by expand_split_string."""
     while seg and (ASSIGNMENT.match(seg[0]) or seg[0] in WRAPPERS):
         w, seg = seg[0], seg[1:]
         if w == "command" and seg and seg[0] in ("-v", "-V"):
             return []
         while seg and seg[0].startswith("-") and seg[0] != "-":
             opt, seg = seg[0], seg[1:]
-            if w == "env" and opt in ("-S", "--split-string") and seg:
-                # -S runs its operand as the command line: `env -S cat f` and
-                # `env -S 'cat f'` both run cat (ADR-070 T6).
-                try:
-                    words = shlex.split(seg[0])
-                except ValueError:
-                    words = seg[0].split()
-                seg = words + seg[1:]
-                break
             if opt in WRAPPER_OPERANDS.get(w, ()) and seg:
                 seg = seg[1:]
     return seg
@@ -255,6 +284,7 @@ def segments(cmd, raw=False):
     out, seg = [], []
     for tok in tokens + [";"]:
         if tok in SEPARATORS or (tok and set(tok) <= set(";&|()")):
+            seg = expand_split_string(seg)
             if not raw:
                 seg = strip_wrappers(seg)
             if seg:
@@ -265,7 +295,7 @@ def segments(cmd, raw=False):
     for b in bodies:
         # An unquoted heredoc still honours a backslash before $, ` and \:
         # `\$(cat f)` is literal text (Codex review of PR #222; ADR-070 T5).
-        inner.extend(substitutions(re.sub(r"\\[\\$`]", " ", b)))
+        inner.extend(substitutions(b, re.sub(r"\\[\\$`]", "  ", b)))
     for s in inner:
         out.extend(segments(s, raw))
     return out
