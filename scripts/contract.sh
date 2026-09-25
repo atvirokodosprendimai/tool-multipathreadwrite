@@ -6746,6 +6746,58 @@ for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
 kill -HUP "$pid"; sleep 0.5
 kill -0 "$(cat "$R/gc.pid")" 2>/dev/null && ok "under nohup a hangup leaves the check running" || bad "under nohup a hangup stopped the check"
 kill -9 "$(cat "$R/gc.pid")" 2>/dev/null; wait "$pid"
+
+# 146. ADR-073: a line edit to a UTF-16 file is refused and its bytes are
+# unchanged; the v1.25.1 round rewrote one at exit 0 with the BOM gone. read
+# serves it with a note. The pairs: the same edit to a UTF-8 file applies, and
+# an unlink of the UTF-16 file applies.
+fixture
+printf '\xff\xfea\x00\n\x00b\x00\n\x00' > "$R/u16.txt"; cp "$R/u16.txt" "$R/u16.bak"
+out=$(m read u16.txt 2>&1); rc=$?
+want 0 "$rc" "a UTF-16 file is read"
+grep -q -- '-- note: u16.txt is UTF-16 (BOM FF FE)' <<<"$out" && ok "with a note naming its encoding" || bad "read: $out"
+printf '@@ u16.txt 1 replace\nX\n' > "$R/p146.mrw"
+out=$(m write --no-check "$R/p146.mrw" 2>&1); rc=$?
+want 1 "$rc" "a line edit to it is refused"
+grep -q 'UTF-16 (BOM FF FE)' <<<"$out" && ok "and the refusal names the encoding" || bad "refusal: $out"
+cmp -s "$R/u16.txt" "$R/u16.bak" && ok "and its bytes are unchanged" || bad "u16.txt changed under a refused write"
+printf 'one\ntwo\n' > "$R/a8.txt"; m read a8.txt >/dev/null
+printf '@@ a8.txt 1 replace\nX\n' > "$R/p146b.mrw"
+m write --no-check "$R/p146b.mrw" >/dev/null 2>&1; rc=$?
+want 0 "$rc" "the same edit to a UTF-8 file applies"
+printf '@@ u16.txt - unlink\n' > "$R/p146c.mrw"
+m write --no-check "$R/p146c.mrw" >/dev/null 2>&1; rc=$?
+want 0 "$rc" "and an unlink of the UTF-16 file applies"
+[ ! -e "$R/u16.txt" ] && ok "and removes it" || bad "u16.txt is still there"
+# --force overrides the read ledger, not the file's encoding; and a NUL in the
+# first 8 KiB refuses as a byte-order mark does (review of #230).
+cp "$R/u16.bak" "$R/u16.txt"; m read u16.txt >/dev/null
+m write --no-check --force "$R/p146.mrw" >/dev/null 2>&1; rc=$?
+want 1 "$rc" "--force does not bypass the encoding refusal"
+cmp -s "$R/u16.txt" "$R/u16.bak" && ok "and the bytes are unchanged" || bad "u16.txt changed under --force"
+printf 'a\000b\nc\n' > "$R/nul.txt"; m read nul.txt >/dev/null
+printf '@@ nul.txt 2 replace\nX\n' > "$R/p146d.mrw"
+out=$(m write --no-check "$R/p146d.mrw" 2>&1); rc=$?
+want 1 "$rc" "a line edit to a file with a NUL in its first 8 KiB is refused"
+grep -q 'holds a NUL byte at offset 1' <<<"$out" && ok "and the refusal names the offset" || bad "nul: $out"
+# A FIFO named in a native plan or an apply_patch document is refused before it
+# is opened. Bounded by polling and a kill, not an alarm: Go ignores SIGALRM.
+mkfifo "$R/p146"
+printf '@@ p146 1 replace\nX\n' > "$R/p146e.mrw"
+printf '*** Begin Patch\n*** Update File: p146\n@@\n-x\n+y\n*** End Patch\n' > "$R/p146f.patch"
+for how in plan apply_patch; do
+	src="$R/p146e.mrw"; [ "$how" = apply_patch ] && src="$R/p146f.patch"
+	"$MRW" -C "$R" write --no-check --format="$how" "$src" > "$R/out146" 2>&1 & pid=$!
+	done146=0; for i in $(seq 1 30); do kill -0 "$pid" 2>/dev/null || { done146=1; break; }; sleep 0.1; done
+	if [ "$done146" = 1 ]; then
+		wait "$pid"; rc=$?
+		want146=1; [ "$how" = apply_patch ] && want146=2
+		[ "$rc" = "$want146" ] && grep -q 'not a regular file' "$R/out146" && ok "a FIFO named in the $how write is refused by name, exit $want146" || bad "$how fifo: rc $rc (want $want146) $(cat "$R/out146")"
+	else
+		kill -9 "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+		bad "a FIFO in a $how write blocked for 3 s"
+	fi
+done
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

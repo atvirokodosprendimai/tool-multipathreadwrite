@@ -5,7 +5,11 @@
 // though read had never served it.
 package lines
 
-import "strings"
+import (
+	"bytes"
+	"fmt"
+	"strings"
+)
 
 // Split splits s into lines by the terminator s itself uses, and reports that
 // terminator and whether s ended with it. Three are recognised (ADR-005 §3), in
@@ -39,4 +43,41 @@ func eolOf(s string) string {
 		return "\r\n"
 	}
 	return "\n"
+}
+
+// NotRegular is why mrw does not open a pipe, a socket or a device to split it
+// into lines, wherever the path came from: opening a FIFO for reading blocks
+// until something writes to it, and a device can stream without end (ADR-007,
+// ADR-073).
+const NotRegular = "not a regular file: mrw would block on a pipe or stream a device without end"
+
+// nulScan is how many leading bytes Unsplittable searches for a NUL.
+const nulScan = 8192
+
+// Unsplittable names what makes b impossible to edit by line, or returns "":
+// a UTF-32 or UTF-16 byte-order mark, or a NUL byte in the first 8 KiB
+// (ADR-073). Split works on bytes and "\n", and UTF-16 puts a NUL beside every
+// ASCII byte, so a "line" of it is half a character pair and an edit written in
+// UTF-8 lands between the halves: the v1.25.1 round rewrote a UTF-16 file that
+// way at exit 0. The marks are checked longest first, because FF FE is the
+// start of UTF-32LE's FF FE 00 00.
+func Unsplittable(b []byte) string {
+	switch {
+	case bytes.HasPrefix(b, []byte{0xFF, 0xFE, 0x00, 0x00}):
+		return "is UTF-32 (BOM FF FE 00 00)"
+	case bytes.HasPrefix(b, []byte{0x00, 0x00, 0xFE, 0xFF}):
+		return "is UTF-32 (BOM 00 00 FE FF)"
+	case bytes.HasPrefix(b, []byte{0xFF, 0xFE}):
+		return "is UTF-16 (BOM FF FE)"
+	case bytes.HasPrefix(b, []byte{0xFE, 0xFF}):
+		return "is UTF-16 (BOM FE FF)"
+	}
+	head := b
+	if len(head) > nulScan {
+		head = head[:nulScan]
+	}
+	if i := bytes.IndexByte(head, 0); i >= 0 {
+		return fmt.Sprintf("holds a NUL byte at offset %d", i)
+	}
+	return ""
 }

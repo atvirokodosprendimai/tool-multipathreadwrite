@@ -423,8 +423,15 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			problems++
 			continue
 		}
+		// ADR-073: a file mrw cannot split into lines (a UTF-16 or UTF-32 BOM,
+		// a NUL early on) is served as the bytes it is, with one note saying so:
+		// the read did its job, and a write to it is refused.
+		foreign := lines.Unsplittable(b)
 		lines, sha := split(b)
 		fmt.Fprintf(w, "==> %s  %dL  %dB  sha %s\n", sp.Path, len(lines), len(b), sha[:8])
+		if foreign != "" {
+			fmt.Fprintf(w, "-- note: %s %s: served as bytes; a write to it is refused\n", sp.Path, foreign)
+		}
 		if opt.Stat {
 			// The fact, not the artifact — and a fact the caller cannot count
 			// lines in. Recording an empty span set says exactly that: mrw has

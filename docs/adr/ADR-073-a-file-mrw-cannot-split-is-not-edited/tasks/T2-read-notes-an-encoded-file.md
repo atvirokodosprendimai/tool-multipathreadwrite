@@ -1,0 +1,102 @@
+# Task ADR-073-T2: `read` notes an encoded file
+
+**Depends-on:** T1
+**Covers:** none — no spec
+**Estimated scope:** S
+**Owner:** unassigned
+**Produces:** the `-- note:` line in `read.Run`
+**Consumes:** `lines.Unsplittable` (T1)
+**Data dependency:** hermetic
+**Proof map:** v1
+**Rests-on:** `the read serves as before`, `the note names the encoding`, `the engine packages are unchanged`
+
+## Goal
+
+A read of a UTF-16 file served byte-split lines with nothing saying why they look wrong. Serve as
+before, and say what the file is and that a write to it is refused.
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `internal/read/read.go` | edit | the note under the `==>` header |
+| `internal/read/encoding_test.go` | new | the note, and its absence on UTF-8 |
+
+## Ordered Steps
+
+1. [S1] Write the tests; confirm RED. [proof: mutation]
+2. [S2] Implement; GREEN. [proof: mutation]
+   Mutants: the note dropped; the note counted as a problem.
+
+## Acceptance
+
+```bash
+set -o pipefail
+go test ./internal/read/ -count=1 -timeout 120s -run 'TestAForeignFileIsServedWithANote|TestAUTF8FileGetsNoNote' -v 2>&1 | tee /tmp/adr073-T2.out \
+  && missing=$(for t in TestAForeignFileIsServedWithANote TestAUTF8FileGetsNoNote; do grep -qE "^--- PASS: $t \(" /tmp/adr073-T2.out || echo "$t"; done) \
+  && [ -z "$missing" ] \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/plan internal/seen internal/check internal/state internal/iter internal/rooted internal/read ':(exclude)internal/read/read.go' ':(exclude)internal/read/encoding_test.go' \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/plan internal/seen internal/check internal/state internal/iter internal/rooted internal/read ':(exclude)internal/read/read.go' ':(exclude)internal/read/encoding_test.go')" ] \
+  && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `TestAForeignFileIsServedWithANote` | `internal/read/encoding_test.go` | served, no problem counted, the note names the encoding | — | S1, S2 |
+| `TestAUTF8FileGetsNoNote` | `internal/read/encoding_test.go` | the pair | — | S1, S2 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | the note |
+| 2 — something selects it | every read, CLI and MCP |
+| 3 — the caller can discover it | it is on the served page |
+| 4 — it is used | the round read a UTF-16 file and saw garbage with no explanation |
+
+## Verification Log
+(empty until execute)
+- 2026-09-25 · 59a91a8* · exit 1 · `set -o pipefail …` · acceptance-sha256:91e4bb20513f200861df07c555f27f98daca090593f5723bb2b929494d21f20a · ms:456 · test-lock-sha256:a165c5794e74974a4de08769b23dfd9c48f70fcda1e3c91248c09de1198314bd · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL3JlYWQvZW5jb2RpbmdfdGVzdC5nbwlUZXN0QUZvcmVpZ25GaWxlSXNTZXJ2ZWRXaXRoQU5vdGUJMTU2NDlkZjUwMmY0YTVmNjNjOWIwYjRlZmYwNTkzZDYxNWEzNTlkZTI3ZDQxODJiY2M5YjA3MmM2ZTNjOTlkNwpib2R5CWludGVybmFsL3JlYWQvZW5jb2RpbmdfdGVzdC5nbwlUZXN0QVVURjhGaWxlR2V0c05vTm90ZQk5ODMyZDNlZDY4YWIyMzRkMzdkNzY4NTJiZmRlZDhmMTNhYmMzNzhjNGQ5NzhiZThjMDgzY2JhODVjM2VhOWU1
+  ```
+  --- last 10 line(s) of stdout (of 12 after folding 12 raw)
+          ==> u.txt  2L  6B  sha c5cd956f
+          @@ 1-2
+              1| ��a\x00
+              2| \x00
+  --- FAIL: TestAForeignFileIsServedWithANote (0.00s)
+  === RUN   TestAUTF8FileGetsNoNote
+  --- PASS: TestAUTF8FileGetsNoNote (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	0.170s
+  FAIL
+  ```
+- 2026-09-25 · 59a91a8* · exit 0 · `set -o pipefail …` · acceptance-sha256:91e4bb20513f200861df07c555f27f98daca090593f5723bb2b929494d21f20a · ms:507
+- 2026-09-25 · 59a91a8* · exit 0 · `set -o pipefail …` · acceptance-sha256:91e4bb20513f200861df07c555f27f98daca090593f5723bb2b929494d21f20a · ms:346
+- 2026-09-25 · 59a91a8* · exit 0 · `set -o pipefail …` · acceptance-sha256:91e4bb20513f200861df07c555f27f98daca090593f5723bb2b929494d21f20a · ms:539
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:91e4bb20513f200861df07c555f27f98daca090593f5723bb2b929494d21f20a · ms:282
+- 2026-09-25 · 7560857* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:91e4bb20513f200861df07c555f27f98daca090593f5723bb2b929494d21f20a · ms:0 · test-lock-sha256:164ae0397357b4629c512eaa5a9978b7b6704b93dc1da18cfafca2614fdc4681 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL3JlYWQvZW5jb2RpbmdfdGVzdC5nbwlUZXN0QUZvcmVpZ25GaWxlSXNTZXJ2ZWRXaXRoQU5vdGUJOTMzNjM5MzkxYjUxNGQzNDBiYTdmYThkNzBiMWJmNWI1M2Q1ZjkyNTYzNjgzYTQ2NDQ5M2FkMzViOTgxYzUyYQpib2R5CWludGVybmFsL3JlYWQvZW5jb2RpbmdfdGVzdC5nbwlUZXN0QVVURjhGaWxlR2V0c05vTm90ZQkyZDJmZjFkNTI0N2MyOWE1OThlN2QzYWY1MzIyOGY4ZTFhNzEzYzA0N2RiN2MzZDMxNjc0Y2Q5MjNjMzlhZDNl · test-lock-kind:replace
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:91e4bb20513f200861df07c555f27f98daca090593f5723bb2b929494d21f20a · ms:286
+- 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:91e4bb20513f200861df07c555f27f98daca090593f5723bb2b929494d21f20a · ms:261
+
+## Mutation Log
+(empty until execute)
+- 2026-09-25 · 59a91a8* · mutant killed · exit 1 · `internal/read/read.go` · an encoded file is served with no note · acceptance-sha256:91e4bb20513f200861df07c555f27f98daca090593f5723bb2b929494d21f20a · covers:the note names the encoding
+- 2026-09-25 · 59a91a8* · mutant killed · exit 1 · `internal/read/read.go` · the note counts as a problem, so a read that served the file exits 1 · acceptance-sha256:91e4bb20513f200861df07c555f27f98daca090593f5723bb2b929494d21f20a · covers:the read serves as before
+
+## Invariants
+
+- The read's exit code is unchanged.
+
+## Risks
+
+- None.
+
+## Out of Scope
+
+- Everything the record lists (permanent: boundary: ADR-073 Out of Scope)
+
+## Stop Condition
+
+Stop if the note would change what is served.

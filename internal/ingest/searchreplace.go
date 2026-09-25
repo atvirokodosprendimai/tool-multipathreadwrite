@@ -129,7 +129,7 @@ func searchFileLines(root, path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("search_replace: %w", err)
 	}
-	b, err := os.ReadFile(full)
+	b, err := targetBytes(full)
 	if err != nil {
 		return nil, fmt.Errorf("search_replace: %s: %w", path, err)
 	}
