@@ -6413,7 +6413,7 @@ want 0 $? "and a missing spaced path is reported by name, not as an internal err
 # guard could not tell them apart because they held the same bytes, so a write
 # to the unread "x" applied, exit 0. The read passes `--` because urfave/cli
 # trims a positional argument before it (BACKLOG, From ADR-068). The pair: the
-# is still writable.
+# file that WAS read is still writable.
 fixture
 printf 'same\n' > "$R/x"
 printf 'same\n' > "$R/x "
