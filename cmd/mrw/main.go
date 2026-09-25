@@ -579,6 +579,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
+			if err := refusePaddedArgs(cmd); err != nil {
+				return err
+			}
 			// Flag domains are settled FIRST, before the working set is loaded
 			// or a single spec is parsed. A usage error means "fix the call"
 			// and has to preempt everything, or it preempts inconsistently:
@@ -918,6 +921,9 @@ held or went unchecked.`,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			if err := refusePaddedArgs(cmd); err != nil {
+				return err
+			}
 			args := cmd.Args().Slice()
 			// Flag contradictions are settled BEFORE the plan is read. A usage
 			// error means "fix the call", and it has to preempt everything or
@@ -1273,6 +1279,9 @@ func iterCmd() *cli.Command {
 Entries are read specs, so "mrw read" with no arguments returns exactly these
 ranges, and "mrw check" runs the project's check scoped to these files.`,
 		Action: func(_ context.Context, cmd *cli.Command) error {
+			if err := refusePaddedArgs(cmd); err != nil {
+				return err
+			}
 			root := cmd.Root().String("root")
 			set, err := iter.Load(root)
 			if err != nil {
@@ -1374,6 +1383,9 @@ touched, which is a finding about the machine and not about your change.`,
 			&cli.BoolFlag{Name: "full", Usage: "run the whole-project check, ignoring any scope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			if err := refusePaddedArgs(cmd); err != nil {
+				return err
+			}
 			root := cmd.Root().String("root")
 			paths := cmd.Args().Slice()
 			if len(paths) == 0 && !cmd.Bool("full") {
@@ -1676,6 +1688,38 @@ func planOpenError(path, root string, err error) error {
 		"INSIDE a plan and not the plan file itself", err, wd, absRoot)
 }
 
+// refusePaddedArgs refuses a positional argument the argument parser trimmed.
+// urfave/cli v3.11.0 trims every positional before `--` (command_parse.go:81,
+// :117), so `mrw read 'x '` acted on x, a file the caller did not name
+// (ADR-069). The untrimmed token survives only in the root's raw tail. A token
+// that differs from its trim, and whose trim is one of this command's
+// arguments, is refused with the `--` that reaches it. A padded flag value is
+// refused only in the rare case that its trim equals a positional.
+func refusePaddedArgs(cmd *cli.Command) error {
+	args := cmd.Args().Slice()
+	if cmd.Name == "iter" && len(args) > 0 && args[0] == "note" {
+		return nil // a note is free text, not a path
+	}
+	got := make(map[string]bool, len(args))
+	for _, a := range args {
+		got[a] = true
+	}
+	raw := cmd.Root().Args().Slice()
+	if len(raw) > 0 {
+		raw = raw[1:] // the subcommand's own name
+	}
+	for _, tok := range raw {
+		if tok == "--" {
+			break
+		}
+		if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
+			return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
+				"put -- before the path: mrw %s -- '%s'", tok, cmd.Name, tok), exitUsage)
+		}
+	}
+	return nil
+}
+
 // specList reads a spec per line from a file, or from stdin when name is "-".
 //
 // It exists so any searcher composes with mrw in one call: `rg -l PAT | sed
@@ -1703,8 +1747,10 @@ func specList(name string) ([]string, error) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
+		// The trim only recognises a blank line or a comment; the spec is the
+		// line as written, so a path with edge spaces reaches mrw (ADR-069).
+		line := sc.Text()
+		if t := strings.TrimSpace(line); t == "" || strings.HasPrefix(t, "#") {
 			continue
 		}
 		out = append(out, line)

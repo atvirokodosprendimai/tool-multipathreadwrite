@@ -183,6 +183,11 @@ the wrong half of the fix. Use `--grep` to walk and serve in one call, or
 `--files-from` to pipe a list in and add the suffix per line. mrw says this in
 the UNREADABLE line too, but by then you have spent a call.
 
+⚠ **A path with a leading or trailing space goes after `--`.** The argument parser trims every
+positional before `--`, so `mrw read 'x '` would reach `x`; mrw refuses it instead, exit 2, and the
+refusal names the fix: `mrw read -- 'x '` (ADR-069). `--files-from`, the working set, a rename
+destination and the foreign formats keep the path as written.
+
 ### 2. One plan, not N writes
 
 Every hunk gets a verdict. If any hunk fails validation, **nothing is written at

@@ -6439,6 +6439,50 @@ m write --no-check "$WORK/127c.mrw" >/dev/null 2>&1
 want 0 $? "and the trailing-CR file that was read is writable"
 [ "$(cat "$R/x"$'\r')" = WROTE ] && ok "and the write to it landed" || bad "x-CR holds: $(cat "$R/x"$'\r')"
 
+
+# 128. ADR-069 T1: urfave/cli trims a positional before `--`, so `read 'x '`
+# served x, a file the caller did not name. It is refused, exit 2, naming the
+# `--` that reaches it; the pair: `read -- 'x '` still serves it.
+fixture
+printf 'padded\n' > "$R/x "
+out=$(m read 'x ' 2>&1); rc=$?
+want 2 "$rc" "a padded positional without -- is refused and names --"
+grep -qF "put -- before the path" <<<"$out" && ok "and the refusal says where -- goes" || bad "refusal: $out"
+out=$(m read -- 'x ' 2>&1); rc=$?
+want 0 "$rc" "and read -- 'x ' is served"
+grep -q 'padded' <<<"$out" && ok "and it serves the file named" || bad "served: $out"
+
+# 129. ADR-069 T2: a --files-from line was TrimSpaced, so a list naming "x "
+# served x. The pair: the list's comment and blank line are still skipped.
+fixture
+printf 'plain\n' > "$R/x"
+printf 'padded\n' > "$R/x "
+out=$(printf '# note\n\nx \n' | m read --files-from - 2>&1); rc=$?
+want 0 "$rc" "a --files-from list with a comment and a blank line reads"
+grep -q 'padded' <<<"$out" && ! grep -q 'plain' <<<"$out" \
+	&& ok "a --files-from line keeps its trailing space" || bad "files-from served: $out"
+
+# 130. ADR-069 T3: a rename's destination was TrimSpaced, so a rename to "d "
+# landed at d. The pair: the rename still applies.
+fixture
+printf 'src\n' > "$R/a.txt"
+m read a.txt >/dev/null 2>&1
+printf '@@ a.txt - rename\nd \n' > "$WORK/130.mrw"
+m write --no-check "$WORK/130.mrw" >/dev/null 2>&1
+want 0 $? "a rename to a trailing-space name applies"
+[ -e "$R/d " ] && [ ! -e "$R/d" ] && ok "a rename destination keeps its trailing space" || bad "rename landed: $(ls "$R")"
+
+# 131. ADR-069 T4: apply_patch TrimSpaced the path after its marker, so a
+# patch naming "x " edited x. The pair: x, holding the same bytes, is untouched.
+fixture
+printf 'one\ntwo\n' > "$R/x"
+printf 'one\ntwo\n' > "$R/x "
+m read -- 'x ' >/dev/null 2>&1
+printf '*** Begin Patch\n*** Update File: x \n@@\n one\n-two\n+TWO\n*** End Patch\n' > "$WORK/131.patch"
+m write --no-check --format=apply_patch "$WORK/131.patch" >/dev/null 2>&1
+want 0 $? "an apply_patch update of a trailing-space path applies"
+[ "$(cat "$R/x ")" = "$(printf 'one\nTWO')" ] && [ "$(cat "$R/x")" = "$(printf 'one\ntwo')" ] \
+	&& ok "an apply_patch path keeps its trailing space" || bad "x-space: $(cat "$R/x "); x: $(cat "$R/x")"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

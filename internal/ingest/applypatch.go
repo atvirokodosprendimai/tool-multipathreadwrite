@@ -73,7 +73,7 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			if err := flush(); err != nil {
 				return nil, err
 			}
-			p := strings.TrimSpace(strings.TrimPrefix(line, deleteFile))
+			p := pathAfter(line, deleteFile)
 			text, err := compilePathOp("unlink", p, nil)
 			if err != nil {
 				return nil, err
@@ -88,7 +88,7 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			if len(hunk) > 0 {
 				return nil, fmt.Errorf("apply_patch: Move to with hunks is not compiled this slice")
 			}
-			dest := strings.TrimSpace(strings.TrimPrefix(line, moveTo))
+			dest := pathAfter(line, moveTo)
 			text, err := compilePathOp("rename", path, []string{dest})
 			if err != nil {
 				return nil, err
@@ -100,14 +100,14 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			if err := flush(); err != nil {
 				return nil, err
 			}
-			path = strings.TrimSpace(strings.TrimPrefix(line, updateFile))
+			path = pathAfter(line, updateFile)
 			kind = "update"
 			hunk = []string{}
 		case strings.HasPrefix(line, addFile):
 			if err := flush(); err != nil {
 				return nil, err
 			}
-			path = strings.TrimSpace(strings.TrimPrefix(line, addFile))
+			path = pathAfter(line, addFile)
 			kind = "add"
 			hunk = []string{}
 		case strings.HasPrefix(line, "@@"):
@@ -173,6 +173,18 @@ func looksLikeGit(s string) bool {
 	return strings.HasPrefix(t, "diff --git") || strings.HasPrefix(t, "--- a/") || strings.Contains(s, "\n--- a/")
 }
 
+// pathAfter returns the path that follows a format marker. Exactly one
+// separator space is removed, never the path's own edge spaces, so a patch
+// naming "x " compiles to a hunk on "x " and not on x (ADR-069). A marker
+// followed only by whitespace names no path.
+func pathAfter(line, marker string) string {
+	rest := strings.TrimPrefix(strings.TrimPrefix(line, marker), " ")
+	if strings.TrimSpace(rest) == "" {
+		return ""
+	}
+	return rest
+}
+
 func compilePathOp(op, path string, body []string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("apply_patch: empty path")
@@ -184,7 +196,7 @@ func compilePathOp(op, path string, body []string) (string, error) {
 		if len(body) != 1 || strings.TrimSpace(body[0]) == "" {
 			return "", fmt.Errorf("apply_patch: Move to needs a dest path")
 		}
-		dest := strings.TrimSpace(body[0])
+		dest := body[0] // as written: the emptiness guard above uses a trimmed copy (ADR-069)
 		if rooted.IsRooted(dest) {
 			return "", fmt.Errorf("apply_patch: %s is not relative to the root", dest)
 		}

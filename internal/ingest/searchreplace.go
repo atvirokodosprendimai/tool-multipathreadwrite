@@ -37,7 +37,7 @@ func CompileSearchReplace(root string, doc []byte) ([]byte, error) {
 		}
 		if strings.HasPrefix(line, searchHead) {
 			path := lastPath
-			if rest := strings.TrimSpace(strings.TrimPrefix(line, searchHead)); rest != "" {
+			if rest := pathAfter(line, searchHead); rest != "" {
 				path = rest
 			}
 			if path == "" {
@@ -80,7 +80,7 @@ func CompileSearchReplace(root string, doc []byte) ([]byte, error) {
 			continue
 		}
 		if strings.TrimSpace(line) != "" {
-			lastPath = strings.TrimSpace(line)
+			lastPath = line // as written; the blank test above trims a copy (ADR-069)
 		}
 		i++
 	}

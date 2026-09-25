@@ -384,7 +384,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			produced[p] = true
 		}
 		if i.Op == "rename" && len(i.Body) == 1 {
-			if d := filepath.Clean(strings.TrimSpace(i.Body[0])); d != "" && d != "." {
+			if d := filepath.Clean(i.Body[0]); d != "" && d != "." { // the body line as written (ADR-069)
 				destCount[d]++
 			}
 		}
@@ -450,7 +450,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			writes = append(writes, pending{file: fr, full: full, unlink: true})
 			continue
 		case "rename":
-			destRel := filepath.Clean(strings.TrimSpace(hs[0].Body[0]))
+			destRel := filepath.Clean(hs[0].Body[0]) // not TrimSpace: "d " is a name (ADR-069)
 			destFull, err := resolve(root, destRel)
 			if err != nil {
 				for _, h := range hs {

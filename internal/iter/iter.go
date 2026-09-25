@@ -57,13 +57,16 @@ func Load(root string) (Set, error) {
 	seen := map[string]bool{}
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" {
+		// Trimmed only to recognise a blank line or the note; an entry is kept
+		// as written, so "x " does not come back as x (ADR-069).
+		line := sc.Text()
+		t := strings.TrimSpace(line)
+		if t == "" {
 			continue
 		}
-		if strings.HasPrefix(line, "#") {
+		if strings.HasPrefix(t, "#") {
 			if s.Note == "" {
-				s.Note = strings.TrimSpace(strings.TrimPrefix(line, "#"))
+				s.Note = strings.TrimSpace(strings.TrimPrefix(t, "#"))
 			}
 			continue
 		}
@@ -106,8 +109,7 @@ func (s *Set) Add(entries ...string) int {
 	}
 	n := 0
 	for _, e := range entries {
-		e = strings.TrimSpace(e)
-		if e == "" || have[e] {
+		if strings.TrimSpace(e) == "" || have[e] {
 			continue
 		}
 		have[e] = true
@@ -122,7 +124,7 @@ func (s *Set) Add(entries ...string) int {
 func (s *Set) Remove(entries ...string) int {
 	drop := map[string]bool{}
 	for _, e := range entries {
-		drop[strings.TrimSpace(e)] = true
+		drop[e] = true
 	}
 	kept := s.Entries[:0]
 	n := 0

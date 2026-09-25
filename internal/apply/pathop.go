@@ -73,7 +73,7 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 		return false
 	}
 	if h.Op == "rename" {
-		raw := strings.TrimSpace(h.Body[0])
+		raw := h.Body[0] // the destination exactly as written (ADR-069)
 		if rooted.IsRooted(raw) {
 			fail(h, "%s is absolute, and every path in a plan is relative to the root: mrw looked for %s, "+
 				"which does not exist", raw, raw)
