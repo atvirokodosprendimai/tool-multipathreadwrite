@@ -9,7 +9,8 @@ README must be regenerated.
 ## Waves
 
 T1–T4 are independent. T5 amends T1's guard after the Codex review of v1.25.0; T6 to T10 each
-amend the one before after a round of the Codex review of PR #222.
+amend the one before after a round of the Codex review of PR #222; T11 checks them all against
+the parser at random and amends what that found.
 
 | Wave | Tasks | Depends-on |
 |------|-------|------------|
@@ -20,6 +21,7 @@ amend the one before after a round of the Codex review of PR #222.
 | 5 | T8 | T7 |
 | 6 | T9 | T8 |
 | 7 | T10 | T9 |
+| 8 | T11 | T10 |
 
 ## Execution Order
 
@@ -35,6 +37,7 @@ amend the one before after a round of the Codex review of PR #222.
 | 8 | T8 | T7 |
 | 9 | T9 | T8 |
 | 10 | T10 | T9 |
+| 11 | T11 | T10 |
 
 ## Task Index
 
@@ -50,6 +53,7 @@ amend the one before after a round of the Codex review of PR #222.
 | T8 | A root `--` does not end the guard below it; a lone `-` ends it; contract §137 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T8-a-root-terminator-and-a-lone-dash.md` fence |
 | T9 | The stop token is judged before the guard stops; contract §138 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T9-the-stop-token-is-judged-first.md` fence |
 | T10 | A preserved stop token is not judged against a sibling; contract §139 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T10-a-preserved-stop-token-is-not-judged.md` fence |
+| T11 | The guards agree with the parser on random argv; an iter verb is not judged | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T11-the-guards-agree-with-the-parser.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

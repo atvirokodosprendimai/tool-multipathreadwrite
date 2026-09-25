@@ -123,6 +123,18 @@ Recovering it means re-implementing urfave's flag arity and short-flag grouping 
     `read ' -1= ' '-1='`, both files present, was refused because the first's trimmed spelling is the
     second. Now only the lone `-` is judged before the stop.
 
+11. **Amended 2026-09-25 after a random differential test (T11).** Six Codex rounds each found one
+    more edge of the parser the guards model, so the model is now checked against the parser
+    itself: `TestTheGuardsAgreeWithTheParserOnRandomArgv` drives random argv (every subcommand,
+    every flag own and inherited, padded names and values, attached values, `--`, `-`, a dash
+    before a digit) through the real guards, and through the same command tree with every Action
+    replaced by a recorder, so the parser itself says which strings mrw would act on. The guard
+    must refuse exactly when the parser trims a token and acts on it, or consumes an attached
+    value that ends in whitespace (item 5); provenance is settled by re-parsing with a sentinel in
+    the token's place. 40,000 cases over eight seeds agree. The run found one gap: an iter VERB
+    was judged like a path, so `iter 'add ' x` was refused. The verb is not a path and is not
+    judged. The test runs 300 cases under `go test`; `MRW_STRESS_N` and `MRW_STRESS_SEED` widen it.
+
 **What would make this decision fail:** a caller who relies on the trim, e.g. a generated
 `--files-from` list with trailing spaces after every path. That caller now gets a read of a
 missing file, `x ` UNREADABLE, exit 1. That is loud, and it names the path mrw looked for.

@@ -288,3 +288,17 @@ func TestAPreservedStopTokenIsNotJudgedAgainstAPositional(t *testing.T) {
 		t.Errorf("read ' - ' x exited %d, want %d as a padded lone dash:\n%s", code, exitUsage, out)
 	}
 }
+
+// ADR-069 T11, found by the random differential test. An iter VERB is not a
+// path: the parser trims `'add '` to the verb, and nothing reaches a file by
+// it, yet the guard judged it like a positional and refused `iter 'add ' x`.
+// The verb is never judged; the paths after it still are.
+func TestAnIterVerbIsNotJudgedAsAPath(t *testing.T) {
+	root := paddedTree(t)
+	if out, code := runIn(t, root, "iter", "add ", "x"); code != 0 {
+		t.Errorf("iter 'add ' x was refused, exit %d:\n%s", code, out)
+	}
+	if out, code := runIn(t, root, "iter", "add", "x "); code != exitUsage || !strings.Contains(out, "edge whitespace") {
+		t.Errorf("iter add 'x ' exited %d, want %d as a padded path:\n%s", code, exitUsage, out)
+	}
+}

@@ -1729,6 +1729,7 @@ func refusePaddedArgs(cmd *cli.Command) error {
 		raw = raw[1:] // the subcommand's own name
 	}
 	kinds := flagKinds(cmd.Lineage()...)
+	positionals := 0
 	value := false
 	for _, tok := range raw {
 		if value {
@@ -1755,7 +1756,12 @@ func refusePaddedArgs(cmd *cli.Command) error {
 		if role == roleStop && strings.TrimSpace(tok) != "-" {
 			break
 		}
-		if !noteText {
+		// An iter VERB is not a path either: `iter 'add ' x` names the verb
+		// with padding the parser trims, and nothing reaches a file by it
+		// (found by the random differential test, ADR-069 T11).
+		if cmd.Name == "iter" && positionals == 0 {
+			positionals++
+		} else if !noteText {
 			if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
 				return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
 					"put -- before the path: mrw %s -- '%s'", tok, prefix, tok), exitUsage)
