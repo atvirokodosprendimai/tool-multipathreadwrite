@@ -422,6 +422,13 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			continue
 		}
 		if info, statErr := os.Stat(full); statErr == nil {
+			// ADR-073: a FIFO, a socket or a device named in a plan blocked the
+			// write in os.ReadFile below. It is refused before it is opened.
+			if !info.Mode().IsRegular() && !info.IsDir() {
+				refuseFile(results, path, hs, fmt.Sprintf("%s is not a regular file: mrw would block on a pipe or stream a device without end", path))
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
 			if prior, dup := sameFileAs(info, seenFiles); dup {
 				// One refusal per file, carried by its FIRST hunk (ADR-021
 				// Decision 3); the file's other hunks are skipped, which is
@@ -445,6 +452,14 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		orig, existed, err := readLines(full)
 		if err != nil {
 			return res, fmt.Errorf("%s: %w", path, err)
+		}
+		// ADR-073: a line edit to a file mrw cannot split into lines — a UTF-16
+		// or UTF-32 byte-order mark, or a NUL in its first 8 KiB — rewrote it at
+		// exit 0 with its encodings mixed. unlink and rename do not split it.
+		if orig.foreign != "" && splitsLines(hs) {
+			refuseFile(results, path, hs, fmt.Sprintf("%s %s: mrw edits UTF-8 text line by line, and a line edit would corrupt it", path, orig.foreign))
+			failed = append(failed, FileResult{Path: path})
+			continue
 		}
 
 		fr := FileResult{Path: path, LinesFrom: len(orig.lines)}
@@ -1533,6 +1548,8 @@ type text struct {
 	lines []string
 	eol   string
 	final bool // the file ended with a terminator
+	// foreign says why the bytes cannot be split into lines (ADR-073), or "".
+	foreign string
 }
 
 // join renders the text back to the bytes it came from.
@@ -1565,6 +1582,7 @@ func readLines(path string) (t text, existed bool, err error) {
 		return text{eol: "\n"}, true, nil
 	}
 
+	t.foreign = lines.Unsplittable(b)
 	t.lines, t.eol, t.final = lines.Split(string(b))
 	return t, true, nil
 }
@@ -1922,4 +1940,27 @@ func foldKey(name string) string {
 		b.WriteRune(least)
 	}
 	return b.String()
+}
+
+// refuseFile fails a file's first hunk with reason and skips its siblings: one
+// refusal per file, the shape ADR-021 Decision 3 set, reused by ADR-073.
+func refuseFile(results map[int]HunkResult, path string, hs []hunk, reason string) {
+	for i, h := range hs {
+		r := HunkResult{Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine, Status: StatusSkipped}
+		if i == 0 {
+			r.Status, r.Reason = StatusFailed, reason
+		}
+		results[h.Index] = r
+	}
+}
+
+// splitsLines reports whether any of a file's hunks edits it by line, as every
+// op but unlink and rename does (ADR-073).
+func splitsLines(hs []hunk) bool {
+	for _, h := range hs {
+		if h.Op != "unlink" && h.Op != "rename" {
+			return true
+		}
+	}
+	return false
 }

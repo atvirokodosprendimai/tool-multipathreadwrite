@@ -1960,6 +1960,9 @@ Contract breaks, reproduced on macOS:
   macOS. The acceptance was recorded before the rate was known: a decision for M.
 - **A UTF-16LE file is rewritten with exit 0**: served as byte-split lines, and a replace drops the
   BOM and mixes encodings. Nothing refuses a write to such a file.
+  **Fixed by ADR-073**, contract §146: a line edit to a file that begins with a UTF-16 or UTF-32
+  byte-order mark, or holds a NUL in its first 8 KiB, is refused, bytes unchanged; `read` serves it
+  with a note naming the encoding. `unlink`, `rename` and `create` are unaffected.
 - **`--json` prints text on a plan parse error.** The documentation promises a receipt on failure;
   a failed hunk does get JSON, an unparseable plan does not.
   **Fixed by ADR-072 T3**, contract §144: under `--json` every refusal after the plan is named is
@@ -1973,6 +1976,8 @@ Contract breaks, reproduced on macOS:
   `internal/read/astgrep.go` sets no `WaitDelay` and no process group (the finder's reading).
 - **A FIFO hangs `read`**, and `--stat`, a symlink to it, and `--files-from` on it; nothing is
   printed. A socket and a directory are reported by name.
+  **Partly fixed by ADR-073**: a FIFO, socket or device named in a WRITE plan is refused before it
+  is opened. The read side (a spec, `--stat`, a symlink to a FIFO) is ADR-074's.
 
 Windows only, each hand-confirmed by at least two sessions:
 
