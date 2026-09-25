@@ -194,9 +194,9 @@ func IsStale(root string) (bool, error) {
 }
 
 // StaleNotice is what the CLI prints when IsStale reports true.
-const StaleNotice = "mrw: the read ledger was written by an older mrw and has been discarded — " +
-	"up to v0.0.11 a read that served nothing recorded the whole file, and such an entry cannot be " +
-	"told from a real one. Read the files you mean to edit again."
+const StaleNotice = "mrw: the read ledger was written by an older mrw, or its line endings were " +
+	"changed, and has been discarded — up to v0.0.11 a read that served nothing recorded the whole " +
+	"file, and a ledger mrw did not write cannot be trusted either. Read the files you mean to edit again."
 
 // scanLF splits the ledger on "\n" alone. bufio.ScanLines also drops a "\r"
 // before it, which loaded the observation of a file named "x\r" under "x"

@@ -1,6 +1,10 @@
 package seen
 
-import "testing"
+import (
+	"os"
+	"strings"
+	"testing"
+)
 
 // ADR-068 T1. The ledger writes a path verbatim (`<sha>  <spans>  <path>`)
 // and must read it back verbatim: parseLine trimmed the line, so an
@@ -30,6 +34,39 @@ func TestALedgerPathKeepsItsSurroundingSpaces(t *testing.T) {
 		if _, ok := l[trimmed]; ok {
 			t.Errorf("%q loaded though only a spaced name was recorded: a read of one file licenses another", trimmed)
 		}
+	}
+}
+
+// ADR-068 left one way a ledger goes stale that the notice did not name: mrw
+// writes bare "\n", so a ledger converted to CRLF by outside tooling fails the
+// header check (scanLF keeps the "\r") and is discarded. The notice said only
+// "an older mrw", which is wrong for that caller.
+func TestACRLFLedgerIsStaleAndTheNoticeSaysWhy(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	sha := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	if err := Record(root, map[string]Observation{"a.go": {SHA: sha}}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := ReadPath(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(strings.ReplaceAll(string(b), "\n", "\r\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if stale, err := IsStale(root); err != nil || !stale {
+		t.Errorf("a CRLF ledger is not reported stale (stale=%v, err=%v)", stale, err)
+	}
+	if l, _ := Load(root); len(l) != 0 {
+		t.Errorf("a CRLF ledger still licenses %q", keys(l))
+	}
+	if !strings.Contains(StaleNotice, "line endings") || !strings.Contains(StaleNotice, "written by an older mrw") {
+		t.Errorf("the notice does not name both causes: %s", StaleNotice)
 	}
 }
 
