@@ -2081,7 +2081,9 @@ func specList(name string) ([]string, error) {
 	var out []string
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+	n := 0
 	for sc.Scan() {
+		n++
 		// The trim only recognises a blank line or a comment; the spec is the
 		// line as written, so a path with edge spaces reaches mrw (ADR-069).
 		line := sc.Text()
@@ -2091,6 +2093,11 @@ func specList(name string) ([]string, error) {
 		out = append(out, line)
 	}
 	if err := sc.Err(); err != nil {
+		if errors.Is(err, bufio.ErrTooLong) {
+			// The scanner stops AT the long line and never returns it, so the
+			// line it failed on is the one after the last it counted (ADR-074).
+			return nil, fmt.Errorf("--files-from %s line %d: longer than the 8 MiB a spec may be", name, n+1)
+		}
 		return nil, err
 	}
 	if len(out) == 0 {

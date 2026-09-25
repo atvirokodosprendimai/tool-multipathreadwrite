@@ -40,7 +40,7 @@ func CLI() string {
 
 Never read an exit code through a pipe: mrw write plan | head returns head's status.
 Exit 3 means the write applied and the check failed, so the tree is changed and unverified.
-MSYS rewrites a regex address before mrw starts. Export MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL.
+MSYS rewrites a spec whose file part holds a / before mrw starts. Export MSYS_NO_PATHCONV=1 or MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL.
 A shell glob and an address suffix do not mix.
 A value with spaces can be double-quoted (anchor="func openTestStore"), single-quoted (anchor='func openTestStore'), or — for anchor= only — left unquoted until the next key=. An unquoted anchor= that contains a double quote is refused; write it as anchor="…".
 body= is a line count, not a character count. Python str splits characters; do not use len(body) as body=.

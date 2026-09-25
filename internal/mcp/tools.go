@@ -471,7 +471,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		if page, ok := firstPage(root, a.Specs, cw); ok {
 			return page, nil
 		}
-		return errorResult(receiptOverflowMessage(encodedSize(served), cw.limit)), nil
+		return errorResult(renderedFitMessage(encodedSize(served), cw)), nil
 	}
 
 	// ADR-039: a fitting serve of numbered lines is held pending, not recorded.
@@ -494,7 +494,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				if page, ok := firstPage(root, a.Specs, cw); ok {
 					return page, nil
 				}
-				return errorResult(receiptOverflowMessage(encodedSize(markedServed), cw.limit)), nil
+				return errorResult(renderedFitMessage(encodedSize(markedServed), cw)), nil
 			}
 			for path, spans := range byPath {
 				o, ok := observationOf(observed, path)
@@ -974,6 +974,26 @@ func (c *capped) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// linesThatFit is how many of this read's lines one answer can carry, from the
+// ENCODED length of what was rendered. The ceiling measures the JSON-encoded
+// answer, where `<`, `>` and `&` cost six bytes each, so a page sized from the
+// raw bytes fit the rendering and overflowed the wire: a 153,600-byte markup
+// file was refused whole where a plain one twice its size paged (ADR-074).
+func (c *capped) linesThatFit() int {
+	return suggestLines(encodedTextLen(c.buf.Bytes()), countLines(&c.buf))
+}
+
+// encodedTextLen is the length b takes as a JSON string, less its quotes,
+// measured by the encoder that encodes the answer rather than estimated from a
+// table of its own.
+func encodedTextLen(b []byte) int {
+	e, err := json.Marshal(string(b))
+	if err != nil {
+		return math.MaxInt
+	}
+	return len(e) - 2
+}
+
 // firstPage serves as much of a single-file read as fits and names the spec
 // that asks for the rest. It reports false when it cannot honestly page, and
 // the caller falls back to the flat refusal.
@@ -995,99 +1015,109 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 	if err != nil || total <= 0 {
 		return callToolResult{}, false
 	}
-	per := suggestLines(cw.buf.Len(), countLines(&cw.buf))
+	per := cw.linesThatFit()
 	if per < 1 {
 		return callToolResult{}, false
 	}
-	end := start + per - 1
-	if end >= total {
-		// The remainder already fits, so there is nothing to page: this can
-		// only be reached if the estimate disagrees with the cap, and serving
-		// a "page" that is the whole rest while claiming to be partial would
-		// be a lie in the safe-looking direction.
-		return callToolResult{}, false
-	}
-	sp, err := read.ParseSpec(fmt.Sprintf("%s:%d-%d", path, start, end))
-	if err != nil {
-		return callToolResult{}, false
-	}
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	observed, problems := read.Run(w, root, []read.Spec{sp}, read.Options{Numbers: true})
-	w.Flush()
+	// A page sized by the average can still overflow, when its lines are more
+	// heavily escaped than the sample's: a file whose escaped half came first
+	// paged once, then refused next_read mid-file (review of #232). Halve the
+	// page, at most three times, before declining.
+	for attempt := 0; attempt < 4; attempt, per = attempt+1, per/2 {
+		if per < 1 {
+			return callToolResult{}, false
+		}
+		end := start + per - 1
+		if end >= total {
+			// The remainder already fits, so there is nothing to page: this can
+			// only be reached if the estimate disagrees with the cap, and serving
+			// a "page" that is the whole rest while claiming to be partial would
+			// be a lie in the safe-looking direction.
+			return callToolResult{}, false
+		}
+		sp, err := read.ParseSpec(fmt.Sprintf("%s:%d-%d", path, start, end))
+		if err != nil {
+			return callToolResult{}, false
+		}
+		var b bytes.Buffer
+		w := bufio.NewWriter(&b)
+		observed, problems := read.Run(w, root, []read.Spec{sp}, read.Options{Numbers: true})
+		w.Flush()
 
-	// ⚠ AND IF THAT SECOND READ SERVED NOTHING, THIS IS NOT A PAGE (ADR-025).
-	// countFileLines succeeded a moment ago, so an empty `observed` here means
-	// the file stopped being readable in between — deleted, or its permissions
-	// changed. Returning a page then would fabricate a `-- PARTIAL:` notice for
-	// content nobody received, and `pagedResult` omits `isError`, so it would be
-	// the one served-nothing answer that still claimed success. Declining sends
-	// the caller down the ordinary path, which reports the real reason and flags
-	// it. Found by the Codex review of #123.
-	if len(observed) == 0 {
-		return callToolResult{}, false
-	}
+		// ⚠ AND IF THAT SECOND READ SERVED NOTHING, THIS IS NOT A PAGE (ADR-025).
+		// countFileLines succeeded a moment ago, so an empty `observed` here means
+		// the file stopped being readable in between — deleted, or its permissions
+		// changed. Returning a page then would fabricate a `-- PARTIAL:` notice for
+		// content nobody received, and `pagedResult` omits `isError`, so it would be
+		// the one served-nothing answer that still claimed success. Declining sends
+		// the caller down the ordinary path, which reports the real reason and flags
+		// it. Found by the Codex review of #123.
+		if len(observed) == 0 {
+			return callToolResult{}, false
+		}
 
-	// ⚠ AND IF THE PAGE ITSELF DOES NOT FIT, IT IS NOT A PAGE EITHER (ADR-031).
-	// The budget above is estimated in LINES, so a single line longer than the
-	// whole cap produces a one-line "page" that still exceeds it. A host must
-	// then cut it, and a head/tail cut of ONE numbered line leaves the open
-	// marker, the line's `NNN|` prefix and the close marker all intact — so the
-	// caller can satisfy AckRule honestly while the line's middle never arrived,
-	// and acknowledging licenses the whole of it. Bracketing cannot express a
-	// partial line: the unit it proves is a line. Declining sends the caller
-	// down the ordinary path, which refuses with the limit and a line budget.
-	// Found by the fifth review of PR #132.
-	// ⚠ THE PAGE WAS SENT, WHICH IS NOT THE SAME AS RECEIVED, AND THIS LINE USED
-	// TO CONFUSE THEM. It recorded the served span outright — "the page WAS
-	// shown" — and on 2026-09-05 a host cut the middle out of exactly such a
-	// page, leaving the model lines 1-90 and 2644-2727 while mrw claimed
-	// 1-3619; a write to line 1500 then applied at exit 0. So the span is held
-	// PENDING against checkpoints woven through the text, and reaches the
-	// ledger only when the caller echoes them back (ADR-031).
-	text, spans := interleave(b.String())
-	next := fmt.Sprintf("%s:%d-", path, end+1)
-	report := fmt.Sprintf("%s\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
-		"-- Send specs [%q] to continue, or a narrower range of your own.\n"+
-		"-- Stopping here means you have part of this file, not the file.\n"+
-		"-- This page licenses NOTHING until you acknowledge it.\n-- "+AckRule+"\n"+
-		"-- An id you omit leaves its lines unwritable, which is the point.",
-		text, start, end, total, total-end, next)
+		// ⚠ AND IF THE PAGE ITSELF DOES NOT FIT, IT IS NOT A PAGE EITHER (ADR-031).
+		// The budget above is estimated in LINES, so a single line longer than the
+		// whole cap produces a one-line "page" that still exceeds it. A host must
+		// then cut it, and a head/tail cut of ONE numbered line leaves the open
+		// marker, the line's `NNN|` prefix and the close marker all intact — so the
+		// caller can satisfy AckRule honestly while the line's middle never arrived,
+		// and acknowledging licenses the whole of it. Bracketing cannot express a
+		// partial line: the unit it proves is a line. Declining sends the caller
+		// down the ordinary path, which refuses with the limit and a line budget.
+		// Found by the fifth review of PR #132.
+		// ⚠ THE PAGE WAS SENT, WHICH IS NOT THE SAME AS RECEIVED, AND THIS LINE USED
+		// TO CONFUSE THEM. It recorded the served span outright — "the page WAS
+		// shown" — and on 2026-09-05 a host cut the middle out of exactly such a
+		// page, leaving the model lines 1-90 and 2644-2727 while mrw claimed
+		// 1-3619; a write to line 1500 then applied at exit 0. So the span is held
+		// PENDING against checkpoints woven through the text, and reaches the
+		// ledger only when the caller echoes them back (ADR-031).
+		text, spans := interleave(b.String())
+		next := fmt.Sprintf("%s:%d-", path, end+1)
+		report := fmt.Sprintf("%s\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
+			"-- Send specs [%q] to continue, or a narrower range of your own.\n"+
+			"-- Stopping here means you have part of this file, not the file.\n"+
+			"-- This page licenses NOTHING until you acknowledge it.\n-- "+AckRule+"\n"+
+			"-- An id you omit leaves its lines unwritable, which is the point.",
+			text, start, end, total, total-end, next)
 
-	// ⚠ THE ENCODED RESULT IS WHAT MUST FIT, measured with encodedSize — the
-	// function this file already uses for the grep paths, twenty lines up.
-	//
-	// This took three attempts and each measured something that was not what a
-	// host receives. First the raw buffer, before interleave's markers and this
-	// footer. Then len(report), which omits the receipt and the JSON envelope:
-	// an ordinary one-line read composed a 199,794-byte report and delivered
-	// 200,004 bytes (seventh review of PR #132). The right primitive was in
-	// this file the whole time, used correctly a few functions away.
-	//
-	// It is an assertion about what to SEND, not a guard against doing the
-	// work: the composing has happened by now and `capped` is what bounds the
-	// cost, stopping the READ at the limit. What it buys is that an over-cap
-	// answer is never delivered — and it sits before hold, so nothing is
-	// recorded pending for a page that is never sent.
-	// ⚠ `observed` DESCRIBES WHAT WAS SERVED, not what is licensed, and passing
-	// nil to signal "nothing licensed yet" produced `"observed": null` against
-	// a schema that requires an object (readSchema) and a README that says the
-	// receipt is unchanged in shape. The conformance assertion checked only key
-	// PRESENCE, so null passed it. Licensing is the ledger's business and the
-	// checkpoints say what is pending; the receipt goes back to telling the
-	// truth about service. Eighth review of PR #132.
-	res := pagedResult(report, observed, problems, next)
-	if encodedSize(res) > ceiling() {
-		return callToolResult{}, false
+		// ⚠ THE ENCODED RESULT IS WHAT MUST FIT, measured with encodedSize — the
+		// function this file already uses for the grep paths, twenty lines up.
+		//
+		// This took three attempts and each measured something that was not what a
+		// host receives. First the raw buffer, before interleave's markers and this
+		// footer. Then len(report), which omits the receipt and the JSON envelope:
+		// an ordinary one-line read composed a 199,794-byte report and delivered
+		// 200,004 bytes (seventh review of PR #132). The right primitive was in
+		// this file the whole time, used correctly a few functions away.
+		//
+		// It is an assertion about what to SEND, not a guard against doing the
+		// work: the composing has happened by now and `capped` is what bounds the
+		// cost, stopping the READ at the limit. What it buys is that an over-cap
+		// answer is never delivered — and it sits before hold, so nothing is
+		// recorded pending for a page that is never sent.
+		// ⚠ `observed` DESCRIBES WHAT WAS SERVED, not what is licensed, and passing
+		// nil to signal "nothing licensed yet" produced `"observed": null` against
+		// a schema that requires an object (readSchema) and a README that says the
+		// receipt is unchanged in shape. The conformance assertion checked only key
+		// PRESENCE, so null passed it. Licensing is the ledger's business and the
+		// checkpoints say what is pending; the receipt goes back to telling the
+		// truth about service. Eighth review of PR #132.
+		res := pagedResult(report, observed, problems, next)
+		if encodedSize(res) > ceiling() {
+			continue
+		}
+		o, ok := observationOf(observed, path)
+		if !ok || o.SHA == "" {
+			return callToolResult{}, false
+		}
+		if err := hold(root, filepath.Clean(path), o.SHA, spans); err != nil {
+			return callToolResult{}, false
+		}
+		return res, true
 	}
-	o, ok := observationOf(observed, path)
-	if !ok || o.SHA == "" {
-		return callToolResult{}, false
-	}
-	if err := hold(root, filepath.Clean(path), o.SHA, spans); err != nil {
-		return callToolResult{}, false
-	}
-	return res, true
+	return callToolResult{}, false
 }
 
 // openEnded reports the path and start line of a spec that asks for a whole
@@ -1186,7 +1216,7 @@ func overflowMessage(specs []string, cw *capped) string {
 		// its lines completed, its lines are the unservable ones.
 		unterminated = since == 0
 	}
-	if n := suggestLines(cw.buf.Len(), countLines(&cw.buf)); unterminated || n < 1 {
+	if n := cw.linesThatFit(); unterminated || n < 1 {
 		fmt.Fprintf(&b, "One line of this file renders to more than the whole %d-character limit, "+
 			"and mrw serves whole lines — so no narrower range of it can be served, and retrying "+
 			"with one would fail the same way. Read it with the CLI, `mrw read`, which streams and "+
@@ -1195,7 +1225,7 @@ func overflowMessage(specs []string, cw *capped) string {
 		fmt.Fprintf(&b, "Ask for a range instead — for example %s:1-%d.", specs[0], n)
 	} else {
 		fmt.Fprintf(&b, "Ask for narrower ranges — around %d lines per file at this file's line length — or name fewer files in one call.",
-			suggestLines(cw.buf.Len(), countLines(&cw.buf)))
+			cw.linesThatFit())
 	}
 	return b.String()
 }
@@ -1218,6 +1248,39 @@ func receiptOverflowMessage(encoded, limit int) string {
 		"The excess is the per-file receipt, a sha and a span list for every file served and "+
 		"the same size whatever range you ask for. Name fewer files in one call rather than "+
 		"narrower ranges.", limit, encoded)
+}
+
+// renderedFitMessage explains an answer whose text rendered inside the limit
+// and whose encoded answer did not, by the cause whose remedy works. When the
+// text alone encodes past the limit, JSON escaping grew it and a narrower range
+// is the remedy — unless one line alone encodes past it, which no range can
+// serve (review of #232); otherwise the per-file receipt did, and naming fewer
+// files is. A markup file of one spec was told to name fewer files (ADR-074).
+func renderedFitMessage(encoded int, cw *capped) string {
+	if encodedTextLen(cw.buf.Bytes()) <= cw.limit {
+		return receiptOverflowMessage(encoded, cw.limit)
+	}
+	head := fmt.Sprintf("that read rendered inside the %d-byte limit, but encoded for the wire — "+
+		"JSON escapes `<`, `>` and `&` as six bytes each — its answer came to %d.\n"+
+		"Nothing was read and nothing was recorded, so no write is licensed by it.\n", cw.limit, encoded)
+	if longestEncodedLine(cw.buf.Bytes()) > cw.limit {
+		return head + "One line of it encodes to more than the whole limit, and mrw serves whole lines — " +
+			"so no narrower range of it can be served. Read it with the CLI, `mrw read`, which streams " +
+			"and has no such limit."
+	}
+	return head + fmt.Sprintf("Ask for a narrower range: around %d lines at this read's encoded line length.",
+		cw.linesThatFit())
+}
+
+// longestEncodedLine is the JSON-encoded length of the longest line in b.
+func longestEncodedLine(b []byte) int {
+	most := 0
+	for _, l := range bytes.Split(b, []byte{'\n'}) {
+		if n := encodedTextLen(l); n > most {
+			most = n
+		}
+	}
+	return most
 }
 
 // pagedResult builds a first-page answer: the page, the receipt, and the spec

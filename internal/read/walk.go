@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -122,7 +123,7 @@ func (w *walker) consider(p string, named bool) {
 		if named {
 			w.problems = append(w.problems, Problem{
 				Path:   p,
-				Reason: "not a regular file: mrw would block on a pipe or stream a device without end",
+				Reason: lines.NotRegular,
 			})
 		}
 		return

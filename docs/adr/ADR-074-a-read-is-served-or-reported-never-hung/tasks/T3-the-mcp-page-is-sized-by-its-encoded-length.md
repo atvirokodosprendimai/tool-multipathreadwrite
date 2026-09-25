@@ -1,0 +1,135 @@
+# Task ADR-074-T3: the MCP page is sized by its encoded length
+
+**Depends-on:** none
+**Covers:** none — no spec
+**Estimated scope:** S
+**Owner:** unassigned
+**Produces:** `encodedTextLen`, `(*capped).linesThatFit`, `renderedFitMessage`
+**Consumes:** `encodedSize`, `suggestLines`
+**Data dependency:** hermetic
+**Proof map:** v1
+**Rests-on:** `a markup file pages`, `every page fits the ceiling`, `the pages reassemble the file`, `the refusal names the encoding`, `a page that still overflows is halved`, `a line no range serves names the CLI`, `a receipt overflow still names the receipt`, `a contract row drives the binary`, `the engine packages are unchanged`, `go.mod declares one requirement`
+
+## Goal
+
+A 153,600-byte markup file was refused whole over MCP, with no `next_read`, because the page was
+sized from raw bytes while the ceiling measures the JSON-encoded answer. Size it by what is measured.
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `internal/mcp/tools.go` | edit | the page, and the refusal's advice, from the encoded length |
+| `internal/mcp/escaped_page_test.go` | new | the markup file pages; a closed range names the encoding |
+| `scripts/contract.sh` | edit | §149 |
+
+## Ordered Steps
+
+1. [S1] Write the tests; confirm RED. [proof: mutation]
+2. [S2] Implement; GREEN; the ADR-014, ADR-031 and ADR-032 tests stay green. [proof: mutation]
+   Mutants: the page sized from the raw length again; the refusal's discriminator dropped; the page never halved; the one-line check dropped.
+3. [S3] Contract §149: one `mrw_read` of the markup file over `mrw mcp` is a page with `next_read` and no `isError`. [proof: acceptance]
+
+## Acceptance
+
+```bash
+set -o pipefail
+go test ./internal/mcp/ -count=1 -timeout 180s -run 'TestAMarkupFilePagesByItsEncodedSize|TestALineThatEncodesPastTheCeilingIsSentToTheCLI|TestAFileWhoseEscapedHalfComesFirstPagesToItsEnd|TestAClosedMarkupRangeRefusalNamesTheEncoding|TestAPagedReadReassemblesTheWholeFile|TestAPageThatCannotFitIsNotAPage|TestAPageIsMeasuredAfterItsMarkersAndFooter|TestTheAdvertisedCeilingBoundsEveryAnswer|TestAReadWhoseReceiptOverflowsIsNotServed' -v 2>&1 | tee /tmp/adr074-T3.out \
+  && missing=$(for t in TestAMarkupFilePagesByItsEncodedSize TestALineThatEncodesPastTheCeilingIsSentToTheCLI TestAFileWhoseEscapedHalfComesFirstPagesToItsEnd TestAClosedMarkupRangeRefusalNamesTheEncoding TestAPagedReadReassemblesTheWholeFile TestAPageThatCannotFitIsNotAPage TestAPageIsMeasuredAfterItsMarkersAndFooter TestTheAdvertisedCeilingBoundsEveryAnswer TestAReadWhoseReceiptOverflowsIsNotServed; do grep -qE "^--- PASS: $t \(" /tmp/adr074-T3.out || echo "$t"; done) \
+  && [ -z "$missing" ] \
+  && grep -q '^# 149\. ' scripts/contract.sh \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/apply internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted internal/read internal/check internal/subproc ':(exclude)internal/read/read.go' ':(exclude)internal/read/walk.go' ':(exclude)internal/read/astgrep.go' ':(exclude)internal/read/fifo_unix_test.go' ':(exclude)internal/read/msys_hint_test.go' ':(exclude)internal/check/check.go' ':(exclude)internal/subproc/subproc.go' ':(exclude)internal/subproc/interrupt_unix_test.go' \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/apply internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted internal/read internal/check internal/subproc ':(exclude)internal/read/read.go' ':(exclude)internal/read/walk.go' ':(exclude)internal/read/astgrep.go' ':(exclude)internal/read/fifo_unix_test.go' ':(exclude)internal/read/msys_hint_test.go' ':(exclude)internal/check/check.go' ':(exclude)internal/subproc/subproc.go' ':(exclude)internal/subproc/interrupt_unix_test.go')" ] \
+  && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `TestAMarkupFilePagesByItsEncodedSize` | `internal/mcp/escaped_page_test.go` | the first answer is a page; every page encodes within the ceiling; following `next_read` reassembles the file | — | S1, S2 |
+| `TestAClosedMarkupRangeRefusalNamesTheEncoding` | `internal/mcp/escaped_page_test.go` | refused, names the encoding and a narrower range, not the receipt | — | S1, S2 |
+| `TestALineThatEncodesPastTheCeilingIsSentToTheCLI` | `internal/mcp/escaped_page_test.go` | a line that alone encodes past the ceiling: the file and the line refused naming the CLI, never "around 1 lines" (review of #232) | — | S2 |
+| `TestAFileWhoseEscapedHalfComesFirstPagesToItsEnd` | `internal/mcp/escaped_page_test.go` | escaped half first: following `next_read` reaches the end, every page within the ceiling (review of #232) | — | S2 |
+| `TestAReadWhoseReceiptOverflowsIsNotServed` | `internal/mcp/limit_test.go` | the pair: a receipt overflow still names the receipt | — | S2 |
+| `TestAPagedReadReassemblesTheWholeFile` | `internal/mcp/tools_test.go` | ADR-014, unchanged | — | S2 |
+| `TestAPageThatCannotFitIsNotAPage` | `internal/mcp/tools_test.go` | ADR-031, unchanged | — | S2 |
+| `TestAPageIsMeasuredAfterItsMarkersAndFooter` | `internal/mcp/tools_test.go` | ADR-031, unchanged | — | S2 |
+| `TestTheAdvertisedCeilingBoundsEveryAnswer` | `internal/mcp/limit_test.go` | ADR-032, unchanged | — | S2 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | the encoded measure |
+| 2 — something selects it | every MCP read over the ceiling |
+| 3 — the caller can discover it | `next_read` on the answer |
+| 4 — it is used | the round could not read a 150 KB TSX file over MCP |
+
+## Verification Log
+(empty until execute)
+- 2026-09-26 · da2fd0a* · exit 1 · `set -o pipefail …` · acceptance-sha256:5a9610d5b5880f3521faa448dad927af25383891923874a8151abacbea880167 · ms:671 · test-lock-sha256:0c6a480128ffcc9ec67196ef745f5c1cb8b3f64a98f99a50bb4e0d2a79204317 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL21jcC9lc2NhcGVkX3BhZ2VfdGVzdC5nbwlUZXN0QUNsb3NlZE1hcmt1cFJhbmdlUmVmdXNhbE5hbWVzVGhlRW5jb2RpbmcJMjNkNmMxNWZhMDdiYWFmNDc2ZWZhOTY1YmU3YzM2ODFiN2I5ODA4ZDFiMzI4ZDkwZjNkNGMwYzA3ZTNhYmM0MApib2R5CWludGVybmFsL21jcC9lc2NhcGVkX3BhZ2VfdGVzdC5nbwlUZXN0QU1hcmt1cEZpbGVQYWdlc0J5SXRzRW5jb2RlZFNpemUJMzkzNTc0YmE1NGYyM2I0YzQxMGE0ZGQwZTkxNmZkOTJiMmJjZTZkMDdlYWFkZWFjY2FmNzE3ZWUyM2M2MGY3MQpib2R5CWludGVybmFsL21jcC9saW1pdF90ZXN0LmdvCVRlc3RBUGFydGlhbEFwcGxpY2F0aW9uSXNOb3RSZXBvcnRlZEFzTm90aGluZ1dyaXR0ZW4JZThkY2E3MWVhZDgwZWY1ZTk2ZDJiMTY2OTAwNzRjOWUzN2Q0MWQyZmQwMzY4YmM1NTljODFlMWNmNDU5NWY2Mwpib2R5CWludGVybmFsL21jcC9saW1pdF90ZXN0LmdvCVRlc3RBUmVhZFdob3NlUmVjZWlwdE92ZXJmbG93c0lzTm90U2VydmVkCWQ0OGIxYWQxMjc0OTAzMzY2ZjQ2YWZlYzhhNjlkNWJlZWI0NDNjYjMzYWE0MGVhYjVjNjE1OTEwZGQ1MTMzNzAKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0QVNtYWxsQ2VpbGluZ1JlZnVzZXNUaGVXcml0ZUJlZm9yZUFwcGx5aW5nCTI0ZjY5Nzg5ZmNmZmNiOWI0MjAzNjAyNzY0NjJkNDVjNDI4ZDliZGMyMTZkYzNiNTNmMjUzNzBlYTQ0MzdjMTgKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0QVdyaXRlUmVjZWlwdEVsaWRlc1N1Y2Nlc3Nlc05vdEZhaWx1cmVzCTY2OTQzMzA1ZGU3NDk4ZTVmN2YwY2ZhNWE3ZTMwMTczNGMxZDA2N2M1ZWE3ZDk4ZDNhNGYzNTc4Y2E0MDc2NjUKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0RXZlcnlBbnN3ZXJGaXRzSW5jbHVkaW5nVGhlUmVmdXNhbHMJYmIzYjFiM2ZhYmMwYzhiM2U0Njc1YWMwZWMxZTcwY2Q3NzQ0MThhMzEzN2EyMGE0YjcyYmU3OTc0YzU3NDVjMgpib2R5CWludGVybmFsL21jcC9saW1pdF90ZXN0LmdvCVRlc3RUaGVBZHZlcnRpc2VkQ2VpbGluZ0JvdW5kc0V2ZXJ5QW5zd2VyCWI3MmE5NDM2ZGZmYjUzOTI3NTU5YmM4YjUwOGZmYmZkNTE0YzkyNGFiZDI3NzAyNzllMDk0NjRmM2FjZDNiMGYKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0VGhlQ2VpbGluZ05ldmVyU2hyaW5rc0FTZXJ2ZWRSZWFkCTVjYTFiMWE2M2NiNTdmODgxZWJiYmRkNGQ4OGEyZjI5YTQzM2RlMWQyYjlhOWE3NjBjNmY5ZWMyNzMwMTRkZTMKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0VGhlU2Vjb25kU3RhZ2VFbGlzaW9uRHJvcHNGaWxlUmVjb3JkcwkxYmU4NWQ4MjQ5NjU2ZDYwMzA2ZWRiMWMzNjEyZGJjNTAyYWU4NjMwZDE4MjcwMTQzNjg1N2U0ZmZiZWRlMDE5CmJvZHkJaW50ZXJuYWwvbWNwL2xpbWl0X3Rlc3QuZ28JVGVzdFRoZVNlY29uZFN0YWdlTmV2ZXJFbGlkZXNBV3JpdHRlbkZpbGUJMThkY2Q4ZWI2M2Q5ODM0NDlhZmVlZGY3NzkyZTMxZTc0OGZjYjQxZDhlZDZiZGI2ZWQ4MDFiNjM2MzgyZDRkYwpib2R5CWludGVybmFsL21jcC9saW1pdF90ZXN0LmdvCVRlc3RUaGVXcml0ZUZsb29ySXNBRmxvb3IJZjFhYzM2YjY4MjlmMTg4YTkzOWU5YWE1MzY5MjJkNGFjN2E5ZTAxYjRmM2ZhNDU3MjNmODUzZmVlMjVhZjM5MAp1bnByb3ZlbglpbnRlcm5hbC9tY3AvCVRlc3RBUGFnZWRSZWFkUmVhc3NlbWJsZXNUaGVXaG9sZUZpbGU
+  ```
+  --- last 10 line(s) of stdout (of 33 after folding 33 raw)
+  --- PASS: TestAReadWhoseReceiptOverflowsIsNotServed (0.03s)
+  === RUN   TestAPagedReadReassemblesTheWholeFile
+  --- PASS: TestAPagedReadReassemblesTheWholeFile (0.02s)
+  === RUN   TestAPageThatCannotFitIsNotAPage
+  --- PASS: TestAPageThatCannotFitIsNotAPage (0.00s)
+  === RUN   TestAPageIsMeasuredAfterItsMarkersAndFooter
+  --- PASS: TestAPageIsMeasuredAfterItsMarkersAndFooter (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.251s
+  FAIL
+  ```
+- 2026-09-26 · da2fd0a* · exit 1 · `set -o pipefail …` · acceptance-sha256:5a9610d5b5880f3521faa448dad927af25383891923874a8151abacbea880167 · ms:633
+  ```
+  --- last 10 line(s) of stdout (of 20 after folding 20 raw)
+  === RUN   TestAReadWhoseReceiptOverflowsIsNotServed
+  --- PASS: TestAReadWhoseReceiptOverflowsIsNotServed (0.02s)
+  === RUN   TestAPagedReadReassemblesTheWholeFile
+  --- PASS: TestAPagedReadReassemblesTheWholeFile (0.02s)
+  === RUN   TestAPageThatCannotFitIsNotAPage
+  --- PASS: TestAPageThatCannotFitIsNotAPage (0.00s)
+  === RUN   TestAPageIsMeasuredAfterItsMarkersAndFooter
+  --- PASS: TestAPageIsMeasuredAfterItsMarkersAndFooter (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.247s
+  ```
+- 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:5a9610d5b5880f3521faa448dad927af25383891923874a8151abacbea880167 · ms:400
+- 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:5a9610d5b5880f3521faa448dad927af25383891923874a8151abacbea880167 · ms:363
+- 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:5a9610d5b5880f3521faa448dad927af25383891923874a8151abacbea880167 · ms:374
+- 2026-09-26 · da2fd0a* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:5a9610d5b5880f3521faa448dad927af25383891923874a8151abacbea880167 · ms:0 · test-lock-sha256:0c6a480128ffcc9ec67196ef745f5c1cb8b3f64a98f99a50bb4e0d2a79204317 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL21jcC9lc2NhcGVkX3BhZ2VfdGVzdC5nbwlUZXN0QUNsb3NlZE1hcmt1cFJhbmdlUmVmdXNhbE5hbWVzVGhlRW5jb2RpbmcJMjNkNmMxNWZhMDdiYWFmNDc2ZWZhOTY1YmU3YzM2ODFiN2I5ODA4ZDFiMzI4ZDkwZjNkNGMwYzA3ZTNhYmM0MApib2R5CWludGVybmFsL21jcC9lc2NhcGVkX3BhZ2VfdGVzdC5nbwlUZXN0QU1hcmt1cEZpbGVQYWdlc0J5SXRzRW5jb2RlZFNpemUJMzkzNTc0YmE1NGYyM2I0YzQxMGE0ZGQwZTkxNmZkOTJiMmJjZTZkMDdlYWFkZWFjY2FmNzE3ZWUyM2M2MGY3MQpib2R5CWludGVybmFsL21jcC9saW1pdF90ZXN0LmdvCVRlc3RBUGFydGlhbEFwcGxpY2F0aW9uSXNOb3RSZXBvcnRlZEFzTm90aGluZ1dyaXR0ZW4JZThkY2E3MWVhZDgwZWY1ZTk2ZDJiMTY2OTAwNzRjOWUzN2Q0MWQyZmQwMzY4YmM1NTljODFlMWNmNDU5NWY2Mwpib2R5CWludGVybmFsL21jcC9saW1pdF90ZXN0LmdvCVRlc3RBUmVhZFdob3NlUmVjZWlwdE92ZXJmbG93c0lzTm90U2VydmVkCWQ0OGIxYWQxMjc0OTAzMzY2ZjQ2YWZlYzhhNjlkNWJlZWI0NDNjYjMzYWE0MGVhYjVjNjE1OTEwZGQ1MTMzNzAKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0QVNtYWxsQ2VpbGluZ1JlZnVzZXNUaGVXcml0ZUJlZm9yZUFwcGx5aW5nCTI0ZjY5Nzg5ZmNmZmNiOWI0MjAzNjAyNzY0NjJkNDVjNDI4ZDliZGMyMTZkYzNiNTNmMjUzNzBlYTQ0MzdjMTgKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0QVdyaXRlUmVjZWlwdEVsaWRlc1N1Y2Nlc3Nlc05vdEZhaWx1cmVzCTY2OTQzMzA1ZGU3NDk4ZTVmN2YwY2ZhNWE3ZTMwMTczNGMxZDA2N2M1ZWE3ZDk4ZDNhNGYzNTc4Y2E0MDc2NjUKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0RXZlcnlBbnN3ZXJGaXRzSW5jbHVkaW5nVGhlUmVmdXNhbHMJYmIzYjFiM2ZhYmMwYzhiM2U0Njc1YWMwZWMxZTcwY2Q3NzQ0MThhMzEzN2EyMGE0YjcyYmU3OTc0YzU3NDVjMgpib2R5CWludGVybmFsL21jcC9saW1pdF90ZXN0LmdvCVRlc3RUaGVBZHZlcnRpc2VkQ2VpbGluZ0JvdW5kc0V2ZXJ5QW5zd2VyCWI3MmE5NDM2ZGZmYjUzOTI3NTU5YmM4YjUwOGZmYmZkNTE0YzkyNGFiZDI3NzAyNzllMDk0NjRmM2FjZDNiMGYKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0VGhlQ2VpbGluZ05ldmVyU2hyaW5rc0FTZXJ2ZWRSZWFkCTVjYTFiMWE2M2NiNTdmODgxZWJiYmRkNGQ4OGEyZjI5YTQzM2RlMWQyYjlhOWE3NjBjNmY5ZWMyNzMwMTRkZTMKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0VGhlU2Vjb25kU3RhZ2VFbGlzaW9uRHJvcHNGaWxlUmVjb3JkcwkxYmU4NWQ4MjQ5NjU2ZDYwMzA2ZWRiMWMzNjEyZGJjNTAyYWU4NjMwZDE4MjcwMTQzNjg1N2U0ZmZiZWRlMDE5CmJvZHkJaW50ZXJuYWwvbWNwL2xpbWl0X3Rlc3QuZ28JVGVzdFRoZVNlY29uZFN0YWdlTmV2ZXJFbGlkZXNBV3JpdHRlbkZpbGUJMThkY2Q4ZWI2M2Q5ODM0NDlhZmVlZGY3NzkyZTMxZTc0OGZjYjQxZDhlZDZiZGI2ZWQ4MDFiNjM2MzgyZDRkYwpib2R5CWludGVybmFsL21jcC9saW1pdF90ZXN0LmdvCVRlc3RUaGVXcml0ZUZsb29ySXNBRmxvb3IJZjFhYzM2YjY4MjlmMTg4YTkzOWU5YWE1MzY5MjJkNGFjN2E5ZTAxYjRmM2ZhNDU3MjNmODUzZmVlMjVhZjM5MAp1bnByb3ZlbglpbnRlcm5hbC9tY3AvCVRlc3RBUGFnZWRSZWFkUmVhc3NlbWJsZXNUaGVXaG9sZUZpbGU · test-lock-kind:replace
+- 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:5a9610d5b5880f3521faa448dad927af25383891923874a8151abacbea880167 · ms:778
+- 2026-09-26 · da2fd0a* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:5a9610d5b5880f3521faa448dad927af25383891923874a8151abacbea880167 · ms:0 · test-lock-sha256:7d9709401621a3ea17873a06188a8eda49377040b61c205c81c8a7577f82ecaf · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL21jcC9lc2NhcGVkX3BhZ2VfdGVzdC5nbwlUZXN0QUNsb3NlZE1hcmt1cFJhbmdlUmVmdXNhbE5hbWVzVGhlRW5jb2RpbmcJMjNkNmMxNWZhMDdiYWFmNDc2ZWZhOTY1YmU3YzM2ODFiN2I5ODA4ZDFiMzI4ZDkwZjNkNGMwYzA3ZTNhYmM0MApib2R5CWludGVybmFsL21jcC9lc2NhcGVkX3BhZ2VfdGVzdC5nbwlUZXN0QU1hcmt1cEZpbGVQYWdlc0J5SXRzRW5jb2RlZFNpemUJMzkzNTc0YmE1NGYyM2I0YzQxMGE0ZGQwZTkxNmZkOTJiMmJjZTZkMDdlYWFkZWFjY2FmNzE3ZWUyM2M2MGY3MQpib2R5CWludGVybmFsL21jcC9saW1pdF90ZXN0LmdvCVRlc3RBUGFydGlhbEFwcGxpY2F0aW9uSXNOb3RSZXBvcnRlZEFzTm90aGluZ1dyaXR0ZW4JZThkY2E3MWVhZDgwZWY1ZTk2ZDJiMTY2OTAwNzRjOWUzN2Q0MWQyZmQwMzY4YmM1NTljODFlMWNmNDU5NWY2Mwpib2R5CWludGVybmFsL21jcC9saW1pdF90ZXN0LmdvCVRlc3RBUmVhZFdob3NlUmVjZWlwdE92ZXJmbG93c0lzTm90U2VydmVkCWQ0OGIxYWQxMjc0OTAzMzY2ZjQ2YWZlYzhhNjlkNWJlZWI0NDNjYjMzYWE0MGVhYjVjNjE1OTEwZGQ1MTMzNzAKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0QVNtYWxsQ2VpbGluZ1JlZnVzZXNUaGVXcml0ZUJlZm9yZUFwcGx5aW5nCTI0ZjY5Nzg5ZmNmZmNiOWI0MjAzNjAyNzY0NjJkNDVjNDI4ZDliZGMyMTZkYzNiNTNmMjUzNzBlYTQ0MzdjMTgKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0QVdyaXRlUmVjZWlwdEVsaWRlc1N1Y2Nlc3Nlc05vdEZhaWx1cmVzCTY2OTQzMzA1ZGU3NDk4ZTVmN2YwY2ZhNWE3ZTMwMTczNGMxZDA2N2M1ZWE3ZDk4ZDNhNGYzNTc4Y2E0MDc2NjUKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0RXZlcnlBbnN3ZXJGaXRzSW5jbHVkaW5nVGhlUmVmdXNhbHMJYmIzYjFiM2ZhYmMwYzhiM2U0Njc1YWMwZWMxZTcwY2Q3NzQ0MThhMzEzN2EyMGE0YjcyYmU3OTc0YzU3NDVjMgpib2R5CWludGVybmFsL21jcC9saW1pdF90ZXN0LmdvCVRlc3RUaGVBZHZlcnRpc2VkQ2VpbGluZ0JvdW5kc0V2ZXJ5QW5zd2VyCWI3MmE5NDM2ZGZmYjUzOTI3NTU5YmM4YjUwOGZmYmZkNTE0YzkyNGFiZDI3NzAyNzllMDk0NjRmM2FjZDNiMGYKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0VGhlQ2VpbGluZ05ldmVyU2hyaW5rc0FTZXJ2ZWRSZWFkCTVjYTFiMWE2M2NiNTdmODgxZWJiYmRkNGQ4OGEyZjI5YTQzM2RlMWQyYjlhOWE3NjBjNmY5ZWMyNzMwMTRkZTMKYm9keQlpbnRlcm5hbC9tY3AvbGltaXRfdGVzdC5nbwlUZXN0VGhlU2Vjb25kU3RhZ2VFbGlzaW9uRHJvcHNGaWxlUmVjb3JkcwkxYmU4NWQ4MjQ5NjU2ZDYwMzA2ZWRiMWMzNjEyZGJjNTAyYWU4NjMwZDE4MjcwMTQzNjg1N2U0ZmZiZWRlMDE5CmJvZHkJaW50ZXJuYWwvbWNwL2xpbWl0X3Rlc3QuZ28JVGVzdFRoZVNlY29uZFN0YWdlTmV2ZXJFbGlkZXNBV3JpdHRlbkZpbGUJMThkY2Q4ZWI2M2Q5ODM0NDlhZmVlZGY3NzkyZTMxZTc0OGZjYjQxZDhlZDZiZGI2ZWQ4MDFiNjM2MzgyZDRkYwpib2R5CWludGVybmFsL21jcC9saW1pdF90ZXN0LmdvCVRlc3RUaGVXcml0ZUZsb29ySXNBRmxvb3IJZjFhYzM2YjY4MjlmMTg4YTkzOWU5YWE1MzY5MjJkNGFjN2E5ZTAxYjRmM2ZhNDU3MjNmODUzZmVlMjVhZjM5MApib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUGFnZUlzS25vd25CeUl0c1NlcnZlZFRleHQJMGM3NWY4NGI2MTExZWU5NTI1ODYyMWNhOTU1NDdiYWE2ZTRiNDU1OTZmM2Y5MDUwYTY3ZjI0Zjc2NmZkZmQyOQpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUGFnZUlzTWVhc3VyZWRBZnRlckl0c01hcmtlcnNBbmRGb290ZXIJZWQ2MzBiNjg4YTkyMWNlMTk0ZTgyNWY3NTJlYzlmZGQ4ZWVkZDg0MWQxODBmNTczOTY1YjNmMDllNTNkMTVhOApib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUGFnZUxpY2Vuc2VzT25seVdoYXRJdFNlcnZlZAk0YWQ1N2FlYjhmNjU1OGQ4Mjc4M2JkNDJiNDA0MmU1ZWJmZDliZjE1MjRhNGQ4MDAxMzFkOGM1NTE1Y2VkNTM3CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFQYWdlVGhhdENhbm5vdEZpdElzTm90QVBhZ2UJNjU3Nzg3OTNmMWY1Y2IyYzlmOTE4NGM3NzFjNzA1NjQzNjRjZDc5ODllNGQ1YjA2OGRlNzhjYTM1NTZkZDRmNApib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUGFnZWRGb290ZXJDYXJyaWVzVGhlT25lUnVsZQlhNGQxZWQxNDQzYTBmMmJhZTNlNDU0MTZjNjI5NGNhMjliNzdhNGVlYzgyNmMxYzg3MDhkN2FhOGE2MDViNmY2CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFQYWdlZFJlYWRSZWFzc2VtYmxlc1RoZVdob2xlRmlsZQkzMzUzZjg1MzQ2YWMzM2IwNzE0ZWNmOGI4ZGIzMWY4MDMwZjViYjgwZGQzN2U5YjIxYzZkMTEyMzQxODQwNDQ3CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFSZWFkT3ZlclRoZUxpbWl0SXNSZWZ1c2VkTm90VHJ1bmNhdGVkCTAwZmNiZWNkOGRiY2JmZjAxMjdlYmYzNjQwYTQ0M2Q5ZTdlM2Q3Y2ExMmFjNjcwOTgyNDJmMTIyNzc3M2RlZjYKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QVJlYWRUaGF0U2VydmVkTm90aGluZ0lzQW5FcnJvcgk2YTdhNDQzNDU4ZTBmNjVkMjVlMzBiNDkxNTY4ZWVkOTI0ZGE1OTE1ZjIzOGViMGQ5MWM5ZTZjY2NjZmQ3MWI5CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFSZWFkVW5kZXJUaGVMaW1pdElzVW5jaGFuZ2VkCTcxNDczYTViOTE3MzFkZmUxOTA5NTJhZTQyOWU1NWU0MWRlMWJhODQxM2JlYmFmYmY2YjM2YmY3NWVjZDRlODcKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QVdhbGtQcm9ibGVtSXNSZXBvcnRlZEFuZE5vdFN3YWxsb3dlZAkzZTZlNjI5MDhiZTZhYjg5ZjZiOWFiOTE1MDEwODM0ZWU5NDQxM2Q1MmRiMTIwYjQ3NzRlZjhkYjU1MjU5ODE1CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFXYWxrUHJvYmxlbVN1cnZpdmVzQVZhbGlkU2libGluZwliZWU3MDg4ZTVjYzIyMWU3NzUyNjk1NDUyNDA1NWM1ODlmOGYwMjBlNjI5OGM1MGY4MWNhYzk3NWM0YWI5MWJiCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFXcml0ZVRvQW5VbnJlYWRGaWxlSXNSZWZ1c2VkT3Zlck1DUAliYjJhNGUxZmMyNDE0YTNjYzUwNjMxNzVhMDM0Yzk3MGNlZDkwNWE3NTdlMGI2ZGEyZGYwN2VjYTliOWU5OWFjCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFja09uQVJlYWRQcm9tb3Rlc1Rvbwk3N2I4NzFjYzNkMzIwOWE4NzU0YzI5MTY1ZWY0ZGFhOTBlN2RmNTIxZDZhZDA1NGUwODMyNjY4MGI1ZWQ3NTA4CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFmdGVyV2l0aG91dEdyZXBJc1JlZnVzZWQJOTE3NTJiMDdiZGY2NjcwMzhiNWFjYjhmZTgyODIzZmM0MmMyYjcxZjg1NjFiZmM0M2IwNWQzYmUwMWE1Y2IyOApib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBbkluZGV4VG9vTGFyZ2VUb1NlcnZlUGFnZXNCeUZpbGUJNmI2MjQxNGVjYTlkMzgxMmNhNTY4NGQxMTQ2OWZlNjM1NTYwZGZlZGZjNGI3YzBhMTgxZjcxYWMwNzYxMmI3Ygpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBbk1DUFJlYWRMaWNlbnNlc0FDTElXcml0ZQk5MzZlMWRiOGQ3ZmU2NTZiZTcxNTI0NTM5MTM1MTc1ZWVjMmI5MDI5MmJkMzkyMTYxNzYzZDc5N2FhZDZjZmQxCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFuT3ZlcnNpemVkR3JlcFJldHVybnNUaGVJbmRleEFuZE5vdEFEZWFkRW5kCTczZDUyZDcwNWIyODc1YTIxYzNjNDM3YmUxZjVhN2M2NTE1NDczN2MzMWM0MjVmYmQ5MDQwZDk2YWMyY2VkNTEKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QW5PdmVyc2l6ZWRSZWFkU3RpbGxSZWFkc0FzSW5jb21wbGV0ZQkzOGYyNTRiNjVmM2RiYzAxZjhkMmZmMWU2OGM0ODVkMzk4NjE1NThjOTU2ZGY0ZTY5ZjA1MzAwODI3Mzg4OWMxCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEJvdGhUb29sc0FkdmVydGlzZUFjawk5YTM2MTNlMzBhZjYxNWVmNjA4NGI0ZjMwZjRmNGYwZWQxZjIxMzZmMzY2MTM2Y2ZmNDBkOWU5ZWIxNTM0Y2I5CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdENvbmN1cnJlbnRUb29sQ2FsbHNEb05vdExvc2VBTGVkZ2VyRW50cnkJNzI3NWRlMWM3ZDUxNTE3ZWUxOTc5YjBlZjY5YzExNzU2ODJlNTQ1YTEzMGQ3ZDdmMjZjMDhmNWNjN2I5ZWMwMgpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RHcmVwUmVmdXNlc0FSYW5nZWRTcGVjCTg0NjE5YjhhNGUyYzNiOTkyNjJjNzQ1NTJlZWE0MjA3N2I0ZjMwZmIzZTgwOGRkODM5OGVhMzE3ODE2ZjkyMzQKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0R3JlcFNlcnZlc1doYXRJdEZpbmRzQW5kUmVjb3Jkc0l0CTUyOTE3MTNiODBjZmM4OGYyMzg5MmRlZGY4MDM0MGU2MmNhZjg2MTY2MWRhNmYyMTRmYjFiNDYwYzExZDY2ZjIKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0Tm9HcmVwQW5zd2VyRXhjZWVkc1RoZURlY2xhcmVkQ2FwCTBlMzJmMzdjMjUwMzQ0ZTdkN2FkNTYyNDgyZjYzZGZiM2ZiYmFhMTAwZDg0NDE4ZDhmZTU2OTQxOGU4N2I2YTMKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlQ0xJUmVhZElzVW5hZmZlY3RlZEJ5VGhlTUNQTGltaXQJNGU1ODBlYjE4ZWU2MTQwZTYwZWRmZjMzNDc2OTdlNmYwZWY2NTM1MjI4Y2UzNGQzZDg5NTI3NDk5MWUxZGZmNQpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RUaGVDYXBwZWRXcml0ZXJSZXRhaW5zTm9Nb3JlVGhhbkl0c0xpbWl0CTU3NzdjMTI1N2I0YWVhZTg3Nzg1NDk5NDY3NDM1MmIwYTY3ZTNiNTYxYmZhMzg2MjU2OGE1OGJjMWY3Zjk4MTEKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlSW5kZXhTdXJ2aXZlc0FQYXR0ZXJuVGhhdExvb2tzTGlrZUFSYW5nZQliMjYwODIxZDk1ZTU1ZTQ3ZGE4YjdjZjM3MjhjNzRiZTYxMGQ1Mjk4MDIwOGQ0MzQ3MTBkZTEyZWQ3NTA0N2UxCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdFRoZVJlYWRUb29sT2JzZXJ2ZXNXaGF0VGhlQ0xJV291bGRPYnNlcnZlCWJhNDZiYmJlMjE5OWI5MDM5OTFhMDk0NjFhMTM0NDgzZTIzYTdkNWYyMTc4NTM0ZTZiNjhmYzkwNDY3YmEwNGYKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlUmVmdXNhbERvZXNOb3RJbnZlbnRBbkludmFsaWRTcGVjCTFiZjVmZWFkZGFkYTgyMmQyZWQ0YzU2MzY4YzU2NzQ3ODdlNzVmY2I4ODEzNzgxMjZmY2FkMGY4ZWFjMTgyMDEKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlUmVmdXNhbE5hbWVzVGhlTGltaXRBbmRBUmFuZ2VUb1JldHJ5CTM4MTZmYTAxMjk3Mjk2NDU4NDk2NzFlOTM1MzYwMjFjNGRmN2M5OTE1NzA5ZDM5OWVmYmYzNDJhNzQzMTRkMjgKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlVG9vbFJlc3VsdENhcnJpZXNDb250ZW50QW5kU3RydWN0dXJlZENvbnRlbnQJMGFkMmIzN2ZmOTBkODNmNWI1MjgxN2YxOWJjMTZmYTkwZjIwZTcxZDIyNTg4NWM4NGY2ZmI0NDliOGY5YjFhNwpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RUaGVVbnNlcnZhYmxlTGluZUlzRGlhZ25vc2VkUGVyRmlsZQlhNjQzZDJjYWMzZDI5OThhODE0MjY4ZDU3ZjQ1MWMwYWM3YWIyNWVhZjI1OTUzMzA5ZTk0Y2UwYzM5ZjA2ZDEwCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdFRoZVdyaXRlVG9vbFJldHVybnNUaGVTYW1lUmVzdWx0QXNUaGVDTEkJYWEyNzIwZTcwM2Q4ZDFhY2MzZTI4ZjIwMTI0Y2U0ODM2YzM2M2EyYjE5N2UwNmU4M2Q4NDRkMDQwNDU4OGQzOA · test-lock-kind:replace
+- 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:5a9610d5b5880f3521faa448dad927af25383891923874a8151abacbea880167 · ms:693
+- 2026-09-26 · d9263c5* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa716e9005f4c1bc8a3dd945c778c5a0f8dc71ea3ab662cfe488b9ba9617c313 · ms:988
+- 2026-09-26 · d9263c5* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa716e9005f4c1bc8a3dd945c778c5a0f8dc71ea3ab662cfe488b9ba9617c313 · ms:413
+- 2026-09-26 · d9263c5* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa716e9005f4c1bc8a3dd945c778c5a0f8dc71ea3ab662cfe488b9ba9617c313 · ms:503
+- 2026-09-26 · d9263c5* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa716e9005f4c1bc8a3dd945c778c5a0f8dc71ea3ab662cfe488b9ba9617c313 · ms:397
+- 2026-09-26 · d9263c5* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa716e9005f4c1bc8a3dd945c778c5a0f8dc71ea3ab662cfe488b9ba9617c313 · ms:391
+
+## Mutation Log
+(empty until execute)
+- 2026-09-26 · da2fd0a* · mutant killed · exit 1 · `internal/mcp/tools.go` · the page is sized from raw bytes and a markup file is refused whole · acceptance-sha256:5a9610d5b5880f3521faa448dad927af25383891923874a8151abacbea880167 · covers:a markup file pages
+- 2026-09-26 · da2fd0a* · mutant killed · exit 1 · `internal/mcp/tools.go` · an encoding overflow is blamed on the per-file receipt · acceptance-sha256:5a9610d5b5880f3521faa448dad927af25383891923874a8151abacbea880167 · covers:the refusal names the encoding
+- 2026-09-26 · d9263c5* · mutant killed · exit 1 · `internal/mcp/tools.go` · the page is sized from raw bytes and a markup file is refused whole · acceptance-sha256:aa716e9005f4c1bc8a3dd945c778c5a0f8dc71ea3ab662cfe488b9ba9617c313 · covers:a markup file pages
+- 2026-09-26 · d9263c5* · mutant killed · exit 1 · `internal/mcp/tools.go` · an encoding overflow is blamed on the per-file receipt · acceptance-sha256:aa716e9005f4c1bc8a3dd945c778c5a0f8dc71ea3ab662cfe488b9ba9617c313 · covers:the refusal names the encoding
+- 2026-09-26 · d9263c5* · mutant killed · exit 1 · `internal/mcp/tools.go` · a page that still overflows is never halved, so next_read breaks mid-file · acceptance-sha256:aa716e9005f4c1bc8a3dd945c778c5a0f8dc71ea3ab662cfe488b9ba9617c313 · covers:a page that still overflows is halved
+- 2026-09-26 · d9263c5* · mutant killed · exit 1 · `internal/mcp/tools.go` · a line no range can serve is advised as around 1 lines, for ever · acceptance-sha256:aa716e9005f4c1bc8a3dd945c778c5a0f8dc71ea3ab662cfe488b9ba9617c313 · covers:a line no range serves names the CLI
+
+## Invariants
+
+- Every read that served before this record serves the same bytes.
+
+## Risks
+
+- See the record.
+
+## Out of Scope
+
+- Everything the record lists (permanent: boundary: ADR-074 Out of Scope)
+
+## Stop Condition
+
+Stop if the change needs a package the record does not govern.

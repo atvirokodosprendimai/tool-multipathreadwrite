@@ -16,6 +16,7 @@ import (
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
 )
 
 // ErrAstGrepMissing is the missing-binary path: the flag exists, the CLI does
@@ -27,6 +28,10 @@ var ErrAstGrepMissing = errors.New("ast-grep: not found on PATH")
 // astGrepTimeout. Callers print this at exit 2. It must not wrap
 // ErrAstGrepMissing, and it must not look like zero hits.
 var ErrAstGrepTimeout = errors.New("ast-grep: timed out")
+
+// errAstGrepInterrupted is ast-grep stopped because mrw was sent an interrupt,
+// a terminate or a hangup while it ran (ADR-074).
+var errAstGrepInterrupted = errors.New("ast-grep: interrupted")
 
 const astGrepTimeout = 2 * time.Second
 
@@ -73,13 +78,27 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	} else {
 		args = append(args, paths...)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), astGrepTimeout)
+	// ADR-074: through subproc, so the 2 s bound kills a wrapper's grandchild
+	// too and does not wait on a pipe the grandchild still holds. ast-grep's
+	// process group no longer hears the terminal's ^C, so mrw listens for it
+	// and kills the group instead.
+	sctx, stopSignals := subproc.Interruptible(context.Background())
+	defer stopSignals()
+	ctx, cancel := context.WithTimeout(sctx, astGrepTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "ast-grep", args...)
+	cmd := subproc.Command(ctx, "ast-grep", args...)
 	cmd.Dir = absRoot
 	out, cmdErr := cmd.Output()
-	if ctx.Err() == context.DeadlineExceeded {
-		return nil, nil, ErrAstGrepTimeout
+	// Only a run that ended badly is read for why: one that exited cleanly a
+	// moment before a deadline or a signal answered, and its output stands
+	// (review of #232; no test can reach that window).
+	if cmdErr != nil {
+		switch ctx.Err() {
+		case context.DeadlineExceeded:
+			return nil, nil, ErrAstGrepTimeout
+		case context.Canceled:
+			return nil, nil, errAstGrepInterrupted
+		}
 	}
 	hits, parseErr := parseAstGrepJSON(out)
 	if parseErr != nil {

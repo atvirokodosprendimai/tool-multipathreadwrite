@@ -180,11 +180,14 @@ Name rg's path (`.`): with none, rg searches a piped stdin and waits — measure
 Blank lines are skipped and a leading `#` is a comment. Use it when your own
 index is better than a walk, or when `--grep` is not what you want.
 
-⚠ **In Git Bash on Windows, MSYS rewrites a regex address before mrw is
-started** — `f.go:/^func main/` arrives as `f.go;C:\…\Git\^func main\` and the
-error names a line number you never typed. Quoting does not help; it happens in
-the process-spawn layer, after the shell. Export `MSYS2_ARG_CONV_EXCL='*'`, or
-use PowerShell or WSL. Line-number and `$` addresses are unaffected.
+⚠ **In Git Bash on Windows, MSYS can rewrite an argument before mrw is
+started.** A spec whose file part holds a `/` — `internal/f.go:/^func main/` —
+arrives as `internal\f.go;C:\…\Git\^func main\`, and the error names a line
+number you never typed. A one-letter pattern becomes a drive (`/x/` → `X:\`),
+and a `--grep` pattern that starts with `/` is rewritten into a false "no
+match". Quoting does not help; it happens in the process-spawn layer, after the
+shell. Export `MSYS_NO_PATHCONV=1` or `MSYS2_ARG_CONV_EXCL='*'`, or use
+PowerShell or WSL. Line-number and `$` addresses are unaffected.
 
 ⚠ **A shell glob and an address suffix do not mix.** `mrw read 'dir/*.go:1-3'`
 is served with the star taken literally, so it reports the path UNREADABLE; and

@@ -258,18 +258,21 @@ which the model reads. A call that is not a valid request stays a JSON-RPC error
 
 ### Git Bash on Windows mangles a regex address
 
-`mrw read 'f.go:/^func main/'` **fails in Git Bash**, and the error names a line
-number you never typed. MSYS2 rewrites the argument *before* mrw is started.
-Quoting does not prevent this.
+`mrw read 'internal/f.go:/^func main/'` **fails in Git Bash**, and the error
+names a line number you never typed. MSYS2 rewrites the argument *before* mrw
+is started when its file part holds a `/`, and a one-letter pattern such as
+`/x/` becomes a drive. Quoting does not prevent this.
 
 | environment | regex addresses |
 |---|---|
 | Git Bash / MSYS2 | **fail** |
+| Git Bash with `MSYS_NO_PATHCONV=1` | work |
 | Git Bash with `MSYS2_ARG_CONV_EXCL='*'` | work |
 | PowerShell | work |
 | WSL | work |
 
-Line-number, range and `$` addresses are unaffected.
+Line-number, range and `$` addresses are unaffected. A `--grep` pattern that
+starts with `/` is rewritten too, into a false "no match".
 
 ## Exit status
 

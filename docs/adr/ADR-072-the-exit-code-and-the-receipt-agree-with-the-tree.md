@@ -128,4 +128,4 @@ Revert the four tasks. Nothing persistent moves.
 
 ## Follow-ups
 
-- [ ] ADR-074 T1 moves `--ast-grep` onto `internal/subproc`.
+- [x] ADR-074 T1 moves `--ast-grep` onto `internal/subproc`.
