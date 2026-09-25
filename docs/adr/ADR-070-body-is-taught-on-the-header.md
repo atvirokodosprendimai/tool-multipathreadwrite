@@ -85,6 +85,13 @@ a wrongly typed answer, and no minimum mrw-call count.
    applied; and the mask keeps the text's length, so boundaries are found in the mask and the
    interior is taken from the text as written.
 
+8. **Amended 2026-09-25 after the fourth Codex review of PR #222 (T8).** Item 7's expansion looked
+   for `env` only at the front of a segment, so `command env -S 'cat f'` hid `cat` again. It is now
+   reached behind the wrappers the scorer knows. And item 7's mask-length claim had no fixture
+   that could fail: a mask one character short left `cat$suffix` reading as `cat$suffi`, no banned
+   word either way. An escaped `$` before a backtick pair is the fixture that flips: the short mask
+   extracts `` `cat `` instead of `cat /dev/null`.
+
 **What would make this decision fail:** a file whose first line really begins `body=` (an `.env`,
 an `.ini`), edited by a hand-written hunk with no count. It is refused, and the message names the
 escape (count the body).

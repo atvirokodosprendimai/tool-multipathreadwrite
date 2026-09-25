@@ -246,3 +246,23 @@ func TestALoneDashEndsTheParseAndTheGuard(t *testing.T) {
 		t.Errorf("read - '--max-lines=1 ' was refused by the subcommand guard (exit %d):\n%s", code, out)
 	}
 }
+
+// ADR-069 T9, from the fourth Codex review of PR #222. The parser trims a
+// lone "-" and KEEPS it as the positional that ends its parse
+// (command_parse.go:123-125), so `write ' - '` read stdin once T8 made the
+// guard stop there before judging the token, which 97f8a02 had refused. The
+// stop token is judged like any positional first; after a "--" the parser
+// keeps ` - ` as given, and a bare "-" is stdin.
+func TestAPaddedLoneDashIsRefusedBeforeTheGuardStops(t *testing.T) {
+	root := paddedTree(t)
+	out, code := runIn(t, root, "write", "--dry-run", "--no-check", " - ")
+	if code != exitUsage || !strings.Contains(out, "' - '") || !strings.Contains(out, "edge whitespace") {
+		t.Errorf("write ' - ' exited %d, want %d refusing ' - ' as a padded positional:\n%s", code, exitUsage, out)
+	}
+	if out, _ := runIn(t, root, "write", "--dry-run", "--no-check", "--", " - "); strings.Contains(out, "edge whitespace") {
+		t.Errorf("write -- ' - ' was refused as padded though the parser keeps it as given:\n%s", out)
+	}
+	if out, _ := runIn(t, root, "read", " - ", "x"); !strings.Contains(out, "edge whitespace") {
+		t.Errorf("read ' - ' x was not refused as a padded positional:\n%s", out)
+	}
+}

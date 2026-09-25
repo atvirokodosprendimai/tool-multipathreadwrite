@@ -174,11 +174,21 @@ def expand_split_string(seg):
     line: X's words take the option's place and env's remaining options still
     apply, so `env -S '-u X cat f'` runs cat. Expanded before help detection
     as well as before wrappers are stripped, so `env -S 'mrw --help'` is seen
-    (Codex review of PR #222, third round; ADR-070 T7)."""
+    (Codex review of PR #222, third round; ADR-070 T7) — and behind the
+    wrappers strip_wrappers knows, so `command env -S 'cat f'` runs cat too
+    (fourth round; ADR-070 T8)."""
     i = 0
-    while i < len(seg) and ASSIGNMENT.match(seg[i]):
+    while i < len(seg) and seg[i] != "env":
+        w = seg[i]
+        if ASSIGNMENT.match(w):
+            i += 1
+            continue
+        if w not in WRAPPERS:
+            return seg
         i += 1
-    if i >= len(seg) or seg[i] != "env":
+        while i < len(seg) and seg[i].startswith("-") and seg[i] != "-":
+            i += 2 if seg[i] in WRAPPER_OPERANDS.get(w, ()) else 1
+    if i >= len(seg):
         return seg
     i += 1
     while i < len(seg) and seg[i].startswith("-") and seg[i] != "-":

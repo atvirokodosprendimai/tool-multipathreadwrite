@@ -1736,8 +1736,8 @@ func refusePaddedArgs(cmd *cli.Command) error {
 			continue
 		}
 		role, next := flagRole(tok, kinds)
-		if role == roleTerminator || role == roleStop {
-			break // what follows is kept as given, or dropped
+		if role == roleTerminator {
+			break // what follows is kept as given
 		}
 		if role == roleFlag {
 			if err := padAttached(tok); err != nil {
@@ -1746,12 +1746,19 @@ func refusePaddedArgs(cmd *cli.Command) error {
 			value = next
 			continue
 		}
-		if noteText {
-			continue
+		// A positional, or the token the parser stops at. The stop token is
+		// judged FIRST: the parser trims a lone "-" and keeps it, so
+		// `write ' - '` read stdin once the walk ended before this check
+		// (Codex review of PR #222, fourth round; ADR-069 T9). A single dash
+		// before a non-letter is kept as given, so its trim never differs.
+		if !noteText {
+			if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
+				return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
+					"put -- before the path: mrw %s -- '%s'", tok, prefix, tok), exitUsage)
+			}
 		}
-		if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
-			return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
-				"put -- before the path: mrw %s -- '%s'", tok, prefix, tok), exitUsage)
+		if role == roleStop {
+			break // what follows is kept as given, or dropped
 		}
 	}
 	return nil

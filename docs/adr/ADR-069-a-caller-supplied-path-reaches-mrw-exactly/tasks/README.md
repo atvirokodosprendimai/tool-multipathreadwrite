@@ -8,8 +8,8 @@ README must be regenerated.
 
 ## Waves
 
-T1–T4 are independent. T5 amends T1's guard after the Codex review of v1.25.0; T6, T7 and T8 each
-amend the one before after a round of the Codex review of PR #222.
+T1–T4 are independent. T5 amends T1's guard after the Codex review of v1.25.0; T6, T7, T8 and T9
+each amend the one before after a round of the Codex review of PR #222.
 
 | Wave | Tasks | Depends-on |
 |------|-------|------------|
@@ -18,6 +18,7 @@ amend the one before after a round of the Codex review of PR #222.
 | 3 | T6 | T5 |
 | 4 | T7 | T6 |
 | 5 | T8 | T7 |
+| 6 | T9 | T8 |
 
 ## Execution Order
 
@@ -31,6 +32,7 @@ amend the one before after a round of the Codex review of PR #222.
 | 6 | T6 | T5 |
 | 7 | T7 | T6 |
 | 8 | T8 | T7 |
+| 9 | T9 | T8 |
 
 ## Task Index
 
@@ -44,6 +46,7 @@ amend the one before after a round of the Codex review of PR #222.
 | T6 | A flag name is read trimmed; the whole-argv guard reads values and the terminator; any trailing whitespace refuses an attached value; contract §135 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T6-flag-names-argv-walk-and-any-whitespace.md` fence |
 | T7 | Both guards read the flags the parser accepts, ancestors included, and stop where it stops; contract §136 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T7-inherited-flags-and-the-parsers-stop.md` fence |
 | T8 | A root `--` does not end the guard below it; a lone `-` ends it; contract §137 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T8-a-root-terminator-and-a-lone-dash.md` fence |
+| T9 | The stop token is judged before the guard stops; contract §138 | done | — | `docs/adr/ADR-069-a-caller-supplied-path-reaches-mrw-exactly/tasks/T9-the-stop-token-is-judged-first.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

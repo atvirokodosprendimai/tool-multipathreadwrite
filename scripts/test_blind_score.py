@@ -144,6 +144,18 @@ class T(unittest.TestCase):
         d, t = trial(["mrw read a; printf x <<EOF\n$(cat f)\nEOF"], fence(ANSWER))
         self.assertEqual(bs.score(d, t)["verdict"], "VOID")
 
+    def test_split_string_is_expanded_behind_a_wrapper(self):
+        d, t = trial(["mrw read a; command env -S 'cat /dev/null'"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+        d, t = trial(["command env -S 'mrw read a'"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["mrw_calls"], 1)
+
+    def test_the_mask_keeps_its_length(self):
+        d, t = trial(["mrw read a; printf x <<EOF\n\\$ `cat /dev/null`\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "VOID")
+        d, t = trial(["mrw read a; printf x <<EOF\n\\$ \\`cat /dev/null\\`\nEOF"], fence(ANSWER))
+        self.assertEqual(bs.score(d, t)["verdict"], "MEETS")
+
 
 
 if __name__ == "__main__":

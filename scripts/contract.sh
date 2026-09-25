@@ -6597,6 +6597,17 @@ printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run - '--f
 want 0 "${PIPESTATUS[1]}" "a lone - ends the parse and the guard: a token the parser drops is not refused"
 printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run '--format=plan ' - >/dev/null 2>&1
 want 2 "${PIPESTATUS[1]}" "and the same token before the - is refused"
+
+# 138. ADR-069 T9 (the Codex review of PR #222, fourth round): the parser
+# trims a lone "-" and KEEPS it as the positional that ends its parse, so
+# `write ' - '` read stdin once T8 stopped the guard there. The token is
+# judged first; after a "--" it is kept as given, and a bare "-" is stdin.
+fixture
+out=$(printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run ' - ' 2>&1); rc=$?
+want 2 "$rc" "a padded lone - is refused before the guard stops"
+grep -q 'edge whitespace' <<<"$out" && ok "and the refusal names the --" || bad "refusal: $out"
+printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run -- - >/dev/null 2>&1
+want 0 "${PIPESTATUS[1]}" "and a bare - after -- is stdin"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

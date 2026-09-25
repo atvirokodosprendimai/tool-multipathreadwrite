@@ -26,9 +26,9 @@ The third Codex review of PR #222 found two gaps in T6. The `-S` expansion ran o
 1. [S1] Add the two tests; confirm each RED. [proof: mutation]
 2. [S2] Fix the scorer; GREEN; the sixteen T3–T6 tests stay green; re-scoring the 16 replay trials moves nothing. [proof: mutation]
    Mutants: the expansion switched off; the interior taken from the mask instead of the text. A
-   mutant that only shortens the mask SURVIVES: a one-character shift inside a single substitution
-   still yields the same command words, so that shape is not what the test binds — the interior
-   source is.
+   mutant that only shortens the mask SURVIVED this task's fixture: a one-character shift inside a
+   single substitution left `cat$suffix` reading as `cat$suffi`, no banned word either way. T8 pins
+   the length with a fixture the shift does flip (an escaped `$` before a backtick pair).
 
 ## Acceptance
 
