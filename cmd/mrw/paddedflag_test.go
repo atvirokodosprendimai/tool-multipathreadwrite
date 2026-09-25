@@ -23,13 +23,29 @@ func paddedTree(t *testing.T) string {
 	return root
 }
 
+// plainTree holds x alone. The refusals these tests pin fire before any I/O
+// and the reads they pair them with serve x, so they need no file named "x "
+// — which Win32 cannot hold beside x, and whose absence skipped all thirteen
+// padded-path tests on NTFS (ADR-071 T4). paddedTree stays for the five that
+// serve a file whose name ends in whitespace — two of them create their own
+// (" -1= "), which NTFS stores silently as " -1=" (found by the first Windows
+// run of this change).
+func plainTree(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "x"), []byte("plain\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
 // ADR-069 T5, from the Codex review of v1.25.0. The guard stopped at every
 // "--", including one consumed as a flag's value, so `read --grep -- 'x '`
 // still let the parser trim the path to x. A flag's own value is skipped, and
 // only a "--" in argument position ends the guard. The same rule retires the
 // false refusal of a padded flag value whose trim equals a positional.
 func TestAFlagValueDoesNotEndThePaddedArgGuard(t *testing.T) {
-	root := paddedTree(t)
+	root := plainTree(t)
 	out, code := runIn(t, root, "read", "--grep", "--", "x ")
 	if code != exitUsage || !strings.Contains(out, "'x '") {
 		t.Errorf("read --grep -- 'x ' exited %d, want %d naming 'x ':\n%s", code, exitUsage, out)
@@ -72,7 +88,7 @@ func TestAnAttachedFlagValueWithTrailingSpaceIsRefused(t *testing.T) {
 // ADR-069 T5. The iter refusal suggested `mrw iter -- 'x '`, which makes the
 // path the verb; the suggestion keeps the verb.
 func TestTheIterRefusalKeepsTheVerb(t *testing.T) {
-	root := paddedTree(t)
+	root := plainTree(t)
 	out, code := runIn(t, root, "iter", "add", "x ")
 	if code != exitUsage || !strings.Contains(out, "mrw iter add -- 'x '") {
 		t.Errorf("iter add 'x ' exited %d, want %d suggesting mrw iter add -- 'x ':\n%s", code, exitUsage, out)
@@ -85,7 +101,7 @@ func TestTheIterRefusalKeepsTheVerb(t *testing.T) {
 // skipped: `read '--no-numbers ' 'x '` served x. The name is classified the
 // way the parser reads it, trimmed.
 func TestAPaddedBooleanFlagNameDoesNotHideAPaddedPath(t *testing.T) {
-	root := paddedTree(t)
+	root := plainTree(t)
 	out, code := runIn(t, root, "read", "--no-numbers ", "x ")
 	if code != exitUsage || !strings.Contains(out, "'x '") {
 		t.Errorf("read '--no-numbers ' 'x ' exited %d, want %d naming 'x ':\n%s", code, exitUsage, out)
@@ -168,7 +184,7 @@ func TestAnInheritedRootFlagIsReadByBothGuards(t *testing.T) {
 	if err := refusePaddedFlagValues(root, []string{"iter", "--root", "--", "add", "x"}); err != nil {
 		t.Errorf("a -- consumed by the inherited root flag was refused: %v", err)
 	}
-	tree := paddedTree(t)
+	tree := plainTree(t)
 	if err := os.MkdirAll(filepath.Join(tree, " x"), 0o755); err != nil {
 		t.Skipf("cannot make %q: %v", " x", err)
 	}
@@ -220,7 +236,7 @@ func TestARootTerminatorDoesNotEndTheGuardBelowIt(t *testing.T) {
 	if err := refusePaddedFlagValues(root, []string{"--", "read", "--", "--root=x "}); err != nil {
 		t.Errorf("a path after the subcommand's own -- was refused: %v", err)
 	}
-	tree := paddedTree(t)
+	tree := plainTree(t)
 	if out, code := runIn(t, tree, "iter", "note", "--root=dir ", "revised"); code != exitUsage || !strings.Contains(out, "own argument") {
 		t.Errorf("iter note --root='dir ' exited %d, want %d as an attached padded value:\n%s", code, exitUsage, out)
 	}
@@ -241,7 +257,7 @@ func TestALoneDashEndsTheParseAndTheGuard(t *testing.T) {
 	if err := refusePaddedFlagValues(root, []string{"write", "--format=plan ", "-"}); err == nil {
 		t.Error("an attached padded value before a lone - was not refused")
 	}
-	tree := paddedTree(t)
+	tree := plainTree(t)
 	if out, code := runIn(t, tree, "read", "-", "--max-lines=1 "); strings.Contains(out, "own argument") {
 		t.Errorf("read - '--max-lines=1 ' was refused by the subcommand guard (exit %d):\n%s", code, out)
 	}
@@ -254,7 +270,7 @@ func TestALoneDashEndsTheParseAndTheGuard(t *testing.T) {
 // stop token is judged like any positional first; after a "--" the parser
 // keeps ` - ` as given, and a bare "-" is stdin.
 func TestAPaddedLoneDashIsRefusedBeforeTheGuardStops(t *testing.T) {
-	root := paddedTree(t)
+	root := plainTree(t)
 	out, code := runIn(t, root, "write", "--dry-run", "--no-check", " - ")
 	if code != exitUsage || !strings.Contains(out, "' - '") || !strings.Contains(out, "edge whitespace") {
 		t.Errorf("write ' - ' exited %d, want %d refusing ' - ' as a padded positional:\n%s", code, exitUsage, out)
@@ -294,7 +310,7 @@ func TestAPreservedStopTokenIsNotJudgedAgainstAPositional(t *testing.T) {
 // it, yet the guard judged it like a positional and refused `iter 'add ' x`.
 // The verb is never judged; the paths after it still are.
 func TestAnIterVerbIsNotJudgedAsAPath(t *testing.T) {
-	root := paddedTree(t)
+	root := plainTree(t)
 	if out, code := runIn(t, root, "iter", "add ", "x"); code != 0 {
 		t.Errorf("iter 'add ' x was refused, exit %d:\n%s", code, out)
 	}

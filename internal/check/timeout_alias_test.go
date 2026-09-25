@@ -73,6 +73,7 @@ func TestLoadRefusesWhenTimeoutKeysDisagree(t *testing.T) {
 }
 
 func TestAZeusShapedHarnessTimesOutUsingFenceTimeout(t *testing.T) {
+	needSh(t)
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, ".quality-harness.json"),
 		[]byte(`{"check":"sleep 5","fenceTimeout":1}`), 0o644); err != nil {

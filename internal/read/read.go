@@ -392,10 +392,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				problems++
 				continue
 			}
-			cleaned := filepath.Clean(argPath)
-			if real, evalErr := filepath.EvalSymlinks(cleaned); evalErr == nil {
-				cleaned = real
-			}
+			cleaned := rooted.Real(argPath)
 			if !rooted.Contains(absRoot, cleaned) {
 				fmt.Fprintf(w, "==> %s  REFUSED  %s is outside the root %s: "+
 					"read it with --root pointed where you mean\n", sp.Path, sp.Path, absRoot)

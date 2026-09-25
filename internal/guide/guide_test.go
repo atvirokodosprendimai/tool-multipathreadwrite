@@ -151,3 +151,13 @@ func TestInstructionsTeachThePaddedPathRule(t *testing.T) {
 		}
 	}
 }
+
+// ADR-071 T5. Two sessions of the v1.25.1 round read "per line" as broken:
+// after a write, lines never served were writable. That is ADR-002's design
+// (a file mrw just wrote is one it knows wholly, ADR-005 §4), kept by M on
+// 2026-09-25; the served text now says so instead of leaving it to be found.
+func TestInstructionsSayAWrittenFileIsWhollyKnown(t *testing.T) {
+	if got := CLI(); !strings.Contains(got, "A file mrw just wrote is wholly known") {
+		t.Error("mrw instructions do not state the write exception to the per-line rule")
+	}
+}

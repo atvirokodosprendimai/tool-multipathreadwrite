@@ -6631,6 +6631,40 @@ want 0 "$rc" "mrw instructions exits 0"
 grep -q "goes after --" <<<"$out" && grep -q "mrw read -- 'x '" <<<"$out" && ok "instructions teach that a padded path goes after --" || bad "instructions: no -- rule"
 grep -q "as its own argument" <<<"$out" && ok "and that an attached padded value is passed separately" || bad "instructions: no attached-value rule"
 grep -q "would reach x, so mrw reads x" <<<"$out" && bad "instructions teach the trim as the rule" || ok "and they do not teach the trim as the rule"
+# 141. ADR-071 T2: two creates that could be one file are refused before
+# anything is written. The v1.25.1 round created n.txt and N.TXT in one plan
+# on APFS and NTFS: both said "created", one file remained and the first body
+# was lost, exit 0; and one path created twice got both bodies. The pair: two
+# creates of different names still land.
+fixture
+printf '@@ c1.txt - create\none\n@@ c2.txt - create\ntwo\n' > "$R/p141a.mrw"
+m write --no-check "$R/p141a.mrw" >/dev/null 2>&1; rc=$?
+want 0 "$rc" "two creates of different names apply"
+[ -f "$R/c1.txt" ] && [ -f "$R/c2.txt" ] && ok "and both files are on disk" || bad "a create of a different name was lost"
+printf '@@ n.txt - create\none\n@@ N.TXT - create\ntwo\n' > "$R/p141b.mrw"
+out=$(m write --no-check "$R/p141b.mrw" 2>&1); rc=$?
+want 1 "$rc" "n.txt and N.TXT created in one plan are refused"
+grep -q 'N.TXT may name the same file as n.txt' <<<"$out" && ok "and the refusal names both spellings" || bad "refusal: $out"
+[ ! -e "$R/n.txt" ] && [ ! -e "$R/N.TXT" ] && ok "and neither was written" || bad "a refused plan created a file"
+printf '@@ d.txt - create\none\n@@ d.txt - create\ntwo\n' > "$R/p141c.mrw"
+out=$(m write --no-check "$R/p141c.mrw" 2>&1); rc=$?
+want 1 "$rc" "one path created twice is refused"
+grep -q 'd.txt is created twice in this plan (plan lines 1 and 3)' <<<"$out" && ok "and the refusal names both plan lines" || bad "refusal: $out"
+[ ! -e "$R/d.txt" ] && ok "and nothing was written" || bad "a path created twice was written: $(cat "$R/d.txt")"
+# The folds no name comparison can see (ß and ss on APFS): the commit stops at
+# the second create instead of renaming over the first — PARTIALLY APPLIED,
+# exit 2, the first body kept. Skipped where the filesystem keeps them apart.
+fixture
+printf 'x' > "$R/$(printf '\303\237').probe"
+if [ -e "$R/ss.probe" ]; then
+  printf '@@ \303\237.txt - create\none\n@@ ss.txt - create\ntwo\n' > "$R/p141d.mrw"
+  out=$(m write --no-check "$R/p141d.mrw" 2>&1); rc=$?
+  want 2 "$rc" "a create the filesystem folds into an earlier one stops the commit"
+  grep -q 'appeared before commit' <<<"$out" && grep -q 'PARTIALLY APPLIED' <<<"$out" && ok "and says so, naming what landed" || bad "fold at commit: $out"
+  [ "$(cat "$R/ss.txt")" = "one" ] && ok "and the first body survives" || bad "the first body was lost: $(cat "$R/ss.txt")"
+else
+  skip "this filesystem keeps ß and ss apart"
+fi
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

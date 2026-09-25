@@ -52,6 +52,7 @@ A path with a leading or trailing space goes after --: the argument parser trims
 Ops: replace, insert-after, insert-before, delete, create, unlink, rename.
 @@ path 0 create makes a new file; empty is body=0. A new file is not a reason to skip mrw.
 A multi-line replace requires anchor= taken from the served first line.
+A file mrw just wrote is wholly known: it produced every line, so a chain of edits to it needs no re-read, until something else changes it.
 Read every site in one call: mrw read a.go:40-60 'b.go:/func Start/,+12' c.go:$
 A spec is a bare path (the whole file) or PATH:RANGE[,RANGE...]. A RANGE is N, N-M, N- (to the end), -M (from the start), A,+N (A plus the N lines after it), $ (the last line), /regexp/ (every matching line; -C N, or --context N, adds lines either side) or /from/,/to/ (to the first match of to at or after from). Quote a spec that contains a space.
 A write plan takes N, N-M, N-, $, A,+N, /regexp/ and /from/,/to/, but not -M or a comma list; its start pattern must match exactly once, and it refuses a relative end past the last line where a read clamps.

@@ -35,7 +35,8 @@ These are decided, recorded in `docs/adr/`, and asserted by
    committing reports what reached disk — `PARTIALLY APPLIED` when files remain
    written, `NOTHING WRITTEN` when the undo put everything back. — ADR-001, ADR-066
 2. **mrw will not edit a file it has not read**, and the guard is per *line*,
-   not per file. — ADR-002
+   not per file; a file mrw just wrote is wholly known, so a chain of edits
+   needs no re-read. — ADR-002, ADR-005
 3. **A check's verdict comes from the process, never its output.** A check that
    prints `PASS` and exits 1 is a failure. — ADR-003
 4. **Nothing is left in the working tree** by a failed run — except, when an
@@ -61,6 +62,16 @@ verdict was green. The `windows` CI job found it on its first run.
 
 Go tests run on Linux **and** Windows in CI. `scripts/contract.sh` runs on Linux
 only — it drives a POSIX shell.
+
+**A Windows junction is a link, and Go stopped saying so.** Since Go 1.23 a
+junction's `Lstat` mode is `ModeIrregular`, not `ModeSymlink`, and
+`filepath.EvalSymlinks` no longer follows one, so a boundary built on
+`EvalSymlinks` judged a path through a junction by its spelling. Three Windows
+sessions read and wrote outside `--root` that way (ADR-071). On Windows
+`rooted.Resolve` now follows each link and junction itself (`throughLinks`,
+which a fake filesystem drives on any platform), and refuses a component Win32
+would read as another name: `b.txt.`, `b.txt ` and `b.txt::$DATA` all open
+`b.txt`.
 
 ## Exit codes are the contract
 
@@ -281,7 +292,9 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 ### 4. The rules that will bite you
 
 - **Read before write is ENFORCED, and it is per LINE.** Being served lines
-  10-12 does not license an edit at line 50.
+  10-12 does not license an edit at line 50. The one exception is a file mrw
+  itself just wrote: it produced every line, so the whole file is licensed
+  until something else changes it (ADR-002, ADR-005 §4).
 - **AFTER ANY MULTI-LINE BODY, READ ON PAST YOUR RANGE UNTIL YOU SEE THE
   ENCLOSING STRUCTURE CLOSE.** Unconditional, and deliberately wider than the
   write. What follows is explanation, not a trigger: a rule opening "if your body

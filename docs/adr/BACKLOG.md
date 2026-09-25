@@ -1931,6 +1931,9 @@ Contract breaks, reproduced on macOS:
 - **After any write the ledger licenses the whole file.** Read line 3, write line 3, then write
   line 1: applied, exit 0; `mrw seen` says "the whole file". Over MCP too. Contradicts ADR-002's
   per-line promise, or refines it; either way a record. Finders: the general and MCP sessions.
+  **Disposition (ADR-071 T5):** as designed. ADR-002 and ADR-005 §4 record that a write observes
+  the whole file; M kept it on 2026-09-25, and the prose that said "per line" without the
+  exception now states it.
 - **A malformed `.quality-harness.json` applies the write and exits 2 with only the JSON error.**
   No receipt; exit 2 is documented as usage or filesystem. The config is parsed after the commit.
 - **A killed check leaves an applied write with zero bytes printed.** The receipt is rendered only
@@ -1941,6 +1944,10 @@ Contract breaks, reproduced on macOS:
   `N.TXT`, macOS and NTFS; `n.txt` + `n.txt.` on NTFS) both report "created", one file remains, and
   the first body is lost, exit 0. ADR-021's check works for files that exist; a create has nothing
   to stat. Mixed create-and-rename variants are caught only at commit (`PARTIALLY APPLIED`).
+  **Fixed by ADR-071 T2**, contract §141: a second create of one path, and names that differ only
+  by case where one does not exist yet, are refused on every platform before anything is written.
+  Folds only the filesystem knows (ß and ss, NFC and NFD, found by the review of #228) stop the
+  commit at the second create, PARTIALLY APPLIED, exit 2, instead of losing the first body.
 - **Two writers off one read can both exit 0 with one edit lost.** `scripts/chaos.py` already
   counts this as a known, accepted risk (race suite, "concurrent writes"); the Windows chaos runs
   measured it at 45–53% of racing writers over five full-scale corpora, and it reproduces on
@@ -1966,10 +1973,15 @@ Windows only, each hand-confirmed by at least two sessions:
   needs no privilege. Likely cause: Go reports a junction as irregular rather than as a symlink.
   `chaos.py`'s junction suite (PR #226) measures five escapes. Owed: a Windows CI test built from
   the repro (`mklink /J`, expect REFUSED and NOTHING WRITTEN).
+  **Fixed by ADR-071 T1**: `rooted.Resolve` follows a junction on Windows. The owed CI test is
+  `cmd/mrw/junction_windows_test.go`; a peer re-run against the release asset is still owed.
 - **Win32 name aliasing.** A trailing dot, a trailing space, case, `::$DATA` and 8.3 names reach one
   file, so writes and unlinks land through a name that does not exist and the receipt names the
   alias; `-C 'dir '` and `-C 'dir.'` are accepted. The ledger resolves the aliases to one entry
   (that held). The guard needs the OS's canonical name: an ADR, with the junction item.
+  **Fixed by ADR-071 T3**: a trailing dot or space and a `:` are refused by name on Windows, in a
+  path and in the root. Case and 8.3 aliases stay accepted: they reach one file, and the ledger
+  and ADR-021 match them.
 - **MSYS (Git Bash) rewrites more than the docs say.** The documented example `f.go:/^func main/`
   is NOT rewritten; the trap fires when the file part contains a `/`, and a one-letter pattern
   becomes a drive (`/x/` → `X:\`). `--grep` patterns such as `/usr` or `NAME=/path` are rewritten
@@ -1982,6 +1994,9 @@ Windows only, each hand-confirmed by at least two sessions:
   a fixture that does not need the file, since every refusal fires before any I/O. `go test ./...`
   hung once after `internal/lines` (n=1; every package passes alone; not retried as a whole under
   either shell). `-race` needs cgo there, and `contract.sh` needs `jq`.
+  **Fixed by ADR-071 T4** for the check tests, the tail panic and the padded fixture (eight of the
+  thirteen no longer need a file named with trailing whitespace; five serve one and keep their skip). The
+  one hang of `go test ./...` under PowerShell is not reproduced (n=1) and stays open.
 
 Smaller, recorded as found: an in-root symlink is followed on write and the target is absent from
 the receipt; plan-header paths are cleaned rather than refused (`a.txt/`, `"a.txt"`, `./a.txt`, and
@@ -1995,5 +2010,15 @@ over 8 MiB with no line number; `a.go:$-1` and `a.go:5-3` get different exit cla
 ignored on a numeric range; over MCP, ids of any JSON type are accepted, invalid UTF-8 becomes
 U+FFFD so the engine looks for a path never sent, a bad flag prints usage on stdout at startup,
 100,000 specs block the server past 120 s, and `exclude: ["["]` is not refused.
+
+Found by the review of #228 (Windows, from the documentation): Win32 also maps device names —
+`CON`, `NUL`, `AUX`, `PRN`, `COM1`–`COM9`, `LPT1`–`LPT9`, and before Windows 11 the same names
+with an extension (`nul.txt`) — to devices, so a plan naming one writes to a device, not a file.
+ADR-071 refuses a trailing dot, a trailing space and a `:`; device names are the same class and
+are not yet refused.
+
+Found after the list: every padded-path refusal suggests its fix in POSIX single quotes
+(`mrw read -- 'x '`), which cmd.exe keeps as literal characters, so a cmd.exe user who pastes it
+names a path with quotes in it (a Windows cmd.exe session, 2026-09-25).
 
 Not a finding: `a.txt:-1` serves line 1; `-M` is documented as "from the start to M".
