@@ -370,8 +370,8 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// (ADR-021, measured 2026-09-04). So every file is stat'ed once as it is
 	// resolved and compared with os.SameFile against the files already
 	// grouped: the filesystem's own answer, as issue #47 chose for the ledger,
-	// with nothing folded. Only an EXISTING file has an inode to compare; two
-	// creates that would collide are deferred, not claimed.
+	// with nothing folded. Only an EXISTING file has an inode to compare; names
+	// that do not exist yet are compared by case in foldClashes (ADR-071).
 	unlinked := map[string]bool{}
 	produced := map[string]bool{}
 	destCount := map[string]int{}
@@ -389,6 +389,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			}
 		}
 	}
+	clash := foldClashes(in, existsUnder(root))
 	var seenFiles []groupedFile
 	for _, path := range order {
 		hs := byPath[path]
@@ -401,6 +402,20 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 					Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine,
 					Status: StatusFailed, Reason: err.Error(),
 				}
+			}
+			failed = append(failed, FileResult{Path: path})
+			continue
+		}
+		// ADR-071: a name that differs only by case from one an earlier hunk
+		// leaves on disk, where one of the two does not exist yet. One refusal,
+		// on the hunk that collides; the file's other hunks skip.
+		if at := clashAt(hs, clash); at >= 0 {
+			for i, h := range hs {
+				r := HunkResult{Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine, Status: StatusSkipped}
+				if i == at {
+					r.Status, r.Reason = StatusFailed, clash[h.Index]
+				}
+				results[h.Index] = r
 			}
 			failed = append(failed, FileResult{Path: path})
 			continue
@@ -849,6 +864,9 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 
 	// Resolve EOF sentinels and check each hunk in isolation.
 	resolved := make([]hunk, 0, len(hs))
+	// ADR-071: two creates of one path were two inserts into one new file, and
+	// both bodies landed under two ok verdicts. A file is created once.
+	created, createdAt := false, 0
 	for _, h := range hs {
 		if h.SHA != "" {
 			switch {
@@ -952,6 +970,11 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		}
 
 		if h.Op == "create" {
+			if created {
+				fail(h, "%s is created twice in this plan (plan lines %d and %d); one create per file", path, createdAt, h.SrcLine)
+				continue
+			}
+			created, createdAt = true, h.SrcLine
 			if existed {
 				fail(h, "create: %s already exists (%d lines) — use replace or delete", path, total)
 				continue
@@ -1790,4 +1813,78 @@ func sameFileAs(info os.FileInfo, grouped []groupedFile) (groupedFile, bool) {
 		}
 	}
 	return groupedFile{}, false
+}
+
+// foldClashes returns, by input position, the refusal for each hunk whose name
+// differs only by case from a name an earlier hunk leaves on disk, where at
+// least one of the two does not exist yet (ADR-071).
+//
+// ADR-021's os.SameFile answers for files that exist; a create has no inode.
+// n.txt and N.TXT created in one plan on APFS or NTFS left one file and lost
+// the first body at exit 0. Validation cannot tell a directory that folds case
+// from one that does not without writing a probe (ADR-004), so the names are
+// compared on every platform. The names a plan leaves are every path with a
+// non-path op and every rename destination; a rename's source is not one, so
+// a case-only rename is not compared with itself. Two names that both exist
+// are left to os.SameFile, so a.txt and A.txt on ext4 both still apply.
+func foldClashes(in []Input, exists func(string) bool) map[int]string {
+	type named struct {
+		name string
+		line int
+	}
+	first := map[string]named{}
+	out := map[int]string{}
+	for n, i := range in {
+		var name string
+		switch {
+		case i.Op == "unlink":
+			continue
+		case i.Op == "rename":
+			if len(i.Body) != 1 {
+				continue
+			}
+			name = filepath.Clean(i.Body[0])
+		default:
+			name = filepath.Clean(i.Path)
+		}
+		if name == "." {
+			continue
+		}
+		key := strings.ToLower(name)
+		prior, seen := first[key]
+		if !seen {
+			first[key] = named{name, i.SrcLine}
+			continue
+		}
+		if prior.name == name || (exists(prior.name) && exists(name)) {
+			continue
+		}
+		out[n] = fmt.Sprintf("%s may name the same file as %s (plan line %d) on a case-insensitive filesystem; one file, one spelling per plan",
+			name, prior.name, prior.line)
+	}
+	return out
+}
+
+// existsUnder reports whether a plan name is on disk under root. A name that
+// leaves the root counts as present: it is refused elsewhere, and there is
+// nothing to compare it with here.
+func existsUnder(root string) func(string) bool {
+	return func(name string) bool {
+		full, err := resolve(root, name)
+		if err != nil {
+			return true
+		}
+		_, err = os.Lstat(full)
+		return err == nil
+	}
+}
+
+// clashAt is the index in hs of the first hunk foldClashes refused, or -1.
+func clashAt(hs []hunk, clash map[int]string) int {
+	for i, h := range hs {
+		if _, ok := clash[h.Index]; ok {
+			return i
+		}
+	}
+	return -1
 }

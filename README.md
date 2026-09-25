@@ -140,6 +140,7 @@ These are gates, not a tour of the records behind them.
   when the undo put everything back.
 - **Per-line licence.** Being served lines 1–5 does not license line 40.
   `--stat` and a match that printed nothing observe nothing.
+  A file mrw just wrote is wholly known: a chain of edits needs no re-read.
 - **MCP ack.** A served `mrw_read` licenses nothing until you send `ack` ids.
   Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.
 - **Neighbour licence.** A multi-line `replace` is refused unless a prior read
@@ -178,7 +179,8 @@ A plan names a file once, however it is spelled. Two spellings that reach the
 same file — case-folded names, or a file and a symlink to it — are refused with
 both named.
 
-It will not write outside `--root`, will not replace a symlink, and will not
+It will not write outside `--root`, even through a symlink or a Windows
+junction, will not replace a symlink, and will not
 change your line endings. Staging failures write nothing; a later rename
 failure can leave a partial tree and names the files already written. The
 records are in [docs/adr/](docs/adr/).

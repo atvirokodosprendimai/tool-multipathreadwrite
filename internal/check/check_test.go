@@ -3,10 +3,23 @@ package check
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// needSh skips a test whose check has to RUN. Run executes the command with
+// sh -c, and a Windows machine driven from PowerShell has no sh on PATH: eleven
+// tests failed there, and one passed for the wrong reason, because a command
+// that never started is also "not OK" (ADR-071 T4). Git Bash, which CI's
+// Windows shards use, has sh, so there nothing skips.
+func needSh(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("no sh on PATH: the check runs its command with sh -c")
+	}
+}
 
 func TestLoadPrefersTheDeclaredCheck(t *testing.T) {
 	root := t.TempDir()
@@ -200,6 +213,7 @@ func TestFilesOnlyWithNoPathsStillFallsBack(t *testing.T) {
 }
 
 func TestRunReportsTheRealExitCode(t *testing.T) {
+	needSh(t)
 	root := t.TempDir()
 	res, err := Run(context.Background(), root, Config{Check: "echo hi; exit 7"}, nil)
 	if err != nil {
@@ -218,6 +232,7 @@ func TestRunReportsTheRealExitCode(t *testing.T) {
 }
 
 func TestRunPasses(t *testing.T) {
+	needSh(t)
 	res, err := Run(context.Background(), t.TempDir(), Config{Check: "true"}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -245,13 +260,14 @@ func TestNoCheckIsNotAPass(t *testing.T) {
 
 // Trimming must announce itself; a silent tail reads as the whole output.
 func TestTailAnnouncesWhatItLeftOut(t *testing.T) {
+	needSh(t)
 	res, err := Run(context.Background(), t.TempDir(),
 		Config{Check: "seq 1 100", TailLines: 5}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(res.Tail) != 5 || res.Truncated != 95 {
-		t.Errorf("Tail=%d Truncated=%d, want 5 and 95", len(res.Tail), res.Truncated)
+		t.Fatalf("Tail=%d Truncated=%d, want 5 and 95", len(res.Tail), res.Truncated)
 	}
 	if res.Tail[4] != "100" {
 		t.Errorf("tail is not the END of the output: %q", res.Tail)
@@ -268,6 +284,7 @@ func TestTailAnnouncesWhatItLeftOut(t *testing.T) {
 }
 
 func TestTimeoutIsReportedAsAFailureNotAPass(t *testing.T) {
+	needSh(t)
 	res, err := Run(context.Background(), t.TempDir(),
 		Config{Check: "sleep 5", TimeoutSeconds: 1}, nil)
 	if err != nil {
@@ -421,6 +438,7 @@ func TestACheckThatCannotStartDidNotRun(t *testing.T) {
 // number meant a working timeout again. Both are pinned here, because a fix
 // that only handled the first value would leave the wrap.
 func TestAnOverlargeTimeoutIsClampedNotOverflowed(t *testing.T) {
+	needSh(t)
 	root := t.TempDir()
 	for _, secs := range []int{9999999999, 99999999999, maxTimeoutSeconds + 1} {
 		cfg := Config{Check: "exit 0", TimeoutSeconds: secs, declared: true}
@@ -491,6 +509,7 @@ func TestSubstitutedPathsAreOneShellArgumentEach(t *testing.T) {
 // pin the string; this pins the verdict, because the defect was not a wrong
 // string — it was PASS at exit 0 with the package never tested.
 func TestAShellInjectedScopeStillFails(t *testing.T) {
+	needSh(t)
 	root := t.TempDir()
 	dir := filepath.Join(root, "pkg; true #")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -611,6 +630,7 @@ func TestAnInRootMissIsRefusedNotASilentPass(t *testing.T) {
 			t.Errorf("%s: error does not say the path is missing: %v", miss, err)
 		}
 	}
+	needSh(t) // the refusals above need no shell; the pass below does
 	res, err := Run(context.Background(), root, cfg, []string{"pkg"})
 	if err != nil || !res.OK() {
 		t.Errorf("an existing package was refused: %v %+v", err, res)
@@ -620,6 +640,7 @@ func TestAnInRootMissIsRefusedNotASilentPass(t *testing.T) {
 // A directory of prose still falls back: it is there, and this execute
 // refuses only a miss. Trading that for a refusal would break `mrw check docs`.
 func TestAPresentUnplaceableInRootScopeStillFallsBack(t *testing.T) {
+	needSh(t)
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
 		t.Fatal(err)
@@ -688,6 +709,7 @@ func TestADirectoryThatCannotBeReadIsRefusedNotTreatedAsEmpty(t *testing.T) {
 // miss ADR-042 now refuses; that is asserted by
 // TestAnInRootMissIsRefusedNotASilentPass.
 func TestAReadableDirectoryStillScopes(t *testing.T) {
+	needSh(t)
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -709,6 +731,7 @@ func TestAReadableDirectoryStillScopes(t *testing.T) {
 // directory forever. A passing check that withheld nothing has no readers, so
 // its log goes and the field is cleared rather than naming a deleted file.
 func TestAPassingCheckLeavesNoLogBehind(t *testing.T) {
+	needSh(t)
 	res, err := Run(context.Background(), t.TempDir(), Config{Check: "true"}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -725,6 +748,7 @@ func TestAPassingCheckLeavesNoLogBehind(t *testing.T) {
 // A FAILING check keeps its log: the tail is a summary and the file is the
 // evidence, which is exactly when the caller needs it.
 func TestAFailingCheckKeepsItsLog(t *testing.T) {
+	needSh(t)
 	res, err := Run(context.Background(), t.TempDir(), Config{Check: "echo boom; false"}, nil)
 	if err != nil {
 		t.Fatal(err)
