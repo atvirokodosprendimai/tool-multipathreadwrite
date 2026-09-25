@@ -200,7 +200,10 @@ const StaleNotice = "mrw: the read ledger was written by an older mrw and has be
 // whole-file observation — a ledger written by an older mrw stays usable rather
 // than reading as "never seen".
 func parseLine(text string) (string, Observation, bool) {
-	sha, rest, ok := strings.Cut(strings.TrimSpace(text), "  ")
+	// Only a line terminator's \r is stripped, never the path's own spaces: the
+	// writer emits the path verbatim as the last field, so trimming the line
+	// turned an observation of "x " into a licence for "x" (ADR-068).
+	sha, rest, ok := strings.Cut(strings.TrimSuffix(text, "\r"), "  ")
 	if !ok || sha == "" || rest == "" {
 		return "", Observation{}, false
 	}

@@ -6406,6 +6406,26 @@ assert "error" not in r and "no such.txt" in r["result"]["content"][0]["text"], 
 PY
 want 0 $? "and a missing spaced path is reported by name, not as an internal error"
 
+# 127. A read of a file whose name ends in a space licenses that file, not the
+# one whose name is it trimmed (ADR-068). Through v1.24.0 the ledger loaded the
+# observation of "x " under the key "x", and the SHA guard could not tell the
+# two apart because they held the same bytes, so a write to the unread "x"
+# applied, exit 0. The read passes `--` because urfave/cli trims a positional
+# argument before it (BACKLOG, From ADR-068). The pair: the file that WAS read
+# is still writable.
+fixture
+printf 'same\n' > "$R/x"
+printf 'same\n' > "$R/x "
+m read -- "x " >/dev/null 2>&1
+printf '@@ x 1 replace\nWROTE\n' > "$WORK/127a.mrw"
+m write --no-check "$WORK/127a.mrw" >/dev/null 2>&1
+want 1 $? "a read of a trailing-space path does not license its trimmed sibling"
+[ "$(cat "$R/x")" = same ] && ok "and the trimmed sibling is unchanged" || bad "x now holds: $(cat "$R/x")"
+printf '@@ "x " 1 replace\nWROTE\n' > "$WORK/127b.mrw"
+m write --no-check "$WORK/127b.mrw" >/dev/null 2>&1
+want 0 $? "and the file that was read is writable"
+[ "$(cat "$R/x ")" = WROTE ] && ok "and the write to it landed" || bad "x-space holds: $(cat "$R/x ")"
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
