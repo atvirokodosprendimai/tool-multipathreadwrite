@@ -9,11 +9,16 @@
 // its own on unix and kills the whole group on cancel, and on every platform it
 // bounds how long Wait waits for pipes a grandchild still holds. On Windows only
 // that bound applies: a grandchild there can outlive the kill.
+// Interruptible passes a signal sent to mrw on to such a child, which its own
+// process group no longer hears from the terminal (ADR-074).
 package subproc
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -29,4 +34,34 @@ func Command(ctx context.Context, name string, args ...string) *exec.Cmd {
 	c.WaitDelay = waitDelay
 	group(c)
 	return c
+}
+
+// Signals are the signals that stop a child Command started while the caller
+// waits on it: an interrupt, a terminate and a hangup, each of which would
+// otherwise end mrw and leave the child, in a process group of its own,
+// running. A signal the process was started with IGNORED is left out and stays
+// ignored: nohup ignores SIGHUP and a shell starts a background job with SIGINT
+// ignored, and signal.Notify would switch either back on (ADR-072, review of
+// #229; moved here from the check by ADR-074).
+func Signals() []os.Signal {
+	var out []os.Signal
+	for _, s := range []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP} {
+		if !signal.Ignored(s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// Interruptible returns a context that any of Signals cancels, and the
+// function that stops listening and gives each signal back its default. Run a
+// Command under it for exactly as long as the child runs, so a ^C anywhere else
+// behaves as it always did.
+func Interruptible(ctx context.Context) (context.Context, context.CancelFunc) {
+	sigs := Signals()
+	if len(sigs) == 0 {
+		// NotifyContext naming no signal relays EVERY signal the process gets.
+		return ctx, func() {}
+	}
+	return signal.NotifyContext(ctx, sigs...)
 }

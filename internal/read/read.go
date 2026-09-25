@@ -113,7 +113,7 @@ func msysHint(s string) string {
 	}
 	return " — this looks like MSYS2 argument conversion (Git Bash): your ':' became ';' " +
 		"and a /pattern/ was expanded against the Git install prefix. Quoting does not stop it. " +
-		"Set MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL"
+		"Set MSYS_NO_PATHCONV=1 or MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL"
 }
 
 // ParseSpec reads "path", "path:3-6", "path:1-8,100-130" or
@@ -410,6 +410,16 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			// is the same mistake: mrw is pointed at a tree, and ../ and a
 			// symlink are the two ways out of it.
 			fmt.Fprintf(w, "==> %s  REFUSED  %v: read it with --root pointed where you mean\n", sp.Path, err)
+			problems++
+			continue
+		}
+		// ADR-074: opening a FIFO for reading blocks until something writes to
+		// it, and a device can stream without end. The walk has refused a
+		// non-regular candidate since ADR-007; a named spec is reported the
+		// same way. A directory keeps ReadFile's own "is a directory", and a
+		// stat that fails falls through to the error ReadFile gives.
+		if fi, statErr := os.Stat(full); statErr == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
+			fmt.Fprintf(w, "==> %s  UNREADABLE  %s\n", sp.Path, lines.NotRegular)
 			problems++
 			continue
 		}

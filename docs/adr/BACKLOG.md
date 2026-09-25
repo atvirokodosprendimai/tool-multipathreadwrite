@@ -1971,13 +1971,22 @@ Contract breaks, reproduced on macOS:
   bytes on the wire) is refused whole with no `next_read`, while a 275,200 B plain file pages. The
   refusal blames the per-file receipt. Any markup file above roughly 110–150 KB is unreadable at
   the default ceiling without a hand-picked range.
+  **Fixed by ADR-074 T3**, contract §149: the first page is sized by the JSON-encoded length the
+  ceiling measures, and a closed range that still overflows is refused naming the encoding.
 - **The 2 s `--ast-grep` kill fails when a grandchild holds stdout**: 30 s with a `sh` wrapper that
   runs `sleep 30`; the grandchild is orphaned when its stdio is redirected.
   `internal/read/astgrep.go` sets no `WaitDelay` and no process group (the finder's reading).
+  **Fixed by ADR-074 T1**, contract §147: ast-grep runs through `internal/subproc`, so its process
+  group is killed at the 2 s bound and the wait for held pipes is bounded; an interrupt, terminate
+  or hangup sent to mrw stops it. On Windows only the wait bound applies (deferred with the check's
+  job object, above).
 - **A FIFO hangs `read`**, and `--stat`, a symlink to it, and `--files-from` on it; nothing is
   printed. A socket and a directory are reported by name.
   **Partly fixed by ADR-073**: a FIFO, socket or device named in a WRITE plan is refused before it
   is opened. The read side (a spec, `--stat`, a symlink to a FIFO) is ADR-074's.
+  **The read side fixed by ADR-074 T2**, contract §148: a FIFO, socket or device named as a spec,
+  or a symlink to one, is reported `UNREADABLE` by name, with or without `--stat`, and the rest of
+  the call is served. `--files-from` naming a FIFO is unchanged: a list may be a pipe.
 
 Windows only, each hand-confirmed by at least two sessions:
 
@@ -2001,6 +2010,9 @@ Windows only, each hand-confirmed by at least two sessions:
   into a false "no match" with no hint. `MSYS_NO_PATHCONV=1` works as well as
   `MSYS2_ARG_CONV_EXCL='*'`, and the hint names only the second. A leading-slash `--exclude` can
   never match. An attached `-C/path` arrives as `-CC:/…`.
+  **Partly fixed by ADR-074 T4**: the hint names `MSYS_NO_PATHCONV=1` beside
+  `MSYS2_ARG_CONV_EXCL='*'`, and AGENTS.md, README and the served guide say the rewrite fires when
+  the file part holds a `/`. A leading-slash `--exclude` and an attached `-C/path` are unchanged.
 - **The Go suite under PowerShell.** Eleven check tests FAIL instead of skipping when `sh` is not
   on PATH (green from Git Bash on the same tree), and `TestTailAnnouncesWhatItLeftOut` panics.
   All thirteen padded-path tests SKIP on NTFS because their fixture needs a file named `x `. Owed:
@@ -2023,6 +2035,7 @@ over 8 MiB with no line number; `a.go:$-1` and `a.go:5-3` get different exit cla
 ignored on a numeric range; over MCP, ids of any JSON type are accepted, invalid UTF-8 becomes
 U+FFFD so the engine looks for a path never sent, a bad flag prints usage on stdout at startup,
 100,000 specs block the server past 120 s, and `exclude: ["["]` is not refused.
+ADR-074 T4 names the `--files-from` line that exceeds 8 MiB.
 
 Found by the review of #228 (Windows, from the documentation): Win32 also maps device names —
 `CON`, `NUL`, `AUX`, `PRN`, `COM1`–`COM9`, `LPT1`–`LPT9`, and before Windows 11 the same names

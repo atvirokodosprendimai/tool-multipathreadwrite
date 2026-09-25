@@ -6798,6 +6798,64 @@ for how in plan apply_patch; do
 		bad "a FIFO in a $how write blocked for 3 s"
 	fi
 done
+# 147. ADR-074 T1: an ast-grep behind a wrapper whose grandchild holds its
+# stdout returns at the 2 s bound, and the grandchild dies with it. It used to
+# wait out the grandchild's 30 s. §111 is the pair: a hang with no grandchild.
+# No perl alarm: Go ignores SIGALRM, and the wrapper's own sleep bounds a
+# regression at 30 s.
+fixture
+d147=$(mktemp -d)
+printf '%s\n' '#!/bin/sh' 'sleep 30 &' "echo \$! > '$d147/gc.pid'" 'wait' > "$d147/ast-grep"
+chmod +x "$d147/ast-grep"
+t0=$(date +%s)
+out=$(PATH="$d147:$PATH" "$MRW" -C "$R" read --ast-grep zzz 2>&1); rc=$?
+t1=$(date +%s)
+want 2 "$rc" "a forking ast-grep that hangs is usage"
+grep -q 'timed out' <<<"$out" && ok "and the reason says timed out" || bad "forking timeout: $out"
+dur=$((t1 - t0))
+[ "$dur" -le 4 ] && ok "and returns within 4 s though a grandchild holds its stdout" || bad "a held stdout kept the read ${dur}s"
+gc=$(cat "$d147/gc.pid" 2>/dev/null)
+if [ -n "$gc" ]; then
+	gone=0; for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$gc" 2>/dev/null || { gone=1; break; }; sleep 0.3; done
+	[ "$gone" = 1 ] && ok "and the grandchild is gone" || { kill -9 "$gc" 2>/dev/null; bad "ast-grep's grandchild outlived the bound"; }
+else
+	bad "the forking wrapper never recorded its grandchild"
+fi
+
+# 148. ADR-074 T2: a FIFO named to `read` is reported by name, and the file
+# named beside it is served. It used to block until something wrote to the pipe.
+fixture
+mkfifo "$R/p148"
+"$MRW" -C "$R" read p148 a.go > "$WORK/out148" 2>&1 & pid=$!
+done148=0; for i in $(seq 1 30); do kill -0 "$pid" 2>/dev/null || { done148=1; break; }; sleep 0.1; done
+if [ "$done148" = 1 ]; then
+	wait "$pid"; rc=$?
+	want 1 "$rc" "a FIFO spec is a problem, exit 1"
+	grep -q 'p148  UNREADABLE  not a regular file' "$WORK/out148" && ok "and it is named as not a regular file" || bad "fifo: $(cat "$WORK/out148")"
+	grep -q '^==> a.go ' "$WORK/out148" && ok "and the file named beside it is served" || bad "fifo sibling: $(cat "$WORK/out148")"
+else
+	kill -9 "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+	bad "read blocked on a FIFO for 3 s"
+fi
+
+# 149. ADR-074 T3: over MCP, a markup file whose JSON-escaped text overflows the
+# ceiling is served as a first page with next_read, not refused whole. The page
+# was sized from raw bytes while the ceiling measures the encoded answer.
+fixture
+python3 -c "import sys; sys.stdout.write('<div class=\"a\">&amp;</div>\n' * 5688)" > "$R/m.tsx"
+out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["m.tsx"]}}}' | m mcp 2>/dev/null)
+# The result is bounded at 200,000 encoded bytes; the JSON-RPC envelope around
+# it adds under a hundred.
+python3 - "$out" <<'PY' && ok "a markup file over MCP is a first page with next_read, within the ceiling" || bad "markup page: $(head -c 300 <<<"$out")"
+import json, sys
+line = sys.argv[1].strip().splitlines()[-1]
+res = json.loads(line)["result"]
+assert not res.get("isError"), "refused"
+assert "-- PARTIAL:" in res["content"][0]["text"], "not a page"
+assert "next_read" in json.dumps(res), "no next_read"
+assert len(line) <= 200100, "over the ceiling"
+PY
+
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

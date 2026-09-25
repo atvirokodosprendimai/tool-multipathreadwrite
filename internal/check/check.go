@@ -23,11 +23,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -203,12 +201,7 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	// the group is killed and the receipt says "interrupted". The handler
 	// lives exactly as long as the check, so a ^C anywhere else behaves as it
 	// always did.
-	var stopSignals context.CancelFunc = func() {}
-	if sigs := checkSignals(); len(sigs) > 0 {
-		// Only with signals to name: NotifyContext with none relays EVERY
-		// signal the process receives.
-		ctx, stopSignals = signal.NotifyContext(ctx, sigs...)
-	}
+	ctx, stopSignals := subproc.Interruptible(ctx)
 	defer stopSignals()
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -619,18 +612,7 @@ func lastLines(path string, n int) ([]string, int) {
 }
 
 // checkSignals are the signals that stop a running check (ADR-072): an
-// interrupt, a terminate and a hangup, each of which would otherwise end mrw
-// and leave the check, in a process group of its own, running — a hangup was
-// the one the first cut missed (review of #229). A signal the process was
-// started with IGNORED stays ignored: nohup ignores SIGHUP and a shell starts
-// a background job with SIGINT ignored, and signal.Notify would switch either
-// back on.
-func checkSignals() []os.Signal {
-	var out []os.Signal
-	for _, s := range []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP} {
-		if !signal.Ignored(s) {
-			out = append(out, s)
-		}
-	}
-	return out
-}
+// interrupt, a terminate and a hangup, less any the process was started with
+// ignored. They are subproc's own, since the check listens through
+// subproc.Interruptible like every child mrw starts (ADR-074).
+func checkSignals() []os.Signal { return subproc.Signals() }
