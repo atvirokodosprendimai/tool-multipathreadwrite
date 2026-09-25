@@ -2,6 +2,7 @@ package seen
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
@@ -78,9 +79,14 @@ func TestASnapshotNeverSeesAHalfSavedLedger(t *testing.T) {
 	if err := Record(root, base); err != nil {
 		t.Fatal(err)
 	}
+	// The writer is stopped AND waited for before the temp directories are
+	// removed: one still writing into them makes the cleanup fail (review of #233).
 	stop := make(chan struct{})
-	defer close(stop)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	defer func() { close(stop); wg.Wait() }()
 	go func() {
+		defer wg.Done()
 		for i := 0; ; i++ {
 			select {
 			case <-stop:

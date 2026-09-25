@@ -119,6 +119,7 @@ go test ./internal/writer/ ./internal/seen/ ./internal/adversarial/ -count=1 -ti
 - 2026-09-26 · 2463a7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · ms:1215
 - 2026-09-26 · 2463a7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · ms:1467
 - 2026-09-26 · 2c23bd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · ms:1850
+- 2026-09-26 · 0f9e789* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd32d7d7197ac22c63f1ce7eac50919277e309eb3013dec02f8b61c18fde9f5c · ms:1916
 
 ## Mutation Log
 (empty until execute)
