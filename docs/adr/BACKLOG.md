@@ -1837,6 +1837,12 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
   destination or source directory still fail only at commit. ADR-066's unit
   undo makes that failure non-destructive and its receipt truthful; moving
   them earlier is the next step if one is ever seen.
+  **Seen, 2026-09-25** (chaos seed 25 on v1.25.0, `9a586aa`): a rename to a destination whose name
+  is not valid UTF-8 (`moved/\xffdash.txt`) passes validation and fails at commit on APFS with
+  `illegal byte sequence`. The content edits of the same plan stay written. The receipt says
+  PARTIALLY APPLIED, names the written files, and exits 2; that is the ADR-066 contract, and v1.24.1
+  behaves identically, so this is not a regression. The trigger for moving the failure earlier is now
+  met: validate the destination name at staging, so such a plan writes nothing. It needs a record.
 - **A `.mrw-aside-*` left behind.** When the final aside removal fails after a
   plan that applied, the placeholder stays in the tree (ADR-004 hygiene, not a
   false receipt). Say so on the receipt if it is ever observed.
