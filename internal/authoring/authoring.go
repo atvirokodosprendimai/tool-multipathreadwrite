@@ -150,6 +150,33 @@ func Record(root string, o Outcome) error {
 		t = Tally{}
 	}
 	t[name]++
+	return save(root, t)
+}
+
+// Reclassify moves one plan from outcome from to outcome to (ADR-072). The
+// write path counts a landing as Applied BEFORE its check runs, so a write
+// killed during the check is still counted as landed; the check's verdict then
+// moves that one count. It never adds a plan: from is decremented, at a floor
+// of zero, as to is incremented.
+func Reclassify(root string, from, to Outcome) error {
+	a, b := from.name(), to.name()
+	if a == "" || b == "" {
+		return nil
+	}
+	t, _ := Load(root)
+	if t == nil {
+		t = Tally{}
+	}
+	if t[a] > 0 {
+		t[a]--
+	}
+	t[b]++
+	return save(root, t)
+}
+
+// save writes the tally, vocabulary names only, and swallows every error:
+// measurement that can break the tool it measures is worse than none.
+func save(root string, t Tally) error {
 	p, err := state.Path(root, file)
 	if err != nil {
 		return nil

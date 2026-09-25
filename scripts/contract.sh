@@ -6665,6 +6665,87 @@ if [ -e "$R/ss.probe" ]; then
 else
   skip "this filesystem keeps ß and ss apart"
 fi
+# 142. ADR-072 T1: a malformed .quality-harness.json refuses the write before
+# anything is written. It was read after the commit: the tree changed and mrw
+# exited 2 with only the JSON error. The pair: --no-check never reads it.
+fixture
+printf '{' > "$R/.quality-harness.json"
+printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 9 }\n' > "$R/p142.mrw"
+before=$(cat "$R/a.go")
+out=$(m write "$R/p142.mrw" 2>&1); rc=$?
+want 2 "$rc" "a malformed harness refuses the write"
+grep -q 'quality-harness.json' <<<"$out" && grep -q 'nothing was written' <<<"$out" && ok "and names the harness and says nothing was written" || bad "refusal: $out"
+[ "$(cat "$R/a.go")" = "$before" ] && ok "and a.go is untouched" || bad "a.go changed under a refused write"
+m write --no-check "$R/p142.mrw" >/dev/null 2>&1; rc=$?
+want 0 "$rc" "--no-check never reads the harness and applies"
+# 143. ADR-072 T2: a write killed while its check runs has already printed its
+# receipt, and stats counts the landing; both used to come after the check.
+# The check records its pid and sleeps; the row kills mrw with SIGKILL once the
+# check has started — a Go binary ignores SIGALRM, so an alarm would not — and
+# then kills the check, which runs in a process group of its own.
+fixture
+printf '{"check":"echo $$ > gc.pid; exec sleep 30"}' > "$R/.quality-harness.json"
+printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 7 }\n' > "$R/p143.mrw"
+"$MRW" -C "$R" write "$R/p143.mrw" > "$R/out143" 2>&1 & pid=$!
+for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
+kill -9 "$pid"; wait "$pid"; rc=$?
+[ -f "$R/gc.pid" ] && kill -9 "$(cat "$R/gc.pid")" 2>/dev/null
+want 137 "$rc" "mrw was killed during its check"
+grep -q -- '— applied' "$R/out143" && ok "and its receipt was already printed" || bad "a write killed during its check printed: $(cat "$R/out143")"
+out=$(m stats 2>&1); grep -q 'landed writes: 1;' <<<"$out" && ok "and stats counts the landing" || bad "stats: $out"
+# 144. ADR-072 T3: under --json a plan that does not parse is one JSON
+# document with an error field, not text. The pair: a filesystem failure
+# already was one (§21).
+fixture
+out=$(printf 'garbage\n' | m write --json - 2>/dev/null); rc=$?
+want 2 "$rc" "an unparseable plan under --json exits 2"
+jq -e '.applied == false and (.error | test("stdin")) and .hunks == [] and .files == []' <<<"$out" >/dev/null && ok "and stdout is one JSON document naming the cause" || bad "--json printed: $out"
+# 145. ADR-072 T4: a check that times out takes its process group with it, and
+# an interrupt sent to mrw while its check runs stops the check and says so.
+# The timeout used to kill only sh, and sleep outlived it.
+fixture
+printf '{"check":"sleep 30 & echo $! > gc.pid; wait","timeout_seconds":1}' > "$R/.quality-harness.json"
+printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 5 }\n' > "$R/p145.mrw"
+out=$(m write "$R/p145.mrw" 2>&1); rc=$?
+want 3 "$rc" "a check that times out is exit 3"
+grep -q 'timed out' <<<"$out" && ok "and says it timed out" || bad "timeout: $out"
+gone=0; for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$(cat "$R/gc.pid")" 2>/dev/null || { gone=1; break; }; sleep 0.3; done
+[ "$gone" = 1 ] && ok "and the check's grandchild is gone" || { kill -9 "$(cat "$R/gc.pid")" 2>/dev/null; bad "the check's grandchild outlived its timeout"; }
+fixture
+printf '{"check":"echo $$ > gc.pid; exec sleep 30"}' > "$R/.quality-harness.json"
+printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 6 }\n' > "$R/p145b.mrw"
+"$MRW" -C "$R" write "$R/p145b.mrw" > "$R/out145" 2>&1 & pid=$!
+for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
+kill -TERM "$pid"; wait "$pid"; rc=$?
+want 3 "$rc" "a terminate during the check is exit 3"
+grep -q 'interrupted' "$R/out145" && ok "and the receipt says interrupted" || bad "terminate: $(cat "$R/out145")"
+gone=0; for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$(cat "$R/gc.pid")" 2>/dev/null || { gone=1; break; }; sleep 0.3; done
+[ "$gone" = 1 ] && ok "and the check is gone" || { kill -9 "$(cat "$R/gc.pid")" 2>/dev/null; bad "the check outlived the interrupt"; }
+# A hangup too: it ends mrw, and the check in its own group would not hear it.
+# (TERM and HUP, not INT: a shell starts a background job with SIGINT ignored,
+# and mrw leaves an ignored signal ignored.)
+# perl sets SIGHUP back to default first: under `nohup ./scripts/contract.sh`
+# mrw would inherit it ignored, rightly keep ignoring it, and this row would
+# read that as a failure (second review of #229).
+fixture
+printf '{"check":"echo $$ > gc.pid; exec sleep 30"}' > "$R/.quality-harness.json"
+printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 4 }\n' > "$R/p145c.mrw"
+perl -e '$SIG{HUP}="DEFAULT"; exec @ARGV' "$MRW" -C "$R" write "$R/p145c.mrw" > "$R/out145c" 2>&1 & pid=$!
+for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
+kill -HUP "$pid"; wait "$pid"; rc=$?
+want 3 "$rc" "a hangup during the check is exit 3"
+gone=0; for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$(cat "$R/gc.pid")" 2>/dev/null || { gone=1; break; }; sleep 0.3; done
+[ "$gone" = 1 ] && ok "and the check is gone" || { kill -9 "$(cat "$R/gc.pid")" 2>/dev/null; bad "the check outlived the hangup"; }
+# The pair: under nohup a hangup is ignored, as it always was, and the check
+# runs on — mrw leaves a signal it was started with ignored alone.
+fixture
+printf '{"check":"echo $$ > gc.pid; exec sleep 30"}' > "$R/.quality-harness.json"
+printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 3 }\n' > "$R/p145d.mrw"
+nohup "$MRW" -C "$R" write "$R/p145d.mrw" > "$R/out145d" 2>&1 & pid=$!
+for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
+kill -HUP "$pid"; sleep 0.5
+kill -0 "$(cat "$R/gc.pid")" 2>/dev/null && ok "under nohup a hangup leaves the check running" || bad "under nohup a hangup stopped the check"
+kill -9 "$(cat "$R/gc.pid")" 2>/dev/null; wait "$pid"
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else

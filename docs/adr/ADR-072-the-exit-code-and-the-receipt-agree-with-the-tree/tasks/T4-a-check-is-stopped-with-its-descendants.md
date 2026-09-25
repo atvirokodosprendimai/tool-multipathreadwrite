@@ -1,0 +1,134 @@
+# Task ADR-072-T4: A check is stopped with its descendants
+
+**Depends-on:** none
+**Covers:** none — no spec
+**Estimated scope:** S
+**Owner:** unassigned
+**Produces:** `internal/subproc.Command`; the interrupt case in `check.Run`
+**Consumes:** none
+**Data dependency:** hermetic
+**Proof map:** v1
+**Rests-on:** `the group is killed`, `a held pipe is not waited on forever`, `an interrupt is reported`, `a contract row drives the binary`, `the engine packages are unchanged`
+
+## Goal
+
+A check's timeout killed only `sh`: `sh -c 'make test'` left its children running. Start the child in its own process group, kill the group, bound the wait for held pipes, and turn an interrupt sent to mrw during the check into a reported `interrupted`.
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `internal/subproc/subproc.go` | new | `Command`: `WaitDelay`, the platform hook |
+| `internal/subproc/subproc_unix.go` | new | `Setpgid`; `Cancel` kills the group |
+| `internal/subproc/subproc_other.go` | new | no group outside unix |
+| `internal/subproc/subproc_unix_test.go` | new | a grandchild dies with its parent |
+| `internal/check/check.go` | edit | `subproc.Command`; signals cancel the check; `interrupted` |
+| `internal/check/group_unix_test.go` | new | the group and the interrupt through `Run` |
+| `scripts/contract.sh` | edit | §145 |
+
+## Ordered Steps
+
+1. [S1] Write the tests; confirm RED. [proof: mutation]
+2. [S2] Implement; GREEN; the existing write and check tests stay green. [proof: mutation]
+   Mutants: Setpgid dropped; Cancel kills only the pid; WaitDelay removed; the interrupted case dropped.
+3. [S3] The contract row drives the built binary with the good case and the one that must fail. [proof: acceptance]
+
+## Acceptance
+
+```bash
+set -o pipefail
+go test ./internal/subproc/ ./internal/check/ -count=1 -timeout 180s -run 'TestATimedOutCommandTakesItsGrandchild|TestAHeldPipeIsNotWaitedOn|TestATimedOutCheckLeavesNoGrandchild|TestAnInterruptedCheckSaysSo|TestACheckThatCannotStartDidNotRun|TestTheCheckStopsOnHangup' -v 2>&1 | tee /tmp/adr072-T4.out \
+  && missing=$(for t in TestATimedOutCommandTakesItsGrandchildWithIt TestAHeldPipeIsNotWaitedOnForever TestATimedOutCheckLeavesNoGrandchild TestAnInterruptedCheckSaysSo TestACheckThatCannotStartDidNotRun TestTheCheckStopsOnHangupUnlessHangupIsIgnored; do grep -qE "^--- PASS: $t \(" /tmp/adr072-T4.out || echo "$t"; done) \
+  && [ -z "$missing" ] \
+  && grep -q '^# 145\. ' scripts/contract.sh \
+  && GOOS=windows go vet ./internal/subproc/ ./internal/check/ \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted)" ] \
+  && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `TestATimedOutCommandTakesItsGrandchildWithIt` | `internal/subproc/subproc_unix_test.go` | a `sleep` forked by `sh` is dead after the parent's deadline | — | S1, S2 |
+| `TestAHeldPipeIsNotWaitedOnForever` | `internal/subproc/subproc_unix_test.go` | `Output` returns within the bound though a grandchild holds stdout | — | S1, S2 |
+| `TestATimedOutCheckLeavesNoGrandchild` | `internal/check/group_unix_test.go` | the same through `Run` | — | S1, S2 |
+| `TestAnInterruptedCheckSaysSo` | `internal/check/group_unix_test.go` | a cancelled check: `Ran`, exit -1, `interrupted`, and quickly | — | S1, S2 |
+| `TestTheCheckStopsOnHangupUnlessHangupIsIgnored` | `internal/check/group_unix_test.go` | a hangup stops the check too; a signal the process started with ignored stays ignored (review of #229, B1) | — | S2 |
+| `TestACheckThatCannotStartDidNotRun` | `internal/check/check_test.go` | unchanged: a check that never started is not `interrupted` | — | S1, S2 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | the code and its tests |
+| 2 — something selects it | every `mrw write`; `mrw check` for T4 |
+| 3 — the caller can discover it | the receipt, the exit code and the refusal text |
+| 4 — it is used | the v1.25.1 round reproduced each defect with the shipped binary |
+
+## Verification Log
+(empty until execute)
+- 2026-09-25 · e3f7978* · exit 1 · `set -o pipefail …` · acceptance-sha256:1921b4ac7c5854120e283f9620cd90577fb91c43bd0d596ad2f393fd801dc22b · ms:5255 · test-lock-sha256:f806ee4ec428183ec27741082a5583b2dfdabbcf0f2ab42419bcf6a0bde829b4 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFDaGVja1RoYXRDYW5ub3RTdGFydERpZE5vdFJ1bglkMTNhNzBiYTcyNzYxNTI0M2Y4ZjcwOTRjMTAyYjA5YTNhMTY0ZDIzYTQzMGMzMzNlNTFlOGMyNmZiZmNmNjIyCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QURpcmVjdG9yeVRoYXRDYW5ub3RCZVJlYWRJc1JlZnVzZWROb3RUcmVhdGVkQXNFbXB0eQk2NzIzN2E5M2E1MTI2Yjc4YmNlYWIwMjJhZmQzOTE0MDM0MDlhZDE4ZjY1YjRkNjVlZTIyODY4ZmQxZjZhMjAyCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QUZhaWxpbmdDaGVja0tlZXBzSXRzTG9nCTlmMDQ2YmJkNzMwNGE1MjhjNDJhNGFkNTY2YTRlZjIxOGRhNzI4NDkxZjE5NTQyMWQ1ODEyMzdmODliMjA2MTEKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBUGFkZGVkQ2hlY2tJc1N0aWxsVGhlRGVjbGFyZWRDaGVjawk5OWUwMjYyNjkyZjMxMWVkYTVjNGNmZjVhMzBkMWMwOGYyODFjOWI5NTUzMjgxYTc2ZmExZGZiYWE3MWJjODE1CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVBhZGRlZFNjb3BlZENoZWNrSXNTdGlsbERlY2xhcmVkCTZjNmVlODBkODNiMmQ2YmU2NzZjM2Y5YzAyN2FmM2JhMGI5ZDA2MjI4MDkyZWE1YmJjMGEzYzI1ZDVlOWM4MDcKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBUGFzc2luZ0NoZWNrTGVhdmVzTm9Mb2dCZWhpbmQJNTY2MWE2MDNlOGMwZGM5MzE5OTZkOGYzYTRhZDU1M2U5ZDExZDI4MDk0MWFmNWMyYzMyMTZkNTNiODEwMzdiNQpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFQcmVzZW50VW5wbGFjZWFibGVJblJvb3RTY29wZVN0aWxsRmFsbHNCYWNrCTcxNWU4ODc0ZjRkZjkyZmVmODRlMTgwYjE2YTg5NDVhOTlmMTU3NWJkNDM3Y2I5YzVhMTJlNjM1OWFhMWQzZTQKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBUmVhZGFibGVEaXJlY3RvcnlTdGlsbFNjb3Blcwk0ODYxOTI3MDlhNTAyYmY5MTAxOTRkZGQ2MDM3OTgxNmE5ZjJiZjU1ZThjNGYzOGQ3NzA3NDZlYmEzYTA0ZGFmCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVJlZnVzZWRTY29wZURvZXNOb3RJbmhlcml0VGhlUm9vdHNWZXJkaWN0CTk5MjY2NmU2M2Y4ZTU1ZGJhYTI0ODQ5NGRlZTVlZTRjMDk3YWRhNGIyYTQyZTA1M2RhYTIzYjlmNWY1MTUxZDgKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBU2NvcGVPdXRzaWRlVGhlUm9vdElzUmVmdXNlZE5vdEZhbGxlbkJhY2tUbwlhYjc3ZjEwODdmMDg1YWU0YjdmNzIyY2Y3Y2Q2NjMwMmY2ZGU3NzJlNzZhNzgyNWVjZmY1NzJlMzY3ZDZjM2M1CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVNoZWxsSW5qZWN0ZWRTY29wZVN0aWxsRmFpbHMJZmUyOGFiYjc0ZWY1NmVmZmNiNmFiYmNjNGJmNDgzZWUzNWQzMjQ3YzA0N2FmYWU3MzM4ODdhYzYzNmU1ZDBhYwpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFXaGl0ZXNwYWNlT25seUNoZWNrSXNOb3REZWNsYXJlZAlhOTA3ZWU0MzlmMTRkYzJlNDhkMmU0MTM4MDEwODc5MTUzM2E0YTRmMDhlMjRlOGQwZWYyZDRiMzU3OTFlYTQ0CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVdoaXRlc3BhY2VPbmx5U2NvcGVkQ2hlY2tJc05vdERlY2xhcmVkCWY2YmYwYzU0OWQ2NDZhNzUwNzUwZmZhNTEwYzk4ZjY5MzUxNThmODViMzcyMjYwZTg4NjI1MzViOWI0YWE1MWIKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBbkluUm9vdE1pc3NJc1JlZnVzZWROb3RBU2lsZW50UGFzcwkwMzk3ZWIyOTc2ZTIzMWUwZmRlZTI4ZWY3NTBmYTQwMGY1ZGY3MjJiMWYyNmE4MDc4MDUxYjg0MmM2ZmRhNDIxCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QW5PdmVybGFyZ2VUaW1lb3V0SXNDbGFtcGVkTm90T3ZlcmZsb3dlZAlkMGIxOGU0NTcwMzRjZjJjMTI5MTZhNmZmNjA2MTRjNmRlMTUwNWRiNmFmZGVlZmJlZjJmNDAyN2QyNDVhMjliCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0RmlsZXNPbmx5V2l0aE5vUGF0aHNTdGlsbEZhbGxzQmFjawkwMThiMTY4NTRlMTU3ZmQzN2E4ZTgwY2E4YmIzZmU1OWQ2NTM2OWQ1ZGNhOTdhMjJhZGQ0NGQzNjU5NmUyNGViCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0RmlsZXNQbGFjZWhvbGRlcglmYTRiYTBhNmQ1NDM3MzYwMGYwMDI0NzliMDk4YTc1MTEyMTlhMjU0MDhjNmE2OTg0MTU0ZGZlMmUwNTkzN2MxCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0RmlsZXNQbGFjZWhvbGRlckRvZXNOb3ROZWVkUGFja2FnZXMJODFjZmQ0MzU3NTM0ODBlOTZkZGUxNTIxN2JlZTJhYTg1OTA2MDllZDYzZTBlZjQ3ODA4ZjQ1NTkwNGY1NTY3ZApib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdExvYWRJbmZlcnNHb0NoZWNrQnV0U2F5c1NvCTA5OWU2YmZmM2ZlNzdhMzM5MDc1M2M1ZWZiYzdlMjE1NWQzYjY0MDY5YTk5YjJlMmRlMWVlZmRkMzllYjMzMWEKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RMb2FkT25BQmFyZURpcmVjdG9yeUhhc05vQ2hlY2sJZjU1ZTJiM2ZlZWVmMzc4ZmJjOTI1OTRlZmM0ZmI1YmZkNjMzNGIzNzM1OTg1M2IzNTNjM2Y4Mjg1Y2MxNGU2Mwpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdExvYWRQcmVmZXJzVGhlRGVjbGFyZWRDaGVjawkyNWQxZjdjZTU5ZGU1M2Y4ZGJjYzg2Zjg4ZWJiNTVlNWNlMzRlNGU2ZWUyOTcxZmJhZDgzZTBmZTZjZTI5MDllCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0TWl4ZWRQbGFjZWhvbGRlcnNGYWxsQmFja1doZW5Vbm1hcHBlZAkxYWM3NzM4Yzk3OWM3MDgxYjcxYTIyODkwNjI2MzA0Njk4NmVjZjUyZDNiOWM2MTU3MmVkZDhjOTdhZDNkMzM3CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0Tm9DaGVja0lzTm90QVBhc3MJYTNiMzNkYWU0MjdlYTZjNWE2YmIwODk5NDA4MjJkZTVhYzhiZTk0MmFlYjAyMTkwYmE1YTg0NjAzYjA1OGFiNgpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdFBhY2thZ2VzT25seU5vbkdvU3RpbGxGYWxsc0JhY2sJMWJhMGIyNTMwYmZjOTNmNDg2NzEwZTkwMmU2Mjk2NGEzNzhkZTYxZTAzYzdkZGQ2YjRlZjhmN2E5ZjQ1ODM5ZQpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdFJ1blBhc3Nlcwk4YjIyZWMzNjdmNjBmOGFmYTg3NzEwZjFhYTgxMGI2OGZjOWQ5MGMxZWM4NjYyMTU5NTUwZDY4NjJhNDAyZmY1CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0UnVuUmVwb3J0c1RoZVJlYWxFeGl0Q29kZQlmYmNiNzgyN2Y1MDhiMDY3MDA1ZGYxZTEzZDBkYmVlMDc2Zjg0ZjZlZDU1YTU2NjlmNmZiYWUzYTlmMWQ1ODAwCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0U2NvcGVEZXJpdmF0aW9uCTY0ZThhYmY3OGM1ZTM4MzU2NmFmZDFlNTI5YjNlMGFjYzVhZWI2ZmVlYzhmMWMyOGU0MDdhN2EzNTkyNDNlMzQKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RTdWJzdGl0dXRlZFBhdGhzQXJlT25lU2hlbGxBcmd1bWVudEVhY2gJZWMzZWRlZWU5NTViZGJjMDdjYThkZGJlYzI1NGEyNTgzMDMxYzMyZDRiMDIwZjY2NjM3ODUyMWQ0OWNkNjE1Ngpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdFRhaWxBbm5vdW5jZXNXaGF0SXRMZWZ0T3V0CTVlYjAxMmUwYzRlOWFlODI2N2FjMDczNDQ3NTQyODJlMGE3MzU3ZWE0YzNjMGI5ZGVjMDBjZjIwM2FhYTRhNWYKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RUaW1lb3V0SXNSZXBvcnRlZEFzQUZhaWx1cmVOb3RBUGFzcwkyMTFmMWQ1YWQ5NDBhM2IxMjhhNjRkOTgzMDE2NmY0OGFjZDA3YWJiZDU5N2ZjYzVjOGQwZTA2M2FmM2IyMTAzCmJvZHkJaW50ZXJuYWwvY2hlY2svZ3JvdXBfdW5peF90ZXN0LmdvCVRlc3RBVGltZWRPdXRDaGVja0xlYXZlc05vR3JhbmRjaGlsZAkzMzRiYjUwMzlhNjYxZTE0YzdiZDE0Njk5OWM2ZmIwMzFkNWU3M2M3NjYwZDhmMzIyZjM4ZWM2NWRmMjBlZmMwCmJvZHkJaW50ZXJuYWwvY2hlY2svZ3JvdXBfdW5peF90ZXN0LmdvCVRlc3RBbkludGVycnVwdGVkQ2hlY2tTYXlzU28JNGYwOWU2YjY5ZGI2YTY3NWM2YWFmNjVlZGRiYmMzYjNiYTI3ZTk2M2M5MzA2NWE5NDcxNjQxZjQ1YTdlZDQwYQpib2R5CWludGVybmFsL3N1YnByb2Mvc3VicHJvY191bml4X3Rlc3QuZ28JVGVzdEFIZWxkUGlwZUlzTm90V2FpdGVkT25Gb3JldmVyCWYzZWMyODRlYTM0YjFjODViMzBjZjI5YzYzYmVmNjE1MTAyZGY3NzEzNWEzMjY0NjAzN2ZiMDA1NmYxMTA0Y2IKYm9keQlpbnRlcm5hbC9zdWJwcm9jL3N1YnByb2NfdW5peF90ZXN0LmdvCVRlc3RBVGltZWRPdXRDb21tYW5kVGFrZXNJdHNHcmFuZGNoaWxkV2l0aEl0CTJjMDRhNTMzM2VhZDEzZDEwNjlmOGI3MmM3MGExOTMxYWM1NDBlNWY2NTE3NDFlMzM5YjFkOTMxMzU2ZGYwMmM
+  ```
+  --- last 10 line(s) of stdout (of 15 after folding 15 raw)
+  --- PASS: TestACheckThatCannotStartDidNotRun (0.00s)
+  === RUN   TestATimedOutCheckLeavesNoGrandchild
+      group_unix_test.go:42: the check's grandchild 23241 outlived its timeout
+  --- FAIL: TestATimedOutCheckLeavesNoGrandchild (4.05s)
+  === RUN   TestAnInterruptedCheckSaysSo
+      group_unix_test.go:63: want a check that ran, did not pass, and says interrupted: {Ran:true Declared:true Skipped: Command:sleep 30 ExitCode:-1 DurationMS:300 OutputFile:/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/mrw-check-3770022751.log Tail:[] Truncated:0}
+  --- FAIL: TestAnInterruptedCheckSaysSo (0.30s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check	4.623s
+  FAIL
+  ```
+- 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:1921b4ac7c5854120e283f9620cd90577fb91c43bd0d596ad2f393fd801dc22b · ms:2679
+- 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:1921b4ac7c5854120e283f9620cd90577fb91c43bd0d596ad2f393fd801dc22b · ms:2472
+- 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:1921b4ac7c5854120e283f9620cd90577fb91c43bd0d596ad2f393fd801dc22b · ms:2555
+- 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:1921b4ac7c5854120e283f9620cd90577fb91c43bd0d596ad2f393fd801dc22b · ms:2729
+- 2026-09-25 · e3f7978* · exit 0 · `set -o pipefail …` · acceptance-sha256:1921b4ac7c5854120e283f9620cd90577fb91c43bd0d596ad2f393fd801dc22b · ms:2604
+- 2026-09-25 · 7836e8d · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:1921b4ac7c5854120e283f9620cd90577fb91c43bd0d596ad2f393fd801dc22b · ms:0 · test-lock-sha256:c543939fb679891a575fb3c2a7fb71398f46aac4c35b725c484171527e920e6f · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFDaGVja1RoYXRDYW5ub3RTdGFydERpZE5vdFJ1bglkMTNhNzBiYTcyNzYxNTI0M2Y4ZjcwOTRjMTAyYjA5YTNhMTY0ZDIzYTQzMGMzMzNlNTFlOGMyNmZiZmNmNjIyCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QURpcmVjdG9yeVRoYXRDYW5ub3RCZVJlYWRJc1JlZnVzZWROb3RUcmVhdGVkQXNFbXB0eQk2NzIzN2E5M2E1MTI2Yjc4YmNlYWIwMjJhZmQzOTE0MDM0MDlhZDE4ZjY1YjRkNjVlZTIyODY4ZmQxZjZhMjAyCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QUZhaWxpbmdDaGVja0tlZXBzSXRzTG9nCTk5MWY0MjFmMGU3N2FiODQwZjMyOTQyZTI2YmI2NGFhYmM3MDllNGM0Y2UwYzA5YmZiOWM4ZGZiNWYxYzgwZWUKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBUGFkZGVkQ2hlY2tJc1N0aWxsVGhlRGVjbGFyZWRDaGVjawk5OWUwMjYyNjkyZjMxMWVkYTVjNGNmZjVhMzBkMWMwOGYyODFjOWI5NTUzMjgxYTc2ZmExZGZiYWE3MWJjODE1CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVBhZGRlZFNjb3BlZENoZWNrSXNTdGlsbERlY2xhcmVkCTZjNmVlODBkODNiMmQ2YmU2NzZjM2Y5YzAyN2FmM2JhMGI5ZDA2MjI4MDkyZWE1YmJjMGEzYzI1ZDVlOWM4MDcKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBUGFzc2luZ0NoZWNrTGVhdmVzTm9Mb2dCZWhpbmQJNzU5ZTdjM2Q0Y2M0MTExYzExYTQzYzM4YmMwNTFlYTIzNzM1MjY1ODRmMzdiNTM2OTAxOTk4ZTY0ZmFhYjA3MApib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFQcmVzZW50VW5wbGFjZWFibGVJblJvb3RTY29wZVN0aWxsRmFsbHNCYWNrCTU2YTAyZGY4NjEwMmY3ZTliY2JlZTM4OGYwNDJiNTY3Y2IwODg3MzExNWI0OTI2MmFhN2Y1YWUxZGU3ZjhkYjkKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBUmVhZGFibGVEaXJlY3RvcnlTdGlsbFNjb3BlcwljNmVhY2E2N2JkMTI2Yjg0NzQ5YzlkNmEzZWVmMDJlMzI2NDI0MzgzYzVlYWEyOGZmOTA5NGY5MGViMDc2Y2Q3CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVJlZnVzZWRTY29wZURvZXNOb3RJbmhlcml0VGhlUm9vdHNWZXJkaWN0CTk5MjY2NmU2M2Y4ZTU1ZGJhYTI0ODQ5NGRlZTVlZTRjMDk3YWRhNGIyYTQyZTA1M2RhYTIzYjlmNWY1MTUxZDgKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBU2NvcGVPdXRzaWRlVGhlUm9vdElzUmVmdXNlZE5vdEZhbGxlbkJhY2tUbwlhYjc3ZjEwODdmMDg1YWU0YjdmNzIyY2Y3Y2Q2NjMwMmY2ZGU3NzJlNzZhNzgyNWVjZmY1NzJlMzY3ZDZjM2M1CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVNoZWxsSW5qZWN0ZWRTY29wZVN0aWxsRmFpbHMJMWFlYTYwNzMxOGYzNGExYjA4YmY1NDI1MzRiY2E2NTU2ZjFjN2YwN2ZhZmVjZWY0ZjFmNjQ3YTkxYjU4ZWMwZApib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFXaGl0ZXNwYWNlT25seUNoZWNrSXNOb3REZWNsYXJlZAlhOTA3ZWU0MzlmMTRkYzJlNDhkMmU0MTM4MDEwODc5MTUzM2E0YTRmMDhlMjRlOGQwZWYyZDRiMzU3OTFlYTQ0CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVdoaXRlc3BhY2VPbmx5U2NvcGVkQ2hlY2tJc05vdERlY2xhcmVkCWY2YmYwYzU0OWQ2NDZhNzUwNzUwZmZhNTEwYzk4ZjY5MzUxNThmODViMzcyMjYwZTg4NjI1MzViOWI0YWE1MWIKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBbkluUm9vdE1pc3NJc1JlZnVzZWROb3RBU2lsZW50UGFzcwkwMTc0YTk2NjE1OGYyYThkNmE5OTIxMWQ3MGVlMWIxMGUwYzBmODA4NTc4YzExZmE4NzQ2MzA3MDA1YjQ5Y2QxCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QW5PdmVybGFyZ2VUaW1lb3V0SXNDbGFtcGVkTm90T3ZlcmZsb3dlZAk2MjI5MzU0ZDk1MzJmZDBhYTU2NWIzMGI0NTRkZDc3ZWRiZmQ1OWQ1YmNkNjZiNzRjY2QxOTlkZDIyMzg1YmI0CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0RmlsZXNPbmx5V2l0aE5vUGF0aHNTdGlsbEZhbGxzQmFjawkwMThiMTY4NTRlMTU3ZmQzN2E4ZTgwY2E4YmIzZmU1OWQ2NTM2OWQ1ZGNhOTdhMjJhZGQ0NGQzNjU5NmUyNGViCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0RmlsZXNQbGFjZWhvbGRlcglmYTRiYTBhNmQ1NDM3MzYwMGYwMDI0NzliMDk4YTc1MTEyMTlhMjU0MDhjNmE2OTg0MTU0ZGZlMmUwNTkzN2MxCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0RmlsZXNQbGFjZWhvbGRlckRvZXNOb3ROZWVkUGFja2FnZXMJODFjZmQ0MzU3NTM0ODBlOTZkZGUxNTIxN2JlZTJhYTg1OTA2MDllZDYzZTBlZjQ3ODA4ZjQ1NTkwNGY1NTY3ZApib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdExvYWRJbmZlcnNHb0NoZWNrQnV0U2F5c1NvCTA5OWU2YmZmM2ZlNzdhMzM5MDc1M2M1ZWZiYzdlMjE1NWQzYjY0MDY5YTk5YjJlMmRlMWVlZmRkMzllYjMzMWEKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RMb2FkT25BQmFyZURpcmVjdG9yeUhhc05vQ2hlY2sJZjU1ZTJiM2ZlZWVmMzc4ZmJjOTI1OTRlZmM0ZmI1YmZkNjMzNGIzNzM1OTg1M2IzNTNjM2Y4Mjg1Y2MxNGU2Mwpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdExvYWRQcmVmZXJzVGhlRGVjbGFyZWRDaGVjawkyNWQxZjdjZTU5ZGU1M2Y4ZGJjYzg2Zjg4ZWJiNTVlNWNlMzRlNGU2ZWUyOTcxZmJhZDgzZTBmZTZjZTI5MDllCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0TWl4ZWRQbGFjZWhvbGRlcnNGYWxsQmFja1doZW5Vbm1hcHBlZAkxYWM3NzM4Yzk3OWM3MDgxYjcxYTIyODkwNjI2MzA0Njk4NmVjZjUyZDNiOWM2MTU3MmVkZDhjOTdhZDNkMzM3CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0Tm9DaGVja0lzTm90QVBhc3MJYTNiMzNkYWU0MjdlYTZjNWE2YmIwODk5NDA4MjJkZTVhYzhiZTk0MmFlYjAyMTkwYmE1YTg0NjAzYjA1OGFiNgpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdFBhY2thZ2VzT25seU5vbkdvU3RpbGxGYWxsc0JhY2sJMWJhMGIyNTMwYmZjOTNmNDg2NzEwZTkwMmU2Mjk2NGEzNzhkZTYxZTAzYzdkZGQ2YjRlZjhmN2E5ZjQ1ODM5ZQpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdFJ1blBhc3Nlcwk4ZWI3MGZmOGY4OTFjOTAzY2JlNmQ4YjkyMDI1Y2M5OTc0NzU1NmE5MmJkY2EzMGM4YzRhNjEwOGY1ZTU4ZmE3CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0UnVuUmVwb3J0c1RoZVJlYWxFeGl0Q29kZQlhMGE0YzBmNjEwZDk1Y2Y0NDFjMDBkODViZDgyNGE4NWQ1Mzk2NjBhYjI3ZDYzYjkwZDI0Njg0MWMxNTdhZGQ3CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0U2NvcGVEZXJpdmF0aW9uCTY0ZThhYmY3OGM1ZTM4MzU2NmFmZDFlNTI5YjNlMGFjYzVhZWI2ZmVlYzhmMWMyOGU0MDdhN2EzNTkyNDNlMzQKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RTdWJzdGl0dXRlZFBhdGhzQXJlT25lU2hlbGxBcmd1bWVudEVhY2gJZWMzZWRlZWU5NTViZGJjMDdjYThkZGJlYzI1NGEyNTgzMDMxYzMyZDRiMDIwZjY2NjM3ODUyMWQ0OWNkNjE1Ngpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdFRhaWxBbm5vdW5jZXNXaGF0SXRMZWZ0T3V0CTQ3NDk0M2RjNjE1MzlhMmViNDVhOGM3OTMzOGI5ZTk2OGY4YmNkMmViMDkwZTE3ZTcwYjg3ZGM4Y2JjODZkODUKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RUaW1lb3V0SXNSZXBvcnRlZEFzQUZhaWx1cmVOb3RBUGFzcwlmZjdkMDYwYzg3NWVkN2U1ZDlmNmNiYjEzMjIyY2FiY2U0MjI5ZGY3MDZmMmMwY2MyZDBhNTk3ZTk0NGFlMmFlCmJvZHkJaW50ZXJuYWwvY2hlY2svZ3JvdXBfdW5peF90ZXN0LmdvCVRlc3RBVGltZWRPdXRDaGVja0xlYXZlc05vR3JhbmRjaGlsZAkzMzRiYjUwMzlhNjYxZTE0YzdiZDE0Njk5OWM2ZmIwMzFkNWU3M2M3NjYwZDhmMzIyZjM4ZWM2NWRmMjBlZmMwCmJvZHkJaW50ZXJuYWwvY2hlY2svZ3JvdXBfdW5peF90ZXN0LmdvCVRlc3RBbkludGVycnVwdGVkQ2hlY2tTYXlzU28JNGYwOWU2YjY5ZGI2YTY3NWM2YWFmNjVlZGRiYmMzYjNiYTI3ZTk2M2M5MzA2NWE5NDcxNjQxZjQ1YTdlZDQwYQpib2R5CWludGVybmFsL3N1YnByb2Mvc3VicHJvY191bml4X3Rlc3QuZ28JVGVzdEFIZWxkUGlwZUlzTm90V2FpdGVkT25Gb3JldmVyCWYzZWMyODRlYTM0YjFjODViMzBjZjI5YzYzYmVmNjE1MTAyZGY3NzEzNWEzMjY0NjAzN2ZiMDA1NmYxMTA0Y2IKYm9keQlpbnRlcm5hbC9zdWJwcm9jL3N1YnByb2NfdW5peF90ZXN0LmdvCVRlc3RBVGltZWRPdXRDb21tYW5kVGFrZXNJdHNHcmFuZGNoaWxkV2l0aEl0CTJjMDRhNTMzM2VhZDEzZDEwNjlmOGI3MmM3MGExOTMxYWM1NDBlNWY2NTE3NDFlMzM5YjFkOTMxMzU2ZGYwMmM · test-lock-kind:replace
+- 2026-09-25 · 7836e8d* · exit 0 · `set -o pipefail …` · acceptance-sha256:1921b4ac7c5854120e283f9620cd90577fb91c43bd0d596ad2f393fd801dc22b · ms:2276
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2283
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2106
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2126
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2200
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2524
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2104
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2115
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2395
+- 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2153
+- 2026-09-25 · d01c36b* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2247
+- 2026-09-25 · d01c36b* · exit 0 · `set -o pipefail …` · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · ms:2138
+
+## Mutation Log
+(empty until execute)
+- 2026-09-25 · e3f7978* · mutant killed · exit 1 · `internal/subproc/subproc_unix.go` · the child shares mrw's process group, so the group kill reaches nothing and the grandchild survives · acceptance-sha256:1921b4ac7c5854120e283f9620cd90577fb91c43bd0d596ad2f393fd801dc22b · covers:the group is killed
+- 2026-09-25 · e3f7978* · mutant killed · exit 1 · `internal/subproc/subproc_unix.go` · the cancel kills only the child, and the grandchild outlives it · acceptance-sha256:1921b4ac7c5854120e283f9620cd90577fb91c43bd0d596ad2f393fd801dc22b · covers:the group is killed
+- 2026-09-25 · e3f7978* · mutant killed · exit 1 · `internal/subproc/subproc.go` · Output waits for a pipe a detached grandchild holds, 30 s past the deadline · acceptance-sha256:1921b4ac7c5854120e283f9620cd90577fb91c43bd0d596ad2f393fd801dc22b · covers:a held pipe is not waited on forever
+- 2026-09-25 · e3f7978* · mutant killed · exit 1 · `internal/check/check.go` · an interrupted check is not reported as interrupted · acceptance-sha256:1921b4ac7c5854120e283f9620cd90577fb91c43bd0d596ad2f393fd801dc22b · covers:an interrupt is reported
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `internal/subproc/subproc_unix.go` · the child shares mrw's process group, so the group kill reaches nothing and the grandchild survives · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · covers:the group is killed
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `internal/subproc/subproc_unix.go` · the cancel kills only the child, and the grandchild outlives it · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · covers:the group is killed
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `internal/subproc/subproc.go` · Output waits for a pipe a detached grandchild holds, 30 s past the deadline · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · covers:a held pipe is not waited on forever
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `internal/check/check.go` · an interrupted check is not reported as interrupted · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · covers:an interrupt is reported
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `internal/check/check.go` · a hangup ends mrw and leaves the check, in its own group, running · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · covers:an interrupt is reported
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `internal/check/check.go` · a signal the process started with ignored (nohup's SIGHUP) is switched back on · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · covers:an interrupt is reported
+- 2026-09-25 · d3f63be* · mutant killed · exit 1 · `internal/check/check.go` · an interrupted check is not reported as interrupted · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · covers:an interrupt is reported
+- 2026-09-25 · d01c36b* · mutant killed · exit 1 · `internal/check/check.go` · a signal the process started with ignored (nohup's SIGHUP) is switched back on, now caught through a child test process · acceptance-sha256:905827518964c0f711e5da0b6f3bd68541b7d7f6004e18be8322b860f0c3f2ee · covers:an interrupt is reported
+
+## Invariants
+
+- Exit codes keep their meaning.
+
+## Risks
+
+- See the record.
+
+## Out of Scope
+
+- Everything the record lists (permanent: boundary: ADR-072 Out of Scope)
+
+## Stop Condition
+
+Stop if the change needs an engine package other than `internal/check`.

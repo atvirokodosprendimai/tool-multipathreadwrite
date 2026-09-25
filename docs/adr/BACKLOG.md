@@ -1936,9 +1936,15 @@ Contract breaks, reproduced on macOS:
   exception now states it.
 - **A malformed `.quality-harness.json` applies the write and exits 2 with only the JSON error.**
   No receipt; exit 2 is documented as usage or filesystem. The config is parsed after the commit.
+  **Fixed by ADR-072 T1**, contract §142: the harness is read before apply, and a malformed one
+  refuses the write, exit 2, nothing written.
 - **A killed check leaves an applied write with zero bytes printed.** The receipt is rendered only
   after the check returns, so an outer kill of mrw during the check prints nothing. mrw's own bound
   (five minutes by default, `timeout_seconds`) kills only `sh`, and a grandchild survives it.
+  **Fixed by ADR-072 T2 and T4**, contract §143 and §145: the human receipt is printed and the
+  landing counted before the check runs; the check runs in its own process group, which its
+  timeout kills, and an interrupt during the check reports `interrupted`, exit 3. On Windows only
+  the bound on held pipes applies (deferred: a job object).
 - **Creates are not cross-checked.** Two `create` hunks for one path both report ok and the bodies
   are concatenated; two spellings of a NEW file on a case-insensitive filesystem (`n.txt` +
   `N.TXT`, macOS and NTFS; `n.txt` + `n.txt.` on NTFS) both report "created", one file remains, and
@@ -1956,6 +1962,8 @@ Contract breaks, reproduced on macOS:
   BOM and mixes encodings. Nothing refuses a write to such a file.
 - **`--json` prints text on a plan parse error.** The documentation promises a receipt on failure;
   a failed hunk does get JSON, an unparseable plan does not.
+  **Fixed by ADR-072 T3**, contract §144: under `--json` every refusal after the plan is named is
+  a JSON document with an `error` field.
 - **The MCP page budget ignores JSON escaping.** A 153,600 B TSX file (many `<`, `>`, `&`, each six
   bytes on the wire) is refused whole with no `next_read`, while a 275,200 B plain file pages. The
   refusal blames the per-file receipt. Any markup file above roughly 110–150 KB is unreadable at
@@ -2022,3 +2030,15 @@ Found after the list: every padded-path refusal suggests its fix in POSIX single
 names a path with quotes in it (a Windows cmd.exe session, 2026-09-25).
 
 Not a finding: `a.txt:-1` serves line 1; `-M` is documented as "from the start to M".
+
+Found while fixing it (ADR-072, contract §143): the contract's hang guard, `perl -e 'alarm shift;
+exec @ARGV'`, cannot stop mrw. A Go program ignores SIGALRM unless it asks for the signal (the
+runtime's signal table marks it notify-only), so a row that wraps `$MRW` in the alarm is unbounded
+if mrw hangs; it bounds only non-Go children such as §55's Python hook. §143 kills mrw with SIGKILL
+instead. The rows that still wrap `$MRW` in the alarm need a guard that can actually fire.
+
+From the review of #229 (ADR-072), outside that record: a `--dry-run` is tallied as `applied`
+and so counted among `landed writes` in `mrw stats`, though nothing landed; `main` did the same
+before ADR-072. And a signal that lands between the check's signal handler being installed and
+its process starting reports "could not start: context canceled" (exit 2, with advice to declare a
+check) rather than "interrupted"; the window is microseconds, and nothing reaches it in a test.
