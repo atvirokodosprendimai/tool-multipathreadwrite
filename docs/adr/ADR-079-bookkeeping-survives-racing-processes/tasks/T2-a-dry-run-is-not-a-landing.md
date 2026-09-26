@@ -79,11 +79,19 @@ go test ./cmd/mrw/ ./internal/mcp/ -count=1 -timeout 240s -run 'TestACleanDryRun
 - 2026-09-26 · 686cb60* · exit 0 · `set -o pipefail …` · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · ms:686
 - 2026-09-26 · 686cb60* · exit 0 · `set -o pipefail …` · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · ms:323
 - 2026-09-26 · 686cb60* · exit 0 · `set -o pipefail …` · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · ms:338
+- 2026-09-26 · 0b665d5* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · ms:0 · test-lock-sha256:bb5c956030335ade5fb46984b035b1c8b5ca996cda3947c24374b45138396766 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvYm9va2tlZXBpbmcwNzlfdGVzdC5nbwlUZXN0QUNsZWFuRHJ5UnVuUmVjb3Jkc05vdGhpbmcJNzNlMTdhMDg2MDIwOTQ3YWQ0YTk2YmY1YmE2ZjE4MjJhM2NkYTBmODY1YTg0MTA5ZjkxMDEwZTQyNjI0NzEyMwpib2R5CWNtZC9tcncvYm9va2tlZXBpbmcwNzlfdGVzdC5nbwlUZXN0U2Vlbk5ldmVyUHJpbnRzQUhhbGZTYXZlZExlZGdlcglkNGFlNDI3ZmZjMjliZTg2ODFlYjQ3MDljOTQxM2VjM2ZkM2RmN2RjNTNjOTllM2I3MTJiODU3NzdkMWZjMzRiCmJvZHkJaW50ZXJuYWwvbWNwL2RyeXJ1bjA3OV90ZXN0LmdvCVRlc3RBQ2xlYW5NQ1BEcnlSdW5SZWNvcmRzTm90aGluZwk1ZGFjMTQ1NGZjZDI5YjUzZjVhNzYzZDkzZDIwMjRjYjQ5MGQ3ZmU5ODZiZTYwYzJhOGY1MTk0ZTdjN2YwOTVk · test-lock-kind:replace
+- 2026-09-26 · 0b665d5* · exit 0 · `set -o pipefail …` · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · ms:692
+- 2026-09-26 · 0b665d5* · exit 0 · `set -o pipefail …` · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · ms:391
+- 2026-09-26 · 0b665d5* · exit 0 · `set -o pipefail …` · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · ms:489
+- 2026-09-26 · 0b665d5* · exit 0 · `set -o pipefail …` · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · ms:1003
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-26 · 686cb60* · mutant killed · exit 1 · `cmd/mrw/main.go` · the CLI tallies a clean dry run as applied · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · covers:a clean dry run records nothing
 - 2026-09-26 · 686cb60* · mutant killed · exit 1 · `internal/mcp/tools.go` · MCP tallies a clean dry run as a refusal · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · covers:both surfaces agree
+- 2026-09-26 · 0b665d5* · mutant killed · exit 1 · `cmd/mrw/main.go` · the CLI tallies a clean dry run as applied · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · covers:a clean dry run records nothing
+- 2026-09-26 · 0b665d5* · mutant killed · exit 1 · `internal/mcp/tools.go` · MCP tallies a clean dry run as a refusal · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · covers:both surfaces agree
+- 2026-09-26 · 0b665d5* · mutant killed · exit 1 · `internal/mcp/tools.go` · MCP tallies a clean dry run as a refusal · acceptance-sha256:f90c428f23c944eda93d428a24a53dd9a5321a44e169c768f973f143bb76e07d · covers:both surfaces agree
 
 ## Invariants
 
@@ -96,6 +104,7 @@ go test ./cmd/mrw/ ./internal/mcp/ -count=1 -timeout 240s -run 'TestACleanDryRun
 ## Out of Scope
 
 - Counting dry runs in a bucket of their own (permanent: boundary: the tally measures what became of plans given to write, ADR-009; a dry run changes nothing)
+- A plan refused by a filesystem error before validation, tallied by MCP and not by the CLI, dry run or not (deferred: older than this record, found in the review of #240; docs/adr/BACKLOG.md "Filesystem-error refusals are tallied on one surface")
 
 ## Stop Condition
 

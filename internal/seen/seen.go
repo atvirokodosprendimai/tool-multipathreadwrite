@@ -370,7 +370,8 @@ func LockWrites(root string) (release func(), err error) {
 // file and rewrites it, so a Load taken while another writer saves can find it
 // half-written or empty — and a Load that finds no header discards the ledger —
 // which refused a writer "has not been read" for a file it had read (review of
-// #233). Load stays unlocked for readers that only report (ADR-038).
+// #233). Load itself takes no lock: `mrw seen` reads through Snapshot too since
+// ADR-079, and a reader that calls Load directly reads past it.
 func Snapshot(root string) (Ledger, error) {
 	var l Ledger
 	err := withLock(root, func() error {

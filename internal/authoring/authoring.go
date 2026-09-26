@@ -464,73 +464,98 @@ func (p Pricing) FalsePositiveRate() (rate float64, ok bool) {
 
 // ── ADR-079: one lock for the tally, the ring and the pricing counters ─────
 
-// lockName is the tally's lock: one for the three files, since a write updates
-// the tally, the ring and the counters one after another.
+// lockName is the tally's lock, one for the three files. Each exported call
+// takes it once, for its own file: a write's tally, ring and pricing updates are
+// three holds, and `mrw stats` reads the three in three — each file whole, not
+// the three at one instant (the review of #240).
 const lockName = file + ".lock"
 
-// locked runs fn holding the tally's lock, and runs it anyway when the lock
-// cannot be taken: the tally never fails a write, and a state directory that
-// cannot hold a lock cannot hold the tally either (ADR-079). Every file here
-// was rewritten by truncate-and-write, so a process racing another could read
-// one emptied, rebuild from nothing and save — the whole tally lost, not a
-// count. Nothing here calls locked from inside locked.
-func locked(root string, fn func()) {
-	if release, err := state.Hold(root, lockName); err == nil {
-		defer release()
+// locked runs fn holding the tally's lock, and does not run it when the lock
+// cannot be taken, saying why. Every file here is rewritten by
+// truncate-and-write, so a writer racing another unlocked could read one
+// emptied, rebuild from nothing and save — the whole tally lost, not a count. A
+// writer that cannot lock therefore writes nothing, and the tally loses that one
+// count, which it already accepts: a lock file mrw cannot open says nothing
+// about whether the tally beside it is writable (the reviews of #240). Nothing
+// here calls locked from inside locked.
+func locked(root string, fn func()) error {
+	release, err := state.Hold(root, lockName)
+	if err != nil {
+		return err
 	}
+	defer release()
 	fn()
+	return nil
 }
 
-// Record adds one plan's outcome to the tally, under its lock. It never fails
-// a write: every error is swallowed, and the cost of being wrong is a lost count.
+// lockedRead runs fn under the tally's lock, or without it when the lock cannot
+// be taken: a report read unlocked may meet a file mid-rewrite and show it empty,
+// but it writes nothing back, so it cannot lose what it misreads.
+func lockedRead(root string, fn func()) {
+	if locked(root, fn) != nil {
+		fn()
+	}
+}
+
+// Record adds one plan's outcome to the tally, under its lock. It never fails a
+// write: every error is swallowed, a lock it cannot take included, and the cost
+// of being wrong is a lost count.
 func Record(root string, o Outcome) error {
-	locked(root, func() { _ = record(root, o) })
+	_ = locked(root, func() { _ = record(root, o) })
 	return nil
 }
 
 // Reclassify moves one plan from outcome from to outcome to (ADR-072), under
 // the tally's lock. It never adds a plan and never fails a write.
 func Reclassify(root string, from, to Outcome) error {
-	locked(root, func() { _ = reclassify(root, from, to) })
+	_ = locked(root, func() { _ = reclassify(root, from, to) })
 	return nil
 }
 
-// Load reads the tally under its lock. It fails open: an unreadable or
-// malformed file is an empty tally and no error.
+// Load reads the tally under its lock, or past a lock it cannot take. It fails
+// open: an unreadable or malformed file is an empty tally and no error.
 func Load(root string) (t Tally, err error) {
-	locked(root, func() { t, err = load(root) })
+	lockedRead(root, func() { t, err = load(root) })
 	return t, err
 }
 
-// Reset empties the tally under its lock, and reports a failure: a caller who
-// asked to discard their counts needs to know it did not happen.
-func Reset(root string) (err error) {
-	locked(root, func() { err = reset(root) })
-	return err
+// Reset empties the tally under its lock and returns what it discarded, read
+// under the same hold: read before it, a count recorded in between was
+// discarded unreported (the review of #240). It reports a failure, a lock it
+// cannot take included: a caller who asked to discard their counts needs to
+// know it did not happen.
+func Reset(root string) (discarded Tally, err error) {
+	if lerr := locked(root, func() {
+		discarded, _ = load(root)
+		err = reset(root)
+	}); lerr != nil {
+		return nil, lerr
+	}
+	return discarded, err
 }
 
 // RecordRecent appends one landed write to the ring (ADR-055), under the
 // tally's lock. It never fails a write.
 func RecordRecent(root string, advisories int) error {
-	locked(root, func() { _ = recordRecent(root, advisories) })
+	_ = locked(root, func() { _ = recordRecent(root, advisories) })
 	return nil
 }
 
 // Recent reads the ring under the tally's lock, oldest first; it fails open.
 func Recent(root string) (entries []RecentEntry) {
-	locked(root, func() { entries = recent(root) })
+	lockedRead(root, func() { entries = recent(root) })
 	return entries
 }
 
 // RecordPricing counts one landed flag-off write (ADR-056), under the tally's
 // lock. It never fails a write.
 func RecordPricing(root string, candidate, wouldRefuse bool, outcome PricingOutcome) error {
-	locked(root, func() { _ = recordPricing(root, candidate, wouldRefuse, outcome) })
+	_ = locked(root, func() { _ = recordPricing(root, candidate, wouldRefuse, outcome) })
 	return nil
 }
 
 // LoadPricing reads the counters under the tally's lock; it fails open.
 func LoadPricing(root string) (p Pricing) {
-	locked(root, func() { p = loadPricing(root) })
+	lockedRead(root, func() { p = loadPricing(root) })
 	return p
 }

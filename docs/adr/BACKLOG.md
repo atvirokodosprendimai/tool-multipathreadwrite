@@ -1980,6 +1980,12 @@ Contract breaks, reproduced on macOS:
   under one lock each (`state.Hold`), their readers take it too, and `mrw seen` reads the ledger under
   its lock. Worse than recorded: a racing process could read a file emptied mid-rewrite and wipe the
   whole tally or working set, not one count.
+  The reviews of #240 closed two gaps in that fix: a writer that could not take the tally's lock
+  wrote unlocked, and `state.Migrate` copied legacy state with no lock; a writer now skips a lock it
+  cannot take, and `Migrate` holds each destination's. Left open (deferred: found in the review of
+  #240, not measured): the MCP pending-ack store is rewritten under the in-process gate only, so two
+  servers on one checkout could race it, and `seen.IsStale` reads the ledger unlocked — a wrong
+  stderr notice at worst.
 - **A UTF-16LE file is rewritten with exit 0**: served as byte-split lines, and a replace drops the
   BOM and mixes encodings. Nothing refuses a write to such a file.
   **Fixed by ADR-073**, contract §146: a line edit to a file that begins with a UTF-16 or UTF-32
@@ -2123,6 +2129,10 @@ its process starting reports "could not start: context canceled" (exit 2, with a
 check) rather than "interrupted"; the window is microseconds, and nothing reaches it in a test.
 **The dry run is fixed by ADR-079**, contract §161: a clean `--dry-run` records nothing on either
 surface (MCP counted every dry run as `refused_apply`), and a refused one is one refusal.
+- **Filesystem-error refusals are tallied on one surface** (the review of #240, older than ADR-079):
+  a plan refused by a filesystem error before any hunk is judged — a path that names a directory —
+  exits 2 on the CLI before the tally is reached, while `mrw_write` counts it as `refused_apply`, dry
+  run or not. Deferred: which bucket such a refusal belongs in is ADR-009's call, not ADR-079's.
 
 Found while ranking this backlog (2026-09-26): with `XDG_STATE_HOME` inside the root, or under
 `--root "$HOME"`, a `--grep` walked mrw's state directory, a read served the ledger and the ack

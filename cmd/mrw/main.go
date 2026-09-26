@@ -426,19 +426,22 @@ size is the form that gets quoted out of the population it was measured on.`,
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			root := cmd.Root().String("root")
-			t, err := authoring.Load(root)
-			if err != nil {
-				return cli.Exit(err, exitUsage)
-			}
+			// The reset reads what it discards under the hold that discards it:
+			// read before, a plan recorded in between was discarded unreported
+			// (the review of #240).
 			if cmd.Bool("reset") {
-				n := t.Plans()
-				if err := authoring.Reset(root); err != nil {
+				discarded, err := authoring.Reset(root)
+				if err != nil {
 					return cli.Exit(err, exitUsage)
 				}
 				// Say what was discarded. A reset that reports nothing is
 				// indistinguishable from a reset that did nothing.
-				fmt.Printf("tally reset: %d plan(s) discarded\n", n)
+				fmt.Printf("tally reset: %d plan(s) discarded\n", discarded.Plans())
 				return nil
+			}
+			t, err := authoring.Load(root)
+			if err != nil {
+				return cli.Exit(err, exitUsage)
 			}
 			if cmd.Bool("json") {
 				// ADR-054: every vocabulary key is present, zero included, so

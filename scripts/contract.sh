@@ -7206,6 +7206,31 @@ for i in $(seq 1 8); do printf '@@ f%d.txt 1 replace\nw\n' "$i" > "$R/p160.$i"; 
 for p in "${pids[@]}"; do wait "$p"; done
 applied=$(m stats --json 2>/dev/null | jq -r '.counts.applied')
 [ "$applied" = 8 ] && ok "8 racing writes count 8 applied" || bad "8 racing writes counted applied=$applied: $(m stats --json 2>&1 | head -c 300)"
+# The race rows above can pass with no lock at all when the timing never opens
+# the window: the tally row went red in 1 run of 18 with the lock removed, since
+# the write lock staggers the writers (the review of #240). So each lock is also
+# held on purpose, by a process that is not mrw: a command must wait while it is
+# held, and finish once it is released.
+sd=$(m seen 2>/dev/null | head -1)
+hold160() { # LOCKFILE: hold it for 2 s, printing "held" once it is taken
+  perl -MFcntl=:flock -e 'open(my $f, ">>", $ARGV[0]) or die "$!"; flock($f, LOCK_EX) or die "$!"; $| = 1; print "held\n"; sleep 2' "$1" > "$WORK/h160" 2>&1 &
+  hp=$!
+  for _ in $(seq 1 50); do grep -q held "$WORK/h160" && return 0; sleep 0.1; done
+  return 1
+}
+waited160() { # LABEL CMD...: CMD is still running 0.5 s in, and done by 10 s
+  "${@:2}" >/dev/null 2>&1 & wp=$!
+  sleep 0.5
+  if kill -0 "$wp" 2>/dev/null; then ok "$1 waits while its lock is held"; else bad "$1 finished while its lock was held"; fi
+  for _ in $(seq 1 100); do kill -0 "$wp" 2>/dev/null || break; sleep 0.1; done
+  if kill -0 "$wp" 2>/dev/null; then kill -9 "$wp"; bad "$1 never finished after its lock was released"; fi
+  wait "$wp"; want 0 $? "$1 finishes once its lock is released"
+  wait "$hp"
+}
+printf '@@ f1.txt 1 replace\nheld\n' > "$R/p160.h"
+hold160 "$sd/authoring.lock" && waited160 "a write's tally" m write --no-check "$R/p160.h" || bad "could not hold authoring.lock: $(cat "$WORK/h160")"
+[ "$(m stats --json 2>/dev/null | jq -r '.counts.applied')" = 9 ] && ok "and its count lands" || bad "after the held write: $(m stats --json 2>&1 | head -c 300)"
+hold160 "$sd/iteration.lock" && waited160 "an iter add" m iter add f9.txt || bad "could not hold iteration.lock: $(cat "$WORK/h160")"
 
 # 161. ADR-079: a dry run is not a landing. A clean --dry-run was tallied as
 # applied, and counted among the landed writes though nothing landed; a
