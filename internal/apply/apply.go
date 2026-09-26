@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -135,6 +136,10 @@ type FileResult struct {
 	Removed bool `json:"removed,omitempty"`
 	// RenamedTo is the dest path of a rename, root-relative.
 	RenamedTo string `json:"renamed_to,omitempty"`
+	// Target is the file a write through an in-root symlink changed, when it
+	// is not Path: ADR-005 §2 follows the link, and ADR-076 names where it led.
+	// Root-relative; absent otherwise.
+	Target string `json:"target,omitempty"`
 }
 
 // Result is the whole run's receipt.
@@ -150,6 +155,10 @@ type Result struct {
 	// reports without failing is not invisible to a caller who reads only
 	// the summary. Skipped and failed hunks contribute nothing.
 	Advisories int `json:"advisories"`
+	// DirsCreated names the directories a create or a rename made because they
+	// were not there, root-relative and parents first (ADR-076). Absent when
+	// none were made, and on a dry run, which makes none.
+	DirsCreated []string `json:"dirs_created,omitempty"`
 	// StrictSingleLine and StrictWouldRefuse feed ADR-056's pricing of
 	// --strict-balance and are NOT receipt fields: the balance rows already
 	// show the hunks. StrictSingleLine counts ok single-line replaces on
@@ -309,6 +318,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 
 	byPath := map[string][]hunk{}
 	var order []string
+	dirSpelled := map[string]dirSpelling{}
 	// The hunk's identity is its POSITION in the plan, not the Index the caller
 	// filled in: two inputs sharing an Index would share a slot in the verdict
 	// map, and one hunk's report would silently become another's.
@@ -318,6 +328,9 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// in the seen ledger, which is keyed the same way. Without it a file
 		// read under one spelling is refused as unread under the other.
 		p := filepath.Clean(i.Path)
+		if _, ok := dirSpelled[p]; !ok && rooted.SpelledAsDirectory(i.Path) {
+			dirSpelled[p] = dirSpelling{raw: i.Path, index: n}
+		}
 		if _, seen := byPath[p]; !seen {
 			order = append(order, p)
 		}
@@ -394,6 +407,22 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	var seenFiles []groupedFile
 	for _, path := range order {
 		hs := byPath[path]
+		// ADR-076: a trailing separator names a directory, and the clean above
+		// dropped it, so `@@ a.txt/` edited a.txt at exit 0. A plan names files,
+		// so the spelling is refused whether or not the path exists.
+		if spelled, ok := dirSpelled[path]; ok {
+			// The refusal is carried by the hunk that spelled it (review of
+			// #237): the first hunk of the file may be a sibling that did not.
+			at := 0
+			for k, h := range hs {
+				if h.Index == spelled.index {
+					at = k
+				}
+			}
+			refuseFile(results, path, hs, at, fmt.Sprintf("%s %v; a plan edits files — name the file itself", spelled.raw, rooted.ErrNotADirectory))
+			failed = append(failed, FileResult{Path: path})
+			continue
+		}
 		full, err := resolve(root, path)
 		if err != nil {
 			// A path that leaves the root is refused per hunk rather than
@@ -426,6 +455,15 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// write in os.ReadFile below. It is refused before it is opened.
 			if !info.Mode().IsRegular() && !info.IsDir() {
 				refuseFile(results, path, hs, 0, fmt.Sprintf("%s is %s", path, lines.NotRegular))
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
+			// ADR-076: a read-only mark is a statement by whoever set it. A
+			// replace renames a new file over it and an unlink removes the
+			// entry, and neither needs the file to be writable, so both went
+			// through at exit 0.
+			if ro := readOnlyFor(path, full, info, hs); ro != "" {
+				refuseFile(results, path, hs, 0, ro)
 				failed = append(failed, FileResult{Path: path})
 				continue
 			}
@@ -500,10 +538,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			continue
 		}
 		fr.Created = !existed
-		// A file created by a plan always ends with a newline; an edited file
-		// keeps whatever it had, so mrw never silently adds or strips one.
+		// A file created by a plan always ends with a newline, and so does one
+		// that held no lines: it had no last line whose terminator could be
+		// kept (ADR-076). An edited file keeps whatever it had, so mrw never
+		// silently adds or strips one.
 		final := orig
-		final.final = orig.final || !existed
+		final.final = orig.final || !existed || len(orig.lines) == 0
 		final = final.with(out)
 		fr.LinesTo = len(out)
 		fr.SHAAfter = shaOf(final)
@@ -573,6 +613,30 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		}
 	}
 	staged := make([]staged, 0, len(content))
+	// The root as staging spells every path, so a link's target and the
+	// directories made are reported root-relative (ADR-076).
+	absRoot, absErr := rooted.Abs(root)
+	// nameDirs records the directories staging made that are still on disk:
+	// every one after a commit, and after a failed commit those a committed
+	// file still holds, since discard has taken back the rest (Codex review
+	// of #237).
+	nameDirs := func() {
+		if absErr != nil {
+			return
+		}
+		res.DirsCreated = nil
+		for _, sf := range staged {
+			for _, d := range sf.dirs {
+				if _, err := os.Stat(d); err != nil {
+					continue
+				}
+				if rel, err := filepath.Rel(absRoot, d); err == nil {
+					res.DirsCreated = append(res.DirsCreated, rel)
+				}
+			}
+		}
+		sort.Strings(res.DirsCreated)
+	}
 	// ADR-004: mrw leaves nothing in the working tree. An abort must unlink
 	// what it staged, or a failed plan litters .mrw-* beside every target it
 	// got to — and it must take the DIRECTORIES back too. Staging a create
@@ -615,6 +679,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// ok describes no write, so it carries no Echo or Balance. files[] keeps
 	// the written records and lists every other addressed file unwritten.
 	commitFailed := func(path string, cause, ret error) (Result, error) {
+		nameDirs()
 		written := map[string]bool{}
 		have := map[string]bool{}
 		for _, f := range res.Files {
@@ -734,6 +799,9 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			return commitFailed(w.file.Path, err, fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files)))
 		}
 		w.file.Written = true
+		if rel, err := filepath.Rel(absRoot, staged[i].target); absErr == nil && err == nil && !sameSpelling(rel, w.file.Path) {
+			w.file.Target = rel
+		}
 		res.Files = append(res.Files, w.file)
 	}
 	if path, err := commitPathOps(&res, pathOps); err != nil {
@@ -743,6 +811,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		discard(len(content))
 		return commitFailed(path, err, err)
 	}
+	nameDirs()
 	res.Applied = true
 	return res, nil
 }
@@ -1617,9 +1686,11 @@ var commitRenameFn = os.Rename
 // in a new regular file while the file the caller meant stayed untouched, and
 // nothing in the receipt would say the tree's shape had changed.
 func stageFile(path string, t text) (staged, error) {
-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		path = resolved
-	}
+	// Through any link, as far as the path exists: an existing file resolves
+	// whole, and a file a create is about to make resolves through the
+	// directory that holds it, so a create through a linked directory is
+	// staged, and reported, where it lands (ADR-076).
+	path = rooted.RealAsFarAsItExists(path)
 	dir := filepath.Dir(path)
 	// Record the directories that are about to come into existence, before
 	// creating them, because MkdirAll cannot say afterwards which ones were
@@ -1650,6 +1721,13 @@ func stageFile(path string, t text) (staged, error) {
 		return staged{dirs: missing}, err
 	}
 	if err := os.Chmod(tmp.Name(), perm); err != nil {
+		os.Remove(tmp.Name())
+		return staged{dirs: missing}, err
+	}
+	// ADR-076: a staged file is a new file, so the rename that commits it
+	// dropped the attributes of the one it replaces; on Windows a Hidden file
+	// came out visible. Only Windows has such attributes to carry.
+	if err := keepAttributes(path, tmp.Name()); err != nil {
 		os.Remove(tmp.Name())
 		return staged{dirs: missing}, err
 	}
@@ -1967,4 +2045,59 @@ func lineEditAt(hs []hunk) int {
 		}
 	}
 	return -1
+}
+
+// readOnlyFor is the refusal for a file whose owner cannot write it, or "". A
+// line edit judges the file it reaches, through a link; an unlink or a rename
+// moves the entry itself, so it is judged by Lstat, and a link to a read-only
+// file may still be removed (ADR-076). The fix it names is this platform's.
+func readOnlyFor(path, full string, info os.FileInfo, hs []hunk) string {
+	// A create over an existing file is refused for that, with its own
+	// reason; the read-only mark must not hide it (review of #237).
+	if allCreates(hs) {
+		return ""
+	}
+	mode := info.Mode()
+	if lineEditAt(hs) < 0 {
+		li, err := os.Lstat(full)
+		if err != nil {
+			return ""
+		}
+		mode = li.Mode()
+	}
+	if !mode.IsRegular() || mode.Perm()&0o200 != 0 {
+		return ""
+	}
+	fix := "chmod u+w " + path
+	if runtime.GOOS == "windows" {
+		fix = "attrib -r " + path
+	}
+	return fmt.Sprintf("%s is read-only (%v); mrw does not override a read-only file — clear the mark first: %s", path, mode.Perm(), fix)
+}
+
+// sameSpelling reports whether a staged file's path is the plan's own spelling.
+// On Windows EvalSymlinks canonicalises a name's case, so readme.md staged as
+// README.md is the same file reached by its own name, not through a link — a
+// target named there was a false one (Codex review of #237). A link and its
+// target differing only by case cannot share a directory on a filesystem that
+// folds case.
+func sameSpelling(staged, planned string) bool {
+	return staged == planned || (runtime.GOOS == "windows" && strings.EqualFold(staged, planned))
+}
+
+// allCreates reports whether every one of a file's hunks is a create.
+func allCreates(hs []hunk) bool {
+	for _, h := range hs {
+		if h.Op != "create" {
+			return false
+		}
+	}
+	return true
+}
+
+// dirSpelling is a plan path spelled as a directory, and the hunk that spelled
+// it.
+type dirSpelling struct {
+	raw   string
+	index int
 }

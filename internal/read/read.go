@@ -14,6 +14,7 @@ package read
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -401,9 +402,19 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			}
 			if rel, relErr := filepath.Rel(absRoot, cleaned); relErr == nil {
 				sp.Path = rel
+				// ADR-076: Real cleaned the separator away; it is kept, so the
+				// spelling is judged below as the caller wrote it.
+				if rooted.SpelledAsDirectory(argPath) {
+					sp.Path += string(filepath.Separator)
+				}
 			}
 		}
 		full, err := rooted.Resolve(root, sp.Path)
+		if errors.Is(err, rooted.ErrNotADirectory) {
+			fmt.Fprintf(w, "==> %s  UNREADABLE  %v\n", sp.Path, err)
+			problems++
+			continue
+		}
 		if err != nil {
 			// The same boundary the write path enforces. Serving a file the
 			// caller did not scope is a smaller harm than writing one, and it

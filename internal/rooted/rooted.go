@@ -12,7 +12,10 @@
 package rooted
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -49,8 +52,18 @@ func Abs(root string) (string, error) {
 			return "", err
 		}
 	}
-	if real, err := filepath.EvalSymlinks(absRoot); err == nil {
+	// ADR-076: a root that is not there was judged by its spelling, so every
+	// path under it "resolved outside the root" — to the root's parent — and a
+	// create under it made the root. It is named for what it is.
+	real, err := filepath.EvalSymlinks(absRoot)
+	switch {
+	case err == nil:
 		absRoot = real
+	case errors.Is(err, fs.ErrNotExist):
+		return "", fmt.Errorf("the root %s does not exist", root)
+	}
+	if fi, err := os.Stat(absRoot); err == nil && !fi.IsDir() {
+		return "", fmt.Errorf("the root %s is not a directory", root)
 	}
 	return absRoot, nil
 }
@@ -66,6 +79,16 @@ func Resolve(root, path string) (string, error) {
 	}
 
 	full := filepath.Join(absRoot, path)
+	// ADR-076: Win32 opens CON, NUL, COM1 and the rest as devices — before
+	// Windows 11 with any extension too — so `mrw read NUL` served an empty
+	// file and a plan could write to a device at exit 0. The cleaned name picks
+	// a candidate, since `NUL/.` opens NUL too (Codex review of #237), and the
+	// OS answers whether it opens one.
+	if followLinks {
+		if d := win32Device(filepath.Clean(path)); d != "" && opensDevice(full) {
+			return "", fmt.Errorf("%s: Windows opens %q as a device, not a file; mrw reads and writes files", path, d)
+		}
+	}
 	// ADR-071: on Windows a junction is followed here, because EvalSymlinks
 	// no longer does. Elsewhere target is full and nothing changes.
 	target := full
@@ -96,6 +119,15 @@ func Resolve(root, path string) (string, error) {
 	if !Contains(absRoot, check) {
 		return "", fmt.Errorf("%s resolves to %s, which is outside the root %s", path, check, absRoot)
 	}
+	// ADR-076: a trailing separator names a directory — the OS refuses
+	// open("a.txt/"), and "a.txt/." — and the Join above cleaned it away, so
+	// `mrw read a.txt/` served a.txt. A name that does not exist is left to the
+	// caller, which reports it missing in its own words.
+	if SpelledAsDirectory(path) {
+		if fi, err := os.Stat(target); err == nil && !fi.IsDir() {
+			return "", fmt.Errorf("%s %w, but %s is a file", path, ErrNotADirectory, filepath.Clean(path))
+		}
+	}
 	return full, nil
 }
 
@@ -122,6 +154,57 @@ func Real(p string) string {
 // separator matters: without it, "/repo-backup" counts as inside "/repo".
 func Contains(absRoot, p string) bool {
 	return p == absRoot || strings.HasPrefix(p, absRoot+string(filepath.Separator))
+}
+
+// ErrNotADirectory is what Resolve wraps, and plan validation reports, when a
+// path is spelled as a directory but does not name one (ADR-076).
+var ErrNotADirectory = errors.New("names a directory, ending in a separator, `.` or `..`")
+
+// SpelledAsDirectory reports whether p, as written, names a directory: it ends
+// in a path separator of this platform, or its last element is "." or "..".
+// Cleaning drops the first and folds the others away, so a file spelled
+// `a.txt/` or `a.txt/.` reached a.txt; the OS refuses both (ADR-076).
+func SpelledAsDirectory(p string) bool {
+	if p == "" {
+		return false
+	}
+	if os.IsPathSeparator(p[len(p)-1]) {
+		return true
+	}
+	last := p
+	for i := len(p) - 1; i >= 0; i-- {
+		if os.IsPathSeparator(p[i]) {
+			last = p[i+1:]
+			break
+		}
+	}
+	return last == "." || last == ".."
+}
+
+// RealAsFarAsItExists is p with its links resolved as far as p exists — on
+// Windows through junctions too, as Real does — and the rest appended as
+// written. A file a create is about to make does not exist, so resolving it
+// whole failed and a create through a linked directory named no target; its
+// deepest existing ancestor is what the link decides (ADR-076).
+func RealAsFarAsItExists(p string) string {
+	p = filepath.Clean(p)
+	if followLinks {
+		if t, err := throughLinks(p, osLinks); err == nil {
+			p = t
+		}
+	}
+	var rest []string
+	for q := p; ; {
+		if real, err := filepath.EvalSymlinks(q); err == nil {
+			return filepath.Join(append([]string{real}, rest...)...)
+		}
+		parent := filepath.Dir(q)
+		if parent == q {
+			return p
+		}
+		rest = append([]string{filepath.Base(q)}, rest...)
+		q = parent
+	}
 }
 
 // IsRooted reports whether p names a location of its own, rather than one to be

@@ -6944,6 +6944,85 @@ done
 [ "$lost" = 0 ] && ok "no writer exits 0 and loses its edit" || bad "$lost writer(s) exited 0 and lost their edit"
 [ "$odd" = 0 ] && ok "and every other writer is refused as stale" || bad "$odd writer(s) ended oddly: $(cat "$R"/out150.*)"
 
+# 151. ADR-076 T1: a path that ends in a separator names a directory. `a.go/`
+# was cleaned to a.go — a read served it and a plan edited it — and a rename
+# to `d/` made a FILE named d. A root that does not exist was reported as a
+# path "outside the root", and a create under it made the root. Each is
+# refused and named; a directory keeps its slash.
+fixture
+mkdir -p "$R/sub"; printf 'package sub\n' > "$R/sub/s.go"
+out=$(m read a.go/ 2>&1); rc=$?
+want 1 "$rc" "a read of a file spelled with a trailing slash is a problem"
+grep -q 'a.go/  UNREADABLE  a.go/ names a directory' <<<"$out" && ok "and it is named, not served" || bad "trailing-slash read: $out"
+grep -q '| package' <<<"$out" && bad "a line was served through a directory spelling: $out" || ok "and no line of it is served"
+out=$(m read a.go/. 2>&1); rc=$?
+{ [ "$rc" = 1 ] && grep -q 'names a directory' <<<"$out"; } && ok "and so is a.go/., which the OS refuses as it refuses a.go/" || bad "a.go/. read: exit $rc: $out"
+m read --grep package sub/ >/dev/null 2>&1; want 0 $? "a directory named with its slash is still walked"
+m read a.go b.go >/dev/null
+printf '@@ a.go/ 3 replace\nfunc A() int { return 9 }\n' > "$R/p151a.mrw"
+before=$(cat "$R/a.go"); out=$(m write --no-check "$R/p151a.mrw" 2>&1); rc=$?
+want 1 "$rc" "a plan path with a trailing slash is refused"
+[ "$(cat "$R/a.go")" = "$before" ] && ok "and a.go is unchanged" || bad "a.go/ edited a.go: $out"
+printf '@@ b.go - rename\nd/\n' > "$R/p151b.mrw"
+out=$(m write --no-check "$R/p151b.mrw" 2>&1); rc=$?
+want 1 "$rc" "a rename to d/ is refused"
+[ ! -e "$R/d" ] && ok "and no file d is made" || bad "a rename to d/ made $(ls -ld "$R/d")"
+grep -q 'd/b.go' <<<"$out" && ok "and the refusal names the file to write instead" || bad "rename d/: $out"
+printf '@@ b.go - rename\nd/b.go\n' > "$R/p151c.mrw"
+m write --no-check "$R/p151c.mrw" >/dev/null 2>&1; want 0 $? "a rename that names the file lands"
+[ -f "$R/d/b.go" ] && ok "at d/b.go" || bad "rename to d/b.go: $(ls -R "$R" 2>&1 | head -20)"
+out=$("$MRW" -C "$WORK/no-such-root" read a.go 2>&1); rc=$?
+want 1 "$rc" "a read under a root that does not exist is a problem"
+{ grep -q 'does not exist' <<<"$out" && ! grep -q 'outside the root' <<<"$out"; } \
+  && ok "and the root is named as missing, not the path as outside it" || bad "missing root: $out"
+printf '@@ x.txt 0 create\nx\n' > "$WORK/p151d.mrw"
+out=$("$MRW" -C "$WORK/no-such-root" write --no-check "$WORK/p151d.mrw" 2>&1); rc=$?
+{ [ "$rc" -ne 0 ] && [ ! -e "$WORK/no-such-root" ]; } \
+  && ok "and a create under it is refused without making the root" || bad "a create under a missing root: exit $rc, $(ls -ld "$WORK/no-such-root" 2>&1): $out"
+
+# 152. ADR-076 T4 and T5: the receipt names every path a write touched, and an
+# insert into an empty file ends with a newline. A write through an in-root
+# symlink named only the link; the directories a create or a rename made were
+# not named; a removed path printed `sha ` and nothing after it.
+fixture
+printf 'r\n' > "$R/real.txt"; ln -s real.txt "$R/link.txt"; printf 'm\n' > "$R/mv.txt"
+m read link.txt mv.txt >/dev/null
+printf '@@ link.txt 1 replace\nR\n@@ n/deep/c.txt 0 create\nc\n@@ mv.txt - rename\nm2/mv.txt\n' > "$R/p152.mrw"
+out=$(m write --no-check --json "$R/p152.mrw" 2>&1); rc=$?
+want 0 "$rc" "a plan through a link, into new directories, with a rename applies"
+jq -e '.files[] | select(.path=="link.txt") | .target=="real.txt"' <<<"$out" >/dev/null && ok "the receipt names the link's target" || bad "no target: $out"
+jq -e '[.files[] | select(.path=="mv.txt" or .path=="m2/mv.txt") | has("target")] | any | not' <<<"$out" >/dev/null && ok "and a file reached by its own name carries none" || bad "a plain file named a target: $out"
+jq -e '.dirs_created==["m2","n","n/deep"]' <<<"$out" >/dev/null && ok "and the directories the plan made, parents first" || bad "dirs_created: $(jq -c .dirs_created <<<"$out" 2>&1)"
+{ [ "$(cat "$R/real.txt")" = R ] && [ -L "$R/link.txt" ]; } && ok "and the write reached the target through the link it kept" || bad "link write: $(ls -l "$R")"
+fixture
+printf 'g\n' > "$R/gone.txt"; : > "$R/e.txt"; printf 'a' > "$R/nn.txt"
+m read gone.txt e.txt nn.txt >/dev/null
+printf '@@ gone.txt - unlink\n@@ e.txt 0 insert-after\nx\n@@ nn.txt 1 replace\nb\n@@ n/c.txt 0 create\nc\n' > "$R/p152b.mrw"
+out=$(m write --no-check "$R/p152b.mrw" 2>&1); rc=$?
+want 0 "$rc" "an unlink, an insert into an empty file, an edit and a create apply"
+grep -qE '^removed gone.txt  1L -> 0L  was sha [0-9a-f]{8}$' <<<"$out" && ok "a removed file's line says what it was" || bad "removed line: $out"
+grep -qE 'sha $' <<<"$out" && bad "a receipt line ends in an empty sha: $out" || ok "and no line ends in an empty sha"
+grep -q '^created n/$' <<<"$out" && ok "the human receipt names the directory made" || bad "no created n/: $out"
+[ "$(od -An -c "$R/e.txt" | tr -d ' ')" = 'x\n' ] && ok "an insert into an empty file ends with a newline" || bad "e.txt is $(od -c "$R/e.txt")"
+[ "$(od -An -c "$R/nn.txt" | tr -d ' ')" = 'b' ] && ok "and an edit of a file with no final newline adds none" || bad "nn.txt is $(od -c "$R/nn.txt")"
+
+# 153. ADR-076 T6: a read-only file is refused, not replaced or removed. A
+# replace renames a new file over it and an unlink removes the entry, and
+# neither needs the file to be writable, so both applied at exit 0. The check
+# reads the mode bits, so it holds under uid 0 as well.
+fixture
+printf 'a\n' > "$R/ro.txt"; chmod 444 "$R/ro.txt"; m read ro.txt >/dev/null
+for plan in '@@ ro.txt 1 replace\nX\n' '@@ ro.txt - unlink\n' '@@ ro.txt - rename\nmoved.txt\n'; do
+  printf "$plan" > "$R/p153.mrw"
+  out=$(m write --no-check "$R/p153.mrw" 2>&1); rc=$?
+  { [ "$rc" = 1 ] && grep -q 'ro.txt is read-only' <<<"$out" && grep -q 'chmod u+w ro.txt' <<<"$out"; } \
+    && ok "$(head -1 "$R/p153.mrw" | cut -d' ' -f3-) on a read-only file is refused, naming chmod" || bad "read-only $(head -1 "$R/p153.mrw"): exit $rc: $out"
+done
+{ [ "$(cat "$R/ro.txt")" = a ] && [ ! -e "$R/moved.txt" ]; } && ok "and ro.txt is as it was" || bad "ro.txt changed: $(ls -l "$R")"
+chmod 644 "$R/ro.txt"
+printf '@@ ro.txt 1 replace\nX\n' > "$R/p153.mrw"
+m write --no-check "$R/p153.mrw" >/dev/null 2>&1; want 0 $? "once writable, the same replace applies"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

@@ -216,7 +216,8 @@ func jsonInner(s string) string {
 // MRW_UPDATE_LEGACY_GOLDEN=1 rewrites the file. It was done before ADR-067 T4, once by ADR-070,
 // whose worked plan gained " body=4": the diff was that token and nothing else, and once by
 // ADR-075, whose routing stopped selling serialized writes: the diff was that sentence and the two
-// tool descriptions' matching clause.
+// tool descriptions' matching clause; and once by ADR-076, whose receipt gained `target` and
+// `dirs_created` and whose `hunks.path` stopped claiming to be "as written": the schema, nothing else.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
 	got := legacyTranscript(t)
 	golden := filepath.Join("testdata", "legacy_golden.jsonl")

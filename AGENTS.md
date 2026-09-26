@@ -386,6 +386,14 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   case-insensitive filesystem, or a file and a symlink to it anywhere, are ONE file; a plan naming
   both is refused with both spellings named, because both would stage a copy and the last rename
   would win (ADR-021). Put all of one file's hunks under one spelling.
+- **A path means what it says** (ADR-076). A path that ends in `/` names a directory: `mrw read
+  a.txt/`, a plan path `a.txt/` and a rename to `d/` are refused — name the file (`d/a.txt`). A
+  read-only file is refused for every op that would change it; clear the mark first (`chmod u+w`,
+  or `attrib -r` on Windows). On Windows a name the OS opens as a device is refused — `NUL` always,
+  and `CON`, `COM1` and the rest where that Windows still reserves them; mrw asks the OS rather than
+  a list. The receipt names what else a write touched: `target` when it went through a symlink,
+  `dirs_created` (`created d/` on the human receipt) for the directories it made, and a removed
+  file's former sha.
 - **A path-scoped rule in `.claude/rules/` is delivered by your harness's own Read tool, and by
   none of `mrw read`, `mrw_read`, `cat` or a Write** — measured 2026-09-04 in Claude Code, issue #86.
   Here `.claude/settings.json` installs `.claude/hooks/rules-on-read.py`, a PostToolUse hook that

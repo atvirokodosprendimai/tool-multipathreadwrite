@@ -102,6 +102,12 @@ func (w *walker) consider(p string, named bool) {
 			return
 		}
 		if rel, relErr := filepath.Rel(absRoot, cleaned); relErr == nil {
+			// ADR-076: Real cleaned the separator away; it is kept, so the
+			// spelling is judged below as the caller wrote it (Codex review
+			// of #237).
+			if rooted.SpelledAsDirectory(p) {
+				rel += string(filepath.Separator)
+			}
 			p = rel
 		}
 	}

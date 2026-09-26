@@ -79,6 +79,11 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 				"which does not exist", raw, raw)
 			return false
 		}
+		// ADR-076: `d/` names a directory; cleaned, it made a FILE named d.
+		if rooted.SpelledAsDirectory(raw) {
+			fail(h, "rename dest %s %v; a rename names the file it makes, such as %s", raw, rooted.ErrNotADirectory, filepath.Join(filepath.Clean(raw), filepath.Base(path)))
+			return false
+		}
 		dest := filepath.Clean(raw)
 		if dest == path || dest == "." {
 			fail(h, "rename dest %s is the source", dest)

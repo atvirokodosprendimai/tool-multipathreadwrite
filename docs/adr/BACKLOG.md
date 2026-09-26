@@ -2064,12 +2064,23 @@ ignored on a numeric range; over MCP, ids of any JSON type are accepted, invalid
 U+FFFD so the engine looks for a path never sent, a bad flag prints usage on stdout at startup,
 100,000 specs block the server past 120 s, and `exclude: ["["]` is not refused.
 ADR-074 T4 names the `--files-from` line that exceeds 8 MiB.
+**Fixed by ADR-076** (2026-09-26), contract §151–§153: the symlink target is named in the receipt
+(`files[].target`); `a.txt/` and a rename to `d/` are refused, while `"a.txt"` and `./a.txt` are
+cleaned as designed (ADR-005 §1, `TestTwoSpellingsOfOnePathAreOneFile`, `TestQuotedFieldsSurvive`);
+an insert into an empty file ends with a newline; a rename or a create names the directories it
+made (`dirs_created`), and a removed file's line gives its former sha; `NUL` is refused as a device;
+a read-only file is refused for every op that would change it, and a write keeps Hidden and System;
+a missing `-C` root is named as missing. The killed-write window is closed for the check by ADR-072
+T2 (§143); the milliseconds between the commit rename and the tally are permanent: SIGKILL cannot be
+handled.
 
 Found by the review of #228 (Windows, from the documentation): Win32 also maps device names —
 `CON`, `NUL`, `AUX`, `PRN`, `COM1`–`COM9`, `LPT1`–`LPT9`, and before Windows 11 the same names
 with an extension (`nul.txt`) — to devices, so a plan naming one writes to a device, not a file.
 ADR-071 refuses a trailing dot, a trailing space and a `:`; device names are the same class and
 are not yet refused.
+**Fixed by ADR-076 T1**: a name the OS opens as a device (`GetFullPathName` answers `\\.\NAME`) is
+refused in a spec, a plan path and a rename destination; `nul.bin`, a file on Windows 11, is not.
 
 Found after the list: every padded-path refusal suggests its fix in POSIX single quotes
 (`mrw read -- 'x '`), which cmd.exe keeps as literal characters, so a cmd.exe user who pastes it
