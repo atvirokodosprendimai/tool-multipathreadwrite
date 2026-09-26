@@ -90,6 +90,8 @@ go test ./internal/check/ ./cmd/mrw/ -count=1 -timeout 240s -run 'TestACheckRemo
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · ms:1478
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · ms:1517
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · ms:2002
+- 2026-09-26 · 52debba* · exit 0 · `set -o pipefail …` · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · ms:3593
+- 2026-09-26 · 52debba* · exit 0 · `set -o pipefail …` · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · ms:1781
 
 ## Mutation Log
 (empty until execute)
@@ -104,6 +106,7 @@ go test ./internal/check/ ./cmd/mrw/ -count=1 -timeout 240s -run 'TestACheckRemo
 - 2026-09-26 · 6835512* · mutant killed · exit 1 · `internal/check/check.go` · the age test inverted · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · covers:old logs are pruned and counted
 - 2026-09-26 · 6835512* · mutant killed · exit 1 · `cmd/mrw/main.go` · the skipped verdict names no log · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · covers:a kept log is named
 - 2026-09-26 · 6835512* · mutant killed · exit 1 · `internal/check/check.go` · a check that never ran keeps its empty log · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · covers:a check that never ran keeps no log
+- 2026-09-26 · 52debba* · mutant killed · exit 1 · `internal/check/check.go` · pruneLogs never called, after the move · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · covers:old logs are pruned and counted
 
 ## Invariants
 

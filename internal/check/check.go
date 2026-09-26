@@ -241,7 +241,6 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 
 	// The output goes to a file first and is read back from there. Nothing
 	// between the process and its exit code may be a pipe.
-	res.Pruned = pruneLogs(os.TempDir(), time.Now().Add(-LogRetention))
 	f, err := os.CreateTemp("", "mrw-check-*.log")
 	if err != nil {
 		return res, err
@@ -256,6 +255,10 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	runErr := subproc.Run(c)
 	res.DurationMS = time.Since(start).Milliseconds()
 	f.Close()
+	// Pruned only once the check has exited: before it, a temp directory of
+	// old logs delayed every check's start, and a cancel meant for a running
+	// check landed before sh existed (ADR-080; the race suite on #241).
+	res.Pruned = pruneLogs(os.TempDir(), time.Now().Add(-LogRetention))
 
 	switch {
 	case runErr == nil:

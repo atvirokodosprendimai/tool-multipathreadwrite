@@ -84,6 +84,7 @@ go test ./internal/check/ ./cmd/mrw/ -count=1 -timeout 240s -run 'TestACheckCanc
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f7ebe78f736f4636881590c375eaaff68e352bf1e584baf1e0c07ea6af7dc94 · ms:634
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f7ebe78f736f4636881590c375eaaff68e352bf1e584baf1e0c07ea6af7dc94 · ms:564
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f7ebe78f736f4636881590c375eaaff68e352bf1e584baf1e0c07ea6af7dc94 · ms:563
+- 2026-09-26 · 52debba* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f7ebe78f736f4636881590c375eaaff68e352bf1e584baf1e0c07ea6af7dc94 · ms:2892
 
 ## Mutation Log
 (empty until execute)

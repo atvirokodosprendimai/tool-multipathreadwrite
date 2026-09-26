@@ -2132,6 +2132,13 @@ check) rather than "interrupted"; the window is microseconds, and nothing reache
 **The signal window is fixed by ADR-080 T2**: a check cancelled before its process starts reports
 `interrupted`, exit 3, like one stopped while it ran — and a context cancelled beforehand reaches it,
 so a test does (`TestACheckCancelledBeforeItStartsSaysInterrupted`).
+Found by the race suite on #241: `TestAnInterruptedCheckSaysSo` (ADR-072 T4) cancels at a fixed
+300 ms and expects the check to have started by then; under the whole `-race` suite `sh` started
+later, the cancel reached a check that never ran, and it failed (once in the full run, once in
+three isolated runs; six of six passed on main and on the branch when idle). ADR-080 first pruned
+old logs before the start, which widened the window; pruning now runs after the check exits.
+Deferred: the test should cancel once the check has started (a marker the check writes), which
+reopens ADR-072 T4's and ADR-074 T1's locks, so it belongs to a change that owns them.
 **The dry run is fixed by ADR-079**, contract §161: a clean `--dry-run` records nothing on either
 surface (MCP counted every dry run as `refused_apply`), and a refused one is one refusal.
 - **Filesystem-error refusals are tallied on one surface** (the review of #240, older than ADR-079):

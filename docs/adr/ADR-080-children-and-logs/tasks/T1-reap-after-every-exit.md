@@ -87,6 +87,7 @@ go test ./internal/subproc/ ./internal/check/ ./cmd/mrw/ -count=1 -timeout 240s 
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · ms:1745
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · ms:1611
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · ms:1573
+- 2026-09-26 · 52debba* · exit 0 · `set -o pipefail …` · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · ms:9267
 
 ## Mutation Log
 (empty until execute)
