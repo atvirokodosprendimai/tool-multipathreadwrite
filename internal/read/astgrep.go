@@ -118,6 +118,12 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 			problems = append(problems, Problem{Path: h.name(), Reason: "is outside the root " + absRoot})
 			continue
 		}
+		// ADR-077: a hit inside mrw's own state is dropped the way the walk
+		// drops every discovered path the boundary refuses (ADR-007 rule 2);
+		// one the caller named is left for Run, which reports it REFUSED.
+		if !named[rel] && rooted.InState(filepath.Join(absRoot, filepath.FromSlash(rel))) {
+			continue
+		}
 		if astGrepExcluded(rel, exclude, named, starts) {
 			continue
 		}

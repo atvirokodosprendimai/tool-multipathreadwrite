@@ -462,5 +462,9 @@ mrw's OWN state lives outside the tree (ADR-004), so none of these commands
 writes to your checkout of its own accord — with the one exception above, where
 `mrw check` runs a command the project chose.
 
+And the tree can hold mrw's state when you point it there — `XDG_STATE_HOME` inside the checkout,
+or `--root "$HOME"` with `~/.local/state`. mrw then serves and edits nothing inside its own state
+directory (ADR-077): a grep skips it, and a read or a plan naming a file there is refused.
+
 See `CONTRIBUTING.md` for the gate list and the release process, and `README.md`
 for the full interface.

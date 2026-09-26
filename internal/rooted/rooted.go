@@ -18,6 +18,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
 // Resolve returns the absolute file that path names under root, and an error if
@@ -128,6 +130,15 @@ func Resolve(root, path string) (string, error) {
 			return "", fmt.Errorf("%s %w, but %s is a file", path, ErrNotADirectory, filepath.Clean(path))
 		}
 	}
+	// ADR-077: mrw's own state — the ledger that licenses a write, the ack
+	// store, the tally — is not the caller's file. Under a root that holds it
+	// (XDG_STATE_HOME inside the checkout, or --root "$HOME" with
+	// ~/.local/state), a read served pending.json, whose checkpoint ids could
+	// then be acked without the lines ever being read (ADR-031), and a plan
+	// could edit the ledger.
+	if InState(target) {
+		return "", fmt.Errorf("%s is inside mrw's own state directory; mrw does not serve or edit its own ledger", path)
+	}
 	return full, nil
 }
 
@@ -232,4 +243,39 @@ func IsRooted(p string) bool {
 		return true
 	}
 	return p[0] == '/' || (filepath.Separator == '\\' && p[0] == '\\')
+}
+
+// InState reports whether p lies inside mrw's state base (state.Base). Both
+// sides are resolved as far as they exist (RealAsFarAsItExists, through
+// junctions on Windows), so /var and /private/var on macOS, or a base not made
+// yet, compare as the one place they are (ADR-077). Where the strings differ,
+// each existing ancestor of p is compared with the base as a FILE: on a
+// filesystem that folds case `.st/MRW` and `.ST/mrw` are the base, and a
+// firmlink root (/System/Volumes/Data on macOS) is another spelling of it — the
+// comparison by string let a read of pending.json through (the reviews of
+// #238). A base mrw cannot name, or that does not exist, holds nothing a
+// second spelling could reach.
+func InState(p string) bool {
+	base, err := state.Base()
+	if err != nil {
+		return false
+	}
+	b, q := RealAsFarAsItExists(base), RealAsFarAsItExists(p)
+	if Contains(b, q) {
+		return true
+	}
+	bi, err := os.Stat(b)
+	if err != nil {
+		return false
+	}
+	for {
+		if qi, err := os.Stat(q); err == nil && os.SameFile(bi, qi) {
+			return true
+		}
+		parent := filepath.Dir(q)
+		if parent == q {
+			return false
+		}
+		q = parent
+	}
 }

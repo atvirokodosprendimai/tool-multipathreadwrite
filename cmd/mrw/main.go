@@ -1000,6 +1000,12 @@ held or went unchecked.`,
 			}
 			src, name := os.Stdin, "<stdin>"
 			if len(args) == 1 && args[0] != "-" {
+				// ADR-077: the plan is a shell argument and never passed the
+				// boundary; a plan naming mrw's ack store had its JSON quoted
+				// back as "text before the first @@ header" (Codex review of #238).
+				if abs, err := filepath.Abs(args[0]); err == nil && rooted.InState(abs) {
+					return refuse(fmt.Sprintf("%s is inside mrw's own state directory; mrw does not read its own files as a plan", args[0]))
+				}
 				f, err := os.Open(args[0])
 				if err != nil {
 					// -C moves the paths INSIDE the plan; the plan file itself
@@ -2075,6 +2081,13 @@ func specList(name string) ([]string, error) {
 	if name == "-" {
 		r = os.Stdin
 	} else {
+		// ADR-077: the list is a shell argument, resolved against the working
+		// directory, and never passed the boundary; a list naming mrw's own
+		// ack store had its JSON quoted back in the parse error, checkpoint
+		// ids and all (Codex review of #238).
+		if abs, err := filepath.Abs(name); err == nil && rooted.InState(abs) {
+			return nil, fmt.Errorf("--files-from %s is inside mrw's own state directory; mrw does not read its own files as input", name)
+		}
 		f, err := os.Open(name)
 		if err != nil {
 			return nil, err

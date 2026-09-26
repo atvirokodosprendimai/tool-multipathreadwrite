@@ -7023,6 +7023,31 @@ chmod 644 "$R/ro.txt"
 printf '@@ ro.txt 1 replace\nX\n' > "$R/p153.mrw"
 m write --no-check "$R/p153.mrw" >/dev/null 2>&1; want 0 $? "once writable, the same replace applies"
 
+# 154. ADR-077: mrw's own state is never served as the caller's file. With
+# XDG_STATE_HOME inside the root, a --grep walked the state directory, a read
+# served the ledger and the ack store (whose checkpoint ids could then be acked
+# without the lines ever being read, ADR-031), and a plan could edit the
+# ledger. Each is refused; a file beside mrw/ is still the caller's.
+fixture
+st154() { XDG_STATE_HOME="$R/.st" "$MRW" -C "$R" "$@"; }
+st154 read a.go >/dev/null
+led=$(cd "$R" && ls .st/mrw/*/seen 2>/dev/null | head -1)
+[ -n "$led" ] && ok "the ledger lives inside the root for this row" || bad "no ledger under $R/.st: $(ls -R "$R/.st" 2>&1 | head)"
+printf 'func A planted\n' > "$R/.st/mrw/planted.txt"; printf 'func A notes\n' > "$R/.st/notes.txt"
+out=$(st154 read --grep 'func A' 2>&1); rc=$?
+want 0 "$rc" "a grep over a root that holds mrw's state answers"
+grep -q '\.st/mrw' <<<"$out" && bad "the grep served mrw's own state: $out" || ok "and serves nothing of mrw's state"
+grep -q '^==> .st/notes.txt' <<<"$out" && ok "while a file beside mrw/ is served" || bad "the sibling was not served: $out"
+out=$(st154 read "$led" 2>&1); rc=$?
+want 1 "$rc" "a read of the ledger is refused"
+grep -q "own state" <<<"$out" && ok "and names mrw's own state" || bad "ledger read: $out"
+before=$(cat "$R/$led")
+printf '@@ %s 1 replace\nX\n' "$led" > "$R/p154.mrw"
+out=$(st154 write --no-check --force "$R/p154.mrw" 2>&1); rc=$?
+want 1 "$rc" "a plan editing the ledger is refused"
+grep -q "own state" <<<"$out" && ok "refused as mrw's own state, even past the read ledger (--force)" || bad "the ledger write was refused for another reason: $out"
+[ "$(cat "$R/$led")" = "$before" ] && ok "and the ledger is unchanged" || bad "the ledger changed: $out"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

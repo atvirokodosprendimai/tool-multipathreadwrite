@@ -2102,3 +2102,9 @@ and so counted among `landed writes` in `mrw stats`, though nothing landed; `mai
 before ADR-072. And a signal that lands between the check's signal handler being installed and
 its process starting reports "could not start: context canceled" (exit 2, with advice to declare a
 check) rather than "interrupted"; the window is microseconds, and nothing reaches it in a test.
+
+Found while ranking this backlog (2026-09-26): with `XDG_STATE_HOME` inside the root, or under
+`--root "$HOME"`, a `--grep` walked mrw's state directory, a read served the ledger and the ack
+store — whose checkpoint ids could then be acked without the lines ever being read — and a plan
+could edit the ledger. **Fixed by ADR-077**, contract §154: a path inside the state base is refused
+at the boundary, and a discovered one is dropped.
