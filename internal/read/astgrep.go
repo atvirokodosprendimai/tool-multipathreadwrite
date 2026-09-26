@@ -118,10 +118,14 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 			problems = append(problems, Problem{Path: h.name(), Reason: "is outside the root " + absRoot})
 			continue
 		}
-		// ADR-077: a hit inside mrw's own state is dropped the way the walk
-		// drops every discovered path the boundary refuses (ADR-007 rule 2);
-		// one the caller named is left for Run, which reports it REFUSED.
-		if !named[rel] && rooted.InState(filepath.Join(absRoot, filepath.FromSlash(rel))) {
+		// Every hit passes the boundary before anything here opens it: the
+		// CR-only probe below read a file the boundary refuses (ADR-081, the
+		// reviews of #243; ADR-077 dropped only a hit in mrw's own state). A
+		// discovered hit it refuses is dropped, as the walk drops one (ADR-007
+		// rule 2); one the caller named is left for Run, which reports it.
+		_, resolveErr := rooted.Resolve(absRoot, filepath.FromSlash(rel))
+		refused := resolveErr != nil
+		if refused && !named[rel] {
 			continue
 		}
 		if astGrepExcluded(rel, exclude, named, starts) {
@@ -131,7 +135,7 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 		// not mrw's numbering, so its row would be served as a different line;
 		// the file is reported once instead of served wrong.
 		cr, known := crOnly[rel]
-		if !known {
+		if !known && !refused {
 			b, err := os.ReadFile(filepath.Join(absRoot, filepath.FromSlash(rel)))
 			_, eol, _ := lines.Split(string(b))
 			cr = err == nil && eol == "\r"

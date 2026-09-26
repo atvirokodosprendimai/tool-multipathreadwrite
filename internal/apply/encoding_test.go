@@ -20,7 +20,7 @@ func TestAUTF16FileIsRefusedNotRewrittenAsMixedEncodings(t *testing.T) {
 		{"utf16be.txt", "\xfe\xff\x00a\x00\n\x00b\x00\n", "UTF-16 (BOM FE FF)"},
 		{"utf32le.txt", "\xff\xfe\x00\x00a\x00\x00\x00\n\x00\x00\x00", "UTF-32 (BOM FF FE 00 00)"},
 		{"utf32be.txt", "\x00\x00\xfe\xff\x00\x00\x00a\x00\x00\x00\n", "UTF-32 (BOM 00 00 FE FF)"},
-		{"nul.bin", "ab\x00cd\nef\n", "NUL byte at offset 2"},
+		{"nulbyte.bin", "ab\x00cd\nef\n", "NUL byte at offset 2"}, // not nul.bin: a Windows device name (ADR-081)
 	} {
 		for _, force := range []bool{false, true} {
 			root := t.TempDir()

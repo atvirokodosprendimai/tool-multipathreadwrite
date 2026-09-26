@@ -61,7 +61,7 @@ a different name, because it names a different kind of thing.
    write instead (`d/a.txt`). It is not a move into a directory.
 2. **A root that does not exist says so.** `rooted.Abs` returns "the root X does not exist" (and "is
    not a directory"), so every surface names the root, and a create cannot make it.
-3. **A Windows device name is refused.** `win32Device` picks a candidate by Go's own rule
+3. **A Windows device name is refused** — by name since ADR-081; the OS query below was v1.27.0's. `win32Device` picks a candidate by Go's own rule
    (`internal/filepathlite` `isReservedName`: the name before its first `.` or `:`, trailing spaces
    dropped), and `opensDevice` asks the OS — `GetFullPathName` answers `\\.\NUL` for a device —
    Which names that is differs by Windows version — `NUL` everywhere, `CON` not on the CI runner —
