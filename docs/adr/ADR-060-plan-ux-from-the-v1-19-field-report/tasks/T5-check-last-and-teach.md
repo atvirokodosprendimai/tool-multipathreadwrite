@@ -110,3 +110,32 @@ _(tool-written)_
   ```
 - 2026-09-14 · 708adf2* · exit 0 · `set -o pipefail …` · acceptance-sha256:0f7b601f6b894654cf21244e9b59ed3551a524867eca9229a215c8c44b8237ec · ms:523
 - 2026-09-14 · 708adf2* · exit 0 · `set -o pipefail …` · acceptance-sha256:0f7b601f6b894654cf21244e9b59ed3551a524867eca9229a215c8c44b8237ec · ms:523
+- 2026-09-26 · 31fe531* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:0f7b601f6b894654cf21244e9b59ed3551a524867eca9229a215c8c44b8237ec · ms:0 · test-lock-sha256:d5c59ea28aabf34f7b805bf4e4d32afeb880887e0ee682fbe9330a3c29731124 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvd3JpdGVjaGVja190ZXN0LmdvCVRlc3RDaGVja0FuZE5vQ2hlY2tUb2dldGhlcklzVXNhZ2UJMTEyOTVhMzRkNzY5NThiZWU5ZjAwYzdhYzk2MDlhMjczYmUxYTE5OGY4Y2U4ZmEyNDU5YzdjM2IxZjEzNTE4MQpib2R5CWNtZC9tcncvd3JpdGVjaGVja190ZXN0LmdvCVRlc3RFeHBsaWNpdENoZWNrU3RpbGxSdW5zT25Qcm9zZQk1NjcyMGRjODU1NTE0Mzg5N2NjZTc5M2NiMTgxODIzMTAwMGQ1ZGRkMmMzYjllOWFiMzAxNWE3NGQ4OWU2MWJiCmJvZHkJY21kL21ydy93cml0ZWNoZWNrX3Rlc3QuZ28JVGVzdEZhaWxlZENoZWNrUHJpbnRzVGhlTGFzdEVycm9yTGluZQliOTE0OGM3ZWM3YmE2ZmRhNDg1Y2I2MzI3YTM2YzgzZWQ3ZjU3YmE2NDM4ODUwNGIyNTBjM2U2NzBlYTkwN2RmCmJvZHkJY21kL21ydy93cml0ZWNoZWNrX3Rlc3QuZ28JVGVzdE5vQ2hlY2tPcHRzT3V0CTljNmJmYzVlODNmNmUzZGJhODExODE1YjdlNDYzZjQ0ODQ5ODVlZTFiYjIyZmFmNGQ5NTZjN2JjZjRiZDA0MGMKYm9keQljbWQvbXJ3L3dyaXRlY2hlY2tfdGVzdC5nbwlUZXN0V3JpdGVPZlByb3NlRG9lc05vdFJ1blRoZURlZmF1bHRDaGVjawllNzg5ZTk2ZGIwYTY2NDc2NGEwOWI0ZGUyMzNiZWQyYWUwN2ZjOWMzODFhMWY0MmM5ZTQwMzIwYmE5ZWJjZmQxCmJvZHkJY21kL21ydy93cml0ZWNoZWNrX3Rlc3QuZ28JVGVzdFdyaXRlUnVuc1RoZUNoZWNrQnlEZWZhdWx0CTUxYTAwMjZlMTBjMmEzZThhODhmNTc1ZTBhMmRkMDA2ZmY4ZmNhYjU3M2QwNTE5N2UwOTE5ZmYzMDAxZjJmYTAKYm9keQljbWQvbXJ3L3dyaXRlY2hlY2tfdGVzdC5nbwlUZXN0V3JpdGVXaXRob3V0QUNoZWNrQ29tbWFuZFN0aWxsQXBwbGllcwlkYTJmZDk3MDY0ZTEyNDA3NTA3NzFmZDRhMjRkYzA4ZGJlNDA4ZWE5MTE3NDYyNWExZjM3NjhjZjdkMzFlODRlCmJvZHkJY21kL21ydy93cml0ZWNoZWNrX3Rlc3QuZ28JZmFpbAljODBlYmM3MWQyOTQwMTZmOWRhNDg4NTUzMzg4MWU2OWZiZWJlNmYyMTE1MDE3ZDc1MTExOWVkNjRhNDNhNjYzCmJvZHkJY21kL21ydy93cml0ZWNoZWNrX3Rlc3QuZ28JcGFzcwlhYjBlZmM5NzQ3YTIzNWRlZGNiOTczMjA5MGU0OGVjZDc2MzM5NzI1NDk3NTg4ZDI0MTljMDdjMmU3MTM5NjhiCmJvZHkJY21kL21ydy93cml0ZWhlbHBfdGVzdC5nbwlUZXN0V3JpdGVIZWxwTmFtZXNBZHZpc29yaWVzQW5kU3RyaWN0QmFsYW5jZQlmMmNjZDNlMDliMzE0YjYyMDUwYjQwY2UwYzc3N2IxNDYxYWNjNDcyZmM5MDVmMWVkMmQ5ZWYyMTFjOGI2YjQyCmJvZHkJY21kL21ydy93cml0ZWhlbHBfdGVzdC5nbwlUZXN0V3JpdGVIZWxwTmFtZXNBcHBseVBhdGNoRm9ybWF0CWMzODY1OTc2NTI2NjE1YWM0OWJiOTczOTI4NmNjZjI3YmE3MTM2ZTIzZGIyNzUwYzE5NmY0OTNjNjNhYmM3NWUKYm9keQljbWQvbXJ3L3dyaXRlaGVscF90ZXN0LmdvCVRlc3RXcml0ZUhlbHBOYW1lc0JvZHlBdFBhdGgJODA0MTcxMWI1NjZkZjVhMDlkN2EzNmQ2YWQ2ZjU5ZDljMDY4MTFmMzI0NjhlYTQ4YWRmOTkwZjA2YWZmMDM1Mgpib2R5CWNtZC9tcncvd3JpdGVoZWxwX3Rlc3QuZ28JVGVzdFdyaXRlSGVscE5hbWVzRWNob1BhZAliNDhjMjA5MjJjYjIyZDJlMGI2OTQ4NjhjYTczNGIyMjg3YTc1YWQ5OWVkZDE1ZDk2YzMyMzQwZmI0ZWFmMTgwCmJvZHkJY21kL21ydy93cml0ZWhlbHBfdGVzdC5nbwlUZXN0V3JpdGVIZWxwTmFtZXNIb3dUb1F1b3RlQUhlYWRlck9wdGlvbgk1NzY5ODY1MGQ0OTRiZjY4MzRiMzM4MGM0MWM4ODI5YmUyNzAzODVmY2E3ZTMwM2YwOGQ3MDZjMmUyZjk2ZjJlCmJvZHkJY21kL21ydy93cml0ZWhlbHBfdGVzdC5nbwlUZXN0V3JpdGVIZWxwTmFtZXNOb0NoZWNrCTgwOTMwNDc1NTRiN2EyZGNiYzY2OGE5YzlkNjllN2EyNDQ2NDMxMWIwOTFkOTdlN2ZmZjdkNWE2YzhlYTFjOTYKYm9keQljbWQvbXJ3L3dyaXRlaGVscF90ZXN0LmdvCVRlc3RXcml0ZUhlbHBOYW1lc1JlbmFtZURlc3RJc1RoZUJvZHkJNzViY2IwZWJlNDIxNDdkOGYwMDE3MGZiYWRlYTAwYjkyMmU4Njk0NzcxZGRmNjkyOGRjMjlkM2NjNzZjODdiNQpib2R5CWNtZC9tcncvd3JpdGVoZWxwX3Rlc3QuZ28JVGVzdFdyaXRlSGVscE5hbWVzVGhlUGF0dGVybkZpZWxkCTIyYjZmYjU0NmM0ZTA0ZDg1Yzc0MzI4Y2IwZjQyZTA5MjQ4NjdlM2NlZDFmZjg3NzY4YzBkMTdjMjBlODM2MWM · test-lock-kind:replace
+- 2026-09-26 · 31fe531* · exit 1 · `set -o pipefail …` · acceptance-sha256:0f7b601f6b894654cf21244e9b59ed3551a524867eca9229a215c8c44b8237ec · ms:887
+  ```
+  --- last 10 line(s) of stdout
+  === RUN   TestFailedCheckPrintsTheLastErrorLine
+  === RUN   TestFailedCheckPrintsTheLastErrorLine/fail
+  === RUN   TestFailedCheckPrintsTheLastErrorLine/pass
+  --- PASS: TestFailedCheckPrintsTheLastErrorLine (0.18s)
+      --- PASS: TestFailedCheckPrintsTheLastErrorLine/fail (0.10s)
+      --- PASS: TestFailedCheckPrintsTheLastErrorLine/pass (0.08s)
+  === RUN   TestWriteHelpNamesBodyAtPath
+  --- PASS: TestWriteHelpNamesBodyAtPath (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.275s
+  ```
+- 2026-09-26 · 31fe531* · exit 1 · `set -o pipefail …` · acceptance-sha256:0f7b601f6b894654cf21244e9b59ed3551a524867eca9229a215c8c44b8237ec · ms:1104
+  ```
+  --- last 10 line(s) of stdout
+  === RUN   TestFailedCheckPrintsTheLastErrorLine
+  === RUN   TestFailedCheckPrintsTheLastErrorLine/fail
+  === RUN   TestFailedCheckPrintsTheLastErrorLine/pass
+  --- PASS: TestFailedCheckPrintsTheLastErrorLine (0.38s)
+      --- PASS: TestFailedCheckPrintsTheLastErrorLine/fail (0.25s)
+      --- PASS: TestFailedCheckPrintsTheLastErrorLine/pass (0.12s)
+  === RUN   TestWriteHelpNamesBodyAtPath
+  --- PASS: TestWriteHelpNamesBodyAtPath (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.486s
+  ```

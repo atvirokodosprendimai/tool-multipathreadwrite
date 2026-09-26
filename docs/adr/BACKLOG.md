@@ -2074,8 +2074,9 @@ Windows only, each hand-confirmed by at least two sessions:
   executable file not found in %PATH%": eleven in `cmd/mrw` (among them ADR-080's two cancel-before-
   start tests), one in `internal/adversarial`, one in `internal/check`. With Git's `usr\bin` on PATH
   the three packages pass. So "Fixed by ADR-071 T4 for the check tests" does not hold on a plain
-  PowerShell PATH: those tests need `sh` and fail instead of skipping. Open (deferred: a skip when
-  `sh` is absent touches tests ADR-054, ADR-072 and ADR-080 lock; M to decide the order).
+  PowerShell PATH: those tests need `sh` and fail instead of skipping. **Fixed by ADR-082**: on
+  Windows with no `sh` on PATH the check runs under the `sh.exe` Git for Windows installs beside
+  `git.exe`, so those tests run under plain PowerShell; with no shell at all they skip, naming why.
   The same peer round (v1.27.0 asset): Hidden and read-only files and MCP `specs:["x "]` hold; bare
   `NUL` was refused but `nul.txt`, `con` and `COM1.txt` were created — **fixed by ADR-081**
   (#243): every reserved name is refused by name, in any component and through a link. The OneDrive

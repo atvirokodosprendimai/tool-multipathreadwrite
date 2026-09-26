@@ -579,6 +579,7 @@ func TestStatsPrintsFailedCheckEvenWhenZero(t *testing.T) {
 // tally here is 2 applied (one --no-check, one prose), 1 failed_check and
 // 1 check_not_run.
 func TestStatsLandedLineUsesAppliedPlusFailedCheckPlusCheckNotRun(t *testing.T) {
+	needShell(t)
 	root := grepTree(t, map[string]string{
 		"a.go":                  "package a\nfunc A() {}\nfunc B() {}\n",
 		"notes.md":              "# n\nline\n",
@@ -634,6 +635,7 @@ func TestStatsLandedLineUsesAppliedPlusFailedCheckPlusCheckNotRun(t *testing.T) 
 // clean single-line replace (candidate, not refused); a --strict-balance delta
 // (refused: not landed, not priced). Then the block and its JSON.
 func TestStatsPricesStrictBalance(t *testing.T) {
+	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := grepTree(t, map[string]string{
 		"f.go":                  "func A() {\n\treturn\n}\n",

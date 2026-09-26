@@ -42,6 +42,7 @@ func TestATimedOutCheckNamesItsLog(t *testing.T) {
 // could run … declare one", exit 2. It says interrupted, exit 3 — the tree is
 // changed and unverified, as when the check is stopped mid-run.
 func TestAWriteWhoseCheckIsCancelledBeforeItStartsSaysInterrupted(t *testing.T) {
+	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := grepTree(t, map[string]string{
 		"a.go":                  "package a\nfunc A() {}\n",
@@ -68,6 +69,7 @@ func TestAWriteWhoseCheckIsCancelledBeforeItStartsSaysInterrupted(t *testing.T) 
 // `mrw check` could say "could not start … declare one" for a check cancelled
 // before it started. It says interrupted, exit 3, as the write does.
 func TestMrwCheckCancelledBeforeItStartsSaysInterrupted(t *testing.T) {
+	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := grepTree(t, map[string]string{
 		"a.go":                  "package a\nfunc A() {}\n",

@@ -65,6 +65,7 @@ func TestTheReceiptIsOnStdoutBeforeTheCheckStarts(t *testing.T) {
 // The pair: a check that ran and failed is counted once, as failed_check,
 // and the provisional applied count is moved, not left beside it.
 func TestAFailedCheckIsCountedOnceInStats(t *testing.T) {
+	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := checkTree(t)
 	if _, err := readIn(t, root, "a.go"); err != nil {
