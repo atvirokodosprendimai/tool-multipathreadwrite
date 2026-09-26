@@ -87,4 +87,4 @@ Revert the task.
 
 ## Follow-ups
 
-- [ ] Release with the next tag, and ask a Windows peer to run `go test ./...` under plain PowerShell.
+- [x] Release with the next tag — v1.28.0 at `1ae5df9` (#247); a Windows peer asked to run `go test ./...` under plain PowerShell.
