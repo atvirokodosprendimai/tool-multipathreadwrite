@@ -287,7 +287,7 @@ starts with `/` is rewritten too, into a false "no match".
 | 0 | everything asked for succeeded |
 | 1 | a hunk failed, or the answer is incomplete; **nothing written** |
 | 2 | usage, parse or I/O error — including a check miss |
-| 3 | the write applied and the check failed; the tree is changed and unverified. Not a rollback |
+| 3 | the write applied and the check failed, timed out or was interrupted (before it started, too); the tree is changed and unverified. Not a rollback |
 
 Exit 1 on `read` means incomplete: `UNREADABLE`, `REFUSED`, `no match`, or
 `WITHHELD`. The output always names which.

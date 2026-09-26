@@ -7245,6 +7245,43 @@ printf '@@ a.go 99 replace\nx\n' > "$R/p161b.mrw"
 m write --no-check --dry-run "$R/p161b.mrw" >/dev/null 2>&1; want 1 $? "a dry run addressing a line that does not exist is refused"
 [ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .plans' | tr '\n' ' ')" = "1 1 " ] && ok "and is one refusal" || bad "a refused dry run: $(m stats --json 2>&1 | head -c 300)"
 
+# 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
+# ast-grep that answered and exited 0 each left a background grandchild running
+# after mrw returned: the group was killed only on a timeout or an interrupt
+# (M: reap always; the waiver on #232).
+fixture
+d162=$(mktemp -d)
+printf '%s\n' '#!/bin/sh' "sleep 300 >/dev/null 2>&1 & echo \$! > '$d162/ag.pid'" \
+  'printf "%s" "[{\"file\":\"a.go\",\"range\":{\"start\":{\"line\":2},\"end\":{\"line\":2}}}]"' 'exit 0' > "$d162/ast-grep"
+chmod +x "$d162/ast-grep"
+bounded 10 "$WORK/out162" env PATH="$d162:$PATH" "$MRW" -C "$R" read --ast-grep 'func A'; want 0 $? "an ast-grep that answers and exits 0 is served"
+printf '{"check":"sleep 300 >/dev/null 2>&1 & echo $! > %s/ck.pid; exit 0"}\n' "$d162" > "$R/.quality-harness.json"
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 7 }\n' > "$R/p162.mrw"
+bounded 30 "$WORK/out162b" "$MRW" -C "$R" write --check "$R/p162.mrw"; want 0 $? "a write whose check passes exits 0"
+for f in ag ck; do
+  pid=$(cat "$d162/$f.pid" 2>/dev/null)
+  alive=1; for _ in $(seq 1 30); do kill -0 "${pid:-999999999}" 2>/dev/null || { alive=0; break; }; sleep 0.1; done
+  { [ -n "$pid" ] && [ "$alive" = 0 ]; } && ok "the $f child's background process is gone when mrw returns" \
+    || { kill -9 "${pid:-999999999}" 2>/dev/null; bad "the $f child's background process outlived mrw (pid '$pid')"; }
+done
+
+# 163. ADR-080: a kept check log is named, and old ones are pruned. A timed-out
+# check kept its log and named nowhere to find it, and nothing bounded how many
+# logs piled up in the temp directory. TMPDIR is this run's own (top of file).
+fixture
+touch -t 202001010000 "$TMPDIR/mrw-check-old163.log"; : > "$TMPDIR/mrw-check-young163.log"
+printf '{"check":"echo started; sleep 30","timeout_seconds":1}\n' > "$R/.quality-harness.json"
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 8 }\n' > "$R/p163.mrw"
+out=$(m write "$R/p163.mrw" 2>&1); rc=$?
+want 3 "$rc" "a write whose check times out exits 3"
+log=$(grep -o 'timed out after [^—]*— full output: [^ ]*' <<<"$out" | head -1 | sed 's/.*full output: //')
+{ [ -n "$log" ] && [ -f "$log" ]; } && ok "and the timed-out check names its log, which is there" || bad "no log named: $out"
+[ ! -e "$TMPDIR/mrw-check-old163.log" ] && ok "a check log older than a week is pruned" || bad "the old log is still there"
+[ -e "$TMPDIR/mrw-check-young163.log" ] && ok "a young one is kept" || bad "the young log was removed"
+grep -q 'removed 1 check log(s) older than 7 days' <<<"$out" && ok "and the receipt says what it removed" || bad "the prune was silent: $out"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

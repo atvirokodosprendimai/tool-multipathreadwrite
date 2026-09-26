@@ -59,6 +59,8 @@ And one the round's read side found in the same code shape: the check's timeout 
    second everywhere. While the check runs, an interrupt, terminate or hangup sent to mrw (unless the process started with it ignored, as nohup and a shell's background jobs do) cancels it: the
    group is killed and the check reports `interrupted`, exit 3, the tree changed and unverified. On
    Windows only the wait bound applies.
+   **Amended by ADR-080** (2026-09-26, M: *"Reap always"*): the group is killed after every exit,
+   not only on a cancel — a check that passed left a background process running.
 
 **What would make this decision fail:** a check that depends on sharing the terminal's process
 group; its stdin is already `/dev/null` and its output a file, so none is known. And a signal

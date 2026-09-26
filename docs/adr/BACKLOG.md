@@ -71,7 +71,7 @@ that arms work; silence leaves the row where it is.
 | A rename whose destination cannot be made half-applies the plan with every hunk `ok`; a failed path-op commit restores an unlink over a file renamed onto it (data loss since v1.19.0) | **ADR-066 Accepted** — destinations checked at validation and staged; path-op commit undone as a unit; truthful commit-failure receipts; contract §118/§119 | *"accepted"* |
 | A CR-only file is one line to read and several to write (a write to an unserved line applied); CRLF lines served with their `\r`; apply_patch/search_replace refuse CRLF targets | **ADR-065 Accepted** — one `lines.Split` for read, write, `--grep`, MCP paging and both compilers; ast-grep CR-only hits reported; ADR-051 F-10 superseded; contract §120/§121 | *"accepted"*, *"Supersede F-10 in ADR-065"* |
 | `mrw read f.go:/a/,$` was taught as "from here to the end" (ADR-036 Consequences, AGENTS.md) but serves the match line and the last line as two ranges, exit 0; as a write address it is refused | **docs fixed** — 2026-09-24 housekeeping: AGENTS.md now teaches `f.go:/a/,+99999` (a read clamps a relative end) and says `/a/,$` is two ranges; ADR-036's Consequences sentence is left as the historical record. A real pattern-to-end form is not built | — |
-| A failing or truncated check keeps its `mrw-check-*.log` in the system temp directory for good, and nothing bounds how many accumulate | **open** — found 2026-09-24 while fixing contract.sh's leak (3,103 on one macOS machine). A passing, untruncated check already removes its log (`internal/check/check.go:251`, contract §29); the rest are kept on purpose because `full output:` points at them, so the decision is retention — a bounded set, or an age — not deletion on success | — |
+| A failing or truncated check keeps its `mrw-check-*.log` in the system temp directory for good, and nothing bounds how many accumulate | **fixed by ADR-080** — each check run removes its own logs older than 7 days from the temp directory and says how many; a timed-out or interrupted check now names the log it keeps, and one that never started keeps none. Found 2026-09-24 (3,103 on one macOS machine); contract §163 | — |
 | An MCP `ast_grep` answer too large to serve comes back as an INDEX that carries only the COUNT of problems, so a CR-only file ADR-065 refuses is not named there | **fixed by ADR-067 T1** — found by the Codex review of #208 (P2, source-traced). `matchIndex` now prints one `-- <path>: <reason>` line per walk problem at all three index returns (`internal/mcp/tools.go`), never trimmed; contract §122 | — |
 | `contract.sh` run as `./contract.sh` from inside `scripts/` resolves `SRC` to the repository's parent | **fixed** — 2026-09-26 housekeeping: the script captures the repository and its own path absolutely before its first `cd`, so §30, §43, §60's prologue probe, §117 and the conflict-marker check read this checkout from any directory. Found by Codex reviewing #204 (2026-09-24) | — |
 | Desktop reach measure, under-ceiling host-cut, concurrent silent apply, strict-balance campaign, JSX nest probe | **spec** — `docs/specs/2026-09-16-dangling-high-impact.md`. Concurrent silent apply **closed by ADR-075** (contract §150; UC3-S2 now asserts the lock). The other four stay filed recipes, unrun and not counted as coverage (the spec's UC-1, UC-2, UC-4, UC-5) | *"write a spec for these findings"* |
@@ -2017,6 +2017,8 @@ Contract breaks, reproduced on macOS:
   Waived in the review of #232, unverified (read from Go's exec code): a wrapper that exits 0 and
   leaves a background grandchild returns through `WaitDelay` without its context being cancelled, so
   its group is never killed and the grandchild outlives mrw.
+  **Fixed by ADR-080 T1**, contract §162: `subproc.Run` and `subproc.Output` kill the child's group
+  after every exit, not only on a cancel, for ast-grep and for the check (M: reap always).
 - **A FIFO hangs `read`**, and `--stat`, a symlink to it, and `--files-from` on it; nothing is
   printed. A socket and a directory are reported by name.
   **Partly fixed by ADR-073**: a FIFO, socket or device named in a WRITE plan is refused before it
@@ -2127,6 +2129,16 @@ and so counted among `landed writes` in `mrw stats`, though nothing landed; `mai
 before ADR-072. And a signal that lands between the check's signal handler being installed and
 its process starting reports "could not start: context canceled" (exit 2, with advice to declare a
 check) rather than "interrupted"; the window is microseconds, and nothing reaches it in a test.
+**The signal window is fixed by ADR-080 T2**: a check cancelled before its process starts reports
+`interrupted`, exit 3, like one stopped while it ran — and a context cancelled beforehand reaches it,
+so a test does (`TestACheckCancelledBeforeItStartsSaysInterrupted`).
+Found by the race suite on #241: `TestAnInterruptedCheckSaysSo` (ADR-072 T4) cancels at a fixed
+300 ms and expects the check to have started by then; under the whole `-race` suite `sh` started
+later, the cancel reached a check that never ran, and it failed (once in the full run, once in
+three isolated runs; six of six passed on main and on the branch when idle). ADR-080 first pruned
+old logs before the start, which widened the window; pruning now runs after the check exits.
+Deferred: the test should cancel once the check has started (a marker the check writes), which
+reopens ADR-072 T4's and ADR-074 T1's locks, so it belongs to a change that owns them.
 **The dry run is fixed by ADR-079**, contract §161: a clean `--dry-run` records nothing on either
 surface (MCP counted every dry run as `refused_apply`), and a refused one is one refusal.
 - **Filesystem-error refusals are tallied on one surface** (the review of #240, older than ADR-079):

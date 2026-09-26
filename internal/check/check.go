@@ -20,6 +20,7 @@ package check
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -132,12 +133,52 @@ type Result struct {
 	OutputFile string   `json:"output_file,omitempty"`
 	Tail       []string `json:"tail,omitempty"`
 	Truncated  int      `json:"truncated_lines,omitempty"`
+	// Pruned is how many check logs older than LogRetention this run removed
+	// from the temp directory, once the check had exited and been judged
+	// (ADR-080).
+	Pruned int `json:"pruned_logs,omitempty"`
 }
 
 // OK reports whether the check ran and passed. A check that did not run is not
 // a pass — the caller has no evidence either way, and saying so is the whole
 // job of this type.
 func (r Result) OK() bool { return r.Ran && r.ExitCode == 0 }
+
+// Interrupted is Skipped for a check an interrupt, a terminate or a hangup
+// stopped — whether it had started or not (ADR-072, ADR-080).
+const Interrupted = "interrupted"
+
+// LogRetention is how long a kept check log stays in the temp directory. A
+// failing or truncated check keeps its log because the report points at it,
+// and nothing bounded how many accumulated: 3,103 on one machine (ADR-080).
+const LogRetention = 7 * 24 * time.Hour
+
+// pruneLogs removes this program's check logs older than cutoff from dir and
+// says how many. Only regular files named like one are touched; an error on any
+// one is passed over, since the temp directory is shared and sticky.
+func pruneLogs(dir string, cutoff time.Time) int {
+	// Listed, not globbed: a glob reads metacharacters in dir too, so a TMPDIR
+	// of t[x] pruned tx's logs and kept its own (the reviews of #241).
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, e := range entries {
+		if ok, _ := filepath.Match("mrw-check-*.log", e.Name()); !ok {
+			continue
+		}
+		m := filepath.Join(dir, e.Name())
+		fi, err := os.Lstat(m)
+		if err != nil || !fi.Mode().IsRegular() || !fi.ModTime().Before(cutoff) {
+			continue
+		}
+		if os.Remove(m) == nil {
+			n++
+		}
+	}
+	return n
+}
 
 // Run picks a command for the edited paths and executes it in root.
 //
@@ -219,7 +260,7 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	c.Stdout, c.Stderr = f, f
 
 	start := time.Now()
-	runErr := c.Run()
+	runErr := subproc.Run(c)
 	res.DurationMS = time.Since(start).Milliseconds()
 	f.Close()
 
@@ -236,6 +277,16 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		// missing check under, not a failed verdict.
 		res.ExitCode = -1
 		res.Skipped = "could not start: " + runErr.Error()
+		// ADR-080: a signal that landed before the process started cancelled
+		// it as surely as one after, and "could not start … declare a check"
+		// sent the caller to fix a configuration nothing was wrong with.
+		if errors.Is(runErr, context.Canceled) {
+			res.Skipped = Interrupted
+		}
+		// Nothing ran, so the log is empty and nothing will point at it.
+		if os.Remove(res.OutputFile) == nil {
+			res.OutputFile = ""
+		}
 	}
 	// Only a run that ended badly is read for why: a check that exited 0 a
 	// moment before a deadline or a signal passed, and saying "timed out" or
@@ -250,8 +301,14 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		// caller's own cancel. A check that never started stays "could not
 		// start" above: nothing ran for an interrupt to stop.
 		res.ExitCode = -1
-		res.Skipped = "interrupted"
+		res.Skipped = Interrupted
 	}
+	// Pruned only once the check has exited AND been judged. Before the start,
+	// a temp directory of old logs delayed every check, and a cancel meant for a
+	// running one landed before sh existed (the race suite on #241); between the
+	// exit and the verdict, a deadline or a signal landing during the prune
+	// relabelled a check that had already finished (the reviews of #241).
+	res.Pruned = pruneLogs(os.TempDir(), time.Now().Add(-LogRetention))
 
 	tail := cfg.TailLines
 	if tail <= 0 {

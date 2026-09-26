@@ -76,8 +76,8 @@ would read as another name: `b.txt.`, `b.txt ` and `b.txt::$DATA` all open
 ## Exit codes are the contract
 
 `0` fine · `1` a hunk failed and nothing was written · `2` usage or filesystem
-failure · `3` the write applied but the check failed, so the tree is changed and
-unverified. Tests assert these; changing one is a breaking change.
+failure · `3` the write applied but the check failed, timed out or was interrupted,
+so the tree is changed and unverified. Tests assert these; changing one is a breaking change.
 
 ## Adding behaviour
 
@@ -377,7 +377,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   Both JSON receipts carry `pattern` `{advisory_writes, window, fires}` on
   every write (ADR-056), so a `--json` or `mrw_write` caller holds the fact
   the human line prints.
-- **Exit `3` means the write APPLIED and the check failed** — the tree is
+- **Exit `3` means the write APPLIED and the check did not pass** — failed, timed out or was interrupted; the tree is
   changed and unverified. It is not a rollback. A failing check prints
   `check last:` (the last non-empty tail line) immediately above `full output:`.
 - **Never read an exit code through a pipe.** `mrw write plan | head` returns

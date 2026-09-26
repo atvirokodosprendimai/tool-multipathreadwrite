@@ -16,6 +16,7 @@ package subproc
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -65,4 +66,41 @@ func Interruptible(ctx context.Context) (context.Context, context.CancelFunc) {
 		return ctx, func() {}
 	}
 	return signal.NotifyContext(ctx, sigs...)
+}
+
+// Run runs c and then kills whatever is left of its process group: a child
+// that exited 0 could leave a background grandchild behind, and exec.Cmd
+// cancels the group only on a deadline or a cancel, so the grandchild outlived
+// mrw (the waiver on #232). mrw started the group, and nothing it started
+// outlives the call (ADR-080, M: reap always). A grandchild that called setsid
+// is in a group of its own and escapes, as it would a shell.
+func Run(c *exec.Cmd) error {
+	err := c.Run()
+	reap(c)
+	return err
+}
+
+// Output is Run for a child whose stdout is the answer. The answer goes to a
+// file, not a pipe: exec waits up to WaitDelay for a pipe a grandchild still
+// holds, and the group was killed only after that — up to a second past the
+// child's exit, in which an emptied group's id could be reused (the review of
+// #241). With a file, Wait returns at the child's exit and the group is killed
+// at once.
+func Output(c *exec.Cmd) ([]byte, error) {
+	f, err := os.CreateTemp("", "mrw-subproc-*.out")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(f.Name())
+	defer f.Close()
+	c.Stdout = f
+	runErr := Run(c)
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+	out, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+	return out, runErr
 }
