@@ -69,6 +69,9 @@ unset CONTRACT_GROUP
 # check passed without looking at anything (BACKLOG :76).
 SELF=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
 SRC=$(cd "$(dirname "$0")/.." && pwd)
+# A relative MRW names a binary relative to where the caller stood, so it is
+# made absolute before the cd below moves that (review of #236).
+if [ -n "${MRW:-}" ]; then MRW=$(cd "$(dirname "$MRW")" && pwd)/$(basename "$MRW"); fi
 cd "$SRC"
 WORK=$(mktemp -d)
 # Reap the whole group on exit: every child, and every orphan that kept the
@@ -109,7 +112,6 @@ command -v jq >/dev/null 2>&1 || { echo "contract.sh needs jq on PATH (the --jso
 # under a running process. Both contract.sh-invoking fences failed, and passed
 # on a re-run: a flake with a cause. A shared mutable artifact is the cause, so
 # it is removed rather than retried. The build is cached, so this is cheap.
-MRW=${MRW:+$(cd "$(dirname "$MRW")" && pwd)/$(basename "$MRW")}
 MRW=${MRW:-$WORK/mrw}
 go build -o "$MRW" ./cmd/mrw
 fails=0
@@ -129,15 +131,29 @@ want() { [ "$1" = "$2" ] && ok "$3" || bad "$3 (exit $2, want $1)"; }
 # ignores SIGALRM unless it asks for the signal, so the alarm fired and mrw
 # ran on (BACKLOG :2073). The alarm still bounds a child that is not Go, such
 # as §55's Python hook.
+#
+# The kill is SIGKILL to CMD alone. A child CMD put in a process group of its
+# own — mrw does that to ast-grep and to the check (internal/subproc) — is out
+# of this run's group, so neither this kill, the EXIT trap nor the survivors
+# check at the end reaches it: a row whose fake child can hang records the
+# child's pid and kills it itself (§111, Codex review of #236).
+#
+# CMD's stdin is /dev/null: bash gives a background job no input when job
+# control is off, so a row that pipes a plan into CMD writes it to a file and
+# names the file instead (review of #236).
 bounded() {
-  local secs=$1 out=$2 pid i
+  local secs=$1 out=$2 pid i rc
   shift 2
   "$@" > "$out" 2>&1 & pid=$!
   for ((i = 0; i < secs * 10; i++)); do
     kill -0 "$pid" 2>/dev/null || { wait "$pid"; return; }
     sleep 0.1
   done
-  kill -9 "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  # A CMD that finished during the last interval keeps its own status: the
+  # kill is then a no-op on a process already gone, and wait reports how it
+  # ended. Only a CMD the kill ended is a timeout (Codex review of #236).
+  kill -9 "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; rc=$?
+  [ "$rc" -eq 137 ] || return "$rc"
   echo "bounded: still running after ${secs}s, killed" >> "$out"
   return 124
 }
@@ -3316,10 +3332,19 @@ grep -q 'glob' <<<"$out" \
 # markers, and adr-lint treats BACKLOG.md as prose. A reviewer found it by
 # eye. The class is "a merge artifact in a file no gate reads", so the gate has
 # to be over the whole tree rather than over the files a gate happens to parse.
-markers=$(cd "$SRC" && git grep -n -E '^(<<<<<<< |=======$|>>>>>>> )' -- . 2>/dev/null || true)
-[ -z "$markers" ] \
-  && ok "no conflict markers are committed anywhere in the tree" \
-  || bad "conflict markers are committed: $markers"
+# git grep answers 0 for a match, 1 for none and anything else when it could
+# not look — and `|| true` read all three as "clean", so a run whose SRC named
+# a directory outside any checkout passed this row having searched nothing.
+if git -C "$SRC" rev-parse --git-dir >/dev/null 2>&1; then
+  markers=$(git -C "$SRC" grep -n -E '^(<<<<<<< |=======$|>>>>>>> )' -- . 2>&1); grc=$?
+  case $grc in
+    1) ok "no conflict markers are committed anywhere in the tree" ;;
+    0) bad "conflict markers are committed: $markers" ;;
+    *) bad "git grep could not look for conflict markers in $SRC (exit $grc): $markers" ;;
+  esac
+else
+  bad "$SRC is not a git checkout, so the conflict-marker row cannot look"
+fi
 
 # 57. ADR-012 + ADR-021: the MCP surface teaches the refusal the engine added.
 #
@@ -3561,22 +3586,26 @@ grep -q 'excludes the target' "$R60/gap.json" \
 # this run and nothing else — the wrapper, and any pipeline peer of the
 # caller's, are in the caller's group. pgrep writes to a file, not a $( )
 # substitution: the substitution's subshell and its pipeline members are
-# group members too, and were listed (measured). The positive case first —
-# a deliberate orphan must be VISIBLE — because a detector that has never
-# seen one is a detector that always says clean. Its parent is asserted to
-# be not this shell rather than literally 1: under a subreaper (an init in a
+# group members too, and were listed (measured). This is the positive case — a
+# deliberate orphan must be VISIBLE — because a detector that has never seen
+# one is a detector that always says clean; the negative, that nothing of the
+# run survives, is asserted after the last row. Its parent is asserted to be
+# not this shell rather than literally 1: under a subreaper (an init in a
 # container, a user manager) the adopter is not 1, and the group is what
 # matters.
 [ "$(ps -o pgid= -p $$ | tr -d ' ')" = "$$" ] && ok "the runner is its own process-group leader" || bad "the runner is not its group leader: pgid $(ps -o pgid= -p $$ | tr -d ' ')"
-( sleep 300 & )   # its parent exits at once; it is re-parented away and keeps the group
+( sleep 300 & echo $! > "$WORK/orphan.pid" )   # its parent exits at once; it is re-parented away and keeps the group
 sleep 0.2
 pgrep -g $$ > "$WORK/kids"; prc=$?
-orphan=$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')
-oppid=$(ps -o ppid= -p ${orphan:-0} 2>/dev/null | tr -d ' ')
-[ "$prc" -eq 0 ] && [ -n "$oppid" ] && [ "$oppid" != "$$" ] \
-  && ok "an orphan no longer under this shell is visible to the group check: pid ${orphan% } under $oppid" \
-  || bad "the group check cannot see an orphan (pgrep exit $prc, saw '$orphan', parent '$oppid')"
-kill $orphan 2>/dev/null
+orphan=$(cat "$WORK/orphan.pid" 2>/dev/null)
+oppid=$(ps -o ppid= -p "${orphan:-0}" 2>/dev/null | tr -d ' ')
+[ "$prc" -eq 0 ] && [ -n "$orphan" ] && grep -qx "$orphan" "$WORK/kids" && [ -n "$oppid" ] && [ "$oppid" != "$$" ] \
+  && ok "an orphan no longer under this shell is visible to the group check: pid $orphan under $oppid" \
+  || bad "the group check cannot see an orphan (pgrep exit $prc, planted '$orphan', saw '$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')', parent '$oppid')"
+# Only the planted orphan is killed. Killing everything the check listed swept
+# away whatever a row above had left running, unreported, so the check after
+# the last row could not see it (review of #236).
+kill "${orphan:-999999999}" 2>/dev/null
 # The wrapper's and the trap's promises get their own failing case: a nested
 # run of THIS FILE'S prologue — the committed text up to the trap line, not a
 # copy — with a body that plants an orphan and exits 7. Run plain, the exit
@@ -5922,11 +5951,14 @@ dur=$((t1 - t0))
 # perl alarm this row used could never have stopped it.
 fixture
 d111=$(mktemp -d)
-printf '%s\n' '#!/bin/sh' 'exec sleep 30' > "$d111/ast-grep"
+printf '%s\n' '#!/bin/sh' "echo \$\$ > '$d111/gc.pid'" 'exec sleep 30' > "$d111/ast-grep"
 chmod +x "$d111/ast-grep"
 t0=$(date +%s)
 bounded 5 "$WORK/111.out" env PATH="$d111:$PATH" "$MRW" -C "$R" read --ast-grep zzz-absent; rc=$?; out=$(cat "$WORK/111.out")
 t1=$(date +%s)
+# The fake runs in a process group of its own, so if mrw's 2 s kill regressed
+# and `bounded` killed mrw instead, the sleep would outlive the run: end it here.
+kill -9 "$(cat "$d111/gc.pid" 2>/dev/null || echo 999999999)" 2>/dev/null
 want 2 "$rc" "hanging ast-grep is usage"
 grep -q 'timed out' <<<"$out" && ok "and the reason says timed out" || bad "timeout: $out"
 grep -q 'ast-grep' <<<"$out" && ok "and names ast-grep" || bad "timeout name: $out"

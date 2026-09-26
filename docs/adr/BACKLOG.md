@@ -30,11 +30,11 @@ that arms work; silence leaves the row where it is.
 | Original-file addresses | **shipped** — ADR-001; not 040 | — |
 | Never `write \| head` | **shipped** — `AGENTS.md`; not 040 | — |
 | `body=` is lines | **shipped** — taught; ADR-027 | — |
-| Teach-only quoting on `write --help` | **040 Accepted** — Decision 1 | — |
-| Parse unquoted `anchor=` until next `key=` | **040 Accepted** — Decision 2 | — |
-| `mrw version` subcommand | **040 Accepted** — Decision 3 | — |
-| Single quotes parse | **040 Accepted** — Decision 4 | — |
-| `-C` vs `--root` (019 A stands; help names both global flags) | **040 Accepted** — Decision 5 | — |
+| Teach-only quoting on `write --help` | **shipped** — ADR-040 T1 | — |
+| Parse unquoted `anchor=` until next `key=` | **shipped** — ADR-040 T2 | — |
+| `mrw version` subcommand | **shipped** — ADR-040 T3 | — |
+| Single quotes parse | **shipped** — ADR-040 T4 | — |
+| `-C` vs `--root` (019 A stands; help names both global flags) | **decided** — ADR-040 Decision 5, a permanent boundary: help names both global flags, 019 pick A stands | — |
 | PATH binary vs skill **version skew** | **ADR-041 Accepted** — record only | — (T1 receipts 2026-09-12; no protocol) |
 | `mrw check` silent in-root fallback | **ADR-042 Accepted** — miss refused (T2) | — (2026-09-12: *"accepted, close"*; exit 2, no result) |
 | Torn `Load` / atomic save | **ADR-043 Accepted** — measure, not a lock | — (2026-09-12: not observed; Load unlocked) |

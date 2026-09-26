@@ -295,7 +295,7 @@ Already observed (1 / 17 / 20 of 20 kept; silent `applied`). Skip if time is bet
 
 - [ ] **Step 3: File or skip**
 
-Do not propose a lock in the write-up. `TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites` must still pass.
+Do not propose a lock in the write-up. `TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites` must still pass. (Superseded by ADR-075, which took the lock on M's quote; the test is now `TestTheConcurrentWriteRiskIsClosedByADR075`.)
 
 ---
 

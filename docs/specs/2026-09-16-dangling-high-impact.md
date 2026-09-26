@@ -43,7 +43,7 @@ One spec, five use cases: each leftover has a named test that goes red if the re
 
 ### UC-3: Operator knows concurrent writes can print applied and still lose
 
-- **Trigger:** a reader asks whether two `mrw write`s on one file are exclusive · **Preconditions:** ADR-002 locking is permanently out of scope
+- **Trigger:** a reader asks whether two `mrw write`s on one file are exclusive · **Preconditions:** ADR-002 locking is permanently out of scope (until ADR-075, 2026-09-25)
 - **Main flow:**
   1. BACKLOG states the observed class: last-writer-wins; a loser can print a full success receipt and exit 0; the sha guard is sometimes loud.
 - **Failure paths:** a. "cannot both land" / "loud when it loses" as a guarantee → those clauses are already struck; the silent-applied observation must remain. b. adding a lock to "close" it → refused here; needs a new quote that invalidates ADR-002's scope.
@@ -185,9 +185,9 @@ None — documentation and adversarial recipe tests. No `scripts/contract.sh` ro
 ## Non-Goals
 
 - Reopen ADR-019 pick B/C, `roots/list` wiring, or a per-hunk ledger — permanent: boundary: pick A shipped; new quote
-- A file lock / CAS on `writeFile` — permanent: boundary: ADR-002 locking out of scope
+- A file lock / CAS on `writeFile` — permanent: boundary: ADR-002 locking out of scope. Superseded by ADR-075 (2026-09-25), which takes a per-checkout write lock
 - `--strict-balance` as default — permanent until the campaign meets F-7/F-9
-- Neighbour licence on a single-line address — permanent: open question, not a proposed fix
+- Neighbour licence on a single-line address — declined on 2026-09-26 (BACKLOG inventory): no field case would have fired it; re-opened only by one that would
 - Per-extension check skip; `apply_patch` Move-to with hunks; `body=@` inside `Parse`; widen prose — permanent: boundary: already refused without a new quote
 - Inventing Rust `packages()`; editing Zeus or quality-harness — permanent: boundary
 - Write-time / apply parser (ADR-048) — permanent: mrw models no target syntax
@@ -200,7 +200,7 @@ None — documentation and adversarial recipe tests. No `scripts/contract.sh` ro
 |------|------------|--------|------------|
 | Unrun probe scored as coverage | High | High — a hole reads as measured | F-2, F-4, F-9, F-11; same class as leftover F-16 |
 | Campaign criterion shaped after the result | Med | High — a default argued from TPs only | F-7 filed before any campaign; F-9 refuses TP-without-FP |
-| A session "fixes" the race with a lock | Med | High — invalidates ADR-002 silently | F-6; Non-Goal; new quote required |
+| A session "fixes" the race with a lock | Med | High — invalidates ADR-002 silently | F-6; Non-Goal; new quote required. Retired: the quote came, and ADR-075 records it |
 | JSX probe never run, YAML treated as the whole class | Med | Med | F-10/F-11 keep the probe named |
 
 ## Open Questions
@@ -224,7 +224,7 @@ spec-verify --spec docs/specs/2026-09-16-dangling-high-impact.md
 | 5 | Host-cut closed by 031/039? | F-3 | Reject — under-ceiling measurement remains; do not treat ADR-039 as it |
 | 6 | Unrun under-ceiling as coverage? | F-4 | Must not |
 | 7 | Concurrent writes: characterize or lock? | F-5 | Characterize silent applied; last-writer-wins |
-| 8 | Close the race with a lock? | F-6 | Reject — ADR-002 scope |
+| 8 | Close the race with a lock? | F-6 | Reject — ADR-002 scope. Reversed by ADR-075 (2026-09-25) on M's quote |
 | 9 | Strict-balance default now? | F-7 | Reject — campaign first; 5% / 50 / three corpora |
 | 10 | Default stays off until then? | F-8 | Accept — existing apply test |
 | 11 | TP-only / unrun campaign as a pass? | F-9 | Must not; default stays off |
