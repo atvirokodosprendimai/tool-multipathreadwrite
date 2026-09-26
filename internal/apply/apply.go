@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -135,6 +136,10 @@ type FileResult struct {
 	Removed bool `json:"removed,omitempty"`
 	// RenamedTo is the dest path of a rename, root-relative.
 	RenamedTo string `json:"renamed_to,omitempty"`
+	// Target is the file a write through an in-root symlink changed, when it
+	// is not Path: ADR-005 §2 follows the link, and ADR-076 names where it led.
+	// Root-relative; absent otherwise.
+	Target string `json:"target,omitempty"`
 }
 
 // Result is the whole run's receipt.
@@ -150,6 +155,10 @@ type Result struct {
 	// reports without failing is not invisible to a caller who reads only
 	// the summary. Skipped and failed hunks contribute nothing.
 	Advisories int `json:"advisories"`
+	// DirsCreated names the directories a create or a rename made because they
+	// were not there, root-relative and parents first (ADR-076). Absent when
+	// none were made, and on a dry run, which makes none.
+	DirsCreated []string `json:"dirs_created,omitempty"`
 	// StrictSingleLine and StrictWouldRefuse feed ADR-056's pricing of
 	// --strict-balance and are NOT receipt fields: the balance rows already
 	// show the hunks. StrictSingleLine counts ok single-line replaces on
@@ -309,6 +318,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 
 	byPath := map[string][]hunk{}
 	var order []string
+	dirSpelled := map[string]string{}
 	// The hunk's identity is its POSITION in the plan, not the Index the caller
 	// filled in: two inputs sharing an Index would share a slot in the verdict
 	// map, and one hunk's report would silently become another's.
@@ -318,6 +328,9 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// in the seen ledger, which is keyed the same way. Without it a file
 		// read under one spelling is refused as unread under the other.
 		p := filepath.Clean(i.Path)
+		if _, ok := dirSpelled[p]; !ok && rooted.EndsInSeparator(i.Path) {
+			dirSpelled[p] = i.Path
+		}
 		if _, seen := byPath[p]; !seen {
 			order = append(order, p)
 		}
@@ -394,6 +407,14 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	var seenFiles []groupedFile
 	for _, path := range order {
 		hs := byPath[path]
+		// ADR-076: a trailing separator names a directory, and the clean above
+		// dropped it, so `@@ a.txt/` edited a.txt at exit 0. A plan names files,
+		// so the spelling is refused whether or not the path exists.
+		if raw, ok := dirSpelled[path]; ok {
+			refuseFile(results, path, hs, 0, fmt.Sprintf("%s %v; a plan edits files — name it without the trailing separator", raw, rooted.ErrNotADirectory))
+			failed = append(failed, FileResult{Path: path})
+			continue
+		}
 		full, err := resolve(root, path)
 		if err != nil {
 			// A path that leaves the root is refused per hunk rather than
@@ -426,6 +447,15 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// write in os.ReadFile below. It is refused before it is opened.
 			if !info.Mode().IsRegular() && !info.IsDir() {
 				refuseFile(results, path, hs, 0, fmt.Sprintf("%s is %s", path, lines.NotRegular))
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
+			// ADR-076: a read-only mark is a statement by whoever set it. A
+			// replace renames a new file over it and an unlink removes the
+			// entry, and neither needs the file to be writable, so both went
+			// through at exit 0.
+			if ro := readOnlyFor(path, full, info, hs); ro != "" {
+				refuseFile(results, path, hs, 0, ro)
 				failed = append(failed, FileResult{Path: path})
 				continue
 			}
@@ -500,10 +530,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			continue
 		}
 		fr.Created = !existed
-		// A file created by a plan always ends with a newline; an edited file
-		// keeps whatever it had, so mrw never silently adds or strips one.
+		// A file created by a plan always ends with a newline, and so does one
+		// that held no lines: it had no last line whose terminator could be
+		// kept (ADR-076). An edited file keeps whatever it had, so mrw never
+		// silently adds or strips one.
 		final := orig
-		final.final = orig.final || !existed
+		final.final = orig.final || !existed || len(orig.lines) == 0
 		final = final.with(out)
 		fr.LinesTo = len(out)
 		fr.SHAAfter = shaOf(final)
@@ -714,6 +746,9 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			return abortStage(w.file.Path, err)
 		}
 	}
+	// The root as staging spelled every path, so a link's target and the
+	// directories made can be reported root-relative (ADR-076).
+	absRoot, absErr := rooted.Abs(root)
 	for i, w := range content {
 		// ADR-071: a create whose target exists by now was made by an earlier
 		// rename in this commit under a name the filesystem folds into this one
@@ -734,6 +769,9 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			return commitFailed(w.file.Path, err, fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files)))
 		}
 		w.file.Written = true
+		if rel, err := filepath.Rel(absRoot, staged[i].target); absErr == nil && err == nil && rel != w.file.Path {
+			w.file.Target = rel
+		}
 		res.Files = append(res.Files, w.file)
 	}
 	if path, err := commitPathOps(&res, pathOps); err != nil {
@@ -742,6 +780,16 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// not empty, and os.Remove leaves it.
 		discard(len(content))
 		return commitFailed(path, err, err)
+	}
+	if absErr == nil {
+		for _, sf := range staged {
+			for _, d := range sf.dirs {
+				if rel, err := filepath.Rel(absRoot, d); err == nil {
+					res.DirsCreated = append(res.DirsCreated, rel)
+				}
+			}
+		}
+		sort.Strings(res.DirsCreated)
 	}
 	res.Applied = true
 	return res, nil
@@ -1653,6 +1701,13 @@ func stageFile(path string, t text) (staged, error) {
 		os.Remove(tmp.Name())
 		return staged{dirs: missing}, err
 	}
+	// ADR-076: a staged file is a new file, so the rename that commits it
+	// dropped the attributes of the one it replaces; on Windows a Hidden file
+	// came out visible. Only Windows has such attributes to carry.
+	if err := keepAttributes(path, tmp.Name()); err != nil {
+		os.Remove(tmp.Name())
+		return staged{dirs: missing}, err
+	}
 	return staged{tmp: tmp.Name(), target: path, dirs: missing}, nil
 }
 
@@ -1967,4 +2022,27 @@ func lineEditAt(hs []hunk) int {
 		}
 	}
 	return -1
+}
+
+// readOnlyFor is the refusal for a file whose owner cannot write it, or "". A
+// line edit judges the file it reaches, through a link; an unlink or a rename
+// moves the entry itself, so it is judged by Lstat, and a link to a read-only
+// file may still be removed (ADR-076). The fix it names is this platform's.
+func readOnlyFor(path, full string, info os.FileInfo, hs []hunk) string {
+	mode := info.Mode()
+	if lineEditAt(hs) < 0 {
+		li, err := os.Lstat(full)
+		if err != nil {
+			return ""
+		}
+		mode = li.Mode()
+	}
+	if !mode.IsRegular() || mode.Perm()&0o200 != 0 {
+		return ""
+	}
+	fix := "chmod u+w " + path
+	if runtime.GOOS == "windows" {
+		fix = "attrib -r " + path
+	}
+	return fmt.Sprintf("%s is read-only (%v); mrw does not override a read-only file — clear the mark first: %s", path, mode.Perm(), fix)
 }

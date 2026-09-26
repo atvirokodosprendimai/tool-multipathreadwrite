@@ -1614,18 +1614,34 @@ func report(w *os.File, res apply.Result, quiet bool) {
 		}
 	}
 	if !quiet {
+		// ADR-076: the directories this plan made, parents first, spelled
+		// with the separator that names a directory.
+		for _, d := range res.DirsCreated {
+			fmt.Fprintf(out, "created %s%c\n", d, filepath.Separator)
+		}
 		for _, f := range res.Files {
 			if !f.Written {
+				continue
+			}
+			if f.Removed {
+				// A removed path has no sha after it; the one it had is what a
+				// caller can check against, and a rename says where it went.
+				moved := ""
+				if f.RenamedTo != "" {
+					moved = ", renamed to " + f.RenamedTo
+				}
+				fmt.Fprintf(out, "removed %s  %dL -> 0L  was sha %s%s\n", f.Path, f.LinesFrom, short(f.SHABefore), moved)
 				continue
 			}
 			verb := "wrote"
 			if f.Created {
 				verb = "created"
 			}
-			if f.Removed {
-				verb = "removed"
+			through := ""
+			if f.Target != "" {
+				through = "  target " + f.Target
 			}
-			fmt.Fprintf(out, "%s %s  %dL -> %dL  sha %s\n", verb, f.Path, f.LinesFrom, f.LinesTo, short(f.SHAAfter))
+			fmt.Fprintf(out, "%s %s  %dL -> %dL  sha %s%s\n", verb, f.Path, f.LinesFrom, f.LinesTo, short(f.SHAAfter), through)
 		}
 	}
 

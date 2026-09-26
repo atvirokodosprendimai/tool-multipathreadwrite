@@ -170,6 +170,11 @@ These are gates, not a tour of the records behind them.
 - **The process is the verdict.** A check that prints `PASS` and exits 1 is a
   failure. Never read an exit code through a pipe: `mrw write plan | head` is
   `head`'s status.
+- **A path means what it says.** A trailing `/` names a directory, so a file
+  spelled `a.txt/` is refused, and so is a rename to `d/`. A read-only file is
+  refused for every op that would change it. On Windows a device name (`NUL`,
+  `CON`, …) is refused. The receipt names a symlink's `target`, the directories
+  a plan made (`dirs_created`) and a removed file's former sha.
 
 After any multi-line body, read on past the range until the enclosing structure
 closes. mrw models no target syntax; the damage is never inside the lines you

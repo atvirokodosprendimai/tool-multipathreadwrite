@@ -121,3 +121,48 @@ func win32Alias(p string) (comp, reads string) {
 	}
 	return "", ""
 }
+
+// win32Device reports p's last component when Go's rule for Windows device
+// names says it may open one: CON, PRN, AUX, NUL, COM1–COM9 and LPT1–LPT9 (the
+// digits ¹²³ too), CONIN$ and CONOUT$, in any case, with the name taken before
+// its first dot or colon and trailing spaces dropped, as
+// internal/filepathlite's isReservedName does. It is a candidate, not a
+// verdict: whether "nul.txt" opens a device depends on the Windows version, so
+// Resolve asks the OS (opensDevice) before it refuses. Only the last component
+// is a candidate, because a device name in the middle of a path cannot be made
+// as a directory and fails loudly on its own (ADR-076).
+func win32Device(p string) string {
+	p = p[len(filepath.VolumeName(p)):]
+	parts := strings.FieldsFunc(p, func(r rune) bool { return r == '/' || r == '\\' })
+	if len(parts) == 0 {
+		return ""
+	}
+	last := parts[len(parts)-1]
+	base := last
+	if i := strings.IndexAny(base, ".:"); i >= 0 {
+		base = base[:i]
+	}
+	base = strings.TrimRight(base, " ")
+	if isReservedBase(base) {
+		return last
+	}
+	return ""
+}
+
+// isReservedBase is Go's isReservedBaseName: the device names themselves.
+func isReservedBase(name string) bool {
+	upper := strings.ToUpper(name)
+	switch upper {
+	case "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$":
+		return true
+	}
+	if len(name) < 4 || (upper[:3] != "COM" && upper[:3] != "LPT") {
+		return false
+	}
+	switch rest := name[3:]; rest {
+	case "\u00b9", "\u00b2", "\u00b3":
+		return true
+	default:
+		return len(rest) == 1 && rest[0] >= '1' && rest[0] <= '9'
+	}
+}

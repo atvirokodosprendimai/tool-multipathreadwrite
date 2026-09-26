@@ -12,7 +12,10 @@
 package rooted
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -49,8 +52,18 @@ func Abs(root string) (string, error) {
 			return "", err
 		}
 	}
-	if real, err := filepath.EvalSymlinks(absRoot); err == nil {
+	// ADR-076: a root that is not there was judged by its spelling, so every
+	// path under it "resolved outside the root" — to the root's parent — and a
+	// create under it made the root. It is named for what it is.
+	real, err := filepath.EvalSymlinks(absRoot)
+	switch {
+	case err == nil:
 		absRoot = real
+	case errors.Is(err, fs.ErrNotExist):
+		return "", fmt.Errorf("the root %s does not exist", root)
+	}
+	if fi, err := os.Stat(absRoot); err == nil && !fi.IsDir() {
+		return "", fmt.Errorf("the root %s is not a directory", root)
 	}
 	return absRoot, nil
 }
@@ -66,6 +79,15 @@ func Resolve(root, path string) (string, error) {
 	}
 
 	full := filepath.Join(absRoot, path)
+	// ADR-076: Win32 opens CON, NUL, COM1 and the rest as devices — before
+	// Windows 11 with any extension too — so `mrw read NUL` served an empty
+	// file and a plan could write to a device at exit 0. The name picks a
+	// candidate and the OS answers whether it opens one.
+	if followLinks {
+		if d := win32Device(path); d != "" && opensDevice(full) {
+			return "", fmt.Errorf("%s: Windows opens %q as a device, not a file; mrw reads and writes files", path, d)
+		}
+	}
 	// ADR-071: on Windows a junction is followed here, because EvalSymlinks
 	// no longer does. Elsewhere target is full and nothing changes.
 	target := full
@@ -96,6 +118,15 @@ func Resolve(root, path string) (string, error) {
 	if !Contains(absRoot, check) {
 		return "", fmt.Errorf("%s resolves to %s, which is outside the root %s", path, check, absRoot)
 	}
+	// ADR-076: a trailing separator names a directory — the OS refuses
+	// open("a.txt/") — and the Join above cleaned it away, so `mrw read a.txt/`
+	// served a.txt. A name that does not exist is left to the caller, which
+	// reports it missing in its own words.
+	if EndsInSeparator(path) {
+		if fi, err := os.Stat(target); err == nil && !fi.IsDir() {
+			return "", fmt.Errorf("%s %w, but %s is a file", path, ErrNotADirectory, filepath.Clean(path))
+		}
+	}
 	return full, nil
 }
 
@@ -122,6 +153,16 @@ func Real(p string) string {
 // separator matters: without it, "/repo-backup" counts as inside "/repo".
 func Contains(absRoot, p string) bool {
 	return p == absRoot || strings.HasPrefix(p, absRoot+string(filepath.Separator))
+}
+
+// ErrNotADirectory is what Resolve wraps, and plan validation reports, when a
+// path ends in a separator but does not name a directory (ADR-076).
+var ErrNotADirectory = errors.New("ends in a separator, which names a directory")
+
+// EndsInSeparator reports whether p ends in a path separator of this platform:
+// a spelling that names a directory, which cleaning would drop.
+func EndsInSeparator(p string) bool {
+	return p != "" && os.IsPathSeparator(p[len(p)-1])
 }
 
 // IsRooted reports whether p names a location of its own, rather than one to be
