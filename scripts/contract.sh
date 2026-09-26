@@ -6953,8 +6953,10 @@ fixture
 mkdir -p "$R/sub"; printf 'package sub\n' > "$R/sub/s.go"
 out=$(m read a.go/ 2>&1); rc=$?
 want 1 "$rc" "a read of a file spelled with a trailing slash is a problem"
-grep -q 'a.go/  UNREADABLE  a.go/ ends in a separator, which names a directory' <<<"$out" && ok "and it is named, not served" || bad "trailing-slash read: $out"
+grep -q 'a.go/  UNREADABLE  a.go/ names a directory' <<<"$out" && ok "and it is named, not served" || bad "trailing-slash read: $out"
 grep -q '| package' <<<"$out" && bad "a line was served through a directory spelling: $out" || ok "and no line of it is served"
+out=$(m read a.go/. 2>&1); rc=$?
+{ [ "$rc" = 1 ] && grep -q 'names a directory' <<<"$out"; } && ok "and so is a.go/., which the OS refuses as it refuses a.go/" || bad "a.go/. read: exit $rc: $out"
 m read --grep package sub/ >/dev/null 2>&1; want 0 $? "a directory named with its slash is still walked"
 m read a.go b.go >/dev/null
 printf '@@ a.go/ 3 replace\nfunc A() int { return 9 }\n' > "$R/p151a.mrw"

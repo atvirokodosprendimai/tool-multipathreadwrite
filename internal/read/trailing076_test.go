@@ -42,3 +42,21 @@ func TestASpecEndingInASeparatorIsNotServedAsAFile(t *testing.T) {
 		t.Errorf("a grep under sub%s found %v, err %v; want sub/s.go", sep, specs, err)
 	}
 }
+
+// Codex review of #237. A grep given a file spelled as a directory walked the
+// file, relative or absolute: the absolute branch cleaned the separator away
+// before the boundary could judge it. Both are reported, and nothing is served.
+func TestAGrepThroughAFileSpelledAsADirectoryIsRefused(t *testing.T) {
+	root, _ := fixture(t)
+	sep := string(filepath.Separator)
+	abs, err := filepath.Abs(filepath.Join(root, "a.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"a.go" + sep, abs + sep} {
+		specs, probs, err := Walk(root, []string{p}, WalkOptions{Pattern: regexp.MustCompile(".")})
+		if err != nil || len(specs) != 0 || len(probs) != 1 || !strings.Contains(probs[0].Reason, "names a directory") {
+			t.Errorf("grep through %q: specs %v, problems %v, err %v", p, specs, probs, err)
+		}
+	}
+}

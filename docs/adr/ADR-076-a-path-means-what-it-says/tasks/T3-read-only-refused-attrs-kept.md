@@ -36,8 +36,8 @@ Windows a write stripped Hidden. M chose refusal on 2026-09-26.
 
 ```bash
 set -o pipefail
-go test ./internal/apply/ -count=1 -timeout 180s -run 'TestAWriteKeepsHiddenAndSystemAttributes|TestAReadOnlyFileIsRefusedOnWindows|TestAReadOnlyFileIsRefusedForEveryOpThatChangesIt|TestAnUnlinkOfALinkToAReadOnlyFileRemovesTheLink|TestFilePermissionsSurvive' -v 2>&1 | tee /tmp/adr076-T3.out \
-  && missing=$(for t in TestAReadOnlyFileIsRefusedForEveryOpThatChangesIt TestAnUnlinkOfALinkToAReadOnlyFileRemovesTheLink TestFilePermissionsSurvive; do grep -qE "^--- PASS: $t \(" /tmp/adr076-T3.out || echo "$t"; done) \
+go test ./internal/apply/ -count=1 -timeout 180s -run 'TestALineEditThroughALinkToAReadOnlyFileIsRefused|TestACreateOverAReadOnlyFileSaysItExists|TestAWriteKeepsHiddenAndSystemAttributes|TestAReadOnlyFileIsRefusedOnWindows|TestAReadOnlyFileIsRefusedForEveryOpThatChangesIt|TestAnUnlinkOfALinkToAReadOnlyFileRemovesTheLink|TestFilePermissionsSurvive' -v 2>&1 | tee /tmp/adr076-T3.out \
+  && missing=$(for t in TestALineEditThroughALinkToAReadOnlyFileIsRefused TestACreateOverAReadOnlyFileSaysItExists TestAReadOnlyFileIsRefusedForEveryOpThatChangesIt TestAnUnlinkOfALinkToAReadOnlyFileRemovesTheLink TestFilePermissionsSurvive; do grep -qE "^--- PASS: $t \(" /tmp/adr076-T3.out || echo "$t"; done) \
   && [ -z "$missing" ] \
   && grep -q '^func TestAWriteKeepsHiddenAndSystemAttributes(' cmd/mrw/attrs_windows_test.go \
   && grep -q '^func TestAReadOnlyFileIsRefusedOnWindows(' cmd/mrw/attrs_windows_test.go \
@@ -59,6 +59,8 @@ go test ./internal/apply/ -count=1 -timeout 180s -run 'TestAWriteKeepsHiddenAndS
 | `TestFilePermissionsSurvive` | `internal/apply/apply_test.go` | the pair: a writable 0755 file keeps its mode | — | S2 |
 | `TestAWriteKeepsHiddenAndSystemAttributes` | `cmd/mrw/attrs_windows_test.go` | Windows CI: Hidden+System kept by a write; a plain file gains neither | — | S1, S2 |
 | `TestAReadOnlyFileIsRefusedOnWindows` | `cmd/mrw/attrs_windows_test.go` | Windows CI: `attrib +r` refused, naming `attrib -r` | — | S1, S2 |
+| `TestALineEditThroughALinkToAReadOnlyFileIsRefused` | `internal/apply/paths076_test.go` | a replace through a link to a 0444 file is refused: a line edit judges what it reaches (review of #237) | — | S2 |
+| `TestACreateOverAReadOnlyFileSaysItExists` | `internal/apply/paths076_test.go` | a create over a read-only file is refused as existing, not as read-only (review of #237) | — | S2 |
 
 ## Reachability
 
@@ -89,11 +91,20 @@ go test ./internal/apply/ -count=1 -timeout 180s -run 'TestAWriteKeepsHiddenAndS
 - 2026-09-26 · c30a546* · exit 0 · `set -o pipefail …` · acceptance-sha256:b23615cea42ad6a1a64660195642696febd98bdc19402d0aafa23a99fd7dfc11 · ms:467
 - 2026-09-26 · 86e21bd* · exit 0 · `set -o pipefail …` · acceptance-sha256:b23615cea42ad6a1a64660195642696febd98bdc19402d0aafa23a99fd7dfc11 · ms:342
 - 2026-09-26 · 86e21bd* · exit 0 · `set -o pipefail …` · acceptance-sha256:b23615cea42ad6a1a64660195642696febd98bdc19402d0aafa23a99fd7dfc11 · ms:376
+- 2026-09-26 · 587a680* · exit 0 · `set -o pipefail …` · acceptance-sha256:704409763ae57add7d7b9983df71766946dbeaee648473630cd5f99d2729b043 · ms:993
+- 2026-09-26 · 587a680* · exit 0 · `set -o pipefail …` · acceptance-sha256:704409763ae57add7d7b9983df71766946dbeaee648473630cd5f99d2729b043 · ms:347
+- 2026-09-26 · 587a680* · exit 0 · `set -o pipefail …` · acceptance-sha256:704409763ae57add7d7b9983df71766946dbeaee648473630cd5f99d2729b043 · ms:353
+- 2026-09-26 · 587a680* · exit 0 · `set -o pipefail …` · acceptance-sha256:704409763ae57add7d7b9983df71766946dbeaee648473630cd5f99d2729b043 · ms:377
+- 2026-09-26 · 587a680* · exit 0 · `set -o pipefail …` · acceptance-sha256:704409763ae57add7d7b9983df71766946dbeaee648473630cd5f99d2729b043 · ms:378
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-26 · 86e21bd* · mutant killed · exit 1 · `internal/apply/apply.go` · no file is ever read-only · acceptance-sha256:b23615cea42ad6a1a64660195642696febd98bdc19402d0aafa23a99fd7dfc11 · covers:a read-only file is refused for every op
 - 2026-09-26 · 86e21bd* · mutant killed · exit 1 · `internal/apply/apply.go` · an unlink judges the file a link reaches · acceptance-sha256:b23615cea42ad6a1a64660195642696febd98bdc19402d0aafa23a99fd7dfc11 · covers:an unlink judges the entry
+- 2026-09-26 · 587a680* · mutant killed · exit 1 · `internal/apply/apply.go` · no file is ever read-only · acceptance-sha256:704409763ae57add7d7b9983df71766946dbeaee648473630cd5f99d2729b043 · covers:a read-only file is refused for every op
+- 2026-09-26 · 587a680* · mutant killed · exit 1 · `internal/apply/apply.go` · an unlink judges the file a link reaches · acceptance-sha256:704409763ae57add7d7b9983df71766946dbeaee648473630cd5f99d2729b043 · covers:an unlink judges the entry
+- 2026-09-26 · 587a680* · mutant killed · exit 1 · `internal/apply/apply.go` · a create over a read-only file is refused as read-only · acceptance-sha256:704409763ae57add7d7b9983df71766946dbeaee648473630cd5f99d2729b043 · covers:a read-only file is refused for every op
+- 2026-09-26 · 587a680* · mutant killed · exit 1 · `internal/apply/apply.go` · a line edit judges the link, not the file it reaches · acceptance-sha256:704409763ae57add7d7b9983df71766946dbeaee648473630cd5f99d2729b043 · covers:a read-only file is refused for every op
 
 ## Invariants
 

@@ -187,3 +187,120 @@ func TestAnUnlinkOfALinkToAReadOnlyFileRemovesTheLink(t *testing.T) {
 		t.Errorf("the read-only file changed: %q", got)
 	}
 }
+
+// Codex review of #237. A commit that failed after an earlier file landed left
+// that file's new directories on disk, and dirs_created was set only on success,
+// so the receipt of a PARTIALLY APPLIED plan hid them.
+func TestAPartialCommitNamesTheDirectoriesItLeft(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "b.txt", "b\n")
+	failRenames(t, func(_, newpath string) bool { return filepath.Base(newpath) == "b.txt" })
+	res, err := Apply(root, []Input{
+		{Path: "n/deep/a.txt", Op: "create", Body: []string{"a"}, Lines: -1, Index: 0},
+		{Path: "b.txt", Start: 1, End: 1, Op: "replace", Body: []string{"B"}, Lines: -1, Index: 1},
+	}, Options{})
+	if err == nil || res.Applied {
+		t.Fatalf("the injected commit failure did not fail the plan: %v", err)
+	}
+	if !exists(t, root, "n/deep/a.txt") {
+		t.Fatal("the fixture needs a.txt to have landed before b.txt failed")
+	}
+	if want := []string{"n", filepath.Join("n", "deep")}; !reflect.DeepEqual(res.DirsCreated, want) {
+		t.Errorf("dirs_created = %q, want %q: directories on disk left out of the receipt", res.DirsCreated, want)
+	}
+}
+
+// Codex review of #237. On Windows EvalSymlinks canonicalises case, so a file
+// named readme.md in a plan and README.md on disk was reported as reached
+// through a link. A file reached by its own name, in any case, has no target.
+func TestACaseOnlyDifferenceIsNotALinkTarget(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "README.md", "a\n")
+	if _, err := os.Stat(filepath.Join(root, "readme.md")); err != nil {
+		t.Skip("this filesystem keeps case, so readme.md is another file")
+	}
+	res, err := Apply(root, []Input{{Path: "readme.md", Start: 1, End: 1, Op: "replace", Body: []string{"b"}, Lines: -1}}, Options{})
+	if err != nil || !res.Applied || res.Files[0].Target != "" {
+		t.Fatalf("a case-only spelling named a target: %v %+v", err, res.Files)
+	}
+}
+
+// Review of #237. A line edit judges the file a link reaches, so a replace
+// through a link to a read-only file is refused; only an unlink or a rename,
+// which move the entry, judge the link itself.
+func TestALineEditThroughALinkToAReadOnlyFileIsRefused(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "ro.txt", "a\n")
+	p := filepath.Join(root, "ro.txt")
+	if err := os.Chmod(p, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(p, 0o644) })
+	if err := os.Symlink("ro.txt", filepath.Join(root, "link.txt")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	res, err := Apply(root, []Input{{Path: "link.txt", Start: 1, End: 1, Op: "replace", Body: []string{"X"}, Lines: -1}}, Options{})
+	if err != nil || res.Applied || !strings.Contains(res.Hunks[0].Reason, "read-only") {
+		t.Fatalf("a replace through a link to a read-only file was not refused: %v %+v", err, res.Hunks)
+	}
+	if got := read(t, root, "ro.txt"); got != "a\n" {
+		t.Errorf("ro.txt changed: %q", got)
+	}
+}
+
+// Review of #237. A create over an existing file is refused because the file
+// exists; a read-only mark on it hid that reason behind "chmod u+w".
+func TestACreateOverAReadOnlyFileSaysItExists(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "ro.txt", "a\n")
+	p := filepath.Join(root, "ro.txt")
+	if err := os.Chmod(p, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(p, 0o644) })
+	res, err := Apply(root, []Input{{Path: "ro.txt", Op: "create", Body: []string{"x"}, Lines: -1}}, Options{})
+	if err != nil || res.Applied || strings.Contains(res.Hunks[0].Reason, "read-only") || !strings.Contains(res.Hunks[0].Reason, "exist") {
+		t.Fatalf("a create over a read-only file did not say the file exists: %v %+v", err, res.Hunks)
+	}
+}
+
+// Review of #237. The directory-spelling refusal was carried by the file's
+// FIRST hunk, which may be a sibling spelled plainly; the hunk that wrote
+// `a.txt/` read as skipped.
+func TestTheDirectorySpellingRefusalIsCarriedByTheHunkThatSpelledIt(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "a.txt", "a\nb\n")
+	res, err := Apply(root, []Input{
+		{Path: "a.txt", Start: 2, End: 2, Op: "replace", Body: []string{"B"}, Lines: -1, Index: 0},
+		{Path: "a.txt/", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 1},
+	}, Options{})
+	if err != nil || res.Applied {
+		t.Fatalf("the plan applied: %v", err)
+	}
+	if res.Hunks[0].Status != StatusSkipped || res.Hunks[1].Status != StatusFailed || !strings.Contains(res.Hunks[1].Reason, "a.txt/") {
+		t.Errorf("want the plain hunk skipped and the a.txt/ hunk failed: %+v", res.Hunks)
+	}
+}
+
+// Review of #237. A create through an in-root linked directory landed in the
+// link's target and named no target: resolving the file whole failed, since it
+// did not exist yet. It resolves through the directory that holds it.
+func TestACreateThroughALinkedDirectoryNamesItsTarget(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "real"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("real", filepath.Join(root, "linkdir")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	res, err := Apply(root, []Input{{Path: "linkdir/new/x.txt", Op: "create", Body: []string{"x"}, Lines: -1}}, Options{})
+	if err != nil || !res.Applied {
+		t.Fatalf("the create did not apply: %v %+v", err, res.Hunks)
+	}
+	if want := filepath.Join("real", "new", "x.txt"); res.Files[0].Target != want {
+		t.Errorf("target = %q, want %q", res.Files[0].Target, want)
+	}
+	if want := []string{filepath.Join("real", "new")}; !reflect.DeepEqual(res.DirsCreated, want) {
+		t.Errorf("dirs_created = %q, want %q", res.DirsCreated, want)
+	}
+}

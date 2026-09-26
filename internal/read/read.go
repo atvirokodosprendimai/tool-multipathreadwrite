@@ -404,7 +404,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				sp.Path = rel
 				// ADR-076: Real cleaned the separator away; it is kept, so the
 				// spelling is judged below as the caller wrote it.
-				if rooted.EndsInSeparator(argPath) {
+				if rooted.SpelledAsDirectory(argPath) {
 					sp.Path += string(filepath.Separator)
 				}
 			}

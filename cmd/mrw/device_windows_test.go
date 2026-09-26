@@ -25,7 +25,7 @@ func TestADeviceNameIsRefusedNotReadAsAnEmptyFile(t *testing.T) {
 	plans := t.TempDir()
 	for name, plan := range map[string]string{
 		"create": "@@ NUL 0 create\nx\n",
-		"rename": "@@ a.txt - rename\nCON\n",
+		"rename": "@@ a.txt - rename\nNUL\n",
 	} {
 		p := filepath.Join(plans, name+".mrw")
 		if err := os.WriteFile(p, []byte(plan), 0o644); err != nil {
@@ -52,5 +52,16 @@ func TestADeviceNameIsRefusedNotReadAsAnEmptyFile(t *testing.T) {
 	}
 	if out, code := runIn(t, root, "write", "--no-check", p); code != 0 {
 		t.Errorf("nul.bin, a file on this Windows, was refused: exit %d:\n%s", code, out)
+	}
+}
+
+// Codex review of #237. The device check took its candidate from the path as
+// written, so `NUL/.` and `NUL/x/..` — which name NUL once cleaned — passed it.
+func TestADeviceNameBehindADotComponentIsRefused(t *testing.T) {
+	root := t.TempDir()
+	for _, spec := range []string{"NUL/.", `NUL\x\..`} {
+		if out, code := runIn(t, root, "read", spec); code == 0 || !strings.Contains(out, "device") {
+			t.Errorf("read %s: exit %d, want the device refusal:\n%s", spec, code, out)
+		}
 	}
 }

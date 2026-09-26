@@ -6,10 +6,10 @@
 **Owner:** M
 **Spec:** None — no spec stage
 **Cross-references:** ADR-005, ADR-006, ADR-008, ADR-021, ADR-066, ADR-071, ADR-073, docs/adr/BACKLOG.md
-**Governs:** `internal/rooted/**`, `internal/read/read.go`, `internal/read/trailing076_test.go`, `internal/apply/apply.go`, `internal/apply/pathop.go`, `internal/apply/attrs_windows.go`, `internal/apply/attrs_other.go`, `internal/apply/paths076_test.go`, `cmd/mrw/main.go`, `cmd/mrw/receipt076_test.go`, `cmd/mrw/device_windows_test.go`, `cmd/mrw/attrs_windows_test.go`, `internal/mcp/schema.go`, `internal/mcp/era_test.go`, `internal/mcp/testdata/legacy_golden.jsonl`, `internal/mcp/receipt076_test.go`, `scripts/contract.sh`, `AGENTS.md`, `README.md`, `docs/adr/BACKLOG.md`
+**Governs:** `internal/rooted/**`, `internal/read/read.go`, `internal/read/walk.go`, `internal/read/trailing076_test.go`, `internal/apply/apply.go`, `internal/apply/pathop.go`, `internal/apply/attrs_windows.go`, `internal/apply/attrs_other.go`, `internal/apply/paths076_test.go`, `cmd/mrw/main.go`, `cmd/mrw/receipt076_test.go`, `cmd/mrw/device_windows_test.go`, `cmd/mrw/attrs_windows_test.go`, `internal/mcp/schema.go`, `internal/mcp/era_test.go`, `internal/mcp/testdata/legacy_golden.jsonl`, `internal/mcp/receipt076_test.go`, `scripts/contract.sh`, `AGENTS.md`, `README.md`, `docs/adr/BACKLOG.md`
 **Enforced-by:** `internal/apply/paths076_test.go::TestAHunkPathEndingInASeparatorIsRefused`
 **Invalidates:** none
-**Served-path change:** a spec, a plan path or a rename destination that ends in a separator and does not name a directory is refused (read: `UNREADABLE`; write: the hunk fails, exit 1, nothing written); a root that does not exist is named as missing, and a create under it no longer makes it; on Windows a name the OS opens as a device (`NUL`, `CON`, `COM1`, …) is refused; a line edit, unlink or rename of a read-only file is refused, naming `chmod u+w` (`attrib -r` on Windows); a write keeps a Windows file's Hidden and System attributes; an insert into an empty file ends with a newline; the receipt gains `files[].target` (the file a write through an in-root symlink changed) and `dirs_created` (the directories the plan made), and the human receipt prints them and a removed file's former sha instead of `sha ` and nothing.
+**Served-path change:** a spec, a plan path or a rename destination spelled as a directory (a trailing separator, or `.` or `..` last) that does not name one is refused (read: `UNREADABLE`; write: the hunk fails, exit 1, nothing written); a root that does not exist is named as missing, and a create under it no longer makes it; on Windows a name the OS opens as a device is refused — `NUL` on every Windows, and `CON`, `COM1` and the rest where that Windows still reserves them; a line edit, unlink or rename of a read-only file is refused, naming `chmod u+w` (`attrib -r` on Windows); a write keeps a Windows file's Hidden and System attributes; an insert into an empty file ends with a newline; the receipt gains `files[].target` (the file a write through an in-root symlink changed) and `dirs_created` (the directories the plan made), and the human receipt prints them and a removed file's former sha instead of `sha ` and nothing.
 
 ## Context
 
@@ -24,8 +24,10 @@ changed. Each was reproduced on v1.26.0 on 2026-09-26:
 - `mrw -C nope read a.txt` said "a.txt resolves to <parent>, which is outside the root <nope>":
   `rooted.Abs` fell back to the spelling when the root did not exist, and a create under it made the
   root.
-- On Windows `NUL`, `CON`, `COM1`, `LPT1` and, before Windows 11, the same names with an extension
-  open a DEVICE. `mrw read NUL` served an empty file, and a plan could write to a device at exit 0.
+- On Windows `NUL` opens the NUL DEVICE, and so do `CON`, `COM1`, `LPT1` — with an extension too,
+  before Windows 11 — wherever that Windows still reserves them (the CI runner's does not: a
+  rename to `CON` made a file there, review of #237). `mrw read NUL` served an empty file, and a
+  plan could write to a device at exit 0.
   ADR-071 refused a trailing dot, a trailing space and a `:`; device names are the same class.
 - A read-only file was replaced (a new file renamed over it keeps mode 0444) and unlinked at exit 0:
   neither needs the file to be writable, only its directory. On Windows a write stripped Hidden.
@@ -62,6 +64,9 @@ a different name, because it names a different kind of thing.
 3. **A Windows device name is refused.** `win32Device` picks a candidate by Go's own rule
    (`internal/filepathlite` `isReservedName`: the name before its first `.` or `:`, trailing spaces
    dropped), and `opensDevice` asks the OS — `GetFullPathName` answers `\\.\NUL` for a device —
+   Which names that is differs by Windows version — `NUL` everywhere, `CON` not on the CI runner —
+   which is why the OS answers rather than a list: a list refused files there, and missed devices
+   elsewhere.
    because Windows 11 opens `nul.txt` as a file (the Windows CI job writes `nul.bin`). Only the last
    component is a candidate: a device name mid-path cannot be made as a directory, and fails loudly.
 4. **A read-only file is refused** for every op that would change it (M, 2026-09-26). A line edit

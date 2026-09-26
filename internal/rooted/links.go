@@ -149,9 +149,12 @@ func win32Device(p string) string {
 	return ""
 }
 
-// isReservedBase is Go's isReservedBaseName: the device names themselves.
+// isReservedBase is Go's isReservedBaseName: the device names themselves. The
+// case is folded in ASCII only, byte for byte: strings.ToUpper maps "ı" to "I",
+// which shortened "ıı" from four bytes to two, and slicing the result by the
+// original length panicked on a filename (Codex review of #237).
 func isReservedBase(name string) bool {
-	upper := strings.ToUpper(name)
+	upper := asciiUpper(name)
 	switch upper {
 	case "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$":
 		return true
@@ -165,4 +168,16 @@ func isReservedBase(name string) bool {
 	default:
 		return len(rest) == 1 && rest[0] >= '1' && rest[0] <= '9'
 	}
+}
+
+// asciiUpper upper-cases a-z and leaves every other byte as it is, so the
+// result is exactly as long as s.
+func asciiUpper(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if 'a' <= c && c <= 'z' {
+			b[i] = c - ('a' - 'A')
+		}
+	}
+	return string(b)
 }

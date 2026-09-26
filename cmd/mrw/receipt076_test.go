@@ -72,3 +72,23 @@ func TestTheReceiptNamesALinksTarget(t *testing.T) {
 		t.Fatalf("exit %d, a plain write names a target:\n%s", code, out)
 	}
 }
+
+// Review of #237. `iter add` threw the boundary's reason away and said
+// "outside the root" for every refusal: a missing root and a file spelled as a
+// directory were misnamed.
+func TestIterAddNamesTheBoundarysOwnReason(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ root, spec, want string }{
+		{root, "a.txt/", "names a directory"},
+		{filepath.Join(root, "nope"), "a.txt", "does not exist"},
+	} {
+		out, code := runIn(t, c.root, "iter", "add", c.spec)
+		if code != exitUsage || !strings.Contains(out, c.want) || strings.Contains(out, "outside the root") {
+			t.Errorf("iter add %s under %s: exit %d, want %q:\n%s", c.spec, c.root, code, c.want, out)
+		}
+	}
+}

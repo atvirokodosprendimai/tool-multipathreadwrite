@@ -1394,21 +1394,23 @@ ranges, and "mrw check" runs the project's check scoped to these files.`,
 				// did not exist, so those were refused as "no such file": the
 				// right answer for the wrong reason, which is why the two
 				// spellings disagreed.
-				var missing, outside []string
+				var missing, refused []string
 				for _, a := range args {
 					full, err := rooted.Resolve(root, iter.Path(a))
 					if err != nil {
-						outside = append(outside, a)
+						// The boundary's own reason: a missing root, a
+						// directory spelling and a path outside all read as
+						// "outside the root" before (review of #237).
+						refused = append(refused, err.Error())
 						continue
 					}
 					if _, err := os.Stat(full); err != nil {
 						missing = append(missing, a)
 					}
 				}
-				if len(outside) > 0 {
-					return cli.Exit(fmt.Sprintf("outside the root: %s — the working set feeds "+
-						"`mrw read` and `mrw check`, which refuse a path that leaves `--root`, so an "+
-						"entry like this could never be served", strings.Join(outside, ", ")), exitUsage)
+				if len(refused) > 0 {
+					return cli.Exit(fmt.Sprintf("%s — the working set feeds `mrw read` and `mrw check`, which "+
+						"refuse such a path, so an entry like this could never be served", strings.Join(refused, "; ")), exitUsage)
 				}
 				if len(missing) > 0 {
 					return cli.Exit(fmt.Sprintf("no such file: %s (quote a spec containing spaces)",

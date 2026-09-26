@@ -172,8 +172,9 @@ These are gates, not a tour of the records behind them.
   `head`'s status.
 - **A path means what it says.** A trailing `/` names a directory, so a file
   spelled `a.txt/` is refused, and so is a rename to `d/`. A read-only file is
-  refused for every op that would change it. On Windows a device name (`NUL`,
-  `CON`, …) is refused. The receipt names a symlink's `target`, the directories
+  refused for every op that would change it. On Windows a name the OS opens as
+  a device (`NUL` always, `CON` and the rest where that Windows reserves them)
+  is refused. The receipt names a symlink's `target`, the directories
   a plan made (`dirs_created`) and a removed file's former sha.
 
 After any multi-line body, read on past the range until the enclosing structure

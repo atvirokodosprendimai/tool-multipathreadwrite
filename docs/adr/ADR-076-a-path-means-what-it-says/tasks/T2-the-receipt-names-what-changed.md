@@ -36,8 +36,8 @@ a removed file printed `sha ` and nothing, and an insert into an empty file wrot
 
 ```bash
 set -o pipefail
-go test ./internal/apply/ ./cmd/mrw/ ./internal/mcp/ -count=1 -timeout 180s -run 'TestAWriteThroughASymlinkNamesItsTarget|TestThePlanNamesTheDirectoriesItMade|TestAnInsertIntoAnEmptyFileEndsItsLineWithANewline|TestTrailingNewlineIsPreserved|TestTheReceiptNamesEveryPathTheWriteTouched|TestTheReceiptNamesALinksTarget|TestUnlinkReceiptNamesRemoved|TestTheWriteReceiptNamesTheDirectoriesItMade|TestEveryOutputSchemaPropertyIsDescribed' -v 2>&1 | tee /tmp/adr076-T2.out \
-  && missing=$(for t in TestAWriteThroughASymlinkNamesItsTarget TestThePlanNamesTheDirectoriesItMade TestAnInsertIntoAnEmptyFileEndsItsLineWithANewline TestTrailingNewlineIsPreserved TestTheReceiptNamesEveryPathTheWriteTouched TestTheReceiptNamesALinksTarget TestUnlinkReceiptNamesRemoved TestTheWriteReceiptNamesTheDirectoriesItMade TestEveryOutputSchemaPropertyIsDescribed; do grep -qE "^--- PASS: $t \(" /tmp/adr076-T2.out || echo "$t"; done) \
+go test ./internal/apply/ ./cmd/mrw/ ./internal/mcp/ -count=1 -timeout 180s -run 'TestACreateThroughALinkedDirectoryNamesItsTarget|TestAPartialCommitNamesTheDirectoriesItLeft|TestACaseOnlyDifferenceIsNotALinkTarget|TestAWriteThroughASymlinkNamesItsTarget|TestThePlanNamesTheDirectoriesItMade|TestAnInsertIntoAnEmptyFileEndsItsLineWithANewline|TestTrailingNewlineIsPreserved|TestTheReceiptNamesEveryPathTheWriteTouched|TestTheReceiptNamesALinksTarget|TestUnlinkReceiptNamesRemoved|TestTheWriteReceiptNamesTheDirectoriesItMade|TestEveryOutputSchemaPropertyIsDescribed' -v 2>&1 | tee /tmp/adr076-T2.out \
+  && missing=$(for t in TestACreateThroughALinkedDirectoryNamesItsTarget TestAPartialCommitNamesTheDirectoriesItLeft TestACaseOnlyDifferenceIsNotALinkTarget TestAWriteThroughASymlinkNamesItsTarget TestThePlanNamesTheDirectoriesItMade TestAnInsertIntoAnEmptyFileEndsItsLineWithANewline TestTrailingNewlineIsPreserved TestTheReceiptNamesEveryPathTheWriteTouched TestTheReceiptNamesALinksTarget TestUnlinkReceiptNamesRemoved TestTheWriteReceiptNamesTheDirectoriesItMade TestEveryOutputSchemaPropertyIsDescribed; do grep -qE "^--- PASS: $t \(" /tmp/adr076-T2.out || echo "$t"; done) \
   && [ -z "$missing" ] \
   && grep -q '^# 152\. ' scripts/contract.sh \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/plan internal/check internal/state internal/lines internal/iter internal/seen internal/subproc \
@@ -58,6 +58,9 @@ go test ./internal/apply/ ./cmd/mrw/ ./internal/mcp/ -count=1 -timeout 180s -run
 | `TestUnlinkReceiptNamesRemoved` | `cmd/mrw/unlink_receipt_test.go` | the removed line still names the file | — | S2 |
 | `TestTheWriteReceiptNamesTheDirectoriesItMade` | `internal/mcp/receipt076_test.go` | `dirs_created` reaches `mrw_write`'s structured answer | — | S1, S2 |
 | `TestEveryOutputSchemaPropertyIsDescribed` | `internal/mcp/conformance_test.go` | the new keys are described | — | S2 |
+| `TestAPartialCommitNamesTheDirectoriesItLeft` | `internal/apply/paths076_test.go` | a commit that fails after a create landed still names the directories it left (Codex review of #237) | — | S2 |
+| `TestACaseOnlyDifferenceIsNotALinkTarget` | `internal/apply/paths076_test.go` | a file reached by its own name in another case has no target — the Windows case canonicalisation (Codex review of #237) | — | S2 |
+| `TestACreateThroughALinkedDirectoryNamesItsTarget` | `internal/apply/paths076_test.go` | a create through a linked directory names its target and the real directory made (review of #237) | — | S2 |
 
 ## Reachability
 
@@ -90,6 +93,13 @@ go test ./internal/apply/ ./cmd/mrw/ ./internal/mcp/ -count=1 -timeout 180s -run
 - 2026-09-26 · 86e21bd* · exit 0 · `set -o pipefail …` · acceptance-sha256:1197b9d52f7480cca2a2cc6832a658ac280277d0cd6e5e1fe67a7221d54a286e · ms:333
 - 2026-09-26 · 86e21bd* · exit 0 · `set -o pipefail …` · acceptance-sha256:1197b9d52f7480cca2a2cc6832a658ac280277d0cd6e5e1fe67a7221d54a286e · ms:328
 - 2026-09-26 · 86e21bd* · exit 0 · `set -o pipefail …` · acceptance-sha256:1197b9d52f7480cca2a2cc6832a658ac280277d0cd6e5e1fe67a7221d54a286e · ms:317
+- 2026-09-26 · 587a680* · exit 0 · `set -o pipefail …` · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · ms:2192
+- 2026-09-26 · 587a680* · exit 0 · `set -o pipefail …` · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · ms:338
+- 2026-09-26 · 587a680* · exit 0 · `set -o pipefail …` · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · ms:356
+- 2026-09-26 · 587a680* · exit 0 · `set -o pipefail …` · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · ms:327
+- 2026-09-26 · 587a680* · exit 0 · `set -o pipefail …` · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · ms:371
+- 2026-09-26 · 587a680* · exit 0 · `set -o pipefail …` · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · ms:342
+- 2026-09-26 · 587a680* · exit 0 · `set -o pipefail …` · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · ms:380
 
 ## Mutation Log
 (empty until execute)
@@ -97,6 +107,12 @@ go test ./internal/apply/ ./cmd/mrw/ ./internal/mcp/ -count=1 -timeout 180s -run
 - 2026-09-26 · 86e21bd* · mutant killed · exit 1 · `internal/apply/apply.go` · the receipt never names a directory made · acceptance-sha256:1197b9d52f7480cca2a2cc6832a658ac280277d0cd6e5e1fe67a7221d54a286e · covers:the directories made are named
 - 2026-09-26 · 86e21bd* · mutant killed · exit 1 · `cmd/mrw/main.go` · a removed line prints the empty sha after · acceptance-sha256:1197b9d52f7480cca2a2cc6832a658ac280277d0cd6e5e1fe67a7221d54a286e · covers:a removed file says what it was
 - 2026-09-26 · 86e21bd* · mutant killed · exit 1 · `internal/apply/apply.go` · an empty file keeps no final newline · acceptance-sha256:1197b9d52f7480cca2a2cc6832a658ac280277d0cd6e5e1fe67a7221d54a286e · covers:an empty file ends its lines
+- 2026-09-26 · 587a680* · mutant killed · exit 1 · `internal/apply/apply.go` · the receipt never names a link target · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · covers:a link's target is named
+- 2026-09-26 · 587a680* · mutant killed · exit 1 · `internal/apply/apply.go` · the receipt never names a directory made · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · covers:the directories made are named
+- 2026-09-26 · 587a680* · mutant killed · exit 1 · `cmd/mrw/main.go` · a removed line prints the empty sha after · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · covers:a removed file says what it was
+- 2026-09-26 · 587a680* · mutant killed · exit 1 · `internal/apply/apply.go` · an empty file keeps no final newline · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · covers:an empty file ends its lines
+- 2026-09-26 · 587a680* · mutant killed · exit 1 · `internal/apply/apply.go` · a partial commit names no directory it left · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · covers:the directories made are named
+- 2026-09-26 · 587a680* · mutant killed · exit 1 · `internal/apply/apply.go` · a create through a linked directory resolves nothing · acceptance-sha256:ddea6776d754b96db925800907442e2ab73c605ced453aed7f402a7fdfaa182e · covers:a link's target is named
 
 ## Invariants
 

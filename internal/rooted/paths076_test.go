@@ -29,8 +29,13 @@ func TestAPathEndingInASeparatorMustNameADirectory(t *testing.T) {
 			t.Errorf("Resolve(%q) refused: %v", p, err)
 		}
 	}
-	if !EndsInSeparator("d/") || EndsInSeparator("d") || EndsInSeparator("") {
-		t.Error("EndsInSeparator does not read a trailing / as a separator")
+	for p, want := range map[string]bool{"d/": true, "d/.": true, "d/..": true, ".": true, "d": false, "": false, "a.b": false, "d/a.b": false} {
+		if got := SpelledAsDirectory(p); got != want {
+			t.Errorf("SpelledAsDirectory(%q) = %v, want %v", p, got, want)
+		}
+	}
+	if _, err := Resolve(root, "a.txt"+sep+"."); !errors.Is(err, ErrNotADirectory) {
+		t.Errorf("Resolve(a.txt%s.) = %v, want ErrNotADirectory", sep, err)
 	}
 }
 
@@ -78,5 +83,23 @@ func TestADeviceNameIsACandidateByGosRule(t *testing.T) {
 		if got := win32Device(in); got != "" {
 			t.Errorf("win32Device(%q) = %q, which Windows opens as a file", in, got)
 		}
+	}
+}
+
+// Codex review of #237. The candidate check folded case with strings.ToUpper,
+// whose result can be shorter than its input, and sliced it by the input's
+// length: "ıı.txt" panicked. Every name is judged without a panic, and names
+// that only fold to a device name in Unicode are not devices.
+func TestADeviceCandidateNeverPanicsOnUnicode(t *testing.T) {
+	for _, in := range []string{"\u0131\u0131.txt", "\u017f\u017f", "\u0131\u0131\u0131\u0131", "c\u00f6n", "N\u00dcL.txt", "\u212aOM1"} {
+		if got := win32Device(in); got != "" {
+			t.Errorf("win32Device(%q) = %q, which Windows does not open as a device", in, got)
+		}
+	}
+	if got := win32Device("NUL/."); got != "" {
+		t.Errorf("win32Device of an uncleaned NUL/. named %q; Resolve cleans before asking", got)
+	}
+	if got := win32Device("NUL"); got != "NUL" {
+		t.Errorf("win32Device(NUL) = %q", got)
 	}
 }
