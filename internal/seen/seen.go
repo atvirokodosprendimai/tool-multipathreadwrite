@@ -34,7 +34,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
@@ -347,7 +346,7 @@ func Record(root string, obs map[string]Observation) error {
 }
 
 func withLock(root string, fn func() error) error {
-	release, err := hold(root, Name+".lock")
+	release, err := state.Hold(root, Name+".lock")
 	if err != nil {
 		return err
 	}
@@ -363,7 +362,7 @@ func withLock(root string, fn func() error) error {
 // second time waits on itself. The order is always this lock, then seen.lock;
 // a read takes only seen.lock.
 func LockWrites(root string) (release func(), err error) {
-	return hold(root, Name+".write.lock")
+	return state.Hold(root, Name+".write.lock")
 }
 
 // Snapshot loads the ledger under the ledger's own lock, for a writer to
@@ -371,7 +370,8 @@ func LockWrites(root string) (release func(), err error) {
 // file and rewrites it, so a Load taken while another writer saves can find it
 // half-written or empty — and a Load that finds no header discards the ledger —
 // which refused a writer "has not been read" for a file it had read (review of
-// #233). Load stays unlocked for readers that only report (ADR-038).
+// #233). Load itself takes no lock: `mrw seen` reads through Snapshot too since
+// ADR-079, and a reader that calls Load directly reads past it.
 func Snapshot(root string) (Ledger, error) {
 	var l Ledger
 	err := withLock(root, func() error {
@@ -380,34 +380,6 @@ func Snapshot(root string) (Ledger, error) {
 		return err
 	})
 	return l, err
-}
-
-// hold opens the named lock file in root's state directory and takes it
-// exclusively, waiting while another holder has it. The kernel releases it if
-// the process dies holding it.
-func hold(root, name string) (func(), error) {
-	path, err := state.Path(root, name)
-	if err != nil {
-		return nil, err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, err
-	}
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	if err := lock(f); err != nil {
-		f.Close()
-		return nil, err
-	}
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			_ = unlock(f)
-			f.Close()
-		})
-	}, nil
 }
 
 // merge combines a new observation with what was already recorded for the same

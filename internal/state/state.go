@@ -112,13 +112,26 @@ func Migrate(root string) ([]string, error) {
 		if err != nil {
 			continue
 		}
+		// Each destination's own lock — <name>.lock, the one seen and iter take —
+		// is held across the check and the copy, and released before the next
+		// file: a locked `iter add` landing between the two was overwritten by
+		// the older legacy set (the reviews of #240). A file whose lock cannot
+		// be taken is not copied; an unlocked copy is the race.
+		release, err := Hold(root, name+".lock")
+		if err != nil {
+			continue
+		}
 		to := filepath.Join(dir, name)
 		if _, err := os.Stat(to); err == nil {
+			release()
 			continue // live state wins over a legacy copy
 		} else if !isNotExist(err) {
+			release()
 			return moved, err
 		}
-		if err := os.WriteFile(to, b, 0o600); err != nil {
+		err = os.WriteFile(to, b, 0o600)
+		release()
+		if err != nil {
 			return moved, err
 		}
 		moved = append(moved, name)

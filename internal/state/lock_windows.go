@@ -1,6 +1,6 @@
 //go:build windows
 
-package seen
+package state
 
 import (
 	"os"

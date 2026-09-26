@@ -37,9 +37,44 @@ type Set struct {
 	Note    string // free-text first-line comment, e.g. what this iteration is
 }
 
-// Load reads the working set. A missing file yields an empty set and no error:
-// having no iteration is the normal starting state, not a fault.
+// Load reads the working set under its lock, so it never sees a file another
+// process has emptied to rewrite (ADR-079). A missing file yields an empty set
+// and no error: having no iteration is the normal starting state, not a fault.
+// A lock that cannot be taken — an unwritable state directory — is read past:
+// the set is still worth reading.
 func Load(root string) (Set, error) {
+	if release, err := state.Hold(root, lockName); err == nil {
+		defer release()
+	}
+	return load(root)
+}
+
+// Update reads the working set, lets fn change it, and writes it back, all
+// under its lock (ADR-079). Two `mrw iter add` racing each other each read the
+// set, added, and wrote it back, and the later write lost the earlier entry —
+// or read the file mid-rewrite, found it empty, and wiped the set. fn's error
+// is returned as it is and nothing is written.
+func Update(root string, fn func(*Set) error) (Set, error) {
+	release, err := state.Hold(root, lockName)
+	if err != nil {
+		return Set{}, err
+	}
+	defer release()
+	s, err := load(root)
+	if err != nil {
+		return s, err
+	}
+	if err := fn(&s); err != nil {
+		return s, err
+	}
+	return s, Save(root, s)
+}
+
+// lockName is the working set's lock, beside it in the state directory.
+const lockName = Name + ".lock"
+
+// load reads the working set without the lock; Load and Update hold it.
+func load(root string) (Set, error) {
 	var s Set
 	path, err := ReadPath(root)
 	if err != nil {
@@ -78,7 +113,8 @@ func Load(root string) (Set, error) {
 	return s, sc.Err()
 }
 
-// Save writes the working set back, creating .mrw/ if needed.
+// Save writes the working set back, creating its directory if needed. It takes
+// no lock of its own: Update holds it around the read, the change and this write.
 func Save(root string, s Set) error {
 	path, err := state.Path(root, Name)
 	if err != nil {

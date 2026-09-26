@@ -1,6 +1,6 @@
 //go:build unix
 
-package seen
+package state
 
 import (
 	"os"
