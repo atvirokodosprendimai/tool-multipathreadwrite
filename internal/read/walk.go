@@ -1,12 +1,14 @@
 package read
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -228,20 +230,34 @@ func (w *walker) offer(p, full string) {
 }
 
 // excluded matches a glob against the cleaned root-relative path AND the
-// basename. A glob path.Match rejects is a usage error the caller sees at parse
-// time, not a pattern that silently matches nothing, so a bad one is reported
-// rather than ignored here.
+// basename, with the one matcher every finder shares (pathExcluded). A glob that can
+// never match is refused before a walk starts (CheckExclude), not here.
 func (w *walker) excluded(rel string) bool {
-	base := path.Base(rel)
-	for _, g := range w.opt.Exclude {
-		if ok, err := path.Match(g, rel); err == nil && ok {
-			return true
+	return pathExcluded(rel, w.opt.Exclude)
+}
+
+// CheckExclude refuses an --exclude glob that can never match: one path.Match
+// rejects as malformed, and one spelled so no root-relative path or base name
+// (ADR-007) can match it — rooted (a leading /, or on Windows a drive, which is
+// what MSYS makes of /vendor), `./`-prefixed, or ending in /, since the walk
+// compares cleaned paths. The CLI and MCP both call it; over MCP
+// `exclude: ["["]` was ignored while the CLI refused `--exclude '['` (ADR-078).
+func CheckExclude(globs []string) error {
+	const why = "a glob matches root-relative paths and base names, so one "
+	for _, g := range globs {
+		if _, err := path.Match(g, "x"); err != nil {
+			return fmt.Errorf("%q: %v", g, err)
 		}
-		if ok, err := path.Match(g, base); err == nil && ok {
-			return true
+		switch {
+		case rooted.IsRooted(g):
+			return fmt.Errorf("%q: %sthat is rooted never matches; name it relative to --root", g, why)
+		case strings.HasPrefix(g, "./"):
+			return fmt.Errorf("%q: %sthat starts with ./ never matches; drop the ./", g, why)
+		case strings.HasSuffix(g, "/"):
+			return fmt.Errorf("%q: %sthat ends in / never matches; drop the trailing / to exclude the directory", g, why)
 		}
 	}
-	return false
+	return nil
 }
 
 func (w *walker) rel(full string) string {

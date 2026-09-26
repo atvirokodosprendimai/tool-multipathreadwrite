@@ -1375,41 +1375,51 @@ func TestAPageIsMeasuredAfterItsMarkersAndFooter(t *testing.T) {
 // file listed first supplied them and hid an unservable long line in the file
 // after it — the caller then got a per-file line budget that cannot serve it
 // (eighth review of PR #132).
+//
+// ADR-078: a file after another one got only the room the earlier files left,
+// so the sample cannot say its line is past the limit — "no narrower range can
+// be served" was said of a line that fits alone (the reviews of #239). That
+// file is named and sent to be read alone, which then settles it: named as
+// unservable, or served.
 func TestTheUnservableLineIsDiagnosedPerFile(t *testing.T) {
 	root := t.TempDir()
 	small := ""
 	for i := 1; i < 50; i++ {
 		small += fmt.Sprintf("s %d\n", i)
 	}
-	if err := os.WriteFile(filepath.Join(root, "small.txt"), []byte(small), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "wide.txt"),
-		[]byte(strings.Repeat("x", MaxResultChars+1000)+"\nsecond\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	// Many long but individually SERVABLE lines must still get a range.
-	if err := os.WriteFile(filepath.Join(root, "many.txt"),
-		[]byte(strings.Repeat(strings.Repeat("y", 110000)+"\n", 6)), 0o644); err != nil {
-		t.Fatal(err)
+	for name, body := range map[string]string{
+		"small.txt": small,
+		"wide.txt":  strings.Repeat("x", MaxResultChars+1000) + "\nsecond\n",
+		// Many long but individually SERVABLE lines must still get a range.
+		"many.txt": strings.Repeat(strings.Repeat("y", 110000)+"\n", 6),
+		"half.txt": strings.Repeat("h", 50000) + "\n",
+		"fits.txt": strings.Repeat("z", 160000) + "\n",
+	} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	for _, c := range []struct {
-		name       string
-		specs      []any
-		unservable bool
+		name, want       string
+		specs            []any
+		alone, aloneWant string
 	}{
-		{"small first, then a line no range can serve", []any{"small.txt", "wide.txt"}, true},
-		{"small first, then long but servable lines", []any{"small.txt", "many.txt"}, false},
+		{"small first, then a line no range can serve", "wide.txt, the last file this read reached", []any{"small.txt", "wide.txt"}, "wide.txt", "Line 1 of wide.txt"},
+		{"small first, then long but servable lines", "Ask for narrower ranges", []any{"small.txt", "many.txt"}, "", ""},
+		{"a long line first, then one that fits alone", "fits.txt, the last file this read reached", []any{"half.txt", "fits.txt"}, "fits.txt", ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			res := call(t, root, "mrw_read", map[string]any{"specs": c.specs})
-			blocks, _ := res["content"].([]any)
-			first, _ := blocks[0].(map[string]any)
-			txt, _ := first["text"].(string)
-			said := strings.Contains(txt, "serves whole lines")
-			if said != c.unservable {
-				t.Errorf("unservable-line advice = %v, want %v: %s", said, c.unservable, txt)
+			txt := resultText(call(t, root, "mrw_read", map[string]any{"specs": c.specs}))
+			if !strings.Contains(txt, c.want) || strings.Contains(txt, "serves whole lines") {
+				t.Errorf("want %q and no unservable-line claim: %s", c.want, txt)
+			}
+			if c.alone == "" {
+				return
+			}
+			res := call(t, root, "mrw_read", map[string]any{"specs": []any{c.alone}})
+			if got := resultText(res); c.aloneWant == "" && res["isError"] == true || !strings.Contains(got, c.aloneWant) {
+				t.Errorf("read alone, %s: want %q (served when empty): %.400s", c.alone, c.aloneWant, got)
 			}
 		})
 	}

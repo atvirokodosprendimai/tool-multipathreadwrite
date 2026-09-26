@@ -175,6 +175,11 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		strayN     int  // extra non-empty lines after a satisfied body=
 		strayFirst string
 		strayAt    int
+		// broken is set by a header that did not parse and cleared by the next
+		// one that does: the lines under a broken header are its body, and
+		// reporting each as "text before the first @@ header" buried the one
+		// real error under a line per body line (ADR-078).
+		broken bool
 	)
 	flush := func() {
 		if cur == nil {
@@ -282,6 +287,19 @@ func Parse(r io.Reader) ([]Hunk, error) {
 				body = append(body, line)
 				continue
 			}
+			// A header written with a tab after @@ read as prose, and the plan
+			// was refused for "text before the first @@ header" on the very
+			// line that was meant to be one (ADR-078). Asked before `broken`:
+			// under a header that did not parse, a second tab header was
+			// swallowed as its body (the review of #239).
+			if strings.HasPrefix(hdr, "@@\t") {
+				errs = append(errs, fmt.Sprintf("line %d: a header is \"@@ \" with a space, and this line has a tab after @@: %q", n, line))
+				broken = true
+				continue
+			}
+			if broken {
+				continue
+			}
 			if t := strings.TrimSpace(line); t != "" && !strings.HasPrefix(t, "#") {
 				errs = append(errs, fmt.Sprintf("line %d: text before the first @@ header: %q", n, line))
 			}
@@ -307,10 +325,11 @@ func Parse(r io.Reader) ([]Hunk, error) {
 					" on the hunk it belongs to, so the count says where the body ends"
 			}
 			errs = append(errs, fmt.Sprintf("line %d: %v%s", n, err, hint))
+			broken = true
 			continue
 		}
 		h.Index = len(hunks)
-		cur, body, want, fixed, strayN, strayFirst, strayAt = &h, nil, explicit, explicit >= 0, 0, "", 0
+		cur, body, want, fixed, strayN, strayFirst, strayAt, broken = &h, nil, explicit, explicit >= 0, 0, "", 0, false
 	}
 	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("reading plan: %w", err)

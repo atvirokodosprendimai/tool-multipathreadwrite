@@ -1995,6 +1995,8 @@ Contract breaks, reproduced on macOS:
   first by `overflowMessage` with range advice, and only a second call names the CLI; that sentence
   says "no narrower range", though a range after the long line serves. Fix: the same
   `longestEncodedLine` check in `overflowMessage`, naming the line.
+  **Fixed by ADR-078 T3**, contract §158: the refusal names the line — escaped past the ceiling or
+  plain and longer than it — and the ranges around it, and the open range after it is served.
 - **The 2 s `--ast-grep` kill fails when a grandchild holds stdout**: 30 s with a `sh` wrapper that
   runs `sleep 30`; the grandchild is orphaned when its stdio is redirected.
   `internal/read/astgrep.go` sets no `WaitDelay` and no process group (the finder's reading).
@@ -2041,6 +2043,10 @@ Windows only, each hand-confirmed by at least two sessions:
   **Partly fixed by ADR-074 T4**: the hint names `MSYS_NO_PATHCONV=1` beside
   `MSYS2_ARG_CONV_EXCL='*'`, and AGENTS.md, README and the served guide say the rewrite fires when
   the file part holds a `/`. A leading-slash `--exclude` and an attached `-C/path` are unchanged.
+  **The leading-slash `--exclude` is refused by ADR-078 T2** on both surfaces: a glob matches
+  root-relative paths and base names, and none is rooted — so on Windows the drive MSYS makes of
+  `/vendor` is refused the same way, as are `./vendor` and `vendor/`. The attached `-C/path` is
+  permanent (fact: MSYS rewrites argv before mrw starts; both switches that stop it are named).
 - **The Go suite under PowerShell.** Eleven check tests FAIL instead of skipping when `sh` is not
   on PATH (green from Git Bash on the same tree), and `TestTailAnnouncesWhatItLeftOut` panics.
   All thirteen padded-path tests SKIP on NTFS because their fixture needs a file named `x `. Owed:
@@ -2073,6 +2079,12 @@ a read-only file is refused for every op that would change it, and a write keeps
 a missing `-C` root is named as missing. The killed-write window is closed for the check by ADR-072
 T2 (§143); the milliseconds between the commit rename and the tally are permanent: SIGKILL cannot be
 handled.
+**Fixed by ADR-078** (2026-09-26), contract §155–§159: a header that does not parse is one error, not
+one per body line, and a tab after `@@` is named; `-C` with no `/pattern/` is refused rather than
+ignored; over MCP an id that is neither a string nor a number with an integer value is refused `-32600`, invalid UTF-8 in
+an argument is refused by name, a usage error writes nothing to stdout, a named read of many specs
+stops once it has overflowed, and `exclude: ["["]` is refused as the CLI refuses it. `c:1-2`, `$-1`
+against `5-3` and a FIFO list stay as ADR-074 decided (its Out of Scope).
 
 Found by the review of #228 (Windows, from the documentation): Win32 also maps device names —
 `CON`, `NUL`, `AUX`, `PRN`, `COM1`–`COM9`, `LPT1`–`LPT9`, and before Windows 11 the same names
@@ -2085,6 +2097,9 @@ refused in a spec, a plan path and a rename destination; `nul.bin`, a file on Wi
 Found after the list: every padded-path refusal suggests its fix in POSIX single quotes
 (`mrw read -- 'x '`), which cmd.exe keeps as literal characters, so a cmd.exe user who pastes it
 names a path with quotes in it (a Windows cmd.exe session, 2026-09-25).
+**Fixed by ADR-078 T1**: on Windows each padded-path refusal also names the double-quoted form
+(`in cmd.exe: mrw read -- " x"`), and the served guide and AGENTS.md say so; the POSIX form stays
+first for PowerShell and Git Bash.
 
 Not a finding: `a.txt:-1` serves line 1; `-M` is documented as "from the start to M".
 
