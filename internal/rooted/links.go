@@ -126,11 +126,12 @@ func win32Alias(p string) (comp, reads string) {
 // names says it may open one: CON, PRN, AUX, NUL, COM1–COM9 and LPT1–LPT9 (the
 // digits ¹²³ too), CONIN$ and CONOUT$, in any case, with the name taken before
 // its first dot or colon and trailing spaces dropped, as
-// internal/filepathlite's isReservedName does. It is a candidate, not a
-// verdict: whether "nul.txt" opens a device depends on the Windows version, so
-// Resolve asks the OS (opensDevice) before it refuses. Only the last component
-// is a candidate, because a device name in the middle of a path cannot be made
-// as a directory and fails loudly on its own (ADR-076).
+// internal/filepathlite's isReservedName does. On Windows Resolve refuses every
+// one by name: whether the OS opens "nul.txt" as a device differs by build and
+// by API, and asking one API made files another could not reach (ADR-081).
+// Only the last component is a candidate, because a device name in the middle
+// of a path cannot be made as a directory and fails loudly on its own
+// (ADR-076).
 func win32Device(p string) string {
 	p = p[len(filepath.VolumeName(p)):]
 	parts := strings.FieldsFunc(p, func(r rune) bool { return r == '/' || r == '\\' })

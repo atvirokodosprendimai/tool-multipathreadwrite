@@ -84,11 +84,13 @@ func Resolve(root, path string) (string, error) {
 	// ADR-076: Win32 opens CON, NUL, COM1 and the rest as devices — before
 	// Windows 11 with any extension too — so `mrw read NUL` served an empty
 	// file and a plan could write to a device at exit 0. The cleaned name picks
-	// a candidate, since `NUL/.` opens NUL too (Codex review of #237), and the
-	// OS answers whether it opens one.
+	// the candidate, since `NUL/.` opens NUL too (Codex review of #237).
+	// ADR-081: refused by name on every build. v1.27.0 asked GetFullPathName,
+	// which on Windows 11 no longer maps `con` or `nul.txt` in a directory, so
+	// mrw created them — files its own unlink and PowerShell 5 could not reach.
 	if followLinks {
-		if d := win32Device(filepath.Clean(path)); d != "" && opensDevice(full) {
-			return "", fmt.Errorf("%s: Windows opens %q as a device, not a file; mrw reads and writes files", path, d)
+		if d := win32Device(filepath.Clean(path)); d != "" {
+			return "", fmt.Errorf("%s: %q is a Windows device name, which some Windows APIs open as a device on every build; mrw reads and writes files", path, d)
 		}
 	}
 	// ADR-071: on Windows a junction is followed here, because EvalSymlinks

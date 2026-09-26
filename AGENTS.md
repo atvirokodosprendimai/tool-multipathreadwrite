@@ -391,9 +391,10 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 - **A path means what it says** (ADR-076). A path that ends in `/` names a directory: `mrw read
   a.txt/`, a plan path `a.txt/` and a rename to `d/` are refused — name the file (`d/a.txt`). A
   read-only file is refused for every op that would change it; clear the mark first (`chmod u+w`,
-  or `attrib -r` on Windows). On Windows a name the OS opens as a device is refused — `NUL` always,
-  and `CON`, `COM1` and the rest where that Windows still reserves them; mrw asks the OS rather than
-  a list. The receipt names what else a write touched: `target` when it went through a symlink,
+  or `attrib -r` on Windows). On Windows a reserved device name — `CON`, `PRN`, `AUX`, `NUL`,
+  `COM1`–`9`, `LPT1`–`9`, `CONIN$`, `CONOUT$`, with or without an extension — is refused by name on
+  every build, since some Windows APIs still open it as a device (ADR-081). The receipt names what
+  else a write touched: `target` when it went through a symlink,
   `dirs_created` (`created d/` on the human receipt) for the directories it made, and a removed
   file's former sha.
 - **A path-scoped rule in `.claude/rules/` is delivered by your harness's own Read tool, and by

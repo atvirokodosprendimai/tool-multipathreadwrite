@@ -62,12 +62,12 @@ func TestARootThatDoesNotExistIsNamedAsMissing(t *testing.T) {
 	}
 }
 
-// ADR-076 T2. Win32 opens these names as devices, in any case, with trailing
-// spaces before an extension; Go's own rule (internal/filepathlite
-// isReservedName) picks the candidates, and on Windows the OS is asked whether
-// the name really opens a device, since Windows 11 reads nul.txt as a file.
-// Only the last component is a candidate: a device name in the middle of a
-// path cannot be created as a directory, so it fails loudly on its own.
+// ADR-076 T2, ADR-081. Win32 opens these names as devices, in any case, with
+// trailing spaces before an extension; Go's own rule (internal/filepathlite
+// isReservedName) picks them, and on Windows every one is refused by name,
+// whatever this build's GetFullPathName says. Only the last component is a
+// candidate: a device name in the middle of a path cannot be created as a
+// directory, so it fails loudly on its own.
 func TestADeviceNameIsACandidateByGosRule(t *testing.T) {
 	for in, want := range map[string]string{
 		"NUL": "NUL", "nul.txt": "nul.txt", "con": "con", "Aux.go": "Aux.go", "PRN": "PRN",

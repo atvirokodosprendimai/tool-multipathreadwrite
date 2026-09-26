@@ -6,26 +6,33 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 )
 
-// ADR-076 T2 end to end. NUL is the NUL device on every Windows, so it needs no
-// setup: a read of it was served as an empty file, and a plan could write to it
-// at exit 0. A name that only looks like a device is asked of the OS, because
-// Windows 11 opens nul.bin as a file — and then it is written like one.
+// ADR-076 T2 end to end, and ADR-081. NUL is the NUL device on every Windows,
+// so a read of it was served as an empty file and a plan could write to it at
+// exit 0. Every reserved name is refused by name, with or without an
+// extension, whatever this build's GetFullPathName says: v1.27.0 asked it, and
+// on Windows 11 (26200) it created con, nul.txt and COM1.txt as files its own
+// unlink and PowerShell 5 could not reach (a Windows peer, 2026-09-26).
 func TestADeviceNameIsRefusedNotReadAsAnEmptyFile(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("a\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if out, code := runIn(t, root, "read", "NUL"); code == 0 || !strings.Contains(out, "device") || strings.Contains(out, "0L") {
-		t.Errorf("read NUL: exit %d:\n%s", code, out)
+	for _, name := range []string{"NUL", "con", "nul.txt", "COM1.txt", "aux.go", "CONOUT$"} {
+		if out, code := runIn(t, root, "read", name); code == 0 || !strings.Contains(out, "device") || strings.Contains(out, "0L") {
+			t.Errorf("read %s: exit %d:\n%s", name, code, out)
+		}
 	}
 	plans := t.TempDir()
 	for name, plan := range map[string]string{
-		"create": "@@ NUL 0 create\nx\n",
-		"rename": "@@ a.txt - rename\nNUL\n",
+		"create-NUL":      "@@ NUL 0 create\nx\n",
+		"create-con":      "@@ con 0 create\nx\n",
+		"create-nul.txt":  "@@ nul.txt 0 create\nx\n",
+		"create-COM1.txt": "@@ COM1.txt 0 create\nx\n",
+		"rename-NUL":      "@@ a.txt - rename\nNUL\n",
+		"rename-lpt1.log": "@@ a.txt - rename\nlpt1.log\n",
 	} {
 		p := filepath.Join(plans, name+".mrw")
 		if err := os.WriteFile(p, []byte(plan), 0o644); err != nil {
@@ -33,25 +40,22 @@ func TestADeviceNameIsRefusedNotReadAsAnEmptyFile(t *testing.T) {
 		}
 		out, code := runIn(t, root, "write", "--no-check", "--force", p)
 		if code != exitNotApplied || !strings.Contains(out, "device") {
-			t.Errorf("%s naming a device: exit %d, want %d naming the device:\n%s", name, code, exitNotApplied, out)
+			t.Errorf("%s: exit %d, want %d naming the device:\n%s", name, code, exitNotApplied, out)
 		}
 	}
 	if b, err := os.ReadFile(filepath.Join(root, "a.txt")); err != nil || string(b) != "a\n" {
 		t.Errorf("a.txt changed or went: %q %v", b, err)
 	}
-	full, err := syscall.FullPath(filepath.Join(root, "nul.bin"))
-	if err != nil {
-		t.Fatal(err)
+	if entries, _ := os.ReadDir(root); len(entries) != 1 {
+		t.Errorf("a refused plan left files behind: %v", entries)
 	}
-	if strings.HasPrefix(full, `\\.\`) {
-		t.Skipf("this Windows opens nul.bin as %s, a device; the file half has nothing to show", full)
-	}
+	// The pair: a name that only starts like one is a file.
 	p := filepath.Join(plans, "file.mrw")
-	if err := os.WriteFile(p, []byte("@@ nul.bin 0 create\nx\n"), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte("@@ console.txt 0 create\nx\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if out, code := runIn(t, root, "write", "--no-check", p); code != 0 {
-		t.Errorf("nul.bin, a file on this Windows, was refused: exit %d:\n%s", code, out)
+		t.Errorf("console.txt, not a device name, was refused: exit %d:\n%s", code, out)
 	}
 }
 
