@@ -2083,6 +2083,12 @@ Windows only, each hand-confirmed by at least two sessions:
   deferred until they do.
   mrw itself behaves honestly without `sh` — exit 2, "check SKIPPED: could not start … declare one" —
   but a PowerShell user without Git's `usr\bin` on PATH gets no default check.
+  **ADR-081 verified on Windows** (the same peer, v1.27.1 asset, 2026-09-26): `NUL`, `con`,
+  `nul.txt`, `COM1.txt`, `COM¹.txt`, `LPT²`, `CONIN$`, `conout$.txt`, `AUX.tar.gz`, `sub/NUL`, a
+  directory component `con/b.txt` and a rename into `nul.txt/b.txt` are each refused, NOTHING
+  WRITTEN, no stray entry; `console.txt` is created. The link path (a symlink to `con.txt`) is
+  unverified on Windows: the peer had no symlink privilege, and CI does not show whether
+  `TestALinkToADeviceNameIsRefused` ran or skipped. Open (deferred: needs a Windows run with symlinks).
 
 Smaller, recorded as found: an in-root symlink is followed on write and the target is absent from
 the receipt; plan-header paths are cleaned rather than refused (`a.txt/`, `"a.txt"`, `./a.txt`, and
