@@ -7190,6 +7190,36 @@ fix=${out##*put -- before the path: mrw }
 out=$(eval "m $fix" 2>&1); want 0 $? "and the fix it offers, run by a POSIX shell, serves the file"
 grep -q '| apostrophe' <<<"$out" && ok "the file it names" || bad "the offered fix read something else: $out"
 
+# 160. ADR-079: the working set and the tally survive racing processes. Each
+# was rewritten by truncate-and-write with no lock, so racing processes lost an
+# entry or a count — or read the file emptied mid-rewrite and wiped the lot.
+fixture
+for i in $(seq 1 12); do printf 'f\n' > "$R/f$i.txt"; done
+pids=()
+for i in $(seq 1 12); do m iter add "f$i.txt" >/dev/null 2>&1 & pids+=($!); done
+for p in "${pids[@]}"; do wait "$p"; done
+n=$(m iter 2>/dev/null | grep -c '^@')
+[ "$n" = 12 ] && ok "12 racing iter adds keep 12 entries" || bad "12 racing iter adds kept $n: $(m iter 2>&1)"
+m read f1.txt f2.txt f3.txt f4.txt f5.txt f6.txt f7.txt f8.txt >/dev/null
+pids=()
+for i in $(seq 1 8); do printf '@@ f%d.txt 1 replace\nw\n' "$i" > "$R/p160.$i"; m write --no-check "$R/p160.$i" >/dev/null 2>&1 & pids+=($!); done
+for p in "${pids[@]}"; do wait "$p"; done
+applied=$(m stats --json 2>/dev/null | jq -r '.counts.applied')
+[ "$applied" = 8 ] && ok "8 racing writes count 8 applied" || bad "8 racing writes counted applied=$applied: $(m stats --json 2>&1 | head -c 300)"
+
+# 161. ADR-079: a dry run is not a landing. A clean --dry-run was tallied as
+# applied, and counted among the landed writes though nothing landed; a
+# refused one is still one refusal.
+fixture
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' > "$R/p161a.mrw"
+m write --no-check --dry-run "$R/p161a.mrw" >/dev/null 2>&1; want 0 $? "a clean dry run applies nothing and exits 0"
+landed=$(m stats --json 2>/dev/null | jq -r '.landed, .plans' | tr '\n' ' ')
+[ "$landed" = "0 0 " ] && ok "and records nothing: no plan, no landed write" || bad "a clean dry run was counted (landed, plans: $landed)"
+printf '@@ a.go 99 replace\nx\n' > "$R/p161b.mrw"
+m write --no-check --dry-run "$R/p161b.mrw" >/dev/null 2>&1; want 1 $? "a dry run addressing a line that does not exist is refused"
+[ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .plans' | tr '\n' ' ')" = "1 1 " ] && ok "and is one refusal" || bad "a refused dry run: $(m stats --json 2>&1 | head -c 300)"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

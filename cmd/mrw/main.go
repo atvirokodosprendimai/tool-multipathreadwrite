@@ -576,7 +576,9 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 			if path != filepath.Join(dir, seen.Name) {
 				fmt.Printf("# reading a legacy in-tree ledger: %s\n", path)
 			}
-			ledger, err := seen.Load(root)
+			// ADR-079: read under the ledger's lock, as a writer's snapshot is, so
+			// `mrw seen` never prints a ledger another process emptied to rewrite.
+			ledger, err := seen.Snapshot(root)
 			if err != nil {
 				return cli.Exit(err, exitUsage)
 			}
@@ -1289,9 +1291,13 @@ held or went unchecked.`,
 			// every error, because measurement that can break the tool it
 			// measures is worse than no measurement. A landing is counted as
 			// applied here and moved to the check's verdict after it runs.
-			if res.Failed > 0 {
+			switch {
+			case res.Failed > 0:
 				_ = authoring.Record(root, authoring.RefusedApply)
-			} else {
+			case res.DryRun:
+				// ADR-079: a clean dry run landed nothing, and counted as applied
+				// it inflated `landed writes`; a refused one is still a refusal.
+			default:
 				_ = authoring.Record(root, authoring.Applied)
 				tallied = true
 			}
@@ -1443,76 +1449,87 @@ ranges, and "mrw check" runs the project's check scoped to these files.`,
 				return err
 			}
 			root := cmd.Root().String("root")
-			set, err := iter.Load(root)
-			if err != nil {
-				return cli.Exit(err, exitUsage)
-			}
 			args := cmd.Args().Slice()
 			verb := ""
 			if len(args) > 0 {
 				verb, args = args[0], args[1:]
 			}
-			switch verb {
-			case "":
-			case "add":
-				if len(args) == 0 {
-					return cli.Exit("iter add needs at least one SPEC", exitUsage)
-				}
-				// Refuse the whole add if any path is missing OR leaves the
-				// root. An unquoted spec containing a space arrives as several
-				// arguments, and the fragments look like plausible relative
-				// paths — so the only thing that catches it is asking the
-				// filesystem.
-				//
-				// rooted.Resolve, not filepath.Join: the working set is the
-				// FOURTH way into the tree, after read, write and check, and it
-				// was the one that did not enforce the boundary. Join cleans
-				// `../outside/x` into a path that exists, so the entry was
-				// accepted — and every later `mrw check`, which scopes to the
-				// set, then refused at exit 2 until someone removed it. The
-				// same Join re-rooted an ABSOLUTE path onto the root, where it
-				// did not exist, so those were refused as "no such file": the
-				// right answer for the wrong reason, which is why the two
-				// spellings disagreed.
-				var missing, refused []string
-				for _, a := range args {
-					full, err := rooted.Resolve(root, iter.Path(a))
-					if err != nil {
-						// The boundary's own reason: a missing root, a
-						// directory spelling and a path outside all read as
-						// "outside the root" before (review of #237).
-						refused = append(refused, err.Error())
-						continue
+			// ADR-079: a verb reads, changes and writes the set under its lock,
+			// so two iter adds racing each other both keep their entry.
+			change := func(set *iter.Set) error {
+				switch verb {
+				case "add":
+					if len(args) == 0 {
+						return cli.Exit("iter add needs at least one SPEC", exitUsage)
 					}
-					if _, err := os.Stat(full); err != nil {
-						missing = append(missing, a)
+					// Refuse the whole add if any path is missing OR leaves the
+					// root. An unquoted spec containing a space arrives as several
+					// arguments, and the fragments look like plausible relative
+					// paths — so the only thing that catches it is asking the
+					// filesystem.
+					//
+					// rooted.Resolve, not filepath.Join: the working set is the
+					// FOURTH way into the tree, after read, write and check, and it
+					// was the one that did not enforce the boundary. Join cleans
+					// `../outside/x` into a path that exists, so the entry was
+					// accepted — and every later `mrw check`, which scopes to the
+					// set, then refused at exit 2 until someone removed it. The
+					// same Join re-rooted an ABSOLUTE path onto the root, where it
+					// did not exist, so those were refused as "no such file": the
+					// right answer for the wrong reason, which is why the two
+					// spellings disagreed.
+					var missing, refused []string
+					for _, a := range args {
+						full, err := rooted.Resolve(root, iter.Path(a))
+						if err != nil {
+							// The boundary's own reason: a missing root, a
+							// directory spelling and a path outside all read as
+							// "outside the root" before (review of #237).
+							refused = append(refused, err.Error())
+							continue
+						}
+						if _, err := os.Stat(full); err != nil {
+							missing = append(missing, a)
+						}
 					}
+					if len(refused) > 0 {
+						return cli.Exit(fmt.Sprintf("%s — the working set feeds `mrw read` and `mrw check`, which "+
+							"refuse such a path, so an entry like this could never be served", strings.Join(refused, "; ")), exitUsage)
+					}
+					if len(missing) > 0 {
+						return cli.Exit(fmt.Sprintf("no such file: %s (quote a spec containing spaces)",
+							strings.Join(missing, ", ")), exitUsage)
+					}
+					set.Add(args...)
+				case "rm":
+					if len(args) == 0 {
+						return cli.Exit("iter rm needs at least one SPEC or PATH", exitUsage)
+					}
+					set.Remove(args...)
+				case "clear":
+					*set = iter.Set{}
+				case "note":
+					set.Note = strings.Join(args, " ")
+				default:
+					return cli.Exit(fmt.Sprintf("unknown iter verb %q (want add, rm, clear or note)", verb), exitUsage)
 				}
-				if len(refused) > 0 {
-					return cli.Exit(fmt.Sprintf("%s — the working set feeds `mrw read` and `mrw check`, which "+
-						"refuse such a path, so an entry like this could never be served", strings.Join(refused, "; ")), exitUsage)
-				}
-				if len(missing) > 0 {
-					return cli.Exit(fmt.Sprintf("no such file: %s (quote a spec containing spaces)",
-						strings.Join(missing, ", ")), exitUsage)
-				}
-				set.Add(args...)
-			case "rm":
-				if len(args) == 0 {
-					return cli.Exit("iter rm needs at least one SPEC or PATH", exitUsage)
-				}
-				set.Remove(args...)
-			case "clear":
-				set = iter.Set{}
-			case "note":
-				set.Note = strings.Join(args, " ")
-			default:
-				return cli.Exit(fmt.Sprintf("unknown iter verb %q (want add, rm, clear or note)", verb), exitUsage)
+				return nil
 			}
-			if verb != "" {
-				if err := iter.Save(root, set); err != nil {
-					return cli.Exit(err, exitUsage)
+			var (
+				set iter.Set
+				err error
+			)
+			if verb == "" {
+				set, err = iter.Load(root)
+			} else {
+				set, err = iter.Update(root, change)
+			}
+			if err != nil {
+				var exit cli.ExitCoder
+				if errors.As(err, &exit) {
+					return err
 				}
+				return cli.Exit(err, exitUsage)
 			}
 			if set.Note != "" {
 				fmt.Printf("# %s\n", set.Note)

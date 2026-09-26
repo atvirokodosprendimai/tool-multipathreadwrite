@@ -679,7 +679,12 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	}
 
 	switch {
-	case applyErr != nil || res.Failed > 0 || !res.Applied:
+	case applyErr != nil || res.Failed > 0:
+		_ = authoring.Record(root, authoring.RefusedApply)
+	case res.DryRun:
+		// ADR-079: a clean dry run landed nothing. It was counted as a
+		// refusal here, and as applied on the CLI; it is neither.
+	case !res.Applied:
 		_ = authoring.Record(root, authoring.RefusedApply)
 	default:
 		// The MCP path never runs --check, so an applied plan is Applied and
