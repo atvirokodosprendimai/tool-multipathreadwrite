@@ -1211,52 +1211,67 @@ func overflowMessage(specs []string, cw *capped) string {
 	// header is followed by no completed content line is a file no range helps.
 	const headerLines = 2
 	unterminated := countLines(&cw.buf) <= headerLines
-	if !unterminated {
-		// ⚠ ONLY LINES THAT ENDED COUNT. Splitting on newline leaves the last
-		// element unterminated, and the PREFIX of a giant line arrives — with
-		// its "NNNNN| " gutter — so counting every element containing "| "
-		// counts the very line that did not fit and hides the case.
-		lines := bytes.Split(cw.buf.Bytes(), []byte{'\n'})
-		if n := len(lines); n > 0 {
-			lines = lines[:n-1] // drop the unterminated tail
-		}
-		since, at, headerEnd := 0, 0, 0
-		for _, l := range lines {
-			at += len(l) + 1
-			if bytes.HasPrefix(l, []byte("==> ")) {
-				since, headerEnd = 0, at
-				continue
+	// ⚠ ONLY LINES THAT ENDED COUNT. Splitting on newline leaves the last
+	// element unterminated, and the PREFIX of a giant line arrives — with its
+	// "NNNNN| " gutter — so counting every element containing "| " counts the
+	// very line that did not fit and hides the case.
+	lines := bytes.Split(cw.buf.Bytes(), []byte{'\n'})
+	tail := lines[len(lines)-1]
+	lines = lines[:len(lines)-1]
+	since, headers, path, total := 0, 0, "", 0
+	for _, l := range lines {
+		if bytes.HasPrefix(l, []byte("==> ")) {
+			since, headers, path, total = 0, headers+1, "", 0
+			if m := servedFileHeader.FindSubmatch(l); m != nil {
+				path = string(m[1])
+				total, _ = strconv.Atoi(string(m[2]))
 			}
-			if bytes.Contains(l, []byte("| ")) {
-				since++
-			}
+			continue
 		}
-		// The LAST file in the sample is the one the cap cut short; if none of
-		// its lines completed, its lines are the unservable ones — but only if
-		// that file had most of the sample to complete one in. A file whose
-		// header landed near the end of the sample had a few bytes of room, and
-		// "no narrower range can be served" was said of 100,000 specs of a
-		// 200-byte file (ADR-078, found by its own mutation run).
-		unterminated = since == 0 && (cw.limit-headerEnd)*4 >= cw.limit*3
+		if bytes.Contains(l, []byte("| ")) {
+			since++
+		}
 	}
-	// ADR-078: a line that alone encodes past the limit is named, with the
-	// ranges around it that do serve. Range advice that includes it sent the
-	// caller to a refusal saying no narrower range could help, though one after
-	// the line did (the waiver on #232).
+	// The LAST file in the sample is the one the cap cut short. If it is the
+	// only file and none of its lines completed, its first line had the whole
+	// budget and did not fit: that line is the unservable one. If files came
+	// before it, they used the room, and the sample cannot say whether its line
+	// fits alone — "no narrower range can be served" was said of a 5,897-byte
+	// line at a 7,000-byte ceiling, and of 100,000 specs of a 200-byte file
+	// (ADR-078: its own mutation run, and the reviews of #239).
+	unterminated = unterminated || (since == 0 && headers == 1)
+	crowded := !unterminated && since == 0 && headers > 1
+	// ADR-078: the line that cannot fit is named, with the ranges around it.
+	// Range advice that included it sent the caller to a refusal saying no
+	// narrower range could help, though one after the line did (the waiver on
+	// #232). A line escaping pushes past the limit is found whole in the
+	// sample; a plain one longer than the limit is only ever its cut-off tail,
+	// so its number comes from the tail's gutter.
 	if path, n, total, ok := tooLongLine(cw.buf.Bytes(), cw.limit); ok {
 		b.WriteString(lineTooLongMessage(path, n, total, cw.limit))
 		return b.String()
 	}
-	if n := cw.linesThatFit(); unterminated || n < 1 {
+	if n, ok := servedLineNumber(string(tail)); unterminated && ok && path != "" {
+		b.WriteString(lineTooLongMessage(path, n, total, cw.limit))
+		return b.String()
+	}
+	switch n := cw.linesThatFit(); {
+	case crowded:
+		name := "The last file this read reached"
+		if path != "" {
+			name = path + ", the last file this read reached,"
+		}
+		fmt.Fprintf(&b, "%s completed no line in the room the files before it left, so this answer "+
+			"cannot say whether its lines fit on their own. Read it alone, or name fewer files in one call.", name)
+	case unterminated || n < 1:
 		fmt.Fprintf(&b, "One line of this file renders to more than the whole %d-character limit, "+
 			"and mrw serves whole lines — so no narrower range of it can be served, and retrying "+
 			"with one would fail the same way. Read it with the CLI, `mrw read`, which streams and "+
 			"has no such limit.", cw.limit)
-	} else if len(specs) == 1 && !strings.Contains(specs[0], ":") {
+	case len(specs) == 1 && !strings.Contains(specs[0], ":"):
 		fmt.Fprintf(&b, "Ask for a range instead — for example %s:1-%d.", specs[0], n)
-	} else {
-		fmt.Fprintf(&b, "Ask for narrower ranges — around %d lines per file at this file's line length — or name fewer files in one call.",
-			cw.linesThatFit())
+	default:
+		fmt.Fprintf(&b, "Ask for narrower ranges — around %d lines per file at this file's line length — or name fewer files in one call.", n)
 	}
 	return b.String()
 }
@@ -1706,18 +1721,22 @@ func tooLongLine(sample []byte, limit int) (path string, n, total int, ok bool) 
 }
 
 // lineTooLongMessage sends a caller to the CLI for the one line that cannot fit
-// and names the ranges around it that can.
+// and names the ranges around it, promising neither: the open range after it
+// pages, and meets the next such line, if there is one, with this same message;
+// the closed range before it is refused whole if it too is past the limit. "Still
+// serve here" was said of `f.svg:1-4`, and that read was refused (the review of
+// #239).
 func lineTooLongMessage(path string, n, total, limit int) string {
 	var around []string
-	if n > 1 {
-		around = append(around, fmt.Sprintf("`%s:1-%d`", path, n-1))
-	}
 	if n < total {
-		around = append(around, fmt.Sprintf("`%s:%d-`", path, n+1))
+		around = append(around, fmt.Sprintf("`%s:%d-` reads on from the line after it", path, n+1))
+	}
+	if n > 1 {
+		around = append(around, fmt.Sprintf("`%s:1-%d` holds the lines before it", path, n-1))
 	}
 	rest := "nothing else in the file needs it"
 	if len(around) > 0 {
-		rest = strings.Join(around, " and ") + " still serve here"
+		rest = strings.Join(around, ", and ")
 	}
 	return fmt.Sprintf("Line %d of %s encodes to more than the whole %d-character limit, and mrw serves whole lines, "+
 		"so no range that holds it can come back over MCP. Read that line with the CLI, `mrw read %s:%d`, "+
@@ -1743,6 +1762,11 @@ func nonUTF8Arg(args json.RawMessage) string {
 	sort.Strings(names)
 	for _, k := range names {
 		if !utf8.Valid(m[k]) {
+			// "" is the answer for valid input, so a key spelled "" passed an
+			// invalid value as valid (the review of #239).
+			if k == "" {
+				return "the argument with an empty name"
+			}
 			return k
 		}
 	}

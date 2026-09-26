@@ -1995,8 +1995,8 @@ Contract breaks, reproduced on macOS:
   first by `overflowMessage` with range advice, and only a second call names the CLI; that sentence
   says "no narrower range", though a range after the long line serves. Fix: the same
   `longestEncodedLine` check in `overflowMessage`, naming the line.
-  **Fixed by ADR-078 T3**, contract §158: the refusal names the line and the ranges before and after
-  it that still serve, and the range it offers is served.
+  **Fixed by ADR-078 T3**, contract §158: the refusal names the line — escaped past the ceiling or
+  plain and longer than it — and the ranges around it, and the open range after it is served.
 - **The 2 s `--ast-grep` kill fails when a grandchild holds stdout**: 30 s with a `sh` wrapper that
   runs `sleep 30`; the grandchild is orphaned when its stdio is redirected.
   `internal/read/astgrep.go` sets no `WaitDelay` and no process group (the finder's reading).
@@ -2044,7 +2044,8 @@ Windows only, each hand-confirmed by at least two sessions:
   `MSYS2_ARG_CONV_EXCL='*'`, and AGENTS.md, README and the served guide say the rewrite fires when
   the file part holds a `/`. A leading-slash `--exclude` and an attached `-C/path` are unchanged.
   **The leading-slash `--exclude` is refused by ADR-078 T2** on both surfaces: a glob matches
-  root-relative paths and base names, and none starts with `/`. The attached `-C/path` is
+  root-relative paths and base names, and none is rooted — so on Windows the drive MSYS makes of
+  `/vendor` is refused the same way, as are `./vendor` and `vendor/`. The attached `-C/path` is
   permanent (fact: MSYS rewrites argv before mrw starts; both switches that stop it are named).
 - **The Go suite under PowerShell.** Eleven check tests FAIL instead of skipping when `sh` is not
   on PATH (green from Git Bash on the same tree), and `TestTailAnnouncesWhatItLeftOut` panics.
@@ -2080,7 +2081,7 @@ T2 (§143); the milliseconds between the commit rename and the tally are permane
 handled.
 **Fixed by ADR-078** (2026-09-26), contract §155–§159: a header that does not parse is one error, not
 one per body line, and a tab after `@@` is named; `-C` with no `/pattern/` is refused rather than
-ignored; over MCP an id that is neither a string nor an integer is refused `-32600`, invalid UTF-8 in
+ignored; over MCP an id that is neither a string nor a number with an integer value is refused `-32600`, invalid UTF-8 in
 an argument is refused by name, a usage error writes nothing to stdout, a named read of many specs
 stops once it has overflowed, and `exclude: ["["]` is refused as the CLI refuses it. `c:1-2`, `$-1`
 against `5-3` and a FIFO list stay as ADR-074 decided (its Out of Scope).

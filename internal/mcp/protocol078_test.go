@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -12,9 +14,12 @@ import (
 
 // ADR-078 T2. A request id is a string or an integer; true, 1.5 or an object
 // was dispatched and echoed back. Each is refused as an invalid request with a
-// null id; strings and integers are served.
+// null id. An integer is a value, not a spelling — MCP's RequestId is a JSON
+// Schema integer — so 1.0, 1e3, -0.0 and one past 64 bits are served, as a
+// string is; refusing them lost a conforming client's request (the review of
+// #239).
 func TestARequestIdThatIsNeitherAStringNorAnIntegerIsInvalid(t *testing.T) {
-	for _, id := range []string{`true`, `1.5`, `{}`, `[]`, `1e3`, `-0.0`} {
+	for _, id := range []string{`true`, `1.5`, `{}`, `[]`, `1e-1`, `15e-1`, `1.25e1`} {
 		lines := serve(t, `{"jsonrpc":"2.0","id":`+id+`,"method":"ping"}`)
 		if len(lines) != 1 {
 			t.Fatalf("id %s: %d responses", id, len(lines))
@@ -25,7 +30,7 @@ func TestARequestIdThatIsNeitherAStringNorAnIntegerIsInvalid(t *testing.T) {
 			t.Errorf("id %s was not refused as an invalid request with a null id: %v", id, m)
 		}
 	}
-	for _, id := range []string{`7`, `-3`, `0`, `"a"`} {
+	for _, id := range []string{`7`, `-3`, `0`, `"a"`, `1.0`, `1e3`, `-0.0`, `10e-1`, `1.25e2`, `123456789012345678901234567890`} {
 		m := decode(t, serve(t, `{"jsonrpc":"2.0","id":`+id+`,"method":"ping"}`)[0])
 		if _, bad := m["error"]; bad {
 			t.Errorf("id %s was refused: %v", id, m)
@@ -80,6 +85,19 @@ func TestArgumentsThatAreNotUTF8AreRefusedByName(t *testing.T) {
 			t.Errorf("%s: want %s refused as not UTF-8: %v", tool, c.name, res)
 		}
 	}
+	// A key spelled "" hid its invalid value, since "" was also the answer for
+	// valid input (the review of #239).
+	for tool, args := range map[string][]byte{
+		"mrw_read":  []byte("{\"\":\"\xff\",\"specs\":[\"a.txt\"]}"),
+		"mrw_write": []byte("{\"\":\"\xff\",\"plan\":\"@@ b.txt 0 create\\nx\\n\"}"),
+	} {
+		if res := rawToolCall(t, root, tool, args); res["isError"] != true || !strings.Contains(resultText(res), "not valid UTF-8") {
+			t.Errorf("%s: an invalid value under an empty key was taken as valid: %v", tool, res)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "b.txt")); err == nil {
+		t.Error("a plan sent beside an invalid empty-named argument was applied")
+	}
 	if _, err := os.Stat(filepath.Join(root, "\ufffd.go")); err == nil {
 		t.Error("a file named with U+FFFD was created")
 	}
@@ -92,7 +110,7 @@ func TestArgumentsThatAreNotUTF8AreRefusedByName(t *testing.T) {
 // and a glob starting with / can never match a root-relative path.
 func TestABadExcludeGlobIsRefusedOverMCP(t *testing.T) {
 	root, _ := checkout(t, "a.txt", "a\n")
-	for glob, want := range map[string]string{"[": "syntax error", "/vendor": "starts with /"} {
+	for glob, want := range map[string]string{"[": "syntax error", "/vendor": "rooted", "vendor/": "ends in /", "./vendor": "starts with ./"} {
 		res := call(t, root, "mrw_read", map[string]any{"grep": "a", "exclude": []any{glob}})
 		if res["isError"] != true || !strings.Contains(resultText(res), want) {
 			t.Errorf("exclude %q: want it refused with %q: %v", glob, want, res)
@@ -104,8 +122,8 @@ func TestABadExcludeGlobIsRefusedOverMCP(t *testing.T) {
 }
 
 // ADR-078 T3. A named read of many specs is refused once it overflows, and it
-// kept reading every spec to the end first: 100,000 held the server past two
-// minutes. It stops at the overflow and says so.
+// kept reading every spec to the end first: 100,000 held the server past 120 s
+// in the v1.25.1 round. It stops at the overflow and says so.
 func TestAManySpecReadStopsOnceItIsOverTheCeiling(t *testing.T) {
 	root, _ := checkout(t, "a.txt", strings.Repeat("x", 200)+"\n")
 	specs := make([]any, 100000)
@@ -118,28 +136,56 @@ func TestAManySpecReadStopsOnceItIsOverTheCeiling(t *testing.T) {
 		t.Errorf("100,000 specs took %v", d)
 	}
 	txt := resultText(res)
-	if res["isError"] != true || !strings.Contains(txt, "would have returned more than") || !strings.Contains(txt, "name fewer files") || strings.Contains(txt, "One line of this file") {
-		t.Errorf("want a refusal that stopped early and advises fewer files, not a long line: %.400s", txt)
+	if res["isError"] != true || !strings.Contains(txt, "name fewer files") || strings.Contains(txt, "One line of this file") {
+		t.Errorf("want a refusal that advises fewer files, not a long line: %.400s", txt)
+	}
+	// The size, not the wording, shows the read stopped: a closure that set
+	// "more than" and let the read run on said "more than 24900000" and passed
+	// (the review of #239). Stopped at the first spec past the limit, the size
+	// is under twice it.
+	m := regexp.MustCompile(`would have returned more than (\d+) bytes`).FindStringSubmatch(txt)
+	if m == nil {
+		t.Fatalf("the refusal does not say it stopped: %.400s", txt)
+	}
+	if n, _ := strconv.Atoi(m[1]); n >= 2*MaxResultChars {
+		t.Errorf("the read ran on past the overflow: more than %d bytes", n)
 	}
 }
 
-// ADR-078 T3, the waiver on #232. A line that alone encodes past the ceiling
-// was advised a range that held it, and the next call said no narrower range
-// could help, though one after the line did. The line is named, with the ranges
-// around it, and the range offered is served.
+// ADR-078 T3, the waiver on #232. A line past the ceiling was advised a range
+// that held it, and the next call said no narrower range could help, though
+// one after the line did. The line is named, with the ranges around it, and the
+// open range offered is served: for a line escaping pushes past the ceiling,
+// for a plain one longer than it — which the capped sample never holds whole,
+// so it took the old sentence (the review of #239) — and down a file with two
+// such lines, one refusal at a time.
 func TestTheRefusalNamesTheLineThatEncodesPastTheCeiling(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	body := strings.Repeat("<", 150000) + "\n" + strings.Repeat(strings.Repeat("y", 70)+"\n", 1000)
-	if err := os.WriteFile(filepath.Join(root, "f.svg"), []byte(body), 0o644); err != nil {
-		t.Fatal(err)
+	for name, body := range map[string]string{
+		"f.svg": strings.Repeat("<", 150000) + "\n" + strings.Repeat(strings.Repeat("y", 70)+"\n", 1000),
+		"h.js":  strings.Repeat("x", MaxResultChars+1000) + "\nnext\n",
+		"g.svg": strings.Repeat("<", 150000) + "\n" + strings.Repeat("<", 150000) + "\nlast\n",
+	} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
-	txt := resultText(call(t, root, "mrw_read", map[string]any{"specs": []any{"f.svg"}}))
-	if !strings.Contains(txt, "Line 1 of f.svg") || !strings.Contains(txt, "`f.svg:2-`") || strings.Contains(txt, ":1-1") {
-		t.Fatalf("the refusal does not name line 1 and the range after it:\n%s", txt)
+	for _, s := range []struct{ spec, named, next string }{
+		{"f.svg", "Line 1 of f.svg", "`f.svg:2-`"},
+		{"h.js", "Line 1 of h.js", "`h.js:2-`"},
+		{"g.svg", "Line 1 of g.svg", "`g.svg:2-`"},
+		{"g.svg:2-", "Line 2 of g.svg", "`g.svg:3-`"},
+	} {
+		txt := resultText(call(t, root, "mrw_read", map[string]any{"specs": []any{s.spec}}))
+		if !strings.Contains(txt, s.named) || !strings.Contains(txt, s.next) || strings.Contains(txt, ":1-0") {
+			t.Errorf("%s: the refusal does not name %q and %s:\n%s", s.spec, s.named, s.next, txt)
+		}
 	}
-	if res := call(t, root, "mrw_read", map[string]any{"specs": []any{"f.svg:2-"}}); res["isError"] == true {
-		t.Errorf("the range the refusal offered was refused:\n%.300s", resultText(res))
+	for _, spec := range []string{"f.svg:2-", "h.js:2-", "g.svg:3-"} {
+		if res := call(t, root, "mrw_read", map[string]any{"specs": []any{spec}}); res["isError"] == true {
+			t.Errorf("%s, the range a refusal offered, was refused:\n%.300s", spec, resultText(res))
+		}
 	}
 }
 
@@ -153,7 +199,10 @@ func TestALongLineInTheMiddleIsNamedWithTheRangesAroundIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	txt := resultText(call(t, root, "mrw_read", map[string]any{"specs": []any{"f.svg:5-"}}))
-	for _, want := range []string{"Line 5 of f.svg", "`f.svg:1-4`", "`f.svg:6-`", "mrw read f.svg:5"} {
+	// Neither range is promised: "still serve here" was said of a prefix range
+	// that was then refused (the review of #239). They are named for what they
+	// hold.
+	for _, want := range []string{"Line 5 of f.svg", "`f.svg:1-4` holds the lines before it", "`f.svg:6-` reads on from the line after it", "mrw read f.svg:5"} {
 		if !strings.Contains(txt, want) {
 			t.Errorf("the refusal lacks %q:\n%s", want, txt)
 		}

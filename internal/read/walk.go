@@ -237,17 +237,24 @@ func (w *walker) excluded(rel string) bool {
 }
 
 // CheckExclude refuses an --exclude glob that can never match: one path.Match
-// rejects as malformed, and one that starts with /, since a glob is matched
-// against root-relative paths and base names (ADR-007) and neither starts with
-// one. The CLI and MCP both call it; over MCP `exclude: ["["]` was ignored
-// while the CLI refused `--exclude '['` (ADR-078).
+// rejects as malformed, and one spelled so no root-relative path or base name
+// (ADR-007) can match it — rooted (a leading /, or on Windows a drive, which is
+// what MSYS makes of /vendor), `./`-prefixed, or ending in /, since the walk
+// compares cleaned paths. The CLI and MCP both call it; over MCP
+// `exclude: ["["]` was ignored while the CLI refused `--exclude '['` (ADR-078).
 func CheckExclude(globs []string) error {
+	const why = "a glob matches root-relative paths and base names, so one "
 	for _, g := range globs {
 		if _, err := path.Match(g, "x"); err != nil {
 			return fmt.Errorf("%q: %v", g, err)
 		}
-		if strings.HasPrefix(g, "/") {
-			return fmt.Errorf("%q: a glob matches root-relative paths and base names, so one that starts with / never matches; drop the leading /", g)
+		switch {
+		case rooted.IsRooted(g):
+			return fmt.Errorf("%q: %sthat is rooted never matches; name it relative to --root", g, why)
+		case strings.HasPrefix(g, "./"):
+			return fmt.Errorf("%q: %sthat starts with ./ never matches; drop the ./", g, why)
+		case strings.HasSuffix(g, "/"):
+			return fmt.Errorf("%q: %sthat ends in / never matches; drop the trailing / to exclude the directory", g, why)
 		}
 	}
 	return nil

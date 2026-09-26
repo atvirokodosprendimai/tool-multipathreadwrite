@@ -25,6 +25,14 @@ func TestThePaddedPathFixNamesTheCmdExeForm(t *testing.T) {
 	if code != exitUsage || !strings.Contains(out, want) {
 		t.Fatalf("exit %d, want the cmd.exe form %s:\n%s", code, want, out)
 	}
+	// The name's own apostrophe survives: rewriting every ' in the POSIX form
+	// turned it into a quote (the review of #239).
+	if err := os.WriteFile(filepath.Join(root, " O'Brien"), []byte("apostrophe\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, code := runIn(t, root, "read", " O'Brien"); code != exitUsage || !strings.Contains(out, `(in cmd.exe: mrw read -- " O'Brien")`) {
+		t.Fatalf("exit %d, the cmd.exe form lost the apostrophe:\n%s", code, out)
+	}
 	exe := mrwExe(t)
 	c := exec.Command("cmd")
 	c.SysProcAttr = &syscall.SysProcAttr{CmdLine: `cmd /s /c ""` + exe + `" -C "` + root + `" read -- " x""`}

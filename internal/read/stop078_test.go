@@ -30,7 +30,7 @@ func TestRunStopsBetweenSpecsWhenAskedTo(t *testing.T) {
 // and one that starts with /, since globs match root-relative paths and base
 // names.
 func TestCheckExcludeRefusesWhatCanNeverMatch(t *testing.T) {
-	for _, g := range []string{"[", "/vendor"} {
+	for _, g := range []string{"[", "/vendor", "vendor/", "./vendor"} {
 		if err := CheckExclude([]string{"ok", g}); err == nil {
 			t.Errorf("CheckExclude accepted %q", g)
 		}

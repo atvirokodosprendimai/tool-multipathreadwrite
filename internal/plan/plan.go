@@ -287,15 +287,17 @@ func Parse(r io.Reader) ([]Hunk, error) {
 				body = append(body, line)
 				continue
 			}
-			if broken {
-				continue
-			}
 			// A header written with a tab after @@ read as prose, and the plan
 			// was refused for "text before the first @@ header" on the very
-			// line that was meant to be one (ADR-078).
+			// line that was meant to be one (ADR-078). Asked before `broken`:
+			// under a header that did not parse, a second tab header was
+			// swallowed as its body (the review of #239).
 			if strings.HasPrefix(hdr, "@@\t") {
 				errs = append(errs, fmt.Sprintf("line %d: a header is \"@@ \" with a space, and this line has a tab after @@: %q", n, line))
 				broken = true
+				continue
+			}
+			if broken {
 				continue
 			}
 			if t := strings.TrimSpace(line); t != "" && !strings.HasPrefix(t, "#") {

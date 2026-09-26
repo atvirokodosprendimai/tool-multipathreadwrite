@@ -207,12 +207,20 @@ func hasSinglePattern(specs []read.Spec) bool {
 // cmdExeForm is a refusal's fix spelled for cmd.exe, which keeps single quotes
 // as literal characters, so pasting `mrw read -- 'x '` there names a path with
 // quotes in it (a Windows cmd.exe session, 2026-09-25). PowerShell and Git Bash
-// take the form already printed. Empty outside Windows (ADR-078).
-func cmdExeForm(fix string) string {
+// take the form already printed. Empty outside Windows (ADR-078). It quotes
+// val itself: rewriting every ' in the POSIX form turned a name's own
+// apostrophe into a quote (the review of #239). A Windows name holds no ".
+func cmdExeForm(head, val string) string {
 	if runtime.GOOS != "windows" {
 		return ""
 	}
-	return fmt.Sprintf(" (in cmd.exe: %s)", strings.ReplaceAll(fix, "'", `"`))
+	return " (in cmd.exe: " + head + `"` + val + `")`
+}
+
+// posixQuote single-quotes s for a POSIX shell, closing and reopening the quote
+// around each ' it holds, so a name like ` O'Brien` survives the paste.
+func posixQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func main() {
@@ -704,9 +712,17 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if filesFromSet && len(posArgs) > 0 {
 				return cli.Exit("--files-from and positional paths are two sources of specs; use one", exitUsage)
 			}
+			// ADR-078: an --ast-grep hit is served as the lines it spans, so -C
+			// has nothing to widen. Said here, before the finder runs and by
+			// name; the general refusal below told the caller to name a
+			// /pattern/ (the review of #239).
+			if astSet && cmd.IsSet("context") {
+				return cli.Exit("-C widens a /pattern/ or --grep match, and an --ast-grep hit is served as the lines it spans: drop -C, or use --grep", exitUsage)
+			}
 			// A glob that can never match is refused at parse time rather than
-			// silently matching nothing: one path.Match rejects, or one that
-			// starts with / (read.CheckExclude, shared with MCP; ADR-078).
+			// silently matching nothing: one path.Match rejects, or one spelled
+			// so no root-relative path can match it (read.CheckExclude, shared
+			// with MCP; ADR-078).
 			if err := read.CheckExclude(excludes); err != nil {
 				return cli.Exit("--exclude "+err.Error(), exitUsage)
 			}
@@ -716,6 +732,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				specs    []read.Spec
 				refusals []read.Problem
 				err      error
+				note     string
 			)
 
 			// Working-set pointers resolve here too. The ADR's precedence
@@ -797,9 +814,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 						return cli.Exit("read needs a PATH[:RANGE] or @N, or a working set (see: mrw iter add)", exitUsage)
 					}
 					args = set.Entries
-					if set.Note != "" {
-						fmt.Printf("# iteration: %s\n", set.Note)
-					}
+					note = set.Note
 				} else if args, err = set.ResolveAll(args); err != nil {
 					return cli.Exit(err, exitUsage)
 				}
@@ -818,6 +833,11 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// with nothing to act on is a mistake the caller should hear about.
 			if cmd.IsSet("context") && !grepSet && !hasSinglePattern(specs) {
 				return cli.Exit("-C widens a /pattern/ match, and no spec here has one: name a pattern (a.go:/func A/) or drop -C", exitUsage)
+			}
+			// Printed only now, past every refusal, so a usage error leaves stdout
+			// empty (ADR-078; the reviews of #239 met the note before -C's).
+			if note != "" {
+				fmt.Printf("# iteration: %s\n", note)
 			}
 
 			out := bufio.NewWriter(os.Stdout)
@@ -1914,9 +1934,10 @@ func refusePaddedArgs(cmd *cli.Command) error {
 			positionals++
 		} else if !noteText {
 			if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
-				fix := fmt.Sprintf("mrw %s -- '%s'", prefix, tok)
+				head := fmt.Sprintf("mrw %s -- ", prefix)
+				fix := head + posixQuote(tok)
 				return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
-					"put -- before the path: %s%s", tok, fix, cmdExeForm(fix)), exitUsage)
+					"put -- before the path: %s%s", tok, fix, cmdExeForm(head, tok)), exitUsage)
 			}
 		}
 		if role == roleStop {
@@ -2036,9 +2057,10 @@ func padAttached(tok string) error {
 	if !ok || strings.TrimRightFunc(tok, unicode.IsSpace) == tok {
 		return nil
 	}
-	fix := fmt.Sprintf("%s '%s'", name, val)
+	head := name + " "
+	fix := head + posixQuote(val)
 	return cli.Exit(fmt.Sprintf("'%s' ends in whitespace the argument parser strips; pass the value "+
-		"as its own argument: %s%s", tok, fix, cmdExeForm(fix)), exitUsage)
+		"as its own argument: %s%s", tok, fix, cmdExeForm(head, val)), exitUsage)
 }
 
 // refusePaddedFlagValues checks every attached flag value before the option

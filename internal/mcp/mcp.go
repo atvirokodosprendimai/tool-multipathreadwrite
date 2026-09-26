@@ -21,6 +21,7 @@ import (
 	"io"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -573,11 +574,41 @@ func errorResponse(id json.RawMessage, code int, msg string) response {
 	return response{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: code, Message: msg}}
 }
 
-// integerID is a JSON integer literal: no fraction, no exponent, no leading zero.
-var integerID = regexp.MustCompile(`^-?(0|[1-9][0-9]*)$`)
+// jsonNumber splits a JSON number into its integer digits, its fraction digits
+// and its exponent.
+var jsonNumber = regexp.MustCompile(`^-?([0-9]+)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$`)
 
-// validRequestID reports whether id is a JSON string or integer.
+// validRequestID reports whether id is a JSON string or a number whose value is
+// an integer. MCP's RequestId is `string | integer`, and JSON Schema's integer is
+// a value, not a spelling, so 1.0 and 1e3 are integers: a check on the literal
+// refused a conforming client's request (the review of #239). The id is judged
+// from its digits and echoed exactly as sent, so no value is rounded on the way.
 func validRequestID(id json.RawMessage) bool {
 	var s string
-	return json.Unmarshal(id, &s) == nil || integerID.Match(id)
+	if json.Unmarshal(id, &s) == nil {
+		return true
+	}
+	m := jsonNumber.FindSubmatch(id)
+	return m != nil && integral(m[1], m[2], m[3])
+}
+
+// integral reports whether whole.frac × 10^exp is an integer. Only the
+// trailing zeros of the digits matter: the value is an integer when the
+// exponent carries the point past every non-zero fraction digit. An exponent
+// too long to parse is decided by its sign, which is all that matters then.
+func integral(whole, frac, exp []byte) bool {
+	digits := string(whole) + string(frac)
+	sig := strings.TrimRight(digits, "0")
+	if strings.TrimLeft(sig, "0") == "" {
+		return true // zero, however it is spelled
+	}
+	e := 0
+	if len(exp) > 0 {
+		n, err := strconv.Atoi(string(exp))
+		if err != nil {
+			return exp[0] != '-'
+		}
+		e = n
+	}
+	return e-len(frac)+(len(digits)-len(sig)) >= 0
 }

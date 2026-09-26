@@ -26,4 +26,12 @@ func TestATabAfterTheAtSignsIsNamed(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "tab after @@") || !strings.Contains(err.Error(), "plan has 1 error(s)") {
 		t.Errorf("want the tab named, as one error: %v", err)
 	}
+	// Under a header that did not parse, a tab header was swallowed as its
+	// body (the review of #239): each is its own error.
+	for _, p := range []string{"@@ a.go 1 replac\nX\n@@\ta.go\t2\treplace\nY\n", "@@\ta.go\t1\treplace\nX\n@@\ta.go\t2\treplace\nY\n"} {
+		_, err := Parse(strings.NewReader(p))
+		if err == nil || !strings.Contains(err.Error(), "line 3: a header is") || !strings.Contains(err.Error(), "plan has 2 error(s)") {
+			t.Errorf("%q: want the second header's tab named too: %v", p, err)
+		}
+	}
 }

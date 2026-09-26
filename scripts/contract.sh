@@ -7064,16 +7064,21 @@ done
 # 156. ADR-078 T2: the MCP server refuses what it cannot represent. An id that
 # is neither a string nor an integer was dispatched and echoed back; invalid
 # UTF-8 in an argument became U+FFFD and named a path nobody sent; and
-# `exclude: ["["]` was ignored where the CLI refuses `--exclude '['`.
+# `exclude: ["["]` was ignored where the CLI refuses `--exclude '['`. An integer
+# is a value, not a spelling (1.0 is served), and an argument named "" is not a
+# way past the UTF-8 check (the review of #239).
 fixture
 python3 - "$WORK/in156" <<'PY'
 import sys
 lines=[b'{"jsonrpc":"2.0","id":{},"method":"ping"}',
        b'{"jsonrpc":"2.0","id":1.5,"method":"ping"}',
        b'{"jsonrpc":"2.0","id":"s","method":"ping"}',
+       b'{"jsonrpc":"2.0","id":2.0,"method":"ping"}',
        b'{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["\xff.go"]}}}',
        b'{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"A","exclude":["["]}}}',
-       b'{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"A","exclude":["vendor"]}}}']
+       b'{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"A","exclude":["vendor"]}}}',
+       b'{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"mrw_read","arguments":{"":"\xff","specs":["a.go"]}}}',
+       b'{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"A","exclude":["vendor/"]}}}']
 open(sys.argv[1],"wb").write(b"\n".join(lines)+b"\n")
 PY
 bounded 20 "$WORK/out156" sh -c '"$0" -C "$1" mcp < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in156"; want 0 $? "the server answers every line and exits at EOF"
@@ -7084,18 +7089,23 @@ bad=[r for r in rs if r.get("id") is None]
 print("ids-refused", len(bad)==2 and all(r["error"]["code"]==-32600 for r in bad))
 by={r.get("id"):r for r in rs}
 print("string-id-served", "result" in by.get("s",{}))
+print("integral-id-served", "result" in by.get(2.0,{}))
 t=lambda i: by[i]["result"]["content"][0]["text"] if "result" in by.get(i,{}) else ""
 print("utf8-refused", by.get(7,{}).get("result",{}).get("isError") is True and "specs is not valid UTF-8" in t(7))
+print("empty-key-refused", by.get(10,{}).get("result",{}).get("isError") is True and "not valid UTF-8" in t(10))
 print("exclude-refused", by.get(8,{}).get("result",{}).get("isError") is True and 'exclude "["' in t(8))
+print("exclude-slash-refused", by.get(11,{}).get("result",{}).get("isError") is True and "ends in /" in t(11))
 print("exclude-kept", by.get(9,{}).get("result",{}).get("isError") is not True)
 PY
-for k in ids-refused string-id-served utf8-refused exclude-refused exclude-kept; do
+for k in ids-refused string-id-served integral-id-served utf8-refused empty-key-refused exclude-refused exclude-slash-refused exclude-kept; do
   grep -q "^$k True$" "$WORK/v156" && ok "mcp: $k" || bad "mcp: $k: $(cat "$WORK/v156") $(head -c 600 "$WORK/out156")"
 done
+out=$(m read --grep A --exclude vendor/ 2>&1); want 2 $? "--exclude vendor/ is refused on the CLI too"
+grep -q 'ends in /' <<<"$out" && ok "and the refusal says why" || bad "--exclude vendor/: $out"
 
 # 157. ADR-078 T3: a named MCP read of many specs stops once it is refused. It
-# read every spec to the end first: 100,000 held the server past two minutes
-# for a refusal it knew after a few thousand.
+# read every spec to the end first: 100,000 held the server past 120 s in the
+# v1.25.1 round for a refusal it knew after a few thousand.
 fixture
 python3 - "$WORK/in157" <<'PY'
 import json,sys
@@ -7106,26 +7116,37 @@ t0=$(date +%s)
 bounded 60 "$WORK/out157" sh -c '"$0" -C "$1" mcp < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in157"; rc=$?
 t1=$(date +%s)
 want 0 "$rc" "a read of 100,000 specs is answered"
-grep -q 'would have returned more than [0-9]* bytes' "$WORK/out157" && ok "and refused as soon as it overflowed, saying so" || bad "no early stop: $(head -c 400 "$WORK/out157")"
+# The size, not the wording, shows the read stopped: a read that ran on to the
+# end said "more than 24900000" and passed the grep (the review of #239).
+n157=$(grep -o 'would have returned more than [0-9]* bytes' "$WORK/out157" | grep -o '[0-9][0-9]*' | head -1)
+[ -n "$n157" ] && [ "$n157" -lt 400000 ] && ok "and refused as soon as it overflowed: more than $n157 bytes, under twice the limit" || bad "no early stop (more than ${n157:-?} bytes): $(head -c 400 "$WORK/out157")"
 [ $((t1 - t0)) -le 30 ] && ok "within 30 s" || bad "100,000 specs took $((t1 - t0)) s"
 
-# 158. ADR-078 T3: a line that alone encodes past the MCP ceiling is named, with
-# the ranges around it, and the range offered is served. The refusal used to
-# advise a range that held the line (the waiver on #232).
+# 158. ADR-078 T3: a line past the MCP ceiling is named, with the ranges around
+# it, and the open range offered is served — for a line escaping pushes past the
+# ceiling, and for a plain one longer than it, which the capped sample never
+# holds whole (the review of #239). The refusal used to advise a range that held
+# the line (the waiver on #232).
 fixture
-python3 -c 'import sys; open(sys.argv[1],"w").write("<"*150000+"\n"+("y"*70+"\n")*1000)' "$R/f.svg"
+python3 -c 'import sys; open(sys.argv[1],"w").write("<"*150000+"\n"+("y"*70+"\n")*1000); open(sys.argv[2],"w").write("x"*201000+"\nnext\n")' "$R/f.svg" "$R/h.js"
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.svg"]}}}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.svg:2-"]}}}' > "$WORK/in158"
-bounded 20 "$WORK/out158" sh -c '"$0" -C "$1" mcp < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in158"; want 0 $? "the server answers both"
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.svg:2-"]}}}' \
+  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["h.js"]}}}' \
+  '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["h.js:2-"]}}}' > "$WORK/in158"
+bounded 20 "$WORK/out158" sh -c '"$0" -C "$1" mcp < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in158"; want 0 $? "the server answers every request"
 python3 - "$WORK/out158" > "$WORK/v158" <<'PY'
 import json,sys
 by={r["id"]:r for r in (json.loads(l) for l in open(sys.argv[1]) if l.startswith("{"))}
-t=by[1]["result"]["content"][0]["text"]
-print("named", "Line 1 of f.svg" in t and "`f.svg:2-`" in t and ":1-1" not in t)
+t=lambda i: by[i]["result"]["content"][0]["text"]
+print("named", "Line 1 of f.svg" in t(1) and "`f.svg:2-`" in t(1) and ":1-1" not in t(1))
 print("served", by[2]["result"].get("isError") is not True)
+print("plain-named", "Line 1 of h.js" in t(3) and "`h.js:2-`" in t(3) and "no narrower range" not in t(3))
+print("plain-served", by[4]["result"].get("isError") is not True)
 PY
 grep -q '^named True$' "$WORK/v158" && ok "the refusal names line 1 and the range after it" || bad "not named: $(head -c 800 "$WORK/out158")"
 grep -q '^served True$' "$WORK/v158" && ok "and the range it offers is served" || bad "the offered range was refused"
+grep -q '^plain-named True$' "$WORK/v158" && ok "a plain line past the ceiling is named the same way" || bad "plain line not named: $(sed -n 3p "$WORK/out158" | head -c 800)"
+grep -q '^plain-served True$' "$WORK/v158" && ok "and the range after it is served" || bad "the range after the plain line was refused"
 
 # 159. ADR-078 T1: a bad header is one error, not one per body line; a
 # tab after @@ is named; and -C on a call with no /pattern/ is refused rather
@@ -7144,6 +7165,30 @@ want 2 "$rc" "-C on a line range is refused"
 grep -q -- '-C widens a /pattern/ match' <<<"$out" && ok "and says -C needs a pattern" || bad "-C on a range: $out"
 m read -C 1 'a.go:/func B/' >/dev/null 2>&1; want 0 $? "-C on a pattern still serves its context"
 m read --grep 'func B' -C 1 >/dev/null 2>&1; want 0 $? "and on a grep"
+# The reviews of #239: a tab header under a header that did not parse was
+# swallowed as its body; -C with --ast-grep was told to name a /pattern/; and a
+# noted working set printed its note to stdout before the -C refusal.
+printf '@@ a.go 3 replac\nX\n@@\ta.go\t4\treplace\nY\n' > "$R/p159c.mrw"
+out=$(m write --no-check "$R/p159c.mrw" 2>&1); rc=$?
+want 2 "$rc" "a tab header after a broken one is refused"
+{ grep -q 'plan has 2 error' <<<"$out" && grep -q 'line 3: a header is' <<<"$out"; } && ok "and named as its own error" || bad "tab after a broken header: $out"
+out=$(m read --ast-grep 'func $A() int' -C 1 2>"$WORK/e159"); rc=$?
+want 2 "$rc" "-C with --ast-grep is refused"
+{ [ -z "$out" ] && grep -q -- '--ast-grep hit' "$WORK/e159"; } && ok "by name, before the finder runs, with nothing on stdout" || bad "-C with --ast-grep: stdout [$out] stderr $(cat "$WORK/e159")"
+m iter add a.go:3 >/dev/null 2>&1 && m iter note probe note >/dev/null 2>&1
+out=$(m read -C 1 2>/dev/null); rc=$?
+want 2 "$rc" "-C on a noted working set is refused"
+[ -z "$out" ] && ok "with nothing on stdout, the note included" || bad "-C on a noted set wrote: $out"
+out=$(m read 2>/dev/null); want 0 $? "the noted working set still reads"
+grep -q '^# iteration: probe note$' <<<"$out" && ok "and prints its note" || bad "note missing: $out"
+# A padded name holding an apostrophe: the offered fix is quoted for a POSIX
+# shell, and running it serves the file (the review of #239 found the cmd.exe
+# form rewriting it; the POSIX form had the same flaw).
+printf 'apostrophe\n' > "$R/ O'Brien"
+out=$(m read " O'Brien" 2>&1); want 2 $? "a padded name holding an apostrophe is refused"
+fix=${out##*put -- before the path: mrw }
+out=$(eval "m $fix" 2>&1); want 0 $? "and the fix it offers, run by a POSIX shell, serves the file"
+grep -q '| apostrophe' <<<"$out" && ok "the file it names" || bad "the offered fix read something else: $out"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
