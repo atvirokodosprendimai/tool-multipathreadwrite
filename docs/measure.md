@@ -41,31 +41,31 @@ The six-guarantee grid against git apply, Codex apply_patch, and Claude Edit is 
 
 ## Shapes A–D
 
-Measured on this tree at **`b3c5b8b`** (2026-09-24, the v1.24.0 code: `measure.sh`
+Measured on this tree at **`adb1b5d`** (2026-09-26, the v1.27.1 code plus docs: `measure.sh`
 built its own binary from the tree). Round trips are still **2 calls for any N.**
-Bytes moved because the tree grew. Shape D is **132** Go files, not 82 (the
-v1.18.0 reading of 2026-09-13).
+Bytes moved because the tree grew. Shape D is **207** Go files, not 132 (the
+v1.24.0 reading of 2026-09-24).
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 192,022 | 3,730 | **51.5× less** |
-| | bytes vs a **windowed** `offset`/`limit` read | 2,708 | 3,730 | **1.4× MORE** |
+| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 232,203 | 4,159 | **55.8× less** |
+| | bytes vs a **windowed** `offset`/`limit` read | 3,008 | 4,159 | **1.4× MORE** |
 | | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
 | | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
-| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 21,743 | 1,595 | 13.6× less |
-| | bytes vs windowed | 958 | 1,595 | 1.7× MORE |
+| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 25,143 | 904 | 27.8× less |
+| | bytes vs windowed | 470 | 904 | 1.9× MORE |
 | | calls | 4 / 5 | 2 | 2.0–2.5× fewer |
-| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 13,994 | 17,137 | **1.2× MORE** |
+| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 15,990 | 19,406 | **1.2× MORE** |
 | | calls | 2 / 3 | 2 | same to 1.5× fewer |
-| **D.** 1 site in **every** Go file — 132 sites, 132 files | calls (reads + edits) | 264 | 2 | **132.0× fewer** |
-| | bytes vs whole | 1,468,588 | 11,899 | 123.4× less |
-| | bytes vs windowed | 1,879 | 11,899 | **6.3× MORE** |
+| **D.** 1 site in **every** Go file — 207 sites, 207 files | calls (reads + edits) | 414 | 2 | **207.0× fewer** |
+| | bytes vs whole | 1,783,339 | 18,681 | 95.5× less |
+| | bytes vs windowed | 2,929 | 18,681 | **6.4× MORE** |
 
 **Shape D is the one to read, and read it for the CALLS, not the bytes.** It is
 the change every codebase gets eventually — a renamed symbol, an added build
-tag, a changed import — one site in each Go file. Its `6.3× MORE` is mrw's
-worst possible input by construction: 132 files at ONE line each, so a per-file
-header and a per-file receipt are charged against 1,879 bytes of payload.
+tag, a changed import — one site in each Go file. Its `6.4× MORE` is mrw's
+worst possible input by construction: 207 files at ONE line each, so a per-file
+header and a per-file receipt are charged against 2,929 bytes of payload.
 
 **Shape C is in the table on purpose.** When you need a whole file and there is
 one site, mrw prints *more* than the file holds — it adds a header and a line
@@ -103,15 +103,15 @@ adds those bytes to the matching lines, and compares that to
 windowed-only row is still printed so a byte win cannot be quoted against the
 documented Read interface.
 
-Measured in the same run as A–D above (`b3c5b8b`, 2026-09-24), on the same 132
+Measured in the same run as A–D above (`adb1b5d`, 2026-09-26), on the same 207
 Go files. `ast-grep` was not on PATH; that arm is skipped, not failed.
 
 | | baseline | mrw | |
 |---|---|---|---|
-| bytes vs whole | 1,468,588 | 11,899 | 123.4× less |
-| bytes vs windowed | 1,879 | 11,899 | **6.3× MORE** |
-| bytes vs rg+windowed | 8,094 | 11,899 | **1.5× MORE** |
-| calls, windowed (search+reads+edits) | 265 | 2 | **132.5× fewer** |
+| bytes vs whole | 1,783,339 | 18,681 | 95.5× less |
+| bytes vs windowed | 2,929 | 18,681 | **6.4× MORE** |
+| bytes vs rg+windowed | 12,766 | 18,681 | **1.5× MORE** |
+| calls, windowed (search+reads+edits) | 415 | 2 | **207.5× fewer** |
 
 Charging the search **does not flip the byte comparison**. The win is still
 turns. Re-run `./scripts/measure.sh` rather than quoting this table after the
@@ -137,10 +137,10 @@ it collapses as the span approaches the whole file.
 ## Campaign identity
 
 A break campaign of **57 probes** (`scripts/break-campaign.sh`) found no silent
-wrong write, and every refusal names its reason. Run 2026-09-24 against v1.24.0
-(`7da61c1`): exit codes **identical** to `docs/break/campaign-v1.23.0.txt`, probe
-for probe; `docs/break/campaign-v1.24.0.txt` is the receipt. Histogram: exit=0
-×31, exit=1 ×18, exit=2 ×8.
+wrong write, and every refusal names its reason. Run 2026-09-26 against v1.27.1
+(`6d35d58`): exit codes **identical** to `docs/break/campaign-v1.27.0.txt` and to
+v1.26.0, probe for probe; `docs/break/campaign-v1.27.1.txt` is the receipt. Histogram:
+exit=0 ×30, exit=1 ×19, exit=2 ×8.
 
 That identity is evidence of no *unintended* change, not that the campaign
 covers every later record. The receipts live in `docs/break/`.
