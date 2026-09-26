@@ -137,4 +137,4 @@ Revert the three tasks. No state format changes.
 
 ## Follow-ups
 
-- [ ] Release with ADR-077 to ADR-080 as v1.27.0.
+- [x] Release with ADR-077 to ADR-080 as v1.27.0 — tagged at `7058767` (#241), Status #242.

@@ -89,4 +89,4 @@ Revert the task. No state format changes.
 
 ## Follow-ups
 
-- [ ] Release with ADR-076 and ADR-078 to ADR-080 as v1.27.0.
+- [x] Release with ADR-076 and ADR-078 to ADR-080 as v1.27.0 — tagged at `7058767` (#241), Status #242.

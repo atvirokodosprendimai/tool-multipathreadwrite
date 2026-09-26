@@ -43,7 +43,7 @@ diff <(grep -o '^\[[^]]*\] exit=[0-9]*' docs/break/campaign-<prev>.txt) \
      <(grep -o '^\[[^]]*\] exit=[0-9]*' docs/break/campaign-vX.Y.Z.txt) && echo NO-EXIT-DIFF
 ```
 
-47 probes as of v1.16.1. An exit-code diff is a finding to explain in the tag
+57 probes as of v1.27.1. An exit-code diff is a finding to explain in the tag
 message or a reason not to tag; "identical to <prev>" is the sentence the Status
 line carries. The campaign file is committed in the Status PR (step 5), not
 before the tag — the tag is code, the campaign is evidence about it.

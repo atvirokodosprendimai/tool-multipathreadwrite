@@ -93,4 +93,4 @@ Revert the three tasks.
 
 ## Follow-ups
 
-- [ ] Release with ADR-076 to ADR-079 as v1.27.0.
+- [x] Release with ADR-076 to ADR-079 as v1.27.0 — tagged at `7058767` (#241), Status #242.
