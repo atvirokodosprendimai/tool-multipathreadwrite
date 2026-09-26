@@ -2014,7 +2014,10 @@ Windows only, each hand-confirmed by at least two sessions:
   `chaos.py`'s junction suite (PR #226) measures five escapes. Owed: a Windows CI test built from
   the repro (`mklink /J`, expect REFUSED and NOTHING WRITTEN).
   **Fixed by ADR-071 T1**: `rooted.Resolve` follows a junction on Windows. The owed CI test is
-  `cmd/mrw/junction_windows_test.go`; a peer re-run against the release asset is still owed.
+  `cmd/mrw/junction_windows_test.go`. The peer re-run against the v1.26.0 release asset was done on
+  2026-09-26 (Windows 11, Git Bash): read, replace, create, rename into and out of, and unlink through a
+  junction are each refused, NOTHING WRITTEN, over the CLI and MCP; the outside tree stayed
+  byte-identical.
 - **Win32 name aliasing.** A trailing dot, a trailing space, case, `::$DATA` and 8.3 names reach one
   file, so writes and unlinks land through a name that does not exist and the receipt names the
   alias; `-C 'dir '` and `-C 'dir.'` are accepted. The ledger resolves the aliases to one entry
