@@ -56,7 +56,7 @@ One spec, five use cases: each leftover has a named test that goes red if the re
   1. Operator reads the pre-registered criterion: three corpora (Zeus, this repository, playtrix), false positives under 5% of refusals in every corpus, at least 50 refusals total.
   2. `mrw stats --json` `.pricing` is the source; a campaign that reports true positives without false positives does not qualify.
 - **Failure paths:** a. unrun campaign or TP-only report treated as a pass → default stays off. b. flipping the default without the campaign → existing `TestStrictBalanceIsOffByDefault` stays red for that change.
-- **Postconditions:** flag remains opt-in; neighbour licence on single-line stays an open question, not this campaign.
+- **Postconditions:** flag remains opt-in; neighbour licence on single-line was declined on 2026-09-26 (BACKLOG inventory), not this campaign.
 
 ### UC-5: Operator knows the JSX nest probe is unmeasured, not a finding
 
@@ -114,13 +114,13 @@ Then BACKLOG records a loser printing a success receipt that says applied
 And last-writer-wins is the mechanism
 ```
 
-### UC3-S2 [failure] Locking stays permanently out of scope [@spec] → `internal/adversarial/dangling_probe_test.go::TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites` cmd:`go test ./internal/adversarial/ -count=1 -run '^TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites$'`
+### UC3-S2 [failure] The race is closed by ADR-075, and the old scope is withdrawn [@spec] → `internal/adversarial/dangling_probe_test.go::TestTheConcurrentWriteRiskIsClosedByADR075` cmd:`go test ./internal/adversarial/ -count=1 -run '^TestTheConcurrentWriteRiskIsClosedByADR075$'`
 
 ```gherkin
-Given the silent-applied race is real
-When a reader proposes a lock to close it
-Then BACKLOG still says locking stays permanently out of scope
-And ADR-002 is named as that scope
+Given the silent-applied race was real
+When a reader asks whether it is still open
+Then BACKLOG records that ADR-075 closed it and names contract §150
+And no longer says locking stays permanently out of scope
 ```
 
 ### UC4-S1 [happy] Strict-balance default campaign criterion is filed [@spec] → `internal/adversarial/dangling_probe_test.go::TestTheStrictBalanceDefaultCampaignCriterionIsFiled` cmd:`go test ./internal/adversarial/ -count=1 -run '^TestTheStrictBalanceDefaultCampaignCriterionIsFiled$'`
@@ -167,7 +167,7 @@ Then BACKLOG still says it is a probe, not a finding
 | F-3 | The class is any claim that host-cut of served text is closed; members are paged ack (031), fitting ack (039), under-ceiling cut (open), reading 18. An under-ceiling measurement is filed beside reading 18 and must not treat ADR-039 as that evidence | `internal/adversarial/dangling_probe_test.go::TestAnUnderCeilingHostCutRecipeIsFiledAndNotClosedByAdr039` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestAnUnderCeilingHostCutRecipeIsFiledAndNotClosedByAdr039$' |
 | F-4 | An unrun under-ceiling probe is not the class closed; the entry stays deferred or open | `internal/adversarial/dangling_probe_test.go::TestAnUnrunUnderCeilingProbeIsNotTheClassClosed` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestAnUnrunUnderCeilingProbeIsNotTheClassClosed$' |
 | F-5 | The class is concurrent writers on one path; members are silent applied, sometimes-loud sha mismatch, last rename wins. BACKLOG records a loser printing a success receipt that says applied | `internal/adversarial/dangling_probe_test.go::TestConcurrentLastWriterWinsIsFiledAsAnAcceptedSilentAppliedRisk` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestConcurrentLastWriterWinsIsFiledAsAnAcceptedSilentAppliedRisk$' |
-| F-6 | Locking stays permanently out of scope (ADR-002); this spec does not close the race | `internal/adversarial/dangling_probe_test.go::TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites$' |
+| F-6 | Superseded by ADR-075 (2026-09-25): writers take a per-checkout lock and a stale one is refused; BACKLOG records it and no longer says locking stays out of scope | `internal/adversarial/dangling_probe_test.go::TestTheConcurrentWriteRiskIsClosedByADR075` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestTheConcurrentWriteRiskIsClosedByADR075$' |
 | F-7 | The class is flipping `--strict-balance` to default; members are opt-in flag, three corpora, false positives under 5% of refusals, at least 50 refusals, unrun is not a default. BACKLOG names Zeus, this repository, playtrix, 5%, and 50 | `internal/adversarial/dangling_probe_test.go::TestTheStrictBalanceDefaultCampaignCriterionIsFiled` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestTheStrictBalanceDefaultCampaignCriterionIsFiled$' |
 | F-8 | `--strict-balance` stays off by default until a campaign that reports false positives qualifies | `internal/apply/apply_test.go::TestStrictBalanceIsOffByDefault` | @spec | go test ./internal/apply/ -count=1 -run '^TestStrictBalanceIsOffByDefault$' |
 | F-9 | A campaign that reports true positives without false positives does not qualify; the default stays off | `internal/adversarial/dangling_probe_test.go::TestAnUnrunStrictBalanceCampaignDoesNotQualifyADefault` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestAnUnrunStrictBalanceCampaignDoesNotQualifyADefault$' |
@@ -176,7 +176,7 @@ Then BACKLOG still says it is a probe, not a finding
 
 ## Domain
 
-Five leftovers, one spec, no new engine record. UC-1–UC-2–UC-5 are human-observed probes whose executable half is "the recipe is filed and unrun is not coverage". UC-3 is an accepted risk (ADR-002). UC-4 is a pre-registered campaign whose default-off is already an apply test. Highest shipped ADR file is 062.
+Five leftovers, one spec, no new engine record. UC-1–UC-2–UC-5 are human-observed probes whose executable half is "the recipe is filed and unrun is not coverage". UC-3 was an accepted risk (ADR-002) until ADR-075 closed it. UC-4 is a pre-registered campaign whose default-off is already an apply test. Highest shipped ADR file is 062.
 
 ## Contracts Touched
 

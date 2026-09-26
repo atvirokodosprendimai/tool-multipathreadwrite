@@ -63,7 +63,13 @@ fi
 # pid on purpose is defeating the wrapper deliberately, and may.
 unset CONTRACT_GROUP
 
-cd "$(dirname "$0")/.."
+# The repository and this script, captured once and absolutely. Every later
+# path used to be rebuilt from "$0" after this cd, and from inside scripts/ that
+# named the repository's parent: §30 and §43 failed, and the conflict-marker
+# check passed without looking at anything (BACKLOG :76).
+SELF=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
+SRC=$(cd "$(dirname "$0")/.." && pwd)
+cd "$SRC"
 WORK=$(mktemp -d)
 # Reap the whole group on exit: every child, and every orphan that kept the
 # group after its parent died. TERM is ignored FIRST, before the rm, so a
@@ -116,6 +122,25 @@ skip() { printf '  SKIP  %s\n' "$1"; }
 bad()  { printf '  FAIL  %s\n' "$1"; fails=$((fails + 1)); }
 # want <expected-exit> <actual-exit> <description>
 want() { [ "$1" = "$2" ] && ok "$3" || bad "$3 (exit $2, want $1)"; }
+# bounded SECS OUT CMD... runs CMD with its stdout and stderr in OUT and waits
+# at most SECS seconds for it. It returns CMD's exit status, or 124 after
+# killing a CMD still running, with a line saying so appended to OUT. A row
+# that must bound mrw uses this, never `perl -e 'alarm N; exec @ARGV'`: Go
+# ignores SIGALRM unless it asks for the signal, so the alarm fired and mrw
+# ran on (BACKLOG :2073). The alarm still bounds a child that is not Go, such
+# as §55's Python hook.
+bounded() {
+  local secs=$1 out=$2 pid i
+  shift 2
+  "$@" > "$out" 2>&1 & pid=$!
+  for ((i = 0; i < secs * 10; i++)); do
+    kill -0 "$pid" 2>/dev/null || { wait "$pid"; return; }
+    sleep 0.1
+  done
+  kill -9 "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  echo "bounded: still running after ${secs}s, killed" >> "$out"
+  return 124
+}
 
 # Each fixture is its OWN checkout at its own path, not a rebuild at a shared
 # one. mrw keys per-checkout state on the absolute root, so reusing one path
@@ -1359,7 +1384,6 @@ fi
 # The block is EXTRACTED from AGENTS.md and run, so this row fails when the doc
 # changes and the code does not, or the reverse. Verified by hand on 2026-09-03
 # and now on every CI run.
-SRC=$(cd "$(dirname "$0")/.." && pwd)
 fixture
 awk '/^```bash$/{f=1;next} /^```$/{f=0} f' "$SRC/AGENTS.md" > "$WORK/example.sh"
 [ -s "$WORK/example.sh" ] \
@@ -3553,15 +3577,6 @@ oppid=$(ps -o ppid= -p ${orphan:-0} 2>/dev/null | tr -d ' ')
   && ok "an orphan no longer under this shell is visible to the group check: pid ${orphan% } under $oppid" \
   || bad "the group check cannot see an orphan (pgrep exit $prc, saw '$orphan', parent '$oppid')"
 kill $orphan 2>/dev/null
-# A killed process is a zombie until its adopter reaps it, and pgrep lists
-# zombies: poll, bounded, rather than trust one sleep.
-for _ in $(seq 1 30); do
-  pgrep -g $$ > "$WORK/kids"; prc=$?   # 0 matched, 1 none; anything else is pgrep itself failing
-  left=$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')
-  [ -z "$left" ] && break; sleep 0.1
-done
-[ "$prc" -le 1 ] && [ -z "$left" ] && ok "no process of this run survives it" \
-  || bad "survivors in the run's group after 3 s (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
 # The wrapper's and the trap's promises get their own failing case: a nested
 # run of THIS FILE'S prologue — the committed text up to the trap line, not a
 # copy — with a body that plants an orphan and exits 7. Run plain, the exit
@@ -3569,7 +3584,7 @@ done
 # group kill, and deleting it leaves the orphan alive. Run hanging, an INT
 # to the wrapper must end the run 143 within seconds with the orphan gone:
 # that is the forwarding, and deleting the handler leaves the runner asleep.
-sed -n '1,/^trap .*EXIT$/p' "$0" > "$WORK/probe.sh"
+sed -n '1,/^trap .*EXIT$/p' "$SELF" > "$WORK/probe.sh"
 # The cut is the first EXIT trap. Assert it is the prologue and nothing
 # more or less, so a moved trap cannot silently change what the probe proves.
 [ "$(grep -c '^trap ' "$WORK/probe.sh")" = 1 ] && grep -q 'CONTRACT_GROUP' "$WORK/probe.sh" && grep -q 'kill -- -\$\$' "$WORK/probe.sh" && ! grep -q '^ok()' "$WORK/probe.sh" \
@@ -5903,13 +5918,14 @@ dur=$((t1 - t0))
 [ "$dur" -le 4 ] && ok "and returns within 4 s (bound is 2 s; whole-second clock plus start-up)" || bad "hook hung ${dur}s"
 
 # 111. ADR-058 T3: a hanging ast-grep on PATH is killed at 2 s.
-# Outer perl alarm is the same idiom §55 uses so a missing bound cannot orphan.
+# Bounded by `bounded`, which kills mrw at 5 s: Go ignores SIGALRM, so the
+# perl alarm this row used could never have stopped it.
 fixture
 d111=$(mktemp -d)
 printf '%s\n' '#!/bin/sh' 'exec sleep 30' > "$d111/ast-grep"
 chmod +x "$d111/ast-grep"
 t0=$(date +%s)
-out=$(PATH="$d111:$PATH" perl -e 'alarm shift; exec @ARGV' 5 "$MRW" -C "$R" read --ast-grep zzz-absent 2>&1); rc=$?
+bounded 5 "$WORK/111.out" env PATH="$d111:$PATH" "$MRW" -C "$R" read --ast-grep zzz-absent; rc=$?; out=$(cat "$WORK/111.out")
 t1=$(date +%s)
 want 2 "$rc" "hanging ast-grep is usage"
 grep -q 'timed out' <<<"$out" && ok "and the reason says timed out" || bad "timeout: $out"
@@ -6064,11 +6080,12 @@ want 2 $? "a plan -M address is refused"
 # NAMES is never pruned by a glob that matches it, and a directory the search
 # walks into is pruned when the glob matches it. The fake ast-grep is §111's
 # shape — a script that prints a fixed JSON hit whatever it is asked — so each
-# case installs the hit it needs. Every $MRW call is bounded by an alarm.
+# case installs the hit it needs. Every $MRW call runs under `bounded`, which
+# kills it at 5 s; the alarm it used could not, since Go ignores SIGALRM.
 fixture
 d116="$WORK/fake116"; mkdir -p "$d116"
 fake116() { printf '%s\n' "$1" > "$d116/hit.json"; printf '#!/bin/sh\ncat "%s"\n' "$d116/hit.json" > "$d116/ast-grep"; chmod +x "$d116/ast-grep"; }
-m116() { PATH="$d116:$PATH" perl -e 'alarm shift; exec @ARGV' 5 "$MRW" -C "$R" "$@"; }
+m116() { bounded 5 "$WORK/116.out" env PATH="$d116:$PATH" "$MRW" -C "$R" "$@"; local rc=$?; cat "$WORK/116.out"; return $rc; }
 fake116 '[{"file":"b.go","range":{"start":{"line":2},"end":{"line":2}}}]'
 out=$(m116 read --ast-grep D --exclude b.go b.go 2>&1); rc=$?
 want 0 "$rc" "ast-grep with b.go named and excluded exits 0"
@@ -6105,7 +6122,6 @@ grep -q '^==> vendor/v.go' <<<"$out" && ok "and a directory the caller names is 
 if command -v rg >/dev/null 2>&1; then
   fixture
   printf 'package demo\n\nfunc Handle() {}\n' > "$R/h.go"
-  SRC117=${SRC:-$(cd "$(dirname "$0")/.." && pwd)}
   rm -f "$WORK/117.fifo"; mkfifo "$WORK/117.fifo"; sleep 60 > "$WORK/117.fifo" & hold117=$!
   run117() { ( cd "$R" && PATH="$(dirname "$MRW"):$PATH" perl -e 'alarm shift; exec @ARGV' 5 bash -c "$1" < "$WORK/117.fifo" > "$WORK/117.out" 2>&1 ); }
   line=$("$MRW" instructions | grep -oE "rg -l X \. \| sed '[^']*' \| mrw read --files-from -")
@@ -6123,7 +6139,7 @@ if command -v rg >/dev/null 2>&1; then
       && ok "without its path, rg reads the pipe and the bound kills it" \
       || bad "the path-less pipeline was not held by stdin (exit $rc after $((t1 - t0)) s): the row cannot see the hang"
   fi
-  aline=$(grep -m1 -E "^rg -l .* \| mrw read .*--files-from -$" "$SRC117/AGENTS.md")
+  aline=$(grep -m1 -E "^rg -l .* \| mrw read .*--files-from -$" "$SRC/AGENTS.md")
   if [ -z "$aline" ]; then
     bad "AGENTS.md carries no rg | mrw read --files-from - pipeline"
   else
@@ -6895,6 +6911,18 @@ for j in 0 1 2 3 4 5 6 7; do
 done
 [ "$lost" = 0 ] && ok "no writer exits 0 and loses its edit" || bad "$lost writer(s) exited 0 and lost their edit"
 [ "$odd" = 0 ] && ok "and every other writer is refused as stale" || bad "$odd writer(s) ended oddly: $(cat "$R"/out150.*)"
+
+# Nothing this run started may outlive it. Checked after the last row, so every
+# row is covered; §60 above proves an orphan is visible to this group check. A
+# killed process is a zombie until its adopter reaps it, and pgrep lists
+# zombies: poll, bounded, rather than trust one sleep.
+for _ in $(seq 1 30); do
+  pgrep -g $$ > "$WORK/kids"; prc=$?   # 0 matched, 1 none; anything else is pgrep itself failing
+  left=$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')
+  [ -z "$left" ] && break; sleep 0.1
+done
+[ "$prc" -le 1 ] && [ -z "$left" ] && ok "no process of this run survives it" \
+  || bad "survivors in the run's group after 3 s (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"

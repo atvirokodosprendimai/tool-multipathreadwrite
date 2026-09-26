@@ -47,7 +47,7 @@ that arms work; silence leaves the row where it is.
 | `--check` by default / `--no-check` | **ADR-054 Accepted** — CLI default when a check exists and a written path is not prose; §89 | — (M 2026-09-13: *"accepted"*; T1) |
 | Delimiter-balance delta in the receipt | **ADR-054 Accepted** — visibility, not refuse; omitted on prose; a balanced insert is invisible to it; §90 | — (T2) |
 | `stats` row: applied then a failing check | **ADR-054 Accepted** — every name at zero + landed line (`check_not_run` is in N); §91 | — (T3) |
-| Neighbour license on a single-line address | **open question** — not a proposed fix; three Zeus cases would not have fired. ADR-060 Out of Scope (hint is multi-line only). | — |
+| Neighbour license on a single-line address | **declined** — M 2026-09-26: none of the three Zeus cases would have fired it, and ADR-060 Out of Scope keeps the hint multi-line. Re-opens only on a field case where it would have fired | — |
 | Advisory count on the write summary + `advisories` in JSON | **ADR-055 Accepted** (T1, §92) — the row fired, the summary M read did not carry it (twice in one hour, v1.16.0 field run) | *"advisory count"* |
 | Repeat-pattern line on the receipt / `stats` | **ADR-055 Accepted** (T2, §93) — recent-window ring beside the ledger (op + advisory bit + time; no paths, ADR-009); "3rd balance advisory in your last 5 replaces" | *"repeat pattern"* |
 | `--strict-balance` opt-in refusal on the wrap-tail signature | **ADR-055 Accepted** (T3, §94; default pre-registered below) — replace, single-line address, consumed net ≠ 0, body net ≠ consumed; exit 1, nothing written; campaign prices false positives before any default | *"strict balance"* |
@@ -61,7 +61,7 @@ that arms work; silence leaves the row where it is.
 | Honour quality-harness `fenceTimeout` | **ADR-059 Accepted** — alias of `timeout_seconds`; disagreeing keys refuse | *"both"* |
 | Honour `{files}` when `packages()` cannot map | **ADR-061 Accepted** — `{files}`-only `scoped_check` runs on `.rs`; `{packages}`-only and mixed still fall back | *"so work on 054"* |
 | `mrw instructions` as effective-use; always + plan (not 3+) | **ADR-062 Accepted** — Shared() first sentence is always + plan; CLI() cookbook includes `@@ path 0 create`; handshake stays Shared, 4096 | *"accept"* then *"use it always and plan activity"* |
-| Centralised `mrw` skill always + plan (v20) | **deferred** — ADR-062 Follow-ups; AGENTS.md / repo skill updated in this record, palace POST is another session | — |
+| Centralised `mrw` skill always + plan (v20) | **shipped** — the palace skill `mrw` (v27, 2026-09-26) opens "Use mrw always: plan one read of every site, then one plan, then one write"; ADR-062's follow-up is ticked | — |
 | `mrw instructions` teaches the read side (addresses, `--grep`, `--ast-grep`, `--exclude`, `--files-from`) | **ADR-063 Accepted** — read section on CLI(); every read flag named; root, `read` and `--ast-grep` Usage name finding; handshake unchanged | *"approve"* |
 | Centralised `mrw` skill description names the read side | **shipped** — palace skill `mrw` v21 (2026-09-24), pinned at v1.22.2: description and body name the read side | *"release"* |
 | `read` exits 1 when a `--max-lines` cap withholds lines | **decided** — M 2026-09-24: keep; ADR-033 stands; the two `TestKnownGap_*` read tests became decided tests | *"Keep exit 1"* |
@@ -73,8 +73,8 @@ that arms work; silence leaves the row where it is.
 | `mrw read f.go:/a/,$` was taught as "from here to the end" (ADR-036 Consequences, AGENTS.md) but serves the match line and the last line as two ranges, exit 0; as a write address it is refused | **docs fixed** — 2026-09-24 housekeeping: AGENTS.md now teaches `f.go:/a/,+99999` (a read clamps a relative end) and says `/a/,$` is two ranges; ADR-036's Consequences sentence is left as the historical record. A real pattern-to-end form is not built | — |
 | A failing or truncated check keeps its `mrw-check-*.log` in the system temp directory for good, and nothing bounds how many accumulate | **open** — found 2026-09-24 while fixing contract.sh's leak (3,103 on one macOS machine). A passing, untruncated check already removes its log (`internal/check/check.go:251`, contract §29); the rest are kept on purpose because `full output:` points at them, so the decision is retention — a bounded set, or an age — not deletion on success | — |
 | An MCP `ast_grep` answer too large to serve comes back as an INDEX that carries only the COUNT of problems, so a CR-only file ADR-065 refuses is not named there | **fixed by ADR-067 T1** — found by the Codex review of #208 (P2, source-traced). `matchIndex` now prints one `-- <path>: <reason>` line per walk problem at all three index returns (`internal/mcp/tools.go`), never trimmed; contract §122 | — |
-| `contract.sh` run as `./contract.sh` from inside `scripts/` resolves `SRC` to the repository's parent | **open** — found by Codex reviewing #204 (2026-09-24): `SRC` is computed after the script's first `cd`, so §30 (and §117, which inherits `SRC`) read the wrong `AGENTS.md`; invoking by absolute path or from the repo root works. Fix: capture the absolute repository directory once at entry | — |
-| Desktop reach measure, under-ceiling host-cut, concurrent silent apply, strict-balance campaign, JSX nest probe | **spec** — `docs/specs/2026-09-16-dangling-high-impact.md` | *"write a spec for these findings"* |
+| `contract.sh` run as `./contract.sh` from inside `scripts/` resolves `SRC` to the repository's parent | **fixed** — 2026-09-26 housekeeping: the script captures the repository and its own path absolutely before its first `cd`, so §30, §43, §60's prologue probe, §117 and the conflict-marker check read this checkout from any directory. Found by Codex reviewing #204 (2026-09-24) | — |
+| Desktop reach measure, under-ceiling host-cut, concurrent silent apply, strict-balance campaign, JSX nest probe | **spec** — `docs/specs/2026-09-16-dangling-high-impact.md`. Concurrent silent apply **closed by ADR-075** (contract §150; UC3-S2 now asserts the lock). The other four stay filed recipes, unrun and not counted as coverage (the spec's UC-1, UC-2, UC-4, UC-5) | *"write a spec for these findings"* |
 | leftover `body=` extra count, `--dry-run` parsed hunks, read neighbour hint, unquoted `anchor=` `"`, `body=@path`, check last-error line | **shipped** — ADR-060 | — |
 | Per-extension check skip (`.jsonl` vs Cargo.toml) | **deferred** — ADR-054 / ADR-059; widening prose takes `.toml` | *"per-extension check"* |
 | ast-grep-shaped `--grep` | **shipped** — ADR-058; Shipped 2026-09-15 as ADR-058 | *"structural find only"* |
@@ -555,11 +555,13 @@ re-measuring these. Each was driven at the built binary, not read:
   later one. The sha guard is racy, not absent — in the same run 6 of 20 were
   refused loudly with an explicit mismatch. So the accurate statement is: the
   guard makes the race unlikely, and SOMETIMES loud; when it loses it can lose
-  silently, with a receipt that says applied. Locking stays permanently out of
-  scope (ADR-002); this only sharpens the risk that scope accepts.
+  silently, with a receipt that says applied. Locking was then out of scope
+  (ADR-002); this only sharpened the risk that scope accepted.
   **Invalidated by ADR-075** (2026-09-25): writers take a per-checkout lock through apply and the
   ledger update, so none exits 0 having lost its edit; a stale one is refused (contract §150).
-  line that only exists after the earlier writes resolves correctly.
+  The sentence that put locking permanently out of scope was withdrawn on 2026-09-26: it
+  stayed here beside the invalidation, and a test asserting it stayed green (now
+  `TestTheConcurrentWriteRiskIsClosedByADR075`).
 - Pattern addresses, `/start/,/end/` pairs, pointer resolution (`@0`, `@-1`,
   `@abc`, `@N` out of range), overlapping and descending range lists, filenames
   with spaces, unicode and a leading dash, and a missing `$HOME` with no
@@ -1908,9 +1910,14 @@ Execution plan: `docs/specs/2026-09-16-dangling-high-impact-plan.md` (campaign f
   on Windows 11 aborts with "Filename too long"; two of the paths are ADR-027 T1 and ADR-041 T1.
   `git clone -c core.longpaths=true` works. A rename shortens them; a CONTRIBUTING note is the
   cheaper fix. Found by two independent Windows sessions.
+  **Fixed** (2026-09-26, housekeeping): the 35 task files over 120 characters were renamed, and
+  `TestNoTrackedPathIsLongerThan120` keeps every tracked path at 120 or under, so a plain clone
+  works under a root of up to 138 characters (CONTRIBUTING, Prerequisites).
 - **`scripts/contract.sh` is unmeasured on a Windows bash.** Git Bash there has Go but no `jq`, so
   the script exits 2 at its `jq` check before any assertion; WSL there has `jq`'s absence and no Go.
   Documented as Linux-only; this row records that the documentation was tested, not the script.
+  **Permanent** (fact): the script is POSIX shell that parses receipts with `jq`; the Go suite is
+  what runs on Windows, in CI and on the peer machines.
 - **The random differential test (T11) agreed on every peer seed that ran**: 101 on macOS
   (20,000 cases, 13 s; the 5–8 minute estimate in the brief was wrong, measured under load 33).
   Three macOS sessions held their run for their user (load above the core count, or a permission
@@ -2075,6 +2082,9 @@ exec @ARGV'`, cannot stop mrw. A Go program ignores SIGALRM unless it asks for t
 runtime's signal table marks it notify-only), so a row that wraps `$MRW` in the alarm is unbounded
 if mrw hangs; it bounds only non-Go children such as §55's Python hook. §143 kills mrw with SIGKILL
 instead. The rows that still wrap `$MRW` in the alarm need a guard that can actually fire.
+**Fixed** (2026-09-26, housekeeping): a `bounded` helper in `contract.sh` runs the command in the
+background, polls it, and kills it with SIGKILL at the bound; §111 and §116 use it, and the
+check that nothing of the run survives moved to the end of the file so every row is covered.
 
 From the review of #229 (ADR-072), outside that record: a `--dry-run` is tallied as `applied`
 and so counted among `landed writes` in `mrw stats`, though nothing landed; `main` did the same

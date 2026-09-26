@@ -112,4 +112,4 @@ Revert Shared()'s first sentence, `triggerRule`, CLI() cookbook lines, §43 / §
 
 ## Follow-ups
 
-- [ ] Centralised `mrw` skill (agentsmemory) — receipt in BACKLOG; not this binary
+- [x] Centralised `mrw` skill (agentsmemory) — shipped: palace skill `mrw` v27 (2026-09-26) opens with "Use mrw always: plan…"; BACKLOG inventory row
