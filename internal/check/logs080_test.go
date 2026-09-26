@@ -62,6 +62,7 @@ func TestACheckRemovesItsOwnLogsOlderThanAWeek(t *testing.T) {
 // "could not start: context canceled" and told the caller to declare a check.
 // It says interrupted, and the empty log is removed rather than left unnamed.
 func TestACheckCancelledBeforeItStartsSaysInterrupted(t *testing.T) {
+	needShell(t)
 	dir := tempDirForLogs(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

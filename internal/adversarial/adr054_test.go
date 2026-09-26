@@ -380,6 +380,7 @@ func TestStatsLandedLineIsTheArithmeticItClaims(t *testing.T) {
 // exit 3 — the tree is changed and unverified — and the receipt must carry
 // no balance row, because a row there would be a lie about what the arm saw.
 func TestABalancedInsertInTheWrongPlaceIsCaughtByTheCheckNotTheBalance(t *testing.T) {
+	needShell(t)
 	root := tree(t, map[string]string{
 		"go.mod": "module zeus\n\ngo 1.26\n",
 		"a.go":   "package zeus\n\nfunc A() int {\n\tx := 1\n\treturn x\n}\n",

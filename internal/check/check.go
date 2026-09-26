@@ -255,9 +255,16 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	}
 	res.OutputFile = f.Name()
 
-	c := subproc.Command(ctx, "sh", "-c", cmdline)
+	// ADR-082: sh from PATH, or on Windows the sh.exe Git ships beside git.exe;
+	// a plain PowerShell PATH holds Git's cmd directory and not its usr\bin.
+	shell, pathDir, found := shellEnv()
+	c := subproc.Command(ctx, shell, "-c", cmdline)
 	c.Dir = root
 	c.Stdout, c.Stderr = f, f
+	if pathDir != "" {
+		// Git's shell with Git's tools first, as Git Bash would have them.
+		c.Env = append(os.Environ(), "PATH="+pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	}
 
 	start := time.Now()
 	runErr := subproc.Run(c)
@@ -277,6 +284,9 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		// missing check under, not a failed verdict.
 		res.ExitCode = -1
 		res.Skipped = "could not start: " + runErr.Error()
+		if !found {
+			res.Skipped += noShellAdvice()
+		}
 		// ADR-080: a signal that landed before the process started cancelled
 		// it as surely as one after, and "could not start … declare a check"
 		// sent the caller to fix a configuration nothing was wrong with.

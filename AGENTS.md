@@ -430,7 +430,9 @@ and #73, one release apart.
   runner by default (ADR-054); this is it without the write, for when you want the verdict again
   without applying another plan. ⚠ It is NOT read-only: the declared command is
   whatever the project declared, run with `sh -c` in the checkout, so a check
-  that generates code or writes fixtures does exactly that.
+  that generates code or writes fixtures does exactly that. On Windows with no `sh` on PATH — a plain
+  PowerShell session — it runs under the `sh.exe` Git for Windows installs beside `git.exe`; with
+  neither, it reports that it could not start and names what to install (ADR-082).
 - **`mrw stats`** prints what became of the plans this checkout has been given
   — every name at zero: applied, refused because the document did not PARSE,
   parsed but failed to APPLY, written but no check could run, written and the

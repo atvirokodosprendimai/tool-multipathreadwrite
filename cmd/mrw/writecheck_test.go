@@ -64,6 +64,7 @@ const mdPlan = "@@ notes.md 2 replace anchor=\"line two\"\nline 2\n"
 // .go file with no --check flag runs the declared check, and a failing check
 // is exit 3 — the tree is changed and unverified (ADR-003).
 func TestWriteRunsTheCheckByDefault(t *testing.T) {
+	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := checkTree(t)
 	if _, err := readIn(t, root, "a.go"); err != nil {
@@ -100,6 +101,7 @@ func TestWriteOfProseDoesNotRunTheDefaultCheck(t *testing.T) {
 // TestExplicitCheckStillRunsOnProse: --check is a demand, and a demand is
 // honoured on any path.
 func TestExplicitCheckStillRunsOnProse(t *testing.T) {
+	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := checkTree(t)
 	if _, err := readIn(t, root, "notes.md"); err != nil {
@@ -168,6 +170,7 @@ func TestCheckAndNoCheckTogetherIsUsage(t *testing.T) {
 
 // ADR-060 T5: FAIL prints check last: above full output:; PASS does not.
 func TestFailedCheckPrintsTheLastErrorLine(t *testing.T) {
+	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Run("fail", func(t *testing.T) {
 		root := grepTree(t, map[string]string{

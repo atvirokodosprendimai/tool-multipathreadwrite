@@ -107,6 +107,35 @@ go test ./internal/lines/ ./internal/apply/ ./internal/ingest/ -count=1 -timeout
 - 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:285
 - 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:277
 - 2026-09-25 · 7560857* · exit 0 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:322
+- 2026-09-26 · 31fe531* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:0 · test-lock-sha256:7683a41d79049465b2bc9aaab25e56609461550b656b00de8c73a4de1829d983 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL2FwcGx5L2VuY29kaW5nX3Rlc3QuZ28JVGVzdEFOVUxJblRoZUZpcnN0OEtpQklzUmVmdXNlZEFuZE9uZUFmdGVySXRJc05vdAkyMzZhNDU5NjYwYzM0M2JlNTE1MDZlOTM4OWYyZjdlODkzYjc3MDVhNjhmYjEwNzVkNGRkMWYyMjg2NmI1MjNmCmJvZHkJaW50ZXJuYWwvYXBwbHkvZW5jb2RpbmdfdGVzdC5nbwlUZXN0QVVURjE2RmlsZUlzUmVmdXNlZE5vdFJld3JpdHRlbkFzTWl4ZWRFbmNvZGluZ3MJYWM0M2YzM2I4NWY5ZTI2MTcyNzI1YTg0MzAzMzY5ZmE1YTQxNzAxNWNhNDkxOGRjZDg3YzcwMjE0OTE4NzVjNgpib2R5CWludGVybmFsL2FwcGx5L2VuY29kaW5nX3Rlc3QuZ28JVGVzdFRoZUVuY29kaW5nUmVmdXNhbE5hbWVzVGhlTGluZUVkaXRBbmRUaGVGaWxlCWUxMzMxYzAyMmJiM2UxNzdiMWM5MGUzYWQ5OTFlMzFlN2UzMjE3ODhmYTczZjBlMzRiNjUzNWZhYmM5MmQ0ZTUKYm9keQlpbnRlcm5hbC9hcHBseS9lbmNvZGluZ190ZXN0LmdvCVRlc3RVbmxpbmtBbmRSZW5hbWVPZkFGb3JlaWduRmlsZVN0aWxsQXBwbHkJNDIwY2UxODEwN2YzZDQyM2I4MDc1MmVkMzAxY2NlYWVhMWEyNTgwNjI4MjFkYTIyZmU3MjhjN2YxMTEzNGEwNwpib2R5CWludGVybmFsL2FwcGx5L2VuY29kaW5nX3VuaXhfdGVzdC5nbwlUZXN0QUZJRk9OYW1lZEluQVBsYW5Jc1JlZnVzZWROb3RXYWl0ZWRPbgljNjYzZTc4MjVhY2JmMzk5N2Q4MDljOGE3N2E0NjQ5ZjJjYjA5YzE2OTQ4ZmI1MGUwMTkyZDU3MDM2YzYxODcyCmJvZHkJaW50ZXJuYWwvaW5nZXN0L2ZpZm9fdW5peF90ZXN0LmdvCVRlc3RBRklGT1RhcmdldElzUmVmdXNlZE5vdFdhaXRlZE9uCTZlNDM1OThjNjcyOGZlOTc4MmY2NjU0OTRhMjhiMmQwZmIzZWU4YjVmZTljYWQ4NTY0YTA1N2EwMmE4Y2JiYjcKYm9keQlpbnRlcm5hbC9saW5lcy9saW5lc190ZXN0LmdvCVRlc3RTcGxpdE9mQW5FbXB0eUZpbGVIYXNOb0xpbmVzCTY4OTI5MTM4OWViYTgwOTFhNjFmMTZmMGE0ZTg1MzFhMDVlNjBkZTE0MDI1NDY3MzQyZjM1ZGZkYjAzZDRkZTUKYm9keQlpbnRlcm5hbC9saW5lcy9saW5lc190ZXN0LmdvCVRlc3RVbnNwbGl0dGFibGVOYW1lc0V2ZXJ5RW5jb2RpbmdJdEtub3dzCTI5MDg4Y2YzYzhkYjU3YzdiYjMwZjMxYjI3ZTEwMWM0MGUzNGNhYWE2NmY2MjdkMjJkMDQ2OWRiYzBjZWEzNmE · test-lock-kind:replace
+- 2026-09-26 · 31fe531* · exit 1 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:651
+  ```
+  --- last 10 line(s) of stdout (of 20 after folding 20 raw)
+  === RUN   TestTheEncodingRefusalNamesTheLineEditAndTheFile
+  --- PASS: TestTheEncodingRefusalNamesTheLineEditAndTheFile (0.00s)
+  === RUN   TestAFIFONamedInAPlanIsRefusedNotWaitedOn
+  --- PASS: TestAFIFONamedInAPlanIsRefusedNotWaitedOn (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply	0.070s
+  === RUN   TestAFIFOTargetIsRefusedNotWaitedOn
+  --- PASS: TestAFIFOTargetIsRefusedNotWaitedOn (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/ingest	0.184s
+  ```
+- 2026-09-26 · 31fe531* · exit 1 · `set -o pipefail …` · acceptance-sha256:3644d1fcd502d515e57ffd160ec1bf38ec7d404feb7b2087d2f83ea9d0a10c6e · ms:594
+  ```
+  --- last 10 line(s) of stdout (of 20 after folding 20 raw)
+  === RUN   TestTheEncodingRefusalNamesTheLineEditAndTheFile
+  --- PASS: TestTheEncodingRefusalNamesTheLineEditAndTheFile (0.00s)
+  === RUN   TestAFIFONamedInAPlanIsRefusedNotWaitedOn
+  --- PASS: TestAFIFONamedInAPlanIsRefusedNotWaitedOn (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply	0.123s
+  === RUN   TestAFIFOTargetIsRefusedNotWaitedOn
+  --- PASS: TestAFIFOTargetIsRefusedNotWaitedOn (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/ingest	0.060s
+  ```
 
 ## Mutation Log
 (empty until execute)

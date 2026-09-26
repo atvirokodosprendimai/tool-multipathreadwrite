@@ -10,6 +10,7 @@ import (
 )
 
 func TestUnlinkOfGoRunsTheCheckByDefault(t *testing.T) {
+	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := checkTree(t)
 	if _, err := readIn(t, root, "a.go"); err != nil {
@@ -28,6 +29,7 @@ func TestUnlinkOfGoRunsTheCheckByDefault(t *testing.T) {
 }
 
 func TestRenameOfGoRunsTheCheckOnTheDest(t *testing.T) {
+	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := checkTree(t)
 	if _, err := readIn(t, root, "a.go"); err != nil {
@@ -43,6 +45,7 @@ func TestRenameOfGoRunsTheCheckOnTheDest(t *testing.T) {
 }
 
 func TestRenameGoToTxtRunsTheCheckByDefault(t *testing.T) {
+	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := checkTree(t)
 	if _, err := readIn(t, root, "a.go"); err != nil {
