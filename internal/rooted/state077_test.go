@@ -39,3 +39,30 @@ func TestAPathInsideMrwsStateIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// Codex review of #238. On a filesystem that folds case, `.st/MRW` names the
+// base, and the comparison by string let it through. The base is compared as a
+// file; on a filesystem that keeps case, `.st/MRW` is another directory and is
+// served.
+func TestACaseSpellingOfTheStateBaseIsRefused(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, ".st"))
+	if err := os.MkdirAll(filepath.Join(root, ".st", "mrw", "k"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".st", "mrw", "k", "pending.json"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".st", "MRW")); err != nil {
+		if err := os.MkdirAll(filepath.Join(root, ".st", "MRW"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Resolve(root, ".st/MRW/x.txt"); err != nil {
+			t.Errorf("on a filesystem that keeps case, .st/MRW is another directory, and was refused: %v", err)
+		}
+		return
+	}
+	if _, err := Resolve(root, ".st/MRW/k/pending.json"); err == nil || !strings.Contains(err.Error(), "own state") {
+		t.Errorf("a case spelling of the state base was served: %v", err)
+	}
+}

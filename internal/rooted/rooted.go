@@ -248,12 +248,34 @@ func IsRooted(p string) bool {
 // InState reports whether p lies inside mrw's state base (state.Base). Both
 // sides are resolved as far as they exist (RealAsFarAsItExists, through
 // junctions on Windows), so /var and /private/var on macOS, or a base not made
-// yet, compare as the one place they are (ADR-077). A base mrw cannot name
-// holds nothing to protect.
+// yet, compare as the one place they are (ADR-077). Where the strings differ,
+// each existing ancestor of p is compared with the base as a FILE: on a
+// filesystem that folds case `.st/MRW` and `.ST/mrw` are the base, and a
+// firmlink root (/System/Volumes/Data on macOS) is another spelling of it — the
+// comparison by string let a read of pending.json through (the reviews of
+// #238). A base mrw cannot name, or that does not exist, holds nothing a
+// second spelling could reach.
 func InState(p string) bool {
 	base, err := state.Base()
 	if err != nil {
 		return false
 	}
-	return Contains(RealAsFarAsItExists(base), RealAsFarAsItExists(p))
+	b, q := RealAsFarAsItExists(base), RealAsFarAsItExists(p)
+	if Contains(b, q) {
+		return true
+	}
+	bi, err := os.Stat(b)
+	if err != nil {
+		return false
+	}
+	for {
+		if qi, err := os.Stat(q); err == nil && os.SameFile(bi, qi) {
+			return true
+		}
+		parent := filepath.Dir(q)
+		if parent == q {
+			return false
+		}
+		q = parent
+	}
 }

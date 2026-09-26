@@ -28,3 +28,27 @@ func TestAstGrepDropsAHitInsideMrwsState(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Codex review of #238. A --files-from list and a plan file are shell
+// arguments that never passed the boundary; naming mrw's ack store as either
+// quoted its JSON — checkpoint ids and all — back in the parse error. Both are
+// refused, and neither answer carries the ids.
+func TestTheStateCannotBeReadAsAListOrAPlan(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, ".st"))
+	pending := filepath.Join(root, ".st", "mrw", "k", "pending.json")
+	if err := os.MkdirAll(filepath.Dir(pending), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pending, []byte(`{"ck":"ck-SECRET"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := readIn(t, root, "--files-from", pending)
+	if err == nil || !strings.Contains(errString(err), "own state") || strings.Contains(out+errString(err), "ck-SECRET") {
+		t.Errorf("--files-from on the ack store: err %v\n%s", err, out)
+	}
+	wout, code := runIn(t, root, "write", "--no-check", pending)
+	if code == 0 || !strings.Contains(wout, "own state") || strings.Contains(wout, "ck-SECRET") {
+		t.Errorf("a plan read from the ack store: exit %d\n%s", code, wout)
+	}
+}

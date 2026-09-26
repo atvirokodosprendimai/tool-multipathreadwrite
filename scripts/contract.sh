@@ -7043,8 +7043,9 @@ want 1 "$rc" "a read of the ledger is refused"
 grep -q "own state" <<<"$out" && ok "and names mrw's own state" || bad "ledger read: $out"
 before=$(cat "$R/$led")
 printf '@@ %s 1 replace\nX\n' "$led" > "$R/p154.mrw"
-out=$(st154 write --no-check "$R/p154.mrw" 2>&1); rc=$?
+out=$(st154 write --no-check --force "$R/p154.mrw" 2>&1); rc=$?
 want 1 "$rc" "a plan editing the ledger is refused"
+grep -q "own state" <<<"$out" && ok "refused as mrw's own state, even past the read ledger (--force)" || bad "the ledger write was refused for another reason: $out"
 [ "$(cat "$R/$led")" = "$before" ] && ok "and the ledger is unchanged" || bad "the ledger changed: $out"
 
 # Nothing this run started may outlive it. Checked after the last row, so every

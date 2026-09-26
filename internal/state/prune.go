@@ -188,6 +188,7 @@ func openBase() (*os.Root, string, error) {
 		return nil, "", err
 	}
 	home := filepath.Dir(dir)
+	name := filepath.Base(dir) // "mrw", named once, by Base (review of #238)
 
 	parent, err := os.OpenRoot(home)
 	if err != nil {
@@ -198,7 +199,7 @@ func openBase() (*os.Root, string, error) {
 	}
 	defer parent.Close()
 
-	base, err := parent.OpenRoot("mrw")
+	base, err := parent.OpenRoot(name)
 	if err != nil {
 		// ⚠ ASK WHETHER IT IS A SYMLINK BEFORE BELIEVING "not there". A
 		// DANGLING relative link — `mrw -> missing` — makes OpenRoot report
@@ -211,7 +212,7 @@ func openBase() (*os.Root, string, error) {
 		// A symlink OUT of the state home is refused by os.Root itself, whose
 		// message says only that a path escaped — which names neither the
 		// directory nor what to do about it (ADR-015).
-		fi, lerr := parent.Lstat("mrw")
+		fi, lerr := parent.Lstat(name)
 		switch {
 		case lerr == nil && fi.Mode()&os.ModeSymlink != 0:
 			return nil, "", symlinkedBase(dir)
@@ -229,7 +230,7 @@ func openBase() (*os.Root, string, error) {
 	}
 
 	opened, oerr := base.Stat(".")
-	named, nerr := parent.Lstat("mrw")
+	named, nerr := parent.Lstat(name)
 	// ⚠ AND A FAILED COMPARISON IS NOT A FAILED IDENTITY. Reporting "symlink,
 	// or replaced" when the stat itself errored names a cause that was never
 	// established — the reviewer's point, and the same class of overstatement.

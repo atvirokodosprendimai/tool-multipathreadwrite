@@ -81,7 +81,7 @@ See `tasks/`.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | A test or tool that reads mrw's state through mrw | Low | Low | the state is read through `internal/state`, never through `Resolve` |
-| The extra `EvalSymlinks` per resolve on a large read | Low | Low | one call per spec, beside the ones `Resolve` already makes |
+| The extra resolution per `Resolve` on a large walk | Low | Low | `Resolve` runs once per discovered file, and `InState` resolves the base and the path again and, where their strings differ, stats each ancestor; measured by the review of #238 at about 0.1 s per 5,000 files |
 
 ## Rollback
 
