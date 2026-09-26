@@ -40,7 +40,8 @@
    the write exits 3 with "interrupted before it started", and `mrw check` does too.
 3. A kept log is named on every path that keeps one; a check that never started removes its empty log.
 4. `check.Run` removes this program's logs older than `LogRetention` (7 days) from the temp directory
-   before writing its own, and reports the count (ADR-008: a delete says what it removed).
+   once the check has exited and been judged, listing the directory rather than globbing it, and
+   reports the count (ADR-008: a delete says what it removed).
 
 ## Alternatives Considered
 
@@ -76,7 +77,7 @@ See `tasks/`.
 ## Out of Scope
 
 - A grandchild that called `setsid` (permanent: fact: it is in a process group of its own, which mrw did not start)
-- A group id reused in the microseconds after its last member exits (permanent: fact: a kill of an empty group finds none; the window is the kernel's)
+- A group id reused in the microseconds after its last member exits (permanent: fact: a kill of an empty group finds none; the window is the kernel's, and `Output` writes to a file so no pipe widens it, the review of #241)
 - Windows job objects for the grandchild (deferred: docs/adr/BACKLOG.md, with ADR-072's)
 
 ## Risks

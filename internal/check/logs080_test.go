@@ -95,3 +95,49 @@ func TestATimedOutCheckKeepsItsLog(t *testing.T) {
 		t.Errorf("the kept log is not there: %v", err)
 	}
 }
+
+// ADR-080, the reviews of #241. The prune globbed, and a glob reads
+// metacharacters in the directory too: a TMPDIR of t[x] pruned tx's logs and
+// kept its own. It lists the directory it was given.
+func TestAPruneListsTheDirectoryItWasGiven(t *testing.T) {
+	base := t.TempDir()
+	old := time.Now().Add(-LogRetention - time.Hour)
+	for _, d := range []string{"t[x]", "tx"} {
+		p := filepath.Join(base, d, "mrw-check-old.log")
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("x\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(p, old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := pruneLogs(filepath.Join(base, "t[x]"), time.Now().Add(-LogRetention)); n != 1 {
+		t.Errorf("pruned %d, want 1", n)
+	}
+	if _, err := os.Stat(filepath.Join(base, "t[x]", "mrw-check-old.log")); err == nil {
+		t.Error("the directory's own old log was kept")
+	}
+	if _, err := os.Stat(filepath.Join(base, "tx", "mrw-check-old.log")); err != nil {
+		t.Errorf("a sibling directory's log was removed: %v", err)
+	}
+}
+
+// ADR-080, the review of #241. A check that could not start because its shell
+// is missing, under a context also cancelled, was reported interrupted — exit 3
+// for what is a missing check, exit 2. The start's own error decides.
+func TestAMissingShellUnderACancelIsStillCouldNotStart(t *testing.T) {
+	tempDirForLogs(t)
+	t.Setenv("PATH", "")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	res, err := Run(ctx, t.TempDir(), Config{Check: "exit 0", declared: true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Ran || !strings.HasPrefix(res.Skipped, "could not start") {
+		t.Errorf("want could not start, not interrupted: %+v", res)
+	}
+}

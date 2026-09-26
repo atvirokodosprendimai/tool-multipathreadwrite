@@ -16,6 +16,7 @@ package subproc
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -79,9 +80,27 @@ func Run(c *exec.Cmd) error {
 	return err
 }
 
-// Output is Run for a child whose stdout is the answer.
+// Output is Run for a child whose stdout is the answer. The answer goes to a
+// file, not a pipe: exec waits up to WaitDelay for a pipe a grandchild still
+// holds, and the group was killed only after that — up to a second past the
+// child's exit, in which an emptied group's id could be reused (the review of
+// #241). With a file, Wait returns at the child's exit and the group is killed
+// at once.
 func Output(c *exec.Cmd) ([]byte, error) {
-	out, err := c.Output()
-	reap(c)
-	return out, err
+	f, err := os.CreateTemp("", "mrw-subproc-*.out")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(f.Name())
+	defer f.Close()
+	c.Stdout = f
+	runErr := Run(c)
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+	out, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+	return out, runErr
 }

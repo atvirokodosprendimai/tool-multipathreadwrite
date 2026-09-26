@@ -54,11 +54,12 @@ import (
 // nothing-written means fix the plan and retry, a failed check means read the
 // test output, and a usage error means neither.
 //
-// ⚠ exitCheckFailed says a check RAN AND FAILED; it says nothing about whether
-// anything was written. After `write --check` the edit IS applied and now
-// unverified; after a bare `check` the tree was never touched. Both are 3
-// because both mean "go read the output", and neither is exitNotApplied, which
-// promises an untouched tree.
+// ⚠ exitCheckFailed says a check did not verify the tree: it ran and failed,
+// timed out, or was interrupted — before it started, too (ADR-080). It says
+// nothing about whether anything was written. After `write --check` the edit IS
+// applied and now unverified; after a bare `check` the tree was never touched.
+// Both are 3 because both mean "the tree is unverified", and neither is
+// exitNotApplied, which promises an untouched tree.
 const (
 	exitNotApplied  = 1
 	exitUsage       = 2
@@ -1356,9 +1357,10 @@ held or went unchecked.`,
 			case res.Failed > 0:
 				return cli.Exit(fmt.Sprintf("%d hunk(s) failed — nothing was written", res.Failed), exitNotApplied)
 			case receipt.Check != nil && !receipt.Check.Ran && receipt.Check.Skipped == check.Interrupted:
-				// ADR-080: stopped before the check started — the same verdict,
-				// and the same exit, as stopped while it ran: the tree changed
-				// and nothing verified it. Not "declare a check": one was.
+				// ADR-080: stopped before the check started — the same exit as
+				// stopped while it ran, since the tree changed and nothing
+				// verified it, though the tally files it as check_not_run: nothing
+				// ran. Not "declare a check": one was.
 				return cli.Exit("the write applied and its check was interrupted before it started — the tree is changed and unverified", exitCheckFailed)
 			case receipt.Check != nil && !receipt.Check.Ran:
 				// The write stands. Say so first — the caller's tree changed
@@ -1633,11 +1635,17 @@ func reportCheck(w *os.File, r *check.Result) {
 	// ADR-008: a delete says what it removed — here the old check logs this
 	// run pruned from the temp directory (ADR-080).
 	if r.Pruned > 0 {
-		fmt.Fprintf(out, "removed %d check log(s) older than 7 days from %s\n", r.Pruned, os.TempDir())
+		fmt.Fprintf(out, "removed %d check log(s) older than %d days from %s\n", r.Pruned, int(check.LogRetention.Hours()/24), os.TempDir())
 	}
 
 	if !r.Ran {
-		fmt.Fprintf(out, "check SKIPPED: %s\n", r.Skipped)
+		// A log kept on this path — its removal failed — is named too: the
+		// JSON carried it and the human report did not (the review of #241).
+		named := ""
+		if r.OutputFile != "" {
+			named = " — full output: " + r.OutputFile
+		}
+		fmt.Fprintf(out, "check SKIPPED: %s%s\n", r.Skipped, named)
 		return
 	}
 	origin := "inferred"

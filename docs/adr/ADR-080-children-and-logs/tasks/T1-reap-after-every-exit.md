@@ -88,6 +88,11 @@ go test ./internal/subproc/ ./internal/check/ ./cmd/mrw/ -count=1 -timeout 240s 
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · ms:1611
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · ms:1573
 - 2026-09-26 · 52debba* · exit 0 · `set -o pipefail …` · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · ms:9267
+- 2026-09-26 · 31fd88c* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · ms:0 · test-lock-sha256:3862d83c9f6068b8f3a4dd9f2898bf9dc3a7112a88a810f810364e75e1cc9700 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvYXN0Z3JlcF9yZWFwMDgwX3VuaXhfdGVzdC5nbwlUZXN0QW5Bc3RHcmVwVGhhdEV4aXRzQ2xlYW5seUxlYXZlc05vR3JhbmRjaGlsZAk0MzU5YjRhODE1NDQwYTM0MzViZmU5YTA4YjFkNWRhMDExYmI0YTk2YzU0ZjI1NjE4YjE0ZDk3OTQ4Y2E1NGVjCmJvZHkJaW50ZXJuYWwvY2hlY2svZ3JvdXBfdW5peF90ZXN0LmdvCVRlc3RBVGltZWRPdXRDaGVja0xlYXZlc05vR3JhbmRjaGlsZAkzMzRiYjUwMzlhNjYxZTE0YzdiZDE0Njk5OWM2ZmIwMzFkNWU3M2M3NjYwZDhmMzIyZjM4ZWM2NWRmMjBlZmMwCmJvZHkJaW50ZXJuYWwvY2hlY2svZ3JvdXBfdW5peF90ZXN0LmdvCVRlc3RBbkludGVycnVwdGVkQ2hlY2tTYXlzU28JNGYwOWU2YjY5ZGI2YTY3NWM2YWFmNjVlZGRiYmMzYjNiYTI3ZTk2M2M5MzA2NWE5NDcxNjQxZjQ1YTdlZDQwYQpib2R5CWludGVybmFsL2NoZWNrL2dyb3VwX3VuaXhfdGVzdC5nbwlUZXN0VGhlQ2hlY2tTdG9wc09uSGFuZ3VwVW5sZXNzSGFuZ3VwSXNJZ25vcmVkCWE0NjkyYTI0MWZmZGEyZmNmOTNkNmMwNGVjMDFjYjAwZWQ3MDlhYWEwZWVkZTVjZTMxNWQzOTBkZWZjNTA0MTUKYm9keQlpbnRlcm5hbC9jaGVjay9yZWFwMDgwX3VuaXhfdGVzdC5nbwlUZXN0QUNoZWNrVGhhdFBhc3Nlc0xlYXZlc05vUHJvY2Vzc0JlaGluZAk5NjRiOGNhZTY2ZTk3YjQ0OGViODIzNTIyYzE2OGVhNjA0M2VhZTgxMzYzZDUxODIwZTUzNDZkMjAwOWJlZTZiCmJvZHkJaW50ZXJuYWwvc3VicHJvYy9yZWFwMDgwX3VuaXhfdGVzdC5nbwlUZXN0QUdyYW5kY2hpbGRPZkFDbGVhbkV4aXRJc1JlYXBlZAkwOTZiZTRlZTI3NTUxNzg0MTgxODg1NTdiMTMzMmY2ODIyZTRlZTlkZTFjZTNkMjNiM2ZiODU5OGUwMjMwNmJi · test-lock-kind:replace
+- 2026-09-26 · 31fd88c* · exit 0 · `set -o pipefail …` · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · ms:1962
+- 2026-09-26 · 31fd88c* · exit 0 · `set -o pipefail …` · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · ms:2239
+- 2026-09-26 · 31fd88c* · exit 0 · `set -o pipefail …` · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · ms:2037
+- 2026-09-26 · 31fd88c* · exit 0 · `set -o pipefail …` · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · ms:2482
 
 ## Mutation Log
 (empty until execute)
@@ -97,6 +102,9 @@ go test ./internal/subproc/ ./internal/check/ ./cmd/mrw/ -count=1 -timeout 240s 
 - 2026-09-26 · 6835512* · mutant killed · exit 1 · `internal/subproc/subproc_unix.go` · reap kills nothing · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · covers:a clean exit's grandchild is reaped
 - 2026-09-26 · 6835512* · mutant killed · exit 1 · `internal/check/check.go` · the check back on c.Run · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · covers:the check reaps
 - 2026-09-26 · 6835512* · mutant killed · exit 1 · `internal/read/astgrep.go` · ast-grep back on cmd.Output · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · covers:ast-grep reaps
+- 2026-09-26 · 31fd88c* · mutant killed · exit 1 · `internal/subproc/subproc_unix.go` · reap kills nothing · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · covers:a clean exit's grandchild is reaped
+- 2026-09-26 · 31fd88c* · mutant killed · exit 1 · `internal/check/check.go` · the check back on c.Run · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · covers:the check reaps
+- 2026-09-26 · 31fd88c* · mutant killed · exit 1 · `internal/read/astgrep.go` · ast-grep back on cmd.Output · acceptance-sha256:84b8d7ce6a8fec49815103fd5d800587e5d7342cdfe634e41bd0de3057dc7962 · covers:ast-grep reaps
 
 ## Invariants
 

@@ -33,8 +33,8 @@ A signal that landed before the check's process started reported "could not star
 
 ```bash
 set -o pipefail
-go test ./internal/check/ ./cmd/mrw/ -count=1 -timeout 240s -run 'TestACheckCancelledBeforeItStartsSaysInterrupted|TestAWriteWhoseCheckIsCancelledBeforeItStartsSaysInterrupted|TestMrwCheckCancelledBeforeItStartsSaysInterrupted|TestAnInterruptedCheckSaysSo' -v 2>&1 | tee /tmp/adr080-T2.out \
-  && missing=$(for t in TestACheckCancelledBeforeItStartsSaysInterrupted TestAWriteWhoseCheckIsCancelledBeforeItStartsSaysInterrupted TestMrwCheckCancelledBeforeItStartsSaysInterrupted TestAnInterruptedCheckSaysSo; do grep -qE "^--- PASS: $t \(" /tmp/adr080-T2.out || echo "$t"; done) \
+go test ./internal/check/ ./cmd/mrw/ -count=1 -timeout 240s -run 'TestACheckCancelledBeforeItStartsSaysInterrupted|TestAMissingShellUnderACancelIsStillCouldNotStart|TestAWriteWhoseCheckIsCancelledBeforeItStartsSaysInterrupted|TestMrwCheckCancelledBeforeItStartsSaysInterrupted|TestAnInterruptedCheckSaysSo' -v 2>&1 | tee /tmp/adr080-T2.out \
+  && missing=$(for t in TestACheckCancelledBeforeItStartsSaysInterrupted TestAMissingShellUnderACancelIsStillCouldNotStart TestAWriteWhoseCheckIsCancelledBeforeItStartsSaysInterrupted TestMrwCheckCancelledBeforeItStartsSaysInterrupted TestAnInterruptedCheckSaysSo; do grep -qE "^--- PASS: $t \(" /tmp/adr080-T2.out || echo "$t"; done) \
   && [ -z "$missing" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/apply internal/plan internal/lines internal/iter internal/seen internal/state internal/rooted \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/apply internal/plan internal/lines internal/iter internal/seen internal/state internal/rooted)" ] \
@@ -46,6 +46,7 @@ go test ./internal/check/ ./cmd/mrw/ -count=1 -timeout 240s -run 'TestACheckCanc
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestACheckCancelledBeforeItStartsSaysInterrupted` | `internal/check/logs080_test.go` | a pre-cancelled check never runs, says interrupted, keeps no log | — | S1, S2 |
+| `TestAMissingShellUnderACancelIsStillCouldNotStart` | `internal/check/logs080_test.go` | a missing shell under a cancelled context is "could not start", not interrupted | — | S2 |
 | `TestAWriteWhoseCheckIsCancelledBeforeItStartsSaysInterrupted` | `cmd/mrw/checklog080_test.go` | the write lands and exits 3, "interrupted before it started" | — | S1, S2 |
 | `TestMrwCheckCancelledBeforeItStartsSaysInterrupted` | `cmd/mrw/checklog080_test.go` | `mrw check` exits 3, "interrupted before it started", not "declare one" | — | S2 |
 | `TestAnInterruptedCheckSaysSo` | `internal/check/group_unix_test.go` | ADR-072's pair: interrupted mid-run | — | S2 |
@@ -85,6 +86,13 @@ go test ./internal/check/ ./cmd/mrw/ -count=1 -timeout 240s -run 'TestACheckCanc
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f7ebe78f736f4636881590c375eaaff68e352bf1e584baf1e0c07ea6af7dc94 · ms:564
 - 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f7ebe78f736f4636881590c375eaaff68e352bf1e584baf1e0c07ea6af7dc94 · ms:563
 - 2026-09-26 · 52debba* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f7ebe78f736f4636881590c375eaaff68e352bf1e584baf1e0c07ea6af7dc94 · ms:2892
+- 2026-09-26 · 31fd88c* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:fcf4bea40fa4ce5ce7da63207ccc661362066b7a9d70fb2c8b3a7792aff4c769 · ms:0 · test-lock-sha256:bff230c286da1bafbd1ea15fd085bf0cbf191a8761a90a42443e07dfe87dc938 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvY2hlY2tsb2cwODBfdGVzdC5nbwlUZXN0QVRpbWVkT3V0Q2hlY2tOYW1lc0l0c0xvZwkyYzA2NDE0YTAxYzJhYzQzZjI5MjE0YjRkMzk4ZTNkZjJmZmUwMDNkZTEzNjUwNDVkMzI3OGJlZGFiOWU1ZmMyCmJvZHkJY21kL21ydy9jaGVja2xvZzA4MF90ZXN0LmdvCVRlc3RBV3JpdGVXaG9zZUNoZWNrSXNDYW5jZWxsZWRCZWZvcmVJdFN0YXJ0c1NheXNJbnRlcnJ1cHRlZAkwY2ZjZjAzOTFjN2E2ZmMwYTE0MGVkYzg4NTAyNGIzZjI3NWM2ZGU4NjBlMzlhOGMyMzMwYTMzMGM5YmMxNWQxCmJvZHkJY21kL21ydy9jaGVja2xvZzA4MF90ZXN0LmdvCVRlc3RNcndDaGVja0NhbmNlbGxlZEJlZm9yZUl0U3RhcnRzU2F5c0ludGVycnVwdGVkCWI2OWNkODM0ZjMyY2FiNzRhMDdkNzNkNzY4YjM5N2RlZmRkNDk0ZDc3NDhhMWU1YzdiOTc5ZDJlMGE4OGQ3YmEKYm9keQlpbnRlcm5hbC9jaGVjay9ncm91cF91bml4X3Rlc3QuZ28JVGVzdEFUaW1lZE91dENoZWNrTGVhdmVzTm9HcmFuZGNoaWxkCTMzNGJiNTAzOWE2NjFlMTRjN2JkMTQ2OTk5YzZmYjAzMWQ1ZTczYzc2NjBkOGYzMjJmMzhlYzY1ZGYyMGVmYzAKYm9keQlpbnRlcm5hbC9jaGVjay9ncm91cF91bml4X3Rlc3QuZ28JVGVzdEFuSW50ZXJydXB0ZWRDaGVja1NheXNTbwk0ZjA5ZTZiNjlkYjZhNjc1YzZhYWY2NWVkZGJiYzNiM2JhMjdlOTYzYzkzMDY1YTk0NzE2NDFmNDVhN2VkNDBhCmJvZHkJaW50ZXJuYWwvY2hlY2svZ3JvdXBfdW5peF90ZXN0LmdvCVRlc3RUaGVDaGVja1N0b3BzT25IYW5ndXBVbmxlc3NIYW5ndXBJc0lnbm9yZWQJYTQ2OTJhMjQxZmZkYTJmY2Y5M2Q2YzA0ZWMwMWNiMDBlZDcwOWFhYTBlZWRlNWNlMzE1ZDM5MGRlZmM1MDQxNQpib2R5CWludGVybmFsL2NoZWNrL2xvZ3MwODBfdGVzdC5nbwlUZXN0QUNoZWNrQ2FuY2VsbGVkQmVmb3JlSXRTdGFydHNTYXlzSW50ZXJydXB0ZWQJMDJiMGQwNjUxMGZjM2QxYmNmNmIxNWY4MWRlMzdkMzVhMTI5MmQ2NzMzNjY4MjI3OGI3NGNhMGNhMWY3OTM0NApib2R5CWludGVybmFsL2NoZWNrL2xvZ3MwODBfdGVzdC5nbwlUZXN0QUNoZWNrUmVtb3Zlc0l0c093bkxvZ3NPbGRlclRoYW5BV2Vlawk0MmVlOGY3MGUxMWZlNzZkNDk5ZTVkZWEzMWFjMDg4OGUwMzgyNzcwY2UzZGU4NDQ5Y2I1MWQzYmY4YTQ3NTNhCmJvZHkJaW50ZXJuYWwvY2hlY2svbG9nczA4MF90ZXN0LmdvCVRlc3RBTWlzc2luZ1NoZWxsVW5kZXJBQ2FuY2VsSXNTdGlsbENvdWxkTm90U3RhcnQJZWRiMGFjYmQ5ODI4MmEzYzg5ZTg3ODc1MGUzNmVhNjYxOWM3NDc2MzRmMDk5NTg0ZTYxM2U2NmFiMTc0Njk5MQpib2R5CWludGVybmFsL2NoZWNrL2xvZ3MwODBfdGVzdC5nbwlUZXN0QVBydW5lTGlzdHNUaGVEaXJlY3RvcnlJdFdhc0dpdmVuCTY3MDgwZjFhNTU0NWI4NzcyY2RhN2NjM2IzNWNkMTc3YzMyMTYzODQyNWFlMTg3MmE3ZDM3NWMwMzc1ZmY3MzAKYm9keQlpbnRlcm5hbC9jaGVjay9sb2dzMDgwX3Rlc3QuZ28JVGVzdEFUaW1lZE91dENoZWNrS2VlcHNJdHNMb2cJOGRmYTMxOWUwY2FkZDM1NTgxYzc0NzJkMGUwZDY2OTYzMGNiNzZkM2YzODZmOWFiOTAzODgzODQ3ZjY3MDYyYw · test-lock-kind:replace
+- 2026-09-26 · 31fd88c* · exit 0 · `set -o pipefail …` · acceptance-sha256:fcf4bea40fa4ce5ce7da63207ccc661362066b7a9d70fb2c8b3a7792aff4c769 · ms:1175
+- 2026-09-26 · 31fd88c* · exit 0 · `set -o pipefail …` · acceptance-sha256:fcf4bea40fa4ce5ce7da63207ccc661362066b7a9d70fb2c8b3a7792aff4c769 · ms:898
+- 2026-09-26 · 31fd88c* · exit 0 · `set -o pipefail …` · acceptance-sha256:fcf4bea40fa4ce5ce7da63207ccc661362066b7a9d70fb2c8b3a7792aff4c769 · ms:860
+- 2026-09-26 · 31fd88c* · exit 0 · `set -o pipefail …` · acceptance-sha256:fcf4bea40fa4ce5ce7da63207ccc661362066b7a9d70fb2c8b3a7792aff4c769 · ms:1143
+- 2026-09-26 · 31fd88c* · exit 0 · `set -o pipefail …` · acceptance-sha256:fcf4bea40fa4ce5ce7da63207ccc661362066b7a9d70fb2c8b3a7792aff4c769 · ms:2409
+- 2026-09-26 · 31fd88c* · exit 0 · `set -o pipefail …` · acceptance-sha256:fcf4bea40fa4ce5ce7da63207ccc661362066b7a9d70fb2c8b3a7792aff4c769 · ms:2221
 
 ## Mutation Log
 (empty until execute)
@@ -97,6 +105,14 @@ go test ./internal/check/ ./cmd/mrw/ -count=1 -timeout 240s -run 'TestACheckCanc
 - 2026-09-26 · 6835512* · mutant killed · exit 1 · `internal/check/check.go` · a cancel before start reads as could not start · acceptance-sha256:4f7ebe78f736f4636881590c375eaaff68e352bf1e584baf1e0c07ea6af7dc94 · covers:a cancelled check says interrupted
 - 2026-09-26 · 6835512* · mutant killed · exit 1 · `cmd/mrw/main.go` · the write exit-3 branch removed · acceptance-sha256:4f7ebe78f736f4636881590c375eaaff68e352bf1e584baf1e0c07ea6af7dc94 · covers:a write exits 3
 - 2026-09-26 · 6835512* · mutant killed · exit 1 · `cmd/mrw/main.go` · mrw check exit-3 branch removed · acceptance-sha256:4f7ebe78f736f4636881590c375eaaff68e352bf1e584baf1e0c07ea6af7dc94 · covers:mrw check exits 3
+- 2026-09-26 · 31fd88c* · mutant killed · exit 1 · `internal/check/check.go` · a cancel before start reads as could not start · acceptance-sha256:fcf4bea40fa4ce5ce7da63207ccc661362066b7a9d70fb2c8b3a7792aff4c769 · covers:a cancelled check says interrupted
+- 2026-09-26 · 31fd88c* · mutant killed · exit 1 · `cmd/mrw/main.go` · the write exit-3 branch removed · acceptance-sha256:fcf4bea40fa4ce5ce7da63207ccc661362066b7a9d70fb2c8b3a7792aff4c769 · covers:a write exits 3
+- 2026-09-26 · 31fd88c* · mutant killed · exit 1 · `cmd/mrw/main.go` · mrw check exit-3 branch removed · acceptance-sha256:fcf4bea40fa4ce5ce7da63207ccc661362066b7a9d70fb2c8b3a7792aff4c769 · covers:mrw check exits 3
+- 2026-09-26 · 31fd88c* · mutant inconclusive · exit 1 · `internal/check/check.go` · the context, not the start, decides interrupted · acceptance-sha256:fcf4bea40fa4ce5ce7da63207ccc661362066b7a9d70fb2c8b3a7792aff4c769 · covers:a cancelled check says interrupted
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
+- 2026-09-26 · 31fd88c* · mutant killed · exit 1 · `internal/check/check.go` · the context, not the start, decides interrupted · acceptance-sha256:fcf4bea40fa4ce5ce7da63207ccc661362066b7a9d70fb2c8b3a7792aff4c769 · covers:a cancelled check says interrupted
 
 ## Invariants
 

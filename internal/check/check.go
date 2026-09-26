@@ -20,6 +20,7 @@ package check
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -133,7 +134,8 @@ type Result struct {
 	Tail       []string `json:"tail,omitempty"`
 	Truncated  int      `json:"truncated_lines,omitempty"`
 	// Pruned is how many check logs older than LogRetention this run removed
-	// from the temp directory before writing its own (ADR-080).
+	// from the temp directory, once the check had exited and been judged
+	// (ADR-080).
 	Pruned int `json:"pruned_logs,omitempty"`
 }
 
@@ -155,12 +157,18 @@ const LogRetention = 7 * 24 * time.Hour
 // says how many. Only regular files named like one are touched; an error on any
 // one is passed over, since the temp directory is shared and sticky.
 func pruneLogs(dir string, cutoff time.Time) int {
-	matches, err := filepath.Glob(filepath.Join(dir, "mrw-check-*.log"))
+	// Listed, not globbed: a glob reads metacharacters in dir too, so a TMPDIR
+	// of t[x] pruned tx's logs and kept its own (the reviews of #241).
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return 0
 	}
 	n := 0
-	for _, m := range matches {
+	for _, e := range entries {
+		if ok, _ := filepath.Match("mrw-check-*.log", e.Name()); !ok {
+			continue
+		}
+		m := filepath.Join(dir, e.Name())
 		fi, err := os.Lstat(m)
 		if err != nil || !fi.Mode().IsRegular() || !fi.ModTime().Before(cutoff) {
 			continue
@@ -255,10 +263,6 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	runErr := subproc.Run(c)
 	res.DurationMS = time.Since(start).Milliseconds()
 	f.Close()
-	// Pruned only once the check has exited: before it, a temp directory of
-	// old logs delayed every check's start, and a cancel meant for a running
-	// check landed before sh existed (ADR-080; the race suite on #241).
-	res.Pruned = pruneLogs(os.TempDir(), time.Now().Add(-LogRetention))
 
 	switch {
 	case runErr == nil:
@@ -276,7 +280,7 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		// ADR-080: a signal that landed before the process started cancelled
 		// it as surely as one after, and "could not start … declare a check"
 		// sent the caller to fix a configuration nothing was wrong with.
-		if ctx.Err() == context.Canceled {
+		if errors.Is(runErr, context.Canceled) {
 			res.Skipped = Interrupted
 		}
 		// Nothing ran, so the log is empty and nothing will point at it.
@@ -299,6 +303,12 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		res.ExitCode = -1
 		res.Skipped = Interrupted
 	}
+	// Pruned only once the check has exited AND been judged. Before the start,
+	// a temp directory of old logs delayed every check, and a cancel meant for a
+	// running one landed before sh existed (the race suite on #241); between the
+	// exit and the verdict, a deadline or a signal landing during the prune
+	// relabelled a check that had already finished (the reviews of #241).
+	res.Pruned = pruneLogs(os.TempDir(), time.Now().Add(-LogRetention))
 
 	tail := cfg.TailLines
 	if tail <= 0 {
