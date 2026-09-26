@@ -121,6 +121,11 @@ reported in the output rather than aborting the batch" — applied to discovery.
 and ADR-004 rejected `.git/mrw/` partly to keep it that way. `--exclude GLOB`
 (repeatable) is the caller's control.
 
+**Amended by ADR-077** (2026-09-26): a file inside mrw's own state directory is not a candidate
+either. A discovered one is dropped by rule 3's boundary, which refuses it; a named one is refused
+with a reason. The skip is not a directory rule, so a state directory under the root costs a walk
+into it and serves nothing from it.
+
 ### Go/no-go: what makes this the wrong decision
 
 Rule counting is not falsifiable, so this is stated as conditions checked during

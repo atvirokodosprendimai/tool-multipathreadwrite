@@ -37,11 +37,22 @@ const LegacyDir = ".mrw"
 // migratable are the files carried across from a legacy in-tree directory.
 var migratable = []string{"seen", "iteration"}
 
+// Base is <state home>/mrw, the directory every checkout's state lives under,
+// without making it (ADR-077): the boundary asks on every resolve whether a
+// path is inside it, and asking must not create it.
+func Base() (string, error) {
+	home, err := stateHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, "mrw"), nil
+}
+
 // Dir returns the state directory for root, creating it if needed, and writes a
 // `root` marker naming the checkout it belongs to — so an orphan left behind by
 // a moved or deleted repository is identifiable rather than an anonymous hash.
 func Dir(root string) (string, error) {
-	base, err := stateHome()
+	base, err := Base()
 	if err != nil {
 		return "", err
 	}
@@ -50,7 +61,7 @@ func Dir(root string) (string, error) {
 		return "", err
 	}
 
-	dir := filepath.Join(base, "mrw", key(abs))
+	dir := filepath.Join(base, key(abs))
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}

@@ -183,11 +183,11 @@ func Prune(root string, entries []Entry, dryRun bool) ([]Entry, error) {
 // is what a machine that has never run mrw looks like. The second return is the
 // base's path, for entries to report themselves by.
 func openBase() (*os.Root, string, error) {
-	home, err := stateHome()
+	dir, err := Base()
 	if err != nil {
 		return nil, "", err
 	}
-	dir := filepath.Join(home, "mrw")
+	home := filepath.Dir(dir)
 
 	parent, err := os.OpenRoot(home)
 	if err != nil {
