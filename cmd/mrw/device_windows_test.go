@@ -21,7 +21,7 @@ func TestADeviceNameIsRefusedNotReadAsAnEmptyFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"NUL", "con", "nul.txt", "COM1.txt", "aux.go", "CONOUT$"} {
-		if out, code := runIn(t, root, "read", name); code == 0 || !strings.Contains(out, "device") || strings.Contains(out, "0L") {
+		if out, code := runIn(t, root, "read", name); code == 0 || !strings.Contains(out, "is a Windows device name") || strings.Contains(out, "0L") {
 			t.Errorf("read %s: exit %d:\n%s", name, code, out)
 		}
 	}
@@ -33,13 +33,17 @@ func TestADeviceNameIsRefusedNotReadAsAnEmptyFile(t *testing.T) {
 		"create-COM1.txt": "@@ COM1.txt 0 create\nx\n",
 		"rename-NUL":      "@@ a.txt - rename\nNUL\n",
 		"rename-lpt1.log": "@@ a.txt - rename\nlpt1.log\n",
+		// Every component counts (the review of #243): a build that makes a
+		// file con makes a directory con the same way.
+		"create-in-con":   "@@ con/b.txt 0 create\nx\n",
+		"rename-into-nul": "@@ a.txt - rename\nnul.txt/b.txt\n",
 	} {
 		p := filepath.Join(plans, name+".mrw")
 		if err := os.WriteFile(p, []byte(plan), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		out, code := runIn(t, root, "write", "--no-check", "--force", p)
-		if code != exitNotApplied || !strings.Contains(out, "device") {
+		if code != exitNotApplied || !strings.Contains(out, "is a Windows device name") {
 			t.Errorf("%s: exit %d, want %d naming the device:\n%s", name, code, exitNotApplied, out)
 		}
 	}
@@ -67,5 +71,41 @@ func TestADeviceNameBehindADotComponentIsRefused(t *testing.T) {
 		if out, code := runIn(t, root, "read", spec); code == 0 || !strings.Contains(out, "device") {
 			t.Errorf("read %s: exit %d, want the device refusal:\n%s", spec, code, out)
 		}
+	}
+}
+
+// ADR-081, the reviews of #243. A link inside the root that leads to a
+// reserved name reached it: the name was checked as written, before the link
+// was followed, so a read served the target and a create made it.
+func TestALinkToADeviceNameIsRefused(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Symlink("con.txt", filepath.Join(root, "alias.txt")); err != nil {
+		t.Skipf("this runner cannot make a symlink: %v", err)
+	}
+	if out, code := runIn(t, root, "read", "alias.txt"); code == 0 || !strings.Contains(out, "is a Windows device name") {
+		t.Errorf("read through a link to con.txt: exit %d:\n%s", code, out)
+	}
+	p := filepath.Join(t.TempDir(), "create.mrw")
+	if err := os.WriteFile(p, []byte("@@ alias.txt 0 create\nx\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, code := runIn(t, root, "write", "--no-check", "--force", p); code != exitNotApplied || !strings.Contains(out, "is a Windows device name") {
+		t.Errorf("create through a link to con.txt: exit %d:\n%s", code, out)
+	}
+}
+
+// ADR-081, the reviews of #243. An ast-grep hit reached the CR-only probe,
+// which read the file, before the boundary saw it; and a discovered hit the
+// boundary refuses was reported where the walk drops one (ADR-007 rule 2). A
+// discovered hit on con.txt is dropped, and hit.go is still served.
+func TestAnAstGrepHitOnADeviceNameIsDropped(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "hit.go"), []byte("package hit\nfunc Target() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	installFakeAstGrep(t, `[{"file":"con.txt","range":{"start":{"line":0},"end":{"line":0}}},{"file":"hit.go","range":{"start":{"line":1},"end":{"line":1}}}]`, 0)
+	out, code := runIn(t, root, "read", "--ast-grep", "func Target")
+	if code != 0 || strings.Contains(out, "con.txt") || !strings.Contains(out, "func Target") {
+		t.Errorf("a discovered hit on con.txt: exit %d, want it dropped and hit.go served:\n%s", code, out)
 	}
 }

@@ -391,9 +391,10 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 - **A path means what it says** (ADR-076). A path that ends in `/` names a directory: `mrw read
   a.txt/`, a plan path `a.txt/` and a rename to `d/` are refused — name the file (`d/a.txt`). A
   read-only file is refused for every op that would change it; clear the mark first (`chmod u+w`,
-  or `attrib -r` on Windows). On Windows a reserved device name — `CON`, `PRN`, `AUX`, `NUL`,
-  `COM1`–`9`, `LPT1`–`9`, `CONIN$`, `CONOUT$`, with or without an extension — is refused by name on
-  every build, since some Windows APIs still open it as a device (ADR-081). The receipt names what
+  or `attrib -r` on Windows). On Windows a path with a reserved device name in any component — `CON`,
+  `PRN`, `AUX`, `NUL`, `COM1`–`9`, `LPT1`–`9`, `CONIN$`, `CONOUT$`, with or without an extension — is
+  refused by name on every build, directly or through a link, since some Windows APIs still open it
+  as a device (ADR-081). The receipt names what
   else a write touched: `target` when it went through a symlink,
   `dirs_created` (`created d/` on the human receipt) for the directories it made, and a removed
   file's former sha.

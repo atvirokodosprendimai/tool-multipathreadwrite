@@ -83,14 +83,15 @@ func Resolve(root, path string) (string, error) {
 	full := filepath.Join(absRoot, path)
 	// ADR-076: Win32 opens CON, NUL, COM1 and the rest as devices — before
 	// Windows 11 with any extension too — so `mrw read NUL` served an empty
-	// file and a plan could write to a device at exit 0. The cleaned name picks
-	// the candidate, since `NUL/.` opens NUL too (Codex review of #237).
+	// file and a plan could write to a device at exit 0. The path is judged as
+	// it lands under the root, cleaned, since `NUL/.` opens NUL too (Codex
+	// review of #237), and never by the root's own components.
 	// ADR-081: refused by name on every build. v1.27.0 asked GetFullPathName,
 	// which on Windows 11 no longer maps `con` or `nul.txt` in a directory, so
 	// mrw created them — files its own unlink and PowerShell 5 could not reach.
 	if followLinks {
-		if d := win32Device(filepath.Clean(path)); d != "" {
-			return "", fmt.Errorf("%s: %q is a Windows device name, which some Windows APIs open as a device on every build; mrw reads and writes files", path, d)
+		if err := deviceName(path, absRoot, full); err != nil {
+			return "", err
 		}
 	}
 	// ADR-071: on Windows a junction is followed here, because EvalSymlinks
@@ -98,6 +99,13 @@ func Resolve(root, path string) (string, error) {
 	target := full
 	if followLinks {
 		if target, err = throughLinks(full, osLinks); err != nil {
+			return "", err
+		}
+	}
+	// ADR-081: a link inside the root that leads to a reserved name reaches it
+	// as surely as the name itself (the reviews of #243).
+	if followLinks && target != full {
+		if err := deviceName(path, absRoot, target); err != nil {
 			return "", err
 		}
 	}
@@ -172,6 +180,29 @@ func Contains(absRoot, p string) bool {
 // ErrNotADirectory is what Resolve wraps, and plan validation reports, when a
 // path is spelled as a directory but does not name one (ADR-076).
 var ErrNotADirectory = errors.New("names a directory, ending in a separator, `.` or `..`")
+
+// ErrDeviceName is Resolve's refusal of a Windows device name (ADR-081). It is
+// its own error so a caller does not append advice that fits an escape from the
+// root — no --root makes `con` a file (the review of #243).
+var ErrDeviceName = errors.New("a Windows device name")
+
+// deviceName refuses p when the part of at that lies under absRoot holds a
+// reserved device name in any component. The root's own components are not
+// judged: a checkout under a directory named aux is the caller's to keep.
+func deviceName(p, absRoot, at string) error {
+	rel, err := filepath.Rel(absRoot, at)
+	if err != nil {
+		return nil
+	}
+	if d := win32Device(rel); d != "" {
+		via := ""
+		if at != filepath.Join(absRoot, p) {
+			via = " through a link"
+		}
+		return fmt.Errorf("%s leads%s to %q, which is %w: some Windows APIs still open it as a device on every build, so mrw neither creates, reads nor edits it", p, via, d, ErrDeviceName)
+	}
+	return nil
+}
 
 // SpelledAsDirectory reports whether p, as written, names a directory: it ends
 // in a path separator of this platform, or its last element is "." or "..".

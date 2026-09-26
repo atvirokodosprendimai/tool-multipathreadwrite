@@ -2068,6 +2068,21 @@ Windows only, each hand-confirmed by at least two sessions:
   **Fixed by ADR-071 T4** for the check tests, the tail panic and the padded fixture (eight of the
   thirteen no longer need a file named with trailing whitespace; five serve one and keep their skip). The
   one hang of `go test ./...` under PowerShell is not reproduced (n=1) and stays open.
+  **Re-measured against v1.27.0 (a Windows peer, 2026-09-26, PowerShell 7.6.6, go1.24.2, Windows 11
+  26200):** three `go test ./... -count=1` runs finished in 187–214 s with no hang — the n=1 hang is
+  closed. All three exit 1 with the same 13 FAILs, every one "could not start: exec: \"sh\":
+  executable file not found in %PATH%": eleven in `cmd/mrw` (among them ADR-080's two cancel-before-
+  start tests), one in `internal/adversarial`, one in `internal/check`. With Git's `usr\bin` on PATH
+  the three packages pass. So "Fixed by ADR-071 T4 for the check tests" does not hold on a plain
+  PowerShell PATH: those tests need `sh` and fail instead of skipping. Open (deferred: a skip when
+  `sh` is absent touches tests ADR-054, ADR-072 and ADR-080 lock; M to decide the order).
+  The same peer round (v1.27.0 asset): Hidden and read-only files and MCP `specs:["x "]` hold; bare
+  `NUL` was refused but `nul.txt`, `con` and `COM1.txt` were created — **fixed by ADR-081**
+  (#243): every reserved name is refused by name, in any component and through a link. The OneDrive
+  placeholder probe was not run (the peer's user has not consented to touching a synced folder):
+  deferred until they do.
+  mrw itself behaves honestly without `sh` — exit 2, "check SKIPPED: could not start … declare one" —
+  but a PowerShell user without Git's `usr\bin` on PATH gets no default check.
 
 Smaller, recorded as found: an in-root symlink is followed on write and the target is absent from
 the receipt; plan-header paths are cleaned rather than refused (`a.txt/`, `"a.txt"`, `./a.txt`, and

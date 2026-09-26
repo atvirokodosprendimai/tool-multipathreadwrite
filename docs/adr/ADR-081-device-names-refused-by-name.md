@@ -6,10 +6,10 @@
 **Owner:** M
 **Spec:** None — no spec stage
 **Cross-references:** ADR-006, ADR-071, ADR-076, docs/adr/BACKLOG.md
-**Governs:** `internal/rooted/rooted.go`, `internal/rooted/links_windows.go`, `internal/rooted/links_other.go`, `internal/rooted/paths076_test.go`, `cmd/mrw/device_windows_test.go`, `AGENTS.md`, `docs/adr/ADR-076-a-path-means-what-it-says.md`
+**Governs:** `internal/rooted/rooted.go`, `internal/rooted/links_windows.go`, `internal/rooted/links_other.go`, `internal/rooted/links.go`, `internal/read/read.go`, `internal/read/astgrep.go`, `internal/apply/apply.go`, `internal/apply/encoding_test.go`, `internal/rooted/paths076_test.go`, `cmd/mrw/device_windows_test.go`, `AGENTS.md`, `docs/adr/ADR-076-a-path-means-what-it-says.md`
 **Enforced-by:** `cmd/mrw/device_windows_test.go::TestADeviceNameIsRefusedNotReadAsAnEmptyFile`
 **Invalidates:** ADR-076 Decision 3's *"`opensDevice` asks the OS"*
-**Served-path change:** on Windows a spec, a plan path or a rename destination whose last component is a reserved device name — `CON`, `PRN`, `AUX`, `NUL`, `COM1`–`9`, `LPT1`–`9`, `CONIN$`, `CONOUT$`, in any case, with or without an extension — is refused by name, on every Windows build; before, it was refused only when `GetFullPathName` mapped it to a device.
+**Served-path change:** on Windows a spec, a plan path or a rename destination any component of which, below the root — or the target of a link it passes through — is a reserved device name — `CON`, `PRN`, `AUX`, `NUL`, `COM1`–`9`, `LPT1`–`9`, `CONIN$`, `CONOUT$`, in any case, with or without an extension — is refused by name, on every Windows build; an ast-grep hit on one is dropped as the walk drops one, and the refusal carries no `--root` advice; before, only a last component `GetFullPathName` mapped to a device was refused.
 
 ## Context
 
@@ -22,6 +22,12 @@ while `cmd /c del` removed them. On that build `GetFullPathName`, which ADR-076 
 these names inside a directory, while other Windows APIs still treat them as devices: mrw made files
 that it, and other tools, cannot reach.
 
+**And the reviews of #243** (Codex and in-process) found the first cut incomplete: a symlink inside the
+root that led to `con.txt` passed, since the name was checked before the link was followed; an
+ast-grep hit's CR-only probe read the file before the boundary saw it; a reserved name as a directory
+component (`con/a.txt`) was still created; the refusal ended with advice about `--root` that no root
+fixes; and the Windows CI shard refused this repository's own fixture `nul.bin`.
+
 ## Existing Primitives Audit
 
 - `win32Device` already picks every candidate by Go's own rule (`internal/filepathlite`
@@ -30,9 +36,15 @@ that it, and other tools, cannot reach.
 
 ## Decision
 
-1. On Windows, a path whose cleaned last component `win32Device` names is refused at the boundary
-   (`rooted.Resolve`, ADR-006), whatever this build's `GetFullPathName` says. `opensDevice` is removed.
-2. AGENTS.md says so, and ADR-076 carries a pointer to this record.
+1. On Windows, a path any component of which, below the root, `win32Device` names is refused at the
+   boundary (`rooted.Resolve`, ADR-006), whatever this build's `GetFullPathName` says; so is a path
+   whose link target, below the root, holds one. `opensDevice` is removed. The root's own
+   components are never judged.
+2. The refusal wraps `rooted.ErrDeviceName`, so `read` and `apply` print it without the advice that
+   fits an escape from the root.
+3. Every ast-grep hit passes `rooted.Resolve` before anything opens it: a discovered hit it refuses
+   is dropped, as the walk drops one (ADR-007 rule 2).
+4. AGENTS.md says so, and ADR-076 carries a pointer to this record.
 
 ## Alternatives Considered
 
@@ -67,13 +79,13 @@ See `tasks/`.
 
 ## Out of Scope
 
-- A device name in the middle of a path (permanent: fact: it cannot be created as a directory, so the step that needs it fails on its own, as ADR-076 records)
+- A device name among the root's own components (permanent: boundary: the root is the caller's choice; only what lies below it is judged)
 
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| A repository that tracks `aux.go` or `con.txt` is edited on Windows | Low | Low | the refusal names the file and the reason; any other tool still reaches it where the OS allows |
+| A repository that tracks `aux.go`, `con.txt` or `nul.bin` is edited on Windows | Medium — this repository's own `nul.bin` fixture met it on the first Windows run | Low | the refusal names the file and the reason; the fixture is `nulbyte.bin` now |
 
 ## Rollback
 

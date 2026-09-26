@@ -8,7 +8,7 @@
 **Consumes:** `win32Device`
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `a reserved name is a candidate by Go's rule`, `Windows refuses every candidate`, `no OS query remains`, `the packages vet for Windows`, `the other engine packages are unchanged`, `go.mod declares one requirement`
+**Rests-on:** `a reserved name is a candidate by Go's rule`, `Windows refuses every candidate`, `no OS query remains`, `every component counts`, `the packages vet for Windows`, `the other engine packages are unchanged`, `go.mod declares one requirement`
 
 ## Goal
 
@@ -21,7 +21,11 @@ On Windows 11, mrw v1.27.0 created `con`, `nul.txt` and `COM1.txt` as files that
 | `internal/rooted/rooted.go` | edit | refuse every candidate, no OS query |
 | `internal/rooted/links_windows.go`, `internal/rooted/links_other.go` | edit | `opensDevice` removed |
 | `cmd/mrw/device_windows_test.go` | edit | `con`, `nul.txt`, `COM1.txt`, `aux.go`, `CONOUT$` refused; `console.txt` created |
-| `internal/rooted/paths076_test.go` | edit | the comment names the rule |
+| `internal/rooted/paths076_test.go` | edit | every component counts |
+| `internal/rooted/links.go` | edit | `win32Device` scans every component |
+| `internal/read/read.go`, `internal/apply/apply.go` | edit | `ErrDeviceName` printed without the `--root` advice |
+| `internal/read/astgrep.go` | edit | each hit passes `rooted.Resolve` before the CR-only probe |
+| `internal/apply/encoding_test.go` | edit | fixture `nulbyte.bin`, not the device name `nul.bin` |
 | `AGENTS.md`, `docs/adr/ADR-076-a-path-means-what-it-says.md` | edit | the rule, and the pointer |
 
 ## Ordered Steps
@@ -40,8 +44,8 @@ go test ./internal/rooted/ -count=1 -timeout 120s -run 'TestADeviceNameIsACandid
   && grep -q '"create-nul.txt":' cmd/mrw/device_windows_test.go \
   && ! grep -rq 'opensDevice' internal/rooted/ \
   && GOOS=windows go vet ./internal/rooted/ ./cmd/mrw/ \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/apply internal/plan internal/check internal/lines internal/iter internal/seen internal/state internal/subproc internal/read \
-  && [ -z "$(git status --porcelain --untracked-files=all -- internal/apply internal/plan internal/check internal/lines internal/iter internal/seen internal/state internal/subproc internal/read)" ] \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/plan internal/check internal/lines internal/iter internal/seen internal/state internal/subproc \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/plan internal/check internal/lines internal/iter internal/seen internal/state internal/subproc)" ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -87,18 +91,24 @@ go test ./internal/rooted/ -count=1 -timeout 120s -run 'TestADeviceNameIsACandid
 - 2026-09-26 · e9e3d3e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:6e5f86b7881a3788fd0e7f69883b7313c8001af069056b127dd09815d144f09b · ms:0 · test-lock-sha256:9905fdf1dc10b9853fadee3b4e5ef842f1e48bace812b4cb7a3f75f1f890e480 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL3Jvb3RlZC9wYXRoczA3Nl90ZXN0LmdvCVRlc3RBRGV2aWNlQ2FuZGlkYXRlTmV2ZXJQYW5pY3NPblVuaWNvZGUJYjE3MDNjMGM5YTJlYWMxNTg3YzZlYjc2ZDNlYTdmZmQxZWZkMTNlZDJmZjJlMjQ0NjAwM2M1NzE0M2JlNGJkOQpib2R5CWludGVybmFsL3Jvb3RlZC9wYXRoczA3Nl90ZXN0LmdvCVRlc3RBRGV2aWNlTmFtZUlzQUNhbmRpZGF0ZUJ5R29zUnVsZQljMTNmMjE0NjI1YWJkN2IyZThkYmU2ZmVhNzNmZTUxZTYzMjA1NzBlYTNkMzYwMjM4NDllYWRhMzU5NjRkOWMzCmJvZHkJaW50ZXJuYWwvcm9vdGVkL3BhdGhzMDc2X3Rlc3QuZ28JVGVzdEFQYXRoRW5kaW5nSW5BU2VwYXJhdG9yTXVzdE5hbWVBRGlyZWN0b3J5CWM2NDczMjExYTRmOTk5MTg2MTAxNTZkOWU4YjlhN2U0MDBmMGFjZTJiMGVlZWU1MDIwMjljYWMxN2Y5NjhhYzAKYm9keQlpbnRlcm5hbC9yb290ZWQvcGF0aHMwNzZfdGVzdC5nbwlUZXN0QVJvb3RUaGF0RG9lc05vdEV4aXN0SXNOYW1lZEFzTWlzc2luZwkzZWIzNzZmOWE0NGYxODk0NmJjNWY5NjNmNjhmNTRkNWUzYWJhNWI3NTBkNjg3ZjllYmZlNTkwMDY4ZmUyMWU4 · test-lock-kind:replace
 - 2026-09-26 · e9e3d3e* · exit 0 · `set -o pipefail …` · acceptance-sha256:6e5f86b7881a3788fd0e7f69883b7313c8001af069056b127dd09815d144f09b · ms:675
 - 2026-09-26 · e9e3d3e* · exit 0 · `set -o pipefail …` · acceptance-sha256:6e5f86b7881a3788fd0e7f69883b7313c8001af069056b127dd09815d144f09b · ms:346
+- 2026-09-26 · 0929742* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:493bee97294cbaed265392cff9ef7afb93da4a7b9e0241a584266202edfbf9f5 · ms:0 · test-lock-sha256:0ef16edde892cb8a632dfd5867c5a42eb497d37ebbaaf7a8accc101783a4c8b2 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL3Jvb3RlZC9wYXRoczA3Nl90ZXN0LmdvCVRlc3RBRGV2aWNlQ2FuZGlkYXRlTmV2ZXJQYW5pY3NPblVuaWNvZGUJNDU0Yzk3MzE2NmMyOGIxZjE2M2NiYWZhNTVmZjFlYjA5ODQ2ZWE2OThiZjhiMmQ5ZDE0MGYxYzZkMTY2MWY2YQpib2R5CWludGVybmFsL3Jvb3RlZC9wYXRoczA3Nl90ZXN0LmdvCVRlc3RBRGV2aWNlTmFtZUlzQUNhbmRpZGF0ZUJ5R29zUnVsZQljNGY4MGExNTQ4NGRhYWNhZGI4NDJjY2Q2N2Y2OTgwNzBlNjgzZjc1ODQ5OTJjOGRmOTQ2MWQ0Y2NlYTdkY2Q3CmJvZHkJaW50ZXJuYWwvcm9vdGVkL3BhdGhzMDc2X3Rlc3QuZ28JVGVzdEFQYXRoRW5kaW5nSW5BU2VwYXJhdG9yTXVzdE5hbWVBRGlyZWN0b3J5CWM2NDczMjExYTRmOTk5MTg2MTAxNTZkOWU4YjlhN2U0MDBmMGFjZTJiMGVlZWU1MDIwMjljYWMxN2Y5NjhhYzAKYm9keQlpbnRlcm5hbC9yb290ZWQvcGF0aHMwNzZfdGVzdC5nbwlUZXN0QVJvb3RUaGF0RG9lc05vdEV4aXN0SXNOYW1lZEFzTWlzc2luZwkzZWIzNzZmOWE0NGYxODk0NmJjNWY5NjNmNjhmNTRkNWUzYWJhNWI3NTBkNjg3ZjllYmZlNTkwMDY4ZmUyMWU4 · test-lock-kind:replace
+- 2026-09-26 · 0929742* · exit 0 · `set -o pipefail …` · acceptance-sha256:493bee97294cbaed265392cff9ef7afb93da4a7b9e0241a584266202edfbf9f5 · ms:762
+- 2026-09-26 · 0929742* · exit 0 · `set -o pipefail …` · acceptance-sha256:493bee97294cbaed265392cff9ef7afb93da4a7b9e0241a584266202edfbf9f5 · ms:322
+- 2026-09-26 · 0929742* · exit 0 · `set -o pipefail …` · acceptance-sha256:493bee97294cbaed265392cff9ef7afb93da4a7b9e0241a584266202edfbf9f5 · ms:315
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-26 · e9e3d3e* · mutant killed · exit 1 · `internal/rooted/links.go` · no name is a device candidate · acceptance-sha256:6e5f86b7881a3788fd0e7f69883b7313c8001af069056b127dd09815d144f09b · covers:a reserved name is a candidate by Go's rule
+- 2026-09-26 · 0929742* · mutant killed · exit 1 · `internal/rooted/links.go` · only the last component is judged again · acceptance-sha256:493bee97294cbaed265392cff9ef7afb93da4a7b9e0241a584266202edfbf9f5 · covers:every component counts
+- 2026-09-26 · 0929742* · mutant killed · exit 1 · `internal/rooted/links.go` · no name is a device candidate · acceptance-sha256:493bee97294cbaed265392cff9ef7afb93da4a7b9e0241a584266202edfbf9f5 · covers:a reserved name is a candidate by Go's rule
 
 ## Invariants
 
-- On Windows mrw never creates, reads or edits a file whose last component is a reserved device name.
+- On Windows mrw never creates, reads or edits a path any component of which, below the root, is a reserved device name — directly, through a link, or from an ast-grep hit.
 
 ## Risks
 
-- The behavioural test runs only on Windows; the local fence proves the candidate rule, the Windows compile and that no OS query remains.
+- The behavioural tests run only on Windows (`cmd/mrw/device_windows_test.go`: `TestADeviceNameIsRefusedNotReadAsAnEmptyFile`, `TestALinkToADeviceNameIsRefused`, `TestAnAstGrepHitOnADeviceNameIsDropped`); the local fence proves the candidate rule for every component, the Windows compile and that no OS query remains.
 
 ## Out of Scope
 

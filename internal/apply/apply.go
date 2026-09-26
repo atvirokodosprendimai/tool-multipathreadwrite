@@ -15,6 +15,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1868,6 +1869,11 @@ func shaShown(have, want string) string {
 // happily while this refused it by name.
 func resolve(root, path string) (string, error) {
 	full, err := rooted.Resolve(root, path)
+	// ADR-081: a device name is not an escape from the root, and the advice
+	// below fits only an escape (the review of #243).
+	if errors.Is(err, rooted.ErrDeviceName) {
+		return "", err
+	}
 	if err != nil {
 		return "", fmt.Errorf("%w: a plan may only change files under the directory mrw was pointed at", err)
 	}

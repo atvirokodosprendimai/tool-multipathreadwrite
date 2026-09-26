@@ -417,6 +417,13 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			}
 		}
 		full, err := rooted.Resolve(root, sp.Path)
+		if errors.Is(err, rooted.ErrDeviceName) {
+			// ADR-081: no --root makes a device name a file, so the advice
+			// below would send the caller nowhere (the review of #243).
+			fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, err)
+			problems++
+			continue
+		}
 		if errors.Is(err, rooted.ErrNotADirectory) {
 			fmt.Fprintf(w, "==> %s  UNREADABLE  %v\n", sp.Path, err)
 			problems++

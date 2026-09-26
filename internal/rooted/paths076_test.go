@@ -73,13 +73,13 @@ func TestADeviceNameIsACandidateByGosRule(t *testing.T) {
 		"NUL": "NUL", "nul.txt": "nul.txt", "con": "con", "Aux.go": "Aux.go", "PRN": "PRN",
 		"COM1": "COM1", "lpt9.log": "lpt9.log", "COM\u00b9": "COM\u00b9", "LPT\u00b3.x": "LPT\u00b3.x",
 		"CONIN$": "CONIN$", "conout$.txt": "conout$.txt", "NUL .txt": "NUL .txt", "nul:": "nul:",
-		`sub\con`: "con", "dir/prn.md": "prn.md",
+		`sub\con`: "con", "dir/prn.md": "prn.md", "con/a.go": "con", `nul.txt\x.txt`: "nul.txt",
 	} {
 		if got := win32Device(in); got != want {
 			t.Errorf("win32Device(%q) = %q, want %q", in, got, want)
 		}
 	}
-	for _, in := range []string{"console", "nullable.go", "COM10", "COM0", "LPT", "auxiliary.txt", "a/b/c.go", "", ".", "..", "CONIN", "xnul", "con/a.go", `nul\x.txt`} {
+	for _, in := range []string{"console", "nullable.go", "COM10", "COM0", "LPT", "auxiliary.txt", "a/b/c.go", "", ".", "..", "CONIN", "xnul"} {
 		if got := win32Device(in); got != "" {
 			t.Errorf("win32Device(%q) = %q, which Windows opens as a file", in, got)
 		}
@@ -96,8 +96,8 @@ func TestADeviceCandidateNeverPanicsOnUnicode(t *testing.T) {
 			t.Errorf("win32Device(%q) = %q, which Windows does not open as a device", in, got)
 		}
 	}
-	if got := win32Device("NUL/."); got != "" {
-		t.Errorf("win32Device of an uncleaned NUL/. named %q; Resolve cleans before asking", got)
+	if got := win32Device("NUL/."); got != "NUL" {
+		t.Errorf("win32Device(NUL/.) = %q: every component counts (ADR-081)", got)
 	}
 	if got := win32Device("NUL"); got != "NUL" {
 		t.Errorf("win32Device(NUL) = %q", got)
