@@ -20,7 +20,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|-------------|
 | T1 | the index names every path the walk could not use; contract §122; BACKLOG P2 closed | done | — | `docs/adr/ADR-067-the-mcp-surface-speaks-the-current-protocol/tasks/T1-the-index-names-every-problem.md` fence |
-| T2 | `initialize` negotiates; `serverInfo` title and description; `-32603` on an encode failure; a null id refused; contract §123 | done | — | `docs/adr/ADR-067-the-mcp-surface-speaks-the-current-protocol/tasks/T2-initialize-negotiates-and-the-wire-says-what-failed.md` fence |
+| T2 | `initialize` negotiates; `serverInfo` title and description; `-32603` on an encode failure; a null id refused; contract §123 | done | — | `docs/adr/ADR-067-the-mcp-surface-speaks-the-current-protocol/tasks/T2-initialize-negotiates-wire-names-failure.md` fence |
 | T3 | argument mistakes are tool execution errors; contract §124; §83's git row follows | done | — | `docs/adr/ADR-067-the-mcp-surface-speaks-the-current-protocol/tasks/T3-argument-mistakes-are-tool-execution-errors.md` fence |
 | T4 | dual-era: `server/discover`, per-request `_meta`, `-32022`, `resultType`, caching hints, a per-call ceiling reserve; README; contract §125 | done | — | `docs/adr/ADR-067-the-mcp-surface-speaks-the-current-protocol/tasks/T4-the-server-is-dual-era.md` fence |
 

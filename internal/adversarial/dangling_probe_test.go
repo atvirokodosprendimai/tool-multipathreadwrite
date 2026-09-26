@@ -116,16 +116,23 @@ func TestConcurrentLastWriterWinsIsFiledAsAnAcceptedSilentAppliedRisk(t *testing
 	}
 }
 
-// TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites is UC-3 failure:
-// a lock is not this spec's outcome.
-func TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites(t *testing.T) {
+// TestTheConcurrentWriteRiskIsClosedByADR075 is UC-3 failure since ADR-075:
+// the entry that accepted the race records the lock that closed it and the
+// contract row that proves it, and no longer says locking is out of scope.
+// It replaced TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites, which
+// stayed green after ADR-075 only because the old sentence was annotated
+// rather than withdrawn — a test asserting a claim the code had stopped making.
+func TestTheConcurrentWriteRiskIsClosedByADR075(t *testing.T) {
 	got := backlog(t)
 	w := windowAfter(t, got, "Two concurrent writes to one file", 2500)
-	if !strings.Contains(w, "Locking stays permanently out of scope") {
-		t.Error("concurrent-writes entry no longer says locking stays permanently out of scope")
+	if !strings.Contains(w, "Invalidated by ADR-075") {
+		t.Error("concurrent-writes entry does not record that ADR-075 closed it")
 	}
-	if !strings.Contains(w, "ADR-002") {
-		t.Error("concurrent-writes entry no longer names ADR-002 as that scope")
+	if !strings.Contains(w, "§150") {
+		t.Error("concurrent-writes entry does not name contract §150, the row that proves the lock")
+	}
+	if strings.Contains(strings.ToLower(w), "locking stays permanently out of scope") {
+		t.Error("concurrent-writes entry still says locking stays permanently out of scope")
 	}
 }
 

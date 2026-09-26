@@ -43,7 +43,7 @@ One spec, five use cases: each leftover has a named test that goes red if the re
 
 ### UC-3: Operator knows concurrent writes can print applied and still lose
 
-- **Trigger:** a reader asks whether two `mrw write`s on one file are exclusive · **Preconditions:** ADR-002 locking is permanently out of scope
+- **Trigger:** a reader asks whether two `mrw write`s on one file are exclusive · **Preconditions:** ADR-002 locking is permanently out of scope (until ADR-075, 2026-09-25)
 - **Main flow:**
   1. BACKLOG states the observed class: last-writer-wins; a loser can print a full success receipt and exit 0; the sha guard is sometimes loud.
 - **Failure paths:** a. "cannot both land" / "loud when it loses" as a guarantee → those clauses are already struck; the silent-applied observation must remain. b. adding a lock to "close" it → refused here; needs a new quote that invalidates ADR-002's scope.
@@ -56,7 +56,7 @@ One spec, five use cases: each leftover has a named test that goes red if the re
   1. Operator reads the pre-registered criterion: three corpora (Zeus, this repository, playtrix), false positives under 5% of refusals in every corpus, at least 50 refusals total.
   2. `mrw stats --json` `.pricing` is the source; a campaign that reports true positives without false positives does not qualify.
 - **Failure paths:** a. unrun campaign or TP-only report treated as a pass → default stays off. b. flipping the default without the campaign → existing `TestStrictBalanceIsOffByDefault` stays red for that change.
-- **Postconditions:** flag remains opt-in; neighbour licence on single-line stays an open question, not this campaign.
+- **Postconditions:** flag remains opt-in; neighbour licence on single-line was declined on 2026-09-26 (BACKLOG inventory), not this campaign.
 
 ### UC-5: Operator knows the JSX nest probe is unmeasured, not a finding
 
@@ -114,13 +114,13 @@ Then BACKLOG records a loser printing a success receipt that says applied
 And last-writer-wins is the mechanism
 ```
 
-### UC3-S2 [failure] Locking stays permanently out of scope [@spec] → `internal/adversarial/dangling_probe_test.go::TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites` cmd:`go test ./internal/adversarial/ -count=1 -run '^TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites$'`
+### UC3-S2 [failure] The race is closed by ADR-075, and the old scope is withdrawn [@spec] → `internal/adversarial/dangling_probe_test.go::TestTheConcurrentWriteRiskIsClosedByADR075` cmd:`go test ./internal/adversarial/ -count=1 -run '^TestTheConcurrentWriteRiskIsClosedByADR075$'`
 
 ```gherkin
-Given the silent-applied race is real
-When a reader proposes a lock to close it
-Then BACKLOG still says locking stays permanently out of scope
-And ADR-002 is named as that scope
+Given the silent-applied race was real
+When a reader asks whether it is still open
+Then BACKLOG records that ADR-075 closed it and names contract §150
+And no longer says locking stays permanently out of scope
 ```
 
 ### UC4-S1 [happy] Strict-balance default campaign criterion is filed [@spec] → `internal/adversarial/dangling_probe_test.go::TestTheStrictBalanceDefaultCampaignCriterionIsFiled` cmd:`go test ./internal/adversarial/ -count=1 -run '^TestTheStrictBalanceDefaultCampaignCriterionIsFiled$'`
@@ -167,7 +167,7 @@ Then BACKLOG still says it is a probe, not a finding
 | F-3 | The class is any claim that host-cut of served text is closed; members are paged ack (031), fitting ack (039), under-ceiling cut (open), reading 18. An under-ceiling measurement is filed beside reading 18 and must not treat ADR-039 as that evidence | `internal/adversarial/dangling_probe_test.go::TestAnUnderCeilingHostCutRecipeIsFiledAndNotClosedByAdr039` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestAnUnderCeilingHostCutRecipeIsFiledAndNotClosedByAdr039$' |
 | F-4 | An unrun under-ceiling probe is not the class closed; the entry stays deferred or open | `internal/adversarial/dangling_probe_test.go::TestAnUnrunUnderCeilingProbeIsNotTheClassClosed` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestAnUnrunUnderCeilingProbeIsNotTheClassClosed$' |
 | F-5 | The class is concurrent writers on one path; members are silent applied, sometimes-loud sha mismatch, last rename wins. BACKLOG records a loser printing a success receipt that says applied | `internal/adversarial/dangling_probe_test.go::TestConcurrentLastWriterWinsIsFiledAsAnAcceptedSilentAppliedRisk` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestConcurrentLastWriterWinsIsFiledAsAnAcceptedSilentAppliedRisk$' |
-| F-6 | Locking stays permanently out of scope (ADR-002); this spec does not close the race | `internal/adversarial/dangling_probe_test.go::TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestLockingStaysPermanentlyOutOfScopeForConcurrentWrites$' |
+| F-6 | Superseded by ADR-075 (2026-09-25): writers take a per-checkout lock and a stale one is refused; BACKLOG records it and no longer says locking stays out of scope | `internal/adversarial/dangling_probe_test.go::TestTheConcurrentWriteRiskIsClosedByADR075` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestTheConcurrentWriteRiskIsClosedByADR075$' |
 | F-7 | The class is flipping `--strict-balance` to default; members are opt-in flag, three corpora, false positives under 5% of refusals, at least 50 refusals, unrun is not a default. BACKLOG names Zeus, this repository, playtrix, 5%, and 50 | `internal/adversarial/dangling_probe_test.go::TestTheStrictBalanceDefaultCampaignCriterionIsFiled` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestTheStrictBalanceDefaultCampaignCriterionIsFiled$' |
 | F-8 | `--strict-balance` stays off by default until a campaign that reports false positives qualifies | `internal/apply/apply_test.go::TestStrictBalanceIsOffByDefault` | @spec | go test ./internal/apply/ -count=1 -run '^TestStrictBalanceIsOffByDefault$' |
 | F-9 | A campaign that reports true positives without false positives does not qualify; the default stays off | `internal/adversarial/dangling_probe_test.go::TestAnUnrunStrictBalanceCampaignDoesNotQualifyADefault` | @spec | go test ./internal/adversarial/ -count=1 -run '^TestAnUnrunStrictBalanceCampaignDoesNotQualifyADefault$' |
@@ -176,7 +176,7 @@ Then BACKLOG still says it is a probe, not a finding
 
 ## Domain
 
-Five leftovers, one spec, no new engine record. UC-1–UC-2–UC-5 are human-observed probes whose executable half is "the recipe is filed and unrun is not coverage". UC-3 is an accepted risk (ADR-002). UC-4 is a pre-registered campaign whose default-off is already an apply test. Highest shipped ADR file is 062.
+Five leftovers, one spec, no new engine record. UC-1–UC-2–UC-5 are human-observed probes whose executable half is "the recipe is filed and unrun is not coverage". UC-3 was an accepted risk (ADR-002) until ADR-075 closed it. UC-4 is a pre-registered campaign whose default-off is already an apply test. Highest shipped ADR file is 062.
 
 ## Contracts Touched
 
@@ -185,9 +185,9 @@ None — documentation and adversarial recipe tests. No `scripts/contract.sh` ro
 ## Non-Goals
 
 - Reopen ADR-019 pick B/C, `roots/list` wiring, or a per-hunk ledger — permanent: boundary: pick A shipped; new quote
-- A file lock / CAS on `writeFile` — permanent: boundary: ADR-002 locking out of scope
+- A file lock / CAS on `writeFile` — permanent: boundary: ADR-002 locking out of scope. Superseded by ADR-075 (2026-09-25), which takes a per-checkout write lock
 - `--strict-balance` as default — permanent until the campaign meets F-7/F-9
-- Neighbour licence on a single-line address — permanent: open question, not a proposed fix
+- Neighbour licence on a single-line address — declined on 2026-09-26 (BACKLOG inventory): no field case would have fired it; re-opened only by one that would
 - Per-extension check skip; `apply_patch` Move-to with hunks; `body=@` inside `Parse`; widen prose — permanent: boundary: already refused without a new quote
 - Inventing Rust `packages()`; editing Zeus or quality-harness — permanent: boundary
 - Write-time / apply parser (ADR-048) — permanent: mrw models no target syntax
@@ -200,7 +200,7 @@ None — documentation and adversarial recipe tests. No `scripts/contract.sh` ro
 |------|------------|--------|------------|
 | Unrun probe scored as coverage | High | High — a hole reads as measured | F-2, F-4, F-9, F-11; same class as leftover F-16 |
 | Campaign criterion shaped after the result | Med | High — a default argued from TPs only | F-7 filed before any campaign; F-9 refuses TP-without-FP |
-| A session "fixes" the race with a lock | Med | High — invalidates ADR-002 silently | F-6; Non-Goal; new quote required |
+| A session "fixes" the race with a lock | Med | High — invalidates ADR-002 silently | F-6; Non-Goal; new quote required. Retired: the quote came, and ADR-075 records it |
 | JSX probe never run, YAML treated as the whole class | Med | Med | F-10/F-11 keep the probe named |
 
 ## Open Questions
@@ -224,7 +224,7 @@ spec-verify --spec docs/specs/2026-09-16-dangling-high-impact.md
 | 5 | Host-cut closed by 031/039? | F-3 | Reject — under-ceiling measurement remains; do not treat ADR-039 as it |
 | 6 | Unrun under-ceiling as coverage? | F-4 | Must not |
 | 7 | Concurrent writes: characterize or lock? | F-5 | Characterize silent applied; last-writer-wins |
-| 8 | Close the race with a lock? | F-6 | Reject — ADR-002 scope |
+| 8 | Close the race with a lock? | F-6 | Reject — ADR-002 scope. Reversed by ADR-075 (2026-09-25) on M's quote |
 | 9 | Strict-balance default now? | F-7 | Reject — campaign first; 5% / 50 / three corpora |
 | 10 | Default stays off until then? | F-8 | Accept — existing apply test |
 | 11 | TP-only / unrun campaign as a pass? | F-9 | Must not; default stays off |

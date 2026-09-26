@@ -19,7 +19,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|-------------|
 | T1 | rename destinations: `Lstat` errors refused at validation; directories made while staging; contract §118; campaign probe | done | — | `docs/adr/ADR-066-a-plan-that-cannot-commit-whole-says-what-it-wrote/tasks/T1-rename-directories-are-staged.md` fence |
-| T2 | a failed path-op commit undoes every unlink and rename | done | — | `docs/adr/ADR-066-a-plan-that-cannot-commit-whole-says-what-it-wrote/tasks/T2-a-failed-path-op-commit-is-undone-as-a-unit.md` fence |
+| T2 | a failed path-op commit undoes every unlink and rename | done | — | `docs/adr/ADR-066-a-plan-that-cannot-commit-whole-says-what-it-wrote/tasks/T2-path-op-commit-undone-as-a-unit.md` fence |
 | T3 | commit-failure receipts: ok / failed / skipped by what reached disk; `PARTIALLY APPLIED`; contract §119 | done | — | `docs/adr/ADR-066-a-plan-that-cannot-commit-whole-says-what-it-wrote/tasks/T3-a-partial-commit-says-what-it-wrote.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.

@@ -27,8 +27,8 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|-------------|
-| T1 | The harness is read before anything is written | done | — | `docs/adr/ADR-072-the-exit-code-and-the-receipt-agree-with-the-tree/tasks/T1-the-harness-is-read-before-anything-is-written.md` fence |
-| T2 | The receipt is printed before the check runs | done | — | `docs/adr/ADR-072-the-exit-code-and-the-receipt-agree-with-the-tree/tasks/T2-the-receipt-is-printed-before-the-check-runs.md` fence |
+| T1 | The harness is read before anything is written | done | — | `docs/adr/ADR-072-the-exit-code-and-the-receipt-agree-with-the-tree/tasks/T1-harness-read-before-any-write.md` fence |
+| T2 | The receipt is printed before the check runs | done | — | `docs/adr/ADR-072-the-exit-code-and-the-receipt-agree-with-the-tree/tasks/T2-receipt-printed-before-check.md` fence |
 | T3 | `--json` is JSON on every refusal after the plan is named | done | — | `docs/adr/ADR-072-the-exit-code-and-the-receipt-agree-with-the-tree/tasks/T3-json-is-json-on-every-refusal.md` fence |
 | T4 | A check is stopped with its descendants | done | — | `docs/adr/ADR-072-the-exit-code-and-the-receipt-agree-with-the-tree/tasks/T4-a-check-is-stopped-with-its-descendants.md` fence |
 
