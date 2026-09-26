@@ -88,7 +88,7 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	defer cancel()
 	cmd := subproc.Command(ctx, "ast-grep", args...)
 	cmd.Dir = absRoot
-	out, cmdErr := cmd.Output()
+	out, cmdErr := subproc.Output(cmd)
 	// Only a run that ended badly is read for why: one that exited cleanly a
 	// moment before a deadline or a signal answered, and its output stands
 	// (review of #232; no test can reach that window).

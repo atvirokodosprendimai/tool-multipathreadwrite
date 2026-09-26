@@ -1,0 +1,122 @@
+# Task ADR-080-T3: a kept log is named, and old ones go
+
+**Depends-on:** none
+**Covers:** none — no spec
+**Estimated scope:** S
+**Owner:** unassigned
+**Produces:** `check.LogRetention`, `pruneLogs`, `Result.Pruned`; the report lines
+**Consumes:** `os.TempDir`, `reportCheck`
+**Data dependency:** hermetic
+**Proof map:** v1
+**Rests-on:** `a kept log is named`, `a check that never ran keeps no log`, `old logs are pruned and counted`, `a contract row drives the binary`, `the other engine packages are unchanged`, `go.mod declares one requirement`
+
+## Goal
+
+A timed-out check kept its log and named nowhere to find it, and nothing bounded how many logs accumulated.
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `internal/check/check.go` | edit | `pruneLogs`, `Pruned`, the empty log removed |
+| `cmd/mrw/main.go` | edit | `full output:` on a skipped verdict; `removed N check log(s)` |
+| `internal/check/logs080_test.go`, `cmd/mrw/checklog080_test.go` | new | the tests below |
+| `scripts/contract.sh`, `docs/adr/BACKLOG.md` | edit | §163; inventory :74 closed |
+
+## Ordered Steps
+
+1. [S1] Write the tests; confirm RED. [proof: mutation]
+2. [S2] Implement; GREEN. [proof: mutation]
+   Mutants: `pruneLogs` never called; the age test inverted; the skipped verdict names no log.
+3. [S3] Contract §163 and BACKLOG. [proof: acceptance]
+
+## Acceptance
+
+```bash
+set -o pipefail
+go test ./internal/check/ ./cmd/mrw/ -count=1 -timeout 240s -run 'TestACheckRemovesItsOwnLogsOlderThanAWeek|TestACheckCancelledBeforeItStartsSaysInterrupted|TestATimedOutCheckKeepsItsLog|TestATimedOutCheckNamesItsLog|TestAPassingCheckLeavesNoLogBehind|TestAFailingCheckKeepsItsLog' -v 2>&1 | tee /tmp/adr080-T3.out \
+  && missing=$(for t in TestACheckRemovesItsOwnLogsOlderThanAWeek TestACheckCancelledBeforeItStartsSaysInterrupted TestATimedOutCheckKeepsItsLog TestATimedOutCheckNamesItsLog TestAPassingCheckLeavesNoLogBehind TestAFailingCheckKeepsItsLog; do grep -qE "^--- PASS: $t \(" /tmp/adr080-T3.out || echo "$t"; done) \
+  && [ -z "$missing" ] \
+  && grep -q '^# 163\. ' scripts/contract.sh \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/apply internal/plan internal/lines internal/iter internal/seen internal/state internal/rooted \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/apply internal/plan internal/lines internal/iter internal/seen internal/state internal/rooted)" ] \
+  && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `TestACheckRemovesItsOwnLogsOlderThanAWeek` | `internal/check/logs080_test.go` | an old log goes; a young one, another name and a directory stay; the count is 1 | — | S1, S2 |
+| `TestACheckCancelledBeforeItStartsSaysInterrupted` | `internal/check/logs080_test.go` | a check that never started keeps no log: none is named, none is left | — | S2 |
+| `TestATimedOutCheckKeepsItsLog` | `internal/check/logs080_test.go` | the timed-out result keeps a log that exists | — | S1, S2 |
+| `TestATimedOutCheckNamesItsLog` | `cmd/mrw/checklog080_test.go` | the receipt names it, and it is there | — | S1, S2 |
+| `TestAPassingCheckLeavesNoLogBehind` | `internal/check/check_test.go` | the pair: a clean pass keeps nothing | — | S2 |
+| `TestAFailingCheckKeepsItsLog` | `internal/check/check_test.go` | the pair: a failure keeps its log | — | S2 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | the functions under Produces |
+| 2 — something selects it | every check run and every `--ast-grep` read |
+| 3 — the caller can discover it | the receipt says what it removed and names what it kept |
+| 4 — it is used | the review of #232 and the 3,103 logs on one machine |
+
+## Verification Log
+(empty until execute)
+- 2026-09-26 · 6835512* · exit 1 · `set -o pipefail …` · acceptance-sha256:4670b83817dd9c6d4a0a3e338bd20f5c9ff98d479ab133937d710ee0e958982f · ms:1302 · test-lock-sha256:303bfea379055b2d8e1aab274145b66d67a24fb17b965eb71c917b96a50337bd · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvY2hlY2tsb2cwODBfdGVzdC5nbwlUZXN0QVRpbWVkT3V0Q2hlY2tOYW1lc0l0c0xvZwkyYzA2NDE0YTAxYzJhYzQzZjI5MjE0YjRkMzk4ZTNkZjJmZmUwMDNkZTEzNjUwNDVkMzI3OGJlZGFiOWU1ZmMyCmJvZHkJY21kL21ydy9jaGVja2xvZzA4MF90ZXN0LmdvCVRlc3RBV3JpdGVXaG9zZUNoZWNrSXNDYW5jZWxsZWRCZWZvcmVJdFN0YXJ0c1NheXNJbnRlcnJ1cHRlZAkwY2ZjZjAzOTFjN2E2ZmMwYTE0MGVkYzg4NTAyNGIzZjI3NWM2ZGU4NjBlMzlhOGMyMzMwYTMzMGM5YmMxNWQxCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QUNoZWNrVGhhdENhbm5vdFN0YXJ0RGlkTm90UnVuCWQxM2E3MGJhNzI3NjE1MjQzZjhmNzA5NGMxMDJiMDlhM2ExNjRkMjNhNDMwYzMzM2U1MWU4YzI2ZmJmY2Y2MjIKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBRGlyZWN0b3J5VGhhdENhbm5vdEJlUmVhZElzUmVmdXNlZE5vdFRyZWF0ZWRBc0VtcHR5CTY3MjM3YTkzYTUxMjZiNzhiY2VhYjAyMmFmZDM5MTQwMzQwOWFkMThmNjViNGQ2NWVlMjI4NjhmZDFmNmEyMDIKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBRmFpbGluZ0NoZWNrS2VlcHNJdHNMb2cJOTkxZjQyMWYwZTc3YWI4NDBmMzI5NDJlMjZiYjY0YWFiYzcwOWU0YzRjZTBjMDliZmI5YzhkZmI1ZjFjODBlZQpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFQYWRkZWRDaGVja0lzU3RpbGxUaGVEZWNsYXJlZENoZWNrCTk5ZTAyNjI2OTJmMzExZWRhNWM0Y2ZmNWEzMGQxYzA4ZjI4MWM5Yjk1NTMyODFhNzZmYTFkZmJhYTcxYmM4MTUKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBUGFkZGVkU2NvcGVkQ2hlY2tJc1N0aWxsRGVjbGFyZWQJNmM2ZWU4MGQ4M2IyZDZiZTY3NmMzZjljMDI3YWYzYmEwYjlkMDYyMjgwOTJlYTViYmMwYTNjMjVkNWU5YzgwNwpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFQYXNzaW5nQ2hlY2tMZWF2ZXNOb0xvZ0JlaGluZAk3NTllN2MzZDRjYzQxMTFjMTFhNDNjMzhiYzA1MWVhMjM3MzUyNjU4NGYzN2I1MzY5MDE5OThlNjRmYWFiMDcwCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVByZXNlbnRVbnBsYWNlYWJsZUluUm9vdFNjb3BlU3RpbGxGYWxsc0JhY2sJNTZhMDJkZjg2MTAyZjdlOWJjYmVlMzg4ZjA0MmI1NjdjYjA4ODczMTE1YjQ5MjYyYWE3ZjVhZTFkZTdmOGRiOQpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFSZWFkYWJsZURpcmVjdG9yeVN0aWxsU2NvcGVzCWM2ZWFjYTY3YmQxMjZiODQ3NDljOWQ2YTNlZWYwMmUzMjY0MjQzODNjNWVhYTI4ZmY5MDk0ZjkwZWIwNzZjZDcKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBUmVmdXNlZFNjb3BlRG9lc05vdEluaGVyaXRUaGVSb290c1ZlcmRpY3QJOTkyNjY2ZTYzZjhlNTVkYmFhMjQ4NDk0ZGVlNWVlNGMwOTdhZGE0YjJhNDJlMDUzZGFhMjNiOWY1ZjUxNTFkOApib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFTY29wZU91dHNpZGVUaGVSb290SXNSZWZ1c2VkTm90RmFsbGVuQmFja1RvCWFiNzdmMTA4N2YwODVhZTRiN2Y3MjJjZjdjZDY2MzAyZjZkZTc3MmU3NmE3ODI1ZWNmZjU3MmUzNjdkNmMzYzUKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBU2hlbGxJbmplY3RlZFNjb3BlU3RpbGxGYWlscwkxYWVhNjA3MzE4ZjM0YTFiMDhiZjU0MjUzNGJjYTY1NTZmMWM3ZjA3ZmFmZWNlZjRmMWY2NDdhOTFiNThlYzBkCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVdoaXRlc3BhY2VPbmx5Q2hlY2tJc05vdERlY2xhcmVkCWE5MDdlZTQzOWYxNGRjMmU0OGQyZTQxMzgwMTA4NzkxNTMzYTRhNGYwOGUyNGU4ZDBlZjJkNGIzNTc5MWVhNDQKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBV2hpdGVzcGFjZU9ubHlTY29wZWRDaGVja0lzTm90RGVjbGFyZWQJZjZiZjBjNTQ5ZDY0NmE3NTA3NTBmZmE1MTBjOThmNjkzNTE1OGY4NWIzNzIyNjBlODg2MjUzNWI5YjRhYTUxYgpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFuSW5Sb290TWlzc0lzUmVmdXNlZE5vdEFTaWxlbnRQYXNzCTAxNzRhOTY2MTU4ZjJhOGQ2YTk5MjExZDcwZWUxYjEwZTBjMGY4MDg1NzhjMTFmYTg3NDYzMDcwMDViNDljZDEKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBbk92ZXJsYXJnZVRpbWVvdXRJc0NsYW1wZWROb3RPdmVyZmxvd2VkCTYyMjkzNTRkOTUzMmZkMGFhNTY1YjMwYjQ1NGRkNzdlZGJmZDU5ZDViY2Q2NmI3NGNjZDE5OWRkMjIzODViYjQKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RGaWxlc09ubHlXaXRoTm9QYXRoc1N0aWxsRmFsbHNCYWNrCTAxOGIxNjg1NGUxNTdmZDM3YThlODBjYThiYjNmZTU5ZDY1MzY5ZDVkY2E5N2EyMmFkZDQ0ZDM2NTk2ZTI0ZWIKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RGaWxlc1BsYWNlaG9sZGVyCWZhNGJhMGE2ZDU0MzczNjAwZjAwMjQ3OWIwOThhNzUxMTIxOWEyNTQwOGM2YTY5ODQxNTRkZmUyZTA1OTM3YzEKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RGaWxlc1BsYWNlaG9sZGVyRG9lc05vdE5lZWRQYWNrYWdlcwk4MWNmZDQzNTc1MzQ4MGU5NmRkZTE1MjE3YmVlMmFhODU5MDYwOWVkNjNlMGVmNDc4MDhmNDU1OTA0ZjU1NjdkCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0TG9hZEluZmVyc0dvQ2hlY2tCdXRTYXlzU28JMDk5ZTZiZmYzZmU3N2EzMzkwNzUzYzVlZmJjN2UyMTU1ZDNiNjQwNjlhOTliMmUyZGUxZWVmZGQzOWViMzMxYQpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdExvYWRPbkFCYXJlRGlyZWN0b3J5SGFzTm9DaGVjawlmNTVlMmIzZmVlZWYzNzhmYmM5MjU5NGVmYzRmYjViZmQ2MzM0YjM3MzU5ODUzYjM1M2MzZjgyODVjYzE0ZTYzCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0TG9hZFByZWZlcnNUaGVEZWNsYXJlZENoZWNrCTI1ZDFmN2NlNTlkZTUzZjhkYmNjODZmODhlYmI1NWU1Y2UzNGU0ZTZlZTI5NzFmYmFkODNlMGZlNmNlMjkwOWUKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RNaXhlZFBsYWNlaG9sZGVyc0ZhbGxCYWNrV2hlblVubWFwcGVkCTFhYzc3MzhjOTc5YzcwODFiNzFhMjI4OTA2MjYzMDQ2OTg2ZWNmNTJkM2I5YzYxNTcyZWRkOGM5N2FkM2QzMzcKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3ROb0NoZWNrSXNOb3RBUGFzcwlhM2IzM2RhZTQyN2VhNmM1YTZiYjA4OTk0MDgyMmRlNWFjOGJlOTQyYWViMDIxOTBiYTVhODQ2MDNiMDU4YWI2CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0UGFja2FnZXNPbmx5Tm9uR29TdGlsbEZhbGxzQmFjawkxYmEwYjI1MzBiZmM5M2Y0ODY3MTBlOTAyZTYyOTY0YTM3OGRlNjFlMDNjN2RkZDZiNGVmOGY3YTlmNDU4MzllCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0UnVuUGFzc2VzCThlYjcwZmY4Zjg5MWM5MDNjYmU2ZDhiOTIwMjVjYzk5NzQ3NTU2YTkyYmRjYTMwYzhjNGE2MTA4ZjVlNThmYTcKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RSdW5SZXBvcnRzVGhlUmVhbEV4aXRDb2RlCWEwYTRjMGY2MTBkOTVjZjQ0MWMwMGQ4NWJkODI0YTg1ZDUzOTY2MGFiMjdkNjNiOTBkMjQ2ODQxYzE1N2FkZDcKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RTY29wZURlcml2YXRpb24JNjRlOGFiZjc4YzVlMzgzNTY2YWZkMWU1MjliM2UwYWNjNWFlYjZmZWVjOGYxYzI4ZTQwN2E3YTM1OTI0M2UzNApib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdFN1YnN0aXR1dGVkUGF0aHNBcmVPbmVTaGVsbEFyZ3VtZW50RWFjaAllYzNlZGVlZTk1NWJkYmMwN2NhOGRkYmVjMjU0YTI1ODMwMzFjMzJkNGIwMjBmNjY2Mzc4NTIxZDQ5Y2Q2MTU2CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0VGFpbEFubm91bmNlc1doYXRJdExlZnRPdXQJNDc0OTQzZGM2MTUzOWEyZWI0NWE4Yzc5MzM4YjllOTY4ZjhiY2QyZWIwOTBlMTdlNzBiODdkYzhjYmM4NmQ4NQpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdFRpbWVvdXRJc1JlcG9ydGVkQXNBRmFpbHVyZU5vdEFQYXNzCWZmN2QwNjBjODc1ZWQ3ZTVkOWY2Y2JiMTMyMjJjYWJjZTQyMjlkZjcwNmYyYzBjYzJkMGE1OTdlOTQ0YWUyYWUKYm9keQlpbnRlcm5hbC9jaGVjay9sb2dzMDgwX3Rlc3QuZ28JVGVzdEFDaGVja0NhbmNlbGxlZEJlZm9yZUl0U3RhcnRzU2F5c0ludGVycnVwdGVkCTAyYjBkMDY1MTBmYzNkMWJjZjZiMTVmODFkZTM3ZDM1YTEyOTJkNjczMzY2ODIyNzhiNzRjYTBjYTFmNzkzNDQKYm9keQlpbnRlcm5hbC9jaGVjay9sb2dzMDgwX3Rlc3QuZ28JVGVzdEFDaGVja1JlbW92ZXNJdHNPd25Mb2dzT2xkZXJUaGFuQVdlZWsJNDJlZThmNzBlMTFmZTc2ZDQ5OWU1ZGVhMzFhYzA4ODhlMDM4Mjc3MGNlM2RlODQ0OWNiNTFkM2JmOGE0NzUzYQpib2R5CWludGVybmFsL2NoZWNrL2xvZ3MwODBfdGVzdC5nbwlUZXN0QVRpbWVkT3V0Q2hlY2tLZWVwc0l0c0xvZwk4ZGZhMzE5ZTBjYWRkMzU1ODFjNzQ3MmQwZTBkNjY5NjMwY2I3NmQzZjM4NmY5YWI5MDM4ODM4NDdmNjcwNjJj
+  ```
+  --- last 10 line(s) of stdout (of 20 after folding 20 raw)
+          1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied
+          check (declared): echo started; sleep 30
+            | started
+          check last: started
+          check FAIL (exit -1, 1001ms) — timed out after 1s
+          the write applied but the check did not pass — the tree is changed and unverified
+  --- FAIL: TestATimedOutCheckNamesItsLog (1.01s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	1.086s
+  FAIL
+  ```
+- 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:4670b83817dd9c6d4a0a3e338bd20f5c9ff98d479ab133937d710ee0e958982f · ms:1518
+- 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:4670b83817dd9c6d4a0a3e338bd20f5c9ff98d479ab133937d710ee0e958982f · ms:2115
+- 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:4670b83817dd9c6d4a0a3e338bd20f5c9ff98d479ab133937d710ee0e958982f · ms:2010
+- 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:4670b83817dd9c6d4a0a3e338bd20f5c9ff98d479ab133937d710ee0e958982f · ms:2714
+- 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:4670b83817dd9c6d4a0a3e338bd20f5c9ff98d479ab133937d710ee0e958982f · ms:1647
+- 2026-09-26 · 6835512* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · ms:0 · test-lock-sha256:39e137a4b929a0e64ddd35655e055d9afa77acfb11224f89d430fb64f33e6151 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvY2hlY2tsb2cwODBfdGVzdC5nbwlUZXN0QVRpbWVkT3V0Q2hlY2tOYW1lc0l0c0xvZwkyYzA2NDE0YTAxYzJhYzQzZjI5MjE0YjRkMzk4ZTNkZjJmZmUwMDNkZTEzNjUwNDVkMzI3OGJlZGFiOWU1ZmMyCmJvZHkJY21kL21ydy9jaGVja2xvZzA4MF90ZXN0LmdvCVRlc3RBV3JpdGVXaG9zZUNoZWNrSXNDYW5jZWxsZWRCZWZvcmVJdFN0YXJ0c1NheXNJbnRlcnJ1cHRlZAkwY2ZjZjAzOTFjN2E2ZmMwYTE0MGVkYzg4NTAyNGIzZjI3NWM2ZGU4NjBlMzlhOGMyMzMwYTMzMGM5YmMxNWQxCmJvZHkJY21kL21ydy9jaGVja2xvZzA4MF90ZXN0LmdvCVRlc3RNcndDaGVja0NhbmNlbGxlZEJlZm9yZUl0U3RhcnRzU2F5c0ludGVycnVwdGVkCWI2OWNkODM0ZjMyY2FiNzRhMDdkNzNkNzY4YjM5N2RlZmRkNDk0ZDc3NDhhMWU1YzdiOTc5ZDJlMGE4OGQ3YmEKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBQ2hlY2tUaGF0Q2Fubm90U3RhcnREaWROb3RSdW4JZDEzYTcwYmE3Mjc2MTUyNDNmOGY3MDk0YzEwMmIwOWEzYTE2NGQyM2E0MzBjMzMzZTUxZThjMjZmYmZjZjYyMgpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFEaXJlY3RvcnlUaGF0Q2Fubm90QmVSZWFkSXNSZWZ1c2VkTm90VHJlYXRlZEFzRW1wdHkJNjcyMzdhOTNhNTEyNmI3OGJjZWFiMDIyYWZkMzkxNDAzNDA5YWQxOGY2NWI0ZDY1ZWUyMjg2OGZkMWY2YTIwMgpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFGYWlsaW5nQ2hlY2tLZWVwc0l0c0xvZwk5OTFmNDIxZjBlNzdhYjg0MGYzMjk0MmUyNmJiNjRhYWJjNzA5ZTRjNGNlMGMwOWJmYjljOGRmYjVmMWM4MGVlCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVBhZGRlZENoZWNrSXNTdGlsbFRoZURlY2xhcmVkQ2hlY2sJOTllMDI2MjY5MmYzMTFlZGE1YzRjZmY1YTMwZDFjMDhmMjgxYzliOTU1MzI4MWE3NmZhMWRmYmFhNzFiYzgxNQpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFQYWRkZWRTY29wZWRDaGVja0lzU3RpbGxEZWNsYXJlZAk2YzZlZTgwZDgzYjJkNmJlNjc2YzNmOWMwMjdhZjNiYTBiOWQwNjIyODA5MmVhNWJiYzBhM2MyNWQ1ZTljODA3CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVBhc3NpbmdDaGVja0xlYXZlc05vTG9nQmVoaW5kCTc1OWU3YzNkNGNjNDExMWMxMWE0M2MzOGJjMDUxZWEyMzczNTI2NTg0ZjM3YjUzNjkwMTk5OGU2NGZhYWIwNzAKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBUHJlc2VudFVucGxhY2VhYmxlSW5Sb290U2NvcGVTdGlsbEZhbGxzQmFjawk1NmEwMmRmODYxMDJmN2U5YmNiZWUzODhmMDQyYjU2N2NiMDg4NzMxMTViNDkyNjJhYTdmNWFlMWRlN2Y4ZGI5CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVJlYWRhYmxlRGlyZWN0b3J5U3RpbGxTY29wZXMJYzZlYWNhNjdiZDEyNmI4NDc0OWM5ZDZhM2VlZjAyZTMyNjQyNDM4M2M1ZWFhMjhmZjkwOTRmOTBlYjA3NmNkNwpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFSZWZ1c2VkU2NvcGVEb2VzTm90SW5oZXJpdFRoZVJvb3RzVmVyZGljdAk5OTI2NjZlNjNmOGU1NWRiYWEyNDg0OTRkZWU1ZWU0YzA5N2FkYTRiMmE0MmUwNTNkYWEyM2I5ZjVmNTE1MWQ4CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QVNjb3BlT3V0c2lkZVRoZVJvb3RJc1JlZnVzZWROb3RGYWxsZW5CYWNrVG8JYWI3N2YxMDg3ZjA4NWFlNGI3ZjcyMmNmN2NkNjYzMDJmNmRlNzcyZTc2YTc4MjVlY2ZmNTcyZTM2N2Q2YzNjNQpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFTaGVsbEluamVjdGVkU2NvcGVTdGlsbEZhaWxzCTFhZWE2MDczMThmMzRhMWIwOGJmNTQyNTM0YmNhNjU1NmYxYzdmMDdmYWZlY2VmNGYxZjY0N2E5MWI1OGVjMGQKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RBV2hpdGVzcGFjZU9ubHlDaGVja0lzTm90RGVjbGFyZWQJYTkwN2VlNDM5ZjE0ZGMyZTQ4ZDJlNDEzODAxMDg3OTE1MzNhNGE0ZjA4ZTI0ZThkMGVmMmQ0YjM1NzkxZWE0NApib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFXaGl0ZXNwYWNlT25seVNjb3BlZENoZWNrSXNOb3REZWNsYXJlZAlmNmJmMGM1NDlkNjQ2YTc1MDc1MGZmYTUxMGM5OGY2OTM1MTU4Zjg1YjM3MjI2MGU4ODYyNTM1YjliNGFhNTFiCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0QW5JblJvb3RNaXNzSXNSZWZ1c2VkTm90QVNpbGVudFBhc3MJMDE3NGE5NjYxNThmMmE4ZDZhOTkyMTFkNzBlZTFiMTBlMGMwZjgwODU3OGMxMWZhODc0NjMwNzAwNWI0OWNkMQpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEFuT3ZlcmxhcmdlVGltZW91dElzQ2xhbXBlZE5vdE92ZXJmbG93ZWQJNjIyOTM1NGQ5NTMyZmQwYWE1NjViMzBiNDU0ZGQ3N2VkYmZkNTlkNWJjZDY2Yjc0Y2NkMTk5ZGQyMjM4NWJiNApib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEZpbGVzT25seVdpdGhOb1BhdGhzU3RpbGxGYWxsc0JhY2sJMDE4YjE2ODU0ZTE1N2ZkMzdhOGU4MGNhOGJiM2ZlNTlkNjUzNjlkNWRjYTk3YTIyYWRkNDRkMzY1OTZlMjRlYgpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEZpbGVzUGxhY2Vob2xkZXIJZmE0YmEwYTZkNTQzNzM2MDBmMDAyNDc5YjA5OGE3NTExMjE5YTI1NDA4YzZhNjk4NDE1NGRmZTJlMDU5MzdjMQpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdEZpbGVzUGxhY2Vob2xkZXJEb2VzTm90TmVlZFBhY2thZ2VzCTgxY2ZkNDM1NzUzNDgwZTk2ZGRlMTUyMTdiZWUyYWE4NTkwNjA5ZWQ2M2UwZWY0NzgwOGY0NTU5MDRmNTU2N2QKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RMb2FkSW5mZXJzR29DaGVja0J1dFNheXNTbwkwOTllNmJmZjNmZTc3YTMzOTA3NTNjNWVmYmM3ZTIxNTVkM2I2NDA2OWE5OWIyZTJkZTFlZWZkZDM5ZWIzMzFhCmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0TG9hZE9uQUJhcmVEaXJlY3RvcnlIYXNOb0NoZWNrCWY1NWUyYjNmZWVlZjM3OGZiYzkyNTk0ZWZjNGZiNWJmZDYzMzRiMzczNTk4NTNiMzUzYzNmODI4NWNjMTRlNjMKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RMb2FkUHJlZmVyc1RoZURlY2xhcmVkQ2hlY2sJMjVkMWY3Y2U1OWRlNTNmOGRiY2M4NmY4OGViYjU1ZTVjZTM0ZTRlNmVlMjk3MWZiYWQ4M2UwZmU2Y2UyOTA5ZQpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdE1peGVkUGxhY2Vob2xkZXJzRmFsbEJhY2tXaGVuVW5tYXBwZWQJMWFjNzczOGM5NzljNzA4MWI3MWEyMjg5MDYyNjMwNDY5ODZlY2Y1MmQzYjljNjE1NzJlZGQ4Yzk3YWQzZDMzNwpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdE5vQ2hlY2tJc05vdEFQYXNzCWEzYjMzZGFlNDI3ZWE2YzVhNmJiMDg5OTQwODIyZGU1YWM4YmU5NDJhZWIwMjE5MGJhNWE4NDYwM2IwNThhYjYKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RQYWNrYWdlc09ubHlOb25Hb1N0aWxsRmFsbHNCYWNrCTFiYTBiMjUzMGJmYzkzZjQ4NjcxMGU5MDJlNjI5NjRhMzc4ZGU2MWUwM2M3ZGRkNmI0ZWY4ZjdhOWY0NTgzOWUKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RSdW5QYXNzZXMJOGViNzBmZjhmODkxYzkwM2NiZTZkOGI5MjAyNWNjOTk3NDc1NTZhOTJiZGNhMzBjOGM0YTYxMDhmNWU1OGZhNwpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdFJ1blJlcG9ydHNUaGVSZWFsRXhpdENvZGUJYTBhNGMwZjYxMGQ5NWNmNDQxYzAwZDg1YmQ4MjRhODVkNTM5NjYwYWIyN2Q2M2I5MGQyNDY4NDFjMTU3YWRkNwpib2R5CWludGVybmFsL2NoZWNrL2NoZWNrX3Rlc3QuZ28JVGVzdFNjb3BlRGVyaXZhdGlvbgk2NGU4YWJmNzhjNWUzODM1NjZhZmQxZTUyOWIzZTBhY2M1YWViNmZlZWM4ZjFjMjhlNDA3YTdhMzU5MjQzZTM0CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0U3Vic3RpdHV0ZWRQYXRoc0FyZU9uZVNoZWxsQXJndW1lbnRFYWNoCWVjM2VkZWVlOTU1YmRiYzA3Y2E4ZGRiZWMyNTRhMjU4MzAzMWMzMmQ0YjAyMGY2NjYzNzg1MjFkNDljZDYxNTYKYm9keQlpbnRlcm5hbC9jaGVjay9jaGVja190ZXN0LmdvCVRlc3RUYWlsQW5ub3VuY2VzV2hhdEl0TGVmdE91dAk0NzQ5NDNkYzYxNTM5YTJlYjQ1YThjNzkzMzhiOWU5NjhmOGJjZDJlYjA5MGUxN2U3MGI4N2RjOGNiYzg2ZDg1CmJvZHkJaW50ZXJuYWwvY2hlY2svY2hlY2tfdGVzdC5nbwlUZXN0VGltZW91dElzUmVwb3J0ZWRBc0FGYWlsdXJlTm90QVBhc3MJZmY3ZDA2MGM4NzVlZDdlNWQ5ZjZjYmIxMzIyMmNhYmNlNDIyOWRmNzA2ZjJjMGNjMmQwYTU5N2U5NDRhZTJhZQpib2R5CWludGVybmFsL2NoZWNrL2xvZ3MwODBfdGVzdC5nbwlUZXN0QUNoZWNrQ2FuY2VsbGVkQmVmb3JlSXRTdGFydHNTYXlzSW50ZXJydXB0ZWQJMDJiMGQwNjUxMGZjM2QxYmNmNmIxNWY4MWRlMzdkMzVhMTI5MmQ2NzMzNjY4MjI3OGI3NGNhMGNhMWY3OTM0NApib2R5CWludGVybmFsL2NoZWNrL2xvZ3MwODBfdGVzdC5nbwlUZXN0QUNoZWNrUmVtb3Zlc0l0c093bkxvZ3NPbGRlclRoYW5BV2Vlawk0MmVlOGY3MGUxMWZlNzZkNDk5ZTVkZWEzMWFjMDg4OGUwMzgyNzcwY2UzZGU4NDQ5Y2I1MWQzYmY4YTQ3NTNhCmJvZHkJaW50ZXJuYWwvY2hlY2svbG9nczA4MF90ZXN0LmdvCVRlc3RBVGltZWRPdXRDaGVja0tlZXBzSXRzTG9nCThkZmEzMTllMGNhZGQzNTU4MWM3NDcyZDBlMGQ2Njk2MzBjYjc2ZDNmMzg2ZjlhYjkwMzg4Mzg0N2Y2NzA2MmM · test-lock-kind:replace
+- 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · ms:1761
+- 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · ms:1541
+- 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · ms:1478
+- 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · ms:1517
+- 2026-09-26 · 6835512* · exit 0 · `set -o pipefail …` · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · ms:2002
+
+## Mutation Log
+(empty until execute)
+- 2026-09-26 · 6835512* · mutant killed · exit 1 · `internal/check/check.go` · pruneLogs never called · acceptance-sha256:4670b83817dd9c6d4a0a3e338bd20f5c9ff98d479ab133937d710ee0e958982f · covers:old logs are pruned and counted
+- 2026-09-26 · 6835512* · mutant killed · exit 1 · `internal/check/check.go` · the age test inverted · acceptance-sha256:4670b83817dd9c6d4a0a3e338bd20f5c9ff98d479ab133937d710ee0e958982f · covers:old logs are pruned and counted
+- 2026-09-26 · 6835512* · mutant killed · exit 1 · `cmd/mrw/main.go` · the skipped verdict names no log · acceptance-sha256:4670b83817dd9c6d4a0a3e338bd20f5c9ff98d479ab133937d710ee0e958982f · covers:a kept log is named
+- 2026-09-26 · 6835512* · mutant survived · exit 0 · `internal/check/check.go` · a check that never ran keeps its empty log · acceptance-sha256:4670b83817dd9c6d4a0a3e338bd20f5c9ff98d479ab133937d710ee0e958982f · covers:a check that never ran keeps no log
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-26 · 6835512* · mutant killed · exit 1 · `internal/check/check.go` · pruneLogs never called · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · covers:old logs are pruned and counted
+- 2026-09-26 · 6835512* · mutant killed · exit 1 · `internal/check/check.go` · the age test inverted · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · covers:old logs are pruned and counted
+- 2026-09-26 · 6835512* · mutant killed · exit 1 · `cmd/mrw/main.go` · the skipped verdict names no log · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · covers:a kept log is named
+- 2026-09-26 · 6835512* · mutant killed · exit 1 · `internal/check/check.go` · a check that never ran keeps its empty log · acceptance-sha256:ad3fa2fca1df2101ec810abf0019221d57e8be32010c3947cfe154713ef6184f · covers:a check that never ran keeps no log
+
+## Invariants
+
+- Every log mrw keeps is named where the caller reads, and none is older than a week once a check runs.
+
+## Risks
+
+- A shared temp directory: only removable regular files named mrw-check-*.log are touched.
+
+## Out of Scope
+
+- A count-based bound (permanent: boundary: the temp directory is shared; an age cannot take another run's fresh log)
+
+## Stop Condition
+
+The fence exits 0 and the latest Mutation Log row for each mutant reads `killed`.

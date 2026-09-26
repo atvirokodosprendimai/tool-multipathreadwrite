@@ -66,3 +66,22 @@ func Interruptible(ctx context.Context) (context.Context, context.CancelFunc) {
 	}
 	return signal.NotifyContext(ctx, sigs...)
 }
+
+// Run runs c and then kills whatever is left of its process group: a child
+// that exited 0 could leave a background grandchild behind, and exec.Cmd
+// cancels the group only on a deadline or a cancel, so the grandchild outlived
+// mrw (the waiver on #232). mrw started the group, and nothing it started
+// outlives the call (ADR-080, M: reap always). A grandchild that called setsid
+// is in a group of its own and escapes, as it would a shell.
+func Run(c *exec.Cmd) error {
+	err := c.Run()
+	reap(c)
+	return err
+}
+
+// Output is Run for a child whose stdout is the answer.
+func Output(c *exec.Cmd) ([]byte, error) {
+	out, err := c.Output()
+	reap(c)
+	return out, err
+}
