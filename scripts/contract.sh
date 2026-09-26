@@ -7048,6 +7048,103 @@ want 1 "$rc" "a plan editing the ledger is refused"
 grep -q "own state" <<<"$out" && ok "refused as mrw's own state, even past the read ledger (--force)" || bad "the ledger write was refused for another reason: $out"
 [ "$(cat "$R/$led")" = "$before" ] && ok "and the ledger is unchanged" || bad "the ledger changed: $out"
 
+# 155. ADR-078 T1: a usage error writes nothing to stdout. urfave/cli printed a
+# command's whole help to stdout on a flag it rejected, and stdout is `mrw mcp`'s
+# protocol stream; `mrw mcp stray` started a server past its argument. --help
+# still prints to stdout.
+fixture
+for argv in 'mcp --bogus' '--rot . mcp' 'read --bogus' 'mcp stray'; do
+  "$MRW" -C "$R" $argv </dev/null >"$WORK/o155" 2>"$WORK/e155"; rc=$?
+  { [ "$rc" = 2 ] && [ ! -s "$WORK/o155" ] && grep -q -- '--help\|no arguments' "$WORK/e155"; } \
+    && ok "mrw $argv: exit 2, nothing on stdout, the reason on stderr" || bad "mrw $argv: exit $rc, stdout: $(head -3 "$WORK/o155")"
+done
+"$MRW" mcp --help >"$WORK/o155" 2>&1; rc=$?
+{ [ "$rc" = 0 ] && grep -q USAGE "$WORK/o155"; } && ok "mrw mcp --help still prints its help" || bad "mcp --help: exit $rc"
+
+# 156. ADR-078 T2: the MCP server refuses what it cannot represent. An id that
+# is neither a string nor an integer was dispatched and echoed back; invalid
+# UTF-8 in an argument became U+FFFD and named a path nobody sent; and
+# `exclude: ["["]` was ignored where the CLI refuses `--exclude '['`.
+fixture
+python3 - "$WORK/in156" <<'PY'
+import sys
+lines=[b'{"jsonrpc":"2.0","id":{},"method":"ping"}',
+       b'{"jsonrpc":"2.0","id":1.5,"method":"ping"}',
+       b'{"jsonrpc":"2.0","id":"s","method":"ping"}',
+       b'{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["\xff.go"]}}}',
+       b'{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"A","exclude":["["]}}}',
+       b'{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"A","exclude":["vendor"]}}}']
+open(sys.argv[1],"wb").write(b"\n".join(lines)+b"\n")
+PY
+bounded 20 "$WORK/out156" sh -c '"$0" -C "$1" mcp < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in156"; want 0 $? "the server answers every line and exits at EOF"
+python3 - "$WORK/out156" > "$WORK/v156" <<'PY'
+import json,sys
+rs=[json.loads(l) for l in open(sys.argv[1]) if l.startswith("{")]
+bad=[r for r in rs if r.get("id") is None]
+print("ids-refused", len(bad)==2 and all(r["error"]["code"]==-32600 for r in bad))
+by={r.get("id"):r for r in rs}
+print("string-id-served", "result" in by.get("s",{}))
+t=lambda i: by[i]["result"]["content"][0]["text"] if "result" in by.get(i,{}) else ""
+print("utf8-refused", by.get(7,{}).get("result",{}).get("isError") is True and "specs is not valid UTF-8" in t(7))
+print("exclude-refused", by.get(8,{}).get("result",{}).get("isError") is True and 'exclude "["' in t(8))
+print("exclude-kept", by.get(9,{}).get("result",{}).get("isError") is not True)
+PY
+for k in ids-refused string-id-served utf8-refused exclude-refused exclude-kept; do
+  grep -q "^$k True$" "$WORK/v156" && ok "mcp: $k" || bad "mcp: $k: $(cat "$WORK/v156") $(head -c 600 "$WORK/out156")"
+done
+
+# 157. ADR-078 T3: a named MCP read of many specs stops once it is refused. It
+# read every spec to the end first: 100,000 held the server past two minutes
+# for a refusal it knew after a few thousand.
+fixture
+python3 - "$WORK/in157" <<'PY'
+import json,sys
+req={"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]*100000}}}
+open(sys.argv[1],"w").write(json.dumps(req)+"\n")
+PY
+t0=$(date +%s)
+bounded 60 "$WORK/out157" sh -c '"$0" -C "$1" mcp < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in157"; rc=$?
+t1=$(date +%s)
+want 0 "$rc" "a read of 100,000 specs is answered"
+grep -q 'would have returned more than [0-9]* bytes' "$WORK/out157" && ok "and refused as soon as it overflowed, saying so" || bad "no early stop: $(head -c 400 "$WORK/out157")"
+[ $((t1 - t0)) -le 30 ] && ok "within 30 s" || bad "100,000 specs took $((t1 - t0)) s"
+
+# 158. ADR-078 T3: a line that alone encodes past the MCP ceiling is named, with
+# the ranges around it, and the range offered is served. The refusal used to
+# advise a range that held the line (the waiver on #232).
+fixture
+python3 -c 'import sys; open(sys.argv[1],"w").write("<"*150000+"\n"+("y"*70+"\n")*1000)' "$R/f.svg"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.svg"]}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.svg:2-"]}}}' > "$WORK/in158"
+bounded 20 "$WORK/out158" sh -c '"$0" -C "$1" mcp < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in158"; want 0 $? "the server answers both"
+python3 - "$WORK/out158" > "$WORK/v158" <<'PY'
+import json,sys
+by={r["id"]:r for r in (json.loads(l) for l in open(sys.argv[1]) if l.startswith("{"))}
+t=by[1]["result"]["content"][0]["text"]
+print("named", "Line 1 of f.svg" in t and "`f.svg:2-`" in t and ":1-1" not in t)
+print("served", by[2]["result"].get("isError") is not True)
+PY
+grep -q '^named True$' "$WORK/v158" && ok "the refusal names line 1 and the range after it" || bad "not named: $(head -c 800 "$WORK/out158")"
+grep -q '^served True$' "$WORK/v158" && ok "and the range it offers is served" || bad "the offered range was refused"
+
+# 159. ADR-078 T1: a bad header is one error, not one per body line; a
+# tab after @@ is named; and -C on a call with no /pattern/ is refused rather
+# than ignored in silence. Each is paired with the input still accepted.
+fixture
+printf '@@ a.go 3 replac\nX\nY\n' > "$R/p159a.mrw"
+out=$(m write --no-check "$R/p159a.mrw" 2>&1); rc=$?
+want 2 "$rc" "a plan with a bad op is refused"
+{ grep -q 'plan has 1 error' <<<"$out" && ! grep -q 'text before' <<<"$out"; } && ok "as one error, its body not reported as stray text" || bad "bad op: $out"
+printf '@@\ta.go\t3\treplace\nX\n' > "$R/p159b.mrw"
+out=$(m write --no-check "$R/p159b.mrw" 2>&1); rc=$?
+want 2 "$rc" "a header with a tab after @@ is refused"
+grep -q 'tab after @@' <<<"$out" && ok "and the tab is named" || bad "tab header: $out"
+out=$(m read -C 1 a.go:3 2>&1); rc=$?
+want 2 "$rc" "-C on a line range is refused"
+grep -q -- '-C widens a /pattern/ match' <<<"$out" && ok "and says -C needs a pattern" || bad "-C on a range: $out"
+m read -C 1 'a.go:/func B/' >/dev/null 2>&1; want 0 $? "-C on a pattern still serves its context"
+m read --grep 'func B' -C 1 >/dev/null 2>&1; want 0 $? "and on a grep"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

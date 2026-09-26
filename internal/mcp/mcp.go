@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -278,6 +279,13 @@ func handle(line string, serveRoot string) (response, bool) {
 	// with the null id it arrived with, and never dispatched (ADR-067).
 	if string(req.ID) == "null" {
 		return errorResponse(req.ID, codeInvalidRequest, "invalid request: an id must not be null"), true
+	}
+
+	// MCP: a request id is a string or an integer (2025-11-25, basic). Any
+	// other JSON — true, 1.5, an object — was dispatched and its answer echoed
+	// it back, pairing a response with nothing a host could have sent (ADR-078).
+	if !validRequestID(req.ID) {
+		return errorResponse(json.RawMessage("null"), codeInvalidRequest, "invalid request: an id must be a string or an integer"), true
 	}
 
 	if req.JSONRPC != "2.0" {
@@ -563,4 +571,13 @@ func resultResponse(id json.RawMessage, result any) (response, bool) {
 // errorResponse builds an error reply carrying both a code and a message.
 func errorResponse(id json.RawMessage, code int, msg string) response {
 	return response{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: code, Message: msg}}
+}
+
+// integerID is a JSON integer literal: no fraction, no exponent, no leading zero.
+var integerID = regexp.MustCompile(`^-?(0|[1-9][0-9]*)$`)
+
+// validRequestID reports whether id is a JSON string or integer.
+func validRequestID(id json.RawMessage) bool {
+	var s string
+	return json.Unmarshal(id, &s) == nil || integerID.Match(id)
 }

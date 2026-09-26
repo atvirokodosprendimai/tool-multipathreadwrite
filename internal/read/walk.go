@@ -1,12 +1,14 @@
 package read
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -228,20 +230,27 @@ func (w *walker) offer(p, full string) {
 }
 
 // excluded matches a glob against the cleaned root-relative path AND the
-// basename. A glob path.Match rejects is a usage error the caller sees at parse
-// time, not a pattern that silently matches nothing, so a bad one is reported
-// rather than ignored here.
+// basename, with the one matcher every finder shares (pathExcluded). A glob that can
+// never match is refused before a walk starts (CheckExclude), not here.
 func (w *walker) excluded(rel string) bool {
-	base := path.Base(rel)
-	for _, g := range w.opt.Exclude {
-		if ok, err := path.Match(g, rel); err == nil && ok {
-			return true
+	return pathExcluded(rel, w.opt.Exclude)
+}
+
+// CheckExclude refuses an --exclude glob that can never match: one path.Match
+// rejects as malformed, and one that starts with /, since a glob is matched
+// against root-relative paths and base names (ADR-007) and neither starts with
+// one. The CLI and MCP both call it; over MCP `exclude: ["["]` was ignored
+// while the CLI refused `--exclude '['` (ADR-078).
+func CheckExclude(globs []string) error {
+	for _, g := range globs {
+		if _, err := path.Match(g, "x"); err != nil {
+			return fmt.Errorf("%q: %v", g, err)
 		}
-		if ok, err := path.Match(g, base); err == nil && ok {
-			return true
+		if strings.HasPrefix(g, "/") {
+			return fmt.Errorf("%q: a glob matches root-relative paths and base names, so one that starts with / never matches; drop the leading /", g)
 		}
 	}
-	return false
+	return nil
 }
 
 func (w *walker) rel(full string) string {

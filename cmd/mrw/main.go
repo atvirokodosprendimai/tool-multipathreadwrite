@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"runtime/debug"
 	"sort"
 	"strconv"
@@ -120,7 +120,7 @@ func versionFrom(v string, settings []debug.BuildSetting) string {
 // test can run the real command — the --version wiring is otherwise reachable
 // only by launching the process.
 func rootCommand() *cli.Command {
-	return &cli.Command{
+	cmd := &cli.Command{
 		Name:    "mrw",
 		Usage:   "find, read and write many file ranges in one call",
 		Version: versionString(),
@@ -170,6 +170,49 @@ func rootCommand() *cli.Command {
 		},
 		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), versionCmd()},
 	}
+	installUsageErrors(cmd)
+	return cmd
+}
+
+// installUsageErrors gives cmd and every subcommand under it one answer to a
+// flag the parser rejects: the error, naming the help to read, returned to main
+// for stderr — and nothing on stdout. urfave/cli printed the command's whole
+// help to stdout, and stdout is `mrw mcp`'s protocol stream: `mrw mcp --bogus`
+// in a host's config put help text where the host reads JSON-RPC (ADR-078).
+// `--help` itself is unchanged and still prints to stdout.
+func installUsageErrors(cmd *cli.Command) {
+	cmd.OnUsageError = usageError
+	for _, sub := range cmd.Commands {
+		installUsageErrors(sub)
+	}
+}
+
+func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
+	return cli.Exit(fmt.Sprintf("%v (see: %s --help)", err, cmd.FullName()), exitUsage)
+}
+
+// hasSinglePattern reports whether any spec carries a single /pattern/ range —
+// the only range -C widens (read.Options.Context).
+func hasSinglePattern(specs []read.Spec) bool {
+	for _, sp := range specs {
+		for _, r := range sp.Ranges {
+			if r.Re != nil && r.ReEnd == nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// cmdExeForm is a refusal's fix spelled for cmd.exe, which keeps single quotes
+// as literal characters, so pasting `mrw read -- 'x '` there names a path with
+// quotes in it (a Windows cmd.exe session, 2026-09-25). PowerShell and Git Bash
+// take the form already printed. Empty outside Windows (ADR-078).
+func cmdExeForm(fix string) string {
+	if runtime.GOOS != "windows" {
+		return ""
+	}
+	return fmt.Sprintf(" (in cmd.exe: %s)", strings.ReplaceAll(fix, "'", `"`))
 }
 
 func main() {
@@ -233,6 +276,12 @@ this subcommand is not useful to run by hand.`,
 			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
+			// A host's config names the command `mrw` and the one argument
+			// `mcp`; anything after it is a mistake the server would otherwise
+			// start past, serving a root nobody questioned (ADR-078).
+			if cmd.Args().Len() > 0 {
+				return cli.Exit(fmt.Sprintf("mrw mcp takes no arguments, and got %q", cmd.Args().Slice()), exitUsage)
+			}
 			// A host launches this without --root and expects the project it is
 			// working in. The working directory it happens to inherit is not
 			// that, so the environment the host sets is consulted first.
@@ -655,13 +704,11 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if filesFromSet && len(posArgs) > 0 {
 				return cli.Exit("--files-from and positional paths are two sources of specs; use one", exitUsage)
 			}
-			// A glob path.Match rejects is refused at parse time rather than
-			// silently matching nothing. ErrBadPattern is its only error, so
-			// any subject answers the question — "x" is not special.
-			for _, g := range excludes {
-				if _, err := path.Match(g, "x"); err != nil {
-					return cli.Exit(fmt.Sprintf("--exclude %q: %v", g, err), exitUsage)
-				}
+			// A glob that can never match is refused at parse time rather than
+			// silently matching nothing: one path.Match rejects, or one that
+			// starts with / (read.CheckExclude, shared with MCP; ADR-078).
+			if err := read.CheckExclude(excludes); err != nil {
+				return cli.Exit("--exclude "+err.Error(), exitUsage)
 			}
 
 			root := cmd.Root().String("root")
@@ -764,6 +811,13 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					}
 					specs = append(specs, sp)
 				}
+			}
+			// ADR-078: -C widens a single /pattern/ match and nothing else, so on
+			// a call with none it changed nothing, silently: `mrw read -C 1 a.go:2`
+			// served line 2 alone. Refused, as --exclude without --grep is: a flag
+			// with nothing to act on is a mistake the caller should hear about.
+			if cmd.IsSet("context") && !grepSet && !hasSinglePattern(specs) {
+				return cli.Exit("-C widens a /pattern/ match, and no spec here has one: name a pattern (a.go:/func A/) or drop -C", exitUsage)
 			}
 
 			out := bufio.NewWriter(os.Stdout)
@@ -1860,8 +1914,9 @@ func refusePaddedArgs(cmd *cli.Command) error {
 			positionals++
 		} else if !noteText {
 			if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
+				fix := fmt.Sprintf("mrw %s -- '%s'", prefix, tok)
 				return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
-					"put -- before the path: mrw %s -- '%s'", tok, prefix, tok), exitUsage)
+					"put -- before the path: %s%s", tok, fix, cmdExeForm(fix)), exitUsage)
 			}
 		}
 		if role == roleStop {
@@ -1981,8 +2036,9 @@ func padAttached(tok string) error {
 	if !ok || strings.TrimRightFunc(tok, unicode.IsSpace) == tok {
 		return nil
 	}
+	fix := fmt.Sprintf("%s '%s'", name, val)
 	return cli.Exit(fmt.Sprintf("'%s' ends in whitespace the argument parser strips; pass the value "+
-		"as its own argument: %s '%s'", tok, name, val), exitUsage)
+		"as its own argument: %s%s", tok, fix, cmdExeForm(fix)), exitUsage)
 }
 
 // refusePaddedFlagValues checks every attached flag value before the option

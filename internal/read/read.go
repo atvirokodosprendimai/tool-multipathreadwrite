@@ -89,6 +89,10 @@ type Options struct {
 	// A cap that fires is always
 	// reported: a silent truncation reads as "that was the whole file".
 	MaxLines *int
+	// Stop, when set, is asked before each spec; true ends the read there. A
+	// caller that has already decided to refuse the answer stops paying for the
+	// rest of it (ADR-078). Nil reads every spec.
+	Stop func() bool
 }
 
 // msysHint recognises MSYS2 argument conversion, which rewrites a spec BEFORE
@@ -370,6 +374,9 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 	}
 	englishUnreadables := 0
 	for _, sp := range specs {
+		if opt.Stop != nil && opt.Stop() {
+			break
+		}
 		// An ABSOLUTE path is honoured on this surface, not joined onto the
 		// root. A plan is a document whose paths are relative by design, and
 		// apply refuses an absolute one by name — but a command-line argument

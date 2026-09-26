@@ -203,6 +203,8 @@ refusal names the fix: `mrw read -- 'x '` (ADR-069). `--files-from`, the working
 destination and the foreign formats keep the path as written. An ATTACHED flag value that ends in
 whitespace (`--files-from='list '`) is refused too, since v1.25.1: the parser trims the whole token,
 so pass the value as its own argument — `--files-from 'list '` — which it keeps as given.
+In cmd.exe, which keeps single quotes as characters, each refusal also names the double-quoted form
+(`mrw read -- " x"`); PowerShell and Git Bash take the form printed first (ADR-078).
 
 ### 2. One plan, not N writes
 
