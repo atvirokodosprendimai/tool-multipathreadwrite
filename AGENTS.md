@@ -200,7 +200,9 @@ the UNREADABLE line too, but by then you have spent a call.
 ⚠ **A path with a leading or trailing space goes after `--`.** The argument parser trims every
 positional before `--`, so `mrw read 'x '` would reach `x`; mrw refuses it instead, exit 2, and the
 refusal names the fix: `mrw read -- 'x '` (ADR-069). `--files-from`, the working set, a rename
-destination and the foreign formats keep the path as written.
+destination and the foreign formats keep the path as written. An ATTACHED flag value that ends in
+whitespace (`--files-from='list '`) is refused too, since v1.25.1: the parser trims the whole token,
+so pass the value as its own argument — `--files-from 'list '` — which it keeps as given.
 
 ### 2. One plan, not N writes
 
