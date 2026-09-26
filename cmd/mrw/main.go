@@ -192,6 +192,16 @@ func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
 	return cli.Exit(fmt.Sprintf("%v (see: %s --help)", err, cmd.FullName()), exitUsage)
 }
 
+// declareAdvice ends a no-check-could-run exit with the fix for it: declare a
+// check — unless the check could not start for want of a shell, where declaring
+// one changes nothing and the report already names what to install (ADR-082).
+func declareAdvice(skipped string) string {
+	if strings.Contains(skipped, check.NoShell) {
+		return ""
+	}
+	return " — declare one in .quality-harness.json"
+}
+
 // hasSinglePattern reports whether any spec carries a single /pattern/ range —
 // the only range -C widens (read.Options.Context).
 func hasSinglePattern(specs []read.Spec) bool {
@@ -1366,7 +1376,7 @@ held or went unchecked.`,
 				// The write stands. Say so first — the caller's tree changed
 				// even though the verification never happened.
 				return cli.Exit("the write applied but no check could run: "+receipt.Check.Skipped+
-					" — declare one in .quality-harness.json", exitUsage)
+					declareAdvice(receipt.Check.Skipped), exitUsage)
 			case receipt.Check != nil && !receipt.Check.OK():
 				return cli.Exit("the write applied but the check did not pass — the tree is changed and unverified", exitCheckFailed)
 			}
@@ -1612,7 +1622,7 @@ touched, which is a finding about the machine and not about your change.`,
 				// a failing check would tell the caller to go read output that
 				// does not exist.
 				return cli.Exit("no check could run: "+res.Skipped+
-					" — declare one in .quality-harness.json", exitUsage)
+					declareAdvice(res.Skipped), exitUsage)
 			}
 			if !res.OK() {
 				return cli.Exit("check did not pass", exitCheckFailed)

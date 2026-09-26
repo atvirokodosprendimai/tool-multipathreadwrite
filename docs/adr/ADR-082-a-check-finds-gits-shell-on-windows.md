@@ -6,10 +6,10 @@
 **Owner:** M
 **Spec:** None — no spec stage
 **Cross-references:** ADR-003, ADR-054, ADR-071, ADR-080, docs/adr/BACKLOG.md
-**Governs:** `internal/check/shell.go`, `internal/check/check.go`, `internal/check/shell082_test.go`, `internal/check/shell082_windows_test.go`, `internal/check/logs080_test.go`, `cmd/mrw/writecheck_test.go`, `cmd/mrw/pathop_check_test.go`, `cmd/mrw/planpath_test.go`, `cmd/mrw/receipt_before_check_test.go`, `cmd/mrw/checklog080_test.go`, `cmd/mrw/shell082_test.go`, `internal/adversarial/adr054_test.go`, `internal/adversarial/shell082_test.go`, `AGENTS.md`, `docs/adr/BACKLOG.md`
+**Governs:** `internal/check/shell.go`, `internal/check/check.go`, `internal/check/shell082_test.go`, `internal/check/shell082_windows_test.go`, `internal/check/logs080_test.go`, `cmd/mrw/main.go`, `cmd/mrw/writecheck_test.go`, `cmd/mrw/pathop_check_test.go`, `cmd/mrw/planpath_test.go`, `cmd/mrw/receipt_before_check_test.go`, `cmd/mrw/checklog080_test.go`, `cmd/mrw/shell082_test.go`, `internal/adversarial/adr054_test.go`, `internal/adversarial/shell082_test.go`, `AGENTS.md`, `docs/adr/BACKLOG.md`
 **Enforced-by:** `internal/check/shell082_windows_test.go::TestACheckRunsUnderGitsShellWhenShIsNotOnPath`
 **Invalidates:** none
-**Served-path change:** on Windows, when no `sh` is on PATH, a check runs under the `sh.exe` Git for Windows installs beside `git.exe` (`usr\bin\sh.exe` or `bin\sh.exe`, found by walking up from `git.exe`); with neither, "could not start" says to install Git for Windows or put an `sh` on PATH. Elsewhere nothing changes.
+**Served-path change:** on Windows, when no `sh` is on PATH, a check runs under the `usr\bin\sh.exe` of the Git for Windows installation the `git.exe` on PATH belongs to — recognised only by Git's own layouts (`cmd`, `bin`, `mingw64\bin`) — with that `usr\bin` first on the check's PATH; with no shell, "could not start" names what to install, and mrw no longer adds "declare one in .quality-harness.json" to it. Elsewhere nothing changes.
 
 ## Context
 
@@ -29,11 +29,14 @@ user gets no default check at all. With Git's `usr\bin` on PATH everything passe
 
 ## Decision
 
-1. `check.Shell()` returns `sh` from PATH; on Windows, failing that, the `sh.exe` found by walking up
-   at most three directories from the `git.exe` on PATH (`usr\bin\sh.exe`, then `bin\sh.exe`).
-   `check.Run` runs the check with it.
-2. When no shell is found, the could-not-start report says so: on Windows, "install Git for Windows,
-   or put an sh on PATH".
+1. `check.Shell()` returns `sh` from PATH; on Windows, failing that, `<root>\usr\bin\sh.exe`, where
+   `<root>` is derived from the `git.exe` on PATH only when it sits in Git's own layout —
+   `<root>\cmd`, `<root>\bin` or `<root>\mingw64\bin`. A shim's or any other directory yields no
+   shell: walking up from it took an unrelated `sh.exe` (the reviews of #247). `check.Run` runs the
+   check with it, with Git's `usr\bin` first on the check's PATH so a nested `sh` or `cat` resolves.
+2. When no shell is found, the could-not-start report says so (`check.NoShell`): on Windows, "install
+   Git for Windows, or put an sh on PATH"; and the CLI no longer adds "declare one in
+   .quality-harness.json", which declaring a check cannot fix.
 3. A test that needs a check to run skips, naming the reason, only when `check.Shell()` finds none.
 
 ## Alternatives Considered
@@ -76,7 +79,7 @@ See `tasks/`.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| A `git.exe` on PATH that is not Git for Windows (a shim, WSL's) | Low | Low | only a regular `sh.exe` in Git's layout is taken; otherwise the report names what to install |
+| A `git.exe` on PATH that is not Git for Windows (a shim, WSL's) | Low | Low | only `usr\bin\sh.exe` under a root derived from Git's own layout is taken; a shim yields none and the report names what to install |
 
 ## Rollback
 

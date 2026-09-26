@@ -257,10 +257,14 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 
 	// ADR-082: sh from PATH, or on Windows the sh.exe Git ships beside git.exe;
 	// a plain PowerShell PATH holds Git's cmd directory and not its usr\bin.
-	shell, found := Shell()
+	shell, pathDir, found := shellEnv()
 	c := subproc.Command(ctx, shell, "-c", cmdline)
 	c.Dir = root
 	c.Stdout, c.Stderr = f, f
+	if pathDir != "" {
+		// Git's shell with Git's tools first, as Git Bash would have them.
+		c.Env = append(os.Environ(), "PATH="+pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	}
 
 	start := time.Now()
 	runErr := subproc.Run(c)

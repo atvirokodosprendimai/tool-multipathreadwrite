@@ -2077,6 +2077,11 @@ Windows only, each hand-confirmed by at least two sessions:
   PowerShell PATH: those tests need `sh` and fail instead of skipping. **Fixed by ADR-082**: on
   Windows with no `sh` on PATH the check runs under the `sh.exe` Git for Windows installs beside
   `git.exe`, so those tests run under plain PowerShell; with no shell at all they skip, naming why.
+  Still skipped on every Windows, found in the review of #247: tests whose Windows skip says "the
+  check runs through sh" — `TestATimedOutCheckKeepsItsLog`, `TestATimedOutCheckNamesItsLog`,
+  `TestTheReceiptIsOnStdoutBeforeTheCheckStarts`, and the ADR-054/060/061 matrices. ADR-082 makes
+  that reason stale; each needs its own Windows run before its skip becomes `needShell` (deferred: M
+  to schedule, since each may meet Windows timing or path behaviour the unix run never shows).
   The same peer round (v1.27.0 asset): Hidden and read-only files and MCP `specs:["x "]` hold; bare
   `NUL` was refused but `nul.txt`, `con` and `COM1.txt` were created — **fixed by ADR-081**
   (#243): every reserved name is refused by name, in any component and through a link. The OneDrive

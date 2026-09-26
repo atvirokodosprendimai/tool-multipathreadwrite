@@ -16,7 +16,7 @@ func TestGitsShellIsFoundBesideGit(t *testing.T) {
 	for gitRel, shRel := range map[string]string{
 		"cmd/git.exe":         "usr/bin/sh.exe",
 		"mingw64/bin/git.exe": "usr/bin/sh.exe",
-		"bin/git.exe":         "bin/sh.exe",
+		"bin/git.exe":         "usr/bin/sh.exe",
 	} {
 		root := t.TempDir()
 		for _, rel := range []string{gitRel, shRel} {
@@ -59,6 +59,23 @@ func TestACheckWithNoShellSaysSo(t *testing.T) {
 	res, err := Run(context.Background(), t.TempDir(), Config{Check: "exit 0", declared: true}, nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// A git.exe outside Git's own layouts — a scoop shim, a tools directory — is
+	// not followed up to a shell beside it (the reviews of #247).
+	for _, gitRel := range []string{"scoop/shims/git.exe", "repo/tools/git.exe"} {
+		base := t.TempDir()
+		for _, rel := range []string{gitRel, "scoop/bin/sh.exe", "scoop/usr/bin/sh.exe", "repo/bin/sh.exe", "repo/usr/bin/sh.exe"} {
+			p := filepath.Join(base, filepath.FromSlash(rel))
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, nil, 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := gitShell(filepath.Join(base, filepath.FromSlash(gitRel))); got != "" {
+			t.Errorf("git at %s, outside Git's layouts, gave %q", gitRel, got)
+		}
 	}
 	if res.Ran || !strings.HasPrefix(res.Skipped, "could not start") || !strings.Contains(res.Skipped, "no sh on PATH") {
 		t.Errorf("want could not start, naming the missing sh: %+v", res)
