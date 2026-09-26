@@ -109,4 +109,4 @@ Revert the two tasks. The lock files are state, not data, and an older mrw ignor
 
 ## Follow-ups
 
-- [ ] Release with ADR-076 to ADR-078 and ADR-080 as v1.27.0.
+- [x] Release with ADR-076 to ADR-078 and ADR-080 as v1.27.0 — tagged at `7058767` (#241), Status #242.

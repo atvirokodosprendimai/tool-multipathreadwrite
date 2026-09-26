@@ -38,8 +38,9 @@ Both still refuse an unread sibling and write nothing. Sequential apply_patch
 ## Never read an exit through a pipe
 
 `mrw write plan | head` is `head`'s status. Capture the output, then check
-`$?`, or let the command stand alone. Exit 3 means the write applied and
-`--check` failed — the tree is changed and unverified. Not a rollback.
+`$?`, or let the command stand alone. Exit 3 means the write applied and the
+check did not pass — it failed, timed out or was interrupted (ADR-080) — so the tree is changed and
+unverified. Not a rollback.
 
 ## Quote `anchor=`
 

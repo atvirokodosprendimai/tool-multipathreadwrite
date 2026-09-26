@@ -93,4 +93,4 @@ Revert the task.
 
 ## Follow-ups
 
-- [ ] Release as v1.27.1, and ask the Windows peer to re-run its item 2.
+- [x] Release as v1.27.1, and ask the Windows peer to re-run its item 2 — tagged at `6d35d58` (#243), Status #244; the peer confirmed every name refused (BACKLOG).
