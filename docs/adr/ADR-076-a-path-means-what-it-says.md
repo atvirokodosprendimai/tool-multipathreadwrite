@@ -120,7 +120,7 @@ See `tasks/`.
 
 - A trailing separator in an apply_patch or search_replace document (permanent: fact: those formats compile to a native plan, so the apply refusal covers them)
 - Reading a Windows device on purpose (permanent: boundary: mrw reads and writes files)
-- A device name in the middle of a path (permanent: fact: it cannot be made as a directory, so the write fails loudly)
+- A device name in the middle of a path (permanent: boundary: ADR-081 decides it — every component below the root is refused on Windows; this record's claim that one "cannot be made as a directory" was withdrawn when a Windows 11 build made the file `con`)
 - Windows job objects and other process matters (permanent: boundary: not a path question; ADR-072)
 
 ## Risks
