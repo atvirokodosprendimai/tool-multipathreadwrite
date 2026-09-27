@@ -50,16 +50,38 @@ func TestATimedOutCheckLeavesNoGrandchild(t *testing.T) {
 // ADR-072 T4. An interrupt sent to mrw while a check runs cancels the check.
 // The check started, so it RAN and did not pass: exit 3, and the receipt says
 // why. Driven here by cancelling the context the signal would cancel.
+//
+// The cancel waits for the check to say it started (it touches `started` in
+// the root, its working directory). A fixed 300 ms timer raced sh's start
+// under the -race suite: a cancel before the process began is ADR-080's
+// not-started case, Ran=false, and this test went red (BACKLOG, #241). The
+// bound is measured from the cancel, so a slow start cannot fail it either.
 func TestAnInterruptedCheckSaysSo(t *testing.T) {
+	root := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
-	time.AfterFunc(300*time.Millisecond, cancel)
-	start := time.Now()
-	res, err := Run(ctx, t.TempDir(), Config{Check: "sleep 30", declared: true}, nil)
+	defer cancel()
+	cancelled := make(chan time.Time, 1)
+	go func() {
+		defer close(cancelled)
+		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+			if _, err := os.Stat(filepath.Join(root, "started")); err == nil {
+				cancelled <- time.Now()
+				cancel()
+				return
+			}
+		}
+		cancel()
+	}()
+	res, err := Run(ctx, root, Config{Check: "touch started; exec sleep 30", declared: true}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d := time.Since(start); d > 5*time.Second {
-		t.Fatalf("an interrupted check took %s to return", d)
+	at, ok := <-cancelled
+	if !ok {
+		t.Fatalf("the check never wrote its start marker: %+v", res)
+	}
+	if d := time.Since(at); d > 5*time.Second {
+		t.Fatalf("an interrupted check took %s to return after the cancel", d)
 	}
 	if !res.Ran || res.OK() || res.Skipped != "interrupted" {
 		t.Fatalf("want a check that ran, did not pass, and says interrupted: %+v", res)
