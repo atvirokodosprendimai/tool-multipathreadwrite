@@ -23,6 +23,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
@@ -1630,7 +1631,7 @@ func nameTheAck(root string, res *apply.Result) {
 	// caller who most needs it. Found by the review of PR #132.
 	for i := range res.Hunks {
 		h := &res.Hunks[i]
-		if !strings.Contains(h.Reason, "has not been read") {
+		if h.Kind != refusal.NotRead {
 			continue
 		}
 		// ⚠ THE REFUSED ADDRESS MUST INTERSECT A PENDING SPAN. Appending the

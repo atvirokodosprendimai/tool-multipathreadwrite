@@ -1278,8 +1278,11 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   typed. Promote it if a caller reports the refusal in the wild; the entry
   exists so the next reader does not mistake it for part of ADR-029.
 
-- **Typed error kinds shared by `internal/plan` and `internal/apply`, so the two
-  refusal sites can be compared without matching message text.** Deferred from
+- ~~**Typed error kinds shared by `internal/plan` and `internal/apply`, so the two
+  refusal sites can be compared without matching message text.**~~ **CLOSED 2026-09-27 — ADR-087:
+  `internal/refusal` kinds on every mirrored rule, on `plan.ParseError` and `HunkResult.Kind`, and
+  the MCP acknowledgement remedy keyed on `refusal.NotRead`; the kind in a receipt is the entry
+  below.** Deferred from
   ADR-030, which asserts every parser rule again at the engine boundary and keeps
   the two honest by copying `plan.validate`'s message strings VERBATIM and
   comparing them by equality. That works and it is what the test checks, but it
@@ -1295,6 +1298,12 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   sites, which string equality cannot tell from a drift. It is the same request ADR-009's open follow-up already
   makes for classifying refusals without matching text, so whoever takes one
   should take both.
+
+- **A refusal kind in the JSON receipt.** Deferred from ADR-087, which gives the mirrored and
+  not-read refusals a `refusal.Kind` but keeps `HunkResult.Kind` at `json:"-"`: a receipt field is a
+  public contract, and no caller has asked to classify refusals. ADR-009's tally counts plans, not
+  refusals, so it does not need one either. Adding it is one struct tag plus a contract row; promote
+  it when a caller asks, or when the tally is asked WHICH refusals dominate.
 
 - **Checkpoints on small reads that fit whole.** Deferred from ADR-031, which
   interleaves `-- ck` markers only into reads that PAGE. A read that fits in one

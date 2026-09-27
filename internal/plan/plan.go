@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -336,13 +337,15 @@ func Parse(r io.Reader) ([]Hunk, error) {
 	}
 	flush()
 
+	var kinds []refusal.Kind
 	for i := range hunks {
 		if err := validate(&hunks[i]); err != nil {
 			errs = append(errs, fmt.Sprintf("line %d: %v", hunks[i].SrcLine, err))
+			kinds = append(kinds, refusal.KindOf(err))
 		}
 	}
 	if len(errs) > 0 {
-		return nil, fmt.Errorf("plan has %d error(s):\n  %s", len(errs), strings.Join(errs, "\n  "))
+		return nil, &ParseError{msg: fmt.Sprintf("plan has %d error(s):\n  %s", len(errs), strings.Join(errs, "\n  ")), Kinds: kinds}
 	}
 	if len(hunks) == 0 {
 		return nil, fmt.Errorf("plan is empty: no @@ headers found")
@@ -765,7 +768,7 @@ func validate(h *Hunk) error {
 		// each names the remedy for ITS op, and a common string would have to
 		// name neither.
 		if len(h.Body) == 0 && !h.CountedBody {
-			return fmt.Errorf("create with an empty body: say body=0 if you mean an empty file, " +
+			return refusal.New(refusal.CreateEmptyBody, "create with an empty body: say body=0 if you mean an empty file, "+
 				"and check the body did not go missing if you do not")
 		}
 		// A pattern IS an address, so `create` refuses it exactly as it refuses
@@ -778,16 +781,16 @@ func validate(h *Hunk) error {
 		// address forms in one grammar have to be refused on the same inputs.
 		// Caught in review of PR #74.
 		if h.Addr.StartPat != nil {
-			return fmt.Errorf("create takes no address, use %q", "-")
+			return refusal.New(refusal.CreateAddress, "create takes no address, use %q", "-")
 		}
 		if !patterned && (h.Addr.Start != 0 || h.Addr.End != 0) {
-			return fmt.Errorf("create takes no address, use %q", "-")
+			return refusal.New(refusal.CreateAddress, "create takes no address, use %q", "-")
 		}
 		if h.Addr.RelEnd > 0 {
-			return fmt.Errorf("create takes no address, so it takes no relative end either: use %q", "-")
+			return refusal.New(refusal.CreateRelEnd, "create takes no address, so it takes no relative end either: use %q", "-")
 		}
 		if h.Anchor != "" || h.Lines >= 0 {
-			return fmt.Errorf("create takes no anchor= or lines= (the file must not exist yet)")
+			return refusal.New(refusal.CreateGuard, "create takes no anchor= or lines= (the file must not exist yet)")
 		}
 	case OpUnlink, OpRename:
 		if h.Op == OpUnlink && len(h.Body) != 0 {
@@ -814,16 +817,16 @@ func validate(h *Hunk) error {
 		// resolve to the same line is not knowable here and does not matter:
 		// the caller wrote a range.
 		if h.Addr.EndPat != nil {
-			return fmt.Errorf("%s takes a single line, not a range", h.Op)
+			return refusal.New(refusal.InsertRange, "%s takes a single line, not a range", h.Op)
 		}
 		if h.Addr.RelEnd > 0 {
-			return fmt.Errorf("%s takes a single line, not the range %s", h.Op, h.Addr)
+			return refusal.New(refusal.InsertRange, "%s takes a single line, not the range %s", h.Op, h.Addr)
 		}
 		if !patterned && h.Addr.Start != h.Addr.End {
-			return fmt.Errorf("%s takes a single line, not the range %s", h.Op, h.Addr)
+			return refusal.New(refusal.InsertRange, "%s takes a single line, not the range %s", h.Op, h.Addr)
 		}
 		if emptyBodyAtParse(h) {
-			return fmt.Errorf("%s with an empty body would change nothing", h.Op)
+			return refusal.New(refusal.InsertEmptyBody, "%s with an empty body would change nothing", h.Op)
 		}
 	case OpReplace:
 		if !patterned && h.Addr.Start == 0 {
@@ -837,7 +840,7 @@ func validate(h *Hunk) error {
 		// a body is an error. Nothing is lost by refusing this one, because
 		// deleting lines is what `delete` is for.
 		if emptyBodyAtParse(h) {
-			return fmt.Errorf("replace with an empty body would delete %s — say delete if that is "+
+			return refusal.New(refusal.ReplaceEmptyBody, "replace with an empty body would delete %s — say delete if that is "+
 				"what you mean, and check the body did not go missing if it is not", h.Addr)
 		}
 	}
@@ -847,6 +850,17 @@ func validate(h *Hunk) error {
 	}
 	return nil
 }
+
+// ParseError is a plan that did not parse. Its text is every error found, as
+// it always was; Kinds lists the kind of each refusal validate made, in plan
+// order and "" for one it does not classify, so a caller compares kinds
+// rather than words (ADR-087).
+type ParseError struct {
+	msg   string
+	Kinds []refusal.Kind
+}
+
+func (e *ParseError) Error() string { return e.msg }
 
 // LoadBodyFiles fills each hunk's Body from BodyFile, under root. A hunk
 // with no BodyFile is left alone. Call after Parse and before Apply.
