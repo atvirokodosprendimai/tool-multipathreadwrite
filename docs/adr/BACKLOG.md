@@ -2029,7 +2029,10 @@ Contract breaks, reproduced on macOS:
   cannot take, and `Migrate` holds each destination's. Left open (deferred: found in the review of
   #240, not measured): the MCP pending-ack store is rewritten under the in-process gate only, so two
   servers on one checkout could race it, and `seen.IsStale` reads the ledger unlocked — a wrong
-  stderr notice at worst.
+  stderr notice at worst. **CLOSED 2026-09-27 — the pending store by ADR-085** (contract §167: eight
+  servers at once, each ack licenses its write; 0–1 of 64 concurrent holds survived before it);
+  **`seen.IsStale` DECLINED** — `save` writes the header and every line in one `os.WriteFile`, so a
+  racing reader sees an empty file (not stale) or the whole header, never a torn one.
 - **A UTF-16LE file is rewritten with exit 0**: served as byte-split lines, and a replace drops the
   BOM and mixes encodings. Nothing refuses a write to such a file.
   **Fixed by ADR-073**, contract §146: a line edit to a file that begins with a UTF-16 or UTF-32

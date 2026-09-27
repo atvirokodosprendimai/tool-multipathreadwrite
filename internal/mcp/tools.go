@@ -1619,7 +1619,7 @@ func nameTheAck(root string, res *apply.Result) {
 	if res == nil || res.Failed == 0 {
 		return
 	}
-	store, err := loadPending(root)
+	store, err := readPending(root)
 	if err != nil || len(store) == 0 {
 		return
 	}
