@@ -97,6 +97,32 @@ jobs:
       - name: Race
         run: go test -race ./...
 
+  # ADR-089: the opencode plugin, built and driven against the binary this
+  # commit builds. opencode itself is not installed; the smoke test calls the
+  # plugin's tools the way opencode does.
+  opencode:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cmd/opencode/mrw-plugin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Build mrw
+        run: go build -o bin/mrw ./cmd/mrw
+        working-directory: .
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Build the plugin
+        run: npm run build
+      - name: Smoke test
+        run: npm test
+
   # Windows, running the same Go gates as `test`. It exists because this project
   # SHIPS a windows/amd64 binary: cross-compiling one proves it links, not that
   # it works. Path handling, the read-before-modify ledger and `mrw check` all

@@ -23,6 +23,7 @@ go test ./...
 go test -race ./...
 ./scripts/contract.sh
 ./scripts/static.sh   # golangci-lint, deadcode, staticcheck U1000, govulncheck (ADR-088)
+(cd cmd/opencode/mrw-plugin && npm ci && npm run build && npm test)   # the opencode plugin (ADR-089)
 ```
 
 Go builds and tests run on **Linux and Windows** in CI; `contract.sh` runs on

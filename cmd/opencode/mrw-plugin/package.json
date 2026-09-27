@@ -7,6 +7,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "test": "node --test --test-reporter=tap test/*.test.mjs",
     "prepublishOnly": "tsc"
   },
   "dependencies": {

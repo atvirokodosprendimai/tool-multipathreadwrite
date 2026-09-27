@@ -10,6 +10,7 @@ The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
+Hosts: any shell (the CLI), any MCP host (`mrw mcp`, [below](#mcp)), and [opencode](#opencode) through its plugin.
 
 ## Install
 
@@ -294,50 +295,63 @@ Exit 1 on `read` means incomplete: `UNREADABLE`, `REFUSED`, `no match`, or
 
 ## opencode
 
-`mrw` is supported as an opencode plugin. The plugin lives at
-`cmd/opencode/mrw-plugin/` and exposes all mrw CLI commands as opencode tools:
+mrw supports [opencode](https://opencode.ai) through a plugin in this repository,
+`cmd/opencode/mrw-plugin/` (ADR-089). It gives an opencode session eight tools, each
+running the mrw CLI. A tool refuses what the CLI refuses, a write runs the project's
+check as the CLI does, and the ledger is the one every mrw caller shares:
 
-| tool | CLI equivalent |
-|---|---|
-| `mrw_read` | `mrw read` |
-| `mrw_write` | `mrw write` |
-| `mrw_check` | `mrw check` |
-| `mrw_stats` | `mrw stats` |
-| `mrw_seen` | `mrw seen` |
-| `mrw_iter` | `mrw iter` |
-| `mrw_version` | `mrw version` |
-| `mrw_instructions` | `mrw instructions` |
+| tool | runs | arguments |
+|---|---|---|
+| `mrw_read` | `mrw read` | `specs`, `grep`, `astGrep`, `exclude`, `stat`, `context`, `maxLines`, `filesFrom`, `root` |
+| `mrw_write` | `mrw write -` (the plan on stdin) | `plan`, `dryRun`, `noCheck`, `check`, `json`, `format` |
+| `mrw_check` | `mrw check` | `paths` |
+| `mrw_stats` | `mrw stats` | `json` |
+| `mrw_seen` | `mrw seen` | `prune`, `dryRun` |
+| `mrw_iter` | `mrw iter` | `args`: a verb and its specs, e.g. `["add", "a.go:10-20"]` |
+| `mrw_version` | `mrw version` | none |
+| `mrw_instructions` | `mrw instructions` | none |
+
+Every answer starts `exit: N`, the CLI's exit code, because that is the verdict (see
+[Exit status](#exit-status)).
 
 ### Setup
 
-Add to your workspace `opencode.json`:
-
-```json
-{
-  "plugin": [
-    "./cmd/opencode/mrw-plugin/dist/index.js"
-  ]
-}
-```
-
-Or register globally via the opencode config. Restart opencode in the workspace
-so the plugin loads.
-
-### Building
+Build the plugin once:
 
 ```sh
 cd cmd/opencode/mrw-plugin
-npm install
+npm ci
 npm run build
 ```
 
-The plugin spawns `./bin/mrw` from the workspace root. Ensure the binary is
-built and on PATH.
+Then list it in the workspace's `opencode.json` (this repository ships one), or in
+your global opencode config with an absolute path, and restart opencode:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["./cmd/opencode/mrw-plugin/dist/index.js"]
+}
+```
+
+The plugin runs `bin/mrw` (`bin\mrw.exe` on Windows) from the worktree when it is
+there, and otherwise `mrw` on `PATH`.
+
+### Or over MCP
+
+opencode is also an MCP host, so `mrw mcp` works there without the plugin: list it
+under `mcp` in `opencode.json` as a local server running `mrw mcp` (see [MCP](#mcp)).
+That surface has `mrw_read` and `mrw_write` only, with acknowledgements. The plugin
+and the MCP server both name their tools `mrw_read` and `mrw_write`, so register one
+of them.
+
+`cmd/opencode/mrw-plugin/test/smoke.test.mjs` drives the built plugin's tools against
+the built binary, and CI runs it on Linux. opencode itself is not run in CI.
 
 ## Other commands
 
 `mrw check`, `mrw iter`, `mrw seen`, `mrw seen --prune`, and `mrw stats` exist
-only on the CLI. `mrw check` is not read-only: it runs whatever the project
+only on the CLI, and so through the opencode plugin, which runs it. `mrw check` is not read-only: it runs whatever the project
 declared. Nothing calls `--prune` for you. Details: [AGENTS.md](AGENTS.md).
 
 Round trips are 2 for any N. Re-run `./scripts/measure.sh` rather than quoting
