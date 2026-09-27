@@ -1886,6 +1886,11 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
   PARTIALLY APPLIED, names the written files, and exits 2; that is the ADR-066 contract, and v1.24.1
   behaves identically, so this is not a regression. The trigger for moving the failure earlier is now
   met: validate the destination name at staging, so such a plan writes nothing. It needs a record.
+  **CLOSED 2026-09-27 — by ADR-086**: each create target and rename destination is created and
+  removed at staging, so such a plan fails before anything is written (exit 2, nothing written). The
+  reproduction also found a create of `bad\xffname.txt` landing as `bad�name.txt` at exit 0:
+  the plan header was walked as runes; it is walked as bytes now. Contract §168, and §119's
+  read-only case is now a staging refusal.
 - **A `.mrw-aside-*` left behind.** When the final aside removal fails after a
   plan that applied, the placeholder stays in the tree (ADR-004 hygiene, not a
   false receipt). Say so on the receipt if it is ever observed.

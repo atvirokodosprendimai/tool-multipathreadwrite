@@ -6239,6 +6239,12 @@ want 2 $? "a rename whose leaf is rejected under a new parent exits 2"
 # must-fail replacing plan is the shape that lost data on v1.22.3: unlink c,
 # rename b onto c, then a rename that fails — the old restore moved c back over
 # b and B-CONTENT existed nowhere.
+# ADR-086 moved the read-only case to staging: a rename's destination is now
+# created and removed there, so the directory's refusal fails the plan before
+# its content edit lands, and the mixed plan below writes NOTHING. The
+# PARTIALLY APPLIED report for a commit failure no probe can foresee is driven
+# by TestAPartialCommitIsNotSummarisedAsApplied and
+# TestAPartialWriteNamesWhatWasAlreadyWritten through the seam.
 fixture
 mkdir -p "$R/ro" "$R/w"; chmod 555 "$R/ro"
 if ( : > "$R/ro/.probe" ) 2>/dev/null; then
@@ -6259,16 +6265,16 @@ else
   setup119
   printf '@@ s.txt 1 replace\nSIB\n@@ d.txt - rename\nro/d.txt\n' | m write --no-check - >"$WORK/119.out" 2>&1
   want 2 $? "a mixed plan whose rename cannot land exits 2"
-  { [ "$(cat "$R/s.txt")" = "SIB" ] && grep -q '^ok' "$WORK/119.out" && grep -q '^FAIL' "$WORK/119.out" \
-      && grep -q 'PARTIALLY APPLIED' "$WORK/119.out"; } \
-    && ok "a partial commit is reported as partially applied" \
-    || bad "a partial commit was not reported as partially applied: $(tr '\n' ' ' < "$WORK/119.out" | cut -c1-300)"
+  { [ "$(cat "$R/s.txt")" = "sib" ] && grep -q '^FAIL' "$WORK/119.out" \
+      && ! grep -q 'PARTIALLY APPLIED' "$WORK/119.out"; } \
+    && ok "a mixed plan whose rename cannot land writes nothing: ADR-086 refuses it at staging" \
+    || bad "a mixed plan whose rename cannot land reached the tree: $(tr '\n' ' ' < "$WORK/119.out" | cut -c1-300)"
   if command -v jq >/dev/null 2>&1; then
     setup119
     printf '@@ s.txt 1 replace\nSIB\n@@ d.txt - rename\nro/d.txt\n' | m write --no-check --json - >"$WORK/119.json" 2>/dev/null
-    jq -e '.failed==1 and .applied==false and ([.files[]|select(.written)]|length==1)' "$WORK/119.json" >/dev/null \
-      && ok "and its --json receipt says one failed and one file written" \
-      || bad "the --json receipt of a partial commit is not failed==1, applied==false, one file written"
+    jq -e '.failed==1 and .applied==false and ([.files[]|select(.written)]|length==0)' "$WORK/119.json" >/dev/null \
+      && ok "and its --json receipt says one failed and no file written" \
+      || bad "the --json receipt of a staging refusal is not failed==1, applied==false, no file written"
   else
     skip "jq absent — the --json half of §119 not checked"
   fi
@@ -7311,6 +7317,23 @@ for j in 0 1 2 3 4 5 6 7; do
 done
 [ "$noid" = 0 ] && ok "each of eight concurrent reads served a checkpoint id" || bad "$noid read(s) served no checkpoint: $(head -c 200 "$WORK/r167.0")"
 [ "$landed" = 8 ] && ok "and every acknowledgement licensed its write: no server's pending span was lost" || bad "only $landed of 8 acknowledged writes landed: $(head -c 300 "$WORK/w167.0")"
+
+# 168. ADR-086: a name is written as the plan spells it, or refused with nothing
+# written — never under another name. The header walk turned a byte that is not
+# valid UTF-8 into U+FFFD, so `@@ bad\xffname.txt 0 create` created
+# bad�name.txt at exit 0. ext4 (Linux CI) holds the byte; APFS refuses it,
+# and the staging probe then fails the plan before its content edit lands.
+fixture
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 6 }\n@@ bad\377name.txt 0 create\nx\n' > "$R/p168.mrw"
+m write --no-check "$R/p168.mrw" >"$WORK/out168" 2>&1; rc=$?
+state=$(python3 -c 'import os,sys; ns=set(os.listdir(os.fsencode(sys.argv[1]))); print("exact" if b"bad\xffname.txt" in ns else "replaced" if "bad�name.txt".encode() in ns else "none")' "$R")
+case "$rc:$state" in
+	0:exact) ok "a name the filesystem holds lands with the bytes the plan wrote" ;;
+	2:none) grep -q 'return 6' "$R/a.go" && bad "the refused plan's content edit landed" || ok "a name the filesystem refuses fails the plan at staging, exit 2, and nothing is written" ;;
+	*) bad "exit $rc, name $state: $(head -c 300 "$WORK/out168")" ;;
+esac
+[ "$state" != replaced ] && ok "and the name is never rewritten to U+FFFD" || bad "the plan's name was rewritten to U+FFFD"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running

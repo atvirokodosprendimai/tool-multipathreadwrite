@@ -519,7 +519,11 @@ func splitHeader(s string) ([]string, []bool, error) {
 		// because they called ParseAddr directly and never went through here.
 		inPat bool
 	)
-	rs := []rune(s)
+	// Bytes, not runes (ADR-086): every delimiter below is ASCII and a UTF-8
+	// continuation byte is never one, so valid text splits as before, while a
+	// byte that is not valid UTF-8 survives instead of becoming U+FFFD — which
+	// turned `@@ bad\xffname.txt 0 create` into a file of another name.
+	rs := []byte(s)
 	for i := 0; i < len(rs); i++ {
 		r := rs[i]
 		switch {
@@ -531,22 +535,22 @@ func splitHeader(s string) ([]string, []bool, error) {
 			// backslash of `/\\/` and swallowed the closing slash, so the rest
 			// of the header — the op included — was absorbed into the address.
 			// Third Codex review of PR #125.
-			cur.WriteRune(r)
-			cur.WriteRune(rs[i+1])
+			cur.WriteByte(r)
+			cur.WriteByte(rs[i+1])
 			i++
 		case inPat && r == '/':
-			cur.WriteRune(r)
+			cur.WriteByte(r)
 			// `/a/,/b/` is one address: swallow the comma and keep scanning.
 			if i+2 < len(rs) && rs[i+1] == ',' && rs[i+2] == '/' {
-				cur.WriteRune(',')
-				cur.WriteRune('/')
+				cur.WriteByte(',')
+				cur.WriteByte('/')
 				i += 2
 			} else {
 				inPat = false
 			}
 		case r == '/' && !inTok && !inQ && !inSQ:
 			inPat, inTok = true, true
-			cur.WriteRune(r)
+			cur.WriteByte(r)
 		case !inPat && r == '\\' && i+1 < len(rs) && (rs[i+1] == '"' || rs[i+1] == '\\'):
 			// A backslash escapes a quote or another backslash, so an anchor
 			// can name code that itself contains a quote. Without this the
@@ -560,7 +564,7 @@ func splitHeader(s string) ([]string, []bool, error) {
 			// address, because it does not come through this splitter. Found by
 			// the third Codex review of PR #125, and it is the FOURTH scanner
 			// in this repository that had its own idea of what a pattern is.
-			cur.WriteRune(rs[i+1])
+			cur.WriteByte(rs[i+1])
 			inTok = true
 			i++
 		case !inPat && !inSQ && r == '"':
@@ -583,7 +587,7 @@ func splitHeader(s string) ([]string, []bool, error) {
 				wasQuoted = true
 				inSQ, inTok = !inSQ, true
 			} else {
-				cur.WriteRune(r)
+				cur.WriteByte(r)
 				inTok = true
 			}
 		case (r == ' ' || r == '\t') && !inQ && !inSQ && !inPat:
@@ -594,7 +598,7 @@ func splitHeader(s string) ([]string, []bool, error) {
 				inTok, wasQuoted = false, false
 			}
 		default:
-			cur.WriteRune(r)
+			cur.WriteByte(r)
 			inTok = true
 		}
 	}
