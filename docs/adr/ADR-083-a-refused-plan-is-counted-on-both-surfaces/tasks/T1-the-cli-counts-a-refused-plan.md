@@ -37,8 +37,8 @@ go test ./cmd/mrw/ -count=1 -timeout 180s -run 'TestAPlanRefusedAfterItParsedIsO
   && missing=$(for t in TestAPlanRefusedAfterItParsedIsOneRefusal; do grep -qE "^--- PASS: $t \(" /tmp/adr083-T1.out || echo "$t"; done) \
   && [ -z "$missing" ] \
   && grep -q '^# 164\. ' scripts/contract.sh \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check internal/state internal/lines internal/iter internal/rooted internal/subproc internal/mcp internal/authoring \
-  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check internal/state internal/lines internal/iter internal/rooted internal/subproc internal/mcp internal/authoring)" ] \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check internal/state internal/lines internal/iter internal/rooted internal/subproc internal/authoring \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check internal/state internal/lines internal/iter internal/rooted internal/subproc internal/authoring)" ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -84,16 +84,19 @@ go test ./cmd/mrw/ -count=1 -timeout 180s -run 'TestAPlanRefusedAfterItParsedIsO
 - 2026-09-27 · 5ababa0* · exit 0 · `set -o pipefail …` · acceptance-sha256:983f60e3878d71cf91d8d7aba297db444e6691944b1af823b93be0e9d1aabcf9 · ms:1255
 - 2026-09-27 · 5ababa0* · exit 0 · `set -o pipefail …` · acceptance-sha256:983f60e3878d71cf91d8d7aba297db444e6691944b1af823b93be0e9d1aabcf9 · ms:538
 - 2026-09-27 · 5ababa0* · exit 0 · `set -o pipefail …` · acceptance-sha256:983f60e3878d71cf91d8d7aba297db444e6691944b1af823b93be0e9d1aabcf9 · ms:347
+- 2026-09-27 · a8ff606* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e614364d270ff7a6adad9fe42d213828d2e624a76136f242181be796ecf99d · ms:1148
+- 2026-09-27 · a8ff606* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e614364d270ff7a6adad9fe42d213828d2e624a76136f242181be796ecf99d · ms:359
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-27 · 5ababa0* · mutant killed · exit 1 · `cmd/mrw/main.go` · refuseWith no longer counts a post-parse refusal · acceptance-sha256:983f60e3878d71cf91d8d7aba297db444e6691944b1af823b93be0e9d1aabcf9 · covers:a post-parse refusal counts
 - 2026-09-27 · 5ababa0* · mutant killed · exit 1 · `cmd/mrw/main.go` · the filesystem-error branch no longer counts its refusal · acceptance-sha256:983f60e3878d71cf91d8d7aba297db444e6691944b1af823b93be0e9d1aabcf9 · covers:a filesystem refusal counts
 - 2026-09-27 · 5ababa0* · mutant killed · exit 1 · `cmd/mrw/main.go` · a refusal before the plan parsed is counted too · acceptance-sha256:983f60e3878d71cf91d8d7aba297db444e6691944b1af823b93be0e9d1aabcf9 · covers:a pre-parse refusal does not count
+- 2026-09-27 · a8ff606* · mutant killed · exit 1 · `cmd/mrw/main.go` · refuseWith no longer counts a post-parse refusal · acceptance-sha256:b5e614364d270ff7a6adad9fe42d213828d2e624a76136f242181be796ecf99d · covers:a post-parse refusal counts
 
 ## Invariants
 
-- A plan is counted at most once, and a landed plan is never counted as a refusal.
+- A plan is counted at most once, and a plan that fully landed is never counted as a refusal; a filesystem failure part-way through a commit is one refusal, as `mrw_write` counts it.
 - Exit codes and receipts are unchanged.
 
 ## Risks
@@ -102,7 +105,7 @@ go test ./cmd/mrw/ -count=1 -timeout 180s -run 'TestAPlanRefusedAfterItParsedIsO
 
 ## Out of Scope
 
-- `mrw_write`'s tally (permanent: boundary: it already counts these; this task matches it)
+- `mrw_write`'s tally (permanent: boundary: T2 of this record owns `internal/mcp`)
 
 ## Stop Condition
 

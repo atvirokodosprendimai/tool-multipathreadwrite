@@ -601,6 +601,9 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 
 	set, err := iter.Load(root)
 	if err != nil {
+		// ADR-083: from here, a plan refused before it fully landed is one
+		// refused_apply, as the CLI counts it, whatever the reason.
+		_ = authoring.Record(root, authoring.RefusedApply)
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
 	}
 
@@ -610,9 +613,11 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		if iter.IsPointer(path) {
 			got, err := set.Resolve(path)
 			if err != nil {
+				_ = authoring.Record(root, authoring.RefusedApply)
 				return errorResult(fmt.Sprintf("line %d: %v", h.SrcLine, err)), nil
 			}
 			if len(got) != 1 {
+				_ = authoring.Record(root, authoring.RefusedApply)
 				return errorResult(fmt.Sprintf("line %d: %s names %d entries; a hunk needs exactly one",
 					h.SrcLine, path, len(got))), nil
 			}
@@ -628,6 +633,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 
 	ledger, err := seen.Snapshot(root)
 	if err != nil {
+		_ = authoring.Record(root, authoring.RefusedApply)
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
 	}
 	// ⚠ REFUSE BEFORE APPLYING WHEN THE VERDICT COULD NOT BE REPORTED.
@@ -644,6 +650,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// A false statement about the filesystem, which is the defect this whole
 	// tool exists to refuse. Found by the Codex review of #135.
 	if !writeFloorFits() {
+		_ = authoring.Record(root, authoring.RefusedApply)
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf(
 			"--max-result-chars %d is too small to report what a write did, so nothing was "+
 				"applied and the tree is unchanged. Raise the ceiling to at least %d.",
@@ -664,6 +671,10 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// lock. A failure there is a ledger failure after the tree changed.
 	var ledgerErr *writer.LedgerError
 	if errors.As(applyErr, &ledgerErr) {
+		// ADR-083: the plan landed; the CLI counts it as applied, and so does this.
+		if !res.DryRun {
+			_ = authoring.Record(root, authoring.Applied)
+		}
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: applyErr.Error()}
 	}
 	if res.Applied && !res.DryRun {

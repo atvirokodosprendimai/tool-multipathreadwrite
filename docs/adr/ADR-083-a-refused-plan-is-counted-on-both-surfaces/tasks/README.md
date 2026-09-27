@@ -10,22 +10,24 @@ README must be regenerated.
 
 | Wave | Tasks | Depends-on |
 |------|-------|------------|
-| 1 | T1 | none |
+| 1 | T1, T2 | none |
 
 ## Execution Order
 
 | Order | Task | Depends-on |
 |-------|------|------------|
 | 1 | T1 | none |
+| 2 | T2 | none |
 
 ## Task Index
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|-------------|
 | T1 | The CLI counts a plan refused after it parsed | done | — | `docs/adr/ADR-083-a-refused-plan-is-counted-on-both-surfaces/tasks/T1-the-cli-counts-a-refused-plan.md` fence |
+| T2 | `mrw_write` counts the same refusals and a ledger-failed landing | done | — | `docs/adr/ADR-083-a-refused-plan-is-counted-on-both-surfaces/tasks/T2-mrw-write-counts-the-same.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
 ## Notes
 
-- Engine go/no-go: ADR-083 owns `cmd/mrw` only. `internal/read`, `internal/apply`, `internal/plan`, `internal/seen`, `internal/check`, `internal/state`, `internal/lines`, `internal/iter`, `internal/rooted`, `internal/subproc`, `internal/mcp` and `internal/authoring` stay byte-identical.
+- Engine go/no-go: ADR-083 owns `cmd/mrw` (T1) and `internal/mcp` (T2). `internal/read`, `internal/apply`, `internal/plan`, `internal/seen`, `internal/check`, `internal/state`, `internal/lines`, `internal/iter`, `internal/rooted`, `internal/subproc` and `internal/authoring` stay byte-identical.
