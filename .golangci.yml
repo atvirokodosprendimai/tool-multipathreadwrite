@@ -1,0 +1,53 @@
+# golangci-lint configuration (ADR-088). scripts/static.sh runs it with the
+# other analysers; CI runs that script. Every exclusion below names why.
+version: "2"
+
+linters:
+  # The standard set (errcheck, govet, ineffassign, staticcheck, unused) plus
+  # linters that find defects rather than style.
+  enable:
+    - copyloopvar
+    - durationcheck
+    - errorlint
+    - misspell
+    - nilerr
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+  settings:
+    staticcheck:
+      # QF* are refactoring suggestions, not defects; the ST checks listed are
+      # staticcheck's own defaults-off (package comments, naming).
+      checks: ["all", "-QF*", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022"]
+    errcheck:
+      # A formatted write goes to a buffered writer whose error reaches a
+      # checked Flush (ADR-088 T4), to an in-memory buffer that cannot fail, or
+      # to stderr, where a failure has nowhere to be reported. Every other
+      # discarded error is written `_ =` at its site.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+  exclusions:
+    rules:
+      # A test helper takes fixed arguments by design, a test asserts on the
+      # error exec or os returned directly, which is never wrapped, and a test's
+      # cleanup or environment setup cannot change its verdict.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - errorlint
+          - unparam
+      # A test helper that returns (error, output) reads in call order; the
+      # convention is for APIs, and changing it rewrites locked test bodies.
+      - path: _test\.go
+        linters:
+          - staticcheck
+        text: "ST1008"
+
+issues:
+  # Every finding, every time: the default caps (50 per linter, 3 of a kind)
+  # hid real findings behind the first three of a kind.
+  max-issues-per-linter: 0
+  max-same-issues: 0

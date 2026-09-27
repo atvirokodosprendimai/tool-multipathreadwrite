@@ -368,7 +368,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return cw.stopped
 	}
 	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stop: stop})
-	w.Flush()
+	_ = w.Flush()
 
 	// A result over the declared limit is REFUSED, not truncated.
 	//
@@ -452,9 +452,10 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	//
 	// The receipt — seen.Observation, no json tags, so its keys are the Go
 	// field names — travels in content[1] and NOT in structuredContent
-	// (ADR-023; see readResult). readSchema() still describes it for a reader
-	// of the code, but tools/list no longer declares it: a schema declared is
-	// a structuredContent promised, and none is sent.
+	// (ADR-023; see readResult). readSchema(), in schema_test.go, describes it
+	// and TestTheReadReceiptMatchesItsSchema holds it to real receipts, but
+	// tools/list does not declare it: a schema declared is a structuredContent
+	// promised, and none is sent.
 	// ⚠ AND AN ANSWER THAT SERVED NOTHING IS AN ERROR (ADR-025). The observation
 	// count is the whole test, and it is deliberately not conjoined with
 	// `problems > 0`: a spec that served no LINES is still OBSERVED — an empty
@@ -1073,7 +1074,7 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 		var b bytes.Buffer
 		w := bufio.NewWriter(&b)
 		observed, problems := read.Run(w, root, []read.Spec{sp}, read.Options{Numbers: true})
-		w.Flush()
+		_ = w.Flush()
 
 		// ⚠ AND IF THAT SECOND READ SERVED NOTHING, THIS IS NOT A PAGE (ADR-025).
 		// countFileLines succeeded a moment ago, so an empty `observed` here means
@@ -1130,7 +1131,7 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 		// recorded pending for a page that is never sent.
 		// ⚠ `observed` DESCRIBES WHAT WAS SERVED, not what is licensed, and passing
 		// nil to signal "nothing licensed yet" produced `"observed": null` against
-		// a schema that requires an object (readSchema) and a README that says the
+		// a schema that requires an object (readSchema, schema_test.go) and a README that says the
 		// receipt is unchanged in shape. The conformance assertion checked only key
 		// PRESENCE, so null passed it. Licensing is the ledger's business and the
 		// checkpoints say what is pending; the receipt goes back to telling the
@@ -1399,7 +1400,7 @@ func grepSpecs(root string, paths []string, pattern string, exclude []string, af
 	for _, p := range paths {
 		sp, err := read.ParseSpec(p)
 		if err != nil {
-			return nil, nil, fmt.Errorf("%s: %v", p, err)
+			return nil, nil, fmt.Errorf("%s: %w", p, err)
 		}
 		if len(sp.Ranges) > 0 {
 			// cmd/mrw/main.go:499, word for word: the caller has said both
@@ -1409,7 +1410,7 @@ func grepSpecs(root string, paths []string, pattern string, exclude []string, af
 	}
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		return nil, nil, fmt.Errorf("grep %q: %v", pattern, err)
+		return nil, nil, fmt.Errorf("grep %q: %w", pattern, err)
 	}
 	specs, problems, err := read.Walk(root, paths, read.WalkOptions{Pattern: re, Exclude: exclude})
 	if err != nil {
@@ -1435,7 +1436,7 @@ func astGrepSpecs(root string, paths []string, pattern string, exclude []string)
 	for _, p := range paths {
 		sp, err := read.ParseSpec(p)
 		if err != nil {
-			return nil, nil, fmt.Errorf("%s: %v", p, err)
+			return nil, nil, fmt.Errorf("%s: %w", p, err)
 		}
 		if len(sp.Ranges) > 0 {
 			return nil, nil, fmt.Errorf("%s: a range and ast-grep are two answers to one question", p)
@@ -1498,7 +1499,7 @@ func matchIndex(specs []read.Spec, walkProblems []read.Problem, others int, cw *
 	shown := entries
 	var b strings.Builder
 	var raw []byte
-	next := ""
+	var next string
 	for {
 		next = ""
 		if len(shown) < len(entries) {

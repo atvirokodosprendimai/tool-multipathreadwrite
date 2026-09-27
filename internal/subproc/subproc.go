@@ -91,8 +91,8 @@ func Output(c *exec.Cmd) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(f.Name())
-	defer f.Close()
+	defer func() { _ = os.Remove(f.Name()) }()
+	defer func() { _ = f.Close() }()
 	c.Stdout = f
 	runErr := Run(c)
 	if _, err := f.Seek(0, io.SeekStart); err != nil {

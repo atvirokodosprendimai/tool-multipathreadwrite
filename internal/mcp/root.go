@@ -127,7 +127,7 @@ func CheckRoot(root string, src Source) error {
 	if err != nil {
 		// Undecidable, so not refused: a guard that fires when it cannot tell
 		// would stop a server for a reason it cannot name.
-		return nil
+		return nil //nolint:nilerr // undecidable, so not refused (above)
 	}
 	abs = resolved(abs)
 

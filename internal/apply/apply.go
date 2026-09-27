@@ -659,12 +659,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	discard := func(from int) {
 		var dirs []string
 		for _, sf := range staged[from:] {
-			os.Remove(sf.tmp)
+			_ = os.Remove(sf.tmp)
 			dirs = append(dirs, sf.dirs...)
 		}
 		sort.Slice(dirs, func(i, j int) bool { return len(dirs[i]) > len(dirs[j]) })
 		for _, d := range dirs {
-			os.Remove(d)
+			_ = os.Remove(d)
 		}
 	}
 	// abortStage assigns the verdicts of a staging failure: the hunks of the
@@ -1705,7 +1705,7 @@ func probeName(target string) error {
 	if err != nil {
 		return fmt.Errorf("the filesystem will not create this name: %w", err)
 	}
-	f.Close()
+	_ = f.Close()
 	if err := os.Remove(target); err != nil {
 		return fmt.Errorf("the probe for this name could not be removed and is left in the tree: %w", err)
 	}
@@ -1759,23 +1759,23 @@ func stageFile(path string, t text) (staged, error) {
 		perm = fi.Mode().Perm()
 	}
 	if _, err := tmp.WriteString(t.join()); err != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
 		return staged{dirs: missing}, err
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmp.Name())
+		_ = os.Remove(tmp.Name())
 		return staged{dirs: missing}, err
 	}
 	if err := os.Chmod(tmp.Name(), perm); err != nil {
-		os.Remove(tmp.Name())
+		_ = os.Remove(tmp.Name())
 		return staged{dirs: missing}, err
 	}
 	// ADR-076: a staged file is a new file, so the rename that commits it
 	// dropped the attributes of the one it replaces; on Windows a Hidden file
 	// came out visible. Only Windows has such attributes to carry.
 	if err := keepAttributes(path, tmp.Name()); err != nil {
-		os.Remove(tmp.Name())
+		_ = os.Remove(tmp.Name())
 		return staged{dirs: missing}, err
 	}
 	return staged{tmp: tmp.Name(), target: path, dirs: missing}, nil

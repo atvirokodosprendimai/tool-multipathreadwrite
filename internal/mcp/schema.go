@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
 // SchemaOf derives a JSON Schema object from a Go struct, following the json
@@ -200,42 +198,18 @@ const DefaultMaxResultChars = 200_000
 // message says bytes, because that is what was counted.
 var MaxResultChars = DefaultMaxResultChars
 
-// readSchema and writeSchema describe what each tool returns. They panic on a
-// generation failure rather than returning an error, because the types are
-// compile-time constants of this package: a failure here is a programming
-// mistake that every test and every startup would hit immediately, not a
-// runtime condition a caller could act on.
-func readSchema() map[string]any {
-	return mustDescribe(map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"observed": map[string]any{
-				"type":                 "object",
-				"additionalProperties": mustSchema(seen.Observation{}),
-			},
-			"problems": map[string]any{"type": "integer"},
-			// Present only on a paged answer, so it is NOT in `required` — a
-			// caller's exit condition is precisely its absence.
-			"next_read": map[string]any{"type": "string"},
-			// Present only on a grep's INDEX answer, and likewise not
-			// required. ⚠ ADR-017-T1's first cut claimed this file needed no
-			// change because matchIndex builds its own map — which is exactly
-			// how a response comes to violate the schema its own tool
-			// advertises. A schema-validating host would have rejected it.
-			// Found by review of #80.
-			"matches":    map[string]any{"type": "integer"},
-			"index":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"next_index": map[string]any{"type": "string"},
-		},
-		"required": []string{"observed", "problems"},
-	}, readDescriptions)
-}
-
+// writeSchema describes what mrw_write returns. It panics on a generation
+// failure rather than returning an error, because the type is a compile-time
+// constant of this package: a failure here is a programming mistake that every
+// test and every startup would hit immediately, not a runtime condition a
+// caller could act on. mrw_read declares no schema (ADR-023); the table that
+// describes its receipt is in schema_test.go, where
+// TestTheReadReceiptMatchesItsSchema holds it to real receipts (ADR-088).
 func writeSchema() map[string]any { return mustDescribe(mustSchema(writeReceipt{}), writeDescriptions) }
 
-// readDescriptions and writeDescriptions say what each property MEANS. The
-// shapes stay generated — ADR-011 measured what happens to a hand-written
-// schema — and only the prose is authored here.
+// writeDescriptions says what each property MEANS. The shapes stay generated —
+// ADR-011 measured what happens to a hand-written schema — and only the prose is
+// authored here.
 //
 // ⚠ THE PROSE LIVES IN THIS PACKAGE, NOT IN A STRUCT TAG. `internal/apply` and
 // `internal/seen` are two of the six engine directories every ADR-010 and
@@ -249,17 +223,6 @@ func writeSchema() map[string]any { return mustDescribe(mustSchema(writeReceipt{
 // undescribed property fails TestEveryOutputSchemaPropertyIsDescribed, and an
 // entry here naming a property the schema no longer declares is refused at
 // construction, which is the quieter of the two drifts.
-var readDescriptions = map[string]string{
-	"observed":       "What THIS call observed of each served file, keyed by path. It is merged into the per-checkout ledger rather than replacing it, so a later write is authorised by the accumulated spans for the same sha — not by this response alone.",
-	"observed.SHA":   "The sha256 of the whole file as it was when served. A later write is refused if the file no longer hashes to this.",
-	"observed.Spans": "The line spans this call rendered, as [start, end] pairs; null means the whole file. Authorisation is per LINE: a write to a line no read has served is refused, though a line served by an EARLIER read of the same sha is still licensed.",
-	"problems":       "How many requested ranges could not be served. Non-zero means part of what you asked for is missing from `observed` — the call itself still answered.",
-	"next_read":      "The spec to send next when this answer is only a PAGE of what you asked for. Absent when nothing remains, which is how you know you have the whole thing. A paged answer is NOT an error and carries no `isError`; it says so in its served text, with a `-- PARTIAL:` line naming the range and what remains. Stopping there leaves you holding part of a file, not the file.",
-	"matches":        "How many files matched a `grep`, counting the whole match set and not just this page. Present on any grep answer.",
-	"index":          "The matching FILE PATHS, served instead of content when the matches are too large to return. No content came with them and nothing was recorded, so this licenses no write. Send one back as a spec WITH the same grep to read its matches.",
-	"next_index":     "The last path on this page of an INDEX. Send the same grep again with `after` set to this for the next page, and repeat until it is absent — its absence is how you know you have the whole match set.",
-}
-
 var writeDescriptions = map[string]string{
 	"elided":             "Present ONLY when the whole receipt exceeded this server's advertised ceiling, and says exactly what was left out. Successful and skipped hunk verdicts go first and file records after them; every FAILED hunk is always here, and `failed`, `applied` and the counts in the report describe the whole plan whatever was dropped. Its absence means nothing was left out.",
 	"root":               "The checkout the plan was applied in. Every path in the plan is relative to it.",

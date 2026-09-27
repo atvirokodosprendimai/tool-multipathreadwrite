@@ -278,7 +278,6 @@ func multiset(xs []string) map[string]int {
 func parserDelivers(tree string, argv []string) (got []string, dispatched bool, err error) {
 	root := rootCommand()
 	for _, c := range root.Commands {
-		c := c
 		c.Action = func(_ context.Context, cmd *cli.Command) error {
 			dispatched = true
 			args := cmd.Args().Slice()

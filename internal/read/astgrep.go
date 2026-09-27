@@ -103,7 +103,7 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	hits, parseErr := parseAstGrepJSON(out)
 	if parseErr != nil {
 		if cmdErr != nil {
-			return nil, nil, fmt.Errorf("ast-grep: %v", cmdErr)
+			return nil, nil, fmt.Errorf("ast-grep: %w", cmdErr)
 		}
 		return nil, nil, parseErr
 	}

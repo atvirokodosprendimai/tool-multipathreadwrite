@@ -204,7 +204,7 @@ func commitPathOps(res *Result, pathOps []pending) (string, error) {
 		}
 		name := tmp.Name()
 		if err := tmp.Close(); err != nil {
-			os.Remove(name)
+			_ = os.Remove(name)
 			return err
 		}
 		if err := os.Remove(name); err != nil {
@@ -281,7 +281,7 @@ func commitPathOps(res *Result, pathOps []pending) (string, error) {
 		return path, err
 	}
 	for _, a := range asides {
-		os.Remove(a.tmp)
+		_ = os.Remove(a.tmp)
 	}
 	return "", nil
 }

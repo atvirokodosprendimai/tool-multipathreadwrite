@@ -58,7 +58,7 @@ func Entries() ([]Entry, error) {
 	if base == nil {
 		return nil, nil // no base yet
 	}
-	defer base.Close()
+	defer func() { _ = base.Close() }()
 
 	names, err := children(base)
 	if err != nil {
@@ -119,7 +119,7 @@ func Prune(root string, entries []Entry, dryRun bool) ([]Entry, error) {
 	if base == nil {
 		return nil, nil
 	}
-	defer base.Close()
+	defer func() { _ = base.Close() }()
 
 	// What is under the base NOW, described NOW — not what the caller's walk
 	// once saw and once concluded.
@@ -197,7 +197,7 @@ func openBase() (*os.Root, string, error) {
 		}
 		return nil, "", err
 	}
-	defer parent.Close()
+	defer func() { _ = parent.Close() }()
 
 	base, err := parent.OpenRoot(name)
 	if err != nil {
@@ -235,7 +235,7 @@ func openBase() (*os.Root, string, error) {
 	// or replaced" when the stat itself errored names a cause that was never
 	// established — the reviewer's point, and the same class of overstatement.
 	if oerr != nil || nerr != nil {
-		base.Close()
+		_ = base.Close()
 		err := oerr
 		if err == nil {
 			err = nerr
@@ -243,7 +243,7 @@ func openBase() (*os.Root, string, error) {
 		return nil, "", fmt.Errorf("the state base %s cannot be verified as the object mrw opened: %w", dir, err)
 	}
 	if !os.SameFile(opened, named) {
-		base.Close()
+		_ = base.Close()
 		return nil, "", symlinkedBase(dir)
 	}
 	return base, dir, nil
@@ -268,7 +268,7 @@ func Count() (int, error) {
 	if base == nil {
 		return 0, nil
 	}
-	defer base.Close()
+	defer func() { _ = base.Close() }()
 	names, err := children(base)
 	if err != nil {
 		return 0, err
@@ -297,7 +297,7 @@ func children(base *os.Root) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	items, err := f.ReadDir(-1)
 	if err != nil {
 		return nil, err
@@ -398,7 +398,7 @@ func describe(base *os.Root, baseDir, name string) Entry {
 	if err != nil {
 		return e
 	}
-	defer sub.Close()
+	defer func() { _ = sub.Close() }()
 	e.Bytes = sizeOf(sub)
 
 	b, err := readAll(sub, "root")
@@ -445,7 +445,7 @@ func readAll(sub *os.Root, name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return io.ReadAll(f)
 }
 
@@ -457,7 +457,7 @@ func sizeOf(sub *os.Root) int64 {
 	if err != nil {
 		return 0
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	items, err := f.ReadDir(-1)
 	if err != nil {
 		return 0

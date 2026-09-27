@@ -430,7 +430,7 @@ func loadPending(root string) (map[string]pending, error) {
 	if err := json.Unmarshal(b, &store); err != nil {
 		// A pending store that will not parse licenses nothing, which is the
 		// safe direction: the caller re-reads. Not an error to the caller.
-		return map[string]pending{}, nil
+		return map[string]pending{}, nil //nolint:nilerr // an unparsable store licenses nothing (above)
 	}
 	return store, nil
 }

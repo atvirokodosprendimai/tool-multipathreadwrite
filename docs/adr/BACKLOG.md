@@ -1930,7 +1930,11 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
   Windows report.
 - **A `.mrw-aside-*` left behind.** When the final aside removal fails after a
   plan that applied, the placeholder stays in the tree (ADR-004 hygiene, not a
-  false receipt). Say so on the receipt if it is ever observed.
+  false receipt). Say so on the receipt if it is ever observed. The same holds
+  for a staged `.mrw-*` temp file whose removal fails after a staging abort
+  (`discard` in `apply.go`). Since ADR-088 both discards are written `_ =` at
+  their sites; the Codex review of #259 traced them, and reporting the survivor
+  is this entry's work.
 - **The handshake said "if any hunk fails, nothing is written".** After ADR-066
   a commit failure can leave some files written with a hunk `failed`. Fixed in
   ADR-066 T3 after the Codex review of #207: the Shared sentence now reads "if

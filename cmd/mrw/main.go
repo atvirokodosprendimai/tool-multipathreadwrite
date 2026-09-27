@@ -858,7 +858,6 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 
 			out := bufio.NewWriter(os.Stdout)
-			defer out.Flush()
 
 			// Every path the walk could not serve reaches the caller with its
 			// reason, and counts. Rule 5: one bad path never costs the caller
@@ -871,11 +870,11 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// which is byte-for-byte the output of a successful read that
 			// happened to serve nothing — the one ambiguity worth a line.
 			if grepSet && len(specs) == 0 {
-				out.Flush()
+				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
 				return cli.Exit(fmt.Sprintf("no file matched /%s/", pattern), 1)
 			}
 			if astSet && len(specs) == 0 {
-				out.Flush()
+				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
 				return cli.Exit(fmt.Sprintf("no file matched /%s/", astPattern), 1)
 			}
 
@@ -885,6 +884,13 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Context:  cmd.Int("context"),
 				MaxLines: maxLines(cmd),
 			})
+			// The answer reaches the caller BEFORE anything is recorded (ADR-088).
+			// It used to be flushed on return, unchecked, after seen.Record: a read
+			// whose output could not be written — a full disk — licensed a write to
+			// lines nobody saw, which is ADR-002 inverted.
+			if err := out.Flush(); err != nil {
+				return cli.Exit(fmt.Sprintf("the answer could not be written, so nothing was recorded: %v", err), exitUsage)
+			}
 			// Reading a file is how mrw learns what it holds; recording that is
 			// what lets a later write know whether its picture is still current.
 			if err := seen.Record(root, observed); err != nil {
@@ -892,7 +898,6 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 			problems += len(refusals)
 			if problems > 0 {
-				out.Flush()
 				return cli.Exit(fmt.Sprintf("%d range(s) could not be served", problems), 1)
 			}
 			return nil
@@ -1112,7 +1117,7 @@ held or went unchecked.`,
 					// leaving the caller to doubt the plan instead of the path.
 					return refuse(planOpenError(args[0], cmd.String("root"), err).Error())
 				}
-				defer f.Close()
+				defer func() { _ = f.Close() }()
 				src, name = f, args[0]
 			}
 
@@ -1673,7 +1678,7 @@ func reportCheck(w *os.File, r *check.Result) {
 		return
 	}
 	out := bufio.NewWriter(w)
-	defer out.Flush()
+	defer func() { _ = out.Flush() }()
 
 	// ADR-008: a delete says what it removed — here the old check logs this
 	// run pruned from the temp directory (ADR-080).
@@ -1737,7 +1742,7 @@ func reportCheck(w *os.File, r *check.Result) {
 // usually an agent paying for every line it reads back.
 func report(w *os.File, res apply.Result, quiet bool) {
 	out := bufio.NewWriter(w)
-	defer out.Flush()
+	defer func() { _ = out.Flush() }()
 
 	for _, h := range res.Hunks {
 		switch {
@@ -2261,7 +2266,7 @@ func specList(name string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		r = f
 	}
 	var out []string

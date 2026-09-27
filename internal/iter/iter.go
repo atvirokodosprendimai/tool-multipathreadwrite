@@ -87,7 +87,7 @@ func load(root string) (Set, error) {
 	if err != nil {
 		return s, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	seen := map[string]bool{}
 	sc := bufio.NewScanner(f)

@@ -13,7 +13,16 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
 )
+
+// checkSignals are the signals that stop a running check (ADR-072): an
+// interrupt, a terminate and a hangup, less any the process was started with
+// ignored. They are subproc's own, since the check listens through
+// subproc.Interruptible like every child mrw starts (ADR-074). Run never named
+// them itself, so this lives with the test that does (ADR-088).
+func checkSignals() []os.Signal { return subproc.Signals() }
 
 // ADR-072 T4. The check's timeout killed only sh, so `sh -c 'make test'` left
 // make running after mrw reported "timed out". The check runs in its own

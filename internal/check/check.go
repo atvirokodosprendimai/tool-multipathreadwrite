@@ -257,7 +257,7 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 
 	// ADR-082: sh from PATH, or on Windows the sh.exe Git ships beside git.exe;
 	// a plain PowerShell PATH holds Git's cmd directory and not its usr\bin.
-	shell, pathDir, found := shellEnv()
+	shell, pathDir, found := Shell()
 	c := subproc.Command(ctx, shell, "-c", cmdline)
 	c.Dir = root
 	c.Stdout, c.Stderr = f, f
@@ -269,7 +269,7 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	start := time.Now()
 	runErr := subproc.Run(c)
 	res.DurationMS = time.Since(start).Milliseconds()
-	f.Close()
+	_ = f.Close()
 
 	switch {
 	case runErr == nil:
@@ -416,7 +416,7 @@ func confine(root string, paths []string) error {
 		}
 		full, err := rooted.Resolve(root, p)
 		if err != nil {
-			return fmt.Errorf("%v: check it with --root pointed where you mean", err)
+			return fmt.Errorf("%w: check it with --root pointed where you mean", err)
 		}
 		// A path that is not there is refused (ADR-042). The fallback used to
 		// run the whole project and call that PASS, so a typo read as green on
@@ -677,9 +677,3 @@ func lastLines(path string, n int) ([]string, int) {
 	}
 	return lines[len(lines)-n:], len(lines) - n
 }
-
-// checkSignals are the signals that stop a running check (ADR-072): an
-// interrupt, a terminate and a hangup, less any the process was started with
-// ignored. They are subproc's own, since the check listens through
-// subproc.Interruptible like every child mrw starts (ADR-074).
-func checkSignals() []os.Signal { return subproc.Signals() }

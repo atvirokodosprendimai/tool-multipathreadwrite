@@ -12,7 +12,7 @@ import (
 // is about the check's verdict, and without a shell there is no check to judge.
 func needShell(t *testing.T) {
 	t.Helper()
-	if _, ok := check.Shell(); !ok {
+	if _, _, ok := check.Shell(); !ok {
 		t.Skip("no POSIX shell: no sh on PATH and no Git for Windows (ADR-082)")
 	}
 }

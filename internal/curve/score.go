@@ -95,7 +95,7 @@ func ScoreTrial(dir string, r Result) (Score, error) {
 	if err != nil {
 		return Score{}, err
 	}
-	defer os.RemoveAll(scratch)
+	defer func() { _ = os.RemoveAll(scratch) }()
 	if err := copyTree(m.Tree, scratch); err != nil {
 		return Score{}, err
 	}

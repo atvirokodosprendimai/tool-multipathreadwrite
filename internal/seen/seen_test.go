@@ -77,7 +77,7 @@ func TestRecordOverwritesTheSamePath(t *testing.T) {
 }
 
 func TestSHAIsStable(t *testing.T) {
-	if SHA([]byte("hello")) != SHA([]byte("hello")) {
+	if first, second := SHA([]byte("hello")), SHA([]byte("hello")); first != second {
 		t.Error("SHA is not deterministic")
 	}
 	if SHA([]byte("hello")) == SHA([]byte("hellp")) {

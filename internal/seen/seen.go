@@ -129,7 +129,7 @@ func Load(root string) (Ledger, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sc := bufio.NewScanner(f)
 	sc.Split(scanLF)
@@ -184,7 +184,7 @@ func IsStale(root string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	sc.Split(scanLF)
 	if !sc.Scan() {
