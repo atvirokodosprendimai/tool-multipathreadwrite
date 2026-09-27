@@ -20,7 +20,9 @@ import (
 func TestTheStaticHookReportsAfterACommit(t *testing.T) {
 	failing := newStaticHookRepo(t, "echo FINDING-088; exit 1")
 	failing.commit("second")
-	if ctx := failing.context("git commit -m second"); !strings.Contains(ctx, "FINDING-088") || !strings.Contains(ctx, "FAILED") {
+	// A heredoc whose double-quoted delimiter escapes a $ ends at E$OF, and the
+	// commit after it is a command.
+	if ctx := failing.context("cat <<\"E\\$OF\"\ntext\nE$OF\ngit commit -m second"); !strings.Contains(ctx, "FINDING-088") || !strings.Contains(ctx, "FAILED") {
 		t.Fatalf("a commit whose analysis failed did not hand the finding over: %q", ctx)
 	}
 

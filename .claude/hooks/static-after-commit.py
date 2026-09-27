@@ -97,11 +97,20 @@ def simple_commands(text):
             # The delimiter is one shell word: quotes group and are removed.
             delim = []
             while i < n and text[i] not in " \t\n;&|()<>":
-                if text[i] in "'\"":
-                    j = text.find(text[i], i + 1)
+                if text[i] == "'":
+                    j = text.find("'", i + 1)
                     j = n if j < 0 else j
                     delim.append(text[i + 1:j])
                     i = j + 1
+                    continue
+                if text[i] == '"':
+                    i += 1
+                    while i < n and text[i] != '"':
+                        if text[i] == "\\" and i + 1 < n and text[i + 1] in '"\\$`':
+                            i += 1
+                        delim.append(text[i])
+                        i += 1
+                    i += 1
                     continue
                 if text[i] == "\\" and i + 1 < n:
                     i += 1
