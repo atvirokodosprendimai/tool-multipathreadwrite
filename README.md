@@ -292,6 +292,48 @@ starts with `/` is rewritten too, into a false "no match".
 Exit 1 on `read` means incomplete: `UNREADABLE`, `REFUSED`, `no match`, or
 `WITHHELD`. The output always names which.
 
+## opencode
+
+`mrw` is supported as an opencode plugin. The plugin lives at
+`cmd/opencode/mrw-plugin/` and exposes all mrw CLI commands as opencode tools:
+
+| tool | CLI equivalent |
+|---|---|
+| `mrw_read` | `mrw read` |
+| `mrw_write` | `mrw write` |
+| `mrw_check` | `mrw check` |
+| `mrw_stats` | `mrw stats` |
+| `mrw_seen` | `mrw seen` |
+| `mrw_iter` | `mrw iter` |
+| `mrw_version` | `mrw version` |
+| `mrw_instructions` | `mrw instructions` |
+
+### Setup
+
+Add to your workspace `opencode.json`:
+
+```json
+{
+  "plugin": [
+    "./cmd/opencode/mrw-plugin/dist/index.js"
+  ]
+}
+```
+
+Or register globally via the opencode config. Restart opencode in the workspace
+so the plugin loads.
+
+### Building
+
+```sh
+cd cmd/opencode/mrw-plugin
+npm install
+npm run build
+```
+
+The plugin spawns `./bin/mrw` from the workspace root. Ensure the binary is
+built and on PATH.
+
 ## Other commands
 
 `mrw check`, `mrw iter`, `mrw seen`, `mrw seen --prune`, and `mrw stats` exist
