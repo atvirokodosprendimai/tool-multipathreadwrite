@@ -343,7 +343,9 @@ that arms work; silence leaves the row where it is.
   `scripts/test_blind_score.py`. The quoted-word void was the raw `"--help" in cmd` test, which voided
   `echo "see --help"`. Readings 03 and 04 re-scored with no verdict moved.
 
-- **Teaching leads from blind reading 03, not yet acted on.** A write's `-M` refusal is a bare parse
+- ~~**Teaching leads from blind reading 03, not yet acted on.**~~ **CLOSED 2026-09-27 — by ADR-084**,
+  contract §166: `-M` in a write is refused naming `1-M`; `mrw instructions` teaches a write's exit 1
+  and 2; the instructions, `read --help` and AGENTS.md say a bare directory prunes. A write's `-M` refusal is a bare parse
   error; a write's exit 1 and exit 2 are not taught; `--exclude` does not say it prunes a bare
   directory name. Each needs its own decision on whether `mrw instructions` should carry it, since
   the handshake and the CLI text are budgeted (`docs/blind/blind-03-result.md`, "Teaching leads").

@@ -694,6 +694,14 @@ func ParseAddr(s string) (Addr, error) {
 		}
 		return n, nil
 	}
+	// -M is a read's "from the start" (ADR-063); a write address names its
+	// first line. Refused by name here rather than as the empty start the cut
+	// below would report (blind reading 03, ADR-084).
+	if rest, ok := strings.CutPrefix(s, "-"); ok {
+		if _, err := strconv.Atoi(rest); err == nil {
+			return Addr{}, fmt.Errorf("%q is a read range; a write address names its first line: 1-%s", s, rest)
+		}
+	}
 	lo, hi, ranged := strings.Cut(s, "-")
 	start, err := one(lo)
 	if err != nil {
