@@ -1886,6 +1886,31 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
   PARTIALLY APPLIED, names the written files, and exits 2; that is the ADR-066 contract, and v1.24.1
   behaves identically, so this is not a regression. The trigger for moving the failure earlier is now
   met: validate the destination name at staging, so such a plan writes nothing. It needs a record.
+  **CLOSED 2026-09-27 — by ADR-086**: each create target and rename destination is created and
+  removed at staging, so such a plan fails before anything is written (exit 2, nothing written). The
+  reproduction also found a create of `bad\xffname.txt` landing as `bad�name.txt` at exit 0:
+  the plan header was walked as runes; it is walked as bytes now. Contract §168, and §119's
+  read-only case is now a staging refusal.
+- **foldKey collapses distinct invalid bytes** (the Codex review of #254, source-traced, not
+  observed): `foldKey` (`internal/apply/apply.go`) decodes a name as runes, so `x\xfe` and `x\xff`
+  both fold to U+FFFD and two creates of them are refused as one file. A false refusal, never a lost
+  write. Arm on one observed plan that needs two such names.
+- **A probe left behind** (ADR-086, not observed): when a staging probe's removal fails, the empty
+  file stays in the tree while the receipt says NOTHING WRITTEN; the refusal names it, but the
+  receipt's written list does not. Say so on the receipt if it is ever observed.
+- **A --json receipt with a filesystem-derived invalid name** (the Codex review of #254,
+  source-traced, not observed): ADR-086 refuses a `--json` plan whose GIVEN names (path, rename
+  destination, expanded pointer) are not valid UTF-8, but a name the filesystem supplies — the target
+  of an in-root symlink, a directory created through a linked one, a Linux root holding such bytes —
+  still reaches `Files[].Target`, `dirs_created` or `root` and serialises with U+FFFD. Needs a
+  receipt-contract decision (refuse at staging from the resolved names, or encode names losslessly),
+  not a patch. Arm on one observed case.
+- **A Windows absolute spec normalised before the alias check** (the Codex review of #254,
+  source-traced, Windows only): `read.go` and `walk.go` call `rooted.Real` (`EvalSymlinks`) before
+  `rooted.Resolve`, and on Windows that returns the on-disk spelling, so an absolute spec holding an
+  invalid byte whose U+FFFD twin exists is served as the twin. A write to the invalid name is still
+  refused by `Resolve`. The fix is to check the original spelling first, in `internal/read`. Arm on a
+  Windows report.
 - **A `.mrw-aside-*` left behind.** When the final aside removal fails after a
   plan that applied, the placeholder stays in the tree (ADR-004 hygiene, not a
   false receipt). Say so on the receipt if it is ever observed.

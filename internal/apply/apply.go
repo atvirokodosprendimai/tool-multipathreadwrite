@@ -749,6 +749,16 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			return abortStage(w.file.Path, err)
 		}
 		staged = append(staged, sf)
+		// ADR-086: a name that does not exist yet is asked of the filesystem
+		// now, while nothing has been written. APFS refuses a name that is not
+		// valid UTF-8 and lstat of it answers "does not exist", so a create only
+		// found out at commit, after the plan's other files had landed.
+		if w.file.Created {
+			if err := probeNameFn(sf.target); err != nil {
+				discard(0)
+				return abortStage(w.file.Path, err)
+			}
+		}
 	}
 	// ADR-066: a rename's destination directory is made HERE, while nothing
 	// has been written, and not at commit. Made at commit, a directory that
@@ -773,6 +783,9 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		if err == nil {
 			if _, lerr := os.Lstat(w.renameTo); lerr != nil && !os.IsNotExist(lerr) {
 				err = lerr
+			} else if lerr != nil {
+				// ADR-086: "does not exist" is not "can be created" — ask.
+				err = probeNameFn(w.renameTo)
 			}
 		}
 		if err != nil {
@@ -1665,6 +1678,26 @@ func readLines(path string) (t text, existed bool, err error) {
 // so a permission-based test silently exercises nothing when CI runs as root,
 // which is the defect class this whole guard exists to catch.
 var stageFileFn = stageFile
+
+// probeNameFn is the seam the staging probe goes through (ADR-086). A real
+// refusal needs a filesystem that refuses a name: APFS does for bytes that are
+// not valid UTF-8, and ext4 for none a test can spell.
+var probeNameFn = probeName
+
+// probeName asks the filesystem whether it can hold a name that does not exist
+// yet, by creating it exclusively and removing it again. lstat of a name APFS
+// refuses answers "does not exist", so only a create finds out (ADR-086).
+func probeName(target string) error {
+	f, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("the filesystem will not create this name: %w", err)
+	}
+	f.Close()
+	if err := os.Remove(target); err != nil {
+		return fmt.Errorf("the probe for this name could not be removed and is left in the tree: %w", err)
+	}
+	return nil
+}
 
 // commitRenameFn is the seam every COMMIT rename goes through: a content
 // temp onto its target, an unlink's file into its aside, a rename, and each
