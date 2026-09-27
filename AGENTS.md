@@ -163,7 +163,9 @@ A named directory is walked; with no paths at all the walk starts at `--root`.
 path and the basename — the basename half is what makes `'*_test.go'` work at
 any depth, because `path.Match`'s `*` does not cross `/`. A pattern that matches
 no file is reported by name and exits 1. A bare directory name (`--exclude vendor`)
-prunes that whole subtree: the walk never enters it.
+met below where the walk starts prunes that whole subtree: the walk never enters it.
+A path you name is walked even if it matches, and `--ast-grep` runs the binary over
+the named paths and drops excluded hits afterwards, so it does not save that traversal.
 
 It does **not** read `.gitignore` and does not sniff for binary files: a regular
 file is a candidate, so exclude build artifacts by name (`--exclude bin`).

@@ -19,6 +19,14 @@ func TestAWriteAddressThatStartsWithMinusNamesTheForm(t *testing.T) {
 			t.Errorf("ParseAddr(%q) = %v, want it to parse", ok, err)
 		}
 	}
+	// Only a positive digit bound earns a recommendation (Codex review of
+	// #252): "--2", "-0" and an overflowing bound are refused without one.
+	for _, bad := range []string{"--2", "-0", "-99999999999999999999"} {
+		_, err := ParseAddr(bad)
+		if err == nil || strings.Contains(err.Error(), ": 1-") {
+			t.Errorf("ParseAddr(%q) = %v, want a refusal that recommends no 1-M", bad, err)
+		}
+	}
 	if _, err := Parse(strings.NewReader("@@ f.go -2 delete\n")); err == nil || !strings.Contains(err.Error(), "1-2") {
 		t.Errorf("a plan addressing -2: %v, want the write form named", err)
 	}

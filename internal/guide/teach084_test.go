@@ -12,7 +12,9 @@ func TestCLITeachesAWritesExitCodesAndExcludePruning(t *testing.T) {
 	got := CLI()
 	for _, must := range []string{
 		"A write exits 1 when a hunk fails validation, and nothing is written; 2 on a usage or filesystem failure.",
-		"a bare directory name prunes that whole subtree",
+		"a bare directory name met below where the walk starts prunes that whole subtree",
+		"a path you name is walked even if it matches",
+		"--ast-grep drops excluded hits after the binary runs",
 	} {
 		if !strings.Contains(got, must) {
 			t.Errorf("CLI() does not teach %q", must)

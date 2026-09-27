@@ -83,12 +83,17 @@ go test ./internal/plan/ ./internal/guide/ -count=1 -timeout 180s -run 'TestAWri
 - 2026-09-27 · 64d4657* · exit 0 · `set -o pipefail …` · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · ms:1279
 - 2026-09-27 · 64d4657* · exit 0 · `set -o pipefail …` · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · ms:414
 - 2026-09-27 · 64d4657* · exit 0 · `set -o pipefail …` · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · ms:450
+- 2026-09-27 · d8a7dfc* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · ms:0 · test-lock-sha256:cf70e7325e029fc978c98ebecdb5f46788c7d470117bbeccfd44c55c929de5e1 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL2d1aWRlL3RlYWNoMDg0X3Rlc3QuZ28JVGVzdENMSVRlYWNoZXNBV3JpdGVzRXhpdENvZGVzQW5kRXhjbHVkZVBydW5pbmcJYmMyMmI0ZDVhNWExYTAwNzQ3NWYxMjM0MjFhOTBiNDBiMjI3YzJlZjhmMTk1ZGRhM2MxZmJkNjg2NTVmYTZhNApib2R5CWludGVybmFsL3BsYW4vbWludXMwODRfdGVzdC5nbwlUZXN0QVdyaXRlQWRkcmVzc1RoYXRTdGFydHNXaXRoTWludXNOYW1lc1RoZUZvcm0JNTljN2Y5YzIyOTJiNDczYjhlOGM3NjUzNTA5ZTdlZDEyODMwYzg5MjIwZjZiZjNlNGRmODkyOTI2MWQ5MzA5Nw · test-lock-kind:replace
+- 2026-09-27 · human-observed · relock 2026-09-27: Codex review of #252 — both tests strengthened (no 1-M recommended for --2, -0 or an overflow; the --exclude sentence names the named-path exemption and ast-grep's after-the-fact filtering); every earlier assertion kept
+- 2026-09-27 · d8a7dfc* · exit 0 · `set -o pipefail …` · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · ms:744
+- 2026-09-27 · d8a7dfc* · exit 0 · `set -o pipefail …` · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · ms:264
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-27 · 64d4657* · mutant killed · exit 1 · `internal/plan/plan.go` · a write -M falls through to the empty-start parse error · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · covers:a write -M names 1-M
 - 2026-09-27 · 64d4657* · mutant killed · exit 1 · `internal/guide/guide.go` · the instructions stop teaching a write exit 1 and 2 · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · covers:instructions teach a write's exits
 - 2026-09-27 · 64d4657* · mutant killed · exit 1 · `internal/guide/guide.go` · the instructions stop saying a bare directory prunes · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · covers:instructions teach exclude pruning
+- 2026-09-27 · d8a7dfc* · mutant killed · exit 1 · `internal/plan/plan.go` · -0 is recommended the invalid write form 1-0 · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · covers:a write -M names 1-M
 
 ## Invariants
 

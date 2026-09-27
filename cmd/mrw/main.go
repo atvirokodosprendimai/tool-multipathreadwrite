@@ -652,7 +652,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.StringSliceFlag{
 				Name:  "exclude",
-				Usage: "skip paths matching `GLOB`, matched against the root-relative path AND the basename; a bare directory name prunes that whole subtree (repeatable)",
+				Usage: "skip paths matching `GLOB`, matched against the root-relative path AND the basename; a bare directory name met below where the walk starts prunes that whole subtree, while a path you name is walked (repeatable)",
 			},
 			&cli.StringFlag{
 				Name:  "files-from",

@@ -8,7 +8,7 @@
 **Cross-references:** ADR-007, ADR-037, ADR-063, docs/blind/blind-03-result.md, docs/adr/BACKLOG.md
 **Governs:** `internal/plan/plan.go`, `internal/guide/guide.go`, `cmd/mrw/main.go`, `AGENTS.md`
 **Enforced-by:** `internal/plan/minus084_test.go::TestAWriteAddressThatStartsWithMinusNamesTheForm`
-**Served-path change:** a write address that starts with `-` and a number (`@@ f -2 delete`) is refused naming the form a write takes (`1-2`) instead of `bad line number ""`, still exit 2; `mrw instructions` says a write exits 1 when a hunk fails and 2 on a usage or filesystem failure; `mrw instructions`, `read --help` and AGENTS.md say a bare directory name in `--exclude` prunes that whole subtree.
+**Served-path change:** a write address of `-` and a positive number (`@@ f -2 delete`) is refused naming the form a write takes (`1-2`) instead of `bad line number ""`, and `--2`, `-0` or an overflowing bound is refused without a recommendation, still exit 2; `mrw instructions` says a write exits 1 when a hunk fails and 2 on a usage or filesystem failure; `mrw instructions`, `read --help` and AGENTS.md say a bare directory name in `--exclude` met below where the walk starts prunes that whole subtree, a named path is walked anyway, and `--ast-grep` filters its hits afterwards.
 
 ## Context
 
@@ -25,7 +25,8 @@ reported"; filed in BACKLOG as "Teaching leads from blind reading 03, not yet ac
   `fs.SkipDir`); the Haiku runs that used it got it right.
 
 BACKLOG said each needed its own decision because the handshake and the CLI text are budgeted. The
-handshake is `Shared()` and is not touched here; `CLI()` carries no size cap.
+MCP handshake (`internal/mcp/instructions.go`: `Shared()`, `WhyAllOrNothing()` and MCP-specific
+text) is bounded at 4096 characters as a whole and is not touched here; `CLI()` carries no size cap.
 
 ## Existing Primitives Audit
 
@@ -35,19 +36,21 @@ handshake is `Shared()` and is not touched here; `CLI()` carries no size cap.
 
 ## Decision
 
-1. A plan address of `-` followed by a number is refused naming the write form, `1-M`, and saying
-   `-M` is a read range. Exit 2, as any parse refusal.
+1. A plan address of `-` followed by a positive number is refused naming the write form, `1-M`, and
+   saying `-M` is a read range; a `-` followed by any other digit string (`-0`, an overflow) or a
+   second `-` is refused without recommending a form. Exit 2, as any parse refusal.
 2. `CLI()` says: a write exits 1 when a hunk fails validation, and nothing is written; 2 on a usage
    or filesystem failure.
-3. `CLI()`, the `--exclude` flag help and AGENTS.md say a bare directory name prunes that whole
-   subtree.
+3. `CLI()`, the `--exclude` flag help and AGENTS.md say a bare directory name met below where the
+   walk starts prunes that whole subtree, that a path you name is walked anyway, and (`CLI()`,
+   AGENTS.md) that `--ast-grep` drops excluded hits after the binary runs.
 
 ## Alternatives Considered
 
 - **Accept `-M` in a write as `1-M`.** Rejected: a write address that silently widens to line 1 is
   exactly the unread-range surprise ADR-002 guards against; naming the form costs one retry.
-- **Teach these in the MCP handshake too.** Rejected: `Shared()` is budgeted at 4096 bytes and holds
-  only the five ADR-037 sentences; the MCP surface returns the same refusal text.
+- **Teach these in the MCP handshake too.** Rejected: the whole handshake is bounded at 4096
+  characters and carries the five ADR-037 sentences; the MCP surface returns the same refusal text.
 
 ## Component / Boundary Impact
 
