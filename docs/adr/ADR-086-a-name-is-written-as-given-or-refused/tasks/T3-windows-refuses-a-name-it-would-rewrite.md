@@ -51,7 +51,7 @@ go test ./internal/rooted/ -count=1 -timeout 180s -run 'TestWin32AliasNamesAComp
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | `win32Alias` |
-| 2 — something selects it | `rooted.Resolve` on Windows, for every read spec, plan path and rename destination |
+| 2 — something selects it | `rooted.Resolve` on Windows, for every relative read spec, plan path and rename destination; an absolute read spec is normalised first (deferred: BACKLOG, "A Windows absolute spec normalised before the alias check") |
 | 3 — the caller can discover it | the refusal names the component and the name Windows would use |
 | 4 — it is used | the Codex review of #254 traced it; ADR-009 refuses telemetry |
 

@@ -7335,9 +7335,10 @@ case "$rc:$state" in
 esac
 [ "$state" != replaced ] && ok "and the name is never rewritten to U+FFFD" || bad "the plan's name was rewritten to U+FFFD"
 
-# 169. ADR-086 T4: a --json receipt names every file as written. encoding/json
-# turns a byte that is not valid UTF-8 into U+FFFD, so a --json plan with such a
-# name is refused before anything lands; the same plan with a valid name applies.
+# 169. ADR-086 T4: a --json receipt names every file the plan gives as written.
+# encoding/json turns a byte that is not valid UTF-8 into U+FFFD, so a --json plan
+# with such a name is refused before anything lands; the same plan with a valid
+# name applies. A name the filesystem supplies is deferred (BACKLOG).
 fixture
 printf '@@ bad\377name.txt 0 create\nx\n' > "$R/p169a.mrw"
 out=$(m write --no-check --json "$R/p169a.mrw" 2>&1); want 2 $? "a --json plan whose name is not valid UTF-8 is refused, exit 2"

@@ -46,8 +46,13 @@ func TestAJSONPlanWithANameItCannotRepresentWritesNothing(t *testing.T) {
 func TestAJSONPointerToANameItCannotRepresentWritesNothing(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()
+	// Only where the directory then holds those exact bytes: APFS refuses the
+	// name, and Windows writes it as U+FFFD (Codex review of #254).
 	if err := os.WriteFile(filepath.Join(root, "bad\xffname.txt"), []byte("x\n"), 0o644); err != nil {
 		t.Skipf("this filesystem refuses the name (%v); no working set can point at it", err)
+	}
+	if es, err := os.ReadDir(root); err != nil || len(es) != 1 || es[0].Name() != "bad\xffname.txt" {
+		t.Skipf("this filesystem did not keep the name's bytes (%v); no working set can point at it", err)
 	}
 	if _, err := readIn(t, root, "bad\xffname.txt"); err != nil {
 		t.Fatal(err)
