@@ -2213,7 +2213,9 @@ change moved the locks of ADR-072 T4, ADR-074 T1, ADR-080 T1 and ADR-080 T2, re-
 `--relock --replace-hashes` in the same change.
 **The dry run is fixed by ADR-079**, contract §161: a clean `--dry-run` records nothing on either
 surface (MCP counted every dry run as `refused_apply`), and a refused one is one refusal.
-- **Filesystem-error refusals are tallied on one surface** (the review of #240, older than ADR-079):
+- ~~**Filesystem-error refusals are tallied on one surface**~~ **CLOSED 2026-09-27 — by ADR-083**,
+  contract §164: a plan the CLI refuses after it parsed and before anything landed is one
+  `refused_apply`, as `mrw_write` counts it, dry run or not. (The review of #240, older than ADR-079):
   a plan refused by a filesystem error before any hunk is judged — a path that names a directory —
   exits 2 on the CLI before the tally is reached, while `mrw_write` counts it as `refused_apply`, dry
   run or not. Deferred: which bucket such a refusal belongs in is ADR-009's call, not ADR-079's.

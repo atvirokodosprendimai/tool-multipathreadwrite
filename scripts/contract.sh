@@ -7245,6 +7245,21 @@ printf '@@ a.go 99 replace\nx\n' > "$R/p161b.mrw"
 m write --no-check --dry-run "$R/p161b.mrw" >/dev/null 2>&1; want 1 $? "a dry run addressing a line that does not exist is refused"
 [ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .plans' | tr '\n' ' ')" = "1 1 " ] && ok "and is one refusal" || bad "a refused dry run: $(m stats --json 2>&1 | head -c 300)"
 
+# 164. ADR-083: a plan refused after it parsed is counted on the CLI, as mrw_write
+# counts it. A plan naming a directory exited 2 and the tally stayed empty,
+# --dry-run or not; a clean write beside it is still counted as applied.
+fixture
+mkdir "$R/d164"
+printf '@@ d164 1 replace\nx\n' > "$R/p164a.mrw"
+m write --no-check "$R/p164a.mrw" >/dev/null 2>&1; want 2 $? "a plan naming a directory is refused, exit 2"
+[ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .plans' | tr '\n' ' ')" = "1 1 " ] && ok "and is one refusal" || bad "a filesystem refusal: $(m stats --json 2>&1 | head -c 300)"
+m write --no-check --dry-run "$R/p164a.mrw" >/dev/null 2>&1; want 2 $? "the same plan under --dry-run is refused too"
+[ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .plans' | tr '\n' ' ')" = "2 2 " ] && ok "and is a second refusal, dry run or not" || bad "a refused dry run: $(m stats --json 2>&1 | head -c 300)"
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' > "$R/p164b.mrw"
+m write --no-check "$R/p164b.mrw" >/dev/null 2>&1; want 0 $? "a clean write beside them lands"
+[ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .counts.applied, .plans' | tr '\n' ' ')" = "2 1 3 " ] && ok "and is counted as applied, not as a refusal" || bad "the clean write: $(m stats --json 2>&1 | head -c 300)"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
