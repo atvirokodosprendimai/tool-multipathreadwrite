@@ -6243,8 +6243,10 @@ want 2 $? "a rename whose leaf is rejected under a new parent exits 2"
 # created and removed there, so the directory's refusal fails the plan before
 # its content edit lands, and the mixed plan below writes NOTHING. The
 # PARTIALLY APPLIED report for a commit failure no probe can foresee is driven
-# by TestAPartialCommitIsNotSummarisedAsApplied and
-# TestAPartialWriteNamesWhatWasAlreadyWritten through the seam.
+# through the commitRenameFn seam by
+# TestAFailedContentCommitReportsWrittenHunksOkAndTheRestSkipped; its wording by
+# TestAPartialCommitIsNotSummarisedAsApplied and
+# TestAPartialWriteNamesWhatWasAlreadyWritten.
 fixture
 mkdir -p "$R/ro" "$R/w"; chmod 555 "$R/ro"
 if ( : > "$R/ro/.probe" ) 2>/dev/null; then
