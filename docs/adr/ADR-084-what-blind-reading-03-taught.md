@@ -26,7 +26,7 @@ reported"; filed in BACKLOG as "Teaching leads from blind reading 03, not yet ac
 
 BACKLOG said each needed its own decision because the handshake and the CLI text are budgeted. The
 MCP handshake (`internal/mcp/instructions.go`: `Shared()`, `WhyAllOrNothing()` and MCP-specific
-text) is bounded at 4096 characters as a whole and is not touched here; `CLI()` carries no size cap.
+text) is bounded at 4096 bytes as a whole and is not touched here; `CLI()` carries no size cap.
 
 ## Existing Primitives Audit
 
@@ -49,8 +49,8 @@ text) is bounded at 4096 characters as a whole and is not touched here; `CLI()` 
 
 - **Accept `-M` in a write as `1-M`.** Rejected: a write address that silently widens to line 1 is
   exactly the unread-range surprise ADR-002 guards against; naming the form costs one retry.
-- **Teach these in the MCP handshake too.** Rejected: the whole handshake is bounded at 4096
-  characters and carries the five ADR-037 sentences; the MCP surface returns the same refusal text.
+- **Teach these in the MCP handshake too.** Rejected: the whole handshake is bounded at 4096 bytes
+  and carries the five ADR-037 sentences; the MCP surface returns the same refusal text.
 
 ## Component / Boundary Impact
 

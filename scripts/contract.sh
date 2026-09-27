@@ -7283,8 +7283,8 @@ out=$(m write --no-check "$R/p166a.mrw" 2>&1); want 2 $? "a write address -2 is 
 grep -q '1-2' <<<"$out" && grep -q 'read range' <<<"$out" && ok "and the refusal names the write form 1-2" || bad "the -2 refusal: $out"
 printf '@@ a.go 1-2 delete\n' > "$R/p166b.mrw"
 m write --no-check --dry-run "$R/p166b.mrw" >/dev/null 2>&1; want 0 $? "while 1-2 still applies"
-m instructions | grep -q 'A write exits 1 when a hunk fails validation' && ok "mrw instructions teaches a write's exit 1 and 2" || bad "mrw instructions does not teach a write's exits"
-m read --help 2>&1 | grep -q 'prunes that whole subtree' && ok "read --help says a bare directory name prunes" || bad "read --help does not say --exclude prunes"
+ins166=$(m instructions 2>&1); grep -q 'A write exits 1 when a hunk fails validation' <<<"$ins166" && ok "mrw instructions teaches a write's exit 1 and 2" || bad "mrw instructions does not teach a write's exits"
+help166=$(m read --help 2>&1); grep -q 'prunes that whole subtree' <<<"$help166" && ok "read --help says a bare directory name prunes" || bad "read --help does not say --exclude prunes"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
