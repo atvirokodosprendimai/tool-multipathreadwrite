@@ -2206,10 +2206,11 @@ Found by the race suite on #241: `TestAnInterruptedCheckSaysSo` (ADR-072 T4) can
 later, the cancel reached a check that never ran, and it failed (once in the full run, once in
 three isolated runs; six of six passed on main and on the branch when idle). ADR-080 first pruned
 old logs before the start, which widened the window; pruning now runs after the check exits.
-**CLOSED 2026-09-27:** the test now cancels once the check has touched a start marker in its root,
-and measures its 5 s bound from the cancel, so a late `sh` start cannot fail it. The body change
-moved the locks of ADR-072 T4, ADR-074 T1 and ADR-080 T2, re-taken with `--relock
---replace-hashes` in the same change.
+**CLOSED 2026-09-27:** the test now cancels once the check has touched a start marker in its root.
+The check has 5 s to start, and a start that never comes fails by name ("never wrote its start
+marker"), not as a false `Ran=false`; the separate 5 s return bound runs from the cancel. The body
+change moved the locks of ADR-072 T4, ADR-074 T1, ADR-080 T1 and ADR-080 T2, re-taken with
+`--relock --replace-hashes` in the same change.
 **The dry run is fixed by ADR-079**, contract §161: a clean `--dry-run` records nothing on either
 surface (MCP counted every dry run as `refused_apply`), and a refused one is one refusal.
 - **Filesystem-error refusals are tallied on one surface** (the review of #240, older than ADR-079):
