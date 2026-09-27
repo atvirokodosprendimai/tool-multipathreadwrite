@@ -1,0 +1,5 @@
+{
+  "plugin": [
+    "./cmd/opencode/mrw-plugin/dist/index.js"
+  ]
+}

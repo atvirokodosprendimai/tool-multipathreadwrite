@@ -1,0 +1,19 @@
+{
+  "name": "mrw-opencode-plugin",
+  "version": "1.0.0",
+  "description": "opencode plugin that exposes mrw CLI commands as tools",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "tsc"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^5.0.0"
+  }
+}
