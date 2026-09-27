@@ -671,7 +671,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// lock. A failure there is a ledger failure after the tree changed.
 	var ledgerErr *writer.LedgerError
 	if errors.As(applyErr, &ledgerErr) {
-		// ADR-083: the plan landed; the CLI counts it as applied, and so does this.
+		// ADR-083: the plan landed; the CLI counts it as applied when no check is due, and so does this.
 		if !res.DryRun {
 			_ = authoring.Record(root, authoring.Applied)
 		}
