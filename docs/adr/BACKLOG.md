@@ -1580,10 +1580,10 @@ the older entry or record that still owns it.
   multi-line delete, Windows `%LOCALAPPDATA%` state path, a live-model
   plan-authoring benchmark.** Already in this file under their parent records
   (ADR-001, ADR-003, ADR-008, ADR-004, ADR-009). ADR-037 does not reopen them.
-- **Generating AGENTS.md from `guide.Shared()`.** New, and cheap to want. A
-  two-way sync between the pamphlet and the contributor guide is a process tax
-  ADR-037 refused. Revisit if `Contains(Shared())` starts failing because
-  AGENTS.md reworded a sentence the binary still has.
+- ~~**Generating AGENTS.md from `guide.Shared()`.**~~ **DECLINED 2026-09-27** with ADR-037's and
+  ADR-040's follow-ups: AGENTS.md paraphrases for a reader in the checkout and names `mrw instructions`,
+  and a two-way sync is the process tax ADR-037 refused. The old trigger ("if `Contains(Shared())`
+  starts failing") had no gate to fail. Reopen when a caller follows AGENTS.md and the binary refuses it.
 
 ## From ADR-038 (a ledger write is one writer)
 
@@ -1741,6 +1741,13 @@ effective-use document (`@@ path 0 create`); MCP handshake stays Shared,
   this.** The wrap-tail risk is identical whether the address or the body is
   the multi-line half, but the three cases it was meant to fix catch none of
   them. Open question in its own right; not armed.
+
+- **A body at the wrong indent reparents keys, and nothing is left to find.** Deferred from ADR-052,
+  whose neighbour licence catches a surviving closer but not this: in indentation-structured files a
+  body at the wrong depth moves keys under another parent, and the result is valid and means something
+  else (Ansible `when:` became a module argument, three linters green). mrw models no target syntax, so
+  the remedy is teaching (AGENTS.md §4) rather than a guard. Promote on a reported case a read-after
+  could not have caught.
 
 ## From ADR-054 (a write that applied can still leave a broken tree)
 

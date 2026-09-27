@@ -147,4 +147,4 @@ not written, by either check.
 
 ## Follow-ups
 
-- [ ] When this lands, drop the qualifier from ADR-028's first Consequence and extend §66 with the alias case, so the two records stop disagreeing about what is closed.
+- [x] When this lands, drop the qualifier from ADR-028's first Consequence and extend §66 with the alias case, so the two records stop disagreeing about what is closed — done 2026-09-27; the alias case is contract §67.

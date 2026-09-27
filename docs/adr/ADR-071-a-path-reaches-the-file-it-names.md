@@ -163,5 +163,5 @@ Revert the walk, the two create checks and the alias check. Nothing persistent m
 
 ## Follow-ups
 
-- [ ] A Windows peer re-runs the junction repro (team memory, `incidents`) against the v1.26.0 release asset.
-- [ ] Release with ADR-072 to ADR-075 as v1.26.0.
+- [x] A Windows peer re-runs the junction repro (team memory, `incidents`) against the v1.26.0 release asset — done 2026-09-26 on Windows 11 (Git Bash); see `docs/adr/BACKLOG.md`, "Verified on Windows 11 against the release asset".
+- [x] Release with ADR-072 to ADR-075 as v1.26.0 — tagged at `9bed12e` (#233), Status #234.

@@ -106,4 +106,4 @@ Revert the guard and the note. Nothing persistent moves.
 
 ## Follow-ups
 
-- [ ] Release with ADR-071, ADR-072, ADR-074 and ADR-075 as v1.26.0.
+- [x] Release with ADR-071, ADR-072, ADR-074 and ADR-075 as v1.26.0 — tagged at `9bed12e`, Status #234.

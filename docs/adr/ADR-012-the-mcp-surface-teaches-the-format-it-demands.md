@@ -252,7 +252,10 @@ identically by the previous binary.
       floor is 20, so dropping both `observed.*` children leaves 25 and passes; the only sentinel is
       `mrw_write:hunks.status`. Name `mrw_read:observed.Spans` and `mrw_write:files.written` too, or
       count per container.
-- [ ] **Put `gofmt -l .` in the acceptance fences.** Not from the review — from this session. CI's
+- [x] **Put `gofmt -l .` in the acceptance fences.** Not from the review — from this session. CI's
       Format step runs it, the fences do not, and a formatting failure reached CI twice in one day
       because the fence a task calls "done" is not the gate CI applies. Fixing it re-mints both
       digests, which is why it is a follow-up rather than a late edit here.
+      Closed 2026-09-27 going forward: ADR-013's Decision adopted it and later fences carry
+      `[ -z "$(gofmt -l .)" ]`. These two done fences are not re-minted — a gofmt clause cannot fail for
+      either task's mechanism, and CI's Format step is the gate that applies.

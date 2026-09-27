@@ -137,4 +137,4 @@ Revert the package and its four call sites, the ast-grep check, the tests, §120
 
 ## Follow-ups
 
-- [ ] Release with ADR-066 as v1.23.0, with the campaign diffed against v1.22.3 and `[cr-only-file-read]` named as an expected difference.
+- [x] Release with ADR-066 as v1.23.0, with the campaign diffed against v1.22.3 and `[cr-only-file-read]` named as an expected difference — v1.23.0 at `5d30d50` (#207, #208), Status #209.

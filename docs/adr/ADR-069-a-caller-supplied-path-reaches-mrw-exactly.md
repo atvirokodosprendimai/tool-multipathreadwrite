@@ -211,4 +211,4 @@ working-set file written with a trailing space is read back trimmed by the old b
 ## Follow-ups
 
 - [x] AGENTS.md §1: a path with edge whitespace goes after `--` (landed with T1); `am_update_skill("mrw")` at the release.
-- [ ] Release with ADR-070 as v1.25.0.
+- [x] Release with ADR-070 as v1.25.0 — tagged at `9a586aa`, Status #221.

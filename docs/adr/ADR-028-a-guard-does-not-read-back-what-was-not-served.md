@@ -110,22 +110,17 @@ See `docs/adr/ADR-028-a-guard-does-not-read-back-what-was-not-served/tasks/READM
 
 ## Consequences
 
-- **Positive:** for a hunk addressed by the spelling the ledger recorded, the paths where mrw printed
+- **Positive:** for a hunk addressed by any spelling of the file — an alias too, since ADR-029 — the paths where mrw printed
   a line it had not served are gone — all four anchored ops, which is `replace`, `delete` and both
   insertions. The first cut of this record fixed the first two and claimed "every guard" while the
   insertions still leaked; the Codex review of PR #128 caught it. They reach the anchor through a
   guard closure invoked BESIDE `covered()` rather than after it, which is why moving one check did
   not move theirs, and why the test and §66 now drive all four.
-- ⚠ **That qualifier is load-bearing, and it was added after the SECOND review.** An ALIAS spelling —
-  an in-root symlink, or a case-only variant on a case-insensitive filesystem — misses `covered()`'s
-  exact-key ledger lookup entirely, is therefore treated as covered, and the anchor quotes the line
-  as before. Measured 2026-09-07 against this branch at `1efd1a6`: with `s.txt:1` served, a hunk
-  spelled `al.txt 2 replace anchor="zzz"` printed `SECRET-VALUE-42`, while the same hunk spelled
-  `s.txt` got the ledger refusal. It is a ledger-IDENTITY defect rather than a guard-ordering one —
-  `internal/apply/apply.go:553` looks the ledger up again by exact key, discarding the alias recovery
-  `:525` had just done — and it is receipted in `docs/adr/BACKLOG.md` rather than folded in here,
-  because the same gap lets an alias-spelled write to unread lines APPLY. That is a larger claim than
-  this record makes, and burying it under an anchor-ordering heading is how it stays unfound.
+- **The alias qualifier this Consequence carried is closed by ADR-029** (#129, `d26e39a`). An alias
+  spelling — an in-root symlink, or a case-only variant on a case-insensitive filesystem — missed
+  `covered()`'s exact-key lookup and the anchor quoted an unserved line (measured 2026-09-07 at
+  `1efd1a6`). ADR-029 made one file one observation whatever it is called; contract §67 drives the
+  alias-anchor case ("the alias refusal reads back no line the caller was not served").
 - **Positive:** the asymmetry with ADR-008 is closed, so the two guards no longer teach opposite
   lessons three lines apart.
 - **Negative:** a caller whose anchor AND ledger are both wrong now learns about the ledger first,
@@ -157,4 +152,4 @@ not written, by either guard.
 ## Follow-ups
 
 - [ ] If a caller reports the ledger refusal being less useful than the anchor one for a drifted address, improve the ledger message rather than reordering the guards again.
-- [ ] When the alias gap closes, this record's first Consequence loses its qualifier and §66 gains the alias case. Until then the qualifier stays: a record claiming more than its tree does is the failure `.claude/rules/reviews.md` names first.
+- [x] When the alias gap closes, this record's first Consequence loses its qualifier and §66 gains the alias case. Until then the qualifier stays: a record claiming more than its tree does is the failure `.claude/rules/reviews.md` names first — closed by ADR-029 (#129); the qualifier is gone, and the alias case landed in §67 beside ADR-029's other alias rows rather than in §66.

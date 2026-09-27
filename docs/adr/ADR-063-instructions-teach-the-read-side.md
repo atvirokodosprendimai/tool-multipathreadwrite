@@ -124,4 +124,4 @@ Revert the read section in `guide.CLI()`, the three `Usage` strings, the skill d
 
 ## Follow-ups
 
-- [ ] Centralised `mrw` skill description (agentsmemory) — receipt in BACKLOG; not this binary
+- [x] Centralised `mrw` skill description (agentsmemory) — receipt in BACKLOG; not this binary — BACKLOG.md "Centralised `mrw` skill description names the read side": shipped as skill v21 (2026-09-24).

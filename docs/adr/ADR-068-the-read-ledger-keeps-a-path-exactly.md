@@ -136,4 +136,4 @@ Revert `parseLine`, `scanLF`, the tests and §127. Nothing persistent moves.
 
 ## Follow-ups
 
-- [ ] Release with #214 as v1.24.1.
+- [x] Release with #214 as v1.24.1 — tagged at `ef3d675`, Status #217.

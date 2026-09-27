@@ -133,4 +133,4 @@ Re-measured 2026-09-15 after T6/T7 (`body=@` on replace/insert, and the curve sc
 
 ## Follow-ups
 
-- [ ] Close inbox drawer `23c3061…` after ship (T5).
+- [x] Close inbox drawer `23c3061…` after ship (T5) — ended 2026-09-14, "Shipped as ADR-060", superseded by `0a32513b…`.

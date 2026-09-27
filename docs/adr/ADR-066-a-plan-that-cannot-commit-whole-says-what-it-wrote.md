@@ -169,4 +169,4 @@ Revert the validation check, the staging loop, the undo, the verdict function, t
 
 ## Follow-ups
 
-- [ ] Release with ADR-065 as v1.23.0, with the campaign diffed against v1.22.3. The data loss is named in the tag message.
+- [x] Release with ADR-065 as v1.23.0, with the campaign diffed against v1.22.3. The data loss is named in the tag message — v1.23.0 at `5d30d50`, Status #209.

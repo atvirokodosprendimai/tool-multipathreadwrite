@@ -118,4 +118,4 @@ Revert the branch. Drop `--echo-pad` / `echo_pad`. The neighbour refuse is the b
 
 ## Follow-ups
 
-- [ ] Indent-reparent with no token after the body stays BACKLOG (YAML `when:` class).
+- [x] Indent-reparent with no token after the body stays BACKLOG (YAML `when:` class) — BACKLOG.md "From ADR-052", "A body at the wrong indent reparents keys".

@@ -207,6 +207,6 @@ ignores an unknown file there, and a tree written by this version is served iden
 previous one. No format, exit status or ledger entry changes, so nothing migrates.
 
 ## Follow-ups
-- [ ] Typed error kinds in `internal/plan` and `internal/apply`, so a refusal can be classified without matching message text — the thing T1's Stop Condition blocked (deferred: docs/adr/BACKLOG.md)
+- [x] Typed error kinds in `internal/plan` and `internal/apply`, so a refusal can be classified without matching message text — the thing T1's Stop Condition blocked — ADR-087 (#257, `c304581`); unlink and rename kinds stay out by ADR-087's permanent boundary.
 
 - [x] Publish a second reading once the tally has a larger sample, and say whether the 5% criterion held — 2026-09-15: 4/343 = 1.2% (`docs/model-benches.md`). Held.
