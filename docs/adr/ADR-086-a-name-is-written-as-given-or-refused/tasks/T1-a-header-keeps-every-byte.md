@@ -37,8 +37,8 @@ go test ./internal/plan/ -count=1 -timeout 180s -run 'TestAHeaderKeepsEveryByteO
   && [ -z "$missing" ] \
   && grep -q '^# 168\. ' scripts/contract.sh \
   && ! grep -q 'rs := \[\]rune(s)' internal/plan/plan.go \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/seen internal/check internal/state internal/lines internal/iter internal/rooted internal/subproc \
-  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/seen internal/check internal/state internal/lines internal/iter internal/rooted internal/subproc)" ] \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/seen internal/check internal/state internal/lines internal/iter internal/subproc \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/seen internal/check internal/state internal/lines internal/iter internal/subproc)" ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -90,10 +90,13 @@ go test ./internal/plan/ -count=1 -timeout 180s -run 'TestAHeaderKeepsEveryByteO
 - 2026-09-27 · 537b896* · exit 0 · `set -o pipefail …` · acceptance-sha256:f300a16bdef860873bdcb117e571c70d29dcee221a5c238cc83565a3810b7dfb · ms:368
 - 2026-09-27 · 537b896* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f300a16bdef860873bdcb117e571c70d29dcee221a5c238cc83565a3810b7dfb · ms:0 · test-lock-sha256:293227084421fc3881cb07e65f2b3245c8269489e37f7e1c30d0cbdaf0b4c5a4 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL3BsYW4vYnl0ZXMwODZfdGVzdC5nbwlUZXN0QUhlYWRlcktlZXBzRXZlcnlCeXRlT2ZJdHNQYXRoCTM2NTM1NGRiNDc4YmViZWYxMTZkY2MyZjdmZTEyYzI2ZDI4MDdjYTE1ZDVhYmJjMThkZWNjZDU3NTZiZjY3MzI · test-lock-kind:replace
 - 2026-09-27 · human-observed · relock 2026-09-27: the first red row was a compile failure (StartPat is a *regexp.Regexp, and regexp refuses an invalid byte); the test's third case was corrected to a valid multibyte pattern BEFORE any implementation, then went red for the real reason (path and anchor rewritten to U+FFFD); the path and anchor assertions are unchanged
+- 2026-09-27 · 318a8c4* · exit 0 · `set -o pipefail …` · acceptance-sha256:8e2b6ea55ab9bda56aa71d8e66021c8b692042bd02d3878c9b124151cc4bb9f9 · ms:656
+- 2026-09-27 · 318a8c4* · exit 0 · `set -o pipefail …` · acceptance-sha256:8e2b6ea55ab9bda56aa71d8e66021c8b692042bd02d3878c9b124151cc4bb9f9 · ms:1798
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-27 · 537b896* · mutant killed · exit 1 · `internal/plan/plan.go` · the header walk rewrites an invalid byte to U+FFFD again · acceptance-sha256:f300a16bdef860873bdcb117e571c70d29dcee221a5c238cc83565a3810b7dfb · covers:a path keeps its bytes
+- 2026-09-27 · 318a8c4* · mutant killed · exit 1 · `internal/plan/plan.go` · the header walk rewrites an invalid byte to U+FFFD again · acceptance-sha256:8e2b6ea55ab9bda56aa71d8e66021c8b692042bd02d3878c9b124151cc4bb9f9 · covers:a path keeps its bytes
 
 ## Invariants
 

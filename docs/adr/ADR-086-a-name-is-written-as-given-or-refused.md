@@ -6,7 +6,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-001, ADR-004, ADR-066, ADR-071, ADR-076, docs/adr/BACKLOG.md
-**Governs:** `internal/plan/plan.go`, `internal/apply/apply.go`
+**Governs:** `internal/plan/plan.go`, `internal/apply/apply.go`, `internal/rooted/links.go`, `internal/rooted/rooted.go`, `cmd/mrw/main.go`
 **Enforced-by:** `internal/plan/bytes086_test.go::TestAHeaderKeepsEveryByteOfItsPath`
 **Invalidates:** ADR-066 T3's contract §119 trigger: a rename into a read-only directory no longer reaches commit, because the staging probe is refused there; §119 now asserts nothing is written, and the partial-commit report is driven through the seam
 **Served-path change:** a plan header keeps every byte its author wrote, so a path, anchor or pattern holding bytes that are not valid UTF-8 is no longer rewritten to U+FFFD; and a create target or rename destination the filesystem cannot hold (on APFS, a name that is not valid UTF-8; any name in a directory mrw cannot write) is refused at staging — the hunk fails, exit 2 as a filesystem failure, nothing written — instead of landing under another name at exit 0 or failing at commit as PARTIALLY APPLIED.
@@ -47,6 +47,11 @@ conversion and no other.
    is created exclusively and removed again. A name the filesystem refuses fails its hunk, exit 2
    (a filesystem failure), and nothing is written; ADR-066's commit-time handling stays for failures a probe cannot see.
 3. A probe that cannot be removed is reported by name, as a `.mrw-aside-*` is (ADR-004).
+4. On Windows a path component that is not valid UTF-8 is refused by name, as a Win32 alias is
+   (ADR-071 Decision 4): Windows converts a path to UTF-16 and maps such a byte to U+FFFD without an
+   error, so the probe and the commit would both reach the replacement name (Codex review of #254).
+5. A `--json` plan whose path or rename destination is not valid UTF-8 is refused before anything
+   lands: `encoding/json` would name the file with U+FFFD in the receipt (Codex review of #254).
 
 ## Alternatives Considered
 
@@ -80,6 +85,8 @@ See `tasks/`.
 ## Out of Scope
 
 - A contract row that shows the APFS refusal on CI (permanent: fact: the contract script runs on Linux CI only, where ext4 accepts the byte, and §168 checks whichever the running filesystem does; citation: file `AGENTS.md:63`)
+- Two distinct invalid bytes treated as one name by the case-fold key (deferred: docs/adr/BACKLOG.md, "foldKey collapses distinct invalid bytes")
+- A probe that cannot be removed leaves a file while the receipt says nothing was written (deferred: docs/adr/BACKLOG.md, "A probe left behind")
 
 ## Risks
 

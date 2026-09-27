@@ -7335,6 +7335,17 @@ case "$rc:$state" in
 esac
 [ "$state" != replaced ] && ok "and the name is never rewritten to U+FFFD" || bad "the plan's name was rewritten to U+FFFD"
 
+# 169. ADR-086 T4: a --json receipt names every file as written. encoding/json
+# turns a byte that is not valid UTF-8 into U+FFFD, so a --json plan with such a
+# name is refused before anything lands; the same plan with a valid name applies.
+fixture
+printf '@@ bad\377name.txt 0 create\nx\n' > "$R/p169a.mrw"
+out=$(m write --no-check --json "$R/p169a.mrw" 2>&1); want 2 $? "a --json plan whose name is not valid UTF-8 is refused, exit 2"
+state=$(python3 -c 'import os,sys; print("none" if not [n for n in os.listdir(os.fsencode(sys.argv[1])) if n.startswith(b"bad")] else "some")' "$R")
+{ [ "$state" = none ] && grep -q 'not valid UTF-8' <<<"$out"; } && ok "and nothing is written, and the refusal says why" || bad "the --json refusal: $state :: $(head -c 300 <<<"$out")"
+printf '@@ good169.txt 0 create\nx\n' > "$R/p169b.mrw"
+m write --no-check --json "$R/p169b.mrw" >/dev/null 2>&1; want 0 $? "while a --json create with a valid name applies"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

@@ -32,6 +32,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/urfave/cli/v3"
 
@@ -1165,6 +1166,22 @@ held or went unchecked.`,
 				return refuse(fmt.Sprintf("%s: %v", name, err))
 			}
 			parsed = true
+			// ADR-086: a --json receipt is JSON, and encoding/json turns a byte
+			// that is not valid UTF-8 into U+FFFD, so the receipt would name
+			// another file than the one written. Refused before anything lands.
+			if cmd.Bool("json") {
+				for _, h := range hunks {
+					names := []string{h.Path}
+					if string(h.Op) == "rename" && len(h.Body) == 1 {
+						names = append(names, h.Body[0])
+					}
+					for _, n := range names {
+						if !utf8.ValidString(n) {
+							return refuse(fmt.Sprintf("%s line %d: %q is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it", name, h.SrcLine, n))
+						}
+					}
+				}
+			}
 			if cmd.Bool("dry-run") && !cmd.Bool("json") {
 				for _, h := range hunks {
 					fmt.Fprintf(os.Stdout, "parsed: %s %s %s body=%d\n", h.Path, h.Addr.String(), h.Op, len(h.Body))

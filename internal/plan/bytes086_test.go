@@ -7,7 +7,7 @@ import (
 
 // ADR-086. splitHeader walked the header as []rune, which turns each byte that
 // is not valid UTF-8 into U+FFFD, so `@@ bad\xffname.txt 0 create` created
-// bad�name.txt at exit 0 — another name than the one written. Every byte
+// bad<U+FFFD>name.txt at exit 0 — another name than the one written. Every byte
 // of a path and an anchor survives; a pattern with multibyte text splits as
 // before. (A pattern holding an invalid byte is refused by regexp itself.)
 func TestAHeaderKeepsEveryByteOfItsPath(t *testing.T) {

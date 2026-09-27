@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 )
 
 // linkFS is what the link walk asks of a filesystem. It is a value rather than
@@ -117,6 +118,12 @@ func win32Alias(p string) (comp, reads string) {
 		}
 		if t := strings.TrimRight(c, ". "); t != c {
 			return c, t
+		}
+		// ADR-086: Windows converts a path to UTF-16 and maps a byte that is
+		// not valid UTF-8 to U+FFFD without an error, so the name on disk
+		// would be another one than the plan's.
+		if !utf8.ValidString(c) {
+			return c, strings.ToValidUTF8(c, string(utf8.RuneError))
 		}
 	}
 	return "", ""

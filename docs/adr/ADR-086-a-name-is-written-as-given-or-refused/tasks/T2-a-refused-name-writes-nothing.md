@@ -35,8 +35,8 @@ go test ./internal/apply/ -count=1 -timeout 180s -run 'TestANameTheFilesystemRef
   && missing=$(for t in TestANameTheFilesystemRefusesWritesNothing; do grep -qE "^--- PASS: $t \(" /tmp/adr086-T2.out || echo "$t"; done) \
   && [ -z "$missing" ] \
   && ! grep -qE '^--- FAIL' /tmp/adr086-T2.out \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/seen internal/check internal/state internal/lines internal/iter internal/rooted internal/subproc \
-  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/seen internal/check internal/state internal/lines internal/iter internal/rooted internal/subproc)" ] \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/seen internal/check internal/state internal/lines internal/iter internal/subproc \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/seen internal/check internal/state internal/lines internal/iter internal/subproc)" ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -71,11 +71,16 @@ go test ./internal/apply/ -count=1 -timeout 180s -run 'TestANameTheFilesystemRef
 - 2026-09-27 · 537b896* · exit 0 · `set -o pipefail …` · acceptance-sha256:7cc5460d59bf6c82ba7321a087bcfeaa8456e261a6f3315661aa1d13bfcfb219 · ms:303
 - 2026-09-27 · 537b896* · exit 0 · `set -o pipefail …` · acceptance-sha256:7cc5460d59bf6c82ba7321a087bcfeaa8456e261a6f3315661aa1d13bfcfb219 · ms:438
 - 2026-09-27 · 537b896* · exit 0 · `set -o pipefail …` · acceptance-sha256:7cc5460d59bf6c82ba7321a087bcfeaa8456e261a6f3315661aa1d13bfcfb219 · ms:262
+- 2026-09-27 · 318a8c4* · exit 0 · `set -o pipefail …` · acceptance-sha256:0c4d87cdf889c4c43cb60b208d19a49052954c7974a05e4f9db455b01a59d4ec · ms:919
+- 2026-09-27 · 318a8c4* · exit 0 · `set -o pipefail …` · acceptance-sha256:0c4d87cdf889c4c43cb60b208d19a49052954c7974a05e4f9db455b01a59d4ec · ms:1159
+- 2026-09-27 · 318a8c4* · exit 0 · `set -o pipefail …` · acceptance-sha256:0c4d87cdf889c4c43cb60b208d19a49052954c7974a05e4f9db455b01a59d4ec · ms:879
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-27 · 537b896* · mutant killed · exit 1 · `internal/apply/apply.go` · a create target is not probed at staging · acceptance-sha256:7cc5460d59bf6c82ba7321a087bcfeaa8456e261a6f3315661aa1d13bfcfb219 · covers:a refused create writes nothing
 - 2026-09-27 · 537b896* · mutant killed · exit 1 · `internal/apply/apply.go` · a rename destination is not probed at staging · acceptance-sha256:7cc5460d59bf6c82ba7321a087bcfeaa8456e261a6f3315661aa1d13bfcfb219 · covers:a refused rename writes nothing
+- 2026-09-27 · 318a8c4* · mutant killed · exit 1 · `internal/apply/apply.go` · a create target is not probed at staging · acceptance-sha256:0c4d87cdf889c4c43cb60b208d19a49052954c7974a05e4f9db455b01a59d4ec · covers:a refused create writes nothing
+- 2026-09-27 · 318a8c4* · mutant killed · exit 1 · `internal/apply/apply.go` · a rename destination is not probed at staging · acceptance-sha256:0c4d87cdf889c4c43cb60b208d19a49052954c7974a05e4f9db455b01a59d4ec · covers:a refused rename writes nothing
 
 ## Invariants
 

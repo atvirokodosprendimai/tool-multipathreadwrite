@@ -40,7 +40,7 @@ import (
 func Abs(root string) (string, error) {
 	if followLinks {
 		if c, _ := win32Alias(root); c != "" {
-			return "", fmt.Errorf("root %s: Windows does not keep %q as written (it drops a trailing dot or space from a name and reads ':' as a stream); name it as it is on disk", root, c)
+			return "", fmt.Errorf("root %s: Windows does not keep %q as written (it drops a trailing dot or space from a name, reads ':' as a stream, and turns a byte that is not valid UTF-8 into U+FFFD); name it as it is on disk", root, c)
 		}
 	}
 	absRoot, err := filepath.Abs(root)
@@ -72,7 +72,7 @@ func Abs(root string) (string, error) {
 func Resolve(root, path string) (string, error) {
 	if followLinks {
 		if c, _ := win32Alias(path); c != "" {
-			return "", fmt.Errorf("%s: Windows does not keep %q as written (it drops a trailing dot or space from a name and reads ':' as a stream); name the file as it is on disk", path, c)
+			return "", fmt.Errorf("%s: Windows does not keep %q as written (it drops a trailing dot or space from a name, reads ':' as a stream, and turns a byte that is not valid UTF-8 into U+FFFD); name the file as it is on disk", path, c)
 		}
 	}
 	absRoot, err := Abs(root)

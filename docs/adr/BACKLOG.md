@@ -1891,6 +1891,13 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
   reproduction also found a create of `bad\xffname.txt` landing as `bad�name.txt` at exit 0:
   the plan header was walked as runes; it is walked as bytes now. Contract §168, and §119's
   read-only case is now a staging refusal.
+- **foldKey collapses distinct invalid bytes** (the Codex review of #254, source-traced, not
+  observed): `foldKey` (`internal/apply/apply.go`) decodes a name as runes, so `x\xfe` and `x\xff`
+  both fold to U+FFFD and two creates of them are refused as one file. A false refusal, never a lost
+  write. Arm on one observed plan that needs two such names.
+- **A probe left behind** (ADR-086, not observed): when a staging probe's removal fails, the empty
+  file stays in the tree while the receipt says NOTHING WRITTEN; the refusal names it, but the
+  receipt's written list does not. Say so on the receipt if it is ever observed.
 - **A `.mrw-aside-*` left behind.** When the final aside removal fails after a
   plan that applied, the placeholder stays in the tree (ADR-004 hygiene, not a
   false receipt). Say so on the receipt if it is ever observed.
