@@ -7273,6 +7273,19 @@ printf '%s\n' "$(rq165 "$(printf '@@ @1 3 replace\nfunc A() int { return 8 }\n')
 grep -q 'return 8' "$R/a.go" && [ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .counts.applied, .plans' | tr '\n' ' ')" = "1 1 2 " ] \
   && ok "and it landed and is counted as applied, not as a refusal" || bad "the MCP pointer write: $(head -c 200 "$R/a.go"); $(m stats --json 2>&1 | head -c 300)"
 
+# 166. ADR-084: what blind reading 03 taught. A write address `-2` failed as
+# `bad line number ""`; it is refused naming the write form, while `1-2` still
+# applies. The instructions say a write's exit 1 and 2, and --exclude pruning.
+fixture
+m read a.go >/dev/null
+printf '@@ a.go -2 delete\n' > "$R/p166a.mrw"
+out=$(m write --no-check "$R/p166a.mrw" 2>&1); want 2 $? "a write address -2 is refused, exit 2"
+grep -q '1-2' <<<"$out" && grep -q 'read range' <<<"$out" && ok "and the refusal names the write form 1-2" || bad "the -2 refusal: $out"
+printf '@@ a.go 1-2 delete\n' > "$R/p166b.mrw"
+m write --no-check --dry-run "$R/p166b.mrw" >/dev/null 2>&1; want 0 $? "while 1-2 still applies"
+ins166=$(m instructions 2>&1) && grep -q 'A write exits 1 when a hunk fails validation' <<<"$ins166" && ok "mrw instructions teaches a write's exit 1 and 2" || bad "mrw instructions does not teach a write's exits"
+help166=$(m read --help 2>&1) && grep -q 'prunes that whole subtree' <<<"$help166" && ok "read --help says a bare directory name prunes" || bad "read --help does not say --exclude prunes"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
