@@ -234,21 +234,6 @@ func TestTheGuardsAgreeWithTheParserOnRandomArgv(t *testing.T) {
 
 func pick2(rng *rand.Rand, fs []cli.Flag) cli.Flag { return fs[rng.Intn(len(fs))] }
 
-// typedTokens is every token the caller typed, plus the value inside an
-// attached `--flag=value`: the caller typed that value too, and the parser
-// hands it on untrimmed unless the whole token ends in whitespace.
-func typedTokens(argv []string) []string {
-	out := append([]string{}, argv...)
-	for _, tok := range argv {
-		if strings.HasPrefix(tok, "-") {
-			if _, v, ok := strings.Cut(tok, "="); ok {
-				out = append(out, v)
-			}
-		}
-	}
-	return out
-}
-
 // readsArgs names the commands that read their positionals as paths or a
 // verb: read (main.go:631), write (:934), iter (:1297) and check (:1397).
 // stats and seen never call cmd.Args(); version and instructions only refuse

@@ -40,7 +40,7 @@ that arms work; silence leaves the row where it is.
 | Torn `Load` / atomic save | **ADR-043 Accepted** — measure, not a lock | — (2026-09-12: not observed; Load unlocked). Since ADR-075 the ledger a writer validates against is loaded under its lock (`seen.Snapshot`), and since ADR-079 `mrw seen`, the working set and the tally are too |
 | MCP cargo: `check`/`iter`/`seen`/`stats` | **ADR-044 Accepted** — still two tools | — (T1 receipts 2026-09-12; no cargo tools) |
 | Generate AGENTS.md from `Shared()` | **ADR-045 Accepted** — still refuse the tax | — (T1 receipts 2026-09-12; no generator) |
-| Host-cut under ceiling | **ADR-046 Accepted** — measure, not a lock | — (2026-09-12: live cut not observed; no ack change) |
+| Host-cut under ceiling | **ADR-046 Accepted** — measure, not a lock | — (2026-09-12: live cut not observed; no ack change). The measurement itself is still open: see "From ADR-032" below and the spec's UC-2, observed wire-only 2026-09-16, model check not run |
 | Python `str` body character-split | **ADR-047 Accepted** — taught in 040 help | — (T1 receipts 2026-09-12; already taught) |
 | Syntax awareness | **ADR-048 Accepted** — record only | — (T1 receipts 2026-09-12; no parser). Neighbour license is ADR-052, not a parser. |
 | Padded write echo / neighbour license | **ADR-052 Accepted** — opt-in `--echo-pad`; End+1 license | — (M 2026-09-13: *"echo, license"*) |
@@ -74,7 +74,7 @@ that arms work; silence leaves the row where it is.
 | A failing or truncated check keeps its `mrw-check-*.log` in the system temp directory for good, and nothing bounds how many accumulate | **fixed by ADR-080** — each check run removes its own logs older than 7 days from the temp directory and says how many; a timed-out or interrupted check now names the log it keeps, and one that never started keeps none. Found 2026-09-24 (3,103 on one macOS machine); contract §163 | — |
 | An MCP `ast_grep` answer too large to serve comes back as an INDEX that carries only the COUNT of problems, so a CR-only file ADR-065 refuses is not named there | **fixed by ADR-067 T1** — found by the Codex review of #208 (P2, source-traced). `matchIndex` now prints one `-- <path>: <reason>` line per walk problem at all three index returns (`internal/mcp/tools.go`), never trimmed; contract §122 | — |
 | `contract.sh` run as `./contract.sh` from inside `scripts/` resolves `SRC` to the repository's parent | **fixed** — 2026-09-26 housekeeping: the script captures the repository and its own path absolutely before its first `cd`, so §30, §43, §60's prologue probe, §117 and the conflict-marker check read this checkout from any directory. Found by Codex reviewing #204 (2026-09-24) | — |
-| Desktop reach measure, under-ceiling host-cut, concurrent silent apply, strict-balance campaign, JSX nest probe | **spec** — `docs/specs/2026-09-16-dangling-high-impact.md`. Concurrent silent apply **closed by ADR-075** (contract §150; UC3-S2 now asserts the lock). The other four stay filed recipes, unrun and not counted as coverage (the spec's UC-1, UC-2, UC-4, UC-5) | *"write a spec for these findings"* |
+| Desktop reach measure, under-ceiling host-cut, concurrent silent apply, strict-balance campaign, JSX nest probe | **spec** — `docs/specs/2026-09-16-dangling-high-impact.md`. Concurrent silent apply **closed by ADR-075** (contract §150; UC3-S2 now asserts the lock). Of the other four: UC-5 (JSX nest) was **probed 2026-09-16** (`docs/break/jsx-nest/`; `tsc` 0, DOM parent `#accidental-wrapper`) and is not a finding; UC-2 was observed wire-only 2026-09-16 with the model check not run, so it stays open; UC-1 (Desktop reach) and UC-4 (strict-balance campaign) are unrun. None counted as coverage | *"write a spec for these findings"* |
 | leftover `body=` extra count, `--dry-run` parsed hunks, read neighbour hint, unquoted `anchor=` `"`, `body=@path`, check last-error line | **shipped** — ADR-060 | — |
 | Per-extension check skip (`.jsonl` vs Cargo.toml) | **deferred** — ADR-054 / ADR-059; widening prose takes `.toml` | *"per-extension check"* |
 | ast-grep-shaped `--grep` | **shipped** — ADR-058; Shipped 2026-09-15 as ADR-058 | *"structural find only"* |
@@ -97,11 +97,13 @@ that arms work; silence leaves the row where it is.
   principle. No decision needed until a real file makes it hurt — record the
   size that does.
 
-- **A `cmd N` registry of saved commands addressable by number.** Proposed
+- ~~**A `cmd N` registry of saved commands addressable by number.**~~ **DECLINED 2026-09-27.** Proposed
   2026-08-31 alongside the `@N` file pointers, deliberately not built: a shell
   command invoked by number is unreadable at the call site, so a wrong number
   runs the wrong thing with nothing to inspect. The safe variant is saved
-  *plans* (`mrw write @p1`), which stay inspectable artifacts. Undecided.
+  *plans* (`mrw write @p1`), which stay inspectable artifacts. Declined for that reason: `@N`
+  pointers and `body=@path` already give the inspectable variant. Reopens only on a caller who needs
+  replay and cannot use a saved plan file.
 
 ## From ADR-002 (mrw will not edit a file it has not seen)
 
@@ -149,10 +151,17 @@ that arms work; silence leaves the row where it is.
   a path that is not there. Asserted by `scripts/contract.sh` §29, and by
   `TestAPassingCheckLeavesNoLogBehind` / `TestAFailingCheckKeepsItsLog`.
 
-- **Scope derivation for languages other than Go.** `{packages}` is derived by
+- ~~**Scope derivation for languages other than Go.**~~ **CLOSED 2026-09-27 — narrowed by ADR-061,
+  the rest declined.** `{packages}` is derived by
   mapping `.go` files to their directories; any non-Go path forces the full
   check. A Python or Rust project gets the full command every time, which is
   correct but slow.
+  Since ADR-061 a `scoped_check` whose template names `{files}` and not `{packages}` scopes any
+  language, so a Python or Rust project that wants scoped runs declares one. What is left, mapping a
+  path to a Cargo crate or a Python package so `{packages}` works there, means modelling each build
+  tool, which ADR-061 rejects in its Alternatives ("Invent a Rust `packages()`") on ADR-054's
+  permanent boundary. Reopens on a project whose `{files}` template cannot express its
+  scope.
 
 - **`--check` under `--dry-run`: settled as exit 2, recorded here because the
   question is ADR-003's and the answer was reached in a PR about ADR-008.**
@@ -219,11 +228,16 @@ that arms work; silence leaves the row where it is.
   because it is a workspace-wide convention, not a decision about this
   repository.
 
-- **Go-level coverage of `cmd/mrw`'s CLI wiring.** `cmd/mrw` has only
+- ~~**Go-level coverage of `cmd/mrw`'s CLI wiring.**~~ **CLOSED 2026-09-27.** `cmd/mrw` has only
   `version_test.go`; pointer resolution in a hunk path and the exit-status
   mapping are covered end-to-end by `scripts/contract.sh` instead. Noted in
   ADR-003-T2 as a stated limitation rather than an oversight, but a Go test that
   execs the built binary would close it.
+  Since then `cmd/mrw` gained 45 test files, the exit-status mapping is driven in-process by ten of
+  them, and `TestTheReceiptIsOnStdoutBeforeTheCheckStarts` execs a built binary. The one wiring left
+  uncovered, a pointer as a hunk path, is `TestAPointerHunkPathNamesExactlyOneFile`
+  (`cmd/mrw/pointer_write_test.go`): the built binary refuses `@1-2` with exit 2 and nothing
+  written, and lands `@2` on its one file.
 
 ## From ADR-007 (mrw finds the files it serves)
 
@@ -236,6 +250,10 @@ that arms work; silence leaves the row where it is.
   budget for the WHOLE answer rather than per file, which is the number an agent
   paying for context actually cares about. No measurement taken; the shape of
   the answer probably depends on what T2's cost measurement says.
+  **Still deferred, 2026-09-27 — waits for a trigger:** a real `--grep` answer that outgrows what a
+  caller can use, or a cost measurement that names the whole-answer number. The MCP surface already
+  pages the whole answer (PARTIAL and `next_read`), and redefining `--max-lines` would change what
+  every existing cap means.
 
 - **Parallel walking or searching.** ADR-007's walk reads every candidate to
   match it and then `read.Run` reads the matching ones again, serially. That is
@@ -462,7 +480,9 @@ under `--dry-run`) were fixed then and carry contract rows.
   question is one carrying a guard that was never checked. Asserted by
   `scripts/contract.sh` §31 and `TestARepeatedGuardKeyIsRefused`;
   `TestDistinctGuardKeysStillParse` pins that one of each is still fine.
-- **`create` with an EMPTY body succeeds and reports `ok`.** ADR-006 refuses an
+- ~~**`create` with an EMPTY body succeeds and reports `ok`.**~~ **CLOSED — ADR-027**: a body-less
+  `create` is refused ("say body=0 if you mean an empty file"), and `body=0` is the deliberate
+  form. The history, as first written: ADR-006 refuses an
   empty-bodied `replace` because a body lost in transit — a truncated emission,
   an editor eating the last line — deletes code while the receipt says it
   worked. The same truncation on a `create` at the end of a plan produces an
@@ -523,6 +543,11 @@ re-measuring these. Each was driven at the built binary, not read:
   a partially unparseable ledger should be an error rather than a silent
   partial read is an open question, and this entry is the only place it is
   written down.
+  **DECLINED 2026-09-27 (the partial case).** A skipped line can only withdraw a licence, so the
+  failure it causes is a refusal, never a wrong write; and an error would stop `Record` from ever
+  rewriting the file, the trap the stale-header comment in `internal/seen/seen.go` describes. The
+  wholly unparseable case keeps failing closed. Reopens on a skipped line that licensed a write it
+  should not have.
 
 - **Two concurrent writes to one file were not observed to both land, and that
   is weaker than a guarantee.** Racing two writes, the second was refused with
@@ -940,8 +965,9 @@ re-measuring these. Each was driven at the built binary, not read:
   for a terminator is now "the hint landed and counting is still the friction".
   Revisit with that evidence, not before.
 
-- **Two `create` ops that collide on a case-insensitive filesystem — DEFERRED by
-  ADR-021.** `New.txt` and `new.txt` created in one plan have no inode to compare
+- ~~**Two `create` ops that collide on a case-insensitive filesystem — DEFERRED by
+  ADR-021.**~~ **CLOSED — fixed by ADR-071 T2** (contract §141; see "Creates are not
+  cross-checked" below, which also takes the same-path pair). `New.txt` and `new.txt` created in one plan have no inode to compare
   until one is written, so the identity check that refuses two spellings of an
   EXISTING file (`os.SameFile` at grouping time, ADR-021) cannot see them, and
   the second rename would win as before. Promote to a record when one such plan
@@ -1168,7 +1194,8 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
 
 ## From ADR-026 (an address may say how many lines follow)
 
-- **A backwards relative address, `A,-N` or `-N,A`.** Deferred from ADR-026, which implements the
+- ~~**A backwards relative address, `A,-N` or `-N,A`.**~~ **DECLINED 2026-09-27** — no caller has
+  asked. Deferred from ADR-026, which implements the
   forward form `A,+N` only. The backwards form is the one a caller wants after a match — *"show me
   the five lines that led up to this"* — and `--grep -C N` already answers that for a WALK but not
   for a named address. It is not free: `-` is the range separator, so `5,-2` has to be
@@ -1176,6 +1203,9 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   to stay understandable when the caller wrote the ambiguous one. Anyone taking it up needs a
   record, both parsers changed together for the reason ADR-026 gives, and a contract row that pairs
   the good case with the ambiguous one.
+  Reopens when a caller asks for it by name. It is cheaper than this entry assumes: the forward form
+  is now parsed in one place, `addr.CutRelative` (`internal/addr/addr.go`), which both `read` and
+  `plan` call.
 
 ## From ADR-027 (an empty file is created on purpose, or not at all)
 
@@ -1198,13 +1228,15 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   **What would promote this:** an MCP caller reporting a bare `create` refusal they had no warning
   of, or any other change that frees 71 bytes there for an unrelated reason.
 
-- **Requiring `body=N` on every op, not just as an opt-in guard.** ADR-027 reuses `body=0` as the
+- ~~**Requiring `body=N` on every op, not just as an opt-in guard.**~~ **DECLINED 2026-09-27**, for
+  the reason below. ADR-027 reuses `body=0` as the
   way to SAY "deliberately nothing" for `create`, which works because the count already exists and
   already means it. Making the count mandatory everywhere is the larger version of that idea: it
   would close the lost-body hazard for every op at once rather than one at a time, and it would cost
   a token on every hunk anyone ever writes. Nobody has asked for it, and the three ops that could
   lose a body silently are all closed without it. Anyone taking it up needs a record and a measured
   reason, not a symmetry argument.
+  Reopens on one measured case of a body lost in transit on an op that is not already closed.
 
 - **A general "the engine re-validates everything the parser does" pass.** Deferred from ADR-027-T3.
   Two records in a row have found the same hole one field at a time: `plan.validate` protects the
@@ -1388,13 +1420,18 @@ Alternatives had to answer.
 
 ## From ADR-034 (state that names a checkout nobody has)
 
-- **The Go tests that do not pin `XDG_STATE_HOME`.** 11 of the 32 test files pin it into their own
+- ~~**The Go tests that do not pin `XDG_STATE_HOME`.**~~ **CLOSED 2026-09-27.** 11 of the 32 test files pin it into their own
   `t.TempDir()`; the rest do not, and exactly ONE dead entry in the 22,591 measured on 2026-09-07
   came from a Go `t.TempDir()` root. So this is real but tiny — 1 entry against 22,590 from
   `scripts/contract.sh`, which ADR-034 T4 fixes. Bundling 21 files into that record would bury the
   one line that mattered. The fix is `t.Setenv("XDG_STATE_HOME", t.TempDir())` in each test that
   builds a root, and the check is the same before/after count T4's fence uses, run over
   `go test ./...` instead of `contract.sh`.
+  By 2026-09-27 the suite had 169 test files, and the writers left unpinned were in `cmd/mrw`
+  (every in-process run passes the root command's `Before` hook, whose `seen.IsStale` creates the
+  root's state directory even for a read) and `internal/mcp` (`Serve` on a temp root). Each package
+  now pins it once in `TestMain`, as `internal/seen` and `internal/iter` already did; `internal/read`
+  never creates state.
 
 - **A prune that refuses when the marker's volume is absent.** PRE-REGISTERED, so the criterion
   predates the first report rather than being written to fit it. ADR-034's exact test — the `root`
@@ -1898,7 +1935,12 @@ Execution plan: `docs/specs/2026-09-16-dangling-high-impact-plan.md` (campaign f
 - **`mrw instructions` did not teach the ADR-069 rule.** **Closed by ADR-069 T12.** Found by the
   session that tested the downloaded Windows asset: no line mentioned `--` or the attached-value
   refusal, though ADR-063 promised the read side's traps there.
-- **On Windows a spec with a trailing space reaches the OS as given and the OS folds it.** Over
+- ~~**On Windows a spec with a trailing space reaches the OS as given and the OS folds it.**~~
+  **CLOSED 2026-09-27 — by ADR-071 Decision 4** (v1.26.0): `rooted.Resolve` refuses a component
+  Win32 would read as another name, so `x ` is refused before the ledger records anything and a
+  folded pair can no longer be planned. `TestWin32AliasNamesTheComponentWindowsWouldRemap` runs on
+  every platform, `TestResolveRefusesAWin32Alias` on the Windows CI job. Closed from the code, not
+  from a Windows re-run of the probe. Over
   MCP, `mrw_read` with `specs: ["x "]` kept the spelling (the ADR-068 promise: the header printed
   `x ` with its space) and Win32 path normalisation then opened `x`, so the ledger holds `x ` and `x`
   as two keys over one file, each with its own ack id. Whether a plan naming both spellings is
