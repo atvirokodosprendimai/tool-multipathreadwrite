@@ -285,8 +285,10 @@ today's behaviour. A caller who scripted `mrw version` (only if that fork shippe
 
 ## Follow-ups
 
-- [ ] After teach has shipped, decide whether AGENTS.md's plan example should keep being the
+- [x] After teach has shipped, decide whether AGENTS.md's plan example should keep being the
       only place a checkout-holding caller sees quoting, or whether it should point at
       `mrw write --help`.
+      Decided 2026-09-27: neither is needed. T1 put the quoting rules on `mrw write --help`, so AGENTS.md
+      is no longer the only place; it keeps the two quoting traps a checkout-holder meets first.
 - [ ] The inventory M ranked on 2026-09-12 lives in `docs/adr/BACKLOG.md`. Do not treat an
       unnamed chat item as work. The next quote that arms work is listed beside each row there.

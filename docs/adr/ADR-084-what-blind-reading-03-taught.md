@@ -89,4 +89,4 @@ Revert the task.
 
 ## Follow-ups
 
-- [ ] Mirror the `--exclude` sentence into the centralised `mrw` skill after merge.
+- [x] Mirror the `--exclude` sentence into the centralised `mrw` skill after merge — skill `mrw` v31 (2026-09-27, pinned at v1.29.0) carries the paragraph.

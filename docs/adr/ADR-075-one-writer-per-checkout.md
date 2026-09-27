@@ -141,4 +141,4 @@ Revert the two tasks. The lock file is state, not data, and is ignored by an old
 
 ## Follow-ups
 
-- [ ] Release with ADR-071 to ADR-074 as v1.26.0.
+- [x] Release with ADR-071 to ADR-074 as v1.26.0 — tagged at `9bed12e`, Status #234.

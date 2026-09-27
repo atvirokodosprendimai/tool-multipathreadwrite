@@ -162,4 +162,4 @@ Revert the guard, the two teaching lines and the scorer. Nothing persistent move
 ## Follow-ups
 
 - [ ] Freeze `docs/blind/blind-05-plan.md` and run reading 05 on the build that ships this record, on M's go.
-- [ ] Release with ADR-069 as v1.25.0; `am_update_skill("mrw")`.
+- [x] Release with ADR-069 as v1.25.0; `am_update_skill("mrw")` — tagged at `9a586aa`, Status #221; the skill carried v1.25.0 and is at v31 (v1.29.0).

@@ -181,9 +181,10 @@ added field is additive and nothing depends on it.
 
 ## Follow-ups
 
-- [ ] When the benchmark harness exists, measure edit accuracy against served bytes and give
+- [x] When the benchmark harness exists, measure edit accuracy against served bytes and give
       `MaxResultChars` a justified value — or record that the curve is flat and the constant may stay
-      arbitrary, which is also an answer
+      arbitrary, which is also an answer — ADR-020 recorded the curve flat (15/15/15 at 2 KB, 20 KB and
+      200 KB; one Haiku client, CLI path), and ADR-032 made the ceiling caller-set.
 
 ## Amendment, 2026-09-06: Decision 2's flag is superseded by ADR-024
 

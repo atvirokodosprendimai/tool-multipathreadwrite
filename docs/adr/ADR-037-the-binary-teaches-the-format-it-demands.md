@@ -205,5 +205,8 @@ inline string. Additive; no state, no plan-format change. A caller who scripted
 
 ## Follow-ups
 
-- [ ] After Shared() has been in production, decide whether AGENTS.md's "Using mrw" section should
+- [x] After Shared() has been in production, decide whether AGENTS.md's "Using mrw" section should
       open with `mrw instructions` rather than restating the five sentences.
+      Decided 2026-09-27: no. AGENTS.md paraphrases for a reader already in the checkout and names
+      `mrw instructions` for one who is not; a generated section is the two-way sync this record
+      refused. BACKLOG.md "Generating AGENTS.md from `guide.Shared()`" is declined with it.

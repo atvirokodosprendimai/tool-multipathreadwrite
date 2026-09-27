@@ -131,4 +131,4 @@ Revert the exclusion change in `astgrep.go`, the Go tests, §116, §117 and the 
 
 ## Follow-ups
 
-- [ ] Cut the release after merge (served-path change). Diff the campaign against v1.22.2 and name the new probe as the one expected difference.
+- [x] Cut the release after merge (served-path change). Diff the campaign against v1.22.2 and name the new probe as the one expected difference — v1.22.3 at `63729bd` (#204), `[astgrep-named-excluded]` named in the tag, Status #205.

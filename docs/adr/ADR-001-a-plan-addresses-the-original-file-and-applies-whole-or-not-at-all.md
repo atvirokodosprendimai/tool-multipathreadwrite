@@ -186,6 +186,8 @@ codebases.
 - **An MCP server instead of a binary:** rejected because a server binds at
   session start and is unrecoverable mid-session; a binary is re-invoked per
   call and cannot enter that state.
+  Superseded by ADR-010 (see its Invalidates header), not deleted: `mrw mcp` serves the same engine
+  BESIDE the binary, so the per-call binary this clause defended still exists.
 - **Applying hunks bottom-to-top and keeping relative offsets:** rejected
   because it pushes the ordering burden onto every caller, and a caller that
   gets it wrong produces a plausible-looking wrong file.
@@ -266,4 +268,4 @@ outside this repository as of 2026-08-31.
 
 ## Follow-ups
 
-- [ ] Decide whether the deferred streaming/memory-bounded application is ever worth building (see BACKLOG.md)
+- [x] Decide whether the deferred streaming/memory-bounded application is ever worth building (see BACKLOG.md) — moved to ADR-049, which owns that decision and its trigger.
