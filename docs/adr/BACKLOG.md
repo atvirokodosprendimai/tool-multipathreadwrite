@@ -159,7 +159,8 @@ that arms work; silence leaves the row where it is.
   Since ADR-061 a `scoped_check` whose template names `{files}` and not `{packages}` scopes any
   language, so a Python or Rust project that wants scoped runs declares one. What is left, mapping a
   path to a Cargo crate or a Python package so `{packages}` works there, means modelling each build
-  tool, which ADR-048 declines. Reopens on a project whose `{files}` template cannot express its
+  tool, which ADR-061 rejects in its Alternatives ("Invent a Rust `packages()`") on ADR-054's
+  permanent boundary. Reopens on a project whose `{files}` template cannot express its
   scope.
 
 - **`--check` under `--dry-run`: settled as exit 2, recorded here because the

@@ -13,7 +13,9 @@ import (
 // the Go test BACKLOG asked for, against the BUILT binary, because the pointer
 // is resolved in the command wiring that an engine test never reaches.
 func TestAPointerHunkPathNamesExactlyOneFile(t *testing.T) {
-	bin := filepath.Join(t.TempDir(), "mrw")
+	// mrw.exe on every platform: Windows exec will not launch an extensionless
+	// file even by absolute path (Codex review of #249).
+	bin := filepath.Join(t.TempDir(), "mrw.exe")
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
