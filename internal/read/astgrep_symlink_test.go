@@ -26,11 +26,11 @@ func TestAstGrepAgreesWithWalkThroughSymlinks(t *testing.T) {
 		named    []string
 		exclude  []string
 		wantAG   []string
-		wantWalk string // a path the walk must serve too, "" for none
+		wantWalk []string
 	}{
-		{"a hit through a linked directory, the link excluded", "link/f.go", nil, []string{"link"}, []string{"real/sub/f.go"}, "real/sub/f.go"},
-		{"a hit through a linked directory, the real directory excluded", "link/f.go", nil, []string{"sub"}, []string{}, ""},
-		{"a named path through a link and then ..", "link/../f.go", []string{"link/../f.go"}, nil, []string{"f.go"}, "f.go"},
+		{"a hit through a linked directory, the link excluded", "link/f.go", nil, []string{"link"}, []string{"real/sub/f.go"}, []string{"f.go", "real/f.go", "real/sub/f.go"}},
+		{"a hit through a linked directory, the real directory excluded", "link/f.go", nil, []string{"sub"}, []string{}, []string{"f.go", "real/f.go"}},
+		{"a named path through a link and then ..", "link/../f.go", []string{"link/../f.go"}, nil, []string{"f.go"}, []string{"f.go"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			installFakeAstGrepJSON(t, `[{"file":"`+tc.hit+`","range":{"start":{"line":0},"end":{"line":0}}}]`, 0)
@@ -48,15 +48,8 @@ func TestAstGrepAgreesWithWalkThroughSymlinks(t *testing.T) {
 			if got := paths(ag); !reflect.DeepEqual(got, tc.wantAG) {
 				t.Errorf("ast-grep served %v, want %v", got, tc.wantAG)
 			}
-			walked := map[string]bool{}
-			for _, p := range paths(w) {
-				walked[p] = true
-			}
-			if tc.wantWalk != "" && !walked[tc.wantWalk] {
-				t.Errorf("the walk did not serve %s: %v", tc.wantWalk, paths(w))
-			}
-			if tc.wantWalk == "" && walked["real/sub/f.go"] {
-				t.Errorf("the walk served real/sub/f.go under an excluded directory: %v", paths(w))
+			if got := paths(w); !reflect.DeepEqual(got, tc.wantWalk) {
+				t.Errorf("the walk served %v, want %v", got, tc.wantWalk)
 			}
 		})
 	}
