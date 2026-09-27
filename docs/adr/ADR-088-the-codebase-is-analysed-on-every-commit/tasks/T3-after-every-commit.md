@@ -83,6 +83,9 @@ go test ./cmd/mrw/ -count=1 -timeout 300s -run 'TestTheStaticHook' -v 2>&1 | tee
 - 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:2114
 - 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:2539
 - 2026-09-27 · e6541b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:2532
+- 2026-09-27 · 172aa99* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:0 · test-lock-sha256:076a6cd88c7fa3acbd18ddefa0403a2e379e0bfd4c4d747c5df4b7b38307eb31 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvc3RhdGljaG9va190ZXN0LmdvCVRlc3RUaGVTdGF0aWNIb29rSXNRdWlldFdoZW5IRUFERGlkTm90TW92ZQljZWEzYmRhN2M2MWRmMDRjMjc1MTQxMjExMTI5MGUyMTk0MjBlN2VmYjM3MDQxMGFhYzUyYmQ1ODlmYzliMzVhCmJvZHkJY21kL21ydy9zdGF0aWNob29rX3Rlc3QuZ28JVGVzdFRoZVN0YXRpY0hvb2tSZXBvcnRzQWZ0ZXJBQ29tbWl0CTk5MjkzY2U3MTE3MjE3NWQzZjcxODQ3MzcxOWE1NDUwZWZjZjM4ZWExN2U2ZDhkYTZjMGE0MzRiZTk1NTEzNDc · test-lock-kind:replace
+- 2026-09-27 · human-observed · Zy's session, 2026-09-27: TestTheStaticHookIsQuietWhenHEADDidNotMove gained the second Codex re-review's cases — a quoted ';', a heredoc with a numeric delimiter, a backslash-newline commit. Strengthened, not weakened.
+- 2026-09-27 · 172aa99* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:5807
 
 ## Mutation Log
 (empty until execute)

@@ -11,9 +11,12 @@ unpiped, and read its exit code.
 
 **A finding is fixed in the next commit, or you say why not.** Never silence one to make the gate
 green:
-- An unchecked error on a best-effort path (`Close`, `Flush`, `Remove`, `fmt.Fprint`) is already
-  excluded by the `std-error-handling` preset. Anything else errcheck names is real.
-- A deliberate swallow gets `//nolint:<linter> // <why>` on that line, and the why must be true.
+- errcheck is whole. Its one exclusion is `fmt.Fprint*`, whose error reaches a checked `Flush` or
+  goes to a buffer or stderr. Any other error you mean to drop is written `_ = f.Close()` at its
+  site, where a reader sees the choice — and only when dropping it cannot make mrw report something
+  false. An unchecked output flush once licensed lines nobody saw (ADR-088 T4).
+- A deliberate swallow of a non-nil error gets `//nolint:<linter> // <why>` on that line, and the
+  why must be true.
 - A new exclusion goes in `.golangci.yml` with a comment saying why, never as a blanket rule.
 
 **No dead code, and nothing in production that only a test reaches.** `deadcode` and U1000 with

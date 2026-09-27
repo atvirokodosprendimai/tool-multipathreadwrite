@@ -111,6 +111,7 @@ See `tasks/`.
 - Exported identifiers used only by tests that are not functions (permanent: boundary: neither deadcode nor U1000 reports them; none exist on 2026-09-27)
 - A contract row for the analysis itself (permanent: boundary: static analysis is not a promise the binary makes; T4's read promise has §171)
 - A failed receipt write after a write has landed (permanent: boundary: the tree changed either way and the exit code carries the verdict; the receipt is written `_ =` and says so)
+- Failed cleanup removals in `internal/apply`: an aside after a plan that applied, a staged temp file after an abort (deferred: docs/adr/BACKLOG.md, "A `.mrw-aside-*` left behind")
 
 ## Risks
 

@@ -45,12 +45,13 @@ func TestTheStaticHookReportsAfterACommit(t *testing.T) {
 func TestTheStaticHookIsQuietWhenHEADDidNotMove(t *testing.T) {
 	h := newStaticHookRepo(t, "echo FINDING-088; exit 1")
 	h.commit("moved")
-	for _, cmd := range []string{"git status", "git log --grep commit", `echo "git commit"`} {
+	for _, cmd := range []string{"git status", "git log --grep commit", `echo "git commit"`, `echo ";" git commit`, "cat <<123\ngit commit\n123"} {
 		if out := h.raw(cmd); out != "" {
 			t.Fatalf("%q is not a commit and ran the analysis: %q", cmd, out)
 		}
 	}
-	if ctx := h.context("git commit -m moved"); !strings.Contains(ctx, "FINDING-088") {
+	// A backslash-newline joins the lines: this is still `git commit`.
+	if ctx := h.context("git \\\ncommit -m moved"); !strings.Contains(ctx, "FINDING-088") {
 		t.Fatalf("the commit was consumed by the commands before it: %q", ctx)
 	}
 	if out := h.raw("git commit -m nothing-new"); out != "" {

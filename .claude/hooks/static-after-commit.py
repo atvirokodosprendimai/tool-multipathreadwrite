@@ -24,7 +24,6 @@ import hashlib
 import json
 import os
 import re
-import shlex
 import signal
 import subprocess
 import sys
@@ -34,34 +33,100 @@ import time
 LIMIT = 6000
 TIMEOUT = 280
 RECENT = 900
-PUNCT = ";&|()"
 GIT_OPTIONS_WITH_VALUE = {"-c", "-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"}
-HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 
 child = None
 
 
-def simple_commands(command):
-    """Yield each shell line's tokens, joining lines a quote spans, skipping heredoc bodies."""
-    lines = command.split("\n")
-    buf, i = "", 0
-    while i < len(lines):
-        buf = lines[i] if not buf else buf + "\n" + lines[i]
-        i += 1
-        lex = shlex.shlex(buf, posix=True, punctuation_chars=PUNCT)
-        lex.whitespace_split = True
-        lex.commenters = ""
-        try:
-            tokens = list(lex)
-        except ValueError:
-            continue  # a quote spans lines: keep reading
-        yield tokens
-        m = HEREDOC.search(buf)
-        if m:
-            while i < len(lines) and lines[i].strip() != m.group(2):
+def simple_commands(text):
+    """Yield the words of each simple command in text, split as a shell splits them.
+
+    Quotes and backslashes are removed from words, so a quoted `;` or `&` is part
+    of a word and never ends a command. An unquoted `;`, `&`, `|`, `(`, `)` or
+    newline ends one. A backslash-newline joins lines. A `#` starting a word is a
+    comment. A heredoc's body — the lines after `<<DELIM` up to DELIM — is text,
+    not commands.
+    """
+    words, cur, has_word, heredocs = [], [], False, []
+    i, n = 0, len(text)
+
+    def end_word():
+        nonlocal cur, has_word
+        if has_word:
+            words.append("".join(cur))
+        cur, has_word = [], False
+
+    while i < n:
+        c = text[i]
+        if c == "\\":
+            if i + 1 < n and text[i + 1] != "\n":
+                cur.append(text[i + 1])
+                has_word = True
+            i += 2
+            continue
+        if c == "'":
+            j = text.find("'", i + 1)
+            j = n if j < 0 else j
+            cur.append(text[i + 1:j])
+            has_word, i = True, j + 1
+            continue
+        if c == '"':
+            j = i + 1
+            while j < n and text[j] != '"':
+                if text[j] == "\\" and j + 1 < n and text[j + 1] in '"\\$`\n':
+                    j += 1
+                cur.append(text[j])
+                j += 1
+            has_word, i = True, j + 1
+            continue
+        if c == "#" and not has_word:
+            while i < n and text[i] != "\n":
                 i += 1
+            continue
+        if text.startswith("<<", i) and not text.startswith("<<<", i):
+            end_word()
+            i += 2
+            strip = i < n and text[i] == "-"
+            i += 1 if strip else 0
+            while i < n and text[i] in " \t":
+                i += 1
+            delim = []
+            while i < n and text[i] not in " \t\n;&|()<>":
+                if text[i] not in "'\"\\":
+                    delim.append(text[i])
+                i += 1
+            heredocs.append(("".join(delim), strip))
+            continue
+        if c == "\n":
+            end_word()
+            yield words
+            words = []
             i += 1
-        buf = ""
+            for delim, strip in heredocs:
+                while i < n:
+                    j = text.find("\n", i)
+                    j = n if j < 0 else j
+                    line = text[i:j]
+                    i = j + 1
+                    if (line.lstrip("\t") if strip else line) == delim:
+                        break
+            heredocs = []
+            continue
+        if c in ";&|()":
+            end_word()
+            yield words
+            words = []
+            i += 1
+            continue
+        if c in " \t\r":
+            end_word()
+            i += 1
+            continue
+        cur.append(c)
+        has_word = True
+        i += 1
+    end_word()
+    yield words
 
 
 def is_git_commit(words):
@@ -77,16 +142,7 @@ def is_git_commit(words):
 
 
 def runs_git_commit(command):
-    for tokens in simple_commands(command):
-        words = []
-        for tok in tokens + [";"]:
-            if set(tok) <= set(PUNCT):
-                if is_git_commit(words):
-                    return True
-                words = []
-            else:
-                words.append(tok)
-    return False
+    return any(is_git_commit(words) for words in simple_commands(command))
 
 
 def git(root, *args):
@@ -121,7 +177,9 @@ def claim(root, sha):
 
 
 def kill_group():
-    if child is not None and child.poll() is None:
+    """Kill everything the script started. The group outlives its leader: a
+    backgrounded grandchild keeps it, and its stdout, after the shell exits."""
+    if child is not None:
         try:
             os.killpg(child.pid, signal.SIGKILL)
         except OSError:
@@ -144,8 +202,12 @@ def analyse(root, script):
         out, _ = child.communicate(timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
         kill_group()
-        child.communicate()
+        try:
+            child.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
         return 1, f"scripts/static.sh did not finish in {TIMEOUT} s and was stopped; run it yourself"
+    kill_group()  # nothing the script started outlives it
     return child.returncode, out.strip()
 
 
