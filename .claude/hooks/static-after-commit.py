@@ -83,17 +83,29 @@ def simple_commands(text):
             while i < n and text[i] != "\n":
                 i += 1
             continue
-        if text.startswith("<<", i) and not text.startswith("<<<", i):
+        if text.startswith("<<<", i):
+            end_word()  # a here-string: the next word is its text, no body follows
+            i += 3
+            continue
+        if text.startswith("<<", i):
             end_word()
             i += 2
             strip = i < n and text[i] == "-"
             i += 1 if strip else 0
             while i < n and text[i] in " \t":
                 i += 1
+            # The delimiter is one shell word: quotes group and are removed.
             delim = []
             while i < n and text[i] not in " \t\n;&|()<>":
-                if text[i] not in "'\"\\":
-                    delim.append(text[i])
+                if text[i] in "'\"":
+                    j = text.find(text[i], i + 1)
+                    j = n if j < 0 else j
+                    delim.append(text[i + 1:j])
+                    i = j + 1
+                    continue
+                if text[i] == "\\" and i + 1 < n:
+                    i += 1
+                delim.append(text[i])
                 i += 1
             heredocs.append(("".join(delim), strip))
             continue
