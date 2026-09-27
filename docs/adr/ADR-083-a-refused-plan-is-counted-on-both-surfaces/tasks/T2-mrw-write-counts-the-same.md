@@ -87,7 +87,7 @@ go test ./internal/mcp/ -count=1 -timeout 180s -run 'TestAnMCPPlanRefusedAfterIt
 
 ## Risks
 
-- The unreadable-working-set, unreadable-ledger and ceiling refusals have no hermetic fixture here; they share one statement shape with the pointer refusal the test drives, and the mutants name them.
+- The unreadable-working-set, unreadable-ledger, ceiling and ledger-failed-landing branches have no hermetic fixture here and no mutant: they are source-traced (Codex review of #251), and each is one `authoring.Record` before an immediate return, the same shape as the pointer branches the test and both mutants drive.
 
 ## Out of Scope
 

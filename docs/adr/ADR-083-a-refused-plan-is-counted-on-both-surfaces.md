@@ -8,7 +8,7 @@
 **Cross-references:** ADR-009, ADR-079, docs/adr/BACKLOG.md
 **Governs:** `cmd/mrw/main.go`, `internal/mcp/tools.go`
 **Enforced-by:** `cmd/mrw/tally083_test.go::TestAPlanRefusedAfterItParsedIsOneRefusal`
-**Served-path change:** `mrw stats` now counts, as `refused_apply`, a plan either surface refused after its document parsed and its body files loaded, and before it fully landed: on the CLI a path that names a directory, a pointer that resolves to no file or to several, a malformed `.quality-harness.json`, an unreadable working set or ledger; on `mrw_write` the same pointer, working-set and ledger refusals and the result-ceiling refusal. An `mrw_write` whose ledger could not be written after the plan landed is counted as `applied`, as the CLI counts it. Exit codes and receipts are unchanged.
+**Served-path change:** `mrw stats` now counts, as `refused_apply`, a plan either surface refused after its document parsed and its body files loaded, and before it fully landed: on the CLI a path that names a directory, a pointer that resolves to no file or to several, a malformed `.quality-harness.json`, an unreadable working set or ledger; on `mrw_write` the same pointer, working-set and ledger refusals and the result-ceiling refusal. An `mrw_write` whose ledger could not be written after the plan landed is counted as `applied`, as the CLI counts one with no check due (`mrw_write` never runs a check; the CLI counts one whose check was due as `check_not_run`). Exit codes and receipts are unchanged.
 
 ## Context
 
@@ -46,7 +46,7 @@ The two surfaces disagreed in both directions, so each is brought to the same ru
    `mrw_write` at each early return.
 2. A filesystem error from apply is one `refused_apply`, `--dry-run` or not, under `--json` or not,
    whatever reached disk before it (ADR-079: a refused dry run is one refusal).
-3. A plan that landed and whose ledger could not be written is one `applied` on both surfaces.
+3. A plan that landed and whose ledger could not be written is one `applied` on `mrw_write`, as on the CLI when no check is due; the CLI keeps counting one whose check was due as `check_not_run` (second review of #229).
 4. A refusal before the document was processed is not counted; parse, compile and body-file
    failures stay `refused_parse`.
 
