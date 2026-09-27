@@ -70,6 +70,12 @@ const ckEvery = 200
 // the working tree).
 const pendingName = "pending.json"
 
+// pendingLock serializes every change to the store across processes (ADR-085):
+// two servers on one checkout each rewrote it from a stale copy, and the later
+// save dropped the earlier's spans. It is taken before any ledger lock, never
+// inside one.
+const pendingLock = pendingName + ".lock"
+
 // maxPending bounds the store. A caller that never acknowledges anything would
 // otherwise grow it without limit; the oldest go first, and losing one costs a
 // re-read rather than a wrong write.
@@ -291,6 +297,11 @@ func hold(root, path, sha string, spans map[string][2]int) error {
 	if sha == "" {
 		return fmt.Errorf("empty sha for %s", path)
 	}
+	release, err := state.Hold(root, pendingLock)
+	if err != nil {
+		return err
+	}
+	defer release()
 	store, err := loadPending(root)
 	if err != nil {
 		return err
@@ -322,6 +333,11 @@ func promote(root string, acks []string) error {
 	if len(acks) == 0 {
 		return nil
 	}
+	release, err := state.Hold(root, pendingLock)
+	if err != nil {
+		return err
+	}
+	defer release()
 	store, err := loadPending(root)
 	if err != nil || len(store) == 0 {
 		return err
@@ -388,6 +404,15 @@ func evict(store map[string]pending) {
 }
 
 func pendingPath(root string) (string, error) { return state.Path(root, pendingName) }
+
+// readPending loads the store under its lock for a caller that only reads it,
+// and reads past a lock it cannot take, as iter.Load does (ADR-085).
+func readPending(root string) (map[string]pending, error) {
+	if release, err := state.Hold(root, pendingLock); err == nil {
+		defer release()
+	}
+	return loadPending(root)
+}
 
 func loadPending(root string) (map[string]pending, error) {
 	p, err := pendingPath(root)

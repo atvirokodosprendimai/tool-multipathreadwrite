@@ -7286,6 +7286,32 @@ m write --no-check --dry-run "$R/p166b.mrw" >/dev/null 2>&1; want 0 $? "while 1-
 ins166=$(m instructions 2>&1) && grep -q 'A write exits 1 when a hunk fails validation' <<<"$ins166" && ok "mrw instructions teaches a write's exit 1 and 2" || bad "mrw instructions does not teach a write's exits"
 help166=$(m read --help 2>&1) && grep -q 'prunes that whole subtree' <<<"$help166" && ok "read --help says a bare directory name prunes" || bad "read --help does not say --exclude prunes"
 
+# 167. ADR-085: eight mrw mcp servers each serve a read of their own file at
+# once, and each acknowledgement then licenses its write. hold and promote
+# rewrote pending.json with no lock across processes, so a later save dropped
+# another server's checkpoint ids and their acks matched nothing. The pair is
+# every single-server ack row above: one read, one ack, one write lands.
+fixture
+rq167r() { python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":[sys.argv[1]]}}}))' "$1"; }
+rq167w() { python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.argv[1],"ack":[sys.argv[2]]}}}))' "$1" "$2"; }
+for j in 0 1 2 3 4 5 6 7; do
+	printf 'x%d\n' "$j" > "$R/p167_$j.txt"
+done
+for j in 0 1 2 3 4 5 6 7; do
+	printf '%s\n' "$(rq167r "p167_$j.txt")" | "$MRW" -C "$R" mcp > "$WORK/r167.$j" 2>&1 &
+	pids167[$j]=$!
+done
+for j in 0 1 2 3 4 5 6 7; do wait "${pids167[$j]}"; done
+landed=0; noid=0
+for j in 0 1 2 3 4 5 6 7; do
+	ck=$(grep -oE 'ck [^ ]+ open' "$WORK/r167.$j" | head -1 | cut -d' ' -f2)
+	[ -n "$ck" ] || { noid=$((noid + 1)); continue; }
+	printf '%s\n' "$(rq167w "$(printf '@@ p167_%d.txt 1 replace\ny%d\n' "$j" "$j")" "$ck")" | "$MRW" -C "$R" mcp > "$WORK/w167.$j" 2>&1
+	[ "$(cat "$R/p167_$j.txt")" = "y$j" ] && landed=$((landed + 1))
+done
+[ "$noid" = 0 ] && ok "each of eight concurrent reads served a checkpoint id" || bad "$noid read(s) served no checkpoint: $(head -c 200 "$WORK/r167.0")"
+[ "$landed" = 8 ] && ok "and every acknowledgement licensed its write: no server's pending span was lost" || bad "only $landed of 8 acknowledged writes landed: $(head -c 300 "$WORK/w167.0")"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
