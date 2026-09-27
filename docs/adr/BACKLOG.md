@@ -2031,8 +2031,10 @@ Contract breaks, reproduced on macOS:
   servers on one checkout could race it, and `seen.IsStale` reads the ledger unlocked — a wrong
   stderr notice at worst. **CLOSED 2026-09-27 — the pending store by ADR-085** (contract §167: eight
   servers at once, each ack licenses its write; 0–1 of 64 concurrent holds survived before it);
-  **`seen.IsStale` DECLINED** — `save` writes the header and every line in one `os.WriteFile`, so a
-  racing reader sees an empty file (not stale) or the whole header, never a torn one.
+  **`seen.IsStale` still deferred, as an accepted diagnostic risk**: `save` writes the header and every
+  line through one `os.WriteFile`, which normally puts the short header in its first write, but a
+  short first write is allowed (Codex review of #253), and a header prefix at EOF would read as stale
+  and print one false notice. The ledger is unaffected. Arm on one observed false stale notice.
 - **A UTF-16LE file is rewritten with exit 0**: served as byte-split lines, and a replace drops the
   BOM and mixes encodings. Nothing refuses a write to such a file.
   **Fixed by ADR-073**, contract §146: a line edit to a file that begins with a UTF-16 or UTF-32

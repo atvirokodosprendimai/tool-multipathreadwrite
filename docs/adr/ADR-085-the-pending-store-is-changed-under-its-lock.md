@@ -24,11 +24,12 @@ write is refused "has not been read". ADR-079 closed the same shape for the work
 `hold` and `promote` load and save; `nameTheAck` only loads, to decide whether a refusal can name the
 remedy. No other code touches the store.
 
-**Left out:** `seen.IsStale`, which BACKLOG named beside it. `save` truncates the ledger and writes the
-header and every line in one `os.WriteFile`, so a racing `IsStale` sees an empty file, which it reads
-as not stale, or the whole header; a false stale notice needs a partial first line, which that write
-does not produce. It would also put the change in `internal/seen`, an engine package, for no
-observable effect.
+**Left out:** `seen.IsStale`, which BACKLOG named beside it, kept as a deferred and accepted
+diagnostic risk. `save` truncates the ledger and writes the header and every line through one
+`os.WriteFile`, which normally puts the short header in its first write, so a racing `IsStale` sees an
+empty file (read as not stale) or the whole header. It is not atomic: a short first write is allowed
+(Codex review of #253), and a header prefix at EOF would read as stale and print one false notice on
+stderr. The ledger itself is unaffected, and fixing it belongs in `internal/seen`, an engine package.
 
 ## Existing Primitives Audit
 
@@ -76,7 +77,7 @@ See `tasks/`.
 
 ## Out of Scope
 
-- `seen.IsStale` under the ledger lock (permanent: boundary: a single-write save leaves no torn header to misread; the Context names the reasoning)
+- `seen.IsStale` under the ledger lock (deferred: docs/adr/BACKLOG.md, "Bookkeeping survives racing processes"; a short first write could print one false stale notice)
 
 ## Risks
 
