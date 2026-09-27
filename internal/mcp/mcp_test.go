@@ -21,11 +21,20 @@ import (
 // that test finishing then deletes the binary while cliOnce.path still points
 // at it — the next caller fails with "executable file not found", which reads
 // like a PATH problem and is not. One caller hid this; a second would not.
+//
+// It also points XDG_STATE_HOME at a scratch base for the whole package, so no
+// test here writes into the user's real ~/.local/state/mrw (BACKLOG, ADR-034).
 func TestMain(m *testing.M) {
+	base, err := os.MkdirTemp("", "mrw-state-*")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("XDG_STATE_HOME", base)
 	code := m.Run()
 	if cliOnce.dir != "" {
 		os.RemoveAll(cliOnce.dir)
 	}
+	os.RemoveAll(base)
 	os.Exit(code)
 }
 
