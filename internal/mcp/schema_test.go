@@ -147,3 +147,118 @@ func TestADescribedPropertyThatNoLongerExistsIsRefused(t *testing.T) {
 		t.Errorf("the refusal does not name the stale entry: %v", err)
 	}
 }
+
+// TestTheReadReceiptMatchesItsSchema keeps readSchema honest now that it lives
+// in a test file (ADR-088). mrw_read publishes no schema (ADR-023), so the
+// table is checked against real receipts — a served read, a page, a grep that
+// serves, an index and a page of one — in both directions: every key a receipt
+// carries is declared, and every declared key is carried by some receipt.
+func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
+	schema := readSchema()
+	props, _ := schema["properties"].(map[string]any)
+	observed, _ := props["observed"].(map[string]any)
+	entry, _ := observed["additionalProperties"].(map[string]any)
+	entryProps, _ := entry["properties"].(map[string]any)
+	if len(props) == 0 || len(entryProps) == 0 {
+		t.Fatalf("readSchema declares no properties to compare: %v", schema)
+	}
+
+	root, path := checkout(t, "a.txt", "one\ntwo\n")
+	bigRoot, bigPath := bigCheckout(t, 12000)
+	grepRoot := grepTree(t, 3, 2)
+	idxRoot := grepTree(t, 60, 400)
+	pageRoot := grepTree(t, 400, 400)
+	answers := map[string]map[string]any{
+		"served": call(t, root, "mrw_read", map[string]any{"specs": []any{path}}),
+		"paged":  call(t, bigRoot, "mrw_read", map[string]any{"specs": []any{bigPath}}),
+		"grep":   call(t, grepRoot, "mrw_read", map[string]any{"grep": "NEEDLE"}),
+		"index":  call(t, idxRoot, "mrw_read", map[string]any{"grep": "NEEDLE"}),
+	}
+	old := MaxResultChars
+	MaxResultChars = 4000
+	t.Cleanup(func() { MaxResultChars = old })
+	answers["index page"] = call(t, pageRoot, "mrw_read", map[string]any{"grep": "NEEDLE"})
+
+	carried := map[string]bool{}
+	for name, res := range answers {
+		rc := receipt(t, res)
+		for k := range rc {
+			if _, ok := props[k]; !ok {
+				t.Errorf("%s: the receipt carries %q, which readSchema does not declare", name, k)
+			}
+			carried[k] = true
+		}
+		required, _ := schema["required"].([]string)
+		for _, k := range required {
+			if _, ok := rc[k]; !ok {
+				t.Errorf("%s: the receipt lacks %q, which readSchema requires", name, k)
+			}
+		}
+		files, _ := rc["observed"].(map[string]any)
+		for file, raw := range files {
+			o, ok := raw.(map[string]any)
+			if !ok {
+				t.Errorf("%s: observed[%q] is %T, not an object", name, file, raw)
+				continue
+			}
+			for k := range o {
+				if _, ok := entryProps[k]; !ok {
+					t.Errorf("%s: observed[%q] carries %q, which readSchema does not declare", name, file, k)
+				}
+				carried["observed."+k] = true
+			}
+		}
+	}
+	for k := range props {
+		if !carried[k] {
+			t.Errorf("readSchema declares %q, and none of the %d receipts carries it", k, len(answers))
+		}
+	}
+	for k := range entryProps {
+		if !carried["observed."+k] {
+			t.Errorf("readSchema declares observed.%s, and none of the %d receipts carries it", k, len(answers))
+		}
+	}
+}
+
+// readSchema describes the mrw_read receipt at content[1]. mrw_read declares no
+// schema (ADR-023), so this table lives beside the test that holds it to real
+// receipts, TestTheReadReceiptMatchesItsSchema, and not in production (ADR-088).
+func readSchema() map[string]any {
+	return mustDescribe(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"observed": map[string]any{
+				"type":                 "object",
+				"additionalProperties": mustSchema(seen.Observation{}),
+			},
+			"problems": map[string]any{"type": "integer"},
+			// Present only on a paged answer, so it is NOT in `required` — a
+			// caller's exit condition is precisely its absence.
+			"next_read": map[string]any{"type": "string"},
+			// Present only on a grep's INDEX answer, and likewise not
+			// required. ⚠ ADR-017-T1's first cut claimed this file needed no
+			// change because matchIndex builds its own map — which is exactly
+			// how a response comes to violate the schema its own tool
+			// advertises. A schema-validating host would have rejected it.
+			// Found by review of #80.
+			"matches":    map[string]any{"type": "integer"},
+			"index":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"next_index": map[string]any{"type": "string"},
+		},
+		"required": []string{"observed", "problems"},
+	}, readDescriptions)
+}
+
+// readDescriptions says what each receipt property MEANS; mustDescribe refuses
+// an entry naming a property readSchema no longer declares.
+var readDescriptions = map[string]string{
+	"observed":       "What THIS call observed of each served file, keyed by path. It is merged into the per-checkout ledger rather than replacing it, so a later write is authorised by the accumulated spans for the same sha — not by this response alone.",
+	"observed.SHA":   "The sha256 of the whole file as it was when served. A later write is refused if the file no longer hashes to this.",
+	"observed.Spans": "The line spans this call rendered, as [start, end] pairs; null means the whole file. Authorisation is per LINE: a write to a line no read has served is refused, though a line served by an EARLIER read of the same sha is still licensed.",
+	"problems":       "How many requested ranges could not be served. Non-zero means part of what you asked for is missing from `observed` — the call itself still answered.",
+	"next_read":      "The spec to send next when this answer is only a PAGE of what you asked for. Absent when nothing remains, which is how you know you have the whole thing. A paged answer is NOT an error and carries no `isError`; it says so in its served text, with a `-- PARTIAL:` line naming the range and what remains. Stopping there leaves you holding part of a file, not the file.",
+	"matches":        "How many files matched a `grep`, counting the whole match set and not just this page. Present on any grep answer.",
+	"index":          "The matching FILE PATHS, served instead of content when the matches are too large to return. No content came with them and nothing was recorded, so this licenses no write. Send one back as a spec WITH the same grep to read its matches.",
+	"next_index":     "The last path on this page of an INDEX. Send the same grep again with `after` set to this for the next page, and repeat until it is absent — its absence is how you know you have the whole match set.",
+}

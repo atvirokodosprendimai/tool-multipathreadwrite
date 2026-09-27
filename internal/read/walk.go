@@ -181,12 +181,12 @@ func (w *walker) walkDir(named string, full string) {
 		if err != nil {
 			// Discovered, not named: skipped in silence, per rule 2. Reporting
 			// it would re-create the oracle in the problem list.
-			return nil
+			return nil //nolint:nilerr // discovered, not named: skipped in silence (rule 2, above)
 		}
 		// Resolve, THEN ask what it is: a symlink to an in-root regular file
 		// is a candidate, a FIFO or device is not.
 		if st, err := os.Stat(full); err != nil || !st.Mode().IsRegular() {
-			return nil // a discovered non-file is skipped in silence
+			return nil //nolint:nilerr // a discovered non-file is skipped in silence
 		}
 		if w.excluded(rel) {
 			return nil
@@ -246,7 +246,7 @@ func CheckExclude(globs []string) error {
 	const why = "a glob matches root-relative paths and base names, so one "
 	for _, g := range globs {
 		if _, err := path.Match(g, "x"); err != nil {
-			return fmt.Errorf("%q: %v", g, err)
+			return fmt.Errorf("%q: %w", g, err)
 		}
 		switch {
 		case rooted.IsRooted(g):

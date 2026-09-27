@@ -13,22 +13,17 @@ import (
 // advise declaring one (ADR-082).
 const NoShell = "no sh on PATH"
 
-// Shell returns the POSIX shell a check runs under, and whether one was found:
-// sh from PATH, or on Windows the sh.exe of the Git for Windows installation
-// git.exe on PATH belongs to. A plain PowerShell PATH holds Git's cmd directory
-// and not its usr\bin, so the check could not start there at all, on a platform
-// mrw is used on as much as any other (ADR-082). Not found, it returns "sh", so
-// the start fails with the usual exec error and Run reports it.
-func Shell() (string, bool) {
-	sh, _, ok := shellEnv()
-	return sh, ok
-}
-
-// shellEnv is Shell plus the directory to put first on the check's PATH: Git's
-// usr\bin when its shell was taken, so a nested sh, cat or grep in the declared
-// command resolves as it does in Git Bash; "" when sh came from PATH already
-// (the reviews of #247).
-func shellEnv() (sh, pathDir string, ok bool) {
+// Shell returns the POSIX shell a check runs under, the directory to put first
+// on the check's PATH, and whether a shell was found: sh from PATH, or on
+// Windows the sh.exe of the Git for Windows installation git.exe on PATH
+// belongs to. A plain PowerShell PATH holds Git's cmd directory and not its
+// usr\bin, so the check could not start there at all, on a platform mrw is used
+// on as much as any other (ADR-082). pathDir is Git's usr\bin when its shell was
+// taken, so a nested sh, cat or grep in the declared command resolves as it does
+// in Git Bash, and "" when sh came from PATH already (the reviews of #247). Not
+// found, it returns "sh", so the start fails with the usual exec error and Run
+// reports it.
+func Shell() (sh, pathDir string, ok bool) {
 	if p, err := exec.LookPath("sh"); err == nil {
 		return p, "", true
 	}

@@ -49,7 +49,7 @@ grep -q '^# 77\. ' scripts/contract.sh \
   && ./scripts/contract.sh 2>&1 | tee /tmp/adr039-t3.out \
   && grep -q '^# 77\. ' scripts/contract.sh \
   && go test ./internal/mcp/ -count=1 -run 'TestTheInstructionsTellAHostHowToAuthorAPlan|TestEverySurfaceCarriesTheOneRule' \
-  && grep -q 'maxInstructionsChars = 4096' internal/mcp/instructions.go \
+  && grep -q 'maxInstructionsChars = 4096' internal/mcp/instructions_test.go \
   && [ -z "$(gofmt -l internal/mcp)" ] \
   && go vet ./internal/mcp/
 ```
@@ -72,9 +72,9 @@ grep -q '^# 77\. ' scripts/contract.sh \
 | 4 — it is used | nothing measures this yet — ADR-009 |
 
 ## Mutation Log
-
 - 2026-09-09 · ebbc4be* · mutant killed · exit 1 · `internal/mcp/tools.go` · Record-on-serve makes §77 unacked fitting write apply · acceptance-sha256:43d57736666363323113a080ed8e7bfa9cf31167da2aa373c1dbaa4fca29eb8b
 - 2026-09-09 · ebbc4be* · mutant killed · exit 1 · `internal/mcp/mcp.go` · ack schema framed as pages-only fails TestEverySurfaceCarriesTheOneRule · acceptance-sha256:43d57736666363323113a080ed8e7bfa9cf31167da2aa373c1dbaa4fca29eb8b
+- 2026-09-27 · d352ba7* · mutant killed · exit 1 · `internal/mcp/instructions_test.go` · the bound moves off 4096; re-fenced by ADR-088 when the literal moved to instructions_test.go · acceptance-sha256:b1528062ec27f94128f7c198e54c16110fae7c117447318c13ea486c836dd7a4 · covers:maxInstructionsChars staying 4096
 
 ## Invariants
 
@@ -111,3 +111,5 @@ the fixture — the row must be a fitting serve, under the ceiling, with checkpo
 - 2026-09-09 · ebbc4be* · exit 0 · `set -o pipefail …` · acceptance-sha256:43d57736666363323113a080ed8e7bfa9cf31167da2aa373c1dbaa4fca29eb8b · ms:25736
 - 2026-09-09 · ebbc4be* · exit 0 · `set -o pipefail …` · acceptance-sha256:43d57736666363323113a080ed8e7bfa9cf31167da2aa373c1dbaa4fca29eb8b · ms:26125
 - 2026-09-09 · ebbc4be* · exit 0 · `set -o pipefail …` · acceptance-sha256:43d57736666363323113a080ed8e7bfa9cf31167da2aa373c1dbaa4fca29eb8b · ms:28825
+- 2026-09-27 · d352ba7* · exit 0 · `set -o pipefail …` · acceptance-sha256:b1528062ec27f94128f7c198e54c16110fae7c117447318c13ea486c836dd7a4 · ms:123497
+- 2026-09-27 · d352ba7* · exit 0 · `set -o pipefail …` · acceptance-sha256:b1528062ec27f94128f7c198e54c16110fae7c117447318c13ea486c836dd7a4 · ms:104222

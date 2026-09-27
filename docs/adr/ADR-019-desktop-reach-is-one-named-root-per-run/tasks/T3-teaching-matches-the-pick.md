@@ -51,7 +51,7 @@ grep -qE '^Naming pick: (A — launch --root only|B — launch allow-list|C — 
   && grep -q '^--- PASS: TestTheSurfaceSaysTheCLIIsRicher' /tmp/adr019-t3.out \
   && grep -q '^--- PASS: TestTheSurfaceNamesTheRootThePickChose' /tmp/adr019-t3.out \
   && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr019-t3.out \
-  && grep -n 'maxInstructionsChars = 4096' internal/mcp/instructions.go \
+  && grep -n 'maxInstructionsChars = 4096' internal/mcp/instructions_test.go \
   && [ -z "$(gofmt -l internal/mcp)" ] \
   && go vet ./internal/mcp/
 ```
@@ -77,8 +77,8 @@ too, so a pick-A no-op that leaves the old test passing cannot carry T3.
 | 4 — it is used | nothing measures this yet |
 
 ## Mutation Log
-
 - 2026-09-10 · c444fc5* · mutant killed · exit 1 · `internal/mcp/instructions.go` · without launch --root DIR mcp the new test is the only one that fails; the old richer test stays green · acceptance-sha256:2652a08b9d13bd8db0292ca23067946dbe2d46f126fd90a58f414d0a498f918c · covers:the surface names how this pick names the tree
+- 2026-09-27 · d352ba7* · mutant killed · exit 1 · `internal/mcp/instructions_test.go` · the bound moves off 4096; re-fenced by ADR-088 when the literal moved to instructions_test.go · acceptance-sha256:7370e30e44bd9bb62b80be133179f1fe6eb8a3daf729891e4797a782cf666492 · covers:maxInstructionsChars is still 4096
 
 ## Invariants
 
@@ -106,3 +106,4 @@ no `Naming pick:` line or T2's §78 is missing.
 
 ## Verification Log
 - 2026-09-10 · c444fc5* · exit 0 · `set -o pipefail …` · acceptance-sha256:2652a08b9d13bd8db0292ca23067946dbe2d46f126fd90a58f414d0a498f918c · ms:853
+- 2026-09-27 · d352ba7* · exit 0 · `set -o pipefail …` · acceptance-sha256:7370e30e44bd9bb62b80be133179f1fe6eb8a3daf729891e4797a782cf666492 · ms:2918

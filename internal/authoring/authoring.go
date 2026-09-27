@@ -179,7 +179,7 @@ func reclassify(root string, from, to Outcome) error {
 func save(root string, t Tally) error {
 	p, err := state.Path(root, file)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // measurement never breaks the tool it measures (above)
 	}
 	var b strings.Builder
 	for _, k := range t.Names() {
@@ -259,8 +259,8 @@ type RecentEntry struct {
 
 // recordRecent appends one landed write to the ring and trims it to
 // RecentWindow. Like Record it never fails a write: every error path returns
-// nil and the cost of being wrong is a lost entry.
-func recordRecent(root string, advisories int) error {
+// and the cost of being wrong is a lost entry.
+func recordRecent(root string, advisories int) {
 	entries := recent(root)
 	entries = append(entries, RecentEntry{Unix: time.Now().Unix(), Op: "write", Advisories: advisories})
 	if len(entries) > RecentWindow {
@@ -268,14 +268,13 @@ func recordRecent(root string, advisories int) error {
 	}
 	p, err := state.Path(root, recentFile)
 	if err != nil {
-		return nil
+		return
 	}
 	var b strings.Builder
 	for _, e := range entries {
 		fmt.Fprintf(&b, "%d %s %d\n", e.Unix, e.Op, e.Advisories)
 	}
 	_ = os.WriteFile(p, []byte(b.String()), 0o600)
-	return nil
 }
 
 // recent reads the ring, oldest first. It FAILS OPEN like Load: an absent,
@@ -367,9 +366,9 @@ type Pricing struct {
 // recordPricing counts one landed flag-off write. A write with no single-line
 // code replace is not a candidate and counts nothing. Like Record it never
 // fails the write.
-func recordPricing(root string, candidate, wouldRefuse bool, outcome PricingOutcome) error {
+func recordPricing(root string, candidate, wouldRefuse bool, outcome PricingOutcome) {
 	if !candidate {
-		return nil
+		return
 	}
 	p := loadPricing(root)
 	p.Candidates++
@@ -386,14 +385,13 @@ func recordPricing(root string, candidate, wouldRefuse bool, outcome PricingOutc
 	}
 	path, err := state.Path(root, pricingFile)
 	if err != nil {
-		return nil
+		return
 	}
 	var b strings.Builder
 	for _, kv := range p.lines() {
 		fmt.Fprintf(&b, "%s %d\n", kv.name, kv.n)
 	}
 	_ = os.WriteFile(path, []byte(b.String()), 0o600)
-	return nil
 }
 
 // lines is the file order: fixed, so a diff of two pricing files reads.
@@ -537,7 +535,7 @@ func Reset(root string) (discarded Tally, err error) {
 // RecordRecent appends one landed write to the ring (ADR-055), under the
 // tally's lock. It never fails a write.
 func RecordRecent(root string, advisories int) error {
-	_ = locked(root, func() { _ = recordRecent(root, advisories) })
+	_ = locked(root, func() { recordRecent(root, advisories) })
 	return nil
 }
 
@@ -550,7 +548,7 @@ func Recent(root string) (entries []RecentEntry) {
 // RecordPricing counts one landed flag-off write (ADR-056), under the tally's
 // lock. It never fails a write.
 func RecordPricing(root string, candidate, wouldRefuse bool, outcome PricingOutcome) error {
-	_ = locked(root, func() { _ = recordPricing(root, candidate, wouldRefuse, outcome) })
+	_ = locked(root, func() { recordPricing(root, candidate, wouldRefuse, outcome) })
 	return nil
 }
 

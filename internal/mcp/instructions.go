@@ -27,13 +27,6 @@ import (
 // 3+ threshold.
 const triggerRule = "Use mrw always: plan the activity as one read of every site, then one plan, then one write."
 
-// maxInstructionsChars bounds the handshake document. A host that supports the
-// field puts it in front of the model once per session, whether or not a tool
-// is ever called, so the length is paid by every session rather than by the
-// callers who benefit. The bound is what keeps this from growing into a second
-// copy of the repository's agent instructions.
-const maxInstructionsChars = 4096
-
 // examplePlan is a worked plan: two hunks, two files, one guard. Two rather
 // than one so the example is a plan, not a single hunk.
 const examplePlan = `@@ internal/store/store.go 42-44 replace anchor="func (s *Store) Get" body=4

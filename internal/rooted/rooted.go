@@ -192,7 +192,7 @@ var ErrDeviceName = errors.New("a Windows device name")
 func deviceName(p, absRoot, at string) error {
 	rel, err := filepath.Rel(absRoot, at)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // no relative path means nothing under the root to judge
 	}
 	if d := win32Device(rel); d != "" {
 		via := ""

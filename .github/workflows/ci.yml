@@ -63,6 +63,17 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # ADR-088: golangci-lint, deadcode, staticcheck U1000 with tests excluded,
+      # and govulncheck, through the same script a developer and the post-commit
+      # hook run. The action only installs the pinned golangci-lint binary.
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.14.0
+          install-only: true
+
+      - name: Static analysis
+        run: ./scripts/static.sh
+
       - name: Test
         run: go test ./...
 

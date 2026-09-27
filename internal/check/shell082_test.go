@@ -86,7 +86,7 @@ func TestACheckWithNoShellSaysSo(t *testing.T) {
 // shell: no sh on PATH and, on Windows, no Git for Windows (ADR-082).
 func needShell(t *testing.T) {
 	t.Helper()
-	if _, ok := Shell(); !ok {
+	if _, _, ok := Shell(); !ok {
 		t.Skip("no POSIX shell: no sh on PATH and no Git for Windows (ADR-082)")
 	}
 }

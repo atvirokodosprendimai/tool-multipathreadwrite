@@ -19,6 +19,7 @@ go test -race ./...
 gofmt -l .                             # must print nothing
 go vet ./...
 ./scripts/contract.sh                  # bash; WSL or Git Bash on Windows
+./scripts/static.sh                    # golangci-lint, deadcode, U1000, govulncheck (ADR-088)
 ```
 
 `.quality-harness.json` names `go test ./...` as the check. A run that is piped
