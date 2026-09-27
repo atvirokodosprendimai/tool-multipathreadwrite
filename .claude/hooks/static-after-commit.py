@@ -110,7 +110,7 @@ def recent_commit(root):
 
 def claim(root, sha):
     """True for exactly one caller per commit, across sessions."""
-    d = os.path.join(tempfile.gettempdir(), "claude-static-after-commit",
+    d = os.path.join(tempfile.gettempdir(), "claude-static-after-commit-claims",
                      hashlib.sha256(os.path.realpath(root).encode()).hexdigest()[:16])
     os.makedirs(d, mode=0o700, exist_ok=True)
     try:

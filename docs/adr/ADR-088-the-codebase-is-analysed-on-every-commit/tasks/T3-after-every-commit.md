@@ -82,6 +82,7 @@ go test ./cmd/mrw/ -count=1 -timeout 300s -run 'TestTheStaticHook' -v 2>&1 | tee
 - 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:2997
 - 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:2114
 - 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:2539
+- 2026-09-27 · e6541b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:2532
 
 ## Mutation Log
 (empty until execute)
