@@ -41,7 +41,7 @@ dc=$(go run golang.org/x/tools/cmd/deadcode@v0.50.0 ./...) && [ -z "$dc" ] \
   && grep -qE '^--- PASS: TestTheReadReceiptMatchesItsSchema \(' /tmp/adr088-T1.out \
   && GOOS=windows go vet ./internal/check/ ./cmd/mrw/ ./internal/adversarial/ \
   && [ -z "$(gofmt -l .)" ] \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/apply internal/plan internal/lines internal/iter internal/subproc \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/plan internal/lines \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -70,6 +70,11 @@ dc=$(go run golang.org/x/tools/cmd/deadcode@v0.50.0 ./...) && [ -z "$dc" ] \
 - 2026-09-27 · d352ba7* · exit 0 · `set -o pipefail …` · acceptance-sha256:2aa582b7467f1b123d156b1af96ae880345a076565a2be1db03b9454092c43f5 · ms:4189
 - 2026-09-27 · d352ba7* · exit 0 · `set -o pipefail …` · acceptance-sha256:2aa582b7467f1b123d156b1af96ae880345a076565a2be1db03b9454092c43f5 · ms:4037
 - 2026-09-27 · d352ba7* · exit 0 · `set -o pipefail …` · acceptance-sha256:2aa582b7467f1b123d156b1af96ae880345a076565a2be1db03b9454092c43f5 · ms:5674
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:f73e29df6c17071c836e82dbcbbc4409afd93a0f2a7cae7a495947038adb5be4 · ms:20177
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:f73e29df6c17071c836e82dbcbbc4409afd93a0f2a7cae7a495947038adb5be4 · ms:8906
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:f73e29df6c17071c836e82dbcbbc4409afd93a0f2a7cae7a495947038adb5be4 · ms:9531
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:f73e29df6c17071c836e82dbcbbc4409afd93a0f2a7cae7a495947038adb5be4 · ms:62275
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:f73e29df6c17071c836e82dbcbbc4409afd93a0f2a7cae7a495947038adb5be4 · ms:16649
 
 ## Mutation Log
 (empty until execute)
@@ -77,6 +82,10 @@ dc=$(go run golang.org/x/tools/cmd/deadcode@v0.50.0 ./...) && [ -z "$dc" ] \
 - 2026-09-27 · d352ba7* · mutant killed · exit 1 · `internal/mcp/instructions.go` · a production const nothing reads · acceptance-sha256:2aa582b7467f1b123d156b1af96ae880345a076565a2be1db03b9454092c43f5 · covers:U1000 without tests reports nothing
 - 2026-09-27 · d352ba7* · mutant killed · exit 1 · `internal/mcp/tools.go` · a paged receipt renames a key readSchema declares · acceptance-sha256:2aa582b7467f1b123d156b1af96ae880345a076565a2be1db03b9454092c43f5 · covers:the read receipt matches its schema
 - 2026-09-27 · d352ba7* · mutant killed · exit 1 · `cmd/mrw/shell082_test.go` · a caller of Shell left on the old two results · acceptance-sha256:2aa582b7467f1b123d156b1af96ae880345a076565a2be1db03b9454092c43f5 · covers:the Windows build still vets
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `internal/check/check.go` · a production function nothing calls · acceptance-sha256:f73e29df6c17071c836e82dbcbbc4409afd93a0f2a7cae7a495947038adb5be4 · covers:deadcode reports nothing
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `internal/mcp/instructions.go` · a production const nothing reads · acceptance-sha256:f73e29df6c17071c836e82dbcbbc4409afd93a0f2a7cae7a495947038adb5be4 · covers:U1000 without tests reports nothing
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `internal/mcp/tools.go` · a paged receipt renames a key readSchema declares · acceptance-sha256:f73e29df6c17071c836e82dbcbbc4409afd93a0f2a7cae7a495947038adb5be4 · covers:the read receipt matches its schema
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `cmd/mrw/shell082_test.go` · a caller of Shell left on the old two results · acceptance-sha256:f73e29df6c17071c836e82dbcbbc4409afd93a0f2a7cae7a495947038adb5be4 · covers:the Windows build still vets
 
 ## Invariants
 

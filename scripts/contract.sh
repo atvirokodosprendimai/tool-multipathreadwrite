@@ -7374,6 +7374,22 @@ assert open(sys.argv[3]+"/s170.txt").read() == "one\ntwo\nthree\n" and open(sys.
 PY
 want 0 $? "the remedy follows the not-read refusal of a served line, and only that one"
 
+# 171. ADR-088 T4: a read whose answer could not be written records nothing. The
+# answer was buffered and flushed after the ledger had recorded it, unchecked,
+# so a read to a full device licensed lines nobody saw. /dev/full is Linux's;
+# elsewhere TestAReadWhoseAnswerCannotBeWrittenRecordsNothing covers it.
+fixture
+if [ -w /dev/full ]; then
+  printf 'one\ntwo\n' > "$R/c171.txt"
+  m read c171.txt > /dev/full 2> "$WORK/e171"; want 2 $? "a read whose answer cannot be written exits 2"
+  grep -q 'nothing was recorded' "$WORK/e171" && ok "and says nothing was recorded" || bad "the refusal: $(head -c 300 "$WORK/e171")"
+  printf '@@ c171.txt 2 replace\nTWO\n' | m write --no-check - > /dev/null 2>&1; want 1 $? "and a write to its lines is refused as unread"
+  m read c171.txt > /dev/null; want 0 $? "while a read that reached its caller exits 0"
+  printf '@@ c171.txt 2 replace\nTWO\n' | m write --no-check - > /dev/null 2>&1; want 0 $? "and licenses the same write"
+else
+  skip "§171 needs /dev/full (Linux); TestAReadWhoseAnswerCannotBeWrittenRecordsNothing covers it here"
+fi
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

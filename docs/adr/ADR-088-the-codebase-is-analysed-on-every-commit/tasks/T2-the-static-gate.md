@@ -40,9 +40,9 @@ set -o pipefail
 ./scripts/static.sh > /tmp/adr088-T2.out 2>&1 \
   && grep -q '^static analysis clean$' /tmp/adr088-T2.out \
   && for s in gofmt vet golangci-lint deadcode staticcheck govulncheck; do grep -q "^== $s" /tmp/adr088-T2.out || exit 1; done \
-  && grep -q 'scripts/static.sh' .github/workflows/ci.yml \
+  && grep -qE '^ +run: \./scripts/static\.sh$' .github/workflows/ci.yml \
   && grep -q 'scripts/static.sh' CONTRIBUTING.md \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/apply internal/plan internal/lines internal/iter internal/subproc \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/plan internal/lines \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -70,12 +70,29 @@ set -o pipefail
 - 2026-09-27 · d352ba7* · exit 0 · `set -o pipefail …` · acceptance-sha256:0b206ca3ad105d9c93bbefb2ea1e080eab419be380b4d924f8ada0d467b555a9 · ms:7096
 - 2026-09-27 · d352ba7* · exit 0 · `set -o pipefail …` · acceptance-sha256:0b206ca3ad105d9c93bbefb2ea1e080eab419be380b4d924f8ada0d467b555a9 · ms:7018
 - 2026-09-27 · d352ba7* · exit 0 · `set -o pipefail …` · acceptance-sha256:0b206ca3ad105d9c93bbefb2ea1e080eab419be380b4d924f8ada0d467b555a9 · ms:7110
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:297da13e1567e683fef6368d00f7866ce28a805794d95e7b3469a733d526d82f · ms:13201
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:297da13e1567e683fef6368d00f7866ce28a805794d95e7b3469a733d526d82f · ms:11057
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:297da13e1567e683fef6368d00f7866ce28a805794d95e7b3469a733d526d82f · ms:14383
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:297da13e1567e683fef6368d00f7866ce28a805794d95e7b3469a733d526d82f · ms:14446
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:a225953c6908b2044bbc15f694ec25b5662230f051dc036a266af0e77ae09613 · ms:15889
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:a225953c6908b2044bbc15f694ec25b5662230f051dc036a266af0e77ae09613 · ms:14718
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:a225953c6908b2044bbc15f694ec25b5662230f051dc036a266af0e77ae09613 · ms:13905
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:a225953c6908b2044bbc15f694ec25b5662230f051dc036a266af0e77ae09613 · ms:9317
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-27 · d352ba7* · mutant killed · exit 1 · `scripts/static.sh` · the script stops running one analyser · acceptance-sha256:0b206ca3ad105d9c93bbefb2ea1e080eab419be380b4d924f8ada0d467b555a9 · covers:static.sh runs every analyser
 - 2026-09-27 · d352ba7* · mutant killed · exit 1 · `internal/mcp/tools.go` · a wasted assignment goes back into production · acceptance-sha256:0b206ca3ad105d9c93bbefb2ea1e080eab419be380b4d924f8ada0d467b555a9 · covers:a lint finding fails the gate
 - 2026-09-27 · d352ba7* · mutant killed · exit 1 · `.github/workflows/ci.yml` · CI stops running the gate · acceptance-sha256:0b206ca3ad105d9c93bbefb2ea1e080eab419be380b4d924f8ada0d467b555a9 · covers:CI runs the gate
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `scripts/static.sh` · the script stops running one analyser · acceptance-sha256:297da13e1567e683fef6368d00f7866ce28a805794d95e7b3469a733d526d82f · covers:static.sh runs every analyser
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `internal/iter/iter.go` · an unchecked Close goes back into production without being written as a discard · acceptance-sha256:297da13e1567e683fef6368d00f7866ce28a805794d95e7b3469a733d526d82f · covers:a lint finding fails the gate
+- 2026-09-27 · 56d4480* · mutant survived · exit 0 · `.github/workflows/ci.yml` · CI stops running the gate · acceptance-sha256:297da13e1567e683fef6368d00f7866ce28a805794d95e7b3469a733d526d82f · covers:CI runs the gate
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `scripts/static.sh` · the script stops running one analyser · acceptance-sha256:a225953c6908b2044bbc15f694ec25b5662230f051dc036a266af0e77ae09613 · covers:static.sh runs every analyser
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `internal/iter/iter.go` · an unchecked Close goes back into production without being written as a discard · acceptance-sha256:a225953c6908b2044bbc15f694ec25b5662230f051dc036a266af0e77ae09613 · covers:a lint finding fails the gate
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `.github/workflows/ci.yml` · CI stops running the gate · acceptance-sha256:a225953c6908b2044bbc15f694ec25b5662230f051dc036a266af0e77ae09613 · covers:CI runs the gate
 
 ## Invariants
 

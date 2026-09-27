@@ -205,7 +205,7 @@ func load(root string) (Tally, error) {
 	if err != nil {
 		return t, nil
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		k, v, ok := strings.Cut(strings.TrimSpace(sc.Text()), " ")
@@ -288,7 +288,7 @@ func recent(root string) []RecentEntry {
 	if err != nil {
 		return nil
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	var out []RecentEntry
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
@@ -422,7 +422,7 @@ func loadPricing(root string) Pricing {
 	if err != nil {
 		return p
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		fields := strings.Fields(sc.Text())

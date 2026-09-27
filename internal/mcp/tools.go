@@ -368,7 +368,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return cw.stopped
 	}
 	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stop: stop})
-	w.Flush()
+	_ = w.Flush()
 
 	// A result over the declared limit is REFUSED, not truncated.
 	//
@@ -1074,7 +1074,7 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 		var b bytes.Buffer
 		w := bufio.NewWriter(&b)
 		observed, problems := read.Run(w, root, []read.Spec{sp}, read.Options{Numbers: true})
-		w.Flush()
+		_ = w.Flush()
 
 		// ⚠ AND IF THAT SECOND READ SERVED NOTHING, THIS IS NOT A PAGE (ADR-025).
 		// countFileLines succeeded a moment ago, so an empty `observed` here means

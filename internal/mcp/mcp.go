@@ -202,7 +202,7 @@ func Serve(in io.Reader, out io.Writer, root string) error {
 	// an edit plan is the worst failure this package could have.
 	r := bufio.NewReader(in)
 	w := bufio.NewWriter(out)
-	defer w.Flush()
+	defer func() { _ = w.Flush() }()
 
 	for {
 		line, err := r.ReadString('\n')

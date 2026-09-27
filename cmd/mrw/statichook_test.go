@@ -14,41 +14,51 @@ import (
 // .claude/hooks/static-after-commit.py the way Claude Code does — JSON on
 // stdin, the documented envelope on stdout — against a scratch repository whose
 // scripts/static.sh is a stand-in, so what is asserted is the trigger and the
-// envelope, not the analysers: a commit that moved HEAD hands the script's
-// verdict and output to the model, failing or clean.
+// envelope, not the analysers: a command that ran `git commit`, after a commit
+// landed, hands the script's verdict and output to the model, failing or clean,
+// and a closed stdout still exits 0.
 func TestTheStaticHookReportsAfterACommit(t *testing.T) {
 	failing := newStaticHookRepo(t, "echo FINDING-088; exit 1")
-	failing.context("git status") // the first call records HEAD and runs nothing
 	failing.commit("second")
 	if ctx := failing.context("git commit -m second"); !strings.Contains(ctx, "FINDING-088") || !strings.Contains(ctx, "FAILED") {
 		t.Fatalf("a commit whose analysis failed did not hand the finding over: %q", ctx)
 	}
 
 	clean := newStaticHookRepo(t, "echo nothing found; exit 0")
-	clean.context("git status")
 	clean.commit("second")
-	if ctx := clean.context("git commit -m second"); !strings.Contains(ctx, "clean") || strings.Contains(ctx, "FAILED") {
+	// A quoted & does not end the command: this is still `git commit`.
+	if ctx := clean.context("git -c user.name='Tom & Sam' commit -m second"); !strings.Contains(ctx, "clean") || strings.Contains(ctx, "FAILED") {
 		t.Fatalf("a commit whose analysis passed did not say so: %q", ctx)
+	}
+
+	closed := newStaticHookRepo(t, "echo FINDING-088; exit 1")
+	closed.commit("second")
+	if err := closed.withClosedStdout("git commit -m second"); err != nil {
+		t.Fatalf("with its stdout closed the hook did not exit 0: %v", err)
 	}
 }
 
 // TestTheStaticHookIsQuietWhenHEADDidNotMove pins what the hook does NOT run
-// for: the first call in a checkout, a commit command that moved nothing, and a
-// HEAD that moved under a command that was not a commit.
+// for: a command that is not a commit, however much it mentions one; a commit
+// already analysed; a HEAD whose newest move was not a commit. And a command in
+// another session cannot consume a commit that is still to be analysed.
 func TestTheStaticHookIsQuietWhenHEADDidNotMove(t *testing.T) {
 	h := newStaticHookRepo(t, "echo FINDING-088; exit 1")
-	if out := h.raw("git commit -m first-call"); out != "" {
-		t.Fatalf("the first call in a checkout ran the analysis: %q", out)
-	}
-	if out := h.raw("git commit -m nothing-to-commit"); out != "" {
-		t.Fatalf("a commit command that moved no HEAD ran the analysis: %q", out)
-	}
 	h.commit("moved")
-	if out := h.raw("git log --oneline"); out != "" {
-		t.Fatalf("a HEAD moved under a command that is not a commit ran the analysis: %q", out)
+	for _, cmd := range []string{"git status", "git log --grep commit", `echo "git commit"`} {
+		if out := h.raw(cmd); out != "" {
+			t.Fatalf("%q is not a commit and ran the analysis: %q", cmd, out)
+		}
 	}
-	if out := h.raw("git commit -m again"); out != "" {
-		t.Fatalf("a HEAD the hook had already recorded ran the analysis again: %q", out)
+	if ctx := h.context("git commit -m moved"); !strings.Contains(ctx, "FINDING-088") {
+		t.Fatalf("the commit was consumed by the commands before it: %q", ctx)
+	}
+	if out := h.raw("git commit -m nothing-new"); out != "" {
+		t.Fatalf("a commit already analysed ran the analysis again: %q", out)
+	}
+	h.git("checkout", "-q", "-b", "other")
+	if out := h.raw("git commit -m on-other"); out != "" {
+		t.Fatalf("a HEAD whose newest move was a checkout ran the analysis: %q", out)
 	}
 }
 
@@ -122,6 +132,25 @@ func (h *staticHookRepo) raw(command string) string {
 		h.t.Fatalf("the hook exited non-zero, which would fail the turn: %v", err)
 	}
 	return string(out)
+}
+
+// withClosedStdout runs the hook with a stdout nobody reads and returns how it
+// exited.
+func (h *staticHookRepo) withClosedStdout(command string) error {
+	h.t.Helper()
+	in, _ := json.Marshal(map[string]any{
+		"hook_event_name": "PostToolUse", "session_id": "s", "cwd": h.root,
+		"tool_name": "Bash", "tool_input": map[string]any{"command": command},
+	})
+	r, w, err := os.Pipe()
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	_ = r.Close()
+	defer func() { _ = w.Close() }()
+	c := exec.Command(h.py, h.hook)
+	c.Stdin, c.Stdout, c.Env = strings.NewReader(string(in)), w, h.env
+	return c.Run()
 }
 
 // context runs the hook and returns the additionalContext of its envelope,

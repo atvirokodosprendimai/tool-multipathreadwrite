@@ -8,7 +8,7 @@
 **Consumes:** `scripts/static.sh` (T2)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `a commit that moves HEAD reports the analysis`, `an unmoved HEAD runs nothing`, `the hook is registered`
+**Rests-on:** `a landed commit reports the analysis`, `nothing else runs it`, `a closed stdout exits 0`, `the hook is registered`
 
 ## Goal
 
@@ -75,12 +75,23 @@ go test ./cmd/mrw/ -count=1 -timeout 300s -run 'TestTheStaticHook' -v 2>&1 | tee
 - 2026-09-27 · d352ba7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:1890
 - 2026-09-27 · d352ba7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:5531
 - 2026-09-27 · d352ba7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:7857
+- 2026-09-27 · 56d4480* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:0 · test-lock-sha256:43f5ecfec32779fcf807616bf39fdef537f583ed789f7fbf33150782ad4d2e88 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvc3RhdGljaG9va190ZXN0LmdvCVRlc3RUaGVTdGF0aWNIb29rSXNRdWlldFdoZW5IRUFERGlkTm90TW92ZQk1NjE5MTUyNTkxN2ZjNTRjZjk0ZWFkNjNlMzMyMWRkYTM2NWFkODA2Zjk1YzVmNDM4MWNmNmNkYmYzNzVlMmQyCmJvZHkJY21kL21ydy9zdGF0aWNob29rX3Rlc3QuZ28JVGVzdFRoZVN0YXRpY0hvb2tSZXBvcnRzQWZ0ZXJBQ29tbWl0CTk5MjkzY2U3MTE3MjE3NWQzZjcxODQ3MzcxOWE1NDUwZWZjZjM4ZWExN2U2ZDhkYTZjMGE0MzRiZTk1NTEzNDc · test-lock-kind:replace
+- 2026-09-27 · human-observed · Zy's session, 2026-09-27: the hook tests were rewritten after the Codex review of #259 (reflog-and-claim trigger, quote-aware commit reading, closed stdout). They are stronger: another session's command, a mentioned-not-run commit and a checkout are now asserted quiet, and a closed stdout must exit 0.
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:8124
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:5922
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:2997
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:2114
+- 2026-09-27 · 56d4480* · exit 0 · `set -o pipefail …` · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · ms:2539
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-27 · d352ba7* · mutant killed · exit 1 · `.claude/hooks/static-after-commit.py` · the verdict is computed and never handed over · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · covers:a commit that moves HEAD reports the analysis
 - 2026-09-27 · d352ba7* · mutant killed · exit 1 · `.claude/hooks/static-after-commit.py` · an unmoved HEAD is analysed again · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · covers:an unmoved HEAD runs nothing
 - 2026-09-27 · d352ba7* · mutant killed · exit 1 · `.claude/settings.json` · the registration names another file · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · covers:the hook is registered
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `.claude/hooks/static-after-commit.py` · the verdict is computed and never handed over · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · covers:a landed commit reports the analysis
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `.claude/hooks/static-after-commit.py` · any command runs the analysis · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · covers:nothing else runs it
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `.claude/settings.json` · the registration names another file · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · covers:the hook is registered
+- 2026-09-27 · 56d4480* · mutant killed · exit 1 · `.claude/hooks/static-after-commit.py` · the hook exits through the interpreter, which retries a closed stdout · acceptance-sha256:c1c33bf3c78551ce62011e1072aeeba48f763643974477bc32d3e9e9ffb1dec6 · covers:a closed stdout exits 0
 
 ## Invariants
 

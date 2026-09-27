@@ -269,7 +269,7 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	start := time.Now()
 	runErr := subproc.Run(c)
 	res.DurationMS = time.Since(start).Milliseconds()
-	f.Close()
+	_ = f.Close()
 
 	switch {
 	case runErr == nil:

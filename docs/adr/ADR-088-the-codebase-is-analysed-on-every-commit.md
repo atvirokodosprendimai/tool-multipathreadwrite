@@ -8,7 +8,7 @@
 **Cross-references:** ADR-012, ADR-019, ADR-022, ADR-023, ADR-037, ADR-039, ADR-082, docs/adr/BACKLOG.md
 **Governs:** `.golangci.yml`, `scripts/static.sh`, `.claude/hooks/static-after-commit.py`, `.claude/rules/static-analysis.md`, `.claude/settings.json`, `.github/workflows/ci.yml`, `internal/check/shell.go`, `internal/check/check.go`, `internal/mcp/schema.go`, `internal/mcp/instructions.go`
 **Enforced-by:** `cmd/mrw/statichook_test.go::TestTheStaticHookReportsAfterACommit`
-**Served-path change:** none a caller sees — an error that was formatted with `%v` is wrapped with `%w` (same text), and an unexported helper moves; every refusal, exit code and receipt is unchanged.
+**Served-path change:** one — `mrw read` whose answer cannot be written (a full disk, `/dev/full`) now exits 2 and records nothing, where it recorded the lines and exited 0; everything else a caller sees is unchanged: `%w` formats as `%v` did, and the moved identifiers are unexported.
 
 ## Context
 
@@ -49,15 +49,24 @@ no vulnerability scan ran anywhere.
    (output must be empty), staticcheck U1000 with `-tests=false`, and `govulncheck`. Any finding exits
    1; a missing golangci-lint names how to install it.
 3. **`.golangci.yml`** enables the standard set plus linters that find defects (errorlint, nilerr,
-   unparam, wastedassign, copyloopvar, misspell, unconvert, usestdlibvars, durationcheck), shows every
-   finding (no per-linter cap), and excludes with a reason: unchecked best-effort `Close`/`Flush`/
-   `Remove`/`fmt.Fprint` (the `std-error-handling` preset), staticcheck's QF refactoring hints, and
-   errorlint/unparam in tests. A deliberate swallow is annotated `//nolint:nilerr // <why>`.
+   unparam, wastedassign, copyloopvar, misspell, unconvert, usestdlibvars, durationcheck) and shows
+   every finding (no per-linter cap). errcheck stays whole: the one function exclusion is `fmt.Fprint*`,
+   whose error reaches a checked `Flush`, cannot occur on an in-memory buffer, or has nowhere to go on
+   stderr. Every other discarded error is written `_ =` at its site, so the discard is a visible choice,
+   and a deliberate swallow of a non-nil error is `//nolint:nilerr // <why>`. Tests are exempt from
+   errorlint, unparam, errcheck and ST1008 (fixed test arguments, unwrapped errors, cleanup that cannot
+   change a verdict), and staticcheck's QF refactoring hints are off.
 4. **After every commit, the hook runs it.** `.claude/hooks/static-after-commit.py` (PostToolUse on
-   Bash) runs `scripts/static.sh` when HEAD moved and the command named `commit`, and returns the
-   result as context; `.claude/rules/static-analysis.md` says what to do with it, and says it for an
-   agent without hooks too.
+   Bash) runs `scripts/static.sh` when the command ran `git commit` (read quote-aware) and HEAD's
+   newest reflog entry is a commit made in the last 15 minutes that no session has analysed yet — a
+   claim file per commit makes that atomic, so another session's command cannot consume it. The
+   script runs in its own process group, killed whole at 280 s. `.claude/rules/static-analysis.md` says
+   what to do with the verdict, and says it for an agent without hooks too.
 5. **CI runs `scripts/static.sh`** in the `test` job, with golangci-lint installed at the same version.
+6. **A read whose answer did not reach the caller records nothing.** Found while removing the blanket
+   errcheck exclusion (the Codex review of #259): `mrw read` recorded the served lines, then flushed its
+   buffered answer on return, unchecked, so a failed write licensed lines nobody saw — ADR-002 inverted.
+   The answer is flushed and checked before `seen.Record`; a failure exits 2 and names it.
 
 ## Alternatives Considered
 
@@ -77,7 +86,8 @@ no vulnerability scan ran anywhere.
 
 ## Wiring & Contract Changes
 
-None a caller sees. CI gains a step; `CONTRIBUTING.md` and `AGENTS.md` list the new gate.
+One exit code: a read whose answer cannot be written exits 2 (contract §171). CI gains a step;
+`CONTRIBUTING.md` and `AGENTS.md` list the new gate.
 
 ## Inter-task Contracts
 
@@ -99,7 +109,8 @@ See `tasks/`.
 - gosec, revive, gocritic (permanent: boundary: the Alternatives say why; revisit when a finding class they alone catch bites)
 - Windows-only files in the analysis (permanent: boundary: CI analyses on Linux; a `GOOS=windows` deadcode run matched on 2026-09-27)
 - Exported identifiers used only by tests that are not functions (permanent: boundary: neither deadcode nor U1000 reports them; none exist on 2026-09-27)
-- A contract row (permanent: boundary: static analysis is not a promise the binary makes)
+- A contract row for the analysis itself (permanent: boundary: static analysis is not a promise the binary makes; T4's read promise has §171)
+- A failed receipt write after a write has landed (permanent: boundary: the tree changed either way and the exit code carries the verdict; the receipt is written `_ =` and says so)
 
 ## Risks
 

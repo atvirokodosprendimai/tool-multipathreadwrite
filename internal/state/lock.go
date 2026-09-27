@@ -31,14 +31,14 @@ func Hold(root, name string) (func(), error) {
 		return nil, err
 	}
 	if err := lock(f); err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 	var once sync.Once
 	return func() {
 		once.Do(func() {
 			_ = unlock(f)
-			f.Close()
+			_ = f.Close()
 		})
 	}, nil
 }
