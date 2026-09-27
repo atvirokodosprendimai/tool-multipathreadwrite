@@ -32,9 +32,10 @@
 
 ```bash
 set -o pipefail
-go test ./cmd/mrw/ -count=1 -timeout 180s -run 'TestAJSONPlanWithANameItCannotRepresentWritesNothing' -v 2>&1 | tee /tmp/adr086-T4.out \
+go test ./cmd/mrw/ -count=1 -timeout 180s -run 'TestAJSONPlanWithANameItCannotRepresentWritesNothing|TestAJSONPointerToANameItCannotRepresentWritesNothing' -v 2>&1 | tee /tmp/adr086-T4.out \
   && missing=$(for t in TestAJSONPlanWithANameItCannotRepresentWritesNothing; do grep -qE "^--- PASS: $t \(" /tmp/adr086-T4.out || echo "$t"; done) \
   && [ -z "$missing" ] \
+  && ! grep -qE '^--- FAIL' /tmp/adr086-T4.out \
   && grep -q '^# 169\. ' scripts/contract.sh \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/seen internal/check internal/state internal/lines internal/iter internal/subproc \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/seen internal/check internal/state internal/lines internal/iter internal/subproc)" ] \
@@ -46,6 +47,7 @@ go test ./cmd/mrw/ -count=1 -timeout 180s -run 'TestAJSONPlanWithANameItCannotRe
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestAJSONPlanWithANameItCannotRepresentWritesNothing` | `cmd/mrw/json086_test.go` | exit 2 naming the byte, nothing written; a valid name applies | — | S1, S2 |
+| `TestAJSONPointerToANameItCannotRepresentWritesNothing` | `cmd/mrw/json086_test.go` | a working-set pointer that expands to an invalid name is refused under `--json`; skipped where the filesystem refuses the name | — | S1, S2 |
 
 ## Reachability
 
@@ -74,10 +76,14 @@ go test ./cmd/mrw/ -count=1 -timeout 180s -run 'TestAJSONPlanWithANameItCannotRe
   ```
 - 2026-09-27 · 318a8c4* · exit 0 · `set -o pipefail …` · acceptance-sha256:3d0dfbeed2a71c1ba54318271f9ef607d92f10ef6a6fe51d23e2a783611c3cb7 · ms:526
 - 2026-09-27 · 318a8c4* · exit 0 · `set -o pipefail …` · acceptance-sha256:3d0dfbeed2a71c1ba54318271f9ef607d92f10ef6a6fe51d23e2a783611c3cb7 · ms:1429
+- 2026-09-27 · f0bbfa1* · exit 0 · `set -o pipefail …` · acceptance-sha256:436140bc941a050c402b5ea67cc2a512f48bc14fe701be803f257fcece7d795d · ms:1014
+- 2026-09-27 · f0bbfa1* · exit 0 · `adr-verify --relock` · acceptance-sha256:436140bc941a050c402b5ea67cc2a512f48bc14fe701be803f257fcece7d795d · ms:0 · test-lock-sha256:c117faf7db7d7a203731fb3f3b1fa959447778b2f2fa951572e44d5b19e07641 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvanNvbjA4Nl90ZXN0LmdvCVRlc3RBSlNPTlBsYW5XaXRoQU5hbWVJdENhbm5vdFJlcHJlc2VudFdyaXRlc05vdGhpbmcJOWVjOWM1NDBiYWIwZDA4YWRmMGM2Nzc4MjA0MTdjZjFiODFlNzUwMjlhNjM2NmYzNjc5NjMwNTQwMGRkMmI1ZQpib2R5CWNtZC9tcncvanNvbjA4Nl90ZXN0LmdvCVRlc3RBSlNPTlBvaW50ZXJUb0FOYW1lSXRDYW5ub3RSZXByZXNlbnRXcml0ZXNOb3RoaW5nCTI2MjFlMWE2ZTA1NzIzZDFiMjViODYzMzZlYTJhOTA5YWZjZWUyZTYyOTg4OTExMmEyMWRhYTI0OWFmODNlMzg · test-lock-kind:relock
+- 2026-09-27 · f0bbfa1* · exit 0 · `set -o pipefail …` · acceptance-sha256:436140bc941a050c402b5ea67cc2a512f48bc14fe701be803f257fcece7d795d · ms:499
 
 ## Mutation Log
 (empty until execute)
 - 2026-09-27 · 318a8c4* · mutant killed · exit 1 · `cmd/mrw/main.go` · a --json plan with an invalid name is not refused · acceptance-sha256:3d0dfbeed2a71c1ba54318271f9ef607d92f10ef6a6fe51d23e2a783611c3cb7 · covers:a --json create with an invalid name writes nothing
+- 2026-09-27 · f0bbfa1* · mutant killed · exit 1 · `cmd/mrw/main.go` · a --json plan with an invalid name is not refused · acceptance-sha256:436140bc941a050c402b5ea67cc2a512f48bc14fe701be803f257fcece7d795d · covers:a --json create with an invalid name writes nothing
 
 ## Invariants
 
@@ -85,11 +91,12 @@ go test ./cmd/mrw/ -count=1 -timeout 180s -run 'TestAJSONPlanWithANameItCannotRe
 
 ## Risks
 
-- None beyond the record's.
+- The pointer case runs only where the filesystem holds the byte (the Linux CI job); on APFS it skips, so its mutant can be killed only there.
 
 ## Out of Scope
 
 - `mrw_write` (permanent: boundary: the MCP surface already refuses an argument that is not valid UTF-8, ADR-078)
+- A name the filesystem supplies — a symlink's target, a created directory, the root (deferred: docs/adr/BACKLOG.md, "A --json receipt with a filesystem-derived invalid name")
 
 ## Stop Condition
 

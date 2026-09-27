@@ -38,3 +38,28 @@ func TestAJSONPlanWithANameItCannotRepresentWritesNothing(t *testing.T) {
 		t.Errorf("a --json create with a valid name: exit %d, want 0\n%s", code, out)
 	}
 }
+
+// ADR-086 T4 (Codex review of #254). The --json check saw a working-set
+// pointer, not the name it expanded to, so `@@ @1 1 replace` under --json
+// edited bad\xffname.txt while the receipt named another file. Only where the
+// filesystem holds the byte (Linux CI); APFS refuses to create the name.
+func TestAJSONPointerToANameItCannotRepresentWritesNothing(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "bad\xffname.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Skipf("this filesystem refuses the name (%v); no working set can point at it", err)
+	}
+	if _, err := readIn(t, root, "bad\xffname.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if out, code := runIn(t, root, "iter", "add", "bad\xffname.txt"); code != 0 {
+		t.Fatalf("iter add: exit %d\n%s", code, out)
+	}
+	out, code := writeIn(t, root, "--no-check", "--json", planFile(t, "@@ @1 1 replace\nY\n"))
+	if code != 2 || !strings.Contains(out, "not valid UTF-8") {
+		t.Errorf("--json @1 to an invalid name: exit %d, want 2 naming the byte:\n%s", code, out)
+	}
+	if b, err := os.ReadFile(filepath.Join(root, "bad\xffname.txt")); err != nil || string(b) != "x\n" {
+		t.Errorf("the pointed-at file changed: %q, %v", b, err)
+	}
+}

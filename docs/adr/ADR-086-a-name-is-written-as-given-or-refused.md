@@ -50,8 +50,9 @@ conversion and no other.
 4. On Windows a path component that is not valid UTF-8 is refused by name, as a Win32 alias is
    (ADR-071 Decision 4): Windows converts a path to UTF-16 and maps such a byte to U+FFFD without an
    error, so the probe and the commit would both reach the replacement name (Codex review of #254).
-5. A `--json` plan whose path or rename destination is not valid UTF-8 is refused before anything
-   lands: `encoding/json` would name the file with U+FFFD in the receipt (Codex review of #254).
+5. A `--json` plan whose path, rename destination or expanded working-set pointer is not valid UTF-8
+   is refused before anything lands: `encoding/json` would name the file with U+FFFD in the receipt
+   (Codex review of #254). A name the filesystem supplies is not covered (Out of Scope).
 
 ## Alternatives Considered
 
@@ -87,6 +88,8 @@ See `tasks/`.
 - A contract row that shows the APFS refusal on CI (permanent: fact: the contract script runs on Linux CI only, where ext4 accepts the byte, and §168 checks whichever the running filesystem does; citation: file `AGENTS.md:63`)
 - Two distinct invalid bytes treated as one name by the case-fold key (deferred: docs/adr/BACKLOG.md, "foldKey collapses distinct invalid bytes")
 - A probe that cannot be removed leaves a file while the receipt says nothing was written (deferred: docs/adr/BACKLOG.md, "A probe left behind")
+- A `--json` receipt naming a filesystem-derived name that is not valid UTF-8 — a symlink's target, a created directory, the root (deferred: docs/adr/BACKLOG.md, "A --json receipt with a filesystem-derived invalid name")
+- A Windows absolute read spec that `rooted.Real` normalises before the alias check (deferred: docs/adr/BACKLOG.md, "A Windows absolute spec normalised before the alias check")
 
 ## Risks
 

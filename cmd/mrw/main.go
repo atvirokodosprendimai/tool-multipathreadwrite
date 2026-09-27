@@ -1208,6 +1208,11 @@ held or went unchecked.`,
 							name, h.SrcLine, path, len(got)))
 					}
 					path = iter.Path(got[0])
+					// ADR-086: the --json check above saw the pointer, not the
+					// name it expands to (Codex review of #254).
+					if cmd.Bool("json") && !utf8.ValidString(path) {
+						return refuse(fmt.Sprintf("%s line %d: %s names %q, which is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it", name, h.SrcLine, h.Path, path))
+					}
 				}
 				in = append(in, apply.Input{
 					Path: path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),

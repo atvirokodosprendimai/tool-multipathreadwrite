@@ -1898,6 +1898,19 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
 - **A probe left behind** (ADR-086, not observed): when a staging probe's removal fails, the empty
   file stays in the tree while the receipt says NOTHING WRITTEN; the refusal names it, but the
   receipt's written list does not. Say so on the receipt if it is ever observed.
+- **A --json receipt with a filesystem-derived invalid name** (the Codex review of #254,
+  source-traced, not observed): ADR-086 refuses a `--json` plan whose GIVEN names (path, rename
+  destination, expanded pointer) are not valid UTF-8, but a name the filesystem supplies — the target
+  of an in-root symlink, a directory created through a linked one, a Linux root holding such bytes —
+  still reaches `Files[].Target`, `dirs_created` or `root` and serialises with U+FFFD. Needs a
+  receipt-contract decision (refuse at staging from the resolved names, or encode names losslessly),
+  not a patch. Arm on one observed case.
+- **A Windows absolute spec normalised before the alias check** (the Codex review of #254,
+  source-traced, Windows only): `read.go` and `walk.go` call `rooted.Real` (`EvalSymlinks`) before
+  `rooted.Resolve`, and on Windows that returns the on-disk spelling, so an absolute spec holding an
+  invalid byte whose U+FFFD twin exists is served as the twin. A write to the invalid name is still
+  refused by `Resolve`. The fix is to check the original spelling first, in `internal/read`. Arm on a
+  Windows report.
 - **A `.mrw-aside-*` left behind.** When the final aside removal fails after a
   plan that applied, the placeholder stays in the tree (ADR-004 hygiene, not a
   false receipt). Say so on the receipt if it is ever observed.
