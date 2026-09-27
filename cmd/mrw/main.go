@@ -1052,7 +1052,9 @@ held or went unchecked.`,
 			// an empty one, with applied false and empty arrays, not null.
 			// printed and tallied say the human receipt is on stdout and the
 			// landing is counted, so a refusal after either does neither twice.
-			printed, tallied := false, false
+			// parsed says the plan parsed: a refusal after that and before anything
+			// landed is one refused_apply, as mrw_write counts it (ADR-083).
+			printed, tallied, parsed := false, false, false
 			refuseWith := func(res apply.Result, msg string) error {
 				// A refusal after the write landed (the ledger could not be
 				// written, the check could not start) still says what landed
@@ -1062,6 +1064,10 @@ held or went unchecked.`,
 				landed := res.Applied && !res.DryRun
 				if landed && !tallied {
 					_ = authoring.Record(cmd.Root().String("root"), authoring.Applied)
+					tallied = true
+				}
+				if !landed && parsed && !tallied {
+					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedApply)
 					tallied = true
 				}
 				if !cmd.Bool("json") && landed && !printed {
@@ -1158,6 +1164,7 @@ held or went unchecked.`,
 				_ = authoring.Record(root, authoring.RefusedParse)
 				return refuse(fmt.Sprintf("%s: %v", name, err))
 			}
+			parsed = true
 			if cmd.Bool("dry-run") && !cmd.Bool("json") {
 				for _, h := range hunks {
 					fmt.Fprintf(os.Stdout, "parsed: %s %s %s body=%d\n", h.Path, h.Addr.String(), h.Op, len(h.Body))
@@ -1221,6 +1228,10 @@ held or went unchecked.`,
 			var ledgerErr *writer.LedgerError
 			isLedgerErr := errors.As(err, &ledgerErr)
 			if err != nil && !isLedgerErr {
+				// ADR-083: one refusal, as mrw_write counts an apply error,
+				// --dry-run or not, and whatever reached disk before it.
+				_ = authoring.Record(root, authoring.RefusedApply)
+				tallied = true
 				// ADR-001 rule 3: every hunk carries its own verdict, and a
 				// filesystem failure is not an exception. Apply now fills the
 				// receipt before returning the error, so render it on whichever
