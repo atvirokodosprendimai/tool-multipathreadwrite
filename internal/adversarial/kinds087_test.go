@@ -59,3 +59,21 @@ func TestTheEngineAndTheParserRefuseWithOneKind(t *testing.T) {
 		}
 	})
 }
+
+// Kinds lines up with the errors the text reports, so a caller can pair them:
+// an error the scan finds before validation has no kind, and must still take
+// its place (the Codex review of #257).
+func TestParseErrorKindsLineUpWithTheErrors(t *testing.T) {
+	_, err := plan.Parse(strings.NewReader("stray\n@@ f.txt 1 replace\n"))
+	var pe *plan.ParseError
+	if !errors.As(err, &pe) {
+		t.Fatalf("want a *plan.ParseError, got %v", err)
+	}
+	if n := strings.Count(err.Error(), "\n  line "); n != 2 {
+		t.Fatalf("the fixture must report two errors, reported %d: %v", n, err)
+	}
+	want := []refusal.Kind{"", refusal.ReplaceEmptyBody}
+	if len(pe.Kinds) != len(want) || pe.Kinds[0] != want[0] || pe.Kinds[1] != want[1] {
+		t.Errorf("Kinds = %q, want %q", pe.Kinds, want)
+	}
+}

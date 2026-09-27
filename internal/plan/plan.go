@@ -337,7 +337,9 @@ func Parse(r io.Reader) ([]Hunk, error) {
 	}
 	flush()
 
-	var kinds []refusal.Kind
+	// One kind per reported error, in the same order: what the scan above
+	// found is not classified, so it is "".
+	kinds := make([]refusal.Kind, len(errs))
 	for i := range hunks {
 		if err := validate(&hunks[i]); err != nil {
 			errs = append(errs, fmt.Sprintf("line %d: %v", hunks[i].SrcLine, err))
@@ -852,9 +854,9 @@ func validate(h *Hunk) error {
 }
 
 // ParseError is a plan that did not parse. Its text is every error found, as
-// it always was; Kinds lists the kind of each refusal validate made, in plan
-// order and "" for one it does not classify, so a caller compares kinds
-// rather than words (ADR-087).
+// it always was; Kinds[i] is the kind of the i-th error the text reports, ""
+// for one nothing classifies, so a caller compares kinds rather than words
+// (ADR-087).
 type ParseError struct {
 	msg   string
 	Kinds []refusal.Kind

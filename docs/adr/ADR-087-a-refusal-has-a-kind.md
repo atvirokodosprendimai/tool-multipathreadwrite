@@ -36,8 +36,8 @@ range, with an empty body; a replace with an empty body.
 1. `internal/refusal` names the seven mirrored kinds and `NotRead`. `refusal.Error` carries a
    kind and a message whose text is the message exactly.
 2. `plan.validate` returns a kinded refusal for each mirrored rule, and `plan.Parse` returns a
-   `*plan.ParseError` whose text is unchanged and whose `Kinds` lists the kinds `validate`
-   refused, in plan order.
+   `*plan.ParseError` whose text is unchanged and whose `Kinds` has one entry per reported error,
+   in the same order: the kind `validate` gave it, or `""` for an error nothing classifies.
 3. The engine sets `HunkResult.Kind` (`json:"-"`) at each mirrored rule and at its three
    not-read refusals.
 4. `nameTheAck` keys on `refusal.NotRead`, not on the message.

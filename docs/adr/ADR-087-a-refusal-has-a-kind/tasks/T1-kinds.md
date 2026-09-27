@@ -83,6 +83,7 @@ go test ./internal/adversarial/ ./internal/refusal/ -count=1 -timeout 180s -run 
 - 2026-09-27 · 81b8012* · exit 0 · `set -o pipefail …` · acceptance-sha256:263a4b3f241285ab54152c004eada0d0d60114dfa98517f99741f0331d9ff63a · ms:404
 - 2026-09-27 · 81b8012* · exit 0 · `set -o pipefail …` · acceptance-sha256:263a4b3f241285ab54152c004eada0d0d60114dfa98517f99741f0331d9ff63a · ms:1004
 - 2026-09-27 · 81b8012* · exit 0 · `set -o pipefail …` · acceptance-sha256:263a4b3f241285ab54152c004eada0d0d60114dfa98517f99741f0331d9ff63a · ms:812
+- 2026-09-27 · 2c0f396* · exit 0 · `set -o pipefail …` · acceptance-sha256:263a4b3f241285ab54152c004eada0d0d60114dfa98517f99741f0331d9ff63a · ms:682
 
 ## Mutation Log
 (empty until execute)
