@@ -27,6 +27,7 @@ import (
 	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -95,6 +96,11 @@ type HunkResult struct {
 	// literals miscount, which is why this reports rather than refuses
 	// (ADR-048), and a balanced insert in the wrong place is invisible to it.
 	Balance string `json:"balance,omitempty"`
+
+	// Kind classifies a refusal the parser also makes, and the not-read
+	// refusal, so a caller compares kinds instead of Reason's words (ADR-087).
+	// Not a receipt field.
+	Kind refusal.Kind `json:"-"`
 }
 
 // MarshalJSON emits removed_first/removed_last on a delete hunk and on no
@@ -868,6 +874,13 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		}
 		ok = false
 	}
+	// failK is fail with the refusal's kind (ADR-087).
+	failK := func(h hunk, k refusal.Kind, format string, a ...any) {
+		fail(h, format, a...)
+		r := out[h.Index]
+		r.Kind = k
+		out[h.Index] = r
+	}
 
 	// ONE FILE IS ONE OBSERVATION, WHATEVER THE PLAN CALLS IT (ADR-029). The
 	// ledger is keyed on the path a caller typed, and a file has more than one
@@ -925,10 +938,10 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		switch {
 		case !known:
 			if pathLevel {
-				fail(hs[0], "%s has not been read: mrw does not know what it currently holds. %s "+
+				failK(hs[0], refusal.NotRead, "%s has not been read: mrw does not know what it currently holds. %s "+
 					"takes no line address — read the path, or pass --force", path, hs[0].Op)
 			} else {
-				fail(hs[0], "%s has not been read: mrw does not know what it currently holds, and a "+
+				failK(hs[0], refusal.NotRead, "%s has not been read: mrw does not know what it currently holds, and a "+
 					"line address means nothing without that. Run `mrw read %s` first, or pass --force", path, path)
 			}
 		case recorded.SHA != shaBefore:
@@ -964,7 +977,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				"the whole path, or pass --force", path, obs.Served(), h.Op)
 			return false
 		}
-		fail(h, "%s of %s has not been read: mrw served %s. A line address means nothing in lines "+
+		failK(h, refusal.NotRead, "%s of %s has not been read: mrw served %s. A line address means nothing in lines "+
 			"you have not seen — read them, or pass --force",
 			addrString(from, to), path, obs.Served())
 		return false
@@ -1023,7 +1036,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		// not a rule at all — it is a gate choosing WHICH rule applies — and
 		// both sides of it are mirrored below.
 		if h.Op == "create" && len(h.Body) == 0 && !h.CountedBody {
-			fail(h, "create with an empty body: say body=0 if you mean an empty file, "+
+			failK(h, refusal.CreateEmptyBody, "create with an empty body: say body=0 if you mean an empty file, "+
 				"and check the body did not go missing if you do not")
 			continue
 		}
@@ -1035,19 +1048,19 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		// create was accepted. Found by the review of PR #130, on the question
 		// the record said it must not get wrong.
 		if h.Op == "create" && h.StartPat != nil {
-			fail(h, "create takes no address, use %q", "-")
+			failK(h, refusal.CreateAddress, "create takes no address, use %q", "-")
 			continue
 		}
 		if h.Op == "create" && (h.Start != 0 || h.End != 0) {
-			fail(h, "create takes no address, use %q", "-")
+			failK(h, refusal.CreateAddress, "create takes no address, use %q", "-")
 			continue
 		}
 		if h.Op == "create" && h.RelEnd > 0 {
-			fail(h, "create takes no address, so it takes no relative end either: use %q", "-")
+			failK(h, refusal.CreateRelEnd, "create takes no address, so it takes no relative end either: use %q", "-")
 			continue
 		}
 		if h.Op == "create" && (h.Anchor != "" || h.Lines >= 0) {
-			fail(h, "create takes no anchor= or lines= (the file must not exist yet)")
+			failK(h, refusal.CreateGuard, "create takes no anchor= or lines= (the file must not exist yet)")
 			continue
 		}
 		if h.Op == "insert-after" || h.Op == "insert-before" {
@@ -1063,15 +1076,15 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// wrote. The wording is validate's own, which differs between the
 			// two forms because only one of them has a range to name yet.
 			if h.EndPat != nil {
-				fail(h, "%s takes a single line, not a range", h.Op)
+				failK(h, refusal.InsertRange, "%s takes a single line, not a range", h.Op)
 				continue
 			}
 			if h.RelEnd > 0 || h.Start != h.End {
-				fail(h, "%s takes a single line, not the range %s", h.Op, h.SrcAddr)
+				failK(h, refusal.InsertRange, "%s takes a single line, not the range %s", h.Op, h.SrcAddr)
 				continue
 			}
 			if len(h.Body) == 0 {
-				fail(h, "%s with an empty body would change nothing", h.Op)
+				failK(h, refusal.InsertEmptyBody, "%s with an empty body would change nothing", h.Op)
 				continue
 			}
 		}
@@ -1079,7 +1092,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		// from a body never written, and this shape removed code while handing
 		// back a receipt that said it succeeded.
 		if h.Op == "replace" && len(h.Body) == 0 {
-			fail(h, "replace with an empty body would delete %s — say delete if that is "+
+			failK(h, refusal.ReplaceEmptyBody, "replace with an empty body would delete %s — say delete if that is "+
 				"what you mean, and check the body did not go missing if it is not", h.SrcAddr)
 			continue
 		}

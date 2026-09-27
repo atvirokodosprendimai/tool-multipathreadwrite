@@ -7349,6 +7349,31 @@ state=$(python3 -c 'import os,sys; print("none" if not [n for n in os.listdir(os
 printf '@@ good169.txt 0 create\nx\n' > "$R/p169b.mrw"
 m write --no-check --json "$R/p169b.mrw" >/dev/null 2>&1; want 0 $? "while a --json create with a valid name applies"
 
+# 170. ADR-087: the acknowledgement remedy is found by the refusal's kind, not
+# its words. Over the built server, a write to a served and unacknowledged line
+# is refused with the remedy appended; a write to a file never served is refused
+# as not read, without it. Pair both, so a remedy on every refusal cannot pass.
+fixture
+printf 'one\ntwo\nthree\n' > "$R/s170.txt"; printf 'uno\ndos\n' > "$R/n170.txt"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["s170.txt"]}}}\n' | m mcp >/dev/null 2>&1
+want 0 $? "the server serves s170.txt"
+for f in s170 n170; do
+  printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ %s.txt 2 replace\\nX\\n"}}}\n' "$f" | m mcp > "$WORK/w170.$f" 2>/dev/null
+done
+python3 - "$WORK/w170.s170" "$WORK/w170.n170" "$R" <<'PY'
+import json,sys
+def reason(p):
+    r=json.load(open(p))["result"]
+    sc=r.get("structuredContent") or json.loads(r["content"][1]["text"])
+    assert sc["failed"] == 1 and sc.get("applied") is False, "a write with no licence applied: %s" % sc
+    return sc["hunks"][0].get("reason") or ""
+s, n = reason(sys.argv[1]), reason(sys.argv[2])
+assert "has not been read" in s and "never acknowledged" in s, "the served, unacknowledged write lacks the remedy: %s" % s
+assert "has not been read" in n and "never acknowledged" not in n, "the never-served write names a remedy that cannot work: %s" % n
+assert open(sys.argv[3]+"/s170.txt").read() == "one\ntwo\nthree\n" and open(sys.argv[3]+"/n170.txt").read() == "uno\ndos\n", "a refused write changed the tree"
+PY
+want 0 $? "the remedy follows the not-read refusal of a served line, and only that one"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
