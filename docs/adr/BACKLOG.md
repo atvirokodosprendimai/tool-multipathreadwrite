@@ -1743,7 +1743,8 @@ effective-use document (`@@ path 0 create`); MCP handshake stays Shared,
   them. Open question in its own right; not armed.
 
 - **A body at the wrong indent reparents keys, and nothing is left to find.** Deferred from ADR-052,
-  whose neighbour licence catches a surviving closer but not this: in indentation-structured files a
+  whose neighbour licence only requires a served line after a multi-line replacement range, so the
+  caller can see a surviving closer; nothing like that exists for this: in indentation-structured files a
   body at the wrong depth moves keys under another parent, and the result is valid and means something
   else (Ansible `when:` became a module argument, three linters green). mrw models no target syntax, so
   the remedy is teaching (AGENTS.md §4) rather than a guard. Promote on a reported case a read-after
