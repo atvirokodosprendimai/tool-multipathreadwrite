@@ -7490,6 +7490,29 @@ for _ in $(seq 1 30); do kill -0 "${sp:-999999999}" 2>/dev/null || { alive=0; br
 { [ -n "$sp" ] && [ "$alive" = 0 ]; } && ok "and the interrupted step's process is gone" \
   || { kill -9 "${sp:-999999999}" 2>/dev/null; bad "the interrupted step '${sp:-?}' outlived mrw"; }
 
+# 174. ADR-092 T5, from the stress round of 2026-09-28. A malformed "steps"
+# block does not stop a write that asks for no step (it refused every write),
+# and asking for one refuses it with nothing written. A step that re-runs mrw
+# with steps recurses to MRW_STEP_DEPTH 8 and stops there, the whole chain
+# returning with nothing left running (one peer's grew to ~107 processes).
+fixture
+printf '{"check":"true","steps":{"my step":"true"}}\n' > "$R/.quality-harness.json"
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 0 + 1 }\n' > "$R/p174.mrw"
+m write "$R/p174.mrw" > /dev/null 2>&1; want 0 $? "a write asking for no step lands beside a malformed steps block"
+printf '@@ a.go 3 replace\nfunc A() int { return 1 + 0 }\n' > "$R/p174b.mrw"
+m write --then x "$R/p174b.mrw" > "$WORK/o174" 2>&1; want 2 $? "asking for a step reads the block and refuses it"
+{ grep -q 'return 0 + 1' "$R/a.go" && grep -q '"my step"' "$WORK/o174"; } && ok "with nothing written, naming the step" || bad "the malformed block: $(head -c 300 "$WORK/o174")"
+printf '{"check":"true","steps":{}}\n' > "$R/.quality-harness.json"
+printf '%s\n' 'echo "$MRW_STEP_DEPTH" >> depth174' "exec \"$MRW\" check --then-sh 'sh rec174.sh'" > "$R/rec174.sh"
+t0=$(date +%s)
+bounded 90 "$WORK/o174r" "$MRW" -C "$R" check --then-sh 'sh rec174.sh'; rc=$?; el=$(( $(date +%s) - t0 ))
+deepest=$(tail -1 "$R/depth174" 2>/dev/null)
+{ [ "$rc" = 3 ] && [ "$deepest" = 8 ] && [ "$el" -lt 60 ]; } && ok "a step that re-runs mrw with steps stops at MRW_STEP_DEPTH 8: exit 3 in ${el}s" \
+  || bad "recursion: exit $rc after ${el}s, deepest '$deepest': $(head -c 300 "$WORK/o174r")"
+left=$(pgrep -f "rec174.sh" | wc -l | tr -d ' ')
+[ "$left" = 0 ] && ok "and nothing of the recursion is left running" || { pkill -9 -f "rec174.sh"; bad "$left recursion processes outlived the row"; }
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

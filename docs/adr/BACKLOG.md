@@ -2287,3 +2287,25 @@ at the boundary, and a discovered one is dropped.
   deferred. Arm when an MCP-only host asks for verified writes.
 - **A per-step timeout or tail setting** (ADR-092 Out of Scope). Every step takes the harness's
   `timeout_seconds` and `tail_lines`. Arm when one declared step needs a different bound from the check's.
+- **From the ADR-092 stress round (2026-09-28, six local peer sessions on d8576c3).** Fixed by
+  T5: a malformed `steps` block refusing every write; unbounded recursion; raw control bytes in step
+  names; "could not start" said twice. Recorded here, lower, each with what arms it:
+  - A step killed by a signal reports `exit_code: -1`, the not_run sentinel, and names no signal
+    (Go's ProcessState). Arm when a caller needs the signal.
+  - A duplicate key in `steps` is last-wins, and top-level keys fold case (`"Steps"`, `"ſteps"`):
+    encoding/json. Arm on one real config that hit it.
+  - A passing step's kept log (output past `tail_lines`) has no size cap (a 60 MB one was kept);
+    ADR-080's 7-day prune is the only bound. Arm when a temp directory fills.
+  - A dangling-symlink `.quality-harness.json` reads as no config, so `--then a` says "none are
+    declared" of a config that is there. Arm on the first report.
+  - A plan that edits `.quality-harness.json` is judged, and its steps resolved, against the
+    pre-write config (ADR-072's order); the receipt is truthful about what ran. Arm when a re-read
+    after the write is wanted.
+  - A blank `--then-sh` is refused before the plan parses and so is not tallied; an unknown `--then`
+    is, after it (ADR-083's line). Arm if `stats` should see both.
+  - `stats` and `seen` on a root that does not exist answer empty, exit 0, where `read` refuses —
+    older than ADR-092. Arm with the next could-not-look pass over `stats`.
+  - A step whose cwd was removed reports "fork/exec /bin/sh: no such file or directory" (Go's ENOENT
+    attribution). Arm on a real report.
+  - A check's or step's tail reaches the human receipt with raw control bytes (T5 quotes names and
+    commands, not output). Arm with a terminal-safety pass over tails.

@@ -100,10 +100,10 @@ func TestACancelledSequenceReportsEveryStepNotRun(t *testing.T) {
 	}
 }
 
-// ADR-092. A step with no command, a step with no name and a name holding a
-// space are refused when the harness is read, naming the step; a sound step
-// beside them loads.
-func TestLoadRefusesAStepWithNoCommand(t *testing.T) {
+// ADR-092, amended by T5. A step with no command, a step with no name and a
+// name holding a space are refused when a step is asked for, naming the step;
+// a sound step beside them resolves. Load itself refuses none of them (T5).
+func TestAStepWithNoCommandIsRefusedWhenAsked(t *testing.T) {
 	for doc, name := range map[string]string{
 		`{"steps":{"vet":""}}`:     `"vet"`,
 		`{"steps":{"vet":"   "}}`:  `"vet"`,
@@ -114,7 +114,10 @@ func TestLoadRefusesAStepWithNoCommand(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(root, ".quality-harness.json"), []byte(doc), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		_, err := Load(root)
+		cfg, err := Load(root)
+		if err == nil {
+			_, err = cfg.StepCommands()
+		}
 		if err == nil || !strings.Contains(err.Error(), name) {
 			t.Errorf("%s: want a refusal naming %s, got %v", doc, name, err)
 		}
@@ -124,7 +127,11 @@ func TestLoadRefusesAStepWithNoCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg, err := Load(root)
-	if err != nil || cfg.Steps["vet"] != "go vet ./..." {
-		t.Errorf("a sound step did not load: %v %+v", err, cfg.Steps)
+	var cmds map[string]string
+	if err == nil {
+		cmds, err = cfg.StepCommands()
+	}
+	if err != nil || cmds["vet"] != "go vet ./..." {
+		t.Errorf("a sound step did not resolve: %v %+v", err, cmds)
 	}
 }

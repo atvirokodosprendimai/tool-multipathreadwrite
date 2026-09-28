@@ -15,6 +15,7 @@ README must be regenerated.
 | 2 | T2 | T1 |
 | 3 | T3 | T2 |
 | 4 | T4 | T2 |
+| 5 | T5 | T4 |
 
 ## Task Index
 
@@ -24,6 +25,7 @@ README must be regenerated.
 | T2 | `write` and `check` take `--then` and `--then-sh` | done | — | `docs/adr/ADR-092-each-step-after-a-write-gets-its-own-verdict/tasks/T2-then-on-write-and-check.md` fence |
 | T3 | Every surface teaches the steps | done | — | `docs/adr/ADR-092-each-step-after-a-write-gets-its-own-verdict/tasks/T3-teach-then.md` fence |
 | T4 | Every refusal and every kept log reaches the receipt | done | — | `docs/adr/ADR-092-each-step-after-a-write-gets-its-own-verdict/tasks/T4-review-of-266.md` fence |
+| T5 | What the stress round of 2026-09-28 found | done | — | `docs/adr/ADR-092-each-step-after-a-write-gets-its-own-verdict/tasks/T5-stress-round.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
