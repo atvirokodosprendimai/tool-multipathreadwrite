@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"path/filepath"
 	"testing"
 )
 
@@ -42,19 +41,16 @@ func TestTheShippedReadExampleServesEverySpec(t *testing.T) {
 	if n != 0 {
 		t.Errorf("the shipped read example reported %v problem(s) on the tree it is written against:\n%s", n, served0(t, res))
 	}
-	// The receipt keys a file by its OS spelling — internal\store\store.go on
-	// Windows — so compare slash forms (windows-shard 1, #261).
-	byOS, ok := got["observed"].(map[string]any)
+	// The keys are compared as they come: ADR-091 spells them with "/" on every
+	// platform, and on Windows this is the check that the receipt builders
+	// really call slashKeys (windows-shard 1, #261).
+	observed, ok := got["observed"].(map[string]any)
 	if !ok {
 		t.Fatalf("the read receipt carries no observed map: %v", got)
 	}
-	observed := map[string]bool{}
-	for k := range byOS {
-		observed[filepath.ToSlash(k)] = true
-	}
 	for _, want := range []string{"internal/store/store.go", "cmd/app/main.go"} {
-		if !observed[want] {
-			t.Errorf("the shipped read example served nothing from %s; observed %v", want, got["observed"])
+		if _, ok := observed[want]; !ok {
+			t.Errorf("the shipped read example served nothing from %s; observed %v", want, observed)
 		}
 	}
 }

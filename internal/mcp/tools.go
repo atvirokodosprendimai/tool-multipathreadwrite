@@ -471,7 +471,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// it for the one case its enumeration missed, so :202 and this return agree
 	// rather than disagreeing on whether `grep` was passed.
 	served, rpcErr := readResult(map[string]any{
-		"observed": observed,
+		"observed": slashKeys(observed, filepath.Separator),
 		"problems": problems,
 	}, report, len(observed) == 0)
 	if rpcErr != nil {
@@ -503,7 +503,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		marked, byPath := markServed(report)
 		if len(byPath) > 0 {
 			markedServed, markErr := readResult(map[string]any{
-				"observed": observed,
+				"observed": slashKeys(observed, filepath.Separator),
 				"problems": problems,
 			}, marked, false)
 			if markErr != nil {
@@ -777,6 +777,7 @@ func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, eli
 // 2026-09-05 delivers mrw_write's answer to the model as the structured value
 // alone (ADR-023).
 func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (callToolResult, *rpcError) {
+	res = slashResult(res, filepath.Separator)
 	pattern := authoring.PatternOf(root)
 	full, rpcErr := result(writeReceipt{Result: res, Pattern: pattern}, writeReport(res, res.Hunks, applyErr, ""), isErr)
 	if rpcErr != nil || encodedSize(full) <= ceiling() {
@@ -1360,7 +1361,7 @@ func longestEncodedLine(b []byte) int {
 // caller's benefit.
 func pagedResult(report string, observed map[string]seen.Observation, problems int, next string) callToolResult {
 	structured := map[string]any{
-		"observed":  observed,
+		"observed":  slashKeys(observed, filepath.Separator),
 		"problems":  problems,
 		"next_read": next,
 	}
