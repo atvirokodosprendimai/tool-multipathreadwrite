@@ -777,6 +777,7 @@ func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, eli
 // 2026-09-05 delivers mrw_write's answer to the model as the structured value
 // alone (ADR-023).
 func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (callToolResult, *rpcError) {
+	res = slashResult(res, filepath.Separator)
 	pattern := authoring.PatternOf(root)
 	full, rpcErr := result(writeReceipt{Result: res, Pattern: pattern}, writeReport(res, res.Hunks, applyErr, ""), isErr)
 	if rpcErr != nil || encodedSize(full) <= ceiling() {

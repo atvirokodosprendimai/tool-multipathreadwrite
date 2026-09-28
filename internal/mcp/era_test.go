@@ -219,7 +219,8 @@ func jsonInner(s string) string {
 // tool descriptions' matching clause; and once by ADR-076, whose receipt gained `target` and
 // `dirs_created` and whose `hunks.path` stopped claiming to be "as written": the schema, nothing else;
 // and once by ADR-090, whose worked plan's second hunk became `/^import \($/` and whose read
-// example escaped `\(s \*Store\)`: those two addresses, in the instructions and in tools/list.
+// example escaped `\(s \*Store\)`: those two addresses, in the instructions and in tools/list;
+// and once by ADR-091, whose five write-receipt path descriptions say they are spelled with `/`.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
 	got := legacyTranscript(t)
 	golden := filepath.Join("testdata", "legacy_golden.jsonl")
