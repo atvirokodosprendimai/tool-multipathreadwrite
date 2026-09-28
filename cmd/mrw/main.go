@@ -1065,6 +1065,10 @@ held or went unchecked.`,
 			// parsed says the plan parsed: a refusal after that and before anything
 			// landed is one refused_apply, as mrw_write counts it (ADR-083).
 			printed, tallied, parsed := false, false, false
+			// stepsNotRun is the --then list a refusal after the landing carries,
+			// every step not_run: the check could not run, so none followed it
+			// (ADR-092 T4).
+			var stepsNotRun *check.StepsResult
 			refuseWith := func(res apply.Result, msg string) error {
 				// A refusal after the write landed (the ledger could not be
 				// written, the check could not start) still says what landed
@@ -1084,6 +1088,9 @@ held or went unchecked.`,
 					report(os.Stdout, res, cmd.Bool("quiet"))
 					printed = true
 				}
+				if !cmd.Bool("json") {
+					reportSteps(os.Stdout, stepsNotRun)
+				}
 				if cmd.Bool("json") {
 					if res.Files == nil {
 						res.Files = []apply.FileResult{}
@@ -1097,7 +1104,7 @@ held or went unchecked.`,
 					}
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
-					_ = enc.Encode(receipt{Result: res, Pattern: authoring.PatternOf(root), Error: msg})
+					_ = enc.Encode(receipt{Result: res, Pattern: authoring.PatternOf(root), Error: msg, Then: stepsNotRun})
 				}
 				return cli.Exit(msg, exitUsage)
 			}
@@ -1379,6 +1386,9 @@ held or went unchecked.`,
 					// The write landed and its check could not run: that is
 					// check_not_run, not applied (review of #229).
 					_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
+					if len(asked) > 0 {
+						stepsNotRun = runSteps(ctx, root, cfg, asked, false)
+					}
 					return refuseWith(res, err.Error())
 				}
 				receipt.Check = &cr
@@ -1675,6 +1685,11 @@ func reportSteps(w *os.File, r *check.StepsResult) {
 		switch s.Status {
 		case check.StepPass:
 			fmt.Fprintf(out, "%s — PASS\n", head)
+			// A passing step whose output ran past the tail keeps its log
+			// (ADR-080), so the receipt says where (ADR-092 T4).
+			if s.Truncated > 0 {
+				fmt.Fprintf(out, "... %d earlier line(s) in %s\n", s.Truncated, s.OutputFile)
+			}
 			continue
 		case check.StepNotRun:
 			fmt.Fprintf(out, "%s — NOT RUN\n", head)
@@ -1857,15 +1872,27 @@ touched, which is a finding about the machine and not about your change.`,
 			if cmd.Bool("full") {
 				paths = nil
 			}
+			// Under --json a refusal of the harness or of a step is one
+			// document, as write's is (ADR-072, ADR-092 T4).
+			refuse := func(err error) error {
+				if cmd.Bool("json") {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					_ = enc.Encode(struct {
+						Error string `json:"error"`
+					}{err.Error()})
+				}
+				return cli.Exit(err, exitUsage)
+			}
 			cfg, err := check.Load(root)
 			if err != nil {
-				return cli.Exit(err, exitUsage)
+				return refuse(err)
 			}
 			if err := emptyStep(asked); err != nil {
-				return cli.Exit(err, exitUsage)
+				return refuse(err)
 			}
 			if err := resolveSteps(cfg, asked); err != nil {
-				return cli.Exit(err, exitUsage)
+				return refuse(err)
 			}
 			res, err := check.Run(ctx, root, cfg, paths)
 			if err != nil {
