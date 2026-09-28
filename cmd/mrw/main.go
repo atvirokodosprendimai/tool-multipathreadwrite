@@ -1560,7 +1560,15 @@ func (f *stepFlag) Set(v string) error {
 func (f *stepFlag) Get() any { return f }
 
 // String is every value this flag was given.
-func (f *stepFlag) String() string { return strings.Join(f.Values(), " ") }
+func (f *stepFlag) String() string {
+	// Shown, not raw: urfave prints this as the flag's default in --help, so a
+	// value holding control bytes reached the terminal there (review of #269).
+	vals := make([]string, 0, len(f.vals))
+	for _, v := range f.Values() {
+		vals = append(vals, shown(v))
+	}
+	return strings.Join(vals, " ")
+}
 
 // Values is every value this flag was given, in order.
 func (f *stepFlag) Values() []string { return f.vals }

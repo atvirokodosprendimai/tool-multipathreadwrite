@@ -131,7 +131,8 @@ questions, "Validate only when asked" and "Depth guard":
   recursing with each level resetting the step timeout.
 - A step name or command holding control bytes is printed quoted; "could not start" is said once.
 - Clarified, not changed: `could_not_start` means the shell could not start (a command the shell
-  cannot find is `fail`, exit 127); a process that leaves the step's group (`setsid`) is not reaped;
+  cannot find is `fail`, exit 127); a process that leaves the step's group (`setsid`) is not reaped,
+  and on Windows, which has no process groups, no descendant is (ADR-080);
   a signal mrw inherited as ignored stays ignored (ADR-072); an ad-hoc step has no `name`, and a
   step not run carries no `duration_ms`, `output_file` or `skipped`.
 - The round's lower findings are in BACKLOG "From ADR-092".
