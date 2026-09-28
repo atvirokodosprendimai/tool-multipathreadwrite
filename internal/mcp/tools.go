@@ -471,7 +471,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// it for the one case its enumeration missed, so :202 and this return agree
 	// rather than disagreeing on whether `grep` was passed.
 	served, rpcErr := readResult(map[string]any{
-		"observed": observed,
+		"observed": slashKeys(observed, filepath.Separator),
 		"problems": problems,
 	}, report, len(observed) == 0)
 	if rpcErr != nil {
@@ -503,7 +503,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		marked, byPath := markServed(report)
 		if len(byPath) > 0 {
 			markedServed, markErr := readResult(map[string]any{
-				"observed": observed,
+				"observed": slashKeys(observed, filepath.Separator),
 				"problems": problems,
 			}, marked, false)
 			if markErr != nil {
@@ -1360,7 +1360,7 @@ func longestEncodedLine(b []byte) int {
 // caller's benefit.
 func pagedResult(report string, observed map[string]seen.Observation, problems int, next string) callToolResult {
 	structured := map[string]any{
-		"observed":  observed,
+		"observed":  slashKeys(observed, filepath.Separator),
 		"problems":  problems,
 		"next_read": next,
 	}

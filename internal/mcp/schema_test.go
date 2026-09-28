@@ -253,7 +253,7 @@ func readSchema() map[string]any {
 // readDescriptions says what each receipt property MEANS; mustDescribe refuses
 // an entry naming a property readSchema no longer declares.
 var readDescriptions = map[string]string{
-	"observed":       "What THIS call observed of each served file, keyed by path. It is merged into the per-checkout ledger rather than replacing it, so a later write is authorised by the accumulated spans for the same sha — not by this response alone.",
+	"observed":       "What THIS call observed of each served file, keyed by its root-relative path spelled with `/` on every platform, the way a plan names it. It is merged into the per-checkout ledger rather than replacing it, so a later write is authorised by the accumulated spans for the same sha — not by this response alone.",
 	"observed.SHA":   "The sha256 of the whole file as it was when served. A later write is refused if the file no longer hashes to this.",
 	"observed.Spans": "The line spans this call rendered, as [start, end] pairs; null means the whole file. Authorisation is per LINE: a write to a line no read has served is refused, though a line served by an EARLIER read of the same sha is still licensed.",
 	"problems":       "How many requested ranges could not be served. Non-zero means part of what you asked for is missing from `observed` — the call itself still answered.",
