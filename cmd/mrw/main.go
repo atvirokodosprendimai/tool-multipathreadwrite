@@ -906,6 +906,8 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 }
 
 func writeCmd() *cli.Command {
+	// asked is the --then / --then-sh list, in command-line order (ADR-092).
+	var asked []check.Step
 	return &cli.Command{
 		Name:      "write",
 		Usage:     "apply an edit plan across one or more files; a plan that fails validation writes nothing",
@@ -1023,6 +1025,8 @@ held or went unchecked.`,
 				Usage: "refuse a single-line replace whose line's {} () [] do not balance and whose body does not match them " +
 					"(the wrap-tail shape); exit 1, nothing written. Off by default",
 			},
+			thenFlag(&asked),
+			thenShFlag(&asked),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if err := refusePaddedArgs(cmd); err != nil {
@@ -1099,6 +1103,9 @@ held or went unchecked.`,
 			}
 			refuse := func(msg string) error {
 				return refuseWith(apply.Result{DryRun: cmd.Bool("dry-run")}, msg)
+			}
+			if err := emptyStep(asked); err != nil {
+				return refuse(err.Error())
 			}
 			src, name := os.Stdin, "<stdin>"
 			if len(args) == 1 && args[0] != "-" {
@@ -1232,10 +1239,15 @@ held or went unchecked.`,
 			// write and then exited 2 with only the JSON error. --no-check and
 			// --dry-run never run a check, so they never read it.
 			var cfg check.Config
-			if !cmd.Bool("no-check") && !cmd.Bool("dry-run") {
+			if (!cmd.Bool("no-check") && !cmd.Bool("dry-run")) || len(asked) > 0 {
 				if cfg, err = check.Load(root); err != nil {
 					return refuse(fmt.Sprintf("%v: nothing was written", err))
 				}
+			}
+			// ADR-092: a --then naming no declared step is refused before
+			// anything is written, like a malformed harness.
+			if err := resolveSteps(cfg, asked); err != nil {
+				return refuse(err.Error() + ": nothing was written")
 			}
 			ledger, err := seen.Snapshot(root)
 			if err != nil {
@@ -1371,6 +1383,13 @@ held or went unchecked.`,
 				}
 				receipt.Check = &cr
 			}
+			// ADR-092: the steps follow a landed write whose check, when one
+			// ran, passed; otherwise every one is reported not_run.
+			if len(asked) > 0 {
+				// Applied is false for a dry run and for a plan whose hunk failed.
+				due := res.Applied && (receipt.Check == nil || receipt.Check.OK())
+				receipt.Then = runSteps(ctx, root, cfg, asked, due)
+			}
 
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
@@ -1380,12 +1399,23 @@ held or went unchecked.`,
 				}
 			} else {
 				reportCheck(os.Stdout, receipt.Check)
+				reportSteps(os.Stdout, receipt.Then)
 			}
 			switch {
 			case receipt.Check != nil && !receipt.Check.Ran:
 				_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
 			case receipt.Check != nil && !receipt.Check.OK():
 				_ = authoring.Reclassify(root, authoring.Applied, authoring.FailedCheck)
+			}
+			// ADR-092 Decision 7: a step that ran and did not pass is
+			// failed_check, one that never started is check_not_run. Pricing
+			// below reads the check alone, its pre-registered verdict.
+			if s, _, ok := stepStop(receipt.Then); ok && res.Applied && (receipt.Check == nil || receipt.Check.OK()) {
+				if s.Ran {
+					_ = authoring.Reclassify(root, authoring.Applied, authoring.FailedCheck)
+				} else {
+					_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
+				}
 			}
 			// ADR-056: price --strict-balance from the SAME check verdict. A
 			// flag-on write is not priced — the question is what the flag
@@ -1418,7 +1448,7 @@ held or went unchecked.`,
 			case receipt.Check != nil && !receipt.Check.OK():
 				return cli.Exit("the write applied but the check did not pass — the tree is changed and unverified", exitCheckFailed)
 			}
-			return nil
+			return stepsExit(receipt.Then, "the write applied but ", " — the tree is changed and unverified")
 		},
 	}
 }
@@ -1484,6 +1514,195 @@ type receipt struct {
 	// Error is why a write was refused after its plan was named (ADR-072):
 	// under --json every such refusal is this document, not text.
 	Error string `json:"error,omitempty"`
+	// Then is every --then / --then-sh step's verdict (ADR-092), present
+	// whenever one was asked for.
+	Then *check.StepsResult `json:"then,omitempty"`
+}
+
+// checkReceipt is `mrw check --json`: the check's own flat fields, unchanged,
+// and the steps beside them (ADR-092).
+type checkReceipt struct {
+	check.Result
+	Then *check.StepsResult `json:"then,omitempty"`
+}
+
+// stepFlag is the value of --then or --then-sh (ADR-092). Both append to one
+// list as the parser meets them, so the list is in command-line order, and a
+// value is never split — a comma included.
+type stepFlag struct {
+	list  *[]check.Step
+	adhoc bool
+	vals  []string
+}
+
+// Set appends one step.
+func (f *stepFlag) Set(v string) error {
+	f.vals = append(f.vals, v)
+	if f.adhoc {
+		*f.list = append(*f.list, check.Step{Command: v, AdHoc: true})
+	} else {
+		*f.list = append(*f.list, check.Step{Name: v})
+	}
+	return nil
+}
+
+// Get is the flag itself, so cmd.Generic hands back its values.
+func (f *stepFlag) Get() any { return f }
+
+// String is every value this flag was given.
+func (f *stepFlag) String() string { return strings.Join(f.Values(), " ") }
+
+// Values is every value this flag was given, in order.
+func (f *stepFlag) Values() []string { return f.vals }
+
+// thenFlag is --then NAME: a step the project declares under "steps".
+func thenFlag(list *[]check.Step) cli.Flag {
+	return &cli.GenericFlag{
+		Name:  "then",
+		Value: &stepFlag{list: list},
+		Usage: "after a landed write and a passing check, run the step `NAME` declared in .quality-harness.json \"steps\" " +
+			"(repeatable; runs in command-line order with --then-sh; the first that does not pass stops the rest)",
+	}
+}
+
+// thenShFlag is --then-sh CMD: an ad-hoc shell step the caller writes.
+func thenShFlag(list *[]check.Step) cli.Flag {
+	return &cli.GenericFlag{
+		Name:  "then-sh",
+		Value: &stepFlag{list: list, adhoc: true},
+		Usage: "like --then, but run `CMD` with sh -c as given (repeatable). " + guide.ThenShCaveat(),
+	}
+}
+
+// emptyStep refuses a --then-sh with no command: it would run nothing and pass.
+func emptyStep(steps []check.Step) error {
+	for _, s := range steps {
+		if s.AdHoc && strings.TrimSpace(s.Command) == "" {
+			return errors.New("--then-sh needs a command: a step with none would run nothing and pass")
+		}
+	}
+	return nil
+}
+
+// resolveSteps gives each --then its declared command, and refuses a name the
+// project did not declare, naming the ones it did (ADR-092).
+func resolveSteps(cfg check.Config, steps []check.Step) error {
+	for i := range steps {
+		if steps[i].AdHoc {
+			continue
+		}
+		c, ok := cfg.Steps[steps[i].Name]
+		if ok {
+			steps[i].Command = c
+			continue
+		}
+		names := make([]string, 0, len(cfg.Steps))
+		for n := range cfg.Steps {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		declared := "none are declared"
+		if len(names) > 0 {
+			declared = "declared: " + strings.Join(names, ", ")
+		}
+		return fmt.Errorf("--then %s: .quality-harness.json \"steps\" has no such step (%s)", steps[i].Name, declared)
+	}
+	return nil
+}
+
+// runSteps runs the sequence when it is due, and otherwise reports every step
+// not_run: a plan that did not land, or a check that did not pass, verified
+// nothing for a step to follow.
+func runSteps(ctx context.Context, root string, cfg check.Config, steps []check.Step, due bool) *check.StepsResult {
+	if due {
+		r := check.RunSteps(ctx, root, cfg, steps)
+		return &r
+	}
+	r := check.StepsResult{Steps: make([]check.StepResult, len(steps))}
+	for i, s := range steps {
+		r.Steps[i] = check.StepResult{Step: s, Status: check.StepNotRun, ExitCode: -1}
+	}
+	return &r
+}
+
+// stepStop is the step that stopped the sequence, if one did: the first that
+// did not pass and was not skipped.
+func stepStop(r *check.StepsResult) (check.StepResult, int, bool) {
+	if r == nil {
+		return check.StepResult{}, 0, false
+	}
+	for i, s := range r.Steps {
+		if s.Status != check.StepPass && s.Status != check.StepNotRun {
+			return s, i, true
+		}
+	}
+	return check.StepResult{}, 0, false
+}
+
+// stepsExit is the exit a stopped sequence earns (ADR-092 Decision 6): 2 for a
+// step that could not start, 3 for one that ran — or was interrupted — and did
+// not pass. nil when every step asked for passed or none ran.
+func stepsExit(r *check.StepsResult, lead, tail string) error {
+	s, i, ok := stepStop(r)
+	if !ok {
+		return nil
+	}
+	which := fmt.Sprintf("step %d (%s)", i+1, stepLabel(s.Step))
+	if s.Status == check.StepCouldNotStart {
+		return cli.Exit(lead+which+" could not start: "+s.Skipped, exitUsage)
+	}
+	return cli.Exit(lead+which+" did not pass"+tail, exitCheckFailed)
+}
+
+// stepLabel names a step: its declared name, or --then-sh for an ad-hoc one.
+func stepLabel(s check.Step) string {
+	if s.AdHoc {
+		return "--then-sh"
+	}
+	return s.Name
+}
+
+// reportSteps prints one line per step after the check's report, with the tail
+// of any step that stopped the sequence (ADR-092).
+func reportSteps(w *os.File, r *check.StepsResult) {
+	if r == nil {
+		return
+	}
+	out := bufio.NewWriter(w)
+	defer func() { _ = out.Flush() }()
+	for i, s := range r.Steps {
+		head := fmt.Sprintf("then %d/%d %s: %s", i+1, len(r.Steps), stepLabel(s.Step), s.Command)
+		switch s.Status {
+		case check.StepPass:
+			fmt.Fprintf(out, "%s — PASS\n", head)
+			continue
+		case check.StepNotRun:
+			fmt.Fprintf(out, "%s — NOT RUN\n", head)
+			continue
+		case check.StepFail:
+			fmt.Fprintf(out, "%s — FAIL exit %d\n", head, s.ExitCode)
+		default:
+			fmt.Fprintf(out, "%s — %s: %s\n", head, strings.ToUpper(strings.ReplaceAll(s.Status, "_", " ")), s.Skipped)
+		}
+		if s.Truncated > 0 {
+			fmt.Fprintf(out, "... %d earlier line(s) in %s\n", s.Truncated, s.OutputFile)
+		}
+		for _, l := range s.Tail {
+			fmt.Fprintf(out, "  | %s\n", l)
+		}
+		for j := len(s.Tail) - 1; j >= 0; j-- {
+			if strings.TrimSpace(s.Tail[j]) != "" {
+				fmt.Fprintf(out, "then last: %s\n", s.Tail[j])
+				break
+			}
+		}
+		if s.OutputFile != "" && s.Truncated == 0 {
+			fmt.Fprintf(out, "full output: %s\n", s.OutputFile)
+		}
+	}
+	if r.Pruned > 0 {
+		fmt.Fprintf(out, "removed %d check log(s) older than %d days from %s\n", r.Pruned, int(check.LogRetention.Hours()/24), os.TempDir())
+	}
 }
 
 // iterCmd manages the working set: the files and ranges this piece of work is
@@ -1606,6 +1825,7 @@ ranges, and "mrw check" runs the project's check scoped to these files.`,
 // checkCmd runs the project's own verification, scoped to the working set, with
 // no arguments at all. It is the read-side twin of `write --check`.
 func checkCmd() *cli.Command {
+	var asked []check.Step // --then / --then-sh, in order (ADR-092)
 	return &cli.Command{
 		Name:      "check",
 		Usage:     "run the project's check, scoped to the working set or to the given paths",
@@ -1618,6 +1838,8 @@ touched, which is a finding about the machine and not about your change.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "json", Usage: "emit the result as JSON"},
 			&cli.BoolFlag{Name: "full", Usage: "run the whole-project check, ignoring any scope"},
+			thenFlag(&asked),
+			thenShFlag(&asked),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if err := refusePaddedArgs(cmd); err != nil {
@@ -1639,18 +1861,29 @@ touched, which is a finding about the machine and not about your change.`,
 			if err != nil {
 				return cli.Exit(err, exitUsage)
 			}
+			if err := emptyStep(asked); err != nil {
+				return cli.Exit(err, exitUsage)
+			}
+			if err := resolveSteps(cfg, asked); err != nil {
+				return cli.Exit(err, exitUsage)
+			}
 			res, err := check.Run(ctx, root, cfg, paths)
 			if err != nil {
 				return cli.Exit(err, exitUsage)
 			}
+			var then *check.StepsResult
+			if len(asked) > 0 {
+				then = runSteps(ctx, root, cfg, asked, res.OK())
+			}
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
-				if err := enc.Encode(res); err != nil {
+				if err := enc.Encode(checkReceipt{Result: res, Then: then}); err != nil {
 					return cli.Exit(err, exitUsage)
 				}
 			} else {
 				reportCheck(os.Stdout, &res)
+				reportSteps(os.Stdout, then)
 			}
 			if !res.Ran && res.Skipped == check.Interrupted {
 				return cli.Exit("the check was interrupted before it started", exitCheckFailed)
@@ -1665,7 +1898,7 @@ touched, which is a finding about the machine and not about your change.`,
 			if !res.OK() {
 				return cli.Exit("check did not pass", exitCheckFailed)
 			}
-			return nil
+			return stepsExit(then, "", "")
 		},
 	}
 }

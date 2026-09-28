@@ -40,6 +40,8 @@ func CLI() string {
 
 Never read an exit code through a pipe: mrw write plan | head returns head's status.
 Exit 3 means the write applied and the check did not pass — it failed, timed out or was interrupted — so the tree is changed and unverified.
+--then NAME runs a step declared in .quality-harness.json "steps", and --then-sh 'CMD' an ad-hoc one, after a write that landed and whose check passed — on write, and on check once it passes. They run in command-line order; the first that does not pass stops the rest, which the receipt names not run, and exits 3 (2 if it could not start). A step is POSIX shell on every platform.
+` + ThenShCaveat() + `
 A write exits 1 when a hunk fails validation, and nothing is written; 2 on a usage or filesystem failure.
 MSYS rewrites a spec whose file part holds a / before mrw starts. Export MSYS_NO_PATHCONV=1 or MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL.
 A shell glob and an address suffix do not mix.
@@ -62,4 +64,10 @@ To find files you cannot name: --grep PATTERN walks the paths given, or the root
 --files-from FILE takes one spec per line, - for stdin: rg -l X . | sed 's|$|:/X/|' | mrw read --files-from - (name rg's path: with none, rg reads a piped stdin and waits)
 --stat prints only length, size and sha; --max-lines N caps each spec; --no-numbers drops the numbers a plan addresses by. A read exits 1 when a range cannot be served (a pattern with no match, a start past the end, lines --max-lines withheld) and still prints the rest; an end past the last line is clamped, not an error.
 `
+}
+
+// ThenShCaveat is the one sentence every surface carries beside --then-sh
+// (ADR-092 Decision 8).
+func ThenShCaveat() string {
+	return "--then-sh runs any shell command it is given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh."
 }

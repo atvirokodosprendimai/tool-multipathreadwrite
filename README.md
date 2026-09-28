@@ -156,6 +156,11 @@ These are gates, not a tour of the records behind them.
   whose `{}` `()` `[]` nets moved prints a balance row and stays `ok` — a
   balanced insert in the wrong place is invisible to it.
   `mrw stats` prints `failed_check` at zero and a landed-writes line.
+- **Steps after the check.** `--then NAME` runs a step declared under `"steps"` in
+  `.quality-harness.json`, and `--then-sh 'CMD'` an ad-hoc shell step; both repeat and run in
+  command-line order after a landed write whose check passed, on `write` and `check`. The first that
+  does not pass stops the rest, named `NOT RUN`; exit 3 (2 if it could not start); `--json` carries
+  `then: {steps, pruned_logs}`. --then-sh runs any shell command it is given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh.
 - **Advisories are counted where you read.** The summary line says
   `N failed, A advisories`, zero included, and the JSON receipt carries
   `advisories`. Three advisories in your last ten writes print a `pattern:`
