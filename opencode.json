@@ -1,0 +1,6 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "./cmd/opencode/mrw-plugin/dist/index.js"
+  ]
+}
