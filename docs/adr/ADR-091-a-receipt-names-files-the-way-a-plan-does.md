@@ -70,8 +70,9 @@ The published descriptions say only "keyed by path" and "relative to root".
 ## Wiring & Contract Changes
 
 On Windows the listed fields change spelling; value shapes, the ledger, `root`, `next_read` and every
-other field are unchanged. Six descriptions in `tools/list` change, so `legacy_golden.jsonl` is
-regenerated.
+other field are unchanged. The write receipt's five path descriptions change in `tools/list`, so
+`legacy_golden.jsonl` is regenerated; `observed`'s description lives in `schema_test.go`, because
+the read receipt declares no schema (ADR-023).
 
 ## Inter-task Contracts
 
