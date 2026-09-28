@@ -296,14 +296,12 @@ Exit 1 on `read` means incomplete: `UNREADABLE`, `REFUSED`, `no match`, or
 ## opencode
 
 mrw supports [opencode](https://opencode.ai) through a plugin in this repository,
-`cmd/opencode/mrw-plugin/` (ADR-089). It gives an opencode session eight tools, each
-running the mrw CLI. A tool refuses what the CLI refuses, a write runs the project's
-check as the CLI does, and the ledger is the one every mrw caller shares:
+`cmd/opencode/mrw-plugin/` (ADR-089). It gives an opencode session eight tools:
 
 | tool | runs | arguments |
 |---|---|---|
-| `mrw_read` | `mrw read` | `specs`, `grep`, `astGrep`, `exclude`, `stat`, `context`, `maxLines`, `filesFrom`, `root` |
-| `mrw_write` | `mrw write -` (the plan on stdin) | `plan`, `dryRun`, `noCheck`, `check`, `json`, `format` |
+| `mrw_read` | `mrw mcp`'s `mrw_read` | `specs`, `grep`, `astGrep`, `exclude`, `after`, `ack`, `root` |
+| `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `format`, `echoPad`, `strictBalance` |
 | `mrw_check` | `mrw check` | `paths` |
 | `mrw_stats` | `mrw stats` | `json` |
 | `mrw_seen` | `mrw seen` | `prune`, `dryRun` |
@@ -311,8 +309,16 @@ check as the CLI does, and the ledger is the one every mrw caller shares:
 | `mrw_version` | `mrw version` | none |
 | `mrw_instructions` | `mrw instructions` | none |
 
-Every answer starts `exit: N`, the CLI's exit code, because that is the verdict (see
-[Exit status](#exit-status)).
+**Read and write go through the MCP engine, because opencode cuts long output.** It
+truncates a tool's result at 2,000 lines or 50 KiB, and a CLI read has licensed
+every line it served by then, so the hidden tail would be writable unseen. Over
+`mrw mcp`, a read is a page under that limit, bracketed in `-- ck` checkpoints,
+and licenses nothing until acknowledged. Send an id in `ack` only when both of its
+markers and all its lines arrived; a cut page loses its tail's close markers, and
+those runs stay unwritable (see [MCP](#mcp)). `mrw_write` runs no check; call
+`mrw_check`. The other six tools run the CLI and answer `exit: N` first, the CLI's
+exit code (see [Exit status](#exit-status)). A refused read or write answers
+`error:` first.
 
 ### Setup
 
@@ -335,19 +341,21 @@ your global opencode config with an absolute path, and restart opencode:
 ```
 
 The plugin runs `bin/mrw` (`bin\mrw.exe` on Windows) from the worktree when it is
-there, and otherwise `mrw` on `PATH`.
+there, and otherwise `mrw` on `PATH`. In a session with no git worktree it works in
+the session's directory.
 
-### Or over MCP
+### Or over MCP alone
 
 opencode is also an MCP host, so `mrw mcp` works there without the plugin: list it
 under `mcp` in `opencode.json` as a local server running `mrw mcp` (see [MCP](#mcp)).
-That surface has `mrw_read` and `mrw_write` only, with acknowledgements. The plugin
-and the MCP server both name their tools `mrw_read` and `mrw_write`, so register one
-of them.
+opencode prefixes an MCP tool with its server's name, so a server named `mrw`
+answers as `mrw_mrw_read` and `mrw_mrw_write` beside the plugin's tools. Both work
+together, over the same engine and ledger; the plugin adds `check`, `stats`, `seen`
+and `iter`.
 
 `cmd/opencode/mrw-plugin/test/smoke.test.mjs` drives the built plugin's tools against
-the built binary, and CI runs it on Linux. opencode itself is not run in CI.
-
+the built binary, a page cut the way opencode cuts one included, and CI runs it on
+Linux. opencode itself is not run in CI.
 ## Other commands
 
 `mrw check`, `mrw iter`, `mrw seen`, `mrw seen --prune`, and `mrw stats` exist

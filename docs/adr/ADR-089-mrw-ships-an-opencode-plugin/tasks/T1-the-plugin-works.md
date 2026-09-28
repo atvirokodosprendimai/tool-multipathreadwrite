@@ -8,7 +8,7 @@
 **Consumes:** nothing
 **Data dependency:** hermetic, except `npm ci` downloads the locked packages
 **Proof map:** v1
-**Rests-on:** `a write reaches mrw`, `the binary resolves on this platform`, `root precedes the verb`, `CI runs the smoke test`
+**Rests-on:** `a cut page licenses only whole runs`, `a write reaches mrw`, `the binary resolves on this platform`, `CI runs the smoke test`
 
 ## Goal
 
@@ -69,6 +69,11 @@ go build -o bin/mrw ./cmd/mrw \
 - 2026-09-27 · a2f9b22* · exit 0 · `set -o pipefail …` · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · ms:6458
 - 2026-09-27 · a2f9b22* · exit 0 · `set -o pipefail …` · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · ms:3430
 - 2026-09-27 · a2f9b22* · exit 0 · `set -o pipefail …` · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · ms:3636
+- 2026-09-28 · e4ff2d1* · exit 0 · `set -o pipefail …` · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · ms:6079
+- 2026-09-28 · e4ff2d1* · exit 0 · `set -o pipefail …` · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · ms:3805
+- 2026-09-28 · e4ff2d1* · exit 0 · `set -o pipefail …` · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · ms:2892
+- 2026-09-28 · e4ff2d1* · exit 0 · `set -o pipefail …` · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · ms:3006
+- 2026-09-28 · e4ff2d1* · exit 0 · `set -o pipefail …` · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · ms:2838
 
 ## Mutation Log
 (empty until execute)
@@ -80,6 +85,10 @@ go build -o bin/mrw ./cmd/mrw \
 - 2026-09-27 · a2f9b22* · mutant killed · exit 1 · `cmd/opencode/mrw-plugin/src/index.ts` · root goes after the subcommand, as the branch had it · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · covers:root precedes the verb
 - 2026-09-27 · a2f9b22* · mutant killed · exit 1 · `.github/workflows/ci.yml` · CI stops running the smoke test · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · covers:CI runs the smoke test
 - 2026-09-27 · a2f9b22* · mutant killed · exit 1 · `cmd/opencode/mrw-plugin/src/index.ts` · the write tool stops feeding its plan to mrw on stdin, as the branch had it · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · covers:a write reaches mrw
+- 2026-09-28 · e4ff2d1* · mutant killed · exit 1 · `cmd/opencode/mrw-plugin/src/index.ts` · the plugin acknowledges every run it served, cut or not · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · covers:a cut page licenses only whole runs
+- 2026-09-28 · e4ff2d1* · mutant killed · exit 1 · `cmd/opencode/mrw-plugin/src/index.ts` · the write tool stops sending its plan · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · covers:a write reaches mrw
+- 2026-09-28 · e4ff2d1* · mutant killed · exit 1 · `cmd/opencode/mrw-plugin/src/index.ts` · the binary is looked up as mrw.exe on every platform, as the branch had it · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · covers:the binary resolves on this platform
+- 2026-09-28 · e4ff2d1* · mutant killed · exit 1 · `.github/workflows/ci.yml` · CI stops running the smoke test · acceptance-sha256:96b3e5293bb3469f9c43c274655769f46065284c30b5dd6bcdf7debb175f7c35 · covers:CI runs the smoke test
 
 ## Invariants
 

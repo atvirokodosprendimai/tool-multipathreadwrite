@@ -1,39 +1,57 @@
 /**
- * mrw-opencode-plugin (ADR-089) — exposes the mrw CLI as opencode tools. Each
- * tool spawns the mrw binary, so a tool refuses exactly what the CLI refuses,
- * and the read-before-write ledger is the one every other mrw caller uses.
+ * mrw-opencode-plugin (ADR-089) — mrw as opencode tools.
+ *
+ * mrw_read and mrw_write go through `mrw mcp`, the surface built for a host that
+ * can cut a result: a page stays under opencode's output limit, carries
+ * checkpoints, and licenses nothing until the caller acknowledges the runs it
+ * received whole. A CLI read would license every line it served, and opencode
+ * truncates a tool's output at 2,000 lines or 50 KiB, so the hidden tail would
+ * be writable unseen (ADR-002 inverted). The other tools run the CLI.
  */
 
-import { type Plugin, tool } from "@opencode-ai/plugin";
+import { type Plugin, type ToolContext, tool } from "@opencode-ai/plugin";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
 const z = tool.schema;
 
+// CEILING bounds an mrw_read or mrw_write result in encoded characters. It sits
+// under opencode's 50 KiB truncation; a page cut anyway (the 2,000-line limit)
+// loses the close markers of its tail, and those runs cannot be acknowledged.
+const CEILING = 40_000;
+
 // ---------------------------------------------------------------------------
-// mrw subprocess runner
+// Running mrw
 // ---------------------------------------------------------------------------
+
+// root is the checkout mrw works in: the worktree, or the session directory
+// when opencode has no git worktree and reports "/".
+function root(ctx: ToolContext): string {
+  return ctx.worktree && ctx.worktree !== "/" ? ctx.worktree : ctx.directory;
+}
 
 // resolveBinary prefers the checkout's own build — bin/mrw, bin/mrw.exe on
 // Windows — because a PATH mrw may be older than the checkout, and falls back to
 // mrw on PATH.
-function resolveBinary(worktree: string): string {
-  const local = path.join(worktree, "bin", process.platform === "win32" ? "mrw.exe" : "mrw");
+function resolveBinary(dir: string): string {
+  const local = path.join(dir, "bin", process.platform === "win32" ? "mrw.exe" : "mrw");
   return fs.existsSync(local) ? local : "mrw";
 }
 
 type Run = { stdout: string; stderr: string; exitCode: number };
 
-// runMrw runs mrw in the worktree with args, feeding input on stdin when given.
-// An aborted call kills the child.
-function runMrw(worktree: string, args: string[], abort: AbortSignal, input?: string): Promise<Run> {
+// run spawns mrw in dir with args, feeds input on stdin and collects the
+// output. A child that exits without reading its input is reported by its exit
+// code, not raised; an aborted call kills the child.
+function run(dir: string, args: string[], abort: AbortSignal, input = ""): Promise<Run> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(resolveBinary(worktree), args, { cwd: worktree, stdio: ["pipe", "pipe", "pipe"], signal: abort });
+    const proc = spawn(resolveBinary(dir), args, { cwd: dir, stdio: ["pipe", "pipe", "pipe"], signal: abort });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     proc.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
     proc.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    proc.stdin.on("error", () => {}); // EPIPE: the child stopped reading; its exit code says why
     proc.on("error", reject);
     proc.on("close", (code: number | null) => {
       resolve({
@@ -42,16 +60,47 @@ function runMrw(worktree: string, args: string[], abort: AbortSignal, input?: st
         exitCode: code ?? -1,
       });
     });
-    proc.stdin.end(input ?? "");
+    proc.stdin.end(input);
   });
 }
 
-// report is every tool's answer: the exit code first, because it is the whole
-// verdict (a plan that failed validation wrote nothing), then stderr, then the
-// output.
-function report(title: string, r: Run) {
+// cli runs one mrw subcommand and reports it: the exit code first, because it
+// is the whole verdict, then stderr, then the output.
+async function cli(title: string, ctx: ToolContext, args: string[]) {
+  const r = await run(root(ctx), args, ctx.abort);
   const stderr = r.stderr ? `stderr: ${r.stderr.trimEnd()}\n` : "";
   return { title, output: `exit: ${r.exitCode}\n${stderr}${r.stdout || "(no output)"}`, metadata: { exitCode: r.exitCode } };
+}
+
+// mcp calls one tool of `mrw mcp` — a single JSON-RPC tools/call on stdin —
+// and reports its content blocks. An error result says so on its first line.
+async function mcp(title: string, ctx: ToolContext, dir: string, name: string, args: Record<string, unknown>) {
+  const request = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } };
+  // The binary is the session checkout's; --root names the checkout it serves.
+  const r = await run(root(ctx), ["--root", dir, "mcp", "--max-result-chars", String(CEILING)], ctx.abort, JSON.stringify(request) + "\n");
+  let response: { result?: { content?: { text?: string }[]; isError?: boolean }; error?: { message?: string } } | undefined;
+  for (const line of r.stdout.split("\n")) {
+    try {
+      const msg = JSON.parse(line);
+      if (msg.id === 1) response = msg;
+    } catch {
+      // not a JSON-RPC line
+    }
+  }
+  if (!response?.result) {
+    const why = response?.error?.message ?? (r.stderr.trim() || `mrw mcp exited ${r.exitCode} without an answer`);
+    return { title, output: `error: ${why}`, metadata: { isError: true } };
+  }
+  const text = (response.result.content ?? []).map((c) => c.text ?? "").join("\n\n");
+  const isError = response.result.isError === true;
+  return { title, output: (isError ? "error: the call was refused\n" : "") + text, metadata: { isError } };
+}
+
+// set copies the fields the caller gave; an empty string or a zero is given.
+function set(from: Record<string, unknown>, map: Record<string, string>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, to] of Object.entries(map)) if (from[k] !== undefined) out[to] = from[k];
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,45 +109,34 @@ function report(title: string, r: Run) {
 
 const toolRead = tool({
   description:
-    "Read line ranges from files, or walk the tree with grep to find and serve matching ranges. " +
-    "One call serves every site. A read licenses a later write to the lines it served. " +
-    "Addresses: path:12-45, path:12, path:A,+N, path:$, path:/regexp/, path:/from/,/to/. " +
-    "With grep, specs name the directories or files to search.",
+    "Read line ranges from files, or find them with grep. Addresses: path:12-45, path:12, " +
+    "path:A,+N, path:$, path:/regexp/, path:/from/,/to/. A served read licenses NOTHING until " +
+    "acknowledged: the answer brackets each run of lines with '-- ck <id> open lines A-B (N lines " +
+    "follow)' and '-- ck <id> close'; send an id in ack (here or on mrw_write) only if you hold " +
+    "BOTH its markers and counted its N lines. A large read is a PAGE: send next_read back as specs.",
   args: {
     specs: z.array(z.string()).optional(),
     grep: z.string().optional(),
     astGrep: z.string().optional(),
     exclude: z.array(z.string()).optional(),
-    stat: z.boolean().optional(),
-    context: z.number().optional(),
-    maxLines: z.number().optional(),
-    filesFrom: z.string().optional(),
-    root: z.string().optional().describe("Another checkout to read; mrw takes it before the subcommand."),
+    after: z.string().optional().describe("The next_index of an INDEX page, to fetch the next page."),
+    ack: z.array(z.string()).optional(),
+    root: z.string().optional().describe("Another checkout to read instead of this one."),
   },
   async execute(args, ctx) {
-    const mrwArgs: string[] = [];
-    if (args.root) mrwArgs.push("--root", args.root);
-    mrwArgs.push("read");
-    if (args.grep) mrwArgs.push("--grep", args.grep);
-    if (args.astGrep) mrwArgs.push("--ast-grep", args.astGrep);
-    for (const e of args.exclude ?? []) mrwArgs.push("--exclude", e);
-    if (args.stat) mrwArgs.push("--stat");
-    if (args.context) mrwArgs.push("-C", String(args.context));
-    if (args.maxLines !== undefined) mrwArgs.push("--max-lines", String(args.maxLines));
-    if (args.filesFrom) mrwArgs.push("--files-from", args.filesFrom);
-    mrwArgs.push("--", ...(args.specs ?? []));
-    return report("mrw read", await runMrw(ctx.worktree, mrwArgs, ctx.abort));
+    const dir = args.root ?? root(ctx);
+    const call = set(args, { specs: "specs", grep: "grep", astGrep: "ast_grep", exclude: "exclude", after: "after", ack: "ack" });
+    return mcp("mrw read", ctx, dir, "mrw_read", call);
   },
 });
 
 const toolWrite = tool({
   description:
-    "Apply an edit plan across files. Every hunk gets a verdict. A plan that fails validation " +
-    "writes nothing. Addresses resolve against the ORIGINAL file. " +
-    "Ops: replace, insert-after, insert-before, delete, create, unlink, rename. " +
-    "A new file is '@@ path 0 create'. A multi-line replace needs anchor=. " +
-    "mrw will not edit a line it has not served — read it first. " +
-    "After a code write it runs the project's check unless noCheck.",
+    "Apply an edit plan across files. Every hunk gets a verdict; a plan that fails validation " +
+    "writes nothing. Addresses resolve against the ORIGINAL file. Ops: replace, insert-after, " +
+    "insert-before, delete, create, unlink, rename. A new file is '@@ path 0 create'. A " +
+    "multi-line replace needs anchor=. mrw will not edit a line it has not served AND you have " +
+    "acknowledged: pass the ck ids from mrw_read in ack. It runs no check; call mrw_check.",
   args: {
     plan: z.string().describe(
       "The plan document. Each hunk: '@@ <path> <address> <op> [guards]' + body lines.\n" +
@@ -108,21 +146,15 @@ const toolWrite = tool({
         "@@ cmd/mrw/main.go 12 insert-after\n" +
         '        "sort"',
     ),
+    ack: z.array(z.string()).optional(),
     dryRun: z.boolean().optional(),
-    noCheck: z.boolean().optional(),
-    check: z.boolean().optional(),
-    json: z.boolean().optional(),
     format: z.enum(["plan", "apply_patch", "search_replace"]).optional(),
+    echoPad: z.number().optional(),
+    strictBalance: z.boolean().optional(),
   },
   async execute(args, ctx) {
-    const mrwArgs = ["write"];
-    if (args.dryRun) mrwArgs.push("--dry-run");
-    if (args.noCheck) mrwArgs.push("--no-check");
-    if (args.check) mrwArgs.push("--check");
-    if (args.json) mrwArgs.push("--json");
-    if (args.format) mrwArgs.push("--format", args.format);
-    mrwArgs.push("-"); // the plan arrives on stdin; nothing is written into the checkout
-    return report("mrw write", await runMrw(ctx.worktree, mrwArgs, ctx.abort, args.plan));
+    const call = set(args, { plan: "plan", ack: "ack", dryRun: "dry_run", format: "format", echoPad: "echo_pad", strictBalance: "strict_balance" });
+    return mcp("mrw write", ctx, root(ctx), "mrw_write", call);
   },
 });
 
@@ -134,7 +166,7 @@ const toolCheck = tool({
     paths: z.array(z.string()).optional(),
   },
   async execute(args, ctx) {
-    return report("mrw check", await runMrw(ctx.worktree, ["check", ...(args.paths ?? [])], ctx.abort));
+    return cli("mrw check", ctx, ["check", "--", ...(args.paths ?? [])]);
   },
 });
 
@@ -146,15 +178,15 @@ const toolStats = tool({
     json: z.boolean().optional(),
   },
   async execute(args, ctx) {
-    return report("mrw stats", await runMrw(ctx.worktree, args.json ? ["stats", "--json"] : ["stats"], ctx.abort));
+    return cli("mrw stats", ctx, args.json ? ["stats", "--json"] : ["stats"]);
   },
 });
 
 const toolSeen = tool({
   description:
-    "Print the read-before-modify ledger: which lines have been served, which is what licenses " +
-    "a write. Use when a write is refused for a line you believe you read. prune removes the " +
-    "state of checkouts that are gone; dryRun with prune shows what it would remove.",
+    "Print the read-before-modify ledger: which lines are licensed for a write. Use when a " +
+    "write is refused for a line you believe you read. prune removes the state of checkouts " +
+    "that are gone; dryRun with prune shows what it would remove.",
   args: {
     prune: z.boolean().optional(),
     dryRun: z.boolean().optional(),
@@ -163,7 +195,7 @@ const toolSeen = tool({
     const mrwArgs = ["seen"];
     if (args.prune) mrwArgs.push("--prune");
     if (args.dryRun) mrwArgs.push("--dry-run");
-    return report("mrw seen", await runMrw(ctx.worktree, mrwArgs, ctx.abort));
+    return cli("mrw seen", ctx, mrwArgs);
   },
 });
 
@@ -175,7 +207,7 @@ const toolIter = tool({
     args: z.array(z.string()).optional(),
   },
   async execute(args, ctx) {
-    return report("mrw iter", await runMrw(ctx.worktree, ["iter", ...(args.args ?? [])], ctx.abort));
+    return cli("mrw iter", ctx, ["iter", ...(args.args ?? [])]);
   },
 });
 
@@ -183,7 +215,7 @@ const toolVersion = tool({
   description: "Print mrw's version string.",
   args: {},
   async execute(_args, ctx) {
-    return report("mrw version", await runMrw(ctx.worktree, ["version"], ctx.abort));
+    return cli("mrw version", ctx, ["version"]);
   },
 });
 
@@ -194,7 +226,7 @@ const toolInstructions = tool({
     "the read side.",
   args: {},
   async execute(_args, ctx) {
-    return report("mrw instructions", await runMrw(ctx.worktree, ["instructions"], ctx.abort));
+    return cli("mrw instructions", ctx, ["instructions"]);
   },
 });
 
