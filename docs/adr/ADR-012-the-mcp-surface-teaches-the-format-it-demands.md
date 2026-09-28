@@ -238,7 +238,7 @@ identically by the previous binary.
 - [ ] If a second MCP host is ever driven against this server, check whether it surfaces
       `instructions` at all — the field is optional and support is uneven, and that is the one fact
       here that a single host cannot establish
-- [ ] **Bind the T1 gates to what they claim to protect.** Raised by the Codex review of 96c5098 as a
+- [x] **Bind the T1 gates to what they claim to protect.** Raised by the Codex review of 96c5098 as a
       MEDIUM and deliberately not taken in that PR, because every item widens it and none fixes a
       defect. Each is a way the current gates stay green while a promise breaks: §43 checks that the
       published `specs` example is a list of more than one item and never EXECUTES it, so an invalid
@@ -247,11 +247,16 @@ identically by the previous binary.
       case; it reads `failed` through an unchecked type assertion, so a receipt without the field
       reads as zero; and §43 checks `instructions` only for `@@`, length and the absence of repository
       paths, so the trigger sentence and the two safety rules could vanish from the wire with the row
-      still green.
-- [ ] **Give the description walk exact sentinels.** Codex LOW. The walk finds 27 properties and the
+      still green. — ADR-090 T1: §43 reads the published spec list through the binary and dry-runs the
+      published plan on the hand-written fixture; `dryRunExample` demands two hunks over two files and a
+      present `failed`; the trigger sentence and the Shared rules have been asserted on the binary since
+      ADR-037 (§43's `shared` tuple).
+- [x] **Give the description walk exact sentinels.** Codex LOW. The walk finds 27 properties and the
       floor is 20, so dropping both `observed.*` children leaves 25 and passes; the only sentinel is
       `mrw_write:hunks.status`. Name `mrw_read:observed.Spans` and `mrw_write:files.written` too, or
-      count per container.
+      count per container. — ADR-090 T2: `TestTheDescriptionWalkNamesItsSentinels` names
+      `mrw_write:hunks.status`, `mrw_write:files.written`, `mrw_write:pattern.fires` and
+      `mrw_read receipt:observed.Spans`; §44 names `files.written`.
 - [x] **Put `gofmt -l .` in the acceptance fences.** Not from the review — from this session. CI's
       Format step runs it, the fences do not, and a formatting failure reached CI twice in one day
       because the fence a task calls "done" is not the gate CI applies. Fixing it re-mints both

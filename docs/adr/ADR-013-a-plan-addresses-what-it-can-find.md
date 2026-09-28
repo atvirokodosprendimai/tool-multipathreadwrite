@@ -207,8 +207,9 @@ meaning.
 
 - [ ] If the ambiguity refusal turns out to be common, revisit whether the message should suggest the
       narrowed pattern rather than only the matched line numbers
-- [ ] **Publish a pattern-addressed example on the MCP surface.** T3 teaches the form in prose but
+- [x] **Publish a pattern-addressed example on the MCP surface.** T3 teaches the form in prose but
       every shipped example is still line-addressed, so ADR-012's Enforced-by never dry-runs a
       pattern. Blocked on `treeFor`, which builds its fixture from `Addr.Start`/`End` — zero until
       `apply` resolves a pattern — so the example cannot be executed by the existing harness as it
-      stands. Named in review of PR #74.
+      stands. Named in review of PR #74. — ADR-090 T1: the worked plan's second hunk is
+      `/^import \($/`, dry-run on a hand-written fixture instead of `treeFor`, which is deleted.
