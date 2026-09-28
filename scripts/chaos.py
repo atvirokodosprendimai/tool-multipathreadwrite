@@ -120,7 +120,7 @@ def fail(suite, why, root=None, cmd=None, stdin=None, res=None, extra=None):
 def generic(suite, res, root=None, cmd=None, stdin=None):
     """Invariants every invocation must hold."""
     STATS[suite] = STATS.get(suite, 0) + 1
-    rc, out, err, dt = res
+    rc, out, err, _ = res
     if rc == "TIMEOUT":
         fail(suite, "hang: no exit within timeout", root, cmd, stdin, res); return False
     if rc not in (0, 1, 2, 3):
@@ -741,14 +741,12 @@ def suite_mcp(n):
         root = fresh("mcp", i); names = make_tree(root, 3)
         p = subprocess.Popen([MRW, "--root", root, "mcp"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, env=ENV)
-        msgs, expect = [], 0
-        def send(obj_or_raw, has_id):
-            nonlocal expect
+        msgs = []
+        def send(obj_or_raw):
             raw = obj_or_raw if isinstance(obj_or_raw, bytes) else json.dumps(obj_or_raw).encode()
             msgs.append(raw)
-            if has_id: expect += 1
-        send({"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "chaos", "version": "0"}}}, True)
-        send({"jsonrpc": "2.0", "method": "notifications/initialized"}, False)
+        send({"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "chaos", "version": "0"}}})
+        send({"jsonrpc": "2.0", "method": "notifications/initialized"})
         garbage = [b"not json", b"{", b"[]", b"{}", b'{"jsonrpc":"2.0"}', b"\xff\xfe", b"null", b"123", b'"str"',
                    b"[" * 5000 + b"]" * 5000, b'{"jsonrpc":"2.0","id":1,"method":"nope"}',
                    json.dumps({"jsonrpc": "2.0", "id": "s", "method": "tools/call", "params": {"name": "mrw_read", "arguments": {"specs": 5}}}).encode(),
@@ -778,10 +776,10 @@ def suite_mcp(n):
             if caps is not ABSENT: meta["io.modelcontextprotocol/clientCapabilities"] = caps
             params = {"_meta": meta} if meta else {}
             if method == "tools/call": params.update({"name": "mrw_read", "arguments": {"specs": [names[0]]}})
-            send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params}, True)
+            send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
             modern[rid] = (method, version, caps)
         # A notification carrying a bad version is never answered.
-        send({"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "1900-01-01"}}}, False)
+        send({"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "1900-01-01"}}})
         msgs.append(json.dumps({"jsonrpc": "2.0", "id": 99, "method": "tools/list"}).encode())
         data = b"\n".join(msgs) + b"\n"
         try:

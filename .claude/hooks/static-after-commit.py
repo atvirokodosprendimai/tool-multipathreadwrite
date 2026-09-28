@@ -207,7 +207,7 @@ def kill_group():
             pass
 
 
-def on_signal(signum, frame):
+def on_signal(_signum, _frame):
     kill_group()
     os._exit(0)
 
