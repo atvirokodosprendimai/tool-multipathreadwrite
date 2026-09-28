@@ -6090,7 +6090,8 @@ flags = [f for f in re.findall(r"^\s+--([a-z][a-z-]*)", opts, re.M) if f != "hel
 assert len(flags) >= 8, "read --help lists only %r" % flags
 untaught = [f for f in flags if not re.search(r"--%s(?![A-Za-z0-9-])" % re.escape(f), out)]
 assert not untaught, "instructions omit read flags: %r" % untaught
-unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help"}
+# --then and --then-sh are write and check flags the instructions teach too (ADR-092).
+unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh"}
 assert not unknown, "instructions teach flags read does not have: %r" % sorted(unknown)
 assert re.search(r"^\s+--ast-grep PATTERN\b", opts, re.M), "read --help does not show --ast-grep PATTERN"
 PY
@@ -7400,6 +7401,25 @@ if [ -w /dev/full ]; then
 else
   skip "§171 needs /dev/full (Linux); TestAReadWhoseAnswerCannotBeWrittenRecordsNothing covers it here"
 fi
+
+# 172. ADR-092: each step after a write gets its own verdict. A sequence whose
+# second step fails exits 3 and never runs the third — its marker is absent —
+# while passing steps exit 0; a declared step runs; an unknown --then is
+# refused before anything is written; a failed hunk runs no step.
+fixture
+printf '{"check":"exit 0","steps":{"mark":"touch m172-declared"}}\n' > "$R/.quality-harness.json"
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 172 }\n' > "$R/p172.mrw"
+m write --no-check --then-sh 'touch m172-1' --then-sh 'exit 1' --then-sh 'touch m172-3' "$R/p172.mrw" > "$WORK/out172" 2>&1; want 3 $? "a sequence whose second step fails exits 3"
+{ [ -e "$R/m172-1" ] && [ ! -e "$R/m172-3" ]; } && ok "step 1 ran and step 3 never did" || bad "the markers: $(ls "$R" | grep m172 | tr '\n' ' ')"
+grep -q 'NOT RUN' "$WORK/out172" && ok "the receipt names the step not run" || bad "the receipt: $(head -c 400 "$WORK/out172")"
+m write --no-check --then-sh 'exit 0' --then mark "$R/p172.mrw" > /dev/null 2>&1; want 0 $? "the same write with passing steps exits 0"
+[ -e "$R/m172-declared" ] && ok "a declared step runs" || bad "the declared step did not run"
+printf '@@ a.go 3 replace\nfunc A() int { return 99 }\n' | m write --then nope - > "$WORK/out172u" 2>&1; want 2 $? "an unknown --then is refused"
+{ ! grep -q 'return 99' "$R/a.go" && grep -q 'declared: mark' "$WORK/out172u"; } && ok "nothing is written and the declared steps are named" \
+  || bad "an unknown step: $(head -c 300 "$WORK/out172u")"
+printf '@@ a.go 3 replace anchor="not there"\nx\n' | m write --then-sh 'touch m172-hunk' - > /dev/null 2>&1; want 1 $? "a failed hunk exits 1"
+[ ! -e "$R/m172-hunk" ] && ok "and runs no step" || bad "a step ran after a failed hunk"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running

@@ -384,6 +384,12 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 - **Exit `3` means the write APPLIED and the check did not pass** — failed, timed out or was interrupted; the tree is
   changed and unverified. It is not a rollback. A failing check prints
   `check last:` (the last non-empty tail line) immediately above `full output:`.
+- **`--then NAME` and `--then-sh 'CMD'` verify a write in the same call** (ADR-092). A step is declared
+  in `.quality-harness.json` `"steps"` (`--then vet`) or written ad hoc (`--then-sh 'go vet ./...'`);
+  both repeat and run in command-line order after a write that landed and whose check passed, on
+  `write` and on `check`. The first step that does not pass stops the rest, which the receipt names
+  not run; it exits 3, or 2 if it could not start. `--json` carries `then: {steps, pruned_logs}`. A
+  step is POSIX shell on every platform. --then-sh runs any shell command it is given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh.
 - **Never read an exit code through a pipe.** `mrw write plan | head` returns
   head's status. This is the single most common way a red run reads as green.
 - A refusal is the tool working. It names the file, the plan line and the
@@ -436,7 +442,8 @@ and #73, one release apart.
   whatever the project declared, run with `sh -c` in the checkout, so a check
   that generates code or writes fixtures does exactly that. On Windows with no `sh` on PATH — a plain
   PowerShell session — it runs under the `sh.exe` Git for Windows installs beside `git.exe`; with
-  neither, it reports that it could not start and names what to install (ADR-082).
+  neither, it reports that it could not start and names what to install (ADR-082). It takes `--then`
+  and `--then-sh` too: the steps run after a passing check (ADR-092).
 - **`mrw stats`** prints what became of the plans this checkout has been given
   — every name at zero: applied, refused because the document did not PARSE,
   parsed but failed to APPLY, written but no check could run, written and the

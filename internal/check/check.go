@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
@@ -55,6 +56,10 @@ type Config struct {
 	// TailLines is how many trailing lines of output to show. Zero means the
 	// built-in default; the full output is always kept in a file.
 	TailLines int `json:"tail_lines"`
+	// Steps are the project's named steps a caller can run after the check,
+	// in an order it chooses: `mrw write --then vet --then contract` (ADR-092).
+	// A name is non-empty with no whitespace; a command is non-empty.
+	Steps map[string]string `json:"steps"`
 
 	declared bool
 }
@@ -97,6 +102,9 @@ func Load(root string) (Config, error) {
 		if err := resolveTimeout(&c); err != nil {
 			return c, err
 		}
+		if err := checkSteps(c.Steps); err != nil {
+			return c, err
+		}
 	case !os.IsNotExist(err):
 		return c, err
 	}
@@ -118,6 +126,27 @@ func resolveTimeout(c *Config) error {
 	}
 	if c.TimeoutSeconds == 0 {
 		c.TimeoutSeconds = c.FenceTimeout
+	}
+	return nil
+}
+
+// checkSteps refuses a step nobody could run on purpose (ADR-092): no name, a
+// name a caller could not pass as one argument, or no command — the last for
+// the reason a whitespace-only check is not declared. Names are judged in
+// sorted order, so the same file is refused the same way on every run.
+func checkSteps(steps map[string]string) error {
+	names := make([]string, 0, len(steps))
+	for n := range steps {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		switch {
+		case n == "" || strings.IndexFunc(n, unicode.IsSpace) >= 0:
+			return fmt.Errorf(".quality-harness.json: step %q: a step name is non-empty and holds no whitespace", n)
+		case strings.TrimSpace(steps[n]) == "":
+			return fmt.Errorf(".quality-harness.json: step %q has no command", n)
+		}
 	}
 	return nil
 }
@@ -201,14 +230,41 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	if cmdline == "" {
 		return Result{Declared: cfg.declared, Skipped: "no check declared and no go.mod found"}, nil
 	}
+	_ = scoped
+	// ADR-072: the check runs in a process group of its own (subproc), so the
+	// terminal's ^C and a hangup reach mrw and not the check. While the check
+	// runs, an interrupt, terminate or hangup sent to mrw cancels it instead:
+	// the group is killed and the receipt says "interrupted". The handler
+	// lives exactly as long as the check, so a ^C anywhere else behaves as it
+	// always did.
+	ctx, stopSignals := subproc.Interruptible(ctx)
+	defer stopSignals()
+	res, err := run(ctx, root, cfg, cmdline)
+	res.Declared = cfg.declared
+	if err != nil {
+		return res, err
+	}
+	// Pruned only once the check has exited AND been judged. Before the start,
+	// a temp directory of old logs delayed every check, and a cancel meant for a
+	// running one landed before sh existed (the race suite on #241); between the
+	// exit and the verdict, a deadline or a signal landing during the prune
+	// relabelled a check that had already finished (the reviews of #241).
+	res.Pruned = pruneLogs(os.TempDir(), time.Now().Add(-LogRetention))
+	return res, nil
+}
+
+// run executes cmdline in root under ctx, which the caller has already made
+// interruptible, and judges it: the check's one command, or one step of a
+// sequence (ADR-092). Every guarantee a check has lives here, so a step has
+// them too — output to a file, the verdict from the process, the timeout.
+func run(ctx context.Context, root string, cfg Config, cmdline string) (Result, error) {
 	// Ran is NOT set here. It is set once a ProcessState exists, because this
 	// type's whole job is to distinguish "no evidence" from "evidence of
 	// success" (ADR-003 rule 2) and a process that never STARTED produced
 	// neither. Set optimistically, an unresolvable `sh`, an already-cancelled
 	// context or an overflowed timeout reported exit 3 — "a check ran and did
 	// not pass" — about a process that never existed.
-	res := Result{Declared: cfg.declared, Command: cmdline}
-	_ = scoped
+	res := Result{Command: cmdline}
 
 	timeout := defaultTimeout
 	if cfg.TimeoutSeconds > 0 {
@@ -236,14 +292,6 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		}
 		timeout = time.Duration(secs) * time.Second
 	}
-	// ADR-072: the check runs in a process group of its own (subproc), so the
-	// terminal's ^C and a hangup reach mrw and not the check. While the check
-	// runs, an interrupt, terminate or hangup sent to mrw cancels it instead:
-	// the group is killed and the receipt says "interrupted". The handler
-	// lives exactly as long as the check, so a ^C anywhere else behaves as it
-	// always did.
-	ctx, stopSignals := subproc.Interruptible(ctx)
-	defer stopSignals()
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -313,13 +361,6 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		res.ExitCode = -1
 		res.Skipped = Interrupted
 	}
-	// Pruned only once the check has exited AND been judged. Before the start,
-	// a temp directory of old logs delayed every check, and a cancel meant for a
-	// running one landed before sh existed (the race suite on #241); between the
-	// exit and the verdict, a deadline or a signal landing during the prune
-	// relabelled a check that had already finished (the reviews of #241).
-	res.Pruned = pruneLogs(os.TempDir(), time.Now().Add(-LogRetention))
-
 	tail := cfg.TailLines
 	if tail <= 0 {
 		tail = defaultTail
@@ -676,4 +717,99 @@ func lastLines(path string, n int) ([]string, int) {
 		return lines, 0
 	}
 	return lines[len(lines)-n:], len(lines) - n
+}
+
+// Step is one command a sequence runs after the check (ADR-092): a step the
+// project declares under "steps", or an ad-hoc one the caller wrote.
+type Step struct {
+	Name    string `json:"name,omitempty"`
+	Command string `json:"command"`
+	AdHoc   bool   `json:"adhoc"`
+}
+
+// The statuses a step can end in (ADR-092 Decision 5).
+const (
+	StepPass          = "pass"
+	StepFail          = "fail"
+	StepTimedOut      = "timed_out"
+	StepInterrupted   = "interrupted"
+	StepCouldNotStart = "could_not_start"
+	StepNotRun        = "not_run"
+)
+
+// StepResult is one step's verdict. Ran says whether its process started,
+// which is what separates an interrupt that stopped it from one that came first.
+type StepResult struct {
+	Step
+	Status     string   `json:"status"`
+	Ran        bool     `json:"ran"`
+	ExitCode   int      `json:"exit_code"`
+	DurationMS int64    `json:"duration_ms,omitempty"`
+	OutputFile string   `json:"output_file,omitempty"`
+	Tail       []string `json:"tail,omitempty"`
+	Truncated  int      `json:"truncated_lines,omitempty"`
+	Skipped    string   `json:"skipped,omitempty"`
+}
+
+// StepsResult is a whole sequence: every step asked for, in order, and how many
+// old check logs the sequence pruned once it was done (ADR-080).
+type StepsResult struct {
+	Steps  []StepResult `json:"steps"`
+	Pruned int          `json:"pruned_logs"`
+}
+
+// afterStep runs after every step that ran. It does nothing in mrw; a test
+// uses it to land a signal between two steps (ADR-092 T1).
+var afterStep = func(context.Context, int) {}
+
+// RunSteps runs steps in order in root, each as the check runs, and stops at
+// the first that does not pass: every later step is reported not_run.
+func RunSteps(ctx context.Context, root string, cfg Config, steps []Step) StepsResult {
+	// ONE handler for the whole sequence. Installed per step, as Run installs
+	// its own, an interrupt landing between two steps would meet no handler and
+	// kill mrw with the rest of the sequence unreported.
+	ctx, stopSignals := subproc.Interruptible(ctx)
+	defer stopSignals()
+	out := StepsResult{Steps: make([]StepResult, len(steps))}
+	stopped := false
+	for i, s := range steps {
+		r := StepResult{Step: s, ExitCode: -1}
+		switch {
+		case stopped:
+			r.Status = StepNotRun
+		default:
+			// A context already done starts nothing: run reports it
+			// interrupted with Ran false, as a check stopped before it
+			// started is (ADR-080).
+			res, err := run(ctx, root, cfg, s.Command)
+			if err != nil {
+				res.Skipped = "could not start: " + err.Error()
+			}
+			r.Status, r.Ran, r.ExitCode, r.Skipped = verdict(res), res.Ran, res.ExitCode, res.Skipped
+			r.DurationMS, r.OutputFile, r.Tail, r.Truncated = res.DurationMS, res.OutputFile, res.Tail, res.Truncated
+			afterStep(ctx, i)
+		}
+		stopped = stopped || r.Status != StepPass
+		out.Steps[i] = r
+	}
+	// Once, after the last step, for the reason Run prunes after its verdict.
+	out.Pruned = pruneLogs(os.TempDir(), time.Now().Add(-LogRetention))
+	return out
+}
+
+// verdict names what one run of a step came to. A pass is a process that ran
+// and exited 0, and nothing else (ADR-003 rule 2).
+func verdict(res Result) string {
+	switch {
+	case res.OK():
+		return StepPass
+	case res.Skipped == Interrupted:
+		return StepInterrupted
+	case strings.HasPrefix(res.Skipped, "timed out"):
+		return StepTimedOut
+	case !res.Ran:
+		return StepCouldNotStart
+	default:
+		return StepFail
+	}
 }

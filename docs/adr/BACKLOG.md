@@ -2278,3 +2278,12 @@ Found while ranking this backlog (2026-09-26): with `XDG_STATE_HOME` inside the 
 store — whose checkpoint ids could then be acked without the lines ever being read — and a plan
 could edit the ledger. **Fixed by ADR-077**, contract §154: a path inside the state base is refused
 at the boundary, and a discovered one is dropped.
+
+## From ADR-092 (each step after a write gets its own verdict)
+
+- **Steps on the MCP surface** (ADR-092 Out of Scope). `mrw_write` runs no check today, and running a
+  caller-named shell step from a host that may have withheld shell is a trust decision ADR-092 did not
+  take; ADR-016 records that a permanent MCP boundary contradicted M's stated direction, so this stays
+  deferred. Arm when an MCP-only host asks for verified writes.
+- **A per-step timeout or tail setting** (ADR-092 Out of Scope). Every step takes the harness's
+  `timeout_seconds` and `tail_lines`. Arm when one declared step needs a different bound from the check's.

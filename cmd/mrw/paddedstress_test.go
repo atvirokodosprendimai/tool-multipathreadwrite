@@ -299,6 +299,12 @@ func parserDelivers(tree string, argv []string) (got []string, dispatched bool, 
 					got = append(got, cmd.String(name))
 				case *cli.StringSliceFlag:
 					got = append(got, cmd.StringSlice(name)...)
+				case *cli.GenericFlag:
+					// --then and --then-sh (ADR-092): each value the parser set,
+					// in order, as the flag's own value holds them.
+					if v, ok := cmd.Generic(name).(interface{ Values() []string }); ok {
+						got = append(got, v.Values()...)
+					}
 				}
 			}
 			return nil
