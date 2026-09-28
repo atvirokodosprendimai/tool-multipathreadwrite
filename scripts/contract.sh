@@ -7467,11 +7467,28 @@ bounded 30 "$WORK/o173t" "$MRW" -C "$R" write --no-check --then-sh "sleep 60 & e
 gc=$(cat "$R/gc173.pid" 2>/dev/null); alive=1
 for _ in $(seq 1 30); do kill -0 "${gc:-999999999}" 2>/dev/null || { alive=0; break; }; sleep 0.1; done
 { [ -n "$gc" ] && [ "$alive" = 0 ]; } && ok "and the timed-out step's grandchild is gone" || { kill -9 "${gc:-999999999}" 2>/dev/null; bad "the timed-out step's grandchild '$gc' outlived it"; }
-"$MRW" -C "$R" write --no-check --then-sh 'touch started173; exec sleep 60' --then-sh 'touch m173-afterterm' "$R/p173.mrw" > "$WORK/o173i" 2>&1 < /dev/null & wp=$!
-for _ in $(seq 1 100); do [ -e "$R/started173" ] && break; sleep 0.1; done
-kill -TERM "$wp"; wait "$wp"; rc=$?
-{ [ "$rc" = 3 ] && [ ! -e "$R/m173-afterterm" ] && grep -q 'INTERRUPTED' "$WORK/o173i"; } \
-  && ok "a TERM while a step runs: mrw reports it INTERRUPTED, exits 3, and the next step never runs" || bad "TERM mid-step: exit $rc: $(head -c 400 "$WORK/o173i")"
+# The TERM row gets its own generous timeout (the row above left 2 s), waits
+# for the step to say it started before signalling, bounds mrw's exit, and
+# records the step's pid: the step runs in a process group of its own, which
+# neither this file's EXIT trap nor its survivors check reaches (review of #267).
+printf '{"timeout_seconds":300,"steps":{}}\n' > "$R/.quality-harness.json"
+"$MRW" -C "$R" write --no-check --then-sh "echo \$\$ > $R/step173.pid; touch $R/started173; exec sleep 60" --then-sh 'touch m173-afterterm' "$R/p173.mrw" > "$WORK/o173i" 2>&1 < /dev/null & wp=$!
+ready=0; for _ in $(seq 1 200); do [ -e "$R/started173" ] && { ready=1; break; }; sleep 0.1; done
+if [ "$ready" = 1 ]; then
+  kill -TERM "$wp"
+  ended=0; for _ in $(seq 1 200); do kill -0 "$wp" 2>/dev/null || { ended=1; break; }; sleep 0.1; done
+  [ "$ended" = 1 ] || kill -9 "$wp" 2>/dev/null
+  wait "$wp"; rc=$?
+  { [ "$ended" = 1 ] && [ "$rc" = 3 ] && [ ! -e "$R/m173-afterterm" ] && grep -q 'INTERRUPTED' "$WORK/o173i"; } \
+    && ok "a TERM while a step runs: mrw reports it INTERRUPTED, exits 3, and the next step never runs" || bad "TERM mid-step: exit $rc, ended $ended: $(head -c 400 "$WORK/o173i")"
+else
+  kill -9 "$wp" 2>/dev/null; wait "$wp"
+  bad "the TERM row's step never said it started: $(head -c 300 "$WORK/o173i")"
+fi
+sp=$(cat "$R/step173.pid" 2>/dev/null); alive=1
+for _ in $(seq 1 30); do kill -0 "${sp:-999999999}" 2>/dev/null || { alive=0; break; }; sleep 0.1; done
+{ [ -n "$sp" ] && [ "$alive" = 0 ]; } && ok "and the interrupted step's process is gone" \
+  || { kill -9 "${sp:-999999999}" 2>/dev/null; bad "the interrupted step '${sp:-?}' outlived mrw"; }
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
