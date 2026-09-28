@@ -85,6 +85,7 @@ go test ./internal/check/ ./cmd/mrw/ -count=1 -timeout 120s -run 'TestGitsShellI
 - 2026-09-26 · c61278f* · exit 0 · `set -o pipefail …` · acceptance-sha256:14f19693875f4e0ce095d2131cfe065d8547ff3f83af6731a9668df057398739 · ms:891
 - 2026-09-26 · c61278f* · exit 0 · `set -o pipefail …` · acceptance-sha256:14f19693875f4e0ce095d2131cfe065d8547ff3f83af6731a9668df057398739 · ms:585
 - 2026-09-26 · c61278f* · exit 0 · `set -o pipefail …` · acceptance-sha256:14f19693875f4e0ce095d2131cfe065d8547ff3f83af6731a9668df057398739 · ms:779
+- 2026-09-28 · 86c576d* · exit 0 · `set -o pipefail …` · acceptance-sha256:14f19693875f4e0ce095d2131cfe065d8547ff3f83af6731a9668df057398739 · ms:10802
 
 ## Mutation Log
 (empty until execute)

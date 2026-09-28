@@ -8,7 +8,7 @@
 **Consumes:** MCP tools `mrw_read` / `mrw_write` (T2), `mcp.Serve` (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the host config block`, `the statement that the CLI path is unchanged`
+**Rests-on:** `the host config block`
 
 ## Goal
 
@@ -52,8 +52,6 @@ the server lifts and which it does not.
 set -o pipefail
 grep -q '### Use it from an MCP host' README.md \
   && grep -q '"command": "mrw"' README.md \
-  && grep -q 'through the server' README.md \
-  && grep -q 'CLI path' README.md \
   && grep -q 'mrw mcp' AGENTS.md \
   && grep -q '^# 39\.' scripts/contract.sh \
   && ./scripts/contract.sh \
@@ -75,6 +73,14 @@ with strings this task must write: the config block's `"command": "mrw"`, and th
 unless S3 actually qualified the paragraph, rather than leaving a limitation stated more broadly
 than it holds.
 
+**Re-fenced 2026-09-28 (C3).** The `through the server` and `CLI path` clauses matched nothing, so the
+fence could not pass — and they stopped matching in two steps: `CLI path` left the README with
+ADR-038 (#154, `0cde50b`), which made a ledger write one writer across processes and so retired the
+per-transport qualifier S3 had added; `through the server` left with the one-page rewrite (#169,
+`f5ac1ca`). Both clauses, and `the statement that the CLI path is unchanged` in Rests-on, are dropped
+rather than pointed at new prose; what remains is the part a caller copies — the config block — and
+§39, which drives the binary.
+
 ## Tests
 
 | Test name | File | Verifies | Covers | Steps |
@@ -91,13 +97,13 @@ than it holds.
 | 4 — it is used | nothing measures installs, and nothing will: counting who added a config block would need telemetry, which ADR-009 refused on the same premise |
 
 ## Mutation Log
-
 - 2026-09-03 · fae3f88 · mutant killed · exit 1 · `cmd/mrw/main.go` · rename the subcommand so the README config block names a command the binary no longer has — the dangling-pointer defect §39 exists to catch · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17
+- 2026-09-28 · 86c576d* · mutant killed · exit 1 · `cmd/mrw/main.go` · rename the subcommand so the README config block names a command the binary lacks (§39) · acceptance-sha256:b71a56f842707655bac7cef41c88809e21d88312493cdae2cba82ef0cd9e6d2a · covers:the host config block
 
 ## Invariants
 
-- The README states that the MCP path serializes calls made through the server, and that a CLI
-  invocation running beside it is still subject to the CLI limitation.
+- The README states what the server shares with the CLI. The per-transport concurrency qualifier this
+  invariant once required was retired by ADR-038, which made a ledger write one writer everywhere.
 - No claim is made about the server that the CLI does not also satisfy.
 - `measure.sh` and the existing measurement sections are untouched.
 
@@ -125,3 +131,4 @@ than in a paragraph warning readers about it.
 - 2026-09-03 · human-observed · S4 read back on 2026-09-03: the README's 'What the server does not change' paragraph names the engine, the shared ledger, the plan format, the per-hunk verdict and the exit statuses, and states the one real difference (concurrency through the server). No test can assert the absence of a misunderstanding, which is why this step carried [proof: human].
 - 2026-09-03 · 3ce932c · exit 0 · `set -o pipefail …` · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17 · ms:9103
 - 2026-09-03 · 4a69e5c · exit 0 · `set -o pipefail …` · acceptance-sha256:b9fbe8fde0edaccdd01f873c93d3f98264097c19fdb10dccaf1bf578a5e7bd17 · ms:8251
+- 2026-09-28 · 86c576d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b71a56f842707655bac7cef41c88809e21d88312493cdae2cba82ef0cd9e6d2a · ms:141057
