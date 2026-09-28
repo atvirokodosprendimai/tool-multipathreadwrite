@@ -119,6 +119,24 @@ touches a marker file, and the row asserts the marker is absent — plus a decla
 name and a refused write that must run nothing. Valid for the CLI on Linux (contract.sh) and on every
 CI platform through the Go tests.
 
+**Amendment, 2026-09-28 (T5), after a stress round** — six local peer sessions drove the release
+candidate d8576c3 (argv, JSON, signals, config, real use, concurrency). M chose, of the two open
+questions, "Validate only when asked" and "Depth guard":
+
+- Decision 2 is narrowed: `check.Load` holds `"steps"` as written, and `Config.StepCommands()`
+  decodes and validates it only when a step is asked for by name. A typo in a block a write never
+  uses no longer refuses that write, which is what the Neutral consequence below always promised.
+- A step runs with `MRW_STEP_DEPTH` one higher than its caller's, and `--then`/`--then-sh` are
+  refused (exit 2, nothing written) at depth 8, so a step that re-runs mrw with steps stops instead of
+  recursing with each level resetting the step timeout.
+- A step name or command holding control bytes is printed quoted; "could not start" is said once.
+- Clarified, not changed: `could_not_start` means the shell could not start (a command the shell
+  cannot find is `fail`, exit 127); a process that leaves the step's group (`setsid`) is not reaped,
+  and on Windows, which has no process groups, no descendant is (ADR-080);
+  a signal mrw inherited as ignored stays ignored (ADR-072); an ad-hoc step has no `name`, and a
+  step not run carries no `duration_ms`, `output_file` or `skipped`.
+- The round's lower findings are in BACKLOG "From ADR-092".
+
 ## Alternatives Considered
 
 - **Caller-named shell strings only (`--then 'CMD'`).** Closest to the zeus finding. Rejected as the

@@ -161,6 +161,9 @@ These are gates, not a tour of the records behind them.
   command-line order after a landed write whose check passed, on `write` and `check`. The first that
   does not pass stops the rest, named `NOT RUN`; exit 3 (2 if it could not start); `--json` carries
   `then: {steps, pruned_logs}`. --then-sh runs any shell command it is given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh.
+  `could_not_start` means the shell could not start (a missing command inside it is a `fail`, exit
+  127); a step runs with `MRW_STEP_DEPTH` one deeper, and `--then` is refused at depth 8, so a step
+  that re-runs mrw with steps cannot recurse without end; `"steps"` is read only when a step is asked for.
 - **Advisories are counted where you read.** The summary line says
   `N failed, A advisories`, zero included, and the JSON receipt carries
   `advisories`. Three advisories in your last ten writes print a `pattern:`

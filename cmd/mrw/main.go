@@ -1111,7 +1111,7 @@ held or went unchecked.`,
 			refuse := func(msg string) error {
 				return refuseWith(apply.Result{DryRun: cmd.Bool("dry-run")}, msg)
 			}
-			if err := emptyStep(asked); err != nil {
+			if err := askedStepsError(asked); err != nil {
 				return refuse(err.Error())
 			}
 			src, name := os.Stdin, "<stdin>"
@@ -1560,7 +1560,15 @@ func (f *stepFlag) Set(v string) error {
 func (f *stepFlag) Get() any { return f }
 
 // String is every value this flag was given.
-func (f *stepFlag) String() string { return strings.Join(f.Values(), " ") }
+func (f *stepFlag) String() string {
+	// Shown, not raw: urfave prints this as the flag's default in --help, so a
+	// value holding control bytes reached the terminal there (review of #269).
+	vals := make([]string, 0, len(f.vals))
+	for _, v := range f.Values() {
+		vals = append(vals, shown(v))
+	}
+	return strings.Join(vals, " ")
+}
 
 // Values is every value this flag was given, in order.
 func (f *stepFlag) Values() []string { return f.vals }
@@ -1584,8 +1592,17 @@ func thenShFlag(list *[]check.Step) cli.Flag {
 	}
 }
 
-// emptyStep refuses a --then-sh with no command: it would run nothing and pass.
-func emptyStep(steps []check.Step) error {
+// askedStepsError refuses what can be judged of the steps before anything is
+// read: a --then-sh with no command, which would run nothing and pass, and a
+// sequence already MaxStepDepth steps deep, where a step that runs mrw with
+// steps again would recurse without end (ADR-092 T5).
+func askedStepsError(steps []check.Step) error {
+	if len(steps) == 0 {
+		return nil
+	}
+	if d := check.StepDepth(); d >= check.MaxStepDepth {
+		return fmt.Errorf("--then and --then-sh are refused %d steps deep (MRW_STEP_DEPTH=%d): a step that runs mrw with steps again would recurse without end", d, d)
+	}
 	for _, s := range steps {
 		if s.AdHoc && strings.TrimSpace(s.Command) == "" {
 			return errors.New("--then-sh needs a command: a step with none would run nothing and pass")
@@ -1597,27 +1614,48 @@ func emptyStep(steps []check.Step) error {
 // resolveSteps gives each --then its declared command, and refuses a name the
 // project did not declare, naming the ones it did (ADR-092).
 func resolveSteps(cfg check.Config, steps []check.Step) error {
+	var cmds map[string]string
+	read := false
 	for i := range steps {
 		if steps[i].AdHoc {
 			continue
 		}
-		c, ok := cfg.Steps[steps[i].Name]
+		// The block is read only now, when a step is asked for by name: a
+		// write that asks for none never reads it (ADR-092 T5).
+		if !read {
+			var err error
+			if cmds, err = cfg.StepCommands(); err != nil {
+				return err
+			}
+			read = true
+		}
+		c, ok := cmds[steps[i].Name]
 		if ok {
 			steps[i].Command = c
 			continue
 		}
-		names := make([]string, 0, len(cfg.Steps))
-		for n := range cfg.Steps {
-			names = append(names, n)
+		names := make([]string, 0, len(cmds))
+		for n := range cmds {
+			names = append(names, shown(n))
 		}
 		sort.Strings(names)
 		declared := "none are declared"
 		if len(names) > 0 {
 			declared = "declared: " + strings.Join(names, ", ")
 		}
-		return fmt.Errorf("--then %s: .quality-harness.json \"steps\" has no such step (%s)", steps[i].Name, declared)
+		return fmt.Errorf("--then %s: .quality-harness.json \"steps\" has no such step (%s)", shown(steps[i].Name), declared)
 	}
 	return nil
+}
+
+// shown is s as the caller should see it on a terminal: as written, or quoted
+// when it holds a byte a terminal would act on — a step name or command must
+// not clear the screen or forge the declared list (ADR-092 T5).
+func shown(s string) string {
+	if q := strconv.Quote(s); q[1:len(q)-1] != s {
+		return q
+	}
+	return s
 }
 
 // runSteps runs the sequence when it is due, and otherwise reports every step
@@ -1659,7 +1697,7 @@ func stepsExit(r *check.StepsResult, lead, tail string) error {
 	}
 	which := fmt.Sprintf("step %d (%s)", i+1, stepLabel(s.Step))
 	if s.Status == check.StepCouldNotStart {
-		return cli.Exit(lead+which+" could not start: "+s.Skipped, exitUsage)
+		return cli.Exit(lead+which+" could not start: "+strings.TrimPrefix(s.Skipped, "could not start: "), exitUsage)
 	}
 	return cli.Exit(lead+which+" did not pass"+tail, exitCheckFailed)
 }
@@ -1669,7 +1707,7 @@ func stepLabel(s check.Step) string {
 	if s.AdHoc {
 		return "--then-sh"
 	}
-	return s.Name
+	return shown(s.Name)
 }
 
 // reportSteps prints one line per step after the check's report, with the tail
@@ -1681,7 +1719,7 @@ func reportSteps(w *os.File, r *check.StepsResult) {
 	out := bufio.NewWriter(w)
 	defer func() { _ = out.Flush() }()
 	for i, s := range r.Steps {
-		head := fmt.Sprintf("then %d/%d %s: %s", i+1, len(r.Steps), stepLabel(s.Step), s.Command)
+		head := fmt.Sprintf("then %d/%d %s: %s", i+1, len(r.Steps), stepLabel(s.Step), shown(s.Command))
 		switch s.Status {
 		case check.StepPass:
 			fmt.Fprintf(out, "%s — PASS\n", head)
@@ -1697,7 +1735,7 @@ func reportSteps(w *os.File, r *check.StepsResult) {
 		case check.StepFail:
 			fmt.Fprintf(out, "%s — FAIL exit %d\n", head, s.ExitCode)
 		default:
-			fmt.Fprintf(out, "%s — %s: %s\n", head, strings.ToUpper(strings.ReplaceAll(s.Status, "_", " ")), s.Skipped)
+			fmt.Fprintf(out, "%s — %s: %s\n", head, strings.ToUpper(strings.ReplaceAll(s.Status, "_", " ")), strings.TrimPrefix(s.Skipped, "could not start: "))
 		}
 		if s.Truncated > 0 {
 			fmt.Fprintf(out, "... %d earlier line(s) in %s\n", s.Truncated, s.OutputFile)
@@ -1888,7 +1926,7 @@ touched, which is a finding about the machine and not about your change.`,
 			if err != nil {
 				return refuse(err)
 			}
-			if err := emptyStep(asked); err != nil {
+			if err := askedStepsError(asked); err != nil {
 				return refuse(err)
 			}
 			if err := resolveSteps(cfg, asked); err != nil {

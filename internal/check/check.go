@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -58,8 +59,10 @@ type Config struct {
 	TailLines int `json:"tail_lines"`
 	// Steps are the project's named steps a caller can run after the check,
 	// in an order it chooses: `mrw write --then vet --then contract` (ADR-092).
-	// A name is non-empty with no whitespace; a command is non-empty.
-	Steps map[string]string `json:"steps"`
+	// Held as written and read only by StepCommands, when a step is asked
+	// for: a typo in a block the caller never uses must not refuse every
+	// write in the tree (ADR-092 T5, found by the stress round).
+	Steps json.RawMessage `json:"steps"`
 
 	declared bool
 }
@@ -100,9 +103,6 @@ func Load(root string) (Config, error) {
 		c.Check, c.ScopedCheck = strings.TrimSpace(c.Check), strings.TrimSpace(c.ScopedCheck)
 		c.declared = c.Check != "" || c.ScopedCheck != ""
 		if err := resolveTimeout(&c); err != nil {
-			return c, err
-		}
-		if err := checkSteps(c.Steps); err != nil {
 			return c, err
 		}
 	case !os.IsNotExist(err):
@@ -239,7 +239,7 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	// always did.
 	ctx, stopSignals := subproc.Interruptible(ctx)
 	defer stopSignals()
-	res, err := run(ctx, root, cfg, cmdline)
+	res, err := run(ctx, root, cfg, cmdline, nil)
 	res.Declared = cfg.declared
 	if err != nil {
 		return res, err
@@ -257,7 +257,7 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 // interruptible, and judges it: the check's one command, or one step of a
 // sequence (ADR-092). Every guarantee a check has lives here, so a step has
 // them too — output to a file, the verdict from the process, the timeout.
-func run(ctx context.Context, root string, cfg Config, cmdline string) (Result, error) {
+func run(ctx context.Context, root string, cfg Config, cmdline string, env []string) (Result, error) {
 	// Ran is NOT set here. It is set once a ProcessState exists, because this
 	// type's whole job is to distinguish "no evidence" from "evidence of
 	// success" (ADR-003 rule 2) and a process that never STARTED produced
@@ -312,6 +312,14 @@ func run(ctx context.Context, root string, cfg Config, cmdline string) (Result, 
 	if pathDir != "" {
 		// Git's shell with Git's tools first, as Git Bash would have them.
 		c.Env = append(os.Environ(), "PATH="+pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	}
+	if len(env) > 0 {
+		// A step's own variables (ADR-092 T5: MRW_STEP_DEPTH), over whatever
+		// environment the shell would otherwise get.
+		if c.Env == nil {
+			c.Env = os.Environ()
+		}
+		c.Env = append(c.Env, env...)
 	}
 
 	start := time.Now()
@@ -781,7 +789,7 @@ func RunSteps(ctx context.Context, root string, cfg Config, steps []Step) StepsR
 			// A context already done starts nothing: run reports it
 			// interrupted with Ran false, as a check stopped before it
 			// started is (ADR-080).
-			res, err := run(ctx, root, cfg, s.Command)
+			res, err := run(ctx, root, cfg, s.Command, []string{"MRW_STEP_DEPTH=" + strconv.Itoa(StepDepth()+1)})
 			if err != nil {
 				res.Skipped = "could not start: " + err.Error()
 			}
@@ -812,4 +820,32 @@ func verdict(res Result) string {
 	default:
 		return StepFail
 	}
+}
+
+// StepCommands is the "steps" block as name → command, decoded and validated
+// only now, when a step is asked for (ADR-092 T5). No block is no steps.
+func (c Config) StepCommands() (map[string]string, error) {
+	if len(c.Steps) == 0 || string(c.Steps) == "null" {
+		return nil, nil
+	}
+	var steps map[string]string
+	if err := json.Unmarshal(c.Steps, &steps); err != nil {
+		return nil, fmt.Errorf(".quality-harness.json: \"steps\": %w", err)
+	}
+	return steps, checkSteps(steps)
+}
+
+// MaxStepDepth is how deep steps may nest before --then and --then-sh are
+// refused (ADR-092 T5): a step that re-runs mrw with steps would otherwise
+// recurse without end, each level resetting the step timeout.
+const MaxStepDepth = 8
+
+// StepDepth is how many steps deep this mrw runs: MRW_STEP_DEPTH, which each
+// step is given one higher than its caller's. Unset or unreadable is zero.
+func StepDepth() int {
+	n, err := strconv.Atoi(os.Getenv("MRW_STEP_DEPTH"))
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
 }

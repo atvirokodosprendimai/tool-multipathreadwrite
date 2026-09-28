@@ -390,6 +390,15 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   `write` and on `check`. The first step that does not pass stops the rest, which the receipt names
   not run; it exits 3, or 2 if it could not start. `--json` carries `then: {steps, pruned_logs}`. A
   step is POSIX shell on every platform. --then-sh runs any shell command it is given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh.
+  `could_not_start` means mrw could not start the shell; a command the shell cannot find is a step
+  that ran and failed (exit 127). On Unix a step's background children are killed with it, and one
+  that calls `setsid` leaves its process group and is not; on Windows none are (no process groups,
+  ADR-080). A signal mrw inherited as ignored (`nohup`, a `&` job
+  of a non-interactive shell) stays ignored — interrupt with TERM. A step runs with `MRW_STEP_DEPTH`
+  one higher than its caller's, and `--then`/`--then-sh` are refused at depth 8, so a step that
+  re-runs mrw with steps stops. The `"steps"` block is read only when a step is asked for: a typo
+  there does not refuse a write that asks for none. In `--json`, an ad-hoc step has no `name`, and a
+  step not run carries no `duration_ms`, `output_file` or `skipped`.
 - **Never read an exit code through a pipe.** `mrw write plan | head` returns
   head's status. This is the single most common way a red run reads as green.
 - A refusal is the tool working. It names the file, the plan line and the
