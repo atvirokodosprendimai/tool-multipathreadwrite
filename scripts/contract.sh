@@ -7504,9 +7504,9 @@ printf '@@ a.go 3 replace\nfunc A() int { return 1 + 0 }\n' > "$R/p174b.mrw"
 m write --then x "$R/p174b.mrw" > "$WORK/o174" 2>&1; want 2 $? "asking for a step reads the block and refuses it"
 { grep -q 'return 0 + 1' "$R/a.go" && grep -q '"my step"' "$WORK/o174"; } && ok "with nothing written, naming the step" || bad "the malformed block: $(head -c 300 "$WORK/o174")"
 printf '{"check":"true","steps":{}}\n' > "$R/.quality-harness.json"
-printf '%s\n' 'echo "$MRW_STEP_DEPTH" >> depth174' "exec \"$MRW\" check --then-sh 'sh $R/rec174.sh'" > "$R/rec174.sh"
+printf '%s\n' 'echo "$MRW_STEP_DEPTH" >> depth174' "exec \"$MRW\" check --then-sh 'sh \"$R/rec174.sh\"'" > "$R/rec174.sh"
 t0=$(date +%s)
-bounded 90 "$WORK/o174r" "$MRW" -C "$R" check --then-sh "sh $R/rec174.sh"; rc=$?; el=$(( $(date +%s) - t0 ))
+bounded 90 "$WORK/o174r" "$MRW" -C "$R" check --then-sh "sh \"$R/rec174.sh\""; rc=$?; el=$(( $(date +%s) - t0 ))
 deepest=$(tail -1 "$R/depth174" 2>/dev/null)
 { [ "$rc" = 3 ] && [ "$deepest" = 8 ] && [ "$el" -lt 60 ]; } && ok "a step that re-runs mrw with steps stops at MRW_STEP_DEPTH 8: exit 3 in ${el}s" \
   || bad "recursion: exit $rc after ${el}s, deepest '$deepest': $(head -c 300 "$WORK/o174r")"
