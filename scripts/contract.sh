@@ -7421,6 +7421,58 @@ printf '@@ a.go 3 replace\nfunc A() int { return 99 }\n' | m write --then nope -
 printf '@@ a.go 3 replace anchor="not there"\nx\n' | m write --then-sh 'touch m172-hunk' - > /dev/null 2>&1; want 1 $? "a failed hunk exits 1"
 [ ! -e "$R/m172-hunk" ] && ok "and runs no step" || bad "a step ran after a failed hunk"
 
+# 173. ADR-092 end to end: the steps as a caller meets them, through a real
+# shell and the built binary, in a real Go module. The harness declares steps
+# and no check, so the check is the INFERRED `go test`, scoped to the written package; a real `go vet`
+# step follows it. Pairs: the check passing lets the steps run and the check
+# failing runs none; a passing step exits 0 and a step past its timeout exits
+# 3 with its grandchild gone; a TERM mid-step exits 3 (not killed) and the step
+# after it never runs. The attached padded value is refused by main() alone,
+# which no in-process test reaches.
+fixture
+printf '{"timeout_seconds":120,"steps":{"vet":"go vet ./...","one":"echo 1 >> order173","two":"echo 2 >> order173"}}\n' > "$R/.quality-harness.json"
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 0 + 1 }\n' > "$R/p173.mrw"
+m write --json --then vet --then-sh 'go build ./...' "$R/p173.mrw" > "$WORK/j173" 2> "$WORK/e173"; want 0 $? "a real check and two real Go steps pass: exit 0"
+python3 - "$WORK/j173" <<'PY' && ok "the receipt: the check ran and passed, then both steps pass, adhoc marks only --then-sh, pruned_logs present" || bad "the --json receipt: $(head -c 400 "$WORK/j173")"
+import json, sys
+r = json.load(open(sys.argv[1]))
+c, t = r["check"], r["then"]
+assert c["ran"] and c["exit_code"] == 0 and c["command"].startswith("go test "), c
+assert [s["status"] for s in t["steps"]] == ["pass", "pass"], t
+assert [s["adhoc"] for s in t["steps"]] == [False, True], t
+assert t["steps"][0]["command"] == "go vet ./..." and "pruned_logs" in t, t
+PY
+m write --no-check --then two --then one "$R/p173.mrw" > /dev/null 2>&1; want 0 $? "declared steps named out of file order pass"
+[ "$(cat "$R/order173" 2>/dev/null)" = "$(printf '2\n1')" ] && ok "and ran in the order the caller named" || bad "the order: $(cat "$R/order173" 2>/dev/null | tr '\n' ' ')"
+m check --full --json --then one > "$WORK/j173c" 2>&1; want 0 $? "mrw check --then runs after a passing check"
+python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); assert r["ran"] and r["command"]=="go test ./..." and r["then"]["steps"][0]["status"]=="pass", r' "$WORK/j173c" \
+  && ok "and keeps the flat check fields beside then" || bad "check --json: $(head -c 300 "$WORK/j173c")"
+m write --then-sh 'printf "%s" "a,b" > comma173' "$R/p173.mrw" > /dev/null 2>&1; want 0 $? "a --then-sh holding quotes and a comma, through a real shell"
+[ "$(cat "$R/comma173" 2>/dev/null)" = "a,b" ] && ok "is one step that wrote a,b" || bad "comma173 holds '$(cat "$R/comma173" 2>/dev/null)'"
+m write --then-sh='echo x ' "$R/p173.mrw" > "$WORK/o173p" 2>&1; want 2 $? "an attached --then-sh value ending in whitespace is refused by the binary"
+grep -q "\-\-then-sh 'echo x '" "$WORK/o173p" && ok "and names the separate form" || bad "the padded refusal: $(head -c 300 "$WORK/o173p")"
+printf '@@ a.go 3 replace\nfunc A() int { return 5 }\n' > "$R/p173bad.mrw"
+m write --then-sh 'touch m173-afterfail' "$R/p173bad.mrw" > "$WORK/o173f" 2>&1; want 3 $? "a real go test that fails: exit 3"
+{ [ ! -e "$R/m173-afterfail" ] && grep -q 'NOT RUN' "$WORK/o173f"; } && ok "and the step after it never ran, named NOT RUN" || bad "after a failed check: $(head -c 400 "$WORK/o173f")"
+m write --no-check --then-sh 'exit 1' "$R/p173.mrw" > /dev/null 2>&1; want 3 $? "a failing step on a --no-check write exits 3"
+m stats --json > "$WORK/j173s" 2>&1
+python3 -c 'import json,sys; c=json.load(open(sys.argv[1]))["counts"]; assert c["failed_check"]==2, c' "$WORK/j173s" \
+  && ok "stats counts the failed check and the failed step: failed_check 2" || bad "stats: $(head -c 300 "$WORK/j173s")"
+printf '{"timeout_seconds":2,"steps":{}}\n' > "$R/.quality-harness.json"
+t0=$(date +%s)
+bounded 30 "$WORK/o173t" "$MRW" -C "$R" write --no-check --then-sh "sleep 60 & echo \$! > $R/gc173.pid; wait" --then-sh 'touch m173-aftertimeout' "$R/p173.mrw"; rc=$?; el=$(( $(date +%s) - t0 ))
+{ [ "$rc" = 3 ] && [ "$el" -lt 20 ] && grep -q 'TIMED OUT' "$WORK/o173t" && [ ! -e "$R/m173-aftertimeout" ]; } \
+  && ok "a step past its timeout exits 3 in ${el}s, says TIMED OUT, and the next step never runs" || bad "timeout: exit $rc after ${el}s: $(head -c 400 "$WORK/o173t")"
+gc=$(cat "$R/gc173.pid" 2>/dev/null); alive=1
+for _ in $(seq 1 30); do kill -0 "${gc:-999999999}" 2>/dev/null || { alive=0; break; }; sleep 0.1; done
+{ [ -n "$gc" ] && [ "$alive" = 0 ]; } && ok "and the timed-out step's grandchild is gone" || { kill -9 "${gc:-999999999}" 2>/dev/null; bad "the timed-out step's grandchild '$gc' outlived it"; }
+"$MRW" -C "$R" write --no-check --then-sh 'touch started173; exec sleep 60' --then-sh 'touch m173-afterterm' "$R/p173.mrw" > "$WORK/o173i" 2>&1 < /dev/null & wp=$!
+for _ in $(seq 1 100); do [ -e "$R/started173" ] && break; sleep 0.1; done
+kill -TERM "$wp"; wait "$wp"; rc=$?
+{ [ "$rc" = 3 ] && [ ! -e "$R/m173-afterterm" ] && grep -q 'INTERRUPTED' "$WORK/o173i"; } \
+  && ok "a TERM while a step runs: mrw reports it INTERRUPTED, exits 3, and the next step never runs" || bad "TERM mid-step: exit $rc: $(head -c 400 "$WORK/o173i")"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
