@@ -2159,6 +2159,10 @@ PY
 want 0 $? "the published plan addresses one hunk by pattern"
 out=$(m write --dry-run "$WORK/unmatched.plan" 2>&1)
 want 1 $? "and the same plan with a pattern that matches nothing is refused"
+# Exit 1 is shared by every refused hunk, so the reason is asserted too (Codex on #261).
+grep -q 'matched no line' <<<"$out" \
+  && ok "and the refusal says the pattern matched no line" \
+  || bad "the unmatched-pattern plan was refused for another reason: $out"
 
 # 44. ADR-012 T2: the machine-readable half of the contract says what it means.
 #
