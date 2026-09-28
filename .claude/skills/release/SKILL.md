@@ -94,11 +94,15 @@ installed binary — not `bin/mrw` — and read the receipt.
 
 ## 7. Write it down
 
-`am_kg_add(tool-multipathreadwrite, released, vX.Y.Z@<sha>)` and a diary line.
+`am_kg_add(tool-multipathreadwrite.releases, released, vX.Y.Z@<sha>)` and a diary line — on the
+`.releases` child, not the bare `tool-multipathreadwrite` node, which was split on 2026-09-28 after
+release edges pushed it past the ~35-edge fan-out a reader can take in one page.
 The centralised `mrw` skill mirrors AGENTS.md: if the release changed what
 AGENTS.md teaches, `am_update_skill("mrw")` with the provenance pin moved to
 this tag — a skill one release behind teaches a plan the binary now rejects
-(v8 was two behind).
+(v8 was two behind). The body is ~40 KB: upload it from a file, `aiagentmemory mcp update_skill
+mrw.md --write`, with `name` and `description` in the frontmatter — not `-a description=…`, which
+splits at the first comma, and with no `'` in the description, whose escape is stored literally.
 
 ## What went wrong before, so it does not again
 
