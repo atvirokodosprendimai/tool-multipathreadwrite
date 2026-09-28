@@ -2111,31 +2111,23 @@ PY
 [ $? -eq 0 ] && ok "and both tools say when to reach for them, publish a worked example, and teach the body-less create refusal" \
              || bad "the tool descriptions still say only what the tools do"
 
-# THE ROW: the published plan is one the SHIPPED BINARY accepts. An example
-# asserted to be present stays green long after it stops being valid, and it is
-# the one thing a caller copies verbatim.
-python3 - "$out" > "$WORK/published.plan" <<'PY'
+# THE ROW: the published examples run on the tree they are written against. An
+# example asserted to be present stays green long after it stops being valid,
+# and it is the one thing a caller copies verbatim. ADR-090: the tree is the
+# hand-written one in the checkout, not one built from the plan — a tree built
+# from a plan cannot fail that plan's own anchor, and a spec list checked only
+# for its shape shipped a regexp that matched no Go ever written.
+python3 - "$out" "$WORK/published.plan" "$WORK/published.specs" <<'PY'
 import json,sys
 tools={t["name"]: t for t in json.loads(sys.argv[1])["result"]["tools"]}
-sys.stdout.write(tools["mrw_write"]["inputSchema"]["properties"]["plan"]["examples"][0])
+with open(sys.argv[2],"w") as f:
+    f.write(tools["mrw_write"]["inputSchema"]["properties"]["plan"]["examples"][0])
+with open(sys.argv[3],"w") as f:
+    f.write("\n".join(tools["mrw_read"]["inputSchema"]["properties"]["specs"]["examples"][0])+"\n")
 PY
-python3 - "$WORK/published.plan" "$R" <<'PY'
-import os,re,sys
-# Build the tree the published plan addresses, planting each anchor on the line
-# it guards, so the dry run judges the plan and not the fixture.
-plan=open(sys.argv[1]).read(); root=sys.argv[2]
-last={}; anchors={}
-for h in re.finditer(r'^@@ (\S+) (\d+)(?:-(\d+))? (\S+)(.*)$', plan, re.M):
-    p,a,b,op,rest=h.group(1),int(h.group(2)),h.group(3),h.group(4),h.group(5)
-    hi=int(b) if b else a
-    last[p]=max(last.get(p,0),hi)
-    m=re.search(r'anchor="([^"]*)"',rest)
-    if m: anchors.setdefault(p,{})[a]=m.group(1)
-for p,n in last.items():
-    full=os.path.join(root,p); os.makedirs(os.path.dirname(full),exist_ok=True)
-    with open(full,'w') as f:
-        for i in range(1,n+1): f.write(anchors.get(p,{}).get(i,"line %d"%i)+"\n")
-PY
+cp -R "$SRC/internal/mcp/testdata/example/." "$R/"
+m read --files-from "$WORK/published.specs" >/dev/null 2>&1
+want 0 $? "the read example mrw publishes serves every spec on the tree it is written against"
 paths=$(python3 -c "
 import re,sys
 print(' '.join(sorted({m.group(1) for m in re.finditer(r'^@@ (\S+) ', open('$WORK/published.plan').read(), re.M)})))
@@ -2154,6 +2146,23 @@ want 0 "$rc" "and the plan mrw publishes to a host is one mrw itself accepts"
 grep -qiE '^(fail|skip)' <<<"$out" \
   && bad "a hunk of the published example failed: $out" \
   || ok "and every hunk of the published example passes"
+# The pair: the same plan with its pattern changed to one the tree does not
+# hold is refused, so the pass above is the pattern resolving, not a pattern
+# nothing checks.
+python3 - "$WORK/published.plan" "$WORK/unmatched.plan" <<'PY'
+import re,sys
+plan=open(sys.argv[1]).read()
+bad,n=re.subn(r'^(@@ \S+ )/[^/]+/( )', r'\1/^no such line in the example tree$/\2', plan, flags=re.M)
+assert n==1, "the published plan carries %d pattern-addressed hunk(s), want exactly one" % n
+open(sys.argv[2],"w").write(bad)
+PY
+want 0 $? "the published plan addresses one hunk by pattern"
+out=$(m write --dry-run "$WORK/unmatched.plan" 2>&1)
+want 1 $? "and the same plan with a pattern that matches nothing is refused"
+# Exit 1 is shared by every refused hunk, so the reason is asserted too (Codex on #261).
+grep -q 'matched no line' <<<"$out" \
+  && ok "and the refusal says the pattern matched no line" \
+  || bad "the unmatched-pattern plan was refused for another reason: $out"
 
 # 44. ADR-012 T2: the machine-readable half of the contract says what it means.
 #
@@ -2189,6 +2198,8 @@ assert not missing, "undescribed propert(ies): %s" % ", ".join(missing)
 # A walk that never descended would find only the top level and report success.
 assert len(seen) >= 10, "the walk found only %d properties, so it is not descending: %s" % (len(seen), seen)
 assert any(s.startswith("mrw_write:hunks.status") for s in seen), "the walk never reached a hunk verdict"
+# ADR-090: a floor survives the loss of a whole container, so a file's landing is named too.
+assert "mrw_write:files.written" in seen, "the walk never reached a file's written flag"
 PY
 [ $? -eq 0 ] && ok "every property of every declared outputSchema says what it means, at every depth" \
              || bad "the declared output schemas still describe only their types"

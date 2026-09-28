@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -397,20 +398,46 @@ func TestTheStatusDescriptionNamesTheValuesTheEngineSends(t *testing.T) {
 }
 
 // dryRunExample proves one shipped plan against the real engine: parse it,
-// build the tree it addresses, read that tree through mrw_read so the ledger
-// licenses the write, then dry-run it and demand every hunk pass.
+// copy the fixture it addresses, read the files it names through mrw_read so
+// the ledger licenses the write, then dry-run it and demand every hunk pass.
+//
+// The plan is licensed by a whole-file read of each path it names, not by the
+// shipped read example: that example's `$` serves one line, and the two
+// examples are proved independently (ADR-090).
 func dryRunExample(t *testing.T, text string) {
 	t.Helper()
 	hunks, err := plan.Parse(strings.NewReader(text))
 	if err != nil {
 		t.Fatalf("a shipped example does not parse: %v\n%s", err, text)
 	}
-	if len(hunks) == 0 {
-		t.Fatalf("a shipped example parsed to no hunks:\n%s", text)
+	paths := map[string]bool{}
+	for _, h := range hunks {
+		paths[h.Path] = true
 	}
-	root := t.TempDir()
+	// A worked plan is the multi-site case, which is the whole of what a plan
+	// adds over a single edit (ADR-012 follow-up (a)).
+	if len(hunks) < 2 || len(paths) < 2 {
+		t.Fatalf("a shipped example has %d hunk(s) over %d file(s); a worked plan needs at least two of each:\n%s", len(hunks), len(paths), text)
+	}
+	// Both address forms, so a caller copying the one worked plan sees a line
+	// range beside a pattern, and the pattern is proved to resolve (ADR-090).
+	var byLine, byPattern int
+	for _, h := range hunks {
+		if h.Addr.StartPat != nil {
+			byPattern++
+		} else {
+			byLine++
+		}
+	}
+	if byLine == 0 || byPattern == 0 {
+		t.Fatalf("a shipped example addresses %d hunk(s) by line and %d by pattern; a worked plan shows both:\n%s", byLine, byPattern, text)
+	}
+	root := exampleTree(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	specs := treeFor(t, root, hunks)
+	var specs []any
+	for _, p := range slices.Sorted(maps.Keys(paths)) {
+		specs = append(specs, p)
+	}
 	readRes := call(t, root, "mrw_read", map[string]any{"specs": specs})
 	served := served0(t, readRes)
 	acks := checkpointsIn(served)
@@ -419,64 +446,32 @@ func dryRunExample(t *testing.T, text string) {
 	}
 	got := structured(t, call(t, root, "mrw_write", map[string]any{
 		"plan": text, "dry_run": true, "ack": acks}))
-	if n, _ := got["failed"].(float64); n != 0 {
+	// Checked, not asserted: a receipt without the field would otherwise read
+	// as zero failures.
+	n, ok := got["failed"].(float64)
+	if !ok {
+		t.Fatalf("the dry-run receipt carries no numeric failed field: %v", got)
+	}
+	if n != 0 {
 		t.Errorf("the shipped example failed %v hunk(s) on a real dry run: %v", n, got["hunks"])
 	}
 }
 
-// treeFor builds the files a plan addresses, deriving each file's length from
-// the highest line the plan names and planting any `anchor=` guard on the line
-// it guards. The tree comes from the plan so that a plan naming a new path is
-// still exercised, rather than the test quietly skipping what it cannot find.
+// exampleTree copies the hand-written tree the shipped examples address,
+// testdata/example, into a fresh root and returns it.
 //
-// ⚠ WHAT THIS DOES NOT PROVE. The anchor is planted FROM the plan, so an
-// `anchor=` guard here can never fail — measured as a surviving mutant on
-// 2026-09-04, when changing the example's anchor text left this test green.
-// That is the honest limit of an example naming files no repository has: the
-// test proves the plan is grammatical and applies, not that its guard matches
-// real code. The mutants that DO die are the ones that matter for an example a
-// caller copies — an address form the plan grammar rejects, a header that does
-// not parse.
-func treeFor(t *testing.T, root string, hunks []plan.Hunk) []any {
+// ADR-090. The tree used to be built FROM the plan — each file sized to the
+// highest line it named, each anchor planted on the line it guards — so an
+// anchor could not fail and a line could not be out of range: changing the
+// example's anchor text survived as a mutant on 2026-09-04. A tree written by
+// hand is one the examples have to match, the way a caller's checkout is.
+func exampleTree(t *testing.T) string {
 	t.Helper()
-	last := map[string]int{}
-	anchors := map[string]map[int]string{}
-	for _, h := range hunks {
-		if h.Op == plan.OpCreate {
-			continue
-		}
-		for _, n := range []int{h.Addr.Start, h.Addr.End} {
-			if n > last[h.Path] {
-				last[h.Path] = n
-			}
-		}
-		if h.Anchor != "" {
-			if anchors[h.Path] == nil {
-				anchors[h.Path] = map[int]string{}
-			}
-			anchors[h.Path][h.Addr.Start] = h.Anchor
-		}
+	root := t.TempDir()
+	if err := os.CopyFS(root, os.DirFS(filepath.Join("testdata", "example"))); err != nil {
+		t.Fatalf("copying the example tree: %v", err)
 	}
-	var specs []any
-	for p, n := range last {
-		body := make([]string, max(n, 1))
-		for i := range body {
-			if a, ok := anchors[p][i+1]; ok {
-				body[i] = a
-			} else {
-				body[i] = fmt.Sprintf("line %d", i+1)
-			}
-		}
-		full := filepath.Join(root, filepath.FromSlash(p))
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(full, []byte(strings.Join(body, "\n")+"\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		specs = append(specs, p)
-	}
-	return specs
+	return root
 }
 
 // TestEveryOutputSchemaPropertyIsDescribed holds the machine-readable half of

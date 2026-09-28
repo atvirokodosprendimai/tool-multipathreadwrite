@@ -217,7 +217,9 @@ func jsonInner(s string) string {
 // whose worked plan gained " body=4": the diff was that token and nothing else, and once by
 // ADR-075, whose routing stopped selling serialized writes: the diff was that sentence and the two
 // tool descriptions' matching clause; and once by ADR-076, whose receipt gained `target` and
-// `dirs_created` and whose `hunks.path` stopped claiming to be "as written": the schema, nothing else.
+// `dirs_created` and whose `hunks.path` stopped claiming to be "as written": the schema, nothing else;
+// and once by ADR-090, whose worked plan's second hunk became `/^import \($/` and whose read
+// example escaped `\(s \*Store\)`: those two addresses, in the instructions and in tools/list.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
 	got := legacyTranscript(t)
 	golden := filepath.Join("testdata", "legacy_golden.jsonl")

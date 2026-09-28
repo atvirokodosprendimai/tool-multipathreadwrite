@@ -27,22 +27,26 @@ import (
 // 3+ threshold.
 const triggerRule = "Use mrw always: plan the activity as one read of every site, then one plan, then one write."
 
-// examplePlan is a worked plan: two hunks, two files, one guard. Two rather
-// than one so the example is a plan, not a single hunk.
+// examplePlan is a worked plan: two hunks, two files, one guard, and both
+// address forms — a line range and a pattern. It is proved on the
+// hand-written tree in testdata/example (ADR-090), so its anchor, its range
+// and its pattern have to match real code rather than a tree built from them.
 const examplePlan = `@@ internal/store/store.go 42-44 replace anchor="func (s *Store) Get" body=4
 func (s *Store) Get(id string) (Row, bool) {
 	r, ok := s.rows[id]
 	return r, ok
 }
-@@ cmd/app/main.go 12 insert-after
+@@ cmd/app/main.go /^import \($/ insert-after
 	"example.com/app/internal/store"
 `
 
 // exampleReadSpecs shows the three address forms in one call: a line range, a
-// regexp that finds its own line, and $ for the last line.
+// regexp that finds its own line, and $ for the last line. The receiver's
+// parentheses are escaped: unescaped they are a regexp group, and the spec
+// matched no Go ever written — shipped that way until ADR-090 ran it.
 var exampleReadSpecs = []string{
 	"internal/store/store.go:40-60",
-	`internal/store/store.go:/^func (s \*Store) Put/`,
+	`internal/store/store.go:/^func \(s \*Store\) Put/`,
 	"cmd/app/main.go:$",
 }
 
