@@ -137,12 +137,14 @@ the `tools/call` routing and §38 must go red.
 - 2026-09-28 · 86c576d* · mutant killed · exit 1 · `internal/mcp/tools.go` · the MCP receipt stops carrying the engine result the CLI reports · acceptance-sha256:d425240fd07a542d44e74114d4f395d158c62b38624ef73798e40e7f40ae57d6 · covers:the identical apply.Result
 
 **The in-process gate is left unbound, on purpose (2026-09-28, C3).** Removing `gate.Lock()` around a
-tool call SURVIVES this fence: `TestConcurrentToolCallsDoNotLoseALedgerEntry` stays green because
-ADR-038 (#154) made the ledger write one writer across processes, so the file lock under
-`seen.Record` does the job the gate did. The name stays in Rests-on so the lint keeps saying nothing
+tool call SURVIVES this fence. `TestConcurrentToolCallsDoNotLoseALedgerEntry`'s concurrent reads never
+write the ledger: each only files its served spans as pending through `hold`, which changes the
+pending store under ADR-085's cross-process lock (`ack.go:300`, `state.Hold(root, pendingLock)`),
+and the test then promotes every checkpoint in one sequential call. So the store's own lock does the
+gate's job for what this test observes. The name stays in Rests-on so the lint keeps saying nothing
 kills it; a mutant chosen only to satisfy that counter is the failure this pipeline refuses. The gate
 still serializes `callModern`/`callReserve`, which only `go test -race` could catch, and the fence
-does not run it.
+does not run it. (Corrected on review of #263, which found the first draft named ADR-038's ledger lock.)
 
 ## Invariants
 

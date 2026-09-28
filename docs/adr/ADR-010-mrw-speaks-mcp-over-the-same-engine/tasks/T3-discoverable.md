@@ -73,12 +73,13 @@ with strings this task must write: the config block's `"command": "mrw"`, and th
 unless S3 actually qualified the paragraph, rather than leaving a limitation stated more broadly
 than it holds.
 
-**Re-fenced 2026-09-28 (C3).** The `through the server` and `CLI path` clauses matched nothing after
-#169 (`f5ac1ca`) rewrote the README as one page, so the fence could not pass. The qualifier they held
-had stopped being true a release earlier: ADR-038 (#154, `0cde50b`) made a ledger write one writer
-across processes, so the CLI path no longer carries the limitation S3 qualified. Both clauses, and
-`the statement that the CLI path is unchanged` in Rests-on, are dropped rather than pointed at new
-prose; what remains is the part a caller copies — the config block — and §39, which drives the binary.
+**Re-fenced 2026-09-28 (C3).** The `through the server` and `CLI path` clauses matched nothing, so the
+fence could not pass — and they stopped matching in two steps: `CLI path` left the README with
+ADR-038 (#154, `0cde50b`), which made a ledger write one writer across processes and so retired the
+per-transport qualifier S3 had added; `through the server` left with the one-page rewrite (#169,
+`f5ac1ca`). Both clauses, and `the statement that the CLI path is unchanged` in Rests-on, are dropped
+rather than pointed at new prose; what remains is the part a caller copies — the config block — and
+§39, which drives the binary.
 
 ## Tests
 
