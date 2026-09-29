@@ -173,9 +173,9 @@ did not run.
 ## Campaign identity
 
 A break campaign of **57 probes** (`scripts/break-campaign.sh`) found no silent
-wrong write, and every refusal names its reason. Run 2026-09-26 against v1.27.1
-(`6d35d58`): exit codes **identical** to `docs/break/campaign-v1.27.0.txt` and to
-v1.26.0, probe for probe; `docs/break/campaign-v1.27.1.txt` is the receipt. Histogram:
+wrong write, and every refusal names its reason. Run 2026-09-29 against v1.31.0
+(`2ea8bd5`): exit codes **identical** to `docs/break/campaign-v1.30.0.txt`, probe
+for probe; `docs/break/campaign-v1.31.0.txt` is the receipt. Histogram:
 exit=0 ×30, exit=1 ×19, exit=2 ×8.
 
 That identity is evidence of no *unintended* change, not that the campaign
