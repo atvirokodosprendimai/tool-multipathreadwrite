@@ -61,7 +61,7 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}}
 	for _, p := range paths {
-		w.consider(p, true)
+		w.consider(p)
 	}
 	sort.Slice(w.specs, func(i, j int) bool { return w.specs[i].Path < w.specs[j].Path })
 	return w.specs, w.problems, nil
@@ -76,10 +76,38 @@ type walker struct {
 	problems []Problem
 }
 
-// consider handles one path. named says the CALLER wrote it, which is the whole
-// difference between silence and a Problem: something found by walking was not
-// asked for, and something named was.
-func (w *walker) consider(p string, named bool) {
+// consider handles one path the caller named: judgeNamed decides what it is,
+// and consider serves a file or walks a directory. Something found by walking
+// was not asked for and is skipped in silence; something named is reported.
+func (w *walker) consider(p string) {
+	n, prob := judgeNamed(w.root, w.absRoot, p)
+	if prob != nil {
+		w.problems = append(w.problems, *prob)
+		return
+	}
+	if n.dir {
+		w.walkDir(n.rel, n.full)
+		return
+	}
+	w.offer(n.rel, n.full)
+}
+
+// namedPath is a path the caller named that judgeNamed accepted: rel is the
+// root-relative spelling it is served and reported under, full the path to
+// read or the directory to walk from, and dir says which.
+type namedPath struct {
+	rel  string
+	full string
+	dir  bool
+}
+
+// judgeNamed judges one path the caller named, before anything is read: it is
+// refused (the Problem says why), a regular file to serve, or a directory to
+// walk. It is a function of the root and the path alone, so every finder asks
+// it the same question (ADR-096 decision 1). absRoot is the root with its links
+// resolved, as Walk computes it.
+func judgeNamed(root, absRoot, p string) (namedPath, *Problem) {
+	asWritten := p
 	// An ABSOLUTE path is honoured, not joined — the same command-line
 	// convention read.Run already applies (see its argPath block). Without
 	// this, `mrw read --grep P /repo/sub` refused a directory that plain
@@ -89,21 +117,19 @@ func (w *walker) consider(p string, named bool) {
 	//
 	// Found by an independent review, 2026-09-03.
 	if rooted.IsRooted(p) {
-		absRoot, absErr := rooted.Abs(w.root)
+		abs, absErr := rooted.Abs(root)
 		if absErr != nil {
-			w.problems = append(w.problems, Problem{Path: p, Reason: absErr.Error()})
-			return
+			return namedPath{}, &Problem{Path: p, Reason: absErr.Error()}
 		}
 		cleaned := rooted.Real(p)
-		if !rooted.Contains(absRoot, cleaned) {
+		if !rooted.Contains(abs, cleaned) {
 			// Named, so it is reported rather than skipped: rule 5.
-			w.problems = append(w.problems, Problem{
+			return namedPath{}, &Problem{
 				Path:   p,
-				Reason: "is outside the root " + absRoot + ": walk it with --root pointed where you mean",
-			})
-			return
+				Reason: "is outside the root " + abs + ": walk it with --root pointed where you mean",
+			}
 		}
-		if rel, relErr := filepath.Rel(absRoot, cleaned); relErr == nil {
+		if rel, relErr := filepath.Rel(abs, cleaned); relErr == nil {
 			// ADR-076: Real cleaned the separator away; it is kept, so the
 			// spelling is judged below as the caller wrote it (Codex review
 			// of #237).
@@ -113,30 +139,46 @@ func (w *walker) consider(p string, named bool) {
 			p = rel
 		}
 	}
-	full, err := rooted.Resolve(w.root, p)
+	full, err := rooted.Resolve(root, p)
 	if err != nil {
-		w.problems = append(w.problems, Problem{Path: p, Reason: err.Error()})
-		return
+		return namedPath{}, &Problem{Path: p, Reason: err.Error()}
 	}
 	fi, err := os.Stat(full)
 	if err != nil {
-		w.problems = append(w.problems, Problem{Path: p, Reason: err.Error()})
-		return
+		return namedPath{}, &Problem{Path: p, Reason: err.Error()}
 	}
 	if fi.IsDir() {
-		w.walkDir(p, full)
-		return
+		// ADR-096 decision 3: a path that resolves to the root IS the root,
+		// walked from its resolved path. Walked from a link's own path,
+		// WalkDir would Lstat its start, see no directory, and drop it.
+		realRoot := rooted.Real(absRoot)
+		target := rooted.Real(full)
+		if target == realRoot {
+			return namedPath{rel: p, full: absRoot, dir: true}, nil
+		}
+		// ADR-096 decision 2: the walk follows no link to a directory, so
+		// one the caller names is refused with the directory to name. full
+		// is joined and cleaned, so `dlink/` and `dlink/.` are asked about
+		// the link itself. IsDir rather than ModeSymlink, so a Windows
+		// junction (ModeIrregular since Go 1.23, ADR-071) meets the same
+		// test. An absolute spelling was resolved by Real above and names
+		// the directory itself here, so it is walked, as v1.31.0 walks it.
+		if lfi, err := os.Lstat(full); err == nil && !lfi.IsDir() {
+			t := target
+			if rel, relErr := filepath.Rel(realRoot, target); relErr == nil {
+				t = filepath.ToSlash(rel)
+			}
+			return namedPath{}, &Problem{
+				Path:   asWritten,
+				Reason: "is a link to the directory " + t + ", and a walk does not follow a link: name " + t,
+			}
+		}
+		return namedPath{rel: p, full: full, dir: true}, nil
 	}
 	if !fi.Mode().IsRegular() {
-		if named {
-			w.problems = append(w.problems, Problem{
-				Path:   p,
-				Reason: lines.NotRegular,
-			})
-		}
-		return
+		return namedPath{}, &Problem{Path: p, Reason: lines.NotRegular}
 	}
-	w.offer(p, full)
+	return namedPath{rel: p, full: full}, nil
 }
 
 // walkDir descends. A symlinked directory is never entered, and the walk does

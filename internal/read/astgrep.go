@@ -72,11 +72,45 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	if real, err := filepath.EvalSymlinks(absRoot); err == nil {
 		absRoot = real
 	}
+	// ADR-096 decision 4: every named path is judged as the walk judges it,
+	// and opened, before the binary starts. A refused one is a Problem and
+	// never reaches ast-grep, so a path outside the root is not searched. What
+	// reaches it is the path mrw judged — absolute and cleaned, or "." for the
+	// root — so no ".." after a link and no leading "-" makes ast-grep read
+	// another file or take the path for an option. With paths named and none
+	// accepted, ast-grep is not started: its "." fallback is for a caller who
+	// named nothing.
+	var problems []Problem
+	var accepted []string
+	for _, p := range paths {
+		n, prob := judgeNamed(root, absRoot, p)
+		if prob == nil {
+			// ast-grep's own failure to read a path can come back as no
+			// hits, where the walk reports it; mrw asks first.
+			if f, err := os.Open(n.full); err != nil {
+				prob = &Problem{Path: n.rel, Reason: err.Error()}
+			} else {
+				_ = f.Close() // opened to learn it can be; nothing was read
+			}
+		}
+		if prob != nil {
+			problems = append(problems, *prob)
+			continue
+		}
+		if n.dir && n.full == absRoot {
+			accepted = append(accepted, ".")
+		} else {
+			accepted = append(accepted, n.full)
+		}
+	}
 	args := []string{"-p", pattern, "--json"}
-	if len(paths) == 0 {
+	switch {
+	case len(paths) == 0:
 		args = append(args, ".")
-	} else {
-		args = append(args, paths...)
+	case len(accepted) == 0:
+		return nil, problems, nil
+	default:
+		args = append(args, accepted...)
 	}
 	// ADR-074: through subproc, so the 2 s bound kills a wrapper's grandchild
 	// too and does not wait on a pipe the grandchild still holds. ast-grep's
@@ -109,8 +143,7 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	}
 	grouped := map[string][]Range{}
 	order := []string{}
-	var problems []Problem
-	named, starts := astGrepStarts(absRoot, paths)
+	named, starts := astGrepStarts(absRoot, accepted)
 	crOnly := map[string]bool{}
 	for _, h := range hits {
 		rel, ok := astGrepRel(absRoot, h.name())

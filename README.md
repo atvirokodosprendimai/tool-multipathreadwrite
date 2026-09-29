@@ -62,6 +62,9 @@ paths the walk starts at `--root`. `--exclude GLOB` is repeatable and matches
 both the root-relative path and the basename — that is what makes `'*_test.go'`
 work at any depth. It does not read `.gitignore` and does not sniff for binary
 files. A `.git/` the walk meets is skipped; one you name is walked.
+A link to a directory is not followed: one the walk meets is skipped, one you name is refused with
+the directory to name instead — unless you spell it as an absolute path, which names the directory
+it leads to — and one that leads to the root is walked as the root.
 
 `--files-from FILE|-` is the same idea for a searcher you already trust:
 

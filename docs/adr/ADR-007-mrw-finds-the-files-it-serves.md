@@ -126,6 +126,12 @@ either. A discovered one is dropped by rule 3's boundary, which refuses it; a na
 with a reason. The skip is not a directory rule, so a state directory under the root costs a walk
 into it and serves nothing from it.
 
+**Amended by ADR-096** (2026-09-29): rule 2's named clause now holds for a link to a directory. One
+the caller names relative to the root (`dlink`, `dlink/`, `dlink/.`) is refused by name, with the
+directory to name instead; it was dropped in silence. Spelled absolutely it names the directory it
+resolves to, which is walked, as v1.31.0 walks it. One that resolves to the root names the root.
+Rule 3 is unchanged: the walk descends no link to a directory.
+
 ### Go/no-go: what makes this the wrong decision
 
 Rule counting is not falsifiable, so this is stated as conditions checked during

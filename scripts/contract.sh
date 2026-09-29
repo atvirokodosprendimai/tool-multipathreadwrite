@@ -7546,6 +7546,87 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"m
 jq -e '(.result.isError | not) and (.result.content[0].text | contains("1| one"))' "$WORK/r176.json" > /dev/null \
   && ok "and a call with declared arguments is still served" || bad "the declared read: $(head -c 400 "$WORK/r176.json")"
 
+# 184. ADR-096: a path the caller names is never dropped by a finder. A named
+# in-root link to a directory, spelled relative to the root, answered "no file
+# matched" with no line about it (the 2026-09-29 gap survey, loops-L10); it is
+# refused naming the directory to name. The pair: spelled absolutely the same
+# link still walks the directory it resolves to, as v1.31.0 does (M's choice at
+# acceptance), a path through the link is walked, and a relative link to the
+# root walks the root.
+fixture
+mkdir -p "$R/d/sub"; printf 'N184\n' > "$R/d/f.go"; printf 'N184\n' > "$R/d/sub/g.go"
+ln -s d "$R/dlink"; ln -s . "$R/self"
+for sp in dlink dlink/ dlink/.; do
+  m read --grep N184 "$sp" > "$WORK/o184" 2>&1; want 1 $? "--grep over a named $sp exits 1"
+  grep -qF "==> $sp  REFUSED  is a link to the directory d, and a walk does not follow a link: name d" "$WORK/o184" \
+    && ok "and its REFUSED line names $sp and the directory d" || bad "$sp: $(head -c 300 "$WORK/o184")"
+done
+m read --grep N184 d dlink > "$WORK/o184b" 2>&1; want 1 $? "--grep over d and dlink exits 1"
+{ grep -q '^==> d/f.go' "$WORK/o184b" && grep -q '^==> dlink  REFUSED' "$WORK/o184b"; } \
+  && ok "serving d/f.go beside dlink's REFUSED line" || bad "d dlink: $(head -c 300 "$WORK/o184b")"
+m read --grep N184 "$R/dlink" > "$WORK/o184c" 2>&1; want 0 $? "the pair: --grep over the absolute \$R/dlink exits 0"
+{ grep -q '^==> d/f.go' "$WORK/o184c" && ! grep -q 'REFUSED' "$WORK/o184c"; } \
+  && ok "and walks d under its own names, as v1.31.0 does" || bad "\$R/dlink: $(head -c 300 "$WORK/o184c")"
+m read --grep N184 d dlink/sub > "$WORK/o184d" 2>&1; want 0 $? "--grep over d and dlink/sub exits 0"
+{ grep -q '^==> d/f.go' "$WORK/o184d" && grep -q '^==> dlink/sub/g.go' "$WORK/o184d"; } \
+  && ok "serving d/f.go and dlink/sub/g.go" || bad "d dlink/sub: $(head -c 300 "$WORK/o184d")"
+m read --grep N184 self > "$WORK/o184e" 2>&1; want 0 $? "--grep over a relative link to . exits 0"
+{ grep -q '^==> d/f.go' "$WORK/o184e" && grep -q '^==> d/sub/g.go' "$WORK/o184e"; } \
+  && ok "and walks the root" || bad "self: $(head -c 300 "$WORK/o184e")"
+# §184, ast-grep (ADR-096 T2): --ast-grep judges every named path as --grep does
+# before the binary starts. A refused path never reaches it, so a path outside
+# the root is not searched; an accepted one reaches it as the absolute path mrw
+# judged. The fake records its arguments in argv184, which exists only if it ran.
+d184=$(mktemp -d)
+cat > "$d184/ast-grep" <<EOF184
+#!/bin/sh
+for a in "\$@"; do printf '%s\n' "\$a" >> "$d184/argv184"; done
+printf '%s' '[{"file":"d/f.go","range":{"start":{"line":0},"end":{"line":0}}}]'
+EOF184
+chmod +x "$d184/ast-grep"
+RP=$(cd "$R" && pwd -P)
+mkdir -p "$WORK/out184"; printf 'N184\n' > "$WORK/out184/x.go"
+bounded 10 "$WORK/a184" env PATH="$d184:$PATH" "$MRW" -C "$R" read --ast-grep N184 "$WORK/out184"; want 1 $? "--ast-grep over a path outside the root exits 1"
+{ grep -q 'REFUSED.*outside the root' "$WORK/a184" && [ ! -e "$d184/argv184" ]; } \
+  && ok "with a REFUSED line, and ast-grep never ran" || bad "outside: $(head -c 300 "$WORK/a184")"
+bounded 10 "$WORK/a184b" env PATH="$d184:$PATH" "$MRW" -C "$R" read --ast-grep N184 dlink; want 1 $? "--ast-grep over a named dlink exits 1"
+{ grep -q '^==> dlink  REFUSED.*name d$' "$WORK/a184b" && [ ! -e "$d184/argv184" ]; } \
+  && ok "naming the directory d, and ast-grep never ran" || bad "dlink: $(head -c 300 "$WORK/a184b")"
+printf 'N184\n' > "$R/locked184.go"; chmod 000 "$R/locked184.go"
+if [ -r "$R/locked184.go" ]; then
+  skip "--ast-grep refuses a named file it cannot open (permission bits not enforced here — running as root?)"
+else
+  bounded 10 "$WORK/a184c" env PATH="$d184:$PATH" "$MRW" -C "$R" read --ast-grep N184 a.go locked184.go; want 1 $? "--ast-grep over a.go and a mode-000 file exits 1"
+  { grep -q '^==> locked184.go  REFUSED.*permission denied' "$WORK/a184c" && ! grep -q 'locked184' "$d184/argv184"; } \
+    && ok "refusing the file with the OS's error, which never reaches ast-grep" || bad "mode 000: $(head -c 300 "$WORK/a184c")"
+fi
+chmod 644 "$R/locked184.go"; rm -f "$d184/argv184"
+bounded 10 "$WORK/a184d" env PATH="$d184:$PATH" "$MRW" -C "$R" read --ast-grep N184 d; want 0 $? "the pair: --ast-grep over d exits 0"
+{ grep -q '^==> d/f.go' "$WORK/a184d" && grep -qxF "$RP/d" "$d184/argv184"; } \
+  && ok "serving the hit, and ast-grep was handed d's absolute path" || bad "d: $(head -c 300 "$WORK/a184d") argv: $(cat "$d184/argv184" 2>/dev/null)"
+printf 'N184\n' > "$R/-p"; rm -f "$d184/argv184"
+bounded 10 "$WORK/a184e" env PATH="$d184:$PATH" "$MRW" -C "$R" read --ast-grep N184 -- -p; want 0 $? "--ast-grep over a named file -p exits 0"
+[ "$(tail -1 "$d184/argv184")" = "$RP/-p" ] && ok "and ast-grep was handed it as an absolute path, not as an option" \
+  || bad "-p: argv $(tr '\n' ' ' < "$d184/argv184" 2>/dev/null)"
+printf 'N184\n' > "$R/f.go"; rm -f "$d184/argv184"
+bounded 10 "$WORK/a184f" env PATH="$d184:$PATH" "$MRW" -C "$R" read --ast-grep N184 self/../f.go; want 0 $? "--ast-grep over self/../f.go exits 0"
+{ grep -qxF "$RP/f.go" "$d184/argv184" && ! grep -qF 'self/../f.go' "$d184/argv184"; } \
+  && ok "and ast-grep was handed the root's f.go as mrw judged it, not the spelling" || bad "self/../f.go: argv $(tr '\n' ' ' < "$d184/argv184" 2>/dev/null)"
+
+# 185. ADR-096 T3: `iter add` names the error the OS gave for a path it cannot
+# stat. A link loop answered "no such file … (quote a spec containing spaces)",
+# a hint about word splitting (the 2026-09-29 gap survey). The pair: a path
+# that is not there keeps that sentence, and a reachable one is added.
+fixture
+ln -s loop185 "$R/loop185"
+m iter add loop185 > "$WORK/o185" 2>&1; want 2 $? "iter add over a link loop exits 2"
+{ grep -q 'too many levels of symbolic links' "$WORK/o185" && ! grep -q 'no such file' "$WORK/o185"; } \
+  && ok "naming the loop, not \"no such file\"" || bad "loop: $(head -c 300 "$WORK/o185")"
+m iter add nosuch185 > "$WORK/o185b" 2>&1; want 2 $? "the pair: iter add over a missing path exits 2"
+grep -q 'no such file: nosuch185' "$WORK/o185b" && ok "and keeps the missing-file sentence" || bad "nosuch: $(head -c 300 "$WORK/o185b")"
+m iter add a.go > "$WORK/o185c" 2>&1; want 0 $? "iter add a.go exits 0"
+grep -q '^@1 *a.go$' "$WORK/o185c" && ok "and lists a.go" || bad "a.go: $(head -c 300 "$WORK/o185c")"
+
 # 186. ADR-092 Decision 5: a write that landed and then could not save its
 # ledger still names every step it asked for, not_run, in both receipts; it
 # dropped them (the 2026-09-29 gap survey, C3). The tally stays ADR-083's: a
