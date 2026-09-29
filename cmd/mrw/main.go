@@ -1815,7 +1815,7 @@ ranges, and "mrw check" runs the project's check scoped to these files.`,
 					// did not exist, so those were refused as "no such file": the
 					// right answer for the wrong reason, which is why the two
 					// spellings disagreed.
-					var missing, refused []string
+					var missing, refused, unstatable []string
 					for _, a := range args {
 						full, err := rooted.Resolve(root, iter.Path(a))
 						if err != nil {
@@ -1826,12 +1826,23 @@ ranges, and "mrw check" runs the project's check scoped to these files.`,
 							continue
 						}
 						if _, err := os.Stat(full); err != nil {
-							missing = append(missing, a)
+							// ADR-096: only a path that is not there is "no
+							// such file"; its hint is about word splitting. A
+							// link loop or a denied directory is the OS's own
+							// sentence, which names the path.
+							if errors.Is(err, os.ErrNotExist) {
+								missing = append(missing, a)
+							} else {
+								unstatable = append(unstatable, err.Error())
+							}
 						}
 					}
 					if len(refused) > 0 {
 						return cli.Exit(fmt.Sprintf("%s — the working set feeds `mrw read` and `mrw check`, which "+
 							"refuse such a path, so an entry like this could never be served", strings.Join(refused, "; ")), exitUsage)
+					}
+					if len(unstatable) > 0 {
+						return cli.Exit(strings.Join(unstatable, "; "), exitUsage)
 					}
 					if len(missing) > 0 {
 						return cli.Exit(fmt.Sprintf("no such file: %s (quote a spec containing spaces)",

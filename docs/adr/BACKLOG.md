@@ -2324,3 +2324,16 @@ at the boundary, and a discovered one is dropped.
   Out of Scope). Nobody has captured a host's wire for a call carrying an undeclared key, Claude Code
   included. Arm by capturing one; a host that adds keys of its own to `arguments` is ADR-093 T1's
   Stop Condition.
+
+## From ADR-096 (a path the caller names is never dropped by a finder)
+
+- **Real ast-grep on an accepted named path** (ADR-096 Out of Scope). What the real binary does with an
+  accepted path through a directory link (`dlink/sub`) and with an absolute operand is exercised only
+  by the fakes here: ast-grep was not installed where the record was drafted. Arm on the first run
+  against a real ast-grep, or a report that a hit's name did not map.
+- **A named Windows junction as a walk start** (ADR-096 Out of Scope). The refusal asks `Lstat`'s
+  `IsDir`, which a junction answers false (ADR-071), so it is caught by construction; no Windows runner
+  exercises it. Arm with the next Windows-only record that touches the walk.
+- **`mrw check PATH` dropping a path it cannot place** (the 2026-09-29 gap survey, item C8; ADR-096
+  Out of Scope). It maps paths to packages rather than finding files, so it is a separate record. Arm
+  when that record is drafted.

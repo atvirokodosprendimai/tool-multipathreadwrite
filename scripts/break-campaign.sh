@@ -43,6 +43,8 @@ fresh; printf 'in\n' > real.txt; ln -s real.txt link.txt; t "$MRW" read link.txt
 plan '@@ link.txt 1 replace\nVIA-LINK\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "symlink-inside-write" $? "real=$(cat real.txt) islink=$([ -L link.txt ] && echo yes || echo no) | $out"
 fresh; mkdir sub; ln -s "$W/outside" sub/esc; out=$(t "$MRW" read --grep secret sub/ 2>&1); say "grep-walk-symlink-dir-outside" $? "$out"
 fresh; ln -s . loop; printf 'needle\n' > n.txt; out=$(t "$MRW" read --grep needle . 2>&1); say "grep-walk-symlink-loop" $? "$(echo "$out" | grep -c needle) matches, $(echo "$out" | tail -1 | cut -c1-60)"
+fresh; mkdir d; printf 'needle\n' > d/f.txt; ln -s d dlink; out=$(t "$MRW" read --grep needle dlink 2>&1); say "grep-named-dir-link" $? "$out"
+fresh; mkdir -p "$W/outside" "$W/fakeag"; printf 'needle\n' > "$W/outside/o.go"; printf '#!/bin/sh\nprintf "[]"\n' > "$W/fakeag/ast-grep"; chmod +x "$W/fakeag/ast-grep"; out=$(t env PATH="$W/fakeag:$PATH" "$MRW" read --ast-grep needle "$W/outside" 2>&1); say "astgrep-named-outside" $? "$out"
 
 # ---------- 4. a FIFO and an unreadable dir in a walked tree ----------
 fresh; printf 'needle\n' > a.txt; mkfifo pipe; out=$(t "$MRW" read --grep needle . 2>&1); say "grep-walk-fifo" $? "$out"

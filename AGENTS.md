@@ -173,10 +173,16 @@ no file is reported by name and exits 1. A bare directory name (`--exclude vendo
 met below where the walk starts prunes that whole subtree: the walk never enters it.
 A path you name is walked even if it matches, and `--ast-grep` runs the binary over
 the named paths and drops excluded hits afterwards, so it does not save that traversal.
+A path named to `--ast-grep` is judged as `--grep` judges it before the binary runs: one mrw refuses
+is a REFUSED line and never reaches the binary, and one it accepts reaches the binary as the absolute
+path mrw judged (`.` for the root).
 
 It does **not** read `.gitignore` and does not sniff for binary files: a regular
 file is a candidate, so exclude build artifacts by name (`--exclude bin`).
 A `.git/` the walk meets is skipped; one you name (`--grep X .git`) is walked.
+A link to a directory is not followed: one the walk meets is skipped, one you name is refused with
+the directory to name instead — unless you spell it as an absolute path, which names the directory
+it leads to — and one that leads to the root is walked as the root.
 
 **`--files-from` is the same idea for a searcher you already trust:**
 
