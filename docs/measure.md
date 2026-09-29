@@ -41,31 +41,31 @@ The six-guarantee grid against git apply, Codex apply_patch, and Claude Edit is 
 
 ## Shapes A–D
 
-Measured on this tree at **`adb1b5d`** (2026-09-26, the v1.27.1 code plus docs: `measure.sh`
+Measured on this tree at **`9cf28ee`** (2026-09-29, `main` after ADR-092: `measure.sh`
 built its own binary from the tree). Round trips are still **2 calls for any N.**
-Bytes moved because the tree grew. Shape D is **207** Go files, not 132 (the
-v1.24.0 reading of 2026-09-24).
+Bytes moved because the tree grew. Shape D is **244** Go files, not 207 (the
+`adb1b5d` reading of 2026-09-26).
 
 | shape | | baseline | mrw | |
 |---|---|---|---|---|
-| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 232,203 | 4,159 | **55.8× less** |
-| | bytes vs a **windowed** `offset`/`limit` read | 3,008 | 4,159 | **1.4× MORE** |
+| **A.** 4 sites, 4 large files | bytes vs reading those files **whole** | 254,122 | 4,196 | **60.6× less** |
+| | bytes vs a **windowed** `offset`/`limit` read | 3,044 | 4,196 | **1.4× MORE** |
 | | calls, whole-file (reads + edits) | 8 | 2 | 4.0× fewer |
 | | calls, windowed (search + reads + edits) | 9 | 2 | **4.5× fewer** |
-| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 25,143 | 904 | 27.8× less |
+| **B.** 2 sites, 2 mid-sized files | bytes vs whole | 25,194 | 904 | 27.9× less |
 | | bytes vs windowed | 470 | 904 | 1.9× MORE |
 | | calls | 4 / 5 | 2 | 2.0–2.5× fewer |
-| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 15,990 | 19,406 | **1.2× MORE** |
+| **C.** 1 site, whole small file | bytes (window *is* the whole file) | 16,024 | 19,440 | **1.2× MORE** |
 | | calls | 2 / 3 | 2 | same to 1.5× fewer |
-| **D.** 1 site in **every** Go file — 207 sites, 207 files | calls (reads + edits) | 414 | 2 | **207.0× fewer** |
-| | bytes vs whole | 1,783,339 | 18,681 | 95.5× less |
-| | bytes vs windowed | 2,929 | 18,681 | **6.4× MORE** |
+| **D.** 1 site in **every** Go file — 244 sites, 244 files | calls (reads + edits) | 488 | 2 | **244.0× fewer** |
+| | bytes vs whole | 1,910,338 | 21,979 | 86.9× less |
+| | bytes vs windowed | 3,436 | 21,979 | **6.4× MORE** |
 
 **Shape D is the one to read, and read it for the CALLS, not the bytes.** It is
 the change every codebase gets eventually — a renamed symbol, an added build
 tag, a changed import — one site in each Go file. Its `6.4× MORE` is mrw's
-worst possible input by construction: 207 files at ONE line each, so a per-file
-header and a per-file receipt are charged against 2,929 bytes of payload.
+worst possible input by construction: 244 files at ONE line each, so a per-file
+header and a per-file receipt are charged against 3,436 bytes of payload.
 
 **Shape C is in the table on purpose.** When you need a whole file and there is
 one site, mrw prints *more* than the file holds — it adds a header and a line
@@ -103,15 +103,15 @@ adds those bytes to the matching lines, and compares that to
 windowed-only row is still printed so a byte win cannot be quoted against the
 documented Read interface.
 
-Measured in the same run as A–D above (`adb1b5d`, 2026-09-26), on the same 207
+Measured in the same run as A–D above (`9cf28ee`, 2026-09-29), on the same 244
 Go files. `ast-grep` was not on PATH; that arm is skipped, not failed.
 
 | | baseline | mrw | |
 |---|---|---|---|
-| bytes vs whole | 1,783,339 | 18,681 | 95.5× less |
-| bytes vs windowed | 2,929 | 18,681 | **6.4× MORE** |
-| bytes vs rg+windowed | 12,766 | 18,681 | **1.5× MORE** |
-| calls, windowed (search+reads+edits) | 415 | 2 | **207.5× fewer** |
+| bytes vs whole | 1,910,338 | 21,979 | 86.9× less |
+| bytes vs windowed | 3,436 | 21,979 | **6.4× MORE** |
+| bytes vs rg+windowed | 15,019 | 21,979 | **1.5× MORE** |
+| calls, windowed (search+reads+edits) | 489 | 2 | **244.5× fewer** |
 
 Charging the search **does not flip the byte comparison**. The win is still
 turns. Re-run `./scripts/measure.sh` rather than quoting this table after the
@@ -133,6 +133,42 @@ The overhead against a windowed read is **flat at ~13%** — it is the
 line-number gutter, which is what makes a served line addressable by a later
 write. The *saving* is the part of the file you were never going to look at, so
 it collapses as the span approaches the whole file.
+
+## Shape G — edit, then verify (`--then`)
+
+A–F stop at the edit. The turns after it are the verification: the project's
+check, then whatever the agent runs after it. Since ADR-092, `mrw write --then
+NAME` (a step the project declares) and `--then-sh CMD` (an ad-hoc one) put them
+in the write's own call, each with its own verdict. Shape G builds a four-file Go
+module in its scratch directory, declares a check (`gofmt -l`) and two steps
+(`go vet ./...`, a `grep -c`), and does the same edit and verification three
+ways.
+
+Measured 2026-09-29 with the binary built from `9cf28ee`. The fixture does not
+read this tree, so these numbers move only when the receipt's shape does, and by
+a byte or two between runs, since the receipt carries the check's duration.
+
+| | baseline | mrw | |
+|---|---|---|---|
+| calls, separate (4 reads + 4 edits + check + 2 steps) | 11 | 2 | 5.5× fewer |
+| calls, verification as one `&&` chain | 9 | 2 | 4.5× fewer |
+| bytes of verification output, separate | 32 | 512 | **16.0× MORE** |
+| bytes of verification output, `&&` chain | 32 | 512 | **16.0× MORE** |
+| verdicts named | 3 separate / 1 chain | 3 | |
+
+**The `&&` chain is the baseline to read for calls.** It ties mrw on the
+verification, one call each, so the gap it leaves is the edit side: the same
+M + N as A–D. What the chain gives up is the verdict per step. It exits with one
+status and does not say which step stopped it, while the receipt names every step
+it ran and every step it did not.
+
+**Bytes go the other way, and by a lot.** A passing check prints almost nothing.
+The receipt names every hunk, every file written, the check command and each
+step, so its length grows with the plan, not with the verification. The
+baseline's column also leaves out the Edit tool's own replies, a bias against
+mrw, like the raw-bytes Read column in A–D. A failing run was not measured: both
+sides then print the failing command's output, and the receipt adds the steps it
+did not run.
 
 ## Campaign identity
 

@@ -24,12 +24,12 @@
 # same order of magnitude, so this is an INPUT-side and round-trip result, not
 # a total-cost one.
 #
-# SIX shapes are measured, and the ones where mrw LOSES are in on purpose:
+# SEVEN shapes are measured, and the ones where mrw LOSES are in on purpose:
 # a benchmark that shows only the favourable shape is marketing. Shapes A, B and
 # D each carry a losing byte comparison against a windowed read, C loses against
 # both baselines, E shows what the loss actually is once the payload is not
-# a single line, and F charges the search for BYTES (A–D's windowed +1 call
-# carries none).
+# a single line, F charges the search for BYTES (A–D's windowed +1 call
+# carries none), and G's receipt is longer than the verify output it replaces.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -391,6 +391,79 @@ spans() {
   rm -rf "$dir"   # and the EXIT trap covers an abnormal exit before this line
 }
 spans
+
+# Shape G (ADR-092): edit, then VERIFY — the check and two steps, in one call.
+# A–F stop at the edit. The agent's next turns are the verification: the
+# project's check, then whatever it chains after it (vet, a build, a grep). Here
+# that is `--then`: the write, its check and the steps are one call, with a
+# verdict per step.
+#
+# THREE baselines, and the second is the one that keeps the call claim honest:
+#   * separate calls — M reads, N edits, the check, then one call per step;
+#   * one `&&` chain  — the same edits, then ONE shell call for the whole
+#     verification. It ties mrw on verify calls. What it gives up is the
+#     verdict per step: the chain reports one exit status and names no step,
+#     and a step after a failure is indistinguishable from one that passed.
+#   * mrw — one read, one `write --then`.
+# BYTES are the verification output only, and they favour the baselines: the
+# commands print almost nothing on success, while mrw's receipt names every
+# hunk, the check and each step. The Edit tool's own replies are not counted
+# either. That loss is printed, not hidden.
+#
+# The fixture is a tiny Go module in $SCRATCH, so `go vet` is real but cheap,
+# and nothing here touches this repository's tree.
+verify() {
+  local dir i plan="" specs=()
+  dir=$(mktemp -d "$SCRATCH/verify-XXXXXX")
+  printf 'module demo\n\ngo 1.21\n' > "$dir/go.mod"
+  for i in 1 2 3 4; do
+    printf 'package demo\n\n// F%d is one site.\nfunc F%d() int { return %d }\n' "$i" "$i" "$i" > "$dir/f$i.go"
+    specs+=("f$i.go:/^func F$i/")
+    plan+="@@ f$i.go /^func F$i/ replace\nfunc F$i() int { return $((i * 10)) }\n"
+  done
+  local check="gofmt -l . | awk 'END { exit NR > 0 }'"
+  local s1='go vet ./...' s2='grep -c ^func *.go'
+  printf '{"check":"%s","steps":{"vet":"%s","funcs":"%s"}}\n' "$check" "$s1" "$s2" > "$dir/.quality-harness.json"
+
+  "$MRW" -C "$dir" read "${specs[@]}" > /dev/null
+  local receipt
+  receipt=$(printf '%b' "$plan" | "$MRW" -C "$dir" write --then vet --then funcs -) || {
+    echo "G: mrw write --then did not exit 0 — a failed run is not a measurement" >&2; exit 2; }
+  local mrwbytes named
+  mrwbytes=$(printf '%s\n' "$receipt" | wc -c | tr -d ' ')
+  # A verdict line, not every line that names the check: `check (declared): …`
+  # says which command ran, `check PASS (…)` is the verdict.
+  named=$(( $(printf '%s\n' "$receipt" | grep -cE '^check [A-Z]') + $(printf '%s\n' "$receipt" | grep -cE '^then [0-9]+/') ))
+
+  # The baselines run on the tree mrw just left, so they verify the same edit.
+  local sep=0 c chain
+  for c in "$check" "$s1" "$s2"; do
+    sep=$(( sep + $( (cd "$dir" && sh -c "$c") 2>&1 | wc -c) ))
+  done
+  chain=$( (cd "$dir" && sh -c "$check && $s1 && $s2") 2>&1 | wc -c | tr -d ' ')
+
+  local nsites=${#specs[@]} nfiles=${#specs[@]} nverify=3
+  local sepcalls=$(( nfiles + nsites + nverify ))
+  local chaincalls=$(( nfiles + nsites + 1 ))
+  local mrwcalls=2
+
+  rule
+  printf '%s\n' "G. Edit, then verify — the check and two steps (--then)"
+  printf '  %d site(s) across %d file(s); then the check, go vet, and a grep\n\n' "$nsites" "$nfiles"
+  printf '  %-38s %10s %10s   %s\n' ""                          "baseline" "mrw" ""
+  printf '  %-38s %10s %10s   %s\n' "calls, separate (reads+edits+3 verify)" \
+    "$sepcalls" "$mrwcalls" "$(fewer "$sepcalls" "$mrwcalls")"
+  printf '  %-38s %10s %10s   %s\n' "calls, one && chain to verify" \
+    "$chaincalls" "$mrwcalls" "$(fewer "$chaincalls" "$mrwcalls")"
+  printf '  %-38s %10s %10s   %s\n' "bytes of verify output, separate" \
+    "$sep" "$mrwbytes" "$(ratio "$sep" "$mrwbytes") output"
+  printf '  %-38s %10s %10s   %s\n' "bytes of verify output, && chain" \
+    "$chain" "$mrwbytes" "$(ratio "$chain" "$mrwbytes") output"
+  printf '  %-38s %10s %10s   %s\n' "verdicts named, separate / chain" \
+    "$nverify / 1" "$named" "the chain names none of its steps"
+  rm -rf "$dir"
+}
+verify
 
 rule
 echo "Round trips are the floor: mrw is 2 calls for any N. Bytes depend on how"
