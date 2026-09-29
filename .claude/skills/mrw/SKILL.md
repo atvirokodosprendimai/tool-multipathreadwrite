@@ -106,8 +106,9 @@ how the file-edit ban gets broken by a good intention.
 
 - Build: `go build -o bin/mrw ./cmd/mrw`. Doing so here is fine — it is the
   project you were asked to work on. Not elsewhere.
-- `./scripts/measure.sh` — what mrw saves, three shapes, including the one where
-  it loses. Quote the script, never a remembered number.
+- `./scripts/measure.sh` — what mrw saves, shape by shape, including the ones
+  where it loses (`docs/measure.md` says which). Quote the script, never a
+  remembered number.
 - `./scripts/contract.sh` — every promise the README makes, asserted against the
   real binary by breaking each one on purpose. Mutation-verified; runs in CI on
   Linux only, because it drives a POSIX shell. It prints its own assertion count;
