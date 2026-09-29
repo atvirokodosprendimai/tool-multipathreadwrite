@@ -132,8 +132,10 @@ func resolveTimeout(c *Config) error {
 
 // checkSteps refuses a step nobody could run on purpose (ADR-092): no name, a
 // name a caller could not pass as one argument, or no command — the last for
-// the reason a whitespace-only check is not declared. Names are judged in
-// sorted order, so the same file is refused the same way on every run.
+// the reason a whitespace-only check is not declared. It refuses a command
+// holding one of scoped_check's tokens too, which a step would run as literal
+// text (ADR-094). Names are judged in sorted order, so the same file is
+// refused the same way on every run.
 func checkSteps(steps map[string]string) error {
 	names := make([]string, 0, len(steps))
 	for n := range steps {
@@ -141,11 +143,14 @@ func checkSteps(steps map[string]string) error {
 	}
 	sort.Strings(names)
 	for _, n := range names {
+		tok := Placeholder(steps[n])
 		switch {
 		case n == "" || strings.IndexFunc(n, unicode.IsSpace) >= 0:
 			return fmt.Errorf(".quality-harness.json: step %q: a step name is non-empty and holds no whitespace", n)
 		case strings.TrimSpace(steps[n]) == "":
 			return fmt.Errorf(".quality-harness.json: step %q has no command", n)
+		case tok != "":
+			return fmt.Errorf(".quality-harness.json: step %q: its command holds %s, which mrw expands only in scoped_check; a step runs as written", n, tok)
 		}
 	}
 	return nil
@@ -495,6 +500,23 @@ func confine(root string, paths []string) error {
 	return nil
 }
 
+// placeholders are the tokens command substitutes into scoped_check, in the
+// order Placeholder looks for them. A token added to command belongs here too.
+var placeholders = []string{"{packages}", "{files}"}
+
+// Placeholder returns the first of {packages} and {files} that cmdline holds,
+// or "" when it holds neither. command is the one place mrw gives the tokens a
+// meaning; a step runs as written, so a step command holding one is refused
+// rather than run with the literal text (ADR-094).
+func Placeholder(cmdline string) string {
+	for _, tok := range placeholders {
+		if strings.Contains(cmdline, tok) {
+			return tok
+		}
+	}
+	return ""
+}
+
 // command chooses between the scoped and whole-project forms.
 //
 // When every path maps to a Go package, the scoped form runs and both
@@ -507,7 +529,8 @@ func confine(root string, paths []string) error {
 // falls back, as does an empty path list (mrw check --full). A scoped
 // run that quietly omits a changed file is worse than a slow complete one.
 //
-// root is needed to tell a directory from a typo; see packages.
+// root is needed to tell a directory from a typo; see packages. The tokens it
+// substitutes are listed in placeholders, which Placeholder reports (ADR-094).
 func command(root string, cfg Config, paths []string) (cmdline string, scoped bool) {
 	if cfg.ScopedCheck == "" {
 		return cfg.Check, false

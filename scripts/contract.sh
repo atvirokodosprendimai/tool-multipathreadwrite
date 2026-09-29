@@ -7627,6 +7627,55 @@ grep -q 'no such file: nosuch185' "$WORK/o185b" && ok "and keeps the missing-fil
 m iter add a.go > "$WORK/o185c" 2>&1; want 0 $? "iter add a.go exits 0"
 grep -q '^@1 *a.go$' "$WORK/o185c" && ok "and lists a.go" || bad "a.go: $(head -c 300 "$WORK/o185c")"
 
+# 178. ADR-094 T1: a step whose command holds {files} or {packages} is refused,
+# exit 2, before anything is written or run: mrw expands the tokens only in
+# scoped_check, and a step given one ran the literal text and passed. The
+# declared check touches m178-check, so a refusal moved below the check leaves
+# it. The pair: the same declared step and --then-sh, with a path in place of
+# the token, run and leave their markers.
+fixture
+printf '{"check":"touch m178-check","steps":{"fmt":"echo fmt {files} >> m178-step"}}\n' > "$R/.quality-harness.json"
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 178 }\n' > "$R/p178.mrw"
+m write --then fmt "$R/p178.mrw" > "$WORK/o178a" 2>&1; want 2 $? "write --then naming a declared step that holds {files} is refused"
+{ ! grep -q 'return 178' "$R/a.go" && [ ! -e "$R/m178-step" ] && [ ! -e "$R/m178-check" ] && grep -q 'step "fmt": its command holds {files}' "$WORK/o178a"; } \
+  && ok "nothing is written or run, and the refusal names the step and the token" || bad "declared, on write: $(head -c 300 "$WORK/o178a")"
+m check --then fmt a.go > "$WORK/o178b" 2>&1; want 2 $? "check --then naming the same step is refused"
+{ [ ! -e "$R/m178-check" ] && [ ! -e "$R/m178-step" ] && grep -q '{files}' "$WORK/o178b"; } \
+  && ok "before the check runs, naming the token" || bad "declared, on check: $(head -c 300 "$WORK/o178b")"
+m write --then-sh 'echo sh {packages} >> m178-step' "$R/p178.mrw" > "$WORK/o178c" 2>&1; want 2 $? "write --then-sh holding {packages} is refused"
+{ ! grep -q 'return 178' "$R/a.go" && [ ! -e "$R/m178-step" ] && [ ! -e "$R/m178-check" ] && grep -q -- '--then-sh .*its command holds {packages}' "$WORK/o178c"; } \
+  && ok "nothing is written or run, and the refusal names --then-sh and the token" || bad "ad hoc, on write: $(head -c 300 "$WORK/o178c")"
+m check --then-sh 'echo sh {packages} >> m178-step' a.go > "$WORK/o178d" 2>&1; want 2 $? "check --then-sh holding {packages} is refused"
+{ [ ! -e "$R/m178-check" ] && [ ! -e "$R/m178-step" ] && grep -q '{packages}' "$WORK/o178d"; } \
+  && ok "before the check runs, naming the token" || bad "ad hoc, on check: $(head -c 300 "$WORK/o178d")"
+printf '{"check":"touch m178-check","steps":{"fmt":"echo fmt a.go >> m178-step"}}\n' > "$R/.quality-harness.json"
+m write --then fmt --then-sh 'echo sh a.go >> m178-step' "$R/p178.mrw" > "$WORK/o178e" 2>&1; want 0 $? "the pair: the same steps with a path in place of the token pass on write"
+{ grep -q 'return 178' "$R/a.go" && [ -e "$R/m178-check" ] && [ "$(cat "$R/m178-step" 2>/dev/null)" = "$(printf 'fmt a.go\nsh a.go')" ]; } \
+  && ok "the write landed, the check ran and both steps left their marker" || bad "the pair, on write: $(head -c 300 "$WORK/o178e")"
+rm -f "$R/m178-check" "$R/m178-step"
+m check --then fmt --then-sh 'echo sh a.go >> m178-step' a.go > "$WORK/o178f" 2>&1; want 0 $? "the pair on check passes"
+{ [ -e "$R/m178-check" ] && [ "$(cat "$R/m178-step" 2>/dev/null)" = "$(printf 'fmt a.go\nsh a.go')" ]; } \
+  && ok "the check ran and both steps left their marker" || bad "the pair, on check: $(head -c 300 "$WORK/o178f")"
+
+# 179. ADR-094 T2: a passing step shows the last non-empty line of its output
+# under its PASS head, so a masked failure shows what it printed: a step that
+# printed and then exited 1 behind `|| true` passed with nothing under it. The
+# pair: a silent pass prints no tail line, and a failing step still exits 3
+# with then last:.
+fixture
+printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 179 }\n' > "$R/p179.mrw"
+m write --no-check --then-sh 'echo LASTLINE; false || true' "$R/p179.mrw" > "$WORK/o179a" 2>&1; want 0 $? "a masked failure that printed passes: exit 0"
+[ "$(grep -A1 -- '— PASS' "$WORK/o179a" | sed -n 2p)" = "  | LASTLINE" ] \
+  && ok "and the line under its PASS head is its last line" || bad "the pass: $(head -c 300 "$WORK/o179a")"
+m write --no-check --then-sh true "$R/p179.mrw" > "$WORK/o179b" 2>&1; want 0 $? "a silent pass exits 0"
+{ grep -q -- '— PASS' "$WORK/o179b" && ! grep -A1 -- '— PASS' "$WORK/o179b" | grep -q '^  | '; } \
+  && ok "and prints no tail line under its head" || bad "the silent pass: $(head -c 300 "$WORK/o179b")"
+m write --no-check --then-sh 'echo X; false' "$R/p179.mrw" > "$WORK/o179c" 2>&1; want 3 $? "a failing step still exits 3"
+grep -q '^then last: X$' "$WORK/o179c" && ok "with then last: X" || bad "the failing step: $(head -c 300 "$WORK/o179c")"
+
 # 186. ADR-092 Decision 5: a write that landed and then could not save its
 # ledger still names every step it asked for, not_run, in both receipts; it
 # dropped them (the 2026-09-29 gap survey, C3). The tally stays ADR-083's: a
