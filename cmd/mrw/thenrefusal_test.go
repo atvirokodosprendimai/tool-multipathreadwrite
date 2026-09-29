@@ -12,12 +12,13 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
-// ADR-092.md:85-86: `then` is present whenever a step was asked for and the
+// ADR-092 Decision 5: `then` is present whenever a step was asked for and the
 // command got as far as a receipt. A write that landed and then could not save
 // its ledger prints a receipt, and dropped the steps from it — no `then` under
-// --json, no NOT RUN line in human form — and was counted applied though
-// nothing the caller asked for verified it (survey C3, 2026-09-29). The ledger
-// file is made read-only so its save fails after the commit.
+// --json, no NOT RUN line in human form (the 2026-09-29 gap survey, C3). The
+// tally stays ADR-083's: a --no-check landing whose ledger failed is applied,
+// steps or not. The ledger file is made read-only so its save fails after the
+// commit.
 func TestALedgerFailureStillNamesTheStepsNotRun(t *testing.T) {
 	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
 		t.Skip("a read-only file does not stop this user from writing it")
@@ -68,17 +69,18 @@ func TestALedgerFailureStillNamesTheStepsNotRun(t *testing.T) {
 		if err := json.Unmarshal([]byte(stats), &s); err != nil {
 			t.Fatalf("%v\n%s", err, stats)
 		}
-		if s.Counts["check_not_run"] != 1 || s.Counts["applied"] != 0 || s.Landed != 1 {
-			t.Errorf("json %v: counts %v landed %d, want check_not_run 1, applied 0, landed 1", asJSON, s.Counts, s.Landed)
+		if s.Counts["applied"] != 1 || s.Counts["check_not_run"] != 0 || s.Landed != 1 {
+			t.Errorf("json %v: counts %v landed %d, want applied 1 (ADR-083), check_not_run 0, landed 1", asJSON, s.Counts, s.Landed)
 		}
 	}
 }
 
-// ADR-092.md:94: a check that could not start still names every step asked
-// for, not_run, in one document. With no temp directory the check cannot
-// create its log, and `check --json` printed nothing at all and dropped the
-// steps (survey C2). The pair: the same check with its temp directory back
-// runs the steps.
+// ADR-092 Decision 5, "the check could not start": such a check still names
+// every step asked for, not_run, in one document. With no temp directory the
+// check cannot create its log, and `check --json` printed nothing at all and
+// dropped the steps (the 2026-09-29 gap survey, C2). Two refusals stay as they
+// were: one with no step asked, and a refused scope (ADR-092 T4, Out of
+// Scope). The pair: the same check with its temp directory back runs the steps.
 func TestACheckWhoseLogCannotBeCreatedStillNamesItsSteps(t *testing.T) {
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -106,6 +108,12 @@ func TestACheckWhoseLogCannotBeCreatedStillNamesItsSteps(t *testing.T) {
 	}
 	if got := logOf(t, root); got != "" {
 		t.Errorf("a step ran: %q", got)
+	}
+	if out, code := runIn(t, root, "check", "--full", "--json"); code != exitUsage || strings.Contains(out, `"error"`) {
+		t.Errorf("no step asked: exit %d, want %d and no JSON document, as before:\n%s", code, exitUsage, out)
+	}
+	if out, code := runIn(t, root, "check", "--json", "--then", "a", "nosuchdir"); code != exitUsage || strings.Contains(out, `"then"`) {
+		t.Errorf("a refused scope: exit %d, want %d and no then block, as before:\n%s", code, exitUsage, out)
 	}
 	back := t.TempDir()
 	t.Setenv("TMPDIR", back)

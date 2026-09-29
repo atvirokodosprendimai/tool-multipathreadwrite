@@ -1067,7 +1067,7 @@ held or went unchecked.`,
 			printed, tallied, parsed := false, false, false
 			// stepsNotRun is the --then list a refusal after the landing carries,
 			// every step not_run: the check could not run, or the ledger could not
-			// record the landing, so none followed it (ADR-092 T4, survey C3).
+			// record the landing, so none followed it (ADR-092 T4; the 2026-09-29 gap survey, C3).
 			var stepsNotRun *check.StepsResult
 			refuseWith := func(res apply.Result, msg string) error {
 				// A refusal after the write landed (the ledger could not be
@@ -1312,15 +1312,16 @@ held or went unchecked.`,
 			// ledgerFailed refuses a write that landed and whose ledger could
 			// not record it. One whose check was due is counted check_not_run,
 			// as a check that could not start is: the tree changed and nothing
-			// verified it (second review of #229). So is one that asked for
-			// steps, and the receipt names each of them not_run: `then` is
-			// present whenever a step was asked for and the command got as far
-			// as a receipt (ADR-092.md:85-86, survey C3).
+			// verified it (second review of #229). One with no check due stays
+			// applied, as ADR-083 counts it, steps or not. Either way the
+			// receipt names every step asked for not_run: `then` is present
+			// whenever a step was asked for and the command got as far as a
+			// receipt (ADR-092 Decision 5; the 2026-09-29 gap survey, C3).
 			ledgerFailed := func(res apply.Result, err error) error {
 				if len(asked) > 0 {
 					stepsNotRun = runSteps(ctx, root, cfg, asked, false)
 				}
-				if checkDue(res) || len(asked) > 0 {
+				if checkDue(res) {
 					_ = authoring.Record(root, authoring.CheckNotRun)
 					tallied = true
 				}
@@ -1947,16 +1948,17 @@ touched, which is a finding about the machine and not about your change.`,
 			res, err := check.Run(ctx, root, cfg, paths)
 			if err != nil {
 				// A refused scope comes back before a command is chosen, with no
-				// Command, and stays as it was (ADR-092 T4, Out of Scope). The one
-				// error after that is the check's log that could not be created:
-				// the check could not start, so the steps asked for are named
-				// not_run, in one document under --json (ADR-092.md:94, survey C2).
-				if res.Command == "" {
+				// Command, and stays as it was (ADR-092 T4, Out of Scope), and so
+				// does any refusal with no step asked: without --then nothing
+				// changes (ADR-092). The one error after a command is chosen is
+				// the check's log that could not be created: the check could not
+				// start, so the steps asked for are named not_run, in one document
+				// under --json (ADR-092 Decision 5, "the check could not start";
+				// the 2026-09-29 gap survey, C2).
+				if res.Command == "" || len(asked) == 0 {
 					return cli.Exit(err, exitUsage)
 				}
-				if len(asked) > 0 {
-					then = runSteps(ctx, root, cfg, asked, false)
-				}
+				then = runSteps(ctx, root, cfg, asked, false)
 				return refuse(err)
 			}
 			if len(asked) > 0 {

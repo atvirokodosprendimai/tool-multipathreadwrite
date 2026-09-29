@@ -7515,11 +7515,11 @@ deepest=$(tail -1 "$R/depth174" 2>/dev/null)
 left=$(pgrep -f "$R/rec174.sh" | wc -l | tr -d ' ')
 [ "$left" = 0 ] && ok "and nothing of the recursion is left running" || { pkill -9 -f "$R/rec174.sh"; bad "$left recursion processes outlived the row"; }
 
-# 186. ADR-092.md:85-86: a write that landed and then could not save its ledger
-# still names every step it asked for, not_run, in both receipts, and counts as
-# check_not_run: it dropped them and counted applied (survey C3, 2026-09-29).
-# The pair: with the ledger writable again the same write runs its step. The
-# ledger is made read-only, which uid 0 ignores.
+# 186. ADR-092 Decision 5: a write that landed and then could not save its
+# ledger still names every step it asked for, not_run, in both receipts; it
+# dropped them (the 2026-09-29 gap survey, C3). The tally stays ADR-083's: a
+# --no-check landing is applied. The pair: with the ledger writable again the
+# same write runs its step. The ledger is made read-only, which uid 0 ignores.
 fixture
 printf '@@ a.go 3 replace\nfunc A() int { return 186 }\n' > "$R/p186.mrw"
 printf '@@ b.go 3 replace\nfunc D() int { return 186 }\n' > "$R/p186b.mrw"
@@ -7536,8 +7536,8 @@ else
   { grep -q 'return 186' "$R/b.go" && [ ! -e "$R/m186" ] && grep -q 'then 1/1 --then-sh: touch m186 — NOT RUN' "$WORK/o186"; } \
     && ok "and the human receipt names the step NOT RUN" || bad "the human receipt: $(head -c 400 "$WORK/o186")"
   m stats --json > "$WORK/s186" 2>&1
-  jq -e '.counts.check_not_run == 2 and .counts.applied == 0' "$WORK/s186" > /dev/null \
-    && ok "stats counts both landings check_not_run, neither applied" || bad "stats: $(head -c 300 "$WORK/s186")"
+  jq -e '.counts.applied == 2 and .counts.check_not_run == 0' "$WORK/s186" > /dev/null \
+    && ok "stats counts both --no-check landings applied, as ADR-083 does" || bad "stats: $(head -c 300 "$WORK/s186")"
   chmod 600 "$led186"
   m read a.go > /dev/null
   printf '@@ a.go 3 replace\nfunc A() int { return 1860 }\n' > "$R/p186c.mrw"
@@ -7546,16 +7546,20 @@ else
     && ok "and its step runs and passes" || bad "the pair: $(head -c 400 "$WORK/j186c")"
 fi
 
-# 187. ADR-092.md:94: a check that could not start names every step asked for,
-# not_run, under --json in one document. With TMPDIR pointing nowhere the check
-# cannot create its log, and `check --json` printed nothing at all (survey C2).
-# The pair: with this run's TMPDIR the same check runs its step. A refused scope
-# takes another path and is left as it was (ADR-092 T4, Out of Scope).
+# 187. ADR-092 Decision 5, "the check could not start": such a check names every
+# step asked for, not_run, under --json in one document. With TMPDIR pointing
+# nowhere the check cannot create its log, and `check --json` printed nothing at
+# all (the 2026-09-29 gap survey, C2). Without a step asked it still prints no
+# document (ADR-092: without --then nothing changes), and a refused scope takes
+# another path and is left as it was (ADR-092 T4, Out of Scope). The pair: with
+# this run's TMPDIR the same check runs its step.
 fixture
 printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
 TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --json --then-sh 'touch m187' > "$WORK/j187" 2> /dev/null; want 2 $? "a check whose log cannot be created exits 2"
 { [ ! -e "$R/m187" ] && jq -e '(.error | length > 0) and (.then.steps | length == 1 and .[0].status == "not_run")' "$WORK/j187" > /dev/null; } \
   && ok "stdout is one JSON document naming the error and the step not_run, which never ran" || bad "check --json: $(head -c 400 "$WORK/j187")"
+TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --json > "$WORK/n187" 2> /dev/null; want 2 $? "the same check with no step asked exits 2"
+[ ! -s "$WORK/n187" ] && ok "and, with no step asked, prints no document, as before" || bad "no step asked: $(head -c 300 "$WORK/n187")"
 TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --then-sh 'touch m187' > "$WORK/o187" 2>&1; want 2 $? "the same check in human form exits 2"
 { [ ! -e "$R/m187" ] && grep -q 'then 1/1 --then-sh: touch m187 — NOT RUN' "$WORK/o187"; } \
   && ok "and names the step NOT RUN" || bad "the human report: $(head -c 400 "$WORK/o187")"
