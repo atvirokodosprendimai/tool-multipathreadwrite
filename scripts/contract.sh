@@ -7939,7 +7939,7 @@ grep -qx 'FILES=help' "$R/scoped192" && ok "and scopes the check to the file nam
 out=$(m read --help 2>&1); want 0 $? "the pair: read --help exits 0"
 grep -q 'USAGE' <<<"$out" && ok "and still prints read's help" || bad "read --help: $(head -c 300 <<<"$out")"
 out=$("$MRW" help 2>&1); want 0 $? "mrw help exits 0"
-grep -q 'read' <<<"$out" && ok "and still lists the commands" || bad "mrw help: $(head -c 300 <<<"$out")"
+grep -q '^COMMANDS:' <<<"$out" && ok "and still lists the commands" || bad "mrw help: $(head -c 300 <<<"$out")"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running

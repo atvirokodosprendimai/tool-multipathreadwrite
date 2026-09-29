@@ -32,8 +32,9 @@ the field on each of the three commands is the whole mechanism.
 
 1. [S1] Write `TestAFileNamedHelpIsAPath` and confirm it RED on `7ebdf51`. [proof: mutation]
 2. [S2] Set the field on the three commands. [proof: mutation] Mutants: the field removed from each command.
-3. [S3] Contract §192, driving `$MRW`: `read help` serves the file's content; `read h` too; paired,
-   `read --help` prints `USAGE` and `mrw help` lists `read`.
+3. [S3] Contract §192, driving `$MRW`: `read help` serves the file's content, and `read -- h` too; `write help`, run
+   in the checkout, applies the plan in the file `help`; `check help` scopes a check to it; paired,
+   `read --help` prints `USAGE` and `mrw help` prints its `COMMANDS:` list.
    [proof: human: ./scripts/contract.sh run unpiped before the commit, exit 0 with §192's rows printed — the fence greps the section, since the whole contract takes minutes]
 4. [S4] Mark the BACKLOG entry closed. [proof: acceptance]
 
