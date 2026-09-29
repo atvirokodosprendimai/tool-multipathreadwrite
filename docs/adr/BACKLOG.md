@@ -2310,3 +2310,17 @@ at the boundary, and a discovered one is dropped.
     attribution). Arm on a real report.
   - A check's or step's tail reaches the human receipt with raw control bytes (T5 quotes names and
     commands, not output). Arm with a terminal-safety pass over tails.
+
+## From ADR-093 (an MCP tool refuses an argument it does not declare)
+
+- **A line cap or a stat-only answer on `mrw_read`** (ADR-093 Out of Scope). `max_lines` and `stat`
+  are refused by name today, and the refusal routes to `mrw read --max-lines` and `--stat`. Arm when
+  an MCP caller shows it needs `max_lines` or `stat` rather than the ceiling and the paging it has.
+- **What opencode does with an argument the plugin's zod shape does not declare** (ADR-093 Out of
+  Scope). The plugin forwards only a fixed map of keys, so a model's `max_lines` never reaches mrw,
+  and whether opencode strips or refuses it first was not read. Arm by measuring whether opencode
+  strips or refuses it before the plugin's `execute` runs.
+- **Whether a host forwards an undeclared key, or enforces `additionalProperties: false`** (ADR-093
+  Out of Scope). Nobody has captured a host's wire for a call carrying an undeclared key, Claude Code
+  included. Arm by capturing one; a host that adds keys of its own to `arguments` is ADR-093 T1's
+  Stop Condition.

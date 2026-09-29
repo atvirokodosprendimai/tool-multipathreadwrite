@@ -248,6 +248,7 @@ tool. `format` is `plan` (default), `apply_patch`, or `search_replace`.
 `echo_pad` is the same opt-in pad as `--echo-pad`. `ack` is how a served read
 becomes a licence. `mrw_write` runs no check (ADR-044); its receipt's hunks carry
 the same `balance` field the CLI prints.
+An argument a tool does not declare is refused, naming it and the arguments the tool takes; nothing is done.
 
 Without `--root`, the server uses `CLAUDE_PROJECT_DIR` when the host sets it,
 else its working directory. A silent fallback to `/` or `$HOME` is refused

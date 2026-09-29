@@ -7515,6 +7515,37 @@ deepest=$(tail -1 "$R/depth174" 2>/dev/null)
 left=$(pgrep -f "$R/rec174.sh" | wc -l | tr -d ' ')
 [ "$left" = 0 ] && ok "and nothing of the recursion is left running" || { pkill -9 -f "$R/rec174.sh"; bad "$left recursion processes outlived the row"; }
 
+# 175. ADR-093 T1: an MCP tool refuses an argument it does not declare. A
+# `check` sent to mrw_write, or a `max_lines` sent to mrw_read, was ignored and
+# the call answered as if it had done what was asked (the 2026-09-29 gap
+# survey, C1). The pair: the same call without the key is applied or served.
+fixture
+printf 'one\ntwo\n' > "$R/a.txt"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ b.txt 0 create\nX\n","check":true}}}' | m mcp 2>/dev/null > "$WORK/w175.json"
+{ jq -e '.result.isError == true and (.result.content[0].text | contains("\"check\"") and contains("\"plan\""))' "$WORK/w175.json" > /dev/null && [ ! -e "$R/b.txt" ]; } \
+  && ok "an undeclared argument is refused by name, and nothing is written" || bad "the refused write: $(head -c 400 "$WORK/w175.json")"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ b.txt 0 create\nX\n"}}}' | m mcp 2>/dev/null > "$WORK/w175b.json"
+{ jq -e '.result and (.result.isError | not)' "$WORK/w175b.json" > /dev/null && [ "$(cat "$R/b.txt" 2>/dev/null)" = X ]; } \
+  && ok "and the same call without it is served and applied: b.txt holds X" || bad "the declared write: $(head -c 400 "$WORK/w175b.json")"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt"],"max_lines":1}}}' | m mcp 2>/dev/null > "$WORK/r175.json"
+jq -e '.result.isError == true and (.result.content[0].text | contains("\"max_lines\"") and (contains("-- ck ") | not))' "$WORK/r175.json" > /dev/null \
+  && ok "an undeclared argument is refused by name on mrw_read, and nothing is served" || bad "the refused read: $(head -c 400 "$WORK/r175.json")"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt"]}}}' | m mcp 2>/dev/null > "$WORK/r175b.json"
+jq -e '(.result.isError | not) and (.result.content[0].text | contains("1| one"))' "$WORK/r175b.json" > /dev/null \
+  && ok "and the same call without it is served and applied: a.txt is served" || bad "the declared read: $(head -c 400 "$WORK/r175b.json")"
+
+# 176. ADR-093 T2: tools/list says what T1 enforces. Neither input schema said
+# additionalProperties false, so an extra key was valid against both. The pair:
+# a call with declared arguments is still served.
+fixture
+printf 'one\ntwo\n' > "$R/a.txt"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | m mcp 2>/dev/null > "$WORK/l176.json"
+jq -e '(.result.tools | length) >= 2 and all(.result.tools[]; .inputSchema.additionalProperties == false)' "$WORK/l176.json" > /dev/null \
+  && ok "every input schema is closed: additionalProperties false on both tools" || bad "tools/list: $(head -c 400 "$WORK/l176.json")"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt"]}}}' | m mcp 2>/dev/null > "$WORK/r176.json"
+jq -e '(.result.isError | not) and (.result.content[0].text | contains("1| one"))' "$WORK/r176.json" > /dev/null \
+  && ok "and a call with declared arguments is still served" || bad "the declared read: $(head -c 400 "$WORK/r176.json")"
+
 # 186. ADR-092 Decision 5: a write that landed and then could not save its
 # ledger still names every step it asked for, not_run, in both receipts; it
 # dropped them (the 2026-09-29 gap survey, C3). The tally stays ADR-083's: a
