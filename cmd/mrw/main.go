@@ -640,9 +640,13 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 
 func readCmd() *cli.Command {
 	return &cli.Command{
-		Name:      "read",
-		Usage:     "print line ranges, pattern matches or --grep hits from one or more files",
-		ArgsUsage: "PATH[:RANGE[,RANGE...]] ...",
+		Name: "read",
+		// ADR-099: urfave adds a `help` subcommand (alias `h`) to every command,
+		// and it won over a file named help, even after `--`. The --help flag
+		// stays; `mrw help` stays on the root.
+		HideHelpCommand: true,
+		Usage:           "print line ranges, pattern matches or --grep hits from one or more files",
+		ArgsUsage:       "PATH[:RANGE[,RANGE...]] ...",
 		Description: `A RANGE is 3-6, 5, 3- (to end of file), -20 (from the start),
 A,+N (the line A plus the N lines after it, so 12,+2 is lines 12 through 14),
 /pattern/ (every matching line, with -C context) or /start/,/end/.
@@ -936,9 +940,11 @@ func writeCmd() *cli.Command {
 	// asked is the --then / --then-sh list, in command-line order (ADR-092).
 	var asked []check.Step
 	return &cli.Command{
-		Name:      "write",
-		Usage:     "apply an edit plan across one or more files; a plan that fails validation writes nothing",
-		ArgsUsage: "[PLAN|-]",
+		Name: "write",
+		// ADR-099: a plan file named help is a plan file.
+		HideHelpCommand: true,
+		Usage:           "apply an edit plan across one or more files; a plan that fails validation writes nothing",
+		ArgsUsage:       "[PLAN|-]",
 		Description: `A plan is a sequence of hunks:
 
   @@ <path> <addr> <op> [sha=… lines=… anchor=… body=…]
@@ -1978,9 +1984,11 @@ ranges, and "mrw check" runs the project's check scoped to these files.`,
 func checkCmd() *cli.Command {
 	var asked []check.Step // --then / --then-sh, in order (ADR-092)
 	return &cli.Command{
-		Name:      "check",
-		Usage:     "run the project's check, scoped to the working set or to the given paths",
-		ArgsUsage: "[PATH...]",
+		Name: "check",
+		// ADR-099: a PATH named help is a PATH.
+		HideHelpCommand: true,
+		Usage:           "run the project's check, scoped to the working set or to the given paths",
+		ArgsUsage:       "[PATH...]",
 		Description: `The command comes from .quality-harness.json ("check" for the whole project,
 "scoped_check" for a narrow run, with {packages} and {files} expanded). With no
 such file, a Go project falls back to "go test ./..." — and the output says the
@@ -1988,7 +1996,7 @@ command was INFERRED, because an inferred check can be red on a tree you never
 touched, which is a finding about the machine and not about your change.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "json", Usage: "emit the result as JSON"},
-			&cli.BoolFlag{Name: "full", Usage: "run the whole-project check, ignoring any scope"},
+			&cli.BoolFlag{Name: "full", Usage: "run the whole-project check, ignoring the working set; it takes no PATH"},
 			thenFlag(&asked),
 			thenShFlag(&asked),
 		},
@@ -1998,6 +2006,12 @@ touched, which is a finding about the machine and not about your change.`,
 			}
 			root := cmd.Root().String("root")
 			paths := cmd.Args().Slice()
+			// ADR-099: --full runs the whole project, so a PATH beside it would
+			// be dropped in silence — refused before anything runs, as ADR-096
+			// refuses a named path a finder would drop.
+			if cmd.Bool("full") && len(paths) > 0 {
+				return cli.Exit("--full runs the whole project; it takes no PATH", exitUsage)
+			}
 			if len(paths) == 0 && !cmd.Bool("full") {
 				set, err := iter.Load(root)
 				if err != nil {
