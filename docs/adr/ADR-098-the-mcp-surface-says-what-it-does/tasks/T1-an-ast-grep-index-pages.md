@@ -42,7 +42,7 @@ handler, so no single caller of `matchIndex` can name a different finder from th
 3. [S3] `matchIndex` takes the finder's name: "Send the SAME ast_grep again with after=… and repeat until
    next_index is empty", and "WITH the same ast_grep" for an ast_grep index; grep's wording otherwise
    unchanged except "empty" for "absent". [proof: mutation] Mutant: the handler's finder variable fixed to `grep`.
-4. [S4] Contract §189, driving `$MRW mcp` under `bounded` with a fake `ast-grep` on PATH that reports one hit
+4. [S4] Contract §189, driving `$MRW mcp` from python with each run bounded by `subprocess.run(timeout=30)` (SIGKILL; `bounded` would hand a backgrounded mrw /dev/null for stdin) and a fake `ast-grep` on PATH that reports one hit
    in each of enough files to overflow a small `--max-result-chars`: page with `after` until `next_index` is
    empty, at most 50 pages, and require every file exactly once; paired, `after` with plain specs is refused
    and names both finders.
@@ -79,7 +79,7 @@ the merge-base may touch only COMMENT lines, only in `internal/apply/apply.go` a
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestAnAstGrepIndexPagesToTheEnd` | `internal/mcp/astgrepindex098_test.go` | with `installFakeAstGrep` reporting one hit per file for enough files (hits emitted in REVERSE path order) that the answer is an INDEX at the default ceiling: `next_index` non-empty; following `after` until it is empty, bounded at 20 pages, yields every file exactly once, each page either another index or a served read | — | S1, S2 |
+| `TestAnAstGrepIndexPagesToTheEnd` | `internal/mcp/astgrepindex098_test.go` | with `installFakeAstGrep` reporting one hit in each of 400 files (hits emitted in REVERSE path order) and `withCeiling(t, 6_000)`, so the answer is an INDEX: `next_index` non-empty; following `after` until it is empty, bounded at 50 pages, yields every file exactly once, each page either another index or a served read | — | S1, S2 |
 | `TestAfterWithoutAFinderIsRefusedNamingBoth` | `internal/mcp/astgrepindex098_test.go` | `after` with plain specs is `isError` and its text names `grep` and `ast_grep`; `after` with `ast_grep` is not refused | — | S1, S2 |
 | `TestTheIndexNamesTheFinderThatMadeIt` | `internal/mcp/astgrepindex098_test.go` | through the handler, an ast_grep index's prose says `SAME ast_grep` and never `SAME grep`; a grep index's says `SAME grep`; both say `next_index is empty` and not `next_index is absent` | — | S3 |
 
