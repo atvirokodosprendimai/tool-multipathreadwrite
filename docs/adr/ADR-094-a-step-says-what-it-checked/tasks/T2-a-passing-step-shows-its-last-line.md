@@ -51,7 +51,7 @@ go test ./cmd/mrw/ -count=1 -timeout 600s -run 'TestAPassingStepShowsItsLastLine
   && [ -z "$(gofmt -l .)" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/state \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/state)" ] \
-  && [ -z "$( { git diff --name-only "$(git merge-base HEAD origin/main)" -- internal/check; git ls-files --others --exclude-standard -- internal/check; } | grep -vxE 'internal/check/(check\.go|steps094_test\.go)')" ]
+  && [ -z "$(base=$(git merge-base HEAD origin/main); own=$(git log -1 --format=%H "$base..HEAD" -- docs/adr/ADR-094-a-step-says-what-it-checked); head=$(git rev-parse HEAD); if [ "${own:-$head}" != "$head" ]; then git diff --name-only "$base" "$own" -- internal/check; else git diff --name-only "$base" -- internal/check; git ls-files --others --exclude-standard -- internal/check; fi | grep -vxE 'internal/check/(check\.go|steps094_test\.go)')" ]
 ```
 
 ## Tests
@@ -84,6 +84,11 @@ go test ./cmd/mrw/ -count=1 -timeout 600s -run 'TestAPassingStepShowsItsLastLine
 - 2026-09-29 · 0b2f304* · mutant killed · exit 1 · `cmd/mrw/main.go` · main.go is not gofmt-clean · acceptance-sha256:890ce572d72f1baf261d09e1a4ef0f1f1deb27963ceec89c5a430d067bff0717 · covers:the tree is gofmt-clean
 - 2026-09-29 · 0b2f304* · mutant killed · exit 1 · `internal/plan/plan.go` · an engine package changes · acceptance-sha256:890ce572d72f1baf261d09e1a4ef0f1f1deb27963ceec89c5a430d067bff0717 · covers:no other engine package changes
 - 2026-09-29 · 0b2f304* · mutant killed · exit 1 · `internal/check/check_test.go` · a file of internal/check outside T1 changes · acceptance-sha256:890ce572d72f1baf261d09e1a4ef0f1f1deb27963ceec89c5a430d067bff0717 · covers:internal/check changes only in T1's files
+- 2026-09-29 · cc8fa3b* · mutant killed · exit 1 · `internal/check/check_test.go` · a file of internal/check outside T1 changes, under the change-range clause · acceptance-sha256:8ae0c0569cbb6a3643f84d6647d69ab69143d8bde31cb28883e9154558c68629 · covers:internal/check changes only in T1's files
+
+## Corrections
+
+**Correction (2026-09-29):** the fence's last clause compared the whole working tree's `internal/check` with the merge-base, so it failed wherever a later record stacked on this branch touched `internal/check` (ADR-095's test files) though ADR-094 had not. It now compares ADR-094's own change range: while the last commit touching this record's directory is HEAD, or no such commit exists yet, the working tree and its untracked files against the merge-base, as before; once commits sit above that one, the merge-base against it. The rows `covers:internal/check changes only in T1's files` above were killed on the first branch, which the clause keeps; the row of the same claim under the new digest re-runs that mutant.
 
 ## Invariants
 
@@ -114,7 +119,7 @@ Stop and ask if the line cannot be added without changing `--json` or a failing 
              --then NAME       after a landed write and a passing check, run the step NAME declared in .quality-harness.json "steps" (repeatable; runs in command-line order with --then-sh; the first that does not pass stops the rest)
              --then-sh CMD     like --then, but run CMD with sh -c as given (repeatable). --then-sh runs any shell command it is given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh.
              --help, -h        show help
-          
+
           GLOBAL OPTIONS:
              --root DIR, -C DIR  resolve every path relative to DIR (default: ".")
   --- FAIL: TestQuietKeepsEveryStepVerdictAndItsLastLine (0.01s)
@@ -133,3 +138,5 @@ Stop and ask if the line cannot be added without changing `--json` or a failing 
 - 2026-09-29 · 0b2f304* · exit 0 · `set -o pipefail …` · acceptance-sha256:890ce572d72f1baf261d09e1a4ef0f1f1deb27963ceec89c5a430d067bff0717 · ms:896
 - 2026-09-29 · 0b2f304* · exit 0 · `set -o pipefail …` · acceptance-sha256:890ce572d72f1baf261d09e1a4ef0f1f1deb27963ceec89c5a430d067bff0717 · ms:851
 - 2026-09-29 · 0b2f304* · exit 0 · `set -o pipefail …` · acceptance-sha256:890ce572d72f1baf261d09e1a4ef0f1f1deb27963ceec89c5a430d067bff0717 · ms:799
+- 2026-09-29 · cc8fa3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:8ae0c0569cbb6a3643f84d6647d69ab69143d8bde31cb28883e9154558c68629 · ms:1177
+- 2026-09-29 · cc8fa3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:8ae0c0569cbb6a3643f84d6647d69ab69143d8bde31cb28883e9154558c68629 · ms:1009

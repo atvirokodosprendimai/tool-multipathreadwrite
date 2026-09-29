@@ -21,7 +21,7 @@ line.
 | File | Change | Why |
 |------|--------|-----|
 | `internal/guide/guide.go` | edit | the `CLI()` steps paragraph gains the two sentences, naming no flag beyond `--then` and `--then-sh` (contract §115 allows only those beyond `read`'s) |
-| `cmd/mrw/teach094_test.go` | add | `TestEverySurfaceTeachesWhatAStepChecked` — `cmd/mrw` can run `mrw instructions` in-process, as `instructions_test.go` does, and read AGENTS.md and README.md |
+| `cmd/mrw/teach094_test.go` | add | `TestEverySurfaceTeachesWhatAStepChecked` — `cmd/mrw` can run `mrw instructions` in-process, as `instructions_test.go` does, and read AGENTS.md and README.md; and `TestTheInstructionsNameNoFlagTheCLILacks` |
 | `AGENTS.md` | edit | "Using mrw" §4 `--then` bullet |
 | `README.md` | edit | the "Steps after the check" bullet |
 
@@ -40,13 +40,13 @@ line.
 
 ```bash
 set -o pipefail
-go test ./cmd/mrw/ -count=1 -timeout 600s -run 'TestEverySurfaceTeachesWhatAStepChecked' -v 2>&1 | tee /tmp/adr094-T3.out \
-  && grep -qE '^--- PASS: TestEverySurfaceTeachesWhatAStepChecked \(' /tmp/adr094-T3.out \
+go test ./cmd/mrw/ -count=1 -timeout 600s -run 'TestEverySurfaceTeachesWhatAStepChecked|TestTheInstructionsNameNoFlagTheCLILacks' -v 2>&1 | tee /tmp/adr094-T3.out \
+  && [ -z "$(for t in TestEverySurfaceTeachesWhatAStepChecked TestTheInstructionsNameNoFlagTheCLILacks; do grep -qE "^--- PASS: $t \(" /tmp/adr094-T3.out || echo "$t"; done)" ] \
   && go test ./cmd/mrw/ ./internal/guide/ -count=1 -timeout 600s -run 'TestEverySurfaceTeachesThen|TestEverySurfaceContainsTheSharedSentences' \
   && [ -z "$(gofmt -l .)" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/state \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/state)" ] \
-  && [ -z "$( { git diff --name-only "$(git merge-base HEAD origin/main)" -- internal/check; git ls-files --others --exclude-standard -- internal/check; } | grep -vxE 'internal/check/(check\.go|steps094_test\.go)')" ]
+  && [ -z "$(base=$(git merge-base HEAD origin/main); own=$(git log -1 --format=%H "$base..HEAD" -- docs/adr/ADR-094-a-step-says-what-it-checked); head=$(git rev-parse HEAD); if [ "${own:-$head}" != "$head" ]; then git diff --name-only "$base" "$own" -- internal/check; else git diff --name-only "$base" -- internal/check; git ls-files --others --exclude-standard -- internal/check; fi | grep -vxE 'internal/check/(check\.go|steps094_test\.go)')" ]
 ```
 
 ## Tests
@@ -54,6 +54,7 @@ go test ./cmd/mrw/ -count=1 -timeout 600s -run 'TestEverySurfaceTeachesWhatAStep
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestEverySurfaceTeachesWhatAStepChecked` | `cmd/mrw/teach094_test.go` | the output of `mrw instructions` (run, exit 0), AGENTS.md and README.md each carry both sentences verbatim | — | S1, S2 |
+| `TestTheInstructionsNameNoFlagTheCLILacks` | `cmd/mrw/teach094_test.go` | every `--name` in the output of `mrw instructions` (run, exit 0) is a flag some mrw command declares | — | S2, S3 |
 
 ## Reachability
 
@@ -73,6 +74,14 @@ go test ./cmd/mrw/ -count=1 -timeout 600s -run 'TestEverySurfaceTeachesWhatAStep
 - 2026-09-29 · 0b2f304* · mutant killed · exit 1 · `internal/guide/guide.go` · guide.go is not gofmt-clean · acceptance-sha256:bfdde0d79be7b61a02bd953ac98c8c00d24aba89ff747c336d0f29ac882268aa · covers:the tree is gofmt-clean
 - 2026-09-29 · 0b2f304* · mutant killed · exit 1 · `internal/plan/plan.go` · an engine package changes · acceptance-sha256:bfdde0d79be7b61a02bd953ac98c8c00d24aba89ff747c336d0f29ac882268aa · covers:no other engine package changes
 - 2026-09-29 · 0b2f304* · mutant killed · exit 1 · `internal/check/check_test.go` · a file of internal/check outside T1 changes · acceptance-sha256:bfdde0d79be7b61a02bd953ac98c8c00d24aba89ff747c336d0f29ac882268aa · covers:internal/check changes only in T1's files
+- 2026-09-29 · cc8fa3b* · mutant killed · exit 1 · `internal/guide/guide.go` · mrw instructions appends a separate sentence naming --expand, a flag no command declares; both taught sentences stay · acceptance-sha256:3009d3e22aca3d9ac863cf86c7f0645cf65dec7cb85c8a2f090a6d0793a07041 · covers:the instructions name no new flag
+- 2026-09-29 · cc8fa3b* · mutant killed · exit 1 · `internal/check/check_test.go` · a file of internal/check outside T1 changes, under the change-range clause · acceptance-sha256:3009d3e22aca3d9ac863cf86c7f0645cf65dec7cb85c8a2f090a6d0793a07041 · covers:internal/check changes only in T1's files
+
+## Corrections
+
+**Correction (2026-09-29):** the Mutation Log row labelled `covers:the instructions name no new flag` ("mrw instructions names a flag read lacks") was killed by the sentence assertion of `TestEverySurfaceTeachesWhatAStepChecked` (`cmd/mrw/teach094_test.go:32`), because that mutant edited the taught sentence itself; nothing in the fence checked a flag, so the row proves only that the sentence is verbatim. The claim is bound now by `TestTheInstructionsNameNoFlagTheCLILacks`, added to the fence: every `--name` in the output of `mrw instructions` must be a flag some mrw command declares. Its kill is the row that appends a separate `--expand` sentence and leaves both taught sentences intact. Contract §115 still holds the stricter rule on the built binary — no flag `read` lacks beyond its exemption set (S3).
+
+**Correction (2026-09-29):** the fence's last clause compared the whole working tree's `internal/check` with the merge-base, so it failed wherever a later record stacked on this branch touched `internal/check` (ADR-095's test files) though ADR-094 had not. It now compares ADR-094's own change range: while the last commit touching this record's directory is HEAD, or no such commit exists yet, the working tree and its untracked files against the merge-base, as before; once commits sit above that one, the merge-base against it. The row `covers:internal/check changes only in T1's files` above was killed on the first branch, which the clause keeps; the row of the same claim under the new digest re-runs that mutant.
 
 ## Invariants
 
@@ -115,3 +124,7 @@ Otherwise: the fence exits 0.
 - 2026-09-29 · 0b2f304* · exit 0 · `set -o pipefail …` · acceptance-sha256:bfdde0d79be7b61a02bd953ac98c8c00d24aba89ff747c336d0f29ac882268aa · ms:773
 - 2026-09-29 · 0b2f304* · exit 0 · `set -o pipefail …` · acceptance-sha256:bfdde0d79be7b61a02bd953ac98c8c00d24aba89ff747c336d0f29ac882268aa · ms:696
 - 2026-09-29 · 0b2f304* · exit 0 · `set -o pipefail …` · acceptance-sha256:bfdde0d79be7b61a02bd953ac98c8c00d24aba89ff747c336d0f29ac882268aa · ms:670
+- 2026-09-29 · cc8fa3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:3009d3e22aca3d9ac863cf86c7f0645cf65dec7cb85c8a2f090a6d0793a07041 · ms:884
+- 2026-09-29 · cc8fa3b* · exit 0 · `adr-verify --relock` · acceptance-sha256:3009d3e22aca3d9ac863cf86c7f0645cf65dec7cb85c8a2f090a6d0793a07041 · ms:0 · test-lock-sha256:8d4bc560290da95858e74d8c39c07a02e4d1a3d3e36e0f47ebb69b6f048e23bb · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvdGVhY2gwOTRfdGVzdC5nbwlUZXN0RXZlcnlTdXJmYWNlVGVhY2hlc1doYXRBU3RlcENoZWNrZWQJZWQ5NTRlNTliMzk2YjU3ZWM0NDFjNWZkYjg5YjAzNzViOGZmOTllMzhkMzRkZjM1Yzg4YmNjODcxZmRkYzg0Zgpib2R5CWNtZC9tcncvdGVhY2gwOTRfdGVzdC5nbwlUZXN0VGhlSW5zdHJ1Y3Rpb25zTmFtZU5vRmxhZ1RoZUNMSUxhY2tzCTc0NGY3ZjI2Zjk3ZTc3NGMwZjFlMmJkOGU1NTgwNDM4ZmFlMzFmYjJlOGMxYzg2YzlkY2MxZDkxODEzODc0ODc · test-lock-kind:relock
+- 2026-09-29 · cc8fa3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:3009d3e22aca3d9ac863cf86c7f0645cf65dec7cb85c8a2f090a6d0793a07041 · ms:999
+- 2026-09-29 · cc8fa3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:3009d3e22aca3d9ac863cf86c7f0645cf65dec7cb85c8a2f090a6d0793a07041 · ms:739

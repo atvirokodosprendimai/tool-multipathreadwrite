@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,15 +22,25 @@ func placeholderTree(t *testing.T, arg string) string {
 	})
 }
 
-// jsonDoc is the JSON document out starts with; runIn follows it with the
-// error, which may itself hold a brace, so the document is decoded, not cut.
-func jsonDoc(t *testing.T, out string) thenReceipt {
+// jsonDoc runs mrw -C root with argv and decodes its stdout alone — not stderr,
+// not the returned error — as exactly one JSON document: none, a second one, or
+// anything but space after the first fails the test.
+func jsonDoc(t *testing.T, root string, argv ...string) (thenReceipt, int, string) {
 	t.Helper()
-	var r thenReceipt
-	if err := json.NewDecoder(strings.NewReader(out)).Decode(&r); err != nil {
-		t.Fatalf("no JSON document: %v\n%s", err, out)
+	stdout, err := runSplit(t, append([]string{"-C", root}, argv...)...)
+	code := 0
+	if err != nil {
+		code = exitCode(err)
 	}
-	return r
+	dec := json.NewDecoder(strings.NewReader(stdout))
+	var r thenReceipt
+	if err := dec.Decode(&r); err != nil {
+		t.Fatalf("no JSON document on stdout: %v\n%s", err, stdout)
+	}
+	if err := dec.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
+		t.Fatalf("stdout holds more than one JSON document (%v):\n%s", err, stdout)
+	}
+	return r, code, stdout
 }
 
 // ADR-094 T1, the record's Enforced-by. On write, a declared step and a
@@ -69,8 +81,8 @@ func TestAStepWithAPlaceholderIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 	}
 	untouched("declared", out)
 	tally(1)
-	out, code = runIn(t, root, "write", "--json", "--then", "fmt", plan)
-	if r := jsonDoc(t, out); code != exitUsage || !strings.Contains(r.Error, "{files}") {
+	r, code, out := jsonDoc(t, root, "write", "--json", "--then", "fmt", plan)
+	if code != exitUsage || !strings.Contains(r.Error, "{files}") {
 		t.Errorf("declared --json: exit %d, error %q:\n%s", code, r.Error, out)
 	}
 	untouched("declared --json", out)
@@ -82,8 +94,8 @@ func TestAStepWithAPlaceholderIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 		t.Errorf("ad hoc: exit %d, want 2 naming --then-sh and {packages}:\n%s", code, out)
 	}
 	untouched("ad hoc", out)
-	out, code = runIn(t, root, "write", "--json", "--then-sh", adhoc, plan)
-	if r := jsonDoc(t, out); code != exitUsage || !strings.Contains(r.Error, "{packages}") {
+	r, code, out = jsonDoc(t, root, "write", "--json", "--then-sh", adhoc, plan)
+	if code != exitUsage || !strings.Contains(r.Error, "{packages}") {
 		t.Errorf("ad hoc --json: exit %d, error %q:\n%s", code, r.Error, out)
 	}
 	untouched("ad hoc --json", out)
@@ -124,17 +136,19 @@ func TestCheckRunsNoStepThatHoldsAPlaceholder(t *testing.T) {
 	} {
 		for _, asJSON := range []bool{false, true} {
 			argv := append([]string{"check"}, c.args...)
+			var out string
+			var code int
 			if asJSON {
-				argv = append(argv, "--json")
-			}
-			out, code := runIn(t, root, append(argv, "a.go")...)
-			if code != exitUsage || !strings.Contains(out, c.tok) {
-				t.Errorf("%v json %v: exit %d, want 2 naming %s:\n%s", c.args, asJSON, code, c.tok, out)
-			}
-			if asJSON {
-				if r := jsonDoc(t, out); !strings.Contains(r.Error, c.tok) {
+				var r thenReceipt
+				r, code, out = jsonDoc(t, root, append(argv, "--json", "a.go")...)
+				if !strings.Contains(r.Error, c.tok) {
 					t.Errorf("%v --json: the refusal document carries %q", c.args, r.Error)
 				}
+			} else {
+				out, code = runIn(t, root, append(argv, "a.go")...)
+			}
+			if code != exitUsage || !strings.Contains(out, c.tok) {
+				t.Errorf("%v json %v: exit %d, want 2 naming %s:\n%s", c.args, asJSON, code, c.tok, out)
 			}
 			if ran("checked") || ran("log") {
 				t.Errorf("%v json %v: the check ran %v, a step ran %v:\n%s", c.args, asJSON, ran("checked"), ran("log"), out)
