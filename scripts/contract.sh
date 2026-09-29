@@ -7906,6 +7906,41 @@ PY
 [ $? -eq 0 ] && ok "initialize and tools/list serve the corrected sentences and none of the old claims" \
              || bad "the handshake still serves a claim the code contradicts, or lost a correction"
 
+# 191. ADR-099: `mrw check --full PATH` is refused, and runs nothing. It ran the
+# whole-project check and dropped PATH in silence (--full set paths to nil after
+# reading them). The declared check touches a marker, so a check that ran leaves
+# it. The pair: --full alone runs the check.
+fixture
+printf '{"check":"touch marker191"}\n' > "$R/.quality-harness.json"
+out=$(m check --full a.go 2> "$WORK/e191"); want 2 $? "check --full a.go exits 2"
+{ [ -z "$out" ] && grep -q 'it takes no PATH' "$WORK/e191" && [ ! -e "$R/marker191" ]; } \
+  && ok "and names the fix on stderr, with nothing on stdout and no check run" || bad "check --full a.go: stdout $out, stderr $(cat "$WORK/e191")"
+m check --full > /dev/null 2>&1; want 0 $? "the pair: check --full alone exits 0"
+[ -e "$R/marker191" ] && ok "and runs the whole-project check" || bad "check --full alone ran nothing"
+
+# 192. ADR-099: `help` is a path to read, write and check. urfave's per-command
+# `help` subcommand (alias `h`) won over a file of that name, even after `--`.
+# The plan and the check are proved on disk: the plan file named help is applied
+# (write resolves it from the working directory), and a scoped check receives
+# help as {files}. The pair: the --help flag still prints read's help, and
+# `mrw help` still lists the commands.
+fixture
+printf 'body of help192\n' > "$R/help"; printf 'body of h192\n' > "$R/h"
+out=$(m read help 2>&1); want 0 $? "read help exits 0"
+grep -q 'body of help192' <<<"$out" && ok "and serves the file named help" || bad "read help: $(head -c 300 <<<"$out")"
+out=$(m read -- h 2>&1); want 0 $? "read -- h exits 0"
+grep -q 'body of h192' <<<"$out" && ok "and serves the file named h" || bad "read -- h: $(head -c 300 <<<"$out")"
+printf '@@ made192.txt 0 create\nmade\n' > "$R/help"
+( cd "$R" && "$MRW" write --no-check help > /dev/null 2>&1 ); want 0 $? "write help, run in the checkout, exits 0"
+[ -e "$R/made192.txt" ] && ok "and applies the plan in the file named help" || bad "write help applied nothing"
+printf '{"check":"true","scoped_check":"echo FILES={files} > scoped192"}\n' > "$R/.quality-harness.json"
+m check help > /dev/null 2>&1; want 0 $? "check help exits 0"
+grep -qx 'FILES=help' "$R/scoped192" && ok "and scopes the check to the file named help" || bad "check help: $(cat "$R/scoped192" 2>&1)"
+out=$(m read --help 2>&1); want 0 $? "the pair: read --help exits 0"
+grep -q 'USAGE' <<<"$out" && ok "and still prints read's help" || bad "read --help: $(head -c 300 <<<"$out")"
+out=$("$MRW" help 2>&1); want 0 $? "mrw help exits 0"
+grep -q '^COMMANDS:' <<<"$out" && ok "and still lists the commands" || bad "mrw help: $(head -c 300 <<<"$out")"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

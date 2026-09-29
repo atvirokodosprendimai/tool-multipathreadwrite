@@ -2358,7 +2358,7 @@ at the boundary, and a discovered one is dropped.
 
 ## From ADR-097 (a flag named for a subcommand names the subcommand)
 
-- **`mrw read help` and `mrw read h` print `read`'s help** (ADR-097 Follow-up, observed 2026-09-29 against
+- **`mrw read help` and `mrw read h` print `read`'s help** — **Closed** by ADR-099 T2 (`HideHelpCommand` on read, write and check). (ADR-097 Follow-up, observed 2026-09-29 against
   v1.31.0). urfave appends its `help` command (alias `h`) to every command, and it wins over a
   positional of that name, even after `--`: a file named `help` or `h` is reached only as `./help`. Arm
   on the first caller who names such a file, or with the next record that touches argument dispatch.
