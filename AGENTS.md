@@ -461,6 +461,9 @@ and #73, one release apart.
   forms, `--grep`, `--files-from`, and where a plan reads an address
   differently (ADR-063). Exit 0. No flags. A caller who installed mrw and has
   neither this checkout nor the skill can learn the format from this.
+  `mrw --instructions` is refused, exit 2, with a message naming `mrw
+  instructions`; so is any other undefined flag that is exactly the name of a
+  subcommand of the command it was given to (ADR-097).
 - **`mrw check`** runs the project's check on its own, scoped to the working
   set or to paths you name. A CLI `write` to a non-prose file runs the same
   runner by default (ADR-054); this is it without the write, for when you want the verdict again

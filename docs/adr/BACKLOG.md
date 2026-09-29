@@ -2355,3 +2355,13 @@ at the boundary, and a discovered one is dropped.
   process groups, so a cancel there kills only the direct child, nothing hears TERM first, and a nested
   mrw's check outlives it as any grandchild does. Carried with ADR-080's and ADR-072's deferral of the
   same job object; arm when a Windows caller nests mrw or reports an orphaned check.
+
+## From ADR-097 (a flag named for a subcommand names the subcommand)
+
+- **`mrw read help` and `mrw read h` print `read`'s help** (ADR-097 Follow-up, observed 2026-09-29 against
+  v1.31.0). urfave appends its `help` command (alias `h`) to every command, and it wins over a
+  positional of that name, even after `--`: a file named `help` or `h` is reached only as `./help`. Arm
+  on the first caller who names such a file, or with the next record that touches argument dispatch.
+- **The doc comment `// instructionsCmd prints…` sits above `func versionCmd`** in `cmd/mrw/main.go`,
+  and `func instructionsCmd` carries none (ADR-097 Follow-up, found while drafting). Arm with the next
+  change to either function.
