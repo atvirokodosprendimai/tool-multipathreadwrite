@@ -2337,3 +2337,14 @@ at the boundary, and a discovered one is dropped.
 - **`mrw check PATH` dropping a path it cannot place** (the 2026-09-29 gap survey, item C8; ADR-096
   Out of Scope). It maps paths to packages rather than finding files, so it is a separate record. Arm
   when that record is drafted.
+
+## From ADR-094 (a step says what it checked)
+
+- **A placeholder in the `check` field** (ADR-094 Out of Scope). `check` runs as written, as a step does,
+  so a `check` holding `{files}` or `{packages}` runs the literal text; a passing check already prints its
+  tail, so the probe of 2026-09-29 showed `| lstat {files}: no such file or directory` above `check PASS`.
+  Refusing it means refusing at `Load`, which every write reads (ADR-072), or after the write landed — a
+  different weighing on a surface ADR-054 and ADR-061 own. Arm on the first real config that holds one.
+- **The `then` head line quotes a command only for control bytes** (ADR-094 Out of Scope). `shown()`
+  Go-quotes a command whose `strconv.Quote` differs from it, so one holding `"` or `\` is printed quoted
+  too, not only one holding control bytes. Arm with a terminal-safety pass over receipts.

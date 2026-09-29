@@ -999,7 +999,7 @@ held or went unchecked.`,
 			},
 			&cli.BoolFlag{
 				Name:  "quiet",
-				Usage: "print only failures and the summary line",
+				Usage: "print only failed hunks and the summary line, dropping ok and skip rows and file lines; the check's report and every step verdict still print",
 			},
 			&cli.BoolFlag{
 				Name: "check",
@@ -1600,9 +1600,11 @@ func thenShFlag(list *[]check.Step) cli.Flag {
 }
 
 // askedStepsError refuses what can be judged of the steps before anything is
-// read: a --then-sh with no command, which would run nothing and pass, and a
-// sequence already MaxStepDepth steps deep, where a step that runs mrw with
-// steps again would recurse without end (ADR-092 T5).
+// read: a --then-sh with no command, which would run nothing and pass, a
+// --then-sh holding {files} or {packages}, which mrw expands only in
+// scoped_check (ADR-094), and a sequence already MaxStepDepth steps deep,
+// where a step that runs mrw with steps again would recurse without end
+// (ADR-092 T5).
 func askedStepsError(steps []check.Step) error {
 	if len(steps) == 0 {
 		return nil
@@ -1613,6 +1615,9 @@ func askedStepsError(steps []check.Step) error {
 	for _, s := range steps {
 		if s.AdHoc && strings.TrimSpace(s.Command) == "" {
 			return errors.New("--then-sh needs a command: a step with none would run nothing and pass")
+		}
+		if tok := check.Placeholder(s.Command); s.AdHoc && tok != "" {
+			return fmt.Errorf("--then-sh %q: its command holds %s, which mrw expands only in scoped_check; a step runs as written", s.Command, tok)
 		}
 	}
 	return nil
@@ -1718,7 +1723,8 @@ func stepLabel(s check.Step) string {
 }
 
 // reportSteps prints one line per step after the check's report, with the tail
-// of any step that stopped the sequence (ADR-092).
+// of any step that stopped the sequence (ADR-092) and the last non-empty line
+// of each step that passed (ADR-094).
 func reportSteps(w *os.File, r *check.StepsResult) {
 	if r == nil {
 		return
@@ -1730,10 +1736,17 @@ func reportSteps(w *os.File, r *check.StepsResult) {
 		switch s.Status {
 		case check.StepPass:
 			fmt.Fprintf(out, "%s — PASS\n", head)
-			// A passing step whose output ran past the tail keeps its log
-			// (ADR-080), so the receipt says where (ADR-092 T4).
+			// A pass shows its last non-empty line, so a masked failure such as
+			// `go test ./... || true` shows its FAIL (ADR-094). A passing step
+			// whose output ran past the tail keeps its log (ADR-080), so the
+			// receipt says where (ADR-092 T4), counting every line above the
+			// one shown.
+			last := lastShown(s.Tail)
 			if s.Truncated > 0 {
-				fmt.Fprintf(out, "... %d earlier line(s) in %s\n", s.Truncated, s.OutputFile)
+				fmt.Fprintf(out, "... %d earlier line(s) in %s\n", s.Truncated+max(last, 0), s.OutputFile)
+			}
+			if last >= 0 {
+				fmt.Fprintf(out, "  | %s\n", s.Tail[last])
 			}
 			continue
 		case check.StepNotRun:
@@ -1763,6 +1776,16 @@ func reportSteps(w *os.File, r *check.StepsResult) {
 	if r.Pruned > 0 {
 		fmt.Fprintf(out, "removed %d check log(s) older than %d days from %s\n", r.Pruned, int(check.LogRetention.Hours()/24), os.TempDir())
 	}
+}
+
+// lastShown is the index of tail's last non-empty line, or -1 when it has none.
+func lastShown(tail []string) int {
+	for j := len(tail) - 1; j >= 0; j-- {
+		if strings.TrimSpace(tail[j]) != "" {
+			return j
+		}
+	}
+	return -1
 }
 
 // iterCmd manages the working set: the files and ranges this piece of work is

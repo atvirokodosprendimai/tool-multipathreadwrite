@@ -414,6 +414,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   re-runs mrw with steps stops. The `"steps"` block is read only when a step is asked for: a typo
   there does not refuse a write that asks for none. In `--json`, an ad-hoc step has no `name`, and a
   step not run carries no `duration_ms`, `output_file` or `skipped`.
+  A step runs as written: a step command holding {files} or {packages} is refused, since mrw expands them only in scoped_check. A passing step prints the last line of its output under its verdict.
 - **Never read an exit code through a pipe.** `mrw write plan | head` returns
   head's status. This is the single most common way a red run reads as green.
 - A refusal is the tool working. It names the file, the plan line and the

@@ -167,6 +167,7 @@ These are gates, not a tour of the records behind them.
   `could_not_start` means the shell could not start (a missing command inside it is a `fail`, exit
   127); a step runs with `MRW_STEP_DEPTH` one deeper, and `--then` is refused at depth 8, so a step
   that re-runs mrw with steps cannot recurse without end; `"steps"` is read only when a step is asked for.
+  A step runs as written: a step command holding {files} or {packages} is refused, since mrw expands them only in scoped_check. A passing step prints the last line of its output under its verdict.
 - **Advisories are counted where you read.** The summary line says
   `N failed, A advisories`, zero included, and the JSON receipt carries
   `advisories`. Three advisories in your last ten writes print a `pattern:`
