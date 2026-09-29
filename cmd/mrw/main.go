@@ -1066,8 +1066,8 @@ held or went unchecked.`,
 			// landed is one refused_apply, as mrw_write counts it (ADR-083).
 			printed, tallied, parsed := false, false, false
 			// stepsNotRun is the --then list a refusal after the landing carries,
-			// every step not_run: the check could not run, so none followed it
-			// (ADR-092 T4).
+			// every step not_run: the check could not run, or the ledger could not
+			// record the landing, so none followed it (ADR-092 T4, survey C3).
 			var stepsNotRun *check.StepsResult
 			refuseWith := func(res apply.Result, msg string) error {
 				// A refusal after the write landed (the ledger could not be
@@ -1312,9 +1312,15 @@ held or went unchecked.`,
 			// ledgerFailed refuses a write that landed and whose ledger could
 			// not record it. One whose check was due is counted check_not_run,
 			// as a check that could not start is: the tree changed and nothing
-			// verified it (second review of #229).
+			// verified it (second review of #229). So is one that asked for
+			// steps, and the receipt names each of them not_run: `then` is
+			// present whenever a step was asked for and the command got as far
+			// as a receipt (ADR-092.md:85-86, survey C3).
 			ledgerFailed := func(res apply.Result, err error) error {
-				if checkDue(res) {
+				if len(asked) > 0 {
+					stepsNotRun = runSteps(ctx, root, cfg, asked, false)
+				}
+				if checkDue(res) || len(asked) > 0 {
 					_ = authoring.Record(root, authoring.CheckNotRun)
 					tallied = true
 				}
@@ -1911,14 +1917,20 @@ touched, which is a finding about the machine and not about your change.`,
 				paths = nil
 			}
 			// Under --json a refusal of the harness or of a step is one
-			// document, as write's is (ADR-072, ADR-092 T4).
+			// document, as write's is (ADR-072, ADR-092 T4). then is the steps
+			// that document names: none before any was due, every one not_run
+			// when the check could not start.
+			var then *check.StepsResult
 			refuse := func(err error) error {
 				if cmd.Bool("json") {
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
 					_ = enc.Encode(struct {
-						Error string `json:"error"`
-					}{err.Error()})
+						Error string             `json:"error"`
+						Then  *check.StepsResult `json:"then,omitempty"`
+					}{err.Error(), then})
+				} else {
+					reportSteps(os.Stdout, then)
 				}
 				return cli.Exit(err, exitUsage)
 			}
@@ -1934,9 +1946,19 @@ touched, which is a finding about the machine and not about your change.`,
 			}
 			res, err := check.Run(ctx, root, cfg, paths)
 			if err != nil {
-				return cli.Exit(err, exitUsage)
+				// A refused scope comes back before a command is chosen, with no
+				// Command, and stays as it was (ADR-092 T4, Out of Scope). The one
+				// error after that is the check's log that could not be created:
+				// the check could not start, so the steps asked for are named
+				// not_run, in one document under --json (ADR-092.md:94, survey C2).
+				if res.Command == "" {
+					return cli.Exit(err, exitUsage)
+				}
+				if len(asked) > 0 {
+					then = runSteps(ctx, root, cfg, asked, false)
+				}
+				return refuse(err)
 			}
-			var then *check.StepsResult
 			if len(asked) > 0 {
 				then = runSteps(ctx, root, cfg, asked, res.OK())
 			}

@@ -7515,6 +7515,54 @@ deepest=$(tail -1 "$R/depth174" 2>/dev/null)
 left=$(pgrep -f "$R/rec174.sh" | wc -l | tr -d ' ')
 [ "$left" = 0 ] && ok "and nothing of the recursion is left running" || { pkill -9 -f "$R/rec174.sh"; bad "$left recursion processes outlived the row"; }
 
+# 186. ADR-092.md:85-86: a write that landed and then could not save its ledger
+# still names every step it asked for, not_run, in both receipts, and counts as
+# check_not_run: it dropped them and counted applied (survey C3, 2026-09-29).
+# The pair: with the ledger writable again the same write runs its step. The
+# ledger is made read-only, which uid 0 ignores.
+fixture
+printf '@@ a.go 3 replace\nfunc A() int { return 186 }\n' > "$R/p186.mrw"
+printf '@@ b.go 3 replace\nfunc D() int { return 186 }\n' > "$R/p186b.mrw"
+led186="$(m seen | head -1)/seen"
+chmod 444 "$led186"
+if [ -w "$led186" ]; then
+  chmod 600 "$led186"
+  skip "a landing whose ledger cannot be saved names its steps not run (permission bits not enforced here — running as root?)"
+else
+  m write --no-check --json --then-sh 'touch m186' "$R/p186.mrw" > "$WORK/j186" 2> /dev/null; want 2 $? "a landing whose ledger cannot be saved exits 2"
+  { grep -q 'return 186' "$R/a.go" && [ ! -e "$R/m186" ] && jq -e '(.error | length > 0) and (.then.steps | length == 1 and .[0].status == "not_run")' "$WORK/j186" > /dev/null; } \
+    && ok "it landed, the step never ran, and the --json receipt names it not_run beside the error" || bad "the --json receipt: $(head -c 400 "$WORK/j186")"
+  m write --no-check --then-sh 'touch m186' "$R/p186b.mrw" > "$WORK/o186" 2>&1; want 2 $? "the same landing in human form exits 2"
+  { grep -q 'return 186' "$R/b.go" && [ ! -e "$R/m186" ] && grep -q 'then 1/1 --then-sh: touch m186 — NOT RUN' "$WORK/o186"; } \
+    && ok "and the human receipt names the step NOT RUN" || bad "the human receipt: $(head -c 400 "$WORK/o186")"
+  m stats --json > "$WORK/s186" 2>&1
+  jq -e '.counts.check_not_run == 2 and .counts.applied == 0' "$WORK/s186" > /dev/null \
+    && ok "stats counts both landings check_not_run, neither applied" || bad "stats: $(head -c 300 "$WORK/s186")"
+  chmod 600 "$led186"
+  m read a.go > /dev/null
+  printf '@@ a.go 3 replace\nfunc A() int { return 1860 }\n' > "$R/p186c.mrw"
+  m write --no-check --json --then-sh 'touch m186' "$R/p186c.mrw" > "$WORK/j186c" 2> /dev/null; want 0 $? "the pair: with the ledger writable the same write exits 0"
+  { [ -e "$R/m186" ] && jq -e '.then.steps[0].status == "pass"' "$WORK/j186c" > /dev/null; } \
+    && ok "and its step runs and passes" || bad "the pair: $(head -c 400 "$WORK/j186c")"
+fi
+
+# 187. ADR-092.md:94: a check that could not start names every step asked for,
+# not_run, under --json in one document. With TMPDIR pointing nowhere the check
+# cannot create its log, and `check --json` printed nothing at all (survey C2).
+# The pair: with this run's TMPDIR the same check runs its step. A refused scope
+# takes another path and is left as it was (ADR-092 T4, Out of Scope).
+fixture
+printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
+TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --json --then-sh 'touch m187' > "$WORK/j187" 2> /dev/null; want 2 $? "a check whose log cannot be created exits 2"
+{ [ ! -e "$R/m187" ] && jq -e '(.error | length > 0) and (.then.steps | length == 1 and .[0].status == "not_run")' "$WORK/j187" > /dev/null; } \
+  && ok "stdout is one JSON document naming the error and the step not_run, which never ran" || bad "check --json: $(head -c 400 "$WORK/j187")"
+TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --then-sh 'touch m187' > "$WORK/o187" 2>&1; want 2 $? "the same check in human form exits 2"
+{ [ ! -e "$R/m187" ] && grep -q 'then 1/1 --then-sh: touch m187 — NOT RUN' "$WORK/o187"; } \
+  && ok "and names the step NOT RUN" || bad "the human report: $(head -c 400 "$WORK/o187")"
+m check --full --json --then-sh 'touch m187' > "$WORK/j187p" 2> /dev/null; want 0 $? "the pair: with a temp directory the same check exits 0"
+{ [ -e "$R/m187" ] && jq -e '.then.steps[0].status == "pass"' "$WORK/j187p" > /dev/null; } \
+  && ok "and its step runs and passes" || bad "the pair: $(head -c 400 "$WORK/j187p")"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
