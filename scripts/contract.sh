@@ -7798,6 +7798,27 @@ m check --full --json --then-sh 'touch m187' > "$WORK/j187p" 2> /dev/null; want 
 { [ -e "$R/m187" ] && jq -e '.then.steps[0].status == "pass"' "$WORK/j187p" > /dev/null; } \
   && ok "and its step runs and passes" || bad "the pair: $(head -c 400 "$WORK/j187p")"
 
+# 188. ADR-097: an undefined flag that is exactly the name of a subcommand of the
+# command it was given to names that subcommand. `mrw --instructions` answered
+# "flag provided but not defined: -instructions", true and no help to a caller
+# who had met `mrw --version`. The pairs: an unknown name, and a sibling's name
+# given to another command, keep their v1.31.0 wording; a padded attached value
+# is still refused first (ADR-069); and the subcommand named is the one that works.
+fixture
+"$MRW" --instructions > "$WORK/o188" 2> "$WORK/e188"; want 2 $? "mrw --instructions exits 2"
+{ [ ! -s "$WORK/o188" ] && grep -qxF 'mrw: --instructions is not a flag; the subcommand is `mrw instructions` (see: mrw --help)' "$WORK/e188"; } \
+  && ok "and names the subcommand on stderr, with nothing on stdout" || bad "--instructions: stdout $(head -c 200 "$WORK/o188") stderr $(head -c 300 "$WORK/e188")"
+"$MRW" --bogus188 > /dev/null 2> "$WORK/e188b"; want 2 $? "an unknown flag naming no subcommand exits 2"
+{ grep -qxF 'mrw: flag provided but not defined: -bogus188 (see: mrw --help)' "$WORK/e188b" && ! grep -q 'is not a flag' "$WORK/e188b"; } \
+  && ok "and keeps its v1.31.0 wording" || bad "--bogus188: $(head -c 300 "$WORK/e188b")"
+"$MRW" -C "$R" check --stats > /dev/null 2> "$WORK/e188c"; want 2 $? "a sibling's name given to check exits 2"
+grep -qxF 'mrw: flag provided but not defined: -stats (see: mrw check --help)' "$WORK/e188c" \
+  && ok "and is worded as before: a sibling is not named" || bad "check --stats: $(head -c 300 "$WORK/e188c")"
+"$MRW" '--instructions= ' > /dev/null 2> "$WORK/e188d"; want 2 $? "a padded attached value exits 2"
+grep -q 'ends in whitespace' "$WORK/e188d" && ok "and is refused by ADR-069's guard before the parser" || bad "padded: $(head -c 300 "$WORK/e188d")"
+"$MRW" instructions > "$WORK/o188e" 2> /dev/null; want 0 $? "mrw instructions exits 0"
+[ -s "$WORK/o188e" ] && ok "and prints the contract: the named command is the one that works" || bad "mrw instructions printed nothing"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

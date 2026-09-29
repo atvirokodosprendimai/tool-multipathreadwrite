@@ -189,8 +189,34 @@ func installUsageErrors(cmd *cli.Command) {
 	}
 }
 
+// usageError is every command's answer to a flag its parser rejects. A flag
+// spelled like one of the command's own subcommands — `mrw --instructions` —
+// names that subcommand, since the caller most likely met `mrw --version` and
+// guessed the shape (ADR-097); every other usage error is worded as before.
 func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
+	if flag, sub := subcommandForFlag(cmd, err); sub != "" {
+		return cli.Exit(fmt.Sprintf("--%s is not a flag; the subcommand is `%s %s` (see: %s --help)",
+			flag, cmd.FullName(), sub, cmd.FullName()), exitUsage)
+	}
 	return cli.Exit(fmt.Sprintf("%v (see: %s --help)", err, cmd.FullName()), exitUsage)
+}
+
+// subcommandForFlag returns the flag name the parser refused, as the caller
+// typed it, and the name of cmd's own subcommand it exactly names, or two empty
+// strings. urfave/cli v3.11.0 builds that refusal as plain fmt.Errorf text
+// (command_parse.go:208, :219) and reads its own message back by this prefix
+// (flagFromError, :14-23), so the text is the only handle; a reworded message
+// after an upgrade falls through to the old wording, never a wrong one.
+func subcommandForFlag(cmd *cli.Command, err error) (flag, sub string) {
+	name, ok := strings.CutPrefix(err.Error(), "flag provided but not defined: -")
+	if !ok {
+		return "", ""
+	}
+	child := cmd.Command(name)
+	if child == nil {
+		return "", ""
+	}
+	return name, child.Name
 }
 
 // declareAdvice ends a no-check-could-run exit with the fix for it: declare a

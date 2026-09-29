@@ -30,7 +30,9 @@ arguments are usage (exit 2).
 
 `mrw instructions` prints the contract from the binary: use mrw always and plan
 the activity, the two rules that produce most refusals, and the traps that make
-a red run look green. Exit 0. No flags.
+a red run look green. Exit 0. No flags. `mrw --instructions` is refused, exit 2,
+with a message naming `mrw instructions`; so is any other undefined flag that is
+exactly the name of a subcommand of the command it was given to.
 
 ### From source
 
