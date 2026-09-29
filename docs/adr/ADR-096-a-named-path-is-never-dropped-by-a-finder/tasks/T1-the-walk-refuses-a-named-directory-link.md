@@ -113,7 +113,7 @@ test, `TestWalkSourceNamesNoAstGrep` among them, and the ast-grep symlink pins A
 | `TestWalkStillWalksTheRootNamedThroughTheLinkItWasGivenBy` | `internal/read/link096_test.go` | with the root reached through a link `L`, naming `L` absolutely walks the root; a relative `self` → `.` and `.` itself walk the root; no `Problem` | — | S1, S3 |
 | `TestWalkStillServesAFileLinkAndAPathThroughALink` | `internal/read/link096_test.go` | `d`, `dlink/sub` (served as `dlink/sub/g.go`), `flink` and `.git` are served as at `8cbb89e`, with no `Problem` | — | S1, S2 |
 | `TestGrepRefusesANamedDirectoryLinkByName` | `cmd/mrw/link096_test.go` | `mrw read --grep P dlink` prints `==> dlink  REFUSED` naming `d` and fails "no file matched"; with `d` also named, `d`'s files are served and it fails counting one range not served | — | S1, S3 |
-| `TestMcpGrepRefusesANamedDirectoryLinkByName` | `internal/mcp/link096_test.go` | `mrw_read` with `grep` over `[dlink]` is `isError` and its text names `dlink` and `d`; over `[d, dlink]` it serves `d/f.go`, carries no flag (ADR-024, `tools.go:473-476`) and its text still names `dlink` | — | S1, S3 |
+| `TestMcpGrepRefusesANamedDirectoryLinkByName` | `internal/mcp/link096_test.go` | `mrw_read` with `grep` over `[dlink]` is `isError` and its text names `dlink` and `d`; over `[d, dlink]` it serves `d/f.go`, carries no flag (ADR-024: `readTool` composes its marked serve of numbered lines with `isError` false) and its text still names `dlink` | — | S1, S3 |
 
 Each symlink test skips (`t.Skipf`) where the platform cannot create a link, as
 `TestWalkDoesNotDescendASymlinkedDirectory` does.
@@ -126,6 +126,18 @@ Each symlink test skips (`t.Skipf`) where the platform cannot create a link, as
 | 2 — something selects it | `consider` → `judgeNamed`, reached from `cmd/mrw/main.go:793` and `internal/mcp/tools.go:1416`; the CLI and MCP tests go red when the call is deleted; §184 drives the built binary |
 | 3 — the caller can discover it | the REFUSED line names the directory to name; AGENTS.md and README say it |
 | 4 — it is used | telemetry is refused (ADR-009); the evidence for building it is the 2026-09-29 survey and the probe in the record's Context |
+
+**Correction (2026-09-29):** the Mutation Log row for `go.mod` dated 0b2f304 that reads "mutant
+killed" and credits `covers:go.mod declares one requirement` does not bind that claim. Its own note is
+the only evidence of what it did: the one-requirement clause counts only lines matching `^require` or
+a leading blank, so the directive line that mutant added was invisible to it. The row names no failing
+clause, so what went red is unrecorded; it shows the fence noticed that edit and nothing about the
+clause. What binds the claim now is the row dated f949cb9: a second `require` line for a module
+already in the graph (`github.com/stretchr/testify v1.11.1`). With that line applied by hand, `go test
+./internal/read/ ./cmd/mrw/ ./internal/mcp/ -count=1 -run
+'TestWalkRefusesANamedLinkToADirectoryAndNamesItsTarget|TestGrepRefusesANamedDirectoryLinkByName|TestMcpGrepRefusesANamedDirectoryLinkByName'`
+exited 0, so the build holds and the count is the clause the mutant reaches. Both rows stay; the log is
+tool-written.
 
 ## Mutation Log
 (empty until execute)
@@ -158,6 +170,7 @@ Each symlink test skips (`t.Skipf`) where the platform cannot create a link, as
   ```
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
+- 2026-09-29 · f949cb9* · mutant killed · exit 1 · `go.mod` · go.mod gains a second require line that still builds (testify is already in the module graph), so every go test in the fence passes and only the one-requirement count goes red · acceptance-sha256:32e43c6cd0e344043442a16f6551e13cb884e6ffb61fa35fcdeca3abce66c7b7 · covers:go.mod declares one requirement
 
 ## Invariants
 
@@ -175,6 +188,15 @@ Each symlink test skips (`t.Skipf`) where the platform cannot create a link, as
   `rooted.Real`, as `consider`'s absolute branch already does; the linked-root test is the check.
 - A Windows junction is caught by construction, not by a test on this task's runners (record, Out of
   Scope).
+- **Correction (2026-09-29):** "caught by construction" held for a junction the caller NAMES, not for
+  a junction that IS the root. `Walk` and `read.AstGrep` built `absRoot` with
+  `filepath.EvalSymlinks`, which since Go 1.23 leaves a junction as written, so decision 3's root
+  rule returned the junction as the walk start and `WalkDir`, Lstat-ing it as no directory, served
+  nothing for `--grep` with no path or `.` (traced in source by review; not run here). Both now build
+  it with `rooted.Real`. `cmd/mrw/junction096_windows_test.go::TestGrepUnderAJunctionedRootWalksFromTheRoot`
+  pins it on the Windows CI shards; it cannot run on this task's darwin runner, and no red was seen
+  for it here. `internal/read/walkroot096_test.go::TestWalkUnderARootReachedThroughALinkServesEveryStart`
+  keeps the symlinked-root case walked on every platform.
 
 ## Stop Condition
 
@@ -226,3 +248,4 @@ comparing spellings of the root.
 - 2026-09-29 · 0b2f304* · exit 0 · `set -o pipefail …` · acceptance-sha256:32e43c6cd0e344043442a16f6551e13cb884e6ffb61fa35fcdeca3abce66c7b7 · ms:1942
 - 2026-09-29 · 0b2f304* · exit 0 · `set -o pipefail …` · acceptance-sha256:32e43c6cd0e344043442a16f6551e13cb884e6ffb61fa35fcdeca3abce66c7b7 · ms:1928
 - 2026-09-29 · 0b2f304* · exit 0 · `set -o pipefail …` · acceptance-sha256:32e43c6cd0e344043442a16f6551e13cb884e6ffb61fa35fcdeca3abce66c7b7 · ms:1806
+- 2026-09-29 · f949cb9* · exit 0 · `set -o pipefail …` · acceptance-sha256:32e43c6cd0e344043442a16f6551e13cb884e6ffb61fa35fcdeca3abce66c7b7 · ms:4185

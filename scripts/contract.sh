@@ -7577,7 +7577,7 @@ m read --grep N184 self > "$WORK/o184e" 2>&1; want 0 $? "--grep over a relative 
 # before the binary starts. A refused path never reaches it, so a path outside
 # the root is not searched; an accepted one reaches it as the absolute path mrw
 # judged. The fake records its arguments in argv184, which exists only if it ran.
-d184=$(mktemp -d)
+d184=$(mktemp -d "$WORK/d184-XXXXXX")
 cat > "$d184/ast-grep" <<EOF184
 #!/bin/sh
 for a in "\$@"; do printf '%s\n' "\$a" >> "$d184/argv184"; done
@@ -7597,8 +7597,8 @@ if [ -r "$R/locked184.go" ]; then
   skip "--ast-grep refuses a named file it cannot open (permission bits not enforced here — running as root?)"
 else
   bounded 10 "$WORK/a184c" env PATH="$d184:$PATH" "$MRW" -C "$R" read --ast-grep N184 a.go locked184.go; want 1 $? "--ast-grep over a.go and a mode-000 file exits 1"
-  { grep -q '^==> locked184.go  REFUSED.*permission denied' "$WORK/a184c" && ! grep -q 'locked184' "$d184/argv184"; } \
-    && ok "refusing the file with the OS's error, which never reaches ast-grep" || bad "mode 000: $(head -c 300 "$WORK/a184c")"
+  { grep -q '^==> locked184.go  REFUSED.*permission denied' "$WORK/a184c" && grep -qxF "$RP/a.go" "$d184/argv184" && ! grep -q 'locked184' "$d184/argv184"; } \
+    && ok "refusing the file with the OS's error, while ast-grep ran on a.go alone" || bad "mode 000: $(head -c 300 "$WORK/a184c") argv: $(tr '\n' ' ' < "$d184/argv184" 2>/dev/null)"
 fi
 chmod 644 "$R/locked184.go"; rm -f "$d184/argv184"
 bounded 10 "$WORK/a184d" env PATH="$d184:$PATH" "$MRW" -C "$R" read --ast-grep N184 d; want 0 $? "the pair: --ast-grep over d exits 0"

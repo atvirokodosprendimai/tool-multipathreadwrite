@@ -265,7 +265,8 @@ ADR-094 in `internal/check`, does not fail these fences), and `go.mod` keeps one
 No new exit code: a refused named path is one more REFUSED line, counted as a range not served
 (`cmd/mrw/main.go:899-901`, exit 1); over MCP it is named in the answer's text and counted in
 `problems`, and the answer is `isError` only when nothing was served (`tools.go:311`, `:334`; ADR-024
-leaves an answer that served a sibling unflagged, `tools.go:473-476`). `iter add` stays exit 2. A
+leaves an answer that served a sibling unflagged: `readTool` composes its marked serve of numbered
+lines with `isError` false). `iter add` stays exit 2. A
 given call can move, though: one that named a directory link beside paths it serves exited 0 on
 v1.31.0 and exits 1 now (Served-path change, Consequences).
 

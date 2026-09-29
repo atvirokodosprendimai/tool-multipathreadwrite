@@ -52,9 +52,11 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 	if err != nil {
 		return nil, nil, err
 	}
-	if real, err := filepath.EvalSymlinks(absRoot); err == nil {
-		absRoot = real
-	}
+	// rooted.Real, not filepath.EvalSymlinks: since Go 1.23 EvalSymlinks
+	// leaves a Windows junction as written, so a root reached through one was
+	// walked from the junction, which WalkDir Lstats as no directory, and a
+	// walk from the root served nothing (ADR-071; review of ADR-096).
+	absRoot = rooted.Real(absRoot)
 	if len(paths) == 0 {
 		paths = []string{"."}
 	}

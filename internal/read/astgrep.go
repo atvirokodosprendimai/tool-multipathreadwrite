@@ -69,9 +69,9 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	if err != nil {
 		return nil, nil, err
 	}
-	if real, err := filepath.EvalSymlinks(absRoot); err == nil {
-		absRoot = real
-	}
+	// The root as Walk builds it: rooted.Real follows a Windows junction,
+	// which filepath.EvalSymlinks has not since Go 1.23 (ADR-071).
+	absRoot = rooted.Real(absRoot)
 	// ADR-096 decision 4: every named path is judged as the walk judges it,
 	// and opened, before the binary starts. A refused one is a Problem and
 	// never reaches ast-grep, so a path outside the root is not searched. What
