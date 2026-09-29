@@ -422,6 +422,9 @@ func tools() []tool {
 				"shell.",
 			InputSchema: map[string]any{
 				"type": "object",
+				// ADR-093: the schema says what the server enforces — an
+				// argument not declared below is refused by name.
+				"additionalProperties": false,
 				"properties": map[string]any{
 					"specs": map[string]any{
 						"type":        "array",
@@ -490,6 +493,8 @@ func tools() []tool {
 				"shell; it needs no --json because its answer is already structured.",
 			InputSchema: map[string]any{
 				"type": "object",
+				// ADR-093, as for mrw_read.
+				"additionalProperties": false,
 				"properties": map[string]any{
 					"ack": map[string]any{
 						"type":        "array",

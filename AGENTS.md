@@ -120,6 +120,7 @@ nothing until you acknowledge it. A read that served numbered lines brackets eac
 `-- ck <id> open lines A-B (N lines follow)` and `-- ck <id> close`. Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.
 An id you omit leaves its lines stay unwritable. A host can cut a page before you see it, and mrw cannot
 tell, which is what this exists for.
+An argument a tool does not declare is refused, naming it and the arguments the tool takes; nothing is done.
 
 Which surface you are on is not purely your choice: it follows from where the
 server was registered, and a user-scope registration puts these two tools in

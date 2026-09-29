@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -173,13 +174,20 @@ func callTool(root string, raw json.RawMessage, modern bool) (callToolResult, *r
 
 	var res callToolResult
 	var rpcErr *rpcError
-	switch p.Name {
-	case "mrw_read":
-		res, rpcErr = readTool(root, p.Arguments)
-	case "mrw_write":
-		res, rpcErr = writeTool(root, p.Arguments)
-	default:
-		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "unknown tool: " + p.Name}
+	// ADR-093: an argument the tool does not declare is refused before
+	// dispatch, so nothing is served, written or acknowledged. The refusal is
+	// assigned rather than returned, so it leaves through the one funnel below.
+	if msg := undeclaredRefusal(p.Name, p.Arguments); msg != "" {
+		res = errorResult(msg)
+	} else {
+		switch p.Name {
+		case "mrw_read":
+			res, rpcErr = readTool(root, p.Arguments)
+		case "mrw_write":
+			res, rpcErr = writeTool(root, p.Arguments)
+		default:
+			return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "unknown tool: " + p.Name}
+		}
 	}
 	if rpcErr != nil {
 		return callToolResult{}, rpcErr
@@ -224,31 +232,37 @@ func withinCeiling(res callToolResult) (callToolResult, *rpcError) {
 			"nothing was done", MaxResultChars)}
 }
 
+// readArgs is what mrw_read decodes its arguments into. Its json tags are the
+// properties mrw_read's inputSchema declares, and
+// TestEveryToolDecodesExactlyTheArgumentsItDeclares keeps the two one set
+// (ADR-093).
+type readArgs struct {
+	Specs []string `json:"specs"`
+	// Grep turns the specs from "what to serve" into "where to look":
+	// read.Walk finds the files and supplies the specs itself. This is
+	// `mrw read --grep` over the wire, calling the same primitive in the
+	// same order the CLI calls it (cmd/mrw/main.go:510).
+	Grep    string   `json:"grep"`
+	AstGrep string   `json:"ast_grep"`
+	Exclude []string `json:"exclude"`
+	// After resumes a paged INDEX. It is the missing half of next_index:
+	// without an argument that accepts it, the index named a continuation
+	// nothing could follow — a field describing a dead end, which is the
+	// exact defect this record was written to prevent, one level down.
+	// Found by review of #80.
+	After string `json:"after"`
+	// Ack carries the checkpoints the caller actually received, and it is
+	// what turns a served page into a licensed one (ADR-031). Absent means
+	// "I acknowledge nothing", which is the safe reading and what a caller
+	// written before this field sends.
+	Ack []string `json:"ack"`
+}
+
 // readTool serves ranges and records what it observed, exactly as `mrw read`
 // does — including the ledger write, which is how mrw learns what a file holds
 // and therefore what a later write is allowed to address.
 func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
-	var a struct {
-		Specs []string `json:"specs"`
-		// Grep turns the specs from "what to serve" into "where to look":
-		// read.Walk finds the files and supplies the specs itself. This is
-		// `mrw read --grep` over the wire, calling the same primitive in the
-		// same order the CLI calls it (cmd/mrw/main.go:510).
-		Grep    string   `json:"grep"`
-		AstGrep string   `json:"ast_grep"`
-		Exclude []string `json:"exclude"`
-		// After resumes a paged INDEX. It is the missing half of next_index:
-		// without an argument that accepts it, the index named a continuation
-		// nothing could follow — a field describing a dead end, which is the
-		// exact defect this record was written to prevent, one level down.
-		// Found by review of #80.
-		After string `json:"after"`
-		// Ack carries the checkpoints the caller actually received, and it is
-		// what turns a served page into a licensed one (ADR-031). Absent means
-		// "I acknowledge nothing", which is the safe reading and what a caller
-		// written before this field sends.
-		Ack []string `json:"ack"`
-	}
+	var a readArgs
 	if name := nonUTF8Arg(args); name != "" {
 		return errorResult(nonUTF8Refusal(name)), nil
 	}
@@ -534,19 +548,25 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	return served, nil
 }
 
+// writeArgs is what mrw_write decodes its arguments into. Its json tags are the
+// properties mrw_write's inputSchema declares, and
+// TestEveryToolDecodesExactlyTheArgumentsItDeclares keeps the two one set
+// (ADR-093).
+type writeArgs struct {
+	Plan          string   `json:"plan"`
+	Format        string   `json:"format"`
+	DryRun        bool     `json:"dry_run"`
+	Ack           []string `json:"ack"`
+	EchoPad       int      `json:"echo_pad"`
+	StrictBalance bool     `json:"strict_balance"`
+}
+
 // writeTool applies a plan through apply.Apply and returns the same Result the
 // --json receipt carries. Every step here mirrors `mrw write`: parse, resolve
 // working-set pointers, load the ledger, apply, record what was written, and
 // count the outcome for ADR-009's tally.
 func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
-	var a struct {
-		Plan          string   `json:"plan"`
-		Format        string   `json:"format"`
-		DryRun        bool     `json:"dry_run"`
-		Ack           []string `json:"ack"`
-		EchoPad       int      `json:"echo_pad"`
-		StrictBalance bool     `json:"strict_balance"`
-	}
+	var a writeArgs
 	if name := nonUTF8Arg(args); name != "" {
 		return errorResult(nonUTF8Refusal(name)), nil
 	}
@@ -1795,4 +1815,73 @@ func nonUTF8Arg(args json.RawMessage) string {
 func nonUTF8Refusal(name string) string {
 	return fmt.Sprintf("arguments: %s is not valid UTF-8. JSON text is UTF-8, and decoding it would "+
 		"replace the bytes with U+FFFD and name a path you did not send; send the name as UTF-8", name)
+}
+
+// undeclaredRefusal is ADR-093's check: the refusal for arguments that carry a
+// key the named tool's inputSchema does not declare, or "" when there is none.
+// The declared names are the schema's properties in tools(), the list a host is
+// shown, so there is no second list to drift from. It answers "" for a tool
+// tools() does not list, so the dispatch still answers -32602 (ADR-067), and
+// for arguments that are not valid UTF-8, so the tool's own refusal names them
+// (ADR-078).
+func undeclaredRefusal(name string, args json.RawMessage) string {
+	var declared []string
+	known := false
+	for _, tl := range tools() {
+		if tl.Name != name {
+			continue
+		}
+		known = true
+		schema, _ := tl.InputSchema.(map[string]any)
+		props, _ := schema["properties"].(map[string]any)
+		for k := range props {
+			declared = append(declared, k)
+		}
+	}
+	if !known {
+		return ""
+	}
+	if !utf8.Valid(args) {
+		return ""
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(args, &m); err != nil {
+		return "" // the tool's own decoder refuses these arguments by name
+	}
+	var undeclared []string
+	for k := range m {
+		// Exactly: encoding/json matches a key to a field case-insensitively,
+		// and that is not the contract, so "Plan" is not "plan".
+		if !slices.Contains(declared, k) {
+			undeclared = append(undeclared, k)
+		}
+	}
+	if len(undeclared) == 0 {
+		return ""
+	}
+	sort.Strings(undeclared)
+	sort.Strings(declared)
+	return fmt.Sprintf("%s does not take %s, so nothing was done: nothing was served or written, "+
+		"and an ack sent with this call was not recorded. %s takes %s (this server is mrw %s, "+
+		"and a key a later mrw declares is refused by this one). %s",
+		name, quoteAll(undeclared), name, quoteAll(declared), Version, cliRoute[name])
+}
+
+// cliRoute says, per tool, where the CLI has what the tool does not, for
+// undeclaredRefusal. Every flag named here is in that subcommand's --help and
+// none is an argument the tool declares (ADR-016's two checks, which
+// TestTheRefusalRoutesOnlyToFlagsTheCLIHas applies).
+var cliRoute = map[string]string{
+	"mrw_read": "`mrw read` in a shell has what this tool does not, such as --files-from, --max-lines and --stat.",
+	"mrw_write": "This tool runs no check and no step (ADR-054, ADR-092); `mrw write` in a shell runs the " +
+		"project's check after a write (--check demands it on prose) and takes --then and --then-sh for steps after it.",
+}
+
+// quoteAll quotes each name and joins them with commas, in the order given.
+func quoteAll(names []string) string {
+	q := make([]string, len(names))
+	for i, n := range names {
+		q[i] = strconv.Quote(n)
+	}
+	return strings.Join(q, ", ")
 }

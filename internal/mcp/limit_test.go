@@ -355,6 +355,7 @@ func TestEveryAnswerFitsIncludingTheRefusals(t *testing.T) {
 		{"a read too large to serve", "mrw_read", false, map[string]any{"specs": specs}},
 		{"exclude without grep", "mrw_read", false, map[string]any{"specs": specs[:1], "exclude": []string{"x"}}},
 		{"a plan that does not parse", "mrw_write", false, map[string]any{"plan": "@@ nonsense\n"}},
+		{"an undeclared key quoted back at length", "mrw_write", true, map[string]any{"plan": "x", strings.Repeat("k", 3000): true}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			resp := rawResponse(t, root, c.tool, c.args)
