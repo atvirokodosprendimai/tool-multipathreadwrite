@@ -166,9 +166,10 @@ const toolWrite = tool({
     "put every site in ONE plan. Every hunk gets a verdict; a plan that fails validation " +
     "writes nothing. Addresses resolve against the ORIGINAL file. Ops: replace, insert-after, " +
     "insert-before, delete, create, unlink, rename. A new file is '@@ path 0 create'. A " +
-    "multi-line replace needs anchor= AND a served line after its range: read past the end " +
-    "first. mrw will not edit a line it has not served AND you have acknowledged: pass the ck " +
-    "ids from mrw_read in ack. It runs no check; call mrw_check with the files you wrote.",
+    "multi-line replace needs anchor= AND, unless its range ends at the last line, a served line " +
+    "after it: read past the end first. mrw will not edit a line it has not served AND you have " +
+    "acknowledged: pass the ck ids from mrw_read in ack. It runs no check; call mrw_check with the " +
+    "files you wrote.",
   args: {
     plan: z.string().describe(
       "The plan document. Each hunk: '@@ <path> <address> <op> [guards]' + body lines.\n" +
@@ -198,8 +199,8 @@ const toolWrite = tool({
       .boolean()
       .optional()
       .describe(
-        "Refuse a single-line replace on a code path whose {} () [] do not balance against the line " +
-          "it replaces (the wrap-tail shape). Off by default.",
+        "Refuse a single-line replace on a code path when the line it replaces has unbalanced {} () [] " +
+          "and the body does not carry the same imbalance (the wrap-tail shape). Off by default.",
       ),
   },
   async execute(args, ctx) {

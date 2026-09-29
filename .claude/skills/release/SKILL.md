@@ -109,8 +109,9 @@ splits at the first comma, and with no `'` in the description, whose escape is s
 
 - `git pull` on `main` refused to fast-forward (v1.16.0): a never-landed local
   commit. Reset to origin, do not merge.
-- `git rev-parse HEAD origin/<branch>` right after a push said "Needed a single
-  revision" — the tracking ref was not fetched yet. `git ls-remote` is the check.
+- `git rev-parse --short HEAD origin/<branch>` answered "Needed a single revision", and it was read
+  as a tracking ref not fetched yet. It fails every time: `--short` verifies ONE revision (found by
+  the review of #282). `git ls-remote` asks the remote itself and is the check.
 - `gh pr merge --delete-branch` on a parent auto-closes a stacked child PR.
   Status PRs are never stacked; cut them from `main` after the tag.
 - Reading an exit code through `| head` returns head's status. The v1.16.0
