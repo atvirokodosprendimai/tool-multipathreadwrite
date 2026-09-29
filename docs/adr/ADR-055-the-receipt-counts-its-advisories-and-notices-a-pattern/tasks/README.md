@@ -29,6 +29,11 @@ in parallel with T1/T2. T4 teaches once the three surfaces exist.
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
+**Resolved 2026-09-28** (#263, `651bc94`): T2 is `done`. It was relocked with
+`adr-verify --relock --replace-hashes`, and its Verification Log records the red-time body as
+unrecoverable and the merged body as reviewed. The note below is kept as the record of why it was
+`blocked`.
+
 T2 is `blocked` on the word, not the work: its fence passes, three mutants are killed, the
 contract row holds. After its first red, a mutant on the writer's trim SURVIVED and the test
 gained one assertion (the ring FILE's line count) — the strengthening the `stress-testing` skill

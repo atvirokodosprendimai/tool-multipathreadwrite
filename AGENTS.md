@@ -344,9 +344,12 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   production` and `ansible-playbook --syntax-check`, all three on YAML whose
   meaning had changed; and `php -l` on a `.blade.php`, which is inline HTML to the
   lexer. `--check` cannot reach a file no test exercises, which is most templates.
-  Where a parser DOES see the file — `node --check`, `python3 -m py_compile`,
-  `jq .` — run it: milliseconds, and one session caught a real 34-line splice that
-  way. Never INSTEAD of the read.
+  Where a parser DOES see the file — `node --check`,
+  `python3 -c 'import sys; compile(open(sys.argv[1], "rb").read(), sys.argv[1], "exec")' FILE`,
+  `jq -e -s 'length == 1' FILE` — run it: milliseconds, and one session caught a real 34-line
+  splice that way. Never INSTEAD of the read. Not `python3 -m py_compile`: it writes
+  `__pycache__/*.pyc` beside the file, into the tree. Not a bare `jq .` on a file that must hold
+  one document: it exits 0 on an empty file and on two values in a row (jq 1.7.1).
 
   ⚠ **And "the language could catch it" is not "the gate that runs catches it".**
   Three stacks, three different ways the running gate is narrower than the

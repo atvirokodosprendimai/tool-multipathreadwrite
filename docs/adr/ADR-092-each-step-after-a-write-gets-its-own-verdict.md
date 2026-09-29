@@ -211,4 +211,4 @@ project that declared steps keeps working, minus the flags.
 
 ## Follow-ups
 
-- [ ] Update the centralised `mrw` skill from AGENTS.md at the release that ships this record.
+- [x] Update the centralised `mrw` skill from AGENTS.md at the release that ships this record — shipped in v1.31.0, tagged at `2ea8bd5`, Status #272; the skill carries v1.31.0 and is at v35 (2026-09-29).
