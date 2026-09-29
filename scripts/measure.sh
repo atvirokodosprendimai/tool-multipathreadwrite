@@ -421,13 +421,19 @@ verify() {
     specs+=("f$i.go:/^func F$i/")
     plan+="@@ f$i.go /^func F$i/ replace\nfunc F$i() int { return $((i * 10)) }\n"
   done
-  local check="gofmt -l . | awk 'END { exit NR > 0 }'"
+  # Not `gofmt -l . | awk …`: sh has no pipefail, so a gofmt that failed and
+  # printed nothing would pass. The file stays in the fixture, not the tree.
+  local check='gofmt -l . > gofmt.out && test ! -s gofmt.out'
   local s1='go vet ./...' s2='grep -c ^func *.go'
   printf '{"check":"%s","steps":{"vet":"%s","funcs":"%s"}}\n' "$check" "$s1" "$s2" > "$dir/.quality-harness.json"
 
   "$MRW" -C "$dir" read "${specs[@]}" > /dev/null
   local receipt
-  receipt=$(printf '%b' "$plan" | "$MRW" -C "$dir" write --then vet --then funcs -) || {
+  # The check runner writes its logs to the OS temp directory and prunes old
+  # mrw-check-*.log files there, which would reach outside $SCRATCH: give it one
+  # of its own. TMP and TEMP are what Go reads on Windows.
+  local tmp; tmp=$(mktemp -d "$SCRATCH/tmp-XXXXXX")
+  receipt=$(printf '%b' "$plan" | TMPDIR="$tmp" TMP="$tmp" TEMP="$tmp" "$MRW" -C "$dir" write --then vet --then funcs -) || {
     echo "G: mrw write --then did not exit 0 — a failed run is not a measurement" >&2; exit 2; }
   local mrwbytes named
   mrwbytes=$(printf '%s\n' "$receipt" | wc -c | tr -d ' ')
@@ -461,7 +467,7 @@ verify() {
     "$chain" "$mrwbytes" "$(ratio "$chain" "$mrwbytes") output"
   printf '  %-38s %10s %10s   %s\n' "verdicts named, separate / chain" \
     "$nverify / 1" "$named" "the chain names none of its steps"
-  rm -rf "$dir"
+  rm -rf "$dir" "$tmp"
 }
 verify
 

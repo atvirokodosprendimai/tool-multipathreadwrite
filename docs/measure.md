@@ -152,8 +152,8 @@ a byte or two between runs, since the receipt carries the check's duration.
 |---|---|---|---|
 | calls, separate (4 reads + 4 edits + check + 2 steps) | 11 | 2 | 5.5× fewer |
 | calls, verification as one `&&` chain | 9 | 2 | 4.5× fewer |
-| bytes of verification output, separate | 32 | 512 | **16.0× MORE** |
-| bytes of verification output, `&&` chain | 32 | 512 | **16.0× MORE** |
+| bytes of verification output, separate | 32 | 519 | **16.2× MORE** |
+| bytes of verification output, `&&` chain | 32 | 519 | **16.2× MORE** |
 | verdicts named | 3 separate / 1 chain | 3 | |
 
 **The `&&` chain is the baseline to read for calls.** It ties mrw on the
