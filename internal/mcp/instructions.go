@@ -60,8 +60,8 @@ var exampleReadSpecs = []string{
 // one worked plan, quoted twice, so the two copies cannot disagree about a
 // format that has no second source.
 func instructionsText() string {
-	return guide.Shared() + "\n\n" + guide.WhyAllOrNothing() + "\n\n" + fmt.Sprintf(`WHICH SURFACE. With a shell prefer the CLI.
-CLI has --files-from, --check, and
+	return guide.Shared() + "\n\n" + guide.WhyAllOrNothing() + "\n\n" + fmt.Sprintf(`WHICH SURFACE.
+CLI has --files-from, a check after code writes (--check), and
 check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; --root goes
 BEFORE the subcommand, since after `+"`read`"+` the short -C is the context flag.
 This surface serves ONE fixed checkout, chosen at launch with `+"`--root DIR mcp`"+`,
@@ -101,9 +101,9 @@ served. Paths are relative to the server's root; an absolute one is
 refused by name, and two spellings of ONE file (case, symlink) are one, so
 a plan naming both is refused.
 
-Guards, checked on every op: sha=<hex> whole file, lines=<n> the span,
-anchor="<text>" first addressed line. A BODY line beginning with @@ needs
-body=<n> and raw=true, or the plan is refused.
+Guards: sha=<hex> whole file, on every op; lines=<n> the span and anchor="<text>"
+first addressed line, refused on create, unlink and rename. A BODY line
+beginning with @@ needs body=<n> and raw=true, or the plan is refused.
 
 A worked plan:
 
@@ -111,7 +111,7 @@ A worked plan:
 dry_run true: same receipt, no write. A refusal is the tool working.
 
 Both tools cap the ENCODED answer at the ceiling _meta names. An oversized
-write receipt drops successes then UNWRITTEN files and says so in elided;
+write receipt drops ok and skipped verdicts, then UNWRITTEN files, and says so in elided;
 smaller still, one sentence and no receipt.
 `, exampleReadSpecs, AckRule, examplePlan)
 }

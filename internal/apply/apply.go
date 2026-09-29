@@ -38,7 +38,7 @@ type Status string
 // Hunk verdicts. Skipped means the hunk's file was not written: a sibling hunk
 // failed validation or staging so nothing was written, or a later commit step
 // failed and this hunk's file was never renamed into place or was put back
-// (ADR-066). A hunk is ok only when its file reached disk.
+// (ADR-066). A hunk is ok when its file reached disk, or would have on a dry run.
 const (
 	StatusOK      Status = "ok"
 	StatusFailed  Status = "failed"

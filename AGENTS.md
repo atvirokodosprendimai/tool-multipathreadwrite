@@ -143,7 +143,9 @@ and so is not itself bound by the ceiling it is reporting on.
 `ast_grep`, and `--exclude` onto `exclude`. A present `ast-grep` that hangs is,
 on unix, sent SIGTERM at 2 s and killed by 3 s if it ignores it; on Windows it is killed at 2 s (exit 2, names `timed out`). When the matches are too large to serve, the tool returns an INDEX —
 one spec per matching file, no content — which you send back as `specs` to read
-the ones you want. `--files-from` has no MCP equivalent and does not need one:
+the ones you want. Like a grep index, an ast_grep index pages with `after`: send
+the same finder again with `after` set to `next_index`, until it is empty.
+`--files-from` has no MCP equivalent and does not need one:
 it exists to undo shell word-splitting, and `specs` is already a list.
 
 ### 1. Read many ranges in one call, and let the read do the finding

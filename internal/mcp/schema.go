@@ -224,7 +224,7 @@ func writeSchema() map[string]any { return mustDescribe(mustSchema(writeReceipt{
 // entry here naming a property the schema no longer declares is refused at
 // construction, which is the quieter of the two drifts.
 var writeDescriptions = map[string]string{
-	"elided":             "Present ONLY when the whole receipt exceeded this server's advertised ceiling, and says exactly what was left out. Successful and skipped hunk verdicts go first and file records after them; every FAILED hunk is always here, and `failed`, `applied` and the counts in the report describe the whole plan whatever was dropped. Its absence means nothing was left out.",
+	"elided":             "Present ONLY when the whole receipt exceeded this server's advertised ceiling, and says exactly what was left out. Successful and skipped hunk verdicts go first, then the records of files that were NOT written; every FAILED hunk and every WRITTEN file is always here, and `failed`, `applied` and the counts in the report describe the whole plan whatever was dropped. Its absence means nothing was left out.",
 	"root":               "The checkout the plan was applied in. Every path in the plan is relative to it.",
 	"dry_run":            "True when the plan was only validated. Every other field means what it would have meant, and nothing was written.",
 	"applied":            "True when every hunk passed and the new content reached disk. False on a dry run and on any refusal.",
@@ -250,7 +250,7 @@ var writeDescriptions = map[string]string{
 	// sends: a host filtering hunks[].status == "fail" would have seen a clean
 	// run through every failure. Caught in review of PR #72 and pinned by
 	// TestTheStatusDescriptionNamesTheValuesTheEngineSends.
-	"hunks.status":            "`ok` when this hunk's file reached disk, `failed` when this hunk did not validate or its commit failed, `skipped` when its file was not written because another hunk failed. A skipped hunk is never an applied one.",
+	"hunks.status":            "`ok` when this hunk's file reached disk, or would have on a dry run, `failed` when this hunk did not validate or its commit failed, `skipped` when its file was not written because another hunk failed. A skipped hunk is never an applied one.",
 	"hunks.reason":            "Why a failing hunk failed: a guard that did not hold, a file mrw had not served, a path outside the root. Absent when the hunk passed.",
 	"hunks.removed":           "How many lines this hunk removes. Computed during validation, so on a dry run or a failed plan it is a proposed delta.",
 	"hunks.added":             "How many lines this hunk adds, on the same terms as `removed`.",

@@ -7819,6 +7819,93 @@ grep -q 'ends in whitespace' "$WORK/e188d" && ok "and is refused by ADR-069's gu
 "$MRW" instructions > "$WORK/o188e" 2> /dev/null; want 0 $? "mrw instructions exits 0"
 [ -s "$WORK/o188e" ] && ok "and prints the contract: the named command is the one that works" || bad "mrw instructions printed nothing"
 
+# 189. ADR-098: an ast_grep index pages with `after`, as a grep index does. An
+# ast_grep answer too large to serve was an INDEX that said "send the SAME grep
+# again", while `after` without grep was refused: page two of a structural
+# search could not be reached. A fake ast-grep on PATH reports one hit in each of
+# 400 files, in REVERSE path order, and a 6,000-byte ceiling forces the index;
+# every page is followed until next_index is empty and each file must appear
+# exactly once. Each $MRW run is bounded by the subprocess timeout, which kills
+# with SIGKILL (Go ignores SIGALRM, contract.md). The pair: `after` with plain
+# specs is still refused, and names both finders.
+fixture
+d189=$(mktemp -d)
+python3 - "$R" "$d189/hits.json" <<'PY'
+import json, sys
+root, out = sys.argv[1], sys.argv[2]
+hits = []
+for i in range(399, -1, -1):
+    open("%s/document%05d.csv" % (root, i), "w").write("x\nthe NEEDLE is here\n")
+    hits.append({"file": "document%05d.csv" % i, "range": {"start": {"line": 1}, "end": {"line": 1}}})
+json.dump(hits, open(out, "w"))
+PY
+printf '%s\n' '#!/bin/sh' "cat '$d189/hits.json'" > "$d189/ast-grep"
+chmod +x "$d189/ast-grep"
+PATH="$d189:$PATH" MRW_BIN="$MRW" python3 - "$R" <<'PY'
+import json, subprocess, sys, os
+root, mrw = sys.argv[1], os.environ["MRW_BIN"]
+def call(args):
+    req = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "mrw_read", "arguments": args}}
+    p = subprocess.run([mrw, "--root", root, "mcp", "--max-result-chars", "6000"],
+                       input=json.dumps(req) + "\n", capture_output=True, text=True, timeout=30)
+    return json.loads(p.stdout.splitlines()[0])["result"]
+res = call({"ast_grep": "NEEDLE"})
+assert not res.get("isError"), "the first ast_grep call was refused: %.300s" % res
+text = res["content"][0]["text"]
+assert "SAME ast_grep again" in text and "next_index is empty" in text, "the index does not name ast_grep: %.400s" % text
+st = json.loads(res["content"][1]["text"])
+seen, nxt, pages = set(st["index"]), st["next_index"], 1
+assert nxt, "the first index was not cut short"
+while nxt:
+    pages += 1
+    assert pages <= 50, "following next_index did not end"
+    r = call({"ast_grep": "NEEDLE", "after": nxt})
+    assert not r.get("isError"), "after with ast_grep was refused: %.300s" % r
+    s = json.loads(r["content"][1]["text"])
+    page = s["index"] if "index" in s else list(s["observed"].keys())
+    assert page and not (seen & set(page)), "page %d is empty or repeats a file" % pages
+    seen |= set(page)
+    nxt = s.get("next_index") or ""
+assert len(seen) == 400, "paging yielded %d distinct files, want 400" % len(seen)
+r = call({"specs": ["document00000.csv"], "after": "x"})
+t = r["content"][0]["text"]
+assert r.get("isError") and "grep" in t and "ast_grep" in t, "after with plain specs: %.300s" % r
+PY
+[ $? -eq 0 ] && ok "an ast_grep index pages to the end over the built binary, and after with plain specs is refused naming both finders" \
+             || bad "the ast_grep index does not page, repeats or loses a file, or after with plain specs is accepted"
+rm -rf "$d189"
+
+# 190. ADR-098: the handshake says what the code does. The server told a host
+# to repeat "until next_index is absent" (it is empty on the last page), that
+# exclude was "only meaningful" with a finder (it is refused without one), and
+# that guards are "checked on every op" (create, unlink and rename refuse
+# anchor= and lines=). The corrected sentences are read from the built binary's
+# initialize and tools/list; the pair: none of the old claims is served, while
+# the true `next_read is absent` stays.
+fixture
+MRW_BIN="$MRW" python3 - "$R" <<'PY'
+import json, subprocess, sys, os
+# Driven from here, not through `bounded`: a backgrounded command in a
+# non-interactive shell reads /dev/null, not the pipe. The timeout kills with
+# SIGKILL, which Go cannot ignore (contract.md).
+reqs = [{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18",
+         "capabilities": {}, "clientInfo": {"name": "c", "version": "1"}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}]
+p = subprocess.run([os.environ["MRW_BIN"], "--root", sys.argv[1], "mcp"], capture_output=True, text=True,
+                   input="".join(json.dumps(r) + "\n" for r in reqs), timeout=30)
+lines = [json.loads(l) for l in p.stdout.splitlines() if l.startswith("{")]
+ins = next(m["result"]["instructions"] for m in lines if m.get("id") == 1)
+tl = next(m["result"]["tools"] for m in lines if m.get("id") == 2)
+text = ins + json.dumps(tl)
+for s in ["`next_index` is empty", "Refused without `grep` or `ast_grep`", "refused on create, unlink and rename",
+          "rename takes address `-` and one body line", "unless the range ends at the file's last line", "next_read is absent"]:
+    assert s in text, "not served: %r" % s
+for s in ["next_index` is absent", "Only meaningful with", "Guards, checked on every op"]:
+    assert s not in text, "still served: %r" % s
+PY
+[ $? -eq 0 ] && ok "initialize and tools/list serve the corrected sentences and none of the old claims" \
+             || bad "the handshake still serves a claim the code contradicts, or lost a correction"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

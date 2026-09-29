@@ -289,12 +289,20 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if err := read.CheckExclude(a.Exclude); err != nil {
 		return errorResult("exclude " + err.Error()), nil
 	}
-	// `after` resumes a grep's index, so without one it means nothing. Silently
-	// ignoring it is how a caller believes it is paging while re-reading page
-	// one forever — the same silence `exclude` already refuses, and it deserves
-	// the same sentence. Found by review of #80.
-	if a.After != "" && a.Grep == "" {
-		return errorResult("after without grep: it resumes a grep's index, and there is no index without one"), nil
+	// `after` resumes a finder's index — grep's, or ast_grep's since ADR-098 —
+	// so without one it means nothing. Silently ignoring it is how a caller
+	// believes it is paging while re-reading page one forever — the same
+	// silence `exclude` already refuses, and it deserves the same sentence.
+	// Found by review of #80.
+	if a.After != "" && a.Grep == "" && a.AstGrep == "" {
+		return errorResult("after without grep or ast_grep: it resumes their index, and there is no index without one"), nil
+	}
+	// finder names the source of the specs an index is built from, once, so no
+	// caller of matchIndex can tell the caller to resend a different one
+	// (ADR-098: the index said "grep" to an ast_grep caller).
+	finder := "grep"
+	if a.AstGrep != "" {
+		finder = "ast_grep"
 	}
 
 	var specs []read.Spec
@@ -308,7 +316,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	var walkProblems []read.Problem
 	if a.AstGrep != "" {
 		var err error
-		specs, walkProblems, err = astGrepSpecs(root, a.Specs, a.AstGrep, a.Exclude)
+		specs, walkProblems, err = astGrepSpecs(root, a.Specs, a.AstGrep, a.Exclude, a.After)
 		if err != nil {
 			return errorResult(err.Error()), nil
 		}
@@ -424,7 +432,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// dead end ADR-014 removed reappearing through a new door, firing on
 		// this population's ordinary case rather than an exotic one.
 		if walked {
-			return matchIndex(specs, walkProblems, problems, cw), nil
+			return matchIndex(finder, specs, walkProblems, problems, cw), nil
 		}
 		if page, ok := firstPage(root, a.Specs, cw); ok {
 			return page, nil
@@ -502,7 +510,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// says why — with its own sentence, because "your read was too large"
 		// is not what happened here.
 		if walked {
-			return matchIndex(specs, walkProblems, problems-len(walkProblems), cw), nil
+			return matchIndex(finder, specs, walkProblems, problems-len(walkProblems), cw), nil
 		}
 		if page, ok := firstPage(root, a.Specs, cw); ok {
 			return page, nil
@@ -525,7 +533,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			}
 			if encodedSize(markedServed) > cw.limit {
 				if walked {
-					return matchIndex(specs, walkProblems, problems-len(walkProblems), cw), nil
+					return matchIndex(finder, specs, walkProblems, problems-len(walkProblems), cw), nil
 				}
 				if page, ok := firstPage(root, a.Specs, cw); ok {
 					return page, nil
@@ -1437,23 +1445,29 @@ func grepSpecs(root string, paths []string, pattern string, exclude []string, af
 	if err != nil {
 		return nil, nil, err
 	}
-	// Resume: drop everything at or before the caller's cursor. read.Walk
-	// sorts by path, so "after" is a position in a total order rather than an
-	// opaque token — the caller can read it, and two calls with the same
-	// cursor return the same page.
-	if after != "" {
-		i := 0
-		for i < len(specs) && specs[i].Path <= after {
-			i++
-		}
-		specs = specs[i:]
+	return afterCursor(specs, after), problems, nil
+}
+
+// afterCursor drops every spec at or before the caller's cursor. read.Walk and
+// read.AstGrep both sort by path, so `after` is a position in one total order
+// rather than an opaque token — the caller can read it, and two calls with the
+// same cursor return the same page. At or before, not before: the cursor names
+// the LAST entry a page showed, and keeping it would serve that file twice.
+func afterCursor(specs []read.Spec, after string) []read.Spec {
+	if after == "" {
+		return specs
 	}
-	return specs, problems, nil
+	i := 0
+	for i < len(specs) && specs[i].Path <= after {
+		i++
+	}
+	return specs[i:]
 }
 
 // astGrepSpecs is grepSpecs for --ast-grep: the same refusals, the same
-// primitive the CLI calls. ADR-016: the two surfaces must not disagree.
-func astGrepSpecs(root string, paths []string, pattern string, exclude []string) ([]read.Spec, []read.Problem, error) {
+// primitive the CLI calls, and the same cursor. ADR-016: the two surfaces must
+// not disagree; ADR-098: an ast_grep index pages as a grep index does.
+func astGrepSpecs(root string, paths []string, pattern string, exclude []string, after string) ([]read.Spec, []read.Problem, error) {
 	for _, p := range paths {
 		sp, err := read.ParseSpec(p)
 		if err != nil {
@@ -1463,7 +1477,11 @@ func astGrepSpecs(root string, paths []string, pattern string, exclude []string)
 			return nil, nil, fmt.Errorf("%s: a range and ast-grep are two answers to one question", p)
 		}
 	}
-	return read.AstGrep(root, paths, pattern, exclude)
+	specs, problems, err := read.AstGrep(root, paths, pattern, exclude)
+	if err != nil {
+		return nil, nil, err
+	}
+	return afterCursor(specs, after), problems, nil
 }
 
 // matchIndex is the answer to a grep whose CONTENT will not fit: the addresses,
@@ -1490,7 +1508,7 @@ func astGrepSpecs(root string, paths []string, pattern string, exclude []string)
 // fit, the oversized answer reaches withinCeiling, which refuses it legibly.
 // others counts problems that are not the walk's (a walked file that became
 // unreadable before it was read); they are counted in one sentence.
-func matchIndex(specs []read.Spec, walkProblems []read.Problem, others int, cw *capped) callToolResult {
+func matchIndex(finder string, specs []read.Spec, walkProblems []read.Problem, others int, cw *capped) callToolResult {
 	entries := make([]string, 0, len(specs))
 	for _, sp := range specs {
 		entries = append(entries, sp.Path)
@@ -1540,12 +1558,12 @@ func matchIndex(specs []read.Spec, walkProblems []read.Problem, others int, cw *
 			len(entries), cw.written, cw.limit)
 		b.WriteString("-- No content was served and nothing was recorded, so no write is licensed by this.\n")
 		if next != "" {
-			fmt.Fprintf(&b, "-- Showing the first %d of %d. Send the SAME grep again with after=%q for the next page, and repeat until next_index is absent.\n", len(shown), len(entries), next)
+			fmt.Fprintf(&b, "-- Showing the first %d of %d. Send the SAME %s again with after=%q for the next page, and repeat until next_index is empty.\n", len(shown), len(entries), finder, next)
 		}
 		// The paths are NOT repeated in the prose block: they are in the JSON
 		// block below, and a second copy is a second share of the cap spent
 		// saying the same thing.
-		b.WriteString("-- The matching files are listed in this result's index field. Send any of them back as specs WITH the same grep to read its matches, or on its own to read the file.\n")
+		fmt.Fprintf(&b, "-- The matching files are listed in this result's index field. Send any of them back as specs WITH the same %s to read its matches, or on its own to read the file.\n", finder)
 		for _, p := range walkProblems {
 			fmt.Fprintf(&b, "-- %s: %s\n", p.Path, p.Reason)
 		}

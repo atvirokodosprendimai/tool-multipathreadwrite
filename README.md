@@ -272,7 +272,8 @@ write before anything is applied.
 `grep` / `exclude` map onto `--grep` / `--exclude`. `ast_grep` maps onto
 `--ast-grep`. A grep too large to serve returns an index — one spec per
 matching file, no content — which licenses nothing — and names every path the
-walk could not use.
+walk could not use. Like a grep's, an ast_grep index pages with `after`: send the
+same finder again with `after` set to `next_index`, until it is empty.
 
 A read of ONE spec — a whole file, or `path:N-` — too large for the ceiling comes
 back as a first page with `next_read`: send that back as `specs` to continue, and
