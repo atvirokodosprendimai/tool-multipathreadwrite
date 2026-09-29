@@ -221,7 +221,9 @@ func jsonInner(s string) string {
 // and once by ADR-090, whose worked plan's second hunk became `/^import \($/` and whose read
 // example escaped `\(s \*Store\)`: those two addresses, in the instructions and in tools/list;
 // and once by ADR-091, whose five write-receipt path descriptions say they are spelled with `/`;
-// and once by ADR-093, whose input schemas are closed: that key, once per tool.
+// and once by ADR-093, whose input schemas are closed: that key, once per tool;
+// and once by ADR-098, whose corrections are the only diff: the guards, the CLI's check,
+// `elided`, the routing sentence once, and the specs, ast_grep, exclude and after descriptions.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
 	got := legacyTranscript(t)
 	golden := filepath.Join("testdata", "legacy_golden.jsonl")

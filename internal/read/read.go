@@ -586,7 +586,7 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 				// no-op: the start matched, which only matters if its end does not
 				// ADR-036. `j >= i`, not `j > i`: the end is the first match AT
 				// OR AFTER the start, which is what internal/apply already did
-				// (apply.go:748) and what ed and sed mean by /a/,/b/. An end on
+				// (the THE END IS A DELIMITER block in Apply) and what ed and sed mean by /a/,/b/. An end on
 				// the start line closes the span there.
 				//
 				// 0 means "no end matched", and it is not a valid span start, so

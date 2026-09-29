@@ -429,7 +429,7 @@ func tools() []tool {
 					"specs": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": "One or more range specs, e.g. internal/x/y.go:40-60. With `grep` set these are DIRECTORIES OR FILES TO SEARCH instead, and may be omitted to search the whole root.",
+						"description": "One or more range specs, e.g. internal/x/y.go:40-60. With `grep` or `ast_grep` set these are DIRECTORIES OR FILES TO SEARCH instead, carry no range, and may be omitted to search the whole root.",
 						// A worked value, not a sentence about one. The three
 						// address forms in one list, because a caller who sees
 						// only a line range will make a second call to find the
@@ -443,13 +443,13 @@ func tools() []tool {
 					},
 					"ast_grep": map[string]any{
 						"type":        "string",
-						"description": "A structural pattern for the ast-grep CLI on PATH. Walks like grep, maps hits to line ranges, and serves them through the same read. Missing ast-grep names ast-grep. A hit in a file whose lines end in \\r alone is reported, not served; read that file directly. Do not set grep at the same time: they are two sources of specs.",
+						"description": "A structural pattern for the ast-grep CLI on PATH. Walks like grep, maps hits to line ranges, and serves them through the same read; too large to serve, it answers with an INDEX that `after` pages, as grep's does. Missing ast-grep names ast-grep. A hit in a file whose lines end in \\r alone is reported, not served; read that file directly. Do not set grep at the same time: they are two sources of specs.",
 						"examples":    []any{"fmt.Println($A)"},
 					},
 					"exclude": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": "Globs to skip, matched against BOTH the root-relative path and the basename. Only meaningful with `grep` or `ast_grep`. Note that `*` does not cross a separator, which is why the basename is matched too: \"*_test.go\" against the full path alone matches no test file anywhere below the root.",
+						"description": "Globs to skip, matched against BOTH the root-relative path and the basename. Refused without `grep` or `ast_grep`: there is nothing to exclude from. Note that `*` does not cross a separator, which is why the basename is matched too: \"*_test.go\" against the full path alone matches no test file anywhere below the root.",
 						"examples":    []any{[]any{"*_test.go", "vendor"}},
 					},
 					"ack": map[string]any{
@@ -460,7 +460,7 @@ func tools() []tool {
 					},
 					"after": map[string]any{
 						"type":        "string",
-						"description": "Resume a paged index: send the SAME `grep` again with this set to the `next_index` the previous call returned, and matching files at or before it are skipped. Files are walked in path order, so this is a position you can read rather than an opaque cursor. Repeat until `next_index` is absent.",
+						"description": "Resume a paged index: send the SAME `grep` or `ast_grep` again with this set to the `next_index` the previous call returned, and matching files at or before it are skipped. Files are walked in path order, so this is a position you can read rather than an opaque cursor. Repeat until `next_index` is empty.",
 					},
 				},
 				"required": []string{},
@@ -488,9 +488,10 @@ func tools() []tool {
 				"or nothing: if any hunk fails validation, nothing is written. Every address resolves against " +
 				"the ORIGINAL file, so several hunks in one file need no offset arithmetic. mrw " +
 				"will not edit a line it has not served you — read it with mrw_read first. If you " +
-				"can run shell commands, prefer the CLI `mrw write` — it also has --check, which " +
-				"runs the project's tests scoped to what it just wrote. Prefer THIS tool with no " +
-				"shell; it needs no --json because its answer is already structured.",
+				"can run shell commands, prefer the CLI `mrw write` — after a write that touches code it " +
+				"runs the project's check when one is declared or inferred, and --check demands one; this " +
+				"tool runs none. Prefer THIS tool with no shell; it needs no --json because its answer is " +
+				"already structured.",
 			InputSchema: map[string]any{
 				"type": "object",
 				// ADR-093, as for mrw_read.
@@ -532,7 +533,7 @@ func tools() []tool {
 						"description": "The plan document. Each hunk is a header line " +
 							"`@@ <path> <address> <op> [guards]` followed by its body lines. " +
 							"Ops: replace, insert-after, insert-before, delete, create, unlink, rename. " +
-							"unlink takes address `-` and no body. Among line-range ops, ONLY delete may carry no body: an empty file is `@@ new.txt 0 " +
+							"unlink takes address `-` and no body; rename takes address `-` and one body line, the destination path. Among line-range ops, ONLY delete may carry no body: an empty file is `@@ new.txt 0 " +
 							"create body=0`, and a bare create with nothing under it is " +
 							"refused, because a lost body reads exactly like one never " +
 							"written. body=@path loads the body from a root-relative file. An address " +
@@ -543,12 +544,13 @@ func tools() []tool {
 							"line; none or several fails that hunk, naming the lines it matched. " +
 							"The END is a DELIMITER, not a site: the first match at or after the " +
 							"start, so it may match many times. Addresses " +
-							"resolve against the ORIGINAL file. Guards, checked on " +
-							"every op: sha=<hex>, lines=<n>, anchor=\"<text>\". " +
+							"resolve against the ORIGINAL file. Guards: sha=<hex> is checked on every op; " +
+							"lines=<n> and anchor=\"<text>\" are refused on create, unlink and rename. " +
 							"sha= and lines= are always optional. " +
 							"anchor= is REQUIRED on a replace addressing more than one " +
 							"line, and may be omitted elsewhere. An anchor is worth most " +
-							"taken from the NNN| content a read printed. " +
+							"taken from the NNN| content a read printed. A replace of more than one line also needs " +
+							"the line after its range served, unless the range ends at the file's last line. " +
 							"Pass the ck ids from that read as ack; a serve licenses nothing until you do. " +
 							"A body line beginning with @@ needs body=<n> raw=true.",
 						// The format is bespoke and no model has it in training
