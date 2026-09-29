@@ -6,12 +6,14 @@
 // after mrw said "timed out", and an ast-grep behind a wrapper script held its
 // stdout past the 2 s bound for as long as its grandchild lived (ADR-072, from
 // the v1.25.1 adversarial round). Command puts the child in a process group of
-// its own on unix and kills the whole group on cancel, and on every platform it
-// bounds how long Wait waits for pipes a grandchild still holds. On Windows only
-// that bound applies: a grandchild there can outlive the kill.
+// its own on unix and stops the whole group on cancel — SIGTERM, then SIGKILL
+// to whatever is left a second later, so a nested mrw can stop its own check
+// first (ADR-095) — and on every platform it bounds how long Wait waits for
+// pipes a grandchild still holds. On Windows only that bound applies: a
+// grandchild there can outlive the kill.
 // Interruptible listens, for such a child, for the ^C, terminate or hangup its
 // own process group no longer hears, and cancels the context it runs under, so
-// its group is killed (ADR-074).
+// its group is stopped (ADR-074).
 package subproc
 
 import (
@@ -68,12 +70,15 @@ func Interruptible(ctx context.Context) (context.Context, context.CancelFunc) {
 	return signal.NotifyContext(ctx, sigs...)
 }
 
-// Run runs c and then kills whatever is left of its process group: a child
+// Run runs c and then stops whatever is left of its process group: a child
 // that exited 0 could leave a background grandchild behind, and exec.Cmd
 // cancels the group only on a deadline or a cancel, so the grandchild outlived
 // mrw (the waiver on #232). mrw started the group, and nothing it started
-// outlives the call (ADR-080, M: reap always). A grandchild that called setsid
-// is in a group of its own and escapes, as it would a shell.
+// outlives the call (ADR-080, M: reap always). On unix the reap is the
+// cancel's own stop, run at most once: TERM, then KILL to what is left a
+// second later, and nothing after a cancel already stopped it (ADR-095). A
+// grandchild that called setsid is in a group of its own and escapes, as it
+// would a shell.
 func Run(c *exec.Cmd) error {
 	err := c.Run()
 	reap(c)
@@ -82,10 +87,10 @@ func Run(c *exec.Cmd) error {
 
 // Output is Run for a child whose stdout is the answer. The answer goes to a
 // file, not a pipe: exec waits up to WaitDelay for a pipe a grandchild still
-// holds, and the group was killed only after that — up to a second past the
+// holds, and the group was stopped only after that — up to a second past the
 // child's exit, in which an emptied group's id could be reused (the review of
-// #241). With a file, Wait returns at the child's exit and the group is killed
-// at once.
+// #241). With a file, Wait returns at the child's exit and the group is
+// stopped at once, as Run stops it.
 func Output(c *exec.Cmd) ([]byte, error) {
 	f, err := os.CreateTemp("", "mrw-subproc-*.out")
 	if err != nil {

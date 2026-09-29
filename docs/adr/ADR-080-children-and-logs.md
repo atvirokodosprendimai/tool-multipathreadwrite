@@ -36,6 +36,8 @@
 
 1. `subproc.Run` and `subproc.Output` wait, then kill whatever is left of the child's process group.
    The check and ast-grep use them. Elsewhere there is no group; the wait bound still applies.
+   **Amended by ADR-095** (2026-09-29): on unix "kill" is SIGTERM, then SIGKILL to what is left at most
+   a second later, never after the group was seen empty, and at most once per command.
 2. A check whose process never started because its context was cancelled reports `check.Interrupted`;
    the write exits 3 with "interrupted before it started", and `mrw check` does too.
 3. A kept log is named on every path that keeps one; a check that never started removes its empty log.

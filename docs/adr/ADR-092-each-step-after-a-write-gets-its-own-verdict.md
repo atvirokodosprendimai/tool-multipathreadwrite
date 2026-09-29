@@ -88,6 +88,7 @@ names and orders, and ad-hoc shell under a separately marked flag.
    | Outcome | Steps | Exit |
    |---|---|---|
    | unknown `--then` name, empty `--then-sh`, malformed `steps` | none; the ADR-072 single refusal document, no `then` | 2 |
+   | at `MRW_STEP_DEPTH` ≥ 8, a check due or `mrw check` (ADR-095) | none; `write --json` the ADR-072 single refusal document, `check --json` one document holding only `error`, no `then` | 2 |
    | a hunk failed | every step `not_run` | 1 |
    | `--dry-run` | every step `not_run` | 0 |
    | the check failed / timed out / was interrupted | every step `not_run` | 3 |
@@ -129,6 +130,9 @@ questions, "Validate only when asked" and "Depth guard":
 - A step runs with `MRW_STEP_DEPTH` one higher than its caller's, and `--then`/`--then-sh` are
   refused (exit 2, nothing written) at depth 8, so a step that re-runs mrw with steps stops instead of
   recursing with each level resetting the step timeout.
+  **Amended by ADR-095** (2026-09-29): the check counts a level too — it runs with `MRW_STEP_DEPTH`
+  one higher than its caller's — and at depth 8 a write whose check is due and `mrw check` are refused
+  as well, exit 2, before anything is written or run.
 - A step name or command holding control bytes is printed quoted; "could not start" is said once.
 - Clarified, not changed: `could_not_start` means the shell could not start (a command the shell
   cannot find is `fail`, exit 127); a process that leaves the step's group (`setsid`) is not reaped,

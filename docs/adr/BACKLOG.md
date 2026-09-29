@@ -2348,3 +2348,10 @@ at the boundary, and a discovered one is dropped.
 - **The `then` head line quotes a command only for control bytes** (ADR-094 Out of Scope). `shown()`
   Go-quotes a command whose `strconv.Quote` differs from it, so one holding `"` or `\` is printed quoted
   too, not only one holding control bytes. Arm with a terminal-safety pass over receipts.
+
+## From ADR-095 (a nested mrw stays bounded)
+
+- **Stopping a grandchild on Windows, which needs a job object** (ADR-095 Out of Scope). Windows has no
+  process groups, so a cancel there kills only the direct child, nothing hears TERM first, and a nested
+  mrw's check outlives it as any grandchild does. Carried with ADR-080's and ADR-072's deferral of the
+  same job object; arm when a Windows caller nests mrw or reports an orphaned check.

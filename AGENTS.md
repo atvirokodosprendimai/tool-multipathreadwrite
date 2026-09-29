@@ -139,8 +139,8 @@ a write REFUSES THE WRITE, before anything is applied — as a JSON-RPC error, w
 and so is not itself bound by the ceiling it is reporting on.
 
 `mrw read --grep P` maps onto the `grep` argument, `--ast-grep P` onto
-`ast_grep`, and `--exclude` onto `exclude`. A present `ast-grep` that hangs is
-killed at 2 s (exit 2, names `timed out`). When the matches are too large to serve, the tool returns an INDEX —
+`ast_grep`, and `--exclude` onto `exclude`. A present `ast-grep` that hangs is,
+on unix, sent SIGTERM at 2 s and killed by 3 s if it ignores it; on Windows it is killed at 2 s (exit 2, names `timed out`). When the matches are too large to serve, the tool returns an INDEX —
 one spec per matching file, no content — which you send back as `specs` to read
 the ones you want. `--files-from` has no MCP equivalent and does not need one:
 it exists to undo shell word-splitting, and `specs` is already a list.
@@ -415,6 +415,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   there does not refuse a write that asks for none. In `--json`, an ad-hoc step has no `name`, and a
   step not run carries no `duration_ms`, `output_file` or `skipped`.
   A step runs as written: a step command holding {files} or {packages} is refused, since mrw expands them only in scoped_check. A passing step prints the last line of its output under its verdict.
+  A check, like a step, runs with MRW_STEP_DEPTH one higher than mrw's own; at depth 8 mrw starts neither: --then and --then-sh, a write whose check is due, and mrw check are refused, exit 2, before anything is written or run, while a write that starts no check still lands (--no-check writes without it). A command that clears the environment, such as env -i or sudo, restarts the count below it, as setsid leaves the process group. On unix a stopped check, step or ast-grep process group hears SIGTERM first, and whatever ignores it is killed a second later; an mrw killed that way can leave its own check running (ADR-095).
 - **Never read an exit code through a pipe.** `mrw write plan | head` returns
   head's status. This is the single most common way a red run reads as green.
 - A refusal is the tool working. It names the file, the plan line and the
