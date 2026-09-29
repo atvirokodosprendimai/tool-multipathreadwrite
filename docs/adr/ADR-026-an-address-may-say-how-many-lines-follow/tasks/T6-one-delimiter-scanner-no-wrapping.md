@@ -139,3 +139,4 @@ pretending otherwise.
 - 2026-09-06 · 219dfcd* · exit 0 · `set -o pipefail …` · acceptance-sha256:6be98cc64be73c6f25e43fbe2cc5d281776f2736b257d7f4596bbf0a40e05e6e · ms:30323
 - 2026-09-06 · 219dfcd* · exit 0 · `set -o pipefail …` · acceptance-sha256:6be98cc64be73c6f25e43fbe2cc5d281776f2736b257d7f4596bbf0a40e05e6e · ms:30616
 - 2026-09-06 · 219dfcd* · exit 0 · `set -o pipefail …` · acceptance-sha256:6be98cc64be73c6f25e43fbe2cc5d281776f2736b257d7f4596bbf0a40e05e6e · ms:31382
+- 2026-09-29 · human-observed · S6 observed by the PR #125 review: 'The stale-claim corrections check out' — neither Component/Boundary nor Consequences still says the MCP surface needed no change

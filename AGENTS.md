@@ -20,6 +20,7 @@ gofmt -l .                             # must print nothing
 go vet ./...
 ./scripts/contract.sh                  # bash; WSL or Git Bash on Windows
 ./scripts/static.sh                    # golangci-lint, deadcode, U1000, govulncheck (ADR-088)
+go build -o bin/mrw ./cmd/mrw && (cd cmd/opencode/mrw-plugin && npm ci && npm run build && npm test)   # the opencode plugin (ADR-089)
 ```
 
 `.quality-harness.json` names `go test ./...` as the check. A run that is piped
@@ -512,5 +513,5 @@ And the tree can hold mrw's state when you point it there — `XDG_STATE_HOME` i
 or `--root "$HOME"` with `~/.local/state`. mrw then serves and edits nothing inside its own state
 directory (ADR-077): a grep skips it, and a read or a plan naming a file there is refused.
 
-See `CONTRIBUTING.md` for the gate list and the release process, and `README.md`
-for the full interface.
+The gate list is §Build and check at the top of this file. See `CONTRIBUTING.md` for the release
+process, and `README.md` for the full interface.

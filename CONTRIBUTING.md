@@ -13,18 +13,11 @@
 
 ## The gates
 
-CI runs these on every push and pull request, and a release publishes nothing
-until they are green. Run them locally in the same order:
-
-```sh
-gofmt -l .            # must print NOTHING; `gofmt -l` exits 0 even when it lists files
-go vet ./...
-go test ./...
-go test -race ./...
-./scripts/contract.sh
-./scripts/static.sh   # golangci-lint, deadcode, staticcheck U1000, govulncheck (ADR-088)
-go build -o bin/mrw ./cmd/mrw && (cd cmd/opencode/mrw-plugin && npm ci && npm run build && npm test)   # the opencode plugin (ADR-089); bin/mrw.exe on Windows
-```
+The authoritative list is `AGENTS.md`, §Build and check: CI runs those gates on every push and pull
+request, and a release publishes nothing until they are green. Run each one locally on its own before
+you push. This file keeps what a person needs around them — the platform notes below, and why an exit
+code is never read through a pipe — and does not carry a second copy of the list, which is how the two
+drifted apart once (the opencode plugin gate was here and not there, 2026-09-29).
 
 Go builds and tests run on **Linux and Windows** in CI; `contract.sh` runs on
 Linux, because it drives a POSIX shell.

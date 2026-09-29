@@ -178,7 +178,6 @@ whole answer.
   authoritative instead.
 
 ## Verification Log
-
 **2026-09-03 · acceptance · exit 0.** `go test ./internal/read/ -run TestWalk -v`
 → 11 tests, all PASS, no "no tests to run";
 `go test ./internal/adversarial/ -run TestAWalked -v` → 2 tests, both PASS;
@@ -226,3 +225,4 @@ three the ADR names ✓. **`--grep` ships.**
 - 2026-09-04 · eff614a · exit 0 · `set -o pipefail …` · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd · ms:587
 - 2026-09-04 · e6c302a · exit 0 · `set -o pipefail …` · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd · ms:444
 - 2026-09-04 · 5846555 · exit 0 · `set -o pipefail …` · acceptance-sha256:cddf8e1e51a197f0e6d42156a8cc6429bb08a2a4f829771249bdd1f0eac0f0bd · ms:2547
+- 2026-09-29 · human-observed · S7 observed: the wall-clock go/no-go measured on one machine is recorded as prose in this log — 12 files, --files-from 38 ms vs --grep 29 ms, 0.76x against a 2x threshold, '--grep ships'

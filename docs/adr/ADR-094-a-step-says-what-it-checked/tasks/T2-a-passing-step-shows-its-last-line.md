@@ -140,3 +140,4 @@ Stop and ask if the line cannot be added without changing `--json` or a failing 
 - 2026-09-29 · 0b2f304* · exit 0 · `set -o pipefail …` · acceptance-sha256:890ce572d72f1baf261d09e1a4ef0f1f1deb27963ceec89c5a430d067bff0717 · ms:799
 - 2026-09-29 · cc8fa3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:8ae0c0569cbb6a3643f84d6647d69ab69143d8bde31cb28883e9154558c68629 · ms:1177
 - 2026-09-29 · cc8fa3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:8ae0c0569cbb6a3643f84d6647d69ab69143d8bde31cb28883e9154558c68629 · ms:1009
+- 2026-09-29 · human-observed · S4 observed: PR #278 records 'contract.sh holds'; contract.sh exit 0 with §179 on main db39d42 on 2026-09-29 (this session)

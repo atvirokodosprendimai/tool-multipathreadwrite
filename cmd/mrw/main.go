@@ -406,7 +406,7 @@ func resultBudget(cmd *cli.Command, lookup func(string) (string, bool)) (int, er
 	return mcp.DefaultMaxResultChars, nil
 }
 
-// instructionsCmd prints the contract a caller with only this binary is entitled to.
+// versionCmd prints the same version string `-v` and `--version` print.
 func versionCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "version",
@@ -425,6 +425,7 @@ func versionCmd() *cli.Command {
 	}
 }
 
+// instructionsCmd prints the contract a caller with only this binary is entitled to.
 func instructionsCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "instructions",

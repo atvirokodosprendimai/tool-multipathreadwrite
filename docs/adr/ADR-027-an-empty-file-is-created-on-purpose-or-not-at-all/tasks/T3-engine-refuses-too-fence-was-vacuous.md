@@ -127,3 +127,4 @@ inverts the dependency the two packages are split to avoid, and would be a diffe
 - 2026-09-06 · a5e4347* · exit 0 · `set -o pipefail …` · acceptance-sha256:5ac88fac56f17e342ae1cf5503079eb166471f2b0474ac99499736e3743ea9ad · ms:30202
 - 2026-09-06 · a5e4347* · exit 0 · `set -o pipefail …` · acceptance-sha256:5ac88fac56f17e342ae1cf5503079eb166471f2b0474ac99499736e3743ea9ad · ms:31020
 - 2026-09-06 · a5e4347* · exit 0 · `set -o pipefail …` · acceptance-sha256:5ac88fac56f17e342ae1cf5503079eb166471f2b0474ac99499736e3743ea9ad · ms:31300
+- 2026-09-29 · human-observed · S5 observed by the PR #126 review: 'the record's claims. All corrected' — the PR #74 pattern-address sentence whole again, and no shared-message claim left

@@ -2363,5 +2363,5 @@ at the boundary, and a discovered one is dropped.
   positional of that name, even after `--`: a file named `help` or `h` is reached only as `./help`. Arm
   on the first caller who names such a file, or with the next record that touches argument dispatch.
 - **The doc comment `// instructionsCmd prints…` sits above `func versionCmd`** in `cmd/mrw/main.go`,
-  and `func instructionsCmd` carries none (ADR-097 Follow-up, found while drafting). Arm with the next
-  change to either function.
+  and `func instructionsCmd` carries none (ADR-097 Follow-up, found while drafting). **Closed**
+  (2026-09-29, the hygiene PR after v1.32.0): each function carries its own comment.

@@ -89,3 +89,4 @@ fix exists is asserting nothing, and finding that out here is the point of S1.
 - 2026-09-07 · cd259f2* · exit 0 · `set -o pipefail …` · acceptance-sha256:168c71c1acfb96fd88a82f177f928c51fe99a354c9ab52b7fac6a3d6eac4f389 · ms:30438
 - 2026-09-07 · cd259f2* · exit 0 · `set -o pipefail …` · acceptance-sha256:168c71c1acfb96fd88a82f177f928c51fe99a354c9ab52b7fac6a3d6eac4f389 · ms:30221
 - 2026-09-07 · 2f8adce* · exit 0 · `set -o pipefail …` · acceptance-sha256:168c71c1acfb96fd88a82f177f928c51fe99a354c9ab52b7fac6a3d6eac4f389 · ms:31183
+- 2026-09-29 · human-observed · S4 observed by the PR #129 review: §67 carries the symlink half and says in its own comment that the case-only spelling cannot be written on Linux

@@ -120,3 +120,5 @@ the Decision's falsifiability paragraph rather than the test.
 - 2026-09-06 · d8a1d0f* · exit 0 · `set -o pipefail …` · acceptance-sha256:fef6f4f3f7c03f715e468566ee1c1e6a8d51bc452ab0af20ee3f90cf2e144c66 · ms:5448
 - 2026-09-06 · b5b7d2e* · exit 0 · `set -o pipefail …` · acceptance-sha256:fef6f4f3f7c03f715e468566ee1c1e6a8d51bc452ab0af20ee3f90cf2e144c66 · ms:6165
 - 2026-09-06 · b5b7d2e* · exit 0 · `set -o pipefail …` · acceptance-sha256:fef6f4f3f7c03f715e468566ee1c1e6a8d51bc452ab0af20ee3f90cf2e144c66 · ms:6207
+- 2026-09-29 · human-observed · S5 observed by the PR #123 review: the probe call and the served-read return pass the same expression, checked by mutation (the S5 mutant survives, confirming only a read reaches it)
+- 2026-09-29 · human-observed · S6 observed by the PR #123 review: the firstPage guard read against the countFileLines call above it, checked by mutation (the race window is not hermetically reachable)

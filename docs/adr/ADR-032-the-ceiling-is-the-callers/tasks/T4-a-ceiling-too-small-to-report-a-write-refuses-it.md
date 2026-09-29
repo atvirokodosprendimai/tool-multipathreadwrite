@@ -165,6 +165,7 @@ before the size check — that inverts ADR-002 and is a different decision.
 - 2026-09-07 · 2ca098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8366a32705beb234ad459b114e5056cdcf942460e45b52c5b638ca7c41ede477 · ms:38851
 - 2026-09-07 · e4e5e6c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a0f6ac9bd2f8c3acabf4095260c6605873644bb6a54ea0ed32a1ccb9c84995e · ms:41865
 - 2026-09-07 · e4e5e6c* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a0f6ac9bd2f8c3acabf4095260c6605873644bb6a54ea0ed32a1ccb9c84995e · ms:39229
+- 2026-09-29 · human-observed · S8 read back 2026-09-29 against db39d42, the four claims as they now stand in README and AGENTS against the code: default 200,000 of encoded result (schema.go DefaultMaxResultChars); the flag beats MRW_MAX_RESULT_CHARS and 0 means zero (main.go resultBudget, IsSet); an oversized receipt drops ok and skipped verdicts and keeps every FAILED hunk and every WRITTEN file (tools.go boundedReceipt); a ceiling too small to report a write refuses it before apply as a JSON-RPC error (tools.go writeTool). All four hold
 
 ## Declared uncovered
 

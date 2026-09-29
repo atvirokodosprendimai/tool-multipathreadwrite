@@ -139,3 +139,4 @@ file length into a string function and is the boundary ADR-013 draws.
 - 2026-09-06 · b621b21* · exit 0 · `set -o pipefail …` · acceptance-sha256:a191761f7910eee6a3c6d9deccec3d2ec22853a49457574704e0e977a46cefc1 · ms:22696
 - 2026-09-06 · b621b21* · exit 0 · `set -o pipefail …` · acceptance-sha256:a191761f7910eee6a3c6d9deccec3d2ec22853a49457574704e0e977a46cefc1 · ms:22163
 - 2026-09-06 · b621b21* · exit 0 · `set -o pipefail …` · acceptance-sha256:a191761f7910eee6a3c6d9deccec3d2ec22853a49457574704e0e977a46cefc1 · ms:29344
+- 2026-09-29 · human-observed · S9 observed by the PR #125 review (MEDIUM-3, confirmed in round 3): README's Read and Write passages and mrw read --help describe one grammar and one clamp/refuse split; --help is gated against the built binary

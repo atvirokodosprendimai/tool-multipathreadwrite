@@ -161,3 +161,4 @@ order without re-parsing `os.Args`.
 - 2026-09-28 · 8ecb059* · exit 0 · `set -o pipefail …` · acceptance-sha256:0c19d2826067c9365fc247381c222a02b29927248ac8c9062b1c6f4cfbebaca2 · ms:779
 - 2026-09-28 · 8ecb059* · exit 0 · `set -o pipefail …` · acceptance-sha256:0c19d2826067c9365fc247381c222a02b29927248ac8c9062b1c6f4cfbebaca2 · ms:774
 - 2026-09-28 · 8ecb059* · exit 0 · `set -o pipefail …` · acceptance-sha256:0c19d2826067c9365fc247381c222a02b29927248ac8c9062b1c6f4cfbebaca2 · ms:793
+- 2026-09-29 · human-observed · S5 observed: contract.sh unpiped exit 0 with §172 on main db39d42 on 2026-09-29 (this session, several runs); pre-merge, PR #266's CI test job (which runs contract.sh) passed
