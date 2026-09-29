@@ -9,8 +9,12 @@ against CONTRIBUTING in the change that added this check). Running whole fences 
 many run contract.sh; this runs only their grep clauses, each on its own, which takes about a second.
 
 A clause is checked when it is a plain `grep` whose file operands are existing files in the tree.
-A clause over /tmp, over a variable, or fed by a pipe is a check of a run's own output and is skipped.
-A clause preceded by `!` must not match.
+A clause over /tmp, over a variable bash would expand, or fed by a pipe is a check of a run's own
+output and is skipped. A clause preceded by `!` must not match. Clauses are split only at UNQUOTED
+`&&`, `||`, `;` and newlines, so a pattern holding one is one clause, not two broken halves.
+
+EXEMPT names the clauses a later record deliberately freed, each with that record: they are still
+counted and reported as exempt, never silently dropped.
 
 Usage: fence-prose.py [ROOT]        exit 0 when every checked clause holds, 1 when one does not
        fence-prose.py --self-test   proves a red clause is reported (a check that cannot fail is none)
@@ -24,7 +28,42 @@ import sys
 import tempfile
 
 FENCE = re.compile(r"^## Acceptance\s*$.*?^```(?:bash|sh|shell)\s*$(.*?)^```", re.S | re.M)
-SPLIT = re.compile(r"&&|\|\||;|\n")
+
+# (task file prefix, clause substring) -> the record that freed it. ADR-053 retired contract.sh's
+# README heading and tutorial-phrase greps (§39's `### Use it from an MCP host` and its `mcpServers`
+# block, §64's README greps for `,+N`): a tidy of a heading must not look like a product break. These
+# are the same assertions in the task fences that shipped them (Codex, third review of #283).
+EXEMPT = {
+    ("docs/adr/ADR-010-", "### Use it from an MCP host"): "ADR-053",
+    ("docs/adr/ADR-010-", '"command": "mrw"'): "ADR-053",
+    ("docs/adr/ADR-026-", "',+N' README.md"): "ADR-053",
+}
+
+
+def split_unquoted(text):
+    """Split a fence at the shell operators bash splits at: unquoted, unescaped `&&`, `||`, `;` and
+    newlines. A pattern such as 'a;b' is one clause (Codex, third review of #283)."""
+    parts, cur, quote, i = [], [], "", 0
+    while i < len(text):
+        ch = text[i]
+        if quote != "'" and ch == "\\" and i + 1 < len(text):
+            cur.append(text[i:i + 2])
+            i += 2
+            continue
+        if ch in "'\"" and quote in ("", ch):
+            quote = "" if quote == ch else ch
+        elif not quote and (text.startswith("&&", i) or text.startswith("||", i)):
+            parts.append("".join(cur))
+            cur, i = [], i + 2
+            continue
+        elif not quote and ch in ";\n":
+            parts.append("".join(cur))
+            cur, i = [], i + 1
+            continue
+        cur.append(ch)
+        i += 1
+    parts.append("".join(cur))
+    return parts
 
 
 def clauses(fence):
@@ -33,7 +72,7 @@ def clauses(fence):
     text is the clause as the fence wrote it and is what runs, through bash, so quoting means what
     bash makes of it (a backslash-escaped backtick inside double quotes is one backtick); argv is
     only shlex's reading of it, used to find the file operands."""
-    for seg in SPLIT.split(fence.replace("\\\n", " ")):
+    for seg in split_unquoted(fence.replace("\\\n", " ")):
         seg = seg.strip().lstrip("{(").strip()
         negated = seg.startswith("!")
         seg = seg.lstrip("!").strip()
@@ -64,29 +103,43 @@ def expands(seg):
     return False
 
 
+def exempt(task, text):
+    """The record that freed this clause, or ""."""
+    for (prefix, needle), record in EXEMPT.items():
+        if task.startswith(prefix) and needle in text:
+            return record
+    return ""
+
+
 def check(root):
-    """Return (checked, red) where red lists (task, clause) that no longer hold."""
-    checked, red = 0, []
+    """Return (checked, red, exempted): red and exempted list (task, clause[, record])."""
+    checked, red, exempted = 0, [], []
     for task in sorted(glob.glob(os.path.join(root, "docs/adr/ADR-*/tasks/T*.md"))):
         with open(task, encoding="utf-8") as fh:
             m = FENCE.search(fh.read())
         if not m:
             continue
+        rel = os.path.relpath(task, root)
         for negated, text, argv in clauses(m.group(1)):
             files = [a for a in argv[1:] if not a.startswith("-") and os.path.isfile(os.path.join(root, a))]
             if not files:
+                continue
+            record = exempt(rel, text)
+            if record:
+                exempted.append((rel, text, record))
                 continue
             checked += 1
             rc = subprocess.run(["bash", "-c", text], cwd=root, stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL).returncode
             if (rc == 0) == negated:
-                red.append((os.path.relpath(task, root), ("! " if negated else "") + text))
-    return checked, red
+                red.append((rel, ("! " if negated else "") + text))
+    return checked, red, exempted
 
 
 def self_test():
-    """A tree whose fence holds, misses, negates, quotes a backtick and anchors with a quoted `$`:
-    exactly the missing clause is red, and every clause is checked."""
+    """A tree whose fence holds, misses, negates, quotes a backtick, anchors with a quoted `$`, and
+    quotes a `;` and a `&&`: exactly the missing clause and the two quoted-operator misses are red,
+    and every clause is checked."""
     with tempfile.TemporaryDirectory() as root:
         os.makedirs(os.path.join(root, "docs/adr/ADR-001-x/tasks"))
         with open(os.path.join(root, "README.md"), "w", encoding="utf-8") as fh:
@@ -97,12 +150,17 @@ def self_test():
                      "  && grep -q 'a phrase nobody wrote' README.md \\\n"
                      "  && ! grep -q 'removed' README.md \\\n"
                      "  && grep -q \"a \\`tick\\`\" README.md \\\n"
-                     "  && grep -q 'zero$' README.md\n```\n")
-        checked, red = check(root)
-        if checked != 5 or len(red) != 1 or "a phrase nobody wrote" not in red[0][1]:
-            print(f"fence-prose self-test FAILED: checked {checked}, red {red}")
+                     "  && grep -q 'zero$' README.md \\\n"
+                     "  && grep -q 'absent;needle' README.md \\\n"
+                     "  && grep -q 'absent&&needle' README.md\n```\n")
+        checked, red, _ = check(root)
+        missed = sorted(c for _, c in red)
+        want = ["grep -q 'a phrase nobody wrote' README.md", "grep -q 'absent&&needle' README.md",
+                "grep -q 'absent;needle' README.md"]
+        if checked != 7 or missed != want:
+            print(f"fence-prose self-test FAILED: checked {checked}, red {missed}")
             return 1
-    print("fence-prose self-test: a red clause is reported")
+    print("fence-prose self-test: every red clause is reported, quoted operators included")
     return 0
 
 
@@ -110,10 +168,11 @@ def main():
     if sys.argv[1:] == ["--self-test"]:
         return self_test()
     root = sys.argv[1] if len(sys.argv) > 1 else "."
-    checked, red = check(root)
+    checked, red, exempted = check(root)
     for task, clause in red:
         print(f"RED  {task}\n     {clause}")
-    print(f"fence-prose: {checked} prose clause(s) checked, {len(red)} red")
+    print(f"fence-prose: {checked} prose clause(s) checked, {len(red)} red, "
+          f"{len(exempted)} exempt ({', '.join(sorted({r for _, _, r in exempted})) or 'none'})")
     return 1 if red else 0
 
 
