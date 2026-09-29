@@ -23,15 +23,18 @@ func writeFiles(t *testing.T, root string, files map[string]string) {
 
 func TestACheckWithFullAndAPathIsRefused(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	writeFiles(t, root, map[string]string{
 		".quality-harness.json": `{"check":"touch marker099"}` + "\n",
 		"x.go":                  "package x\n",
 	})
 	marker := filepath.Join(root, "marker099")
 
-	out, code := runIn(t, root, "check", "--full", "x.go")
-	if code != exitUsage || !strings.Contains(out, "it takes no PATH") {
-		t.Errorf("check --full x.go: exit %d, want %d naming the fix:\n%s", code, exitUsage, out)
+	// runSplit keeps stdout apart, so "nothing on stdout" is asserted, and the
+	// refusal is compared whole (Codex, review of #285).
+	stdout, err := runSplit(t, "-C", root, "check", "--full", "x.go")
+	if err == nil || exitCode(err) != exitUsage || err.Error() != "--full runs the whole project; it takes no PATH" || stdout != "" {
+		t.Errorf("check --full x.go: err %v (exit %d), stdout %q; want exit %d with the refusal alone", err, exitCode(err), stdout, exitUsage)
 	}
 	if _, err := os.Stat(marker); err == nil {
 		t.Error("check --full x.go ran the check: the refusal must come before anything runs")
@@ -49,7 +52,7 @@ func TestAFileNamedHelpIsAPath(t *testing.T) {
 	writeFiles(t, root, map[string]string{
 		"help":                  "the file named help\n",
 		"h":                     "the file named h\n",
-		".quality-harness.json": `{"check":"true"}` + "\n",
+		".quality-harness.json": `{"check":"true","scoped_check":"echo FILES={files} > scoped099"}` + "\n",
 	})
 	for _, argv := range [][]string{{"read", "help"}, {"read", "--", "help"}} {
 		if out, code := runIn(t, root, argv...); code != 0 || !strings.Contains(out, "the file named help") {
@@ -59,14 +62,22 @@ func TestAFileNamedHelpIsAPath(t *testing.T) {
 	if out, code := runIn(t, root, "read", "h"); code != 0 || !strings.Contains(out, "the file named h") {
 		t.Errorf("read h: exit %d, want the file served:\n%.400s", code, out)
 	}
-	// write's positional is the plan file, resolved from the working directory
-	// rather than --root, so the in-process run cannot open it: what matters is
-	// that `help` reached write as a plan path instead of printing write's help.
-	if out, code := runIn(t, root, "write", "--no-check", "help"); code != exitUsage || !strings.Contains(out, "open help") || strings.Contains(out, "USAGE") {
-		t.Errorf("write help: exit %d, want help taken as the plan path:\n%.400s", code, out)
+	// write's positional is the plan file, resolved from the working directory,
+	// so the run happens where the plan is; the plan's effect is the proof.
+	writeFiles(t, root, map[string]string{"help": "@@ made099.txt 0 create\nmade\n"})
+	t.Chdir(root)
+	if out, code := runIn(t, root, "write", "--no-check", "help"); code != 0 {
+		t.Errorf("write help: exit %d:\n%.400s", code, out)
 	}
-	if out, _ := runIn(t, root, "check", "help"); strings.Contains(out, "USAGE") {
-		t.Errorf("check help printed help instead of taking help as a PATH:\n%.400s", out)
+	if _, err := os.Stat(filepath.Join(root, "made099.txt")); err != nil {
+		t.Error("write help did not apply the plan in the file named help")
+	}
+	// check's positional is a PATH: a scoped check receives it as {files}.
+	if out, code := runIn(t, root, "check", "help"); code != 0 {
+		t.Errorf("check help: exit %d:\n%.400s", code, out)
+	}
+	if b, err := os.ReadFile(filepath.Join(root, "scoped099")); err != nil || strings.TrimSpace(string(b)) != "FILES=help" {
+		t.Errorf("check help did not scope the check to help: %q, %v", b, err)
 	}
 	// The flag still prints each command's help, and the root keeps its command.
 	for _, argv := range [][]string{{"read", "--help"}, {"read", "-h"}, {"write", "--help"}, {"check", "--help"}} {

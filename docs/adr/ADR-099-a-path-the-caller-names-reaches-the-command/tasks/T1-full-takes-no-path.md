@@ -53,7 +53,7 @@ out=$(mktemp) \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestACheckWithFullAndAPathIsRefused` | `cmd/mrw/path099_test.go` | in a tree whose declared check touches a marker: `check --full x.go` exits 2, the error names `it takes no PATH`, stdout is empty and no marker exists; `check --full` alone exits 0 and the marker exists | — | S1, S2 |
+| `TestACheckWithFullAndAPathIsRefused` | `cmd/mrw/path099_test.go` | in a tree whose declared check touches a marker: through `runSplit`, `check --full x.go` returns exactly `--full runs the whole project; it takes no PATH` at exit 2 with empty stdout and no marker; `check --full` alone exits 0 and the marker exists | — | S1, S2 |
 
 ## Reachability
 
@@ -68,6 +68,7 @@ out=$(mktemp) \
 - 2026-09-29 · 7ebdf51* · mutant killed · exit 1 · `cmd/mrw/main.go` · the refusal removed: --full drops the PATH and runs · acceptance-sha256:9f536a515d3cad6b5244c70a9551837f39cd37f7a910d67cb9adf49e830c69b7 · covers:the refusal runs nothing
 - 2026-09-29 · 7ebdf51* · mutant killed · exit 1 · `cmd/mrw/main.go` · full alone: a changed whole-project path still runs (equivalent guard for the pair) · acceptance-sha256:9f536a515d3cad6b5244c70a9551837f39cd37f7a910d67cb9adf49e830c69b7 · covers:full alone still runs
 - 2026-09-29 · 7ebdf51* · mutant killed · exit 1 · `internal/lines/lines.go` · an engine package changed against the merge-base · acceptance-sha256:9f536a515d3cad6b5244c70a9551837f39cd37f7a910d67cb9adf49e830c69b7 · covers:no engine package changes
+- 2026-09-29 · 29a29ef* · mutant killed · exit 1 · `cmd/mrw/main.go` · the refusal also printed to stdout · acceptance-sha256:9f536a515d3cad6b5244c70a9551837f39cd37f7a910d67cb9adf49e830c69b7 · covers:the refusal runs nothing
 
 ## Invariants
 
@@ -106,3 +107,6 @@ Stop and ask if an existing test must change to pass.
 - 2026-09-29 · human-observed · S3 observed 2026-09-29: ./scripts/contract.sh run unpiped on this branch (T1 and T2 applied, base 7ebdf51), exit 0 'contract holds', with §191 printed: check --full a.go exits 2 naming the fix with no check run; check --full alone runs it
 - 2026-09-29 · human-observed · relock 2026-09-29: after the red run, TestAFileNamedHelpIsAPath's write case changed from 'the plan in the file help applied' to 'help reached write as the plan path (open help, no USAGE)', because a plan file resolves from the working directory, not --root, so the in-process run cannot open it; still red without the fix (write help printed USAGE), every other assertion kept
 - 2026-09-29 · 7ebdf51* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:9f536a515d3cad6b5244c70a9551837f39cd37f7a910d67cb9adf49e830c69b7 · ms:0 · test-lock-sha256:29e03e1a20aaf30934d42e04777b60dc8402e367e9c3fa1805c8b9be01ef802b · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvcGF0aDA5OV90ZXN0LmdvCVRlc3RBQ2hlY2tXaXRoRnVsbEFuZEFQYXRoSXNSZWZ1c2VkCTc1OWQ1OTA0NWViMWU1M2UwNTNhZTdhMjJhNGM5ZjYzNjE0MDI5Yjc3ODAxMGYyMWZjZjc0MjYzZjdiYTRhMTQKYm9keQljbWQvbXJ3L3BhdGgwOTlfdGVzdC5nbwlUZXN0QUZpbGVOYW1lZEhlbHBJc0FQYXRoCTE0ZjMyZDI3NzBhNzU3ZjgwMDdkZGQ0OTdlMDM2MjAyNzRkNjkxZWQ5NzNkZGVkODE4M2FlMDA2OTRkNTljNmY · test-lock-kind:replace
+- 2026-09-29 · human-observed · relock 2026-09-29 (Codex review of #285): TestACheckWithFullAndAPathIsRefused now asserts the exact refusal and empty stdout through runSplit; TestAFileNamedHelpIsAPath now runs write from the checkout (t.Chdir) and asserts the plan applied, and asserts check help exits 0 with its scoped check receiving help as {files}. Both stronger; nothing removed
+- 2026-09-29 · 29a29ef* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:9f536a515d3cad6b5244c70a9551837f39cd37f7a910d67cb9adf49e830c69b7 · ms:0 · test-lock-sha256:c0172a75b813c499bb635d5cb0ab06833ec5f5cce4910c702932b809de584979 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvcGF0aDA5OV90ZXN0LmdvCVRlc3RBQ2hlY2tXaXRoRnVsbEFuZEFQYXRoSXNSZWZ1c2VkCWRhMDZhYzcyODQ4ZTNmMmQ4YmNiZjM4YTEzYWFhOWU0NjExMTk2ZDU1ZmNhMDYxNmNmZGE4ODZhNTJkOTUwYzcKYm9keQljbWQvbXJ3L3BhdGgwOTlfdGVzdC5nbwlUZXN0QUZpbGVOYW1lZEhlbHBJc0FQYXRoCTIxMjVmZmUwYzBkZGYxYjRhZWE2MWJjMDI4MjllZDk5Y2EwZGNlODJiODk3Y2VjM2Q4NDRlNGFkY2ZiOWY3MWQ · test-lock-kind:replace
+- 2026-09-29 · 29a29ef* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f536a515d3cad6b5244c70a9551837f39cd37f7a910d67cb9adf49e830c69b7 · ms:330
