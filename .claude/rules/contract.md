@@ -24,7 +24,8 @@ paths:
   mutant the harness must bound: the 2026-09-04 regex mutant was killed by its row and then ran for
   fifteen hours under parent 1 (#101). Extend the idiom to any new child a row could leave running.
   mrw itself is Go, and Go ignores SIGALRM: a row that must bound `$MRW` uses `bounded SECS OUT
-  CMD…`, which polls and kills with SIGKILL — the alarm could never stop it (BACKLOG :2073).
+  CMD…`, which polls and kills with SIGKILL — the alarm could never stop it (BACKLOG.md, the ADR-072
+  hang-guard entry).
 - **The runner is a fresh process group, and the last rows prove nothing survived it.** The top of
   the file is a thin wrapper that forks the runner into a new group (handlers before the fork, the
   group set from both sides), forwards INT/TERM/HUP to it, and repeats its exit status; the runner

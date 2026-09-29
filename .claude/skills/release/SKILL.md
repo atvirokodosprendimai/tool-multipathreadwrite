@@ -6,8 +6,7 @@ description: >-
   tags use, CI publishes, then ONE Status PR naming the tagged SHA, and reinstall
   the local CLI from the tag. Use when M says "release", "cut", "tag it", or
   after a served-path change merges. CONTRIBUTING §Releasing owns the tag rule
-  and the Status-names-the-tagged-SHA rule; this is the drill around them,
-  learned cutting v1.15.0–v1.16.1.
+  and the Status-names-the-tagged-SHA rule; this is the drill around them.
 ---
 
 # release — the drill around CONTRIBUTING §Releasing
@@ -38,12 +37,14 @@ The PR's green tick was for a different tree.
 ## 2. Break campaign, and DIFF it
 
 ```sh
-MRW=$PWD/bin/mrw bash scripts/break-campaign.sh | grep -v 'campaign dir' > docs/break/campaign-vX.Y.Z.txt
+MRW=$PWD/bin/mrw bash scripts/break-campaign.sh > /tmp/campaign.raw; echo CAMPAIGN:$?
+grep -v 'campaign dir' /tmp/campaign.raw > docs/break/campaign-vX.Y.Z.txt
 diff <(grep -o '^\[[^]]*\] exit=[0-9]*' docs/break/campaign-<prev>.txt) \
      <(grep -o '^\[[^]]*\] exit=[0-9]*' docs/break/campaign-vX.Y.Z.txt) && echo NO-EXIT-DIFF
 ```
 
-57 probes as of v1.30.0. An exit-code diff is a finding to explain in the tag
+59 probes as of v1.32.0. Read CAMPAIGN's status on its own line: piping the script straight into
+`grep` reports grep's status, not the campaign's. An exit-code diff is a finding to explain in the tag
 message or a reason not to tag; "identical to <prev>" is the sentence the Status
 line carries. The campaign file is committed in the Status PR (step 5), not
 before the tag — the tag is code, the campaign is evidence about it.
@@ -108,8 +109,9 @@ splits at the first comma, and with no `'` in the description, whose escape is s
 
 - `git pull` on `main` refused to fast-forward (v1.16.0): a never-landed local
   commit. Reset to origin, do not merge.
-- `git rev-parse HEAD origin/<branch>` right after a push said "Needed a single
-  revision" — the tracking ref was not fetched yet. `git ls-remote` is the check.
+- `git rev-parse --short HEAD origin/<branch>` answered "Needed a single revision", and it was read
+  as a tracking ref not fetched yet. It fails every time: `--short` verifies ONE revision (found by
+  the review of #282). `git ls-remote` asks the remote itself and is the check.
 - `gh pr merge --delete-branch` on a parent auto-closes a stacked child PR.
   Status PRs are never stacked; cut them from `main` after the tag.
 - Reading an exit code through `| head` returns head's status. The v1.16.0

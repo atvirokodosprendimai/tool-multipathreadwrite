@@ -98,9 +98,9 @@ so the tree is changed and unverified. Tests assert these; changing one is a bre
 
 The contributor lifecycle for this repository is written down in `.claude/rules/`, one file per
 topic: `lifecycle.md` (record → red test → mutant → contract row → receipts), `git.md`,
-`reviews.md`, and the path-scoped `adr.md`, `testing.md` and `contract.md`. Claude Code loads them
-on its own; any other agent should read them before changing anything. They are project policy,
-not tool documentation, which is why they are there and not here.
+`reviews.md`, `static-analysis.md`, and the path-scoped `adr.md`, `testing.md` and `contract.md`.
+Claude Code loads them on its own; any other agent should read them before changing anything.
+They are project policy, not tool documentation, which is why they are there and not here.
 
 ## Using mrw — read this before you edit anything
 
@@ -280,8 +280,8 @@ lines it matched. ⚠ **The END is a DELIMITER, not a site** — the first match
 or after the start, the way `ed`, `sed` and mrw's own `read` mean `/a/,/b/` — so
 it may match many times and does not get the exactly-once rule. Applying it to
 both ends shipped once and made `/^func X/,/^}/` fail on any file with two
-functions, because `^}` closes both (`internal/apply/apply.go:748`, pinned by
-`TestTheEndPatternIsTheFirstMatchAtOrAfterTheStart`).
+functions, because `^}` closes both (the `THE END IS A DELIMITER` block in `Apply`,
+`internal/apply/apply.go`, pinned by `TestTheEndPatternIsTheFirstMatchAtOrAfterTheStart`).
 And the END is resolved the same way by `read` and by `write` (ADR-036): the
 first match **at or after** the start, so an end matching the start line closes
 the span there, and a paired pattern whose end never matches is **reported and
@@ -501,7 +501,7 @@ and #73, one release apart.
   "not there" means gone, and a denied parent or an unmounted point does not.
   It refuses to run at all if `<state>/mrw` is a symlink. Nothing calls it for
   you: a path that is gone may be a deleted checkout or an unmounted volume
-  (ADR-034). One machine had 22,836 of these directories and 242 MB on
+  (ADR-034). One machine had 22,836 of these directories, 242 MB of disk by `du`, on
   2026-09-07, 98.9% of them dead.
 
 mrw's OWN state lives outside the tree (ADR-004), so none of these commands

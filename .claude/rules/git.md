@@ -6,7 +6,10 @@ and deletion refused, `enforce_admins` on (checked with `gh api …/branches/mai
 2026-09-04) — so a direct push is refused rather than half-applied.
 
 - Before any commit: `git branch --show-current`. On `main`, branch first.
-- After pushing, confirm the remote moved: `git rev-parse --short HEAD origin/<branch>` must agree.
+- After pushing, confirm the remote moved: `git ls-remote origin <branch>` must name `git rev-parse HEAD`.
+  `ls-remote` asks the remote itself, so no fetched tracking ref stands in for it. The form this line
+  used to give, `git rev-parse --short HEAD origin/<branch>`, could never pass: `--short` verifies ONE
+  revision, so with two it answers "Needed a single revision" every time (found by the review of #282).
   A push that moved nothing prints success like one that did; the one time it happened here
   (2026-09-04, a commit made on `main` by mistake) only the missing CI run for the SHA gave it away.
 - `CONTRIBUTING.md` owns commit shape. Attribution trailers as the session instructs.
