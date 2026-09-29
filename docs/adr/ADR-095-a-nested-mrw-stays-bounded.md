@@ -142,7 +142,7 @@ today (`TestAStepRunsOneLevelDeeper` sets a readable value).
    wrapped one, never nil (go1.27.1 `src/os/exec/exec.go:815-831`). That path is newly reachable —
    nothing exited 0 from a SIGKILL — so T2 pins it for the check, a step and `--ast-grep`.
 5. **Every child `subproc` starts gets it**: the check, each step, and `--ast-grep`. A hanging
-   `ast-grep` is TERMed at 2 s; one that ignores TERM is killed by 3 s. The real binary obeys TERM, and
+   `ast-grep` is TERMed at 2 s on unix; one that ignores TERM is killed by 3 s (on Windows it is killed at 2 s, Decision 6). The real binary obeys TERM, and
    so does every fixture here: `mrw read --grep 'trap ' cmd internal` finds no TERM trap in a Go test
    (2026-09-29), and the only `trap` lines in `scripts/contract.sh` are its runner's own prologue
    (`:82`), not a check or a fake. So they still return at 2 s. One routine, no second constructor for

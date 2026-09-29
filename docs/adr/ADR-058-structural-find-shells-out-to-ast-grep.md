@@ -38,7 +38,7 @@ Class enumerated 2026-09-15: every finder that turns a pattern plus paths into `
 
 **5. A hanging `ast-grep` is bounded at 2 s.** Same failure class as the PostToolUse hook (Decision of ADR-022 T2): a child on PATH must not outlive the turn. `LookPath` hit, then `exec.CommandContext` with a 2 s deadline. Deadline: exit 2, reason names `ast-grep` and `timed out`, not the missing-binary path, not zero hits. Contract **§111**. T3.
 
-**Amended by ADR-095** (2026-09-29): at the 2 s deadline a hanging `ast-grep` is sent SIGTERM, and killed by 3 s if it ignores it.
+**Amended by ADR-095** (2026-09-29): on unix, at the 2 s deadline a hanging `ast-grep` is sent SIGTERM, and killed by 3 s if it ignores it; on Windows it is killed at 2 s.
 
 Class enumerated 2026-09-15: PATH binaries mrw shells out to on the served read path. Command: `rg -n 'exec.Command\\("' --type go` in production (`internal/` `cmd/mrw/`, tests excluded). One member: `read.AstGrep`. Left out: `internal/check` already uses `CommandContext` (ADR-003 / ADR-059); the hook uses SIGALRM (ADR-022).
 
