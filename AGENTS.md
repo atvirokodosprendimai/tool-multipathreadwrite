@@ -26,6 +26,10 @@ go vet ./...
 or ends in `|| true` is not evidence: the exit code is the whole verdict, and a
 pipeline reports the *last* command's status, not the script's.
 
+`.quality-harness.json` also declares `scripts/static.sh` as the step `static` (ADR-092), so
+`mrw check --then static`, or `mrw write --then static` after an edit, runs the tests and then the
+static gate in one call, with a verdict for each.
+
 ## The rules this codebase is built around
 
 These are decided, recorded in `docs/adr/`, and asserted by
