@@ -1109,7 +1109,7 @@ re-measuring these. Each was driven at the built binary, not read:
   broad one. The lesson generalises: a class-enumerating command has to be checked against what it
   CANNOT match.
 
-  **Two obligations remain open here, and ADR-024 defers both to this file by name.**
+  **ADR-024 deferred two obligations here by name; both are closed, each below.**
 
 - ~~**The ledger records what was SENT, not what was SEEN** (`internal/mcp/tools.go`, the `seen.Record`
   calls).~~ **CLOSED 2026-09-07 by ADR-031 FOR PAGED READS** — a page is held pending against
@@ -1141,7 +1141,8 @@ re-measuring these. Each was driven at the built binary, not read:
   Reading 20 measured the same arm at 2 KB and 20 KB, where no paging and no
   truncation occur, and found 30 of 30 (`docs/curve/reading-20-result.md`); readings 12, 18 and 19
   voided on the way there. So the arm is measured BELOW the truncation point and unmeasurable AT it:
-  the 200 KB case is this entry, and it is a defect rather than a rate.
+  the 200 KB case was the host-truncation defect, closed by ADR-024 and ADR-031, and what stays open
+  is the under-ceiling host-cut measurement, filed under "From ADR-032" below.
 
 ## From five sessions field-testing the multi-line-body hazard (2026-09-06)
 
