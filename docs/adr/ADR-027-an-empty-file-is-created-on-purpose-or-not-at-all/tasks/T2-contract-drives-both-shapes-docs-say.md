@@ -93,3 +93,4 @@ feature exists is asserting nothing, and finding that out here is the point of S
 - 2026-09-06 · dd0cc3a* · exit 0 · `set -o pipefail …` · acceptance-sha256:1f1ebab483c2e8c6d469e0eee61f6b4c74caaded1ed4beb3284c4be7882ef746 · ms:30493
 - 2026-09-06 · dd0cc3a* · exit 0 · `set -o pipefail …` · acceptance-sha256:1f1ebab483c2e8c6d469e0eee61f6b4c74caaded1ed4beb3284c4be7882ef746 · ms:29644
 - 2026-09-06 · dd0cc3a* · exit 0 · `set -o pipefail …` · acceptance-sha256:1f1ebab483c2e8c6d469e0eee61f6b4c74caaded1ed4beb3284c4be7882ef746 · ms:29490
+- 2026-09-29 · human-observed · S4 observed by the PR #126 review: 'Both docs teach the new rule' — README and AGENTS name body=0 for an empty file and neither claims mrw refuses empty files

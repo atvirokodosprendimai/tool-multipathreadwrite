@@ -100,3 +100,5 @@ without the feature is asserting nothing, and finding that out here is the point
 - 2026-09-06 · 0cb2ad1* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:21324
 - 2026-09-06 · b621b21* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:30027
 - 2026-09-06 · b621b21* · exit 0 · `set -o pipefail …` · acceptance-sha256:d3b46705176abe892bd60fa597830d08ada5fda73febb6f2575026f89cba96a0 · ms:27284
+- 2026-09-29 · human-observed · S4 observed by the PR #125 review: README's read and plan grammar passages read against §64's fixture (§64's README checks were retired by ADR-053, so this half is read, not tested)
+- 2026-09-29 · human-observed · S5 observed: §64 in this task's fence pins the ,+ form in AGENTS.md sections 1 and 2; the 'no backwards relative address' sentence was read in the PR #125 review

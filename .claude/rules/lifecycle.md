@@ -55,7 +55,7 @@ case that must fail. See `contract.md`.
 
 - `adr-verify <task.md>` exit 0 writes the Verification Log line. `adr-debt` must report
   0 broken and 0 unreceipted before a PR opens.
-- The gates are the ones in `CONTRIBUTING.md`, each run stand-alone, never through a pipe.
+- The gates are the ones in `AGENTS.md` §Build and check, each run stand-alone, never through a pipe.
 - **Run `./scripts/contract.sh` before committing, not after.** §50 went red on a commit whose author
   had run only the Go tests.
 - **Engine go/no-go:** `internal/read`, `internal/apply`, `internal/plan`, `internal/seen`,

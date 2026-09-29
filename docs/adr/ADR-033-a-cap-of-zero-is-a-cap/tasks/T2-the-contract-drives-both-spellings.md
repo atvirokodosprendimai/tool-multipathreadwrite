@@ -92,3 +92,5 @@ exists asserts nothing.
 - 2026-09-07 · 2fda99d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · ms:31547
 - 2026-09-07 · fd4ce17* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · ms:34524
 - 2026-09-07 · 2a67824* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3d83a81ad6b0687f4877ebc85e4464a3f6525ba15bc3883789b9cd6cfc97175 · ms:30672
+- 2026-09-29 · human-observed · S3 observed: this fence pins 'zero means zero' in the usage string and README; 'omit the flag for no cap' was read in the PR #133 review (the usage string and README table say how to ask for none)
+- 2026-09-29 · human-observed · correction to the S3 row above (found by the Codex review of #283): when it was written this fence's README clause was red — README said '`0` means zero', not 'zero means zero' — so the fence did not pin README then. README's --max-lines row now says 'zero means zero: `0` serves nothing. Omit the flag for no cap' (read back 2026-09-29), and scripts/fence-prose.py in static.sh keeps every fence's prose grep green

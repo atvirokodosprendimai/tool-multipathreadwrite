@@ -1,8 +1,10 @@
 # Static analysis after every commit
 
 `scripts/static.sh` is the static gate (ADR-088): `gofmt -l`, `go vet`, `golangci-lint` with
-`.golangci.yml`, `deadcode`, staticcheck U1000 with tests excluded, and `govulncheck`. Exit 0 is
-clean; anything else is a finding. CI runs it on every push and pull request.
+`.golangci.yml`, `deadcode`, staticcheck U1000 with tests excluded, `govulncheck`, and
+`scripts/fence-prose.py`, which reruns every task fence's `grep` over a tracked file so a prose rewrite
+cannot turn a done task red unseen. Exit 0 is clean; anything else is a finding. CI runs it on every
+push and pull request.
 
 **After a commit, the analysis comes to you.** In Claude Code, `.claude/hooks/static-after-commit.py`
 runs the script whenever a `git commit` moved HEAD and puts the verdict in front of you. Without the

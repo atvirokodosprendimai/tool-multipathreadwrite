@@ -129,3 +129,4 @@ than this record made.
 - 2026-09-06 · d2a9f55* · exit 0 · `set -o pipefail …` · acceptance-sha256:f3c09e49ec2333e5ab59c5cc6e46cf74ee7265aea915a056e2643cc76643a775 · ms:31638
 - 2026-09-06 · 0ee9a6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:f3c09e49ec2333e5ab59c5cc6e46cf74ee7265aea915a056e2643cc76643a775 · ms:35143
 - 2026-09-06 · 0ee9a6b* · exit 0 · `set -o pipefail …` · acceptance-sha256:f3c09e49ec2333e5ab59c5cc6e46cf74ee7265aea915a056e2643cc76643a775 · ms:34638
+- 2026-09-29 · human-observed · S6 observed by the PR #125 review: grep -rn ClosingDelim internal/ matched T6's rung 2, and splitHeader is named as the exception
