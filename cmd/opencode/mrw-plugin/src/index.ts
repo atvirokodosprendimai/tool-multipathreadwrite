@@ -109,18 +109,48 @@ function set(from: Record<string, unknown>, map: Record<string, string>): Record
 
 const toolRead = tool({
   description:
-    "Read line ranges from files, or find them with grep. Addresses: path:12-45, path:12, " +
+    "Use for every file read in this checkout, in place of other read tools: one call serves " +
+    "every site. Read line ranges from files, or find them with grep. Addresses: path:12-45, path:12, " +
     "path:A,+N, path:$, path:/regexp/, path:/from/,/to/. A served read licenses NOTHING until " +
     "acknowledged: the answer brackets each run of lines with '-- ck <id> open lines A-B (N lines " +
     "follow)' and '-- ck <id> close'; send an id in ack (here or on mrw_write) only if you hold " +
     "BOTH its markers and counted its N lines. A large read is a PAGE: send next_read back as specs.",
   args: {
-    specs: z.array(z.string()).optional(),
-    grep: z.string().optional(),
-    astGrep: z.string().optional(),
-    exclude: z.array(z.string()).optional(),
+    specs: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Range specs, e.g. internal/x/y.go:40-60 or path:/regexp/. With grep or astGrep set, these are " +
+          "the directories or files to search instead, carry no range, and may be omitted to search " +
+          "the whole checkout.",
+      ),
+    grep: z
+      .string()
+      .optional()
+      .describe(
+        "A regexp. Walks specs (or the whole checkout) and serves every matching range, to find files " +
+          "you cannot name. Too many matches return an INDEX, one spec per file and no content: send " +
+          "the ones you want back as specs.",
+      ),
+    astGrep: z
+      .string()
+      .optional()
+      .describe("A structural pattern for the ast-grep CLI on PATH; walks like grep. Not together with grep."),
+    exclude: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Globs to skip, matched against the root-relative path and the basename ('*_test.go', " +
+          "'vendor'). Only with grep or astGrep: without them it is refused.",
+      ),
     after: z.string().optional().describe("The next_index of an INDEX page, to fetch the next page."),
-    ack: z.array(z.string()).optional(),
+    ack: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "ck ids from an earlier read whose open and close markers you both hold and whose N lines " +
+          "you counted. Acknowledging licenses those lines for mrw_write.",
+      ),
     root: z.string().optional().describe("Another checkout to read instead of this one."),
   },
   async execute(args, ctx) {
@@ -132,11 +162,13 @@ const toolRead = tool({
 
 const toolWrite = tool({
   description:
-    "Apply an edit plan across files. Every hunk gets a verdict; a plan that fails validation " +
+    "Use for every edit, create, delete or rename in this checkout, in place of other edit tools: " +
+    "put every site in ONE plan. Every hunk gets a verdict; a plan that fails validation " +
     "writes nothing. Addresses resolve against the ORIGINAL file. Ops: replace, insert-after, " +
     "insert-before, delete, create, unlink, rename. A new file is '@@ path 0 create'. A " +
-    "multi-line replace needs anchor=. mrw will not edit a line it has not served AND you have " +
-    "acknowledged: pass the ck ids from mrw_read in ack. It runs no check; call mrw_check.",
+    "multi-line replace needs anchor= AND a served line after its range: read past the end " +
+    "first. mrw will not edit a line it has not served AND you have acknowledged: pass the ck " +
+    "ids from mrw_read in ack. It runs no check; call mrw_check with the files you wrote.",
   args: {
     plan: z.string().describe(
       "The plan document. Each hunk: '@@ <path> <address> <op> [guards]' + body lines.\n" +
@@ -146,11 +178,29 @@ const toolWrite = tool({
         "@@ cmd/mrw/main.go 12 insert-after\n" +
         '        "sort"',
     ),
-    ack: z.array(z.string()).optional(),
-    dryRun: z.boolean().optional(),
-    format: z.enum(["plan", "apply_patch", "search_replace"]).optional(),
-    echoPad: z.number().optional(),
-    strictBalance: z.boolean().optional(),
+    ack: z
+      .array(z.string())
+      .optional()
+      .describe("The ck ids from the mrw_read this plan was written against. A hunk on lines you have not acknowledged is refused."),
+    dryRun: z.boolean().optional().describe("Validate and report without writing: the same receipt, with dry_run true."),
+    format: z
+      .enum(["plan", "apply_patch", "search_replace"])
+      .optional()
+      .describe(
+        "plan (default) is the native @@ document; apply_patch compiles a Codex *** Begin Patch " +
+          "document; search_replace compiles an Aider SEARCH/REPLACE document.",
+      ),
+    echoPad: z
+      .number()
+      .optional()
+      .describe("Print N lines after each applied body so a surviving closer is visible. Not a checker. Default 0."),
+    strictBalance: z
+      .boolean()
+      .optional()
+      .describe(
+        "Refuse a single-line replace on a code path whose {} () [] do not balance against the line " +
+          "it replaces (the wrap-tail shape). Off by default.",
+      ),
   },
   async execute(args, ctx) {
     const call = set(args, { plan: "plan", ack: "ack", dryRun: "dry_run", format: "format", echoPad: "echo_pad", strictBalance: "strict_balance" });
@@ -161,9 +211,11 @@ const toolWrite = tool({
 const toolCheck = tool({
   description:
     "Run the project's declared check, scoped to the working set or to the paths you name. " +
-    "NOT read-only: the declared command may generate code or write fixtures.",
+    "After mrw_write, name the files it wrote: with no paths the check covers the working set " +
+    "(mrw_iter), which a write does not change. NOT read-only: the declared command may " +
+    "generate code or write fixtures.",
   args: {
-    paths: z.array(z.string()).optional(),
+    paths: z.array(z.string()).optional().describe("Files or directories to check; omit for the working set."),
   },
   async execute(args, ctx) {
     return cli("mrw check", ctx, ["check", "--", ...(args.paths ?? [])]);

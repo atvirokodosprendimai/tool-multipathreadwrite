@@ -84,7 +84,7 @@ trap 'trap "" TERM; rm -rf "$WORK"; kill -- -$$ 2>/dev/null' EXIT
 # ⚠ AND PIN mrw's OWN STATE INTO $WORK. Every `fixture` gets a fresh root, which
 # is a fresh state KEY, so an unpinned run converted one temporary directory
 # into one PERMANENT one per fixture: measured 2026-09-07, +111 entries per run
-# and 22,836 directories / 242 MB accumulated on one machine, 22,591 of them
+# and 22,836 directories (242 MB of disk by du) accumulated on one machine, 22,591 of them
 # naming a checkout that no longer exists (ADR-034). Fresh-root isolation is
 # unchanged and still the mechanism; this puts the state beside the fixtures
 # that caused it, so a run leaves the machine as it found it. Section 71 pins a
@@ -129,7 +129,7 @@ want() { [ "$1" = "$2" ] && ok "$3" || bad "$3 (exit $2, want $1)"; }
 # killing a CMD still running, with a line saying so appended to OUT. A row
 # that must bound mrw uses this, never `perl -e 'alarm N; exec @ARGV'`: Go
 # ignores SIGALRM unless it asks for the signal, so the alarm fired and mrw
-# ran on (BACKLOG :2073). The alarm still bounds a child that is not Go, such
+# ran on (BACKLOG.md, the ADR-072 hang-guard entry). The alarm still bounds a child that is not Go, such
 # as §55's Python hook.
 #
 # The kill is SIGKILL to CMD alone. A child CMD put in a process group of its
