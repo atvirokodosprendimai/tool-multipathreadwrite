@@ -147,7 +147,6 @@ grep -q '^# 175\. ' scripts/contract.sh \
 | 4 — it is used | nothing measures this, and ADR-009 refuses telemetry. The evidence for building it is the survey's probe and the reproduction in ADR-093's Context |
 
 ## Mutation Log
-(empty until execute)
 - 2026-09-29 · 0b2f304* · mutant killed · exit 1 · `internal/mcp/tools.go` · S3: delete the undeclaredRefusal call in callTool; kills TestAnUndeclaredArgumentIsRefusedByName and TestARefusedUndeclaredArgumentPromotesNoAck · acceptance-sha256:3ffb201350cbee9c38603e0314c3fee42a50b8c9bc6f574719d5c4639eb60aee
 - 2026-09-29 · 0b2f304* · mutant killed · exit 1 · `internal/mcp/tools.go` · S3: compare keys with strings.EqualFold; kills the Plan row of TestAnUndeclaredArgumentIsRefusedByName · acceptance-sha256:3ffb201350cbee9c38603e0314c3fee42a50b8c9bc6f574719d5c4639eb60aee
 - 2026-09-29 · 0b2f304* · mutant killed · exit 1 · `internal/mcp/tools.go` · S3: the mrw_write routing names --checks; kills TestTheRefusalRoutesOnlyToFlagsTheCLIHas · acceptance-sha256:3ffb201350cbee9c38603e0314c3fee42a50b8c9bc6f574719d5c4639eb60aee

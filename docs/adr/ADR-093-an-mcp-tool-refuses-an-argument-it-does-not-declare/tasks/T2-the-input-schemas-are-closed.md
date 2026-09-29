@@ -36,7 +36,9 @@ refused.
    tools were checked, so an empty list cannot pass.
 2. [S2] Add `"additionalProperties": false` to both `InputSchema` maps, and confirm GREEN.
    [proof: mutation]
-   Mutant: drop it from `mrw_read`'s map. This kills `TestEveryInputSchemaIsClosed` and the fence's count of the key in the golden; §176 goes red in the pre-commit contract run.
+   Mutant: drop it from `mrw_read`'s map. This kills `TestEveryInputSchemaIsClosed` (`undeclared093_test.go:277`) and `TestALegacyResultIsUnchangedByTheModernPath` (`era_test.go:241`), whose served `tools/list` no longer matches the checked-in golden. The fence's count of the key cannot kill it: that clause counts the key in the checked-in `legacy_golden.jsonl`, which a change to `mcp.go` does not alter while the fence unsets `MRW_UPDATE_LEGACY_GOLDEN`. §176 goes red in the pre-commit contract run.
+
+   **Correction (2026-09-29):** the Mutation Log row for this mutant credits "the fence's golden count". That clause cannot see the mutant: it counts the key in the checked-in golden, which the mutant does not touch. The row's `killed` verdict stands, and what it proves is that the fence went red with the key gone from `mrw_read`'s schema. The claim is bound by `TestEveryInputSchemaIsClosed` and `TestALegacyResultIsUnchangedByTheModernPath`: with `mcp.go:427` deleted on the tree rebased onto `25acdc1`, both reported `--- FAIL` while the golden still held the key twice, and the line was then restored. The second `mutant killed` row, written by `adr-verify` against the current fence and marked `covers:every advertised input schema is closed`, credits those two tests.
 3. [S3] Regenerate the golden with
    `MRW_UPDATE_LEGACY_GOLDEN=1 go test ./internal/mcp/ -count=1 -run TestALegacyResultIsUnchangedByTheModernPath`,
    then run it again without the variable. Strip every `"additionalProperties":false,` from both the
@@ -64,19 +66,21 @@ refused.
 set -o pipefail
 unset MRW_UPDATE_LEGACY_GOLDEN
 G=internal/mcp/testdata/legacy_golden.jsonl
+O=$(mktemp) && A=$(mktemp) || exit 1
+trap 'rm -f "$O" "$A"' EXIT
 grep -q '^# 176\. ' scripts/contract.sh \
   && grep -qF 'every input schema is closed' scripts/contract.sh \
   && grep -qF 'and a call with declared arguments is still served' scripts/contract.sh \
   && go test ./internal/mcp/ -count=1 -v \
-    -run 'TestEveryInputSchemaIsClosed|TestALegacyResultIsUnchangedByTheModernPath' 2>&1 | tee /tmp/adr093-t2.out \
-  && grep -q '^--- PASS: TestEveryInputSchemaIsClosed ' /tmp/adr093-t2.out \
-  && grep -q '^--- PASS: TestALegacyResultIsUnchangedByTheModernPath ' /tmp/adr093-t2.out \
-  && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/adr093-t2.out \
+    -run 'TestEveryInputSchemaIsClosed|TestALegacyResultIsUnchangedByTheModernPath' 2>&1 | tee "$O" \
+  && grep -q '^--- PASS: TestEveryInputSchemaIsClosed ' "$O" \
+  && grep -q '^--- PASS: TestALegacyResultIsUnchangedByTheModernPath ' "$O" \
+  && ! grep -qE "no tests to run|^FAIL|^--- FAIL" "$O" \
   && [ "$(grep -o '"additionalProperties":false' "$G" | wc -l | tr -d ' ')" = "2" ] \
   && diff <(git show "$(git merge-base HEAD origin/main):$G" | sed 's/"additionalProperties":false,//g') <(sed 's/"additionalProperties":false,//g' "$G") > /dev/null \
   && grep -q 'An argument a tool does not declare is refused' README.md \
   && grep -q 'An argument a tool does not declare is refused' AGENTS.md \
-  && go test ./internal/mcp/ -count=1 > /tmp/adr093-t2-all.out 2>&1 \
+  && go test ./internal/mcp/ -count=1 > "$A" 2>&1 \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check internal/state internal/lines cmd/mrw \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check internal/state internal/lines cmd/mrw)" ] \
   && [ "$(go mod edit -json | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("Require") or []))')" = "1" ] \
@@ -96,13 +100,13 @@ grep -q '^# 176\. ' scripts/contract.sh \
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | `TestEveryInputSchemaIsClosed` and §176 |
-| 2 — something selects it | the two `InputSchema` maps in `tools()`, which `tools/list` serves; dropping the key kills the test and the golden count, and §176 goes red in the pre-commit contract run |
+| 2 — something selects it | the two `InputSchema` maps in `tools()`, which `tools/list` serves; dropping the key kills `TestEveryInputSchemaIsClosed` and `TestALegacyResultIsUnchangedByTheModernPath` (the served list no longer matches the checked-in golden), and §176 goes red in the pre-commit contract run |
 | 3 — the caller can discover it | `tools/list` is the schema a host reads; README and AGENTS.md say it in prose |
 | 4 — it is used | nobody has measured whether any host enforces a closed schema before sending (deferred in ADR-093's Out of Scope); the server's refusal from T1 holds either way |
 
 ## Mutation Log
-(empty until execute)
 - 2026-09-29 · 0b2f304* · mutant killed · exit 1 · `internal/mcp/mcp.go` · S2: drop additionalProperties from mrw_read's inputSchema; kills TestEveryInputSchemaIsClosed and the fence's golden count · acceptance-sha256:5830fb06337df7eafdfcddf4b69d383ddeab754c24dd758dd9e1e987515d938c
+- 2026-09-29 · c0c06e3* · mutant killed · exit 1 · `internal/mcp/mcp.go` · S2: drop additionalProperties from mrw_read's inputSchema; kills TestEveryInputSchemaIsClosed and TestALegacyResultIsUnchangedByTheModernPath (served tools/list no longer matches the checked-in golden); the golden-count clause cannot see it · acceptance-sha256:f7cc262d8f9e958c620160f9ebe2756665efaf724fee8d79e230acfd48083ae2 · covers:every advertised input schema is closed
 
 ## Invariants
 
@@ -136,3 +140,5 @@ Stop and ask M if the re-captured golden differs by anything other than the two 
   ```
 - 2026-09-29 · 0b2f304* · exit 0 · `set -o pipefail …` · acceptance-sha256:5830fb06337df7eafdfcddf4b69d383ddeab754c24dd758dd9e1e987515d938c · ms:7387
 - 2026-09-29 · human-observed · S5 observed by the executing agent (lane A-093): ./scripts/contract.sh run unpiped before the commit, exit 0, contract holds, with §176's two rows printed PASS
+- 2026-09-29 · c0c06e3* · exit 0 · `set -o pipefail …` · acceptance-sha256:f7cc262d8f9e958c620160f9ebe2756665efaf724fee8d79e230acfd48083ae2 · ms:20634
+- 2026-09-29 · c0c06e3* · exit 0 · `set -o pipefail …` · acceptance-sha256:f7cc262d8f9e958c620160f9ebe2756665efaf724fee8d79e230acfd48083ae2 · ms:21409
