@@ -78,8 +78,8 @@ rg -l 'func Handle' . | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 |---|---|
 | `--stat` | length, bytes and sha only — no content, so it licenses nothing |
 | `-C N` | context around a single-pattern match |
-| `--max-lines N` | cap per spec; `0` means zero. Omit the flag for no cap |
-| `--grep PATTERN` | serve every regexp match under the given paths |
+| `--max-lines N` | cap per spec, where zero means zero: `0` serves nothing. Omit the flag for no cap |
+| `--grep PATTERN` | serve every regexp match under the given paths (measured 2026-09-03: the walk took 0.76× the time of a `grep -rl … \| mrw read --files-from -` pipeline over this repository, ADR-007) |
 | `--ast-grep PATTERN` | serve every `ast-grep` hit (binary on PATH; missing is exit 2; a hang is, on unix, sent SIGTERM at 2 s and killed by 3 s if it ignores it; on Windows it is killed at 2 s). A hit in a file whose lines end in `\r` alone is reported, not served — read that file directly |
 | `--exclude GLOB` | skip matching paths (needs `--grep` or `--ast-grep`) |
 | `--files-from FILE\|-` | one spec per line |
@@ -192,6 +192,9 @@ These are gates, not a tour of the records behind them.
   a device (`NUL` always, `CON` and the rest where that Windows reserves them)
   is refused. The receipt names a symlink's `target`, the directories
   a plan made (`dirs_created`) and a removed file's former sha.
+- **A delete says what it removed.** Its verdict carries `removed_first` and
+  `removed_last`, and a `delete` may carry a body: the lines it expects to remove,
+  refused before anything is written when the count differs (ADR-008).
 
 After any multi-line body, read on past the range until the enclosing structure
 closes. mrw models no target syntax; the damage is never inside the lines you
@@ -270,6 +273,13 @@ write before anything is applied.
 `--ast-grep`. A grep too large to serve returns an index — one spec per
 matching file, no content — which licenses nothing — and names every path the
 walk could not use.
+
+A read too large for the ceiling comes back as a first page with `next_read`:
+send that back as `specs` to continue, and repeat until it is absent. A read that
+cannot be paged — several files whose lines do not fit in the room left — is
+refused, and the refusal says to ask for a narrower range or name fewer files.
+`mrw_read`'s result is the served text, with no `structuredContent` (ADR-023);
+the write result's `structuredContent` carries the receipt.
 
 The server speaks MCP `2025-11-25` and `2025-06-18` through `initialize`, and
 answers the version the host asked for. It also speaks `2026-07-28`: a request

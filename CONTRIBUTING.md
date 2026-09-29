@@ -15,7 +15,8 @@
 
 The authoritative list is `AGENTS.md`, §Build and check: CI runs those gates on every push and pull
 request, and a release publishes nothing until they are green. Run each one locally on its own before
-you push. This file keeps what a person needs around them — the platform notes below, and why an exit
+you push — `go test ./...`, `./scripts/contract.sh` and the static gate `./scripts/static.sh` among
+them. This file keeps what a person needs around them — the platform notes below, and why an exit
 code is never read through a pipe — and does not carry a second copy of the list, which is how the two
 drifted apart once (the opencode plugin gate was here and not there, 2026-09-29).
 

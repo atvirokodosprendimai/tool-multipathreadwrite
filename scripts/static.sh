@@ -2,7 +2,10 @@
 # scripts/static.sh — every static analyser this repository gates on (ADR-088).
 #
 # gofmt, go vet, golangci-lint (.golangci.yml), deadcode, staticcheck's U1000
-# with tests excluded, and govulncheck. Each runs whatever the others found,
+# with tests excluded, govulncheck, and fence-prose (every task fence's grep
+# over a tracked file still matches: a prose rewrite turned 8 done fences red
+# unnoticed, measured 2026-09-29). Each runs whatever the others found, and the
+# script exits 1 when any of them found anything. python3 runs fence-prose.
 # and the script exits 1 when any of them found anything. CI runs it, and so
 # does the PostToolUse hook after a commit (.claude/hooks/static-after-commit.py).
 #
@@ -57,6 +60,8 @@ step golangci-lint golangci
 step "deadcode (production code nothing reaches, or only tests reach)" empty go run "$DEADCODE" ./...
 step "staticcheck U1000 (unused in production, tests excluded)" go run "$STATICCHECK" -tests=false -checks U1000 ./...
 step govulncheck go run "$GOVULNCHECK" ./...
+step "fence-prose self-test (a red clause is reported)" python3 scripts/fence-prose.py --self-test
+step "fence-prose (every task fence's grep over a tracked file still matches)" python3 scripts/fence-prose.py .
 
 if [ "$fail" -eq 0 ]; then
   echo "static analysis clean"

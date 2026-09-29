@@ -19,7 +19,7 @@ go test -race ./...
 gofmt -l .                             # must print nothing
 go vet ./...
 ./scripts/contract.sh                  # bash; WSL or Git Bash on Windows
-./scripts/static.sh                    # golangci-lint, deadcode, U1000, govulncheck (ADR-088)
+./scripts/static.sh                    # golangci-lint, deadcode, U1000, govulncheck (ADR-088), fence-prose
 go build -o bin/mrw ./cmd/mrw && (cd cmd/opencode/mrw-plugin && npm ci && npm run build && npm test)   # the opencode plugin (ADR-089)
 ```
 
