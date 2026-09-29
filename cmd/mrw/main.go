@@ -1256,6 +1256,21 @@ held or went unchecked.`,
 			if err := resolveSteps(cfg, asked); err != nil {
 				return refuse(err.Error() + ": nothing was written")
 			}
+			// checkWanted is ADR-054's rule for whether a write's check runs,
+			// given whether it touches a file a check could cover: --check
+			// demands it, and otherwise a code path and a command must exist.
+			// The guard below and checkDue share it, so they cannot disagree.
+			checkWanted := func(code bool) bool {
+				return cmd.Bool("check") || (code && (cfg.Check != "" || cfg.ScopedCheck != ""))
+			}
+			// ADR-095: at the depth limit a write whose check would be due is
+			// refused before anything is written, judged over the plan's own
+			// paths; --no-check and --dry-run start no check.
+			if !cmd.Bool("no-check") && !cmd.Bool("dry-run") && checkWanted(touchesCode(in)) {
+				if err := check.DepthRefusal("a check is"); err != nil {
+					return refuse(err.Error() + "; --no-check writes without it: nothing was written")
+				}
+			}
 			ledger, err := seen.Snapshot(root)
 			if err != nil {
 				return refuse(err.Error())
@@ -1307,7 +1322,7 @@ held or went unchecked.`,
 					return false
 				}
 				_, code := writeCheckPaths(res.Files)
-				return cmd.Bool("check") || (code && (cfg.Check != "" || cfg.ScopedCheck != ""))
+				return checkWanted(code)
 			}
 			// ledgerFailed refuses a write that landed and whose ledger could
 			// not record it. One whose check was due is counted check_not_run,
@@ -1517,6 +1532,22 @@ func writeCheckPaths(files []apply.FileResult) (paths []string, code bool) {
 	return paths, code
 }
 
+// touchesCode says whether a plan names a path a check could cover, judged
+// before the apply as writeCheckPaths judges after it: every hunk path, an
+// unlink target and a rename source by their own extension, and every rename
+// destination (ADR-095).
+func touchesCode(in []apply.Input) bool {
+	for _, h := range in {
+		if !apply.IsProse(h.Path) {
+			return true
+		}
+		if h.Op == "rename" && len(h.Body) == 1 && !apply.IsProse(h.Body[0]) {
+			return true
+		}
+	}
+	return false
+}
+
 // receipt is what one write produced: the edit and, when asked for, the
 // verification of that edit. They travel together because the whole point of
 // --check is that the change and the evidence for it are one result, not two
@@ -1602,15 +1633,14 @@ func thenShFlag(list *[]check.Step) cli.Flag {
 // askedStepsError refuses what can be judged of the steps before anything is
 // read: a --then-sh with no command, which would run nothing and pass, a
 // --then-sh holding {files} or {packages}, which mrw expands only in
-// scoped_check (ADR-094), and a sequence already MaxStepDepth steps deep,
-// where a step that runs mrw with steps again would recurse without end
-// (ADR-092 T5).
+// scoped_check (ADR-094), and a sequence already MaxStepDepth deep, where a
+// step that runs mrw again would recurse without end (ADR-092 T5, ADR-095).
 func askedStepsError(steps []check.Step) error {
 	if len(steps) == 0 {
 		return nil
 	}
-	if d := check.StepDepth(); d >= check.MaxStepDepth {
-		return fmt.Errorf("--then and --then-sh are refused %d steps deep (MRW_STEP_DEPTH=%d): a step that runs mrw with steps again would recurse without end", d, d)
+	if err := check.DepthRefusal("--then and --then-sh are"); err != nil {
+		return err
 	}
 	for _, s := range steps {
 		if s.AdHoc && strings.TrimSpace(s.Command) == "" {
@@ -1968,6 +1998,11 @@ touched, which is a finding about the machine and not about your change.`,
 					reportSteps(os.Stdout, then)
 				}
 				return cli.Exit(err, exitUsage)
+			}
+			// ADR-095: mrw check asks for nothing but a check, so at the depth
+			// limit it is refused in every form, before anything runs.
+			if err := check.DepthRefusal("a check is"); err != nil {
+				return refuse(err)
 			}
 			cfg, err := check.Load(root)
 			if err != nil {

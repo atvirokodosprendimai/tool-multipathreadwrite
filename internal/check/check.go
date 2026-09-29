@@ -244,7 +244,9 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	// always did.
 	ctx, stopSignals := subproc.Interruptible(ctx)
 	defer stopSignals()
-	res, err := run(ctx, root, cfg, cmdline, nil)
+	// The check counts a level, as a step does (ADR-095): one that runs mrw
+	// again is one deeper, so the depth guard reaches it.
+	res, err := run(ctx, root, cfg, cmdline, deeper())
 	res.Declared = cfg.declared
 	if err != nil {
 		return res, err
@@ -319,7 +321,7 @@ func run(ctx context.Context, root string, cfg Config, cmdline string, env []str
 		c.Env = append(os.Environ(), "PATH="+pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
 	if len(env) > 0 {
-		// A step's own variables (ADR-092 T5: MRW_STEP_DEPTH), over whatever
+		// MRW_STEP_DEPTH one deeper (ADR-092 T5, ADR-095), over whatever
 		// environment the shell would otherwise get.
 		if c.Env == nil {
 			c.Env = os.Environ()
@@ -812,7 +814,7 @@ func RunSteps(ctx context.Context, root string, cfg Config, steps []Step) StepsR
 			// A context already done starts nothing: run reports it
 			// interrupted with Ran false, as a check stopped before it
 			// started is (ADR-080).
-			res, err := run(ctx, root, cfg, s.Command, []string{"MRW_STEP_DEPTH=" + strconv.Itoa(StepDepth()+1)})
+			res, err := run(ctx, root, cfg, s.Command, deeper())
 			if err != nil {
 				res.Skipped = "could not start: " + err.Error()
 			}
@@ -858,17 +860,39 @@ func (c Config) StepCommands() (map[string]string, error) {
 	return steps, checkSteps(steps)
 }
 
-// MaxStepDepth is how deep steps may nest before --then and --then-sh are
-// refused (ADR-092 T5): a step that re-runs mrw with steps would otherwise
-// recurse without end, each level resetting the step timeout.
+// MaxStepDepth is how deep checks and steps may nest before mrw starts none:
+// --then and --then-sh (ADR-092 T5), a write whose check is due and mrw check
+// (ADR-095) are refused there. A check or step that re-runs mrw would
+// otherwise recurse without end, each level resetting its timeout.
 const MaxStepDepth = 8
 
-// StepDepth is how many steps deep this mrw runs: MRW_STEP_DEPTH, which each
-// step is given one higher than its caller's. Unset or unreadable is zero.
+// StepDepth is how many project commands deep this mrw runs: MRW_STEP_DEPTH,
+// which each check and step is given one higher than its caller's. Unset or
+// unreadable is zero (ADR-095 Decision 3).
 func StepDepth() int {
 	n, err := strconv.Atoi(os.Getenv("MRW_STEP_DEPTH"))
 	if err != nil || n < 0 {
 		return 0
 	}
 	return n
+}
+
+// deeper is the environment a check or step mrw starts runs with:
+// MRW_STEP_DEPTH one higher than mrw's own, so a project command that runs mrw
+// again is one level deeper (ADR-092 T5, ADR-095).
+func deeper() []string {
+	return []string{"MRW_STEP_DEPTH=" + strconv.Itoa(StepDepth()+1)}
+}
+
+// DepthRefusal refuses, at MaxStepDepth or deeper, what would start a project
+// command; shallower it returns nil. what is the refused subject and its verb
+// — "a check is", "--then and --then-sh are" — and the refusal names the
+// depth and the variable (ADR-095). One function, so every depth refusal
+// reads the same.
+func DepthRefusal(what string) error {
+	d := StepDepth()
+	if d < MaxStepDepth {
+		return nil
+	}
+	return fmt.Errorf("%s refused %d deep (MRW_STEP_DEPTH=%d): a check or step that runs mrw again would recurse without end", what, d, d)
 }

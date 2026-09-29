@@ -7676,6 +7676,75 @@ m write --no-check --then-sh true "$R/p179.mrw" > "$WORK/o179b" 2>&1; want 0 $? 
 m write --no-check --then-sh 'echo X; false' "$R/p179.mrw" > "$WORK/o179c" 2>&1; want 3 $? "a failing step still exits 3"
 grep -q '^then last: X$' "$WORK/o179c" && ok "with then last: X" || bad "the failing step: $(head -c 300 "$WORK/o179c")"
 
+# 181. ADR-095 T1: the check counts a level, and at MRW_STEP_DEPTH 8 mrw starts
+# no project command. A check that runs `mrw check` again ran with its caller's
+# depth — unset at every level — so nothing bounded the chain. Here it records
+# levels 1 to 8 and stops, exit 3; the script stops itself past 12 levels, so
+# a missing guard fails the row instead of running away. At 8 a .go write whose
+# check is due is refused with nothing written and no check run, beside the
+# --no-check write that lands; mrw check is refused at 8 and runs at 7 and
+# under a value mrw did not write.
+fixture
+printf '{"check":"sh %s/rec181.sh"}\n' "$R" > "$R/.quality-harness.json"
+printf '%s\n' 'echo "$MRW_STEP_DEPTH" >> depth181' '[ "$(wc -l < depth181)" -gt 12 ] && exit 97' "exec \"$MRW\" check --full" > "$R/rec181.sh"
+t0=$(date +%s)
+bounded 90 "$WORK/o181r" env -u MRW_STEP_DEPTH "$MRW" -C "$R" check --full; rc=$?; el=$(( $(date +%s) - t0 ))
+levels=$(tr '\n' ' ' < "$R/depth181" 2>/dev/null)
+{ [ "$rc" = 3 ] && [ "$levels" = "1 2 3 4 5 6 7 8 " ] && [ "$el" -lt 60 ]; } && ok "a check that re-runs mrw check stops at MRW_STEP_DEPTH 8: exit 3 in ${el}s, levels 1 to 8" \
+  || bad "recursion through the check: exit $rc after ${el}s, levels '$levels': $(head -c 300 "$WORK/o181r")"
+left=$(pgrep -f "$R/rec181.sh" | wc -l | tr -d ' ')
+[ "$left" = 0 ] && ok "and nothing of the recursion is left running" || { pkill -9 -f "$R/rec181.sh"; bad "$left recursion processes outlived the row"; }
+fixture
+printf '{"check":"echo x >> m181"}\n' > "$R/.quality-harness.json"
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 181 }\n' > "$R/p181.mrw"
+MRW_STEP_DEPTH=8 "$MRW" -C "$R" write "$R/p181.mrw" > "$WORK/o181w" 2>&1; want 2 $? "at depth 8 a .go write whose check is due is refused"
+{ ! grep -q 'return 181' "$R/a.go" && [ ! -e "$R/m181" ] && grep -q 'MRW_STEP_DEPTH=8' "$WORK/o181w" && grep -q -- '--no-check' "$WORK/o181w"; } \
+  && ok "nothing is written, no check runs, and the refusal names the depth and --no-check" || bad "the refused write: $(head -c 300 "$WORK/o181w")"
+MRW_STEP_DEPTH=8 "$MRW" -C "$R" write --no-check "$R/p181.mrw" > /dev/null 2>&1; want 0 $? "the pair: at depth 8 the same write with --no-check lands"
+{ grep -q 'return 181' "$R/a.go" && [ ! -e "$R/m181" ]; } && ok "and runs no check" || bad "the --no-check write did not land, or a check ran"
+MRW_STEP_DEPTH=8 "$MRW" -C "$R" check --full > "$WORK/o181c" 2>&1; want 2 $? "mrw check at depth 8 is refused"
+[ ! -e "$R/m181" ] && ok "before its check runs" || bad "the check ran at depth 8"
+MRW_STEP_DEPTH=7 "$MRW" -C "$R" check --full > /dev/null 2>&1; want 0 $? "mrw check at depth 7 runs"
+[ -e "$R/m181" ] && ok "and its check ran" || bad "the check did not run at depth 7"
+MRW_STEP_DEPTH=x "$MRW" -C "$R" check --full > /dev/null 2>&1; want 0 $? "mrw check under MRW_STEP_DEPTH=x runs: a value mrw did not write counts as zero"
+
+# 182. ADR-095 T2: a timeout reaches the check of a nested mrw. The outer check
+# runs mrw on an inner tree — `; true` keeps sh the leader, so the TERM kills sh
+# at once and only the grace keeps the nested mrw alive — and the inner check
+# sleeps. SIGKILL to the outer group killed the nested mrw and its check's sleep
+# ran on in a group of its own, which the run-wide survivors check cannot see;
+# TERM first lets the nested mrw stop it. The pair: a check that ignores TERM is
+# still killed once the grace has passed.
+fixture
+mkdir -p "$R/inner"
+printf '{"check":"%s -C inner check --full; true","timeout_seconds":3}\n' "$MRW" > "$R/.quality-harness.json"
+printf '{"check":"echo $$ > pid182; exec sleep 300"}\n' > "$R/inner/.quality-harness.json"
+bounded 30 "$WORK/o182a" "$MRW" -C "$R" check --full; want 3 $? "an outer check that times out while a nested mrw runs its check exits 3"
+p182=$(cat "$R/inner/pid182" 2>/dev/null); alive=1
+for _ in $(seq 1 30); do kill -0 "${p182:-999999999}" 2>/dev/null || { alive=0; break; }; sleep 0.1; done
+{ [ -n "$p182" ] && [ "$alive" = 0 ]; } && ok "and the nested mrw's check is gone within 3 s" \
+  || { kill -9 "${p182:-999999999}" 2>/dev/null; bad "the nested check '$p182' outlived the outer timeout: $(head -c 300 "$WORK/o182a")"; }
+fixture
+printf '%s\n' "{\"check\":\"trap '' TERM; echo \$\$ > pid182b; sleep 300\",\"timeout_seconds\":1}" > "$R/.quality-harness.json"
+t0=$(date +%s)
+bounded 30 "$WORK/o182b" "$MRW" -C "$R" check --full; rc=$?; el=$(( $(date +%s) - t0 ))
+p182b=$(cat "$R/pid182b" 2>/dev/null); alive=1
+for _ in $(seq 1 30); do kill -0 "${p182b:-999999999}" 2>/dev/null || { alive=0; break; }; sleep 0.1; done
+{ [ "$rc" = 3 ] && [ "$el" -lt 10 ] && [ -n "$p182b" ] && [ "$alive" = 0 ]; } && ok "the pair: a check that ignores TERM exits 3 in ${el}s and is killed" \
+  || { kill -9 "${p182b:-999999999}" 2>/dev/null; bad "a check ignoring TERM: exit $rc after ${el}s, pid '$p182b' alive $alive: $(head -c 300 "$WORK/o182b")"; }
+
+# 183. ADR-095 T2: the reap after a clean exit sends TERM first. A check that
+# passes leaves a straggler that traps TERM; it hears TERM, writes its marker
+# and is gone when mrw returns. SIGKILL at once gave it no chance to clean up.
+fixture
+printf '%s\n' "{\"check\":\"(trap 'echo term > marker183; exit 0' TERM; sleep 300 & echo \$! > sleep183; touch ready183; wait) >/dev/null 2>&1 & while [ ! -e ready183 ]; do sleep 0.05; done; exit 0\"}" > "$R/.quality-harness.json"
+bounded 30 "$WORK/o183" "$MRW" -C "$R" check --full; want 0 $? "a check that passes leaving a straggler exits 0"
+s183=$(cat "$R/sleep183" 2>/dev/null); alive=1
+for _ in $(seq 1 30); do kill -0 "${s183:-999999999}" 2>/dev/null || { alive=0; break; }; sleep 0.1; done
+{ [ -e "$R/marker183" ] && [ -n "$s183" ] && [ "$alive" = 0 ]; } && ok "the straggler heard TERM first, wrote its marker, and is gone" \
+  || { kill -9 "${s183:-999999999}" 2>/dev/null; bad "the straggler: marker $([ -e "$R/marker183" ] && echo yes || echo no), sleep '$s183' alive $alive: $(head -c 300 "$WORK/o183")"; }
+
 # 186. ADR-092 Decision 5: a write that landed and then could not save its
 # ledger still names every step it asked for, not_run, in both receipts; it
 # dropped them (the 2026-09-29 gap survey, C3). The tally stays ADR-083's: a

@@ -78,7 +78,7 @@ rg -l 'func Handle' . | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 | `-C N` | context around a single-pattern match |
 | `--max-lines N` | cap per spec; `0` means zero. Omit the flag for no cap |
 | `--grep PATTERN` | serve every regexp match under the given paths |
-| `--ast-grep PATTERN` | serve every `ast-grep` hit (binary on PATH; missing is exit 2; a hang is killed at 2 s). A hit in a file whose lines end in `\r` alone is reported, not served — read that file directly |
+| `--ast-grep PATTERN` | serve every `ast-grep` hit (binary on PATH; missing is exit 2; a hang is sent SIGTERM at 2 s and killed by 3 s if it ignores it). A hit in a file whose lines end in `\r` alone is reported, not served — read that file directly |
 | `--exclude GLOB` | skip matching paths (needs `--grep` or `--ast-grep`) |
 | `--files-from FILE\|-` | one spec per line |
 
@@ -168,6 +168,7 @@ These are gates, not a tour of the records behind them.
   127); a step runs with `MRW_STEP_DEPTH` one deeper, and `--then` is refused at depth 8, so a step
   that re-runs mrw with steps cannot recurse without end; `"steps"` is read only when a step is asked for.
   A step runs as written: a step command holding {files} or {packages} is refused, since mrw expands them only in scoped_check. A passing step prints the last line of its output under its verdict.
+  A check, like a step, runs with MRW_STEP_DEPTH one higher than mrw's own; at depth 8 mrw starts neither: --then and --then-sh, a write whose check is due, and mrw check are refused, exit 2, before anything is written or run, while a write that starts no check still lands (`--no-check` writes without it). A command that clears the environment, such as env -i or sudo, restarts the count below it, as setsid leaves the process group. On unix a stopped check, step or ast-grep process group hears SIGTERM first, and whatever ignores it is killed a second later; an mrw killed that way can leave its own check running (ADR-095).
 - **Advisories are counted where you read.** The summary line says
   `N failed, A advisories`, zero included, and the JSON receipt carries
   `advisories`. Three advisories in your last ten writes print a `pattern:`

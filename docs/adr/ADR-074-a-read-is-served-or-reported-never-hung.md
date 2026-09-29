@@ -61,6 +61,8 @@ signal takes both.
    `Interruptible`, and both children run under it: an interrupt, terminate or hangup sent to mrw
    cancels the child's context and kills its group, and a signal mrw was started with ignored
    stays ignored. On Windows only the wait bound applies.
+   **Amended by ADR-095** (2026-09-29): at the 2 s bound the group is sent SIGTERM, and SIGKILL by
+   3 s if it ignores it.
 3. **The MCP page is sized by its encoded length**: the per-line cost comes from the JSON-encoded
    text, the measure the ceiling checks. When a read's text renders inside the limit and its
    encoded answer does not, the refusal names the cause that fits the remedy: the encoding (ask for

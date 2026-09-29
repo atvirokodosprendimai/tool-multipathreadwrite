@@ -61,6 +61,8 @@ And one the round's read side found in the same code shape: the check's timeout 
    Windows only the wait bound applies.
    **Amended by ADR-080** (2026-09-26, M: *"Reap always"*): the group is killed after every exit,
    not only on a cancel — a check that passed left a background process running.
+   **Amended by ADR-095** (2026-09-29): on a cancel and after every exit the group gets SIGTERM, then
+   SIGKILL to what is left at most a second later, so a nested mrw stops its own check first.
 
 **What would make this decision fail:** a check that depends on sharing the terminal's process
 group; its stdin is already `/dev/null` and its output a file, so none is known. And a signal
