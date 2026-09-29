@@ -989,7 +989,7 @@ re-measuring these. Each was driven at the built binary, not read:
 
 ## From ADR-020-T2 (a target the instruction does not name)
 
-- **Run a reading against the relational fixture.** T2 builds the selector; it does not spend the
+- ~~**Run a reading against the relational fixture.**~~ **CLOSED 2026-09-05 by reading 3** (#96, `docs/curve/reading-03-result.md`): 45 of 45 under the pre-registered criterion, flat, and the prediction that the relational fixture is harder refuted (ADR-020 Follow-ups). T2 builds the selector; it does not spend the
   trials. The criterion is the one already pre-registered above and must not be re-derived — correct
   address rate against served bytes, stratified by position, refusals reported separately, a flat
   curve accepted as an answer. What the first reading adds is that the NAMED fixture is at ceiling
@@ -1109,12 +1109,12 @@ re-measuring these. Each was driven at the built binary, not read:
   broad one. The lesson generalises: a class-enumerating command has to be checked against what it
   CANNOT match.
 
-  **Two obligations remain open here, and ADR-024 defers both to this file by name.**
+  **ADR-024 deferred two obligations here by name; both are closed, each below.**
 
 - ~~**The ledger records what was SENT, not what was SEEN** (`internal/mcp/tools.go`, the `seen.Record`
   calls).~~ **CLOSED 2026-09-07 by ADR-031 FOR PAGED READS** — a page is held pending against
-  bracketed checkpoints and reaches the ledger only when the caller echoes them. ⚠ Still OPEN for a
-  read that FITS, which is recorded on serve as before; that half has its own entry below. Kept
+  bracketed checkpoints and reaches the ledger only when the caller echoes them. The half for a read
+  that FITS, then recorded on serve, closed 2026-09-09 by ADR-039 — its entry below. Kept
   because the reasoning is what made the class visible. Deferred from `docs/adr/ADR-024-a-page-is-known-by-its-served-text.md`, whose Decision 4
   says plainly that it narrows the exposure without removing the class: mrw cannot observe truncation
   from inside the server, a cut result and a whole one being identical to it. `anchor=` is the
@@ -1123,7 +1123,7 @@ re-measuring these. Each was driven at the built binary, not read:
   Deferred again, unchanged, from `docs/adr/ADR-025-a-read-that-served-nothing-is-an-error.md`, which
   narrows the flag on the served-read return and touches no ledger code.
 
-- **`MaxResultChars` is one host's ceiling hardcoded into a general-purpose tool.** `schema.go` says
+- ~~**`MaxResultChars` is one host's ceiling hardcoded into a general-purpose tool.**~~ **CLOSED 2026-09-07 by ADR-032** (#135), contract §70: `mrw mcp --max-result-chars N` or `MRW_MAX_RESULT_CHARS` sets the ceiling, zero means zero, and it bounds the whole encoded result on both tools. `schema.go` says
   so itself — "The value is Claude Code's per-tool ceiling" — while mrw runs under any MCP host.
   Deferred from ADR-024, which explicitly does not move the number. The proposed shape is a
   caller-set knob (`MRW_MAX_RESULT_CHARS`, `mrw mcp --max-result-chars N`) with
@@ -1141,7 +1141,8 @@ re-measuring these. Each was driven at the built binary, not read:
   Reading 20 measured the same arm at 2 KB and 20 KB, where no paging and no
   truncation occur, and found 30 of 30 (`docs/curve/reading-20-result.md`); readings 12, 18 and 19
   voided on the way there. So the arm is measured BELOW the truncation point and unmeasurable AT it:
-  the 200 KB case is this entry, and it is a defect rather than a rate.
+  the 200 KB case was the host-truncation defect, closed by ADR-024 and ADR-031, and what stays open
+  is the under-ceiling host-cut measurement, filed under "From ADR-032" below.
 
 ## From five sessions field-testing the multi-line-body hazard (2026-09-06)
 
@@ -1240,7 +1241,7 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   reason, not a symmetry argument.
   Reopens on one measured case of a body lost in transit on an op that is not already closed.
 
-- **A general "the engine re-validates everything the parser does" pass.** Deferred from ADR-027-T3.
+- ~~**A general "the engine re-validates everything the parser does" pass.**~~ **CLOSED 2026-09-07 by ADR-030** (#130): the enumeration walked `plan.validate` branch by branch, every branch has an engine counterpart, and `TestTheEngineAndTheParserRefuseInTheSameWords` compares their wording. Deferred from ADR-027-T3.
   Two records in a row have found the same hole one field at a time: `plan.validate` protects the
   CLI, the MCP server and the curve scorer because each calls `plan.Parse`, and a direct
   `apply.Apply` caller reaches none of it — ADR-026 for a relative end on an op that cannot honour
@@ -1305,7 +1306,7 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   refusals, so it does not need one either. Adding it is one struct tag plus a contract row; promote
   it when a caller asks, or when the tally is asked WHICH refusals dominate.
 
-- **Checkpoints on small reads that fit whole.** Deferred from ADR-031, which
+- ~~**Checkpoints on small reads that fit whole.**~~ **CLOSED 2026-09-09 by ADR-039** (#157), contract §77: an MCP `mrw_read` that fits carries the same `-- ck` brackets and licenses nothing until acknowledged; a CLI read still licenses on serve (ADR-039 T2). ⚠ Promoted WITHOUT the evidence named below — an observed truncation of a non-paged answer — and that measurement stays open under **From ADR-032**. Deferred from ADR-031, which
   interleaves `-- ck` markers only into reads that PAGE. A read that fits in one
   answer is still recorded on serve, so the same host truncation would license
   lines nobody saw — the class is narrowed, not closed, and this entry is the
@@ -1315,7 +1316,7 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   evidence to promote it is one observed truncation of a NON-paged answer; the
   measurement that produced ADR-031 was of a paged one (`docs/curve/reading-18-result.md`).
 
-- **`MaxResultChars` as a caller-set knob, bounding the whole encoded result.**
+- ~~**`MaxResultChars` as a caller-set knob, bounding the whole encoded result.**~~ **CLOSED 2026-09-07 by ADR-032** (#135), contract §70 — M's shape as recorded here: caller-set, the whole encoded result bounded, the write cap enforced, `0` means zero.
   Chosen by M on 2026-09-07 and deferred out of ADR-031 so that record stays
   about the ledger. It is one host's ceiling (200,000) hardcoded into a
   general-purpose tool; `mrw_write` also advertises a cap it does not enforce.
@@ -1324,8 +1325,8 @@ is in `AGENTS.md` and `README.md`. What is recorded HERE is the one thing they r
   the meaning "unlimited" — `0` means zero, per this repository's own precedent
   in `body=0` and `lines=0`. Its own record; nothing here blocks it.
 
-- **`--max-lines 0` means UNLIMITED, and M decided on 2026-09-07 that it should
-  mean ZERO.** The struck entry above states the
+- ~~**`--max-lines 0` means UNLIMITED, and M decided on 2026-09-07 that it should
+  mean ZERO.**~~ **CLOSED 2026-09-07 by ADR-033** (#133), contract §69. The struck entry above states the
   question and the precedent — `body=0` is an empty body, `lines=0` is a real
   assertion — and M's answer is consistency with those, making "serve the header
   and nothing else" expressible. It is a breaking change for anyone passing `0`
@@ -1540,7 +1541,7 @@ Alternatives had to answer.
 
 ## From the v1.8.0 release (contract §24, observed rather than decided)
 
-- **§24's concurrency row can FAIL spuriously, not only skip.** `scripts/contract.sh:920`
+- ~~**§24's concurrency row can FAIL spuriously, not only skip.**~~ **CLOSED 2026-09-09 by ADR-038** (#154), and not by the fix proposed below: the ledger lock keeps every entry, so `kept` has nothing to lose between the measure and the writes. §24 now fails outright when fewer than 40 survive, §76 asserts 40 of 40, and `TestConcurrentRecordsKeepEveryPath` pins the lock. `scripts/contract.sh:920`
   races 40 concurrent `mrw read` invocations, measures how many ledger entries
   survived as `kept`, then writes to all 40 and asserts `applied == kept`.
   Observed three times on 2026-09-08 on one host: `exit 22, want 23`,
