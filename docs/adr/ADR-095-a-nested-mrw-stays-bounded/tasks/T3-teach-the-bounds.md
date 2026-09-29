@@ -8,7 +8,7 @@
 **Consumes:** `check.DepthRefusal` (T1), `stopGroup` (T2)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the instructions teach that a check counts a level`, `every surface names what clears the count`, `every surface says a group hears TERM first`, `no surface says ast-grep is killed at 2 s`, `ADR-092 T3's teaching still holds`, `ADR-092 T5's guide line still holds`, `each narrowed record names ADR-095`, `ADR-092's outcome table has the depth row`, `the tree is gofmt-clean`, `no other engine package changes`
+**Rests-on:** `the instructions teach that a check counts a level`, `every surface names what clears the count`, `every surface says a group hears TERM first`, `every surface teaches that --no-check writes without a check`, `no surface says ast-grep is killed at 2 s outside its Windows clause`, `ADR-092 T3's teaching still holds`, `ADR-092 T5's guide line still holds`, `each narrowed record names ADR-095`, `ADR-092's outcome table has the depth row`, `the tree is gofmt-clean`, `no other engine package changes`
 
 ## Goal
 
@@ -60,7 +60,7 @@ go test ./cmd/mrw/ -count=1 -timeout 600s -run 'TestEverySurfaceTeachesTheCheckD
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestEverySurfaceTeachesTheCheckDepthAndItsLimits` | `cmd/mrw/teach095_test.go` | `mrw instructions`, AGENTS.md and README.md each say a check runs one level deeper and is refused at depth 8 (the number read from `check.MaxStepDepth`), name `env -i` and `sudo` beside `setsid`, say that on unix a stopped group hears TERM first and that what ignores it is killed a second later, leaving the check of an mrw killed that way running, and say a hanging ast-grep is sent TERM at 2 s and killed by 3 s; none says ast-grep is "killed at 2 s" | — | S1, S2, S3 |
+| `TestEverySurfaceTeachesTheCheckDepthAndItsLimits` | `cmd/mrw/teach095_test.go` | `mrw instructions`, AGENTS.md and README.md each say a check runs one level deeper and is refused at depth 8 (the number read from `check.MaxStepDepth`) while "a write that starts no check still lands (--no-check writes without it)", name `env -i` and `sudo` beside `setsid`, say that on unix a stopped group hears TERM first and that what ignores it is killed a second later, leaving the check of an mrw killed that way running, and say a hanging ast-grep is, on unix, sent TERM at 2 s and killed by 3 s, and "on Windows it is killed at 2 s"; none says "killed at 2 s" outside that Windows clause; and `mrw instructions` still says "--then and --then-sh are refused at depth 8" (ADR-092 T5's line) | — | S1, S2, S3 |
 
 ## Reachability
 
@@ -83,6 +83,17 @@ go test ./cmd/mrw/ -count=1 -timeout 600s -run 'TestEverySurfaceTeachesTheCheckD
 - 2026-09-29 · 5794966* · mutant killed · exit 1 · `docs/adr/ADR-092-each-step-after-a-write-gets-its-own-verdict.md` · the outcome table row is not the depth row the record names · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · covers:ADR-092's outcome table has the depth row
 - 2026-09-29 · 5794966* · mutant killed · exit 1 · `internal/guide/guide.go` · guide.go is not gofmt-clean · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · covers:the tree is gofmt-clean
 - 2026-09-29 · 5794966* · mutant killed · exit 1 · `internal/plan/plan.go` · an engine package changes · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · covers:no other engine package changes
+- 2026-09-29 · 4f75885* · mutant killed · exit 1 · `internal/guide/guide.go` · mrw instructions no longer says --no-check writes without a check · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · covers:every surface teaches that --no-check writes without a check
+- 2026-09-29 · 4f75885* · mutant killed · exit 1 · `AGENTS.md` · AGENTS.md says ast-grep is killed at 2 s outside its Windows clause, every required sentence intact · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · covers:no surface says ast-grep is killed at 2 s outside its Windows clause
+- 2026-09-29 · 4f75885* · mutant killed · exit 1 · `internal/guide/guide.go` · the instructions teach ADR-092 T5's step depth refusal at the wrong depth · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · covers:ADR-092 T5's guide line still holds
+
+## Corrections
+
+**Correction (2026-09-29):** the row `cmd/mrw/main.go` · "the depth guard T5 teaches no longer refuses a step at 8" · `covers:ADR-092 T5's guide line still holds` mutated `askedStepsError` (`DepthRefusal(...) && false`) and was killed only by `TestTheStepDepthGuardRefusesADeepSequence`, a behavioural test of the guard; nothing in the fence read the guide line. The row proves the guard still refuses a step at depth 8, not that `mrw instructions` still teaches it. The guide line is bound now by `TestEverySurfaceTeachesTheCheckDepthAndItsLimits`, which requires the instructions to say "--then and --then-sh are refused at depth N" with N from `check.MaxStepDepth`; the row that moves that sentence to depth 9 is its kill.
+
+**Correction (2026-09-29):** Affected Files said `guide.go` teaches "`--no-check` writes without it"; it did not — only AGENTS.md and README.md did, and the test asserted it nowhere. All three surfaces now carry "a write that starts no check still lands (--no-check writes without it)", plain text on each so the test can require one sentence, and contract §115 exempts `no-check` beside `then` and `then-sh`, as ADR-092 did for those. The claim `every surface teaches that --no-check writes without a check` is new in **Rests-on:**.
+
+**Correction (2026-09-29):** "sent SIGTERM at 2 s and killed by 3 s" held on unix only: `subproc_other.go`'s `group` does nothing, so on Windows the context's cancel kills ast-grep at 2 s and sends no TERM. Each surface now says "on unix, … ; on Windows it is killed at 2 s", and the claim `no surface says ast-grep is killed at 2 s` became `no surface says ast-grep is killed at 2 s outside its Windows clause`: the test requires the count of "killed at 2 s" to equal the count of "on Windows it is killed at 2 s". The row under the old name proves the old, platform-blind wording was removed; the row under the new name binds the count. Both changes altered the body of `TestEverySurfaceTeachesTheCheckDepthAndItsLimits`, which the task relocked with `adr-verify --relock --replace-hashes`: every earlier assertion stays, and the change adds three.
 
 ## Invariants
 
@@ -128,3 +139,7 @@ Stop if a surface would have to promise something T1 or T2 did not ship.
 - 2026-09-29 · 5794966* · exit 0 · `set -o pipefail …` · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · ms:643
 - 2026-09-29 · 5794966* · exit 0 · `set -o pipefail …` · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · ms:687
 - 2026-09-29 · 5794966* · exit 0 · `set -o pipefail …` · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · ms:713
+- 2026-09-29 · 4f75885* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · ms:0 · test-lock-sha256:420b968fc61c6fbaff23f085f97a364be71ef138a63416c1c3621dff0bee3ed7 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvdGVhY2gwOTVfdGVzdC5nbwlUZXN0RXZlcnlTdXJmYWNlVGVhY2hlc1RoZUNoZWNrRGVwdGhBbmRJdHNMaW1pdHMJMTU4YjQyYWNhYjc3ZjZjYjg3NGFjYzAwYTVmZjNjZjgwODQ1OTc2YjI3NGJhYzc0ZTQ4NDIwYzJkYjIzZWJmOQ · test-lock-kind:replace
+- 2026-09-29 · 4f75885* · exit 0 · `set -o pipefail …` · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · ms:1292
+- 2026-09-29 · 4f75885* · exit 0 · `set -o pipefail …` · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · ms:899
+- 2026-09-29 · 4f75885* · exit 0 · `set -o pipefail …` · acceptance-sha256:2681ec643d9eb7788f34482f01252799a3df92bb6bf8235bc361e09348d481dd · ms:928

@@ -6090,8 +6090,9 @@ flags = [f for f in re.findall(r"^\s+--([a-z][a-z-]*)", opts, re.M) if f != "hel
 assert len(flags) >= 8, "read --help lists only %r" % flags
 untaught = [f for f in flags if not re.search(r"--%s(?![A-Za-z0-9-])" % re.escape(f), out)]
 assert not untaught, "instructions omit read flags: %r" % untaught
-# --then and --then-sh are write and check flags the instructions teach too (ADR-092).
-unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh"}
+# --then and --then-sh are write and check flags the instructions teach too (ADR-092),
+# and --no-check is the write flag they name for a depth past the limit (ADR-095).
+unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check"}
 assert not unknown, "instructions teach flags read does not have: %r" % sorted(unknown)
 assert re.search(r"^\s+--ast-grep PATTERN\b", opts, re.M), "read --help does not show --ast-grep PATTERN"
 PY
