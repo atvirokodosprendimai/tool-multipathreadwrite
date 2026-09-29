@@ -19,7 +19,7 @@ engine comments match the code beside them, and the instructions stay within 4,0
 
 | File | Change | Why |
 |------|--------|-----|
-| `internal/mcp/instructions.go` | edit | M8 guards, M11 the CLI's check, M12 rename, M13 ADR-052's rule, M14 `elided`, M15 the duplicate sentence (`instructionsText`, `:62-117`) |
+| `internal/mcp/instructions.go` | edit | M8 guards, M11 the CLI's check, M14 `elided`, M15 the duplicate sentence (`instructionsText`, `:62-117`); M12 and M13 are NOT added here but to the plan description in `mcp.go`, which the 4,096-byte bound does not cover |
 | `internal/mcp/mcp.go` | edit | H7 `after` (`:463`), M8 plan guards (`:546`), M9 `exclude` (`:452`), M10 `specs` and `ast_grep` (`:432`, `:446`), M11 write description (`:491-492`), M12/M13 plan description |
 | `internal/mcp/schema.go` | edit | M7 `hunks.status` (`:253`), M14 `elided` (`:227`) |
 | `internal/apply/apply.go` | edit | comment only, `:38-41` (M7's engine twin) |
@@ -36,8 +36,8 @@ engine comments match the code beside them, and the instructions stay within 4,0
 
 1. [S1] Write `TestTheServedTextSaysWhatTheCodeDoes` in `internal/mcp/says098_test.go` and confirm it RED
    on T1's tree (every row still carries the old claim). [proof: mutation]
-2. [S2] Correct each row, measuring the instructions after every edit; M15 and tightening pay for M12 and
-   M13. Keep the literal `--check` (`TestTheSurfaceSaysTheCLIIsRicher`, §50) and pass §43's
+2. [S2] Correct each row, measuring the instructions after every edit; M15 pays for M8, M11 and M14 in the
+   instructions, and M12 and M13 go to the plan description. Keep the literal `--check` (`TestTheSurfaceSaysTheCLIIsRicher`, §50) and pass §43's
    `_adr035_desc_problems`. [proof: mutation] Mutants: each corrected phrase reverted one at a time (the test
    names the row that went back).
 3. [S3] Correct the two engine comments, and nothing else in the engine.
@@ -112,7 +112,7 @@ fence instead of reading as an empty diff — the `|| true` form an earlier draf
 
 ## Risks
 
-- The byte budget: measured after each edit; if M12/M13 cannot fit, stop and ask rather than raise the bound.
+- The byte budget: measured after each edit (4,035 of 4,096 bytes when done); M12 and M13 live in the plan description, outside the bound.
 
 ## Stop Condition
 

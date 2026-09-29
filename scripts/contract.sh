@@ -7869,7 +7869,7 @@ while nxt:
 assert len(seen) == 400, "paging yielded %d distinct files, want 400" % len(seen)
 r = call({"specs": ["document00000.csv"], "after": "x"})
 t = r["content"][0]["text"]
-assert r.get("isError") and "grep" in t and "ast_grep" in t, "after with plain specs: %.300s" % r
+assert r.get("isError") and "grep or ast_grep" in t, "after with plain specs: %.300s" % r
 PY
 [ $? -eq 0 ] && ok "an ast_grep index pages to the end over the built binary, and after with plain specs is refused naming both finders" \
              || bad "the ast_grep index does not page, repeats or loses a file, or after with plain specs is accepted"

@@ -90,7 +90,9 @@ func TestAfterWithoutAFinderIsRefusedNamingBoth(t *testing.T) {
 	root := astGrepTree(t, 3)
 	res := call(t, root, "mrw_read", map[string]any{"specs": []any{"document00000.csv"}, "after": "x"})
 	text := fmt.Sprint(res["content"])
-	if res["isError"] != true || !strings.Contains(text, "grep") || !strings.Contains(text, "ast_grep") {
+	// The whole phrase: "ast_grep" contains "grep", so two substring checks would
+	// pass a refusal naming ast_grep alone (Codex, review of #284).
+	if res["isError"] != true || !strings.Contains(text, "grep or ast_grep") {
 		t.Errorf("after with plain specs: want a refusal naming grep and ast_grep, got %v", res)
 	}
 	if res := call(t, root, "mrw_read", map[string]any{"ast_grep": "NEEDLE", "after": "document00000.csv"}); res["isError"] == true {
