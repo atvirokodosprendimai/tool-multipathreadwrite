@@ -7530,7 +7530,7 @@ if [ -w "$led186" ]; then
   skip "a landing whose ledger cannot be saved names its steps not run (permission bits not enforced here — running as root?)"
 else
   m write --no-check --json --then-sh 'touch m186' "$R/p186.mrw" > "$WORK/j186" 2> /dev/null; want 2 $? "a landing whose ledger cannot be saved exits 2"
-  { grep -q 'return 186' "$R/a.go" && [ ! -e "$R/m186" ] && jq -e '(.error | length > 0) and (.then.steps | length == 1 and .[0].status == "not_run")' "$WORK/j186" > /dev/null; } \
+  { grep -q 'return 186' "$R/a.go" && [ ! -e "$R/m186" ] && jq -se 'length == 1 and (.[0] | (.error | length > 0) and (.then.steps | length == 1 and .[0].status == "not_run"))' "$WORK/j186" > /dev/null; } \
     && ok "it landed, the step never ran, and the --json receipt names it not_run beside the error" || bad "the --json receipt: $(head -c 400 "$WORK/j186")"
   m write --no-check --then-sh 'touch m186' "$R/p186b.mrw" > "$WORK/o186" 2>&1; want 2 $? "the same landing in human form exits 2"
   { grep -q 'return 186' "$R/b.go" && [ ! -e "$R/m186" ] && grep -q 'then 1/1 --then-sh: touch m186 — NOT RUN' "$WORK/o186"; } \
@@ -7556,7 +7556,7 @@ fi
 fixture
 printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
 TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --json --then-sh 'touch m187' > "$WORK/j187" 2> /dev/null; want 2 $? "a check whose log cannot be created exits 2"
-{ [ ! -e "$R/m187" ] && jq -e '(.error | length > 0) and (.then.steps | length == 1 and .[0].status == "not_run")' "$WORK/j187" > /dev/null; } \
+{ [ ! -e "$R/m187" ] && jq -se 'length == 1 and (.[0] | (.error | length > 0) and (.then.steps | length == 1 and .[0].status == "not_run"))' "$WORK/j187" > /dev/null; } \
   && ok "stdout is one JSON document naming the error and the step not_run, which never ran" || bad "check --json: $(head -c 400 "$WORK/j187")"
 TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --json > "$WORK/n187" 2> /dev/null; want 2 $? "the same check with no step asked exits 2"
 [ ! -s "$WORK/n187" ] && ok "and, with no step asked, prints no document, as before" || bad "no step asked: $(head -c 300 "$WORK/n187")"
