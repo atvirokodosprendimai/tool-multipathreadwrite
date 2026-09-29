@@ -43,9 +43,25 @@ def clauses(fence):
             argv = shlex.split(seg)
         except ValueError:
             continue
-        if "|" in argv or any("$" in a or a.startswith("/tmp") for a in argv):
+        if "|" in argv or expands(seg) or any(a.startswith("/tmp") for a in argv):
             continue
         yield negated, seg, argv
+
+
+def expands(seg):
+    """True when seg has a `$` bash would expand: outside single quotes. A `$` inside single quotes
+    is a regex end anchor, and skipping those skipped three real checks (Codex, review of #283)."""
+    quote, escaped = "", False
+    for ch in seg:
+        if escaped:
+            escaped = False
+        elif ch == "\\" and quote != "'":
+            escaped = True
+        elif ch in "'\"" and quote in ("", ch):
+            quote = "" if quote == ch else ch
+        elif ch == "$" and quote != "'":
+            return True
+    return False
 
 
 def check(root):
@@ -69,7 +85,8 @@ def check(root):
 
 
 def self_test():
-    """A tree with one clause that holds, one that does not and one negated: exactly one is red."""
+    """A tree whose fence holds, misses, negates, quotes a backtick and anchors with a quoted `$`:
+    exactly the missing clause is red, and every clause is checked."""
     with tempfile.TemporaryDirectory() as root:
         os.makedirs(os.path.join(root, "docs/adr/ADR-001-x/tasks"))
         with open(os.path.join(root, "README.md"), "w", encoding="utf-8") as fh:
@@ -79,9 +96,10 @@ def self_test():
                      "grep -q 'zero means zero' README.md \\\n"
                      "  && grep -q 'a phrase nobody wrote' README.md \\\n"
                      "  && ! grep -q 'removed' README.md \\\n"
-                     "  && grep -q \"a \\`tick\\`\" README.md\n```\n")
+                     "  && grep -q \"a \\`tick\\`\" README.md \\\n"
+                     "  && grep -q 'zero$' README.md\n```\n")
         checked, red = check(root)
-        if checked != 4 or len(red) != 1 or "a phrase nobody wrote" not in red[0][1]:
+        if checked != 5 or len(red) != 1 or "a phrase nobody wrote" not in red[0][1]:
             print(f"fence-prose self-test FAILED: checked {checked}, red {red}")
             return 1
     print("fence-prose self-test: a red clause is reported")

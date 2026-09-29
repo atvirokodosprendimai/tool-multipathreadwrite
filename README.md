@@ -274,10 +274,11 @@ write before anything is applied.
 matching file, no content — which licenses nothing — and names every path the
 walk could not use.
 
-A read too large for the ceiling comes back as a first page with `next_read`:
-send that back as `specs` to continue, and repeat until it is absent. A read that
-cannot be paged — several files whose lines do not fit in the room left — is
-refused, and the refusal says to ask for a narrower range or name fewer files.
+A read of ONE spec — a whole file, or `path:N-` — too large for the ceiling comes
+back as a first page with `next_read`: send that back as `specs` to continue, and
+repeat until it is absent. Any other read too large — several specs, or a closed
+range, which already says what it wants — is refused, and the refusal says what
+to do instead: ask for a narrower range, or name fewer files.
 `mrw_read`'s result is the served text, with no `structuredContent` (ADR-023);
 the write result's `structuredContent` carries the receipt.
 
