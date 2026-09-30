@@ -30,6 +30,17 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
+// maxFileBytes is the largest file read serves or a --grep walk searches
+// (ADR-104). Both read a file whole to answer any range of it, so a larger one
+// is refused by its size rather than held in memory. A variable so a test can
+// lower it.
+var maxFileBytes int64 = 1 << 30
+
+// overFileCap is the refusal of a file of size bytes, over maxFileBytes.
+func overFileCap(size int64) string {
+	return fmt.Sprintf("%d bytes, over the %d-byte limit mrw reads a file whole to (ADR-104): read a smaller file, or split this one", size, maxFileBytes)
+}
+
 // Sentinels for an address end that is not a plain line number. They are
 // distinct because they resolve differently: an omitted end is unbounded in
 // whichever direction it appears, while `$` is one specific line — the last.
@@ -443,8 +454,16 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		// non-regular candidate since ADR-007; a named spec is reported the
 		// same way. A directory keeps ReadFile's own "is a directory", and a
 		// stat that fails falls through to the error ReadFile gives.
-		if fi, statErr := os.Stat(full); statErr == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
+		fi, statErr := os.Stat(full)
+		if statErr == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
 			fmt.Fprintf(w, "==> %s  UNREADABLE  %s\n", sp.Path, lines.NotRegular)
+			problems++
+			continue
+		}
+		// ADR-104: a file is read whole to serve any range of it, so one over
+		// the cap is refused before it is read, by its size.
+		if statErr == nil && fi.Mode().IsRegular() && fi.Size() > maxFileBytes {
+			fmt.Fprintf(w, "==> %s  UNREADABLE  %s\n", sp.Path, overFileCap(fi.Size()))
 			problems++
 			continue
 		}

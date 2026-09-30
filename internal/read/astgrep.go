@@ -35,6 +35,11 @@ var errAstGrepInterrupted = errors.New("ast-grep: interrupted")
 
 const astGrepTimeout = 2 * time.Second
 
+// maxAstGrepBytes is the largest ast-grep answer mrw reads (ADR-104): the answer
+// was read whole, so a pattern matching a huge tree could hold it all in memory.
+// A variable so a test can lower it.
+var maxAstGrepBytes int64 = 256 << 20
+
 // astGrepHit is the slice of ast-grep --json this mapper needs. Lines are
 // 0-based, the way the CLI documents them.
 type astGrepHit struct {
@@ -122,7 +127,10 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	defer cancel()
 	cmd := subproc.Command(ctx, "ast-grep", args...)
 	cmd.Dir = absRoot
-	out, cmdErr := subproc.Output(cmd)
+	out, cmdErr := subproc.Output(cmd, maxAstGrepBytes)
+	if tooLarge := (*subproc.ErrOutputTooLarge)(nil); errors.As(cmdErr, &tooLarge) {
+		return nil, nil, fmt.Errorf("ast-grep %w: narrow the pattern or name fewer paths", tooLarge)
+	}
 	// Only a run that ended badly is read for why: one that exited cleanly a
 	// moment before a deadline or a signal answered, and its output stands
 	// (review of #232; no test can reach that window).

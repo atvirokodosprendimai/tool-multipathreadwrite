@@ -8051,6 +8051,28 @@ printf 'secret198\n' > "$WORK/outside198.txt"
 out=$(m read ../outside198.txt 2>&1); want 1 $? "the pair: a path out of a real root is still refused, the file there notwithstanding"
 { grep -q 'outside the root' <<<"$out" && ! grep -q secret198 <<<"$out"; } && ok "and names the boundary without serving it" || bad "escape: $(head -c 300 <<<"$out")"
 
+# 199. ADR-104: mrw mcp reads a request line up to 64 MiB. It read a line of any
+# length whole; a longer one is answered -32600 (id null) naming the limit, the
+# rest of the line is discarded, and the next line is served.
+fixture
+python3 -c 'import sys; sys.stdout.write("{\"pad\":\"" + "a" * (65 << 20) + "\"}\n" + "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/list\"}\n")' \
+  | "$MRW" -C "$R" mcp > "$WORK/j199" 2> /dev/null; want 0 $? "the server survives a 65 MiB line and ends at EOF"
+jq -se 'length == 2 and (.[0] | .id == null and .error.code == -32600 and (.error.message | test("67108864"))) and .[1].id == 9 and (.[1].result.tools | length > 0)' "$WORK/j199" > /dev/null \
+  && ok "the long line gets -32600 naming the limit, and the next request is answered" || bad "oversized request: $(head -c 400 "$WORK/j199")"
+
+# 200. ADR-104: a check's tail keeps at most 4 KiB of a line. The tail read the
+# whole log; a longer line now ends " … [N more bytes]" (the log file keeps it).
+# The pair: a short last line is shown whole.
+fixture
+printf '%s\n' 'awk '"'"'BEGIN { s = sprintf("%10000s", ""); gsub(/ /, "y", s); print s; exit 1 }'"'" > "$R/long200.sh"
+printf '{"check":"sh long200.sh"}\n' > "$R/.quality-harness.json"
+m check --json --full > "$WORK/j200" 2> /dev/null; want 3 $? "a failing check with a 10,000-character last line exits 3"
+jq -se 'length == 1 and (.[0].tail[-1] | (length < 4200) and test("more bytes\\]$"))' "$WORK/j200" > /dev/null \
+  && ok "and its tail shows the line capped with the count of what was cut" || bad "long tail line: $(head -c 300 "$WORK/j200")"
+printf '{"check":"echo short; exit 1"}\n' > "$R/.quality-harness.json"
+m check --json --full > "$WORK/p200" 2> /dev/null; want 3 $? "the pair: a failing check with a short last line exits 3"
+jq -se 'length == 1 and .[0].tail[-1] == "short"' "$WORK/p200" > /dev/null && ok "and its tail shows it whole" || bad "short tail: $(head -c 300 "$WORK/p200")"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

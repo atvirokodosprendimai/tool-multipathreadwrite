@@ -249,6 +249,10 @@ func (w *walker) offer(p, full string) {
 	if w.seen[key] {
 		return
 	}
+	if fi, err := os.Stat(full); err == nil && fi.Size() > maxFileBytes {
+		w.problems = append(w.problems, Problem{Path: p, Reason: overFileCap(fi.Size())})
+		return
+	}
 	b, err := os.ReadFile(full)
 	if err != nil {
 		w.problems = append(w.problems, Problem{Path: p, Reason: err.Error()})

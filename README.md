@@ -273,6 +273,8 @@ An answer is bounded at 200,000 characters of encoded result. Set it with
 `mrw mcp --max-result-chars N` or `MRW_MAX_RESULT_CHARS`. The flag beats the
 variable; `0` means zero. A ceiling too small to report a write refuses the
 write before anything is applied.
+What mrw reads is bounded as well (ADR-104): a request line up to 64 MiB, a file up to 1 GiB,
+an ast-grep answer up to 256 MiB; past each the answer says so by size.
 
 `grep` / `exclude` map onto `--grep` / `--exclude`. `ast_grep` maps onto
 `--ast-grep`. A grep too large to serve returns an index — one spec per

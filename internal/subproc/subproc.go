@@ -18,6 +18,7 @@ package subproc
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -85,13 +86,21 @@ func Run(c *exec.Cmd) error {
 	return err
 }
 
+// ErrOutputTooLarge is Output's refusal of an answer over its limit (ADR-104).
+type ErrOutputTooLarge struct{ Size, Limit int64 }
+
+func (e *ErrOutputTooLarge) Error() string {
+	return fmt.Sprintf("answered %d bytes, over the %d-byte limit", e.Size, e.Limit)
+}
+
 // Output is Run for a child whose stdout is the answer. The answer goes to a
 // file, not a pipe: exec waits up to WaitDelay for a pipe a grandchild still
 // holds, and the group was stopped only after that — up to a second past the
 // child's exit, in which an emptied group's id could be reused (the review of
 // #241). With a file, Wait returns at the child's exit and the group is
-// stopped at once, as Run stops it.
-func Output(c *exec.Cmd) ([]byte, error) {
+// stopped at once, as Run stops it. An answer over limit bytes is refused
+// without being read (ADR-104).
+func Output(c *exec.Cmd, limit int64) ([]byte, error) {
 	f, err := os.CreateTemp("", "mrw-subproc-*.out")
 	if err != nil {
 		return nil, err
@@ -100,6 +109,9 @@ func Output(c *exec.Cmd) ([]byte, error) {
 	defer func() { _ = f.Close() }()
 	c.Stdout = f
 	runErr := Run(c)
+	if fi, err := f.Stat(); err == nil && fi.Size() > limit {
+		return nil, &ErrOutputTooLarge{Size: fi.Size(), Limit: limit}
+	}
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}

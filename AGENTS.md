@@ -138,6 +138,9 @@ FAILED hunk survives, because a failure is what explains the receipt — for a v
 get a refusal naming the counts instead of a receipt cut past them. And a ceiling too small to report
 a write REFUSES THE WRITE, before anything is applied — as a JSON-RPC error, which carries no result
 and so is not itself bound by the ceiling it is reporting on.
+What mrw READS is bounded too (ADR-104): a request line up to 64 MiB (a longer one is answered -32600 and
+the session goes on), a file served or searched up to 1 GiB (a larger one is UNREADABLE with its size),
+an ast-grep answer up to 256 MiB, and at most 4 KiB of each check tail line (` … [N more bytes]`).
 
 `mrw read --grep P` maps onto the `grep` argument, `--ast-grep P` onto
 `ast_grep`, and `--exclude` onto `exclude`. A present `ast-grep` that hangs is,
