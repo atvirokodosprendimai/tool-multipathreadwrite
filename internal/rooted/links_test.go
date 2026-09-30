@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/links"
 )
 
 // A fake filesystem of names, so the walk that Windows needs can be driven on
@@ -31,16 +33,16 @@ func (f fakeInfo) ModTime() time.Time { return time.Time{} }
 func (f fakeInfo) IsDir() bool        { return f.mode.IsDir() }
 func (f fakeInfo) Sys() any           { return nil }
 
-// fakeLinks builds a linkFS over entries keyed by slash paths, which it
+// fakeLinks builds a links.FS over entries keyed by slash paths, which it
 // converts to the running platform's spelling so the same table runs on
 // Windows, where this file is compiled too.
-func fakeLinks(entries map[string]fakeEntry) linkFS {
+func fakeLinks(entries map[string]fakeEntry) links.FS {
 	byPath := map[string]fakeEntry{}
 	for p, e := range entries {
 		byPath[filepath.Clean(filepath.FromSlash(p))] = e
 	}
-	return linkFS{
-		lstat: func(p string) (os.FileInfo, error) {
+	return links.FS{
+		Lstat: func(p string) (os.FileInfo, error) {
 			e, ok := byPath[filepath.Clean(p)]
 			if !ok {
 				return nil, &fs.PathError{Op: "lstat", Path: p, Err: fs.ErrNotExist}
@@ -58,7 +60,7 @@ func fakeLinks(entries map[string]fakeEntry) linkFS {
 			mode := os.ModeIrregular
 			return fakeInfo{filepath.Base(p), mode}, nil
 		},
-		readlink: func(p string) (string, error) {
+		Readlink: func(p string) (string, error) {
 			switch e := byPath[filepath.Clean(p)]; e.kind {
 			case "link":
 				return filepath.FromSlash(e.target), nil

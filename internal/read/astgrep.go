@@ -226,9 +226,7 @@ func astGrepRel(absRoot, file string) (string, bool) {
 		full = filepath.Join(absRoot, file)
 	}
 	cleaned := filepath.Clean(full)
-	if real, err := filepath.EvalSymlinks(cleaned); err == nil {
-		cleaned = real
-	}
+	cleaned = rooted.Real(cleaned) // through junctions too, as the root was (ADR-103)
 	rel, err := filepath.Rel(absRoot, cleaned)
 	if err != nil {
 		return "", false

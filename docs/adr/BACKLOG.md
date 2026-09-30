@@ -2393,3 +2393,10 @@ at the boundary, and a discovered one is dropped.
   drop a failed `os.Remove`, so a `.mrw-*` temp file or aside can remain unreported; state files are written in
   place. Planned as ADR-105 (`~/.claude/plans/ok-create-a-plan-whimsical-newell.md`): a `left_behind` receipt field,
   atomic state writes, a failure matrix.
+
+## From ADR-103 (one checkout, one identity; and the filesystem root is a root)
+
+- **Anchoring file operations to a handle** (ADR-103 Out of Scope; the 2026-09-30 Codex design review, finding
+  3). `rooted.Resolve` validates a path and returns it; read, stage, commit and path ops reopen it by name, so a
+  link swapped in between can redirect them. Planned as ADR-106 (`~/.claude/plans/ok-create-a-plan-whimsical-newell.md`):
+  the write path through an `os.Root` handed the resolved path, and a pre-commit identity recheck.

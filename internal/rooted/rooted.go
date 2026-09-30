@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/links"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
@@ -158,23 +159,22 @@ func Resolve(root, path string) (string, error) {
 // same way. Resolving only with EvalSymlinks, which stops at a junction,
 // refused an absolute path inside a root reached through one (review of #228).
 // A path that cannot be resolved comes back cleaned; Resolve still judges it.
-func Real(p string) string {
-	p = filepath.Clean(p)
-	if followLinks {
-		if t, err := throughLinks(p, osLinks); err == nil {
-			p = t
-		}
-	}
-	if real, err := filepath.EvalSymlinks(p); err == nil {
-		return real
-	}
-	return p
-}
+func Real(p string) string { return links.Real(p) }
 
 // Contains reports whether p is absRoot itself or something beneath it. The
-// separator matters: without it, "/repo-backup" counts as inside "/repo".
+// separator matters: without it, "/repo-backup" counts as inside "/repo". A root
+// that already ends in one — the filesystem root "/", a volume root "C:\" — is
+// its own prefix: appending another asked for "//" and refused every child
+// (ADR-103).
 func Contains(absRoot, p string) bool {
-	return p == absRoot || strings.HasPrefix(p, absRoot+string(filepath.Separator))
+	if p == absRoot {
+		return true
+	}
+	prefix := absRoot
+	if !strings.HasSuffix(prefix, string(filepath.Separator)) {
+		prefix += string(filepath.Separator)
+	}
+	return strings.HasPrefix(p, prefix)
 }
 
 // ErrNotADirectory is what Resolve wraps, and plan validation reports, when a
@@ -268,15 +268,7 @@ func RealAsFarAsItExists(p string) string {
 //
 // A leading backslash is rooted on Windows and an ordinary filename character on
 // POSIX, so it counts only where it means something.
-func IsRooted(p string) bool {
-	if p == "" {
-		return false
-	}
-	if filepath.IsAbs(p) || filepath.VolumeName(p) != "" {
-		return true
-	}
-	return p[0] == '/' || (filepath.Separator == '\\' && p[0] == '\\')
-}
+func IsRooted(p string) bool { return links.IsRooted(p) }
 
 // InState reports whether p lies inside mrw's state base (state.Base). Both
 // sides are resolved as far as they exist (RealAsFarAsItExists, through
