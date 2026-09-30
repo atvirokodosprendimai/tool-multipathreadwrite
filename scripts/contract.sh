@@ -7789,7 +7789,7 @@ TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --json --then-sh 'touch m187'
 { [ ! -e "$R/m187" ] && jq -se 'length == 1 and (.[0] | (.error | length > 0) and (.then.steps | length == 1 and .[0].status == "not_run"))' "$WORK/j187" > /dev/null; } \
   && ok "stdout is one JSON document naming the error and the step not_run, which never ran" || bad "check --json: $(head -c 400 "$WORK/j187")"
 TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --json > "$WORK/n187" 2> /dev/null; want 2 $? "the same check with no step asked exits 2"
-{ [ "$(grep -c '^{' "$WORK/n187")" = 1 ] && grep -q '^  "error": ' "$WORK/n187" && ! grep -qE '"then"|exit_code' "$WORK/n187"; } && ok "and, with no step asked, prints one document holding the error and no then block (ADR-100)" || bad "no step asked: $(head -c 300 "$WORK/n187")"
+jq -se 'length == 1 and (.[0] | type == "object" and keys == ["error"] and (.error | length > 0))' "$WORK/n187" > /dev/null && ok "and, with no step asked, prints exactly one document holding only the error (ADR-100)" || bad "no step asked: $(head -c 300 "$WORK/n187")"
 TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --then-sh 'touch m187' > "$WORK/o187" 2>&1; want 2 $? "the same check in human form exits 2"
 { [ ! -e "$R/m187" ] && grep -q 'then 1/1 --then-sh: touch m187 — NOT RUN' "$WORK/o187"; } \
   && ok "and names the step NOT RUN" || bad "the human report: $(head -c 400 "$WORK/o187")"
@@ -7951,8 +7951,8 @@ for a in ../outside nosuchdir '--full a.go'; do
   # $a is split on purpose: '--full a.go' is two arguments.
   # shellcheck disable=SC2086
   out=$(m check --json $a 2>/dev/null); want 2 $? "check --json $a exits 2"
-  { [ "$(grep -c '^{' <<<"$out")" = 1 ] && grep -q '^  "error": ' <<<"$out" && ! grep -q exit_code <<<"$out"; } \
-    && ok "and prints one document holding the error and no exit_code" || bad "check --json $a: $out"
+  jq -se 'length == 1 and (.[0] | type == "object" and keys == ["error"] and (.error | length > 0))' <<<"$out" > /dev/null \
+    && ok "and prints exactly one document holding only the error, so no exit_code" || bad "check --json $a: $out"
   # shellcheck disable=SC2086
   out=$(m check $a 2>/dev/null); want 2 $? "the pair: check $a exits 2"
   [ -z "$out" ] && ok "and prints nothing on stdout" || bad "check $a wrote stdout: $out"

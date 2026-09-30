@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,14 +38,33 @@ func refusalTrees(t *testing.T) (root, unreadable string) {
 	return root, unreadable
 }
 
-// oneDocument decodes s as exactly one JSON object and nothing after it.
+// oneDocument decodes s as exactly one JSON object and nothing after it: a
+// second Decode must meet the end of the input, which More does not check.
 func oneDocument(s string) (map[string]any, bool) {
 	dec := json.NewDecoder(strings.NewReader(s))
 	var doc map[string]any
-	if err := dec.Decode(&doc); err != nil || dec.More() {
+	if err := dec.Decode(&doc); err != nil {
+		return nil, false
+	}
+	var rest any
+	if err := dec.Decode(&rest); err != io.EOF {
 		return nil, false
 	}
 	return doc, true
+}
+
+// The review of #288: More reports another element of an enclosing array or
+// object, not the end of the input, so trailing bytes passed. oneDocument
+// accepts one object and refuses anything after it.
+func TestOneDocumentRefusesAnythingAfterTheObject(t *testing.T) {
+	if _, ok := oneDocument("{\"error\":\"x\"}\n"); !ok {
+		t.Error("one object with a trailing newline was refused")
+	}
+	for _, s := range []string{`{"error":"x"}]`, `{"error":"x"}}`, `{"error":"x"}{"error":"y"}`, `{"error":"x"`, ``} {
+		if _, ok := oneDocument(s); ok {
+			t.Errorf("%q was accepted as exactly one document", s)
+		}
+	}
 }
 
 // ADR-100 T1. Under `mrw check --json` every refusal prints one document on

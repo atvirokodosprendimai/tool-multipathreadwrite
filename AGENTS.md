@@ -475,10 +475,12 @@ and #73, one release apart.
   that generates code or writes fixtures does exactly that. On Windows with no `sh` on PATH — a plain
   PowerShell session — it runs under the `sh.exe` Git for Windows installs beside `git.exe`; with
   neither, it reports that it could not start and names what to install (ADR-082). It takes `--then`
-  and `--then-sh` too: the steps run after a passing check (ADR-092). Under `--json` every refusal is one
-  document, `{"error": …}`, with no `exit_code`, and at `MRW_STEP_DEPTH` 8 the depth refusal answers
-  before any other; when no check could run the receipt says `"ran": false`, so read `ran` before
-  `exit_code` (ADR-100).
+  and `--then-sh` too: the steps run after a passing check (ADR-092). Under `--json` every refusal it
+  makes once its flags are parsed is one document, `{"error": …}`, with no `exit_code`, and at
+  `MRW_STEP_DEPTH` 8 the depth refusal answers before any of those; a flag the parser rejects, or an
+  attached flag value with edge whitespace (`--then-sh='x '`), is refused earlier, plain, with nothing on
+  stdout. When no check could run the receipt says `"ran": false`, so read `ran` before `exit_code`
+  (ADR-100).
 - **`mrw stats`** prints what became of the plans this checkout has been given
   — every name at zero: applied, refused because the document did not PARSE,
   parsed but failed to APPLY, written but no check could run, written and the
