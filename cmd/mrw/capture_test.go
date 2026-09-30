@@ -14,21 +14,18 @@ import (
 // and the reader blocked for good (the Codex review of #295).
 func TestCaptureStdoutCleansUpWhenTheCommandAborts(t *testing.T) {
 	orig := os.Stdout
-	settled := func() int {
-		// Goroutines that are ending need a moment to be reaped.
+	before := runtime.NumGoroutine()
+	// waitBack polls until the goroutine count is back to before, for up to
+	// five seconds: a goroutine that has sent or closed may not have exited
+	// yet, so one plateau proves nothing, while a leaked reader stays blocked
+	// and keeps the count above before for good (the Codex review of #295).
+	waitBack := func() int {
 		n := runtime.NumGoroutine()
-		for i := 0; i < 50 && n > 0; i++ {
+		for deadline := time.Now().Add(5 * time.Second); n > before && time.Now().Before(deadline); n = runtime.NumGoroutine() {
 			time.Sleep(10 * time.Millisecond)
-			if m := runtime.NumGoroutine(); m >= n {
-				break
-			} else {
-				n = m
-			}
 		}
 		return n
 	}
-	before := settled()
-
 	func() {
 		defer func() { _ = recover() }()
 		_, _ = captureStdout(t, func() error {
@@ -53,7 +50,7 @@ func TestCaptureStdoutCleansUpWhenTheCommandAborts(t *testing.T) {
 	if os.Stdout != orig {
 		t.Fatal("after runtime.Goexit os.Stdout still points at the capture pipe")
 	}
-	if after := settled(); after > before {
-		t.Errorf("%d goroutine(s) before, %d after: a capture reader was left blocked", before, after)
+	if after := waitBack(); after > before {
+		t.Errorf("%d goroutine(s) before, %d five seconds after: a capture reader was left blocked", before, after)
 	}
 }
