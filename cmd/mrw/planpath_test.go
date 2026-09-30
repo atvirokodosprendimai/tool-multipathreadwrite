@@ -141,10 +141,18 @@ func captureStdout(t *testing.T, fn func() error) (string, error) {
 		t.Fatal(err)
 	}
 	os.Stdout = w
+	// Drained while fn runs: a pipe holds little — a few KB on the Windows
+	// runner — and output past that blocked fn's write for ever, until the
+	// 10-minute test timeout (CI on #295, a step echoing a 10,000-byte line).
+	done := make(chan []byte)
+	go func() {
+		b, _ := io.ReadAll(r)
+		done <- b
+	}()
 	runErr := fn()
 	_ = w.Close()
 	os.Stdout = old
-	b, _ := io.ReadAll(r)
+	b := <-done
 	_ = r.Close()
 	return string(b), runErr
 }
