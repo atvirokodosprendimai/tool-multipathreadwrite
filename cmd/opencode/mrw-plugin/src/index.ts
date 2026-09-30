@@ -226,7 +226,7 @@ const toolCheck = tool({
 const toolStats = tool({
   description:
     "Print what became of the plans this checkout has been given — applied, refused, " +
-    "failed_check, check_not_run — plus the recent-window pattern and strict-balance pricing.",
+    "partially_applied, failed_check, check_not_run — plus the recent-window pattern and strict-balance pricing.",
   args: {
     json: z.boolean().optional(),
   },

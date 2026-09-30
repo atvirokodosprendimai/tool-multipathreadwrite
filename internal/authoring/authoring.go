@@ -61,15 +61,22 @@ const (
 	CheckNotRun
 	// FailedCheck — written, then --check failed (ADR-003 exit 3).
 	FailedCheck
+	// PartiallyApplied — the commit failed after at least one file landed
+	// (ADR-066): the tree changed, and no check ran (ADR-102). Last in the
+	// enum because the enum is not persisted; the name is.
+	PartiallyApplied
 )
 
 // names is the ONLY vocabulary written to disk. A counter whose name is not
 // here cannot be persisted, which is how the boundary stays a fact rather than
-// a habit.
-var names = map[string]bool{
-	"applied": true, "refused_parse": true, "refused_apply": true,
-	"check_not_run": true, "failed_check": true,
-}
+// a habit. Derived from Vocabulary so the list exists once.
+var names = func() map[string]bool {
+	m := map[string]bool{}
+	for _, n := range Vocabulary() {
+		m[n] = true
+	}
+	return m
+}()
 
 func (o Outcome) name() string {
 	switch o {
@@ -83,6 +90,8 @@ func (o Outcome) name() string {
 		return "check_not_run"
 	case FailedCheck:
 		return "failed_check"
+	case PartiallyApplied:
+		return "partially_applied"
 	}
 	return ""
 }
@@ -95,32 +104,34 @@ type Tally map[string]int
 // which ADR-009 refuses.
 func (t Tally) Plans() int {
 	n := 0
-	for _, o := range []Outcome{Applied, RefusedParse, RefusedApply, CheckNotRun, FailedCheck} {
-		n += t[o.name()]
+	for _, name := range Vocabulary() {
+		n += t[name]
 	}
 	return n
 }
 
 // Vocabulary returns every counter name in the closed vocabulary, in the order
-// a reader meets the exits they project (0, 2, 1, 2, 3). It is the list a
+// a reader meets the exits they project (0, 2, 1, 2, 2, 3). It is the list a
 // renderer iterates when it must print a name at zero: Names() walks the keys
 // PRESENT in a tally, so a counter that never incremented has no key and
 // cannot print — which is how a checkout with three broken trees read as
-// `applied 96.9%` and nothing else (ADR-054). Not a sixth name: this is the
-// same five `names` holds.
+// `applied 96.9%` and nothing else (ADR-054). The one list: `names` and
+// Plans() are derived from it.
 func Vocabulary() []string {
-	return []string{"applied", "refused_parse", "refused_apply", "check_not_run", "failed_check"}
+	return []string{"applied", "refused_parse", "refused_apply", "partially_applied", "check_not_run", "failed_check"}
 }
 
 // Landed is how many plans WROTE the tree, whatever happened next: applied,
-// plus failed_check (written, then the check failed — exit 3), plus
-// check_not_run (written, and no check could run — exit 2). It is NOT "wrote
-// and was checked": --no-check and a prose-only plan both record applied and
-// sit here as successes. A reader who takes failed_check over Landed as "of
-// those we verified" misreads the rate in the direction that flatters the
-// tool, which is why the derived line names the denominator (ADR-054).
+// plus partially_applied (some files written, then the commit failed — exit
+// 2, ADR-102), plus failed_check (written, then the check failed — exit 3),
+// plus check_not_run (written, and no check could run — exit 2). It is NOT
+// "wrote and was checked": --no-check and a prose-only plan both record
+// applied and sit here as successes, and a partial commit ran no check. A
+// reader who takes failed_check over Landed as "of those we verified" misreads
+// the rate in the direction that flatters the tool, which is why the derived
+// line names the denominator (ADR-054).
 func (t Tally) Landed() int {
-	return t["applied"] + t["failed_check"] + t["check_not_run"]
+	return t["applied"] + t["partially_applied"] + t["failed_check"] + t["check_not_run"]
 }
 
 // Names returns the recorded counter names, sorted, so a caller renders a

@@ -225,6 +225,7 @@ func writeSchema() map[string]any { return mustDescribe(mustSchema(writeReceipt{
 // construction, which is the quieter of the two drifts.
 var writeDescriptions = map[string]string{
 	"elided":             "Present ONLY when the whole receipt exceeded this server's advertised ceiling, and says exactly what was left out. Successful and skipped hunk verdicts go first, then the records of files that were NOT written; every FAILED hunk and every WRITTEN file is always here, and `failed`, `applied` and the counts in the report describe the whole plan whatever was dropped. Its absence means nothing was left out.",
+	"error":              "Present ONLY when the write returned an error, and names it: a commit that stopped part-way (files[].written says what landed), or a ledger that could not record a write that DID land (applied is true). The per-hunk reasons say why a hunk failed; this is the write's own error.",
 	"root":               "The checkout the plan was applied in. Every path in the plan is relative to it.",
 	"dry_run":            "True when the plan was only validated. Every other field means what it would have meant, and nothing was written.",
 	"applied":            "True when every hunk passed and the new content reached disk. False on a dry run and on any refusal.",

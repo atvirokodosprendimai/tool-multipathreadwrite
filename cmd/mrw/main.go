@@ -513,12 +513,12 @@ size is the form that gets quoted out of the population it was measured on.`,
 			// never happens" rather than "that was never measured" (ADR-054).
 			for _, name := range authoring.Vocabulary() {
 				n := t[name]
-				fmt.Printf("  %-14s %4d of %d plan(s) (%.1f%%)\n", name, n, total, 100*float64(n)/float64(total))
+				fmt.Printf("  %-17s %4d of %d plan(s) (%.1f%%)\n", name, n, total, 100*float64(n)/float64(total))
 			}
 			landed, failed := t.Landed(), t["failed_check"]
 			if landed > 0 {
-				fmt.Printf("\nlanded writes: %d; failed_check %d of those (%.1f%%). Landed = applied + failed_check + check_not_run:\n"+
-					"the tree changed. It is not \"wrote and was checked\" — --no-check and prose-only plans count as applied.\n",
+				fmt.Printf("\nlanded writes: %d; failed_check %d of those (%.1f%%). Landed = applied + partially_applied + failed_check + check_not_run:\n"+
+					"the tree changed. It is not \"wrote and was checked\" — --no-check and prose-only plans count as applied, and a partial commit ran no check.\n",
 					landed, failed, 100*float64(failed)/float64(landed))
 			}
 			// ADR-055: the window, always, and the pattern line when it holds.
@@ -1323,8 +1323,14 @@ held or went unchecked.`,
 			isLedgerErr := errors.As(err, &ledgerErr)
 			if err != nil && !isLedgerErr {
 				// ADR-083: one refusal, as mrw_write counts an apply error,
-				// --dry-run or not, and whatever reached disk before it.
-				_ = authoring.Record(root, authoring.RefusedApply)
+				// --dry-run or not — unless a file reached disk first, which is
+				// one partially_applied and a landed write (ADR-102).
+				if writer.MutationOf(res) == writer.Partial {
+					_ = authoring.Record(root, authoring.PartiallyApplied)
+					_ = authoring.RecordRecent(root, res.Advisories)
+				} else {
+					_ = authoring.Record(root, authoring.RefusedApply)
+				}
 				tallied = true
 				// ADR-001 rule 3: every hunk carries its own verdict, and a
 				// filesystem failure is not an exception. Apply now fills the

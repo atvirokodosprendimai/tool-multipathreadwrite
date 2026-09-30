@@ -10,9 +10,42 @@
 package writer
 
 import (
+	"fmt"
+
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
+
+// Mutation is how much of a plan reached the tree (ADR-102): the one answer
+// every tally and receipt reads. Asking Applied alone called a commit that
+// failed after a file had landed "nothing" (ADR-066).
+type Mutation int
+
+const (
+	// None — nothing reached the tree: a dry run, a refusal, or a commit that
+	// failed before its first file landed.
+	None Mutation = iota
+	// Partial — the commit failed after at least one file landed.
+	Partial
+	// Complete — the plan applied whole.
+	Complete
+)
+
+// MutationOf reads res for how much of its plan reached the tree.
+func MutationOf(res apply.Result) Mutation {
+	switch {
+	case res.DryRun:
+		return None
+	case res.Applied:
+		return Complete
+	}
+	for _, f := range res.Files {
+		if f.Written {
+			return Partial
+		}
+	}
+	return None
+}
 
 // inside runs once the lock is held, before the plan is applied. A test uses
 // it to see that no two writers are ever inside at once.
@@ -30,7 +63,8 @@ func (e *LedgerError) Unwrap() error { return e.Err }
 
 // Apply applies in under root's write lock and records what landed before it
 // releases the lock: a written file as wholly known (ADR-002, ADR-005), an
-// unlinked or renamed-away one dropped.
+// unlinked or renamed-away one dropped. A commit that failed after some files
+// landed records those too (ADR-102): mrw wrote them, so it knows them.
 //
 // opt.Seen must be the ledger the caller loaded BEFORE calling. Loaded under
 // the lock, a writer that waited would validate against the previous writer's
@@ -48,7 +82,8 @@ func Apply(root string, in []apply.Input, opt apply.Options) (apply.Result, erro
 		inside()
 	}
 	res, err := apply.Apply(root, in, opt)
-	if err != nil || !res.Applied || res.DryRun {
+	m := MutationOf(res)
+	if m == None {
 		return res, err
 	}
 	wrote := map[string]seen.Observation{}
@@ -62,11 +97,25 @@ func Apply(root string, in []apply.Input, opt apply.Options) (apply.Result, erro
 			wrote[f.Path] = seen.Observation{SHA: f.SHAAfter}
 		}
 	}
-	if err := seen.Drop(root, gone); err != nil {
-		return res, &LedgerError{Err: err}
+	// Drop before Record: an unlink of c and a rename onto c in one plan leave
+	// two records for c, and the one that holds is the file on disk.
+	if lerr := seen.Drop(root, gone); lerr != nil {
+		return res, ledgerFailed(m, err, lerr)
 	}
-	if err := seen.Record(root, wrote); err != nil {
-		return res, &LedgerError{Err: err}
+	if lerr := seen.Record(root, wrote); lerr != nil {
+		return res, ledgerFailed(m, err, lerr)
 	}
-	return res, nil
+	return res, err
+}
+
+// ledgerFailed is what Apply returns when the ledger could not record what
+// landed. After a complete commit it is a LedgerError, which callers read as
+// "the plan landed". After a partial one the commit error stays the error — a
+// LedgerError there would be counted as a clean landing — and the ledger's
+// failure is added to it.
+func ledgerFailed(m Mutation, commitErr, lerr error) error {
+	if m == Complete {
+		return &LedgerError{Err: lerr}
+	}
+	return fmt.Errorf("%w; and the ledger could not record what landed: %w", commitErr, lerr)
 }

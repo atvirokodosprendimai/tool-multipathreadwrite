@@ -5508,7 +5508,7 @@ grep -qE 'failed_check +1 of 2' <<<"$out" && ok "failed_check row is 1 of 2" || 
 
 jout=$(m stats --json 2>&1); rc=$?
 want 0 "$rc" "stats --json exits 0"
-for k in applied refused_parse refused_apply check_not_run failed_check; do
+for k in applied refused_parse refused_apply partially_applied check_not_run failed_check; do
   grep -q "\"$k\":" <<<"$jout" && ok "--json carries $k" || bad "--json omits $k: $jout"
 done
 grep -q '"landed": 2' <<<"$jout" && ok "--json landed is 2" || bad "--json landed wrong: $jout"
@@ -7990,6 +7990,54 @@ m check --json --full > "$WORK/p195" 2> /dev/null; want 0 $? "the pair: a declar
 jq -se 'length == 1 and .[0].ran == true and .[0].exit_code == 0' "$WORK/p195" > /dev/null \
   && ok "and says ran true, exit_code 0" || bad "the pair: $(head -c 300 "$WORK/p195")"
 
+# 196. ADR-102: a commit that failed after a file landed is one partially_applied,
+# counted in landed, and the file it wrote takes the next write without a re-read.
+# No seam: content renames commit before path ops, and an unlink in a read-only
+# directory fails at commit. It was one refused_apply, and the next write to the
+# landed file was refused as changed since read. The pair: with the directory
+# writable the unlink applies. uid 0 ignores the permission bits, so it skips there.
+fixture
+mkdir -p "$R/d"; printf 'x\n' > "$R/d/x.txt"; printf 'a\n' > "$R/a.txt"
+m read a.txt d/x.txt >/dev/null
+chmod 555 "$R/d"
+if [ -w "$R/d" ]; then
+  chmod 755 "$R/d"
+  skip "a partial commit is partially_applied (permission bits not enforced here — running as root?)"
+else
+  printf '@@ a.txt 1 replace\nA\n@@ d/x.txt - unlink\n' | m write --no-check - > "$WORK/o196" 2>&1; want 2 $? "a commit stopped by the read-only directory exits 2"
+  { grep -q 'PARTIALLY APPLIED' "$WORK/o196" && grep -qx A "$R/a.txt" && [ -e "$R/d/x.txt" ]; } \
+    && ok "and says PARTIALLY APPLIED, a.txt written and d/x.txt kept" || bad "partial: $(head -c 400 "$WORK/o196")"
+  m stats --json > "$WORK/s196" 2>/dev/null
+  jq -e '.counts.partially_applied == 1 and .counts.refused_apply == 0 and .landed == 1' "$WORK/s196" > /dev/null \
+    && ok "stats counts it partially_applied, and landed" || bad "stats: $(head -c 400 "$WORK/s196")"
+  printf '@@ a.txt 1 replace\nAA\n' | m write --no-check - > /dev/null 2>&1; want 0 $? "the file the partial commit wrote takes the next write without a re-read"
+  chmod 755 "$R/d"
+  printf '@@ d/x.txt - unlink\n' | m write --no-check - > /dev/null 2>&1; want 0 $? "the pair: with d writable the unlink applies"
+fi
+
+# 197. ADR-102: mrw_write answers a write that landed and could not save its
+# ledger with its receipt — isError, applied true, and error — where it answered
+# a bare JSON-RPC error a client could not tell from a write that did nothing.
+# The pair: with the ledger writable the receipt carries no error.
+fixture
+m read a.go >/dev/null
+led197="$(m seen | head -1)/seen"
+chmod 444 "$led197"
+if [ -w "$led197" ]; then
+  chmod 600 "$led197"
+  skip "mrw_write sends the receipt on a ledger failure (permission bits not enforced here — running as root?)"
+else
+  req=$(printf '@@ a.go 3 replace\nfunc A() int { return 197 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
+  printf '%s\n' "$req" | "$MRW" -C "$R" mcp > "$WORK/j197" 2> /dev/null
+  { grep -q 'return 197' "$R/a.go" && jq -e '.error == null and .result.isError == true and .result.structuredContent.applied == true and (.result.structuredContent.error | length > 0)' "$WORK/j197" > /dev/null; } \
+    && ok "the write landed and the answer is its receipt, applied, naming the ledger error" || bad "ledger failure over MCP: $(head -c 400 "$WORK/j197")"
+  chmod 600 "$led197"
+  m read a.go >/dev/null
+  req=$(printf '@@ a.go 3 replace\nfunc A() int { return 1970 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
+  printf '%s\n' "$req" | "$MRW" -C "$R" mcp > "$WORK/p197" 2> /dev/null
+  jq -e '.result.structuredContent.applied == true and (.result.structuredContent | has("error") | not)' "$WORK/p197" > /dev/null \
+    && ok "the pair: with the ledger writable the receipt has no error" || bad "the pair: $(head -c 400 "$WORK/p197")"
+fi
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
