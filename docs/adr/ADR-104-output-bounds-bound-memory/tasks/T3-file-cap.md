@@ -33,8 +33,10 @@ the limit; the `--grep` walk reports it as a problem naming the same; a smaller 
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/read/ -count=1 -timeout 300s -run 'TestAFileOverTheReadCapIsRefusedByName' -v 2>&1 | tee "$out" \
+  && go test ./internal/read/ -count=1 -timeout 300s -run 'TestAFileOverTheReadCapIsRefusedByName|TestReadCappedRefusesAStreamOverTheCap|TestAnAstGrepHitOnAFileOverTheCapIsReportedOnce' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestAFileOverTheReadCapIsRefusedByName \(' "$out" \
+  && grep -qE '^--- PASS: TestReadCappedRefusesAStreamOverTheCap \(' "$out" \
+  && grep -qE '^--- PASS: TestAnAstGrepHitOnAFileOverTheCapIsReportedOnce \(' "$out" \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/apply internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/apply internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted)" ] \
@@ -46,6 +48,8 @@ out=$(mktemp) \
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestAFileOverTheReadCapIsRefusedByName` | `internal/read/cap104_test.go` | with the cap set to 16 bytes, reading a 40-byte file answers UNREADABLE naming 40 bytes and the limit and exits with a problem; a 10-byte file is served; `--grep` over both reports the large one as a problem naming the limit and matches the small one | — | S1, S2 |
+| `TestReadCappedRefusesAStreamOverTheCap` | `internal/read/cap104_test.go` | (the review of #295) `/dev/zero`, which a stat calls empty, is refused by the bounded read once the limit is passed | — | S2 |
+| `TestAnAstGrepHitOnAFileOverTheCapIsReportedOnce` | `internal/read/cap104_test.go` | (the review of #295) two ast-grep hits on a file over the cap give no spec and one problem naming the limit | — | S2 |
 
 ## Reachability
 
@@ -59,6 +63,14 @@ out=$(mktemp) \
 ## Mutation Log
 - 2026-09-30 · f911dd7* · mutant killed · exit 1 · `internal/read/read.go` · the read cap check removed · acceptance-sha256:21870331b1e9b297505b7e11ecb95061b38fd20e436457ed448e410f763c9589 · covers:a file over the cap is refused before it is read
 - 2026-09-30 · f911dd7* · mutant killed · exit 1 · `internal/read/walk.go` · the walk cap check removed · acceptance-sha256:21870331b1e9b297505b7e11ecb95061b38fd20e436457ed448e410f763c9589 · covers:a file over the cap is refused before it is read
+- 2026-09-30 · f2b0ee2* · mutant killed · exit 1 · `internal/read/read.go` · the bounded read no longer refuses what outran the stat · acceptance-sha256:a66f74287043d88bcad736492dbb3dccb1dcb2d51f4c2d0d0054536e962bccbf · covers:a file over the cap is refused before it is read
+- 2026-09-30 · f2b0ee2* · mutant killed · exit 1 · `internal/read/astgrep.go` · the ast-grep probe ignores the cap · acceptance-sha256:a66f74287043d88bcad736492dbb3dccb1dcb2d51f4c2d0d0054536e962bccbf · covers:a file over the cap is refused before it is read
+- 2026-09-30 · f2b0ee2* · mutant survived · exit 0 · `internal/read/read.go` · the read cap check removed · acceptance-sha256:a66f74287043d88bcad736492dbb3dccb1dcb2d51f4c2d0d0054536e962bccbf · covers:under the cap nothing changes
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-30 · f2b0ee2* · mutant killed · exit 1 · `internal/lines/lines.go` · an engine package this record does not own changed · acceptance-sha256:a66f74287043d88bcad736492dbb3dccb1dcb2d51f4c2d0d0054536e962bccbf · covers:only the owned engine packages change
+- 2026-09-30 · f2b0ee2* · mutant killed · exit 1 · `internal/read/read.go` · readCapped no longer refuses by size first · acceptance-sha256:a66f74287043d88bcad736492dbb3dccb1dcb2d51f4c2d0d0054536e962bccbf · covers:under the cap nothing changes
 
 ## Invariants
 
@@ -94,3 +106,9 @@ Stop and ask if a locked test must change to pass.
   ```
 - 2026-09-30 · f911dd7* · exit 0 · `set -o pipefail …` · acceptance-sha256:21870331b1e9b297505b7e11ecb95061b38fd20e436457ed448e410f763c9589 · ms:304
 - 2026-09-30 · f911dd7* · exit 0 · `set -o pipefail …` · acceptance-sha256:21870331b1e9b297505b7e11ecb95061b38fd20e436457ed448e410f763c9589 · ms:283
+- 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:a66f74287043d88bcad736492dbb3dccb1dcb2d51f4c2d0d0054536e962bccbf · ms:575
+- 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:a66f74287043d88bcad736492dbb3dccb1dcb2d51f4c2d0d0054536e962bccbf · ms:603
+- 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:a66f74287043d88bcad736492dbb3dccb1dcb2d51f4c2d0d0054536e962bccbf · ms:573
+- 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:a66f74287043d88bcad736492dbb3dccb1dcb2d51f4c2d0d0054536e962bccbf · ms:624
+- 2026-09-30 · human-observed · note 2026-09-30: the survived mutant 'the read cap check removed' showed read.go's size check (and the walk's) had become redundant once readCapped refuses by size first with the same message; both are deleted, so readCapped is the one place the cap is enforced; approved
+- 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:a66f74287043d88bcad736492dbb3dccb1dcb2d51f4c2d0d0054536e962bccbf · ms:668

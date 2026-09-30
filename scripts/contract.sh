@@ -8072,6 +8072,10 @@ jq -se 'length == 1 and (.[0].tail[-1] | (length < 4200) and test("more bytes\\]
 printf '{"check":"echo short; exit 1"}\n' > "$R/.quality-harness.json"
 m check --json --full > "$WORK/p200" 2> /dev/null; want 3 $? "the pair: a failing check with a short last line exits 3"
 jq -se 'length == 1 and .[0].tail[-1] == "short"' "$WORK/p200" > /dev/null && ok "and its tail shows it whole" || bad "short tail: $(head -c 300 "$WORK/p200")"
+printf '{"check":"sh long200.sh; exit 0"}\n' > "$R/.quality-harness.json"
+m check --json --full > "$WORK/k200" 2> /dev/null; want 0 $? "a passing check with a 10,000-character line exits 0"
+jq -se 'length == 1 and (.[0].output_file | length > 0)' "$WORK/k200" > /dev/null && [ -s "$(jq -r .output_file "$WORK/k200")" ] \
+  && ok "and keeps its log, which the cut line's marker points at" || bad "passing long line: $(head -c 300 "$WORK/k200")"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running

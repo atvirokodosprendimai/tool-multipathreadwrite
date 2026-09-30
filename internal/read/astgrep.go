@@ -177,7 +177,14 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 		// the file is reported once instead of served wrong.
 		cr, known := crOnly[rel]
 		if !known && !refused {
-			b, err := os.ReadFile(filepath.Join(absRoot, filepath.FromSlash(rel)))
+			b, err := readCapped(filepath.Join(absRoot, filepath.FromSlash(rel)))
+			if over := (errOverFileCap{}); errors.As(err, &over) {
+				// ADR-104: the probe reads the file whole, so it is bounded as
+				// read is; the hit is reported once and not served.
+				problems = append(problems, Problem{Path: rel, Reason: over.Error()})
+				crOnly[rel] = true
+				continue
+			}
 			_, eol, _ := lines.Split(string(b))
 			cr = err == nil && eol == "\r"
 			crOnly[rel] = cr

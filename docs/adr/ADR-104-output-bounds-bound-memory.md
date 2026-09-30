@@ -27,7 +27,9 @@
 
 **Audit of the class.** The class is *an input mrw reads whole with no bound of its own*. Enumerated 2026-09-30
 by `mrw read --grep 'os\.ReadFile|io\.ReadAll|ReadString\(' --exclude '*_test.go' internal/ cmd/` and reading each
-site: the check log, the MCP request line, a served file, a searched file, the ast-grep answer — **5**, in scope.
+site: the check log, the MCP request line, a served file, a searched file, the ast-grep answer — **5** — and a sixth
+the first audit missed, found by the review of #295: ast-grep's CR-only probe reads each hit file whole
+(`astgrep.go:180`). All six in scope.
 **Left out:** the state files (`seen`, `iteration`, the tally), which mrw writes itself and bounds by what it
 records; `apply`'s load of a file to edit, which a write reaches only after a read licensed the file (a file over
 the cap is never served, so never licensed, `--force` aside); the plan file, which a caller writes and a CLI
@@ -43,13 +45,17 @@ caller controls; `.quality-harness.json`, a small config file.
 
 1. `lastLines` streams the log with a ring of `tail_lines` lines and keeps at most 4 KiB of each; a longer line
    ends ` … [N more bytes]`. Line splitting keeps its meaning (on `\n`, a trailing `\r` kept), and
-   `truncated_lines` still counts every earlier line.
+   `truncated_lines` still counts every earlier line. A passing check whose tail cut a line keeps its log, as one
+   that withheld earlier lines does, and the marker counts a split rune's stray bytes; the ring grows as lines
+   arrive, and a read that fails part-way answers no tail, as the whole-file read did (the review of #295).
 2. `Serve` reads a request line up to 64 MiB; past that it answers -32600 with a null id naming the limit,
    discards the rest of the line, and reads the next one.
 3. `read` refuses a file larger than 1 GiB before reading it, naming its size and the limit; the `--grep` walk
-   reports it as a problem it skipped.
-4. `subproc.Output` takes a limit and refuses an answer larger than it; `read.AstGrep` passes 256 MiB and names
-   the size in its refusal, advising a narrower pattern or fewer paths.
+   reports it as a problem it skipped, and ast-grep's CR-only probe reports the hit once. Each reads through
+   `readCapped`: a size check, then a read bounded at the limit plus one byte, because a file can grow after
+   its size was taken (the review of #295).
+4. `subproc.Output` takes a limit and refuses an answer larger than it — measured, then read through a bound —
+   and `read.AstGrep` passes 256 MiB and names the size in its refusal, advising a narrower pattern or fewer paths.
 
 Each limit is a package variable so its test can set a small one; no flag or environment variable exposes it.
 
@@ -100,6 +106,7 @@ See `tasks/README.md`: T1 (the check tail), T2 (the MCP request), T3 (the file c
 - A contract row for the file and ast-grep caps (permanent: boundary: they need a file over 1 GiB or an answer over 256 MiB; each task's unit test sets the package variable small)
 - Streaming `read` (permanent: boundary: every address form works on the whole file's lines; a streaming engine is a different design)
 - `apply`'s load and the state files (permanent: boundary: a file over the cap is never licensed, and state files are written by mrw)
+- A test for a check log that fails part-way, and for an ast-grep answer that grows after it was measured (permanent: boundary: no fixture reaches either — an I/O error mid-read, and a grandchild writing after Run returned, which only Windows allows; both branches are named here as uncovered)
 
 ## Risks
 

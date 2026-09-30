@@ -35,8 +35,9 @@ input under the cap.
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/check/ -count=1 -timeout 300s -run 'TestTheCheckTailReadsALogInBoundedMemory' -v 2>&1 | tee "$out" \
+  && go test ./internal/check/ -count=1 -timeout 300s -run 'TestTheCheckTailReadsALogInBoundedMemory|TestTheTailCountsWhatItCutAndKeepsTheLog' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestTheCheckTailReadsALogInBoundedMemory \(' "$out" \
+  && grep -qE '^--- PASS: TestTheTailCountsWhatItCutAndKeepsTheLog \(' "$out" \
   && grep -q '^# 200\. ' scripts/contract.sh \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/apply internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted \
@@ -49,6 +50,7 @@ out=$(mktemp) \
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestTheCheckTailReadsALogInBoundedMemory` | `internal/check/tail104_test.go` | on edge inputs (empty, one empty line, no trailing newline, blank lines, CRLF, fewer lines than the tail) the result equals the old whole-file split; a 50 MB log gives the last 30 lines and the right count while allocating under 16 MB; a 1 MB line comes back as 4 KiB plus ` … [N more bytes]` | — | S1, S2 |
+| `TestTheTailCountsWhatItCutAndKeepsTheLog` | `internal/check/tail104_test.go` | (the review of #295) a line cut inside a rune counts the stray byte (`[2 more bytes]`); `tail_lines` 1<<30 on a one-line log allocates under 1 MB; a passing check whose tail cut a line keeps its log, holding the whole line | — | S2 |
 
 ## Reachability
 
@@ -64,6 +66,15 @@ out=$(mktemp) \
 - 2026-09-30 · f911dd7* · mutant killed · exit 1 · `internal/check/check.go` · the ring keeps the first lines instead of the last · acceptance-sha256:122f86acf047d054d0c6b672f3633541fdf2aea140be04e63bc9b4cb74bb489d · covers:the tail keeps its meaning
 - 2026-09-30 · f911dd7* · mutant killed · exit 1 · `internal/check/check.go` · every line allocates a large string · acceptance-sha256:122f86acf047d054d0c6b672f3633541fdf2aea140be04e63bc9b4cb74bb489d · covers:the tail is read in bounded memory
 - 2026-09-30 · f911dd7* · mutant killed · exit 1 · `internal/lines/lines.go` · an engine package this record does not own changed · acceptance-sha256:122f86acf047d054d0c6b672f3633541fdf2aea140be04e63bc9b4cb74bb489d · covers:only the owned engine packages change
+- 2026-09-30 · f2b0ee2* · mutant killed · exit 1 · `internal/check/check.go` · the per-line cap removed · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · covers:the tail is read in bounded memory
+- 2026-09-30 · f2b0ee2* · mutant killed · exit 1 · `internal/check/check.go` · the ring keeps the first lines instead of the last · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · covers:the tail keeps its meaning
+- 2026-09-30 · f2b0ee2* · mutant inconclusive · exit 1 · `internal/check/check.go` · a passing check with a cut line deletes its log again · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · covers:the tail keeps its meaning
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
+- 2026-09-30 · f2b0ee2* · mutant killed · exit 1 · `internal/check/check.go` · the marker undercounts a split rune again · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · covers:the tail keeps its meaning
+- 2026-09-30 · f2b0ee2* · mutant killed · exit 1 · `internal/lines/lines.go` · an engine package this record does not own changed · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · covers:only the owned engine packages change
+- 2026-09-30 · f2b0ee2* · mutant killed · exit 1 · `internal/check/check.go` · a passing check with a cut line deletes its log again · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · covers:the tail keeps its meaning
 
 ## Invariants
 
@@ -96,3 +107,12 @@ Stop and ask if a locked test must change to pass.
 - 2026-09-30 · f911dd7* · exit 0 · `set -o pipefail …` · acceptance-sha256:122f86acf047d054d0c6b672f3633541fdf2aea140be04e63bc9b4cb74bb489d · ms:407
 - 2026-09-30 · f911dd7* · exit 0 · `set -o pipefail …` · acceptance-sha256:122f86acf047d054d0c6b672f3633541fdf2aea140be04e63bc9b4cb74bb489d · ms:426
 - 2026-09-30 · human-observed · S3 observed 2026-09-30: ./scripts/contract.sh run unpiped in the ADR-104 worktree (base f911dd7), exit 0, with §200 printed: a failing check whose last line is 10,000 characters exits 3 and its receipt's tail shows the line capped with ' … [N more bytes]'; the pair, a short last line, is shown whole
+- 2026-09-30 · human-observed · relock 2026-09-30 (Codex review of #295): lastLines now also returns whether it cut a line, so TestTheCheckTailReadsALogInBoundedMemory takes a third value at its three calls; every assertion kept. TestTheTailCountsWhatItCutAndKeepsTheLog is new; approved
+- 2026-09-30 · f2b0ee2* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · ms:0 · test-lock-sha256:ccdca82504e82dd022fe774d575be39638c7325821a24ec70cb39f85f81fd712 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL2NoZWNrL3RhaWwxMDRfdGVzdC5nbwlUZXN0VGhlQ2hlY2tUYWlsUmVhZHNBTG9nSW5Cb3VuZGVkTWVtb3J5CTIwZjFmODE3ZWNjZmZiZjk0MzMwZmY1NGI4YWI2MmE3YzlhMjhhYzE3ODAwOWJlYmIxYjQzMGQ1Y2U3YzBlYTEKYm9keQlpbnRlcm5hbC9jaGVjay90YWlsMTA0X3Rlc3QuZ28JVGVzdFRoZVRhaWxDb3VudHNXaGF0SXRDdXRBbmRLZWVwc1RoZUxvZwljZmI1YmNmMGZkZmZjN2Y5MGFmOGFlMWNjYWNhNDk1YjQ4ZjBkYzE4N2IwYjU4ZjYzYTE0YmRkZTM0OTI0NTVh · test-lock-kind:replace
+- 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · ms:500
+- 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · ms:456
+- 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · ms:472
+- 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · ms:487
+- 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · ms:499
+- 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · ms:643
+- 2026-09-30 · human-observed · S3 observed again 2026-09-30 after the review of #295: ./scripts/contract.sh exit 0 with §200's new row printed — a passing check with a 10,000-character line exits 0 and keeps its log, which the cut line's marker points at

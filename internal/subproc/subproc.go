@@ -87,9 +87,17 @@ func Run(c *exec.Cmd) error {
 }
 
 // ErrOutputTooLarge is Output's refusal of an answer over its limit (ADR-104).
-type ErrOutputTooLarge struct{ Size, Limit int64 }
+type ErrOutputTooLarge struct {
+	Size, Limit int64
+	// AtLeast says Size is where a bounded read stopped, not the answer's
+	// size: it grew past Limit after it was measured (the review of #295).
+	AtLeast bool
+}
 
 func (e *ErrOutputTooLarge) Error() string {
+	if e.AtLeast {
+		return fmt.Sprintf("answered more than %d bytes, over the %d-byte limit", e.Limit, e.Limit)
+	}
 	return fmt.Sprintf("answered %d bytes, over the %d-byte limit", e.Size, e.Limit)
 }
 
@@ -115,9 +123,14 @@ func Output(c *exec.Cmd, limit int64) ([]byte, error) {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
-	out, err := io.ReadAll(f)
+	// Bounded as well as measured: a grandchild Run could not reap (Windows has
+	// no process groups, ADR-080) can go on writing after the size was taken.
+	out, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, err
+	}
+	if int64(len(out)) > limit {
+		return nil, &ErrOutputTooLarge{Size: int64(len(out)), Limit: limit, AtLeast: true}
 	}
 	return out, runErr
 }

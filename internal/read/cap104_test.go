@@ -1,9 +1,11 @@
 package read
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -57,5 +59,40 @@ func TestAnAstGrepAnswerOverTheCapIsRefused(t *testing.T) {
 	maxAstGrepBytes = 1024
 	if specs, _, err := AstGrep(root, nil, "package $A", nil); err != nil || len(specs) != 1 {
 		t.Errorf("the same answer under the cap: specs %v, err %v", specs, err)
+	}
+}
+
+// ADR-104 T3, the review of #295. A size taken before the read is outrun by a
+// file that grows, so readCapped also reads through a bound: an endless stream,
+// which a stat calls empty, is refused once the limit is passed.
+func TestReadCappedRefusesAStreamOverTheCap(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("/dev/zero is a unix device")
+	}
+	old := maxFileBytes
+	maxFileBytes = 16
+	t.Cleanup(func() { maxFileBytes = old })
+	var over errOverFileCap
+	if _, err := readCapped("/dev/zero"); !errors.As(err, &over) || over.exact {
+		t.Errorf("an endless stream: err %v; want the bounded read's refusal", err)
+	}
+}
+
+// ADR-104 T3, the review of #295. ast-grep's CR-only probe read each hit file
+// whole. A hit on a file over the cap is reported once, naming the limit, and not
+// served.
+func TestAnAstGrepHitOnAFileOverTheCapIsReportedOnce(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "big.go"), []byte("package big // "+strings.Repeat("x", 40)+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hit := `{"file":"big.go","range":{"start":{"line":0},"end":{"line":0}}}`
+	installFakeAstGrepJSON(t, "["+hit+","+hit+"]", 0)
+	old := maxFileBytes
+	maxFileBytes = 16
+	t.Cleanup(func() { maxFileBytes = old })
+	specs, probs, err := AstGrep(root, nil, "package $A", nil)
+	if err != nil || len(specs) != 0 || len(probs) != 1 || probs[0].Path != "big.go" || !strings.Contains(probs[0].Reason, "16-byte limit") {
+		t.Errorf("specs %v, problems %v, err %v; want no spec and one problem naming the limit", specs, probs, err)
 	}
 }
