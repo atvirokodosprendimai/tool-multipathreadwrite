@@ -37,6 +37,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -452,11 +453,17 @@ func savePending(root string, store map[string]pending) error {
 
 // currentSHA is the digest of the file as it stands, in the same form the
 // ledger records, so promotion can tell a live acknowledgement from a stale one.
+// The file is streamed into the hash, never held whole (ADR-107): a file grown
+// after its read would otherwise be read into memory at any size.
 func currentSHA(root, path string) (string, error) {
-	b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	f, err := os.Open(filepath.Join(root, filepath.FromSlash(path)))
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:]), nil
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -474,7 +475,22 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// os.SameFile reads a file ID lazily, by name, when it compares, so
 			// the ID is loaded now — at the moment validation read the file.
 			seen = info
-			_ = os.SameFile(info, info)
+			// ADR-107: a load that fails leaves the ID to be read lazily at
+			// comparison — the blindness loading it now exists to avoid — so
+			// the file is refused. On darwin and Linux this cannot fail.
+			if !os.SameFile(info, info) {
+				refuseFile(results, path, hs, 0, fmt.Sprintf("%s: its identity could not be read, so a change before the commit could not be seen; send the plan again", path))
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
+			// ADR-107: apply reads the file whole below, before its licence is
+			// checked, so a file over the limit read refuses is refused here,
+			// on its hunk, before it is read.
+			if info.Mode().IsRegular() && info.Size() > maxLoadBytes {
+				refuseFile(results, path, hs, 0, fmt.Sprintf("%s is %d bytes, over the %d-byte limit mrw edits (ADR-104, ADR-107)", path, info.Size(), maxLoadBytes))
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
 			// ADR-073: a FIFO, a socket or a device named in a plan blocked the
 			// write in os.ReadFile below. It is refused before it is opened.
 			if !info.Mode().IsRegular() && !info.IsDir() {
@@ -511,7 +527,16 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			}
 			seenFiles = append(seenFiles, groupedFile{path: path, info: info, line: hs[0].SrcLine})
 		}
-		orig, existed, err := readLines(full)
+		orig, existed, err := loadFn(full)
+		// ADR-107: a file that grew past the limit after its size was taken is
+		// refused on its hunk like one that was over it then, so the receipt
+		// keeps every verdict (the Codex review of #302).
+		var over errOverLoadLimit
+		if errors.As(err, &over) {
+			refuseFile(results, path, hs, 0, fmt.Sprintf("%s: %v", path, err))
+			failed = append(failed, FileResult{Path: path})
+			continue
+		}
 		if err != nil {
 			return res, fmt.Errorf("%s: %w", path, err)
 		}
@@ -856,7 +881,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// just before its own rename below, which narrows the window further but
 	// can no longer undo the files already renamed (ADR-066).
 	for i, w := range content {
-		if why := changedSince(staged[i].target, w.seen); why != "" {
+		if why := changedSince(tr, staged[i].target, w.seen); why != "" {
 			discard(0)
 			return abortStage(w.file.Path, fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why))
 		}
@@ -876,7 +901,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				return commitFailed(w.file.Path, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
 			}
 		}
-		if why := changedSince(staged[i].target, w.seen); why != "" {
+		if why := changedSince(tr, staged[i].target, w.seen); why != "" {
 			discard(i)
 			err := fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why)
 			return commitFailed(w.file.Path, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
@@ -1736,12 +1761,22 @@ func (t text) with(lines []string) text { t.lines = lines; return t }
 // The terminators are lines.Split's (ADR-005 §3, moved there by ADR-065 so read,
 // --grep, MCP paging and the plan compilers number a file exactly as this does).
 func readLines(path string) (t text, existed bool, err error) {
-	b, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if os.IsNotExist(err) {
 		return text{eol: "\n"}, false, nil
 	}
 	if err != nil {
 		return text{eol: "\n"}, false, err
+	}
+	defer func() { _ = f.Close() }()
+	// ADR-107: read through a bound, for a file that grew after validation
+	// took its size.
+	b, err := io.ReadAll(io.LimitReader(f, maxLoadBytes+1))
+	if err != nil {
+		return text{eol: "\n"}, false, err
+	}
+	if int64(len(b)) > maxLoadBytes {
+		return text{eol: "\n"}, true, errOverLoadLimit{limit: maxLoadBytes}
 	}
 	if len(b) == 0 {
 		return text{eol: "\n"}, true, nil
@@ -1751,6 +1786,23 @@ func readLines(path string) (t text, existed bool, err error) {
 	t.lines, t.eol, t.final = lines.Split(string(b))
 	return t, true, nil
 }
+
+// maxLoadBytes is the largest file apply reads to edit (ADR-107): the same
+// limit as read's maxFileBytes (ADR-104), a variable so a test can set a
+// small one.
+var maxLoadBytes int64 = 1 << 30
+
+// errOverLoadLimit is readLines' refusal of a file that grew past
+// maxLoadBytes after validation took its size (ADR-107).
+type errOverLoadLimit struct{ limit int64 }
+
+func (e errOverLoadLimit) Error() string {
+	return fmt.Sprintf("the file grew past the %d-byte limit mrw edits while it was read", e.limit)
+}
+
+// loadFn is the seam validation reads a file through. A file that grows
+// between its stat and its read is not one a test can arrange without it.
+var loadFn = readLines
 
 // stageFileFn is the seam the staging phase is driven through. A test swaps it
 // to fail on a chosen file, because the realistic trigger — an unwritable
@@ -2009,9 +2061,15 @@ func missingDirs(dir string) []string {
 // that keeps both size and time is not seen. It asks by the resolved name: the
 // answer only decides whether to refuse, and the rename that follows goes
 // through the root.
-func changedSince(p string, was fs.FileInfo) string {
+func changedSince(tr *tree, p string, was fs.FileInfo) string {
 	if was == nil {
 		return ""
+	}
+	// ADR-107: the leaf itself, through the root, first. The target was
+	// resolved to a regular file; a link there now was put there after
+	// validation, and a stat that follows it would see the old file and pass.
+	if li, err := tr.lstat(p); err == nil && li.Mode()&(os.ModeSymlink|os.ModeIrregular) != 0 && was.Mode().IsRegular() {
+		return "a link replaced it"
 	}
 	now, err := os.Stat(p)
 	switch {
