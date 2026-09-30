@@ -61,7 +61,9 @@ name records rather than classify, and stay.
    landed write (`applied`, the recent window). `writeReceipt` carries `error` whenever the write returned one.
 5. The unreportable message says the write happened and not to re-send the plan, names the files as where to
    look, and keeps "restart with a larger `--max-result-chars`" as advice for later writes.
-6. A partial commit joins the recent-write ring (ADR-055) as a landed write, on both surfaces.
+6. Every landed write — a partial commit, and a whole one whose ledger could not be saved — joins the
+   recent-write ring (ADR-055) and the strict-balance pricing (ADR-056, priced unchecked: no check followed it),
+   on both surfaces (the review of #293).
 
 ## Alternatives Considered
 

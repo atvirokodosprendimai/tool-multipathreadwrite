@@ -8008,7 +8008,7 @@ else
   { grep -q 'PARTIALLY APPLIED' "$WORK/o196" && grep -qx A "$R/a.txt" && [ -e "$R/d/x.txt" ]; } \
     && ok "and says PARTIALLY APPLIED, a.txt written and d/x.txt kept" || bad "partial: $(head -c 400 "$WORK/o196")"
   m stats --json > "$WORK/s196" 2>/dev/null
-  jq -e '.counts.partially_applied == 1 and .counts.refused_apply == 0 and .landed == 1' "$WORK/s196" > /dev/null \
+  jq -se 'length == 1 and (.[0] | .counts.partially_applied == 1 and .counts.refused_apply == 0 and .landed == 1)' "$WORK/s196" > /dev/null \
     && ok "stats counts it partially_applied, and landed" || bad "stats: $(head -c 400 "$WORK/s196")"
   printf '@@ a.txt 1 replace\nAA\n' | m write --no-check - > /dev/null 2>&1; want 0 $? "the file the partial commit wrote takes the next write without a re-read"
   chmod 755 "$R/d"
@@ -8029,13 +8029,13 @@ if [ -w "$led197" ]; then
 else
   req=$(printf '@@ a.go 3 replace\nfunc A() int { return 197 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
   printf '%s\n' "$req" | "$MRW" -C "$R" mcp > "$WORK/j197" 2> /dev/null
-  { grep -q 'return 197' "$R/a.go" && jq -e '.error == null and .result.isError == true and .result.structuredContent.applied == true and (.result.structuredContent.error | length > 0)' "$WORK/j197" > /dev/null; } \
+  { grep -q 'return 197' "$R/a.go" && jq -se 'length == 1 and (.[0] | .error == null and .result.isError == true and .result.structuredContent.applied == true and (.result.structuredContent.error | length > 0))' "$WORK/j197" > /dev/null; } \
     && ok "the write landed and the answer is its receipt, applied, naming the ledger error" || bad "ledger failure over MCP: $(head -c 400 "$WORK/j197")"
   chmod 600 "$led197"
   m read a.go >/dev/null
   req=$(printf '@@ a.go 3 replace\nfunc A() int { return 1970 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
   printf '%s\n' "$req" | "$MRW" -C "$R" mcp > "$WORK/p197" 2> /dev/null
-  jq -e '.result.structuredContent.applied == true and (.result.structuredContent | has("error") | not)' "$WORK/p197" > /dev/null \
+  jq -se 'length == 1 and (.[0] | .result.structuredContent.applied == true and (.result.structuredContent | has("error") | not))' "$WORK/p197" > /dev/null \
     && ok "the pair: with the ledger writable the receipt has no error" || bad "the pair: $(head -c 400 "$WORK/p197")"
 fi
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an

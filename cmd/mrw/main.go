@@ -1328,6 +1328,10 @@ held or went unchecked.`,
 				if writer.MutationOf(res) == writer.Partial {
 					_ = authoring.Record(root, authoring.PartiallyApplied)
 					_ = authoring.RecordRecent(root, res.Advisories)
+					// ADR-056: a landed write is priced; a partial commit ran no check.
+					if !cmd.Bool("strict-balance") {
+						_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)
+					}
 				} else {
 					_ = authoring.Record(root, authoring.RefusedApply)
 				}
@@ -1372,6 +1376,12 @@ held or went unchecked.`,
 			// whenever a step was asked for and the command got as far as a
 			// receipt (ADR-092 Decision 5; the 2026-09-29 gap survey, C3).
 			ledgerFailed := func(res apply.Result, err error) error {
+				// ADR-102: the write landed, so it joins the recent ring and the
+				// pricing (unchecked: no check followed it), as every landed write does.
+				_ = authoring.RecordRecent(root, res.Advisories)
+				if !cmd.Bool("strict-balance") {
+					_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)
+				}
 				if len(asked) > 0 {
 					stepsNotRun = runSteps(ctx, root, cfg, asked, false)
 				}

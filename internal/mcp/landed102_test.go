@@ -44,19 +44,23 @@ func skipUnlessPermissionsBind(t *testing.T) {
 // landed is one partially_applied, not a refusal.
 func TestAnMCPPartialCommitIsCountedAsPartiallyApplied(t *testing.T) {
 	skipUnlessPermissionsBind(t)
-	root := licensed(t, map[string]string{"a.txt": "a\n", "d/x.txt": "x\n"})
+	root := licensed(t, map[string]string{"a.go": "package a\n", "d/x.txt": "x\n"})
 	d := filepath.Join(root, "d")
 	if err := os.Chmod(d, 0o555); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(d, 0o755) })
-	call(t, root, "mrw_write", map[string]any{"plan": "@@ a.txt 1 replace\nA\n@@ d/x.txt - unlink\n"})
+	call(t, root, "mrw_write", map[string]any{"plan": "@@ a.go 1 replace\npackage b\n@@ d/x.txt - unlink\n"})
 	tally, err := authoring.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if tally["partially_applied"] != 1 || tally["refused_apply"] != 0 || tally.Landed() != 1 {
 		t.Errorf("tally %v landed %d, want partially_applied 1, refused_apply 0, landed 1", tally, tally.Landed())
+	}
+	// A landed write joins the ring and the pricing (the review of #293).
+	if n, p := len(authoring.Recent(root)), authoring.LoadPricing(root); n != 1 || p.Candidates != 1 {
+		t.Errorf("recent ring %d, strict_candidates %d; want 1 and 1", n, p.Candidates)
 	}
 }
 
@@ -91,6 +95,11 @@ func TestALedgerFailureStillSendsTheMCPReceipt(t *testing.T) {
 	}
 	if tally, _ := authoring.Load(root); tally["applied"] != 1 {
 		t.Errorf("tally %v, want applied 1", tally)
+	}
+	// The landed write joins the ring, and the receipt's pattern says so (the review of #293).
+	pat, _ := sc["pattern"].(map[string]any)
+	if n := len(authoring.Recent(root)); n != 1 || pat["window"] != float64(1) {
+		t.Errorf("recent ring %d, receipt pattern %v; want 1 and window 1", n, pat)
 	}
 }
 

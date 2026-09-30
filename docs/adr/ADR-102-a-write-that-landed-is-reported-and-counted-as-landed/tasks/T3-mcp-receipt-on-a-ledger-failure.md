@@ -49,7 +49,7 @@ out=$(mktemp) \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestALedgerFailureStillSendsTheMCPReceipt` | `internal/mcp/landed102_test.go` | with the ledger read-only, `mrw_write` of a licensed plan answers a result (no RPC error): `isError` true, structured `applied` true, the file record written, a non-empty `error`; the file changed on disk; the tally counts `applied` 1 | — | S1, S2 |
+| `TestALedgerFailureStillSendsTheMCPReceipt` | `internal/mcp/landed102_test.go` | with the ledger read-only, `mrw_write` of a licensed plan answers a result (no RPC error): `isError` true, structured `applied` true, the file record written, a non-empty `error`; the file changed on disk; the tally counts `applied` 1; the recent ring holds the write and the receipt's `pattern.window` is 1 | — | S1, S2 |
 
 ## Reachability
 
@@ -64,6 +64,7 @@ out=$(mktemp) \
 - 2026-09-30 · f1d5996* · mutant killed · exit 1 · `internal/mcp/tools.go` · the ledger branch answers a bare RPC error again · acceptance-sha256:b5d2d7f3684705d81ad3d49562e88c44bd9a637e8efcb8423ebf13ced3951f28 · covers:a landed write is answered with its receipt
 - 2026-09-30 · f1d5996* · mutant killed · exit 1 · `internal/mcp/tools.go` · the receipt drops the error · acceptance-sha256:b5d2d7f3684705d81ad3d49562e88c44bd9a637e8efcb8423ebf13ced3951f28 · covers:the receipt names the error
 - 2026-09-30 · f1d5996* · mutant killed · exit 1 · `internal/lines/lines.go` · an engine package changed against the merge-base · acceptance-sha256:b5d2d7f3684705d81ad3d49562e88c44bd9a637e8efcb8423ebf13ced3951f28 · covers:no engine package changes
+- 2026-09-30 · 23beaf7* · mutant killed · exit 1 · `internal/mcp/tools.go` · a landed write whose ledger failed skips the ring again · acceptance-sha256:b5d2d7f3684705d81ad3d49562e88c44bd9a637e8efcb8423ebf13ced3951f28 · covers:a landed write is answered with its receipt
 
 ## Invariants
 
@@ -97,3 +98,6 @@ Stop and ask if a locked test must change to pass.
 - 2026-09-30 · f1d5996* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5d2d7f3684705d81ad3d49562e88c44bd9a637e8efcb8423ebf13ced3951f28 · ms:577
 - 2026-09-30 · f1d5996* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5d2d7f3684705d81ad3d49562e88c44bd9a637e8efcb8423ebf13ced3951f28 · ms:359
 - 2026-09-30 · human-observed · S3 observed 2026-09-30: ./scripts/contract.sh run unpiped on this branch (base f1d5996), exit 0, with §197 printed: through the built binary's mcp, a licensed mrw_write with the ledger read-only changes a.go and answers a result (no JSON-RPC error) with isError, structured applied true and a non-empty error; the pair with the ledger writable answers applied with no error key
+- 2026-09-30 · human-observed · relock 2026-09-30 (Codex review of #293, finding 1): TestALedgerFailureStillSendsTheMCPReceipt also asserts the landed write joins the recent ring and the receipt's pattern.window is 1; every earlier assertion kept
+- 2026-09-30 · 23beaf7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b5d2d7f3684705d81ad3d49562e88c44bd9a637e8efcb8423ebf13ced3951f28 · ms:0 · test-lock-sha256:526ce0503f475fcf6287e3f956c99f4346d55da9f56a7349519e99c72b1d2e5f · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL21jcC9sYW5kZWQxMDJfdGVzdC5nbwlUZXN0QUxlZGdlckZhaWx1cmVTdGlsbFNlbmRzVGhlTUNQUmVjZWlwdAkwZDU4NmVmZTJhOTQ3NWRkOTdkNWJkMTVhM2EzZDI5ZDM0ZDI0MGRiNTgxYWRjYTBlYzllMjE1Y2RmMTFlMGZhCmJvZHkJaW50ZXJuYWwvbWNwL2xhbmRlZDEwMl90ZXN0LmdvCVRlc3RBbk1DUFBhcnRpYWxDb21taXRJc0NvdW50ZWRBc1BhcnRpYWxseUFwcGxpZWQJNTUzNDA4ZDRmYTdkZjc4N2ViYTE1M2NiY2M5Y2RkN2YzMGRhY2JlNzk1ODIwZWRkZjVkOTdhOWU2OWI0ZjJhMQpib2R5CWludGVybmFsL21jcC9sYW5kZWQxMDJfdGVzdC5nbwlUZXN0QW5VbnJlcG9ydGFibGVXcml0ZVNheXNOb3RUb1JlcnVuCTllOWQ2NDM0ZjgyMzgzM2M1NWY3ZTdhYjY0YjRjODJmZTY1ZjU3OWQxZmUwNTIxM2FkYWE5YWIxYzI3ZmUwNzU · test-lock-kind:replace
+- 2026-09-30 · 23beaf7* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5d2d7f3684705d81ad3d49562e88c44bd9a637e8efcb8423ebf13ced3951f28 · ms:325

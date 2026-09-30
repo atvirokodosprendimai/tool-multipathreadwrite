@@ -702,27 +702,24 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// is answered with the receipt (ADR-102): a bare RPC error could not be told
 	// from a write that did nothing, and a client might send the plan again.
 	var ledgerErr *writer.LedgerError
-	if errors.As(applyErr, &ledgerErr) {
-		// ADR-083: the plan landed; the CLI counts it as applied when no check is due, and so does this.
-		if !res.DryRun {
-			_ = authoring.Record(root, authoring.Applied)
-		}
-		return boundedReceipt(root, res, applyErr, true)
-	}
+	ledgerFailed := errors.As(applyErr, &ledgerErr)
 	mutation := writer.MutationOf(res)
-	if res.Applied && !res.DryRun {
+	if mutation != writer.None {
 		// ADR-055: a landed MCP write feeds the same ring the CLI reads, so
-		// "3 of your last 10" counts every landed write on this checkout.
-		// The MCP receipt is structured and carries `advisories`; the
-		// pattern line itself is CLI and stats (BACKLOG).
+		// "3 of your last 10" counts every landed write on this checkout —
+		// whole, partial, or whole with a ledger that failed (ADR-102). The MCP
+		// receipt is structured and carries `advisories`; the pattern line
+		// itself is CLI and stats (BACKLOG).
 		_ = authoring.RecordRecent(root, res.Advisories)
 		// ADR-056: priced as unchecked — this surface never runs a check.
 		if !a.StrictBalance {
 			_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)
 		}
-	} else if mutation == writer.Partial {
-		// ADR-102: a partial commit changed the tree, so it is a landed write.
-		_ = authoring.RecordRecent(root, res.Advisories)
+	}
+	if ledgerFailed {
+		// ADR-083: the plan landed; the CLI counts it as applied when no check is due, and so does this.
+		_ = authoring.Record(root, authoring.Applied)
+		return boundedReceipt(root, res, applyErr, true)
 	}
 
 	switch {
