@@ -19,7 +19,9 @@ func TestAPassingStepNamesTheLogItKept(t *testing.T) {
 		".quality-harness.json": "{\"check\":\"exit 0\"}",
 	})
 	plan := primed(t, root)
-	step := "head -c 10000 /dev/zero | tr '\\0' x; echo"
+	// One 10,000-character line with no pipe: `head -c … /dev/zero | tr` hung
+	// on the Windows runner's Git Bash (CI, #295), and printf needs nothing.
+	step := "printf '%s\\n' " + strings.Repeat("x", 10000)
 	out, code := writeIn(t, root, "--no-check", "--then-sh", step, plan)
 	shown := afterHead(t, out, "— PASS")
 	if code != 0 || !strings.Contains(shown, " … [") {
