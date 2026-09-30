@@ -20,7 +20,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | a swapped parent escapes the root today | done | — | `docs/adr/ADR-106-confinement-holds-while-the-tree-moves/tasks/T1-swapped-parent.md` fence |
-| T2 | the write path goes through `os.Root` | pending | — | `docs/adr/ADR-106-confinement-holds-while-the-tree-moves/tasks/T2-through-the-root.md` fence |
+| T2 | the write path goes through `os.Root` | done | — | `docs/adr/ADR-106-confinement-holds-while-the-tree-moves/tasks/T2-through-the-root.md` fence |
 | T3 | a target replaced after validation is refused | done | — | `docs/adr/ADR-106-confinement-holds-while-the-tree-moves/tasks/T3-identity-recheck.md` fence |
 | T4 | what confinement holds, written down | done | — | `docs/adr/ADR-106-confinement-holds-while-the-tree-moves/tasks/T4-docs.md` fence |
 
