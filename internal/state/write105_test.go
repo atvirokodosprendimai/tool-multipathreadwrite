@@ -45,6 +45,10 @@ func TestAStateFileIsReplacedWholeNeverRewrittenInPlace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// On Windows os.SameFile reads a file's ID lazily, by path, at comparison
+	// time — after the rename both FileInfos would load the new file's ID and
+	// compare equal. Comparing before with itself loads its ID now (CI, #297).
+	_ = os.SameFile(before, before)
 	if err := Write(name, []byte("new ledger\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
