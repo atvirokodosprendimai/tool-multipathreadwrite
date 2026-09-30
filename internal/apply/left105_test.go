@@ -272,4 +272,46 @@ func TestEveryFailedCleanupIsNamedInLeftBehind(t *testing.T) {
 			t.Errorf("the kept aside holds %q, want the unlinked c.txt", got)
 		}
 	})
+
+	t.Run("a probe that met another process's file names nothing", func(t *testing.T) {
+		root := t.TempDir()
+		real := probeNameFn
+		t.Cleanup(func() { probeNameFn = real })
+		// Another process creates the name between validation and the probe,
+		// so the exclusive create fails and mrw made nothing there.
+		probeNameFn = func(target string) error {
+			if err := os.WriteFile(target, []byte("foreign\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			return real(target)
+		}
+		res, err := Apply(root, []Input{{Path: "new.txt", Op: "create", Body: []string{"n"}, Lines: -1, Index: 0}}, Options{Force: true})
+		if err == nil || res.Applied {
+			t.Fatalf("a probe that met a foreign file did not abort: %v %+v", err, res)
+		}
+		if len(res.LeftBehind) != 0 {
+			t.Errorf("LeftBehind = %q, want nothing: the file is another process's", res.LeftBehind)
+		}
+		if read(t, root, "new.txt") != "foreign\n" {
+			t.Error("the foreign file was disturbed")
+		}
+	})
+
+	t.Run("a path whose inspection fails is named", func(t *testing.T) {
+		root, in := two(t)
+		failSecondStage(t)
+		refuseRemove(t, isTemp)
+		real := lstatFn
+		t.Cleanup(func() { lstatFn = real })
+		lstatFn = func(p string) (os.FileInfo, error) {
+			if isTemp(p) {
+				return nil, &os.PathError{Op: "lstat", Path: p, Err: errors.New("permission denied")}
+			}
+			return real(p)
+		}
+		res, err := Apply(root, in, Options{Force: true})
+		if err == nil || len(res.LeftBehind) != 1 || !isTemp(res.LeftBehind[0]) {
+			t.Fatalf("err %v, LeftBehind %q, want the temp it could neither remove nor inspect", err, res.LeftBehind)
+		}
+	})
 }

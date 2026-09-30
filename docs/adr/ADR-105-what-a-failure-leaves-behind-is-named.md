@@ -51,8 +51,10 @@ state; `state/lock.go`, which opens a lock file and writes nothing into it.
 ## Decision
 
 1. **`left_behind`.** Every cleanup removal in `internal/apply` goes through one helper over a `removeFn` seam. A
-   path that is still there afterwards is appended to `Result.LeftBehind`, root-relative. A path already gone is
-   not left behind. A directory still holding something is not named: whatever is in it is either named itself
+   path whose removal failed is appended to `Result.LeftBehind`, root-relative, unless it is known to be gone: only
+   "does not exist" clears it, and a path whose inspection fails too is named. A probe is named only when mrw created
+   it and could not remove it — a probe that met another process's file made nothing of mrw's (the Codex review of
+   #297). A directory still holding something is not named: whatever is in it is either named itself
    (a temp mrw could not remove) or not mrw's, and os.Remove's refusal of a non-empty directory is the guard
    ADR-004's `discard` relies on. `stageFile`'s error paths return their temp file to the caller, whose `discard`
    removes and reports it, so one place does both. An aside that the undo keeps, and a probe that could not be

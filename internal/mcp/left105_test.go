@@ -41,8 +41,8 @@ func TestMrwWriteSpellsLeftBehindWithSlashes(t *testing.T) {
 		if rpcErr != nil || len(out.Content) == 0 {
 			t.Fatalf("no terminal answer: %v %+v", rpcErr, out)
 		}
-		if text := out.Content[0].Text; !strings.Contains(text, "left 2 path(s)") {
-			t.Errorf("the terminal sentence does not carry the leftover count:\n%s", text)
+		if text := out.Content[0].Text; !strings.Contains(text, "left 2 path(s)") || !strings.Contains(text, "create and rename targets") || !strings.Contains(text, ".mrw-aside-") {
+			t.Errorf("the terminal sentence does not carry the leftover count, the probe targets and the aside warning:\n%s", text)
 		}
 	}
 	if n := encodedSize(errorResult(appliedButUnreportable(1<<40, 1<<40, 1<<40, true) + leftNote(1<<40))); n > floorAt(MaxResultChars) {

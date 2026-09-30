@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `a state file is replaced, never rewritten in place`, `a refused rename falls back`, `no state write bypasses it`, `a contract row drives the binary`
+**Rests-on:** `a state file is replaced, never rewritten in place`, `a refused rename fails with the old file whole`, `no state write bypasses it`, `a contract row drives the binary`
 
 ## Goal
 
@@ -32,7 +32,7 @@ state write in `internal/` goes through it.
 ## Ordered Steps
 
 1. [S1] Write the failing tests `TestAStateFileIsReplacedWholeNeverRewrittenInPlace` and `TestNoStateWriteBypassesTheAtomicWriter`; confirm RED. [proof: mutation]
-2. [S2] `state.Write`: `CreateTemp(dir, "."+base+".tmp-*")`, write, close, chmod, rename; on a refused rename, remove the temp and `os.WriteFile`; a read-only existing file is written in place, so it stays refused. [proof: mutation] Mutants: the rename replaced by an in-place write; the fallback leaves the temp; a read-only file is replaced.
+2. [S2] `state.Write`: `CreateTemp(dir, "."+base+".tmp-*")`, write, close, chmod, rename; a refused rename is tried `renameTries` times and then fails, with the temp removed and the old file whole — nothing writes the name in place (the first draft's `os.WriteFile` fallback was removed after the review of the record); a read-only existing file is refused. [proof: mutation] Mutants: the rename replaced by an in-place write; the refused rename leaves the temp; a refused rename writes in place again; a read-only file is replaced.
 3. [S3] Route the 8 sites through it. [proof: mutation] Mutant: `seen.save` back to `os.WriteFile`.
 4. [S4] Contract §201, driving `$MRW`: a write replaces the ledger (its inode changes) and leaves no temp beside it; the pair, the next write, is licensed by the replaced ledger. [proof: human: ./scripts/contract.sh run unpiped before the commit, exit 0 with §201's rows printed]
 
@@ -55,7 +55,7 @@ out=$(mktemp) \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestAStateFileIsReplacedWholeNeverRewrittenInPlace` | `internal/state/write105_test.go` | after `Write` over an existing file the name holds the new bytes and is a different file (`os.SameFile` false), with the given mode, and no temp remains; with `renameFn` refusing every time, `Write` fails after `renameTries` tries with the old bytes whole and no temp; behind a reader holding the file open that lets go, the write lands; a `0444` file is refused and unchanged | — | S1, S2 |
+| `TestAStateFileIsReplacedWholeNeverRewrittenInPlace` | `internal/state/write105_test.go` | after `Write` over an existing file the name holds the new bytes and is a different file (`os.SameFile` false, the before-ID loaded ahead of the write for Windows), with the given mode, and no temp remains; with `renameFn` refusing every time, `Write` fails after `renameTries` tries with the old bytes whole and no temp; a first try refused while a reader holds the file, which then lets go, is retried and lands; a `0444` file is refused and unchanged | — | S1, S2 |
 | `TestNoStateWriteBypassesTheAtomicWriter` | `internal/state/write105_test.go` | no non-test source in `internal/seen`, `internal/authoring`, `internal/iter`, `internal/mcp`, `internal/state` calls `os.WriteFile`, `state.Write` included | — | S1, S3 |
 
 ## Reachability
@@ -73,6 +73,7 @@ out=$(mktemp) \
 - 2026-09-30 · 1bd8690* · mutant killed · exit 1 · `internal/seen/seen.go` · seen.save writes the ledger in place again · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · covers:no state write bypasses it
 - 2026-09-30 · 1bd8690* · mutant killed · exit 1 · `internal/state/write.go` · a read-only state file is replaced · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · covers:a state file is replaced, never rewritten in place
 - 2026-09-30 · 1e77123* · mutant killed · exit 1 · `internal/state/write.go` · a refused rename writes in place again · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · covers:a refused rename falls back
+- 2026-09-30 · cf45fb0* · mutant killed · exit 1 · `internal/state/write.go` · a refused rename writes in place again · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · covers:a refused rename fails with the old file whole
 
 ## Invariants
 
@@ -116,3 +117,6 @@ Stop and ask if a locked test must change to pass.
 - 2026-09-30 · 1e77123* · exit 0 · `set -o pipefail …` · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · ms:471
 - 2026-09-30 · 9be798b* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · ms:0 · test-lock-sha256:3a484ebed8df21b712b19be00160aa780960511326703218be0357a1c2b08314 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL3N0YXRlL3dyaXRlMTA1X3Rlc3QuZ28JVGVzdEFTdGF0ZUZpbGVJc1JlcGxhY2VkV2hvbGVOZXZlclJld3JpdHRlbkluUGxhY2UJNTRlMjUxMDdkMDAwZmJkMTVlZDM2Y2M2OTQ3YTlhNzU1OWViZjIwMGY1OTA3MDViMzVlMWQwNjQxOGNjZTM1ZQpib2R5CWludGVybmFsL3N0YXRlL3dyaXRlMTA1X3Rlc3QuZ28JVGVzdE5vU3RhdGVXcml0ZUJ5cGFzc2VzVGhlQXRvbWljV3JpdGVyCTYyYzFmODBkZGU0MWM4NzcwOTNhM2YwNGZiMDFlNmRmZjZlYTNhN2UzYTk5MTcyMWMwNWZlOWMyNzcyYWVkZjc · test-lock-kind:replace
 - 2026-09-30 · human-observed · relock 2026-09-30 reviewed: on the Windows runner os.SameFile loads a file ID lazily by path at comparison time, so TestAStateFileIsReplacedWholeNeverRewrittenInPlace now loads the before-ID ahead of the write; every assertion kept; approved
+- 2026-09-30 · cf45fb0* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · ms:0 · test-lock-sha256:a73278a27cf61a0ed9a95fad35146b045f292fc77affaf7f6fe5cc53c986c9f4 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL3N0YXRlL3dyaXRlMTA1X3Rlc3QuZ28JVGVzdEFTdGF0ZUZpbGVJc1JlcGxhY2VkV2hvbGVOZXZlclJld3JpdHRlbkluUGxhY2UJNGJiM2VhNDRkY2U1YWIxMmJkZTI4NGJlZjY0ZWZlMzg3MjFkMjhhOTVmY2MzZGQ2MTQ0YjIwY2VhMjliZjRkYwpib2R5CWludGVybmFsL3N0YXRlL3dyaXRlMTA1X3Rlc3QuZ28JVGVzdE5vU3RhdGVXcml0ZUJ5cGFzc2VzVGhlQXRvbWljV3JpdGVyCTYyYzFmODBkZGU0MWM4NzcwOTNhM2YwNGZiMDFlNmRmZjZlYTNhN2UzYTk5MTcyMWMwNWZlOWMyNzcyYWVkZjc · test-lock-kind:replace
+- 2026-09-30 · human-observed · relock 2026-09-30 reviewed: the reader case of TestAStateFileIsReplacedWholeNeverRewrittenInPlace no longer races a goroutine against the retry window; the first refused try closes the reader, so the retry decides the outcome on every platform; every assertion kept; approved
+- 2026-09-30 · cf45fb0* · exit 0 · `set -o pipefail …` · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · ms:376

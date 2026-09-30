@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
 // tempsIn names the files in dir that look like Write's temp files.
@@ -87,16 +86,22 @@ func TestAStateFileIsReplacedWholeNeverRewrittenInPlace(t *testing.T) {
 	}
 
 	// A reader holding the file open — which on Windows refuses the rename —
-	// only delays the write, because the rename is tried again.
-	renameFn = real
+	// only delays the write, because the rename is tried again. The first try
+	// is refused while the reader holds the file and closes it, so the retry,
+	// not a scheduler, decides the outcome on every platform.
 	r, err := os.Open(name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	go func() {
-		time.Sleep(3 * renameWait)
-		_ = r.Close()
-	}()
+	first := true
+	renameFn = func(from, to string) error {
+		if first {
+			first = false
+			_ = r.Close()
+			return errors.New("the file is open in another process")
+		}
+		return real(from, to)
+	}
 	if err := Write(name, []byte("fourth\n"), 0o600); err != nil {
 		t.Errorf("a write behind a reader that let go was refused: %v", err)
 	}
