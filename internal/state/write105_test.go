@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // tempsIn names the files in dir that look like Write's temp files.
@@ -29,9 +30,11 @@ func tempsIn(t *testing.T, dir string) []string {
 // that ran in between — or a run killed in the middle — saw part of it; for
 // the ledger that is a lost licence. Write replaces the file by rename: the
 // name then holds the new bytes as a different file, with the mode asked for,
-// and no temp stays beside it. A rename the platform refuses (Windows, over a
-// file another process holds open) falls back to the in-place write and still
-// leaves no temp.
+// and no temp stays beside it. Nothing writes the name in place: a rename
+// still refused after its tries fails with the old file untouched (the review
+// of the record found the first draft's in-place fallback reopened the torn
+// write), a reader holding the file open only delays the rename, and a
+// read-only file is refused.
 func TestAStateFileIsReplacedWholeNeverRewrittenInPlace(t *testing.T) {
 	dir := t.TempDir()
 	name := filepath.Join(dir, "seen")
@@ -64,36 +67,57 @@ func TestAStateFileIsReplacedWholeNeverRewrittenInPlace(t *testing.T) {
 
 	real := renameFn
 	t.Cleanup(func() { renameFn = real })
-	renameFn = func(string, string) error { return errors.New("rename refused") }
-	if err := Write(name, []byte("third\n"), 0o600); err != nil {
-		t.Fatalf("a refused rename did not fall back: %v", err)
+	tries := 0
+	renameFn = func(string, string) error { tries++; return errors.New("rename refused") }
+	if err := Write(name, []byte("third\n"), 0o600); err == nil {
+		t.Error("a rename refused every time was reported as a write")
 	}
-	if b, _ := os.ReadFile(name); string(b) != "third\n" {
-		t.Errorf("after the fallback the file holds %q, want the new bytes", b)
+	if tries != renameTries {
+		t.Errorf("the rename was tried %d time(s), want %d", tries, renameTries)
+	}
+	if b, _ := os.ReadFile(name); string(b) != "new ledger\n" {
+		t.Errorf("after a refused rename the file holds %q, want the old bytes whole", b)
 	}
 	if left := tempsIn(t, dir); len(left) != 0 {
-		t.Errorf("the fallback left temp files: %q", left)
+		t.Errorf("a refused rename left temp files: %q", left)
 	}
 
-	// A state file its owner made read-only stays refused and unchanged, as
-	// it was when it was rewritten in place. uid 0 writes through the mode.
+	// A reader holding the file open — which on Windows refuses the rename —
+	// only delays the write, because the rename is tried again.
 	renameFn = real
+	r, err := os.Open(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		time.Sleep(3 * renameWait)
+		_ = r.Close()
+	}()
+	if err := Write(name, []byte("fourth\n"), 0o600); err != nil {
+		t.Errorf("a write behind a reader that let go was refused: %v", err)
+	}
+	if b, _ := os.ReadFile(name); string(b) != "fourth\n" {
+		t.Errorf("behind a reader the file holds %q, want the new bytes", b)
+	}
+
+	// A state file its owner made read-only is refused and unchanged, as it
+	// was when it was rewritten in place.
 	if err := os.Chmod(name, 0o444); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(name, 0o600) })
-	if err := Write(name, []byte("fourth\n"), 0o600); os.Geteuid() != 0 && err == nil {
+	if err := Write(name, []byte("fifth\n"), 0o600); err == nil {
 		t.Error("a read-only state file was replaced")
 	}
-	if b, _ := os.ReadFile(name); os.Geteuid() != 0 && string(b) != "third\n" {
+	if b, _ := os.ReadFile(name); string(b) != "fourth\n" {
 		t.Errorf("the read-only file holds %q, want it unchanged", b)
 	}
 }
 
 // ADR-105 T2. Every state write goes through Write: no non-test source in the
-// packages that keep state calls os.WriteFile, except Write's own fallback.
-// A new state file written in place would reopen the torn-read window
-// unnoticed, so the class is checked, not the eight sites one by one.
+// packages that keep state calls os.WriteFile, Write included. A new state
+// file written in place would reopen the torn-read window unnoticed, so the
+// class is checked, not the eight sites one by one.
 func TestNoStateWriteBypassesTheAtomicWriter(t *testing.T) {
 	scanned := 0
 	for _, dir := range []string{"../seen", "../authoring", "../iter", "../mcp", "."} {
@@ -111,9 +135,6 @@ func TestNoStateWriteBypassesTheAtomicWriter(t *testing.T) {
 			}
 			scanned++
 			n := strings.Count(string(b), "os.WriteFile(")
-			if dir == "." && filepath.Base(f) == "write.go" {
-				n-- // the fallback, when a rename is refused
-			}
 			if n != 0 {
 				t.Errorf("%s calls os.WriteFile %d time(s) outside state.Write", f, n)
 			}

@@ -8084,10 +8084,14 @@ log=$(grep -A3 '^then 1/1' <<<"$out" | sed -n 's/^full output: //p' | head -1)
 # 201. ADR-105: a state file is replaced whole, never rewritten in place. The
 # ledger was truncated and rewritten, so a reader or a killed run could see part
 # of it — a lost licence. A write now replaces it by rename: its inode changes
-# and no temp stays beside it. The pair: the replaced ledger licenses the next
-# write.
+# and no temp stays beside it. The pair: the replaced ledger still refuses an
+# edit to a file nobody read, and licenses the next write to one that was.
 fixture
+printf 'b\n' > "$R/b201.txt"
 m read a.go > /dev/null
+printf '@@ b201.txt 1 replace\nB\n' > "$R/u201.mrw"
+m write --no-check "$R/u201.mrw" > /dev/null 2>&1; want 1 $? "an edit to a file nobody read is refused"
+[ "$(cat "$R/b201.txt")" = b ] && ok "and leaves it unchanged" || bad "the unread file changed: $(cat "$R/b201.txt")"
 sd201=$(m seen | head -1)
 i201=$(ls -i "$sd201/seen" 2>/dev/null | awk '{print $1}')
 printf '@@ a.go 1 replace\npackage a\n' > "$R/p201.mrw"

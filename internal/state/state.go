@@ -132,7 +132,7 @@ func Migrate(root string) ([]string, error) {
 			release()
 			return moved, err
 		}
-		err = Write(to, b, 0o600)
+		err = WriteSynced(to, b, 0o600)
 		release()
 		if err != nil {
 			return moved, err

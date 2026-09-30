@@ -6,11 +6,11 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-001, ADR-004, ADR-066, ADR-075, ADR-086, ADR-102
-**Governs:** `internal/apply/apply.go`, `internal/apply/pathop.go`, `internal/state/write.go`, `internal/seen/seen.go`, `internal/authoring/authoring.go`, `internal/iter/iter.go`, `internal/mcp/ack.go`, `internal/mcp/wirepath.go`, `internal/mcp/schema.go`, `cmd/mrw/main.go`, `README.md`, `scripts/contract.sh`
-**Enforced-by:** None — the test is written in T1 (follow-up below)
-**Invalidates:** none — checked. ADR-004 promises nothing is left in the tree by a failed run except the named aside; this record reports the case where a removal mrw attempted fails, which ADR-004 did not cover. ADR-066's undo text names an aside it keeps; that text stays, and the path also appears in `left_behind`.
-**Served-path change:** (1) A write receipt carries `left_behind`, root-relative paths mrw made in the tree and could not remove, or kept on purpose as a recovery file; absent when there are none. The CLI prints `left behind: <path>` for each, on success and on failure, and `mrw_write` spells them with `/`. (2) mrw's state files are replaced by rename rather than rewritten in place, so a reader never sees half of one; the ledger and the MCP acknowledgement store are synced before the rename. Exit codes keep their meanings: a leftover does not turn an applied write into a failure.
+**Governs:** `internal/apply/apply.go`, `internal/apply/pathop.go`, `internal/state/write.go`, `internal/state/state.go`, `internal/seen/seen.go`, `internal/authoring/authoring.go`, `internal/iter/iter.go`, `internal/mcp/ack.go`, `internal/mcp/tools.go`, `internal/mcp/wirepath.go`, `internal/mcp/schema.go`, `cmd/mrw/main.go`, `README.md`, `scripts/contract.sh`
 **Enforced-by:** `internal/apply/left105_test.go::TestEveryFailedCleanupIsNamedInLeftBehind`
+**Invalidates:** none — checked. ADR-004 promises nothing is left in the tree by a failed run except the named aside; this record reports the case where a removal mrw attempted fails, which ADR-004 did not cover. ADR-066's undo text names an aside it keeps; that text stays, and the path also appears in `left_behind`.
+**Served-path change:** (1) A write receipt carries `left_behind`, root-relative paths mrw made in the tree and could not remove, or kept on purpose as a recovery file; absent when there are none. The CLI prints `left behind: <path>` for each, on success and on failure, and `mrw_write` spells them with `/`; an MCP receipt too large for the ceiling names their count in its sentence. (2) mrw's state files are replaced by rename and never rewritten in place, so a reader never sees half of one; the ledger, a migrated legacy ledger and the MCP acknowledgement store are synced before the rename. A state write whose rename stays refused now fails with the old file whole, where it used to rewrite the file in place. Exit codes keep their meanings: a leftover does not turn an applied write into a failure.
+
 ## Context
 
 **What was observed** (2026-09-30, the Codex design review of `f1d5996`, finding 5, confirmed in source at `1bd8690`):
@@ -56,22 +56,26 @@ state; `state/lock.go`, which opens a lock file and writes nothing into it.
    (a temp mrw could not remove) or not mrw's, and os.Remove's refusal of a non-empty directory is the guard
    ADR-004's `discard` relies on. `stageFile`'s error paths return their temp file to the caller, whose `discard`
    removes and reports it, so one place does both. An aside that the undo keeps, and a probe that could not be
-   removed, are named too: the field answers "what is in my tree that I did not ask for".
+   removed, are named too: the field answers "what is in my tree that I did not ask for". An `mrw_write` receipt too
+   large for the ceiling ends in a sentence with no structured value; that sentence names how many paths were left,
+   and the write floor measures the longest such sentence (the review of the record).
 2. **Atomic state writes.** `state.Write(name, data, perm)` writes a temp file in the same directory and renames it
-   over `name`. If the rename is refused (Windows refuses to replace a file another process has open), the temp is
-   removed and the old in-place write is used, so no platform is worse off than before. A state file its owner made
-   read-only is written in place too, so it stays refused: a rename would replace it whatever its mode, and the
-   ledger-failure fixtures of ADR-072 and ADR-102 (a `0444` ledger) rely on that refusal. All 8 sites use it.
-3. **fsync, by measurement against bars registered before measuring.** The bars were registered in the approved
-   plan (2026-09-30, `~/.claude/plans/ok-create-a-plan-whimsical-newell.md`, decision 5 and its critique) and are
-   restated here unchanged: a state file's sync is kept if it costs **≤10 ms** median per write; a staged tree
-   file's sync is kept if it adds **≤10 %** wall time to a 500-file, 5,000-hunk write (medians of 5 alternating
-   runs each, measured with the load average below the core count). Measured 2026-09-30 on the owner's Mac (APFS,
+   over `name`, and nothing writes `name` in place. A refused rename is tried again, 5 times over about 100 ms,
+   because on Windows a reader holds the file only while it reads it; a rename still refused then fails, the temp
+   is removed, and the old file stays whole. The first draft fell back to an in-place write there, and the review
+   of the record found that reopened the torn write this decision closes. A state file its owner made read-only is
+   refused: a rename would replace it whatever its mode, and the ledger-failure fixtures of ADR-072 and ADR-102 (a
+   `0444` ledger) rely on the refusal. All 8 sites use it.
+3. **fsync, by measurement where the plan registered a bar.** The approved plan (2026-09-30,
+   `~/.claude/plans/ok-create-a-plan-whimsical-newell.md`, decision 5) registered one bar before measuring: a staged
+   tree file's sync is kept if it adds **≤10 %** wall time to a 500-file, 5,000-hunk write (medians of 5 alternating
+   runs each, with the load average below the core count). For state files its critique said to sync
+   unconditionally; this record narrows that to the files that carry licences — the ledger, a legacy ledger
+   migrated into the state directory, and the MCP acknowledgement store — because a write call saves up to five
+   state files and the others are measurement or convenience. Measured 2026-09-30 on the owner's Mac (APFS,
    `File.Sync` is `F_FULLFSYNC`): a 100 KB state file's write, sync and rename took a **4.0 ms** median (40 runs,
-   twice, in the state directory) against 0.09 ms unsynced — under the bar. `state.WriteSynced` syncs before the
-   rename and is used for the two files that carry licences, the ledger and the acknowledgement store; the tally,
-   ring, pricing, working set and marker are measurement or convenience, and use `state.Write`. The tree-file
-   measurement is T3's first step, and its result decides whether staging syncs.
+   twice, in the state directory) against 0.09 ms unsynced. `state.WriteSynced` syncs before the rename. The tree
+   measurement is T3's third step (+1335 %, recorded there), so staging stays unsynced.
 4. **A failure matrix** in the README: for each stage (validation, staging, commit, undo, ledger, check, process
    death, power loss), what is on disk, what the receipt says, the exit code, and how to recover.
 
@@ -121,22 +125,26 @@ See `tasks/README.md`: T1 (left_behind), T2 (atomic state writes), T3 (fsync by 
 ## Consequences
 
 - **Positive:** a file mrw leaves in the tree is named on the receipt; a state file is never seen half-written; a
-  power loss cannot tear the ledger on a filesystem that honours sync.
-- **Negative:** each mrw call that saves the ledger pays about 4 ms on the measured machine.
+  power loss cannot leave the ledger's name pointing at unwritten data on a filesystem that honours sync.
+- **Negative:** each mrw call that saves the ledger pays about 4 ms on the measured machine; a state write behind a
+  reader that holds the file longer than about 100 ms (Windows) fails loudly instead of rewriting in place; staged
+  tree files are not synced, so a power loss right after a write can lose it (the README matrix says so).
 - **Neutral:** receipts without leftovers are unchanged; exit codes keep their meanings.
 
 ## Out of Scope
 
 - A contract row for `left_behind` (permanent: boundary: no fixture fails one removal between two steps of a single call from outside the process; T1's unit tests drive every site through `removeFn`, and the receipt tests drive each renderer)
+- A test that forces `stageFile`'s own write, close, chmod or attribute-copy failure (permanent: boundary: no fixture fails them on a file mrw just created; each returns its temp, which the call-site test proves `discard` names; the four branches are named here as uncovered)
+- Syncing the directory after a rename (permanent: boundary: a synced file's name can still be lost to a power loss until its directory is synced; the README matrix states it, and a directory sync per state write is a cost no bar was registered for)
 - A transaction journal (permanent: boundary: rejected above; each file lands by rename)
 - `internal/curve`'s writes (permanent: boundary: a measurement tool's own output tree, not mrw state)
-- Anchoring file operations to a handle (deferred: ADR-106, `docs/adr/BACKLOG.md` "Anchoring file operations to a handle")
+- Anchoring file operations to a handle (deferred: `docs/adr/BACKLOG.md` "From ADR-103": Anchoring file operations to a handle, planned as ADR-106)
 
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| a rename over a state file another process holds open fails on Windows | Med | Low | `state.Write` falls back to the in-place write; the Windows CI jobs run T2's test |
+| a rename over a state file another process holds open fails on Windows | Med | Low | `state.Write` tries the rename 5 times over about 100 ms, then fails with the old file whole; the Windows CI jobs run T2's reader case |
 | a temp state file survives a killed process | Low | Low | it sits in the state directory, outside the tree (ADR-004), named `.<file>.tmp-*` |
 | sync cost differs on another machine | Med | Low | the bar and the measurement are dated and name the machine; only two files sync |
 

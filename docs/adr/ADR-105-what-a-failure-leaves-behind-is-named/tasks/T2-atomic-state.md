@@ -12,8 +12,9 @@
 
 ## Goal
 
-`state.Write(name, data, perm)` writes a temp file beside `name` and renames it over; a refused rename removes the
-temp and writes in place. Every state write in `internal/` goes through it.
+`state.Write(name, data, perm)` writes a temp file beside `name` and renames it over, and nothing writes `name` in
+place: a refused rename is tried again, then fails with the old file whole; a read-only file is refused. Every
+state write in `internal/` goes through it.
 
 ## Affected Files
 
@@ -54,8 +55,8 @@ out=$(mktemp) \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestAStateFileIsReplacedWholeNeverRewrittenInPlace` | `internal/state/write105_test.go` | after `Write` over an existing file the name holds the new bytes and is a different file (`os.SameFile` false), with the given mode, and no temp remains; with `renameFn` refusing, the name holds the new bytes and no temp remains; a `0444` file is refused and unchanged (not as uid 0) | — | S1, S2 |
-| `TestNoStateWriteBypassesTheAtomicWriter` | `internal/state/write105_test.go` | no non-test source in `internal/seen`, `internal/authoring`, `internal/iter`, `internal/mcp`, `internal/state` calls `os.WriteFile`, except `state.Write`'s own fallback | — | S1, S3 |
+| `TestAStateFileIsReplacedWholeNeverRewrittenInPlace` | `internal/state/write105_test.go` | after `Write` over an existing file the name holds the new bytes and is a different file (`os.SameFile` false), with the given mode, and no temp remains; with `renameFn` refusing every time, `Write` fails after `renameTries` tries with the old bytes whole and no temp; behind a reader holding the file open that lets go, the write lands; a `0444` file is refused and unchanged | — | S1, S2 |
+| `TestNoStateWriteBypassesTheAtomicWriter` | `internal/state/write105_test.go` | no non-test source in `internal/seen`, `internal/authoring`, `internal/iter`, `internal/mcp`, `internal/state` calls `os.WriteFile`, `state.Write` included | — | S1, S3 |
 
 ## Reachability
 
@@ -71,6 +72,7 @@ out=$(mktemp) \
 - 2026-09-30 · 1bd8690* · mutant killed · exit 1 · `internal/state/write.go` · the fallback leaves its temp · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · covers:a refused rename falls back
 - 2026-09-30 · 1bd8690* · mutant killed · exit 1 · `internal/seen/seen.go` · seen.save writes the ledger in place again · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · covers:no state write bypasses it
 - 2026-09-30 · 1bd8690* · mutant killed · exit 1 · `internal/state/write.go` · a read-only state file is replaced · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · covers:a state file is replaced, never rewritten in place
+- 2026-09-30 · 1e77123* · mutant killed · exit 1 · `internal/state/write.go` · a refused rename writes in place again · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · covers:a refused rename falls back
 
 ## Invariants
 
@@ -79,7 +81,7 @@ out=$(mktemp) \
 
 ## Risks
 
-- A rename over a file another process holds open fails on Windows: the fallback writes in place, as before.
+- A rename over a file another process holds open fails on Windows: `Write` tries it 5 times over about 100 ms, then fails with the old file whole.
 
 ## Stop Condition
 
@@ -109,3 +111,6 @@ Stop and ask if a locked test must change to pass.
 - 2026-09-30 · 1bd8690* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · ms:0 · test-lock-sha256:67c7b3911faaed1476378dac04698451db3de70edf94a7dc8163990f71079ac0 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL3N0YXRlL3dyaXRlMTA1X3Rlc3QuZ28JVGVzdEFTdGF0ZUZpbGVJc1JlcGxhY2VkV2hvbGVOZXZlclJld3JpdHRlbkluUGxhY2UJNGI5NDBkZmQ1NzE1OGU5YTkxZWIyMWE0ZDQxYjgzZTU4ZjJkNzdjMDY1YjY5ZWQzN2YwYzM5MGRhZDAwZWQ3NApib2R5CWludGVybmFsL3N0YXRlL3dyaXRlMTA1X3Rlc3QuZ28JVGVzdE5vU3RhdGVXcml0ZUJ5cGFzc2VzVGhlQXRvbWljV3JpdGVyCTA2YzYxYjg5YjkzMWQ0MDUxYmMyM2U0NjY5N2FlM2U1N2M1YjA4M2VmODA5NDU0NzE0N2IyNDRmNjA1NGZkZTc · test-lock-kind:replace
 - 2026-09-30 · human-observed · relock 2026-09-30 reviewed: after the red run TestAStateFileIsReplacedWholeNeverRewrittenInPlace gained its read-only case, because the contract run showed four ledger-failure fixtures relied on a 0444 ledger staying refused; every earlier assertion kept; approved
 - 2026-09-30 · human-observed · S4 observed 2026-09-30: ./scripts/contract.sh run unpiped in the ADR-105 worktree, exit 0 (contract holds), with §201 printed: a write through the built binary replaced the ledger by rename (inode changed), left no temp beside it, and the next write was licensed
+- 2026-09-30 · 1e77123* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · ms:0 · test-lock-sha256:01570551912f3f8120ba750e6a9cc91b22a19b5f8355e1be94004ab13a8aa79c · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL3N0YXRlL3dyaXRlMTA1X3Rlc3QuZ28JVGVzdEFTdGF0ZUZpbGVJc1JlcGxhY2VkV2hvbGVOZXZlclJld3JpdHRlbkluUGxhY2UJZDA5MTc5ZDE2MmI1NjE5NzBmZWI3OTM3MjQwNjdhYjA2NzYzMjEwODk1MGNiNzdhYTYwOTNmZTY5NjhlYmY1OQpib2R5CWludGVybmFsL3N0YXRlL3dyaXRlMTA1X3Rlc3QuZ28JVGVzdE5vU3RhdGVXcml0ZUJ5cGFzc2VzVGhlQXRvbWljV3JpdGVyCTYyYzFmODBkZGU0MWM4NzcwOTNhM2YwNGZiMDFlNmRmZjZlYTNhN2UzYTk5MTcyMWMwNWZlOWMyNzcyYWVkZjc · test-lock-kind:replace
+- 2026-09-30 · human-observed · relock 2026-09-30 reviewed: the Codex review of the record found the in-place fallback reopened the torn write, so TestAStateFileIsReplacedWholeNeverRewrittenInPlace now expects a refused rename to fail after its tries with the old bytes whole, a reader that lets go to delay the write, and a read-only file to be refused even as uid 0; TestNoStateWriteBypassesTheAtomicWriter lost its one exception, since Write no longer calls os.WriteFile; approved
+- 2026-09-30 · 1e77123* · exit 0 · `set -o pipefail …` · acceptance-sha256:acb680f2892087e1fe13a8c98f1cda366dbf853daeb77ae674d91bdcd42173db · ms:471

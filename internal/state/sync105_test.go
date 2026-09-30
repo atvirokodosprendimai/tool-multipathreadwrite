@@ -45,4 +45,9 @@ func TestTheLicenceFilesAreSyncedBeforeTheyAreRenamed(t *testing.T) {
 			t.Errorf("%s does not write through state.WriteSynced alone", f)
 		}
 	}
+	// A legacy ledger migrated into the state directory is a licence file too
+	// (the review of the record): Migrate writes through WriteSynced.
+	if b, err := os.ReadFile("state.go"); err != nil || !strings.Contains(string(b), "WriteSynced(to, b, 0o600)") {
+		t.Errorf("Migrate does not write through WriteSynced (%v)", err)
+	}
 }

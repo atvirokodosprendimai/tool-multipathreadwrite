@@ -223,4 +223,53 @@ func TestEveryFailedCleanupIsNamedInLeftBehind(t *testing.T) {
 			t.Fatalf("err %v, LeftBehind %q, want nothing named", err, res.LeftBehind)
 		}
 	})
+
+	t.Run("a rename destination's probe that could not be removed is named", func(t *testing.T) {
+		root := t.TempDir()
+		write(t, root, "b.txt", "bee\n")
+		refuseRemove(t, func(p string) bool { return filepath.Base(p) == "x.txt" })
+		res, err := Apply(root, []Input{{Path: "b.txt", Op: "rename", Body: []string{"x.txt"}, Lines: -1, Index: 0}}, Options{Force: true})
+		if err == nil || res.Applied {
+			t.Fatalf("a probe that stayed did not abort: %v %+v", err, res)
+		}
+		if !slices.Equal(res.LeftBehind, []string{"x.txt"}) {
+			t.Fatalf("LeftBehind = %q, want the probe x.txt", res.LeftBehind)
+		}
+		leftOnDisk(t, root, res.LeftBehind)
+		if read(t, root, "b.txt") != "bee\n" {
+			t.Error("b.txt was disturbed")
+		}
+	})
+
+	t.Run("an aside the undo keeps is named and holds the file", func(t *testing.T) {
+		root := t.TempDir()
+		write(t, root, "b.txt", "bee\n")
+		write(t, root, "c.txt", "sea\n")
+		write(t, root, "d.txt", "dee\n")
+		real := commitRenameFn
+		t.Cleanup(func() { commitRenameFn = real })
+		// The last unlink fails, and the undo cannot move c.txt back to b.txt,
+		// so the aside holding the unlinked c.txt stays as a recovery file.
+		commitRenameFn = func(from, to string) error {
+			if filepath.Base(from) == "d.txt" || (filepath.Base(from) == "c.txt" && filepath.Base(to) == "b.txt") {
+				return errors.New("rename refused")
+			}
+			return real(from, to)
+		}
+		res, err := Apply(root, []Input{
+			{Path: "c.txt", Op: "unlink", Lines: -1, Index: 0},
+			{Path: "b.txt", Op: "rename", Body: []string{"c.txt"}, Lines: -1, Index: 1},
+			{Path: "d.txt", Op: "unlink", Lines: -1, Index: 2},
+		}, Options{Force: true})
+		if err == nil || !strings.Contains(err.Error(), "UNDO INCOMPLETE") {
+			t.Fatalf("the undo was not reported incomplete: %v", err)
+		}
+		if len(res.LeftBehind) != 1 || !isAside(res.LeftBehind[0]) {
+			t.Fatalf("LeftBehind = %q, want the kept aside", res.LeftBehind)
+		}
+		leftOnDisk(t, root, res.LeftBehind)
+		if got := read(t, root, res.LeftBehind[0]); got != "sea\n" {
+			t.Errorf("the kept aside holds %q, want the unlinked c.txt", got)
+		}
+	})
 }

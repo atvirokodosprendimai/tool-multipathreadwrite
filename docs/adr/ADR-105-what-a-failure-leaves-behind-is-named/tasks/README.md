@@ -22,7 +22,7 @@ README must be regenerated.
 | T1 | a failed cleanup is named in `left_behind` | done | — | `docs/adr/ADR-105-what-a-failure-leaves-behind-is-named/tasks/T1-left-behind.md` fence |
 | T2 | state files are replaced whole; contract §201 | done | — | `docs/adr/ADR-105-what-a-failure-leaves-behind-is-named/tasks/T2-atomic-state.md` fence |
 | T3 | the licence files are synced; the tree sync is measured | done | — | `docs/adr/ADR-105-what-a-failure-leaves-behind-is-named/tasks/T3-fsync-measured.md` fence |
-| T4 | the failure matrix; the BACKLOG entries closed | pending | — | `docs/adr/ADR-105-what-a-failure-leaves-behind-is-named/tasks/T4-failure-matrix.md` fence |
+| T4 | the failure matrix; the BACKLOG entries closed | done | — | `docs/adr/ADR-105-what-a-failure-leaves-behind-is-named/tasks/T4-failure-matrix.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
