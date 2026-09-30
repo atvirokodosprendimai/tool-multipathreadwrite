@@ -8081,6 +8081,23 @@ out=$(m check --full --then-sh 'sh long200.sh; exit 0' 2>&1); want 0 $? "a passi
 log=$(grep -A3 '^then 1/1' <<<"$out" | sed -n 's/^full output: //p' | head -1)
 { [ -n "$log" ] && [ -s "$log" ]; } && ok "and its receipt names the log it kept" || bad "passing step, no log named: $(head -c 300 <<<"$out")"
 
+# 201. ADR-105: a state file is replaced whole, never rewritten in place. The
+# ledger was truncated and rewritten, so a reader or a killed run could see part
+# of it — a lost licence. A write now replaces it by rename: its inode changes
+# and no temp stays beside it. The pair: the replaced ledger licenses the next
+# write.
+fixture
+m read a.go > /dev/null
+sd201=$(m seen | head -1)
+i201=$(ls -i "$sd201/seen" 2>/dev/null | awk '{print $1}')
+printf '@@ a.go 1 replace\npackage a\n' > "$R/p201.mrw"
+m write --no-check "$R/p201.mrw" > /dev/null 2>&1; want 0 $? "a write that saves the ledger exits 0"
+j201=$(ls -i "$sd201/seen" 2>/dev/null | awk '{print $1}')
+{ [ -n "$i201" ] && [ -n "$j201" ] && [ "$i201" != "$j201" ]; } && ok "and the ledger was replaced by rename (inode $i201 -> $j201)" || bad "the ledger was rewritten in place: inode '$i201' -> '$j201'"
+ls -A "$sd201" | grep -q '\.tmp-' && bad "a temp state file was left: $(ls -A "$sd201" | tr '\n' ' ')" || ok "and no temp file stays beside it"
+printf '@@ a.go 1 replace\npackage a // 201\n' > "$R/q201.mrw"
+m write --no-check "$R/q201.mrw" > /dev/null 2>&1; want 0 $? "the pair: the replaced ledger licenses the next write"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

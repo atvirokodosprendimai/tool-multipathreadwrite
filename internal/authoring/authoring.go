@@ -199,7 +199,7 @@ func save(root string, t Tally) error {
 		}
 		fmt.Fprintf(&b, "%s %d\n", k, t[k])
 	}
-	_ = os.WriteFile(p, []byte(b.String()), 0o600)
+	_ = state.Write(p, []byte(b.String()), 0o600)
 	return nil
 }
 
@@ -285,7 +285,7 @@ func recordRecent(root string, advisories int) {
 	for _, e := range entries {
 		fmt.Fprintf(&b, "%d %s %d\n", e.Unix, e.Op, e.Advisories)
 	}
-	_ = os.WriteFile(p, []byte(b.String()), 0o600)
+	_ = state.Write(p, []byte(b.String()), 0o600)
 }
 
 // recent reads the ring, oldest first. It FAILS OPEN like Load: an absent,
@@ -402,7 +402,7 @@ func recordPricing(root string, candidate, wouldRefuse bool, outcome PricingOutc
 	for _, kv := range p.lines() {
 		fmt.Fprintf(&b, "%s %d\n", kv.name, kv.n)
 	}
-	_ = os.WriteFile(path, []byte(b.String()), 0o600)
+	_ = state.Write(path, []byte(b.String()), 0o600)
 }
 
 // lines is the file order: fixed, so a diff of two pricing files reads.

@@ -166,6 +166,13 @@ type Result struct {
 	// were not there, root-relative and parents first (ADR-076). Absent when
 	// none were made, and on a dry run, which makes none.
 	DirsCreated []string `json:"dirs_created,omitempty"`
+	// LeftBehind names what this run made in the tree and did not take away,
+	// root-relative (ADR-105): a temp file or a directory whose removal
+	// failed, a probe that could not be removed, or an aside kept as a
+	// recovery file. A directory still holding something is not named —
+	// whatever is in it is named itself, or is not mrw's. Absent when nothing
+	// was left, which is every run whose cleanups succeeded.
+	LeftBehind []string `json:"left_behind,omitempty"`
 	// StrictSingleLine and StrictWouldRefuse feed ADR-056's pricing of
 	// --strict-balance and are NOT receipt fields: the balance rows already
 	// show the hunks. StrictSingleLine counts ok single-line replaces on
@@ -659,12 +666,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	discard := func(from int) {
 		var dirs []string
 		for _, sf := range staged[from:] {
-			_ = os.Remove(sf.tmp)
+			res.cleanUp(sf.tmp)
 			dirs = append(dirs, sf.dirs...)
 		}
 		sort.Slice(dirs, func(i, j int) bool { return len(dirs[i]) > len(dirs[j]) })
 		for _, d := range dirs {
-			_ = os.Remove(d)
+			res.cleanUp(d)
 		}
 	}
 	// abortStage assigns the verdicts of a staging failure: the hunks of the
@@ -761,6 +768,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// found out at commit, after the plan's other files had landed.
 		if w.file.Created {
 			if err := probeNameFn(sf.target); err != nil {
+				res.noteIfLeft(sf.target)
 				discard(0)
 				return abortStage(w.file.Path, err)
 			}
@@ -786,15 +794,19 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// filesystem rejects under a parent that did not exist answered "does
 		// not exist" at validation and would otherwise fail at commit, after
 		// the plan's other files had landed.
+		probed := false
 		if err == nil {
 			if _, lerr := os.Lstat(w.renameTo); lerr != nil && !os.IsNotExist(lerr) {
 				err = lerr
 			} else if lerr != nil {
 				// ADR-086: "does not exist" is not "can be created" — ask.
-				err = probeNameFn(w.renameTo)
+				err, probed = probeNameFn(w.renameTo), true
 			}
 		}
 		if err != nil {
+			if probed {
+				res.noteIfLeft(w.renameTo)
+			}
 			discard(0)
 			return abortStage(w.file.Path, err)
 		}
@@ -1706,7 +1718,7 @@ func probeName(target string) error {
 		return fmt.Errorf("the filesystem will not create this name: %w", err)
 	}
 	_ = f.Close()
-	if err := os.Remove(target); err != nil {
+	if err := removeFn(target); err != nil {
 		return fmt.Errorf("the probe for this name could not be removed and is left in the tree: %w", err)
 	}
 	return nil
@@ -1718,6 +1730,69 @@ func probeName(target string) error {
 // directory that becomes unwritable between staging and commit — is not one a
 // test can rely on, so the tests fail one chosen rename here instead.
 var commitRenameFn = os.Rename
+
+// removeFn is the seam every cleanup removal in this package goes through
+// (ADR-105): a staged temp, a directory staging made, a probe, an unlink's
+// placeholder and aside. A removal that fails for real — a directory made
+// unwritable, a file held open on Windows — is not one a test can rely on, so
+// the tests refuse chosen paths here instead.
+var removeFn = os.Remove
+
+// cleanUp removes p, which this run made in the tree, and names it in
+// LeftBehind when the removal failed and p is still there (ADR-105). The
+// error itself is not the verdict: a removal that reports a failure for a path
+// that is gone left nothing behind. An empty p is a staged entry that holds
+// only directories.
+func (res *Result) cleanUp(p string) {
+	if p == "" {
+		return
+	}
+	if err := removeFn(p); err != nil {
+		res.noteIfLeft(p)
+	}
+}
+
+// noteIfLeft names p in LeftBehind when it is still there. Only a path that
+// can be seen is named, so a name the filesystem refused to create is never
+// reported as left. A directory still holding something is not named: os.Remove
+// refusing a non-empty directory is the guard discard relies on, and whatever
+// is inside is either named itself or not mrw's (ADR-004).
+func (res *Result) noteIfLeft(p string) {
+	fi, err := os.Lstat(p)
+	if err != nil {
+		return
+	}
+	if fi.IsDir() {
+		if ents, err := os.ReadDir(p); err == nil && len(ents) > 0 {
+			return
+		}
+	}
+	res.LeftBehind = append(res.LeftBehind, res.rel(p))
+}
+
+// rel spells p root-relative for the receipt. Staging resolves through links,
+// so p is compared first with the resolved root, then with the root as given;
+// a path neither holds is reported as it is.
+func (res *Result) rel(p string) string {
+	for _, abs := range rootSpellings(res.Root) {
+		if r, err := filepath.Rel(abs, p); err == nil && r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator)) {
+			return r
+		}
+	}
+	return p
+}
+
+// rootSpellings is root resolved through links, then root made absolute.
+func rootSpellings(root string) []string {
+	var out []string
+	if abs, err := rooted.Abs(root); err == nil {
+		out = append(out, abs)
+	}
+	if abs, err := filepath.Abs(root); err == nil {
+		out = append(out, abs)
+	}
+	return out
+}
 
 // stageFile writes t to a temp file beside the RESOLVED target, leaving the
 // target untouched. It returns the temp file AND the resolved path to rename
@@ -1758,25 +1833,24 @@ func stageFile(path string, t text) (staged, error) {
 	if fi, err := os.Stat(path); err == nil {
 		perm = fi.Mode().Perm()
 	}
+	// A failure below hands the temp file back rather than removing it here:
+	// the caller's discard removes it and names it if it stays (ADR-105), so
+	// one place both cleans up and reports.
 	if _, err := tmp.WriteString(t.join()); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmp.Name())
-		return staged{dirs: missing}, err
+		_ = tmp.Close() //nolint:errcheck // the write already failed; discard removes the file
+		return staged{tmp: tmp.Name(), dirs: missing}, err
 	}
 	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmp.Name())
-		return staged{dirs: missing}, err
+		return staged{tmp: tmp.Name(), dirs: missing}, err
 	}
 	if err := os.Chmod(tmp.Name(), perm); err != nil {
-		_ = os.Remove(tmp.Name())
-		return staged{dirs: missing}, err
+		return staged{tmp: tmp.Name(), dirs: missing}, err
 	}
 	// ADR-076: a staged file is a new file, so the rename that commits it
 	// dropped the attributes of the one it replaces; on Windows a Hidden file
 	// came out visible. Only Windows has such attributes to carry.
 	if err := keepAttributes(path, tmp.Name()); err != nil {
-		_ = os.Remove(tmp.Name())
-		return staged{dirs: missing}, err
+		return staged{tmp: tmp.Name(), dirs: missing}, err
 	}
 	return staged{tmp: tmp.Name(), target: path, dirs: missing}, nil
 }

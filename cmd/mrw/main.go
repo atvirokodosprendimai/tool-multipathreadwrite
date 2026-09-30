@@ -2242,6 +2242,11 @@ func report(w *os.File, res apply.Result, quiet bool) {
 			}
 		}
 	}
+	// ADR-105: what the run made in the tree and did not take away. Printed
+	// even under --quiet: the caller did not ask for it to be there.
+	for _, p := range res.LeftBehind {
+		fmt.Fprintf(out, "left behind: %s\n", p)
+	}
 	if !quiet {
 		// ADR-076: the directories this plan made, parents first, spelled
 		// with the separator that names a directory.

@@ -179,10 +179,12 @@ func commitPathOps(res *Result, pathOps []pending) (string, error) {
 			a := asides[i]
 			if occupied[a.orig] {
 				left = append(left, fmt.Sprintf("%s is kept in %s, because the rename onto %s could not be undone", filepath.Base(a.orig), a.tmp, a.orig))
+				res.noteIfLeft(a.tmp)
 				continue
 			}
 			if err := commitRenameFn(a.tmp, a.orig); err != nil {
 				left = append(left, fmt.Sprintf("could not restore %s from %s: %v", a.orig, a.tmp, err))
+				res.noteIfLeft(a.tmp)
 				continue
 			}
 			drop[a.rec] = true
@@ -204,10 +206,11 @@ func commitPathOps(res *Result, pathOps []pending) (string, error) {
 		}
 		name := tmp.Name()
 		if err := tmp.Close(); err != nil {
-			_ = os.Remove(name)
+			res.cleanUp(name)
 			return err
 		}
-		if err := os.Remove(name); err != nil {
+		if err := removeFn(name); err != nil {
+			res.noteIfLeft(name)
 			return err
 		}
 		if err := commitRenameFn(w.full, name); err != nil {
@@ -281,7 +284,7 @@ func commitPathOps(res *Result, pathOps []pending) (string, error) {
 		return path, err
 	}
 	for _, a := range asides {
-		_ = os.Remove(a.tmp)
+		res.cleanUp(a.tmp)
 	}
 	return "", nil
 }

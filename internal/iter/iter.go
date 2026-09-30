@@ -132,7 +132,7 @@ func Save(root string, s Set) error {
 		b.WriteString(e)
 		b.WriteByte('\n')
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o600)
+	return state.Write(path, []byte(b.String()), 0o600)
 }
 
 // Add appends entries that are not already present and reports how many were
