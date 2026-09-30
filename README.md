@@ -211,9 +211,16 @@ same file — case-folded names, or a file and a symlink to it — are refused w
 both named.
 
 It will not write outside `--root`, even through a symlink or a Windows
-junction, will not replace a symlink, and will not
-change your line endings. Staging failures write nothing; a later rename
-failure can leave a partial tree and names the files already written. The
+junction, and not even through a directory another process swaps for a link
+while the write runs: every change after validation goes through the root, held
+open (ADR-106). It will not replace a symlink, and will not change your line
+endings. A file another process replaces or rewrites between mrw's read and the
+commit is refused by name rather than overwritten: before the first rename
+nothing is written, and later the commit stops at that file (ADR-106). Staging
+failures write nothing; a later rename failure can leave a partial tree and
+names the files already written. When two callers share a checkout, pin each
+file with `sha=` from the read header (`==> a.go … sha 1a2b3c4d`), so a plan
+written against a file the other caller has since changed is refused. The
 records are in [docs/adr/](docs/adr/).
 
 ## What a failure leaves on disk
@@ -226,7 +233,7 @@ behind: <path>` on the human receipt), on success and on failure.
 | Stage | On disk | Receipt | Exit | Recovery |
 |-------|---------|---------|------|----------|
 | validation | nothing changed | the failing hunks with reasons, the rest `skip`, NOTHING WRITTEN | 1 | fix the plan and send it again |
-| staging | nothing changed; the temp files and directories staging made are removed, and any that could not be are in `left_behind` | the unstageable file's hunks fail with the filesystem error, the rest `skip` | 2 | fix the cause (space, permissions) and send again; delete what `left_behind` names |
+| staging | nothing changed; the temp files and directories staging made are removed, and any that could not be are in `left_behind` (a temp another process moved away with its directory is at a path mrw never made, and is not named) | the unstageable file's hunks fail with the filesystem error, the rest `skip` | 2 | fix the cause (space, permissions) and send again; delete what `left_behind` names |
 | commit | the files renamed before the failure stay written (PARTIALLY APPLIED), or the undo put every one back (NOTHING WRITTEN) | `files[].written` says what landed; `error` names the step that stopped | 2 | read the written files; send only what did not land, never the whole plan again |
 | undo | an unlinked file whose path a rename still holds stays in a `.mrw-aside-*` recovery file | `UNDO INCOMPLETE` names the aside and the path it belongs at, and `left_behind` names the aside | 2 | settle what now holds that path first, then move the aside there; never move it over a file |
 | ledger | the write landed; mrw could not record it | `applied: true` with `error` naming the ledger (CLI and `mrw_write`) | 2 | read the files again before the next edit |

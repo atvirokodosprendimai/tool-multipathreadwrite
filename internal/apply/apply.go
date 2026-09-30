@@ -193,6 +193,9 @@ type pending struct {
 	unlink   bool
 	renameTo string // absolute dest; empty if not a rename
 	destRel  string // root-relative dest
+	// seen is the target as validation stat'ed it, its file ID loaded then;
+	// nil for a file the plan creates (ADR-106).
+	seen fs.FileInfo
 }
 
 // hunk is the subset of plan.Hunk this package needs. It is declared here so
@@ -465,7 +468,13 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			failed = append(failed, FileResult{Path: path})
 			continue
 		}
+		var seen fs.FileInfo
 		if info, statErr := os.Stat(full); statErr == nil {
+			// ADR-106: kept for the identity recheck before commit. On Windows
+			// os.SameFile reads a file ID lazily, by name, when it compares, so
+			// the ID is loaded now — at the moment validation read the file.
+			seen = info
+			_ = os.SameFile(info, info)
 			// ADR-073: a FIFO, a socket or a device named in a plan blocked the
 			// write in os.ReadFile below. It is refused before it is opened.
 			if !info.Mode().IsRegular() && !info.IsDir() {
@@ -562,7 +571,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		final = final.with(out)
 		fr.LinesTo = len(out)
 		fr.SHAAfter = shaOf(final)
-		writes = append(writes, pending{file: fr, out: final, full: full})
+		writes = append(writes, pending{file: fr, out: final, full: full, seen: seen})
 	}
 
 	for n, i := range in {
@@ -631,6 +640,9 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// The root as staging spells every path, so a link's target and the
 	// directories made are reported root-relative (ADR-076).
 	absRoot, absErr := rooted.Abs(root)
+	// ADR-106: every change from staging on goes through the root, held open;
+	// opened just before staging, and read by discard, which runs only after.
+	var tr *tree
 	// nameDirs records the directories staging made that are still on disk:
 	// every one after a commit, and after a failed commit those a committed
 	// file still holds, since discard has taken back the rest (Codex review
@@ -667,12 +679,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	discard := func(from int) {
 		var dirs []string
 		for _, sf := range staged[from:] {
-			res.cleanUp(sf.tmp)
+			res.cleanUp(tr, sf.tmp)
 			dirs = append(dirs, sf.dirs...)
 		}
 		sort.Slice(dirs, func(i, j int) bool { return len(dirs[i]) > len(dirs[j]) })
 		for _, d := range dirs {
-			res.cleanUp(d)
+			res.cleanUp(tr, d)
 		}
 	}
 	// abortStage assigns the verdicts of a staging failure: the hunks of the
@@ -750,8 +762,21 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		reportAddressed()
 		return res, fmt.Errorf("%s: %w", path, err)
 	}
+	if len(content)+len(pathOps) > 0 {
+		first := pathOps
+		if len(content) > 0 {
+			first = content
+		}
+		if absErr == nil {
+			tr, absErr = openTree(absRoot, root)
+		}
+		if absErr != nil {
+			return abortStage(first[0].file.Path, fmt.Errorf("the root cannot be opened: %w", absErr))
+		}
+		defer tr.close()
+	}
 	for _, w := range content {
-		sf, err := stageFileFn(w.full, w.out)
+		sf, err := stageFileFn(tr, w.full, w.out)
 		if err != nil {
 			// The FAILING stage counts too. It may have created directories
 			// before it failed — MkdirAll succeeds, then WriteString, Close or
@@ -768,8 +793,8 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// valid UTF-8 and lstat of it answers "does not exist", so a create only
 		// found out at commit, after the plan's other files had landed.
 		if w.file.Created {
-			if err := probeNameFn(sf.target); err != nil {
-				res.noteProbe(sf.target, err)
+			if err := probeNameFn(tr, sf.target); err != nil {
+				res.noteProbe(tr, sf.target, err)
 				discard(0)
 				return abortStage(w.file.Path, err)
 			}
@@ -783,30 +808,46 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// after the content entries so staged[i] still pairs with content[i] in
 	// the commit loop, and discard takes these directories back like any
 	// other staged directory.
-	for _, w := range pathOps {
+	for i := range pathOps {
+		w := &pathOps[i]
 		if w.renameTo == "" {
 			continue
 		}
-		dir := filepath.Dir(w.renameTo)
+		// ADR-106: the destination is resolved as far as it exists, parent
+		// by parent with its last component literal, so the root is handed a
+		// path with no link left in it; the rename at commit reuses it.
+		dir := rooted.RealAsFarAsItExists(filepath.Dir(w.renameTo))
+		w.renameTo = filepath.Join(dir, filepath.Base(w.renameTo))
 		sf := dirsOnly(missingDirs(dir))
-		err := os.MkdirAll(dir, 0o755)
+		err := tr.mkdirAll(dir, 0o755)
 		staged = append(staged, sf)
 		// With its parents made, the destination is asked again: a name the
 		// filesystem rejects under a parent that did not exist answered "does
 		// not exist" at validation and would otherwise fail at commit, after
 		// the plan's other files had landed.
 		if err == nil {
-			if _, lerr := os.Lstat(w.renameTo); lerr != nil && !os.IsNotExist(lerr) {
+			if _, lerr := tr.lstat(w.renameTo); lerr != nil && !os.IsNotExist(lerr) {
 				err = lerr
 			} else if lerr != nil {
 				// ADR-086: "does not exist" is not "can be created" — ask.
-				err = probeNameFn(w.renameTo)
+				err = probeNameFn(tr, w.renameTo)
 			}
 		}
 		if err != nil {
-			res.noteProbe(w.renameTo, err)
+			res.noteProbe(tr, w.renameTo, err)
 			discard(0)
 			return abortStage(w.file.Path, err)
+		}
+	}
+	// ADR-106: every existing target is checked against what validation read
+	// before the first rename, so a file another process replaced or rewrote
+	// meanwhile stops the plan with nothing written. Each is checked again
+	// just before its own rename below, which narrows the window further but
+	// can no longer undo the files already renamed (ADR-066).
+	for i, w := range content {
+		if why := changedSince(staged[i].target, w.seen); why != "" {
+			discard(0)
+			return abortStage(w.file.Path, fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why))
 		}
 	}
 	for i, w := range content {
@@ -818,13 +859,18 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// refuses the case pairs before anything is written; this catches the
 		// folds no name comparison can see (review of #228).
 		if w.file.Created {
-			if _, err := os.Stat(staged[i].target); err == nil {
+			if _, err := tr.stat(staged[i].target); err == nil {
 				discard(i)
 				err := fmt.Errorf("%s appeared before commit: another name in this plan reaches the same file, or another process created it", w.file.Path)
 				return commitFailed(w.file.Path, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
 			}
 		}
-		if err := commitRenameFn(staged[i].tmp, staged[i].target); err != nil {
+		if why := changedSince(staged[i].target, w.seen); why != "" {
+			discard(i)
+			err := fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why)
+			return commitFailed(w.file.Path, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
+		}
+		if err := commitRenameFn(tr, staged[i].tmp, staged[i].target); err != nil {
 			discard(i)
 			return commitFailed(w.file.Path, err, fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files)))
 		}
@@ -834,7 +880,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		}
 		res.Files = append(res.Files, w.file)
 	}
-	if path, err := commitPathOps(&res, pathOps); err != nil {
+	if path, err := commitPathOps(tr, &res, pathOps); err != nil {
 		// The rename directories staging made for renames that never ran
 		// (ADR-066 T1) are taken back; one a completed rename still uses is
 		// not empty, and os.Remove leaves it.
@@ -1710,13 +1756,13 @@ var probeNameFn = probeName
 // probeName asks the filesystem whether it can hold a name that does not exist
 // yet, by creating it exclusively and removing it again. lstat of a name APFS
 // refuses answers "does not exist", so only a create finds out (ADR-086).
-func probeName(target string) error {
-	f, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+func probeName(tr *tree, target string) error {
+	f, err := tr.createExcl(target, 0o600)
 	if err != nil {
 		return fmt.Errorf("the filesystem will not create this name: %w", err)
 	}
 	_ = f.Close()
-	if err := removeFn(target); err != nil {
+	if err := removeFn(tr, target); err != nil {
 		return &probeLeftError{err: err}
 	}
 	return nil
@@ -1736,10 +1782,10 @@ func (e *probeLeftError) Unwrap() error { return e.err }
 
 // noteProbe names target in LeftBehind when err says the probe mrw created
 // there could not be removed, and never otherwise.
-func (res *Result) noteProbe(target string, err error) {
+func (res *Result) noteProbe(tr *tree, target string, err error) {
 	var left *probeLeftError
 	if errors.As(err, &left) {
-		res.noteIfLeft(target)
+		res.noteIfLeft(tr, target)
 	}
 }
 
@@ -1748,31 +1794,31 @@ func (res *Result) noteProbe(target string, err error) {
 // step of the undo that follows a failure (ADR-066). A realistic trigger — a
 // directory that becomes unwritable between staging and commit — is not one a
 // test can rely on, so the tests fail one chosen rename here instead.
-var commitRenameFn = os.Rename
+var commitRenameFn = (*tree).rename
 
 // removeFn is the seam every cleanup removal in this package goes through
 // (ADR-105): a staged temp, a directory staging made, a probe, an unlink's
 // placeholder and aside. A removal that fails for real — a directory made
 // unwritable, a file held open on Windows — is not one a test can rely on, so
 // the tests refuse chosen paths here instead.
-var removeFn = os.Remove
+var removeFn = (*tree).remove
 
 // lstatFn is the seam noteIfLeft asks whether a path is still there. A path
 // whose inspection fails for a reason other than "does not exist" — a parent
 // that lost search permission — is not one a test can arrange as root.
-var lstatFn = os.Lstat
+var lstatFn = (*tree).lstat
 
 // cleanUp removes p, which this run made in the tree, and names it in
 // LeftBehind when the removal failed and p is still there (ADR-105). The
 // error itself is not the verdict: a removal that reports a failure for a path
 // that is gone left nothing behind. An empty p is a staged entry that holds
 // only directories.
-func (res *Result) cleanUp(p string) {
+func (res *Result) cleanUp(tr *tree, p string) {
 	if p == "" {
 		return
 	}
-	if err := removeFn(p); err != nil {
-		res.noteIfLeft(p)
+	if err := removeFn(tr, p); err != nil {
+		res.noteIfLeft(tr, p)
 	}
 }
 
@@ -1782,13 +1828,13 @@ func (res *Result) cleanUp(p string) {
 // directory still holding something is not named: os.Remove refusing a
 // non-empty directory is the guard discard relies on, and whatever is inside
 // is either named itself or not mrw's (ADR-004).
-func (res *Result) noteIfLeft(p string) {
-	fi, err := lstatFn(p)
+func (res *Result) noteIfLeft(tr *tree, p string) {
+	fi, err := lstatFn(tr, p)
 	if errors.Is(err, fs.ErrNotExist) {
 		return
 	}
 	if err == nil && fi.IsDir() {
-		if ents, err := os.ReadDir(p); err == nil && len(ents) > 0 {
+		if ents, err := tr.readDir(p); err == nil && len(ents) > 0 {
 			return
 		}
 	}
@@ -1832,11 +1878,12 @@ func rootSpellings(root string) []string {
 // followed rather than replaced — renaming over the link would leave the edit
 // in a new regular file while the file the caller meant stayed untouched, and
 // nothing in the receipt would say the tree's shape had changed.
-func stageFile(path string, t text) (staged, error) {
+func stageFile(tr *tree, path string, t text) (staged, error) {
 	// Through any link, as far as the path exists: an existing file resolves
 	// whole, and a file a create is about to make resolves through the
 	// directory that holds it, so a create through a linked directory is
-	// staged, and reported, where it lands (ADR-076).
+	// staged, and reported, where it lands (ADR-076). The root is then handed
+	// a path with no link left in it (ADR-106).
 	path = rooted.RealAsFarAsItExists(path)
 	dir := filepath.Dir(path)
 	// Record the directories that are about to come into existence, before
@@ -1844,40 +1891,44 @@ func stageFile(path string, t text) (staged, error) {
 	// its doing. Only these are ever removed on an abort — an ancestor that
 	// was already there is not this run's to take away.
 	missing := missingDirs(dir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := tr.mkdirAll(dir, 0o755); err != nil {
 		// It may have created part of the chain before failing, so the list
 		// goes back even here.
 		return staged{dirs: missing}, err
 	}
-	tmp, err := os.CreateTemp(dir, ".mrw-*")
+	tmp, name, err := tr.createTemp(dir, ".mrw-")
 	if err != nil {
 		return staged{dirs: missing}, err
 	}
 
 	perm := os.FileMode(0o644)
-	if fi, err := os.Stat(path); err == nil {
+	if fi, err := tr.stat(path); err == nil {
 		perm = fi.Mode().Perm()
 	}
 	// A failure below hands the temp file back rather than removing it here:
 	// the caller's discard removes it and names it if it stays (ADR-105), so
-	// one place both cleans up and reports.
+	// one place both cleans up and reports. The mode and, on Windows, the
+	// attributes are set through the open handle, never by name (ADR-106).
+	fail := func(err error) (staged, error) {
+		_ = tmp.Close() //nolint:errcheck // a step already failed; discard removes the file
+		return staged{tmp: name, dirs: missing}, err
+	}
 	if _, err := tmp.WriteString(t.join()); err != nil {
-		_ = tmp.Close() //nolint:errcheck // the write already failed; discard removes the file
-		return staged{tmp: tmp.Name(), dirs: missing}, err
+		return fail(err)
 	}
-	if err := tmp.Close(); err != nil {
-		return staged{tmp: tmp.Name(), dirs: missing}, err
-	}
-	if err := os.Chmod(tmp.Name(), perm); err != nil {
-		return staged{tmp: tmp.Name(), dirs: missing}, err
+	if err := tmp.Chmod(perm); err != nil {
+		return fail(err)
 	}
 	// ADR-076: a staged file is a new file, so the rename that commits it
 	// dropped the attributes of the one it replaces; on Windows a Hidden file
 	// came out visible. Only Windows has such attributes to carry.
-	if err := keepAttributes(path, tmp.Name()); err != nil {
-		return staged{tmp: tmp.Name(), dirs: missing}, err
+	if err := keepAttributes(tr, path, tmp); err != nil {
+		return fail(err)
 	}
-	return staged{tmp: tmp.Name(), target: path, dirs: missing}, nil
+	if err := tmp.Close(); err != nil {
+		return staged{tmp: name, dirs: missing}, err
+	}
+	return staged{tmp: name, target: path, dirs: missing}, nil
 }
 
 // staged is one file written but not yet renamed into place, and the
@@ -1914,6 +1965,30 @@ func missingDirs(dir string) []string {
 		d = parent
 	}
 	return missing
+}
+
+// changedSince says how the file at p differs from what validation stat'ed,
+// or "" when it does not, or when validation saw no file there (ADR-106). A
+// different file, size or modification time each count; an in-place rewrite
+// that keeps both size and time is not seen. It asks by the resolved name: the
+// answer only decides whether to refuse, and the rename that follows goes
+// through the root.
+func changedSince(p string, was fs.FileInfo) string {
+	if was == nil {
+		return ""
+	}
+	now, err := os.Stat(p)
+	switch {
+	case err != nil:
+		return fmt.Sprintf("it can no longer be read (%v)", err)
+	case !os.SameFile(was, now):
+		return "another file replaced it"
+	case now.Size() != was.Size():
+		return fmt.Sprintf("its size changed from %d to %d bytes", was.Size(), now.Size())
+	case !now.ModTime().Equal(was.ModTime()):
+		return "its modification time changed"
+	}
+	return ""
 }
 
 func shaOf(t text) string {

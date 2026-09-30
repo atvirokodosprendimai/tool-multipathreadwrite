@@ -74,6 +74,8 @@ go test ./internal/apply/ -count=1 -timeout 180s -run 'TestANameTheFilesystemRef
 - 2026-09-27 · 318a8c4* · exit 0 · `set -o pipefail …` · acceptance-sha256:0c4d87cdf889c4c43cb60b208d19a49052954c7974a05e4f9db455b01a59d4ec · ms:919
 - 2026-09-27 · 318a8c4* · exit 0 · `set -o pipefail …` · acceptance-sha256:0c4d87cdf889c4c43cb60b208d19a49052954c7974a05e4f9db455b01a59d4ec · ms:1159
 - 2026-09-27 · 318a8c4* · exit 0 · `set -o pipefail …` · acceptance-sha256:0c4d87cdf889c4c43cb60b208d19a49052954c7974a05e4f9db455b01a59d4ec · ms:879
+- 2026-09-30 · 321e066* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:0c4d87cdf889c4c43cb60b208d19a49052954c7974a05e4f9db455b01a59d4ec · ms:0 · test-lock-sha256:e2a4ca0924be73f8c60275994281fd71f72cdef346e1c282550216a10fcf6373 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL2FwcGx5L3Byb2JlMDg2X2Rhcndpbl90ZXN0LmdvCVRlc3RBbkFQRlNJbnZhbGlkTmFtZUlzUmVmdXNlZEJlZm9yZUFueVdyaXRlCWMyNDVmZjFhNzdmYTY1NDE2Mzc3OTg0OGFlZmVmNGU2ZDcwMzcwNDBmMzU4NTM2NTEwZmY3MTUyYjU5MDE0OTEKYm9keQlpbnRlcm5hbC9hcHBseS9wcm9iZTA4Nl90ZXN0LmdvCVRlc3RBTmFtZVRoZUZpbGVzeXN0ZW1SZWZ1c2VzV3JpdGVzTm90aGluZwlmYWNmYTAwNGMyZDk2ZDNhYjdkYmRlMTg5NTc4ZmI1NjQ3ZTdmMjE5MDBlMWM5YmY4ZjNkNjUxMjg2MmVlZThk · test-lock-kind:replace
+- 2026-09-30 · human-observed · relock 2026-09-30 reviewed: ADR-106 T2 routes the write path through an os.Root and the seams now take the tree as their first parameter (stageFileFn, commitRenameFn, removeFn, probeNameFn, lstatFn), so every override in the locked tests gained a tr *tree parameter and passes it to the real operation; no assertion changed; approved
 
 ## Mutation Log
 (empty until execute)
