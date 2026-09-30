@@ -29,6 +29,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/links"
 )
 
 // LegacyDir is the in-tree directory mrw used before ADR-004. It is still READ
@@ -159,18 +161,17 @@ func stateHome() (string, error) {
 	return filepath.Join(home, ".local", "state"), nil
 }
 
-// absReal makes root absolute and resolves symlinks, so two spellings of one
-// checkout share state rather than silently keeping two ledgers.
+// absReal makes root absolute and resolves its links — through Windows
+// junctions too, the way the boundary resolves a root (links.Real, ADR-103) —
+// so every spelling of one checkout shares one state directory and one writer
+// lock rather than silently keeping two. A root that does not exist yet still
+// deserves a stable key: Real hands it back cleaned.
 func absReal(root string) (string, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
 		return "", err
 	}
-	if real, err := filepath.EvalSymlinks(abs); err == nil {
-		return real, nil
-	}
-	// A root that does not exist yet still deserves a stable key.
-	return abs, nil
+	return links.Real(abs), nil
 }
 
 // key is a short, stable directory name for a checkout. Truncated because a

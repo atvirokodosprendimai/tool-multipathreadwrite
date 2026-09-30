@@ -462,9 +462,8 @@ func confine(root string, paths []string) error {
 	if err != nil {
 		return err
 	}
-	if real, err := filepath.EvalSymlinks(absRoot); err == nil {
-		absRoot = real
-	}
+	// Through junctions too, as rooted.Abs resolves the root it compares against (ADR-103).
+	absRoot = rooted.Real(absRoot)
 	for _, p := range paths {
 		p = strings.TrimSuffix(p, "/...")
 		// An absolute path is JOINED onto the root rather than honoured, which
@@ -637,9 +636,7 @@ func placed(root, p string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	if real, err := filepath.EvalSymlinks(absRoot); err == nil {
-		absRoot = real
-	}
+	absRoot = rooted.Real(absRoot) // as rooted.Resolve resolved full (ADR-103)
 	rel, err := filepath.Rel(absRoot, full)
 	if err != nil {
 		return "", false

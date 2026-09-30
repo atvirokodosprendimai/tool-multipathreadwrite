@@ -8038,6 +8038,17 @@ else
   jq -se 'length == 1 and (.[0] | .result.structuredContent.applied == true and (.result.structuredContent | has("error") | not))' "$WORK/p197" > /dev/null \
     && ok "the pair: with the ledger writable the receipt has no error" || bad "the pair: $(head -c 400 "$WORK/p197")"
 fi
+
+# 198. ADR-103: the filesystem root is a root. With `--root /` every path was
+# refused as outside it — the containment test asked for the prefix `//`. A file
+# beneath it, named root-relative, is served. The pair: a path that leaves a real
+# root is still refused.
+fixture
+f198="$(cd "$R" && pwd -P)/a.go"
+out=$("$MRW" --root / read "${f198#/}" 2>&1); want 0 $? "--root / read <root-relative path> exits 0"
+grep -q 'func A' <<<"$out" && ok "and serves the file" || bad "--root /: $(head -c 300 <<<"$out")"
+m read ../outside198.txt > /dev/null 2>&1; want 1 $? "the pair: a path out of a real root is still refused"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
