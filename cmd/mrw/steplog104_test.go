@@ -19,9 +19,10 @@ func TestAPassingStepNamesTheLogItKept(t *testing.T) {
 		".quality-harness.json": "{\"check\":\"exit 0\"}",
 	})
 	plan := primed(t, root)
-	// One 10,000-character line with no pipe: `head -c … /dev/zero | tr` hung
-	// on the Windows runner's Git Bash (CI, #295), and printf needs nothing.
-	step := "printf '%s\\n' " + strings.Repeat("x", 10000)
+	// One 16,384-character line built inside the shell: `head -c … /dev/zero |
+	// tr` hung on the Windows runner's Git Bash, and a 10,000-byte argument
+	// reached sh cut near 8 KB there (CI, #295).
+	step := "s=x; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do s=$s$s; done; printf '%s\\n' \"$s\""
 	out, code := writeIn(t, root, "--no-check", "--then-sh", step, plan)
 	shown := afterHead(t, out, "— PASS")
 	if code != 0 || !strings.Contains(shown, " … [") {
@@ -34,7 +35,7 @@ func TestAPassingStepNamesTheLogItKept(t *testing.T) {
 	log := strings.TrimSpace(strings.TrimPrefix(pointer, "full output: "))
 	t.Cleanup(func() { _ = os.Remove(log) })
 	b, err := os.ReadFile(log)
-	if err != nil || !strings.Contains(string(b), strings.Repeat("x", 10000)) {
+	if err != nil || !strings.Contains(string(b), strings.Repeat("x", 1<<14)) {
 		t.Errorf("the named log does not hold the whole line (%v, %d bytes)", err, len(b))
 	}
 }

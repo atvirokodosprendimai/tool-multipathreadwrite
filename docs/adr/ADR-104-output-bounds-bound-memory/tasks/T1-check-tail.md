@@ -124,3 +124,4 @@ Stop and ask if a locked test must change to pass.
 - 2026-09-30 · human-observed · S3 observed again 2026-09-30 after the review of #295: ./scripts/contract.sh exit 0 with §200's new row printed — a passing check with a 10,000-character line exits 0 and keeps its log, which the cut line's marker points at
 - 2026-09-30 · dfaebc9* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1dd3f253c04daaad76cf1c11f53b3eb3d871549c1470ca0da8e3f39751b2c3e · ms:836
 - 2026-09-30 · 30084ad* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1dd3f253c04daaad76cf1c11f53b3eb3d871549c1470ca0da8e3f39751b2c3e · ms:830
+- 2026-09-30 · 8bb2be4* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1dd3f253c04daaad76cf1c11f53b3eb3d871549c1470ca0da8e3f39751b2c3e · ms:909
