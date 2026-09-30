@@ -105,7 +105,7 @@ See `tasks/README.md`: T1 (the check tail), T2 (the MCP request), T3 (the file c
 
 - A contract row for the file and ast-grep caps (permanent: boundary: they need a file over 1 GiB or an answer over 256 MiB; each task's unit test sets the package variable small)
 - Streaming `read` (permanent: boundary: every address form works on the whole file's lines; a streaming engine is a different design)
-- `apply`'s load and the state files (permanent: boundary: a file over the cap is never licensed, and state files are written by mrw)
+- `apply`'s load and the state files (permanent: boundary: a file over the cap is never licensed, and state files are written by mrw; qualified by ADR-107 on 2026-09-30: apply read the file whole before its licence was checked, so its load is now bounded at the same limit — the state-file half stands)
 - A test for a check log that fails part-way, and for an ast-grep answer that grows after it was measured (permanent: boundary: no fixture reaches either — an I/O error mid-read, and a descendant writing after Run returned, which Windows allows for any grandchild and Unix for one that called setsid and left the group; both branches are named here as uncovered)
 
 ## Risks
