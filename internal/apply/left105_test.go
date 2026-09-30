@@ -15,11 +15,11 @@ func refuseRemove(t *testing.T, refused func(p string) bool) {
 	t.Helper()
 	real := removeFn
 	t.Cleanup(func() { removeFn = real })
-	removeFn = func(p string) error {
+	removeFn = func(tr *tree, p string) error {
 		if refused(p) {
 			return errors.New("remove refused")
 		}
-		return real(p)
+		return real(tr, p)
 	}
 }
 
@@ -30,12 +30,12 @@ func failSecondStage(t *testing.T) {
 	real := stageFileFn
 	t.Cleanup(func() { stageFileFn = real })
 	calls := 0
-	stageFileFn = func(path string, tx text) (staged, error) {
+	stageFileFn = func(tr *tree, path string, tx text) (staged, error) {
 		calls++
 		if calls == 2 {
 			return staged{}, errors.New("staging refused")
 		}
-		return real(path, tx)
+		return real(tr, path, tx)
 	}
 }
 
@@ -99,8 +99,8 @@ func TestEveryFailedCleanupIsNamedInLeftBehind(t *testing.T) {
 		root, in := two(t)
 		real := stageFileFn
 		t.Cleanup(func() { stageFileFn = real })
-		stageFileFn = func(path string, tx text) (staged, error) {
-			sf, err := real(path, tx)
+		stageFileFn = func(tr *tree, path string, tx text) (staged, error) {
+			sf, err := real(tr, path, tx)
 			if err != nil {
 				return sf, err
 			}
@@ -124,7 +124,7 @@ func TestEveryFailedCleanupIsNamedInLeftBehind(t *testing.T) {
 		real := stageFileFn
 		t.Cleanup(func() { stageFileFn = real })
 		calls := 0
-		stageFileFn = func(path string, tx text) (staged, error) {
+		stageFileFn = func(tr *tree, path string, tx text) (staged, error) {
 			calls++
 			if calls == 2 {
 				// Something else puts a file into newdir while the plan stages.
@@ -133,7 +133,7 @@ func TestEveryFailedCleanupIsNamedInLeftBehind(t *testing.T) {
 				}
 				return staged{}, errors.New("staging refused")
 			}
-			return real(path, tx)
+			return real(tr, path, tx)
 		}
 		refuseRemove(t, func(p string) bool { return filepath.Base(p) == "deep" })
 		res, err := Apply(root, in, Options{Force: true})
@@ -155,16 +155,16 @@ func TestEveryFailedCleanupIsNamedInLeftBehind(t *testing.T) {
 		refuseRemove(t, isAside)
 		calls := 0
 		real := removeFn
-		removeFn = func(p string) error {
+		removeFn = func(tr *tree, p string) error {
 			// The placeholder's own removal, before the commit rename, is let
 			// through; the final removal of the aside is refused.
 			if isAside(p) {
 				calls++
 				if calls == 1 {
-					return os.Remove(p)
+					return tr.remove(p)
 				}
 			}
-			return real(p)
+			return real(tr, p)
 		}
 		res, err := Apply(root, []Input{{Path: "gone.txt", Op: "unlink", Lines: -1, Index: 0}}, Options{Force: true})
 		if err != nil || !res.Applied {
@@ -214,8 +214,8 @@ func TestEveryFailedCleanupIsNamedInLeftBehind(t *testing.T) {
 		failSecondStage(t)
 		real := removeFn
 		t.Cleanup(func() { removeFn = real })
-		removeFn = func(p string) error {
-			_ = os.Remove(p)
+		removeFn = func(tr *tree, p string) error {
+			_ = tr.remove(p)
 			return errors.New("reported failure, but the path is gone")
 		}
 		res, err := Apply(root, in, Options{Force: true})
@@ -250,11 +250,11 @@ func TestEveryFailedCleanupIsNamedInLeftBehind(t *testing.T) {
 		t.Cleanup(func() { commitRenameFn = real })
 		// The last unlink fails, and the undo cannot move c.txt back to b.txt,
 		// so the aside holding the unlinked c.txt stays as a recovery file.
-		commitRenameFn = func(from, to string) error {
+		commitRenameFn = func(tr *tree, from, to string) error {
 			if filepath.Base(from) == "d.txt" || (filepath.Base(from) == "c.txt" && filepath.Base(to) == "b.txt") {
 				return errors.New("rename refused")
 			}
-			return real(from, to)
+			return real(tr, from, to)
 		}
 		res, err := Apply(root, []Input{
 			{Path: "c.txt", Op: "unlink", Lines: -1, Index: 0},
@@ -279,11 +279,11 @@ func TestEveryFailedCleanupIsNamedInLeftBehind(t *testing.T) {
 		t.Cleanup(func() { probeNameFn = real })
 		// Another process creates the name between validation and the probe,
 		// so the exclusive create fails and mrw made nothing there.
-		probeNameFn = func(target string) error {
+		probeNameFn = func(tr *tree, target string) error {
 			if err := os.WriteFile(target, []byte("foreign\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			return real(target)
+			return real(tr, target)
 		}
 		res, err := Apply(root, []Input{{Path: "new.txt", Op: "create", Body: []string{"n"}, Lines: -1, Index: 0}}, Options{Force: true})
 		if err == nil || res.Applied {
@@ -303,11 +303,11 @@ func TestEveryFailedCleanupIsNamedInLeftBehind(t *testing.T) {
 		refuseRemove(t, isTemp)
 		real := lstatFn
 		t.Cleanup(func() { lstatFn = real })
-		lstatFn = func(p string) (os.FileInfo, error) {
+		lstatFn = func(tr *tree, p string) (os.FileInfo, error) {
 			if isTemp(p) {
 				return nil, &os.PathError{Op: "lstat", Path: p, Err: errors.New("permission denied")}
 			}
-			return real(p)
+			return real(tr, p)
 		}
 		res, err := Apply(root, in, Options{Force: true})
 		if err == nil || len(res.LeftBehind) != 1 || !isTemp(res.LeftBehind[0]) {

@@ -982,12 +982,12 @@ func TestAFailedStageLeavesTheTreeUntouched(t *testing.T) {
 	real := stageFileFn
 	t.Cleanup(func() { stageFileFn = real })
 	calls := 0
-	stageFileFn = func(path string, tx text) (staged, error) {
+	stageFileFn = func(tr *tree, path string, tx text) (staged, error) {
 		calls++
 		if calls == 2 {
 			return staged{}, errors.New("staging refused")
 		}
-		return real(path, tx)
+		return real(tr, path, tx)
 	}
 
 	res, err := Apply(root, []Input{
@@ -1067,12 +1067,12 @@ func TestAnAbortedStageTakesBackOnlyTheDirectoriesItMade(t *testing.T) {
 	real := stageFileFn
 	t.Cleanup(func() { stageFileFn = real })
 	calls := 0
-	stageFileFn = func(path string, tx text) (staged, error) {
+	stageFileFn = func(tr *tree, path string, tx text) (staged, error) {
 		calls++
 		if calls == 3 {
 			return staged{}, errors.New("staging refused")
 		}
-		return real(path, tx)
+		return real(tr, path, tx)
 	}
 
 	res, err := Apply(root, []Input{
@@ -1119,7 +1119,7 @@ func TestAStageThatFailsAfterMakingDirectoriesGivesThemBack(t *testing.T) {
 
 	real := stageFileFn
 	t.Cleanup(func() { stageFileFn = real })
-	stageFileFn = func(path string, tx text) (staged, error) {
+	stageFileFn = func(tr *tree, path string, tx text) (staged, error) {
 		// Stand in for ENOSPC: the directories exist, nothing else does.
 		dir := filepath.Join(root, "half", "made")
 		if err := os.MkdirAll(dir, 0o755); err != nil {

@@ -2396,7 +2396,7 @@ at the boundary, and a discovered one is dropped.
 
 ## From ADR-103 (one checkout, one identity; and the filesystem root is a root)
 
-- **Anchoring file operations to a handle** (ADR-103 Out of Scope; the 2026-09-30 Codex design review, finding
+- **Anchoring file operations to a handle** — **Closed** by ADR-106 (the write path through `os.Root`, and an identity recheck before each commit rename, 2026-09-30) (ADR-103 Out of Scope; the 2026-09-30 Codex design review, finding
   3). `rooted.Resolve` validates a path and returns it; read, stage, commit and path ops reopen it by name, so a
   link swapped in between can redirect them. Planned as ADR-106 (`~/.claude/plans/ok-create-a-plan-whimsical-newell.md`):
   the write path through an `os.Root` handed the resolved path, and a pre-commit identity recheck.

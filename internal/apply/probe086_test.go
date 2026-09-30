@@ -17,11 +17,11 @@ import (
 func TestANameTheFilesystemRefusesWritesNothing(t *testing.T) {
 	real := probeNameFn
 	t.Cleanup(func() { probeNameFn = real })
-	probeNameFn = func(p string) error {
+	probeNameFn = func(tr *tree, p string) error {
 		if strings.HasSuffix(p, "refused.txt") {
 			return errors.New("illegal byte sequence")
 		}
-		return real(p)
+		return real(tr, p)
 	}
 	for _, tc := range []struct {
 		name string

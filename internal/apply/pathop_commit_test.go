@@ -136,11 +136,11 @@ func failRenames(t *testing.T, match func(oldpath, newpath string) bool) {
 	t.Helper()
 	real := commitRenameFn
 	t.Cleanup(func() { commitRenameFn = real })
-	commitRenameFn = func(oldpath, newpath string) error {
+	commitRenameFn = func(tr *tree, oldpath, newpath string) error {
 		if match(oldpath, newpath) {
 			return errors.New("injected rename failure")
 		}
-		return real(oldpath, newpath)
+		return real(tr, oldpath, newpath)
 	}
 }
 
@@ -409,7 +409,7 @@ func TestAStagingFailureLeavesNoWriteDetailOnTheFailedHunk(t *testing.T) {
 	write(t, root, "a.go", "x\ny\nz\n")
 	real := stageFileFn
 	t.Cleanup(func() { stageFileFn = real })
-	stageFileFn = func(string, text) (staged, error) { return staged{}, errors.New("staging refused") }
+	stageFileFn = func(*tree, string, text) (staged, error) { return staged{}, errors.New("staging refused") }
 	res, err := Apply(root, []Input{
 		{Path: "a.go", Start: 1, End: 1, Op: "replace", Body: []string{"{"}, Lines: -1, Index: 0},
 	}, Options{EchoPad: 1})

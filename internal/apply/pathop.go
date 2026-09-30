@@ -134,21 +134,35 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 }
 
 // aside is an unlinked file moved beside its path until the plan commits, so a
-// later failure can put it back. rec is its record's index in res.Files.
+// later failure can put it back. rec is its record's index in res.Files; key is
+// its path as the plan names it.
 type aside struct {
 	tmp  string
 	orig string
+	key  string
 	rec  int
 }
 
 // moved is a rename that completed, kept so a later failure can undo it. recs
-// are the indices of its source and destination records in res.Files.
+// are the indices of its source and destination records in res.Files; key is
+// the destination as the plan names it. The undo matches an aside to a rename
+// by key, never by resolved path: the two are resolved at different moments,
+// and a parent swapped between them spells one path two ways (the Codex review
+// of #300).
 type moved struct {
 	from, to string
+	key      string
 	recs     [2]int
 }
 
-func commitPathOps(res *Result, pathOps []pending) (string, error) {
+// resolvedAt is p with its parent resolved through every link as far as it
+// exists and its last component literal: the spelling the root is handed for
+// an unlink or a rename, which acts on that entry itself (ADR-106).
+func resolvedAt(p string) string {
+	return filepath.Join(rooted.RealAsFarAsItExists(filepath.Dir(p)), filepath.Base(p))
+}
+
+func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 	var asides []aside
 	var renames []moved
 	// undo puts the plan's unlinks and renames back after a failure, as a
@@ -168,8 +182,8 @@ func commitPathOps(res *Result, pathOps []pending) (string, error) {
 		var left []string
 		for i := len(renames) - 1; i >= 0; i-- {
 			r := renames[i]
-			if err := commitRenameFn(r.to, r.from); err != nil {
-				occupied[r.to] = true
+			if err := commitRenameFn(tr, r.to, r.from); err != nil {
+				occupied[r.key] = true
 				left = append(left, fmt.Sprintf("could not move %s back to %s: %v", r.to, r.from, err))
 				continue
 			}
@@ -177,14 +191,14 @@ func commitPathOps(res *Result, pathOps []pending) (string, error) {
 		}
 		for i := len(asides) - 1; i >= 0; i-- {
 			a := asides[i]
-			if occupied[a.orig] {
+			if occupied[a.key] {
 				left = append(left, fmt.Sprintf("%s is kept in %s, because the rename onto %s could not be undone", filepath.Base(a.orig), a.tmp, a.orig))
-				res.noteIfLeft(a.tmp)
+				res.noteIfLeft(tr, a.tmp)
 				continue
 			}
-			if err := commitRenameFn(a.tmp, a.orig); err != nil {
+			if err := commitRenameFn(tr, a.tmp, a.orig); err != nil {
 				left = append(left, fmt.Sprintf("could not restore %s from %s: %v", a.orig, a.tmp, err))
-				res.noteIfLeft(a.tmp)
+				res.noteIfLeft(tr, a.tmp)
 				continue
 			}
 			drop[a.rec] = true
@@ -199,24 +213,23 @@ func commitPathOps(res *Result, pathOps []pending) (string, error) {
 		return strings.Join(left, "; ")
 	}
 	unlinkOne := func(w pending) error {
-		dir := filepath.Dir(w.full)
-		tmp, err := os.CreateTemp(dir, ".mrw-aside-*")
+		full := resolvedAt(w.full)
+		tmp, name, err := tr.createTemp(filepath.Dir(full), ".mrw-aside-")
 		if err != nil {
 			return err
 		}
-		name := tmp.Name()
 		if err := tmp.Close(); err != nil {
-			res.cleanUp(name)
+			res.cleanUp(tr, name)
 			return err
 		}
-		if err := removeFn(name); err != nil {
-			res.noteIfLeft(name)
+		if err := removeFn(tr, name); err != nil {
+			res.noteIfLeft(tr, name)
 			return err
 		}
-		if err := commitRenameFn(w.full, name); err != nil {
+		if err := commitRenameFn(tr, full, name); err != nil {
 			return err
 		}
-		asides = append(asides, aside{tmp: name, orig: w.full, rec: len(res.Files)})
+		asides = append(asides, aside{tmp: name, orig: full, key: w.file.Path, rec: len(res.Files)})
 		w.file.Written = true
 		w.file.Removed = true
 		w.file.LinesTo = 0
@@ -225,16 +238,19 @@ func commitPathOps(res *Result, pathOps []pending) (string, error) {
 		return nil
 	}
 	renameOne := func(w pending) error {
-		if err := os.MkdirAll(filepath.Dir(w.renameTo), 0o755); err != nil {
+		// w.renameTo was resolved at staging (apply.go); the source is
+		// resolved here, both handed to the root with no link left (ADR-106).
+		from := resolvedAt(w.full)
+		if err := tr.mkdirAll(filepath.Dir(w.renameTo), 0o755); err != nil {
 			return err
 		}
-		if _, err := os.Lstat(w.renameTo); err == nil {
+		if _, err := tr.lstat(w.renameTo); err == nil {
 			return fmt.Errorf("rename dest %s appeared before commit", w.destRel)
 		}
-		if err := commitRenameFn(w.full, w.renameTo); err != nil {
+		if err := commitRenameFn(tr, from, w.renameTo); err != nil {
 			return err
 		}
-		renames = append(renames, moved{from: w.full, to: w.renameTo, recs: [2]int{len(res.Files), len(res.Files) + 1}})
+		renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{len(res.Files), len(res.Files) + 1}})
 		w.file.Written = true
 		w.file.Removed = true
 		w.file.LinesTo = 0
@@ -284,7 +300,7 @@ func commitPathOps(res *Result, pathOps []pending) (string, error) {
 		return path, err
 	}
 	for _, a := range asides {
-		res.cleanUp(a.tmp)
+		res.cleanUp(tr, a.tmp)
 	}
 	return "", nil
 }
