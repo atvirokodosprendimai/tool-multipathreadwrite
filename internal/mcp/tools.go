@@ -947,7 +947,7 @@ func leftNote(left int) string {
 	}
 	return fmt.Sprintf(" It also left %d path(s) it made in the tree (left_behind), not listed here: "+
 		"look for .mrw-* files and empty directories beside the plan's targets, and empty files at its "+
-		"create and rename targets. A .mrw-aside-* file holds an unlinked file: move it back, do not delete it.", left)
+		"create and rename targets. A .mrw-aside-* file is an empty placeholder or an unlinked file's copy: read it, and move it back only to a path that is free.", left)
 }
 
 // writeFloor is the size of the smallest truthful thing this server can say
