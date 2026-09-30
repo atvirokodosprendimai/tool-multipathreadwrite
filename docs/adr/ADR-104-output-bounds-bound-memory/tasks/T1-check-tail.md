@@ -22,6 +22,8 @@ input under the cap.
 |------|--------|-----|
 | `internal/check/check.go` | edit | `lastLines` (`:746-759`) streams; `maxTailLineBytes` |
 | `internal/check/tail104_test.go` | add | the test below |
+| `cmd/mrw/main.go` | edit | `reportSteps`: a passing step whose tail cut a line names its kept log (the review of #295) |
+| `cmd/mrw/steplog104_test.go` | add | the test for that receipt |
 | `scripts/contract.sh` | edit | §200 |
 
 ## Ordered Steps
@@ -38,6 +40,8 @@ out=$(mktemp) \
   && go test ./internal/check/ -count=1 -timeout 300s -run 'TestTheCheckTailReadsALogInBoundedMemory|TestTheTailCountsWhatItCutAndKeepsTheLog' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestTheCheckTailReadsALogInBoundedMemory \(' "$out" \
   && grep -qE '^--- PASS: TestTheTailCountsWhatItCutAndKeepsTheLog \(' "$out" \
+  && go test ./cmd/mrw/ -count=1 -timeout 300s -run 'TestAPassingStepNamesTheLogItKept' -v 2>&1 | tee -a "$out" \
+  && grep -qE '^--- PASS: TestAPassingStepNamesTheLogItKept \(' "$out" \
   && grep -q '^# 200\. ' scripts/contract.sh \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/apply internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted \
@@ -51,6 +55,7 @@ out=$(mktemp) \
 |-----------|------|----------|--------|-------|
 | `TestTheCheckTailReadsALogInBoundedMemory` | `internal/check/tail104_test.go` | on edge inputs (empty, one empty line, no trailing newline, blank lines, CRLF, fewer lines than the tail) the result equals the old whole-file split; a 50 MB log gives the last 30 lines and the right count while allocating under 16 MB; a 1 MB line comes back as 4 KiB plus ` … [N more bytes]` | — | S1, S2 |
 | `TestTheTailCountsWhatItCutAndKeepsTheLog` | `internal/check/tail104_test.go` | (the review of #295) a line cut inside a rune counts the stray byte (`[2 more bytes]`); `tail_lines` 1<<30 on a one-line log allocates under 1 MB; a passing check whose tail cut a line keeps its log, holding the whole line | — | S2 |
+| `TestAPassingStepNamesTheLogItKept` | `cmd/mrw/steplog104_test.go` | (the second review of #295) a passing `--then-sh` step whose one line was cut prints `full output: <log>` after the cut line, and that log holds the whole line | — | S2 |
 
 ## Reachability
 
@@ -75,6 +80,7 @@ out=$(mktemp) \
 - 2026-09-30 · f2b0ee2* · mutant killed · exit 1 · `internal/check/check.go` · the marker undercounts a split rune again · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · covers:the tail keeps its meaning
 - 2026-09-30 · f2b0ee2* · mutant killed · exit 1 · `internal/lines/lines.go` · an engine package this record does not own changed · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · covers:only the owned engine packages change
 - 2026-09-30 · f2b0ee2* · mutant killed · exit 1 · `internal/check/check.go` · a passing check with a cut line deletes its log again · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · covers:the tail keeps its meaning
+- 2026-09-30 · dfaebc9* · mutant killed · exit 1 · `cmd/mrw/main.go` · a passing step whose tail cut a line names no log (the second review of #295) · acceptance-sha256:a1dd3f253c04daaad76cf1c11f53b3eb3d871549c1470ca0da8e3f39751b2c3e
 
 ## Invariants
 
@@ -116,3 +122,4 @@ Stop and ask if a locked test must change to pass.
 - 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · ms:499
 - 2026-09-30 · f2b0ee2* · exit 0 · `set -o pipefail …` · acceptance-sha256:68862897f9f0accf369b8f9feac3cebb9c9d7d6217c302bb07513eff1b000e14 · ms:643
 - 2026-09-30 · human-observed · S3 observed again 2026-09-30 after the review of #295: ./scripts/contract.sh exit 0 with §200's new row printed — a passing check with a 10,000-character line exits 0 and keeps its log, which the cut line's marker points at
+- 2026-09-30 · dfaebc9* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1dd3f253c04daaad76cf1c11f53b3eb3d871549c1470ca0da8e3f39751b2c3e · ms:836

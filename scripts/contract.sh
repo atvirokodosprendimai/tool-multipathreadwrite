@@ -8076,6 +8076,10 @@ printf '{"check":"sh long200.sh; exit 0"}\n' > "$R/.quality-harness.json"
 m check --json --full > "$WORK/k200" 2> /dev/null; want 0 $? "a passing check with a 10,000-character line exits 0"
 jq -se 'length == 1 and (.[0].output_file | length > 0)' "$WORK/k200" > /dev/null && [ -s "$(jq -r .output_file "$WORK/k200")" ] \
   && ok "and keeps its log, which the cut line's marker points at" || bad "passing long line: $(head -c 300 "$WORK/k200")"
+printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
+out=$(m check --full --then-sh 'sh long200.sh; exit 0' 2>&1); want 0 $? "a passing step with a 10,000-character line exits 0"
+log=$(grep -A3 '^then 1/1' <<<"$out" | sed -n 's/^full output: //p' | head -1)
+{ [ -n "$log" ] && [ -s "$log" ]; } && ok "and its receipt names the log it kept" || bad "passing step, no log named: $(head -c 300 <<<"$out")"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
