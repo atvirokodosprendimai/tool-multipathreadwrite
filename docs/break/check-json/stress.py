@@ -17,10 +17,15 @@ Invariants, checked on every run:
   I8 without --json stdout never holds a JSON error document
   I9 a run that answered with an error document ran no check (the marker the check touches is absent)
 """
-import concurrent.futures as cf, json, os, random, shutil, subprocess, sys, tempfile
+import concurrent.futures as cf, json, os, random, re, shutil, subprocess, sys, tempfile
 
 MRW = os.environ.get("MRW") or shutil.which("mrw")
 WORK = tempfile.mkdtemp(prefix="stress134-")
+# The harness's own temp directory, handed to every child as TMPDIR unless a case overrides it: a
+# failed check's log, and the 7-day prune mrw runs over its temp directory (ADR-080), stay in WORK and
+# go with it — never the host's temp directory, where the prune would reach other runs' logs.
+TMP = os.path.join(WORK, "tmp")
+os.makedirs(TMP)
 SEED = int(os.environ.get("SEED", "1340"))
 N = int(os.environ.get("N", "600"))
 violations, counts, COV = [], {}, {}
@@ -47,6 +52,7 @@ def tree(kind):
 def base_env(state, extra=None):
     env = {k: v for k, v in os.environ.items() if k not in ("MRW_STEP_DEPTH",)}
     env["XDG_STATE_HOME"] = state
+    env["TMPDIR"] = TMP
     env.update(extra or {})
     return env
 
@@ -80,13 +86,11 @@ def preparse(err):
 
 
 def depth_int(v):
-    """strconv.Atoi on a 64-bit build: no spaces, optional sign, int64 range; otherwise 0 (ADR-095 D3)."""
-    if v is None or v != v.strip() or v == "":
+    """strconv.Atoi on a 64-bit build: ASCII digits with an optional sign, int64 range; else 0 (ADR-095 D3).
+    Python's int() also takes spaces, underscores and non-ASCII digits, which Atoi refuses."""
+    if v is None or not re.fullmatch(r"[+-]?[0-9]+", v):
         return 0
-    try:
-        n = int(v, 10)
-    except ValueError:
-        return 0
+    n = int(v, 10)
     if n < 0 or n > 2**63 - 1:
         return 0
     return n
@@ -108,7 +112,7 @@ def results_in(o):
     return out
 
 
-def judge(suite, argv, cwd, env, code, out, err, marker=None):
+def judge(suite, argv, cwd, env, code, out, err, marker=None, want_error=False):
     counts[suite] = counts.get(suite, 0) + 1
     bad = []
     json_flag = "--json" in (argv[:argv.index("--")] if "--" in argv else argv)
@@ -134,6 +138,23 @@ def judge(suite, argv, cwd, env, code, out, err, marker=None):
                     bad.append(f"I4 {where} ran false with exit_code {r.get('exit_code')}")
                 if r.get("exit_code") == 0 and r.get("ran") is not True:
                     bad.append(f"I4 {where} exit_code 0 without ran true")
+            # A result must carry both fields: one missing is read as its zero value (review of #292).
+            if isinstance(o, dict):
+                parts = []
+                if argv[:1] == ["check"] and "error" not in o:
+                    parts.append(("check receipt", o))
+                if isinstance(o.get("check"), dict):
+                    parts.append(("write.check", o["check"]))
+                parts += [("step", s) for s in ((o.get("then") or {}).get("steps") or []) if isinstance(s, dict)]
+                for where, r in parts:
+                    missing = {"ran", "exit_code"} - set(r)
+                    if missing:
+                        bad.append(f"I4 {where} missing {sorted(missing)}")
+    # A case that must refuse must say why: an empty object is not a refusal (review of #292).
+    if want_error and json_flag and not pre and code != "TIMEOUT":
+        o = ds[0] if ds and len(ds) == 1 and isinstance(ds[0], dict) else {}
+        if not (isinstance(o.get("error"), str) and o["error"]):
+            bad.append("I3 a certain refusal printed no error document")
     if json_flag and code == 2 and not pre:
         if ds is None or len(ds) != 1:
             bad.append(f"I5 --json exit 2 printed {0 if not ds else len(ds)} documents")
@@ -166,12 +187,12 @@ def judge(suite, argv, cwd, env, code, out, err, marker=None):
                            "exit": code, "stdout": out[:300], "stderr": err[:300]})
 
 
-def c(suite, t, argv, env, cwd=None):
+def c(suite, t, argv, env, cwd=None, want_error=False):
     m = os.path.join(t, "ran.marker")
     if os.path.exists(m):
         os.remove(m)
     code, out, err = run(["-C", t] + argv, cwd or t, env)
-    judge(suite, argv, t, env, code, out, err, m)
+    judge(suite, argv, t, env, code, out, err, m, want_error)
     return code, out, err
 
 
@@ -194,8 +215,8 @@ def targeted():
             c("t.working-set", t, ["check"] + j, env)
             for pth in paths:
                 args = pth.split(" ", 1) if pth.startswith("-- ") else [pth]
-                c("t.path", t, ["check"] + j + args, env)
-                c("t.full-path", t, ["check"] + j + ["--full"] + args, env)
+                c("t.path", t, ["check"] + j + args, env, want_error=pth in ("x.go ", " x.go", "x.go\t", "../outside", "/etc"))
+                c("t.full-path", t, ["check"] + j + ["--full"] + args, env, want_error=True)
             c("t.full-many", t, ["check"] + j + ["--full", "a.txt", "x.go", "../outside"], env)
             c("t.then-bad", t, ["check"] + j + ["--full", "--then", "nope"], env)
             c("t.then-placeholder", t, ["check"] + j + ["--full", "--then-sh", "echo {files}"], env)
@@ -205,9 +226,9 @@ def targeted():
             c("t.preparse-subcmd", t, ["check"] + j + ["--read"], env)
             for dv in ("7", "8", "9", "08", "+8", " 8", "-1", "abc", "99999999999999999999", ""):
                 e2 = dict(env, MRW_STEP_DEPTH=dv)
-                c("t.depth", t, ["check"] + j + ["--full", "x.go"], e2)
-                c("t.depth", t, ["check"] + j + ["x.go "], e2)
-                c("t.depth", t, ["check"] + j + ["--full"], e2)
+                c("t.depth", t, ["check"] + j + ["--full", "x.go"], e2, want_error=True)
+                c("t.depth", t, ["check"] + j + ["x.go "], e2, want_error=True)
+                c("t.depth", t, ["check"] + j + ["--full"], e2, want_error=depth_int(dv) >= 8)
             gone = os.path.join(WORK, "gone-" + k)
             c("t.tmp-gone", t, ["check"] + j + ["--full"], dict(env, TMPDIR=gone))
             c("t.tmp-gone-steps", t, ["check"] + j + ["--full", "--then-sh", "true"], dict(env, TMPDIR=gone))
@@ -226,8 +247,10 @@ def targeted():
     t = tempfile.mkdtemp(dir=WORK, prefix="steplog-")
     td = tempfile.mkdtemp(dir=WORK, prefix="td-")
     open(os.path.join(t, ".quality-harness.json"), "w").write(json.dumps({"check": 'chmod 555 "$TMPDIR"', "steps": {"a": "true"}}))
-    code, out, err = c("t.step-log", t, ["check", "--json", "--full", "--then", "a"], dict(env, TMPDIR=td))
-    os.chmod(td, 0o755)
+    try:
+        code, out, err = c("t.step-log", t, ["check", "--json", "--full", "--then", "a"], dict(env, TMPDIR=td))
+    finally:
+        os.chmod(td, 0o755)
     ds = docs(out) or [{}]
     steps = ((ds[0] or {}).get("then") or {}).get("steps") or []
     if not steps or steps[0].get("exit_code") != -1 or steps[0].get("ran") is not False:
@@ -274,29 +297,33 @@ def fuzz():
 
 
 def main():
-    if not MRW:
-        print("mrw not on PATH"); sys.exit(2)
-    v = subprocess.run([MRW, "version"], capture_output=True, text=True).stdout.strip()
-    print(f"mrw {v} · work {WORK} · seed {SEED} · fuzz N={N}")
-    targeted(); concurrent(); fuzz()
-    total = sum(x for x in counts.values() if isinstance(x, int))
-    for k in sorted(counts):
-        print(f"  {k:24} {counts[k]}")
-    for k in sorted(COV, key=lambda k: -COV[k]):
-        print(f"  cov {COV[k]:6}  {k}")
-    print(f"runs {total} · violations {len(violations)}")
-    seen = set()
-    for vl in violations:
-        key = (vl["suite"], vl["violation"].split(" ")[0] + vl["violation"][:40])
-        if key in seen:
-            continue
-        seen.add(key)
-        print(json.dumps(vl)[:900])
-    if violations:
-        path = os.path.join(tempfile.gettempdir(), f"mrw-stress-violations-{SEED}.json")
-        json.dump(violations, open(path, "w"), indent=1)
-        print(f"violations written to {path}")
-    shutil.rmtree(WORK, ignore_errors=True)
+    try:
+        if not MRW:
+            print("mrw not on PATH"); sys.exit(2)
+        # Isolated like every other child: its own state, cwd and temp (review of #292).
+        v = subprocess.run([MRW, "version"], capture_output=True, text=True, cwd=WORK,
+                           env=base_env(os.path.join(WORK, "state-version"))).stdout.strip()
+        print(f"mrw {v} · work {WORK} · seed {SEED} · fuzz N={N}")
+        targeted(); concurrent(); fuzz()
+        total = sum(x for x in counts.values() if isinstance(x, int))
+        for k in sorted(counts):
+            print(f"  {k:24} {counts[k]}")
+        for k in sorted(COV, key=lambda k: -COV[k]):
+            print(f"  cov {COV[k]:6}  {k}")
+        print(f"runs {total} · violations {len(violations)}")
+        seen = set()
+        for vl in violations:
+            key = (vl["suite"], vl["violation"].split(" ")[0] + vl["violation"][:40])
+            if key in seen:
+                continue
+            seen.add(key)
+            print(json.dumps(vl)[:900])
+        if violations:
+            path = os.path.join(tempfile.gettempdir(), f"mrw-stress-violations-{SEED}.json")
+            json.dump(violations, open(path, "w"), indent=1)
+            print(f"violations written to {path}")
+    finally:
+        shutil.rmtree(WORK, ignore_errors=True)
     sys.exit(1 if violations else 0)
 
 
