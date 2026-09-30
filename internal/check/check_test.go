@@ -591,8 +591,8 @@ func TestARefusedScopeDoesNotInheritTheRootsVerdict(t *testing.T) {
 	if err == nil {
 		t.Fatalf("accepted: %+v", res)
 	}
-	if res.ExitCode != 0 || res.Ran {
-		t.Errorf("the root's failing check reached a refused scope: %+v", res)
+	if res.ExitCode != -1 || res.Ran {
+		t.Errorf("the root's failing check reached a refused scope, or the refusal carried an exit status (ADR-101: -1): %+v", res)
 	}
 }
 

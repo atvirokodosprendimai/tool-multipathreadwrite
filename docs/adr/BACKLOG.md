@@ -2376,7 +2376,7 @@ at the boundary, and a discovered one is dropped.
 - **`stats --json` state-read failures** (ADR-100 Out of Scope). `authoring.Reset` and `authoring.Load`
   errors (`statsCmd`) print only a message. `stats` reports the tally rather than a verdict a caller branches
   on. Arm with the first consumer that reads `stats --json` programmatically.
-- **`exit_code` 0 beside `"ran": false` in `check --json`'s receipt** (ADR-100 Out of Scope). When no
+- **`exit_code` 0 beside `"ran": false` in `check --json`'s receipt** — **Closed** by ADR-101 (a check with no exit status reports -1 in both receipts, 2026-09-30). (ADR-100 Out of Scope). When no
   check could run (no harness, no `go.mod`) the receipt is `{"ran": false, "skipped": …, "exit_code": 0}`
   and mrw exits 2 (probed 2026-09-30). A consumer that reads `exit_code` alone reads a pass. Omitting the
   field when nothing ran changes the receipt shape ADR-054 and ADR-092 pin; arm on the first consumer that

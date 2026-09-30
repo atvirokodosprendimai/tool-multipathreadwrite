@@ -479,8 +479,8 @@ and #73, one release apart.
   makes once its flags are parsed is one document, `{"error": …}`, with no `exit_code`, and at
   `MRW_STEP_DEPTH` 8 the depth refusal answers before any of those; a flag the parser rejects, or an
   attached flag value with edge whitespace (`--then-sh='x '`), is refused earlier, plain, with nothing on
-  stdout. When no check could run the receipt says `"ran": false`, so read `ran` before `exit_code`
-  (ADR-100).
+  stdout. When no check could run the receipt says `"ran": false` and `"exit_code": -1`, the value
+  every check or step with no exit status carries, never 0 (ADR-100, ADR-101).
 - **`mrw stats`** prints what became of the plans this checkout has been given
   — every name at zero: applied, refused because the document did not PARSE,
   parsed but failed to APPLY, written but no check could run, written and the
