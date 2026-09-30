@@ -527,7 +527,16 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			}
 			seenFiles = append(seenFiles, groupedFile{path: path, info: info, line: hs[0].SrcLine})
 		}
-		orig, existed, err := readLines(full)
+		orig, existed, err := loadFn(full)
+		// ADR-107: a file that grew past the limit after its size was taken is
+		// refused on its hunk like one that was over it then, so the receipt
+		// keeps every verdict (the Codex review of #302).
+		var over errOverLoadLimit
+		if errors.As(err, &over) {
+			refuseFile(results, path, hs, 0, fmt.Sprintf("%s: %v", path, err))
+			failed = append(failed, FileResult{Path: path})
+			continue
+		}
 		if err != nil {
 			return res, fmt.Errorf("%s: %w", path, err)
 		}
@@ -1767,7 +1776,7 @@ func readLines(path string) (t text, existed bool, err error) {
 		return text{eol: "\n"}, false, err
 	}
 	if int64(len(b)) > maxLoadBytes {
-		return text{eol: "\n"}, true, fmt.Errorf("the file grew past the %d-byte limit mrw edits while it was read", maxLoadBytes)
+		return text{eol: "\n"}, true, errOverLoadLimit{limit: maxLoadBytes}
 	}
 	if len(b) == 0 {
 		return text{eol: "\n"}, true, nil
@@ -1782,6 +1791,18 @@ func readLines(path string) (t text, existed bool, err error) {
 // limit as read's maxFileBytes (ADR-104), a variable so a test can set a
 // small one.
 var maxLoadBytes int64 = 1 << 30
+
+// errOverLoadLimit is readLines' refusal of a file that grew past
+// maxLoadBytes after validation took its size (ADR-107).
+type errOverLoadLimit struct{ limit int64 }
+
+func (e errOverLoadLimit) Error() string {
+	return fmt.Sprintf("the file grew past the %d-byte limit mrw edits while it was read", e.limit)
+}
+
+// loadFn is the seam validation reads a file through. A file that grows
+// between its stat and its read is not one a test can arrange without it.
+var loadFn = readLines
 
 // stageFileFn is the seam the staging phase is driven through. A test swaps it
 // to fail on a chosen file, because the realistic trigger — an unwritable

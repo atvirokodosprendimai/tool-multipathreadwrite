@@ -42,7 +42,7 @@ out=$(mktemp) \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestAFileOverTheEditLimitIsRefusedBeforeItIsRead` | `internal/apply/load107_test.go` | with `maxLoadBytes` set small, a plan editing a larger file fails its hunk naming the size and the limit and writes nothing; a file grown past the limit after its size was taken is refused by the bounded read; a file under the limit edits as before | — | S1, S2 |
+| `TestAFileOverTheEditLimitIsRefusedBeforeItIsRead` | `internal/apply/load107_test.go` | with `maxLoadBytes` set small, a plan editing a larger file fails its hunk naming the size and the limit and writes nothing; a file grown past the limit between its stat and its read (through `loadFn`) fails its hunk with its sibling skipped; `readLines` of a 4 MB file past the limit allocates under 256 KB; a file under the limit edits as before | — | S1, S2 |
 
 ## Reachability
 
@@ -60,6 +60,8 @@ out=$(mktemp) \
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
 - 2026-09-30 · 433ed20* · mutant killed · exit 1 · `internal/apply/apply.go` · readLines' length check removed: a file grown past the limit reads as if whole · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · covers:a file over the limit is refused before it is read
+- 2026-09-30 · 7f75ca1* · mutant killed · exit 1 · `internal/apply/apply.go` · readLines' bound removed (now asserted by allocation) · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · covers:a file over the limit is refused before it is read
+- 2026-09-30 · 7f75ca1* · mutant killed · exit 1 · `internal/apply/apply.go` · the growth refusal returned as a bare error again · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · covers:a file over the limit is refused before it is read
 
 ## Invariants
 
@@ -92,3 +94,23 @@ Stop and ask if a locked test must change to pass.
 - 2026-09-30 · 433ed20* · exit 0 · `set -o pipefail …` · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · ms:282
 - 2026-09-30 · 433ed20* · exit 0 · `set -o pipefail …` · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · ms:284
 - 2026-09-30 · human-observed · note 2026-09-30 on the survived mutant 'readLines' bound removed': without the LimitReader the length check after the read still refuses, so the outcome the test observes is the same and only the memory held differs; the length check itself has a killed mutant. The bound is kept because it is what makes the refusal cost at most limit plus one byte; approved
+- 2026-09-30 · 7f75ca1* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · ms:0 · test-lock-sha256:eb82780c68f2606e334615e927aac95f63f2eb6d1cd120e17bacb003fe2768b8 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL2FwcGx5L2xvYWQxMDdfdGVzdC5nbwlUZXN0QUZpbGVPdmVyVGhlRWRpdExpbWl0SXNSZWZ1c2VkQmVmb3JlSXRJc1JlYWQJNjA0YjFmOTg3MTE5ZTE2Y2UyY2RjMDY0MjI0N2I3NzI5OGFlOGQ0ZjljNTQ1ZWQ1N2I2N2ZjMDllNzAzMjA3NA · test-lock-kind:replace
+- 2026-09-30 · human-observed · relock 2026-09-30 reviewed: the Codex review of #302 asked for the growth refusal to keep every hunk verdict and for the read's bound to be asserted, so TestAFileOverTheEditLimitIsRefusedBeforeItIsRead gained a file grown past the limit through loadFn (its hunk failed, its sibling skipped) and an allocation bound on readLines of a 4 MB file; every earlier assertion kept; approved
+- 2026-09-30 · 7f75ca1* · exit 1 · `set -o pipefail …` · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · ms:550
+  ```
+  --- last 4 line(s) of stdout
+  === RUN   TestAFileOverTheEditLimitIsRefusedBeforeItIsRead
+  --- PASS: TestAFileOverTheEditLimitIsRefusedBeforeItIsRead (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply	0.071s
+  ```
+- 2026-09-30 · 7f75ca1* · exit 1 · `set -o pipefail …` · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · ms:413
+  ```
+  --- last 4 line(s) of stdout
+  === RUN   TestAFileOverTheEditLimitIsRefusedBeforeItIsRead
+  --- PASS: TestAFileOverTheEditLimitIsRefusedBeforeItIsRead (0.01s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply	0.074s
+  ```
+- 2026-09-30 · 7f75ca1* · exit 0 · `set -o pipefail …` · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · ms:867
+- 2026-09-30 · 7f75ca1* · exit 0 · `set -o pipefail …` · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · ms:294

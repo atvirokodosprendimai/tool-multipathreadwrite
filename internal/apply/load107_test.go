@@ -1,7 +1,9 @@
 package apply
 
 import (
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -37,5 +39,48 @@ func TestAFileOverTheEditLimitIsRefusedBeforeItIsRead(t *testing.T) {
 	res, err = Apply(root, []Input{{Path: "small.txt", Start: 1, End: 1, Op: "replace", Body: []string{"b"}, Lines: -1, Index: 0}}, Options{Force: true})
 	if err != nil || !res.Applied || read(t, root, "small.txt") != "b\n" {
 		t.Errorf("a file under the limit did not edit as before: %v %+v", err, res)
+	}
+
+	// The Codex review of #302: a file that grows past the limit between its
+	// stat and its read is refused on its hunk, with every verdict kept.
+	write(t, root, "grow.txt", "g\n")
+	real := loadFn
+	t.Cleanup(func() { loadFn = real })
+	loadFn = func(path string) (text, bool, error) {
+		if filepath.Base(path) == "grow.txt" {
+			if err := os.WriteFile(path, []byte(big), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return real(path)
+	}
+	res, err = Apply(root, []Input{
+		{Path: "grow.txt", Start: 1, End: 1, Op: "replace", Body: []string{"G"}, Lines: -1, Index: 0},
+		{Path: "small.txt", Start: 1, End: 1, Op: "replace", Body: []string{"c"}, Lines: -1, Index: 1},
+	}, Options{Force: true})
+	if g := hunkFor(t, res, "grow.txt"); err != nil || res.Applied || g.Status != StatusFailed || !strings.Contains(g.Reason, "grew past") {
+		t.Errorf("a file grown past the limit was not refused on its hunk: err %v, %+v", err, g)
+	}
+	if s := hunkFor(t, res, "small.txt"); s.Status != StatusSkipped || read(t, root, "small.txt") != "b\n" {
+		t.Errorf("the sibling was not skipped and left alone: %+v", s)
+	}
+	loadFn = real
+
+	// And the read itself is bounded: a 4 MB file past a 16-byte limit costs
+	// the limit, not the file (the Codex review of #302).
+	huge := filepath.Join(root, "huge.txt")
+	if err := os.WriteFile(huge, []byte(strings.Repeat("h", 4<<20)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	_, _, rerr := readLines(huge)
+	runtime.ReadMemStats(&after)
+	if rerr == nil {
+		t.Error("readLines read a 4 MB file past a 16-byte limit")
+	}
+	if d := after.TotalAlloc - before.TotalAlloc; d > 256<<10 {
+		t.Errorf("readLines allocated %d bytes for a file past the limit, want under 256 KB", d)
 	}
 }
