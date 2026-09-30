@@ -237,6 +237,7 @@ var writeDescriptions = map[string]string{
 	"files.renamed_to":   "The dest path of a rename, root-relative and spelled with `/`. Absent unless this file is the rename source.",
 	"files.target":       "The file a write through a symlink inside the root actually changed, root-relative and spelled with `/`, when it is not `path`. The link itself is kept (ADR-005). Absent otherwise.",
 	"dirs_created":       "The directories this plan made because a create or a rename needed them, root-relative and spelled with `/`, parents first. Absent when it made none, and on a dry run, which makes none.",
+	"left_behind":        "What this write made in the tree and did not take away, root-relative and spelled with `/`: a temp file or directory whose removal failed, a probe that could not be removed, or an aside kept as a recovery file. Absent when nothing was left. A leftover does not make an applied write fail.",
 	"files.written":      "True when this file's new content reached disk, or when an unlink/rename of this path committed. False on a dry run and on a refused plan. After a commit failure it is true only for the files that actually landed.",
 	"files.sha_before":   "The sha256 of the file before the plan was applied.",
 	"files.sha_after":    "The sha256 the file WOULD have after this plan. Computed before the write, so on a dry run or a failed plan it describes proposed content that is not on disk — `written` says which.",

@@ -73,7 +73,7 @@ func Dir(root string) (string, error) {
 	// than the orphan it prevents.
 	marker := filepath.Join(dir, "root")
 	if existing, err := os.ReadFile(marker); err != nil || strings.TrimSuffix(string(existing), "\n") != abs {
-		_ = os.WriteFile(marker, []byte(abs+"\n"), 0o600)
+		_ = Write(marker, []byte(abs+"\n"), 0o600)
 	}
 	return dir, nil
 }
@@ -132,7 +132,7 @@ func Migrate(root string) ([]string, error) {
 			release()
 			return moved, err
 		}
-		err = os.WriteFile(to, b, 0o600)
+		err = WriteSynced(to, b, 0o600)
 		release()
 		if err != nil {
 			return moved, err

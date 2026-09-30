@@ -438,8 +438,9 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   refused by name on every build, directly or through a link, since some Windows APIs still open it
   as a device (ADR-081). The receipt names what
   else a write touched: `target` when it went through a symlink,
-  `dirs_created` (`created d/` on the human receipt) for the directories it made, and a removed
-  file's former sha.
+  `dirs_created` (`created d/` on the human receipt) for the directories it made, `left_behind`
+  (`left behind: <path>`) for what it made and could not remove, and a removed file's former sha
+  (ADR-105). README "What a failure leaves on disk" says what each failure stage leaves.
 - **A path-scoped rule in `.claude/rules/` is delivered by your harness's own Read tool, and by
   none of `mrw read`, `mrw_read`, `cat` or a Write** — measured 2026-09-04 in Claude Code, issue #86.
   Here `.claude/settings.json` installs `.claude/hooks/rules-on-read.py`, a PostToolUse hook that

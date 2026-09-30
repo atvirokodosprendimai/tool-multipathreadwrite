@@ -196,7 +196,8 @@ These are gates, not a tour of the records behind them.
   refused for every op that would change it. On Windows a name the OS opens as
   a device (`NUL` always, `CON` and the rest where that Windows reserves them)
   is refused. The receipt names a symlink's `target`, the directories
-  a plan made (`dirs_created`) and a removed file's former sha.
+  a plan made (`dirs_created`), what it made and could not remove
+  (`left_behind`), and a removed file's former sha.
 - **A delete says what it removed.** Its verdict carries `removed_first` and
   `removed_last`, and a `delete` may carry a body: the lines it expects to remove,
   refused before anything is written when the count differs (ADR-008).
@@ -214,6 +215,24 @@ junction, will not replace a symlink, and will not
 change your line endings. Staging failures write nothing; a later rename
 failure can leave a partial tree and names the files already written. The
 records are in [docs/adr/](docs/adr/).
+
+## What a failure leaves on disk
+
+Each file lands by a rename, so no file is ever half-written. What a failed run
+leaves depends on where it stopped (ADR-001, ADR-066, ADR-102, ADR-105). Anything
+mrw made in the tree and could not take away is named in `left_behind` (`left
+behind: <path>` on the human receipt), on success and on failure.
+
+| Stage | On disk | Receipt | Exit | Recovery |
+|-------|---------|---------|------|----------|
+| validation | nothing changed | the failing hunks with reasons, the rest `skip`, NOTHING WRITTEN | 1 | fix the plan and send it again |
+| staging | nothing changed; the temp files and directories staging made are removed, and any that could not be are in `left_behind` | the unstageable file's hunks fail with the filesystem error, the rest `skip` | 2 | fix the cause (space, permissions) and send again; delete what `left_behind` names |
+| commit | the files renamed before the failure stay written (PARTIALLY APPLIED), or the undo put every one back (NOTHING WRITTEN) | `files[].written` says what landed; `error` names the step that stopped | 2 | read the written files; send only what did not land, never the whole plan again |
+| undo | an unlinked file whose path a rename still holds stays in a `.mrw-aside-*` recovery file | `UNDO INCOMPLETE` names the aside and the path it belongs at, and `left_behind` names the aside | 2 | settle what now holds that path first, then move the aside there; never move it over a file |
+| ledger | the write landed; mrw could not record it | `applied: true` with `error` naming the ledger (CLI and `mrw_write`) | 2 | read the files again before the next edit |
+| check | the write landed and is unverified | the check's verdict and `full output:`; a failing check that printed shows `check last:` above it | 3; 2 when no check could start | fix the code or the check; the tree is already changed |
+| process death | a run killed mid-commit can leave some files renamed and others not, `.mrw-*` temps beside them, and a `.mrw-aside-*` that is either an empty placeholder (its file is still in place) or an unlinked file's only copy; mrw's state files are whole, since each is replaced by rename | none: a killed run writes neither its undo nor a receipt | none | `git status` shows what landed; read each `.mrw-aside-*` before touching it — move a copy back only to a path that is missing, never over a file; delete the other `.mrw-*` temps; read before the next edit |
+| power loss | staged tree files are not synced (+1335 % measured, ADR-105), so a write that returned can be lost; the ledger and the acknowledgement store are synced, but a name's directory is not, so either can come back as its previous version | the one you already had | none | check the tree; a ledger that came back older only refuses edits until you read the files again |
 
 ## MCP
 

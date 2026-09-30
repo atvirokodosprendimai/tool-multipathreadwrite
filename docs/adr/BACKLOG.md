@@ -1913,7 +1913,7 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
   observed): `foldKey` (`internal/apply/apply.go`) decodes a name as runes, so `x\xfe` and `x\xff`
   both fold to U+FFFD and two creates of them are refused as one file. A false refusal, never a lost
   write. Arm on one observed plan that needs two such names.
-- **A probe left behind** (ADR-086, not observed): when a staging probe's removal fails, the empty
+- **A probe left behind** — **Closed** by ADR-105 (`left_behind` names it, 2026-09-30) (ADR-086, not observed): when a staging probe's removal fails, the empty
   file stays in the tree while the receipt says NOTHING WRITTEN; the refusal names it, but the
   receipt's written list does not. Say so on the receipt if it is ever observed.
 - **A --json receipt with a filesystem-derived invalid name** (the Codex review of #254,
@@ -1929,7 +1929,7 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
   invalid byte whose U+FFFD twin exists is served as the twin. A write to the invalid name is still
   refused by `Resolve`. The fix is to check the original spelling first, in `internal/read`. Arm on a
   Windows report.
-- **A `.mrw-aside-*` left behind.** When the final aside removal fails after a
+- **A `.mrw-aside-*` left behind.** — **Closed** by ADR-105 (`left_behind` names it, 2026-09-30). When the final aside removal fails after a
   plan that applied, the placeholder stays in the tree (ADR-004 hygiene, not a
   false receipt). Say so on the receipt if it is ever observed. The same holds
   for a staged `.mrw-*` temp file whose removal fails after a staging abort
@@ -2388,7 +2388,7 @@ at the boundary, and a discovered one is dropped.
   review's top-5 #5). `cmd/mrw/main.go` and `internal/mcp/tools.go` each prepare a plan, apply it, count it and
   render it; ADR-102 shares only the classification (`writer.MutationOf`). Arm on the next finding whose cause is
   that the two surfaces decided the same outcome differently.
-- **The cleanup errors mrw ignores, and what a failed run leaves behind** (ADR-102 Out of Scope; the 2026-09-30
+- **The cleanup errors mrw ignores, and what a failed run leaves behind** — **Closed** by ADR-105 (`left_behind`, atomic state writes, the README failure matrix, 2026-09-30) (ADR-102 Out of Scope; the 2026-09-30
   Codex design review, finding 5). `apply.go` `discard`, `stageFile`'s error paths and `pathop.go`'s aside removal
   drop a failed `os.Remove`, so a `.mrw-*` temp file or aside can remain unreported; state files are written in
   place. Planned as ADR-105 (`~/.claude/plans/ok-create-a-plan-whimsical-newell.md`): a `left_behind` receipt field,

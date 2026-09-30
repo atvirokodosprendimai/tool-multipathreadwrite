@@ -893,13 +893,15 @@ func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (
 			written++
 		}
 	}
+	// ADR-105: the structured value is gone in both branches below, and
+	// left_behind with it, so the sentence carries the count.
 	if written > 0 {
-		return errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, writer.MutationOf(res) == writer.Partial)), nil
+		return errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, writer.MutationOf(res) == writer.Partial) + leftNote(len(res.LeftBehind))), nil
 	}
 	return errorResult(fmt.Sprintf("%d of %d hunk(s) failed and nothing was written. Naming them "+
 		"takes more than the %d-byte ceiling this server advertises, so they are not listed here. "+
 		"Send fewer hunks in one plan, or use the CLI `mrw write`, which streams and has no such "+
-		"limit.", res.Failed, len(res.Hunks), MaxResultChars)), nil
+		"limit.", res.Failed, len(res.Hunks), MaxResultChars) + leftNote(len(res.LeftBehind))), nil
 }
 
 // writtenFiles is the subset of file records whose file actually changed on
@@ -936,6 +938,18 @@ func unreportableAt(c, written, hunks, failed int, partial bool) string {
 		state, written, hunks, failed, c)
 }
 
+// leftNote is the sentence a terminal receipt adds when the write left paths
+// in the tree (ADR-105): a count and where to look, never the paths, so its
+// length is bounded and the write floor can measure its worst case.
+func leftNote(left int) string {
+	if left == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" It also left %d path(s) it made in the tree (left_behind), not listed here: "+
+		"look for .mrw-* files and empty directories beside the plan's targets, and empty files at its "+
+		"create and rename targets. A .mrw-aside-* file is an empty placeholder or an unlinked file's copy: read it, and move it back only to a path that is free.", left)
+}
+
 // writeFloor is the size of the smallest truthful thing this server can say
 // about a write that has already happened, and writeFloorFits asks whether the
 // ceiling in force can carry it.
@@ -957,7 +971,7 @@ func writeFloor() int { return floorAt(MaxResultChars) }
 
 // floorAt is the write floor as it would be at ceiling c.
 func floorAt(c int) int {
-	return encodedSize(errorResult(unreportableAt(c, math.MaxInt, math.MaxInt, math.MaxInt, true)))
+	return encodedSize(errorResult(unreportableAt(c, math.MaxInt, math.MaxInt, math.MaxInt, true) + leftNote(math.MaxInt)))
 }
 
 // minWriteCeiling is the smallest ceiling at which this call's write would

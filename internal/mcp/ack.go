@@ -447,7 +447,7 @@ func savePending(root string, store map[string]pending) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(p, b, 0o644)
+	return state.WriteSynced(p, b, 0o644)
 }
 
 // currentSHA is the digest of the file as it stands, in the same form the

@@ -437,7 +437,7 @@ func save(root string, l Ledger) error {
 	for _, p := range paths {
 		fmt.Fprintf(&b, "%s  %s  %s\n", l[p].SHA, formatSpans(l[p]), p)
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o600)
+	return state.WriteSynced(path, []byte(b.String()), 0o600)
 }
 
 // SHA is the ledger's hash of a byte slice, and the one every other package
