@@ -76,8 +76,9 @@ the load and releases it before the write lock is taken.
    the ledger is per checkout, not per caller: M kept that licence on 2026-09-25 in the same plan.
    Its line addresses are then as good as its read; `anchor=` and `sha=` are how a caller pins them.
    **Qualified by ADR-106 (2026-09-30):** the sha guard catches a change made BEFORE validation read the
-   file; one made between validation and the commit is what ADR-106's identity recheck refuses, and only an
-   in-place rewrite that keeps both size and modification time still gets past both.
+   file; one made between validation and the commit to a file the plan edits is what ADR-106's two
+   identity rechecks refuse. Still unseen: a change in the instant after the second recheck, an in-place
+   rewrite that keeps both size and modification time, and a change to the source of an unlink or a rename.
 
 ## Alternatives Considered
 

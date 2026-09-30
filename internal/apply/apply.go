@@ -816,7 +816,18 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// ADR-106: the destination is resolved as far as it exists, parent
 		// by parent with its last component literal, so the root is handed a
 		// path with no link left in it; the rename at commit reuses it.
+		// A link to nothing in the destination's directory is refused, as
+		// MkdirAll refused it before: resolving it would make its target
+		// (Windows CI on #300, TestAStagingAbortKeepsAPreExistingDanglingSymlink).
+		if d := danglingLink(filepath.Dir(w.renameTo)); d != "" {
+			discard(0)
+			return abortStage(w.file.Path, fmt.Errorf("rename dest %s is under %s, a link to nothing; mrw will not make its target", w.destRel, d))
+		}
 		dir := rooted.RealAsFarAsItExists(filepath.Dir(w.renameTo))
+		if _, err := tr.rel(dir); err != nil {
+			discard(0)
+			return abortStage(w.file.Path, fmt.Errorf("rename dest %s: %w", w.destRel, err))
+		}
 		w.renameTo = filepath.Join(dir, filepath.Base(w.renameTo))
 		sf := dirsOnly(missingDirs(dir))
 		err := tr.mkdirAll(dir, 0o755)
@@ -1886,6 +1897,12 @@ func stageFile(tr *tree, path string, t text) (staged, error) {
 	// a path with no link left in it (ADR-106).
 	path = rooted.RealAsFarAsItExists(path)
 	dir := filepath.Dir(path)
+	// ADR-106: a path resolution carried out of the root is refused here, before
+	// any directory is recorded as this run's, so a refusal never names a
+	// directory outside the root as left behind (the Codex review of #300).
+	if _, err := tr.rel(dir); err != nil {
+		return staged{}, err
+	}
 	// Record the directories that are about to come into existence, before
 	// creating them, because MkdirAll cannot say afterwards which ones were
 	// its doing. Only these are ever removed on an abort — an ancestor that
@@ -1943,6 +1960,25 @@ type staged struct {
 // destination directories made during staging (ADR-066), which discard takes
 // back like any other. Its tmp is empty, and os.Remove("") is a harmless no-op.
 func dirsOnly(dirs []string) staged { return staged{dirs: dirs} }
+
+// danglingLink returns the deepest existing component of p when it is a link
+// that leads nowhere, and "" otherwise: every component above the first one
+// that exists exists too, so only that one can be such a link.
+func danglingLink(p string) string {
+	for q := p; ; q = filepath.Dir(q) {
+		if fi, err := os.Lstat(q); err == nil {
+			if fi.Mode()&(os.ModeSymlink|os.ModeIrregular) != 0 {
+				if _, err := os.Stat(q); errors.Is(err, fs.ErrNotExist) {
+					return q
+				}
+			}
+			return ""
+		}
+		if filepath.Dir(q) == q {
+			return ""
+		}
+	}
+}
 
 // missingDirs returns dir and each of its ancestors that does not exist yet,
 // nearest first. It is called BEFORE MkdirAll, which is the only moment the

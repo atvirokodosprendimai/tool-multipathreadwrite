@@ -45,8 +45,8 @@ out=$(mktemp) \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestACommitRefusesATargetThatChangedAfterValidation` | `internal/apply/identity106_test.go` | with `a.txt` replaced by a new file inside the root after it stages (through `stageFileFn`), the plan fails naming `a.txt`, the newcomer's bytes survive, and a sibling file the plan also edited is back as it was (the commit rolled back) | — | S1, S2 |
 | `TestACommitRefusesATargetThatChangedAfterValidation` | `internal/apply/identity106_test.go` | a plan editing `y.txt` then `a.txt`: with `a.txt` replaced by a new file while staging, the plan fails naming `a.txt`, writes nothing, and the newcomer survives; with `a.txt` replaced just before its own rename (through `commitRenameFn`, after `y.txt` landed), `y.txt` stays written, `a.txt` fails and keeps the newcomer; with one existing target alone, a replacement of equal size and restored modification time (identity only), an in-place rewrite of a new size (size only), and an in-place rewrite of equal size with a new modification time (time only) are each refused | — | S1, S2 |
+
 ## Reachability
 
 | Rung | How this task shows it |

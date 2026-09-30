@@ -161,7 +161,7 @@ func TestEveryFailedCleanupIsNamedInLeftBehind(t *testing.T) {
 			if isAside(p) {
 				calls++
 				if calls == 1 {
-					return os.Remove(p)
+					return tr.remove(p)
 				}
 			}
 			return real(tr, p)
@@ -215,7 +215,7 @@ func TestEveryFailedCleanupIsNamedInLeftBehind(t *testing.T) {
 		real := removeFn
 		t.Cleanup(func() { removeFn = real })
 		removeFn = func(tr *tree, p string) error {
-			_ = os.Remove(p)
+			_ = tr.remove(p)
 			return errors.New("reported failure, but the path is gone")
 		}
 		res, err := Apply(root, in, Options{Force: true})

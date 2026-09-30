@@ -80,3 +80,4 @@ Stop and ask if the README already makes a claim the code does not keep.
   ```
   ```
 - 2026-09-30 · 321e066* · exit 0 · `set -o pipefail …` · acceptance-sha256:71535c2ca8163dc867f22f382a04b44ecfd39c8025a776f3d6cce5a8b6fe53f5 · ms:39
+- 2026-09-30 · 9582cb3* · exit 0 · `set -o pipefail …` · acceptance-sha256:71535c2ca8163dc867f22f382a04b44ecfd39c8025a776f3d6cce5a8b6fe53f5 · ms:40

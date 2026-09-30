@@ -38,9 +38,11 @@ it.
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/apply/ -count=1 -timeout 300s -run 'TestAWriteThroughASwappedParentStaysInTheRoot|TestInRootLinksStayWritableThroughTheRoot' -v 2>&1 | tee "$out" \
+  && go test ./internal/apply/ -count=1 -timeout 300s -run 'TestAWriteThroughASwappedParentStaysInTheRoot|TestInRootLinksStayWritableThroughTheRoot|TestATempMovedByAnotherProcessIsNotClaimed|TestAnUndoMatchesARenameToItsAsideByThePlansPath' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestAWriteThroughASwappedParentStaysInTheRoot \(' "$out" \
   && grep -qE '^--- PASS: TestInRootLinksStayWritableThroughTheRoot \(' "$out" \
+  && grep -qE '^--- PASS: TestATempMovedByAnotherProcessIsNotClaimed \(' "$out" \
+  && grep -qE '^--- PASS: TestAnUndoMatchesARenameToItsAsideByThePlansPath \(' "$out" \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted internal/check internal/links \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/plan internal/seen internal/state internal/lines internal/iter internal/rooted internal/check internal/links)" ] \
@@ -54,6 +56,7 @@ out=$(mktemp) \
 | `TestAWriteThroughASwappedParentStaysInTheRoot` | `internal/apply/swap106_test.go` | (T1) nothing outside the root changes through a swapped parent | — | S2 |
 | `TestInRootLinksStayWritableThroughTheRoot` | `internal/apply/inroot106_test.go` | an edit through an in-root relative directory link, an edit of a file reached by an in-root absolute symlink, and an unlink and a rename beneath the directory link all apply, change the real files, and keep the links; on Windows the same through an in-root junction | — | S1, S2 |
 | `TestATempMovedByAnotherProcessIsNotClaimed` | `internal/apply/inroot106_test.go` | a staged temp whose directory another process renames away before a failed commit is not named in `left_behind`, nothing outside the root is touched, and the moved temp stays where the other process put it (the record's Out of Scope boundary) | — | S2 |
+| `TestAnUndoMatchesARenameToItsAsideByThePlansPath` | `internal/apply/swap106_test.go` | (the Codex review of #300) a plan unlinking `sub/c.txt`, renaming `b.txt` onto it and then failing, with `sub` swapped for an in-root link after staging and a refused undo of the rename, keeps the aside rather than restoring it over the renamed `b.txt` | — | S2 |
 
 ## Reachability
 
@@ -68,6 +71,15 @@ out=$(mktemp) \
 - 2026-09-30 · 321e066* · mutant killed · exit 1 · `internal/apply/pathop.go` · the unlink's rename bypasses the root · acceptance-sha256:cec4e09569da6aa7b7ee2836fef2f41fe0bb7ce67ccb62e5d2d4a70064ad8a12 · covers:a swapped parent writes nothing outside the root
 - 2026-09-30 · 321e066* · mutant killed · exit 1 · `internal/apply/pathop.go` · the commit-time destination MkdirAll bypasses the root · acceptance-sha256:cec4e09569da6aa7b7ee2836fef2f41fe0bb7ce67ccb62e5d2d4a70064ad8a12 · covers:a swapped parent writes nothing outside the root
 - 2026-09-30 · 321e066* · mutant killed · exit 1 · `internal/apply/apply.go` · the staging-time destination MkdirAll bypasses the root · acceptance-sha256:cec4e09569da6aa7b7ee2836fef2f41fe0bb7ce67ccb62e5d2d4a70064ad8a12 · covers:a swapped parent writes nothing outside the root
+- 2026-09-30 · 9582cb3* · mutant killed · exit 1 · `internal/apply/pathop.go` · the unlink's rename bypasses the root · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · covers:a swapped parent writes nothing outside the root
+- 2026-09-30 · 9582cb3* · mutant killed · exit 1 · `internal/apply/pathop.go` · the commit-time destination MkdirAll bypasses the root · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · covers:a swapped parent writes nothing outside the root
+- 2026-09-30 · 9582cb3* · mutant survived · exit 0 · `internal/apply/apply.go` · the staging-time destination MkdirAll bypasses the root · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · covers:a swapped parent writes nothing outside the root
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-30 · 9582cb3* · mutant killed · exit 1 · `internal/apply/pathop.go` · the undo matches an aside to a rename by resolved path again · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · covers:a swapped parent writes nothing outside the root
+- 2026-09-30 · 9582cb3* · mutant killed · exit 1 · `internal/apply/apply.go` · the rename destination is recorded before its containment check · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · covers:a swapped parent writes nothing outside the root
+- 2026-09-30 · 9582cb3* · mutant killed · exit 1 · `internal/apply/apply.go` · stageFile records a directory before its containment check · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · covers:a swapped parent writes nothing outside the root
 
 ## Invariants
 
@@ -161,3 +173,11 @@ Stop and ask if an in-root link or junction cannot be written through the root, 
 - 2026-09-30 · 321e066* · exit 0 · `set -o pipefail …` · acceptance-sha256:cec4e09569da6aa7b7ee2836fef2f41fe0bb7ce67ccb62e5d2d4a70064ad8a12 · ms:286
 - 2026-09-30 · 321e066* · exit 0 · `set -o pipefail …` · acceptance-sha256:cec4e09569da6aa7b7ee2836fef2f41fe0bb7ce67ccb62e5d2d4a70064ad8a12 · ms:318
 - 2026-09-30 · human-observed · S3 observed 2026-09-30: after the seam-signature change, adr-lint was run over every record in docs/adr; the moved locks were in ADR-052 T1/T2, ADR-054 T2, ADR-055 T1/T3, ADR-056 T2, ADR-066 T3, ADR-071 T2, ADR-076 T2/T3, ADR-086 T2 and ADR-105 T1, each relocked with a reviewed note naming this change; the PR lists them
+- 2026-09-30 · 9582cb3* · exit 0 · `set -o pipefail …` · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · ms:351
+- 2026-09-30 · 9582cb3* · exit 0 · `set -o pipefail …` · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · ms:324
+- 2026-09-30 · 9582cb3* · exit 0 · `set -o pipefail …` · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · ms:291
+- 2026-09-30 · 9582cb3* · exit 0 · `set -o pipefail …` · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · ms:310
+- 2026-09-30 · 9582cb3* · exit 0 · `set -o pipefail …` · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · ms:285
+- 2026-09-30 · 9582cb3* · exit 0 · `set -o pipefail …` · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · ms:312
+- 2026-09-30 · human-observed · note 2026-09-30 on the survived mutant 'the staging-time destination MkdirAll bypasses the root': since the Codex review of #300 the resolved destination directory is checked against the root (tr.rel) before it is recorded or made, so the early swap is refused there and the mutant's os.MkdirAll is never reached with an outside path; the root's MkdirAll matters only for a swap between that check and the call, which no seam can place. Declared uncovered, the check and the root both stand; approved
+- 2026-09-30 · 9582cb3* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8197a9f1474652b8ac2ebbc618f310aa37625316ef2482de9f1ee776a07cc1cf · ms:0 · test-lock-sha256:7bbde567828f090c3f2671952ee4fe5b29114dc5f04eecf7f1ca47930b9e54c2 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL2FwcGx5L2lucm9vdDEwNl90ZXN0LmdvCVRlc3RBVGVtcE1vdmVkQnlBbm90aGVyUHJvY2Vzc0lzTm90Q2xhaW1lZAlkYzc0MDg5YjhkMTgxZDA4MzVmNGRmNzE0OTFiN2RhYTU1OTg0MWMzOWViMzJlNGYwMTZjMjc4NTg4NzFjYTgxCmJvZHkJaW50ZXJuYWwvYXBwbHkvaW5yb290MTA2X3Rlc3QuZ28JVGVzdEluUm9vdExpbmtzU3RheVdyaXRhYmxlVGhyb3VnaFRoZVJvb3QJZDVjNDQ2ZWMxYmIxMjQzNGE2Njk0MWZlM2IzNTkzMWE0YmMyY2VkYTEyOTIxMzFhYTZhOWNhMWU0ODdjZDg3Mwpib2R5CWludGVybmFsL2FwcGx5L3N3YXAxMDZfdGVzdC5nbwlUZXN0QVdyaXRlVGhyb3VnaEFTd2FwcGVkUGFyZW50U3RheXNJblRoZVJvb3QJZDVlOWIyMDAzZGNiOTVmODZhYmEwYjBiZTRmZmNiODk5YmRiM2E3OTE1NTBiMWMwM2UxYjQxMzJmNTQ0ODNhMApib2R5CWludGVybmFsL2FwcGx5L3N3YXAxMDZfdGVzdC5nbwlUZXN0QW5VbmRvTWF0Y2hlc0FSZW5hbWVUb0l0c0FzaWRlQnlUaGVQbGFuc1BhdGgJMjZmYjRiMmFlMmFhMzQ3MGQ3MGFhYjZlMWFhNWE4MDNlODEyZTY3ZGUzZjQ5MmZmYjczODNlYjYxMDk4ZjczOQpib2R5CWludGVybmFsL2FwcGx5L3N3YXAxMDZfdGVzdC5nbwlhIGNyZWF0ZSB1bmRlciBhIHN3YXBwZWQgcGFyZW50CTQ4MjhkZWJjNjZhOTE0NzkyMmExMmI5MjE4NzA5MDdhYzM5NDFmMWI2ODg1ZDk5OGViMTc0ZjhkNDBlYjFiZDkKYm9keQlpbnRlcm5hbC9hcHBseS9zd2FwMTA2X3Rlc3QuZ28JYSByZW5hbWUgc3dhcHBlZCBqdXN0IGJlZm9yZSBpdHMgY29tbWl0CWIzY2IyYjk2MWQ3MjMyOWE0Yzk2ZTlmMTkxY2QxOGJmYWVhNjRkNDcyZDYwMGM5ODY0ZjJiMDg1YzY4ZmI3NmUKYm9keQlpbnRlcm5hbC9hcHBseS9zd2FwMTA2X3Rlc3QuZ28JYW4gdW5saW5rCWI4M2ZiNzQ4NDdhOGEyMjVkZDAxMTEyMmJiMmVhOTU3NTVmNDczNjkzNWNjZDQzZWVjNDRlNTI2Mzc4M2MwYmQKYm9keQlpbnRlcm5hbC9hcHBseS9zd2FwMTA2X3Rlc3QuZ28JYW4gdW5saW5rIHN3YXBwZWQganVzdCBiZWZvcmUgaXRzIHJlbmFtZQlmZTczZDNhYjBkNjJiMzU1MzkzMzYxYjhmYjEzYzU1YmRlMWU4NWYzY2E5MjgyY2NkMWRkZWZhZmY3YTE1MzY5 · test-lock-kind:replace

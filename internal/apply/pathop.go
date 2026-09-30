@@ -134,17 +134,24 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 }
 
 // aside is an unlinked file moved beside its path until the plan commits, so a
-// later failure can put it back. rec is its record's index in res.Files.
+// later failure can put it back. rec is its record's index in res.Files; key is
+// its path as the plan names it.
 type aside struct {
 	tmp  string
 	orig string
+	key  string
 	rec  int
 }
 
 // moved is a rename that completed, kept so a later failure can undo it. recs
-// are the indices of its source and destination records in res.Files.
+// are the indices of its source and destination records in res.Files; key is
+// the destination as the plan names it. The undo matches an aside to a rename
+// by key, never by resolved path: the two are resolved at different moments,
+// and a parent swapped between them spells one path two ways (the Codex review
+// of #300).
 type moved struct {
 	from, to string
+	key      string
 	recs     [2]int
 }
 
@@ -176,7 +183,7 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 		for i := len(renames) - 1; i >= 0; i-- {
 			r := renames[i]
 			if err := commitRenameFn(tr, r.to, r.from); err != nil {
-				occupied[r.to] = true
+				occupied[r.key] = true
 				left = append(left, fmt.Sprintf("could not move %s back to %s: %v", r.to, r.from, err))
 				continue
 			}
@@ -184,7 +191,7 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 		}
 		for i := len(asides) - 1; i >= 0; i-- {
 			a := asides[i]
-			if occupied[a.orig] {
+			if occupied[a.key] {
 				left = append(left, fmt.Sprintf("%s is kept in %s, because the rename onto %s could not be undone", filepath.Base(a.orig), a.tmp, a.orig))
 				res.noteIfLeft(tr, a.tmp)
 				continue
@@ -222,7 +229,7 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 		if err := commitRenameFn(tr, full, name); err != nil {
 			return err
 		}
-		asides = append(asides, aside{tmp: name, orig: full, rec: len(res.Files)})
+		asides = append(asides, aside{tmp: name, orig: full, key: w.file.Path, rec: len(res.Files)})
 		w.file.Written = true
 		w.file.Removed = true
 		w.file.LinesTo = 0
@@ -243,7 +250,7 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 		if err := commitRenameFn(tr, from, w.renameTo); err != nil {
 			return err
 		}
-		renames = append(renames, moved{from: from, to: w.renameTo, recs: [2]int{len(res.Files), len(res.Files) + 1}})
+		renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{len(res.Files), len(res.Files) + 1}})
 		w.file.Written = true
 		w.file.Removed = true
 		w.file.LinesTo = 0

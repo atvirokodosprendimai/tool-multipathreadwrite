@@ -214,9 +214,13 @@ It will not write outside `--root`, even through a symlink or a Windows
 junction, and not even through a directory another process swaps for a link
 while the write runs: every change after validation goes through the root, held
 open (ADR-106). It will not replace a symlink, and will not change your line
-endings. A file another process replaces or rewrites between mrw's read and the
-commit is refused by name rather than overwritten: before the first rename
-nothing is written, and later the commit stops at that file (ADR-106). Staging
+endings. A file a plan edits that another process replaces or rewrites after
+mrw read it is refused by name rather than overwritten, when either of two
+checks sees the change: the one before the first rename, which leaves nothing
+written, or the one just before that file's own rename, where the commit stops
+at that file (ADR-106). A change in the instant after the second check, or an
+in-place rewrite that keeps both size and modification time, is not seen; and
+the source of an unlink or a rename is not checked this way. Staging
 failures write nothing; a later rename failure can leave a partial tree and
 names the files already written. When two callers share a checkout, pin each
 file with `sha=` from the read header (`==> a.go … sha 1a2b3c4d`), so a plan
