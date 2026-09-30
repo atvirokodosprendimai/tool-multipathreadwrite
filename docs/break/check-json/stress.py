@@ -31,10 +31,16 @@ N = int(os.environ.get("N", "600"))
 violations, counts, COV = [], {}, {}
 
 
+def put(path, text):
+    """Write text to path, closing the file (the code-quality review of #292)."""
+    with open(path, "w") as fh:
+        fh.write(text)
+
+
 def tree(kind):
     d = tempfile.mkdtemp(dir=WORK, prefix=kind + "-")
-    open(os.path.join(d, "a.txt"), "w").write("a\n")
-    open(os.path.join(d, "x.go"), "w").write("package x\n")
+    put(os.path.join(d, "a.txt"), "a\n")
+    put(os.path.join(d, "x.go"), "package x\n")
     h = {
         "nocheck": None,
         "pass": {"check": "touch ran.marker", "steps": {"a": "true", "bad": "exit 1"}},
@@ -45,7 +51,7 @@ def tree(kind):
         "big": {"check": "touch ran.marker; exit 255"},
     }[kind if kind != "unreadable" else "pass"]
     if h is not None:
-        open(os.path.join(d, ".quality-harness.json"), "w").write(h if isinstance(h, str) else json.dumps(h))
+        put(os.path.join(d, ".quality-harness.json"), h if isinstance(h, str) else json.dumps(h))
     return d
 
 
@@ -205,7 +211,9 @@ def targeted():
     run(["-C", u, "iter", "add", "a.txt"], u, env)
     p = subprocess.run(["find", st, "-name", "iteration", "-type", "f"], capture_output=True, text=True).stdout.split()
     for f in p:
-        if open(os.path.join(os.path.dirname(f), "root")).read().strip() in (u, os.path.realpath(u)):
+        with open(os.path.join(os.path.dirname(f), "root")) as fh:
+            marker = fh.read().strip()
+        if marker in (u, os.path.realpath(u)):
             os.remove(f); os.mkdir(f)
     paths = ["x.go ", " x.go", "x.go\t", "../outside", "/etc", "nosuchdir", "chek.go", "a.txt", "help", "h",
              "sp ace", "ünï", "-- -x"]
@@ -233,12 +241,12 @@ def targeted():
             c("t.tmp-gone", t, ["check"] + j + ["--full"], dict(env, TMPDIR=gone))
             c("t.tmp-gone-steps", t, ["check"] + j + ["--full", "--then-sh", "true"], dict(env, TMPDIR=gone))
             f = os.path.join(WORK, "tmpfile-" + k)
-            open(f, "w").close()
+            put(f, "")
             c("t.tmp-is-file", t, ["check"] + j + ["--full"], dict(env, TMPDIR=f))
     # write --check --json in each tree: read, then a plan resolved from cwd
     for k, t in trees.items():
         run(["-C", t, "read", "a.txt"], t, env)
-        open(os.path.join(t, "p.mrw"), "w").write("@@ a.txt 1 replace\nw\n")
+        put(os.path.join(t, "p.mrw"), "@@ a.txt 1 replace\nw\n")
         c("t.write-check", t, ["write", "--check", "--json", "p.mrw"], env)
         run(["-C", t, "read", "a.txt"], t, env)
         c("t.write-check-then", t, ["write", "--check", "--json", "--then-sh", "true", "p.mrw"], env)
@@ -246,7 +254,7 @@ def targeted():
     # so the step cannot create its log. Its entry must say ran false, exit_code -1.
     t = tempfile.mkdtemp(dir=WORK, prefix="steplog-")
     td = tempfile.mkdtemp(dir=WORK, prefix="td-")
-    open(os.path.join(t, ".quality-harness.json"), "w").write(json.dumps({"check": 'chmod 555 "$TMPDIR"', "steps": {"a": "true"}}))
+    put(os.path.join(t, ".quality-harness.json"), json.dumps({"check": 'chmod 555 "$TMPDIR"', "steps": {"a": "true"}}))
     try:
         code, out, err = c("t.step-log", t, ["check", "--json", "--full", "--then", "a"], dict(env, TMPDIR=td))
     finally:
@@ -320,7 +328,8 @@ def main():
             print(json.dumps(vl)[:900])
         if violations:
             path = os.path.join(tempfile.gettempdir(), f"mrw-stress-violations-{SEED}.json")
-            json.dump(violations, open(path, "w"), indent=1)
+            with open(path, "w") as fh:
+                json.dump(violations, fh, indent=1)
             print(f"violations written to {path}")
     finally:
         shutil.rmtree(WORK, ignore_errors=True)

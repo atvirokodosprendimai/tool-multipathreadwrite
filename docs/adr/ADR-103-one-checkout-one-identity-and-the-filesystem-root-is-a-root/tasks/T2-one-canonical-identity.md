@@ -113,3 +113,4 @@ Stop and ask if a locked test must change to pass.
 - 2026-09-30 · f1d5996* · exit 0 · `set -o pipefail …` · acceptance-sha256:3332fba550b31d658f9107b7dd3507eac63e80120806c31d25487a2ae97fce9b · ms:394
 - 2026-09-30 · f1d5996* · exit 0 · `set -o pipefail …` · acceptance-sha256:afc8e1a64d241d800f34f678d138c9b4051905a9305e8b350a0bc27f1a661947 · ms:709
 - 2026-09-30 · f1d5996* · exit 0 · `set -o pipefail …` · acceptance-sha256:afc8e1a64d241d800f34f678d138c9b4051905a9305e8b350a0bc27f1a661947 · ms:403
+- 2026-09-30 · human-observed · S3 observed 2026-09-30: PR #294's CI run 36732132536 at 5e17296 concluded success on every windows job; the windows shards run every package with no -run filter (ci.yml:175-191), so cmd/mrw's TestAJunctionSpellingSharesTheCheckoutsState — a real mklink /J junction and its target giving one state path for seen.write.lock — ran on windows-latest and passed
