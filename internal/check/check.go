@@ -158,10 +158,13 @@ func checkSteps(steps map[string]string) error {
 
 // Result is what one check run produced.
 type Result struct {
-	Ran        bool     `json:"ran"`
-	Declared   bool     `json:"declared"`
-	Skipped    string   `json:"skipped,omitempty"`
-	Command    string   `json:"command,omitempty"`
+	Ran      bool   `json:"ran"`
+	Declared bool   `json:"declared"`
+	Skipped  string `json:"skipped,omitempty"`
+	Command  string `json:"command,omitempty"`
+	// ExitCode is the check process's exit status, or -1 when no process
+	// exited with one: it never started, timed out, was interrupted, or no
+	// check ran at all. Never 0 unless the check exited 0 (ADR-101).
 	ExitCode   int      `json:"exit_code"`
 	DurationMS int64    `json:"duration_ms,omitempty"`
 	OutputFile string   `json:"output_file,omitempty"`
@@ -227,13 +230,14 @@ func pruneLogs(dir string, cutoff time.Time) int {
 // rule 2 forbids.
 func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Result, error) {
 	if err := confine(root, editedPaths); err != nil {
-		// Nothing runs and no fields are filled in: a refusal must not hand
-		// back a shape a caller could read a verdict out of.
-		return Result{Declared: cfg.declared}, err
+		// Nothing runs and nothing is filled in but -1, which is no exit
+		// status: a refusal must not hand back a shape a caller could read a
+		// verdict out of, and exit_code 0 is one (ADR-101).
+		return Result{Declared: cfg.declared, ExitCode: -1}, err
 	}
 	cmdline, scoped := command(root, cfg, editedPaths)
 	if cmdline == "" {
-		return Result{Declared: cfg.declared, Skipped: "no check declared and no go.mod found"}, nil
+		return Result{Declared: cfg.declared, Skipped: "no check declared and no go.mod found", ExitCode: -1}, nil
 	}
 	_ = scoped
 	// ADR-072: the check runs in a process group of its own (subproc), so the
@@ -271,7 +275,9 @@ func run(ctx context.Context, root string, cfg Config, cmdline string, env []str
 	// neither. Set optimistically, an unresolvable `sh`, an already-cancelled
 	// context or an overflowed timeout reported exit 3 — "a check ran and did
 	// not pass" — about a process that never existed.
-	res := Result{Command: cmdline}
+	// -1 until a process exits with a status: a return before that — the log
+	// that could not be created — must not read as exit 0 (ADR-101).
+	res := Result{Command: cmdline, ExitCode: -1}
 
 	timeout := defaultTimeout
 	if cfg.TimeoutSeconds > 0 {

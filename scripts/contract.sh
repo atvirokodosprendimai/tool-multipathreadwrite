@@ -7971,6 +7971,25 @@ grep -q 'MRW_STEP_DEPTH' <<<"$out" && ok "and names the depth limit" || bad "at 
 out=$(env MRW_STEP_DEPTH=7 "$MRW" -C "$R" check --full a.go 2>&1); want 2 $? "the pair: at depth 7 it exits 2"
 grep -q 'it takes no PATH' <<<"$out" && ok "and names --full" || bad "at 7: $out"
 
+# 195. ADR-101: a check that did not run has no exit code of zero. In a tree with
+# no harness and no go.mod, `check --json` and the check block of
+# `write --check --json` said "exit_code": 0 beside "ran": false, so a consumer
+# reading exit_code alone read a pass. Both now say -1. The pair: a declared
+# passing check says ran true and exit_code 0.
+fixture
+rm -f "$R/go.mod"
+m check --json --full > "$WORK/j195" 2> /dev/null; want 2 $? "check --json with no check exits 2"
+jq -se 'length == 1 and .[0].ran == false and .[0].exit_code == -1' "$WORK/j195" > /dev/null \
+  && ok "and its receipt says ran false, exit_code -1" || bad "check --json: $(head -c 300 "$WORK/j195")"
+printf '@@ a.go 3 replace\nfunc A() int { return 195 }\n' > "$R/p195.mrw"
+( cd "$R" && "$MRW" write --check --json p195.mrw ) > "$WORK/w195" 2> /dev/null; want 2 $? "write --check --json with no check exits 2"
+jq -se 'length == 1 and .[0].applied == true and .[0].check.ran == false and .[0].check.exit_code == -1' "$WORK/w195" > /dev/null \
+  && ok "and its check block says ran false, exit_code -1" || bad "write --check --json: $(head -c 400 "$WORK/w195")"
+printf '{"check":"true"}\n' > "$R/.quality-harness.json"
+m check --json --full > "$WORK/p195" 2> /dev/null; want 0 $? "the pair: a declared passing check exits 0"
+jq -se 'length == 1 and .[0].ran == true and .[0].exit_code == 0' "$WORK/p195" > /dev/null \
+  && ok "and says ran true, exit_code 0" || bad "the pair: $(head -c 300 "$WORK/p195")"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
