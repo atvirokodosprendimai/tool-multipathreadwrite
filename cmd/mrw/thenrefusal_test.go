@@ -78,9 +78,10 @@ func TestALedgerFailureStillNamesTheStepsNotRun(t *testing.T) {
 // ADR-092 Decision 5, "the check could not start": such a check still names
 // every step asked for, not_run, in one document. With no temp directory the
 // check cannot create its log, and `check --json` printed nothing at all and
-// dropped the steps (the 2026-09-29 gap survey, C2). Two refusals stay as they
-// were: one with no step asked, and a refused scope (ADR-092 T4, Out of
-// Scope). The pair: the same check with its temp directory back runs the steps.
+// dropped the steps (the 2026-09-29 gap survey, C2). A refusal with no step
+// asked, and a refused scope, are one document too, holding the error and no
+// then block (ADR-100 T1). The pair: the same check with its temp directory
+// back runs the steps.
 func TestACheckWhoseLogCannotBeCreatedStillNamesItsSteps(t *testing.T) {
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -109,8 +110,8 @@ func TestACheckWhoseLogCannotBeCreatedStillNamesItsSteps(t *testing.T) {
 	if got := logOf(t, root); got != "" {
 		t.Errorf("a step ran: %q", got)
 	}
-	if out, code := runIn(t, root, "check", "--full", "--json"); code != exitUsage || strings.Contains(out, `"error"`) {
-		t.Errorf("no step asked: exit %d, want %d and no JSON document, as before:\n%s", code, exitUsage, out)
+	if out, code := runIn(t, root, "check", "--full", "--json"); code != exitUsage || !strings.Contains(out, `"error"`) || strings.Contains(out, `"then"`) {
+		t.Errorf("no step asked: exit %d, want %d and a document with an error and no then block:\n%s", code, exitUsage, out)
 	}
 	if out, code := runIn(t, root, "check", "--json", "--then", "a", "nosuchdir"); code != exitUsage || strings.Contains(out, `"then"`) {
 		t.Errorf("a refused scope: exit %d, want %d and no then block, as before:\n%s", code, exitUsage, out)

@@ -2001,27 +2001,9 @@ touched, which is a finding about the machine and not about your change.`,
 			thenShFlag(&asked),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if err := refusePaddedArgs(cmd); err != nil {
-				return err
-			}
-			root := cmd.Root().String("root")
-			paths := cmd.Args().Slice()
-			// ADR-099: --full runs the whole project, so a PATH beside it would
-			// be dropped in silence — refused before anything runs, as ADR-096
-			// refuses a named path a finder would drop.
-			if cmd.Bool("full") && len(paths) > 0 {
-				return cli.Exit("--full runs the whole project; it takes no PATH", exitUsage)
-			}
-			if len(paths) == 0 && !cmd.Bool("full") {
-				set, err := iter.Load(root)
-				if err != nil {
-					return cli.Exit(err, exitUsage)
-				}
-				paths = set.Paths()
-			}
-			// Under --json a refusal of the harness or of a step is one
-			// document, as write's is (ADR-072, ADR-092 T4). then is the steps
-			// that document names: none before any was due, every one not_run
+			// Under --json every refusal is one document, as write's is
+			// (ADR-072, ADR-092 T4, ADR-100): the error, and the steps that
+			// document names — none before any was due, every one not_run
 			// when the check could not start.
 			var then *check.StepsResult
 			refuse := func(err error) error {
@@ -2038,9 +2020,29 @@ touched, which is a finding about the machine and not about your change.`,
 				return cli.Exit(err, exitUsage)
 			}
 			// ADR-095: mrw check asks for nothing but a check, so at the depth
-			// limit it is refused in every form, before anything runs.
+			// limit it is refused in every form, before anything runs — and
+			// first, before an argument is judged or the working set is read,
+			// so a caller fixing the usage does not meet it next (ADR-100).
 			if err := check.DepthRefusal("a check is"); err != nil {
 				return refuse(err)
+			}
+			if err := refusePaddedArgs(cmd); err != nil {
+				return refuse(err)
+			}
+			root := cmd.Root().String("root")
+			paths := cmd.Args().Slice()
+			// ADR-099: --full runs the whole project, so a PATH beside it would
+			// be dropped in silence — refused before anything runs, as ADR-096
+			// refuses a named path a finder would drop.
+			if cmd.Bool("full") && len(paths) > 0 {
+				return refuse(errors.New("--full runs the whole project; it takes no PATH"))
+			}
+			if len(paths) == 0 && !cmd.Bool("full") {
+				set, err := iter.Load(root)
+				if err != nil {
+					return refuse(err)
+				}
+				paths = set.Paths()
 			}
 			cfg, err := check.Load(root)
 			if err != nil {
@@ -2055,17 +2057,16 @@ touched, which is a finding about the machine and not about your change.`,
 			res, err := check.Run(ctx, root, cfg, paths)
 			if err != nil {
 				// A refused scope comes back before a command is chosen, with no
-				// Command, and stays as it was (ADR-092 T4, Out of Scope), and so
-				// does any refusal with no step asked: without --then nothing
-				// changes (ADR-092). The one error after a command is chosen is
+				// Command, and names no step; so does any refusal with no step
+				// asked (ADR-092). The one error after a command is chosen is
 				// the check's log that could not be created: the check could not
-				// start, so the steps asked for are named not_run, in one document
-				// under --json (ADR-092 Decision 5, "the check could not start";
-				// the 2026-09-29 gap survey, C2).
-				if res.Command == "" || len(asked) == 0 {
-					return cli.Exit(err, exitUsage)
+				// start, so the steps asked for are named not_run (ADR-092
+				// Decision 5, "the check could not start"; the 2026-09-29 gap
+				// survey, C2). Either way it is one document under --json
+				// (ADR-100).
+				if res.Command != "" && len(asked) > 0 {
+					then = runSteps(ctx, root, cfg, asked, false)
 				}
-				then = runSteps(ctx, root, cfg, asked, false)
 				return refuse(err)
 			}
 			if len(asked) > 0 {
