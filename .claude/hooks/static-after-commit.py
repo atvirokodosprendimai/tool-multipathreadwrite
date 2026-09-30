@@ -204,8 +204,8 @@ def kill_group():
         try:
             os.killpg(child.pid, signal.SIGKILL)
         except OSError:
-            # The group is already gone (the script and every child exited):
-            # nothing is left to kill, and the verdict does not depend on it.
+            # Best effort: the group may be gone already, or the kill may be
+            # refused (EPERM). Either way the verdict does not depend on it.
             pass
 
 
@@ -228,8 +228,8 @@ def analyse(root, script):
         try:
             child.communicate(timeout=10)
         except subprocess.TimeoutExpired:
-            # The group was killed and still has not closed its pipe: the
-            # verdict is already "stopped", so waiting longer changes nothing.
+            # Stop waiting: the pipe is still open after the kill attempt, and
+            # the verdict stays a failure ("stopped") whatever happens next.
             pass
         return 1, f"scripts/static.sh did not finish in {TIMEOUT} s and was stopped; run it yourself"
     kill_group()  # nothing the script started outlives it
