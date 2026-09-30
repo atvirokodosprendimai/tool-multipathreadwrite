@@ -133,7 +133,7 @@ func TestThePlanErrorWrapsTheCause(t *testing.T) {
 // capture the real thing. That is deliberate: the flags are a public surface
 // and what a caller sees is what a pipe sees.
 
-func captureStdout(t *testing.T, fn func() error) (string, error) {
+func captureStdout(t *testing.T, fn func() error) (out string, runErr error) {
 	t.Helper()
 	old := os.Stdout
 	r, w, err := os.Pipe()
@@ -144,17 +144,22 @@ func captureStdout(t *testing.T, fn func() error) (string, error) {
 	// Drained while fn runs: a pipe holds little — a few KB on the Windows
 	// runner — and output past that blocked fn's write for ever, until the
 	// 10-minute test timeout (CI on #295, a step echoing a 10,000-byte line).
-	done := make(chan []byte)
+	done := make(chan []byte, 1)
 	go func() {
 		b, _ := io.ReadAll(r)
 		done <- b
 	}()
-	runErr := fn()
-	_ = w.Close()
-	os.Stdout = old
-	b := <-done
-	_ = r.Close()
-	return string(b), runErr
+	// Deferred, so a panic or a t.Fatal (runtime.Goexit) inside fn still puts
+	// os.Stdout back and ends the reader: closing w is its EOF (the Codex
+	// review of #295).
+	defer func() {
+		os.Stdout = old
+		_ = w.Close()
+		out = string(<-done)
+		_ = r.Close()
+	}()
+	runErr = fn()
+	return
 }
 
 // readIn runs `mrw -C root read <args...>` and returns everything printed.
