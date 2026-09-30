@@ -698,28 +698,34 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	nameTheAck(root, &res)
 
 	// ADR-075: writer.Apply recorded what landed before it released the write
-	// lock. A failure there is a ledger failure after the tree changed.
+	// lock. A failure there is a ledger failure after the tree changed, and it
+	// is answered with the receipt (ADR-102): a bare RPC error could not be told
+	// from a write that did nothing, and a client might send the plan again.
 	var ledgerErr *writer.LedgerError
-	if errors.As(applyErr, &ledgerErr) {
-		// ADR-083: the plan landed; the CLI counts it as applied when no check is due, and so does this.
-		if !res.DryRun {
-			_ = authoring.Record(root, authoring.Applied)
-		}
-		return callToolResult{}, &rpcError{Code: codeInternal, Message: applyErr.Error()}
-	}
-	if res.Applied && !res.DryRun {
+	ledgerFailed := errors.As(applyErr, &ledgerErr)
+	mutation := writer.MutationOf(res)
+	if mutation != writer.None {
 		// ADR-055: a landed MCP write feeds the same ring the CLI reads, so
-		// "3 of your last 10" counts every landed write on this checkout.
-		// The MCP receipt is structured and carries `advisories`; the
-		// pattern line itself is CLI and stats (BACKLOG).
+		// "3 of your last 10" counts every landed write on this checkout —
+		// whole, partial, or whole with a ledger that failed (ADR-102). The MCP
+		// receipt is structured and carries `advisories`; the pattern line
+		// itself is CLI and stats (BACKLOG).
 		_ = authoring.RecordRecent(root, res.Advisories)
 		// ADR-056: priced as unchecked — this surface never runs a check.
 		if !a.StrictBalance {
 			_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)
 		}
 	}
+	if ledgerFailed {
+		// ADR-083: the plan landed; the CLI counts it as applied when no check is due, and so does this.
+		_ = authoring.Record(root, authoring.Applied)
+		return boundedReceipt(root, res, applyErr, true)
+	}
 
 	switch {
+	case mutation == writer.Partial:
+		// ADR-102: a file reached disk before the commit stopped.
+		_ = authoring.Record(root, authoring.PartiallyApplied)
 	case applyErr != nil || res.Failed > 0:
 		_ = authoring.Record(root, authoring.RefusedApply)
 	case res.DryRun:
@@ -752,6 +758,18 @@ type writeReceipt struct {
 	// Pattern is the recent-window pattern after this write (ADR-056),
 	// present on every receipt whether or not it fires.
 	Pattern authoring.PatternInfo `json:"pattern"`
+	// Error is what the write returned when it returned an error — a commit
+	// that stopped, a ledger that could not record a landing (ADR-102). In the
+	// structured value because a host may deliver only that (ADR-023).
+	Error string `json:"error,omitempty"`
+}
+
+// errText is err's message, or "" for none.
+func errText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 // writeReport renders the per-hunk verdicts, the counts, and any elision.
@@ -807,7 +825,7 @@ func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, eli
 func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (callToolResult, *rpcError) {
 	res = slashResult(res, filepath.Separator)
 	pattern := authoring.PatternOf(root)
-	full, rpcErr := result(writeReceipt{Result: res, Pattern: pattern}, writeReport(res, res.Hunks, applyErr, ""), isErr)
+	full, rpcErr := result(writeReceipt{Result: res, Pattern: pattern, Error: errText(applyErr)}, writeReport(res, res.Hunks, applyErr, ""), isErr)
 	if rpcErr != nil || encodedSize(full) <= ceiling() {
 		return full, rpcErr
 	}
@@ -844,7 +862,7 @@ func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (
 		note += ". Every FAILED hunk is here, every file that WAS written is here, " +
 			"and the counts are of the whole plan."
 
-		out, rpcErr := result(writeReceipt{Result: short, Elided: note, Pattern: pattern}, writeReport(res, kept, applyErr, note), isErr)
+		out, rpcErr := result(writeReceipt{Result: short, Elided: note, Pattern: pattern, Error: errText(applyErr)}, writeReport(res, kept, applyErr, note), isErr)
 		if rpcErr != nil {
 			return out, rpcErr
 		}
@@ -876,7 +894,7 @@ func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (
 		}
 	}
 	if written > 0 {
-		return errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, !res.Applied)), nil
+		return errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, writer.MutationOf(res) == writer.Partial)), nil
 	}
 	return errorResult(fmt.Sprintf("%d of %d hunk(s) failed and nothing was written. Naming them "+
 		"takes more than the %d-byte ceiling this server advertises, so they are not listed here. "+
@@ -913,7 +931,8 @@ func unreportableAt(c, written, hunks, failed int, partial bool) string {
 	}
 	return fmt.Sprintf("%s: %d file(s) changed on disk, %d hunk(s), %d failed. NAMING them takes "+
 		"more than the %d-byte ceiling this server advertises, so the per-hunk detail is not here "+
-		"— but the write HAPPENED. Read the files, or re-run with a larger --max-result-chars.",
+		"— but the write HAPPENED: do not re-send this plan, it would apply again. Read the files "+
+		"to see what changed; a server started with a larger --max-result-chars reports later writes in full.",
 		state, written, hunks, failed, c)
 }
 

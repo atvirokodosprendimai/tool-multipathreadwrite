@@ -483,10 +483,11 @@ and #73, one release apart.
   every check or step with no exit status carries, never 0 (ADR-100, ADR-101).
 - **`mrw stats`** prints what became of the plans this checkout has been given
   — every name at zero: applied, refused because the document did not PARSE,
-  parsed but failed to APPLY, written but no check could run, written and the
-  check FAILED — plus `landed writes: N; failed_check F of those`, where landed
-  is applied + failed_check + check_not_run (the tree changed; it is not "wrote
-  and was checked"); `recent:` and the `pattern:` line (ADR-055); and a
+  parsed but failed to APPLY, PARTIALLY applied (a file landed, then the commit
+  stopped; ADR-102), written but no check could run, written and the check
+  FAILED — plus `landed writes: N; failed_check F of those`, where landed is
+  applied + partially_applied + failed_check + check_not_run (the tree changed;
+  it is not "wrote and was checked"); `recent:` and the `pattern:` line (ADR-055); and a
   `strict-balance pricing:` block (ADR-056) — landed writes with a single-line
   code replace, how many the flag would have refused, and whether those broke,
   held (the false positive) or went unchecked, beside the pre-registered bar.

@@ -160,7 +160,8 @@ These are gates, not a tour of the records behind them.
   `packages()` cannot map; `{packages}`-only still falls back. A non-prose hunk
   whose `{}` `()` `[]` nets moved prints a balance row and stays `ok` — a
   balanced insert in the wrong place is invisible to it.
-  `mrw stats` prints `failed_check` at zero and a landed-writes line.
+  `mrw stats` prints every outcome at zero — `failed_check` and, since ADR-102, `partially_applied`
+  among them — and a landed-writes line.
 - **Steps after the check.** `--then NAME` runs a step declared under `"steps"` in
   `.quality-harness.json`, and `--then-sh 'CMD'` an ad-hoc shell step; both repeat and run in
   command-line order after a landed write whose check passed, on `write` and `check`. The first that

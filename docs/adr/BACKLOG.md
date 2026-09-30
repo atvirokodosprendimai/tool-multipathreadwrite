@@ -1890,7 +1890,7 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
 
 ## From ADR-066 (a plan that cannot commit whole says what it wrote)
 
-- **The ledger after a partial commit.** Only an applied plan records what it
+- **The ledger after a partial commit** — **Closed** by ADR-102 (`writer.Apply` records a partial commit's written files, 2026-09-30). Only an applied plan records what it
   wrote, so a file a partial commit DID write is refused as "changed since mrw
   last saw it" on the next edit. Loud, not silent; arm if a caller hits it.
 - **Staging the unlink placeholder, or probing directory writability.** The
@@ -2381,3 +2381,15 @@ at the boundary, and a discovered one is dropped.
   and mrw exits 2 (probed 2026-09-30). A consumer that reads `exit_code` alone reads a pass. Omitting the
   field when nothing ran changes the receipt shape ADR-054 and ADR-092 pin; arm on the first consumer that
   branches on `exit_code`.
+
+## From ADR-102 (a write that landed is reported and counted as landed)
+
+- **Sharing the rest of the CLI/MCP write orchestration** (ADR-102 Out of Scope; the 2026-09-30 Codex design
+  review's top-5 #5). `cmd/mrw/main.go` and `internal/mcp/tools.go` each prepare a plan, apply it, count it and
+  render it; ADR-102 shares only the classification (`writer.MutationOf`). Arm on the next finding whose cause is
+  that the two surfaces decided the same outcome differently.
+- **The cleanup errors mrw ignores, and what a failed run leaves behind** (ADR-102 Out of Scope; the 2026-09-30
+  Codex design review, finding 5). `apply.go` `discard`, `stageFile`'s error paths and `pathop.go`'s aside removal
+  drop a failed `os.Remove`, so a `.mrw-*` temp file or aside can remain unreported; state files are written in
+  place. Planned as ADR-105 (`~/.claude/plans/ok-create-a-plan-whimsical-newell.md`): a `left_behind` receipt field,
+  atomic state writes, a failure matrix.
