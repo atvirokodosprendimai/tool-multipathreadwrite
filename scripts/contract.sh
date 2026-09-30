@@ -8047,7 +8047,9 @@ fixture
 f198="$(cd "$R" && pwd -P)/a.go"
 out=$("$MRW" --root / read "${f198#/}" 2>&1); want 0 $? "--root / read <root-relative path> exits 0"
 grep -q 'func A' <<<"$out" && ok "and serves the file" || bad "--root /: $(head -c 300 <<<"$out")"
-m read ../outside198.txt > /dev/null 2>&1; want 1 $? "the pair: a path out of a real root is still refused"
+printf 'secret198\n' > "$WORK/outside198.txt"
+out=$(m read ../outside198.txt 2>&1); want 1 $? "the pair: a path out of a real root is still refused, the file there notwithstanding"
+{ grep -q 'outside the root' <<<"$out" && ! grep -q secret198 <<<"$out"; } && ok "and names the boundary without serving it" || bad "escape: $(head -c 300 <<<"$out")"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running

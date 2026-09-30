@@ -9,7 +9,7 @@
 **Governs:** `internal/rooted/rooted.go`, `internal/rooted/links.go`, `internal/links/`, `internal/state/state.go`, `internal/check/check.go`, `internal/read/astgrep.go`, `scripts/contract.sh`
 **Enforced-by:** `internal/rooted/contains103_test.go::TestContainsHoldsUnderAFilesystemRoot`
 **Invalidates:** none — checked. ADR-071's junction rule is kept and made to hold for the state key too; ADR-075's one-writer lock now means one per physical checkout on Windows as elsewhere; ADR-004's key is unchanged off Windows.
-**Served-path change:** (1) `--root /` (or a Windows volume root such as `C:\`) serves, writes and checks the paths beneath it, where every one was refused as outside the root. (2) On Windows, a checkout reached through a junction shares the state directory — ledger, working set, tally and writer lock — of the checkout it leads to, where each spelling had its own; its old state becomes an orphan `mrw seen --prune` reports. (3) On Windows, `mrw check` compares a path given absolutely, and scopes one, against a junction-reached root as the target it is. Off Windows nothing else changes.
+**Served-path change:** (1) `--root /` (or a Windows volume root such as `C:\`) serves, writes and checks the paths beneath it, where every one was refused as outside the root. (2) On Windows, a checkout reached through a junction shares the state directory — ledger, working set, tally and writer lock — of the checkout it leads to, where each spelling had its own. Nothing is migrated: the directory the junction spelling used to key stays while its recorded junction exists (`mrw seen --prune` removes a state directory only when its checkout is gone), and holds nothing any run reads. (3) On Windows, `mrw check` compares a path given absolutely, and scopes one, against a junction-reached root as the target it is. Off Windows nothing else changes.
 
 ## Context
 
@@ -88,8 +88,9 @@ See `tasks/README.md`: T1 (`Contains`), T2 (one canonical identity).
 ## Consequences
 
 - **Positive:** a root is a root whatever it is; one checkout has one lock on every platform.
-- **Negative:** on Windows a junction-reached checkout starts from a fresh state directory once; the old one is
-  an orphan until `mrw seen --prune`. During an upgrade, an old and a new binary on such a root take different
+- **Negative:** on Windows a junction-reached checkout starts on its target's state directory — fresh, or the one
+  the target spelling already used — and the directory its junction spelling keyed is left in place, unread, while
+  that junction exists; `mrw seen --prune` does not remove it (the review of #294). During an upgrade, an old and a new binary on such a root take different
   locks until the old process exits.
 - **Neutral:** off Windows the state key and every answer except the filesystem-root one are unchanged.
 
