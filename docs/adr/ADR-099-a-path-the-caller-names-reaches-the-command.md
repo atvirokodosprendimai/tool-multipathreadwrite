@@ -94,7 +94,7 @@ See `tasks/README.md`: T1 (`--full PATH`), T2 (the help subcommand).
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | a script relies on `mrw check --full PATH` running | Low | Low | the refusal names the fix; release notes say so |
-| `HideHelpCommand` also hides the `--help` flag | Low | Med | T2's test asserts `--help` and `-h` still print help on all three |
+| `HideHelpCommand` also hides the `--help` flag | Low | Med | T2's test asserts `--help` still prints help on all three, and `-h` on `read` |
 
 ## Rollback
 

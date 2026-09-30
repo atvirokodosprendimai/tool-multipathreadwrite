@@ -2019,9 +2019,6 @@ touched, which is a finding about the machine and not about your change.`,
 				}
 				paths = set.Paths()
 			}
-			if cmd.Bool("full") {
-				paths = nil
-			}
 			// Under --json a refusal of the harness or of a step is one
 			// document, as write's is (ADR-072, ADR-092 T4). then is the steps
 			// that document names: none before any was due, every one not_run
