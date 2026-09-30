@@ -9,7 +9,7 @@
 **Governs:** `internal/check/check.go`, `scripts/contract.sh`, `docs/adr/BACKLOG.md`, `README.md`, `AGENTS.md`
 **Enforced-by:** `internal/check/noexit101_test.go::TestARunWithNoProcessHasExitCodeMinusOne`
 **Invalidates:** none — checked. ADR-003's rule that `Ran` separates "no evidence" from "evidence of success" is kept and extended to `exit_code`; ADR-080 and ADR-092 already report -1 for a check or step with no exit status (could not start, timed out, interrupted, not run), and this record makes the three remaining paths agree. The ADR-100 BACKLOG entry is closed.
-**Served-path change:** in `mrw check --json`'s receipt and in the `check` block of `mrw write --json`'s receipt, a check that did not run now reports `"exit_code": -1` where it reported `0`, in three cases: no check declared and no `go.mod`, a refused scope, and a check log that could not be created. Exit codes, the human report (which prints `check SKIPPED:` with no number) and every other field are unchanged.
+**Served-path change:** a check or step with no exit status now reports `"exit_code": -1` where it reported `0`, in two places a caller reads: `mrw check --json`'s receipt and the `check` block of `mrw write --json`'s receipt when no check is declared and there is no `go.mod`; and a step's entry under `then.steps` when its log could not be created (`RunSteps` copies the step's run result). Two further paths now carry -1 only inside mrw: a refused scope and a check log that could not be created both return an error, so `check --json` prints ADR-100's refusal document and `write --json` a receipt with no `check` block. Exit codes, the human report (which prints `check SKIPPED:` with no number) and every other field are unchanged.
 
 ## Context
 
@@ -28,9 +28,12 @@
 **Audit of the class.** The class is *a `Result` or `StepResult` whose `exit_code` is 0 though no process
 exited*. Enumerated 2026-09-30 by `mrw read --grep 'ExitCode' internal/check/ cmd/mrw/main.go internal/mcp/
 --exclude '*_test.go'` and reading every `return` in `Run` and `run` and every `StepResult` literal:
-- `Result`: **3** paths leave 0 (above) — all in scope. Every other path sets `Ran` with a real status or -1.
-- `StepResult`: **0** — `RunSteps` starts each at -1 (`:809`) and copies the check's verdict only when the
-  step ran; `runSteps` in `cmd/mrw` starts each not_run step at -1.
+- `Result`: **3** paths leave 0 (above) — all in scope. The no-command return reaches both receipts; the
+  refused scope and the log that could not be created return an error, so no receipt shows them and the -1
+  is internal. Every other path sets `Ran` with a real status or -1.
+- `StepResult`: **1** — `RunSteps` starts each at -1 (`:815`) but copies `run`'s `ExitCode` for a step that
+  was started (`:827`), and a step whose log could not be created came back from `run` with 0. `run`
+  starting at -1 fixes it. `runSteps` in `cmd/mrw` starts each not_run step at -1.
 - Consumers: `check --json` (`checkReceipt`) and `write --json` (`receipt.Check`) serialize `Result`;
   `mrw_write` runs no check; `stats` reads `Ran` and `OK()`, never the number. The human report prints no
   number for a skipped check (`cmd/mrw/main.go:2126`).
@@ -46,7 +49,7 @@ exited*. Enumerated 2026-09-30 by `mrw read --grep 'ExitCode' internal/check/ cm
 1. Every `check.Result` whose check produced no exit status carries `ExitCode` -1: `Run`'s refused scope and
    no-command returns, and `run` from its first line, so a return before the process exists says -1. A
    process that exited sets its own status, as before.
-2. The receipts are unchanged in shape: `exit_code` stays present on every receipt.
+2. The receipts are unchanged in shape: `exit_code` stays present wherever it was.
 
 ## Alternatives Considered
 
@@ -66,6 +69,7 @@ engine package stays byte-identical; `go.mod` keeps one requirement.
 |---------|--------|----------|-------------|
 | `check --json` receipt | `exit_code` -1 when the check did not run | T1 | CLI callers |
 | `write --json` receipt `check` block | the same | T1 | CLI callers |
+| `then.steps[]` in either receipt | a step whose log could not be created: `exit_code` -1 | T1 | CLI callers |
 | `scripts/contract.sh` | §195 | T1 | CI Linux |
 | README, AGENTS | say -1 when no check process exited | T1 | readers, the `mrw` skill |
 | `docs/adr/BACKLOG.md` | the ADR-100 `exit_code` entry closed | T1 | readers |

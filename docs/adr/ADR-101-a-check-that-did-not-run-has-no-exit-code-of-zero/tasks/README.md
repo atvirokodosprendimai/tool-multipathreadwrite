@@ -16,8 +16,8 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | a check that did not run reports `exit_code` -1; contract §195 | pending | — | `docs/adr/ADR-101-a-check-that-did-not-run-has-no-exit-code-of-zero/tasks/T1-no-exit-code-without-a-run.md` fence |
 | T1 | a check that did not run reports `exit_code` -1; contract §195 | done | — | `docs/adr/ADR-101-a-check-that-did-not-run-has-no-exit-code-of-zero/tasks/T1-no-exit-code-without-a-run.md` fence |
+
 Status: `pending` | `partial` | `blocked` | `done`.
 
 ## Contract Coupling

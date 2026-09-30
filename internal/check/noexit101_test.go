@@ -34,4 +34,9 @@ func TestARunWithNoProcessHasExitCodeMinusOne(t *testing.T) {
 	if res, err := Run(ctx, root, Config{Check: "true"}, nil); err == nil || res.Ran || res.ExitCode != -1 {
 		t.Errorf("a log that cannot be created: err %v, ran %v, exit_code %d; want an error, false, -1", err, res.Ran, res.ExitCode)
 	}
+	// A step is run by run too: RunSteps copied run's 0 for a step whose log
+	// could not be created (the review of #290).
+	if s := RunSteps(ctx, root, Config{}, []Step{{Command: "true"}}).Steps[0]; s.Ran || s.ExitCode != -1 {
+		t.Errorf("a step whose log cannot be created: ran %v, exit_code %d, status %s; want false, -1", s.Ran, s.ExitCode, s.Status)
+	}
 }
