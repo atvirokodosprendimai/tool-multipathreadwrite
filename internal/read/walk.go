@@ -249,7 +249,7 @@ func (w *walker) offer(p, full string) {
 	if w.seen[key] {
 		return
 	}
-	b, err := os.ReadFile(full)
+	b, err := readCapped(full)
 	if err != nil {
 		w.problems = append(w.problems, Problem{Path: p, Reason: err.Error()})
 		return

@@ -205,8 +205,15 @@ func Serve(in io.Reader, out io.Writer, root string) error {
 	defer func() { _ = w.Flush() }()
 
 	for {
-		line, err := r.ReadString('\n')
-		if line != "" {
+		line, over, err := readLine(r, maxRequestBytes)
+		if over {
+			// ADR-104: answered, not read whole, and the session goes on.
+			if err := write(w, errorResponse(json.RawMessage("null"), codeInvalidRequest, fmt.Sprintf(
+				"invalid request: the line is longer than %d bytes, the most this server reads as one message; "+
+					"nothing in it was read as a request (the CLI, mrw write, has no such limit)", maxRequestBytes))); err != nil {
+				return err
+			}
+		} else if line != "" {
 			if resp, answer := handle(line, root); answer {
 				if err := write(w, resp); err != nil {
 					return err
@@ -219,6 +226,33 @@ func Serve(in io.Reader, out io.Writer, root string) error {
 			}
 			return fmt.Errorf("mcp: reading stdin: %w", err)
 		}
+	}
+}
+
+// maxRequestBytes is the longest request line Serve reads as one message
+// (ADR-104). ReadString grew without limit, so one line with no newline was held
+// whole; past this the line is answered -32600 and the rest of it discarded. A
+// plan an MCP host sends travels as one JSON line, so the limit is generous; a
+// variable so a test can lower it.
+var maxRequestBytes = 64 << 20
+
+// readLine reads one line of at most limit bytes, its newline included. A longer
+// line is read to its end and dropped: over reports it, and line is empty.
+func readLine(r *bufio.Reader, limit int) (line string, over bool, err error) {
+	var b []byte
+	for {
+		frag, e := r.ReadSlice('\n')
+		if !over {
+			if len(b)+len(frag) > limit {
+				over, b = true, nil
+			} else {
+				b = append(b, frag...)
+			}
+		}
+		if errors.Is(e, bufio.ErrBufferFull) {
+			continue
+		}
+		return string(b), over, e
 	}
 }
 

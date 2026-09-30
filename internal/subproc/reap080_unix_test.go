@@ -23,7 +23,7 @@ func TestAGrandchildOfACleanExitIsReaped(t *testing.T) {
 			return Run(Command(ctx, "sh", "-c", script))
 		},
 		"Output": func(ctx context.Context, script string) error {
-			_, err := Output(Command(ctx, "sh", "-c", script))
+			_, err := Output(Command(ctx, "sh", "-c", script), 1<<20)
 			return err
 		},
 	} {

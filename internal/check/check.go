@@ -18,10 +18,12 @@
 package check
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -386,7 +388,8 @@ func run(ctx context.Context, root string, cfg Config, cmdline string, env []str
 	if tail <= 0 {
 		tail = defaultTail
 	}
-	res.Tail, res.Truncated = lastLines(res.OutputFile, tail)
+	var cut bool
+	res.Tail, res.Truncated, cut = lastLines(res.OutputFile, tail)
 	// A PASSING check that withheld nothing has no readers left, so its log is
 	// removed and the field cleared rather than left naming a file nobody will
 	// open. Every `mrw write --check` was leaving one behind in the system temp
@@ -394,9 +397,10 @@ func run(ctx context.Context, root string, cfg Config, cmdline string, env []str
 	//
 	// Two conditions, not one. A FAILING check keeps its log because the tail
 	// is a summary and the file is the evidence. A truncated one keeps it even
-	// on success, because the report says "N earlier line(s) in <file>" and
-	// deleting a file the report points at is worse than leaving it.
-	if res.Ran && res.ExitCode == 0 && res.Truncated == 0 {
+	// on success — whether it withheld earlier lines or cut a long one (ADR-104,
+	// the review of #295) — because the report points at the file and deleting
+	// a file the report points at is worse than leaving it.
+	if res.Ran && res.ExitCode == 0 && res.Truncated == 0 && !cut {
 		if err := os.Remove(res.OutputFile); err == nil {
 			res.OutputFile = ""
 		}
@@ -738,21 +742,89 @@ func treePattern(dir string) string {
 	return "./" + dir + "/..."
 }
 
+// maxTailLineBytes caps each line the tail keeps (ADR-104). The log file keeps
+// every byte; a tail line longer than this ends " … [N more bytes]".
+const maxTailLineBytes = 4096
+
 // lastLines returns the final n lines of a file plus how many it left out, so a
 // trimmed report never reads as the whole output.
-func lastLines(path string, n int) ([]string, int) {
-	b, err := os.ReadFile(path)
+//
+// ADR-104: it streams the file with a ring of the last n lines, each capped at
+// maxTailLineBytes, so a noisy check costs n short lines of memory rather than
+// its whole log three times over (the bytes, a string copy, and the split).
+// Lines split as the whole-file split did: on "\n", a trailing "\r" kept, a final
+// line without "\n" counted, and a lone empty line read as no output.
+func lastLines(path string, n int) (tail []string, earlier int, cut bool) {
+	f, err := os.Open(path)
 	if err != nil {
-		return nil, 0
+		return nil, 0, false
 	}
-	lines := strings.Split(strings.TrimSuffix(string(b), "\n"), "\n")
-	if len(lines) == 1 && lines[0] == "" {
-		return nil, 0
+	defer func() { _ = f.Close() }()
+	r := bufio.NewReaderSize(f, 64<<10)
+	// One reused buffer per ring slot: a string per line would allocate the
+	// whole log again over the run, only to drop all but n of them. The ring
+	// grows as lines arrive, so a large tail_lines costs nothing it does not use.
+	var ring [][]byte
+	var dropped []int // bytes cut from each slot's line
+	next, total, over := 0, 0, 0
+	var cur []byte
+	emit := func() {
+		total++
+		switch {
+		case n <= 0:
+		case len(ring) < n:
+			ring = append(ring, append([]byte(nil), cur...))
+			dropped = append(dropped, over)
+		default:
+			ring[next] = append(ring[next][:0], cur...)
+			dropped[next] = over
+			next = (next + 1) % n
+		}
+		cur, over = cur[:0], 0
 	}
-	if len(lines) <= n {
-		return lines, 0
+	for {
+		frag, err := r.ReadSlice('\n')
+		body := frag
+		if err == nil {
+			body = frag[:len(frag)-1]
+		}
+		take := min(max(maxTailLineBytes-len(cur), 0), len(body))
+		cur = append(cur, body[:take]...)
+		over += len(body) - take
+		if errors.Is(err, bufio.ErrBufferFull) {
+			continue
+		}
+		if err == nil {
+			emit()
+			continue
+		}
+		if !errors.Is(err, io.EOF) {
+			// A read that failed part-way would pass off a prefix as the tail;
+			// the whole-file read answered nothing then, and so does this.
+			return nil, 0, false
+		}
+		// A final line without "\n" still counts.
+		if len(frag) > 0 || len(cur) > 0 || over > 0 {
+			emit()
+		}
+		break
 	}
-	return lines[len(lines)-n:], len(lines) - n
+	if total == 0 || (total == 1 && len(ring) == 1 && len(ring[0]) == 0 && dropped[0] == 0) {
+		return nil, 0, false
+	}
+	kept := make([]string, 0, len(ring))
+	for i := range ring {
+		j := (next + i) % len(ring)
+		s := string(ring[j])
+		if dropped[j] > 0 {
+			cut = true
+			// The cut can split a rune; its stray bytes go too, and are counted.
+			v := strings.ToValidUTF8(s, "")
+			s = v + fmt.Sprintf(" … [%d more bytes]", dropped[j]+len(s)-len(v))
+		}
+		kept = append(kept, s)
+	}
+	return kept, total - len(kept), cut
 }
 
 // Step is one command a sequence runs after the check (ADR-092): a step the

@@ -18,6 +18,7 @@ package subproc
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -85,13 +86,29 @@ func Run(c *exec.Cmd) error {
 	return err
 }
 
+// ErrOutputTooLarge is Output's refusal of an answer over its limit (ADR-104).
+type ErrOutputTooLarge struct {
+	Size, Limit int64
+	// AtLeast says Size is where a bounded read stopped, not the answer's
+	// size: it grew past Limit after it was measured (the review of #295).
+	AtLeast bool
+}
+
+func (e *ErrOutputTooLarge) Error() string {
+	if e.AtLeast {
+		return fmt.Sprintf("answered more than %d bytes, over the %d-byte limit", e.Limit, e.Limit)
+	}
+	return fmt.Sprintf("answered %d bytes, over the %d-byte limit", e.Size, e.Limit)
+}
+
 // Output is Run for a child whose stdout is the answer. The answer goes to a
 // file, not a pipe: exec waits up to WaitDelay for a pipe a grandchild still
 // holds, and the group was stopped only after that — up to a second past the
 // child's exit, in which an emptied group's id could be reused (the review of
 // #241). With a file, Wait returns at the child's exit and the group is
-// stopped at once, as Run stops it.
-func Output(c *exec.Cmd) ([]byte, error) {
+// stopped at once, as Run stops it. An answer over limit bytes is refused
+// without being read (ADR-104).
+func Output(c *exec.Cmd, limit int64) ([]byte, error) {
 	f, err := os.CreateTemp("", "mrw-subproc-*.out")
 	if err != nil {
 		return nil, err
@@ -100,12 +117,20 @@ func Output(c *exec.Cmd) ([]byte, error) {
 	defer func() { _ = f.Close() }()
 	c.Stdout = f
 	runErr := Run(c)
+	if fi, err := f.Stat(); err == nil && fi.Size() > limit {
+		return nil, &ErrOutputTooLarge{Size: fi.Size(), Limit: limit}
+	}
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
-	out, err := io.ReadAll(f)
+	// Bounded as well as measured: a grandchild Run could not reap (Windows has
+	// no process groups, ADR-080) can go on writing after the size was taken.
+	out, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, err
+	}
+	if int64(len(out)) > limit {
+		return nil, &ErrOutputTooLarge{Size: int64(len(out)), Limit: limit, AtLeast: true}
 	}
 	return out, runErr
 }

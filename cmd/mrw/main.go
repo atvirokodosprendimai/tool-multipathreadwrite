@@ -1819,13 +1819,18 @@ func reportSteps(w *os.File, r *check.StepsResult) {
 			// `go test ./... || true` shows its FAIL (ADR-094). A passing step
 			// whose output ran past the tail keeps its log (ADR-080), so the
 			// receipt says where (ADR-092 T4), counting every line above the
-			// one shown.
+			// one shown. One whose tail cut a line keeps it too (ADR-104), and
+			// the receipt names it after the cut line: the bytes the marker
+			// counts are there.
 			last := lastShown(s.Tail)
 			if s.Truncated > 0 {
 				fmt.Fprintf(out, "... %d earlier line(s) in %s\n", s.Truncated+max(last, 0), s.OutputFile)
 			}
 			if last >= 0 {
 				fmt.Fprintf(out, "  | %s\n", s.Tail[last])
+			}
+			if s.Truncated == 0 && s.OutputFile != "" {
+				fmt.Fprintf(out, "full output: %s\n", s.OutputFile)
 			}
 			continue
 		case check.StepNotRun:
