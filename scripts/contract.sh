@@ -7780,17 +7780,16 @@ fi
 # 187. ADR-092 Decision 5, "the check could not start": such a check names every
 # step asked for, not_run, under --json in one document. With TMPDIR pointing
 # nowhere the check cannot create its log, and `check --json` printed nothing at
-# all (the 2026-09-29 gap survey, C2). Without a step asked it still prints no
-# document (ADR-092: without --then nothing changes), and a refused scope takes
-# another path and is left as it was (ADR-092 T4, Out of Scope). The pair: with
-# this run's TMPDIR the same check runs its step.
+# all (the 2026-09-29 gap survey, C2). Without a step asked it is one document
+# holding the error and no then block (ADR-100; before it, no document at all).
+# The pair: with this run's TMPDIR the same check runs its step.
 fixture
 printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
 TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --json --then-sh 'touch m187' > "$WORK/j187" 2> /dev/null; want 2 $? "a check whose log cannot be created exits 2"
 { [ ! -e "$R/m187" ] && jq -se 'length == 1 and (.[0] | (.error | length > 0) and (.then.steps | length == 1 and .[0].status == "not_run"))' "$WORK/j187" > /dev/null; } \
   && ok "stdout is one JSON document naming the error and the step not_run, which never ran" || bad "check --json: $(head -c 400 "$WORK/j187")"
 TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --json > "$WORK/n187" 2> /dev/null; want 2 $? "the same check with no step asked exits 2"
-[ ! -s "$WORK/n187" ] && ok "and, with no step asked, prints no document, as before" || bad "no step asked: $(head -c 300 "$WORK/n187")"
+jq -se 'length == 1 and (.[0] | type == "object" and keys == ["error"] and (.error | length > 0))' "$WORK/n187" > /dev/null && ok "and, with no step asked, prints exactly one document holding only the error (ADR-100)" || bad "no step asked: $(head -c 300 "$WORK/n187")"
 TMPDIR="$WORK/gone187" "$MRW" -C "$R" check --full --then-sh 'touch m187' > "$WORK/o187" 2>&1; want 2 $? "the same check in human form exits 2"
 { [ ! -e "$R/m187" ] && grep -q 'then 1/1 --then-sh: touch m187 — NOT RUN' "$WORK/o187"; } \
   && ok "and names the step NOT RUN" || bad "the human report: $(head -c 400 "$WORK/o187")"
@@ -7940,6 +7939,37 @@ out=$(m read --help 2>&1); want 0 $? "the pair: read --help exits 0"
 grep -q 'USAGE' <<<"$out" && ok "and still prints read's help" || bad "read --help: $(head -c 300 <<<"$out")"
 out=$("$MRW" help 2>&1); want 0 $? "mrw help exits 0"
 grep -q '^COMMANDS:' <<<"$out" && ok "and still lists the commands" || bad "mrw help: $(head -c 300 <<<"$out")"
+
+# 193. ADR-100: every `mrw check --json` refusal is one document. A path outside
+# the root, a path not there and --full with a PATH printed only a message on
+# stderr under --json, so a consumer parsing stdout read nothing. Each is now
+# {"error": ...}, exit 2, with no exit_code to read a verdict out of. The pair:
+# the same refusal without --json prints nothing on stdout.
+fixture
+printf '{"check":"touch marker193"}\n' > "$R/.quality-harness.json"
+for a in ../outside nosuchdir '--full a.go'; do
+  # $a is split on purpose: '--full a.go' is two arguments.
+  # shellcheck disable=SC2086
+  out=$(m check --json $a 2>/dev/null); want 2 $? "check --json $a exits 2"
+  jq -se 'length == 1 and (.[0] | type == "object" and keys == ["error"] and (.error | length > 0))' <<<"$out" > /dev/null \
+    && ok "and prints exactly one document holding only the error, so no exit_code" || bad "check --json $a: $out"
+  # shellcheck disable=SC2086
+  out=$(m check $a 2>/dev/null); want 2 $? "the pair: check $a exits 2"
+  [ -z "$out" ] && ok "and prints nothing on stdout" || bad "check $a wrote stdout: $out"
+done
+[ ! -e "$R/marker193" ] && ok "and no refusal ran the check" || bad "a refusal ran the check"
+out=$("$MRW" -C "$R" check --json --then-sh='true ' 2>/dev/null); want 2 $? "the boundary: a padded attached flag value is refused in main, exit 2"
+[ -z "$out" ] && ok "and, refused before any flag is parsed, prints nothing on stdout" || bad "pre-parse refusal wrote stdout: $out"
+
+# 194. ADR-100: at MRW_STEP_DEPTH 8 every form of mrw check that reaches the
+# Action hears ADR-095's depth refusal first. `check --full a.go` answered with
+# the --full refusal because the depth check came after it. The pair: at 7 it
+# names --full.
+fixture
+out=$(env MRW_STEP_DEPTH=8 "$MRW" -C "$R" check --full a.go 2>&1); want 2 $? "check --full a.go at depth 8 exits 2"
+grep -q 'MRW_STEP_DEPTH' <<<"$out" && ok "and names the depth limit" || bad "at 8: $out"
+out=$(env MRW_STEP_DEPTH=7 "$MRW" -C "$R" check --full a.go 2>&1); want 2 $? "the pair: at depth 7 it exits 2"
+grep -q 'it takes no PATH' <<<"$out" && ok "and names --full" || bad "at 7: $out"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running

@@ -2365,3 +2365,19 @@ at the boundary, and a discovered one is dropped.
 - **The doc comment `// instructionsCmd prints…` sits above `func versionCmd`** in `cmd/mrw/main.go`,
   and `func instructionsCmd` carries none (ADR-097 Follow-up, found while drafting). **Closed**
   (2026-09-29, the hygiene PR after v1.32.0): each function carries its own comment.
+
+## From ADR-100 (every `mrw check --json` refusal is a document)
+
+- **`write --json` refusals before the plan is named** (ADR-100 Out of Scope). Edge whitespace
+  (`refusePaddedArgs`), `--check` with `--dry-run`, `--check` with `--no-check`, a negative `--echo-pad` and a
+  second plan file (`cmd/mrw/main.go` `writeCmd`, audited 2026-09-30) print only a message under `--json`.
+  ADR-072 T3 drew its line "after the plan is named" on purpose: these are flag contradictions before any
+  receipt exists. Arm on the first `--json` caller that parses stdout from one of them.
+- **`stats --json` state-read failures** (ADR-100 Out of Scope). `authoring.Reset` and `authoring.Load`
+  errors (`statsCmd`) print only a message. `stats` reports the tally rather than a verdict a caller branches
+  on. Arm with the first consumer that reads `stats --json` programmatically.
+- **`exit_code` 0 beside `"ran": false` in `check --json`'s receipt** (ADR-100 Out of Scope). When no
+  check could run (no harness, no `go.mod`) the receipt is `{"ran": false, "skipped": …, "exit_code": 0}`
+  and mrw exits 2 (probed 2026-09-30). A consumer that reads `exit_code` alone reads a pass. Omitting the
+  field when nothing ran changes the receipt shape ADR-054 and ADR-092 pin; arm on the first consumer that
+  branches on `exit_code`.
