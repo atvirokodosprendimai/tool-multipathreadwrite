@@ -8233,6 +8233,25 @@ miss210=$(keys210 "$WORK/j210" | unlisted210)
 printf '{"not_a_field":1}\n' > "$WORK/k210"
 [ "$(keys210 "$WORK/k210" | unlisted210)" = "not_a_field" ] && ok "the pair: a key the file does not list is reported" || bad "the lookup did not report an unlisted key"
 
+# 211. ADR-112: a write names a file that changed while its check ran. The check
+# runs after the write lock is released, so the check itself — or another writer —
+# can change a file the write landed, and the verdict was about a tree that had
+# moved. Advisory: the exit code stays the check's. The pair: a check that
+# changes nothing names nothing.
+fixture
+printf '{"check":"printf x >> a.go"}\n' > "$R/.quality-harness.json"
+m read a.go > /dev/null
+printf '@@ a.go 1 replace\npackage a // 211\n' > "$R/p211.mrw"
+out=$(m write --check "$R/p211.mrw" 2>&1); want 0 $? "a write whose check appends to the file it wrote exits 0"
+grep -q '^drift: a.go changed while the check ran' <<<"$out" && ok "and names the file as drift" || bad "no drift line: $(head -c 300 <<<"$out")"
+m read a.go > /dev/null
+m write --check --json "$R/p211.mrw" > "$WORK/j211" 2>/dev/null; want 0 $? "the same write under --json exits 0"
+jq -e '.drift == ["a.go"]' "$WORK/j211" > /dev/null && ok "and its receipt carries drift [a.go]" || bad "drift receipt: $(head -c 300 "$WORK/j211")"
+printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
+m read a.go > /dev/null
+m write --check --json "$R/p211.mrw" > "$WORK/k211" 2>/dev/null; want 0 $? "the pair: a write whose check changes nothing exits 0"
+jq -e 'has("drift") | not' "$WORK/k211" > /dev/null && ok "and its receipt carries no drift" || bad "drift with an idle check: $(head -c 300 "$WORK/k211")"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
