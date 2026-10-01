@@ -6,9 +6,9 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-023, ADR-054, ADR-072, ADR-092, ADR-100, ADR-102
-**Governs:** `docs/receipts.txt`, `cmd/mrw/main.go`, `internal/mcp/tools.go`, `AGENTS.md`, `scripts/contract.sh`
+**Governs:** `docs/receipts.txt`, `cmd/mrw/main.go`, `internal/mcp/schema_test.go`, `AGENTS.md`, `scripts/contract.sh`
 **Enforced-by:** `cmd/mrw/receipts111_test.go::TestNoShippedReceiptFieldDisappears`
-**Served-path change:** None to any output: two anonymous receipt structs and one map become named types with the same JSON. What changes is a promise, written down and held by a test: every key a JSON receipt carries keeps its name, type and meaning; keys are only added.
+**Served-path change:** None to any output: two anonymous receipt structs become named types with the same JSON. What changes is a promise, written down and held by tests: every key a JSON receipt carries keeps its name, type and meaning; keys are only added.
 
 ## Context
 
@@ -36,10 +36,14 @@ protocol's, held by the golden in `internal/mcp/testdata`, and not a receipt.
    added. A removal, a rename or a change of meaning is a breaking change: it waits for a major version, and the
    release before it names the key as going in its tag message and the README's Status.
 2. `docs/receipts.txt` lists every key path of every receipt, one per line (`write hunks[].status`). Two tests —
-   the CLI's in `cmd/mrw`, MCP's in `internal/mcp` — reflect the receipt types and require the file and the types
-   to agree: a path in the file that a type lost fails (a removal), and a path in a type that the file lacks fails
-   (an addition must be written into the file, where review sees it).
-3. The stats receipt, the check refusal and `mrw_read`'s receipt become named types, so the tests can reflect them.
+   the CLI's in `cmd/mrw`, MCP's in `internal/mcp` — require the file and the receipts to agree: a path in the file
+   a receipt lost fails (a removal), and a path in a receipt that the file lacks fails (an addition must be written
+   into the file, where review sees it). The CLI's receipts and `mrw_write`'s are reflected from their types; the
+   names in stats' `counts` map are the vocabulary, every one present at zero (ADR-054), and are held too.
+3. The stats receipt and the check refusal become named types, so the CLI test can reflect them. `mrw_read`'s
+   receipt has variants — served, paged, no match, index — built as maps; `readSchema` declares the union of their
+   keys and `TestTheReadReceiptMatchesItsSchema` holds that declaration to a real answer of each variant both ways,
+   so the MCP test takes `mrw_read`'s keys from it, and T2's fence runs both (the Codex review of #308).
 4. Contract §210 checks the built binary's `write --json` keys against the file.
 
 ## Alternatives Considered
@@ -60,7 +64,7 @@ protocol's, held by the golden in `internal/mcp/testdata`, and not a receipt.
 |---------|--------|----------|-------------|
 | `docs/receipts.txt` | the shipped key paths | T1 | T1, T2, §210 |
 | CLI receipts | `statsReceipt`, `checkRefusal` named; JSON unchanged | T1 | callers |
-| `mrw_read` receipt | `readReceipt` named; JSON unchanged | T2 | MCP hosts |
+| `mrw_read` receipt | keys taken from `readSchema`, held to every variant | T2 | MCP hosts |
 | `scripts/contract.sh` | §210 (T1) | T1 | CI Linux |
 
 ## Inter-task Contracts

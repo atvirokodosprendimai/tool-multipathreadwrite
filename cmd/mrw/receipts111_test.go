@@ -7,27 +7,32 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring"
 )
 
 // ADR-111 T1. Receipt keys were only ever added, but nothing said a caller may
 // rely on that and nothing failed when one was removed or renamed. Every key of
 // the CLI's JSON receipts is listed in docs/receipts.txt, and the receipt types
-// and the file agree.
+// and the file agree. stats' counts is a map, but its keys are the vocabulary,
+// every one present at zero (ADR-054): names a caller reads, held like fields.
 func TestNoShippedReceiptFieldDisappears(t *testing.T) {
-	compareWithShipped(t, map[string]reflect.Type{
-		"write":         reflect.TypeOf(receipt{}),
-		"check":         reflect.TypeOf(checkReceipt{}),
-		"check_refusal": reflect.TypeOf(checkRefusal{}),
-		"stats":         reflect.TypeOf(statsReceipt{}),
-	})
+	got := map[string]bool{}
+	receiptPaths(got, "write", reflect.TypeOf(receipt{}))
+	receiptPaths(got, "check", reflect.TypeOf(checkReceipt{}))
+	receiptPaths(got, "check_refusal", reflect.TypeOf(checkRefusal{}))
+	receiptPaths(got, "stats", reflect.TypeOf(statsReceipt{}))
+	for _, name := range authoring.Vocabulary() {
+		got["stats counts."+name] = true
+	}
+	compareWithShipped(t, got, "write", "check", "check_refusal", "stats")
 }
 
-// receiptPaths lists every key path of a receipt type as docs/receipts.txt
-// spells it: "<receipt> <path>", nested keys joined by ".", a slice's elements
-// as "[]" and a map's values as "{}". An embedded struct's keys are its
-// parent's, as encoding/json inlines them; a []byte is a leaf.
-func receiptPaths(name string, t reflect.Type) []string {
-	var out []string
+// receiptPaths adds every key path of a receipt type to got, as
+// docs/receipts.txt spells it: "<receipt> <path>", nested keys joined by ".", a
+// slice's elements as "[]" and a map's values as "{}". An embedded struct's keys
+// are its parent's, as encoding/json inlines them; a []byte is a leaf.
+func receiptPaths(got map[string]bool, name string, t reflect.Type) {
 	var walk func(t reflect.Type, prefix string, depth int)
 	walk = func(t reflect.Type, prefix string, depth int) {
 		for t.Kind() == reflect.Pointer {
@@ -54,7 +59,7 @@ func receiptPaths(name string, t reflect.Type) []string {
 				if key == "" {
 					key = f.Name
 				}
-				out = append(out, name+" "+prefix+key)
+				got[name+" "+prefix+key] = true
 				walk(f.Type, prefix+key+".", depth+1)
 			}
 		case reflect.Slice, reflect.Array:
@@ -67,23 +72,20 @@ func receiptPaths(name string, t reflect.Type) []string {
 		}
 	}
 	walk(t, "", 0)
-	return out
 }
 
-// compareWithShipped requires docs/receipts.txt and the reflected receipts to
-// agree, for the receipts named: a shipped path a type lost is a removal, and a
-// path the file lacks is an addition nobody wrote down (ADR-111).
-func compareWithShipped(t *testing.T, receipts map[string]reflect.Type) {
+// compareWithShipped requires docs/receipts.txt and got to agree for the
+// receipts named: a shipped path got lacks is a removal, and a path the file
+// lacks is an addition nobody wrote down (ADR-111).
+func compareWithShipped(t *testing.T, got map[string]bool, names ...string) {
 	t.Helper()
-	got := map[string]bool{}
-	for name, typ := range receipts {
-		for _, p := range receiptPaths(name, typ) {
-			got[p] = true
-		}
-	}
 	b, err := os.ReadFile(filepath.Join("..", "..", "docs", "receipts.txt"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	want := map[string]bool{}
+	for _, n := range names {
+		want[n] = true
 	}
 	shipped, per := map[string]bool{}, map[string]int{}
 	for _, line := range strings.Split(string(b), "\n") {
@@ -91,14 +93,14 @@ func compareWithShipped(t *testing.T, receipts map[string]reflect.Type) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		if f := strings.Fields(line); len(f) == 2 && receipts[f[0]] != nil {
+		if f := strings.Fields(line); len(f) == 2 && want[f[0]] {
 			shipped[line] = true
 			per[f[0]]++
 		}
 	}
-	for name := range receipts {
-		if per[name] == 0 {
-			t.Errorf("docs/receipts.txt lists no field of %s; the comparison would hold nothing", name)
+	for _, n := range names {
+		if per[n] == 0 {
+			t.Errorf("docs/receipts.txt lists no field of %s; the comparison would hold nothing", n)
 		}
 	}
 	var lost, unlisted []string
@@ -108,7 +110,8 @@ func compareWithShipped(t *testing.T, receipts map[string]reflect.Type) {
 		}
 	}
 	for p := range got {
-		if !shipped[p] {
+		name, _, _ := strings.Cut(p, " ")
+		if want[name] && !shipped[p] {
 			unlisted = append(unlisted, p)
 		}
 	}

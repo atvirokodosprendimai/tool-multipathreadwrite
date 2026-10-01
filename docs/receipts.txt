@@ -51,6 +51,10 @@ check_refusal then.steps[].skipped
 check_refusal then.steps[].status
 check_refusal then.steps[].tail
 check_refusal then.steps[].truncated_lines
+mcp_read index
+mcp_read matches
+mcp_read next_index
+mcp_read next_read
 mcp_read observed
 mcp_read observed{}.SHA
 mcp_read observed{}.Spans
@@ -93,6 +97,12 @@ mcp_write pattern.fires
 mcp_write pattern.window
 mcp_write root
 stats counts
+stats counts.applied
+stats counts.check_not_run
+stats counts.failed_check
+stats counts.partially_applied
+stats counts.refused_apply
+stats counts.refused_parse
 stats failed_check_of_landed
 stats landed
 stats plans

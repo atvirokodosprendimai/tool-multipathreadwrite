@@ -8226,7 +8226,7 @@ m read a.go > /dev/null
 printf '@@ a.go 1 replace\npackage a // 210\n' > "$R/p210.mrw"
 m write --no-check --json "$R/p210.mrw" > "$WORK/j210" 2>/dev/null; want 0 $? "a write --json exits 0"
 keys210() { jq -r 'paths | select(.[-1] | type != "number") | map(if type == "number" then "[]" else "." + . end) | join("") | ltrimstr(".") | gsub("\\.\\[\\]"; "[]")' "$1" | sort -u; }
-rcpt210="$(cd "$(dirname "$0")/.." && pwd)/docs/receipts.txt"
+rcpt210="$SRC/docs/receipts.txt"
 unlisted210() { while IFS= read -r k; do grep -qxF "write $k" "$rcpt210" || echo "$k"; done; }
 miss210=$(keys210 "$WORK/j210" | unlisted210)
 [ -z "$miss210" ] && [ -n "$(keys210 "$WORK/j210")" ] && ok "and every key it printed is listed in docs/receipts.txt" || bad "write --json keys not in docs/receipts.txt: $miss210"

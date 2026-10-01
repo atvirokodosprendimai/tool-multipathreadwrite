@@ -59,6 +59,8 @@ out=$(mktemp) \
 ## Mutation Log
 - 2026-10-01 · 5ad968f* · mutant killed · exit 1 · `cmd/mrw/main.go` · a write receipt key renamed: pattern disappears and patterns is unlisted · acceptance-sha256:96d95ad05fab07be186b5c29db8f71226428b678cb4e31cdfb096d197950e701
 - 2026-10-01 · 5ad968f* · mutant killed · exit 1 · `cmd/mrw/main.go` · a stats key renamed: landed disappears · acceptance-sha256:96d95ad05fab07be186b5c29db8f71226428b678cb4e31cdfb096d197950e701
+- 2026-10-01 · 24c5778* · mutant killed · exit 1 · `cmd/mrw/main.go` · a write receipt key renamed: pattern disappears and patterns is unlisted · acceptance-sha256:96d95ad05fab07be186b5c29db8f71226428b678cb4e31cdfb096d197950e701
+- 2026-10-01 · 24c5778* · mutant killed · exit 1 · `internal/authoring/authoring.go` · a stats counter renamed in the vocabulary: counts.check_not_run disappears · acceptance-sha256:96d95ad05fab07be186b5c29db8f71226428b678cb4e31cdfb096d197950e701
 
 ## Invariants
 
@@ -88,3 +90,7 @@ Stop and ask if a locked test must change to pass.
   ```
 - 2026-10-01 · 5ad968f* · exit 0 · `set -o pipefail …` · acceptance-sha256:96d95ad05fab07be186b5c29db8f71226428b678cb4e31cdfb096d197950e701 · ms:1600
 - 2026-10-01 · 5ad968f* · exit 0 · `set -o pipefail …` · acceptance-sha256:96d95ad05fab07be186b5c29db8f71226428b678cb4e31cdfb096d197950e701 · ms:1736
+- 2026-10-01 · 24c5778* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:96d95ad05fab07be186b5c29db8f71226428b678cb4e31cdfb096d197950e701 · ms:0 · test-lock-sha256:3a231ec127b7e00486207e15db93dde26076e0580946299f408f19e51c011ac6 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9yZWNlaXB0czExMV90ZXN0LmdvCVRlc3ROb1NoaXBwZWRSZWNlaXB0RmllbGREaXNhcHBlYXJzCTE2MTAxYTIwOWRkYmY5ZDlkMTFlMjQxZDA2MDU5MjI5OTRlNWNhNjBjNWM2MGRhZjI5YjMxMDg0ODBlODhjODU · test-lock-kind:replace
+- 2026-10-01 · human-observed · Claude's session observed the relock: after red the test gained the six stats counts vocabulary keys, from the Codex review of #308, and the walker now fills a shared set; the reflected receipts are unchanged
+- 2026-10-01 · 24c5778* · exit 0 · `set -o pipefail …` · acceptance-sha256:96d95ad05fab07be186b5c29db8f71226428b678cb4e31cdfb096d197950e701 · ms:1255
+- 2026-10-01 · 24c5778* · exit 0 · `set -o pipefail …` · acceptance-sha256:96d95ad05fab07be186b5c29db8f71226428b678cb4e31cdfb096d197950e701 · ms:1071
