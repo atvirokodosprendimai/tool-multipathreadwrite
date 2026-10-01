@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
 )
@@ -91,8 +92,9 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 		n, prob := judgeNamed(root, absRoot, p)
 		if prob == nil {
 			// ast-grep's own failure to read a path can come back as no
-			// hits, where the walk reports it; mrw asks first.
-			if f, err := os.Open(n.full); err != nil {
+			// hits, where the walk reports it; mrw asks first, without
+			// blocking on a FIFO swapped in after judgeNamed (ADR-109).
+			if f, _, err := regular.Open(n.full); err != nil {
 				prob = &Problem{Path: n.rel, Reason: err.Error()}
 			} else {
 				_ = f.Close() // opened to learn it can be; nothing was read

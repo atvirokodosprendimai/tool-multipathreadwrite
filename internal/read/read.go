@@ -26,6 +26,7 @@ import (
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -59,13 +60,15 @@ func (e errOverFileCap) Error() string {
 // readCapped reads path whole, up to maxFileBytes. It refuses by the file's
 // size first, and then reads through a limit of one byte more, because a size
 // taken before the read is outrun by a file that grows (the review of #295).
+// It opens through regular.Open (ADR-109): a file swapped for a FIFO after the
+// caller's path check is refused rather than blocking the read.
 func readCapped(path string) ([]byte, error) {
-	f, err := os.Open(path)
+	f, fi, err := regular.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
-	if fi, err := f.Stat(); err == nil && fi.Mode().IsRegular() && fi.Size() > maxFileBytes {
+	if fi.Mode().IsRegular() && fi.Size() > maxFileBytes {
 		return nil, errOverFileCap{size: fi.Size(), exact: true}
 	}
 	b, err := io.ReadAll(io.LimitReader(f, maxFileBytes+1))

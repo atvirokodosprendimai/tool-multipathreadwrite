@@ -30,6 +30,7 @@ import (
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -534,6 +535,13 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		var over errOverLoadLimit
 		if errors.As(err, &over) {
 			refuseFile(results, path, hs, 0, fmt.Sprintf("%s: %v", path, err))
+			failed = append(failed, FileResult{Path: path})
+			continue
+		}
+		// ADR-109: a file swapped for a FIFO, a socket or a device after the
+		// check above is refused on its hunk too, with ADR-073's words.
+		if errors.Is(err, regular.ErrNotRegular) {
+			refuseFile(results, path, hs, 0, fmt.Sprintf("%s is %s", path, lines.NotRegular))
 			failed = append(failed, FileResult{Path: path})
 			continue
 		}
@@ -1761,7 +1769,9 @@ func (t text) with(lines []string) text { t.lines = lines; return t }
 // The terminators are lines.Split's (ADR-005 §3, moved there by ADR-065 so read,
 // --grep, MCP paging and the plan compilers number a file exactly as this does).
 func readLines(path string) (t text, existed bool, err error) {
-	f, err := os.Open(path)
+	// ADR-109: opened through regular.Open, so a file validation judged regular
+	// and that was then swapped for a FIFO is refused rather than blocking.
+	f, _, err := regular.Open(path)
 	if os.IsNotExist(err) {
 		return text{eol: "\n"}, false, nil
 	}

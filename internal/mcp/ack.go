@@ -36,6 +36,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -44,9 +45,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"unicode/utf8"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
@@ -479,13 +480,17 @@ func savePending(root string, store map[string]pending) error {
 func currentSHA(root, path string) (string, error) {
 	// ADR-108: opened without blocking and refused unless it is still a
 	// regular file — a FIFO swapped in after the read blocked a plain open,
-	// under the pending-store lock, and a device streams for ever.
-	f, err := os.OpenFile(filepath.Join(root, filepath.FromSlash(path)), os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	// under the pending-store lock, and a device streams for ever. ADR-109 made
+	// that one function, regular.Open, which passes a directory back.
+	f, fi, err := regular.Open(filepath.Join(root, filepath.FromSlash(path)))
+	if errors.Is(err, regular.ErrNotRegular) {
+		return "", fmt.Errorf("%s is no longer a regular file", path)
+	}
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = f.Close() }()
-	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+	if !fi.Mode().IsRegular() {
 		return "", fmt.Errorf("%s is no longer a regular file", path)
 	}
 	h := sha256.New()

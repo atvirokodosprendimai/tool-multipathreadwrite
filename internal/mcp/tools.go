@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"unicode/utf8"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
@@ -27,6 +26,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
@@ -1252,15 +1252,14 @@ func countFileLines(root, path string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	f, err := os.OpenFile(full, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	f, fi, err := regular.Open(full)
+	if errors.Is(err, regular.ErrNotRegular) {
+		return 0, fmt.Errorf("%s is not a regular file", path)
+	}
 	if err != nil {
 		return 0, err
 	}
 	defer func() { _ = f.Close() }()
-	fi, err := f.Stat()
-	if err != nil {
-		return 0, err
-	}
 	if !fi.Mode().IsRegular() {
 		return 0, fmt.Errorf("%s is not a regular file", path)
 	}

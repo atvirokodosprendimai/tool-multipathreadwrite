@@ -7,13 +7,12 @@
 package ingest
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -297,25 +296,23 @@ func fileLines(root, path string) ([]string, error) {
 }
 
 // targetBytes reads the file a foreign document edits, to locate its old side.
-// It looks before it opens: the compilers read the target before apply's own
-// regular-file check (ADR-073), so a FIFO named in a document blocked the write
-// until something wrote to the pipe (review of #230). A directory keeps
-// ReadFile's own error.
+// The compilers read the target before apply's own regular-file check (ADR-073),
+// so a FIFO named in a document blocked the write until something wrote to the
+// pipe (review of #230). It opens through regular.Open (ADR-109): the
+// descriptor, not a path Stat taken before the open, decides that the target is
+// a regular file, so a FIFO swapped in between is refused too. A directory keeps
+// the read's own error.
 func targetBytes(full string) ([]byte, error) {
-	fi, err := os.Stat(full)
-	if err == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
-		return nil, errors.New(lines.NotRegular)
-	}
-	// ADR-108: refused by its size and read through a bound, as read and
-	// apply read; this ran before apply's capped loader.
-	if err == nil && fi.Mode().IsRegular() && fi.Size() > maxTargetBytes {
-		return nil, fmt.Errorf("the file is %d bytes, over the %d-byte limit mrw reads", fi.Size(), maxTargetBytes)
-	}
-	f, err := os.Open(full)
+	f, fi, err := regular.Open(full)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
+	// ADR-108: refused by its size and read through a bound, as read and
+	// apply read; this ran before apply's capped loader.
+	if fi.Mode().IsRegular() && fi.Size() > maxTargetBytes {
+		return nil, fmt.Errorf("the file is %d bytes, over the %d-byte limit mrw reads", fi.Size(), maxTargetBytes)
+	}
 	b, err := io.ReadAll(io.LimitReader(f, maxTargetBytes+1))
 	if err != nil {
 		return nil, err

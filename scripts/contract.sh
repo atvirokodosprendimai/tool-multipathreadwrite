@@ -8176,6 +8176,17 @@ grep -q 'written by an older mrw' <<<"$out" && ok "and the notice says the ledge
 m read a206.txt:50 > /dev/null
 m write --no-check "$R/p206.mrw" > /dev/null 2>&1; want 0 $? "the pair: after a read of line 50 the write applies"
 
+# 207. ADR-109: a FIFO named .quality-harness.json is refused, not waited on.
+# The config was read with os.ReadFile, so a FIFO there hung `mrw check` and
+# every write whose check was due until something wrote to the pipe. It is
+# refused as not a regular file, exit 2. The pair: a regular config runs.
+fixture
+rm -f "$R/.quality-harness.json"; mkfifo "$R/.quality-harness.json"
+bounded 10 "$WORK/o207" "$MRW" -C "$R" check; want 2 $? "mrw check with a FIFO config exits 2 instead of hanging"
+grep -q 'not a regular file' "$WORK/o207" && ok "and names why" || bad "FIFO config: $(head -c 300 "$WORK/o207")"
+rm -f "$R/.quality-harness.json"; printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
+bounded 10 "$WORK/k207" "$MRW" -C "$R" check; want 0 $? "the pair: a regular config's check runs and passes"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

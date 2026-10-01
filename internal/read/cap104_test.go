@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 )
 
 // ADR-104 T3. Every served or searched file was read whole with no size check.
@@ -63,8 +65,10 @@ func TestAnAstGrepAnswerOverTheCapIsRefused(t *testing.T) {
 }
 
 // ADR-104 T3, the review of #295. A size taken before the read is outrun by a
-// file that grows, so readCapped also reads through a bound: an endless stream,
-// which a stat calls empty, is refused once the limit is passed.
+// file that grows, so readCapped also reads through a bound. ADR-109 refuses an
+// endless device at the open, before any read, so /dev/zero is now that
+// refusal; the bound is driven on Linux by a /proc file, which is a regular file
+// whose stat says 0 bytes and whose read returns more.
 func TestReadCappedRefusesAStreamOverTheCap(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("/dev/zero is a unix device")
@@ -72,9 +76,14 @@ func TestReadCappedRefusesAStreamOverTheCap(t *testing.T) {
 	old := maxFileBytes
 	maxFileBytes = 16
 	t.Cleanup(func() { maxFileBytes = old })
-	var over errOverFileCap
-	if _, err := readCapped("/dev/zero"); !errors.As(err, &over) || over.exact {
-		t.Errorf("an endless stream: err %v; want the bounded read's refusal", err)
+	if _, err := readCapped("/dev/zero"); !errors.Is(err, regular.ErrNotRegular) {
+		t.Errorf("an endless stream: err %v; want it refused as not a regular file, unread", err)
+	}
+	if runtime.GOOS == "linux" {
+		var over errOverFileCap
+		if _, err := readCapped("/proc/self/maps"); !errors.As(err, &over) || over.exact {
+			t.Errorf("a file whose stat is outrun by its read: err %v; want the bounded read's refusal", err)
+		}
 	}
 }
 

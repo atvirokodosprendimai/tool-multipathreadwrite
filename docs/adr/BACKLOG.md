@@ -2404,7 +2404,8 @@ at the boundary, and a discovered one is dropped.
 ## From ADR-108 (what an agent sends arrives as sent)
 
 The 2026-10-01 Codex design review (gpt-6-astra xhigh, v1.37.1) listed five robustness improvements beside the
-seven defects ADR-108 fixed. None is a defect today; each has the trigger that would make it one.
+seven defects ADR-108 fixed. None is a defect today; each has the trigger that would make it one. ADR-109's Out of
+Scope defers B1–B5 here too.
 
 - **A foreign-compiled plan carries `sha=`** (B1). `--format=apply_patch` and `--format=search_replace` compile to
   native hunks with no file guard, so a file changed between the caller's read and the write is caught only by the
@@ -2421,7 +2422,7 @@ seven defects ADR-108 fixed. None is a defect today; each has the trigger that w
 - **A drift advisory during a check** (B5). A file edited by someone else while mrw's check runs is not reported;
   the check's verdict is about a tree that may no longer exist. Arm when a green check is reported over a tree
   another writer changed during it.
-- **A FIFO swapped in between a loader's check and its open** (the Codex re-review of #304, residual). `ingest`'s
+- **A FIFO swapped in between a loader's check and its open** — **Closed** by ADR-109 (`internal/regular.Open`: every loader opens without blocking and asks the descriptor; it also found `check.Load` hung outright on a FIFO `.quality-harness.json`, contract §207, 2026-10-01) (the Codex re-review of #304, residual). `ingest`'s
   `targetBytes`, `plan`'s `LoadBodyFiles`, `read`'s `readCapped`, `apply`'s `readLines` and ast-grep's probes judge
   a path by `Stat` and then open it blocking, so a file replaced by a FIFO in that window hangs the call until
   something writes to the pipe. ADR-108's A6 and A8 open non-blocking and check the descriptor; these were not
