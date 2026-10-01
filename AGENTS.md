@@ -402,8 +402,9 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   The summary line counts those rows (`0 failed, 1 advisory — applied`, zero
   included) and the JSON receipt carries `advisories`; three in your last ten
   writes print a `pattern:` line on the receipt (ADR-055). `--strict-balance`
-  (MCP `strict_balance`) is opt-in and refuses that shape on a single-line
-  replace as a failed hunk — exit 1, nothing written. Braces in strings count.
+  (MCP `strict_balance`) is opt-in and refuses the wrap-tail shape — a single-line code replace whose replaced
+  line's delimiters do not balance and whose body does not match them (ADR-055) — as a failed hunk, exit 1, nothing
+  written; a balanced line replaced by an unbalanced body still applies with its row. Braces in strings count.
   Both JSON receipts carry `pattern` `{advisory_writes, window, fires}` on
   every write (ADR-056), so a `--json` or `mrw_write` caller holds the fact
   the human line prints.

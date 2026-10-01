@@ -2411,7 +2411,8 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's def
   design review. The read ledger records each file's whole sha when it is read, and apply refuses a file whose sha
   differs from it before any hunk (`internal/apply/apply.go:1039`, "changed since mrw last saw it"); a compiled
   `apply_patch` or `search_replace` plan goes through the same check, so a file changed after the caller's read is
-  refused, exit 1. Measured 2026-10-01 on v1.37.2 for both formats, and pinned by contract §212.
+  refused, exit 1, unless `--force` is passed, which bypasses the guard on purpose for every format (MCP has no force).
+  Measured 2026-10-01 on v1.37.2 for both formats, and pinned by contract §212.
 - **Combination tests and a host matrix** (B2) — the combination half **Closed**: `docs/break/write-flags/stress.py`
   drives seeded products of the write flags (`--json`, `--dry-run`, `--check`/`--no-check`, `--then-sh`,
   `--strict-balance`, `--echo-pad`) across native, `apply_patch` and `search_replace` plans and three check
