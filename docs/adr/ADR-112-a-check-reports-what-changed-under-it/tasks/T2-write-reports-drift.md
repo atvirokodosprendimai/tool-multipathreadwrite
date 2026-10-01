@@ -60,6 +60,7 @@ out=$(mktemp) \
 ## Mutation Log
 - 2026-10-01 · e396f7e* · mutant killed · exit 1 · `cmd/mrw/main.go` · the Drift call removed: the receipt never names a changed file · acceptance-sha256:8a31e86510bbb661e2b049df24ffe924b6adb8b195780a6621a6a2beae1fa599
 - 2026-10-01 · e396f7e* · mutant killed · exit 1 · `cmd/mrw/main.go` · the receipt key dropped · acceptance-sha256:8a31e86510bbb661e2b049df24ffe924b6adb8b195780a6621a6a2beae1fa599
+- 2026-10-01 · 7fe2f57* · mutant killed · exit 1 · `cmd/mrw/main.go` · the Drift report removed: the receipt never names a changed file · acceptance-sha256:8a31e86510bbb661e2b049df24ffe924b6adb8b195780a6621a6a2beae1fa599
 
 ## Invariants
 
@@ -94,3 +95,4 @@ Stop and ask if a locked test must change to pass.
   ```
 - 2026-10-01 · e396f7e* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a31e86510bbb661e2b049df24ffe924b6adb8b195780a6621a6a2beae1fa599 · ms:1190
 - 2026-10-01 · e396f7e* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a31e86510bbb661e2b049df24ffe924b6adb8b195780a6621a6a2beae1fa599 · ms:1187
+- 2026-10-01 · 7fe2f57* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a31e86510bbb661e2b049df24ffe924b6adb8b195780a6621a6a2beae1fa599 · ms:1192

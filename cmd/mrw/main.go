@@ -1446,6 +1446,9 @@ held or went unchecked.`,
 			// prose plan it runs, and with no command it is exit 2 (ADR-003).
 			if checkDue(res) {
 				written, _ := writeCheckPaths(res.Files)
+				// ADR-112: the baseline is what the write left on disk, taken
+				// now — before the check — so a change the check makes shows.
+				before := writer.Before(root, res)
 				cr, err := check.Run(ctx, root, cfg, written)
 				if err != nil {
 					// The write landed and its check could not run: that is
@@ -1461,7 +1464,7 @@ held or went unchecked.`,
 				// runs — another writer, or the check itself — and the verdict
 				// is then about a tree that moved under it. Say which.
 				if cr.Ran {
-					receipt.Drift = writer.Drift(root, res)
+					receipt.Drift = writer.Drift(root, before)
 				}
 			}
 			// ADR-092: the steps follow a landed write whose check, when one

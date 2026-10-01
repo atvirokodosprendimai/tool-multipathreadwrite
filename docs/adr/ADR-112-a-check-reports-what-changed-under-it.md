@@ -31,9 +31,11 @@ check; `--then` steps run after the check and are out of scope here.
 
 ## Decision
 
-1. `writer.Drift(root, res)` returns, sorted, each file the write touched — written, not removed, with a
-   `sha_after` — whose bytes no longer hash to it, or that is gone or no longer a regular file. It looks at the
-   rename's destination and at a symlink's target, where the bytes went.
+1. `writer.Before(root, res)` hashes each file the write touched — written, not removed — as it stands just before
+   the check, and `writer.Drift(root, before)` returns, sorted, each whose bytes no longer hash as they did, or that
+   is gone or no longer a regular file. The baseline is what is on disk, not the write's `sha_after`: a renamed
+   relative symlink keeps the sha of its old referent and resolves to another file after the move (the Codex review
+   of #309). Each hash streams, so a file that grew under the check costs no more memory than one that did not.
 2. The CLI write calls it once the check has run, and reports each path: a `drift:` line after the check's verdict,
    and `drift` in the `--json` receipt (absent when empty). The wording is "changed while the check ran", not
    "another writer": the check may have changed it itself.
