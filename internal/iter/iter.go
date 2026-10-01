@@ -15,7 +15,9 @@ package iter
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -90,11 +92,20 @@ func load(root string) (Set, error) {
 	defer func() { _ = f.Close() }()
 
 	seen := map[string]bool{}
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
+	r := bufio.NewReader(f)
+	for {
+		line, skip, err := nextLine(r)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return s, err
+		}
+		if skip {
+			continue // ADR-108: past the bound Save keeps, so not mrw's own
+		}
 		// Trimmed only to recognise a blank line or the note; an entry is kept
 		// as written, so "x " does not come back as x (ADR-069).
-		line := sc.Text()
 		t := strings.TrimSpace(line)
 		if t == "" {
 			continue
@@ -110,7 +121,35 @@ func load(root string) (Set, error) {
 			s.Entries = append(s.Entries, line)
 		}
 	}
-	return s, sc.Err()
+	return s, nil
+}
+
+// maxEntryBytes bounds one line of the working set, on save and on load alike
+// (ADR-108). bufio.Scanner's default stopped load at ~64 KiB while Save wrote
+// any length, so a long note saved and then failed every later load — every
+// write, and `mrw iter clear` itself.
+const maxEntryBytes = 64 << 10
+
+// nextLine returns r's next line without its "\n" or "\r\n", as bufio.ScanLines
+// did. A line longer than maxEntryBytes is consumed whole and reported as skip,
+// so the lines after it still load; at most the bound plus one buffer is held.
+func nextLine(r *bufio.Reader) (line string, skip bool, err error) {
+	var b []byte
+	for {
+		chunk, more, err := r.ReadLine()
+		if err != nil {
+			return "", false, err
+		}
+		if !skip {
+			b = append(b, chunk...)
+			if len(b) > maxEntryBytes {
+				skip, b = true, nil
+			}
+		}
+		if !more {
+			return string(b), skip, nil
+		}
+	}
 }
 
 // Save writes the working set back, creating its directory if needed. It takes
@@ -125,6 +164,16 @@ func Save(root string, s Set) error {
 		return err
 	}
 	var b strings.Builder
+	// ADR-108: a record load could not read back is refused, naming it; the
+	// caller typed it, so it is not dropped the way a ledger record is.
+	if len(s.Note) > maxEntryBytes {
+		return fmt.Errorf("the note is %d bytes, over the %d-byte limit the working set keeps", len(s.Note), maxEntryBytes)
+	}
+	for _, e := range s.Entries {
+		if len(e) > maxEntryBytes {
+			return fmt.Errorf("an entry is %d bytes, over the %d-byte limit the working set keeps", len(e), maxEntryBytes)
+		}
+	}
 	if s.Note != "" {
 		fmt.Fprintf(&b, "# %s\n", s.Note)
 	}

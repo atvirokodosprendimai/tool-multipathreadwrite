@@ -36,7 +36,7 @@ out=$(mktemp) \
   && grep -qE '^--- PASS: TestABodyFileKeepsTheTargetsLineEndings \(' "$out" \
   && grep -q '^# 203\. ' scripts/contract.sh \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/iter internal/rooted internal/check \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/rooted internal/check \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -57,6 +57,7 @@ out=$(mktemp) \
 
 ## Mutation Log
 - 2026-10-01 · 98feab5* · mutant killed · exit 1 · `internal/plan/plan.go` · the \n-only split restored: a CRLF body line keeps its \r · acceptance-sha256:257f75afd9099be383b5e1e4249345dcbdaf53012d4efff18fbaeb3b058dae3b
+- 2026-10-01 · 918bc7d* · mutant killed · exit 1 · `internal/plan/plan.go` · the \n-only split restored: a CRLF body line keeps its \r · acceptance-sha256:8ccc937ce57e62adb7d6471040164e66f224f6a7655c01cbcc9e19e034d4699c
 
 ## Invariants
 
@@ -88,3 +89,12 @@ Stop and ask if a locked test must change to pass.
 - 2026-10-01 · 98feab5* · exit 0 · `set -o pipefail …` · acceptance-sha256:257f75afd9099be383b5e1e4249345dcbdaf53012d4efff18fbaeb3b058dae3b · ms:324
 - 2026-10-01 · 98feab5* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:257f75afd9099be383b5e1e4249345dcbdaf53012d4efff18fbaeb3b058dae3b · ms:0 · test-lock-sha256:02e8d5d49e7bbad4cb9c4dc745a126848fb1b42da52ecdef6bfc990fed93750f · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL3BsYW4vYm9keTEwOF90ZXN0LmdvCVRlc3RBQm9keUZpbGVLZWVwc1RoZVRhcmdldHNMaW5lRW5kaW5ncwk5OWRkZGUwMTRkOTQ1MzZmMTVlMTUwNjI2ODc3YTMyYmQ0Zjc5NzY4MDNmODg3ZTM1NTc5ZTA1YjA3ODExZWE2 · test-lock-kind:replace
 - 2026-10-01 · human-observed · Zy's session observed the relock: after red the no-terminator loop exempts the mixed case, where lines.Split keeps the minority terminator by ADR-065; equality with lines.Split still holds for every case
+- 2026-10-01 · 918bc7d* · exit 1 · `set -o pipefail …` · acceptance-sha256:8ccc937ce57e62adb7d6471040164e66f224f6a7655c01cbcc9e19e034d4699c · ms:508
+  ```
+  --- last 4 line(s) of stdout
+  === RUN   TestABodyFileKeepsTheTargetsLineEndings
+  --- PASS: TestABodyFileKeepsTheTargetsLineEndings (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan	0.173s
+  ```
+- 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:8ccc937ce57e62adb7d6471040164e66f224f6a7655c01cbcc9e19e034d4699c · ms:330

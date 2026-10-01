@@ -36,7 +36,7 @@ out=$(mktemp) \
   && grep -qE '^--- PASS: TestACheckpointCoversOnlyConsecutiveServedLines \(' "$out" \
   && grep -q '^# 202\. ' scripts/contract.sh \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/iter internal/rooted internal/check \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/rooted internal/check \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -57,6 +57,7 @@ out=$(mktemp) \
 
 ## Mutation Log
 - 2026-10-01 · 98feab5* · mutant killed · exit 1 · `internal/mcp/ack.go` · the gap break removed: lines 1 and 100 share one checkpoint spanning 2-99 · acceptance-sha256:f6d6dd4b5ae42d2a5f3bca0de9c12764459d69b780cba4a59794e9ff7c8feefa
+- 2026-10-01 · 918bc7d* · mutant killed · exit 1 · `internal/mcp/ack.go` · the gap break removed: lines 1 and 100 share one checkpoint spanning 2-99 · acceptance-sha256:395aeb38656fa2a24f2eb01cd6dc226de66ed3a9e9cbd4e098a308222bd336a7
 
 ## Invariants
 
@@ -92,3 +93,12 @@ Stop and ask if a locked test must change to pass.
 - 2026-10-01 · 98feab5* · exit 0 · `set -o pipefail …` · acceptance-sha256:f6d6dd4b5ae42d2a5f3bca0de9c12764459d69b780cba4a59794e9ff7c8feefa · ms:551
 - 2026-10-01 · 98feab5* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f6d6dd4b5ae42d2a5f3bca0de9c12764459d69b780cba4a59794e9ff7c8feefa · ms:0 · test-lock-sha256:5bcb2fc8531da9e6d710665ea74c3b8274f5ecc2bc369686fb8b3e8e3b9139cc · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL21jcC9nYXAxMDhfdGVzdC5nbwlUZXN0QUNoZWNrcG9pbnRDb3ZlcnNPbmx5Q29uc2VjdXRpdmVTZXJ2ZWRMaW5lcwlhMWM4M2I0NzlmZjI0ODM4NGJlYzk2MjZhZGJhMzhiMTlmZjU4ZTFmNmVkYzZlZmM4MzA3YmJkN2Y0MmEyYWE3 · test-lock-kind:replace
 - 2026-10-01 · human-observed · Zy's session observed the relock: after red the helper licensed was renamed licensedLines, since landed102_test.go declares licensed; the assertions are unchanged
+- 2026-10-01 · 918bc7d* · exit 1 · `set -o pipefail …` · acceptance-sha256:395aeb38656fa2a24f2eb01cd6dc226de66ed3a9e9cbd4e098a308222bd336a7 · ms:1096
+  ```
+  --- last 4 line(s) of stdout
+  === RUN   TestACheckpointCoversOnlyConsecutiveServedLines
+  --- PASS: TestACheckpointCoversOnlyConsecutiveServedLines (0.01s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.248s
+  ```
+- 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:395aeb38656fa2a24f2eb01cd6dc226de66ed3a9e9cbd4e098a308222bd336a7 · ms:861

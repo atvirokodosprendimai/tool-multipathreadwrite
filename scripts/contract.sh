@@ -8132,6 +8132,33 @@ m write --no-check "$R/p203.mrw" > /dev/null 2>&1; want 0 $? "a write with two b
 [ "$(od -An -c "$R/l203.txt" | tr -s ' ')" = "$(printf 'Y\nb\n' | od -An -c | tr -s ' ')" ] \
   && ok "the pair: the LF target holds Y LF b LF" || bad "LF body: $(od -An -c "$R/l203.txt")"
 
+# 204. ADR-108: a first page counts only what read would serve. read refuses a
+# FIFO, but under a ceiling smaller than that refusal the server tried a first
+# page, whose line count opened the FIFO and waited for a writer: the server
+# hung. It answers. The pair: under an ordinary ceiling the FIFO is refused.
+fixture
+mkfifo "$R/p204"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["p204"]}}}' > "$WORK/q204"
+bounded 10 "$WORK/o204" sh -c '"$1" -C "$2" mcp --max-result-chars 16 < "$3"' _ "$MRW" "$R" "$WORK/q204"; want 0 $? "a FIFO read under a 16-character ceiling ends at EOF instead of hanging"
+grep -q '"id":1' "$WORK/o204" && ok "and the request is answered" || bad "FIFO under a small ceiling: $(head -c 400 "$WORK/o204")"
+bounded 10 "$WORK/k204" sh -c '"$1" -C "$2" mcp < "$3"' _ "$MRW" "$R" "$WORK/q204"; want 0 $? "the pair: the same read under the default ceiling ends at EOF"
+grep '"id":1' "$WORK/k204" | jq -e '.result.isError == true' > /dev/null && ok "and refuses the FIFO" || bad "FIFO refusal: $(head -c 400 "$WORK/k204")"
+
+# 205. ADR-108: the working set reads back every line it saves. A 70,000-byte
+# note was saved and then failed every load, `mrw iter clear` included. Save
+# refuses it, naming the size; a line that long already in the file, from an
+# older binary, is skipped and the rest loads. The pair: a short note saves.
+fixture
+long205=$(python3 -c 'print("n" * 70000)')
+out=$(m iter note "$long205" 2>&1); want 2 $? "a 70,000-byte note is refused"
+grep -q '70000 bytes' <<<"$out" && ok "and the refusal names its size" || bad "long note: $(head -c 300 <<<"$out")"
+m iter note short > /dev/null 2>&1; want 0 $? "the pair: a short note saves"
+sd205=$(m seen | head -1)
+{ printf '# ok\na.go\n'; python3 -c 'print("x" * 70000)'; printf 'b.go\n'; } > "$sd205/iteration"
+out=$(m iter 2>&1); want 0 $? "a working set holding a 70,000-byte line loads"
+{ grep -q 'a\.go' <<<"$out" && grep -q 'b\.go' <<<"$out"; } && ok "and keeps the entries around it" || bad "legacy working set: $(head -c 300 <<<"$out")"
+m iter clear > /dev/null 2>&1; want 0 $? "and clears"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

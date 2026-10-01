@@ -34,7 +34,7 @@ out=$(mktemp) \
   && go test ./internal/mcp/ -count=1 -timeout 300s -run 'TestAcknowledgingANonRegularFileReturnsAtOnce' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestAcknowledgingANonRegularFileReturnsAtOnce \(' "$out" \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/iter internal/rooted internal/check \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/rooted internal/check \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -55,6 +55,7 @@ out=$(mktemp) \
 
 ## Mutation Log
 - 2026-10-01 · 98feab5* · mutant killed · exit 1 · `internal/mcp/ack.go` · the regular-file check removed: a FIFO is digested as empty · acceptance-sha256:5529d9fd6a0afdda5d904ab32968f09ea80afb7b58506d1178f6317bef2fe75f
+- 2026-10-01 · 918bc7d* · mutant killed · exit 1 · `internal/mcp/ack.go` · the regular-file check removed: a FIFO is digested as empty · acceptance-sha256:c2c33be2290020486169af14b566ef57e40b7b6d858afcae0020c9439b7d07f3
 
 ## Invariants
 
@@ -89,3 +90,12 @@ Stop and ask if a locked test must change to pass.
   ```
 - 2026-10-01 · 98feab5* · exit 0 · `set -o pipefail …` · acceptance-sha256:5529d9fd6a0afdda5d904ab32968f09ea80afb7b58506d1178f6317bef2fe75f · ms:374
 - 2026-10-01 · 98feab5* · exit 0 · `adr-verify --relock` · acceptance-sha256:5529d9fd6a0afdda5d904ab32968f09ea80afb7b58506d1178f6317bef2fe75f · ms:0 · test-lock-sha256:1fc7a2fcd992ff2d3490af18685302aca2ee30538f29ff8c583c688aa92ab3c4 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL21jcC9maWZvMTA4X3VuaXhfdGVzdC5nbwlUZXN0QWNrbm93bGVkZ2luZ0FOb25SZWd1bGFyRmlsZVJldHVybnNBdE9uY2UJZWY3MmZjYWQ3YWVmZmIzOGIxZjU5MGYyZDYyMjhjYTEyMjNhNjlhYmYyODI1NDI5ZGJlOGEzYzNhOTQwNDE5OQ · test-lock-kind:relock
+- 2026-10-01 · 918bc7d* · exit 1 · `set -o pipefail …` · acceptance-sha256:c2c33be2290020486169af14b566ef57e40b7b6d858afcae0020c9439b7d07f3 · ms:402
+  ```
+  --- last 4 line(s) of stdout
+  === RUN   TestAcknowledgingANonRegularFileReturnsAtOnce
+  --- PASS: TestAcknowledgingANonRegularFileReturnsAtOnce (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.086s
+  ```
+- 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:c2c33be2290020486169af14b566ef57e40b7b6d858afcae0020c9439b7d07f3 · ms:414

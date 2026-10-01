@@ -34,7 +34,7 @@ out=$(mktemp) \
   && go test ./internal/seen/ -count=1 -timeout 300s -run 'TestALedgerRecordTheWriterSavesTheLoaderReads' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestALedgerRecordTheWriterSavesTheLoaderReads \(' "$out" \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/iter internal/rooted internal/check \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/rooted internal/check \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -60,6 +60,8 @@ out=$(mktemp) \
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
 - 2026-10-01 · 98feab5* · mutant killed · exit 1 · `internal/seen/seen.go` · save writes a record over the bound, so the next Load discards the whole ledger and b.txt with it · acceptance-sha256:d22e5beddcd12870c9eed13faebe47754bd2ae403918e76f9e4ab676f62b5c67
+- 2026-10-01 · 918bc7d* · mutant killed · exit 1 · `internal/seen/seen.go` · the loader buffer back to 64 KiB: a record over a smaller bound still loads · acceptance-sha256:0fc376e40f207a8fce707f7e0dc2dc2ce18e11ac103b755efea078a927044a37
+- 2026-10-01 · 918bc7d* · mutant killed · exit 1 · `internal/seen/seen.go` · save writes a record over the bound, so the next Load discards the whole ledger and b.txt with it · acceptance-sha256:0fc376e40f207a8fce707f7e0dc2dc2ce18e11ac103b755efea078a927044a37
 
 ## Invariants
 
@@ -93,3 +95,21 @@ Stop and ask if a locked test must change to pass.
 - 2026-10-01 · 98feab5* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d22e5beddcd12870c9eed13faebe47754bd2ae403918e76f9e4ab676f62b5c67 · ms:0 · test-lock-sha256:d9b40055da3b72de392c15b7269e3ec9e3d0bf0cb97dead8529debf4c491e2b2 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL3NlZW4vcmVjb3JkMTA4X3Rlc3QuZ28JVGVzdEFMZWRnZXJSZWNvcmRUaGVXcml0ZXJTYXZlc1RoZUxvYWRlclJlYWRzCWRhODYxZTE2OWRjYTVkMDhmNTVmMGQ0NjgyYWNhYTU3NDUzNmU3NjhlN2FjNjI0Zjg3YTFmMTExODA4Y2Q3ZTQ · test-lock-kind:replace
 - 2026-10-01 · human-observed · Zy's session observed the relock: after red the bounded case records b.txt before the long a.txt, so a save that writes the long record loses b.txt; recorded the other way round the save mutant survived
 - 2026-10-01 · 98feab5* · exit 0 · `set -o pipefail …` · acceptance-sha256:d22e5beddcd12870c9eed13faebe47754bd2ae403918e76f9e4ab676f62b5c67 · ms:362
+- 2026-10-01 · 918bc7d* · exit 1 · `set -o pipefail …` · acceptance-sha256:0fc376e40f207a8fce707f7e0dc2dc2ce18e11ac103b755efea078a927044a37 · ms:433
+  ```
+  --- last 4 line(s) of stdout
+  === RUN   TestALedgerRecordTheWriterSavesTheLoaderReads
+  --- PASS: TestALedgerRecordTheWriterSavesTheLoaderReads (0.03s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen	0.200s
+  ```
+- 2026-10-01 · 918bc7d* · exit 1 · `set -o pipefail …` · acceptance-sha256:0fc376e40f207a8fce707f7e0dc2dc2ce18e11ac103b755efea078a927044a37 · ms:362
+  ```
+  --- last 4 line(s) of stdout
+  === RUN   TestALedgerRecordTheWriterSavesTheLoaderReads
+  --- PASS: TestALedgerRecordTheWriterSavesTheLoaderReads (0.02s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen	0.098s
+  ```
+- 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:0fc376e40f207a8fce707f7e0dc2dc2ce18e11ac103b755efea078a927044a37 · ms:379
+- 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:0fc376e40f207a8fce707f7e0dc2dc2ce18e11ac103b755efea078a927044a37 · ms:334

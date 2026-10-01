@@ -126,7 +126,7 @@ func interleave(text string) (string, map[string][2]int) {
 	// shown text that is not the file, while a checkpoint would license the
 	// file. Such a slice is served as it is, with no checkpoint, and says why.
 	if !utf8.ValidString(text) {
-		return text + "-- not licensed: this file holds bytes that are not valid UTF-8, which the JSON answer replaces, so this read licenses nothing; read and edit it with the CLI (`mrw read`, `mrw write`)\n", map[string][2]int{}
+		return text + "-- not licensed: these lines hold bytes that are not valid UTF-8, which the JSON answer replaces, so this read licenses none of them; read and edit the file with the CLI (`mrw read`, `mrw write`)\n", map[string][2]int{}
 	}
 	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 

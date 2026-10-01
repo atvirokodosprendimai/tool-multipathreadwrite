@@ -34,7 +34,7 @@ out=$(mktemp) \
   && go test ./internal/links/ -count=1 -timeout 300s -run 'TestAUnicodeRuneNeverSplitsAPath' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestAUnicodeRuneNeverSplitsAPath \(' "$out" \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/iter internal/rooted internal/check \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/rooted internal/check \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -59,6 +59,7 @@ out=$(mktemp) \
   the fence failed on a build/parse error, not an assertion
   ```
 - 2026-10-01 · 98feab5* · mutant killed · exit 1 · `internal/links/links.go` · the narrowing restored: U+042F splits a path at its low byte 0x2F · acceptance-sha256:ced98c14f957e315c01daf917f5551622b27ad22652e6ce2e9b243843543eedb
+- 2026-10-01 · 918bc7d* · mutant killed · exit 1 · `internal/links/links.go` · the narrowing restored: U+042F splits a path at its low byte 0x2F · acceptance-sha256:8916065c4be054ff4cecacdf5af1ae40ee85918be7841bf2eae977531ce65006
 
 ## Invariants
 
@@ -91,3 +92,12 @@ Stop and ask if a locked test must change to pass.
 - 2026-10-01 · 98feab5* · exit 0 · `set -o pipefail …` · acceptance-sha256:ced98c14f957e315c01daf917f5551622b27ad22652e6ce2e9b243843543eedb · ms:423
 - 2026-10-01 · 98feab5* · exit 0 · `adr-verify --relock` · acceptance-sha256:ced98c14f957e315c01daf917f5551622b27ad22652e6ce2e9b243843543eedb · ms:0 · test-lock-sha256:5b85e4561e0def36d7b30197ebf51701c7e197075ddb68c87dc539c9516f48a8 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL2xpbmtzL3J1bmUxMDhfdGVzdC5nbwlUZXN0QVVuaWNvZGVSdW5lTmV2ZXJTcGxpdHNBUGF0aAlhYzQzNzI4ZDQyNzEwZTJmZGU3NTNmMmY0MzI5Y2M4ZmU5Y2E0MWZkY2I5ZTIxNzJjMTQ4ODk0Mzc2ZTcxN2Nj · test-lock-kind:relock
 - 2026-10-01 · 98feab5* · exit 0 · `set -o pipefail …` · acceptance-sha256:ced98c14f957e315c01daf917f5551622b27ad22652e6ce2e9b243843543eedb · ms:326
+- 2026-10-01 · 918bc7d* · exit 1 · `set -o pipefail …` · acceptance-sha256:8916065c4be054ff4cecacdf5af1ae40ee85918be7841bf2eae977531ce65006 · ms:569
+  ```
+  --- last 4 line(s) of stdout
+  === RUN   TestAUnicodeRuneNeverSplitsAPath
+  --- PASS: TestAUnicodeRuneNeverSplitsAPath (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/links	0.172s
+  ```
+- 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:8916065c4be054ff4cecacdf5af1ae40ee85918be7841bf2eae977531ce65006 · ms:344

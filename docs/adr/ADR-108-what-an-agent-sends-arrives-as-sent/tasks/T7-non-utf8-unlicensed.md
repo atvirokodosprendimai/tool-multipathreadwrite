@@ -34,7 +34,7 @@ out=$(mktemp) \
   && go test ./internal/mcp/ -count=1 -timeout 300s -run 'TestNonUTF8ContentIsServedUnlicensedOverMCP' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestNonUTF8ContentIsServedUnlicensedOverMCP \(' "$out" \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/iter internal/rooted internal/check \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/rooted internal/check \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -55,6 +55,7 @@ out=$(mktemp) \
 
 ## Mutation Log
 - 2026-10-01 · 98feab5* · mutant killed · exit 1 · `internal/mcp/ack.go` · the UTF-8 check removed: a Latin-1 read is checkpointed and licensed · acceptance-sha256:d2ab22b9291d6f430340e9e564adb7bcc1f3f08caed807dc678e855fb2b3f351
+- 2026-10-01 · 918bc7d* · mutant killed · exit 1 · `internal/mcp/ack.go` · the UTF-8 check removed: a Latin-1 read is checkpointed and licensed · acceptance-sha256:186b554b02a47a55991be29fda3ec98293e90d5ba3f06e2e5c74adbc919c7a23
 
 ## Invariants
 
@@ -89,3 +90,12 @@ Stop and ask if a locked test must change to pass.
   ```
 - 2026-10-01 · 98feab5* · exit 0 · `set -o pipefail …` · acceptance-sha256:d2ab22b9291d6f430340e9e564adb7bcc1f3f08caed807dc678e855fb2b3f351 · ms:410
 - 2026-10-01 · 98feab5* · exit 0 · `adr-verify --relock` · acceptance-sha256:d2ab22b9291d6f430340e9e564adb7bcc1f3f08caed807dc678e855fb2b3f351 · ms:0 · test-lock-sha256:02b37cf8bace5bba15b2a9ffb7fba3ad2d8e7e042d06f354a9f67b4f5df4e157 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL21jcC91dGYxMDhfdGVzdC5nbwlUZXN0Tm9uVVRGOENvbnRlbnRJc1NlcnZlZFVubGljZW5zZWRPdmVyTUNQCTQyNDA4NDYyYzI1YmQ4ZWU0NjA2Y2E5MDg4OThkYjI1MjIyMDE5MjllNWY1NzE3M2JhMmNiMzg2YWU0MjNkOGQ · test-lock-kind:relock
+- 2026-10-01 · 918bc7d* · exit 1 · `set -o pipefail …` · acceptance-sha256:186b554b02a47a55991be29fda3ec98293e90d5ba3f06e2e5c74adbc919c7a23 · ms:455
+  ```
+  --- last 4 line(s) of stdout
+  === RUN   TestNonUTF8ContentIsServedUnlicensedOverMCP
+  --- PASS: TestNonUTF8ContentIsServedUnlicensedOverMCP (0.01s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.103s
+  ```
+- 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:186b554b02a47a55991be29fda3ec98293e90d5ba3f06e2e5c74adbc919c7a23 · ms:382

@@ -38,7 +38,7 @@ out=$(mktemp) \
   && grep -qE '^--- PASS: TestForeignFormatsAreBounded \(' "$out" \
   && grep -qE '^--- PASS: TestABodyFileIsBounded \(' "$out" \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/iter internal/rooted internal/check \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/state internal/lines internal/rooted internal/check \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -61,6 +61,8 @@ out=$(mktemp) \
 ## Mutation Log
 - 2026-10-01 · 98feab5* · mutant killed · exit 1 · `internal/ingest/applypatch.go` · targetBytes no longer refuses by size before reading: the refusal stops naming the file size · acceptance-sha256:7d92151ea3524553595730e7eab996a5593f9e8c828a5e1f5b3f6b60b2d52835
 - 2026-10-01 · 98feab5* · mutant killed · exit 1 · `internal/plan/plan.go` · LoadBodyFiles no longer refuses by size before reading: the refusal stops naming the file size · acceptance-sha256:7d92151ea3524553595730e7eab996a5593f9e8c828a5e1f5b3f6b60b2d52835
+- 2026-10-01 · 918bc7d* · mutant killed · exit 1 · `internal/ingest/applypatch.go` · targetBytes no longer refuses by size before reading: the refusal stops naming the file size · acceptance-sha256:42c99ba03bfd67e2122a2fdf9c2a2ede50c6edf1c6de796c39fbc9c8b0a03ea1
+- 2026-10-01 · 918bc7d* · mutant killed · exit 1 · `internal/plan/plan.go` · LoadBodyFiles no longer refuses by size before reading: the refusal stops naming the file size · acceptance-sha256:42c99ba03bfd67e2122a2fdf9c2a2ede50c6edf1c6de796c39fbc9c8b0a03ea1
 
 ## Invariants
 
@@ -96,3 +98,29 @@ Stop and ask if a locked test must change to pass.
 - 2026-10-01 · 98feab5* · exit 0 · `set -o pipefail …` · acceptance-sha256:7d92151ea3524553595730e7eab996a5593f9e8c828a5e1f5b3f6b60b2d52835 · ms:356
 - 2026-10-01 · 98feab5* · exit 0 · `set -o pipefail …` · acceptance-sha256:7d92151ea3524553595730e7eab996a5593f9e8c828a5e1f5b3f6b60b2d52835 · ms:517
 - 2026-10-01 · 98feab5* · exit 0 · `adr-verify --relock` · acceptance-sha256:7d92151ea3524553595730e7eab996a5593f9e8c828a5e1f5b3f6b60b2d52835 · ms:0 · test-lock-sha256:2dacd9a1d483e4a7af53655fa141bf461be4de7c53941ea307dbb4bfb55b519e · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL2luZ2VzdC9ib3VuZDEwOF90ZXN0LmdvCVRlc3RGb3JlaWduRm9ybWF0c0FyZUJvdW5kZWQJNmQ0ZTk1MGIyOTBiMzNkYzBhZjcxZWY2OWNjMzRlYTYxOTkyZTBmMWVkOTVmODQ1YTk4ODg1ZDhkMjQxNDJhZQpib2R5CWludGVybmFsL3BsYW4vYm91bmQxMDhfdGVzdC5nbwlUZXN0QUJvZHlGaWxlSXNCb3VuZGVkCTA3Y2Y3OTI3YjZhN2ZhODAzNjc5MzM0YWUzNzA2YjQ0MjIzODEyZGFmNWQ0NDk3NmQwN2ZhZGU0NGU0Nzk2ZmU · test-lock-kind:relock
+- 2026-10-01 · 918bc7d* · exit 1 · `set -o pipefail …` · acceptance-sha256:42c99ba03bfd67e2122a2fdf9c2a2ede50c6edf1c6de796c39fbc9c8b0a03ea1 · ms:445
+  ```
+  --- last 8 line(s) of stdout
+  === RUN   TestForeignFormatsAreBounded
+  --- PASS: TestForeignFormatsAreBounded (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/ingest	0.180s
+  === RUN   TestABodyFileIsBounded
+  --- PASS: TestABodyFileIsBounded (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan	0.071s
+  ```
+- 2026-10-01 · 918bc7d* · exit 1 · `set -o pipefail …` · acceptance-sha256:42c99ba03bfd67e2122a2fdf9c2a2ede50c6edf1c6de796c39fbc9c8b0a03ea1 · ms:334
+  ```
+  --- last 8 line(s) of stdout
+  === RUN   TestForeignFormatsAreBounded
+  --- PASS: TestForeignFormatsAreBounded (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/ingest	0.073s
+  === RUN   TestABodyFileIsBounded
+  --- PASS: TestABodyFileIsBounded (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan	0.071s
+  ```
+- 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:42c99ba03bfd67e2122a2fdf9c2a2ede50c6edf1c6de796c39fbc9c8b0a03ea1 · ms:354
+- 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:42c99ba03bfd67e2122a2fdf9c2a2ede50c6edf1c6de796c39fbc9c8b0a03ea1 · ms:348
