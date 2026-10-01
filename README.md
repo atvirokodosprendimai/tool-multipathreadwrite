@@ -147,6 +147,9 @@ These are gates, not a tour of the records behind them.
 - **Per-line licence.** Being served lines 1–5 does not license line 40.
   `--stat` and a match that printed nothing observe nothing.
   A file mrw just wrote is wholly known: a chain of edits needs no re-read.
+- **One writer at a time.** Writers on one checkout take turns (ADR-075). A writer waits up to 120 s for the
+  one before it, then is refused, exit 2, nothing applied, naming the holder's pid; `MRW_WRITE_LOCK_TIMEOUT`
+  sets the wait in seconds, `0` for one try (ADR-110).
 - **MCP ack.** A served `mrw_read` licenses nothing until you send `ack` ids.
   Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.
   A checkpoint brackets consecutive lines only, and served lines holding bytes that are not valid UTF-8 get none:

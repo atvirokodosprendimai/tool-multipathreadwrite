@@ -8199,6 +8199,25 @@ mkdir -p "$R/.mrw"; mkfifo "$R/.mrw/seen"
 grep -q '^==> a.go ' "$WORK/o208" && ok "the pair: the read served the file" || bad "FIFO legacy ledger: $(head -c 300 "$WORK/o208")"
 rm -f "$R/.mrw/seen"
 
+# 209. ADR-110: a writer waits a bounded time for the write lock. A write that
+# found it held waited for ever, in silence; it is refused after
+# MRW_WRITE_LOCK_TIMEOUT seconds, exit 2, nothing applied, naming the lock. The
+# pair: once the holder lets go, the same write applies.
+fixture
+m read a.go > /dev/null
+sd209=$(m seen | head -1)
+python3 -c 'import fcntl, sys, time
+f = open(sys.argv[1], "a"); fcntl.flock(f, fcntl.LOCK_EX); open(sys.argv[2], "w").close(); time.sleep(60)' "$sd209/seen.write.lock" "$WORK/ready209" &
+holder209=$!
+for _ in $(seq 1 50); do [ -e "$WORK/ready209" ] && break; sleep 0.1; done
+cp "$R/a.go" "$WORK/a209.before"
+printf '@@ a.go 1 replace\npackage a // 209\n' > "$R/p209.mrw"
+bounded 15 "$WORK/o209" env MRW_WRITE_LOCK_TIMEOUT=1 "$MRW" -C "$R" write --no-check "$R/p209.mrw"; want 2 $? "a write that finds the write lock held is refused after MRW_WRITE_LOCK_TIMEOUT"
+grep -q 'write lock' "$WORK/o209" && grep -q 'nothing was applied' "$WORK/o209" && ok "and says the lock was held and nothing was applied" || bad "held write lock: $(head -c 300 "$WORK/o209")"
+cmp -s "$R/a.go" "$WORK/a209.before" && ok "and the file is unchanged" || bad "a.go changed under a held write lock"
+kill "$holder209" 2>/dev/null; wait "$holder209" 2>/dev/null
+m write --no-check "$R/p209.mrw" > /dev/null 2>&1; want 0 $? "the pair: once the holder lets go, the same write applies"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
