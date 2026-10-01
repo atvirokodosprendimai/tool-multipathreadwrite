@@ -495,9 +495,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-024 removed the flag from answers that DELIVERED something; this restores
 	// it for the one case its enumeration missed, so :202 and this return agree
 	// rather than disagreeing on whether `grep` was passed.
-	served, rpcErr := readResult(map[string]any{
-		"observed": slashKeys(observed, filepath.Separator),
-		"problems": problems,
+	served, rpcErr := readResult(readReceipt{
+		Observed: slashKeys(observed, filepath.Separator),
+		Problems: problems,
 	}, report, len(observed) == 0)
 	if rpcErr != nil {
 		return callToolResult{}, rpcErr
@@ -527,9 +527,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if len(observed) > 0 {
 		marked, byPath := markServed(report)
 		if marked != report {
-			markedServed, markErr := readResult(map[string]any{
-				"observed": slashKeys(observed, filepath.Separator),
-				"problems": problems,
+			markedServed, markErr := readResult(readReceipt{
+				Observed: slashKeys(observed, filepath.Separator),
+				Problems: problems,
 			}, marked, false)
 			if markErr != nil {
 				return callToolResult{}, markErr
@@ -765,6 +765,14 @@ type writeReceipt struct {
 	// that stopped, a ledger that could not record a landing (ADR-102). In the
 	// structured value because a host may deliver only that (ADR-023).
 	Error string `json:"error,omitempty"`
+}
+
+// readReceipt is what mrw_read carries in content[1] (ADR-023): the observation
+// of every file served, keyed by its slash-spelled path, and the problem count.
+// Named so ADR-111's test can hold its keys; the JSON is the map it replaced.
+type readReceipt struct {
+	Observed map[string]seen.Observation `json:"observed"`
+	Problems int                         `json:"problems"`
 }
 
 // errText is err's message, or "" for none.

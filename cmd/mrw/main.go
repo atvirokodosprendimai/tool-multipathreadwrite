@@ -493,13 +493,7 @@ size is the form that gets quoted out of the population it was measured on.`,
 				}
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
-				return enc.Encode(struct {
-					Plans   int               `json:"plans"`
-					Counts  map[string]int    `json:"counts"`
-					Landed  int               `json:"landed"`
-					Failed  int               `json:"failed_check_of_landed"`
-					Pricing authoring.Pricing `json:"pricing"`
-				}{Plans: t.Plans(), Counts: counts, Landed: t.Landed(), Failed: t["failed_check"], Pricing: authoring.LoadPricing(root)})
+				return enc.Encode(statsReceipt{Plans: t.Plans(), Counts: counts, Landed: t.Landed(), Failed: t["failed_check"], Pricing: authoring.LoadPricing(root)})
 			}
 			total := t.Plans()
 			if total == 0 {
@@ -1623,6 +1617,23 @@ type checkReceipt struct {
 	Then *check.StepsResult `json:"then,omitempty"`
 }
 
+// statsReceipt is `mrw stats --json` (ADR-054): every vocabulary key in counts,
+// zero included, and the derived pair. Named so ADR-111's test can hold its keys.
+type statsReceipt struct {
+	Plans   int               `json:"plans"`
+	Counts  map[string]int    `json:"counts"`
+	Landed  int               `json:"landed"`
+	Failed  int               `json:"failed_check_of_landed"`
+	Pricing authoring.Pricing `json:"pricing"`
+}
+
+// checkRefusal is a `mrw check --json` refusal (ADR-100): the error, and the
+// steps it names. Named so ADR-111's test can hold its keys.
+type checkRefusal struct {
+	Error string             `json:"error"`
+	Then  *check.StepsResult `json:"then,omitempty"`
+}
+
 // stepFlag is the value of --then or --then-sh (ADR-092). Both append to one
 // list as the parser meets them, so the list is in command-line order, and a
 // value is never split — a comma included.
@@ -2031,10 +2042,7 @@ touched, which is a finding about the machine and not about your change.`,
 				if cmd.Bool("json") {
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
-					_ = enc.Encode(struct {
-						Error string             `json:"error"`
-						Then  *check.StepsResult `json:"then,omitempty"`
-					}{err.Error(), then})
+					_ = enc.Encode(checkRefusal{Error: err.Error(), Then: then})
 				} else {
 					reportSteps(os.Stdout, then)
 				}
