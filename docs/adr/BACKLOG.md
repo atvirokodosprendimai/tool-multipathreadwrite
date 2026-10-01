@@ -2407,12 +2407,17 @@ The 2026-10-01 Codex design review (gpt-6-astra xhigh, v1.37.1) listed five robu
 seven defects ADR-108 fixed. None is a defect today; each has the trigger that would make it one. ADR-109's Out of
 Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's defers B1, B2 and B5, and ADR-112's defers B1 and B2.
 
-- **A foreign-compiled plan carries `sha=`** (B1). `--format=apply_patch` and `--format=search_replace` compile to
-  native hunks with no file guard, so a file changed between the caller's read and the write is caught only by the
-  per-line ledger. Arm when a foreign-format write is reported to have applied over a change the caller never saw.
-- **Combination tests and a host matrix** (B2). Flags are tested one at a time (`--check` with `--then`, `--json`
-  with `--format`, MCP paging with ack); no property test drives their product, and the MCP arm is measured on
-  Claude Code alone. Arm when a defect is found in a combination no single-flag test reaches, or on a second host.
+- **A foreign-compiled plan carries `sha=`** (B1) — **Closed**: the premise did not hold. Raised by the 2026-10-01 Codex
+  design review. The read ledger records each file's whole sha when it is read, and apply refuses a file whose sha
+  differs from it before any hunk (`internal/apply/apply.go:1039`, "changed since mrw last saw it"); a compiled
+  `apply_patch` or `search_replace` plan goes through the same check, so a file changed after the caller's read is
+  refused, exit 1. Measured 2026-10-01 on v1.37.2 for both formats, and pinned by contract §212.
+- **Combination tests and a host matrix** (B2) — the combination half **Closed**: `docs/break/write-flags/stress.py`
+  drives seeded products of the write flags (`--json`, `--dry-run`, `--check`/`--no-check`, `--then-sh`,
+  `--strict-balance`, `--echo-pad`) across native, `apply_patch` and `search_replace` plans and three check
+  configurations, against seven invariants; 800 runs on two seeds, 0 violations, 2026-10-01. The host-matrix half
+  stays deferred: the MCP arm is measured on Claude Code alone, and no second MCP host is installed here. Arm on a
+  second host, or when a defect is found in a combination the harness does not drive.
 - **A timeout on the writer lock** (B3) — **Closed** by ADR-110 (`state.HoldWithin`: a writer waits `MRW_WRITE_LOCK_TIMEOUT` seconds, 120 by default, then is refused naming the holder's pid; contract §209, 2026-10-01). A writer waits for the one before it (ADR-075) without a bound; a stuck
   writer blocks the next indefinitely. Arm when a wait is reported that ended only by killing a process; the
   refusal then says nothing was applied.
