@@ -8252,6 +8252,25 @@ m read a.go > /dev/null
 m write --check --json "$R/p211.mrw" > "$WORK/k211" 2>/dev/null; want 0 $? "the pair: a write whose check changes nothing exits 0"
 jq -e 'has("drift") | not' "$WORK/k211" > /dev/null && ok "and its receipt carries no drift" || bad "drift with an idle check: $(head -c 300 "$WORK/k211")"
 
+# 212. B1 (BACKLOG "From ADR-108"): a foreign-format plan is held to the read it
+# was written against. The read ledger records the file's whole sha, and apply
+# refuses a file changed since, so --format=apply_patch and
+# --format=search_replace both refuse a file edited after its read, exit 1,
+# leaving it as it was. The pair: once the file is read again, the plan applies.
+fixture
+printf 'one\ntwo\nthree\n' > "$R/f212.txt"
+m read f212.txt > /dev/null
+printf 'one\ntwo\nthree\nfour\n' > "$R/f212.txt"
+printf '*** Begin Patch\n*** Update File: f212.txt\n@@\n one\n-two\n+TWO\n three\n*** End Patch\n' > "$R/p212.patch"
+printf 'f212.txt\n<<<<<<< SEARCH\ntwo\n=======\nTWO\n>>>>>>> REPLACE\n' > "$R/p212.sr"
+for fmt in apply_patch:p212.patch search_replace:p212.sr; do
+  out=$(m write --no-check --format="${fmt%%:*}" "$R/${fmt#*:}" 2>&1); want 1 $? "${fmt%%:*} over a file changed after its read is refused"
+  grep -q 'changed since mrw last saw it' <<<"$out" && ok "and names why" || bad "${fmt%%:*}: $(head -c 300 <<<"$out")"
+done
+[ "$(cat "$R/f212.txt")" = "$(printf 'one\ntwo\nthree\nfour')" ] && ok "and the file is as it was" || bad "f212.txt changed: $(cat "$R/f212.txt")"
+m read f212.txt > /dev/null
+m write --no-check --format=apply_patch "$R/p212.patch" > /dev/null 2>&1; want 0 $? "the pair: after a fresh read the apply_patch plan applies"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
