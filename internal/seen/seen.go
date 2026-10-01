@@ -35,6 +35,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
@@ -379,8 +380,35 @@ func withLock(root string, fn func() error) error {
 // Drop take seen.lock while it is held, and one process opening a lock a
 // second time waits on itself. The order is always this lock, then seen.lock;
 // a read takes only seen.lock.
+//
+// The wait is bounded (ADR-110): MRW_WRITE_LOCK_TIMEOUT seconds, 120 when unset.
+// The lock covers validation and commit only — the check runs after it is
+// released — so the default is a hang guard, not a budget.
 func LockWrites(root string) (release func(), err error) {
-	return state.Hold(root, Name+".write.lock")
+	wait, err := writeLockWait()
+	if err != nil {
+		return nil, err
+	}
+	release, err = state.HoldWithin(root, Name+".write.lock", wait)
+	var lt *state.LockTimeoutError
+	if errors.As(err, &lt) {
+		return nil, fmt.Errorf("this checkout's write lock: %w; nothing was applied — wait for that writer to finish, or end it; MRW_WRITE_LOCK_TIMEOUT sets the wait in seconds", err)
+	}
+	return release, err
+}
+
+// writeLockWait reads MRW_WRITE_LOCK_TIMEOUT: whole seconds, 0 for one try, 120
+// when unset or blank. Anything else is refused rather than guessed at.
+func writeLockWait() (time.Duration, error) {
+	v := strings.TrimSpace(os.Getenv("MRW_WRITE_LOCK_TIMEOUT"))
+	if v == "" {
+		return 120 * time.Second, nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("MRW_WRITE_LOCK_TIMEOUT=%q is not a whole number of seconds; nothing was applied", v)
+	}
+	return time.Duration(n) * time.Second, nil
 }
 
 // Snapshot loads the ledger under the ledger's own lock, for a writer to

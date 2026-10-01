@@ -129,7 +129,8 @@ server was registered, and a user-scope registration puts these two tools in
 every project on the machine, including the ones whose instructions say to use
 the shell. See the README, "Use it from an MCP host". Writers take turns on
 either surface, one writer per checkout (ADR-075), so neither is the safer one
-for callers sharing a checkout.
+for callers sharing a checkout. A writer waits up to 120 s for the one before it, then is refused, exit 2,
+nothing applied, naming the holder's pid; `MRW_WRITE_LOCK_TIMEOUT` sets the wait in seconds, `0` for one try (ADR-110).
 
 Both tools are bounded at 200,000 characters of ENCODED result, and the number is yours to set:
 `mrw mcp --max-result-chars N` or `MRW_MAX_RESULT_CHARS`. The flag beats the variable, omitting both
