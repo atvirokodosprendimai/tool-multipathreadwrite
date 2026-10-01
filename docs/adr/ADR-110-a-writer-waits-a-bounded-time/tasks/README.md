@@ -12,6 +12,7 @@ README must be regenerated.
 |----|-------|--------|------------|------------|
 | T1 | a lock wait is bounded and names the holder | done | none | `docs/adr/ADR-110-a-writer-waits-a-bounded-time/tasks/T1-bounded-hold.md` fence |
 | T2 | a writer waits a bounded time for the write lock | done | T1 | `docs/adr/ADR-110-a-writer-waits-a-bounded-time/tasks/T2-write-lock-wait.md` fence |
+| T3 | a refusal before any hunk survives the smallest ceiling | done | T2 | `docs/adr/ADR-110-a-writer-waits-a-bounded-time/tasks/T3-small-ceiling.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

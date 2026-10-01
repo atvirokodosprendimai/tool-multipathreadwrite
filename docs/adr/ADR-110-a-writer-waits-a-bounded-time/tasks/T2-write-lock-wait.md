@@ -60,6 +60,11 @@ out=$(mktemp) \
 ## Mutation Log
 - 2026-10-01 · 94e279c* · mutant killed · exit 1 · `internal/seen/seen.go` · LockWrites back to state.Hold: a held write lock is waited on for ever · acceptance-sha256:2e533d81f8d2f706db22f0fe93390159b9f1e08754ca0fdb3462f3c305d61616
 - 2026-10-01 · 94e279c* · mutant killed · exit 1 · `internal/seen/seen.go` · the variable ignored: every wait is 120 s and a bad value is accepted · acceptance-sha256:2e533d81f8d2f706db22f0fe93390159b9f1e08754ca0fdb3462f3c305d61616
+- 2026-10-01 · e7f79fe* · mutant inconclusive · exit 1 · `internal/seen/seen.go` · the overflow guard removed: 9223372037 seconds wraps to a negative wait · acceptance-sha256:2e533d81f8d2f706db22f0fe93390159b9f1e08754ca0fdb3462f3c305d61616
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
+- 2026-10-01 · e7f79fe* · mutant killed · exit 1 · `internal/seen/seen.go` · the overflow guard made unreachable: 9223372037 seconds wraps to a negative wait · acceptance-sha256:2e533d81f8d2f706db22f0fe93390159b9f1e08754ca0fdb3462f3c305d61616
 
 ## Invariants
 
@@ -89,3 +94,7 @@ Stop and ask if a locked test must change to pass.
 - 2026-10-01 · 94e279c* · exit 0 · `set -o pipefail …` · acceptance-sha256:2e533d81f8d2f706db22f0fe93390159b9f1e08754ca0fdb3462f3c305d61616 · ms:525
 - 2026-10-01 · 94e279c* · exit 0 · `set -o pipefail …` · acceptance-sha256:2e533d81f8d2f706db22f0fe93390159b9f1e08754ca0fdb3462f3c305d61616 · ms:547
 - 2026-10-01 · 94e279c* · exit 0 · `set -o pipefail …` · acceptance-sha256:2e533d81f8d2f706db22f0fe93390159b9f1e08754ca0fdb3462f3c305d61616 · ms:456
+- 2026-10-01 · e7f79fe* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:2e533d81f8d2f706db22f0fe93390159b9f1e08754ca0fdb3462f3c305d61616 · ms:0 · test-lock-sha256:4faae6e32ac86fb8aac9e8fc50e77ed000b97d2ca633919c5d7493c4d7cc27f0 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvc2Vlbi9sb2NrMTEwX3Rlc3QuZ28JVGVzdEFXcml0ZXJXYWl0c0FCb3VuZGVkVGltZUZvclRoZVdyaXRlTG9jawlhNGY5Y2EwYWY2ZDRkMjI3NTljM2E3N2Y2YWEzNDRmY2UyZDk3MzYwYWFmZDc0YWI0Njc0ZmU3ZTM5ODM4ZDc2 · test-lock-kind:replace
+- 2026-10-01 · human-observed · Claude's session observed the relock: after red the test gained the Codex review of #307's overflow boundary (9223372037 seconds refused, 9223372036 accepted); the earlier assertions are unchanged
+- 2026-10-01 · e7f79fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:2e533d81f8d2f706db22f0fe93390159b9f1e08754ca0fdb3462f3c305d61616 · ms:852
+- 2026-10-01 · e7f79fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:2e533d81f8d2f706db22f0fe93390159b9f1e08754ca0fdb3462f3c305d61616 · ms:605

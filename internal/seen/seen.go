@@ -30,6 +30,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -405,7 +406,9 @@ func writeLockWait() (time.Duration, error) {
 		return 120 * time.Second, nil
 	}
 	n, err := strconv.Atoi(v)
-	if err != nil || n < 0 {
+	// The Codex review of #307: seconds past what time.Duration holds wrapped
+	// to a negative or tiny wait, so they are refused with the rest.
+	if err != nil || n < 0 || int64(n) > math.MaxInt64/int64(time.Second) {
 		return 0, fmt.Errorf("MRW_WRITE_LOCK_TIMEOUT=%q is not a whole number of seconds; nothing was applied", v)
 	}
 	return time.Duration(n) * time.Second, nil

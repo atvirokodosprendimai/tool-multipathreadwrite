@@ -6,7 +6,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-075, ADR-079, ADR-085, ADR-102, ADR-109
-**Governs:** `internal/state/lock.go`, `internal/state/lock_unix.go`, `internal/state/lock_windows.go`, `internal/seen/seen.go`, `AGENTS.md`, `README.md`, `scripts/contract.sh`
+**Governs:** `internal/state/lock.go`, `internal/state/lock_unix.go`, `internal/state/lock_windows.go`, `internal/seen/seen.go`, `internal/mcp/tools.go`, `AGENTS.md`, `README.md`, `scripts/contract.sh`
 **Enforced-by:** `internal/state/lock110_test.go::TestAWaitForAHeldLockIsBounded`
 **Served-path change:** A write that finds this checkout's write lock held waits up to 120 seconds for it, then is refused, exit 2, saying nothing was applied and naming the holder's pid; `MRW_WRITE_LOCK_TIMEOUT` sets the wait in whole seconds (`0` refuses at once), and a value that is not one is refused the same way. Over MCP the refusal is the write's receipt with `isError`, as every apply error is. Exit codes keep their meanings.
 
@@ -40,6 +40,10 @@ milliseconds, and their readers already read past a lock they cannot take (ADR-0
    name it. A separate file because Windows locks a byte range: a waiter could not read the locked file itself.
 3. `seen.LockWrites` waits through `HoldWithin`, for `MRW_WRITE_LOCK_TIMEOUT` seconds, 120 when unset. The default
    is a hang guard, not a performance budget: it only has to outlast the slowest legitimate validate-and-commit.
+   A value that is not whole seconds, or that `time.Duration` cannot hold, is refused (the Codex review of #307).
+4. Over MCP, a write refused before any hunk had a verdict answers with the refusal's own words when its receipt
+   overflows the ceiling, cut to fit: `boundedReceipt`'s terminal sentence gave only counts, "0 of 0 hunk(s)
+   failed", and at the smallest ceiling a write is allowed under the lock, the holder and the remedy were lost.
 
 ## Alternatives Considered
 
@@ -62,6 +66,7 @@ requirement.
 |---------|--------|----------|-------------|
 | `state.HoldWithin`, `state.LockTimeoutError` | a bounded lock wait that names the holder | T1 | T2 |
 | `MRW_WRITE_LOCK_TIMEOUT` | the write-lock wait in seconds, default 120 | T2 | callers |
+| `mrw_write` at a small ceiling | a no-hunk refusal keeps its words | T3 | MCP hosts |
 | a held write lock | refused after the wait, exit 2, nothing applied | T2 | CLI, MCP |
 | `AGENTS.md`, `README.md` | say so | T2 | readers |
 | `scripts/contract.sh` | §209 (T2) | T2 | CI Linux |
@@ -74,7 +79,7 @@ requirement.
 
 ## Implementation
 
-See `tasks/README.md`: T1, then T2.
+See `tasks/README.md`: T1, then T2, then T3 (from the Codex review of #307).
 
 ## Consequences
 
@@ -95,7 +100,7 @@ See `tasks/README.md`: T1, then T2.
 
 ## Rollback
 
-Revert T1–T2. No receipt or format change; the holder file is ignored by an older binary.
+Revert T1–T3. No receipt or format change; the holder file is ignored by an older binary.
 
 ## Follow-ups
 

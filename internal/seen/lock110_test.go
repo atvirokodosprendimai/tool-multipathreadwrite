@@ -46,6 +46,16 @@ func TestAWriterWaitsABoundedTimeForTheWriteLock(t *testing.T) {
 	if w, err := writeLockWait(); err != nil || w != 120*time.Second {
 		t.Errorf("an unset wait is %v, %v; want 120s", w, err)
 	}
+	// The Codex review of #307: seconds that overflow time.Duration wrapped to
+	// a negative or tiny wait; they are refused, and the largest that fits is not.
+	t.Setenv("MRW_WRITE_LOCK_TIMEOUT", "9223372037")
+	if w, err := writeLockWait(); err == nil {
+		t.Errorf("a wait that overflows time.Duration was accepted as %v", w)
+	}
+	t.Setenv("MRW_WRITE_LOCK_TIMEOUT", "9223372036")
+	if w, err := writeLockWait(); err != nil || w != 9223372036*time.Second {
+		t.Errorf("the largest wait that fits is %v, %v", w, err)
+	}
 	release()
 	if err := try("0"); err != nil {
 		t.Errorf("the released write lock was not taken: %v", err)

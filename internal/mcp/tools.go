@@ -901,6 +901,20 @@ func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (
 	if written > 0 {
 		return errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, writer.MutationOf(res) == writer.Partial) + leftNote(len(res.LeftBehind))), nil
 	}
+	// ADR-110 T3: a write refused before any hunk had a verdict — the write
+	// lock held past its wait — has no counts worth giving; its own words are
+	// the whole report, and the sentence below dropped them (the Codex review
+	// of #307). Cut to the advertised ceiling's floor so it always fits.
+	if applyErr != nil && len(res.Hunks) == 0 {
+		msg := "nothing was written: " + errText(applyErr)
+		if max := ceiling() / 2; len(msg) > max && max > 0 {
+			for max > 0 && !utf8.RuneStart(msg[max]) {
+				max--
+			}
+			msg = msg[:max] + " …"
+		}
+		return errorResult(msg + leftNote(len(res.LeftBehind))), nil
+	}
 	return errorResult(fmt.Sprintf("%d of %d hunk(s) failed and nothing was written. Naming them "+
 		"takes more than the %d-byte ceiling this server advertises, so they are not listed here. "+
 		"Send fewer hunks in one plan, or use the CLI `mrw write`, which streams and has no such "+
