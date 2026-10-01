@@ -904,16 +904,22 @@ func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (
 	// ADR-110 T3: a write refused before any hunk had a verdict — the write
 	// lock held past its wait — has no counts worth giving; its own words are
 	// the whole report, and the sentence below dropped them (the Codex review
-	// of #307). Cut to the advertised ceiling's floor so it always fits.
+	// of #307). They are cut until the ENCODED result fits the ceiling: JSON
+	// writes <, > and & as six bytes each, so a cap on raw bytes overflowed and
+	// the generic size refusal replaced the cause (the Codex re-review).
 	if applyErr != nil && len(res.Hunks) == 0 {
+		note := leftNote(len(res.LeftBehind))
 		msg := "nothing was written: " + errText(applyErr)
-		if max := ceiling() / 2; len(msg) > max && max > 0 {
-			for max > 0 && !utf8.RuneStart(msg[max]) {
-				max--
+		out := errorResult(msg + note)
+		for encodedSize(out) > ceiling() && msg != "" {
+			cut := len(msg) * 9 / 10
+			for cut > 0 && !utf8.RuneStart(msg[cut]) {
+				cut--
 			}
-			msg = msg[:max] + " …"
+			msg = msg[:cut]
+			out = errorResult(msg + " …" + note)
 		}
-		return errorResult(msg + leftNote(len(res.LeftBehind))), nil
+		return out, nil
 	}
 	return errorResult(fmt.Sprintf("%d of %d hunk(s) failed and nothing was written. Naming them "+
 		"takes more than the %d-byte ceiling this server advertises, so they are not listed here. "+

@@ -55,6 +55,7 @@ out=$(mktemp) \
 
 ## Mutation Log
 - 2026-10-01 · e7f79fe* · mutant killed · exit 1 · `internal/mcp/tools.go` · the no-hunk branch removed: the refusal at the smallest ceiling says only 0 of 0 hunks · acceptance-sha256:2647c9e047cbfb443f701f7fb6e940800cecb028aa35fdba22ada4c119eb97bb
+- 2026-10-01 · 2c759e9* · mutant killed · exit 1 · `internal/mcp/tools.go` · the encoded-size trim removed: an escaped refusal overflows and the generic size refusal replaces it · acceptance-sha256:2647c9e047cbfb443f701f7fb6e940800cecb028aa35fdba22ada4c119eb97bb
 
 ## Invariants
 
@@ -85,3 +86,6 @@ Stop and ask if a locked test must change to pass.
   FAIL
   ```
 - 2026-10-01 · e7f79fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:2647c9e047cbfb443f701f7fb6e940800cecb028aa35fdba22ada4c119eb97bb · ms:1032
+- 2026-10-01 · 2c759e9* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:2647c9e047cbfb443f701f7fb6e940800cecb028aa35fdba22ada4c119eb97bb · ms:0 · test-lock-sha256:0a84b50512138507dbc61551d892e167ec20648fd2cda74e87f05596fd4b973e · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvbWNwL2xvY2sxMTBfdGVzdC5nbwlUZXN0QVdyaXRlTG9ja1JlZnVzYWxTdXJ2aXZlc1RoZVNtYWxsZXN0Q2VpbGluZwkzNjMwMTQ5MDI2NjZiYjQxMjdlMTczYmQ0ODFhOTc0NGJlNTZhMzVkOTE4ZTIxMjYzOTY2MDY3OWU4NTZjNzgx · test-lock-kind:replace
+- 2026-10-01 · human-observed · Claude's session observed the relock: after red the test gained the Codex re-review of #307's escaped case (a refused value of 200 '<' keeps its words, and the fallback for a 1200-byte escaped error fits the ceiling by its encoded size); the lock-timeout assertions are unchanged
+- 2026-10-01 · 2c759e9* · exit 0 · `set -o pipefail …` · acceptance-sha256:2647c9e047cbfb443f701f7fb6e940800cecb028aa35fdba22ada4c119eb97bb · ms:998
