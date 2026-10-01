@@ -28,6 +28,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -133,6 +134,10 @@ func Load(root string) (Ledger, error) {
 
 	sc := bufio.NewScanner(f)
 	sc.Split(scanLF)
+	// ADR-108: the loader reads a record as long as save may write.
+	// The initial buffer bounds the token too (bufio.Scanner takes the larger
+	// of max and cap(buf)), so it may not exceed the record bound.
+	sc.Buffer(make([]byte, min(64<<10, maxRecordBytes)), int(maxRecordBytes))
 	if !sc.Scan() {
 		return l, sc.Err()
 	}
@@ -162,6 +167,11 @@ func Load(root string) (Ledger, error) {
 		if p, obs, ok := parseLine(sc.Text()); ok {
 			l[p] = obs
 		}
+	}
+	// ADR-108: a line past the bound can only be an older binary's; it is
+	// discarded with the ledger, as a stale header is, never parsed loosely.
+	if errors.Is(sc.Err(), bufio.ErrTooLong) {
+		return Ledger{}, nil
 	}
 	return l, sc.Err()
 }
@@ -435,10 +445,20 @@ func save(root string, l Ledger) error {
 	var b strings.Builder
 	b.WriteString(header + "\n")
 	for _, p := range paths {
-		fmt.Fprintf(&b, "%s  %s  %s\n", l[p].SHA, formatSpans(l[p]), p)
+		line := fmt.Sprintf("%s  %s  %s\n", l[p].SHA, formatSpans(l[p]), p)
+		// ADR-108: a record the loader could not read back is left out, so
+		// that file needs reading again; merging its spans would license gaps.
+		if int64(len(line)) > maxRecordBytes {
+			continue
+		}
+		b.WriteString(line)
 	}
 	return state.WriteSynced(path, []byte(b.String()), 0o600)
 }
+
+// maxRecordBytes bounds one ledger line, on save and on load alike (ADR-108);
+// a variable so a test can set a small one.
+var maxRecordBytes int64 = 16 << 20
 
 // SHA is the ledger's hash of a byte slice, and the one every other package
 // must use — two hashes of the same bytes disagreeing would make every write

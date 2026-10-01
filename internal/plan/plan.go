@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
@@ -886,7 +887,12 @@ func LoadBodyFiles(root string, hunks []Hunk) error {
 		if !st.Mode().IsRegular() {
 			return fmt.Errorf("line %d: body=@%s is not a regular file", hunks[i].SrcLine, p)
 		}
-		b, err := os.ReadFile(full)
+		// ADR-108: refused by its size and read through a bound, as read and
+		// apply read; this ran before apply's capped loader.
+		if st.Size() > maxBodyBytes {
+			return fmt.Errorf("line %d: body=@%s is %d bytes, over the %d-byte limit mrw reads", hunks[i].SrcLine, p, st.Size(), maxBodyBytes)
+		}
+		b, err := readBounded(full)
 		if err != nil {
 			return fmt.Errorf("line %d: body=@%s: %w", hunks[i].SrcLine, p, err)
 		}
@@ -894,9 +900,33 @@ func LoadBodyFiles(root string, hunks []Hunk) error {
 			hunks[i].Body = nil
 			continue
 		}
-		hunks[i].Body = strings.Split(strings.TrimSuffix(string(b), "\n"), "\n")
+		// ADR-108: split like every other text mrw reads (ADR-065); a split on
+		// \n alone kept each \r, and a CRLF body landed as \r\r\n.
+		hunks[i].Body, _, _ = lines.Split(string(b))
 	}
 	return nil
+}
+
+// maxBodyBytes is the largest body file body=@ reads (ADR-108), read's limit;
+// a variable so a test can set a small one.
+var maxBodyBytes int64 = 1 << 30
+
+// readBounded reads full through a bound of maxBodyBytes plus one byte, for a
+// file that grows after its size was taken.
+func readBounded(full string) ([]byte, error) {
+	f, err := os.Open(full)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	b, err := io.ReadAll(io.LimitReader(f, maxBodyBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > maxBodyBytes {
+		return nil, fmt.Errorf("it grew past the %d-byte limit mrw reads while it was read", maxBodyBytes)
+	}
+	return b, nil
 }
 
 // refuseUnquotedAnchorQuote is ADR-060 T3: splitHeader treats " as a quote

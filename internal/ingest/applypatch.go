@@ -9,6 +9,7 @@ package ingest
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -301,11 +302,33 @@ func fileLines(root, path string) ([]string, error) {
 // until something wrote to the pipe (review of #230). A directory keeps
 // ReadFile's own error.
 func targetBytes(full string) ([]byte, error) {
-	if fi, err := os.Stat(full); err == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
+	fi, err := os.Stat(full)
+	if err == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
 		return nil, errors.New(lines.NotRegular)
 	}
-	return os.ReadFile(full)
+	// ADR-108: refused by its size and read through a bound, as read and
+	// apply read; this ran before apply's capped loader.
+	if err == nil && fi.Mode().IsRegular() && fi.Size() > maxTargetBytes {
+		return nil, fmt.Errorf("the file is %d bytes, over the %d-byte limit mrw reads", fi.Size(), maxTargetBytes)
+	}
+	f, err := os.Open(full)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	b, err := io.ReadAll(io.LimitReader(f, maxTargetBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > maxTargetBytes {
+		return nil, fmt.Errorf("the file grew past the %d-byte limit mrw reads while it was read", maxTargetBytes)
+	}
+	return b, nil
 }
+
+// maxTargetBytes is the largest file a foreign document's target may be
+// (ADR-108), read's limit; a variable so a test can set a small one.
+var maxTargetBytes int64 = 1 << 30
 
 func findUnique(lines, old []string) (start, end, n int) {
 	if len(old) == 0 || len(old) > len(lines) {

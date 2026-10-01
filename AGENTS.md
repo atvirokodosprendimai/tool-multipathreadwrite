@@ -117,10 +117,11 @@ tools instead of the shell recipes below. The arguments are the same strings —
 `specs` is what you would pass to `mrw read`, `plan` is the file you would pass
 to `mrw write` — and every rule in this section applies unchanged, because it is
 the same engine and the same ledger — with ONE addition the CLI has no need of: a served read licenses
-nothing until you acknowledge it. A read that served numbered lines brackets each run of 200 lines with
+nothing until you acknowledge it. A read that served numbered lines brackets each run of up to 200 consecutive lines with
 `-- ck <id> open lines A-B (N lines follow)` and `-- ck <id> close`. Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.
 An id you omit leaves its lines stay unwritable. A host can cut a page before you see it, and mrw cannot
-tell, which is what this exists for.
+tell, which is what this exists for. A file holding bytes that are not valid UTF-8 is served with no checkpoint and a
+line saying so, since the JSON answer replaces those bytes: read and edit it with the CLI (ADR-108).
 An argument a tool does not declare is refused, naming it and the arguments the tool takes; nothing is done.
 
 Which surface you are on is not purely your choice: it follows from where the

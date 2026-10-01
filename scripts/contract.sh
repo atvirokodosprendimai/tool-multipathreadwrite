@@ -8102,6 +8102,36 @@ ls -A "$sd201" | grep -q '\.tmp-' && bad "a temp state file was left: $(ls -A "$
 printf '@@ a.go 1 replace\npackage a // 201\n' > "$R/q201.mrw"
 m write --no-check "$R/q201.mrw" > /dev/null 2>&1; want 0 $? "the pair: the replaced ledger licenses the next write"
 
+# 202. ADR-108: an MCP checkpoint brackets consecutive served lines only. A
+# pattern matching lines 1 and 100 of one file served them under one header as
+# ONE span, "open lines 1-100", whose acknowledgement licensed the 98 lines
+# between that nobody saw. Each run now gets its own checkpoint. The pair: a
+# consecutive run still gets one.
+fixture
+seq 1 100 > "$R/g202.txt"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["g202.txt:/^(1|100)$/"]}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["g202.txt:7-9"]}}}' \
+  | "$MRW" -C "$R" mcp > "$WORK/j202" 2> /dev/null; want 0 $? "the server answers two reads and ends at EOF"
+jq -se '.[0].result.content[0].text | test("open lines 1-1 \\(1 lines? follows?\\)") and test("open lines 100-100 ") and (test("open lines 1-100") | not)' "$WORK/j202" > /dev/null \
+  && ok "lines 1 and 100 get a checkpoint each, none spanning the gap" || bad "gap checkpoint: $(head -c 600 "$WORK/j202")"
+jq -se '.[1].result.content[0].text | test("open lines 7-9 ") and ([scan("-- ck [^ ]+ open")] | length == 1)' "$WORK/j202" > /dev/null \
+  && ok "the pair: lines 7-9 get one checkpoint" || bad "run checkpoint: $(head -c 600 "$WORK/j202")"
+
+# 203. ADR-108: a body=@ file keeps the target's line endings. Its lines were
+# split at \n alone, so a CRLF body kept its \r and a CRLF target came out
+# \r\r\n. The body file is now split like every other text mrw reads. The pair:
+# an LF body into an LF target is unchanged.
+fixture
+printf 'a\r\nb\r\n' > "$R/t203.txt"; printf 'X\r\n' > "$R/b203.txt"
+printf 'a\nb\n' > "$R/l203.txt"; printf 'Y\n' > "$R/c203.txt"
+m read t203.txt l203.txt > /dev/null
+printf '@@ t203.txt 1 replace body=@b203.txt\n@@ l203.txt 1 replace body=@c203.txt\n' > "$R/p203.mrw"
+m write --no-check "$R/p203.mrw" > /dev/null 2>&1; want 0 $? "a write with two body=@ hunks exits 0"
+[ "$(od -An -c "$R/t203.txt" | tr -s ' ')" = "$(printf 'X\r\nb\r\n' | od -An -c | tr -s ' ')" ] \
+  && ok "the CRLF target holds X CRLF b CRLF, no doubled CR" || bad "CRLF body: $(od -An -c "$R/t203.txt")"
+[ "$(od -An -c "$R/l203.txt" | tr -s ' ')" = "$(printf 'Y\nb\n' | od -An -c | tr -s ' ')" ] \
+  && ok "the pair: the LF target holds Y LF b LF" || bad "LF body: $(od -An -c "$R/l203.txt")"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
