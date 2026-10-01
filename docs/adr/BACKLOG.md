@@ -2405,7 +2405,7 @@ at the boundary, and a discovered one is dropped.
 
 The 2026-10-01 Codex design review (gpt-6-astra xhigh, v1.37.1) listed five robustness improvements beside the
 seven defects ADR-108 fixed. None is a defect today; each has the trigger that would make it one. ADR-109's Out of
-Scope defers B1–B5 here too, and ADR-110's defers B1, B2, B4 and B5.
+Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, and ADR-111's defers B1, B2 and B5.
 
 - **A foreign-compiled plan carries `sha=`** (B1). `--format=apply_patch` and `--format=search_replace` compile to
   native hunks with no file guard, so a file changed between the caller's read and the write is caught only by the
@@ -2416,7 +2416,7 @@ Scope defers B1–B5 here too, and ADR-110's defers B1, B2, B4 and B5.
 - **A timeout on the writer lock** (B3) — **Closed** by ADR-110 (`state.HoldWithin`: a writer waits `MRW_WRITE_LOCK_TIMEOUT` seconds, 120 by default, then is refused naming the holder's pid; contract §209, 2026-10-01). A writer waits for the one before it (ADR-075) without a bound; a stuck
   writer blocks the next indefinitely. Arm when a wait is reported that ended only by killing a process; the
   refusal then says nothing was applied.
-- **A receipt compatibility policy** (B4). Receipt fields are only ever added (ADR-054, ADR-102), but no record
+- **A receipt compatibility policy** (B4) — **Closed** by ADR-111 (`docs/receipts.txt` lists every receipt key; two tests hold the receipt types to it both ways; contract §210, 2026-10-01). Receipt fields are only ever added (ADR-054, ADR-102), but no record
   says what a caller may rely on across versions or how a removal would be announced. Arm on the first receipt
   change that is not purely additive.
 - **A drift advisory during a check** (B5). A file edited by someone else while mrw's check runs is not reported;

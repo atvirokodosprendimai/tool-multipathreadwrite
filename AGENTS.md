@@ -86,6 +86,9 @@ would read as another name: `b.txt.`, `b.txt ` and `b.txt::$DATA` all open
 failure · `3` the write applied but the check failed, timed out or was interrupted,
 so the tree is changed and unverified. Tests assert these; changing one is a breaking change.
 
+And a receipt's keys are only added (ADR-111): every key a `--json` or MCP receipt carries is listed in
+`docs/receipts.txt`, keeps its name, type and meaning, and a new one is appended there in the change that adds it.
+
 ## Adding behaviour
 
 - A new promise needs a row in `scripts/contract.sh` that makes it go wrong on

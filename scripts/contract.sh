@@ -8218,6 +8218,21 @@ cmp -s "$R/a.go" "$WORK/a209.before" && ok "and the file is unchanged" || bad "a
 kill "$holder209" 2>/dev/null; wait "$holder209" 2>/dev/null
 m write --no-check "$R/p209.mrw" > /dev/null 2>&1; want 0 $? "the pair: once the holder lets go, the same write applies"
 
+# 210. ADR-111: every key the built binary's `write --json` prints is one
+# docs/receipts.txt lists, so a caller may rely on it and a removal cannot land
+# unseen. The pair: the same lookup reports a key the file does not list.
+fixture
+m read a.go > /dev/null
+printf '@@ a.go 1 replace\npackage a // 210\n' > "$R/p210.mrw"
+m write --no-check --json "$R/p210.mrw" > "$WORK/j210" 2>/dev/null; want 0 $? "a write --json exits 0"
+keys210() { jq -r 'paths | select(.[-1] | type != "number") | map(if type == "number" then "[]" else "." + . end) | join("") | ltrimstr(".") | gsub("\\.\\[\\]"; "[]")' "$1" | sort -u; }
+rcpt210="$SRC/docs/receipts.txt"
+unlisted210() { while IFS= read -r k; do grep -qxF "write $k" "$rcpt210" || echo "$k"; done; }
+miss210=$(keys210 "$WORK/j210" | unlisted210)
+[ -z "$miss210" ] && [ -n "$(keys210 "$WORK/j210")" ] && ok "and every key it printed is listed in docs/receipts.txt" || bad "write --json keys not in docs/receipts.txt: $miss210"
+printf '{"not_a_field":1}\n' > "$WORK/k210"
+[ "$(keys210 "$WORK/k210" | unlisted210)" = "not_a_field" ] && ok "the pair: a key the file does not list is reported" || bad "the lookup did not report an unlisted key"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
