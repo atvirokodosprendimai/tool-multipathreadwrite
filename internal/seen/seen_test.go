@@ -217,11 +217,12 @@ func TestALegacyPathContainingADoubleSpaceIsOnePath(t *testing.T) {
 // with the notice firing for no reason.
 //
 // A test that used `header` here would survive the same mutation, which is the
-// point: this fixture is the recorded fact that v2 is the format v0.0.12
-// shipped. Bumping the constant now breaks it, and that is the intent — the
-// bump is only correct when the meaning of an old file has ACTUALLY changed,
-// and this test is where you say so on purpose.
-func TestAV2LedgerIsAcceptedAndTheBumpIsDeliberate(t *testing.T) {
+// point: this fixture is the recorded fact of the format this build accepts.
+// Bumping the constant breaks it, and that is the intent — the bump is only
+// correct when the meaning of an old file has ACTUALLY changed, and this test is
+// where you say so on purpose. It was said for v3 by ADR-108 T10: a v2 span may
+// have been issued by an MCP checkpoint that spanned a sparse read's gaps.
+func TestAV3LedgerIsAcceptedAndTheBumpIsDeliberate(t *testing.T) {
 	root := t.TempDir()
 	lp, err := ReadPath(root)
 	if err != nil {
@@ -230,10 +231,10 @@ func TestAV2LedgerIsAcceptedAndTheBumpIsDeliberate(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(lp), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// Literal, byte for byte, as a v0.0.12 mrw writes it. Two records, because
+	// Literal, byte for byte, as this build writes it. Two records, because
 	// Load consumes line 1 as the header either way and a single record could
 	// not tell acceptance from discard.
-	body := "#mrw-seen v2\nabc123  -  kept.go\ndef456  2-4  partial.go\n"
+	body := "#mrw-seen v3\nabc123  -  kept.go\ndef456  2-4  partial.go\n"
 	if err := os.WriteFile(lp, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +244,7 @@ func TestAV2LedgerIsAcceptedAndTheBumpIsDeliberate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(l) != 2 {
-		t.Fatalf("a v2 ledger was not accepted: %v", l)
+		t.Fatalf("a v3 ledger was not accepted: %v", l)
 	}
 	if o := l["kept.go"]; !o.Whole() || o.SHA != "abc123" {
 		t.Errorf("whole-file record did not survive: %+v", o)
@@ -252,7 +253,17 @@ func TestAV2LedgerIsAcceptedAndTheBumpIsDeliberate(t *testing.T) {
 		t.Errorf("span record did not survive intact: %+v", o)
 	}
 	if stale, _ := IsStale(root); stale {
-		t.Error("a v2 ledger was reported stale")
+		t.Error("a v3 ledger was reported stale")
+	}
+
+	if err := os.WriteFile(lp, []byte(strings.Replace(body, "v3", "v2", 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if l, err := Load(root); err != nil || len(l) != 0 {
+		t.Errorf("a v2 ledger was accepted: %v %v", l, err)
+	}
+	if stale, _ := IsStale(root); !stale {
+		t.Error("a v2 ledger was not reported stale")
 	}
 }
 

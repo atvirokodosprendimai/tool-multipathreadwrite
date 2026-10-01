@@ -8159,6 +8159,23 @@ out=$(m iter 2>&1); want 0 $? "a working set holding a 70,000-byte line loads"
 { grep -q 'a\.go' <<<"$out" && grep -q 'b\.go' <<<"$out"; } && ok "and keeps the entries around it" || bad "legacy working set: $(head -c 300 <<<"$out")"
 m iter clear > /dev/null 2>&1; want 0 $? "and clears"
 
+# 206. ADR-108: a permission issued under the old checkpoint rules is not
+# honoured. Up to v1.37.1 an MCP checkpoint spanned a sparse read's gaps, so a
+# #mrw-seen v2 span may cover lines no read served; it licensed them after an
+# upgrade. A v2 ledger is now discarded, and the notice says so. The pair: a
+# read of the line licenses the same write.
+fixture
+seq 1 100 > "$R/a206.txt"
+m read a206.txt:1 > /dev/null
+sd206=$(m seen | head -1)
+sha206=$(awk '$3 == "a206.txt" { print $1 }' "$sd206/seen")
+printf '#mrw-seen v2\n%s  1-100  a206.txt\n' "$sha206" > "$sd206/seen"
+printf '@@ a206.txt 50 replace\nfifty\n' > "$R/p206.mrw"
+out=$(m write --no-check "$R/p206.mrw" 2>&1); want 1 $? "a write to line 50, licensed only by a v2 span 1-100, is refused"
+grep -q 'written by an older mrw' <<<"$out" && ok "and the notice says the ledger was discarded" || bad "v2 ledger: $(head -c 300 <<<"$out")"
+m read a206.txt:50 > /dev/null
+m write --no-check "$R/p206.mrw" > /dev/null 2>&1; want 0 $? "the pair: after a read of line 50 the write applies"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

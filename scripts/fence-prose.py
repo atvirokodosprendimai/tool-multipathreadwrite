@@ -37,6 +37,9 @@ EXEMPT = {
     ("docs/adr/ADR-010-", "### Use it from an MCP host"): "ADR-053",
     ("docs/adr/ADR-010-", '"command": "mrw"'): "ADR-053",
     ("docs/adr/ADR-026-", "',+N' README.md"): "ADR-053",
+    # ADR-108 T10 bumped the ledger to #mrw-seen v3: a v2 span may have been issued by an MCP checkpoint
+    # that spanned a sparse read's gaps. ADR-038 T1 pinned v2 as its own go/no-go.
+    ("docs/adr/ADR-038-", "'#mrw-seen v2' internal/seen/seen.go"): "ADR-108",
 }
 
 

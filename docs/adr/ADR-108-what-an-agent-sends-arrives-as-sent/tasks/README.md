@@ -10,7 +10,7 @@ README must be regenerated.
 
 | Wave | Tasks | Notes |
 |------|-------|-------|
-| 1 | T1, T2, T3, T4, T5, T6, T7, T8, T9 | independent; one defect each |
+| 1 | T1, T2, T3, T4, T5, T6, T7, T8, T9, T10 | independent; one defect each |
 
 ## Task Index
 
@@ -25,6 +25,7 @@ README must be regenerated.
 | T7 | non-UTF-8 content is served unlicensed over MCP | done | — | `docs/adr/ADR-108-what-an-agent-sends-arrives-as-sent/tasks/T7-non-utf8-unlicensed.md` fence |
 | T8 | a page counts only what read would serve | done | — | `docs/adr/ADR-108-what-an-agent-sends-arrives-as-sent/tasks/T8-page-count.md` fence |
 | T9 | the working set reads back every record it saves | done | — | `docs/adr/ADR-108-what-an-agent-sends-arrives-as-sent/tasks/T9-working-set-record.md` fence |
+| T10 | permissions issued under the old checkpoint rules are discarded | done | — | `docs/adr/ADR-108-what-an-agent-sends-arrives-as-sent/tasks/T10-old-permissions.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
@@ -37,4 +38,4 @@ Status: `pending` | `partial` | `blocked` | `done`.
 ## Notes
 
 - Engine go/no-go: ADR-108 owns `internal/plan` and `internal/seen`; `internal/iter` (T9) is not on the go/no-go list; `internal/read`, `internal/apply`, `internal/state`, `internal/lines`, `internal/rooted`, `internal/check` stay byte-identical.
-- Contract sections §202 (T1), §203 (T3), §204 (T8) and §205 (T9).
+- Contract sections §202 (T1), §203 (T3), §204 (T8), §205 (T9) and §206 (T10).

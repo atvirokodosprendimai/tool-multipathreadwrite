@@ -8,8 +8,8 @@
 **Cross-references:** ADR-002, ADR-031, ADR-039, ADR-065, ADR-071, ADR-073, ADR-104, ADR-107
 **Governs:** `internal/mcp/ack.go`, `internal/mcp/tools.go`, `internal/links/links.go`, `internal/plan/plan.go`, `internal/ingest/applypatch.go`, `internal/seen/seen.go`, `internal/iter/iter.go`, `scripts/contract.sh`
 **Enforced-by:** `internal/mcp/gap108_test.go::TestACheckpointCoversOnlyConsecutiveServedLines`
-**Invalidates:** ADR-104 Out of Scope *"`apply`'s load and the state files (permanent: boundary: … state files are written by mrw)"*, for the ledger: a record mrw writes can exceed what its own loader reads, so the ledger gets a record bound on both sides (T5). ADR-107's audit, which searched `apply`, `mcp`, `writer` and `cmd/mrw`, is extended to `ingest` and `plan` (T4).
-**Served-path change:** (1) An MCP read that serves separated lines brackets each run of consecutive lines with its own checkpoint, so acknowledging it licenses exactly the lines served; a sparse read used to license the gaps. (2) On Windows, a filename holding a character whose low byte is `/` or `\` (`Я`, `Ŝ`) is no longer split into directories. (3) A `body=@file` body is split like every other text in mrw, so a CRLF body into a CRLF file no longer writes `\r\r\n`. (4) A foreign-format document or a body file over 1 GiB is refused, naming its size and the limit. (5) A ledger record mrw cannot read back is not written; the file it describes needs reading again. (6) MCP acknowledgement of a file that is no longer a regular file returns at once and licenses nothing. (7) An MCP read whose served lines hold bytes that are not valid UTF-8 serves them without checkpoints and says so, since JSON replaces those bytes; the check is per served range, so a valid range of such a file is checkpointed as before. (8) An MCP read too large for its ceiling no longer blocks on a FIFO, or reads an oversized file, while counting lines for a first page. (9) `mrw iter note` or `iter add` of a line over 64 KiB is refused, exit 2, naming its size; a working set holding such a line, from an older binary, loads without it. Exit codes keep their meanings.
+**Invalidates:** ADR-104 Out of Scope *"`apply`'s load and the state files (permanent: boundary: … state files are written by mrw)"*, for the ledger: a record mrw writes can exceed what its own loader reads, so the ledger gets a record bound on both sides (T5). ADR-107's audit, which searched `apply`, `mcp`, `writer` and `cmd/mrw`, is extended to `ingest` and `plan` (T4). The ledger header moves from `#mrw-seen v2` (ADR-038 kept it, as that record's own go/no-go) to v3, and `pending.json` to `pending-v3.json`: a v2 span may have been issued by a checkpoint that spanned a sparse read's gaps (T10); ADR-038 T1's fence clause pinning v2 is exempted in `scripts/fence-prose.py`.
+**Served-path change:** (1) An MCP read that serves separated lines brackets each run of consecutive lines with its own checkpoint, so acknowledging it licenses exactly the lines served; a sparse read used to license the gaps. (2) On Windows, a filename holding a character whose low byte is `/` or `\` (`Я`, `Ŝ`) is no longer split into directories. (3) A `body=@file` body is split like every other text in mrw, so a CRLF body into a CRLF file no longer writes `\r\r\n`. (4) A foreign-format document or a body file over 1 GiB is refused, naming its size and the limit. (5) A ledger record mrw cannot read back is not written; the file it describes needs reading again. (6) MCP acknowledgement of a file that is no longer a regular file returns at once and licenses nothing. (7) An MCP read whose served lines hold bytes that are not valid UTF-8 serves them without checkpoints and says so, since JSON replaces those bytes; the check is per served range, so a valid range of such a file is checkpointed as before. (8) An MCP read too large for its ceiling no longer blocks on a FIFO, or reads an oversized file, while counting lines for a first page. (9) `mrw iter note` or `iter add` of a line over 64 KiB is refused, exit 2, naming its size; a working set holding such a line, from an older binary, loads without it. (10) After upgrading, a ledger or pending checkpoint written by an older mrw is discarded once — the CLI prints the stale-ledger notice — so every caller re-reads before its next write. Exit codes keep their meanings.
 
 ## Context
 
@@ -36,6 +36,10 @@ source-traced and two of them checked against the source by this session before 
 9. **A9** — same review: `iter.Save` (`internal/iter/iter.go:118`) wrote a line of any length while `load` kept
    `bufio.Scanner`'s ~64 KiB default (`iter.go:93`): a long note saved, then every load — every write, and
    `mrw iter clear` — failed with `token too long`.
+10. **A10** — the third Codex review of #304: T1 and T7 stop new checkpoints licensing unseen lines, but an upgrade
+   kept what an older binary had issued — span `1-100` acknowledged into the `#mrw-seen v2` ledger
+   (`internal/seen/seen.go:118`) or held in `pending.json` (`internal/mcp/ack.go:74`) — and it licensed line 50
+   as before.
 
 **Audit of the classes.** For A2, *a rune narrowed to a byte*: `mrw read --grep 'uint8\(r\)|byte\(r\)' --exclude
 '*_test.go' internal/ cmd/` — **1** site. For A4, *a whole-file read before the capped loader*: `mrw read --grep
@@ -79,6 +83,9 @@ reads only the header line mrw writes.
 9. **A9** The working set has a line bound, `maxEntryBytes` (64 KiB): `Save` refuses a note or entry past it, naming
    the size (the caller typed it, so it is not dropped as a ledger record is), and `load` reads lines through a
    reader that skips a longer one and keeps the rest.
+10. **A10** The ledger header becomes `#mrw-seen v3` and the pending store `pending-v3.json`, so a permission an
+   older binary issued is discarded on upgrade; the stale-ledger notice names this cause. The header comment's own
+   rule decides it: the version is bumped when an older file's contents can no longer be trusted.
 
 ## Alternatives Considered
 
@@ -106,17 +113,18 @@ Engine packages owned: `internal/plan` (T3, T4), `internal/seen` (T5); `internal
 | `mrw_read` | a served range not valid UTF-8 gets no checkpoint | T7 | MCP hosts |
 | `mrw_read` first page | its line count opens only what read would serve | T8 | MCP hosts |
 | working set | a line bound on save and load | T9 | `mrw iter`, every write |
-| `scripts/contract.sh` | §202 (T1), §203 (T3), §204 (T8), §205 (T9) | T1, T3, T8, T9 | CI Linux |
+| ledger and pending store | `#mrw-seen v3`, `pending-v3.json`; older ones discarded | T10 | every caller, once |
+| `scripts/contract.sh` | §202 (T1), §203 (T3), §204 (T8), §205 (T9), §206 (T10) | T1, T3, T8, T9, T10 | CI Linux |
 
 ## Inter-task Contracts
 
 | Contract | Producing task | Consuming task(s) | Breaking? |
 |----------|----------------|-------------------|-----------|
-| none | — | — | the nine tasks are independent |
+| none | — | — | the ten tasks are independent |
 
 ## Implementation
 
-See `tasks/README.md`: T1–T9, one per defect, one wave. T8 and T9 came from the Codex review of #304.
+See `tasks/README.md`: T1–T10, one per defect, one wave. T8–T10 came from the Codex reviews of #304.
 
 ## Consequences
 
@@ -142,7 +150,7 @@ See `tasks/README.md`: T1–T9, one per defect, one wave. T8 and T9 came from th
 
 ## Rollback
 
-Revert T1–T9. No receipt change; the ledger and working-set formats are unchanged.
+Revert T1–T10. No receipt change. An older binary meets a v3 ledger as stale and discards it, so downgrading costs one re-read, never a wrong licence.
 
 ## Follow-ups
 

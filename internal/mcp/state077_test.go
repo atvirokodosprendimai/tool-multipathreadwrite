@@ -34,7 +34,7 @@ func stateUnderRoot(t *testing.T, root, name string) string {
 // caller could ack lines it never received (ADR-031). It is refused.
 func TestTheAckStoreCannotBeReadOverMCP(t *testing.T) {
 	root, _ := checkout(t, "a.txt", "a\n")
-	rel := stateUnderRoot(t, root, "pending.json")
+	rel := stateUnderRoot(t, root, pendingName)
 	res := call(t, root, "mrw_read", map[string]any{"specs": []any{rel}})
 	text := ""
 	if c, ok := res["content"].([]any); ok && len(c) > 0 {

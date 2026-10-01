@@ -70,8 +70,9 @@ const ckEvery = 200
 // pendingName is the file under the state directory holding spans that have
 // been served but not acknowledged. It sits beside the ledger rather than in
 // it, because an unacknowledged span is not a permission (ADR-004: nothing in
-// the working tree).
-const pendingName = "pending.json"
+// the working tree). It is versioned with the ledger: a hold in pending.json
+// may span a sparse read's gaps (up to v1.37.1), so it is not read (ADR-108).
+const pendingName = "pending-v3.json"
 
 // pendingLock serializes every change to the store across processes (ADR-085):
 // two servers on one checkout each rewrote it from a stale copy, and the later

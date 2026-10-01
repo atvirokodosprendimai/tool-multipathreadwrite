@@ -114,8 +114,10 @@ type Ledger map[string]Observation
 // file's contents can no longer be trusted — not merely when the format
 // changes — because the whole point is to discard a ledger whose entries mean
 // something different from what they say. v2 exists because of the
-// served-nothing bug described in Load.
-const header = "#mrw-seen v2"
+// served-nothing bug described in Load; v3 because an MCP checkpoint up to
+// v1.37.1 spanned the gaps of a sparse read, so a v2 span may cover lines no
+// read served (ADR-108 T10).
+const header = "#mrw-seen v3"
 
 func Load(root string) (Ledger, error) {
 	l := Ledger{}
@@ -206,7 +208,8 @@ func IsStale(root string) (bool, error) {
 // StaleNotice is what the CLI prints when IsStale reports true.
 const StaleNotice = "mrw: the read ledger was written by an older mrw, or its line endings were " +
 	"changed, and has been discarded — up to v0.0.11 a read that served nothing recorded the whole " +
-	"file, and a ledger mrw did not write cannot be trusted either. Read the files you mean to edit again."
+	"file, up to v1.37.1 an MCP checkpoint could license the lines between those a read served, and " +
+	"a ledger mrw did not write cannot be trusted either. Read the files you mean to edit again."
 
 // scanLF splits the ledger on "\n" alone. bufio.ScanLines also drops a "\r"
 // before it, which loaded the observation of a file named "x\r" under "x"
