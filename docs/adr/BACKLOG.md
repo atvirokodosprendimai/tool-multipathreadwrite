@@ -2421,3 +2421,9 @@ seven defects ADR-108 fixed. None is a defect today; each has the trigger that w
 - **A drift advisory during a check** (B5). A file edited by someone else while mrw's check runs is not reported;
   the check's verdict is about a tree that may no longer exist. Arm when a green check is reported over a tree
   another writer changed during it.
+- **A FIFO swapped in between a loader's check and its open** (the Codex re-review of #304, residual). `ingest`'s
+  `targetBytes`, `plan`'s `LoadBodyFiles`, `read`'s `readCapped`, `apply`'s `readLines` and ast-grep's probes judge
+  a path by `Stat` and then open it blocking, so a file replaced by a FIFO in that window hangs the call until
+  something writes to the pipe. ADR-108's A6 and A8 open non-blocking and check the descriptor; these were not
+  changed, since two are engine packages ADR-108 does not own and the window is a swap inside the checkout. Arm
+  when a hang is reported that ends at such a swap, or when a record next owns `read` or `apply`.

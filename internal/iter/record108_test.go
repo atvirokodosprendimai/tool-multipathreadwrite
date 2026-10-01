@@ -40,4 +40,41 @@ func TestAWorkingSetRecordTheWriterSavesTheLoaderReads(t *testing.T) {
 	if _, err := Update(root, func(s *Set) error { s.Entries = nil; return nil }); err != nil {
 		t.Errorf("clearing a set that held a 70,000-byte line failed: %v", err)
 	}
+
+	// The bound is on the line Save writes, "# " included: a note Save accepts
+	// round-trips, and one byte more is refused rather than lost on the next load.
+	note := strings.Repeat("n", maxEntryBytes-2)
+	if err := Save(root, Set{Note: note}); err != nil {
+		t.Fatalf("a note whose line fits the bound was refused: %v", err)
+	}
+	if s, err := Load(root); err != nil || s.Note != note {
+		t.Errorf("a note of %d bytes did not round-trip: %d bytes back, %v", len(note), len(s.Note), err)
+	}
+	if err := Save(root, Set{Note: note + "n"}); err == nil {
+		t.Error("a note whose line is one byte over the bound was saved")
+	}
+	entry := strings.Repeat("e", maxEntryBytes)
+	if err := Save(root, Set{Entries: []string{entry}}); err != nil {
+		t.Fatalf("an entry of exactly the bound was refused: %v", err)
+	}
+	if s, err := Load(root); err != nil || !slices.Equal(s.Entries, []string{entry}) {
+		t.Errorf("an entry of exactly the bound did not round-trip: %d entries, %v", len(s.Entries), err)
+	}
+
+	// Line ends as bufio.ScanLines read them: "\n" and "\r\n" end a line, a final
+	// line needs no terminator — even one that fills the reader's buffer
+	// exactly — and its trailing "\r" is dropped; edge spaces stay (ADR-069).
+	full := strings.Repeat("c", 4096)
+	if err := os.WriteFile(p, []byte("a.go\r\n x.go \n"+full), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if s, err := Load(root); err != nil || !slices.Equal(s.Entries, []string{"a.go", " x.go ", full}) {
+		t.Errorf("line ends were not read as ScanLines read them: %d entries %q…, %v", len(s.Entries), s.Entries[:min(2, len(s.Entries))], err)
+	}
+	if err := os.WriteFile(p, []byte("a.go\nb.go\r"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if s, err := Load(root); err != nil || !slices.Equal(s.Entries, []string{"a.go", "b.go"}) {
+		t.Errorf("a final line ending in \\r kept it: %q, %v", s.Entries, err)
+	}
 }

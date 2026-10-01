@@ -130,25 +130,38 @@ func load(root string) (Set, error) {
 // write, and `mrw iter clear` itself.
 const maxEntryBytes = 64 << 10
 
-// nextLine returns r's next line without its "\n" or "\r\n", as bufio.ScanLines
-// did. A line longer than maxEntryBytes is consumed whole and reported as skip,
-// so the lines after it still load; at most the bound plus one buffer is held.
-func nextLine(r *bufio.Reader) (line string, skip bool, err error) {
+// nextLine returns r's next line as bufio.ScanLines did: "\n" ends a line, a
+// "\r" before it is dropped, and a final line needs no terminator (its trailing
+// "\r" is dropped too). A line longer than maxEntryBytes is consumed whole and
+// reported as skip, so the lines after it still load; at most the bound plus
+// one buffer is held. ReadSlice, not ReadLine: ReadLine's EOF after a final
+// fragment that filled the buffer carries no data, and lost that line.
+func nextLine(r *bufio.Reader) (string, bool, error) {
 	var b []byte
+	n, skip := 0, false
 	for {
-		chunk, more, err := r.ReadLine()
-		if err != nil {
-			return "", false, err
-		}
+		chunk, err := r.ReadSlice('\n')
+		n += len(chunk)
 		if !skip {
 			b = append(b, chunk...)
-			if len(b) > maxEntryBytes {
+			if len(b) > maxEntryBytes+2 { // past the bound even without "\r\n"
 				skip, b = true, nil
 			}
 		}
-		if !more {
-			return string(b), skip, nil
+		if errors.Is(err, bufio.ErrBufferFull) {
+			continue
 		}
+		if err != nil && (!errors.Is(err, io.EOF) || n == 0) {
+			return "", false, err
+		}
+		if skip {
+			return "", true, nil
+		}
+		line := strings.TrimSuffix(strings.TrimSuffix(string(b), "\n"), "\r")
+		if len(line) > maxEntryBytes {
+			return "", true, nil
+		}
+		return line, false, nil
 	}
 }
 
@@ -166,8 +179,8 @@ func Save(root string, s Set) error {
 	var b strings.Builder
 	// ADR-108: a record load could not read back is refused, naming it; the
 	// caller typed it, so it is not dropped the way a ledger record is.
-	if len(s.Note) > maxEntryBytes {
-		return fmt.Errorf("the note is %d bytes, over the %d-byte limit the working set keeps", len(s.Note), maxEntryBytes)
+	if len("# "+s.Note) > maxEntryBytes { // the line Save writes, which load bounds
+		return fmt.Errorf("the note is %d bytes, over the %d-byte limit the working set keeps for it", len(s.Note), maxEntryBytes-len("# "))
 	}
 	for _, e := range s.Entries {
 		if len(e) > maxEntryBytes {

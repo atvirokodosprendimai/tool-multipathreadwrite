@@ -129,6 +129,7 @@ See `tasks/README.md`: T1–T9, one per defect, one wave. T8 and T9 came from th
 ## Out of Scope
 
 - The review's robustness improvements B1–B5 (deferred: `docs/adr/BACKLOG.md` "From ADR-108")
+- A file swapped for a FIFO between a loader's path check and its open, in `ingest`, `plan`, `read`, `apply` and ast-grep's probes (deferred: `docs/adr/BACKLOG.md` "From ADR-108")
 - Contract rows for A2, A4–A7 (permanent: boundary: A2 runs only on Windows, which contract.sh does not; A4 needs a file over 1 GiB; A5 needs a 16 MiB ledger record; A6 a file swapped for a FIFO between a read and its acknowledgement; A7 is asserted at the JSON wire by its unit test; each task's test drives it)
 
 ## Risks

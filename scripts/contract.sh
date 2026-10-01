@@ -8139,9 +8139,9 @@ m write --no-check "$R/p203.mrw" > /dev/null 2>&1; want 0 $? "a write with two b
 fixture
 mkfifo "$R/p204"
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["p204"]}}}' > "$WORK/q204"
-bounded 10 "$WORK/o204" sh -c '"$1" -C "$2" mcp --max-result-chars 16 < "$3"' _ "$MRW" "$R" "$WORK/q204"; want 0 $? "a FIFO read under a 16-character ceiling ends at EOF instead of hanging"
+bounded 10 "$WORK/o204" sh -c 'exec "$1" -C "$2" mcp --max-result-chars 16 < "$3"' _ "$MRW" "$R" "$WORK/q204"; want 0 $? "a FIFO read under a 16-character ceiling ends at EOF instead of hanging"
 grep -q '"id":1' "$WORK/o204" && ok "and the request is answered" || bad "FIFO under a small ceiling: $(head -c 400 "$WORK/o204")"
-bounded 10 "$WORK/k204" sh -c '"$1" -C "$2" mcp < "$3"' _ "$MRW" "$R" "$WORK/q204"; want 0 $? "the pair: the same read under the default ceiling ends at EOF"
+bounded 10 "$WORK/k204" sh -c 'exec "$1" -C "$2" mcp < "$3"' _ "$MRW" "$R" "$WORK/q204"; want 0 $? "the pair: the same read under the default ceiling ends at EOF"
 grep '"id":1' "$WORK/k204" | jq -e '.result.isError == true' > /dev/null && ok "and refuses the FIFO" || bad "FIFO refusal: $(head -c 400 "$WORK/k204")"
 
 # 205. ADR-108: the working set reads back every line it saves. A 70,000-byte

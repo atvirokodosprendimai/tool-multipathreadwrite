@@ -24,7 +24,7 @@ The working set gets the record bound the ledger got in T5, with the disposition
 ## Ordered Steps
 
 1. [S1] Write the failing test(s) `TestAWorkingSetRecordTheWriterSavesTheLoaderReads`; confirm RED. [proof: mutation]
-2. [S2] `Save` refuses past `maxEntryBytes`; `load` reads lines through a reader that skips one past it. Mutants: the save refusal removed; the loader's skip removed. [proof: mutation]
+2. [S2] `Save` refuses a line past `maxEntryBytes`, the note's `# ` prefix included; `load` reads lines through a `ReadSlice` reader that keeps `bufio.ScanLines`' line ends and skips one past the bound. Mutants: the save refusal removed; the skip flag never set; a final unterminated line dropped at EOF; the trailing `\r` kept. [proof: mutation]
 
 ## Acceptance
 
@@ -57,6 +57,10 @@ out=$(mktemp) \
 ## Mutation Log
 - 2026-10-01 · 918bc7d* · mutant killed · exit 1 · `internal/iter/iter.go` · the save refusal removed: a 70,000-byte note is saved · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f
 - 2026-10-01 · 918bc7d* · mutant killed · exit 1 · `internal/iter/iter.go` · the loader skip removed: a 70,000-byte line loads as an entry · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f
+- 2026-10-01 · 98a60ba* · mutant killed · exit 1 · `internal/iter/iter.go` · the save refusal removed: a 70,000-byte note is saved · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f
+- 2026-10-01 · 98a60ba* · mutant killed · exit 1 · `internal/iter/iter.go` · the skip flag never set: the tail of a 70,000-byte line loads as an entry · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f
+- 2026-10-01 · 98a60ba* · mutant killed · exit 1 · `internal/iter/iter.go` · a final unterminated line dropped: EOF with data fails the load · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f
+- 2026-10-01 · 98a60ba* · mutant killed · exit 1 · `internal/iter/iter.go` · the trailing CR kept: a CRLF entry loads as a.go\r · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f
 
 ## Invariants
 
@@ -115,3 +119,9 @@ Stop and ask if a locked test must change to pass.
 - 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f · ms:500
 - 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f · ms:349
 - 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f · ms:376
+- 2026-10-01 · 98a60ba* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f · ms:0 · test-lock-sha256:7c8ab1423c9edfe32a3ba22c3b5feda9306da26c96204ca5e22c84b42c6146c9 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWludGVybmFsL2l0ZXIvcmVjb3JkMTA4X3Rlc3QuZ28JVGVzdEFXb3JraW5nU2V0UmVjb3JkVGhlV3JpdGVyU2F2ZXNUaGVMb2FkZXJSZWFkcwk1NTJlMGVlZjYwMGM0YTFmNzIyNzQzMTYxNmYyNGZlNTc0ZjI2ZWI4ZjM5ODVkMzdhMDRhN2NkYmRlMzNmMjk2 · test-lock-kind:replace
+- 2026-10-01 · human-observed · Claude's session observed the relock: after red the test gained the Codex re-review's boundary cases (a note whose prefixed line fits round-trips and one byte more is refused; an entry of exactly the bound; CRLF, edge spaces, a final unterminated line filling the buffer, a final trailing CR); the earlier assertions are unchanged
+- 2026-10-01 · 98a60ba* · exit 0 · `set -o pipefail …` · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f · ms:851
+- 2026-10-01 · 98a60ba* · exit 0 · `set -o pipefail …` · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f · ms:493
+- 2026-10-01 · 98a60ba* · exit 0 · `set -o pipefail …` · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f · ms:483
+- 2026-10-01 · 98a60ba* · exit 0 · `set -o pipefail …` · acceptance-sha256:f67dabf9b727e34e6a545d08535bd59cc3beceb84c94154617d4e7915c93f59f · ms:483
