@@ -44,6 +44,6 @@ target/format/shape/check/exit cells; seed 7, 400 runs, 0 violations, 93 cells.
 
 The gate was shown to fail, and each check to reach real runs: against a copy of `docs/receipts.txt` without the
 `write hunks` keys, 40 runs gave 20 W2 violations; and with each expectation inverted in turn, 120 runs gave 59 W6,
-10 W7, 5 W8 and 5 W9 violations. The first cut of W8 expected `--strict-balance` to refuse any delimiter move; the
+10 W7, 5 W8 and 5 W9 violations; and against two fake binaries, one answering every --json write with `null` and exit 3 and one refusing the non-strict wrap-tail write, 120 runs each gave 82 W2 and 9 W8 violations. The first cut of W8 expected `--strict-balance` to refuse any delimiter move; the
 code refuses the wrap-tail shape only (ADR-055, `internal/apply/apply.go:1478`), as the README says, and AGENTS.md,
 which said otherwise, was corrected.

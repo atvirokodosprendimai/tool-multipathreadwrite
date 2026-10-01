@@ -166,12 +166,16 @@ def one(i, rng):
     doc = None
     if "--json" in flags and not (conflict and code == 2 and out.strip() == ""):
         try:
-            doc = json.loads(out)
+            parsed = json.loads(out)
         except ValueError:
             bad("W2 --json stdout is not one JSON object")
-        if doc is not None and not isinstance(doc, dict):
-            bad("W2 --json stdout is not one object")
-            doc = None
+        else:
+            # Any decoded value that is not an object fails, null included:
+            # None would otherwise read as "no receipt to check".
+            if isinstance(parsed, dict):
+                doc = parsed
+            else:
+                bad("W2 --json stdout is %s, not one object" % type(parsed).__name__)
         if doc is not None:
             extra = sorted(paths(doc) - WRITE_KEYS)
             if extra:
@@ -209,8 +213,16 @@ def one(i, rng):
         if "--strict-balance" in flags:
             if code != 1 or after != before:
                 bad("W8 --strict-balance did not refuse a wrap-tail single-line code replace")
-        elif doc is not None and code in (0, 3) and not (doc.get("advisories", 0) >= 1):
-            bad("W8 a wrap-tail replace landed without a balance advisory")
+        else:
+            # Without the flag the wrap-tail replace is valid: validation never
+            # refuses it, whatever the check, a step or --dry-run then does.
+            if code == 1:
+                bad("W8 a wrap-tail replace was refused without --strict-balance")
+            if doc is not None:
+                hunks = doc.get("hunks") or []
+                st = hunks[0].get("status") if hunks and isinstance(hunks[0], dict) else None
+                if st != "ok" or not (doc.get("advisories", 0) >= 1):
+                    bad("W8 a wrap-tail replace without --strict-balance did not pass with a balance advisory")
     if landed and check != "none" and "--check" not in flags and "--no-check" not in flags and doc is not None:
         ran = isinstance(doc.get("check"), dict) and doc["check"].get("ran") is True
         if target == "x.go" and not ran:
