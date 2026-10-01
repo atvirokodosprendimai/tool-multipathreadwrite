@@ -410,6 +410,8 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 - **Exit `3` means the write APPLIED and the check did not pass** — failed, timed out or was interrupted; the tree is
   changed and unverified. It is not a rollback. A failing check prints
   `check last:` (the last non-empty tail line) immediately above `full output:`.
+  A file the write touched that changed while its check ran is named — `drift: <path> changed while the check
+  ran`, and `drift` in `--json` — and the exit code stays the check's (ADR-112).
 - **`--then NAME` and `--then-sh 'CMD'` verify a write in the same call** (ADR-092). A step is declared
   in `.quality-harness.json` `"steps"` (`--then vet`) or written ad hoc (`--then-sh 'go vet ./...'`);
   both repeat and run in command-line order after a write that landed and whose check passed, on

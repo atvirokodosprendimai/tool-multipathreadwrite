@@ -1446,6 +1446,9 @@ held or went unchecked.`,
 			// prose plan it runs, and with no command it is exit 2 (ADR-003).
 			if checkDue(res) {
 				written, _ := writeCheckPaths(res.Files)
+				// ADR-112: the baseline is what the write left on disk, taken
+				// now — before the check — so a change the check makes shows.
+				before := writer.Before(root, res)
 				cr, err := check.Run(ctx, root, cfg, written)
 				if err != nil {
 					// The write landed and its check could not run: that is
@@ -1457,6 +1460,12 @@ held or went unchecked.`,
 					return refuseWith(res, err.Error())
 				}
 				receipt.Check = &cr
+				// ADR-112: a file the write landed can change while the check
+				// runs — another writer, or the check itself — and the verdict
+				// is then about a tree that moved under it. Say which.
+				if cr.Ran {
+					receipt.Drift = writer.Drift(root, before)
+				}
 			}
 			// ADR-092: the steps follow a landed write whose check, when one
 			// ran, passed; otherwise every one is reported not_run.
@@ -1474,6 +1483,7 @@ held or went unchecked.`,
 				}
 			} else {
 				reportCheck(os.Stdout, receipt.Check)
+				reportDrift(os.Stdout, receipt.Drift)
 				reportSteps(os.Stdout, receipt.Then)
 			}
 			switch {
@@ -1608,6 +1618,10 @@ type receipt struct {
 	// Then is every --then / --then-sh step's verdict (ADR-092), present
 	// whenever one was asked for.
 	Then *check.StepsResult `json:"then,omitempty"`
+	// Drift is each file the write touched that changed while its check ran
+	// (ADR-112): absent when nothing did, and when no check ran. Advisory —
+	// the exit code is the check's.
+	Drift []string `json:"drift,omitempty"`
 }
 
 // checkReceipt is `mrw check --json`: the check's own flat fields, unchanged,
@@ -2132,6 +2146,15 @@ touched, which is a finding about the machine and not about your change.`,
 // reportCheck prints a check result. It always states the command and the real
 // exit code: a summary that omits either invites the reader to trust a green
 // that was never computed.
+// reportDrift names each file that changed while the write's check ran
+// (ADR-112). Worded for what is known — the bytes moved — and not for who moved
+// them: the check may have done it itself.
+func reportDrift(w *os.File, paths []string) {
+	for _, p := range paths {
+		fmt.Fprintf(w, "drift: %s changed while the check ran\n", p)
+	}
+}
+
 func reportCheck(w *os.File, r *check.Result) {
 	if r == nil {
 		return

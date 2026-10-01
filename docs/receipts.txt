@@ -126,6 +126,7 @@ write check.skipped
 write check.tail
 write check.truncated_lines
 write dirs_created
+write drift
 write dry_run
 write error
 write failed

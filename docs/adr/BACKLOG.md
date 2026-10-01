@@ -2405,7 +2405,7 @@ at the boundary, and a discovered one is dropped.
 
 The 2026-10-01 Codex design review (gpt-6-astra xhigh, v1.37.1) listed five robustness improvements beside the
 seven defects ADR-108 fixed. None is a defect today; each has the trigger that would make it one. ADR-109's Out of
-Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, and ADR-111's defers B1, B2 and B5.
+Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's defers B1, B2 and B5, and ADR-112's defers B1 and B2.
 
 - **A foreign-compiled plan carries `sha=`** (B1). `--format=apply_patch` and `--format=search_replace` compile to
   native hunks with no file guard, so a file changed between the caller's read and the write is caught only by the
@@ -2419,7 +2419,7 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, and ADR-111's
 - **A receipt compatibility policy** (B4) — **Closed** by ADR-111 (`docs/receipts.txt` lists every receipt key; two tests hold the receipt types to it both ways; contract §210, 2026-10-01). Receipt fields are only ever added (ADR-054, ADR-102), but no record
   says what a caller may rely on across versions or how a removal would be announced. Arm on the first receipt
   change that is not purely additive.
-- **A drift advisory during a check** (B5). A file edited by someone else while mrw's check runs is not reported;
+- **A drift advisory during a check** (B5) — **Closed** by ADR-112 (`writer.Drift`: a CLI write names each file it touched that changed while its check ran, `drift:` and `drift` in `--json`; contract §211, 2026-10-01). A file edited by someone else while mrw's check runs is not reported;
   the check's verdict is about a tree that may no longer exist. Arm when a green check is reported over a tree
   another writer changed during it.
 - **A FIFO swapped in between a loader's check and its open** — **Closed** by ADR-109 (`internal/regular.Open`: every loader opens without blocking and asks the descriptor; it also found `check.Load` hung outright on a FIFO `.quality-harness.json`, contract §207, 2026-10-01) (the Codex re-review of #304, residual). `ingest`'s
