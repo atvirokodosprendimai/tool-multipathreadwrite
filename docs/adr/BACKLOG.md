@@ -2384,10 +2384,11 @@ at the boundary, and a discovered one is dropped.
 
 ## From ADR-102 (a write that landed is reported and counted as landed)
 
-- **Sharing the rest of the CLI/MCP write orchestration** (ADR-102 Out of Scope; the 2026-09-30 Codex design
-  review's top-5 #5). `cmd/mrw/main.go` and `internal/mcp/tools.go` each prepare a plan, apply it, count it and
-  render it; ADR-102 shares only the classification (`writer.MutationOf`). Arm on the next finding whose cause is
-  that the two surfaces decided the same outcome differently.
+- **Sharing the rest of the CLI/MCP write orchestration** — **Closed** by ADR-113 (`internal/writer/flow.go`: one
+  sequence, `Prepare` → `Land` → `Verify` → `Settle`, that both surfaces run, 2026-10-01) (ADR-102 Out of Scope; the
+  2026-09-30 Codex design review's top-5 #5). `cmd/mrw/main.go` and `internal/mcp/tools.go` each prepared a plan,
+  applied it, counted it and rendered it; ADR-102 shared only the classification (`writer.MutationOf`). Armed by the
+  2026-10-01 gap list: an MCP write ran no check.
 - **The cleanup errors mrw ignores, and what a failed run leaves behind** — **Closed** by ADR-105 (`left_behind`, atomic state writes, the README failure matrix, 2026-09-30) (ADR-102 Out of Scope; the 2026-09-30
   Codex design review, finding 5). `apply.go` `discard`, `stageFile`'s error paths and `pathop.go`'s aside removal
   drop a failed `os.Remove`, so a `.mrw-*` temp file or aside can remain unreported; state files are written in
@@ -2434,3 +2435,13 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's def
   something writes to the pipe. ADR-108's A6 and A8 open non-blocking and check the descriptor; these were not
   changed, since two are engine packages ADR-108 does not own and the window is a swap inside the checkout. Arm
   when a hang is reported that ends at such a swap, or when a record next owns `read` or `apply`.
+
+## From ADR-113 (one write path, and an MCP write is checked)
+
+- **Steps over MCP** — `mrw_write` runs the check and no step: `--then-sh` is arbitrary shell, and a named `then`
+  would need its own floor and elision on that surface (ADR-113 Decision 6). The shared `Verify` already takes a step
+  list. Arm when an MCP caller asks for a declared step after a write.
+- **Progress notifications while an MCP check runs** — Claude Code's 30-minute idle window for a stdio server
+  resets on a progress notification; the hard limit (`MCP_TOOL_TIMEOUT`, about 28 hours by default) does not. The
+  check's default bound is 5 minutes, inside both (ADR-113 Context). Arm when a project's check bound past the idle
+  window is reported, or a host is found whose idle window is shorter than the check.
