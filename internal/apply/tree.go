@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // tree is the checkout a write may change, held open as an os.Root for the
@@ -148,7 +149,9 @@ func (t *tree) readDir(p string) ([]fs.DirEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := t.r.Open(r)
+	// ADR-109: without blocking, so a directory swapped for a FIFO is an error
+	// from ReadDir rather than an open that waits for a writer.
+	f, err := t.r.OpenFile(r, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}

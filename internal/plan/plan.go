@@ -21,6 +21,7 @@ package plan
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -31,6 +32,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -884,15 +886,21 @@ func LoadBodyFiles(root string, hunks []Hunk) error {
 		if err != nil {
 			return fmt.Errorf("line %d: body=@%s: %w", hunks[i].SrcLine, p, err)
 		}
-		if !st.Mode().IsRegular() {
-			return fmt.Errorf("line %d: body=@%s is not a regular file", hunks[i].SrcLine, p)
+		// ADR-109: a directory is refused by its path; anything else that is
+		// not a regular file by the descriptor readBounded opens, so a FIFO
+		// swapped in after this Stat is refused rather than blocking the write.
+		if st.IsDir() {
+			return notRegularBody{line: hunks[i].SrcLine, path: p}
 		}
 		// ADR-108: refused by its size and read through a bound, as read and
 		// apply read; this ran before apply's capped loader.
-		if st.Size() > maxBodyBytes {
+		if st.Mode().IsRegular() && st.Size() > maxBodyBytes {
 			return fmt.Errorf("line %d: body=@%s is %d bytes, over the %d-byte limit mrw reads", hunks[i].SrcLine, p, st.Size(), maxBodyBytes)
 		}
 		b, err := readBounded(full)
+		if errors.Is(err, regular.ErrNotRegular) {
+			return notRegularBody{line: hunks[i].SrcLine, path: p}
+		}
 		if err != nil {
 			return fmt.Errorf("line %d: body=@%s: %w", hunks[i].SrcLine, p, err)
 		}
@@ -911,10 +919,24 @@ func LoadBodyFiles(root string, hunks []Hunk) error {
 // a variable so a test can set a small one.
 var maxBodyBytes int64 = 1 << 30
 
+// notRegularBody refuses a body file that is not a regular file, in the words
+// LoadBodyFiles always used; it wraps regular.ErrNotRegular (ADR-109).
+type notRegularBody struct {
+	line int
+	path string
+}
+
+func (e notRegularBody) Error() string {
+	return fmt.Sprintf("line %d: body=@%s is not a regular file", e.line, e.path)
+}
+
+func (e notRegularBody) Unwrap() error { return regular.ErrNotRegular }
+
 // readBounded reads full through a bound of maxBodyBytes plus one byte, for a
-// file that grows after its size was taken.
+// file that grows after its size was taken. It opens through regular.Open
+// (ADR-109), whose descriptor decides that the file is regular.
 func readBounded(full string) ([]byte, error) {
-	f, err := os.Open(full)
+	f, _, err := regular.Open(full)
 	if err != nil {
 		return nil, err
 	}

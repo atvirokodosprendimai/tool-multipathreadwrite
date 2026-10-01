@@ -33,6 +33,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
 )
@@ -84,12 +85,28 @@ const (
 	defaultTail       = 30
 )
 
+// readConfig reads the config through regular.Open (ADR-109): os.ReadFile of a
+// FIFO there blocked until something wrote to it, hanging every check and every
+// write whose check was due. A missing file keeps the open's own error, which
+// Load reads as "no config".
+func readConfig(path string) ([]byte, error) {
+	f, _, err := regular.Open(path)
+	if errors.Is(err, regular.ErrNotRegular) {
+		return nil, fmt.Errorf(".quality-harness.json: %w", err)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	return io.ReadAll(f)
+}
+
 // Load reads .quality-harness.json from root. A missing file is not an error:
 // it falls back to a Go-shaped default when the root has a go.mod, and to no
 // check at all otherwise.
 func Load(root string) (Config, error) {
 	var c Config
-	b, err := os.ReadFile(filepath.Join(root, ".quality-harness.json"))
+	b, err := readConfig(filepath.Join(root, ".quality-harness.json"))
 	switch {
 	case err == nil:
 		if err := json.Unmarshal(b, &c); err != nil {
