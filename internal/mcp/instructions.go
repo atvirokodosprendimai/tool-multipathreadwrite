@@ -111,7 +111,7 @@ A worked plan:
 dry_run true: same receipt, no write. A refusal is the tool working.
 
 Both tools cap the ENCODED answer at the ceiling _meta names. An oversized
-write receipt drops ok and skipped verdicts, then UNWRITTEN files, and says so in elided;
+write receipt drops the check's tail, then ok and skipped verdicts, then UNWRITTEN files, and says so in elided;
 smaller still, one sentence and no receipt.
 `, exampleReadSpecs, AckRule, examplePlan)
 }

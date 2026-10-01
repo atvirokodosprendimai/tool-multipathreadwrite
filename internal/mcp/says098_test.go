@@ -65,7 +65,7 @@ func TestTheServedTextSaysWhatTheCodeDoes(t *testing.T) {
 		// Elision drops ok and skipped verdicts, then UNWRITTEN file records;
 		// failed hunks and written files are kept (tools.go boundedReceipt).
 		{"M14 elided", writeDescriptions["elided"], []string{"NOT written", "every WRITTEN file"}, []string{"and file records after them"}},
-		{"M14 instructions", ins, []string{"drops ok and skipped verdicts, then UNWRITTEN files"}, []string{"drops successes then"}},
+		{"M14 instructions", ins, []string{"drops the check's tail, then ok and skipped verdicts, then UNWRITTEN files"}, []string{"drops successes then"}},
 	}
 	for _, r := range rows {
 		t.Run(r.row, func(t *testing.T) {

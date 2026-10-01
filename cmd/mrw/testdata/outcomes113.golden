@@ -187,14 +187,14 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 0,
     "fires": false
   },
-  "error": "<PLAN>: line 1: body=@nope.txt: stat /private<ROOT>/nope.txt: no such file or directory"
+  "error": "<PLAN>: line 1: body=@nope.txt: stat <ROOT>/nope.txt: no such file or directory"
 }
-<PLAN>: line 1: body=@nope.txt: stat /private<ROOT>/nope.txt: no such file or directory
+<PLAN>: line 1: body=@nope.txt: stat <ROOT>/nope.txt: no such file or directory
 == body_file_missing human
 exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=1 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
-<PLAN>: line 1: body=@nope.txt: stat /private<ROOT>/nope.txt: no such file or directory
+<PLAN>: line 1: body=@nope.txt: stat <ROOT>/nope.txt: no such file or directory
 == pointer_unresolved json
 exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
@@ -455,14 +455,14 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 0,
     "fires": false
   },
-  "error": "d: read /private<ROOT>/d: is a directory"
+  "error": "d: read <ROOT>/d: is a directory"
 }
-d: read /private<ROOT>/d: is a directory
+d: read <ROOT>/d: is a directory
 == names_a_directory human
 exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
-d: read /private<ROOT>/d: is a directory
+d: read <ROOT>/d: is a directory
 == partial_commit json
 exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=1 refused_apply=0 refused_parse=0 landed 1
@@ -2195,4 +2195,3 @@ wrote a.go  2L -> 2L  sha 8916c0d3
 pattern: 3 of your last 3 writes carried a balance advisory — read past the range before the next one
 check (declared): exit 0
 check PASS (exit 0, <DUR>)
-

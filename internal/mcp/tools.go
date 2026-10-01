@@ -867,7 +867,16 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 	if chk != nil && len(chk.Tail) > 0 {
 		cut := *chk
 		cut.Tail = nil
+		// A passing check whose whole output fit its tail removed its log
+		// (internal/check), so the tail would be the only copy: write it to a
+		// log of its own before dropping it, and name that one.
+		if cut.OutputFile == "" {
+			cut.OutputFile = keptTail(chk.Tail)
+		}
 		dropped := fmt.Sprintf("the check's %d tail line(s) (its output_file holds them)", len(chk.Tail))
+		if cut.OutputFile == "" {
+			dropped = fmt.Sprintf("the check's %d tail line(s) (lost: no log could be written for them)", len(chk.Tail))
+		}
 		note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: %s are not here. "+
 			"Every hunk verdict and file record is here, and the counts are of the whole plan.", MaxResultChars, whole, dropped)
 		out, rpcErr := render(res, res.Hunks, &cut, note)
@@ -969,6 +978,22 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 		"takes more than the %d-byte ceiling this server advertises, so they are not listed here. "+
 		"Send fewer hunks in one plan, or use the CLI `mrw write`, which streams and has no such "+
 		"limit.", res.Failed, len(res.Hunks), MaxResultChars) + leftNote(len(res.LeftBehind))), nil
+}
+
+// keptTail writes a check's tail to a log of its own and returns its path, or
+// "" when none could be written. For a passing check whose log internal/check
+// removed because the tail held all of it (ADR-113, the Codex review of #312).
+func keptTail(tail []string) string {
+	f, err := os.CreateTemp("", "mrw-check-*.log")
+	if err != nil {
+		return ""
+	}
+	_, werr := f.WriteString(strings.Join(tail, "\n") + "\n")
+	if cerr := f.Close(); werr != nil || cerr != nil {
+		_ = os.Remove(f.Name())
+		return ""
+	}
+	return f.Name()
 }
 
 // gateRefusal is this surface's words for a write the shared sequence refused

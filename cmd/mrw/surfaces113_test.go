@@ -123,8 +123,10 @@ func surfaceRun(t *testing.T, row surfaceRow, viaMCP bool) string {
 		}
 		out, _ := runIn(t, root, append(argv, planFile(t, row.plan))...)
 		// runIn appends the exit message after the document; the document is
-		// the first JSON value.
-		_ = json.NewDecoder(strings.NewReader(out)).Decode(&doc)
+		// the first JSON value, and there must be one.
+		if err := json.NewDecoder(strings.NewReader(out)).Decode(&doc); err != nil || doc == nil {
+			t.Fatalf("%s: the CLI printed no receipt (%v):\n%s", row.name, err, out)
+		}
 	}
 	t.Setenv("PATH", path)
 	t.Setenv("TMPDIR", tmp)
@@ -148,8 +150,21 @@ func surfaceRun(t *testing.T, row surfaceRow, viaMCP bool) string {
 	if c, ok := doc["check"].(map[string]any); ok {
 		verdict = fmt.Sprintf("ran=%v exit=%v", c["ran"], c["exit_code"])
 	}
-	_, drift := doc["drift"]
-	return fmt.Sprintf("counts %s pricing %s hunks %v check %s drift %v", sortedCounts(s.Counts), sortedCounts(s.Pricing), hunks, verdict, drift)
+	var written, drift []string
+	if fs, ok := doc["files"].([]any); ok {
+		for _, f := range fs {
+			if m, ok := f.(map[string]any); ok && m["written"] == true {
+				written = append(written, fmt.Sprint(m["path"]))
+			}
+		}
+	}
+	if ds, ok := doc["drift"].([]any); ok {
+		for _, d := range ds {
+			drift = append(drift, fmt.Sprint(d))
+		}
+	}
+	return fmt.Sprintf("counts %s pricing %s applied %v written %v hunks %v check %s drift %v",
+		sortedCounts(s.Counts), sortedCounts(s.Pricing), doc["applied"] == true, written, hunks, verdict, drift)
 }
 
 // mcpWrite sends one mrw_write through the server's own wire and returns its

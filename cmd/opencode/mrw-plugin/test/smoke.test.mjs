@@ -161,3 +161,19 @@ test("a child that exits without reading its input is reported, not raised", { s
   assert.equal(write.metadata.isError, true, write.output);
   assert.match(write.output, /exited 3/);
 });
+
+test("a write whose check cannot run landed, and the answer does not call it refused", { skip: process.platform === "win32" }, async (t) => {
+  const dir = worktree(t);
+  fs.writeFileSync(path.join(dir, "a.go"), "package a\nfunc A() {}\n");
+  fs.writeFileSync(path.join(dir, ".quality-harness.json"), '{"check":"exit 0"}\n');
+  const tl = await tools(dir);
+  const read = await tl.mrw_read.execute({ specs: ["a.go"] }, ctx(dir));
+  const saved = process.env.TMPDIR;
+  process.env.TMPDIR = path.join(dir, "missing");
+  t.after(() => { if (saved === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = saved; });
+  const write = await tl.mrw_write.execute({ plan: "@@ a.go 2 replace\nfunc A() { _ = 1 }\n", ack: acks(read.output) }, ctx(dir));
+  assert.equal(write.metadata.isError, true, write.output);
+  assert.doesNotMatch(write.output, /refused/, write.output);
+  assert.match(write.output, /COULD NOT RUN/, write.output);
+  assert.equal(fs.readFileSync(path.join(dir, "a.go"), "utf8"), "package a\nfunc A() { _ = 1 }\n");
+});

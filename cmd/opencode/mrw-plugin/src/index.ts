@@ -93,7 +93,10 @@ async function mcp(title: string, ctx: ToolContext, dir: string, name: string, a
   }
   const text = (response.result.content ?? []).map((c) => c.text ?? "").join("\n\n");
   const isError = response.result.isError === true;
-  return { title, output: (isError ? "error: the call was refused\n" : "") + text, metadata: { isError } };
+  // Neutral on purpose: a write can land and then report an error — its check
+  // could not run, its ledger could not record it (ADR-102, ADR-113) — and
+  // "refused" would contradict the receipt below and invite a second apply.
+  return { title, output: (isError ? "error: read the answer before retrying — a write it reports as applied DID land\n" : "") + text, metadata: { isError } };
 }
 
 // set copies the fields the caller gave; an empty string or a zero is given.

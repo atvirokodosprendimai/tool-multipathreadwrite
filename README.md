@@ -392,8 +392,8 @@ markers and all its lines arrived; a cut page loses its tail's close markers, an
 those runs stay unwritable (see [MCP](#mcp)). `mrw_write` runs the check after a code
 write, as `mrw write` does; `check: false` turns it off, and `mrw_check` runs it on
 demand. The other six tools run the CLI and answer `exit: N` first, the CLI's
-exit code (see [Exit status](#exit-status)). A refused read or write answers
-`error:` first.
+exit code (see [Exit status](#exit-status)). An answer the server marks as an
+error starts `error:` — a write whose receipt says it applied still landed.
 
 ### Setup
 

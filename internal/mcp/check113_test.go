@@ -3,6 +3,7 @@ package mcp
 import (
 	"errors"
 	"math"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -145,6 +146,25 @@ func TestAnMCPWriteRunsTheCheck(t *testing.T) {
 		if el, _ := sc["elided"].(string); !strings.Contains(el, "check") {
 			t.Errorf("elided %q does not say the check's tail went", el)
 		}
+	})
+	t.Run("a passing check's dropped tail is kept in a log the receipt names", func(t *testing.T) {
+		restore := MaxResultChars
+		MaxResultChars = 20000
+		t.Cleanup(func() { MaxResultChars = restore })
+		root := checkTree113(t, `{"check":"i=0; while [ $i -lt 30 ]; do printf '%01000d\\n' 0; i=$((i+1)); done; exit 0"}`)
+		chk, _ := structured(t, call(t, root, "mrw_write", map[string]any{"plan": goEdit113}))["check"].(map[string]any)
+		if chk == nil || chk["exit_code"] != float64(0) {
+			t.Fatalf("check %v, want a passing verdict", chk)
+		}
+		if _, has := chk["tail"]; has {
+			t.Fatalf("the tail survived a receipt over the ceiling")
+		}
+		log, _ := chk["output_file"].(string)
+		b, err := os.ReadFile(log)
+		if log == "" || err != nil || strings.Count(string(b), "\n") != 30 {
+			t.Fatalf("output_file %q (%v) does not hold the dropped tail's 30 lines", log, err)
+		}
+		t.Cleanup(func() { _ = os.Remove(log) })
 	})
 	t.Run("every verdict phrase fits the write floor", func(t *testing.T) {
 		for _, c := range []struct {

@@ -123,7 +123,7 @@ func TestTheCLIWriteOutcomesAreUnchanged(t *testing.T) {
 		if err := os.MkdirAll("testdata", 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(outcomesGolden, []byte(got.String()), 0o644); err != nil {
+		if err := os.WriteFile(outcomesGolden, []byte(strings.TrimRight(got.String(), "\n")+"\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		return
@@ -132,8 +132,8 @@ func TestTheCLIWriteOutcomesAreUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.String() != string(want) {
-		gs, ws := strings.Split(got.String(), "\n"), strings.Split(string(want), "\n")
+	if g := strings.TrimRight(got.String(), "\n") + "\n"; g != string(want) {
+		gs, ws := strings.Split(g, "\n"), strings.Split(string(want), "\n")
 		for i := 0; i < len(gs) || i < len(ws); i++ {
 			var g, w string
 			if i < len(gs) {
@@ -288,10 +288,12 @@ func normalizeOutcome(out, root, state, tmp, plan, cwd string) string {
 		subs = append([]struct{ from, to string }{{plan, "<PLAN>"}}, subs...)
 	}
 	for _, p := range subs {
-		out = strings.ReplaceAll(out, p.from, p.to)
-		if real, err := filepath.EvalSymlinks(p.from); err == nil {
+		// The canonical spelling first: on macOS /private/var/… holds /var/…,
+		// and replacing the shorter one first leaves /private<ROOT>.
+		if real, err := filepath.EvalSymlinks(p.from); err == nil && real != p.from {
 			out = strings.ReplaceAll(out, real, p.to)
 		}
+		out = strings.ReplaceAll(out, p.from, p.to)
 	}
 	out = durationJSON.ReplaceAllString(out, `"duration_ms": 0`)
 	out = checkLog.ReplaceAllString(out, "<LOG>")
