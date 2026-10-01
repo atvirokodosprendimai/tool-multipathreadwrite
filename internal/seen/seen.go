@@ -28,6 +28,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -113,8 +114,10 @@ type Ledger map[string]Observation
 // file's contents can no longer be trusted — not merely when the format
 // changes — because the whole point is to discard a ledger whose entries mean
 // something different from what they say. v2 exists because of the
-// served-nothing bug described in Load.
-const header = "#mrw-seen v2"
+// served-nothing bug described in Load; v3 because an MCP checkpoint up to
+// v1.37.1 spanned the gaps of a sparse read, so a v2 span may cover lines no
+// read served (ADR-108 T10).
+const header = "#mrw-seen v3"
 
 func Load(root string) (Ledger, error) {
 	l := Ledger{}
@@ -133,6 +136,10 @@ func Load(root string) (Ledger, error) {
 
 	sc := bufio.NewScanner(f)
 	sc.Split(scanLF)
+	// ADR-108: the loader reads a record as long as save may write.
+	// The initial buffer bounds the token too (bufio.Scanner takes the larger
+	// of max and cap(buf)), so it may not exceed the record bound.
+	sc.Buffer(make([]byte, min(64<<10, maxRecordBytes)), int(maxRecordBytes))
 	if !sc.Scan() {
 		return l, sc.Err()
 	}
@@ -162,6 +169,11 @@ func Load(root string) (Ledger, error) {
 		if p, obs, ok := parseLine(sc.Text()); ok {
 			l[p] = obs
 		}
+	}
+	// ADR-108: a line past the bound can only be an older binary's; it is
+	// discarded with the ledger, as a stale header is, never parsed loosely.
+	if errors.Is(sc.Err(), bufio.ErrTooLong) {
+		return Ledger{}, nil
 	}
 	return l, sc.Err()
 }
@@ -196,7 +208,8 @@ func IsStale(root string) (bool, error) {
 // StaleNotice is what the CLI prints when IsStale reports true.
 const StaleNotice = "mrw: the read ledger was written by an older mrw, or its line endings were " +
 	"changed, and has been discarded — up to v0.0.11 a read that served nothing recorded the whole " +
-	"file, and a ledger mrw did not write cannot be trusted either. Read the files you mean to edit again."
+	"file, up to v1.37.1 an MCP checkpoint could license the lines between those a read served, and " +
+	"a ledger mrw did not write cannot be trusted either. Read the files you mean to edit again."
 
 // scanLF splits the ledger on "\n" alone. bufio.ScanLines also drops a "\r"
 // before it, which loaded the observation of a file named "x\r" under "x"
@@ -435,10 +448,20 @@ func save(root string, l Ledger) error {
 	var b strings.Builder
 	b.WriteString(header + "\n")
 	for _, p := range paths {
-		fmt.Fprintf(&b, "%s  %s  %s\n", l[p].SHA, formatSpans(l[p]), p)
+		line := fmt.Sprintf("%s  %s  %s\n", l[p].SHA, formatSpans(l[p]), p)
+		// ADR-108: a record the loader could not read back is left out, so
+		// that file needs reading again; merging its spans would license gaps.
+		if int64(len(line)) > maxRecordBytes {
+			continue
+		}
+		b.WriteString(line)
 	}
 	return state.WriteSynced(path, []byte(b.String()), 0o600)
 }
+
+// maxRecordBytes bounds one ledger line, on save and on load alike (ADR-108);
+// a variable so a test can set a small one.
+var maxRecordBytes int64 = 16 << 20
 
 // SHA is the ledger's hash of a byte slice, and the one every other package
 // must use — two hashes of the same bytes disagreeing would make every write

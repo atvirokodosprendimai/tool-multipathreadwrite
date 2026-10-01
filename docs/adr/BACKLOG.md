@@ -2400,3 +2400,30 @@ at the boundary, and a discovered one is dropped.
   3). `rooted.Resolve` validates a path and returns it; read, stage, commit and path ops reopen it by name, so a
   link swapped in between can redirect them. Planned as ADR-106 (`~/.claude/plans/ok-create-a-plan-whimsical-newell.md`):
   the write path through an `os.Root` handed the resolved path, and a pre-commit identity recheck.
+
+## From ADR-108 (what an agent sends arrives as sent)
+
+The 2026-10-01 Codex design review (gpt-6-astra xhigh, v1.37.1) listed five robustness improvements beside the
+seven defects ADR-108 fixed. None is a defect today; each has the trigger that would make it one.
+
+- **A foreign-compiled plan carries `sha=`** (B1). `--format=apply_patch` and `--format=search_replace` compile to
+  native hunks with no file guard, so a file changed between the caller's read and the write is caught only by the
+  per-line ledger. Arm when a foreign-format write is reported to have applied over a change the caller never saw.
+- **Combination tests and a host matrix** (B2). Flags are tested one at a time (`--check` with `--then`, `--json`
+  with `--format`, MCP paging with ack); no property test drives their product, and the MCP arm is measured on
+  Claude Code alone. Arm when a defect is found in a combination no single-flag test reaches, or on a second host.
+- **A timeout on the writer lock** (B3). A writer waits for the one before it (ADR-075) without a bound; a stuck
+  writer blocks the next indefinitely. Arm when a wait is reported that ended only by killing a process; the
+  refusal then says nothing was applied.
+- **A receipt compatibility policy** (B4). Receipt fields are only ever added (ADR-054, ADR-102), but no record
+  says what a caller may rely on across versions or how a removal would be announced. Arm on the first receipt
+  change that is not purely additive.
+- **A drift advisory during a check** (B5). A file edited by someone else while mrw's check runs is not reported;
+  the check's verdict is about a tree that may no longer exist. Arm when a green check is reported over a tree
+  another writer changed during it.
+- **A FIFO swapped in between a loader's check and its open** (the Codex re-review of #304, residual). `ingest`'s
+  `targetBytes`, `plan`'s `LoadBodyFiles`, `read`'s `readCapped`, `apply`'s `readLines` and ast-grep's probes judge
+  a path by `Stat` and then open it blocking, so a file replaced by a FIFO in that window hangs the call until
+  something writes to the pipe. ADR-108's A6 and A8 open non-blocking and check the descriptor; these were not
+  changed, since two are engine packages ADR-108 does not own and the window is a swap inside the checkout. Arm
+  when a hang is reported that ends at such a swap, or when a record next owns `read` or `apply`.

@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 )
 
 // FS is what the link walk asks of a filesystem. It is a value rather than
@@ -101,7 +102,9 @@ func Through(p string, lfs FS) (string, error) {
 
 // components splits a volume-less path at this platform's separators.
 func components(p string) []string {
-	return strings.FieldsFunc(p, func(r rune) bool { return os.IsPathSeparator(uint8(r)) })
+	// ADR-108: a separator is an ASCII rune the OS calls one. uint8(r) narrowed
+	// U+042F (Я) to '/' and U+015C (Ŝ) to '\', splitting valid names.
+	return strings.FieldsFunc(p, func(r rune) bool { return r < utf8.RuneSelf && os.IsPathSeparator(uint8(r)) })
 }
 
 // IsRooted reports whether p names a location of its own, rather than one to be

@@ -8102,6 +8102,80 @@ ls -A "$sd201" | grep -q '\.tmp-' && bad "a temp state file was left: $(ls -A "$
 printf '@@ a.go 1 replace\npackage a // 201\n' > "$R/q201.mrw"
 m write --no-check "$R/q201.mrw" > /dev/null 2>&1; want 0 $? "the pair: the replaced ledger licenses the next write"
 
+# 202. ADR-108: an MCP checkpoint brackets consecutive served lines only. A
+# pattern matching lines 1 and 100 of one file served them under one header as
+# ONE span, "open lines 1-100", whose acknowledgement licensed the 98 lines
+# between that nobody saw. Each run now gets its own checkpoint. The pair: a
+# consecutive run still gets one.
+fixture
+seq 1 100 > "$R/g202.txt"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["g202.txt:/^(1|100)$/"]}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["g202.txt:7-9"]}}}' \
+  | "$MRW" -C "$R" mcp > "$WORK/j202" 2> /dev/null; want 0 $? "the server answers two reads and ends at EOF"
+jq -se '.[0].result.content[0].text | test("open lines 1-1 \\(1 lines? follows?\\)") and test("open lines 100-100 ") and (test("open lines 1-100") | not)' "$WORK/j202" > /dev/null \
+  && ok "lines 1 and 100 get a checkpoint each, none spanning the gap" || bad "gap checkpoint: $(head -c 600 "$WORK/j202")"
+jq -se '.[1].result.content[0].text | test("open lines 7-9 ") and ([scan("-- ck [^ ]+ open")] | length == 1)' "$WORK/j202" > /dev/null \
+  && ok "the pair: lines 7-9 get one checkpoint" || bad "run checkpoint: $(head -c 600 "$WORK/j202")"
+
+# 203. ADR-108: a body=@ file keeps the target's line endings. Its lines were
+# split at \n alone, so a CRLF body kept its \r and a CRLF target came out
+# \r\r\n. The body file is now split like every other text mrw reads. The pair:
+# an LF body into an LF target is unchanged.
+fixture
+printf 'a\r\nb\r\n' > "$R/t203.txt"; printf 'X\r\n' > "$R/b203.txt"
+printf 'a\nb\n' > "$R/l203.txt"; printf 'Y\n' > "$R/c203.txt"
+m read t203.txt l203.txt > /dev/null
+printf '@@ t203.txt 1 replace body=@b203.txt\n@@ l203.txt 1 replace body=@c203.txt\n' > "$R/p203.mrw"
+m write --no-check "$R/p203.mrw" > /dev/null 2>&1; want 0 $? "a write with two body=@ hunks exits 0"
+[ "$(od -An -c "$R/t203.txt" | tr -s ' ')" = "$(printf 'X\r\nb\r\n' | od -An -c | tr -s ' ')" ] \
+  && ok "the CRLF target holds X CRLF b CRLF, no doubled CR" || bad "CRLF body: $(od -An -c "$R/t203.txt")"
+[ "$(od -An -c "$R/l203.txt" | tr -s ' ')" = "$(printf 'Y\nb\n' | od -An -c | tr -s ' ')" ] \
+  && ok "the pair: the LF target holds Y LF b LF" || bad "LF body: $(od -An -c "$R/l203.txt")"
+
+# 204. ADR-108: a first page counts only what read would serve. read refuses a
+# FIFO, but under a ceiling smaller than that refusal the server tried a first
+# page, whose line count opened the FIFO and waited for a writer: the server
+# hung. It answers. The pair: under an ordinary ceiling the FIFO is refused.
+fixture
+mkfifo "$R/p204"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["p204"]}}}' > "$WORK/q204"
+bounded 10 "$WORK/o204" sh -c 'exec "$1" -C "$2" mcp --max-result-chars 16 < "$3"' _ "$MRW" "$R" "$WORK/q204"; want 0 $? "a FIFO read under a 16-character ceiling ends at EOF instead of hanging"
+grep -q '"id":1' "$WORK/o204" && ok "and the request is answered" || bad "FIFO under a small ceiling: $(head -c 400 "$WORK/o204")"
+bounded 10 "$WORK/k204" sh -c 'exec "$1" -C "$2" mcp < "$3"' _ "$MRW" "$R" "$WORK/q204"; want 0 $? "the pair: the same read under the default ceiling ends at EOF"
+grep '"id":1' "$WORK/k204" | jq -e '.result.isError == true' > /dev/null && ok "and refuses the FIFO" || bad "FIFO refusal: $(head -c 400 "$WORK/k204")"
+
+# 205. ADR-108: the working set reads back every line it saves. A 70,000-byte
+# note was saved and then failed every load, `mrw iter clear` included. Save
+# refuses it, naming the size; a line that long already in the file, from an
+# older binary, is skipped and the rest loads. The pair: a short note saves.
+fixture
+long205=$(python3 -c 'print("n" * 70000)')
+out=$(m iter note "$long205" 2>&1); want 2 $? "a 70,000-byte note is refused"
+grep -q '70000 bytes' <<<"$out" && ok "and the refusal names its size" || bad "long note: $(head -c 300 <<<"$out")"
+m iter note short > /dev/null 2>&1; want 0 $? "the pair: a short note saves"
+sd205=$(m seen | head -1)
+{ printf '# ok\na.go\n'; python3 -c 'print("x" * 70000)'; printf 'b.go\n'; } > "$sd205/iteration"
+out=$(m iter 2>&1); want 0 $? "a working set holding a 70,000-byte line loads"
+{ grep -q 'a\.go' <<<"$out" && grep -q 'b\.go' <<<"$out"; } && ok "and keeps the entries around it" || bad "legacy working set: $(head -c 300 <<<"$out")"
+m iter clear > /dev/null 2>&1; want 0 $? "and clears"
+
+# 206. ADR-108: a permission issued under the old checkpoint rules is not
+# honoured. Up to v1.37.1 an MCP checkpoint spanned a sparse read's gaps, so a
+# #mrw-seen v2 span may cover lines no read served; it licensed them after an
+# upgrade. A v2 ledger is now discarded, and the notice says so. The pair: a
+# read of the line licenses the same write.
+fixture
+seq 1 100 > "$R/a206.txt"
+m read a206.txt:1 > /dev/null
+sd206=$(m seen | head -1)
+sha206=$(awk '$3 == "a206.txt" { print $1 }' "$sd206/seen")
+printf '#mrw-seen v2\n%s  1-100  a206.txt\n' "$sha206" > "$sd206/seen"
+printf '@@ a206.txt 50 replace\nfifty\n' > "$R/p206.mrw"
+out=$(m write --no-check "$R/p206.mrw" 2>&1); want 1 $? "a write to line 50, licensed only by a v2 span 1-100, is refused"
+grep -q 'written by an older mrw' <<<"$out" && ok "and the notice says the ledger was discarded" || bad "v2 ledger: $(head -c 300 <<<"$out")"
+m read a206.txt:50 > /dev/null
+m write --no-check "$R/p206.mrw" > /dev/null 2>&1; want 0 $? "the pair: after a read of line 50 the write applies"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

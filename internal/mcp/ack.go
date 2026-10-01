@@ -44,6 +44,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
+	"unicode/utf8"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
@@ -68,8 +70,9 @@ const ckEvery = 200
 // pendingName is the file under the state directory holding spans that have
 // been served but not acknowledged. It sits beside the ledger rather than in
 // it, because an unacknowledged span is not a permission (ADR-004: nothing in
-// the working tree).
-const pendingName = "pending.json"
+// the working tree). It is versioned with the ledger: a hold in pending.json
+// may span a sparse read's gaps (up to v1.37.1), so it is not read (ADR-108).
+const pendingName = "pending-v3.json"
 
 // pendingLock serializes every change to the store across processes (ADR-085):
 // two servers on one checkout each rewrote it from a stale copy, and the later
@@ -120,6 +123,12 @@ func checkpoint() string {
 // than taking the requested range, so a span is what was SERVED. A page that
 // served 1-2727 of 3619 yields checkpoints inside 1-2727 and none beyond.
 func interleave(text string) (string, map[string][2]int) {
+	// ADR-108: JSON replaces bytes that are not valid UTF-8, so the host is
+	// shown text that is not the file, while a checkpoint would license the
+	// file. Such a slice is served as it is, with no checkpoint, and says why.
+	if !utf8.ValidString(text) {
+		return text + "-- not licensed: these lines hold bytes that are not valid UTF-8, which the JSON answer replaces, so this read licenses none of them; read and edit the file with the CLI (`mrw read`, `mrw write`)\n", map[string][2]int{}
+	}
 	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 
 	// Group the SERVED content lines into runs of ckEvery, remembering where
@@ -139,6 +148,13 @@ func interleave(text string) (string, map[string][2]int) {
 		ln, ok := servedLineNumber(line)
 		if !ok {
 			continue
+		}
+		// ADR-108: a gap ends the checkpoint. Its span is start..end, so a run
+		// carried across a gap licensed every line in the gap once acknowledged
+		// — lines 1 and 100 served together licensed 1-100.
+		if cur.from >= 0 && ln != cur.end+1 {
+			groups = append(groups, cur)
+			cur = group{from: -1}
 		}
 		if cur.from < 0 {
 			cur = group{from: i, start: ln}
@@ -251,10 +267,15 @@ func markServed(report string) (string, map[string]map[string][2]int) {
 			byPath[filepath.Clean(sl.path)] = spans
 		}
 	}
-	if len(byPath) == 0 {
+	// A slice interleave declined to mark (ADR-108: bytes that are not valid
+	// UTF-8) still carries its notice, so the text is served marked whenever any
+	// slice changed, and the footer is added only when something can be acked.
+	if out.String() == report {
 		return report, nil
 	}
-	fmt.Fprintf(&out, "-- This serve licenses NOTHING until you acknowledge it.\n-- %s\n", AckRule)
+	if len(byPath) > 0 {
+		fmt.Fprintf(&out, "-- This serve licenses NOTHING until you acknowledge it.\n-- %s\n", AckRule)
+	}
 	return out.String(), byPath
 }
 
@@ -456,11 +477,17 @@ func savePending(root string, store map[string]pending) error {
 // The file is streamed into the hash, never held whole (ADR-107): a file grown
 // after its read would otherwise be read into memory at any size.
 func currentSHA(root, path string) (string, error) {
-	f, err := os.Open(filepath.Join(root, filepath.FromSlash(path)))
+	// ADR-108: opened without blocking and refused unless it is still a
+	// regular file — a FIFO swapped in after the read blocked a plain open,
+	// under the pending-store lock, and a device streams for ever.
+	f, err := os.OpenFile(filepath.Join(root, filepath.FromSlash(path)), os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = f.Close() }()
+	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+		return "", fmt.Errorf("%s is no longer a regular file", path)
+	}
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err

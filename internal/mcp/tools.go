@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"unicode/utf8"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
@@ -25,6 +27,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
@@ -523,7 +526,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// exceeds the ceiling takes the overflow path above and holds nothing.
 	if len(observed) > 0 {
 		marked, byPath := markServed(report)
-		if len(byPath) > 0 {
+		if marked != report {
 			markedServed, markErr := readResult(map[string]any{
 				"observed": slashKeys(observed, filepath.Separator),
 				"problems": problems,
@@ -1105,7 +1108,7 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 	if !ok {
 		return callToolResult{}, false
 	}
-	total, err := countFileLines(filepath.Join(root, filepath.FromSlash(path)))
+	total, err := countFileLines(root, path)
 	if err != nil || total <= 0 {
 		return callToolResult{}, false
 	}
@@ -1237,14 +1240,47 @@ func openEnded(spec string) (path string, start int, ok bool) {
 // was one line to the page arithmetic and several to read. It holds the file
 // while counting; firstPage reads the same file straight after, so the peak is
 // unchanged.
-func countFileLines(full string) (int, error) {
-	b, err := os.ReadFile(full)
+//
+// ⚠ IT OPENS WHAT READ WOULD SERVE, AND ONLY THAT (ADR-108). A read that read
+// itself refused reaches here when its refusal overflows a small ceiling, and
+// this used os.ReadFile on the joined path: a FIFO blocked the server, and any
+// size was read whole. So the path is resolved inside the root, opened without
+// blocking, refused unless the descriptor is a regular file, refused by size,
+// and read through a bound.
+func countFileLines(root, path string) (int, error) {
+	full, err := rooted.Resolve(root, path)
 	if err != nil {
 		return 0, err
+	}
+	f, err := os.OpenFile(full, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = f.Close() }()
+	fi, err := f.Stat()
+	if err != nil {
+		return 0, err
+	}
+	if !fi.Mode().IsRegular() {
+		return 0, fmt.Errorf("%s is not a regular file", path)
+	}
+	if fi.Size() > maxCountBytes {
+		return 0, fmt.Errorf("%s is %d bytes, over the %d-byte limit mrw reads", path, fi.Size(), maxCountBytes)
+	}
+	b, err := io.ReadAll(io.LimitReader(f, maxCountBytes+1))
+	if err != nil {
+		return 0, err
+	}
+	if int64(len(b)) > maxCountBytes {
+		return 0, fmt.Errorf("%s grew past the %d-byte limit mrw reads while it was counted", path, maxCountBytes)
 	}
 	ls, _, _ := lines.Split(string(b))
 	return len(ls), nil
 }
+
+// maxCountBytes is the largest file a page counts (ADR-108), read's limit; a
+// variable so a test can set a small one.
+var maxCountBytes int64 = 1 << 30
 
 // overflowMessage explains a refused read and, where it honestly can, names the
 // narrower request to make instead.

@@ -149,6 +149,8 @@ These are gates, not a tour of the records behind them.
   A file mrw just wrote is wholly known: a chain of edits needs no re-read.
 - **MCP ack.** A served `mrw_read` licenses nothing until you send `ack` ids.
   Send an id in ack only if you hold BOTH its open and close markers AND counted the N numbered lines the open marker says follow: one marker is not enough, because a cut starting inside a span leaves the other end.
+  A checkpoint brackets consecutive lines only, and served lines holding bytes that are not valid UTF-8 get none:
+  the JSON answer replaces those bytes, so edit such a file with the CLI (ADR-108).
 - **Neighbour licence.** A multi-line `replace` is refused unless a prior read
   already covered a line after End. Last line of the file is exempt.
   `--echo-pad N` (MCP `echo_pad`, default 0) prints N lines after an applied
