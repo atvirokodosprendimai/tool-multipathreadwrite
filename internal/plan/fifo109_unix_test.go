@@ -4,6 +4,7 @@ package plan
 
 import (
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,5 +38,21 @@ func TestABodyFileFIFOIsRefusedByItsDescriptor(t *testing.T) {
 			_ = w.Close()
 		}
 		t.Fatal("LoadBodyFiles blocked on a FIFO")
+	}
+
+	// The Codex review of #306: a socket's open fails before its descriptor
+	// is asked, and it is refused with the same words.
+	short, err := os.MkdirTemp("/tmp", "mrw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(short) })
+	l, err := net.Listen("unix", filepath.Join(short, "s"))
+	if err != nil {
+		t.Skipf("no unix sockets here: %v", err)
+	}
+	t.Cleanup(func() { _ = l.Close() })
+	if err := LoadBodyFiles(short, []Hunk{{BodyFile: "s", SrcLine: 1}}); !errors.Is(err, regular.ErrNotRegular) || !strings.Contains(err.Error(), "body=@s is not a regular file") {
+		t.Errorf("a socket body file was not refused with the usual text: %v", err)
 	}
 }

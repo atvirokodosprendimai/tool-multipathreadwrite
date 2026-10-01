@@ -4,6 +4,7 @@ package apply
 
 import (
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,5 +85,43 @@ func TestApplyLoadRefusesAFIFOAtOnce(t *testing.T) {
 			_ = w.Close()
 		}
 		t.Fatal("Apply blocked on a file swapped for a FIFO")
+	}
+
+	// The Codex review of #306: a file swapped for a socket cannot be opened
+	// at all, and is refused on its hunk all the same, verdicts kept.
+	short, err := os.MkdirTemp("/tmp", "mrw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(short) })
+	write(t, short, "s.txt", "s\n")
+	write(t, short, "o.txt", "o\n")
+	var l net.Listener
+	t.Cleanup(func() {
+		if l != nil {
+			_ = l.Close()
+		}
+	})
+	loadFn = func(path string) (text, bool, error) {
+		if filepath.Base(path) == "s.txt" {
+			if err := os.Remove(path); err != nil {
+				t.Error(err)
+			}
+			var lerr error
+			if l, lerr = net.Listen("unix", path); lerr != nil {
+				t.Skipf("no unix sockets here: %v", lerr)
+			}
+		}
+		return real(path)
+	}
+	res, err := Apply(short, []Input{
+		{Path: "s.txt", Start: 1, End: 1, Op: "replace", Body: []string{"S"}, Lines: -1, Index: 0},
+		{Path: "o.txt", Start: 1, End: 1, Op: "replace", Body: []string{"O"}, Lines: -1, Index: 1},
+	}, Options{Force: true})
+	if s := hunkFor(t, res, "s.txt"); err != nil || res.Applied || s.Status != StatusFailed || !strings.Contains(s.Reason, "not a regular file") {
+		t.Errorf("a file swapped for a socket was not refused on its hunk: err %v, %+v", err, s)
+	}
+	if s := hunkFor(t, res, "o.txt"); s.Status != StatusSkipped || read(t, short, "o.txt") != "o\n" {
+		t.Errorf("the sibling was not skipped and left alone: %+v", s)
 	}
 }

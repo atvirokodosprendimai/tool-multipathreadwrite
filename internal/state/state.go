@@ -25,12 +25,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/links"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 )
 
 // LegacyDir is the in-tree directory mrw used before ADR-004. It is still READ
@@ -111,7 +113,9 @@ func Migrate(root string) ([]string, error) {
 	var moved []string
 	for _, name := range migratable {
 		from := LegacyPath(root, name)
-		b, err := os.ReadFile(from)
+		// ADR-109: the legacy file is in the checkout, so it opens through
+		// regular.Open: os.ReadFile of a FIFO there hung every CLI start.
+		b, err := readLegacy(from)
 		if err != nil {
 			continue
 		}
@@ -140,6 +144,20 @@ func Migrate(root string) ([]string, error) {
 		moved = append(moved, name)
 	}
 	return moved, nil
+}
+
+// readLegacy reads a legacy state file through regular.Open (ADR-109). A file
+// that is not regular is an error, so Migrate leaves it where it is.
+func readLegacy(path string) ([]byte, error) {
+	f, fi, err := regular.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	if fi.IsDir() {
+		return nil, fmt.Errorf("%s is a directory", path)
+	}
+	return io.ReadAll(f)
 }
 
 // stateHome resolves the XDG state base directory.

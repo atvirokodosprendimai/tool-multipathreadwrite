@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
@@ -82,8 +83,10 @@ func load(root string) (Set, error) {
 	if err != nil {
 		return s, err
 	}
-	f, err := os.Open(path)
-	if os.IsNotExist(err) {
+	// ADR-109: a legacy working set sits in the checkout; one that is not a
+	// regular file holds nothing, and is not waited on.
+	f, _, err := regular.Open(path)
+	if os.IsNotExist(err) || errors.Is(err, regular.ErrNotRegular) {
 		return s, nil
 	}
 	if err != nil {

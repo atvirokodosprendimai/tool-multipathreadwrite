@@ -6,9 +6,9 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-007, ADR-073, ADR-074, ADR-104, ADR-106, ADR-107, ADR-108
-**Governs:** `internal/regular/regular.go`, `internal/read/read.go`, `internal/read/astgrep.go`, `internal/apply/apply.go`, `internal/apply/tree.go`, `internal/ingest/applypatch.go`, `internal/plan/plan.go`, `internal/check/check.go`, `internal/mcp/ack.go`, `internal/mcp/tools.go`, `scripts/contract.sh`
+**Governs:** `internal/regular/regular.go`, `internal/read/read.go`, `internal/read/astgrep.go`, `internal/apply/apply.go`, `internal/apply/tree.go`, `internal/ingest/applypatch.go`, `internal/plan/plan.go`, `internal/check/check.go`, `internal/mcp/ack.go`, `internal/mcp/tools.go`, `internal/state/state.go`, `internal/seen/seen.go`, `internal/iter/iter.go`, `scripts/contract.sh`
 **Enforced-by:** `internal/regular/regular_unix_test.go::TestOpenRefusesANonRegularFileAtOnce`
-**Served-path change:** (1) `mrw check`, and a write whose check is due, no longer hang when `.quality-harness.json` is a FIFO: the config is refused as not a regular file, exit 2. (2) A file swapped for a FIFO, socket or device between a loader's path check and its open is refused at the open instead of blocking the call: `read`, `--grep`, `apply`, the foreign-format compilers, `body=@`, and the ast-grep path probe. Refusal texts are unchanged. Exit codes keep their meanings.
+**Served-path change:** (1) `mrw check`, and a write whose check is due, no longer hang when `.quality-harness.json` is a FIFO: the config is refused as not a regular file, exit 2. (2) A file swapped for a FIFO, socket or device between a loader's path check and its open is refused at the open instead of blocking the call: `read`, `--grep`, `apply`, the foreign-format compilers, `body=@`, and the ast-grep path probe; a socket, which cannot be opened at all, gets the same refusal rather than the open's own error. (3) A FIFO at the legacy `.mrw/seen` or `.mrw/iteration` in the checkout no longer hangs every command: it is not migrated and loads as nothing. Refusal texts are unchanged. Exit codes keep their meanings.
 
 ## Context
 
@@ -26,8 +26,12 @@ internal/ingest internal/plan internal/check` — **9** sites. Six read a checko
 `check.Load` (`check.go:92`) reads `.quality-harness.json` with `os.ReadFile` — a FIFO there hung `mrw check`,
 measured 2026-10-01 on v1.37.2 (killed at 5 s). Two are not members: `check.lastLines` reads mrw's own log
 under the state directory, and `check.go:114`/`:211` only stat. Outside these packages, ADR-108 closed
-`mcp.currentSHA` and `mcp.countFileLines`; `iter`, `seen` and `authoring` read mrw's own state; and `cmd/mrw`
-opens a plan file or a `--files-from` list, where a pipe is a legitimate input.
+`mcp.currentSHA` and `mcp.countFileLines`; `authoring` reads mrw's own state; and `cmd/mrw` opens a plan file or a
+`--files-from` list, where a pipe is a legitimate input. The Codex review of #306 found two more members: the
+legacy pre-ADR-004 state in the CHECKOUT — `state.Migrate` (`internal/state/state.go:114`, `os.ReadFile` at every
+CLI start), and `seen.Load`, `seen.IsStale` and `iter.load` when `ReadPath` picks `.mrw/seen` or `.mrw/iteration`
+(a FIFO at `.mrw/seen` hung `mrw read` on v1.37.2, killed at 5 s) — and sockets, whose open fails before any
+descriptor exists (EOPNOTSUPP on macOS, ENXIO on Linux), so a descriptor check alone never saw them.
 
 ## Existing Primitives Audit
 
@@ -49,6 +53,10 @@ opens a plan file or a `--files-from` list, where a pipe is a legitimate input.
    refusal, ADR-106's identity, ADR-107's size); where a path `Stat` decided "regular" and nothing else read it
    (`targetBytes`, `LoadBodyFiles`), the descriptor now decides.
 4. `apply` refuses a file the load finds is no longer regular on its hunk, as ADR-107 refuses one that grew, so
+5. `regular.Open` classifies a failed open by the path: one that exists and is neither a regular file nor a
+   directory is `ErrNotRegular`, so a socket is refused in the same words as a FIFO.
+6. `state.Migrate`, `seen.Load`, `seen.IsStale` and `iter.load` open through `regular.Open`; a legacy file that is
+   not regular is not migrated, and loads as nothing, which licenses nothing.
    the receipt keeps every verdict.
 
 ## Alternatives Considered
@@ -62,9 +70,9 @@ opens a plan file or a `--files-from` list, where a pipe is a legitimate input.
 ## Component / Boundary Impact
 
 New leaf package `internal/regular` (imports `internal/lines` only). Engine packages owned: `internal/read`
-(T1), `internal/apply` (T2), `internal/plan` (T3), `internal/check` (T4); `internal/ingest` and `internal/mcp`
-(T3) are not engine packages. `internal/state`, `internal/lines`, `internal/rooted`, `internal/seen` stay
-byte-identical; `go.mod` keeps one requirement.
+(T1), `internal/apply` (T2), `internal/plan` (T3), `internal/check` (T4), `internal/state` and `internal/seen` (T5);
+`internal/ingest`, `internal/mcp` (T3) and `internal/iter` (T5) are not engine packages. `internal/lines` and
+`internal/rooted` stay byte-identical; `go.mod` keeps one requirement.
 
 ## Wiring & Contract Changes
 
@@ -75,17 +83,18 @@ byte-identical; `go.mod` keeps one requirement.
 | `apply` | a FIFO swapped in is refused on its hunk | T2 | callers |
 | foreign formats, `body=@` | the descriptor decides | T3 | plan authors |
 | `.quality-harness.json` | a FIFO is refused, exit 2 | T4 | `mrw check`, writes |
-| `scripts/contract.sh` | §207 (T4) | T4 | CI Linux |
+| legacy `.mrw/seen`, `.mrw/iteration` | a FIFO is not migrated and loads as nothing | T5 | every command |
+| `scripts/contract.sh` | §207 (T4), §208 (T5) | T4, T5 | CI Linux |
 
 ## Inter-task Contracts
 
 | Contract | Producing task | Consuming task(s) | Breaking? |
 |----------|----------------|-------------------|-----------|
-| `regular.Open`, `regular.ErrNotRegular` | T1 | T2, T3, T4 | no |
+| `regular.Open`, `regular.ErrNotRegular` | T1 | T2, T3, T4, T5 | no |
 
 ## Implementation
 
-See `tasks/README.md`: T1 (helper, read), then T2–T4.
+See `tasks/README.md`: T1 (helper, read), then T2–T5.
 
 ## Consequences
 
@@ -97,18 +106,18 @@ See `tasks/README.md`: T1 (helper, read), then T2–T4.
 
 - The B1–B5 robustness items (deferred: `docs/adr/BACKLOG.md` "From ADR-108")
 - Contract rows for the race sites (permanent: boundary: a swap between a path check and an open cannot be arranged from the shell without a seam; each loader's unit test drives it with a FIFO directly)
-- `check.lastLines`, and `iter`, `seen` and `authoring`'s loaders (permanent: boundary: they read mrw's own files under its state directory, which ADR-077 serves to nobody)
+- `check.lastLines` and `authoring`'s loaders (permanent: boundary: they read mrw's own files under its state directory, which ADR-077 serves to nobody; the legacy files in the checkout are T5's)
 - `cmd/mrw`'s plan file and `--files-from` list (permanent: boundary: a pipe is a legitimate input there, `mrw write -` and process substitution among them)
 
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| a filesystem where `O_NONBLOCK` changes a regular read | Low | Medium | POSIX gives it no effect on regular files; Linux and macOS measured; Go ignores it on Windows |
+| a filesystem where `O_NONBLOCK` changes a regular read | Low | Medium | POSIX gives it no effect on regular files; Linux and macOS measured; Go ignores it on Windows; Linux may fail EWOULDBLOCK on a file under an incompatible lease, where a blocking open would wait |
 
 ## Rollback
 
-Revert T1–T4. No receipt or format change.
+Revert T1–T5. No receipt or format change.
 
 ## Follow-ups
 

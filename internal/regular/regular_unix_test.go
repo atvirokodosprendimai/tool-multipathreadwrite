@@ -4,6 +4,7 @@ package regular
 
 import (
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -60,5 +61,22 @@ func TestOpenRefusesANonRegularFileAtOnce(t *testing.T) {
 	}
 	if _, _, err := Open(filepath.Join(dir, "missing")); !os.IsNotExist(err) {
 		t.Errorf("a missing file lost its own error: %v", err)
+	}
+
+	// The Codex review of #306: a socket cannot be opened at all, so its open
+	// fails before the descriptor is asked; it is still refused as not regular.
+	short, err := os.MkdirTemp("/tmp", "mrw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(short) })
+	sock := filepath.Join(short, "s")
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Skipf("no unix sockets here: %v", err)
+	}
+	t.Cleanup(func() { _ = l.Close() })
+	if _, _, err := Open(sock); !errors.Is(err, ErrNotRegular) {
+		t.Errorf("a socket was not refused as not regular: %v", err)
 	}
 }

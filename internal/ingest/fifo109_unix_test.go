@@ -4,6 +4,7 @@ package ingest
 
 import (
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -37,5 +38,22 @@ func TestForeignTargetFIFOIsRefusedByItsDescriptor(t *testing.T) {
 			_ = w.Close()
 		}
 		t.Fatal("targetBytes blocked on a FIFO")
+	}
+
+	// The Codex review of #306: a socket's open fails before its descriptor
+	// is asked, and it is refused with the same words.
+	short, err := os.MkdirTemp("/tmp", "mrw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(short) })
+	sock := filepath.Join(short, "s")
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Skipf("no unix sockets here: %v", err)
+	}
+	t.Cleanup(func() { _ = l.Close() })
+	if _, err := targetBytes(sock); !errors.Is(err, regular.ErrNotRegular) || err.Error() != lines.NotRegular {
+		t.Errorf("a socket target was not refused with the usual text: %v", err)
 	}
 }

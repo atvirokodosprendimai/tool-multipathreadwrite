@@ -23,11 +23,21 @@ var ErrNotRegular = errors.New(lines.NotRegular)
 // Open opens path for reading without blocking and returns the file with its
 // descriptor's FileInfo. A FIFO, a socket or a device is closed and refused
 // with ErrNotRegular; a directory is returned, so its caller keeps the error it
-// has always given for one. O_NONBLOCK does not change reads of a regular file,
-// and Go ignores it on Windows.
+// has always given for one. O_NONBLOCK does not change reads of a regular file
+// (on Linux an open can fail EWOULDBLOCK on a file under an incompatible lease,
+// where a blocking open would wait for the lease to break), and Go ignores it
+// on Windows.
+//
+// A socket cannot be opened at all — the open fails, EOPNOTSUPP on macOS and
+// ENXIO on Linux, before there is a descriptor to ask — so a failed open whose
+// path exists and is neither a regular file nor a directory is ErrNotRegular
+// too (the Codex review of #306).
 func Open(path string) (*os.File, fs.FileInfo, error) {
 	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
+		if fi, serr := os.Stat(path); serr == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
+			return nil, nil, ErrNotRegular
+		}
 		return nil, nil, err
 	}
 	fi, err := f.Stat()

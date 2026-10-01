@@ -8187,6 +8187,18 @@ grep -q 'not a regular file' "$WORK/o207" && ok "and names why" || bad "FIFO con
 rm -f "$R/.quality-harness.json"; printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
 bounded 10 "$WORK/k207" "$MRW" -C "$R" check; want 0 $? "the pair: a regular config's check runs and passes"
 
+# 208. ADR-109: legacy state in the checkout is not waited on. Before ADR-004 the
+# ledger lived at .mrw/seen in the checkout, and mrw still migrates it at every
+# start and loads it when the state directory has none, both with a blocking
+# open: a FIFO there hung every command. The read runs, and the FIFO is left
+# where it is rather than migrated. The pair: the read served the file.
+fixture
+mkdir -p "$R/.mrw"; mkfifo "$R/.mrw/seen"
+( cd "$R" && bounded 10 "$WORK/o208" "$MRW" read a.go ); want 0 $? "a read with a FIFO at .mrw/seen exits 0 instead of hanging"
+[ -p "$R/.mrw/seen" ] && ok "and the FIFO is left where it is, not migrated" || bad "the legacy FIFO was moved or replaced"
+grep -q '^==> a.go ' "$WORK/o208" && ok "the pair: the read served the file" || bad "FIFO legacy ledger: $(head -c 300 "$WORK/o208")"
+rm -f "$R/.mrw/seen"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

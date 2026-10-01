@@ -36,6 +36,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
@@ -125,8 +126,10 @@ func Load(root string) (Ledger, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := os.Open(path)
-	if os.IsNotExist(err) {
+	// ADR-109: a legacy ledger sits in the checkout; one that is not a regular
+	// file licenses nothing, and is not waited on.
+	f, _, err := regular.Open(path)
+	if os.IsNotExist(err) || errors.Is(err, regular.ErrNotRegular) {
 		return l, nil
 	}
 	if err != nil {
@@ -189,8 +192,10 @@ func IsStale(root string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	f, err := os.Open(path)
-	if os.IsNotExist(err) {
+	// ADR-109: a legacy ledger sits in the checkout; one that is not a regular
+	// file is no ledger at all, and nothing to report as stale.
+	f, _, err := regular.Open(path)
+	if os.IsNotExist(err) || errors.Is(err, regular.ErrNotRegular) {
 		return false, nil
 	}
 	if err != nil {

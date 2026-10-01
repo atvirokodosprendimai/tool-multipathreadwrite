@@ -36,7 +36,7 @@ out=$(mktemp) \
   && grep -qE '^--- PASS: TestAFIFOConfigIsRefusedAtOnce \(' "$out" \
   && grep -q '^# 207\. ' scripts/contract.sh \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/state internal/lines internal/rooted internal/seen \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/lines internal/rooted \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -57,6 +57,7 @@ out=$(mktemp) \
 
 ## Mutation Log
 - 2026-10-01 · 92450b2* · mutant killed · exit 1 · `internal/check/check.go` · readConfig back to a blocking open: a FIFO config hangs the check · acceptance-sha256:88093b26bb0cd8e5d523d66d8bea1ef7ef59f3cadb9c5bcdb5cc83764adfca0e
+- 2026-10-01 · 1fb4932* · mutant killed · exit 1 · `internal/check/check.go` · readConfig back to a blocking open: a FIFO config hangs the check · acceptance-sha256:8ca26262138487915a45483a536a737aa52e0bc6c2e0fa74fbba8af4d7eee9e1
 
 ## Invariants
 
@@ -86,3 +87,4 @@ Stop and ask if a locked test must change to pass.
   FAIL
   ```
 - 2026-10-01 · 92450b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:88093b26bb0cd8e5d523d66d8bea1ef7ef59f3cadb9c5bcdb5cc83764adfca0e · ms:601
+- 2026-10-01 · 1fb4932* · exit 0 · `set -o pipefail …` · acceptance-sha256:8ca26262138487915a45483a536a737aa52e0bc6c2e0fa74fbba8af4d7eee9e1 · ms:742

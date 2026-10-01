@@ -38,7 +38,7 @@ out=$(mktemp) \
   && grep -qE '^--- PASS: TestOpenRefusesANonRegularFileAtOnce \(' "$out" \
   && grep -qE '^--- PASS: TestReadCappedRefusesAFIFOAtOnce \(' "$out" \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/state internal/lines internal/rooted internal/seen \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/lines internal/rooted \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -66,6 +66,10 @@ out=$(mktemp) \
   the fence failed on a build/parse error, not an assertion
   ```
 - 2026-10-01 · 92450b2* · mutant killed · exit 1 · `internal/read/read.go` · readCapped back to os.Open: a FIFO blocks the read · acceptance-sha256:da72124b15ee453a7652c621960d03579087dd2c0330fb17255624738348b1a6
+- 2026-10-01 · 1fb4932* · mutant killed · exit 1 · `internal/regular/regular.go` · Open without O_NONBLOCK: the open of a FIFO waits for a writer · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9
+- 2026-10-01 · 1fb4932* · mutant killed · exit 1 · `internal/regular/regular.go` · Open without the descriptor check: a FIFO is handed back as a file · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9
+- 2026-10-01 · 1fb4932* · mutant killed · exit 1 · `internal/read/read.go` · readCapped back to os.Open: a FIFO blocks the read · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9
+- 2026-10-01 · 1fb4932* · mutant killed · exit 1 · `internal/regular/regular.go` · a failed open is not classified: a socket comes back as the open error, not ErrNotRegular · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9
 
 ## Invariants
 
@@ -102,3 +106,9 @@ Stop and ask if a locked test must change to pass.
 - 2026-10-01 · 92450b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:da72124b15ee453a7652c621960d03579087dd2c0330fb17255624738348b1a6 · ms:640
 - 2026-10-01 · 92450b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:da72124b15ee453a7652c621960d03579087dd2c0330fb17255624738348b1a6 · ms:727
 - 2026-10-01 · 92450b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:da72124b15ee453a7652c621960d03579087dd2c0330fb17255624738348b1a6 · ms:653
+- 2026-10-01 · 1fb4932* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9 · ms:0 · test-lock-sha256:82f81ac74b070d5bfaaab9324a0235902063aadca812a477fe2b2b0703f56d1b · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvcmVhZC9maWZvMTA5X3VuaXhfdGVzdC5nbwlUZXN0UmVhZENhcHBlZFJlZnVzZXNBRklGT0F0T25jZQk0MTNkYTU2MWRjMWJkZTk5NzMzZGVmM2MzNWZlODc2NTc4NGRjNjNmMDc5NzNiM2M1NjQ5NDE3Nzc2OTU0YzVjCmJvZHkJaW50ZXJuYWwvcmVndWxhci9yZWd1bGFyX3VuaXhfdGVzdC5nbwlUZXN0T3BlblJlZnVzZXNBTm9uUmVndWxhckZpbGVBdE9uY2UJOTE3MmRmNTFkNDhiODk3MjQ0MjVlYmEwYmM0NWM2NzdiZmIyMDk3NTgyZDllMmY3YjU2ZjFjMDc5ZTY3NTA2OQ · test-lock-kind:replace
+- 2026-10-01 · human-observed · Claude's session observed the relock: after red the test gained a socket case from the Codex review of #306 (a socket cannot be opened, so its open fails before the descriptor is asked, and it must still be refused as not regular); the FIFO assertions are unchanged
+- 2026-10-01 · 1fb4932* · exit 0 · `set -o pipefail …` · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9 · ms:827
+- 2026-10-01 · 1fb4932* · exit 0 · `set -o pipefail …` · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9 · ms:819
+- 2026-10-01 · 1fb4932* · exit 0 · `set -o pipefail …` · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9 · ms:854
+- 2026-10-01 · 1fb4932* · exit 0 · `set -o pipefail …` · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9 · ms:855

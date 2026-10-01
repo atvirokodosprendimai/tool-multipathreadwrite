@@ -35,7 +35,7 @@ out=$(mktemp) \
   && go test ./internal/apply/ -count=1 -timeout 300s -run 'TestApplyLoadRefusesAFIFOAtOnce' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestApplyLoadRefusesAFIFOAtOnce \(' "$out" \
   && [ -z "$(gofmt -l cmd/mrw internal)" ] \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/state internal/lines internal/rooted internal/seen \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/lines internal/rooted \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -57,6 +57,8 @@ out=$(mktemp) \
 ## Mutation Log
 - 2026-10-01 · 92450b2* · mutant killed · exit 1 · `internal/apply/apply.go` · readLines back to os.Open: a FIFO swapped in blocks the write · acceptance-sha256:7ebc08e13b70296d01ef0b43e719a81be7ef3b554a2683378764558541fa668b
 - 2026-10-01 · 92450b2* · mutant killed · exit 1 · `internal/apply/apply.go` · the hunk refusal removed: the write returns an error and drops every verdict · acceptance-sha256:7ebc08e13b70296d01ef0b43e719a81be7ef3b554a2683378764558541fa668b
+- 2026-10-01 · 1fb4932* · mutant killed · exit 1 · `internal/apply/apply.go` · readLines back to os.Open: a FIFO swapped in blocks the write · acceptance-sha256:9441b9d22ab008a81f5b80559277f8c14a5c25016c8cec492b3fc89c605e3bc3
+- 2026-10-01 · 1fb4932* · mutant killed · exit 1 · `internal/apply/apply.go` · the hunk refusal removed: the write returns an error and drops every verdict · acceptance-sha256:9441b9d22ab008a81f5b80559277f8c14a5c25016c8cec492b3fc89c605e3bc3
 
 ## Invariants
 
@@ -84,3 +86,7 @@ Stop and ask if a locked test must change to pass.
   ```
 - 2026-10-01 · 92450b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:7ebc08e13b70296d01ef0b43e719a81be7ef3b554a2683378764558541fa668b · ms:727
 - 2026-10-01 · 92450b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:7ebc08e13b70296d01ef0b43e719a81be7ef3b554a2683378764558541fa668b · ms:766
+- 2026-10-01 · 1fb4932* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:9441b9d22ab008a81f5b80559277f8c14a5c25016c8cec492b3fc89c605e3bc3 · ms:0 · test-lock-sha256:90bf77e5c9798ff3bd2dfb917615042301d6d4b7878f4ece8321f01bd54d5c07 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYXBwbHkvZmlmbzEwOV91bml4X3Rlc3QuZ28JVGVzdEFwcGx5TG9hZFJlZnVzZXNBRklGT0F0T25jZQkzMWVhYmYzZmYxZjA2YzY0MTMwODkxNmNhZWMzOWM1ZWQ4ZjkxMmQ3ZTE0ZGEwNjQ5ZDY5MDQ2NGVmZGM4Mjk4 · test-lock-kind:replace
+- 2026-10-01 · human-observed · Claude's session observed the relock: after red the test gained a socket case from the Codex review of #306 (a socket cannot be opened, so its open fails before the descriptor is asked, and it must still be refused as not regular); the FIFO assertions are unchanged
+- 2026-10-01 · 1fb4932* · exit 0 · `set -o pipefail …` · acceptance-sha256:9441b9d22ab008a81f5b80559277f8c14a5c25016c8cec492b3fc89c605e3bc3 · ms:996
+- 2026-10-01 · 1fb4932* · exit 0 · `set -o pipefail …` · acceptance-sha256:9441b9d22ab008a81f5b80559277f8c14a5c25016c8cec492b3fc89c605e3bc3 · ms:1012
