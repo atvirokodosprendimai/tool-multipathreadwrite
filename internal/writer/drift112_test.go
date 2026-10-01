@@ -70,7 +70,7 @@ func TestDriftNamesAFileChangedAfterTheWrite(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "b", "payload.txt"), []byte("changed\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if d := Drift(root, before); !slices.Equal(d, []string{"b/link.txt"}) {
-		t.Errorf("the renamed link's new referent changed: Drift named %v, want [b/link.txt]", d)
+	if d := Drift(root, before); !slices.Equal(d, []string{filepath.FromSlash("b/link.txt")}) {
+		t.Errorf("the renamed link's new referent changed: Drift named %v, want [%s]", d, filepath.FromSlash("b/link.txt"))
 	}
 }
