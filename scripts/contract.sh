@@ -1746,7 +1746,8 @@ want 0 "$rc" "the CLI applies the plan and emits a receipt"
 
 fixture
 R_MCP=$R
-req=$(printf '%s' "$PLAN" | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
+# ADR-113: mrw_write runs the check by default; check: false matches the CLI's --no-check above.
+req=$(printf '%s' "$PLAN" | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read(),"check":False}}}))')
 mcpout=$(printf '%s\n' "$req" | "$MRW" -C "$R_MCP" mcp 2>"$WORK/mcp.err"); rc=$?
 want 0 "$rc" "mrw mcp applies the same plan over a real pipe"
 
@@ -7286,7 +7287,8 @@ m write --no-check "$R/p164b.mrw" >/dev/null 2>&1; want 0 $? "a clean write besi
 # MCP tally; a pointer that resolves still lands and is counted as applied.
 fixture
 m iter add a.go b.go >/dev/null
-rq165() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))'; }
+# ADR-113: check: false — this row counts the landing, and the fixture's go.mod would infer a check.
+rq165() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read(),"check":False}}}))'; }
 printf '%s\n' "$(rq165 "$(printf '@@ @1-2 1 replace\nx\n')")" | "$MRW" -C "$R" mcp >/dev/null 2>"$WORK/mcp165.err"; want 0 $? "mrw mcp answers a pointer that names two entries"
 [ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .plans' | tr '\n' ' ')" = "1 1 " ] && ok "and mrw_write counts it as one refusal" || bad "an MCP pointer refusal: $(m stats --json 2>&1 | head -c 300)"
 m read a.go >/dev/null
@@ -7519,11 +7521,12 @@ left=$(pgrep -f "$R/rec174.sh" | wc -l | tr -d ' ')
 # 175. ADR-093 T1: an MCP tool refuses an argument it does not declare. A
 # `check` sent to mrw_write, or a `max_lines` sent to mrw_read, was ignored and
 # the call answered as if it had done what was asked (the 2026-09-29 gap
-# survey, C1). The pair: the same call without the key is applied or served.
+# survey, C1). ADR-113 declared `check`, so the write sends `no_check`, which
+# no mrw declares. The pair: the same call without the key is applied or served.
 fixture
 printf 'one\ntwo\n' > "$R/a.txt"
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ b.txt 0 create\nX\n","check":true}}}' | m mcp 2>/dev/null > "$WORK/w175.json"
-{ jq -e '.result.isError == true and (.result.content[0].text | contains("\"check\"") and contains("\"plan\""))' "$WORK/w175.json" > /dev/null && [ ! -e "$R/b.txt" ]; } \
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ b.txt 0 create\nX\n","no_check":true}}}' | m mcp 2>/dev/null > "$WORK/w175.json"
+{ jq -e '.result.isError == true and (.result.content[0].text | contains("\"no_check\"") and contains("\"plan\""))' "$WORK/w175.json" > /dev/null && [ ! -e "$R/b.txt" ]; } \
   && ok "an undeclared argument is refused by name, and nothing is written" || bad "the refused write: $(head -c 400 "$WORK/w175.json")"
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ b.txt 0 create\nX\n"}}}' | m mcp 2>/dev/null > "$WORK/w175b.json"
 { jq -e '.result and (.result.isError | not)' "$WORK/w175b.json" > /dev/null && [ "$(cat "$R/b.txt" 2>/dev/null)" = X ]; } \
@@ -8270,6 +8273,32 @@ done
 [ "$(cat "$R/f212.txt")" = "$(printf 'one\ntwo\nthree\nfour')" ] && ok "and the file is as it was" || bad "f212.txt changed: $(cat "$R/f212.txt")"
 m read f212.txt > /dev/null
 m write --no-check --format=apply_patch "$R/p212.patch" > /dev/null 2>&1; want 0 $? "the pair: after a fresh read the apply_patch plan applies"
+
+# 213. ADR-113: mrw_write runs the project's check after a write that touches
+# code and returns its verdict in the receipt, by the rule `mrw write` uses. A
+# check that ran and failed leaves the write applied and the call not isError,
+# and is counted failed_check. The pair: check: false runs none, and applies.
+fixture
+printf '{"check":"echo boom213; exit 3"}\n' > "$R/.quality-harness.json"
+m read a.go > /dev/null
+req213() {
+  python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":json.loads(sys.argv[1])}}))' "$1"
+}
+out=$(req213 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 213 }\n"}' | "$MRW" -C "$R" mcp 2>/dev/null)
+python3 - "$out" <<'PY' && ok "mrw_write runs the check: ran, exit 3, applied, not isError" || bad "mrw_write did not report its failed check: $(head -c 400 <<<"$out")"
+import json, sys
+r = json.loads(sys.argv[1])["result"]
+sc = r["structuredContent"]
+c = sc.get("check") or {}
+sys.exit(0 if c.get("ran") is True and c.get("exit_code") == 3 and sc.get("applied") is True and not r.get("isError") else 1)
+PY
+m stats --json | grep -q '"failed_check": 1' && ok "and counts it failed_check" || bad "the failed check was not counted: $(m stats --json | head -c 300)"
+out=$(req213 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 2130 }\n","check":false}' | "$MRW" -C "$R" mcp 2>/dev/null)
+python3 - "$out" <<'PY' && ok "the pair: check: false runs none, and the write applies" || bad "check: false: $(head -c 400 <<<"$out")"
+import json, sys
+sc = json.loads(sys.argv[1])["result"]["structuredContent"]
+sys.exit(0 if "check" not in sc and sc.get("applied") is True else 1)
+PY
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running

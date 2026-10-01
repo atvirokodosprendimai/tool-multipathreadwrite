@@ -42,7 +42,7 @@ func TestAWriteLockRefusalSurvivesTheSmallestCeiling(t *testing.T) {
 	if text := served0(t, res); !strings.Contains(text, "nothing was written") || !strings.Contains(text, "MRW_WRITE_LOCK_TIMEOUT") {
 		t.Errorf("an escaped refusal at a %d-character ceiling lost its words:\n%s", MaxResultChars, text)
 	}
-	out, _ := boundedReceipt(root, apply.Result{}, errors.New(strings.Repeat("<&>", 400)), true)
+	out, _ := boundedReceipt(root, apply.Result{}, errors.New(strings.Repeat("<&>", 400)))
 	if n := encodedSize(out); n > ceiling() {
 		t.Errorf("the no-hunk fallback encodes to %d bytes, over the %d-byte ceiling", n, ceiling())
 	}

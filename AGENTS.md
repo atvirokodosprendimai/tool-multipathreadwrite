@@ -393,7 +393,10 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 - **A write to a non-prose file runs the project's check by default** (ADR-054).
   In a Go module, or any tree with `.quality-harness.json`, a `.go`/`.rs`/`.toml`
   write pays the check and exits 3 when it fails. A markdown-only plan does not
-  spawn it. `--no-check` opts out; `--check` demands it even on prose. A
+  spawn it. `--no-check` opts out; `--check` demands it even on prose. `mrw_write`
+  runs it by the same rule (ADR-113) and returns the verdict as `check`: `check: false`
+  opts out, and a check that ran and failed is not `isError` — the write applied, and
+  re-sending the plan would apply it again. A
   `scoped_check` whose template contains `{files}` and not `{packages}` still
   runs on a `.rs` write when `packages()` cannot map (ADR-061); `{packages}`-only
   still falls back. A

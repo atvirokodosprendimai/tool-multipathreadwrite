@@ -3,6 +3,7 @@ package mcp
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/ingest"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
@@ -570,6 +572,7 @@ type writeArgs struct {
 	Ack           []string `json:"ack"`
 	EchoPad       int      `json:"echo_pad"`
 	StrictBalance bool     `json:"strict_balance"`
+	Check         *bool    `json:"check"`
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the
@@ -664,11 +667,6 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		})
 	}
 
-	ledger, err := seen.Snapshot(root)
-	if err != nil {
-		_ = authoring.Record(root, authoring.RefusedApply)
-		return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
-	}
 	// ⚠ REFUSE BEFORE APPLYING WHEN THE VERDICT COULD NOT BE REPORTED.
 	//
 	// A write is not undoable and a receipt is not optional: once the plan has
@@ -681,7 +679,8 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// `--max-result-chars 0` a licensed one-hunk write changed the file, wrote
 	// the ledger, and answered "0 of 1 hunk(s) failed and nothing was written".
 	// A false statement about the filesystem, which is the defect this whole
-	// tool exists to refuse. Found by the Codex review of #135.
+	// tool exists to refuse. Found by the Codex review of #135. Since ADR-113
+	// the sentence also names the check's verdict, and the floor carries it.
 	if !writeFloorFits() {
 		_ = authoring.Record(root, authoring.RefusedApply)
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf(
@@ -689,9 +688,26 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				"applied and the tree is unchanged. Raise the ceiling to at least %d.",
 			MaxResultChars, minWriteCeiling())}
 	}
-	res, applyErr := writer.Apply(root, in, apply.Options{DryRun: a.DryRun, Seen: ledger, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance})
-	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
-	// it is rendered on whichever path we are on rather than discarded.
+	// ADR-113: the gates, the landing's count, the check, the drift and the
+	// pricing are the sequence `mrw write` runs (internal/writer/flow.go), so
+	// the two surfaces cannot decide one outcome two ways. ADR-054's rule
+	// decides the check; check: false turns it off, as --no-check does, and
+	// skips the harness read with it.
+	mode := writer.CheckAuto
+	if a.Check != nil && !*a.Check {
+		mode = writer.CheckOff
+	}
+	prep, err := writer.Prepare(writer.Request{Root: root, In: in, Check: mode,
+		Opts: apply.Options{DryRun: a.DryRun, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance}})
+	if err != nil {
+		return errorResult(gateRefusal(err)), nil
+	}
+	land, err := prep.Land()
+	if err != nil {
+		// The ledger could not be loaded: refused, nothing written.
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
+	}
+	res := land.Res
 
 	// A refusal names the fix (ADR-015). Over MCP the commonest reason a line is
 	// unread is now that its page was served but never acknowledged, and the
@@ -704,46 +720,24 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// lock. A failure there is a ledger failure after the tree changed, and it
 	// is answered with the receipt (ADR-102): a bare RPC error could not be told
 	// from a write that did nothing, and a client might send the plan again.
-	var ledgerErr *writer.LedgerError
-	ledgerFailed := errors.As(applyErr, &ledgerErr)
-	mutation := writer.MutationOf(res)
-	if mutation != writer.None {
-		// ADR-055: a landed MCP write feeds the same ring the CLI reads, so
-		// "3 of your last 10" counts every landed write on this checkout —
-		// whole, partial, or whole with a ledger that failed (ADR-102). The MCP
-		// receipt is structured and carries `advisories`; the pattern line
-		// itself is CLI and stats (BACKLOG).
-		_ = authoring.RecordRecent(root, res.Advisories)
-		// ADR-056: priced as unchecked — this surface never runs a check.
-		if !a.StrictBalance {
-			_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)
-		}
+	if land.LedgerErr != nil {
+		return boundedReceipt(root, res, land.LedgerErr)
 	}
-	if ledgerFailed {
-		// ADR-083: the plan landed; the CLI counts it as applied when no check is due, and so does this.
-		_ = authoring.Record(root, authoring.Applied)
-		return boundedReceipt(root, res, applyErr, true)
+	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
+	// it is rendered on whichever path we are on rather than discarded.
+	if land.Err != nil {
+		return boundedReceipt(root, res, land.Err)
 	}
-
-	switch {
-	case mutation == writer.Partial:
-		// ADR-102: a file reached disk before the commit stopped.
-		_ = authoring.Record(root, authoring.PartiallyApplied)
-	case applyErr != nil || res.Failed > 0:
-		_ = authoring.Record(root, authoring.RefusedApply)
-	case res.DryRun:
-		// ADR-079: a clean dry run landed nothing. It was counted as a
-		// refusal here, and as applied on the CLI; it is neither.
-	case !res.Applied:
-		_ = authoring.Record(root, authoring.RefusedApply)
-	default:
-		// The MCP path never runs --check, so an applied plan is Applied and
-		// nothing else. CheckNotRun would claim a check was configured and
-		// skipped, which is a different fact.
-		_ = authoring.Record(root, authoring.Applied)
+	// ADR-113 Decision 4: a check that ran and did not pass is not isError —
+	// the call did what it was asked, and the verdict is data; one that could
+	// not run is, with the receipt.
+	v := land.Verify(context.Background())
+	if v.CheckErr != nil {
+		return checkedReceipt(root, res, &v, v.CheckErr, true)
 	}
-
-	return boundedReceipt(root, res, applyErr, applyErr != nil || res.Failed > 0)
+	out, rpcErr := checkedReceipt(root, res, &v, nil, res.Failed > 0 || (v.Check != nil && !v.Check.Ran))
+	land.Settle(v)
+	return out, rpcErr
 }
 
 // writeReceipt is what mrw_write returns: the engine's own Result, plus the one
@@ -765,6 +759,12 @@ type writeReceipt struct {
 	// that stopped, a ledger that could not record a landing (ADR-102). In the
 	// structured value because a host may deliver only that (ADR-023).
 	Error string `json:"error,omitempty"`
+	// Check is the project check's verdict after this write (ADR-113): the same
+	// object `mrw write --json` carries. Absent when no check was due.
+	Check *check.Result `json:"check,omitempty"`
+	// Drift is each file the write touched that changed while its check ran
+	// (ADR-112), spelled with `/`. Absent when none did.
+	Drift []string `json:"drift,omitempty"`
 }
 
 // errText is err's message, or "" for none.
@@ -825,14 +825,58 @@ func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, eli
 // STRUCTURED value and not only in the text because a host measured on
 // 2026-09-05 delivers mrw_write's answer to the model as the structured value
 // alone (ADR-023).
-func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (callToolResult, *rpcError) {
+//
+// Since ADR-113 every caller is a write that ended in an error — a commit that
+// stopped, a ledger that failed after landing — so the answer is isError; a
+// write that reached its check goes through checkedReceipt.
+func boundedReceipt(root string, res apply.Result, applyErr error) (callToolResult, *rpcError) {
+	return checkedReceipt(root, res, nil, applyErr, true)
+}
+
+// checkedReceipt is boundedReceipt with what followed the landing (ADR-113):
+// the check's verdict and the drift. The verdict leads the text and is never
+// cut: when the receipt does not fit, the check's tail lines go first, then
+// the ladder below; and the terminal sentence names the verdict in a phrase
+// from a fixed set, which writeFloor is measured with.
+func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr error, isErr bool) (callToolResult, *rpcError) {
 	res = slashResult(res, filepath.Separator)
 	pattern := authoring.PatternOf(root)
-	full, rpcErr := result(writeReceipt{Result: res, Pattern: pattern, Error: errText(applyErr)}, writeReport(res, res.Hunks, applyErr, ""), isErr)
+	var chk *check.Result
+	var checkErr error
+	var drift []string
+	if v != nil {
+		chk, checkErr = v.Check, v.CheckErr
+		for _, p := range v.Drift {
+			drift = append(drift, filepath.ToSlash(p))
+		}
+	}
+	render := func(r apply.Result, hunks []apply.HunkResult, c *check.Result, note string) (callToolResult, *rpcError) {
+		lead, tail := checkReport(c, checkErr, drift)
+		return result(writeReceipt{Result: r, Elided: note, Pattern: pattern, Error: errText(applyErr), Check: c, Drift: drift},
+			lead+writeReport(res, hunks, applyErr, note)+tail, isErr)
+	}
+	full, rpcErr := render(res, res.Hunks, chk, "")
 	if rpcErr != nil || encodedSize(full) <= ceiling() {
 		return full, rpcErr
 	}
 	whole := encodedSize(full)
+
+	// ADR-113: the check's tail is the first thing to go. The verdict stays,
+	// and the tail is in the check's output_file.
+	tailNote := ""
+	if chk != nil && len(chk.Tail) > 0 {
+		cut := *chk
+		cut.Tail = nil
+		dropped := fmt.Sprintf("the check's %d tail line(s) (its output_file holds them)", len(chk.Tail))
+		note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: %s are not here. "+
+			"Every hunk verdict and file record is here, and the counts are of the whole plan.", MaxResultChars, whole, dropped)
+		out, rpcErr := render(res, res.Hunks, &cut, note)
+		if rpcErr != nil || encodedSize(out) <= ceiling() {
+			return out, rpcErr
+		}
+		chk = &cut
+		tailNote = ", nor " + dropped
+	}
 
 	kept := make([]apply.HunkResult, 0, res.Failed)
 	for _, h := range res.Hunks {
@@ -846,7 +890,7 @@ func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (
 	for _, alsoFiles := range []bool{false, true} {
 		note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: "+
 			"%d successful or skipped hunk verdict(s) are not here",
-			MaxResultChars, whole, len(res.Hunks)-len(kept))
+			MaxResultChars, whole, len(res.Hunks)-len(kept)) + tailNote
 		if alsoFiles {
 			// ⚠ ONLY THE UNWRITTEN FILES GO. The first cut dropped every file
 			// record, and a PARTIAL application — Applied=false, Failed=0,
@@ -865,7 +909,7 @@ func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (
 		note += ". Every FAILED hunk is here, every file that WAS written is here, " +
 			"and the counts are of the whole plan."
 
-		out, rpcErr := result(writeReceipt{Result: short, Elided: note, Pattern: pattern, Error: errText(applyErr)}, writeReport(res, kept, applyErr, note), isErr)
+		out, rpcErr := render(short, kept, chk, note)
 		if rpcErr != nil {
 			return out, rpcErr
 		}
@@ -899,7 +943,7 @@ func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (
 	// ADR-105: the structured value is gone in both branches below, and
 	// left_behind with it, so the sentence carries the count.
 	if written > 0 {
-		return errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, writer.MutationOf(res) == writer.Partial) + leftNote(len(res.LeftBehind))), nil
+		return errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, writer.MutationOf(res) == writer.Partial) + checkPhrase(chk, checkErr) + leftNote(len(res.LeftBehind))), nil
 	}
 	// ADR-110 T3: a write refused before any hunk had a verdict — the write
 	// lock held past its wait — has no counts worth giving; its own words are
@@ -926,6 +970,71 @@ func boundedReceipt(root string, res apply.Result, applyErr error, isErr bool) (
 		"Send fewer hunks in one plan, or use the CLI `mrw write`, which streams and has no such "+
 		"limit.", res.Failed, len(res.Hunks), MaxResultChars) + leftNote(len(res.LeftBehind))), nil
 }
+
+// gateRefusal is this surface's words for a write the shared sequence refused
+// before anything was written (ADR-113): the harness, or the depth limit.
+func gateRefusal(err error) string {
+	var r *writer.Refusal
+	if errors.As(err, &r) && r.Stage == writer.StageDepth {
+		return r.Err.Error() + "; check: false writes without it: nothing was written"
+	}
+	return err.Error() + ": nothing was written"
+}
+
+// checkReport is the text around a receipt that a check followed (ADR-113): a
+// lead line naming the verdict, and after the hunks the check's tail, its log,
+// and the drift. Both are empty when no check was due.
+func checkReport(c *check.Result, checkErr error, drift []string) (lead, tail string) {
+	const unverified = " — the write applied; the tree is changed and unverified"
+	switch {
+	case checkErr != nil:
+		lead = "check COULD NOT RUN: " + checkErr.Error() + unverified + "\n"
+	case c == nil:
+		return "", ""
+	case !c.Ran:
+		lead = "check DID NOT RUN: " + c.Skipped + unverified + "\n"
+	case c.OK():
+		lead = "check passed (exit 0): " + c.Command + "\n"
+	default:
+		why := ""
+		if c.Skipped != "" {
+			why = " — " + c.Skipped
+		}
+		lead = fmt.Sprintf("check FAILED (exit %d): %s%s%s. Do not re-send the plan: it applied.\n", c.ExitCode, c.Command, why, unverified)
+	}
+	var b strings.Builder
+	if c != nil {
+		for _, l := range c.Tail {
+			fmt.Fprintf(&b, "  | %s\n", l)
+		}
+		if c.OutputFile != "" {
+			fmt.Fprintf(&b, "check output: %s\n", c.OutputFile)
+		}
+	}
+	for _, p := range drift {
+		fmt.Fprintf(&b, "drift: %s changed while the check ran\n", p)
+	}
+	return lead, b.String()
+}
+
+// checkPhrase names a check's verdict in the terminal sentence, from a fixed
+// set and never the check's own text, so it has a bound: longestCheckPhrase,
+// which writeFloor carries (ADR-113 Decision 5). Empty when no check was due.
+func checkPhrase(c *check.Result, checkErr error) string {
+	switch {
+	case checkErr != nil, c != nil && !c.Ran:
+		return " Its check could not run: the tree is unverified."
+	case c == nil:
+		return ""
+	case c.OK():
+		return " Its check passed."
+	}
+	return fmt.Sprintf(" Its check did not pass (exit %d): the tree is changed and unverified.", c.ExitCode)
+}
+
+// longestCheckPhrase is the widest checkPhrase can be: a failed check at the
+// widest exit code.
+var longestCheckPhrase = checkPhrase(&check.Result{Ran: true, ExitCode: math.MinInt}, nil)
 
 // writtenFiles is the subset of file records whose file actually changed on
 // disk. It is what stage-two elision keeps: dropping these is what let a receipt
@@ -994,7 +1103,7 @@ func writeFloor() int { return floorAt(MaxResultChars) }
 
 // floorAt is the write floor as it would be at ceiling c.
 func floorAt(c int) int {
-	return encodedSize(errorResult(unreportableAt(c, math.MaxInt, math.MaxInt, math.MaxInt, true) + leftNote(math.MaxInt)))
+	return encodedSize(errorResult(unreportableAt(c, math.MaxInt, math.MaxInt, math.MaxInt, true) + longestCheckPhrase + leftNote(math.MaxInt)))
 }
 
 // minWriteCeiling is the smallest ceiling at which this call's write would
@@ -1979,8 +2088,8 @@ func undeclaredRefusal(name string, args json.RawMessage) string {
 // TestTheRefusalRoutesOnlyToFlagsTheCLIHas applies).
 var cliRoute = map[string]string{
 	"mrw_read": "`mrw read` in a shell has what this tool does not, such as --files-from, --max-lines and --stat.",
-	"mrw_write": "This tool runs no check and no step (ADR-054, ADR-092); `mrw write` in a shell runs the " +
-		"project's check after a write (--check demands it on prose) and takes --then and --then-sh for steps after it.",
+	"mrw_write": "This tool runs the project's check after a write that touches code, and no step (ADR-113); `mrw write` in a shell " +
+		"takes --then and --then-sh for steps after it.",
 }
 
 // quoteAll quotes each name and joins them with commas, in the order given.
