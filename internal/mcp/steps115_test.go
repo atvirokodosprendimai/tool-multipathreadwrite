@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"math"
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -129,8 +130,15 @@ func TestAnMCPWriteRunsItsSteps(t *testing.T) {
 			if tail, _ := s["tail"].([]any); len(tail) != 0 {
 				t.Errorf("step %v kept its tail under the ceiling", s["name"])
 			}
-			if f, _ := s["output_file"].(string); f == "" {
+			f, _ := s["output_file"].(string)
+			if f == "" {
 				t.Errorf("step %v lost its tail: no output_file holds it", s["name"])
+				continue
+			}
+			t.Cleanup(func() { _ = os.Remove(f) }) // the logs this run made are its own to remove
+			// The log holds the tail it stands in for, not merely exists.
+			if b, err := os.ReadFile(f); err != nil || !strings.Contains(string(b), "0123456789abcdefghij") {
+				t.Errorf("step %v: output_file %s does not hold its tail (%v): %q", s["name"], f, err, b)
 			}
 		}
 	})
