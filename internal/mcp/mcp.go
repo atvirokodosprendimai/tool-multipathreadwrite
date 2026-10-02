@@ -530,7 +530,8 @@ func tools() []tool {
 				"can run shell commands, prefer the CLI `mrw write`. After a write that touches code this tool " +
 				"runs the project's check, as the CLI does, and returns its verdict in `check`: a check that " +
 				"ran and failed is not an error — the write applied, and the tree is changed and unverified. " +
-				"check: false turns it off. The write lands before the check runs, so after a lost answer read " +
+				"check: false turns it off; then runs steps declared in .quality-harness.json after a passing check. " +
+				"The write lands before the check runs, so after a lost answer read " +
 				"the files before re-sending the plan. Prefer THIS tool with no shell; it needs no --json because " +
 				"its answer is already structured.",
 			InputSchema: map[string]any{
@@ -551,6 +552,15 @@ func tools() []tool {
 							"not prose, when .quality-harness.json declares one or a go.mod infers it — the rule " +
 							"`mrw write` follows. Default true. false runs none and does not read the harness, as " +
 							"--no-check. The verdict is the receipt's `check`.",
+					},
+					"then": map[string]any{
+						"type":  "array",
+						"items": map[string]any{"type": "string"},
+						"description": "Names of steps declared in .quality-harness.json \"steps\", run in order after a " +
+							"write that landed and whose check, when one ran, passed — the CLI's --then. A name the project " +
+							"did not declare refuses the write. A step that ran and failed is data; one that could not start " +
+							"is an error. Verdicts are the receipt's `then`. No ad-hoc command: --then-sh is CLI-only.",
+						"examples": []any{[]any{"vet"}},
 					},
 					"dry_run": map[string]any{
 						"type": "boolean",

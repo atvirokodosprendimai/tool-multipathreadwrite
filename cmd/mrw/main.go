@@ -1875,7 +1875,7 @@ touched, which is a finding about the machine and not about your change.`,
 			if err := askedStepsError(asked); err != nil {
 				return refuse(err)
 			}
-			if err := writer.ResolveSteps(cfg, asked); err != nil {
+			if err := writer.ResolveSteps(cfg, asked, ""); err != nil {
 				return refuse(err)
 			}
 			res, err := check.Run(ctx, root, cfg, paths)

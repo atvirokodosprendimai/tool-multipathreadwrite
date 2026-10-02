@@ -399,7 +399,8 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   spawn it. `--no-check` opts out; `--check` demands it even on prose. `mrw_write`
   runs it by the same rule (ADR-113) and returns the verdict as `check`: `check: false`
   opts out, and a check that ran and failed is not `isError` — the write applied, and
-  re-sending the plan would apply it again. A
+  re-sending the plan would apply it again. `then` names steps declared in `.quality-harness.json`
+  to run after a passing check, as `--then` does (ADR-115); `--then-sh` stays CLI-only. A
   `scoped_check` whose template contains `{files}` and not `{packages}` still
   runs on a `.rs` write when `packages()` cannot map (ADR-061); `{packages}`-only
   still falls back. A

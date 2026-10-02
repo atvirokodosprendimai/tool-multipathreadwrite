@@ -62,7 +62,7 @@ func TestAnUndeclaredArgumentIsRefusedByName(t *testing.T) {
 		keys                          []string
 	}{
 		{"no_check", "mrw_write", `{"plan":` + plan + `,"no_check":true}`, `{"plan":` + plan + `}`, "", []string{"no_check"}},
-		{"then", "mrw_write", `{"plan":` + plan + `,"then":["vet"]}`, `{"plan":` + plan + `}`, "", []string{"then"}},
+		{"steps", "mrw_write", `{"plan":` + plan + `,"steps":["vet"]}`, `{"plan":` + plan + `}`, "", []string{"steps"}},
 		{"then_sh", "mrw_write", `{"plan":` + plan + `,"then_sh":"true"}`, `{"plan":` + plan + `}`, "", []string{"then_sh"}},
 		{"force", "mrw_write", `{"plan":` + plan + `,"force":true}`, `{"plan":` + plan + `}`, "", []string{"force"}},
 		{"a case variant of plan", "mrw_write", `{"Plan":` + plan + `}`, `{"plan":` + plan + `}`, "", []string{"Plan"}},
@@ -70,7 +70,7 @@ func TestAnUndeclaredArgumentIsRefusedByName(t *testing.T) {
 		{"max_lines", "mrw_read", `{"specs":["a.txt"],"max_lines":1}`, `{"specs":["a.txt"]}`, "", []string{"max_lines"}},
 		{"stat", "mrw_read", `{"specs":["a.txt"],"stat":true}`, `{"specs":["a.txt"]}`, "", []string{"stat"}},
 		{"_meta inside arguments", "mrw_read", `{"specs":["a.txt"],"_meta":{"progressToken":1}}`, `{"specs":["a.txt"]}`, "", []string{"_meta"}},
-		{"two undeclared keys", "mrw_write", `{"plan":` + plan + `,"then":["vet"],"force":true}`, `{"plan":` + plan + `}`, "", []string{"force", "then"}},
+		{"two undeclared keys", "mrw_write", `{"plan":` + plan + `,"then_sh":"true","force":true}`, `{"plan":` + plan + `}`, "", []string{"force", "then_sh"}},
 		{"the modern era", "mrw_write", `{"plan":` + plan + `,"no_check":true}`, `{"plan":` + plan + `}`, modernMeta, []string{"no_check"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -184,8 +184,8 @@ func TestTheRefusalRoutesOnlyToFlagsTheCLIHas(t *testing.T) {
 		args      map[string]any
 	}{
 		{"mrw_read", "read", map[string]any{"specs": []any{"a.txt"}, "max_lines": 1}},
-		// `then` alone, so `check` in the text comes from the routing.
-		{"mrw_write", "write", map[string]any{"plan": "@@ b.txt 0 create\nX\n", "then": []any{"vet"}}},
+		// `then_sh` alone (ADR-115 declared `then`), so `check` in the text comes from the routing.
+		{"mrw_write", "write", map[string]any{"plan": "@@ b.txt 0 create\nX\n", "then_sh": "true"}},
 	} {
 		res := call(t, root, c.tool, c.args)
 		got := served0(t, res)
@@ -208,7 +208,7 @@ func TestTheRefusalRoutesOnlyToFlagsTheCLIHas(t *testing.T) {
 			}
 		}
 		if c.tool == "mrw_write" {
-			for _, want := range []string{"mrw write", "check", "and no step"} {
+			for _, want := range []string{"mrw write", "check", "--then-sh"} {
 				if !strings.Contains(got, want) {
 					t.Errorf("the mrw_write refusal does not say %q:\n%s", want, got)
 				}

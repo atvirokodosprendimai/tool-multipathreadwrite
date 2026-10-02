@@ -2437,9 +2437,9 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's def
 
 ## From ADR-113 (one write path, and an MCP write is checked)
 
-- **Steps over MCP** — `mrw_write` runs the check and no step: `--then-sh` is arbitrary shell, and a named `then`
-  would need its own floor and elision on that surface (ADR-113 Decision 6). The shared `Verify` already takes a step
-  list. Arm when an MCP caller asks for a declared step after a write.
+- **Steps over MCP** — **Closed** by ADR-115 (`mrw_write` takes `then`, declared step names only, 2026-10-02). `mrw_write`
+  ran the check and no step: `--then-sh` is arbitrary shell, and a named `then` needed its own floor and elision on
+  that surface (ADR-113 Decision 6). Armed by the gap list of 2026-10-02, item 2.
 - **Progress notifications while an MCP check runs** — Claude Code's 30-minute idle window for a stdio server
   resets on a progress notification; the hard limit (`MCP_TOOL_TIMEOUT`, about 28 hours by default) does not. The
   check's default bound is 5 minutes, inside both (ADR-113 Context). Arm when a project's check bound past the idle
