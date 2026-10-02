@@ -20,6 +20,11 @@ func TestNoShippedMCPReceiptFieldDisappears(t *testing.T) {
 	props, _ := readSchema()["properties"].(map[string]any)
 	for k := range props {
 		got["mcp_read "+k] = true
+		// A nested object's keys are listed under it, as skipped.binary is.
+		inner, _ := props[k].(map[string]any)["properties"].(map[string]any)
+		for sub := range inner {
+			got["mcp_read "+k+"."+sub] = true
+		}
 	}
 	observed, _ := props["observed"].(map[string]any)
 	entry, _ := observed["additionalProperties"].(map[string]any)

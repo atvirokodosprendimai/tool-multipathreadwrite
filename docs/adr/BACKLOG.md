@@ -2444,3 +2444,10 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's def
   resets on a progress notification; the hard limit (`MCP_TOOL_TIMEOUT`, about 28 hours by default) does not. The
   check's default bound is 5 minutes, inside both (ADR-113 Context). Arm when a project's check bound past the idle
   window is reported, or a host is found whose idle window is shorter than the check.
+
+## From ADR-116 (a walk honours .gitignore and skips binaries)
+
+- **`--ast-grep` / `ast_grep` and the ignore rules** — ast-grep walks with its own ignore handling, and mrw drops
+  excluded hits after it answers; `--no-ignore` does not reach it, so the two finders can disagree on an ignored
+  file. Arm when a caller reports `--ast-grep` serving a file `--grep` skips, or the reverse, or asks for
+  `--no-ignore` with `--ast-grep`.

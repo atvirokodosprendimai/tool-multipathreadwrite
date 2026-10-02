@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -174,6 +176,13 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 		"grep":   call(t, grepRoot, "mrw_read", map[string]any{"grep": "NEEDLE"}),
 		"index":  call(t, idxRoot, "mrw_read", map[string]any{"grep": "NEEDLE"}),
 	}
+	// ADR-116: a binary file the walk meets is skipped and counted, inside a
+	// checkout or not.
+	skipRoot := grepTree(t, 1, 1)
+	if err := os.WriteFile(filepath.Join(skipRoot, "bin.dat"), []byte("NEEDLE\x00\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	answers["skipped"] = call(t, skipRoot, "mrw_read", map[string]any{"grep": "NEEDLE"})
 	old := MaxResultChars
 	MaxResultChars = 4000
 	t.Cleanup(func() { MaxResultChars = old })
@@ -245,6 +254,15 @@ func readSchema() map[string]any {
 			"matches":    map[string]any{"type": "integer"},
 			"index":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 			"next_index": map[string]any{"type": "string"},
+			// Present only on a grep walk that skipped something (ADR-116).
+			"skipped": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"ignored":      map[string]any{"type": "integer"},
+					"ignored_dirs": map[string]any{"type": "integer"},
+					"binary":       map[string]any{"type": "integer"},
+				},
+			},
 		},
 		"required": []string{"observed", "problems"},
 	}, readDescriptions)
@@ -253,12 +271,16 @@ func readSchema() map[string]any {
 // readDescriptions says what each receipt property MEANS; mustDescribe refuses
 // an entry naming a property readSchema no longer declares.
 var readDescriptions = map[string]string{
-	"observed":       "What THIS call observed of each served file, keyed by its root-relative path spelled with `/` on every platform, the way a plan names it. It is merged into the per-checkout ledger rather than replacing it, so a later write is authorised by the accumulated spans for the same sha — not by this response alone.",
-	"observed.SHA":   "The sha256 of the whole file as it was when served. A later write is refused if the file no longer hashes to this.",
-	"observed.Spans": "The line spans this call rendered, as [start, end] pairs; null means the whole file. Authorisation is per LINE: a write to a line no read has served is refused, though a line served by an EARLIER read of the same sha is still licensed.",
-	"problems":       "How many requested ranges could not be served. Non-zero means part of what you asked for is missing from `observed` — the call itself still answered.",
-	"next_read":      "The spec to send next when this answer is only a PAGE of what you asked for. Absent when nothing remains, which is how you know you have the whole thing. A paged answer is NOT an error and carries no `isError`; it says so in its served text, with a `-- PARTIAL:` line naming the range and what remains. Stopping there leaves you holding part of a file, not the file.",
-	"matches":        "How many files matched a `grep`, counting the whole match set and not just this page. Present on an INDEX answer and on a grep that matched nothing (0); a grep whose matches fit is served instead, and its `observed` names the files.",
-	"index":          "The matching FILE PATHS, served instead of content when the matches are too large to return. No content came with them and nothing was recorded, so this licenses no write. Send one back as a spec WITH the same grep to read its matches.",
-	"next_index":     "The last path on this page of an INDEX. Send the same grep again with `after` set to this for the next page, and repeat until it is empty — an empty value is how you know you have the whole match set.",
+	"observed":             "What THIS call observed of each served file, keyed by its root-relative path spelled with `/` on every platform, the way a plan names it. It is merged into the per-checkout ledger rather than replacing it, so a later write is authorised by the accumulated spans for the same sha — not by this response alone.",
+	"observed.SHA":         "The sha256 of the whole file as it was when served. A later write is refused if the file no longer hashes to this.",
+	"observed.Spans":       "The line spans this call rendered, as [start, end] pairs; null means the whole file. Authorisation is per LINE: a write to a line no read has served is refused, though a line served by an EARLIER read of the same sha is still licensed.",
+	"problems":             "How many requested ranges could not be served. Non-zero means part of what you asked for is missing from `observed` — the call itself still answered.",
+	"next_read":            "The spec to send next when this answer is only a PAGE of what you asked for. Absent when nothing remains, which is how you know you have the whole thing. A paged answer is NOT an error and carries no `isError`; it says so in its served text, with a `-- PARTIAL:` line naming the range and what remains. Stopping there leaves you holding part of a file, not the file.",
+	"matches":              "How many files matched a `grep`, counting the whole match set and not just this page. Present on an INDEX answer and on a grep that matched nothing (0); a grep whose matches fit is served instead, and its `observed` names the files.",
+	"index":                "The matching FILE PATHS, served instead of content when the matches are too large to return. No content came with them and nothing was recorded, so this licenses no write. Send one back as a spec WITH the same grep to read its matches.",
+	"next_index":           "The last path on this page of an INDEX. Send the same grep again with `after` set to this for the next page, and repeat until it is empty — an empty value is how you know you have the whole match set.",
+	"skipped":              "What a grep walk left out without serving it, present only when it left something out. Inside a git checkout the walk skips what .gitignore and .git/info/exclude ignore; any walk skips a binary file. Send `no_ignore: true` to walk them all. A path named in `specs` is walked either way.",
+	"skipped.ignored":      "Files the ignore rules skipped.",
+	"skipped.ignored_dirs": "Directories the ignore rules pruned; the files under them are not counted.",
+	"skipped.binary":       "Files skipped as binary: a UTF-16/32 byte-order mark, or a NUL in the first 8 KiB.",
 }

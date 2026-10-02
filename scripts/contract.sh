@@ -8320,6 +8320,42 @@ printf '%s\n' '*** Begin Patch' '*** Update File: k214.txt' '*** Move to: l214.t
 m write --no-check --format=apply_patch "$R/q214.patch" > /dev/null 2>&1; want 1 $? "the pair: a move onto a destination that exists is refused"
 { [ "$(cat "$R/k214.txt")" = stay ] && [ "$(cat "$R/l214.txt")" = taken ]; } && ok "and the source is not edited, the destination untouched" || bad "a refused move changed the tree"
 
+# 216. ADR-116: inside a checkout a --grep walk skips what .gitignore ignores,
+# and any walk skips a binary file, and says how many with the flag that walks
+# them. The pair: --no-ignore serves both, and a path named is served anyway.
+fixture
+mkdir -p "$R/.git" "$R/gen216"
+printf 'gen216/\n' > "$R/.gitignore"
+printf 'NEEDLE216\n' > "$R/gen216/x.txt"
+printf 'NEEDLE216\n' > "$R/s216.txt"
+printf 'NEEDLE216\0\n' > "$R/b216.dat"
+out=$(m read --grep NEEDLE216 2>&1)
+if grep -q 's216.txt' <<<"$out" && ! grep -q 'gen216/x.txt' <<<"$out" && ! grep -q 'b216.dat' <<<"$out" \
+   && grep -q -- '-- skipped:.*--no-ignore' <<<"$out"; then
+  ok "--grep skips an ignored directory and a binary file, and says so"
+else bad "--grep served what .gitignore ignores, or skipped it silently: $(head -c 400 <<<"$out")"; fi
+out=$(m read --grep NEEDLE216 --no-ignore 2>&1)
+grep -q 'gen216/x.txt' <<<"$out" && grep -q 'b216.dat' <<<"$out" && ! grep -q -- '-- skipped:' <<<"$out" \
+  && ok "the pair: --no-ignore serves both" || bad "--no-ignore still skipped: $(head -c 400 <<<"$out")"
+out=$(m read --grep NEEDLE216 gen216/x.txt 2>&1)
+grep -q 'gen216/x.txt' <<<"$out" && ok "a path named is served though ignored" || bad "a named ignored path was skipped: $(head -c 400 <<<"$out")"
+req216() {
+  python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":json.loads(sys.argv[1])}}))' "$1"
+}
+out=$(req216 '{"grep":"NEEDLE216"}' | "$MRW" -C "$R" mcp 2>/dev/null)
+python3 - "$out" <<'PY' && ok "mrw_read counts what its grep skipped" || bad "mrw_read skipped: $(head -c 400 <<<"$out")"
+import json, sys
+sc = json.loads(json.loads(sys.argv[1])["result"]["content"][-1]["text"])
+sys.exit(0 if sc.get("skipped") == {"ignored": 0, "ignored_dirs": 1, "binary": 1} else 1)
+PY
+out=$(req216 '{"grep":"NEEDLE216","no_ignore":true}' | "$MRW" -C "$R" mcp 2>/dev/null)
+python3 - "$out" <<'PY' && ok "the pair: no_ignore walks all and counts nothing" || bad "no_ignore: $(head -c 400 <<<"$out")"
+import json, sys
+r = json.loads(sys.argv[1])["result"]
+sc = json.loads(r["content"][-1]["text"])
+sys.exit(0 if "skipped" not in sc and "gen216/x.txt" in sc.get("observed", {}) and "b216.dat" in sc.get("observed", {}) else 1)
+PY
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

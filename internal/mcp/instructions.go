@@ -75,7 +75,7 @@ the N lines after it), path:$ for the last line, or path:/regexp/ — the read
 finds its own site. Example: %v
 To find files you cannot NAME, set grep (regexp) or ast_grep (structural; missing
 ast-grep is named). Too large? An INDEX — one spec per file, no content. exclude
-skips globs; no range with either.
+skips globs, grep ignored and binary files too; no range with either.
 
 A read too large comes back as a PAGE: the lines that fit, a
 -- PARTIAL: line, next_read for the rest, and markers BRACKETING each run:

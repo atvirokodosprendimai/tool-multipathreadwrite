@@ -684,6 +684,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "files-from",
 				Usage: "read specs from `FILE`, or from stdin when it is -",
 			},
+			&cli.BoolFlag{
+				Name:  "no-ignore",
+				Usage: "under --grep, walk every regular file: no .gitignore, no binary skip (ADR-116)",
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if err := refusePaddedArgs(cmd); err != nil {
@@ -742,6 +746,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if len(excludes) > 0 && !grepSet && !astSet {
 				return cli.Exit("--exclude without --grep: there is nothing to exclude from", exitUsage)
 			}
+			if cmd.Bool("no-ignore") && !grepSet {
+				return cli.Exit("--no-ignore without --grep: it changes what a --grep walk skips", exitUsage)
+			}
 			if grepSet && astSet {
 				return cli.Exit("--grep and --ast-grep are two sources of specs; use one", exitUsage)
 			}
@@ -773,6 +780,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			var (
 				specs    []read.Spec
 				refusals []read.Problem
+				skipped  read.WalkSkipped
 				err      error
 				note     string
 			)
@@ -815,7 +823,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				// is deliberately NOT consulted: iter holds read specs and
 				// --grep supplies its own, so a caller who wants both writes
 				// them out (mrw read --grep P @1 @2).
-				specs, refusals, err = read.Walk(root, posArgs, read.WalkOptions{Pattern: re, Exclude: excludes})
+				specs, refusals, err = read.Walk(root, posArgs, read.WalkOptions{Pattern: re, Exclude: excludes, NoIgnore: cmd.Bool("no-ignore"), Skipped: &skipped})
 				if err != nil {
 					return cli.Exit(err, exitUsage)
 				}
@@ -889,6 +897,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// the answers about the good ones, but it is never silent either.
 			for _, p := range refusals {
 				fmt.Fprintf(out, "==> %s  REFUSED  %s\n", p.Path, p.Reason)
+			}
+			// ADR-116: what the walk skipped is said, never silent.
+			if note := read.SkipNote(skipped, "--no-ignore"); note != "" {
+				fmt.Fprintln(out, note)
 			}
 			// A pattern that matched no file is said out loud, naming the
 			// pattern. read.Run over an empty spec list prints nothing at all,

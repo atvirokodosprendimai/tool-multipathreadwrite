@@ -261,6 +261,9 @@ type readArgs struct {
 	// "I acknowledge nothing", which is the safe reading and what a caller
 	// written before this field sends.
 	Ack []string `json:"ack"`
+	// NoIgnore walks every regular file under grep, as the CLI's --no-ignore
+	// (ADR-116).
+	NoIgnore bool `json:"no_ignore"`
 }
 
 // readTool serves ranges and records what it observed, exactly as `mrw read`
@@ -302,6 +305,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if a.After != "" && a.Grep == "" && a.AstGrep == "" {
 		return errorResult("after without grep or ast_grep: it resumes their index, and there is no index without one"), nil
 	}
+	if a.NoIgnore && a.Grep == "" {
+		return errorResult("no_ignore without grep: it changes what a grep walk skips"), nil
+	}
 	// finder names the source of the specs an index is built from, once, so no
 	// caller of matchIndex can tell the caller to resend a different one
 	// (ADR-098: the index said "grep" to an ast_grep caller).
@@ -319,6 +325,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// file matches" — a clean answer about a question nobody asked. With a
 	// valid sibling path the bad one vanished entirely. Found by review of #80.
 	var walkProblems []read.Problem
+	var skipped read.WalkSkipped
 	if a.AstGrep != "" {
 		var err error
 		specs, walkProblems, err = astGrepSpecs(root, a.Specs, a.AstGrep, a.Exclude, a.After)
@@ -339,7 +346,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		}
 	} else if a.Grep != "" {
 		var err error
-		specs, walkProblems, err = grepSpecs(root, a.Specs, a.Grep, a.Exclude, a.After)
+		specs, walkProblems, skipped, err = grepSpecs(root, a.Specs, a.Grep, a.Exclude, a.After, a.NoIgnore)
 		if err != nil {
 			return errorResult(err.Error()), nil
 		}
@@ -351,14 +358,17 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			// different answer again, and it is an error — otherwise a
 			// typo'd path reads as a searched-and-empty tree.
 			report := fmt.Sprintf("no file under the root matches /%s/.", a.Grep)
+			if note := read.SkipNote(skipped, "no_ignore"); note != "" {
+				report += "\n" + note
+			}
 			for _, p := range walkProblems {
 				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
 			}
-			return readResult(map[string]any{
+			return readResult(withSkipped(map[string]any{
 				"observed": map[string]seen.Observation{},
 				"problems": len(walkProblems),
 				"matches":  0,
-			}, report, len(walkProblems) > 0)
+			}, skipped), report, len(walkProblems) > 0)
 		}
 	} else {
 		specs = make([]read.Spec, 0, len(a.Specs))
@@ -456,6 +466,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	for _, p := range walkProblems {
 		report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
 	}
+	if note := read.SkipNote(skipped, "no_ignore"); note != "" {
+		report += "\n" + note
+	}
 	problems += len(walkProblems)
 
 	// ⚠ AND THE SERVED ANSWER IS BUDGETED, for the same reason the index is.
@@ -497,10 +510,10 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-024 removed the flag from answers that DELIVERED something; this restores
 	// it for the one case its enumeration missed, so :202 and this return agree
 	// rather than disagreeing on whether `grep` was passed.
-	served, rpcErr := readResult(map[string]any{
+	served, rpcErr := readResult(withSkipped(map[string]any{
 		"observed": slashKeys(observed, filepath.Separator),
 		"problems": problems,
-	}, report, len(observed) == 0)
+	}, skipped), report, len(observed) == 0)
 	if rpcErr != nil {
 		return callToolResult{}, rpcErr
 	}
@@ -529,10 +542,10 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if len(observed) > 0 {
 		marked, byPath := markServed(report)
 		if marked != report {
-			markedServed, markErr := readResult(map[string]any{
+			markedServed, markErr := readResult(withSkipped(map[string]any{
 				"observed": slashKeys(observed, filepath.Separator),
 				"problems": problems,
-			}, marked, false)
+			}, skipped), marked, false)
 			if markErr != nil {
 				return callToolResult{}, markErr
 			}
@@ -1647,27 +1660,37 @@ func pagedResult(report string, observed map[string]seen.Observation, problems i
 // The refusals mirror the CLI's, deliberately. A grammar the two surfaces
 // disagree on is the class ADR-016 exists to prevent, and the caller who hits
 // one should get the same sentence whichever surface it is on.
-func grepSpecs(root string, paths []string, pattern string, exclude []string, after string) ([]read.Spec, []read.Problem, error) {
+func grepSpecs(root string, paths []string, pattern string, exclude []string, after string, noIgnore bool) ([]read.Spec, []read.Problem, read.WalkSkipped, error) {
 	for _, p := range paths {
 		sp, err := read.ParseSpec(p)
 		if err != nil {
-			return nil, nil, fmt.Errorf("%s: %w", p, err)
+			return nil, nil, read.WalkSkipped{}, fmt.Errorf("%s: %w", p, err)
 		}
 		if len(sp.Ranges) > 0 {
 			// cmd/mrw/main.go:499, word for word: the caller has said both
 			// "look here" and "look for this", and mrw will not pick one.
-			return nil, nil, fmt.Errorf("%s: a range and grep are two answers to one question", p)
+			return nil, nil, read.WalkSkipped{}, fmt.Errorf("%s: a range and grep are two answers to one question", p)
 		}
 	}
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		return nil, nil, fmt.Errorf("grep %q: %w", pattern, err)
+		return nil, nil, read.WalkSkipped{}, fmt.Errorf("grep %q: %w", pattern, err)
 	}
-	specs, problems, err := read.Walk(root, paths, read.WalkOptions{Pattern: re, Exclude: exclude})
+	var sk read.WalkSkipped
+	specs, problems, err := read.Walk(root, paths, read.WalkOptions{Pattern: re, Exclude: exclude, NoIgnore: noIgnore, Skipped: &sk})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, sk, err
 	}
-	return afterCursor(specs, after), problems, nil
+	return afterCursor(specs, after), problems, sk, nil
+}
+
+// withSkipped adds the read receipt's `skipped` (ADR-116) — the counts — when
+// the walk skipped anything, and leaves it absent when it skipped nothing.
+func withSkipped(m map[string]any, sk read.WalkSkipped) map[string]any {
+	if sk != (read.WalkSkipped{}) {
+		m["skipped"] = sk
+	}
+	return m
 }
 
 // afterCursor drops every spec at or before the caller's cursor. read.Walk and

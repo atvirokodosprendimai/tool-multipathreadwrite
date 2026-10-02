@@ -59,6 +59,10 @@ mcp_read observed
 mcp_read observed{}.SHA
 mcp_read observed{}.Spans
 mcp_read problems
+mcp_read skipped
+mcp_read skipped.binary
+mcp_read skipped.ignored
+mcp_read skipped.ignored_dirs
 mcp_write advisories
 mcp_write applied
 mcp_write check

@@ -34,6 +34,45 @@ type WalkOptions struct {
 	// cross a separator and ** is not a token, so "*_test.go" against the full
 	// path alone matches no test file anywhere below the root.
 	Exclude []string
+	// NoIgnore walks every regular file, as ADR-007 did. Without it, a walk
+	// inside a checkout skips what its .gitignore files and .git/info/exclude
+	// ignore, and every walk skips a discovered binary (ADR-116).
+	NoIgnore bool
+	// Skipped, when set, receives the counts of what the walk skipped, so a
+	// caller can say it: nothing is skipped silently (ADR-116).
+	Skipped *WalkSkipped
+}
+
+// WalkSkipped counts what a walk skipped under ADR-116's rules. A path the
+// caller named is never skipped.
+type WalkSkipped struct {
+	// Ignored is the files the ignore rules named.
+	Ignored int `json:"ignored"`
+	// IgnoredDirs is the directories the ignore rules named, pruned unread.
+	IgnoredDirs int `json:"ignored_dirs"`
+	// Binary is the discovered files that would have matched and are binary
+	// (lines.Unsplittable: a UTF-16/32 byte-order mark or a NUL in the first
+	// 8 KiB).
+	Binary int `json:"binary"`
+}
+
+// SkipNote is the sentence a surface prints for what a walk skipped
+// (ADR-116), naming the flag that walks it; "" when nothing was skipped.
+func SkipNote(sk WalkSkipped, flag string) string {
+	if sk == (WalkSkipped{}) {
+		return ""
+	}
+	var parts []string
+	if sk.Ignored > 0 {
+		parts = append(parts, fmt.Sprintf("%d file(s) .gitignore ignores", sk.Ignored))
+	}
+	if sk.IgnoredDirs > 0 {
+		parts = append(parts, fmt.Sprintf("%d director(ies) .gitignore ignores, not entered", sk.IgnoredDirs))
+	}
+	if sk.Binary > 0 {
+		parts = append(parts, fmt.Sprintf("%d binary file(s) that matched", sk.Binary))
+	}
+	return "-- skipped: " + strings.Join(parts, ", ") + "; " + flag + " walks them"
 }
 
 // Walk turns the caller's paths into the Specs read.Run already knows how to
@@ -62,8 +101,14 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 	}
 
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}}
+	if !opt.NoIgnore {
+		w.ign = newIgnorer(absRoot)
+	}
 	for _, p := range paths {
 		w.consider(p)
+	}
+	if opt.Skipped != nil {
+		*opt.Skipped = w.skipped
 	}
 	sort.Slice(w.specs, func(i, j int) bool { return w.specs[i].Path < w.specs[j].Path })
 	return w.specs, w.problems, nil
@@ -76,6 +121,8 @@ type walker struct {
 	seen     map[string]bool // cleaned root-relative paths already turned into specs
 	specs    []Spec
 	problems []Problem
+	ign      *ignorer // nil outside a checkout or under NoIgnore
+	skipped  WalkSkipped
 }
 
 // consider handles one path the caller named: judgeNamed decides what it is,
@@ -91,7 +138,7 @@ func (w *walker) consider(p string) {
 		w.walkDir(n.rel, n.full)
 		return
 	}
-	w.offer(n.rel, n.full)
+	w.offer(n.rel, n.full, false)
 }
 
 // namedPath is a path the caller named that judgeNamed accepted: rel is the
@@ -188,6 +235,12 @@ func judgeNamed(root, absRoot, p string) (namedPath, *Problem) {
 // as a non-directory entry and is refused by the regular-file test below —
 // ADR-007 rule 3, enforced by the walk itself rather than by a guard.
 func (w *walker) walkDir(named string, full string) {
+	// How many components of the path a caller named: those directories do not
+	// prune what is below them (ADR-116, Ignored).
+	from := 0
+	if r := filepath.ToSlash(w.rel(full)); r != "" && r != "." {
+		from = strings.Count(r, "/") + 1
+	}
 	err := filepath.WalkDir(full, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if p == full {
@@ -202,6 +255,11 @@ func (w *walker) walkDir(named string, full string) {
 				return nil
 			}
 			if d.Name() == ".git" || w.excluded(rel) {
+				return fs.SkipDir
+			}
+			// ADR-116: an ignored directory is pruned, not entered.
+			if w.ign != nil && w.ign.Ignored(filepath.ToSlash(rel), true, from) {
+				w.skipped.IgnoredDirs++
 				return fs.SkipDir
 			}
 			return nil
@@ -235,7 +293,11 @@ func (w *walker) walkDir(named string, full string) {
 		if w.excluded(rel) {
 			return nil
 		}
-		w.offer(rel, full)
+		if w.ign != nil && w.ign.Ignored(filepath.ToSlash(rel), false, from) {
+			w.skipped.Ignored++
+			return nil
+		}
+		w.offer(rel, full, true)
 		return nil
 	})
 	if err != nil {
@@ -244,7 +306,9 @@ func (w *walker) walkDir(named string, full string) {
 }
 
 // offer turns one candidate into a spec if it matches and is not already there.
-func (w *walker) offer(p, full string) {
+// A discovered binary that would have matched is skipped and counted; a named
+// one is served, as a path the caller names always is (ADR-116).
+func (w *walker) offer(p, full string, discovered bool) {
 	key := filepath.ToSlash(filepath.Clean(p))
 	if w.seen[key] {
 		return
@@ -254,6 +318,7 @@ func (w *walker) offer(p, full string) {
 		w.problems = append(w.problems, Problem{Path: p, Reason: err.Error()})
 		return
 	}
+	binary := discovered && !w.opt.NoIgnore && lines.Unsplittable(b) != ""
 	lines, _ := split(b)
 	matched := false
 	for _, l := range lines {
@@ -263,6 +328,10 @@ func (w *walker) offer(p, full string) {
 		}
 	}
 	if !matched {
+		return
+	}
+	if binary {
+		w.skipped.Binary++
 		return
 	}
 	w.seen[key] = true
