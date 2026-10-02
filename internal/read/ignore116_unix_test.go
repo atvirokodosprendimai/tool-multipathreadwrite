@@ -49,3 +49,30 @@ func TestAnIgnoreFileThatIsNotRegularIsNotWaitedOn(t *testing.T) {
 		})
 	}
 }
+
+// TestALinkedGitignoreIsNotFollowed: a .gitignore that is a link is not read,
+// as git does not read one. Followed, a link out of the root let a file mrw
+// refuses to serve decide what it serves, and the count told what it held.
+func TestALinkedGitignoreIsNotFollowed(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "rules")
+	if err := os.WriteFile(outside, []byte("needle.txt\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	for _, d := range []string{".git", "sub"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "sub", "needle.txt"), []byte("needle\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "sub", ".gitignore")); err != nil {
+		t.Fatal(err)
+	}
+	var sk WalkSkipped
+	specs, _, _ := Walk(root, nil, WalkOptions{Pattern: regexp.MustCompile("needle"), Skipped: &sk})
+	if len(specs) != 1 || specs[0].Path != "sub/needle.txt" || sk != (WalkSkipped{}) {
+		t.Errorf("served %v skipped %+v, want sub/needle.txt and nothing skipped", specs, sk)
+	}
+}

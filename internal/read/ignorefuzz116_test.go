@@ -25,7 +25,8 @@ func TestTheIgnoreMatcherAgreesWithGitOnRandomRules(t *testing.T) {
 	}
 	dirs := []string{"a", "b", "ab", "sub"}
 	leaves := []string{"a.x", "b.x", "ab.x", "c.y", "a"}
-	tokens := []string{"a", "b", "ab", "*", "?", "*.x", "a*", "[ab]", "[!a]*", "**", "c.y", "sub", "[a-c].x", "a?", "*b*", "?.x"}
+	tokens := []string{"a", "b", "ab", "*", "?", "*.x", "a*", "[ab]", "[!a]*", "**", "c.y", "sub", "[a-c].x", "a?", "*b*", "?.x",
+		"[[:alpha:]]*", "[[:punct:]]x", "[c-a]*", "[!c-a].x", "[a-b-c]*", "[]a]*", "[!]]*", "[\\]a]*", "a[a\\-z]", "[[:bogus:]]*", "[!/]*"}
 	for seed := int64(1); seed <= int64(n); seed++ {
 		r := rand.New(rand.NewSource(seed))
 		root := t.TempDir()

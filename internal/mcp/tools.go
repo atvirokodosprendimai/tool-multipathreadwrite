@@ -447,7 +447,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// dead end ADR-014 removed reappearing through a new door, firing on
 		// this population's ordinary case rather than an exotic one.
 		if walked {
-			return matchIndex(finder, specs, walkProblems, problems, cw), nil
+			return matchIndex(finder, specs, walkProblems, problems, skipped, cw), nil
 		}
 		if page, ok := firstPage(root, a.Specs, cw); ok {
 			return page, nil
@@ -528,7 +528,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// says why — with its own sentence, because "your read was too large"
 		// is not what happened here.
 		if walked {
-			return matchIndex(finder, specs, walkProblems, problems-len(walkProblems), cw), nil
+			return matchIndex(finder, specs, walkProblems, problems-len(walkProblems), skipped, cw), nil
 		}
 		if page, ok := firstPage(root, a.Specs, cw); ok {
 			return page, nil
@@ -551,7 +551,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			}
 			if encodedSize(markedServed) > cw.limit {
 				if walked {
-					return matchIndex(finder, specs, walkProblems, problems-len(walkProblems), cw), nil
+					return matchIndex(finder, specs, walkProblems, problems-len(walkProblems), skipped, cw), nil
 				}
 				if page, ok := firstPage(root, a.Specs, cw); ok {
 					return page, nil
@@ -1753,7 +1753,7 @@ func astGrepSpecs(root string, paths []string, pattern string, exclude []string,
 // fit, the oversized answer reaches withinCeiling, which refuses it legibly.
 // others counts problems that are not the walk's (a walked file that became
 // unreadable before it was read); they are counted in one sentence.
-func matchIndex(finder string, specs []read.Spec, walkProblems []read.Problem, others int, cw *capped) callToolResult {
+func matchIndex(finder string, specs []read.Spec, walkProblems []read.Problem, others int, sk read.WalkSkipped, cw *capped) callToolResult {
 	entries := make([]string, 0, len(specs))
 	for _, sp := range specs {
 		entries = append(entries, sp.Path)
@@ -1815,8 +1815,12 @@ func matchIndex(finder string, specs []read.Spec, walkProblems []read.Problem, o
 		if others > 0 {
 			fmt.Fprintf(&b, "-- %d further problem(s) in files whose content was not served; read them by name to see why.\n", others)
 		}
+		// ADR-116: an index says what the walk skipped, as a served answer does.
+		if note := read.SkipNote(sk, "no_ignore"); note != "" {
+			b.WriteString(note + "\n")
+		}
 
-		structured := map[string]any{
+		structured := withSkipped(map[string]any{
 			"matches":    len(entries),
 			"index":      shown,
 			"next_index": next,
@@ -1826,7 +1830,7 @@ func matchIndex(finder string, specs []read.Spec, walkProblems []read.Problem, o
 			// absent would be a different claim.
 			"observed": map[string]seen.Observation{},
 			"problems": len(walkProblems) + others,
-		}
+		}, sk)
 		var err error
 		raw, err = json.Marshal(structured)
 		if err != nil {

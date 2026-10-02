@@ -898,19 +898,24 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			for _, p := range refusals {
 				fmt.Fprintf(out, "==> %s  REFUSED  %s\n", p.Path, p.Reason)
 			}
-			// ADR-116: what the walk skipped is said, never silent.
-			if note := read.SkipNote(skipped, "--no-ignore"); note != "" {
-				fmt.Fprintln(out, note)
+			// ADR-116: what the walk skipped is said, never silent, as the
+			// read's last line.
+			skipNote := func() {
+				if note := read.SkipNote(skipped, "--no-ignore"); note != "" {
+					fmt.Fprintln(out, note)
+				}
 			}
 			// A pattern that matched no file is said out loud, naming the
 			// pattern. read.Run over an empty spec list prints nothing at all,
 			// which is byte-for-byte the output of a successful read that
 			// happened to serve nothing — the one ambiguity worth a line.
 			if grepSet && len(specs) == 0 {
+				skipNote()
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
 				return cli.Exit(fmt.Sprintf("no file matched /%s/", pattern), 1)
 			}
 			if astSet && len(specs) == 0 {
+				skipNote()
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
 				return cli.Exit(fmt.Sprintf("no file matched /%s/", astPattern), 1)
 			}
@@ -921,6 +926,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Context:  cmd.Int("context"),
 				MaxLines: maxLines(cmd),
 			})
+			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).
 			// It used to be flushed on return, unchecked, after seen.Record: a read
 			// whose output could not be written — a full disk — licensed a write to

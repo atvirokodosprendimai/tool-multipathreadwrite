@@ -1,6 +1,7 @@
 package read
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -120,31 +121,119 @@ func globToRegexp(g string) string {
 		case c == '?':
 			b.WriteString("[^/]")
 		case c == '[':
-			j := i + 1
-			if j < len(g) && (g[j] == '!' || g[j] == '^') {
-				j++
-			}
-			if j < len(g) && g[j] == ']' {
-				j++
-			}
-			for j < len(g) && g[j] != ']' {
-				j++
-			}
-			if j >= len(g) {
+			cls, n, ok := bracket(g[i:])
+			if !ok {
 				b.WriteString(regexp.QuoteMeta("["))
 				continue
 			}
-			class := g[i+1 : j]
-			if strings.HasPrefix(class, "!") {
-				class = "^" + class[1:]
-			}
-			b.WriteString("[" + strings.ReplaceAll(class, `\`, `\\`) + "]")
-			i = j
+			b.WriteString(cls)
+			i += n - 1
 		default:
 			b.WriteString(regexp.QuoteMeta(string(c)))
 		}
 	}
 	return b.String()
+}
+
+// bracket translates the class at the start of s ("[...]") as git's wildmatch
+// reads it, and says how many bytes it took; ok is false when no "]" closes
+// it, and the "[" is then a character. As git does: "!" or "^" negates; a "]"
+// first is a character; a backslash escapes; "a-c" is a range, and a reversed
+// one adds nothing beyond the character before it ("[z-a]" is "[z]"); after a
+// range a "-" is a character; "[:name:]" is a POSIX class, and an unknown name
+// matches nothing; and no class ever matches "/", negated or not. Each piece
+// is spelled \x{..} so no character is read as regexp syntax.
+func bracket(s string) (string, int, bool) {
+	i := 1
+	neg := false
+	if i < len(s) && (s[i] == '!' || s[i] == '^') {
+		neg = true
+		i++
+	}
+	var items []string
+	prev := -1 // the last single character, from which a "-" opens a range
+	never := false
+	for first := true; ; first = false {
+		if i >= len(s) {
+			return "", 0, false
+		}
+		c := s[i]
+		if c == ']' && !first {
+			i++
+			break
+		}
+		switch {
+		case c == '[' && i+1 < len(s) && s[i+1] == ':' && strings.Contains(s[i+2:], ":]"):
+			end := strings.Index(s[i+2:], ":]")
+			set, known := posixClass[s[i+2:i+2+end]]
+			never = never || !known
+			items = append(items, set)
+			prev = -1
+			i += end + 4
+		case c == '-' && prev >= 0 && i+1 < len(s) && s[i+1] != ']':
+			i++
+			if s[i] == '\\' && i+1 < len(s) {
+				i++
+			}
+			if hi := int(s[i]); hi >= prev {
+				items = append(items, classRange(prev, hi))
+			}
+			prev = -1
+			i++
+		default:
+			if c == '\\' && i+1 < len(s) {
+				i++
+				c = s[i]
+			}
+			items = append(items, classRange(int(c), int(c)))
+			prev = int(c)
+			i++
+		}
+	}
+	if never {
+		return `[^\x00-\x{10FFFF}]`, i, true
+	}
+	if neg {
+		return `[^` + strings.Join(items, "") + `\x{2f}]`, i, true
+	}
+	if strings.Join(items, "") == "" {
+		return `[^\x00-\x{10FFFF}]`, i, true
+	}
+	return "[" + strings.Join(items, "") + "]", i, true
+}
+
+// classRange spells lo-hi for a regexp class, leaving out "/".
+func classRange(lo, hi int) string {
+	if lo <= '/' && '/' <= hi {
+		s := ""
+		if lo < '/' {
+			s += classRange(lo, '/'-1)
+		}
+		if hi > '/' {
+			s += classRange('/'+1, hi)
+		}
+		return s
+	}
+	if lo == hi {
+		return fmt.Sprintf(`\x{%x}`, lo)
+	}
+	return fmt.Sprintf(`\x{%x}-\x{%x}`, lo, hi)
+}
+
+// posixClass is each "[:name:]" git knows, in the ASCII it means, without "/".
+var posixClass = map[string]string{
+	"alnum":  `0-9A-Za-z`,
+	"alpha":  `A-Za-z`,
+	"blank":  `\t `,
+	"cntrl":  `\x00-\x1f\x7f`,
+	"digit":  `0-9`,
+	"graph":  `\x{21}-\x{2e}\x{30}-\x{7e}`,
+	"lower":  `a-z`,
+	"print":  `\x{20}-\x{2e}\x{30}-\x{7e}`,
+	"punct":  `\x{21}-\x{2e}\x{3a}-\x{40}\x{5b}-\x{60}\x{7b}-\x{7e}`,
+	"space":  `\t\n\v\f\r `,
+	"upper":  `A-Z`,
+	"xdigit": `0-9A-Fa-f`,
 }
 
 // ignorer answers whether a path below the walk root is ignored. It loads
@@ -237,7 +326,14 @@ func (ig *ignorer) load(dir string) {
 		return
 	}
 	ig.loaded[dir] = true
-	if b := readIgnoreFile(filepath.Join(ig.top, filepath.FromSlash(dir), ".gitignore")); b != nil {
+	p := filepath.Join(ig.top, filepath.FromSlash(dir), ".gitignore")
+	// A .gitignore that is a link is not followed, as git does not follow
+	// one: followed, a link out of the root let a file mrw refuses to serve
+	// decide what it serves, and the skip count told what it held.
+	if fi, err := os.Lstat(p); err != nil || fi.Mode()&(os.ModeSymlink|os.ModeIrregular) != 0 {
+		return
+	}
+	if b := readIgnoreFile(p); b != nil {
 		ig.rules = append(ig.rules, parseIgnore(dir, b, ig.fold)...)
 	}
 }

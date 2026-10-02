@@ -100,7 +100,8 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 		paths = []string{"."}
 	}
 
-	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}}
+	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}, nested: map[string]*ignorer{},
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}}
 	if !opt.NoIgnore {
 		w.ign = newIgnorer(absRoot)
 	}
@@ -108,7 +109,7 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 		w.consider(p)
 	}
 	if opt.Skipped != nil {
-		*opt.Skipped = w.skipped
+		*opt.Skipped = w.skipCounts()
 	}
 	sort.Slice(w.specs, func(i, j int) bool { return w.specs[i].Path < w.specs[j].Path })
 	return w.specs, w.problems, nil
@@ -122,7 +123,15 @@ type walker struct {
 	specs    []Spec
 	problems []Problem
 	ign      *ignorer // nil outside a checkout or under NoIgnore
-	skipped  WalkSkipped
+	// nested holds each checkout found below the root, by its root-relative
+	// "/"-joined directory: its own rules apply beneath it and the outer
+	// rules do not, as git keeps a nested repository's files its own.
+	nested map[string]*ignorer
+	// What the ignore rules and the binary test skipped, by root-relative
+	// path, so a path two walks meet counts once, and one served after all
+	// counts not at all (skipCounts). starts are the named directories walked.
+	skipFiles, skipDirs, skipBin map[string]bool
+	starts                       []string
 }
 
 // consider handles one path the caller named: judgeNamed decides what it is,
@@ -241,6 +250,15 @@ func (w *walker) walkDir(named string, full string) {
 	if r := filepath.ToSlash(w.rel(full)); r != "" && r != "." {
 		from = strings.Count(r, "/") + 1
 	}
+	// A named start inside a nested checkout takes that checkout's rules.
+	if r := filepath.ToSlash(w.rel(full)); r != "" && r != "." {
+		parts := strings.Split(r, "/")
+		for i := 1; i <= len(parts); i++ {
+			d := strings.Join(parts[:i], "/")
+			w.noteNested(d, filepath.Join(w.absRoot, filepath.FromSlash(d)))
+		}
+		w.starts = append(w.starts, r)
+	}
 	err := filepath.WalkDir(full, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if p == full {
@@ -258,10 +276,12 @@ func (w *walker) walkDir(named string, full string) {
 				return fs.SkipDir
 			}
 			// ADR-116: an ignored directory is pruned, not entered.
-			if w.ign != nil && w.ign.Ignored(filepath.ToSlash(rel), true, from) {
-				w.skipped.IgnoredDirs++
+			r := filepath.ToSlash(rel)
+			if w.ignored(r, true, from) {
+				w.skipDirs[r] = true
 				return fs.SkipDir
 			}
+			w.noteNested(r, filepath.Join(w.absRoot, rel))
 			return nil
 		}
 		// THE BOUNDARY, on the discovered path. `consider` resolves a NAMED
@@ -293,8 +313,8 @@ func (w *walker) walkDir(named string, full string) {
 		if w.excluded(rel) {
 			return nil
 		}
-		if w.ign != nil && w.ign.Ignored(filepath.ToSlash(rel), false, from) {
-			w.skipped.Ignored++
+		if r := filepath.ToSlash(rel); w.ignored(r, false, from) {
+			w.skipFiles[r] = true
 			return nil
 		}
 		w.offer(rel, full, true)
@@ -331,7 +351,7 @@ func (w *walker) offer(p, full string, discovered bool) {
 		return
 	}
 	if binary {
-		w.skipped.Binary++
+		w.skipBin[key] = true
 		return
 	}
 	w.seen[key] = true
@@ -340,6 +360,69 @@ func (w *walker) offer(p, full string, discovered bool) {
 		Raw:    key,
 		Ranges: []Range{{Re: w.opt.Pattern, Text: "/" + w.opt.Pattern.String() + "/"}},
 	})
+}
+
+// ignored judges rel, root-relative and "/"-joined, by the rules of the
+// checkout it is in: the deepest nested one above it, else the root's.
+func (w *walker) ignored(rel string, isDir bool, from int) bool {
+	ig, sub, best := w.ign, rel, ""
+	for k := range w.nested {
+		if strings.HasPrefix(rel, k+"/") && len(k) > len(best) {
+			best = k
+		}
+	}
+	if best != "" {
+		ig, sub = w.nested[best], rel[len(best)+1:]
+		from = max(0, from-(strings.Count(best, "/")+1))
+	}
+	return ig != nil && ig.Ignored(sub, isDir, from)
+}
+
+// noteNested records dir (root-relative, "/"-joined; abs its path) as a
+// nested checkout when it holds a .git, so its own rules apply beneath it.
+func (w *walker) noteNested(dir, abs string) {
+	if w.opt.NoIgnore || w.nested[dir] != nil {
+		return
+	}
+	if _, err := os.Lstat(filepath.Join(abs, ".git")); err != nil {
+		return
+	}
+	if ig := newIgnorer(abs); ig != nil {
+		w.nested[dir] = ig
+	}
+}
+
+// skipCounts is what the walk skipped and did not serve after all: a file
+// another path served is not counted, nor a directory a named path entered.
+func (w *walker) skipCounts() WalkSkipped {
+	var sk WalkSkipped
+	for p := range w.skipFiles {
+		if !w.seen[p] {
+			sk.Ignored++
+		}
+	}
+	for p := range w.skipBin {
+		if !w.seen[p] {
+			sk.Binary++
+		}
+	}
+	for d := range w.skipDirs {
+		entered := false
+		for _, s := range w.starts {
+			if s == d || strings.HasPrefix(s, d+"/") {
+				entered = true
+			}
+		}
+		for p := range w.seen {
+			if strings.HasPrefix(p, d+"/") {
+				entered = true
+			}
+		}
+		if !entered {
+			sk.IgnoredDirs++
+		}
+	}
+	return sk
 }
 
 // excluded matches a glob against the cleaned root-relative path AND the

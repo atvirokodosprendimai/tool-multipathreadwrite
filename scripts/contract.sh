@@ -8331,8 +8331,8 @@ printf 'NEEDLE216\n' > "$R/s216.txt"
 printf 'NEEDLE216\0\n' > "$R/b216.dat"
 out=$(m read --grep NEEDLE216 2>&1)
 if grep -q 's216.txt' <<<"$out" && ! grep -q 'gen216/x.txt' <<<"$out" && ! grep -q 'b216.dat' <<<"$out" \
-   && grep -q -- '-- skipped:.*--no-ignore' <<<"$out"; then
-  ok "--grep skips an ignored directory and a binary file, and says so"
+   && tail -n 1 <<<"$out" | grep -q -- '^-- skipped:.*--no-ignore'; then
+  ok "--grep skips an ignored directory and a binary file, and says so as its last line"
 else bad "--grep served what .gitignore ignores, or skipped it silently: $(head -c 400 <<<"$out")"; fi
 out=$(m read --grep NEEDLE216 --no-ignore 2>&1)
 grep -q 'gen216/x.txt' <<<"$out" && grep -q 'b216.dat' <<<"$out" && ! grep -q -- '-- skipped:' <<<"$out" \

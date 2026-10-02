@@ -315,3 +315,117 @@ func TestAWorktreeReadsTheCommonInfoExclude(t *testing.T) {
 func staticIgnorer(rules []ignoreRule) *ignorer {
 	return &ignorer{rules: rules, static: true}
 }
+
+// TestBracketClassesFollowGit: each row is a pattern and what git 2.56's
+// check-ignore said of each path (2026-10-02), the wildmatch rules a class
+// follows: POSIX classes, a reversed range is its first character, a "-"
+// after a range is a character, an escape, and no class matches "/".
+func TestBracketClassesFollowGit(t *testing.T) {
+	for _, c := range []struct {
+		rule    string
+		ignored []string
+		kept    []string
+	}{
+		{"a[[:digit:]]b", []string{"a1b"}, []string{"axb", "a b"}},
+		{"a[[:alpha:]x]", []string{"ab", "ax"}, []string{"a1"}},
+		{"a[z-a]b", []string{"azb"}, []string{"aab"}},
+		{"a[!z-a]b", []string{"aab"}, []string{"azb", "a/b"}},
+		{"a[!x]b", []string{"ayb"}, []string{"a/b"}},
+		{"a[/]b", nil, []string{"a/b"}},
+		{"/a[!x]b", []string{"ayb", "a.b"}, []string{"a/b", "axb"}},
+		{"/a[[:punct:]]b", []string{"a.b"}, []string{"a/b", "axb"}},
+		{"x[a-c-e]", []string{"xa", "x-", "xe"}, []string{"xd"}},
+		{"q[]]", []string{"q]"}, nil},
+		{"q[!]]", []string{"qa"}, []string{"q]"}},
+		{`r[\]]`, []string{"r]"}, nil},
+		{`s[a\-z]`, []string{"s-"}, []string{"sb"}},
+		{"t[[:bogus:]]", nil, []string{"ta", "t:"}},
+		{"u[[:punct:]]", []string{"u.", "u_"}, []string{"ua", "u/"}},
+	} {
+		ig := staticIgnorer(parseIgnore("", []byte(c.rule+"\n"), false))
+		for _, p := range c.ignored {
+			if !ig.Ignored(p, false, 0) {
+				t.Errorf("%s: %q kept, git ignores it", c.rule, p)
+			}
+		}
+		for _, p := range c.kept {
+			if ig.Ignored(p, false, 0) {
+				t.Errorf("%s: %q ignored, git keeps it", c.rule, p)
+			}
+		}
+	}
+}
+
+// TestASkipIsCountedOncePerPath: a path two walks meet counts once, a file a
+// named path served is not counted, nor a directory a named path entered.
+func TestASkipIsCountedOncePerPath(t *testing.T) {
+	root := t.TempDir()
+	plant(t, root, map[string]string{
+		".git/HEAD":  "x\n",
+		".gitignore": "*.log\nbuild/\n",
+		"sub/a.log":  "needle\n",
+		"sub/b.bin":  "needle\x00\n",
+		"sub/c.go":   "needle\n",
+		"build/x.go": "needle\n",
+	})
+	needle := regexp.MustCompile("needle")
+	for _, c := range []struct {
+		paths []string
+		want  WalkSkipped
+	}{
+		{[]string{".", "sub", "sub"}, WalkSkipped{Ignored: 1, IgnoredDirs: 1, Binary: 1}},
+		{[]string{"sub/a.log", "sub"}, WalkSkipped{Binary: 1}},
+		{[]string{".", "build/x.go"}, WalkSkipped{Ignored: 1, Binary: 1}},
+		{[]string{".", "build"}, WalkSkipped{Ignored: 1, Binary: 1}},
+	} {
+		var sk WalkSkipped
+		if _, _, err := Walk(root, c.paths, WalkOptions{Pattern: needle, Skipped: &sk}); err != nil {
+			t.Fatal(err)
+		}
+		if sk != c.want {
+			t.Errorf("%v: skipped %+v, want %+v", c.paths, sk, c.want)
+		}
+	}
+}
+
+// TestANestedCheckoutHasItsOwnRules: below the root, a directory holding a
+// .git is a repository of its own: its rules apply inside it and the outer
+// ones do not, as git keeps its files its own. A root that is no checkout
+// still applies each repository's rules within it.
+func TestANestedCheckoutHasItsOwnRules(t *testing.T) {
+	root := t.TempDir()
+	plant(t, root, map[string]string{
+		".git/HEAD":        "x\n",
+		".gitignore":       "vendor.txt\n",
+		"vendor.txt":       "needle\n",
+		"inner/.git/HEAD":  "x\n",
+		"inner/.gitignore": "*.log\n",
+		"inner/vendor.txt": "needle\n",
+		"inner/x.log":      "needle\n",
+		"inner/d/y.log":    "needle\n",
+	})
+	needle := regexp.MustCompile("needle")
+	for paths, want := range map[string]string{"": "inner/vendor.txt", "inner": "inner/vendor.txt", "inner/d": ""} {
+		var named []string
+		if paths != "" {
+			named = []string{paths}
+		}
+		var sk WalkSkipped
+		specs, _, _ := Walk(root, named, WalkOptions{Pattern: needle, Skipped: &sk})
+		if got := strings.Join(specPaths(specs), ","); got != want || sk.Ignored == 0 {
+			t.Errorf("%q: served %q skipped %+v, want %q and the inner logs skipped", paths, got, sk, want)
+		}
+	}
+	plain := t.TempDir()
+	plant(t, plain, map[string]string{
+		"r/.git/HEAD":  "x\n",
+		"r/.gitignore": "*.log\n",
+		"r/a.log":      "needle\n",
+		"r/b.go":       "needle\n",
+		"loose.log":    "needle\n",
+	})
+	specs, _, _ := Walk(plain, nil, WalkOptions{Pattern: needle})
+	if got := strings.Join(specPaths(specs), ","); got != "loose.log,r/b.go" {
+		t.Errorf("a root that is no checkout: served %s, want loose.log,r/b.go", got)
+	}
+}
