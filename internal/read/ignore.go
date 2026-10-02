@@ -56,7 +56,11 @@ func parseIgnore(base string, data []byte, fold bool) []ignoreRule {
 			r.anchored = true
 			line = strings.TrimPrefix(line, "/")
 		}
-		expr := "^" + globToRegexp(line) + "$"
+		pat, ok := globToRegexp(line)
+		if !ok {
+			continue // an unclosed class: git abandons the match, so the rule matches nothing
+		}
+		expr := "^" + pat + "$"
 		if fold {
 			expr = "(?i)" + expr
 		}
@@ -85,15 +89,19 @@ func trimTrailingSpace(s string) string {
 // globToRegexp turns one gitignore glob into a regular expression over a
 // "/"-separated path: * and ? stay inside a component, [...] is a class
 // ("!" negates it), ** is any number of components where gitignore(5) gives
-// it a meaning, and a backslash escapes the next character.
-func globToRegexp(g string) string {
+// it a meaning, and a backslash escapes the next character. It reads the glob
+// a byte at a time, as git does, and each byte becomes the rune of the same
+// value, so the expression matches a subject spelled by bytewise: "?" is one
+// byte of "é", as in git, not the whole character. ok is false for a class
+// no "]" closes, which git never matches.
+func globToRegexp(g string) (string, bool) {
 	var b strings.Builder
 	for i := 0; i < len(g); i++ {
 		c := g[i]
 		switch {
 		case c == '\\' && i+1 < len(g):
 			i++
-			b.WriteString(regexp.QuoteMeta(string(g[i])))
+			b.WriteString(regexp.QuoteMeta(string(rune(g[i]))))
 		case c == '*' && i+1 < len(g) && g[i+1] == '*':
 			atStart := i == 0
 			atEnd := i+2 == len(g)
@@ -123,21 +131,20 @@ func globToRegexp(g string) string {
 		case c == '[':
 			cls, n, ok := bracket(g[i:])
 			if !ok {
-				b.WriteString(regexp.QuoteMeta("["))
-				continue
+				return "", false
 			}
 			b.WriteString(cls)
 			i += n - 1
 		default:
-			b.WriteString(regexp.QuoteMeta(string(c)))
+			b.WriteString(regexp.QuoteMeta(string(rune(c))))
 		}
 	}
-	return b.String()
+	return b.String(), true
 }
 
 // bracket translates the class at the start of s ("[...]") as git's wildmatch
 // reads it, and says how many bytes it took; ok is false when no "]" closes
-// it, and the "[" is then a character. As git does: "!" or "^" negates; a "]"
+// it. As git does: "!" or "^" negates; a "]"
 // first is a character; a backslash escapes; "a-c" is a range, and a reversed
 // one adds nothing beyond the character before it ("[z-a]" is "[z]"); after a
 // range a "-" is a character; "[:name:]" is a POSIX class, and an unknown name
@@ -163,13 +170,15 @@ func bracket(s string) (string, int, bool) {
 			break
 		}
 		switch {
-		case c == '[' && i+1 < len(s) && s[i+1] == ':' && strings.Contains(s[i+2:], ":]"):
-			end := strings.Index(s[i+2:], ":]")
-			set, known := posixClass[s[i+2:i+2+end]]
+		case c == '[' && i+1 < len(s) && s[i+1] == ':' && posixEnd(s[i+2:]) > 0:
+			// "[:name:]" ends at the first "]" after "[:", and only when ":"
+			// stands before it; otherwise the "[" is a character, as in git.
+			end := posixEnd(s[i+2:])
+			set, known := posixClass[s[i+2:i+2+end-1]]
 			never = never || !known
 			items = append(items, set)
 			prev = -1
-			i += end + 4
+			i += 2 + end + 1
 		case c == '-' && prev >= 0 && i+1 < len(s) && s[i+1] != ']':
 			i++
 			if s[i] == '\\' && i+1 < len(s) {
@@ -200,6 +209,31 @@ func bracket(s string) (string, int, bool) {
 		return `[^\x00-\x{10FFFF}]`, i, true
 	}
 	return "[" + strings.Join(items, "") + "]", i, true
+}
+
+// posixEnd is the offset of the "]" closing a POSIX class name in s, the text
+// after "[:": the first "]", when ":" stands before it; else 0.
+func posixEnd(s string) int {
+	j := strings.IndexByte(s, ']')
+	if j < 1 || s[j-1] != ':' {
+		return 0
+	}
+	return j
+}
+
+// bytewise spells s one rune per byte, the subject globToRegexp's expressions
+// match, so a pattern meets a non-ASCII name byte by byte as git's does.
+func bytewise(s string) string {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			r := make([]rune, len(s))
+			for j := 0; j < len(s); j++ {
+				r[j] = rune(s[j])
+			}
+			return string(r)
+		}
+	}
+	return s
 }
 
 // classRange spells lo-hi for a regexp class, leaving out "/".
@@ -407,7 +441,7 @@ func (ig *ignorer) match(p string, isDir bool) bool {
 		if r.anchored {
 			subject = below
 		}
-		if r.re.MatchString(subject) {
+		if r.re.MatchString(bytewise(subject)) {
 			ignored = !r.negate
 		}
 	}

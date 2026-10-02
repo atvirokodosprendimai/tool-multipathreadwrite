@@ -341,6 +341,14 @@ func TestBracketClassesFollowGit(t *testing.T) {
 		{`s[a\-z]`, []string{"s-"}, []string{"sb"}},
 		{"t[[:bogus:]]", nil, []string{"ta", "t:"}},
 		{"u[[:punct:]]", []string{"u.", "u_"}, []string{"ua", "u/"}},
+		{"[[:x]y:]", []string{"xy:]"}, []string{":", "[:x]y:]"}},
+		{"[[:]:]", []string{"[:]"}, []string{":", "]"}},
+		{`a[b-\]`, nil, []string{"a[b-]", "ab"}},
+		{"[abc", nil, []string{"[abc", "a"}},
+		{"x[[:alpha:]", nil, []string{"x[:alpha:", "xa"}},
+		{"a?", []string{"ab"}, []string{"aé"}},
+		{"[!a]", []string{"b"}, []string{"é"}},
+		{"[é][é]", []string{"é"}, []string{"éé"}},
 	} {
 		ig := staticIgnorer(parseIgnore("", []byte(c.rule+"\n"), false))
 		for _, p := range c.ignored {

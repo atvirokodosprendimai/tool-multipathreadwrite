@@ -406,23 +406,34 @@ func (w *walker) skipCounts() WalkSkipped {
 			sk.Binary++
 		}
 	}
+	// A directory counts when nothing entered it after all: no named start at
+	// or below it, and no served path below it. One set of every start and
+	// every served path's directories keeps this linear in what was served.
+	entered := map[string]bool{}
+	for _, s := range w.starts {
+		entered[s] = true
+	}
+	for p := range w.seen {
+		for d := path.Dir(p); d != "." && d != "/" && !entered[d]; d = path.Dir(d) {
+			entered[d] = true
+		}
+	}
 	for d := range w.skipDirs {
-		entered := false
-		for _, s := range w.starts {
-			if s == d || strings.HasPrefix(s, d+"/") {
-				entered = true
-			}
-		}
-		for p := range w.seen {
-			if strings.HasPrefix(p, d+"/") {
-				entered = true
-			}
-		}
-		if !entered {
+		if !entered[d] && !startBelow(w.starts, d) {
 			sk.IgnoredDirs++
 		}
 	}
 	return sk
+}
+
+// startBelow says whether a named start lies below dir.
+func startBelow(starts []string, dir string) bool {
+	for _, s := range starts {
+		if strings.HasPrefix(s, dir+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // excluded matches a glob against the cleaned root-relative path AND the

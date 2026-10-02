@@ -24,9 +24,10 @@ func TestTheIgnoreMatcherAgreesWithGitOnRandomRules(t *testing.T) {
 		n = v
 	}
 	dirs := []string{"a", "b", "ab", "sub"}
-	leaves := []string{"a.x", "b.x", "ab.x", "c.y", "a"}
+	leaves := []string{"a.x", "b.x", "ab.x", "c.y", "a", "é.x", "aé"}
 	tokens := []string{"a", "b", "ab", "*", "?", "*.x", "a*", "[ab]", "[!a]*", "**", "c.y", "sub", "[a-c].x", "a?", "*b*", "?.x",
-		"[[:alpha:]]*", "[[:punct:]]x", "[c-a]*", "[!c-a].x", "[a-b-c]*", "[]a]*", "[!]]*", "[\\]a]*", "a[a\\-z]", "[[:bogus:]]*", "[!/]*"}
+		"[[:alpha:]]*", "[[:punct:]]x", "[c-a]*", "[!c-a].x", "[a-b-c]*", "[]a]*", "[!]]*", "[\\]a]*", "a[a\\-z]", "[[:bogus:]]*", "[!/]*",
+		"[[:x]a:]*", "[[:]:]", "[ab", "a[b-\\]", "?.x", "??.x", "[!a]?", "é*", "*é", "[é]*"}
 	for seed := int64(1); seed <= int64(n); seed++ {
 		r := rand.New(rand.NewSource(seed))
 		root := t.TempDir()
@@ -99,13 +100,15 @@ func TestTheIgnoreMatcherAgreesWithGitOnRandomRules(t *testing.T) {
 		if !ok {
 			continue
 		}
-		cmd := exec.Command(git, "-C", root, "check-ignore", "--no-index", "--stdin")
-		cmd.Stdin = strings.NewReader(strings.Join(paths, "\n") + "\n")
+		// -z: git quotes a non-ASCII path in line output ("\303\251"), so the
+		// oracle is read NUL-separated, as written.
+		cmd := exec.Command(git, "-C", root, "check-ignore", "--no-index", "--stdin", "-z")
+		cmd.Stdin = strings.NewReader(strings.Join(paths, "\x00") + "\x00")
 		var out bytes.Buffer
 		cmd.Stdout = &out
 		_ = cmd.Run()
 		gitSays := map[string]bool{}
-		for _, l := range strings.Split(strings.TrimSpace(out.String()), "\n") {
+		for _, l := range strings.Split(out.String(), "\x00") {
 			if l != "" {
 				gitSays[l] = true
 			}
