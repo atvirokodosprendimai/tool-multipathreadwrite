@@ -110,14 +110,28 @@ func (o Observation) coversLine(line int) bool {
 
 // Served renders the spans the way a diagnostic should quote them.
 func (o Observation) Served() string {
+	// A file mrw wrote is wholly licensed but was shown only what a read has
+	// served since (ADR-118); "the whole file" there contradicted a refusal
+	// naming unread lines, and hid in `mrw seen` why a write was refused.
+	if o.Written {
+		if len(o.Shown) == 0 {
+			return "no lines since mrw wrote it"
+		}
+		return quoteSpans(o.Shown) + " since mrw wrote it"
+	}
 	if o.Whole() {
 		return "the whole file"
 	}
 	if len(o.Spans) == 0 {
 		return "no lines"
 	}
-	parts := make([]string, 0, len(o.Spans))
-	for _, s := range o.Spans {
+	return quoteSpans(o.Spans)
+}
+
+// quoteSpans renders spans for a diagnostic: "lines 1-3,7".
+func quoteSpans(spans [][2]int) string {
+	parts := make([]string, 0, len(spans))
+	for _, s := range spans {
 		if s[0] == s[1] {
 			parts = append(parts, strconv.Itoa(s[0]))
 			continue

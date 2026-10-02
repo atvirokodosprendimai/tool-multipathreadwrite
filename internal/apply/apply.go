@@ -1375,7 +1375,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				// ADR-013's objection that the order moves when code does.
 				if n := h.Occurrence; n > 0 && len(at) > 0 {
 					if n > len(at) {
-						fail(h, "occurrence=%d but pattern %s matched %d line(s) in %s (%s)", n, re, len(at), path, joinInts(at))
+						fail(h, "pattern %s matched %d line(s) in %s (%s), fewer than occurrence %d", re, len(at), path, joinInts(at), n)
 						return 0, false
 					}
 					// Not obs.Whole(): a file mrw wrote is wholly licensed but
@@ -1388,9 +1388,9 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 							}
 						}
 						if len(unread) > 0 {
-							fail(h, "occurrence=%d counts the matches before it, and %s also matches %s of %s, "+
-								"which have not been read: mrw served %s — read them, or pass --force",
-								n, re, joinInts(unread), path, obs.Served())
+							fail(h, "%s also matches %s of %s before occurrence %d, and they have not been read: "+
+								"mrw served %s — read them, or pass --force",
+								re, joinInts(unread), path, n, obs.Served())
 							return 0, false
 						}
 					}
