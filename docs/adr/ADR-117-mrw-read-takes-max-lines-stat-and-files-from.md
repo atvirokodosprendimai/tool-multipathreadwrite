@@ -7,7 +7,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-007, ADR-033, ADR-039, ADR-077, ADR-093, ADR-104, ADR-109
 **Invalidates:** ADR-093 — only its Out of Scope routing of `--max-lines`, `--stat` and `--files-from` to the CLI; and AGENTS.md's "`--files-from` has no MCP equivalent and does not need one"
-**Governs:** `internal/mcp/tools.go`, `internal/mcp/mcp.go`, `internal/mcp/instructions.go`, `internal/speclist/speclist.go`, `cmd/mrw/main.go`, `AGENTS.md`, `README.md`, `cmd/opencode/mrw-plugin/src/index.ts`, `scripts/contract.sh`
+**Governs:** `internal/mcp/tools.go`, `internal/mcp/ack.go`, `internal/mcp/mcp.go`, `internal/mcp/instructions.go`, `internal/speclist/speclist.go`, `cmd/mrw/main.go`, `AGENTS.md`, `README.md`, `cmd/opencode/mrw-plugin/src/index.ts`, `scripts/contract.sh`
 **Enforced-by:** `internal/mcp/readargs117_test.go::TestMrwReadTakesMaxLinesStatAndFilesFrom`
 **Served-path change:** `mrw_read` takes `max_lines` (a cap per spec, as `--max-lines`), `stat` (headers only, as `--stat`) and `files_from` (a root-relative file of specs, as `--files-from FILE`). Each licenses exactly what it serves: a capped read licenses the lines it served, a stat licenses nothing.
 
@@ -25,9 +25,9 @@ A caller with no shell had `specs`, `grep`, `ast_grep` and `exclude`, and was ro
 
 ## Decision
 
-1. **`max_lines`** is an integer cap per spec, as `--max-lines`: absent is no cap, `0` serves headers only, a negative value is refused. A capped read is checkpointed exactly for the numbered lines it served; WITHHELD lines are reported and license nothing. When a capped read is still too large for one answer it is refused with the reason, never paged past the cap the caller set.
+1. **`max_lines`** is an integer cap per spec, as `--max-lines`: absent is no cap, `0` serves headers only, a negative value is refused. A capped read is checkpointed exactly for the numbered lines it served; WITHHELD lines are reported and license nothing. When a named capped read is still too large for one answer it is refused with the reason, never paged past the cap the caller set. A `grep` or `ast_grep` too large to serve answers with its INDEX, capped or not: an index serves no line and licenses nothing, and the caller sends the files it wants back with the same cap.
 2. **`stat`** serves each file's header — lines, bytes, sha — and no content, as `--stat`. It holds no checkpoint, so it licenses nothing (ADR-002).
-3. **`files_from`** names a file of specs, resolved inside the root, read the way `--files-from FILE` reads one: blank lines and `#` comments skipped, each line a spec as written, 8 MiB a line. It is refused beside `specs`, `grep` or `ast_grep` ("two sources of specs; use one"), when empty, as `-` (stdin is the protocol), outside the root, inside mrw's own state directory, when not a regular file (a FIFO is refused at once), over 64 MiB, or when it holds no spec.
+3. **`files_from`** names a file of specs, resolved inside the root, read the way `--files-from FILE` reads one: blank lines and `#` comments skipped, each line a spec as written, 8 MiB a line — one parser, `internal/speclist`, for both. It is refused beside `specs`, `grep` or `ast_grep` ("two sources of specs; use one"), when empty, or when it holds no spec, as the CLI's is; and, because a server takes it from a caller rather than from its own shell, also as `-` (stdin is the protocol), outside the root, inside mrw's own state directory, when not a regular file (a FIFO is refused at once), and over 64 MiB, a list that grows past that while read included. The CLI's `--files-from` keeps its rules: its file is the invoking shell's argument.
 4. **The routing moves.** `mrw_read` no longer sends a caller to the CLI for these; the CLI's remaining read-only extras, `--context` and `--no-numbers`, are what the routing names.
 
 ## Alternatives Considered

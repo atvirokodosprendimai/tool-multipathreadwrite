@@ -2316,9 +2316,9 @@ at the boundary, and a discovered one is dropped.
   ADR-117: `mrw_read` takes `max_lines` and `stat`, and `files_from` with them, on Zy's answer to the
   refreshed gap list.**
 - **What opencode does with an argument the plugin's zod shape does not declare** (ADR-093 Out of
-  Scope). The plugin forwards only a fixed map of keys, so a model's `max_lines` never reaches mrw,
-  and whether opencode strips or refuses it first was not read. Arm by measuring whether opencode
-  strips or refuses it before the plugin's `execute` runs.
+  Scope). The plugin forwards only a fixed map of keys, so a model's undeclared key (`context`, since
+  ADR-117 declared `max_lines`) never reaches mrw, and whether opencode strips or refuses it first was
+  not read. Arm by measuring whether opencode strips or refuses it before the plugin's `execute` runs.
 - **Whether a host forwards an undeclared key, or enforces `additionalProperties: false`** (ADR-093
   Out of Scope). Nobody has captured a host's wire for a call carrying an undeclared key, Claude Code
   included. Arm by capturing one; a host that adds keys of its own to `arguments` is ADR-093 T1's

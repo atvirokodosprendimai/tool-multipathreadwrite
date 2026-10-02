@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -87,6 +88,9 @@ func TestMrwReadTakesMaxLinesStatAndFilesFrom(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(root, "empty.txt"), []byte("# only\n\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
+		if err := os.Mkdir(filepath.Join(root, "d"), 0o755); err != nil {
+			t.Fatal(err)
+		}
 		state := filepath.Join(root, "st")
 		t.Setenv("XDG_STATE_HOME", state)
 		if err := os.MkdirAll(filepath.Join(state, "mrw"), 0o755); err != nil {
@@ -96,19 +100,68 @@ func TestMrwReadTakesMaxLinesStatAndFilesFrom(t *testing.T) {
 			t.Fatal(err)
 		}
 		for name, args := range map[string]map[string]any{
-			"beside specs":  {"files_from": "empty.txt", "specs": []any{"a.txt"}},
-			"beside grep":   {"files_from": "empty.txt", "grep": "one"},
-			"empty":         {"files_from": ""},
-			"stdin":         {"files_from": "-"},
-			"outside":       {"files_from": "../list"},
-			"a link out":    {"files_from": "out.lnk"},
-			"the state dir": {"files_from": "st/mrw/list"},
-			"missing":       {"files_from": "nope.txt"},
-			"no spec":       {"files_from": "empty.txt"},
+			"beside specs":    {"files_from": "empty.txt", "specs": []any{"a.txt"}},
+			"beside grep":     {"files_from": "empty.txt", "grep": "one"},
+			"empty":           {"files_from": ""},
+			"stdin":           {"files_from": "-"},
+			"outside":         {"files_from": "../list"},
+			"a link out":      {"files_from": "out.lnk"},
+			"the state dir":   {"files_from": "st/mrw/list"},
+			"missing":         {"files_from": "nope.txt"},
+			"no spec":         {"files_from": "empty.txt"},
+			"a directory":     {"files_from": "d"},
+			"beside ast_grep": {"files_from": "empty.txt", "ast_grep": "X"},
 		} {
 			if res := call(t, root, "mrw_read", args); res["isError"] != true {
 				t.Errorf("%s: files_from was not refused: %v", name, res)
 			}
+		}
+	})
+	t.Run("a list naming one file twice licenses both ranges", func(t *testing.T) {
+		root, _ := checkout(t, "a.txt", "one\ntwo\nthree\nfour\n")
+		if err := os.WriteFile(filepath.Join(root, "list.txt"), []byte("a.txt:1\na.txt:3-4\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		acks := checkpointsIn(served0(t, call(t, root, "mrw_read", map[string]any{"files_from": "list.txt", "max_lines": 1})))
+		// Dry runs: a write that lands licenses the whole file it wrote
+		// (ADR-005), which would hide what the acks alone license.
+		dry := func(plan string) map[string]any {
+			return call(t, root, "mrw_write", map[string]any{"plan": plan, "ack": acks, "dry_run": true})
+		}
+		for _, plan := range []string{"@@ a.txt 1 replace\nONE\n", "@@ a.txt 3 replace\nTHREE\n"} {
+			if r := dry(plan); r["isError"] == true {
+				t.Errorf("%q: a line its own spec served and its ack covers was refused: %v", plan, firstText(t, r))
+			}
+		}
+		if r := dry("@@ a.txt 4 replace\nFOUR\n"); r["isError"] != true {
+			t.Errorf("a line the cap withheld was licensed: %v", r)
+		}
+	})
+	t.Run("a capped grep too large to serve answers with its index", func(t *testing.T) {
+		root := grepTree(t, 60, 400)
+		old := MaxResultChars
+		MaxResultChars = 4000
+		t.Cleanup(func() { MaxResultChars = old })
+		res := call(t, root, "mrw_read", map[string]any{"grep": "NEEDLE", "max_lines": 5})
+		if _, ok := receipt(t, res)["index"]; !ok || res["isError"] == true {
+			t.Errorf("a capped grep too large did not answer with its index: %q", served0(t, res))
+		}
+	})
+	t.Run("a stat too large names fewer specs, and a lower bound", func(t *testing.T) {
+		// Enough headers to pass the reader's 4 KiB buffer, so the read
+		// stops before it has rendered them all and states a lower bound.
+		root := grepTree(t, 300, 1)
+		var specs []any
+		for i := 0; i < 300; i++ {
+			specs = append(specs, fmt.Sprintf("document%05d.csv", i))
+		}
+		old := MaxResultChars
+		MaxResultChars = 1500
+		t.Cleanup(func() { MaxResultChars = old })
+		res := call(t, root, "mrw_read", map[string]any{"specs": specs, "stat": true})
+		txt := firstText(t, res)
+		if res["isError"] != true || !strings.Contains(txt, "send fewer specs") || strings.Contains(txt, "max_lines") || !strings.Contains(txt, "at least") {
+			t.Errorf("a stat too large: %q", txt)
 		}
 	})
 	t.Run("a capped read too large for one answer is refused, not paged past the cap", func(t *testing.T) {

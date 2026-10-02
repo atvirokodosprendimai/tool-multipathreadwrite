@@ -39,6 +39,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -264,8 +265,15 @@ func markServed(report string) (string, map[string]map[string][2]int) {
 	for _, sl := range slices {
 		marked, spans := interleave(sl.text)
 		out.WriteString(marked)
+		// Merged, not replaced: two specs naming one file — a list split into
+		// ranges, each with its own max_lines budget — are two slices, and the
+		// second must not drop the first one's checkpoints (review of #318).
 		if sl.path != "" && len(spans) > 0 {
-			byPath[filepath.Clean(sl.path)] = spans
+			p := filepath.Clean(sl.path)
+			if byPath[p] == nil {
+				byPath[p] = map[string][2]int{}
+			}
+			maps.Copy(byPath[p], spans)
 		}
 	}
 	// A slice interleave declined to mark (ADR-108: bytes that are not valid

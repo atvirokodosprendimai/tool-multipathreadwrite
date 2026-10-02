@@ -67,7 +67,6 @@ func TestAnUndeclaredArgumentIsRefusedByName(t *testing.T) {
 		{"force", "mrw_write", `{"plan":` + plan + `,"force":true}`, `{"plan":` + plan + `}`, "", []string{"force"}},
 		{"a case variant of plan", "mrw_write", `{"Plan":` + plan + `}`, `{"plan":` + plan + `}`, "", []string{"Plan"}},
 		{"context", "mrw_read", `{"specs":["a.txt"],"context":3}`, `{"specs":["a.txt"]}`, "", []string{"context"}},
-		{"context", "mrw_read", `{"specs":["a.txt"],"context":1}`, `{"specs":["a.txt"]}`, "", []string{"context"}},
 		{"no_numbers", "mrw_read", `{"specs":["a.txt"],"no_numbers":true}`, `{"specs":["a.txt"]}`, "", []string{"no_numbers"}},
 		{"_meta inside arguments", "mrw_read", `{"specs":["a.txt"],"_meta":{"progressToken":1}}`, `{"specs":["a.txt"]}`, "", []string{"_meta"}},
 		{"two undeclared keys", "mrw_write", `{"plan":` + plan + `,"then_sh":"true","force":true}`, `{"plan":` + plan + `}`, "", []string{"force", "then_sh"}},

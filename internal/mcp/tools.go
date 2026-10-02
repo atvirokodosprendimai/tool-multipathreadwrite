@@ -606,9 +606,6 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	return served, nil
 }
 
-// cappedOverflow refuses a read the caller capped or statted that is still too
-// large for one answer (ADR-117). A first page would re-read past the cap the
-// caller set, answering a question nobody asked, so it says what fits instead.
 // capWords names the cap the way this caller sent it. read.Run says a
 // withheld run was cut by "--max-lines", the CLI's flag, which a caller with no
 // shell never passed (ADR-117). Only mrw's own lines change — the "@@" and
@@ -626,6 +623,9 @@ func capWords(report string) string {
 	return strings.Join(ls, "\n")
 }
 
+// cappedOverflow refuses a read the caller capped or statted that is still too
+// large for one answer (ADR-117). A first page would re-read past the cap the
+// caller set, answering a question nobody asked, so it says what fits instead.
 // size is what went over the limit — the rendered text, or the answer as
 // encoded — and atLeast says the read stopped before it was all rendered.
 func cappedOverflow(a readArgs, cw *capped, size int, atLeast bool) string {
@@ -637,8 +637,12 @@ func cappedOverflow(a readArgs, cw *capped, size int, atLeast bool) string {
 	if atLeast {
 		about = "at least"
 	}
-	return fmt.Sprintf("this read would be %s %d characters %s, against a limit of %d; nothing was served and nothing was recorded. About %d line(s) fit in one answer: send a smaller max_lines, or fewer specs.",
-		about, size, what, cw.limit, cw.linesThatFit())
+	advice := "send fewer specs"
+	if a.MaxLines != nil {
+		advice = fmt.Sprintf("about %d line(s) fit in one answer: send a smaller max_lines, or fewer specs", cw.linesThatFit())
+	}
+	return fmt.Sprintf("this read would be %s %d characters %s, against a limit of %d; nothing was served and nothing was recorded; %s.",
+		about, size, what, cw.limit, advice)
 }
 
 // maxSpecList bounds a files_from list. It is the request line's bound
@@ -646,9 +650,11 @@ func cappedOverflow(a readArgs, cw *capped, size int, atLeast bool) string {
 const maxSpecList = 64 << 20
 
 // filesFrom reads the specs in name, a file inside the root, as
-// `--files-from FILE` reads one (ADR-117): resolved inside the root, never
-// mrw's own state (ADR-077), never a FIFO or a device, which would hold the
-// server (ADR-109), and bounded. Stdin is the protocol, so "-" is refused.
+// `--files-from FILE` reads one (ADR-117): resolved inside the root, which
+// also refuses mrw's own state (rooted.Resolve, ADR-077), never a FIFO or a
+// device, which would hold the server (ADR-109), and bounded, a list that grew
+// past the bound after it was measured included. Stdin is the protocol, so "-"
+// is refused.
 func filesFrom(root, name string) ([]string, error) {
 	label := "files_from " + name
 	switch name {
@@ -661,9 +667,6 @@ func filesFrom(root, name string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", label, err)
 	}
-	if rooted.InState(full) {
-		return nil, fmt.Errorf("%s is inside mrw's own state directory; mrw does not read its own files as input", label)
-	}
 	f, fi, err := regular.Open(full)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", label, err)
@@ -675,7 +678,12 @@ func filesFrom(root, name string) ([]string, error) {
 	if fi.Size() > maxSpecList {
 		return nil, fmt.Errorf("%s is %d bytes, over the %d a list may be", label, fi.Size(), maxSpecList)
 	}
-	return speclist.Parse(io.LimitReader(f, maxSpecList), label)
+	lr := &io.LimitedReader{R: f, N: maxSpecList + 1}
+	specs, err := speclist.Parse(lr, label)
+	if err == nil && lr.N == 0 {
+		return nil, fmt.Errorf("%s grew past the %d a list may be while it was read", label, maxSpecList)
+	}
+	return specs, err
 }
 
 // writeArgs is what mrw_write decodes its arguments into. Its json tags are the
