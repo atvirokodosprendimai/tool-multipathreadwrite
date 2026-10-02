@@ -75,6 +75,10 @@ out=$(mktemp) \
 | 4 — it is used | the Windows peer's measurement of 2026-10-02 |
 
 ## Mutation Log
+- 2026-10-02 · fd17179 · mutant killed · exit 1 · `internal/subproc/job.go` · S2: the child is assigned before it is resumed, once · acceptance-sha256:5262e1b839f96d9ec5d40e01564d70054138801522978138b885ee4d896d508e
+- 2026-10-02 · fd17179* · mutant killed · exit 1 · `internal/subproc/job.go` · S2: a child that cannot be contained is killed, not left running · acceptance-sha256:5262e1b839f96d9ec5d40e01564d70054138801522978138b885ee4d896d508e
+- 2026-10-02 · fd17179* · mutant killed · exit 1 · `internal/subproc/job.go` · S2: once assigned, a cancel terminates the job, not the child alone · acceptance-sha256:5262e1b839f96d9ec5d40e01564d70054138801522978138b885ee4d896d508e
+- 2026-10-02 · fd17179* · mutant killed · exit 1 · `internal/subproc/job.go` · S2: no BREAKAWAY_OK, which Git for Windows sh would use to leave the job · acceptance-sha256:5262e1b839f96d9ec5d40e01564d70054138801522978138b885ee4d896d508e
 
 ## Invariants
 
@@ -107,3 +111,8 @@ Stop and ask if a Windows CI shard shows a child left suspended, or the grandchi
   FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc [build failed]
   FAIL
   ```
+- 2026-10-02 · fd17179 · exit 0 · `set -o pipefail …` · acceptance-sha256:5262e1b839f96d9ec5d40e01564d70054138801522978138b885ee4d896d508e · ms:38000
+- 2026-10-02 · fd17179* · exit 0 · `set -o pipefail …` · acceptance-sha256:5262e1b839f96d9ec5d40e01564d70054138801522978138b885ee4d896d508e · ms:37817
+- 2026-10-02 · fd17179* · exit 0 · `set -o pipefail …` · acceptance-sha256:5262e1b839f96d9ec5d40e01564d70054138801522978138b885ee4d896d508e · ms:38004
+- 2026-10-02 · fd17179* · exit 0 · `set -o pipefail …` · acceptance-sha256:5262e1b839f96d9ec5d40e01564d70054138801522978138b885ee4d896d508e · ms:37669
+- 2026-10-02 · fd17179* · exit 0 · `set -o pipefail …` · acceptance-sha256:5262e1b839f96d9ec5d40e01564d70054138801522978138b885ee4d896d508e · ms:37358

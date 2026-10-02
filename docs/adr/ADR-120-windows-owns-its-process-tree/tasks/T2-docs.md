@@ -72,3 +72,8 @@ Stop and ask if a doc must promise more than the windows CI shards showed.
 
 ## Verification Log
 - 2026-10-02 · e6be523* · exit 0 · `set -o pipefail …` · acceptance-sha256:22151b30de5fdaadb6bc42333893211d6f9aca38748fdb71fc7245a1eccafbf1 · ms:93
+- 2026-10-02 · fd17179* · exit 0 · `set -o pipefail …` · acceptance-sha256:22151b30de5fdaadb6bc42333893211d6f9aca38748fdb71fc7245a1eccafbf1 · ms:34
+- 2026-10-02 · fd17179* · exit 1 · `set -o pipefail …` · acceptance-sha256:22151b30de5fdaadb6bc42333893211d6f9aca38748fdb71fc7245a1eccafbf1 · ms:31 · test-lock-sha256:deeb36e69eee92091337010c87f199c96273cf4f30607b345e4a41e96cc4ff11 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIz
+  ```
+  ```
+- 2026-10-02 · fd17179* · exit 0 · `set -o pipefail …` · acceptance-sha256:22151b30de5fdaadb6bc42333893211d6f9aca38748fdb71fc7245a1eccafbf1 · ms:39
