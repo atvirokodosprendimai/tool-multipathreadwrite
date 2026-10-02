@@ -24,7 +24,7 @@ Codex's apply_patch grammar moves and edits a file in one section — `*** Updat
 
 ## Decision
 
-1. **The engine accepts line edits plus exactly one `rename` on a file.** Unlink beside edits, and two path ops on one file, stay refused with the existing words. The rename is validated by `planPathOp` as today (the whole file read, the destination free); the line hunks are validated as any edit, against the original file.
+1. **The engine accepts line edits plus exactly one `rename` on a file.** Unlink beside edits, and two path ops on one file, stay refused with the existing words. The rename is validated by `planPathOp` as today (the whole file read, the destination free); the line hunks are validated as any edit, against the original file. A source that is a symbolic link is refused for edit plus rename: its edit goes to the file it points at and its rename moves the link, so the two would not move one file (found by the review of #314; a plain rename of a link still moves the link, as before).
 2. **It commits as the edit, then the rename.** Content commits before path ops already, so the source's edit lands through the ordinary staged rename, and the rename then moves the edited file. The rename carries the source's mode with it, as a rename does.
 3. **One record per path.** The rename rewrites the source's record in place — removed, renamed to the destination — and appends the destination's record with the edited content's sha and line count; a dry run lists the source once. If a later path op fails and the undo reverses this rename, the source's record is restored to the edit that landed, not dropped, so the receipt and the ledger say the source holds the edited content.
 4. **apply_patch compiles it.** `*** Move to:` inside an `*** Update File:` section with hunks emits the update hunks against the source and one `rename` to the destination; a section with only `Move to` emits the rename alone, as now.
@@ -74,7 +74,7 @@ See `tasks/README.md`: T1, then T2, in one pull request.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | a duplicate record for the source reaches the ledger and licenses a path that is gone | Medium | High | the record is rewritten in place; a test asserts one record per path and the ledger after |
-| a failure after the edit landed reports the source wrong | Low | Medium | the undo restores the edited record; a test injects a later rename failure |
+| a failure after the edit landed reports the source wrong | Low | Medium | the undo restores the edited record; a rename whose own file's content commit failed reads skipped, not failed; tests inject both |
 
 ## Rollback
 

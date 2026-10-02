@@ -8303,8 +8303,9 @@ sys.exit(0 if "check" not in sc and sc.get("applied") is True else 1)
 PY
 # 214. ADR-114: a file is edited and renamed in one plan. apply_patch's Update
 # File + Move to + a hunk lands the edit at the destination and removes the
-# source, exit 0, each path named once in the receipt. The pair: a hunk whose
-# old side matches nothing is refused at compile, exit 2, nothing moved.
+# source, exit 0, each path named once in the receipt. The pair, which the old
+# binary cannot pass: a move onto a destination that exists refuses the whole
+# plan, exit 1, and the source is not edited — the edit and the move are one.
 fixture
 printf 'stay\n' > "$R/m214.txt"
 m read m214.txt > /dev/null
@@ -8313,10 +8314,11 @@ out=$(m write --no-check --format=apply_patch "$R/p214.patch" 2>&1); want 0 $? "
 { [ "$(cat "$R/moved/n214.txt" 2>/dev/null)" = gone ] && [ ! -e "$R/m214.txt" ]; } && ok "and the edit is at the destination, the source gone" || bad "move+edit left: $(ls -R "$R" | head -20)"
 [ "$(grep -cE '^(removed|wrote|created) m214\.txt' <<<"$out")" = 1 ] && grep -q '^removed m214.txt .*renamed to moved/n214.txt' <<<"$out" && ok "and the receipt names the source once, renamed" || bad "receipt: $out"
 printf 'stay\n' > "$R/k214.txt"
+printf 'taken\n' > "$R/l214.txt"
 m read k214.txt > /dev/null
-printf '%s\n' '*** Begin Patch' '*** Update File: k214.txt' '*** Move to: l214.txt' '@@' '-nothere' '+gone' '*** End Patch' > "$R/q214.patch"
-m write --no-check --format=apply_patch "$R/q214.patch" > /dev/null 2>&1; want 2 $? "the pair: a move whose hunk matches nothing is refused"
-{ [ "$(cat "$R/k214.txt")" = stay ] && [ ! -e "$R/l214.txt" ]; } && ok "and nothing moved" || bad "a refused move changed the tree"
+printf '%s\n' '*** Begin Patch' '*** Update File: k214.txt' '*** Move to: l214.txt' '@@' '-stay' '+gone' '*** End Patch' > "$R/q214.patch"
+m write --no-check --format=apply_patch "$R/q214.patch" > /dev/null 2>&1; want 1 $? "the pair: a move onto a destination that exists is refused"
+{ [ "$(cat "$R/k214.txt")" = stay ] && [ "$(cat "$R/l214.txt")" = taken ]; } && ok "and the source is not edited, the destination untouched" || bad "a refused move changed the tree"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running

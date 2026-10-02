@@ -20,7 +20,9 @@ func editRenamePlan() []Input {
 func recordsFor(res Result, path string) (int, FileResult) {
 	n, last := 0, FileResult{}
 	for _, f := range res.Files {
-		if f.Path == path {
+		// The engine spells a rename destination with the OS separator, as a
+		// plain rename always has; the test names paths with /.
+		if filepath.ToSlash(f.Path) == path {
 			n++
 			last = f
 		}
@@ -59,7 +61,7 @@ func TestAFileIsEditedAndRenamedInOnePlan(t *testing.T) {
 			t.Error("a.go is still there")
 		}
 		n, src := recordsFor(res, "a.go")
-		if n != 1 || !src.Written || !src.Removed || src.RenamedTo != "m/b.go" || src.SHAAfter != "" {
+		if n != 1 || !src.Written || !src.Removed || filepath.ToSlash(src.RenamedTo) != "m/b.go" || src.SHAAfter != "" {
 			t.Errorf("a.go: %d record(s), last %+v; want one, removed, renamed to m/b.go", n, src)
 		}
 		n, dst := recordsFor(res, "m/b.go")
@@ -77,7 +79,7 @@ func TestAFileIsEditedAndRenamedInOnePlan(t *testing.T) {
 		if err != nil || res.Failed != 0 {
 			t.Fatalf("err %v %+v", err, res.Hunks)
 		}
-		if n, src := recordsFor(res, "a.go"); n != 1 || src.RenamedTo != "m/b.go" {
+		if n, src := recordsFor(res, "a.go"); n != 1 || filepath.ToSlash(src.RenamedTo) != "m/b.go" {
 			t.Errorf("a.go: %d record(s), last %+v; want one naming m/b.go", n, src)
 		}
 		if read(t, root, "a.go") != abcde || exists114(t, root, "m/b.go") {
@@ -170,6 +172,42 @@ func TestAFileIsEditedAndRenamedInOnePlan(t *testing.T) {
 		}
 		if res.Hunks[0].Status != StatusOK || res.Hunks[1].Status != StatusSkipped || res.Hunks[2].Status != StatusFailed {
 			t.Errorf("verdicts %s/%s/%s, want ok/skipped/failed", res.Hunks[0].Status, res.Hunks[1].Status, res.Hunks[2].Status)
+		}
+	})
+
+	t.Run("a link source is refused, nothing written", func(t *testing.T) {
+		root := t.TempDir()
+		write(t, root, "a.go", abcde)
+		if err := os.Symlink("a.go", filepath.Join(root, "l.go")); err != nil {
+			t.Skip("no symlinks here:", err)
+		}
+		in := []Input{
+			{Path: "l.go", Start: 2, End: 2, Op: "replace", Body: []string{"B"}, Lines: -1, SrcLine: 1, Index: 0},
+			{Path: "l.go", Op: "rename", Body: []string{"m.go"}, Lines: -1, SrcLine: 3, Index: 1},
+		}
+		res, err := Apply(root, in, Options{Seen: map[string]Seen{"l.go": {SHA: shaOfFile(t, root, "l.go")}}})
+		if err != nil || res.Applied || res.Failed == 0 || read(t, root, "a.go") != abcde || exists114(t, root, "m.go") {
+			t.Errorf("err %v applied %v %+v; want the link refused and nothing written", err, res.Applied, res.Hunks)
+		}
+	})
+
+	t.Run("a content commit that fails leaves its rename skipped, not failed", func(t *testing.T) {
+		root := t.TempDir()
+		write(t, root, "a.go", abcde)
+		real := commitRenameFn
+		t.Cleanup(func() { commitRenameFn = real })
+		commitRenameFn = func(tr *tree, from, to string) error {
+			if filepath.Base(to) == "a.go" {
+				return errors.New("commit refused")
+			}
+			return real(tr, from, to)
+		}
+		res, err := Apply(root, editRenamePlan(), whole(t, root))
+		if err == nil || read(t, root, "a.go") != abcde {
+			t.Fatalf("err %v a.go %q; want the commit refused and a.go as it was", err, read(t, root, "a.go"))
+		}
+		if res.Hunks[0].Status != StatusFailed || res.Hunks[1].Status != StatusSkipped || res.Failed != 1 {
+			t.Errorf("verdicts %s/%s failed %d, want the edit failed, the rename skipped, one failure", res.Hunks[0].Status, res.Hunks[1].Status, res.Failed)
 		}
 	})
 }

@@ -788,7 +788,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// failed is failed, and every other hunk is skipped. A hunk that is not
 	// ok describes no write, so it carries no Echo or Balance. files[] keeps
 	// the written records and lists every other addressed file unwritten.
-	commitFailed := func(path string, cause, ret error) (Result, error) {
+	commitFailed := func(path string, fromPathOps bool, cause, ret error) (Result, error) {
 		nameDirs()
 		written := map[string]bool{}
 		removed := map[string]bool{}
@@ -806,9 +806,11 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			h := &res.Hunks[i]
 			switch {
 			// ADR-114: a rename's verdict is its own, apart from the edits
-			// on the same file: the one that failed is failed, one that
-			// landed and was not undone is ok, and the rest are skipped.
-			case h.Op == "rename" && h.Path == path:
+			// on the same file: the rename that failed is failed — only when
+			// the path ops were running, since a content failure on its file
+			// means it never ran — one that landed and was not undone is ok,
+			// and the rest are skipped.
+			case h.Op == "rename" && h.Path == path && fromPathOps:
 				h.Status = StatusFailed
 				h.Reason = cause.Error()
 				res.Failed++
@@ -973,17 +975,17 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			if _, err := tr.stat(staged[i].target); err == nil {
 				discard(i)
 				err := fmt.Errorf("%s appeared before commit: another name in this plan reaches the same file, or another process created it", w.file.Path)
-				return commitFailed(w.file.Path, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
+				return commitFailed(w.file.Path, false, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
 			}
 		}
 		if why := changedSince(tr, staged[i].target, w.seen); why != "" {
 			discard(i)
 			err := fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why)
-			return commitFailed(w.file.Path, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
+			return commitFailed(w.file.Path, false, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
 		}
 		if err := commitRenameFn(tr, staged[i].tmp, staged[i].target); err != nil {
 			discard(i)
-			return commitFailed(w.file.Path, err, fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files)))
+			return commitFailed(w.file.Path, false, err, fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files)))
 		}
 		w.file.Written = true
 		if rel, err := filepath.Rel(absRoot, staged[i].target); absErr == nil && err == nil && !sameSpelling(rel, w.file.Path) {
@@ -996,7 +998,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// (ADR-066 T1) are taken back; one a completed rename still uses is
 		// not empty, and os.Remove leaves it.
 		discard(len(content))
-		return commitFailed(path, err, err)
+		return commitFailed(path, true, err, err)
 	}
 	nameDirs()
 	res.Applied = true
@@ -1178,6 +1180,14 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		edits := make([]hunk, 0, len(hs)-1)
 		for _, h := range hs {
 			if h.Op == "rename" {
+				// A link's edit goes to what it points at and its rename moves
+				// the link, so the two would not move one file: refused, rather
+				// than reported as "the edited file moves".
+				if fi, err := os.Lstat(filepath.Join(root, path)); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+					fail(h, "%s is a link: an edit goes to the file it points at and a rename moves the link itself, "+
+						"so they do not move one file — send them as two plans", path)
+					return nil, false, ""
+				}
 				if !planPathOp(root, path, full, h, orig, existed, shaBefore, unlinked, produced, destCount, covered, fail, out) {
 					return nil, false, ""
 				}

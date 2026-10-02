@@ -94,7 +94,14 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			}
 			// ADR-114: the hunks of this section, before or after this line,
 			// still compile against the source; the engine applies the edits
-			// and this rename in one plan.
+			// and this rename in one plan. A hunk open when it arrives is
+			// closed here, so the lines on either side are not joined.
+			if len(hunk) > 0 {
+				if err := flush(); err != nil {
+					return nil, err
+				}
+				hunk = []string{}
+			}
 			dest := pathAfter(line, moveTo)
 			text, err := compilePathOp("rename", path, []string{dest})
 			if err != nil {

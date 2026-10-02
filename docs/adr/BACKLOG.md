@@ -57,7 +57,7 @@ that arms work; silence leaves the row where it is.
 | Aider SEARCH/REPLACE as a second `--format` | **shipped** — ADR-051 F-26 | — (M 2026-09-12: *"commit, accepted, do work"*; `--format=search_replace`) |
 | MCP `format` on `mrw_write` | **shipped** — ADR-051 F-27 | — (M 2026-09-12: *"YES, we have to be competitive"*) |
 | `apply_patch` `*** Delete File:` / `*** Move to:` | **shipped** — ADR-057 | *"unlink op"* |
-| `apply_patch` Move to with hunks | **deferred** — ADR-057 Out of Scope | — |
+| `apply_patch` Move to with hunks | **shipped** — ADR-114 | Zy 2026-10-02: *"Engine: edit then rename"* |
 | Honour quality-harness `fenceTimeout` | **ADR-059 Accepted** — alias of `timeout_seconds`; disagreeing keys refuse | *"both"* |
 | Honour `{files}` when `packages()` cannot map | **ADR-061 Accepted** — `{files}`-only `scoped_check` runs on `.rs`; `{packages}`-only and mixed still fall back | *"so work on 054"* |
 | `mrw instructions` as effective-use; always + plan (not 3+) | **ADR-062 Accepted** — Shared() first sentence is always + plan; CLI() cookbook includes `@@ path 0 create`; handshake stays Shared, 4096 | *"accept"* then *"use it always and plan activity"* |
@@ -1865,9 +1865,8 @@ extra `@@` hunks still compile-refuse at exit 2 and leave the tree.
 
 ## From ADR-057 (native unlink / rename)
 
-- **Move to with hunks.** `*** Move to:` after `*** Update File:` with extra
-  `@@` hunks (content change plus rename) is refused this slice. Arm when a
-  caller hits it.
+- **Move to with hunks** — **Closed** by ADR-114 (the engine edits and renames a file in one plan, and apply_patch
+  compiles the section, 2026-10-02). `*** Move to:` after `*** Update File:` with extra `@@` hunks was refused.
 
 - **Teaching nits from the 2026-09-15 Zeus v1.21.0 field report.** `write --help`
   named address `-` for rename but not that the dest is the body (`to=` was

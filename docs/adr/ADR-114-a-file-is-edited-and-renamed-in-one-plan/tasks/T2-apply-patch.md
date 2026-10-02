@@ -60,6 +60,7 @@ out=$(mktemp) \
 
 ## Mutation Log
 - 2026-10-02 · e1c7646* · mutant killed · exit 1 · `internal/ingest/applypatch.go` · the rename is not emitted: the edit lands in place and nothing moves · acceptance-sha256:4993d731a69642b394fc5e459e0132353336d38a24e5c5d093986bfe962ef890
+- 2026-10-02 · 8307f87* · mutant killed · exit 1 · `internal/ingest/applypatch.go` · a Move to between hunk lines joins them · acceptance-sha256:4993d731a69642b394fc5e459e0132353336d38a24e5c5d093986bfe962ef890
 
 ## Invariants
 
@@ -89,3 +90,5 @@ Stop and ask if a locked test must change to pass.
   FAIL
   ```
 - 2026-10-02 · e1c7646* · exit 0 · `set -o pipefail …` · acceptance-sha256:4993d731a69642b394fc5e459e0132353336d38a24e5c5d093986bfe962ef890 · ms:1105
+- 2026-10-02 · 8307f87* · exit 0 · `set -o pipefail …` · acceptance-sha256:4993d731a69642b394fc5e459e0132353336d38a24e5c5d093986bfe962ef890 · ms:768
+- 2026-10-02 · 8307f87* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:4993d731a69642b394fc5e459e0132353336d38a24e5c5d093986bfe962ef890 · ms:0 · test-lock-sha256:e700d7f43f52d0f11daded415acd91693005833b809c47c733912a07e999f843 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvaW5nZXN0L21vdmUxMTRfdGVzdC5nbwlUZXN0QU1vdmVXaXRoSHVua3NDb21waWxlcwliZTdkNmYzMTQyNTBiZjllYjNjNWY2N2M2M2E4MjQ3YzM0NjUzNDNmY2ExZWRkMzZmNTI5MmVlZDNhZThhMTIx · test-lock-kind:replace

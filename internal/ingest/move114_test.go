@@ -44,4 +44,17 @@ func TestAMoveWithHunksCompiles(t *testing.T) {
 	if _, err := CompileApplyPatch(writeTree(t, map[string]string{"a.go": demo}), []byte(twice)); err == nil {
 		t.Error("two Move to lines in one section compiled")
 	}
+	between := "*** Begin Patch\n*** Update File: a.go\n@@\n-func A() int { return 1 }\n+func A() int { return 10 }\n*** Move to: b.go\n-func C() int { return 3 }\n+func C() int { return 30 }\n*** End Patch\n"
+	root := writeTree(t, map[string]string{"a.go": demo})
+	observed, _ := read.Run(io.Discard, root, []read.Spec{{Path: "a.go"}}, read.Options{})
+	planText, err := CompileApplyPatch(root, []byte(between))
+	if err != nil {
+		t.Fatalf("a Move to between hunk lines was refused: %v", err)
+	}
+	if res := applyCompiled(t, root, planText, observed); !res.Applied {
+		t.Fatalf("it did not apply: %+v\n%s", res.Hunks, planText)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "b.go")); !strings.Contains(string(got), "return 10") || !strings.Contains(string(got), "return 30") {
+		t.Errorf("the lines either side of Move to were joined: b.go = %q\n%s", got, planText)
+	}
 }

@@ -154,14 +154,16 @@ func chaosOnce(t *testing.T, seed int64) {
 	// The receipt matches the disk, one record per path.
 	count := map[string]int{}
 	for _, fr := range res.Files {
-		count[fr.Path]++
-		if count[fr.Path] > 1 {
-			t.Errorf("seed %d: %s has %d records", seed, fr.Path, count[fr.Path])
+		// Records spell paths with the OS separator; the disk map uses /.
+		p := filepath.ToSlash(fr.Path)
+		count[p]++
+		if count[p] > 1 {
+			t.Errorf("seed %d: %s has %d records", seed, p, count[p])
 		}
 		if !fr.Written {
 			continue
 		}
-		body, ok := disk[fr.Path]
+		body, ok := disk[p]
 		switch {
 		case fr.Removed && ok:
 			t.Errorf("seed %d: %s recorded removed, still on disk", seed, fr.Path)
