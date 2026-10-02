@@ -2484,3 +2484,26 @@ so the result cannot move it:
   reports" above: Blade `@endif`, HTML `</div>`, markdown fence, YAML block scalar, Ansible `when:`) — closer the
   closer cases, indent the indentation cases, and together all five.
 - A heuristic that misses its bar does not ship; the record says so with the numbers.
+- **Amended after the first measurement (Zy, 2026-10-02, "K4 closer, defer indent").** The first run (seed 119,
+  400 replaces a repository, 3,475 replaces from 16 repositories) missed the bar on both registered heuristics:
+  closer caught 2 of its 3 fixtures — the markdown fence's survivor is the fourth line after the range, which a
+  line-right-after comparison cannot reach — at 0.00% everywhere; indent caught both of its fixtures but fired on
+  19.35% of `.py`, 14.29% of extensionless, 11.89% of `.js` and 8.99% of `.php` replaces. Registered now, before
+  the second run, and chosen AFTER seeing the first run's numbers, which is why it is measured again on a fresh
+  sample rather than shipped on those: **closer** fires on a `replace` whose last non-blank body line, trimmed,
+  is a closer-shaped token (` ``` `/`~~~` fences, a run of `}` `]` `)` with trailing `;` `,` `)`, `</tag>`,
+  `@end…`, `end`, `fi`, `done`, `esac`) and equals one of the next 4 non-blank lines after the range, trimmed. The
+  bar is unchanged: under 5% in every bucket of 50 or more, and 3 of 3 closer fixtures. The second run uses seed
+  2119, 1,200 replaces a repository and 6,000 commits sampled a repository (`stress.py --seed 2119 --cap 1200
+  --max-commits 6000`), so it overlaps the first run's hunks only partly. **indent** is withdrawn (see "From
+  ADR-119").
+
+## From ADR-119 (a write says when its shape looks wrong)
+
+- **A short address that orphans lines ABOVE the body** — the field reports measured `3104-3108` written where
+  `3088-3108` was meant, leaving sixteen lines above the body; neither hint looks above the range. Arm when a
+  second such report arrives, or a cheap check for it is proposed with a measured false-positive rate.
+- **The indent hint** — withdrawn after the first measurement (above): 9–19% false positives in `.py`, `.js`,
+  `.php` and extensionless files, and the language it exists for, YAML, had 18 replaces in the corpus, under the
+  50 the bar judges. Arm when a corpus of 50 or more YAML replaces is available to measure a YAML-only indent hint
+  against the same bar, or a second field report of an indentation failure arrives.
