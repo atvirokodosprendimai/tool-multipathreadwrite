@@ -23,18 +23,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "--then-sh needs a command: a step with none would run nothing and pass"
 }
 --then-sh needs a command: a step with none would run nothing and pass
@@ -48,18 +48,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "open no-such-plan.mrw: no such file or directory — looked in the working directory <CWD>, because --root (<ROOT>) moves the paths INSIDE a plan and not the plan file itself"
 }
 open no-such-plan.mrw: no such file or directory — looked in the working directory <CWD>, because --root (<ROOT>) moves the paths INSIDE a plan and not the plan file itself
@@ -73,18 +73,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "unknown --format \"bogus\" (plan, apply_patch, or search_replace)"
 }
 unknown --format "bogus" (plan, apply_patch, or search_replace)
@@ -98,18 +98,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=1 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "<PLAN>: plan has 1 error(s):\n  line 1: text before the first @@ header: \"not a plan\""
 }
 <PLAN>: plan has 1 error(s):
@@ -125,18 +125,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=1 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "<PLAN>: apply_patch: missing *** Begin Patch"
 }
 <PLAN>: apply_patch: missing *** Begin Patch
@@ -150,18 +150,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=1 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "<PLAN>: search_replace: no hunks"
 }
 <PLAN>: search_replace: no hunks
@@ -175,18 +175,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=1 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "<PLAN>: line 1: body=@nope.txt: stat <ROOT>/nope.txt: no such file or directory"
 }
 <PLAN>: line 1: body=@nope.txt: stat <ROOT>/nope.txt: no such file or directory
@@ -200,18 +200,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "<PLAN> line 1: @1: the working set has 0 entr(ies)"
 }
 <PLAN> line 1: @1: the working set has 0 entr(ies)
@@ -225,18 +225,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "<PLAN> line 1: \"\\xff.go\" is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it"
 }
 <PLAN> line 1: "\xff.go" is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it
@@ -245,18 +245,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": ".quality-harness.json: unexpected end of JSON input: nothing was written"
 }
 .quality-harness.json: unexpected end of JSON input: nothing was written
@@ -270,18 +270,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "--then nosuch: .quality-harness.json \"steps\" has no such step (none are declared): nothing was written"
 }
 --then nosuch: .quality-harness.json "steps" has no such step (none are declared): nothing was written
@@ -295,18 +295,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "a check is refused 8 deep (MRW_STEP_DEPTH=8): a check or step that runs mrw again would recurse without end; --no-check writes without it: nothing was written"
 }
 a check is refused 8 deep (MRW_STEP_DEPTH=8): a check or step that runs mrw again would recurse without end; --no-check writes without it: nothing was written
@@ -320,18 +320,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "open <STATE>/mrw/<KEY>/seen: permission denied"
 }
 open <STATE>/mrw/<KEY>/seen: permission denied
@@ -345,35 +345,35 @@ exit 1
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
   "files": [
     {
-      "path": "a.go",
-      "written": false,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": false
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "lines_before": 2
       "lines_after": 0
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "failed",
-      "reason": "a.go has not been read: mrw does not know what it currently holds, and a line address means nothing without that. Run `mrw read a.go` first, or pass --force",
-      "removed": 0,
-      "added": 0,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "failed"
+      "reason": "a.go has not been read: mrw does not know what it currently holds, and a line address means nothing without that. Run `mrw read a.go` first, or pass --force"
+      "removed": 0
+      "added": 0
       "plan_line": 1
     }
-  ],
-  "failed": 1,
-  "advisories": 0,
+  ]
+  "failed": 1
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
   }
 }
@@ -390,35 +390,35 @@ exit 1
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": true,
-  "applied": false,
+  "root": "<ROOT>"
+  "dry_run": true
+  "applied": false
   "files": [
     {
-      "path": "a.go",
-      "written": false,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": false
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "lines_before": 2
       "lines_after": 0
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "failed",
-      "reason": "a.go has not been read: mrw does not know what it currently holds, and a line address means nothing without that. Run `mrw read a.go` first, or pass --force",
-      "removed": 0,
-      "added": 0,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "failed"
+      "reason": "a.go has not been read: mrw does not know what it currently holds, and a line address means nothing without that. Run `mrw read a.go` first, or pass --force"
+      "removed": 0
+      "added": 0
       "plan_line": 1
     }
-  ],
-  "failed": 1,
-  "advisories": 0,
+  ]
+  "failed": 1
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
   }
 }
@@ -436,18 +436,18 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
-  "files": [],
-  "hunks": [],
-  "failed": 0,
-  "advisories": 0,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
+  "files": []
+  "hunks": []
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
-  },
+  }
   "error": "d: read <ROOT>/d: is a directory"
 }
 d: read <ROOT>/d: is a directory
@@ -461,54 +461,54 @@ exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=1 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "7b39baa38a2ec2b8d111bbbd8e448e80226477ab40105d9d2123d4dc18067438",
-      "sha_after": "983aab874348ab0e62d9fa51e0719b12f570234284c1f21c740bb6d3ca7cf11d",
-      "lines_before": 1,
+      "path": "a.go"
+      "written": true
+      "sha_before": "7b39baa38a2ec2b8d111bbbd8e448e80226477ab40105d9d2123d4dc18067438"
+      "sha_after": "983aab874348ab0e62d9fa51e0719b12f570234284c1f21c740bb6d3ca7cf11d"
+      "lines_before": 1
       "lines_after": 1
-    },
+    }
     {
-      "path": "d/x.txt",
-      "written": false,
-      "sha_before": "73cb3858a687a8494ca3323053016282f3dad39d42cf62ca4e79dda2aac7d9ac",
-      "lines_before": 1,
+      "path": "d/x.txt"
+      "written": false
+      "sha_before": "73cb3858a687a8494ca3323053016282f3dad39d42cf62ca4e79dda2aac7d9ac"
+      "lines_before": 1
       "lines_after": 0
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "1",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "1"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
-    },
+    }
     {
-      "path": "d/x.txt",
-      "addr": "-",
-      "op": "unlink",
-      "status": "failed",
-      "reason": "d/x.txt: openat d/.mrw-aside-<X>: permission denied (ALREADY WRITTEN: a.go)",
-      "removed": 0,
-      "added": 0,
+      "path": "d/x.txt"
+      "addr": "-"
+      "op": "unlink"
+      "status": "failed"
+      "reason": "d/x.txt: openat d/.mrw-aside-<X>: permission denied (ALREADY WRITTEN: a.go)"
+      "removed": 0
+      "added": 0
       "plan_line": 3
     }
-  ],
-  "failed": 1,
-  "advisories": 0,
+  ]
+  "failed": 1
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
-  },
+  }
   "error": "d/x.txt: openat d/.mrw-aside-<X>: permission denied (ALREADY WRITTEN: a.go)"
 }
 d/x.txt: openat d/.mrw-aside-<X>: permission denied (ALREADY WRITTEN: a.go)
@@ -526,37 +526,37 @@ exit 2
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
-  },
+  }
   "error": "write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied"
 }
 write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
@@ -573,37 +573,37 @@ exit 2
 counts applied=0 check_not_run=1 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
-  },
+  }
   "error": "write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied"
 }
 write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
@@ -620,48 +620,48 @@ exit 2
 counts applied=0 check_not_run=1 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
-  },
-  "error": "write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied",
+  }
+  "error": "write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied"
   "then": {
     "steps": [
       {
-        "command": "exit 0",
-        "adhoc": true,
-        "status": "not_run",
-        "ran": false,
+        "command": "exit 0"
+        "adhoc": true
+        "status": "not_run"
+        "ran": false
         "exit_code": -1
       }
-    ],
+    ]
     "pruned_logs": 0
   }
 }
@@ -680,35 +680,35 @@ exit 0
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": true,
-  "applied": false,
+  "root": "<ROOT>"
+  "dry_run": true
+  "applied": false
   "files": [
     {
-      "path": "a.go",
-      "written": false,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": false
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
   }
 }
@@ -726,35 +726,35 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "notes.md",
-      "written": true,
-      "sha_before": "9b59fb3d9aa14f629f10689663d0a7debb079a43fe874259909a4c5d55226616",
-      "sha_after": "4ab07b28bfb46be8669494205131e88a80f57b8286c3da01200a00f94f4f0b9d",
-      "lines_before": 2,
+      "path": "notes.md"
+      "written": true
+      "sha_before": "9b59fb3d9aa14f629f10689663d0a7debb079a43fe874259909a4c5d55226616"
+      "sha_after": "4ab07b28bfb46be8669494205131e88a80f57b8286c3da01200a00f94f4f0b9d"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "notes.md",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "notes.md"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
   }
 }
@@ -772,35 +772,35 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
   }
 }
@@ -818,35 +818,35 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
   }
 }
@@ -864,42 +864,41 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "exit 0",
-    "exit_code": 0,
-    "duration_ms": 0
-  },
+    "ran": true
+    "declared": true
+    "command": "exit 0"
+    "exit_code": 0
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
   }
 }
@@ -919,46 +918,45 @@ exit 3
 counts applied=0 check_not_run=0 failed_check=1 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "echo boom; exit 3",
-    "exit_code": 3,
-    "duration_ms": 0,
-    "output_file": "<TMP>/<LOG>",
+    "ran": true
+    "declared": true
+    "command": "echo boom; exit 3"
+    "exit_code": 3
+    "output_file": "<TMP>/<LOG>"
     "tail": [
       "boom"
     ]
-  },
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
   }
 }
@@ -980,42 +978,41 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "notes.md",
-      "written": true,
-      "sha_before": "9b59fb3d9aa14f629f10689663d0a7debb079a43fe874259909a4c5d55226616",
-      "sha_after": "4ab07b28bfb46be8669494205131e88a80f57b8286c3da01200a00f94f4f0b9d",
-      "lines_before": 2,
+      "path": "notes.md"
+      "written": true
+      "sha_before": "9b59fb3d9aa14f629f10689663d0a7debb079a43fe874259909a4c5d55226616"
+      "sha_after": "4ab07b28bfb46be8669494205131e88a80f57b8286c3da01200a00f94f4f0b9d"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "notes.md",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "notes.md"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "exit 0",
-    "exit_code": 0,
-    "duration_ms": 0
-  },
+    "ran": true
+    "declared": true
+    "command": "exit 0"
+    "exit_code": 0
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
   }
 }
@@ -1035,41 +1032,41 @@ exit 2
 counts applied=0 check_not_run=1 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "notes.md",
-      "written": true,
-      "sha_before": "9b59fb3d9aa14f629f10689663d0a7debb079a43fe874259909a4c5d55226616",
-      "sha_after": "4ab07b28bfb46be8669494205131e88a80f57b8286c3da01200a00f94f4f0b9d",
-      "lines_before": 2,
+      "path": "notes.md"
+      "written": true
+      "sha_before": "9b59fb3d9aa14f629f10689663d0a7debb079a43fe874259909a4c5d55226616"
+      "sha_after": "4ab07b28bfb46be8669494205131e88a80f57b8286c3da01200a00f94f4f0b9d"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "notes.md",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "notes.md"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": false,
-    "declared": false,
-    "skipped": "no check declared and no go.mod found",
+    "ran": false
+    "declared": false
+    "skipped": "no check declared and no go.mod found"
     "exit_code": -1
-  },
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
   }
 }
@@ -1088,37 +1085,37 @@ exit 2
 counts applied=0 check_not_run=1 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
-  },
+  }
   "error": "open <TMP>/missing/<LOG>: no such file or directory"
 }
 open <TMP>/missing/<LOG>: no such file or directory
@@ -1135,42 +1132,42 @@ exit 2
 counts applied=0 check_not_run=1 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": false,
-    "declared": true,
-    "skipped": "could not start: exec: \"sh\": executable file not found in $PATH — no sh on PATH",
-    "command": "exit 0",
+    "ran": false
+    "declared": true
+    "skipped": "could not start: exec: \"sh\": executable file not found in $PATH — no sh on PATH"
+    "command": "exit 0"
     "exit_code": -1
-  },
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
   }
 }
@@ -1189,44 +1186,43 @@ exit 3
 counts applied=0 check_not_run=0 failed_check=1 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": true,
-    "skipped": "timed out after 1s",
-    "command": "sleep 5",
-    "exit_code": -1,
-    "duration_ms": 0,
+    "ran": true
+    "declared": true
+    "skipped": "timed out after 1s"
+    "command": "sleep 5"
+    "exit_code": -1
     "output_file": "<TMP>/<LOG>"
-  },
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
   }
 }
@@ -1246,45 +1242,44 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": false,
-    "command": "go test .",
-    "exit_code": 0,
-    "duration_ms": 0,
+    "ran": true
+    "declared": false
+    "command": "go test ."
+    "exit_code": 0
     "tail": [
       "?   \ta\t[no test files]"
     ]
-  },
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
   }
 }
@@ -1305,45 +1300,44 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "lines_before": 2,
-      "lines_after": 0,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "lines_before": 2
+      "lines_after": 0
       "removed": true
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "-",
-      "op": "unlink",
-      "status": "ok",
-      "removed": 0,
-      "added": 0,
+      "path": "a.go"
+      "addr": "-"
+      "op": "unlink"
+      "status": "ok"
+      "removed": 0
+      "added": 0
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "echo scoped .",
-    "exit_code": 0,
-    "duration_ms": 0,
+    "ran": true
+    "declared": true
+    "command": "echo scoped ."
+    "exit_code": 0
     "tail": [
       "scoped ."
     ]
-  },
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
   }
 }
@@ -1364,54 +1358,53 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "lines_before": 2,
-      "lines_after": 0,
-      "removed": true,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "lines_before": 2
+      "lines_after": 0
+      "removed": true
       "renamed_to": "b.txt"
-    },
+    }
     {
-      "path": "b.txt",
-      "created": true,
-      "written": true,
-      "sha_after": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "lines_before": 0,
+      "path": "b.txt"
+      "created": true
+      "written": true
+      "sha_after": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "lines_before": 0
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "-",
-      "op": "rename",
-      "status": "ok",
-      "removed": 0,
-      "added": 0,
+      "path": "a.go"
+      "addr": "-"
+      "op": "rename"
+      "status": "ok"
+      "removed": 0
+      "added": 0
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "echo scoped . b.txt",
-    "exit_code": 0,
-    "duration_ms": 0,
+    "ran": true
+    "declared": true
+    "command": "echo scoped . b.txt"
+    "exit_code": 0
     "tail": [
       "scoped . b.txt"
     ]
-  },
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
   }
 }
@@ -1433,44 +1426,43 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "printf x \u003e\u003e a.go",
-    "exit_code": 0,
-    "duration_ms": 0
-  },
+    "ran": true
+    "declared": true
+    "command": "printf x \u003e\u003e a.go"
+    "exit_code": 0
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
-  },
+  }
   "drift": [
     "a.go"
   ]
@@ -1492,58 +1484,56 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "exit 0",
-    "exit_code": 0,
-    "duration_ms": 0
-  },
+    "ran": true
+    "declared": true
+    "command": "exit 0"
+    "exit_code": 0
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
-  },
+  }
   "then": {
     "steps": [
       {
-        "command": "echo fine",
-        "adhoc": true,
-        "status": "pass",
-        "ran": true,
-        "exit_code": 0,
-        "duration_ms": 0,
+        "command": "echo fine"
+        "adhoc": true
+        "status": "pass"
+        "ran": true
+        "exit_code": 0
         "tail": [
           "fine"
         ]
       }
-    ],
+    ]
     "pruned_logs": 0
   }
 }
@@ -1565,59 +1555,57 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "exit 0",
-    "exit_code": 0,
-    "duration_ms": 0
-  },
+    "ran": true
+    "declared": true
+    "command": "exit 0"
+    "exit_code": 0
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
-  },
+  }
   "then": {
     "steps": [
       {
-        "name": "vet",
-        "command": "echo vetted",
-        "adhoc": false,
-        "status": "pass",
-        "ran": true,
-        "exit_code": 0,
-        "duration_ms": 0,
+        "name": "vet"
+        "command": "echo vetted"
+        "adhoc": false
+        "status": "pass"
+        "ran": true
+        "exit_code": 0
         "tail": [
           "vetted"
         ]
       }
-    ],
+    ]
     "pruned_logs": 0
   }
 }
@@ -1639,63 +1627,61 @@ exit 3
 counts applied=0 check_not_run=0 failed_check=1 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "exit 0",
-    "exit_code": 0,
-    "duration_ms": 0
-  },
+    "ran": true
+    "declared": true
+    "command": "exit 0"
+    "exit_code": 0
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
-  },
+  }
   "then": {
     "steps": [
       {
-        "command": "exit 4",
-        "adhoc": true,
-        "status": "fail",
-        "ran": true,
-        "exit_code": 4,
-        "duration_ms": 0,
+        "command": "exit 4"
+        "adhoc": true
+        "status": "fail"
+        "ran": true
+        "exit_code": 4
         "output_file": "<TMP>/<LOG>"
-      },
+      }
       {
-        "command": "echo never",
-        "adhoc": true,
-        "status": "not_run",
-        "ran": false,
+        "command": "echo never"
+        "adhoc": true
+        "status": "not_run"
+        "ran": false
         "exit_code": -1
       }
-    ],
+    ]
     "pruned_logs": 0
   }
 }
@@ -1718,57 +1704,55 @@ exit 3
 counts applied=0 check_not_run=0 failed_check=1 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "exit 0",
-    "exit_code": 0,
-    "duration_ms": 0
-  },
+    "ran": true
+    "declared": true
+    "command": "exit 0"
+    "exit_code": 0
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
-  },
+  }
   "then": {
     "steps": [
       {
-        "command": "sleep 5",
-        "adhoc": true,
-        "status": "timed_out",
-        "ran": true,
-        "exit_code": -1,
-        "duration_ms": 0,
-        "output_file": "<TMP>/<LOG>",
+        "command": "sleep 5"
+        "adhoc": true
+        "status": "timed_out"
+        "ran": true
+        "exit_code": -1
+        "output_file": "<TMP>/<LOG>"
         "skipped": "timed out after 1s"
       }
-    ],
+    ]
     "pruned_logs": 0
   }
 }
@@ -1790,55 +1774,54 @@ exit 3
 counts applied=0 check_not_run=0 failed_check=1 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "86ab99a1d74ecb52932a081e843518a092ae596671539bb9a6eb46a493771e9c"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "exit 3",
-    "exit_code": 3,
-    "duration_ms": 0,
+    "ran": true
+    "declared": true
+    "command": "exit 3"
+    "exit_code": 3
     "output_file": "<TMP>/<LOG>"
-  },
+  }
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
-  },
+  }
   "then": {
     "steps": [
       {
-        "command": "exit 0",
-        "adhoc": true,
-        "status": "not_run",
-        "ran": false,
+        "command": "exit 0"
+        "adhoc": true
+        "status": "not_run"
+        "ran": false
         "exit_code": -1
       }
-    ],
+    ]
     "pruned_logs": 0
   }
 }
@@ -1859,48 +1842,48 @@ exit 2
 counts applied=0 check_not_run=1 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "notes.md",
-      "written": true,
-      "sha_before": "9b59fb3d9aa14f629f10689663d0a7debb079a43fe874259909a4c5d55226616",
-      "sha_after": "4ab07b28bfb46be8669494205131e88a80f57b8286c3da01200a00f94f4f0b9d",
-      "lines_before": 2,
+      "path": "notes.md"
+      "written": true
+      "sha_before": "9b59fb3d9aa14f629f10689663d0a7debb079a43fe874259909a4c5d55226616"
+      "sha_after": "4ab07b28bfb46be8669494205131e88a80f57b8286c3da01200a00f94f4f0b9d"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "notes.md",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
+      "path": "notes.md"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
       "plan_line": 1
     }
-  ],
-  "failed": 0,
-  "advisories": 0,
+  ]
+  "failed": 0
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 1,
+    "advisory_writes": 0
+    "window": 1
     "fires": false
-  },
+  }
   "then": {
     "steps": [
       {
-        "command": "true",
-        "adhoc": true,
-        "status": "could_not_start",
-        "ran": false,
-        "exit_code": -1,
+        "command": "true"
+        "adhoc": true
+        "status": "could_not_start"
+        "ran": false
+        "exit_code": -1
         "skipped": "could not start: exec: \"sh\": executable file not found in $PATH — no sh on PATH"
       }
-    ],
+    ]
     "pruned_logs": 0
   }
 }
@@ -1919,43 +1902,42 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "8916c0d3505573a95675913f3cd482f2a07a4d47ce581e9c087ec0700f7c1f15",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "8916c0d3505573a95675913f3cd482f2a07a4d47ce581e9c087ec0700f7c1f15"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
-      "plan_line": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
+      "plan_line": 1
       "balance": "{ +0 → +1"
     }
-  ],
-  "failed": 0,
-  "advisories": 1,
+  ]
+  "failed": 0
+  "advisories": 1
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "exit 0",
-    "exit_code": 0,
-    "duration_ms": 0
-  },
+    "ran": true
+    "declared": true
+    "command": "exit 0"
+    "exit_code": 0
+  }
   "pattern": {
-    "advisory_writes": 1,
-    "window": 1,
+    "advisory_writes": 1
+    "window": 1
     "fires": false
   }
 }
@@ -1976,35 +1958,35 @@ exit 1
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": false,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": false
   "files": [
     {
-      "path": "b.go",
-      "written": false,
-      "sha_before": "a2e943ce0ee569e59570c19351d4da3b3d417cbfbbf37c15c3dbfbb01124b163",
-      "lines_before": 3,
+      "path": "b.go"
+      "written": false
+      "sha_before": "a2e943ce0ee569e59570c19351d4da3b3d417cbfbbf37c15c3dbfbb01124b163"
+      "lines_before": 3
       "lines_after": 0
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "b.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "failed",
-      "reason": "replace of 2 under --strict-balance: { +1 → +0 — the replaced line's delimiters do not balance and the body does not match them (the wrap-tail shape); drop the flag for this plan if the brace is inside a string",
-      "removed": 0,
-      "added": 0,
+      "path": "b.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "failed"
+      "reason": "replace of 2 under --strict-balance: { +1 → +0 — the replaced line's delimiters do not balance and the body does not match them (the wrap-tail shape); drop the flag for this plan if the brace is inside a string"
+      "removed": 0
+      "added": 0
       "plan_line": 1
     }
-  ],
-  "failed": 1,
-  "advisories": 0,
+  ]
+  "failed": 1
+  "advisories": 0
   "pattern": {
-    "advisory_writes": 0,
-    "window": 0,
+    "advisory_writes": 0
+    "window": 0
     "fires": false
   }
 }
@@ -2021,43 +2003,42 @@ exit 0
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=1 strict_would_refuse_broke=0 strict_would_refuse_held=1 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "b.go",
-      "written": true,
-      "sha_before": "a2e943ce0ee569e59570c19351d4da3b3d417cbfbbf37c15c3dbfbb01124b163",
-      "sha_after": "2a35510af602003ad934fa37529deff963056206e2e1bf2bd183e2c8db4c40d3",
-      "lines_before": 3,
+      "path": "b.go"
+      "written": true
+      "sha_before": "a2e943ce0ee569e59570c19351d4da3b3d417cbfbbf37c15c3dbfbb01124b163"
+      "sha_after": "2a35510af602003ad934fa37529deff963056206e2e1bf2bd183e2c8db4c40d3"
+      "lines_before": 3
       "lines_after": 3
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "b.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
-      "plan_line": 1,
+      "path": "b.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
+      "plan_line": 1
       "balance": "{ +1 → +0"
     }
-  ],
-  "failed": 0,
-  "advisories": 1,
+  ]
+  "failed": 0
+  "advisories": 1
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "exit 0",
-    "exit_code": 0,
-    "duration_ms": 0
-  },
+    "ran": true
+    "declared": true
+    "command": "exit 0"
+    "exit_code": 0
+  }
   "pattern": {
-    "advisory_writes": 1,
-    "window": 1,
+    "advisory_writes": 1
+    "window": 1
     "fires": false
   }
 }
@@ -2078,44 +2059,43 @@ exit 3
 counts applied=0 check_not_run=0 failed_check=1 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
 pricing strict_candidates=1 strict_would_refuse=1 strict_would_refuse_broke=1 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "b.go",
-      "written": true,
-      "sha_before": "a2e943ce0ee569e59570c19351d4da3b3d417cbfbbf37c15c3dbfbb01124b163",
-      "sha_after": "2a35510af602003ad934fa37529deff963056206e2e1bf2bd183e2c8db4c40d3",
-      "lines_before": 3,
+      "path": "b.go"
+      "written": true
+      "sha_before": "a2e943ce0ee569e59570c19351d4da3b3d417cbfbbf37c15c3dbfbb01124b163"
+      "sha_after": "2a35510af602003ad934fa37529deff963056206e2e1bf2bd183e2c8db4c40d3"
+      "lines_before": 3
       "lines_after": 3
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "b.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
-      "plan_line": 1,
+      "path": "b.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
+      "plan_line": 1
       "balance": "{ +1 → +0"
     }
-  ],
-  "failed": 0,
-  "advisories": 1,
+  ]
+  "failed": 0
+  "advisories": 1
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "exit 3",
-    "exit_code": 3,
-    "duration_ms": 0,
+    "ran": true
+    "declared": true
+    "command": "exit 3"
+    "exit_code": 3
     "output_file": "<TMP>/<LOG>"
-  },
+  }
   "pattern": {
-    "advisory_writes": 1,
-    "window": 1,
+    "advisory_writes": 1
+    "window": 1
     "fires": false
   }
 }
@@ -2136,43 +2116,42 @@ exit 0
 counts applied=3 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 3
 pricing strict_candidates=3 strict_would_refuse=1 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=1
 {
-  "root": "<ROOT>",
-  "dry_run": false,
-  "applied": true,
+  "root": "<ROOT>"
+  "dry_run": false
+  "applied": true
   "files": [
     {
-      "path": "a.go",
-      "written": true,
-      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d",
-      "sha_after": "8916c0d3505573a95675913f3cd482f2a07a4d47ce581e9c087ec0700f7c1f15",
-      "lines_before": 2,
+      "path": "a.go"
+      "written": true
+      "sha_before": "dfd5090af6d062648be2bf0eac2d20644241ae2e07418ba30e453ab7a46f393d"
+      "sha_after": "8916c0d3505573a95675913f3cd482f2a07a4d47ce581e9c087ec0700f7c1f15"
+      "lines_before": 2
       "lines_after": 2
     }
-  ],
+  ]
   "hunks": [
     {
-      "path": "a.go",
-      "addr": "2",
-      "op": "replace",
-      "status": "ok",
-      "removed": 1,
-      "added": 1,
-      "plan_line": 1,
+      "path": "a.go"
+      "addr": "2"
+      "op": "replace"
+      "status": "ok"
+      "removed": 1
+      "added": 1
+      "plan_line": 1
       "balance": "{ +0 → +1"
     }
-  ],
-  "failed": 0,
-  "advisories": 1,
+  ]
+  "failed": 0
+  "advisories": 1
   "check": {
-    "ran": true,
-    "declared": true,
-    "command": "exit 0",
-    "exit_code": 0,
-    "duration_ms": 0
-  },
+    "ran": true
+    "declared": true
+    "command": "exit 0"
+    "exit_code": 0
+  }
   "pattern": {
-    "advisory_writes": 3,
-    "window": 3,
+    "advisory_writes": 3
+    "window": 3
     "fires": true
   }
 }

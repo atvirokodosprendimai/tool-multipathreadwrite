@@ -301,7 +301,10 @@ func sortedCounts(m map[string]int) string {
 }
 
 var (
-	durationJSON  = regexp.MustCompile(`"duration_ms": [0-9]+`)
+	// duration_ms is omitempty, so a check that takes 0 ms — common on a fast
+	// Linux runner — has none, and the comma before it moves: both are dropped.
+	durationJSON  = regexp.MustCompile(`(?m)^\s*"duration_ms": [0-9]+,?\n`)
+	trailComma    = regexp.MustCompile(`(?m),$`)
 	durationHuman = regexp.MustCompile(`[0-9]+(\.[0-9]+)?(ms|s)\b`)
 	checkLog      = regexp.MustCompile(`mrw-(check|step)-[0-9]+\.log`)
 	pidNote       = regexp.MustCompile(`pid [0-9]+`)
@@ -325,7 +328,8 @@ func normalizeOutcome(out, root, state, tmp, plan, cwd string) string {
 		}
 		out = strings.ReplaceAll(out, p.from, p.to)
 	}
-	out = durationJSON.ReplaceAllString(out, `"duration_ms": 0`)
+	out = durationJSON.ReplaceAllString(out, "")
+	out = trailComma.ReplaceAllString(out, "")
 	out = checkLog.ReplaceAllString(out, "<LOG>")
 	out = normalizeDurations(out)
 	out = asideName.ReplaceAllString(out, ".mrw-aside-<X>")
