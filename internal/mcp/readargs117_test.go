@@ -82,8 +82,13 @@ func TestMrwReadTakesMaxLinesStatAndFilesFrom(t *testing.T) {
 		if err := os.WriteFile(outside, []byte("a.txt\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
+		// Creating a symlink needs a privilege a Windows desktop without
+		// Developer Mode lacks (a peer's run, 2026-10-02): drop that one row
+		// rather than the whole subtest, whose other refusals hold anywhere.
+		linked := true
 		if err := os.Symlink(outside, filepath.Join(root, "out.lnk")); err != nil {
-			t.Fatal(err)
+			t.Logf("symlinks unavailable, the link row is not run: %v", err)
+			linked = false
 		}
 		if err := os.WriteFile(filepath.Join(root, "empty.txt"), []byte("# only\n\n"), 0o644); err != nil {
 			t.Fatal(err)
@@ -99,7 +104,7 @@ func TestMrwReadTakesMaxLinesStatAndFilesFrom(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(state, "mrw", "list"), []byte("a.txt\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		for name, args := range map[string]map[string]any{
+		cases := map[string]map[string]any{
 			"beside specs":    {"files_from": "empty.txt", "specs": []any{"a.txt"}},
 			"beside grep":     {"files_from": "empty.txt", "grep": "one"},
 			"empty":           {"files_from": ""},
@@ -111,7 +116,11 @@ func TestMrwReadTakesMaxLinesStatAndFilesFrom(t *testing.T) {
 			"no spec":         {"files_from": "empty.txt"},
 			"a directory":     {"files_from": "d"},
 			"beside ast_grep": {"files_from": "empty.txt", "ast_grep": "X"},
-		} {
+		}
+		if !linked {
+			delete(cases, "a link out")
+		}
+		for name, args := range cases {
 			if res := call(t, root, "mrw_read", args); res["isError"] != true {
 				t.Errorf("%s: files_from was not refused: %v", name, res)
 			}
