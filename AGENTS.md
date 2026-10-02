@@ -153,8 +153,8 @@ on unix, sent SIGTERM at 2 s and killed by 3 s if it ignores it; on Windows it i
 one spec per matching file, no content — which you send back as `specs` to read
 the ones you want. Like a grep index, an ast_grep index pages with `after`: send
 the same finder again with `after` set to `next_index`, until it is empty.
-`--files-from` has no MCP equivalent and does not need one:
-it exists to undo shell word-splitting, and `specs` is already a list.
+`--files-from FILE` maps onto `files_from`, a file inside the root (`-` is refused: stdin carries the
+protocol); `--max-lines` onto `max_lines` and `--stat` onto `stat`, each licensing only what it served (ADR-117).
 
 ### 1. Read many ranges in one call, and let the read do the finding
 

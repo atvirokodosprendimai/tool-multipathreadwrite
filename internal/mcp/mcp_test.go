@@ -509,7 +509,7 @@ func TestTheSurfaceSaysTheCLIIsRicher(t *testing.T) {
 	// asserts the other direction; adding --grep back here would pass while
 	// the wire told callers to leave a surface that now has it.
 	named := map[string][]string{
-		"read":  {"--files-from"},
+		"read":  {"--context"},
 		"write": {"--check"},
 	}
 	var allFlags []string

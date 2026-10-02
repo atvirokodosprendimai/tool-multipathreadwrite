@@ -67,8 +67,8 @@ func TestAnUndeclaredArgumentIsRefusedByName(t *testing.T) {
 		{"force", "mrw_write", `{"plan":` + plan + `,"force":true}`, `{"plan":` + plan + `}`, "", []string{"force"}},
 		{"a case variant of plan", "mrw_write", `{"Plan":` + plan + `}`, `{"plan":` + plan + `}`, "", []string{"Plan"}},
 		{"context", "mrw_read", `{"specs":["a.txt"],"context":3}`, `{"specs":["a.txt"]}`, "", []string{"context"}},
-		{"max_lines", "mrw_read", `{"specs":["a.txt"],"max_lines":1}`, `{"specs":["a.txt"]}`, "", []string{"max_lines"}},
-		{"stat", "mrw_read", `{"specs":["a.txt"],"stat":true}`, `{"specs":["a.txt"]}`, "", []string{"stat"}},
+		{"context", "mrw_read", `{"specs":["a.txt"],"context":1}`, `{"specs":["a.txt"]}`, "", []string{"context"}},
+		{"no_numbers", "mrw_read", `{"specs":["a.txt"],"no_numbers":true}`, `{"specs":["a.txt"]}`, "", []string{"no_numbers"}},
 		{"_meta inside arguments", "mrw_read", `{"specs":["a.txt"],"_meta":{"progressToken":1}}`, `{"specs":["a.txt"]}`, "", []string{"_meta"}},
 		{"two undeclared keys", "mrw_write", `{"plan":` + plan + `,"then_sh":"true","force":true}`, `{"plan":` + plan + `}`, "", []string{"force", "then_sh"}},
 		{"the modern era", "mrw_write", `{"plan":` + plan + `,"no_check":true}`, `{"plan":` + plan + `}`, modernMeta, []string{"no_check"}},
@@ -153,7 +153,7 @@ func TestARefusedUndeclaredArgumentPromotesNoAck(t *testing.T) {
 	}
 	// c.txt, not a.txt: were this read served, a fresh serve of a.txt would
 	// not be what licenses the write below; only the ack can.
-	if res := call(t, root, "mrw_read", map[string]any{"specs": []any{"c.txt"}, "ack": acks, "max_lines": 1}); res["isError"] != true {
+	if res := call(t, root, "mrw_read", map[string]any{"specs": []any{"c.txt"}, "ack": acks, "context": 1}); res["isError"] != true {
 		t.Errorf("a read with an undeclared key was not refused: %v", res)
 	}
 	read := func() string {
@@ -183,7 +183,7 @@ func TestTheRefusalRoutesOnlyToFlagsTheCLIHas(t *testing.T) {
 		tool, sub string
 		args      map[string]any
 	}{
-		{"mrw_read", "read", map[string]any{"specs": []any{"a.txt"}, "max_lines": 1}},
+		{"mrw_read", "read", map[string]any{"specs": []any{"a.txt"}, "context": 1}},
 		// `then_sh` alone (ADR-115 declared `then`), so `check` in the text comes from the routing.
 		{"mrw_write", "write", map[string]any{"plan": "@@ b.txt 0 create\nX\n", "then_sh": "true"}},
 	} {

@@ -47,6 +47,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/speclist"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
@@ -2537,32 +2538,7 @@ func specList(name string) ([]string, error) {
 		defer func() { _ = f.Close() }()
 		r = f
 	}
-	var out []string
-	sc := bufio.NewScanner(r)
-	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
-	n := 0
-	for sc.Scan() {
-		n++
-		// The trim only recognises a blank line or a comment; the spec is the
-		// line as written, so a path with edge spaces reaches mrw (ADR-069).
-		line := sc.Text()
-		if t := strings.TrimSpace(line); t == "" || strings.HasPrefix(t, "#") {
-			continue
-		}
-		out = append(out, line)
-	}
-	if err := sc.Err(); err != nil {
-		if errors.Is(err, bufio.ErrTooLong) {
-			// The scanner stops AT the long line and never returns it, so the
-			// line it failed on is the one after the last it counted (ADR-074).
-			return nil, fmt.Errorf("--files-from %s line %d: longer than the 8 MiB a spec may be", name, n+1)
-		}
-		return nil, err
-	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("--files-from %s: no specs (blank lines and # comments are skipped)", name)
-	}
-	return out, nil
+	return speclist.Parse(r, "--files-from "+name)
 }
 
 // maxLines is the read's per-SPEC cap, or nil when the flag was not given.

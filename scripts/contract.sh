@@ -8381,6 +8381,38 @@ r = json.loads(sys.argv[1])["result"]
 sys.exit(0 if r.get("isError") and "nothing was written" in r["content"][0]["text"] else 1)
 PY
 
+# 217. ADR-117: mrw_read takes max_lines, stat and files_from, each as the CLI's
+# flag does. max_lines 1 serves one line and names the cut as max_lines; stat
+# serves the header and no line; files_from reads a list in the root. The pairs:
+# a negative cap is refused, and files_from "-" and a path out of the root are.
+fixture
+printf 'one\ntwo\nthree\n' > "$R/m217.txt"
+printf '# a note\nm217.txt:3\n' > "$R/list217"
+req217() {
+  python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":json.loads(sys.argv[1])}}))' "$1" | "$MRW" -C "$R" mcp 2>/dev/null
+}
+check217() {
+  python3 - "$1" "$2" <<'PY'
+import json, sys
+r = json.loads(sys.argv[1])["result"]
+t = r["content"][0]["text"]
+want = sys.argv[2]
+ok = {
+  "cap": not r.get("isError") and "1| one" in t and "2| two" not in t and "max_lines reached" in t and "--max-lines" not in t,
+  "stat": not r.get("isError") and "==> m217.txt" in t and "| one" not in t and "-- ck " not in t,
+  "list": not r.get("isError") and "3| three" in t and "1| one" not in t,
+  "refused": r.get("isError") is True,
+}[want]
+sys.exit(0 if ok else 1)
+PY
+}
+out=$(req217 '{"specs":["m217.txt"],"max_lines":1}'); check217 "$out" cap && ok "max_lines 1 serves one line and names the cut max_lines" || bad "max_lines: $(head -c 300 <<<"$out")"
+out=$(req217 '{"specs":["m217.txt"],"max_lines":-1}'); check217 "$out" refused && ok "the pair: a negative max_lines is refused" || bad "max_lines -1: $(head -c 300 <<<"$out")"
+out=$(req217 '{"specs":["m217.txt"],"stat":true}'); check217 "$out" stat && ok "stat serves the header, no line and no checkpoint" || bad "stat: $(head -c 300 <<<"$out")"
+out=$(req217 '{"files_from":"list217"}'); check217 "$out" list && ok "files_from reads a list in the root" || bad "files_from: $(head -c 300 <<<"$out")"
+out=$(req217 '{"files_from":"-"}'); check217 "$out" refused && ok "the pair: files_from - is refused" || bad "files_from -: $(head -c 300 <<<"$out")"
+out=$(req217 '{"files_from":"../list217"}'); check217 "$out" refused && ok "the pair: files_from out of the root is refused" || bad "files_from ..: $(head -c 300 <<<"$out")"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

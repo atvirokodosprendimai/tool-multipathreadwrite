@@ -148,6 +148,9 @@ const toolRead = tool({
           "'vendor'). Only with grep or astGrep: without them it is refused.",
       ),
     after: z.string().optional().describe("The next_index of an INDEX page, to fetch the next page."),
+    maxLines: z.number().int().min(0).optional().describe("Serve at most this many lines of each spec; 0 serves headers only. The rest is WITHHELD and licenses nothing."),
+    stat: z.boolean().optional().describe("Serve each file's header (lines, bytes, sha) and no content. Licenses nothing."),
+    filesFrom: z.string().optional().describe("A file in the checkout holding one spec a line (# comments skipped). Not together with specs or grep."),
     ack: z
       .array(z.string())
       .optional()
@@ -159,7 +162,7 @@ const toolRead = tool({
   },
   async execute(args, ctx) {
     const dir = args.root ?? root(ctx);
-    const call = set(args, { specs: "specs", grep: "grep", astGrep: "ast_grep", exclude: "exclude", after: "after", ack: "ack" });
+    const call = set(args, { specs: "specs", grep: "grep", astGrep: "ast_grep", exclude: "exclude", after: "after", ack: "ack", maxLines: "max_lines", stat: "stat", filesFrom: "files_from" });
     return mcp("mrw read", ctx, dir, "mrw_read", call);
   },
 });
