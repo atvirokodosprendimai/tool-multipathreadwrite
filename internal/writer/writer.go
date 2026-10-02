@@ -94,7 +94,7 @@ func Apply(root string, in []apply.Input, opt apply.Options) (apply.Result, erro
 			continue
 		}
 		if f.Written {
-			wrote[f.Path] = seen.Observation{SHA: f.SHAAfter}
+			wrote[f.Path] = seen.Observation{SHA: f.SHAAfter, Written: true}
 		}
 	}
 	// Drop before Record: an unlink of c and a rename onto c in one plan leave

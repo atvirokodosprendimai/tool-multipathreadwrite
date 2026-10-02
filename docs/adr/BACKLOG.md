@@ -783,8 +783,10 @@ re-measuring these. Each was driven at the built binary, not read:
   criterion above unchanged and not to be re-derived. This paragraph is the entry `adr-debt` looks
   for when the record's Out of Scope names this file.
   refused criteria that could not go red; this one commits to accepting a null.
-- **`occurrence=N`, or any positional disambiguator for a pattern address —
-  DEFERRED.** Raised and refused in ADR-013.
+- ~~**`occurrence=N`, or any positional disambiguator for a pattern address —
+  DEFERRED.**~~ **CLOSED 2026-10-02 — ADR-118: `occurrence=N`, refused unless every match before the Nth has
+  been served, which answers the objection below: the ledger is per sha, so the count is taken in the file as it
+  is.** Raised and refused in ADR-013.
 
   When a start pattern matches several lines the hunk is refused and the
   refusal names the matched line numbers. The obvious next step is to let the

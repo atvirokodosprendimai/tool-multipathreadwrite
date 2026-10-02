@@ -615,7 +615,8 @@ func tools() []tool {
 							"after it, refused if it runs past the last line), $ for the last " +
 							"line, or a pattern — " +
 							"/regexp/ or /from/,/to/. The START pattern must match EXACTLY ONE " +
-							"line; none or several fails that hunk, naming the lines it matched. " +
+							"line; none or several fails that hunk, naming the lines it matched, unless " +
+							"occurrence=N picks the Nth match — refused unless every match before it was served. " +
 							"The END is a DELIMITER, not a site: the first match at or after the " +
 							"start, so it may match many times. Addresses " +
 							"resolve against the ORIGINAL file. Guards: sha=<hex> is checked on every op; " +

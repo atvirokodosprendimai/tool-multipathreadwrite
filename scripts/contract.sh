@@ -8414,6 +8414,42 @@ out=$(req217 '{"files_from":"list217"}'); check217 "$out" list && ok "files_from
 out=$(req217 '{"files_from":"-"}'); check217 "$out" refused && ok "the pair: files_from - is refused" || bad "files_from -: $(head -c 300 <<<"$out")"
 out=$(req217 '{"files_from":"../list217"}'); check217 "$out" refused && ok "the pair: files_from out of the root is refused" || bad "files_from ..: $(head -c 300 <<<"$out")"
 
+# 218. ADR-118: a start pattern that matches several lines picks one with
+# occurrence=N, once every match before it has been served. Three functions
+# named X: after a read of the file, occurrence=2 changes the second alone.
+# The pairs: occurrence=4 of three is refused and the file unchanged; on a line
+# address it is refused; and after a read of the second function alone, the
+# first match unread, occurrence=2 is refused naming it.
+fixture
+printf 'package demo\n\nfunc X() int {\n\treturn 1\n}\n\nfunc X() int {\n\treturn 2\n}\n\nfunc X() int {\n\treturn 3\n}\n' > "$R/x218.go"
+before218=$(cat "$R/x218.go")
+m read x218.go > /dev/null
+printf '@@ x218.go /^\\treturn/ replace occurrence=2\n\treturn 20\n' > "$R/p218.mrw"
+m write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 0 $? "occurrence=2 applies after a read"
+[ "$(grep -c 'return 20' "$R/x218.go")" = 1 ] && [ "$(sed -n 8p "$R/x218.go")" = "$(printf '\treturn 20')" ] \
+  && ok "and only the second match changed" || bad "occurrence=2 changed: $(cat "$R/x218.go")"
+printf '%s\n' "$before218" > "$R/x218.go"; m read x218.go > /dev/null
+printf '@@ x218.go /^\\treturn/ replace occurrence=4\n\treturn 40\n' > "$R/p218.mrw"
+m write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 1 $? "the pair: occurrence=4 of three is refused"
+[ "$(cat "$R/x218.go")" = "$before218" ] && ok "and the file is unchanged" || bad "a refused occurrence changed the file"
+printf '@@ x218.go 8 replace occurrence=2\n\treturn 20\n' > "$R/p218.mrw"
+m write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 2 $? "occurrence= on a line address is refused by the parser"
+XDG_STATE_HOME="$WORK/st218" "$MRW" -C "$R" read 'x218.go:7-10' > /dev/null
+printf '@@ x218.go /^\\treturn/ replace occurrence=2\n\treturn 20\n' > "$R/p218.mrw"
+out=$(XDG_STATE_HOME="$WORK/st218" "$MRW" -C "$R" write --no-check "$R/p218.mrw" 2>&1); rc=$?
+want 1 "$rc" "occurrence=2 with the first match unread is refused"
+grep -q 'lines 4 of x218.go' <<<"$out" && ok "and the refusal names the unread match" || bad "refusal: $out"
+# And right after a write: the file is wholly licensed for edits, but its
+# matches were never shown, so occurrence= still needs them read.
+printf '%s\n' "$before218" > "$R/x218.go"
+XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" read 'x218.go:1' > /dev/null
+printf '@@ x218.go 1 replace\npackage demo // edited\n' > "$R/p218.mrw"
+XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 0 $? "a write of line 1 lands"
+printf '@@ x218.go /^\\treturn/ replace occurrence=2\n\treturn 20\n' > "$R/p218.mrw"
+XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 1 $? "right after the write, occurrence=2 with no match read is refused"
+XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" read 'x218.go:/^\treturn/' > /dev/null
+XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 0 $? "the pair: after a read of the matches it applies"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt
