@@ -2578,3 +2578,13 @@ is listed last; each item names what arms it.
   rename onto an existing file, `files_from` with backslashes and CRLF, `max_lines` and `stat` licensing, checks
   with and without `sh`, steps, huge-read pages, every `.gitignore` rule tried under git's defaults, and
   `occurrence=N` on LF, CRLF and a backslash pattern. Not covered: symlinks (no privilege), a console Ctrl+C.
+
+## From ADR-120 (Windows owns its process tree)
+
+- **A deadline that expires before the check's child runs exits 2, not 3.** A check whose deadline has already
+  passed when it starts (`c.Start` returns `ctx.Err()`) is reported "no check could run: timed out", exit 2,
+  where a check that times out while running exits 3 (`cmd/mrw/main.go`, the write path's `Ran == false` branch,
+  and `mrw check` beside it). Pre-existing; ADR-120 widens the window by the milliseconds containment takes on
+  Windows, since a deadline landing then is reported the same way. A cancel there is already reported as
+  interrupted, exit 3. Found by the in-process review of #325. Arm on a report of a timed-out check exiting 2, or
+  with the next change to the write path's exit mapping: test `DeadlineExceeded` beside `Interrupted` there.
