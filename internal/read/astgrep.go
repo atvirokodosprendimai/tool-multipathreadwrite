@@ -133,6 +133,12 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 	if tooLarge := (*subproc.ErrOutputTooLarge)(nil); errors.As(cmdErr, &tooLarge) {
 		return nil, nil, fmt.Errorf("ast-grep %w: narrow the pattern or name fewer paths", tooLarge)
 	}
+	// ADR-120: on Windows a child that could not be put in its job was killed
+	// before it ran, so its empty output is no answer. Without this the read
+	// would report no matches, silently (the review of #325).
+	if errors.Is(cmdErr, subproc.ErrNotContained) && ctx.Err() == nil {
+		return nil, nil, fmt.Errorf("ast-grep %w", cmdErr)
+	}
 	// Only a run that ended badly is read for why: one that exited cleanly a
 	// moment before a deadline or a signal answered, and its output stands
 	// (review of #232; no test can reach that window).

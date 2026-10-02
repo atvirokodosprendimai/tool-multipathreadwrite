@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -13,9 +12,7 @@ import (
 // ADR-080. A timed-out check kept its log and the report named nowhere to find
 // it; it names it, and the file is there.
 func TestATimedOutCheckNamesItsLog(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("the check runs through sh")
-	}
+	needShell(t) // on Windows, Git's sh: its grandchild sleep stops with the job (ADR-120)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Setenv("TMPDIR", t.TempDir())
 	root := grepTree(t, map[string]string{

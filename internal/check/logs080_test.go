@@ -82,9 +82,7 @@ func TestACheckCancelledBeforeItStartsSaysInterrupted(t *testing.T) {
 // find it. The result keeps the file for the report to name.
 func TestATimedOutCheckKeepsItsLog(t *testing.T) {
 	tempDirForLogs(t)
-	if runtime.GOOS == "windows" {
-		t.Skip("the check runs through sh")
-	}
+	needShell(t) // on Windows, Git's sh: its grandchild sleep stops with the job (ADR-120)
 	res, err := Run(context.Background(), t.TempDir(), Config{Check: "echo started; sleep 30", TimeoutSeconds: 1, declared: true}, nil)
 	if err != nil {
 		t.Fatal(err)

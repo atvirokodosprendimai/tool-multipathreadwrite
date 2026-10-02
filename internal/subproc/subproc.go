@@ -9,8 +9,10 @@
 // its own on unix and stops the whole group on cancel — SIGTERM, then SIGKILL
 // to whatever is left a second later, so a nested mrw can stop its own check
 // first (ADR-095) — and on every platform it bounds how long Wait waits for
-// pipes a grandchild still holds. On Windows only that bound applies: a
-// grandchild there can outlive the kill.
+// pipes a grandchild still holds. On Windows the child starts suspended and is
+// resumed only inside a job object that kills every member when it is closed,
+// and a cancel terminates the job (ADR-120): there is no process group there,
+// and the parent ids under Git for Windows' sh are dead MSYS stubs.
 // Interruptible listens, for such a child, for the ^C, terminate or hangup its
 // own process group no longer hears, and cancels the context it runs under, so
 // its group is stopped (ADR-074).
@@ -18,6 +20,7 @@ package subproc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -31,13 +34,20 @@ import (
 // grandchild still holds before it closes them itself.
 const waitDelay = time.Second
 
+// ErrNotContained is wrapped by Run's error when a child could not be put in
+// the job object that stops its whole tree on Windows: it was killed before it
+// ran, so a caller that reads its output must not take the empty output for
+// an answer (ADR-120, the review of #325).
+var ErrNotContained = errors.New("could not contain the child in a job object")
+
 // Command is exec.CommandContext for a child whose descendants must stop with
 // it. The child's stdin is left nil (the null device): a child in its own
-// process group must not read the terminal.
+// process group must not read the terminal. Start it only through Run or
+// Output: on Windows it is created suspended and only Run resumes it (ADR-120).
 func Command(ctx context.Context, name string, args ...string) *exec.Cmd {
 	c := exec.CommandContext(ctx, name, args...)
 	c.WaitDelay = waitDelay
-	group(c)
+	group(ctx, c)
 	return c
 }
 
@@ -79,11 +89,10 @@ func Interruptible(ctx context.Context) (context.Context, context.CancelFunc) {
 // cancel's own stop, run at most once: TERM, then KILL to what is left a
 // second later, and nothing after a cancel already stopped it (ADR-095). A
 // grandchild that called setsid is in a group of its own and escapes, as it
-// would a shell.
+// would a shell. On Windows the job is terminated and closed instead, and no
+// process can break away from it (ADR-120).
 func Run(c *exec.Cmd) error {
-	err := c.Run()
-	reap(c)
-	return err
+	return run(c)
 }
 
 // ErrOutputTooLarge is Output's refusal of an answer over its limit (ADR-104).
@@ -123,8 +132,8 @@ func Output(c *exec.Cmd, limit int64) ([]byte, error) {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
-	// Bounded as well as measured: a grandchild Run could not reap (Windows has
-	// no process groups, ADR-080) can go on writing after the size was taken.
+	// Bounded as well as measured: a grandchild Run could not reap (one that
+	// left its process group with setsid) can go on writing after the size was taken.
 	out, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, err
