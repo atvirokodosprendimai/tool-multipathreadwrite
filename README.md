@@ -134,9 +134,10 @@ the same way the address is. `sha=` and `lines=` are optional and are checked
 on every op, insertions included.
 
 Addresses are 1-based and inclusive; `$` is the last line, and `A,+N` is the line `A` plus the `N` lines AFTER it. A read CLAMPS a relative end at the last line; a write REFUSES one that runs past it. `/from/,/to/` means the same on both paths: the end is the first match
-at or after the start. A write refuses unless the start matches exactly once; a
-read serves a span for every start match that is not already inside a span it
-served.
+at or after the start. A write refuses unless the start matches exactly once, or
+names the Nth match with `occurrence=N` — refused unless every match before it has
+been served (ADR-118); a read serves a span for every start match that is not
+already inside a span it served.
 
 ## Safety
 

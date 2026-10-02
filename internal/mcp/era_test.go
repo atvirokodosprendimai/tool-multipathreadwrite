@@ -231,7 +231,8 @@ func jsonInner(s string) string {
 // and once by ADR-115, whose write gained `then`: that input property and its descriptions, the routing
 // sentence, and the `check`, `elided` and `then` descriptions its review corrected;
 // and once by ADR-117, whose read gained `max_lines`, `stat` and `files_from`: those input properties,
-// and the description's and instructions' route to the CLI naming --context in place of --files-from.
+// and the description's and instructions' route to the CLI naming --context in place of --files-from;
+// and once by ADR-118, whose write description names occurrence=N beside the exactly-once rule.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
 	got := legacyTranscript(t)
 	golden := filepath.Join("testdata", "legacy_golden.jsonl")

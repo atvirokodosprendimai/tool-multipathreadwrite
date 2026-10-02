@@ -216,6 +216,9 @@ type hunk struct {
 	SHA    string
 	Lines  int
 	Anchor string
+	// Occurrence carries plan.Hunk.Occurrence (ADR-118): pick the Nth match of
+	// StartPat, every match before it served.
+	Occurrence int
 
 	// StartPat and EndPat are ADR-013's pattern address, carried through
 	// unresolved. Resolution happens in the loop below, against the ORIGINAL
@@ -263,6 +266,7 @@ type Input struct {
 	EndPat      *regexp.Regexp
 	RelEnd      int
 	CountedBody bool
+	Occurrence  int
 	SrcLine     int
 	Index       int
 }
@@ -361,7 +365,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		byPath[p] = append(byPath[p], hunk{
 			Path: p, Start: i.Start, End: i.End, Op: i.Op, Body: i.Body,
 			SHA: i.SHA, Lines: i.Lines, Anchor: i.Anchor,
-			StartPat: i.StartPat, EndPat: i.EndPat, RelEnd: i.RelEnd, CountedBody: i.CountedBody,
+			StartPat: i.StartPat, EndPat: i.EndPat, RelEnd: i.RelEnd, Occurrence: i.Occurrence, CountedBody: i.CountedBody,
 			SrcOp: i.Op, SrcAddr: srcAddrOf(i), SrcLine: i.SrcLine, Index: n,
 		})
 	}
@@ -1168,6 +1172,14 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		return false
 	}
 
+	// ADR-118, mirrored from the parser (ADR-030): occurrence= picks among a
+	// pattern's matches, and a path op has no address at all.
+	for _, h := range hs {
+		if h.Occurrence > 0 && h.StartPat == nil {
+			failK(h, refusal.OccurrenceAddress, "occurrence= picks among a start pattern's matches, so it needs a /pattern/ address")
+			return nil, false, ""
+		}
+	}
 	if pathLevel && !lineLevel {
 		if !planPathOp(root, path, full, hs[0], orig, existed, shaBefore, unlinked, produced, destCount, covered, fail, out) {
 			return nil, false, ""
@@ -1354,6 +1366,31 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		if h.StartPat != nil {
 			resolve := func(re *regexp.Regexp, which string) (int, bool) {
 				at := matchLines(re, orig)
+				// ADR-118: occurrence=N picks the Nth start match, provided
+				// every match before it was served — the ledger is per sha, so
+				// the caller counted them in the file as it is, which answers
+				// ADR-013's objection that the order moves when code does.
+				if n := h.Occurrence; n > 0 && which == "" && len(at) > 0 {
+					if n > len(at) {
+						fail(h, "occurrence=%d but pattern %s matched %d line(s) in %s (%s)", n, re, len(at), path, joinInts(at))
+						return 0, false
+					}
+					if haveObs && !opt.Force && !obs.Whole() {
+						var unread []int
+						for _, l := range at[:n-1] {
+							if !obs.Covers(l, l) {
+								unread = append(unread, l)
+							}
+						}
+						if len(unread) > 0 {
+							failK(h, refusal.NotRead, "occurrence=%d counts the matches before it, and %s also matches %s of %s, "+
+								"which have not been read: mrw served %s — read them, or pass --force",
+								n, re, joinInts(unread), path, obs.Served())
+							return 0, false
+						}
+					}
+					return at[n-1], true
+				}
 				switch len(at) {
 				case 1:
 					return at[0], true
@@ -1361,9 +1398,9 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 					fail(h, "%spattern %s matched no line in %s", which, re, path)
 				default:
 					// Naming the lines is what lets the caller act: narrow the
-					// pattern, or address by number. A refusal that only says
-					// "ambiguous" leaves them guessing.
-					fail(h, "%spattern %s matched %d lines in %s (%s) — narrow it, or address by line number",
+					// pattern, address by number, or pick one. A refusal that
+					// only says "ambiguous" leaves them guessing.
+					fail(h, "%spattern %s matched %d lines in %s (%s) — narrow it, address by line number, or pick one with occurrence=N",
 						which, re, len(at), path, joinInts(at))
 				}
 				return 0, false

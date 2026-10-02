@@ -24,6 +24,9 @@ const (
 	InsertEmptyBody  Kind = "insert-empty-body"
 	ReplaceEmptyBody Kind = "replace-empty-body"
 	NotRead          Kind = "not-read"
+	// OccurrenceAddress is occurrence= on an address that is not a pattern
+	// (ADR-118): it picks among a pattern's matches, so off one it means nothing.
+	OccurrenceAddress Kind = "occurrence-address"
 )
 
 // Error is a refusal with its kind. Its text is the message exactly, so a

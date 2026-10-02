@@ -151,6 +151,10 @@ type Hunk struct {
 	// BodyFile, if set, is a root-relative path whose contents are the hunk
 	// body (ADR-060). Parse stores the path; LoadBodyFiles fills Body.
 	BodyFile string
+	// Occurrence, if positive, picks the Nth line the start pattern matches,
+	// counted from 1 over the original file (ADR-118). 0 means absent: the start
+	// must then match exactly once.
+	Occurrence int
 
 	// SrcLine is the plan's own line number, for diagnostics.
 	SrcLine int
@@ -441,6 +445,10 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 				return Hunk{}, 0, fmt.Errorf("raw= takes only %q, got %q", "true", v)
 			}
 			h.Raw = true
+		case "occurrence":
+			if h.Occurrence, err = strconv.Atoi(v); err != nil || h.Occurrence < 1 {
+				return Hunk{}, 0, fmt.Errorf("occurrence= wants a positive integer, got %q", v)
+			}
 		case "body":
 			if strings.HasPrefix(v, "@") {
 				p := strings.TrimPrefix(v, "@")
@@ -453,7 +461,7 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 				return Hunk{}, 0, fmt.Errorf("body= wants a non-negative integer, got %q", v)
 			}
 		default:
-			return Hunk{}, 0, fmt.Errorf("unknown option %q (want sha, lines, anchor, body or raw)", k)
+			return Hunk{}, 0, fmt.Errorf("unknown option %q (want sha, lines, anchor, body, raw or occurrence)", k)
 		}
 	}
 	// raw= switches off the valid-header check INSIDE a counted body, so
@@ -751,6 +759,12 @@ func validate(h *Hunk) error {
 	// and `patterned` is how they say so rather than reading a zero as an
 	// address. Everything that does NOT depend on the resolved lines — an empty
 	// body, a create with a guard — still applies.
+	// ADR-118: occurrence= picks among a pattern's matches, so on any other
+	// address it means nothing — refused first, whatever the op, so a create
+	// or an unlink carrying it is refused for this and not for something else.
+	if h.Occurrence > 0 && h.Addr.StartPat == nil {
+		return refusal.New(refusal.OccurrenceAddress, "occurrence= picks among a start pattern's matches, so it needs a /pattern/ address")
+	}
 	patterned := h.Addr.StartPat != nil
 	switch h.Op {
 	case OpDelete:

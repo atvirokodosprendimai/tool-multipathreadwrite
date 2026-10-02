@@ -303,7 +303,10 @@ exits 1** rather than served to the end of the file. For "from the match to the
 end", give a relative end past it — `f.go:/a/,+99999` — which a read clamps at
 the last line; `f.go:/a/,$` is TWO ranges, the match and the last line. One difference is kept on purpose: a read serves a span for
 every match of the start that is not already inside a span it served, and a write
-refuses unless the start matches exactly once.
+refuses unless the start matches exactly once — or names one with `occurrence=N`,
+the Nth match counted from 1 over the original file, which is refused unless every
+match before it has been served to you, since a count is only good in the version
+it was taken in (ADR-118).
 A relative end has no backwards form and may not be combined with
 `/from/,/to/`. ⚠ **A READ CLAMPS a relative end at the last line; a WRITE
 REFUSES one that runs past it** — each is that path's own existing rule, since
