@@ -2045,7 +2045,7 @@ Contract breaks, reproduced on macOS:
   **Fixed by ADR-072 T2 and T4**, contract §143 and §145: the human receipt is printed and the
   landing counted before the check runs; the check runs in its own process group, which its
   timeout kills, and an interrupt during the check reports `interrupted`, exit 3. On Windows only
-  the bound on held pipes applies (deferred: a job object).
+  the bound on held pipes applied until ADR-120 (2026-10-02), which runs the check in a job object.
 - **Creates are not cross-checked.** Two `create` hunks for one path both report ok and the bodies
   are concatenated; two spellings of a NEW file on a case-insensitive filesystem (`n.txt` +
   `N.TXT`, macOS and NTFS; `n.txt` + `n.txt.` on NTFS) both report "created", one file remains, and
@@ -2109,8 +2109,8 @@ Contract breaks, reproduced on macOS:
   `internal/read/astgrep.go` sets no `WaitDelay` and no process group (the finder's reading).
   **Fixed by ADR-074 T1**, contract §147: ast-grep runs through `internal/subproc`, so its process
   group is killed at the 2 s bound and the wait for held pipes is bounded; an interrupt, terminate
-  or hangup sent to mrw stops it. On Windows only the wait bound applies (deferred with the check's
-  job object, above).
+  or hangup sent to mrw stops it. On Windows only the wait bound applied until ADR-120's job object
+  (2026-10-02).
   Waived in the review of #232, unverified (read from Go's exec code): a wrapper that exits 0 and
   leaves a background grandchild returns through `WaitDelay` without its context being cancelled, so
   its group is never killed and the grandchild outlives mrw.
@@ -2356,6 +2356,8 @@ at the boundary, and a discovered one is dropped.
   process groups, so a cancel there kills only the direct child, nothing hears TERM first, and a nested
   mrw's check outlives it as any grandchild does. Carried with ADR-080's and ADR-072's deferral of the
   same job object; arm when a Windows caller nests mrw or reports an orphaned check.
+  **Closed by ADR-120** (2026-10-02): every descendant runs in the check's job object, a nested mrw's
+  check included, and stops when the job is terminated; Windows has no TERM step, so none hears one first.
 
 ## From ADR-097 (a flag named for a subcommand names the subcommand)
 

@@ -262,6 +262,7 @@ teaches both.
 - A TERM-ignoring leaf two levels down outliving both mrws (permanent: boundary: closing it means each level outwaits the one below, which compounds — Alternatives; rated Low as ADR-072 rates the outside sender)
 - A depth guard or a check on the MCP surface (permanent: boundary: `mrw_write` runs no check (ADR-054) and no step (ADR-092), so it starts nothing a depth could bound)
 - Stopping a grandchild on Windows, which needs a job object (deferred: ADR-080 — its Out of Scope defers it to docs/adr/BACKLOG.md with ADR-072's)
+  Delivered by ADR-120 on 2026-10-02: a nested mrw's check is in the same job object and stops with it.
 
 ## Risks
 

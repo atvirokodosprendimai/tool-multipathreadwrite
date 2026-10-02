@@ -41,6 +41,13 @@ func reap(c *exec.Cmd) {
 	}
 }
 
+// run runs c, then reaps its process group (ADR-080).
+func run(c *exec.Cmd) error {
+	err := c.Run()
+	reap(c)
+	return err
+}
+
 // stopGroup stops process group pgid (ADR-095): SIGTERM, then a poll every
 // pollEvery until no member is left or waitDelay has passed since the TERM,
 // then SIGKILL to what is left. Only ESRCH means empty; any other answer,
