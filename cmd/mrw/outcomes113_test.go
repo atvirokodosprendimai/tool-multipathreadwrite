@@ -297,8 +297,27 @@ func normalizeOutcome(out, root, state, tmp, plan, cwd string) string {
 	}
 	out = durationJSON.ReplaceAllString(out, `"duration_ms": 0`)
 	out = checkLog.ReplaceAllString(out, "<LOG>")
-	out = durationHuman.ReplaceAllString(out, "<DUR>")
+	out = normalizeDurations(out)
 	out = asideName.ReplaceAllString(out, ".mrw-aside-<X>")
 	out = stateKey.ReplaceAllString(out, "<STATE>/mrw/<KEY>")
 	return pidNote.ReplaceAllString(out, "pid <PID>")
+}
+
+// normalizeDurations replaces each measured duration with <DUR>, and leaves a
+// configured one — "timed out after 1s" — as written, so a change to the
+// timeout or to how it is said shows in the golden.
+func normalizeDurations(s string) string {
+	var b strings.Builder
+	last := 0
+	for _, m := range durationHuman.FindAllStringIndex(s, -1) {
+		b.WriteString(s[last:m[0]])
+		if strings.HasSuffix(s[:m[0]], "after ") {
+			b.WriteString(s[m[0]:m[1]])
+		} else {
+			b.WriteString("<DUR>")
+		}
+		last = m[1]
+	}
+	b.WriteString(s[last:])
+	return b.String()
 }

@@ -160,11 +160,13 @@ func TestAnMCPWriteRunsTheCheck(t *testing.T) {
 			t.Fatalf("the tail survived a receipt over the ceiling")
 		}
 		log, _ := chk["output_file"].(string)
+		if log != "" {
+			t.Cleanup(func() { _ = os.Remove(log) })
+		}
 		b, err := os.ReadFile(log)
 		if log == "" || err != nil || strings.Count(string(b), "\n") != 30 {
 			t.Fatalf("output_file %q (%v) does not hold the dropped tail's 30 lines", log, err)
 		}
-		t.Cleanup(func() { _ = os.Remove(log) })
 	})
 	t.Run("every verdict phrase fits the write floor", func(t *testing.T) {
 		for _, c := range []struct {

@@ -96,7 +96,8 @@ async function mcp(title: string, ctx: ToolContext, dir: string, name: string, a
   // Neutral on purpose: a write can land and then report an error — its check
   // could not run, its ledger could not record it (ADR-102, ADR-113) — and
   // "refused" would contradict the receipt below and invite a second apply.
-  return { title, output: (isError ? "error: read the answer before retrying — a write it reports as applied DID land\n" : "") + text, metadata: { isError } };
+  const lead = name === "mrw_write" ? "error: read the answer before retrying — a write it reports as applied DID land\n" : "error:\n";
+  return { title, output: (isError ? lead : "") + text, metadata: { isError } };
 }
 
 // set copies the fields the caller gave; an empty string or a zero is given.
