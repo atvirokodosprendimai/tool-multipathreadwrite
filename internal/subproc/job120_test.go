@@ -116,8 +116,10 @@ func TestAFailedAssignKillsTheChildAndClosesTheJob(t *testing.T) {
 	if time.Since(start) > 10*time.Second {
 		t.Fatalf("took %v: the child was not killed", time.Since(start))
 	}
-	if c.ProcessState == nil {
-		t.Fatal("the child was not waited for")
+	// Killed while suspended, it ran nothing: no exit status is reported, so the
+	// check says it could not run rather than that the check failed.
+	if c.ProcessState != nil {
+		t.Fatalf("ProcessState %v: a child that never ran reports an exit status", c.ProcessState)
 	}
 	if want := []string{"create", "assign", "close"}; !reflect.DeepEqual(f.got(), want) {
 		t.Fatalf("calls %v, want %v", f.got(), want)

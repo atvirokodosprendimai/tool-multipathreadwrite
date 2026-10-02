@@ -440,7 +440,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   `could_not_start` means mrw could not start the shell; a command the shell cannot find is a step
   that ran and failed (exit 127). On Unix a step's background children are killed with it, and one
   that calls `setsid` leaves its process group and is not; on Windows they are killed with it too (a job object, ADR-120),
-  and none can leave it. A signal mrw inherited as ignored (`nohup`, a `&` job
+  and none can break away from it. A signal mrw inherited as ignored (`nohup`, a `&` job
   of a non-interactive shell) stays ignored — interrupt with TERM. A step runs with `MRW_STEP_DEPTH`
   one higher than its caller's, and `--then`/`--then-sh` are refused at depth 8, so a step that
   re-runs mrw with steps stops. The `"steps"` block is read only when a step is asked for: a typo

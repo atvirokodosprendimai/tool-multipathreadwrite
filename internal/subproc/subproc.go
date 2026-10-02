@@ -35,7 +35,8 @@ const waitDelay = time.Second
 
 // Command is exec.CommandContext for a child whose descendants must stop with
 // it. The child's stdin is left nil (the null device): a child in its own
-// process group must not read the terminal.
+// process group must not read the terminal. Start it only through Run or
+// Output: on Windows it is created suspended and only Run resumes it (ADR-120).
 func Command(ctx context.Context, name string, args ...string) *exec.Cmd {
 	c := exec.CommandContext(ctx, name, args...)
 	c.WaitDelay = waitDelay
@@ -82,7 +83,7 @@ func Interruptible(ctx context.Context) (context.Context, context.CancelFunc) {
 // second later, and nothing after a cancel already stopped it (ADR-095). A
 // grandchild that called setsid is in a group of its own and escapes, as it
 // would a shell. On Windows the job is terminated and closed instead, and no
-// process can leave it (ADR-120).
+// process can break away from it (ADR-120).
 func Run(c *exec.Cmd) error {
 	return run(c)
 }

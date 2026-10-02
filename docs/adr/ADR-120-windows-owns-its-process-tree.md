@@ -77,7 +77,7 @@ See `tasks/README.md`: T1, then T2.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | a suspended child never resumed hangs the check | Low | High | `Run` is the only wait and resumes or kills; the fake drives the failure paths |
-| the struct layout differs from Win32 | Low | High | `TestTheJobLimitStructHasTheWin32Size` pins 144 bytes on 64-bit |
+| the struct layout differs from Win32 | Low | High | `TestTheJobLimitStructHasTheWin32Size` pins 144 bytes on 64-bit; on windows/386 Go aligns `int64` to 4 bytes and the struct would be 108 against Win32's 112, so a 386 build would refuse every check — only windows/amd64 is released |
 | a Windows-only path regresses unseen locally | Medium | Medium | the windows CI shards run the real grandchild tests on every push |
 
 ## Rollback

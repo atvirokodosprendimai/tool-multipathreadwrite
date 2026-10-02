@@ -108,9 +108,17 @@ func runInJob(c *exec.Cmd, t *jobTree) error {
 	if err != nil {
 		_ = c.Process.Kill()
 		_ = c.Wait()
+		t.mu.Lock()
 		if job != 0 {
 			_ = t.api.close(job)
 		}
+		t.job = 0
+		t.mu.Unlock()
+		// The child was killed while still suspended: it ran no instruction,
+		// so it has no exit status to report. Clearing what Wait recorded is
+		// what lets the check say it could not run, instead of reading the
+		// kill's exit code as a failed check (the review of #325).
+		c.ProcessState = nil
 		return fmt.Errorf("could not contain the child in a job object: %w", err)
 	}
 	waitErr := c.Wait()
