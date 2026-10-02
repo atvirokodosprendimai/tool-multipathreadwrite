@@ -221,8 +221,10 @@ func TestALegacyPathContainingADoubleSpaceIsOnePath(t *testing.T) {
 // Bumping the constant breaks it, and that is the intent — the bump is only
 // correct when the meaning of an old file has ACTUALLY changed, and this test is
 // where you say so on purpose. It was said for v3 by ADR-108 T10: a v2 span may
-// have been issued by an MCP checkpoint that spanned a sparse read's gaps.
-func TestAV3LedgerIsAcceptedAndTheBumpIsDeliberate(t *testing.T) {
+// have been issued by an MCP checkpoint that spanned a sparse read's gaps; and
+// for v4 by ADR-118: a v3 whole-file record does not say whether the caller read
+// the file or mrw wrote it.
+func TestAV4LedgerIsAcceptedAndTheBumpIsDeliberate(t *testing.T) {
 	root := t.TempDir()
 	lp, err := ReadPath(root)
 	if err != nil {
@@ -234,7 +236,7 @@ func TestAV3LedgerIsAcceptedAndTheBumpIsDeliberate(t *testing.T) {
 	// Literal, byte for byte, as this build writes it. Two records, because
 	// Load consumes line 1 as the header either way and a single record could
 	// not tell acceptance from discard.
-	body := "#mrw-seen v3\nabc123  -  kept.go\ndef456  2-4  partial.go\n"
+	body := "#mrw-seen v4\nabc123  -  kept.go\ndef456  2-4  partial.go\nfed789  w3-3  wrote.go\n"
 	if err := os.WriteFile(lp, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -243,8 +245,8 @@ func TestAV3LedgerIsAcceptedAndTheBumpIsDeliberate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(l) != 2 {
-		t.Fatalf("a v3 ledger was not accepted: %v", l)
+	if len(l) != 3 {
+		t.Fatalf("a v4 ledger was not accepted: %v", l)
 	}
 	if o := l["kept.go"]; !o.Whole() || o.SHA != "abc123" {
 		t.Errorf("whole-file record did not survive: %+v", o)
@@ -252,18 +254,59 @@ func TestAV3LedgerIsAcceptedAndTheBumpIsDeliberate(t *testing.T) {
 	if o := l["partial.go"]; o.Whole() || !o.Covers(3, 3) || o.Covers(5, 5) {
 		t.Errorf("span record did not survive intact: %+v", o)
 	}
+	// A file mrw wrote is wholly licensed and shows only the lines read since.
+	if o := l["wrote.go"]; !o.Written || !o.Whole() || !o.Covers(9, 9) || !o.ServedLine(3) || o.ServedLine(4) {
+		t.Errorf("written record did not survive intact: %+v", o)
+	}
 	if stale, _ := IsStale(root); stale {
-		t.Error("a v3 ledger was reported stale")
+		t.Error("a v4 ledger was reported stale")
 	}
 
-	if err := os.WriteFile(lp, []byte(strings.Replace(body, "v3", "v2", 1)), 0o600); err != nil {
+	if err := os.WriteFile(lp, []byte(strings.Replace(body, "v4", "v3", 1)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if l, err := Load(root); err != nil || len(l) != 0 {
-		t.Errorf("a v2 ledger was accepted: %v %v", l, err)
+		t.Errorf("a v3 ledger was accepted: %v %v", l, err)
 	}
 	if stale, _ := IsStale(root); !stale {
-		t.Error("a v2 ledger was not reported stale")
+		t.Error("a v3 ledger was not reported stale")
+	}
+}
+
+// TestAWrittenFileIsLicensedButNotShown: ADR-118. A write licenses every line
+// of the file it produced (ADR-005) but shows the caller none of it; a later
+// read of some lines shows those, a whole read shows all, and a write of the
+// same version keeps what was shown.
+func TestAWrittenFileIsLicensedButNotShown(t *testing.T) {
+	w := Observation{SHA: "s", Written: true}
+	if !w.Covers(1, 99) || w.ServedLine(1) {
+		t.Fatalf("a write: licensed %v shown %v, want licensed and not shown", w.Covers(1, 99), w.ServedLine(1))
+	}
+	r := merge(w, Observation{SHA: "s", Spans: [][2]int{{2, 3}}})
+	if !r.Written || !r.Covers(1, 99) || !r.ServedLine(2) || !r.ServedLine(3) || r.ServedLine(4) {
+		t.Errorf("a partial read after a write: %+v", r)
+	}
+	if all := merge(r, Observation{SHA: "s"}); all.Written || !all.ServedLine(50) {
+		t.Errorf("a whole read after a write: %+v", all)
+	}
+	if again := merge(r, Observation{SHA: "s", Written: true}); !again.ServedLine(2) || again.ServedLine(4) {
+		t.Errorf("a write of the same version dropped what was shown: %+v", again)
+	}
+	if other := merge(r, Observation{SHA: "t", Written: true}); other.ServedLine(2) {
+		t.Errorf("a write of a new version kept the old version's lines shown: %+v", other)
+	}
+	// What it writes, it reads back.
+	l := Ledger{"w.go": r}
+	root := t.TempDir()
+	if err := save(root, l); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o := got["w.go"]; !o.Written || !o.ServedLine(3) || o.ServedLine(4) {
+		t.Errorf("a written record did not round-trip: %+v", o)
 	}
 }
 

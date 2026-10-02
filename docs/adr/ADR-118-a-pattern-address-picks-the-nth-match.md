@@ -7,7 +7,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-002, ADR-013, ADR-030, ADR-036, ADR-087
 **Invalidates:** ADR-013 — only its rejection of "An `occurrence=N` guard to disambiguate" and its Out of Scope entry deferring it; the exactly-once rule stands for a start pattern without `occurrence=`
-**Governs:** `internal/plan/plan.go`, `internal/apply/apply.go`, `internal/refusal/refusal.go`, `cmd/mrw/main.go`, `internal/mcp/tools.go`, `internal/mcp/mcp.go`, `internal/curve/score.go`, `internal/guide/guide.go`, `AGENTS.md`, `README.md`, `scripts/contract.sh`
+**Governs:** `internal/plan/plan.go`, `internal/apply/apply.go`, `internal/seen/seen.go`, `internal/writer/writer.go`, `internal/refusal/refusal.go`, `cmd/mrw/main.go`, `internal/mcp/tools.go`, `internal/mcp/mcp.go`, `internal/curve/score.go`, `internal/guide/guide.go`, `AGENTS.md`, `README.md`, `scripts/contract.sh`
 **Enforced-by:** `internal/apply/occurrence118_test.go::TestAnOccurrencePicksTheNthStartMatch`
 **Served-path change:** A plan hunk whose start is a pattern may carry `occurrence=N`: the Nth line the start pattern matches, counted from 1 over the original file, provided every match before it has been served. Without it a start pattern must match exactly once, as before.
 
@@ -29,7 +29,7 @@ ADR-013 rejected `occurrence=N` because it "makes a plan depend on the ORDER of 
 
 1. **`occurrence=N`** is a hunk option, N a positive integer. It is legal only when the start is a pattern; on a line address, a `create`, an `unlink` or a `rename` it is refused by the parser and, mirrored, by the engine (ADR-030), with the refusal kind `occurrence-address`.
 2. **N counts start-pattern matches over the whole original file**, from 1 — the list the several-matches refusal prints. N past the count is refused, naming the matches.
-3. **Every match before the Nth must have been served.** When the ledger applies (no `--force`, the file not wholly seen), each earlier matching line must be covered by served spans; otherwise the hunk is refused, naming the unread matches and the read that serves them. The Nth line itself meets the ordinary per-line check, as any resolved address does.
+3. **Every match before the Nth must have been served** — shown to the caller in this version of the file. When the ledger applies (no `--force`), each earlier matching line must have been served by a read; otherwise the hunk is refused, naming the unread matches. A file mrw has just written is wholly licensed for edits (ADR-005) but counts none of its lines as served for this rule — Zy, on the review of #320: "strict: always served" — so the ledger records which wholes came from a write (`seen.Observation.Written`, with the lines read since in `Shown`), and moves to `#mrw-seen v4`, discarding v3 records once since they cannot say which kind they were. The Nth line itself meets the ordinary per-line check.
 4. **The end pattern is unchanged**: the first match at or after the chosen start (ADR-036).
 5. **The several-matches refusal names the remedy**: "narrow it, address by line number, or pick one with occurrence=N".
 
@@ -40,7 +40,7 @@ ADR-013 rejected `occurrence=N` because it "makes a plan depend on the ORDER of 
 
 ## Component / Boundary Impact
 
-Owns `internal/plan` and `internal/apply` (engine packages). `internal/refusal`, `cmd/mrw`, `internal/mcp`, `internal/curve`, `internal/guide` are not engine. `go.mod` keeps one requirement.
+Owns `internal/plan`, `internal/apply` and `internal/seen` (engine packages; `internal/seen` for the written-versus-shown record and the v4 header). `internal/refusal`, `internal/writer`, `cmd/mrw`, `internal/mcp`, `internal/curve`, `internal/guide` are not engine. `go.mod` keeps one requirement.
 
 ## Wiring & Contract Changes
 

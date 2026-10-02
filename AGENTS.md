@@ -306,7 +306,8 @@ every match of the start that is not already inside a span it served, and a writ
 refuses unless the start matches exactly once — or names one with `occurrence=N`,
 the Nth match counted from 1 over the original file, which is refused unless every
 match before it has been served to you, since a count is only good in the version
-it was taken in (ADR-118).
+it was taken in — and a file mrw has just written, though every line of it may be
+edited, has served you none of its lines for this (ADR-118).
 A relative end has no backwards form and may not be combined with
 `/from/,/to/`. ⚠ **A READ CLAMPS a relative end at the last line; a WRITE
 REFUSES one that runs past it** — each is that path's own existing rule, since

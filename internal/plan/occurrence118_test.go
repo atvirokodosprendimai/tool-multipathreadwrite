@@ -32,7 +32,7 @@ func TestAnOccurrenceOnALineAddressIsRefusedByParserAndEngine(t *testing.T) {
 	if err != nil || len(h) != 1 || h[0].Occurrence != 2 {
 		t.Fatalf("occurrence= on a pattern: %v %+v", err, h)
 	}
-	for _, bad := range []string{"0", "-1", "two"} {
+	for _, bad := range []string{"0", "-1", "two", "+2", "02", ""} {
 		if _, err := plan.Parse(strings.NewReader("@@ x.go /^func X/ replace occurrence=" + bad + "\nX\n")); err == nil {
 			t.Errorf("occurrence=%s parsed", bad)
 		}
@@ -47,6 +47,20 @@ func TestAnOccurrenceOnALineAddressIsRefusedByParserAndEngine(t *testing.T) {
 	}
 	if res.Failed != 1 || res.Hunks[0].Kind != refusal.OccurrenceAddress {
 		t.Errorf("engine: failed=%d kind=%q, want %q", res.Failed, res.Hunks[0].Kind, refusal.OccurrenceAddress)
+	}
+	// The mirror is checked first, so a create or an unlink on an unread file
+	// is refused for occurrence= and not for what a later check finds.
+	for _, in := range []apply.Input{
+		{Path: "n.txt", Op: "create", Body: []string{"X"}, Lines: -1, Occurrence: 1},
+		{Path: "x.go", Op: "unlink", Lines: -1, Occurrence: 1},
+	} {
+		res, err := apply.Apply(root, []apply.Input{in}, apply.Options{Seen: map[string]apply.Seen{}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Failed != 1 || res.Hunks[0].Kind != refusal.OccurrenceAddress {
+			t.Errorf("engine, %s: failed=%d kind=%q, want %q", in.Op, res.Failed, res.Hunks[0].Kind, refusal.OccurrenceAddress)
+		}
 	}
 }
 

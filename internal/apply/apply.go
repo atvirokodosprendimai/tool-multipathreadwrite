@@ -1055,6 +1055,17 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		out[h.Index] = r
 	}
 
+	// ADR-118, mirrored from the parser (ADR-030) and checked FIRST, as the
+	// parser checks it, so a hunk carrying it is refused for this and not for
+	// something a later check finds: occurrence= picks among a pattern's
+	// matches, and a line address or a path op has none.
+	for _, h := range hs {
+		if h.Occurrence > 0 && h.StartPat == nil {
+			failK(h, refusal.OccurrenceAddress, "occurrence= picks among a start pattern's matches, so it needs a /pattern/ address")
+			return nil, false, ""
+		}
+	}
+
 	// ONE FILE IS ONE OBSERVATION, WHATEVER THE PLAN CALLS IT (ADR-029). The
 	// ledger is keyed on the path a caller typed, and a file has more than one
 	// valid name: an in-root symlink, or a case-only variant where the
@@ -1172,14 +1183,6 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		return false
 	}
 
-	// ADR-118, mirrored from the parser (ADR-030): occurrence= picks among a
-	// pattern's matches, and a path op has no address at all.
-	for _, h := range hs {
-		if h.Occurrence > 0 && h.StartPat == nil {
-			failK(h, refusal.OccurrenceAddress, "occurrence= picks among a start pattern's matches, so it needs a /pattern/ address")
-			return nil, false, ""
-		}
-	}
 	if pathLevel && !lineLevel {
 		if !planPathOp(root, path, full, hs[0], orig, existed, shaBefore, unlinked, produced, destCount, covered, fail, out) {
 			return nil, false, ""
@@ -1370,20 +1373,22 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				// every match before it was served — the ledger is per sha, so
 				// the caller counted them in the file as it is, which answers
 				// ADR-013's objection that the order moves when code does.
-				if n := h.Occurrence; n > 0 && which == "" && len(at) > 0 {
+				if n := h.Occurrence; n > 0 && len(at) > 0 {
 					if n > len(at) {
 						fail(h, "occurrence=%d but pattern %s matched %d line(s) in %s (%s)", n, re, len(at), path, joinInts(at))
 						return 0, false
 					}
-					if haveObs && !opt.Force && !obs.Whole() {
+					// Not obs.Whole(): a file mrw wrote is wholly licensed but
+					// was not shown; only the lines served count (ADR-118).
+					if haveObs && !opt.Force {
 						var unread []int
 						for _, l := range at[:n-1] {
-							if !obs.Covers(l, l) {
+							if !obs.ServedLine(l) {
 								unread = append(unread, l)
 							}
 						}
 						if len(unread) > 0 {
-							failK(h, refusal.NotRead, "occurrence=%d counts the matches before it, and %s also matches %s of %s, "+
+							fail(h, "occurrence=%d counts the matches before it, and %s also matches %s of %s, "+
 								"which have not been read: mrw served %s — read them, or pass --force",
 								n, re, joinInts(unread), path, obs.Served())
 							return 0, false
@@ -2282,6 +2287,11 @@ func srcAddrOf(i Input) string {
 	// end reported `3,+1` as `3`, which hides the span the hunk consumed.
 	if i.RelEnd > 0 {
 		s += ",+" + strconv.Itoa(i.RelEnd)
+	}
+	// occurrence= is part of WHICH line the caller named (ADR-118): without it
+	// two hunks picking the first and third match echo the same address.
+	if i.Occurrence > 0 {
+		s += " occurrence=" + strconv.Itoa(i.Occurrence)
 	}
 	return s
 }

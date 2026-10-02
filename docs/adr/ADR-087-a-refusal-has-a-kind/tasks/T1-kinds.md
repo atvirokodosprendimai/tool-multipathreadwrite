@@ -84,6 +84,7 @@ go test ./internal/adversarial/ ./internal/refusal/ -count=1 -timeout 180s -run 
 - 2026-09-27 · 81b8012* · exit 0 · `set -o pipefail …` · acceptance-sha256:263a4b3f241285ab54152c004eada0d0d60114dfa98517f99741f0331d9ff63a · ms:1004
 - 2026-09-27 · 81b8012* · exit 0 · `set -o pipefail …` · acceptance-sha256:263a4b3f241285ab54152c004eada0d0d60114dfa98517f99741f0331d9ff63a · ms:812
 - 2026-09-27 · 2c0f396* · exit 0 · `set -o pipefail …` · acceptance-sha256:263a4b3f241285ab54152c004eada0d0d60114dfa98517f99741f0331d9ff63a · ms:682
+- 2026-10-02 · 3ede136* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:263a4b3f241285ab54152c004eada0d0d60114dfa98517f99741f0331d9ff63a · ms:0 · test-lock-sha256:0802da81eba0a390deff0bf1c1262ae1c0deb9ac5f339fe2c0dc8fc892ae4c14 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYWR2ZXJzYXJpYWwva2luZHMwODdfdGVzdC5nbwlUZXN0UGFyc2VFcnJvcktpbmRzTGluZVVwV2l0aFRoZUVycm9ycwllOWVmOTM5ZWQ0NjJjNWY0MmRiN2JjZDNlZGM2NWRiM2EwZGU5MGYyMGU3OWJhMDk2Nzg3NDhjOGYwNmUzOTI3CmJvZHkJaW50ZXJuYWwvYWR2ZXJzYXJpYWwva2luZHMwODdfdGVzdC5nbwlUZXN0VGhlRW5naW5lQW5kVGhlUGFyc2VyUmVmdXNlV2l0aE9uZUtpbmQJNDA3MGIwN2MzYmY5YTVkODUwOGU5MzNlMDY2OTA2NjRiNjYwMjViMzRkMDlhOTcyNzZlZTVhOGNlMGM5NmRiZQpib2R5CWludGVybmFsL3JlZnVzYWwvcmVmdXNhbF90ZXN0LmdvCVRlc3RLaW5kT2ZGaW5kc0FXcmFwcGVkUmVmdXNhbAk1MmZlM2EyZGU5N2NiMjE3MGNjNDBiZTg5OTZlZGFlMWMwYTk0MzA1YjA0OWUyOTAyZThjNDQ2NWM1NmQzYmU1 · test-lock-kind:replace
 
 ## Mutation Log
 (empty until execute)

@@ -446,6 +446,11 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 			}
 			h.Raw = true
 		case "occurrence":
+			// Digits only, no sign and no leading zero: Atoi alone took "+2"
+			// and "02", spellings no read or refusal ever prints (review of #320).
+			if v == "" || v[0] == '0' || strings.Trim(v, "0123456789") != "" {
+				return Hunk{}, 0, fmt.Errorf("occurrence= wants a positive integer, got %q", v)
+			}
 			if h.Occurrence, err = strconv.Atoi(v); err != nil || h.Occurrence < 1 {
 				return Hunk{}, 0, fmt.Errorf("occurrence= wants a positive integer, got %q", v)
 			}

@@ -55,13 +55,32 @@ const Name = "seen"
 // what a write observes about the file it just produced. An empty-but-non-nil
 // Spans means the file was hashed and nothing was shown, which licenses no
 // edit at all.
+//
+// Written tells those two wholes apart (ADR-118). A file mrw just wrote is
+// wholly LICENSED — mrw produced every line, so a chain of edits needs no
+// re-read (ADR-005) — but the caller was not SHOWN it: Shown holds the lines a
+// read has served of this version since the write. occurrence=N counts matches,
+// and a count is only good in lines the caller saw, so it asks ServedLine.
 type Observation struct {
 	SHA   string
 	Spans [][2]int
+	// Written and Shown describe the ledger, not a read, so they stay out of
+	// mrw_read's receipt, which serializes observations (ADR-111).
+	Written bool     `json:"-"`
+	Shown   [][2]int `json:"-"`
 }
 
 // Whole reports whether this observation covers the entire file.
 func (o Observation) Whole() bool { return o.Spans == nil }
+
+// ServedLine reports whether line was shown to the caller in this version: a
+// read's spans, or, for a file mrw wrote, the lines read since (ADR-118).
+func (o Observation) ServedLine(line int) bool {
+	if o.Written {
+		return Observation{Spans: o.Shown}.coversLine(line)
+	}
+	return o.Covers(line, line)
+}
 
 // Covers reports whether every line in [start,end] was served. A whole-file
 // observation covers everything, and an empty span set covers nothing.
@@ -119,8 +138,10 @@ type Ledger map[string]Observation
 // something different from what they say. v2 exists because of the
 // served-nothing bug described in Load; v3 because an MCP checkpoint up to
 // v1.37.1 spanned the gaps of a sparse read, so a v2 span may cover lines no
-// read served (ADR-108 T10).
-const header = "#mrw-seen v3"
+// read served (ADR-108 T10); v4 because a v3 whole-file record does not say
+// whether the caller read the file or mrw wrote it, and occurrence=N needs to
+// know (ADR-118).
+const header = "#mrw-seen v4"
 
 func Load(root string) (Ledger, error) {
 	l := Ledger{}
@@ -215,7 +236,8 @@ func IsStale(root string) (bool, error) {
 // StaleNotice is what the CLI prints when IsStale reports true.
 const StaleNotice = "mrw: the read ledger was written by an older mrw, or its line endings were " +
 	"changed, and has been discarded — up to v0.0.11 a read that served nothing recorded the whole " +
-	"file, up to v1.37.1 an MCP checkpoint could license the lines between those a read served, and " +
+	"file, up to v1.37.1 an MCP checkpoint could license the lines between those a read served, up to " +
+	"v1.41.0 a file mrw wrote read as one the caller had been shown, and " +
 	"a ledger mrw did not write cannot be trusted either. Read the files you mean to edit again."
 
 // scanLF splits the ledger on "\n" alone. bufio.ScanLines also drops a "\r"
@@ -247,9 +269,17 @@ func parseLine(text string) (string, Observation, bool) {
 		return "", Observation{}, false
 	}
 	spans, path, ok := strings.Cut(rest, "  ")
-	// Two shapes have to be told apart, and a legacy PATH may itself contain a
-	// double space: "<sha>  my  file.go" is one path, not spans plus a path.
-	// The middle field is only spans when it is shaped like spans.
+	// A file mrw wrote is "w" and the lines shown since (ADR-118); checked
+	// before the legacy shape, which "w…" would otherwise read as a path.
+	if ok && path != "" && strings.HasPrefix(spans, "w") && spanShaped(spans[1:]) {
+		shown := [][2]int{}
+		if spans != "w" {
+			shown = parseSpans(spans[1:])
+		}
+		return path, Observation{SHA: sha, Written: true, Shown: shown}, true
+	}
+	// If the middle field is not span-shaped, this is the legacy two-field
+	// line and `rest` is the whole path, spaces and all.
 	if !ok || !spanShaped(spans) {
 		return rest, Observation{SHA: sha}, true // legacy: whole file
 	}
@@ -295,6 +325,13 @@ func parseSpans(s string) [][2]int {
 }
 
 func formatSpans(o Observation) string {
+	if o.Written {
+		parts := make([]string, 0, len(o.Shown))
+		for _, s := range o.Shown {
+			parts = append(parts, fmt.Sprintf("%d-%d", s[0], s[1]))
+		}
+		return "w" + strings.Join(parts, ",")
+	}
 	if o.Whole() {
 		return "-"
 	}
@@ -434,10 +471,28 @@ func Snapshot(root string) (Ledger, error) {
 // merge combines a new observation with what was already recorded for the same
 // path. Anything about a different version of the file is discarded.
 func merge(old, new Observation) Observation {
-	if old.SHA != new.SHA || new.Whole() {
+	if old.SHA != new.SHA {
 		return new
 	}
-	if old.Whole() {
+	switch {
+	case new.Written:
+		// A write that produced the version already recorded keeps what the
+		// caller was shown of it: the lines are the same lines.
+		switch {
+		case old.Written:
+			return Observation{SHA: new.SHA, Written: true, Shown: old.Shown}
+		case old.Whole():
+			return old
+		default:
+			return Observation{SHA: new.SHA, Written: true, Shown: old.Spans}
+		}
+	case new.Whole():
+		return new // read whole: shown everything
+	case old.Written:
+		// A partial read of a file mrw wrote: still wholly licensed, and the
+		// lines it served are now shown (ADR-118).
+		return Observation{SHA: new.SHA, Written: true, Shown: mergeSpans(append(append([][2]int{}, old.Shown...), new.Spans...))}
+	case old.Whole():
 		return old
 	}
 	return Observation{SHA: new.SHA, Spans: mergeSpans(append(append([][2]int{}, old.Spans...), new.Spans...))}

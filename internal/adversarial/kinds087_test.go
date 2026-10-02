@@ -30,6 +30,7 @@ func TestTheEngineAndTheParserRefuseWithOneKind(t *testing.T) {
 		{"@@ n.txt - create\n", apply.Input{Path: "n.txt", Op: "create", Lines: unset}, refusal.CreateEmptyBody},
 		{"@@ f.txt 1 insert-after\n", apply.Input{Path: "f.txt", Op: "insert-after", Start: 1, End: 1, Lines: unset}, refusal.InsertEmptyBody},
 		{"@@ n.txt 00,+2 create\nX\n", apply.Input{Path: "n.txt", Op: "create", RelEnd: 2, Body: []string{"X"}, Lines: unset}, refusal.CreateRelEnd},
+		{"@@ f.txt 3 replace occurrence=2\nX\n", apply.Input{Path: "f.txt", Op: "replace", Start: 3, End: 3, Body: []string{"X"}, Lines: unset, Occurrence: 2}, refusal.OccurrenceAddress},
 	}
 	for _, c := range cases {
 		t.Run(string(c.kind), func(t *testing.T) {

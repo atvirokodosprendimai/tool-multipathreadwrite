@@ -8439,6 +8439,16 @@ printf '@@ x218.go /^\\treturn/ replace occurrence=2\n\treturn 20\n' > "$R/p218.
 out=$(XDG_STATE_HOME="$WORK/st218" "$MRW" -C "$R" write --no-check "$R/p218.mrw" 2>&1); rc=$?
 want 1 "$rc" "occurrence=2 with the first match unread is refused"
 grep -q 'lines 4 of x218.go' <<<"$out" && ok "and the refusal names the unread match" || bad "refusal: $out"
+# And right after a write: the file is wholly licensed for edits, but its
+# matches were never shown, so occurrence= still needs them read.
+printf '%s\n' "$before218" > "$R/x218.go"
+XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" read 'x218.go:1' > /dev/null
+printf '@@ x218.go 1 replace\npackage demo // edited\n' > "$R/p218.mrw"
+XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 0 $? "a write of line 1 lands"
+printf '@@ x218.go /^\\treturn/ replace occurrence=2\n\treturn 20\n' > "$R/p218.mrw"
+XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 1 $? "right after the write, occurrence=2 with no match read is refused"
+XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" read 'x218.go:/^\treturn/' > /dev/null
+XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 0 $? "the pair: after a read of the matches it applies"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
