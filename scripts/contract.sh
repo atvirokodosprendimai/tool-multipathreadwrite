@@ -8356,6 +8356,31 @@ sc = json.loads(r["content"][-1]["text"])
 sys.exit(0 if "skipped" not in sc and "gen216/x.txt" in sc.get("observed", {}) and "b216.dat" in sc.get("observed", {}) else 1)
 PY
 
+# 215. ADR-115: mrw_write takes then, names of steps declared in
+# .quality-harness.json, run after a passing check, verdicts in the receipt's
+# then. The pair: a name the project did not declare is refused before
+# anything is written.
+fixture
+printf '{"check":"exit 0","steps":{"ok215":"echo fine215"}}\n' > "$R/.quality-harness.json"
+m read a.go > /dev/null
+req215() {
+  python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":json.loads(sys.argv[1])}}))' "$1"
+}
+out=$(req215 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 215 }\n","then":["ok215"]}' | "$MRW" -C "$R" mcp 2>/dev/null)
+python3 - "$out" <<'PY' && ok "mrw_write runs a declared step after its check" || bad "the step did not run: $(head -c 400 <<<"$out")"
+import json, sys
+r = json.loads(sys.argv[1])["result"]
+st = (r["structuredContent"].get("then") or {}).get("steps") or []
+sys.exit(0 if len(st) == 1 and st[0].get("status") == "pass" and not r.get("isError") else 1)
+PY
+before=$(cat "$R/a.go")
+out=$(req215 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 2150 }\n","then":["nope215"]}' | "$MRW" -C "$R" mcp 2>/dev/null)
+python3 - "$out" <<'PY' && [ "$(cat "$R/a.go")" = "$before" ] && ok "the pair: an undeclared step is refused and nothing is written" || bad "undeclared step: $(head -c 400 <<<"$out")"
+import json, sys
+r = json.loads(sys.argv[1])["result"]
+sys.exit(0 if r.get("isError") and "nothing was written" in r["content"][0]["text"] else 1)
+PY
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

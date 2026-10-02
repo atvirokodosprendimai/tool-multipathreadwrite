@@ -302,7 +302,9 @@ becomes a licence. `mrw_write` runs the project's check after a write that touch
 code, by the rule `mrw write` uses (ADR-113), and returns the verdict as `check`
 (and `drift`); `check: false` turns it off. A check that ran and failed leaves the
 write applied and the call not an error. The write lands before the check runs, so
-a lost answer means read the files before re-sending the plan. Its receipt's hunks carry
+a lost answer means read the files before re-sending the plan. `then` names steps declared in
+`.quality-harness.json` to run after a passing check (ADR-115), their verdicts in the receipt's
+`then`; ad-hoc shell (`--then-sh`) stays on the CLI. Its receipt's hunks carry
 the same `balance` field the CLI prints.
 An argument a tool does not declare is refused, naming it and the arguments the tool takes; nothing is done.
 
@@ -377,7 +379,7 @@ mrw supports [opencode](https://opencode.ai) through a plugin in this repository
 | tool | runs | arguments |
 |---|---|---|
 | `mrw_read` | `mrw mcp`'s `mrw_read` | `specs`, `grep`, `astGrep`, `exclude`, `after`, `ack`, `root` |
-| `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `check`, `format`, `echoPad`, `strictBalance` |
+| `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `check`, `then`, `format`, `echoPad`, `strictBalance` |
 | `mrw_check` | `mrw check` | `paths` |
 | `mrw_stats` | `mrw stats` | `json` |
 | `mrw_seen` | `mrw seen` | `prune`, `dryRun` |

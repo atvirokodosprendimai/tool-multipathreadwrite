@@ -193,6 +193,10 @@ const toolWrite = tool({
       .boolean()
       .optional()
       .describe("Run the project's check after a write that touches code (default true); false runs none."),
+    then: z
+      .array(z.string())
+      .optional()
+      .describe("Steps declared in .quality-harness.json to run after a passing check, by name. No ad-hoc command."),
     format: z
       .enum(["plan", "apply_patch", "search_replace"])
       .optional()
@@ -213,7 +217,7 @@ const toolWrite = tool({
       ),
   },
   async execute(args, ctx) {
-    const call = set(args, { plan: "plan", ack: "ack", dryRun: "dry_run", check: "check", format: "format", echoPad: "echo_pad", strictBalance: "strict_balance" });
+    const call = set(args, { plan: "plan", ack: "ack", dryRun: "dry_run", check: "check", then: "then", format: "format", echoPad: "echo_pad", strictBalance: "strict_balance" });
     return mcp("mrw write", ctx, root(ctx), "mrw_write", call);
   },
 });

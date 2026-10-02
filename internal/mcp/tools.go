@@ -586,6 +586,7 @@ type writeArgs struct {
 	EchoPad       int      `json:"echo_pad"`
 	StrictBalance bool     `json:"strict_balance"`
 	Check         *bool    `json:"check"`
+	Then          []string `json:"then"`
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the
@@ -602,6 +603,13 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	}
 	if a.EchoPad < 0 {
 		return errorResult("echo_pad must be >= 0"), nil
+	}
+	// ADR-115: steps that may run mrw again are refused at the depth limit
+	// before anything is parsed, as --then is on the CLI (ADR-095).
+	if len(a.Then) > 0 {
+		if err := check.DepthRefusal("then is"); err != nil {
+			return errorResult(err.Error() + ": nothing was written"), nil
+		}
 	}
 	// The checkpoints for the page this plan was written against, promoted
 	// before the ledger is consulted (ADR-031).
@@ -710,7 +718,13 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if a.Check != nil && !*a.Check {
 		mode = writer.CheckOff
 	}
-	prep, err := writer.Prepare(writer.Request{Root: root, In: in, Check: mode,
+	// ADR-115: `then` names steps declared in .quality-harness.json; Prepare
+	// resolves them and refuses a name the project did not declare.
+	var steps []check.Step
+	for _, n := range a.Then {
+		steps = append(steps, check.Step{Name: n})
+	}
+	prep, err := writer.Prepare(writer.Request{Root: root, In: in, Check: mode, Steps: steps, StepFlag: "then",
 		Opts: apply.Options{DryRun: a.DryRun, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance}})
 	if err != nil {
 		return errorResult(gateRefusal(err)), nil
@@ -734,7 +748,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// is answered with the receipt (ADR-102): a bare RPC error could not be told
 	// from a write that did nothing, and a client might send the plan again.
 	if land.LedgerErr != nil {
-		return boundedReceipt(root, res, land.LedgerErr)
+		return checkedReceipt(root, res, &writer.Verified{Then: land.Then}, land.LedgerErr, true)
 	}
 	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
 	// it is rendered on whichever path we are on rather than discarded.
@@ -748,7 +762,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if v.CheckErr != nil {
 		return checkedReceipt(root, res, &v, v.CheckErr, true)
 	}
-	out, rpcErr := checkedReceipt(root, res, &v, nil, res.Failed > 0 || (v.Check != nil && !v.Check.Ran))
+	out, rpcErr := checkedReceipt(root, res, &v, nil, res.Failed > 0 || (v.Check != nil && !v.Check.Ran) || stepCouldNotStart(v.Then))
 	land.Settle(v)
 	return out, rpcErr
 }
@@ -778,6 +792,9 @@ type writeReceipt struct {
 	// Drift is each file the write touched that changed while its check ran
 	// (ADR-112), spelled with `/`. Absent when none did.
 	Drift []string `json:"drift,omitempty"`
+	// Then is every declared step's verdict after this write (ADR-115), the
+	// same object `mrw write --json` carries. Absent when none was asked for.
+	Then *check.StepsResult `json:"then,omitempty"`
 }
 
 // errText is err's message, or "" for none.
@@ -857,47 +874,75 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 	var chk *check.Result
 	var checkErr error
 	var drift []string
+	var then *check.StepsResult
 	if v != nil {
-		chk, checkErr = v.Check, v.CheckErr
+		chk, checkErr, then = v.Check, v.CheckErr, v.Then
 		for _, p := range v.Drift {
 			drift = append(drift, filepath.ToSlash(p))
 		}
 	}
-	render := func(r apply.Result, hunks []apply.HunkResult, c *check.Result, note string) (callToolResult, *rpcError) {
+	render := func(r apply.Result, hunks []apply.HunkResult, c *check.Result, th *check.StepsResult, note string) (callToolResult, *rpcError) {
 		lead, tail := checkReport(c, checkErr, drift)
-		return result(writeReceipt{Result: r, Elided: note, Pattern: pattern, Error: errText(applyErr), Check: c, Drift: drift},
-			lead+writeReport(res, hunks, applyErr, note)+tail, isErr)
+		return result(writeReceipt{Result: r, Elided: note, Pattern: pattern, Error: errText(applyErr), Check: c, Drift: drift, Then: th},
+			lead+writeReport(res, hunks, applyErr, note)+tail+stepsReport(th), isErr)
 	}
-	full, rpcErr := render(res, res.Hunks, chk, "")
+	full, rpcErr := render(res, res.Hunks, chk, then, "")
 	if rpcErr != nil || encodedSize(full) <= ceiling() {
 		return full, rpcErr
 	}
 	whole := encodedSize(full)
 
-	// ADR-113: the check's tail is the first thing to go. The verdict stays,
-	// and the tail is in the check's output_file.
+	// ADR-113, ADR-115: the check's and the steps' tails are the first thing
+	// to go. The verdicts stay, and each tail is in its output_file.
 	tailNote := ""
-	if chk != nil && len(chk.Tail) > 0 {
-		cut := *chk
-		cut.Tail = nil
-		// A passing check whose whole output fit its tail removed its log
-		// (internal/check), so the tail would be the only copy: write it to a
-		// log of its own before dropping it, and name that one.
-		if cut.OutputFile == "" {
-			cut.OutputFile = keptTail(chk.Tail)
+	if (chk != nil && len(chk.Tail) > 0) || stepTailLines(then) > 0 {
+		var dropped []string
+		cutChk, cutThen := chk, then
+		if chk != nil && len(chk.Tail) > 0 {
+			cut := *chk
+			cut.Tail = nil
+			// A passing check whose whole output fit its tail removed its log
+			// (internal/check), so the tail would be the only copy: write it to a
+			// log of its own before dropping it, and name that one.
+			if cut.OutputFile == "" {
+				cut.OutputFile = keptTail(chk.Tail)
+			}
+			if cut.OutputFile == "" {
+				dropped = append(dropped, fmt.Sprintf("the check's %d tail line(s) (lost: no log could be written for them)", len(chk.Tail)))
+			} else {
+				dropped = append(dropped, fmt.Sprintf("the check's %d tail line(s) (its output_file holds them)", len(chk.Tail)))
+			}
+			cutChk = &cut
 		}
-		dropped := fmt.Sprintf("the check's %d tail line(s) (its output_file holds them)", len(chk.Tail))
-		if cut.OutputFile == "" {
-			dropped = fmt.Sprintf("the check's %d tail line(s) (lost: no log could be written for them)", len(chk.Tail))
+		if n := stepTailLines(then); n > 0 {
+			cut := check.StepsResult{Pruned: then.Pruned, Steps: append([]check.StepResult(nil), then.Steps...)}
+			lost := false
+			for i := range cut.Steps {
+				if len(cut.Steps[i].Tail) == 0 {
+					continue
+				}
+				if cut.Steps[i].OutputFile == "" {
+					cut.Steps[i].OutputFile = keptTail(cut.Steps[i].Tail)
+					lost = lost || cut.Steps[i].OutputFile == ""
+				}
+				cut.Steps[i].Tail = nil
+			}
+			if lost {
+				dropped = append(dropped, fmt.Sprintf("the steps' %d tail line(s) (some lost: no log could be written for them)", n))
+			} else {
+				dropped = append(dropped, fmt.Sprintf("the steps' %d tail line(s) (their output_file holds them)", n))
+			}
+			cutThen = &cut
 		}
+		gone := strings.Join(dropped, " and ")
 		note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: %s are not here. "+
-			"Every hunk verdict and file record is here, and the counts are of the whole plan.", MaxResultChars, whole, dropped)
-		out, rpcErr := render(res, res.Hunks, &cut, note)
+			"Every hunk verdict and file record is here, and the counts are of the whole plan.", MaxResultChars, whole, gone)
+		out, rpcErr := render(res, res.Hunks, cutChk, cutThen, note)
 		if rpcErr != nil || encodedSize(out) <= ceiling() {
 			return out, rpcErr
 		}
-		chk = &cut
-		tailNote = ", nor " + dropped
+		chk, then = cutChk, cutThen
+		tailNote = ", nor " + gone
 	}
 
 	kept := make([]apply.HunkResult, 0, res.Failed)
@@ -931,7 +976,7 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 		note += ". Every FAILED hunk is here, every file that WAS written is here, " +
 			"and the counts are of the whole plan."
 
-		out, rpcErr := render(short, kept, chk, note)
+		out, rpcErr := render(short, kept, chk, then, note)
 		if rpcErr != nil {
 			return out, rpcErr
 		}
@@ -965,7 +1010,7 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 	// ADR-105: the structured value is gone in both branches below, and
 	// left_behind with it, so the sentence carries the count.
 	if written > 0 {
-		return errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, writer.MutationOf(res) == writer.Partial) + checkPhrase(chk, checkErr) + leftNote(len(res.LeftBehind))), nil
+		return errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, writer.MutationOf(res) == writer.Partial) + checkPhrase(chk, checkErr) + stepPhrase(then) + leftNote(len(res.LeftBehind))), nil
 	}
 	// ADR-110 T3: a write refused before any hunk had a verdict — the write
 	// lock held past its wait — has no counts worth giving; its own words are
@@ -1074,6 +1119,67 @@ func checkPhrase(c *check.Result, checkErr error) string {
 // widest exit code.
 var longestCheckPhrase = checkPhrase(&check.Result{Ran: true, ExitCode: math.MinInt}, nil)
 
+// stepsReport is one line per step asked for (ADR-115), after the check's
+// lines: its verdict, and the tail of a step that stopped the sequence.
+func stepsReport(r *check.StepsResult) string {
+	if r == nil {
+		return ""
+	}
+	var b strings.Builder
+	for i, s := range r.Steps {
+		fmt.Fprintf(&b, "then %d/%d %s: %s (exit %d)", i+1, len(r.Steps), s.Name, s.Status, s.ExitCode)
+		if s.Skipped != "" {
+			fmt.Fprintf(&b, " — %s", s.Skipped)
+		}
+		b.WriteString("\n")
+		if s.Status != check.StepPass && s.Status != check.StepNotRun {
+			for _, l := range s.Tail {
+				fmt.Fprintf(&b, "  | %s\n", l)
+			}
+			if s.OutputFile != "" {
+				fmt.Fprintf(&b, "step output: %s\n", s.OutputFile)
+			}
+		}
+	}
+	return b.String()
+}
+
+// stepTailLines counts the tail lines a step result carries, all steps.
+func stepTailLines(r *check.StepsResult) int {
+	if r == nil {
+		return 0
+	}
+	n := 0
+	for _, s := range r.Steps {
+		n += len(s.Tail)
+	}
+	return n
+}
+
+// stepCouldNotStart says whether the step that stopped the sequence never
+// started: mrw could not do what it was asked, so the answer is isError, as
+// the CLI's exit 2 (ADR-115). A step that ran and failed is data.
+func stepCouldNotStart(r *check.StepsResult) bool {
+	s, _, ok := writer.StepStop(r)
+	return ok && s.Status == check.StepCouldNotStart
+}
+
+// stepPhrase names a stopped step in the terminal sentence, from a fixed set
+// and never the step's name, so it has a bound writeFloor carries.
+func stepPhrase(r *check.StepsResult) string {
+	s, _, ok := writer.StepStop(r)
+	switch {
+	case !ok:
+		return ""
+	case s.Status == check.StepCouldNotStart:
+		return " A step after it could not start."
+	}
+	return " A step after it did not pass."
+}
+
+// longestStepPhrase is the widest stepPhrase can be.
+var longestStepPhrase = stepPhrase(&check.StepsResult{Steps: []check.StepResult{{Status: check.StepCouldNotStart}}})
+
 // writtenFiles is the subset of file records whose file actually changed on
 // disk. It is what stage-two elision keeps: dropping these is what let a receipt
 // deny a write that had already happened.
@@ -1141,7 +1247,7 @@ func writeFloor() int { return floorAt(MaxResultChars) }
 
 // floorAt is the write floor as it would be at ceiling c.
 func floorAt(c int) int {
-	return encodedSize(errorResult(unreportableAt(c, math.MaxInt, math.MaxInt, math.MaxInt, true) + longestCheckPhrase + leftNote(math.MaxInt)))
+	return encodedSize(errorResult(unreportableAt(c, math.MaxInt, math.MaxInt, math.MaxInt, true) + longestCheckPhrase + longestStepPhrase + leftNote(math.MaxInt)))
 }
 
 // minWriteCeiling is the smallest ceiling at which this call's write would
@@ -2140,8 +2246,8 @@ func undeclaredRefusal(name string, args json.RawMessage) string {
 // TestTheRefusalRoutesOnlyToFlagsTheCLIHas applies).
 var cliRoute = map[string]string{
 	"mrw_read": "`mrw read` in a shell has what this tool does not, such as --files-from, --max-lines and --stat.",
-	"mrw_write": "This tool runs the project's check after a write that touches code, and no step (ADR-113); `mrw write` in a shell " +
-		"takes --then and --then-sh for steps after it.",
+	"mrw_write": "This tool runs the project's check after a write that touches code, and the declared steps named in then " +
+		"(ADR-113, ADR-115); `mrw write` in a shell also takes --then-sh for an ad-hoc step.",
 }
 
 // quoteAll quotes each name and joins them with commas, in the order given.

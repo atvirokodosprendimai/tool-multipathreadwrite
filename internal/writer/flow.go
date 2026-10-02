@@ -44,6 +44,10 @@ type Request struct {
 	Opts  apply.Options
 	Check CheckMode
 	Steps []check.Step
+	// StepFlag is the surface's name for its steps, which a refused step
+	// name is reported under: "--then" on the CLI when empty, "then" over MCP,
+	// whose caller has no flag to pass (ADR-115).
+	StepFlag string
 }
 
 // Stage names the gate that refused a write before anything was written.
@@ -94,7 +98,7 @@ func Prepare(req Request) (*Prepared, error) {
 		}
 		p.cfg = cfg
 	}
-	if err := ResolveSteps(p.cfg, req.Steps); err != nil {
+	if err := ResolveSteps(p.cfg, req.Steps, req.StepFlag); err != nil {
 		return nil, p.refuse(StageSteps, err)
 	}
 	if req.Check != CheckOff && !req.Opts.DryRun && p.wanted(touchesCode(req.In)) {
@@ -339,8 +343,12 @@ func touchesCode(in []apply.Input) bool {
 }
 
 // ResolveSteps gives each named step its declared command, and refuses a name
-// the project did not declare, naming the ones it did (ADR-092).
-func ResolveSteps(cfg check.Config, steps []check.Step) error {
+// the project did not declare, naming the ones it did (ADR-092), under flag
+// ("--then" when empty).
+func ResolveSteps(cfg check.Config, steps []check.Step, flag string) error {
+	if flag == "" {
+		flag = "--then"
+	}
 	var cmds map[string]string
 	read := false
 	for i := range steps {
@@ -370,7 +378,7 @@ func ResolveSteps(cfg check.Config, steps []check.Step) error {
 		if len(names) > 0 {
 			declared = "declared: " + strings.Join(names, ", ")
 		}
-		return fmt.Errorf("--then %s: .quality-harness.json \"steps\" has no such step (%s)", Shown(steps[i].Name), declared)
+		return fmt.Errorf("%s %s: .quality-harness.json \"steps\" has no such step (%s)", flag, Shown(steps[i].Name), declared)
 	}
 	return nil
 }
