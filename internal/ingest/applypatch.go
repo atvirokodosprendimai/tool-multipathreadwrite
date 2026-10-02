@@ -42,6 +42,9 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 		path string
 		kind string // update | add
 		hunk []string
+		// moved says this Update File section already carried its one Move to
+		// (ADR-114): a second is refused.
+		moved bool
 	)
 	flush := func() error {
 		if path == "" {
@@ -69,7 +72,7 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			if err := flush(); err != nil {
 				return nil, err
 			}
-			path, kind = "", ""
+			path, kind, moved = "", "", false
 		case strings.HasPrefix(line, deleteFile):
 			if err := flush(); err != nil {
 				return nil, err
@@ -80,14 +83,24 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 				return nil, err
 			}
 			out.WriteString(text)
-			path, kind = "", ""
+			path, kind, moved = "", "", false
 			hunk = nil
 		case strings.HasPrefix(line, moveTo):
 			if kind != "update" || path == "" {
 				return nil, fmt.Errorf("apply_patch: %s with no Update File", trimStar(line))
 			}
+			if moved {
+				return nil, fmt.Errorf("apply_patch: %s is a second Move to for %s; a section moves its file once", trimStar(line), path)
+			}
+			// ADR-114: the hunks of this section, before or after this line,
+			// still compile against the source; the engine applies the edits
+			// and this rename in one plan. A hunk open when it arrives is
+			// closed here, so the lines on either side are not joined.
 			if len(hunk) > 0 {
-				return nil, fmt.Errorf("apply_patch: Move to with hunks is not compiled this slice")
+				if err := flush(); err != nil {
+					return nil, err
+				}
+				hunk = []string{}
 			}
 			dest := pathAfter(line, moveTo)
 			text, err := compilePathOp("rename", path, []string{dest})
@@ -95,14 +108,14 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 				return nil, err
 			}
 			out.WriteString(text)
-			kind = "moved"
-			hunk = nil
+			moved = true
 		case strings.HasPrefix(line, updateFile):
 			if err := flush(); err != nil {
 				return nil, err
 			}
 			path = pathAfter(line, updateFile)
 			kind = "update"
+			moved = false
 			hunk = []string{}
 		case strings.HasPrefix(line, addFile):
 			if err := flush(); err != nil {
@@ -110,13 +123,11 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			}
 			path = pathAfter(line, addFile)
 			kind = "add"
+			moved = false
 			hunk = []string{}
 		case strings.HasPrefix(line, "@@"):
 			if path == "" {
 				return nil, fmt.Errorf("apply_patch: hunk with no file")
-			}
-			if kind == "moved" {
-				return nil, fmt.Errorf("apply_patch: Move to with hunks is not compiled this slice")
 			}
 			if kind == "update" && len(hunk) > 0 {
 				if err := flush(); err != nil {
@@ -131,9 +142,7 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 		case kind == "update" || kind == "add":
 			hunk = append(hunk, line)
 		case strings.TrimSpace(line) == "":
-			// leading blank inside the envelope; trailing blank after Move to
-		case kind == "moved":
-			return nil, fmt.Errorf("apply_patch: Move to with hunks is not compiled this slice")
+			// leading blank inside the envelope
 		default:
 			return nil, fmt.Errorf("apply_patch: unexpected line %q", line)
 		}

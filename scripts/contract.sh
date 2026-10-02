@@ -5732,8 +5732,8 @@ want 0 "$rc" "whole-file read then rename -> exit 0"
   && ok "rename lands dest and removes source" || bad "rename tree: $(ls -l "$R")"
 
 # 99. ADR-057: apply_patch Delete File / Move to. Pair: Delete File after a
-# whole-file read applies / Move to with extra @@ hunks is exit 2 and the
-# tree is unchanged.
+# whole-file read applies / Move to with @@ hunks over an unread file is exit 1
+# and the tree is unchanged (ADR-114 compiles it; the ledger refuses it).
 R=$(mktemp -d "$WORK/r99-XXXXXX")
 printf 'gone\n' > "$R/gone.txt"
 m read gone.txt >/dev/null
@@ -5755,9 +5755,11 @@ patch99b=$(printf '%s\n' \
 	'-stay' \
 	'+gone' \
 	'*** End Patch')
+# ADR-114: Move to with hunks compiles now; over a file never read it is the
+# ledger that refuses it, exit 1, and the tree is unchanged.
 out=$(printf '%s\n' "$patch99b" | m write --format=apply_patch - 2>&1); rc=$?
-want 2 "$rc" "Move to with extra @@ hunks -> exit 2"
-grep -q 'hunks' <<<"$out" && ok "Move to with hunks names hunks" || bad "Move to with hunks text: $out"
+want 1 "$rc" "Move to with hunks over an unread file -> exit 1"
+grep -q 'has not been read' <<<"$out" && ok "and the refusal names the unread file" || bad "Move to with hunks text: $out"
 grep -qx 'stay' "$R/a.txt" && [ ! -e "$R/b.txt" ] \
   && ok "Move to with hunks wrote nothing" || bad "Move to with hunks wrote: $(ls -l "$R")"
 
@@ -8299,6 +8301,24 @@ import json, sys
 sc = json.loads(sys.argv[1])["result"]["structuredContent"]
 sys.exit(0 if "check" not in sc and sc.get("applied") is True else 1)
 PY
+# 214. ADR-114: a file is edited and renamed in one plan. apply_patch's Update
+# File + Move to + a hunk lands the edit at the destination and removes the
+# source, exit 0, each path named once in the receipt. The pair, which the old
+# binary cannot pass: a move onto a destination that exists refuses the whole
+# plan, exit 1, and the source is not edited — the edit and the move are one.
+fixture
+printf 'stay\n' > "$R/m214.txt"
+m read m214.txt > /dev/null
+printf '%s\n' '*** Begin Patch' '*** Update File: m214.txt' '*** Move to: moved/n214.txt' '@@' '-stay' '+gone' '*** End Patch' > "$R/p214.patch"
+out=$(m write --no-check --format=apply_patch "$R/p214.patch" 2>&1); want 0 $? "a move with a hunk applies in one plan"
+{ [ "$(cat "$R/moved/n214.txt" 2>/dev/null)" = gone ] && [ ! -e "$R/m214.txt" ]; } && ok "and the edit is at the destination, the source gone" || bad "move+edit left: $(ls -R "$R" | head -20)"
+[ "$(grep -cE '^(removed|wrote|created) m214\.txt' <<<"$out")" = 1 ] && grep -q '^removed m214.txt .*renamed to moved/n214.txt' <<<"$out" && ok "and the receipt names the source once, renamed" || bad "receipt: $out"
+printf 'stay\n' > "$R/k214.txt"
+printf 'taken\n' > "$R/l214.txt"
+m read k214.txt > /dev/null
+printf '%s\n' '*** Begin Patch' '*** Update File: k214.txt' '*** Move to: l214.txt' '@@' '-stay' '+gone' '*** End Patch' > "$R/q214.patch"
+m write --no-check --format=apply_patch "$R/q214.patch" > /dev/null 2>&1; want 1 $? "the pair: a move onto a destination that exists is refused"
+{ [ "$(cat "$R/k214.txt")" = stay ] && [ "$(cat "$R/l214.txt")" = taken ]; } && ok "and the source is not edited, the destination untouched" || bad "a refused move changed the tree"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running

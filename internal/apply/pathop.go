@@ -153,6 +153,10 @@ type moved struct {
 	from, to string
 	key      string
 	recs     [2]int
+	// orig is the source's record as the edit left it, for a rename of a file
+	// this plan also edited (ADR-114): the rename rewrote it in place, and an
+	// undo puts it back, since the source then holds the edit again.
+	orig *FileResult
 }
 
 // resolvedAt is p with its parent resolved through every link as far as it
@@ -185,6 +189,11 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 			if err := commitRenameFn(tr, r.to, r.from); err != nil {
 				occupied[r.key] = true
 				left = append(left, fmt.Sprintf("could not move %s back to %s: %v", r.to, r.from, err))
+				continue
+			}
+			if r.orig != nil {
+				res.Files[r.recs[0]] = *r.orig
+				drop[r.recs[1]] = true
 				continue
 			}
 			drop[r.recs[0]], drop[r.recs[1]] = true, true
@@ -250,19 +259,37 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 		if err := commitRenameFn(tr, from, w.renameTo); err != nil {
 			return err
 		}
+		dest := FileResult{
+			Path:     w.destRel,
+			Created:  true,
+			Written:  true,
+			LinesTo:  len(w.out.lines),
+			SHAAfter: shaOf(w.out),
+		}
+		// ADR-114: an edited source already has the record its content commit
+		// wrote; rewrite that one, so the receipt and the ledger name the path
+		// once.
+		if w.edited {
+			for i := range res.Files {
+				if res.Files[i].Path != w.file.Path || res.Files[i].Removed {
+					continue
+				}
+				prev := res.Files[i]
+				rec := prev
+				rec.Written, rec.Removed, rec.RenamedTo, rec.LinesTo, rec.SHAAfter = true, true, w.destRel, 0, ""
+				res.Files[i] = rec
+				renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{i, len(res.Files)}, orig: &prev})
+				res.Files = append(res.Files, dest)
+				return nil
+			}
+		}
 		renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{len(res.Files), len(res.Files) + 1}})
 		w.file.Written = true
 		w.file.Removed = true
 		w.file.LinesTo = 0
 		w.file.SHAAfter = ""
 		res.Files = append(res.Files, w.file)
-		res.Files = append(res.Files, FileResult{
-			Path:     w.destRel,
-			Created:  true,
-			Written:  true,
-			LinesTo:  w.file.LinesFrom,
-			SHAAfter: shaOf(w.out),
-		})
+		res.Files = append(res.Files, dest)
 		return nil
 	}
 
