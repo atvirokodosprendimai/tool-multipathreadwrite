@@ -35,12 +35,13 @@
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/mcp/ -count=1 -timeout 600s -run 'TestAPingIsAnsweredWhileAWritesCheckRuns|TestProgressIsSentWhileACallRunsAndNotAfter|TestQuickAnswersKeepTheirOrder|TestServeAnswersACallInFlightAtEndOfInput|TestAModernWriteKeepsItsDecorationWhenACallRunsDuringItsCheck' -v 2>&1 | tee "$out" \
+  && go test ./internal/mcp/ -count=1 -timeout 600s -run 'TestAPingIsAnsweredWhileAWritesCheckRuns|TestProgressIsSentWhileACallRunsAndNotAfter|TestQuickAnswersKeepTheirOrder|TestServeAnswersACallInFlightAtEndOfInput|TestAModernWriteKeepsItsDecorationWhenACallRunsDuringItsCheck|TestTheLoopIsReleasedOnlyWhenACheckOrStepRuns' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestAPingIsAnsweredWhileAWritesCheckRuns \(' "$out" \
   && grep -qE '^--- PASS: TestProgressIsSentWhileACallRunsAndNotAfter \(' "$out" \
   && grep -qE '^--- PASS: TestQuickAnswersKeepTheirOrder \(' "$out" \
   && grep -qE '^--- PASS: TestServeAnswersACallInFlightAtEndOfInput \(' "$out" \
   && grep -qE '^--- PASS: TestAModernWriteKeepsItsDecorationWhenACallRunsDuringItsCheck \(' "$out" \
+  && grep -qE '^--- PASS: TestTheLoopIsReleasedOnlyWhenACheckOrStepRuns \(' "$out" \
   && go test -race ./internal/mcp/ -count=1 -timeout 900s \
   && go test ./cmd/mrw/ -count=1 -timeout 900s \
   && grep -q '^# 220\. ' scripts/contract.sh \
@@ -58,6 +59,7 @@ out=$(mktemp) \
 | `TestQuickAnswersKeepTheirOrder` | `internal/mcp/thread121_test.go` | requests with no check are answered in the order they arrived | none | S1, S2 |
 | `TestServeAnswersACallInFlightAtEndOfInput` | `internal/mcp/thread121_test.go` | input closed during a check: the write is still answered | none | S1, S2 |
 | `TestAModernWriteKeepsItsDecorationWhenACallRunsDuringItsCheck` | `internal/mcp/thread121_test.go` | a read during a modern write's check does not strip the write's modern fields | none | S1, S2 |
+| `TestTheLoopIsReleasedOnlyWhenACheckOrStepRuns` | `internal/mcp/thread121_test.go` | check: false, prose and dry-run writes keep their place; a checked write releases | none | S1, S2 |
 
 ## Reachability
 
@@ -77,6 +79,7 @@ out=$(mktemp) \
   the fence failed on a build/parse error, not an assertion
   ```
 - 2026-10-03 · f2923cb* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: the per-call era is restored after the check (corrects the inconclusive row above, which did not compile) · acceptance-sha256:59633e0bdb7730731526aff6ac8a39bf3f74ba4a299965d5002cfa03b2a588f8
+- 2026-10-03 · e57f158* · mutant killed · exit 1 · `internal/mcp/tools.go` · S2: only a write whose check or step runs releases the loop (the review of #327) · acceptance-sha256:8c2bb40a39b2bcd96235da29498b3a281cd9529d22e2707c6b86113e40367de1
 
 ## Invariants
 
@@ -110,3 +113,5 @@ Stop and ask if `-race` reports a race the release introduces that `gate` cannot
 - 2026-10-03 · f2923cb* · exit 0 · `set -o pipefail …` · acceptance-sha256:59633e0bdb7730731526aff6ac8a39bf3f74ba4a299965d5002cfa03b2a588f8 · ms:86401
 - 2026-10-03 · f2923cb* · exit 0 · `set -o pipefail …` · acceptance-sha256:59633e0bdb7730731526aff6ac8a39bf3f74ba4a299965d5002cfa03b2a588f8 · ms:90412
 - 2026-10-03 · f2923cb* · exit 0 · `set -o pipefail …` · acceptance-sha256:59633e0bdb7730731526aff6ac8a39bf3f74ba4a299965d5002cfa03b2a588f8 · ms:86206
+- 2026-10-03 · e57f158* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8c2bb40a39b2bcd96235da29498b3a281cd9529d22e2707c6b86113e40367de1 · ms:0 · test-lock-sha256:164acc1864494fbec993a818fa8782ab4da30005d6f6a174a58abd8e6ee6827c · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvbWNwL3RocmVhZDEyMV90ZXN0LmdvCVRlc3RBTW9kZXJuV3JpdGVLZWVwc0l0c0RlY29yYXRpb25XaGVuQUNhbGxSdW5zRHVyaW5nSXRzQ2hlY2sJNDhhZWIyYmU3NjM5YmVkMDM2ZmE1ZmRiN2I2OWQ3NWQyNzA0YTRmM2U3ZDE3NzM4MGEwNjI1ZGQ1MjQ4NWNiNQpib2R5CWludGVybmFsL21jcC90aHJlYWQxMjFfdGVzdC5nbwlUZXN0QVBpbmdJc0Fuc3dlcmVkV2hpbGVBV3JpdGVzQ2hlY2tSdW5zCWIyMzM2NjMwODA1MDQ1YjNkNGY5MTA4MzVhMjhhZjJmYmE5ZDg0MzRmOGIxZDFkM2ZkZTk0Mzg0Yjk4ZjExZDIKYm9keQlpbnRlcm5hbC9tY3AvdGhyZWFkMTIxX3Rlc3QuZ28JVGVzdFByb2dyZXNzSXNTZW50V2hpbGVBQ2FsbFJ1bnNBbmROb3RBZnRlcgk3OTA2YWI3ZGVjMzQ5MTA2YTBlZjI4MDk5YjM5YmZiZjA1ZGJhZjY4ZjNkNTc3YjFlZDM0OGVjMzBkNTViOTlmCmJvZHkJaW50ZXJuYWwvbWNwL3RocmVhZDEyMV90ZXN0LmdvCVRlc3RRdWlja0Fuc3dlcnNLZWVwVGhlaXJPcmRlcgkyY2ZjN2FkMWZhMmIzMTE0OWI0N2E5YTRhMjUyMzJjMDgzZjRhZGQ4MDlmOWFhYjE3NTVhZDQwN2Y3NWVkYTA1CmJvZHkJaW50ZXJuYWwvbWNwL3RocmVhZDEyMV90ZXN0LmdvCVRlc3RTZXJ2ZUFuc3dlcnNBQ2FsbEluRmxpZ2h0QXRFbmRPZklucHV0CThkYTBlMGRlNWU4NzgxODEwNWJkYTI2ODZjNzkxMzc2YThkN2JhNTNhOGExNjdkMzg3ZDExMjQ1NzU3YzE3ODMKYm9keQlpbnRlcm5hbC9tY3AvdGhyZWFkMTIxX3Rlc3QuZ28JVGVzdFRoZUxvb3BJc1JlbGVhc2VkT25seVdoZW5BQ2hlY2tPclN0ZXBSdW5zCTVlMjllMWMzZjBlZWI0MzBkMTNmZmIxZjcyY2NkZmQ0NDRkNDgzMmM2MDc4NTIxMjQyNjhiNzE0NzI1MzM2MGI · test-lock-kind:replace
+- 2026-10-03 · e57f158* · exit 0 · `set -o pipefail …` · acceptance-sha256:8c2bb40a39b2bcd96235da29498b3a281cd9529d22e2707c6b86113e40367de1 · ms:86323

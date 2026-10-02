@@ -873,24 +873,39 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-113 Decision 4: a check that ran and did not pass is not isError —
 	// the call did what it was asked, and the verdict is data; one that could
 	// not run is, with the receipt.
-	// ADR-121: the check touches neither the ledger nor the pending acks, so
-	// gate is released across it and the loop told it may read on; the call's
-	// own values are restored when gate is taken back, since another call may
-	// have set them meanwhile.
-	modern, reserve, release := callModern, callReserve, callRelease
-	gate.Unlock()
-	if release != nil {
-		release()
+	// ADR-121: a check or a step can run for minutes, so for those the loop is
+	// released and gate let go across Verify; a write with neither keeps its
+	// place in the answer order, as every quick call does.
+	var v writer.Verified
+	if land.CheckDue() || len(steps) > 0 {
+		v = verifyUnlocked(land)
+	} else {
+		v = land.Verify(context.Background())
 	}
-	v := land.Verify(context.Background())
-	gate.Lock()
-	callModern, callReserve, callRelease = modern, reserve, release
 	if v.CheckErr != nil {
 		return checkedReceipt(root, res, &v, v.CheckErr, true)
 	}
 	out, rpcErr := checkedReceipt(root, res, &v, nil, res.Failed > 0 || (v.Check != nil && !v.Check.Ran) || stepCouldNotStart(v.Then))
 	land.Settle(v)
 	return out, rpcErr
+}
+
+// verifyUnlocked runs land's check and steps with gate released and Serve's
+// loop told it may read on (ADR-121). Verify touches neither the ledger nor
+// the pending acks. The call's per-call values are restored when gate is taken
+// back, since another call may have set and cleared them meanwhile; gate is
+// taken back by defer, so a panic in Verify does not unlock it twice.
+func verifyUnlocked(land *writer.Landed) writer.Verified {
+	modern, reserve, release := callModern, callReserve, callRelease
+	gate.Unlock()
+	defer func() {
+		gate.Lock()
+		callModern, callReserve, callRelease = modern, reserve, release
+	}()
+	if release != nil {
+		release()
+	}
+	return land.Verify(context.Background())
 }
 
 // writeReceipt is what mrw_write returns: the engine's own Result, plus the one

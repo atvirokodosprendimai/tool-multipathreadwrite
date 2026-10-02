@@ -202,3 +202,32 @@ func TestAModernWriteKeepsItsDecorationWhenACallRunsDuringItsCheck(t *testing.T)
 		t.Fatalf("the modern write's answer lost its decoration after a call ran during its check: %v", w)
 	}
 }
+
+// The loop is released only by a write whose check or step will run: a write
+// with neither keeps its place in the answer order (the review of #327).
+func TestTheLoopIsReleasedOnlyWhenACheckOrStepRuns(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the check is a POSIX shell line")
+	}
+	for _, tc := range []struct {
+		name    string
+		harness string
+		args    map[string]any
+		want    bool
+	}{
+		{"a code write whose check runs", `{"check":"true"}`, map[string]any{"plan": goEdit113}, true},
+		{"check: false", `{"check":"true"}`, map[string]any{"plan": goEdit113, "check": false}, false},
+		{"a prose write", `{"check":"true"}`, map[string]any{"plan": "@@ notes.md 2 replace\nline 2\n"}, false},
+		{"a dry run", `{"check":"true"}`, map[string]any{"plan": goEdit113, "dry_run": true}, false},
+	} {
+		root := checkTree113(t, tc.harness)
+		raw, _ := json.Marshal(map[string]any{"name": "mrw_write", "arguments": tc.args})
+		released := false
+		if _, rpcErr := callTool(root, raw, false, func() { released = true }); rpcErr != nil {
+			t.Fatalf("%s: %v", tc.name, rpcErr.Message)
+		}
+		if released != tc.want {
+			t.Errorf("%s: released %v, want %v", tc.name, released, tc.want)
+		}
+	}
+}
