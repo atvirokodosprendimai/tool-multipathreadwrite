@@ -78,10 +78,13 @@ func TestCompileMoveToIsRename(t *testing.T) {
 		t.Errorf("compiled text is not the native rename hunk:\n%s", planText)
 	}
 
+	// ADR-114: Move to with hunks compiles to the hunks and one rename.
 	withHunks := "*** Begin Patch\n*** Update File: a.go\n*** Move to: b.go\n@@\n-func A() int { return 1 }\n+func A() int { return 10 }\n*** End Patch\n"
-	if _, err := CompileApplyPatch(root, []byte(withHunks)); err == nil {
-		t.Fatal("Move to with extra @@ hunks compiled")
-	} else if !strings.Contains(err.Error(), "hunks") {
-		t.Errorf("Move to with hunks refusal does not name hunks: %v", err)
+	compiled, err := CompileApplyPatch(root, []byte(withHunks))
+	if err != nil {
+		t.Fatalf("Move to with hunks was refused: %v", err)
+	}
+	if !strings.Contains(string(compiled), "@@ a.go - rename") || strings.Count(string(compiled), "@@ a.go ") != 2 {
+		t.Errorf("Move to with hunks did not compile to the edit and the rename:\n%s", compiled)
 	}
 }
