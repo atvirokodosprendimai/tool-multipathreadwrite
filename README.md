@@ -6,7 +6,7 @@ writes nothing, because a write that changed nothing is invisible.
 
 The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). The six-guarantee comparison lives in [docs/comparison.md](docs/comparison.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
 
-**Status: stable at v1.40.0 (2026-10-02), the tag cut from `2818b24`.** Break campaign for it: [docs/break/campaign-v1.40.0.txt](docs/break/campaign-v1.40.0.txt), 59 probes, exit codes identical to v1.39.0 but `apply-patch-move-with-hunks` (2 → 1: ADR-114 compiles the move, then refuses the unread file; nothing written either way).
+**Status: stable at v1.41.0 (2026-10-02), the tag cut from `269dbc2`.** Break campaign for it: [docs/break/campaign-v1.41.0.txt](docs/break/campaign-v1.41.0.txt), 59 probes, exit codes identical to v1.40.0.
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
