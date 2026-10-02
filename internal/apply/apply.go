@@ -195,6 +195,10 @@ type pending struct {
 	unlink   bool
 	renameTo string // absolute dest; empty if not a rename
 	destRel  string // root-relative dest
+	// edited marks the rename of a file this plan also edits (ADR-114): its
+	// content pending lands the edit first, and this one moves the result,
+	// rewriting the source's record rather than adding a second.
+	edited bool
 	// seen is the target as validation stat'ed it, its file ID loaded then;
 	// nil for a file the plan creates (ADR-106).
 	seen fs.FileInfo
@@ -594,6 +598,31 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			writes = append(writes, pending{file: fr, out: orig, full: full, renameTo: destFull, destRel: destRel})
 			continue
 		}
+		// ADR-114: a file this plan edits and renames lands its edit through
+		// the ordinary content commit, then moves; the destination is resolved
+		// now, from the rename hunk itself (not hs[0], which may be an edit).
+		var moveTo *pending
+		if kind == "editrename" {
+			var rh hunk
+			for _, h := range hs {
+				if h.Op == "rename" {
+					rh = h
+				}
+			}
+			destRel := filepath.Clean(rh.Body[0])
+			destFull, err := resolve(root, destRel)
+			if err != nil {
+				for _, h := range hs {
+					results[h.Index] = HunkResult{
+						Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine,
+						Status: StatusFailed, Reason: err.Error(),
+					}
+				}
+				failed = append(failed, fr)
+				continue
+			}
+			moveTo = &pending{full: full, renameTo: destFull, destRel: destRel, edited: true}
+		}
 		fr.Created = !existed
 		// A file created by a plan always ends with a newline, and so does one
 		// that held no lines: it had no last line whose terminator could be
@@ -605,6 +634,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		fr.LinesTo = len(out)
 		fr.SHAAfter = shaOf(final)
 		writes = append(writes, pending{file: fr, out: final, full: full, seen: seen})
+		if moveTo != nil {
+			moveTo.out = final
+			moveTo.file = fr
+			moveTo.file.RenamedTo = moveTo.destRel
+			writes = append(writes, *moveTo)
+		}
 	}
 
 	for n, i := range in {
@@ -637,8 +672,23 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	}
 
 	if dryRun {
+		// ADR-114: an edited rename is listed once, as its content record
+		// naming where it would move.
+		movedTo := map[string]string{}
 		for _, w := range writes {
-			res.Files = append(res.Files, w.file)
+			if w.edited {
+				movedTo[w.file.Path] = w.destRel
+			}
+		}
+		for _, w := range writes {
+			if w.edited {
+				continue
+			}
+			f := w.file
+			if d, ok := movedTo[f.Path]; ok && w.renameTo == "" {
+				f.RenamedTo = d
+			}
+			res.Files = append(res.Files, f)
 		}
 		res.Applied = false
 		return res, nil
@@ -741,17 +791,34 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	commitFailed := func(path string, cause, ret error) (Result, error) {
 		nameDirs()
 		written := map[string]bool{}
+		removed := map[string]bool{}
 		have := map[string]bool{}
 		for _, f := range res.Files {
 			have[f.Path] = true
 			if f.Written {
 				written[f.Path] = true
 			}
+			if f.Removed {
+				removed[f.Path] = true
+			}
 		}
 		for i := range res.Hunks {
 			h := &res.Hunks[i]
 			switch {
-			case h.Path == path:
+			// ADR-114: a rename's verdict is its own, apart from the edits
+			// on the same file: the one that failed is failed, one that
+			// landed and was not undone is ok, and the rest are skipped.
+			case h.Op == "rename" && h.Path == path:
+				h.Status = StatusFailed
+				h.Reason = cause.Error()
+				res.Failed++
+			case h.Op == "rename":
+				if !removed[h.Path] {
+					h.Status = StatusSkipped
+				}
+			// An edit whose file's content landed stays ok even when a
+			// later step on the same path failed: it is on disk.
+			case h.Path == path && !written[h.Path]:
 				h.Status = StatusFailed
 				h.Reason = cause.Error()
 				res.Failed++
@@ -769,7 +836,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				continue
 			}
 			for _, w := range writes {
-				if w.file.Path == p {
+				if w.file.Path == p && !w.edited {
 					f := w.file
 					f.Written = false
 					res.Files = append(res.Files, f)
@@ -1022,7 +1089,23 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			lineLevel = true
 		}
 	}
-	if pathLevel && (lineLevel || len(hs) != 1) {
+	// ADR-114: line edits and ONE rename may share a file — the edit lands,
+	// then the file moves. An unlink beside edits, or two path ops on one
+	// file, stay refused.
+	editRename := false
+	if pathLevel && lineLevel {
+		n, renames := 0, 0
+		for _, h := range hs {
+			if isPathOp(h.Op) {
+				n++
+				if h.Op == "rename" {
+					renames++
+				}
+			}
+		}
+		editRename = n == 1 && renames == 1
+	}
+	if pathLevel && !editRename && (lineLevel || len(hs) != 1) {
 		for _, h := range hs {
 			fail(h, "unlink/rename cannot mix with other hunks on %s", path)
 		}
@@ -1037,7 +1120,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	if existed && opt.Seen != nil && !opt.Force {
 		switch {
 		case !known:
-			if pathLevel {
+			if pathLevel && !lineLevel {
 				failK(hs[0], refusal.NotRead, "%s has not been read: mrw does not know what it currently holds. %s "+
 					"takes no line address — read the path, or pass --force", path, hs[0].Op)
 			} else {
@@ -1083,11 +1166,26 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		return false
 	}
 
-	if pathLevel {
+	if pathLevel && !lineLevel {
 		if !planPathOp(root, path, full, hs[0], orig, existed, shaBefore, unlinked, produced, destCount, covered, fail, out) {
 			return nil, false, ""
 		}
 		return nil, true, hs[0].Op
+	}
+	// ADR-114: the rename is validated as any rename — the whole file read,
+	// the destination free — and the edits beside it as any edit.
+	if editRename {
+		edits := make([]hunk, 0, len(hs)-1)
+		for _, h := range hs {
+			if h.Op == "rename" {
+				if !planPathOp(root, path, full, h, orig, existed, shaBefore, unlinked, produced, destCount, covered, fail, out) {
+					return nil, false, ""
+				}
+				continue
+			}
+			edits = append(edits, h)
+		}
+		hs = edits
 	}
 
 	// Resolve EOF sentinels and check each hunk in isolation.
@@ -1622,6 +1720,9 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		r := out[p.index]
 		r.Echo = echoPad(res[:p.after], res[p.after:], opt.EchoPad)
 		out[p.index] = r
+	}
+	if editRename {
+		return res, true, "editrename"
 	}
 	return res, true, ""
 }
