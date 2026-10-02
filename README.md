@@ -6,7 +6,7 @@ writes nothing, because a write that changed nothing is invisible.
 
 The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). The six-guarantee comparison lives in [docs/comparison.md](docs/comparison.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
 
-**Status: stable at v1.43.0 (2026-10-02), the tag cut from `e446c00`.** Break campaign for it: [docs/break/campaign-v1.43.0.txt](docs/break/campaign-v1.43.0.txt), 59 probes, exit codes identical to v1.42.0.
+**Status: stable at v1.44.0 (2026-10-02), the tag cut from `f2923cb`.** Break campaign for it: [docs/break/campaign-v1.44.0.txt](docs/break/campaign-v1.44.0.txt), 59 probes, exit codes identical to v1.43.0.
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
