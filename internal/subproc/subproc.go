@@ -20,6 +20,7 @@ package subproc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -33,6 +34,12 @@ import (
 // grandchild still holds before it closes them itself.
 const waitDelay = time.Second
 
+// ErrNotContained is wrapped by Run's error when a child could not be put in
+// the job object that stops its whole tree on Windows: it was killed before it
+// ran, so a caller that reads its output must not take the empty output for
+// an answer (ADR-120, the review of #325).
+var ErrNotContained = errors.New("could not contain the child in a job object")
+
 // Command is exec.CommandContext for a child whose descendants must stop with
 // it. The child's stdin is left nil (the null device): a child in its own
 // process group must not read the terminal. Start it only through Run or
@@ -40,7 +47,7 @@ const waitDelay = time.Second
 func Command(ctx context.Context, name string, args ...string) *exec.Cmd {
 	c := exec.CommandContext(ctx, name, args...)
 	c.WaitDelay = waitDelay
-	group(c)
+	group(ctx, c)
 	return c
 }
 

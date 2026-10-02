@@ -7,7 +7,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-072, ADR-074, ADR-080, ADR-082, ADR-095
 **Invalidates:** ADR-080's "on Windows a grandchild can outlive the child" boundary and its Out of Scope job-object deferral
-**Governs:** `internal/subproc/subproc.go`, `internal/subproc/job.go`, `internal/subproc/subproc_windows.go`, `internal/subproc/subproc_other.go`, `internal/subproc/subproc_unix.go`, `AGENTS.md`, `README.md`
+**Governs:** `internal/subproc/subproc.go`, `internal/subproc/job.go`, `internal/subproc/subproc_windows.go`, `internal/subproc/subproc_other.go`, `internal/subproc/subproc_unix.go`, `internal/read/astgrep.go`, `AGENTS.md`, `README.md`
 **Enforced-by:** `internal/subproc/job120_test.go::TestTheJobSequenceAssignsBeforeResuming`
 **Served-path change:** On Windows a check, a step or ast-grep runs in a job object that is closed when it exits, is cancelled or times out, so every process it started stops with it and releases what it held, the check's log included. A Windows process cannot leave that job, so there is no equivalent of `setsid` there.
 
@@ -40,7 +40,7 @@ A job object is what Windows offers instead of a group: every process created by
 
 ## Component / Boundary Impact
 
-`internal/subproc` only; it is not an engine package. `internal/check` changes only in a test file (an un-skip). `go.mod` keeps one requirement.
+`internal/subproc`, which is not an engine package, and six lines of `internal/read/astgrep.go`, which is: the ast-grep caller must refuse `subproc.ErrNotContained` rather than read the killed child's empty output as no matches (the review of #325). `internal/check` changes only in a test file (an un-skip). `go.mod` keeps one requirement.
 
 ## Wiring & Contract Changes
 

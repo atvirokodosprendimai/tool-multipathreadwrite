@@ -3,6 +3,7 @@
 package subproc
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"sync"
@@ -49,8 +50,8 @@ type threadEntry32 struct {
 var trees sync.Map // *exec.Cmd → *jobTree
 
 // group makes c start suspended and a cancel stop its job (ADR-120).
-func group(c *exec.Cmd) {
-	t := &jobTree{api: kernel32Jobs{}}
+func group(ctx context.Context, c *exec.Cmd) {
+	t := &jobTree{api: kernel32Jobs{}, ctx: ctx}
 	if c.SysProcAttr == nil {
 		c.SysProcAttr = &syscall.SysProcAttr{}
 	}

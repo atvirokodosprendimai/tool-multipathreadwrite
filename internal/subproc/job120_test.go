@@ -3,6 +3,7 @@
 package subproc
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -110,8 +111,8 @@ func TestAFailedAssignKillsTheChildAndClosesTheJob(t *testing.T) {
 	c := helper("sleep")
 	start := time.Now()
 	err := runInJob(c, &jobTree{api: f})
-	if err == nil || !strings.Contains(err.Error(), "access denied") {
-		t.Fatalf("err %v, want the assign error", err)
+	if !errors.Is(err, ErrNotContained) || !strings.Contains(err.Error(), "access denied") {
+		t.Fatalf("err %v, want ErrNotContained wrapping the assign error", err)
 	}
 	if time.Since(start) > 10*time.Second {
 		t.Fatalf("took %v: the child was not killed", time.Since(start))
@@ -123,6 +124,18 @@ func TestAFailedAssignKillsTheChildAndClosesTheJob(t *testing.T) {
 	}
 	if want := []string{"create", "assign", "close"}; !reflect.DeepEqual(f.got(), want) {
 		t.Fatalf("calls %v, want %v", f.got(), want)
+	}
+}
+
+// A cancel that lands while the child is being contained is reported as the
+// cancel, so the check says interrupted, not that the child could not start.
+func TestACancelDuringContainmentIsReportedAsTheCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	f := &fakeJobs{assignErr: errors.New("the process has exited")}
+	err := runInJob(helper("sleep"), &jobTree{api: f, ctx: ctx})
+	if !errors.Is(err, context.Canceled) || !errors.Is(err, ErrNotContained) {
+		t.Fatalf("err %v, want context.Canceled and ErrNotContained", err)
 	}
 }
 

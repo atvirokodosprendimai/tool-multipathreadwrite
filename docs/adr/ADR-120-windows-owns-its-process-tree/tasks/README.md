@@ -17,7 +17,7 @@ Status: `pending` | `partial` | `blocked` | `done`.
 
 ## Notes
 
-- Engine go/no-go: ADR-120 owns no engine package; `internal/check` changes in a test file only.
+- Engine go/no-go: ADR-120 owns six lines of `internal/read/astgrep.go` (the refusal of `subproc.ErrNotContained`); `internal/check` changes in a test file only.
 - No contract section: see the record's Out of Scope.
 - T1 S3, the Windows evidence: CI run 37057757674 on fd17179 (PR #325), every windows shard green;
   `internal/subproc` — the real grandchild tests, which have no skip — ok under `go test` and `-race`, and the two

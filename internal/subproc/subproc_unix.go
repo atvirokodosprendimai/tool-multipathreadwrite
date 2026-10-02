@@ -3,6 +3,7 @@
 package subproc
 
 import (
+	"context"
 	"errors"
 	"os/exec"
 	"sync"
@@ -21,7 +22,7 @@ const pollEvery = 5 * time.Millisecond
 // group starts c as the leader of a new process group, and makes a cancel stop
 // that whole group with stopGroup, once: a grandchild stops with the child mrw
 // started, and a nested mrw hears TERM in time to stop its own check.
-func group(c *exec.Cmd) {
+func group(_ context.Context, c *exec.Cmd) {
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	var once sync.Once
 	var err error

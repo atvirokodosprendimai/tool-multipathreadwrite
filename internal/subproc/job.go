@@ -3,6 +3,7 @@
 package subproc
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"sync"
@@ -68,6 +69,7 @@ type jobAPI interface {
 // until the child is assigned to it.
 type jobTree struct {
 	api jobAPI
+	ctx context.Context // the Command's; nil in tests that need none
 	mu  sync.Mutex
 	job uintptr
 }
@@ -119,7 +121,13 @@ func runInJob(c *exec.Cmd, t *jobTree) error {
 		// what lets the check say it could not run, instead of reading the
 		// kill's exit code as a failed check (the review of #325).
 		c.ProcessState = nil
-		return fmt.Errorf("could not contain the child in a job object: %w", err)
+		// A cancel or deadline that landed while the child was being contained
+		// is what stopped it: say so, so the check reports it as interrupted or
+		// timed out rather than as a child that could not start.
+		if t.ctx != nil && t.ctx.Err() != nil {
+			return fmt.Errorf("%w: %w", ErrNotContained, t.ctx.Err())
+		}
+		return fmt.Errorf("%w: %w", ErrNotContained, err)
 	}
 	waitErr := c.Wait()
 	t.mu.Lock()
