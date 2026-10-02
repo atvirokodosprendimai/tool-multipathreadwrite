@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -87,6 +88,9 @@ func TestMrwReadTakesMaxLinesStatAndFilesFrom(t *testing.T) {
 		// rather than the whole subtest, whose other refusals hold anywhere.
 		linked := true
 		if err := os.Symlink(outside, filepath.Join(root, "out.lnk")); err != nil {
+			if runtime.GOOS != "windows" {
+				t.Fatal(err)
+			}
 			t.Logf("symlinks unavailable, the link row is not run: %v", err)
 			linked = false
 		}
