@@ -61,7 +61,7 @@ var exampleReadSpecs = []string{
 // format that has no second source.
 func instructionsText() string {
 	return guide.Shared() + "\n\n" + guide.WhyAllOrNothing() + "\n\n" + fmt.Sprintf(`WHICH SURFACE.
-CLI has --files-from, a check after code writes (--check), and
+CLI has --files-from, --check on prose, --then steps, and
 check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; --root goes
 BEFORE the subcommand, since after `+"`read`"+` the short -C is the context flag.
 This surface serves ONE fixed checkout, chosen at launch with `+"`--root DIR mcp`"+`,
@@ -111,7 +111,7 @@ A worked plan:
 dry_run true: same receipt, no write. A refusal is the tool working.
 
 Both tools cap the ENCODED answer at the ceiling _meta names. An oversized
-write receipt drops ok and skipped verdicts, then UNWRITTEN files, and says so in elided;
+write receipt drops the check's tail, then ok and skipped verdicts, then UNWRITTEN files, and says so in elided;
 smaller still, one sentence and no receipt.
 `, exampleReadSpecs, AckRule, examplePlan)
 }

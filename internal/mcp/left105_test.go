@@ -37,7 +37,7 @@ func TestMrwWriteSpellsLeftBehindWithSlashes(t *testing.T) {
 		{Failed: 1, Hunks: failed, LeftBehind: []string{".mrw-1", ".mrw-2"}},
 		{Files: []apply.FileResult{{Path: "a.go", Written: true}}, Hunks: failed[:0], LeftBehind: []string{".mrw-1", ".mrw-2"}},
 	} {
-		out, rpcErr := boundedReceipt(t.TempDir(), res, errors.New("stopped"), true)
+		out, rpcErr := boundedReceipt(t.TempDir(), res, errors.New("stopped"))
 		if rpcErr != nil || len(out.Content) == 0 {
 			t.Fatalf("no terminal answer: %v %+v", rpcErr, out)
 		}

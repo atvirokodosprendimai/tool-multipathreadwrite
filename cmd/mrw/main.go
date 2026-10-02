@@ -1268,70 +1268,44 @@ held or went unchecked.`,
 				})
 			}
 
-			// ADR-072: the harness is read BEFORE anything is written. Read
-			// after the commit, a malformed .quality-harness.json applied the
-			// write and then exited 2 with only the JSON error. --no-check and
-			// --dry-run never run a check, so they never read it.
-			var cfg check.Config
-			if (!cmd.Bool("no-check") && !cmd.Bool("dry-run")) || len(asked) > 0 {
-				if cfg, err = check.Load(root); err != nil {
-					return refuse(fmt.Sprintf("%v: nothing was written", err))
-				}
+			// ADR-113: the gates, the landing's count, the check, the drift,
+			// the steps and the pricing are the shared sequence mrw_write runs
+			// too; this action renders what it returns. ADR-072: the harness
+			// is read BEFORE anything is written, inside Prepare.
+			mode := writer.CheckAuto
+			switch {
+			case cmd.Bool("no-check"):
+				mode = writer.CheckOff
+			case cmd.Bool("check"):
+				mode = writer.CheckDemand
 			}
-			// ADR-092: a --then naming no declared step is refused before
-			// anything is written, like a malformed harness.
-			if err := resolveSteps(cfg, asked); err != nil {
-				return refuse(err.Error() + ": nothing was written")
-			}
-			// checkWanted is ADR-054's rule for whether a write's check runs,
-			// given whether it touches a file a check could cover: --check
-			// demands it, and otherwise a code path and a command must exist.
-			// The guard below and checkDue share it, so they cannot disagree.
-			checkWanted := func(code bool) bool {
-				return cmd.Bool("check") || (code && (cfg.Check != "" || cfg.ScopedCheck != ""))
-			}
-			// ADR-095: at the depth limit a write whose check would be due is
-			// refused before anything is written, judged over the plan's own
-			// paths; --no-check and --dry-run start no check.
-			if !cmd.Bool("no-check") && !cmd.Bool("dry-run") && checkWanted(touchesCode(in)) {
-				if err := check.DepthRefusal("a check is"); err != nil {
-					return refuse(err.Error() + "; --no-check writes without it: nothing was written")
-				}
-			}
-			ledger, err := seen.Snapshot(root)
-			if err != nil {
-				return refuse(err.Error())
-			}
-			res, err := writer.Apply(root, in, apply.Options{
-				DryRun:        cmd.Bool("dry-run"),
-				Seen:          ledger,
-				Force:         cmd.Bool("force"),
-				EchoPad:       cmd.Int("echo-pad"),
-				StrictBalance: cmd.Bool("strict-balance"),
+			prep, err := writer.Prepare(writer.Request{
+				Root:  root,
+				In:    in,
+				Check: mode,
+				Steps: asked,
+				Opts: apply.Options{
+					DryRun:        cmd.Bool("dry-run"),
+					Force:         cmd.Bool("force"),
+					EchoPad:       cmd.Int("echo-pad"),
+					StrictBalance: cmd.Bool("strict-balance"),
+				},
 			})
-			// ADR-075: writer.Apply recorded what landed before it released the
-			// write lock. A LedgerError says the plan landed and the ledger could
-			// not record it; that is refused below with the landed receipt, once
-			// the closures that count it exist.
-			var ledgerErr *writer.LedgerError
-			isLedgerErr := errors.As(err, &ledgerErr)
-			if err != nil && !isLedgerErr {
-				// ADR-083: one refusal, as mrw_write counts an apply error,
-				// --dry-run or not — unless a file reached disk first, which is
-				// one partially_applied and a landed write (ADR-102).
-				if writer.MutationOf(res) == writer.Partial {
-					_ = authoring.Record(root, authoring.PartiallyApplied)
-					_ = authoring.RecordRecent(root, res.Advisories)
-					// ADR-056: a landed write is priced; a partial commit ran no check.
-					if !cmd.Bool("strict-balance") {
-						_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)
-					}
-				} else {
-					_ = authoring.Record(root, authoring.RefusedApply)
-				}
-				tallied = true
+			if err != nil {
+				tallied = true // Prepare counted it
+				return refuse(gateRefusal(err))
+			}
+			land, err := prep.Land()
+			if err != nil {
+				tallied = true // Land counted it
+				return refuse(gateRefusal(err))
+			}
+			// Land counted the landing, whatever it was.
+			tallied = true
+			res := land.Res
+			if land.Err != nil {
 				// ADR-001 rule 3: every hunk carries its own verdict, and a
-				// filesystem failure is not an exception. Apply now fills the
+				// filesystem failure is not an exception. Apply fills the
 				// receipt before returning the error, so render it on whichever
 				// surface the caller asked for — a --json caller that got a
 				// bare "mrw: …: permission denied" had nothing to parse — and
@@ -1342,68 +1316,33 @@ held or went unchecked.`,
 					// verdict yet. Rendered only when it had hunks, a failure
 					// before the first one — a plan naming a directory —
 					// printed nothing under --json (review of #229, B2).
-					return refuseWith(res, err.Error())
+					return refuseWith(res, land.Err.Error())
 				}
 				if len(res.Hunks) > 0 {
 					report(os.Stdout, res, cmd.Bool("quiet"))
 				}
-				return cli.Exit(err, exitUsage)
+				return cli.Exit(land.Err, exitUsage)
 			}
-
-			// checkDue says whether this write's check runs (ADR-054): only on a
-			// real landing and not under --no-check, and then when --check
-			// demands it, or when the plan touched a file a check could cover
-			// and a command exists.
-			checkDue := func(res apply.Result) bool {
-				if !res.Applied || res.Failed > 0 || cmd.Bool("no-check") {
-					return false
-				}
-				_, code := writeCheckPaths(res.Files)
-				return checkWanted(code)
-			}
-			// ledgerFailed refuses a write that landed and whose ledger could
-			// not record it. One whose check was due is counted check_not_run,
-			// as a check that could not start is: the tree changed and nothing
-			// verified it (second review of #229). One with no check due stays
-			// applied, as ADR-083 counts it, steps or not. Either way the
-			// receipt names every step asked for not_run: `then` is present
-			// whenever a step was asked for and the command got as far as a
-			// receipt (ADR-092 Decision 5; the 2026-09-29 gap survey, C3).
-			ledgerFailed := func(res apply.Result, err error) error {
-				// ADR-102: the write landed, so it joins the recent ring and the
-				// pricing (unchecked: no check followed it), as every landed write does.
-				_ = authoring.RecordRecent(root, res.Advisories)
-				if !cmd.Bool("strict-balance") {
-					_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)
-				}
-				if len(asked) > 0 {
-					stepsNotRun = runSteps(ctx, root, cfg, asked, false)
-				}
-				if checkDue(res) {
-					_ = authoring.Record(root, authoring.CheckNotRun)
-					tallied = true
-				}
-				return refuseWith(res, err.Error())
-			}
-
 			// writer.Apply recorded what the files now hold before it released
 			// the write lock. This is why a chain of edits needs no re-read
 			// between steps — mrw knows what it just produced — while a change
 			// made behind its back still leaves the ledger disagreeing with the
-			// disk, and the next write refused.
-			if isLedgerErr {
-				return ledgerFailed(res, ledgerErr.Err)
+			// disk, and the next write refused. When the ledger could not
+			// record the landing, the write is refused with the landed receipt
+			// and every step asked for named not_run (ADR-092 Decision 5).
+			if land.LedgerErr != nil {
+				stepsNotRun = land.Then
+				return refuseWith(res, land.LedgerErr.Error())
 			}
 
 			receipt := receipt{Result: res}
 
-			// ADR-055: a landed write joins the recent-window ring BEFORE the
-			// receipt is rendered, so the receipt can say "3 of your last 3" —
-			// the line has to be on the receipt, read in the turn, not only in
-			// stats, which is run after the fact. Counts and a timestamp only.
+			// ADR-055: a landed write joined the recent-window ring in Land,
+			// BEFORE the receipt is rendered, so the receipt can say "3 of
+			// your last 3" — the line has to be on the receipt, read in the
+			// turn, not only in stats, which is run after the fact.
 			var pattern string
 			if res.Applied && !res.DryRun {
-				_ = authoring.RecordRecent(root, res.Advisories)
 				pattern = patternLine(authoring.Recent(root))
 			}
 			receipt.Pattern = authoring.PatternOf(root)
@@ -1422,58 +1361,18 @@ held or went unchecked.`,
 					fmt.Println(pattern)
 				}
 			}
-			// ADR-009: record what became of this plan, from the SAME facts the
-			// exit switch below uses. Never fails a write — Record swallows
-			// every error, because measurement that can break the tool it
-			// measures is worse than no measurement. A landing is counted as
-			// applied here and moved to the check's verdict after it runs.
-			switch {
-			case res.Failed > 0:
-				_ = authoring.Record(root, authoring.RefusedApply)
-			case res.DryRun:
-				// ADR-079: a clean dry run landed nothing, and counted as applied
-				// it inflated `landed writes`; a refused one is still a refusal.
-			default:
-				_ = authoring.Record(root, authoring.Applied)
-				tallied = true
-			}
-
 			// ADR-054: the check runs by default, but only when the plan
 			// touched a file a check could plausibly cover AND a command
-			// exists. A markdown-only plan does not pay the project suite; a
-			// tree with no harness and no go.mod does not get an exit 2 it
-			// never asked for. --check is a DEMAND and skips both gates: on a
-			// prose plan it runs, and with no command it is exit 2 (ADR-003).
-			if checkDue(res) {
-				written, _ := writeCheckPaths(res.Files)
-				// ADR-112: the baseline is what the write left on disk, taken
-				// now — before the check — so a change the check makes shows.
-				before := writer.Before(root, res)
-				cr, err := check.Run(ctx, root, cfg, written)
-				if err != nil {
-					// The write landed and its check could not run: that is
-					// check_not_run, not applied (review of #229).
-					_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
-					if len(asked) > 0 {
-						stepsNotRun = runSteps(ctx, root, cfg, asked, false)
-					}
-					return refuseWith(res, err.Error())
-				}
-				receipt.Check = &cr
-				// ADR-112: a file the write landed can change while the check
-				// runs — another writer, or the check itself — and the verdict
-				// is then about a tree that moved under it. Say which.
-				if cr.Ran {
-					receipt.Drift = writer.Drift(root, before)
-				}
+			// exists; --check demands it. Verify runs it, the drift (ADR-112)
+			// and the steps (ADR-092), and moves the count to the verdict.
+			v := land.Verify(ctx)
+			if v.CheckErr != nil {
+				// The write landed and its check could not run: that is
+				// check_not_run, not applied (review of #229).
+				stepsNotRun = v.Then
+				return refuseWith(res, v.CheckErr.Error())
 			}
-			// ADR-092: the steps follow a landed write whose check, when one
-			// ran, passed; otherwise every one is reported not_run.
-			if len(asked) > 0 {
-				// Applied is false for a dry run and for a plan whose hunk failed.
-				due := res.Applied && (receipt.Check == nil || receipt.Check.OK())
-				receipt.Then = runSteps(ctx, root, cfg, asked, due)
-			}
+			receipt.Check, receipt.Drift, receipt.Then = v.Check, v.Drift, v.Then
 
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
@@ -1486,36 +1385,9 @@ held or went unchecked.`,
 				reportDrift(os.Stdout, receipt.Drift)
 				reportSteps(os.Stdout, receipt.Then)
 			}
-			switch {
-			case receipt.Check != nil && !receipt.Check.Ran:
-				_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
-			case receipt.Check != nil && !receipt.Check.OK():
-				_ = authoring.Reclassify(root, authoring.Applied, authoring.FailedCheck)
-			}
-			// ADR-092 Decision 7: a step that ran and did not pass is
-			// failed_check, one that never started is check_not_run. Pricing
-			// below reads the check alone, its pre-registered verdict.
-			if s, _, ok := stepStop(receipt.Then); ok && res.Applied && (receipt.Check == nil || receipt.Check.OK()) {
-				if s.Ran {
-					_ = authoring.Reclassify(root, authoring.Applied, authoring.FailedCheck)
-				} else {
-					_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
-				}
-			}
-			// ADR-056: price --strict-balance from the SAME check verdict. A
-			// flag-on write is not priced — the question is what the flag
-			// WOULD have done, and it just did it.
-			if res.Applied && !res.DryRun && !cmd.Bool("strict-balance") {
-				outcome := authoring.PricedUnchecked
-				if receipt.Check != nil && receipt.Check.Ran {
-					if receipt.Check.OK() {
-						outcome = authoring.PricedHeld
-					} else {
-						outcome = authoring.PricedBroke
-					}
-				}
-				_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, outcome)
-			}
+			// ADR-113: counted and priced once the receipt is out, so an
+			// output failure above leaves the count where Land put it.
+			land.Settle(v)
 			switch {
 			case res.Failed > 0:
 				return cli.Exit(fmt.Sprintf("%d hunk(s) failed — nothing was written", res.Failed), exitNotApplied)
@@ -1549,56 +1421,23 @@ func patternLine(entries []authoring.RecentEntry) string {
 	return fmt.Sprintf("pattern: %d of your last %d writes carried a balance advisory — read past the range before the next one", k, n)
 }
 
-// writeCheckPaths is the check's working set after a write. Unlinked and
-// rename sources are gone, so confine cannot Stat them; their parent
-// directory still exists and is what the check can honour. A rename dest is
-// a Written file of its own. The source's extension still sets `code`: a
-// .go renamed to .txt removed code.
-func writeCheckPaths(files []apply.FileResult) (paths []string, code bool) {
-	seen := map[string]bool{}
-	add := func(p string) {
-		if p == "" || seen[p] {
-			return
-		}
-		seen[p] = true
-		paths = append(paths, p)
+// gateRefusal is the CLI's words for a write the shared sequence refused before
+// anything was written (ADR-113): the harness, the steps, the depth limit, or
+// a ledger that could not be loaded.
+func gateRefusal(err error) string {
+	var r *writer.Refusal
+	if !errors.As(err, &r) {
+		return err.Error()
 	}
-	for _, f := range files {
-		if f.Removed {
-			// Unlink and rename sources are gone. Their parent directory
-			// still exists, and the source's own extension is what decides
-			// whether the default check runs — a .go renamed to .txt still
-			// removed code.
-			dir := filepath.Dir(f.Path)
-			if dir == "" {
-				dir = "."
-			}
-			add(dir)
-			code = code || !apply.IsProse(f.Path)
-			continue
-		}
-		if f.Written {
-			add(f.Path)
-			code = code || !apply.IsProse(f.Path)
-		}
+	switch r.Stage {
+	case writer.StageHarness:
+		return fmt.Sprintf("%v: nothing was written", r.Err)
+	case writer.StageSteps:
+		return r.Err.Error() + ": nothing was written"
+	case writer.StageDepth:
+		return r.Err.Error() + "; --no-check writes without it: nothing was written"
 	}
-	return paths, code
-}
-
-// touchesCode says whether a plan names a path a check could cover, judged
-// before the apply as writeCheckPaths judges after it: every hunk path, an
-// unlink target and a rename source by their own extension, and every rename
-// destination (ADR-095).
-func touchesCode(in []apply.Input) bool {
-	for _, h := range in {
-		if !apply.IsProse(h.Path) {
-			return true
-		}
-		if h.Op == "rename" && len(h.Body) == 1 && !apply.IsProse(h.Body[0]) {
-			return true
-		}
-	}
-	return false
+	return r.Err.Error()
 }
 
 // receipt is what one write produced: the edit and, when asked for, the
@@ -1677,7 +1516,7 @@ func (f *stepFlag) String() string {
 	// value holding control bytes reached the terminal there (review of #269).
 	vals := make([]string, 0, len(f.vals))
 	for _, v := range f.Values() {
-		vals = append(vals, shown(v))
+		vals = append(vals, writer.Shown(v))
 	}
 	return strings.Join(vals, " ")
 }
@@ -1727,87 +1566,11 @@ func askedStepsError(steps []check.Step) error {
 	return nil
 }
 
-// resolveSteps gives each --then its declared command, and refuses a name the
-// project did not declare, naming the ones it did (ADR-092).
-func resolveSteps(cfg check.Config, steps []check.Step) error {
-	var cmds map[string]string
-	read := false
-	for i := range steps {
-		if steps[i].AdHoc {
-			continue
-		}
-		// The block is read only now, when a step is asked for by name: a
-		// write that asks for none never reads it (ADR-092 T5).
-		if !read {
-			var err error
-			if cmds, err = cfg.StepCommands(); err != nil {
-				return err
-			}
-			read = true
-		}
-		c, ok := cmds[steps[i].Name]
-		if ok {
-			steps[i].Command = c
-			continue
-		}
-		names := make([]string, 0, len(cmds))
-		for n := range cmds {
-			names = append(names, shown(n))
-		}
-		sort.Strings(names)
-		declared := "none are declared"
-		if len(names) > 0 {
-			declared = "declared: " + strings.Join(names, ", ")
-		}
-		return fmt.Errorf("--then %s: .quality-harness.json \"steps\" has no such step (%s)", shown(steps[i].Name), declared)
-	}
-	return nil
-}
-
-// shown is s as the caller should see it on a terminal: as written, or quoted
-// when it holds a byte a terminal would act on — a step name or command must
-// not clear the screen or forge the declared list (ADR-092 T5).
-func shown(s string) string {
-	if q := strconv.Quote(s); q[1:len(q)-1] != s {
-		return q
-	}
-	return s
-}
-
-// runSteps runs the sequence when it is due, and otherwise reports every step
-// not_run: a plan that did not land, or a check that did not pass, verified
-// nothing for a step to follow.
-func runSteps(ctx context.Context, root string, cfg check.Config, steps []check.Step, due bool) *check.StepsResult {
-	if due {
-		r := check.RunSteps(ctx, root, cfg, steps)
-		return &r
-	}
-	r := check.StepsResult{Steps: make([]check.StepResult, len(steps))}
-	for i, s := range steps {
-		r.Steps[i] = check.StepResult{Step: s, Status: check.StepNotRun, ExitCode: -1}
-	}
-	return &r
-}
-
-// stepStop is the step that stopped the sequence, if one did: the first that
-// did not pass and was not skipped.
-func stepStop(r *check.StepsResult) (check.StepResult, int, bool) {
-	if r == nil {
-		return check.StepResult{}, 0, false
-	}
-	for i, s := range r.Steps {
-		if s.Status != check.StepPass && s.Status != check.StepNotRun {
-			return s, i, true
-		}
-	}
-	return check.StepResult{}, 0, false
-}
-
 // stepsExit is the exit a stopped sequence earns (ADR-092 Decision 6): 2 for a
 // step that could not start, 3 for one that ran — or was interrupted — and did
 // not pass. nil when every step asked for passed or none ran.
 func stepsExit(r *check.StepsResult, lead, tail string) error {
-	s, i, ok := stepStop(r)
+	s, i, ok := writer.StepStop(r)
 	if !ok {
 		return nil
 	}
@@ -1823,7 +1586,7 @@ func stepLabel(s check.Step) string {
 	if s.AdHoc {
 		return "--then-sh"
 	}
-	return shown(s.Name)
+	return writer.Shown(s.Name)
 }
 
 // reportSteps prints one line per step after the check's report, with the tail
@@ -1836,7 +1599,7 @@ func reportSteps(w *os.File, r *check.StepsResult) {
 	out := bufio.NewWriter(w)
 	defer func() { _ = out.Flush() }()
 	for i, s := range r.Steps {
-		head := fmt.Sprintf("then %d/%d %s: %s", i+1, len(r.Steps), stepLabel(s.Step), shown(s.Command))
+		head := fmt.Sprintf("then %d/%d %s: %s", i+1, len(r.Steps), stepLabel(s.Step), writer.Shown(s.Command))
 		switch s.Status {
 		case check.StepPass:
 			fmt.Fprintf(out, "%s — PASS\n", head)
@@ -2094,7 +1857,7 @@ touched, which is a finding about the machine and not about your change.`,
 			if err := askedStepsError(asked); err != nil {
 				return refuse(err)
 			}
-			if err := resolveSteps(cfg, asked); err != nil {
+			if err := writer.ResolveSteps(cfg, asked); err != nil {
 				return refuse(err)
 			}
 			res, err := check.Run(ctx, root, cfg, paths)
@@ -2108,12 +1871,12 @@ touched, which is a finding about the machine and not about your change.`,
 				// survey, C2). Either way it is one document under --json
 				// (ADR-100).
 				if res.Command != "" && len(asked) > 0 {
-					then = runSteps(ctx, root, cfg, asked, false)
+					then = writer.RunSteps(ctx, root, cfg, asked, false)
 				}
 				return refuse(err)
 			}
 			if len(asked) > 0 {
-				then = runSteps(ctx, root, cfg, asked, res.OK())
+				then = writer.RunSteps(ctx, root, cfg, asked, res.OK())
 			}
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)

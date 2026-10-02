@@ -296,7 +296,11 @@ when only one should.
 `format`, `echo_pad`, and `ack` sit on the existing write/read — not a third
 tool. `format` is `plan` (default), `apply_patch`, or `search_replace`.
 `echo_pad` is the same opt-in pad as `--echo-pad`. `ack` is how a served read
-becomes a licence. `mrw_write` runs no check (ADR-044); its receipt's hunks carry
+becomes a licence. `mrw_write` runs the project's check after a write that touches
+code, by the rule `mrw write` uses (ADR-113), and returns the verdict as `check`
+(and `drift`); `check: false` turns it off. A check that ran and failed leaves the
+write applied and the call not an error. The write lands before the check runs, so
+a lost answer means read the files before re-sending the plan. Its receipt's hunks carry
 the same `balance` field the CLI prints.
 An argument a tool does not declare is refused, naming it and the arguments the tool takes; nothing is done.
 
@@ -371,7 +375,7 @@ mrw supports [opencode](https://opencode.ai) through a plugin in this repository
 | tool | runs | arguments |
 |---|---|---|
 | `mrw_read` | `mrw mcp`'s `mrw_read` | `specs`, `grep`, `astGrep`, `exclude`, `after`, `ack`, `root` |
-| `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `format`, `echoPad`, `strictBalance` |
+| `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `check`, `format`, `echoPad`, `strictBalance` |
 | `mrw_check` | `mrw check` | `paths` |
 | `mrw_stats` | `mrw stats` | `json` |
 | `mrw_seen` | `mrw seen` | `prune`, `dryRun` |
@@ -385,10 +389,11 @@ every line it served by then, so the hidden tail would be writable unseen. Over
 `mrw mcp`, a read is a page under that limit, bracketed in `-- ck` checkpoints,
 and licenses nothing until acknowledged. Send an id in `ack` only when both of its
 markers and all its lines arrived; a cut page loses its tail's close markers, and
-those runs stay unwritable (see [MCP](#mcp)). `mrw_write` runs no check; call
-`mrw_check`. The other six tools run the CLI and answer `exit: N` first, the CLI's
-exit code (see [Exit status](#exit-status)). A refused read or write answers
-`error:` first.
+those runs stay unwritable (see [MCP](#mcp)). `mrw_write` runs the check after a code
+write, as `mrw write` does; `check: false` turns it off, and `mrw_check` runs it on
+demand. The other six tools run the CLI and answer `exit: N` first, the CLI's
+exit code (see [Exit status](#exit-status)). An answer the server marks as an
+error starts `error:` — a write whose receipt says it applied still landed.
 
 ### Setup
 

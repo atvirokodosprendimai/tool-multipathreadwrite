@@ -53,10 +53,10 @@ func TestTheServedTextSaysWhatTheCodeDoes(t *testing.T) {
 		{"M9 exclude", servedDescription(t, "mrw_read", "exclude"), []string{"Refused without `grep` or `ast_grep`"}, []string{"Only meaningful"}},
 		// With ast_grep, specs are paths to search and carry no range.
 		{"M10 specs", servedDescription(t, "mrw_read", "specs"), []string{"`grep` or `ast_grep`", "carry no range"}, nil},
-		// The CLI's write checks after a code write when a check exists;
-		// this surface runs none (ADR-054, tools.go).
-		{"M11 write", servedDescription(t, "mrw_write", ""), []string{"after a write that touches code", "this tool runs none"}, []string{"it also has --check, which runs the project's tests"}},
-		{"M11 instructions", ins, []string{"a check after code writes (--check)"}, []string{"CLI has --files-from, --check, and"}},
+		// The write checks after a code write when a check exists, on both
+		// surfaces since ADR-113; check: false turns it off here.
+		{"M11 write", servedDescription(t, "mrw_write", ""), []string{"After a write that touches code", "check: false turns it off"}, []string{"this tool runs none"}},
+		{"M11 instructions", ins, []string{"--check on prose"}, []string{"a check after code writes (--check)"}},
 		// rename: address `-` and one body line, the destination (plan.go).
 		{"M12 rename", plan, []string{"rename takes address `-` and one body line"}, nil},
 		// ADR-052: a multi-line replace needs the line after its range served,
@@ -65,7 +65,7 @@ func TestTheServedTextSaysWhatTheCodeDoes(t *testing.T) {
 		// Elision drops ok and skipped verdicts, then UNWRITTEN file records;
 		// failed hunks and written files are kept (tools.go boundedReceipt).
 		{"M14 elided", writeDescriptions["elided"], []string{"NOT written", "every WRITTEN file"}, []string{"and file records after them"}},
-		{"M14 instructions", ins, []string{"drops ok and skipped verdicts, then UNWRITTEN files"}, []string{"drops successes then"}},
+		{"M14 instructions", ins, []string{"drops the check's tail, then ok and skipped verdicts, then UNWRITTEN files"}, []string{"drops successes then"}},
 	}
 	for _, r := range rows {
 		t.Run(r.row, func(t *testing.T) {

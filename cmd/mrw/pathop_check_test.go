@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 )
 
 func TestUnlinkOfGoRunsTheCheckByDefault(t *testing.T) {
@@ -57,27 +55,5 @@ func TestRenameGoToTxtRunsTheCheckByDefault(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "out.txt")); err != nil {
 		t.Fatalf("dest missing after rename+check: %v\n%s", err, out)
-	}
-}
-
-func TestWriteCheckPathsKeepsRenameSourcePackage(t *testing.T) {
-	paths, code := writeCheckPaths([]apply.FileResult{
-		{Path: "pkg/a.go", Written: true, Removed: true, RenamedTo: "other/out.txt"},
-		{Path: "other/out.txt", Written: true, Created: true},
-	})
-	if !code {
-		t.Fatal("renaming a .go to .txt did not count as code")
-	}
-	want := map[string]bool{"pkg": false, "other/out.txt": false}
-	for _, p := range paths {
-		if _, ok := want[p]; !ok {
-			t.Errorf("unexpected check path %q", p)
-		}
-		want[p] = true
-	}
-	for p, seen := range want {
-		if !seen {
-			t.Errorf("missing check path %q in %v", p, paths)
-		}
 	}
 }

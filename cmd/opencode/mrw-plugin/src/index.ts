@@ -93,7 +93,11 @@ async function mcp(title: string, ctx: ToolContext, dir: string, name: string, a
   }
   const text = (response.result.content ?? []).map((c) => c.text ?? "").join("\n\n");
   const isError = response.result.isError === true;
-  return { title, output: (isError ? "error: the call was refused\n" : "") + text, metadata: { isError } };
+  // Neutral on purpose: a write can land and then report an error — its check
+  // could not run, its ledger could not record it (ADR-102, ADR-113) — and
+  // "refused" would contradict the receipt below and invite a second apply.
+  const lead = name === "mrw_write" ? "error: read the answer before retrying — a write it reports as applied DID land\n" : "error:\n";
+  return { title, output: (isError ? lead : "") + text, metadata: { isError } };
 }
 
 // set copies the fields the caller gave; an empty string or a zero is given.
@@ -168,8 +172,9 @@ const toolWrite = tool({
     "insert-before, delete, create, unlink, rename. A new file is '@@ path 0 create'. A " +
     "multi-line replace needs anchor= AND, unless its range ends at the last line, a served line " +
     "after it: read past the end first. mrw will not edit a line it has not served AND you have " +
-    "acknowledged: pass the ck ids from mrw_read in ack. It runs no check; call mrw_check with the " +
-    "files you wrote.",
+    "acknowledged: pass the ck ids from mrw_read in ack. After a write that touches code it runs " +
+    "the project's check, as `mrw write` does, and reports it in the receipt's check; a failed " +
+    "check leaves the write applied. check: false turns it off.",
   args: {
     plan: z.string().describe(
       "The plan document. Each hunk: '@@ <path> <address> <op> [guards]' + body lines.\n" +
@@ -184,6 +189,10 @@ const toolWrite = tool({
       .optional()
       .describe("The ck ids from the mrw_read this plan was written against. A hunk on lines you have not acknowledged is refused."),
     dryRun: z.boolean().optional().describe("Validate and report without writing: the same receipt, with dry_run true."),
+    check: z
+      .boolean()
+      .optional()
+      .describe("Run the project's check after a write that touches code (default true); false runs none."),
     format: z
       .enum(["plan", "apply_patch", "search_replace"])
       .optional()
@@ -204,7 +213,7 @@ const toolWrite = tool({
       ),
   },
   async execute(args, ctx) {
-    const call = set(args, { plan: "plan", ack: "ack", dryRun: "dry_run", format: "format", echoPad: "echo_pad", strictBalance: "strict_balance" });
+    const call = set(args, { plan: "plan", ack: "ack", dryRun: "dry_run", check: "check", format: "format", echoPad: "echo_pad", strictBalance: "strict_balance" });
     return mcp("mrw write", ctx, root(ctx), "mrw_write", call);
   },
 });

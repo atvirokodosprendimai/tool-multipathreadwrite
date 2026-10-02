@@ -61,7 +61,7 @@ func TestAnUndeclaredArgumentIsRefusedByName(t *testing.T) {
 		name, tool, args, valid, meta string
 		keys                          []string
 	}{
-		{"check", "mrw_write", `{"plan":` + plan + `,"check":true}`, `{"plan":` + plan + `}`, "", []string{"check"}},
+		{"no_check", "mrw_write", `{"plan":` + plan + `,"no_check":true}`, `{"plan":` + plan + `}`, "", []string{"no_check"}},
 		{"then", "mrw_write", `{"plan":` + plan + `,"then":["vet"]}`, `{"plan":` + plan + `}`, "", []string{"then"}},
 		{"then_sh", "mrw_write", `{"plan":` + plan + `,"then_sh":"true"}`, `{"plan":` + plan + `}`, "", []string{"then_sh"}},
 		{"force", "mrw_write", `{"plan":` + plan + `,"force":true}`, `{"plan":` + plan + `}`, "", []string{"force"}},
@@ -70,8 +70,8 @@ func TestAnUndeclaredArgumentIsRefusedByName(t *testing.T) {
 		{"max_lines", "mrw_read", `{"specs":["a.txt"],"max_lines":1}`, `{"specs":["a.txt"]}`, "", []string{"max_lines"}},
 		{"stat", "mrw_read", `{"specs":["a.txt"],"stat":true}`, `{"specs":["a.txt"]}`, "", []string{"stat"}},
 		{"_meta inside arguments", "mrw_read", `{"specs":["a.txt"],"_meta":{"progressToken":1}}`, `{"specs":["a.txt"]}`, "", []string{"_meta"}},
-		{"two undeclared keys", "mrw_write", `{"plan":` + plan + `,"then":["vet"],"check":true}`, `{"plan":` + plan + `}`, "", []string{"check", "then"}},
-		{"the modern era", "mrw_write", `{"plan":` + plan + `,"check":true}`, `{"plan":` + plan + `}`, modernMeta, []string{"check"}},
+		{"two undeclared keys", "mrw_write", `{"plan":` + plan + `,"then":["vet"],"force":true}`, `{"plan":` + plan + `}`, "", []string{"force", "then"}},
+		{"the modern era", "mrw_write", `{"plan":` + plan + `,"no_check":true}`, `{"plan":` + plan + `}`, modernMeta, []string{"no_check"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			root, _ := checkout(t, "a.txt", "one\ntwo\n")
@@ -208,7 +208,7 @@ func TestTheRefusalRoutesOnlyToFlagsTheCLIHas(t *testing.T) {
 			}
 		}
 		if c.tool == "mrw_write" {
-			for _, want := range []string{"mrw write", "check", "runs no check and no step"} {
+			for _, want := range []string{"mrw write", "check", "and no step"} {
 				if !strings.Contains(got, want) {
 					t.Errorf("the mrw_write refusal does not say %q:\n%s", want, got)
 				}

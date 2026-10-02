@@ -510,8 +510,9 @@ func tools() []tool {
 				// approve the call, so understating it is a lie they act on.
 				"readOnlyHint":    false,
 				"destructiveHint": true,
-				// A plan addresses the ORIGINAL file (ADR-001), so applying it
-				// twice does not apply it twice — the second run refuses.
+				// Not idempotent: once a plan lands the ledger knows the files
+				// wholly, so a re-sent plan whose hunks still validate — an
+				// insert-after, for one — applies a second time (ADR-113).
 				"idempotentHint": false,
 				"openWorldHint":  false,
 			},
@@ -522,10 +523,12 @@ func tools() []tool {
 				"or nothing: if any hunk fails validation, nothing is written. Every address resolves against " +
 				"the ORIGINAL file, so several hunks in one file need no offset arithmetic. mrw " +
 				"will not edit a line it has not served you — read it with mrw_read first. If you " +
-				"can run shell commands, prefer the CLI `mrw write` — after a write that touches code it " +
-				"runs the project's check when one is declared or inferred, and --check demands one; this " +
-				"tool runs none. Prefer THIS tool with no shell; it needs no --json because its answer is " +
-				"already structured.",
+				"can run shell commands, prefer the CLI `mrw write`. After a write that touches code this tool " +
+				"runs the project's check, as the CLI does, and returns its verdict in `check`: a check that " +
+				"ran and failed is not an error — the write applied, and the tree is changed and unverified. " +
+				"check: false turns it off. The write lands before the check runs, so after a lost answer read " +
+				"the files before re-sending the plan. Prefer THIS tool with no shell; it needs no --json because " +
+				"its answer is already structured.",
 			InputSchema: map[string]any{
 				"type": "object",
 				// ADR-093, as for mrw_read.
@@ -536,6 +539,14 @@ func tools() []tool {
 						"items":       map[string]any{"type": "string"},
 						"description": "The checkpoint ids from the read this plan was written against. An unacknowledged serve licenses nothing, so a hunk addressing lines you have not acknowledged is refused. " + AckRule,
 						"examples":    []any{[]any{"3f8a1c4d90b27e56"}},
+					},
+					"check": map[string]any{
+						"type":    "boolean",
+						"default": true,
+						"description": "Run the project's check after a write that lands and touches a file that is " +
+							"not prose, when .quality-harness.json declares one or a go.mod infers it — the rule " +
+							"`mrw write` follows. Default true. false runs none and does not read the harness, as " +
+							"--no-check. The verdict is the receipt's `check`.",
 					},
 					"dry_run": map[string]any{
 						"type": "boolean",
