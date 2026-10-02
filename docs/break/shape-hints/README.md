@@ -83,9 +83,13 @@ matched. The harness now passes the anchor raw, on multi-line replaces only.
 - The corpus is one machine's repositories, dominated by PHP, Markdown, Python and TypeScript. YAML had 18
   replaces in run 1 and 146 in run 2, which is why the indent hint has no YAML-only measurement yet.
 - Orphans above the body (a short address) are not looked for; see BACKLOG "From ADR-119".
-- Shapes neither replay covers can still fire: a correct replace that adds a new block ending in a closer just
-  above a sibling's identical closer, within four non-blank lines, and that did not replace through a closer. The
-  `-U0` replay contains that shape, and its rate is the one in the table.
+- A correct replace that adds a new block ending in a closer just above a sibling's identical closer, within four
+  non-blank lines, can still fire. The `-U0` replay contains that shape, and its rate is the one in the table.
+- A known miss, not measured: a range that stops short on an INNER closer — `3-6` ending in `\t}` where the
+  function's `}` at 7 was meant, or an HTML range ending in an inner `</div>` — carries no hint, because the
+  comparison is trimmed and the range "already ended in" the same token. The balance row still reports the Go
+  case (`{ +1 → +0`); nothing reports the HTML one. Comparing with indentation kept would catch both, at the cost
+  of a hint on a correct replace that re-indents a block.
 
 ## Binary cross-check of the shipped closer
 

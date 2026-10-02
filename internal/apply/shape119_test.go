@@ -108,6 +108,10 @@ func TestACloserNeedsACloserShapedLineWithinFour(t *testing.T) {
 		{"repeated statement", shapeCase{"a.go", []string{"func f() {", "\tx++", "\tx++", "}"}, 2, 2, []string{"\ty := 1", "\tx++"}}, false},
 		{"fourth non-blank line", shapeCase{"b.go", []string{"if a {", "\tx()", "\ty()", "", "\tz()", "}"}, 1, 1, []string{"if b {", "}"}}, true},
 		{"fifth non-blank line", shapeCase{"c.go", []string{"if a {", "\tw()", "\tx()", "\ty()", "\tz()", "}"}, 1, 1, []string{"if b {", "}"}}, false},
+		// A known miss (the second review of #322): the range stops short on an
+		// INNER closer, so it "already ended in" the token and the outer one it
+		// duplicates goes unreported. Pinned so a change of definition is seen.
+		{"range ending on an inner closer", shapeCase{"d.go", []string{"func A() {", "\tif x {", "\t\tf()", "\t}", "}"}, 1, 4, []string{"func B() {", "\tg()", "}"}}, false},
 	} {
 		h := applyShape(t, Options{}, tc.c).Hunks[0]
 		if (h.Closer != "") != tc.want {
