@@ -116,7 +116,7 @@ def hints(path, orig, start, end, body):
         "closer": closer(orig, end, body),                      # REGISTERED
         "closer_trim": closer(orig, end, body, trim=True),
         "closer_k4_trim": closer(orig, end, body, k=4, trim=True),
-        "closer_k4_token": closer(orig, end, body, k=4, trim=True, token=True),
+        "closer_k4_token": closer(orig, end, body, k=4, trim=True, token=True),  # SHIPPED (amended bar)
         "closer_k8_token": closer(orig, end, body, k=8, trim=True, token=True),
         "indent": indent(path, replaced, body),                 # REGISTERED
         "indent_first": indent(path, replaced, body, first_only=True),
@@ -124,6 +124,9 @@ def hints(path, orig, start, end, body):
 
 
 REGISTERED = ("closer", "indent")
+# SHIPPED maps what the binary reports to the variant that ships (BACKLOG, "Amended after the first
+# measurement"): --mrw compares the binary's key against it, so the run proves they agree.
+SHIPPED = {"closer": "closer_k4_token"}
 VARIANTS = ("closer", "closer_trim", "closer_k4_trim", "closer_k4_token", "closer_k8_token",
             "indent", "indent_first")
 
@@ -195,7 +198,7 @@ def replay(repo, cap, max_commits, rng, mrw):
                         rows.append((bucket(path), h))
                         if mrw:
                             got = through_binary(mrw, path, orig, start, end, body)
-                            want = {x: h[x] for x in REGISTERED}
+                            want = {k: h[v] for k, v in SHIPPED.items()}
                             if got != want:
                                 disagreed.append((repo, k, path, start, end, got, want))
             if line.startswith("diff --git "):
@@ -233,15 +236,21 @@ def through_binary(mrw, path, orig, start, end, body):
         env = dict(os.environ, XDG_STATE_HOME=os.path.join(root, ".state"))
         subprocess.run([mrw, "--root", root, "read", name], capture_output=True, env=env, timeout=60)
         addr = str(start) if start == end else "%d-%d" % (start, end)
-        plan = "@@ %s %s replace anchor=%s body=%d\n%s\n" % (
-            name, addr, json.dumps(orig[start - 1].strip() or orig[start - 1]), len(body), "\n".join(body))
+        # anchor= is required only on a multi-line replace (ADR-035). Its text is taken raw — mrw does not
+        # unescape it, so a JSON-quoted anchor of a non-ASCII line never matched — and the longest piece of
+        # the line holding no quote or backslash stands in, since a quoted anchor cannot carry those.
+        guard = ""
+        if start != end:
+            piece = max(re.split(r'["\\]', orig[start - 1].strip()), key=len).strip()
+            guard = ' anchor="%s"' % piece
+        plan = "@@ %s %s replace%s body=%d\n%s\n" % (name, addr, guard, len(body), "\n".join(body))
         p = subprocess.run([mrw, "--root", root, "write", "--dry-run", "--json", "--no-check", "-"],
                            input=plan.encode(), capture_output=True, env=env, timeout=60)
         try:
             hunks = json.loads(p.stdout).get("hunks") or [{}]
         except ValueError:
             return {"error": p.stderr.decode()[-200:]}
-        return {"closer": bool(hunks[0].get("closer")), "indent": bool(hunks[0].get("indent"))}
+        return {"closer": bool(hunks[0].get("closer"))}
 
 
 def main():

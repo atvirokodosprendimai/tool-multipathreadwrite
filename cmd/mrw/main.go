@@ -2050,6 +2050,10 @@ func report(w *os.File, res apply.Result, quiet bool) {
 				// It never fails the hunk; it says the closer count moved.
 				fmt.Fprintf(out, "     balance %s (delimiters in the replaced lines vs the body; not a checker)\n", h.Balance)
 			}
+			if h.Closer != "" {
+				// ADR-119: advice, like the balance row; the hunk stays ok.
+				fmt.Fprintf(out, "     closer %s (the closer the file already had? read past the body)\n", h.Closer)
+			}
 			for _, line := range h.Echo {
 				fmt.Fprintln(out, line)
 			}
@@ -2113,8 +2117,14 @@ func report(w *os.File, res apply.Result, quiet bool) {
 	// ADR-055: the advisory count rides on the one line every caller reads,
 	// zero included — a column that appears only when non-zero is a column
 	// the reader learns does not exist (ADR-054's failed_check lesson).
-	fmt.Fprintf(out, "%d hunk(s), %d file(s), %d failed, %d %s — %s\n",
-		len(res.Hunks), len(res.Files), res.Failed, res.Advisories, plural(res.Advisories, "advisory", "advisories"), state)
+	// ADR-119: hints ride on the same line but only when there are some, so
+	// every summary a caller already parses stays byte-identical.
+	hints := ""
+	if res.Hints > 0 {
+		hints = fmt.Sprintf(", %d %s", res.Hints, plural(res.Hints, "hint", "hints"))
+	}
+	fmt.Fprintf(out, "%d hunk(s), %d file(s), %d failed, %d %s%s — %s\n",
+		len(res.Hunks), len(res.Files), res.Failed, res.Advisories, plural(res.Advisories, "advisory", "advisories"), hints, state)
 }
 
 // prune removes the state directories whose checkout is gone, and SAYS what it

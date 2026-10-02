@@ -93,10 +93,12 @@ mcp_write files[].sha_after
 mcp_write files[].sha_before
 mcp_write files[].target
 mcp_write files[].written
+mcp_write hints
 mcp_write hunks
 mcp_write hunks[].added
 mcp_write hunks[].addr
 mcp_write hunks[].balance
+mcp_write hunks[].closer
 mcp_write hunks[].echo
 mcp_write hunks[].op
 mcp_write hunks[].path
@@ -171,10 +173,12 @@ write files[].sha_after
 write files[].sha_before
 write files[].target
 write files[].written
+write hints
 write hunks
 write hunks[].added
 write hunks[].addr
 write hunks[].balance
+write hunks[].closer
 write hunks[].echo
 write hunks[].op
 write hunks[].path

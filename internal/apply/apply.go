@@ -100,6 +100,15 @@ type HunkResult struct {
 	// (ADR-048), and a balanced insert in the wrong place is invisible to it.
 	Balance string `json:"balance,omitempty"`
 
+	// Closer is ADR-119's hint: on an applied replace, a line within the next
+	// four non-blank lines after the body that repeats the body's last line,
+	// when that line is a closer (a fence, `}`, `</div>`, `@endif`, …) — the
+	// closer the file already had, which the body now duplicates. Judged on
+	// the written file, as Echo is. Advice: the hunk stays ok, and
+	// --strict-balance never refuses on it. Empty otherwise, and on a skipped
+	// or failed hunk.
+	Closer string `json:"closer,omitempty"`
+
 	// Kind classifies a refusal the parser also makes, and the not-read
 	// refusal, so a caller compares kinds instead of Reason's words (ADR-087).
 	// Not a receipt field.
@@ -165,6 +174,10 @@ type Result struct {
 	// reports without failing is not invisible to a caller who reads only
 	// the summary. Skipped and failed hunks contribute nothing.
 	Advisories int `json:"advisories"`
+	// Hints is how many ok hunks carry a Closer (ADR-119). It is separate from
+	// Advisories, which ADR-111 keeps meaning balance rows, so the pattern line
+	// and the strict-balance pricing do not move. Absent when zero.
+	Hints int `json:"hints,omitempty"`
 	// DirsCreated names the directories a create or a rename made because they
 	// were not there, root-relative and parents first (ADR-076). Absent when
 	// none were made, and on a dry run, which makes none.
@@ -329,6 +342,9 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		}
 		if h.Balance != "" {
 			res.Advisories++
+		}
+		if h.Closer != "" {
+			res.Hints++
 		}
 		if h.singleLineCode {
 			res.StrictSingleLine++
@@ -667,8 +683,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				// Balance is the same kind of claim about a write that did
 				// not happen, and it was left in place until ADR-055 T1's
 				// test asked (ADR-054 T2 said skip omits it; nothing pinned it).
-				res.Hunks[i].Echo = nil
-				res.Hunks[i].Balance = ""
+				res.Hunks[i].clearWriteRows()
 			}
 		}
 		reportAddressed()
@@ -833,8 +848,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				h.Status = StatusSkipped
 			}
 			if h.Status != StatusOK {
-				h.Echo = nil
-				h.Balance = ""
+				h.clearWriteRows()
 			}
 		}
 		for _, p := range order {
@@ -856,14 +870,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			if res.Hunks[i].Path == path {
 				res.Hunks[i].Status = StatusFailed
 				res.Hunks[i].Reason = err.Error()
-				res.Hunks[i].Echo = nil
-				res.Hunks[i].Balance = ""
+				res.Hunks[i].clearWriteRows()
 				res.Failed++
 				continue
 			}
 			res.Hunks[i].Status = StatusSkipped
-			res.Hunks[i].Echo = nil
-			res.Hunks[i].Balance = ""
+			res.Hunks[i].clearWriteRows()
 		}
 		reportAddressed()
 		return res, fmt.Errorf("%s: %w", path, err)
@@ -1709,6 +1721,13 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		// that tail then left the receipt describing a line the file
 		// no longer holds (ADR-052).
 		padAfter []struct{ index, after int }
+		// closerAfter is padAfter's twin for ADR-119's closer hint: judged on
+		// the written file once every hunk has spliced, because a later hunk
+		// may rewrite the lines after this body.
+		closerAfter []struct {
+			index, after int
+			body         []string
+		}
 	)
 	for _, h := range resolved {
 		if h.Start < cursor {
@@ -1759,6 +1778,12 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				r.wrapTail = wrapTailDelta(orig[h.Start-1], h.Body) != ""
 			}
 		}
+		if h.SrcOp == "replace" {
+			closerAfter = append(closerAfter, struct {
+				index, after int
+				body         []string
+			}{h.Index, len(res), h.Body})
+		}
 		if opt.EchoPad > 0 && (h.Op == "replace" || h.Op == "insert") {
 			padAfter = append(padAfter, struct{ index, after int }{h.Index, len(res)})
 		}
@@ -1772,6 +1797,11 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		r := out[p.index]
 		r.Echo = echoPad(res[:p.after], res[p.after:], opt.EchoPad)
 		out[p.index] = r
+	}
+	for _, c := range closerAfter {
+		r := out[c.index]
+		r.Closer = closerHint(c.body, res[c.after:], c.after+1)
+		out[c.index] = r
 	}
 	if editRename {
 		return res, true, "editrename"
