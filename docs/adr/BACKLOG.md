@@ -2497,6 +2497,17 @@ so the result cannot move it:
   2119, 1,200 replaces a repository and 6,000 commits sampled a repository (`stress.py --seed 2119 --cap 1200
   --max-commits 6000`), so it overlaps the first run's hunks only partly. **indent** is withdrawn (see "From
   ADR-119").
+- **Amended after review (Zy, 2026-10-02, "Refine and re-measure").** The in-process review of PR #322 found
+  that run 2's corpus could not contain the commonest correct shape: `git diff -U0` hunks never hold an unchanged
+  closer, so a replace THROUGH its own closer (`if x {…}` replaced through its `}`, the outer `}` below) was never
+  replayed, and the shipped closer fires on it. Registered now, before the third run: **closer** additionally
+  requires that the replaced range's last non-blank line, trimmed, is NOT equal to the body's last non-blank line,
+  trimmed — the body brought a closer the range did not end in. The corpus gains a second replay: each `-U0`
+  replace whose next 4 non-blank original lines hold a closer-shaped line is ALSO replayed extended through the
+  first such line, its range ending there and its body carrying the same unchanged lines — the shape callers are
+  taught to write. The bar is unchanged and applies to EACH replay separately: under 5% in every bucket of 50 or
+  more, and 3 of 3 closer fixtures. The third run uses seed 3119, 1,200 replaces a repository and 6,000 commits
+  (`stress.py --seed 3119 --cap 1200 --max-commits 6000`).
 
 ## From ADR-119 (a write says when its shape looks wrong)
 
