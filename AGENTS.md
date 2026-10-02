@@ -419,9 +419,10 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   Both JSON receipts carry `pattern` `{advisory_writes, window, fires}` on
   every write (ADR-056), so a `--json` or `mrw_write` caller holds the fact
   the human line prints.
-  A replace whose body ends in a closer — a fence, `}`, `</div>`, `@endif`, `end`, `fi` — that one of the
-  next four non-blank lines after it repeats prints a `closer` row under `ok` and stays `ok` (ADR-119): the
-  closer the file already had, left below a body that brought its own. It is judged on the written file,
+  A replace whose body ends in a closer — a fence, `}`, `</div>`, `@endif`, `end`, `fi` — that the replaced range
+  did not itself end in, and that one of the next four non-blank lines after it repeats, prints a `closer` row
+  under `ok` and stays `ok` (ADR-119): likely the closer the file already had, left below a body that brought its
+  own. A replace through its own closer carries none. It is judged on the written file,
   runs on prose too, is counted in `hints` (absent when zero; `, 1 hint` on the summary line), and is never
   refused, `--strict-balance` included. It does not see orphans above the body, and an indentation hint was
   measured on real history and withdrawn (`docs/break/shape-hints/`).

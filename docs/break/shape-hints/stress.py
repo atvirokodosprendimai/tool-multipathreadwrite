@@ -117,17 +117,41 @@ def hints(path, orig, start, end, body):
         "closer_trim": closer(orig, end, body, trim=True),
         "closer_k4_trim": closer(orig, end, body, k=4, trim=True),
         "closer_k4_token": closer(orig, end, body, k=4, trim=True, token=True),  # SHIPPED (amended bar)
+        "closer_k4_token_ne": closer(orig, end, body, k=4, trim=True, token=True) and not ends_alike(replaced, body),  # SHIPPED (run 3)
         "closer_k8_token": closer(orig, end, body, k=8, trim=True, token=True),
         "indent": indent(path, replaced, body),                 # REGISTERED
         "indent_first": indent(path, replaced, body, first_only=True),
     }
 
 
+def ends_alike(replaced, body):
+    """True when the replaced range already ended in the line the body ends in, trimmed: a replace THROUGH its
+    own closer, which leaves no duplicate (BACKLOG, "Amended after review")."""
+    r, b = nonblank(replaced), nonblank(body)
+    return bool(r and b) and r[-1].strip() == b[-1].strip()
+
+
+def through_closer(orig, end, body):
+    """The same edit replayed through the first closer-shaped line among the next 4 non-blank original lines: the
+    range ends there and the body carries the same unchanged lines, as a caller taught to replace through the
+    closer writes it. None when no closer follows within 4."""
+    seen = 0
+    for j in range(end, len(orig)):
+        t = orig[j].strip()
+        if not t:
+            continue
+        if CLOSER_TOKEN.match(t):
+            return j + 1, body + orig[end:j + 1]
+        seen += 1
+        if seen == 4:
+            return None
+    return None
+
 REGISTERED = ("closer", "indent")
 # SHIPPED maps what the binary reports to the variant that ships (BACKLOG, "Amended after the first
 # measurement"): --mrw compares the binary's key against it, so the run proves they agree.
-SHIPPED = {"closer": "closer_k4_token"}
-VARIANTS = ("closer", "closer_trim", "closer_k4_trim", "closer_k4_token", "closer_k8_token",
+SHIPPED = {"closer": "closer_k4_token_ne"}
+VARIANTS = ("closer", "closer_trim", "closer_k4_trim", "closer_k4_token", "closer_k4_token_ne", "closer_k8_token",
             "indent", "indent_first")
 
 
@@ -172,9 +196,9 @@ def replay(repo, cap, max_commits, rng, mrw):
     out = git(repo, "log", "--no-merges", "--format=%H")
     commits = out.decode().split() if out else []
     rng.shuffle(commits)
-    rows, mismatched, disagreed = [], 0, []
+    rows, mismatched, disagreed, base = [], 0, [], 0  # base: -U0 replaces, the unit --cap counts
     for k in commits[:max_commits]:
-        if len(rows) >= cap:
+        if base >= cap:
             break
         diff = git(repo, "diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames",
                    "--diff-filter=M", k + "^", k)
@@ -189,18 +213,27 @@ def replay(repo, cap, max_commits, rng, mrw):
             if hunk and not (line.startswith("+") or line.startswith("-") or line.startswith("\\")):
                 start, n, body, old = hunk
                 hunk = None
-                if orig is not None and len(rows) < cap:
+                if orig is not None and base < cap:
                     end = start + n - 1
                     if orig[start - 1:end] != old:
                         mismatched += 1
                     else:
                         h = hints(path, orig, start, end, body)
+                        base += 1
                         rows.append((bucket(path), h))
+                        replays = [(start, end, body, h)]
+                        thru = through_closer(orig, end, body)
+                        if thru:
+                            # Counted in its own bucket, so the bar applies to each replay separately.
+                            h2 = hints(path, orig, start, thru[0], thru[1])
+                            rows.append((bucket(path) + " thru", h2))
+                            replays.append((start, thru[0], thru[1], h2))
                         if mrw:
-                            got = through_binary(mrw, path, orig, start, end, body)
-                            want = {k: h[v] for k, v in SHIPPED.items()}
-                            if got != want:
-                                disagreed.append((repo, k, path, start, end, got, want))
+                            for s, e, bd, hh in replays:
+                                got = through_binary(mrw, path, orig, s, e, bd)
+                                want = {k: hh[v] for k, v in SHIPPED.items()}
+                                if got != want:
+                                    disagreed.append((repo, k, path, s, e, got, want))
             if line.startswith("diff --git "):
                 path, orig = None, None
             elif line.startswith("+++ b/"):

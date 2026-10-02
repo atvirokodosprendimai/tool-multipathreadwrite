@@ -19,17 +19,18 @@ var closerToken = regexp.MustCompile("^(`{3,}|~{3,}|[}\\])]+[;,)]*|</[\\w.-]+>|@
 const closerWindow = 4
 
 // closerHint reports the line after a replace's body that repeats the body's
-// last non-blank line, when that line is a closer: the closer the file already
-// had, left below a body that brought its own. after is the written file from
-// the line after the body, and first is that line's number. Empty when the body
-// does not end in a closer, or none of the next closerWindow non-blank lines
-// repeats it. Advice only: the hunk stays ok (ADR-119).
-func closerHint(body, after []string, first int) string {
-	last := ""
-	for i := len(body) - 1; i >= 0 && last == ""; i-- {
-		last = strings.TrimSpace(body[i])
-	}
-	if last == "" || !closerToken.MatchString(last) {
+// last non-blank line, when that line is a closer the replaced range did not
+// end in: the closer the file already had, likely left below a body that
+// brought its own. replaced is the range the body took the place of, after the
+// written file from the line after the body, and first is that line's number.
+// Empty when the body does not end in a closer, when the replaced range already
+// ended in that same line (a replace THROUGH its own closer, the shape callers
+// are taught to write, which an inner `}` above an outer `}` would otherwise
+// trip), or when none of the next closerWindow non-blank lines repeats it.
+// Advice only: the hunk stays ok (ADR-119).
+func closerHint(replaced, body, after []string, first int) string {
+	last := lastNonBlank(body)
+	if last == "" || !closerToken.MatchString(last) || lastNonBlank(replaced) == last {
 		return ""
 	}
 	looked := 0
@@ -43,6 +44,16 @@ func closerHint(body, after []string, first int) string {
 		}
 		if looked++; looked == closerWindow {
 			break
+		}
+	}
+	return ""
+}
+
+// lastNonBlank is the last line of lines that is not blank, trimmed, or "".
+func lastNonBlank(lines []string) string {
+	for i := len(lines) - 1; i >= 0; i-- {
+		if t := strings.TrimSpace(lines[i]); t != "" {
+			return t
 		}
 	}
 	return ""

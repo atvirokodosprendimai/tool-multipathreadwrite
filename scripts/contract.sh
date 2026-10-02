@@ -8468,6 +8468,13 @@ printf '%s\n' "$before219" > "$R/v219.blade.php"; m read v219.blade.php > /dev/n
 printf '@@ v219.blade.php 7-8 replace anchor="@if ($items)"\n    @if ($items->isNotEmpty())\n        <li>x</li>\n    @endif\n' > "$R/p219.mrw"
 out=$(m write --no-check --json "$R/p219.mrw" 2>&1); want 0 $? "the pair: a replace through the @endif applies"
 ! grep -q '"closer"\|"hints"' <<<"$out" && ok "and carries no hint" || bad "a correct replace carried a hint: $out"
+# The review of #322: an inner block replaced through its own `}`, the outer
+# `}` right below. The tokens match, and the range already ended in it.
+printf 'package n\n\nfunc A() {\n\tif x {\n\t\tf()\n\t}\n}\n' > "$R/n219.go"
+m read n219.go > /dev/null
+printf '@@ n219.go 4-6 replace anchor="if x {"\n\tif y {\n\t\tg()\n\t}\n' > "$R/p219.mrw"
+out=$(m write --no-check --json "$R/p219.mrw" 2>&1); want 0 $? "a replace of an inner block through its own } applies"
+! grep -q '"closer"\|"hints"' <<<"$out" && ok "and carries no hint for the outer }" || bad "a through-closer replace carried a hint: $out"
 printf '%s\n' intro '```go' 'x := 1' '```' outro > "$R/n219.md"
 m read n219.md > /dev/null
 printf '@@ n219.md 3 replace\nx := 2\n```\n' > "$R/p219.mrw"

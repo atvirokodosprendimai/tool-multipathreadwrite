@@ -102,8 +102,9 @@ type HunkResult struct {
 
 	// Closer is ADR-119's hint: on an applied replace, a line within the next
 	// four non-blank lines after the body that repeats the body's last line,
-	// when that line is a closer (a fence, `}`, `</div>`, `@endif`, …) — the
-	// closer the file already had, which the body now duplicates. Judged on
+	// when that line is a closer (a fence, `}`, `</div>`, `@endif`, …) that the
+	// replaced range did not end in — the closer the file already had, which
+	// the body may now duplicate. Judged on
 	// the written file, as Echo is. Advice: the hunk stays ok, and
 	// --strict-balance never refuses on it. Empty otherwise, and on a skipped
 	// or failed hunk.
@@ -1725,8 +1726,8 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		// the written file once every hunk has spliced, because a later hunk
 		// may rewrite the lines after this body.
 		closerAfter []struct {
-			index, after int
-			body         []string
+			index, after   int
+			replaced, body []string
 		}
 	)
 	for _, h := range resolved {
@@ -1780,9 +1781,9 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		}
 		if h.SrcOp == "replace" {
 			closerAfter = append(closerAfter, struct {
-				index, after int
-				body         []string
-			}{h.Index, len(res), h.Body})
+				index, after   int
+				replaced, body []string
+			}{h.Index, len(res), consumed, h.Body})
 		}
 		if opt.EchoPad > 0 && (h.Op == "replace" || h.Op == "insert") {
 			padAfter = append(padAfter, struct{ index, after int }{h.Index, len(res)})
@@ -1800,7 +1801,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	}
 	for _, c := range closerAfter {
 		r := out[c.index]
-		r.Closer = closerHint(c.body, res[c.after:], c.after+1)
+		r.Closer = closerHint(c.replaced, c.body, res[c.after:], c.after+1)
 		out[c.index] = r
 	}
 	if editRename {

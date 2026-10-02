@@ -83,10 +83,16 @@ func TestACorrectReplaceIncludingItsCloserReportsNone(t *testing.T) {
 	blade.end = 8 // through the @endif the field report left behind
 	html := fieldFailures()[1]
 	html.end = 6
-	for _, c := range []shapeCase{blade, html} {
+	// The review of #322: an inner block replaced through its own `}`, the
+	// outer `}` right below. The tokens match; the range already ended in it.
+	nested := shapeCase{"n.go", []string{"package n", "", "func A() {", "\tif x {", "\t\tf()", "\t}", "}"},
+		4, 6, []string{"\tif y {", "\t\tg()", "\t}"}}
+	fence := shapeCase{"n.md", []string{"intro", "```go", "x := 1", "```", "", "```sh", "ls", "```"},
+		2, 4, []string{"```go", "x := 2", "```"}}
+	for _, c := range []shapeCase{blade, html, nested, fence} {
 		h := applyShape(t, Options{}, c).Hunks[0]
 		if h.Status != StatusOK || h.Closer != "" {
-			t.Fatalf("%s %d-%d: status %s, closer %q; a replace through its closer is clean", c.path, c.start, c.end, h.Status, h.Closer)
+			t.Fatalf("%s %d-%d: status %s, closer %q; a replace through its own closer is clean", c.path, c.start, c.end, h.Status, h.Closer)
 		}
 	}
 }

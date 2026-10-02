@@ -39,13 +39,42 @@ next 4 non-blank lines. Fixtures 3 of 3. False-positive rate per bucket:
 | `.yml` | 146 | 0.00% | 13.01% |
 | `.sh` | 123 | 2.44% | 4.07% |
 
-Under 5% in every bucket of 50+: the closer ships. The window without the token test (`closer_k4_trim`) went
-over in `.php` (5.15%) and `.yml` (8.22%), which is what the token test is for.
+Under 5% in every bucket of 50+ — but the review of #322 showed the corpus could not hold the commonest correct
+shape. A `-U0` hunk never contains an unchanged closer, so a replace THROUGH its own closer (an inner `if {…}`
+replaced through its `}`, the outer `}` right below) was never replayed, and `closer_k4_token` fires on it. The
+window without the token test (`closer_k4_trim`) went over in `.php` (5.15%) and `.yml` (8.22%).
 
-**Binary cross-check** (seed 2119, 400 replaces a repository, 3,475 replaces, `--mrw bin/mrw` built from the
-ADR-119 branch): the binary's `closer` key agreed with the computed one on all 3,475. The first attempt
-reported one disagreement, which was the harness: it JSON-quoted `anchor=`, so a line holding `ė` never
-matched and the hunk failed. The harness now passes the anchor raw, on multi-line replaces only.
+**Run 3 — the refined closer** (registered in BACKLOG, "Amended after review", before it ran; seed 3119, 1,200
+replaces a repository, 6,000 commits). `closer_k4_token_ne` adds: the replaced range's last non-blank line,
+trimmed, is not the body's. Each hunk whose next 4 non-blank original lines hold a closer-shaped line was replayed
+a second time extended through it (`… thru` buckets). Fixtures 3 of 3.
+
+| bucket | n | closer_k4_token (run 2's) | closer_k4_token_ne (ships) |
+|--------|---|---------------------------|----------------------------|
+| `.md` | 1650 | 0.12% | 0.12% |
+| `.php` | 1458 | 3.50% | 3.36% |
+| `.py` | 1338 | 0.37% | 0.37% |
+| `.ts` | 1270 | 1.42% | 1.34% |
+| `.go` | 738 | 1.90% | 1.90% |
+| `.js` | 540 | 1.67% | 1.67% |
+| `.json` | 453 | 0.44% | 0.44% |
+| `.vue` | 76 | 5.26% | 3.95% |
+| `.php thru` | 796 | 37.19% | 0.00% |
+| `.ts thru` | 672 | 23.66% | 0.00% |
+| `.go thru` | 485 | 55.46% | 0.00% |
+| `.json thru` | 365 | 10.96% | 0.00% |
+| `.js thru` | 230 | 32.61% | 0.00% |
+| `.md thru` | 186 | 18.82% | 0.00% |
+| `.py thru` | 150 | 11.33% | 0.00% |
+| `.vue thru` | 54 | 35.19% | 0.00% |
+
+The refined closer is under 5% in every bucket of 50+, on both replays: it ships. Its 0.00% on the `thru` replay
+holds BY CONSTRUCTION — those replays end in the closer they replaced, which is exactly what the refinement
+excludes — so that replay's value is the left column: it is what the unrefined closer would have cost.
+
+**Binary cross-check**: see the end of this file. An earlier cross-check of run 2's definition (seed 2119, 3,475
+replaces) agreed on all of them after a harness fix: it had JSON-quoted `anchor=`, so a line holding `ė` never
+matched. The harness now passes the anchor raw, on multi-line replaces only.
 
 ## What this does not measure
 
@@ -54,3 +83,12 @@ matched and the hunk failed. The harness now passes the anchor raw, on multi-lin
 - The corpus is one machine's repositories, dominated by PHP, Markdown, Python and TypeScript. YAML had 18
   replaces in run 1 and 146 in run 2, which is why the indent hint has no YAML-only measurement yet.
 - Orphans above the body (a short address) are not looked for; see BACKLOG "From ADR-119".
+- Shapes neither replay covers can still fire: a correct replace that adds a new block ending in a closer just
+  above a sibling's identical closer, within four non-blank lines, and that did not replace through a closer. The
+  `-U0` replay contains that shape, and its rate is the one in the table.
+
+## Binary cross-check of the shipped closer
+
+`stress.py --seed 3119 --cap 400 --mrw bin/mrw`, the binary built from the ADR-119 branch with the refined
+closer: 4,686 replays (the `-U0` replays and their through-closer twins), and the binary's `closer` key agreed
+with `closer_k4_token_ne` on every one.

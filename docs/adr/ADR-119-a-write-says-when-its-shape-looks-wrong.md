@@ -9,7 +9,7 @@
 **Invalidates:** None — additive; the balance row, `advisories` and the pattern keep their meanings (ADR-111)
 **Governs:** `internal/apply/apply.go`, `internal/apply/shape.go`, `cmd/mrw/main.go`, `internal/mcp/schema.go`, `docs/receipts.txt`, `AGENTS.md`, `README.md`, `scripts/contract.sh`, `docs/break/shape-hints/stress.py`
 **Enforced-by:** `internal/apply/shape119_test.go::TestTheFieldFailuresEachCarryAHint`
-**Served-path change:** An applied `replace` hunk may carry `closer` — its body ends in a closer-shaped line (a fence, `}`, `</div>`, `@endif`, …) that one of the next four non-blank lines after it repeats, the closer the file already had. It is advice: the hunk stays ok. The receipt counts such hunks in a top-level `hints`, absent when zero. The indent hint the record first proposed missed the pre-registered bar and does not ship.
+**Served-path change:** An applied `replace` hunk may carry `closer` — its body ends in a closer-shaped line (a fence, `}`, `</div>`, `@endif`, …) that the replaced range did not itself end in and that one of the next four non-blank lines after it repeats: likely the closer the file already had. It is advice: the hunk stays ok. The receipt counts such hunks in a top-level `hints`, absent when zero. The indent hint the record first proposed missed the pre-registered bar and does not ship.
 
 ## Context
 
@@ -28,6 +28,7 @@ Zy chose advice over refusal, measured before shipping: two cheap heuristics, ea
 ## Decision
 
 1. **`closer`**: on an applied `replace`, when the body's last non-blank line, trimmed, is a closer-shaped token (a ` ``` ` or `~~~` fence, a run of `}` `]` `)` with trailing `;` `,` `)`, an end tag `</x>`, `@end…`, `end`, `fi`, `done`, `esac`) and one of the next four non-blank lines after the body in the WRITTEN file equals it, trimmed, the hunk carries `closer` naming that line as it sits in the written file: `line N repeats the body's last line: <text>`. It runs on prose too. This is the definition BACKLOG registered after the first measurement ("Amended after the first measurement"), not the line-right-after comparison first registered: that one caught 2 of its 3 field fixtures, because the markdown fence's survivor was the fourth line after the range.
+   **And the replaced range must not itself end in that line, trimmed** (BACKLOG, "Amended after review"): the in-process review of #322 found that a correct replace of an inner block through its own `}`, with the outer `}` right below, fired, and that run 2 could not have shown it because a `git diff -U0` hunk never holds an unchanged closer. Run 3 replayed each hunk a second time extended through its following closer: the unrefined closer fired on 55.46% of those in `.go` and 37.19% in `.php`; the refined one on none, by construction, and at a worst of 3.36% (`.php`) on the `-U0` replay.
 2. **`indent` does not ship.** The registered indent hint caught both indentation fixtures but fired on 19.35% of `.py`, 14.29% of extensionless, 11.89% of `.js` and 8.99% of `.php` replaces in the first measurement, against a bar of 5%; Zy withdrew it ("K4 closer, defer indent"). It is deferred to BACKLOG "From ADR-119" with its trigger.
 3. **Advice only.** The hunk stays ok; nothing is refused, `--strict-balance` included. A skipped or failed hunk carries no `closer` (one `clearWriteRows` clears it with the pad and the balance row at every site). `advisories` and the pattern line keep counting balance rows only (ADR-111); the receipt adds a top-level `hints`, the number of hunks carrying `closer`, absent when zero, and the human summary adds `, M hints` only when M > 0, so every summary a caller already parses stays byte-identical.
 4. **Measured before shipping.** `docs/break/shape-hints/stress.py` replays the non-merge history of every repository under `~/GolandProjects` and `~/CursorProjects` as replaces, computes each heuristic per language bucket, and with `--mrw` drives the built binary's `--dry-run --json` to prove the binary reports what was measured. The first run missed the bar on both heuristics; the amended closer was registered before a second run on a fresh sample, which it passed (T2, `docs/break/shape-hints/README.md`).
@@ -66,7 +67,7 @@ See `tasks/README.md`: T1, then T2.
 ## Consequences
 
 - **Positive:** the failures the field reports measured are named in the receipt of the write that made them.
-- **Negative:** a correct edit sometimes carries a hint; the bar bounds how often.
+- **Negative:** a correct edit sometimes carries a hint; the bar bounds how often on the shapes the replay covers (`-U0` hunks, and the same hunks through their following closer), not on every shape a caller writes.
 - **Neutral:** nothing is refused; callers who ignore the keys see no change.
 
 ## Out of Scope
@@ -78,7 +79,7 @@ See `tasks/README.md`: T1, then T2.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| a hint fires so often it is ignored | Medium | Medium | the pre-registered bar; a heuristic over it does not ship |
+| a hint fires so often it is ignored | Medium | Medium | the pre-registered bar, measured on `-U0` hunks and on the same hunks replayed through their closer; a shape the replay does not cover can still fire, which is why the hint is advice |
 | the replayed history is not the edits agents make | Medium | Low | the true-positive bar uses the field failures agents did make |
 
 ## Rollback
