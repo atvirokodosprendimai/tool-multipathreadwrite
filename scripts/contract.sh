@@ -8450,6 +8450,38 @@ XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" write --no-check "$R/p218.mrw" > /d
 XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" read 'x218.go:/^\treturn/' > /dev/null
 XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 0 $? "the pair: after a read of the matches it applies"
 
+# 219. ADR-119: an applied replace whose body ends in the closer the file
+# already had carries a closer hint and stays ok. Blade, replacing line 7 as
+# the field report did: the @endif left at 8 is named at line 10 and counted in
+# hints. The pair: replacing 7-8, through it, names nothing. And a .md fence
+# closed twice is named on the human receipt too: closer runs on prose.
+fixture
+printf '%s\n' '<div>' '  <h1>{{ $title }}</h1>' '' '  <ul>' '  @foreach ($xs as $x)' '  @endforeach' \
+  '    @if ($items)' '    @endif' '  </ul>' '</div>' > "$R/v219.blade.php"
+before219=$(cat "$R/v219.blade.php")
+m read v219.blade.php > /dev/null
+printf '@@ v219.blade.php 7 replace\n    @if ($items->isNotEmpty())\n        <li>x</li>\n    @endif\n' > "$R/p219.mrw"
+out=$(m write --no-check --json "$R/p219.mrw" 2>&1); want 0 $? "a replace that leaves the old @endif below it applies"
+grep -q '"closer": "line 10 repeats the body'"'"'s last line: @endif"' <<<"$out" && grep -q '"hints": 1' <<<"$out" \
+  && ok "and its receipt names the survivor at line 10 and counts one hint" || bad "no closer hint: $out"
+printf '%s\n' "$before219" > "$R/v219.blade.php"; m read v219.blade.php > /dev/null
+printf '@@ v219.blade.php 7-8 replace anchor="@if ($items)"\n    @if ($items->isNotEmpty())\n        <li>x</li>\n    @endif\n' > "$R/p219.mrw"
+out=$(m write --no-check --json "$R/p219.mrw" 2>&1); want 0 $? "the pair: a replace through the @endif applies"
+! grep -q '"closer"\|"hints"' <<<"$out" && ok "and carries no hint" || bad "a correct replace carried a hint: $out"
+# The review of #322: an inner block replaced through its own `}`, the outer
+# `}` right below. The tokens match, and the range already ended in it.
+printf 'package n\n\nfunc A() {\n\tif x {\n\t\tf()\n\t}\n}\n' > "$R/n219.go"
+m read n219.go > /dev/null
+printf '@@ n219.go 4-6 replace anchor="if x {"\n\tif y {\n\t\tg()\n\t}\n' > "$R/p219.mrw"
+out=$(m write --no-check --json "$R/p219.mrw" 2>&1); want 0 $? "a replace of an inner block through its own } applies"
+! grep -q '"closer"\|"hints"' <<<"$out" && ok "and carries no hint for the outer }" || bad "a through-closer replace carried a hint: $out"
+printf '%s\n' intro '```go' 'x := 1' '```' outro > "$R/n219.md"
+m read n219.md > /dev/null
+printf '@@ n219.md 3 replace\nx := 2\n```\n' > "$R/p219.mrw"
+out=$(m write "$R/p219.mrw" 2>&1); want 0 $? "a .md replace that closes its fence twice applies"
+grep -q 'closer line 5 repeats' <<<"$out" && grep -q '0 advisories, 1 hint — applied' <<<"$out" \
+  && ok "and the human receipt names it and counts the hint beside the advisories" || bad "prose closer: $out"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

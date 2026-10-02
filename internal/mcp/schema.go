@@ -292,6 +292,8 @@ var writeDescriptions = map[string]string{
 	"pattern.fires":           "True when advisory_writes has reached three: the same shape has reported three times in the last ten writes — read past the range before the next one.",
 	"advisories":              "How many ok hunks carry a balance delta (ADR-055). Zero on a clean write, and always present, so a caller that reads only this key still sees that a row reported something. Skipped and failed hunks contribute nothing.",
 	"hunks.balance":           "Delimiter-balance delta on a non-prose hunk: each of `{}` `()` `[]` whose net count in the replaced lines differs from the body, as `{ +1 → 0`. Absent when they match, on prose (.md .markdown .txt .rst .adoc), and on a balanced insert — which is invisible to it. Rune counts, no lexer; never fails the hunk.",
+	"hunks.closer":            "A line within the next four non-blank lines after an applied replace's body that repeats the body's last line, when that line is a closer — a fence, `}`, `</div>`, `@endif`, `end`, `fi` — that the replaced range did not itself end in (ADR-119): the closer the file already had, which the body may now duplicate. Judged on the written file. Advice: the hunk stays ok and --strict-balance never refuses on it. Absent otherwise, and on a skipped or failed hunk.",
+	"hints":                   "How many ok hunks carry `closer` (ADR-119). Separate from `advisories`, which counts balance rows only. Absent when zero.",
 }
 
 // describeResult attaches the table's prose to a generated schema, in place,

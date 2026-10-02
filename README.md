@@ -168,6 +168,10 @@ These are gates, not a tour of the records behind them.
   `packages()` cannot map; `{packages}`-only still falls back. A non-prose hunk
   whose `{}` `()` `[]` nets moved prints a balance row and stays `ok` — a
   balanced insert in the wrong place is invisible to it.
+  A replace whose body ends in a closer (a fence, `}`, `</div>`, `@endif`) that
+  its range did not end in, and that one of the next four non-blank lines
+  repeats, prints a `closer` row and stays `ok`, counted in `hints` (ADR-119);
+  it is advice, never a refusal.
   `mrw stats` prints every outcome at zero — `failed_check` and, since ADR-102, `partially_applied`
   among them — and a landed-writes line.
 - **Steps after the check.** `--then NAME` runs a step declared under `"steps"` in
