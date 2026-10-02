@@ -2518,3 +2518,61 @@ so the result cannot move it:
   `.php` and extensionless files, and the language it exists for, YAML, had 18 replaces in the corpus, under the
   50 the bar judges. Arm when a corpus of 50 or more YAML replaces is available to measure a YAML-only indent hint
   against the same bar, or a second field report of an indentation failure arrives.
+
+## From the Windows peers (2026-10-02, v1.42.0)
+
+Five Claude sessions on one Windows 11 Pro 10.0.26200.9457 desktop (NTFS, Git for Windows 2.49.0 with bash 5.2.37,
+Developer Mode off) probed v1.42.0 on request, report-only. Zy, 2026-10-02: "BACKLOG now, records later". What held
+is listed last; each item names what arms it.
+
+- **A held target turns a plan PARTIALLY APPLIED, depending on plan order.** A file another process holds open
+  without `FILE_SHARE_DELETE` (an editor, AV, a language server) makes the commit's rename fail ("Access is
+  denied"). Held last or in the middle, the earlier files have landed and are not undone: PARTIALLY APPLIED, exit
+  2. Held first: NOTHING WRITTEN. A rename or unlink of a held file behaves the same. ADR-066 calls a mid-commit
+  failure rare; on Windows it is ordinary. A probe follow-up found that an open with DELETE access, or a
+  rename-to-self, fails early (err 32) for every holder without delete sharing. But with `ReadWrite,Delete`
+  sharing both probes pass while the real `MoveFileEx(tmp, path, REPLACE_EXISTING)` still fails (err 5).
+  Candidates: a pre-commit probe, plus `FileRenameInfoEx` with `FILE_RENAME_FLAG_POSIX_SEMANTICS` for the
+  delete-sharing case (untested); any probe is check-then-act. **Arm now** as the next Windows record: ADR-001 and
+  ADR-066 already promise an honest PARTIALLY APPLIED on a filesystem failure, and what changes on Windows is how
+  often a plan reaches it — in a common case, not a rare one.
+- **An exclusively held file, or an invalid name, gets no receipt.** A holder with share mode None, or
+  `@@ q?.txt 0 create`, prints one bare `mrw: …` line, exit 2, with no per-hunk verdicts. Nothing is written.
+  Arm with the record above, which owns that path.
+- **A file-level ACL deny says "send the plan again".** `icacls /deny (W,D)` on a target gives exit 1 and "its
+  identity could not be read … send the plan again", which can never help. The cause, permission, is not named.
+  Arm with the record above.
+- **A case-only rename is impossible.** `a.txt` → `A.txt` is refused as "dest already exists". Following the
+  advice (unlink `A.txt` first) is then refused as "names the same file". Nothing is lost. Arm on a second request.
+- **The write lock is not held while the check runs.** A second writer's edit to another file landed 1.4 s into
+  the first writer's 8 s check, so the first check verified a tree holding an unverified edit. ADR-112's drift
+  advisory watches only the files the first write touched. This is a recorded decision, ADR-075 §5 (the lock
+  covers the apply, not the check), with ADR-112 as its accepted mitigation: arming it means retiring that clause.
+  Arm when the lock's scope is next revisited, or with ADR-121 (reserved: the check off the only MCP thread).
+- **`--grep` costs 10–14 ms a file on Windows.** 3,000 files of 40 lines took 31–63 s, from the CLI and over MCP,
+  with output to a file and an MCP index serving no lines. `grep -rl` took 0.41 s; the same shape on macOS 0.29 s.
+  The `.gitignore` matcher is ruled out (`.git` or not makes no difference). A peer's timeout stack points at
+  `read.Run` → `rooted.Resolve` → `InState` → `RealAsFarAsItExists` → `filepath.EvalSymlinks` per served path
+  (ADR-077's state-directory check). The same stack timed out `internal/mcp`'s
+  `TestAnIndexTooLargeToServePagesByFile` at 6m31s under a full Git Bash run (127–169 s alone). **Arm now**,
+  with ADR-123 (reserved: grep matches while reading), which owns the walk's per-file work.
+- **A UTF-8 BOM on the first MCP line drops `initialize`** (-32700). CRLF alone is fine. Arm on the next MCP
+  handshake change.
+- **MCP refusals say "pass --force"**, which `mrw_write` does not take. An unknown ack id is ignored silently. A
+  replace whose body equals the line reports `written: true` with equal shas. Arm with the next MCP text change.
+- **A walk enters a nested untracked repository.** git lists it as `nested/` and does not descend; mrw walks in
+  (applying that repository's own `.gitignore`). And mrw does not read `core.ignorecase`: with it set to false,
+  `[Ab]*.txt`, `MIXED.txt` and `Upper/` still fold, as the filesystem does. Both are ADR-116's documented rule,
+  which differs from git here. Arm on a second report, or with ADR-122 (reserved: ast-grep walks mrw's walk).
+- **Process trees on Windows** are ADR-120's: a timed-out check kills only its direct `sh.exe`, and a killed mrw
+  kills nothing below it. The orphans' parents are dead MSYS fork stubs, so a parent-PID walk would miss them, and
+  they hold the check log open. And Git for Windows' sh asks for `CREATE_BREAKAWAY_FROM_JOB` whenever a job
+  allows it: with `JOB_OBJECT_LIMIT_BREAKAWAY_OK` nothing below sh stays in the job. Zy, 2026-10-02: "Drop
+  BREAKAWAY_OK". Carried into ADR-120 (reserved: Windows job objects), the next record.
+- **Fixed with this entry:** `TestMrwReadTakesMaxLinesStatAndFilesFrom` failed on a desktop without symlink
+  privilege. Its link row is now dropped, with a log line, when a symlink cannot be created.
+- **Held:** read-only and hidden files, junctions out of the root, a 392-character path, trailing dots and
+  spaces, `::$DATA`, device names, non-ASCII names (Я, Ŝ), one file under two spellings, CRLF kept per line,
+  rename onto an existing file, `files_from` with backslashes and CRLF, `max_lines` and `stat` licensing, checks
+  with and without `sh`, steps, huge-read pages, every `.gitignore` rule tried under git's defaults, and
+  `occurrence=N` on LF, CRLF and a backslash pattern. Not covered: symlinks (no privilege), a console Ctrl+C.
