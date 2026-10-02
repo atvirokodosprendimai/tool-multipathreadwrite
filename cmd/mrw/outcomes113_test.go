@@ -37,6 +37,7 @@ type outcomeRow struct {
 	depth     bool              // MRW_STEP_DEPTH at the limit
 	pre       []string          // plans written first, --no-check, to fill the recent ring
 	raw       bool              // args are the whole command line: no plan file is added
+	jsonOnly  bool              // the human run measures the filesystem, not mrw: run --json only
 	args      []string
 	plan      string
 }
@@ -57,7 +58,8 @@ var outcomeRows = []outcomeRow{
 	{name: "body_file_missing", harness: `{"check":"exit 0"}`, plan: "@@ a.go 2 replace body=@nope.txt\n"},
 	// Refused after it parsed, before anything was written: refused_apply.
 	{name: "pointer_unresolved", harness: `{"check":"exit 0"}`, plan: "@@ @1 2 replace\nx\n"},
-	{name: "json_path_not_utf8", harness: `{"check":"exit 0"}`, plan: "@@ \xff.go 0 create\nx\n"},
+	// Human form would create \xff.go: macOS refuses the name, Linux makes it.
+	{name: "json_path_not_utf8", harness: `{"check":"exit 0"}`, jsonOnly: true, plan: "@@ \xff.go 0 create\nx\n"},
 	{name: "harness_malformed", harness: `{`, plan: goPlan},
 	{name: "then_undeclared", harness: `{"check":"exit 0"}`, args: []string{"--then", "nosuch"}, plan: goPlan},
 	{name: "depth_refused", harness: `{"check":"exit 0"}`, depth: true, plan: goPlan},
@@ -116,6 +118,9 @@ func TestTheCLIWriteOutcomesAreUnchanged(t *testing.T) {
 	var got strings.Builder
 	for _, row := range outcomeRows {
 		for _, mode := range []string{"json", "human"} {
+			if mode == "human" && row.jsonOnly {
+				continue
+			}
 			fmt.Fprintf(&got, "== %s %s\n%s\n", row.name, mode, runOutcome(t, row, mode == "json"))
 		}
 	}
@@ -132,21 +137,46 @@ func TestTheCLIWriteOutcomesAreUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g := strings.TrimRight(got.String(), "\n") + "\n"; g != string(want) {
-		gs, ws := strings.Split(g, "\n"), strings.Split(string(want), "\n")
-		for i := 0; i < len(gs) || i < len(ws); i++ {
-			var g, w string
-			if i < len(gs) {
-				g = gs[i]
+	// Every moved row is reported, not only the first, so one CI run on
+	// another platform names all of them.
+	gb, wb := outcomeBlocks(strings.TrimRight(got.String(), "\n")+"\n"), outcomeBlocks(string(want))
+	for name, w := range wb {
+		g, ok := gb[name]
+		if !ok {
+			t.Errorf("%s: in the golden, not produced", name)
+			continue
+		}
+		gl, wl := strings.Split(g, "\n"), strings.Split(w, "\n")
+		for i := 0; i < len(gl) || i < len(wl); i++ {
+			var a, b string
+			if i < len(gl) {
+				a = gl[i]
 			}
-			if i < len(ws) {
-				w = ws[i]
+			if i < len(wl) {
+				b = wl[i]
 			}
-			if g != w {
-				t.Fatalf("outcome moved at golden line %d:\n got: %q\nwant: %q", i+1, g, w)
+			if a != b {
+				t.Errorf("%s moved at its line %d:\n got: %q\nwant: %q", name, i+1, a, b)
+				break
 			}
 		}
 	}
+	for name := range gb {
+		if _, ok := wb[name]; !ok {
+			t.Errorf("%s: produced, not in the golden", name)
+		}
+	}
+}
+
+// outcomeBlocks splits a golden into its rows, keyed by the "== name mode" line.
+func outcomeBlocks(s string) map[string]string {
+	out := map[string]string{}
+	for _, b := range strings.Split(s, "\n== ") {
+		b = strings.TrimPrefix(b, "== ")
+		name, body, _ := strings.Cut(b, "\n")
+		out[name] = body
+	}
+	return out
 }
 
 // runOutcome runs one row in a fresh tree and state directory and renders what

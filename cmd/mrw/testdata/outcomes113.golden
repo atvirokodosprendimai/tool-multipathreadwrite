@@ -240,13 +240,6 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
   "error": "<PLAN> line 1: \"\\xff.go\" is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it"
 }
 <PLAN> line 1: "\xff.go" is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it
-== json_path_not_utf8 human
-exit 2
-counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
-pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
-FAIL ÿ.go 0 create (plan line 1): the filesystem will not create this name: openat ÿ.go: illegal byte sequence
-1 hunk(s), 1 file(s), 1 failed, 0 advisories â€” NOTHING WRITTEN
-ÿ.go: the filesystem will not create this name: openat ÿ.go: illegal byte sequence
 == harness_malformed json
 exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
