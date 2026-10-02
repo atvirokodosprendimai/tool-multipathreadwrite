@@ -2329,7 +2329,7 @@ import json,sys
 i=json.loads(sys.argv[1])["result"]["instructions"]
 # ADR-075: "one writer per checkout" replaced "serialized" — the CLI's writes
 # take turns too, so serialized writes are no longer this surface's advantage.
-for w in ("--files-from","--check","--root","shell","one writer per checkout","ONE fixed checkout","ack","LICENSES NOTHING"):
+for w in ("--context","--check","--root","shell","one writer per checkout","ONE fixed checkout","ack","LICENSES NOTHING"):
     assert w in i, "the instructions never mention %r" % w
 # The routing must come BEFORE the format details. It is no longer literally
 # first: it is merged into the WHEN TO REACH paragraph, because a separate
@@ -7524,7 +7524,8 @@ left=$(pgrep -f "$R/rec174.sh" | wc -l | tr -d ' ')
 # `check` sent to mrw_write, or a `max_lines` sent to mrw_read, was ignored and
 # the call answered as if it had done what was asked (the 2026-09-29 gap
 # survey, C1). ADR-113 declared `check`, so the write sends `no_check`, which
-# no mrw declares. The pair: the same call without the key is applied or served.
+# no mrw declares, and ADR-117 declared `max_lines`, so the read sends `context`.
+# The pair: the same call without the key is applied or served.
 fixture
 printf 'one\ntwo\n' > "$R/a.txt"
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ b.txt 0 create\nX\n","no_check":true}}}' | m mcp 2>/dev/null > "$WORK/w175.json"
@@ -7533,8 +7534,8 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"m
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ b.txt 0 create\nX\n"}}}' | m mcp 2>/dev/null > "$WORK/w175b.json"
 { jq -e '.result and (.result.isError | not)' "$WORK/w175b.json" > /dev/null && [ "$(cat "$R/b.txt" 2>/dev/null)" = X ]; } \
   && ok "and the same call without it is served and applied: b.txt holds X" || bad "the declared write: $(head -c 400 "$WORK/w175b.json")"
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt"],"max_lines":1}}}' | m mcp 2>/dev/null > "$WORK/r175.json"
-jq -e '.result.isError == true and (.result.content[0].text | contains("\"max_lines\"") and (contains("-- ck ") | not))' "$WORK/r175.json" > /dev/null \
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt"],"context":1}}}' | m mcp 2>/dev/null > "$WORK/r175.json"
+jq -e '.result.isError == true and (.result.content[0].text | contains("\"context\"") and (contains("-- ck ") | not))' "$WORK/r175.json" > /dev/null \
   && ok "an undeclared argument is refused by name on mrw_read, and nothing is served" || bad "the refused read: $(head -c 400 "$WORK/r175.json")"
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt"]}}}' | m mcp 2>/dev/null > "$WORK/r175b.json"
 jq -e '(.result.isError | not) and (.result.content[0].text | contains("1| one"))' "$WORK/r175b.json" > /dev/null \

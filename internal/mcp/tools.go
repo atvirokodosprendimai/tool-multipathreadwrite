@@ -659,14 +659,14 @@ func filesFrom(root, name string) ([]string, error) {
 	}
 	full, err := rooted.Resolve(root, name)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %v", label, err)
+		return nil, fmt.Errorf("%s: %w", label, err)
 	}
 	if rooted.InState(full) {
 		return nil, fmt.Errorf("%s is inside mrw's own state directory; mrw does not read its own files as input", label)
 	}
 	f, fi, err := regular.Open(full)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %v", label, err)
+		return nil, fmt.Errorf("%s: %w", label, err)
 	}
 	defer func() { _ = f.Close() }()
 	if fi.IsDir() {
