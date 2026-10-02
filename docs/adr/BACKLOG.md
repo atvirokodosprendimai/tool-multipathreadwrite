@@ -2467,3 +2467,20 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's def
 - **A "has not been read" refusal lists a served line once per spec** (seen in the review of #318: "mrw served
   lines 3,3,3,…" for 400 specs naming line 3). Not introduced by ADR-117. Arm when a caller reports the
   refusal as unreadable, or a receipt grows past its ceiling on it.
+
+## Pre-registered for ADR-119 (indent and closer advisories) — the bar, written before any measurement
+
+Zy, 2026-10-02 ("<5% and 5/5 fixtures"). Registered here, in its own commit, before the heuristics are measured,
+so the result cannot move it:
+
+- **closer** — fires on a `replace` whose last non-blank body line equals the line right after the replaced range
+  (when that line exists and is not blank). **indent** — fires on a non-prose `replace` whose first or last
+  non-blank body line's leading whitespace differs from the first or last replaced line's.
+- **False positives:** replayed from the non-merge history of every repository under `~/GolandProjects` and
+  `~/CursorProjects` (each modification hunk of `git diff -U0 k^ k` as a replace, vendored, generated, lock and
+  `node_modules` files excluded, hunks capped per repository), each heuristic must fire on **under 5% of those
+  replaces in every language bucket** that has at least 50 of them.
+- **True positives:** each must catch **5 of 5** field fixtures (the offsets recorded under "From the field
+  reports" above: Blade `@endif`, HTML `</div>`, markdown fence, YAML block scalar, Ansible `when:`) — closer the
+  closer cases, indent the indentation cases, and together all five.
+- A heuristic that misses its bar does not ship; the record says so with the numbers.
