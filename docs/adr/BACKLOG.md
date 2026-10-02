@@ -2312,13 +2312,13 @@ at the boundary, and a discovered one is dropped.
 
 ## From ADR-093 (an MCP tool refuses an argument it does not declare)
 
-- **A line cap or a stat-only answer on `mrw_read`** (ADR-093 Out of Scope). `max_lines` and `stat`
-  are refused by name today, and the refusal routes to `mrw read --max-lines` and `--stat`. Arm when
-  an MCP caller shows it needs `max_lines` or `stat` rather than the ceiling and the paging it has.
+- ~~**A line cap or a stat-only answer on `mrw_read`** (ADR-093 Out of Scope).~~ **CLOSED 2026-10-02 —
+  ADR-117: `mrw_read` takes `max_lines` and `stat`, and `files_from` with them, on Zy's answer to the
+  refreshed gap list.**
 - **What opencode does with an argument the plugin's zod shape does not declare** (ADR-093 Out of
-  Scope). The plugin forwards only a fixed map of keys, so a model's `max_lines` never reaches mrw,
-  and whether opencode strips or refuses it first was not read. Arm by measuring whether opencode
-  strips or refuses it before the plugin's `execute` runs.
+  Scope). The plugin forwards only a fixed map of keys, so a model's undeclared key (`context`, since
+  ADR-117 declared `max_lines`) never reaches mrw, and whether opencode strips or refuses it first was
+  not read. Arm by measuring whether opencode strips or refuses it before the plugin's `execute` runs.
 - **Whether a host forwards an undeclared key, or enforces `additionalProperties: false`** (ADR-093
   Out of Scope). Nobody has captured a host's wire for a call carrying an undeclared key, Claude Code
   included. Arm by capturing one; a host that adds keys of its own to `arguments` is ADR-093 T1's
@@ -2451,3 +2451,17 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's def
   excluded hits after it answers; `--no-ignore` does not reach it, so the two finders can disagree on an ignored
   file. Arm when a caller reports `--ast-grep` serving a file `--grep` skips, or the reverse, or asks for
   `--no-ignore` with `--ast-grep`.
+
+## From ADR-117 (mrw_read takes max_lines, stat and files_from)
+
+- **`--context` and `--no-numbers` over MCP** — the CLI's remaining read extras; the routing names them. Arm when
+  an MCP caller shows it needs context around a match beyond what a regex address and a range give, or an
+  unnumbered serve (a numbered line is the address a plan writes back, so unnumbered serves license nothing).
+- **Checkpoints from a version a writer replaced mid-read are still printed** (ADR-117, the review of #318). A
+  read of several specs of one file that a writer swapped between them prints every slice's markers, but only the
+  observed version's are held; acking the others licenses nothing, and the caller learns it when a write is
+  refused. Arm when a caller reports a refused write after acking such a page, or carry the full sha out of band
+  (which also closes the 8-hex prefix collision the record's Risks names).
+- **A "has not been read" refusal lists a served line once per spec** (seen in the review of #318: "mrw served
+  lines 3,3,3,…" for 400 specs naming line 3). Not introduced by ADR-117. Arm when a caller reports the
+  refusal as unreadable, or a receipt grows past its ceiling on it.

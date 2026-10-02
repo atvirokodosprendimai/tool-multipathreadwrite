@@ -229,7 +229,9 @@ func jsonInner(s string) string {
 // and once by ADR-116, whose read gained `no_ignore`: that input property, and the instructions
 // clause saying grep skips ignored and binary files too;
 // and once by ADR-115, whose write gained `then`: that input property and its descriptions, the routing
-// sentence, and the `check`, `elided` and `then` descriptions its review corrected.
+// sentence, and the `check`, `elided` and `then` descriptions its review corrected;
+// and once by ADR-117, whose read gained `max_lines`, `stat` and `files_from`: those input properties,
+// and the description's and instructions' route to the CLI naming --context in place of --files-from.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
 	got := legacyTranscript(t)
 	golden := filepath.Join("testdata", "legacy_golden.jsonl")

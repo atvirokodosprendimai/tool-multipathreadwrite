@@ -451,7 +451,7 @@ func tools() []tool {
 				"(or the whole root) and serves every match, and returns an index of matching " +
 				"files when the matches are too large to serve. " +
 				"With a shell and mrw on PATH, prefer the CLI `mrw read` — it also has " +
-				"--files-from, and `mrw --root DIR read` for any checkout (--root BEFORE the " +
+				"--context, and `mrw --root DIR read` for any checkout (--root BEFORE the " +
 				"subcommand; after `read`, -C is the context flag). Prefer THIS tool with no " +
 				"shell.",
 			InputSchema: map[string]any{
@@ -489,6 +489,21 @@ func tools() []tool {
 					"no_ignore": map[string]any{
 						"type":        "boolean",
 						"description": "Walk every file. By default a grep walk inside a git checkout skips what .gitignore and .git/info/exclude ignore, and any walk skips a binary file (a UTF-16/32 BOM, or a NUL in the first 8 KiB); the answer counts what was skipped under `skipped`. Refused without `grep`. A path you name is walked either way.",
+					},
+					"max_lines": map[string]any{
+						"type":        "integer",
+						"minimum":     0,
+						"description": "Serve at most this many lines of each spec, as `mrw read --max-lines`. Lines past it are reported WITHHELD and license nothing; 0 serves each file's header alone. A capped read still too large for one answer is refused, never paged past the cap.",
+						"examples":    []any{40},
+					},
+					"stat": map[string]any{
+						"type":        "boolean",
+						"description": "Serve each file's header — lines, bytes and sha — and no content, as `mrw read --stat`. It licenses no write.",
+					},
+					"files_from": map[string]any{
+						"type":        "string",
+						"description": "A file inside the root holding one spec a line, as `mrw read --files-from FILE`: blank lines and # comments are skipped. Not together with specs, grep or ast_grep. `-` is refused: stdin carries the protocol.",
+						"examples":    []any{"read.specs"},
 					},
 					"ack": map[string]any{
 						"type":        "array",

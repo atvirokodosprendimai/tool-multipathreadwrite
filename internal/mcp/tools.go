@@ -31,6 +31,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/speclist"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
 
@@ -264,6 +265,13 @@ type readArgs struct {
 	// NoIgnore walks every regular file under grep, as the CLI's --no-ignore
 	// (ADR-116).
 	NoIgnore bool `json:"no_ignore"`
+	// MaxLines, Stat and FilesFrom are `--max-lines`, `--stat` and
+	// `--files-from FILE` (ADR-117). MaxLines is a pointer for ADR-033's
+	// reason: absent is no cap and 0 is headers only. FilesFrom is one too, so
+	// an empty string is refused rather than read as "not given".
+	MaxLines  *int    `json:"max_lines"`
+	Stat      bool    `json:"stat"`
+	FilesFrom *string `json:"files_from"`
 }
 
 // readTool serves ranges and records what it observed, exactly as `mrw read`
@@ -287,6 +295,21 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// nothing to read is the caller's mistake.
 	if a.Grep != "" && a.AstGrep != "" {
 		return errorResult("--grep and --ast-grep are two sources of specs; use one"), nil
+	}
+	// ADR-117: files_from is a third source of specs, read here so every rule
+	// below sees the specs it named, as --files-from's do on the CLI.
+	if a.FilesFrom != nil {
+		if len(a.Specs) > 0 || a.Grep != "" || a.AstGrep != "" {
+			return errorResult("files_from and specs, grep or ast_grep are two sources of specs; use one"), nil
+		}
+		specs, err := filesFrom(root, *a.FilesFrom)
+		if err != nil {
+			return errorResult(err.Error()), nil
+		}
+		a.Specs = specs
+	}
+	if a.MaxLines != nil && *a.MaxLines < 0 {
+		return errorResult(fmt.Sprintf("max_lines %d: a cap cannot be negative", *a.MaxLines)), nil
 	}
 	if len(a.Specs) == 0 && a.Grep == "" && a.AstGrep == "" {
 		return errorResult("mrw_read needs at least one spec"), nil
@@ -404,7 +427,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		}
 		return cw.stopped
 	}
-	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stop: stop})
+	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, Stop: stop})
 	_ = w.Flush()
 
 	// A result over the declared limit is REFUSED, not truncated.
@@ -449,6 +472,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		if walked {
 			return matchIndex(finder, specs, walkProblems, problems, skipped, cw), nil
 		}
+		if a.MaxLines != nil || a.Stat {
+			return errorResult(cappedOverflow(a, cw, cw.written, cw.stopped)), nil
+		}
 		if page, ok := firstPage(root, a.Specs, cw); ok {
 			return page, nil
 		}
@@ -462,7 +488,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// them claimed this case was fixed; it was not, and the test passed only
 	// because it named ONLY the bad path, which takes the no-match branch.
 	// Found by review of #80.
-	report := cw.buf.String()
+	report := capWords(cw.buf.String())
 	for _, p := range walkProblems {
 		report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
 	}
@@ -530,6 +556,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		if walked {
 			return matchIndex(finder, specs, walkProblems, problems-len(walkProblems), skipped, cw), nil
 		}
+		if a.MaxLines != nil || a.Stat {
+			return errorResult(cappedOverflow(a, cw, encodedSize(served), false)), nil
+		}
 		if page, ok := firstPage(root, a.Specs, cw); ok {
 			return page, nil
 		}
@@ -553,15 +582,22 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				if walked {
 					return matchIndex(finder, specs, walkProblems, problems-len(walkProblems), skipped, cw), nil
 				}
+				if a.MaxLines != nil || a.Stat {
+					return errorResult(cappedOverflow(a, cw, encodedSize(markedServed), false)), nil
+				}
 				if page, ok := firstPage(root, a.Specs, cw); ok {
 					return page, nil
 				}
 				return errorResult(renderedFitMessage(encodedSize(markedServed), cw)), nil
 			}
-			for path, spans := range byPath {
+			for path, bySHA := range byPath {
 				o, ok := observationOf(observed, path)
 				if !ok || o.SHA == "" {
 					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: no observation for " + path}
+				}
+				spans := heldSpans(bySHA, o.SHA)
+				if len(spans) == 0 {
+					continue // every slice of it came from a version since replaced
 				}
 				if err := hold(root, path, o.SHA, spans); err != nil {
 					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: " + err.Error()}
@@ -572,6 +608,86 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	}
 
 	return served, nil
+}
+
+// capWords names the cap the way this caller sent it. read.Run says a
+// withheld run was cut by "--max-lines", the CLI's flag, which a caller with no
+// shell never passed (ADR-117). Only mrw's own lines change — the "@@" and
+// "!!" lines it writes — never a served line, which opens with its number.
+func capWords(report string) string {
+	if !strings.Contains(report, ": --max-lines reached") {
+		return report
+	}
+	ls := strings.Split(report, "\n")
+	for i, l := range ls {
+		if strings.HasPrefix(l, "@@ ") || strings.HasPrefix(l, "!! ") {
+			ls[i] = strings.Replace(l, ": --max-lines reached", ": max_lines reached", 1)
+		}
+	}
+	return strings.Join(ls, "\n")
+}
+
+// cappedOverflow refuses a read the caller capped or statted that is still too
+// large for one answer (ADR-117). A first page would re-read past the cap the
+// caller set, answering a question nobody asked, so it says what fits instead.
+// size is what went over the limit — the rendered text, or the answer as
+// encoded — and atLeast says the read stopped before it was all rendered.
+func cappedOverflow(a readArgs, cw *capped, size int, atLeast bool) string {
+	what := "as a stat"
+	if a.MaxLines != nil {
+		what = fmt.Sprintf("with max_lines %d", *a.MaxLines)
+	}
+	about := "about"
+	if atLeast {
+		about = "at least"
+	}
+	advice := "send fewer specs"
+	if a.MaxLines != nil {
+		advice = fmt.Sprintf("about %d line(s) fit in one answer: send a smaller max_lines, or fewer specs", cw.linesThatFit())
+	}
+	return fmt.Sprintf("this read would be %s %d characters %s, against a limit of %d; nothing was served and nothing was recorded; %s.",
+		about, size, what, cw.limit, advice)
+}
+
+// maxSpecList bounds a files_from list. It is the request line's bound
+// (ADR-104): a list longer than any call could carry has no reason to exist.
+const maxSpecList = 64 << 20
+
+// filesFrom reads the specs in name, a file inside the root, as
+// `--files-from FILE` reads one (ADR-117): resolved inside the root, which
+// also refuses mrw's own state (rooted.Resolve, ADR-077), never a FIFO or a
+// device, which would hold the server (ADR-109), and bounded, a list that grew
+// past the bound after it was measured included. Stdin is the protocol, so "-"
+// is refused.
+func filesFrom(root, name string) ([]string, error) {
+	label := "files_from " + name
+	switch name {
+	case "":
+		return nil, errors.New("files_from needs a file inside the root")
+	case "-":
+		return nil, errors.New("files_from - would read the server's stdin, which carries the protocol; name a file inside the root")
+	}
+	full, err := rooted.Resolve(root, name)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", label, err)
+	}
+	f, fi, err := regular.Open(full)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", label, err)
+	}
+	defer func() { _ = f.Close() }()
+	if fi.IsDir() {
+		return nil, fmt.Errorf("%s is a directory; name a file of specs", label)
+	}
+	if fi.Size() > maxSpecList {
+		return nil, fmt.Errorf("%s is %d bytes, over the %d a list may be", label, fi.Size(), maxSpecList)
+	}
+	lr := &io.LimitedReader{R: f, N: maxSpecList + 1}
+	specs, err := speclist.Parse(lr, label)
+	if err == nil && lr.N == 0 {
+		return nil, fmt.Errorf("%s grew past the %d a list may be while it was read", label, maxSpecList)
+	}
+	return specs, err
 }
 
 // writeArgs is what mrw_write decodes its arguments into. Its json tags are the
@@ -2245,7 +2361,7 @@ func undeclaredRefusal(name string, args json.RawMessage) string {
 // none is an argument the tool declares (ADR-016's two checks, which
 // TestTheRefusalRoutesOnlyToFlagsTheCLIHas applies).
 var cliRoute = map[string]string{
-	"mrw_read": "`mrw read` in a shell has what this tool does not, such as --files-from, --max-lines and --stat.",
+	"mrw_read": "`mrw read` in a shell has what this tool does not, such as --context and --no-numbers.",
 	"mrw_write": "This tool runs the project's check after a write that touches code, and the declared steps named in then " +
 		"(ADR-113, ADR-115); `mrw write` in a shell also takes --then-sh for an ad-hoc step.",
 }

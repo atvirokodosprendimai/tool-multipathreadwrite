@@ -61,7 +61,7 @@ var exampleReadSpecs = []string{
 // format that has no second source.
 func instructionsText() string {
 	return guide.Shared() + "\n\n" + guide.WhyAllOrNothing() + "\n\n" + fmt.Sprintf(`WHICH SURFACE.
-CLI has --files-from, --check on prose, --then steps, and
+CLI has --context, --check on prose, --then steps, and
 check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; --root goes
 BEFORE the subcommand, since after `+"`read`"+` the short -C is the context flag.
 This surface serves ONE fixed checkout, chosen at launch with `+"`--root DIR mcp`"+`,
