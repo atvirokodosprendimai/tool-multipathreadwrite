@@ -8482,6 +8482,27 @@ out=$(m write "$R/p219.mrw" 2>&1); want 0 $? "a .md replace that closes its fenc
 grep -q 'closer line 5 repeats' <<<"$out" && grep -q '0 advisories, 1 hint — applied' <<<"$out" \
   && ok "and the human receipt names it and counts the hint beside the advisories" || bad "prose closer: $out"
 
+# 220. ADR-121: while an mrw_write's check runs, mrw mcp answers what arrives
+# after it. A write whose check sleeps 2 s, then a ping: the ping's answer comes
+# first. The pair: the same write with check: false is answered before the ping,
+# in order, as every quick answer is.
+fixture
+printf 'package a\nfunc A() {}\n' > "$R/a220.go"
+printf '{"check":"sleep 2"}\n' > "$R/.quality-harness.json"
+m read a220.go > /dev/null
+w220='{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a220.go 2 replace\\nfunc A() { _ = 1 }\\n"%s}}}'
+p220='{"jsonrpc":"2.0","id":2,"method":"ping"}'
+# A plain pipe, not bounded: bounded gives its command /dev/null for stdin. The
+# server ends at end of input once the 2 s check has answered.
+{ printf "$w220\n" ''; sleep 0.5; printf '%s\n' "$p220"; } | "$MRW" -C "$R" mcp > "$WORK/out220" 2>/dev/null
+order=$(grep -o '"id":[12]' "$WORK/out220" | tr -d '\n')
+[ "$order" = '"id":2"id":1' ] && ok "a ping sent during a write's check is answered first" || bad "answer order $order: $(cat "$WORK/out220")"
+printf 'package a\nfunc A() {}\n' > "$R/a220.go"; m read a220.go > /dev/null
+{ printf "$w220\n" ',"check":false'; sleep 0.5; printf '%s\n' "$p220"; } | "$MRW" -C "$R" mcp > "$WORK/out220b" 2>/dev/null
+order=$(grep -o '"id":[12]' "$WORK/out220b" | tr -d '\n')
+[ "$order" = '"id":1"id":2' ] && ok "the pair: with no check the answers keep their order" || bad "answer order $order: $(cat "$WORK/out220b")"
+rm -f "$R/.quality-harness.json"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

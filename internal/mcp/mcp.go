@@ -23,6 +23,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 // legacyVersions are the handshake-era revisions mrw speaks, latest first
@@ -204,29 +206,113 @@ func Serve(in io.Reader, out io.Writer, root string) error {
 	w := bufio.NewWriter(out)
 	defer func() { _ = w.Flush() }()
 
+	// ADR-121: a request is handled on its own goroutine, and the loop waits
+	// for it to finish — so quick answers keep their order — or for a write to
+	// release it as its check starts, so a ping or a read sent during a long
+	// check is answered. Every line goes out through send, whole, one at a
+	// time; at end of input the loop waits for every call in flight.
+	var (
+		mu       sync.Mutex
+		writeErr error
+		inflight sync.WaitGroup
+	)
+	send := func(v any) {
+		mu.Lock()
+		defer mu.Unlock()
+		if writeErr == nil {
+			writeErr = write(w, v)
+		}
+	}
+	failed := func() error {
+		mu.Lock()
+		defer mu.Unlock()
+		return writeErr
+	}
 	for {
 		line, over, err := readLine(r, maxRequestBytes)
 		if over {
 			// ADR-104: answered, not read whole, and the session goes on.
-			if err := write(w, errorResponse(json.RawMessage("null"), codeInvalidRequest, fmt.Sprintf(
+			send(errorResponse(json.RawMessage("null"), codeInvalidRequest, fmt.Sprintf(
 				"invalid request: the line is longer than %d bytes, the most this server reads as one message; "+
-					"nothing in it was read as a request (the CLI, mrw write, has no such limit)", maxRequestBytes))); err != nil {
-				return err
-			}
+					"nothing in it was read as a request (the CLI, mrw write, has no such limit)", maxRequestBytes)))
 		} else if line != "" {
-			if resp, answer := handle(line, root); answer {
-				if err := write(w, resp); err != nil {
-					return err
+			done, released := make(chan struct{}), make(chan struct{})
+			var once sync.Once
+			release := func() { once.Do(func() { close(released) }) }
+			inflight.Add(1)
+			go func(line string) {
+				defer inflight.Done()
+				defer close(done)
+				if resp, answer := handle(line, root, release, send); answer {
+					send(resp)
 				}
+			}(line)
+			select {
+			case <-done:
+			case <-released:
 			}
 		}
+		if werr := failed(); werr != nil {
+			inflight.Wait()
+			return werr
+		}
 		if err != nil {
+			inflight.Wait()
+			if werr := failed(); werr != nil {
+				return werr
+			}
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return fmt.Errorf("mcp: reading stdin: %w", err)
 		}
 	}
+}
+
+// progressEvery is how often a call that carries a progress token hears
+// notifications/progress while it runs (ADR-121): a host's idle window for a
+// stdio server resets on one (BACKLOG "From ADR-113").
+var progressEvery = 15 * time.Second
+
+// startProgress sends notifications/progress for token every progressEvery
+// until the returned stop is called; stop returns only once the sender has
+// finished, so no progress can follow the call's answer.
+func startProgress(token json.RawMessage, notify func(any)) (stop func()) {
+	quit, done := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		tick := time.NewTicker(progressEvery)
+		defer tick.Stop()
+		start := time.Now()
+		for n := 1; ; n++ {
+			select {
+			case <-quit:
+				return
+			case <-tick.C:
+				notify(map[string]any{"jsonrpc": "2.0", "method": "notifications/progress", "params": map[string]any{
+					"progressToken": token, "progress": n,
+					"message": fmt.Sprintf("mrw is still working (%ds)", int(time.Since(start).Seconds())),
+				}})
+			}
+		}
+	}()
+	return func() {
+		close(quit)
+		<-done
+	}
+}
+
+// progressToken is a request's params._meta.progressToken, or nil.
+func progressToken(params json.RawMessage) json.RawMessage {
+	var p struct {
+		Meta struct {
+			ProgressToken json.RawMessage `json:"progressToken"`
+		} `json:"_meta"`
+	}
+	if json.Unmarshal(params, &p) != nil || len(p.Meta.ProgressToken) == 0 || string(p.Meta.ProgressToken) == "null" {
+		return nil
+	}
+	return p.Meta.ProgressToken
 }
 
 // maxRequestBytes is the longest request line Serve reads as one message
@@ -261,7 +347,7 @@ func readLine(r *bufio.Reader, limit int) (line string, over bool, err error) {
 // to stdout that is not a valid MCP message, and this binary prints to stdout
 // everywhere else, so that rule is a live constraint rather than boilerplate.
 // Diagnostics belong on stderr.
-func write(w *bufio.Writer, resp response) error {
+func write(w *bufio.Writer, resp any) error {
 	b, err := json.Marshal(resp)
 	if err != nil {
 		// Marshalling our own response failed, so there is nothing valid to
@@ -280,7 +366,7 @@ func write(w *bufio.Writer, resp response) error {
 // handle turns one input line into at most one response. The bool reports
 // whether anything should be written at all, which is how notifications stay
 // silent — the distinction a plain "return a response" signature cannot make.
-func handle(line string, serveRoot string) (response, bool) {
+func handle(line string, serveRoot string, release func(), notify func(any)) (response, bool) {
 	line = strings.TrimRight(line, "\r\n")
 	if strings.TrimSpace(line) == "" {
 		// A blank line carries no message. Answering it with an error would
@@ -350,7 +436,11 @@ func handle(line string, serveRoot string) (response, bool) {
 		// calls; the root is what binds them to this checkout. The era goes
 		// in, because a modern result is decorated INSIDE the call, where
 		// every ceiling measurement can reserve room for it.
-		res, rpcErr := callTool(serveRoot, req.Params, e.modern)
+		if tok := progressToken(req.Params); tok != nil {
+			stop := startProgress(tok, notify)
+			defer stop()
+		}
+		res, rpcErr := callTool(serveRoot, req.Params, e.modern, release)
 		if rpcErr != nil {
 			return response{JSONRPC: "2.0", ID: req.ID, Error: rpcErr}, true
 		}
