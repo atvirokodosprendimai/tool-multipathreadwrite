@@ -2457,3 +2457,11 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's def
 - **`--context` and `--no-numbers` over MCP** — the CLI's remaining read extras; the routing names them. Arm when
   an MCP caller shows it needs context around a match beyond what a regex address and a range give, or an
   unnumbered serve (a numbered line is the address a plan writes back, so unnumbered serves license nothing).
+- **Checkpoints from a version a writer replaced mid-read are still printed** (ADR-117, the review of #318). A
+  read of several specs of one file that a writer swapped between them prints every slice's markers, but only the
+  observed version's are held; acking the others licenses nothing, and the caller learns it when a write is
+  refused. Arm when a caller reports a refused write after acking such a page, or carry the full sha out of band
+  (which also closes the 8-hex prefix collision the record's Risks names).
+- **A "has not been read" refusal lists a served line once per spec** (seen in the review of #318: "mrw served
+  lines 3,3,3,…" for 400 specs naming line 3). Not introduced by ADR-117. Arm when a caller reports the
+  refusal as unreadable, or a receipt grows past its ceiling on it.

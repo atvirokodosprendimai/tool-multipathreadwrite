@@ -76,6 +76,7 @@ See `tasks/README.md`: T1.
 |------|------------|--------|------------|
 | a capped read licenses a line it did not serve | Low | High | checkpoints wrap numbered lines only; the test writes past the cap and is refused |
 | a files_from path escapes the root or blocks the server | Low | High | `rooted.Resolve`, `InState`, `regular.Open`; tested with `..`, a link out, and a FIFO |
+| two versions of a file served in one read share an 8-hex sha prefix, so a replaced version's spans are held | Low | High | the prefix is what the header prints; a chance collision is 1 in 2^32 per pair, and a writer able to forge one can already change the file — carrying the full sha beside the text is in BACKLOG "From ADR-117" |
 
 ## Rollback
 

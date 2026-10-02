@@ -28,9 +28,7 @@ func TestASpanFromAReplacedVersionIsNotHeld(t *testing.T) {
 			t.Errorf("line 1, served from a replaced version, is held: %v", held)
 		}
 	}
-	if !maps.Equal(held, mergedOf(bySHA["bbbbbbbb"])) {
+	if !maps.Equal(held, bySHA["bbbbbbbb"]) {
 		t.Errorf("the observed version's spans were not merged whole: %v", held)
 	}
 }
-
-func mergedOf(m map[string][2]int) map[string][2]int { return maps.Clone(m) }
