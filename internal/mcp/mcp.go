@@ -550,8 +550,8 @@ func tools() []tool {
 						"default": true,
 						"description": "Run the project's check after a write that lands and touches a file that is " +
 							"not prose, when .quality-harness.json declares one or a go.mod infers it — the rule " +
-							"`mrw write` follows. Default true. false runs none and does not read the harness, as " +
-							"--no-check. The verdict is the receipt's `check`.",
+							"`mrw write` follows. Default true. false runs none, as --no-check, and does not read the " +
+							"harness unless `then` names a step. The verdict is the receipt's `check`.",
 					},
 					"then": map[string]any{
 						"type":  "array",

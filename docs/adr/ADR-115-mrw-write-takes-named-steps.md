@@ -7,7 +7,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-092, ADR-093, ADR-095, ADR-102, ADR-111, ADR-113
 **Invalidates:** ADR-113 — its Decision 6 ("Steps stay CLI-only") and its Out of Scope entry deferring steps over MCP
-**Governs:** `internal/mcp/tools.go`, `internal/mcp/mcp.go`, `internal/mcp/schema.go`, `docs/receipts.txt`, `AGENTS.md`, `README.md`, `cmd/opencode/mrw-plugin/src/index.ts`, `scripts/contract.sh`
+**Governs:** `internal/mcp/tools.go`, `internal/mcp/mcp.go`, `internal/mcp/schema.go`, `internal/writer/flow.go`, `cmd/mrw/main.go`, `docs/receipts.txt`, `AGENTS.md`, `README.md`, `cmd/opencode/mrw-plugin/src/index.ts`, `scripts/contract.sh`
 **Enforced-by:** `internal/mcp/steps115_test.go::TestAnMCPWriteRunsItsSteps`
 **Served-path change:** `mrw_write` takes `then`: a list of step names declared in `.quality-harness.json` "steps", run in order after a write that landed and whose check, when one ran, passed — the receipt carries `then`, as `mrw write --json` does. No ad-hoc shell: `--then-sh` stays CLI-only.
 
@@ -38,7 +38,7 @@ ADR-113 gave `mrw_write` the project check and left steps on the CLI (Decision 6
 
 ## Component / Boundary Impact
 
-`internal/mcp` and the opencode plugin. No engine package changes; `go.mod` keeps one requirement.
+`internal/mcp`, `internal/writer` (`Request.StepFlag`, so a refused step name reads in each surface's own word; the CLI's words are unchanged) and the opencode plugin. No engine package changes; `go.mod` keeps one requirement.
 
 ## Wiring & Contract Changes
 

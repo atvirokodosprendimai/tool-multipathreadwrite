@@ -75,6 +75,10 @@ func TestAnMCPWriteRunsItsSteps(t *testing.T) {
 		if res["isError"] != true || sc["applied"] != true || len(st) != 1 || st[0]["status"] != "could_not_start" {
 			t.Fatalf("isError %v applied %v then %v, want isError with an applied receipt and could_not_start", res["isError"], sc["applied"], st)
 		}
+		// The reason a step could not start is in the text, as the CLI says it.
+		if skipped, _ := st[0]["skipped"].(string); skipped == "" || !strings.Contains(firstText(t, res), skipped) {
+			t.Errorf("the text does not say why the step could not start (%q): %q", skipped, firstText(t, res))
+		}
 	})
 	t.Run("a failed check leaves the steps not run", func(t *testing.T) {
 		root := checkTree113(t, `{"check":"exit 3","steps":{"ok":"echo fine"}}`)
@@ -100,6 +104,33 @@ func TestAnMCPWriteRunsItsSteps(t *testing.T) {
 			msg := errorResult(appliedButUnreportable(math.MaxInt, math.MaxInt, math.MaxInt, true) + longestCheckPhrase + stepPhrase(r) + leftNote(math.MaxInt))
 			if n, floor := encodedSize(msg), writeFloor(); n > floor || stepPhrase(r) == "" {
 				t.Errorf("step %s: phrase %q, answer %d bytes over the floor %d", s, stepPhrase(r), n, floor)
+			}
+		}
+	})
+	t.Run("step tails go first under a small ceiling, each kept in its log", func(t *testing.T) {
+		// quiet passes with output its tail holds whole, so internal/check
+		// removes its log and the tail is the only copy: cut, it must be
+		// kept in a log of its own. loudbad fails and keeps its log.
+		line := `yes 0123456789abcdefghij0123456789abcdefghij0123456789`
+		root := checkTree113(t, `{"check":"exit 0","steps":{"quiet":"`+line+` | head -n 8","loudbad":"`+line+` | head -n 300; exit 4"}}`)
+		old := MaxResultChars
+		MaxResultChars = 4000
+		t.Cleanup(func() { MaxResultChars = old })
+		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "then": []any{"quiet", "loudbad"}})
+		sc := structured(t, res)
+		if el, _ := sc["elided"].(string); !strings.Contains(el, "step") {
+			t.Errorf("elided does not say the step tails were cut: %q", el)
+		}
+		st := steps(t, sc)
+		if len(st) != 2 || st[0]["status"] != "pass" || st[1]["status"] != "fail" {
+			t.Fatalf("then %v, want pass then fail", st)
+		}
+		for _, s := range st {
+			if tail, _ := s["tail"].([]any); len(tail) != 0 {
+				t.Errorf("step %v kept its tail under the ceiling", s["name"])
+			}
+			if f, _ := s["output_file"].(string); f == "" {
+				t.Errorf("step %v lost its tail: no output_file holds it", s["name"])
 			}
 		}
 	})

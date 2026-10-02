@@ -227,7 +227,9 @@ func jsonInner(s string) string {
 // and once by ADR-102, whose write receipt gained `error`: that schema property, nothing else;
 // and once by ADR-105, whose write receipt gained `left_behind`: that schema property, nothing else;
 // and once by ADR-116, whose read gained `no_ignore`: that input property, and the instructions
-// clause saying grep skips ignored and binary files too.
+// clause saying grep skips ignored and binary files too;
+// and once by ADR-115, whose write gained `then`: that input property and its descriptions, the routing
+// sentence, and the `check`, `elided` and `then` descriptions its review corrected.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
 	got := legacyTranscript(t)
 	golden := filepath.Join("testdata", "legacy_golden.jsonl")

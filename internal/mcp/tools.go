@@ -1127,7 +1127,11 @@ func stepsReport(r *check.StepsResult) string {
 	}
 	var b strings.Builder
 	for i, s := range r.Steps {
-		fmt.Fprintf(&b, "then %d/%d %s: %s (exit %d)\n", i+1, len(r.Steps), s.Name, s.Status, s.ExitCode)
+		fmt.Fprintf(&b, "then %d/%d %s: %s (exit %d)", i+1, len(r.Steps), s.Name, s.Status, s.ExitCode)
+		if s.Skipped != "" {
+			fmt.Fprintf(&b, " — %s", s.Skipped)
+		}
+		b.WriteString("\n")
 		if s.Status != check.StepPass && s.Status != check.StepNotRun {
 			for _, l := range s.Tail {
 				fmt.Fprintf(&b, "  | %s\n", l)
