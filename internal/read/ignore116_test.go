@@ -364,6 +364,44 @@ func TestBracketClassesFollowGit(t *testing.T) {
 	}
 }
 
+// TestClassesFoldAsGitDoes: under core.ignorecase git lowers the text's ASCII
+// letters and matches the pattern against it, and every row is what git 2.56
+// said with core.ignorecase=true (2026-10-02): a literal folds, a capital in a
+// class matches nothing, a range and [:upper:] take either case, and no byte
+// past 0x7f folds — so "é*" keeps "Éx", and neither "П*" nor "é*" reaches a
+// name whose lead byte merely folds to theirs in Latin-1.
+func TestClassesFoldAsGitDoes(t *testing.T) {
+	for _, c := range []struct {
+		rule    string
+		ignored []string
+		kept    []string
+	}{
+		{"Mx", []string{"mx", "Mx"}, nil},
+		{"[A]x*", nil, []string{"ax", "Ax"}},
+		{"[a]x*", []string{"ax", "Ax"}, nil},
+		{"[A-C]x", []string{"bx", "Bx"}, []string{"dx"}},
+		{"[a-c]x", []string{"bx", "Bx"}, nil},
+		{"[!A]x", []string{"ax", "Ax", "bx"}, nil},
+		{"[[:upper:]]x", []string{"ax", "Ax"}, []string{"1x"}},
+		{"[[:lower:]]x", []string{"ax", "Ax"}, nil},
+		{`\Mx`, nil, []string{"mx", "Mx"}},
+		{"é*", []string{"éx"}, []string{"Éx", "㩀x"}},
+		{"П*", []string{"Пx"}, []string{"😀x", "пx"}},
+	} {
+		ig := staticIgnorer(parseIgnore("", []byte(c.rule+"\n"), true))
+		for _, p := range c.ignored {
+			if !ig.Ignored(p, false, 0) {
+				t.Errorf("%s: %q kept, git ignores it", c.rule, p)
+			}
+		}
+		for _, p := range c.kept {
+			if ig.Ignored(p, false, 0) {
+				t.Errorf("%s: %q ignored, git keeps it", c.rule, p)
+			}
+		}
+	}
+}
+
 // TestASkipIsCountedOncePerPath: a path two walks meet counts once, a file a
 // named path served is not counted, nor a directory a named path entered.
 func TestASkipIsCountedOncePerPath(t *testing.T) {

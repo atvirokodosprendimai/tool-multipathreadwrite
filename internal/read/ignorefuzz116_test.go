@@ -24,10 +24,11 @@ func TestTheIgnoreMatcherAgreesWithGitOnRandomRules(t *testing.T) {
 		n = v
 	}
 	dirs := []string{"a", "b", "ab", "sub"}
-	leaves := []string{"a.x", "b.x", "ab.x", "c.y", "a", "é.x", "aé"}
+	leaves := []string{"a.x", "b.x", "ab.x", "c.y", "a", "é.x", "aé", "A.x", "Ab.x", "É.x"}
 	tokens := []string{"a", "b", "ab", "*", "?", "*.x", "a*", "[ab]", "[!a]*", "**", "c.y", "sub", "[a-c].x", "a?", "*b*", "?.x",
 		"[[:alpha:]]*", "[[:punct:]]x", "[c-a]*", "[!c-a].x", "[a-b-c]*", "[]a]*", "[!]]*", "[\\]a]*", "a[a\\-z]", "[[:bogus:]]*", "[!/]*",
-		"[[:x]a:]*", "[[:]:]", "[ab", "a[b-\\]", "?.x", "??.x", "[!a]?", "é*", "*é", "[é]*"}
+		"[[:x]a:]*", "[[:]:]", "[ab", "a[b-\\]", "?.x", "??.x", "[!a]?", "é*", "*é", "[é]*",
+		"A*", "[A]*", "[!A]*", "[A-C].x", "[[:upper:]]*", "\\A*", "*B*", "É*"}
 	for seed := int64(1); seed <= int64(n); seed++ {
 		r := rand.New(rand.NewSource(seed))
 		root := t.TempDir()

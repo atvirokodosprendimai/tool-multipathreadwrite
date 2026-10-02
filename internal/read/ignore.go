@@ -26,10 +26,12 @@ type ignoreRule struct {
 	negate   bool
 	dirOnly  bool
 	anchored bool // matched against the path below base, not the name alone
+	fold     bool // the subject is lowered first, as git lowers the text it matches (foldsCase)
 }
 
 // parseIgnore reads an ignore file whose directory is base. fold matches
-// without regard to case, as git does where core.ignorecase is true.
+// as git does where core.ignorecase is true: the subject's ASCII letters are
+// lowered and the pattern is read to match a lowered subject (globToRegexp).
 func parseIgnore(base string, data []byte, fold bool) []ignoreRule {
 	var rules []ignoreRule
 	for _, line := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
@@ -37,7 +39,7 @@ func parseIgnore(base string, data []byte, fold bool) []ignoreRule {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		r := ignoreRule{base: base}
+		r := ignoreRule{base: base, fold: fold}
 		switch {
 		case strings.HasPrefix(line, "!"):
 			r.negate = true
@@ -56,14 +58,12 @@ func parseIgnore(base string, data []byte, fold bool) []ignoreRule {
 			r.anchored = true
 			line = strings.TrimPrefix(line, "/")
 		}
-		pat, ok := globToRegexp(line)
+		pat, ok := globToRegexp(line, fold)
 		if !ok {
 			continue // an unclosed class: git abandons the match, so the rule matches nothing
 		}
-		expr := "^" + pat + "$"
-		if fold {
-			expr = "(?i)" + expr
-		}
+		// (?s): a name may hold a newline, and git's "**" crosses it.
+		expr := "(?s)^" + pat + "$"
 		re, err := regexp.Compile(expr)
 		if err != nil {
 			continue // a pattern git would not match either
@@ -94,7 +94,13 @@ func trimTrailingSpace(s string) string {
 // value, so the expression matches a subject spelled by bytewise: "?" is one
 // byte of "é", as in git, not the whole character. ok is false for a class
 // no "]" closes, which git never matches.
-func globToRegexp(g string) (string, bool) {
+//
+// fold reads the glob as git's wildmatch does under core.ignorecase, against a
+// subject whose ASCII letters were lowered: a literal letter is lowered too,
+// but one after a backslash is not, so an escaped capital matches nothing; and
+// a class follows bracket's fold rules. Only ASCII folds; a byte past 0x7f
+// never does, as in git.
+func globToRegexp(g string, fold bool) (string, bool) {
 	var b strings.Builder
 	for i := 0; i < len(g); i++ {
 		c := g[i]
@@ -129,13 +135,16 @@ func globToRegexp(g string) (string, bool) {
 		case c == '?':
 			b.WriteString("[^/]")
 		case c == '[':
-			cls, n, ok := bracket(g[i:])
+			cls, n, ok := bracket(g[i:], fold)
 			if !ok {
 				return "", false
 			}
 			b.WriteString(cls)
 			i += n - 1
 		default:
+			if fold && isUpper(c) {
+				c += 'a' - 'A'
+			}
 			b.WriteString(regexp.QuoteMeta(string(rune(c))))
 		}
 	}
@@ -150,7 +159,7 @@ func globToRegexp(g string) (string, bool) {
 // range a "-" is a character; "[:name:]" is a POSIX class, and an unknown name
 // matches nothing; and no class ever matches "/", negated or not. Each piece
 // is spelled \x{..} so no character is read as regexp syntax.
-func bracket(s string) (string, int, bool) {
+func bracket(s string, fold bool) (string, int, bool) {
 	i := 1
 	neg := false
 	if i < len(s) && (s[i] == '!' || s[i] == '^') {
@@ -175,6 +184,9 @@ func bracket(s string) (string, int, bool) {
 			// stands before it; otherwise the "[" is a character, as in git.
 			end := posixEnd(s[i+2:])
 			set, known := posixClass[s[i+2:i+2+end-1]]
+			if fold && s[i+2:i+2+end-1] == "upper" {
+				set = posixClass["alpha"] // under core.ignorecase git lets [:upper:] match a lowered letter
+			}
 			never = never || !known
 			items = append(items, set)
 			prev = -1
@@ -186,6 +198,11 @@ func bracket(s string) (string, int, bool) {
 			}
 			if hi := int(s[i]); hi >= prev {
 				items = append(items, classRange(prev, hi))
+				// Under core.ignorecase git also takes a lowered letter whose
+				// capital is in the range.
+				if lo, up := max(prev, 'A'), min(hi, 'Z'); fold && lo <= up {
+					items = append(items, classRange(lo+'a'-'A', up+'a'-'A'))
+				}
 			}
 			prev = -1
 			i++
@@ -194,21 +211,49 @@ func bracket(s string) (string, int, bool) {
 				i++
 				c = s[i]
 			}
+			// Under core.ignorecase git lowers the text and not this member,
+			// so a capital here matches nothing — "[A]" ignores neither "a"
+			// nor "A", and "[!A]" ignores both. The subject is lowered before
+			// it is matched, so a capital member already matches nothing here
+			// and needs no case of its own; an escaped capital is the same.
 			items = append(items, classRange(int(c), int(c)))
 			prev = int(c)
 			i++
 		}
 	}
 	if never {
-		return `[^\x00-\x{10FFFF}]`, i, true
+		return noMatch, i, true
 	}
 	if neg {
 		return `[^` + strings.Join(items, "") + `\x{2f}]`, i, true
 	}
 	if strings.Join(items, "") == "" {
-		return `[^\x00-\x{10FFFF}]`, i, true
+		return noMatch, i, true
 	}
 	return "[" + strings.Join(items, "") + "]", i, true
+}
+
+// noMatch is a class that matches no character.
+const noMatch = `[^\x00-\x{10FFFF}]`
+
+// isUpper says whether c is an ASCII capital, the only letters git folds.
+func isUpper(c byte) bool { return 'A' <= c && c <= 'Z' }
+
+// lowerASCII lowers s's ASCII capitals and leaves every other byte, as git
+// lowers the text it matches under core.ignorecase.
+func lowerASCII(s string) string {
+	for i := 0; i < len(s); i++ {
+		if isUpper(s[i]) {
+			b := []byte(s)
+			for j := i; j < len(b); j++ {
+				if isUpper(b[j]) {
+					b[j] += 'a' - 'A'
+				}
+			}
+			return string(b)
+		}
+	}
+	return s
 }
 
 // posixEnd is the offset of the "]" closing a POSIX class name in s, the text
@@ -440,6 +485,9 @@ func (ig *ignorer) match(p string, isDir bool) bool {
 		subject := path.Base(below)
 		if r.anchored {
 			subject = below
+		}
+		if r.fold {
+			subject = lowerASCII(subject)
 		}
 		if r.re.MatchString(bytewise(subject)) {
 			ignored = !r.negate
