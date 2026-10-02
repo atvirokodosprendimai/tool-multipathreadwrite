@@ -590,10 +590,14 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				}
 				return errorResult(renderedFitMessage(encodedSize(markedServed), cw)), nil
 			}
-			for path, spans := range byPath {
+			for path, bySHA := range byPath {
 				o, ok := observationOf(observed, path)
 				if !ok || o.SHA == "" {
 					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: no observation for " + path}
+				}
+				spans := heldSpans(bySHA, o.SHA)
+				if len(spans) == 0 {
+					continue // every slice of it came from a version since replaced
 				}
 				if err := hold(root, path, o.SHA, spans); err != nil {
 					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: " + err.Error()}

@@ -200,9 +200,12 @@ func interleave(text string) (string, map[string][2]int) {
 }
 
 // servedSlice is one ==> header and the lines that belong to it, so a
-// multi-file fitting serve can be interleaved per file (ADR-039).
+// multi-file fitting serve can be interleaved per file (ADR-039). sha is the
+// prefix the header printed: read.Run reads a file once per spec, so two
+// slices of one file can come from two versions of it.
 type servedSlice struct {
 	path string
+	sha  string
 	text string
 }
 
@@ -213,7 +216,7 @@ type servedSlice struct {
 // itself may hold spaces, even two in a row. Cutting at the first space turned
 // `x y.txt` into `x`, which has no observation, so an MCP read of such a file
 // that fit on one page failed with -32603 (found by the chaos harness, 2026-09-24).
-var servedHeader = regexp.MustCompile(`^(.*)  \d+L  \d+B  sha [0-9a-f]+$`)
+var servedHeader = regexp.MustCompile(`^(.*)  \d+L  \d+B  sha ([0-9a-f]+)$`)
 
 func splitServed(report string) []servedSlice {
 	if report == "" {
@@ -239,7 +242,7 @@ func splitServed(report string) []servedSlice {
 			// only a label; a served header's path is exact.
 			path := rest
 			if m := servedHeader.FindStringSubmatch(rest); m != nil {
-				path = m[1]
+				path, cur.sha = m[1], m[2]
 			} else if i := strings.Index(rest, "  "); i >= 0 {
 				path = rest[:i]
 			}
@@ -255,25 +258,32 @@ func splitServed(report string) []servedSlice {
 // markServed interleaves checkpoints through each file of a fitting report
 // and returns the marked text plus per-path spans. A report with no numbered
 // lines is returned unchanged and holds nothing.
-func markServed(report string) (string, map[string]map[string][2]int) {
+func markServed(report string) (string, map[string]map[string]map[string][2]int) {
 	slices := splitServed(report)
 	if len(slices) == 0 {
 		return report, nil
 	}
 	var out strings.Builder
-	byPath := map[string]map[string][2]int{}
+	byPath := map[string]map[string]map[string][2]int{}
 	for _, sl := range slices {
 		marked, spans := interleave(sl.text)
 		out.WriteString(marked)
-		// Merged, not replaced: two specs naming one file — a list split into
-		// ranges, each with its own max_lines budget — are two slices, and the
-		// second must not drop the first one's checkpoints (review of #318).
+		// Kept per file AND per version: two specs naming one file — a list
+		// split into ranges, each with its own max_lines budget — are two
+		// slices, and the second must not drop the first one's checkpoints
+		// (review of #318). But read.Run reads the file once per spec, so a
+		// writer between them leaves slices of two versions; heldSpans keeps
+		// only those of the version the observation names (the review of the
+		// merge, which licensed a line served from an older version).
 		if sl.path != "" && len(spans) > 0 {
 			p := filepath.Clean(sl.path)
 			if byPath[p] == nil {
-				byPath[p] = map[string][2]int{}
+				byPath[p] = map[string]map[string][2]int{}
 			}
-			maps.Copy(byPath[p], spans)
+			if byPath[p][sl.sha] == nil {
+				byPath[p][sl.sha] = map[string][2]int{}
+			}
+			maps.Copy(byPath[p][sl.sha], spans)
 		}
 	}
 	// A slice interleave declined to mark (ADR-108: bytes that are not valid
@@ -286,6 +296,20 @@ func markServed(report string) (string, map[string]map[string][2]int) {
 		fmt.Fprintf(&out, "-- This serve licenses NOTHING until you acknowledge it.\n-- %s\n", AckRule)
 	}
 	return out.String(), byPath
+}
+
+// heldSpans is what a read may hold for one file: the checkpoints of every
+// slice served from the version whose sha the observation names, merged, and
+// none from a version a writer replaced between specs — those lines are not
+// what the file holds now. bySHA is keyed by the header's sha prefix.
+func heldSpans(bySHA map[string]map[string][2]int, sha string) map[string][2]int {
+	held := map[string][2]int{}
+	for prefix, spans := range bySHA {
+		if prefix != "" && strings.HasPrefix(sha, prefix) {
+			maps.Copy(held, spans)
+		}
+	}
+	return held
 }
 
 // servedLineNumber reads the line number off a served content line, which
