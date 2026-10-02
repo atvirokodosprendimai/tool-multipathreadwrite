@@ -2588,3 +2588,11 @@ is listed last; each item names what arms it.
   Windows, since a deadline landing then is reported the same way. A cancel there is already reported as
   interrupted, exit 3. Found by the in-process review of #325. Arm on a report of a timed-out check exiting 2, or
   with the next change to the write path's exit mapping: test `DeadlineExceeded` beside `Interrupted` there.
+
+## From ADR-121 (an MCP check does not hold the only thread)
+
+- **`notifications/cancelled` stopping a running check** — the server answers other calls during a check and sends
+  progress, but a host's cancel is ignored: the check runs to its bound, and the write it verifies has landed
+  either way. `writeTool` passes `context.Background()` to `Verify`; a per-call context cancelled by the
+  notification would report the check interrupted, exit-3 semantics. Arm when a host is seen sending a cancel for
+  a long check, or a caller asks to stop one.

@@ -134,6 +134,9 @@ the shell. See the README, "Use it from an MCP host". Writers take turns on
 either surface, one writer per checkout (ADR-075), so neither is the safer one
 for callers sharing a checkout. A writer waits up to 120 s for the one before it, then is refused, exit 2,
 nothing applied, naming the holder's pid; `MRW_WRITE_LOCK_TIMEOUT` sets the wait in seconds, `0` for one try (ADR-110).
+While an `mrw_write`'s check runs the server answers what arrives after it — a ping, a read, another write — and a
+call whose `_meta.progressToken` is set hears `notifications/progress` every 15 s until its answer; every other
+answer keeps its request order (ADR-121). `notifications/cancelled` does not stop a running check.
 
 Both tools are bounded at 200,000 characters of ENCODED result, and the number is yours to set:
 `mrw mcp --max-result-chars N` or `MRW_MAX_RESULT_CHARS`. The flag beats the variable, omitting both

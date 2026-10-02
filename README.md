@@ -276,6 +276,9 @@ ledger.
 }
 ```
 
+A write's check does not hold the server: requests sent while it runs are answered, and a call that sends
+`_meta.progressToken` hears `notifications/progress` until its answer (ADR-121).
+
 Use an absolute path for `command` if `mrw` is not on the host's `PATH`. Launch
 with an explicit root when the host does not set `CLAUDE_PROJECT_DIR`:
 

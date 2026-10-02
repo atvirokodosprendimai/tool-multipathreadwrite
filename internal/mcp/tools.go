@@ -35,16 +35,12 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
 
-// gate serializes tool calls, and it is worth being exact about what it does
-// and does not buy. `Serve` reads one line, handles it fully, and only then
-// reads the next — so a SINGLE server never has two tool calls in flight, and
-// "calls through the server do not race" rests on that sequential loop, not on
-// this mutex. What the mutex covers is several `Serve` instances sharing one
-// process, which is what the concurrency test builds.
-//
-// Keep it, and keep this note: if anyone ever dispatches lines concurrently to
-// get parallelism, the loop stops being the guarantee and the mutex becomes
-// the only thing standing between two callers and a lost ledger entry.
+// gate serializes tool calls' use of the ledger, and it is worth being exact
+// about what it does and does not buy. Every read, write and acknowledgement of
+// the ledger and the pending acks happens under it. Since ADR-121 a server CAN
+// have two tool calls in flight: a write releases gate across its check, which
+// touches neither, and `Serve` reads on meanwhile — so this mutex, not the
+// loop, is what stands between two calls and a lost ledger entry.
 //
 // It is package-level rather than per-Serve because it is the ledger FILE being
 // protected, not the session. A CLI process running beside the server is a
@@ -77,6 +73,9 @@ type callToolResult struct {
 var (
 	callModern  bool
 	callReserve int
+	// callRelease tells Serve's loop it may read on (ADR-121); nil when no
+	// loop is waiting, as in a direct call.
+	callRelease func()
 )
 
 // ceiling is the budget an in-call measurement compares against.
@@ -152,7 +151,7 @@ func readResult(structured any, report string, isErr bool) (callToolResult, *rpc
 // CLI parses, call the function the CLI calls, and return what it returned. The
 // moment one computes a verdict of its own there are two answers to "did this
 // apply?", which is the defect class this project exists to refuse.
-func callTool(root string, raw json.RawMessage, modern bool) (callToolResult, *rpcError) {
+func callTool(root string, raw json.RawMessage, modern bool, release func()) (callToolResult, *rpcError) {
 	var p callParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "params: " + err.Error()}
@@ -172,11 +171,11 @@ func callTool(root string, raw json.RawMessage, modern bool) (callToolResult, *r
 	// that follows it are one transaction as far as another caller is concerned.
 	gate.Lock()
 	defer gate.Unlock()
-	callModern, callReserve = modern, 0
+	callModern, callReserve, callRelease = modern, 0, release
 	if modern {
 		callReserve = encodedSize(decorateCall(callToolResult{})) - encodedSize(callToolResult{})
 	}
-	defer func() { callModern, callReserve = false, 0 }()
+	defer func() { callModern, callReserve, callRelease = false, 0, nil }()
 
 	var res callToolResult
 	var rpcErr *rpcError
@@ -874,7 +873,18 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-113 Decision 4: a check that ran and did not pass is not isError —
 	// the call did what it was asked, and the verdict is data; one that could
 	// not run is, with the receipt.
+	// ADR-121: the check touches neither the ledger nor the pending acks, so
+	// gate is released across it and the loop told it may read on; the call's
+	// own values are restored when gate is taken back, since another call may
+	// have set them meanwhile.
+	modern, reserve, release := callModern, callReserve, callRelease
+	gate.Unlock()
+	if release != nil {
+		release()
+	}
 	v := land.Verify(context.Background())
+	gate.Lock()
+	callModern, callReserve, callRelease = modern, reserve, release
 	if v.CheckErr != nil {
 		return checkedReceipt(root, res, &v, v.CheckErr, true)
 	}
