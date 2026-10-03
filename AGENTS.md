@@ -412,9 +412,10 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   opts out, and a check that ran and failed is not `isError` — the write applied, and
   re-sending the plan would apply it again. `then` names steps declared in `.quality-harness.json`
   to run after a passing check, as `--then` does (ADR-115); `--then-sh` stays CLI-only. A
-  `scoped_check` whose template contains `{files}` and not `{packages}` still
+  `scoped_check` whose template contains `{files}` or `{dirs}` and not `{packages}` still
   runs on a `.rs` write when `packages()` cannot map (ADR-061); `{packages}`-only
-  still falls back. A
+  still falls back. `{packages}` is Go's alone; `{files}` (the edited paths) and `{dirs}` (their directories,
+  `./dir`, each once — ADR-124) are the portable forms, e.g. `"scoped_check": "pytest {dirs}"`. A
   non-prose hunk whose `{}` `()` `[]` nets moved prints a `balance` row under
   `ok` and stays `ok` — a balanced insert in the wrong place is invisible to it.
   The summary line counts those rows (`0 failed, 1 advisory — applied`, zero
@@ -453,7 +454,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   re-runs mrw with steps stops. The `"steps"` block is read only when a step is asked for: a typo
   there does not refuse a write that asks for none. In `--json`, an ad-hoc step has no `name`, and a
   step not run carries no `duration_ms`, `output_file` or `skipped`.
-  A step runs as written: a step command holding {files} or {packages} is refused, since mrw expands them only in scoped_check. A passing step prints the last line of its output under its verdict.
+  A step runs as written: a step command holding {files}, {dirs} or {packages} is refused, since mrw expands them only in scoped_check. A passing step prints the last line of its output under its verdict.
   A check, like a step, runs with MRW_STEP_DEPTH one higher than mrw's own; at depth 8 mrw starts neither: --then and --then-sh, a write whose check is due, and mrw check are refused, exit 2, before anything is written or run, while a write that starts no check still lands (--no-check writes without it). A command that clears the environment, such as env -i or sudo, restarts the count below it, as setsid leaves the process group. On unix a stopped check, step or ast-grep process group hears SIGTERM first, and whatever ignores it is killed a second later; an mrw killed that way can leave its own check running (ADR-095).
 - **Never read an exit code through a pipe.** `mrw write plan | head` returns
   head's status. This is the single most common way a red run reads as green.

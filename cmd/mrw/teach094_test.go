@@ -32,7 +32,7 @@ func TestEverySurfaceTeachesWhatAStepChecked(t *testing.T) {
 		"README.md":        string(readme),
 	} {
 		for _, s := range []string{
-			"A step runs as written: a step command holding {files} or {packages} is refused, since mrw expands them only in scoped_check.",
+			"A step runs as written: a step command holding {files}, {dirs} or {packages} is refused, since mrw expands them only in scoped_check.",
 			"A passing step prints the last line of its output under its verdict.",
 		} {
 			if !strings.Contains(doc, s) {

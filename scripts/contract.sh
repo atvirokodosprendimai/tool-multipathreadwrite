@@ -8520,6 +8520,17 @@ out=$(env PATH="$d221:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' --no-ig
 grep -q '==> gen/a.go' <<<"$out" && ! grep -q -- '-- skipped:' <<<"$out" && ok "and serves both, counting nothing" || bad "--no-ignore ast-grep: $out"
 rm -rf "$d221" "$R/.git" "$R/.gitignore" "$R/gen"
 
+# 222. ADR-124: {dirs} is the portable scope. mrw check on two files in one
+# directory and one in another, with scoped_check "echo SCOPED {dirs}", runs
+# SCOPED ./a ./b; the pair, a step command holding {dirs}, is refused, exit 2.
+fixture
+mkdir -p "$R/a222" "$R/b222"; printf 'x\n' > "$R/a222/x.rs"; printf 'y\n' > "$R/a222/y.rs"; printf 'z\n' > "$R/b222/z.py"
+printf '{"check":"echo FULL","scoped_check":"echo SCOPED {dirs}"}\n' > "$R/.quality-harness.json"
+out=$("$MRW" -C "$R" check a222/x.rs a222/y.rs b222/z.py 2>&1); want 0 $? "mrw check with a {dirs} template runs"
+grep -q 'SCOPED ./a222 ./b222' <<<"$out" && ok "and substitutes each directory once" || bad "{dirs}: $out"
+"$MRW" -C "$R" check a222/x.rs --then-sh 'echo {dirs}' > /dev/null 2>&1; want 2 $? "the pair: a step holding {dirs} is refused"
+rm -f "$R/.quality-harness.json"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

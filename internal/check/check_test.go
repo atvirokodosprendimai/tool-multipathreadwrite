@@ -768,3 +768,35 @@ func TestAFailingCheckKeepsItsLog(t *testing.T) {
 	}
 	os.Remove(res.OutputFile)
 }
+
+// ADR-124. {dirs} is the language-neutral scope: each edited file's directory,
+// or a named directory itself, ./dir, once each, sorted; a template of it alone
+// runs scoped for any language, as {files} does.
+func TestDirsPlaceholderNamesEachEditedDirectoryOnce(t *testing.T) {
+	root := t.TempDir()
+	for _, p := range []string{"a/x.rs", "a/y.rs", "b/c/z.py", "top.txt"} {
+		if err := os.MkdirAll(filepath.Join(root, filepath.Dir(p)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, p), []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := Config{Check: "FULL", ScopedCheck: "pytest {dirs}"}
+	got, scoped := command(root, cfg, []string{"b/c/z.py", "a/x.rs", "a/y.rs", "top.txt"})
+	if !scoped || got != "pytest . ./a ./b/c" {
+		t.Fatalf("got %q (scoped %v), want pytest . ./a ./b/c", got, scoped)
+	}
+	got, _ = command(root, cfg, []string{"b"})
+	if got != "pytest ./b" {
+		t.Fatalf("a named directory: got %q, want pytest ./b", got)
+	}
+}
+
+// A step command holding {dirs} is refused like the other two (ADR-094):
+// command is the only place the token means anything.
+func TestAStepHoldingDirsIsRefused(t *testing.T) {
+	if tok := Placeholder("pytest {dirs}"); tok != "{dirs}" {
+		t.Fatalf("Placeholder = %q, want {dirs}", tok)
+	}
+}
