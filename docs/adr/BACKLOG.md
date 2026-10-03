@@ -2555,8 +2555,9 @@ is listed last; each item names what arms it.
   The `.gitignore` matcher is ruled out (`.git` or not makes no difference). A peer's timeout stack points at
   `read.Run` → `rooted.Resolve` → `InState` → `RealAsFarAsItExists` → `filepath.EvalSymlinks` per served path
   (ADR-077's state-directory check). The same stack timed out `internal/mcp`'s
-  `TestAnIndexTooLargeToServePagesByFile` at 6m31s under a full Git Bash run (127–169 s alone). **Arm now**,
-  with ADR-123 (reserved: grep matches while reading), which owns the walk's per-file work.
+  `TestAnIndexTooLargeToServePagesByFile` at 6m31s under a full Git Bash run (127–169 s alone). **Taken by ADR-123**
+  (2026-10-03, Zy redirected the record here): the state base is resolved once while it exists and Resolve's own
+  real path is reused, 2.4× fewer per-file syscalls in the macOS benchmark; the Windows timing is in the record.
 - **A UTF-8 BOM on the first MCP line drops `initialize`** (-32700). CRLF alone is fine. Arm on the next MCP
   handshake change.
 - **MCP refusals say "pass --force"**, which `mrw_write` does not take. An unknown ack id is ignored silently. A
@@ -2595,3 +2596,14 @@ is listed last; each item names what arms it.
   either way. `writeTool` passes `context.Background()` to `Verify`; a per-call context cancelled by the
   notification would report the check interrupted, exit-3 semantics. Arm when a host is seen sending a cancel for
   a long check, or a caller asks to stop one.
+
+## From ADR-123 (a served path is resolved once)
+
+- **Matching while reading** (the plan's original ADR-123) — measured not needed on 2026-10-03: `--grep` over
+  20,000 files / 234 MB took 1.5 s on macOS against `grep -rl`'s 1.8 s, so stopping at the first hit and not
+  splitting a file whole would buy little. Arm when a profile shows the read, not the walk or the resolve, as the
+  cost of a grep, on any platform.
+- **The ancestor identity walk in `inState`** — still one `Stat` per ancestor of every resolved path up to the
+  volume root, kept exact because it is ADR-077's boundary against a case or mount spelling of the state base.
+  Arm when a Windows timing after ADR-123 still shows the per-file cost, with a per-walk cache whose staleness the
+  record can bound.
