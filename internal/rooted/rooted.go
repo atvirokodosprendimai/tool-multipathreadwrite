@@ -334,8 +334,12 @@ var stateBase struct {
 func resolvedBase(base string) (string, os.FileInfo) {
 	stateBase.mu.Lock()
 	defer stateBase.mu.Unlock()
+	// The entry stands only while the base, followed NOW, is the directory it
+	// was made for: a symlink above the base re-pointed during a long session
+	// leaves the old directory in place, and checking the old real path alone
+	// served the new base (the review of #330).
 	if stateBase.fi != nil && stateBase.base == base {
-		if fi, err := os.Stat(stateBase.real); err == nil && os.SameFile(fi, stateBase.fi) {
+		if fi, err := os.Stat(stateBase.real); err == nil && os.SameFile(fi, stateBase.fi) && sameAs(base, fi) {
 			return stateBase.real, fi
 		}
 	}
@@ -347,4 +351,10 @@ func resolvedBase(base string) (string, os.FileInfo) {
 	}
 	stateBase.base, stateBase.real, stateBase.fi = base, b, fi
 	return b, fi
+}
+
+// sameAs reports whether p, followed now, is the directory fi describes.
+func sameAs(p string, fi os.FileInfo) bool {
+	pi, err := os.Stat(p)
+	return err == nil && os.SameFile(pi, fi)
 }

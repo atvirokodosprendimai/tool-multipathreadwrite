@@ -39,3 +39,33 @@ func TestACaseSpellingOfARecreatedStateBaseIsRefused(t *testing.T) {
 		t.Fatalf("after the base was made again, a case spelling of it was served: %v", err)
 	}
 }
+
+// The review of #330: the cache checked the old real path, so a symlink above
+// the base re-pointed during a session left the old directory standing and the
+// new base was served. The entry stands only while the base, followed now, is
+// the directory it was made for.
+func TestAStateBaseBehindARepointedLinkIsRefused(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"s1/mrw/k", "s2/mrw/k"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := filepath.Join(root, "st")
+	if err := os.Symlink(filepath.Join(root, "s1"), link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	t.Setenv("XDG_STATE_HOME", link)
+	if _, err := Resolve(root, "s1/mrw/k"); err == nil || !strings.Contains(err.Error(), "own state") {
+		t.Fatalf("the base behind the link was served: %v", err)
+	}
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "s2"), link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Resolve(root, "s2/mrw/k"); err == nil || !strings.Contains(err.Error(), "own state") {
+		t.Fatalf("after the link was re-pointed, the new base was served: %v", err)
+	}
+}

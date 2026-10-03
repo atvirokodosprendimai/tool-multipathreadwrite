@@ -8,7 +8,7 @@
 **Cross-references:** ADR-071, ADR-077, ADR-104, ADR-116
 **Invalidates:** None — the boundary ADR-077 draws is unchanged
 **Governs:** `internal/rooted/rooted.go`
-**Enforced-by:** `internal/rooted/resolve123_test.go::TestACaseSpellingOfARecreatedStateBaseIsRefused`
+**Enforced-by:** `internal/rooted/resolve123_test.go::TestAStateBaseBehindARepointedLinkIsRefused`
 **Served-path change:** None in what is served or refused. `rooted.Resolve` makes fewer filesystem calls per path: the state base is resolved once while it exists, and the real path Resolve already computed is reused for the state check.
 
 ## Context
@@ -24,7 +24,7 @@ Windows peers measured `--grep` at 10–14 ms a file (3,000 files in 31–63 s, 
 
 ## Decision
 
-1. **The state base is resolved once while it exists.** `resolvedBase` caches its real path and `FileInfo`, checks them with one `Stat` and `SameFile` on every use, and resolves again when the base is gone or another directory stands at its path. A base that does not exist yet is not cached.
+1. **The state base is resolved once while it exists.** `resolvedBase` caches its real path and `FileInfo`. An entry stands only while the base, followed now, and its cached real path are both that same directory (`os.Stat` and `SameFile`, two calls, no walk over components); otherwise it is resolved again. Checking the old real path alone served a new base behind a re-pointed symlink — the in-process review of #330 found it, and `TestAStateBaseBehindARepointedLinkIsRefused` pins it. A base that does not exist yet is never reused: `SameFile` against a nil `FileInfo` is false.
 2. **Resolve's real path is reused.** The path `EvalSymlinks(target)` returned is the state check's path; a missing leaf is resolved as `InState` resolved it.
 3. **The boundary is unchanged.** The identity walk over the path's ancestors stays, one `Stat` each; caching it is deferred with a trigger (BACKLOG "From ADR-123").
 
@@ -68,7 +68,7 @@ See `tasks/README.md`: T1.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| a stale cached base lets a case spelling through | Low | High | re-validated with Stat and SameFile on every use; `TestACaseSpellingOfARecreatedStateBaseIsRefused` |
+| a cached base stands for a directory the base no longer names | Low | High | an entry stands only while the base followed now is the same directory by identity; `TestAStateBaseBehindARepointedLinkIsRefused` (a re-pointed link) and `TestACaseSpellingOfARecreatedStateBaseIsRefused` (a recreated base) |
 
 ## Rollback
 

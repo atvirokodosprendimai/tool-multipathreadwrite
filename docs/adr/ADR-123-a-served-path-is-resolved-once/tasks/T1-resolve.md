@@ -25,7 +25,7 @@
 ## Ordered Steps
 
 1. [S1] Write `TestACaseSpellingOfARecreatedStateBaseIsRefused` and `BenchmarkResolveADeepFile`; record the benchmark before the change. [proof: mutation]
-2. [S2] The cache and the reuse. Mutant: the cache used without its Stat and SameFile check (killed). An entry made while the base was absent needs no mutant of its own: `os.SameFile` against its nil FileInfo is false, so the same check rejects it; the two mutants that tried it are logged as equivalent. [proof: mutation]
+2. [S2] The cache and the reuse. Mutants: the entry standing without the base, followed now, being the same directory (the review of #330); the cache used without its Stat and SameFile check. An entry made while the base was absent needs no mutant of its own: `os.SameFile` against its nil FileInfo is false; the two mutants that tried it are logged as equivalent. [proof: mutation]
 3. [S3] The Windows timing from a peer, before and after, in the record. [proof: human: a Windows peer's timing of --grep over the 3,000-file tree with v1.46.0 and the branch build]
 
 ## Acceptance
@@ -33,8 +33,9 @@
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/rooted/ -count=1 -timeout 300s -run 'TestACaseSpellingOfARecreatedStateBaseIsRefused|TestAPathInsideMrwsStateIsRefused|TestACaseSpellingOfTheStateBaseIsRefused' -v 2>&1 | tee "$out" \
+  && go test ./internal/rooted/ -count=1 -timeout 300s -run 'TestACaseSpellingOfARecreatedStateBaseIsRefused|TestAStateBaseBehindARepointedLinkIsRefused|TestAPathInsideMrwsStateIsRefused|TestACaseSpellingOfTheStateBaseIsRefused' -v 2>&1 | tee "$out" \
   && grep -qE '^--- (PASS|SKIP): TestACaseSpellingOfARecreatedStateBaseIsRefused \(' "$out" \
+  && grep -qE '^--- (PASS|SKIP): TestAStateBaseBehindARepointedLinkIsRefused \(' "$out" \
   && grep -qE '^--- PASS: TestAPathInsideMrwsStateIsRefused \(' "$out" \
   && go test ./internal/rooted/ ./internal/read/ ./internal/mcp/ ./cmd/mrw/ -count=1 -timeout 900s \
   && go test ./internal/rooted/ -run '^$' -bench BenchmarkResolveADeepFile -benchtime 100x \
@@ -50,6 +51,7 @@ out=$(mktemp) \
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestACaseSpellingOfARecreatedStateBaseIsRefused` | `internal/rooted/resolve123_test.go` | a base removed and made again is still recognised by identity | none | S1, S2 |
+| `TestAStateBaseBehindARepointedLinkIsRefused` | `internal/rooted/resolve123_test.go` | a base behind a symlink re-pointed during a session is refused | none | S1, S2 |
 | `BenchmarkResolveADeepFile` | `internal/rooted/resolve123_bench_test.go` | the per-Resolve cost, before and after | none | S1 |
 
 ## Reachability
@@ -71,6 +73,7 @@ out=$(mktemp) \
   ```
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
+- 2026-10-03 · 8918373* · mutant killed · exit 1 · `internal/rooted/rooted.go` · S2: the entry stands only while the base followed now is the same directory (the review of #330) · acceptance-sha256:20a295b6f6b694c015f238fcb36c456be871a536ed6a0e310153098690d54acf
 
 ## Invariants
 
@@ -107,3 +110,5 @@ Stop and ask if the Windows timing shows no gain.
 - 2026-10-03 · 1c84cfd* · exit 0 · `set -o pipefail …` · acceptance-sha256:f7032d25411dc31abd74d80bd93371c452d4f44ebbfebd705d3086bae8723298 · ms:40489
 - 2026-10-03 · 1c84cfd* · exit 0 · `set -o pipefail …` · acceptance-sha256:f7032d25411dc31abd74d80bd93371c452d4f44ebbfebd705d3086bae8723298 · ms:40454
 - 2026-10-03 · 1c84cfd* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f7032d25411dc31abd74d80bd93371c452d4f44ebbfebd705d3086bae8723298 · ms:0 · test-lock-sha256:67d56289b68ef18187218c29ca389a22b5625ea41b4efc13479a9620ed52a8f3 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvcm9vdGVkL3Jlc29sdmUxMjNfdGVzdC5nbwlUZXN0QUNhc2VTcGVsbGluZ09mQVJlY3JlYXRlZFN0YXRlQmFzZUlzUmVmdXNlZAliMGYyOWNjYzAyMmFmOTY1YmU0MTRlMzg1NmVjMjk5YWIzMTAxOGY5MTQzOWMxMmQ5MTYyYjkyMTc1MzgwYjQ0CnVucHJvdmVuCWludGVybmFsL3Jvb3RlZC9yZXNvbHZlMTIzX2JlbmNoX3Rlc3QuZ28JQmVuY2htYXJrUmVzb2x2ZUFEZWVwRmlsZQ · test-lock-kind:replace
+- 2026-10-03 · 8918373* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:20a295b6f6b694c015f238fcb36c456be871a536ed6a0e310153098690d54acf · ms:0 · test-lock-sha256:277b6f1a37a9f91022e7c18173f87b98f693e1619e424d9cfdece3c4e1c3318f · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvcm9vdGVkL3Jlc29sdmUxMjNfdGVzdC5nbwlUZXN0QUNhc2VTcGVsbGluZ09mQVJlY3JlYXRlZFN0YXRlQmFzZUlzUmVmdXNlZAliMGYyOWNjYzAyMmFmOTY1YmU0MTRlMzg1NmVjMjk5YWIzMTAxOGY5MTQzOWMxMmQ5MTYyYjkyMTc1MzgwYjQ0CmJvZHkJaW50ZXJuYWwvcm9vdGVkL3Jlc29sdmUxMjNfdGVzdC5nbwlUZXN0QVN0YXRlQmFzZUJlaGluZEFSZXBvaW50ZWRMaW5rSXNSZWZ1c2VkCTA2ZmZhYzExZTBhZTc0YWM4OTJjZWQzNjQ0ODkyMjYwMzk0ZjdkYjc5N2M5M2NjYTk1MmZiMGRhZTQ5YzVhMTAKdW5wcm92ZW4JaW50ZXJuYWwvcm9vdGVkL3Jlc29sdmUxMjNfYmVuY2hfdGVzdC5nbwlCZW5jaG1hcmtSZXNvbHZlQURlZXBGaWxl · test-lock-kind:replace
+- 2026-10-03 · 8918373* · exit 0 · `set -o pipefail …` · acceptance-sha256:20a295b6f6b694c015f238fcb36c456be871a536ed6a0e310153098690d54acf · ms:41484
