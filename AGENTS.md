@@ -193,7 +193,7 @@ path mrw judged (`.` for the root).
 
 Inside a git checkout (a `.git` at or above the root) it skips what `.gitignore` and `.git/info/exclude`
 ignore — `core.excludesFile` is not read — and any walk skips a binary file (a UTF-16/32 BOM, or a NUL in
-the first 8 KiB). Nothing is skipped silently: a `-- skipped:` line counts both, and `--no-ignore` walks
+the first 8 KiB). Under `--grep` nothing is skipped silently: a `-- skipped:` line counts both, and `--no-ignore` walks
 every file. A path you name is walked either way, an ignored directory included; the rules still apply
 inside it. Matching folds case where the filesystem does, as git's `core.ignorecase` defaults (ADR-116).
 `--ast-grep` serves the same files (ADR-122): ast-grep still prunes what `.gitignore` ignores itself, every hit then
