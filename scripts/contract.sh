@@ -8528,7 +8528,9 @@ mkdir -p "$R/a222" "$R/b222"; printf 'x\n' > "$R/a222/x.rs"; printf 'y\n' > "$R/
 printf '{"check":"echo FULL","scoped_check":"echo SCOPED {dirs}"}\n' > "$R/.quality-harness.json"
 out=$("$MRW" -C "$R" check a222/x.rs a222/y.rs b222/z.py 2>&1); want 0 $? "mrw check with a {dirs} template runs"
 grep -q 'SCOPED ./a222 ./b222' <<<"$out" && ok "and substitutes each directory once" || bad "{dirs}: $out"
-"$MRW" -C "$R" check a222/x.rs --then-sh 'echo {dirs}' > /dev/null 2>&1; want 2 $? "the pair: a step holding {dirs} is refused"
+out=$("$MRW" -C "$R" check a222/x.rs --then-sh 'echo {dirs}' 2>&1); want 2 $? "the pair: a step holding {dirs} is refused"
+grep -q 'holds {dirs}' <<<"$out" && ok "and the refusal names {dirs}" || bad "step {dirs}: $out"
+"$MRW" -C "$R" check a222/x.rs --then-sh 'echo ok' > /dev/null 2>&1; want 0 $? "while a step holding no placeholder runs"
 rm -f "$R/.quality-harness.json"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an

@@ -582,8 +582,8 @@ func command(root string, cfg Config, paths []string) (cmdline string, scoped bo
 
 // dirsOf is {dirs} (ADR-124): the directory of each edited file, or a named
 // directory itself, spelled ./dir as go's patterns are (or "." for the root),
-// each once, sorted. Most test runners take a directory — pytest, jest,
-// cargo run in a crate — so this is the language-neutral scope.
+// each once, sorted. pytest and jest take a directory; `cargo test` does not —
+// it reads one as a test-name filter and passes having run nothing.
 func dirsOf(root string, paths []string) []string {
 	seen := map[string]bool{}
 	for _, p := range paths {
@@ -704,9 +704,9 @@ func placed(root, p string) (string, bool) {
 // directory is the root package — a scope that runs, passes, and covers
 // nothing the caller asked about.
 //
-// Paths reaching packages from a write always exist, since a write creates or
-// edits them and `delete` removes lines rather than files, so `write --check`
-// is unaffected.
+// Paths reaching packages from a write always exist: an unlink names its
+// file's directory (writer.CheckPaths), and confine refuses a path that is not
+// there, so `write --check` is unaffected.
 func isFile(root, p string) bool {
 	full, err := rooted.Resolve(root, p)
 	if err != nil {

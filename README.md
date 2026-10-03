@@ -164,7 +164,7 @@ These are gates, not a tour of the records behind them.
   checker.
 - **Check by default.** A CLI write to a non-prose path runs the project's
   check when one exists; `--no-check` opts out; a markdown-only plan does not
-  spawn it. A `{files}`-only `scoped_check` still runs on a `.rs` write when
+  spawn it. A `{files}`- or `{dirs}`-only `scoped_check` still runs on a `.rs` write when
   `packages()` cannot map; `{packages}`-only still falls back. A non-prose hunk
   whose `{}` `()` `[]` nets moved prints a balance row and stays `ok` — a
   balanced insert in the wrong place is invisible to it.

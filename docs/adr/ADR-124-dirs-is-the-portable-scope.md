@@ -13,7 +13,7 @@
 
 ## Context
 
-`{packages}` maps a `.go` file to its package and anything else makes the scoped check fall back to the full one; `{files}` already runs scoped for any language (ADR-061), but a runner that takes directories — pytest, jest, a cargo crate — had to be given files or the whole tree. The plan's amendment named "check maps packages for Go only"; Zy chose documentation plus one language-neutral token over per-ecosystem rules.
+`{packages}` maps a `.go` file to its package and anything else makes the scoped check fall back to the full one; `{files}` already runs scoped for any language (ADR-061), but a runner that takes directories — pytest, jest — had to be given files or the whole tree. `cargo test` is not one: it reads a path as a test-name filter, runs nothing and passes (measured by the review of #332), so `{dirs}` is not offered for it. The plan's amendment named "check maps packages for Go only"; Zy chose documentation plus one language-neutral token over per-ecosystem rules.
 
 **Audit of the class** — *a token `scoped_check` substitutes*: `mrw read --grep 'placeholders|NewReplacer\("\{' internal/check/check.go` — `placeholders` (what `Placeholder` refuses in a step) and `command`'s two replacers.
 
@@ -58,7 +58,7 @@ See `tasks/README.md`: T1.
 
 ## Consequences
 
-- **Positive:** a Python, JavaScript or Rust project gets a scoped check from one line of config.
+- **Positive:** a Python or JavaScript project gets a scoped check from one line of config. Rust does not: `cargo test ./src` filters by test name and passes with nothing run.
 - **Negative:** a step command that held the literal text `{dirs}` is now refused.
 - **Neutral:** Go projects see no change.
 

@@ -80,7 +80,7 @@ See `tasks/`.
 
 - A grandchild that called `setsid` (permanent: fact: it is in a process group of its own, which mrw did not start)
 - A group id reused in the microseconds after its last member exits (permanent: fact: a kill of an empty group finds none; the window is the kernel's, and `Output` writes to a file so no pipe widens it, the review of #241)
-- Windows job objects for the grandchild, delivered by ADR-120 on 2026-10-02: on Windows the child runs in a job object that kills every member when closed (deferred: docs/adr/ADR-120-windows-owns-its-process-tree.md)
+- Windows job objects for the grandchild, delivered by ADR-120 on 2026-10-02: on Windows the child runs in a job object that kills every member when closed (permanent: fact: delivered by ADR-120; citation: file `docs/adr/BACKLOG.md:2359`)
 
 ## Risks
 

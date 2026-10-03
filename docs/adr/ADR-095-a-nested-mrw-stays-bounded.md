@@ -261,7 +261,7 @@ teaches both.
 - Failing closed on an unreadable `MRW_STEP_DEPTH` (permanent: boundary: Decision 3 — a value mrw did not write is not evidence of depth)
 - A TERM-ignoring leaf two levels down outliving both mrws (permanent: boundary: closing it means each level outwaits the one below, which compounds — Alternatives; rated Low as ADR-072 rates the outside sender)
 - A depth guard or a check on the MCP surface (permanent: boundary: `mrw_write` runs no check (ADR-054) and no step (ADR-092), so it starts nothing a depth could bound)
-- Stopping a grandchild on Windows, which needs a job object, delivered by ADR-120 on 2026-10-02: a nested mrw's check is in the same job object and stops with it (deferred: docs/adr/ADR-120-windows-owns-its-process-tree.md)
+- Stopping a grandchild on Windows, which needs a job object, delivered by ADR-120 on 2026-10-02: a nested mrw's check is in the same job object and stops with it (permanent: fact: delivered by ADR-120; citation: file `docs/adr/BACKLOG.md:2359`)
 
 ## Risks
 
