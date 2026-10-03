@@ -327,8 +327,8 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if a.After != "" && a.Grep == "" && a.AstGrep == "" {
 		return errorResult("after without grep or ast_grep: it resumes their index, and there is no index without one"), nil
 	}
-	if a.NoIgnore && a.Grep == "" {
-		return errorResult("no_ignore without grep: it changes what a grep walk skips"), nil
+	if a.NoIgnore && a.Grep == "" && a.AstGrep == "" {
+		return errorResult("no_ignore without grep or ast_grep: it changes what their walk skips"), nil
 	}
 	// finder names the source of the specs an index is built from, once, so no
 	// caller of matchIndex can tell the caller to resend a different one
@@ -350,21 +350,24 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	var skipped read.WalkSkipped
 	if a.AstGrep != "" {
 		var err error
-		specs, walkProblems, err = astGrepSpecs(root, a.Specs, a.AstGrep, a.Exclude, a.After)
+		specs, walkProblems, skipped, err = astGrepSpecs(root, a.Specs, a.AstGrep, a.Exclude, a.After, a.NoIgnore)
 		if err != nil {
 			return errorResult(err.Error()), nil
 		}
 		walked = true
 		if len(specs) == 0 {
 			report := fmt.Sprintf("no file under the root matches /%s/.", a.AstGrep)
+			if note := read.SkipNote(skipped, "no_ignore"); note != "" {
+				report += "\n" + note
+			}
 			for _, p := range walkProblems {
 				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
 			}
-			return readResult(map[string]any{
+			return readResult(withSkipped(map[string]any{
 				"observed": map[string]seen.Observation{},
 				"problems": len(walkProblems),
 				"matches":  0,
-			}, report, len(walkProblems) > 0)
+			}, skipped), report, len(walkProblems) > 0)
 		}
 	} else if a.Grep != "" {
 		var err error
@@ -1959,21 +1962,22 @@ func afterCursor(specs []read.Spec, after string) []read.Spec {
 // astGrepSpecs is grepSpecs for --ast-grep: the same refusals, the same
 // primitive the CLI calls, and the same cursor. ADR-016: the two surfaces must
 // not disagree; ADR-098: an ast_grep index pages as a grep index does.
-func astGrepSpecs(root string, paths []string, pattern string, exclude []string, after string) ([]read.Spec, []read.Problem, error) {
+func astGrepSpecs(root string, paths []string, pattern string, exclude []string, after string, noIgnore bool) ([]read.Spec, []read.Problem, read.WalkSkipped, error) {
 	for _, p := range paths {
 		sp, err := read.ParseSpec(p)
 		if err != nil {
-			return nil, nil, fmt.Errorf("%s: %w", p, err)
+			return nil, nil, read.WalkSkipped{}, fmt.Errorf("%s: %w", p, err)
 		}
 		if len(sp.Ranges) > 0 {
-			return nil, nil, fmt.Errorf("%s: a range and ast-grep are two answers to one question", p)
+			return nil, nil, read.WalkSkipped{}, fmt.Errorf("%s: a range and ast-grep are two answers to one question", p)
 		}
 	}
-	specs, problems, err := read.AstGrep(root, paths, pattern, exclude)
+	var sk read.WalkSkipped
+	specs, problems, err := read.AstGrep(root, paths, pattern, exclude, read.AstGrepOptions{NoIgnore: noIgnore, Skipped: &sk})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, read.WalkSkipped{}, err
 	}
-	return afterCursor(specs, after), problems, nil
+	return afterCursor(specs, after), problems, sk, nil
 }
 
 // matchIndex is the answer to a grep whose CONTENT will not fit: the addresses,

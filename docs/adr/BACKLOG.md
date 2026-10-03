@@ -2451,10 +2451,9 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's def
 
 ## From ADR-116 (a walk honours .gitignore and skips binaries)
 
-- **`--ast-grep` / `ast_grep` and the ignore rules** — ast-grep walks with its own ignore handling, and mrw drops
-  excluded hits after it answers; `--no-ignore` does not reach it, so the two finders can disagree on an ignored
-  file. Arm when a caller reports `--ast-grep` serving a file `--grep` skips, or the reverse, or asks for
-  `--no-ignore` with `--ast-grep`.
+- **`--ast-grep` / `ast_grep` and the ignore rules** — **Closed** by ADR-122 (2026-10-03): ast-grep's hits pass the
+  walk's own rules and are counted in the same `-- skipped:` line, ast-grep is told to drop the ignore sources only it
+  reads, and `--no-ignore` reaches it. What it still misses: a file only ast-grep's own `.gitignore` matcher ignores.
 
 ## From ADR-117 (mrw_read takes max_lines, stat and files_from)
 

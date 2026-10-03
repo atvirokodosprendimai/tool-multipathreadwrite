@@ -340,7 +340,7 @@ func TestAstGrepZeroBasedLineZeroServesLineOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	installFakeAstGrepJSON(t, `[{"file":"hit.go","range":{"start":{"line":0},"end":{"line":0}}}]`, 0)
-	specs, problems, err := AstGrep(root, nil, "package hit", nil)
+	specs, problems, err := AstGrep(root, nil, "package hit", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,7 +358,7 @@ func TestAstGrepZeroBasedLineOneServesLineTwo(t *testing.T) {
 		t.Fatal(err)
 	}
 	installFakeAstGrepJSON(t, `[{"file":"hit.go","range":{"start":{"line":1},"end":{"line":1}}}]`, 0)
-	specs, problems, err := AstGrep(root, nil, "func T", nil)
+	specs, problems, err := AstGrep(root, nil, "func T", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,7 +376,7 @@ func TestAstGrepEndBeforeStartCollapsesToAPoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	installFakeAstGrepJSON(t, `[{"file":"hit.go","range":{"start":{"line":4},"end":{"line":1}}}]`, 0)
-	specs, _, err := AstGrep(root, nil, "x", nil)
+	specs, _, err := AstGrep(root, nil, "x", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +391,7 @@ func TestAstGrepPathKeyIsAcceptedLikeFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	installFakeAstGrepJSON(t, `[{"path":"hit.go","range":{"start":{"line":0},"end":{"line":0}}}]`, 0)
-	specs, _, err := AstGrep(root, nil, "package", nil)
+	specs, _, err := AstGrep(root, nil, "package", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +407,7 @@ func TestAstGrepHitOutsideTheRootIsAProblemNotASpec(t *testing.T) {
 	}
 	outside := filepath.Join(root, "..", "outside.go")
 	installFakeAstGrepJSON(t, fmt.Sprintf(`[{"file":%q,"range":{"start":{"line":0},"end":{"line":0}}}]`, outside), 0)
-	specs, problems, err := AstGrep(root, nil, "x", nil)
+	specs, problems, err := AstGrep(root, nil, "x", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,7 +429,7 @@ func TestAstGrepEmptyFileFieldIsNotServed(t *testing.T) {
 		t.Fatal(err)
 	}
 	installFakeAstGrepJSON(t, `[{"file":"","range":{"start":{"line":0},"end":{"line":0}}}]`, 0)
-	specs, problems, err := AstGrep(root, nil, "x", nil)
+	specs, problems, err := AstGrep(root, nil, "x", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -447,7 +447,7 @@ func TestAstGrepExcludeDropsAHit(t *testing.T) {
 		t.Fatal(err)
 	}
 	installFakeAstGrepJSON(t, `[{"file":"hit.go","range":{"start":{"line":0},"end":{"line":0}}}]`, 0)
-	specs, _, err := AstGrep(root, nil, "x", []string{"*.go"})
+	specs, _, err := AstGrep(root, nil, "x", []string{"*.go"}, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -501,7 +501,7 @@ func TestAstGrepPresentBinaryExitOneWithEmptyArrayIsZeroHits(t *testing.T) {
 		t.Fatal(err)
 	}
 	installFakeAstGrepJSON(t, `[]`, 1)
-	specs, problems, err := AstGrep(root, nil, "zzz-absent", nil)
+	specs, problems, err := AstGrep(root, nil, "zzz-absent", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatalf("exit 1 plus [] must not be the missing-binary path: %v", err)
 	}
@@ -517,7 +517,7 @@ func TestAstGrepNeverRecords(t *testing.T) {
 	}
 	installFakeAstGrepJSON(t, `[{"file":"hit.go","range":{"start":{"line":1},"end":{"line":1}}}]`, 0)
 	var buf bytes.Buffer
-	specs, _, err := AstGrep(root, nil, "func T", nil)
+	specs, _, err := AstGrep(root, nil, "func T", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -565,7 +565,7 @@ func oneAstGrepHit(file string) string {
 // astGrepServed runs AstGrep and returns the paths it would serve.
 func astGrepServed(t *testing.T, root string, paths, exclude []string) []string {
 	t.Helper()
-	specs, _, err := AstGrep(root, paths, "x", exclude)
+	specs, _, err := AstGrep(root, paths, "x", exclude, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

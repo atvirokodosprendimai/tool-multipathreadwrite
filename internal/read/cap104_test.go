@@ -55,11 +55,11 @@ func TestAnAstGrepAnswerOverTheCapIsRefused(t *testing.T) {
 	old := maxAstGrepBytes
 	t.Cleanup(func() { maxAstGrepBytes = old })
 	maxAstGrepBytes = 64
-	if _, _, err := AstGrep(root, nil, "package $A", nil); err == nil || !strings.Contains(err.Error(), "200 bytes") || !strings.Contains(err.Error(), "64") {
+	if _, _, err := AstGrep(root, nil, "package $A", nil, AstGrepOptions{}); err == nil || !strings.Contains(err.Error(), "200 bytes") || !strings.Contains(err.Error(), "64") {
 		t.Errorf("an answer over the cap: err %v, want one naming 200 bytes and the limit", err)
 	}
 	maxAstGrepBytes = 1024
-	if specs, _, err := AstGrep(root, nil, "package $A", nil); err != nil || len(specs) != 1 {
+	if specs, _, err := AstGrep(root, nil, "package $A", nil, AstGrepOptions{}); err != nil || len(specs) != 1 {
 		t.Errorf("the same answer under the cap: specs %v, err %v", specs, err)
 	}
 }
@@ -100,7 +100,7 @@ func TestAnAstGrepHitOnAFileOverTheCapIsReportedOnce(t *testing.T) {
 	old := maxFileBytes
 	maxFileBytes = 16
 	t.Cleanup(func() { maxFileBytes = old })
-	specs, probs, err := AstGrep(root, nil, "package $A", nil)
+	specs, probs, err := AstGrep(root, nil, "package $A", nil, AstGrepOptions{})
 	if err != nil || len(specs) != 0 || len(probs) != 1 || probs[0].Path != "big.go" || !strings.Contains(probs[0].Reason, "16-byte limit") {
 		t.Errorf("specs %v, problems %v, err %v; want no spec and one problem naming the limit", specs, probs, err)
 	}

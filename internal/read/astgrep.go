@@ -63,11 +63,20 @@ func (h astGrepHit) name() string {
 	return h.Path
 }
 
+// AstGrepOptions are the walk options an ast-grep read shares with --grep
+// (ADR-122): NoIgnore turns off every ignore source, mrw's and ast-grep's
+// both; Skipped, when set, receives what mrw's own rules dropped.
+type AstGrepOptions struct {
+	NoIgnore bool
+	Skipped  *WalkSkipped
+}
+
 // AstGrep shells out to ast-grep on PATH and maps hits to Specs read.Run
 // already serves. It records NOTHING: its process is finding, Run's read is
 // the only one that observes (ADR-007). It is a separate primitive from Walk
-// on purpose — Walk's go/no-go forbade a fifth matching rule.
-func AstGrep(root string, paths []string, pattern string, exclude []string) ([]Spec, []Problem, error) {
+// on purpose — Walk's go/no-go forbade a fifth matching rule. Its hits pass
+// the walk's own rules (ADR-122), so the two finders serve the same files.
+func AstGrep(root string, paths []string, pattern string, exclude []string, opt AstGrepOptions) ([]Spec, []Problem, error) {
 	if _, err := exec.LookPath("ast-grep"); err != nil {
 		return nil, nil, ErrAstGrepMissing
 	}
@@ -110,7 +119,15 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 			accepted = append(accepted, n.full)
 		}
 	}
-	args := []string{"-p", pattern, "--json"}
+	// ADR-122: ast-grep keeps the ignore files mrw also reads (.gitignore,
+	// info/exclude), so it never opens what both skip; the sources only
+	// ast-grep reads are turned off, and under NoIgnore every one is. The
+	// flags go before --json: what follows it is the paths.
+	args := []string{"-p", pattern}
+	for _, src := range astGrepIgnoresOff(opt.NoIgnore) {
+		args = append(args, "--no-ignore", src)
+	}
+	args = append(args, "--json")
 	switch {
 	case len(paths) == 0:
 		args = append(args, ".")
@@ -157,9 +174,27 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 		}
 		return nil, nil, parseErr
 	}
+	// ADR-122: each hit passes the walk's own judgement — the ignore rules of
+	// the checkout it is in, a binary file, a .git directory — unless its file
+	// was named, as --grep serves a named file whatever the rules say. What is
+	// dropped is counted, as the walk counts what it skips.
+	var judge *hitJudge
+	if !opt.NoIgnore {
+		judge = newHitJudge(root, absRoot)
+	}
+	dropped := map[string]bool{}
 	grouped := map[string][]Range{}
 	order := []string{}
 	named, starts := astGrepStarts(absRoot, accepted)
+	if judge != nil {
+		// A named directory is entered, so an ignored one at or above it is
+		// not counted, as the walk counts (skipCounts).
+		for _, s := range starts {
+			if s != "." && s != "" {
+				judge.w.starts = append(judge.w.starts, s)
+			}
+		}
+	}
 	crOnly := map[string]bool{}
 	for _, h := range hits {
 		rel, ok := astGrepRel(absRoot, h.name())
@@ -177,7 +212,16 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 		if refused && !named[rel] {
 			continue
 		}
+		if dropped[rel] {
+			continue
+		}
+		// --exclude first, as the walk drops an excluded path before it asks
+		// the ignore rules: an excluded file is not counted as skipped.
 		if astGrepExcluded(rel, exclude, named, starts) {
+			continue
+		}
+		if judge != nil && !named[rel] && judge.skip(rel, startDepth(starts, rel)) {
+			dropped[rel] = true
 			continue
 		}
 		// ADR-065: ast-grep numbers rows by "\n". On a CR-only file that is
@@ -191,6 +235,11 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 				// read is; the hit is reported once and not served.
 				problems = append(problems, Problem{Path: rel, Reason: over.Error()})
 				crOnly[rel] = true
+				continue
+			}
+			if judge != nil && !named[rel] && err == nil && lines.Unsplittable(b) != "" {
+				judge.binary(rel)
+				dropped[rel] = true
 				continue
 			}
 			_, eol, _ := lines.Split(string(b))
@@ -219,11 +268,17 @@ func AstGrep(root string, paths []string, pattern string, exclude []string) ([]S
 			order = append(order, rel)
 		}
 		grouped[rel] = append(grouped[rel], Range{Start: start, End: end, Text: text})
+		if judge != nil {
+			judge.served(rel)
+		}
 	}
 	sort.Strings(order)
 	specs := make([]Spec, 0, len(order))
 	for _, rel := range order {
 		specs = append(specs, Spec{Path: rel, Raw: rel, Ranges: grouped[rel]})
+	}
+	if judge != nil && opt.Skipped != nil {
+		*opt.Skipped = judge.counts()
 	}
 	return specs, problems, nil
 }
@@ -339,4 +394,33 @@ func ancestorExcluded(rel, start string, exclude []string) bool {
 		}
 	}
 	return false
+}
+
+// astGrepIgnoresOff names the ast-grep ignore sources to turn off (ADR-122).
+// mrw's walk reads neither .ignore files nor core.excludesFile and serves
+// hidden files, so those are always off; .gitignore, its parents and
+// info/exclude stay on unless the caller asked for every file.
+func astGrepIgnoresOff(noIgnore bool) []string {
+	off := []string{"hidden", "dot", "global"}
+	if noIgnore {
+		off = append(off, "exclude", "parent", "vcs")
+	}
+	return off
+}
+
+// startDepth is how many components the named directory a hit was found
+// under has: the deepest start rel is below, or 0 under the root.
+func startDepth(starts []string, rel string) int {
+	best := 0
+	for _, s := range starts {
+		if s == "." || s == "" {
+			continue
+		}
+		if strings.HasPrefix(rel, s+"/") {
+			if n := strings.Count(s, "/") + 1; n > best {
+				best = n
+			}
+		}
+	}
+	return best
 }
