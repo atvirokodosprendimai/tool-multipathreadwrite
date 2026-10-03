@@ -164,7 +164,7 @@ These are gates, not a tour of the records behind them.
   checker.
 - **Check by default.** A CLI write to a non-prose path runs the project's
   check when one exists; `--no-check` opts out; a markdown-only plan does not
-  spawn it. A `{files}`-only `scoped_check` still runs on a `.rs` write when
+  spawn it. A `{files}`- or `{dirs}`-only `scoped_check` still runs on a `.rs` write when
   `packages()` cannot map; `{packages}`-only still falls back. A non-prose hunk
   whose `{}` `()` `[]` nets moved prints a balance row and stays `ok` — a
   balanced insert in the wrong place is invisible to it.
@@ -182,7 +182,7 @@ These are gates, not a tour of the records behind them.
   `could_not_start` means the shell could not start (a missing command inside it is a `fail`, exit
   127); a step runs with `MRW_STEP_DEPTH` one deeper, and `--then` is refused at depth 8, so a step
   that re-runs mrw with steps cannot recurse without end; `"steps"` is read only when a step is asked for.
-  A step runs as written: a step command holding {files} or {packages} is refused, since mrw expands them only in scoped_check. A passing step prints the last line of its output under its verdict.
+  A step runs as written: a step command holding {files}, {dirs} or {packages} is refused, since mrw expands them only in scoped_check. A passing step prints the last line of its output under its verdict.
   A check, like a step, runs with MRW_STEP_DEPTH one higher than mrw's own; at depth 8 mrw starts neither: --then and --then-sh, a write whose check is due, and mrw check are refused, exit 2, before anything is written or run, while a write that starts no check still lands (--no-check writes without it). A command that clears the environment, such as env -i or sudo, restarts the count below it, as setsid leaves the process group. On unix a stopped check, step or ast-grep process group hears SIGTERM first, and whatever ignores it is killed a second later; an mrw killed that way can leave its own check running (ADR-095).
   On Windows a check, a step or ast-grep runs in a job object that is closed with it, so its grandchildren stop too and none can leave the job (ADR-120).
 - **Advisories are counted where you read.** The summary line says

@@ -45,7 +45,9 @@ type Config struct {
 	// derived from the edited paths.
 	Check string `json:"check"`
 	// ScopedCheck is the narrow command. {packages} expands to the Go packages
-	// containing the edited files, {files} to the edited paths themselves.
+	// containing the edited files, {files} to the edited paths themselves, and
+	// {dirs} to their directories (ADR-124). {files} and {dirs} are the
+	// portable forms: {packages} is Go's alone.
 	//
 	// Write the placeholder UNQUOTED. Each value is substituted already quoted
 	// as one shell argument (see shellArgs), so quoting it again in the
@@ -530,9 +532,9 @@ func confine(root string, paths []string) error {
 
 // placeholders are the tokens command substitutes into scoped_check, in the
 // order Placeholder looks for them. A token added to command belongs here too.
-var placeholders = []string{"{packages}", "{files}"}
+var placeholders = []string{"{packages}", "{files}", "{dirs}"}
 
-// Placeholder returns the first of {packages} and {files} that cmdline holds,
+// Placeholder returns the first of {packages}, {files} and {dirs} that cmdline holds,
 // or "" when it holds neither. command is the one place mrw gives the tokens a
 // meaning; a step runs as written, so a step command holding one is refused
 // rather than run with the literal text (ADR-094).
@@ -565,14 +567,43 @@ func command(root string, cfg Config, paths []string) (cmdline string, scoped bo
 	}
 	pkgs := packages(root, paths)
 	if len(pkgs) > 0 {
-		r := strings.NewReplacer("{packages}", shellArgs(pkgs), "{files}", shellArgs(paths))
+		r := strings.NewReplacer("{packages}", shellArgs(pkgs), "{files}", shellArgs(paths), "{dirs}", shellArgs(dirsOf(root, paths)))
 		return r.Replace(cfg.ScopedCheck), true
 	}
-	if len(paths) > 0 && strings.Contains(cfg.ScopedCheck, "{files}") && !strings.Contains(cfg.ScopedCheck, "{packages}") {
-		r := strings.NewReplacer("{files}", shellArgs(paths))
+	// ADR-061, ADR-124: a template of {files} or {dirs}, and no {packages},
+	// names every path the caller wrote, so it runs scoped for any language.
+	portable := strings.Contains(cfg.ScopedCheck, "{files}") || strings.Contains(cfg.ScopedCheck, "{dirs}")
+	if len(paths) > 0 && portable && !strings.Contains(cfg.ScopedCheck, "{packages}") {
+		r := strings.NewReplacer("{files}", shellArgs(paths), "{dirs}", shellArgs(dirsOf(root, paths)))
 		return r.Replace(cfg.ScopedCheck), true
 	}
 	return cfg.Check, false
+}
+
+// dirsOf is {dirs} (ADR-124): the directory of each edited file, or a named
+// directory itself, spelled ./dir as go's patterns are (or "." for the root),
+// each once, sorted. pytest and jest take a directory; `cargo test` does not —
+// it reads one as a test-name filter and passes having run nothing.
+func dirsOf(root string, paths []string) []string {
+	seen := map[string]bool{}
+	for _, p := range paths {
+		p = strings.TrimSuffix(p, "/...")
+		d := filepath.Dir(p)
+		if !isFile(root, p) {
+			d = p
+		}
+		d = filepath.ToSlash(filepath.Clean(d))
+		if d != "." && !strings.HasPrefix(d, "./") && !strings.HasPrefix(d, "../") {
+			d = "./" + d
+		}
+		seen[d] = true
+	}
+	out := make([]string, 0, len(seen))
+	for d := range seen {
+		out = append(out, d)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // packages maps paths to the go patterns that cover them, or returns "" when
@@ -673,9 +704,9 @@ func placed(root, p string) (string, bool) {
 // directory is the root package — a scope that runs, passes, and covers
 // nothing the caller asked about.
 //
-// Paths reaching packages from a write always exist, since a write creates or
-// edits them and `delete` removes lines rather than files, so `write --check`
-// is unaffected.
+// Paths reaching packages from a write always exist: an unlink names its
+// file's directory (writer.CheckPaths), and confine refuses a path that is not
+// there, so `write --check` is unaffected.
 func isFile(root, p string) bool {
 	full, err := rooted.Resolve(root, p)
 	if err != nil {

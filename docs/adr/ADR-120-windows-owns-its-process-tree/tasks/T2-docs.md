@@ -68,7 +68,7 @@ Stop and ask if a doc must promise more than the windows CI shards showed.
 
 ## Out of Scope
 
-- The skill resync (deferred: the release drill, `.claude/skills/release` step 7)
+- The skill resync (permanent: boundary: the release drill resyncs the skill, step 7 of .claude/skills/release/SKILL.md, not a task)
 
 ## Verification Log
 - 2026-10-02 · e6be523* · exit 0 · `set -o pipefail …` · acceptance-sha256:22151b30de5fdaadb6bc42333893211d6f9aca38748fdb71fc7245a1eccafbf1 · ms:93

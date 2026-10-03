@@ -768,3 +768,49 @@ func TestAFailingCheckKeepsItsLog(t *testing.T) {
 	}
 	os.Remove(res.OutputFile)
 }
+
+// ADR-124. {dirs} is the language-neutral scope: each edited file's directory,
+// or a named directory itself, ./dir, once each, sorted; a template of it alone
+// runs scoped for any language, as {files} does.
+func TestDirsPlaceholderNamesEachEditedDirectoryOnce(t *testing.T) {
+	root := t.TempDir()
+	for _, p := range []string{"a/x.rs", "a/y.rs", "b/c/z.py", "top.txt"} {
+		if err := os.MkdirAll(filepath.Join(root, filepath.Dir(p)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, p), []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := Config{Check: "FULL", ScopedCheck: "pytest {dirs}"}
+	got, scoped := command(root, cfg, []string{"b/c/z.py", "a/x.rs", "a/y.rs", "top.txt"})
+	if !scoped || got != "pytest . ./a ./b/c" {
+		t.Fatalf("got %q (scoped %v), want pytest . ./a ./b/c", got, scoped)
+	}
+	got, _ = command(root, cfg, []string{"b"})
+	if got != "pytest ./b" {
+		t.Fatalf("a named directory: got %q, want pytest ./b", got)
+	}
+	goRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(goRoot, "a"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for p, body := range map[string]string{"go.mod": "module m\n", "a/x.go": "package a\n"} {
+		if err := os.WriteFile(filepath.Join(goRoot, p), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, scoped = command(goRoot, Config{Check: "FULL", ScopedCheck: "go test {dirs}"}, []string{"a/x.go"})
+	if !scoped || got != "go test ./a" {
+		t.Fatalf("a Go map: got %q (scoped %v), want go test ./a", got, scoped)
+	}
+}
+
+// A step command holding {dirs} is refused like the other two (ADR-094):
+// command is the only place the token means anything.
+func TestAStepHoldingDirsIsRefused(t *testing.T) {
+	err := checkSteps(map[string]string{"v": "pytest {dirs}"})
+	if err == nil || !strings.Contains(err.Error(), "holds {dirs}") {
+		t.Fatalf("checkSteps = %v, want a refusal naming {dirs}", err)
+	}
+}
