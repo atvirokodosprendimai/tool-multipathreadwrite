@@ -5,8 +5,6 @@ name: timing-123
 # and through a junction root. Run by hand; it gates nothing.
 on:
   workflow_dispatch:
-  push:
-    branches: [adr-123-s3-timing]
 
 permissions:
   contents: read

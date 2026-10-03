@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | the state base cached, Resolve's real path reused | partial | none | `docs/adr/ADR-123-a-served-path-is-resolved-once/tasks/T1-resolve.md` fence — S3, the Windows timing, waits for a Windows session |
+| T1 | the state base cached, Resolve's real path reused | done | none | `docs/adr/ADR-123-a-served-path-is-resolved-once/tasks/T1-resolve.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

@@ -55,7 +55,7 @@ See `tasks/README.md`: T1.
 
 ## Consequences
 
-- **Positive:** `BenchmarkResolveADeepFile` (a file six directories down, the state base present) went from about 90 µs to about 38 µs per Resolve on macOS (2026-10-03, 2000 iterations, three runs); Windows pays more per syscall, so more per file.
+- **Positive:** `BenchmarkResolveADeepFile` (a file six directories down, the state base present) went from about 90 µs to about 38 µs per Resolve on macOS (2026-10-03, 2000 iterations, three runs). On Windows (S3, 2026-10-03, a GitHub `windows-latest` runner — Windows Server 2025 Datacenter, AMD EPYC 7763 — run 37112751685 of `.github/workflows/timing-123.yml`; Zy chose a runner when no Windows peer was online), `--grep needle` over a generated 3,000-file tree, median of five warm runs: v1.46.0 3,301 ms, v1.47.0 1,759 ms (1.9×); through a junction root, 3,457 ms and 1,949 ms (1.8×); both versions served the same two files. That is about 0.6 ms a file still paid, which the deferred identity-walk cache is about; the peers' 10–14 ms a file was a different, slower machine, and this run does not reproduce it.
 - **Negative:** one package-level cache, guarded by a mutex and re-validated per use.
 - **Neutral:** nothing served or refused changes.
 
