@@ -186,6 +186,15 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 	grouped := map[string][]Range{}
 	order := []string{}
 	named, starts := astGrepStarts(absRoot, accepted)
+	if judge != nil {
+		// A named directory is entered, so an ignored one at or above it is
+		// not counted, as the walk counts (skipCounts).
+		for _, s := range starts {
+			if s != "." && s != "" {
+				judge.w.starts = append(judge.w.starts, s)
+			}
+		}
+	}
 	crOnly := map[string]bool{}
 	for _, h := range hits {
 		rel, ok := astGrepRel(absRoot, h.name())
@@ -206,11 +215,13 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 		if dropped[rel] {
 			continue
 		}
-		if judge != nil && !named[rel] && judge.skip(rel, startDepth(starts, rel)) {
-			dropped[rel] = true
+		// --exclude first, as the walk drops an excluded path before it asks
+		// the ignore rules: an excluded file is not counted as skipped.
+		if astGrepExcluded(rel, exclude, named, starts) {
 			continue
 		}
-		if astGrepExcluded(rel, exclude, named, starts) {
+		if judge != nil && !named[rel] && judge.skip(rel, startDepth(starts, rel)) {
+			dropped[rel] = true
 			continue
 		}
 		// ADR-065: ast-grep numbers rows by "\n". On a CR-only file that is

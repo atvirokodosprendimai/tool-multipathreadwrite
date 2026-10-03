@@ -357,14 +357,17 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		walked = true
 		if len(specs) == 0 {
 			report := fmt.Sprintf("no file under the root matches /%s/.", a.AstGrep)
+			if note := read.SkipNote(skipped, "no_ignore"); note != "" {
+				report += "\n" + note
+			}
 			for _, p := range walkProblems {
 				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
 			}
-			return readResult(map[string]any{
+			return readResult(withSkipped(map[string]any{
 				"observed": map[string]seen.Observation{},
 				"problems": len(walkProblems),
 				"matches":  0,
-			}, report, len(walkProblems) > 0)
+			}, skipped), report, len(walkProblems) > 0)
 		}
 	} else if a.Grep != "" {
 		var err error

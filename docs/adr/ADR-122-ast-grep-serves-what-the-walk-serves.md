@@ -9,7 +9,7 @@
 **Invalidates:** BACKLOG "From ADR-116"'s note that `--no-ignore` does not reach `--ast-grep`
 **Governs:** `internal/read/astgrep.go`, `internal/read/walk.go`, `cmd/mrw/main.go`, `internal/mcp/tools.go`, `internal/mcp/mcp.go`, `AGENTS.md`, `scripts/contract.sh`
 **Enforced-by:** `internal/read/astgrep122_test.go::TestAnAstGrepHitTheWalkWouldSkipIsDroppedAndCounted`
-**Served-path change:** `--ast-grep` and `ast_grep` serve the files `--grep` would: a hit in a file the walk's rules skip — an ignored file, a file in an ignored directory or a nested checkout's ignored path, a binary file, anything under `.git` — is dropped unless its file was named, and counted in the same `-- skipped:` line and `skipped` key; a hidden file ast-grep used to skip is served. `--no-ignore` / `no_ignore` now reach `--ast-grep` and turn every ignore source off.
+**Served-path change:** `--ast-grep` and `ast_grep` serve the files `--grep` would: a hit in a file the walk's rules skip — an ignored file, a file in an ignored directory or a nested checkout's ignored path, a binary file, anything under `.git` — is dropped unless its file was named, and what mrw drops is counted in the same `-- skipped:` line and `skipped` key; what ast-grep's own `.gitignore` handling pruned never reaches mrw and is not counted. A hidden file ast-grep used to skip is served. `--no-ignore` / `no_ignore` now reach `--ast-grep` and turn every ignore source off.
 
 ## Context
 
@@ -28,7 +28,7 @@ Two finders served different files. ADR-116 taught `--grep`'s walk to skip what 
 1. **ast-grep keeps the rules mrw also reads, and drops the rest.** It is run with `--no-ignore hidden --no-ignore dot --no-ignore global`, so it sees hidden files and ignores neither `.ignore` files nor `core.excludesFile`, while still pruning what `.gitignore`, its parents and `info/exclude` ignore — it never opens what both skip, which keeps it inside its 2 s bound on a tree with `node_modules`.
 2. **Every hit passes the walk's judgement.** A hit is dropped when the walk would not have served its file — ignored by the checkout it is in (a nested checkout's own rules below it), inside an ignored directory, binary, or under a `.git` the walk would not enter — unless the file was named; a named directory is walked and its rules still apply, as `--grep` does. What is dropped is counted, once per path, in the same `-- skipped:` line and `skipped` key.
 3. **`--no-ignore` / `no_ignore` reach `--ast-grep` / `ast_grep`**: all six ast-grep ignore sources are off and mrw drops nothing.
-4. **What is left is named.** A file only ast-grep's own `.gitignore` matcher ignores, which mrw's would serve, is still missed: ast-grep never reports it. The docs say so.
+4. **What is left is named.** A file only ast-grep's own `.gitignore` matcher ignores, which mrw's would serve, is still missed: ast-grep never reports it. And what ast-grep prunes itself is not counted: `-- skipped:` and `skipped` count what mrw's rules dropped from ast-grep's hits, so under `--ast-grep` they can read lower than `--grep`'s on the same tree (the review of #329). The docs say so.
 
 ## Alternatives Considered
 

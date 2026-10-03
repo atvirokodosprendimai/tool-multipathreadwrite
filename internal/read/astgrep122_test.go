@@ -146,3 +146,35 @@ func TestANamedFileTheRulesIgnoreIsServedByAstGrep(t *testing.T) {
 		t.Fatalf("served %v, want the named x.log", got)
 	}
 }
+
+// The counts agree with --grep's where mrw sees the hit (the review of #329):
+// an excluded hit is excluded, not counted as ignored, and an ignored
+// directory a named start is below is entered, not counted.
+func TestAstGrepCountsExcludeAndNamedStartsAsTheWalkDoes(t *testing.T) {
+	root, hits := tree122(t)
+	installRecordingAstGrep(t, hits)
+	var sk WalkSkipped
+	if _, _, err := AstGrep(root, nil, "package $A", []string{"x.log", "gen"}, AstGrepOptions{Skipped: &sk}); err != nil {
+		t.Fatal(err)
+	}
+	if sk.IgnoredDirs != 0 || sk.Ignored != 1 {
+		t.Fatalf("skipped %+v: an excluded hit was counted as ignored (want only nested/inner.go)", sk)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "gen", "keep"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "gen", "keep", "k.go"), []byte("package k\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The only hit is under gen/ from the root walk; the named gen/keep serves
+	// nothing, so only the start can say gen/ was entered.
+	installRecordingAstGrep(t, hit096("gen/a.go"))
+	sk = WalkSkipped{}
+	specs, _, err := AstGrep(root, []string{".", "gen/keep"}, "package $A", nil, AstGrepOptions{Skipped: &sk})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := servedPaths(specs); len(got) != 0 || sk.IgnoredDirs != 0 {
+		t.Fatalf("served %v, skipped %+v: a named start below an ignored directory is entered, not counted", got, sk)
+	}
+}
