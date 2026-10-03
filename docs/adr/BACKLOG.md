@@ -955,6 +955,21 @@ re-measuring these. Each was driven at the built binary, not read:
   needed: 1. Taken by a peer session on M's machine; reading 2 (an analyst task
   over documents) is still the open measure.
 
+  **Reading 2 protocol — refreshed 2026-10-03 for v1.47.0 (plan item 5). M runs it; nothing ships for it.**
+  - Setup: Claude Desktop with `mrw --root <the analyst folder> mcp` (launch `--root`, ADR-019 pick A), mrw
+    v1.47.0 or later checked against `SHA256SUMS.txt`. The folder holds documents, not a repository: no
+    `.git`, no `go.mod`, no `.quality-harness.json`.
+  - Task: one analyst task — read several large text, markdown or CSV files across subfolders, pull named
+    fields out of them, write one CSV and a short summary. Phrase it as a person would, without naming mrw.
+  - Record from `mcp-server-mrw*.log` and the transcript: the version and build; the `serving` lines and
+    their roots; counts of `initialize`, `tools/call` (per tool where the log names it), `roots/list` and
+    `outside the root`; how many trees the session needed — the open measure; which of `grep` (and its
+    INDEX and `after` paging), `files_from`, `max_lines` and `stat` were used; whether any write ran a check
+    (none is due in such a folder, ADR-054/113 — one that ran is a finding) or asked for `then` (ADR-115);
+    every refusal and whether the session recovered; any `-- PARTIAL:` page and any checkpoint not acked;
+    wall time.
+  - Write here: trees needed, whether one launch root sufficed, and each argument the analyst never touched.
+
 - **A heredoc-style body terminator for the plan format — DEFERRED.** Raised and
   refused in ADR-015.
 
@@ -2423,6 +2438,10 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's def
   configurations, against seven invariants; 800 runs on two seeds, 0 violations, 2026-10-01. The host-matrix half
   stays deferred: the MCP arm is measured on Claude Code alone, and no second MCP host is installed here. Arm on a
   second host, or when a defect is found in a combination the harness does not drive.
+  The matrix to run when armed: each host (Claude Desktop, Cursor, opencode, any other MCP client) against
+  the handshake (its instructions length), an `mrw_read` page with its acks, an `mrw_write` whose check runs
+  (ADR-113), one with `then` (ADR-115), progress notifications during that check (ADR-121), and a receipt cut
+  to the ceiling; record each host's version and the cells it cannot drive.
 - **A timeout on the writer lock** (B3) — **Closed** by ADR-110 (`state.HoldWithin`: a writer waits `MRW_WRITE_LOCK_TIMEOUT` seconds, 120 by default, then is refused naming the holder's pid; contract §209, 2026-10-01). A writer waits for the one before it (ADR-075) without a bound; a stuck
   writer blocks the next indefinitely. Arm when a wait is reported that ended only by killing a process; the
   refusal then says nothing was applied.
