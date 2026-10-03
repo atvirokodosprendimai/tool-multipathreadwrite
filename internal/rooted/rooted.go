@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/links"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
@@ -111,8 +112,9 @@ func Resolve(root, path string) (string, error) {
 		}
 	}
 	check := target
+	leafReal := false
 	if real, err := filepath.EvalSymlinks(target); err == nil {
-		check = real
+		check, leafReal = real, true
 	} else {
 		// A missing leaf is checked through the deepest existing ancestor.
 		// EvalSymlinks(full) fails for create/rename dests that are not there
@@ -147,7 +149,13 @@ func Resolve(root, path string) (string, error) {
 	// ~/.local/state), a read served pending.json, whose checkpoint ids could
 	// then be acked without the lines ever being read (ADR-031), and a plan
 	// could edit the ledger.
-	if InState(target) {
+	// ADR-123: the real path just computed is reused rather than resolved a
+	// second time inside InState; a missing leaf is resolved as InState did.
+	q := check
+	if !leafReal {
+		q = RealAsFarAsItExists(target)
+	}
+	if inState(q) {
 		return "", fmt.Errorf("%s is inside mrw's own state directory; mrw does not serve or edit its own ledger", path)
 	}
 	return full, nil
@@ -281,16 +289,20 @@ func IsRooted(p string) bool { return links.IsRooted(p) }
 // #238). A base mrw cannot name, or that does not exist, holds nothing a
 // second spelling could reach.
 func InState(p string) bool {
+	return inState(RealAsFarAsItExists(p))
+}
+
+// inState is InState for q already resolved as far as it exists (ADR-123).
+func inState(q string) bool {
 	base, err := state.Base()
 	if err != nil {
 		return false
 	}
-	b, q := RealAsFarAsItExists(base), RealAsFarAsItExists(p)
+	b, bi := resolvedBase(base)
 	if Contains(b, q) {
 		return true
 	}
-	bi, err := os.Stat(b)
-	if err != nil {
+	if bi == nil {
 		return false
 	}
 	for {
@@ -303,4 +315,46 @@ func InState(p string) bool {
 		}
 		q = parent
 	}
+}
+
+// stateBase caches the state base resolved, while it exists (ADR-123). A walk
+// resolves every file it serves, and resolving the base again for each one —
+// two passes over its components — was much of the per-file cost on Windows,
+// where each component is a syscall (10-14 ms a file, a peer's measurement of
+// 2026-10-02). The entry is checked with one Stat on every use, so a base
+// removed or replaced during a long session is resolved again.
+var stateBase struct {
+	mu   sync.Mutex
+	base string
+	real string
+	fi   os.FileInfo
+}
+
+// resolvedBase is base's real path and, when it exists, its FileInfo.
+func resolvedBase(base string) (string, os.FileInfo) {
+	stateBase.mu.Lock()
+	defer stateBase.mu.Unlock()
+	// The entry stands only while the base, followed NOW, is the directory it
+	// was made for: a symlink above the base re-pointed during a long session
+	// leaves the old directory in place, and checking the old real path alone
+	// served the new base (the review of #330).
+	if stateBase.fi != nil && stateBase.base == base {
+		if fi, err := os.Stat(stateBase.real); err == nil && os.SameFile(fi, stateBase.fi) && sameAs(base, fi) {
+			return stateBase.real, fi
+		}
+	}
+	b := RealAsFarAsItExists(base)
+	fi, err := os.Stat(b)
+	if err != nil {
+		stateBase.fi = nil
+		return b, nil
+	}
+	stateBase.base, stateBase.real, stateBase.fi = base, b, fi
+	return b, fi
+}
+
+// sameAs reports whether p, followed now, is the directory fi describes.
+func sameAs(p string, fi os.FileInfo) bool {
+	pi, err := os.Stat(p)
+	return err == nil && os.SameFile(pi, fi)
 }
