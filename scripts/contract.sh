@@ -8503,6 +8503,23 @@ order=$(grep -o '"id":[12]' "$WORK/out220b" | tr -d '\n')
 [ "$order" = '"id":1"id":2' ] && ok "the pair: with no check the answers keep their order" || bad "answer order $order: $(cat "$WORK/out220b")"
 rm -f "$R/.quality-harness.json"
 
+# 221. ADR-122: --ast-grep serves the files --grep would. Inside a checkout that
+# ignores gen/, a fake ast-grep reports a hit in gen/a.go and one in b.go: b.go
+# is served, gen/a.go is not, and the -- skipped: line counts gen/. The pair:
+# with --no-ignore both are served and nothing is counted.
+fixture
+d221=$(mktemp -d)
+mkdir -p "$R/.git" "$R/gen"; printf 'gen/\n' > "$R/.gitignore"
+printf 'package gen\n' > "$R/gen/a.go"; printf 'package b\n' > "$R/b221.go"
+printf '%s\n' '#!/bin/sh' 'printf "%s" "[{\"file\":\"gen/a.go\",\"range\":{\"start\":{\"line\":0},\"end\":{\"line\":0}}},{\"file\":\"b221.go\",\"range\":{\"start\":{\"line\":0},\"end\":{\"line\":0}}}]"' > "$d221/ast-grep"
+chmod +x "$d221/ast-grep"
+out=$(env PATH="$d221:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' 2>&1); want 0 $? "--ast-grep inside a checkout that ignores gen/ reads"
+grep -q '==> b221.go' <<<"$out" && ! grep -q '==> gen/a.go' <<<"$out" && grep -q -- '-- skipped: 1 director(ies) .gitignore ignores' <<<"$out" \
+  && ok "and serves b221.go, not the ignored gen/a.go, counting gen/" || bad "ast-grep served: $out"
+out=$(env PATH="$d221:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' --no-ignore 2>&1); want 0 $? "the pair: --no-ignore reaches --ast-grep"
+grep -q '==> gen/a.go' <<<"$out" && ! grep -q -- '-- skipped:' <<<"$out" && ok "and serves both, counting nothing" || bad "--no-ignore ast-grep: $out"
+rm -rf "$d221" "$R/.git" "$R/.gitignore" "$R/gen"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

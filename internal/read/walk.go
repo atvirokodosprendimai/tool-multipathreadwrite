@@ -392,6 +392,50 @@ func (w *walker) noteNested(dir, abs string) {
 	}
 }
 
+// hitJudge applies the walk's own rules to files another finder discovered
+// (ADR-122): the ignore rules of the checkout each is in, nested ones
+// included, and a .git directory the walk would not enter. It counts what it
+// drops as the walk counts what it skips.
+type hitJudge struct{ w *walker }
+
+func newHitJudge(root, absRoot string) *hitJudge {
+	w := &walker{root: root, absRoot: absRoot, seen: map[string]bool{}, nested: map[string]*ignorer{},
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}}
+	w.ign = newIgnorer(absRoot)
+	return &hitJudge{w: w}
+}
+
+// skip reports whether the walk would have skipped rel (root-relative,
+// "/"-joined), found under a named directory of from components.
+func (j *hitJudge) skip(rel string, from int) bool {
+	parts := strings.Split(rel, "/")
+	for i := 1; i < len(parts); i++ {
+		dir := strings.Join(parts[:i], "/")
+		if i > from && parts[i-1] == ".git" {
+			return true
+		}
+		j.w.noteNested(dir, filepath.Join(j.w.absRoot, filepath.FromSlash(dir)))
+		if i > from && j.w.ignored(dir, true, from) {
+			j.w.skipDirs[dir] = true
+			return true
+		}
+	}
+	if j.w.ignored(rel, false, from) {
+		j.w.skipFiles[rel] = true
+		return true
+	}
+	return false
+}
+
+// binary counts rel as a binary file the walk would not serve.
+func (j *hitJudge) binary(rel string) { j.w.skipBin[rel] = true }
+
+// served notes rel as served, so it is not counted as skipped.
+func (j *hitJudge) served(rel string) { j.w.seen[rel] = true }
+
+// counts is what was dropped and not served after all.
+func (j *hitJudge) counts() WalkSkipped { return j.w.skipCounts() }
+
 // skipCounts is what the walk skipped and did not serve after all: a file
 // another path served is not counted, nor a directory a named path entered.
 func (w *walker) skipCounts() WalkSkipped {

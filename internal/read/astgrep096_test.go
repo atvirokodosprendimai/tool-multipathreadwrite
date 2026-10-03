@@ -142,7 +142,7 @@ func TestAstGrepNeverReceivesANamedPathTheBoundaryRefuses(t *testing.T) {
 		refused = append(refused, "pipe")
 	}
 	argv := installRecordingAstGrep(t, hit096("a.go"))
-	specs, probs, err := AstGrep(root, append([]string{"a.go"}, refused...), "Target", nil)
+	specs, probs, err := AstGrep(root, append([]string{"a.go"}, refused...), "Target", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestAstGrepDoesNotRunWhenEveryNamedPathIsRefused(t *testing.T) {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 	argv := installRecordingAstGrep(t, hit096("a.go"))
-	specs, probs, err := AstGrep(root, []string{"../out", "dlink"}, "Target", nil)
+	specs, probs, err := AstGrep(root, []string{"../out", "dlink"}, "Target", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestAstGrepHandsAPathThatIsTheRootOnAsDot(t *testing.T) {
 		{"the root reached through a link, named absolutely", linked, linked},
 	} {
 		argv := installRecordingAstGrep(t, hit096("a.go"))
-		specs, probs, err := AstGrep(c.root, []string{c.name}, "Target", nil)
+		specs, probs, err := AstGrep(c.root, []string{c.name}, "Target", nil, AstGrepOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -235,7 +235,7 @@ func TestAstGrepHandsOnTheAbsolutePathItJudged(t *testing.T) {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 	argv := installRecordingAstGrep(t, hit096("f.go", "-p", "d/g.go"))
-	specs, probs, err := AstGrep(root, []string{"self/../f.go", "-p", filepath.Join(root, "dlink")}, "Target", nil)
+	specs, probs, err := AstGrep(root, []string{"self/../f.go", "-p", filepath.Join(root, "dlink")}, "Target", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +265,7 @@ func TestAstGrepRefusesANamedPathItCannotOpen(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chmod(full, 0o755) })
 	}
 	argv := installRecordingAstGrep(t, hit096("a.go"))
-	specs, probs, err := AstGrep(root, []string{"a.go", "secret.go", "locked"}, "Target", nil)
+	specs, probs, err := AstGrep(root, []string{"a.go", "secret.go", "locked"}, "Target", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +292,7 @@ func TestARefusedNamedDirectoryIsNoAstGrepStart(t *testing.T) {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 	installRecordingAstGrep(t, hit096("d/f.go"))
-	specs, probs, err := AstGrep(root, []string{".", "dlink"}, "Target", []string{"d"})
+	specs, probs, err := AstGrep(root, []string{".", "dlink"}, "Target", []string{"d"}, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

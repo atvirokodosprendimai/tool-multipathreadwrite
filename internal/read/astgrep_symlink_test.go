@@ -34,7 +34,7 @@ func TestAstGrepAgreesWithWalkThroughSymlinks(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			installFakeAstGrepJSON(t, `[{"file":"`+tc.hit+`","range":{"start":{"line":0},"end":{"line":0}}}]`, 0)
-			ag, agProblems, err := AstGrep(root, tc.named, "Target", tc.exclude)
+			ag, agProblems, err := AstGrep(root, tc.named, "Target", tc.exclude, AstGrepOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -67,7 +67,7 @@ func TestAstGrepJudgesAFileSymlinkByItsTarget(t *testing.T) {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 	installFakeAstGrepJSON(t, `[{"file":"alias.go","range":{"start":{"line":0},"end":{"line":0}}}]`, 0)
-	ag, _, err := AstGrep(root, nil, "Target", []string{"real.go"})
+	ag, _, err := AstGrep(root, nil, "Target", []string{"real.go"}, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

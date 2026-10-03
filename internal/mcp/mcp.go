@@ -578,7 +578,7 @@ func tools() []tool {
 					},
 					"no_ignore": map[string]any{
 						"type":        "boolean",
-						"description": "Walk every file. By default a grep walk inside a git checkout skips what .gitignore and .git/info/exclude ignore, and any walk skips a binary file (a UTF-16/32 BOM, or a NUL in the first 8 KiB); the answer counts what was skipped under `skipped`. Refused without `grep`. A path you name is walked either way.",
+						"description": "Walk every file. By default a grep or ast_grep walk inside a git checkout skips what .gitignore and .git/info/exclude ignore, and any walk skips a binary file (a UTF-16/32 BOM, or a NUL in the first 8 KiB); the answer counts what was skipped under `skipped`. Refused without `grep` or `ast_grep`. A path you name is walked either way.",
 					},
 					"max_lines": map[string]any{
 						"type":        "integer",

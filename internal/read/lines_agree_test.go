@@ -86,7 +86,7 @@ func TestAstGrepReportsAHitInACROnlyFile(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "cr.go", "one\rtwo\rthree\r")
 	installFakeAstGrepJSON(t, `[{"file":"cr.go","range":{"start":{"line":1},"end":{"line":1}}}]`, 0)
-	specs, problems, err := AstGrep(root, nil, "x", nil)
+	specs, problems, err := AstGrep(root, nil, "x", nil, AstGrepOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

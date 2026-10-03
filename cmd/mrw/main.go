@@ -687,7 +687,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.BoolFlag{
 				Name:  "no-ignore",
-				Usage: "under --grep, walk every regular file: no .gitignore, no binary skip (ADR-116)",
+				Usage: "under --grep or --ast-grep, walk every regular file: no .gitignore, no binary skip (ADR-116, ADR-122)",
 			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
@@ -747,8 +747,8 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if len(excludes) > 0 && !grepSet && !astSet {
 				return cli.Exit("--exclude without --grep: there is nothing to exclude from", exitUsage)
 			}
-			if cmd.Bool("no-ignore") && !grepSet {
-				return cli.Exit("--no-ignore without --grep: it changes what a --grep walk skips", exitUsage)
+			if cmd.Bool("no-ignore") && !grepSet && !astSet {
+				return cli.Exit("--no-ignore without --grep or --ast-grep: it changes what their walk skips", exitUsage)
 			}
 			if grepSet && astSet {
 				return cli.Exit("--grep and --ast-grep are two sources of specs; use one", exitUsage)
@@ -838,7 +838,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 						return cli.Exit(fmt.Sprintf("%s: a range and --ast-grep are two answers to one question", a), exitUsage)
 					}
 				}
-				specs, refusals, err = read.AstGrep(root, posArgs, astPattern, excludes)
+				specs, refusals, err = read.AstGrep(root, posArgs, astPattern, excludes, read.AstGrepOptions{NoIgnore: cmd.Bool("no-ignore"), Skipped: &skipped})
 				if errors.Is(err, read.ErrAstGrepMissing) {
 					return cli.Exit(err.Error(), exitUsage)
 				}
