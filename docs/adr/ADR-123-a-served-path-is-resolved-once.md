@@ -69,6 +69,7 @@ See `tasks/README.md`: T1.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | a cached base stands for a directory the base no longer names | Low | High | an entry stands only while the base followed now is the same directory by identity; `TestAStateBaseBehindARepointedLinkIsRefused` (a re-pointed link) and `TestACaseSpellingOfARecreatedStateBaseIsRefused` (a recreated base) |
+| a Windows base reached through a junction is judged wrongly | Low | High | reasoned from Go's source (os.Stat follows a final junction; an upper junction is followed when the file ID loads, inside the check); no test covers a junctioned base, and the re-pointed-link test skips on a host without symlink privilege — the Windows session that times S3 should also run it |
 
 ## Rollback
 
