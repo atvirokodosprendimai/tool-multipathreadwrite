@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -526,7 +527,7 @@ func (w *walker) skipCounts() WalkSkipped {
 	// (the Codex re-review of #348).
 	folded := map[string][]string{}
 	for k := range entered {
-		f := strings.ToLower(k)
+		f := foldKey(k)
 		folded[f] = append(folded[f], k)
 	}
 	for d := range w.skipDirs {
@@ -561,7 +562,7 @@ func (w *walker) reached(dir string, entered map[string]bool, folded map[string]
 	if entered[dir] || startBelow(w.starts, dir) {
 		return true
 	}
-	for _, k := range folded[strings.ToLower(dir)] {
+	for _, k := range folded[foldKey(dir)] {
 		if w.sameDir(k, dir) {
 			return true
 		}
@@ -572,6 +573,22 @@ func (w *walker) reached(dir string, entered map[string]bool, folded map[string]
 		}
 	}
 	return false
+}
+
+// foldKey maps each rune of s to the smallest member of its simple case-fold
+// orbit, so two names strings.EqualFold calls equal share a key: lowercasing
+// does not (σ and ς fold together and lowercase apart; the Codex re-review of
+// #348).
+func foldKey(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		low := r
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			low = min(low, f)
+		}
+		b.WriteRune(low)
+	}
+	return b.String()
 }
 
 // sameDir reports whether a and b, root-relative and "/"-joined, name one

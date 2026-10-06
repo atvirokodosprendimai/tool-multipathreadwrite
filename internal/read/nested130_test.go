@@ -126,3 +126,16 @@ func TestADirectoryBothIgnoredAndNestedCountsAlikeOnBothFinders(t *testing.T) {
 		t.Errorf("walk skipped %+v, ast-grep skipped %+v, want both %+v", walked, judged, want)
 	}
 }
+
+// The Codex re-review of #348: the index key folds as strings.EqualFold does,
+// so names it calls equal are never kept in two buckets.
+func TestTheFoldKeyMatchesEqualFold(t *testing.T) {
+	for _, p := range [][2]string{{"nested", "NESTED"}, {"σ", "ς"}, {"Σ", "ς"}, {"k", "K"}} {
+		if !strings.EqualFold(p[0], p[1]) || foldKey(p[0]) != foldKey(p[1]) {
+			t.Errorf("%q and %q: EqualFold %v, keys %q %q", p[0], p[1], strings.EqualFold(p[0], p[1]), foldKey(p[0]), foldKey(p[1]))
+		}
+	}
+	if foldKey("a") == foldKey("b") {
+		t.Error("a and b share a key")
+	}
+}
