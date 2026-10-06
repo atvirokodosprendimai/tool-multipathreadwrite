@@ -1081,14 +1081,17 @@ func writtenSoFar(files []FileResult) string {
 	return "ALREADY WRITTEN: " + strings.Join(names, ", ")
 }
 
-// forceRemedy drops the "or pass --force" advice from a refusal on a surface
-// that has no Force to pass (ADR-128): advice a caller cannot take is noise.
-func forceRemedy(msg string, noForce bool) string {
+// forceRemedy drops the "or pass --force" advice from a refusal's FORMAT on a
+// surface that has no Force to pass (ADR-128): advice a caller cannot take is
+// noise. It works on the format, before the caller's paths and patterns are
+// put in, so a file name or a regex holding the phrase is left as it is (the
+// Codex review of #343).
+func forceRemedy(format string, noForce bool) string {
 	if !noForce {
-		return msg
+		return format
 	}
-	msg = strings.Replace(msg, ", or pass --force to overwrite blind", "", 1)
-	return strings.Replace(msg, ", or pass --force", "", 1)
+	format = strings.Replace(format, ", or pass --force to overwrite blind", "", 1)
+	return strings.Replace(format, ", or pass --force", "", 1)
 }
 
 // planFile validates one file's hunks and splices its new content. It records a
@@ -1099,7 +1102,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	fail := func(h hunk, format string, a ...any) {
 		out[h.Index] = HunkResult{
 			Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine,
-			Status: StatusFailed, Reason: forceRemedy(fmt.Sprintf(format, a...), opt.NoForce),
+			Status: StatusFailed, Reason: fmt.Sprintf(forceRemedy(format, opt.NoForce), a...),
 		}
 		ok = false
 	}

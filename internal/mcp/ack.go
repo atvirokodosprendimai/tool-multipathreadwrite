@@ -410,12 +410,18 @@ func promote(root string, acks []string) ([]string, error) {
 	byVersion := map[key][][2]int{}
 	changed := false
 	var unknown []string
+	matched := map[string]bool{}
 	for _, ck := range acks {
 		p, ok := store[ck]
 		if !ok {
-			unknown = append(unknown, ck)
+			// An id this call already used is not unknown: the caller sent it
+			// twice (the in-process review of #343).
+			if !matched[ck] {
+				unknown = append(unknown, ck)
+			}
 			continue
 		}
+		matched[ck] = true
 		k := key{p.Path, p.SHA}
 		byVersion[k] = append(byVersion[k], [2]int{p.Start, p.End})
 		delete(store, ck)

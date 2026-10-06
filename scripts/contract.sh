@@ -8595,6 +8595,18 @@ grep -q 'has not been read' <<<"$out" && ! grep -q -- '--force' <<<"$out" && ok 
 printf '@@ unread226.md 1 replace\nx\n' > "$WORK/p226"
 out=$(m write --no-check "$WORK/p226" 2>&1)
 grep -q -- '--force' <<<"$out" && ok "the pair: the CLI's refusal keeps it" || bad "cli force: $out"
+m read a.go >/dev/null
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:1"],"ack":["nosuch226"]}}}\n' | m mcp 2>/dev/null)
+grep -q 'matched no checkpoint.*nosuch226' <<<"$out" && ok "an ack id that matches nothing is named" || bad "unknown ack: $out"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:1"]}}}\n' | m mcp 2>/dev/null)
+! grep -q 'matched no checkpoint' <<<"$out" && ok "the pair: a read with no stale ack names none" || bad "no ack: $out"
+printf '{"check":"sleep 30"}\n' > "$R/.quality-harness.json"
+m read a.go >/dev/null
+s226=$SECONDS
+out=$({ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\\nfunc A() int { return 9 }\\n"}}}\n'; sleep 1; printf '{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7}}\n'; sleep 2; } | perl -e 'alarm shift; exec @ARGV' 25 "$MRW" -C "$R" mcp 2>/dev/null)
+t226=$((SECONDS - s226))
+grep -q '"skipped":"interrupted"' <<<"$out" && [ "$t226" -lt 15 ] && ok "a cancel stops the write's running check, reported interrupted" || bad "cancel (${t226}s): $(head -c 400 <<<"$out")"
+rm -f "$R/.quality-harness.json"
 
 # 223. ADR-125: a target mrw cannot open is refused on its hunk, naming why.
 # A plan over a.txt and a write-only b.txt (mode 200: not read-only, so ADR-076

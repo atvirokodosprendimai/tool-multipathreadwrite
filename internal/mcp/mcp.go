@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"regexp"
 	"slices"
 	"strconv"
@@ -798,35 +799,48 @@ func integral(whole, frac, exp []byte) bool {
 }
 
 // calls holds the cancel of each running tools/call by its request id
-// (ADR-128), so notifications/cancelled can stop it.
+// (ADR-128), so notifications/cancelled can stop it. Each entry is the call's
+// own token, so a call that finishes removes only its own entry, never one a
+// later call under a reused id put there (the in-process review of #343).
 var calls = struct {
 	sync.Mutex
-	m map[string]context.CancelFunc
-}{m: map[string]context.CancelFunc{}}
+	m map[string]*callEntry
+}{m: map[string]*callEntry{}}
+
+// callEntry is one running call's cancel.
+type callEntry struct{ cancel context.CancelFunc }
 
 // registerCall gives a tools/call its context and keeps the cancel under the
 // request's id; the returned func forgets it and releases the context.
 func registerCall(id json.RawMessage) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	key := callKey(id)
+	e := &callEntry{cancel: cancel}
 	calls.Lock()
-	calls.m[key] = cancel
+	calls.m[key] = e
 	calls.Unlock()
 	return ctx, func() {
 		calls.Lock()
-		delete(calls.m, key)
+		if calls.m[key] == e {
+			delete(calls.m, key)
+		}
 		calls.Unlock()
 		cancel()
 	}
 }
 
-// callKey spells a request id one way, so 7 and 7 with spaces are one id.
+// callKey spells a request id by its value, not its spelling (the Codex review
+// of #343): "a" and "\u0061" are one string id, and 7, 7.0 and 7e0 one number
+// id, as validRequestID already judges them. A string and a number stay apart.
 func callKey(id json.RawMessage) string {
-	var b bytes.Buffer
-	if json.Compact(&b, id) != nil {
-		return string(id)
+	var s string
+	if json.Unmarshal(id, &s) == nil {
+		return "s:" + s
 	}
-	return b.String()
+	if r, ok := new(big.Rat).SetString(strings.TrimSpace(string(id))); ok {
+		return "n:" + r.RatString()
+	}
+	return "?:" + string(id)
 }
 
 // cancelCall stops the running call notifications/cancelled names. A cancel
@@ -840,9 +854,9 @@ func cancelCall(params json.RawMessage) {
 		return
 	}
 	calls.Lock()
-	cancel := calls.m[callKey(p.RequestID)]
+	e := calls.m[callKey(p.RequestID)]
 	calls.Unlock()
-	if cancel != nil {
-		cancel()
+	if e != nil {
+		e.cancel()
 	}
 }

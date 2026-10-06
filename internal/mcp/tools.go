@@ -916,15 +916,18 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 
 // verifyUnlocked runs land's check and steps with gate released and Serve's
 // loop told it may read on (ADR-121). Verify touches neither the ledger nor
-// the pending acks. The call's per-call values are restored when gate is taken
-// back, since another call may have set and cleared them meanwhile; gate is
-// taken back by defer, so a panic in Verify does not unlock it twice.
+// the pending acks. The call's per-call values — its era, its reserve, its
+// release, its context and its unknown-ack note — are restored when gate is
+// taken back, since another call may have set and cleared them meanwhile (the
+// note went missing or onto another call's answer before it was among them:
+// both reviews of #343); gate is taken back by defer, so a panic in Verify does
+// not unlock it twice.
 func verifyUnlocked(land *writer.Landed) writer.Verified {
-	modern, reserve, release, ctx := callModern, callReserve, callRelease, callCtx
+	modern, reserve, release, ctx, note := callModern, callReserve, callRelease, callCtx, callAckNote
 	gate.Unlock()
 	defer func() {
 		gate.Lock()
-		callModern, callReserve, callRelease, callCtx = modern, reserve, release, ctx
+		callModern, callReserve, callRelease, callCtx, callAckNote = modern, reserve, release, ctx, note
 	}()
 	if release != nil {
 		release()
@@ -933,7 +936,7 @@ func verifyUnlocked(land *writer.Landed) writer.Verified {
 }
 
 // noteAcks sets the call's unknown-ack note (ADR-128). The note is advisory:
-// callTool adds it only when the answer still fits the ceiling with it, so it
+// callToolCtx adds it only when the answer still fits the ceiling with it, so it
 // never moves a write's floor or refuses an answer that fits without it.
 func noteAcks(unknown []string) {
 	callAckNote = ackNote(unknown)

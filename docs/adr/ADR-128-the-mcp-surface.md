@@ -27,7 +27,7 @@ A replace whose body equals the line reports `written: true` with equal shas: a 
 ## Existing Primitives Audit
 
 - **`check.Interrupted`** (ADR-080) — what a cancelled check already reports; a cancel reaches it through the context.
-- **`callModern` / `callRelease`** (ADR-067, ADR-121) — per-call values set under `gate` and restored by `verifyUnlocked`; the call's context joins them.
+- **`callModern` / `callRelease`** (ADR-067, ADR-121) — per-call values set under `gate` and restored by `verifyUnlocked`; the call's context and its unknown-ack note join them (a note left out of that restore went missing or onto another call's answer: both reviews of #343).
 - **`apply.Options`** — the engine's per-run options; `NoForce` joins `Force`.
 
 ## Decision
