@@ -1,10 +1,14 @@
 package mcp
 
 import (
+	"bytes"
 	"encoding/json"
+	"math/big"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -186,5 +190,37 @@ func TestANullCancelIDCancelsNothing(t *testing.T) {
 	cancelCall(json.RawMessage(`{"requestId":""}`))
 	if ctx.Err() == nil {
 		t.Error("the pair: a cancel for \"\" did not cancel it")
+	}
+}
+
+// The in-process review of #343. Reducing the exponent through big.Int made
+// an id with a 4M-digit exponent cost 20 s on every request. exponentPlus is
+// exact, as big.Int is, and linear.
+func TestAnExponentIsReducedExactlyAndInLinearTime(t *testing.T) {
+	cases := [][2]string{{"", "0"}, {"+7", "-3"}, {"-0", "5"}, {"999999999999999999", "5"}, {"-1000000000000000000", "3"},
+		{"999999999999999999999", "1"}, {"1000000000000000000", "-1"}, {"-999999999999999999999", "-1"}, {"000123456789012345678901", "-7"}}
+	r := rand.New(rand.NewSource(128))
+	for range 2000 {
+		e := strconv.FormatInt(r.Int63(), 10) + strings.Repeat("9", r.Intn(30))
+		if r.Intn(2) == 0 {
+			e = "-" + e
+		}
+		cases = append(cases, [2]string{e, strconv.Itoa(r.Intn(2000) - 1000)})
+	}
+	for _, c := range cases {
+		adj, _ := strconv.ParseInt(c[1], 10, 64)
+		want, _ := new(big.Int).SetString(strings.TrimPrefix(c[0]+"0", "+"), 10)
+		want.Div(want, big.NewInt(10)).Add(want, big.NewInt(adj))
+		if got := exponentPlus([]byte(c[0]), adj); got != want.String() {
+			t.Errorf("exponentPlus(%q, %d) = %s, want %s", c[0], adj, got, want)
+		}
+	}
+	id := append([]byte("1e"), bytes.Repeat([]byte("7"), 4<<20)...)
+	start := time.Now()
+	if !validRequestID(id) || callKey(id) == "" {
+		t.Fatal("a 4M-digit exponent id was refused")
+	}
+	if took := time.Since(start); took > 3*time.Second {
+		t.Errorf("a 4M-digit exponent took %s to judge and key", took)
 	}
 }

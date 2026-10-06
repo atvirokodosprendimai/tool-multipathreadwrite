@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"regexp"
 	"slices"
 	"strconv"
@@ -829,18 +828,72 @@ func integral(whole, frac, exp []byte) bool {
 	if strings.TrimLeft(sig, "0") == "" {
 		return true // zero, however it is spelled
 	}
-	// In big.Int, as callKey reduces it: an int sum of an exponent near
+	// By exponentPlus, as callKey reduces it: an int sum of an exponent near
 	// MaxInt64 and the trailing zeros overflowed, so 10e9223372036854775807 was
 	// refused while 1e9223372036854775808, the same value, was accepted, and a
 	// cancel spelled one way missed the call spelled the other (the Codex
 	// review of #343).
-	e := new(big.Int)
-	if len(exp) > 0 {
-		e.SetString(strings.TrimPrefix(string(exp), "+"), 10)
+	return !strings.HasPrefix(exponentPlus(exp, int64(len(digits)-len(sig))-int64(len(frac))), "-")
+}
+
+// exponentPlus returns exp + adj as a canonical decimal string. adj is a digit
+// count, bounded by the 64 MiB request line, so it is far below 10^18. It
+// works in time linear in exp's length: big.Int's decimal conversion is
+// quadratic, and an id whose exponent had 4M digits took 20 s on every
+// request (the in-process review of #343).
+func exponentPlus(exp []byte, adj int64) string {
+	s := string(exp)
+	neg := strings.HasPrefix(s, "-")
+	s = strings.TrimLeft(strings.TrimLeft(s, "+-"), "0")
+	const width = 18
+	if len(s) <= width {
+		var n int64
+		if s != "" {
+			n, _ = strconv.ParseInt(s, 10, 64)
+		}
+		if neg {
+			n = -n
+		}
+		return strconv.FormatInt(n+adj, 10)
 	}
-	e.Sub(e, big.NewInt(int64(len(frac))))
-	e.Add(e, big.NewInt(int64(len(digits)-len(sig))))
-	return e.Sign() >= 0
+	// |exp| ≥ 10^18 > |adj|: the sign is exp's, and the magnitude moves by
+	// adj toward it, carrying at most once out of the low 18 digits.
+	k := adj
+	if neg {
+		k = -adj
+	}
+	head := []byte(s[:len(s)-width])
+	tail, _ := strconv.ParseInt(s[len(s)-width:], 10, 64)
+	tail += k
+	switch {
+	case tail >= 1e18:
+		tail -= 1e18
+		for i := len(head) - 1; ; i-- {
+			if i < 0 {
+				head = append([]byte{'1'}, head...)
+				break
+			}
+			if head[i] != '9' {
+				head[i]++
+				break
+			}
+			head[i] = '0'
+		}
+	case tail < 0:
+		tail += 1e18
+		for i := len(head) - 1; i >= 0; i-- {
+			if head[i] != '0' {
+				head[i]--
+				break
+			}
+			head[i] = '9'
+		}
+	}
+	mag := strings.TrimLeft(string(head)+fmt.Sprintf("%018d", tail), "0")
+	if neg {
+		return "-" + mag
+	}
+	return mag
 }
 
 // calls holds the cancel of each running tools/call by its request id
@@ -895,17 +948,11 @@ func callKey(id json.RawMessage) string {
 	if trimmed == "" {
 		return "n:0"
 	}
-	exp := new(big.Int)
-	if len(m[3]) > 0 {
-		exp.SetString(strings.TrimPrefix(string(m[3]), "+"), 10)
-	}
-	exp.Sub(exp, big.NewInt(int64(len(m[2]))))
-	exp.Add(exp, big.NewInt(int64(len(digits)-len(trimmed))))
 	sign := ""
 	if raw[0] == '-' {
 		sign = "-"
 	}
-	return "n:" + sign + trimmed + "e" + exp.String()
+	return "n:" + sign + trimmed + "e" + exponentPlus(m[3], int64(len(digits)-len(trimmed))-int64(len(m[2])))
 }
 
 // cancelCall stops the running call notifications/cancelled names. A cancel
