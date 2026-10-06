@@ -520,13 +520,22 @@ func (w *walker) skipCounts() WalkSkipped {
 			entered[d] = true
 		}
 	}
+	// Indexed by folded spelling, so a skipped directory is compared by
+	// identity only with the entered ones spelled alike but for case: a scan
+	// of every entered directory per skipped one was quadratic in the tree
+	// (the Codex re-review of #348).
+	folded := map[string][]string{}
+	for k := range entered {
+		f := strings.ToLower(k)
+		folded[f] = append(folded[f], k)
+	}
 	for d := range w.skipDirs {
-		if !w.reached(d, entered) {
+		if !w.reached(d, entered, folded) {
 			sk.IgnoredDirs++
 		}
 	}
 	for d := range w.skipNested {
-		if !w.reached(d, entered) {
+		if !w.reached(d, entered, folded) {
 			sk.Nested++
 		}
 	}
@@ -548,11 +557,11 @@ func startBelow(starts []string, dir string) bool {
 // then by identity, since on a filesystem that folds case a start spelled
 // NESTED enters nested — compared as strings, the count kept a directory a
 // named start had walked (the Codex review of #348).
-func (w *walker) reached(dir string, entered map[string]bool) bool {
+func (w *walker) reached(dir string, entered map[string]bool, folded map[string][]string) bool {
 	if entered[dir] || startBelow(w.starts, dir) {
 		return true
 	}
-	for k := range entered {
+	for _, k := range folded[strings.ToLower(dir)] {
 		if w.sameDir(k, dir) {
 			return true
 		}
