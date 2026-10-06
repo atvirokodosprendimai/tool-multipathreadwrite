@@ -102,6 +102,7 @@ See `tasks/README.md`: T1, then T2.
 
 - Commit-loop failures, including the commit loop's own recheck of a target just before its rename, even when it refuses the plan's first target before anything was renamed (permanent: boundary: inside the commit loop a failure can follow renames already made, and ADR-066's PARTIALLY APPLIED / NOTHING WRITTEN with exit 2 is how a caller learns which; a change landing in the instant between the staging check and the commit loop is the window ADR-106 already names)
 - The CLI `read --json` receipt's paths (permanent: boundary: the read side is its own surface; ADR-091 converted `mrw_read`'s, and a CLI read's spelling has had no report)
+- Paths quoted inside a reason's prose, beyond the hunk's own path where the reason leads with it and the `mrw read X` advice — a rename destination, the ALREADY WRITTEN list, a path the system printed (permanent: boundary: a reason is prose that also quotes the operating system's errors, and a filename may hold any character, so no rule can tell mrw's quoted path from part of a system-printed one; three Codex rounds on #347 each found a new way a boundary rule half-rewrote a path. The receipt's path fields — what a caller parses — are all `/`; the reason keeps the platform's spelling beyond those two template positions)
 
 ## Risks
 
