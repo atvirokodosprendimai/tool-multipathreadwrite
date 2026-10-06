@@ -408,12 +408,12 @@ func newHitJudge(root, absRoot string) *hitJudge {
 // skip reports whether the walk would have skipped rel (root-relative,
 // "/"-joined), found under a named directory of from components.
 func (j *hitJudge) skip(rel string, from int) bool {
+	if underGit(rel, from) {
+		return true
+	}
 	parts := strings.Split(rel, "/")
 	for i := 1; i < len(parts); i++ {
 		dir := strings.Join(parts[:i], "/")
-		if i > from && parts[i-1] == ".git" {
-			return true
-		}
 		j.w.noteNested(dir, filepath.Join(j.w.absRoot, filepath.FromSlash(dir)))
 		if i > from && j.w.ignored(dir, true, from) {
 			j.w.skipDirs[dir] = true

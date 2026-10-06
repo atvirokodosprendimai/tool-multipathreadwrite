@@ -8547,6 +8547,8 @@ out=$(env PATH="$d229:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' --no-ig
 grep -q '==> b229.go' <<<"$out" && ! grep -q '==> .git/x229.go' <<<"$out" && ok "and serves b229.go, not the hit inside .git" || bad "--no-ignore .git: $out"
 out=$(env PATH="$d229:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' 2>&1); want 0 $? "the pair: without --no-ignore it reads too"
 grep -q '==> b229.go' <<<"$out" && ! grep -q '==> .git/x229.go' <<<"$out" && ok "and serves b229.go alone" || bad "ast-grep .git: $out"
+out=$(env PATH="$d229:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' --no-ignore .git 2>&1); want 0 $? "--ast-grep --no-ignore over a named .git reads"
+grep -q '==> .git/x229.go' <<<"$out" && ok "and serves the hit inside the .git it was given" || bad "named .git: $out"
 rm -rf "$d229" "$R/.git"
 
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
