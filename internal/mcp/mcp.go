@@ -15,6 +15,7 @@ package mcp
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -368,6 +369,10 @@ func write(w *bufio.Writer, resp any) error {
 // silent — the distinction a plain "return a response" signature cannot make.
 func handle(line string, serveRoot string, release func(), notify func(any)) (response, bool) {
 	line = strings.TrimRight(line, "\r\n")
+	// ADR-128: a UTF-8 byte-order mark before a message is not part of it. A
+	// Windows host writes one at the start of a text stream, and the first
+	// request — initialize — was a parse error.
+	line = strings.TrimPrefix(line, "\ufeff")
 	if strings.TrimSpace(line) == "" {
 		// A blank line carries no message. Answering it with an error would
 		// put a complaint on the wire about something nobody sent.
@@ -393,6 +398,11 @@ func handle(line string, serveRoot string, release func(), notify func(any)) (re
 	// which includes notifications/initialized — answering that one is a
 	// protocol violation some hosts treat as fatal.
 	if len(req.ID) == 0 {
+		// ADR-128: a host's cancel stops the call it names while that call is
+		// still running; nothing is answered either way.
+		if req.Method == "notifications/cancelled" {
+			cancelCall(req.Params)
+		}
 		return response{}, false
 	}
 
@@ -440,7 +450,9 @@ func handle(line string, serveRoot string, release func(), notify func(any)) (re
 			stop := startProgress(tok, notify)
 			defer stop()
 		}
-		res, rpcErr := callTool(serveRoot, req.Params, e.modern, release)
+		ctx, finished := registerCall(req.ID)
+		defer finished()
+		res, rpcErr := callToolCtx(ctx, serveRoot, req.Params, e.modern, release)
 		if rpcErr != nil {
 			return response{JSONRPC: "2.0", ID: req.ID, Error: rpcErr}, true
 		}
@@ -783,4 +795,54 @@ func integral(whole, frac, exp []byte) bool {
 		e = n
 	}
 	return e-len(frac)+(len(digits)-len(sig)) >= 0
+}
+
+// calls holds the cancel of each running tools/call by its request id
+// (ADR-128), so notifications/cancelled can stop it.
+var calls = struct {
+	sync.Mutex
+	m map[string]context.CancelFunc
+}{m: map[string]context.CancelFunc{}}
+
+// registerCall gives a tools/call its context and keeps the cancel under the
+// request's id; the returned func forgets it and releases the context.
+func registerCall(id json.RawMessage) (context.Context, func()) {
+	ctx, cancel := context.WithCancel(context.Background())
+	key := callKey(id)
+	calls.Lock()
+	calls.m[key] = cancel
+	calls.Unlock()
+	return ctx, func() {
+		calls.Lock()
+		delete(calls.m, key)
+		calls.Unlock()
+		cancel()
+	}
+}
+
+// callKey spells a request id one way, so 7 and 7 with spaces are one id.
+func callKey(id json.RawMessage) string {
+	var b bytes.Buffer
+	if json.Compact(&b, id) != nil {
+		return string(id)
+	}
+	return b.String()
+}
+
+// cancelCall stops the running call notifications/cancelled names. A cancel
+// for a call that finished, or that never existed, is ignored, as the
+// protocol says a receiver may.
+func cancelCall(params json.RawMessage) {
+	var p struct {
+		RequestID json.RawMessage `json:"requestId"`
+	}
+	if json.Unmarshal(params, &p) != nil || len(p.RequestID) == 0 {
+		return
+	}
+	calls.Lock()
+	cancel := calls.m[callKey(p.RequestID)]
+	calls.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }

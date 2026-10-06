@@ -76,6 +76,12 @@ var (
 	// callRelease tells Serve's loop it may read on (ADR-121); nil when no
 	// loop is waiting, as in a direct call.
 	callRelease func()
+	// callCtx is the call's context (ADR-128): cancelled when the host sends
+	// notifications/cancelled for it, which stops a running check.
+	callCtx = context.Background()
+	// callAckNote names ack ids that matched no checkpoint (ADR-128); it opens
+	// the answer's text.
+	callAckNote string
 )
 
 // ceiling is the budget an in-call measurement compares against.
@@ -147,11 +153,12 @@ func readResult(structured any, report string, isErr bool) (callToolResult, *rpc
 	return res, err
 }
 
-// callTool routes one tools/call. Both tools are adapters: they parse what the
-// CLI parses, call the function the CLI calls, and return what it returned. The
-// moment one computes a verdict of its own there are two answers to "did this
-// apply?", which is the defect class this project exists to refuse.
-func callTool(root string, raw json.RawMessage, modern bool, release func()) (callToolResult, *rpcError) {
+// callToolCtx routes one tools/call under the call's own context (ADR-128),
+// which notifications/cancelled can cancel. Both tools are adapters: they parse
+// what the CLI parses, call the function the CLI calls, and return what it
+// returned. The moment one computes a verdict of its own there are two answers
+// to "did this apply?", which is the defect class this project exists to refuse.
+func callToolCtx(ctx context.Context, root string, raw json.RawMessage, modern bool, release func()) (callToolResult, *rpcError) {
 	var p callParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: "params: " + err.Error()}
@@ -171,11 +178,13 @@ func callTool(root string, raw json.RawMessage, modern bool, release func()) (ca
 	// that follows it are one transaction as far as another caller is concerned.
 	gate.Lock()
 	defer gate.Unlock()
-	callModern, callReserve, callRelease = modern, 0, release
+	callModern, callReserve, callRelease, callCtx, callAckNote = modern, 0, release, ctx, ""
 	if modern {
 		callReserve = encodedSize(decorateCall(callToolResult{})) - encodedSize(callToolResult{})
 	}
-	defer func() { callModern, callReserve, callRelease = false, 0, nil }()
+	defer func() {
+		callModern, callReserve, callRelease, callCtx, callAckNote = false, 0, nil, context.Background(), ""
+	}()
 
 	var res callToolResult
 	var rpcErr *rpcError
@@ -204,6 +213,14 @@ func callTool(root string, raw json.RawMessage, modern bool, release func()) (ca
 	// the promise the record is named after. Enumerating return sites is how
 	// that happened; a funnel cannot be forgotten. Found by the Codex review of
 	// #135.
+	if callAckNote != "" && len(res.Content) > 0 {
+		noted := res
+		noted.Content = append([]contentBlock(nil), res.Content...)
+		noted.Content[0].Text = callAckNote + "\n" + noted.Content[0].Text
+		if encodedSize(decorateCall(noted)) <= MaxResultChars {
+			res = noted
+		}
+	}
 	return withinCeiling(decorateCall(res))
 }
 
@@ -286,9 +303,11 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	}
 	// Promote before serving: the caller is acknowledging the PREVIOUS page,
 	// and a write in the same turn must see the licence this call grants.
-	if err := promote(root, a.Ack); err != nil {
+	unknown, err := promote(root, a.Ack)
+	if err != nil {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + err.Error()}
 	}
+	noteAcks(unknown)
 	// With grep, no spec is required at all — the walk starts at the root, the
 	// way `mrw read --grep P` with no paths does. Without it, a read with
 	// nothing to read is the caller's mistake.
@@ -731,9 +750,11 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	}
 	// The checkpoints for the page this plan was written against, promoted
 	// before the ledger is consulted (ADR-031).
-	if err := promote(root, a.Ack); err != nil {
+	unknown, err := promote(root, a.Ack)
+	if err != nil {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + err.Error()}
 	}
+	noteAcks(unknown)
 	if strings.TrimSpace(a.Plan) == "" {
 		return errorResult("mrw_write needs a plan"), nil
 	}
@@ -843,7 +864,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		steps = append(steps, check.Step{Name: n})
 	}
 	prep, err := writer.Prepare(writer.Request{Root: root, In: in, Check: mode, Steps: steps, StepFlag: "then",
-		Opts: apply.Options{DryRun: a.DryRun, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance}})
+		Opts: apply.Options{DryRun: a.DryRun, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance, NoForce: true}})
 	if err != nil {
 		return errorResult(gateRefusal(err)), nil
 	}
@@ -883,7 +904,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if land.CheckDue() || (len(steps) > 0 && land.Res.Applied && land.Res.Failed == 0) {
 		v = verifyUnlocked(land)
 	} else {
-		v = land.Verify(context.Background())
+		v = land.Verify(callCtx)
 	}
 	if v.CheckErr != nil {
 		return checkedReceipt(root, res, &v, v.CheckErr, true)
@@ -899,16 +920,40 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 // back, since another call may have set and cleared them meanwhile; gate is
 // taken back by defer, so a panic in Verify does not unlock it twice.
 func verifyUnlocked(land *writer.Landed) writer.Verified {
-	modern, reserve, release := callModern, callReserve, callRelease
+	modern, reserve, release, ctx := callModern, callReserve, callRelease, callCtx
 	gate.Unlock()
 	defer func() {
 		gate.Lock()
-		callModern, callReserve, callRelease = modern, reserve, release
+		callModern, callReserve, callRelease, callCtx = modern, reserve, release, ctx
 	}()
 	if release != nil {
 		release()
 	}
-	return land.Verify(context.Background())
+	return land.Verify(ctx)
+}
+
+// noteAcks sets the call's unknown-ack note (ADR-128). The note is advisory:
+// callTool adds it only when the answer still fits the ceiling with it, so it
+// never moves a write's floor or refuses an answer that fits without it.
+func noteAcks(unknown []string) {
+	callAckNote = ackNote(unknown)
+}
+
+// ackNote names, at most five, the ack ids that matched no checkpoint
+// (ADR-128): they licensed nothing, and a caller who sent them should know.
+func ackNote(unknown []string) string {
+	if len(unknown) == 0 {
+		return ""
+	}
+	shown := unknown
+	if len(shown) > 5 {
+		shown = shown[:5]
+	}
+	more := ""
+	if len(unknown) > len(shown) {
+		more = fmt.Sprintf(" (and %d more)", len(unknown)-len(shown))
+	}
+	return fmt.Sprintf("-- ack: %d id(s) matched no checkpoint and licensed nothing: %s%s", len(unknown), strings.Join(shown, ", "), more)
 }
 
 // writeReceipt is what mrw_write returns: the engine's own Result, plus the one
