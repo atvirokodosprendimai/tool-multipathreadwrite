@@ -3,6 +3,8 @@ package apply
 import (
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Slashed returns res with every root-relative path spelled with "/" where
@@ -46,25 +48,36 @@ func Slash(p string, sep rune) string {
 }
 
 // SlashIn spells each occurrence of the root-relative path p in text with "/"
-// where sep separated it — except where p is the tail of a longer path, an
-// absolute one the system printed, which is kept as written (ADR-132).
+// where sep separated it — only where it stands whole: not the tail of a
+// longer path (an absolute one the system printed, `C:\root\old\f.txt` for
+// `d\f.txt`) nor the head of one (`d\f.txt\child`), which are kept as written
+// (ADR-132; the Codex re-review of #347).
 func SlashIn(text, p string, sep rune) string {
 	if p == "" || !strings.ContainsRune(p, sep) {
 		return text
 	}
+	inName := func(r rune) bool {
+		return r == sep || r == '/' || r == '.' || r == '_' || r == '-' || unicode.IsLetter(r) || unicode.IsDigit(r)
+	}
 	var b strings.Builder
+	from := 0
 	for {
-		i := strings.Index(text, p)
+		i := strings.Index(text[from:], p)
 		if i < 0 {
-			b.WriteString(text)
+			b.WriteString(text[from:])
 			return b.String()
 		}
-		b.WriteString(text[:i])
-		if i > 0 && rune(text[i-1]) == sep {
-			b.WriteString(p)
-		} else {
+		i += from
+		end := i + len(p)
+		b.WriteString(text[from:i])
+		before, _ := utf8.DecodeLastRuneInString(text[:i])
+		after, _ := utf8.DecodeRuneInString(text[end:])
+		whole := (i == 0 || !inName(before)) && (end == len(text) || !inName(after))
+		if whole {
 			b.WriteString(Slash(p, sep))
+		} else {
+			b.WriteString(p)
 		}
-		text = text[i+len(p):]
+		from = end
 	}
 }

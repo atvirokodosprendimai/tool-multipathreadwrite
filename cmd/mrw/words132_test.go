@@ -63,6 +63,14 @@ func TestTheCLIReceiptSpellsPathsWithSlash(t *testing.T) {
 	if got := refused.Hunks[0].Reason; got != "d/f.txt has not been read: Run `mrw read d/f.txt` first (open C:\\r\\d\\f.txt: denied)" {
 		t.Errorf("the reason's own path is not spelled as the receipt spells it: %q", got)
 	}
+	// Only where the path stands whole: not the tail of a longer one the
+	// system printed, nor the head of one (the Codex re-review of #347).
+	for _, keep := range []string{"open C:\\root\\old\\f.txt: denied", "beside d\\f.txt\\child.txt"} {
+		r := shown(apply.Result{Hunks: []apply.HunkResult{{Path: `d\f.txt`, Status: apply.StatusFailed, Reason: keep}}})
+		if got := r.Hunks[0].Reason; got != keep {
+			t.Errorf("a longer path holding d\\f.txt was rewritten: %q -> %q", keep, got)
+		}
+	}
 }
 
 // ADR-132 Decision 4. The exit-2 line printed the whole error under a receipt
