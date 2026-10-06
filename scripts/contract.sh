@@ -8579,6 +8579,42 @@ touch "$g225/go"; wait "$p225"; want 0 $? "the pair: a write with no other write
 ! grep -q 'drift_writers' "$WORK/o225c" && ok "and carries no drift_writers" || bad "pair: $(head -c 400 "$WORK/o225c")"
 rm -rf "$g225" "$R/.quality-harness.json"
 
+# 226. ADR-128: the MCP surface. An initialize line that starts with a UTF-8
+# byte-order mark is answered, where it was a -32700 parse error; the pair: a
+# line that is not JSON still is one. An mrw_write on a file never read is
+# refused without the CLI's "pass --force", which mrw_write cannot take; the
+# pair: the CLI's own refusal of the same plan keeps it.
+fixture
+out=$(printf '\357\273\277{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+grep -q '"result"' <<<"$out" && ! grep -q -- '-32700' <<<"$out" && ok "a BOM'd initialize is answered" || bad "BOM initialize: $out"
+out=$(printf 'not json\n' | m mcp 2>/dev/null)
+grep -q -- '-32700' <<<"$out" && ok "the pair: a line that is not JSON is still a parse error" || bad "garbage: $out"
+printf 'never served\n' > "$R/unread226.md"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ unread226.md 1 replace\\nx\\n"}}}\n' | m mcp 2>/dev/null)
+grep -q 'has not been read' <<<"$out" && ! grep -q -- '--force' <<<"$out" && ok "an mrw_write refusal does not advise --force" || bad "mcp force: $out"
+printf '@@ unread226.md 1 replace\nx\n' > "$WORK/p226"
+out=$(m write --no-check "$WORK/p226" 2>&1)
+grep -q -- '--force' <<<"$out" && ok "the pair: the CLI's refusal keeps it" || bad "cli force: $out"
+m read a.go >/dev/null
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:1"],"ack":["nosuch226"]}}}\n' | m mcp 2>/dev/null)
+grep -q 'matched no checkpoint.*nosuch226' <<<"$out" && ok "an ack id that matches nothing is named" || bad "unknown ack: $out"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:1"]}}}\n' | m mcp 2>/dev/null)
+! grep -q 'matched no checkpoint' <<<"$out" && ok "the pair: a read with no stale ack names none" || bad "no ack: $out"
+printf '{"check":"sleep 30"}\n' > "$R/.quality-harness.json"
+m read a.go >/dev/null
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\\nfunc A() int { return 9 }\\n"}}}\n' > "$WORK/i226a"
+printf '{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7}}\n' > "$WORK/i226b"
+# Under `bounded`, not an alarm: Go ignores SIGALRM, so only a kill bounds mrw
+# (contract.md; the in-process review of #343). sh execs mrw, so the pid bounded
+# kills on a timeout is mrw's own, not a wrapper's (the Codex review of #343);
+# the input is a process substitution, since an async command's stdin is
+# /dev/null, and it ends on its own.
+s226=$SECONDS
+bounded 25 "$WORK/o226" sh -c 'exec "$1" -C "$2" mcp < "$3" 2>/dev/null' _ "$MRW" "$R" <(cat "$WORK/i226a"; sleep 1; cat "$WORK/i226b"; sleep 2)
+t226=$((SECONDS - s226))
+grep -q '"skipped":"interrupted"' "$WORK/o226" && [ "$t226" -lt 15 ] && ok "a cancel stops the write's running check, reported interrupted" || bad "cancel (${t226}s): $(head -c 400 "$WORK/o226")"
+rm -f "$R/.quality-harness.json"
+
 # 223. ADR-125: a target mrw cannot open is refused on its hunk, naming why.
 # A plan over a.txt and a write-only b.txt (mode 200: not read-only, so ADR-076
 # does not take it first) printed one bare "mrw: …" line at exit

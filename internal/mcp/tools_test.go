@@ -189,7 +189,7 @@ func TestTheWriteToolReturnsTheSameResultAsTheCLI(t *testing.T) {
 func TestTheReadToolObservesWhatTheCLIWouldObserve(t *testing.T) {
 	root, path := checkout(t, "a.txt", "one\ntwo\nthree\n")
 	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path + ":1-2"}})
-	if err := promote(root, asStrings(checkpointsIn(served0(t, res)))); err != nil {
+	if _, err := promote(root, asStrings(checkpointsIn(served0(t, res)))); err != nil {
 		t.Fatal(err)
 	}
 
@@ -214,7 +214,7 @@ func TestAnMCPReadLicensesACLIWrite(t *testing.T) {
 	// across both, and it works because there is one ledger on disk.
 	root, path := checkout(t, "a.txt", "one\ntwo\n")
 	res := call(t, root, "mrw_read", map[string]any{"specs": []any{path}})
-	if err := promote(root, asStrings(checkpointsIn(served0(t, res)))); err != nil {
+	if _, err := promote(root, asStrings(checkpointsIn(served0(t, res)))); err != nil {
 		t.Fatal(err)
 	}
 
@@ -296,7 +296,7 @@ func TestConcurrentToolCallsDoNotLoseALedgerEntry(t *testing.T) {
 	if len(missingPending) > 0 {
 		t.Fatalf("%d of %d concurrent reads left no pending span: %v", len(missingPending), n, missingPending)
 	}
-	if err := promote(root, acks); err != nil {
+	if _, err := promote(root, acks); err != nil {
 		t.Fatal(err)
 	}
 

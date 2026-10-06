@@ -149,7 +149,7 @@ func TestOnlyAckedSegmentsAreRecorded(t *testing.T) {
 	if first == "" || mid == "" || last == "" {
 		t.Fatalf("fixture did not produce three checkpoints: %v", spans)
 	}
-	if err := promote(root, []string{first, last}); err != nil {
+	if _, err := promote(root, []string{first, last}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -226,7 +226,7 @@ func TestOnlyAckedSegmentsAreRecorded(t *testing.T) {
 	if err := hold(root2, "f.txt", sha, spans2); err != nil {
 		t.Fatal(err)
 	}
-	if err := promote(root2, []string{f2, l2}); err != nil {
+	if _, err := promote(root2, []string{f2, l2}); err != nil {
 		t.Fatal(err)
 	}
 	ledger, err := seen.Load(root2)
@@ -272,7 +272,7 @@ func TestOnlyAckedSegmentsAreRecorded(t *testing.T) {
 	}
 
 	// And an ack nobody issued licenses nothing, rather than failing the call.
-	if err := promote(root, []string{"00000000"}); err != nil {
+	if _, err := promote(root, []string{"00000000"}); err != nil {
 		t.Errorf("a stale ack should be ignored, not an error: %v", err)
 	}
 }
@@ -302,7 +302,7 @@ func TestAStaleAcknowledgementDoesNotLicenseTheCurrentFile(t *testing.T) {
 	if err := hold(root, "f.txt", "1111bbbb", newSpans); err != nil {
 		t.Fatal(err)
 	}
-	if err := promote(root, []string{oldCk, newCk}); err != nil {
+	if _, err := promote(root, []string{oldCk, newCk}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -357,7 +357,7 @@ func TestAStaleAcknowledgementDoesNotRevokeTheCurrentOne(t *testing.T) {
 		if err := hold(root, "f.txt", live, map[string][2]int{curCk: current[curCk]}); err != nil {
 			t.Fatal(err)
 		}
-		if err := promote(root, []string{staleCk, curCk}); err != nil {
+		if _, err := promote(root, []string{staleCk, curCk}); err != nil {
 			t.Fatal(err)
 		}
 	}

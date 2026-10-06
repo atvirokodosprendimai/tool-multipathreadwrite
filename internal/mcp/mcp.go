@@ -15,6 +15,7 @@ package mcp
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // legacyVersions are the handshake-era revisions mrw speaks, latest first
@@ -368,6 +370,10 @@ func write(w *bufio.Writer, resp any) error {
 // silent — the distinction a plain "return a response" signature cannot make.
 func handle(line string, serveRoot string, release func(), notify func(any)) (response, bool) {
 	line = strings.TrimRight(line, "\r\n")
+	// ADR-128: a UTF-8 byte-order mark before a message is not part of it. A
+	// Windows host writes one at the start of a text stream, and the first
+	// request — initialize — was a parse error.
+	line = strings.TrimPrefix(line, "\ufeff")
 	if strings.TrimSpace(line) == "" {
 		// A blank line carries no message. Answering it with an error would
 		// put a complaint on the wire about something nobody sent.
@@ -393,6 +399,11 @@ func handle(line string, serveRoot string, release func(), notify func(any)) (re
 	// which includes notifications/initialized — answering that one is a
 	// protocol violation some hosts treat as fatal.
 	if len(req.ID) == 0 {
+		// ADR-128: a host's cancel stops the call it names while that call is
+		// still running; nothing is answered either way.
+		if req.Method == "notifications/cancelled" {
+			cancelCall(req.Params)
+		}
 		return response{}, false
 	}
 
@@ -440,7 +451,9 @@ func handle(line string, serveRoot string, release func(), notify func(any)) (re
 			stop := startProgress(tok, notify)
 			defer stop()
 		}
-		res, rpcErr := callTool(serveRoot, req.Params, e.modern, release)
+		ctx, finished := registerCall(req.ID)
+		defer finished()
+		res, rpcErr := callToolCtx(ctx, serveRoot, req.Params, e.modern, release)
 		if rpcErr != nil {
 			return response{JSONRPC: "2.0", ID: req.ID, Error: rpcErr}, true
 		}
@@ -758,10 +771,51 @@ var jsonNumber = regexp.MustCompile(`^-?([0-9]+)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9
 func validRequestID(id json.RawMessage) bool {
 	var s string
 	if json.Unmarshal(id, &s) == nil {
-		return true
+		return lossless(bytes.TrimSpace(id))
 	}
 	m := jsonNumber.FindSubmatch(id)
 	return m != nil && integral(m[1], m[2], m[3])
+}
+
+// lossless reports whether the JSON string raw decodes with nothing replaced.
+// encoding/json turns invalid UTF-8 and an unpaired surrogate escape into
+// U+FFFD without an error, so "\ud800", "\udc00" and "�" decoded to one
+// id, and a cancel for one stopped the call of another (the Codex review of
+// #343). An id that cannot be decoded as sent is not a valid request id.
+func lossless(raw []byte) bool {
+	if !utf8.Valid(raw) {
+		return false
+	}
+	for i := 0; i < len(raw); i++ {
+		if raw[i] != '\\' {
+			continue
+		}
+		i++
+		if raw[i] != 'u' {
+			continue
+		}
+		r := hex4(raw[i+1 : i+5])
+		i += 4
+		switch {
+		case r >= 0xDC00 && r <= 0xDFFF:
+			return false
+		case r >= 0xD800 && r <= 0xDBFF:
+			if i+7 > len(raw) || raw[i+1] != '\\' || raw[i+2] != 'u' {
+				return false
+			}
+			if lo := hex4(raw[i+3 : i+7]); lo < 0xDC00 || lo > 0xDFFF {
+				return false
+			}
+			i += 6
+		}
+	}
+	return true
+}
+
+// hex4 reads four hex digits; json.Unmarshal has already accepted them.
+func hex4(b []byte) uint64 {
+	n, _ := strconv.ParseUint(string(b), 16, 32)
+	return n
 }
 
 // integral reports whether whole.frac × 10^exp is an integer. Only the
@@ -774,13 +828,150 @@ func integral(whole, frac, exp []byte) bool {
 	if strings.TrimLeft(sig, "0") == "" {
 		return true // zero, however it is spelled
 	}
-	e := 0
-	if len(exp) > 0 {
-		n, err := strconv.Atoi(string(exp))
-		if err != nil {
-			return exp[0] != '-'
+	// By exponentPlus, as callKey reduces it: an int sum of an exponent near
+	// MaxInt64 and the trailing zeros overflowed, so 10e9223372036854775807 was
+	// refused while 1e9223372036854775808, the same value, was accepted, and a
+	// cancel spelled one way missed the call spelled the other (the Codex
+	// review of #343).
+	return !strings.HasPrefix(exponentPlus(exp, int64(len(digits)-len(sig))-int64(len(frac))), "-")
+}
+
+// exponentPlus returns exp + adj as a canonical decimal string. adj is a digit
+// count, bounded by the 64 MiB request line, so it is far below 10^18. It
+// works in time linear in exp's length: big.Int's decimal conversion is
+// quadratic, and an id whose exponent had 4M digits took 20 s on every
+// request (the in-process review of #343).
+func exponentPlus(exp []byte, adj int64) string {
+	s := string(exp)
+	neg := strings.HasPrefix(s, "-")
+	s = strings.TrimLeft(strings.TrimLeft(s, "+-"), "0")
+	const width = 18
+	if len(s) <= width {
+		var n int64
+		if s != "" {
+			n, _ = strconv.ParseInt(s, 10, 64)
 		}
-		e = n
+		if neg {
+			n = -n
+		}
+		return strconv.FormatInt(n+adj, 10)
 	}
-	return e-len(frac)+(len(digits)-len(sig)) >= 0
+	// |exp| ≥ 10^18 > |adj|: the sign is exp's, and the magnitude moves by
+	// adj toward it, carrying at most once out of the low 18 digits.
+	k := adj
+	if neg {
+		k = -adj
+	}
+	head := []byte(s[:len(s)-width])
+	tail, _ := strconv.ParseInt(s[len(s)-width:], 10, 64)
+	tail += k
+	switch {
+	case tail >= 1e18:
+		tail -= 1e18
+		for i := len(head) - 1; ; i-- {
+			if i < 0 {
+				head = append([]byte{'1'}, head...)
+				break
+			}
+			if head[i] != '9' {
+				head[i]++
+				break
+			}
+			head[i] = '0'
+		}
+	case tail < 0:
+		tail += 1e18
+		for i := len(head) - 1; i >= 0; i-- {
+			if head[i] != '0' {
+				head[i]--
+				break
+			}
+			head[i] = '9'
+		}
+	}
+	mag := strings.TrimLeft(string(head)+fmt.Sprintf("%018d", tail), "0")
+	if neg {
+		return "-" + mag
+	}
+	return mag
+}
+
+// calls holds the cancel of each running tools/call by its request id
+// (ADR-128), so notifications/cancelled can stop it. Each entry is the call's
+// own token, so a call that finishes removes only its own entry, never one a
+// later call under a reused id put there (the in-process review of #343).
+var calls = struct {
+	sync.Mutex
+	m map[string]*callEntry
+}{m: map[string]*callEntry{}}
+
+// callEntry is one running call's cancel.
+type callEntry struct{ cancel context.CancelFunc }
+
+// registerCall gives a tools/call its context and keeps the cancel under the
+// request's id; the returned func forgets it and releases the context.
+func registerCall(id json.RawMessage) (context.Context, func()) {
+	ctx, cancel := context.WithCancel(context.Background())
+	key := callKey(id)
+	e := &callEntry{cancel: cancel}
+	calls.Lock()
+	calls.m[key] = e
+	calls.Unlock()
+	return ctx, func() {
+		calls.Lock()
+		if calls.m[key] == e {
+			delete(calls.m, key)
+		}
+		calls.Unlock()
+		cancel()
+	}
+}
+
+// callKey spells a request id by its value, not its spelling (the Codex
+// reviews of #343): "a" and "a" are one string id, and 7, 7.0, 7e0 and
+// 70e-1 one number id, as validRequestID judges them. A number is reduced to
+// its significant digits and an exponent kept as a big integer, so an exponent
+// past what big.Rat or an int holds still compares by value; zero is one key
+// however it is spelled. A string and a number stay apart.
+func callKey(id json.RawMessage) string {
+	raw := bytes.TrimSpace(id)
+	var s string
+	if len(raw) > 0 && raw[0] == '"' && json.Unmarshal(raw, &s) == nil {
+		return "s:" + s
+	}
+	m := jsonNumber.FindSubmatch(raw)
+	if m == nil {
+		return "?:" + string(raw)
+	}
+	digits := strings.TrimLeft(string(m[1])+string(m[2]), "0")
+	trimmed := strings.TrimRight(digits, "0")
+	if trimmed == "" {
+		return "n:0"
+	}
+	sign := ""
+	if raw[0] == '-' {
+		sign = "-"
+	}
+	return "n:" + sign + trimmed + "e" + exponentPlus(m[3], int64(len(digits)-len(trimmed))-int64(len(m[2])))
+}
+
+// cancelCall stops the running call notifications/cancelled names. A cancel
+// for a call that finished, or that never existed, is ignored, as the
+// protocol says a receiver may.
+func cancelCall(params json.RawMessage) {
+	var p struct {
+		RequestID json.RawMessage `json:"requestId"`
+	}
+	// A null, or an id that is not a valid request id, names no call: null
+	// read as a string is "" and would cancel the call whose id is "" (the
+	// Codex review of #343).
+	if json.Unmarshal(params, &p) != nil || len(p.RequestID) == 0 || string(bytes.TrimSpace(p.RequestID)) == "null" || !validRequestID(p.RequestID) {
+		return
+	}
+	calls.Lock()
+	e := calls.m[callKey(p.RequestID)]
+	calls.Unlock()
+	if e != nil {
+		e.cancel()
+	}
 }

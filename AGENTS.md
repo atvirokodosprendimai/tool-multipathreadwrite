@@ -136,7 +136,10 @@ for callers sharing a checkout. A writer waits up to 120 s for the one before it
 nothing applied, naming the holder's pid; `MRW_WRITE_LOCK_TIMEOUT` sets the wait in seconds, `0` for one try (ADR-110).
 While an `mrw_write`'s check runs the server answers what arrives after it — a ping, a read, another write — and a
 call whose `_meta.progressToken` is set hears `notifications/progress` every 15 s until its answer; every other
-answer keeps its request order (ADR-121). `notifications/cancelled` does not stop a running check.
+answer keeps its request order (ADR-121). `notifications/cancelled` for an `mrw_write` whose check is running stops the
+check, which is then reported interrupted — the write has landed (ADR-128). A request line that starts with a UTF-8
+byte-order mark is read; a refusal does not advise `--force`, which `mrw_write` does not take; and an ack id that matched
+no checkpoint is named at the top of the answer when it fits.
 
 Both tools are bounded at 200,000 characters of ENCODED result, and the number is yours to set:
 `mrw mcp --max-result-chars N` or `MRW_MAX_RESULT_CHARS`. The flag beats the variable, omitting both

@@ -313,6 +313,10 @@ type Options struct {
 	// Force bypasses the Seen check. The escape hatch, not the habit.
 	Force bool
 
+	// NoForce says the caller's surface has no Force (ADR-128): mrw_write takes
+	// none, so a refusal there does not advise passing it.
+	NoForce bool
+
 	// EchoPad is how many lines after an applied body to attach on the
 	// hunk's Echo. 0 (the default) attaches nothing. Not a checker: a
 	// closer in the pad does not fail the hunk (ADR-052).
@@ -1077,6 +1081,19 @@ func writtenSoFar(files []FileResult) string {
 	return "ALREADY WRITTEN: " + strings.Join(names, ", ")
 }
 
+// forceRemedy drops the "or pass --force" advice from a refusal's FORMAT on a
+// surface that has no Force to pass (ADR-128): advice a caller cannot take is
+// noise. It works on the format, before the caller's paths and patterns are
+// put in, so a file name or a regex holding the phrase is left as it is (the
+// Codex review of #343).
+func forceRemedy(format string, noForce bool) string {
+	if !noForce {
+		return format
+	}
+	format = strings.Replace(format, ", or pass --force to overwrite blind", "", 1)
+	return strings.Replace(format, ", or pass --force", "", 1)
+}
+
 // planFile validates one file's hunks and splices its new content. It records a
 // verdict for every hunk and returns ok=false if any of them failed.
 func planFile(root, path, full string, hs []hunk, orig []string, existed bool, shaBefore string, opt Options, unlinked, produced map[string]bool, destCount map[string]int, out map[int]HunkResult) ([]string, bool, string) {
@@ -1085,7 +1102,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	fail := func(h hunk, format string, a ...any) {
 		out[h.Index] = HunkResult{
 			Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine,
-			Status: StatusFailed, Reason: fmt.Sprintf(format, a...),
+			Status: StatusFailed, Reason: fmt.Sprintf(forceRemedy(format, opt.NoForce), a...),
 		}
 		ok = false
 	}
