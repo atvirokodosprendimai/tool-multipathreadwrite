@@ -206,6 +206,21 @@ func (r Result) OK() bool { return r.Ran && r.ExitCode == 0 }
 // stopped — whether it had started or not (ADR-072, ADR-080).
 const Interrupted = "interrupted"
 
+// TimedOutBeforeStart is Skipped for a check whose deadline had passed before
+// its process started (ADR-126): a deadline already gone when the write
+// reached its check, or one that landed while Windows put the child in its
+// job (ADR-120). It was "timed out after …" with Ran false, which the CLI read
+// as "no check could run", exit 2.
+const TimedOutBeforeStart = "timed out before it started"
+
+// StoppedBeforeStart reports whether a check that did not run was stopped —
+// interrupted, or out of time — rather than unable to start (ADR-080,
+// ADR-126). The CLI exits 3 for it, as for a check stopped while running: the
+// write landed and nothing verified it.
+func StoppedBeforeStart(r Result) bool {
+	return !r.Ran && (r.Skipped == Interrupted || r.Skipped == TimedOutBeforeStart)
+}
+
 // LogRetention is how long a kept check log stays in the temp directory. A
 // failing or truncated check keeps its log because the report points at it,
 // and nothing bounded how many accumulated: 3,103 on one machine (ADR-080).
@@ -394,8 +409,18 @@ func run(ctx context.Context, root string, cfg Config, cmdline string, env []str
 	// of #229). No test can reach that window; it is microseconds wide.
 	switch {
 	case runErr != nil && ctx.Err() == context.DeadlineExceeded:
-		res.ExitCode = -1
-		res.Skipped = fmt.Sprintf("timed out after %s", timeout)
+		// ADR-126: a check that never started is a timeout only when its
+		// start failed for the deadline. One that could not start for its own
+		// reason (no shell) keeps that reason, though the deadline has also
+		// passed by now (the in-process review of #340).
+		switch {
+		case res.Ran:
+			res.ExitCode = -1
+			res.Skipped = fmt.Sprintf("timed out after %s", timeout)
+		case errors.Is(runErr, context.DeadlineExceeded):
+			res.ExitCode = -1
+			res.Skipped = TimedOutBeforeStart
+		}
 	case runErr != nil && ctx.Err() == context.Canceled && res.Ran:
 		// It started and was stopped from outside — an interrupt, or the
 		// caller's own cancel. A check that never started stays "could not
