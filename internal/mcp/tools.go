@@ -880,7 +880,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// released and gate let go across Verify; a write with neither keeps its
 	// place in the answer order, as every quick call does.
 	var v writer.Verified
-	if land.CheckDue() || len(steps) > 0 {
+	if land.CheckDue() || (len(steps) > 0 && land.Res.Applied && land.Res.Failed == 0) {
 		v = verifyUnlocked(land)
 	} else {
 		v = land.Verify(context.Background())

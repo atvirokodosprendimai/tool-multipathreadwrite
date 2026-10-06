@@ -81,3 +81,7 @@ Revert the task; ast-grep goes back to its own rules. No receipt key changes: `s
 ## Follow-ups
 
 - None — the record carries no open follow-up.
+
+## Amendment 2026-10-06 — the Codex review of v1.42.0..v1.47.0
+
+Under `--no-ignore` the hit filter was off whole, so a hit inside `.git` was served, where the walk prunes `.git` whatever the flag says. `--no-ignore` now turns off the ignore rules and the binary skip only (`underGit`, `internal/read/walk.go`); `internal/read/retro147_test.go::TestAstGrepUnderNoIgnoreStillDropsAHitInsideGit` and contract §229 pin it.

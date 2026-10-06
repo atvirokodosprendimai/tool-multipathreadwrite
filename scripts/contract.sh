@@ -8533,6 +8533,24 @@ grep -q 'holds {dirs}' <<<"$out" && ok "and the refusal names {dirs}" || bad "st
 "$MRW" -C "$R" check a222/x.rs --then-sh 'echo ok' > /dev/null 2>&1; want 0 $? "while a step holding no placeholder runs"
 rm -f "$R/.quality-harness.json"
 
+# 229. The Codex review of v1.42.0..v1.47.0, finding 3: --no-ignore turns off
+# the ignore rules for --ast-grep, never .git. A fake ast-grep reports a hit in
+# .git/x229.go and one in b229.go; with --no-ignore b229.go is served and the
+# .git hit is not, as the walk prunes .git. The pair: b229.go alone is served
+# without the flag too, so the row is about .git and not the flag's absence.
+fixture
+d229=$(mktemp -d)
+mkdir -p "$R/.git"; printf 'package g\n' > "$R/.git/x229.go"; printf 'package b\n' > "$R/b229.go"
+printf '%s\n' '#!/bin/sh' 'printf "%s" "[{\"file\":\".git/x229.go\",\"range\":{\"start\":{\"line\":0},\"end\":{\"line\":0}}},{\"file\":\"b229.go\",\"range\":{\"start\":{\"line\":0},\"end\":{\"line\":0}}}]"' > "$d229/ast-grep"
+chmod +x "$d229/ast-grep"
+out=$(env PATH="$d229:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' --no-ignore 2>&1); want 0 $? "--ast-grep --no-ignore with a hit inside .git reads"
+grep -q '==> b229.go' <<<"$out" && ! grep -q '==> .git/x229.go' <<<"$out" && ok "and serves b229.go, not the hit inside .git" || bad "--no-ignore .git: $out"
+out=$(env PATH="$d229:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' 2>&1); want 0 $? "the pair: without --no-ignore it reads too"
+grep -q '==> b229.go' <<<"$out" && ! grep -q '==> .git/x229.go' <<<"$out" && ok "and serves b229.go alone" || bad "ast-grep .git: $out"
+out=$(env PATH="$d229:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' --no-ignore .git 2>&1); want 0 $? "--ast-grep --no-ignore over a named .git reads"
+grep -q '==> .git/x229.go' <<<"$out" && ok "and serves the hit inside the .git it was given" || bad "named .git: $out"
+rm -rf "$d229" "$R/.git"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

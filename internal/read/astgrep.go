@@ -224,6 +224,13 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 			dropped[rel] = true
 			continue
 		}
+		// The Codex review of v1.42.0..v1.47.0: --no-ignore turns off the
+		// ignore rules and the binary skip, never .git, which the walk prunes
+		// whatever the flag says.
+		if judge == nil && !named[rel] && underGit(rel, startDepth(starts, rel)) {
+			dropped[rel] = true
+			continue
+		}
 		// ADR-065: ast-grep numbers rows by "\n". On a CR-only file that is
 		// not mrw's numbering, so its row would be served as a different line;
 		// the file is reported once instead of served wrong.
