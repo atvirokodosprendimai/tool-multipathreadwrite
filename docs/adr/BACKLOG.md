@@ -2545,6 +2545,10 @@ Five Claude sessions on one Windows 11 Pro 10.0.26200.9457 desktop (NTFS, Git fo
 Developer Mode off) probed v1.42.0 on request, report-only. Zy, 2026-10-02: "BACKLOG now, records later". What held
 is listed last; each item names what arms it.
 
+**Taken by ADR-125** (2026-10-06): the held target, the receipt-less refusal and the ACL message below. Its Out of Scope
+leaves the case-only rename, the write lock during a check and the MCP refusal texts here, armed by the 2026-10-06
+plan (ADR-127 to ADR-129).
+
 - **A held target turns a plan PARTIALLY APPLIED, depending on plan order.** A file another process holds open
   without `FILE_SHARE_DELETE` (an editor, AV, a language server) makes the commit's rename fail ("Access is
   denied"). Held last or in the middle, the earlier files have landed and are not undone: PARTIALLY APPLIED, exit
@@ -2568,7 +2572,8 @@ is listed last; each item names what arms it.
   the first writer's 8 s check, so the first check verified a tree holding an unverified edit. ADR-112's drift
   advisory watches only the files the first write touched. This is a recorded decision, ADR-075 §5 (the lock
   covers the apply, not the check), with ADR-112 as its accepted mitigation: arming it means retiring that clause.
-  Arm when the lock's scope is next revisited, or with ADR-121 (reserved: the check off the only MCP thread).
+  Arm when the lock's scope is next revisited. ADR-121 (v1.45.0) shipped without it; the 2026-10-06 plan's ADR-127
+  widens the drift advisory instead, keeping ADR-075 §5.
 - **`--grep` costs 10–14 ms a file on Windows.** 3,000 files of 40 lines took 31–63 s, from the CLI and over MCP,
   with output to a file and an MCP index serving no lines. `grep -rl` took 0.41 s; the same shape on macOS 0.29 s.
   The `.gitignore` matcher is ruled out (`.git` or not makes no difference). A peer's timeout stack points at
@@ -2584,12 +2589,12 @@ is listed last; each item names what arms it.
 - **A walk enters a nested untracked repository.** git lists it as `nested/` and does not descend; mrw walks in
   (applying that repository's own `.gitignore`). And mrw does not read `core.ignorecase`: with it set to false,
   `[Ab]*.txt`, `MIXED.txt` and `Upper/` still fold, as the filesystem does. Both are ADR-116's documented rule,
-  which differs from git here. Arm on a second report, or with ADR-122 (reserved: ast-grep walks mrw's walk).
+  which differs from git here. ADR-122 (v1.46.0) kept ADR-116's rule; the 2026-10-06 plan's ADR-130 takes the nested repository.
 - **Process trees on Windows** are ADR-120's: a timed-out check kills only its direct `sh.exe`, and a killed mrw
   kills nothing below it. The orphans' parents are dead MSYS fork stubs, so a parent-PID walk would miss them, and
   they hold the check log open. And Git for Windows' sh asks for `CREATE_BREAKAWAY_FROM_JOB` whenever a job
   allows it: with `JOB_OBJECT_LIMIT_BREAKAWAY_OK` nothing below sh stays in the job. Zy, 2026-10-02: "Drop
-  BREAKAWAY_OK". Carried into ADR-120 (reserved: Windows job objects), the next record.
+  BREAKAWAY_OK". Delivered by ADR-120 (v1.44.0).
 - **Fixed with this entry:** `TestMrwReadTakesMaxLinesStatAndFilesFrom` failed on a desktop without symlink
   privilege. Its link row is now dropped, with a log line, when a symlink cannot be created.
 - **Held:** read-only and hidden files, junctions out of the root, a 392-character path, trailing dots and
