@@ -20,6 +20,11 @@ var sameFileFn = os.SameFile
 // at commit that left the files before it written. On unix it answers yes.
 var replaceableFn = replaceable
 
+// nameRefused is the cause for a name the system will not make (ADR-125,
+// ADR-132). Such a name cannot exist, so nothing mrw tried to make under it is
+// left behind (noteIfLeft).
+const nameRefused = "not a valid name on this system"
+
 // causeOf names, in the words a caller acts on, why an open of a target
 // failed (ADR-125): a permission, another process holding the file, a name the
 // system refuses. It answers "" when the error says none of these.

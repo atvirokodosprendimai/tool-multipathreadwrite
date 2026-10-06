@@ -1064,7 +1064,7 @@ func boundedReceipt(root string, res apply.Result, applyErr error) (callToolResu
 // the ladder below; and the terminal sentence names the verdict in a phrase
 // from a fixed set, which writeFloor is measured with.
 func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr error, isErr bool) (callToolResult, *rpcError) {
-	res = slashResult(res, filepath.Separator)
+	res = apply.Slashed(res, filepath.Separator)
 	pattern := authoring.PatternOf(root)
 	var chk *check.Result
 	var checkErr error
@@ -1271,15 +1271,22 @@ func checkReport(c *check.Result, checkErr error, drift []string, others int) (l
 	case c == nil:
 		return "", ""
 	case !c.Ran:
+		if w := writer.StopWord(c.Skipped); w != "" {
+			lead = "check " + w + ": " + c.Skipped + unverified + "\n"
+			break
+		}
 		lead = "check DID NOT RUN: " + c.Skipped + unverified + "\n"
 	case c.OK():
 		lead = "check passed (exit 0): " + c.Command + "\n"
 	default:
-		why := ""
+		word, why := "FAILED", ""
+		if w := writer.StopWord(c.Skipped); w != "" {
+			word = w
+		}
 		if c.Skipped != "" {
 			why = " — " + c.Skipped
 		}
-		lead = fmt.Sprintf("check FAILED (exit %d): %s%s%s. Do not re-send the plan: it applied.\n", c.ExitCode, c.Command, why, unverified)
+		lead = fmt.Sprintf("check %s (exit %d): %s%s%s. Do not re-send the plan: it applied.\n", word, c.ExitCode, c.Command, why, unverified)
 	}
 	var b strings.Builder
 	if c != nil {

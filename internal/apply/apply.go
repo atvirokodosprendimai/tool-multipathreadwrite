@@ -895,6 +895,20 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		reportAddressed()
 		return res, fmt.Errorf("%s: %w", path, err)
 	}
+	// refuseStage is abortStage for a refusal whose cause is the target's
+	// (ADR-132): the same verdicts and nothing written, and no error, so the
+	// caller reports a refused plan — exit 1 — as it does for every refusal
+	// found at validation. A cause that is not the target's stays an error.
+	refuseStage := func(path string, err error, target bool) (Result, error) {
+		r, aerr := abortStage(path, err)
+		// What mrw made and could not take away is its own leftover, not the
+		// target's doing: the plan did not stop clean, so it stays exit 2, as
+		// a probe left behind does (the in-process review of #347).
+		if target && len(r.LeftBehind) == 0 {
+			return r, nil
+		}
+		return r, aerr
+	}
 	if len(content)+len(pathOps) > 0 {
 		first := pathOps
 		if len(content) > 0 {
@@ -918,7 +932,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// back. ENOSPC is one of the three failures that comment names.
 			staged = append(staged, sf)
 			discard(0)
-			return abortStage(w.file.Path, err)
+			return refuseStage(w.file.Path, err, targetCause(err))
 		}
 		staged = append(staged, sf)
 		// ADR-086: a name that does not exist yet is asked of the filesystem
@@ -929,7 +943,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			if err := probeNameFn(tr, sf.target); err != nil {
 				res.noteProbe(tr, sf.target, err)
 				discard(0)
-				return abortStage(w.file.Path, err)
+				return refuseStage(w.file.Path, err, targetCause(err))
 			}
 		}
 	}
@@ -954,12 +968,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// (Windows CI on #300, TestAStagingAbortKeepsAPreExistingDanglingSymlink).
 		if d := danglingLink(filepath.Dir(w.renameTo)); d != "" {
 			discard(0)
-			return abortStage(w.file.Path, fmt.Errorf("rename dest %s is under %s, a link to nothing; mrw will not make its target", w.destRel, d))
+			return refuseStage(w.file.Path, fmt.Errorf("rename dest %s is under %s, a link to nothing; mrw will not make its target", w.destRel, d), true)
 		}
 		dir := rooted.RealAsFarAsItExists(filepath.Dir(w.renameTo))
 		if _, err := tr.rel(dir); err != nil {
 			discard(0)
-			return abortStage(w.file.Path, fmt.Errorf("rename dest %s: %w", w.destRel, err))
+			return refuseStage(w.file.Path, fmt.Errorf("rename dest %s: %w", w.destRel, err), true)
 		}
 		w.renameTo = filepath.Join(dir, filepath.Base(w.renameTo))
 		sf := dirsOnly(missingDirs(dir))
@@ -980,7 +994,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		if err != nil {
 			res.noteProbe(tr, w.renameTo, err)
 			discard(0)
-			return abortStage(w.file.Path, err)
+			return refuseStage(w.file.Path, err, targetCause(err))
 		}
 	}
 	// ADR-106: every existing target is checked against what validation read
@@ -989,9 +1003,9 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// just before its own rename below, which narrows the window further but
 	// can no longer undo the files already renamed (ADR-066).
 	for i, w := range content {
-		if why := changedSince(tr, staged[i].target, w.seen); why != "" {
+		if why, cause := changedSince(tr, staged[i].target, w.seen); why != "" {
 			discard(0)
-			return abortStage(w.file.Path, fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why))
+			return refuseStage(w.file.Path, fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why), cause == nil || targetCause(cause))
 		}
 	}
 	// ADR-125: every existing target, unlink source and rename source is asked
@@ -1004,13 +1018,13 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		}
 		if err := replaceableFn(tr, staged[i].target); err != nil {
 			discard(0)
-			return abortStage(w.file.Path, errors.New(openRefusal(w.file.Path, err)))
+			return refuseStage(w.file.Path, errors.New(openRefusal(w.file.Path, err)), targetCause(err))
 		}
 	}
 	for _, w := range pathOps {
 		if err := replaceableFn(tr, resolvedAt(w.full)); err != nil {
 			discard(0)
-			return abortStage(w.file.Path, errors.New(openRefusal(w.file.Path, err)))
+			return refuseStage(w.file.Path, errors.New(openRefusal(w.file.Path, err)), targetCause(err))
 		}
 	}
 	for i, w := range content {
@@ -1028,7 +1042,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				return commitFailed(w.file.Path, false, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
 			}
 		}
-		if why := changedSince(tr, staged[i].target, w.seen); why != "" {
+		if why, _ := changedSince(tr, staged[i].target, w.seen); why != "" {
 			discard(i)
 			err := fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why)
 			return commitFailed(w.file.Path, false, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
@@ -1091,7 +1105,9 @@ func forceRemedy(format string, noForce bool) string {
 		return format
 	}
 	format = strings.Replace(format, ", or pass --force to overwrite blind", "", 1)
-	return strings.Replace(format, ", or pass --force", "", 1)
+	format = strings.Replace(format, ", or pass --force", "", 1)
+	// ADR-132: the read advice names the tool a caller on this surface has.
+	return strings.Replace(format, "Run `mrw read %s` first", "Read %s with mrw_read first", 1)
 }
 
 // planFile validates one file's hunks and splices its new content. It records a
@@ -2083,6 +2099,21 @@ func (e *probeLeftError) Error() string {
 
 func (e *probeLeftError) Unwrap() error { return e.err }
 
+// targetCause reports whether err is the target's doing rather than the
+// environment's (ADR-132): a cause causeOf names — a permission, another
+// process holding the file, a name the system refuses — or a target that no
+// longer exists. Everything else, an error nothing names included, is the
+// environment's and keeps exit 2: an unknown error keeps the exit it had. A
+// probe mrw could not remove is mrw's own leftover (ADR-105), never the
+// target's.
+func targetCause(err error) bool {
+	var left *probeLeftError
+	if errors.As(err, &left) {
+		return false
+	}
+	return causeOf(err) != "" || errors.Is(err, fs.ErrNotExist)
+}
+
 // noteProbe names target in LeftBehind when err says the probe mrw created
 // there could not be removed, and never otherwise.
 func (res *Result) noteProbe(tr *tree, target string, err error) {
@@ -2111,6 +2142,11 @@ var removeFn = (*tree).remove
 // that lost search permission — is not one a test can arrange as root.
 var lstatFn = (*tree).lstat
 
+// statFn is the seam changedSince asks for a target's state now (ADR-132): a
+// stat that fails says whether the target went away or the system failed, and
+// the two are classified apart.
+var statFn = os.Stat
+
 // cleanUp removes p, which this run made in the tree, and names it in
 // LeftBehind when the removal failed and p is still there (ADR-105). The
 // error itself is not the verdict: a removal that reports a failure for a path
@@ -2133,7 +2169,10 @@ func (res *Result) cleanUp(tr *tree, p string) {
 // is either named itself or not mrw's (ADR-004).
 func (res *Result) noteIfLeft(tr *tree, p string) {
 	fi, err := lstatFn(tr, p)
-	if errors.Is(err, fs.ErrNotExist) {
+	// A name the system refuses was never made, so it is not left behind: its
+	// lstat answers "name too long" or "invalid name", not "does not exist"
+	// (found by ADR-132, whose exit reads LeftBehind).
+	if errors.Is(err, fs.ErrNotExist) || platformCause(err) == nameRefused {
 		return
 	}
 	if err == nil && fi.IsDir() {
@@ -2295,34 +2334,54 @@ func missingDirs(dir string) []string {
 	return missing
 }
 
+// errIdentityUnread is changedSince's cause when a file's identity could not
+// be read and an open of it explains nothing: not a cause the target names, so
+// it keeps exit 2 (ADR-132).
+var errIdentityUnread = errors.New("the file's identity could not be read")
+
 // changedSince says how the file at p differs from what validation stat'ed,
 // or "" when it does not, or when validation saw no file there (ADR-106). A
 // different file, size or modification time each count; an in-place rewrite
 // that keeps both size and time is not seen. It asks by the resolved name: the
 // answer only decides whether to refuse, and the rename that follows goes
-// through the root.
-func changedSince(tr *tree, p string, was fs.FileInfo) string {
+// through the root. Beside its words it returns the cause of a failure to
+// look, nil for a change it saw (ADR-132).
+func changedSince(tr *tree, p string, was fs.FileInfo) (string, error) {
 	if was == nil {
-		return ""
+		return "", nil
 	}
 	// ADR-107: the leaf itself, through the root, first. The target was
 	// resolved to a regular file; a link there now was put there after
 	// validation, and a stat that follows it would see the old file and pass.
 	if li, err := tr.lstat(p); err == nil && li.Mode()&(os.ModeSymlink|os.ModeIrregular) != 0 && was.Mode().IsRegular() {
-		return "a link replaced it"
+		return "a link replaced it", nil
 	}
-	now, err := os.Stat(p)
+	// A stat that fails says why it failed too (ADR-132): a target that is
+	// gone is the target's doing, an I/O error is not.
+	now, err := statFn(p)
 	switch {
 	case err != nil:
-		return fmt.Sprintf("it can no longer be read (%v)", err)
+		return fmt.Sprintf("it can no longer be read (%v)", err), err
+	case !sameFileFn(now, now):
+		// On Windows os.SameFile loads a file ID lazily and answers false,
+		// error swallowed, when that fails: an I/O or resource failure would
+		// read as "another file replaced it", the target's doing. An open says
+		// what the failure was; one nothing explains is the environment's
+		// (the Codex review of #347).
+		f, _, oerr := regular.Open(p)
+		if oerr != nil {
+			return fmt.Sprintf("its identity could not be read (%v)", oerr), oerr
+		}
+		_ = f.Close()
+		return "its identity could not be read", errIdentityUnread
 	case !os.SameFile(was, now):
-		return "another file replaced it"
+		return "another file replaced it", nil
 	case now.Size() != was.Size():
-		return fmt.Sprintf("its size changed from %d to %d bytes", was.Size(), now.Size())
+		return fmt.Sprintf("its size changed from %d to %d bytes", was.Size(), now.Size()), nil
 	case !now.ModTime().Equal(was.ModTime()):
-		return "its modification time changed"
+		return "its modification time changed", nil
 	}
-	return ""
+	return "", nil
 }
 
 func shaOf(t text) string {

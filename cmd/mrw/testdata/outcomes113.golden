@@ -520,7 +520,7 @@ ok   a.go 1 replace  -1 +1
 FAIL d/x.txt - unlink (plan line 3): d/x.txt: openat d/.mrw-aside-<X>: permission denied (ALREADY WRITTEN: a.go)
 wrote a.go  1L -> 1L  sha 983aab87
 2 hunk(s), 2 file(s), 1 failed, 0 advisories — PARTIALLY APPLIED
-d/x.txt: openat d/.mrw-aside-<X>: permission denied (ALREADY WRITTEN: a.go)
+d/x.txt: see its FAIL line
 == ledger_failed_no_check json
 exit 2
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
@@ -1235,7 +1235,7 @@ ok   a.go 2 replace  -1 +1
 wrote a.go  2L -> 2L  sha 86ab99a1
 1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied
 check (declared): sleep 5
-check FAIL (exit -1, <DUR>) — timed out after 1s — full output: <TMP>/<LOG>
+check TIMED OUT (exit -1, <DUR>) — timed out after 1s — full output: <TMP>/<LOG>
 the write applied but the check did not pass — the tree is changed and unverified
 == check_inferred_from_gomod json
 exit 0

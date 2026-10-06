@@ -33,8 +33,9 @@ func TestAnAPFSInvalidNameIsRefusedBeforeAnyWrite(t *testing.T) {
 				{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0},
 				tc.last,
 			}, Options{Force: true})
-			if err == nil || res.Applied || res.Failed != 1 {
-				t.Fatalf("an APFS-invalid name: err=%v applied=%v failed=%d, want an error, not applied, one failed hunk", err, res.Applied, res.Failed)
+			// ADR-132: EILSEQ is a name the system refuses — refused, exit 1.
+			if err != nil || res.Applied || res.Failed != 1 {
+				t.Fatalf("an APFS-invalid name: err=%v applied=%v failed=%d, want no error, not applied, one failed hunk", err, res.Applied, res.Failed)
 			}
 			if got := read(t, root, "a.txt"); got != "a\n" {
 				t.Errorf("a.txt = %q: the content edit landed beside a refused name", got)
