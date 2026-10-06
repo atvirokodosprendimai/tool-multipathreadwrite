@@ -1,6 +1,8 @@
 package read
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -72,5 +74,55 @@ func TestAnAstGrepHitInANestedRepositoryIsDropped(t *testing.T) {
 	}
 	if got := strings.Join(servedPaths(specs), ","); got != "b.go" || sk.Nested != 1 {
 		t.Fatalf("served %q, skipped %+v: want b.go and the nested repository counted", got, sk)
+	}
+	// Named as the start, the nested repository is walked, by its own rules
+	// (Decision 2 on the ast-grep surface; the in-process review of #348).
+	sk = WalkSkipped{}
+	specs, _, err = AstGrep(root, []string{"nested"}, "package $A", nil, AstGrepOptions{Skipped: &sk})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The fake ast-grep answers every hit whatever is named; the judge's part
+	// is that nested/n.go is served and nothing is counted nested.
+	if got := strings.Join(servedPaths(specs), ","); !strings.Contains(got, "nested/n.go") || sk.Nested != 0 {
+		t.Fatalf("named: served %q, skipped %+v: want nested/n.go and nothing counted", got, sk)
+	}
+}
+
+// The Codex review of #348. On a filesystem that folds case, a start named
+// NESTED walks nested; compared as strings, the walk that also met nested from
+// the root kept it counted as not entered.
+func TestANestedRepositoryNamedInAnotherCaseIsNotCounted(t *testing.T) {
+	root := t.TempDir()
+	plant(t, root, map[string]string{".git/HEAD": "x\n", "nested/.git/HEAD": "x\n", "nested/a.txt": "needle\n"})
+	if _, err := os.Stat(filepath.Join(root, "NESTED")); err != nil {
+		t.Skip("this filesystem does not fold case")
+	}
+	var sk WalkSkipped
+	specs, _, _ := Walk(root, []string{".", "NESTED"}, WalkOptions{Pattern: regexp.MustCompile("needle"), Skipped: &sk})
+	if len(specs) != 1 || sk.Nested != 0 {
+		t.Errorf("served %v, skipped %+v: the repository a named start walked is still counted", specPaths(specs), sk)
+	}
+}
+
+// The Codex review of #348. A directory that is both ignored and a nested
+// repository counted as ignored_dirs under --grep and as nested under
+// --ast-grep: both finders now ask "ignored" first.
+func TestADirectoryBothIgnoredAndNestedCountsAlikeOnBothFinders(t *testing.T) {
+	root := t.TempDir()
+	plant(t, root, map[string]string{
+		".git/HEAD": "x\n", ".gitignore": "nested/\n", "b.go": "package b\n",
+		"nested/.git/HEAD": "x\n", "nested/a.go": "package a\n",
+	})
+	var walked WalkSkipped
+	Walk(root, nil, WalkOptions{Pattern: regexp.MustCompile("package"), Skipped: &walked})
+	installRecordingAstGrep(t, hit096("b.go", "nested/a.go"))
+	var judged WalkSkipped
+	if _, _, err := AstGrep(root, nil, "package $A", nil, AstGrepOptions{Skipped: &judged}); err != nil {
+		t.Fatal(err)
+	}
+	want := WalkSkipped{IgnoredDirs: 1}
+	if walked != want || judged != want {
+		t.Errorf("walk skipped %+v, ast-grep skipped %+v, want both %+v", walked, judged, want)
 	}
 }

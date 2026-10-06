@@ -7,7 +7,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-007, ADR-111, ADR-116, ADR-122
 **Invalidates:** None — it amends ADR-116 Decision 1's nested-repository clause for a repository found inside a checkout; a root that is no checkout keeps that clause
-**Governs:** `internal/read/walk.go`, `internal/read/astgrep.go`, `internal/mcp/mcp.go`, `docs/receipts.txt`, `scripts/contract.sh`, `AGENTS.md`, `README.md`
+**Governs:** `internal/read/walk.go`, `internal/mcp/mcp.go`, `internal/guide/guide.go`, `cmd/mrw/main.go`, `docs/receipts.txt`, `scripts/contract.sh`, `AGENTS.md`, `README.md`
 **Enforced-by:** `internal/read/nested130_test.go::TestANestedRepositoryIsNotEntered`
 **Served-path change:** inside a git checkout, `--grep`, `grep`, `--ast-grep` and `ast_grep` no longer enter a directory below the walk's start that holds its own `.git`, as git does not; the `-- skipped:` line and `mrw_read`'s `skipped` count it as `nested`. A path the caller names inside one is walked, by that repository's rules; `--no-ignore` and `no_ignore` walk them all.
 

@@ -411,11 +411,9 @@ func (w *walker) noteNested(dir, abs string) {
 // nestedBelowCheckout reports whether dir (root-relative, "/"-joined; abs its
 // path), met by a walk, is a repository of its own below a checkout: the root
 // is inside one, or dir lies inside a repository found below a root that is
-// none (ADR-130). Such a directory is not entered. Under NoIgnore nothing is.
+// none (ADR-130). Such a directory is not entered. Under NoIgnore no checkout
+// is known — no rules are read and noteNested records none — so nothing is.
 func (w *walker) nestedBelowCheckout(dir, abs string) bool {
-	if w.opt.NoIgnore {
-		return false
-	}
 	if _, err := os.Lstat(filepath.Join(abs, ".git")); err != nil {
 		return false
 	}
@@ -453,16 +451,19 @@ func (j *hitJudge) skip(rel string, from int) bool {
 	for i := 1; i < len(parts); i++ {
 		dir := strings.Join(parts[:i], "/")
 		abs := filepath.Join(j.w.absRoot, filepath.FromSlash(dir))
+		// The walk's order (walkDir): an ignored directory first, then a
+		// nested repository, so a directory that is both counts the same on
+		// either finder (the in-process review of #348).
+		if i > from && j.w.ignored(dir, true, from) {
+			j.w.skipDirs[dir] = true
+			return true
+		}
 		// ADR-130: a hit inside a nested repository the walk would not enter.
 		if i > from && j.w.nestedBelowCheckout(dir, abs) {
 			j.w.skipNested[dir] = true
 			return true
 		}
 		j.w.noteNested(dir, abs)
-		if i > from && j.w.ignored(dir, true, from) {
-			j.w.skipDirs[dir] = true
-			return true
-		}
 	}
 	if j.w.ignored(rel, false, from) {
 		j.w.skipFiles[rel] = true
@@ -520,12 +521,12 @@ func (w *walker) skipCounts() WalkSkipped {
 		}
 	}
 	for d := range w.skipDirs {
-		if !entered[d] && !startBelow(w.starts, d) {
+		if !w.reached(d, entered) {
 			sk.IgnoredDirs++
 		}
 	}
 	for d := range w.skipNested {
-		if !entered[d] && !startBelow(w.starts, d) {
+		if !w.reached(d, entered) {
 			sk.Nested++
 		}
 	}
@@ -540,6 +541,46 @@ func startBelow(starts []string, dir string) bool {
 		}
 	}
 	return false
+}
+
+// reached says whether a named start or a served path entered dir after all:
+// dir itself, or a directory below it. A name is compared as spelled first and
+// then by identity, since on a filesystem that folds case a start spelled
+// NESTED enters nested — compared as strings, the count kept a directory a
+// named start had walked (the Codex review of #348).
+func (w *walker) reached(dir string, entered map[string]bool) bool {
+	if entered[dir] || startBelow(w.starts, dir) {
+		return true
+	}
+	for k := range entered {
+		if w.sameDir(k, dir) {
+			return true
+		}
+	}
+	for _, s := range w.starts {
+		if len(s) > len(dir) && s[len(dir)] == '/' && w.sameDir(s[:len(dir)], dir) {
+			return true
+		}
+	}
+	return false
+}
+
+// sameDir reports whether a and b, root-relative and "/"-joined, name one
+// directory: spelled alike, or alike but for case and the same directory on
+// disk. The case test only spares a stat for names that cannot match.
+func (w *walker) sameDir(a, b string) bool {
+	if a == b {
+		return true
+	}
+	if !strings.EqualFold(a, b) {
+		return false
+	}
+	ai, err := os.Stat(filepath.Join(w.absRoot, filepath.FromSlash(a)))
+	if err != nil {
+		return false
+	}
+	bi, err := os.Stat(filepath.Join(w.absRoot, filepath.FromSlash(b)))
+	return err == nil && os.SameFile(ai, bi)
 }
 
 // excluded matches a glob against the cleaned root-relative path AND the

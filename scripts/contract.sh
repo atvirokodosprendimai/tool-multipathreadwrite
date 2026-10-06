@@ -8657,6 +8657,12 @@ out=$(m read --grep needle233 nest233 2>&1)
 grep -q 'nest233/in.txt' <<<"$out" && ok "the pair: the nested repository named is walked" || bad "named nested: $out"
 out=$(m read --grep needle233 --no-ignore 2>&1)
 grep -q 'nest233/in.txt' <<<"$out" && ok "the pair: --no-ignore walks it" || bad "no-ignore nested: $out"
+out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"needle233"}}}' | "$MRW" -C "$R" mcp 2>/dev/null)
+python3 - "$out" <<'PY' && ok "mrw_read counts it as skipped.nested" || bad "mrw_read nested: $(head -c 400 <<<"$out")"
+import json, sys
+sc = json.loads(json.loads(sys.argv[1])["result"]["content"][-1]["text"])
+sys.exit(0 if sc.get("skipped", {}).get("nested") == 1 else 1)
+PY
 rm -rf "$R/.git" "$R/nest233" "$R/top233.txt"
 
 # 223. ADR-125: a target mrw cannot open is refused on its hunk, naming why.
