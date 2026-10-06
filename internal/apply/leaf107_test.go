@@ -25,7 +25,8 @@ func TestTheRecheckRefusesALeafSwappedForALink(t *testing.T) {
 		}
 	})
 	res, err := Apply(root, []Input{{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0}}, Options{Force: true})
-	if err == nil || res.Applied || !strings.Contains(err.Error(), "a.txt") {
+	// ADR-132: a link put in the target's place is the target's doing.
+	if err != nil || res.Applied || res.Failed != 1 || !strings.Contains(res.Hunks[0].Reason, "a.txt") {
 		t.Errorf("a leaf swapped for a link was not refused by name: %v %+v", err, res)
 	}
 	if fi, lerr := os.Lstat(filepath.Join(root, "a.txt")); lerr != nil || fi.Mode()&os.ModeSymlink == 0 {
