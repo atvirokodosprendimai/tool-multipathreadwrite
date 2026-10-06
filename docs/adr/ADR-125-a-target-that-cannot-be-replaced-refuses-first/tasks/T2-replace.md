@@ -29,7 +29,7 @@ Before the first rename, every existing content target, unlink source and rename
 
 1. [S1] Write `TestEveryTargetIsAskedBeforeTheFirstRename`. Confirm RED. [proof: mutation]
 2. [S2] The seam, the platform probes and the loop. Mutants: the loop removed; unlink and rename sources not asked. [proof: mutation]
-3. [S3] The Windows tests `TestAHeldTargetRefusesBeforeAnyRename`, `TestAHolderThatSharesDeleteDoesNotBlockTheCommit` and `TestAnInvalidNameGetsAReceipt`, red on a pushed test-only commit and green on the head. [proof: human: the windows-shard run URLs, red and green]
+3. [S3] The Windows tests `TestAHeldTargetRefusesBeforeAnyRename`, `TestAHolderThatSharesDeleteDoesNotBlockTheCommit` and `TestAnInvalidNameGetsAReceipt`, red on a pushed test-only commit and green on the head; and `TestTheProbeDoesNotFollowASwappedParentOutOfTheRoot` (the Codex review of #338), green on the head. [proof: human: the windows-shard run URLs, red and green]
 
 ## Acceptance
 
@@ -55,6 +55,7 @@ out=$(mktemp) \
 | `TestAHeldTargetRefusesBeforeAnyRename` | `internal/apply/replace125_windows_test.go` | a target held without delete sharing, last in the plan, fails it with nothing written, naming "held open" | none | S3 |
 | `TestAHolderThatSharesDeleteDoesNotBlockTheCommit` | `internal/apply/replace125_windows_test.go` | a holder sharing read, write and delete does not stop the plan | none | S3 |
 | `TestAnInvalidNameGetsAReceipt` | `internal/apply/replace125_windows_test.go` | `q?.txt` is refused on its hunk, naming the name | none | S3 |
+| `TestTheProbeDoesNotFollowASwappedParentOutOfTheRoot` | `internal/apply/replace125_windows_test.go` | a parent swapped for a junction out of the root after validation is refused, and the file outside is never opened | none | S3 |
 
 ## Reachability
 
@@ -89,6 +90,8 @@ Stop and ask if the windows-shard run shows a delete-sharing holder blocking `os
   ```
 - 2026-10-06 · cc32ee4* · mutant killed · exit 1 · `internal/apply/apply.go` · S2: unlink and rename sources not asked · acceptance-sha256:265c73d2b70193753b81a3990e6fee4febb7c301ee00b7b744c1a23b70020f0c
 - 2026-10-06 · cc32ee4* · mutant killed · exit 1 · `internal/apply/apply.go` · S2: content targets not asked · acceptance-sha256:265c73d2b70193753b81a3990e6fee4febb7c301ee00b7b744c1a23b70020f0c
+- 2026-10-06 · edfd38c* · mutant killed · exit 1 · `internal/apply/apply.go` · S2: content targets not asked · acceptance-sha256:265c73d2b70193753b81a3990e6fee4febb7c301ee00b7b744c1a23b70020f0c
+- 2026-10-06 · edfd38c* · mutant killed · exit 1 · `internal/apply/apply.go` · S2: unlink and rename sources not asked · acceptance-sha256:265c73d2b70193753b81a3990e6fee4febb7c301ee00b7b744c1a23b70020f0c
 
 ## Verification Log
 - 2026-10-06 · cc32ee4* · exit 1 · `set -o pipefail …` · acceptance-sha256:265c73d2b70193753b81a3990e6fee4febb7c301ee00b7b744c1a23b70020f0c · ms:140 · test-lock-sha256:99938bc4c8aade5d0fcfa4aee535f2e221d289b6f049d730783264df05c30ea3 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYXBwbHkvcmVwbGFjZTEyNV90ZXN0LmdvCVRlc3RBblVucmVhZGFibGVUYXJnZXRHZXRzQVJlY2VpcHQJODhjMDQyM2YzMzEyODU5YzdjY2E1ZTU0YjU5YWU5MjA2MjUxNmIwY2RjZmY0MjU5NzRlMjJmZmQ3NGNiZjg3Ywpib2R5CWludGVybmFsL2FwcGx5L3JlcGxhY2UxMjVfdGVzdC5nbwlUZXN0RXZlcnlUYXJnZXRJc0Fza2VkQmVmb3JlVGhlRmlyc3RSZW5hbWUJNGZjZmNmZjdlYTJkMjA2YWNjYzdiYjAwOGRlMmE1YmY5NDg3ZWJkODFhOTQ2OTQ0ZDMwZjk3MTA1YTllMDU0Ngpib2R5CWludGVybmFsL2FwcGx5L3JlcGxhY2UxMjVfdGVzdC5nbwlUZXN0VGhlSWRlbnRpdHlSZWZ1c2FsTmFtZXNJdHNDYXVzZQliNDE4MmZkYjM1MGFkZTAyN2EzYmYzOWEzOTE5NjI2NzljYzUxNjMzOTZmNjExNGI0ZmE3NWY5NjUwNDljN2E2CnVucHJvdmVuCWludGVybmFsL2FwcGx5L3JlcGxhY2UxMjVfd2luZG93c190ZXN0LmdvCVRlc3RBSGVsZFRhcmdldFJlZnVzZXNCZWZvcmVBbnlSZW5hbWUKdW5wcm92ZW4JaW50ZXJuYWwvYXBwbHkvcmVwbGFjZTEyNV93aW5kb3dzX3Rlc3QuZ28JVGVzdEFIb2xkZXJUaGF0U2hhcmVzRGVsZXRlRG9lc05vdEJsb2NrVGhlQ29tbWl0CnVucHJvdmVuCWludGVybmFsL2FwcGx5L3JlcGxhY2UxMjVfd2luZG93c190ZXN0LmdvCVRlc3RBbkludmFsaWROYW1lR2V0c0FSZWNlaXB0
@@ -104,3 +107,5 @@ Stop and ask if the windows-shard run shows a delete-sharing holder blocking `os
 - 2026-10-06 · cc32ee4* · exit 0 · `set -o pipefail …` · acceptance-sha256:265c73d2b70193753b81a3990e6fee4febb7c301ee00b7b744c1a23b70020f0c · ms:37009
 - 2026-10-06 · cc32ee4* · exit 0 · `set -o pipefail …` · acceptance-sha256:265c73d2b70193753b81a3990e6fee4febb7c301ee00b7b744c1a23b70020f0c · ms:37928
 - 2026-10-06 · cc32ee4* · exit 0 · `set -o pipefail …` · acceptance-sha256:265c73d2b70193753b81a3990e6fee4febb7c301ee00b7b744c1a23b70020f0c · ms:38648
+- 2026-10-06 · edfd38c* · exit 0 · `set -o pipefail …` · acceptance-sha256:265c73d2b70193753b81a3990e6fee4febb7c301ee00b7b744c1a23b70020f0c · ms:40384
+- 2026-10-06 · edfd38c* · exit 0 · `set -o pipefail …` · acceptance-sha256:265c73d2b70193753b81a3990e6fee4febb7c301ee00b7b744c1a23b70020f0c · ms:38823

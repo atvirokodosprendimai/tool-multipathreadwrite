@@ -91,7 +91,7 @@ func TestEveryTargetIsAskedBeforeTheFirstRename(t *testing.T) {
 	real := replaceableFn
 	t.Cleanup(func() { replaceableFn = real })
 	asked := map[string]bool{}
-	replaceableFn = func(full string) error {
+	replaceableFn = func(_ *tree, full string) error {
 		asked[filepath.Base(full)] = true
 		if filepath.Base(full) == "r.txt" {
 			return &fs.PathError{Op: "open", Path: full, Err: fs.ErrPermission}

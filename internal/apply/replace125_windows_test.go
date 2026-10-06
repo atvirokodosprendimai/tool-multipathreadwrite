@@ -3,6 +3,8 @@
 package apply
 
 import (
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -76,10 +78,45 @@ func TestAnInvalidNameGetsAReceipt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("an invalid name returned its error bare, with no receipt: %v", err)
 	}
-	if q := hunkFor(t, res, "q?.txt"); q.Status != StatusFailed || !strings.Contains(q.Reason, "q?.txt") {
+	if q := hunkFor(t, res, "q?.txt"); q.Status != StatusFailed || !strings.Contains(q.Reason, "q?.txt") || !strings.Contains(q.Reason, "not a valid name on this system") {
 		t.Errorf("the invalid name was not refused on its hunk: %+v", q)
 	}
 	if read(t, root, "a.txt") != "a\n" {
 		t.Error("a.txt was written beside a refused name")
+	}
+}
+
+// The Codex review of #338. The probe opened an absolute path, so a parent
+// swapped for a junction that leads out of the root after validation was
+// followed, and the probe opened a file outside the root for DELETE. It opens
+// the leaf relative to a parent handle taken through the root now: the swap
+// is refused, and the file outside is never opened.
+func TestTheProbeDoesNotFollowASwappedParentOutOfTheRoot(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	write(t, root, "d/f.txt", "inside\n")
+	write(t, outside, "f.txt", "outside\n")
+	// Held without delete sharing: a probe that reached it would say so.
+	hold(t, outside, "f.txt", syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE)
+	real := replaceableFn
+	t.Cleanup(func() { replaceableFn = real })
+	replaceableFn = func(tr *tree, full string) error {
+		if err := os.Rename(filepath.Join(root, "d"), filepath.Join(root, "d.old")); err != nil {
+			t.Fatal(err)
+		}
+		if out, err := exec.Command("cmd", "/c", "mklink", "/J", filepath.Join(root, "d"), outside).CombinedOutput(); err != nil {
+			t.Skipf("cannot make a junction here: %v %s", err, out)
+		}
+		return real(tr, full)
+	}
+	res, err := Apply(root, []Input{{Path: "d/f.txt", Op: "unlink", Lines: -1, Index: 0}}, Options{Force: true})
+	if err == nil || res.Applied {
+		t.Fatalf("the probe through a swapped parent did not stop the plan: err %v, %+v", err, res)
+	}
+	if h := hunkFor(t, res, "d/f.txt"); strings.Contains(h.Reason, "held open") {
+		t.Errorf("the probe followed the junction out of the root and opened the file there: %+v", h)
+	}
+	if read(t, outside, "f.txt") != "outside\n" {
+		t.Error("the file outside the root was changed")
 	}
 }

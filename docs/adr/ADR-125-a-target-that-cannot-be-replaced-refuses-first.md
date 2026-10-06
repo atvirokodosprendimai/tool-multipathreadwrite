@@ -9,7 +9,7 @@
 **Invalidates:** None — ADR-066's PARTIALLY APPLIED stays the honest answer for a failure inside the commit; this record moves the common Windows cause ahead of it
 **Governs:** `internal/apply/apply.go`, `internal/apply/tree.go`, `internal/apply/replace*.go`, `scripts/contract.sh`, `AGENTS.md`, `README.md`
 **Enforced-by:** `internal/apply/replace125_test.go::TestAnUnreadableTargetGetsAReceipt`
-**Served-path change:** a plan naming a file mrw cannot open — permission denied, held open by another process, a name the system refuses — exits 1 with a receipt whose failed hunk names the cause, instead of a bare `mrw: …` line at exit 2; on Windows a target another process holds without delete sharing fails before any rename (NOTHING WRITTEN) rather than after the files before it have landed.
+**Served-path change:** a plan naming a file mrw cannot read — permission denied, held exclusively by another process, a name the system refuses — exits 1 with a receipt whose failed hunk names the cause, instead of a bare `mrw: …` line at exit 2; on Windows a target another process holds without delete sharing fails before any rename — exit 2, NOTHING WRITTEN, the hunk naming the holder — rather than after the files before it have landed.
 
 ## Context
 
@@ -33,7 +33,7 @@ Five Windows peers probed v1.42.0 on 2026-10-02 (BACKLOG "From the Windows peers
 ## Decision
 
 1. **A target mrw cannot open, for a cause it can name, is refused on its hunk.** A load error at `apply.go:573` whose cause is a permission, another process holding the file, or a name the system refuses, and a false `SameFile(info, info)`, become `refuseFile` refusals: the file's first hunk fails, its others and every sibling skip, nothing is written, exit 1. The reason names the cause — `permission denied`, `held open by another process`, `not a valid name on this system` — beside the system's error; "send the plan again" stays only when nothing explains the failure. Any other load error — a directory named in a plan, an I/O failure — stays the exit-2 failure it was, which `TestAPlanRefusedAfterItParsedIsOneRefusal` (ADR-083) pins.
-2. **On Windows every existing target is asked whether it can be replaced before the first rename**: an open asking for `DELETE` access with full sharing, closed at once. A sharing violation or an access denial fails that file through `abortStage` — NOTHING WRITTEN, a full receipt naming the cause. Content targets, unlink sources and rename sources are asked. On unix the probe is nothing: a rename does not care who holds the file.
+2. **On Windows every existing target is asked whether it can be replaced before the first rename**: its entry is opened for `DELETE` with full sharing, relative to its parent directory's handle taken through the root (`NtCreateFile` with a root directory), and closed at once. A sharing violation or an access denial fails that file through `abortStage` — exit 2, NOTHING WRITTEN, a full receipt naming the cause. Content targets, unlink sources and rename sources are asked. On unix the probe is nothing: a rename does not care who holds the file. Opening relative to a confined handle keeps the probe inside the root when a parent is swapped for a junction, and leaves no `MAX_PATH` limit (the Codex review of #338).
 3. **The commit rename stays `os.Root.Rename`**, which on Windows already replaces with POSIX semantics (Go's `Renameat`); T2 pins that with a holder that shares delete, so a future toolchain that drops it fails a test rather than a user.
 4. **The window stays and is said.** A file taken between the probe and its rename still fails inside the commit, and ADR-066's PARTIALLY APPLIED reports what landed. What changes is that the common Windows cause is caught before anything is written.
 
@@ -45,7 +45,7 @@ Five Windows peers probed v1.42.0 on 2026-10-02 (BACKLOG "From the Windows peers
 
 ## Component / Boundary Impact
 
-Owns `internal/apply` (engine). `os.Root` confinement stays: the probe and the rename open through the root or relative to its handle. `go.mod` keeps one requirement.
+Owns `internal/apply` (engine). `os.Root` confinement stays: the probe opens its leaf relative to a parent handle taken through the root, and the rename goes through the root. `ntdll` is reached through `syscall.NewLazyDLL`, so `go.mod` keeps one requirement.
 
 ## Wiring & Contract Changes
 

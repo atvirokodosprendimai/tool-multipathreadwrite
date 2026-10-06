@@ -998,13 +998,13 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		if w.file.Created {
 			continue
 		}
-		if err := replaceableFn(staged[i].target); err != nil {
+		if err := replaceableFn(tr, staged[i].target); err != nil {
 			discard(0)
 			return abortStage(w.file.Path, errors.New(openRefusal(w.file.Path, err)))
 		}
 	}
 	for _, w := range pathOps {
-		if err := replaceableFn(w.full); err != nil {
+		if err := replaceableFn(tr, resolvedAt(w.full)); err != nil {
 			discard(0)
 			return abortStage(w.file.Path, errors.New(openRefusal(w.file.Path, err)))
 		}

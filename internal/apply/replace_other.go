@@ -8,4 +8,4 @@ func platformCause(error) string { return "" }
 
 // replaceable answers yes on unix: a rename over a file, or its removal, does
 // not care who has it open.
-func replaceable(string) error { return nil }
+func replaceable(*tree, string) error { return nil }
