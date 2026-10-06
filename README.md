@@ -64,7 +64,9 @@ paths the walk starts at `--root`. `--exclude GLOB` is repeatable and matches
 both the root-relative path and the basename — that is what makes `'*_test.go'`
 work at any depth. Inside a git checkout it skips what `.gitignore` and
 `.git/info/exclude` ignore, and any walk skips a binary file; a `-- skipped:`
-line counts them, and `--no-ignore` walks every file. A `.git/` the walk meets
+line counts them, and `--no-ignore` walks every file. It does not enter a
+nested repository — a directory below the checkout holding its own `.git` — as
+git does not (ADR-130); a path you name inside one is walked. A `.git/` the walk meets
 is skipped; one you name is walked.
 A link to a directory is not followed: one the walk meets is skipped, one you name is refused with
 the directory to name instead — unless you spell it as an absolute path, which names the directory

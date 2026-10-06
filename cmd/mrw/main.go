@@ -696,7 +696,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.BoolFlag{
 				Name:  "no-ignore",
-				Usage: "under --grep or --ast-grep, walk every regular file: no .gitignore, no binary skip (ADR-116, ADR-122)",
+				Usage: "under --grep or --ast-grep, walk every regular file: no .gitignore, no binary skip, nested repositories entered (ADR-116, ADR-122, ADR-130)",
 			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
