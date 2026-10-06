@@ -11,7 +11,7 @@ README must be regenerated.
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
 | T1 | a target mrw cannot open is refused on its hunk, naming why | done | none | `docs/adr/ADR-125-a-target-that-cannot-be-replaced-refuses-first/tasks/T1-receipt.md` fence |
-| T2 | on Windows a held target fails before any rename | pending | T1 | `docs/adr/ADR-125-a-target-that-cannot-be-replaced-refuses-first/tasks/T2-replace.md` fence |
+| T2 | on Windows a held target fails before any rename | done | T1 | `docs/adr/ADR-125-a-target-that-cannot-be-replaced-refuses-first/tasks/T2-replace.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
