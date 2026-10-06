@@ -8615,6 +8615,33 @@ t226=$((SECONDS - s226))
 grep -q '"skipped":"interrupted"' "$WORK/o226" && [ "$t226" -lt 15 ] && ok "a cancel stops the write's running check, reported interrupted" || bad "cancel (${t226}s): $(head -c 400 "$WORK/o226")"
 rm -f "$R/.quality-harness.json"
 
+# 230. ADR-129: a rename may change only the case of a name. On a filesystem
+# that folds case, A.txt finds a.txt — the source — and the rename was refused
+# "already exists". It applies now and the directory spells it A.txt. Linux CI
+# does not fold case, so the respelling is driven where it does (a local macOS
+# run) and skipped, saying so, elsewhere. The pair runs everywhere: a rename
+# onto a hard link of the source — the same file under a name that really
+# exists, which POSIX rename(2) "does nothing" to — is still refused.
+fixture
+printf 'x\n' > "$R/a230.txt"
+m read a230.txt >/dev/null
+if [ -e "$R/A230.TXT" ]; then
+  printf '@@ a230.txt - rename\nA230.txt\n' > "$WORK/p230"
+  out=$(m write --no-check "$WORK/p230" 2>&1); want 0 $? "a case-only rename applies on a folding filesystem"
+  ls "$R" | grep -qx 'A230.txt' && ! ls "$R" | grep -qx 'a230.txt' && ok "and the directory spells it as the plan asked" || bad "case-only rename: $(ls "$R" | grep -i a230) :: $out"
+else
+  skip "a case-only rename (this filesystem does not fold case: a230.txt and A230.txt are two names)"
+fi
+printf 'y\n' > "$R/h230.txt"
+if ln "$R/h230.txt" "$R/k230.txt" 2>/dev/null; then
+  m read h230.txt >/dev/null
+  printf '@@ h230.txt - rename\nk230.txt\n' > "$WORK/q230"
+  out=$(m write --no-check "$WORK/q230" 2>&1); want 1 $? "a rename onto a hard link of the source is refused"
+  grep -q 'already exists' <<<"$out" && [ -e "$R/h230.txt" ] && [ -e "$R/k230.txt" ] && ok "naming the destination as existing, both names kept" || bad "hard link: $out"
+else
+  skip "a rename onto a hard link (no hard links here)"
+fi
+
 # 223. ADR-125: a target mrw cannot open is refused on its hunk, naming why.
 # A plan over a.txt and a write-only b.txt (mode 200: not read-only, so ADR-076
 # does not take it first) printed one bare "mrw: …" line at exit
