@@ -144,6 +144,36 @@ func TestACancelReachesACallWhoseIDIsSpelledDifferently(t *testing.T) {
 	}
 }
 
+// The Codex review of #343, its third round. An id a cancel keys alike is
+// judged alike, and an id encoding/json would decode lossily is not an id.
+func TestAnIDIsJudgedByItsValueAndDecodedLosslessly(t *testing.T) {
+	for _, id := range []string{"1e9223372036854775808", "10e9223372036854775807", "100e9223372036854775806", `"😀"`, `"�"`, `"\\ud800"`} {
+		if !validRequestID(json.RawMessage(id)) {
+			t.Errorf("%s refused", id)
+		}
+	}
+	for _, id := range []string{"1e-9223372036854775809", `"\ud800"`, `"\udc00"`, `"\ud800x"`, `"\ud800A"`, "\"\xff\""} {
+		if validRequestID(json.RawMessage(id)) {
+			t.Errorf("%q accepted", id)
+		}
+	}
+	ctx, finished := registerCall(json.RawMessage("1e9223372036854775808"))
+	defer finished()
+	cancelCall(json.RawMessage(`{"requestId":10e9223372036854775807}`))
+	if ctx.Err() == nil {
+		t.Error("a cancel spelled 10e9223372036854775807 missed the call 1e9223372036854775808")
+	}
+}
+
+// The Codex review of #343. With no checkpoint pending at all, promote
+// returned the acks as sent, so an id sent twice was named twice.
+func TestAnUnknownAckIsNamedOnceWithNothingPending(t *testing.T) {
+	unknown, err := promote(checkTree113(t, ""), []string{"x", "x"})
+	if err != nil || len(unknown) != 1 || unknown[0] != "x" {
+		t.Errorf("unknown = %v, %v; want [x]", unknown, err)
+	}
+}
+
 // The Codex review of #343. A null cancel id read as a string is "", and it
 // cancelled the running call whose id is "". It names no call now.
 func TestANullCancelIDCancelsNothing(t *testing.T) {

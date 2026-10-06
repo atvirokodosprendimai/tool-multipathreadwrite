@@ -397,9 +397,6 @@ func promote(root string, acks []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(store) == 0 {
-		return acks, nil
-	}
 	// ⚠ KEYED BY PATH **AND SHA**, not by path alone. An earlier cut appended
 	// every acknowledged span to one observation per path and let the last
 	// checkpoint's SHA win, so acknowledging a stale page and a current one in

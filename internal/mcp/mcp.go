@@ -27,6 +27,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // legacyVersions are the handshake-era revisions mrw speaks, latest first
@@ -771,10 +772,51 @@ var jsonNumber = regexp.MustCompile(`^-?([0-9]+)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9
 func validRequestID(id json.RawMessage) bool {
 	var s string
 	if json.Unmarshal(id, &s) == nil {
-		return true
+		return lossless(bytes.TrimSpace(id))
 	}
 	m := jsonNumber.FindSubmatch(id)
 	return m != nil && integral(m[1], m[2], m[3])
+}
+
+// lossless reports whether the JSON string raw decodes with nothing replaced.
+// encoding/json turns invalid UTF-8 and an unpaired surrogate escape into
+// U+FFFD without an error, so "\ud800", "\udc00" and "�" decoded to one
+// id, and a cancel for one stopped the call of another (the Codex review of
+// #343). An id that cannot be decoded as sent is not a valid request id.
+func lossless(raw []byte) bool {
+	if !utf8.Valid(raw) {
+		return false
+	}
+	for i := 0; i < len(raw); i++ {
+		if raw[i] != '\\' {
+			continue
+		}
+		i++
+		if raw[i] != 'u' {
+			continue
+		}
+		r := hex4(raw[i+1 : i+5])
+		i += 4
+		switch {
+		case r >= 0xDC00 && r <= 0xDFFF:
+			return false
+		case r >= 0xD800 && r <= 0xDBFF:
+			if i+7 > len(raw) || raw[i+1] != '\\' || raw[i+2] != 'u' {
+				return false
+			}
+			if lo := hex4(raw[i+3 : i+7]); lo < 0xDC00 || lo > 0xDFFF {
+				return false
+			}
+			i += 6
+		}
+	}
+	return true
+}
+
+// hex4 reads four hex digits; json.Unmarshal has already accepted them.
+func hex4(b []byte) uint64 {
+	n, _ := strconv.ParseUint(string(b), 16, 32)
+	return n
 }
 
 // integral reports whether whole.frac × 10^exp is an integer. Only the
@@ -787,15 +829,18 @@ func integral(whole, frac, exp []byte) bool {
 	if strings.TrimLeft(sig, "0") == "" {
 		return true // zero, however it is spelled
 	}
-	e := 0
+	// In big.Int, as callKey reduces it: an int sum of an exponent near
+	// MaxInt64 and the trailing zeros overflowed, so 10e9223372036854775807 was
+	// refused while 1e9223372036854775808, the same value, was accepted, and a
+	// cancel spelled one way missed the call spelled the other (the Codex
+	// review of #343).
+	e := new(big.Int)
 	if len(exp) > 0 {
-		n, err := strconv.Atoi(string(exp))
-		if err != nil {
-			return exp[0] != '-'
-		}
-		e = n
+		e.SetString(strings.TrimPrefix(string(exp), "+"), 10)
 	}
-	return e-len(frac)+(len(digits)-len(sig)) >= 0
+	e.Sub(e, big.NewInt(int64(len(frac))))
+	e.Add(e, big.NewInt(int64(len(digits)-len(sig))))
+	return e.Sign() >= 0
 }
 
 // calls holds the cancel of each running tools/call by its request id
