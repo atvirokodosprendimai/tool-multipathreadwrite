@@ -409,9 +409,16 @@ func run(ctx context.Context, root string, cfg Config, cmdline string, env []str
 	// of #229). No test can reach that window; it is microseconds wide.
 	switch {
 	case runErr != nil && ctx.Err() == context.DeadlineExceeded:
-		res.ExitCode = -1
-		res.Skipped = fmt.Sprintf("timed out after %s", timeout)
-		if !res.Ran {
+		// ADR-126: a check that never started is a timeout only when its
+		// start failed for the deadline. One that could not start for its own
+		// reason (no shell) keeps that reason, though the deadline has also
+		// passed by now (the in-process review of #340).
+		switch {
+		case res.Ran:
+			res.ExitCode = -1
+			res.Skipped = fmt.Sprintf("timed out after %s", timeout)
+		case errors.Is(runErr, context.DeadlineExceeded):
+			res.ExitCode = -1
 			res.Skipped = TimedOutBeforeStart
 		}
 	case runErr != nil && ctx.Err() == context.Canceled && res.Ran:

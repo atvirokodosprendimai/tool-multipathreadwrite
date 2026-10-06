@@ -34,4 +34,14 @@ func TestADeadlineBeforeTheStartIsATimeoutNotACannotStart(t *testing.T) {
 	if StoppedBeforeStart(Result{Skipped: "could not start: exec: no such file"}) {
 		t.Error("a check that could not start was called stopped")
 	}
+	// A check that could not start for its own reason keeps it, though its
+	// deadline has passed too (the in-process review of #340).
+	tempDirForLogs(t)
+	t.Setenv("PATH", "")
+	dead, cancelDead := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancelDead()
+	res, err = Run(dead, root, cfg, nil)
+	if err != nil || StoppedBeforeStart(res) || !strings.HasPrefix(res.Skipped, "could not start") {
+		t.Errorf("a missing shell under an expired deadline was called a timeout: err %v, %+v", err, res)
+	}
 }

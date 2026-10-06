@@ -57,7 +57,8 @@ const (
 	// changes — a SECOND opinion about what happened, beside the one the exit
 	// status already carries. ADR-009-T1's Stop Condition names exactly that.
 	RefusedApply
-	// CheckNotRun — written, but no check could run (exit 2).
+	// CheckNotRun — written, but no check ran: exit 2, or 3 when it was
+	// stopped before it started (ADR-080, ADR-126).
 	CheckNotRun
 	// FailedCheck — written, then --check failed (ADR-003 exit 3).
 	FailedCheck
@@ -124,7 +125,7 @@ func Vocabulary() []string {
 // Landed is how many plans WROTE the tree, whatever happened next: applied,
 // plus partially_applied (some files written, then the commit failed — exit
 // 2, ADR-102), plus failed_check (written, then the check failed — exit 3),
-// plus check_not_run (written, and no check could run — exit 2). It is NOT
+// plus check_not_run (written, and no check ran — exit 2, or 3 when it was stopped before it started). It is NOT
 // "wrote and was checked": --no-check and a prose-only plan both record
 // applied and sit here as successes, and a partial commit ran no check. A
 // reader who takes failed_check over Landed as "of those we verified" misreads

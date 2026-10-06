@@ -53,3 +53,24 @@ func TestMrwCheckWhoseDeadlinePassedBeforeItStartedExits3(t *testing.T) {
 		t.Fatalf("want exit %d, timed out before it started: %v\n%s", exitCheckFailed, err, out)
 	}
 }
+
+// The in-process and Codex reviews of #340. A check that could not start for
+// want of a shell, under a deadline that had also passed, was called a
+// timeout before it started, exit 3: the missing shell is exit 2, with its
+// advice, as ADR-082 says.
+func TestMrwCheckWithNoShellUnderAnExpiredDeadlineStillExits2(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := grepTree(t, map[string]string{
+		"a.go":                  "package a\nfunc A() {}\n",
+		".quality-harness.json": `{"check":"exit 0"}`,
+	})
+	t.Setenv("PATH", "")
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	out, err := captureStdout(t, func() error {
+		return rootCommand().Run(ctx, []string{"mrw", "-C", root, "check", "a.go"})
+	})
+	if err == nil || exitCode(err) != exitUsage || strings.Contains(err.Error(), "before it started") {
+		t.Fatalf("want exit %d, could not start: %v\n%s", exitUsage, err, out)
+	}
+}

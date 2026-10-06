@@ -7,13 +7,13 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-003, ADR-080, ADR-113, ADR-120
 **Invalidates:** None — ADR-080's "interrupted before it started" keeps its meaning; a deadline joins it
-**Governs:** `internal/check/check.go`, `cmd/mrw/main.go`, `scripts/contract.sh`, `AGENTS.md`
+**Governs:** `internal/check/check.go`, `cmd/mrw/main.go`, `AGENTS.md`
 **Enforced-by:** `cmd/mrw/timeout126_test.go::TestAWriteWhoseDeadlinePassedBeforeItsCheckStartedExits3`
 **Served-path change:** a check whose deadline passed before it started — a deadline already gone when the write reached its check, or one that landed while Windows was putting the child in its job (ADR-120) — is reported "timed out before it started", exit 3, the same exit a check that times out while running gives, where it said "no check could run: timed out", exit 2.
 
 ## Context
 
-`check.run` (`internal/check/check.go:292`) reads a check whose process never started as "could not start", `Ran == false`, which the write path (`cmd/mrw/main.go:1419`) and `mrw check` (`:1913`) report as "no check could run", exit 2: the configuration problem ADR-003 files a missing check under. ADR-080 already took out the interrupt: a cancel before the start is `Interrupted`, exit 3. A deadline before the start was left: `check.go:396` overwrites the reason with "timed out after …", `Ran` stays false, and the caller is told exit 2 for what exit 3 means — the write applied, nothing verified it.
+`check.run` (`internal/check/check.go:307`) reads a check whose process never started as "could not start", `Ran == false`, which the write path (`cmd/mrw/main.go:1422`) and `mrw check` (`:1920`) report as "no check could run", exit 2: the configuration problem ADR-003 files a missing check under. ADR-080 already took out the interrupt: a cancel before the start is `Interrupted`, exit 3. A deadline before the start was left: `check.go:411` overwrites the reason with "timed out after …", `Ran` stays false, and the caller is told exit 2 for what exit 3 means — the write applied, nothing verified it.
 
 Two routes reach it: a deadline already past when the check starts (BACKLOG "From ADR-120", the in-process review of #325), and on Windows a deadline that lands while the child is being contained, since a child killed before it was resumed carries no process state (`internal/subproc/job.go:123`; the Codex review of v1.42.0..v1.47.0, finding 1).
 
@@ -26,7 +26,7 @@ Two routes reach it: a deadline already past when the check starts (BACKLOG "Fro
 
 ## Decision
 
-1. **A deadline that passed before the check started is `TimedOutBeforeStart`**: `Skipped` reads "timed out before it started (the N limit had passed)", `Ran` stays false, `exit_code` stays -1. No receipt key changes.
+1. **A deadline that passed before the check started is `TimedOutBeforeStart`**: `Skipped` reads exactly "timed out before it started", `Ran` stays false, `exit_code` stays -1. A check that could not start for its own reason — no shell — keeps that reason even when the deadline has also passed: the timeout is read off the start's error, not off the context (the in-process review of #340). No receipt key changes.
 2. **`check.StoppedBeforeStart(r)`** answers whether a check that did not run was stopped — interrupted or timed out — rather than unable to start; the write path and `mrw check` both ask it and exit 3, naming which.
 3. **`mrw_write` is unchanged**: a check that did not run is isError with the receipt (ADR-113 Decision 4), interrupted before it started included; the timeout joins it there too.
 
@@ -71,7 +71,7 @@ See `tasks/README.md`: T1.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| a "could not start" whose deadline also expired is reported as a timeout | Low | Low | the deadline is the reason the start failed or did not matter; either way the write is unverified, exit 3 |
+| a check that could not start for its own reason (no shell) under a deadline that also passed is called a timeout | Low | Medium | the start's error decides, not the context: only an error wrapping `DeadlineExceeded` is a timeout; `TestADeadlineBeforeTheStartIsATimeoutNotACannotStart` and `TestMrwCheckWithNoShellUnderAnExpiredDeadlineStillExits2` pin it (the reviews of #340) |
 
 ## Rollback
 
