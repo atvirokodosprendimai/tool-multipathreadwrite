@@ -2614,7 +2614,7 @@ plan (ADR-127 to ADR-129).
   with the next change to the write path's exit mapping: test `DeadlineExceeded` beside `Interrupted` there.
   The Codex review of v1.42.0..v1.47.0 (2026-10-06) found the same exit 2 on Windows when the deadline lands
   while the child is being contained (`internal/subproc/job.go` clears `ProcessState`), and arms this entry:
-  taken by ADR-126 (the 2026-10-06 plan), which reports both as a timeout, exit 3.
+  **Taken by ADR-126** (2026-10-06): both are reported "timed out before it started", exit 3.
 
 ## From ADR-121 (an MCP check does not hold the only thread)
 
