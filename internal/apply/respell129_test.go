@@ -211,3 +211,53 @@ func TestAKeptRespellingAfterAContentEditIsReportedPartial(t *testing.T) {
 		t.Fatalf("the directory holds %v", got)
 	}
 }
+
+// The in-process review of #346. a/x.txt → A/X.txt passed every identity test —
+// one directory, one file — and the receipt said A/X.txt while the disk held
+// a/X.txt: a rename does not respell a directory. It is refused.
+func TestARespellingThatAlsoRespellsTheDirectoryIsRefused(t *testing.T) {
+	root := t.TempDir()
+	if !caseInsensitiveFS(t, root) {
+		t.Skip("this filesystem does not fold case")
+	}
+	write(t, root, "a/x.txt", "x\n")
+	res, err := Apply(root, []Input{{Path: "a/x.txt", Op: "rename", Body: []string{"A/X.txt"}, Lines: -1}}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Applied || !strings.Contains(failedReason(res), "respells the directory") {
+		t.Fatalf("a respelling of the directory too was not refused: applied=%v %q", res.Applied, failedReason(res))
+	}
+	if got := names(t, filepath.Join(root, "a")); !slices.Equal(got, []string{"x.txt"}) {
+		t.Fatalf("a holds %v", got)
+	}
+}
+
+// The in-process review of #346. The edited-and-renamed path returns through
+// its own confirm(); a plan that edits a.txt and respells it, on a filesystem
+// that keeps the old spelling, must not report applied.
+func TestAnEditedFileWhoseRespellingWasKeptIsNotReportedApplied(t *testing.T) {
+	root := t.TempDir()
+	if !caseInsensitiveFS(t, root) {
+		t.Skip("this filesystem does not fold case")
+	}
+	write(t, root, "a.txt", "x\n")
+	prev := commitRenameFn
+	commitRenameFn = func(tr *tree, from, to string) error {
+		if filepath.Base(to) == "A.txt" {
+			return nil
+		}
+		return prev(tr, from, to)
+	}
+	t.Cleanup(func() { commitRenameFn = prev })
+	res, err := Apply(root, []Input{
+		{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"y"}, Lines: -1, Index: 0},
+		{Path: "a.txt", Op: "rename", Body: []string{"A.txt"}, Lines: -1, Index: 1},
+	}, Options{Force: true})
+	if err == nil || res.Applied || !strings.Contains(err.Error(), "kept the old spelling") {
+		t.Fatalf("an edited file's kept respelling reported success: err=%v applied=%v", err, res.Applied)
+	}
+	if got := names(t, root); !slices.Equal(got, []string{"a.txt"}) {
+		t.Fatalf("the directory holds %v", got)
+	}
+}

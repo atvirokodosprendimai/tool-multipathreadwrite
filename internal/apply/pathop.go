@@ -192,6 +192,14 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 			// ADR-129: on a filesystem that folds case, A.txt finds a.txt.
 			switch respelling(full, destFull) {
 			case respelled:
+				// The parent is one directory however the plan spells it, and
+				// a rename changes only the leaf: a/x.txt → A/X.txt would leave
+				// a/X.txt on disk under a receipt naming A/X.txt (the in-process
+				// review of #346).
+				if filepath.Dir(dest) != filepath.Dir(path) {
+					fail(h, "rename dest %s respells the directory %s: a rename changes only the name, so spell the directory as the source does", dest, filepath.Dir(path))
+					return false
+				}
 			case theSource:
 				fail(h, "rename dest %s is the source", dest)
 				return false
