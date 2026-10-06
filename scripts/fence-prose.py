@@ -40,7 +40,7 @@ EXEMPT = {
     # ADR-108 T10 bumped the ledger to #mrw-seen v3: a v2 span may have been issued by an MCP checkpoint
     # that spanned a sparse read's gaps. ADR-038 T1 pinned v2 as its own go/no-go.
     ("docs/adr/ADR-038-", "'#mrw-seen v2' internal/seen/seen.go"): "ADR-108",
-    # ADR-113 moved the CLI write's sequence into internal/writer/flow.go, which calls writer.Apply;
+    # ADR-113 moved the CLI write's sequence into internal/writer/flow.go, whose Land applies (applyCounted since ADR-127);
     # cmd/mrw/main.go and internal/mcp/tools.go reach it through writer.Prepare and Land. ADR-075 T1 pinned both sites.
     ("docs/adr/ADR-075-", "'writer\\.Apply(' cmd/mrw/main.go"): "ADR-113",
     ("docs/adr/ADR-075-", "'writer\\.Apply(' internal/mcp/tools.go"): "ADR-113",

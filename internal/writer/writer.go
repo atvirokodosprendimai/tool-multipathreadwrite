@@ -4,7 +4,7 @@
 // MCP server — each validated a plan against the file it had read and then
 // renamed its result into place, so a later rename threw an earlier edit away
 // while both printed "applied", exit 0: 45–53% of racing writers in the
-// v1.25.1 adversarial round. Apply holds a per-checkout lock from validation
+// v1.25.1 adversarial round. A landing (applyCounted, through Land) holds a per-checkout lock from validation
 // to the ledger update, so a writer whose file changed while it waited is
 // refused by apply's own sha check instead.
 package writer
@@ -61,21 +61,25 @@ func (e *LedgerError) Error() string { return e.Err.Error() }
 // Unwrap returns the ledger's own error.
 func (e *LedgerError) Unwrap() error { return e.Err }
 
-// Apply applies in under root's write lock and records what landed before it
-// releases the lock: a written file as wholly known (ADR-002, ADR-005), an
-// unlinked or renamed-away one dropped. A commit that failed after some files
-// landed records those too (ADR-102): mrw wrote them, so it knows them.
+// applyCounted applies in under root's write lock and records what landed
+// before it releases the lock: a written file as wholly known (ADR-002,
+// ADR-005), an unlinked or renamed-away one dropped. A commit that failed after
+// some files landed records those too (ADR-102): mrw wrote them, so it knows
+// them. It also returns the checkout's write counter as this write left it
+// (ADR-127): bumped under the lock when anything landed, so a check that runs
+// after the lock is released can tell how many other writes landed meanwhile;
+// zero when nothing landed or the counter could not move.
 //
 // opt.Seen must be the ledger the caller loaded BEFORE calling. Loaded under
 // the lock, a writer that waited would validate against the previous writer's
 // whole-file licence, and its line numbers, counted in an older read, would
 // land on the new content with exit 0. Loaded before, apply's sha check sees
-// that the file changed and refuses. The check is the caller's, run after
-// Apply returns: a five-minute check must not hold every other writer.
-func Apply(root string, in []apply.Input, opt apply.Options) (apply.Result, error) {
+// that the file changed and refuses. The check is the caller's, run after it
+// returns: a five-minute check must not hold every other writer.
+func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Result, int64, error) {
 	release, err := seen.LockWrites(root)
 	if err != nil {
-		return apply.Result{DryRun: opt.DryRun}, err
+		return apply.Result{DryRun: opt.DryRun}, 0, err
 	}
 	defer release()
 	if inside != nil {
@@ -84,8 +88,9 @@ func Apply(root string, in []apply.Input, opt apply.Options) (apply.Result, erro
 	res, err := apply.Apply(root, in, opt)
 	m := MutationOf(res)
 	if m == None {
-		return res, err
+		return res, 0, err
 	}
+	gen := bumpWrites(root)
 	wrote := map[string]seen.Observation{}
 	var gone []string
 	for _, f := range res.Files {
@@ -100,15 +105,15 @@ func Apply(root string, in []apply.Input, opt apply.Options) (apply.Result, erro
 	// Drop before Record: an unlink of c and a rename onto c in one plan leave
 	// two records for c, and the one that holds is the file on disk.
 	if lerr := seen.Drop(root, gone); lerr != nil {
-		return res, ledgerFailed(m, err, lerr)
+		return res, gen, ledgerFailed(m, err, lerr)
 	}
 	if lerr := seen.Record(root, wrote); lerr != nil {
-		return res, ledgerFailed(m, err, lerr)
+		return res, gen, ledgerFailed(m, err, lerr)
 	}
-	return res, err
+	return res, gen, err
 }
 
-// ledgerFailed is what Apply returns when the ledger could not record what
+// ledgerFailed is what applyCounted returns when the ledger could not record what
 // landed. After a complete commit it is a LedgerError, which callers read as
 // "the plan landed". After a partial one the commit error stays the error — a
 // LedgerError there would be counted as a clean landing — and the ledger's

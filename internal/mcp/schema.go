@@ -238,6 +238,7 @@ var writeDescriptions = map[string]string{
 	"check.truncated_lines":      "How many lines of output came before the tail and are only in output_file.",
 	"check.pruned_logs":          "How many old check logs this run removed from the temp directory.",
 	"drift":                      "Each file this write touched that changed while its check ran (ADR-112), spelled with `/` — another writer, or the check itself. Absent when none did. The verdict is about the tree as the check saw it.",
+	"drift_writers":              "How many other writes landed in this checkout while this write's check ran (ADR-127): the check verified a tree another writer changed. Absent when none did. Advisory: the verdict is the check's.",
 	"then":                       "Every step named in `then` (ADR-115), the same object `mrw write --json` carries: each step's verdict, `not_run` for every step after one that stopped the sequence, and every one `not_run` when a check that was due did not pass (it failed or could not run), the plan was refused, it was a dry run, or the ledger could not record the landing. With no check due — a prose write, or `check: false` — the steps run. Absent when no step was asked for, or when the write did not finish landing (a commit that stopped part-way, a writer lock not obtained).",
 	"then.pruned_logs":           "How many old step logs the steps' run removed from the temp directory.",
 	"then.steps":                 "One verdict per step, in the order asked.",
