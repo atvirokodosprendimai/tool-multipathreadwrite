@@ -1330,7 +1330,9 @@ held or went unchecked.`,
 			}
 			// Land counted the landing, whatever it was.
 			tallied = true
-			res := land.Res
+			// ADR-132: what the caller is shown spells paths with "/", as
+			// mrw_write's receipt does (ADR-091); the engine kept its own.
+			res := shown(land.Res)
 			if land.Err != nil {
 				// ADR-001 rule 3: every hunk carries its own verdict, and a
 				// filesystem failure is not an exception. Apply fills the
@@ -1349,7 +1351,7 @@ held or went unchecked.`,
 				if len(res.Hunks) > 0 {
 					report(os.Stdout, res, cmd.Bool("quiet"))
 				}
-				return cli.Exit(land.Err, exitUsage)
+				return cli.Exit(exitTwoLine(res, land.Err), exitUsage)
 			}
 			// The landing (writer's applyCounted) recorded what the files now hold before it released
 			// the write lock. This is why a chain of edits needs no re-read
@@ -1400,7 +1402,7 @@ held or went unchecked.`,
 				stepsNotRun = v.Then
 				return refuseWith(res, v.CheckErr.Error())
 			}
-			receipt.Check, receipt.Drift, receipt.DriftWriters, receipt.Then = v.Check, v.Drift, v.DriftWriters, v.Then
+			receipt.Check, receipt.Drift, receipt.DriftWriters, receipt.Then = v.Check, shownPaths(v.Drift), v.DriftWriters, v.Then
 
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
@@ -1974,6 +1976,10 @@ func reportCheck(w *os.File, r *check.Result) {
 		if r.OutputFile != "" {
 			named = " — full output: " + r.OutputFile
 		}
+		if w := writer.StopWord(r.Skipped); w != "" {
+			fmt.Fprintf(out, "check %s: %s%s\n", w, r.Skipped, named)
+			return
+		}
 		fmt.Fprintf(out, "check SKIPPED: %s%s\n", r.Skipped, named)
 		return
 	}
@@ -1999,6 +2005,9 @@ func reportCheck(w *os.File, r *check.Result) {
 	verdict := "PASS"
 	if !r.OK() {
 		verdict = "FAIL"
+	}
+	if w := writer.StopWord(r.Skipped); w != "" {
+		verdict = w
 	}
 	if r.Skipped != "" {
 		// ADR-080: a timed-out or interrupted check keeps its log, and the
@@ -2085,7 +2094,7 @@ func report(w *os.File, res apply.Result, quiet bool) {
 		// ADR-076: the directories this plan made, parents first, spelled
 		// with the separator that names a directory.
 		for _, d := range res.DirsCreated {
-			fmt.Fprintf(out, "created %s%c\n", d, filepath.Separator)
+			fmt.Fprintf(out, "created %s/\n", d)
 		}
 		for _, f := range res.Files {
 			if !f.Written {
@@ -2579,4 +2588,43 @@ func maxLines(cmd *cli.Command) *int {
 	}
 	n := cmd.Int("max-lines")
 	return &n
+}
+
+// receiptSep is the separator a receipt's paths are converted from (ADR-132);
+// a variable so a test can drive `\` on any platform.
+var receiptSep = filepath.Separator
+
+// shown is res as a receipt shows it: every root-relative path with "/".
+func shown(res apply.Result) apply.Result { return apply.Slashed(res, receiptSep) }
+
+// shownPaths is paths as a receipt shows them, with "/".
+func shownPaths(paths []string) []string {
+	out := make([]string, len(paths))
+	for i, p := range paths {
+		out[i] = apply.Slash(p, receiptSep)
+	}
+	if len(out) == 0 {
+		return paths
+	}
+	return out
+}
+
+// exitTwoLine is the line an exit-2 write ends on (ADR-132): the error, with
+// the reason a FAIL row already printed replaced by a pointer to that row, so
+// a long system error is not printed twice and every other cause it carries —
+// the files already written, a ledger failure — stays.
+func exitTwoLine(res apply.Result, err error) string {
+	msg := err.Error()
+	for _, h := range res.Hunks {
+		if h.Status == apply.StatusFailed && h.Reason != "" && strings.Contains(msg, h.Reason) {
+			line := strings.Replace(msg, h.Reason, "see its FAIL line", 1)
+			// A commit's reason can be the whole error, path included: keep
+			// the path, so the line still says which file stopped it.
+			if !strings.Contains(line, h.Path) {
+				line = h.Path + ": " + line
+			}
+			return line
+		}
+	}
+	return msg
 }

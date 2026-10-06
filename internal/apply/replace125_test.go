@@ -108,8 +108,9 @@ func TestEveryTargetIsAskedBeforeTheFirstRename(t *testing.T) {
 			t.Errorf("%s was not asked whether it can be replaced", n)
 		}
 	}
-	if err == nil || res.Applied {
-		t.Fatalf("a target that cannot be replaced did not stop the plan: err %v, applied %v", err, res.Applied)
+	// ADR-132: a permission is the target's — a refused hunk, no error.
+	if err != nil || res.Applied {
+		t.Fatalf("a target that cannot be replaced did not refuse the plan: err %v, applied %v", err, res.Applied)
 	}
 	if r := hunkFor(t, res, "r.txt"); r.Status != StatusFailed || !strings.Contains(r.Reason, "permission denied") {
 		t.Errorf("the refused target's hunk does not name the cause: %+v", r)

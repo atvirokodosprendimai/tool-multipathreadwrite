@@ -729,7 +729,7 @@ else
   printf '@@ a.go 3 replace\nfunc A() int { return 99 }\n@@ locked/f.go 3 replace\nfunc F() int { return 99 }\n' \
     | m write - >/dev/null 2>&1; rc=$?
   chmod 755 "$R/locked"
-  want 2 "$rc" "a plan naming an unwritable file fails"
+  want 1 "$rc" "a plan naming an unwritable file is refused (exit 1, ADR-132: a permission is the target's)"
   [ "$(cat "$R/a.go")" = "$before" ] \
     && ok "and the file that COULD be written was left untouched" \
     || bad "partially applied: a.go was written while the plan failed"
@@ -785,7 +785,7 @@ else
   printf '@@ fresh/deep/n.go - create\npackage n\n@@ already/e.go - create\npackage e\n@@ locked/f.go 3 replace\nfunc F() int { return 99 }\n' \
     | m write - >/dev/null 2>&1; rc=$?
   chmod 755 "$R/locked"
-  want 2 "$rc" "a create into a new directory aborts with the rest of the plan"
+  want 1 "$rc" "a create into a new directory is refused with the rest of the plan (exit 1, ADR-132)"
   [ ! -e "$R/fresh" ] \
     && ok "and the directories staging created are taken back" \
     || bad "left behind: $(find "$R/fresh" 2>/dev/null | tr '\n' ' ')"
@@ -6219,7 +6219,7 @@ fixture
 printf 'sib\n' > "$R/s.txt"; printf 'bee\n' > "$R/b.txt"; m read s.txt b.txt >/dev/null
 plan118="$(printf '@@ s.txt 1 replace\nSIB\n@@ b.txt - rename\nn/%s/f.txt\n' "$L118")"
 printf '%s\n' "$plan118" | m write --no-check - >"$WORK/118.out" 2>&1
-want 2 $? "a rename whose destination directory cannot be made exits 2"
+want 1 $? "a rename whose destination directory cannot be made exits 1 (ADR-132: a name too long is the target's)"
 { [ "$(cat "$R/s.txt")" = "sib" ] && [ -f "$R/b.txt" ] && [ ! -e "$R/n" ] \
     && grep -q '^FAIL' "$WORK/118.out" && grep -q '^skip' "$WORK/118.out" \
     && ! grep -q -- '— applied' "$WORK/118.out"; } \
@@ -6242,7 +6242,7 @@ want 1 $? "a rename whose name the filesystem rejects fails validation (exit 1)"
   && ok "a rename whose name the filesystem rejects is refused" \
   || bad "a rejected rename name reached the tree: $(tr '\n' ' ' < "$WORK/118.out" | cut -c1-300)"
 printf '@@ s.txt 1 replace\nSIB\n@@ b.txt - rename\nn2/%s\n' "$L118" | m write --no-check - >"$WORK/118.out" 2>&1
-want 2 $? "a rename whose leaf is rejected under a new parent exits 2"
+want 1 $? "a rename whose leaf is rejected under a new parent exits 1 (ADR-132)"
 { [ "$(cat "$R/s.txt")" = "sib" ] && [ -f "$R/b.txt" ] && [ ! -e "$R/n2" ]; } \
   && ok "a rename whose leaf is rejected under a new parent writes nothing" \
   || bad "a rejected leaf under a new parent reached the tree: $(tr '\n' ' ' < "$WORK/118.out" | cut -c1-300)"
@@ -6275,14 +6275,14 @@ else
   want 0 $? "a replacing rename plan into a writable directory exits 0"
   rm -f "$R/w/d.txt"; setup119
   printf '@@ c.txt - unlink\n@@ b.txt - rename\nc.txt\n@@ d.txt - rename\nro/d.txt\n' | m write --no-check - >"$WORK/119.out" 2>&1
-  want 2 $? "a replacing rename plan whose last rename cannot land exits 2"
+  want 1 $? "a replacing rename plan whose last rename cannot land exits 1 (ADR-132: a permission is the target's)"
   { [ "$(cat "$R/c.txt")" = "OLD-C" ] && [ "$(cat "$R/b.txt" 2>/dev/null)" = "B-CONTENT" ] && [ "$(cat "$R/d.txt")" = "D" ] \
       && ! grep -q -- '— applied' "$WORK/119.out"; } \
     && ok "a failed rename after a replacing rename loses no file" \
     || bad "a failed rename after a replacing rename lost or moved a file: c=$(cat "$R/c.txt" 2>&1) b=$(cat "$R/b.txt" 2>&1) :: $(tr '\n' ' ' < "$WORK/119.out" | cut -c1-300)"
   setup119
   printf '@@ s.txt 1 replace\nSIB\n@@ d.txt - rename\nro/d.txt\n' | m write --no-check - >"$WORK/119.out" 2>&1
-  want 2 $? "a mixed plan whose rename cannot land exits 2"
+  want 1 $? "a mixed plan whose rename cannot land exits 1 (ADR-132)"
   { [ "$(cat "$R/s.txt")" = "sib" ] && grep -q '^FAIL' "$WORK/119.out" \
       && ! grep -q 'PARTIALLY APPLIED' "$WORK/119.out"; } \
     && ok "a mixed plan whose rename cannot land writes nothing: ADR-086 refuses it at staging" \
@@ -7349,7 +7349,7 @@ m write --no-check "$R/p168.mrw" >"$WORK/out168" 2>&1; rc=$?
 state=$(python3 -c 'import os,sys; ns=set(os.listdir(os.fsencode(sys.argv[1]))); print("exact" if b"bad\xffname.txt" in ns else "replaced" if "bad�name.txt".encode() in ns else "none")' "$R")
 case "$rc:$state" in
 	0:exact) ok "a name the filesystem holds lands with the bytes the plan wrote" ;;
-	2:none) grep -q 'return 6' "$R/a.go" && bad "the refused plan's content edit landed" || ok "a name the filesystem refuses fails the plan at staging, exit 2, and nothing is written" ;;
+	1:none) grep -q 'return 6' "$R/a.go" && bad "the refused plan's content edit landed" || ok "a name the filesystem refuses fails the plan at staging, exit 1 (ADR-132), and nothing is written" ;;
 	*) bad "exit $rc, name $state: $(head -c 300 "$WORK/out168")" ;;
 esac
 [ "$state" != replaced ] && ok "and the name is never rewritten to U+FFFD" || bad "the plan's name was rewritten to U+FFFD"
@@ -8641,6 +8641,41 @@ if ln "$R/h230.txt" "$R/k230.txt" 2>/dev/null; then
 else
   skip "a rename onto a hard link (no hard links here)"
 fi
+
+# 231. ADR-132: a refusal before the first rename whose cause is the target's
+# exits 1, as one found at validation does. A create under a read-only
+# directory fails staging with EACCES; it exited 2 and printed the whole error
+# again under the receipt. The --then-sh step asked for is not run. The pair:
+# the same create in a writable directory exits 0. Not as root, for whom the
+# mode is not enforced.
+fixture
+mkdir -p "$R/ro231" "$R/w231"; chmod 555 "$R/ro231"
+if ( : > "$R/ro231/.probe" ) 2>/dev/null; then
+  rm -f "$R/ro231/.probe"; chmod 755 "$R/ro231"
+  skip "a refusal for a read-only directory (the mode is not enforced here — running as root?)"
+else
+  out=$(printf '@@ ro231/n.txt 0 create\nx\n' | m write --no-check --then-sh 'echo ran231' - 2>&1); want 1 $? "a create a read-only directory refuses exits 1"
+  { grep -q 'nothing was written' <<<"$out" && grep -q 'echo ran231 — NOT RUN' <<<"$out" && [ ! -e "$R/ro231/n.txt" ]; } \
+    && ok "naming nothing written, its step not run" || bad "read-only create: $out"
+  chmod 755 "$R/ro231"
+fi
+out=$(printf '@@ w231/n.txt 0 create\nx\n' | m write --no-check - 2>&1); want 0 $? "the pair: the same create in a writable directory exits 0"
+
+# 232. ADR-132: a check stopped by its deadline is headed TIMED OUT, not FAIL —
+# no process gave a verdict — and the exit stays 3. The pair: a check that ran
+# and failed is still headed FAIL.
+fixture
+printf '{"check":"sleep 30","timeout_seconds":1}\n' > "$R/.quality-harness.json"
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' > "$WORK/p232"
+bounded 30 "$WORK/o232" "$MRW" -C "$R" write "$WORK/p232"; want 3 $? "a write whose check times out exits 3 (ADR-132)"
+grep -q '^check TIMED OUT' "$WORK/o232" && ! grep -q '^check FAIL' "$WORK/o232" && ok "and its check is headed TIMED OUT" || bad "timeout headline: $(head -c 400 "$WORK/o232")"
+printf '{"check":"false"}\n' > "$R/.quality-harness.json"
+m read a.go >/dev/null
+printf '@@ a.go 3 replace\nfunc A() int { return 10 }\n' > "$WORK/q232"
+m write "$WORK/q232" > "$WORK/r232" 2>&1; want 3 $? "the pair: a write whose check fails exits 3"
+grep -q '^check FAIL' "$WORK/r232" && ok "and is headed FAIL" || bad "failed headline: $(head -c 400 "$WORK/r232")"
+rm -f "$R/.quality-harness.json"
 
 # 223. ADR-125: a target mrw cannot open is refused on its hunk, naming why.
 # A plan over a.txt and a write-only b.txt (mode 200: not read-only, so ADR-076

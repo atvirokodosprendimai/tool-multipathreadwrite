@@ -87,6 +87,7 @@ go test ./internal/plan/ ./internal/guide/ -count=1 -timeout 180s -run 'TestAWri
 - 2026-09-27 · human-observed · relock 2026-09-27: Codex review of #252 — both tests strengthened (no 1-M recommended for --2, -0 or an overflow; the --exclude sentence names the named-path exemption and ast-grep's after-the-fact filtering); every earlier assertion kept
 - 2026-09-27 · d8a7dfc* · exit 0 · `set -o pipefail …` · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · ms:744
 - 2026-09-27 · d8a7dfc* · exit 0 · `set -o pipefail …` · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · ms:264
+- 2026-10-06 · d493df7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:08df9587003338ea673a0febed4a31fa8b24451f6e5bbdd7e2012a9ae55a10b0 · ms:0 · test-lock-sha256:5078e9f6a9ae753b05a0e8b4dcfd1300ff5339aa20637bfc1360c55087c89483 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvZ3VpZGUvdGVhY2gwODRfdGVzdC5nbwlUZXN0Q0xJVGVhY2hlc0FXcml0ZXNFeGl0Q29kZXNBbmRFeGNsdWRlUHJ1bmluZwkxZDdhMzc1YzgzM2NkYzNhMTc1NDhlMzY5YzViMmMzNDk5YjRkN2YzNGZmZjAyOTljNzYzOTlmNjBlNTJhYzc2CmJvZHkJaW50ZXJuYWwvcGxhbi9taW51czA4NF90ZXN0LmdvCVRlc3RBV3JpdGVBZGRyZXNzVGhhdFN0YXJ0c1dpdGhNaW51c05hbWVzVGhlRm9ybQk1OWM3ZjljMjI5MmI0NzNiOGU4Yzc2NTM1MDllN2VkMTI4MzBjODkyMjBmNmJmM2U0ZGY4OTI5MjYxZDkzMDk3 · test-lock-kind:replace
 
 ## Mutation Log
 (empty until execute)

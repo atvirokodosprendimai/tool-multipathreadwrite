@@ -48,9 +48,21 @@ func TestACommitRefusesATargetThatChangedAfterValidation(t *testing.T) {
 		{Path: "y.txt", Start: 1, End: 1, Op: "replace", Body: []string{"Y"}, Lines: -1, Index: 0},
 		{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 1},
 	}
+	// ADR-132: found while staging, the change is the target's and refuses its
+	// hunk with no error; found just before the file's own rename, it stops
+	// the commit with one. Either way the refusal names the file.
 	refused := func(t *testing.T, res Result, err error) {
 		t.Helper()
-		if err == nil || res.Applied || !strings.Contains(err.Error(), "a.txt") {
+		why := ""
+		if err != nil {
+			why = err.Error()
+		}
+		for _, h := range res.Hunks {
+			if h.Status == StatusFailed {
+				why += " " + h.Reason
+			}
+		}
+		if res.Applied || !strings.Contains(why, "a.txt") {
 			t.Errorf("a target changed after validation was not refused by name: %v %+v", err, res)
 		}
 	}

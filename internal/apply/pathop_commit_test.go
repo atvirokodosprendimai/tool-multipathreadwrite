@@ -39,8 +39,9 @@ func TestARenameWhoseDestinationDirectoryCannotBeCreatedWritesNothing(t *testing
 		{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"CHANGED"}, Lines: -1, Index: 0},
 		{Path: "b.txt", Op: "rename", Body: []string{"n/" + long + "/b.txt"}, Lines: -1, Index: 1},
 	}, Options{})
-	if err == nil {
-		t.Fatalf("an uncreatable destination directory was not reported: %+v", res)
+	// ADR-132: a name too long for the filesystem is the target's: refused, exit 1.
+	if err != nil || res.Applied || res.Failed != 1 {
+		t.Fatalf("an uncreatable destination directory was not refused as a hunk: %v %+v", err, res)
 	}
 	if got := read(t, root, "a.txt"); got != abcde {
 		t.Fatalf("a.txt was written by a plan that could not rename: %q", got)
@@ -117,8 +118,8 @@ func TestAStagedRenameDirectoryIsTakenBackWhenALaterRenameCannotStage(t *testing
 		{Path: "c.txt", Op: "rename", Body: []string{"new/deep/c.txt"}, Lines: -1, Index: 0},
 		{Path: "d.txt", Op: "rename", Body: []string{"m/" + long + "/d.txt"}, Lines: -1, Index: 1},
 	}, Options{})
-	if err == nil {
-		t.Fatalf("an uncreatable destination directory was not reported: %+v", res)
+	if err != nil || res.Applied || res.Failed != 1 {
+		t.Fatalf("an uncreatable destination directory was not refused as a hunk (ADR-132): %v %+v", err, res)
 	}
 	if _, err := os.Stat(filepath.Join(root, "new")); !os.IsNotExist(err) {
 		t.Fatalf("the aborted plan left new/ behind: %v", err)
@@ -362,11 +363,11 @@ func TestAStagingAbortKeepsAPreExistingDanglingSymlink(t *testing.T) {
 	if err := os.Symlink("missing", filepath.Join(root, "link")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
-	_, err := Apply(root, []Input{
+	res, err := Apply(root, []Input{
 		{Path: "b.txt", Op: "rename", Body: []string{"link/b.txt"}, Lines: -1, Index: 0},
 	}, Options{})
-	if err == nil {
-		t.Fatal("a rename under a dangling symlink was not refused")
+	if err != nil || res.Applied || res.Failed != 1 {
+		t.Fatalf("a rename under a dangling symlink was not refused as a hunk (ADR-132): %v %+v", err, res)
 	}
 	if got, lerr := os.Readlink(filepath.Join(root, "link")); lerr != nil || got != "missing" {
 		t.Fatalf("the aborted plan removed or changed a symlink it did not make: %q %v", got, lerr)
@@ -388,8 +389,8 @@ func TestARenameWhoseLeafIsRejectedUnderANewParentWritesNothing(t *testing.T) {
 		{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"CHANGED"}, Lines: -1, Index: 0},
 		{Path: "b.txt", Op: "rename", Body: []string{"new/" + long}, Lines: -1, Index: 1},
 	}, Options{})
-	if err == nil {
-		t.Fatalf("a rejected leaf under a new parent was not reported: %+v", res)
+	if err != nil || res.Applied || res.Failed != 1 {
+		t.Fatalf("a rejected leaf under a new parent was not refused as a hunk (ADR-132): %v %+v", err, res)
 	}
 	if got := read(t, root, "a.txt"); got != abcde {
 		t.Fatalf("a.txt was written: %q", got)

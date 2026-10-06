@@ -11,7 +11,7 @@ import (
 func TestCLITeachesAWritesExitCodesAndExcludePruning(t *testing.T) {
 	got := CLI()
 	for _, must := range []string{
-		"A write exits 1 when a hunk fails validation, and nothing is written; 2 on a usage or filesystem failure.",
+		"A write exits 1 when a hunk fails validation, or is refused before anything is renamed for a cause in its target (held, a permission, a name refused, changed since mrw read it), and nothing is written; 2 on a usage or filesystem failure.",
 		"a bare directory name met below where the walk starts prunes that whole subtree",
 		"a path you name is walked even if it matches",
 		"--ast-grep drops excluded hits after the binary runs",

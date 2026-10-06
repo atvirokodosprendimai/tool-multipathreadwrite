@@ -85,3 +85,4 @@ Stop and ask if a locked test must change to pass.
   ```
 - 2026-09-30 · 433ed20* · exit 0 · `set -o pipefail …` · acceptance-sha256:8c64db54171b669ff6bd250d40c4221473f0d2c259759a0d01503a0094535bd4 · ms:274
 - 2026-09-30 · 433ed20* · exit 0 · `set -o pipefail …` · acceptance-sha256:8c64db54171b669ff6bd250d40c4221473f0d2c259759a0d01503a0094535bd4 · ms:293
+- 2026-10-06 · d493df7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8c64db54171b669ff6bd250d40c4221473f0d2c259759a0d01503a0094535bd4 · ms:0 · test-lock-sha256:ccfdee41c0b2aff67553bdba01189abb5cbd82e0488c1d52a4fed62343828439 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYXBwbHkvbGVhZjEwN190ZXN0LmdvCVRlc3RUaGVSZWNoZWNrUmVmdXNlc0FMZWFmU3dhcHBlZEZvckFMaW5rCTk0Mzg0MGFmN2Q4NjlmNmZjNGYxZDA4NTFlODFiNTVmZDRkNjc0YjAzNTI0NWQxYjFmY2M5ZWU0NjVjNzMyOGM · test-lock-kind:replace

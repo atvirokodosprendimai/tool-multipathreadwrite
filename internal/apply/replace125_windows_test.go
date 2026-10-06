@@ -38,8 +38,10 @@ func TestAHeldTargetRefusesBeforeAnyRename(t *testing.T) {
 		{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0},
 		{Path: "b.txt", Start: 1, End: 1, Op: "replace", Body: []string{"B"}, Lines: -1, Index: 1},
 	}, Options{Force: true})
-	if err == nil || res.Applied {
-		t.Fatalf("a held target did not stop the plan: err %v, applied %v", err, res.Applied)
+	// ADR-132: a file held by another process is the target's — a refused
+	// hunk and no error, exit 1, as the same hold found at validation is.
+	if err != nil || res.Applied {
+		t.Fatalf("a held target did not refuse the plan as a hunk: err %v, applied %v", err, res.Applied)
 	}
 	if b := hunkFor(t, res, "b.txt"); b.Status != StatusFailed || !strings.Contains(b.Reason, "held open by another process") {
 		t.Errorf("the held target's hunk does not say it is held: %+v", b)
@@ -110,7 +112,8 @@ func TestTheProbeDoesNotFollowASwappedParentOutOfTheRoot(t *testing.T) {
 		return real(tr, full)
 	}
 	res, err := Apply(root, []Input{{Path: "d/f.txt", Op: "unlink", Lines: -1, Index: 0}}, Options{Force: true})
-	if err == nil || res.Applied {
+	// Whether the escape reads as the target's or not (ADR-132), the plan stops.
+	if res.Applied || res.Failed == 0 {
 		t.Fatalf("the probe through a swapped parent did not stop the plan: err %v, %+v", err, res)
 	}
 	if h := hunkFor(t, res, filepath.FromSlash("d/f.txt")); strings.Contains(h.Reason, "held open") {
