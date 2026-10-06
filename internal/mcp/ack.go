@@ -414,10 +414,11 @@ func promote(root string, acks []string) ([]string, error) {
 	for _, ck := range acks {
 		p, ok := store[ck]
 		if !ok {
-			// An id this call already used is not unknown: the caller sent it
-			// twice (the in-process review of #343).
+			// An id this call already used, or already named, is not named
+			// again: the caller sent it twice (the reviews of #343).
 			if !matched[ck] {
 				unknown = append(unknown, ck)
+				matched[ck] = true
 			}
 			continue
 		}

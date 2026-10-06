@@ -8602,10 +8602,15 @@ out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolV
 ! grep -q 'matched no checkpoint' <<<"$out" && ok "the pair: a read with no stale ack names none" || bad "no ack: $out"
 printf '{"check":"sleep 30"}\n' > "$R/.quality-harness.json"
 m read a.go >/dev/null
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\\nfunc A() int { return 9 }\\n"}}}\n' > "$WORK/i226a"
+printf '{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7}}\n' > "$WORK/i226b"
+# Under `bounded`, not an alarm: Go ignores SIGALRM, so only a kill bounds mrw
+# (contract.md; the in-process review of #343). The pipe runs inside sh -c,
+# since bounded runs one command.
 s226=$SECONDS
-out=$({ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\\nfunc A() int { return 9 }\\n"}}}\n'; sleep 1; printf '{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7}}\n'; sleep 2; } | perl -e 'alarm shift; exec @ARGV' 25 "$MRW" -C "$R" mcp 2>/dev/null)
+bounded 25 "$WORK/o226" sh -c '{ cat "$1"; sleep 1; cat "$2"; sleep 2; } | "$3" -C "$4" mcp 2>/dev/null' _ "$WORK/i226a" "$WORK/i226b" "$MRW" "$R"
 t226=$((SECONDS - s226))
-grep -q '"skipped":"interrupted"' <<<"$out" && [ "$t226" -lt 15 ] && ok "a cancel stops the write's running check, reported interrupted" || bad "cancel (${t226}s): $(head -c 400 <<<"$out")"
+grep -q '"skipped":"interrupted"' "$WORK/o226" && [ "$t226" -lt 15 ] && ok "a cancel stops the write's running check, reported interrupted" || bad "cancel (${t226}s): $(head -c 400 "$WORK/o226")"
 rm -f "$R/.quality-harness.json"
 
 # 223. ADR-125: a target mrw cannot open is refused on its hunk, naming why.

@@ -131,7 +131,30 @@ func TestACancelReachesACallWhoseIDIsSpelledDifferently(t *testing.T) {
 	if took := time.Since(start); took > 15*time.Second {
 		t.Fatalf("a cancel for 7.0 did not stop the call 7: %s", took)
 	}
+	for _, pair := range [][2]string{{"0", "0e9223372036854775808"}, {"7", "70e-1"}, {"7", "0.7e1"}, {"-3", "-3.00"}, {"0", "-0.0"}} {
+		if callKey(json.RawMessage(pair[0])) != callKey(json.RawMessage(pair[1])) {
+			t.Errorf("%s and %s are one number id and keyed apart", pair[0], pair[1])
+		}
+	}
+	if callKey(json.RawMessage("7")) == callKey(json.RawMessage("8")) {
+		t.Error("7 and 8 keyed alike")
+	}
 	if callKey(json.RawMessage(`"a"`)) != callKey(json.RawMessage(`"\u0061"`)) || callKey(json.RawMessage("7")) == callKey(json.RawMessage(`"7"`)) {
 		t.Error("a string id and its escaped spelling differ, or a number and a string of it are one")
+	}
+}
+
+// The Codex review of #343. A null cancel id read as a string is "", and it
+// cancelled the running call whose id is "". It names no call now.
+func TestANullCancelIDCancelsNothing(t *testing.T) {
+	ctx, finished := registerCall(json.RawMessage(`""`))
+	defer finished()
+	cancelCall(json.RawMessage(`{"requestId":null}`))
+	if ctx.Err() != nil {
+		t.Fatal("a null cancel id cancelled the call whose id is the empty string")
+	}
+	cancelCall(json.RawMessage(`{"requestId":""}`))
+	if ctx.Err() == nil {
+		t.Error("the pair: a cancel for \"\" did not cancel it")
 	}
 }

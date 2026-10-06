@@ -829,18 +829,38 @@ func registerCall(id json.RawMessage) (context.Context, func()) {
 	}
 }
 
-// callKey spells a request id by its value, not its spelling (the Codex review
-// of #343): "a" and "\u0061" are one string id, and 7, 7.0 and 7e0 one number
-// id, as validRequestID already judges them. A string and a number stay apart.
+// callKey spells a request id by its value, not its spelling (the Codex
+// reviews of #343): "a" and "a" are one string id, and 7, 7.0, 7e0 and
+// 70e-1 one number id, as validRequestID judges them. A number is reduced to
+// its significant digits and an exponent kept as a big integer, so an exponent
+// past what big.Rat or an int holds still compares by value; zero is one key
+// however it is spelled. A string and a number stay apart.
 func callKey(id json.RawMessage) string {
+	raw := bytes.TrimSpace(id)
 	var s string
-	if json.Unmarshal(id, &s) == nil {
+	if len(raw) > 0 && raw[0] == '"' && json.Unmarshal(raw, &s) == nil {
 		return "s:" + s
 	}
-	if r, ok := new(big.Rat).SetString(strings.TrimSpace(string(id))); ok {
-		return "n:" + r.RatString()
+	m := jsonNumber.FindSubmatch(raw)
+	if m == nil {
+		return "?:" + string(raw)
 	}
-	return "?:" + string(id)
+	digits := strings.TrimLeft(string(m[1])+string(m[2]), "0")
+	trimmed := strings.TrimRight(digits, "0")
+	if trimmed == "" {
+		return "n:0"
+	}
+	exp := new(big.Int)
+	if len(m[3]) > 0 {
+		exp.SetString(strings.TrimPrefix(string(m[3]), "+"), 10)
+	}
+	exp.Sub(exp, big.NewInt(int64(len(m[2]))))
+	exp.Add(exp, big.NewInt(int64(len(digits)-len(trimmed))))
+	sign := ""
+	if raw[0] == '-' {
+		sign = "-"
+	}
+	return "n:" + sign + trimmed + "e" + exp.String()
 }
 
 // cancelCall stops the running call notifications/cancelled names. A cancel
@@ -850,7 +870,10 @@ func cancelCall(params json.RawMessage) {
 	var p struct {
 		RequestID json.RawMessage `json:"requestId"`
 	}
-	if json.Unmarshal(params, &p) != nil || len(p.RequestID) == 0 {
+	// A null, or an id that is not a valid request id, names no call: null
+	// read as a string is "" and would cancel the call whose id is "" (the
+	// Codex review of #343).
+	if json.Unmarshal(params, &p) != nil || len(p.RequestID) == 0 || string(bytes.TrimSpace(p.RequestID)) == "null" || !validRequestID(p.RequestID) {
 		return
 	}
 	calls.Lock()
