@@ -8551,6 +8551,24 @@ out=$(env PATH="$d229:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' --no-ig
 grep -q '==> .git/x229.go' <<<"$out" && ok "and serves the hit inside the .git it was given" || bad "named .git: $out"
 rm -rf "$d229" "$R/.git"
 
+# 223. ADR-125: a target mrw cannot open is refused on its hunk, naming why.
+# A plan over a.txt and a write-only b.txt (mode 200: not read-only, so ADR-076
+# does not take it first) printed one bare "mrw: …" line at exit
+# 2 and no receipt. Now: exit 1, b's hunk fails naming "permission denied", a's
+# is skipped, nothing is written. The pair: the same plan with b readable, exit 0.
+fixture
+printf 'a\n' > "$R/a223.txt"; printf 'b\n' > "$R/b223.txt"; chmod 200 "$R/b223.txt"
+printf '@@ a223.txt 1 replace\nA\n@@ b223.txt 1 replace\nB\n' > "$WORK/p223"
+if [ -r "$R/b223.txt" ]; then
+  skip "an unreadable target gets a receipt (permission bits not enforced here — running as root?)"
+else
+  out=$(m write --force --no-check "$WORK/p223" 2>&1); want 1 $? "a plan over a write-only target exits 1"
+  { grep -q 'FAIL.*b223.txt.*permission denied' <<<"$out" && grep -q 'skip.*a223.txt' <<<"$out" && [ "$(cat "$R/a223.txt")" = a ]; } \
+    && ok "with a receipt naming permission denied, the sibling skipped and unchanged" || bad "unreadable: $out"
+fi
+chmod 644 "$R/b223.txt"
+m write --force --no-check "$WORK/p223" > /dev/null 2>&1; want 0 $? "the pair: the same plan with b readable applies"
+
 # 162. ADR-080: nothing mrw starts outlives the call. A check that passed and an
 # ast-grep that answered and exited 0 each left a background grandchild running
 # after mrw returned: the group was killed only on a timeout or an interrupt

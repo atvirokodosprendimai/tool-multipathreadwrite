@@ -504,8 +504,8 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// ADR-107: a load that fails leaves the ID to be read lazily at
 			// comparison — the blindness loading it now exists to avoid — so
 			// the file is refused. On darwin and Linux this cannot fail.
-			if !os.SameFile(info, info) {
-				refuseFile(results, path, hs, 0, fmt.Sprintf("%s: its identity could not be read, so a change before the commit could not be seen; send the plan again", path))
+			if !sameFileFn(info, info) {
+				refuseFile(results, path, hs, 0, identityRefusal(path, full))
 				failed = append(failed, FileResult{Path: path})
 				continue
 			}
@@ -567,6 +567,16 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// check above is refused on its hunk too, with ADR-073's words.
 		if errors.Is(err, regular.ErrNotRegular) {
 			refuseFile(results, path, hs, 0, fmt.Sprintf("%s is %s", path, lines.NotRegular))
+			failed = append(failed, FileResult{Path: path})
+			continue
+		}
+		// ADR-125: a failure to open the file whose cause mrw can name — a
+		// permission, another process holding it, a name the system refuses —
+		// is refused on its hunk, so the receipt keeps every verdict. Returned
+		// bare, it printed one line at exit 2 and no receipt. Any other failure
+		// (a directory, an I/O error) stays the exit-2 failure it was.
+		if err != nil && causeOf(err) != "" {
+			refuseFile(results, path, hs, 0, openRefusal(path, err))
 			failed = append(failed, FileResult{Path: path})
 			continue
 		}
@@ -978,6 +988,25 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		if why := changedSince(tr, staged[i].target, w.seen); why != "" {
 			discard(0)
 			return abortStage(w.file.Path, fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why))
+		}
+	}
+	// ADR-125: every existing target, unlink source and rename source is asked
+	// whether it can be replaced, before the first rename. On Windows a file
+	// held without delete sharing failed its rename at commit, after the
+	// files before it had landed; asked here, it writes nothing.
+	for i, w := range content {
+		if w.file.Created {
+			continue
+		}
+		if err := replaceableFn(tr, staged[i].target); err != nil {
+			discard(0)
+			return abortStage(w.file.Path, errors.New(openRefusal(w.file.Path, err)))
+		}
+	}
+	for _, w := range pathOps {
+		if err := replaceableFn(tr, resolvedAt(w.full)); err != nil {
+			discard(0)
+			return abortStage(w.file.Path, errors.New(openRefusal(w.file.Path, err)))
 		}
 	}
 	for i, w := range content {
