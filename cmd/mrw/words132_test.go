@@ -56,6 +56,13 @@ func TestTheCLIReceiptSpellsPathsWithSlash(t *testing.T) {
 	if strings.Contains(text, `\`) || !strings.Contains(text, "created d/e/") || !strings.Contains(text, "d/f.txt") {
 		t.Errorf("the text receipt spells a path with a backslash, or no created d/e/ line:\n%s", text)
 	}
+	// A reason names its own file the same way, and keeps an absolute path the
+	// system printed as the system printed it (the Codex review of #347).
+	refused := shown(apply.Result{Hunks: []apply.HunkResult{{Path: `d\f.txt`, Status: apply.StatusFailed,
+		Reason: "d\\f.txt has not been read: Run `mrw read d\\f.txt` first (open C:\\r\\d\\f.txt: denied)"}}})
+	if got := refused.Hunks[0].Reason; got != "d/f.txt has not been read: Run `mrw read d/f.txt` first (open C:\\r\\d\\f.txt: denied)" {
+		t.Errorf("the reason's own path is not spelled as the receipt spells it: %q", got)
+	}
 }
 
 // ADR-132 Decision 4. The exit-2 line printed the whole error under a receipt
@@ -81,6 +88,14 @@ func TestAnExitTwoLineNamesTheFailLineInsteadOfRepeatingIt(t *testing.T) {
 	res = apply.Result{Hunks: []apply.HunkResult{{Path: "d/x.txt", Status: apply.StatusFailed, Reason: whole.Error()}}}
 	if got := exitTwoLine(res, whole); got != "d/x.txt: see its FAIL line" {
 		t.Errorf("a commit error that is its FAIL row's whole reason lost its path: %q", got)
+	}
+	prev := receiptSep
+	receiptSep = '\\'
+	t.Cleanup(func() { receiptSep = prev })
+	nested := fmt.Errorf("%s", `d\x.txt: openat d\.mrw-1: permission denied (ALREADY WRITTEN: a.go)`)
+	res = apply.Result{Hunks: []apply.HunkResult{{Path: `d\x.txt`, Status: apply.StatusFailed, Reason: nested.Error()}}}
+	if got := exitTwoLine(res, nested); got != "d/x.txt: see its FAIL line" {
+		t.Errorf("on Windows the exit-2 line spells its path twice, or with a backslash: %q", got)
 	}
 }
 

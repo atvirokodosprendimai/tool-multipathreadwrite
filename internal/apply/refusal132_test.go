@@ -179,3 +179,53 @@ func TestAStatThatFailsAfterReadingIsClassifiedByItsCause(t *testing.T) {
 		})
 	}
 }
+
+// The in-process review of #347. A target refusal whose cleanup could not take
+// mrw's own staged temp away did not stop clean: left_behind names it, and it
+// stays an error, exit 2, as a probe left behind does.
+func TestATargetRefusalThatLeftMrwsOwnTempsStaysAnError(t *testing.T) {
+	realReplaceable, realRemove := replaceableFn, removeFn
+	t.Cleanup(func() { replaceableFn, removeFn = realReplaceable, realRemove })
+	replaceableFn = func(_ *tree, p string) error {
+		if filepath.Base(p) == "b.txt" {
+			return &fs.PathError{Op: "open", Path: p, Err: syscall.EACCES}
+		}
+		return nil
+	}
+	removeFn = func(tr *tree, p string) error {
+		if strings.HasPrefix(filepath.Base(p), ".mrw") {
+			return errors.New("held by an indexer")
+		}
+		return realRemove(tr, p)
+	}
+	root := t.TempDir()
+	write(t, root, "a.txt", "a\n")
+	write(t, root, "b.txt", "b\n")
+	res, err := Apply(root, plan132(edit132("b.txt")), Options{Force: true})
+	if err == nil || len(res.LeftBehind) == 0 {
+		t.Fatalf("a refusal that left mrw's temps behind returned no error (exit 1): left=%v err=%v", res.LeftBehind, err)
+	}
+}
+
+// The Codex review of #347. On Windows os.SameFile answers false, error
+// swallowed, when a file's ID cannot be loaded; read as "another file replaced
+// it" that was the target's doing, exit 1. An identity nothing explains is the
+// environment's.
+func TestAnUnreadableIdentityAtStagingStaysAnError(t *testing.T) {
+	realStage, realSame := stageFileFn, sameFileFn
+	t.Cleanup(func() { stageFileFn, sameFileFn = realStage, realSame })
+	stageFileFn = func(tr *tree, path string, tx text) (staged, error) {
+		sf, err := realStage(tr, path, tx)
+		if filepath.Base(path) == "b.txt" {
+			sameFileFn = func(a, b os.FileInfo) bool { return a.Name() != "b.txt" && realSame(a, b) }
+		}
+		return sf, err
+	}
+	root := t.TempDir()
+	write(t, root, "a.txt", "a\n")
+	write(t, root, "b.txt", "b\n")
+	res, err := Apply(root, plan132(edit132("b.txt")), Options{Force: true})
+	if err == nil || res.Applied || read(t, root, "a.txt") != "a\n" {
+		t.Fatalf("an unreadable identity at staging was taken for the target's change (exit 1): err=%v %+v", err, res.Hunks)
+	}
+}

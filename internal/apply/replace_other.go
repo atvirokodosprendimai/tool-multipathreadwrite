@@ -12,7 +12,7 @@ import (
 // ENAMETOOLONG. A permission is causeOf's; nothing else is named here.
 func platformCause(err error) string {
 	if errors.Is(err, syscall.EILSEQ) || errors.Is(err, syscall.ENAMETOOLONG) {
-		return "not a valid name on this system"
+		return nameRefused
 	}
 	return ""
 }

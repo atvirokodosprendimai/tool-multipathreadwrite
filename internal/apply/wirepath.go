@@ -17,7 +17,12 @@ import (
 func Slashed(res Result, sep rune) Result {
 	res.Hunks = slices.Clone(res.Hunks)
 	for i := range res.Hunks {
-		res.Hunks[i].Path = Slash(res.Hunks[i].Path, sep)
+		h := &res.Hunks[i]
+		// A reason names its own file in the plan's words too: that spelling
+		// follows the path, so one hunk does not show both (the Codex review
+		// of #347). An absolute path inside the reason is the system's, kept.
+		h.Reason = SlashIn(h.Reason, h.Path, sep)
+		h.Path = Slash(h.Path, sep)
 	}
 	res.Files = slices.Clone(res.Files)
 	for i := range res.Files {
@@ -38,4 +43,28 @@ func Slashed(res Result, sep rune) Result {
 // Slash spells p's sep separators as "/".
 func Slash(p string, sep rune) string {
 	return strings.ReplaceAll(p, string(sep), "/")
+}
+
+// SlashIn spells each occurrence of the root-relative path p in text with "/"
+// where sep separated it — except where p is the tail of a longer path, an
+// absolute one the system printed, which is kept as written (ADR-132).
+func SlashIn(text, p string, sep rune) string {
+	if p == "" || !strings.ContainsRune(p, sep) {
+		return text
+	}
+	var b strings.Builder
+	for {
+		i := strings.Index(text, p)
+		if i < 0 {
+			b.WriteString(text)
+			return b.String()
+		}
+		b.WriteString(text[:i])
+		if i > 0 && rune(text[i-1]) == sep {
+			b.WriteString(p)
+		} else {
+			b.WriteString(Slash(p, sep))
+		}
+		text = text[i+len(p):]
+	}
 }

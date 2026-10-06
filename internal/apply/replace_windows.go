@@ -14,17 +14,19 @@ import (
 // names (ADR-125): another process holds the file without sharing what the
 // open asked for, or the name is one the system will not make.
 const (
-	errorSharingViolation syscall.Errno = 32
-	errorInvalidName      syscall.Errno = 123
+	errorSharingViolation   syscall.Errno = 32
+	errorInvalidName        syscall.Errno = 123
+	errorFilenameExcedRange syscall.Errno = 206
 )
 
-// platformCause names a Windows sharing violation and an invalid name.
+// platformCause names a Windows sharing violation, and a name the system will
+// not make: an invalid name, or one too long (206, as ENAMETOOLONG is on unix).
 func platformCause(err error) string {
 	switch {
 	case errors.Is(err, errorSharingViolation):
 		return "held open by another process"
-	case errors.Is(err, errorInvalidName):
-		return "not a valid name on this system"
+	case errors.Is(err, errorInvalidName), errors.Is(err, errorFilenameExcedRange):
+		return nameRefused
 	}
 	return ""
 }

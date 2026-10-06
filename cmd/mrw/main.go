@@ -1351,7 +1351,7 @@ held or went unchecked.`,
 				if len(res.Hunks) > 0 {
 					report(os.Stdout, res, cmd.Bool("quiet"))
 				}
-				return cli.Exit(exitTwoLine(res, land.Err), exitUsage)
+				return cli.Exit(exitTwoLine(land.Res, land.Err), exitUsage)
 			}
 			// The landing (writer's applyCounted) recorded what the files now hold before it released
 			// the write lock. This is why a chain of edits needs no re-read
@@ -2623,7 +2623,8 @@ func exitTwoLine(res apply.Result, err error) string {
 			if !strings.Contains(line, h.Path) {
 				line = h.Path + ": " + line
 			}
-			return line
+			// Spelled as the receipt above spells it (the Codex review of #347).
+			return apply.SlashIn(line, h.Path, receiptSep)
 		}
 	}
 	return msg

@@ -901,7 +901,10 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// found at validation. A cause that is not the target's stays an error.
 	refuseStage := func(path string, err error, target bool) (Result, error) {
 		r, aerr := abortStage(path, err)
-		if target {
+		// What mrw made and could not take away is its own leftover, not the
+		// target's doing: the plan did not stop clean, so it stays exit 2, as
+		// a probe left behind does (the in-process review of #347).
+		if target && len(r.LeftBehind) == 0 {
 			return r, nil
 		}
 		return r, aerr
@@ -2166,7 +2169,10 @@ func (res *Result) cleanUp(tr *tree, p string) {
 // is either named itself or not mrw's (ADR-004).
 func (res *Result) noteIfLeft(tr *tree, p string) {
 	fi, err := lstatFn(tr, p)
-	if errors.Is(err, fs.ErrNotExist) {
+	// A name the system refuses was never made, so it is not left behind: its
+	// lstat answers "name too long" or "invalid name", not "does not exist"
+	// (found by ADR-132, whose exit reads LeftBehind).
+	if errors.Is(err, fs.ErrNotExist) || platformCause(err) == nameRefused {
 		return
 	}
 	if err == nil && fi.IsDir() {
@@ -2328,12 +2334,18 @@ func missingDirs(dir string) []string {
 	return missing
 }
 
+// errIdentityUnread is changedSince's cause when a file's identity could not
+// be read and an open of it explains nothing: not a cause the target names, so
+// it keeps exit 2 (ADR-132).
+var errIdentityUnread = errors.New("the file's identity could not be read")
+
 // changedSince says how the file at p differs from what validation stat'ed,
 // or "" when it does not, or when validation saw no file there (ADR-106). A
 // different file, size or modification time each count; an in-place rewrite
 // that keeps both size and time is not seen. It asks by the resolved name: the
 // answer only decides whether to refuse, and the rename that follows goes
-// through the root.
+// through the root. Beside its words it returns the cause of a failure to
+// look, nil for a change it saw (ADR-132).
 func changedSince(tr *tree, p string, was fs.FileInfo) (string, error) {
 	if was == nil {
 		return "", nil
@@ -2350,6 +2362,18 @@ func changedSince(tr *tree, p string, was fs.FileInfo) (string, error) {
 	switch {
 	case err != nil:
 		return fmt.Sprintf("it can no longer be read (%v)", err), err
+	case !sameFileFn(now, now):
+		// On Windows os.SameFile loads a file ID lazily and answers false,
+		// error swallowed, when that fails: an I/O or resource failure would
+		// read as "another file replaced it", the target's doing. An open says
+		// what the failure was; one nothing explains is the environment's
+		// (the Codex review of #347).
+		f, _, oerr := regular.Open(p)
+		if oerr != nil {
+			return fmt.Sprintf("its identity could not be read (%v)", oerr), oerr
+		}
+		_ = f.Close()
+		return "its identity could not be read", errIdentityUnread
 	case !os.SameFile(was, now):
 		return "another file replaced it", nil
 	case now.Size() != was.Size():
