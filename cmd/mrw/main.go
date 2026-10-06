@@ -230,6 +230,15 @@ func declareAdvice(skipped string) string {
 	return " — declare one in .quality-harness.json"
 }
 
+// stoppedBefore says how a check that did not run was stopped before it
+// started, in the words the exit message carries (ADR-080, ADR-126).
+func stoppedBefore(r check.Result) string {
+	if r.Skipped == check.TimedOutBeforeStart {
+		return check.TimedOutBeforeStart
+	}
+	return "was interrupted before it started"
+}
+
 // hasSinglePattern reports whether any spec carries a single /pattern/ range —
 // the only range -C widens (read.Options.Context).
 func hasSinglePattern(specs []read.Spec) bool {
@@ -1410,12 +1419,13 @@ held or went unchecked.`,
 			switch {
 			case res.Failed > 0:
 				return cli.Exit(fmt.Sprintf("%d hunk(s) failed — nothing was written", res.Failed), exitNotApplied)
-			case receipt.Check != nil && !receipt.Check.Ran && receipt.Check.Skipped == check.Interrupted:
-				// ADR-080: stopped before the check started — the same exit as
-				// stopped while it ran, since the tree changed and nothing
-				// verified it, though the tally files it as check_not_run: nothing
-				// ran. Not "declare a check": one was.
-				return cli.Exit("the write applied and its check was interrupted before it started — the tree is changed and unverified", exitCheckFailed)
+			case receipt.Check != nil && check.StoppedBeforeStart(*receipt.Check):
+				// ADR-080, ADR-126: stopped before the check started — by an
+				// interrupt or by its deadline — is the same exit as stopped while
+				// it ran, since the tree changed and nothing verified it, though
+				// the tally files it as check_not_run: nothing ran. Not "declare a
+				// check": one was.
+				return cli.Exit("the write applied and its check "+stoppedBefore(*receipt.Check)+" — the tree is changed and unverified", exitCheckFailed)
 			case receipt.Check != nil && !receipt.Check.Ran:
 				// The write stands. Say so first — the caller's tree changed
 				// even though the verification never happened.
@@ -1907,8 +1917,8 @@ touched, which is a finding about the machine and not about your change.`,
 				reportCheck(os.Stdout, &res)
 				reportSteps(os.Stdout, then)
 			}
-			if !res.Ran && res.Skipped == check.Interrupted {
-				return cli.Exit("the check was interrupted before it started", exitCheckFailed)
+			if check.StoppedBeforeStart(res) {
+				return cli.Exit("the check "+stoppedBefore(res), exitCheckFailed)
 			}
 			if !res.Ran {
 				// Not exit 3: nothing ran, so nothing failed. Reporting this as

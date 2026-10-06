@@ -435,7 +435,8 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   refused, `--strict-balance` included. It does not see orphans above the body, and an indentation hint was
   measured on real history and withdrawn (`docs/break/shape-hints/`).
 - **Exit `3` means the write APPLIED and the check did not pass** — failed, timed out or was interrupted; the tree is
-  changed and unverified. It is not a rollback. A failing check prints
+  changed and unverified. It is not a rollback. A check that timed out before it started, or was interrupted
+  before it started, is the same exit (ADR-080, ADR-126). A failing check prints
   `check last:` (the last non-empty tail line) immediately above `full output:`.
   A file the write touched that changed while its check ran is named — `drift: <path> changed while the check
   ran`, and `drift` in `--json` — and the exit code stays the check's (ADR-112).
