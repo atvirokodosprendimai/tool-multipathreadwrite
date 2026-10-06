@@ -17,11 +17,11 @@ A write's check runs after the write lock is released (ADR-075 §5, `docs/adr/AD
 
 Zy kept ADR-075 §5 and asked for the advisory to widen.
 
-**Audit of the class** — *a place a write lands under the lock*: `mrw read --grep 'seen.LockWrites\(' internal/ cmd/` — `writer.Apply` alone; every surface lands through it (ADR-113).
+**Audit of the class** — *a place a write lands under the lock*: `mrw read --grep 'seen.LockWrites\(' internal/ cmd/` — `writer.applyCounted` alone, which `Prepared.Land` calls; every surface lands through it (ADR-113). `writer.Apply`, the old name, is now a test helper (`internal/writer/apply127_test.go`): with production landing through `Land`, static analysis found it reached only by tests.
 
 ## Existing Primitives Audit
 
-- **`writer.Apply`** — holds the write lock for apply and the ledger update; the counter is bumped there, under it.
+- **`writer.applyCounted`** (was `writer.Apply`) — holds the write lock for apply and the ledger update; the counter is bumped there, under it.
 - **`state.Path` / `state.Write`** — the state directory and its atomic write (ADR-004); the counter is one more file there.
 - **ADR-112's `Drift`** and the `drift` receipt key — the advisory this widens, shown on the same line family.
 
@@ -70,6 +70,7 @@ See `tasks/README.md`: T1.
 
 - Naming which files the other writer touched (permanent: boundary: the count says the verdict is stale; the files are in that writer's own receipt)
 - A write in the checkout that did not go through mrw (permanent: boundary: mrw sees only its own writes; ADR-112's per-file drift still covers the files this write touched)
+- Writes that land while `--then` steps run (permanent: boundary: the count covers the window from this write's landing to the end of its check, which is the verdict `drift` qualifies; a step reports its own verdict, and a step that writes is the caller's own change)
 
 ## Risks
 
@@ -79,7 +80,7 @@ See `tasks/README.md`: T1.
 
 ## Rollback
 
-Revert the task: the counter is no longer written, and the key is no longer emitted (ADR-111 lets a key stay absent).
+Before a release: revert the task. After one, `drift_writers` is a shipped receipt key (ADR-111): the counter may stop being written — the key is then simply absent, which ADR-111 allows for an optional key — but the key stays in `docs/receipts.txt` and the receipt types, and removing it follows ADR-111's breaking-change procedure.
 
 ## Follow-ups
 

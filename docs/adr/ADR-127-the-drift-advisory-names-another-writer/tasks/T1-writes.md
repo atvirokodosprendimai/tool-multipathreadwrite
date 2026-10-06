@@ -56,13 +56,15 @@ out=$(mktemp) \
 |-----------|------|----------|--------|-------|
 | `TestEveryLandedWriteBumpsTheCounter` | `internal/writer/writes127_test.go` | two landed writes move the counter by two; a refused one and a dry run do not | none | S1, S2 |
 | `TestAWriteThatLandsDuringTheCheckIsCounted` | `internal/writer/writes127_test.go` | a write landed while the first write's check waits on a gate gives the first `DriftWriters` 1; with none, 0 | none | S1, S2 |
+| `TestTheCLIReceiptNamesOtherWritersDuringTheCheck` | `cmd/mrw/drift127_test.go` | the human receipt line names N other writes, and nothing when N is 0 (the in-process review of #342) | none | S3 |
+| `TestTheMCPTextNamesOtherWritersDuringTheCheck` | `internal/mcp/drift127_test.go` | the MCP text line, the same | none | S3 |
 
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | `Writes`, `bumpWrites` |
-| 2 — something selects it | `writer.Apply` on every landed write; `Verify` after every check that ran |
+| 2 — something selects it | `writer.applyCounted`, through `Prepared.Land`, on every landed write; `Verify` after every check that ran |
 | 3 — the caller can discover it | the receipt key and line; AGENTS.md |
 | 4 — it is used | a Windows peer met the blind spot on 2026-10-02; no telemetry (ADR-009) |
 
@@ -104,3 +106,4 @@ Stop and ask if the counter has to move under a lock other than the write lock.
 - 2026-10-06 · 49f1a66* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa9f9f3dfc0f4595462e7347c5eafee11cd465e1ae4c58139d59a80f6ed7f241 · ms:42341
 - 2026-10-06 · 49f1a66* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa9f9f3dfc0f4595462e7347c5eafee11cd465e1ae4c58139d59a80f6ed7f241 · ms:40226
 - 2026-10-06 · 49f1a66* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:aa9f9f3dfc0f4595462e7347c5eafee11cd465e1ae4c58139d59a80f6ed7f241 · ms:0 · test-lock-sha256:7530d5eb679e1f880c4ff8417b17849fa33c50b8e12de30fa548ec3ec10150d6 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvd3JpdGVyL3dyaXRlczEyN190ZXN0LmdvCVRlc3RBV3JpdGVUaGF0TGFuZHNEdXJpbmdUaGVDaGVja0lzQ291bnRlZAkyMDMyZTUzMzg4YTRjNDhhMWZlNDI3YWFkODA1NGI0NTExMDIyYTc1ZmM0ZjRhZDJjNzVjYTI5ZGIzOWQ1Y2NlCmJvZHkJaW50ZXJuYWwvd3JpdGVyL3dyaXRlczEyN190ZXN0LmdvCVRlc3RFdmVyeUxhbmRlZFdyaXRlQnVtcHNUaGVDb3VudGVyCWI1NjQxN2NlYmU5NWZiMjc4N2YxYzlhYTM0ZjE3ZDVmZTc2YWU3OGYxYTRiMzAyZWFmMmU3MTYwMjg2YWU5NmM · test-lock-kind:replace
+- 2026-10-06 · aeab3c5* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:aa9f9f3dfc0f4595462e7347c5eafee11cd465e1ae4c58139d59a80f6ed7f241 · ms:0 · test-lock-sha256:36141bd5d65a63fcbc33a93cc50645ac662705d934f3ca2a07aca504cfc357b0 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9kcmlmdDEyN190ZXN0LmdvCVRlc3RUaGVDTElSZWNlaXB0TmFtZXNPdGhlcldyaXRlcnNEdXJpbmdUaGVDaGVjawllYWQ2MTlmMGNlYTM3MzIzMjRhOWQ4ZTRhYTk2ZTFmNTgxZTBjODhiYThjNjM4ZGEwZTNiNzI4ZmYyODliNTE5CmJvZHkJaW50ZXJuYWwvbWNwL2RyaWZ0MTI3X3Rlc3QuZ28JVGVzdFRoZU1DUFRleHROYW1lc090aGVyV3JpdGVyc0R1cmluZ1RoZUNoZWNrCWVmODZhZTUzYTNlYzgwNzI2YzMwZTZlZTBhNDVlMmYzMTU0NjZhNTE3YmYwMzgzMDJmNGJjZjBhNjUzYTU0OTYKYm9keQlpbnRlcm5hbC93cml0ZXIvd3JpdGVzMTI3X3Rlc3QuZ28JVGVzdEFXcml0ZVRoYXRMYW5kc0R1cmluZ1RoZUNoZWNrSXNDb3VudGVkCTIwMzJlNTMzODhhNGM0OGExZmU0MjdhYWQ4MDU0YjQ1MTEwMjJhNzVmYzRmNGFkMmM3NWNhMjlkYjM5ZDVjY2UKYm9keQlpbnRlcm5hbC93cml0ZXIvd3JpdGVzMTI3X3Rlc3QuZ28JVGVzdEV2ZXJ5TGFuZGVkV3JpdGVCdW1wc1RoZUNvdW50ZXIJYjU2NDE3Y2ViZTk1ZmIyNzg3ZjFjOWFhMzRmMTdkNWZlNzZhZTc4ZjFhNGIzMDJlYWYyZTcxNjAyODZhZTk2Yw · test-lock-kind:replace

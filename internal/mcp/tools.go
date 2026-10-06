@@ -861,7 +861,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// really is something pending to acknowledge.
 	nameTheAck(root, &res)
 
-	// ADR-075: writer.Apply recorded what landed before it released the write
+	// ADR-075: the landing (writer's applyCounted) recorded what landed before it released the write
 	// lock. A failure there is a ledger failure after the tree changed, and it
 	// is answered with the receipt (ADR-102): a bare RPC error could not be told
 	// from a write that did nothing, and a client might send the plan again.

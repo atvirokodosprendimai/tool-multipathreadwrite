@@ -8562,17 +8562,19 @@ printf 'package x\n' > "$R/x225.go"; printf 'package y\n' > "$R/y225.go"
 printf '{"check":"touch %s/started; i=0; while [ ! -e %s/go ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done"}\n' "$g225" "$g225" > "$R/.quality-harness.json"
 m read x225.go y225.go >/dev/null
 printf '@@ x225.go 1 replace\npackage x2\n' > "$WORK/p225a"; printf '@@ y225.go 1 replace\npackage y2\n' > "$WORK/p225b"
-"$MRW" -C "$R" write --json "$WORK/p225a" > "$WORK/o225" 2>&1 &
+bounded 30 "$WORK/o225" "$MRW" -C "$R" write --json "$WORK/p225a" &
 p225=$!
 i=0; while [ ! -e "$g225/started" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
-"$MRW" -C "$R" write --no-check "$WORK/p225b" > /dev/null 2>&1; want 0 $? "a second write lands while the first write's check runs"
+[ -e "$g225/started" ] || bad "the first write's check never started"
+bounded 30 "$WORK/o225b" "$MRW" -C "$R" write --no-check "$WORK/p225b"; want 0 $? "a second write lands while the first write's check runs"
 touch "$g225/go"; wait "$p225"; want 0 $? "the first write's check passes"
 grep -q '"drift_writers": 1' "$WORK/o225" && ok "and its receipt counts the other write" || bad "drift_writers: $(head -c 400 "$WORK/o225")"
 rm -f "$g225/started" "$g225/go"; m read x225.go >/dev/null
 printf '@@ x225.go 1 replace\npackage x3\n' > "$WORK/p225c"
-"$MRW" -C "$R" write --json "$WORK/p225c" > "$WORK/o225c" 2>&1 &
+bounded 30 "$WORK/o225c" "$MRW" -C "$R" write --json "$WORK/p225c" &
 p225=$!
 i=0; while [ ! -e "$g225/started" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
+[ -e "$g225/started" ] || bad "the pair's check never started"
 touch "$g225/go"; wait "$p225"; want 0 $? "the pair: a write with no other writer passes"
 ! grep -q 'drift_writers' "$WORK/o225c" && ok "and carries no drift_writers" || bad "pair: $(head -c 400 "$WORK/o225c")"
 rm -rf "$g225" "$R/.quality-harness.json"

@@ -4,7 +4,7 @@
 // MCP server — each validated a plan against the file it had read and then
 // renamed its result into place, so a later rename threw an earlier edit away
 // while both printed "applied", exit 0: 45–53% of racing writers in the
-// v1.25.1 adversarial round. Apply holds a per-checkout lock from validation
+// v1.25.1 adversarial round. A landing (applyCounted, through Land) holds a per-checkout lock from validation
 // to the ledger update, so a writer whose file changed while it waited is
 // refused by apply's own sha check instead.
 package writer
@@ -113,7 +113,7 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
 	return res, gen, err
 }
 
-// ledgerFailed is what Apply returns when the ledger could not record what
+// ledgerFailed is what applyCounted returns when the ledger could not record what
 // landed. After a complete commit it is a LedgerError, which callers read as
 // "the plan landed". After a partial one the commit error stays the error — a
 // LedgerError there would be counted as a clean landing — and the ledger's

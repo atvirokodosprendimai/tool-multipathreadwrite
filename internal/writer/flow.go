@@ -121,7 +121,7 @@ func (p *Prepared) wanted(code bool) bool {
 	return p.req.Check == CheckDemand || (code && (p.cfg.Check != "" || p.cfg.ScopedCheck != ""))
 }
 
-// Landed is a write that reached Apply: its receipt, and how the landing went.
+// Landed is a write that reached the apply: its receipt, and how the landing went.
 type Landed struct {
 	p *Prepared
 	// Res is the apply's receipt.

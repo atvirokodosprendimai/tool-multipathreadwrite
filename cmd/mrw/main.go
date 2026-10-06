@@ -1351,7 +1351,7 @@ held or went unchecked.`,
 				}
 				return cli.Exit(land.Err, exitUsage)
 			}
-			// writer.Apply recorded what the files now hold before it released
+			// The landing (writer's applyCounted) recorded what the files now hold before it released
 			// the write lock. This is why a chain of edits needs no re-read
 			// between steps — mrw knows what it just produced — while a change
 			// made behind its back still leaves the ledger disagreeing with the
