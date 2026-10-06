@@ -8551,6 +8551,32 @@ out=$(env PATH="$d229:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' --no-ig
 grep -q '==> .git/x229.go' <<<"$out" && ok "and serves the hit inside the .git it was given" || bad "named .git: $out"
 rm -rf "$d229" "$R/.git"
 
+# 225. ADR-127: the drift advisory names another writer's write. The first
+# write's check waits on a gate; a second write lands on another file inside
+# it; the first receipt carries "drift_writers": 1. ADR-112's per-file drift
+# could not see it, the other file not being the first write's. The pair: the
+# same write with no second writer carries no drift_writers.
+fixture
+g225=$(mktemp -d)
+printf 'package x\n' > "$R/x225.go"; printf 'package y\n' > "$R/y225.go"
+printf '{"check":"touch %s/started; i=0; while [ ! -e %s/go ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done"}\n' "$g225" "$g225" > "$R/.quality-harness.json"
+m read x225.go y225.go >/dev/null
+printf '@@ x225.go 1 replace\npackage x2\n' > "$WORK/p225a"; printf '@@ y225.go 1 replace\npackage y2\n' > "$WORK/p225b"
+"$MRW" -C "$R" write --json "$WORK/p225a" > "$WORK/o225" 2>&1 &
+p225=$!
+i=0; while [ ! -e "$g225/started" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
+"$MRW" -C "$R" write --no-check "$WORK/p225b" > /dev/null 2>&1; want 0 $? "a second write lands while the first write's check runs"
+touch "$g225/go"; wait "$p225"; want 0 $? "the first write's check passes"
+grep -q '"drift_writers": 1' "$WORK/o225" && ok "and its receipt counts the other write" || bad "drift_writers: $(head -c 400 "$WORK/o225")"
+rm -f "$g225/started" "$g225/go"; m read x225.go >/dev/null
+printf '@@ x225.go 1 replace\npackage x3\n' > "$WORK/p225c"
+"$MRW" -C "$R" write --json "$WORK/p225c" > "$WORK/o225c" 2>&1 &
+p225=$!
+i=0; while [ ! -e "$g225/started" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
+touch "$g225/go"; wait "$p225"; want 0 $? "the pair: a write with no other writer passes"
+! grep -q 'drift_writers' "$WORK/o225c" && ok "and carries no drift_writers" || bad "pair: $(head -c 400 "$WORK/o225c")"
+rm -rf "$g225" "$R/.quality-harness.json"
+
 # 223. ADR-125: a target mrw cannot open is refused on its hunk, naming why.
 # A plan over a.txt and a write-only b.txt (mode 200: not read-only, so ADR-076
 # does not take it first) printed one bare "mrw: …" line at exit

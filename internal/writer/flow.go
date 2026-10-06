@@ -135,6 +135,9 @@ type Landed struct {
 	// Then is every step asked for, not_run, when LedgerErr ended the write
 	// before any could follow it (ADR-092 Decision 5).
 	Then *check.StepsResult
+	// gen is the checkout's write counter as this landing left it (ADR-127),
+	// zero when nothing landed or the counter could not move.
+	gen int64
 }
 
 // Land loads the ledger, applies, and counts the landing (ADR-009, ADR-083,
@@ -151,8 +154,8 @@ func (p *Prepared) Land() (*Landed, error) {
 	}
 	opts := p.req.Opts
 	opts.Seen = ledger
-	res, err := Apply(root, p.req.In, opts)
-	l := &Landed{p: p, Res: res}
+	res, gen, err := applyCounted(root, p.req.In, opts)
+	l := &Landed{p: p, Res: res, gen: gen}
 	var lerr *LedgerError
 	switch {
 	case errors.As(err, &lerr):
@@ -215,6 +218,10 @@ type Verified struct {
 	// Drift is each file the write touched that changed while the check ran
 	// (ADR-112).
 	Drift []string
+	// DriftWriters is how many other writes landed in the checkout while the
+	// check ran (ADR-127): zero when none did, when no check ran, or when the
+	// counter could not be read.
+	DriftWriters int
 	// Then is every step's verdict, present whenever a step was asked for.
 	Then *check.StepsResult
 	// CheckErr is why a due check could not run at all; the landing is then
@@ -246,6 +253,11 @@ func (l *Landed) Verify(ctx context.Context) Verified {
 		v.Check = &cr
 		if cr.Ran {
 			v.Drift = Drift(root, before)
+			if l.gen > 0 {
+				if n := Writes(root) - l.gen; n > 0 {
+					v.DriftWriters = int(n)
+				}
+			}
 		}
 	}
 	if len(steps) > 0 {

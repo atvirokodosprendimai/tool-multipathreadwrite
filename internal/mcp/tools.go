@@ -936,6 +936,9 @@ type writeReceipt struct {
 	// Drift is each file the write touched that changed while its check ran
 	// (ADR-112), spelled with `/`. Absent when none did.
 	Drift []string `json:"drift,omitempty"`
+	// DriftWriters is how many other writes landed in this checkout while the
+	// check ran (ADR-127). Absent when none did.
+	DriftWriters int `json:"drift_writers,omitempty"`
 	// Then is every declared step's verdict after this write (ADR-115), the
 	// same object `mrw write --json` carries. Absent when none was asked for.
 	Then *check.StepsResult `json:"then,omitempty"`
@@ -1018,16 +1021,17 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 	var chk *check.Result
 	var checkErr error
 	var drift []string
+	var others int
 	var then *check.StepsResult
 	if v != nil {
-		chk, checkErr, then = v.Check, v.CheckErr, v.Then
+		chk, checkErr, then, others = v.Check, v.CheckErr, v.Then, v.DriftWriters
 		for _, p := range v.Drift {
 			drift = append(drift, filepath.ToSlash(p))
 		}
 	}
 	render := func(r apply.Result, hunks []apply.HunkResult, c *check.Result, th *check.StepsResult, note string) (callToolResult, *rpcError) {
-		lead, tail := checkReport(c, checkErr, drift)
-		return result(writeReceipt{Result: r, Elided: note, Pattern: pattern, Error: errText(applyErr), Check: c, Drift: drift, Then: th},
+		lead, tail := checkReport(c, checkErr, drift, others)
+		return result(writeReceipt{Result: r, Elided: note, Pattern: pattern, Error: errText(applyErr), Check: c, Drift: drift, DriftWriters: others, Then: th},
 			lead+writeReport(res, hunks, applyErr, note)+tail+stepsReport(th), isErr)
 	}
 	full, rpcErr := render(res, res.Hunks, chk, then, "")
@@ -1211,7 +1215,7 @@ func gateRefusal(err error) string {
 // checkReport is the text around a receipt that a check followed (ADR-113): a
 // lead line naming the verdict, and after the hunks the check's tail, its log,
 // and the drift. Both are empty when no check was due.
-func checkReport(c *check.Result, checkErr error, drift []string) (lead, tail string) {
+func checkReport(c *check.Result, checkErr error, drift []string, others int) (lead, tail string) {
 	const unverified = " — the write applied; the tree is changed and unverified"
 	switch {
 	case checkErr != nil:
@@ -1240,6 +1244,9 @@ func checkReport(c *check.Result, checkErr error, drift []string) (lead, tail st
 	}
 	for _, p := range drift {
 		fmt.Fprintf(&b, "drift: %s changed while the check ran\n", p)
+	}
+	if others > 0 {
+		fmt.Fprintf(&b, "drift: %d other write(s) landed in this checkout while the check ran\n", others)
 	}
 	return lead, b.String()
 }

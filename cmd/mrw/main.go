@@ -1400,7 +1400,7 @@ held or went unchecked.`,
 				stepsNotRun = v.Then
 				return refuseWith(res, v.CheckErr.Error())
 			}
-			receipt.Check, receipt.Drift, receipt.Then = v.Check, v.Drift, v.Then
+			receipt.Check, receipt.Drift, receipt.DriftWriters, receipt.Then = v.Check, v.Drift, v.DriftWriters, v.Then
 
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
@@ -1410,7 +1410,7 @@ held or went unchecked.`,
 				}
 			} else {
 				reportCheck(os.Stdout, receipt.Check)
-				reportDrift(os.Stdout, receipt.Drift)
+				reportDrift(os.Stdout, receipt.Drift, receipt.DriftWriters)
 				reportSteps(os.Stdout, receipt.Then)
 			}
 			// ADR-113: counted and priced once the receipt is out, so an
@@ -1490,6 +1490,10 @@ type receipt struct {
 	// (ADR-112): absent when nothing did, and when no check ran. Advisory —
 	// the exit code is the check's.
 	Drift []string `json:"drift,omitempty"`
+	// DriftWriters is how many other writes landed in this checkout while the
+	// check ran (ADR-127): absent when none did, and when no check ran.
+	// Advisory, as Drift is.
+	DriftWriters int `json:"drift_writers,omitempty"`
 }
 
 // checkReceipt is `mrw check --json`: the check's own flat fields, unchanged,
@@ -1941,9 +1945,12 @@ touched, which is a finding about the machine and not about your change.`,
 // reportDrift names each file that changed while the write's check ran
 // (ADR-112). Worded for what is known — the bytes moved — and not for who moved
 // them: the check may have done it itself.
-func reportDrift(w *os.File, paths []string) {
+func reportDrift(w *os.File, paths []string, others int) {
 	for _, p := range paths {
 		fmt.Fprintf(w, "drift: %s changed while the check ran\n", p)
+	}
+	if others > 0 {
+		fmt.Fprintf(w, "drift: %d other write(s) landed in this checkout while the check ran\n", others)
 	}
 }
 

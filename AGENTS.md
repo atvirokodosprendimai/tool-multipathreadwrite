@@ -439,7 +439,9 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   before it started, is the same exit (ADR-080, ADR-126). A failing check prints
   `check last:` (the last non-empty tail line) immediately above `full output:`.
   A file the write touched that changed while its check ran is named — `drift: <path> changed while the check
-  ran`, and `drift` in `--json` — and the exit code stays the check's (ADR-112).
+  ran`, and `drift` in `--json` — and the exit code stays the check's (ADR-112). Another writer's write that landed in the
+  checkout while the check ran is counted — `drift: N other write(s) landed in this checkout while the check ran`,
+  `drift_writers` in `--json` and on `mrw_write` — since the write lock covers the apply, not the check (ADR-075, ADR-127).
 - **`--then NAME` and `--then-sh 'CMD'` verify a write in the same call** (ADR-092). A step is declared
   in `.quality-harness.json` `"steps"` (`--then vet`) or written ad hoc (`--then-sh 'go vet ./...'`);
   both repeat and run in command-line order after a write that landed and whose check passed, on
