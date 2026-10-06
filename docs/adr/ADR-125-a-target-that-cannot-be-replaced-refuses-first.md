@@ -9,7 +9,7 @@
 **Invalidates:** None — ADR-066's PARTIALLY APPLIED stays the honest answer for a failure inside the commit; this record moves the common Windows cause ahead of it
 **Governs:** `internal/apply/apply.go`, `internal/apply/tree.go`, `internal/apply/replace*.go`, `scripts/contract.sh`, `AGENTS.md`, `README.md`
 **Enforced-by:** `internal/apply/replace125_test.go::TestAnUnreadableTargetGetsAReceipt`
-**Served-path change:** a plan naming a file mrw cannot read — permission denied, held exclusively by another process, a name the system refuses — exits 1 with a receipt whose failed hunk names the cause, instead of a bare `mrw: …` line at exit 2; on Windows a target another process holds without delete sharing fails before any rename — exit 2, NOTHING WRITTEN, the hunk naming the holder — rather than after the files before it have landed.
+**Served-path change:** a plan naming a file mrw cannot read — permission denied, held exclusively by another process, a name the system refuses — exits 1 with a receipt whose failed hunk names the cause, instead of a bare `mrw: …` line at exit 2; on Windows a target another process holds without delete sharing fails before any rename — exit 2, NOTHING WRITTEN, the hunk naming that it is held — rather than after the files before it have landed.
 
 ## Context
 

@@ -105,7 +105,7 @@ func TestTheProbeDoesNotFollowASwappedParentOutOfTheRoot(t *testing.T) {
 			t.Fatal(err)
 		}
 		if out, err := exec.Command("cmd", "/c", "mklink", "/J", filepath.Join(root, "d"), outside).CombinedOutput(); err != nil {
-			t.Skipf("cannot make a junction here: %v %s", err, out)
+			t.Fatalf("cannot make a junction here, so confinement would go unproved: %v %s", err, out)
 		}
 		return real(tr, full)
 	}
@@ -113,7 +113,7 @@ func TestTheProbeDoesNotFollowASwappedParentOutOfTheRoot(t *testing.T) {
 	if err == nil || res.Applied {
 		t.Fatalf("the probe through a swapped parent did not stop the plan: err %v, %+v", err, res)
 	}
-	if h := hunkFor(t, res, "d/f.txt"); strings.Contains(h.Reason, "held open") {
+	if h := hunkFor(t, res, filepath.FromSlash("d/f.txt")); strings.Contains(h.Reason, "held open") {
 		t.Errorf("the probe followed the junction out of the root and opened the file there: %+v", h)
 	}
 	if read(t, outside, "f.txt") != "outside\n" {

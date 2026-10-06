@@ -117,7 +117,9 @@ func replaceable(tr *tree, full string) error {
 		fileOpen,
 		fileSynchronousIONonAlert|fileOpenForBackupIntent|fileOpenReparsePoint,
 		0, 0)
-	if status != 0 {
+	// An NTSTATUS below zero is a failure; a success or an informational
+	// status opened the file, so the handle is closed either way.
+	if int32(status) < 0 {
 		code, _, _ := procRtlNtStatusToDosErrN.Call(status)
 		return &fs.PathError{Op: "open", Path: full, Err: syscall.Errno(code)}
 	}
