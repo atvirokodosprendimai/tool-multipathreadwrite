@@ -71,6 +71,15 @@ func TestTheCLIReceiptSpellsPathsWithSlash(t *testing.T) {
 			t.Errorf("a longer path holding d\\f.txt was rewritten: %q -> %q", keep, got)
 		}
 	}
+	link := shown(apply.Result{Hunks: []apply.HunkResult{{Path: `d\f.txt`, Status: apply.StatusFailed,
+		Reason: "d\\f.txt resolves to C:\\outside\\old+d\\f.txt, which is outside the root"}}})
+	if got := link.Hunks[0].Reason; got != "d/f.txt resolves to C:\\outside\\old+d\\f.txt, which is outside the root" {
+		t.Errorf("a link target the system printed was half-rewritten: %q", got)
+	}
+	longer := shown(apply.Result{Hunks: []apply.HunkResult{{Path: `d\f.txt`, Status: apply.StatusFailed, Reason: "d\\f.txt2 is another file"}}})
+	if got := longer.Hunks[0].Reason; got != "d\\f.txt2 is another file" {
+		t.Errorf("a longer name starting with the path was rewritten: %q", got)
+	}
 }
 
 // ADR-132 Decision 4. The exit-2 line printed the whole error under a receipt

@@ -3,8 +3,6 @@ package apply
 import (
 	"slices"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 )
 
 // Slashed returns res with every root-relative path spelled with "/" where
@@ -47,37 +45,20 @@ func Slash(p string, sep rune) string {
 	return strings.ReplaceAll(p, string(sep), "/")
 }
 
-// SlashIn spells each occurrence of the root-relative path p in text with "/"
-// where sep separated it — only where it stands whole: not the tail of a
-// longer path (an absolute one the system printed, `C:\root\old\f.txt` for
-// `d\f.txt`) nor the head of one (`d\f.txt\child`), which are kept as written
-// (ADR-132; the Codex re-review of #347).
+// SlashIn spells the root-relative path p with "/" where sep separated it, in
+// the two places mrw's own words put it: at the start of text, followed by a
+// space or a colon ("d\f.txt has not been read", "d\f.txt: …"), and between
+// backticks ("Run `mrw read d\f.txt` first"). Anywhere else the path is part
+// of something the system printed — an absolute path, a link target — and a
+// filename may hold any character, so no boundary test can tell where it
+// starts: it is kept as written (ADR-132; the Codex re-reviews of #347).
 func SlashIn(text, p string, sep rune) string {
 	if p == "" || !strings.ContainsRune(p, sep) {
 		return text
 	}
-	inName := func(r rune) bool {
-		return r == sep || r == '/' || r == '.' || r == '_' || r == '-' || unicode.IsLetter(r) || unicode.IsDigit(r)
+	q := Slash(p, sep)
+	if rest, ok := strings.CutPrefix(text, p); ok && (strings.HasPrefix(rest, " ") || strings.HasPrefix(rest, ":")) {
+		text = q + rest
 	}
-	var b strings.Builder
-	from := 0
-	for {
-		i := strings.Index(text[from:], p)
-		if i < 0 {
-			b.WriteString(text[from:])
-			return b.String()
-		}
-		i += from
-		end := i + len(p)
-		b.WriteString(text[from:i])
-		before, _ := utf8.DecodeLastRuneInString(text[:i])
-		after, _ := utf8.DecodeRuneInString(text[end:])
-		whole := (i == 0 || !inName(before)) && (end == len(text) || !inName(after))
-		if whole {
-			b.WriteString(Slash(p, sep))
-		} else {
-			b.WriteString(p)
-		}
-		from = end
-	}
+	return strings.ReplaceAll(text, "`mrw read "+p+"`", "`mrw read "+q+"`")
 }
