@@ -8347,7 +8347,7 @@ out=$(req216 '{"grep":"NEEDLE216"}' | "$MRW" -C "$R" mcp 2>/dev/null)
 python3 - "$out" <<'PY' && ok "mrw_read counts what its grep skipped" || bad "mrw_read skipped: $(head -c 400 <<<"$out")"
 import json, sys
 sc = json.loads(json.loads(sys.argv[1])["result"]["content"][-1]["text"])
-sys.exit(0 if sc.get("skipped") == {"ignored": 0, "ignored_dirs": 1, "binary": 1} else 1)
+sys.exit(0 if sc.get("skipped") == {"ignored": 0, "ignored_dirs": 1, "binary": 1, "nested": 0} else 1)
 PY
 out=$(req216 '{"grep":"NEEDLE216","no_ignore":true}' | "$MRW" -C "$R" mcp 2>/dev/null)
 python3 - "$out" <<'PY' && ok "the pair: no_ignore walks all and counts nothing" || bad "no_ignore: $(head -c 400 <<<"$out")"
@@ -8641,6 +8641,23 @@ if ln "$R/h230.txt" "$R/k230.txt" 2>/dev/null; then
 else
   skip "a rename onto a hard link (no hard links here)"
 fi
+
+# 233. ADR-130: a walk does not enter a nested repository. Inside a checkout, a
+# directory holding its own .git is another project's, and git does not descend
+# into it; mrw walked it with its own rules. --grep serves the outer match only
+# and says on the -- skipped: line that it did not enter one. The pairs: the
+# directory named is walked, and --no-ignore walks it.
+fixture
+mkdir -p "$R/.git" "$R/nest233/.git"
+printf 'needle233\n' > "$R/top233.txt"; printf 'needle233\n' > "$R/nest233/in.txt"
+out=$(m read --grep needle233 2>&1); want 0 $? "a grep in a checkout holding a nested repository exits 0"
+{ grep -q 'top233.txt' <<<"$out" && ! grep -q 'nest233/in.txt' <<<"$out" && grep -q '1 nested repositor(ies), not entered' <<<"$out"; } \
+  && ok "and does not enter it, saying so" || bad "nested: $out"
+out=$(m read --grep needle233 nest233 2>&1)
+grep -q 'nest233/in.txt' <<<"$out" && ok "the pair: the nested repository named is walked" || bad "named nested: $out"
+out=$(m read --grep needle233 --no-ignore 2>&1)
+grep -q 'nest233/in.txt' <<<"$out" && ok "the pair: --no-ignore walks it" || bad "no-ignore nested: $out"
+rm -rf "$R/.git" "$R/nest233" "$R/top233.txt"
 
 # 223. ADR-125: a target mrw cannot open is refused on its hunk, naming why.
 # A plan over a.txt and a write-only b.txt (mode 200: not read-only, so ADR-076

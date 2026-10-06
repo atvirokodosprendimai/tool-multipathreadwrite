@@ -261,6 +261,7 @@ func readSchema() map[string]any {
 					"ignored":      map[string]any{"type": "integer"},
 					"ignored_dirs": map[string]any{"type": "integer"},
 					"binary":       map[string]any{"type": "integer"},
+					"nested":       map[string]any{"type": "integer"},
 				},
 			},
 		},
@@ -279,8 +280,9 @@ var readDescriptions = map[string]string{
 	"matches":              "How many files matched a `grep`, counting the whole match set and not just this page. Present on an INDEX answer and on a grep that matched nothing (0); a grep whose matches fit is served instead, and its `observed` names the files.",
 	"index":                "The matching FILE PATHS, served instead of content when the matches are too large to return. No content came with them and nothing was recorded, so this licenses no write. Send one back as a spec WITH the same grep to read its matches.",
 	"next_index":           "The last path on this page of an INDEX. Send the same grep again with `after` set to this for the next page, and repeat until it is empty — an empty value is how you know you have the whole match set.",
-	"skipped":              "What a grep walk left out without serving it, present only when it left something out. Inside a git checkout the walk skips what .gitignore and .git/info/exclude ignore; any walk skips a binary file. Send `no_ignore: true` to walk them all. A path named in `specs` is walked either way.",
+	"skipped":              "What a grep walk left out without serving it, present only when it left something out. Inside a git checkout the walk skips what .gitignore and .git/info/exclude ignore, and does not enter a nested repository; any walk skips a binary file. Send `no_ignore: true` to walk them all. A path named in `specs` is walked either way.",
 	"skipped.ignored":      "Files the ignore rules skipped.",
 	"skipped.ignored_dirs": "Directories the ignore rules pruned; the files under them are not counted.",
 	"skipped.binary":       "Files skipped as binary: a UTF-16/32 byte-order mark, or a NUL in the first 8 KiB.",
+	"skipped.nested":       "Directories below the checkout holding their own .git — another repository, a submodule, a worktree — not entered, as git does not (ADR-130).",
 }

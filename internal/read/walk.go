@@ -54,6 +54,10 @@ type WalkSkipped struct {
 	// (lines.Unsplittable: a UTF-16/32 byte-order mark or a NUL in the first
 	// 8 KiB).
 	Binary int `json:"binary"`
+	// Nested is the directories below a checkout that hold their own .git —
+	// another repository, a submodule or a worktree — not entered, as git
+	// does not descend into one (ADR-130).
+	Nested int `json:"nested"`
 }
 
 // SkipNote is the sentence a surface prints for what a walk skipped
@@ -71,6 +75,9 @@ func SkipNote(sk WalkSkipped, flag string) string {
 	}
 	if sk.Binary > 0 {
 		parts = append(parts, fmt.Sprintf("%d binary file(s) that matched", sk.Binary))
+	}
+	if sk.Nested > 0 {
+		parts = append(parts, fmt.Sprintf("%d nested repositor(ies), not entered", sk.Nested))
 	}
 	return "-- skipped: " + strings.Join(parts, ", ") + "; " + flag + " walks them"
 }
@@ -101,7 +108,7 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 	}
 
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}, nested: map[string]*ignorer{},
-		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}}
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}}
 	if !opt.NoIgnore {
 		w.ign = newIgnorer(absRoot)
 	}
@@ -131,7 +138,9 @@ type walker struct {
 	// path, so a path two walks meet counts once, and one served after all
 	// counts not at all (skipCounts). starts are the named directories walked.
 	skipFiles, skipDirs, skipBin map[string]bool
-	starts                       []string
+	// skipNested is the nested repositories the walk did not enter (ADR-130).
+	skipNested map[string]bool
+	starts     []string
 }
 
 // consider handles one path the caller named: judgeNamed decides what it is,
@@ -281,7 +290,14 @@ func (w *walker) walkDir(named string, full string) {
 				w.skipDirs[r] = true
 				return fs.SkipDir
 			}
-			w.noteNested(r, filepath.Join(w.absRoot, rel))
+			// ADR-130: a repository below a checkout is another project's,
+			// and git does not descend into it.
+			abs := filepath.Join(w.absRoot, rel)
+			if w.nestedBelowCheckout(r, abs) {
+				w.skipNested[r] = true
+				return fs.SkipDir
+			}
+			w.noteNested(r, abs)
 			return nil
 		}
 		// THE BOUNDARY, on the discovered path. `consider` resolves a NAMED
@@ -392,6 +408,28 @@ func (w *walker) noteNested(dir, abs string) {
 	}
 }
 
+// nestedBelowCheckout reports whether dir (root-relative, "/"-joined; abs its
+// path), met by a walk, is a repository of its own below a checkout: the root
+// is inside one, or dir lies inside a repository found below a root that is
+// none (ADR-130). Such a directory is not entered. Under NoIgnore nothing is.
+func (w *walker) nestedBelowCheckout(dir, abs string) bool {
+	if w.opt.NoIgnore {
+		return false
+	}
+	if _, err := os.Lstat(filepath.Join(abs, ".git")); err != nil {
+		return false
+	}
+	if w.ign != nil {
+		return true
+	}
+	for k := range w.nested {
+		if strings.HasPrefix(dir, k+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 // hitJudge applies the walk's own rules to files another finder discovered
 // (ADR-122): the ignore rules of the checkout each is in, nested ones
 // included, and a .git directory the walk would not enter. It counts what it
@@ -400,7 +438,7 @@ type hitJudge struct{ w *walker }
 
 func newHitJudge(root, absRoot string) *hitJudge {
 	w := &walker{root: root, absRoot: absRoot, seen: map[string]bool{}, nested: map[string]*ignorer{},
-		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}}
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}}
 	w.ign = newIgnorer(absRoot)
 	return &hitJudge{w: w}
 }
@@ -414,7 +452,13 @@ func (j *hitJudge) skip(rel string, from int) bool {
 	parts := strings.Split(rel, "/")
 	for i := 1; i < len(parts); i++ {
 		dir := strings.Join(parts[:i], "/")
-		j.w.noteNested(dir, filepath.Join(j.w.absRoot, filepath.FromSlash(dir)))
+		abs := filepath.Join(j.w.absRoot, filepath.FromSlash(dir))
+		// ADR-130: a hit inside a nested repository the walk would not enter.
+		if i > from && j.w.nestedBelowCheckout(dir, abs) {
+			j.w.skipNested[dir] = true
+			return true
+		}
+		j.w.noteNested(dir, abs)
 		if i > from && j.w.ignored(dir, true, from) {
 			j.w.skipDirs[dir] = true
 			return true
@@ -478,6 +522,11 @@ func (w *walker) skipCounts() WalkSkipped {
 	for d := range w.skipDirs {
 		if !entered[d] && !startBelow(w.starts, d) {
 			sk.IgnoredDirs++
+		}
+	}
+	for d := range w.skipNested {
+		if !entered[d] && !startBelow(w.starts, d) {
+			sk.Nested++
 		}
 	}
 	return sk

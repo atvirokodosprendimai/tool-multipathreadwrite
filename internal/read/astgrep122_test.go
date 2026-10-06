@@ -69,11 +69,13 @@ func TestAnAstGrepHitTheWalkWouldSkipIsDroppedAndCounted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := servedPaths(specs), []string{".hidden.go", "b.go", "nested/keep.log", "nested/outer.go"}; !reflect.DeepEqual(got, want) {
+	// ADR-130: nested/ is a repository of its own inside this checkout, and is
+	// not entered at all; its own rules no longer decide anything here.
+	if got, want := servedPaths(specs), []string{".hidden.go", "b.go"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("served %v, want %v", got, want)
 	}
-	if want := (WalkSkipped{Ignored: 2, IgnoredDirs: 1, Binary: 1}); sk != want {
-		t.Fatalf("skipped %+v, want %+v (x.log and nested/inner.go, gen/, bin.go)", sk, want)
+	if want := (WalkSkipped{Ignored: 1, IgnoredDirs: 1, Binary: 1, Nested: 1}); sk != want {
+		t.Fatalf("skipped %+v, want %+v (x.log, gen/, bin.go, nested/)", sk, want)
 	}
 }
 
@@ -157,8 +159,8 @@ func TestAstGrepCountsExcludeAndNamedStartsAsTheWalkDoes(t *testing.T) {
 	if _, _, err := AstGrep(root, nil, "package $A", []string{"x.log", "gen"}, AstGrepOptions{Skipped: &sk}); err != nil {
 		t.Fatal(err)
 	}
-	if sk.IgnoredDirs != 0 || sk.Ignored != 1 {
-		t.Fatalf("skipped %+v: an excluded hit was counted as ignored (want only nested/inner.go)", sk)
+	if sk.IgnoredDirs != 0 || sk.Ignored != 0 || sk.Nested != 1 {
+		t.Fatalf("skipped %+v: an excluded hit was counted as ignored (want only nested/, ADR-130)", sk)
 	}
 	if err := os.MkdirAll(filepath.Join(root, "gen", "keep"), 0o755); err != nil {
 		t.Fatal(err)
