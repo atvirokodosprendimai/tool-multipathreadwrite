@@ -117,7 +117,7 @@ mrw write -
 
 Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`,
 `unlink`, `rename`. `@@ path - unlink` removes the path. `@@ old - rename`
-with a one-line dest body moves it, edited first when the plan also edits it. Only `delete` may carry no body among
+with a one-line dest body moves it, edited first when the plan also edits it; on a filesystem that folds case it may change only the case of the name (`a.txt` → `A.txt`, ADR-129). Only `delete` may carry no body among
 the line-range ops: a lost body reads like one never written, so an
 empty file is `@@ new.txt 0 create body=0`. A bare `create` with nothing under
 it is refused and leaves no file behind.

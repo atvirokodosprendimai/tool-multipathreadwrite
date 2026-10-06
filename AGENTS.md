@@ -254,7 +254,7 @@ committing reports what reached disk (`PARTIALLY APPLIED` naming what landed, or
 `NOTHING WRITTEN` when the undo put everything back). Ops are `replace`, `insert-after`,
 `insert-before`, `delete`, `create`, `unlink`, `rename`. `@@ path - unlink`
 removes the path (empty body OK). `@@ old - rename` with a one-line dest body
-moves it — beside edits to the same file in one plan, the edited file moves (ADR-114). Only `delete` may carry no body among the line-range ops: a lost
+moves it — beside edits to the same file in one plan, the edited file moves (ADR-114); on a filesystem that folds case, a rename may change only the case of a name (`a.txt` → `A.txt`), while a destination that is another entry — a hard link under another name included — is refused (ADR-129). Only `delete` may carry no body among the line-range ops: a lost
 body reads exactly like one never written, so an empty file is spelled
 `@@ new.txt 0 create body=0`, and a bare `create` with nothing under it is
 refused and leaves no file behind. `body=@path` loads those lines from a

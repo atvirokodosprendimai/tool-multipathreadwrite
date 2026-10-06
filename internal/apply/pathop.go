@@ -30,6 +30,75 @@ func nestedPath(a, b string) bool {
 	return strings.HasPrefix(a+sep, b+sep) || strings.HasPrefix(b+sep, a+sep)
 }
 
+// What respelling finds a rename's existing destination to be (ADR-129).
+const (
+	anotherEntry  = iota // a different file, or the source under another link: refuse
+	theSource            // the source itself, under the same leaf: refuse
+	respelled            // the source under another spelling of its leaf: rename
+	otherSpelling        // the plan spells the source as its directory does not: refuse
+)
+
+// respelling says what an existing destination dst is to the source src. It
+// is a respelling only when the two parents are one directory, dst is the
+// source's file, the leaves differ, the directory lists the source exactly as
+// the plan spells it, and no other entry there — dst's leaf, or a hard link
+// under any name — is the source's file. A hard link is the case POSIX
+// rename(2) "does nothing" to: under another spelling it folds to dst, and
+// renaming onto it would report success and change nothing. Nothing is folded
+// here: the filesystem's identity and its own listing decide (ADR-021).
+func respelling(src, dst string) int {
+	si, err := os.Lstat(src)
+	if err != nil {
+		return anotherEntry
+	}
+	di, err := os.Lstat(dst)
+	if err != nil || !os.SameFile(si, di) {
+		return anotherEntry
+	}
+	dir := filepath.Dir(src)
+	sp, err := os.Stat(dir)
+	if err != nil {
+		return anotherEntry
+	}
+	dp, err := os.Stat(filepath.Dir(dst))
+	if err != nil || !os.SameFile(sp, dp) {
+		return anotherEntry
+	}
+	srcLeaf, dstLeaf := filepath.Base(src), filepath.Base(dst)
+	if srcLeaf == dstLeaf {
+		return theSource
+	}
+	es, err := os.ReadDir(dir)
+	if err != nil {
+		return anotherEntry
+	}
+	// Every entry that is the source's file: the source itself, and any hard
+	// link to it under another name.
+	listed, same := false, 0
+	for _, e := range es {
+		if e.Name() == dstLeaf {
+			return anotherEntry
+		}
+		fi, err := os.Lstat(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return anotherEntry
+		}
+		if os.SameFile(fi, si) {
+			same++
+			listed = listed || e.Name() == srcLeaf
+		}
+	}
+	switch {
+	case same > 1:
+		return anotherEntry
+	case !listed:
+		// An undo puts the file back under the plan's spelling of the source;
+		// one the directory does not hold would restore a name nobody had.
+		return otherSpelling
+	}
+	return respelled
+}
+
 // planPathOp validates a single unlink or rename hunk. The caller has already
 // refused mixing those ops with line-edits on the same path.
 func planPathOp(root, path, full string, h hunk, orig []string, existed bool, shaBefore string, unlinked, produced map[string]bool, destCount map[string]int, covered func(hunk, int, int) bool, fail func(hunk, string, ...any), out map[int]HunkResult) bool {
@@ -120,8 +189,27 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 		// failed at the commit rename, after the plan's other files had
 		// landed. It is a fact about the plan, so it fails the hunk here.
 		if _, err := os.Lstat(destFull); err == nil && !unlinked[dest] {
-			fail(h, "rename dest %s already exists — unlink it in this plan, or pick another path", dest)
-			return false
+			// ADR-129: on a filesystem that folds case, A.txt finds a.txt.
+			switch respelling(full, destFull) {
+			case respelled:
+				// The parent is one directory however the plan spells it, and
+				// a rename changes only the leaf: a/x.txt → A/X.txt would leave
+				// a/X.txt on disk under a receipt naming A/X.txt (the in-process
+				// review of #346).
+				if filepath.Dir(dest) != filepath.Dir(path) {
+					fail(h, "rename dest %s respells the directory %s: a rename changes only the name, so spell the directory as the source does", dest, filepath.Dir(path))
+					return false
+				}
+			case theSource:
+				fail(h, "rename dest %s is the source", dest)
+				return false
+			case otherSpelling:
+				fail(h, "rename source %s is not spelled that way in its directory: name it as the directory lists it", path)
+				return false
+			default:
+				fail(h, "rename dest %s already exists — unlink it in this plan, or pick another path", dest)
+				return false
+			}
 		} else if err != nil && !os.IsNotExist(err) {
 			fail(h, "rename dest %s cannot be used: %v", dest, err)
 			return false
@@ -253,11 +341,35 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 		if err := tr.mkdirAll(filepath.Dir(w.renameTo), 0o755); err != nil {
 			return err
 		}
+		respell := false
 		if _, err := tr.lstat(w.renameTo); err == nil {
-			return fmt.Errorf("rename dest %s appeared before commit", w.destRel)
+			// ADR-129: a respelling's destination is the source; anything
+			// else there is a file that appeared after validation.
+			if respelling(from, w.renameTo) != respelled {
+				return fmt.Errorf("rename dest %s appeared before commit", w.destRel)
+			}
+			respell = true
 		}
 		if err := commitRenameFn(tr, from, w.renameTo); err != nil {
 			return err
+		}
+		// A filesystem that reports the rename done and leaves the source's
+		// spelling listed made it a no-op. Asked after the rename is recorded
+		// below, so a failure here is undone with it (ADR-066).
+		confirm := func() error {
+			if !respell {
+				return nil
+			}
+			es, err := tr.readDir(filepath.Dir(from))
+			if err != nil {
+				return fmt.Errorf("the respelling of %s cannot be confirmed: %w", filepath.Base(from), err)
+			}
+			for _, e := range es {
+				if e.Name() == filepath.Base(from) {
+					return fmt.Errorf("the filesystem kept the old spelling: %s is still listed after the rename", e.Name())
+				}
+			}
+			return nil
 		}
 		dest := FileResult{
 			Path:     w.destRel,
@@ -280,7 +392,7 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 				res.Files[i] = rec
 				renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{i, len(res.Files)}, orig: &prev})
 				res.Files = append(res.Files, dest)
-				return nil
+				return confirm()
 			}
 		}
 		renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{len(res.Files), len(res.Files) + 1}})
@@ -290,7 +402,7 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 		w.file.SHAAfter = ""
 		res.Files = append(res.Files, w.file)
 		res.Files = append(res.Files, dest)
-		return nil
+		return confirm()
 	}
 
 	renameDest := map[string]bool{}
