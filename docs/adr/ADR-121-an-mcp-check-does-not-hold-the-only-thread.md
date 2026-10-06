@@ -84,3 +84,7 @@ Revert the task: the loop holds a check again and no progress is sent. No receip
 ## Follow-ups
 
 - None — the record carries no open follow-up.
+
+## Amendment 2026-10-06 — the Codex review of v1.42.0..v1.47.0
+
+A write that asked for a step released Serve's loop even when no step would run (a dry run, a plan refused at validation), so a later quick call could be answered before it. The steps half of the release condition now also needs a write that applied with no failed hunk (`tools.go`); `internal/mcp/retro147_test.go::TestARequestedStepReleasesTheLoopOnlyWhenTheWriteLanded` pins it. No contract row: the ordering is not observable through the binary without a race.

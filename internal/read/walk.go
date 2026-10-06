@@ -427,6 +427,19 @@ func (j *hitJudge) skip(rel string, from int) bool {
 	return false
 }
 
+// underGit reports whether rel (root-relative, "/"-joined) lies inside a .git
+// directory below the from components a named start already entered — the
+// directory every walk prunes, --no-ignore or not.
+func underGit(rel string, from int) bool {
+	parts := strings.Split(rel, "/")
+	for i := from + 1; i < len(parts); i++ {
+		if parts[i-1] == ".git" {
+			return true
+		}
+	}
+	return false
+}
+
 // binary counts rel as a binary file the walk would not serve.
 func (j *hitJudge) binary(rel string) { j.w.skipBin[rel] = true }
 
