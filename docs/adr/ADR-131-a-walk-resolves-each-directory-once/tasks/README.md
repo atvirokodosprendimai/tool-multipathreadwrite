@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | a per-walk Resolver | pending | none | `docs/adr/ADR-131-a-walk-resolves-each-directory-once/tasks/T1-resolver.md` fence |
+| T1 | a per-walk Resolver | partial | none | `docs/adr/ADR-131-a-walk-resolves-each-directory-once/tasks/T1-resolver.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

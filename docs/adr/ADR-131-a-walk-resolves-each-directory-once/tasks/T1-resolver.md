@@ -108,3 +108,4 @@ Stop and ask if the Windows timing shows no gain, or the differential test canno
 - 2026-10-08 · f74dfd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:40856
 - 2026-10-08 · f74dfd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:42477
 - 2026-10-08 · f74dfd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:54806
+- 2026-10-08 · d9ec641 · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:46063
