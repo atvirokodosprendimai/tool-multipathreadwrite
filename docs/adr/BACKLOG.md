@@ -2633,4 +2633,5 @@ plan (ADR-127 to ADR-129).
 - **The ancestor identity walk in `inState`** — still one `Stat` per ancestor of every resolved path up to the
   volume root, kept exact because it is ADR-077's boundary against a case or mount spelling of the state base.
   Arm when a Windows timing after ADR-123 still shows the per-file cost, with a per-walk cache whose staleness the
-  record can bound.
+  record can bound. **Taken by ADR-131** (2026-10-08): a Windows profile after ADR-123 put 85% of a walk in
+  Resolve, and a per-walk `rooted.Resolver` resolves each directory once; its staleness is bounded by the walk.

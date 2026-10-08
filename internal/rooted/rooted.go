@@ -72,16 +72,29 @@ func Abs(root string) (string, error) {
 	return absRoot, nil
 }
 func Resolve(root, path string) (string, error) {
-	if followLinks {
-		if c, _ := win32Alias(path); c != "" {
-			return "", fmt.Errorf("%s: Windows does not keep %q as written (it drops a trailing dot or space from a name, reads ':' as a stream, and turns a byte that is not valid UTF-8 into U+FFFD); name the file as it is on disk", path, c)
-		}
+	if err := aliasRefusal(path); err != nil {
+		return "", err
 	}
 	absRoot, err := Abs(root)
 	if err != nil {
 		return "", err
 	}
+	return resolveIn(absRoot, path)
+}
 
+// aliasRefusal refuses a path Windows would not keep as written (ADR-071).
+func aliasRefusal(path string) error {
+	if followLinks {
+		if c, _ := win32Alias(path); c != "" {
+			return fmt.Errorf("%s: Windows does not keep %q as written (it drops a trailing dot or space from a name, reads ':' as a stream, and turns a byte that is not valid UTF-8 into U+FFFD); name the file as it is on disk", path, c)
+		}
+	}
+	return nil
+}
+
+// resolveIn is Resolve under a root Abs already resolved.
+func resolveIn(absRoot, path string) (string, error) {
+	var err error
 	full := filepath.Join(absRoot, path)
 	// ADR-076: Win32 opens CON, NUL, COM1 and the rest as devices — before
 	// Windows 11 with any extension too — so `mrw read NUL` served an empty
@@ -299,6 +312,12 @@ func inState(q string) bool {
 		return false
 	}
 	b, bi := resolvedBase(base)
+	return inStateAt(b, bi, q)
+}
+
+// inStateAt is inState against the base b, resolved, and bi its FileInfo, nil
+// when it does not exist.
+func inStateAt(b string, bi os.FileInfo, q string) bool {
 	if Contains(b, q) {
 		return true
 	}
@@ -357,4 +376,126 @@ func resolvedBase(base string) (string, os.FileInfo) {
 func sameAs(p string, fi os.FileInfo) bool {
 	pi, err := os.Stat(p)
 	return err == nil && os.SameFile(pi, fi)
+}
+
+// Resolver resolves the paths one walk discovers, answering each exactly as
+// Resolve does, with the work their directories share done once (ADR-131).
+//
+// On Windows every path component is a syscall, and Resolve walked them all
+// for every file: the root (Abs), the links (throughLinks), the real path
+// (EvalSymlinks) and each ancestor's identity against the state base (inState)
+// — 85% of a --grep walk's CPU, 3.1 ms a file, a peer's profile of 2026-10-06.
+// Every file in a directory shares all of that but its own name. A Resolver
+// resolves the root and the state base once, and each directory once — its
+// links, its real path, its ancestors' verdict — and then judges a regular
+// file by one Lstat of its own name. Anything else, a link, a directory, a
+// name that is not there or a state base that is not a directory, is resolved
+// whole, by Resolve's own code.
+//
+// What it caches is stale for as long as the Resolver lives, and a walk owns
+// one and drops it when it returns: a directory swapped for a link, or made
+// mrw's state base, during a walk is seen by the next one. That bound is
+// acceptable because a walk only chooses what to match: read.Run resolves every
+// path it serves afresh, with Resolve, before it reads it to serve it. A
+// Resolver is not safe for concurrent use.
+type Resolver struct {
+	absRoot string
+	err     error // Abs's refusal of the root, returned for every path
+	based   bool  // the state base below has been resolved
+	none    bool  // there is no state base to compare with (state.Base failed)
+	b       string
+	bi      os.FileInfo
+	dirs    map[string]resolvedDir
+}
+
+// resolvedDir is one directory as Resolve would resolve it: target through its
+// links, real its real path, in whether it or an ancestor is the state base.
+// ok is false when it could not be resolved, so its files are resolved whole.
+type resolvedDir struct {
+	target, real string
+	in, ok       bool
+}
+
+// NewResolver returns a Resolver for paths under root.
+func NewResolver(root string) *Resolver {
+	r := &Resolver{dirs: map[string]resolvedDir{}}
+	r.absRoot, r.err = Abs(root)
+	return r
+}
+
+// Resolve is rooted.Resolve(root, path) for the root the Resolver was made for.
+func (r *Resolver) Resolve(path string) (string, error) {
+	if err := aliasRefusal(path); err != nil {
+		return "", err
+	}
+	if r.err != nil {
+		return "", r.err
+	}
+	full := filepath.Join(r.absRoot, path)
+	fi, err := os.Lstat(full)
+	if err != nil || !fi.Mode().IsRegular() || SpelledAsDirectory(path) || !r.base() {
+		return resolveIn(r.absRoot, path)
+	}
+	d := r.dir(filepath.Dir(full))
+	if !d.ok {
+		return resolveIn(r.absRoot, path)
+	}
+	if followLinks {
+		if err := deviceName(path, r.absRoot, full); err != nil {
+			return "", err
+		}
+	}
+	leaf := filepath.Base(full)
+	if target := filepath.Join(d.target, leaf); followLinks && target != full {
+		if err := deviceName(path, r.absRoot, target); err != nil {
+			return "", err
+		}
+	}
+	// A regular file is not a link, so its real path is its directory's
+	// joined with its name; and it is not a directory, so it is the state
+	// base's identity only if it is the base's own path.
+	check := filepath.Join(d.real, leaf)
+	if !Contains(r.absRoot, check) {
+		return "", fmt.Errorf("%s resolves to %s, which is outside the root %s", path, check, r.absRoot)
+	}
+	if d.in || (!r.none && Contains(r.b, check)) {
+		return "", fmt.Errorf("%s is inside mrw's own state directory; mrw does not serve or edit its own ledger", path)
+	}
+	return full, nil
+}
+
+// base resolves the state base once, and reports whether a regular file can be
+// judged against it by its directory alone: there is no base, or the base is a
+// directory, which no regular file can be the same file as.
+func (r *Resolver) base() bool {
+	if !r.based {
+		r.based = true
+		base, err := state.Base()
+		if err != nil {
+			r.none = true
+		} else {
+			r.b, r.bi = resolvedBase(base)
+		}
+	}
+	return r.none || r.bi == nil || r.bi.IsDir()
+}
+
+// dir resolves the directory dir as Resolve resolves a path's parent, once.
+func (r *Resolver) dir(dir string) resolvedDir {
+	if d, ok := r.dirs[dir]; ok {
+		return d
+	}
+	d := resolvedDir{target: dir}
+	var err error
+	if followLinks {
+		d.target, err = throughLinks(dir, osLinks)
+	}
+	if err == nil {
+		if d.real, err = filepath.EvalSymlinks(d.target); err == nil {
+			d.ok = true
+			d.in = !r.none && inStateAt(r.b, r.bi, d.real)
+		}
+	}
+	r.dirs[dir] = d
+	return d
 }

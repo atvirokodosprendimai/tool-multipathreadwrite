@@ -195,6 +195,7 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 			}
 		}
 	}
+	res := rooted.NewResolver(absRoot) // this call's hits only (ADR-131)
 	crOnly := map[string]bool{}
 	for _, h := range hits {
 		rel, ok := astGrepRel(absRoot, h.name())
@@ -207,7 +208,7 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 		// reviews of #243; ADR-077 dropped only a hit in mrw's own state). A
 		// discovered hit it refuses is dropped, as the walk drops one (ADR-007
 		// rule 2); one the caller named is left for Run, which reports it.
-		_, resolveErr := rooted.Resolve(absRoot, filepath.FromSlash(rel))
+		_, resolveErr := res.Resolve(filepath.FromSlash(rel))
 		refused := resolveErr != nil
 		if refused && !named[rel] {
 			continue

@@ -109,7 +109,8 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 	}
 
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}, nested: map[string]*ignorer{},
-		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}}
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{},
+		res: rooted.NewResolver(root)}
 	if !opt.NoIgnore {
 		w.ign = newIgnorer(absRoot)
 	}
@@ -130,7 +131,8 @@ type walker struct {
 	seen     map[string]bool // cleaned root-relative paths already turned into specs
 	specs    []Spec
 	problems []Problem
-	ign      *ignorer // nil outside a checkout or under NoIgnore
+	ign      *ignorer         // nil outside a checkout or under NoIgnore
+	res      *rooted.Resolver // resolves what this walk discovers, and dies with it (ADR-131)
 	// nested holds each checkout found below the root, by its root-relative
 	// "/"-joined directory: its own rules apply beneath it and the outer
 	// rules do not, as git keeps a nested repository's files its own.
@@ -316,7 +318,7 @@ func (w *walker) walkDir(named string, full string) {
 		// this is that sentence being true on both paths. Found by an
 		// independent review, 2026-09-03 — the existing boundary tests covered
 		// an explicit ../ and an IN-root symlink, so nothing failed.
-		full, err := rooted.Resolve(w.root, rel)
+		full, err := w.res.Resolve(rel)
 		if err != nil {
 			// Discovered, not named: skipped in silence, per rule 2. Reporting
 			// it would re-create the oracle in the problem list.
