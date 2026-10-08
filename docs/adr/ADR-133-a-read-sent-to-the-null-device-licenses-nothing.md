@@ -76,7 +76,8 @@ See `tasks/README.md`: T1.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| the null device does not stat as the same file on some platform | Low | the guard does nothing there, as before this record | the test opens `os.DevNull` on every CI platform, Windows included |
+| on unix, the null device does not stat as the same file as a handle opened on it | Low | the guard does nothing there, as before this record | `TestOnlyTheNullDeviceCountsAsNull` opens `os.DevNull` on every CI platform |
+| on Windows, the device-type query fails or NUL reports another type | Low | the guard does nothing there, as before this record | the same test runs on the Windows CI shard and requires NUL to count |
 | a Windows console counted as NUL | Low after the fix | a read the caller sees licenses nothing | the device type is asked of the handle, which names NUL whatever access the handle has; no CI runner has a console on stdout, so the console case is traced, not run |
 
 ## Rollback

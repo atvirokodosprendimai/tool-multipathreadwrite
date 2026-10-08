@@ -72,7 +72,7 @@ out=$(mktemp) \
 
 ## Stop Condition
 
-Stop and ask if `os.DevNull` does not stat as the same file as a handle opened on it on a CI platform.
+Stop and ask if `TestOnlyTheNullDeviceCountsAsNull` fails on a CI platform: on unix that means `os.DevNull` does not stat as the same file as a handle opened on it; on Windows, that the device-type query fails or NUL reports another type.
 
 ## Out of Scope
 
@@ -110,3 +110,4 @@ Stop and ask if `os.DevNull` does not stat as the same file as a handle opened o
 - 2026-10-08 · 1cefff1* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:504b54dc77537645a98467c0a383ddc6b8170d77e4900b385cc776fec2f75b04 · ms:0 · test-lock-sha256:2e2e5e8912e0eb03904b5457cd19246632a75ce2ea7d11136c113a04b4295589 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9udWxsZGV2aWNlMTMzX3Rlc3QuZ28JVGVzdE9ubHlUaGVOdWxsRGV2aWNlQ291bnRzQXNOdWxsCWI5Njc4NTZhOTExZjE1OGJhZGE3MTRiMzJlYzljOTJmNzA5NTZjYWZhNzU1MTI3YTVhNGE3ODdjNzBiMjk5MWYKYm9keQljbWQvbXJ3L251bGxyZWFkMTMzX3Rlc3QuZ28JVGVzdEFSZWFkU2VudFRvVGhlTnVsbERldmljZUxpY2Vuc2VzTm90aGluZwkwMGU2ZjU3Mzc1MTVjMTc4MWE2ZTY3ZDZlMWFmZGFjNTRkMTZjNjY0ZjBlMzA5ZDc0MGQxYjM0ODUyYTBkNzMz · test-lock-kind:replace
 - 2026-10-08 · 1cefff1* · exit 0 · `set -o pipefail …` · acceptance-sha256:504b54dc77537645a98467c0a383ddc6b8170d77e4900b385cc776fec2f75b04 · ms:38945
 - 2026-10-08 · 106e43d* · exit 0 · `set -o pipefail …` · acceptance-sha256:504b54dc77537645a98467c0a383ddc6b8170d77e4900b385cc776fec2f75b04 · ms:36807
+- 2026-10-08 · 443f5db* · exit 0 · `set -o pipefail …` · acceptance-sha256:504b54dc77537645a98467c0a383ddc6b8170d77e4900b385cc776fec2f75b04 · ms:41147
