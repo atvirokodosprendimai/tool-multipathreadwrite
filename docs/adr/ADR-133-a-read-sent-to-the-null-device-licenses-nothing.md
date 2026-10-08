@@ -29,8 +29,8 @@ The MCP surface does not have this gap: a served read there licenses nothing unt
 
 ## Decision
 
-1. **A CLI read whose standard output is the null device records nothing.** Before `seen.Record`, the read action compares stdout's file info with `os.Stat(os.DevNull)`; when they are the same file the ledger is left as it was. On Windows a character device carries no file identity, so that comparison matches a console too; there a handle `GetConsoleMode` accepts is a console first, and records (the reviews of #350).
-2. **It says so on stderr**, once per read: the answer went to the null device, so nothing was recorded and a write to these lines needs a read whose answer the caller sees. Stdout is untouched and the exit code is the read's own, so nothing that parses either changes.
+1. **A CLI read whose standard output is the null device records nothing.** Before `seen.Record`, the read action asks whether stdout is the null device: on unix, whether its file info is the same file as `os.Stat(os.DevNull)`; on Windows, whether the handle's device type is `FILE_DEVICE_NULL` (`NtQueryVolumeInformationFile`), since a Windows character device carries no file identity and `os.SameFile` would match a console too (the reviews of #350). When it is, the ledger is left as it was.
+2. **It says so on stderr**, once per such read that served any lines: the answer went to the null device, so nothing was recorded and a write to these lines needs a read whose answer the caller sees. A read that served nothing says nothing more than it did. Stdout is untouched and the exit code is the read's own, so nothing that parses either changes.
 3. **Nothing else is guessed.** A pipe, a file, a terminal and every other stdout record as before: mrw cannot see what a reader downstream of a pipe or a file does with the answer.
 
 ## Alternatives Considered
@@ -77,8 +77,7 @@ See `tasks/README.md`: T1.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | the null device does not stat as the same file on some platform | Low | the guard does nothing there, as before this record | the test opens `os.DevNull` on every CI platform, Windows included |
-| a Windows console counted as NUL | Low after the fix | a read the caller sees licenses nothing | `GetConsoleMode` tells a console apart; no CI runner has a console on stdout, so this branch is traced, not run |
-| a Windows serial or printer port on stdout counts as NUL | Low | that read licenses nothing; the next write is refused, never wrongly allowed | none — a port as mrw's stdout is not a case anyone has met |
+| a Windows console counted as NUL | Low after the fix | a read the caller sees licenses nothing | the device type is asked of the handle, which names NUL whatever access the handle has; no CI runner has a console on stdout, so the console case is traced, not run |
 
 ## Rollback
 

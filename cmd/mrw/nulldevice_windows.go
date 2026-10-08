@@ -5,23 +5,37 @@ package main
 import (
 	"os"
 	"syscall"
+	"unsafe"
+)
+
+// NtQueryVolumeInformationFile lives in ntdll, not in syscall. LazyDLL keeps
+// go.mod at one require (ADR-038).
+var (
+	modntdll                         = syscall.NewLazyDLL("ntdll.dll")
+	procNtQueryVolumeInformationFile = modntdll.NewProc("NtQueryVolumeInformationFile")
+)
+
+// fileFsDeviceInformation is the FS_INFORMATION_CLASS that answers a
+// FILE_FS_DEVICE_INFORMATION; fileDeviceNull is the device type NUL reports.
+const (
+	fileFsDeviceInformation = 4
+	fileDeviceNull          = 0x15
 )
 
 // toNullDevice reports whether f is the null device (ADR-133): an answer
 // written there reached nobody. On Windows a character device carries no file
 // identity, so os.SameFile matches NUL against every one of them, a console
-// included (the reviews of #350); a handle GetConsoleMode accepts is a console,
-// and is not NUL. A stat that fails answers false, so the read records as it
-// did before the check existed.
+// included, and GetConsoleMode cannot tell them apart on a handle opened
+// without read access (the reviews of #350). The handle's device type names
+// NUL itself, whatever access it was opened with. A query that fails answers
+// false, so the read records as it did before the check existed.
 func toNullDevice(f *os.File) bool {
-	fi, err := f.Stat()
-	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
+	if procNtQueryVolumeInformationFile.Find() != nil {
 		return false
 	}
-	var mode uint32
-	if syscall.GetConsoleMode(syscall.Handle(f.Fd()), &mode) == nil {
-		return false
-	}
-	null, err := os.Stat(os.DevNull)
-	return err == nil && os.SameFile(fi, null)
+	var iosb [2]uintptr
+	var info struct{ DeviceType, Characteristics uint32 }
+	status, _, _ := procNtQueryVolumeInformationFile.Call(f.Fd(), uintptr(unsafe.Pointer(&iosb)),
+		uintptr(unsafe.Pointer(&info)), unsafe.Sizeof(info), fileFsDeviceInformation)
+	return status == 0 && info.DeviceType == fileDeviceNull
 }
