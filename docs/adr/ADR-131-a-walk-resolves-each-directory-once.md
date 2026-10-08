@@ -66,7 +66,7 @@ See `tasks/README.md`: T1.
 
 ## Consequences
 
-- **Positive:** on macOS (Apple M5, Go 1.27.1, 2026-10-08, load 6–13 on 10 cores, three runs each) `BenchmarkWalkDeep131` went from about 190 ms to about 62 ms a walk. The Windows timing, before and after on one machine, is T1's S4.
+- **Positive:** on macOS (Apple M5, Go 1.27.1, 2026-10-08, load 6–13 on 10 cores, three runs each) `BenchmarkWalkDeep131` went from about 190 ms to about 62 ms a walk. On Windows (T1 S4, 2026-10-08, a GitHub `windows-latest` runner — Windows Server 2025 Datacenter, AMD EPYC 9V74, Go 1.26.6 — run 37760151095 of `.github/workflows/timing-123.yml` at `fd9f889`, v1.51.0 against the branch on one machine): `BenchmarkWalkDeep131` 5.63–6.00 s → 0.22–0.24 s a walk (three runs each, about 25×); `--grep needle` over the 3,000-file tree, median of five warm runs, 1,269 ms → 190 ms (6.7×), and through a junction root 1,408 ms → 186 ms (7.6×); both builds served the same two files. The pre-registered bar, at least 3× a walk, held. The peer's desktop (9.39 s before) was not re-run.
 - **Negative:** a second way into the boundary; the differential test is what keeps it the same boundary.
 - **Neutral:** nothing served or refused changes; receipts and exit codes are unchanged.
 

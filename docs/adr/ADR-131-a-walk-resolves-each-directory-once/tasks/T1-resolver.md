@@ -112,3 +112,19 @@ Stop and ask if the Windows timing shows no gain, or the differential test canno
 - 2026-10-08 · d9ec641 · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:46063
 - 2026-10-08 · fd9f889* · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:40753
 - 2026-10-08 · fd9f889* · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:40478
+- 2026-10-08 · human-observed · S4 Windows timing on GitHub windows-latest (Windows Server 2025, EPYC 9V74, Go 1.26.6), run 37760151095 at fd9f889: BenchmarkWalkDeep131 v1.51.0 5.63-6.00 s vs branch 0.22-0.24 s a walk; --grep over 3,000 files median 1269 ms vs 190 ms, junction root 1408 vs 186 ms; same 2 files served. Runner substitute as ADR-123 (no Windows peer online).
+- 2026-10-08 · d174dc4* · exit 1 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:850 · test-lock-sha256:59f743f0c0cf3db256103b0dad923d80258978cb6bd98bf212f36c21f073ffa1 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvcmVhZC93YWxrMTMxX3Rlc3QuZ28JVGVzdEFXYWxrQ2FjaGVEb2VzTm90T3V0bGl2ZUl0c1dhbGsJNDdjM2RkODMxN2RhZGY2NjM3MzA5Njc5YzdlNWU4MDZkNWQ1OWQzMmIzNDMwNDAzN2MyOTM1ZjE4MDMyZmE3Nwpib2R5CWludGVybmFsL3Jvb3RlZC9yZXNvbHZlcjEzMV90ZXN0LmdvCVRlc3RBUmVzb2x2ZXJBbnN3ZXJzQXNSZXNvbHZlRG9lcwliMmU3MWQxZmYxYTAwNWIxYjVkNjQ1MTU5MzhlYWQyMzZiYTI3M2QzMzgyNWNiYjA2ZDVmYzk4MDcyNzBiNWUzCmJvZHkJaW50ZXJuYWwvcm9vdGVkL3Jlc29sdmVyMTMxX3dpbmRvd3NfdGVzdC5nbwlUZXN0QVJlc29sdmVyRm9sbG93c0FKdW5jdGlvbkFzUmVzb2x2ZURvZXMJYjQ0ODQyYzEzNWRiZmNhOTZkNTcyYzIxMWI2Y2E1MTlmNDIwYmFlY2E4YTFmNjZkNzcwYWFjMWNmMWQyY2Q3NQ
+  ```
+  --- last 10 line(s) of stdout
+  # github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted [github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted.test]
+  internal/rooted/resolver131_test.go:47:7: undefined: NewResolver
+  internal/rooted/resolver131_test.go:65:15: undefined: NewResolver
+  internal/rooted/resolver131_test.go:80:8: undefined: NewResolver
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted [build failed]
+  === RUN   TestAWalkCacheDoesNotOutliveItsWalk
+  --- PASS: TestAWalkCacheDoesNotOutliveItsWalk (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	0.306s
+  FAIL
+  ```
+- 2026-10-08 · d174dc4* · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:39711
