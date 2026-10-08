@@ -30,7 +30,7 @@ The MCP surface does not have this gap: a served read there licenses nothing unt
 ## Decision
 
 1. **A CLI read whose standard output is the null device records nothing.** Before `seen.Record`, the read action asks whether stdout is the null device: on unix, whether its file info is the same file as `os.Stat(os.DevNull)`; on Windows, whether the handle's device type is `FILE_DEVICE_NULL` (`NtQueryVolumeInformationFile`), since a Windows character device carries no file identity and `os.SameFile` would match a console too (the reviews of #350). When it is, the ledger is left as it was.
-2. **It says so on stderr**, once per such read that served any lines: the answer went to the null device, so nothing was recorded and a write to these lines needs a read whose answer the caller sees. A read that served nothing says nothing more than it did. Stdout is untouched and the exit code is the read's own, so nothing that parses either changes.
+2. **It says so on stderr**, once per such read that would have licensed a write — one that served lines, or a whole file, an empty one included, since its observation licenses an insert (the Codex review of #351 asked; an empty file read to a file licenses `@@ e.txt 0 insert-after`, read to the null device it is refused). A `--stat`, a `--max-lines 0` or a range past the end licenses nothing and says nothing more than it did: the answer went to the null device, so nothing was recorded and a write to these lines needs a read whose answer the caller sees. On unix a stdout already closed when mrw starts counts as the null device too, since Go's runtime reopens a closed descriptor 1 on it at start, and the line says so; Windows does no such reopening (the Codex review of #351). A whole-file read serves every line and prints it; a `--stat`, a `--max-lines 0` or a range past the end prints nothing more. Stdout is untouched and the exit code is the read's own, so nothing that parses either changes.
 3. **Nothing else is guessed.** A pipe, a file, a terminal and every other stdout record as before: mrw cannot see what a reader downstream of a pipe or a file does with the answer.
 
 ## Alternatives Considered
@@ -66,11 +66,13 @@ See `tasks/README.md`: T1.
 - **Positive:** `mrw read … >/dev/null` can no longer stand in for reading.
 - **Negative:** a caller who discarded a read on purpose before writing must read the lines where it sees them; the refusal names the lines.
 - **Neutral:** `| head -1`, `| grep`, `> file` and a caller who did not look still license, as before; this narrows the class and does not close it.
+- **Neutral:** a null-device read revokes nothing: a line already licensed — by an earlier read the caller saw, or by mrw's own write, which licenses the file it wrote (ADR-005 §4) — stays licensed. Decision 1 leaves the ledger as it was; it does not empty it (the stress runs of 25f4f04 confirmed both).
 
 ## Out of Scope
 
 - A pipe, a file or a terminal the caller does not read (permanent: boundary: mrw cannot see past its own stdout; Decision 3)
 - The MCP surface (permanent: boundary: ADR-031 and ADR-039 already license nothing until a read is acknowledged)
+- Other sinks that discard (`/dev/zero` on macOS, a file unlinked after it was opened) (permanent: boundary: Decision 3 — only the null device is named; the stress runs of 25f4f04 found both record, as designed)
 
 ## Risks
 
