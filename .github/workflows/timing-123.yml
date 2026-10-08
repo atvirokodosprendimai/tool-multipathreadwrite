@@ -1,8 +1,10 @@
 name: timing-123
 
-# ADR-123 T1 S3 (Zy, 2026-10-03: "CI runner timing"): --grep over a 3,000-file
-# tree on Windows, with v1.46.0 (before ADR-123) and v1.47.0 (after), straight
-# and through a junction root. Run by hand; it gates nothing.
+# ADR-123 T1 S3 (Zy, 2026-10-03: "CI runner timing"), reused by ADR-131 T1 S4:
+# --grep over a 3,000-file tree on Windows, straight and through a junction
+# root, and BenchmarkWalkDeep131 (3,000 files ten levels deep), with the tag
+# before the change and the dispatched ref after it. Run by hand; it gates
+# nothing. Dispatch on a branch with `gh workflow run timing-123.yml --ref <b>`.
 on:
   workflow_dispatch:
 
@@ -20,18 +22,20 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Build v1.46.0 and v1.47.0, time --grep
+      - name: Build v1.51.0 and the ref, time --grep and the walk benchmark
         shell: bash
         env:
           MSYS_NO_PATHCONV: "1"
         run: |
           set -euo pipefail
           T=$(cygpath -m "$RUNNER_TEMP")
-          for v in v1.46.0 v1.47.0; do
-            git worktree add -q "$T/src-$v" "$v"
-            (cd "$T/src-$v" && CGO_ENABLED=0 go build -trimpath -ldflags "-X main.version=$v" -o "$T/mrw-$v.exe" ./cmd/mrw)
-            "$T/mrw-$v.exe" version
-          done
+          go env GOVERSION
+          git worktree add -q "$T/src-before" v1.51.0
+          cp internal/read/walk131_bench_test.go "$T/src-before/internal/read/"
+          (cd "$T/src-before" && CGO_ENABLED=0 go build -trimpath -ldflags "-X main.version=v1.51.0" -o "$T/mrw-before.exe" ./cmd/mrw)
+          CGO_ENABLED=0 go build -trimpath -ldflags "-X main.version=$(git rev-parse --short HEAD)" -o "$T/mrw-after.exe" ./cmd/mrw
+          "$T/mrw-before.exe" version
+          "$T/mrw-after.exe" version
           mkdir -p "$T/tree"
           for d in $(seq -w 0 29); do
             mkdir -p "$T/tree/d$d/sub"
@@ -45,15 +49,19 @@ jobs:
           echo "files: $(find "$T/tree" -type f | wc -l)"
           cmd /c mklink /J "$(cygpath -w "$T/jroot")" "$(cygpath -w "$T/tree")"
           powershell -NoProfile -Command "(Get-CimInstance Win32_Processor).Name; (Get-CimInstance Win32_OperatingSystem).Caption"
-          ms() { local s e; s=$(date +%s%N); "$@" > /dev/null; e=$(date +%s%N); echo $(( (e - s) / 1000000 )); }
+          ms() { local s e; s=$(date +%s%N); "$@" > "$T/timed.out"; e=$(date +%s%N); echo $(( (e - s) / 1000000 )); }
           for root in tree jroot; do
-            for v in v1.46.0 v1.47.0; do
+            for v in before after; do
               out=$("$T/mrw-$v.exe" --root "$T/$root" read --grep needle)
-              served=$(printf '%s\n' "$out" | grep -c '^==> ')
-              "$T/mrw-$v.exe" --root "$T/$root" read --grep needle > /dev/null   # warm
+              served=$(printf '%s\n' "$out" | grep '^==> ' | sort | tr '\n' ' ')
+              "$T/mrw-$v.exe" --root "$T/$root" read --grep needle > "$T/timed.out"   # warm
               runs=""
               for i in 1 2 3 4 5; do runs="$runs $(ms "$T/mrw-$v.exe" --root "$T/$root" read --grep needle)"; done
               med=$(printf '%s\n' $runs | sort -n | sed -n 3p)
-              echo "RESULT root=$root version=$v served=$served runs_ms=[$runs ] median_ms=$med per_file_us=$(( med * 1000 / 3000 ))"
+              echo "RESULT root=$root version=$v served=[$served] runs_ms=[$runs ] median_ms=$med per_file_us=$(( med * 1000 / 3000 ))"
             done
+          done
+          for v in before after; do
+            dir=.; [ "$v" = before ] && dir="$T/src-before"
+            (cd "$dir" && go test ./internal/read -run '^$' -bench BenchmarkWalkDeep131 -benchtime 5x -count 3) | sed "s/^/BENCH $v /"
           done
