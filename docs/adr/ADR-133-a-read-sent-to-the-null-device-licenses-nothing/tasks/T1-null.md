@@ -51,7 +51,7 @@ out=$(mktemp) \
 |-----------|------|----------|--------|-------|
 | `TestAReadSentToTheNullDeviceLicensesNothing` | `cmd/mrw/nullread133_test.go` | a read to the null device records nothing and says so; a read to a file records | none | S1, S2 |
 | `TestOnlyTheNullDeviceCountsAsNull` | `cmd/mrw/nulldevice133_test.go` | the null device counts; a pipe and a regular file do not | none | S2 |
-| `TestAStatSentToTheNullDeviceSaysNothing` | `cmd/mrw/stat133_test.go` | a read that served no lines (`--stat`) says nothing on stderr when sent to the null device (the quality-blueprints stress run of 25f4f04) | none | S2 |
+| `TestTheNullDeviceLineFollowsOnlyServedLines` | `cmd/mrw/stat133_test.go` | the stderr line follows a read that served lines — a whole file or a range — and not a `--stat`, a `--max-lines 0` or a range past the end (the peer stress runs of 25f4f04; the Codex review of #351) | none | S2 |
 
 ## Reachability
 
@@ -83,6 +83,7 @@ Stop and ask if `TestOnlyTheNullDeviceCountsAsNull` fails on a CI platform: on u
 - 2026-10-08 · 18b1a4a* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the null-device check answers false — a read to /dev/null records its lines · acceptance-sha256:504b54dc77537645a98467c0a383ddc6b8170d77e4900b385cc776fec2f75b04
 - 2026-10-08 · 1cefff1* · mutant killed · exit 1 · `cmd/mrw/nulldevice_other.go` · S2: the null-device check answers false — a read to /dev/null records its lines (after the platform split, #350) · acceptance-sha256:504b54dc77537645a98467c0a383ddc6b8170d77e4900b385cc776fec2f75b04
 - 2026-10-08 · 25f4f04* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: a read that served no lines names lines anyway — a --stat to the null device prints the line (stress runs of 25f4f04) · acceptance-sha256:504b54dc77537645a98467c0a383ddc6b8170d77e4900b385cc776fec2f75b04
+- 2026-10-08 · 028915d* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: a whole-file read (nil Spans) counts as serving nothing — its null-device line is lost (the Codex review of #351) · acceptance-sha256:504b54dc77537645a98467c0a383ddc6b8170d77e4900b385cc776fec2f75b04
 
 ## Verification Log
 - 2026-10-08 · 18b1a4a* · exit 1 · `set -o pipefail …` · acceptance-sha256:504b54dc77537645a98467c0a383ddc6b8170d77e4900b385cc776fec2f75b04 · ms:1648 · test-lock-sha256:0baa6174f201edefd40298dbd8ff51ed6c9814b1dac452056790caabcf0aad24 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9udWxscmVhZDEzM190ZXN0LmdvCVRlc3RBUmVhZFNlbnRUb1RoZU51bGxEZXZpY2VMaWNlbnNlc05vdGhpbmcJMDBlNmY1NzM3NTE1YzE3ODFhNmU2N2Q2ZTFhZmRhYzU0ZDE2YzY2NGYwZTMwOWQ3NDBkMWIzNDg1MmEwZDczMw
@@ -129,3 +130,5 @@ Stop and ask if `TestOnlyTheNullDeviceCountsAsNull` fails on a CI platform: on u
   FAIL
   ```
 - 2026-10-08 · 25f4f04* · exit 0 · `set -o pipefail …` · acceptance-sha256:504b54dc77537645a98467c0a383ddc6b8170d77e4900b385cc776fec2f75b04 · ms:43718
+- 2026-10-08 · 028915d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:504b54dc77537645a98467c0a383ddc6b8170d77e4900b385cc776fec2f75b04 · ms:0 · test-lock-sha256:e0e44893598057e264154069418b8409f00de4ea94ba0663f422123c944e0687 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9udWxsZGV2aWNlMTMzX3Rlc3QuZ28JVGVzdE9ubHlUaGVOdWxsRGV2aWNlQ291bnRzQXNOdWxsCWI5Njc4NTZhOTExZjE1OGJhZGE3MTRiMzJlYzljOTJmNzA5NTZjYWZhNzU1MTI3YTVhNGE3ODdjNzBiMjk5MWYKYm9keQljbWQvbXJ3L251bGxyZWFkMTMzX3Rlc3QuZ28JVGVzdEFSZWFkU2VudFRvVGhlTnVsbERldmljZUxpY2Vuc2VzTm90aGluZwkwMGU2ZjU3Mzc1MTVjMTc4MWE2ZTY3ZDZlMWFmZGFjNTRkMTZjNjY0ZjBlMzA5ZDc0MGQxYjM0ODUyYTBkNzMzCmJvZHkJY21kL21ydy9zdGF0MTMzX3Rlc3QuZ28JVGVzdFRoZU51bGxEZXZpY2VMaW5lRm9sbG93c09ubHlTZXJ2ZWRMaW5lcwlmMWUyZmZlNzliMjkzZmE0ZTZiYTdiYjI2ODE2ZmI5ZTQ1ZjAwZGZiMWE2ZTgzMjZhMjVjODc4ZjhhYmQwOTcw · test-lock-kind:replace
+- 2026-10-08 · 028915d* · exit 0 · `set -o pipefail …` · acceptance-sha256:504b54dc77537645a98467c0a383ddc6b8170d77e4900b385cc776fec2f75b04 · ms:40182

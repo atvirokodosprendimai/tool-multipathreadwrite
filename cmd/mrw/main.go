@@ -950,13 +950,14 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// licenses nothing — the one discard on the CLI that mrw can see.
 			if toNullDevice(os.Stdout) {
 				// Only a read that served lines has lines to name: a --stat or
-				// --max-lines 0 serves none (the stress runs of 25f4f04).
+				// --max-lines 0 serves none (the stress runs of 25f4f04). Nil
+				// Spans is a whole-file read, every line served (seen.Observation).
 				served := false
 				for _, o := range observed {
-					served = served || len(o.Spans) > 0
+					served = served || o.Spans == nil || len(o.Spans) > 0
 				}
 				if served {
-					fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see; a closed stdout counts as the null device (ADR-133)")
+					fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see; on unix a stdout closed when mrw starts is the null device too (ADR-133)")
 				}
 			} else if err := seen.Record(root, observed); err != nil {
 				return cli.Exit(err, exitUsage)
