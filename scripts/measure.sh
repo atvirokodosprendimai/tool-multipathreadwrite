@@ -427,7 +427,7 @@ verify() {
   local s1='go vet ./...' s2='grep -c ^func *.go'
   printf '{"check":"%s","steps":{"vet":"%s","funcs":"%s"}}\n' "$check" "$s1" "$s2" > "$dir/.quality-harness.json"
 
-  "$MRW" -C "$dir" read "${specs[@]}" > /dev/null
+  "$MRW" -C "$dir" read "${specs[@]}" >"$SCRATCH/served.out"
   local receipt
   # The check runner writes its logs to the OS temp directory and prunes old
   # mrw-check-*.log files there, which would reach outside $SCRATCH: give it one

@@ -946,7 +946,13 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 			// Reading a file is how mrw learns what it holds; recording that is
 			// what lets a later write know whether its picture is still current.
-			if err := seen.Record(root, observed); err != nil {
+			// ADR-133: an answer sent to the null device reached nobody, so it
+			// licenses nothing — the one discard on the CLI that mrw can see.
+			if toNullDevice(os.Stdout) {
+				if len(observed) > 0 {
+					fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see (ADR-133)")
+				}
+			} else if err := seen.Record(root, observed); err != nil {
 				return cli.Exit(err, exitUsage)
 			}
 			problems += len(refusals)
