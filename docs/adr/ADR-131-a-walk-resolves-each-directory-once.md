@@ -32,7 +32,7 @@ So the gate is earned, but not for the map the plan sketched: the state verdict 
 
 1. **`rooted.Resolver`** answers every path exactly as `Resolve(root, path)` does. `NewResolver(root)` resolves the root once; its refusal is returned for every path.
 2. **Each directory is resolved once**: its links (`throughLinks`), its real path (`EvalSymlinks`), and whether it or an ancestor is the state base (`inStateAt`). A file whose `Lstat` says it is regular is then judged from its directory: it is not a link, so its real path is the directory's real path joined with its name; it is not a directory, so it is the state base only if it is the base's own path. Device names are checked on the path as written and through the directory's links, as `Resolve` checks them.
-3. **Everything else is resolved whole**, by `resolveIn`: a link, a directory, a name that is not there or cannot be examined, a name spelled as a directory, a directory that would not resolve, and every path when the state base exists and is not a directory.
+3. **Everything else is resolved whole**, by `resolveIn`: a link, a directory, a name that is not there or cannot be examined, a name spelled as a directory, a directory that would not resolve, every path when the state base exists and is not a directory, and a file the directory places outside the root, so that refusal is worded by Resolve's own code.
 4. **A Resolver lives as long as one walk.** `read.Walk` makes one and drops it when it returns; `AstGrep` makes one per call. What a directory resolved to is stale for at most that long: a directory swapped for a link, or made the state base, during a walk is seen by the next walk.
 5. **The serve is unchanged.** `read.Run` resolves every path it serves with `Resolve`, afresh, before it opens it to serve (`read.go`), and `Walk` records nothing (ADR-005). A stale entry can therefore never serve a file or license a line; it can only let the walk read a file to MATCH it — which is the pattern oracle `walk.go` describes, and is the bound in Risks.
 
@@ -82,7 +82,7 @@ See `tasks/README.md`: T1.
 |------|------------|--------|------------|
 | a directory swapped for a link out of the root mid-walk lets the walk read a file outside to match it, and a REFUSED line then says it matched | Low | Med | the window grows from one syscall gap to the rest of the walk; the attacker must race writes inside the checkout; the serve still refuses it; the next walk sees it (`TestAWalkCacheDoesNotOutliveItsWalk`) |
 | the Resolver answers differently from Resolve | Low | High | `TestAResolverAnswersAsResolveDoes` asks both over every hazard, twice; `TestAResolverFollowsAJunctionAsResolveDoes` on the Windows shards; every hard case is resolved by Resolve's own code |
-| the leaf's case differs from disk on Windows, where EvalSymlinks would normalise it | Low | Low | only a refusal's message names the real path, and a discovered refusal is silent; the verdict is decided by the directory |
+| the leaf's case differs from disk on Windows, where EvalSymlinks normalises it, so a refusal would name another spelling | Low | Low | a file outside the root is refused by `resolveIn`, which words the refusal (the Codex review of #353); the Windows differential test asks `j\SECRET.TXT` |
 
 ## Rollback
 

@@ -456,7 +456,11 @@ func (r *Resolver) Resolve(path string) (string, error) {
 	// base's identity only if it is the base's own path.
 	check := filepath.Join(d.real, leaf)
 	if !Contains(r.absRoot, check) {
-		return "", fmt.Errorf("%s resolves to %s, which is outside the root %s", path, check, r.absRoot)
+		// Resolve names the real path in its refusal, and on Windows
+		// EvalSymlinks spells the name as it is on disk, where check keeps
+		// the caller's spelling (the Codex review of #353). A refusal is
+		// rare; it is worded by Resolve's own code.
+		return resolveIn(r.absRoot, path)
 	}
 	if d.in || (!r.none && Contains(r.b, check)) {
 		return "", fmt.Errorf("%s is inside mrw's own state directory; mrw does not serve or edit its own ledger", path)

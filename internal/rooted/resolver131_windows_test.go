@@ -3,6 +3,7 @@
 package rooted
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -20,11 +21,18 @@ func TestAResolverFollowsAJunctionAsResolveDoes(t *testing.T) {
 	mklinkJ(t, filepath.Join(root, "in"), filepath.Join(root, "inner"))
 	alias := filepath.Join(base, "alias")
 	mklinkJ(t, alias, root)
+	// ADR-081: where a build makes aux.txt a regular file, the fast path must
+	// still refuse it by name.
+	if err := os.WriteFile(filepath.Join(root, "inner", "aux.txt"), []byte("x\n"), 0o644); err == nil {
+		if fi, err := os.Lstat(filepath.Join(root, "inner", "aux.txt")); err != nil || !fi.Mode().IsRegular() {
+			t.Log("this build does not make aux.txt a regular file; its row proves nothing here")
+		}
+	}
 
 	for _, r := range []string{root, alias} {
 		res := NewResolver(r)
 		for round := 0; round < 2; round++ {
-			for _, p := range []string{`j\secret.txt`, `j\new.txt`, `in\ok.txt`, `inner\ok.txt`, `j`, `in`} {
+			for _, p := range []string{`j\secret.txt`, `j\SECRET.TXT`, `j\new.txt`, `in\ok.txt`, `inner\ok.txt`, `j`, `in`, `inner\aux.txt`, `in\aux.txt`} {
 				want, wantErr := Resolve(r, p)
 				got, gotErr := res.Resolve(p)
 				if got != want || (gotErr == nil) != (wantErr == nil) || (gotErr != nil && gotErr.Error() != wantErr.Error()) {

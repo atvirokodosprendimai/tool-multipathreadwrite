@@ -65,6 +65,27 @@ func TestAResolverAnswersAsResolveDoes(t *testing.T) {
 	if _, err := NewResolver(gone).Resolve("x.txt"); err == nil || wantErr == nil || err.Error() != wantErr.Error() {
 		t.Errorf("a missing root: Resolver said %v, Resolve %v", err, wantErr)
 	}
+
+	// A state base that is a regular file is no directory a file can be
+	// judged against by its directory alone, so every path is resolved whole:
+	// a hard link to it, and a case spelling of it, are refused as Resolve
+	// refuses them (the in-process review of #353).
+	root2 := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root2, ".st"))
+	mustCreate(t, filepath.Join(root2, ".st", "mrw"))
+	mustCreate(t, filepath.Join(root2, "top.txt"))
+	if err := os.Link(filepath.Join(root2, ".st", "mrw"), filepath.Join(root2, "hl.txt")); err != nil {
+		t.Fatalf("a hard link: %v", err)
+	}
+	r2 := NewResolver(root2)
+	for _, p := range []string{".st/mrw", "hl.txt", ".st/MRW", ".ST/mrw", "top.txt"} {
+		p = filepath.FromSlash(p)
+		want, wantErr := Resolve(root2, p)
+		got, gotErr := r2.Resolve(p)
+		if got != want || (gotErr == nil) != (wantErr == nil) || (gotErr != nil && gotErr.Error() != wantErr.Error()) {
+			t.Errorf("a file base, %s: Resolver answered (%q, %v), Resolve (%q, %v)", p, got, gotErr, want, wantErr)
+		}
+	}
 }
 
 func mustCreate(t *testing.T, p string) {

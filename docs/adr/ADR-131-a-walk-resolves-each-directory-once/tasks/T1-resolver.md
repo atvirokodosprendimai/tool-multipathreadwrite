@@ -82,6 +82,7 @@ out=$(mktemp) \
 - 2026-10-08 · f74dfd0* · mutant killed · exit 1 · `internal/rooted/rooted.go` · S3: one Resolver per root kept across walks · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · covers:the Resolver dies with its walk
 - 2026-10-08 · f74dfd0* · mutant killed · exit 1 · `internal/read/walk.go` · S3: the walk resolves discovered files without its Resolver (caught by the wiring grep only: every answer is the same, by design) · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · covers:the walk and ast-grep select the Resolver
 - 2026-10-08 · f74dfd0* · mutant killed · exit 1 · `internal/read/astgrep.go` · S3: ast-grep hits resolved without the Resolver (caught by the wiring grep only) · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · covers:the walk and ast-grep select the Resolver
+- 2026-10-08 · fd9f889* · mutant killed · exit 1 · `internal/rooted/rooted.go` · S2: a state base that is a file judged by its directory alone (the in-process review of #353) · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · covers:the Resolver answers as Resolve
 
 ## Invariants
 
@@ -109,3 +110,5 @@ Stop and ask if the Windows timing shows no gain, or the differential test canno
 - 2026-10-08 · f74dfd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:42477
 - 2026-10-08 · f74dfd0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:54806
 - 2026-10-08 · d9ec641 · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:46063
+- 2026-10-08 · fd9f889* · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:40753
+- 2026-10-08 · fd9f889* · exit 0 · `set -o pipefail …` · acceptance-sha256:8bf6271768a76c3f1e9c5688968896eb8f98f49a345bba1ab5201f9418cdeb9e · ms:40478
