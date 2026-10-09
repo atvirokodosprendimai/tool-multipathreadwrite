@@ -202,6 +202,10 @@ inside it. Matching folds case where the filesystem does, as git's `core.ignorec
 It does not enter a directory below the checkout that holds its own `.git` — another repository, a submodule, a
 worktree — as git does not; the `-- skipped:` line counts it `nested`, a path you name inside one is walked by
 that repository's rules, and `--no-ignore` walks it (ADR-130).
+On a Windows build, a discovered file whose name Windows will not keep — a reserved device name such as `aux.txt`
+or `nul`, or a name ending in a dot or a space — is refused by its spelling and not served; the `-- skipped:`
+line counts it as `file(s) with a name Windows will not keep` (`skipped.unkeepable` over MCP), and no flag walks
+it: name one to be told why (ADR-135). The count says a name exists, never what the file held.
 `--ast-grep` serves the same files (ADR-122): ast-grep still prunes what `.gitignore` ignores itself, every hit then
 passes mrw's own rules — nested repositories, binary files, `.git` — and what those rules drop is counted in the same
 `-- skipped:` line; what ast-grep pruned itself never reaches mrw and is not counted. The ignore sources only

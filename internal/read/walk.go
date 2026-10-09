@@ -59,6 +59,12 @@ type WalkSkipped struct {
 	// another repository, a submodule or a worktree — not entered, as git
 	// does not descend into one (ADR-130).
 	Nested int `json:"nested"`
+	// Unkeepable is the discovered files whose names Windows will not keep — a
+	// reserved device name, or a trailing dot or space; only a Windows build
+	// refuses either — which Resolve refuses by their own spelling and the walk
+	// does not serve (ADR-135). It counts names the listing showed, never what
+	// a file held and never where a link leads.
+	Unkeepable int `json:"unkeepable"`
 }
 
 // SkipNote is the sentence a surface prints for what a walk skipped
@@ -80,7 +86,16 @@ func SkipNote(sk WalkSkipped, flag string) string {
 	if sk.Nested > 0 {
 		parts = append(parts, fmt.Sprintf("%d nested repositor(ies), not entered", sk.Nested))
 	}
-	return "-- skipped: " + strings.Join(parts, ", ") + "; " + flag + " walks them"
+	tail := "; " + flag + " walks them"
+	if sk.Unkeepable > 0 {
+		parts = append(parts, fmt.Sprintf("%d file(s) with a name Windows will not keep", sk.Unkeepable))
+		// No flag walks a name Windows will not keep; naming one says why.
+		tail = "; " + flag + " walks the others, and naming one tells why"
+		if sk == (WalkSkipped{Unkeepable: sk.Unkeepable}) {
+			tail = "; name one to be told why"
+		}
+	}
+	return "-- skipped: " + strings.Join(parts, ", ") + tail
 }
 
 // Walk turns the caller's paths into the Specs read.Run already knows how to
@@ -109,7 +124,7 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 	}
 
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}, nested: map[string]*ignorer{},
-		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{},
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{},
 		res: rooted.NewResolver(root)}
 	if !opt.NoIgnore {
 		w.ign = newIgnorer(absRoot)
@@ -143,7 +158,9 @@ type walker struct {
 	skipFiles, skipDirs, skipBin map[string]bool
 	// skipNested is the nested repositories the walk did not enter (ADR-130).
 	skipNested map[string]bool
-	starts     []string
+	// skipNames is the discovered files Resolve refused for their names (ADR-135).
+	skipNames map[string]bool
+	starts    []string
 }
 
 // consider handles one path the caller named: judgeNamed decides what it is,
@@ -320,8 +337,13 @@ func (w *walker) walkDir(named string, full string) {
 		// an explicit ../ and an IN-root symlink, so nothing failed.
 		full, err := w.res.Resolve(rel)
 		if err != nil {
-			// Discovered, not named: skipped in silence, per rule 2. Reporting
-			// it would re-create the oracle in the problem list.
+			// Discovered, not named: not served, per rule 2, and not reported by
+			// path — that would re-create the oracle in the problem list. A name
+			// Windows will not keep is refused by its spelling alone, so it is
+			// COUNTED (ADR-135): a count says a name exists, never what it held.
+			if rooted.UnkeepableName(err) {
+				w.skipNames[filepath.ToSlash(rel)] = true
+			}
 			return nil //nolint:nilerr // discovered, not named: skipped in silence (rule 2, above)
 		}
 		// Resolve, THEN ask what it is: a symlink to an in-root regular file
@@ -439,7 +461,7 @@ type hitJudge struct{ w *walker }
 
 func newHitJudge(root, absRoot string) *hitJudge {
 	w := &walker{root: root, absRoot: absRoot, seen: map[string]bool{}, nested: map[string]*ignorer{},
-		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}}
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}}
 	w.ign = newIgnorer(absRoot)
 	return &hitJudge{w: w}
 }
@@ -540,6 +562,11 @@ func (w *walker) skipCounts() WalkSkipped {
 	for d := range w.skipNested {
 		if !w.reached(d, entered, folded) {
 			sk.Nested++
+		}
+	}
+	for p := range w.skipNames {
+		if !w.seen[p] {
+			sk.Unkeepable++
 		}
 	}
 	return sk
