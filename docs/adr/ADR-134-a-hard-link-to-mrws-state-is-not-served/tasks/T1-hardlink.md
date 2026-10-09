@@ -4,7 +4,7 @@
 **Covers:** none — no spec
 **Estimated scope:** S
 **Owner:** Zy
-**Produces:** `linkCount` in `internal/rooted/linkcount_unix.go` and `internal/rooted/linkcount_windows.go`; `hardLinkedToState` in `internal/rooted/hardlink.go`
+**Produces:** `identity` in `internal/rooted/identity_unix.go` and `internal/rooted/identity_windows.go`; `stateLinks` in `internal/rooted/hardlink.go`; `state.DirPath` in `internal/state/state.go`
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
@@ -12,15 +12,16 @@
 
 ## Goal
 
-Decisions 1–4 of the record, with a test that fails before them.
+Decisions 1–5 of the record, with a test that fails before them.
 
 ## Affected Files
 
 | File | Change | Why |
 |------|--------|-----|
-| `internal/rooted/rooted.go` | edit | `resolveIn` and `Resolver.Resolve` ask `hardLinkedToState` after the state-directory check |
-| `internal/rooted/hardlink.go`, `internal/rooted/linkcount_unix.go`, `internal/rooted/linkcount_windows.go` | add | the comparison with the state base; the link count: `Stat_t.Nlink` on unix, `NumberOfLinks` of a handle on Windows |
-| `internal/rooted/hardlink134_test.go` | add | the tests |
+| `internal/rooted/rooted.go` | edit | `resolveIn` and `Resolver.Resolve` ask `stateLinks` after the state-directory check |
+| `internal/rooted/hardlink.go`, `internal/rooted/identity_unix.go`, `internal/rooted/identity_windows.go` | add | the comparison with this checkout's state directory; the identity and link count: `Stat_t` on unix, an attributes-only shared handle on Windows |
+| `internal/state/state.go`, `internal/state/dirpath134_test.go` | edit, add | `DirPath`: the state directory without making it |
+| `internal/rooted/hardlink134_test.go`, `hardlink134_unix_test.go`, `hardlink134_windows_test.go`, `hardlink134_other_test.go` | add | the tests: refused, symlink to the link, fail closed, held ledger, another checkout's ledger |
 | `internal/read/hardlink134_test.go` | add | a `--grep` walk drops the linked file |
 | `scripts/contract.sh` | edit | §236 |
 | `AGENTS.md` | edit | the ADR-077 paragraph names the hard link |
@@ -28,7 +29,7 @@ Decisions 1–4 of the record, with a test that fails before them.
 ## Ordered Steps
 
 1. [S1] Write `TestAHardLinkToMrwsStateIsRefused`: with the state base made and a hard link in the root to a file in it, `Resolve` and a `Resolver` both refuse the link, naming mrw's own state; a hard link to an ordinary file in the root is served by both. Write `TestAWalkDropsAHardLinkToMrwsState` in `internal/read`. Confirm RED.
-2. [S2] `linkCount` and `hardLinkedToState`: a file with a link count of one is never compared; above one (or unreadable), the state base is scanned once for regular files with a link count above one and the candidate is compared with each by `os.SameFile`. `resolveIn` asks it of the real path, `Resolver.Resolve` of the `Lstat` it already holds, scanning once per `Resolver`. Mutant: the comparison answering false (the link is served). [proof: mutation]
+2. [S2] `identity`, `stateLinks` and `state.DirPath`: a file with a link count of one is never compared; above one (or unreadable), this checkout's state directory is listed once for regular files with a link count above one and the candidate's volume and file index are looked up among theirs. A comparison that cannot be completed refuses. `resolveIn` asks it of the real path, `Resolver.Resolve` of the `Lstat` it already holds, listing once per `Resolver`. Mutants: the lookup answering false (the link is served); the `Resolver` fast path never asking; the pre-test skipping a file with two names; an incomplete listing treated as a complete one. [proof: mutation]
 3. [S3] Contract §236 — a hard link to the ledger read exits 1 naming mrw's own state, and the pair, a hard link to an ordinary file, exits 0. AGENTS.md. [proof: acceptance]
 4. [S4] Windows timing: push a draft and run the ADR-123/131 timing workflow on windows-latest before and after; record both walks in the ADR Risks row. [proof: human: the numbers come from a CI runner, not from a test]
 
@@ -100,3 +101,4 @@ Stop and ask if the Windows walk is more than 1.3 times slower than at v1.52.0 o
 - 2026-10-09 · 8e66a3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:14703
 - 2026-10-09 · 8e66a3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:16026
 - 2026-10-09 · 8e66a3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:13716
+- 2026-10-09 · human-observed · Zy's session read the windows-latest timing-123 run 37977126786 (v1.52.0 vs the ADR-134 branch): plain tree 243 to 298 ms, junction root 236 to 306 ms, BenchmarkWalkDeep131 1.25x; all within the 1.3x bar, recorded in the ADR Risks row

@@ -7,9 +7,9 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-077, ADR-123, ADR-131, ADR-007, ADR-002, docs/adr/BACKLOG.md
 **Invalidates:** None — it closes a gap in ADR-077's promise; no accepted clause says a hard link to the ledger is served
-**Governs:** `internal/rooted/rooted.go`, `internal/rooted/hardlink.go`, `internal/rooted/linkcount_unix.go`, `internal/rooted/linkcount_windows.go`, `scripts/contract.sh`, `AGENTS.md`, `docs/adr/BACKLOG.md`
+**Governs:** `internal/rooted/rooted.go`, `internal/rooted/hardlink.go`, `internal/rooted/identity_unix.go`, `internal/rooted/identity_windows.go`, `internal/state/state.go`, `scripts/contract.sh`, `AGENTS.md`, `docs/adr/BACKLOG.md`
 **Enforced-by:** `internal/rooted/hardlink134_test.go::TestAHardLinkToMrwsStateIsRefused`
-**Served-path change:** a regular file inside the root that is the same file as a file under mrw's state base (a hard link to a ledger, an ack store, a lock) is refused on every surface that ADR-077 refuses the state itself — a read, a plan, a `check` path, a working-set entry — naming mrw's own state; a `--grep` drops it as it drops any path the boundary refuses. A hard link to an ordinary file is served as before.
+**Served-path change:** a regular file inside the root that is the same file as a file in THIS checkout's state directory (a hard link to its ledger, ack store or lock) is refused on every surface that ADR-077 refuses the state itself — a read, a plan, a `check` path, a working-set entry — naming mrw's own state; a `--grep` drops it as it drops any path the boundary refuses. A file with a second name that cannot be compared to the end is refused saying so. A hard link to an ordinary file is served as before, and so is a link to another checkout's ledger.
 
 ## Context
 
@@ -21,31 +21,34 @@ ADR-077 promises that mrw's own state is never served as the caller's file: a re
 
 **Audit of the class** — *a path by which a served file can be mrw's state file*: `mrw read --grep 'inStateAt|inState\(|rooted\.InState' --exclude '*_test.go' .` names three sites in `internal/rooted/rooted.go` (`resolveIn`, `Resolver.dir`, `InState`) and two callers of `InState` in `cmd/mrw/main.go` (1190, 2580), which judge a command-line path and then pass it to `Resolve`. Of those, only `resolveIn` and `Resolver.Resolve` judge a file; `Resolver.dir` judges a directory, which a hard link cannot be (no filesystem links directories). Two sites.
 
+**What the first draft got wrong** (the Codex review of #361, and a measurement of 2026-10-09). The first draft scanned every checkout's directory under the state base, compared with `os.SameFile`, and treated a directory it could not list as "no match". Four findings held. (1) An incomplete scan answered "not a state file" for the part it could not read, so an unlistable directory removed a ledger from the comparison and left its alias served. (2) On Windows `os.SameFile` opens with share mode 0 (Go 1.26.9, `os/types_windows.go`, `loadFileId`) and answers false when another process holds the file, so a ledger held open was served by its alias. (3) `read.Run` resolves every matching path afresh, so a grep matching K hard-linked files scanned the base K times: measured on macOS, 6,000 ordinary hard-linked files and a base of 500 other checkouts' directories, 0.54-0.75 s on v1.52.0, 62-77 s on the first draft. (4) A scan kept for one walk does not see a link made to a state file during that walk; that one is a bound, below, not a defect.
+
 ## Existing Primitives Audit
 
 - **`rooted.Resolve` / `Resolver.Resolve`** (ADR-006, ADR-131) — the one boundary every surface calls; the refusal belongs there, not in each walker.
 - **`inStateAt`** (ADR-077) — judges a path by identity against the base; this record adds the file-level counterpart beside it.
-- **`os.SameFile`** — compares two file infos by volume and file index; no new dependency.
-- **The `Lstat` the `Resolver` already takes** (ADR-131) — on unix it carries the link count, so the pre-test costs no syscall.
-- **`state.Base`** — names the base without making it.
+- **`GetFileInformationByHandle` and `Stat_t`** — the volume, the file index and the number of names, on Windows from a handle opened for its attributes only and shared with every opener, elsewhere from the `Lstat` already taken. `os.SameFile` is not used: it opens exclusively on Windows and answers false for a held file.
+- **`state.Base`** — names the base without making it; **`state.DirPath`** (new, beside `Dir`) names a checkout's state directory without making it or writing its marker.
+- **The `Lstat` the `Resolver` already takes** (ADR-131) — on unix it carries the identity and the count, so the pre-test costs no syscall.
 
 ## Decision
 
-1. **A regular file that is the same file as a regular file under the state base is refused**, after the root and state-directory checks, by `rooted.Resolve` and by `Resolver.Resolve`: "`<path>` is a hard link to a file in mrw's own state directory; mrw does not serve or edit its own ledger". It judges the REAL path's file, so a symlink to a hard link is refused too.
-2. **A link count of one is the pre-test.** A file no other name leads to cannot be a state file's second name. On unix the count is `Stat_t.Nlink` of the `Lstat` already taken; on Windows it is `NumberOfLinks` of an open handle (`linkcount_windows.go`). A count that cannot be read counts as "may be linked": the comparison runs. Only a file whose count is above one is compared.
-3. **The comparison is against the base, not one root's directory.** On first need the state base is scanned for regular files whose own link count is above one — only those can have a second name — and a candidate is compared with each by `os.SameFile`. The scan runs once per `Resolver` (one walk) and once per `Resolve` call; a base that does not exist holds nothing to link to and costs nothing. A path or an ancestor that is inside the base is refused earlier, as before.
-4. **A hard link to an ordinary file is served.** A pnpm store, a Go build cache and a package manager's deduplicated tree are full of link counts above one; only identity with a state file refuses.
+1. **A regular file that is the same file as a file in this checkout's state directory is refused**, after the root and state-directory checks, by `rooted.Resolve` and by `Resolver.Resolve`: "`<path>` is a hard link to a file in mrw's own state directory; mrw does not serve or edit its own ledger". It judges the REAL path's file, so a symlink to a hard link is refused too. "The same file" is the volume and the file on it, read from the file system, not from a path.
+2. **A link count of one is the pre-test.** A file no other name leads to cannot be a state file's second name. On unix the identity and the count come from the `Lstat` already taken; on Windows from one handle opened for the file's attributes only (`FILE_READ_ATTRIBUTES`, shared read, write and delete), so a file another process holds open is still read. Only a file whose count is above one is compared.
+3. **The comparison is with this checkout's state directory** (`state.DirPath`), the files that license a write here. On first need the directory is listed for files whose own link count is above one — only those can have a second name — and their identities are kept for one walk (`Resolver`) or one `Resolve` call. A name that vanishes while the directory is listed (a ledger saved by rename) is passed over. A checkout with no state directory, or a machine with no state base, holds nothing to link to and costs nothing.
+4. **A comparison that cannot be completed refuses.** A file with a second name whose identity cannot be read, or whose state directory cannot be listed or examined to the end, is refused: "`<path>` has more than one name, and mrw cannot tell whether one is a file in its own state directory". A file with one name is never held up by it.
+5. **A hard link to an ordinary file is served.** A pnpm store, a Go build cache and a package manager's deduplicated tree are full of link counts above one; only identity with a state file refuses them.
 
 ## Alternatives Considered
 
-- **Compare only with this root's state directory** — rejected: another root's ledger is mrw's own state too, and a link to it is the same breach; the scan is lazy, so the wider reach costs a pnpm tree nothing.
+- **Compare with every checkout's directory under the base** — built first, rejected on measurement: `read.Run` resolves each served path afresh, so a grep matching K hard-linked files scanned the base K times (62-77 s against 0.54-0.75 s for 6,000 files over a base of 500 directories, macOS, 2026-10-09). Another checkout's ledger licenses no write here, so the files that matter are this checkout's own.
 - **Refuse every file with a link count above one** — rejected: it would refuse a deduplicated `node_modules` wholesale, to close a gap one file wide.
 - **Make the ledger unreadable to a link (mode 0600 and a different owner)** — rejected: the link is made by the same user who owns both ends, so a mode stops nothing.
 - **Leave it (making the link needs write access to both places)** — rejected: the break is reproduced on two platforms by three sessions, the promise is mrw's own, and the cost is one count per served file.
 
 ## Component / Boundary Impact
 
-`internal/rooted` only: `rooted.go` gains the comparison; two platform files read the link count. `internal/state`, `read`, `apply` and the other engine packages stay byte-identical; `go.mod` keeps one requirement.
+`internal/rooted` and one function in `internal/state`: `rooted.go` gains the comparison, `hardlink.go` holds it, two platform files read the identity; `state.DirPath` names a directory `Dir` would make. `read`, `apply` and the other engine packages stay byte-identical; `go.mod` keeps one requirement.
 
 ## Wiring & Contract Changes
 
@@ -68,22 +71,24 @@ See `tasks/README.md`: T1.
 ## Consequences
 
 - **Positive:** "mrw's own state is never served" holds for a second name of a state file, on every platform.
-- **Negative:** one link count per served file (free on unix; an open on Windows, measured below), and one scan of the state base per walk that meets a file with a link count above one.
+- **Negative:** one identity read per served file (free on unix; an open on Windows, measured below), one listing of this checkout's state directory per walk or `Resolve` call that meets a file with a link count above one, and a refusal of any file with a second name while the state directory cannot be listed. Measured 2026-10-09 on macOS: a grep matching 6,000 ordinary hard-linked files over a base of 500 other directories took 0.89-1.34 s against 0.54-0.75 s on v1.52.0, output identical.
 - **Neutral:** the refusal is a REFUSED line on a named read and a silent drop in a walk, as for any path the boundary refuses (ADR-007 rule 3).
 
 ## Out of Scope
 
 - A COPY of a state file, and a hard link whose original was replaced by a later save (permanent: boundary: a copy holds a past ledger, not mrw's live state; the ledger is saved by rename, so a link made before a save is a snapshot afterwards and has the identity of nothing)
 - A symlink to a state file (permanent: fact: already refused by ADR-077 — the real path is judged; citation: file `internal/rooted/rooted.go:171`)
-- A state file reached by a name the caller made in ANOTHER filesystem (permanent: boundary: a hard link cannot cross volumes, so the link count and identity never match; nothing to refuse)
+- A state file reached by a name the caller made in ANOTHER filesystem (permanent: boundary: a hard link cannot cross volumes, so the identity never matches; nothing to refuse)
+- A hard link to ANOTHER checkout's ledger (permanent: boundary: it licenses no write in this checkout, whose ledger is keyed by its own path, and a plan cannot edit it because `Resolve` refuses; what it shows is another checkout's paths and shas. Comparing with every checkout's directory cost 62-77 s on a 6,000-file grep, Alternatives; `TestALinkToAnotherCheckoutsLedgerIsNotJudged` pins the decision)
+- A link made to a state file DURING a walk (permanent: boundary: the comparison is read once per walk, the staleness ADR-131 accepts for a directory swapped mid-walk; `read.Run` resolves afresh before it serves, so no content is served, and only a caller racing the walk could learn that a pattern matched)
 
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| the Windows link-count open slows a `--grep` walk | Medium | the 25x walk speed-up of ADR-131 is partly given back | measured on windows-latest before merge with the ADR-123/131 timing workflow; the record is amended with the numbers, and the Windows pre-test is narrowed by volume if the walk is more than 1.3 times slower |
-| the scan of a large state base (22,836 directories on one machine, 2026-09-07) is slow | Low | one slow walk | lazy: it runs only for a file with a link count above one, once per walk, and only files whose own link count is above one are kept |
-| a link count that cannot be read hides a link | Low | the breach stays | an unreadable count counts as "may be linked", so the comparison runs |
+| the Windows identity open slows a `--grep` walk | Realised, within the bar | the 25x walk speed-up of ADR-131 is partly given back | measured 2026-10-09 on windows-latest (AMD EPYC 7763, Windows Server 2025, run 37977126786, `timing-123` against v1.52.0, 3,000 files, median of 5, with `os.Open` and `SameFile` before the review changes): 243 ms before, 298 ms after on the plain tree (1.23x, 18 µs a file); 236 ms before, 306 ms after through a junction root (1.30x); `BenchmarkWalkDeep131` 331-361 ms before, 419-430 ms after (1.25x). The bar was 1.3x; the junction row sits on it, so a runner-noise reading above it is possible and would send the Windows pre-test to a volume test the record does not specify (T1 Stop Condition). The final handle is lighter than `os.Open`; the run is repeated on the final head |
+| a state directory that cannot be listed refuses every file with a second name in the checkout | Low | a pnpm tree is refused while the directory is unlistable | mrw makes the directory itself, mode 0700; the refusal names the cause; the alternative, serving what could not be compared, is the breach |
+| the identity of a held file cannot be read on Windows | Low | the file is refused as not comparable | the handle asks for attributes only and shares read, write and delete; `TestAHeldLedgerIsStillRefusedThroughItsAlias` holds the ledger open on windows-latest |
 
 ## Rollback
 

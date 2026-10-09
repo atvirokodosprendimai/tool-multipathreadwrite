@@ -572,7 +572,8 @@ writes to your checkout of its own accord — with the one exception above, wher
 And the tree can hold mrw's state when you point it there — `XDG_STATE_HOME` inside the checkout,
 or `--root "$HOME"` with `~/.local/state`. mrw then serves and edits nothing inside its own state
 directory (ADR-077): a grep skips it, and a read or a plan naming a file there is refused. So is a
-hard link in the tree to a file there (ADR-134), judged by identity, wherever the link is.
+hard link in the tree to a file in this checkout's state directory (ADR-134), judged by identity,
+wherever the link is; another checkout's ledger is not compared.
 
 The gate list is §Build and check at the top of this file. See `CONTRIBUTING.md` for the release
 process, and `README.md` for the full interface.

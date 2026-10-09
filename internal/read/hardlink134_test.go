@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
 // ADR-134. A walk dropped the ledger itself and still matched a hard link to
@@ -12,10 +14,11 @@ import (
 func TestAWalkDropsAHardLinkToMrwsState(t *testing.T) {
 	root, st := t.TempDir(), t.TempDir()
 	t.Setenv("XDG_STATE_HOME", st)
-	ledger := filepath.Join(st, "mrw", "k", "seen")
-	if err := os.MkdirAll(filepath.Dir(ledger), 0o700); err != nil {
+	dir, err := state.Dir(root)
+	if err != nil {
 		t.Fatal(err)
 	}
+	ledger := filepath.Join(dir, "seen")
 	for p, body := range map[string]string{ledger: "needle\n", filepath.Join(root, "a.txt"): "needle\n"} {
 		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
 			t.Fatal(err)

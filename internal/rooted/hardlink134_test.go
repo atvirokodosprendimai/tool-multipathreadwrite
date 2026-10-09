@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
 // hardLinkRoot is a root holding hl.txt, a hard link to a file in mrw's state
@@ -13,8 +15,8 @@ func hardLinkRoot(t *testing.T) (root, ledger string) {
 	t.Helper()
 	root, st := t.TempDir(), t.TempDir()
 	t.Setenv("XDG_STATE_HOME", st)
-	dir := filepath.Join(st, "mrw", "k")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	dir, err := state.Dir(root)
+	if err != nil {
 		t.Fatal(err)
 	}
 	ledger = filepath.Join(dir, "seen")

@@ -1,6 +1,7 @@
 package rooted
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -14,60 +15,142 @@ import (
 // root to the ledger was read whole and matched by --grep. A file is mrw's
 // state if it is the same file as one under the base, whatever it is called.
 
+// fileKey is a file's identity: the volume and the file on it.
+type fileKey struct{ vol, idx uint64 }
+
 // errHardLinked is the refusal for a second name of a state file.
 func errHardLinked(path string) error {
 	return fmt.Errorf("%s is a hard link to a file in mrw's own state directory; mrw does not serve or edit its own ledger", path)
 }
 
-// linkedMaybe reports whether fi, a regular file at path, may have a second
-// name: its link count is above one, or cannot be read. A file nothing else
-// leads to is never compared, which is nearly every file; a pnpm store or a
-// build cache is full of counts above one, and only identity with a state
-// file refuses them.
-func linkedMaybe(fi os.FileInfo, path string) bool {
-	n, ok := linkCount(fi, path)
-	return !ok || n > 1
+// errNotComparable is the refusal when a file has a second name and the state
+// base cannot be examined to the end: refused, since "nothing was found" from a
+// comparison that did not finish would serve the ledger by an alias.
+func errNotComparable(path string) error {
+	return fmt.Errorf("%s has more than one name, and mrw cannot tell whether one is a file in its own state directory; mrw does not serve or edit its own ledger", path)
 }
 
-// stateFiles are the regular files under the state base b that another name
-// could lead to: those whose own link count is above one. Only they can have a
-// second name, so a base of tens of thousands of directories yields a short
-// list, usually none. It is read when a candidate needs it, never before.
-func stateFiles(b string) []os.FileInfo {
-	var out []os.FileInfo
-	_ = filepath.WalkDir(b, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || !d.Type().IsRegular() {
-			return nil //nolint:nilerr // a directory that cannot be listed, or a non-file, holds no name mrw can compare; the walk goes on
+// stateLinks answers whether a file is a second name of a file in THIS
+// checkout's state directory — the ledger, the ack store, the locks, the files
+// that license a write or hold a checkpoint. The identities of those that HAVE
+// a second name are read once, when a candidate first needs them, and kept for
+// the life of the value: one walk (Resolver), or one Resolve call. A link made
+// to one of them after the read is seen by the next walk, which is the
+// staleness ADR-131 accepts for a directory swapped mid-walk; read.Run
+// resolves afresh before it serves. The scan reads one directory of a handful
+// of files, not the whole base, because read.Run resolves every served path
+// afresh and a scan of every checkout's directory made a grep matching 6,000
+// hard-linked files take 70 s instead of 0.5 s (the Codex review of #361).
+type stateLinks struct {
+	root     string      // the checkout, resolved
+	b        string      // the state base, resolved
+	bi       os.FileInfo // its FileInfo, nil when it could not be examined
+	prepared bool
+	absent   bool // there is no base: nothing to be a second name of
+	bad      bool // the state directory could not be examined to the end
+	scanned  bool
+	ids      map[fileKey]struct{} // state files with a second name
+}
+
+// prepare settles, once, whether there is a base at all.
+func (s *stateLinks) prepare() {
+	if s.prepared {
+		return
+	}
+	s.prepared = true
+	if s.bi != nil {
+		return
+	}
+	_, err := os.Stat(s.b)
+	s.absent = errors.Is(err, fs.ErrNotExist)
+	s.bad = !s.absent // present but not examined, or not there and then is
+}
+
+// scan reads the identity of every file in this checkout's state directory
+// whose own link count is above one: only those can have a second name. A name
+// that vanishes while the directory is listed (a ledger saved by rename) is
+// passed over; any other failure makes the comparison incomplete. A checkout
+// with no state directory has no state file to be a second name of.
+func (s *stateLinks) scan() {
+	s.scanned = true
+	s.ids = map[fileKey]struct{}{}
+	dir, err := state.DirPath(s.root)
+	if err != nil {
+		s.bad = true
+		return
+	}
+	if _, err := os.Stat(dir); err != nil {
+		s.bad = !errors.Is(err, fs.ErrNotExist)
+		return
+	}
+	err = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		if fi, err := d.Info(); err == nil && linkedMaybe(fi, p) {
-			out = append(out, fi)
+		if !d.Type().IsRegular() {
+			return nil
 		}
-		return nil
+		fi, err := d.Info()
+		if err == nil {
+			var key fileKey
+			var n uint64
+			if key, n, err = identity(fi, p); err == nil && n > 1 {
+				s.ids[key] = struct{}{}
+			}
+		}
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return err
 	})
-	return out
+	s.bad = s.bad || err != nil
 }
 
-// sameAsAny reports whether fi is the same file as one of files.
-func sameAsAny(fi os.FileInfo, files []os.FileInfo) bool {
-	for _, f := range files {
-		if os.SameFile(fi, f) {
-			return true
-		}
+// refusal judges fi, the regular file at path (shown to the caller as shown).
+// A file with one name is never compared, which is nearly every file: a pnpm
+// store or a build cache is full of link counts above one, and only identity
+// with a state file refuses them.
+func (s *stateLinks) refusal(fi os.FileInfo, path, shown string) error {
+	s.prepare()
+	if s.absent {
+		return nil
 	}
-	return false
+	key, n, err := identity(fi, path)
+	switch {
+	case err != nil:
+		return errNotComparable(shown)
+	case n <= 1:
+		return nil
+	}
+	if !s.scanned {
+		s.scan()
+	}
+	if s.bad {
+		return errNotComparable(shown)
+	}
+	if _, hit := s.ids[key]; hit {
+		return errHardLinked(shown)
+	}
+	return nil
 }
 
-// hardLinkedToState reports whether q, a path already resolved as far as it
-// exists, is a regular file that is also a file under the state base.
-func hardLinkedToState(q string) bool {
-	fi, err := os.Lstat(q)
-	if err != nil || !fi.Mode().IsRegular() || !linkedMaybe(fi, q) {
-		return false
-	}
+// hardLinkRefusal is resolveIn's judgement of q, a path already resolved as
+// far as it exists: nil unless it is a regular file that is a second name of a
+// state file.
+func hardLinkRefusal(root, q, shown string) error {
 	base, err := state.Base()
 	if err != nil {
-		return false
+		return nil //nolint:nilerr // no state home: inState answers false the same way, and there is no state to be a name of
 	}
 	b, bi := resolvedBase(base)
-	return bi != nil && sameAsAny(fi, stateFiles(b))
+	s := stateLinks{root: root, b: b, bi: bi}
+	s.prepare()
+	if s.absent {
+		return nil
+	}
+	fi, err := os.Lstat(q)
+	if err != nil || !fi.Mode().IsRegular() {
+		return nil //nolint:nilerr // a path that cannot be examined, or is not a regular file, is not a candidate; the caller opens it and says why not
+	}
+	return s.refusal(fi, q, shown)
 }
