@@ -90,8 +90,19 @@ Stop and ask if the ledger cannot represent a span with a hole (a split span) �
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
 - 2026-10-10 · 2cb2cc0* · mutant killed · exit 1 · `internal/read/maxcols.go` · S2: the window is taken from the start, not centred on the match · acceptance-sha256:64e0738ae554ba800cd39707eb701198388a9315e81f0361148f96ce67cc4675 · covers:a line longer than the width is served as a window around the match and is not recorded as read
+- 2026-10-10 · 0b77c71 · mutant killed · exit 1 · `internal/read/read.go` · S2: the lines before a cut line are not recorded · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · covers:a line longer than the width is served as a window around the match and is not recorded as read
+- 2026-10-10 · 0b77c71* · mutant killed · exit 1 · `internal/read/read.go` · S2: a whole-file read that cut a line is still recorded as the whole file · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · covers:a line longer than the width is served as a window around the match and is not recorded as read
+- 2026-10-10 · 0b77c71* · mutant killed · exit 1 · `internal/read/maxcols.go` · S2: the window is taken from the start, not centred on the match · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · covers:a line longer than the width is served as a window around the match and is not recorded as read
+- 2026-10-10 · 0b77c71* · mutant inconclusive · exit 1 · `internal/read/read.go` · S2: the width is counted in bytes, not characters · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · covers:a line longer than the width is served as a window around the match and is not recorded as read
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
 
 ## Verification Log
 - 2026-10-10 · 2cb2cc0 · exit 0 · `set -o pipefail …` · acceptance-sha256:64e0738ae554ba800cd39707eb701198388a9315e81f0361148f96ce67cc4675 · ms:39426
 - 2026-10-10 · 2cb2cc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:64e0738ae554ba800cd39707eb701198388a9315e81f0361148f96ce67cc4675 · ms:34678
 - 2026-10-10 · 2cb2cc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:64e0738ae554ba800cd39707eb701198388a9315e81f0361148f96ce67cc4675 · ms:36490
+- 2026-10-10 · 0b77c71 · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:34886
+- 2026-10-10 · 0b77c71* · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:33900
+- 2026-10-10 · 0b77c71* · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:36206
+- 2026-10-10 · 0b77c71* · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:36796
