@@ -70,6 +70,8 @@ git does not (ADR-130); a path you name inside one is walked. A `.git/` the walk
 is skipped; one you name is walked.
 On Windows, a file whose name Windows will not keep (`aux.txt`, `nul`, `trail.`) is not served by a walk and is
 counted on the `-- skipped:` line; name it to be told why (ADR-135).
+A link to a directory met inside the root is not followed and is counted on the `-- skipped:` line; name the directory
+it leads to (ADR-138).
 A link to a directory is not followed: one the walk meets is skipped, one you name is refused with
 the directory to name instead — unless you spell it as an absolute path, which names the directory
 it leads to — and one that leads to the root is walked as the root.
