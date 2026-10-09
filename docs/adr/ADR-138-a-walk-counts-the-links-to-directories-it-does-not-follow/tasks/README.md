@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | the walk counts a link to a directory and says so | pending | none | `docs/adr/ADR-138-a-walk-counts-the-links-to-directories-it-does-not-follow/tasks/T1-count.md` fence |
+| T1 | the walk counts a link to a directory and says so | done | none | `docs/adr/ADR-138-a-walk-counts-the-links-to-directories-it-does-not-follow/tasks/T1-count.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
