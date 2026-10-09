@@ -54,11 +54,19 @@ golangci() {
   golangci-lint run ./...
 }
 
+# staticcheck reads the compiler's export data, and v0.8.1 (still the newest
+# release, and master too, 2026-10-09) cannot decode the version Go 1.27 writes:
+# "export data version 5 is greater than maximum supported version 4". It runs
+# under the toolchain go.mod names, the one CI builds with, whatever go is on PATH.
+staticcheck_u1000() {
+  GOTOOLCHAIN="go$(go list -m -f '{{.GoVersion}}')" go run "$STATICCHECK" -tests=false -checks U1000 ./...
+}
+
 step gofmt empty gofmt -l .
 step vet go vet ./...
 step golangci-lint golangci
 step "deadcode (production code nothing reaches, or only tests reach)" empty go run "$DEADCODE" ./...
-step "staticcheck U1000 (unused in production, tests excluded)" go run "$STATICCHECK" -tests=false -checks U1000 ./...
+step "staticcheck U1000 (unused in production, tests excluded)" staticcheck_u1000
 step govulncheck go run "$GOVULNCHECK" ./...
 step "fence-prose self-test (a red clause is reported)" python3 scripts/fence-prose.py --self-test
 step "fence-prose (every task fence's grep over a tracked file still matches)" python3 scripts/fence-prose.py .
