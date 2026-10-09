@@ -84,6 +84,26 @@ Stop and ask if a refusal other than a device name or a Win32 alias must be coun
 
 ## Mutation Log
 - 2026-10-09 · e1ee41b · mutant killed · exit 1 · `internal/rooted/rooted.go` · S2: UnkeepableName answers true for every refusal — an escape is counted as a name · acceptance-sha256:a7b7f697d1c917fbe3fbe62f8adc6d9f5550318847ed6255c106c0af0c532554 · covers:a discovered name Windows will not keep is counted on the skipped line and the rest is served
+- 2026-10-09 · aa5727c · mutant killed · exit 1 · `internal/rooted/rooted.go` · S2: UnkeepableName answers true for every refusal — an escape is counted as a name · acceptance-sha256:a23e2ff6bee101ff081b7e4edd410e89760bf614e90704122b893a5c5dc74b1b · covers:a discovered name Windows will not keep is counted on the skipped line and the rest is served
+- 2026-10-09 · aa5727c* · mutant killed · exit 1 · `internal/rooted/rooted.go` · S2: a device name reached through a link is counted — the count says where a link leads · acceptance-sha256:a23e2ff6bee101ff081b7e4edd410e89760bf614e90704122b893a5c5dc74b1b · covers:a discovered name Windows will not keep is counted on the skipped line and the rest is served
 
 ## Verification Log
 - 2026-10-09 · e1ee41b · exit 0 · `set -o pipefail …` · acceptance-sha256:a7b7f697d1c917fbe3fbe62f8adc6d9f5550318847ed6255c106c0af0c532554 · ms:33334
+- 2026-10-09 · aa5727c · exit 0 · `set -o pipefail …` · acceptance-sha256:a23e2ff6bee101ff081b7e4edd410e89760bf614e90704122b893a5c5dc74b1b · ms:38639
+- 2026-10-09 · aa5727c* · exit 0 · `set -o pipefail …` · acceptance-sha256:a23e2ff6bee101ff081b7e4edd410e89760bf614e90704122b893a5c5dc74b1b · ms:37275
+- 2026-10-09 · aa5727c* · exit 1 · `set -o pipefail …` · acceptance-sha256:a23e2ff6bee101ff081b7e4edd410e89760bf614e90704122b893a5c5dc74b1b · ms:1614 · test-lock-sha256:609c9427e7467b17ad99dfc9a1c491ea3324c2bef276d2695687a24495b5bf6d · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvcmVhZC91bmtlZXBhYmxlMTM1X3Rlc3QuZ28JVGVzdEFuRXNjYXBlSXNOb3RDb3VudGVkQXNBTmFtZQk0YjMzNzRlYjYzMGZlMGNiMzViYWVjODljYzY3MzZjZWMxMDAzZTc5MzE3ZGI2NmMyYmEwNTk4MDRhMzgwZDVjCmJvZHkJaW50ZXJuYWwvcmVhZC91bmtlZXBhYmxlMTM1X3dpbmRvd3NfdGVzdC5nbwlUZXN0QVdhbGtDb3VudHNUaGVOYW1lc1dpbmRvd3NXaWxsTm90S2VlcAkzNTVmNDlkMjVlNjAwNzM2OThkODRhYjI1NjMyNTIwZmQ5ZDVkZjViODI4MWI1YWE5YWFmZDBiMTYwYmQ3MTQwCmJvZHkJaW50ZXJuYWwvcm9vdGVkL3Vua2VlcGFibGUxMzVfbGlua190ZXN0LmdvCVRlc3RBRGV2aWNlTmFtZVJlYWNoZWRUaHJvdWdoQUxpbmtJc05vdFVua2VlcGFibGUJNDJiNTBhZDU5ZTA4MTE0YjM3NWM3YTliYTM1ZmVjMGJlMmZmYjM5OWZiOWZjYWMzNGFkY2FmZDNjOTk0YWM5Ywpib2R5CWludGVybmFsL3Jvb3RlZC91bmtlZXBhYmxlMTM1X3Rlc3QuZ28JVGVzdE9ubHlBTmFtZVJlZnVzYWxJc1Vua2VlcGFibGUJZjkyYjg2ZjIwMWQyZmRhOWYzZWFkZjMzODQxNzIyNTg4ZjllMjQ4NjRmMmE1ODAwOWNkNzE5YmY0ZDNiMTlkZg
+  ```
+  --- last 10 line(s) of stdout (of 14 after folding 14 raw)
+  === RUN   TestADeviceNameReachedThroughALinkIsNotUnkeepable
+      unkeepable135_link_test.go:23: a direct device name was not counted: aux.txt leads to "aux.txt", which is a Windows device name: some Windows APIs still open it as a device on every build, so mrw neither creates, reads nor edits it
+  --- FAIL: TestADeviceNameReachedThroughALinkIsNotUnkeepable (0.00s)
+  === RUN   TestOnlyANameRefusalIsUnkeepable
+      unkeepable135_test.go:16: deviceName(aux.txt) = aux.txt leads to "aux.txt", which is a Windows device name: some Windows APIs still open it as a device on every build, so mrw neither creates, reads nor edits it, want a name refusal
+      unkeepable135_test.go:19: an alias refusal is not a name refusal
+  --- FAIL: TestOnlyANameRefusalIsUnkeepable (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted	0.179s
+  FAIL
+  ```
+- 2026-10-09 · aa5727c* · exit 0 · `set -o pipefail …` · acceptance-sha256:a23e2ff6bee101ff081b7e4edd410e89760bf614e90704122b893a5c5dc74b1b · ms:36230
+- 2026-10-10 · human-observed · Zy's session read windows-latest runs for the Windows-only walk test TestAWalkCountsTheNamesWindowsWillNotKeep: red 37988152676 on 4264d6f (windows-shard 4: Unkeepable = 0, want 2) and green 37989334974 on e1ee41b (14 pass, 2 skipping); the final head's run is recorded on the PR
