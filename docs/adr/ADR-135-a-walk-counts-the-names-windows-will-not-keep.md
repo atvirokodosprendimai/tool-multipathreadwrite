@@ -8,7 +8,7 @@
 **Cross-references:** ADR-007, ADR-071, ADR-081, ADR-111, ADR-116, ADR-130, docs/adr/BACKLOG.md
 **Invalidates:** None — it adds a count where ADR-007 rule 2 skipped in silence; the rule's reason (a pattern oracle) does not apply to a name
 **Governs:** `internal/rooted/rooted.go`, `internal/read/walk.go`, `docs/receipts.txt`, `scripts/contract.sh`, `AGENTS.md`, `README.md`, `docs/adr/BACKLOG.md`
-**Enforced-by:** `internal/read/unkeepable135_test.go::TestAWalkCountsTheNamesWindowsWillNotKeep`
+**Enforced-by:** `internal/read/unkeepable135_windows_test.go::TestAWalkCountsTheNamesWindowsWillNotKeep`
 **Served-path change:** on a Windows build, a `--grep` walk (CLI and `mrw_read`) that discovers a file whose name Windows will not keep — a reserved device name such as `aux.txt`, `con`, `nul`, `com1`, `lpt1.md`, or a name ending in a dot or a space — serves the rest as before and says so on the `-- skipped:` line (`N file(s) with a name Windows will not keep`); `mrw_read` carries the count as `skipped.unkeepable`. Exit codes and what is served do not change, and nothing changes off Windows, where `Resolve` refuses no name.
 
 ## Context
@@ -29,7 +29,7 @@ A `--grep` walk sends every discovered file through `rooted.Resolve` and drops a
 
 ## Decision
 
-1. **`rooted` tells a name refusal from the others.** `rooted.UnkeepableName(err)` reports whether `err` is Resolve's refusal of a name Windows will not keep: a reserved device name (`ErrDeviceName`), or a name Windows would not keep as written (a new `ErrWin32Alias`, carried by `aliasRefusal`'s unchanged text). The messages do not change.
+1. **`rooted` tells a name refusal from the others.** `rooted.UnkeepableName(err)` reports whether `err` is Resolve's refusal of a name Windows will not keep by the discovered path's OWN spelling: a reserved device name (`ErrDeviceName`), or a name Windows would not keep as written (a new `ErrWin32Alias`, carried by `aliasRefusal`'s unchanged text). A device name reached THROUGH A LINK is refused with the same words and is still an `ErrDeviceName`, but is marked and not counted: it says where a link leads, outside the root included, not what the file is called (the Codex review of #363). The messages do not change.
 2. **A discovered path so refused is counted, not dropped.** The walk records it in a set; `WalkSkipped.Unkeepable` counts the set (`json:"unkeepable"`), a file another path served after all is not counted, and the file is still not served. A path the caller NAMES is refused by name as before.
 3. **`SkipNote` says it.** `N file(s) with a name Windows will not keep`, in the existing `-- skipped:` sentence. The sentence's tail says the flag walks them; `--no-ignore` does not walk a name Windows will not keep, so when this is the only thing skipped the tail reads `name one to be told why`, and beside other counts it adds that the flag walks the others.
 4. **`mrw_read` carries `skipped.unkeepable`**, appended to `docs/receipts.txt` (ADR-111).

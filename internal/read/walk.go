@@ -60,9 +60,10 @@ type WalkSkipped struct {
 	// does not descend into one (ADR-130).
 	Nested int `json:"nested"`
 	// Unkeepable is the discovered files whose names Windows will not keep — a
-	// reserved device name on every build, a trailing dot or space on Windows —
-	// which Resolve refuses by their spelling and the walk does not serve
-	// (ADR-135). It counts names the listing showed, never what a file held.
+	// reserved device name, or a trailing dot or space; only a Windows build
+	// refuses either — which Resolve refuses by their own spelling and the walk
+	// does not serve (ADR-135). It counts names the listing showed, never what
+	// a file held and never where a link leads.
 	Unkeepable int `json:"unkeepable"`
 }
 

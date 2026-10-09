@@ -225,10 +225,23 @@ func (e aliasError) Is(target error) bool { return target == ErrWin32Alias }
 
 // UnkeepableName reports whether err is Resolve's refusal of a name Windows will
 // not keep, as opposed to its refusals of where a path leads (ADR-135). Only a
-// refusal made by the spelling alone may be counted by a walk.
+// refusal made by the path's own spelling may be counted by a walk: a device
+// name reached through a link says where the link leads, not what the discovered
+// file is called (the Codex review of #363).
 func UnkeepableName(err error) bool {
-	return errors.Is(err, ErrDeviceName) || errors.Is(err, ErrWin32Alias)
+	return (errors.Is(err, ErrDeviceName) && !errors.Is(err, errViaLink)) || errors.Is(err, ErrWin32Alias)
 }
+
+// errViaLink marks a device-name refusal reached through a link.
+var errViaLink = errors.New("through a link")
+
+// viaLinkError is deviceName's refusal for a link whose target holds a device
+// name: the same words and still an ErrDeviceName, marked errViaLink.
+type viaLinkError struct{ error }
+
+func (e viaLinkError) Unwrap() error { return e.error }
+
+func (e viaLinkError) Is(target error) bool { return target == errViaLink }
 
 // deviceName refuses p when the part of at that lies under absRoot holds a
 // reserved device name in any component. The root's own components are not
@@ -243,7 +256,11 @@ func deviceName(p, absRoot, at string) error {
 		if at != filepath.Join(absRoot, p) {
 			via = " through a link"
 		}
-		return fmt.Errorf("%s leads%s to %q, which is %w: some Windows APIs still open it as a device on every build, so mrw neither creates, reads nor edits it", p, via, d, ErrDeviceName)
+		err := fmt.Errorf("%s leads%s to %q, which is %w: some Windows APIs still open it as a device on every build, so mrw neither creates, reads nor edits it", p, via, d, ErrDeviceName)
+		if via != "" {
+			return viaLinkError{err}
+		}
+		return err
 	}
 	return nil
 }

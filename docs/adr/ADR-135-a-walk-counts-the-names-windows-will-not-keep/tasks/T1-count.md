@@ -38,8 +38,8 @@ set -o pipefail
 out=$(mktemp) \
   && go test ./internal/read/ -count=1 -timeout 300s -run 'TestAnEscapeIsNotCountedAsAName' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestAnEscapeIsNotCountedAsAName \(' "$out" \
-  && go test ./internal/rooted/ -count=1 -timeout 300s -run 'TestOnlyANameRefusalIsUnkeepable' -v 2>&1 | tee "$out" \
-  && grep -qE '^--- PASS: TestOnlyANameRefusalIsUnkeepable \(' "$out" \
+  && go test ./internal/rooted/ -count=1 -timeout 300s -run 'TestOnlyANameRefusalIsUnkeepable|TestADeviceNameReachedThroughALinkIsNotUnkeepable' -v 2>&1 | tee "$out" \
+  && grep -qE '^--- PASS: TestOnlyANameRefusalIsUnkeepable \(' "$out" && grep -qE '^--- PASS: TestADeviceNameReachedThroughALinkIsNotUnkeepable \(' "$out" \
   && GOOS=windows go vet ./internal/read/ ./internal/rooted/ \
   && go test ./internal/rooted/ ./internal/read/ ./internal/mcp/ -count=1 -timeout 900s \
   && grep -q '^mcp_read skipped.unkeepable$' docs/receipts.txt \
@@ -54,6 +54,7 @@ out=$(mktemp) \
 | `TestAWalkCountsTheNamesWindowsWillNotKeep` | `internal/read/unkeepable135_windows_test.go` | on a Windows build the rest is served, the names are counted and the note says so | none | S1, S2 |
 | `TestAnEscapeIsNotCountedAsAName` | `internal/read/unkeepable135_test.go` | a refusal that is not about a name stays uncounted | none | S1, S2 |
 | `TestOnlyANameRefusalIsUnkeepable` | `internal/rooted/unkeepable135_test.go` | `UnkeepableName` accepts the device-name refusal and rejects an escape and a state refusal | none | S2 |
+| `TestADeviceNameReachedThroughALinkIsNotUnkeepable` | `internal/rooted/unkeepable135_link_test.go` | a device name reached through a link stays an `ErrDeviceName` and is not counted as the file's own name | none | S2 |
 
 ## Reachability
 
@@ -82,5 +83,7 @@ Stop and ask if a refusal other than a device name or a Win32 alias must be coun
 - `--ast-grep` hits (deferred: docs/adr/BACKLOG.md)
 
 ## Mutation Log
+- 2026-10-09 · e1ee41b · mutant killed · exit 1 · `internal/rooted/rooted.go` · S2: UnkeepableName answers true for every refusal — an escape is counted as a name · acceptance-sha256:a7b7f697d1c917fbe3fbe62f8adc6d9f5550318847ed6255c106c0af0c532554 · covers:a discovered name Windows will not keep is counted on the skipped line and the rest is served
 
 ## Verification Log
+- 2026-10-09 · e1ee41b · exit 0 · `set -o pipefail …` · acceptance-sha256:a7b7f697d1c917fbe3fbe62f8adc6d9f5550318847ed6255c106c0af0c532554 · ms:33334
