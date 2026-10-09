@@ -71,7 +71,8 @@ func TestAnExtendedPathSpellsEveryKindOfAbsolutePath(t *testing.T) {
 		`\\server\share\x\dot.`:  `\\?\UNC\server\share\x\dot.`,
 		`\\?\C:\x\dot.`:          `\\?\C:\x\dot.`,
 		`\\?\UNC\srv\share\dot.`: `\\?\UNC\srv\share\dot.`,
-		`\\.\C:\x\dot.`:          `\\.\C:\x\dot.`,
+		`\\.\C:\x\dot.`:          `\\?\C:\x\dot.`,
+		`\\.\pipe\dot.`:          ``,
 		`rel\dot.`:               ``,
 		`dot.`:                   ``,
 	} {
@@ -81,8 +82,10 @@ func TestAnExtendedPathSpellsEveryKindOfAbsolutePath(t *testing.T) {
 	}
 }
 
-// The same two scenarios through an ordinary UNC root, \\localhost\C$\..., where
-// the runner's administrative share is reachable; skipped where it is not.
+// A name ending in a dot beside the source, through an ordinary UNC root
+// (\\localhost\C$\...), where the runner's administrative share is reachable;
+// skipped where it is not. The hard-link refusal is pinned on a drive path by
+// TestAnUnopenableHardLinkOfTheSourceStillRefusesACaseOnlyRename.
 func TestAnOrdinaryUNCRootGetsTheSameAnswers(t *testing.T) {
 	local := t.TempDir()
 	vol := filepath.VolumeName(local)

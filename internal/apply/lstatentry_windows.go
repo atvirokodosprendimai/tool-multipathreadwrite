@@ -10,12 +10,18 @@ import (
 
 // extendedPath is p spelled as an extended-length path, which Win32 does not
 // normalise: a drive path gains `\\?\`, an ordinary UNC path `\\server\share\x`
-// becomes `\\?\UNC\server\share\x`, and a path already extended is kept. A
-// relative path has no such spelling and gives "".
+// becomes `\\?\UNC\server\share\x`, a device-form drive path `\\.\C:\x` becomes
+// `\\?\C:\x` (the `\\.\` form still strips a trailing dot), and a path already
+// extended is kept. A relative path, or a device that is not a drive, gives "".
 func extendedPath(p string) string {
 	switch {
-	case strings.HasPrefix(p, `\\?\`), strings.HasPrefix(p, `\\.\`):
+	case strings.HasPrefix(p, `\\?\`):
 		return p
+	case strings.HasPrefix(p, `\\.\`):
+		if len(p) > 6 && p[5] == ':' {
+			return `\\?\` + p[4:]
+		}
+		return ""
 	case strings.HasPrefix(p, `\\`):
 		return `\\?\UNC\` + p[2:]
 	case filepath.IsAbs(p):
