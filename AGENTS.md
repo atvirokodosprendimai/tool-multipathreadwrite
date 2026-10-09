@@ -349,8 +349,8 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   10-12 does not license an edit at line 50. The one exception is a file mrw
   itself just wrote: it produced every line, so the whole file is licensed
   until something else changes it (ADR-002, ADR-005 §4). A read whose answer
-  goes to the null device (`>/dev/null`, `>NUL`) licenses nothing and says so on
-  stderr; send it to a file, or read it, if you mean to edit (ADR-133).
+  goes to the null device (`>/dev/null`, cmd.exe's `>NUL`) licenses nothing and says so on
+  stderr; PowerShell's `> $null` and `| Out-Null` are pipes and still record. Send it to a file, or read it, if you mean to edit (ADR-133).
 - **AFTER ANY MULTI-LINE BODY, READ ON PAST YOUR RANGE UNTIL YOU SEE THE
   ENCLOSING STRUCTURE CLOSE.** Unconditional, and deliberately wider than the
   write. What follows is explanation, not a trigger: a rule opening "if your body

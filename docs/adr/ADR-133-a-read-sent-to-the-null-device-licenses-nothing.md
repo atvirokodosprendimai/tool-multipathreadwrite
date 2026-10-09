@@ -70,7 +70,7 @@ See `tasks/README.md`: T1.
 
 ## Out of Scope
 
-- A pipe, a file or a terminal the caller does not read (permanent: boundary: mrw cannot see past its own stdout; Decision 3)
+- A pipe, a file or a terminal the caller does not read, and PowerShell 7's `> NUL`, `> $null` and `| Out-Null`, which hand mrw a pipe (permanent: boundary: mrw cannot see past its own stdout, Decision 3; the shell reads the answer and throws it away. Found on a live Windows console, Windows 11 10.0.26200, v1.52.0, 2026-10-09: cmd.exe `>NUL`, `>\\.\NUL`, `>NUL 2>&1` and Git Bash `>/dev/null` were the null device and recorded nothing, while a console, `>CON`, `>CONOUT$`, a file, `| more` and the PowerShell forms recorded)
 - The MCP surface (permanent: boundary: ADR-031 and ADR-039 already license nothing until a read is acknowledged)
 - Other sinks that discard (`/dev/zero` on macOS, a file unlinked after it was opened) (permanent: boundary: Decision 3 — only the null device is named; the stress runs of 25f4f04 found both record, as designed)
 
