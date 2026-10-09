@@ -18,7 +18,7 @@ import (
 func TestAnUnopenableSiblingDoesNotRefuseACaseOnlyRename(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "plain.txt", "x\n")
-	for _, name := range []string{"dot.", "sp "} {
+	for _, name := range []string{"dot.", "sp ", "plain.txt."} {
 		p := `\\?\` + filepath.Join(root, name)
 		if err := os.WriteFile(p, []byte("y\n"), 0o644); err != nil {
 			t.Skipf("this volume will not make %q: %v", name, err)
