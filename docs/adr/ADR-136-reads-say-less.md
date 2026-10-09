@@ -9,17 +9,17 @@
 **Invalidates:** None — it changes how often and how long two messages are, not what they promise; ADR-052's refusal is untouched
 **Governs:** `internal/read/read.go`, `internal/seen/seen.go`, `cmd/mrw/main.go`, `scripts/contract.sh`, `AGENTS.md`
 **Enforced-by:** `internal/read/quiet136_test.go::TestTheNeighbourNoteIsPrintedOncePerRead`
-**Served-path change:** (1) a read that serves several multi-line ranges prints the "a multi-line replace of A-B needs a served line after B" note once, at the first, not at each; (2) the stale-ledger notice is one sentence; (3) `mrw version`, `mrw instructions` and `mrw stats` print no stale-ledger notice, since none uses the ledger. A write is refused, and every exit code and receipt is unchanged.
+**Served-path change:** (1) a read that serves several multi-line ranges prints the "a multi-line replace of A-B needs a served line after B" note once, at the first, not at each; (2) the stale-ledger notice is one line; (3) `mrw version`, `mrw instructions` and `mrw stats` print no stale-ledger notice and do not read the ledger header, since none uses the ledger. A write is refused, and every exit code and receipt is unchanged.
 
 ## Context
 
-A survey of 14 mac and Windows sessions on 2026-10-09 ranked what makes mrw hard to use fluently. Two of its top items are noise, not missing function: the "multi-line replace needs a served line after" note, printed under every ranged read of two or more lines "including read-only ones", was acted on by none of the 7 of 9 mac sessions that named it; and the stale-ledger notice, 90 words listing four mrw versions, appears on `stats`, `version` and the first read after an upgrade, where five sessions found it unhelpful.
+A survey of 14 mac and Windows sessions on 2026-10-09 (my synthesis of their replies, filed as a memoryd fact; the figures below are as reported then, not re-counted) listed what makes mrw hard to use fluently. Two of the items are noise, not missing function: the "multi-line replace needs a served line after" note, printed under every ranged read of two or more lines "including read-only ones", which 7 of the 9 mac sessions named and none said they acted on; and the stale-ledger notice, 90 words listing four mrw versions, which appears on `stats`, `version` and the first read after an upgrade, where five sessions called it unhelpful. "Did not act on" and "found unhelpful" are what respondents reported; neither proves non-use.
 
 **What the note is for, and what it costs.** ADR-052 refuses a multi-line `replace` unless a line after its end was served, and the refusal names the line to read. The note tells the caller beforehand. It is printed for each range of a read: a read of eight ranges prints it eight times, though the rule is the same for each. The refusal, which names the exact line, stays; the caller who needs the note has it once in the call.
 
 **The notice.** `seen.StaleNotice` says the ledger "was written by an older mrw, or its line endings were changed, and has been discarded", then spends 60 words on the history of four fixes (v0.0.11, v1.37.1, v1.41.0). Those fixes are in git and in the ADRs that made them (ADR-068 for the line endings); the reader of the message needs the two causes and the remedy. The root command's `Before` prints it for any subcommand, `version` and `stats` included, though neither reads the ledger.
 
-**Audit of the class** — *a message mrw prints on a successful read-only call that no caller acted on*: `mrw read --grep '-- note:|-- skipped:|-- This serve|StaleNotice' --exclude '*_test.go' internal cmd` names the neighbour note (`internal/read/read.go`), the stale notice (`cmd/mrw/main.go`), the skipped line and the MCP licence line. The skipped line and the licence line carry state a caller needs (what was left out; what to acknowledge) and stay; the two named here are the ones the survey measured as unacted-on.
+**Audit of the class** — *a message mrw prints on a successful read-only call that respondents did not act on*: `mrw read --grep '-- note:|-- skipped:|-- This serve|StaleNotice' --exclude '*_test.go' internal cmd` names the neighbour note (`internal/read/read.go`), the stale notice (`cmd/mrw/main.go`), the skipped line and the MCP licence line. The skipped line and the licence line carry state a caller needs (what was left out; what to acknowledge) and stay; the two named here are the ones the replies reported as not acted on.
 
 ## Existing Primitives Audit
 
@@ -30,8 +30,8 @@ A survey of 14 mac and Windows sessions on 2026-10-09 ranked what makes mrw hard
 ## Decision
 
 1. **The neighbour note is printed once per read call**, at the first range that qualifies (two or more lines, not through the last line), in the same words. `Run` keeps the fact in a local across the specs it serves. A single-range read, the common case, is unchanged.
-2. **`seen.StaleNotice` is one sentence**: "mrw: the read ledger was written by an older mrw, or its line endings were changed; it has been discarded. Read the files you mean to edit again." It still names both causes and the remedy; the history of the fixes lives in the ADRs.
-3. **The root `Before` skips the stale check for `version`, `instructions` and `stats`**, the subcommands that never read the ledger. `read`, `write`, `check`, `iter`, `seen` and `mcp` keep it.
+2. **`seen.StaleNotice` is one line**: "mrw: the read ledger was written by an older mrw, or its line endings were changed; it has been discarded. Read the files you mean to edit again." It still names both causes and the remedy; the history of the fixes is in git and the ADRs that made them.
+3. **The root `Before` skips the stale check for `version`, `instructions` and `stats`**, the subcommands whose actions never read the ledger. `read`, `write`, `check`, `iter`, `seen` and `mcp` keep it. This is about the stale-ledger check only: `main` still runs the legacy `.mrw` migration before parsing, and `stats` still opens the tally (BACKLOG).
 
 ## Alternatives Considered
 
@@ -79,7 +79,7 @@ See `tasks/README.md`: T1.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| a command that does use the ledger is skipped by the new condition | Low | a stale ledger is discarded without a word | the skip list is the three names; `TestTheLedgerCommandsStillAnnounceAStaleLedger` runs `read` and `write` |
+| a command that does use the ledger is skipped by the new condition | Low | a stale ledger is discarded without a word | the skip list is the three names; `TestTheStaleNoticeIsOneSentenceAndSilentOnVersionStatsInstructions` runs `read` and `write` and asserts the notice |
 | a script greps for the long notice | Low | its match fails | the notice keeps "written by an older mrw" and "line endings", the phrases the contract and tests grep |
 
 ## Rollback
