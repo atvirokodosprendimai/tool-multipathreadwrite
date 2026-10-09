@@ -80,6 +80,21 @@ func Dir(root string) (string, error) {
 	return dir, nil
 }
 
+// DirPath is the path Dir would return for root, without making it or writing
+// its marker (ADR-134): the boundary asks where a checkout's state would be, and
+// asking must not create it.
+func DirPath(root string) (string, error) {
+	base, err := Base()
+	if err != nil {
+		return "", err
+	}
+	abs, err := absReal(root)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, key(abs)), nil
+}
+
 // Path returns the full path of one state file for root.
 func Path(root, name string) (string, error) {
 	dir, err := Dir(root)

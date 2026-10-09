@@ -1,6 +1,7 @@
 name: timing-123
 
-# ADR-123 T1 S3 (Zy, 2026-10-03: "CI runner timing"), reused by ADR-131 T1 S4:
+# ADR-123 T1 S3 (Zy, 2026-10-03: "CI runner timing"), reused by ADR-131 T1 S4
+# and ADR-134 T1 S4 (the tag before is v1.52.0 now):
 # --grep over a 3,000-file tree on Windows, straight and through a junction
 # root, and BenchmarkWalkDeep131 (3,000 files ten levels deep), with the tag
 # before the change and the dispatched ref after it. Run by hand; it gates
@@ -22,7 +23,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Build v1.51.0 and the ref, time --grep and the walk benchmark
+      - name: Build v1.52.0 and the ref, time --grep and the walk benchmark
         shell: bash
         env:
           MSYS_NO_PATHCONV: "1"
@@ -30,9 +31,9 @@ jobs:
           set -euo pipefail
           T=$(cygpath -m "$RUNNER_TEMP")
           go env GOVERSION
-          git worktree add -q "$T/src-before" v1.51.0
+          git worktree add -q "$T/src-before" v1.52.0
           cp internal/read/walk131_bench_test.go "$T/src-before/internal/read/"
-          (cd "$T/src-before" && CGO_ENABLED=0 go build -trimpath -ldflags "-X main.version=v1.51.0" -o "$T/mrw-before.exe" ./cmd/mrw)
+          (cd "$T/src-before" && CGO_ENABLED=0 go build -trimpath -ldflags "-X main.version=v1.52.0" -o "$T/mrw-before.exe" ./cmd/mrw)
           CGO_ENABLED=0 go build -trimpath -ldflags "-X main.version=$(git rev-parse --short HEAD)" -o "$T/mrw-after.exe" ./cmd/mrw
           "$T/mrw-before.exe" version
           "$T/mrw-after.exe" version

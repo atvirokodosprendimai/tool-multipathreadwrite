@@ -171,6 +171,10 @@ func resolveIn(absRoot, path string) (string, error) {
 	if inState(q) {
 		return "", fmt.Errorf("%s is inside mrw's own state directory; mrw does not serve or edit its own ledger", path)
 	}
+	// ADR-134: a second name of a state file is the state file.
+	if err := hardLinkRefusal(absRoot, q, path); err != nil {
+		return "", err
+	}
 	return full, nil
 }
 
@@ -405,6 +409,7 @@ type Resolver struct {
 	none    bool  // there is no state base to compare with (state.Base failed)
 	b       string
 	bi      os.FileInfo
+	links   stateLinks // judges a file with a second name against the state base (ADR-134)
 	dirs    map[string]resolvedDir
 }
 
@@ -465,6 +470,12 @@ func (r *Resolver) Resolve(path string) (string, error) {
 	if d.in || (!r.none && Contains(r.b, check)) {
 		return "", fmt.Errorf("%s is inside mrw's own state directory; mrw does not serve or edit its own ledger", path)
 	}
+	// ADR-134: the same file as one under the state base, by another name.
+	if !r.none {
+		if err := r.links.refusal(fi, full, path); err != nil {
+			return "", err
+		}
+	}
 	return full, nil
 }
 
@@ -479,6 +490,7 @@ func (r *Resolver) base() bool {
 			r.none = true
 		} else {
 			r.b, r.bi = resolvedBase(base)
+			r.links = stateLinks{root: r.absRoot, b: r.b, bi: r.bi}
 		}
 	}
 	return r.none || r.bi == nil || r.bi.IsDir()

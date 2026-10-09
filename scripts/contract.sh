@@ -8642,6 +8642,32 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 236. ADR-134: a hard link to mrw's own state is not served. ADR-077 compared a
+# path with the state base and never the file with the files inside it, so a
+# hard link in the root to the ledger was read whole and matched by --grep (the
+# Windows chaos round on v1.52.0, reproduced on macOS). It is refused naming
+# mrw's own state, and a walk drops it. The pair: a hard link to an ordinary
+# file is served.
+fixture
+st236() { XDG_STATE_HOME="$WORK/st236" "$MRW" -C "$R" "$@"; }
+printf 'needle236\n' > "$R/ord236.txt"
+st236 read ord236.txt >"$WORK/served236.out"
+led=$(ls "$WORK"/st236/mrw/*/seen 2>/dev/null | head -1)
+[ -n "$led" ] && ok "the ledger lives outside the root for this row" || bad "no ledger under $WORK/st236: $(ls -R "$WORK/st236" 2>&1 | head)"
+if ln "$led" "$R/hl236.txt" 2>/dev/null && ln "$R/ord236.txt" "$R/ord236b.txt" 2>/dev/null; then
+  out=$(st236 read hl236.txt 2>&1); rc=$?
+  want 1 "$rc" "a read of a hard link to the ledger exits 1"
+  { grep -q 'own state' <<<"$out" && ! grep -q 'mrw-seen' <<<"$out"; } && ok "naming mrw's own state, the ledger unserved" || bad "hard link read: $out"
+  out=$(st236 read --grep 'ord236' 2>&1)
+  { ! grep -q 'hl236' <<<"$out" && ! grep -q 'mrw-seen' <<<"$out"; } && ok "and a walk neither serves nor matches it" || bad "hard link grep: $out"
+  out=$(st236 read --grep 'needle236' 2>&1); rc=$?
+  { [ "$rc" = 0 ] && grep -q '^==> ord236b.txt' <<<"$out"; } && ok "the pair: a hard link to an ordinary file is served" || bad "ordinary hard link grep (exit $rc): $out"
+else
+  skip "a hard link to the ledger (this filesystem makes none between $WORK and $R)"
+fi
+rm -f "$R/hl236.txt" "$R/ord236.txt" "$R/ord236b.txt" "$WORK/served236.out"
+rm -rf "$WORK/st236"
+
 # 235. ADR-129 amendment (the Windows chaos round, 2026-10-09). A plan that
 # spells the source otherwise than its directory does, and names as the
 # destination the spelling the directory holds, was refused "dest already
