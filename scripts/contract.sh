@@ -8642,6 +8642,29 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 237. ADR-136: reads say less. A read of several multi-line ranges printed the
+# "needs a served line after" note at each; it is printed once, at the first.
+# The stale-ledger notice was ninety words of version history printed for every
+# subcommand; it is one line, and `version`, `instructions` and `stats`, which
+# never read the ledger, print none. The pairs: one range keeps its note, and
+# `read` still announces a stale ledger.
+fixture
+printf 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\n' > "$R/q237.txt"
+out=$(m read q237.txt:2-3 q237.txt:5-6 2>&1); want 0 $? "a read of two multi-line ranges exits 0"
+[ "$(grep -c 'needs a served line after' <<<"$out")" = 1 ] && ok "and prints the neighbour note once" || bad "note count: $out"
+out=$(m read q237.txt:2-3 2>&1)
+grep -q 'needs a served line after 3' <<<"$out" && ok "the pair: one range still gets its note" || bad "single range: $out"
+SD237=$(m seen | head -1 | sed 's/.*: //')
+printf 'not a ledger\n' > "$SD237/seen"
+for sub in version instructions stats; do
+  err=$(m $sub 2>&1 >/dev/null)
+  grep -q 'read ledger' <<<"$err" && bad "mrw $sub printed the stale-ledger notice: $err" || ok "mrw $sub prints no stale-ledger notice"
+done
+err=$(m read q237.txt:2 2>&1 >"$WORK/served237.out")
+{ grep -q 'written by an older mrw' <<<"$err" && grep -q 'line endings' <<<"$err" && [ "$(wc -l <<<"$err")" -le 1 ]; } \
+  && ok "the pair: read announces the stale ledger in one line naming both causes" || bad "stale notice: $err"
+rm -f "$R/q237.txt"
+
 # 236. ADR-134: a hard link to mrw's own state is not served. ADR-077 compared a
 # path with the state base and never the file with the files inside it, so a
 # hard link in the root to the ledger was read whole and matched by --grep (the

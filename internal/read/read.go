@@ -424,6 +424,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		observed[key] = seen.Observation{SHA: sha, Spans: spans}
 	}
 	englishUnreadables := 0
+	neighbourNoted := false // the note is printed once per call, at the first range that needs it (ADR-136)
 	for _, sp := range specs {
 		if opt.Stop != nil && opt.Stop() {
 			break
@@ -568,7 +569,8 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			}
 			fmt.Fprintf(w, "@@ %d-%d\n", sn.start, sn.start+n-1)
 			servedEnd := sn.start + n - 1
-			if n >= 2 && servedEnd < len(lines) {
+			if n >= 2 && servedEnd < len(lines) && !neighbourNoted {
+				neighbourNoted = true
 				fmt.Fprintf(w, "-- note: a multi-line replace of %d-%d needs a served line after %d\n",
 					sn.start, servedEnd, servedEnd)
 			}

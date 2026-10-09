@@ -158,6 +158,11 @@ func rootCommand() *cli.Command {
 		// from. That read the wrong ledger under `-C`, which is precisely how
 		// a contract row here first passed for the wrong reason.
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			// version, instructions and stats never read the ledger (ADR-136).
+			switch cmd.Args().First() {
+			case "version", "instructions", "stats":
+				return ctx, nil
+			}
 			if stale, err := seen.IsStale(cmd.String("root")); err == nil && stale {
 				fmt.Fprintln(os.Stderr, seen.StaleNotice)
 			}

@@ -247,12 +247,12 @@ func IsStale(root string) (bool, error) {
 	return sc.Text() != header, nil
 }
 
-// StaleNotice is what the CLI prints when IsStale reports true.
-const StaleNotice = "mrw: the read ledger was written by an older mrw, or its line endings were " +
-	"changed, and has been discarded — up to v0.0.11 a read that served nothing recorded the whole " +
-	"file, up to v1.37.1 an MCP checkpoint could license the lines between those a read served, up to " +
-	"v1.41.0 a file mrw wrote read as one the caller had been shown, and " +
-	"a ledger mrw did not write cannot be trusted either. Read the files you mean to edit again."
+// StaleNotice is what the CLI prints when IsStale reports true: one sentence,
+// the two causes and the remedy. The history of the fixes that made an old
+// ledger untrustworthy is in the ADRs, not in a message read on every upgrade
+// (ADR-136).
+const StaleNotice = "mrw: the read ledger was written by an older mrw, or its line endings were changed; " +
+	"it has been discarded. Read the files you mean to edit again."
 
 // scanLF splits the ledger on "\n" alone. bufio.ScanLines also drops a "\r"
 // before it, which loaded the observation of a file named "x\r" under "x"
