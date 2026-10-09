@@ -8,18 +8,35 @@ import (
 	"strings"
 )
 
+// extendedPath is p spelled as an extended-length path, which Win32 does not
+// normalise: a drive path gains `\\?\`, an ordinary UNC path `\\server\share\x`
+// becomes `\\?\UNC\server\share\x`, and a path already extended is kept. A
+// relative path has no such spelling and gives "".
+func extendedPath(p string) string {
+	switch {
+	case strings.HasPrefix(p, `\\?\`), strings.HasPrefix(p, `\\.\`):
+		return p
+	case strings.HasPrefix(p, `\\`):
+		return `\\?\UNC\` + p[2:]
+	case filepath.IsAbs(p):
+		return `\\?\` + p
+	}
+	return ""
+}
+
 // lstatEntry is os.Lstat for an entry the directory lists. Win32 strips a
 // trailing dot or space from a name, so asked plainly a listed `dot.` is "not
 // found", and a listed `plain.txt.` opens plain.txt itself, which respelling
-// would count as a second link to the source. Such a name is asked through an
-// extended-length path, which Win32 does not normalise, so every listed entry
-// is the entry it names (ADR-129 amendment; the Codex review of #360 and the
-// review of the fix). An entry not found either way has gone.
+// would count as a second link to the source. Such a name is asked through its
+// extended-length path, so every listed entry is the entry it names (ADR-129
+// amendment; the Codex reviews of #360 and the review of the fix). An entry not
+// found either way has gone.
 func lstatEntry(p string) (os.FileInfo, error) {
 	base := filepath.Base(p)
-	edge := strings.HasSuffix(base, ".") || strings.HasSuffix(base, " ")
-	if edge && filepath.IsAbs(p) && !strings.HasPrefix(p, `\\`) {
-		return os.Lstat(`\\?\` + p)
+	if strings.HasSuffix(base, ".") || strings.HasSuffix(base, " ") {
+		if ep := extendedPath(p); ep != "" {
+			return os.Lstat(ep)
+		}
 	}
 	return os.Lstat(p)
 }
