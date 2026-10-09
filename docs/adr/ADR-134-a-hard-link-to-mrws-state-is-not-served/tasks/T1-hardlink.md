@@ -23,6 +23,7 @@ Decisions 1–5 of the record, with a test that fails before them.
 | `internal/state/state.go`, `internal/state/dirpath134_test.go` | edit, add | `DirPath`: the state directory without making it |
 | `internal/rooted/hardlink134_test.go`, `hardlink134_unix_test.go`, `hardlink134_windows_test.go`, `hardlink134_other_test.go` | add | the tests: refused, symlink to the link, fail closed, held ledger, another checkout's ledger |
 | `internal/read/hardlink134_test.go` | add | a `--grep` walk drops the linked file |
+| `cmd/mrw/main.go`, `cmd/mrw/hardlink134_test.go` | edit, add | the plan file and the `--files-from` list, which never pass `Resolve`, are judged by `rooted.InStateOrLinked` |
 | `scripts/contract.sh` | edit | §236 |
 | `AGENTS.md` | edit | the ADR-077 paragraph names the hard link |
 
@@ -98,6 +99,7 @@ Stop and ask if the Windows walk is more than 1.3 times slower than at v1.52.0 o
 - 2026-10-09 · 83cf91c* · mutant killed · exit 1 · `internal/rooted/hardlink.go` · S2: the pre-test skips a file with two names — the lookup never runs for the ledger link · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · covers:a hard link to a state file is refused by the boundary and a hard link to an ordinary file is served
 - 2026-10-09 · 83cf91c* · mutant killed · exit 1 · `internal/rooted/hardlink.go` · S2: an incomplete listing of the state directory is treated as complete — the alias is served · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · covers:a hard link to a state file is refused by the boundary and a hard link to an ordinary file is served
 - 2026-10-09 · 5d45593 · mutant killed · exit 1 · `internal/rooted/hardlink.go` · S2: the state directory is listed as spelled — a moved and linked directory scans empty and complete · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · covers:a hard link to a state file is refused by the boundary and a hard link to an ordinary file is served
+- 2026-10-09 · 0dc41c9 · mutant killed · exit 1 · `internal/rooted/hardlink.go` · S2: a link in the state directory is skipped — the ledger moved out and linked back is not compared · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · covers:a hard link to a state file is refused by the boundary and a hard link to an ordinary file is served
 
 ## Verification Log
 - 2026-10-09 · 10d8a40* · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:14332
@@ -113,3 +115,4 @@ Stop and ask if the Windows walk is more than 1.3 times slower than at v1.52.0 o
 - 2026-10-09 · 83cf91c* · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:13875
 - 2026-10-09 · 83cf91c* · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:13822
 - 2026-10-09 · 5d45593 · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:16923
+- 2026-10-09 · 0dc41c9 · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:13973

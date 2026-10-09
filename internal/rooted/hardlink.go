@@ -93,7 +93,7 @@ func (s *stateLinks) scan() {
 			return err
 		}
 		switch {
-		case d.Type()&fs.ModeSymlink != 0:
+		case d.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0: // a link; on Windows a junction is irregular
 			err = s.noteLink(p)
 		case d.Type().IsRegular():
 			var fi os.FileInfo
@@ -123,9 +123,15 @@ func (s *stateLinks) note(fi os.FileInfo, p string) error {
 // the ledger moved elsewhere and left a link behind is still the ledger, and
 // the Codex review of #361 (third pass) served it by an alias. A link to a
 // directory is not examined, which refuses a file with a second name; a link
-// that leads nowhere has nothing to be a name of.
+// that leads nowhere has nothing to be a name of, and one that cannot be
+// followed (a directory on its way without search permission) leaves the
+// comparison incomplete (the fourth pass).
 func (s *stateLinks) noteLink(p string) error {
-	t := Real(p)
+	t, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return err
+	}
+	t = Real(t) // EvalSymlinks does not follow a Windows junction
 	fi, err := os.Lstat(t)
 	switch {
 	case err != nil:
@@ -185,4 +191,16 @@ func hardLinkRefusal(root, q, shown string) error {
 		return nil //nolint:nilerr // a path that cannot be examined, or is not a regular file, is not a candidate; the caller opens it and says why not
 	}
 	return s.refusal(fi, q, shown)
+}
+
+// InStateOrLinked is InState, and true as well for a regular file that is a
+// second name of a file in root's state directory (ADR-134). The CLI opens a
+// plan and a --files-from list from a path that never passed Resolve, so the
+// refusal ADR-077 gave them by spelling needs the identity test too.
+func InStateOrLinked(root, p string) bool {
+	if InState(p) {
+		return true
+	}
+	abs, err := Abs(root)
+	return err == nil && hardLinkRefusal(abs, RealAsFarAsItExists(p), p) != nil
 }

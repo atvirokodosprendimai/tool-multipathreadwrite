@@ -7,7 +7,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-077, ADR-123, ADR-131, ADR-007, ADR-002, docs/adr/BACKLOG.md
 **Invalidates:** None — it closes a gap in ADR-077's promise; no accepted clause says a hard link to the ledger is served
-**Governs:** `internal/rooted/rooted.go`, `internal/rooted/hardlink.go`, `internal/rooted/identity_unix.go`, `internal/rooted/identity_windows.go`, `internal/state/state.go`, `scripts/contract.sh`, `AGENTS.md`, `docs/adr/BACKLOG.md`
+**Governs:** `internal/rooted/rooted.go`, `internal/rooted/hardlink.go`, `internal/rooted/identity_unix.go`, `internal/rooted/identity_windows.go`, `internal/state/state.go`, `cmd/mrw/main.go`, `scripts/contract.sh`, `AGENTS.md`, `docs/adr/BACKLOG.md`
 **Enforced-by:** `internal/rooted/hardlink134_test.go::TestAHardLinkToMrwsStateIsRefused`
 **Served-path change:** a regular file inside the root that is the same file as a file in THIS checkout's state directory (a hard link to its ledger, ack store or lock) is refused on every surface that ADR-077 refuses the state itself — a read, a plan, a `check` path, a working-set entry — naming mrw's own state; a `--grep` drops it as it drops any path the boundary refuses. A file with a second name that cannot be compared to the end is refused saying so. A hard link to an ordinary file is served as before, and so is a link to another checkout's ledger.
 
@@ -19,7 +19,7 @@ ADR-077 promises that mrw's own state is never served as the caller's file: a re
 
 **Bound.** Making the link needs write access to the state directory and to the root. The ledger is saved by rename (`state.Write`), so after the next save the tree copy is the OLD inode: a stale snapshot, no longer the live file, and a write through the link lands on the snapshot only. Until that save the link IS the live ledger.
 
-**Audit of the class** — *a path by which a served file can be mrw's state file*: `mrw read --grep 'inStateAt|inState\(|rooted\.InState' --exclude '*_test.go' .` names three sites in `internal/rooted/rooted.go` (`resolveIn`, `Resolver.dir`, `InState`) and two callers of `InState` in `cmd/mrw/main.go` (1190, 2580), which judge a command-line path and then pass it to `Resolve`. Of those, only `resolveIn` and `Resolver.Resolve` judge a file; `Resolver.dir` judges a directory, which a hard link cannot be (no filesystem links directories). Two sites.
+**Audit of the class** — *a path by which a served or opened file can be mrw's state file*: `mrw read --grep 'inStateAt|inState\(|rooted\.InState' --exclude '*_test.go' .` names three sites in `internal/rooted/rooted.go` (`resolveIn`, `Resolver.dir`, `InState`) and two callers of `InState` in `cmd/mrw/main.go` (the plan file, 1190, and the `--files-from` list, 2580). Of the first three only `resolveIn` and `Resolver.Resolve` judge a file; `Resolver.dir` judges a directory, which a hard link cannot be (no filesystem links directories). The two `cmd/mrw` sites open a shell argument that never passes `Resolve` (the ADR audit first said they did, and the Codex review of #361, fourth pass, showed they do not: a hard link to the ack store passed as a plan was parsed and its JSON quoted back). Four sites.
 
 **What the first draft got wrong** (the Codex review of #361, and a measurement of 2026-10-09). The first draft scanned every checkout's directory under the state base, compared with `os.SameFile`, and treated a directory it could not list as "no match". Four findings held. (1) An incomplete scan answered "not a state file" for the part it could not read, so an unlistable directory removed a ledger from the comparison and left its alias served. (2) On Windows `os.SameFile` opens with share mode 0 (Go 1.26.9, `os/types_windows.go`, `loadFileId`) and answers false when another process holds the file, so a ledger held open was served by its alias. (3) `read.Run` resolves every matching path afresh, so a grep matching K hard-linked files scanned the base K times: measured on macOS, 6,000 ordinary hard-linked files and a base of 500 other checkouts' directories, 0.54-0.75 s on v1.52.0, 62-77 s on the first draft. (4) A scan kept for one walk does not see a link made to a state file during that walk; that one is a bound, below, not a defect.
 
@@ -38,6 +38,7 @@ ADR-077 promises that mrw's own state is never served as the caller's file: a re
 3. **The comparison is with this checkout's state directory** (`state.DirPath`, listed where it really is, so a directory that is itself a link is followed), the files that license a write here. On first need the directory is listed for files whose own link count is above one — only those can have a second name — and their identities are kept for one walk (`Resolver`) or one `Resolve` call. A link in the directory is followed to the file it leads to (the ledger moved elsewhere and left a link behind is still the ledger); a link to a directory is not examined, which is Decision 4. A name that vanishes while the directory is listed (a ledger saved by rename) is passed over. A checkout with no state directory, or a machine with no state base, holds nothing to link to and costs nothing.
 4. **A comparison that cannot be completed refuses.** A file with a second name whose identity cannot be read, or whose state directory cannot be listed or examined to the end, is refused: "`<path>` has more than one name, and mrw cannot tell whether one is a file in its own state directory". A file with one name is never held up by it.
 5. **A hard link to an ordinary file is served.** A pnpm store, a Go build cache and a package manager's deduplicated tree are full of link counts above one; only identity with a state file refuses them.
+6. **The two CLI inputs that never pass `Resolve` are judged by the same identity test** (`rooted.InStateOrLinked`): a plan file and a `--files-from` list that is a second name of a file in this checkout's state directory are refused, as one inside the base already was.
 
 ## Alternatives Considered
 
@@ -54,7 +55,7 @@ ADR-077 promises that mrw's own state is never served as the caller's file: a re
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| `rooted.Resolve`, `Resolver.Resolve` | refuse a hard link to a state file | T1 | read, apply, check, mcp, `--grep`, `--ast-grep` (through the boundary) |
+| `rooted.Resolve`, `Resolver.Resolve`, `rooted.InStateOrLinked` | refuse a hard link to a state file | T1 | read, apply, check, mcp, `--grep`, `--ast-grep` (through the boundary); the CLI plan file and `--files-from` list |
 | `scripts/contract.sh` | §236 | T1 | CI Linux |
 | `AGENTS.md` | ADR-077 paragraph names the hard link | T1 | every agent |
 
@@ -81,6 +82,7 @@ See `tasks/README.md`: T1.
 - A state file reached by a name the caller made in ANOTHER filesystem (permanent: boundary: a hard link cannot cross volumes, so the identity never matches; nothing to refuse)
 - A hard link to ANOTHER checkout's ledger (permanent: boundary: it licenses no write in this checkout, whose ledger is keyed by its own path; a plan that writes the alias replaces the checkout-local name, because a commit renames a staged file over it, and leaves the other ledger as it was; what a read shows is another checkout's paths and shas. Comparing with every checkout's directory cost 62-77 s on a 6,000-file grep, Alternatives; `TestALinkToAnotherCheckoutsLedgerIsNotJudged` pins the decision)
 - A link made to a state file DURING a walk (permanent: boundary: the comparison is read once per walk, the staleness ADR-131 accepts for a directory swapped mid-walk; `read.Run` resolves afresh before it serves, so no content is served, and only a caller racing the walk could learn that a pattern matched)
+- A state file relocated INTO the tree by a link from the state directory (permanent: boundary: the user moved the live ledger into the checkout and left a link behind; the file has one name, so the link-count pre-test passes it, and comparing every served file with the state directory would cost an identity read and a listing per file; the tree path is outside the base, so ADR-077's spelling test cannot see it either. A caller who does that has chosen to hold their ledger as a tree file)
 
 ## Risks
 

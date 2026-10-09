@@ -857,7 +857,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			default:
 				args := posArgs
 				if filesFromSet {
-					list, err := specList(filesFrom)
+					list, err := specList(root, filesFrom)
 					if err != nil {
 						return cli.Exit(err, exitUsage)
 					}
@@ -1187,8 +1187,8 @@ held or went unchecked.`,
 				// ADR-077: the plan is a shell argument and never passed the
 				// boundary; a plan naming mrw's ack store had its JSON quoted
 				// back as "text before the first @@ header" (Codex review of #238).
-				if abs, err := filepath.Abs(args[0]); err == nil && rooted.InState(abs) {
-					return refuse(fmt.Sprintf("%s is inside mrw's own state directory; mrw does not read its own files as a plan", args[0]))
+				if abs, err := filepath.Abs(args[0]); err == nil && rooted.InStateOrLinked(cmd.String("root"), abs) {
+					return refuse(fmt.Sprintf("%s is inside mrw's own state directory, or is a hard link to a file in it; mrw does not read its own files as a plan", args[0]))
 				}
 				f, err := os.Open(args[0])
 				if err != nil {
@@ -2568,7 +2568,7 @@ func subcommand(cmds []*cli.Command, name string) *cli.Command {
 // Blank lines are skipped and a leading '#' is a comment, so a generated list
 // can carry provenance without the reader stripping it. Nothing else is
 // interpreted: each remaining line is a spec, parsed exactly as an argv one is.
-func specList(name string) ([]string, error) {
+func specList(root, name string) ([]string, error) {
 	var r io.Reader
 	if name == "-" {
 		r = os.Stdin
@@ -2577,8 +2577,8 @@ func specList(name string) ([]string, error) {
 		// directory, and never passed the boundary; a list naming mrw's own
 		// ack store had its JSON quoted back in the parse error, checkpoint
 		// ids and all (Codex review of #238).
-		if abs, err := filepath.Abs(name); err == nil && rooted.InState(abs) {
-			return nil, fmt.Errorf("--files-from %s is inside mrw's own state directory; mrw does not read its own files as input", name)
+		if abs, err := filepath.Abs(name); err == nil && rooted.InStateOrLinked(root, abs) {
+			return nil, fmt.Errorf("--files-from %s is inside mrw's own state directory, or is a hard link to a file in it; mrw does not read its own files as input", name)
 		}
 		f, err := os.Open(name)
 		if err != nil {
