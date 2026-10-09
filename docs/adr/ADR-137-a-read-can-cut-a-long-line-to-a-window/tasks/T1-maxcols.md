@@ -36,9 +36,9 @@ Decisions 1–4 of the record, with tests that fail before them.
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/read/ -count=1 -timeout 300s -run 'TestAnOverlongLineIsCutToAWindowAndLicensesNothing|TestTheWindowCentresOnTheMatch' -v 2>&1 | tee "$out" \
+  && go test ./internal/read/ -count=1 -timeout 300s -run 'TestAnOverlongLineIsCutToAWindowAndLicensesNothing|TestTheWindowCentresOnTheMatch|TestAWholeFileReadThatCutALineStillLeavesItOutOfTheLedger' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestAnOverlongLineIsCutToAWindowAndLicensesNothing \(' "$out" \
-  && grep -qE '^--- PASS: TestTheWindowCentresOnTheMatch \(' "$out" \
+  && grep -qE '^--- PASS: TestTheWindowCentresOnTheMatch \(' "$out" && grep -qE '^--- PASS: TestAWholeFileReadThatCutALineStillLeavesItOutOfTheLedger \(' "$out" \
   && go test ./cmd/mrw/ -count=1 -timeout 300s -run 'TestAPlanToACutLineIsRefusedAsUnread' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestAPlanToACutLineIsRefusedAsUnread \(' "$out" \
   && go test ./internal/read/ ./internal/mcp/ -count=1 -timeout 900s \
@@ -53,6 +53,7 @@ out=$(mktemp) \
 |-----------|------|----------|--------|-------|
 | `TestAnOverlongLineIsCutToAWindowAndLicensesNothing` | `internal/read/maxcols137_test.go` | the cut line shows the match and is not in the recorded spans | none | S1, S2 |
 | `TestTheWindowCentresOnTheMatch` | `internal/read/maxcols137_test.go` | the window is centred, clamped, and cut on runes | none | S1, S2 |
+| `TestAWholeFileReadThatCutALineStillLeavesItOutOfTheLedger` | `internal/read/maxcols137_whole_test.go` | a whole-file read that cut a line records the lines either side, not the file | none | S1, S2 |
 | `TestAPlanToACutLineIsRefusedAsUnread` | `cmd/mrw/maxcols137_test.go` | a plan to the cut line is refused, one to a whole line applies, a negative width is exit 2 | none | S1, S2 |
 
 ## Reachability
@@ -83,5 +84,14 @@ Stop and ask if the ledger cannot represent a span with a hole (a split span) �
 - `mrw_read`, JSON paths, `--limit` (deferred: docs/adr/BACKLOG.md)
 
 ## Mutation Log
+- 2026-10-10 · 2cb2cc0 · mutant killed · exit 1 · `internal/read/read.go` · S2: the lines before a cut line are not recorded · acceptance-sha256:64e0738ae554ba800cd39707eb701198388a9315e81f0361148f96ce67cc4675 · covers:a line longer than the width is served as a window around the match and is not recorded as read
+- 2026-10-10 · 2cb2cc0* · mutant survived · exit 0 · `internal/read/read.go` · S2: a read that cut a line is still recorded as the whole file · acceptance-sha256:64e0738ae554ba800cd39707eb701198388a9315e81f0361148f96ce67cc4675 · covers:a line longer than the width is served as a window around the match and is not recorded as read
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-10 · 2cb2cc0* · mutant killed · exit 1 · `internal/read/maxcols.go` · S2: the window is taken from the start, not centred on the match · acceptance-sha256:64e0738ae554ba800cd39707eb701198388a9315e81f0361148f96ce67cc4675 · covers:a line longer than the width is served as a window around the match and is not recorded as read
 
 ## Verification Log
+- 2026-10-10 · 2cb2cc0 · exit 0 · `set -o pipefail …` · acceptance-sha256:64e0738ae554ba800cd39707eb701198388a9315e81f0361148f96ce67cc4675 · ms:39426
+- 2026-10-10 · 2cb2cc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:64e0738ae554ba800cd39707eb701198388a9315e81f0361148f96ce67cc4675 · ms:34678
+- 2026-10-10 · 2cb2cc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:64e0738ae554ba800cd39707eb701198388a9315e81f0361148f96ce67cc4675 · ms:36490
