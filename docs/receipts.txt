@@ -211,3 +211,4 @@ write then.steps[].truncated_lines
 mcp_write drift_writers
 write drift_writers
 mcp_read skipped.nested
+mcp_read skipped.unkeepable

@@ -86,7 +86,7 @@ func Resolve(root, path string) (string, error) {
 func aliasRefusal(path string) error {
 	if followLinks {
 		if c, _ := win32Alias(path); c != "" {
-			return fmt.Errorf("%s: Windows does not keep %q as written (it drops a trailing dot or space from a name, reads ':' as a stream, and turns a byte that is not valid UTF-8 into U+FFFD); name the file as it is on disk", path, c)
+			return aliasError(fmt.Sprintf("%s: Windows does not keep %q as written (it drops a trailing dot or space from a name, reads ':' as a stream, and turns a byte that is not valid UTF-8 into U+FFFD); name the file as it is on disk", path, c))
 		}
 	}
 	return nil
@@ -210,6 +210,25 @@ var ErrNotADirectory = errors.New("names a directory, ending in a separator, `.`
 // its own error so a caller does not append advice that fits an escape from the
 // root — no --root makes `con` a file (the review of #243).
 var ErrDeviceName = errors.New("a Windows device name")
+
+// ErrWin32Alias is Resolve's refusal of a name Windows would not keep as written
+// (ADR-071): a trailing dot or space, a stream, a byte that is not UTF-8.
+var ErrWin32Alias = errors.New("a name Windows does not keep as written")
+
+// aliasError is aliasRefusal's refusal: its words are the message, ErrWin32Alias
+// is what errors.Is finds.
+type aliasError string
+
+func (e aliasError) Error() string { return string(e) }
+
+func (e aliasError) Is(target error) bool { return target == ErrWin32Alias }
+
+// UnkeepableName reports whether err is Resolve's refusal of a name Windows will
+// not keep, as opposed to its refusals of where a path leads (ADR-135). Only a
+// refusal made by the spelling alone may be counted by a walk.
+func UnkeepableName(err error) bool {
+	return errors.Is(err, ErrDeviceName) || errors.Is(err, ErrWin32Alias)
+}
 
 // deviceName refuses p when the part of at that lies under absRoot holds a
 // reserved device name in any component. The root's own components are not
