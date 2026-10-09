@@ -53,6 +53,7 @@ out=$(mktemp) \
 | `TestAWalkCountsTheLinksToDirectoriesItDoesNotFollow` | `internal/read/linkeddirs138_test.go` | the link is counted, the real path served once, the note says so | none | S1, S2 |
 | `TestAnEscapingLinkToADirectoryIsNotCounted` | `internal/read/linkeddirs138_test.go` | a link out of the root stays silent | none | S1, S2 |
 | `TestALinkToAFileIsServedNotCounted` | `internal/read/linkeddirs138_test.go` | a link to a file is a candidate, not a directory link | none | S1, S2 |
+| `TestAFifoIsNotCountedAsALinkToADirectory` | `internal/read/linkeddirs138_unix_test.go` | a FIFO is not counted as a link to a directory | none | S1, S2 |
 
 ## Reachability
 
@@ -81,5 +82,14 @@ Stop and ask if counting a link to a directory needs a read of the directory's c
 - A FIFO, socket or device (deferred: docs/adr/BACKLOG.md)
 
 ## Mutation Log
+- 2026-10-10 · 37aee68 · mutant killed · exit 1 · `internal/read/walk.go` · S2: the link is dropped uncounted again · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · covers:a link to a directory met by a walk inside the root is counted on the skipped line and not followed
+- 2026-10-10 · 37aee68* · mutant survived · exit 0 · `internal/read/walk.go` · S2: any link is counted as a link to a directory, a file link included · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · covers:a link to a directory met by a walk inside the root is counted on the skipped line and not followed
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-10 · 37aee68* · mutant killed · exit 1 · `internal/read/walk.go` · S2: the tail promises a flag walks the links when only links were skipped · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · covers:a link to a directory met by a walk inside the root is counted on the skipped line and not followed
 
 ## Verification Log
+- 2026-10-10 · 37aee68 · exit 0 · `set -o pipefail …` · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · ms:32088
+- 2026-10-10 · 37aee68* · exit 0 · `set -o pipefail …` · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · ms:30895
+- 2026-10-10 · 37aee68* · exit 0 · `set -o pipefail …` · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · ms:31792
