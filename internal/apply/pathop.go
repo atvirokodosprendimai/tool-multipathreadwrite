@@ -78,13 +78,11 @@ func respelling(src, dst string) int {
 	// link to it under another name.
 	listed, same := false, 0
 	for _, e := range es {
-		fi, err := os.Lstat(filepath.Join(dir, e.Name()))
+		fi, err := lstatEntry(filepath.Join(dir, e.Name()))
 		if errors.Is(err, fs.ErrNotExist) {
-			// A name this platform lists and cannot open: on Windows one that
-			// ends in a dot or a space, which Win32 strips. It cannot be asked
-			// whether it is the source's file, and asking it about the
-			// destination was how one such sibling refused every case-only
-			// rename in its directory (the Windows chaos round, 2026-10-09).
+			// An entry the directory lists that is not there to open: it went
+			// between the listing and now. lstatEntry has already asked again
+			// the one way a name Win32 normalises away can be asked.
 			continue
 		}
 		if err != nil {
