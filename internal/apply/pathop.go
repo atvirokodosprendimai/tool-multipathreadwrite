@@ -1,7 +1,9 @@
 package apply
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,14 +78,26 @@ func respelling(src, dst string) int {
 	// link to it under another name.
 	listed, same := false, 0
 	for _, e := range es {
-		if e.Name() == dstLeaf {
-			return anotherEntry
-		}
 		fi, err := os.Lstat(filepath.Join(dir, e.Name()))
+		if errors.Is(err, fs.ErrNotExist) {
+			// A name this platform lists and cannot open: on Windows one that
+			// ends in a dot or a space, which Win32 strips. It cannot be asked
+			// whether it is the source's file, and asking it about the
+			// destination was how one such sibling refused every case-only
+			// rename in its directory (the Windows chaos round, 2026-10-09).
+			continue
+		}
 		if err != nil {
 			return anotherEntry
 		}
-		if os.SameFile(fi, si) {
+		isSource := os.SameFile(fi, si)
+		// The destination's own leaf is listed as another file: refused. As
+		// the source's own entry (the plan spelled the source otherwise) it is
+		// no other file, and falls to !listed below, which names the cause.
+		if e.Name() == dstLeaf && !isSource {
+			return anotherEntry
+		}
+		if isSource {
 			same++
 			listed = listed || e.Name() == srcLeaf
 		}

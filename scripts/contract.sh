@@ -8642,6 +8642,23 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 235. ADR-129 amendment (the Windows chaos round, 2026-10-09). A plan that
+# spells the source otherwise than its directory does, and names as the
+# destination the spelling the directory holds, was refused "dest already
+# exists" — the dest is the source's own entry. It is refused naming the cause,
+# the source's spelling. Where a filesystem does not fold case, as on Linux CI,
+# the pair is skipped saying so: P235.TXT and p235.txt are two names there.
+fixture
+printf 'x\n' > "$R/p235.txt"
+if [ -e "$R/P235.TXT" ]; then
+  m read P235.TXT >"$WORK/served.out"
+  printf '@@ P235.TXT - rename\np235.txt\n' > "$WORK/p235"
+  out=$(m write --no-check "$WORK/p235" 2>&1); want 1 $? "a rename whose source is spelled otherwise than its directory exits 1"
+  { grep -q 'not spelled that way' <<<"$out" && ls "$R" | grep -qx 'p235.txt'; } && ok "naming the source's spelling, the directory unchanged" || bad "other-spelling rename: $out"
+else
+  skip "a rename from a spelling the directory does not hold (this filesystem does not fold case)"
+fi
+
 # 234. ADR-133: a read sent to the null device licenses nothing. Its answer
 # reached nobody, yet the ledger recorded every line, so a write to them went
 # through as if they had been read. The read still exits 0 and says on stderr
