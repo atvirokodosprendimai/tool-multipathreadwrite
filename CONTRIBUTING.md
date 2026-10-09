@@ -4,7 +4,7 @@
 
 | for | you need |
 |---|---|
-| building and testing | **Go 1.26.6 or newer** (the version in `go.mod`). One dependency, no cgo. |
+| building and testing | **Go 1.26.9 or newer** (the version in `go.mod`). One dependency, no cgo. |
 | `scripts/measure.sh` | **bash**, **git**, **awk**, and a POSIX userland (`sed`, `tr`, `wc`, `mktemp`, `rm`, …). No `bc`: it was `measure.sh`'s only user and `bc scale=1` truncated the ratios. It builds its own binary from the working tree and stamps the commit — unless `MRW` names one, and then the header says the binary came from elsewhere, because the commit describes only the fixtures and the file list. |
 | `scripts/contract.sh` | the same, plus **python3** (JSON, throughout), **perl**, **jq**, **shasum**, **pgrep** and **seq** (not POSIX). ⚠ This row has been wrong four times: it listed `bc`, which nothing needs; it omitted `python3`, which is mandatory; "a POSIX userland" covered `seq`, which is not in POSIX; and it carried counts — 86 python3 lines, 21 `seq` lines — of which the first was 94 by the time anyone re-counted. The counts are gone rather than corrected: a number in prose beside a script goes stale in the very commit that changes the script, and no reader of this row was ever going to act on it. It names the NON-baseline commands and says "a POSIX userland" for the rest rather than pretending to enumerate every `sed` and `wc` — an incomplete list that reads as complete is what made the earlier versions misleading. |
 | either script on Windows | **WSL** or **Git Bash**. They are POSIX shell, not PowerShell. The binary itself is native. |
