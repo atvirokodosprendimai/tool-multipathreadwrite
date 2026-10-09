@@ -378,7 +378,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   A multi-line `replace` is refused unless the ledger already covers a line after
   `End` (ADR-052). Single-line replace is unchanged. When `End` is the last line
   the licence is skipped. A ranged multi-line read that is not through last line
-  prints a note that a multi-line replace needs a served line after End.
+  prints a note, once per read, that a multi-line replace needs a served line after End (ADR-136).
   `--echo-pad N` (MCP `echo_pad`, default 0) prints N
   lines after the body so a surviving closer is visible; the hunk stays `ok`.
   The pad is not a checker.
