@@ -30,7 +30,7 @@ ADR-096 decision 2: a walk follows no link to a directory, because a link can le
 1. **The walk counts a discovered path that resolves inside the root, is a link, and leads to a directory** (its `Lstat` is not a directory, its `Stat` is). The set is keyed by root-relative path; `WalkSkipped.LinkedDirs` counts it (`json:"linked_dirs"`); the link is still not followed and nothing under it is served.
 2. **`SkipNote` says it**: `N link(s) to a directory, not followed`. The tail says the flag walks them for the ignore-class counts; no flag follows a link, so when only unfollowed or unkeepable paths were skipped the tail is `name one to be told why`, and beside the other counts it adds that naming one tells why the rest are refused. Naming a link to a directory is refused with the directory to name (ADR-096).
 3. **`mrw_read` carries `skipped.linked_dirs`**, appended to `docs/receipts.txt` (ADR-111).
-4. **A link that leaves the root, loops or dangles is not counted**: `Resolve` refuses it first and the refusal stays silent (ADR-007 rule 2), so the count never says where a link leads.
+4. **A link that leaves the root, loops or dangles is not counted**: an escaping link is refused by `Resolve` first and the refusal stays silent (ADR-007 rule 2); a link that loops or dangles is not a directory to `Stat`, which is what stops the count (on POSIX `Resolve` can fall back to an existing ancestor, so it is not `Resolve` that stops these). The count never says where a link leads.
 
 ## Alternatives Considered
 

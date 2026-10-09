@@ -367,7 +367,17 @@ func (w *walker) walkDir(named string, full string) {
 			// ModeSymlink, so a Windows junction is a link too (ADR-096).
 			if err == nil && st.IsDir() {
 				if lfi, lerr := os.Lstat(full); lerr == nil && !lfi.IsDir() {
-					w.skipLinks[filepath.ToSlash(rel)] = true
+					// The caller's own rules come first, as for a file: an excluded
+					// name is not reported, and a name the ignore rules name is the
+					// ignored directory it is, pruned (the Codex review of #369).
+					r := filepath.ToSlash(rel)
+					switch {
+					case w.excluded(rel):
+					case w.ignored(r, true, from):
+						w.skipDirs[r] = true
+					default:
+						w.skipLinks[r] = true
+					}
 				}
 			}
 			return nil //nolint:nilerr // any other discovered non-file is skipped in silence
