@@ -13,7 +13,7 @@ the task needs a decision the brief does not make.
 
 ## mrw is the ONLY read/write path (HARD RULE)
 
-- Read, many ranges in one call: `mrw read a.go:40-60 b.go:/^func Start/,/^}/ c.go:$`
+- Read, many ranges in one call (quote every spec that holds a space): `mrw read a.go:40-60 'b.go:/^func Start/,/^}/' 'c.go:$'`
 - Search: `mrw read --grep 'func Handle' -C 3 --exclude '*_test.go' internal/` — never grep, rg,
   cat, sed -n, head or awk on file contents.
 - Files you cannot name: `rg -l PATTERN . | mrw read --files-from -`; outside the checkout:
@@ -30,7 +30,8 @@ the task needs a decision the brief does not make.
   A write is refused for a line mrw has not served you; read it first. A multi-line replace needs
   `anchor=` and a served line after its range. Never `sed -i`, `echo >`, a heredoc to a file, `cp`
   or `gofmt -w` on project files; never send a licensing read to /dev/null (ADR-133).
-- Exit codes: 0 ok, 1 nothing written, 2 usage, 3 written but the check failed. Never read one
+- Exit codes: 0 ok, 1 nothing written, 2 usage or filesystem failure (read the receipt: files may
+  already be written), 3 written but the check failed, timed out or was interrupted. Never read one
   through a pipe.
 
 ## The drill

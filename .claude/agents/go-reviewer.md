@@ -14,7 +14,7 @@ push, or run `mrw write`. You may build and run tests into a scratch directory o
 
 ## How to read (HARD RULE: mrw is the only read path)
 
-- Ranges, many in one call: `mrw read internal/rooted/rooted.go:74-160 internal/read/walk.go:/^func Walk/,/^}/`
+- Ranges, many in one call (quote every spec that holds a space): `mrw read internal/rooted/rooted.go:74-160 'internal/read/walk.go:/^func Walk/,/^}/'`
 - Search: `mrw read --grep 'PATTERN' -C 3 --exclude '*_test.go' internal/` — not grep, rg, cat, sed, head or awk.
 - Files you cannot name: `rg -l PATTERN . | mrw read --files-from -`. Reading a file's contents with
   cat, sed -n, head, awk or a Read tool is the rule broken; say so in the report if it happens.
