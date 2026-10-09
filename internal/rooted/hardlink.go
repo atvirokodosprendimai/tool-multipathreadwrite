@@ -92,23 +92,50 @@ func (s *stateLinks) scan() {
 		if err != nil {
 			return err
 		}
-		if !d.Type().IsRegular() {
-			return nil
-		}
-		fi, err := d.Info()
-		if err == nil {
-			var key fileKey
-			var n uint64
-			if key, n, err = identity(fi, p); err == nil && n > 1 {
-				s.ids[key] = struct{}{}
+		switch {
+		case d.Type()&fs.ModeSymlink != 0:
+			err = s.noteLink(p)
+		case d.Type().IsRegular():
+			var fi os.FileInfo
+			if fi, err = d.Info(); err == nil {
+				err = s.note(fi, p)
 			}
 		}
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil
+			return nil // a name that vanished while the directory was listed
 		}
 		return err
 	})
 	s.bad = s.bad || err != nil
+}
+
+// note keeps the identity of fi, the regular file at p, when it has a second
+// name.
+func (s *stateLinks) note(fi os.FileInfo, p string) error {
+	key, n, err := identity(fi, p)
+	if err == nil && n > 1 {
+		s.ids[key] = struct{}{}
+	}
+	return err
+}
+
+// noteLink does the same for the file a link in the state directory leads to:
+// the ledger moved elsewhere and left a link behind is still the ledger, and
+// the Codex review of #361 (third pass) served it by an alias. A link to a
+// directory is not examined, which refuses a file with a second name; a link
+// that leads nowhere has nothing to be a name of.
+func (s *stateLinks) noteLink(p string) error {
+	t := Real(p)
+	fi, err := os.Lstat(t)
+	switch {
+	case err != nil:
+		return err
+	case fi.Mode().IsRegular():
+		return s.note(fi, t)
+	case fi.IsDir():
+		return fmt.Errorf("%s is a link to a directory", p)
+	}
+	return nil
 }
 
 // refusal judges fi, the regular file at path (shown to the caller as shown).
