@@ -113,6 +113,7 @@ Stop and ask if the Windows walk is more than 1.3 times slower than at v1.52.0 o
 - 2026-10-09 · 5bb9277* · mutant killed · exit 1 · `internal/rooted/hardlink.go` · S2: a link in the state directory is skipped — the ledger moved out and linked back is not compared · acceptance-sha256:d0aa1baec47a28fbaf1b753374956c4db948dac2c455f8c249f49ce6196f8c5f · covers:a hard link to a state file is refused by the boundary and a hard link to an ordinary file is served
 - 2026-10-09 · 5bb9277* · mutant killed · exit 1 · `internal/rooted/hardlink.go` · S2: the plan file and --files-from list are judged by spelling only — a hard link to the ack store is parsed and quoted back · acceptance-sha256:d0aa1baec47a28fbaf1b753374956c4db948dac2c455f8c249f49ce6196f8c5f · covers:a hard link to a state file is refused by the boundary and a hard link to an ordinary file is served
 - 2026-10-09 · 5bb9277* · mutant killed · exit 1 · `internal/rooted/hardlink.go` · S2: a state-directory link that cannot be followed is passed over as leading nowhere · acceptance-sha256:d0aa1baec47a28fbaf1b753374956c4db948dac2c455f8c249f49ce6196f8c5f · covers:a hard link to a state file is refused by the boundary and a hard link to an ordinary file is served
+- 2026-10-09 · 89eac6d · mutant killed · exit 1 · `internal/rooted/hardlink.go` · S2: the state directory is listed as spelled — a moved and linked directory cannot tell the ledger alias from an ordinary hard link and refuses both · acceptance-sha256:d0aa1baec47a28fbaf1b753374956c4db948dac2c455f8c249f49ce6196f8c5f · covers:a hard link to a state file is refused by the boundary and a hard link to an ordinary file is served
 
 ## Verification Log
 - 2026-10-09 · 10d8a40* · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:14332
@@ -137,3 +138,17 @@ Stop and ask if the Windows walk is more than 1.3 times slower than at v1.52.0 o
 - 2026-10-09 · 5bb9277* · exit 0 · `set -o pipefail …` · acceptance-sha256:d0aa1baec47a28fbaf1b753374956c4db948dac2c455f8c249f49ce6196f8c5f · ms:16196
 - 2026-10-09 · 5bb9277* · exit 0 · `set -o pipefail …` · acceptance-sha256:d0aa1baec47a28fbaf1b753374956c4db948dac2c455f8c249f49ce6196f8c5f · ms:16519
 - 2026-10-09 · 5bb9277* · exit 0 · `set -o pipefail …` · acceptance-sha256:d0aa1baec47a28fbaf1b753374956c4db948dac2c455f8c249f49ce6196f8c5f · ms:15576
+- 2026-10-09 · 89eac6d · exit 0 · `set -o pipefail …` · acceptance-sha256:d0aa1baec47a28fbaf1b753374956c4db948dac2c455f8c249f49ce6196f8c5f · ms:16386
+- 2026-10-09 · 89eac6d* · exit 0 · `set -o pipefail …` · acceptance-sha256:d0aa1baec47a28fbaf1b753374956c4db948dac2c455f8c249f49ce6196f8c5f · ms:15419
+- 2026-10-09 · 89eac6d* · exit 1 · `set -o pipefail …` · acceptance-sha256:d0aa1baec47a28fbaf1b753374956c4db948dac2c455f8c249f49ce6196f8c5f · ms:771 · test-lock-sha256:5c9df7be56f9f808665205265fbc04802f4e86c3498c1391a5754cdc1d777757 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvcmVhZC9oYXJkbGluazEzNF90ZXN0LmdvCVRlc3RBV2Fsa0Ryb3BzQUhhcmRMaW5rVG9NcndzU3RhdGUJNmFhOWVjYTExMDliZWI1ZDhmMmRlODQ4N2MxNDFiMGZiMzA4YTIwOGUxZDI5NWQ4NjJlNGMwZGExOTBhNDYzYwpib2R5CWludGVybmFsL3Jvb3RlZC9oYXJkbGluazEzNF90ZXN0LmdvCVRlc3RBSGFyZExpbmtUb01yd3NTdGF0ZUlzUmVmdXNlZAk4NmQ2YzIwMzgwMDEyNTAyY2RkM2Y5MWQwNDcyMDU2MjYwMDIyNWRjOTU1NGYxZDU0NGVkNzljMWVhNzMyMGFiCmJvZHkJaW50ZXJuYWwvcm9vdGVkL2hhcmRsaW5rMTM0X3Rlc3QuZ28JVGVzdEFMaW5rVGhlTmV4dFNhdmVSZXBsYWNlZElzQW5PcmRpbmFyeUNvcHkJYmYxZDQ0YzMxOTk1MDQ2YTljYzliZjRjOWY1MjQxY2YxMTNhZjRkNWQ2N2NlZDg3MDlmOGQxMTlmNGQwNjdkYQpib2R5CWludGVybmFsL3Jvb3RlZC9oYXJkbGluazEzNF90ZXN0LmdvCVRlc3RBU3ltbGlua1RvQUhhcmRMaW5rVG9NcndzU3RhdGVJc1JlZnVzZWQJM2RkNTdmMGQ4NTJhZWYzMTI3MTA4MzdjYzQwZWY5MTRhZTQ2MjVhN2IwZjdhNzU4Y2JhYmNiNGI4OTY3YTI1OA
+  ```
+  --- last 7 line(s) of stdout
+  === RUN   TestAHardLinkToMrwsStateIsRefused
+      hardlink134_test.go:49: Resolve(hl.txt), a hard link to the ledger = <nil>, want it refused as mrw's own state
+      hardlink134_test.go:49: Resolver.Resolve(hl.txt), a hard link to the ledger = <nil>, want it refused as mrw's own state
+  --- FAIL: TestAHardLinkToMrwsStateIsRefused (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted	0.211s
+  FAIL
+  ```
+- 2026-10-09 · 89eac6d* · exit 0 · `set -o pipefail …` · acceptance-sha256:d0aa1baec47a28fbaf1b753374956c4db948dac2c455f8c249f49ce6196f8c5f · ms:15015

@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | a file that is the same file as a state file is refused at the boundary | pending | none | `docs/adr/ADR-134-a-hard-link-to-mrws-state-is-not-served/tasks/T1-hardlink.md` fence |
+| T1 | a file that is the same file as a state file is refused at the boundary | done | none | `docs/adr/ADR-134-a-hard-link-to-mrws-state-is-not-served/tasks/T1-hardlink.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
