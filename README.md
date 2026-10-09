@@ -90,10 +90,12 @@ rg -l 'func Handle' . | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 
 A pattern that matches no file is reported by name and exits 1.
 
-A read whose standard output is the null device (`>/dev/null`, `>NUL`) is still
+A read whose standard output is the null device (`>/dev/null`, cmd.exe's `>NUL`) is still
 served and exits as usual, but records nothing in the ledger and says so on
 stderr: a write to those lines is then refused as unread, as after `--stat`.
-mrw cannot see past a pipe or a file, so those record as before (ADR-133).
+mrw cannot see past a pipe or a file, so those record as before, and so does PowerShell's
+`> $null` or `| Out-Null`, which hand mrw a pipe, as does PowerShell 7's `> NUL`. In Windows PowerShell 5.1 `> NUL` fails
+before mrw starts (Out-File cannot open a device), so nothing is read (ADR-133).
 
 **A shell glob and an address suffix do not mix.** `mrw read 'dir/*.go:1-3'`
 takes the star literally and reports the path UNREADABLE; unquoted, zsh refuses
