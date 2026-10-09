@@ -97,6 +97,7 @@ Stop and ask if the ledger cannot represent a span with a hole (a split span) �
   ```
   the fence failed on a build/parse error, not an assertion
   ```
+- 2026-10-10 · e5dd0c4 · mutant killed · exit 1 · `internal/read/read.go` · S2: the width is counted in bytes, not characters · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · covers:a line longer than the width is served as a window around the match and is not recorded as read
 
 ## Verification Log
 - 2026-10-10 · 2cb2cc0 · exit 0 · `set -o pipefail …` · acceptance-sha256:64e0738ae554ba800cd39707eb701198388a9315e81f0361148f96ce67cc4675 · ms:39426
@@ -106,3 +107,15 @@ Stop and ask if the ledger cannot represent a span with a hole (a split span) �
 - 2026-10-10 · 0b77c71* · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:33900
 - 2026-10-10 · 0b77c71* · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:36206
 - 2026-10-10 · 0b77c71* · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:36796
+- 2026-10-10 · e5dd0c4 · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:32712
+- 2026-10-10 · e5dd0c4* · exit 1 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:148 · test-lock-sha256:6e1a2d5bae719d24b470d33035402707aac3aefbc224d8dbe3465abfb084dc2d · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9tYXhjb2xzMTM3X3Rlc3QuZ28JVGVzdEFQbGFuVG9BQ3V0TGluZUlzUmVmdXNlZEFzVW5yZWFkCWQ4M2FmZmQxYWZjYTQ3MWNiMDY1NGQwNjIzMTg5MWJmNzdmNTlmYjU0OGFmMGMzMmIxZmU5MGFlNmE3YTA2ZWEKYm9keQlpbnRlcm5hbC9yZWFkL21heGNvbHMxMzdfdGVzdC5nbwlUZXN0QW5PdmVybG9uZ0xpbmVJc0N1dFRvQVdpbmRvd0FuZExpY2Vuc2VzTm90aGluZwllOWNhNTU1NjlmNmVmNmU4ZDYzMjdkNTIwYTM4YmUyZDY4MGVlYmUzMWExNzk0Y2I3OGQzODk3YWE2Yzk5YTM5CmJvZHkJaW50ZXJuYWwvcmVhZC9tYXhjb2xzMTM3X3Rlc3QuZ28JVGVzdFRoZVdpbmRvd0NlbnRyZXNPblRoZU1hdGNoCTgwYjA2ZDdkNmJiYWIyZjlmM2Y0MmEwYmI1MDRkZTFjMmNlM2U1ZWNjMTU5NGExNjM4NWY2Y2NlZGYxMDFkNWIKYm9keQlpbnRlcm5hbC9yZWFkL21heGNvbHMxMzdfd2hvbGVfdGVzdC5nbwlUZXN0QVdob2xlRmlsZVJlYWRUaGF0Q3V0QUxpbmVTdGlsbExlYXZlc0l0T3V0T2ZUaGVMZWRnZXIJMzVlNDBiNzBkMWI5NWZhZmRhMTZjZjZlYWE4YjU1ZmFiZTk4NDQ3NmNkYWIzZTIxMjUyYjM1YTZhNzlmOGU0Zg
+  ```
+  --- last 6 line(s) of stdout
+  # github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read [github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read.test]
+  internal/read/maxcols137_runes_test.go:23:67: unknown field MaxCols in struct literal of type Options
+  internal/read/maxcols137_test.go:35:86: unknown field MaxCols in struct literal of type Options
+  internal/read/maxcols137_whole_test.go:20:67: unknown field MaxCols in struct literal of type Options
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read [build failed]
+  FAIL
+  ```
+- 2026-10-10 · e5dd0c4* · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:31335

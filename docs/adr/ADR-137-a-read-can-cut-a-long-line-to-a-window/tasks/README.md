@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | `--max-cols` cuts a long line to a window and a cut line licenses nothing | pending | none | `docs/adr/ADR-137-a-read-can-cut-a-long-line-to-a-window/tasks/T1-maxcols.md` fence |
+| T1 | `--max-cols` cuts a long line to a window and a cut line licenses nothing | done | none | `docs/adr/ADR-137-a-read-can-cut-a-long-line-to-a-window/tasks/T1-maxcols.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
