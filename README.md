@@ -36,7 +36,7 @@ exactly the name of a subcommand of the command it was given to.
 
 ### From source
 
-Go 1.26.6 or newer (`go.mod`). One dependency, no cgo:
+Go 1.26.9 or newer (`go.mod`). One dependency, no cgo:
 
 ```sh
 go build -o bin/mrw ./cmd/mrw          # Linux, macOS
