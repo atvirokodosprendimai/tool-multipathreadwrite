@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | the neighbour note once, the stale notice short, silent on commands without a ledger | pending | none | `docs/adr/ADR-136-reads-say-less/tasks/T1-quiet.md` fence |
+| T1 | the neighbour note once, the stale notice short, silent on commands without a ledger | done | none | `docs/adr/ADR-136-reads-say-less/tasks/T1-quiet.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

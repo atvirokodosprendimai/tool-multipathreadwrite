@@ -80,5 +80,31 @@ Stop and ask if a caller's test or script needs the note at every range: the rec
 - A look mode, a newer-ledger message (deferred: docs/adr/BACKLOG.md)
 
 ## Mutation Log
+- 2026-10-10 · 675dfad · mutant inconclusive · exit 1 · `internal/read/read.go` · S2: the note is printed at every qualifying range again · acceptance-sha256:91efcee894eebfa8564c8f73e3484451be487702ecafe4cdf0fb218b7ef44533 · covers:a read prints the neighbour note once, the stale notice is one sentence, and version, instructions and stats print none
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
+- 2026-10-10 · 675dfad* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the skip list is emptied — version, instructions and stats print the stale notice · acceptance-sha256:91efcee894eebfa8564c8f73e3484451be487702ecafe4cdf0fb218b7ef44533 · covers:a read prints the neighbour note once, the stale notice is one sentence, and version, instructions and stats print none
+- 2026-10-10 · 675dfad* · mutant killed · exit 1 · `internal/read/read.go` · S2: the note is printed at every qualifying range again · acceptance-sha256:91efcee894eebfa8564c8f73e3484451be487702ecafe4cdf0fb218b7ef44533 · covers:a read prints the neighbour note once, the stale notice is one sentence, and version, instructions and stats print none
+- 2026-10-10 · 675dfad* · mutant killed · exit 1 · `internal/seen/seen.go` · S2: the notice carries the version history again · acceptance-sha256:91efcee894eebfa8564c8f73e3484451be487702ecafe4cdf0fb218b7ef44533 · covers:a read prints the neighbour note once, the stale notice is one sentence, and version, instructions and stats print none
 
 ## Verification Log
+- 2026-10-10 · 675dfad · exit 0 · `set -o pipefail …` · acceptance-sha256:91efcee894eebfa8564c8f73e3484451be487702ecafe4cdf0fb218b7ef44533 · ms:25112
+- 2026-10-10 · 675dfad* · exit 0 · `set -o pipefail …` · acceptance-sha256:91efcee894eebfa8564c8f73e3484451be487702ecafe4cdf0fb218b7ef44533 · ms:23762
+- 2026-10-10 · 675dfad* · exit 0 · `set -o pipefail …` · acceptance-sha256:91efcee894eebfa8564c8f73e3484451be487702ecafe4cdf0fb218b7ef44533 · ms:23600
+- 2026-10-10 · 675dfad* · exit 0 · `set -o pipefail …` · acceptance-sha256:91efcee894eebfa8564c8f73e3484451be487702ecafe4cdf0fb218b7ef44533 · ms:24871
+- 2026-10-10 · 675dfad* · exit 1 · `set -o pipefail …` · acceptance-sha256:91efcee894eebfa8564c8f73e3484451be487702ecafe4cdf0fb218b7ef44533 · ms:370 · test-lock-sha256:03b34df6cf35e031042599f28f6ff2201e2f71ba0ce1bdfc3691bf3575db74af · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9xdWlldDEzNl90ZXN0LmdvCVRlc3RUaGVTdGFsZU5vdGljZUlzT25lU2VudGVuY2VBbmRTaWxlbnRPblZlcnNpb25TdGF0c0luc3RydWN0aW9ucwkwYTdjYWJhNzFiN2M0YTJhMzEwNWNlZTIwN2YxYWE5M2I3YjRhYjFiYjk1ZmZlZGY3ZDg0ZGNiNzQ2ZGRjMmQwCmJvZHkJaW50ZXJuYWwvcmVhZC9xdWlldDEzNl90ZXN0LmdvCVRlc3RUaGVOZWlnaGJvdXJOb3RlSXNQcmludGVkT25jZVBlclJlYWQJOTgxZTQwYWRmNzY5NmZhMjY3OGMwNmQyN2RmOTU5NTBlNjIxZmU0ZDRmYTE5YmJlNTQyYjk0ZjdlMzM0ZjU2ZQ
+  ```
+  --- last 10 line(s) of stdout (of 17 after folding 17 raw)
+              5| }
+          ==> a.go  9L  61B  sha 1c739edc
+          @@ 7-8
+          -- note: a multi-line replace of 7-8 needs a served line after 8
+              7| func Bar() {
+              8| 	return
+  --- FAIL: TestTheNeighbourNoteIsPrintedOncePerRead (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	0.179s
+  FAIL
+  ```
+- 2026-10-10 · 675dfad* · exit 0 · `set -o pipefail …` · acceptance-sha256:91efcee894eebfa8564c8f73e3484451be487702ecafe4cdf0fb218b7ef44533 · ms:22679
