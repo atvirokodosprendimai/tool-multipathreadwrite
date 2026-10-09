@@ -43,6 +43,8 @@ out=$(mktemp) \
   && grep -qE '^--- PASS: TestAHardLinkToMrwsStateIsRefused \(' "$out" \
   && go test ./internal/read/ -count=1 -timeout 300s -run 'TestAWalkDropsAHardLinkToMrwsState' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestAWalkDropsAHardLinkToMrwsState \(' "$out" \
+  && go test ./cmd/mrw/ -count=1 -timeout 300s -run 'TestAHardLinkToTheStateCannotBeReadAsAListOrAPlan' -v 2>&1 | tee "$out" \
+  && grep -qE '^--- PASS: TestAHardLinkToTheStateCannotBeReadAsAListOrAPlan \(' "$out" \
   && go test ./internal/rooted/ ./internal/read/ -count=1 -timeout 900s \
   && grep -q '^# 236\. ' scripts/contract.sh \
   && [ -z "$(gofmt -l internal cmd)" ] \
