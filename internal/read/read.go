@@ -565,6 +565,9 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			if r.Re != nil {
 				res = append(res, r.Re)
 			}
+			if r.ReEnd != nil { // a /start/,/end/ range may end on the long line (the Codex review of #367)
+				res = append(res, r.ReEnd)
+			}
 		}
 		for _, sn := range spans {
 			n := sn.end - sn.start + 1
