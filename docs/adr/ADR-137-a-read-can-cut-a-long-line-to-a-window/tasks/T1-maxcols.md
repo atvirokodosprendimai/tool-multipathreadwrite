@@ -98,6 +98,8 @@ Stop and ask if the ledger cannot represent a span with a hole (a split span) �
   the fence failed on a build/parse error, not an assertion
   ```
 - 2026-10-10 · e5dd0c4 · mutant killed · exit 1 · `internal/read/read.go` · S2: the width is counted in bytes, not characters · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · covers:a line longer than the width is served as a window around the match and is not recorded as read
+- 2026-10-10 · 02d0037 · mutant killed · exit 1 · `internal/read/read.go` · S2: the end pattern of a start/end range does not centre the window · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · covers:a line longer than the width is served as a window around the match and is not recorded as read
+- 2026-10-10 · 02d0037* · mutant killed · exit 1 · `internal/read/maxcols.go` · S2: runeOffset answers 0 past the end — a window near the end of a line is empty · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · covers:a line longer than the width is served as a window around the match and is not recorded as read
 
 ## Verification Log
 - 2026-10-10 · 2cb2cc0 · exit 0 · `set -o pipefail …` · acceptance-sha256:64e0738ae554ba800cd39707eb701198388a9315e81f0361148f96ce67cc4675 · ms:39426
@@ -119,3 +121,6 @@ Stop and ask if the ledger cannot represent a span with a hole (a split span) �
   FAIL
   ```
 - 2026-10-10 · e5dd0c4* · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:31335
+- 2026-10-10 · 02d0037 · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:32723
+- 2026-10-10 · 02d0037* · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:32488
+- 2026-10-10 · 02d0037* · exit 0 · `set -o pipefail …` · acceptance-sha256:c65357cb4d683f51207791ae7b7b146ddfa7d25c8287f15e05dd30be073c94ef · ms:31111
