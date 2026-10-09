@@ -17,4 +17,4 @@ Status: `pending` | `partial` | `blocked` | `done`.
 ## Notes
 
 - Touches `internal/rooted` (a sentinel and one function) and `internal/read` (the count), which the record owns.
-- Contract section §237.
+- No contract section: only a Windows build refuses a name, and the contract runs on Linux. The walk is held by a Windows-only test on windows-latest; the receipt shape by the section 216 row and the read-schema test.
