@@ -85,6 +85,7 @@ rg -l 'func Handle' . | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 | `--stat` | length, bytes and sha only — no content, so it licenses nothing |
 | `-C N` | context around a single-pattern match |
 | `--max-lines N` | cap per spec, where zero means zero: `0` serves nothing. Omit the flag for no cap |
+| `--max-cols N` | cut a line longer than N characters to a window of N round the first match of a pattern (the start otherwise), marked `[cols A-B of L]`; a line served cut is not recorded as read, so a plan that replaces it is refused until it is read whole (ADR-137). CLI only |
 | `--grep PATTERN` | serve every regexp match under the given paths (measured 2026-09-03: the walk took 0.76× the time of a `grep -rl … \| mrw read --files-from -` pipeline over this repository, ADR-007) |
 | `--ast-grep PATTERN` | serve every `ast-grep` hit (binary on PATH; missing is exit 2; a hang is, on unix, sent SIGTERM at 2 s and killed by 3 s if it ignores it; on Windows it is killed at 2 s). A hit in a file whose lines end in `\r` alone is reported, not served — read that file directly |
 | `--exclude GLOB` | skip matching paths (needs `--grep` or `--ast-grep`) |

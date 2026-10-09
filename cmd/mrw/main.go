@@ -683,6 +683,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "max-lines",
 				Usage: "stop after `N` lines per SPEC, where zero means zero: omit the flag to ask for no cap. Two specs naming one file get two budgets. Whatever is withheld is always reported",
 			},
+			&cli.IntFlag{
+				Name:  "max-cols",
+				Usage: "cut a line longer than `N` characters to a window of N round the first match of a pattern (the start otherwise), marked `[cols A-B of L]`. A line served cut is NOT recorded as read: a plan that replaces it is refused until it is read whole (ADR-137). Zero or omitted serves lines whole",
+			},
 			&cli.StringFlag{
 				Name:  "grep",
 				Usage: "serve every range matching `PATTERN` in the files under the given paths (a directory is walked)",
@@ -727,6 +731,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 			if n := cmd.Int("max-lines"); n < 0 {
 				return cli.Exit(fmt.Sprintf("--max-lines %d: a cap cannot be negative", n), exitUsage)
+			}
+			if n := cmd.Int("max-cols"); n < 0 {
+				return cli.Exit(fmt.Sprintf("--max-cols %d: a width cannot be negative", n), exitUsage)
 			}
 			// ADR-007: --grep and --files-from are two further ways of arriving
 			// at the same []Spec read.Run has always served. Their domains are
@@ -940,6 +947,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Stat:     cmd.Bool("stat"),
 				Context:  cmd.Int("context"),
 				MaxLines: maxLines(cmd),
+				MaxCols:  cmd.Int("max-cols"),
 			})
 			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).

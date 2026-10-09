@@ -8642,6 +8642,23 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 238. ADR-137: a read can cut a long line to a window, and a cut line licenses
+# nothing. A 400-character line read with --max-cols 40 is served as a window
+# round the match, marked with its columns; what was cut was not shown, so a plan
+# that replaces that line is refused as unread and the file is unchanged. The
+# pair: the same line read whole licenses the same plan.
+fixture
+printf 'short one\n%sNEEDLE%s\nshort three\n' "$(printf 'x%.0s' $(seq 1 300))" "$(printf 'y%.0s' $(seq 1 94))" > "$R/w238.txt"
+out=$(m read --max-cols 40 --context 1 'w238.txt:/NEEDLE/' 2>&1); want 0 $? "a read with --max-cols exits 0"
+{ grep -q 'NEEDLE' <<<"$out" && grep -q '\[cols [0-9]*-[0-9]* of 400\]' <<<"$out" && [ "$(awk '{ if (length($0) > m) m = length($0) } END { print m }' <<<"$out")" -lt 120 ]; } \
+  && ok "and serves the long line as a window round the match, marked with its columns" || bad "cut read: $out"
+out=$(printf '@@ w238.txt 2 replace\nREPLACED\n' | m write --no-check - 2>&1); want 1 $? "a plan to the cut line exits 1"
+{ grep -q 'has not been read' <<<"$out" && grep -q NEEDLE "$R/w238.txt"; } && ok "refused as unread, the file unchanged" || bad "cut then write: $out"
+m read w238.txt:2 >"$WORK/served238.out"; want 0 $? "the pair: the same line read whole exits 0"
+out=$(printf '@@ w238.txt 2 replace\nREPLACED\n' | m write --no-check - 2>&1); want 0 $? "and licenses the same plan"
+grep -qx REPLACED "$R/w238.txt" && ok "which lands" || bad "whole read then write: $out"
+rm -f "$R/w238.txt" "$WORK/served238.out"
+
 # 237. ADR-136: reads say less. A read of several multi-line ranges printed the
 # "needs a served line after" note at each; it is printed once, at the first.
 # The stale-ledger notice was ninety words of version history printed for every

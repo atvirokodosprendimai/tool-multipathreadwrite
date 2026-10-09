@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
@@ -140,6 +141,11 @@ type Options struct {
 	// A cap that fires is always
 	// reported: a silent truncation reads as "that was the whole file".
 	MaxLines *int
+	// MaxCols cuts a line longer than this many characters to a window of that
+	// width round the first match of the spec's pattern (the start when the range
+	// has none), and records the line as NOT read: what was cut was not shown
+	// (ADR-137). Zero is no cut, so an Options that omits it serves whole lines.
+	MaxCols int
 	// Stop, when set, is asked before each spec; true ends the read there. A
 	// caller that has already decided to refuse the answer stops paying for the
 	// rest of it (ADR-078). Nil reads every spec.
@@ -554,6 +560,12 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		if capped {
 			budget = *opt.MaxLines
 		}
+		var res []*regexp.Regexp // the patterns that chose the lines: where a cut window is centred (ADR-137)
+		for _, r := range sp.Ranges {
+			if r.Re != nil {
+				res = append(res, r.Re)
+			}
+		}
 		for _, sn := range spans {
 			n := sn.end - sn.start + 1
 			if capped && budget <= 0 {
@@ -574,13 +586,29 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				fmt.Fprintf(w, "-- note: a multi-line replace of %d-%d needs a served line after %d\n",
 					sn.start, servedEnd, servedEnd)
 			}
-			served = append(served, [2]int{sn.start, sn.start + n - 1})
+			// ADR-137: a line cut to a window was not shown whole, so it is left out
+			// of what is recorded as read; the lines either side of it, shown whole,
+			// are recorded as two spans.
+			pieceStart := sn.start
 			for i := 0; i < n; i++ {
-				if opt.Numbers {
-					fmt.Fprintf(w, "%5d| %s\n", sn.start+i, lines[sn.start+i-1])
-				} else {
-					fmt.Fprintln(w, lines[sn.start+i-1])
+				ln := sn.start + i
+				text := lines[ln-1]
+				if opt.MaxCols > 0 && utf8.RuneCountInString(text) > opt.MaxCols {
+					if ln > pieceStart {
+						served = append(served, [2]int{pieceStart, ln - 1})
+					}
+					pieceStart = ln + 1
+					whole = false
+					text = window(text, opt.MaxCols, res)
 				}
+				if opt.Numbers {
+					fmt.Fprintf(w, "%5d| %s\n", ln, text)
+				} else {
+					fmt.Fprintln(w, text)
+				}
+			}
+			if end := sn.start + n - 1; end >= pieceStart {
+				served = append(served, [2]int{pieceStart, end})
 			}
 			if cut > 0 {
 				fmt.Fprintf(w, "!! %d more line(s) withheld: --max-lines reached\n", cut)
