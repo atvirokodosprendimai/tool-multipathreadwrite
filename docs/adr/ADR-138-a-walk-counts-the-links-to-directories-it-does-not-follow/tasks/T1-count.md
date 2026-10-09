@@ -54,6 +54,7 @@ out=$(mktemp) \
 | `TestAnEscapingLinkToADirectoryIsNotCounted` | `internal/read/linkeddirs138_test.go` | a link out of the root stays silent | none | S1, S2 |
 | `TestALinkToAFileIsServedNotCounted` | `internal/read/linkeddirs138_test.go` | a link to a file is a candidate, not a directory link | none | S1, S2 |
 | `TestAFifoIsNotCountedAsALinkToADirectory` | `internal/read/linkeddirs138_unix_test.go` | a FIFO is not counted as a link to a directory | none | S1, S2 |
+| `TestALinkTheCallerExcludedOrIgnoredIsNotCountedAsALink` | `internal/read/linkeddirs138_policy_test.go` | `--exclude` and a .gitignore rule naming the link apply before it is counted | none | S1, S2 |
 
 ## Reachability
 
@@ -89,6 +90,8 @@ Stop and ask if counting a link to a directory needs a read of the directory's c
   ```
 - 2026-10-10 · 37aee68* · mutant killed · exit 1 · `internal/read/walk.go` · S2: the tail promises a flag walks the links when only links were skipped · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · covers:a link to a directory met by a walk inside the root is counted on the skipped line and not followed
 - 2026-10-10 · e67592f · mutant killed · exit 1 · `internal/read/walk.go` · S2: any non-regular entry is counted as a link to a directory, a FIFO included · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · covers:a link to a directory met by a walk inside the root is counted on the skipped line and not followed
+- 2026-10-10 · 69a570f · mutant killed · exit 1 · `internal/read/walk.go` · S2: an excluded link name is still counted · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · covers:a link to a directory met by a walk inside the root is counted on the skipped line and not followed
+- 2026-10-10 · 69a570f* · mutant killed · exit 1 · `internal/read/walk.go` · S2: a link the ignore rules name is counted as a link · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · covers:a link to a directory met by a walk inside the root is counted on the skipped line and not followed
 
 ## Verification Log
 - 2026-10-10 · 37aee68 · exit 0 · `set -o pipefail …` · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · ms:32088
@@ -109,3 +112,6 @@ Stop and ask if counting a link to a directory needs a read of the directory's c
   FAIL
   ```
 - 2026-10-10 · e67592f* · exit 0 · `set -o pipefail …` · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · ms:30825
+- 2026-10-10 · 69a570f · exit 0 · `set -o pipefail …` · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · ms:32423
+- 2026-10-10 · 69a570f* · exit 0 · `set -o pipefail …` · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · ms:31501
+- 2026-10-10 · 69a570f* · exit 0 · `set -o pipefail …` · acceptance-sha256:10b4d8f1beab7fcf31cf26ca08177c0b25b60fdabb507c74915a03e880f95fc9 · ms:30695
