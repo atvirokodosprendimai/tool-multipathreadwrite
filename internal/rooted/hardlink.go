@@ -79,6 +79,11 @@ func (s *stateLinks) scan() {
 		s.bad = true
 		return
 	}
+	// The directory may itself be a link (a moved state directory, a Windows
+	// junction): WalkDir lists a root that is one as a single non-file entry,
+	// and an empty listing would read as "no state file" (the Codex review of
+	// #361, second pass). It is listed where it really is.
+	dir = Real(dir)
 	if _, err := os.Stat(dir); err != nil {
 		s.bad = !errors.Is(err, fs.ErrNotExist)
 		return
