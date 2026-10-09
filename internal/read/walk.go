@@ -341,7 +341,7 @@ func (w *walker) walkDir(named string, full string) {
 			// Windows will not keep is refused by its spelling alone, so it is
 			// COUNTED (ADR-135): a count says a name exists, never what it held.
 			if rooted.UnkeepableName(err) {
-				_ = rel // RED COMMIT: the name is not recorded yet (ADR-135 T1)
+				w.skipNames[filepath.ToSlash(rel)] = true
 			}
 			return nil //nolint:nilerr // discovered, not named: skipped in silence (rule 2, above)
 		}

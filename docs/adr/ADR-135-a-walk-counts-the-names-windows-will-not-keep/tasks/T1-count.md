@@ -22,6 +22,7 @@ Decisions 1–4 of the record, with a test that fails before them.
 | `internal/read/walk.go` | edit | the set, the count, the `SkipNote` clause |
 | `internal/read/unkeepable135_test.go`, `internal/rooted/unkeepable135_test.go` | add | the tests |
 | `docs/receipts.txt`, `internal/mcp/schema_test.go` | edit | `mcp_read skipped.unkeepable`, and its place in the read schema the receipt test holds to a real answer |
+| `scripts/contract.sh` | edit | the §216 row that holds `skipped` to an exact object lists the new key |
 | `AGENTS.md`, `README.md` | edit | the `-- skipped:` paragraph names it |
 
 ## Ordered Steps
