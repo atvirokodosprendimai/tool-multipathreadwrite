@@ -8347,7 +8347,7 @@ out=$(req216 '{"grep":"NEEDLE216"}' | "$MRW" -C "$R" mcp 2>/dev/null)
 python3 - "$out" <<'PY' && ok "mrw_read counts what its grep skipped" || bad "mrw_read skipped: $(head -c 400 <<<"$out")"
 import json, sys
 sc = json.loads(json.loads(sys.argv[1])["result"]["content"][-1]["text"])
-sys.exit(0 if sc.get("skipped") == {"ignored": 0, "ignored_dirs": 1, "binary": 1, "nested": 0, "unkeepable": 0} else 1)
+sys.exit(0 if sc.get("skipped") == {"ignored": 0, "ignored_dirs": 1, "binary": 1, "nested": 0, "unkeepable": 0, "linked_dirs": 0} else 1)
 PY
 out=$(req216 '{"grep":"NEEDLE216","no_ignore":true}' | "$MRW" -C "$R" mcp 2>/dev/null)
 python3 - "$out" <<'PY' && ok "the pair: no_ignore walks all and counts nothing" || bad "no_ignore: $(head -c 400 <<<"$out")"
@@ -8641,6 +8641,32 @@ if ln "$R/h230.txt" "$R/k230.txt" 2>/dev/null; then
 else
   skip "a rename onto a hard link (no hard links here)"
 fi
+
+# 239. ADR-138: a walk counts the links to directories it does not follow. ADR-096
+# decision 2 skips a link to a directory a walk meets, and the skip said nothing
+# while ignored files, binaries and nested repositories were counted. The real
+# path is served once, the link is counted on the -- skipped: line and as
+# skipped.linked_dirs over MCP, and the tail says to name one. The pair: a tree
+# with no link prints no -- skipped: line.
+fixture
+mkdir -p "$R/real239" && printf 'needle239\n' > "$R/real239/x.txt"
+if ln -s real239 "$R/alias239" 2>/dev/null; then
+  out=$(m read --grep needle239 2>&1); want 0 $? "a grep over a tree holding a link to a directory exits 0"
+  { grep -q '^==> real239/x.txt' <<<"$out" && ! grep -q 'alias239/x.txt' <<<"$out"; } && ok "and serves the real path once, following no link" || bad "link walk: $out"
+  grep -q -- '-- skipped: 1 link(s) to a directory, not followed; name one to be told why' <<<"$out" && ok "and counts the link, saying to name one" || bad "link count: $out"
+  out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"needle239"}}}' | "$MRW" -C "$R" mcp 2>/dev/null)
+  python3 - "$out" <<'PY' && ok "mrw_read counts it as skipped.linked_dirs" || bad "mrw_read linked_dirs: $(head -c 400 <<<"$out")"
+import json, sys
+sc = json.loads(json.loads(sys.argv[1])["result"]["content"][-1]["text"])
+sys.exit(0 if sc.get("skipped", {}).get("linked_dirs") == 1 else 1)
+PY
+  rm -f "$R/alias239"
+  out=$(m read --grep needle239 2>&1)
+  grep -q -- '-- skipped:' <<<"$out" && bad "the pair: no link, yet a skipped line: $out" || ok "the pair: a tree with no link prints no skipped line"
+else
+  skip "a link to a directory (this filesystem makes no symlink)"
+fi
+rm -rf "$R/real239" "$R/alias239"
 
 # 238. ADR-137: a read can cut a long line to a window, and a cut line licenses
 # nothing. A 400-character line read with --max-cols 40 is served as a window

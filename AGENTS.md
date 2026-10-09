@@ -209,6 +209,9 @@ On a Windows build, a discovered file whose name Windows will not keep — a res
 or `nul`, or a name ending in a dot or a space — is refused by its spelling and not served; the `-- skipped:`
 line counts it as `file(s) with a name Windows will not keep` (`skipped.unkeepable` over MCP), and no flag walks
 it: name one to be told why (ADR-135). The count says a name exists, never what the file held.
+A link to a directory met inside the root is not followed (ADR-096) and is counted as `link(s) to a directory, not
+followed` (`skipped.linked_dirs` over MCP, ADR-138); name the directory it leads to. A link that leaves the root is
+refused by `Resolve` first and stays uncounted.
 `--ast-grep` serves the same files (ADR-122): ast-grep still prunes what `.gitignore` ignores itself, every hit then
 passes mrw's own rules — nested repositories, binary files, `.git` — and what those rules drop is counted in the same
 `-- skipped:` line; what ast-grep pruned itself never reaches mrw and is not counted. The ignore sources only

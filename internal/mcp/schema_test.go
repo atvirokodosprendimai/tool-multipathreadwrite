@@ -263,6 +263,7 @@ func readSchema() map[string]any {
 					"binary":       map[string]any{"type": "integer"},
 					"nested":       map[string]any{"type": "integer"},
 					"unkeepable":   map[string]any{"type": "integer"},
+					"linked_dirs":  map[string]any{"type": "integer"},
 				},
 			},
 		},
@@ -287,4 +288,5 @@ var readDescriptions = map[string]string{
 	"skipped.binary":       "Files skipped as binary: a UTF-16/32 byte-order mark, or a NUL in the first 8 KiB.",
 	"skipped.nested":       "Directories below the checkout holding their own .git — another repository, a submodule, a worktree — not entered, as git does not (ADR-130).",
 	"skipped.unkeepable":   "Files whose names Windows will not keep — a reserved device name, or a trailing dot or space — found by the walk and refused by their spelling; counted, never served, and no_ignore does not walk them. Windows builds only (ADR-135).",
+	"skipped.linked_dirs":  "Links (symlinks, and on Windows junctions) to a directory that resolve inside the root and that the walk does not follow, counted rather than dropped in silence (ADR-138); no flag follows a link, name the directory it leads to. A link that leaves the root is not counted.",
 }

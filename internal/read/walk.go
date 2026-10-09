@@ -65,6 +65,12 @@ type WalkSkipped struct {
 	// does not serve (ADR-135). It counts names the listing showed, never what
 	// a file held and never where a link leads.
 	Unkeepable int `json:"unkeepable"`
+	// LinkedDirs is the links — symlinks, and on Windows junctions — to a
+	// directory that resolve inside the root and that the walk does not follow
+	// (ADR-096), counted rather than dropped in silence (ADR-138). It says a link
+	// exists at a name the listing showed, never what its directory holds; a link
+	// that leaves the root is refused by Resolve first and is not counted.
+	LinkedDirs int `json:"linked_dirs"`
 }
 
 // SkipNote is the sentence a surface prints for what a walk skipped
@@ -87,11 +93,16 @@ func SkipNote(sk WalkSkipped, flag string) string {
 		parts = append(parts, fmt.Sprintf("%d nested repositor(ies), not entered", sk.Nested))
 	}
 	tail := "; " + flag + " walks them"
+	if sk.LinkedDirs > 0 {
+		parts = append(parts, fmt.Sprintf("%d link(s) to a directory, not followed", sk.LinkedDirs))
+	}
 	if sk.Unkeepable > 0 {
 		parts = append(parts, fmt.Sprintf("%d file(s) with a name Windows will not keep", sk.Unkeepable))
-		// No flag walks a name Windows will not keep; naming one says why.
+	}
+	if sk.Unkeepable > 0 || sk.LinkedDirs > 0 {
+		// No flag walks either of these; naming one says why.
 		tail = "; " + flag + " walks the others, and naming one tells why"
-		if sk == (WalkSkipped{Unkeepable: sk.Unkeepable}) {
+		if sk == (WalkSkipped{Unkeepable: sk.Unkeepable, LinkedDirs: sk.LinkedDirs}) {
 			tail = "; name one to be told why"
 		}
 	}
@@ -124,7 +135,7 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 	}
 
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}, nested: map[string]*ignorer{},
-		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{},
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipLinks: map[string]bool{},
 		res: rooted.NewResolver(root)}
 	if !opt.NoIgnore {
 		w.ign = newIgnorer(absRoot)
@@ -160,6 +171,8 @@ type walker struct {
 	skipNested map[string]bool
 	// skipNames is the discovered files Resolve refused for their names (ADR-135).
 	skipNames map[string]bool
+	// skipLinks is the in-root links to a directory the walk met (ADR-138).
+	skipLinks map[string]bool
 	starts    []string
 }
 
@@ -348,8 +361,16 @@ func (w *walker) walkDir(named string, full string) {
 		}
 		// Resolve, THEN ask what it is: a symlink to an in-root regular file
 		// is a candidate, a FIFO or device is not.
-		if st, err := os.Stat(full); err != nil || !st.Mode().IsRegular() {
-			return nil //nolint:nilerr // a discovered non-file is skipped in silence
+		st, err := os.Stat(full)
+		if err != nil || !st.Mode().IsRegular() {
+			// ADR-138: a link to a directory is counted. IsDir on the Lstat, not
+			// ModeSymlink, so a Windows junction is a link too (ADR-096).
+			if err == nil && st.IsDir() {
+				if lfi, lerr := os.Lstat(full); lerr == nil && !lfi.IsDir() {
+					w.skipLinks[filepath.ToSlash(rel)] = true
+				}
+			}
+			return nil //nolint:nilerr // any other discovered non-file is skipped in silence
 		}
 		if w.excluded(rel) {
 			return nil
@@ -461,7 +482,7 @@ type hitJudge struct{ w *walker }
 
 func newHitJudge(root, absRoot string) *hitJudge {
 	w := &walker{root: root, absRoot: absRoot, seen: map[string]bool{}, nested: map[string]*ignorer{},
-		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}}
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipLinks: map[string]bool{}}
 	w.ign = newIgnorer(absRoot)
 	return &hitJudge{w: w}
 }
@@ -569,6 +590,7 @@ func (w *walker) skipCounts() WalkSkipped {
 			sk.Unkeepable++
 		}
 	}
+	sk.LinkedDirs = len(w.skipLinks)
 	return sk
 }
 
