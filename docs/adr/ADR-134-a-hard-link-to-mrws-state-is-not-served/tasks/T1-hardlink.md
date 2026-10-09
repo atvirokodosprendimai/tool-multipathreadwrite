@@ -85,6 +85,18 @@ Stop and ask if the Windows walk is more than 1.3 times slower than at v1.52.0 o
   ```
   the fence failed on a build/parse error, not an assertion
   ```
+- 2026-10-09 · 8e66a3b · mutant inconclusive · exit 1 · `internal/rooted/hardlink.go` · S2: the comparison with the state base answers false — resolveIn serves a hard link to the ledger · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · covers:a hard link to a state file is refused by the boundary and a hard link to an ordinary file is served
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
+- 2026-10-09 · 8e66a3b* · mutant killed · exit 1 · `internal/rooted/hardlink.go` · S2: the comparison with the state base answers false — resolveIn serves a hard link to the ledger · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · covers:a hard link to a state file is refused by the boundary and a hard link to an ordinary file is served
+- 2026-10-09 · 8e66a3b* · mutant killed · exit 1 · `internal/rooted/rooted.go` · S2: the Resolver fast path never compares — a walk serves a hard link to the ledger · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · covers:a hard link to a state file is refused by the boundary and a hard link to an ordinary file is served
+- 2026-10-09 · 8e66a3b* · mutant killed · exit 1 · `internal/rooted/hardlink.go` · S2: the link-count pre-test skips a file with two names — the comparison never runs for the ledger link · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · covers:a hard link to a state file is refused by the boundary and a hard link to an ordinary file is served
 
 ## Verification Log
 - 2026-10-09 · 10d8a40* · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:14332
+- 2026-10-09 · 8e66a3b · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:17114
+- 2026-10-09 · 8e66a3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:15535
+- 2026-10-09 · 8e66a3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:14703
+- 2026-10-09 · 8e66a3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:16026
+- 2026-10-09 · 8e66a3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:95e68c98f38b7c475fae0d5f735bc51c97122eb93776162969b560bbbea5d975 · ms:13716
