@@ -69,7 +69,8 @@ func TestAnUnopenableLedgerSaysWhatStandsAfterACallAndThatNothingChangedBefore(t
 	if err == nil || !strings.Contains(err.Error(), "lines served") || !strings.Contains(err.Error(), "not recorded") || !errors.Is(err, fs.ErrPermission) {
 		t.Errorf("Record on an unopenable ledger: %v, want what stands and the cause", err)
 	}
-	if _, err = Snapshot(root); err == nil || !strings.Contains(err.Error(), "wrote and changed nothing") || !errors.Is(err, fs.ErrPermission) {
-		t.Errorf("Snapshot on an unopenable ledger: %v, want that nothing was written and the cause", err)
+	var unreadable *UnreadableError
+	if _, err = Snapshot(root); !errors.As(err, &unreadable) || !errors.Is(err, fs.ErrPermission) || strings.Contains(err.Error(), "wrote") {
+		t.Errorf("Snapshot on an unopenable ledger: %v, want an UnreadableError that makes no claim about writes, and the cause", err)
 	}
 }

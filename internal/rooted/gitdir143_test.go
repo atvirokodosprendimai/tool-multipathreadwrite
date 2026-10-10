@@ -15,7 +15,10 @@ func TestAPathInsideADotGitIsRefused(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, ".git", "hooks"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{".git/config", "sub/.git/hooks/x", ".GIT/config", ".git", "a/../.git/HEAD", "x/./.git/y"} {
+	// HFS+ ignores these code points when it compares names, so git's own protection
+	// matches .git with them in it; built from runes to keep them out of the source.
+	zwnj, bom, rlo := string(rune(0x200c)), string(rune(0xfeff)), string(rune(0x202e))
+	for _, p := range []string{".git/config", "sub/.git/hooks/x", ".GIT/config", ".git", "a/../.git/HEAD", "x/./.git/y", ".g" + zwnj + "it/config", bom + ".git/x", ".git" + rlo + "/y"} {
 		if err := GitDir(root, p); err == nil || !strings.Contains(err.Error(), ".git") {
 			t.Errorf("GitDir(%q) = %v, want a refusal naming .git", p, err)
 		}

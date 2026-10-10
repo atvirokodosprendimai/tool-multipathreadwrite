@@ -27,7 +27,7 @@ mrw writes anything under `--root`, and `.git` is under the root of every checko
 ## Decision
 
 1. **A write whose path lands in a `.git` is refused before anything is staged.** `rooted.GitDir(root, path)` returns an error when a component of the path as spelled (cleaned), of the root as spelled, of the path's real location (links followed as far as it exists), or of the real directory holding its leaf entry (a link inside `.git` is judged where it sits, since unlink and rename act on the entry and not on what it leads to) is `.git`. `apply.resolve` calls it after `rooted.Resolve`, so every op (create, replace, insert, delete, unlink, rename source, rename destination) on every surface (CLI plan, `--create`, `--format`, `mrw_write`) fails the hunk that names it: exit 1, the siblings skip, nothing written (ADR-001).
-2. **The match is the name, folded.** `.git` is matched ignoring case on every platform, since git on a case-insensitive disk reads `.GIT` as `.git`; on a Windows build `git~1` is matched too, the 8.3 name NTFS gives `.git` and the one spelling git's own protection matches. `.github`, `.gitignore`, `x.git`, `git` and `git~12` are not `.git`.
+2. **The match is the name, folded.** `.git` is matched ignoring case on every platform, since git on a case-insensitive disk reads `.GIT` as `.git`; the code points HFS+ ignores (U+200C to U+200F, U+202A to U+202E, U+206A to U+206F, U+FEFF) are dropped first, as git's own protection does; on a Windows build `git~1` is matched too, the 8.3 name NTFS gives `.git` and the one spelling git's own protection matches. `.github`, `.gitignore`, `x.git`, `git` and `git~12` are not `.git`.
 3. **Reads stay allowed.** `mrw read .git/config` and a `--grep` over `.git` are unchanged (ADR-116 skips `.git` in a walk; a path you name is served).
 4. **There is no override.** `--force` lifts the read-before-modify guards and does not lift this; no flag does. The message says what to use instead.
 5. **The message names the cause once:** `<path> is inside a .git directory; mrw does not write there, since a hook, a config or a ref changed behind git's back changes what git does next — use git for it (mrw read still reads it)`. A path that reaches `.git` through a link says the same with the real location.
@@ -70,8 +70,7 @@ See `tasks/README.md`: T1.
 
 ## Out of Scope
 
-- A hard link in the tree to a file under `.git` (deferred: docs/adr/BACKLOG.md — "Writes into .git" entry)
-- Names that git's own protection list adds for HFS+ (ignorable code points inside `.git`) (deferred: docs/adr/BACKLOG.md — "Writes into .git" entry)
+- A hard link in the tree to a file under `.git` (permanent: fact: an edit is a temp file renamed over the name, so the other name keeps its content; citation: file `internal/apply/gitdir143_test.go:68`)
 - A repository whose git directory is elsewhere and not named `.git` (a bare repository, `--separate-git-dir`) (permanent: boundary: mrw cannot know which directory is a repository by its name)
 - What a check or a `--then-sh` step does to `.git` (permanent: boundary: they run the project's own commands, not mrw's writes)
 - A directory swapped for a link to `.git` between validation and the commit (permanent: boundary: a process that can race the checkout can write `.git` itself; the refusal guards a caller's plan, as the other name refusals do, and `os.Root` still holds the root)

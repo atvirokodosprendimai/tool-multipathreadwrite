@@ -478,12 +478,22 @@ func Snapshot(root string) (Ledger, error) {
 		var err error
 		l, err = Load(root)
 		if err != nil {
-			return fmt.Errorf("the read ledger could not be read, so this call wrote and changed nothing: %w", err)
+			return &UnreadableError{Err: err}
 		}
 		return nil
 	})
 	return l, err
 }
+
+// UnreadableError is Snapshot's refusal: the ledger could not be read. What that
+// means is the caller's to say — a write wrote nothing, `mrw seen` has nothing to show.
+type UnreadableError struct{ Err error }
+
+func (e *UnreadableError) Error() string {
+	return "the read ledger could not be read: " + e.Err.Error()
+}
+
+func (e *UnreadableError) Unwrap() error { return e.Err }
 
 // merge combines a new observation with what was already recorded for the same
 // path. Anything about a different version of the file is discarded.

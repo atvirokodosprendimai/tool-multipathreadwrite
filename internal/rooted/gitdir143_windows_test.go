@@ -44,5 +44,17 @@ func TestTheShortNameOfARealDotGitIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	short := filepath.Base(shortPath(t, filepath.Join(root, ".git")))
-	t.Fatalf("probe: the short name of .git here is %q", short)
+	if strings.EqualFold(short, ".git") {
+		t.Skip("this volume gives .git no 8.3 name")
+	}
+	// Measured 2026-10-10 on the CI windows runner: the name is GIT~1. The leaf
+	// is checked there and not there, since a create has none yet.
+	for _, p := range []string{short + "/config", short + "/hooks/pre-commit", strings.ToLower(short) + "/x"} {
+		if err := GitDir(root, p); err == nil {
+			t.Errorf("GitDir(%q) = nil, want a refusal: %s is .git", p, short)
+		}
+	}
+	if err := GitDir(root, "git~12/config"); err != nil {
+		t.Errorf("GitDir(git~12/config) = %v, want none: it is an ordinary name", err)
+	}
 }
