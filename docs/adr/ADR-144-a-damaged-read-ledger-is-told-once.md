@@ -7,7 +7,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-068, ADR-108, ADR-136, docs/adr/BACKLOG.md
 **Invalidates:** None — no accepted record promised silence about a damaged ledger; it was an unstated gap
-**Governs:** `internal/seen/seen.go`, `cmd/mrw/main.go`, `scripts/contract.sh`
+**Governs:** `internal/seen/seen.go`, `cmd/mrw/main.go`, `cmd/mrw/damage.go`, `scripts/contract.sh`
 **Enforced-by:** `internal/seen/damage144_test.go::TestADamagedLedgerIsCountedAndTold`
 **Served-path change:** a CLI command that reads the ledger prints one stderr sentence when lines of the ledger could not be understood and were ignored, or when a line past the record bound made mrw discard the ledger. Exit codes, receipts and the ledger's format are unchanged.
 
@@ -28,7 +28,7 @@ A ledger line mrw cannot parse is skipped, and a ledger holding a line past the 
 1. **`seen.DamageNotice(root)` returns the sentence to print, or "".** It opens the ledger as `Load` does and says nothing for a missing, empty, non-regular or stale (header mismatch) ledger, which `IsStale` already handles.
 2. **Unparsable lines are counted.** After the header, each line `parseLine` rejects, an empty line included, counts. N > 0 gives: `mrw: N line(s) of the read ledger could not be understood and were ignored; a file they described counts as unread, so read the files you mean to edit again.`
 3. **A line past the record bound is told.** `Load` discards such a ledger; the notice is: `mrw: the read ledger holds a line longer than mrw writes, so it has been discarded; read the files you mean to edit again.`
-4. **Told once because the call heals it.** The notice is printed from `Before`, ahead of the command; the command's own save rewrites the ledger without the lines, so the next run finds nothing to say. Commands that never read the ledger (`version`, `instructions`, `stats`) print nothing, as for the stale notice.
+4. **Told by the commands that read the ledger, and told once because they save it.** `read`, `write` and `seen` tell it (`tellsLedgerDamage`), from `Before`, ahead of the command. A `read` or a `write` that lands saves the ledger, which rewrites it without the lines, so the next run finds nothing to say; `seen` is where one goes to look and does not save. `check` and `iter` neither read nor save the ledger and `mcp` resolves its root after `Before` has run, so none of them tells it, and neither do `version`, `instructions` and `stats`, as for the stale notice. A dry run or a refused `write` saves nothing and tells it again, accurately. The scan reads the ledger whole and closes it before it parses, since a Windows writer's rename retries for 100 ms and an open handle blocks it.
 5. **No exit code, receipt key or format changes.** The notice is stderr text; a ledger line mrw cannot parse stays ignored.
 
 ## Alternatives Considered
@@ -39,7 +39,7 @@ A ledger line mrw cannot parse is skipped, and a ledger holding a line past the 
 
 ## Component / Boundary Impact
 
-`internal/seen` (one function, one message), `cmd/mrw` (one branch in `Before`). The MCP server prints no stderr and is not changed. No other engine package changes; `go.mod` keeps one requirement.
+`internal/seen` (one function, one message), `cmd/mrw` (one branch in `Before`, one predicate in `damage.go`). The MCP server is not changed. No other engine package changes; `go.mod` keeps one requirement.
 
 ## Wiring & Contract Changes
 
@@ -55,7 +55,7 @@ None — one task.
 
 ## Implementation
 
-See `tasks/README.md`: T1.
+See `tasks/README.md`: T1, T2.
 
 ## Consequences
 

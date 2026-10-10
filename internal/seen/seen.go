@@ -30,6 +30,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -271,8 +272,15 @@ func DamageNotice(root string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = f.Close() }()
-	sc := bufio.NewScanner(f)
+	// Read whole and closed before it is parsed: a Windows writer's rename
+	// retries for 100 ms (state.write) and an open handle without delete
+	// sharing blocks it, so the scan must not hold the file for the parse.
+	data, err := io.ReadAll(f)
+	_ = f.Close()
+	if err != nil {
+		return "", err
+	}
+	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Split(scanLF)
 	sc.Buffer(make([]byte, min(64<<10, maxRecordBytes)), int(maxRecordBytes))
 	if !sc.Scan() || sc.Text() != header {
