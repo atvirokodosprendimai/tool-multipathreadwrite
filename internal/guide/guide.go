@@ -81,7 +81,7 @@ func Core() string {
 	return `The eight rules that matter most (mrw instructions prints the whole contract):
 1. Use mrw for every file read, edit and create: one read of every site, then one plan, then one write (mrw write PLAN, or mrw write - for a plan on standard input).
 2. Read before you write, per line: a write to a line mrw has not served you is refused, except in a file mrw just wrote. After a multi-line body, read on past your range until the enclosing structure closes.
-3. A plan that fails validation writes nothing: read the refusal, which names the file, the plan line and the reason, and do not reach for --force. A commit that fails reports PARTIALLY APPLIED and names what landed.
+3. A plan that fails validation writes nothing: read the refusal, which names the file, the plan line and the reason, and do not reach for --force. A commit that fails reports what reached disk.
 4. A multi-line replace needs anchor= copied from the line your read printed; body= is a line count and goes on the header.
 5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass (it failed, timed out or was interrupted). A read exits 1 when a range cannot be served. Never read an exit code through a pipe: mrw write plan | head returns head's status.
 6. Find with mrw read --grep PATTERN [paths]; start the pattern with (?i) to ignore case; --stat lists the matching files; --max-cols N cuts a long line to a window, and a line it cut is unread; --no-numbers drops the numbers.
