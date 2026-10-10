@@ -31,7 +31,7 @@ mrw writes anything under `--root`, and `.git` is under the root of every checko
 3. **Reads stay allowed.** `mrw read .git/config` and a `--grep` over `.git` are unchanged (ADR-116 skips `.git` in a walk; a path you name is served).
 4. **There is no override.** `--force` lifts the read-before-modify guards and does not lift this; no flag does. The message says what to use instead.
 5. **The message names the cause once:** `<path> is inside a .git directory; mrw does not write there, since a hook, a config or a ref changed behind git's back changes what git does next — use git for it (mrw read still reads it)`. A path that reaches `.git` through a link says the same with the real location.
-6. **A path reopened by name is judged again.** Staging, rename and removal reopen their paths by name after validation, so a directory swapped for a link to `.git` in between would carry the write there (reproduced with ADR-106's swap seams: a hook was made in `.git` and `.git/config` removed). `tree.rel`, through which every one of them passes, refuses a path with a `.git` component (T2). What stays is the instant between that check and the syscall that follows it.
+6. **A path reopened by name is judged again, by where it lands now.** Staging, rename and removal reopen their paths by name after validation, so a directory swapped for a link to `.git` in between would carry the write there (reproduced with ADR-106's seams: a hook was made in `.git` and `.git/config` removed). `tree.rel`, through which every one of them passes, refuses a path with a `.git` component (T2), or whose parent now resolves into one, the leaf as written (T3): a rename or an unlink acts on the entry, not on what a link at its end leads to, and a RELATIVE link swapped in after staging leaves the spelling clean. A refusal while staging is a failed hunk, exit 1 (T3); one while committing is the commit's own failure (ADR-066). What stays is the instant between that check and the syscall that follows it.
 
 ## Alternatives Considered
 
@@ -61,7 +61,7 @@ mrw writes anything under `--root`, and `.git` is under the root of every checko
 
 ## Implementation
 
-See `tasks/README.md`: T1, T2.
+See `tasks/README.md`: T1, T2, T3.
 
 ## Consequences
 

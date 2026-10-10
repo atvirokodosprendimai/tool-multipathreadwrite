@@ -53,6 +53,24 @@ func openTree(absRoot, root string) (*tree, error) {
 // close releases the root handle. A failed close changes nothing on disk.
 func (t *tree) close() { _ = t.r.Close() }
 
+// dotGitError is a path refused because it lands in a .git directory (ADR-143).
+// Its cause is the target's, so a refusal while staging is a failed hunk.
+type dotGitError struct{ rel string }
+
+func (e *dotGitError) Error() string {
+	return fmt.Sprintf("%s resolves into a .git directory; mrw does not write there (use git for it)", filepath.ToSlash(e.rel))
+}
+
+// landsInGit reports whether the entry p names sits in a .git directory NOW:
+// its parent resolved as it is at this instant, and the leaf as written, since a
+// rename or an unlink acts on the entry and not on what a link at its end leads
+// to. A parent swapped for a link to .git after validation shows here.
+func (t *tree) landsInGit(p string) bool {
+	landing := filepath.Join(rooted.RealAsFarAsItExists(filepath.Dir(p)), filepath.Base(p))
+	r, err := filepath.Rel(t.abs, landing)
+	return err == nil && rooted.HasGitComponent(r)
+}
+
 // rel spells p relative to the root, and refuses a path the root does not
 // hold: resolution followed a link out of it.
 func (t *tree) rel(p string) (string, error) {
@@ -62,8 +80,8 @@ func (t *tree) rel(p string) (string, error) {
 			// ADR-143: every staging, rename and removal reopens its path by name, so
 			// a directory swapped for a link to .git after validation is refused here
 			// too, where the path is judged by where it now lands.
-			if rooted.HasGitComponent(r) {
-				return "", fmt.Errorf("%s resolves into a .git directory; mrw does not write there (use git for it)", filepath.ToSlash(r))
+			if rooted.HasGitComponent(r) || t.landsInGit(p) {
+				return "", &dotGitError{rel: r}
 			}
 			return r, nil
 		}
