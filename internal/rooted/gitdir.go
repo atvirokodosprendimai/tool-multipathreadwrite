@@ -40,6 +40,12 @@ func GitDir(root, path string) error {
 
 const gitAdvice = "mrw does not write there, since a hook, a config or a ref changed behind git's back changes what git does next — use git for it (mrw read still reads it)"
 
+// HasGitComponent reports whether a component of the path p, root-relative or
+// absolute, is a .git (ADR-143). The apply tree asks it of every path it opens,
+// since a directory can be swapped for a link to .git after GitDir judged the
+// plan.
+func HasGitComponent(p string) bool { return inGit(p) }
+
 // inGit reports whether a component of the absolute path p is a .git.
 func inGit(p string) bool {
 	for _, c := range strings.Split(filepath.ToSlash(p), "/") {

@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
 // tree is the checkout a write may change, held open as an os.Root for the
@@ -57,6 +59,12 @@ func (t *tree) rel(p string) (string, error) {
 	for _, base := range []string{t.abs, t.alias} {
 		r, err := filepath.Rel(base, p)
 		if err == nil && r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator)) && !filepath.IsAbs(r) {
+			// ADR-143: every staging, rename and removal reopens its path by name, so
+			// a directory swapped for a link to .git after validation is refused here
+			// too, where the path is judged by where it now lands.
+			if rooted.HasGitComponent(r) {
+				return "", fmt.Errorf("%s resolves into a .git directory; mrw does not write there (use git for it)", filepath.ToSlash(r))
+			}
 			return r, nil
 		}
 	}

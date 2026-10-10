@@ -388,7 +388,7 @@ func Drop(root string, paths []string) error {
 	return withLock(root, func() error {
 		l, err := Load(root)
 		if err != nil {
-			return ledgerNotUpdated(err)
+			return ledgerNotRead(err)
 		}
 		for _, p := range paths {
 			delete(l, p)
@@ -407,7 +407,7 @@ func Record(root string, obs map[string]Observation) error {
 	return withLock(root, func() error {
 		l, err := Load(root)
 		if err != nil {
-			return ledgerNotUpdated(err)
+			return ledgerNotRead(err)
 		}
 		for path, o := range obs {
 			l[path] = merge(l[path], o)
@@ -588,6 +588,13 @@ func save(root string, l Ledger) error {
 // stood (the v1.60.0 retest).
 func ledgerNotUpdated(err error) error {
 	return fmt.Errorf("the read ledger could not be updated; whatever this call already did (lines served, changes applied) stands, but is not recorded there, so read the files again before editing them: %w", err)
+}
+
+// ledgerNotRead is ledgerNotUpdated for a ledger that could not be read when the
+// call came to record into it (a holder, or a directory where the file is): the
+// failure is the read, and the call's own effect stands all the same.
+func ledgerNotRead(err error) error {
+	return fmt.Errorf("the read ledger could not be read to record this call; whatever this call already did (lines served, changes applied) stands, but is not recorded there, so read the files again before editing them: %w", err)
 }
 
 // maxRecordBytes bounds one ledger line, on save and on load alike (ADR-108);
