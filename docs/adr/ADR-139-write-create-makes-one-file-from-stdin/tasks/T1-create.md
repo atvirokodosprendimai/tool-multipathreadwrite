@@ -105,6 +105,13 @@ Stop and ask if a create plan cannot carry a content the survey sessions need (a
 - 2026-10-10 · f6f6ec4* · mutant killed · exit 1 · `internal/ingest/create.go` · S2: a line ending in a bare CR is carried and its CR lost · acceptance-sha256:7b0bc6c9ae17718729dfc5e5622b8bedf901c22d0cb7510d9c9ad35b20451da1 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
 - 2026-10-10 · f6f6ec4* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the path is not checked before stdin is read · acceptance-sha256:7b0bc6c9ae17718729dfc5e5622b8bedf901c22d0cb7510d9c9ad35b20451da1 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
 - 2026-10-10 · f6f6ec4* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the internal create format is reachable without the flag · acceptance-sha256:7b0bc6c9ae17718729dfc5e5622b8bedf901c22d0cb7510d9c9ad35b20451da1 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · c2d8b77 · mutant killed · exit 1 · `internal/ingest/create.go` · S2: the header drops body=N raw=true — an @@ line in the content starts another hunk · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · c2d8b77* · mutant killed · exit 1 · `internal/ingest/applypatch.go` · S2: emit does not strip the BOM the parser strips — apply_patch Add File content can start a hunk · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · c2d8b77* · mutant killed · exit 1 · `internal/ingest/create.go` · S2: the path is not escaped — two backslashes name another file · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · c2d8b77* · mutant killed · exit 1 · `internal/ingest/create.go` · S2: a line ending in a bare CR is carried and its CR lost, in every terminator mode · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · c2d8b77* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the path is not checked before stdin is read · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · c2d8b77* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the internal create format is reachable without the flag · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · c2d8b77* · mutant killed · exit 1 · `internal/ingest/create.go` · S2: a line beyond the plan scanner is compiled and counted as a parse failure · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
 
 ## Verification Log
 - 2026-10-10 · 10c7578 · exit 0 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:2525
@@ -151,3 +158,25 @@ Stop and ask if a create plan cannot carry a content the survey sessions need (a
   FAIL
   ```
 - 2026-10-10 · f6f6ec4* · exit 0 · `set -o pipefail …` · acceptance-sha256:7b0bc6c9ae17718729dfc5e5622b8bedf901c22d0cb7510d9c9ad35b20451da1 · ms:1020
+- 2026-10-10 · c2d8b77 · exit 0 · `set -o pipefail …` · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · ms:2366
+- 2026-10-10 · c2d8b77* · exit 0 · `set -o pipefail …` · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · ms:2015
+- 2026-10-10 · c2d8b77* · exit 0 · `set -o pipefail …` · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · ms:2308
+- 2026-10-10 · c2d8b77* · exit 0 · `set -o pipefail …` · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · ms:2020
+- 2026-10-10 · c2d8b77* · exit 0 · `set -o pipefail …` · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · ms:1958
+- 2026-10-10 · c2d8b77* · exit 0 · `set -o pipefail …` · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · ms:2510
+- 2026-10-10 · c2d8b77* · exit 0 · `set -o pipefail …` · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · ms:1983
+- 2026-10-10 · c2d8b77* · exit 1 · `set -o pipefail …` · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · ms:1050
+  ```
+  --- last 10 line(s) of stdout (of 27 after folding 27 raw)
+      create139_test.go:37: --create: exit 2
+          flag provided but not defined: -create (see: mrw write --help)
+  --- FAIL: TestWriteCreateMakesTheFileAndRefusesAnExistingOne (0.00s)
+  === RUN   TestTheInternalCreateFormatIsNotReachableWithoutTheFlag
+  --- PASS: TestTheInternalCreateFormatIsNotReachableWithoutTheFlag (0.00s)
+  === RUN   TestAUsageErrorDoesNotWaitForStandardInput
+  --- PASS: TestAUsageErrorDoesNotWaitForStandardInput (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.226s
+  FAIL
+  ```
+- 2026-10-10 · c2d8b77* · exit 0 · `set -o pipefail …` · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · ms:1051
