@@ -75,6 +75,8 @@ Stop and ask if `tree.rel` is reached by a path mrw must legitimately open insid
 - The instant between the check and the syscall (permanent: boundary: the finest grain mrw has; see the record)
 
 ## Mutation Log
+- 2026-10-10 · bf9cd4d · mutant killed · exit 1 · `internal/apply/tree.go` · S2: landsInGit reports false · acceptance-sha256:d24c11f8e148d4352fed62e1b544e5270e2f182339346d9ae72ea10135c9ef3a · covers:a parent swapped for a link to .git after staging does not carry a rename into .git, and a .git refusal while staging is a failed hunk
+- 2026-10-10 · bf9cd4d* · mutant killed · exit 1 · `internal/apply/apply.go` · S3: targetCause does not name dotGitError the target's cause · acceptance-sha256:d24c11f8e148d4352fed62e1b544e5270e2f182339346d9ae72ea10135c9ef3a · covers:a parent swapped for a link to .git after staging does not carry a rename into .git, and a .git refusal while staging is a failed hunk
 
 ## Verification Log
 - 2026-10-10 · 409bc4e* · exit 1 · `set -o pipefail …` · acceptance-sha256:d24c11f8e148d4352fed62e1b544e5270e2f182339346d9ae72ea10135c9ef3a · ms:740 · test-lock-sha256:242b50a98bac26e031a006f1082e8c1171a18091e6478862bea020308addd241 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYXBwbHkvc3dhcDE0M190ZXN0LmdvCVRlc3RBUmVuYW1lVGhyb3VnaEFQYXJlbnRTd2FwcGVkRm9yRG90R2l0QWZ0ZXJTdGFnaW5nU3RheXNPdXQJNzYzYzRlMGExNTJlZGNjNzg0NzM1YTQxNGQyNTk2MGNhMTY4OWFiYzA3YzZkMGQ4YmJiZTYzNjhlOGQ4NzY3ZApib2R5CWludGVybmFsL2FwcGx5L3N3YXAxNDNfdGVzdC5nbwlUZXN0QVdyaXRlVGhyb3VnaEFQYXJlbnRTd2FwcGVkRm9yRG90R2l0U3RheXNPdXQJNWJiZTViMzY0ZDQ0OTEyMzEyZjY1ZDQ0OGE3MTM3M2NhNjBkNDQ2NmQwYzA4MDYwNTRiMGEyY2MzN2FiMGMyYw
@@ -92,3 +94,5 @@ Stop and ask if `tree.rel` is reached by a path mrw must legitimately open insid
   FAIL
   ```
 - 2026-10-10 · 409bc4e* · exit 0 · `set -o pipefail …` · acceptance-sha256:d24c11f8e148d4352fed62e1b544e5270e2f182339346d9ae72ea10135c9ef3a · ms:1942
+- 2026-10-10 · bf9cd4d · exit 0 · `set -o pipefail …` · acceptance-sha256:d24c11f8e148d4352fed62e1b544e5270e2f182339346d9ae72ea10135c9ef3a · ms:2575
+- 2026-10-10 · bf9cd4d* · exit 0 · `set -o pipefail …` · acceptance-sha256:d24c11f8e148d4352fed62e1b544e5270e2f182339346d9ae72ea10135c9ef3a · ms:2486
