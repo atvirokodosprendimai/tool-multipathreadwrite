@@ -232,6 +232,14 @@ func UnkeepableName(err error) bool {
 	return (errors.Is(err, ErrDeviceName) && !errors.Is(err, errViaLink)) || errors.Is(err, ErrWin32Alias)
 }
 
+// RefusedByName reports whether err is Resolve's refusal of a name's own
+// spelling — a device name or a name Windows does not keep as written — whether
+// or not a link led there. Advice that fits an escape from the root ("point
+// --root where you mean") sends the caller nowhere for one of these.
+func RefusedByName(err error) bool {
+	return errors.Is(err, ErrDeviceName) || errors.Is(err, ErrWin32Alias)
+}
+
 // errViaLink marks a device-name refusal reached through a link.
 var errViaLink = errors.New("through a link")
 
