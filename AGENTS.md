@@ -93,8 +93,9 @@ would read as another name: `b.txt.`, `b.txt ` and `b.txt::$DATA` all open
 `0` fine · `1` a hunk failed and nothing was written · `2` usage or filesystem
 failure · `3` the write applied but the check failed, timed out or was interrupted,
 so the tree is changed and unverified. Tests assert these; changing one is a breaking change.
-A `2` after a write that printed `applied` means the read ledger could not then be updated (a holder on Windows): the files
-changed, the message says so, and the next edit needs a read first. Check the tree before retrying the plan.
+A `2` after a write that printed `applied` means the files changed and something after the landing failed: the check could not
+start, or the read ledger could not be updated (a holder on Windows). The message says which; for the ledger, the next edit needs a
+read first. Check the tree before retrying the plan.
 
 And a receipt's keys are only added (ADR-111): every key a `--json` or MCP receipt carries is listed in
 `docs/receipts.txt`, keeps its name, type and meaning, and a new one is appended there in the change that adds it.
