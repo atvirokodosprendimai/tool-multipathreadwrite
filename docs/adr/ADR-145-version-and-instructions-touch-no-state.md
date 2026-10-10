@@ -9,7 +9,7 @@
 **Invalidates:** None — ADR-136 made these commands skip the ledger check and left the migration it names out of scope
 **Governs:** `cmd/mrw/main.go`, `cmd/mrw/startup.go`, `scripts/contract.sh`
 **Enforced-by:** `cmd/mrw/startup145_test.go::TestVersionAndInstructionsMigrateNothing`
-**Served-path change:** `mrw version`, `instructions` and every spelling of the version flag the parser accepts as the first argument (`-v`, `--v`, `-version`, `--version`, and either with `=true`) no longer copy a legacy `./.mrw/` directory into the state directory, nor print the "moved" line. Any other command still does, once. Exit codes and output of these commands are unchanged.
+**Served-path change:** `mrw version`, `instructions`, the version flag in every spelling the parser takes, `-h` and `--help` (a subcommand's included, `mrw read -h`) no longer copy a legacy `./.mrw/` directory into the state directory, nor print the "moved" line; neither does a usage error. Any command that reaches the root command's `Before` — every other one, `stats` included — still does, once. Exit codes and output are unchanged.
 
 ## Context
 
@@ -19,30 +19,30 @@
 
 ## Existing Primitives Audit
 
-- **The `Before` switch (ADR-136)** — already lists `version`, `instructions` and `stats` as commands that read no ledger. It runs after the parse; the migration runs before it, so the predicate here works on `os.Args` and cannot reuse it.
+- **The `Before` switch (ADR-136)** — already runs after the parse, and already lists `version`, `instructions` and `stats` as commands that read no ledger. The migration joins it, so the parser's own dispatch decides what reaches it.
 - **`state.Migrate`** — unchanged; this record decides only who calls it.
 
 ## Decision
 
-1. **`startsWithoutState(args)` is true for `version` and `instructions`, and for the version flag in the spellings the parser accepts (`-v`, `--v`, `-version`, `--version`, and either with `=true`), as the first argument.** `main` skips `state.Migrate` for them. Found by the Codex review of #392: the first draft knew only `-v` and `--version`, and `--v`, `-version` and `--version=true` printed the version and migrated.
-2. **Everything else migrates as before**, `stats` included, since it reads what the migration moves.
-3. **Not extended to a flag before the verb.** `mrw -C dir version` migrates; the first argument decides, because the parse has not run.
+1. **The migration runs from the root command's `Before`, not from `main`.** The version flag, `--help` and a usage error are answered by the parser before `Before` runs, in every spelling it takes (`--v`, `-version`, `--version=false`, `--version=`, `-v=T` and the rest of what `strconv.ParseBool` reads), so none of them can migrate. An enumeration of those spellings in `main` was the first design and the Codex review of #392 found it incomplete twice: `--v`, `-version` and `--version=true`, then `--version=false` and the other values, which urfave/cli v3 treats as set whatever they say.
+2. **`version` and `instructions` skip it by verb**, since they do reach `Before`. `-C dir version` is therefore covered too. Every other verb migrates, `stats` included.
+3. **The migration still keys on the working directory** (`state.Migrate(".")`), as before: only when it runs moved.
 
 ## Alternatives Considered
 
-- **Move the migration into `Before`** — rejected: it would run after the parse for the right root, but it changes when and where the migration happens for every command, and the legacy directory is keyed by the working directory today.
+- **A predicate on `os.Args` in `main`, before the parse** — rejected after two review rounds: it has to name every spelling the parser takes, and the parser, not this record, owns that set.
 - **Drop the migration (ADR-004 is old)** — rejected: a checkout with a pre-ADR-004 `.mrw/` would silently lose its ledger; that is the owner's call, not a cleanup.
 
 ## Component / Boundary Impact
 
-`cmd/mrw` only (one predicate, one condition in `main`). No engine package changes; `go.mod` keeps one requirement.
+`cmd/mrw` only (one function, one condition in `Before`; `main` loses its migration block). No engine package changes; `go.mod` keeps one requirement.
 
 ## Wiring & Contract Changes
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| `startsWithoutState` | new function | T1 | `main` |
-| `mrw version`, `-v`, `--version`, `instructions` | no migration | T1 | CLI callers |
+| `migrateLegacyState` | moved from `main` into `Before` | T1 | every command that reaches `Before` |
+| `mrw version`, `instructions`, the version flag, `-h`, `--help` | no migration | T1 | CLI callers |
 | `scripts/contract.sh` | §249 | T1 | CI Linux |
 
 ## Inter-task Contracts
@@ -56,14 +56,13 @@ See `tasks/README.md`: T1.
 ## Consequences
 
 - **Positive:** the install check writes nothing, wherever it is run.
-- **Negative:** a legacy `.mrw/` is migrated by the first command that is not one of the four, not by `mrw version`.
+- **Negative:** a legacy `.mrw/` is migrated by the first command that reaches `Before` with another verb, not by `mrw version`; a command that fails to parse no longer migrates either.
 - **Neutral:** `stats` and every other command migrate as before.
 
 ## Out of Scope
 
-- `mrw -C dir version` and `mrw --root dir version` (permanent: boundary: the migration runs before the parse, so only the first argument is known)
-- `--help` and `-h` (permanent: boundary: they print usage, and still migrate a legacy `./.mrw/` first and announce it before the usage; the usage text does not need state, but the flag is not one of the install-check spellings this record covers)
-- `stats` opening the tally (permanent: boundary: it reads the state the migration moves)
+- `stats` opening the tally (permanent: boundary: `stats` still migrates, as every command but two does, and `authoring.Load` opens the tally)
+- Where the migration looks (permanent: boundary: the working directory, as ADR-004 chose, not `--root`)
 
 ## Risks
 

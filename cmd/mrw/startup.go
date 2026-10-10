@@ -1,37 +1,26 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
-// startsWithoutState reports whether args begin with a command that touches no
-// state (ADR-145): the install check and the instructions print. main runs the
-// legacy migration before it parses, so only the first argument is known. The
-// parser prints the version for -v, --v, -version, --version and either with
-// =true, so each of those spellings is the install check.
-func startsWithoutState(args []string) bool {
-	if len(args) == 0 {
-		return false
+// migrateLegacyState copies any pre-ADR-004 in-tree state in ./.mrw/ into the
+// state directory, once, and announces it on stderr: a tool that quietly moves
+// your files is the sibling of the tool that quietly created them. It runs from
+// the root command's Before (ADR-145), so the parser has already answered the
+// version flag in every spelling it takes, and --help, and a usage error: none
+// of those reaches here, and none touches state.
+func migrateLegacyState() {
+	moved, err := state.Migrate(".")
+	if err != nil || len(moved) == 0 {
+		return
 	}
-	a := args[0]
-	if a == "version" || a == "instructions" {
-		return true
+	if dir, err := state.Dir("."); err == nil {
+		fmt.Fprintf(os.Stderr, "mrw: moved %s from ./%s/ to %s — the copy in your working tree is "+
+			"untouched and can now be deleted\n", strings.Join(moved, " and "), state.LegacyDir, dir)
 	}
-	flag := strings.TrimPrefix(strings.TrimPrefix(a, "-"), "-")
-	if flag == a {
-		return false
-	}
-	name, val, hasVal := strings.Cut(flag, "=")
-	return (name == "v" || name == "version") && (!hasVal || val == "true")
-}
-
-// migrateLegacyState copies a legacy ./.mrw/ into the state directory, unless
-// args begin with a command that touches no state.
-func migrateLegacyState(args []string) ([]string, error) {
-	if startsWithoutState(args) {
-		return nil, nil
-	}
-	return state.Migrate(".")
 }

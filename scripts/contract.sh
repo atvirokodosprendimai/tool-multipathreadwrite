@@ -8653,7 +8653,7 @@ M249=$(mktemp -d "$WORK/m249-XXXXXX")
 mkdir -p "$M249/.mrw"; printf '#mrw-seen v4\n' > "$M249/.mrw/seen"; printf 'one249\n' > "$M249/f249.txt"
 out=$(cd "$M249" && "$MRW" version 2>&1); grep -q 'moved' <<<"$out" && bad "version migrated: $out" || ok "version does not migrate a legacy .mrw/"
 out=$(cd "$M249" && "$MRW" instructions --core 2>&1 >"$WORK/o249"); grep -q 'moved' <<<"$out" && bad "instructions migrated: $out" || ok "instructions does not migrate it"
-for f249 in --v -version --version=true; do
+for f249 in --v -version --version=true --version=false -h "read -h"; do
   out=$(cd "$M249" && "$MRW" $f249 2>&1); grep -q 'moved' <<<"$out" && bad "$f249 migrated: $out" || ok "$f249 does not migrate it"
 done
 out=$(cd "$M249" && "$MRW" read f249.txt 2>&1 >"$WORK/o249"); grep -q 'mrw: moved seen from ./.mrw/' <<<"$out" && ok "the pair: a read migrates it, once" || bad "read did not migrate: $out"

@@ -158,8 +158,14 @@ func rootCommand() *cli.Command {
 		// from. That read the wrong ledger under `-C`, which is precisely how
 		// a contract row here first passed for the wrong reason.
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			// version and instructions touch no state at all (ADR-145); the legacy
+			// migration runs for every other command, stats included.
+			verb := cmd.Args().First()
+			if verb != "version" && verb != "instructions" {
+				migrateLegacyState()
+			}
 			// version, instructions and stats never read the ledger (ADR-136).
-			switch cmd.Args().First() {
+			switch verb {
 			case "version", "instructions", "stats":
 				return ctx, nil
 			}
@@ -285,16 +291,6 @@ func posixQuote(s string) string {
 }
 
 func main() {
-	// One-time, additive migration of any pre-ADR-004 in-tree state. Announced
-	// on stderr because a tool that quietly moves your files is the sibling of
-	// the tool that quietly created them.
-	if moved, err := migrateLegacyState(os.Args[1:]); err == nil && len(moved) > 0 {
-		if dir, err := state.Dir("."); err == nil {
-			fmt.Fprintf(os.Stderr, "mrw: moved %s from ./%s/ to %s — the copy in your working tree is "+
-				"untouched and can now be deleted\n", strings.Join(moved, " and "), state.LegacyDir, dir)
-		}
-	}
-
 	root := rootCommand()
 	// A padded ATTACHED flag value (--root='dir ') is trimmed by the parser
 	// before any Action runs, and a root flag never reaches a subcommand's raw

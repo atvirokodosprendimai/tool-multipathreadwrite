@@ -4,29 +4,29 @@
 **Covers:** none — no spec
 **Estimated scope:** S
 **Owner:** Zy
-**Produces:** `startsWithoutState`, the condition in `main`
+**Produces:** `migrateLegacyState` called from the root command's `Before`
 **Consumes:** `state.Migrate` (existing)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `version, -v, --version and instructions as the first argument skip the legacy state migration and every other command still runs it`
+**Rests-on:** `a start the parser answers on its own, and version and instructions, migrate no legacy state, and every other command still does`
 
 ## Goal
 
-Decisions 1 to 3 of the record, with a test that fails before them.
+Decisions 1 to 3 of the record, with a test that fails before them. The first design (a predicate on `os.Args` in `main`) was found incomplete twice by the Codex review of #392 and is replaced by moving the migration into `Before`; its task rows were removed with it and are in the git history of the branch.
 
 ## Affected Files
 
 | File | Change | Why |
 |------|--------|-----|
-| `cmd/mrw/startup.go` | add | `startsWithoutState` |
-| `cmd/mrw/main.go` | edit | `main` skips the migration for it |
-| `cmd/mrw/startup145_test.go` | add | the predicate's table |
+| `cmd/mrw/startup.go` | add | `migrateLegacyState` |
+| `cmd/mrw/main.go` | edit | `Before` calls it for every verb but `version` and `instructions`; `main` no longer migrates |
+| `cmd/mrw/startup145_test.go` | add | the table through the CLI, and the pair |
 | `scripts/contract.sh` | edit | §249 |
 
 ## Ordered Steps
 
-1. [S1] Write `TestVersionAndInstructionsMigrateNothing`. Confirm RED.
-2. [S2] `startsWithoutState` and `migrateLegacyState`, which `main` calls. Mutants: the predicate answers false for every argument list (killed by the table test); the wrapper ignores the predicate (killed by `TestTheLegacyMigrationRunsForOtherCommandsOnly`, which the package step of the fence runs). [proof: mutation]
+1. [S1] Write `TestAStartThatTouchesNoStateMigratesNothing`. Confirm RED.
+2. [S2] Move the migration into `Before`, skipped for `version` and `instructions`. Mutant: the verb guard removed. [proof: mutation]
 3. [S3] Contract §249 drives the built binary on a legacy `.mrw/seen`. [proof: acceptance]
 
 ## Acceptance
@@ -34,8 +34,8 @@ Decisions 1 to 3 of the record, with a test that fails before them.
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./cmd/mrw/ -count=1 -timeout 600s -run 'TestVersionAndInstructionsMigrateNothing' -v 2>&1 | tee "$out" \
-  && grep -qE '^--- PASS: TestVersionAndInstructionsMigrateNothing \(' "$out" \
+  && go test ./cmd/mrw/ -count=1 -timeout 600s -run 'TestAStartThatTouchesNoStateMigratesNothing' -v 2>&1 | tee "$out" \
+  && grep -qE '^--- PASS: TestAStartThatTouchesNoStateMigratesNothing \(' "$out" \
   && go test ./cmd/mrw/ -count=1 -timeout 900s \
   && [ -z "$(gofmt -l internal cmd)" ] \
   && grep -q '^# 249\. ' scripts/contract.sh \
@@ -46,51 +46,49 @@ out=$(mktemp) \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestVersionAndInstructionsMigrateNothing` | `cmd/mrw/startup145_test.go` | `version`, `-v`, `--version` and `instructions` skip the migration; `read`, `write`, `stats`, `mcp`, a flag before the verb and no argument do not | none | S1, S2 |
+| `TestAStartThatTouchesNoStateMigratesNothing` | `cmd/mrw/startup145_test.go` | `version`, `instructions`, every version-flag spelling tried, `-h`, `--help`, `read -h` and `-C . version` migrate nothing, and a `read` after each does | none | S1, S2 |
 
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | `startsWithoutState` |
-| 2 — something selects it | `main`, which every start passes |
+| 1 — exists | `migrateLegacyState` |
+| 2 — something selects it | the root command's `Before`, which every command that is not answered by the parser passes |
 | 3 — the caller can discover it | `mrw version` prints no "moved" line and writes nothing |
 | 4 — it is used | contract §249 drives the built binary; no telemetry (ADR-009) |
 
 ## Invariants
 
-- Every other command migrates exactly as before.
-- Exit codes and output of the four commands are unchanged.
+- Every other command migrates exactly as before, once.
+- Exit codes and output of `version` and `instructions` are unchanged.
 
 ## Risks
 
-- None beyond the record's.
+- A start that fails to parse no longer migrates. It never needed state.
 
 ## Stop Condition
 
-Stop and ask if a command in the four needs the migrated state.
+Stop and ask if a command the parser answers on its own needs the migrated state.
 
 ## Out of Scope
 
-- A flag before the verb (permanent: boundary: the migration runs before the parse)
+- Where the migration looks (permanent: boundary: the working directory, as ADR-004 chose)
 
 ## Mutation Log
-- 2026-10-10 · c889e19 · mutant killed · exit 1 · `cmd/mrw/startup.go` · S2: the predicate answers false for the four · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · covers:version, -v, --version and instructions as the first argument skip the legacy state migration and every other command still runs it
-- 2026-10-10 · c889e19* · mutant killed · exit 1 · `cmd/mrw/startup.go` · S2: migrateLegacyState ignores the predicate · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · covers:version, -v, --version and instructions as the first argument skip the legacy state migration and every other command still runs it
-- 2026-10-10 · 4eb7955 · mutant killed · exit 1 · `cmd/mrw/startup.go` · S2: the =true spellings are not recognised · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · covers:version, -v, --version and instructions as the first argument skip the legacy state migration and every other command still runs it
 
 ## Verification Log
-- 2026-10-10 · f9f5453* · exit 1 · `set -o pipefail …` · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · ms:505 · test-lock-sha256:614a5efaf3d37da26120db3841032e4daca1ac9d1b49cb524331acf81db1a381 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9zdGFydHVwMTQ1X3Rlc3QuZ28JVGVzdFZlcnNpb25BbmRJbnN0cnVjdGlvbnNNaWdyYXRlTm90aGluZwkzNGJjYzE2NzY2MzA5YjE3ZTgxNDI3YWUyNTkwNzI5ZGVkYWFhNzM0MmE4YmE0ZmQ3ODY5NmE0YTUyYzhkYTA1
+- 2026-10-10 · ccef5af* · exit 0 · `set -o pipefail …` · acceptance-sha256:68c8ffa2a2e451531c3169f38ef9d761e2ca08a043cbb0da9a9026004671aa6a · ms:39107
+- 2026-10-10 · ccef5af* · exit 1 · `set -o pipefail …` · acceptance-sha256:68c8ffa2a2e451531c3169f38ef9d761e2ca08a043cbb0da9a9026004671aa6a · ms:1257 · test-lock-sha256:76fd035e18a267cbb58f1b1ba7b92cff3e498cb6999c300df7ecfede71942d6d · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9zdGFydHVwMTQ1X3Rlc3QuZ28JVGVzdEFTdGFydFRoYXRUb3VjaGVzTm9TdGF0ZU1pZ3JhdGVzTm90aGluZwliNGI2M2Y5OTY2MDY0ZmIzOTNjMGQ1Y2QzOTBiOGI2MzU1NTcwYzhlMzEyZjRhYTY5M2IxNjZmMDMyMGMxMTFi
   ```
-  --- last 4 line(s) of stdout
-  # github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw [github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw.test]
-  cmd/mrw/startup145_test.go:26:13: undefined: startsWithoutState
-  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw [build failed]
+  --- last 10 line(s) of stdout (of 53 after folding 53 raw)
+      --- FAIL: TestAStartThatTouchesNoStateMigratesNothing/--version= (0.01s)
+      --- FAIL: TestAStartThatTouchesNoStateMigratesNothing/-v=0 (0.01s)
+      --- FAIL: TestAStartThatTouchesNoStateMigratesNothing/-v=T (0.01s)
+      --- FAIL: TestAStartThatTouchesNoStateMigratesNothing/-h (0.01s)
+      --- FAIL: TestAStartThatTouchesNoStateMigratesNothing/--help (0.01s)
+      --- FAIL: TestAStartThatTouchesNoStateMigratesNothing/read_-h (0.00s)
+      --- FAIL: TestAStartThatTouchesNoStateMigratesNothing/-C_._version (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.337s
   FAIL
   ```
-- 2026-10-10 · c889e19 · exit 0 · `set -o pipefail …` · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · ms:39769
-- 2026-10-10 · c889e19* · exit 0 · `set -o pipefail …` · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · ms:40150
-- 2026-10-10 · c889e19* · exit 0 · `set -o pipefail …` · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · ms:38604
-- 2026-10-10 · 9b4f619* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · ms:0 · test-lock-sha256:a190ece8ef1943e565cea59a950c0f9648f04a89f1a08493602d0130ea639094 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9zdGFydHVwMTQ1X3Rlc3QuZ28JVGVzdFRoZUxlZ2FjeU1pZ3JhdGlvblJ1bnNGb3JPdGhlckNvbW1hbmRzT25seQk4ZWM2NjU2MjIwMGE5OGQzNTc0MzFlZmM0OTMzNmQ3MzViNTU5OWYzNjk2ZWIwNTlkOTc1NzQxYjg1MTlmYzRlCmJvZHkJY21kL21ydy9zdGFydHVwMTQ1X3Rlc3QuZ28JVGVzdFZlcnNpb25BbmRJbnN0cnVjdGlvbnNNaWdyYXRlTm90aGluZwk3MWIwNWJlMmE1MTNiNTI3ZjEzZjQwNWEyYTg2YjY5NTAxYWJlZTg2M2ViYTZhMjkxNTM0ODYwNWU2NGQ5YzE3 · test-lock-kind:replace
-- 2026-10-10 · 4eb7955 · exit 0 · `set -o pipefail …` · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · ms:39216
-- 2026-10-10 · 4eb7955* · exit 0 · `set -o pipefail …` · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · ms:37547
