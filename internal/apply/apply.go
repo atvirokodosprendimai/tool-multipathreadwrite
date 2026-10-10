@@ -2491,9 +2491,10 @@ func shaShown(have, want string) string {
 // happily while this refused it by name.
 func resolve(root, path string) (string, error) {
 	full, err := rooted.Resolve(root, path)
-	// ADR-081: a device name is not an escape from the root, and the advice
+	// ADR-081: a name refused for its spelling (a device name, a name Windows
+	// does not keep as written) is not an escape from the root, and the advice
 	// below fits only an escape (the review of #243).
-	if errors.Is(err, rooted.ErrDeviceName) {
+	if rooted.RefusedByName(err) {
 		return "", err
 	}
 	if err != nil {

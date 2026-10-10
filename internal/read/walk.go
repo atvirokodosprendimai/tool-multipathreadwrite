@@ -355,7 +355,17 @@ func (w *walker) walkDir(named string, full string) {
 			// Windows will not keep is refused by its spelling alone, so it is
 			// COUNTED (ADR-135): a count says a name exists, never what it held.
 			if rooted.UnkeepableName(err) {
-				w.skipNames[filepath.ToSlash(rel)] = true
+				// The caller's own rules come first, as for a link below: an
+				// excluded name is not reported, and one the ignore rules name is
+				// the ignored file it is.
+				r := filepath.ToSlash(rel)
+				switch {
+				case w.excluded(rel):
+				case w.ignored(r, false, from):
+					w.skipFiles[r] = true
+				default:
+					w.skipNames[r] = true
+				}
 			}
 			return nil //nolint:nilerr // discovered, not named: skipped in silence (rule 2, above)
 		}
