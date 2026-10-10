@@ -6095,8 +6095,9 @@ untaught = [f for f in flags if not re.search(r"--%s(?![A-Za-z0-9-])" % re.escap
 assert not untaught, "instructions omit read flags: %r" % untaught
 # --then and --then-sh are write and check flags the instructions teach too (ADR-092),
 # and --no-check is the write flag they name for a depth past the limit (ADR-095);
-# --create is the write flag for a new file without a plan (ADR-139).
-unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create"}
+# --create is the write flag for a new file without a plan (ADR-139), and
+# --core is the instructions flag that prints the short form (ADR-141).
+unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create", "core"}
 assert not unknown, "instructions teach flags read does not have: %r" % sorted(unknown)
 assert re.search(r"^\s+--ast-grep PATTERN\b", opts, re.M), "read --help does not show --ast-grep PATTERN"
 PY
@@ -8642,6 +8643,23 @@ if ln "$R/h230.txt" "$R/k230.txt" 2>/dev/null; then
 else
   skip "a rename onto a hard link (no hard links here)"
 fi
+
+# 242. ADR-141: `mrw instructions --core` prints the eight rules. The short form
+# to put in an agent's standing instructions: eight numbered rules in under 300
+# words that name only flags the binary has, while plain `mrw instructions` is
+# still the whole contract (and now says where the core is). The pairs: an
+# argument beside --core is still exit 2, and the core's `(?i)` rule is true — a
+# pattern started with it matches across case.
+fixture
+out=$(m instructions --core 2>&1); want 0 $? "mrw instructions --core exits 0"
+{ [ "$(grep -cE '^[1-8]\. ' <<<"$out")" = 8 ] && [ "$(wc -w <<<"$out")" -le 300 ]; } && ok "and prints eight numbered rules in under 300 words" || bad "core: $(wc -w <<<"$out") words: $out"
+full=$(m instructions 2>&1)
+{ [ "$(wc -w <<<"$full")" -gt 900 ] && grep -q -- 'mrw instructions --core prints the eight rules that matter most' <<<"$full"; } && ok "the pair: plain instructions is still the whole contract, and names --core" || bad "full contract changed: $(wc -w <<<"$full") words"
+out=$(m instructions --core extra 2>&1); want 2 $? "the pair: an argument beside --core exits 2"
+printf 'Alpha NEEDLE242\n' > "$R/i242.txt"
+out=$(m read --grep '(?i)needle242' 2>&1); want 0 $? "the core's (?i) rule matches across case"
+grep -q 'Alpha NEEDLE242' <<<"$out" && ok "and serves the line" || bad "(?i): $out"
+rm -f "$R/i242.txt"
 
 # 241. ADR-140: a read flag from grep is answered with mrw's spelling. `-i`,
 # `-n`, `-A` and the others grep has and `mrw read` lacks are still usage errors,
