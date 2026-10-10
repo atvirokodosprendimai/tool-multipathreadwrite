@@ -2425,6 +2425,11 @@ func refusePaddedArgs(cmd *cli.Command) error {
 			positionals++
 		} else if !noteText {
 			if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
+				if cmd.Name == "write" && cmd.String("create") != "" {
+					// --create took the "--" as its value; the path is --create's own
+					// argument, and a "--" before it drops the flag.
+					return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; give it to --create as its own argument, without a --: mrw write --create %s%s", tok, posixQuote(tok), cmdExeForm("mrw write --create ", tok)), exitUsage)
+				}
 				head := fmt.Sprintf("mrw %s -- ", prefix)
 				fix := head + posixQuote(tok)
 				return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+

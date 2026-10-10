@@ -50,9 +50,21 @@ func inGit(p string) bool {
 	return false
 }
 
-// isGitName is the component test: .git in any case, and — where short names
-// exist (short, a Windows build) — git~1, the 8.3 name NTFS gives it, the one
-// spelling git's own protection matches.
+// isGitName is the component test: .git in any case, with the code points HFS+
+// ignores left out (git's own protection matches .g<ZWNJ>it there), and — where
+// short names exist (short, a Windows build) — git~1, the 8.3 name NTFS gives
+// it, the one spelling git's own protection matches.
 func isGitName(c string, short bool) bool {
+	c = strings.Map(func(r rune) rune {
+		if ignoredByHFS(r) {
+			return -1
+		}
+		return r
+	}, c)
 	return strings.EqualFold(c, ".git") || (short && strings.EqualFold(c, "git~1"))
+}
+
+// ignoredByHFS is the set of code points HFS+ drops when it compares names.
+func ignoredByHFS(r rune) bool {
+	return (r >= 0x200c && r <= 0x200f) || (r >= 0x202a && r <= 0x202e) || (r >= 0x206a && r <= 0x206f) || r == 0xfeff
 }

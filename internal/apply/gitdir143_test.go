@@ -61,3 +61,25 @@ func TestAPlanThatTouchesDotGitWritesNothing(t *testing.T) {
 		}
 	}
 }
+
+// ADR-143 left out a hard link in the tree to a file under .git. An edit is a
+// temp file renamed over the name, so the other name keeps its content: the link
+// is not a way into .git. Pinned here so a change to write in place is seen.
+func TestAHardLinkToAFileUnderDotGitIsNotAWayIn(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, ".git/config", "[core]\n")
+	if err := os.Link(filepath.Join(root, ".git", "config"), filepath.Join(root, "linked.txt")); err != nil {
+		t.Skipf("no hard links here: %v", err)
+	}
+	res, err := Apply(root, []Input{{Path: "linked.txt", Start: 1, End: 1, Op: "replace", Body: []string{"[core]\thooksPath = x"}, Lines: -1}},
+		Options{Seen: map[string]Seen{"linked.txt": {SHA: shaOfFile(t, root, "linked.txt")}}})
+	if err != nil || !res.Applied {
+		t.Fatalf("edit of the linked name: applied=%v err=%v hunks=%+v", res.Applied, err, res.Hunks)
+	}
+	if got := read(t, root, ".git/config"); got != "[core]\n" {
+		t.Errorf(".git/config = %q after an edit of its hard link, want it untouched", got)
+	}
+	if got := read(t, root, "linked.txt"); got != "[core]\thooksPath = x\n" {
+		t.Errorf("linked.txt = %q, want the edit", got)
+	}
+}
