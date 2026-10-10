@@ -73,6 +73,7 @@ Stop and ask if a command that saves the ledger is found outside `read` and `wri
 - A dry-run or refused `write` that does not save, so the sentence repeats (permanent: boundary: it is accurate each time, and the remedy it names is a read)
 
 ## Mutation Log
+- 2026-10-10 · f6518ea · mutant killed · exit 1 · `cmd/mrw/damage.go` · S2: every verb tells the ledger damage · acceptance-sha256:523b461efd9b614dcf88c8e1bfec32a90cafc2eb7597cf438c540be80dc69e5f · covers:only read, write and seen tell a damaged ledger, and the scan reads the ledger into memory and closes it before parsing
 
 ## Verification Log
 - 2026-10-10 · 951f712* · exit 1 · `set -o pipefail …` · acceptance-sha256:523b461efd9b614dcf88c8e1bfec32a90cafc2eb7597cf438c540be80dc69e5f · ms:251 · test-lock-sha256:b29296470e4a482646f504fd477cb6c0f1d6b71c3359e546924245495a2d509c · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9kYW1hZ2UxNDRfdGVzdC5nbwlUZXN0QURhbWFnZWRMZWRnZXJJc1RvbGRPbmNlQnlUaGVDTEkJYTQ1YjcxMGM1NTBlNGVlNGQ1MjU3ZWFlNzRjZjdiNzRhNDBmODY4N2I3Yjk2ZDI3N2RkYTU2OGJiOTY5OWQ5Ngpib2R5CWNtZC9tcncvZGFtYWdlMTQ0X3Rlc3QuZ28JVGVzdE9ubHlUaGVDb21tYW5kc1RoYXRSZWFkVGhlTGVkZ2VyVGVsbEl0c0RhbWFnZQljYWExMzc3ZGY0OTdjNjc2MTkwNDZjZDRiZmI1YzQxMjgwMTg3NmVkYTcxMWY2Yzg4YWRjNDE2M2QzM2ZhYWIz
@@ -83,3 +84,5 @@ Stop and ask if a command that saves the ledger is found outside `read` and `wri
   FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw [build failed]
   FAIL
   ```
+- 2026-10-10 · f6518ea · exit 0 · `set -o pipefail …` · acceptance-sha256:523b461efd9b614dcf88c8e1bfec32a90cafc2eb7597cf438c540be80dc69e5f · ms:56911
+- 2026-10-10 · f6518ea* · exit 0 · `set -o pipefail …` · acceptance-sha256:523b461efd9b614dcf88c8e1bfec32a90cafc2eb7597cf438c540be80dc69e5f · ms:51747
