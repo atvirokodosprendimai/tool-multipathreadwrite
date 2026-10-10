@@ -8643,6 +8643,24 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 241. ADR-140: a read flag from grep is answered with mrw's spelling. `-i`,
+# `-n`, `-A` and the others grep has and `mrw read` lacks are still usage errors,
+# exit 2, and the message now ends with what mrw spells; `--grep -i PATTERN`
+# takes `-i` as the pattern and ends "no file matched /-i/", with the same hint.
+# The pairs: the spelling named works, and another command's unknown flag is
+# worded as before.
+fixture
+printf 'Alpha NEEDLE241\n' > "$R/h241.txt"
+out=$(m read -i --grep NEEDLE241 2>&1); want 2 $? "a grep flag mrw read lacks exits 2"
+{ grep -q 'flag provided but not defined: -i' <<<"$out" && grep -q '(?i)' <<<"$out"; } && ok "keeping the old message and naming (?i)" || bad "foreign flag: $out"
+out=$(m read --grep -i needle241 h241.txt 2>&1); want 1 $? "--grep -i PATTERN ends no file matched, exit 1"
+grep -q 'no file matched /-i/ — case-insensitive' <<<"$out" && ok "and carries the same hint" || bad "pattern -i: $out"
+out=$(m read --grep '(?i)needle241' 2>&1); want 0 $? "the pair: the spelling the hint names matches"
+grep -q 'Alpha NEEDLE241' <<<"$out" && ok "and serves the line" || bad "(?i) read: $out"
+out=$(m write -i 2>&1); want 2 $? "the pair: another command's unknown flag exits 2"
+grep -q '(?i)' <<<"$out" && bad "write got a read hint: $out" || ok "and gets no read hint"
+rm -f "$R/h241.txt"
+
 # 240. ADR-139: `mrw write --create PATH` makes one file from standard input as
 # the create plan of its lines would. A document holding an "@@" line is carried
 # whole, the file is made with each line ending in a newline, and the apply's
