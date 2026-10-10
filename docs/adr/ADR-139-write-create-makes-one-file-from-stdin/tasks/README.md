@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | `--create PATH` compiles standard input to a create plan | pending | none | `docs/adr/ADR-139-write-create-makes-one-file-from-stdin/tasks/T1-create.md` fence |
+| T1 | `--create PATH` compiles standard input to a create plan | done | none | `docs/adr/ADR-139-write-create-makes-one-file-from-stdin/tasks/T1-create.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

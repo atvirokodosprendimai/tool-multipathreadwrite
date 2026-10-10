@@ -80,5 +80,26 @@ Stop and ask if a create plan cannot carry a content the survey sessions need (a
 - Byte-exact content, `mrw_write` (permanent: boundary: the record's Out of Scope)
 
 ## Mutation Log
+- 2026-10-10 · 10c7578 · mutant killed · exit 1 · `internal/ingest/applypatch.go` · S2: a create hunk no longer declares body=N / raw=true — an @@ line in the content truncates the file and an empty content is refused · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · 10c7578* · mutant killed · exit 1 · `internal/ingest/create.go` · S2: the content is one line instead of split into lines · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · 10c7578* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: --create beside a PLAN argument is no longer a usage error · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
 
 ## Verification Log
+- 2026-10-10 · 10c7578 · exit 0 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:2525
+- 2026-10-10 · 10c7578* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:2012
+- 2026-10-10 · 10c7578* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:2198
+- 2026-10-10 · 10c7578* · exit 1 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:1101 · test-lock-sha256:5e400c8af0f5615705d1200e0289e54ec3a2d9d43b4b073f74f041b6b352ec0e · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9jcmVhdGUxMzlfdGVzdC5nbwlUZXN0V3JpdGVDcmVhdGVNYWtlc1RoZUZpbGVBbmRSZWZ1c2VzQW5FeGlzdGluZ09uZQliYWMxMTJiODliODVmNTJkYTQ4MDlmYzBjYjMxZTY3MzU2YmI5Y2JmY2Y0NTNmM2FkOWQzYzhkMTljODg2N2EwCmJvZHkJaW50ZXJuYWwvaW5nZXN0L2NyZWF0ZTEzOV90ZXN0LmdvCVRlc3RDb21waWxlQ3JlYXRlTWFrZXNBQ3JlYXRlUGxhbk9mU3RkaW4JMjQ5NDYyZDc1OTBiMWI0MmIwYzNkMzViMzc2NDQyMmVlMTJlOWM0MmNjYTI4MGRjMTVkYzE4YzBiZDBmN2Q5Zg
+  ```
+  --- last 10 line(s) of stdout (of 11 after folding 11 raw)
+  --- PASS: TestCompileCreateMakesACreatePlanOfStdin (0.00s)
+  PASS
+  ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/ingest	0.178s
+  === RUN   TestWriteCreateMakesTheFileAndRefusesAnExistingOne
+      create139_test.go:37: --create: exit 2
+          flag provided but not defined: -create (see: mrw write --help)
+  --- FAIL: TestWriteCreateMakesTheFileAndRefusesAnExistingOne (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.219s
+  FAIL
+  ```
+- 2026-10-10 · 10c7578* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:993
