@@ -8,8 +8,8 @@
 **Cross-references:** ADR-004, ADR-136, docs/adr/BACKLOG.md
 **Invalidates:** None — ADR-136 made these commands skip the ledger check and left the migration it names out of scope
 **Governs:** `cmd/mrw/main.go`, `cmd/mrw/startup.go`, `scripts/contract.sh`
-**Enforced-by:** `cmd/mrw/startup145_test.go::TestVersionAndInstructionsMigrateNothing`
-**Served-path change:** `mrw version`, `instructions`, the version flag in every spelling the parser takes, `-h` and `--help` (a subcommand's included, `mrw read -h`) no longer copy a legacy `./.mrw/` directory into the state directory, nor print the "moved" line; neither does a usage error. Any command that reaches the root command's `Before` — every other one, `stats` included — still does, once. Exit codes and output are unchanged.
+**Enforced-by:** `cmd/mrw/startup145_test.go::TestAStartThatTouchesNoStateMigratesNothing`
+**Served-path change:** `mrw version`, `instructions`, the version flag in every spelling the parser takes, `-h` and `--help` (a subcommand's included, `mrw read -h`) no longer copy a legacy `./.mrw/` directory into the state directory, nor print the "moved" line; neither does a flag-parse error. Any command that reaches the root command's `Before` — every other one, `stats`, `mcp`, an unknown command and a bare `mrw` included — still does, once. Exit codes and output are unchanged.
 
 ## Context
 
@@ -24,7 +24,7 @@
 
 ## Decision
 
-1. **The migration runs from the root command's `Before`, not from `main`.** The version flag, `--help` and a usage error are answered by the parser before `Before` runs, in every spelling it takes (`--v`, `-version`, `--version=false`, `--version=`, `-v=T` and the rest of what `strconv.ParseBool` reads), so none of them can migrate. An enumeration of those spellings in `main` was the first design and the Codex review of #392 found it incomplete twice: `--v`, `-version` and `--version=true`, then `--version=false` and the other values, which urfave/cli v3 treats as set whatever they say.
+1. **The migration runs from the root command's `Before`, not from `main`.** The version flag, `--help` and a flag-parse error are answered by the parser before `Before` runs, in every spelling it takes (`--v`, `-version`, `--version=false`, `--version=`, `-v=T` and the rest of what `strconv.ParseBool` reads, whitespace trimmed), so none of them can migrate. An unknown command (`mrw bogus`) and an action-level usage error (`mrw mcp extra`) do reach `Before` and migrate before they fail. An enumeration of the flag spellings in `main` was the first design and the Codex review of #392 found it incomplete twice: `--v`, `-version` and `--version=true`, then `--version=false` and the other values, which urfave/cli v3 treats as set whatever they say.
 2. **`version` and `instructions` skip it by verb**, since they do reach `Before`. `-C dir version` is therefore covered too. Every other verb migrates, `stats` included.
 3. **The migration still keys on the working directory** (`state.Migrate(".")`), as before: only when it runs moved.
 

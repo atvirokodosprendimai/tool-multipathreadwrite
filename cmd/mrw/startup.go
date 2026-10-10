@@ -12,7 +12,7 @@ import (
 // state directory, once, and announces it on stderr: a tool that quietly moves
 // your files is the sibling of the tool that quietly created them. It runs from
 // the root command's Before (ADR-145), so the parser has already answered the
-// version flag in every spelling it takes, and --help, and a usage error: none
+// version flag in every spelling it takes, --help and a flag-parse error: none
 // of those reaches here, and none touches state.
 func migrateLegacyState() {
 	moved, err := state.Migrate(".")
