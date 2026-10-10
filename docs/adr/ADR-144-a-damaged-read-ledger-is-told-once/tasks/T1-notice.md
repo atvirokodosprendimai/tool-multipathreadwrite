@@ -80,6 +80,9 @@ Stop and ask if a ledger mrw itself wrote ever reports damage (the notice would 
 - The MCP server telling the caller (permanent: boundary: it has no stderr)
 
 ## Mutation Log
+- 2026-10-10 · b98f032 · mutant killed · exit 1 · `internal/seen/seen.go` · S2: DamageNotice does not count an ignored line · acceptance-sha256:2518aca2d7b370f94fd540c5281cc6f2dac90b8a9476d459428cb819d122eaea · covers:a ledger with lines mrw cannot parse, or a line past the record bound, is named once and the next run is silent
+- 2026-10-10 · b98f032* · mutant killed · exit 1 · `cmd/mrw/main.go` · S3: Before does not print the damage notice · acceptance-sha256:2518aca2d7b370f94fd540c5281cc6f2dac90b8a9476d459428cb819d122eaea · covers:a ledger with lines mrw cannot parse, or a line past the record bound, is named once and the next run is silent
+- 2026-10-10 · b98f032* · mutant killed · exit 1 · `internal/seen/seen.go` · S2: DamageNotice is silent about a ledger discarded for a line past the bound · acceptance-sha256:2518aca2d7b370f94fd540c5281cc6f2dac90b8a9476d459428cb819d122eaea · covers:a ledger with lines mrw cannot parse, or a line past the record bound, is named once and the next run is silent
 
 ## Verification Log
 - 2026-10-10 · 00a4331* · exit 1 · `set -o pipefail …` · acceptance-sha256:2518aca2d7b370f94fd540c5281cc6f2dac90b8a9476d459428cb819d122eaea · ms:545 · test-lock-sha256:3e0fc6e50906e99d6c0bce456a5884c86f37efc99e17eaa774017df8bba404f5 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9kYW1hZ2UxNDRfdGVzdC5nbwlUZXN0QURhbWFnZWRMZWRnZXJJc1RvbGRPbmNlQnlUaGVDTEkJYTQ1YjcxMGM1NTBlNGVlNGQ1MjU3ZWFlNzRjZjdiNzRhNDBmODY4N2I3Yjk2ZDI3N2RkYTU2OGJiOTY5OWQ5Ngpib2R5CWludGVybmFsL3NlZW4vZGFtYWdlMTQ0X3Rlc3QuZ28JVGVzdEFEYW1hZ2VkTGVkZ2VySXNDb3VudGVkQW5kVG9sZAk5MGU2MmVjZTY2NTIzMDA3MTJiMGE2MDdhZmI0ZGVmMDE0YzAwY2QwYmVmOGFjN2EwMTFkNThjYTJhNzYzZjEyCmJvZHkJaW50ZXJuYWwvc2Vlbi9kYW1hZ2UxNDRfdGVzdC5nbwlhIGxlZGdlciBtcncgd3JvdGUgc2F5cyBub3RoaW5nCWQxZTZmZGY0OTMzMzljYWI1NTM1NjgxNWI4MjdlMDA4NGFhY2YzOTAzNjJmNDkwMjU5ODBjMmQ1NTAyN2UwYzQKYm9keQlpbnRlcm5hbC9zZWVuL2RhbWFnZTE0NF90ZXN0LmdvCWEgbGluZSBwYXN0IHRoZSByZWNvcmQgYm91bmQgaXMgdG9sZCBhcyBkaXNjYXJkZWQJNGJmNzFkNDRkNDI1Mzk4YTZiN2ZhNzA5M2IwOWI3ZjY4MTBhM2VlZTM4MzY2ZTFiMjBiZWEwY2U1YTYwMGY4NApib2R5CWludGVybmFsL3NlZW4vZGFtYWdlMTQ0X3Rlc3QuZ28JYSBzdGFsZSwgYW4gZW1wdHkgYW5kIGEgbWlzc2luZyBsZWRnZXIgc2F5IG5vdGhpbmcJMDdiNmFhZGFjMDlmOGJjZWNjNThkMTg2NDBmNzA3MzBjN2E1NjNjY2NmZmJjYjMxNmQ0MDI3MjE0MTY3ZWE2Ygpib2R5CWludGVybmFsL3NlZW4vZGFtYWdlMTQ0X3Rlc3QuZ28JZ2FyYmFnZSwgYW4gZW1wdHkgbGluZSBhbmQgTlVMcyBhcmUgY291bnRlZAk1ODdhY2YyMTlhMmRkMzRmMDNjYjcxMjE1NThlYmQyZDQyZTAzN2RiZjYzMGZiOTg5NTU3N2RmNGJjZTIyYTIz
@@ -96,3 +99,7 @@ Stop and ask if a ledger mrw itself wrote ever reports damage (the notice would 
   FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.131s
   FAIL
   ```
+- 2026-10-10 · b98f032 · exit 0 · `set -o pipefail …` · acceptance-sha256:2518aca2d7b370f94fd540c5281cc6f2dac90b8a9476d459428cb819d122eaea · ms:43520
+- 2026-10-10 · b98f032* · exit 0 · `set -o pipefail …` · acceptance-sha256:2518aca2d7b370f94fd540c5281cc6f2dac90b8a9476d459428cb819d122eaea · ms:41343
+- 2026-10-10 · b98f032* · exit 0 · `set -o pipefail …` · acceptance-sha256:2518aca2d7b370f94fd540c5281cc6f2dac90b8a9476d459428cb819d122eaea · ms:41755
+- 2026-10-10 · b98f032* · exit 0 · `set -o pipefail …` · acceptance-sha256:2518aca2d7b370f94fd540c5281cc6f2dac90b8a9476d459428cb819d122eaea · ms:40417

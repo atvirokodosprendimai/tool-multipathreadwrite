@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | The CLI tells a ledger it had to ignore lines of | pending | none | `docs/adr/ADR-144-a-damaged-read-ledger-is-told-once/tasks/T1-notice.md` fence |
+| T1 | The CLI tells a ledger it had to ignore lines of | done | none | `docs/adr/ADR-144-a-damaged-read-ledger-is-told-once/tasks/T1-notice.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
