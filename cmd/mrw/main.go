@@ -1287,9 +1287,15 @@ held or went unchecked.`,
 				if rerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
 				}
+				raw, notes := ingest.CreateContent(raw)
 				compiled, cerr := ingest.CompileCreate(cmd.String("create"), raw)
 				if cerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, cerr)) // a content refusal, not a plan that failed to parse: not counted by ADR-009
+				}
+				// The notes say what was done to content that is going on to the apply;
+				// a refused one would be told it was handled.
+				for _, n := range notes {
+					fmt.Fprintf(os.Stderr, "mrw: --create %s: %s\n", cmd.String("create"), n)
 				}
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
 			case "git":
