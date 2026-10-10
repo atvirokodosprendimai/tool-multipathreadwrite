@@ -35,7 +35,7 @@ func TestALedgerThatCannotBeUpdatedSaysWhatStandsAndWhatIsNotRecorded(t *testing
 		t.Fatal("a ledger that cannot be replaced was recorded into")
 	}
 	msg := err.Error()
-	for _, want := range []string{"could not be updated", "already served", "already applied", "not recorded", "read the files again"} {
+	for _, want := range []string{"could not be updated", "lines served", "changes applied", "not recorded", "read the files again"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("the message lacks %q:\n%s", want, msg)
 		}
@@ -66,7 +66,7 @@ func TestAnUnopenableLedgerSaysWhatStandsAfterACallAndThatNothingChangedBefore(t
 	}
 	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
 	err = Record(root, map[string]Observation{"b.txt": {SHA: SHA([]byte("two\n"))}})
-	if err == nil || !strings.Contains(err.Error(), "already served") || !strings.Contains(err.Error(), "not recorded") || !errors.Is(err, fs.ErrPermission) {
+	if err == nil || !strings.Contains(err.Error(), "lines served") || !strings.Contains(err.Error(), "not recorded") || !errors.Is(err, fs.ErrPermission) {
 		t.Errorf("Record on an unopenable ledger: %v, want what stands and the cause", err)
 	}
 	if _, err = Snapshot(root); err == nil || !strings.Contains(err.Error(), "wrote and changed nothing") || !errors.Is(err, fs.ErrPermission) {
