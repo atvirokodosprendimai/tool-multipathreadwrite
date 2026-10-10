@@ -4,7 +4,7 @@
 **Covers:** none — no spec
 **Estimated scope:** S
 **Owner:** Zy
-**Produces:** `maxScanBytes`
+**Produces:** `maxScanBytes`, `readBounded`
 **Consumes:** `seen.DamageNotice` (T1, T2)
 **Data dependency:** hermetic
 **Proof map:** v1
@@ -24,7 +24,7 @@ The second Codex review of PR #390: T2 closed the file before parsing by reading
 ## Ordered Steps
 
 1. [S1] Write `TestAHugeLedgerIsNotReadWhole`. Confirm RED.
-2. [S2] `maxScanBytes` (64 MiB) and the bounded read; a ledger past it says nothing. Mutant: the read is unbounded. [proof: mutation]
+2. [S2] `maxScanBytes` (64 MiB) and `readBounded`, which reads at most the bound plus one byte; a ledger past it says nothing. The first mutant (the limit removed inside `DamageNotice`) SURVIVED, because the length check hid it: the bound is now observable in `readBounded`, which `TestTheScanBoundStopsTheReadAtTheBound` (run by the package step of the fence, not by its `-run`) feeds a reader that errors when read past the bound. Mutant: `readBounded` reads without the limit. [proof: mutation]
 
 ## Acceptance
 
@@ -71,6 +71,10 @@ Stop and ask if a real ledger past the bound is met.
 - A damaged ledger past the scan bound (permanent: boundary: the scan reads whole to close the file first, and a bound is what keeps that read from exhausting memory; `Load` still serves what parses)
 
 ## Mutation Log
+- 2026-10-10 · 24baba5 · mutant survived · exit 0 · `internal/seen/seen.go` · S2: the scan reads the ledger without a bound · acceptance-sha256:cb7cfb97a9aee105de45e8e5fe5088d1aa321b49ea3cc24ca0e8a5f2e3bb6ff7 · covers:a ledger past the scan bound is not read whole and says nothing
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
 
 ## Verification Log
 - 2026-10-10 · e7dc360* · exit 1 · `set -o pipefail …` · acceptance-sha256:cb7cfb97a9aee105de45e8e5fe5088d1aa321b49ea3cc24ca0e8a5f2e3bb6ff7 · ms:237 · test-lock-sha256:e3fef53aee13a6ce7e935416434a2f78a1dde79f8331c4d844c8b674175f6658 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvc2Vlbi9kYW1hZ2UxNDRfdGVzdC5nbwlUZXN0QURhbWFnZWRMZWRnZXJJc0NvdW50ZWRBbmRUb2xkCTkwZTYyZWNlNjY1MjMwMDcxMmIwYTYwN2FmYjRkZWYwMTRjMDBjZDBiZWY4YWM3YTAxMWQ1OGNhMmE3NjNmMTIKYm9keQlpbnRlcm5hbC9zZWVuL2RhbWFnZTE0NF90ZXN0LmdvCVRlc3RBSHVnZUxlZGdlcklzTm90UmVhZFdob2xlCTUxY2M2MGVkM2U5MWNkZmZlYTAxODFiMzFmYzAyMmU4MzljYzg3YzdhNThhODYzNmVlY2RlMmUxMTg5NGUxZjIKYm9keQlpbnRlcm5hbC9zZWVuL2RhbWFnZTE0NF90ZXN0LmdvCWEgbGVkZ2VyIG1ydyB3cm90ZSBzYXlzIG5vdGhpbmcJZDFlNmZkZjQ5MzMzOWNhYjU1MzU2ODE1YjgyN2UwMDg0YWFjZjM5MDM2MmY0OTAyNTk4MGMyZDU1MDI3ZTBjNApib2R5CWludGVybmFsL3NlZW4vZGFtYWdlMTQ0X3Rlc3QuZ28JYSBsaW5lIHBhc3QgdGhlIHJlY29yZCBib3VuZCBpcyB0b2xkIGFzIGRpc2NhcmRlZAk0YmY3MWQ0NGQ0MjUzOThhNmI3ZmE3MDkzYjA5YjdmNjgxMGEzZWVlMzgzNjZlMWIyMGJlYTBjZTVhNjAwZjg0CmJvZHkJaW50ZXJuYWwvc2Vlbi9kYW1hZ2UxNDRfdGVzdC5nbwlhIHN0YWxlLCBhbiBlbXB0eSBhbmQgYSBtaXNzaW5nIGxlZGdlciBzYXkgbm90aGluZwkwN2I2YWFkYWMwOWY4YmNlY2M1OGQxODY0MGY3MDczMGM3YTU2M2NjY2ZmYmNiMzE2ZDQwMjcyMTQxNjdlYTZiCmJvZHkJaW50ZXJuYWwvc2Vlbi9kYW1hZ2UxNDRfdGVzdC5nbwlnYXJiYWdlLCBhbiBlbXB0eSBsaW5lIGFuZCBOVUxzIGFyZSBjb3VudGVkCTU4N2FjZjIxOWEyZGQzNGYwM2NiNzEyMTU1OGViZDJkNDJlMDM3ZGJmNjMwZmI5ODk1NTc3ZGY0YmNlMjJhMjM
@@ -83,3 +87,5 @@ Stop and ask if a real ledger past the bound is met.
   FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen [build failed]
   FAIL
   ```
+- 2026-10-10 · 24baba5 · exit 0 · `set -o pipefail …` · acceptance-sha256:cb7cfb97a9aee105de45e8e5fe5088d1aa321b49ea3cc24ca0e8a5f2e3bb6ff7 · ms:41926
+- 2026-10-10 · 24baba5* · exit 0 · `set -o pipefail …` · acceptance-sha256:cb7cfb97a9aee105de45e8e5fe5088d1aa321b49ea3cc24ca0e8a5f2e3bb6ff7 · ms:39938

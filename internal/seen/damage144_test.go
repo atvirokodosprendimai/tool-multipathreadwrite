@@ -1,6 +1,7 @@
 package seen
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -115,5 +116,23 @@ func TestAHugeLedgerIsNotReadWhole(t *testing.T) {
 	}
 	if got, err := DamageNotice(root); err != nil || !strings.Contains(got, "2000 line(s)") {
 		t.Errorf("within the bound: DamageNotice = %q, %v; want the 2000 bad lines counted", got, err)
+	}
+}
+
+// A reader that never ends must not be read past the bound: it errors if it is.
+type endlessReader struct{ n int }
+
+func (r *endlessReader) Read(p []byte) (int, error) {
+	if r.n > 1<<20 {
+		return 0, errors.New("read far past the bound")
+	}
+	r.n += len(p)
+	return len(p), nil
+}
+
+func TestTheScanBoundStopsTheReadAtTheBound(t *testing.T) {
+	data, over, err := readBounded(&endlessReader{}, 1<<10)
+	if err != nil || !over || len(data) != 1<<10+1 {
+		t.Errorf("readBounded = %d bytes, over %v, err %v; want %d bytes, over, no error", len(data), over, err, 1<<10+1)
 	}
 }
