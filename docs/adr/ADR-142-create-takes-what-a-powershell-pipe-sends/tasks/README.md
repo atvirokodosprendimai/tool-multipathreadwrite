@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | `--create` drops a pipe terminator, names a BOM, and says a path exists | pending | none | `docs/adr/ADR-142-create-takes-what-a-powershell-pipe-sends/tasks/T1-pipe.md` fence |
+| T1 | `--create` drops a pipe terminator, names a BOM, and says a path exists | done | none | `docs/adr/ADR-142-create-takes-what-a-powershell-pipe-sends/tasks/T1-pipe.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
