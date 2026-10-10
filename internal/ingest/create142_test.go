@@ -56,7 +56,7 @@ func TestALeadingByteOrderMarkIsKeptAndNamed(t *testing.T) {
 func TestAnEmptyLastLineAfterCRLFLinesIsKeptAndNamed(t *testing.T) {
 	for _, in := range []string{"a\r\nb\r\n\r\n", "a\r\n\r\n"} {
 		got, notes := CreateContent([]byte(in))
-		if string(got) != in || len(notes) != 1 || !strings.Contains(notes[0], "empty line") {
+		if string(got) != in || len(notes) != 1 || !strings.Contains(notes[0], "empty line") || !strings.Contains(notes[0], "may be") {
 			t.Errorf("%q: got %q, notes %q; want it kept and one note naming the empty line", in, got, notes)
 		}
 	}

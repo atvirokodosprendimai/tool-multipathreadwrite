@@ -50,7 +50,7 @@ func CreateContent(raw []byte) ([]byte, []string) {
 		notes = append(notes, "the content ended in CRLF after lines that end in LF; PowerShell appends a CRLF to what it pipes, so that one was dropped")
 		raw = body
 	case bytes.HasSuffix(raw, []byte("\r\n\r\n")) && bytes.Count(raw, []byte("\n")) == bytes.Count(raw, []byte("\r\n")):
-		notes = append(notes, "the content ends in an empty line after CRLF lines, kept; if PowerShell piped it, that line is the CRLF it appends and the file gains a blank line at its end (cmd and Git Bash add none)")
+		notes = append(notes, "the content ends in an empty line after CRLF lines, kept; that line may be the CRLF PowerShell appends to what it pipes or a blank line the content has, and if it is the CRLF the file gains a blank line at its end (cmd and Git Bash add none)")
 	}
 	return raw, notes
 }
