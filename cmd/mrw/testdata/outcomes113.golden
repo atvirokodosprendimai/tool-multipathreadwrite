@@ -557,9 +557,9 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
-  "error": "write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied"
+  "error": "the read ledger could not be updated; what this call did stands, but it is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied"
 }
-write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
+the read ledger could not be updated; what this call did stands, but it is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
 == ledger_failed_no_check human
 exit 2
 counts applied=1 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
@@ -567,7 +567,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
 ok   a.go 2 replace  -1 +1
 wrote a.go  2L -> 2L  sha 86ab99a1
 1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied
-write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
+the read ledger could not be updated; what this call did stands, but it is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
 == ledger_failed_check_due json
 exit 2
 counts applied=0 check_not_run=1 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
@@ -604,9 +604,9 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
-  "error": "write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied"
+  "error": "the read ledger could not be updated; what this call did stands, but it is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied"
 }
-write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
+the read ledger could not be updated; what this call did stands, but it is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
 == ledger_failed_check_due human
 exit 2
 counts applied=0 check_not_run=1 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
@@ -614,7 +614,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
 ok   a.go 2 replace  -1 +1
 wrote a.go  2L -> 2L  sha 86ab99a1
 1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied
-write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
+the read ledger could not be updated; what this call did stands, but it is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
 == ledger_failed_with_step json
 exit 2
 counts applied=0 check_not_run=1 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
@@ -651,7 +651,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
-  "error": "write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied"
+  "error": "the read ledger could not be updated; what this call did stands, but it is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied"
   "then": {
     "steps": [
       {
@@ -665,7 +665,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "pruned_logs": 0
   }
 }
-write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
+the read ledger could not be updated; what this call did stands, but it is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
 == ledger_failed_with_step human
 exit 2
 counts applied=0 check_not_run=1 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 1
@@ -674,7 +674,7 @@ ok   a.go 2 replace  -1 +1
 wrote a.go  2L -> 2L  sha 86ab99a1
 1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied
 then 1/1 --then-sh: exit 0 — NOT RUN
-write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
+the read ledger could not be updated; what this call did stands, but it is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
 == dry_run json
 exit 0
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=0 landed 0
