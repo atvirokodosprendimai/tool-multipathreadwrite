@@ -78,5 +78,16 @@ Stop and ask if a table sentence cannot be run against the binary: a hint nobody
 - Other commands (deferred: docs/adr/BACKLOG.md)
 
 ## Mutation Log
+- 2026-10-10 · b5e00d3 · mutant killed · exit 1 · `cmd/mrw/foreignflag.go` · S2: the hint is given on every command, write included · acceptance-sha256:c799bf8b58e0a48dfe63f7b2e75775c213734ef75af2d62757c89682a1b1367f · covers:read given a grep flag it lacks exits 2 with mrw's spelling appended, and every other usage error is worded as before
+- 2026-10-10 · b5e00d3* · mutant killed · exit 1 · `cmd/mrw/foreignflag.go` · S2: the flag lookup returns no hint · acceptance-sha256:c799bf8b58e0a48dfe63f7b2e75775c213734ef75af2d62757c89682a1b1367f · covers:read given a grep flag it lacks exits 2 with mrw's spelling appended, and every other usage error is worded as before
+- 2026-10-10 · b5e00d3* · mutant survived · exit 0 · `cmd/mrw/foreignflag.go` · S2: any pattern beginning with a dash gets the hint · acceptance-sha256:c799bf8b58e0a48dfe63f7b2e75775c213734ef75af2d62757c89682a1b1367f · covers:read given a grep flag it lacks exits 2 with mrw's spelling appended, and every other usage error is worded as before
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-10 · b5e00d3* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the no-file-matched message carries no hint · acceptance-sha256:c799bf8b58e0a48dfe63f7b2e75775c213734ef75af2d62757c89682a1b1367f · covers:read given a grep flag it lacks exits 2 with mrw's spelling appended, and every other usage error is worded as before
 
 ## Verification Log
+- 2026-10-10 · b5e00d3 · exit 0 · `set -o pipefail …` · acceptance-sha256:c799bf8b58e0a48dfe63f7b2e75775c213734ef75af2d62757c89682a1b1367f · ms:2238
+- 2026-10-10 · b5e00d3* · exit 0 · `set -o pipefail …` · acceptance-sha256:c799bf8b58e0a48dfe63f7b2e75775c213734ef75af2d62757c89682a1b1367f · ms:1763
+- 2026-10-10 · b5e00d3* · exit 0 · `set -o pipefail …` · acceptance-sha256:c799bf8b58e0a48dfe63f7b2e75775c213734ef75af2d62757c89682a1b1367f · ms:1802
+- 2026-10-10 · b5e00d3* · exit 0 · `set -o pipefail …` · acceptance-sha256:c799bf8b58e0a48dfe63f7b2e75775c213734ef75af2d62757c89682a1b1367f · ms:1667

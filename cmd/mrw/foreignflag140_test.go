@@ -44,6 +44,7 @@ func TestAForeignReadFlagIsAnsweredWithMrwsSpelling(t *testing.T) {
 		{[]string{"write", "-i"}, 2, "(?i)"},
 		{[]string{"read", "--grep", "-v", "f.txt"}, 1, "took the value"},
 		{[]string{"read", "--grep", "-ii", "f.txt"}, 1, "took the value"},
+		{[]string{"read", "--grep", "-count", "f.txt"}, 1, "took the value"}, // a real search string that is also a table key: only a dash and ONE letter is a flag
 	} {
 		out, code := runIn(t, root, c.argv...)
 		if code != c.code || strings.Contains(out, c.want) {
