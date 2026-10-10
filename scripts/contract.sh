@@ -8644,6 +8644,36 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 244. A read whose ledger cannot be updated says what stands. Four Windows
+# sessions read "rename <tmp> <ledger>: Access is denied", exit 2, after a full
+# serve, as a failed read. The lines are served, exit 2 stays (a filesystem
+# failure), and the message now says what was served stands but is not recorded
+# and the files need reading again before an edit. The pairs: an edit of that
+# file is refused as unread while the ledger is unwritable, and licensed once a
+# read has recorded it.
+fixture
+printf 'one244\n' > "$R/l244.txt"
+printf 'seed244\n' > "$R/s244.txt"
+printf '@@ l244.txt 1 replace\ntwo244\n' > "$WORK/p244.plan"
+m read s244.txt >"$WORK/o244" 2>&1
+led="$(m seen 2>/dev/null | head -1)/seen"
+chmod 400 "$led" 2>/dev/null
+if [ -w "$led" ] || [ ! -e "$led" ]; then
+  chmod 600 "$led" 2>/dev/null
+  skip "an unwritable ledger is refused (permission bits not enforced here — running as root?)"
+else
+  out=$(m read l244.txt 2>&1); rc=$?
+  chmod 600 "$led"
+  want 2 "$rc" "a read whose ledger cannot be replaced exits 2"
+  { grep -q 'one244' <<<"$out" && grep -q 'already served and changes already applied stand, but are not recorded there' <<<"$out"; } \
+    && ok "serving the line and saying what stands and what is not recorded" || bad "ledger refusal: $out"
+  out=$(m write --no-check --dry-run "$WORK/p244.plan" 2>&1); want 1 $? "the pair: an edit of the file the failed read served is refused"
+  grep -q 'has not been read' <<<"$out" && ok "as not read, so the failed read licensed nothing" || bad "edit after failed read: $out"
+  m read l244.txt >"$WORK/o244" 2>&1
+  out=$(m write --no-check --dry-run "$WORK/p244.plan" 2>&1); want 0 $? "and once a read recorded it, the same edit is licensed"
+fi
+rm -f "$R/l244.txt" "$R/s244.txt" "$WORK/p244.plan" "$WORK/o244"
+
 # 243. ADR-142: `mrw write --create` takes what a PowerShell pipe sends. An LF
 # file arrives with a CRLF appended; after LF lines and no other CR that
 # terminator is dropped, the file is made as the caller had it, and stderr says

@@ -561,7 +561,13 @@ func save(root string, l Ledger) error {
 		}
 		b.WriteString(line)
 	}
-	return state.WriteSynced(path, []byte(b.String()), 0o600)
+	if err := state.WriteSynced(path, []byte(b.String()), 0o600); err != nil {
+		// What the call already did (lines a read served, a plan applied) stands; only
+		// the licence is missing. A bare "rename … Access is denied" after a full serve
+		// read as a failed read to four Windows sessions (v1.59.0).
+		return fmt.Errorf("the read ledger could not be updated; lines already served and changes already applied stand, but are not recorded there, so read the files again before editing them: %w", err)
+	}
+	return nil
 }
 
 // maxRecordBytes bounds one ledger line, on save and on load alike (ADR-108);
