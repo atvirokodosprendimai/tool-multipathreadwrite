@@ -23,15 +23,15 @@ Making a new file through mrw takes a plan: a header line, `body=N` when the bod
 
 ## Existing Primitives Audit
 
-- **`ingest.emit`** — writes a hunk header and body, with `body=N` for an empty create, `raw=true` for a body line beginning `@@`, and the quoting a path with a space needs (ADR-070); reused, not copied.
+- **`ingest.emit`** (apply_patch's emitter) — NOT used by `--create`: its `@@` detection did not strip the BOM the parser strips, and its path quoting misread a name holding two backslashes and a name like `a='b'.txt` (the Codex review of #371, which also found the BOM case reaches apply_patch's Add File; the detection is fixed there). `CompileCreate` writes its own header: always `body=N raw=true`, the path always double-quoted and escaped.
 - **`lines.Split` / `lines.Unsplittable`** — split text by its own terminator and name content mrw cannot treat as lines (UTF-16, a NUL), which a create plan cannot carry.
 - **The `--format` switch in the write action** — where a document becomes hunks; `--create` is selected there.
 - **`rooted.IsRooted`** — a path given to a plan is relative to the root; `--create` holds to it.
 
 ## Decision
 
-1. **`mrw write --create PATH`** reads all of standard input and creates `PATH`, relative to the root, through the same all-or-nothing apply, lock, default check and receipt as a plan. It takes no PLAN argument and no `--format`: either is a usage error, exit 2, and so is an empty PATH or a PATH that is not relative to the root.
-2. **The content is compiled to one create hunk** by `ingest.CompileCreate(path, content)`: the content split into lines by `lines.Split`, emitted by `emit`. A line beginning `@@`, an empty content and a path with a space are carried by the existing rules. Content mrw cannot split into lines (`lines.Unsplittable`: a UTF-16 or UTF-32 mark, a NUL early on) is refused, exit 2, saying so, since a create plan cannot carry it either.
+1. **`mrw write --create PATH`** reads all of standard input and creates `PATH`, relative to the root, through the same all-or-nothing apply, lock, default check and receipt as a plan. It takes no PLAN argument and no `--format` (also not the internal `create` format typed without the flag): either is a usage error, exit 2. So is an empty PATH, one not relative to the root, or one holding a newline or NUL: that is judged by `ingest.CheckCreatePath` BEFORE standard input is read, so a usage error does not wait for EOF. A usage error is not counted by the plan-parse tally (ADR-009).
+2. **The content is compiled to one create hunk** by `ingest.CompileCreate(path, content)`: the content split into lines by `lines.Split`, under a header that always declares `body=N raw=true`, so the parser takes exactly N lines as content whatever they look like (a line beginning `@@`, one with a BOM before it, one beginning `body=`) and none can start another hunk. The path is always double-quoted and escaped. Content mrw cannot split into lines (`lines.Unsplittable`: a UTF-16 or UTF-32 mark, a NUL early on), or whose lines end in a bare CR (mixed line endings, which the plan parser's line scanner would strip without a word), is refused, exit 2, saying so; all-LF and all-CRLF content are carried.
 3. **The file is what a create plan makes of those lines**: each line ends in `\n`, so a missing final newline is added and CRLF becomes LF; empty input makes an empty file. A PATH that exists, or is a link out of the root, is refused by the apply as for any create.
 4. **`mrw_write` is unchanged**: it takes a plan, and its callers have a file tool.
 
@@ -82,7 +82,7 @@ See `tasks/README.md`: T1.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| a document line beginning `@@` ends the body early | Low | a truncated file | `emit` declares `body=N raw=true`; `TestCompileCreateMakesACreatePlanOfStdin` carries one |
+| a document line beginning `@@` (or BOM and `@@`) ends the body early or starts another hunk | Low | a truncated file, or a second file written | the header always declares `body=N raw=true`; `TestCompileCreateMakesACreatePlanOfStdin` and `TestABOMPrefixedHeaderInContentIsContentNotAHunk` carry them |
 | a caller reads the flag as byte-exact | Medium | a missing final newline surprises | the help, AGENTS.md and the receipt-free refusal text say "what a create plan makes of these lines" |
 | stdin is a terminal and blocks | Low | an interactive hang | the same as `mrw write -`; the help says the content is read from stdin |
 

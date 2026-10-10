@@ -1141,6 +1141,9 @@ held or went unchecked.`,
 				return cli.Exit("write takes at most one plan file", exitUsage)
 			}
 			if cmd.IsSet("create") {
+				if err := ingest.CheckCreatePath(cmd.String("create")); err != nil {
+					return cli.Exit(err.Error(), exitUsage)
+				}
 				if len(args) > 0 {
 					return cli.Exit("--create takes the content on standard input: it takes no PLAN argument", exitUsage)
 				}
@@ -1262,14 +1265,16 @@ held or went unchecked.`,
 				}
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
 			case "create":
+				if !cmd.IsSet("create") {
+					return refuse(fmt.Sprintf("unknown --format %q (plan, apply_patch, or search_replace)", cmd.String("format")))
+				}
 				raw, rerr := io.ReadAll(src)
 				if rerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
 				}
 				compiled, cerr := ingest.CompileCreate(cmd.String("create"), raw)
 				if cerr != nil {
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
-					return refuse(fmt.Sprintf("%s: %v", name, cerr))
+					return refuse(fmt.Sprintf("%s: %v", name, cerr)) // a content refusal, not a plan that failed to parse: not counted by ADR-009
 				}
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
 			case "git":

@@ -52,6 +52,11 @@ out=$(mktemp) \
 |-----------|------|----------|--------|-------|
 | `TestCompileCreateMakesACreatePlanOfStdin` | `internal/ingest/create139_test.go` | the compiled plan carries the lines, `@@` lines, empty content and a spaced path; unsplittable content and a rooted path are refused | none | S1, S2 |
 | `TestWriteCreateMakesTheFileAndRefusesAnExistingOne` | `cmd/mrw/create139_test.go` | the file is made, an existing one refused, the usage errors are exit 2 | none | S1, S2 |
+| `TestABOMPrefixedHeaderInContentIsContentNotAHunk` | `internal/ingest/create139_review_test.go` | a BOM before an `@@` content line is content, for `--create` and apply_patch Add File | none | S1, S2 |
+| `TestAPathIsQuotedSoNoNameIsReadAsSyntax` | `internal/ingest/create139_review_test.go` | names holding backslashes, quotes, `=` quotes, a dash or a tilde round-trip | none | S1, S2 |
+| `TestAMixedEndingContentIsRefusedNotQuietlyChanged` | `internal/ingest/create139_review_test.go` | a line ending in a bare CR is refused, CRLF content is carried | none | S1, S2 |
+| `TestCheckCreatePathRefusesWhatNoHeaderCanCarry` | `internal/ingest/create139_review_test.go` | an empty, rooted or control-character path is refused before stdin is read | none | S1, S2 |
+| `TestTheInternalCreateFormatIsNotReachableWithoutTheFlag` | `cmd/mrw/create139_usage_test.go` | `--format=create` without `--create` is an unknown format | none | S1, S2 |
 
 ## Reachability
 
