@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | the usage error for a grep flag names mrw's spelling | pending | none | `docs/adr/ADR-140-a-read-flag-from-grep-is-answered-with-mrws-spelling/tasks/T1-hint.md` fence |
+| T1 | the usage error for a grep flag names mrw's spelling | done | none | `docs/adr/ADR-140-a-read-flag-from-grep-is-answered-with-mrws-spelling/tasks/T1-hint.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
