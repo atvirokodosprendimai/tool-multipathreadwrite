@@ -1287,6 +1287,10 @@ held or went unchecked.`,
 				if rerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
 				}
+				raw, notes := ingest.CreateContent(raw)
+				for _, n := range notes {
+					fmt.Fprintf(os.Stderr, "mrw: --create %s: %s\n", cmd.String("create"), n)
+				}
 				compiled, cerr := ingest.CompileCreate(cmd.String("create"), raw)
 				if cerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, cerr)) // a content refusal, not a plan that failed to parse: not counted by ADR-009

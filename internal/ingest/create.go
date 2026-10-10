@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
@@ -26,6 +27,26 @@ func CheckCreatePath(path string) error {
 		return fmt.Errorf("--create %q: a path cannot hold a newline or a NUL", path)
 	}
 	return nil
+}
+
+// CreateContent cleans what a pipe added to the caller's content, and names
+// each change (ADR-142). Windows PowerShell and PowerShell 7 append CRLF to the
+// text they pipe, so an LF file arrives as "a\nb\n\r\n", which CompileCreate
+// refuses as a line ending in a bare CR. A final CRLF after text that holds an
+// LF and no other CR is that terminator and is dropped; every other shape is
+// returned as it came, for CompileCreate to accept or refuse. A leading UTF-8
+// byte order mark is content and is kept, but PowerShell 5.1 adds one, so it is
+// named. Each note is one line, without the "mrw:" prefix.
+func CreateContent(raw []byte) ([]byte, []string) {
+	var notes []string
+	if bytes.HasPrefix(raw, []byte("\xef\xbb\xbf")) {
+		notes = append(notes, "the content begins with a UTF-8 byte order mark, written to the file as given (Windows PowerShell 5.1 adds one to what it pipes)")
+	}
+	if body, ok := bytes.CutSuffix(raw, []byte("\r\n")); ok && bytes.IndexByte(body, '\n') >= 0 && bytes.IndexByte(body, '\r') < 0 {
+		notes = append(notes, "the content ended in CRLF after lines that end in LF; that CRLF, which PowerShell appends to what it pipes, was dropped")
+		raw = body
+	}
+	return raw, notes
 }
 
 // CompileCreate turns a file's content into the native plan text that creates

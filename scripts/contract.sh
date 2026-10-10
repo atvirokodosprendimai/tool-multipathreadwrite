@@ -8644,6 +8644,25 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 243. ADR-142: `mrw write --create` takes what a PowerShell pipe sends. An LF
+# file arrives with a CRLF appended; after LF lines and no other CR that
+# terminator is dropped, the file is made as the caller had it, and stderr says
+# so. The pairs: a mixed shape that is not the terminator is still refused and
+# makes nothing, and a --create of a path that exists and was never read says it
+# exists (exit 1) while an edit of the same unread file keeps its refusal.
+fixture
+out=$(printf 'a\nb\n\r\n' | m write --no-check --create p243.txt 2>&1); want 0 $? "--create of an LF file with a pipe's CRLF appended exits 0"
+{ [ "$(od -An -c "$R/p243.txt" | tr -d ' ')" = 'a\nb\n' ] && grep -q 'CRLF' <<<"$out"; } && ok "the file is as the caller had it, and stderr names the dropped CRLF" || bad "pipe terminator: $(od -c "$R/p243.txt" | head -2) / $out"
+out=$(printf 'a\r\nb\n\r\n' | m write --no-check --create q243.txt 2>&1); want 2 $? "the pair: a mixed shape that is not the terminator exits 2"
+[ ! -e "$R/q243.txt" ] && ok "and makes nothing" || bad "mixed made a file: $out"
+printf 'one\n' > "$R/e243.txt"
+out=$(printf 'x\n' | m write --no-check --create e243.txt 2>&1); want 1 $? "--create of an existing, never-read path exits 1"
+{ grep -q 'already exists' <<<"$out" && ! grep -q 'has not been read' <<<"$out"; } && ok "saying it exists, not that it must be read" || bad "create-exists: $out"
+printf '@@ e243.txt 1 replace\ntwo\n' > "$WORK/r243.plan"
+out=$(m write --no-check "$WORK/r243.plan" 2>&1); want 1 $? "the pair: an edit of the same unread file exits 1"
+grep -q 'has not been read' <<<"$out" && ok "with the read-before-modify refusal" || bad "edit: $out"
+rm -f "$R/p243.txt" "$R/e243.txt" "$WORK/r243.plan"
+
 # 242. ADR-141: `mrw instructions --core` prints the eight rules. The short form
 # to put in an agent's standing instructions: eight numbered rules in under 300
 # words that name only flags the binary has, while plain `mrw instructions` is

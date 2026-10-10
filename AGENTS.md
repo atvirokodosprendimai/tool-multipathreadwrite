@@ -58,6 +58,9 @@ visible; a write that changes nothing is not.* `--format=apply_patch` and
 the leak, not the feature.
 A new file needs no plan: `mrw write --create PATH < content` makes it from standard input as the `create` plan of
 those lines would (ADR-139), through the same lock, check and receipt.
+PowerShell appends a CRLF to everything it pipes (ADR-142): after LF lines with no other CR that CRLF is dropped, and stderr says
+so; a leading byte order mark (Windows PowerShell 5.1 adds one) is kept and named; text that is all CRLF keeps the extra blank
+line at its end, which `cmd /c "mrw write --create p < f"` does not add. A `--create` of a path that exists says that it exists.
 
 ## Portability — one trap, learned the hard way
 
