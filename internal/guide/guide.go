@@ -67,6 +67,26 @@ To find files you cannot name: --grep PATTERN walks the paths given, or the root
 --ast-grep PATTERN is structural search run by the ast-grep binary, which must be on PATH: a missing one exits 2 naming it, and one that hangs is, on unix, sent SIGTERM at 2 s and killed by 3 s if it ignores it; on Windows it is killed at 2 s.
 --files-from FILE takes one spec per line, - for stdin: rg -l X . | sed 's|$|:/X/|' | mrw read --files-from - (name rg's path: with none, rg reads a piped stdin and waits)
 --stat prints only length, size and sha; --max-lines N caps each spec; --max-cols N (CLI) cuts a line to a window round the match and does not record it as read; --no-numbers drops the numbers a plan addresses by. A read exits 1 when a range cannot be served (a pattern with no match, a start past the end, lines --max-lines withheld) and still prints the rest; an end past the last line is clamped, not an error.
+A pattern is a Go regular expression: start it with (?i) to ignore case.
+mrw write PLAN reads a plan from a file and mrw write - reads it from standard input.
+mrw instructions --core prints the eight rules that matter most.
+`
+}
+
+// Core is the eight rules whose absence costs a session a turn, the short form
+// to put in standing instructions (ADR-141). It is not generated from CLI: the
+// choice of rules is the work, and a test holds each to the full text and every
+// flag it names to the binary.
+func Core() string {
+	return `The eight rules that matter most (mrw instructions prints the whole contract):
+1. Use mrw for every file read, edit and create: one read of every site, then one plan, then one write (mrw write PLAN, or mrw write - for a plan on standard input).
+2. Read before you write, per line: a write to a line mrw has not served you is refused, except in a file mrw just wrote. After a multi-line body, read on past your range until the enclosing structure closes.
+3. A plan that fails validation writes nothing: read the refusal, which names the file, the plan line and the reason, and do not reach for --force. A commit that fails reports what reached disk.
+4. A multi-line replace needs anchor= copied from the line your read printed; body= is a line count and goes on the header.
+5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass (it failed, timed out or was interrupted). A read exits 1 when a range cannot be served. Never read an exit code through a pipe: mrw write plan | head returns head's status.
+6. Find with mrw read --grep PATTERN [paths]; start the pattern with (?i) to ignore case; --stat lists the matching files; --max-cols N cuts a long line to a window, and a line it cut is unread; --no-numbers drops the numbers.
+7. A new file is mrw write --create PATH < content, or @@ path 0 create in a plan.
+8. -C DIR or --root DIR comes BEFORE the subcommand; after read, -C N is context lines. A path with a leading or trailing space goes after --.
 `
 }
 

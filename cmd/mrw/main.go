@@ -448,7 +448,10 @@ func versionCmd() *cli.Command {
 func instructionsCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "instructions",
-		Usage: "print the contract a caller with only this binary is entitled to",
+		Usage: "print the contract a caller with only this binary is entitled to; --core prints the eight rules that matter most",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{Name: "core", Usage: "print the eight rules that matter most instead of the whole contract (ADR-141)"},
+		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.Args().Len() != 0 {
 				return cli.Exit("instructions takes no arguments", exitUsage)
@@ -456,6 +459,10 @@ func instructionsCmd() *cli.Command {
 			out := cmd.Root().Writer
 			if out == nil {
 				out = os.Stdout
+			}
+			if cmd.Bool("core") {
+				_, err := fmt.Fprint(out, guide.Core())
+				return err
 			}
 			_, err := fmt.Fprint(out, guide.CLI())
 			return err

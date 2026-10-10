@@ -529,11 +529,14 @@ and #73, one release apart.
   and plan the activity, the two rules that produce most refusals, the traps
   that make a red run look green, the plan ops, and the read side — address
   forms, `--grep`, `--files-from`, and where a plan reads an address
-  differently (ADR-063). Exit 0. No flags. A caller who installed mrw and has
+  differently (ADR-063). Exit 0. One flag, `--core` (ADR-141). A caller who installed mrw and has
   neither this checkout nor the skill can learn the format from this.
   `mrw --instructions` is refused, exit 2, with a message naming `mrw
   instructions`; so is any other undefined flag that is exactly the name of a
-  subcommand of the command it was given to (ADR-097).
+  subcommand of the command it was given to (ADR-097). `mrw instructions --core`
+  prints the eight rules that matter most, in under 300 words (ADR-141): the form
+  to put in standing instructions; a test holds it to the full text and to the
+  flags the binary has.
 - **`mrw check`** runs the project's check on its own, scoped to the working
   set or to paths you name. A CLI `write` to a non-prose file runs the same
   runner by default (ADR-054); this is it without the write, for when you want the verdict again
