@@ -61,3 +61,39 @@ func TestTheShortNameOfARealDotGitIsRefused(t *testing.T) {
 		t.Errorf("GitDir(git~12/config) = %v, want none: it is an ordinary name", err)
 	}
 }
+
+// ADR-143. The literal git~1 rule is a backstop: Windows path resolution turns
+// any 8.3 alias of an existing directory into its long name, so whatever short
+// name a volume made for .git reaches GitDir as .git. Asserted on the resolved
+// path alone, where the literal rule cannot make it pass.
+func TestWindowsResolutionExpandsAnyShortNameOfDotGit(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	short := filepath.Base(shortPath(t, filepath.Join(root, ".git")))
+	if strings.EqualFold(short, ".git") {
+		t.Skip("this volume gives .git no 8.3 name")
+	}
+	for _, p := range []string{filepath.Join(root, short, "config"), filepath.Join(root, short)} {
+		var names []string
+		for _, c := range strings.Split(filepath.ToSlash(RealAsFarAsItExists(p)), "/") {
+			names = append(names, c)
+			if strings.EqualFold(c, short) {
+				t.Errorf("RealAsFarAsItExists(%q) still holds the alias %q: %q", p, short, names)
+			}
+		}
+		if len(names) > 0 && !hasDotGit(names) {
+			t.Errorf("RealAsFarAsItExists(%q) = %q, want a .git component", p, names)
+		}
+	}
+}
+
+func hasDotGit(names []string) bool {
+	for _, n := range names {
+		if strings.EqualFold(n, ".git") {
+			return true
+		}
+	}
+	return false
+}

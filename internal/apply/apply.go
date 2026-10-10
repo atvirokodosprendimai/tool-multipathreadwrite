@@ -2115,6 +2115,10 @@ func targetCause(err error) bool {
 	if errors.As(err, &left) {
 		return false
 	}
+	var dotGit *dotGitError
+	if errors.As(err, &dotGit) {
+		return true
+	}
 	return causeOf(err) != "" || errors.Is(err, fs.ErrNotExist)
 }
 

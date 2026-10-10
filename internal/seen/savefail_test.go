@@ -66,7 +66,7 @@ func TestAnUnopenableLedgerSaysWhatStandsAfterACallAndThatNothingChangedBefore(t
 	}
 	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
 	err = Record(root, map[string]Observation{"b.txt": {SHA: SHA([]byte("two\n"))}})
-	if err == nil || !strings.Contains(err.Error(), "lines served") || !strings.Contains(err.Error(), "not recorded") || !errors.Is(err, fs.ErrPermission) {
+	if err == nil || !strings.Contains(err.Error(), "could not be read to record") || !strings.Contains(err.Error(), "lines served") || !strings.Contains(err.Error(), "not recorded") || !errors.Is(err, fs.ErrPermission) {
 		t.Errorf("Record on an unopenable ledger: %v, want what stands and the cause", err)
 	}
 	var unreadable *UnreadableError

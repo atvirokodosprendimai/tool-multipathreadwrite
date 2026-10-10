@@ -7,7 +7,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-001, ADR-071, ADR-077, ADR-081, docs/adr/BACKLOG.md
 **Invalidates:** None — no accepted record let a write into `.git`; it was an unstated gap
-**Governs:** `internal/rooted/gitdir.go`, `internal/apply/apply.go`, `scripts/contract.sh`, `AGENTS.md`
+**Governs:** `internal/rooted/gitdir.go`, `internal/apply/apply.go`, `internal/apply/tree.go`, `scripts/contract.sh`, `AGENTS.md`
 **Enforced-by:** `internal/rooted/gitdir143_test.go::TestAPathInsideADotGitIsRefused`
 **Served-path change:** a plan hunk, a `--create`, an `apply_patch` or `search_replace` edit or an `mrw_write` whose path has a `.git` component, or whose real location does, is refused as a failed hunk: exit 1, nothing written, the siblings skip. Reads of `.git` are unchanged.
 
@@ -31,6 +31,7 @@ mrw writes anything under `--root`, and `.git` is under the root of every checko
 3. **Reads stay allowed.** `mrw read .git/config` and a `--grep` over `.git` are unchanged (ADR-116 skips `.git` in a walk; a path you name is served).
 4. **There is no override.** `--force` lifts the read-before-modify guards and does not lift this; no flag does. The message says what to use instead.
 5. **The message names the cause once:** `<path> is inside a .git directory; mrw does not write there, since a hook, a config or a ref changed behind git's back changes what git does next — use git for it (mrw read still reads it)`. A path that reaches `.git` through a link says the same with the real location.
+6. **A path reopened by name is judged again, by where it lands now.** Staging, rename and removal reopen their paths by name after validation, so a directory swapped for a link to `.git` in between would carry the write there (reproduced with ADR-106's seams: a hook was made in `.git` and `.git/config` removed). `tree.rel`, through which every one of them passes, refuses a path with a `.git` component (T2), or whose parent now resolves into one, the leaf as written (T3): a rename or an unlink acts on the entry, not on what a link at its end leads to, and a RELATIVE link swapped in after staging leaves the spelling clean. A refusal while staging is a failed hunk, exit 1 (T3); one while committing is the commit's own failure (ADR-066). What stays is the instant between that check and the syscall that follows it.
 
 ## Alternatives Considered
 
@@ -56,11 +57,11 @@ mrw writes anything under `--root`, and `.git` is under the root of every checko
 
 | Contract | Producing task | Consuming task(s) | Breaking? |
 |----------|----------------|-------------------|-----------|
-| None — one task | T1 | — | no |
+| `inGit` (T1), exported as `rooted.HasGitComponent` | T1 | T2 | no |
 
 ## Implementation
 
-See `tasks/README.md`: T1.
+See `tasks/README.md`: T1, T2, T3.
 
 ## Consequences
 
@@ -73,8 +74,8 @@ See `tasks/README.md`: T1.
 - A hard link in the tree to a file under `.git` (permanent: fact: an edit is a temp file renamed over the name, so the other name keeps its content; citation: file `internal/apply/gitdir143_test.go:68`)
 - A repository whose git directory is elsewhere and not named `.git` (a bare repository, `--separate-git-dir`) (permanent: boundary: mrw cannot know which directory is a repository by its name)
 - What a check or a `--then-sh` step does to `.git` (permanent: boundary: they run the project's own commands, not mrw's writes)
-- A directory swapped for a link to `.git` between validation and the commit (permanent: boundary: a process that can race the checkout can write `.git` itself; the refusal guards a caller's plan, as the other name refusals do, and `os.Root` still holds the root)
-- Windows 8.3 names of `.git` other than `git~1`, such as a hashed short name (deferred: docs/adr/BACKLOG.md — "Writes into .git" entry)
+- A directory swapped for a link to `.git` in the instant between `tree.rel`'s check and the syscall that follows it (permanent: boundary: the check runs when each staging, rename and removal opens its path, the finest grain mrw has; a process that can swap a directory in that instant can write `.git` itself)
+- Windows 8.3 names of `.git` other than `git~1`, such as a hashed short name (permanent: fact: Windows path resolution turns an 8.3 alias of an existing directory into its long name, so whatever short name a volume made for `.git` reaches `GitDir` as `.git`; measured on the CI Windows runner for its alias `GIT~1`; citation: file `internal/rooted/gitdir143_windows_test.go:69`)
 
 ## Risks
 
