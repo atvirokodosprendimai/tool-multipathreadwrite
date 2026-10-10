@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | The install check migrates nothing | pending | none | `docs/adr/ADR-145-version-and-instructions-touch-no-state/tasks/T1-no-migration.md` fence |
+| T1 | The install check migrates nothing | done | none | `docs/adr/ADR-145-version-and-instructions-touch-no-state/tasks/T1-no-migration.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

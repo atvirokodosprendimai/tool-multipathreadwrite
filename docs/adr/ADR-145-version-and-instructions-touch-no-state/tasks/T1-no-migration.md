@@ -75,6 +75,8 @@ Stop and ask if a command in the four needs the migrated state.
 - A flag before the verb (permanent: boundary: the migration runs before the parse)
 
 ## Mutation Log
+- 2026-10-10 · c889e19 · mutant killed · exit 1 · `cmd/mrw/startup.go` · S2: the predicate answers false for the four · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · covers:version, -v, --version and instructions as the first argument skip the legacy state migration and every other command still runs it
+- 2026-10-10 · c889e19* · mutant killed · exit 1 · `cmd/mrw/startup.go` · S2: migrateLegacyState ignores the predicate · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · covers:version, -v, --version and instructions as the first argument skip the legacy state migration and every other command still runs it
 
 ## Verification Log
 - 2026-10-10 · f9f5453* · exit 1 · `set -o pipefail …` · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · ms:505 · test-lock-sha256:614a5efaf3d37da26120db3841032e4daca1ac9d1b49cb524331acf81db1a381 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9zdGFydHVwMTQ1X3Rlc3QuZ28JVGVzdFZlcnNpb25BbmRJbnN0cnVjdGlvbnNNaWdyYXRlTm90aGluZwkzNGJjYzE2NzY2MzA5YjE3ZTgxNDI3YWUyNTkwNzI5ZGVkYWFhNzM0MmE4YmE0ZmQ3ODY5NmE0YTUyYzhkYTA1
@@ -85,3 +87,6 @@ Stop and ask if a command in the four needs the migrated state.
   FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw [build failed]
   FAIL
   ```
+- 2026-10-10 · c889e19 · exit 0 · `set -o pipefail …` · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · ms:39769
+- 2026-10-10 · c889e19* · exit 0 · `set -o pipefail …` · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · ms:40150
+- 2026-10-10 · c889e19* · exit 0 · `set -o pipefail …` · acceptance-sha256:00e8f33910611613108ad097aa7332da8f5d2256ebeab1cbeeca4e7cc97eb976 · ms:38604
