@@ -1096,6 +1096,10 @@ held or went unchecked.`,
 				Value: "plan",
 				Usage: "plan (default), apply_patch (Codex *** Begin Patch; a git patch is not one), or search_replace (Aider SEARCH/REPLACE)",
 			},
+			&cli.StringFlag{
+				Name:  "create",
+				Usage: "create `PATH` (relative to the root) from standard input, as the create plan of its lines would: each line ends in a newline, so a missing final newline is added and CRLF becomes LF; refused if PATH exists. Takes no PLAN argument and no --format (ADR-139)",
+			},
 			&cli.IntFlag{
 				Name:  "echo-pad",
 				Value: 0,
@@ -1135,6 +1139,17 @@ held or went unchecked.`,
 			}
 			if len(args) > 1 {
 				return cli.Exit("write takes at most one plan file", exitUsage)
+			}
+			if cmd.IsSet("create") {
+				if err := ingest.CheckCreatePath(cmd.String("create")); err != nil {
+					return cli.Exit(err.Error(), exitUsage)
+				}
+				if len(args) > 0 {
+					return cli.Exit("--create takes the content on standard input: it takes no PLAN argument", exitUsage)
+				}
+				if cmd.IsSet("format") {
+					return cli.Exit("--create and --format contradict each other: drop one", exitUsage)
+				}
 			}
 			// ADR-072: under --json every refusal after the plan is named is
 			// one JSON document — the receipt's shape with an error field — so
@@ -1218,7 +1233,11 @@ held or went unchecked.`,
 
 			var hunks []plan.Hunk
 			var err error
-			switch cmd.String("format") {
+			format := cmd.String("format")
+			if cmd.IsSet("create") {
+				format = "create" // ADR-139: standard input is a file's content, compiled to one create hunk
+			}
+			switch format {
 			case "plan", "":
 				hunks, err = plan.Parse(src)
 			case "apply_patch":
@@ -1243,6 +1262,19 @@ held or went unchecked.`,
 				if cerr != nil {
 					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 					return refuse(fmt.Sprintf("%s: %v", name, cerr))
+				}
+				hunks, err = plan.Parse(bytes.NewReader(compiled))
+			case "create":
+				if !cmd.IsSet("create") {
+					return refuse(fmt.Sprintf("unknown --format %q (plan, apply_patch, or search_replace)", cmd.String("format")))
+				}
+				raw, rerr := io.ReadAll(src)
+				if rerr != nil {
+					return refuse(fmt.Sprintf("%s: %v", name, rerr))
+				}
+				compiled, cerr := ingest.CompileCreate(cmd.String("create"), raw)
+				if cerr != nil {
+					return refuse(fmt.Sprintf("%s: %v", name, cerr)) // a content refusal, not a plan that failed to parse: not counted by ADR-009
 				}
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
 			case "git":

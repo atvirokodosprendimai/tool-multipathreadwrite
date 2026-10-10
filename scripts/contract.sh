@@ -6094,8 +6094,9 @@ assert len(flags) >= 8, "read --help lists only %r" % flags
 untaught = [f for f in flags if not re.search(r"--%s(?![A-Za-z0-9-])" % re.escape(f), out)]
 assert not untaught, "instructions omit read flags: %r" % untaught
 # --then and --then-sh are write and check flags the instructions teach too (ADR-092),
-# and --no-check is the write flag they name for a depth past the limit (ADR-095).
-unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check"}
+# and --no-check is the write flag they name for a depth past the limit (ADR-095);
+# --create is the write flag for a new file without a plan (ADR-139).
+unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create"}
 assert not unknown, "instructions teach flags read does not have: %r" % sorted(unknown)
 assert re.search(r"^\s+--ast-grep PATTERN\b", opts, re.M), "read --help does not show --ast-grep PATTERN"
 PY
@@ -8641,6 +8642,23 @@ if ln "$R/h230.txt" "$R/k230.txt" 2>/dev/null; then
 else
   skip "a rename onto a hard link (no hard links here)"
 fi
+
+# 240. ADR-139: `mrw write --create PATH` makes one file from standard input as
+# the create plan of its lines would. A document holding an "@@" line is carried
+# whole, the file is made with each line ending in a newline, and the apply's
+# own guards hold: a PATH that exists is refused and left alone, exit 1. The
+# pair: the same call beside a PLAN argument is a usage error, exit 2, and
+# makes nothing.
+fixture
+printf 'alpha\n@@ not.a.header 1 replace\nbeta' | m write --no-check --create sub240/new.txt >"$WORK/o240" 2>&1; want 0 $? "write --create makes a file from standard input"
+[ "$(cat "$R/sub240/new.txt")" = "$(printf 'alpha\n@@ not.a.header 1 replace\nbeta')" ] && [ "$(tail -c1 "$R/sub240/new.txt" | od -An -c | tr -d ' ')" = '\n' ] \
+  && ok "holding the lines, an @@ line carried whole, a final newline added" || bad "created file: $(od -c "$R/sub240/new.txt" | head -3)"
+out=$(printf 'other\n' | m write --no-check --create sub240/new.txt 2>&1); want 1 $? "a second --create of the same PATH exits 1"
+{ grep -q 'exists' <<<"$out" && grep -q '^alpha$' "$R/sub240/new.txt"; } && ok "naming that it exists, the file unchanged" || bad "existing: $out"
+printf '@@ x240.txt 0 create\nx\n' > "$WORK/p240.plan"
+out=$(printf 'x\n' | m write --no-check --create b240.txt "$WORK/p240.plan" 2>&1); want 2 $? "the pair: --create beside a PLAN argument exits 2"
+[ ! -e "$R/b240.txt" ] && [ ! -e "$R/x240.txt" ] && ok "and makes nothing" || bad "usage error made a file: $out"
+rm -rf "$R/sub240" "$WORK/p240.plan" "$WORK/o240"
 
 # 239. ADR-138: a walk counts the links to directories it does not follow. ADR-096
 # decision 2 skips a link to a directory a walk meets, and the skip said nothing
