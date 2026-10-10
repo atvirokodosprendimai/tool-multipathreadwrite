@@ -9,7 +9,7 @@
 **Invalidates:** None — ADR-136 made these commands skip the ledger check and left the migration it names out of scope
 **Governs:** `cmd/mrw/main.go`, `cmd/mrw/startup.go`, `scripts/contract.sh`
 **Enforced-by:** `cmd/mrw/startup145_test.go::TestVersionAndInstructionsMigrateNothing`
-**Served-path change:** `mrw version`, `-v`, `--version` and `instructions` no longer copy a legacy `./.mrw/` directory into the state directory, nor print the "moved" line. Any other command still does, once. Exit codes and output of the four commands are unchanged.
+**Served-path change:** `mrw version`, `instructions` and every spelling of the version flag the parser accepts as the first argument (`-v`, `--v`, `-version`, `--version`, and either with `=true`) no longer copy a legacy `./.mrw/` directory into the state directory, nor print the "moved" line. Any other command still does, once. Exit codes and output of these commands are unchanged.
 
 ## Context
 
@@ -24,7 +24,7 @@
 
 ## Decision
 
-1. **`startsWithoutState(args)` is true for `version`, `-v`, `--version` and `instructions` as the first argument.** `main` skips `state.Migrate` for them.
+1. **`startsWithoutState(args)` is true for `version` and `instructions`, and for the version flag in the spellings the parser accepts (`-v`, `--v`, `-version`, `--version`, and either with `=true`), as the first argument.** `main` skips `state.Migrate` for them. Found by the Codex review of #392: the first draft knew only `-v` and `--version`, and `--v`, `-version` and `--version=true` printed the version and migrated.
 2. **Everything else migrates as before**, `stats` included, since it reads what the migration moves.
 3. **Not extended to a flag before the verb.** `mrw -C dir version` migrates; the first argument decides, because the parse has not run.
 
@@ -62,7 +62,7 @@ See `tasks/README.md`: T1.
 ## Out of Scope
 
 - `mrw -C dir version` and `mrw --root dir version` (permanent: boundary: the migration runs before the parse, so only the first argument is known)
-- `--help` and `-h` (permanent: boundary: they print usage and nothing else of ours; a legacy directory is migrated by the next command)
+- `--help` and `-h` (permanent: boundary: they print usage, and still migrate a legacy `./.mrw/` first and announce it before the usage; the usage text does not need state, but the flag is not one of the install-check spellings this record covers)
 - `stats` opening the tally (permanent: boundary: it reads the state the migration moves)
 
 ## Risks
