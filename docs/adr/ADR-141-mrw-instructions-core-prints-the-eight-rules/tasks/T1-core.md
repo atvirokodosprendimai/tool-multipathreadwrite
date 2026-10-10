@@ -82,5 +82,22 @@ Stop and ask if the eight rules cannot stay under 300 words without dropping one
 - Shortening the full text or the prose copies (permanent: boundary: the record's Out of Scope)
 
 ## Mutation Log
+- 2026-10-10 · 8c0436a · mutant killed · exit 1 · `internal/guide/guide.go` · S2: the core names a flag the binary lacks · acceptance-sha256:3472305e900a551e9258cd3f5e6b129dca832b57e4c4a882484ec0594db32ace · covers:instructions --core prints eight short rules that name only real flags and that the full contract also carries
+- 2026-10-10 · 8c0436a* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: --core prints the full contract · acceptance-sha256:3472305e900a551e9258cd3f5e6b129dca832b57e4c4a882484ec0594db32ace · covers:instructions --core prints eight short rules that name only real flags and that the full contract also carries
+- 2026-10-10 · 8c0436a* · mutant killed · exit 1 · `internal/guide/guide.go` · S2: the core drops the --create rule · acceptance-sha256:3472305e900a551e9258cd3f5e6b129dca832b57e4c4a882484ec0594db32ace · covers:instructions --core prints eight short rules that name only real flags and that the full contract also carries
+- 2026-10-10 · 8c0436a* · mutant killed · exit 1 · `internal/guide/guide.go` · S2: the full contract loses the (?i) rule the core teaches · acceptance-sha256:3472305e900a551e9258cd3f5e6b129dca832b57e4c4a882484ec0594db32ace · covers:instructions --core prints eight short rules that name only real flags and that the full contract also carries
 
 ## Verification Log
+- 2026-10-10 · 8c0436a · exit 0 · `set -o pipefail …` · acceptance-sha256:3472305e900a551e9258cd3f5e6b129dca832b57e4c4a882484ec0594db32ace · ms:2104
+- 2026-10-10 · 8c0436a* · exit 0 · `set -o pipefail …` · acceptance-sha256:3472305e900a551e9258cd3f5e6b129dca832b57e4c4a882484ec0594db32ace · ms:1858
+- 2026-10-10 · 8c0436a* · exit 0 · `set -o pipefail …` · acceptance-sha256:3472305e900a551e9258cd3f5e6b129dca832b57e4c4a882484ec0594db32ace · ms:1798
+- 2026-10-10 · 8c0436a* · exit 0 · `set -o pipefail …` · acceptance-sha256:3472305e900a551e9258cd3f5e6b129dca832b57e4c4a882484ec0594db32ace · ms:1827
+- 2026-10-10 · 8c0436a* · exit 1 · `set -o pipefail …` · acceptance-sha256:3472305e900a551e9258cd3f5e6b129dca832b57e4c4a882484ec0594db32ace · ms:205 · test-lock-sha256:72f288e9bbbdc6c4d23a4f2cf3fe0b28e682469d7d7b64cb6b6c1f51df880d48 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9jb3JlMTQxX3Rlc3QuZ28JVGVzdEluc3RydWN0aW9uc0NvcmVGbGFnUHJpbnRzVGhlQ29yZQllMGU4NmFiNGQ0NDcwMTYyMjRlYTFmYWVmMmE0YjM5MTY1MGYyZDhkNDc2OWJkMjM0YmZkNDFjZmY1NzQ3YTE1CmJvZHkJY21kL21ydy9jb3JlMTQxX3Rlc3QuZ28JVGVzdFRoZUNvcmVOYW1lc09ubHlGbGFnc1RoZUJpbmFyeUhhcwkyZjA4Y2MzZmI3MjFmYmVmZThlZGQzNzdlZTg2MThlMGQxNTI2NjQzMmI4YjIwMjBiZmIzNjNmNmRkYTJjNWM2CmJvZHkJY21kL21ydy9pbnN0cnVjdGlvbnNfdGVzdC5nbwlUZXN0RXZlcnlSZWFkRmxhZ0lzVGF1Z2h0QnlJbnN0cnVjdGlvbnMJODdlZGE1ZDFlMjNlMGE5N2NkNjg0NmJhMzlhNTg2MGE1YTZlZGNmYmUzYmE0YThmOTk1YzIwODY0YmZiYTFhZgpib2R5CWNtZC9tcncvaW5zdHJ1Y3Rpb25zX3Rlc3QuZ28JVGVzdEhlbHBTdW1tYXJpZXNOYW1lVGhlUmVhZFNpZGUJMWViYmI5NzU2MDExN2YxYzBjNzRkZWViOGM5NzU5OGVjMTFhYjcxYWYwMjcwYTViYmU0NzhjYWZkMjk3ZDUyYQpib2R5CWNtZC9tcncvaW5zdHJ1Y3Rpb25zX3Rlc3QuZ28JVGVzdEluc3RydWN0aW9uc0NvbW1hbmRQcmludHNDTEkJZTMwNjAwMzhkNGZhNDE0NmEzODU1NjhjNmQ1MmY0MzVmY2VmYmQyNzhiMDFkM2Q2NTlmZmFlYTFlOGRlYmMwMApib2R5CWludGVybmFsL2d1aWRlL2NvcmUxNDFfdGVzdC5nbwlUZXN0VGhlQ29yZUlzRWlnaHRTaG9ydFJ1bGVzVGhlRnVsbENvbnRyYWN0U3RpbGxDYXJyaWVzCWUyOTY3ZGY5NWY4YWZmNjBiYzU0YzVhMjJmMGI1NmU4N2I5MmJhOWZjZDRhNGZkYThhOWEwZmVmZjI4NDU0NWI
+  ```
+  --- last 4 line(s) of stdout
+  # github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/guide [github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/guide.test]
+  internal/guide/core141_test.go:14:10: undefined: Core
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/guide [build failed]
+  FAIL
+  ```
+- 2026-10-10 · 8c0436a* · exit 0 · `set -o pipefail …` · acceptance-sha256:3472305e900a551e9258cd3f5e6b129dca832b57e4c4a882484ec0594db32ace · ms:1153
