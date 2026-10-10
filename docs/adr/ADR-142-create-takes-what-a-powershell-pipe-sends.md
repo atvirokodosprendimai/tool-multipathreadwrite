@@ -28,9 +28,9 @@ A third finding is a message: `--create` of a path that exists and has not been 
 ## Decision
 
 1. **A pipe terminator is dropped, narrowly and in the open.** `ingest.CreateContent` returns the content and a list of notes. When the content ends in `\r\n`, the text before that holds at least one `\n` and no `\r`, the final `\r\n` is removed and a note says so. Everything else is returned unchanged, so `a\nb\r`, `a\r\nb\n\r\n` and every other mixed shape stay refused by `CompileCreate` as ADR-139 decided. All-CRLF content is not touched: PowerShell's terminator there is a trailing blank line, which mrw cannot tell from the file's own, and AGENTS.md says so.
-2. **A leading UTF-8 byte order mark is kept and named.** It is content (ADR-139's test pins it), and PowerShell 5.1 adds one; stderr says `mrw: --create PATH: the content begins with a UTF-8 byte order mark, written to the file as given`.
-3. **A lone create hunk on a path that exists says `create: P already exists — a create never overwrites; read it and use replace or delete, or unlink it first`**, whether or not the file was read. The read-before-modify refusal stays for every other op.
-4. **The notes go to stderr, one line each, before the receipt**; the exit code and the receipt do not change.
+2. **A leading UTF-8 byte order mark is kept and named.** It is content (ADR-139's test pins it), and PowerShell 5.1 adds one; stderr says `mrw: --create PATH: the content begins with a UTF-8 byte order mark, kept as content`.
+3. **A lone create hunk on a path that exists and was not read says `create: P already exists — a create never overwrites; read it and use replace or delete, or unlink it first`**, in place of the read-before-modify refusal. A path that was read, or a create under `--force`, keeps the line-count message it had; every other op keeps the read-before-modify refusal.
+4. **The notes go to stderr, one line each, once the content has compiled** (a refused content is told nothing was done to it); the exit code and the receipt do not change.
 
 ## Alternatives Considered
 

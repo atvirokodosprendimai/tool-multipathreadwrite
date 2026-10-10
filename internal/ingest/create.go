@@ -40,7 +40,7 @@ func CheckCreatePath(path string) error {
 func CreateContent(raw []byte) ([]byte, []string) {
 	var notes []string
 	if bytes.HasPrefix(raw, []byte("\xef\xbb\xbf")) {
-		notes = append(notes, "the content begins with a UTF-8 byte order mark, written to the file as given (Windows PowerShell 5.1 adds one to what it pipes)")
+		notes = append(notes, "the content begins with a UTF-8 byte order mark, kept as content (Windows PowerShell 5.1 adds one to what it pipes)")
 	}
 	if body, ok := bytes.CutSuffix(raw, []byte("\r\n")); ok && bytes.IndexByte(body, '\n') >= 0 && bytes.IndexByte(body, '\r') < 0 {
 		notes = append(notes, "the content ended in CRLF after lines that end in LF; that CRLF, which PowerShell appends to what it pipes, was dropped")

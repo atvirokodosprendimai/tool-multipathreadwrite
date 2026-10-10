@@ -41,4 +41,12 @@ func TestWriteCreateDropsAPipeTerminatorAndSaysSo(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "mixed.txt")); err == nil {
 		t.Error("a refused --create made mixed.txt")
 	}
+	// The notes say what was done to content that goes on to the apply; content
+	// CompileCreate then refuses is told nothing (the Codex review of #376).
+	note = stderrOf(t, func() {
+		withStdin(t, "\xef\xbb\xbfa\nb\r", func() { out, code = runIn(t, root, "write", "--no-check", "--create", "r.txt") })
+	})
+	if code == 0 || strings.Contains(note, "byte order mark") {
+		t.Errorf("a refused create: exit %d, stderr %q, want a refusal and no note\n%s", code, note, out)
+	}
 }
