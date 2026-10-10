@@ -8644,6 +8644,18 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 249. version and instructions touch no state (ADR-145). A pre-ADR-004 ./.mrw/
+# in the working directory is copied into the state directory by the first
+# command that uses state, and announced; `mrw version` and `mrw instructions`
+# neither copy it nor announce it. The pair: a read in the same directory does,
+# so the version run did not consume the migration.
+M249=$(mktemp -d "$WORK/m249-XXXXXX")
+mkdir -p "$M249/.mrw"; printf '#mrw-seen v4\n' > "$M249/.mrw/seen"; printf 'one249\n' > "$M249/f249.txt"
+out=$(cd "$M249" && "$MRW" version 2>&1); grep -q 'moved' <<<"$out" && bad "version migrated: $out" || ok "version does not migrate a legacy .mrw/"
+out=$(cd "$M249" && "$MRW" instructions --core 2>&1 >"$WORK/o249"); grep -q 'moved' <<<"$out" && bad "instructions migrated: $out" || ok "instructions does not migrate it"
+out=$(cd "$M249" && "$MRW" read f249.txt 2>&1 >"$WORK/o249"); grep -q 'mrw: moved seen from ./.mrw/' <<<"$out" && ok "the pair: a read migrates it, once" || bad "read did not migrate: $out"
+out=$(cd "$M249" && "$MRW" read f249.txt 2>&1 >"$WORK/o249"); grep -q 'moved' <<<"$out" && bad "migrated twice: $out" || ok "and not again"
+
 # 248. A damaged read ledger is told once (ADR-144). A line the ledger holds that
 # mrw cannot parse is ignored, and the CLI says how many on stderr before the
 # command; the command's own save rewrites the ledger without it, so the next run

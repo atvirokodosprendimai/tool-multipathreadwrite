@@ -288,7 +288,7 @@ func main() {
 	// One-time, additive migration of any pre-ADR-004 in-tree state. Announced
 	// on stderr because a tool that quietly moves your files is the sibling of
 	// the tool that quietly created them.
-	if moved, err := state.Migrate("."); err == nil && len(moved) > 0 {
+	if moved, err := migrateLegacyState(os.Args[1:]); err == nil && len(moved) > 0 {
 		if dir, err := state.Dir("."); err == nil {
 			fmt.Fprintf(os.Stderr, "mrw: moved %s from ./%s/ to %s — the copy in your working tree is "+
 				"untouched and can now be deleted\n", strings.Join(moved, " and "), state.LegacyDir, dir)
