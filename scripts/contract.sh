@@ -8644,6 +8644,34 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 246. A write into .git is refused (ADR-143). A plan or --create that lands in
+# a .git directory, directly or through a link, fails that hunk: exit 1, nothing
+# written, the sibling edit skipped. A read of the same path is served. The pairs:
+# the same plan against .github applies, and a name that only starts like .git is
+# not refused.
+fixture
+mkdir -p "$R/.git/hooks" "$R/.github"
+printf '[core]\n' > "$R/.git/config"; printf '[core]\n' > "$R/.github/config"; printf 'one246\n' > "$R/a246.txt"
+m read .git/config >"$WORK/o246" 2>&1; want 0 $? "a read of .git/config is served"
+out=$(printf '#!/bin/sh\n' | m write --no-check --create .git/hooks/pre-commit 2>&1); rc=$?
+want 1 "$rc" "--create into .git exits 1"
+{ grep -q 'inside a .git directory' <<<"$out" && [ ! -e "$R/.git/hooks/pre-commit" ]; } && ok "naming .git, and no hook was made" || bad "create into .git: $out"
+printf '@@ a246.txt 1 replace\ntwo246\n@@ .git/config 1 replace\n[core]\n\thooksPath = x\n' > "$WORK/p246.plan"
+m read a246.txt >>"$WORK/o246" 2>&1
+out=$(m write --no-check "$WORK/p246.plan" 2>&1); rc=$?
+want 1 "$rc" "a plan with a hunk in .git exits 1"
+{ [ "$(cat "$R/a246.txt")" = one246 ] && [ "$(cat "$R/.git/config")" = '[core]' ]; } && ok "nothing written, the sibling edit skipped" || bad "plan into .git: $out"
+ln -s .git "$R/alias246" 2>/dev/null
+if [ -L "$R/alias246" ]; then
+  out=$(printf 'x\n' | m write --no-check --create alias246/hooks/post-commit 2>&1); rc=$?
+  want 1 "$rc" "--create through a link to .git exits 1"
+  { grep -q 'through a link' <<<"$out" && [ ! -e "$R/.git/hooks/post-commit" ]; } && ok "saying it leads through a link" || bad "create through a link: $out"
+fi
+printf '@@ a246.txt 1 replace\ntwo246\n@@ .github/config 1 replace\n[core]\n\ttwo = x\n' > "$WORK/p246b.plan"
+m read .github/config >>"$WORK/o246" 2>&1
+out=$(m write --no-check "$WORK/p246b.plan" 2>&1); want 0 $? "the pair: the same plan against .github applies"
+rm -rf "$R/.git" "$R/.github" "$R/a246.txt" "$R/alias246" "$WORK/p246.plan" "$WORK/p246b.plan" "$WORK/o246"
+
 # 245. A ledger that cannot be OPENED says the same, per direction. After a read
 # it says what stands (the v1.60.0 retest saw a raw "open … used by another
 # process"); before a write it says the call wrote and changed nothing, and the
