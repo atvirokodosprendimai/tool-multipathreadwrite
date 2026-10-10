@@ -30,6 +30,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -253,6 +254,69 @@ func IsStale(root string) (bool, error) {
 // (ADR-136).
 const StaleNotice = "mrw: the read ledger was written by an older mrw, or its line endings were changed; " +
 	"it has been discarded. Read the files you mean to edit again."
+
+// DamageNotice is what the CLI prints when the ledger holds lines this mrw
+// ignored (ADR-144): the sentence, or "" when there is nothing to say. A stale
+// ledger (IsStale tells that one), a missing, empty or non-regular one and a
+// clean one say nothing. Load keeps handing back what it could parse; the next
+// save rewrites the ledger without the bad lines, so the sentence is told once.
+func DamageNotice(root string) (string, error) {
+	path, err := ReadPath(root)
+	if err != nil {
+		return "", err
+	}
+	f, _, err := regular.Open(path)
+	if os.IsNotExist(err) || errors.Is(err, regular.ErrNotRegular) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	// Read whole and closed before it is parsed: a Windows writer's rename
+	// retries for 100 ms (state.write) and an open handle without delete
+	// sharing blocks it, so the scan must not hold the file for the parse.
+	data, over, err := readBounded(f, maxScanBytes)
+	_ = f.Close()
+	if err != nil {
+		return "", err
+	}
+	if over {
+		return "", nil // past the bound: not scanned (ADR-144 T3)
+	}
+	sc := bufio.NewScanner(bytes.NewReader(data))
+	sc.Split(scanLF)
+	sc.Buffer(make([]byte, min(64<<10, maxRecordBytes)), int(maxRecordBytes))
+	if !sc.Scan() || sc.Text() != header {
+		return "", sc.Err()
+	}
+	ignored := 0
+	for sc.Scan() {
+		if _, _, ok := parseLine(sc.Text()); !ok {
+			ignored++
+		}
+	}
+	if errors.Is(sc.Err(), bufio.ErrTooLong) {
+		return "mrw: the read ledger holds a line longer than mrw writes, so it has been discarded; " +
+			"read the files you mean to edit again.", nil
+	}
+	if sc.Err() != nil || ignored == 0 {
+		return "", sc.Err()
+	}
+	return fmt.Sprintf("mrw: %d line(s) of the read ledger could not be understood and were ignored; "+
+		"a file they described counts as unread, so read the files you mean to edit again.", ignored), nil
+}
+
+// maxScanBytes bounds what DamageNotice reads. It reads the ledger whole so it
+// can close the file before parsing, and Load streams, so without a bound a
+// hostile ledger could exhaust memory only here (ADR-144 T3).
+var maxScanBytes int64 = 64 << 20
+
+// readBounded reads r whole unless it holds more than max bytes, which it
+// reports as over without reading past max+1 (ADR-144 T3).
+func readBounded(r io.Reader, max int64) (data []byte, over bool, err error) {
+	data, err = io.ReadAll(io.LimitReader(r, max+1))
+	return data, int64(len(data)) > max, err
+}
 
 // scanLF splits the ledger on "\n" alone. bufio.ScanLines also drops a "\r"
 // before it, which loaded the observation of a file named "x\r" under "x"
