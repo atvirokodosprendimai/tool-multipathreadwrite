@@ -28,7 +28,7 @@ A ledger line mrw cannot parse is skipped, and a ledger holding a line past the 
 1. **`seen.DamageNotice(root)` returns the sentence to print, or "".** It opens the ledger as `Load` does and says nothing for a missing, empty, non-regular or stale (header mismatch) ledger, which `IsStale` already handles.
 2. **Unparsable lines are counted.** After the header, each line `parseLine` rejects, an empty line included, counts. N > 0 gives: `mrw: N line(s) of the read ledger could not be understood and were ignored; a file they described counts as unread, so read the files you mean to edit again.`
 3. **A line past the record bound is told.** `Load` discards such a ledger; the notice is: `mrw: the read ledger holds a line longer than mrw writes, so it has been discarded; read the files you mean to edit again.`
-4. **Told by the commands that read the ledger, and told once because they save it.** `read`, `write` and `seen` tell it (`tellsLedgerDamage`), from `Before`, ahead of the command. A `read` or a `write` that lands saves the ledger, which rewrites it without the lines, so the next run finds nothing to say; `seen` is where one goes to look and does not save. `check` and `iter` neither read nor save the ledger and `mcp` resolves its root after `Before` has run, so none of them tells it, and neither do `version`, `instructions` and `stats`, as for the stale notice. A dry run or a refused `write` saves nothing and tells it again, accurately. The scan reads the ledger whole and closes it before it parses, since a Windows writer's rename retries for 100 ms and an open handle blocks it.
+4. **Told by the commands that read the ledger, and told once because they save it.** `read`, `write` and `seen` tell it (`tellsLedgerDamage`), from `Before`, ahead of the command. A `read` or a `write` that lands saves the ledger, which rewrites it without the lines, so the next run finds nothing to say; `seen` is where one goes to look and does not save. `check` and `iter` neither read nor save the ledger and `mcp` resolves its root after `Before` has run, so none of them tells it, and neither do `version`, `instructions` and `stats`, as for the stale notice. A dry run or a refused `write` saves nothing and tells it again, accurately. The scan reads the ledger whole and closes it before it parses, since a Windows writer's rename retries for 100 ms and an open handle blocks it; the read is bounded at 64 MiB (`maxScanBytes`) and a ledger past it says nothing (T3).
 5. **No exit code, receipt key or format changes.** The notice is stderr text; a ledger line mrw cannot parse stays ignored.
 
 ## Alternatives Considered
@@ -55,7 +55,7 @@ None — one task.
 
 ## Implementation
 
-See `tasks/README.md`: T1, T2.
+See `tasks/README.md`: T1, T2, T3.
 
 ## Consequences
 
@@ -68,6 +68,7 @@ See `tasks/README.md`: T1, T2.
 - A ledger cut after a complete line, which loses the lines after the cut (permanent: boundary: nothing in the file says how many lines it should hold; the lost lines count as unread and the write is refused, the safe direction)
 - A well-formed line mrw did not write (permanent: boundary: the ledger is an unauthenticated cache of observations, and a caller who can write it can write the tree)
 - The MCP server telling the caller (permanent: boundary: it has no stderr; its stale ledger is not told either, and a refusal there names the lines it needs)
+- A damaged ledger larger than 64 MiB (permanent: boundary: the scan reads whole to close the file first, and a bound keeps that read from exhausting memory; `Load` still serves what parses)
 
 ## Risks
 

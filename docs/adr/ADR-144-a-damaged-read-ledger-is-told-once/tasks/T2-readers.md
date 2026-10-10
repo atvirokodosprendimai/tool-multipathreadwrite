@@ -62,7 +62,7 @@ out=$(mktemp) \
 
 ## Risks
 
-- The ledger is read whole into memory: it is bounded by the files read in one checkout, and a hostile one is as large as a hostile `Load` input already is.
+- The ledger is read whole into memory, bounded by T3 at 64 MiB.
 
 ## Stop Condition
 

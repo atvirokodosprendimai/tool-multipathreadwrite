@@ -81,3 +81,39 @@ func TestADamagedLedgerIsCountedAndTold(t *testing.T) {
 		}
 	})
 }
+
+// ADR-144 T3 (the second Codex review of #390). The scan reads the ledger whole
+// so it can close the file before it parses, and that read is bounded: a ledger
+// past maxScanBytes is not scanned and says nothing, where an unbounded read
+// of a hostile ledger could exhaust memory that Load's streaming never would.
+func TestAHugeLedgerIsNotReadWhole(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if err := Record(root, map[string]Observation{"a.go": {SHA: strings.Repeat("0", 64)}}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := ReadPath(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(strings.Repeat("g\n", 2000)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	old := maxScanBytes
+	maxScanBytes = 1 << 10
+	got, err := DamageNotice(root)
+	maxScanBytes = old
+	if err != nil || got != "" {
+		t.Errorf("a ledger past the scan bound: DamageNotice = %q, %v; want none and no read past the bound", got, err)
+	}
+	if got, err := DamageNotice(root); err != nil || !strings.Contains(got, "2000 line(s)") {
+		t.Errorf("within the bound: DamageNotice = %q, %v; want the 2000 bad lines counted", got, err)
+	}
+}

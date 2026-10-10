@@ -275,10 +275,13 @@ func DamageNotice(root string) (string, error) {
 	// Read whole and closed before it is parsed: a Windows writer's rename
 	// retries for 100 ms (state.write) and an open handle without delete
 	// sharing blocks it, so the scan must not hold the file for the parse.
-	data, err := io.ReadAll(f)
+	data, err := io.ReadAll(io.LimitReader(f, maxScanBytes+1))
 	_ = f.Close()
 	if err != nil {
 		return "", err
+	}
+	if int64(len(data)) > maxScanBytes {
+		return "", nil // past the bound: not scanned (ADR-144 T3)
 	}
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Split(scanLF)
@@ -302,6 +305,11 @@ func DamageNotice(root string) (string, error) {
 	return fmt.Sprintf("mrw: %d line(s) of the read ledger could not be understood and were ignored; "+
 		"a file they described counts as unread, so read the files you mean to edit again.", ignored), nil
 }
+
+// maxScanBytes bounds what DamageNotice reads. It reads the ledger whole so it
+// can close the file before parsing, and Load streams, so without a bound a
+// hostile ledger could exhaust memory only here (ADR-144 T3).
+var maxScanBytes int64 = 64 << 20
 
 // scanLF splits the ledger on "\n" alone. bufio.ScanLines also drops a "\r"
 // before it, which loaded the observation of a file named "x\r" under "x"
