@@ -36,9 +36,9 @@ Decisions 1–4 of the record, with tests that fail before them.
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/ingest/ -count=1 -timeout 300s -run 'TestCompileCreateMakesACreatePlanOfStdin' -v 2>&1 | tee "$out" \
+  && go test ./internal/ingest/ -count=1 -timeout 300s -run 'TestCompileCreateMakesACreatePlanOfStdin|TestABOMPrefixedHeaderInContentIsContentNotAHunk|TestAPathIsQuotedSoNoNameIsReadAsSyntax|TestAMixedEndingContentIsRefusedNotQuietlyChanged|TestCheckCreatePathRefusesWhatNoHeaderCanCarry' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestCompileCreateMakesACreatePlanOfStdin \(' "$out" \
-  && go test ./cmd/mrw/ -count=1 -timeout 300s -run 'TestWriteCreateMakesTheFileAndRefusesAnExistingOne' -v 2>&1 | tee "$out" \
+  && go test ./cmd/mrw/ -count=1 -timeout 300s -run 'TestWriteCreateMakesTheFileAndRefusesAnExistingOne|TestTheInternalCreateFormatIsNotReachableWithoutTheFlag|TestAUsageErrorDoesNotWaitForStandardInput' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestWriteCreateMakesTheFileAndRefusesAnExistingOne \(' "$out" \
   && go test ./internal/ingest/ ./internal/guide/ -count=1 -timeout 900s \
   && grep -q '^# 240\. ' scripts/contract.sh \
@@ -57,6 +57,7 @@ out=$(mktemp) \
 | `TestAMixedEndingContentIsRefusedNotQuietlyChanged` | `internal/ingest/create139_review_test.go` | a line ending in a bare CR is refused, CRLF content is carried | none | S1, S2 |
 | `TestCheckCreatePathRefusesWhatNoHeaderCanCarry` | `internal/ingest/create139_review_test.go` | an empty, rooted or control-character path is refused before stdin is read | none | S1, S2 |
 | `TestTheInternalCreateFormatIsNotReachableWithoutTheFlag` | `cmd/mrw/create139_usage_test.go` | `--format=create` without `--create` is an unknown format | none | S1, S2 |
+| `TestAUsageErrorDoesNotWaitForStandardInput` | `cmd/mrw/create139_wait_test.go` | an empty, rooted or newline path is refused with stdin an open pipe nobody writes to | none | S1, S2 |
 
 ## Reachability
 
@@ -88,6 +89,14 @@ Stop and ask if a create plan cannot carry a content the survey sessions need (a
 - 2026-10-10 · 10c7578 · mutant killed · exit 1 · `internal/ingest/applypatch.go` · S2: a create hunk no longer declares body=N / raw=true — an @@ line in the content truncates the file and an empty content is refused · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
 - 2026-10-10 · 10c7578* · mutant killed · exit 1 · `internal/ingest/create.go` · S2: the content is one line instead of split into lines · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
 - 2026-10-10 · 10c7578* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: --create beside a PLAN argument is no longer a usage error · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · affd0d0 · mutant killed · exit 1 · `internal/ingest/create.go` · S2: the header drops body=N raw=true — an @@ line in the content starts another hunk · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · affd0d0* · mutant killed · exit 1 · `internal/ingest/applypatch.go` · S2: emit does not strip the BOM the parser strips — apply_patch Add File content can start a hunk · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · affd0d0* · mutant killed · exit 1 · `internal/ingest/create.go` · S2: the path is not escaped — two backslashes name another file · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · affd0d0* · mutant killed · exit 1 · `internal/ingest/create.go` · S2: a line ending in a bare CR is carried and its CR lost · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+- 2026-10-10 · affd0d0* · mutant survived · exit 0 · `cmd/mrw/main.go` · S2: the path is not checked before stdin is read · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · covers:write --create PATH makes the file a create plan of stdin's lines would, and refuses what a plan would refuse
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
 
 ## Verification Log
 - 2026-10-10 · 10c7578 · exit 0 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:2525
@@ -108,3 +117,8 @@ Stop and ask if a create plan cannot carry a content the survey sessions need (a
   FAIL
   ```
 - 2026-10-10 · 10c7578* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:993
+- 2026-10-10 · affd0d0 · exit 0 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:2370
+- 2026-10-10 · affd0d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:2053
+- 2026-10-10 · affd0d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:2214
+- 2026-10-10 · affd0d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:1959
+- 2026-10-10 · affd0d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8e5202e931679da741c90e545fcf023d34e3985c90d2405e21b3bdb3a716932 · ms:1990
