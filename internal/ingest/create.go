@@ -8,6 +8,9 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
+// maxPlanLine is plan.Parse's scanner buffer: a line and its terminator must fit.
+const maxPlanLine = 16 * 1024 * 1024
+
 // CheckCreatePath refuses a --create PATH no plan could name: empty, not
 // relative to the root, or holding a newline or NUL, which a header line cannot
 // carry. It is asked before standard input is read, so a usage error does not
@@ -44,12 +47,19 @@ func CompileCreate(path string, content []byte) ([]byte, error) {
 	if why := lines.Unsplittable(content); why != "" {
 		return nil, fmt.Errorf("--create %s: the content %s, so mrw cannot carry it as lines", path, why)
 	}
-	ls, eol, _ := lines.Split(string(content))
-	if eol == "\n" {
-		for _, l := range ls {
-			if strings.HasSuffix(l, "\r") {
-				return nil, fmt.Errorf("--create %s: a line ends in a bare CR (mixed line endings), which a plan cannot carry; make every ending LF or every ending CRLF", path)
-			}
+	ls, _, _ := lines.Split(string(content))
+	for _, l := range ls {
+		// Whatever terminator Split chose, a line that still ends in CR (mixed
+		// endings, or a CR left by the last line of CRLF content) would have it
+		// stripped by the plan parser's line scanner, quietly.
+		if strings.HasSuffix(l, "\r") {
+			return nil, fmt.Errorf("--create %s: a line ends in a bare CR (mixed line endings), which a plan cannot carry; make every ending LF or every ending CRLF", path)
+		}
+		// The parser reads a plan through a bounded scanner; a longer line would
+		// fail there and be counted as a plan that did not parse (ADR-009), though
+		// the caller's content was the problem.
+		if len(l)+2 > maxPlanLine {
+			return nil, fmt.Errorf("--create %s: a line is %d bytes, longer than the %d a plan carries", path, len(l), maxPlanLine-2)
 		}
 	}
 	quoted := strings.ReplaceAll(path, `\`, `\\`)

@@ -36,7 +36,7 @@ Decisions 1–4 of the record, with tests that fail before them.
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/ingest/ -count=1 -timeout 300s -run 'TestCompileCreateMakesACreatePlanOfStdin|TestABOMPrefixedHeaderInContentIsContentNotAHunk|TestAPathIsQuotedSoNoNameIsReadAsSyntax|TestAMixedEndingContentIsRefusedNotQuietlyChanged|TestCheckCreatePathRefusesWhatNoHeaderCanCarry' -v 2>&1 | tee "$out" \
+  && go test ./internal/ingest/ -count=1 -timeout 300s -run 'TestCompileCreateMakesACreatePlanOfStdin|TestABOMPrefixedHeaderInContentIsContentNotAHunk|TestAPathIsQuotedSoNoNameIsReadAsSyntax|TestAMixedEndingContentIsRefusedNotQuietlyChanged|TestCheckCreatePathRefusesWhatNoHeaderCanCarry|TestACRTheParserWouldStripIsRefusedInEveryMode|TestALineBeyondThePlanScannerIsRefusedWhileCompiling' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestCompileCreateMakesACreatePlanOfStdin \(' "$out" \
   && go test ./cmd/mrw/ -count=1 -timeout 300s -run 'TestWriteCreateMakesTheFileAndRefusesAnExistingOne|TestTheInternalCreateFormatIsNotReachableWithoutTheFlag|TestAUsageErrorDoesNotWaitForStandardInput' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestWriteCreateMakesTheFileAndRefusesAnExistingOne \(' "$out" \
@@ -56,6 +56,8 @@ out=$(mktemp) \
 | `TestAPathIsQuotedSoNoNameIsReadAsSyntax` | `internal/ingest/create139_review_test.go` | names holding backslashes, quotes, `=` quotes, a dash or a tilde round-trip | none | S1, S2 |
 | `TestAMixedEndingContentIsRefusedNotQuietlyChanged` | `internal/ingest/create139_review_test.go` | a line ending in a bare CR is refused, CRLF content is carried | none | S1, S2 |
 | `TestCheckCreatePathRefusesWhatNoHeaderCanCarry` | `internal/ingest/create139_review_test.go` | an empty, rooted or control-character path is refused before stdin is read | none | S1, S2 |
+| `TestACRTheParserWouldStripIsRefusedInEveryMode` | `internal/ingest/create139_cr_test.go` | a CR the plan parser would strip is refused whatever terminator `lines.Split` chose | none | S1, S2 |
+| `TestALineBeyondThePlanScannerIsRefusedWhileCompiling` | `internal/ingest/create139_cr_test.go` | a line the plan scanner cannot read is refused while compiling, not counted as a parse failure | none | S1, S2 |
 | `TestTheInternalCreateFormatIsNotReachableWithoutTheFlag` | `cmd/mrw/create139_usage_test.go` | `--format=create` without `--create` is an unknown format | none | S1, S2 |
 | `TestAUsageErrorDoesNotWaitForStandardInput` | `cmd/mrw/create139_wait_test.go` | an empty, rooted or newline path is refused with stdin an open pipe nobody writes to | none | S1, S2 |
 
