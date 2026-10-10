@@ -35,16 +35,22 @@ func CheckCreatePath(path string) error {
 // refuses as a line ending in a bare CR. A final CRLF after text that holds an
 // LF and no other CR is that terminator and is dropped; every other shape is
 // returned as it came, for CompileCreate to accept or refuse. A leading UTF-8
-// byte order mark is content and is kept, but PowerShell 5.1 adds one, so it is
-// named. Each note is one line, without the "mrw:" prefix.
+// byte order mark is content and is kept, but PowerShell adds one when its
+// $OutputEncoding has a preamble, so it is named. Content that is all CRLF and
+// ends in an empty line cannot be told from a file that really ends in one, so
+// it is kept and named. Each note is one line, without the "mrw:" prefix.
 func CreateContent(raw []byte) ([]byte, []string) {
 	var notes []string
 	if bytes.HasPrefix(raw, []byte("\xef\xbb\xbf")) {
-		notes = append(notes, "the content begins with a UTF-8 byte order mark, kept as content (Windows PowerShell 5.1 adds one to what it pipes)")
+		notes = append(notes, "the content begins with a UTF-8 byte order mark, kept as content (PowerShell adds one when $OutputEncoding is UTF-8 with a preamble)")
 	}
-	if body, ok := bytes.CutSuffix(raw, []byte("\r\n")); ok && bytes.IndexByte(body, '\n') >= 0 && bytes.IndexByte(body, '\r') < 0 {
-		notes = append(notes, "the content ended in CRLF after lines that end in LF; that CRLF, which PowerShell appends to what it pipes, was dropped")
+	body, cut := bytes.CutSuffix(raw, []byte("\r\n"))
+	switch {
+	case cut && bytes.IndexByte(body, '\n') >= 0 && bytes.IndexByte(body, '\r') < 0:
+		notes = append(notes, "the content ended in CRLF after lines that end in LF; PowerShell appends a CRLF to what it pipes, so that one was dropped")
 		raw = body
+	case bytes.HasSuffix(raw, []byte("\r\n\r\n")) && bytes.Count(raw, []byte("\n")) == bytes.Count(raw, []byte("\r\n")):
+		notes = append(notes, "the content ends in an empty line after CRLF lines, kept; if PowerShell piped it, that line is the CRLF it appends and the file gains a blank line at its end (cmd and Git Bash add none)")
 	}
 	return raw, notes
 }

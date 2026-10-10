@@ -388,7 +388,7 @@ func Drop(root string, paths []string) error {
 	return withLock(root, func() error {
 		l, err := Load(root)
 		if err != nil {
-			return err
+			return ledgerNotUpdated(err)
 		}
 		for _, p := range paths {
 			delete(l, p)
@@ -407,7 +407,7 @@ func Record(root string, obs map[string]Observation) error {
 	return withLock(root, func() error {
 		l, err := Load(root)
 		if err != nil {
-			return err
+			return ledgerNotUpdated(err)
 		}
 		for path, o := range obs {
 			l[path] = merge(l[path], o)
@@ -477,7 +477,10 @@ func Snapshot(root string) (Ledger, error) {
 	err := withLock(root, func() error {
 		var err error
 		l, err = Load(root)
-		return err
+		if err != nil {
+			return fmt.Errorf("the read ledger could not be read, so this call wrote and changed nothing: %w", err)
+		}
+		return nil
 	})
 	return l, err
 }
@@ -562,12 +565,19 @@ func save(root string, l Ledger) error {
 		b.WriteString(line)
 	}
 	if err := state.WriteSynced(path, []byte(b.String()), 0o600); err != nil {
-		// What the call already did (lines a read served, a plan applied) stands; only
-		// the licence is missing. A bare "rename … Access is denied" after a full serve
-		// read as a failed read to four Windows sessions (v1.59.0).
-		return fmt.Errorf("the read ledger could not be updated; lines already served and changes already applied stand, but are not recorded there, so read the files again before editing them: %w", err)
+		return ledgerNotUpdated(err)
 	}
 	return nil
+}
+
+// ledgerNotUpdated is what a call says when the ledger could not be read or
+// replaced after the call had already acted. What it did (lines a read served,
+// a plan applied) stands; only the licence is missing. A bare "rename … Access
+// is denied" after a full serve read as a failed read to four Windows sessions
+// (v1.59.0), and an "open … used by another process" said nothing about what
+// stood (the v1.60.0 retest).
+func ledgerNotUpdated(err error) error {
+	return fmt.Errorf("the read ledger could not be updated; lines already served and changes already applied stand, but are not recorded there, so read the files again before editing them: %w", err)
 }
 
 // maxRecordBytes bounds one ledger line, on save and on load alike (ADR-108);

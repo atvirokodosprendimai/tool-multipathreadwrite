@@ -8644,6 +8644,32 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 245. A ledger that cannot be OPENED says the same, per direction. After a read
+# it says what stands (the v1.60.0 retest saw a raw "open … used by another
+# process"); before a write it says the call wrote and changed nothing, and the
+# file is left as it was. The pair: with the ledger readable again the same plan
+# applies.
+fixture
+printf 'one245\n' > "$R/l245.txt"
+printf '@@ l245.txt 1 replace\ntwo245\n' > "$WORK/p245.plan"
+m read l245.txt >"$WORK/o245" 2>&1
+led="$(m seen 2>/dev/null | head -1)/seen"
+chmod 000 "$led" 2>/dev/null
+if [ -r "$led" ] || [ ! -e "$led" ]; then
+  chmod 600 "$led" 2>/dev/null
+  skip "an unopenable ledger is refused (permission bits not enforced here — running as root?)"
+else
+  out=$(m read l245.txt 2>&1); rc=$?
+  want 2 "$rc" "a read whose ledger cannot be opened exits 2"
+  grep -q 'already served and changes already applied stand, but are not recorded there' <<<"$out" && ok "saying what stands" || bad "open refusal: $out"
+  out=$(m write --no-check "$WORK/p245.plan" 2>&1); rc=$?
+  chmod 600 "$led"
+  want 2 "$rc" "a write whose ledger cannot be opened exits 2"
+  { grep -q 'wrote and changed nothing' <<<"$out" && [ "$(cat "$R/l245.txt")" = one245 ]; } && ok "saying nothing was written, and the file is as it was" || bad "write refusal: $out"
+  out=$(m write --no-check "$WORK/p245.plan" 2>&1); want 0 $? "the pair: with the ledger readable again the same plan applies"
+fi
+rm -f "$R/l245.txt" "$WORK/p245.plan" "$WORK/o245"
+
 # 244. A read whose ledger cannot be updated says what stands. Four Windows
 # sessions read "rename <tmp> <ledger>: Access is denied", exit 2, after a full
 # serve, as a failed read. The lines are served, exit 2 stays (a filesystem
