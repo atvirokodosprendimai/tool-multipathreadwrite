@@ -36,7 +36,7 @@ mrw writes anything under `--root`, and `.git` is under the root of every checko
 
 - **Allow it, warn on the receipt** — rejected: a warning after a hook is written is the failure; the owner chose refuse.
 - **Refuse only `.git/hooks` and `.git/config`** — rejected: `HEAD`, `index`, `objects` and `refs` corrupt a repository as surely, and a list of names is the list that misses one.
-- **Judge by identity (the same file as one under `.git`)** — rejected for now: needs a walk of `.git` on every write; the real-location check already catches links and junctions, and the one hole left, a hard link, is in BACKLOG.
+- **Judge by identity (the same file as one under `.git`)** — rejected for now: needs a walk of `.git` on every write; the real-location check already catches links and junctions, and a hard link is no hole: an edit is a temp file renamed over the name, so the other name keeps its content (pinned by `TestAHardLinkToAFileUnderDotGitIsNotAWayIn`).
 - **A `--allow-git` flag** — rejected: the first caller to need it would pass it by habit, which is the failure again; `git` itself edits `.git`.
 
 ## Component / Boundary Impact

@@ -43,6 +43,9 @@ func TestTheShortNameOfARealDotGitIsRefused(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(root, ".git", "config"), []byte("[core]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	short := filepath.Base(shortPath(t, filepath.Join(root, ".git")))
 	if strings.EqualFold(short, ".git") {
 		t.Skip("this volume gives .git no 8.3 name")

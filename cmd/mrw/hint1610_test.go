@@ -1,6 +1,7 @@
 package main
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -18,5 +19,9 @@ func TestTheEdgeWhitespaceHintForCreateKeepsCreate(t *testing.T) {
 	got := out + note
 	if code != 2 || !strings.Contains(got, "--create 'trail '") || strings.Contains(got, "mrw write -- ") {
 		t.Errorf("exit %d, output %q, want a usage error that keeps --create in the advice", code, got)
+	}
+	// cmd.exe keeps single quotes as characters, so its form is named too (ADR-078).
+	if runtime.GOOS == "windows" && !strings.Contains(got, `in cmd.exe: mrw write --create "trail "`) {
+		t.Errorf("output %q lacks the cmd.exe form", got)
 	}
 }
