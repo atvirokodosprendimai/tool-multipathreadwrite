@@ -254,6 +254,47 @@ func IsStale(root string) (bool, error) {
 const StaleNotice = "mrw: the read ledger was written by an older mrw, or its line endings were changed; " +
 	"it has been discarded. Read the files you mean to edit again."
 
+// DamageNotice is what the CLI prints when the ledger holds lines this mrw
+// ignored (ADR-144): the sentence, or "" when there is nothing to say. A stale
+// ledger (IsStale tells that one), a missing, empty or non-regular one and a
+// clean one say nothing. Load keeps handing back what it could parse; the next
+// save rewrites the ledger without the bad lines, so the sentence is told once.
+func DamageNotice(root string) (string, error) {
+	path, err := ReadPath(root)
+	if err != nil {
+		return "", err
+	}
+	f, _, err := regular.Open(path)
+	if os.IsNotExist(err) || errors.Is(err, regular.ErrNotRegular) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	sc := bufio.NewScanner(f)
+	sc.Split(scanLF)
+	sc.Buffer(make([]byte, min(64<<10, maxRecordBytes)), int(maxRecordBytes))
+	if !sc.Scan() || sc.Text() != header {
+		return "", sc.Err()
+	}
+	ignored := 0
+	for sc.Scan() {
+		if _, _, ok := parseLine(sc.Text()); !ok {
+			ignored++
+		}
+	}
+	if errors.Is(sc.Err(), bufio.ErrTooLong) {
+		return "mrw: the read ledger holds a line longer than mrw writes, so it has been discarded; " +
+			"read the files you mean to edit again.", nil
+	}
+	if sc.Err() != nil || ignored == 0 {
+		return "", sc.Err()
+	}
+	return fmt.Sprintf("mrw: %d line(s) of the read ledger could not be understood and were ignored; "+
+		"a file they described counts as unread, so read the files you mean to edit again.", ignored), nil
+}
+
 // scanLF splits the ledger on "\n" alone. bufio.ScanLines also drops a "\r"
 // before it, which loaded the observation of a file named "x\r" under "x"
 // (ADR-068). save ends every line with a bare "\n", so nothing else is a

@@ -8644,6 +8644,20 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 248. A damaged read ledger is told once (ADR-144). A line the ledger holds that
+# mrw cannot parse is ignored, and the CLI says how many on stderr before the
+# command; the command's own save rewrites the ledger without it, so the next run
+# is silent. The pair: a ledger mrw wrote says nothing.
+fixture
+printf 'one248\n' > "$R/l248.txt"
+m read l248.txt >"$WORK/o248" 2>&1
+out=$(m read l248.txt 2>&1 >"$WORK/o248b"); [ -z "$out" ] && ok "a ledger mrw wrote says nothing" || bad "clean ledger: $out"
+led="$(m seen 2>/dev/null | head -1)/seen"
+printf 'garbage248\n' >> "$led"
+out=$(m read l248.txt 2>&1 >"$WORK/o248b")
+grep -q '1 line(s) of the read ledger could not be understood' <<<"$out" && ok "the bad line is counted and told" || bad "damaged ledger: $out"
+out=$(m read l248.txt 2>&1 >"$WORK/o248b"); [ -z "$out" ] && ok "told once: the read healed the ledger" || bad "told again: $out"
+
 # 247. A --create note is told only when the create landed, and a mix of CRLF
 # and LF lines is called mixed, not a bare CR (the v1.61.0 Windows retest). The
 # pairs: the same content onto a new path lands and is told; a lone CR is still

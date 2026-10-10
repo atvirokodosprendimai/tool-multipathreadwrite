@@ -165,6 +165,8 @@ func rootCommand() *cli.Command {
 			}
 			if stale, err := seen.IsStale(cmd.String("root")); err == nil && stale {
 				fmt.Fprintln(os.Stderr, seen.StaleNotice)
+			} else if notice, err := seen.DamageNotice(cmd.String("root")); err == nil && notice != "" {
+				fmt.Fprintln(os.Stderr, notice)
 			}
 			return ctx, nil
 		},
