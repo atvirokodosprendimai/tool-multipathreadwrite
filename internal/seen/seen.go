@@ -577,7 +577,7 @@ func save(root string, l Ledger) error {
 // (v1.59.0), and an "open … used by another process" said nothing about what
 // stood (the v1.60.0 retest).
 func ledgerNotUpdated(err error) error {
-	return fmt.Errorf("the read ledger could not be updated; lines already served and changes already applied stand, but are not recorded there, so read the files again before editing them: %w", err)
+	return fmt.Errorf("the read ledger could not be updated; whatever this call already did (lines served, changes applied) stands, but is not recorded there, so read the files again before editing them: %w", err)
 }
 
 // maxRecordBytes bounds one ledger line, on save and on load alike (ADR-108);

@@ -26,14 +26,14 @@ func GitDir(root, path string) error {
 	}
 	full := filepath.Join(absRoot, path)
 	if inGit(full) || inGit(filepath.Join(spelled, path)) {
-		return fmt.Errorf("%s is inside a .git directory; %s", path, gitAdvice)
+		return fmt.Errorf("%s is inside a .git directory; %s", filepath.ToSlash(path), gitAdvice)
 	}
 	// unlink and rename act on the entry, not on what a link entry leads to, so
 	// the resolved directory plus the literal leaf is judged as well as the
 	// fully followed path.
 	entry := filepath.Join(RealAsFarAsItExists(filepath.Dir(full)), filepath.Base(full))
 	if inGit(entry) || inGit(RealAsFarAsItExists(full)) {
-		return fmt.Errorf("%s leads into a .git directory through a link; %s", path, gitAdvice)
+		return fmt.Errorf("%s leads into a .git directory through a link; %s", filepath.ToSlash(path), gitAdvice)
 	}
 	return nil
 }

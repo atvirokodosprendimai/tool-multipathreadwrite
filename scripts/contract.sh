@@ -8644,6 +8644,23 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 247. A --create note is told only when the create landed, and a mix of CRLF
+# and LF lines is called mixed, not a bare CR (the v1.61.0 Windows retest). The
+# pairs: the same content onto a new path lands and is told; a lone CR is still
+# a bare CR.
+fixture
+printf 'one247\n' > "$R/x247.txt"
+out=$(printf 'a\nb\n\r\n' | m write --no-check --create x247.txt 2>&1); rc=$?
+want 1 "$rc" "a --create of an existing path exits 1"
+grep -q 'ended in CRLF' <<<"$out" && bad "a note for a create that did not land: $out" || ok "no note for a create that did not land"
+out=$(printf 'a\nb\n\r\n' | m write --no-check --create y247.txt 2>&1); want 0 $? "the pair: a new path lands"
+grep -q 'most likely the one PowerShell appends' <<<"$out" && ok "the note says most likely PowerShell's" || bad "note: $out"
+out=$(printf 'a\r\nb\nc\r\n' | m write --no-check --create z247.txt 2>&1); rc=$?
+want 2 "$rc" "CRLF and LF lines are refused"
+{ grep -q 'line endings are mixed' <<<"$out" && ! grep -q 'bare CR' <<<"$out"; } && ok "called mixed, not a bare CR" || bad "mixed: $out"
+out=$(printf 'a\nb\r' | m write --no-check --create w247.txt 2>&1); grep -q 'bare CR' <<<"$out" && ok "a lone CR is still a bare CR" || bad "lone CR: $out"
+rm -f "$R/x247.txt" "$R/y247.txt"
+
 # 246. A write into .git is refused (ADR-143). A plan or --create that lands in
 # a .git directory, directly or through a link, fails that hunk: exit 1, nothing
 # written, the sibling edit skipped. A read of the same path is served. The pairs:
@@ -8689,7 +8706,7 @@ if [ -r "$led" ] || [ ! -e "$led" ]; then
 else
   out=$(m read l245.txt 2>&1); rc=$?
   want 2 "$rc" "a read whose ledger cannot be opened exits 2"
-  grep -q 'already served and changes already applied stand, but are not recorded there' <<<"$out" && ok "saying what stands" || bad "open refusal: $out"
+  grep -q 'stands, but is not recorded there' <<<"$out" && ok "saying what stands" || bad "open refusal: $out"
   out=$(m write --no-check "$WORK/p245.plan" 2>&1); rc=$?
   chmod 600 "$led"
   want 2 "$rc" "a write whose ledger cannot be opened exits 2"
@@ -8719,7 +8736,7 @@ else
   out=$(m read l244.txt 2>&1); rc=$?
   chmod 600 "$led"
   want 2 "$rc" "a read whose ledger cannot be replaced exits 2"
-  { grep -q 'one244' <<<"$out" && grep -q 'already served and changes already applied stand, but are not recorded there' <<<"$out"; } \
+  { grep -q 'one244' <<<"$out" && grep -q 'stands, but is not recorded there' <<<"$out"; } \
     && ok "serving the line and saying what stands and what is not recorded" || bad "ledger refusal: $out"
   out=$(m write --no-check --dry-run "$WORK/p244.plan" 2>&1); want 1 $? "the pair: an edit of the file the failed read served is refused"
   grep -q 'has not been read' <<<"$out" && ok "as not read, so the failed read licensed nothing" || bad "edit after failed read: $out"

@@ -1176,6 +1176,13 @@ held or went unchecked.`,
 			// parsed says the plan parsed: a refusal after that and before anything
 			// landed is one refused_apply, as mrw_write counts it (ADR-083).
 			printed, tallied, parsed := false, false, false
+			var createNotes []string // what --create did to its content, told once the create has landed
+			emitNotes := func() {
+				for _, n := range createNotes {
+					fmt.Fprintf(os.Stderr, "mrw: --create %s: %s\n", cmd.String("create"), n)
+				}
+				createNotes = nil
+			}
 			// stepsNotRun is the --then list a refusal after the landing carries,
 			// every step not_run: the check could not run, or the ledger could not
 			// record the landing, so none followed it (ADR-092 T4; the 2026-09-29 gap survey, C3).
@@ -1187,6 +1194,9 @@ held or went unchecked.`,
 				// ledger failure printed nothing, and the landing went
 				// uncounted (review of #229, advisory 1).
 				landed := res.Applied && !res.DryRun
+				if landed {
+					emitNotes()
+				}
 				if landed && !tallied {
 					_ = authoring.Record(cmd.Root().String("root"), authoring.Applied)
 					tallied = true
@@ -1288,15 +1298,13 @@ held or went unchecked.`,
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
 				}
 				raw, notes := ingest.CreateContent(raw)
+				createNotes = notes
 				compiled, cerr := ingest.CompileCreate(cmd.String("create"), raw)
 				if cerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, cerr)) // a content refusal, not a plan that failed to parse: not counted by ADR-009
 				}
-				// The notes say what was done to content that is going on to the apply;
-				// a refused one would be told it was handled.
-				for _, n := range notes {
-					fmt.Fprintf(os.Stderr, "mrw: --create %s: %s\n", cmd.String("create"), n)
-				}
+				// The notes say what was done to content that went into a file, so
+				// they are told once it landed (emitNotes): a refused create is told nothing.
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
 			case "git":
 				return refuse("a git patch is not an apply_patch; --format=apply_patch is for *** Begin Patch documents")
@@ -1409,6 +1417,9 @@ held or went unchecked.`,
 			}
 			// Land counted the landing, whatever it was.
 			tallied = true
+			if land.Res.Applied && !land.Res.DryRun {
+				emitNotes()
+			}
 			// ADR-132: what the caller is shown spells paths with "/", as
 			// mrw_write's receipt does (ADR-091); the engine kept its own.
 			res := shown(land.Res)
