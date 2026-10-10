@@ -166,8 +166,9 @@ protocol); `--max-lines` onto `max_lines` and `--stat` onto `stat`, each licensi
 `--max-cols N` (CLI only, ADR-137) cuts a line longer than N characters to a window round the first match and records
 that line as NOT read: a plan that replaces it is refused until it is read whole. `--stat` lists the files with their
 length and sha and `-N` drops the line numbers.
-A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`) is a usage error that ends with mrw's spelling (ADR-140),
-and so is `--grep -i PATTERN`, where `-i` is taken as the pattern: write `--grep '(?i)PATTERN'`.
+A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`) is a usage error, exit 2, that ends with mrw's spelling (ADR-140).
+`--grep -i PATTERN` is not an unknown flag: `-i` is taken as the pattern, and a read that matches nothing ends `no file matched /-i/` (exit 1) with the same
+hint; write `--grep '(?i)PATTERN'`.
 
 ### 1. Read many ranges in one call, and let the read do the finding
 

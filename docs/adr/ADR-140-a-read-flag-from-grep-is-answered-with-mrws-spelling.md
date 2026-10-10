@@ -27,7 +27,7 @@ An agent that knows grep reaches for `-i`, `-n`, `-r`, `-e` or `-A 2` on `mrw re
 
 1. **A table maps a flag name to a sentence.** `mrw read` (only) given one of `i n r R l c count A B e E P F w H include m` appends `; ` and its sentence to the existing message: `flag provided but not defined: -i (see: mrw read --help); case-insensitive: start the pattern with (?i), as in --grep '(?i)PATTERN'`.
 2. **Nothing else changes**: the exit code (2), the prefix of the message, every other command, every flag not in the table, and a flag spelled like a subcommand (ADR-097) are as before.
-3. **Each sentence names a spelling that works**: `-i` → `(?i)`; `-n` → numbers are on, `-N` drops them; `-r`/`-R` → a named directory is walked; `-l` → `--grep P --stat`; `-c`/`--count` → no count, `--stat` lists matching files; `-A`/`-B` → `-C N`; `-e` → the value of `--grep`, and `--grep=-PATTERN` for one that starts with a dash; `-E`/`-P` → patterns are Go RE2; `-F` → `\Q…\E`; `-w` → `\b…\b`; `-H` → every file has a `==>` header; `--include` → name the directories or pipe a list to `--files-from`, `--exclude` drops; `-m` → `--max-lines N`.
+3. **Each sentence names a spelling that works, with the limit it has**: `-i` → `(?i)`; `-n` → numbers are on, `-N` drops them; `-r`/`-R` → a named directory is walked; `-l` → `--grep P --stat`; `-c`/`--count` → no count, `--stat` lists matching files; `-A`/`-B` → `-C N`; `-e` → the value of `--grep`, and `--grep=-PATTERN` for one that starts with a dash; `-E`/`-P` → patterns are Go RE2; `-F` → `\Q…\E`, or escape each metacharacter for a literal that holds `\E`; `-w` → `\b…\b`, whose boundaries are ASCII-only in Go; `-H` → every file has a `==>` header; `--include` → name the directories or pipe a list to `--files-from`, `--exclude` drops; `-m` → `--max-lines N`.
 4. **`--grep -X` is answered at the no-match message.** urfave/cli takes the token after `--grep` as its value, so `mrw read --grep -i needle f` searches for the pattern `-i` in the path `needle` and `f` (measured 2026-10-10: `==> needle  REFUSED …` then `no file matched /-i/`, exit 1). When the pattern is exactly `-` and one letter that is a key of the table, the `no file matched` line ends `— <sentence> (mrw took the value after --grep as the pattern)`. A longer pattern, or a letter not in the table, is worded as before.
 
 ## Alternatives Considered
@@ -74,7 +74,7 @@ See `tasks/README.md`: T1.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| a hint names a spelling that does not work | Low | a caller is sent wrong | `TestEveryForeignFlagHintIsATrueSpelling` runs the three runnable claims (`(?i)`, `\Q…\E`, `\b…\b`) against a fixture, and the rest name flags `read --help` lists |
+| a hint names a spelling that does not work, or works only with a limit it omits | Low | a caller is sent wrong | `TestEveryForeignFlagHintIsATrueSpelling` runs the runnable claims (`(?i)`, `\Q…\E`, `\b…\b`) against a fixture; `TestTheWordAndLiteralHintsNameTheirLimits` runs the two limits the review found (ASCII-only `\b`, a literal holding `\E`); the rest name flags `read --help` lists |
 | urfave/cli rewords its message | Low | the hint silently disappears | the lookup falls through to the old message; `TestAForeignReadFlagIsAnsweredWithMrwsSpelling` fails on the reword |
 
 ## Rollback

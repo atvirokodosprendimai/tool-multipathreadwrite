@@ -36,7 +36,7 @@ Decisions 1–3 of the record, with tests that fail before them.
 set -o pipefail
 out=$(mktemp) \
   && go test ./cmd/mrw/ -count=1 -timeout 300s -run 'TestAForeignReadFlagIsAnsweredWithMrwsSpelling|TestEveryForeignFlagHintIsATrueSpelling' -v 2>&1 | tee "$out" \
-  && grep -qE '^--- PASS: TestAForeignReadFlagIsAnsweredWithMrwsSpelling \(' "$out" \
+  && go test ./cmd/mrw/ -count=1 -timeout 300s -run 'TestAForeignReadFlagIsAnsweredWithMrwsSpelling|TestEveryForeignFlagHintIsATrueSpelling|TestTheWordAndLiteralHintsNameTheirLimits' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestEveryForeignFlagHintIsATrueSpelling \(' "$out" \
   && go test ./cmd/mrw/ -count=1 -timeout 900s -run 'Usage|Subcommand|Flag' \
   && grep -q '^# 241\. ' scripts/contract.sh \
@@ -50,6 +50,7 @@ out=$(mktemp) \
 |-----------|------|----------|--------|-------|
 | `TestAForeignReadFlagIsAnsweredWithMrwsSpelling` | `cmd/mrw/foreignflag140_test.go` | each table flag on `read` is exit 2 with the old prefix and its sentence; others untouched | none | S1, S2 |
 | `TestEveryForeignFlagHintIsATrueSpelling` | `cmd/mrw/foreignflag140_test.go` | the runnable equivalents work against a fixture | none | S1, S2 |
+| `TestTheWordAndLiteralHintsNameTheirLimits` | `cmd/mrw/foreignflag140_limits_test.go` | the `-w` and `-F` hints name the ASCII-only `\b` and the `\E` limit, and both limits are real | none | S1, S2 |
 
 ## Reachability
 
