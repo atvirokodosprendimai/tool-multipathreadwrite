@@ -1,6 +1,8 @@
 package apply
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -18,11 +20,24 @@ func TestAPlanThatTouchesDotGitWritesNothing(t *testing.T) {
 		{"unlink", Input{Path: ".git/config", Op: "unlink", Lines: -1}},
 		{"rename into", Input{Path: "b.txt", Op: "rename", Body: []string{".git/b.txt"}, Lines: -1}},
 		{"rename out", Input{Path: ".git/config", Op: "rename", Body: []string{"c.txt"}, Lines: -1}},
+		// The entry is a link inside .git that leads elsewhere: unlink and rename
+		// act on the entry, so the target's name is not what is judged (the Codex
+		// review of #382).
+		{"via link unlink", Input{Path: "alias/hooks/pre-commit", Op: "unlink", Lines: -1}},
+		{"via link rename onto", Input{Path: "b.txt", Op: "rename", Body: []string{"alias/hooks/pre-commit"}, Lines: -1}},
 	} {
 		root := t.TempDir()
 		write(t, root, "a.txt", "one\n")
 		write(t, root, "b.txt", "two\n")
 		write(t, root, ".git/config", "[core]\n")
+		viaLink := strings.HasPrefix(c.name, "via link")
+		if viaLink {
+			write(t, root, "script.sh", "x\n")
+			write(t, root, ".git/hooks/placeholder", "")
+			if os.Symlink("../../script.sh", filepath.Join(root, ".git", "hooks", "pre-commit")) != nil || os.Symlink(".git", filepath.Join(root, "alias")) != nil {
+				continue
+			}
+		}
 		sibling := Input{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"changed"}, Lines: -1, Index: 0}
 		c.hunk.Index = 1
 		res, err := Apply(root, []Input{sibling, c.hunk}, Options{Seen: map[string]Seen{"a.txt": {SHA: shaOfFile(t, root, "a.txt")}, "b.txt": {SHA: shaOfFile(t, root, "b.txt")}}})
@@ -32,11 +47,14 @@ func TestAPlanThatTouchesDotGitWritesNothing(t *testing.T) {
 		if res.Applied || len(res.Hunks) != 2 {
 			t.Fatalf("%s: applied=%v hunks=%+v, want a refused plan with two verdicts", c.name, res.Applied, res.Hunks)
 		}
-		if r := res.Hunks[1].Reason; res.Hunks[1].Status != StatusFailed || !strings.Contains(r, "inside a .git directory") || strings.Contains(r, "--root") {
+		if r := res.Hunks[1].Reason; res.Hunks[1].Status != StatusFailed || !strings.Contains(r, ".git directory") || strings.Contains(r, "--root") {
 			t.Errorf("%s: hunk = %+v, want a failure naming .git and giving no root advice", c.name, res.Hunks[1])
 		}
 		if res.Hunks[0].Status != StatusSkipped {
 			t.Errorf("%s: the sibling is %q, want skipped", c.name, res.Hunks[0].Status)
+		}
+		if _, err := os.Lstat(filepath.Join(root, ".git", "hooks", "pre-commit")); viaLink && err != nil {
+			t.Errorf("%s: the hook entry inside .git is gone: %v", c.name, err)
 		}
 		if read(t, root, "a.txt") != "one\n" || read(t, root, ".git/config") != "[core]\n" {
 			t.Errorf("%s: a refused plan wrote the tree", c.name)

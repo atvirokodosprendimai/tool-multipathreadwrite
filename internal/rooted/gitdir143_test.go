@@ -31,6 +31,16 @@ func TestAPathInsideADotGitIsRefused(t *testing.T) {
 				t.Errorf("GitDir(%q) through a link to .git = nil, want a refusal", p)
 			}
 		}
+		// The entry unlink or rename acts on is the link itself, inside .git: the
+		// target it leads to is elsewhere (the Codex review of #382).
+		if err := os.WriteFile(filepath.Join(root, "script.sh"), []byte("x\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink("../../script.sh", filepath.Join(root, ".git", "hooks", "pre-commit")); err == nil {
+			if err := GitDir(root, "alias/hooks/pre-commit"); err == nil {
+				t.Error("GitDir of a link's entry inside .git, reached through another link = nil, want a refusal")
+			}
+		}
 	}
 	inside := filepath.Join(t.TempDir(), ".git")
 	if err := os.MkdirAll(inside, 0o755); err != nil {
@@ -38,6 +48,16 @@ func TestAPathInsideADotGitIsRefused(t *testing.T) {
 	}
 	if err := GitDir(inside, "config"); err == nil {
 		t.Error("GitDir under a root inside .git = nil, want a refusal")
+	}
+	// A root spelled with .git that is itself a link elsewhere is still a root in .git.
+	meta, spelled := filepath.Join(t.TempDir(), "metadata"), filepath.Join(t.TempDir(), ".git")
+	if err := os.MkdirAll(meta, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(meta, spelled); err == nil {
+		if err := GitDir(spelled, "hooks/pre-commit"); err == nil {
+			t.Error("GitDir under a root spelled .git that is a link = nil, want a refusal")
+		}
 	}
 }
 
@@ -49,7 +69,7 @@ func TestTheShortNameOfDotGitIsMatchedOnlyWhereItExists(t *testing.T) {
 		short bool
 		want  bool
 	}{
-		{".git", false, true}, {".GIT", false, true}, {"GIT~1", true, true}, {"git~12", true, true},
+		{".git", false, true}, {".GIT", false, true}, {"GIT~1", true, true}, {"git~12", true, false}, {"git~1x", true, false},
 		{"GIT~1", false, false}, {"git~", true, false}, {"gitx~1", true, false}, {".gitx", true, false}, {"git", true, false},
 	} {
 		if got := isGitName(c.name, c.short); got != c.want {

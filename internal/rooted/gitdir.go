@@ -17,11 +17,22 @@ func GitDir(root, path string) error {
 	if err != nil {
 		return err
 	}
+	// The root as spelled counts as well as where it leads: a .git that is a
+	// link to somewhere else is still the .git the caller pointed at (the Codex
+	// review of #382).
+	spelled, err := filepath.Abs(root)
+	if err != nil {
+		return err
+	}
 	full := filepath.Join(absRoot, path)
-	if inGit(full) {
+	if inGit(full) || inGit(filepath.Join(spelled, path)) {
 		return fmt.Errorf("%s is inside a .git directory; %s", path, gitAdvice)
 	}
-	if inGit(RealAsFarAsItExists(full)) {
+	// unlink and rename act on the entry, not on what a link entry leads to, so
+	// the resolved directory plus the literal leaf is judged as well as the
+	// fully followed path.
+	entry := filepath.Join(RealAsFarAsItExists(filepath.Dir(full)), filepath.Base(full))
+	if inGit(entry) || inGit(RealAsFarAsItExists(full)) {
 		return fmt.Errorf("%s leads into a .git directory through a link; %s", path, gitAdvice)
 	}
 	return nil
@@ -40,18 +51,8 @@ func inGit(p string) bool {
 }
 
 // isGitName is the component test: .git in any case, and — where short names
-// exist (short, a Windows build) — its 8.3 name git~N.
+// exist (short, a Windows build) — git~1, the 8.3 name NTFS gives it, the one
+// spelling git's own protection matches.
 func isGitName(c string, short bool) bool {
-	if strings.EqualFold(c, ".git") {
-		return true
-	}
-	if !short || len(c) < 5 || !strings.EqualFold(c[:4], "git~") {
-		return false
-	}
-	for _, r := range c[4:] {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
+	return strings.EqualFold(c, ".git") || (short && strings.EqualFold(c, "git~1"))
 }
