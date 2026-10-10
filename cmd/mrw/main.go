@@ -204,7 +204,11 @@ func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
 		return cli.Exit(fmt.Sprintf("--%s is not a flag; the subcommand is `%s %s` (see: %s --help)",
 			flag, cmd.FullName(), sub, cmd.FullName()), exitUsage)
 	}
-	return cli.Exit(fmt.Sprintf("%v (see: %s --help)", err, cmd.FullName()), exitUsage)
+	msg := fmt.Sprintf("%v (see: %s --help)", err, cmd.FullName())
+	if h := foreignFlagHint(cmd.FullName(), refusedFlag(err)); h != "" {
+		msg += "; " + h
+	}
+	return cli.Exit(msg, exitUsage)
 }
 
 // subcommandForFlag returns the flag name the parser refused, as the caller
@@ -934,7 +938,11 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if grepSet && len(specs) == 0 {
 				skipNote()
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
-				return cli.Exit(fmt.Sprintf("no file matched /%s/", pattern), 1)
+				msg := fmt.Sprintf("no file matched /%s/", pattern)
+				if h := patternFlagHint(pattern); h != "" {
+					msg += " — " + h + " (mrw took the value after --grep as the pattern)"
+				}
+				return cli.Exit(msg, 1)
 			}
 			if astSet && len(specs) == 0 {
 				skipNote()
