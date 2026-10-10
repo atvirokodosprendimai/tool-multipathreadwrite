@@ -75,6 +75,8 @@ Stop and ask if a command the parser answers on its own needs the migrated state
 - Where the migration looks (permanent: boundary: the working directory, as ADR-004 chose)
 
 ## Mutation Log
+- 2026-10-10 · 7953ae1 · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the verb guard is removed, version and instructions migrate · acceptance-sha256:68c8ffa2a2e451531c3169f38ef9d761e2ca08a043cbb0da9a9026004671aa6a · covers:a start the parser answers on its own, and version and instructions, migrate no legacy state, and every other command still does
+- 2026-10-10 · 7953ae1* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: no command migrates · acceptance-sha256:68c8ffa2a2e451531c3169f38ef9d761e2ca08a043cbb0da9a9026004671aa6a · covers:a start the parser answers on its own, and version and instructions, migrate no legacy state, and every other command still does
 
 ## Verification Log
 - 2026-10-10 · ccef5af* · exit 0 · `set -o pipefail …` · acceptance-sha256:68c8ffa2a2e451531c3169f38ef9d761e2ca08a043cbb0da9a9026004671aa6a · ms:39107
@@ -92,3 +94,6 @@ Stop and ask if a command the parser answers on its own needs the migrated state
   FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.337s
   FAIL
   ```
+- 2026-10-10 · 7953ae1 · exit 0 · `set -o pipefail …` · acceptance-sha256:68c8ffa2a2e451531c3169f38ef9d761e2ca08a043cbb0da9a9026004671aa6a · ms:39313
+- 2026-10-10 · 7953ae1* · exit 0 · `set -o pipefail …` · acceptance-sha256:68c8ffa2a2e451531c3169f38ef9d761e2ca08a043cbb0da9a9026004671aa6a · ms:43067
+- 2026-10-10 · 7953ae1* · exit 0 · `set -o pipefail …` · acceptance-sha256:68c8ffa2a2e451531c3169f38ef9d761e2ca08a043cbb0da9a9026004671aa6a · ms:48308
