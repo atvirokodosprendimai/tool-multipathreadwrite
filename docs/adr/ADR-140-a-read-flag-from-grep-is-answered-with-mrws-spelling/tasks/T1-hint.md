@@ -87,6 +87,12 @@ Stop and ask if a table sentence cannot be run against the binary: a hint nobody
   ```
 - 2026-10-10 · b5e00d3* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the no-file-matched message carries no hint · acceptance-sha256:c799bf8b58e0a48dfe63f7b2e75775c213734ef75af2d62757c89682a1b1367f · covers:read given a grep flag it lacks exits 2 with mrw's spelling appended, and every other usage error is worded as before
 - 2026-10-10 · d598450 · mutant killed · exit 1 · `cmd/mrw/foreignflag.go` · S2: any pattern beginning with a dash gets the hint · acceptance-sha256:c799bf8b58e0a48dfe63f7b2e75775c213734ef75af2d62757c89682a1b1367f · covers:read given a grep flag it lacks exits 2 with mrw's spelling appended, and every other usage error is worded as before
+- 2026-10-10 · f5aea91 · mutant killed · exit 1 · `cmd/mrw/foreignflag.go` · S2: the hint is given on every command, write included · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · covers:read given a grep flag it lacks exits 2 with mrw's spelling appended, and every other usage error is worded as before
+- 2026-10-10 · f5aea91* · mutant killed · exit 1 · `cmd/mrw/foreignflag.go` · S2: the flag lookup returns no hint · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · covers:read given a grep flag it lacks exits 2 with mrw's spelling appended, and every other usage error is worded as before
+- 2026-10-10 · f5aea91* · mutant killed · exit 1 · `cmd/mrw/foreignflag.go` · S2: any pattern beginning with a dash gets the hint · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · covers:read given a grep flag it lacks exits 2 with mrw's spelling appended, and every other usage error is worded as before
+- 2026-10-10 · f5aea91* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the no-file-matched message carries no hint · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · covers:read given a grep flag it lacks exits 2 with mrw's spelling appended, and every other usage error is worded as before
+- 2026-10-10 · f5aea91* · mutant killed · exit 1 · `cmd/mrw/foreignflag.go` · S2: the -w hint omits the ASCII-only limit · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · covers:read given a grep flag it lacks exits 2 with mrw's spelling appended, and every other usage error is worded as before
+- 2026-10-10 · f5aea91* · mutant killed · exit 1 · `cmd/mrw/foreignflag.go` · S2: the -F hint omits the \E limit · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · covers:read given a grep flag it lacks exits 2 with mrw's spelling appended, and every other usage error is worded as before
 
 ## Verification Log
 - 2026-10-10 · b5e00d3 · exit 0 · `set -o pipefail …` · acceptance-sha256:c799bf8b58e0a48dfe63f7b2e75775c213734ef75af2d62757c89682a1b1367f · ms:2238
@@ -109,3 +115,24 @@ Stop and ask if a table sentence cannot be run against the binary: a hint nobody
   FAIL
   ```
 - 2026-10-10 · d598450* · exit 0 · `set -o pipefail …` · acceptance-sha256:c799bf8b58e0a48dfe63f7b2e75775c213734ef75af2d62757c89682a1b1367f · ms:880
+- 2026-10-10 · f5aea91 · exit 0 · `set -o pipefail …` · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · ms:2386
+- 2026-10-10 · f5aea91* · exit 0 · `set -o pipefail …` · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · ms:2005
+- 2026-10-10 · f5aea91* · exit 0 · `set -o pipefail …` · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · ms:2007
+- 2026-10-10 · f5aea91* · exit 0 · `set -o pipefail …` · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · ms:2098
+- 2026-10-10 · f5aea91* · exit 0 · `set -o pipefail …` · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · ms:1952
+- 2026-10-10 · f5aea91* · exit 0 · `set -o pipefail …` · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · ms:1978
+- 2026-10-10 · f5aea91* · exit 1 · `set -o pipefail …` · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · ms:857
+  ```
+  --- last 10 line(s) of stdout (of 71 after folding 71 raw)
+      foreignflag140_test.go:35: mrw read --grep -E f.txt: exit 1, want 1 with the hint:
+          no file matched /-E/
+      foreignflag140_test.go:35: mrw read --grep -m f.txt: exit 1, want 1 with the hint:
+          no file matched /-m/
+  --- FAIL: TestAForeignReadFlagIsAnsweredWithMrwsSpelling (0.01s)
+  === RUN   TestEveryForeignFlagHintIsATrueSpelling
+  --- PASS: TestEveryForeignFlagHintIsATrueSpelling (0.04s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.283s
+  FAIL
+  ```
+- 2026-10-10 · f5aea91* · exit 0 · `set -o pipefail …` · acceptance-sha256:2099e665b263326d9a2ad25fe4120365e9cf5abbbc5fc4fe26566634ed2c0ec6 · ms:1193
