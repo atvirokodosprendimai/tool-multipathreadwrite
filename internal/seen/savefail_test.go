@@ -35,7 +35,7 @@ func TestALedgerThatCannotBeUpdatedSaysWhatStandsAndWhatIsNotRecorded(t *testing
 		t.Fatal("a ledger that cannot be replaced was recorded into")
 	}
 	msg := err.Error()
-	for _, want := range []string{"could not be updated", "what this call did stands", "not recorded", "read the files again"} {
+	for _, want := range []string{"could not be updated", "already served", "already applied", "not recorded", "read the files again"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("the message lacks %q:\n%s", want, msg)
 		}
