@@ -39,6 +39,7 @@ func CLI() string {
 ` + WhyAllOrNothing() + `
 
 Never read an exit code through a pipe: mrw write plan | head returns head's status.
+To make one new file without writing a plan: mrw write --create PATH < content. The lines of standard input become the file, each ending in a newline (a missing final newline is added, CRLF becomes LF); it is refused if PATH exists, and takes no PLAN argument.
 Exit 3 means the write applied and the check did not pass — it failed, timed out or was interrupted — so the tree is changed and unverified.
 --then NAME runs a step declared in .quality-harness.json "steps", and --then-sh 'CMD' an ad-hoc one, after a write that landed and whose check passed — on write, and on check once it passes. They run in command-line order; the first that does not pass stops the rest, which the receipt names not run, and exits 3 (2 if it could not start). A step is POSIX shell on every platform.
 could_not_start means mrw could not start the shell; a command the shell cannot find is a step that ran and failed (exit 127). A step runs with MRW_STEP_DEPTH one higher than its caller's, and --then and --then-sh are refused at depth 8, so a step that re-runs mrw with steps stops instead of recursing. A "steps" block is read only when a step is asked for.

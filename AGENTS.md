@@ -56,6 +56,8 @@ The failure the whole design exists to prevent: *a read that returns nothing is
 visible; a write that changes nothing is not.* `--format=apply_patch` and
 `--format=search_replace` compile to a native plan; sequential apply_patch is
 the leak, not the feature.
+A new file needs no plan: `mrw write --create PATH < content` makes it from standard input as the `create` plan of
+those lines would (ADR-139), through the same lock, check and receipt.
 
 ## Portability — one trap, learned the hard way
 

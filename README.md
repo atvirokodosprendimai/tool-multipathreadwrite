@@ -142,6 +142,12 @@ refuse an unread sibling and write nothing. A git patch is not an apply_patch;
 `--format=git` is usage. The flag is required — there is no auto-detect.
 Sequential apply_patch — one hunk, then another — is the leak, not the feature.
 
+`mrw write --create PATH` makes one new file from standard input without a plan or a hand-counted `body=`:
+the lines of the content become the file exactly as the `create` plan of the same lines would (each line ends
+in a newline, so a missing final newline is added and CRLF becomes LF; empty input makes an empty file), through
+the same lock, check and receipt. It is refused if PATH exists and takes no PLAN argument and no `--format`
+(ADR-139). CLI only.
+
 `anchor=` is required on a `replace` that addresses more than one line. Take it
 from the `NNN| content` a read printed; one typed from memory can be wrong in
 the same way the address is. `sha=` and `lines=` are optional and are checked
