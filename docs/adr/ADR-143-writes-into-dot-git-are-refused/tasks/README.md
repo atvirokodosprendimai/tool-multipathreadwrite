@@ -11,7 +11,7 @@ README must be regenerated.
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
 | T1 | A write whose path lands in `.git` is refused | done | none | `docs/adr/ADR-143-writes-into-dot-git-are-refused/tasks/T1-refuse.md` fence |
-| T2 | A path reopened by name is judged for `.git` again | pending | T1 | `docs/adr/ADR-143-writes-into-dot-git-are-refused/tasks/T2-reopen.md` fence |
+| T2 | A path reopened by name is judged for `.git` again | done | T1 | `docs/adr/ADR-143-writes-into-dot-git-are-refused/tasks/T2-reopen.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

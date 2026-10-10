@@ -75,7 +75,7 @@ See `tasks/README.md`: T1, T2.
 - A repository whose git directory is elsewhere and not named `.git` (a bare repository, `--separate-git-dir`) (permanent: boundary: mrw cannot know which directory is a repository by its name)
 - What a check or a `--then-sh` step does to `.git` (permanent: boundary: they run the project's own commands, not mrw's writes)
 - A directory swapped for a link to `.git` in the instant between `tree.rel`'s check and the syscall that follows it (permanent: boundary: the check runs when each staging, rename and removal opens its path, the finest grain mrw has; a process that can swap a directory in that instant can write `.git` itself)
-- Windows 8.3 names of `.git` other than `git~1`, such as a hashed short name (deferred: docs/adr/BACKLOG.md — "Writes into .git" entry)
+- Windows 8.3 names of `.git` other than `git~1`, such as a hashed short name (permanent: fact: Windows path resolution turns an 8.3 alias of an existing directory into its long name, so whatever short name a volume made for `.git` reaches `GitDir` as `.git`; measured on the CI Windows runner for its alias `GIT~1`; citation: file `internal/rooted/gitdir143_windows_test.go:69`)
 
 ## Risks
 
