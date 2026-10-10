@@ -9,7 +9,7 @@
 **Invalidates:** None — `mrw instructions` with no flag prints exactly what it printed; `--core` is new
 **Governs:** `internal/guide/guide.go`, `cmd/mrw/main.go`, `scripts/contract.sh`, `AGENTS.md`
 **Enforced-by:** `internal/guide/core141_test.go::TestTheCoreIsEightShortRulesTheFullContractStillCarries`
-**Served-path change:** `mrw instructions --core` prints eight rules in under 300 words, the part of the contract a session acts on, and its first line says `mrw instructions` prints the whole of it. `mrw instructions` without the flag is unchanged, byte for byte, apart from two sentences at its END: a pattern may start with `(?i)` to ignore case, and `mrw instructions --core` prints the eight rules.
+**Served-path change:** `mrw instructions --core` prints eight rules in under 300 words, the part of the contract a session acts on, and its first line says `mrw instructions` prints the whole of it. `mrw instructions` without the flag is unchanged, byte for byte, apart from three sentences at its END: a pattern may start with `(?i)` to ignore case, `mrw write -` reads the plan from standard input, and `mrw instructions --core` prints the eight rules.
 
 ## Context
 
@@ -31,7 +31,7 @@ The 2026-10-09 survey (14 sessions, as the author's synthesis of the replies rec
 
 1. **`mrw instructions --core` prints `guide.Core()`**: eight numbered rules, under 300 words, whose first line names the full form. It takes no arguments, as `instructions` does not.
 2. **`guide.Core()` is held to the binary and to the full text by test.** Every `--flag` it names is a flag of `read`, `write` or the root command; its rule on the exit codes, the `anchor=` rule, the `--create` and `--max-cols` and `(?i)` spellings each appear in `guide.CLI()` as well, so the full text cannot lose a rule the core teaches.
-3. **`mrw instructions` without the flag is the full contract**, byte-identical to before except two sentences appended at its end (not its start: the first lines are read by scripts, and the MCP handshake shares them): `A pattern is a Go regular expression: start it with (?i) to ignore case.` and `mrw instructions --core prints the eight rules that matter most.` The first makes the core's `(?i)` rule true of the full text too. A script that read the whole output is unaffected.
+3. **`mrw instructions` without the flag is the full contract**, byte-identical to before except three sentences appended at its end (not its start: the first lines are read by scripts, and the MCP handshake shares them): `A pattern is a Go regular expression: start it with (?i) to ignore case.`, `mrw write PLAN reads a plan from a file and mrw write - reads it from standard input.` and `mrw instructions --core prints the eight rules that matter most.` The first two make the core's `(?i)` and `mrw write -` rules true of the full text too. A script that read the whole output is unaffected.
 
 ## Alternatives Considered
 
@@ -50,7 +50,7 @@ The 2026-10-09 survey (14 sessions, as the author's synthesis of the replies rec
 |---------|--------|----------|-------------|
 | `mrw instructions --core` | new flag | T1 | CLI callers, whoever writes standing instructions |
 | `guide.Core()` | new function | T1 | `cmd/mrw` |
-| `mrw instructions` | one sentence at the start | T1 | CLI callers |
+| `mrw instructions` | two sentences at the end (the `(?i)` rule, the `--core` flag) and one on `mrw write -` | T1 | CLI callers |
 | `scripts/contract.sh` | §242 | T1 | CI Linux |
 | `AGENTS.md` | the `mrw instructions` bullet names `--core` | T1 | every agent |
 
@@ -86,7 +86,7 @@ See `tasks/README.md`: T1.
 
 ## Rollback
 
-Revert T1: the flag is gone and `mrw instructions` loses one sentence. No persistent state changes shape.
+Revert T1: the flag is gone and `mrw instructions` loses three sentences at its end. No persistent state changes shape.
 
 ## Follow-ups
 
