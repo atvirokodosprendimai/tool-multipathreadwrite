@@ -2500,6 +2500,9 @@ func resolve(root, path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%w: a plan may only change files under the directory mrw was pointed at", err)
 	}
+	if err := rooted.GitDir(root, path); err != nil {
+		return "", err
+	}
 	return full, nil
 }
 
