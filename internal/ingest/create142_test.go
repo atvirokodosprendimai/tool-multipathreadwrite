@@ -49,3 +49,20 @@ func TestALeadingByteOrderMarkIsKeptAndNamed(t *testing.T) {
 		t.Errorf("content without a BOM got notes %q", notes)
 	}
 }
+
+// An all-CRLF content that ends in an empty line cannot be told from a file that
+// really ends in one: it is kept as it came and named (the Windows retest of
+// v1.60.0, four sessions). Content that is not all CRLF is not named.
+func TestAnEmptyLastLineAfterCRLFLinesIsKeptAndNamed(t *testing.T) {
+	for _, in := range []string{"a\r\nb\r\n\r\n", "a\r\n\r\n"} {
+		got, notes := CreateContent([]byte(in))
+		if string(got) != in || len(notes) != 1 || !strings.Contains(notes[0], "empty line") || !strings.Contains(notes[0], "may be") {
+			t.Errorf("%q: got %q, notes %q; want it kept and one note naming the empty line", in, got, notes)
+		}
+	}
+	for _, in := range []string{"a\r\nb\r\n", "a\r\n", "a\nb\r\n\r\n", "a\n\n"} {
+		if _, notes := CreateContent([]byte(in)); len(notes) != 0 {
+			t.Errorf("%q: named as an empty last line: %q", in, notes)
+		}
+	}
+}

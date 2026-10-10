@@ -42,7 +42,7 @@ import (
 func Abs(root string) (string, error) {
 	if followLinks {
 		if c, _ := win32Alias(root); c != "" {
-			return "", fmt.Errorf("root %s: Windows does not keep %q as written (it drops a trailing dot or space from a name, reads ':' as a stream, and turns a byte that is not valid UTF-8 into U+FFFD); name it as it is on disk", root, c)
+			return "", fmt.Errorf("root %s: Windows does not keep %q as written: %s", root, c, aliasCause(c))
 		}
 	}
 	absRoot, err := filepath.Abs(root)
@@ -86,10 +86,23 @@ func Resolve(root, path string) (string, error) {
 func aliasRefusal(path string) error {
 	if followLinks {
 		if c, _ := win32Alias(path); c != "" {
-			return aliasError(fmt.Sprintf("%s: Windows does not keep %q as written (it drops a trailing dot or space from a name, reads ':' as a stream, and turns a byte that is not valid UTF-8 into U+FFFD); name the file as it is on disk", path, c))
+			return aliasError(fmt.Sprintf("%s: Windows does not keep %q as written: %s", path, c, aliasCause(c)))
 		}
 	}
 	return nil
+}
+
+// aliasCause says which of win32Alias's causes applies to comp, so a refusal
+// names the one that does and not all three (the Windows retest of v1.60.0).
+func aliasCause(comp string) string {
+	switch {
+	case strings.Contains(comp, ":"):
+		return "Windows reads ':' as an NTFS stream, not as part of a name"
+	case strings.TrimRight(comp, ". ") != comp:
+		return `Windows drops a trailing dot or space from a name, so it opens another file; a file that really has this name can only be reached through a \\?\ path, which mrw does not use`
+	default:
+		return "Windows turns a byte that is not valid UTF-8 into U+FFFD, so it opens another file"
+	}
 }
 
 // resolveIn is Resolve under a root Abs already resolved.

@@ -31,6 +31,7 @@ A third finding is a message: `--create` of a path that exists and has not been 
 2. **A leading UTF-8 byte order mark is kept and named.** It is content (ADR-139's test pins it), and PowerShell 5.1 adds one; stderr says `mrw: --create PATH: the content begins with a UTF-8 byte order mark, kept as content`.
 3. **A lone create hunk on a path that exists and was not read says `create: P already exists — a create never overwrites; read it and use replace or delete, or unlink it first`**, in place of the read-before-modify refusal. A path that was read, or a create under `--force`, keeps the line-count message it had; every other op keeps the read-before-modify refusal.
 4. **The notes go to stderr, one line each, once the content has compiled** (a refused content is told nothing was done to it); the exit code and the receipt do not change.
+5. **Amendment, 2026-10-10 (the Windows retest of v1.60.0, four of five sessions): all-CRLF content that ends in an empty line is kept and named.** PowerShell's appended CRLF after a CRLF file becomes a blank last line, and mrw cannot tell it from a blank line the file has, so it keeps the bytes and says on stderr what the line may be. The notes also stop blaming one shell: the CRLF note says PowerShell appends a CRLF "to what it pipes" without claiming the bytes came from it, and the byte-order-mark note says PowerShell adds one when `$OutputEncoding` is UTF-8 with a preamble, not that Windows PowerShell 5.1 always does.
 
 ## Alternatives Considered
 

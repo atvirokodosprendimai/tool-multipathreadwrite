@@ -332,14 +332,14 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 0
     "fires": false
   }
-  "error": "open <STATE>/mrw/<KEY>/seen: permission denied"
+  "error": "the read ledger could not be read, so this call wrote and changed nothing: open <STATE>/mrw/<KEY>/seen: permission denied"
 }
-open <STATE>/mrw/<KEY>/seen: permission denied
+the read ledger could not be read, so this call wrote and changed nothing: open <STATE>/mrw/<KEY>/seen: permission denied
 == ledger_unloadable human
 exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
-open <STATE>/mrw/<KEY>/seen: permission denied
+the read ledger could not be read, so this call wrote and changed nothing: open <STATE>/mrw/<KEY>/seen: permission denied
 == hunk_failed_unread json
 exit 1
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0

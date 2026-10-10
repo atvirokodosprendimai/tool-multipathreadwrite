@@ -44,3 +44,32 @@ func TestALedgerThatCannotBeUpdatedSaysWhatStandsAndWhatIsNotRecorded(t *testing
 		t.Errorf("the cause is lost to errors.Is: %v", err)
 	}
 }
+
+// A ledger that cannot be OPENED fails the same way: after a call that acted it
+// says what stands (the v1.60.0 retest saw a raw "open … used by another
+// process"), and before one that writes it says nothing was written.
+func TestAnUnopenableLedgerSaysWhatStandsAfterACallAndThatNothingChangedBefore(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("an unreadable ledger is refused by mode on unix, as a non-root user")
+	}
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := t.TempDir()
+	if err := Record(root, map[string]Observation{"a.txt": {SHA: SHA([]byte("one\n"))}}); err != nil {
+		t.Fatal(err)
+	}
+	path, err := ReadPath(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
+	err = Record(root, map[string]Observation{"b.txt": {SHA: SHA([]byte("two\n"))}})
+	if err == nil || !strings.Contains(err.Error(), "already served") || !strings.Contains(err.Error(), "not recorded") || !errors.Is(err, fs.ErrPermission) {
+		t.Errorf("Record on an unopenable ledger: %v, want what stands and the cause", err)
+	}
+	if _, err = Snapshot(root); err == nil || !strings.Contains(err.Error(), "wrote and changed nothing") || !errors.Is(err, fs.ErrPermission) {
+		t.Errorf("Snapshot on an unopenable ledger: %v, want that nothing was written and the cause", err)
+	}
+}

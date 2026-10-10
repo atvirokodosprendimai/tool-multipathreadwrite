@@ -59,8 +59,11 @@ the leak, not the feature.
 A new file needs no plan: `mrw write --create PATH < content` makes it from standard input as the `create` plan of
 those lines would (ADR-139), through the same lock, check and receipt.
 PowerShell appends a CRLF to everything it pipes (ADR-142): after LF lines with no other CR that CRLF is dropped, and stderr says
-so; a leading byte order mark (Windows PowerShell 5.1 adds one) is kept and named; text that is all CRLF keeps the extra blank
-line at its end, which `cmd /c "mrw write --create p < f"` does not add. A `--create` of a path that exists says that it exists.
+so; content that is all CRLF and ends in an empty line is kept and named, because mrw cannot tell PowerShell's CRLF from a blank
+line the file has (`cmd /c "mrw write --create p < f"` adds none); a leading byte order mark (PowerShell adds one when
+`$OutputEncoding` is UTF-8 with a preamble) is kept and named. Windows PowerShell 5.1's default `$OutputEncoding` is ASCII, which
+turns non-ASCII text into `?` before mrw sees it: set `$OutputEncoding = [Text.UTF8Encoding]::new($false)` first. A `--create` of a
+path that exists says that it exists.
 
 ## Portability — one trap, learned the hard way
 
