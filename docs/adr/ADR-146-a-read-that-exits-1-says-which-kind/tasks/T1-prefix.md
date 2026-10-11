@@ -76,6 +76,8 @@ Stop and ask if a read exits 1 on a path with none of the three returns.
 - A distinct exit code (permanent: boundary: Zy chose the prefix)
 
 ## Mutation Log
+- 2026-10-11 · 57da6cd · mutant killed · exit 1 · `cmd/mrw/readline.go` · S2: a no-match beside a refused path never says incomplete · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · covers:a read that exits 1 begins its last line with no match when it found nothing and was refused nothing, and with incomplete otherwise
+- 2026-10-11 · 57da6cd* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: a read with unserved ranges has no kind · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · covers:a read that exits 1 begins its last line with no match when it found nothing and was refused nothing, and with incomplete otherwise
 
 ## Verification Log
 - 2026-10-11 · eaa26e2* · exit 1 · `set -o pipefail …` · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · ms:1608 · test-lock-sha256:40b8d9ca5e1f09167a185c8a7f5d6955e835bd98e52e38ea9a97ca169fa72a6a · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9yZWFkZXhpdDE0Nl90ZXN0LmdvCVRlc3RBUmVhZFRoYXRFeGl0c09uZVNheXNXaGljaEtpbmQJZDE5ZmJhOGQyNzJmNmI0MmY2ODhjOThhZDExNTlhOWY5OTc3OWFlOTA4NjljZWY1ODViMzc5MjQwOTY5MmUwNg
@@ -91,3 +93,6 @@ Stop and ask if a read exits 1 on a path with none of the three returns.
   FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.561s
   FAIL
   ```
+- 2026-10-11 · 57da6cd · exit 0 · `set -o pipefail …` · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · ms:41529
+- 2026-10-11 · 57da6cd* · exit 0 · `set -o pipefail …` · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · ms:39680
+- 2026-10-11 · 57da6cd* · exit 0 · `set -o pipefail …` · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · ms:39020

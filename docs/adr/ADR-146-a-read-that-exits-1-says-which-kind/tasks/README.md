@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | The exit-1 line of a read starts with its kind | pending | none | `docs/adr/ADR-146-a-read-that-exits-1-says-which-kind/tasks/T1-prefix.md` fence |
+| T1 | The exit-1 line of a read starts with its kind | done | none | `docs/adr/ADR-146-a-read-that-exits-1-says-which-kind/tasks/T1-prefix.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
