@@ -78,6 +78,11 @@ Stop and ask if a read exits 1 on a path with none of the three returns.
 ## Mutation Log
 - 2026-10-11 · 57da6cd · mutant killed · exit 1 · `cmd/mrw/readline.go` · S2: a no-match beside a refused path never says incomplete · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · covers:a read that exits 1 begins its last line with no match when it found nothing and was refused nothing, and with incomplete otherwise
 - 2026-10-11 · 57da6cd* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: a read with unserved ranges has no kind · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · covers:a read that exits 1 begins its last line with no match when it found nothing and was refused nothing, and with incomplete otherwise
+- 2026-10-11 · 7a980c7 · mutant inconclusive · exit 1 · `cmd/mrw/readline.go` · S2: a pattern's line breaks are not spelled · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · covers:a read that exits 1 begins its last line with no match when it found nothing and was refused nothing, and with incomplete otherwise
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
+- 2026-10-11 · 7a980c7* · mutant killed · exit 1 · `cmd/mrw/readline.go` · S2: a pattern's line breaks are not spelled · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · covers:a read that exits 1 begins its last line with no match when it found nothing and was refused nothing, and with incomplete otherwise
 
 ## Verification Log
 - 2026-10-11 · eaa26e2* · exit 1 · `set -o pipefail …` · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · ms:1608 · test-lock-sha256:40b8d9ca5e1f09167a185c8a7f5d6955e835bd98e52e38ea9a97ca169fa72a6a · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9yZWFkZXhpdDE0Nl90ZXN0LmdvCVRlc3RBUmVhZFRoYXRFeGl0c09uZVNheXNXaGljaEtpbmQJZDE5ZmJhOGQyNzJmNmI0MmY2ODhjOThhZDExNTlhOWY5OTc3OWFlOTA4NjljZWY1ODViMzc5MjQwOTY5MmUwNg
@@ -97,3 +102,7 @@ Stop and ask if a read exits 1 on a path with none of the three returns.
 - 2026-10-11 · 57da6cd* · exit 0 · `set -o pipefail …` · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · ms:39680
 - 2026-10-11 · 57da6cd* · exit 0 · `set -o pipefail …` · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · ms:39020
 - 2026-10-11 · bc42412* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · ms:0 · test-lock-sha256:f275f081f73b16204591e7b954153e2b3cf87a524976be120e9fc33c31b5f735 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9yZWFkZXhpdDE0Nl90ZXN0LmdvCVRlc3RBUmVhZFRoYXRFeGl0c09uZVNheXNXaGljaEtpbmQJMGFhMjZiZTU0MDY4OWJjOTYzNTBjNzFkZWVjOGM0Mjg3MjU2YWNlNjg3MDdiMjhiMmM1OGFlYmVlYThkMjUyYw · test-lock-kind:replace
+- 2026-10-11 · 7a980c7 · exit 0 · `set -o pipefail …` · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · ms:57493
+- 2026-10-11 · 7a980c7* · exit 0 · `set -o pipefail …` · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · ms:52780
+- 2026-10-11 · 7a980c7* · exit 0 · `set -o pipefail …` · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · ms:53805
+- 2026-10-11 · 7a980c7* · exit 0 · `set -o pipefail …` · acceptance-sha256:b681eca6998ba2de53d4e1697dd6a97acac1eca0ef914ab4f1c9b8fd392046e9 · ms:45913
