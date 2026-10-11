@@ -8644,6 +8644,29 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 250. A read that exits 1 says which kind (ADR-146). The last stderr line begins
+# `no match:` when a search found no file and nothing was refused, and
+# `incomplete:` when a requested path was not served or a search matched no file
+# beside a refused path. The pairs: a read that serves everything exits 0 and says
+# neither.
+fixture
+printf 'one250\n' > "$R/a250.txt"; mkdir -p "$R/d250"; printf 'WANTED\n' > "$R/d250/f.txt"
+out=$(m read --grep ABSENT250 d250 2>&1 >"$WORK/o250"); rc=$?
+want 1 "$rc" "a grep that matches nothing exits 1"
+grep -q '^mrw: no match: no file matched /ABSENT250/' <<<"$out" && ok "and says no match" || bad "no match line: $out"
+out=$(m read missing250.txt 2>&1 >"$WORK/o250"); rc=$?
+want 1 "$rc" "a missing path exits 1"
+grep -q '^mrw: incomplete: 1 range(s) could not be served' <<<"$out" && ok "and says incomplete" || bad "incomplete line: $out"
+ln -s d250 "$R/dlink250" 2>/dev/null
+if [ -L "$R/dlink250" ]; then
+  out=$(m read --grep ABSENT250 d250 dlink250 2>&1 >"$WORK/o250"); rc=$?
+  want 1 "$rc" "a grep that matches nothing beside a refused link exits 1"
+  grep -q '^mrw: incomplete: no file matched /ABSENT250/, and 1 path(s) were refused' <<<"$out" && ok "and says incomplete, not no match" || bad "refused beside no match: $out"
+fi
+out=$(m read a250.txt 2>&1 >"$WORK/o250"); rc=$?
+want 0 "$rc" "the pair: a read that serves everything exits 0"
+grep -q 'no match\|incomplete' <<<"$out" && bad "a clean read said a kind: $out" || ok "and says neither"
+
 # 249. version and instructions touch no state (ADR-145). A pre-ADR-004 ./.mrw/
 # in the working directory is copied into the state directory by the first
 # command that uses state, and announced; `mrw version` and `mrw instructions`
@@ -8821,7 +8844,7 @@ printf 'Alpha NEEDLE241\n' > "$R/h241.txt"
 out=$(m read -i --grep NEEDLE241 2>&1); want 2 $? "a grep flag mrw read lacks exits 2"
 { grep -q 'flag provided but not defined: -i' <<<"$out" && grep -q '(?i)' <<<"$out"; } && ok "keeping the old message and naming (?i)" || bad "foreign flag: $out"
 out=$(m read --grep -i needle241 h241.txt 2>&1); want 1 $? "--grep -i PATTERN ends no file matched, exit 1"
-grep -q 'no file matched /-i/ — case-insensitive' <<<"$out" && ok "and carries the same hint" || bad "pattern -i: $out"
+grep -q 'no file matched /-i/' <<<"$out" && grep -q '— case-insensitive.*(mrw took the value after --grep as the pattern)$' <<<"$out" && ok "and carries the same hint, ending the line" || bad "pattern -i: $out"
 out=$(m read --grep '(?i)needle241' 2>&1); want 0 $? "the pair: the spelling the hint names matches"
 grep -q 'Alpha NEEDLE241' <<<"$out" && ok "and serves the line" || bad "(?i) read: $out"
 out=$(m write -i 2>&1); want 2 $? "the pair: another command's unknown flag exits 2"
