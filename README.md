@@ -398,7 +398,10 @@ starts with `/` is rewritten too, into a false "no match".
 | 3 | the write applied and the check failed, timed out or was interrupted (before it started, too); the tree is changed and unverified. Not a rollback |
 
 Exit 1 on `read` means incomplete: `UNREADABLE`, `REFUSED`, `no match`, or
-`WITHHELD`. The output always names which.
+`WITHHELD`. The output always names which, and the last stderr line begins with the kind
+(ADR-146): `mrw: no match: …` when a search found no file and nothing it was asked for was
+refused, `mrw: incomplete: …` when a requested range or path was not served, a search that
+matched no file beside a refused path included.
 
 ## opencode
 

@@ -8644,6 +8644,29 @@ else
   skip "a rename onto a hard link (no hard links here)"
 fi
 
+# 250. A read that exits 1 says which kind (ADR-146). The last stderr line begins
+# `no match:` when a search found no file and nothing was refused, and
+# `incomplete:` when a requested path was not served or a search matched no file
+# beside a refused path. The pairs: a read that serves everything exits 0 and says
+# neither.
+fixture
+printf 'one250\n' > "$R/a250.txt"; mkdir -p "$R/d250"; printf 'WANTED\n' > "$R/d250/f.txt"
+out=$(m read --grep ABSENT250 d250 2>&1 >"$WORK/o250"); rc=$?
+want 1 "$rc" "a grep that matches nothing exits 1"
+grep -q '^mrw: no match: no file matched /ABSENT250/' <<<"$out" && ok "and says no match" || bad "no match line: $out"
+out=$(m read missing250.txt 2>&1 >"$WORK/o250"); rc=$?
+want 1 "$rc" "a missing path exits 1"
+grep -q '^mrw: incomplete: 1 range(s) could not be served' <<<"$out" && ok "and says incomplete" || bad "incomplete line: $out"
+ln -s d250 "$R/dlink250" 2>/dev/null
+if [ -L "$R/dlink250" ]; then
+  out=$(m read --grep ABSENT250 d250 dlink250 2>&1 >"$WORK/o250"); rc=$?
+  want 1 "$rc" "a grep that matches nothing beside a refused link exits 1"
+  grep -q '^mrw: incomplete: no file matched /ABSENT250/, and 1 path(s) were refused' <<<"$out" && ok "and says incomplete, not no match" || bad "refused beside no match: $out"
+fi
+out=$(m read a250.txt 2>&1 >"$WORK/o250"); rc=$?
+want 0 "$rc" "the pair: a read that serves everything exits 0"
+grep -q 'no match\|incomplete' <<<"$out" && bad "a clean read said a kind: $out" || ok "and says neither"
+
 # 249. version and instructions touch no state (ADR-145). A pre-ADR-004 ./.mrw/
 # in the working directory is copied into the state directory by the first
 # command that uses state, and announced; `mrw version` and `mrw instructions`

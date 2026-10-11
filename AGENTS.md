@@ -96,6 +96,9 @@ so the tree is changed and unverified. Tests assert these; changing one is a bre
 A `2` after a write that printed `applied` means the files changed and something after the landing failed: the check could not
 start, or the read ledger could not be updated (a holder on Windows). The message says which; for the ledger, the next edit needs a
 read first. Check the tree before retrying the plan.
+A `mrw read` that exits `1` ends its stderr with the kind (ADR-146): `mrw: no match: …` when a search found no file and nothing it was
+asked for was refused, `mrw: incomplete: …` when a requested range or path was not served, a search that matched no file beside a refused
+path included. Read the first word after `mrw: `; every earlier phrase survives inside the line.
 
 And a receipt's keys are only added (ADR-111): every key a `--json` or MCP receipt carries is listed in
 `docs/receipts.txt`, keeps its name, type and meaning, and a new one is appended there in the change that adds it.
