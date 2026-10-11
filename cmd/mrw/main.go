@@ -945,16 +945,16 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if grepSet && len(specs) == 0 {
 				skipNote()
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
-				found := fmt.Sprintf("no file matched /%s/", pattern)
+				hint := ""
 				if h := patternFlagHint(pattern); h != "" {
-					found += " — " + h + " (mrw took the value after --grep as the pattern)"
+					hint = " — " + h + " (mrw took the value after --grep as the pattern)"
 				}
-				return cli.Exit(noMatchLine(found, len(refusals)), 1)
+				return cli.Exit(noMatchLine(pattern, len(refusals), hint), 1)
 			}
 			if astSet && len(specs) == 0 {
 				skipNote()
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
-				return cli.Exit(noMatchLine(fmt.Sprintf("no file matched /%s/", astPattern), len(refusals)), 1)
+				return cli.Exit(noMatchLine(astPattern, len(refusals), ""), 1)
 			}
 
 			observed, problems := read.Run(out, root, specs, read.Options{

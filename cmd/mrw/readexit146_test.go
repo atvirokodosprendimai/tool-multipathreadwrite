@@ -39,6 +39,17 @@ func TestAReadThatExitsOneSaysWhichKind(t *testing.T) {
 		}
 	}
 
+	// The kind is on the LAST line a caller reads: a pattern's own line breaks
+	// are spelled, and an ADR-140 hint ends the line beside a refusal too.
+	_, err = readIn(t, root, "--grep", "ABSENT\nSECOND", "d")
+	if got := errString(err); strings.Contains(got, "\n") || !strings.HasPrefix(got, `no match: no file matched /ABSENT\nSECOND/`) {
+		t.Errorf("a multi-line pattern: %q, want one line beginning `no match: no file matched /ABSENT\\nSECOND/`", got)
+	}
+	_, err = readIn(t, root, "--grep", "-i", "missing.txt", "a.txt")
+	if got := errString(err); !strings.HasPrefix(got, "incomplete: ") || !strings.HasSuffix(got, "(mrw took the value after --grep as the pattern)") {
+		t.Errorf("a hinted pattern beside a refusal: %q, want `incomplete: …` ending with the ADR-140 hint", got)
+	}
+
 	if out, err := readIn(t, root, "a.txt"); err != nil {
 		t.Errorf("a read that served everything failed: %v\n%s", err, out)
 	}

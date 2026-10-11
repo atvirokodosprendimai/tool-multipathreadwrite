@@ -31,6 +31,7 @@ A real split of the exit code would be a breaking change to a documented contrac
 2. **`incomplete: ` begins every other exit-1 line of `read`.** `mrw: incomplete: N range(s) could not be served`, and for a search that matched no file while paths were refused, `mrw: incomplete: no file matched /P/, and N path(s) were refused (see the REFUSED lines)`.
 3. **The two prefixes and the rule are documented** in README (the sentence under the exit-code table) and AGENTS.md (the exit-code paragraph), and a contract row asserts them. A caller that must tell the cases apart reads the first word after `mrw: `; a caller that does not is unaffected, since every earlier phrase survives inside the line.
 4. **The exit codes do not change**, and neither does stdout.
+5. **The kind is on the last line.** A pattern's own line breaks are spelled (`\n`, `\r`) in the line, and an ADR-140 hint, when there is one, ends the line in both kinds, after the refusal text. Both were found by the Codex review of #394: a multi-line `--grep` pattern put the kind on a line that was not the last, and the refusal text had pushed the hint off the end.
 
 ## Alternatives Considered
 
