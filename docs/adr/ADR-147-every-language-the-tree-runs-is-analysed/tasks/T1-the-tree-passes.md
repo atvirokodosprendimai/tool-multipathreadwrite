@@ -76,7 +76,7 @@ git ls-files -z '*.py' | xargs -0 ruff check --select F,E9 \
   804 | …         fail("mcp", "mrw_write applied with a bogus ack / no read", root, None, data, (p.returncode, o, e, 0))
       |
   help: Remove assignment to unused variable `wr`
-  
+
   Found 2 errors.
   [*] 1 fixable with the `--fix` option (1 hidden fix can be enabled with the `--unsafe-fixes` option).
   ```
