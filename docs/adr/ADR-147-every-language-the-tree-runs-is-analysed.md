@@ -83,8 +83,11 @@ actionlint 0.6 s and knip 2.3 s. T2 measures the whole new gate.
    exit, it plants:
    - for ruff, a `.py` that imports `os` and never uses it — the output must name F401;
    - for shellcheck, a `.sh` whose `cd` has no failure branch — SC2164;
-   - for actionlint, a workflow with a `run: cd x` step and a `${{ github.nosuch }}` expression — the
-     output must name both SC2164 (its shellcheck path) and `nosuch` (its expression checker);
+   - for actionlint, a workflow with a `run:` loop whose counter is never read and a
+     `${{ github.nosuch }}` expression — the output must name both SC2034 (its shellcheck path) and
+     `nosuch` (its expression checker). Amended in T2: the first plant, `run: cd x`, drew no SC2164
+     from actionlint 1.7.12, since a `run:` step's default shell is `bash -e`, under which a failed
+     `cd` stops the step; an unused counter is the class the tree had (`timing-123.yml`);
    - for knip, a project skeleton: a `package.json` whose `main` is `src/index.ts`, that file, and an
      unreferenced `src/dead.ts`, run with the plugin's knip binary — the output must name `dead.ts`.
 
@@ -105,7 +108,7 @@ actionlint 0.6 s and knip 2.3 s. T2 measures the whole new gate.
 What would make the decision fail: an analyser that stops reporting, and the self-test is the check
 that says so. Data that produces such a failure exists now: each planted defect was reported on
 2026-10-13 by the pinned version (ruff F401, shellcheck SC2164, actionlint `property "nosuch" is not
-defined`, knip `Unused files`); actionlint's SC2164 path is first exercised in T2.
+defined` and SC2034, knip `Unused files`).
 
 ## Alternatives Considered
 
@@ -157,10 +160,11 @@ fence, pending ones included, so T3's greps over the docs are red until T3 is do
 
 - **Positive:** a Python, shell, workflow or plugin defect of the classes above reaches the model after
   the commit that introduced it, as a Go one does.
-- **Negative:** `static.sh` runs four more analysers and the self-test runs them again on the fixture;
-  T2's measurement replaces this estimate of about 10 s more at low load. A developer without ruff or
-  shellcheck, or without the plugin's `node_modules`, sees the gate fail and name the install — on the
-  after-commit hook too.
+- **Negative:** `static.sh` runs four more analysers and the self-test runs them again on the fixture.
+  Measured in T2, 2026-10-13: the whole gate ran clean in 20.7 s warm at load 12.5 on 10 cores, against
+  6.3 s for ADR-088's steps alone at load 2.5 — the loads differ, so not all of the difference is this
+  record's; the 280 s hook bound holds either way. A developer without ruff or shellcheck, or without
+  the plugin's `node_modules`, sees the gate fail and name the install — on the after-commit hook too.
 - **Neutral:** a `--then static` (ADR-092) pays the same cost. The `opencode` job's `npm ci` installs
   knip as well.
 
@@ -183,7 +187,7 @@ fence, pending ones included, so T3's greps over the docs are red until T3 is do
 | ubuntu-latest's own shellcheck shadows the pinned one | Medium | Low | CI puts the pinned binary first on `PATH`, and `static.sh` notes a version that differs |
 | `pipx` leaves a future `ubuntu-latest` image | Low | Low | the install step fails loudly; T3's run is the check |
 | `go run` or `npm ci` needs the network on a cold cache | Low | Low | the failure names the tool, as govulncheck's does under ADR-088 |
-| actionlint without shellcheck on PATH skips its `run:` checks silently | Low | Medium | the shellcheck step fails first when it is missing, and the self-test requires actionlint to report SC2164 |
+| actionlint without shellcheck on PATH skips its `run:` checks silently | Low | Medium | the shellcheck step fails first when it is missing, and the self-test requires actionlint to report SC2034 |
 
 ## Rollback
 
