@@ -986,6 +986,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				}
 				if served {
 					fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see; on unix a stdout closed when mrw starts is the null device too (ADR-133)")
+					if line := stillLicensed(root, observed); line != "" {
+						fmt.Fprintln(os.Stderr, line)
+					}
 				}
 			} else if err := seen.Record(root, observed); err != nil {
 				return cli.Exit(err, exitUsage)

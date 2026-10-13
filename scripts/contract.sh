@@ -8996,6 +8996,23 @@ out=$(printf '@@ f234.txt 2 replace\nTWO\n' | m write --no-check - 2>&1); want 0
 grep -qx 'TWO' "$R/f234.txt" && ok "which lands" || bad "file-read then write: $out"
 rm -f "$R/f234.txt" "$WORK/served234.out"
 
+# 251. ADR-148: a read sent to the null device names the files an earlier read
+# or write still licenses. ADR-133 records nothing for such a read and said only
+# that, so a write that then applied on an EARLIER licence read like a broken
+# guard (a peer session, 2026-10-13). The pair: a file nothing licensed is not
+# named, and its write is refused.
+fixture
+printf 'one\ntwo\n' > "$R/f251.txt"
+printf 'one\ntwo\n' > "$R/g251.txt"
+m read f251.txt:2 >"$WORK/served251.out"; want 0 $? "a read sent to a file licenses line 2"
+err=$(m read f251.txt:2 g251.txt:2 2>&1 >/dev/null); want 0 $? "both files read to the null device exit 0"
+line=$(grep 'still licensed' <<<"$err")
+{ grep -q 'f251.txt' <<<"$line" && ! grep -q 'g251.txt' <<<"$line" && grep -q '(1 of 2 files served)' <<<"$line"; } && ok "naming the file an earlier read still licenses, and only it" || bad "null-device read stderr: $err"
+out=$(printf '@@ f251.txt 2 replace\nTWO\n' | m write --no-check - 2>&1); want 0 $? "the named file's write applies"
+out=$(printf '@@ g251.txt 2 replace\nTWO\n' | m write --no-check - 2>&1); want 1 $? "the pair: the unnamed file's write is refused"
+grep -qx 'two' "$R/g251.txt" && ok "and leaves it unchanged" || bad "unnamed file changed: $out"
+rm -f "$R/f251.txt" "$R/g251.txt" "$WORK/served251.out"
+
 # 233. ADR-130: a walk does not enter a nested repository. Inside a checkout, a
 # directory holding its own .git is another project's, and git does not descend
 # into it; mrw walked it with its own rules. --grep serves the outer match only
