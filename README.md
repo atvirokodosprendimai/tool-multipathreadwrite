@@ -149,7 +149,7 @@ Sequential apply_patch — one hunk, then another — is the leak, not the featu
 
 `mrw write --create PATH` makes one new file from standard input without a plan or a hand-counted `body=`:
 the lines of the content become the file exactly as the `create` plan of the same lines would (each line ends
-in a newline, so a missing final newline is added and CRLF becomes LF; empty input makes an empty file), through
+in a newline, so a missing final newline is added and CRLF becomes LF, which stderr names; empty input makes an empty file), through
 the same lock, check and receipt. It is refused if PATH exists and takes no PLAN argument and no `--format`
 (ADR-139). CLI only.
 

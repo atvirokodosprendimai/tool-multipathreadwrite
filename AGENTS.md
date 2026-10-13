@@ -60,10 +60,12 @@ A new file needs no plan: `mrw write --create PATH < content` makes it from stan
 those lines would (ADR-139), through the same lock, check and receipt.
 PowerShell appends a CRLF to everything it pipes (ADR-142): after LF lines with no other CR that CRLF is dropped, and stderr says
 so; content that is all CRLF and ends in an empty line is kept and named, because mrw cannot tell PowerShell's CRLF from a blank
-line the file has (`cmd /c "mrw write --create p < f"` adds none); a leading byte order mark (PowerShell adds one when
-`$OutputEncoding` is UTF-8 with a preamble) is kept and named. Windows PowerShell 5.1's default `$OutputEncoding` is ASCII, which
-turns non-ASCII text into `?` before mrw sees it: set `$OutputEncoding = [Text.UTF8Encoding]::new($false)` first. A `--create` of a
-path that exists says that it exists.
+line the file has (`cmd /c "mrw write --create p < f"` adds none); content whose lines end in CRLF is written with LF, as every
+line a create writes is, and stderr says so; a leading byte order mark is kept and named (PowerShell adds one when `$OutputEncoding`
+is UTF-8 with a preamble, and Windows PowerShell 5.1 also when `[Console]::InputEncoding` is, as in a shell started under code page
+65001). Windows PowerShell 5.1's default `$OutputEncoding` is ASCII, which turns non-ASCII text into `?` before mrw sees it: set
+`$OutputEncoding = [Text.UTF8Encoding]::new($false)` first, and in a shell started under code page 65001 set
+`[Console]::InputEncoding` to the same. A `--create` of a path that exists says that it exists.
 
 ## Portability — one trap, learned the hard way
 
