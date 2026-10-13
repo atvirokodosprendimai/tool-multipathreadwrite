@@ -70,6 +70,30 @@ jobs:
       - name: Install golangci-lint
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
 
+      # ADR-147: what scripts/static.sh needs for what is not Go — ruff,
+      # shellcheck, and the plugin's node_modules for knip. shellcheck comes
+      # from its release tarball, checked against the sha256 ADR-147 records
+      # and put ahead of the runner's own; actionlint runs pinned through
+      # `go run`.
+      - name: Install ruff
+        run: pipx install ruff==0.15.6
+
+      - name: Install shellcheck
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSLO https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz
+          echo "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198  shellcheck-v0.11.0.linux.x86_64.tar.xz" | sha256sum -c -
+          tar -xJf shellcheck-v0.11.0.linux.x86_64.tar.xz
+          echo "$RUNNER_TEMP/shellcheck-v0.11.0" >> "$GITHUB_PATH"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install the plugin's dependencies for knip
+        run: npm ci --no-audit --no-fund
+        working-directory: cmd/opencode/mrw-plugin
+
       - name: Static analysis
         run: ./scripts/static.sh
 

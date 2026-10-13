@@ -62,9 +62,18 @@ grep -q 'pipx install ruff==0.15.6' .github/workflows/ci.yml \
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-13 · b71db63* · mutant killed · exit 1 · `.github/workflows/ci.yml` · CI stops installing ruff · acceptance-sha256:e41ab8cf1b77d9df81f30fbdf6920d50dc084994b5d594e6f1ec8ddf05bff597 · covers:CI installs every analyser in the test job
+- 2026-10-13 · b71db63* · mutant killed · exit 1 · `.github/workflows/ci.yml` · CI stops checking the shellcheck tarball · acceptance-sha256:e41ab8cf1b77d9df81f30fbdf6920d50dc084994b5d594e6f1ec8ddf05bff597 · covers:the tarball is checked
+- 2026-10-13 · b71db63* · mutant killed · exit 1 · `.claude/rules/static-analysis.md` · the rule stops naming the pinned ruff · acceptance-sha256:e41ab8cf1b77d9df81f30fbdf6920d50dc084994b5d594e6f1ec8ddf05bff597 · covers:the docs name the gate's tools
 
 ## Verification Log
 (empty until execute)
+- 2026-10-13 · b71db63* · exit 1 · `set -o pipefail …` · acceptance-sha256:e41ab8cf1b77d9df81f30fbdf6920d50dc084994b5d594e6f1ec8ddf05bff597 · ms:37 · test-lock-sha256:deeb36e69eee92091337010c87f199c96273cf4f30607b345e4a41e96cc4ff11 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIz
+  ```
+  ```
+- 2026-10-13 · b71db63* · exit 0 · `set -o pipefail …` · acceptance-sha256:e41ab8cf1b77d9df81f30fbdf6920d50dc084994b5d594e6f1ec8ddf05bff597 · ms:859
+- 2026-10-13 · b71db63* · exit 0 · `set -o pipefail …` · acceptance-sha256:e41ab8cf1b77d9df81f30fbdf6920d50dc084994b5d594e6f1ec8ddf05bff597 · ms:831
+- 2026-10-13 · b71db63* · exit 0 · `set -o pipefail …` · acceptance-sha256:e41ab8cf1b77d9df81f30fbdf6920d50dc084994b5d594e6f1ec8ddf05bff597 · ms:850
 
 ## Invariants
 

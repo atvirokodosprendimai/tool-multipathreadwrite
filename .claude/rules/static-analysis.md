@@ -3,8 +3,10 @@
 `scripts/static.sh` is the static gate (ADR-088): `gofmt -l`, `go vet`, `golangci-lint` with
 `.golangci.yml`, `deadcode`, staticcheck U1000 with tests excluded, `govulncheck`, and
 `scripts/fence-prose.py`, which reruns every task fence's `grep` over a tracked file so a prose rewrite
-cannot turn a done task red unseen. Exit 0 is clean; anything else is a finding. CI runs it on every
-push and pull request.
+cannot turn a done task red unseen. For what is not Go (ADR-147) it runs ruff over the Python files,
+shellcheck over the shell scripts, actionlint over the workflows and knip over the opencode plugin,
+then a self-test that each of those four still reports a defect planted for it. Exit 0 is clean;
+anything else is a finding. CI runs it on every push and pull request.
 
 **After a commit, the analysis comes to you.** In Claude Code, `.claude/hooks/static-after-commit.py`
 runs the script whenever a `git commit` moved HEAD and puts the verdict in front of you. Without the
@@ -25,7 +27,9 @@ green:
 `-tests=false` enforce it: a helper only tests need lives in a `_test.go` file, and code nothing
 calls is deleted, not kept for later.
 
-**The tools.** golangci-lint is the one binary to install (v2.14.0: `brew install golangci-lint`);
-the script names the install if it is missing. deadcode, staticcheck and govulncheck run pinned
-through `go run`, so there is nothing else to install. The first run downloads them; later runs use
-the module cache.
+**The tools.** Three binaries to install: golangci-lint v2.14.0 (`brew install golangci-lint`),
+ruff 0.15.6 (`brew install ruff`, or `pipx install ruff==0.15.6`) and shellcheck 0.11.0
+(`brew install shellcheck`); the script names each install when one is missing and notes a version
+other than CI's. deadcode, staticcheck, govulncheck and actionlint run pinned through `go run`. knip is
+the plugin's exact devDependency: run `npm ci` in `cmd/opencode/mrw-plugin` once. The first run
+downloads the Go tools; later runs use the module cache.
