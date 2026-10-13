@@ -74,6 +74,7 @@ grep -q 'pipx install ruff==0.15.6' .github/workflows/ci.yml \
 - 2026-10-13 · b71db63* · exit 0 · `set -o pipefail …` · acceptance-sha256:e41ab8cf1b77d9df81f30fbdf6920d50dc084994b5d594e6f1ec8ddf05bff597 · ms:859
 - 2026-10-13 · b71db63* · exit 0 · `set -o pipefail …` · acceptance-sha256:e41ab8cf1b77d9df81f30fbdf6920d50dc084994b5d594e6f1ec8ddf05bff597 · ms:831
 - 2026-10-13 · b71db63* · exit 0 · `set -o pipefail …` · acceptance-sha256:e41ab8cf1b77d9df81f30fbdf6920d50dc084994b5d594e6f1ec8ddf05bff597 · ms:850
+- 2026-10-13 · human-observed · observed by the executor 2026-10-13: PR #396 CI run 38381926507 on 0459e38 passed every job; the test job's log shows 'shellcheck-v0.11.0.linux.x86_64.tar.xz: OK', 'ruff: 9 file(s)', 'shellcheck: 5 file(s)', 'actionlint: 2 file(s)', 'knip: 2 file(s)', 'self-test: ruff, shellcheck, actionlint and knip each reported its planted defect', 'static analysis clean', no version note, then 'contract holds'
 
 ## Invariants
 

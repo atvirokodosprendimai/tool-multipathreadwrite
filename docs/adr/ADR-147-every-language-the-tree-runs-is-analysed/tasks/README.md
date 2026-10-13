@@ -20,7 +20,7 @@ README must be regenerated.
 |----|-------|--------|--------|-------------|
 | T1 | The tree passes every new analyser | done | — | `docs/adr/ADR-147-every-language-the-tree-runs-is-analysed/tasks/T1-the-tree-passes.md` fence |
 | T2 | The gate runs them and proves each can fail | done | — | `docs/adr/ADR-147-every-language-the-tree-runs-is-analysed/tasks/T2-the-gate-runs-them.md` fence |
-| T3 | CI installs them and the docs name them | pending | — | `docs/adr/ADR-147-every-language-the-tree-runs-is-analysed/tasks/T3-ci-and-docs.md` fence |
+| T3 | CI installs them and the docs name them | done | — | `docs/adr/ADR-147-every-language-the-tree-runs-is-analysed/tasks/T3-ci-and-docs.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
