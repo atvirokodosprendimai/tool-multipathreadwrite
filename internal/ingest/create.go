@@ -36,13 +36,14 @@ func CheckCreatePath(path string) error {
 // LF and no other CR is that terminator and is dropped; every other shape is
 // returned as it came, for CompileCreate to accept or refuse. A leading UTF-8
 // byte order mark is content and is kept, but PowerShell adds one when its
-// $OutputEncoding has a preamble, so it is named. Content that is all CRLF and
+// $OutputEncoding has a preamble, and Windows PowerShell 5.1 also when
+// [Console]::InputEncoding has one (the v1.64.0 Windows retest), so it is named. Content that is all CRLF and
 // ends in an empty line cannot be told from a file that really ends in one, so
 // it is kept and named. Each note is one line, without the "mrw:" prefix.
 func CreateContent(raw []byte) ([]byte, []string) {
 	var notes []string
 	if bytes.HasPrefix(raw, []byte("\xef\xbb\xbf")) {
-		notes = append(notes, "the content begins with a UTF-8 byte order mark, kept as content (PowerShell adds one when $OutputEncoding is UTF-8 with a preamble)")
+		notes = append(notes, "the content begins with a UTF-8 byte order mark, kept as content (PowerShell adds one when $OutputEncoding is UTF-8 with a preamble, and Windows PowerShell 5.1 also when [Console]::InputEncoding is, as in a shell started under code page 65001)")
 	}
 	body, cut := bytes.CutSuffix(raw, []byte("\r\n"))
 	switch {
@@ -53,6 +54,19 @@ func CreateContent(raw []byte) ([]byte, []string) {
 		notes = append(notes, "the content ends in an empty line after CRLF lines, kept; that line may be the CRLF PowerShell appends to what it pipes or a blank line the content has, and if it is the CRLF the file gains a blank line at its end (cmd and Git Bash add none)")
 	}
 	return raw, notes
+}
+
+// EndingNote names a line ending the create rewrites (the v1.64.0 Windows
+// retest, where two sessions found it silent): a create plan ends every line in
+// LF, so content whose lines end in CRLF, or in CR alone, is written with LF.
+// Content whose lines end in LF gets no note, and neither does empty content.
+func EndingNote(content []byte) string {
+	_, eol, _ := lines.Split(string(content))
+	name := map[string]string{"\r\n": "CRLF", "\r": "CR"}[eol]
+	if name == "" {
+		return ""
+	}
+	return "the content's lines end in " + name + " and are written with LF, as every line a create writes ends in LF"
 }
 
 // CompileCreate turns a file's content into the native plan text that creates

@@ -9013,6 +9013,17 @@ out=$(printf '@@ g251.txt 2 replace\nTWO\n' | m write --no-check - 2>&1); want 1
 grep -qx 'two' "$R/g251.txt" && ok "and leaves it unchanged" || bad "unnamed file changed: $out"
 rm -f "$R/f251.txt" "$R/g251.txt" "$WORK/served251.out"
 
+# 252. The v1.64.0 Windows retest: a --create whose lines end in CRLF is written
+# with LF, as every line a create writes is, and now says so on stderr (two
+# sessions found it silent). The pair: LF content is created with no such note.
+fixture
+out=$(printf 'a\r\nb\r\n' | m write --no-check --create c252.txt 2>&1); want 0 $? "a --create of CRLF lines exits 0"
+{ grep -q 'end in CRLF and are written with LF' <<<"$out" && ! grep -q $'\r' "$R/c252.txt" && [ "$(cat "$R/c252.txt")" = $'a\nb' ]; } \
+  && ok "written with LF, and stderr says so" || bad "CRLF create: $out"
+out=$(printf 'a\nb\n' | m write --no-check --create l252.txt 2>&1); want 0 $? "the pair: LF content exits 0"
+grep -q 'written with LF' <<<"$out" && bad "an ending note for LF content: $out" || ok "with no ending note"
+rm -f "$R/c252.txt" "$R/l252.txt"
+
 # 233. ADR-130: a walk does not enter a nested repository. Inside a checkout, a
 # directory holding its own .git is another project's, and git does not descend
 # into it; mrw walked it with its own rules. --grep serves the outer match only

@@ -1306,6 +1306,9 @@ held or went unchecked.`,
 				if cerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, cerr)) // a content refusal, not a plan that failed to parse: not counted by ADR-009
 				}
+				if n := ingest.EndingNote(raw); n != "" {
+					createNotes = append(createNotes, n) // told once the create lands, like the others
+				}
 				// The notes say what was done to content that went into a file, so
 				// they are told once it landed (emitNotes): a refused create is told nothing.
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
