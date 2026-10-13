@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `a licensed file is named`, `an unlicensed or changed file is not named`, `the call site prints it`, `the docs stop recommending an unread file`
+**Rests-on:** `a licensed file is named`, `an unlicensed or changed file is not named`, `the call site prints it`, `the docs stop recommending an unread file`, `spans reaching the last line license a whole-file read`, `another spelling of the file is found`
 
 ## Goal
 
@@ -53,7 +53,7 @@ out=$(mktemp) \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestANullDeviceReadNamesWhatIsStillLicensed` | `cmd/mrw/nullread148_test.go` | a licensed file is named and its write applies; an unlicensed, a changed and a partly covered file are not named and their writes are refused | none | S1, S2 |
+| `TestANullDeviceReadNamesWhatIsStillLicensed` | `cmd/mrw/nullread148_test.go` | a licensed file is named and its write applies; an unlicensed, a changed and a partly covered file are not named and their writes are refused; a whole-file read covered by earlier spans, and a file read through an in-root link, are named and their writes apply (the Codex review of #397) | none | S1, S2 |
 | `TestAReadSentToTheNullDeviceLicensesNothing` | `cmd/mrw/nullread133_test.go` | ADR-133 holds: nothing recorded, the line said | none | — |
 | `TestTheNullDeviceLineFollowsOnlyServedLines` | `cmd/mrw/stat133_test.go` | ADR-133's line follows only a read that served lines | none | — |
 
@@ -72,6 +72,12 @@ out=$(mktemp) \
 - 2026-10-13 · afe2196* · mutant killed · exit 1 · `cmd/mrw/nullread148.go` · a licensed file is never named · acceptance-sha256:63fc3a019827d66ac99097fefdeb0134c0690f1a3721ffc83be495c9f9040c56 · covers:a licensed file is named
 - 2026-10-13 · afe2196* · mutant killed · exit 1 · `cmd/mrw/main.go` · the read action stops printing the line · acceptance-sha256:63fc3a019827d66ac99097fefdeb0134c0690f1a3721ffc83be495c9f9040c56 · covers:the call site prints it
 - 2026-10-13 · afe2196* · mutant killed · exit 1 · `AGENTS.md` · AGENTS.md recommends an unread file again · acceptance-sha256:63fc3a019827d66ac99097fefdeb0134c0690f1a3721ffc83be495c9f9040c56 · covers:the docs stop recommending an unread file
+- 2026-10-13 · ba6604f* · mutant inconclusive · exit 1 · `cmd/mrw/nullread148.go` · a whole-file read covered by earlier spans is never named · acceptance-sha256:63fc3a019827d66ac99097fefdeb0134c0690f1a3721ffc83be495c9f9040c56 · covers:spans reaching the last line license a whole-file read
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
+- 2026-10-13 · ba6604f* · mutant killed · exit 1 · `cmd/mrw/nullread148.go` · a file licensed under another spelling is not found · acceptance-sha256:63fc3a019827d66ac99097fefdeb0134c0690f1a3721ffc83be495c9f9040c56 · covers:another spelling of the file is found
+- 2026-10-13 · ba6604f* · mutant killed · exit 1 · `cmd/mrw/nullread148.go` · a whole-file read covered by earlier spans is never named · acceptance-sha256:63fc3a019827d66ac99097fefdeb0134c0690f1a3721ffc83be495c9f9040c56 · covers:spans reaching the last line license a whole-file read
 
 ## Verification Log
 (empty until execute)
@@ -95,6 +101,10 @@ out=$(mktemp) \
 - 2026-10-13 · afe2196* · exit 0 · `set -o pipefail …` · acceptance-sha256:63fc3a019827d66ac99097fefdeb0134c0690f1a3721ffc83be495c9f9040c56 · ms:1225
 - 2026-10-13 · human-observed · observed by the executor 2026-10-13: S4 ./scripts/contract.sh exit 0 ('contract holds'), §251 rows 'naming the file an earlier read still licenses, and only it', 'the named file's write applies', 'the pair: the unnamed file's write is refused' all PASS
 - 2026-10-13 · human-observed · observed and approved by the executor 2026-10-13: S4 ./scripts/contract.sh exit 0 ('contract holds'); all three §251 rows PASS — the named file is named alone with its count, its write lands, and the pair row for the unnamed file passes
+- 2026-10-13 · ba6604f* · exit 0 · `set -o pipefail …` · acceptance-sha256:63fc3a019827d66ac99097fefdeb0134c0690f1a3721ffc83be495c9f9040c56 · ms:1298
+- 2026-10-13 · ba6604f* · exit 0 · `set -o pipefail …` · acceptance-sha256:63fc3a019827d66ac99097fefdeb0134c0690f1a3721ffc83be495c9f9040c56 · ms:1222
+- 2026-10-13 · ba6604f* · exit 0 · `set -o pipefail …` · acceptance-sha256:63fc3a019827d66ac99097fefdeb0134c0690f1a3721ffc83be495c9f9040c56 · ms:1405
+- 2026-10-13 · ba6604f* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:63fc3a019827d66ac99097fefdeb0134c0690f1a3721ffc83be495c9f9040c56 · ms:0 · test-lock-sha256:15f1f361b52bd8e934be7bcce3e13e77b96e0813a4dbc82656e640b3a1c4e512 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9udWxscmVhZDEzM190ZXN0LmdvCVRlc3RBUmVhZFNlbnRUb1RoZU51bGxEZXZpY2VMaWNlbnNlc05vdGhpbmcJMDBlNmY1NzM3NTE1YzE3ODFhNmU2N2Q2ZTFhZmRhYzU0ZDE2YzY2NGYwZTMwOWQ3NDBkMWIzNDg1MmEwZDczMwpib2R5CWNtZC9tcncvbnVsbHJlYWQxNDhfdGVzdC5nbwlUZXN0QU51bGxEZXZpY2VSZWFkTmFtZXNXaGF0SXNTdGlsbExpY2Vuc2VkCWJkYWUzNzVmOWVhM2QxOGExNDQxNWFlYTBjODI2M2Q5YWNlMjhiMjU0ODZlNjk1NmFkZGI5ZTQ4NDkxMDZlYzkKYm9keQljbWQvbXJ3L3N0YXQxMzNfdGVzdC5nbwlUZXN0VGhlTnVsbERldmljZUxpbmVGb2xsb3dzT25seVNlcnZlZExpbmVzCWYxZTJmZmU3OWIyOTNmYTRlNmJhN2JiMjY4MTZmYjllNDVmMDBkZmIxYTZlODMyNmEyNWM4NzhmOGFiZDA5NzA · test-lock-kind:replace
 
 ## Invariants
 

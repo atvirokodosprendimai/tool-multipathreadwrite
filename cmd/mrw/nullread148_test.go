@@ -113,4 +113,34 @@ func TestANullDeviceReadNamesWhatIsStillLicensed(t *testing.T) {
 	if _, said := run(null, "", "read", "read.txt:1"); licenceLine(said) != "" {
 		t.Fatalf("a file changed since its licence is named: %q", said)
 	}
+	// The Codex review of #397. A whole-file read is licensed by an earlier read
+	// whose spans reach the last line, and a file is one file under any spelling:
+	// the write recovers an in-root link's entry (ADR-029), so the line does too.
+	for _, f := range []string{"spans.txt", "target.txt"} {
+		if err := os.WriteFile(filepath.Join(root, f), []byte("one\ntwo\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err, _ := run(sink(), "", "read", "spans.txt:1-2"); err != nil {
+		t.Fatalf("a read to a file failed: %v", err)
+	}
+	if _, said := run(null, "", "read", "spans.txt"); !strings.Contains(licenceLine(said), "spans.txt") {
+		t.Fatalf("a whole-file read that earlier spans cover to the last line is not named: %q", said)
+	}
+	if err, out := run(sink(), "@@ spans.txt 2 replace\nTWO\n", "write", "--no-check", "-"); err != nil {
+		t.Fatalf("the write the whole-file name promises was refused: %v %s", err, out)
+	}
+	if err := os.Symlink("target.txt", filepath.Join(root, "link.txt")); err != nil {
+		t.Logf("no in-root link on this system, so the spelling case is not driven: %v", err)
+		return
+	}
+	if err, _ := run(sink(), "", "read", "link.txt:1"); err != nil {
+		t.Fatalf("a read through the link failed: %v", err)
+	}
+	if _, said := run(null, "", "read", "target.txt:1"); !strings.Contains(licenceLine(said), "target.txt") {
+		t.Fatalf("a file licensed under another spelling is not named: %q", said)
+	}
+	if err, out := run(sink(), "@@ target.txt 1 replace\nONE\n", "write", "--no-check", "-"); err != nil {
+		t.Fatalf("the write under the other spelling was refused: %v %s", err, out)
+	}
 }

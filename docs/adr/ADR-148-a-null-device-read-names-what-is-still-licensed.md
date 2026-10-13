@@ -33,11 +33,13 @@ The same report names the larger habit, and this session repeated it: a read sen
 
 ## Decision
 
-1. **A read sent to the null device that served lines** keeps ADR-133's line, word for word, and then, when the ledger still licenses every line it served of one or more files in their current version, prints one more line:
-   `mrw: still licensed in this version by an earlier read or write, so a write to the lines served here applies all the same: a.txt, b.txt (2 of 3 files served) (ADR-148)`.
-   - A file counts when its ledger entry has the sha this read observed and covers every span it served, or the whole file for a whole-file read; an entry mrw wrote is whole (ADR-118).
+1. **A read sent to the null device that served lines** keeps ADR-133's line, word for word, and then, when the ledger still licenses every line it served in full of one or more files in their current version, prints one more line:
+   `mrw: still licensed in this version by an earlier read or write, every line served here in full: a.txt, b.txt (2 of 3 files served); a write to those lines is judged on that licence, with the usual checks (ADR-148)`.
+   - A file counts when its ledger entry has the sha this read observed and covers every span it served; for a whole-file read, an entry that is whole or whose spans reach the last line. An entry mrw wrote is whole (ADR-118).
+   - The entry is found as a write finds it (ADR-029): by the spelling read, and on a miss by another spelling of the same file — an in-root link, a case variant where the filesystem folds case — through `os.SameFile`.
+   - "In full": a line `--max-cols` cut is not in the observation (ADR-137) and is not vouched for. The line names a licence, not a verdict: a multi-line replace still needs the line after its range (ADR-052), and every other check still runs.
    - At most five names, then `and N more`; names sorted.
-   - A file only partly covered is not named: a write to its uncovered lines is refused.
+   - A file only partly covered is not named, though its covered lines stay licensed: a write to its uncovered lines is refused.
    - Nothing is printed for a file nothing licenses; ADR-133's line already says what a write meets there.
    - A ledger that cannot be read adds no line: the write reports what it finds.
 2. **The ledger, stdout and the exit code are unchanged**: the read still records nothing.
