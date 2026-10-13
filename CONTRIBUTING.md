@@ -20,6 +20,10 @@ them. This file keeps what a person needs around them — the platform notes bel
 code is never read through a pipe — and does not carry a second copy of the list, which is how the two
 drifted apart once (the opencode plugin gate was here and not there, 2026-09-29).
 
+Besides Go, the static gate runs ruff, shellcheck, actionlint and knip over what is not Go (ADR-147),
+so it needs ruff and shellcheck on `PATH` and `npm ci` run in `cmd/opencode/mrw-plugin`; it names
+each install when one is missing, and `.claude/rules/static-analysis.md` gives the versions.
+
 Go builds and tests run on **Linux and Windows** in CI; `contract.sh` runs on
 Linux, because it drives a POSIX shell.
 
