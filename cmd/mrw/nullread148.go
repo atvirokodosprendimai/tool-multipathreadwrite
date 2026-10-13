@@ -110,15 +110,23 @@ func licensedBy(root, path string, rec, o seen.Observation) bool {
 	return ok && n > 0 && rec.Covers(1, n)
 }
 
+// recountCap bounds lineCount's second read of a file, as ADR-104 bounds the
+// first (maxFileBytes in internal/read, 1 GiB): the file may have grown since
+// the read served it (the second Codex review of #397). A variable so a test
+// can lower it.
+var recountCap int64 = 1 << 30
+
 // lineCount numbers the file as the write engine does (lines.Split), and only
-// when it still holds the version the read observed.
+// when it still holds the version the read observed. It reads at most
+// recountCap+1 bytes: a file over the cap is cut there, and a cut file cannot
+// hash to a version the read served, since the read refuses a file that large.
 func lineCount(full, sha string) (int, bool) {
 	f, _, err := regular.Open(full)
 	if err != nil {
 		return 0, false
 	}
 	defer func() { _ = f.Close() }()
-	b, err := io.ReadAll(f)
+	b, err := io.ReadAll(io.LimitReader(f, recountCap+1))
 	if err != nil {
 		return 0, false
 	}

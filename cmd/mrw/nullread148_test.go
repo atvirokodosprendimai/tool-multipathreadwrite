@@ -124,6 +124,13 @@ func TestANullDeviceReadNamesWhatIsStillLicensed(t *testing.T) {
 	if err, _ := run(sink(), "", "read", "spans.txt:1-2"); err != nil {
 		t.Fatalf("a read to a file failed: %v", err)
 	}
+	saved := recountCap
+	recountCap = 4 // spans.txt holds 8 bytes
+	if _, said := run(null, "", "read", "spans.txt"); licenceLine(said) != "" {
+		recountCap = saved
+		t.Fatalf("a file over the recount cap was read whole to be named: %q", said)
+	}
+	recountCap = saved
 	if _, said := run(null, "", "read", "spans.txt"); !strings.Contains(licenceLine(said), "spans.txt") {
 		t.Fatalf("a whole-file read that earlier spans cover to the last line is not named: %q", said)
 	}
