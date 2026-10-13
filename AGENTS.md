@@ -377,7 +377,11 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   itself just wrote: it produced every line, so the whole file is licensed
   until something else changes it (ADR-002, ADR-005 §4). A read whose answer
   goes to the null device (`>/dev/null`, cmd.exe's `>NUL`) licenses nothing and says so on
-  stderr; PowerShell's `> $null` and `| Out-Null` are pipes and still record (so is PowerShell 7's `> NUL`; in 5.1 it fails before mrw starts). Send it to a file, or read it, if you mean to edit (ADR-133).
+  stderr, and names any file an earlier read or write still licenses, since a write there applies
+  all the same (ADR-133, ADR-148); PowerShell's `> $null` and `| Out-Null` are pipes and still
+  record (so is PowerShell 7's `> NUL`; in 5.1 it fails before mrw starts). Read what you mean to
+  edit: the licence stands for lines you saw, and a file you never open licenses all the same —
+  mrw cannot tell, so redirecting a read to satisfy the guard defeats it.
 - **AFTER ANY MULTI-LINE BODY, READ ON PAST YOUR RANGE UNTIL YOU SEE THE
   ENCLOSING STRUCTURE CLOSE.** Unconditional, and deliberately wider than the
   write. What follows is explanation, not a trigger: a rule opening "if your body
