@@ -222,11 +222,11 @@ measure_find() {
 
   local search_out search_cmd search_bytes=0
   if command -v rg >/dev/null 2>&1; then
-    search_cmd=rg
+    search_cmd="rg"
     # rg exits 1 on no matches; that is a result, not a script failure.
     search_out=$(rg -n --color never --no-heading -- "$pattern" "${GOFILES[@]}") || true
   else
-    search_cmd=grep
+    search_cmd="grep"
     search_out=$(grep -nH -- "$pattern" "${GOFILES[@]}") || true
   fi
   if [ -n "$search_out" ]; then

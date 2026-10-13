@@ -5,9 +5,9 @@
 # with tests excluded, govulncheck, and fence-prose (every task fence's grep
 # over a tracked file still matches: a prose rewrite turned 8 done fences red
 # unnoticed, measured 2026-09-29). Each runs whatever the others found, and the
-# script exits 1 when any of them found anything. python3 runs fence-prose.
-# and the script exits 1 when any of them found anything. CI runs it, and so
-# does the PostToolUse hook after a commit (.claude/hooks/static-after-commit.py).
+# script exits 1 when any of them found anything. python3 runs fence-prose. CI
+# runs the script, and so does the PostToolUse hook after a commit
+# (.claude/hooks/static-after-commit.py).
 #
 # The Go tools run as `go run module@version`: pinned, the same locally and in
 # CI, nothing to install, and go.mod untouched. golangci-lint is the one binary

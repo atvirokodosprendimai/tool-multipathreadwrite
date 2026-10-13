@@ -57,7 +57,7 @@ jobs:
               served=$(printf '%s\n' "$out" | grep '^==> ' | sort | tr '\n' ' ')
               "$T/mrw-$v.exe" --root "$T/$root" read --grep needle > "$T/timed.out"   # warm
               runs=""
-              for i in 1 2 3 4 5; do runs="$runs $(ms "$T/mrw-$v.exe" --root "$T/$root" read --grep needle)"; done
+              for _ in 1 2 3 4 5; do runs="$runs $(ms "$T/mrw-$v.exe" --root "$T/$root" read --grep needle)"; done
               med=$(printf '%s\n' $runs | sort -n | sed -n 3p)
               echo "RESULT root=$root version=$v served=[$served] runs_ms=[$runs ] median_ms=$med per_file_us=$(( med * 1000 / 3000 ))"
             done

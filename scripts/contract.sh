@@ -72,7 +72,7 @@ SRC=$(cd "$(dirname "$0")/.." && pwd)
 # A relative MRW names a binary relative to where the caller stood, so it is
 # made absolute before the cd below moves that (review of #236).
 if [ -n "${MRW:-}" ]; then MRW=$(cd "$(dirname "$MRW")" && pwd)/$(basename "$MRW"); fi
-cd "$SRC"
+cd "$SRC" || exit 2
 WORK=$(mktemp -d)
 # Reap the whole group on exit: every child, and every orphan that kept the
 # group after its parent died. TERM is ignored FIRST, before the rm, so a
@@ -867,7 +867,7 @@ want 1 "$rc" "a range against an empty file is reported, not silently fine"
 #      writing it is the honest way to have it without shipping an old build.
 fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/stale.txt"
-SHA=$(m read stale.txt 2>/dev/null | sed -n 's/.*sha \([0-9a-f]*\).*/\1/p' | head -1)
+m read stale.txt >"$WORK/served.out" 2>/dev/null
 SD=$(m seen | head -1 | sed 's/.*: //')
 # A whole-file licence for a file this checkout has NOT read in this state —
 # exactly what a v0.0.11 failed read left behind. No header line.
@@ -7418,7 +7418,7 @@ printf '{"check":"exit 0","steps":{"mark":"touch m172-declared"}}\n' > "$R/.qual
 m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 172 }\n' > "$R/p172.mrw"
 m write --no-check --then-sh 'touch m172-1' --then-sh 'exit 1' --then-sh 'touch m172-3' "$R/p172.mrw" > "$WORK/out172" 2>&1; want 3 $? "a sequence whose second step fails exits 3"
-{ [ -e "$R/m172-1" ] && [ ! -e "$R/m172-3" ]; } && ok "step 1 ran and step 3 never did" || bad "the markers: $(ls "$R" | grep m172 | tr '\n' ' ')"
+{ [ -e "$R/m172-1" ] && [ ! -e "$R/m172-3" ]; } && ok "step 1 ran and step 3 never did" || bad "the markers: $(shopt -s nullglob; cd "$R" && printf '%s ' *m172*)"
 grep -q 'NOT RUN' "$WORK/out172" && ok "the receipt names the step not run" || bad "the receipt: $(head -c 400 "$WORK/out172")"
 m write --no-check --then-sh 'exit 0' --then mark "$R/p172.mrw" > /dev/null 2>&1; want 0 $? "the same write with passing steps exits 0"
 [ -e "$R/m172-declared" ] && ok "a declared step runs" || bad "the declared step did not run"
@@ -8106,7 +8106,8 @@ printf '@@ a.go 1 replace\npackage a\n' > "$R/p201.mrw"
 m write --no-check "$R/p201.mrw" > /dev/null 2>&1; want 0 $? "a write that saves the ledger exits 0"
 j201=$(ls -i "$sd201/seen" 2>/dev/null | awk '{print $1}')
 { [ -n "$i201" ] && [ -n "$j201" ] && [ "$i201" != "$j201" ]; } && ok "and the ledger was replaced by rename (inode $i201 -> $j201)" || bad "the ledger was rewritten in place: inode '$i201' -> '$j201'"
-ls -A "$sd201" | grep -q '\.tmp-' && bad "a temp state file was left: $(ls -A "$sd201" | tr '\n' ' ')" || ok "and no temp file stays beside it"
+left201=$(shopt -s dotglob nullglob; cd "$sd201" && printf '%s\n' *)
+grep -q '\.tmp-' <<<"$left201" && bad "a temp state file was left: $(tr '\n' ' ' <<<"$left201")" || ok "and no temp file stays beside it"
 printf '@@ a.go 1 replace\npackage a // 201\n' > "$R/q201.mrw"
 m write --no-check "$R/q201.mrw" > /dev/null 2>&1; want 0 $? "the pair: the replaced ledger licenses the next write"
 
@@ -8630,7 +8631,8 @@ m read a230.txt >"$WORK/served.out"
 if [ -e "$R/A230.TXT" ]; then
   printf '@@ a230.txt - rename\nA230.txt\n' > "$WORK/p230"
   out=$(m write --no-check "$WORK/p230" 2>&1); want 0 $? "a case-only rename applies on a folding filesystem"
-  ls "$R" | grep -qx 'A230.txt' && ! ls "$R" | grep -qx 'a230.txt' && ok "and the directory spells it as the plan asked" || bad "case-only rename: $(ls "$R" | grep -i a230) :: $out"
+  names230=$(cd "$R" && printf '%s\n' *)
+  grep -qx 'A230.txt' <<<"$names230" && ! grep -qx 'a230.txt' <<<"$names230" && ok "and the directory spells it as the plan asked" || bad "case-only rename: $(grep -i a230 <<<"$names230") :: $out"
 else
   skip "a case-only rename (this filesystem does not fold case: a230.txt and A230.txt are two names)"
 fi
@@ -8972,7 +8974,8 @@ if [ -e "$R/P235.TXT" ]; then
   m read P235.TXT >"$WORK/served.out"
   printf '@@ P235.TXT - rename\np235.txt\n' > "$WORK/p235"
   out=$(m write --no-check "$WORK/p235" 2>&1); want 1 $? "a rename whose source is spelled otherwise than its directory exits 1"
-  { grep -q 'not spelled that way' <<<"$out" && ls "$R" | grep -qx 'p235.txt'; } && ok "naming the source's spelling, the directory unchanged" || bad "other-spelling rename: $out"
+  names235=$(cd "$R" && printf '%s\n' *)
+  { grep -q 'not spelled that way' <<<"$out" && grep -qx 'p235.txt' <<<"$names235"; } && ok "naming the source's spelling, the directory unchanged" || bad "other-spelling rename: $out"
 else
   skip "a rename from a spelling the directory does not hold (this filesystem does not fold case)"
 fi
