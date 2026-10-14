@@ -110,6 +110,9 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 	for i, name := range []string{"A", "B"} {
 		a := attempt{ID: "canary." + name, Task: task, Model: o.Models[0], Config: Configs[name], Repeat: 1}
 		r := runAttempt(o, a, i, cli, mrwVersion)
+		if r.interrupted {
+			return c, fmt.Errorf("interrupted during the canary's configuration %s: no canary.json is written and nothing more runs", name)
+		}
 		c.Costs[name] = r.CostUSD
 		var problems []string
 		if r.Exclusion != "" || r.IsError {

@@ -329,7 +329,7 @@ func Verify(dir, stage string, tasks, repeats int) error {
 						next := fmt.Sprintf("%s.r%d", id, try+1)
 						b, err := os.ReadFile(filepath.Join(dir, next+".receipt.json"))
 						r = Receipt{}
-						if err != nil || json.Unmarshal(b, &r) != nil || r.Attempt != next {
+						if err != nil || json.Unmarshal(b, &r) != nil || r.Attempt != next || r.Task != t || r.Config != c || r.Model != m || r.Repeat != rep {
 							missing = append(missing, next+" (the replacement an excluded attempt is owed)")
 							break
 						}

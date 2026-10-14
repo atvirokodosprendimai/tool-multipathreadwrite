@@ -24,6 +24,7 @@ type Result struct {
 	SolvedHi   float64  `json:"solved_diff_hi"`
 	SilentA    int      `json:"silent_mis_edits_a"`
 	SilentB    int      `json:"silent_mis_edits_b"`
+	ReadsB     int      `json:"shell_reads_b"` // B's reads through cat, grep and kin, counted not refused
 }
 
 // The bootstrap the registration fixes, and the tolerance a boundary of the
@@ -40,9 +41,10 @@ const (
 // attempt over its budget, or one that ended in an error the registration does
 // not exclude, is counted unsolved, with its cost.
 //
-// The registration's PAYS and LOSES overlap when the solved interval lies
-// wholly below 0 but no lower than -5 points; LOSES is checked first, the
-// conservative reading, which ADR-156 asks Zy to confirm before Stage 1.
+// Where PAYS and LOSES both hold — the solved interval wholly below 0 but no
+// lower than -5 points — LOSES wins: Zy's clarification of the registration,
+// 2026-10-14, before any stage ran. B's counted shell reads are summed beside
+// each verdict (Zy, the same day).
 func Analyze(rs []Receipt) ([]Result, error) {
 	type key struct{ model, source string }
 	groups := map[key][]Receipt{}
@@ -70,6 +72,9 @@ func Analyze(rs []Receipt) ([]Result, error) {
 			}
 			if r.CostUSD == nil {
 				return nil, fmt.Errorf("attempt %s: no cost", r.Attempt)
+			}
+			if r.Config == "B" {
+				res.ReadsB += r.HookReads
 			}
 			if r.SilentMisEdit {
 				if r.Config == "A" {

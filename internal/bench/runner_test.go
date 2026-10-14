@@ -508,4 +508,27 @@ func TestAFailingExitIsAnErrorAndAnInterruptStopsTheStage(t *testing.T) {
 	if err := Verify(o.Out, "test", 1, 1); err == nil || !strings.Contains(err.Error(), ".r2") {
 		t.Errorf("a missing replacement verified: %v", err)
 	}
+	// A replacement that names itself but not its attempt's dimensions does
+	// not verify either (the second re-review of #411).
+	if err := os.WriteFile(filepath.Join(o.Out, "fix-one.A.stub-model.1.r2.receipt.json"), []byte(`{"attempt":"fix-one.A.stub-model.1.r2"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Verify(o.Out, "test", 1, 1); err == nil || !strings.Contains(err.Error(), ".r2") {
+		t.Errorf("a replacement with no dimensions verified: %v", err)
+	}
+
+	// An interrupt during the canary stops it: no canary.json, no second
+	// configuration.
+	o = opts
+	o.Out = filepath.Join(work, "canary-interrupted")
+	o.Claude = stub("claude-int-canary", "kill -INT "+strconv.Itoa(os.Getpid())+"\nsleep 30\n"+result)
+	if _, err := RunCanary(o, o.Tasks[0], ""); err == nil || !strings.Contains(err.Error(), "interrupted") {
+		t.Errorf("an interrupted canary went on: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(o.Out, "canary.json")); err == nil {
+		t.Error("an interrupted canary wrote canary.json")
+	}
+	if b, _ := filepath.Glob(filepath.Join(o.Out, "canary.B.*")); len(b) != 0 {
+		t.Errorf("an interrupted canary started configuration B: %v", b)
+	}
 }

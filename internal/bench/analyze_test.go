@@ -118,8 +118,7 @@ func TestTheVerdictFollowsTheRegisteredBar(t *testing.T) {
 	// The registration overlaps here: B is half the cost and every task's
 	// solved rate is exactly 5 points lower, so the solved interval's lower
 	// bound meets PAYS (at -5 pp) while the interval lies wholly below 0, which
-	// is LOSES. bench checks LOSES first, the conservative reading; ADR-156
-	// names the overlap for Zy to confirm before Stage 1 starts.
+	// is LOSES. Zy decided on 2026-10-14, before any stage ran: LOSES wins.
 	var overlap []Receipt
 	for i := range 10 {
 		for r := 1; r <= 20; r++ {
@@ -135,11 +134,17 @@ func TestTheVerdictFollowsTheRegisteredBar(t *testing.T) {
 	// Silent mis-edits are counted per configuration beside every verdict.
 	rs := receiptsFor("m", "own", repeat(1.0, 3), repeat(0.5, 3), repeat(true, 3), repeat(true, 3))
 	rs[1].SilentMisEdit = true
+	// B's counted shell reads are reported beside the verdict (Zy, 2026-10-14);
+	// A has no hook, and a count on an A receipt is not B's.
+	rs[1].HookReads, rs[3].HookReads, rs[0].HookReads = 3, 2, 7
 	got, err := Analyze(rs)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got[0].SilentA != 0 || got[0].SilentB != 1 {
 		t.Errorf("silent mis-edits: A %d, B %d, want 0 and 1", got[0].SilentA, got[0].SilentB)
+	}
+	if got[0].ReadsB != 5 {
+		t.Errorf("B's shell reads: %d, want 5", got[0].ReadsB)
 	}
 }

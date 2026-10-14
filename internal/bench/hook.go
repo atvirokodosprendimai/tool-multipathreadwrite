@@ -56,8 +56,6 @@ func oneLine(s string) string {
 
 var (
 	heredoc  = regexp.MustCompile(`<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)['"]?`)
-	subst    = regexp.MustCompile("\\$\\(([^()]*)\\)|`([^`]*)`")
-	arith    = regexp.MustCompile(`\$\(\([^()]*\)\)`)
 	redirect = regexp.MustCompile(`(?:^|[^0-9&<>=\-|])(?:[0-9]?>>?|&>>?)\s*(&?[^\s;&|<>()]+)`)
 	dupFD    = regexp.MustCompile(`^&([0-9]+|-)$`)
 	// The first word of a segment that changes files by itself.
@@ -125,11 +123,16 @@ func ClassifyBash(cmd string) (string, []string) {
 
 func classify(cmd string, depth int) (string, []string) {
 	rest, expanded := splitHeredocs(cmd)
-	quotedLive, bare := scanQuotes(rest)
-	live := arith.ReplaceAllString(quotedLive+"\n"+strings.Join(expanded, "\n"), "0")
+	bare, subs, ok := scanShell(rest, false)
+	for _, body := range expanded {
+		_, s, bodyOK := scanShell(body, true)
+		subs, ok = append(subs, s...), ok && bodyOK
+	}
 	var reads []string
-	for _, m := range subst.FindAllStringSubmatch(live, -1) {
-		inner := m[1] + m[2]
+	if !ok {
+		return "a command substitution the hook cannot inspect", reads
+	}
+	for _, inner := range subs {
 		if depth >= 4 {
 			return "a command substitution nested too deep to inspect", reads
 		}
@@ -138,9 +141,6 @@ func classify(cmd string, depth int) (string, []string) {
 		if why != "" {
 			return "a command substitution: " + why, reads
 		}
-	}
-	if strings.Contains(subst.ReplaceAllString(live, ""), "$(") {
-		return "a command substitution the hook cannot inspect", reads
 	}
 	reads = append(reads, readsOf(bare)...)
 	for _, m := range redirect.FindAllStringSubmatch(bare, -1) {
@@ -179,53 +179,112 @@ func classify(cmd string, depth int) (string, []string) {
 	return "", reads
 }
 
-// scanQuotes reads a command once, tracking quotes as the shell does. live is
-// the text the shell expands — unquoted text and the inside of double quotes —
-// and bare is the unquoted text alone; single-quoted text is in neither. Doing
-// it in one pass is what keeps `echo "'"; touch f; echo "'"` from losing the
-// command between the apostrophes (the re-review of #411).
-func scanQuotes(s string) (live, bare string) {
-	var l, b strings.Builder
-	const none, inSingle, inDouble = 0, 1, 2
-	state := none
+// scanShell reads a command once, tracking quotes as the shell does. It
+// returns the unquoted text (quoted text dropped, each substitution left as a
+// placeholder) and the text of every command substitution — `$(…)` or `…` —
+// found outside single quotes, each matched to its own closing paren with its
+// own quote context, so `echo "$(printf "'"; touch f; printf "'")"` gives
+// back `printf "'"; touch f; printf "'"` whole (the reviews of #411). ok is
+// false when a substitution never closes. With inDouble, the text is read as
+// the inside of double quotes — an unquoted heredoc's body.
+func scanShell(s string, inDouble bool) (bare string, subs []string, ok bool) {
+	var b strings.Builder
+	double := inDouble
 	for i := 0; i < len(s); i++ {
 		c := s[i]
-		switch state {
-		case none:
-			switch {
-			case c == '\\' && i+1 < len(s):
-				l.WriteString(s[i : i+2])
+		switch {
+		case c == '\\' && i+1 < len(s):
+			if !double {
 				b.WriteString(s[i : i+2])
-				i++
-			case c == '\'':
-				state = inSingle
-				l.WriteString("''")
-				b.WriteString("''")
-			case c == '"':
-				state = inDouble
+			}
+			i++
+		case c == '\'' && !double:
+			end := strings.IndexByte(s[i+1:], '\'')
+			if end < 0 {
+				return b.String(), subs, false
+			}
+			b.WriteString("''")
+			i += end + 1
+		case c == '"':
+			double = !double
+			if double {
 				b.WriteString(`""`)
-			default:
-				l.WriteByte(c)
+			}
+		case c == '$' && i+1 < len(s) && s[i+1] == '(':
+			end := matchParen(s, i+1)
+			if end < 0 {
+				return b.String(), subs, false
+			}
+			if !(i+2 < len(s) && s[i+2] == '(') { // $(( … )) is arithmetic
+				subs = append(subs, s[i+2:end])
+			}
+			if !double {
+				b.WriteString(" $S ")
+			}
+			i = end
+		case c == '`':
+			end := strings.IndexByte(s[i+1:], '`')
+			if end < 0 {
+				return b.String(), subs, false
+			}
+			subs = append(subs, s[i+1:i+1+end])
+			if !double {
+				b.WriteString(" $S ")
+			}
+			i += end + 1
+		default:
+			if !double {
 				b.WriteByte(c)
-			}
-		case inSingle:
-			if c == '\'' {
-				state = none
-			}
-		case inDouble:
-			switch {
-			case c == '\\' && i+1 < len(s):
-				l.WriteString(s[i : i+2])
-				i++
-			case c == '"':
-				state = none
-				l.WriteByte(' ')
-			default:
-				l.WriteByte(c)
 			}
 		}
 	}
-	return l.String(), b.String()
+	return b.String(), subs, true
+}
+
+// matchParen returns the index of the paren that closes the one at s[open],
+// reading quotes, nested substitutions and backquotes inside as the shell
+// does, or -1.
+func matchParen(s string, open int) int {
+	depth := 0
+	for k := open; k < len(s); k++ {
+		switch s[k] {
+		case '\\':
+			k++
+		case '\'':
+			end := strings.IndexByte(s[k+1:], '\'')
+			if end < 0 {
+				return -1
+			}
+			k += end + 1
+		case '`':
+			end := strings.IndexByte(s[k+1:], '`')
+			if end < 0 {
+				return -1
+			}
+			k += end + 1
+		case '"':
+			for k++; k < len(s) && s[k] != '"'; k++ {
+				switch {
+				case s[k] == '\\':
+					k++
+				case s[k] == '$' && k+1 < len(s) && s[k+1] == '(':
+					if k = matchParen(s, k+1); k < 0 {
+						return -1
+					}
+				}
+			}
+			if k >= len(s) {
+				return -1
+			}
+		case '(':
+			depth++
+		case ')':
+			if depth--; depth == 0 {
+				return k
+			}
+		}
+	}
+	return -1
 }
 
 // wrappers run the command that follows them; the hook judges that command.
@@ -239,6 +298,8 @@ func commandWords(w []string) []string {
 		switch {
 		case regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`).MatchString(w[0]):
 			w = w[1:]
+		case filepath.Base(w[0]) == "command" && len(w) > 1 && (w[1] == "-v" || w[1] == "-V"):
+			return nil // command -v asks where a command is; it runs nothing
 		case wrappers[filepath.Base(w[0])]:
 			timeout := filepath.Base(w[0]) == "timeout"
 			w = w[1:]

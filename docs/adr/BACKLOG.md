@@ -2703,6 +2703,8 @@ Zy, 2026-10-14: both Sonnet 5.5 and Opus 5.5; our own oracle-graded tasks and a 
   - **PAYS** — the mean per-task relative cost (B − A) / A is −10% or lower, its interval lies wholly below 0, and the interval of the solved-rate difference B − A has its lower bound at −5 percentage points or above.
   - **LOSES** — the cost interval lies wholly above 0, or the solved-rate interval lies wholly below 0.
   - **INCONCLUSIVE** — neither.
+  - **Where PAYS and LOSES both hold** — the cost interval wholly below 0 and the mean at −10% or lower, while the solved-rate interval has its lower bound at −5 points or above yet lies wholly below 0 — **LOSES wins.** A clarification decided by Zy on 2026-10-14, before any stage ran; the bar's numbers are unchanged.
+- **Configuration B's shell reads** (`cat`, `grep`, `head` and their kin given a path) are counted, not refused, and the count is reported beside every verdict. Decided by Zy on 2026-10-14, before any stage ran.
 - **Silent mis-edits** are counted per configuration and printed beside every verdict; if B has more than A, the headline says so whatever the verdict.
 - **Admission.** The only exclusions:
   - an attempt that ended before its first tool call with an authentication, rate-limit or CLI start error, re-queued at most twice;

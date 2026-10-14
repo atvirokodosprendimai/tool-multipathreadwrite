@@ -21,7 +21,7 @@ README must be regenerated.
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
 | T1 | the task corpus and an oracle per task, proved without an agent | done | none | `T1-task-corpus-and-oracles.md` fence |
-| T2 | the runner, its receipts, configuration B's hook and the isolation canary | partial | T1 | `T2-runner-and-isolation-canary.md` fence |
+| T2 | the runner, its receipts, configuration B's hook and the isolation canary | done | T1 | `T2-runner-and-isolation-canary.md` fence |
 | T3 | Stage 1: our own tasks on Sonnet 5.5 | pending | T2 | `T3-stage-1-sonnet.md` fence |
 | T4 | Stage 2: our own tasks on Opus 5.5 | pending | T3 | `T4-stage-2-opus.md` fence |
 | T5 | Stage 3: the SWE-bench Verified slice | partial | T2 | `T5-stage-3-swe-bench-slice.md` fence |
@@ -33,5 +33,5 @@ Status: `pending` | `partial` | `blocked` | `done`.
 
 - T3, T4 and T5 each start only on Zy's word, recorded in their Verification Log as a human-observed line.
 - No contract row: nothing on mrw's served path changes.
-- T2 is partial until S5, a real canary run that passes. Zy's two choices are made (2026-10-14: his own account with `bypassPermissions`, and the one-time login in the dedicated config directory); the first real canary failed on two runner defects, fixed in #411, and is to be run again.
+- T2's S5 passed on 2026-10-14 at 968ae417, Zy's own account with `bypassPermissions` and the one-time login in the dedicated config directory: the receipt is `docs/bench/canary-2026-10-14/canary.json`. Stage 1 (T3) now waits only for Zy's word.
 - T5's selection (S1) and T6's analysis (S1, S2) were built with T2, before any run, so the analysis is fixed before there is data to fit it to; both stay partial until their stages run.

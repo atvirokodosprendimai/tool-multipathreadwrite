@@ -16,7 +16,7 @@ and `bench run` refuses without a passing canary for the same CLI version.
 | | Tools | mrw | Hook |
 |---|---|---|---|
 | A | Bash, Read, Edit, Write, Glob, Grep | not on PATH | none |
-| B | Bash, Glob | a pinned build on PATH, `mrw instructions` appended | `bench hook`: refuses writes by other means, command substitutions included; counts reads |
+| B | Bash, Glob | a pinned build on PATH, `mrw instructions` appended | `bench hook`: refuses writes by other means, command substitutions included; counts reads, not refuses them (Zy, 2026-10-14), and `bench analyze` reports the count beside each verdict |
 
 Both run with `--strict-mcp-config` and an empty MCP config, a settings file
 written per attempt, `--disable-slash-commands`, `--no-session-persistence`,
@@ -85,12 +85,22 @@ deleted.
 - `canary.json` — `pass`, `cli_version`, `model`, `started`, `problems` by
   configuration (and `sentinel`), `total_cost_usd` by configuration.
 
-**Not yet observed:** the stream-json fields bench reads are the ones the Claude
-Agent SDK documents (`system`/`init` with `tools` and `mcp_servers`; `assistant`
-messages with `tool_use` items; `result` with `total_cost_usd`, `usage`,
-`num_turns`, `is_error`). No subscription run has been made on this machine;
-the canary records the first real one, including whether `total_cost_usd` is
-present (ADR-156 Decision 4).
+**Observed on the first passing canary** (2026-10-14, CLI 2.1.299, Sonnet 5.5,
+`docs/bench/canary-2026-10-14/canary.json`): the stream-json fields bench reads
+are the ones the Claude Agent SDK documents (`system`/`init` with `tools` and
+`mcp_servers`; `assistant` messages with `tool_use` items; `result` with
+`total_cost_usd`, `usage`, `num_turns`, `is_error`), and a subscription run does
+report `total_cost_usd` (A $0.0170, B $0.0373), so cost is the CLI's own figure,
+not one computed from token prices (ADR-156 Decision 4). The transcripts are not
+kept in the tree: they hold this machine's absolute scratch and home paths.
+
+The init line also lists the CLI's own built-in plugins (`cc-plugin-agents-md`,
+`cc-plugin-telemetry`, `cc-plugin-plugin-authoring`) and agents (`claude`,
+`Explore`, `general-purpose`, `Plan`, `statusline-setup`) in both
+configurations. They ship with the CLI, not from the user's setup, so they are
+not a leak; the canary does not check them. What they could carry in is what
+the canary does check — no CLAUDE.md text, no hook output, no MCP server, and the
+task tree's own instruction files stripped, `AGENTS.md` included.
 
 ## Commands
 

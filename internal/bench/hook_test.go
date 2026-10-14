@@ -65,6 +65,9 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 		"FOO=1 rm f.go",
 		"timeout 5 mv a b",
 		"command touch f",
+		// And its second re-review: a substitution with quotes of its own.
+		"echo \"$(printf \"'\"; touch f; printf \"'\")\"",
+		"x=$(cat a.txt) && rm $x",
 	}
 	pass := []string{
 		"mrw read f.go:1-3",
@@ -79,6 +82,8 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 		"echo hi >&2",
 		"ls 2>&1",
 		"echo $((1 + 2))",
+		"command -v cp",
+		"echo \"$(mrw read f.go:1-2)\"",
 		"mrw write - <<'PLAN'\n@@ f.go 1 replace\nv := \"$(touch f)\"\nPLAN",
 	}
 	reads := map[string][]string{
