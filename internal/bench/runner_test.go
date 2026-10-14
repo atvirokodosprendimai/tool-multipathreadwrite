@@ -517,6 +517,20 @@ func TestAFailingExitIsAnErrorAndAnInterruptStopsTheStage(t *testing.T) {
 		t.Errorf("a replacement with no dimensions verified: %v", err)
 	}
 
+	// A slip check that cannot run is a setup exclusion, never a count of
+	// zero (the final review of #411).
+	o = opts
+	o.Out = filepath.Join(work, "no-backstop")
+	o.Configs = []string{"B"}
+	o.Claude = stub("claude-bad-ledger", `mkdir -p "$XDG_STATE_HOME/mrw/x" && echo x > "$XDG_STATE_HOME/mrw/x/seen"`+"\n"+result)
+	if err := Run(o); err != nil {
+		t.Fatal(err)
+	}
+	b, _ = os.ReadFile(filepath.Join(o.Out, "fix-one.B.stub-model.1.receipt.json"))
+	if err := json.Unmarshal(b, &r); err != nil || r.Exclusion != ExclusionSetup || !strings.Contains(r.Note, "slipped writes") {
+		t.Errorf("a slip check that could not run: %+v %v, want a setup exclusion naming it", r, err)
+	}
+
 	// An interrupt during the canary stops it: no canary.json, no second
 	// configuration.
 	o = opts

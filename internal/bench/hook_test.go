@@ -139,7 +139,13 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 func TestASlippedWriteIsFoundFromTheLedger(t *testing.T) {
 	needGit(t)
 	tree := t.TempDir()
-	for _, f := range []string{"a.txt", "b.txt", "c.txt", "d.txt", "e.txt", "f.txt"} {
+	if err := os.MkdirAll(filepath.Join(tree, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tree, "sub", "g.go"), []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"a.txt", "b.txt", "c.txt", "d.txt", "e.txt", "f.txt", "g.go", "sub/f.go"} {
 		if err := os.WriteFile(filepath.Join(tree, f), []byte("one\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -149,7 +155,7 @@ func TestASlippedWriteIsFoundFromTheLedger(t *testing.T) {
 			t.Fatalf("git %v: %v %s", args, err, out)
 		}
 	}
-	for f, s := range map[string]string{"a.txt": "two\n", "b.txt": "two\n", "d.txt": "two\n", "e.txt": "three\n"} {
+	for f, s := range map[string]string{"a.txt": "two\n", "b.txt": "two\n", "d.txt": "two\n", "e.txt": "three\n", "g.go": "two\n", "sub/f.go": "two\n"} {
 		if err := os.WriteFile(filepath.Join(tree, f), []byte(s), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -170,11 +176,38 @@ func TestASlippedWriteIsFoundFromTheLedger(t *testing.T) {
 	if err := os.WriteFile(ledger, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// Each ledger's paths are relative to the root its marker names (the final
+	// review of #411): sub/f.go mrw wrote under --root sub, and its read of
+	// sub/g.go, whose bytes are what g.go now holds, is not a record of g.go.
+	realTree, err := filepath.EvalSymlinks(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	subLedger := filepath.Join(state, "mrw", "4567", "seen")
+	if err := os.MkdirAll(filepath.Dir(subLedger), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for p, s := range map[string]string{
+		filepath.Join(filepath.Dir(ledger), "root"):    realTree + "\n",
+		filepath.Join(filepath.Dir(subLedger), "root"): filepath.Join(realTree, "sub") + "\n",
+		subLedger: "#mrw-seen v5 mrw stub\n" + two + "  w1-1  f.go\n" + two + "  -  g.go\n",
+	} {
+		if err := os.WriteFile(p, []byte(s), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	got, err := SlippedWrites(tree, state)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(got, ",") != "b.txt,e.txt,f.txt" {
-		t.Errorf("slipped writes: %v, want [b.txt e.txt f.txt]: a.txt and d.txt are what mrw last saw, c.txt is unchanged", got)
+	if strings.Join(got, ",") != "b.txt,e.txt,f.txt,g.go" {
+		t.Errorf("slipped writes: %v, want [b.txt e.txt f.txt g.go]: a.txt, d.txt and sub/f.go are what mrw last saw, c.txt is unchanged", got)
+	}
+	// A ledger whose root is not named cannot be read against the tree.
+	if err := os.Remove(filepath.Join(filepath.Dir(subLedger), "root")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SlippedWrites(tree, state); err == nil {
+		t.Error("a ledger with no root marker was read as if its root were the tree")
 	}
 }

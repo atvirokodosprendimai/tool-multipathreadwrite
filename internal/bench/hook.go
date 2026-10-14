@@ -416,9 +416,16 @@ func hookCounts(log string) (refused, reads int) {
 // by other means and never read back does not. A change made by other means
 // and then read back with mrw is not caught — a heuristic, as the hook is
 // (the review of #411: the ledger's `w` mark does not survive a whole read).
+// A ledger's paths are relative to the root its `root` marker names, so each
+// is read against that root; one with no marker is an error, not a guess (the
+// final review of #411).
 func SlippedWrites(tree, state string) ([]string, error) {
-	recorded := map[string]string{}
-	err := filepath.Walk(state, func(p string, info os.FileInfo, err error) error {
+	realTree, err := filepath.EvalSymlinks(tree)
+	if err != nil {
+		return nil, err
+	}
+	recorded := map[string]map[string]bool{} // tree path → every sha a ledger holds for it
+	err = filepath.Walk(state, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			if os.IsNotExist(err) {
 				return nil
@@ -427,6 +434,14 @@ func SlippedWrites(tree, state string) ([]string, error) {
 		}
 		if info.IsDir() || info.Name() != "seen" {
 			return nil
+		}
+		marker, err := os.ReadFile(filepath.Join(filepath.Dir(p), "root"))
+		if err != nil {
+			return fmt.Errorf("ledger %s names no root: %w", p, err)
+		}
+		rel, err := filepath.Rel(realTree, strings.TrimSuffix(string(marker), "\n"))
+		if err != nil {
+			return err
 		}
 		f, err := os.Open(p)
 		if err != nil {
@@ -437,7 +452,11 @@ func SlippedWrites(tree, state string) ([]string, error) {
 		sc.Buffer(make([]byte, 1<<20), 1<<24)
 		for sc.Scan() {
 			if parts := strings.SplitN(sc.Text(), "  ", 3); len(parts) == 3 {
-				recorded[parts[2]] = parts[0]
+				file := filepath.ToSlash(filepath.Join(rel, parts[2]))
+				if recorded[file] == nil {
+					recorded[file] = map[string]bool{}
+				}
+				recorded[file][parts[0]] = true
 			}
 		}
 		return sc.Err()
@@ -452,7 +471,7 @@ func SlippedWrites(tree, state string) ([]string, error) {
 	var slipped []string
 	for _, c := range changed {
 		b, err := os.ReadFile(filepath.Join(tree, c.file))
-		if sha, ok := recorded[c.file]; err != nil || !ok || seen.SHA(b) != sha {
+		if err != nil || !recorded[c.file][seen.SHA(b)] {
 			slipped = append(slipped, c.file)
 		}
 	}

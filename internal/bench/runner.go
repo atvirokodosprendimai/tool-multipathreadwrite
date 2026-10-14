@@ -512,8 +512,10 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 	}
 	if a.Config.Mrw {
 		r.HookRefused, r.HookReads = hookCounts(filepath.Join(scratch, "hook.log"))
+		// A backstop that could not run is not a count of zero: the
+		// attempt is a setup exclusion (the final review of #411).
 		if r.SlippedWrites, err = SlippedWrites(tree, filepath.Join(scratch, "state")); err != nil {
-			r.Note = "slipped writes: " + err.Error()
+			r.Exclusion, r.Note = ExclusionSetup, "slipped writes: "+err.Error()
 		}
 	}
 	return r
