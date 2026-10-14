@@ -158,6 +158,8 @@ func rootCommand() *cli.Command {
 		// from. That read the wrong ledger under `-C`, which is precisely how
 		// a contract row here first passed for the wrong reason.
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			// The ledger names the mrw that writes it (ADR-150).
+			seen.SetWriter(versionString())
 			// version and instructions touch no state at all (ADR-145); the legacy
 			// migration runs for every other command, stats included.
 			verb := cmd.Args().First()
@@ -169,7 +171,11 @@ func rootCommand() *cli.Command {
 			case "version", "instructions", "stats":
 				return ctx, nil
 			}
-			if stale, err := seen.IsStale(cmd.String("root")); err == nil && stale {
+			// A newer mrw's ledger is not stale: it is left alone, and the caller
+			// is told which binary wrote it (ADR-150).
+			if writer, newer, err := seen.Newer(cmd.String("root")); err == nil && newer {
+				fmt.Fprintln(os.Stderr, seen.NewerNotice(writer))
+			} else if stale, err := seen.IsStale(cmd.String("root")); err == nil && stale {
 				fmt.Fprintln(os.Stderr, seen.StaleNotice)
 			} else if tellsLedgerDamage(cmd.Args().First()) {
 				if notice, err := seen.DamageNotice(cmd.String("root")); err == nil && notice != "" {

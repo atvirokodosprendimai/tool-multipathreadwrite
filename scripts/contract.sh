@@ -9071,6 +9071,30 @@ out=$("$WORK/mrw253" version --check-latest 2>&1); want 2 $? "a server that is g
 grep -q 'mrw: could not ask for the latest release: ' <<<"$out" && ok "saying it could not ask" || bad "gone: $out"
 rm -rf "$D253" "$WORK/srv253.py" "$WORK/port253" "$WORK/log253" "$WORK/out253" "$WORK/mrw253" "$WORK/mrw253dev"
 
+# 254. ADR-150: the ledger's first line names the mrw that wrote it, and a
+# ledger written by a newer mrw is left untouched: a read exits 0, records
+# nothing and names the newer writer once; a write its entry would license is
+# refused naming it; the file keeps its bytes. The pair: the same entry under a
+# v4 header licenses the write.
+fixture
+m read a.go >"$WORK/served.out"
+sd254=$(m seen | head -1)
+[ "$(head -1 "$sd254/seen")" = "#mrw-seen v5 $("$MRW" version)" ] \
+  && ok "the header names its format and its writer" || bad "header: $(head -1 "$sd254/seen")"
+sha254=$(awk '$3 == "a.go" { print $1 }' "$sd254/seen")
+printf '#mrw-seen v6 v9.9.9 (fffffff)\n%s  -  a.go\n' "$sha254" > "$sd254/seen"
+cp "$sd254/seen" "$WORK/l254"
+out=$(m read a.go 2>&1 >"$WORK/served.out"); want 0 $? "a read against a newer ledger exits 0"
+{ [ "$(grep -c 'written by a newer mrw (v9.9.9 (fffffff))' <<<"$out")" = 1 ] && ! grep -q 'older mrw' <<<"$out" \
+  && cmp -s "$sd254/seen" "$WORK/l254"; } && ok "names the newer writer once and leaves its ledger untouched" || bad "newer read: $out"
+printf '@@ a.go 3 replace\nfunc A() int { return 254 }\n' > "$WORK/p254"
+out=$(m write --no-check "$WORK/p254" 2>&1); want 1 $? "a write the newer ledger's entry would license is refused"
+{ grep -q 'has not been read' <<<"$out" && grep -q 'written by a newer mrw (v9.9.9 (fffffff))' <<<"$out" \
+  && cmp -s "$sd254/seen" "$WORK/l254" && ! grep -q 'return 254' "$R/a.go"; } \
+  && ok "naming the newer ledger, writing nothing" || bad "newer write: $out"
+printf '#mrw-seen v4\n%s  -  a.go\n' "$sha254" > "$sd254/seen"
+out=$(m write --no-check "$WORK/p254" 2>&1); want 0 $? "the pair: the same entry under a v4 header licenses the write"
+
 # 233. ADR-130: a walk does not enter a nested repository. Inside a checkout, a
 # directory holding its own .git is another project's, and git does not descend
 # into it; mrw walked it with its own rules. --grep serves the outer match only
