@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strings"
 )
 
 // Result is one verdict of the registered bar (BACKLOG, "Pre-registered for
@@ -53,6 +54,11 @@ func Analyze(rs []Receipt) ([]Result, error) {
 	type key struct{ model, source string }
 	groups := map[key][]Receipt{}
 	for _, r := range rs {
+		// A pilot is never counted (the registration), wherever its receipts
+		// sit: the stage's own name for it decides, not the directory's.
+		if strings.HasPrefix(r.Stage, "pilot") {
+			continue
+		}
 		switch r.Exclusion {
 		case "", ExclusionStart, ExclusionSetup:
 		default:

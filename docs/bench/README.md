@@ -131,7 +131,9 @@ the bootstrap intervals, the exclusions, the silent mis-edits of each
 configuration, and configuration B's counted shell reads and slipped writes —
 the files B changed by a means its hook missed. The hook is a heuristic, not a
 security boundary (the record's Out of Scope); the slipped writes are what
-catches a write that got past it. A pilot directory is left out.
+catches a write that got past it. A pilot is left out wherever its receipts sit:
+a receipt whose stage begins `pilot` is not counted (until the review of #416
+only a directory named exactly `pilot` was skipped, and a rerun's `pilot-2/` was counted).
 
 Where a model's and source's attempts include tasks flagged `check_red_at_base`,
 a second row follows the verdict, computed without them and marked descriptive.
