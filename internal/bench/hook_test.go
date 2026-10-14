@@ -68,6 +68,9 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 		// And its second re-review: a substitution with quotes of its own.
 		"echo \"$(printf \"'\"; touch f; printf \"'\")\"",
 		"x=$(cat a.txt) && rm $x",
+		// And its third: arithmetic, and quotes a heredoc keeps as text.
+		"echo $(( $(touch f) + 1 ))",
+		"cat <<EOF\n\" '$(touch f)' \"\nEOF",
 	}
 	pass := []string{
 		"mrw read f.go:1-3",

@@ -64,4 +64,11 @@ func TestTheConfigDirectoryIsNotALeak(t *testing.T) {
 	if p := CheckCanary([]byte(clean), Configs["A"], "", ""); len(p) == 0 {
 		t.Error("without the config directory named, its path must still count: the cut is that narrow")
 	}
+	// The cut is for the mrw check alone: a CLAUDE.md sentence that names the
+	// config directory is still a leak (the third re-review of #411).
+	md := "Always read " + dir + "/CLAUDE.md before starting work.\n"
+	quoted := init + "\n" + `{"type":"assistant","message":{"content":[{"type":"text","text":"Always read ` + dir + `/CLAUDE.md before starting work."}]}}` + "\n" + result + "\n"
+	if p := CheckCanary([]byte(quoted), Configs["A"], md, dir); len(p) == 0 {
+		t.Error("a CLAUDE.md sentence naming the config directory passed once the directory was cut")
+	}
 }

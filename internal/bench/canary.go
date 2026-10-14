@@ -23,7 +23,7 @@ var hookMarkers = []string{"<<<memoryd data", "memoryd ·", "agentsmemory", "qua
 // sentence of the user's CLAUDE.md; a user hook's output. configDir is the
 // attempt's CLAUDE_CONFIG_DIR: the CLI prints it in the init line's paths, and
 // it is bench's own name for a directory, not context the model was given, so
-// it is taken out of the text before mrw is looked for.
+// it is taken out of the text the mrw check reads, and only that one.
 func CheckCanary(transcript []byte, c Config, claudeMD, configDir string) []string {
 	var problems []string
 	t := parseTranscript(transcript)
@@ -41,10 +41,11 @@ func CheckCanary(transcript []byte, c Config, claudeMD, configDir string) []stri
 	// quote in it, or a marker sent as \u escapes, is in the transcript only
 	// escaped (the review of #411).
 	text := string(transcript) + "\n" + decodedStrings(transcript)
+	named := text
 	if configDir != "" {
-		text = strings.ReplaceAll(text, configDir, "<config-dir>")
+		named = strings.ReplaceAll(text, configDir, "<config-dir>")
 	}
-	if !c.Mrw && regexp.MustCompile(`(?i)\bmrw\b`).MatchString(text) {
+	if !c.Mrw && regexp.MustCompile(`(?i)\bmrw\b`).MatchString(named) {
 		problems = append(problems, "configuration A's transcript names mrw")
 	}
 	for _, s := range distinctive(claudeMD) {

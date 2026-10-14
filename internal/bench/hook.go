@@ -184,9 +184,11 @@ func classify(cmd string, depth int) (string, []string) {
 // placeholder) and the text of every command substitution — `$(…)` or `…` —
 // found outside single quotes, each matched to its own closing paren with its
 // own quote context, so `echo "$(printf "'"; touch f; printf "'")"` gives
-// back `printf "'"; touch f; printf "'"` whole (the reviews of #411). ok is
+// back `printf "'"; touch f; printf "'"` whole (the reviews of #411); an
+// arithmetic `$((…))` is not one, but the substitutions inside it are. ok is
 // false when a substitution never closes. With inDouble, the text is read as
-// the inside of double quotes — an unquoted heredoc's body.
+// an unquoted heredoc's body: as inside double quotes, except that a quote is
+// a character of the text, never the end of one (the third re-review).
 func scanShell(s string, inDouble bool) (bare string, subs []string, ok bool) {
 	var b strings.Builder
 	double := inDouble
@@ -205,7 +207,7 @@ func scanShell(s string, inDouble bool) (bare string, subs []string, ok bool) {
 			}
 			b.WriteString("''")
 			i += end + 1
-		case c == '"':
+		case c == '"' && !inDouble:
 			double = !double
 			if double {
 				b.WriteString(`""`)
@@ -215,7 +217,13 @@ func scanShell(s string, inDouble bool) (bare string, subs []string, ok bool) {
 			if end < 0 {
 				return b.String(), subs, false
 			}
-			if !(i+2 < len(s) && s[i+2] == '(') { // $(( … )) is arithmetic
+			if i+2 < len(s) && s[i+2] == '(' { // $(( … )) is arithmetic
+				_, inner, innerOK := scanShell(s[i+3:end-1], false)
+				if !innerOK {
+					return b.String(), subs, false
+				}
+				subs = append(subs, inner...)
+			} else {
 				subs = append(subs, s[i+2:end])
 			}
 			if !double {
