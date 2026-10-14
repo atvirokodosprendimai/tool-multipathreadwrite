@@ -16,6 +16,7 @@ check command
 check declared
 check duration_ms
 check exit_code
+check hint
 check output_file
 check pruned_logs
 check ran
@@ -70,6 +71,7 @@ mcp_write check.command
 mcp_write check.declared
 mcp_write check.duration_ms
 mcp_write check.exit_code
+mcp_write check.hint
 mcp_write check.output_file
 mcp_write check.pruned_logs
 mcp_write check.ran
@@ -151,6 +153,7 @@ write check.command
 write check.declared
 write check.duration_ms
 write check.exit_code
+write check.hint
 write check.output_file
 write check.pruned_logs
 write check.ran

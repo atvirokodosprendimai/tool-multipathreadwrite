@@ -1296,6 +1296,9 @@ func checkReport(c *check.Result, checkErr error, drift []string, others int) (l
 		if c.OutputFile != "" {
 			fmt.Fprintf(&b, "check output: %s\n", c.OutputFile)
 		}
+		if c.Hint != "" {
+			fmt.Fprintf(&b, "hint: %s\n", c.Hint)
+		}
 	}
 	for _, p := range drift {
 		fmt.Fprintf(&b, "drift: %s changed while the check ran\n", p)

@@ -87,6 +87,12 @@ const (
 	defaultTail       = 30
 )
 
+// SlowAfter is how long a whole-project check run for named paths may take
+// before its result says how to scope it (ADR-152). The survey's complaint was
+// checks that take minutes; under one, waiting is cheaper than configuring.
+// A variable so tests need not wait a minute; nothing else sets it.
+var SlowAfter = 60 * time.Second
+
 // readConfig reads the config through regular.Open (ADR-109): os.ReadFile of a
 // FIFO there blocked until something wrote to it, hanging every check and every
 // write whose check was due. A missing file keeps the open's own error, which
@@ -195,6 +201,9 @@ type Result struct {
 	// from the temp directory, once the check had exited and been judged
 	// (ADR-080).
 	Pruned int `json:"pruned_logs,omitempty"`
+	// Hint says how to scope a check that ran the whole project's command for
+	// named paths and took SlowAfter or longer, or is empty (ADR-152).
+	Hint string `json:"hint,omitempty"`
 }
 
 // OK reports whether the check ran and passed. A check that did not run is not
@@ -275,7 +284,6 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	if cmdline == "" {
 		return Result{Declared: cfg.declared, Skipped: "no check declared and no go.mod found", ExitCode: -1}, nil
 	}
-	_ = scoped
 	// ADR-072: the check runs in a process group of its own (subproc), so the
 	// terminal's ^C and a hangup reach mrw and not the check. While the check
 	// runs, an interrupt, terminate or hangup sent to mrw cancels it instead:
@@ -291,6 +299,7 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	if err != nil {
 		return res, err
 	}
+	res.Hint = scopeHint(cfg, scoped, editedPaths, res)
 	// Pruned only once the check has exited AND been judged. Before the start,
 	// a temp directory of old logs delayed every check, and a cancel meant for a
 	// running one landed before sh existed (the race suite on #241); between the
@@ -606,6 +615,21 @@ func command(root string, cfg Config, paths []string) (cmdline string, scoped bo
 		return r.Replace(cfg.ScopedCheck), true
 	}
 	return cfg.Check, false
+}
+
+// scopeHint is Result.Hint (ADR-152): empty unless the check ran the whole
+// project's command for paths the caller named and took SlowAfter or longer.
+// A run for no paths (`mrw check --full`) asked for the whole command.
+func scopeHint(cfg Config, scoped bool, paths []string, res Result) string {
+	took := time.Duration(res.DurationMS) * time.Millisecond
+	if !res.Ran || scoped || len(paths) == 0 || took < SlowAfter {
+		return ""
+	}
+	took = took.Round(time.Second)
+	if cfg.ScopedCheck == "" {
+		return fmt.Sprintf(`the check took %s running the whole project's command; declare "scoped_check" in .quality-harness.json to check only the files a write touched, e.g. "pytest {dirs}" ({files} and {dirs} work in any language, {packages} in Go)`, took)
+	}
+	return fmt.Sprintf(`the check took %s running the whole project's command, because scoped_check %q could not name these paths ({packages} names Go packages only); a template with {files} or {dirs} runs scoped for any language`, took, cfg.ScopedCheck)
 }
 
 // dirsOf is {dirs} (ADR-124): the directory of each edited file, or a named
