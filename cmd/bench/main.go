@@ -203,11 +203,11 @@ func analyze(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(w, "| model | source | verdict | tasks | attempts | excluded | cost (B−A)/A [95%] | solved B−A [95%] | silent mis-edits A / B | B shell reads |")
-	fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|")
+	fmt.Fprintln(w, "| model | source | verdict | tasks | attempts | excluded | cost (B−A)/A [95%] | solved B−A [95%] | silent mis-edits A / B | B shell reads | B slipped writes |")
+	fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|---|")
 	for _, r := range results {
-		fmt.Fprintf(w, "| %s | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d / %d | %d |\n",
-			r.Model, r.Source, r.Verdict, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.SilentA, r.SilentB, r.ReadsB)
+		fmt.Fprintf(w, "| %s | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d / %d | %d | %d |\n",
+			r.Model, r.Source, r.Verdict, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.SilentA, r.SilentB, r.ReadsB, r.SlippedB)
 	}
 	return nil
 }

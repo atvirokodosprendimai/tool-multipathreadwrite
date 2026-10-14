@@ -137,6 +137,8 @@ func TestTheVerdictFollowsTheRegisteredBar(t *testing.T) {
 	// B's counted shell reads are reported beside the verdict (Zy, 2026-10-14);
 	// A has no hook, and a count on an A receipt is not B's.
 	rs[1].HookReads, rs[3].HookReads, rs[0].HookReads = 3, 2, 7
+	// And B's slipped writes, the backstop for a write the hook missed.
+	rs[1].SlippedWrites, rs[3].SlippedWrites, rs[0].SlippedWrites = []string{"a.go", "b.go"}, []string{"c.go"}, []string{"x.go"}
 	got, err := Analyze(rs)
 	if err != nil {
 		t.Fatal(err)
@@ -146,5 +148,8 @@ func TestTheVerdictFollowsTheRegisteredBar(t *testing.T) {
 	}
 	if got[0].ReadsB != 5 {
 		t.Errorf("B's shell reads: %d, want 5", got[0].ReadsB)
+	}
+	if got[0].SlippedB != 3 {
+		t.Errorf("B's slipped writes: %d, want 3", got[0].SlippedB)
 	}
 }

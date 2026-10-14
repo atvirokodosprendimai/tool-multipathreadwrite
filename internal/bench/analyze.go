@@ -24,7 +24,8 @@ type Result struct {
 	SolvedHi   float64  `json:"solved_diff_hi"`
 	SilentA    int      `json:"silent_mis_edits_a"`
 	SilentB    int      `json:"silent_mis_edits_b"`
-	ReadsB     int      `json:"shell_reads_b"` // B's reads through cat, grep and kin, counted not refused
+	ReadsB     int      `json:"shell_reads_b"`    // B's reads through cat, grep and kin, counted not refused
+	SlippedB   int      `json:"slipped_writes_b"` // files B changed by a means its hook missed
 }
 
 // The bootstrap the registration fixes, and the tolerance a boundary of the
@@ -75,6 +76,7 @@ func Analyze(rs []Receipt) ([]Result, error) {
 			}
 			if r.Config == "B" {
 				res.ReadsB += r.HookReads
+				res.SlippedB += len(r.SlippedWrites)
 			}
 			if r.SilentMisEdit {
 				if r.Config == "A" {

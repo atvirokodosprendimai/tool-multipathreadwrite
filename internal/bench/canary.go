@@ -23,7 +23,8 @@ var hookMarkers = []string{"<<<memoryd data", "memoryd ·", "agentsmemory", "qua
 // sentence of the user's CLAUDE.md; a user hook's output. configDir is the
 // attempt's CLAUDE_CONFIG_DIR: the CLI prints it in the init line's paths, and
 // it is bench's own name for a directory, not context the model was given, so
-// it is taken out of the text the mrw check reads, and only that one.
+// it is taken out of the text the mrw and hook checks read; the CLAUDE.md
+// check reads the text whole, so a sentence naming that directory still counts.
 func CheckCanary(transcript []byte, c Config, claudeMD, configDir string) []string {
 	var problems []string
 	t := parseTranscript(transcript)
@@ -55,7 +56,7 @@ func CheckCanary(transcript []byte, c Config, claudeMD, configDir string) []stri
 		}
 	}
 	for _, m := range hookMarkers {
-		if strings.Contains(text, m) {
+		if strings.Contains(named, m) {
 			problems = append(problems, fmt.Sprintf("a user hook's output is present: %q", m))
 		}
 	}

@@ -115,5 +115,8 @@ bench swebench-select [--n 20] < instance-ids
 
 `bench analyze` prints one row per model and task source with the verdict of
 the bar registered in `docs/adr/BACKLOG.md` ("Pre-registered for ADR-156"),
-the bootstrap intervals, the exclusions and the silent mis-edits of each
-configuration. A pilot directory is left out.
+the bootstrap intervals, the exclusions, the silent mis-edits of each
+configuration, and configuration B's counted shell reads and slipped writes —
+the files B changed by a means its hook missed. The hook is a heuristic, not a
+security boundary (the record's Out of Scope); the slipped writes are what
+catches a write that got past it. A pilot directory is left out.

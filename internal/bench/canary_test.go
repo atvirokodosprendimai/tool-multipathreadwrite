@@ -71,4 +71,15 @@ func TestTheConfigDirectoryIsNotALeak(t *testing.T) {
 	if p := CheckCanary([]byte(quoted), Configs["A"], md, dir); len(p) == 0 {
 		t.Error("a CLAUDE.md sentence naming the config directory passed once the directory was cut")
 	}
+	// Nor does a hook marker in the config directory's own path count as a
+	// hook's output; the marker anywhere else still does (the fourth).
+	hookDir := "/Users/x/.local/share/agentsmemory/claude-config"
+	hookInit := strings.Replace(init, dir, hookDir, 1)
+	if p := CheckCanary([]byte(hookInit+"\n"+result+"\n"), Configs["A"], "", hookDir); len(p) != 0 {
+		t.Errorf("a hook marker in the config directory's own path failed the canary: %v", p)
+	}
+	hooked := hookInit + "\n" + `{"type":"assistant","message":{"content":[{"type":"text","text":"agentsmemory recalled this"}]}}` + "\n" + result + "\n"
+	if p := CheckCanary([]byte(hooked), Configs["A"], "", hookDir); len(p) == 0 {
+		t.Error("a hook marker outside the config directory's path passed")
+	}
 }

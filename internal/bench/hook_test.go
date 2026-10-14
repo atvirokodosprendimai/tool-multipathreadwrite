@@ -71,6 +71,8 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 		// And its third: arithmetic, and quotes a heredoc keeps as text.
 		"echo $(( $(touch f) + 1 ))",
 		"cat <<EOF\n\" '$(touch f)' \"\nEOF",
+		// And its fourth: arithmetic expands as double quotes do.
+		"echo $(( '$(touch f)' + 1 ))",
 	}
 	pass := []string{
 		"mrw read f.go:1-3",

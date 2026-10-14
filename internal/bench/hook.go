@@ -187,8 +187,9 @@ func classify(cmd string, depth int) (string, []string) {
 // back `printf "'"; touch f; printf "'"` whole (the reviews of #411); an
 // arithmetic `$((…))` is not one, but the substitutions inside it are. ok is
 // false when a substitution never closes. With inDouble, the text is read as
-// an unquoted heredoc's body: as inside double quotes, except that a quote is
-// a character of the text, never the end of one (the third re-review).
+// an unquoted heredoc's body or an arithmetic expression: as inside double
+// quotes, except that a quote is a character of the text, never the end of
+// one (the third and fourth re-reviews).
 func scanShell(s string, inDouble bool) (bare string, subs []string, ok bool) {
 	var b strings.Builder
 	double := inDouble
@@ -218,7 +219,7 @@ func scanShell(s string, inDouble bool) (bare string, subs []string, ok bool) {
 				return b.String(), subs, false
 			}
 			if i+2 < len(s) && s[i+2] == '(' { // $(( … )) is arithmetic
-				_, inner, innerOK := scanShell(s[i+3:end-1], false)
+				_, inner, innerOK := scanShell(s[i+3:end-1], true)
 				if !innerOK {
 					return b.String(), subs, false
 				}
