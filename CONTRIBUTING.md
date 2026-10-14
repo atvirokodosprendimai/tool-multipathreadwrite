@@ -4,7 +4,7 @@
 
 | for | you need |
 |---|---|
-| building and testing | **Go 1.26.6 or newer** (the version in `go.mod`). One dependency, no cgo. |
+| building and testing | **Go 1.26.9 or newer** (the version in `go.mod`). One dependency, no cgo. |
 | `scripts/measure.sh` | **bash**, **git**, **awk**, and a POSIX userland (`sed`, `tr`, `wc`, `mktemp`, `rm`, …). No `bc`: it was `measure.sh`'s only user and `bc scale=1` truncated the ratios. It builds its own binary from the working tree and stamps the commit — unless `MRW` names one, and then the header says the binary came from elsewhere, because the commit describes only the fixtures and the file list. |
 | `scripts/contract.sh` | the same, plus **python3** (JSON, throughout), **perl**, **jq**, **shasum**, **pgrep** and **seq** (not POSIX). ⚠ This row has been wrong four times: it listed `bc`, which nothing needs; it omitted `python3`, which is mandatory; "a POSIX userland" covered `seq`, which is not in POSIX; and it carried counts — 86 python3 lines, 21 `seq` lines — of which the first was 94 by the time anyone re-counted. The counts are gone rather than corrected: a number in prose beside a script goes stale in the very commit that changes the script, and no reader of this row was ever going to act on it. It names the NON-baseline commands and says "a POSIX userland" for the rest rather than pretending to enumerate every `sed` and `wc` — an incomplete list that reads as complete is what made the earlier versions misleading. |
 | either script on Windows | **WSL** or **Git Bash**. They are POSIX shell, not PowerShell. The binary itself is native. |
@@ -19,6 +19,10 @@ you push — `go test ./...`, `./scripts/contract.sh` and the static gate `./scr
 them. This file keeps what a person needs around them — the platform notes below, and why an exit
 code is never read through a pipe — and does not carry a second copy of the list, which is how the two
 drifted apart once (the opencode plugin gate was here and not there, 2026-09-29).
+
+Besides Go, the static gate runs ruff, shellcheck, actionlint and knip over what is not Go (ADR-147),
+so it needs ruff and shellcheck on `PATH` and `npm ci` run in `cmd/opencode/mrw-plugin`; it names
+each install when one is missing, and `.claude/rules/static-analysis.md` gives the versions.
 
 Go builds and tests run on **Linux and Windows** in CI; `contract.sh` runs on
 Linux, because it drives a POSIX shell.
@@ -88,7 +92,7 @@ job re-matches with a regex and everything downstream gates on it —
 amd64 and arm64, windows on amd64) and publish as raw binaries, conventional
 archives, and a `SHA256SUMS.txt`.
 
-The README **Status** line names the **tagged** SHA (`v1.48.0` is `a387dc9`),
+The README **Status** line names the **tagged** SHA (`v1.65.0` is `1a91b80`),
 never a later squash or docs commit. Bump it only when a new tag is cut.
 
 ## Licence

@@ -1,9 +1,6 @@
 package mcp
 
 import (
-	"slices"
-	"strings"
-
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -16,7 +13,7 @@ import (
 
 // slash spells p's sep separators as "/".
 func slash(p string, sep rune) string {
-	return strings.ReplaceAll(p, string(sep), "/")
+	return apply.Slash(p, sep)
 }
 
 // slashKeys returns m with every key slash-spelled, for mrw_read's observed.
@@ -26,30 +23,4 @@ func slashKeys(m map[string]seen.Observation, sep rune) map[string]seen.Observat
 		out[slash(k, sep)] = v
 	}
 	return out
-}
-
-// slashResult returns res with every root-relative path slash-spelled, for
-// mrw_write's receipt: hunk and file paths, a rename's destination, a
-// symlink's target, the directories a plan made and what it left behind. The
-// slices are copied, so the engine's result is not changed. Root stays an OS
-// path: it is absolute, and a caller hands it to its own filesystem.
-func slashResult(res apply.Result, sep rune) apply.Result {
-	res.Hunks = slices.Clone(res.Hunks)
-	for i := range res.Hunks {
-		res.Hunks[i].Path = slash(res.Hunks[i].Path, sep)
-	}
-	res.Files = slices.Clone(res.Files)
-	for i := range res.Files {
-		f := &res.Files[i]
-		f.Path, f.RenamedTo, f.Target = slash(f.Path, sep), slash(f.RenamedTo, sep), slash(f.Target, sep)
-	}
-	res.DirsCreated = slices.Clone(res.DirsCreated)
-	for i, d := range res.DirsCreated {
-		res.DirsCreated[i] = slash(d, sep)
-	}
-	res.LeftBehind = slices.Clone(res.LeftBehind)
-	for i, p := range res.LeftBehind {
-		res.LeftBehind[i] = slash(p, sep)
-	}
-	return res
 }

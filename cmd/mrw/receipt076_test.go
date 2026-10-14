@@ -26,14 +26,14 @@ func TestTheReceiptNamesEveryPathTheWriteTouched(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
-	sep := string(filepath.Separator)
+	// ADR-132: a receipt spells paths with "/" on every platform (ADR-091).
 	for _, want := range []string{
-		"created n" + sep + "\n",
-		"created " + filepath.Join("n", "deep") + sep + "\n",
-		"created m2" + sep + "\n",
+		"created n/\n",
+		"created n/deep/\n",
+		"created m2/\n",
 		"removed gone.txt  1L -> 0L  was sha ",
 		"removed mv.txt  1L -> 0L  was sha ",
-		"renamed to " + filepath.Join("m2", "mv.txt"),
+		"renamed to m2/mv.txt",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("receipt lacks %q:\n%s", want, out)

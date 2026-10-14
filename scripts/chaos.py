@@ -36,7 +36,7 @@ user's. It found the CR-only read/write split (ADR-065) and the half-applied
 rename (ADR-066) on 2026-09-24; a failure it reports is a LEAD — confirm it by
 hand before calling it a defect, since the model can be wrong too.
 """
-import json, os, random, re, shutil, subprocess, sys, threading, time, hashlib
+import json, os, random, re, shutil, subprocess, sys, threading, time
 
 # The Windows console's code page cannot print U+FFFD; write UTF-8 everywhere
 # rather than asking every caller for PYTHONIOENCODING (2026-09-25).
@@ -799,7 +799,6 @@ def suite_mcp(n):
         if 99 not in ids:
             fail("mcp", "no answer to the final tools/list: the server stopped serving", root, None, data, (p.returncode, o, e, 0)); continue
         if "root:x:0:0" in o: fail("mcp", "served /etc/passwd", root, None, data, (p.returncode, o, e, 0))
-        wr = [r for r in resp if isinstance(r, dict) and r.get("id") == 4]
         if rd(os.path.join(root, names[0])).startswith(b"X\n"):
             fail("mcp", "mrw_write applied with a bogus ack / no read", root, None, data, (p.returncode, o, e, 0))
         for rid, (method, version, caps) in modern.items():

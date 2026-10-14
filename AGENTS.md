@@ -19,7 +19,7 @@ go test -race ./...
 gofmt -l .                             # must print nothing
 go vet ./...
 ./scripts/contract.sh                  # bash; WSL or Git Bash on Windows
-./scripts/static.sh                    # golangci-lint, deadcode, U1000, govulncheck (ADR-088), fence-prose
+./scripts/static.sh                    # golangci-lint, deadcode, U1000, govulncheck (ADR-088), fence-prose; ruff, shellcheck, actionlint, knip (ADR-147)
 go build -o bin/mrw ./cmd/mrw && (cd cmd/opencode/mrw-plugin && npm ci && npm run build && npm test)   # the opencode plugin (ADR-089)
 ```
 
@@ -56,6 +56,16 @@ The failure the whole design exists to prevent: *a read that returns nothing is
 visible; a write that changes nothing is not.* `--format=apply_patch` and
 `--format=search_replace` compile to a native plan; sequential apply_patch is
 the leak, not the feature.
+A new file needs no plan: `mrw write --create PATH < content` makes it from standard input as the `create` plan of
+those lines would (ADR-139), through the same lock, check and receipt.
+PowerShell appends a CRLF to everything it pipes (ADR-142): after LF lines with no other CR that CRLF is dropped, and stderr says
+so; content that is all CRLF and ends in an empty line is kept and named, because mrw cannot tell PowerShell's CRLF from a blank
+line the file has (`cmd /c "mrw write --create p < f"` adds none); content whose lines end in CRLF is written with LF, as every
+line a create writes is, and stderr says so; a leading byte order mark is kept and named (PowerShell adds one when `$OutputEncoding`
+is UTF-8 with a preamble, and Windows PowerShell 5.1 also when `[Console]::InputEncoding` is, as in a shell started under code page
+65001). Windows PowerShell 5.1's default `$OutputEncoding` is ASCII, which turns non-ASCII text into `?` before mrw sees it: set
+`$OutputEncoding = [Text.UTF8Encoding]::new($false)` first, and in a shell started under code page 65001 set
+`[Console]::InputEncoding` to the same. A `--create` of a path that exists says that it exists.
 
 ## Portability — one trap, learned the hard way
 
@@ -85,6 +95,12 @@ would read as another name: `b.txt.`, `b.txt ` and `b.txt::$DATA` all open
 `0` fine · `1` a hunk failed and nothing was written · `2` usage or filesystem
 failure · `3` the write applied but the check failed, timed out or was interrupted,
 so the tree is changed and unverified. Tests assert these; changing one is a breaking change.
+A `2` after a write that printed `applied` means the files changed and something after the landing failed: the check could not
+start, or the read ledger could not be updated (a holder on Windows). The message says which; for the ledger, the next edit needs a
+read first. Check the tree before retrying the plan.
+A `mrw read` that exits `1` ends its stderr with the kind (ADR-146): `mrw: no match: …` when a search found no file and nothing it was
+asked for was refused, `mrw: incomplete: …` when a requested range or path was not served, a search that matched no file beside a refused
+path included. Read the first word after `mrw: `; every earlier phrase survives inside the line.
 
 And a receipt's keys are only added (ADR-111): every key a `--json` or MCP receipt carries is listed in
 `docs/receipts.txt`, keeps its name, type and meaning, and a new one is appended there in the change that adds it.
@@ -136,7 +152,10 @@ for callers sharing a checkout. A writer waits up to 120 s for the one before it
 nothing applied, naming the holder's pid; `MRW_WRITE_LOCK_TIMEOUT` sets the wait in seconds, `0` for one try (ADR-110).
 While an `mrw_write`'s check runs the server answers what arrives after it — a ping, a read, another write — and a
 call whose `_meta.progressToken` is set hears `notifications/progress` every 15 s until its answer; every other
-answer keeps its request order (ADR-121). `notifications/cancelled` does not stop a running check.
+answer keeps its request order (ADR-121). `notifications/cancelled` for an `mrw_write` whose check is running stops the
+check, which is then reported interrupted — the write has landed (ADR-128). A request line that starts with a UTF-8
+byte-order mark is read; a refusal does not advise `--force`, which `mrw_write` does not take; and an ack id that matched
+no checkpoint is named at the top of the answer when it fits.
 
 Both tools are bounded at 200,000 characters of ENCODED result, and the number is yours to set:
 `mrw mcp --max-result-chars N` or `MRW_MAX_RESULT_CHARS`. The flag beats the variable, omitting both
@@ -158,6 +177,12 @@ the ones you want. Like a grep index, an ast_grep index pages with `after`: send
 the same finder again with `after` set to `next_index`, until it is empty.
 `--files-from FILE` maps onto `files_from`, a file inside the root (`-` is refused: stdin carries the
 protocol); `--max-lines` onto `max_lines` and `--stat` onto `stat`, each licensing only what it served (ADR-117).
+`--max-cols N` (CLI only, ADR-137) cuts a line longer than N characters to a window round the first match and records
+that line as NOT read: a plan that replaces it is refused until it is read whole. `--stat` lists the files with their
+length and sha and `-N` drops the line numbers.
+A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`) is a usage error, exit 2, that ends with mrw's spelling (ADR-140).
+`--grep -i PATTERN` is not an unknown flag: `-i` is taken as the pattern, and a read that matches nothing ends `no file matched /-i/` (exit 1) with the same
+hint; write `--grep '(?i)PATTERN'`.
 
 ### 1. Read many ranges in one call, and let the read do the finding
 
@@ -196,8 +221,18 @@ ignore — `core.excludesFile` is not read — and any walk skips a binary file 
 the first 8 KiB). Under `--grep` nothing is skipped silently: a `-- skipped:` line counts both, and `--no-ignore` walks
 every file. A path you name is walked either way, an ignored directory included; the rules still apply
 inside it. Matching folds case where the filesystem does, as git's `core.ignorecase` defaults (ADR-116).
+It does not enter a directory below the checkout that holds its own `.git` — another repository, a submodule, a
+worktree — as git does not; the `-- skipped:` line counts it `nested`, a path you name inside one is walked by
+that repository's rules, and `--no-ignore` walks it (ADR-130).
+On a Windows build, a discovered file whose name Windows will not keep — a reserved device name such as `aux.txt`
+or `nul`, or a name ending in a dot or a space — is refused by its spelling and not served; the `-- skipped:`
+line counts it as `file(s) with a name Windows will not keep` (`skipped.unkeepable` over MCP), and no flag walks
+it: name one to be told why (ADR-135). The count says a name exists, never what the file held.
+A link to a directory met inside the root is not followed (ADR-096) and is counted as `link(s) to a directory, not
+followed` (`skipped.linked_dirs` over MCP, ADR-138); name the directory it leads to. A link that leaves the root is
+refused by `Resolve` first and stays uncounted.
 `--ast-grep` serves the same files (ADR-122): ast-grep still prunes what `.gitignore` ignores itself, every hit then
-passes mrw's own rules — nested checkouts, binary files, `.git` — and what those rules drop is counted in the same
+passes mrw's own rules — nested repositories, binary files, `.git` — and what those rules drop is counted in the same
 `-- skipped:` line; what ast-grep pruned itself never reaches mrw and is not counted. The ignore sources only
 ast-grep reads (`.ignore`, `core.excludesFile`, hidden files) are turned off, and `--no-ignore` reaches it too.
 A `.git/` the walk meets is skipped; one you name (`--grep X .git`) is walked.
@@ -251,7 +286,7 @@ committing reports what reached disk (`PARTIALLY APPLIED` naming what landed, or
 `NOTHING WRITTEN` when the undo put everything back). Ops are `replace`, `insert-after`,
 `insert-before`, `delete`, `create`, `unlink`, `rename`. `@@ path - unlink`
 removes the path (empty body OK). `@@ old - rename` with a one-line dest body
-moves it — beside edits to the same file in one plan, the edited file moves (ADR-114). Only `delete` may carry no body among the line-range ops: a lost
+moves it — beside edits to the same file in one plan, the edited file moves (ADR-114); on a filesystem that folds case, a rename may change only the case of a name (`a.txt` → `A.txt`), while a destination that is another entry — a hard link under another name included — is refused (ADR-129). Only `delete` may carry no body among the line-range ops: a lost
 body reads exactly like one never written, so an empty file is spelled
 `@@ new.txt 0 create body=0`, and a bare `create` with nothing under it is
 refused and leaves no file behind. `body=@path` loads those lines from a
@@ -342,7 +377,14 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 - **Read before write is ENFORCED, and it is per LINE.** Being served lines
   10-12 does not license an edit at line 50. The one exception is a file mrw
   itself just wrote: it produced every line, so the whole file is licensed
-  until something else changes it (ADR-002, ADR-005 §4).
+  until something else changes it (ADR-002, ADR-005 §4). A read whose answer
+  goes to the null device (`>/dev/null`, cmd.exe's `>NUL`) licenses nothing and says so on
+  stderr, and names each file whose served lines an earlier read or write still licenses, where a
+  write is judged on that licence (ADR-133, ADR-148); PowerShell's `> $null` and `| Out-Null` are
+  pipes and still record (so is PowerShell 7's `> NUL`; in 5.1 it fails before mrw starts).
+  Read what you mean to edit: the licence stands for lines you saw, and
+  a file you never open licenses all the same — mrw cannot tell, so redirecting a read to satisfy
+  the guard defeats it.
 - **AFTER ANY MULTI-LINE BODY, READ ON PAST YOUR RANGE UNTIL YOU SEE THE
   ENCLOSING STRUCTURE CLOSE.** Unconditional, and deliberately wider than the
   write. What follows is explanation, not a trigger: a rule opening "if your body
@@ -366,7 +408,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   A multi-line `replace` is refused unless the ledger already covers a line after
   `End` (ADR-052). Single-line replace is unchanged. When `End` is the last line
   the licence is skipped. A ranged multi-line read that is not through last line
-  prints a note that a multi-line replace needs a served line after End.
+  prints a note, once per read, that a multi-line replace needs a served line after End (ADR-136).
   `--echo-pad N` (MCP `echo_pad`, default 0) prints N
   lines after the body so a surviving closer is visible; the hunk stays `ok`.
   The pad is not a checker.
@@ -473,7 +515,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   or `attrib -r` on Windows). A file mrw cannot read for a reason it can name — permission denied, or on
   Windows held exclusively or a name the system refuses — is refused on its hunk with that reason, exit 1,
   nothing written. On Windows a target held without delete sharing (an editor, a language server) is
-  refused before any rename, exit 2, NOTHING WRITTEN, the hunk naming that it is held (ADR-125). On Windows a path with a reserved device name in any component — `CON`,
+  refused before any rename, exit 1, NOTHING WRITTEN, the hunk naming that it is held (ADR-125). Any refusal during staging, before the commit loop, whose cause is the target's — held, a permission, a name the system refuses, a file changed or removed since mrw read it — exits 1 like a validation refusal; one the environment causes (disk full, an I/O error, an error mrw cannot name), one that leaves mrw's own temps behind, and any failure in the commit loop exit 2 (ADR-132). On Windows a path with a reserved device name in any component — `CON`,
   `PRN`, `AUX`, `NUL`, `COM1`–`9`, `LPT1`–`9`, `CONIN$`, `CONOUT$`, with or without an extension — is
   refused by name on every build, directly or through a link, since some Windows APIs still open it
   as a device (ADR-081). The receipt names what
@@ -481,6 +523,8 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   `dirs_created` (`created d/` on the human receipt) for the directories it made, `left_behind`
   (`left behind: <path>`) for what it made and could not remove, and a removed file's former sha
   (ADR-105). README "What a failure leaves on disk" says what each failure stage leaves.
+  A write whose path has a `.git` component — as spelled in any case, or by where a link leads, or because the root is inside one — is
+  refused as a failed hunk, exit 1, nothing written; a read of `.git` is served, and no flag lifts the refusal (ADR-143).
 - **A path-scoped rule in `.claude/rules/` is delivered by your harness's own Read tool, and by
   none of `mrw read`, `mrw_read`, `cat` or a Write** — measured 2026-09-04 in Claude Code, issue #86.
   Here `.claude/settings.json` installs `.claude/hooks/rules-on-read.py`, a PostToolUse hook that
@@ -506,11 +550,14 @@ and #73, one release apart.
   and plan the activity, the two rules that produce most refusals, the traps
   that make a red run look green, the plan ops, and the read side — address
   forms, `--grep`, `--files-from`, and where a plan reads an address
-  differently (ADR-063). Exit 0. No flags. A caller who installed mrw and has
+  differently (ADR-063). Exit 0. One flag, `--core` (ADR-141). A caller who installed mrw and has
   neither this checkout nor the skill can learn the format from this.
   `mrw --instructions` is refused, exit 2, with a message naming `mrw
   instructions`; so is any other undefined flag that is exactly the name of a
-  subcommand of the command it was given to (ADR-097).
+  subcommand of the command it was given to (ADR-097). `mrw instructions --core`
+  prints the eight rules that matter most, in under 300 words (ADR-141): the form
+  to put in standing instructions; a test holds it to the full text and to the
+  flags the binary has.
 - **`mrw check`** runs the project's check on its own, scoped to the working
   set or to paths you name. A CLI `write` to a non-prose file runs the same
   runner by default (ADR-054); this is it without the write, for when you want the verdict again
@@ -563,7 +610,9 @@ writes to your checkout of its own accord — with the one exception above, wher
 
 And the tree can hold mrw's state when you point it there — `XDG_STATE_HOME` inside the checkout,
 or `--root "$HOME"` with `~/.local/state`. mrw then serves and edits nothing inside its own state
-directory (ADR-077): a grep skips it, and a read or a plan naming a file there is refused.
+directory (ADR-077): a grep skips it, and a read or a plan naming a file there is refused. So is a
+hard link in the tree to a file in this checkout's state directory (ADR-134), judged by identity,
+wherever the link is; another checkout's ledger is not compared.
 
 The gate list is §Build and check at the top of this file. See `CONTRIBUTING.md` for the release
 process, and `README.md` for the full interface.

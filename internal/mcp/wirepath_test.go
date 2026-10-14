@@ -55,7 +55,7 @@ func TestAWriteReceiptPathIsSpelledWithSlashes(t *testing.T) {
 		Files:       []apply.FileResult{{Path: `cmd\app\main.go`, RenamedTo: `cmd\app\run.go`, Target: `real\main.go`, Removed: true}},
 		DirsCreated: []string{`cmd`, `cmd\app`},
 	}
-	got := slashResult(in, '\\')
+	got := apply.Slashed(in, '\\')
 	for name, pair := range map[string][2]string{
 		"hunks[0].path":        {got.Hunks[0].Path, "internal/store/store.go"},
 		"files[0].path":        {got.Files[0].Path, "cmd/app/main.go"},
@@ -70,7 +70,7 @@ func TestAWriteReceiptPathIsSpelledWithSlashes(t *testing.T) {
 		}
 	}
 	if in.Hunks[0].Path != `internal\store\store.go` || in.Files[0].Target != `real\main.go` || in.DirsCreated[1] != `cmd\app` {
-		t.Errorf("slashResult changed the engine's result it was handed: %+v", in)
+		t.Errorf("apply.Slashed changed the engine's result it was handed: %+v", in)
 	}
 
 	root := exampleTree(t)

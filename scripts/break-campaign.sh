@@ -10,36 +10,36 @@ say() { printf '[%s] exit=%s  %s\n' "$1" "$2" "$(printf '%s' "$3" | tr '\n' ' ' 
 plan() { printf '%b' "$1" > "$R/p.plan"; }
 
 # ---------- 1. pattern addresses in plans (ADR-013) ----------
-fresh; printf 'alpha\nbeta gamma\nbeta\ndelta\n' > f.txt; t "$MRW" read f.txt >/dev/null
+fresh; printf 'alpha\nbeta gamma\nbeta\ndelta\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt /beta gamma/ replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-with-space" $? "$(sed -n 2p f.txt) | $out"
-fresh; printf 'a/b\nc\n' > f.txt; t "$MRW" read f.txt >/dev/null
+fresh; printf 'a/b\nc\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt /a\\/b/ replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-escaped-slash" $? "$(sed -n 1p f.txt) | $out"
-fresh; printf 'one\ntwo\nthree\n' > f.txt; t "$MRW" read f.txt >/dev/null
+fresh; printf 'one\ntwo\nthree\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt /three/,/one/ replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-end-before-start" $? "$(tr '\n' '|' < f.txt) | $out"
-fresh; printf 'one\ntwo\nthree\n' > f.txt; t "$MRW" read f.txt >/dev/null
+fresh; printf 'one\ntwo\nthree\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt /one/,/nomatch/ replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-end-never-matches" $? "$(tr '\n' '|' < f.txt) | $out"
-fresh; printf 'one\ntwo\n' > f.txt; t "$MRW" read f.txt >/dev/null
+fresh; printf 'one\ntwo\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt // replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-empty-regex" $? "$(tr '\n' '|' < f.txt) | $out"
 plan '@@ f.txt /(/ replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-invalid-regex" $? "$out"
 plan '@@ f.txt /one/ replace\nX\n@@ f.txt 1 replace\nY\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat+numeric-same-line" $? "$(tr '\n' '|' < f.txt) | $out"
-fresh; printf 'one\r\ntwo\r\n' > f.txt; t "$MRW" read f.txt >/dev/null
+fresh; printf 'one\r\ntwo\r\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt /two$/ replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-dollar-on-crlf" $? "$(od -c f.txt | head -2 | tr -s ' ' | tr '\n' ' ') | $out"
-fresh; printf 'one\ntwo\n' > f.txt; t "$MRW" read f.txt:1 >/dev/null
+fresh; printf 'one\ntwo\n' > f.txt; t "$MRW" read f.txt:1 >"$W/served.out"
 plan '@@ f.txt /two/ replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-resolves-to-unserved-line" $? "$(tr '\n' '|' < f.txt) | $out"
-fresh; printf 'one\ntwo\n' > f.txt; t "$MRW" read f.txt >/dev/null
+fresh; printf 'one\ntwo\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt /one/ insert-after lines=1\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-insert-after-lines-guard" $? "$(tr '\n' '|' < f.txt) | $out"
 
 # ---------- 2. case-insensitive filesystem: two spellings of one file ----------
-fresh; printf 'one\ntwo\nthree\n' > Same.txt; t "$MRW" read Same.txt same.txt >/dev/null 2>&1
+fresh; printf 'one\ntwo\nthree\n' > Same.txt; t "$MRW" read Same.txt same.txt >"$W/served.out" 2>&1
 plan '@@ Same.txt 1 replace\nX\n@@ same.txt 3 replace\nZ\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "case-two-spellings-one-plan" $? "file=$(tr '\n' '|' < Same.txt) | $out"
-fresh; printf 'one\ntwo\n' > Same.txt; t "$MRW" read Same.txt >/dev/null
+fresh; printf 'one\ntwo\n' > Same.txt; t "$MRW" read Same.txt >"$W/served.out"
 plan '@@ same.txt 1 replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "case-read-A-write-a" $? "file=$(tr '\n' '|' < Same.txt) | $out"
 
 # ---------- 3. symlinks ----------
 fresh; mkdir -p "$W/outside"; printf 'secret\n' > "$W/outside/s.txt"; ln -s "$W/outside/s.txt" link.txt
 out=$(t "$MRW" read link.txt 2>&1); say "symlink-read-escapes-root?" $? "$out"
 plan '@@ link.txt 1 replace\nOWNED\n'; out=$(t "$MRW" write --quiet --force p.plan 2>&1); say "symlink-write-through-force" $? "outside=$(cat "$W/outside/s.txt") islink=$([ -L link.txt ] && echo yes || echo no) | $out"
-fresh; printf 'in\n' > real.txt; ln -s real.txt link.txt; t "$MRW" read link.txt >/dev/null 2>&1
+fresh; printf 'in\n' > real.txt; ln -s real.txt link.txt; t "$MRW" read link.txt >"$W/served.out" 2>&1
 plan '@@ link.txt 1 replace\nVIA-LINK\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "symlink-inside-write" $? "real=$(cat real.txt) islink=$([ -L link.txt ] && echo yes || echo no) | $out"
 fresh; mkdir sub; ln -s "$W/outside" sub/esc; out=$(t "$MRW" read --grep secret sub/ 2>&1); say "grep-walk-symlink-dir-outside" $? "$out"
 fresh; ln -s . loop; printf 'needle\n' > n.txt; out=$(t "$MRW" read --grep needle . 2>&1); say "grep-walk-symlink-loop" $? "$(echo "$out" | grep -c needle) matches, $(echo "$out" | tail -1 | cut -c1-60)"
@@ -51,29 +51,29 @@ fresh; printf 'needle\n' > a.txt; mkfifo pipe; out=$(t "$MRW" read --grep needle
 fresh; printf 'needle\n' > a.txt; mkdir locked; printf 'needle\n' > locked/b.txt; chmod 000 locked; out=$(t "$MRW" read --grep needle . 2>&1); rc=$?; chmod 755 locked; say "grep-walk-unreadable-dir" $rc "$(echo "$out" | grep -ci 'locked\|permission') mentions of the dir | $out"
 
 # ---------- 5. degenerate files ----------
-fresh; : > empty.txt; t "$MRW" read empty.txt >/dev/null
+fresh; : > empty.txt; t "$MRW" read empty.txt >"$W/served.out"
 plan '@@ empty.txt 1 insert-before\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "empty-insert-before-1" $? "bytes=$(wc -c < empty.txt | tr -d ' ') | $out"
-fresh; : > empty.txt; t "$MRW" read empty.txt >/dev/null
+fresh; : > empty.txt; t "$MRW" read empty.txt >"$W/served.out"
 plan '@@ empty.txt $ insert-after\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "empty-insert-after-dollar" $? "bytes=$(wc -c < empty.txt | tr -d ' ') content=$(tr '\n' '|' < empty.txt) | $out"
-fresh; printf 'no newline at end' > f.txt; t "$MRW" read f.txt >/dev/null
+fresh; printf 'no newline at end' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt 1 replace\nstill none?\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "no-trailing-newline-preserved" $? "$(tail -c 1 f.txt | od -c | head -1 | tr -s ' ') | $out"
-fresh; printf 'only\n' > f.txt; t "$MRW" read f.txt >/dev/null
+fresh; printf 'only\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt 1 delete\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "delete-only-line" $? "bytes=$(wc -c < f.txt | tr -d ' ') | $out"
 fresh; printf 'a\rb\rc' > cr.txt; out=$(t "$MRW" read cr.txt 2>&1); say "cr-only-file-read" $? "$(echo "$out" | head -1 | cut -c1-40)"
-fresh; printf 'bin\0ary\nline2\n' > b.bin; t "$MRW" read b.bin >/dev/null 2>&1
+fresh; printf 'bin\0ary\nline2\n' > b.bin; t "$MRW" read b.bin >"$W/served.out" 2>&1
 plan '@@ b.bin 2 replace\nL2\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "binary-nul-write" $? "$(od -c b.bin | head -1 | tr -s ' ' | cut -c1-50) | $out"
 fresh; head -c 3000000 /dev/zero | tr '\0' 'x' > huge.txt; printf '\nend\n' >> huge.txt; out=$(t "$MRW" read huge.txt:2 2>&1); say "3MB-single-line-read-line-2" $? "$(echo "$out" | tail -1 | cut -c1-30)"
 
 # ---------- 6. overlapping and duplicate hunks ----------
-fresh; printf '1\n2\n3\n4\n' > f.txt; t "$MRW" read f.txt >/dev/null
+fresh; printf '1\n2\n3\n4\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt 1-3 replace anchor="1"\nA\n@@ f.txt 2 replace\nB\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "overlap-range-and-line" $? "$(tr '\n' '|' < f.txt) | $out"
 plan '@@ f.txt 2 replace\nB\n@@ f.txt 2 insert-after\nC\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "replace+insert-after-same-line" $? "$(tr '\n' '|' < f.txt) | $out"
 plan '@@ f.txt 2 delete\n@@ f.txt 2 replace\nB\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "delete+replace-same-line" $? "$(tr '\n' '|' < f.txt) | $out"
 
 # ---------- 7. header grammar edge ----------
-fresh; printf 'x\n' > 'my file.txt'; t "$MRW" read 'my file.txt' >/dev/null
+fresh; printf 'x\n' > 'my file.txt'; t "$MRW" read 'my file.txt' >"$W/served.out"
 plan '@@ "my file.txt" 1 replace\nY\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "quoted-path-with-space" $? "$(cat 'my file.txt') | $out"
-fresh; printf 'x\n' > f.txt; t "$MRW" read f.txt >/dev/null
+fresh; printf 'x\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 printf '\xef\xbb\xbf@@ f.txt 1 replace\nY\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "plan-with-BOM" $? "$(cat f.txt) | $out"
 printf '@@ f.txt 1 replace\r\nY\r\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "plan-with-CRLF" $? "$(od -c f.txt | head -1 | tr -s ' ') | $out"
 printf '@@\tf.txt\t1\treplace\nZ\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "plan-tab-separated-header" $? "$(cat f.txt) | $out"
@@ -100,19 +100,19 @@ fresh; printf 'x\n' > f.txt; out=$(t env -u HOME -u XDG_STATE_HOME "$MRW" read f
 out=$(XDG_STATE_HOME=/dev/null/nope t "$MRW" read f.txt 2>&1); say "unwritable-state-home" $? "$out"
 
 # ---------- 10. ADR-057 native unlink / rename ----------
-fresh; printf 'gone\n' > gone.txt; t "$MRW" read gone.txt >/dev/null
+fresh; printf 'gone\n' > gone.txt; t "$MRW" read gone.txt >"$W/served.out"
 plan '@@ gone.txt - unlink\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "unlink-after-whole-read" $? "exists=$([ -e gone.txt ] && echo yes || echo no) | $out"
-fresh; printf 'gone\n' > gone.txt; printf 'keep\n' > keep.txt; t "$MRW" read gone.txt >/dev/null
+fresh; printf 'gone\n' > gone.txt; printf 'keep\n' > keep.txt; t "$MRW" read gone.txt >"$W/served.out"
 plan '@@ gone.txt - unlink\n@@ keep.txt 1 replace anchor="keep"\nnope\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "unlink-unread-sibling" $? "gone=$([ -e gone.txt ] && echo yes || echo no) keep=$(cat keep.txt) | $out"
-fresh; printf 'moved\n' > old.txt; t "$MRW" read old.txt >/dev/null
+fresh; printf 'moved\n' > old.txt; t "$MRW" read old.txt >"$W/served.out"
 plan '@@ old.txt - rename\nnew.txt\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "rename-after-whole-read" $? "old=$([ -e old.txt ] && echo yes || echo no) new=$(cat new.txt 2>/dev/null) | $out"
-fresh; printf 'src\n' > old.txt; printf 'stay\n' > dest.txt; t "$MRW" read old.txt dest.txt >/dev/null
+fresh; printf 'src\n' > old.txt; printf 'stay\n' > dest.txt; t "$MRW" read old.txt dest.txt >"$W/served.out"
 plan '@@ old.txt - rename\ndest.txt\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "rename-onto-existing" $? "old=$(cat old.txt) dest=$(cat dest.txt) | $out"
 fresh; printf 'gone\n' > gone.txt
 plan '@@ gone.txt - unlink\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "unlink-without-read" $? "exists=$([ -e gone.txt ] && echo yes || echo no) | $out"
-fresh; printf 'stay\n' > a.txt; t "$MRW" read a.txt >/dev/null
+fresh; printf 'stay\n' > a.txt; t "$MRW" read a.txt >"$W/served.out"
 plan '@@ a.txt - unlink\n@@ a.txt 1 replace\nx\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "unlink-mix-same-path" $? "file=$(cat a.txt) | $out"
-fresh; printf 'gone\n' > gone.txt; t "$MRW" read gone.txt >/dev/null
+fresh; printf 'gone\n' > gone.txt; t "$MRW" read gone.txt >"$W/served.out"
 plan '*** Begin Patch\n*** Delete File: gone.txt\n*** End Patch\n'; out=$(t "$MRW" write --quiet --format=apply_patch p.plan 2>&1); say "apply-patch-delete-file" $? "exists=$([ -e gone.txt ] && echo yes || echo no) | $out"
 fresh; printf 'stay\n' > a.txt
 plan '*** Begin Patch\n*** Update File: a.txt\n*** Move to: b.txt\n@@\n-stay\n+gone\n*** End Patch\n'; out=$(t "$MRW" write --quiet --format=apply_patch p.plan 2>&1); say "apply-patch-move-with-hunks" $? "a=$(cat a.txt) b=$([ -e b.txt ] && echo yes || echo no) | $out"
@@ -122,7 +122,7 @@ printf '#!/bin/sh\ncat "%s"\n' "$W/fakeag/hit.json" > "$W/fakeag/ast-grep"; chmo
 out=$(PATH="$W/fakeag:$PATH" t "$MRW" read --ast-grep D --exclude b.go b.go 2>&1); say "astgrep-named-excluded" $? "$out"
 
 # ---------- ADR-066: a rename whose destination directory cannot be made writes nothing ----------
-fresh; printf 'sib\n' > s.txt; printf 'bee\n' > b.txt; "$MRW" read s.txt b.txt >/dev/null 2>&1
+fresh; printf 'sib\n' > s.txt; printf 'bee\n' > b.txt; "$MRW" read s.txt b.txt >"$W/served.out" 2>&1
 printf '@@ s.txt 1 replace\nSIB\n@@ b.txt - rename\nn/%s/f.txt\n' "$(printf '%0300d' 0 | tr 0 x)" > plan.txt
 out=$(t "$MRW" write --no-check plan.txt 2>/dev/null); rc=$?; say "rename-dest-toolong" $rc "$(tail -1 <<<"$out") s.txt=$(cat s.txt)"
 

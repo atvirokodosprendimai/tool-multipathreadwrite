@@ -382,7 +382,7 @@ func emit(op, path string, start, end int, body []string, anchor string) string 
 	needCount := len(body) > 0 && strings.HasPrefix(strings.TrimSpace(body[0]), "body=")
 	raw := false
 	for _, line := range body {
-		if strings.HasPrefix(line, "@@") {
+		if strings.HasPrefix(strings.TrimPrefix(line, "\xef\xbb\xbf"), "@@") { // the parser strips a UTF-8 BOM before it decides what is a header (plan.Parse)
 			needCount, raw = true, true
 			break
 		}

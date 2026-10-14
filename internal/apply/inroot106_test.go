@@ -112,8 +112,10 @@ func TestATempMovedByAnotherProcessIsNotClaimed(t *testing.T) {
 		{Path: "sub/a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0},
 		{Path: "y.txt", Start: 1, End: 1, Op: "replace", Body: []string{"Y"}, Lines: -1, Index: 1},
 	}, Options{Force: true})
-	if err == nil || res.Applied {
-		t.Fatalf("a commit whose temp was moved away was reported applied: %v %+v", err, res)
+	// ADR-132: the target's directory is gone since mrw read it — the
+	// target's doing, so a refused hunk with no error.
+	if err != nil || res.Applied || res.Failed != 1 {
+		t.Fatalf("a commit whose temp was moved away was not refused as the target's: %v %+v", err, res)
 	}
 	if len(res.LeftBehind) != 0 {
 		t.Errorf("LeftBehind = %q, want nothing: the moved temp is at a path mrw never made", res.LeftBehind)

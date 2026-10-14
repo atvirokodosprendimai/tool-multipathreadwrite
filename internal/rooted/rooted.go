@@ -42,7 +42,7 @@ import (
 func Abs(root string) (string, error) {
 	if followLinks {
 		if c, _ := win32Alias(root); c != "" {
-			return "", fmt.Errorf("root %s: Windows does not keep %q as written (it drops a trailing dot or space from a name, reads ':' as a stream, and turns a byte that is not valid UTF-8 into U+FFFD); name it as it is on disk", root, c)
+			return "", fmt.Errorf("root %s: Windows does not keep %q as written: %s", root, c, aliasCause(c))
 		}
 	}
 	absRoot, err := filepath.Abs(root)
@@ -72,16 +72,42 @@ func Abs(root string) (string, error) {
 	return absRoot, nil
 }
 func Resolve(root, path string) (string, error) {
-	if followLinks {
-		if c, _ := win32Alias(path); c != "" {
-			return "", fmt.Errorf("%s: Windows does not keep %q as written (it drops a trailing dot or space from a name, reads ':' as a stream, and turns a byte that is not valid UTF-8 into U+FFFD); name the file as it is on disk", path, c)
-		}
+	if err := aliasRefusal(path); err != nil {
+		return "", err
 	}
 	absRoot, err := Abs(root)
 	if err != nil {
 		return "", err
 	}
+	return resolveIn(absRoot, path)
+}
 
+// aliasRefusal refuses a path Windows would not keep as written (ADR-071).
+func aliasRefusal(path string) error {
+	if followLinks {
+		if c, _ := win32Alias(path); c != "" {
+			return aliasError(fmt.Sprintf("%s: Windows does not keep %q as written: %s", path, c, aliasCause(c)))
+		}
+	}
+	return nil
+}
+
+// aliasCause says which of win32Alias's causes applies to comp, so a refusal
+// names the one that does and not all three (the Windows retest of v1.60.0).
+func aliasCause(comp string) string {
+	switch {
+	case strings.Contains(comp, ":"):
+		return "Windows reads ':' as an NTFS stream, not as part of a name"
+	case strings.TrimRight(comp, ". ") != comp:
+		return `Windows drops a trailing dot or space from a name, so it opens another file; a file that really has this name can only be reached through a \\?\ path, which mrw does not use`
+	default:
+		return "Windows turns a byte that is not valid UTF-8 into U+FFFD, so it opens another file"
+	}
+}
+
+// resolveIn is Resolve under a root Abs already resolved.
+func resolveIn(absRoot, path string) (string, error) {
+	var err error
 	full := filepath.Join(absRoot, path)
 	// ADR-076: Win32 opens CON, NUL, COM1 and the rest as devices — before
 	// Windows 11 with any extension too — so `mrw read NUL` served an empty
@@ -158,6 +184,10 @@ func Resolve(root, path string) (string, error) {
 	if inState(q) {
 		return "", fmt.Errorf("%s is inside mrw's own state directory; mrw does not serve or edit its own ledger", path)
 	}
+	// ADR-134: a second name of a state file is the state file.
+	if err := hardLinkRefusal(absRoot, q, path); err != nil {
+		return "", err
+	}
 	return full, nil
 }
 
@@ -194,6 +224,46 @@ var ErrNotADirectory = errors.New("names a directory, ending in a separator, `.`
 // root — no --root makes `con` a file (the review of #243).
 var ErrDeviceName = errors.New("a Windows device name")
 
+// ErrWin32Alias is Resolve's refusal of a name Windows would not keep as written
+// (ADR-071): a trailing dot or space, a stream, a byte that is not UTF-8.
+var ErrWin32Alias = errors.New("a name Windows does not keep as written")
+
+// aliasError is aliasRefusal's refusal: its words are the message, ErrWin32Alias
+// is what errors.Is finds.
+type aliasError string
+
+func (e aliasError) Error() string { return string(e) }
+
+func (e aliasError) Is(target error) bool { return target == ErrWin32Alias }
+
+// UnkeepableName reports whether err is Resolve's refusal of a name Windows will
+// not keep, as opposed to its refusals of where a path leads (ADR-135). Only a
+// refusal made by the path's own spelling may be counted by a walk: a device
+// name reached through a link says where the link leads, not what the discovered
+// file is called (the Codex review of #363).
+func UnkeepableName(err error) bool {
+	return (errors.Is(err, ErrDeviceName) && !errors.Is(err, errViaLink)) || errors.Is(err, ErrWin32Alias)
+}
+
+// RefusedByName reports whether err is Resolve's refusal of a name's own
+// spelling — a device name or a name Windows does not keep as written — whether
+// or not a link led there. Advice that fits an escape from the root ("point
+// --root where you mean") sends the caller nowhere for one of these.
+func RefusedByName(err error) bool {
+	return errors.Is(err, ErrDeviceName) || errors.Is(err, ErrWin32Alias)
+}
+
+// errViaLink marks a device-name refusal reached through a link.
+var errViaLink = errors.New("through a link")
+
+// viaLinkError is deviceName's refusal for a link whose target holds a device
+// name: the same words and still an ErrDeviceName, marked errViaLink.
+type viaLinkError struct{ error }
+
+func (e viaLinkError) Unwrap() error { return e.error }
+
+func (e viaLinkError) Is(target error) bool { return target == errViaLink }
+
 // deviceName refuses p when the part of at that lies under absRoot holds a
 // reserved device name in any component. The root's own components are not
 // judged: a checkout under a directory named aux is the caller's to keep.
@@ -207,7 +277,11 @@ func deviceName(p, absRoot, at string) error {
 		if at != filepath.Join(absRoot, p) {
 			via = " through a link"
 		}
-		return fmt.Errorf("%s leads%s to %q, which is %w: some Windows APIs still open it as a device on every build, so mrw neither creates, reads nor edits it", p, via, d, ErrDeviceName)
+		err := fmt.Errorf("%s leads%s to %q, which is %w: some Windows APIs still open it as a device on every build, so mrw neither creates, reads nor edits it", p, via, d, ErrDeviceName)
+		if via != "" {
+			return viaLinkError{err}
+		}
+		return err
 	}
 	return nil
 }
@@ -299,6 +373,12 @@ func inState(q string) bool {
 		return false
 	}
 	b, bi := resolvedBase(base)
+	return inStateAt(b, bi, q)
+}
+
+// inStateAt is inState against the base b, resolved, and bi its FileInfo, nil
+// when it does not exist.
+func inStateAt(b string, bi os.FileInfo, q string) bool {
 	if Contains(b, q) {
 		return true
 	}
@@ -357,4 +437,138 @@ func resolvedBase(base string) (string, os.FileInfo) {
 func sameAs(p string, fi os.FileInfo) bool {
 	pi, err := os.Stat(p)
 	return err == nil && os.SameFile(pi, fi)
+}
+
+// Resolver resolves the paths one walk discovers, answering each exactly as
+// Resolve does, with the work their directories share done once (ADR-131).
+//
+// On Windows every path component is a syscall, and Resolve walked them all
+// for every file: the root (Abs), the links (throughLinks), the real path
+// (EvalSymlinks) and each ancestor's identity against the state base (inState)
+// — 85% of a --grep walk's CPU, 3.1 ms a file, a peer's profile of 2026-10-06.
+// Every file in a directory shares all of that but its own name. A Resolver
+// resolves the root and the state base once, and each directory once — its
+// links, its real path, its ancestors' verdict — and then judges a regular
+// file by one Lstat of its own name. Anything else, a link, a directory, a
+// name that is not there or a state base that is not a directory, is resolved
+// whole, by Resolve's own code.
+//
+// What it caches is stale for as long as the Resolver lives, and a walk owns
+// one and drops it when it returns: a directory swapped for a link, or made
+// mrw's state base, during a walk is seen by the next one. That bound is
+// acceptable because a walk only chooses what to match: read.Run resolves every
+// path it serves afresh, with Resolve, before it reads it to serve it. A
+// Resolver is not safe for concurrent use.
+type Resolver struct {
+	absRoot string
+	err     error // Abs's refusal of the root, returned for every path
+	based   bool  // the state base below has been resolved
+	none    bool  // there is no state base to compare with (state.Base failed)
+	b       string
+	bi      os.FileInfo
+	links   stateLinks // judges a file with a second name against the state base (ADR-134)
+	dirs    map[string]resolvedDir
+}
+
+// resolvedDir is one directory as Resolve would resolve it: target through its
+// links, real its real path, in whether it or an ancestor is the state base.
+// ok is false when it could not be resolved, so its files are resolved whole.
+type resolvedDir struct {
+	target, real string
+	in, ok       bool
+}
+
+// NewResolver returns a Resolver for paths under root.
+func NewResolver(root string) *Resolver {
+	r := &Resolver{dirs: map[string]resolvedDir{}}
+	r.absRoot, r.err = Abs(root)
+	return r
+}
+
+// Resolve is rooted.Resolve(root, path) for the root the Resolver was made for.
+func (r *Resolver) Resolve(path string) (string, error) {
+	if err := aliasRefusal(path); err != nil {
+		return "", err
+	}
+	if r.err != nil {
+		return "", r.err
+	}
+	full := filepath.Join(r.absRoot, path)
+	fi, err := os.Lstat(full)
+	if err != nil || !fi.Mode().IsRegular() || SpelledAsDirectory(path) || !r.base() {
+		return resolveIn(r.absRoot, path)
+	}
+	d := r.dir(filepath.Dir(full))
+	if !d.ok {
+		return resolveIn(r.absRoot, path)
+	}
+	if followLinks {
+		if err := deviceName(path, r.absRoot, full); err != nil {
+			return "", err
+		}
+	}
+	leaf := filepath.Base(full)
+	if target := filepath.Join(d.target, leaf); followLinks && target != full {
+		if err := deviceName(path, r.absRoot, target); err != nil {
+			return "", err
+		}
+	}
+	// A regular file is not a link, so its real path is its directory's
+	// joined with its name; and it is not a directory, so it is the state
+	// base's identity only if it is the base's own path.
+	check := filepath.Join(d.real, leaf)
+	if !Contains(r.absRoot, check) {
+		// Resolve names the real path in its refusal, and on Windows
+		// EvalSymlinks spells the name as it is on disk, where check keeps
+		// the caller's spelling (the Codex review of #353). A refusal is
+		// rare; it is worded by Resolve's own code.
+		return resolveIn(r.absRoot, path)
+	}
+	if d.in || (!r.none && Contains(r.b, check)) {
+		return "", fmt.Errorf("%s is inside mrw's own state directory; mrw does not serve or edit its own ledger", path)
+	}
+	// ADR-134: the same file as one under the state base, by another name.
+	if !r.none {
+		if err := r.links.refusal(fi, full, path); err != nil {
+			return "", err
+		}
+	}
+	return full, nil
+}
+
+// base resolves the state base once, and reports whether a regular file can be
+// judged against it by its directory alone: there is no base, or the base is a
+// directory, which no regular file can be the same file as.
+func (r *Resolver) base() bool {
+	if !r.based {
+		r.based = true
+		base, err := state.Base()
+		if err != nil {
+			r.none = true
+		} else {
+			r.b, r.bi = resolvedBase(base)
+			r.links = stateLinks{root: r.absRoot, b: r.b, bi: r.bi}
+		}
+	}
+	return r.none || r.bi == nil || r.bi.IsDir()
+}
+
+// dir resolves the directory dir as Resolve resolves a path's parent, once.
+func (r *Resolver) dir(dir string) resolvedDir {
+	if d, ok := r.dirs[dir]; ok {
+		return d
+	}
+	d := resolvedDir{target: dir}
+	var err error
+	if followLinks {
+		d.target, err = throughLinks(dir, osLinks)
+	}
+	if err == nil {
+		if d.real, err = filepath.EvalSymlinks(d.target); err == nil {
+			d.ok = true
+			d.in = !r.none && inStateAt(r.b, r.bi, d.real)
+		}
+	}
+	r.dirs[dir] = d
+	return d
 }

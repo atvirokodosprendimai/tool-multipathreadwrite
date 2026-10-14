@@ -72,7 +72,7 @@ SRC=$(cd "$(dirname "$0")/.." && pwd)
 # A relative MRW names a binary relative to where the caller stood, so it is
 # made absolute before the cd below moves that (review of #236).
 if [ -n "${MRW:-}" ]; then MRW=$(cd "$(dirname "$MRW")" && pwd)/$(basename "$MRW"); fi
-cd "$SRC"
+cd "$SRC" || exit 2
 WORK=$(mktemp -d)
 # Reap the whole group on exit: every child, and every orphan that kept the
 # group after its parent died. TERM is ignored FIRST, before the rm, so a
@@ -171,7 +171,7 @@ fixture() {
   printf 'package demo\n\nimport "testing"\n\nfunc TestAll(t *testing.T) {\n\tif A()+B()+C()+D() != 10 {\n\t\tt.Fatal("bad")\n\t}\n}\n' > "$R/a_test.go"
   # A REAL read, not --stat: since the ledger records what was actually
   # SERVED, a stat prints no content and licenses no edit.
-  "$MRW" -C "$R" read a.go b.go a_test.go >/dev/null
+  "$MRW" -C "$R" read a.go b.go a_test.go >"$WORK/served.out"
 }
 m() { "$MRW" -C "$R" "$@"; }
 
@@ -207,8 +207,8 @@ grep -q 'deliberately red' <<<"$out" && ok "the failing output is shown" || bad 
 #    asked to.
 fixture
 m iter add a.go b.go a_test.go >/dev/null
-m read @1:1-2 >/dev/null; want 0 "$?" "@1:1-2 resolves"
-m read @3     >/dev/null; want 0 "$?" "@3 resolves"
+m read @1:1-2 >"$WORK/served.out"; want 0 "$?" "@1:1-2 resolves"
+m read @3     >"$WORK/served.out"; want 0 "$?" "@3 resolves"
 out=$(m read @9 2>&1); rc=$?
 want 2 "$rc" "@9 (out of range) errors"
 grep -q '3 entr' <<<"$out" && ok "the error says how many entries exist" || bad "the error is unhelpful"
@@ -231,7 +231,7 @@ printf 'package demo\n\nfunc A() int { return 1 }\n' > "$R/a.go"
 out=$(printf '@@ a.go 3 replace anchor="func A"\nx\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "editing a file mrw has never read -> refused"
 grep -q 'has not been read' <<<"$out" && ok "the reason names the cause" || bad "unclear reason"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf 'package demo\n\nfunc A() int { return 99 }\n' > "$R/a.go"   # changed elsewhere
 out=$(printf '@@ a.go 3 replace anchor="func A"\nx\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "editing a file changed behind mrw's back -> refused"
@@ -243,7 +243,7 @@ grep -q 'changed since' <<<"$out" && ok "the reason names the staleness" || bad 
 #    — so it keeps holding when mrw learns to store something new.
 fixture
 before=$(ls -A "$R" | sort | tr '\n' ' ')
-m read --stat a.go >/dev/null
+m read --stat a.go >"$WORK/served.out"
 m iter add a.go >/dev/null
 after=$(ls -A "$R" | sort | tr '\n' ' ')
 [ "$before" = "$after" ] && ok "read and iter leave the working tree untouched" \
@@ -262,7 +262,7 @@ want 1 "$rc" "lines=9 on an insertion -> refused"
 out=$(printf '@@ a.go 3 replace body=5\nx\n' | m write - 2>&1); rc=$?
 want 2 "$rc" "body= asking for more lines than the plan holds -> parse error"
 printf 'package demo\n\nvar S = "muted"\n' > "$R/q.go"
-m read q.go >/dev/null
+m read q.go >"$WORK/served.out"
 out=$(printf '@@ q.go 3 replace anchor="= \\"muted\\""\nvar S = "MUTED"\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "an anchor may contain an escaped quote"
 
@@ -272,11 +272,11 @@ want 0 "$rc" "an anchor may contain an escaped quote"
 #    directory mrw was pointed at.
 R=$(mktemp -d "$WORK/shown-XXXXXX")
 printf 'package demo\n\nfunc A() int { return 1 }\n' > "$R/a.go"
-m read --stat a.go >/dev/null
+m read --stat a.go >"$WORK/served.out"
 out=$(printf '@@ a.go 3 replace anchor="func A"\nx\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "--stat prints no content, so it licenses no edit"
 grep -q 'has not been read' <<<"$out" && ok "the reason names what was not shown" || bad "unclear reason"
-m read a.go:1-1 >/dev/null
+m read a.go:1-1 >"$WORK/served.out"
 out=$(printf '@@ a.go 3 replace anchor="func A"\nx\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "reading line 1 does not license an edit to line 3"
 # THE POSITIVE HALF, and it is the remedy ADR-002's risk table now names.
@@ -296,11 +296,11 @@ want 1 "$rc" "reading line 1 does not license an edit to line 3"
 PREV_R=$R
 R=$(mktemp -d "$WORK/remedy-XXXXXX")
 printf 'package demo\n\nfunc A() int { return 1 }\n' > "$R/a.go"
-m read a.go:3 >/dev/null
+m read a.go:3 >"$WORK/served.out"
 printf '@@ a.go 3 replace anchor="func A"\nx\n' | m write - >/dev/null 2>&1; rc=$?
 want 0 "$rc" "but re-reading line 3 licenses line 3 — one ranged call is the remedy"
 R=$PREV_R
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 out=$(printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 2 }\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "reading the whole file licenses the whole file"
 out=$(printf '@@ ../escaped.txt - create\nx\n' | m write - 2>&1); rc=$?
@@ -315,11 +315,11 @@ want 1 "$rc" "a hunk that leaves the root -> refused"
 R=$(mktemp -d "$WORK/withheld-XXXXXX")
 : > "$R/big.txt"
 for i in $(seq 1 40); do echo "line $i" >> "$R/big.txt"; done
-m read --max-lines 5 big.txt >/dev/null 2>&1
+m read --max-lines 5 big.txt >"$WORK/served.out" 2>&1
 out=$(printf '@@ big.txt 40 replace\nREWRITTEN\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "a truncated read does not license an edit to a withheld line"
 grep -q 'has not been read' <<<"$out" && ok "the reason names the unseen lines" || bad "unclear reason"
-m read big.txt >/dev/null
+m read big.txt >"$WORK/served.out"
 out=$(printf '@@ big.txt 40 replace\nREWRITTEN\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "reading it whole afterwards licenses the edit"
 
@@ -551,7 +551,7 @@ grep -qF 'FAIL	demo/pkg; true #' <<<"$out" && ok "and the failure it reports is 
 #     said `-4 +0  ok`.
 fixture
 printf 'package demo\n\nfunc E() int {\n\treturn 5\n}\n\nvar _ = 1\nvar _ = 2\n' > "$R/c.go"
-m read c.go >/dev/null
+m read c.go >"$WORK/served.out"
 out=$(printf '@@ c.go 5-8 delete\n' | m write --dry-run - 2>&1)
 rc=$?
 want 0 "$rc" "the ADR-008 delete applies"
@@ -571,7 +571,7 @@ grep -qF '"removed_first": "}"' <<<"$out" && grep -qF '"removed_last": "var _ = 
 #     match applies; a mismatch refuses the whole plan and names the line.
 fixture
 printf 'package demo\n\nfunc E() int {\n\treturn 5\n}\n\nvar _ = 1\nvar _ = 2\n' > "$R/c.go"
-m read c.go >/dev/null
+m read c.go >"$WORK/served.out"
 out=$(printf '@@ c.go 7-8 delete\nvar _ = 1\nvar _ = 2\n' | m write --dry-run - 2>&1)
 rc=$?
 want 0 "$rc" "a delete whose expected removal matches applies"
@@ -593,7 +593,7 @@ grep -qF 'var _ = 1' "$R/c.go" \
 #     and a delete of BLANK lines still reports its bounds in --json.
 fixture
 printf 'alpha\n\tindented\nomega\n\n\ndone\n' > "$R/w.txt"
-m read w.txt >/dev/null
+m read w.txt >"$WORK/served.out"
 out=$(printf '@@ w.txt 2 delete\n    indented\n' | m write - 2>&1)
 rc=$?
 want 1 "$rc" "a tab-against-spaces expected removal is refused"
@@ -717,7 +717,7 @@ echo
 fixture
 mkdir -p "$R/locked"
 printf 'package locked\n\nfunc F() int { return 1 }\n' > "$R/locked/f.go"
-m read a.go locked/f.go >/dev/null
+m read a.go locked/f.go >"$WORK/served.out"
 chmod 555 "$R/locked"
 # uid 0 ignores the permission bits, so PROVE they bite before asserting on
 # them. A row that cannot fail asserts nothing, and under root this one cannot.
@@ -729,7 +729,7 @@ else
   printf '@@ a.go 3 replace\nfunc A() int { return 99 }\n@@ locked/f.go 3 replace\nfunc F() int { return 99 }\n' \
     | m write - >/dev/null 2>&1; rc=$?
   chmod 755 "$R/locked"
-  want 2 "$rc" "a plan naming an unwritable file fails"
+  want 1 "$rc" "a plan naming an unwritable file is refused (exit 1, ADR-132: a permission is the target's)"
   [ "$(cat "$R/a.go")" = "$before" ] \
     && ok "and the file that COULD be written was left untouched" \
     || bad "partially applied: a.go was written while the plan failed"
@@ -785,7 +785,7 @@ else
   printf '@@ fresh/deep/n.go - create\npackage n\n@@ already/e.go - create\npackage e\n@@ locked/f.go 3 replace\nfunc F() int { return 99 }\n' \
     | m write - >/dev/null 2>&1; rc=$?
   chmod 755 "$R/locked"
-  want 2 "$rc" "a create into a new directory aborts with the rest of the plan"
+  want 1 "$rc" "a create into a new directory is refused with the rest of the plan (exit 1, ADR-132)"
   [ ! -e "$R/fresh" ] \
     && ok "and the directories staging created are taken back" \
     || bad "left behind: $(find "$R/fresh" 2>/dev/null | tr '\n' ' ')"
@@ -813,7 +813,7 @@ fi
 #     than it is, with the correct rows appearing broken too.
 fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/led.txt"
-m read 'led.txt:/nomatch/' >/dev/null 2>&1; rc=$?
+m read 'led.txt:/nomatch/' >"$WORK/served.out" 2>&1; rc=$?
 want 1 "$rc" "a range that matches nothing is reported, not served"
 printf '@@ led.txt 3 replace\nCCC\n' | m write - >/dev/null 2>&1; rc=$?
 want 1 "$rc" "and licenses NO edit — the line was never shown"
@@ -821,7 +821,7 @@ grep -q '^c$' "$R/led.txt" && ok "and the file is untouched" || bad "the write l
 
 fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/oob.txt"
-m read 'oob.txt:99' >/dev/null 2>&1; rc=$?
+m read 'oob.txt:99' >"$WORK/served.out" 2>&1; rc=$?
 want 1 "$rc" "a line past the end is reported the same way"
 printf '@@ oob.txt 3 replace\nCCC\n' | m write - >/dev/null 2>&1; rc=$?
 want 1 "$rc" "and licenses no edit either"
@@ -831,7 +831,7 @@ want 1 "$rc" "and licenses no edit either"
 # ordinary work is a guard people turn off with --force.
 fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/whole.txt"
-m read whole.txt >/dev/null
+m read whole.txt >"$WORK/served.out"
 printf '@@ whole.txt 3 replace\nCCC\n' | m write - >/dev/null 2>&1; rc=$?
 want 0 "$rc" "while a whole-file read still licenses the whole file"
 
@@ -839,12 +839,12 @@ want 0 "$rc" "while a whole-file read still licenses the whole file"
 # showed, and not the one it did not.
 fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/part.txt"
-m read 'part.txt:2' >/dev/null
+m read 'part.txt:2' >"$WORK/served.out"
 printf '@@ part.txt 2 replace\nBBB\n' | m write - >/dev/null 2>&1; rc=$?
 want 0 "$rc" "and a partial read still licenses the line it showed"
 fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/part2.txt"
-m read 'part2.txt:2' >/dev/null
+m read 'part2.txt:2' >"$WORK/served.out"
 printf '@@ part2.txt 3 replace\nCCC\n' | m write - >/dev/null 2>&1; rc=$?
 want 1 "$rc" "and still refuses the line it did not"
 
@@ -852,7 +852,7 @@ want 1 "$rc" "and still refuses the line it did not"
 # silent at exit 0.
 fixture
 : > "$R/none.txt"
-m read 'none.txt:1' >/dev/null 2>&1; rc=$?
+m read 'none.txt:1' >"$WORK/served.out" 2>&1; rc=$?
 want 1 "$rc" "a range against an empty file is reported, not silently fine"
 
 # 22b. UPGRADING DOES NOT HEAL A LEDGER v0.0.11 ALREADY POISONED. Section 22
@@ -867,7 +867,7 @@ want 1 "$rc" "a range against an empty file is reported, not silently fine"
 #      writing it is the honest way to have it without shipping an old build.
 fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/stale.txt"
-SHA=$(m read stale.txt 2>/dev/null | sed -n 's/.*sha \([0-9a-f]*\).*/\1/p' | head -1)
+m read stale.txt >"$WORK/served.out" 2>/dev/null
 SD=$(m seen | head -1 | sed 's/.*: //')
 # A whole-file licence for a file this checkout has NOT read in this state —
 # exactly what a v0.0.11 failed read left behind. No header line.
@@ -889,7 +889,7 @@ grep -q 'written by an older mrw' <<<"$out" && ok "and the caller is told why, n
 # It must HEAL, or every later run repeats the refusal: Record loads before it
 # saves, so a stale ledger that returned an error would stop the header ever
 # being written.
-m read stale.txt:2 >/dev/null 2>&1
+m read stale.txt:2 >"$WORK/served.out" 2>&1
 head -1 "$SD/seen" | grep -q '^#mrw-seen' && ok "and the next read rewrites the ledger with a header" || bad "the ledger never heals: $(head -1 "$SD/seen")"
 out=$(m read stale.txt:2 2>&1 >/dev/null)
 grep -q 'written by an older mrw' <<<"$out" && bad "the notice repeats after healing" || ok "and the notice does not repeat once healed"
@@ -904,7 +904,7 @@ want 0 "$rc" "and the healed ledger licenses exactly the line that was re-read"
 fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/five.txt"
 seq 1 10 > "$R/ten.txt"
-m read five.txt ten.txt >/dev/null
+m read five.txt ten.txt >"$WORK/served.out"
 # The HEADER is derived from the resolved range so it is fair evidence, but the
 # LINE COUNT is what a header alone could not fake: 1-5 and 5-5 differ by four
 # printed lines.
@@ -939,7 +939,7 @@ grep -qF '@@ 5-5' <<<"$out" && ok 'while the same address on a shorter file is s
 # reason is the thing this file exists to catch.
 fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/led.txt"
-m read 'led.txt:$' >/dev/null
+m read 'led.txt:$' >"$WORK/served.out"
 out=$(m seen 2>&1)
 grep -E 'led\.txt' <<<"$out" | grep -qE 'lines 5( |$)' \
   && ok "and the ledger records only the line that was served" \
@@ -958,7 +958,7 @@ grep -E 'led\.txt' <<<"$out" | grep -qE 'lines 5( |$)' \
 fixture
 N=40
 for i in $(seq 1 $N); do printf 'a\nb\nc\n' > "$R/r$i.txt"; done
-for i in $(seq 1 $N); do m read "r$i.txt" >/dev/null 2>&1 & done
+for i in $(seq 1 $N); do m read "r$i.txt" >"$WORK/served.out" 2>&1 & done
 wait
 kept=$(m seen 2>/dev/null | grep -cE '(^| )r[0-9]+\.txt$')
 if [ "$kept" -lt "$N" ]; then
@@ -1125,7 +1125,7 @@ n=$(wc -l < "$R/big.css" | tr -d ' ')
 # a naive sequential implementation also gets right. Two identical files, the
 # same five edits, opposite orders, compared byte for byte.
 seq 1 20 > "$R/ord-a.txt"; cp "$R/ord-a.txt" "$R/ord-b.txt"
-m read ord-a.txt ord-b.txt >/dev/null 2>&1
+m read ord-a.txt ord-b.txt >"$WORK/served.out" 2>&1
 # The ops must SHIFT lines, or the row cannot fail: a plan of nothing but
 # `replace` leaves every later line number valid, so a naive implementation that
 # walks the plan top-to-bottom against a mutating buffer passes it too. Mixing
@@ -1162,7 +1162,7 @@ n=$(wc -l < "$R/ord-b.txt" | tr -d ' ')
 # "replace\r", or accept it and carry the CR into the body, silently giving an
 # LF file one CRLF line. The second is the dangerous one, so it gets its own row.
 printf 'a\nb\nc\n' > "$R/crlf-plan.txt"
-m read crlf-plan.txt >/dev/null 2>&1
+m read crlf-plan.txt >"$WORK/served.out" 2>&1
 printf '@@ crlf-plan.txt 2 replace\r\nBBB\r\n' > "$WORK/crlf.plan"
 m write "$WORK/crlf.plan" >/dev/null 2>&1; want 0 "$?" "a plan file written with CRLF endings still parses"
 [ "$(sed -n 2p "$R/crlf-plan.txt")" = "BBB" ] && ok "and line 2 is the intended content" || bad "line 2 is $(sed -n 2p "$R/crlf-plan.txt" | od -c | head -1)"
@@ -1202,7 +1202,7 @@ fi
 # do not read a green here as evidence the invariant is protected.
 fixture
 seq 1 100 > "$R/race.txt"
-m read race.txt >/dev/null 2>&1
+m read race.txt >"$WORK/served.out" 2>&1
 for i in $(seq 1 20); do
   printf '@@ race.txt %d replace\nW-%d\n' $((i * 3)) "$i" | m write - >/dev/null 2>&1 &
 done
@@ -1265,7 +1265,7 @@ fi
 # them exactly that.
 fixture
 mkdir -p "$R/sub"; printf 'a\nb\nc\n' > "$R/sub/real.go"
-m read sub/real.go >/dev/null 2>&1
+m read sub/real.go >"$WORK/served.out" 2>&1
 out=$(printf '@@ %s 2 replace\nB\n' "$R/sub/real.go" | m write - 2>&1); rc=$?
 want 1 "$rc" "an absolute path in a PLAN is still refused"
 grep -q 'is absolute, and every path in a plan is relative to the root' <<<"$out" \
@@ -1342,16 +1342,16 @@ out=$(printf '\n#only comments\n' | m read --files-from - 2>&1); rc=$?
 want 2 "$rc" "--files-from with no specs is a usage error, not silence"
 
 # Every row of the precedence table that says "usage error". Each is exit 2.
-m read --exclude '*.go'                    >/dev/null 2>&1; want 2 $? "--exclude without --grep is a usage error"
-m read --grep X --files-from -             >/dev/null 2>&1; want 2 $? "--grep with --files-from is a usage error"
-m read --files-from - a.go                 >/dev/null 2>&1; want 2 $? "--files-from with positional paths is a usage error"
-m read --grep X a.go:1-2                   >/dev/null 2>&1; want 2 $? "--grep with a positional range is a usage error"
-m read --grep X --exclude '['              >/dev/null 2>&1; want 2 $? "a glob path.Match rejects is a usage error"
-m read --grep '('                          >/dev/null 2>&1; want 2 $? "a pattern regexp rejects is a usage error"
+m read --exclude '*.go'                    >"$WORK/served.out" 2>&1; want 2 $? "--exclude without --grep is a usage error"
+m read --grep X --files-from -             >"$WORK/served.out" 2>&1; want 2 $? "--grep with --files-from is a usage error"
+m read --files-from - a.go                 >"$WORK/served.out" 2>&1; want 2 $? "--files-from with positional paths is a usage error"
+m read --grep X a.go:1-2                   >"$WORK/served.out" 2>&1; want 2 $? "--grep with a positional range is a usage error"
+m read --grep X --exclude '['              >"$WORK/served.out" 2>&1; want 2 $? "a glob path.Match rejects is a usage error"
+m read --grep '('                          >"$WORK/served.out" 2>&1; want 2 $? "a pattern regexp rejects is a usage error"
 
 # The no-argument behaviour is UNCHANGED: without --grep it is still the
 # working set, and an empty one is still the same usage error it always was.
-m read >/dev/null 2>&1; want 2 $? "no arguments and no --grep still means the working set"
+m read >"$WORK/served.out" 2>&1; want 2 $? "no arguments and no --grep still means the working set"
 
 # 29. A PASSING check leaves no log behind, and a FAILING one keeps its
 # evidence. Measured 2026-09-03 before the fix: 11,129 mrw-check-*.log files
@@ -1365,7 +1365,7 @@ m read >/dev/null 2>&1; want 2 $? "no arguments and no --grep still means the wo
 fixture
 before=$(ls ${TMPDIR:-/tmp}/mrw-check-*.log 2>/dev/null | wc -l | tr -d ' ')
 
-m read a.go >/dev/null 2>&1
+m read a.go >"$WORK/served.out" 2>&1
 out=$(printf '@@ a.go 3 replace\nfunc A() int { return 1 }\n' | m write --check - 2>&1); rc=$?
 want 0 "$rc" "a passing --check exits 0"
 grep -q 'full output:' <<<"$out" \
@@ -1381,7 +1381,7 @@ after=$(ls ${TMPDIR:-/tmp}/mrw-check-*.log 2>/dev/null | wc -l | tr -d ' ')
 # caller is told to read evidence that has been deleted.
 fixture
 printf 'package demo\n\nimport "testing"\n\nfunc TestNo(t *testing.T) { t.Fatal("red") }\n' > "$R/a_test.go"
-m read a.go >/dev/null 2>&1
+m read a.go >"$WORK/served.out" 2>&1
 out=$(printf '@@ a.go 3 replace\nfunc A() int { return 1 }\n' | m write --check - 2>&1); rc=$?
 want 3 "$rc" "a failing --check still exits 3, tree changed and unverified"
 logf=$(grep -o '/[^ ]*mrw-check-[^ ]*\.log' <<<"$out" | head -1)
@@ -1433,7 +1433,7 @@ grep -q 'package fresh' "$R/a.go" \
 # on one hunk are two different claims about one edit, and picking either
 # silently is how the caller keeps believing the other.
 fixture
-m read a.go >/dev/null 2>&1
+m read a.go >"$WORK/served.out" 2>&1
 
 out=$(printf '@@ a.go 3 replace anchor="NOPE" anchor="func A"\nX\n' | m write - 2>&1); rc=$?
 want 2 "$rc" "a repeated guard key is a usage error, not last-wins"
@@ -1465,7 +1465,7 @@ want 0 "$rc" "body= with raw=true still applies — the escape hatch is intact"
 # rewrote line 3, so reusing the file here would fail on the anchor for a
 # reason that has nothing to do with guards.
 fixture
-m read a.go >/dev/null 2>&1
+m read a.go >"$WORK/served.out" 2>&1
 out=$(printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 9 }\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "one anchor= still guards an edit"
 
@@ -1481,7 +1481,7 @@ want 0 "$rc" "one anchor= still guards an edit"
 # only at offset 0 — a BOM anywhere else is content, and editing a caller's
 # body would be the silent-corruption class this project refuses.
 fixture
-m read a.go >/dev/null 2>&1
+m read a.go >"$WORK/served.out" 2>&1
 printf '\357\273\277@@ a.go 3 replace\nfunc A() int { return 7 }\n' > "$WORK/bom.mrw"
 out=$(m write --no-check "$WORK/bom.mrw" 2>&1); rc=$?
 want 0 "$rc" "a plan with a UTF-8 BOM applies"
@@ -1492,14 +1492,14 @@ grep -q 'return 7' "$R/a.go" \
 # The same bytes without the BOM must still apply — the control that proves the
 # BOM was the whole difference.
 fixture
-m read a.go >/dev/null 2>&1
+m read a.go >"$WORK/served.out" 2>&1
 printf '@@ a.go 3 replace\nfunc A() int { return 7 }\n' > "$WORK/nobom.mrw"
 m write --no-check "$WORK/nobom.mrw" >/dev/null 2>&1
 want 0 $? "and the same plan without a BOM still applies"
 
 # A BOM in the BODY is content, not syntax.
 fixture
-m read a.go >/dev/null 2>&1
+m read a.go >"$WORK/served.out" 2>&1
 printf '@@ a.go 3 replace\n\357\273\277KEEP\n' > "$WORK/inner.mrw"
 m write --no-check "$WORK/inner.mrw" >/dev/null 2>&1
 want 0 $? "a BOM inside a body is accepted"
@@ -1578,7 +1578,7 @@ fi
 #
 # The assertion is on the FILE, not the exit code. Exit 0 was the bug.
 fixture
-m read a.go >/dev/null 2>&1
+m read a.go >"$WORK/served.out" 2>&1
 printf '\357\273\277@@ a.go 3 replace\nfunc A() int { return 7 }\n' >  "$WORK/f1.mrw"
 printf '\357\273\277@@ a.go 4 replace\nfunc B() int { return 8 }\n' >  "$WORK/f2.mrw"
 cat "$WORK/f1.mrw" "$WORK/f2.mrw" > "$WORK/both.mrw"
@@ -1642,7 +1642,7 @@ grep -q 'MSYS' <<<"$out" \
 # the day somebody adds one — so this greps the written file for the things a
 # plan is made of and fails if any reached disk.
 fixture
-m read a.go >/dev/null 2>&1
+m read a.go >"$WORK/served.out" 2>&1
 
 printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' | m write --no-check - >/dev/null 2>&1
 want 0 $? "a plan that applies exits 0"
@@ -1698,7 +1698,7 @@ grep -qi 'no plans recorded' <<<"$out" \
   && ok "and says nothing is recorded rather than printing zeros" \
   || bad "an empty tally did not announce itself: $(head -1 <<<"$out")"
 
-m read a.go >/dev/null 2>&1
+m read a.go >"$WORK/served.out" 2>&1
 printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' | m write --no-check - >/dev/null 2>&1
 printf '@@ a.go 3 frobnicate\nx\n' | m write - >/dev/null 2>&1
 
@@ -1920,7 +1920,7 @@ after=$(cd "$R" && find . -type f -newer go.mod -o -type f | sort | xargs shasum
   || bad "mrw_read is annotated readOnlyHint and changed the tree"
 
 # Both content blocks, with the first one machine-readable.
-m read a.go >/dev/null 2>&1
+m read a.go >"$WORK/served.out" 2>&1
 # The plan's newlines must reach mrw as the two-character escape \n INSIDE the
 # JSON string, not as real newlines — a real one would split the message across
 # two lines and the server would see two malformed frames. Hence \\n here.
@@ -2127,14 +2127,14 @@ with open(sys.argv[3],"w") as f:
     f.write("\n".join(tools["mrw_read"]["inputSchema"]["properties"]["specs"]["examples"][0])+"\n")
 PY
 cp -R "$SRC/internal/mcp/testdata/example/." "$R/"
-m read --files-from "$WORK/published.specs" >/dev/null 2>&1
+m read --files-from "$WORK/published.specs" >"$WORK/served.out" 2>&1
 want 0 $? "the read example mrw publishes serves every spec on the tree it is written against"
 paths=$(python3 -c "
 import re,sys
 print(' '.join(sorted({m.group(1) for m in re.finditer(r'^@@ (\S+) ', open('$WORK/published.plan').read(), re.M)})))
 ")
 # shellcheck disable=SC2086
-m read $paths >/dev/null 2>&1
+m read $paths >"$WORK/served.out" 2>&1
 want 0 $? "the files the published plan names can be read"
 out=$(m write --dry-run "$WORK/published.plan" 2>&1); rc=$?
 want 0 "$rc" "and the plan mrw publishes to a host is one mrw itself accepts"
@@ -2227,7 +2227,7 @@ func (s *Store) Put(id, v string) {
 }
 GO
 
-m read store/store.go >/dev/null 2>&1
+m read store/store.go >"$WORK/served.out" 2>&1
 want 0 $? "the fixture reads"
 
 out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Put/ replace\nfunc (s *Store) Put(id, v string) { s.rows[id] = v }\n' | m write --no-check - 2>&1); rc=$?
@@ -2237,7 +2237,7 @@ grep -q '^ok .*/\^func' <<<"$out" \
   || bad "the verdict does not name the pattern: $out"
 
 # THE ROW: two matches is a refusal that names both lines, never a choice.
-m read store/store.go >/dev/null 2>&1
+m read store/store.go >"$WORK/served.out" 2>&1
 out=$(printf '@@ store/store.go /func \\(s \\*Store\\) Get/ replace\n// no\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "an ambiguous pattern is refused"
 grep -qi 'matched 2 lines' <<<"$out" \
@@ -2278,7 +2278,7 @@ func (s *Store) Put(id, v string) {
 	s.rows[id] = v
 }
 GO
-m read store/store.go >/dev/null 2>&1
+m read store/store.go >"$WORK/served.out" 2>&1
 out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Get/,/^\\}/ replace anchor="Store) Get(id"\nfunc (s *Store) Get(id string) (string, bool) { return s.rows[id], true }\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "the range form applies on a file where the end pattern matches twice"
 grep -q 'func (s \*Store) Put' "$R/store/store.go" \
@@ -2286,7 +2286,7 @@ grep -q 'func (s \*Store) Put' "$R/store/store.go" \
   || bad "the range ran past the first closing brace: $(cat "$R/store/store.go")"
 
 # An end that only matches ABOVE the start delimits nothing and is refused.
-m read store/store.go >/dev/null 2>&1
+m read store/store.go >"$WORK/served.out" 2>&1
 out=$(printf '@@ store/store.go /^func \\(s \\*Store\\) Put/,/^package/ replace\n// x\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "an end pattern above the start is refused"
 grep -q 'above the start' <<<"$out" \
@@ -3148,7 +3148,7 @@ rm -rf "$R55"
 # would pass the first half and fail this one.
 R56=$(mktemp -d)
 printf 'one\ntwo\nthree\n' > "$R56/real.txt"; ln -s real.txt "$R56/link.txt"
-( cd "$R56" && "$MRW" read real.txt link.txt > /dev/null 2>&1 ); want 0 "$?" "both spellings are served first, so the refusal below is the identity check and not the ledger"
+( cd "$R56" && "$MRW" read real.txt link.txt >"$WORK/served.out" 2>&1 ); want 0 "$?" "both spellings are served first, so the refusal below is the identity check and not the ledger"
 printf '@@ real.txt 1 replace\nX\n@@ link.txt 3 replace\nZ\n' > "$R56/two.plan"
 out=$( cd "$R56" && "$MRW" write two.plan 2>&1 ); rc=$?
 want 1 "$rc" "a plan naming one file as real.txt and as a symlink to it is refused"
@@ -3160,7 +3160,7 @@ grep -q 'link.txt names the same file as real.txt' <<<"$out" \
   || bad "the refusal does not name both spellings: $out"
 printf 'one\ntwo\nthree\n' > "$R56/Same.txt"
 if [ -e "$R56/same.txt" ]; then
-  ( cd "$R56" && "$MRW" read Same.txt same.txt > /dev/null 2>&1 ); want 0 "$?" "both case spellings are served first"
+  ( cd "$R56" && "$MRW" read Same.txt same.txt >"$WORK/served.out" 2>&1 ); want 0 "$?" "both case spellings are served first"
   printf '@@ Same.txt 1 replace\nX\n@@ same.txt 3 replace\nZ\n' > "$R56/case.plan"
   ( cd "$R56" && "$MRW" write --quiet case.plan > /dev/null 2>&1 )
   want 1 "$?" "Same.txt and same.txt in one plan are refused where the filesystem folds case — the measured shape"
@@ -3386,7 +3386,7 @@ PY
              || bad "the one-spelling rule is missing from the handshake, or the budget is blown"
 R57=$(mktemp -d)
 printf 'one\ntwo\nthree\n' > "$R57/real.txt"; ln -s real.txt "$R57/link.txt"
-( cd "$R57" && "$MRW" read real.txt link.txt > /dev/null 2>&1 ); want 0 "$?" "both spellings are served, so the refusal below is the identity check"
+( cd "$R57" && "$MRW" read real.txt link.txt >"$WORK/served.out" 2>&1 ); want 0 "$?" "both spellings are served, so the refusal below is the identity check"
 printf '@@ real.txt 1 replace\nX\n@@ link.txt 3 replace\nZ\n' > "$R57/two.plan"
 ( cd "$R57" && "$MRW" write --quiet two.plan > /dev/null 2>&1 )
 want 1 "$?" "and the binary refuses exactly what the wire just promised it would"
@@ -3960,7 +3960,7 @@ grep -q 'out of range' <<<"$out" && ok "the write refusal says out of range" || 
 # only the preceding byte and read it as unclosed, refusing a legal address.
 fixture
 printf 'a\\b\nplain\n' > "$R/bs.txt"
-m read bs.txt > /dev/null 2>&1
+m read bs.txt >"$WORK/served.out" 2>&1
 out=$(m read 'bs.txt:/\\/,+1' 2>&1); rc=$?
 want 0 "$rc" "a pattern ending in a backslash is closed on the read path"
 grep -q '@@ 1-2' <<<"$out" && ok "the backslash pattern resolves to its match plus one" || bad "the backslash pattern did not resolve: $out"
@@ -3979,7 +3979,7 @@ want 0 "$rc" "a pattern ending in a backslash is closed on the plan path too"
 # an empty END pattern, and the trailing-comma forms `5,+2,` and `/a/,/b/,`
 # whose empty component splitRanges silently dropped.
 for a in '/' '//' '/a/garbage' '/a/,/b/,/c/' '/a/,//' '5,+2,' '/a/,/b/,'; do
-  m read "a.go:$a" > /dev/null 2>&1; rr=$?
+  m read "a.go:$a" >"$WORK/served.out" 2>&1; rr=$?
   printf '@@ a.go %s replace\nX\n' "$a" | m write - > /dev/null 2>&1; wr=$?
   want 2 "$rr" "a read refuses the malformed pattern $a"
   want 2 "$wr" "a plan refuses the malformed pattern $a"
@@ -3993,7 +3993,7 @@ grep -q '@@ 3-5' <<<"$out" && ok "the two-pattern read serves its range" || bad 
 # different expression, a different line, and a receipt echoing the mutation.
 fixture
 printf 'package demo\n\nfunc A() int { return 1 }\nconst Q = "quoted"\n' > "$R/q.go"
-m read q.go > /dev/null 2>&1
+m read q.go >"$WORK/served.out" 2>&1
 out=$(printf '@@ q.go /"quoted"/ replace\nconst Q = "changed"\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "a plan pattern containing quotes applies"
 grep -q 'ok   q.go /"quoted"/ replace' <<<"$out" && ok "the receipt echoes the pattern with its quotes" || bad "the receipt shows a mutated address: $out"
@@ -4065,7 +4065,7 @@ grep -q 'would delete' <<<"$out" && ok "the replace refusal is unchanged" || bad
 anchored_fixture() {
   fixture
   printf 'public line\nUNSERVED-SENTINEL-42\nthird\n' > "$R/s.txt"
-  m read 's.txt:1' > /dev/null 2>&1
+  m read 's.txt:1' >"$WORK/served.out" 2>&1
 }
 anchored_plan() {  # $1 = op, $2 = line; `delete` is the one op that carries no body
   if [ "$1" = delete ]; then
@@ -4128,7 +4128,7 @@ alias_fixture() {
   ln -s real.txt "$R/link.txt"
 }
 alias_fixture
-m read 'real.txt:1' > /dev/null 2>&1
+m read 'real.txt:1' >"$WORK/served.out" 2>&1
 before=$(cksum < "$R/real.txt")
 out=$(printf '@@ link.txt 4 replace\nPWNED\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "an alias-spelled write to a line never served is refused"
@@ -4146,7 +4146,7 @@ grep -q 'has not been read: mrw served' <<<"$out" \
 
 # Issue #47's half, and the reason this is a resolution rather than a ban.
 alias_fixture
-m read 'real.txt' > /dev/null 2>&1
+m read 'real.txt' >"$WORK/served.out" 2>&1
 out=$(printf '@@ link.txt 4 replace\nrewritten\n' | m write - 2>&1); rc=$?
 want 0 "$rc" "a WHOLE read still licenses a write spelled as the alias"
 grep -q 'rewritten' "$R/real.txt" && ok "the licensed alias write reached the file" || bad "the alias write did not reach the file: $out"
@@ -4154,7 +4154,7 @@ grep -q 'rewritten' "$R/real.txt" && ok "the licensed alias write reached the fi
 # ADR-028's property reaching the alias: with the per-line gate absent, a failed
 # anchor printed the line as it always had.
 alias_fixture
-m read 'real.txt:1' > /dev/null 2>&1
+m read 'real.txt:1' >"$WORK/served.out" 2>&1
 out=$(printf '@@ link.txt 4 replace anchor="no-such-text"\nX\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "an alias-spelled anchored hunk on an unserved line is refused"
 grep -q 'UNSERVED-SENTINEL-29' <<<"$out" \
@@ -4406,7 +4406,7 @@ d.joinpath("small.txt").write_text("alpha\nbravo\n", encoding="utf-8")
 PY
 # The read is what licenses the write, so the receipt below carries 4,000
 # VERDICTS rather than 4,000 refusals — the shape an elision may shorten.
-m read wide.txt small.txt >/dev/null 2>&1
+m read wide.txt small.txt >"$WORK/served.out" 2>&1
 want 0 $? "the ceiling fixture is served"
 python3 - "$R" > "$R/calls.jsonl" <<'PY'
 import json, pathlib, sys
@@ -4524,7 +4524,7 @@ P71SELF=$(mktemp -d "$WORK/p71self-XXXXXX")
 for d in "$P71LIVE" "$P71DEAD" "$P71SELF"; do
   printf 'alpha\n' > "$d/f.txt"
   # Through the BINARY, so the `root` markers under test are the ones mrw writes.
-  "$MRW" -C "$d" read f.txt >/dev/null 2>&1
+  "$MRW" -C "$d" read f.txt >"$WORK/served.out" 2>&1
 done
 rm -rf "$P71DEAD"
 P71UNKNOWN="$XDG_STATE_HOME/mrw/dddddddddddddddd"
@@ -4612,8 +4612,8 @@ printf 'alpha\n' > "$P72ROOT/f.txt"
 export XDG_STATE_HOME="$P72/good"
 P72DEAD=$(mktemp -d "$WORK/p72dead-XXXXXX")
 printf 'alpha\n' > "$P72DEAD/f.txt"
-"$MRW" -C "$P72DEAD" read f.txt >/dev/null 2>&1
-"$MRW" -C "$P72ROOT" read f.txt >/dev/null 2>&1
+"$MRW" -C "$P72DEAD" read f.txt >"$WORK/served.out" 2>&1
+"$MRW" -C "$P72ROOT" read f.txt >"$WORK/served.out" 2>&1
 P72DEADDIR=$("$MRW" -C "$P72DEAD" seen 2>/dev/null | head -1)
 rm -rf "$P72DEAD"
 [ -n "$P72DEADDIR" ] && [ -d "$P72DEADDIR" ] \
@@ -4850,7 +4850,7 @@ want 2 "$rc" "an extra argument is a usage error"
 fixture
 N=40
 for i in $(seq 1 $N); do printf 'a\nb\nc\n' > "$R/p$i.txt"; done
-for i in $(seq 1 $N); do m read "p$i.txt" >/dev/null 2>&1 & done
+for i in $(seq 1 $N); do m read "p$i.txt" >"$WORK/served.out" 2>&1 & done
 wait
 kept=$(m seen 2>/dev/null | grep -cE '(^| )p[0-9]+\.txt$')
 want "$N" "$kept" "40 concurrent reads keep 40 ledger entries"
@@ -4966,7 +4966,7 @@ want 2 $? "an unknown write flag is usage, not silent help"
 # 80. ADR-040: unquoted and single-quoted anchor= parse; a leftover token is still usage.
 fixture
 printf 'func openTestStore\n' > "$R/f.go"
-m read 'f.go:1' >/dev/null
+m read 'f.go:1' >"$WORK/served.out"
 printf '@@ f.go 1 replace anchor=func openTestStore\nNEW\n' | m write --dry-run - >/dev/null
 want 0 $? "unquoted spaced anchor= parses"
 printf "@@ f.go 1 replace anchor='func openTestStore'\nNEW\n" | m write --dry-run - >/dev/null
@@ -4999,7 +4999,7 @@ patch82=$(printf '%s\n' \
 	'*** End Patch')
 R=$(mktemp -d "$WORK/r-XXXXXX")
 printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
-m read 'a.go:3' >/dev/null
+m read 'a.go:3' >"$WORK/served.out"
 out=$(printf '%s\n' "$patch82" | m write --format=apply_patch - 2>&1); rc=$?
 want 1 "$rc" "two-hunk apply_patch, one unread line -> exit 1"
 grep -q 'FAIL' <<<"$out" && ok "unread apply_patch names FAIL" || bad "unread apply_patch names FAIL"
@@ -5177,7 +5177,7 @@ sr84=$(printf '%s\n' \
 	'>>>>>>> REPLACE')
 R=$(mktemp -d "$WORK/r84-XXXXXX")
 printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
-m read 'a.go:3' >/dev/null
+m read 'a.go:3' >"$WORK/served.out"
 out=$(printf '%s\n' "$sr84" | m write --format=search_replace - 2>&1); rc=$?
 want 1 "$rc" "two-hunk SEARCH/REPLACE, one unread line -> exit 1"
 grep -q 'FAIL' <<<"$out" && ok "unread SEARCH/REPLACE names FAIL" || bad "unread SEARCH/REPLACE names FAIL"
@@ -5339,7 +5339,7 @@ grep -q 'echo FULL' <<<"$out" && ok "and the full command ran" || bad "not full:
 R=$(mktemp -d "$WORK/r87-XXXXXX")
 printf '1\n2\n3\n4\n5\n' > "$R/f.txt"
 printf 'keep\n' > "$R/g.txt"
-m read 'f.txt:2-3' 'g.txt:1' >/dev/null
+m read 'f.txt:2-3' 'g.txt:1' >"$WORK/served.out"
 plan87=$(printf '%s\n' \
 	'@@ g.txt 1 replace' \
 	'KEEP' \
@@ -5356,7 +5356,7 @@ grep -q '^2$' "$R/f.txt" && ok "unread neighbour wrote nothing" || bad "unread n
 
 R=$(mktemp -d "$WORK/r87b-XXXXXX")
 printf '1\n2\n3\n4\n5\n' > "$R/f.txt"
-m read 'f.txt:2-4' >/dev/null
+m read 'f.txt:2-4' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ f.txt 2-3 replace anchor="2"' \
 	'X' \
@@ -5369,7 +5369,7 @@ grep -q '^X$' "$R/f.txt" && ok "served End+1 applied" || bad "served End+1 appli
 # default 0 prints no pad.
 R=$(mktemp -d "$WORK/r88-XXXXXX")
 printf '1\n2\n3\n</div>\n5\n' > "$R/f.txt"
-m read 'f.txt:2-4' >/dev/null
+m read 'f.txt:2-4' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ f.txt 2-3 replace anchor="2"' \
 	'X' \
@@ -5380,7 +5380,7 @@ grep -q '</div>' <<<"$out" && ok "pad shows the closer" || bad "pad shows the cl
 
 R=$(mktemp -d "$WORK/r88b-XXXXXX")
 printf '1\n2\n3\n</div>\n5\n' > "$R/f.txt"
-m read 'f.txt:2-4' >/dev/null
+m read 'f.txt:2-4' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ f.txt 2-3 replace anchor="2"' \
 	'X' \
@@ -5402,7 +5402,7 @@ R=$(mktemp -d "$WORK/r89-XXXXXX")
 printf '{"check":"exit 3"}\n' > "$R/.quality-harness.json"
 printf 'package a\nfunc A() {}\n' > "$R/a.go"
 printf '# notes\nline two\n' > "$R/notes.md"
-m read 'a.go:2' 'notes.md:2' >/dev/null
+m read 'a.go:2' 'notes.md:2' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ a.go 2 replace anchor="func A"' \
 	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
@@ -5419,7 +5419,7 @@ else
   ok "prose write never mentions the check"
 fi
 
-m read 'a.go:2' >/dev/null
+m read 'a.go:2' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ a.go 2 replace anchor="func A"' \
 	'func A() { _ = 2 }' | m write --no-check - 2>&1); rc=$?
@@ -5432,7 +5432,7 @@ want 2 "$rc" "--check --no-check is usage (exit 2)"
 
 R=$(mktemp -d "$WORK/r89b-XXXXXX")
 printf 'package a\nfunc A() {}\n' > "$R/a.go"
-m read 'a.go:2' >/dev/null
+m read 'a.go:2' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ a.go 2 replace anchor="func A"' \
 	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
@@ -5451,7 +5451,7 @@ fi
 R=$(mktemp -d "$WORK/r90-XXXXXX")
 printf 'package f\nfunc A() {\n\treturn\n}\n' > "$R/f.go"
 printf '# t\nfunc A() {\n\treturn\n}\n' > "$R/n.md"
-m read 'f.go:2' 'n.md:2' >/dev/null
+m read 'f.go:2' 'n.md:2' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ f.go 2 replace anchor="func A"' \
 	'func A() { return }' | m write --no-check - 2>&1); rc=$?
@@ -5471,7 +5471,7 @@ fi
 
 R=$(mktemp -d "$WORK/r90b-XXXXXX")
 printf 'package f\nfunc A() {\n\treturn\n}\n' > "$R/f.go"
-m read 'f.go:2' >/dev/null
+m read 'f.go:2' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ f.go 2 replace anchor="func A"' \
 	'func B() {' | m write --no-check - 2>&1); rc=$?
@@ -5491,7 +5491,7 @@ fi
 R=$(mktemp -d "$WORK/r91-XXXXXX")
 printf '{"check":"exit 3"}\n' > "$R/.quality-harness.json"
 printf 'package a\nfunc A() {}\nfunc B() {}\n' > "$R/a.go"
-m read 'a.go:2-3' >/dev/null
+m read 'a.go:2-3' >"$WORK/served.out"
 printf '@@ a.go 2 replace\nfunc A() { _ = 1 }\n' | m write --no-check - >/dev/null 2>&1
 out=$(m stats 2>&1); rc=$?
 want 0 "$rc" "stats after one applied plan exits 0"
@@ -5499,7 +5499,7 @@ grep -qE 'failed_check +0 of 1' <<<"$out" && ok "failed_check prints at zero" ||
 grep -qE 'check_not_run +0 of 1' <<<"$out" && ok "check_not_run prints at zero" || bad "check_not_run hidden at zero: $out"
 grep -q 'landed writes: 1; failed_check 0 of those' <<<"$out" && ok "the landed line names its denominator" || bad "no landed line: $out"
 
-m read 'a.go:3' >/dev/null
+m read 'a.go:3' >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc B() { _ = 1 }\n' | m write - >/dev/null 2>&1; rc=$?
 want 3 "$rc" "a default-check write against a failing check exits 3"
 out=$(m stats 2>&1); rc=$?
@@ -5522,7 +5522,7 @@ grep -q '"failed_check_of_landed": 1' <<<"$jout" && ok "--json failed_check_of_l
 # still carries it.
 R=$(mktemp -d "$WORK/r92-XXXXXX")
 printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
-m read 'f.go:1' >/dev/null
+m read 'f.go:1' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ f.go 1 replace anchor="func A"' \
 	'func A() { return }' | m write --no-check - 2>&1); rc=$?
@@ -5531,7 +5531,7 @@ grep -q '0 failed, 1 advisory — applied' <<<"$out" && ok "the summary says 1 a
 
 R=$(mktemp -d "$WORK/r92b-XXXXXX")
 printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
-m read 'f.go:1' >/dev/null
+m read 'f.go:1' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ f.go 1 replace anchor="func A"' \
 	'func B() {' | m write --no-check - 2>&1); rc=$?
@@ -5540,7 +5540,7 @@ grep -q '0 failed, 0 advisories — applied' <<<"$out" && ok "the summary says 0
 
 R=$(mktemp -d "$WORK/r92c-XXXXXX")
 printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
-m read 'f.go:1' >/dev/null
+m read 'f.go:1' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ f.go 1 replace anchor="func A"' \
 	'func A() { return }' | m write --no-check --quiet - 2>&1); rc=$?
@@ -5549,7 +5549,7 @@ grep -q '1 advisory' <<<"$out" && ok "--quiet keeps the advisory count" || bad "
 
 R=$(mktemp -d "$WORK/r92d-XXXXXX")
 printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
-m read 'f.go:1' >/dev/null
+m read 'f.go:1' >"$WORK/served.out"
 jout=$(printf '%s\n' \
 	'@@ f.go 1 replace anchor="func A"' \
 	'func A() { return }' | m write --no-check --json - 2>/dev/null); rc=$?
@@ -5564,7 +5564,7 @@ want 0 "$rc" "--json delta replace exits 0"
 R=$(mktemp -d "$WORK/r93-XXXXXX")
 for i in 1 2 3; do
   printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
-  m read 'f.go:1' >/dev/null
+  m read 'f.go:1' >"$WORK/served.out"
   out=$(printf '%s\n' \
 	'@@ f.go 1 replace anchor="func A"' \
 	'func A() { return }' | m write --no-check - 2>&1); rc=$?
@@ -5596,7 +5596,7 @@ fi
 R=$(mktemp -d "$WORK/r94-XXXXXX")
 printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
 printf 'func A() {\n\treturn\n}\n' > "$R/n.md"
-m read 'f.go:1' 'n.md:1' >/dev/null
+m read 'f.go:1' 'n.md:1' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ f.go 1 replace anchor="func A"' \
 	'func A() { return }' | m write --no-check --strict-balance - 2>&1); rc=$?
@@ -5612,7 +5612,7 @@ grep -q 'balance {' <<<"$out" && ok "and carries the balance row" || bad "no bal
 
 R=$(mktemp -d "$WORK/r94b-XXXXXX")
 printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
-m read 'f.go:1' >/dev/null
+m read 'f.go:1' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ f.go 1 replace anchor="func A"' \
 	'func B() {' | m write --no-check --strict-balance - 2>&1); rc=$?
@@ -5620,7 +5620,7 @@ want 0 "$rc" "--strict-balance leaves a balanced single-line replace alone"
 
 R=$(mktemp -d "$WORK/r94c-XXXXXX")
 printf 'func A() {\n\treturn\n}\n' > "$R/n.md"
-m read 'n.md:1' >/dev/null
+m read 'n.md:1' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ n.md 1 replace anchor="func A"' \
 	'func A() { return }' | m write --no-check --strict-balance - 2>&1); rc=$?
@@ -5632,7 +5632,7 @@ want 0 "$rc" "--strict-balance leaves prose alone"
 # the object is present, fires or not.
 R=$(mktemp -d "$WORK/r95-XXXXXX")
 printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
-m read 'f.go:1' >/dev/null
+m read 'f.go:1' >"$WORK/served.out"
 jout=$(printf '%s\n' \
 	'@@ f.go 1 replace anchor="func A"' \
 	'func A() { return }' | m write --no-check --json - 2>/dev/null); rc=$?
@@ -5641,7 +5641,7 @@ want 0 "$rc" "delta write 1 exits 0"
   && ok "the CLI --json receipt carries pattern {1,1,false}" || bad "CLI pattern: $(jq -c .pattern <<<"$jout")"
 for i in 2 3; do
   printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
-  m read 'f.go:1' >/dev/null
+  m read 'f.go:1' >"$WORK/served.out"
   req=$(printf '@@ f.go 1 replace anchor="func A"\nfunc A() { return }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
   mcpout=$(printf '%s\n' "$req" | "$MRW" -C "$R" mcp 2>/dev/null); rc=$?
   want 0 "$rc" "mrw_write $i over a pipe exits 0"
@@ -5657,7 +5657,7 @@ pat=$(python3 -c 'import json,sys; print(json.dumps(json.loads(sys.argv[1].split
 # --json carries the five keys / the pricing file is `strict_<name> N` lines.
 R=$(mktemp -d "$WORK/r96-XXXXXX")
 printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
-m read 'f.go:1' >/dev/null
+m read 'f.go:1' >"$WORK/served.out"
 printf '%s\n' '@@ f.go 1 replace anchor="func A"' 'func A() { return }' | m write --no-check - >/dev/null 2>&1; rc=$?
 want 0 "$rc" "priced delta write exits 0"
 out=$(m stats 2>&1)
@@ -5666,11 +5666,11 @@ grep -q 'strict-balance pricing: 1 landed writes with a single-line code replace
 grep -q 'no checked refusals yet' <<<"$out" && ok "no rate is reported on no checked evidence" || bad "rate on no evidence: $out"
 
 printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
-m read 'f.go:1' >/dev/null
+m read 'f.go:1' >"$WORK/served.out"
 printf '%s\n' '@@ f.go 1 replace anchor="func A"' 'func B() {' | m write --no-check - >/dev/null 2>&1; rc=$?
 want 0 "$rc" "clean single-line write exits 0"
 printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
-m read 'f.go:1' >/dev/null
+m read 'f.go:1' >"$WORK/served.out"
 printf '%s\n' '@@ f.go 1 replace anchor="func A"' 'func A() { return }' | m write --no-check --strict-balance - >/dev/null 2>&1; rc=$?
 want 1 "$rc" "--strict-balance write is refused"
 jout=$(m stats --json 2>/dev/null)
@@ -5686,7 +5686,7 @@ pf="$(m seen | head -1)/pricing"
 R=$(mktemp -d "$WORK/r97-XXXXXX")
 printf '{"check":"sleep 5","fenceTimeout":1}\n' > "$R/.quality-harness.json"
 printf 'package a\nfunc A() {}\n' > "$R/a.go"
-m read 'a.go:2' >/dev/null
+m read 'a.go:2' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ a.go 2 replace anchor="func A"' \
 	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
@@ -5705,7 +5705,7 @@ echo "$out" | grep -q '300' && echo "$out" | grep -q '1' \
 # (exit 1, path stays). Rename of a served file lands the dest.
 R=$(mktemp -d "$WORK/r98-XXXXXX")
 printf 'gone\n' > "$R/gone.txt"
-m read gone.txt >/dev/null
+m read gone.txt >"$WORK/served.out"
 out=$(printf '%s\n' '@@ gone.txt - unlink' | m write - 2>&1); rc=$?
 want 0 "$rc" "whole-file read then unlink -> exit 0"
 grep -q 'removed gone.txt' <<<"$out" && ok "receipt names removed" || bad "receipt names removed: $out"
@@ -5714,7 +5714,7 @@ grep -q 'removed gone.txt' <<<"$out" && ok "receipt names removed" || bad "recei
 R=$(mktemp -d "$WORK/r98b-XXXXXX")
 printf 'gone\n' > "$R/gone.txt"
 printf 'keep\n' > "$R/keep.txt"
-m read gone.txt >/dev/null
+m read gone.txt >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ gone.txt - unlink' \
 	'@@ keep.txt 1 replace anchor="keep"' \
@@ -5725,7 +5725,7 @@ grep -q '^skip' <<<"$out" && ok "unread sibling skips the unlink" || bad "siblin
 
 R=$(mktemp -d "$WORK/r98c-XXXXXX")
 printf 'moved\n' > "$R/old.txt"
-m read old.txt >/dev/null
+m read old.txt >"$WORK/served.out"
 out=$(printf '%s\n' '@@ old.txt - rename' 'new.txt' | m write - 2>&1); rc=$?
 want 0 "$rc" "whole-file read then rename -> exit 0"
 [ ! -e "$R/old.txt" ] && [ -f "$R/new.txt" ] && grep -qx 'moved' "$R/new.txt" \
@@ -5736,7 +5736,7 @@ want 0 "$rc" "whole-file read then rename -> exit 0"
 # and the tree is unchanged (ADR-114 compiles it; the ledger refuses it).
 R=$(mktemp -d "$WORK/r99-XXXXXX")
 printf 'gone\n' > "$R/gone.txt"
-m read gone.txt >/dev/null
+m read gone.txt >"$WORK/served.out"
 patch99=$(printf '%s\n' \
 	'*** Begin Patch' \
 	'*** Delete File: gone.txt' \
@@ -5777,7 +5777,7 @@ want 2 "$rc" "leftover body=1 is exit 2"
 echo "$out" | grep -q 'body=1' && echo "$out" | grep -q '2 extra' \
 	&& ok "leftover names declared vs extra" || bad "leftover: $out"
 
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ a.go 2 replace anchor="func A" body=1' \
 	'func A() { _ = 1 }' | m write --dry-run --no-check - 2>&1); rc=$?
@@ -5810,7 +5810,7 @@ want 2 "$rc" "unquoted anchor with embedded quotes is exit 2"
 echo "$out" | grep -q 'anchor="' \
 	&& ok "refusal names the quoted form" || bad "unquoted: $out"
 
-m read f.ts >/dev/null
+m read f.ts >"$WORK/served.out"
 cat > "$R/quoted.mrw" <<'EOF'
 @@ f.ts 1 replace anchor="import { inject, vi } from \"vitest\";" body=1
 X
@@ -5841,7 +5841,7 @@ echo "$out" | grep -q '/etc/hosts' \
 R=$(mktemp -d "$WORK/r104-XXXXXX")
 printf '%s\n' '{"check":"sh -c '"'"'echo unique-last-error-line; exit 1'"'"'"}' > "$R/.quality-harness.json"
 printf 'package a\nfunc A() {}\n' > "$R/a.go"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ a.go 2 replace anchor="func A"' \
 	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
@@ -5854,7 +5854,7 @@ full=$(printf '%s\n' "$out" | grep -n 'full output:' | head -1 | cut -d: -f1)
 R=$(mktemp -d "$WORK/r104b-XXXXXX")
 printf '%s\n' '{"check":"true"}' > "$R/.quality-harness.json"
 printf 'package a\nfunc A() {}\n' > "$R/a.go"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ a.go 2 replace anchor="func A"' \
 	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
@@ -5867,7 +5867,7 @@ echo "$out" | grep -q 'check last:' \
 R=$(mktemp -d "$WORK/r105-XXXXXX")
 printf 'package a\nfunc A() {}\n' > "$R/a.go"
 printf 'func A() { _ = 1 }\n' > "$R/src.txt"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 out=$(printf '%s\n' '@@ a.go 2 replace anchor="func A" body=@src.txt' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "replace body=@src.txt exits 0"
 if grep -Fq 'func A() { _ = 1 }' "$R/a.go"; then
@@ -5879,7 +5879,7 @@ fi
 R=$(mktemp -d "$WORK/r105b-XXXXXX")
 printf 'alpha\nbeta\n' > "$R/notes.md"
 printf 'INSERTED\n' > "$R/src.txt"
-m read notes.md >/dev/null
+m read notes.md >"$WORK/served.out"
 out=$(printf '%s\n' '@@ notes.md 1 insert-after body=@src.txt' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "insert-after body=@src.txt exits 0"
 if grep -qx 'INSERTED' "$R/notes.md"; then
@@ -5890,7 +5890,7 @@ fi
 
 R=$(mktemp -d "$WORK/r105c-XXXXXX")
 printf 'package a\nfunc A() {}\n' > "$R/a.go"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 out=$(printf '%s\n' '@@ a.go 2 replace anchor="func A"' | m write --no-check - 2>&1); rc=$?
 want 2 "$rc" "empty replace without body=@ is still exit 2"
 echo "$out" | grep -q 'would delete' \
@@ -6094,8 +6094,10 @@ assert len(flags) >= 8, "read --help lists only %r" % flags
 untaught = [f for f in flags if not re.search(r"--%s(?![A-Za-z0-9-])" % re.escape(f), out)]
 assert not untaught, "instructions omit read flags: %r" % untaught
 # --then and --then-sh are write and check flags the instructions teach too (ADR-092),
-# and --no-check is the write flag they name for a depth past the limit (ADR-095).
-unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check"}
+# and --no-check is the write flag they name for a depth past the limit (ADR-095);
+# --create is the write flag for a new file without a plan (ADR-139), and
+# --core is the instructions flag that prints the short form (ADR-141).
+unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create", "core"}
 assert not unknown, "instructions teach flags read does not have: %r" % sorted(unknown)
 assert re.search(r"^\s+--ast-grep PATTERN\b", opts, re.M), "read --help does not show --ast-grep PATTERN"
 PY
@@ -6104,15 +6106,15 @@ PY
 
 fixture
 printf 'func Start\nX one\ny\nX two\nz\n' > "$R/t.txt"
-m read t.txt >/dev/null 2>&1
-m read 't.txt:/func Start/,+12' >/dev/null 2>&1
+m read t.txt >"$WORK/served.out" 2>&1
+m read 't.txt:/func Start/,+12' >"$WORK/served.out" 2>&1
 want 0 $? "the quoted example spec serves"
-m read t.txt:-2 >/dev/null 2>&1
+m read t.txt:-2 >"$WORK/served.out" 2>&1
 want 0 $? "a read takes -M"
 out=$(m read 't.txt:4,+9' 2>&1); rc=$?
 want 0 "$rc" "a read clamps a relative end past the last line"
 grep -q '^@@ 4-5' <<<"$out" && ok "and serves @@ 4-5" || bad "the clamped read served: $out"
-printf 't.txt:/X/\n' | m read --files-from - >/dev/null 2>&1
+printf 't.txt:/X/\n' | m read --files-from - >"$WORK/served.out" 2>&1
 want 0 $? "--files-from - takes specs on stdin"
 before=$(cat "$R/t.txt")
 printf '@@ t.txt /X/ replace\nQ\n' | m write --no-check - >/dev/null 2>&1
@@ -6139,13 +6141,13 @@ out=$(m116 read --ast-grep D --exclude b.go b.go 2>&1); rc=$?
 want 0 "$rc" "ast-grep with b.go named and excluded exits 0"
 grep -q '^==> b.go' <<<"$out" && ok "ast-grep serves a named file the glob matches" \
                               || bad "ast-grep dropped a file the caller named: $out"
-m116 read --ast-grep D --exclude b.go >/dev/null 2>&1
+m116 read --ast-grep D --exclude b.go >"$WORK/served.out" 2>&1
 want 1 $? "with nothing named, ast-grep's hit on b.go meets the glob"
 out=$(m116 read --grep 'func D' --exclude b.go b.go 2>&1); rc=$?
 want 0 "$rc" "grep with b.go named and excluded exits 0"
 grep -q '^==> b.go' <<<"$out" && ok "grep serves a named file the glob matches" \
                               || bad "grep dropped a file the caller named: $out"
-m116 read --grep 'func D' --exclude b.go >/dev/null 2>&1
+m116 read --grep 'func D' --exclude b.go >"$WORK/served.out" 2>&1
 want 1 $? "with nothing named, grep's hit on b.go meets the glob"
 mkdir -p "$R/vendor"; printf 'package v\nfunc D() {}\n' > "$R/vendor/v.go"
 fake116 '[{"file":"vendor/v.go","range":{"start":{"line":1},"end":{"line":1}}}]'
@@ -6209,17 +6211,17 @@ fi
 # works as root. The good case is the same plan with a short name.
 fixture
 L118=$(printf '%0300d' 0 | tr 0 x)
-printf 'sib\n' > "$R/s.txt"; printf 'bee\n' > "$R/b.txt"; m read s.txt b.txt >/dev/null
+printf 'sib\n' > "$R/s.txt"; printf 'bee\n' > "$R/b.txt"; m read s.txt b.txt >"$WORK/served.out"
 printf '@@ s.txt 1 replace\nSIB\n@@ b.txt - rename\nd/short/f.txt\n' | m write --no-check - >"$WORK/118.out" 2>&1
 want 0 $? "a sibling edit and a rename into a new directory exit 0"
 { grep -q -- '— applied' "$WORK/118.out" && [ -f "$R/d/short/f.txt" ]; } \
   && ok "a rename into a new directory applies" \
   || bad "a rename into a new directory did not apply: $(tr '\n' ' ' < "$WORK/118.out")"
 fixture
-printf 'sib\n' > "$R/s.txt"; printf 'bee\n' > "$R/b.txt"; m read s.txt b.txt >/dev/null
+printf 'sib\n' > "$R/s.txt"; printf 'bee\n' > "$R/b.txt"; m read s.txt b.txt >"$WORK/served.out"
 plan118="$(printf '@@ s.txt 1 replace\nSIB\n@@ b.txt - rename\nn/%s/f.txt\n' "$L118")"
 printf '%s\n' "$plan118" | m write --no-check - >"$WORK/118.out" 2>&1
-want 2 $? "a rename whose destination directory cannot be made exits 2"
+want 1 $? "a rename whose destination directory cannot be made exits 1 (ADR-132: a name too long is the target's)"
 { [ "$(cat "$R/s.txt")" = "sib" ] && [ -f "$R/b.txt" ] && [ ! -e "$R/n" ] \
     && grep -q '^FAIL' "$WORK/118.out" && grep -q '^skip' "$WORK/118.out" \
     && ! grep -q -- '— applied' "$WORK/118.out"; } \
@@ -6242,7 +6244,7 @@ want 1 $? "a rename whose name the filesystem rejects fails validation (exit 1)"
   && ok "a rename whose name the filesystem rejects is refused" \
   || bad "a rejected rename name reached the tree: $(tr '\n' ' ' < "$WORK/118.out" | cut -c1-300)"
 printf '@@ s.txt 1 replace\nSIB\n@@ b.txt - rename\nn2/%s\n' "$L118" | m write --no-check - >"$WORK/118.out" 2>&1
-want 2 $? "a rename whose leaf is rejected under a new parent exits 2"
+want 1 $? "a rename whose leaf is rejected under a new parent exits 1 (ADR-132)"
 { [ "$(cat "$R/s.txt")" = "sib" ] && [ -f "$R/b.txt" ] && [ ! -e "$R/n2" ]; } \
   && ok "a rename whose leaf is rejected under a new parent writes nothing" \
   || bad "a rejected leaf under a new parent reached the tree: $(tr '\n' ' ' < "$WORK/118.out" | cut -c1-300)"
@@ -6269,20 +6271,20 @@ if ( : > "$R/ro/.probe" ) 2>/dev/null; then
   rm -f "$R/ro/.probe"; chmod 755 "$R/ro"
   skip "a read-only directory is writable here — §119 not driven through the binary"
 else
-  setup119() { printf 'OLD-C\n' > "$R/c.txt"; printf 'B-CONTENT\n' > "$R/b.txt"; printf 'D\n' > "$R/d.txt"; printf 'sib\n' > "$R/s.txt"; m read c.txt b.txt d.txt s.txt >/dev/null; }
+  setup119() { printf 'OLD-C\n' > "$R/c.txt"; printf 'B-CONTENT\n' > "$R/b.txt"; printf 'D\n' > "$R/d.txt"; printf 'sib\n' > "$R/s.txt"; m read c.txt b.txt d.txt s.txt >"$WORK/served.out"; }
   setup119
   printf '@@ c.txt - unlink\n@@ b.txt - rename\nc.txt\n@@ d.txt - rename\nw/d.txt\n' | m write --no-check - >"$WORK/119.out" 2>&1
   want 0 $? "a replacing rename plan into a writable directory exits 0"
   rm -f "$R/w/d.txt"; setup119
   printf '@@ c.txt - unlink\n@@ b.txt - rename\nc.txt\n@@ d.txt - rename\nro/d.txt\n' | m write --no-check - >"$WORK/119.out" 2>&1
-  want 2 $? "a replacing rename plan whose last rename cannot land exits 2"
+  want 1 $? "a replacing rename plan whose last rename cannot land exits 1 (ADR-132: a permission is the target's)"
   { [ "$(cat "$R/c.txt")" = "OLD-C" ] && [ "$(cat "$R/b.txt" 2>/dev/null)" = "B-CONTENT" ] && [ "$(cat "$R/d.txt")" = "D" ] \
       && ! grep -q -- '— applied' "$WORK/119.out"; } \
     && ok "a failed rename after a replacing rename loses no file" \
     || bad "a failed rename after a replacing rename lost or moved a file: c=$(cat "$R/c.txt" 2>&1) b=$(cat "$R/b.txt" 2>&1) :: $(tr '\n' ' ' < "$WORK/119.out" | cut -c1-300)"
   setup119
   printf '@@ s.txt 1 replace\nSIB\n@@ d.txt - rename\nro/d.txt\n' | m write --no-check - >"$WORK/119.out" 2>&1
-  want 2 $? "a mixed plan whose rename cannot land exits 2"
+  want 1 $? "a mixed plan whose rename cannot land exits 1 (ADR-132)"
   { [ "$(cat "$R/s.txt")" = "sib" ] && grep -q '^FAIL' "$WORK/119.out" \
       && ! grep -q 'PARTIALLY APPLIED' "$WORK/119.out"; } \
     && ok "a mixed plan whose rename cannot land writes nothing: ADR-086 refuses it at staging" \
@@ -6311,22 +6313,22 @@ out=$(m read cr.txt 2>&1)
   || bad "a CR-only file was not served as 3L: $(head -1 <<<"$out")"
 fixture
 printf 'one\rtwo\rthree\r' > "$R/cr.txt"
-m read cr.txt:2 >/dev/null
+m read cr.txt:2 >"$WORK/served.out"
 printf '@@ cr.txt 2 replace\nTWO\n' | m write --no-check - >"$WORK/120.out" 2>&1
 want 0 $? "a write to the served line 2 of a CR-only file exits 0"
 [ "$(od -An -c "$R/cr.txt" | tr -d ' \n')" = 'one\rTWO\rthree\r' ] \
   && ok "a CR-only line read is the line a write addresses" \
   || bad "the CR-only write did not replace exactly line 2: $(od -An -c "$R/cr.txt" | tr -d '\n')"
 printf 'one\r\ntwo\r\nthree\r\n' > "$R/crlf.txt"
-m read crlf.txt >/dev/null
+m read crlf.txt >"$WORK/served.out"
 printf '@@ crlf.txt 1 replace\nONE\n' | m write --no-check - >"$WORK/120.out" 2>&1
 want 0 $? "a write after a whole read of a CRLF file exits 0"
 [ "$(od -An -c "$R/crlf.txt" | tr -d ' \n')" = 'ONE\r\ntwo\r\nthree\r\n' ] \
   && ok "a CRLF file read whole is written without changing its endings" \
   || bad "the CRLF write changed its endings: $(od -An -c "$R/crlf.txt" | tr -d '\n')"
-m read 'crlf.txt:/two$/' >/dev/null 2>&1
+m read 'crlf.txt:/two$/' >"$WORK/served.out" 2>&1
 want 0 $? "a CRLF line is served without its \\r, so /two$/ matches line 2"
-m read 'crlf.txt:/two\r$/' >/dev/null 2>&1
+m read 'crlf.txt:/two\r$/' >"$WORK/served.out" 2>&1
 want 1 $? "a read pattern that needs the \\r a CRLF line no longer carries matches nothing"
 
 # 121. ADR-065: the foreign plan formats compile against the lines the write
@@ -6336,7 +6338,7 @@ want 1 $? "a read pattern that needs the \\r a CRLF line no longer carries match
 # old side the file does not hold, which must still refuse and write nothing.
 fixture
 printf 'one\r\ntwo\r\nthree\r\n' > "$R/crlf.txt"
-m read crlf.txt >/dev/null
+m read crlf.txt >"$WORK/served.out"
 printf '*** Begin Patch\n*** Update File: crlf.txt\n@@\n one\n-two\n+TWO\n three\n*** End Patch\n' \
   | m write --no-check --format=apply_patch - >"$WORK/121.out" 2>&1
 want 0 $? "an apply_patch edit of a CRLF file exits 0"
@@ -6344,7 +6346,7 @@ want 0 $? "an apply_patch edit of a CRLF file exits 0"
   && ok "apply_patch edits a CRLF file" \
   || bad "apply_patch did not edit the CRLF file: $(tr '\n' ' ' < "$WORK/121.out" | cut -c1-200)"
 printf 'one\rtwo\rthree\r' > "$R/cr.txt"
-m read cr.txt >/dev/null
+m read cr.txt >"$WORK/served.out"
 printf 'cr.txt\n<<<<<<< SEARCH\ntwo\n=======\nTWO\n>>>>>>> REPLACE\n' \
   | m write --no-check --format=search_replace - >"$WORK/121.out" 2>&1
 want 0 $? "a search_replace edit of a CR-only file exits 0"
@@ -6491,7 +6493,7 @@ want 0 $? "and a missing spaced path is reported by name, not as an internal err
 fixture
 printf 'same\n' > "$R/x"
 printf 'same\n' > "$R/x "
-m read -- "x " >/dev/null 2>&1
+m read -- "x " >"$WORK/served.out" 2>&1
 printf '@@ x 1 replace\nWROTE\n' > "$WORK/127a.mrw"
 m write --no-check "$WORK/127a.mrw" >/dev/null 2>&1
 want 1 $? "a read of a trailing-space path does not license its trimmed sibling"
@@ -6503,7 +6505,7 @@ want 0 $? "and the file that was read is writable"
 fixture
 printf 'same\n' > "$R/x"
 printf 'same\n' > "$R/x"$'\r'
-m read -- "x"$'\r' >/dev/null 2>&1
+m read -- "x"$'\r' >"$WORK/served.out" 2>&1
 want 0 $? "a read of a trailing-CR path is served"
 m write --no-check "$WORK/127a.mrw" >/dev/null 2>&1
 want 1 $? "a read of a trailing-CR path does not license its trimmed sibling"
@@ -6540,7 +6542,7 @@ grep -q 'padded' <<<"$out" && ! grep -q 'plain' <<<"$out" \
 # landed at d. The pair: the rename still applies.
 fixture
 printf 'src\n' > "$R/a.txt"
-m read a.txt >/dev/null 2>&1
+m read a.txt >"$WORK/served.out" 2>&1
 printf '@@ a.txt - rename\nd \n' > "$WORK/130.mrw"
 m write --no-check "$WORK/130.mrw" >/dev/null 2>&1
 want 0 $? "a rename to a trailing-space name applies"
@@ -6551,7 +6553,7 @@ want 0 $? "a rename to a trailing-space name applies"
 fixture
 printf 'one\ntwo\n' > "$R/x"
 printf 'one\ntwo\n' > "$R/x "
-m read -- 'x ' >/dev/null 2>&1
+m read -- 'x ' >"$WORK/served.out" 2>&1
 printf '*** Begin Patch\n*** Update File: x \n@@\n one\n-two\n+TWO\n*** End Patch\n' > "$WORK/131.patch"
 m write --no-check --format=apply_patch "$WORK/131.patch" >/dev/null 2>&1
 want 0 $? "an apply_patch update of a trailing-space path applies"
@@ -6571,7 +6573,7 @@ grep -qE '@@ [^ ]+ [0-9]+(-[0-9]+)? replace [^ ].* body=[1-9]' <<<"$out" \
 # s2's docs/meta.yaml. The pair: counting the body writes that line.
 fixture
 printf 'title: x\n' > "$R/meta.yaml"
-m read meta.yaml >/dev/null 2>&1
+m read meta.yaml >"$WORK/served.out" 2>&1
 printf '@@ meta.yaml 1 replace\nbody=1\ntitle: y\n' > "$WORK/133a.mrw"
 out=$(m write --no-check "$WORK/133a.mrw" 2>&1); rc=$?
 want 2 "$rc" "a body= line under the header is refused"
@@ -6589,12 +6591,12 @@ want 0 $? "and a counted body writes a body= line as content"
 # attached root flag. The pair: the separate spelling serves the path.
 fixture
 printf 'padded\n' > "$R/x "
-m read --grep -- 'x ' >/dev/null 2>&1
+m read --grep -- 'x ' >"$WORK/served.out" 2>&1
 want 2 $? "a -- consumed as a flag value does not end the guard"
 printf 'x \n' > "$WORK/134 list "
-m read --files-from="$WORK/134 list " >/dev/null 2>&1
+m read --files-from="$WORK/134 list " >"$WORK/served.out" 2>&1
 want 2 $? "an attached flag value ending in a space is refused"
-"$MRW" --root="$R " read -- 'x ' >/dev/null 2>&1
+"$MRW" --root="$R " read -- 'x ' >"$WORK/served.out" 2>&1
 want 2 $? "and so is a padded attached root flag"
 out=$(m read --files-from "$WORK/134 list " 2>&1); rc=$?
 want 0 "$rc" "and the separate spelling is served"
@@ -6608,7 +6610,7 @@ grep -q 'padded' <<<"$out" && ok "and it serves the padded path" || bad "served:
 # Each is paired with the spelling the parser keeps.
 fixture
 printf 'plain\n' > "$R/x"; printf 'padded\n' > "$R/x "
-m read '--no-numbers ' 'x ' >/dev/null 2>&1
+m read '--no-numbers ' 'x ' >"$WORK/served.out" 2>&1
 want 2 $? "a padded boolean flag name does not hide a padded path"
 out=$(m read --no-numbers x 2>&1); rc=$?
 want 0 "$rc" "and the trimmed spelling serves x"
@@ -6616,7 +6618,7 @@ printf 'x \n' > "$R/--list= "
 out=$(cd "$R" && "$MRW" -C "$R" read --files-from '--list= ' 2>&1); rc=$?
 want 0 "$rc" "a separate value that looks like an attached flag is served"
 grep -q 'padded' <<<"$out" && ok "and it reaches the padded path" || bad "served: $out"
-"$MRW" --root -- --root="$R " read x >/dev/null 2>&1
+"$MRW" --root -- --root="$R " read x >"$WORK/served.out" 2>&1
 want 2 $? "a -- consumed by a root flag does not end the whole-argv guard"
 printf 'x \n' > "$WORK/135 list"$'\n'
 out=$(m read --files-from="$WORK/135 list"$'\n' 2>&1); rc=$?
@@ -6636,7 +6638,7 @@ mkdir "$R/d "; printf 'in d\n' > "$R/d /x"; printf '@@ x 1 replace\nnew\n' > "$W
 out=$(m write --no-check --root -- --root="$R " "$WORK/136.mrw" 2>&1); rc=$?
 want 2 "$rc" "an inherited root flag after the verb is read by the whole-argv guard"
 grep -q 'own argument' <<<"$out" && ok "and its refusal names the separate spelling" || bad "refusal: $out"
-"$MRW" -C "$R/d " read x >/dev/null
+"$MRW" -C "$R/d " read x >"$WORK/served.out"
 "$MRW" --root -- --root "$R/d " write --no-check --dry-run "$WORK/136.mrw" >/dev/null 2>&1
 want 0 $? "and a -- the root flag consumed, then a separate padded root, is accepted"
 mkdir "$R/ x"; printf 'q\n' > "$R/ x/x"
@@ -6693,7 +6695,7 @@ printf 'padded\n' > "$R/ -1= "; printf 'plain\n' > "$R/-1="
 out=$(cd "$R" && "$MRW" -C "$R" read ' -1= ' '-1=' 2>&1); rc=$?
 want 0 "$rc" "a preserved stop token is not judged against a sibling"
 grep -q 'padded' <<<"$out" && grep -q 'plain' <<<"$out" && ok "and both names are served as given" || bad "served: $out"
-m read ' - ' a.go >/dev/null 2>&1
+m read ' - ' a.go >"$WORK/served.out" 2>&1
 want 2 $? "and the padded lone - is still refused"
 
 # 140. ADR-069 T12: `mrw instructions` teaches the padded-path rule. A caller
@@ -6835,7 +6837,7 @@ out=$(m write --no-check "$R/p146.mrw" 2>&1); rc=$?
 want 1 "$rc" "a line edit to it is refused"
 grep -q 'UTF-16 (BOM FF FE)' <<<"$out" && ok "and the refusal names the encoding" || bad "refusal: $out"
 cmp -s "$R/u16.txt" "$R/u16.bak" && ok "and its bytes are unchanged" || bad "u16.txt changed under a refused write"
-printf 'one\ntwo\n' > "$R/a8.txt"; m read a8.txt >/dev/null
+printf 'one\ntwo\n' > "$R/a8.txt"; m read a8.txt >"$WORK/served.out"
 printf '@@ a8.txt 1 replace\nX\n' > "$R/p146b.mrw"
 m write --no-check "$R/p146b.mrw" >/dev/null 2>&1; rc=$?
 want 0 "$rc" "the same edit to a UTF-8 file applies"
@@ -6845,11 +6847,11 @@ want 0 "$rc" "and an unlink of the UTF-16 file applies"
 [ ! -e "$R/u16.txt" ] && ok "and removes it" || bad "u16.txt is still there"
 # --force overrides the read ledger, not the file's encoding; and a NUL in the
 # first 8 KiB refuses as a byte-order mark does (review of #230).
-cp "$R/u16.bak" "$R/u16.txt"; m read u16.txt >/dev/null
+cp "$R/u16.bak" "$R/u16.txt"; m read u16.txt >"$WORK/served.out"
 m write --no-check --force "$R/p146.mrw" >/dev/null 2>&1; rc=$?
 want 1 "$rc" "--force does not bypass the encoding refusal"
 cmp -s "$R/u16.txt" "$R/u16.bak" && ok "and the bytes are unchanged" || bad "u16.txt changed under --force"
-printf 'a\000b\nc\n' > "$R/nul.txt"; m read nul.txt >/dev/null
+printf 'a\000b\nc\n' > "$R/nul.txt"; m read nul.txt >"$WORK/served.out"
 printf '@@ nul.txt 2 replace\nX\n' > "$R/p146d.mrw"
 out=$(m write --no-check "$R/p146d.mrw" 2>&1); rc=$?
 want 1 "$rc" "a line edit to a file with a NUL in its first 8 KiB is refused"
@@ -6948,7 +6950,7 @@ PY
 # lost). The pair is every single-writer row above: one writer lands.
 fixture
 seq -f 'line %g' 1 16 > "$R/f150.txt"
-m read f150.txt >/dev/null
+m read f150.txt >"$WORK/served.out"
 for j in 0 1 2 3 4 5 6 7; do
 	printf '@@ f150.txt %d replace\nwriter %d\n' $((j + 1)) "$j" | m write --no-check - > "$R/out150.$j" 2>&1 &
 	pids150[$j]=$!
@@ -6981,8 +6983,8 @@ grep -q 'a.go/  UNREADABLE  a.go/ names a directory' <<<"$out" && ok "and it is 
 grep -q '| package' <<<"$out" && bad "a line was served through a directory spelling: $out" || ok "and no line of it is served"
 out=$(m read a.go/. 2>&1); rc=$?
 { [ "$rc" = 1 ] && grep -q 'names a directory' <<<"$out"; } && ok "and so is a.go/., which the OS refuses as it refuses a.go/" || bad "a.go/. read: exit $rc: $out"
-m read --grep package sub/ >/dev/null 2>&1; want 0 $? "a directory named with its slash is still walked"
-m read a.go b.go >/dev/null
+m read --grep package sub/ >"$WORK/served.out" 2>&1; want 0 $? "a directory named with its slash is still walked"
+m read a.go b.go >"$WORK/served.out"
 printf '@@ a.go/ 3 replace\nfunc A() int { return 9 }\n' > "$R/p151a.mrw"
 before=$(cat "$R/a.go"); out=$(m write --no-check "$R/p151a.mrw" 2>&1); rc=$?
 want 1 "$rc" "a plan path with a trailing slash is refused"
@@ -7010,7 +7012,7 @@ out=$("$MRW" -C "$WORK/no-such-root" write --no-check "$WORK/p151d.mrw" 2>&1); r
 # not named; a removed path printed `sha ` and nothing after it.
 fixture
 printf 'r\n' > "$R/real.txt"; ln -s real.txt "$R/link.txt"; printf 'm\n' > "$R/mv.txt"
-m read link.txt mv.txt >/dev/null
+m read link.txt mv.txt >"$WORK/served.out"
 printf '@@ link.txt 1 replace\nR\n@@ n/deep/c.txt 0 create\nc\n@@ mv.txt - rename\nm2/mv.txt\n' > "$R/p152.mrw"
 out=$(m write --no-check --json "$R/p152.mrw" 2>&1); rc=$?
 want 0 "$rc" "a plan through a link, into new directories, with a rename applies"
@@ -7020,7 +7022,7 @@ jq -e '.dirs_created==["m2","n","n/deep"]' <<<"$out" >/dev/null && ok "and the d
 { [ "$(cat "$R/real.txt")" = R ] && [ -L "$R/link.txt" ]; } && ok "and the write reached the target through the link it kept" || bad "link write: $(ls -l "$R")"
 fixture
 printf 'g\n' > "$R/gone.txt"; : > "$R/e.txt"; printf 'a' > "$R/nn.txt"
-m read gone.txt e.txt nn.txt >/dev/null
+m read gone.txt e.txt nn.txt >"$WORK/served.out"
 printf '@@ gone.txt - unlink\n@@ e.txt 0 insert-after\nx\n@@ nn.txt 1 replace\nb\n@@ n/c.txt 0 create\nc\n' > "$R/p152b.mrw"
 out=$(m write --no-check "$R/p152b.mrw" 2>&1); rc=$?
 want 0 "$rc" "an unlink, an insert into an empty file, an edit and a create apply"
@@ -7035,7 +7037,7 @@ grep -q '^created n/$' <<<"$out" && ok "the human receipt names the directory ma
 # neither needs the file to be writable, so both applied at exit 0. The check
 # reads the mode bits, so it holds under uid 0 as well.
 fixture
-printf 'a\n' > "$R/ro.txt"; chmod 444 "$R/ro.txt"; m read ro.txt >/dev/null
+printf 'a\n' > "$R/ro.txt"; chmod 444 "$R/ro.txt"; m read ro.txt >"$WORK/served.out"
 for plan in '@@ ro.txt 1 replace\nX\n' '@@ ro.txt - unlink\n' '@@ ro.txt - rename\nmoved.txt\n'; do
   printf "$plan" > "$R/p153.mrw"
   out=$(m write --no-check "$R/p153.mrw" 2>&1); rc=$?
@@ -7054,7 +7056,7 @@ m write --no-check "$R/p153.mrw" >/dev/null 2>&1; want 0 $? "once writable, the 
 # ledger. Each is refused; a file beside mrw/ is still the caller's.
 fixture
 st154() { XDG_STATE_HOME="$R/.st" "$MRW" -C "$R" "$@"; }
-st154 read a.go >/dev/null
+st154 read a.go >"$WORK/served.out"
 led=$(cd "$R" && ls .st/mrw/*/seen 2>/dev/null | head -1)
 [ -n "$led" ] && ok "the ledger lives inside the root for this row" || bad "no ledger under $R/.st: $(ls -R "$R/.st" 2>&1 | head)"
 printf 'func A planted\n' > "$R/.st/mrw/planted.txt"; printf 'func A notes\n' > "$R/.st/notes.txt"
@@ -7187,8 +7189,8 @@ grep -q 'tab after @@' <<<"$out" && ok "and the tab is named" || bad "tab header
 out=$(m read -C 1 a.go:3 2>&1); rc=$?
 want 2 "$rc" "-C on a line range is refused"
 grep -q -- '-C widens a /pattern/ match' <<<"$out" && ok "and says -C needs a pattern" || bad "-C on a range: $out"
-m read -C 1 'a.go:/func B/' >/dev/null 2>&1; want 0 $? "-C on a pattern still serves its context"
-m read --grep 'func B' -C 1 >/dev/null 2>&1; want 0 $? "and on a grep"
+m read -C 1 'a.go:/func B/' >"$WORK/served.out" 2>&1; want 0 $? "-C on a pattern still serves its context"
+m read --grep 'func B' -C 1 >"$WORK/served.out" 2>&1; want 0 $? "and on a grep"
 # The reviews of #239: a tab header under a header that did not parse was
 # swallowed as its body; -C with --ast-grep was told to name a /pattern/; and a
 # noted working set printed its note to stdout before the -C refusal.
@@ -7224,7 +7226,7 @@ for i in $(seq 1 12); do m iter add "f$i.txt" >/dev/null 2>&1 & pids+=($!); done
 for p in "${pids[@]}"; do wait "$p"; done
 n=$(m iter 2>/dev/null | grep -c '^@')
 [ "$n" = 12 ] && ok "12 racing iter adds keep 12 entries" || bad "12 racing iter adds kept $n: $(m iter 2>&1)"
-m read f1.txt f2.txt f3.txt f4.txt f5.txt f6.txt f7.txt f8.txt >/dev/null
+m read f1.txt f2.txt f3.txt f4.txt f5.txt f6.txt f7.txt f8.txt >"$WORK/served.out"
 pids=()
 for i in $(seq 1 8); do printf '@@ f%d.txt 1 replace\nw\n' "$i" > "$R/p160.$i"; m write --no-check "$R/p160.$i" >/dev/null 2>&1 & pids+=($!); done
 for p in "${pids[@]}"; do wait "$p"; done
@@ -7260,7 +7262,7 @@ hold160 "$sd/iteration.lock" && waited160 "an iter add" m iter add f9.txt || bad
 # applied, and counted among the landed writes though nothing landed; a
 # refused one is still one refusal.
 fixture
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' > "$R/p161a.mrw"
 m write --no-check --dry-run "$R/p161a.mrw" >/dev/null 2>&1; want 0 $? "a clean dry run applies nothing and exits 0"
 landed=$(m stats --json 2>/dev/null | jq -r '.landed, .plans' | tr '\n' ' ')
@@ -7279,7 +7281,7 @@ m write --no-check "$R/p164a.mrw" >/dev/null 2>&1; want 2 $? "a plan naming a di
 [ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .plans' | tr '\n' ' ')" = "1 1 " ] && ok "and is one refusal" || bad "a filesystem refusal: $(m stats --json 2>&1 | head -c 300)"
 m write --no-check --dry-run "$R/p164a.mrw" >/dev/null 2>&1; want 2 $? "the same plan under --dry-run is refused too"
 [ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .plans' | tr '\n' ' ')" = "2 2 " ] && ok "and is a second refusal, dry run or not" || bad "a refused dry run: $(m stats --json 2>&1 | head -c 300)"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' > "$R/p164b.mrw"
 m write --no-check "$R/p164b.mrw" >/dev/null 2>&1; want 0 $? "a clean write beside them lands"
 [ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .counts.applied, .plans' | tr '\n' ' ')" = "2 1 3 " ] && ok "and is counted as applied, not as a refusal" || bad "the clean write: $(m stats --json 2>&1 | head -c 300)"
@@ -7293,7 +7295,7 @@ m iter add a.go b.go >/dev/null
 rq165() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read(),"check":False}}}))'; }
 printf '%s\n' "$(rq165 "$(printf '@@ @1-2 1 replace\nx\n')")" | "$MRW" -C "$R" mcp >/dev/null 2>"$WORK/mcp165.err"; want 0 $? "mrw mcp answers a pointer that names two entries"
 [ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .plans' | tr '\n' ' ')" = "1 1 " ] && ok "and mrw_write counts it as one refusal" || bad "an MCP pointer refusal: $(m stats --json 2>&1 | head -c 300)"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '%s\n' "$(rq165 "$(printf '@@ @1 3 replace\nfunc A() int { return 8 }\n')")" | "$MRW" -C "$R" mcp >/dev/null 2>>"$WORK/mcp165.err"; want 0 $? "mrw mcp applies a pointer that resolves to one file"
 grep -q 'return 8' "$R/a.go" && [ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .counts.applied, .plans' | tr '\n' ' ')" = "1 1 2 " ] \
   && ok "and it landed and is counted as applied, not as a refusal" || bad "the MCP pointer write: $(head -c 200 "$R/a.go"); $(m stats --json 2>&1 | head -c 300)"
@@ -7302,7 +7304,7 @@ grep -q 'return 8' "$R/a.go" && [ "$(m stats --json 2>/dev/null | jq -r '.counts
 # `bad line number ""`; it is refused naming the write form, while `1-2` still
 # applies. The instructions say a write's exit 1 and 2, and --exclude pruning.
 fixture
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go -2 delete\n' > "$R/p166a.mrw"
 out=$(m write --no-check "$R/p166a.mrw" 2>&1); want 2 $? "a write address -2 is refused, exit 2"
 grep -q '1-2' <<<"$out" && grep -q 'read range' <<<"$out" && ok "and the refusal names the write form 1-2" || bad "the -2 refusal: $out"
@@ -7343,13 +7345,13 @@ done
 # bad�name.txt at exit 0. ext4 (Linux CI) holds the byte; APFS refuses it,
 # and the staging probe then fails the plan before its content edit lands.
 fixture
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 6 }\n@@ bad\377name.txt 0 create\nx\n' > "$R/p168.mrw"
 m write --no-check "$R/p168.mrw" >"$WORK/out168" 2>&1; rc=$?
 state=$(python3 -c 'import os,sys; ns=set(os.listdir(os.fsencode(sys.argv[1]))); print("exact" if b"bad\xffname.txt" in ns else "replaced" if "bad�name.txt".encode() in ns else "none")' "$R")
 case "$rc:$state" in
 	0:exact) ok "a name the filesystem holds lands with the bytes the plan wrote" ;;
-	2:none) grep -q 'return 6' "$R/a.go" && bad "the refused plan's content edit landed" || ok "a name the filesystem refuses fails the plan at staging, exit 2, and nothing is written" ;;
+	1:none) grep -q 'return 6' "$R/a.go" && bad "the refused plan's content edit landed" || ok "a name the filesystem refuses fails the plan at staging, exit 1 (ADR-132), and nothing is written" ;;
 	*) bad "exit $rc, name $state: $(head -c 300 "$WORK/out168")" ;;
 esac
 [ "$state" != replaced ] && ok "and the name is never rewritten to U+FFFD" || bad "the plan's name was rewritten to U+FFFD"
@@ -7401,7 +7403,7 @@ if [ -w /dev/full ]; then
   m read c171.txt > /dev/full 2> "$WORK/e171"; want 2 $? "a read whose answer cannot be written exits 2"
   grep -q 'nothing was recorded' "$WORK/e171" && ok "and says nothing was recorded" || bad "the refusal: $(head -c 300 "$WORK/e171")"
   printf '@@ c171.txt 2 replace\nTWO\n' | m write --no-check - > /dev/null 2>&1; want 1 $? "and a write to its lines is refused as unread"
-  m read c171.txt > /dev/null; want 0 $? "while a read that reached its caller exits 0"
+  m read c171.txt >"$WORK/served.out"; want 0 $? "while a read that reached its caller exits 0"
   printf '@@ c171.txt 2 replace\nTWO\n' | m write --no-check - > /dev/null 2>&1; want 0 $? "and licenses the same write"
 else
   skip "§171 needs /dev/full (Linux); TestAReadWhoseAnswerCannotBeWrittenRecordsNothing covers it here"
@@ -7413,10 +7415,10 @@ fi
 # refused before anything is written; a failed hunk runs no step.
 fixture
 printf '{"check":"exit 0","steps":{"mark":"touch m172-declared"}}\n' > "$R/.quality-harness.json"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 172 }\n' > "$R/p172.mrw"
 m write --no-check --then-sh 'touch m172-1' --then-sh 'exit 1' --then-sh 'touch m172-3' "$R/p172.mrw" > "$WORK/out172" 2>&1; want 3 $? "a sequence whose second step fails exits 3"
-{ [ -e "$R/m172-1" ] && [ ! -e "$R/m172-3" ]; } && ok "step 1 ran and step 3 never did" || bad "the markers: $(ls "$R" | grep m172 | tr '\n' ' ')"
+{ [ -e "$R/m172-1" ] && [ ! -e "$R/m172-3" ]; } && ok "step 1 ran and step 3 never did" || bad "the markers: $(shopt -s nullglob; cd "$R" && printf '%s ' *m172*)"
 grep -q 'NOT RUN' "$WORK/out172" && ok "the receipt names the step not run" || bad "the receipt: $(head -c 400 "$WORK/out172")"
 m write --no-check --then-sh 'exit 0' --then mark "$R/p172.mrw" > /dev/null 2>&1; want 0 $? "the same write with passing steps exits 0"
 [ -e "$R/m172-declared" ] && ok "a declared step runs" || bad "the declared step did not run"
@@ -7436,7 +7438,7 @@ printf '@@ a.go 3 replace anchor="not there"\nx\n' | m write --then-sh 'touch m1
 # which no in-process test reaches.
 fixture
 printf '{"timeout_seconds":120,"steps":{"vet":"go vet ./...","one":"echo 1 >> order173","two":"echo 2 >> order173"}}\n' > "$R/.quality-harness.json"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 0 + 1 }\n' > "$R/p173.mrw"
 m write --json --then vet --then-sh 'go build ./...' "$R/p173.mrw" > "$WORK/j173" 2> "$WORK/e173"; want 0 $? "a real check and two real Go steps pass: exit 0"
 python3 - "$WORK/j173" <<'PY' && ok "the receipt: the check ran and passed, then both steps pass, adhoc marks only --then-sh, pruned_logs present" || bad "the --json receipt: $(head -c 400 "$WORK/j173")"
@@ -7502,7 +7504,7 @@ for _ in $(seq 1 30); do kill -0 "${sp:-999999999}" 2>/dev/null || { alive=0; br
 # returning with nothing left running (one peer's grew to ~107 processes).
 fixture
 printf '{"check":"true","steps":{"my step":"true"}}\n' > "$R/.quality-harness.json"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 0 + 1 }\n' > "$R/p174.mrw"
 m write "$R/p174.mrw" > /dev/null 2>&1; want 0 $? "a write asking for no step lands beside a malformed steps block"
 printf '@@ a.go 3 replace\nfunc A() int { return 1 + 0 }\n' > "$R/p174b.mrw"
@@ -7642,7 +7644,7 @@ grep -q '^@1 *a.go$' "$WORK/o185c" && ok "and lists a.go" || bad "a.go: $(head -
 # the token, run and leave their markers.
 fixture
 printf '{"check":"touch m178-check","steps":{"fmt":"echo fmt {files} >> m178-step"}}\n' > "$R/.quality-harness.json"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 178 }\n' > "$R/p178.mrw"
 m write --then fmt "$R/p178.mrw" > "$WORK/o178a" 2>&1; want 2 $? "write --then naming a declared step that holds {files} is refused"
 { ! grep -q 'return 178' "$R/a.go" && [ ! -e "$R/m178-step" ] && [ ! -e "$R/m178-check" ] && grep -q 'step "fmt": its command holds {files}' "$WORK/o178a"; } \
@@ -7672,7 +7674,7 @@ m check --then fmt --then-sh 'echo sh a.go >> m178-step' a.go > "$WORK/o178f" 2>
 # with then last:.
 fixture
 printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 179 }\n' > "$R/p179.mrw"
 m write --no-check --then-sh 'echo LASTLINE; false || true' "$R/p179.mrw" > "$WORK/o179a" 2>&1; want 0 $? "a masked failure that printed passes: exit 0"
 [ "$(grep -A1 -- '— PASS' "$WORK/o179a" | sed -n 2p)" = "  | LASTLINE" ] \
@@ -7703,7 +7705,7 @@ left=$(pgrep -f "$R/rec181.sh" | wc -l | tr -d ' ')
 [ "$left" = 0 ] && ok "and nothing of the recursion is left running" || { pkill -9 -f "$R/rec181.sh"; bad "$left recursion processes outlived the row"; }
 fixture
 printf '{"check":"echo x >> m181"}\n' > "$R/.quality-harness.json"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 181 }\n' > "$R/p181.mrw"
 MRW_STEP_DEPTH=8 "$MRW" -C "$R" write "$R/p181.mrw" > "$WORK/o181w" 2>&1; want 2 $? "at depth 8 a .go write whose check is due is refused"
 { ! grep -q 'return 181' "$R/a.go" && [ ! -e "$R/m181" ] && grep -q 'MRW_STEP_DEPTH=8' "$WORK/o181w" && grep -q -- '--no-check' "$WORK/o181w"; } \
@@ -7776,7 +7778,7 @@ else
   jq -e '.counts.applied == 2 and .counts.check_not_run == 0' "$WORK/s186" > /dev/null \
     && ok "stats counts both --no-check landings applied, as ADR-083 does" || bad "stats: $(head -c 300 "$WORK/s186")"
   chmod 600 "$led186"
-  m read a.go > /dev/null
+  m read a.go >"$WORK/served.out"
   printf '@@ a.go 3 replace\nfunc A() int { return 1860 }\n' > "$R/p186c.mrw"
   m write --no-check --json --then-sh 'touch m186' "$R/p186c.mrw" > "$WORK/j186c" 2> /dev/null; want 0 $? "the pair: with the ledger writable the same write exits 0"
   { [ -e "$R/m186" ] && jq -e '.then.steps[0].status == "pass"' "$WORK/j186c" > /dev/null; } \
@@ -8004,7 +8006,7 @@ jq -se 'length == 1 and .[0].ran == true and .[0].exit_code == 0' "$WORK/p195" >
 # writable the unlink applies. uid 0 ignores the permission bits, so it skips there.
 fixture
 mkdir -p "$R/d"; printf 'x\n' > "$R/d/x.txt"; printf 'a\n' > "$R/a.txt"
-m read a.txt d/x.txt >/dev/null
+m read a.txt d/x.txt >"$WORK/served.out"
 chmod 555 "$R/d"
 if [ -w "$R/d" ]; then
   chmod 755 "$R/d"
@@ -8026,7 +8028,7 @@ fi
 # a bare JSON-RPC error a client could not tell from a write that did nothing.
 # The pair: with the ledger writable the receipt carries no error.
 fixture
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 led197="$(m seen | head -1)/seen"
 chmod 444 "$led197"
 if [ -w "$led197" ]; then
@@ -8038,7 +8040,7 @@ else
   { grep -q 'return 197' "$R/a.go" && jq -se 'length == 1 and (.[0] | .error == null and .result.isError == true and .result.structuredContent.applied == true and (.result.structuredContent.error | length > 0))' "$WORK/j197" > /dev/null; } \
     && ok "the write landed and the answer is its receipt, applied, naming the ledger error" || bad "ledger failure over MCP: $(head -c 400 "$WORK/j197")"
   chmod 600 "$led197"
-  m read a.go >/dev/null
+  m read a.go >"$WORK/served.out"
   req=$(printf '@@ a.go 3 replace\nfunc A() int { return 1970 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
   printf '%s\n' "$req" | "$MRW" -C "$R" mcp > "$WORK/p197" 2> /dev/null
   jq -se 'length == 1 and (.[0] | .result.structuredContent.applied == true and (.result.structuredContent | has("error") | not))' "$WORK/p197" > /dev/null \
@@ -8094,7 +8096,7 @@ log=$(grep -A3 '^then 1/1' <<<"$out" | sed -n 's/^full output: //p' | head -1)
 # edit to a file nobody read, and licenses the next write to one that was.
 fixture
 printf 'b\n' > "$R/b201.txt"
-m read a.go > /dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ b201.txt 1 replace\nB\n' > "$R/u201.mrw"
 m write --no-check "$R/u201.mrw" > /dev/null 2>&1; want 1 $? "an edit to a file nobody read is refused"
 [ "$(cat "$R/b201.txt")" = b ] && ok "and leaves it unchanged" || bad "the unread file changed: $(cat "$R/b201.txt")"
@@ -8104,7 +8106,8 @@ printf '@@ a.go 1 replace\npackage a\n' > "$R/p201.mrw"
 m write --no-check "$R/p201.mrw" > /dev/null 2>&1; want 0 $? "a write that saves the ledger exits 0"
 j201=$(ls -i "$sd201/seen" 2>/dev/null | awk '{print $1}')
 { [ -n "$i201" ] && [ -n "$j201" ] && [ "$i201" != "$j201" ]; } && ok "and the ledger was replaced by rename (inode $i201 -> $j201)" || bad "the ledger was rewritten in place: inode '$i201' -> '$j201'"
-ls -A "$sd201" | grep -q '\.tmp-' && bad "a temp state file was left: $(ls -A "$sd201" | tr '\n' ' ')" || ok "and no temp file stays beside it"
+left201=$(shopt -s dotglob nullglob; cd "$sd201" && printf '%s\n' *)
+grep -q '\.tmp-' <<<"$left201" && bad "a temp state file was left: $(tr '\n' ' ' <<<"$left201")" || ok "and no temp file stays beside it"
 printf '@@ a.go 1 replace\npackage a // 201\n' > "$R/q201.mrw"
 m write --no-check "$R/q201.mrw" > /dev/null 2>&1; want 0 $? "the pair: the replaced ledger licenses the next write"
 
@@ -8130,7 +8133,7 @@ jq -se '.[1].result.content[0].text | test("open lines 7-9 ") and ([scan("-- ck 
 fixture
 printf 'a\r\nb\r\n' > "$R/t203.txt"; printf 'X\r\n' > "$R/b203.txt"
 printf 'a\nb\n' > "$R/l203.txt"; printf 'Y\n' > "$R/c203.txt"
-m read t203.txt l203.txt > /dev/null
+m read t203.txt l203.txt >"$WORK/served.out"
 printf '@@ t203.txt 1 replace body=@b203.txt\n@@ l203.txt 1 replace body=@c203.txt\n' > "$R/p203.mrw"
 m write --no-check "$R/p203.mrw" > /dev/null 2>&1; want 0 $? "a write with two body=@ hunks exits 0"
 [ "$(od -An -c "$R/t203.txt" | tr -s ' ')" = "$(printf 'X\r\nb\r\n' | od -An -c | tr -s ' ')" ] \
@@ -8172,14 +8175,14 @@ m iter clear > /dev/null 2>&1; want 0 $? "and clears"
 # read of the line licenses the same write.
 fixture
 seq 1 100 > "$R/a206.txt"
-m read a206.txt:1 > /dev/null
+m read a206.txt:1 >"$WORK/served.out"
 sd206=$(m seen | head -1)
 sha206=$(awk '$3 == "a206.txt" { print $1 }' "$sd206/seen")
 printf '#mrw-seen v2\n%s  1-100  a206.txt\n' "$sha206" > "$sd206/seen"
 printf '@@ a206.txt 50 replace\nfifty\n' > "$R/p206.mrw"
 out=$(m write --no-check "$R/p206.mrw" 2>&1); want 1 $? "a write to line 50, licensed only by a v2 span 1-100, is refused"
 grep -q 'written by an older mrw' <<<"$out" && ok "and the notice says the ledger was discarded" || bad "v2 ledger: $(head -c 300 <<<"$out")"
-m read a206.txt:50 > /dev/null
+m read a206.txt:50 >"$WORK/served.out"
 m write --no-check "$R/p206.mrw" > /dev/null 2>&1; want 0 $? "the pair: after a read of line 50 the write applies"
 
 # 207. ADR-109: a FIFO named .quality-harness.json is refused, not waited on.
@@ -8210,7 +8213,7 @@ rm -f "$R/.mrw/seen"
 # MRW_WRITE_LOCK_TIMEOUT seconds, exit 2, nothing applied, naming the lock. The
 # pair: once the holder lets go, the same write applies.
 fixture
-m read a.go > /dev/null
+m read a.go >"$WORK/served.out"
 sd209=$(m seen | head -1)
 python3 -c 'import fcntl, sys, time
 f = open(sys.argv[1], "a"); fcntl.flock(f, fcntl.LOCK_EX); open(sys.argv[2], "w").close(); time.sleep(60)' "$sd209/seen.write.lock" "$WORK/ready209" &
@@ -8228,7 +8231,7 @@ m write --no-check "$R/p209.mrw" > /dev/null 2>&1; want 0 $? "the pair: once the
 # docs/receipts.txt lists, so a caller may rely on it and a removal cannot land
 # unseen. The pair: the same lookup reports a key the file does not list.
 fixture
-m read a.go > /dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 1 replace\npackage a // 210\n' > "$R/p210.mrw"
 m write --no-check --json "$R/p210.mrw" > "$WORK/j210" 2>/dev/null; want 0 $? "a write --json exits 0"
 keys210() { jq -r 'paths | select(.[-1] | type != "number") | map(if type == "number" then "[]" else "." + . end) | join("") | ltrimstr(".") | gsub("\\.\\[\\]"; "[]")' "$1" | sort -u; }
@@ -8246,15 +8249,15 @@ printf '{"not_a_field":1}\n' > "$WORK/k210"
 # changes nothing names nothing.
 fixture
 printf '{"check":"printf x >> a.go"}\n' > "$R/.quality-harness.json"
-m read a.go > /dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 1 replace\npackage a // 211\n' > "$R/p211.mrw"
 out=$(m write --check "$R/p211.mrw" 2>&1); want 0 $? "a write whose check appends to the file it wrote exits 0"
 grep -q '^drift: a.go changed while the check ran' <<<"$out" && ok "and names the file as drift" || bad "no drift line: $(head -c 300 <<<"$out")"
-m read a.go > /dev/null
+m read a.go >"$WORK/served.out"
 m write --check --json "$R/p211.mrw" > "$WORK/j211" 2>/dev/null; want 0 $? "the same write under --json exits 0"
 jq -e '.drift == ["a.go"]' "$WORK/j211" > /dev/null && ok "and its receipt carries drift [a.go]" || bad "drift receipt: $(head -c 300 "$WORK/j211")"
 printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
-m read a.go > /dev/null
+m read a.go >"$WORK/served.out"
 m write --check --json "$R/p211.mrw" > "$WORK/k211" 2>/dev/null; want 0 $? "the pair: a write whose check changes nothing exits 0"
 jq -e 'has("drift") | not' "$WORK/k211" > /dev/null && ok "and its receipt carries no drift" || bad "drift with an idle check: $(head -c 300 "$WORK/k211")"
 
@@ -8265,7 +8268,7 @@ jq -e 'has("drift") | not' "$WORK/k211" > /dev/null && ok "and its receipt carri
 # leaving it as it was. The pair: once the file is read again, the plan applies.
 fixture
 printf 'one\ntwo\nthree\n' > "$R/f212.txt"
-m read f212.txt > /dev/null
+m read f212.txt >"$WORK/served.out"
 printf 'one\ntwo\nthree\nfour\n' > "$R/f212.txt"
 printf '*** Begin Patch\n*** Update File: f212.txt\n@@\n one\n-two\n+TWO\n three\n*** End Patch\n' > "$R/p212.patch"
 printf 'f212.txt\n<<<<<<< SEARCH\ntwo\n=======\nTWO\n>>>>>>> REPLACE\n' > "$R/p212.sr"
@@ -8274,7 +8277,7 @@ for fmt in apply_patch:p212.patch search_replace:p212.sr; do
   grep -q 'changed since mrw last saw it' <<<"$out" && ok "and names why" || bad "${fmt%%:*}: $(head -c 300 <<<"$out")"
 done
 [ "$(cat "$R/f212.txt")" = "$(printf 'one\ntwo\nthree\nfour')" ] && ok "and the file is as it was" || bad "f212.txt changed: $(cat "$R/f212.txt")"
-m read f212.txt > /dev/null
+m read f212.txt >"$WORK/served.out"
 m write --no-check --format=apply_patch "$R/p212.patch" > /dev/null 2>&1; want 0 $? "the pair: after a fresh read the apply_patch plan applies"
 
 # 213. ADR-113: mrw_write runs the project's check after a write that touches
@@ -8283,7 +8286,7 @@ m write --no-check --format=apply_patch "$R/p212.patch" > /dev/null 2>&1; want 0
 # and is counted failed_check. The pair: check: false runs none, and applies.
 fixture
 printf '{"check":"echo boom213; exit 3"}\n' > "$R/.quality-harness.json"
-m read a.go > /dev/null
+m read a.go >"$WORK/served.out"
 req213() {
   python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":json.loads(sys.argv[1])}}))' "$1"
 }
@@ -8309,14 +8312,14 @@ PY
 # plan, exit 1, and the source is not edited — the edit and the move are one.
 fixture
 printf 'stay\n' > "$R/m214.txt"
-m read m214.txt > /dev/null
+m read m214.txt >"$WORK/served.out"
 printf '%s\n' '*** Begin Patch' '*** Update File: m214.txt' '*** Move to: moved/n214.txt' '@@' '-stay' '+gone' '*** End Patch' > "$R/p214.patch"
 out=$(m write --no-check --format=apply_patch "$R/p214.patch" 2>&1); want 0 $? "a move with a hunk applies in one plan"
 { [ "$(cat "$R/moved/n214.txt" 2>/dev/null)" = gone ] && [ ! -e "$R/m214.txt" ]; } && ok "and the edit is at the destination, the source gone" || bad "move+edit left: $(ls -R "$R" | head -20)"
 [ "$(grep -cE '^(removed|wrote|created) m214\.txt' <<<"$out")" = 1 ] && grep -q '^removed m214.txt .*renamed to moved/n214.txt' <<<"$out" && ok "and the receipt names the source once, renamed" || bad "receipt: $out"
 printf 'stay\n' > "$R/k214.txt"
 printf 'taken\n' > "$R/l214.txt"
-m read k214.txt > /dev/null
+m read k214.txt >"$WORK/served.out"
 printf '%s\n' '*** Begin Patch' '*** Update File: k214.txt' '*** Move to: l214.txt' '@@' '-stay' '+gone' '*** End Patch' > "$R/q214.patch"
 m write --no-check --format=apply_patch "$R/q214.patch" > /dev/null 2>&1; want 1 $? "the pair: a move onto a destination that exists is refused"
 { [ "$(cat "$R/k214.txt")" = stay ] && [ "$(cat "$R/l214.txt")" = taken ]; } && ok "and the source is not edited, the destination untouched" || bad "a refused move changed the tree"
@@ -8347,7 +8350,7 @@ out=$(req216 '{"grep":"NEEDLE216"}' | "$MRW" -C "$R" mcp 2>/dev/null)
 python3 - "$out" <<'PY' && ok "mrw_read counts what its grep skipped" || bad "mrw_read skipped: $(head -c 400 <<<"$out")"
 import json, sys
 sc = json.loads(json.loads(sys.argv[1])["result"]["content"][-1]["text"])
-sys.exit(0 if sc.get("skipped") == {"ignored": 0, "ignored_dirs": 1, "binary": 1} else 1)
+sys.exit(0 if sc.get("skipped") == {"ignored": 0, "ignored_dirs": 1, "binary": 1, "nested": 0, "unkeepable": 0, "linked_dirs": 0} else 1)
 PY
 out=$(req216 '{"grep":"NEEDLE216","no_ignore":true}' | "$MRW" -C "$R" mcp 2>/dev/null)
 python3 - "$out" <<'PY' && ok "the pair: no_ignore walks all and counts nothing" || bad "no_ignore: $(head -c 400 <<<"$out")"
@@ -8363,7 +8366,7 @@ PY
 # anything is written.
 fixture
 printf '{"check":"exit 0","steps":{"ok215":"echo fine215"}}\n' > "$R/.quality-harness.json"
-m read a.go > /dev/null
+m read a.go >"$WORK/served.out"
 req215() {
   python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":json.loads(sys.argv[1])}}))' "$1"
 }
@@ -8423,18 +8426,18 @@ out=$(req217 '{"files_from":"../list217"}'); check217 "$out" refused && ok "the 
 fixture
 printf 'package demo\n\nfunc X() int {\n\treturn 1\n}\n\nfunc X() int {\n\treturn 2\n}\n\nfunc X() int {\n\treturn 3\n}\n' > "$R/x218.go"
 before218=$(cat "$R/x218.go")
-m read x218.go > /dev/null
+m read x218.go >"$WORK/served.out"
 printf '@@ x218.go /^\\treturn/ replace occurrence=2\n\treturn 20\n' > "$R/p218.mrw"
 m write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 0 $? "occurrence=2 applies after a read"
 [ "$(grep -c 'return 20' "$R/x218.go")" = 1 ] && [ "$(sed -n 8p "$R/x218.go")" = "$(printf '\treturn 20')" ] \
   && ok "and only the second match changed" || bad "occurrence=2 changed: $(cat "$R/x218.go")"
-printf '%s\n' "$before218" > "$R/x218.go"; m read x218.go > /dev/null
+printf '%s\n' "$before218" > "$R/x218.go"; m read x218.go >"$WORK/served.out"
 printf '@@ x218.go /^\\treturn/ replace occurrence=4\n\treturn 40\n' > "$R/p218.mrw"
 m write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 1 $? "the pair: occurrence=4 of three is refused"
 [ "$(cat "$R/x218.go")" = "$before218" ] && ok "and the file is unchanged" || bad "a refused occurrence changed the file"
 printf '@@ x218.go 8 replace occurrence=2\n\treturn 20\n' > "$R/p218.mrw"
 m write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 2 $? "occurrence= on a line address is refused by the parser"
-XDG_STATE_HOME="$WORK/st218" "$MRW" -C "$R" read 'x218.go:7-10' > /dev/null
+XDG_STATE_HOME="$WORK/st218" "$MRW" -C "$R" read 'x218.go:7-10' >"$WORK/served.out"
 printf '@@ x218.go /^\\treturn/ replace occurrence=2\n\treturn 20\n' > "$R/p218.mrw"
 out=$(XDG_STATE_HOME="$WORK/st218" "$MRW" -C "$R" write --no-check "$R/p218.mrw" 2>&1); rc=$?
 want 1 "$rc" "occurrence=2 with the first match unread is refused"
@@ -8442,12 +8445,12 @@ grep -q 'lines 4 of x218.go' <<<"$out" && ok "and the refusal names the unread m
 # And right after a write: the file is wholly licensed for edits, but its
 # matches were never shown, so occurrence= still needs them read.
 printf '%s\n' "$before218" > "$R/x218.go"
-XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" read 'x218.go:1' > /dev/null
+XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" read 'x218.go:1' >"$WORK/served.out"
 printf '@@ x218.go 1 replace\npackage demo // edited\n' > "$R/p218.mrw"
 XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 0 $? "a write of line 1 lands"
 printf '@@ x218.go /^\\treturn/ replace occurrence=2\n\treturn 20\n' > "$R/p218.mrw"
 XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 1 $? "right after the write, occurrence=2 with no match read is refused"
-XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" read 'x218.go:/^\treturn/' > /dev/null
+XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" read 'x218.go:/^\treturn/' >"$WORK/served.out"
 XDG_STATE_HOME="$WORK/st218b" "$MRW" -C "$R" write --no-check "$R/p218.mrw" > /dev/null 2>&1; want 0 $? "the pair: after a read of the matches it applies"
 
 # 219. ADR-119: an applied replace whose body ends in the closer the file
@@ -8459,24 +8462,24 @@ fixture
 printf '%s\n' '<div>' '  <h1>{{ $title }}</h1>' '' '  <ul>' '  @foreach ($xs as $x)' '  @endforeach' \
   '    @if ($items)' '    @endif' '  </ul>' '</div>' > "$R/v219.blade.php"
 before219=$(cat "$R/v219.blade.php")
-m read v219.blade.php > /dev/null
+m read v219.blade.php >"$WORK/served.out"
 printf '@@ v219.blade.php 7 replace\n    @if ($items->isNotEmpty())\n        <li>x</li>\n    @endif\n' > "$R/p219.mrw"
 out=$(m write --no-check --json "$R/p219.mrw" 2>&1); want 0 $? "a replace that leaves the old @endif below it applies"
 grep -q '"closer": "line 10 repeats the body'"'"'s last line: @endif"' <<<"$out" && grep -q '"hints": 1' <<<"$out" \
   && ok "and its receipt names the survivor at line 10 and counts one hint" || bad "no closer hint: $out"
-printf '%s\n' "$before219" > "$R/v219.blade.php"; m read v219.blade.php > /dev/null
+printf '%s\n' "$before219" > "$R/v219.blade.php"; m read v219.blade.php >"$WORK/served.out"
 printf '@@ v219.blade.php 7-8 replace anchor="@if ($items)"\n    @if ($items->isNotEmpty())\n        <li>x</li>\n    @endif\n' > "$R/p219.mrw"
 out=$(m write --no-check --json "$R/p219.mrw" 2>&1); want 0 $? "the pair: a replace through the @endif applies"
 ! grep -q '"closer"\|"hints"' <<<"$out" && ok "and carries no hint" || bad "a correct replace carried a hint: $out"
 # The review of #322: an inner block replaced through its own `}`, the outer
 # `}` right below. The tokens match, and the range already ended in it.
 printf 'package n\n\nfunc A() {\n\tif x {\n\t\tf()\n\t}\n}\n' > "$R/n219.go"
-m read n219.go > /dev/null
+m read n219.go >"$WORK/served.out"
 printf '@@ n219.go 4-6 replace anchor="if x {"\n\tif y {\n\t\tg()\n\t}\n' > "$R/p219.mrw"
 out=$(m write --no-check --json "$R/p219.mrw" 2>&1); want 0 $? "a replace of an inner block through its own } applies"
 ! grep -q '"closer"\|"hints"' <<<"$out" && ok "and carries no hint for the outer }" || bad "a through-closer replace carried a hint: $out"
 printf '%s\n' intro '```go' 'x := 1' '```' outro > "$R/n219.md"
-m read n219.md > /dev/null
+m read n219.md >"$WORK/served.out"
 printf '@@ n219.md 3 replace\nx := 2\n```\n' > "$R/p219.mrw"
 out=$(m write "$R/p219.mrw" 2>&1); want 0 $? "a .md replace that closes its fence twice applies"
 grep -q 'closer line 5 repeats' <<<"$out" && grep -q '0 advisories, 1 hint — applied' <<<"$out" \
@@ -8489,7 +8492,7 @@ grep -q 'closer line 5 repeats' <<<"$out" && grep -q '0 advisories, 1 hint — a
 fixture
 printf 'package a\nfunc A() {}\n' > "$R/a220.go"
 printf '{"check":"sleep 2"}\n' > "$R/.quality-harness.json"
-m read a220.go > /dev/null
+m read a220.go >"$WORK/served.out"
 w220='{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a220.go 2 replace\\nfunc A() { _ = 1 }\\n"%s}}}'
 p220='{"jsonrpc":"2.0","id":2,"method":"ping"}'
 # A plain pipe, not bounded: bounded gives its command /dev/null for stdin. The
@@ -8497,7 +8500,7 @@ p220='{"jsonrpc":"2.0","id":2,"method":"ping"}'
 { printf "$w220\n" ''; sleep 0.5; printf '%s\n' "$p220"; } | "$MRW" -C "$R" mcp > "$WORK/out220" 2>/dev/null
 order=$(grep -o '"id":[12]' "$WORK/out220" | tr -d '\n')
 [ "$order" = '"id":2"id":1' ] && ok "a ping sent during a write's check is answered first" || bad "answer order $order: $(cat "$WORK/out220")"
-printf 'package a\nfunc A() {}\n' > "$R/a220.go"; m read a220.go > /dev/null
+printf 'package a\nfunc A() {}\n' > "$R/a220.go"; m read a220.go >"$WORK/served.out"
 { printf "$w220\n" ',"check":false'; sleep 0.5; printf '%s\n' "$p220"; } | "$MRW" -C "$R" mcp > "$WORK/out220b" 2>/dev/null
 order=$(grep -o '"id":[12]' "$WORK/out220b" | tr -d '\n')
 [ "$order" = '"id":1"id":2' ] && ok "the pair: with no check the answers keep their order" || bad "answer order $order: $(cat "$WORK/out220b")"
@@ -8560,7 +8563,7 @@ fixture
 g225=$(mktemp -d)
 printf 'package x\n' > "$R/x225.go"; printf 'package y\n' > "$R/y225.go"
 printf '{"check":"touch %s/started; i=0; while [ ! -e %s/go ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done"}\n' "$g225" "$g225" > "$R/.quality-harness.json"
-m read x225.go y225.go >/dev/null
+m read x225.go y225.go >"$WORK/served.out"
 printf '@@ x225.go 1 replace\npackage x2\n' > "$WORK/p225a"; printf '@@ y225.go 1 replace\npackage y2\n' > "$WORK/p225b"
 bounded 30 "$WORK/o225" "$MRW" -C "$R" write --json "$WORK/p225a" &
 p225=$!
@@ -8569,7 +8572,7 @@ i=0; while [ ! -e "$g225/started" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1));
 bounded 30 "$WORK/o225b" "$MRW" -C "$R" write --no-check "$WORK/p225b"; want 0 $? "a second write lands while the first write's check runs"
 touch "$g225/go"; wait "$p225"; want 0 $? "the first write's check passes"
 grep -q '"drift_writers": 1' "$WORK/o225" && ok "and its receipt counts the other write" || bad "drift_writers: $(head -c 400 "$WORK/o225")"
-rm -f "$g225/started" "$g225/go"; m read x225.go >/dev/null
+rm -f "$g225/started" "$g225/go"; m read x225.go >"$WORK/served.out"
 printf '@@ x225.go 1 replace\npackage x3\n' > "$WORK/p225c"
 bounded 30 "$WORK/o225c" "$MRW" -C "$R" write --json "$WORK/p225c" &
 p225=$!
@@ -8578,6 +8581,506 @@ i=0; while [ ! -e "$g225/started" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1));
 touch "$g225/go"; wait "$p225"; want 0 $? "the pair: a write with no other writer passes"
 ! grep -q 'drift_writers' "$WORK/o225c" && ok "and carries no drift_writers" || bad "pair: $(head -c 400 "$WORK/o225c")"
 rm -rf "$g225" "$R/.quality-harness.json"
+
+# 226. ADR-128: the MCP surface. An initialize line that starts with a UTF-8
+# byte-order mark is answered, where it was a -32700 parse error; the pair: a
+# line that is not JSON still is one. An mrw_write on a file never read is
+# refused without the CLI's "pass --force", which mrw_write cannot take; the
+# pair: the CLI's own refusal of the same plan keeps it.
+fixture
+out=$(printf '\357\273\277{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+grep -q '"result"' <<<"$out" && ! grep -q -- '-32700' <<<"$out" && ok "a BOM'd initialize is answered" || bad "BOM initialize: $out"
+out=$(printf 'not json\n' | m mcp 2>/dev/null)
+grep -q -- '-32700' <<<"$out" && ok "the pair: a line that is not JSON is still a parse error" || bad "garbage: $out"
+printf 'never served\n' > "$R/unread226.md"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ unread226.md 1 replace\\nx\\n"}}}\n' | m mcp 2>/dev/null)
+grep -q 'has not been read' <<<"$out" && ! grep -q -- '--force' <<<"$out" && ok "an mrw_write refusal does not advise --force" || bad "mcp force: $out"
+printf '@@ unread226.md 1 replace\nx\n' > "$WORK/p226"
+out=$(m write --no-check "$WORK/p226" 2>&1)
+grep -q -- '--force' <<<"$out" && ok "the pair: the CLI's refusal keeps it" || bad "cli force: $out"
+m read a.go >"$WORK/served.out"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:1"],"ack":["nosuch226"]}}}\n' | m mcp 2>/dev/null)
+grep -q 'matched no checkpoint.*nosuch226' <<<"$out" && ok "an ack id that matches nothing is named" || bad "unknown ack: $out"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:1"]}}}\n' | m mcp 2>/dev/null)
+! grep -q 'matched no checkpoint' <<<"$out" && ok "the pair: a read with no stale ack names none" || bad "no ack: $out"
+printf '{"check":"sleep 30"}\n' > "$R/.quality-harness.json"
+m read a.go >"$WORK/served.out"
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\\nfunc A() int { return 9 }\\n"}}}\n' > "$WORK/i226a"
+printf '{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7}}\n' > "$WORK/i226b"
+# Under `bounded`, not an alarm: Go ignores SIGALRM, so only a kill bounds mrw
+# (contract.md; the in-process review of #343). sh execs mrw, so the pid bounded
+# kills on a timeout is mrw's own, not a wrapper's (the Codex review of #343);
+# the input is a process substitution, since an async command's stdin is
+# /dev/null, and it ends on its own.
+s226=$SECONDS
+bounded 25 "$WORK/o226" sh -c 'exec "$1" -C "$2" mcp < "$3" 2>/dev/null' _ "$MRW" "$R" <(cat "$WORK/i226a"; sleep 1; cat "$WORK/i226b"; sleep 2)
+t226=$((SECONDS - s226))
+grep -q '"skipped":"interrupted"' "$WORK/o226" && [ "$t226" -lt 15 ] && ok "a cancel stops the write's running check, reported interrupted" || bad "cancel (${t226}s): $(head -c 400 "$WORK/o226")"
+rm -f "$R/.quality-harness.json"
+
+# 230. ADR-129: a rename may change only the case of a name. On a filesystem
+# that folds case, A.txt finds a.txt — the source — and the rename was refused
+# "already exists". It applies now and the directory spells it A.txt. Linux CI
+# does not fold case, so the respelling is driven where it does (a local macOS
+# run) and skipped, saying so, elsewhere. The pair runs everywhere: a rename
+# onto a hard link of the source — the same file under a name that really
+# exists, which POSIX rename(2) "does nothing" to — is still refused.
+fixture
+printf 'x\n' > "$R/a230.txt"
+m read a230.txt >"$WORK/served.out"
+if [ -e "$R/A230.TXT" ]; then
+  printf '@@ a230.txt - rename\nA230.txt\n' > "$WORK/p230"
+  out=$(m write --no-check "$WORK/p230" 2>&1); want 0 $? "a case-only rename applies on a folding filesystem"
+  names230=$(cd "$R" && printf '%s\n' *)
+  grep -qx 'A230.txt' <<<"$names230" && ! grep -qx 'a230.txt' <<<"$names230" && ok "and the directory spells it as the plan asked" || bad "case-only rename: $(grep -i a230 <<<"$names230") :: $out"
+else
+  skip "a case-only rename (this filesystem does not fold case: a230.txt and A230.txt are two names)"
+fi
+printf 'y\n' > "$R/h230.txt"
+if ln "$R/h230.txt" "$R/k230.txt" 2>/dev/null; then
+  m read h230.txt >"$WORK/served.out"
+  printf '@@ h230.txt - rename\nk230.txt\n' > "$WORK/q230"
+  out=$(m write --no-check "$WORK/q230" 2>&1); want 1 $? "a rename onto a hard link of the source is refused"
+  grep -q 'already exists' <<<"$out" && [ -e "$R/h230.txt" ] && [ -e "$R/k230.txt" ] && ok "naming the destination as existing, both names kept" || bad "hard link: $out"
+else
+  skip "a rename onto a hard link (no hard links here)"
+fi
+
+# 250. A read that exits 1 says which kind (ADR-146). The last stderr line begins
+# `no match:` when a search found no file and nothing was refused, and
+# `incomplete:` when a requested path was not served or a search matched no file
+# beside a refused path. The pairs: a read that serves everything exits 0 and says
+# neither.
+fixture
+printf 'one250\n' > "$R/a250.txt"; mkdir -p "$R/d250"; printf 'WANTED\n' > "$R/d250/f.txt"
+out=$(m read --grep ABSENT250 d250 2>&1 >"$WORK/o250"); rc=$?
+want 1 "$rc" "a grep that matches nothing exits 1"
+grep -q '^mrw: no match: no file matched /ABSENT250/' <<<"$out" && ok "and says no match" || bad "no match line: $out"
+out=$(m read missing250.txt 2>&1 >"$WORK/o250"); rc=$?
+want 1 "$rc" "a missing path exits 1"
+grep -q '^mrw: incomplete: 1 range(s) could not be served' <<<"$out" && ok "and says incomplete" || bad "incomplete line: $out"
+ln -s d250 "$R/dlink250" 2>/dev/null
+if [ -L "$R/dlink250" ]; then
+  out=$(m read --grep ABSENT250 d250 dlink250 2>&1 >"$WORK/o250"); rc=$?
+  want 1 "$rc" "a grep that matches nothing beside a refused link exits 1"
+  grep -q '^mrw: incomplete: no file matched /ABSENT250/, and 1 path(s) were refused' <<<"$out" && ok "and says incomplete, not no match" || bad "refused beside no match: $out"
+fi
+out=$(m read a250.txt 2>&1 >"$WORK/o250"); rc=$?
+want 0 "$rc" "the pair: a read that serves everything exits 0"
+grep -q 'no match\|incomplete' <<<"$out" && bad "a clean read said a kind: $out" || ok "and says neither"
+
+# 249. version and instructions touch no state (ADR-145). A pre-ADR-004 ./.mrw/
+# in the working directory is copied into the state directory by the first
+# command that uses state, and announced; `mrw version` and `mrw instructions`
+# neither copy it nor announce it. The pair: a read in the same directory does,
+# so the version run did not consume the migration.
+M249=$(mktemp -d "$WORK/m249-XXXXXX")
+mkdir -p "$M249/.mrw"; printf '#mrw-seen v4\n' > "$M249/.mrw/seen"; printf 'one249\n' > "$M249/f249.txt"
+out=$(cd "$M249" && "$MRW" version 2>&1); grep -q 'moved' <<<"$out" && bad "version migrated: $out" || ok "version does not migrate a legacy .mrw/"
+out=$(cd "$M249" && "$MRW" instructions --core 2>&1 >"$WORK/o249"); grep -q 'moved' <<<"$out" && bad "instructions migrated: $out" || ok "instructions does not migrate it"
+for f249 in --v -version --version=true --version=false -h "read -h"; do
+  out=$(cd "$M249" && "$MRW" $f249 2>&1); grep -q 'moved' <<<"$out" && bad "$f249 migrated: $out" || ok "$f249 does not migrate it"
+done
+out=$(cd "$M249" && "$MRW" read f249.txt 2>&1 >"$WORK/o249"); grep -q 'mrw: moved seen from ./.mrw/' <<<"$out" && ok "the pair: a read migrates it, once" || bad "read did not migrate: $out"
+out=$(cd "$M249" && "$MRW" read f249.txt 2>&1 >"$WORK/o249"); grep -q 'moved' <<<"$out" && bad "migrated twice: $out" || ok "and not again"
+
+# 248. A damaged read ledger is told once (ADR-144). A line the ledger holds that
+# mrw cannot parse is ignored, and the CLI says how many on stderr before the
+# command; the command's own save rewrites the ledger without it, so the next run
+# is silent. The pair: a ledger mrw wrote says nothing.
+fixture
+printf 'one248\n' > "$R/l248.txt"
+m read l248.txt >"$WORK/o248" 2>&1
+out=$(m read l248.txt 2>&1 >"$WORK/o248b"); [ -z "$out" ] && ok "a ledger mrw wrote says nothing" || bad "clean ledger: $out"
+led="$(m seen 2>/dev/null | head -1)/seen"
+printf 'garbage248\n' >> "$led"
+out=$(m read l248.txt 2>&1 >"$WORK/o248b")
+grep -q '1 line(s) of the read ledger could not be understood' <<<"$out" && ok "the bad line is counted and told" || bad "damaged ledger: $out"
+out=$(m read l248.txt 2>&1 >"$WORK/o248b"); [ -z "$out" ] && ok "told once: the read healed the ledger" || bad "told again: $out"
+
+# 247. A --create note is told only when the create landed, and a mix of CRLF
+# and LF lines is called mixed, not a bare CR (the v1.61.0 Windows retest). The
+# pairs: the same content onto a new path lands and is told; a lone CR is still
+# a bare CR.
+fixture
+printf 'one247\n' > "$R/x247.txt"
+out=$(printf 'a\nb\n\r\n' | m write --no-check --create x247.txt 2>&1); rc=$?
+want 1 "$rc" "a --create of an existing path exits 1"
+grep -q 'ended in CRLF' <<<"$out" && bad "a note for a create that did not land: $out" || ok "no note for a create that did not land"
+out=$(printf 'a\nb\n\r\n' | m write --no-check --create y247.txt 2>&1); want 0 $? "the pair: a new path lands"
+grep -q 'most likely the one PowerShell appends' <<<"$out" && ok "the note says most likely PowerShell's" || bad "note: $out"
+out=$(printf 'a\r\nb\nc\r\n' | m write --no-check --create z247.txt 2>&1); rc=$?
+want 2 "$rc" "CRLF and LF lines are refused"
+{ grep -q 'line endings are mixed' <<<"$out" && ! grep -q 'bare CR' <<<"$out"; } && ok "called mixed, not a bare CR" || bad "mixed: $out"
+out=$(printf 'a\nb\r' | m write --no-check --create w247.txt 2>&1); grep -q 'bare CR' <<<"$out" && ok "a lone CR is still a bare CR" || bad "lone CR: $out"
+rm -f "$R/x247.txt" "$R/y247.txt"
+
+# 246. A write into .git is refused (ADR-143). A plan or --create that lands in
+# a .git directory, directly or through a link, fails that hunk: exit 1, nothing
+# written, the sibling edit skipped. A read of the same path is served. The pairs:
+# the same plan against .github applies, and a name that only starts like .git is
+# not refused.
+fixture
+mkdir -p "$R/.git/hooks" "$R/.github"
+printf '[core]\n' > "$R/.git/config"; printf '[core]\n' > "$R/.github/config"; printf 'one246\n' > "$R/a246.txt"
+m read .git/config >"$WORK/o246" 2>&1; want 0 $? "a read of .git/config is served"
+out=$(printf '#!/bin/sh\n' | m write --no-check --create .git/hooks/pre-commit 2>&1); rc=$?
+want 1 "$rc" "--create into .git exits 1"
+{ grep -q 'inside a .git directory' <<<"$out" && [ ! -e "$R/.git/hooks/pre-commit" ]; } && ok "naming .git, and no hook was made" || bad "create into .git: $out"
+printf '@@ a246.txt 1 replace\ntwo246\n@@ .git/config 1 replace\n[core]\n\thooksPath = x\n' > "$WORK/p246.plan"
+m read a246.txt >>"$WORK/o246" 2>&1
+out=$(m write --no-check "$WORK/p246.plan" 2>&1); rc=$?
+want 1 "$rc" "a plan with a hunk in .git exits 1"
+{ [ "$(cat "$R/a246.txt")" = one246 ] && [ "$(cat "$R/.git/config")" = '[core]' ]; } && ok "nothing written, the sibling edit skipped" || bad "plan into .git: $out"
+ln -s .git "$R/alias246" 2>/dev/null
+if [ -L "$R/alias246" ]; then
+  out=$(printf 'x\n' | m write --no-check --create alias246/hooks/post-commit 2>&1); rc=$?
+  want 1 "$rc" "--create through a link to .git exits 1"
+  { grep -q 'through a link' <<<"$out" && [ ! -e "$R/.git/hooks/post-commit" ]; } && ok "saying it leads through a link" || bad "create through a link: $out"
+fi
+printf '@@ a246.txt 1 replace\ntwo246\n@@ .github/config 1 replace\n[core]\n\ttwo = x\n' > "$WORK/p246b.plan"
+m read .github/config >>"$WORK/o246" 2>&1
+out=$(m write --no-check "$WORK/p246b.plan" 2>&1); want 0 $? "the pair: the same plan against .github applies"
+rm -rf "$R/.git" "$R/.github" "$R/a246.txt" "$R/alias246" "$WORK/p246.plan" "$WORK/p246b.plan" "$WORK/o246"
+
+# 245. A ledger that cannot be OPENED says the same, per direction. After a read
+# it says what stands (the v1.60.0 retest saw a raw "open … used by another
+# process"); before a write it says the call wrote and changed nothing, and the
+# file is left as it was. The pair: with the ledger readable again the same plan
+# applies.
+fixture
+printf 'one245\n' > "$R/l245.txt"
+printf '@@ l245.txt 1 replace\ntwo245\n' > "$WORK/p245.plan"
+m read l245.txt >"$WORK/o245" 2>&1
+led="$(m seen 2>/dev/null | head -1)/seen"
+chmod 000 "$led" 2>/dev/null
+if [ -r "$led" ] || [ ! -e "$led" ]; then
+  chmod 600 "$led" 2>/dev/null
+  skip "an unopenable ledger is refused (permission bits not enforced here — running as root?)"
+else
+  out=$(m read l245.txt 2>&1); rc=$?
+  want 2 "$rc" "a read whose ledger cannot be opened exits 2"
+  grep -q 'stands, but is not recorded there' <<<"$out" && ok "saying what stands" || bad "open refusal: $out"
+  out=$(m write --no-check "$WORK/p245.plan" 2>&1); rc=$?
+  chmod 600 "$led"
+  want 2 "$rc" "a write whose ledger cannot be opened exits 2"
+  { grep -q 'wrote and changed nothing' <<<"$out" && [ "$(cat "$R/l245.txt")" = one245 ]; } && ok "saying nothing was written, and the file is as it was" || bad "write refusal: $out"
+  out=$(m write --no-check "$WORK/p245.plan" 2>&1); want 0 $? "the pair: with the ledger readable again the same plan applies"
+fi
+rm -f "$R/l245.txt" "$WORK/p245.plan" "$WORK/o245"
+
+# 244. A read whose ledger cannot be updated says what stands. Four Windows
+# sessions read "rename <tmp> <ledger>: Access is denied", exit 2, after a full
+# serve, as a failed read. The lines are served, exit 2 stays (a filesystem
+# failure), and the message now says what was served stands but is not recorded
+# and the files need reading again before an edit. The pairs: an edit of that
+# file is refused as unread while the ledger is unwritable, and licensed once a
+# read has recorded it.
+fixture
+printf 'one244\n' > "$R/l244.txt"
+printf 'seed244\n' > "$R/s244.txt"
+printf '@@ l244.txt 1 replace\ntwo244\n' > "$WORK/p244.plan"
+m read s244.txt >"$WORK/o244" 2>&1
+led="$(m seen 2>/dev/null | head -1)/seen"
+chmod 400 "$led" 2>/dev/null
+if [ -w "$led" ] || [ ! -e "$led" ]; then
+  chmod 600 "$led" 2>/dev/null
+  skip "an unwritable ledger is refused (permission bits not enforced here — running as root?)"
+else
+  out=$(m read l244.txt 2>&1); rc=$?
+  chmod 600 "$led"
+  want 2 "$rc" "a read whose ledger cannot be replaced exits 2"
+  { grep -q 'one244' <<<"$out" && grep -q 'stands, but is not recorded there' <<<"$out"; } \
+    && ok "serving the line and saying what stands and what is not recorded" || bad "ledger refusal: $out"
+  out=$(m write --no-check --dry-run "$WORK/p244.plan" 2>&1); want 1 $? "the pair: an edit of the file the failed read served is refused"
+  grep -q 'has not been read' <<<"$out" && ok "as not read, so the failed read licensed nothing" || bad "edit after failed read: $out"
+  m read l244.txt >"$WORK/o244" 2>&1
+  out=$(m write --no-check --dry-run "$WORK/p244.plan" 2>&1); want 0 $? "and once a read recorded it, the same edit is licensed"
+fi
+rm -f "$R/l244.txt" "$R/s244.txt" "$WORK/p244.plan" "$WORK/o244"
+
+# 243. ADR-142: `mrw write --create` takes what a PowerShell pipe sends. An LF
+# file arrives with a CRLF appended; after LF lines and no other CR that
+# terminator is dropped, the file is made as the caller had it, and stderr says
+# so. The pairs: a mixed shape that is not the terminator is still refused and
+# makes nothing, and a --create of a path that exists and was never read says it
+# exists (exit 1) while an edit of the same unread file keeps its refusal.
+fixture
+out=$(printf 'a\nb\n\r\n' | m write --no-check --create p243.txt 2>&1); want 0 $? "--create of an LF file with a pipe's CRLF appended exits 0"
+{ [ "$(od -An -c "$R/p243.txt" | tr -d ' ')" = 'a\nb\n' ] && grep -q 'CRLF' <<<"$out"; } && ok "the file is as the caller had it, and stderr names the dropped CRLF" || bad "pipe terminator: $(od -c "$R/p243.txt" | head -2) / $out"
+out=$(printf 'a\r\nb\n\r\n' | m write --no-check --create q243.txt 2>&1); want 2 $? "the pair: a mixed shape that is not the terminator exits 2"
+[ ! -e "$R/q243.txt" ] && ok "and makes nothing" || bad "mixed made a file: $out"
+printf 'one\n' > "$R/e243.txt"
+out=$(printf 'x\n' | m write --no-check --create e243.txt 2>&1); want 1 $? "--create of an existing, never-read path exits 1"
+{ grep -q 'already exists' <<<"$out" && ! grep -q 'has not been read' <<<"$out"; } && ok "saying it exists, not that it must be read" || bad "create-exists: $out"
+printf '@@ e243.txt 1 replace\ntwo\n' > "$WORK/r243.plan"
+out=$(m write --no-check "$WORK/r243.plan" 2>&1); want 1 $? "the pair: an edit of the same unread file exits 1"
+grep -q 'has not been read' <<<"$out" && ok "with the read-before-modify refusal" || bad "edit: $out"
+rm -f "$R/p243.txt" "$R/e243.txt" "$WORK/r243.plan"
+
+# 242. ADR-141: `mrw instructions --core` prints the eight rules. The short form
+# to put in an agent's standing instructions: eight numbered rules in under 300
+# words that name only flags the binary has, while plain `mrw instructions` is
+# still the whole contract (and now says where the core is). The pairs: an
+# argument beside --core is still exit 2, and the core's `(?i)` rule is true — a
+# pattern started with it matches across case.
+fixture
+out=$(m instructions --core 2>&1); want 0 $? "mrw instructions --core exits 0"
+{ [ "$(grep -cE '^[1-8]\. ' <<<"$out")" = 8 ] && [ "$(wc -w <<<"$out")" -le 300 ]; } && ok "and prints eight numbered rules in under 300 words" || bad "core: $(wc -w <<<"$out") words: $out"
+full=$(m instructions 2>&1)
+{ [ "$(wc -w <<<"$full")" -gt 900 ] && grep -q -- 'mrw instructions --core prints the eight rules that matter most' <<<"$full"; } && ok "the pair: plain instructions is still the whole contract, and names --core" || bad "full contract changed: $(wc -w <<<"$full") words"
+out=$(m instructions --core extra 2>&1); want 2 $? "the pair: an argument beside --core exits 2"
+printf 'Alpha NEEDLE242\n' > "$R/i242.txt"
+out=$(m read --grep '(?i)needle242' 2>&1); want 0 $? "the core's (?i) rule matches across case"
+grep -q 'Alpha NEEDLE242' <<<"$out" && ok "and serves the line" || bad "(?i): $out"
+rm -f "$R/i242.txt"
+
+# 241. ADR-140: a read flag from grep is answered with mrw's spelling. `-i`,
+# `-n`, `-A` and the others grep has and `mrw read` lacks are still usage errors,
+# exit 2, and the message now ends with what mrw spells; `--grep -i PATTERN`
+# takes `-i` as the pattern and ends "no file matched /-i/", with the same hint.
+# The pairs: the spelling named works, and another command's unknown flag is
+# worded as before.
+fixture
+printf 'Alpha NEEDLE241\n' > "$R/h241.txt"
+out=$(m read -i --grep NEEDLE241 2>&1); want 2 $? "a grep flag mrw read lacks exits 2"
+{ grep -q 'flag provided but not defined: -i' <<<"$out" && grep -q '(?i)' <<<"$out"; } && ok "keeping the old message and naming (?i)" || bad "foreign flag: $out"
+out=$(m read --grep -i needle241 h241.txt 2>&1); want 1 $? "--grep -i PATTERN ends no file matched, exit 1"
+grep -q 'no file matched /-i/' <<<"$out" && grep -q '— case-insensitive.*(mrw took the value after --grep as the pattern)$' <<<"$out" && ok "and carries the same hint, ending the line" || bad "pattern -i: $out"
+out=$(m read --grep '(?i)needle241' 2>&1); want 0 $? "the pair: the spelling the hint names matches"
+grep -q 'Alpha NEEDLE241' <<<"$out" && ok "and serves the line" || bad "(?i) read: $out"
+out=$(m write -i 2>&1); want 2 $? "the pair: another command's unknown flag exits 2"
+grep -q '(?i)' <<<"$out" && bad "write got a read hint: $out" || ok "and gets no read hint"
+rm -f "$R/h241.txt"
+
+# 240. ADR-139: `mrw write --create PATH` makes one file from standard input as
+# the create plan of its lines would. A document holding an "@@" line is carried
+# whole, the file is made with each line ending in a newline, and the apply's
+# own guards hold: a PATH that exists is refused and left alone, exit 1. The
+# pair: the same call beside a PLAN argument is a usage error, exit 2, and
+# makes nothing.
+fixture
+printf 'alpha\n@@ not.a.header 1 replace\nbeta' | m write --no-check --create sub240/new.txt >"$WORK/o240" 2>&1; want 0 $? "write --create makes a file from standard input"
+[ "$(cat "$R/sub240/new.txt")" = "$(printf 'alpha\n@@ not.a.header 1 replace\nbeta')" ] && [ "$(tail -c1 "$R/sub240/new.txt" | od -An -c | tr -d ' ')" = '\n' ] \
+  && ok "holding the lines, an @@ line carried whole, a final newline added" || bad "created file: $(od -c "$R/sub240/new.txt" | head -3)"
+out=$(printf 'other\n' | m write --no-check --create sub240/new.txt 2>&1); want 1 $? "a second --create of the same PATH exits 1"
+{ grep -q 'exists' <<<"$out" && grep -q '^alpha$' "$R/sub240/new.txt"; } && ok "naming that it exists, the file unchanged" || bad "existing: $out"
+printf '@@ x240.txt 0 create\nx\n' > "$WORK/p240.plan"
+out=$(printf 'x\n' | m write --no-check --create b240.txt "$WORK/p240.plan" 2>&1); want 2 $? "the pair: --create beside a PLAN argument exits 2"
+[ ! -e "$R/b240.txt" ] && [ ! -e "$R/x240.txt" ] && ok "and makes nothing" || bad "usage error made a file: $out"
+rm -rf "$R/sub240" "$WORK/p240.plan" "$WORK/o240"
+
+# 239. ADR-138: a walk counts the links to directories it does not follow. ADR-096
+# decision 2 skips a link to a directory a walk meets, and the skip said nothing
+# while ignored files, binaries and nested repositories were counted. The real
+# path is served once, the link is counted on the -- skipped: line and as
+# skipped.linked_dirs over MCP, and the tail says to name one. The pair: a tree
+# with no link prints no -- skipped: line.
+fixture
+mkdir -p "$R/real239" && printf 'needle239\n' > "$R/real239/x.txt"
+if ln -s real239 "$R/alias239" 2>/dev/null; then
+  out=$(m read --grep needle239 2>&1); want 0 $? "a grep over a tree holding a link to a directory exits 0"
+  { grep -q '^==> real239/x.txt' <<<"$out" && ! grep -q 'alias239/x.txt' <<<"$out"; } && ok "and serves the real path once, following no link" || bad "link walk: $out"
+  grep -q -- '-- skipped: 1 link(s) to a directory, not followed; name one to be told why' <<<"$out" && ok "and counts the link, saying to name one" || bad "link count: $out"
+  out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"needle239"}}}' | "$MRW" -C "$R" mcp 2>/dev/null)
+  python3 - "$out" <<'PY' && ok "mrw_read counts it as skipped.linked_dirs" || bad "mrw_read linked_dirs: $(head -c 400 <<<"$out")"
+import json, sys
+sc = json.loads(json.loads(sys.argv[1])["result"]["content"][-1]["text"])
+sys.exit(0 if sc.get("skipped", {}).get("linked_dirs") == 1 else 1)
+PY
+  rm -f "$R/alias239"
+  out=$(m read --grep needle239 2>&1)
+  grep -q -- '-- skipped:' <<<"$out" && bad "the pair: no link, yet a skipped line: $out" || ok "the pair: a tree with no link prints no skipped line"
+else
+  skip "a link to a directory (this filesystem makes no symlink)"
+fi
+rm -rf "$R/real239" "$R/alias239"
+
+# 238. ADR-137: a read can cut a long line to a window, and a cut line licenses
+# nothing. A 400-character line read with --max-cols 40 is served as a window
+# round the match, marked with its columns; what was cut was not shown, so a plan
+# that replaces that line is refused as unread and the file is unchanged. The
+# pair: the same line read whole licenses the same plan.
+fixture
+printf 'short one\n%sNEEDLE%s\nshort three\n' "$(printf 'x%.0s' $(seq 1 300))" "$(printf 'y%.0s' $(seq 1 94))" > "$R/w238.txt"
+out=$(m read --max-cols 40 --context 1 'w238.txt:/NEEDLE/' 2>&1); want 0 $? "a read with --max-cols exits 0"
+{ grep -q 'NEEDLE' <<<"$out" && grep -q '\[cols [0-9]*-[0-9]* of 400\]' <<<"$out" && [ "$(awk '{ if (length($0) > m) m = length($0) } END { print m }' <<<"$out")" -lt 120 ]; } \
+  && ok "and serves the long line as a window round the match, marked with its columns" || bad "cut read: $out"
+out=$(printf '@@ w238.txt 2 replace\nREPLACED\n' | m write --no-check - 2>&1); want 1 $? "a plan to the cut line exits 1"
+{ grep -q 'has not been read' <<<"$out" && grep -q NEEDLE "$R/w238.txt"; } && ok "refused as unread, the file unchanged" || bad "cut then write: $out"
+m read w238.txt:2 >"$WORK/served238.out"; want 0 $? "the pair: the same line read whole exits 0"
+out=$(printf '@@ w238.txt 2 replace\nREPLACED\n' | m write --no-check - 2>&1); want 0 $? "and licenses the same plan"
+grep -qx REPLACED "$R/w238.txt" && ok "which lands" || bad "whole read then write: $out"
+rm -f "$R/w238.txt" "$WORK/served238.out"
+
+# 237. ADR-136: reads say less. A read of several multi-line ranges printed the
+# "needs a served line after" note at each; it is printed once, at the first.
+# The stale-ledger notice was ninety words of version history printed for every
+# subcommand; it is one line, and `version`, `instructions` and `stats`, which
+# never read the ledger, print none. The pairs: one range keeps its note, and
+# `read` still announces a stale ledger.
+fixture
+printf 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\n' > "$R/q237.txt"
+out=$(m read q237.txt:2-3 q237.txt:5-6 2>&1); want 0 $? "a read of two multi-line ranges exits 0"
+[ "$(grep -c 'needs a served line after' <<<"$out")" = 1 ] && ok "and prints the neighbour note once" || bad "note count: $out"
+out=$(m read q237.txt:2-3 2>&1)
+grep -q 'needs a served line after 3' <<<"$out" && ok "the pair: one range still gets its note" || bad "single range: $out"
+SD237=$(m seen | head -1 | sed 's/.*: //')
+printf 'not a ledger\n' > "$SD237/seen"
+for sub in version instructions stats; do
+  err=$(m $sub 2>&1 >/dev/null)
+  grep -q 'read ledger' <<<"$err" && bad "mrw $sub printed the stale-ledger notice: $err" || ok "mrw $sub prints no stale-ledger notice"
+done
+err=$(m read q237.txt:2 2>&1 >"$WORK/served237.out")
+{ grep -q 'written by an older mrw' <<<"$err" && grep -q 'line endings' <<<"$err" && [ "$(wc -l <<<"$err")" -le 1 ]; } \
+  && ok "the pair: read announces the stale ledger in one line naming both causes" || bad "stale notice: $err"
+rm -f "$R/q237.txt"
+
+# 236. ADR-134: a hard link to mrw's own state is not served. ADR-077 compared a
+# path with the state base and never the file with the files inside it, so a
+# hard link in the root to the ledger was read whole and matched by --grep (the
+# Windows chaos round on v1.52.0, reproduced on macOS). It is refused naming
+# mrw's own state, and a walk drops it. The pair: a hard link to an ordinary
+# file is served.
+fixture
+st236() { XDG_STATE_HOME="$WORK/st236" "$MRW" -C "$R" "$@"; }
+printf 'needle236\n' > "$R/ord236.txt"
+st236 read ord236.txt >"$WORK/served236.out"
+led=$(ls "$WORK"/st236/mrw/*/seen 2>/dev/null | head -1)
+[ -n "$led" ] && ok "the ledger lives outside the root for this row" || bad "no ledger under $WORK/st236: $(ls -R "$WORK/st236" 2>&1 | head)"
+if ln "$led" "$R/hl236.txt" 2>/dev/null && ln "$R/ord236.txt" "$R/ord236b.txt" 2>/dev/null; then
+  out=$(st236 read hl236.txt 2>&1); rc=$?
+  want 1 "$rc" "a read of a hard link to the ledger exits 1"
+  { grep -q 'own state' <<<"$out" && ! grep -q 'mrw-seen' <<<"$out"; } && ok "naming mrw's own state, the ledger unserved" || bad "hard link read: $out"
+  out=$(st236 read --grep 'ord236' 2>&1)
+  { ! grep -q 'hl236' <<<"$out" && ! grep -q 'mrw-seen' <<<"$out"; } && ok "and a walk neither serves nor matches it" || bad "hard link grep: $out"
+  out=$(st236 read --grep 'needle236' 2>&1); rc=$?
+  { [ "$rc" = 0 ] && grep -q '^==> ord236b.txt' <<<"$out"; } && ok "the pair: a hard link to an ordinary file is served" || bad "ordinary hard link grep (exit $rc): $out"
+else
+  skip "a hard link to the ledger (this filesystem makes none between $WORK and $R)"
+fi
+rm -f "$R/hl236.txt" "$R/ord236.txt" "$R/ord236b.txt" "$WORK/served236.out"
+rm -rf "$WORK/st236"
+
+# 235. ADR-129 amendment (the Windows chaos round, 2026-10-09). A plan that
+# spells the source otherwise than its directory does, and names as the
+# destination the spelling the directory holds, was refused "dest already
+# exists" — the dest is the source's own entry. It is refused naming the cause,
+# the source's spelling. Where a filesystem does not fold case, as on Linux CI,
+# the pair is skipped saying so: P235.TXT and p235.txt are two names there.
+fixture
+printf 'x\n' > "$R/p235.txt"
+if [ -e "$R/P235.TXT" ]; then
+  m read P235.TXT >"$WORK/served.out"
+  printf '@@ P235.TXT - rename\np235.txt\n' > "$WORK/p235"
+  out=$(m write --no-check "$WORK/p235" 2>&1); want 1 $? "a rename whose source is spelled otherwise than its directory exits 1"
+  names235=$(cd "$R" && printf '%s\n' *)
+  { grep -q 'not spelled that way' <<<"$out" && grep -qx 'p235.txt' <<<"$names235"; } && ok "naming the source's spelling, the directory unchanged" || bad "other-spelling rename: $out"
+else
+  skip "a rename from a spelling the directory does not hold (this filesystem does not fold case)"
+fi
+
+# 234. ADR-133: a read sent to the null device licenses nothing. Its answer
+# reached nobody, yet the ledger recorded every line, so a write to them went
+# through as if they had been read. The read still exits 0 and says on stderr
+# that nothing was recorded; a write to that line is then refused as unread.
+# The pair: the same read sent to a file licenses the same write.
+fixture
+printf 'one\ntwo\n' > "$R/f234.txt"
+err=$(m read f234.txt:2 2>&1 >/dev/null); want 0 $? "a read sent to the null device exits 0"
+grep -q 'null device, so nothing was recorded' <<<"$err" && ok "and says nothing was recorded" || bad "null-device read stderr: $err"
+out=$(printf '@@ f234.txt 2 replace\nTWO\n' | m write --no-check - 2>&1); want 1 $? "a write to a line read only to the null device exits 1"
+{ grep -q 'has not been read' <<<"$out" && grep -qx 'two' "$R/f234.txt"; } && ok "naming it unread, the file unchanged" || bad "null-device read then write: $out"
+m read f234.txt:2 >"$WORK/served234.out"; want 0 $? "the pair: the same read sent to a file exits 0"
+out=$(printf '@@ f234.txt 2 replace\nTWO\n' | m write --no-check - 2>&1); want 0 $? "and licenses the same write"
+grep -qx 'TWO' "$R/f234.txt" && ok "which lands" || bad "file-read then write: $out"
+rm -f "$R/f234.txt" "$WORK/served234.out"
+
+# 251. ADR-148: a read sent to the null device names the files an earlier read
+# or write still licenses. ADR-133 records nothing for such a read and said only
+# that, so a write that then applied on an EARLIER licence read like a broken
+# guard (a peer session, 2026-10-13). The pair: a file nothing licensed is not
+# named, and its write is refused.
+fixture
+printf 'one\ntwo\n' > "$R/f251.txt"
+printf 'one\ntwo\n' > "$R/g251.txt"
+m read f251.txt:2 >"$WORK/served251.out"; want 0 $? "a read sent to a file licenses line 2"
+err=$(m read f251.txt:2 g251.txt:2 2>&1 >/dev/null); want 0 $? "both files read to the null device exit 0"
+line=$(grep 'still licensed' <<<"$err")
+{ grep -q 'f251.txt' <<<"$line" && ! grep -q 'g251.txt' <<<"$line" && grep -q '(1 of 2 files served)' <<<"$line"; } && ok "naming the file an earlier read still licenses, and only it" || bad "null-device read stderr: $err"
+out=$(printf '@@ f251.txt 2 replace\nTWO\n' | m write --no-check - 2>&1); want 0 $? "the named file's write applies"
+out=$(printf '@@ g251.txt 2 replace\nTWO\n' | m write --no-check - 2>&1); want 1 $? "the pair: the unnamed file's write is refused"
+grep -qx 'two' "$R/g251.txt" && ok "and leaves it unchanged" || bad "unnamed file changed: $out"
+rm -f "$R/f251.txt" "$R/g251.txt" "$WORK/served251.out"
+
+# 252. The v1.64.0 Windows retest: a --create whose lines end in CRLF is written
+# with LF, as every line a create writes is, and now says so on stderr (two
+# sessions found it silent). The pair: LF content is created with no such note.
+fixture
+out=$(printf 'a\r\nb\r\n' | m write --no-check --create c252.txt 2>&1); want 0 $? "a --create of CRLF lines exits 0"
+{ grep -q 'end in CRLF and are written with LF' <<<"$out" && ! grep -q $'\r' "$R/c252.txt" && [ "$(cat "$R/c252.txt")" = $'a\nb' ]; } \
+  && ok "written with LF, and stderr says so" || bad "CRLF create: $out"
+out=$(printf 'a\nb\n' | m write --no-check --create l252.txt 2>&1); want 0 $? "the pair: LF content exits 0"
+grep -q 'written with LF' <<<"$out" && bad "an ending note for LF content: $out" || ok "with no ending note"
+rm -f "$R/c252.txt" "$R/l252.txt"
+
+# 233. ADR-130: a walk does not enter a nested repository. Inside a checkout, a
+# directory holding its own .git is another project's, and git does not descend
+# into it; mrw walked it with its own rules. --grep serves the outer match only
+# and says on the -- skipped: line that it did not enter one. The pairs: the
+# directory named is walked, and --no-ignore walks it.
+fixture
+mkdir -p "$R/.git" "$R/nest233/.git"
+printf 'needle233\n' > "$R/top233.txt"; printf 'needle233\n' > "$R/nest233/in.txt"
+out=$(m read --grep needle233 2>&1); want 0 $? "a grep in a checkout holding a nested repository exits 0"
+{ grep -q 'top233.txt' <<<"$out" && ! grep -q 'nest233/in.txt' <<<"$out" && grep -q '1 nested repositor(ies), not entered' <<<"$out"; } \
+  && ok "and does not enter it, saying so" || bad "nested: $out"
+out=$(m read --grep needle233 nest233 2>&1)
+grep -q 'nest233/in.txt' <<<"$out" && ok "the pair: the nested repository named is walked" || bad "named nested: $out"
+out=$(m read --grep needle233 --no-ignore 2>&1)
+grep -q 'nest233/in.txt' <<<"$out" && ok "the pair: --no-ignore walks it" || bad "no-ignore nested: $out"
+out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"needle233"}}}' | "$MRW" -C "$R" mcp 2>/dev/null)
+python3 - "$out" <<'PY' && ok "mrw_read counts it as skipped.nested" || bad "mrw_read nested: $(head -c 400 <<<"$out")"
+import json, sys
+sc = json.loads(json.loads(sys.argv[1])["result"]["content"][-1]["text"])
+sys.exit(0 if sc.get("skipped", {}).get("nested") == 1 else 1)
+PY
+rm -rf "$R/.git" "$R/nest233" "$R/top233.txt"
+
+# 231. ADR-132: a refusal before the first rename whose cause is the target's
+# exits 1, as one found at validation does. A create under a read-only
+# directory fails staging with EACCES; it exited 2 and printed the whole error
+# again under the receipt. The --then-sh step asked for is not run. The pair:
+# the same create in a writable directory exits 0. Not as root, for whom the
+# mode is not enforced.
+fixture
+mkdir -p "$R/ro231" "$R/w231"; chmod 555 "$R/ro231"
+if ( : > "$R/ro231/.probe" ) 2>/dev/null; then
+  rm -f "$R/ro231/.probe"; chmod 755 "$R/ro231"
+  skip "a refusal for a read-only directory (the mode is not enforced here — running as root?)"
+else
+  out=$(printf '@@ ro231/n.txt 0 create\nx\n' | m write --no-check --then-sh 'echo ran231' - 2>&1); want 1 $? "a create a read-only directory refuses exits 1"
+  { grep -q 'nothing was written' <<<"$out" && grep -q 'echo ran231 — NOT RUN' <<<"$out" && [ ! -e "$R/ro231/n.txt" ]; } \
+    && ok "naming nothing written, its step not run" || bad "read-only create: $out"
+  chmod 755 "$R/ro231"
+fi
+out=$(printf '@@ w231/n.txt 0 create\nx\n' | m write --no-check - 2>&1); want 0 $? "the pair: the same create in a writable directory exits 0"
+
+# 232. ADR-132: a check stopped by its deadline is headed TIMED OUT, not FAIL —
+# no process gave a verdict — and the exit stays 3. The pair: a check that ran
+# and failed is still headed FAIL.
+fixture
+printf '{"check":"sleep 30","timeout_seconds":1}\n' > "$R/.quality-harness.json"
+m read a.go >"$WORK/served.out"
+printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' > "$WORK/p232"
+bounded 30 "$WORK/o232" "$MRW" -C "$R" write "$WORK/p232"; want 3 $? "a write whose check times out exits 3 (ADR-132)"
+grep -q '^check TIMED OUT' "$WORK/o232" && ! grep -q '^check FAIL' "$WORK/o232" && ok "and its check is headed TIMED OUT" || bad "timeout headline: $(head -c 400 "$WORK/o232")"
+printf '{"check":"false"}\n' > "$R/.quality-harness.json"
+m read a.go >"$WORK/served.out"
+printf '@@ a.go 3 replace\nfunc A() int { return 10 }\n' > "$WORK/q232"
+m write "$WORK/q232" > "$WORK/r232" 2>&1; want 3 $? "the pair: a write whose check fails exits 3"
+grep -q '^check FAIL' "$WORK/r232" && ok "and is headed FAIL" || bad "failed headline: $(head -c 400 "$WORK/r232")"
+rm -f "$R/.quality-harness.json"
 
 # 223. ADR-125: a target mrw cannot open is refused on its hunk, naming why.
 # A plan over a.txt and a write-only b.txt (mode 200: not read-only, so ADR-076
@@ -8608,7 +9111,7 @@ printf '%s\n' '#!/bin/sh' "sleep 300 >/dev/null 2>&1 & echo \$! > '$d162/ag.pid'
 chmod +x "$d162/ast-grep"
 bounded 10 "$WORK/out162" env PATH="$d162:$PATH" "$MRW" -C "$R" read --ast-grep 'func A'; want 0 $? "an ast-grep that answers and exits 0 is served"
 printf '{"check":"sleep 300 >/dev/null 2>&1 & echo $! > %s/ck.pid; exit 0"}\n' "$d162" > "$R/.quality-harness.json"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 7 }\n' > "$R/p162.mrw"
 bounded 30 "$WORK/out162b" "$MRW" -C "$R" write --check "$R/p162.mrw"; want 0 $? "a write whose check passes exits 0"
 for f in ag ck; do
@@ -8624,7 +9127,7 @@ done
 fixture
 touch -t 202001010000 "$TMPDIR/mrw-check-old163.log"; : > "$TMPDIR/mrw-check-young163.log"
 printf '{"check":"echo started; sleep 30","timeout_seconds":1}\n' > "$R/.quality-harness.json"
-m read a.go >/dev/null
+m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 8 }\n' > "$R/p163.mrw"
 out=$(m write "$R/p163.mrw" 2>&1); rc=$?
 want 3 "$rc" "a write whose check times out exits 3"

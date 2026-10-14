@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -54,6 +55,22 @@ type WalkSkipped struct {
 	// (lines.Unsplittable: a UTF-16/32 byte-order mark or a NUL in the first
 	// 8 KiB).
 	Binary int `json:"binary"`
+	// Nested is the directories below a checkout that hold their own .git —
+	// another repository, a submodule or a worktree — not entered, as git
+	// does not descend into one (ADR-130).
+	Nested int `json:"nested"`
+	// Unkeepable is the discovered files whose names Windows will not keep — a
+	// reserved device name, or a trailing dot or space; only a Windows build
+	// refuses either — which Resolve refuses by their own spelling and the walk
+	// does not serve (ADR-135). It counts names the listing showed, never what
+	// a file held and never where a link leads.
+	Unkeepable int `json:"unkeepable"`
+	// LinkedDirs is the links — symlinks, and on Windows junctions — to a
+	// directory that resolve inside the root and that the walk does not follow
+	// (ADR-096), counted rather than dropped in silence (ADR-138). It says a link
+	// exists at a name the listing showed, never what its directory holds; a link
+	// that leaves the root is refused by Resolve first and is not counted.
+	LinkedDirs int `json:"linked_dirs"`
 }
 
 // SkipNote is the sentence a surface prints for what a walk skipped
@@ -72,7 +89,24 @@ func SkipNote(sk WalkSkipped, flag string) string {
 	if sk.Binary > 0 {
 		parts = append(parts, fmt.Sprintf("%d binary file(s) that matched", sk.Binary))
 	}
-	return "-- skipped: " + strings.Join(parts, ", ") + "; " + flag + " walks them"
+	if sk.Nested > 0 {
+		parts = append(parts, fmt.Sprintf("%d nested repositor(ies), not entered", sk.Nested))
+	}
+	tail := "; " + flag + " walks them"
+	if sk.LinkedDirs > 0 {
+		parts = append(parts, fmt.Sprintf("%d link(s) to a directory, not followed", sk.LinkedDirs))
+	}
+	if sk.Unkeepable > 0 {
+		parts = append(parts, fmt.Sprintf("%d file(s) with a name Windows will not keep", sk.Unkeepable))
+	}
+	if sk.Unkeepable > 0 || sk.LinkedDirs > 0 {
+		// No flag walks either of these; naming one says why.
+		tail = "; " + flag + " walks the others, and naming one tells why"
+		if sk == (WalkSkipped{Unkeepable: sk.Unkeepable, LinkedDirs: sk.LinkedDirs}) {
+			tail = "; name one to be told why"
+		}
+	}
+	return "-- skipped: " + strings.Join(parts, ", ") + tail
 }
 
 // Walk turns the caller's paths into the Specs read.Run already knows how to
@@ -101,7 +135,8 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 	}
 
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}, nested: map[string]*ignorer{},
-		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}}
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipLinks: map[string]bool{},
+		res: rooted.NewResolver(root)}
 	if !opt.NoIgnore {
 		w.ign = newIgnorer(absRoot)
 	}
@@ -122,7 +157,8 @@ type walker struct {
 	seen     map[string]bool // cleaned root-relative paths already turned into specs
 	specs    []Spec
 	problems []Problem
-	ign      *ignorer // nil outside a checkout or under NoIgnore
+	ign      *ignorer         // nil outside a checkout or under NoIgnore
+	res      *rooted.Resolver // resolves what this walk discovers, and dies with it (ADR-131)
 	// nested holds each checkout found below the root, by its root-relative
 	// "/"-joined directory: its own rules apply beneath it and the outer
 	// rules do not, as git keeps a nested repository's files its own.
@@ -131,7 +167,13 @@ type walker struct {
 	// path, so a path two walks meet counts once, and one served after all
 	// counts not at all (skipCounts). starts are the named directories walked.
 	skipFiles, skipDirs, skipBin map[string]bool
-	starts                       []string
+	// skipNested is the nested repositories the walk did not enter (ADR-130).
+	skipNested map[string]bool
+	// skipNames is the discovered files Resolve refused for their names (ADR-135).
+	skipNames map[string]bool
+	// skipLinks is the in-root links to a directory the walk met (ADR-138).
+	skipLinks map[string]bool
+	starts    []string
 }
 
 // consider handles one path the caller named: judgeNamed decides what it is,
@@ -281,7 +323,14 @@ func (w *walker) walkDir(named string, full string) {
 				w.skipDirs[r] = true
 				return fs.SkipDir
 			}
-			w.noteNested(r, filepath.Join(w.absRoot, rel))
+			// ADR-130: a repository below a checkout is another project's,
+			// and git does not descend into it.
+			abs := filepath.Join(w.absRoot, rel)
+			if w.nestedBelowCheckout(r, abs) {
+				w.skipNested[r] = true
+				return fs.SkipDir
+			}
+			w.noteNested(r, abs)
 			return nil
 		}
 		// THE BOUNDARY, on the discovered path. `consider` resolves a NAMED
@@ -299,16 +348,49 @@ func (w *walker) walkDir(named string, full string) {
 		// this is that sentence being true on both paths. Found by an
 		// independent review, 2026-09-03 — the existing boundary tests covered
 		// an explicit ../ and an IN-root symlink, so nothing failed.
-		full, err := rooted.Resolve(w.root, rel)
+		full, err := w.res.Resolve(rel)
 		if err != nil {
-			// Discovered, not named: skipped in silence, per rule 2. Reporting
-			// it would re-create the oracle in the problem list.
+			// Discovered, not named: not served, per rule 2, and not reported by
+			// path — that would re-create the oracle in the problem list. A name
+			// Windows will not keep is refused by its spelling alone, so it is
+			// COUNTED (ADR-135): a count says a name exists, never what it held.
+			if rooted.UnkeepableName(err) {
+				// The caller's own rules come first, as for a link below: an
+				// excluded name is not reported, and one the ignore rules name is
+				// the ignored file it is.
+				r := filepath.ToSlash(rel)
+				switch {
+				case w.excluded(rel):
+				case w.ignored(r, false, from):
+					w.skipFiles[r] = true
+				default:
+					w.skipNames[r] = true
+				}
+			}
 			return nil //nolint:nilerr // discovered, not named: skipped in silence (rule 2, above)
 		}
 		// Resolve, THEN ask what it is: a symlink to an in-root regular file
 		// is a candidate, a FIFO or device is not.
-		if st, err := os.Stat(full); err != nil || !st.Mode().IsRegular() {
-			return nil //nolint:nilerr // a discovered non-file is skipped in silence
+		st, err := os.Stat(full)
+		if err != nil || !st.Mode().IsRegular() {
+			// ADR-138: a link to a directory is counted. IsDir on the Lstat, not
+			// ModeSymlink, so a Windows junction is a link too (ADR-096).
+			if err == nil && st.IsDir() {
+				if lfi, lerr := os.Lstat(full); lerr == nil && !lfi.IsDir() {
+					// The caller's own rules come first, as for a file: an excluded
+					// name is not reported, and a name the ignore rules name is the
+					// ignored directory it is, pruned (the Codex review of #369).
+					r := filepath.ToSlash(rel)
+					switch {
+					case w.excluded(rel):
+					case w.ignored(r, true, from):
+						w.skipDirs[r] = true
+					default:
+						w.skipLinks[r] = true
+					}
+				}
+			}
+			return nil //nolint:nilerr // any other discovered non-file is skipped in silence
 		}
 		if w.excluded(rel) {
 			return nil
@@ -392,6 +474,26 @@ func (w *walker) noteNested(dir, abs string) {
 	}
 }
 
+// nestedBelowCheckout reports whether dir (root-relative, "/"-joined; abs its
+// path), met by a walk, is a repository of its own below a checkout: the root
+// is inside one, or dir lies inside a repository found below a root that is
+// none (ADR-130). Such a directory is not entered. Under NoIgnore no checkout
+// is known — no rules are read and noteNested records none — so nothing is.
+func (w *walker) nestedBelowCheckout(dir, abs string) bool {
+	if _, err := os.Lstat(filepath.Join(abs, ".git")); err != nil {
+		return false
+	}
+	if w.ign != nil {
+		return true
+	}
+	for k := range w.nested {
+		if strings.HasPrefix(dir, k+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 // hitJudge applies the walk's own rules to files another finder discovered
 // (ADR-122): the ignore rules of the checkout each is in, nested ones
 // included, and a .git directory the walk would not enter. It counts what it
@@ -400,7 +502,7 @@ type hitJudge struct{ w *walker }
 
 func newHitJudge(root, absRoot string) *hitJudge {
 	w := &walker{root: root, absRoot: absRoot, seen: map[string]bool{}, nested: map[string]*ignorer{},
-		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}}
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipLinks: map[string]bool{}}
 	w.ign = newIgnorer(absRoot)
 	return &hitJudge{w: w}
 }
@@ -414,11 +516,20 @@ func (j *hitJudge) skip(rel string, from int) bool {
 	parts := strings.Split(rel, "/")
 	for i := 1; i < len(parts); i++ {
 		dir := strings.Join(parts[:i], "/")
-		j.w.noteNested(dir, filepath.Join(j.w.absRoot, filepath.FromSlash(dir)))
+		abs := filepath.Join(j.w.absRoot, filepath.FromSlash(dir))
+		// The walk's order (walkDir): an ignored directory first, then a
+		// nested repository, so a directory that is both counts the same on
+		// either finder (the in-process review of #348).
 		if i > from && j.w.ignored(dir, true, from) {
 			j.w.skipDirs[dir] = true
 			return true
 		}
+		// ADR-130: a hit inside a nested repository the walk would not enter.
+		if i > from && j.w.nestedBelowCheckout(dir, abs) {
+			j.w.skipNested[dir] = true
+			return true
+		}
+		j.w.noteNested(dir, abs)
 	}
 	if j.w.ignored(rel, false, from) {
 		j.w.skipFiles[rel] = true
@@ -475,11 +586,31 @@ func (w *walker) skipCounts() WalkSkipped {
 			entered[d] = true
 		}
 	}
+	// Indexed by folded spelling, so a skipped directory is compared by
+	// identity only with the entered ones spelled alike but for case: a scan
+	// of every entered directory per skipped one was quadratic in the tree
+	// (the Codex re-review of #348).
+	folded := map[string][]string{}
+	for k := range entered {
+		f := foldKey(k)
+		folded[f] = append(folded[f], k)
+	}
 	for d := range w.skipDirs {
-		if !entered[d] && !startBelow(w.starts, d) {
+		if !w.reached(d, entered, folded) {
 			sk.IgnoredDirs++
 		}
 	}
+	for d := range w.skipNested {
+		if !w.reached(d, entered, folded) {
+			sk.Nested++
+		}
+	}
+	for p := range w.skipNames {
+		if !w.seen[p] {
+			sk.Unkeepable++
+		}
+	}
+	sk.LinkedDirs = len(w.skipLinks)
 	return sk
 }
 
@@ -491,6 +622,62 @@ func startBelow(starts []string, dir string) bool {
 		}
 	}
 	return false
+}
+
+// reached says whether a named start or a served path entered dir after all:
+// dir itself, or a directory below it. A name is compared as spelled first and
+// then by identity, since on a filesystem that folds case a start spelled
+// NESTED enters nested — compared as strings, the count kept a directory a
+// named start had walked (the Codex review of #348).
+func (w *walker) reached(dir string, entered map[string]bool, folded map[string][]string) bool {
+	if entered[dir] || startBelow(w.starts, dir) {
+		return true
+	}
+	for _, k := range folded[foldKey(dir)] {
+		if w.sameDir(k, dir) {
+			return true
+		}
+	}
+	for _, s := range w.starts {
+		if len(s) > len(dir) && s[len(dir)] == '/' && w.sameDir(s[:len(dir)], dir) {
+			return true
+		}
+	}
+	return false
+}
+
+// foldKey maps each rune of s to the smallest member of its simple case-fold
+// orbit, so two names strings.EqualFold calls equal share a key: lowercasing
+// does not (σ and ς fold together and lowercase apart; the Codex re-review of
+// #348).
+func foldKey(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		low := r
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			low = min(low, f)
+		}
+		b.WriteRune(low)
+	}
+	return b.String()
+}
+
+// sameDir reports whether a and b, root-relative and "/"-joined, name one
+// directory: spelled alike, or alike but for case and the same directory on
+// disk. The case test only spares a stat for names that cannot match.
+func (w *walker) sameDir(a, b string) bool {
+	if a == b {
+		return true
+	}
+	if !strings.EqualFold(a, b) {
+		return false
+	}
+	ai, err := os.Stat(filepath.Join(w.absRoot, filepath.FromSlash(a)))
+	if err != nil {
+		return false
+	}
+	bi, err := os.Stat(filepath.Join(w.absRoot, filepath.FromSlash(b)))
+	return err == nil && os.SameFile(ai, bi)
 }
 
 // excluded matches a glob against the cleaned root-relative path AND the

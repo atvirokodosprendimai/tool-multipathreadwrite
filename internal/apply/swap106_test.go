@@ -119,7 +119,7 @@ func TestAWriteThroughASwappedParentStaysInTheRoot(t *testing.T) {
 		if after := listing(t, outside); len(after) != len(before) {
 			t.Errorf("the rename reached outside the root: %q -> %q (err %v)", before, after, err)
 		}
-		if err == nil || res.Applied {
+		if res.Applied || res.Failed == 0 {
 			t.Errorf("a rename through a swapped parent was reported applied: %v %+v", err, res)
 		}
 		if len(res.LeftBehind) != 0 {

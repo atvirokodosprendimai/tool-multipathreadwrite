@@ -6,7 +6,7 @@ writes nothing, because a write that changed nothing is invisible.
 
 The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). The six-guarantee comparison lives in [docs/comparison.md](docs/comparison.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
 
-**Status: stable at v1.48.0 (2026-10-06), the tag cut from `a387dc9`.** Break campaign for it: [docs/break/campaign-v1.48.0.txt](docs/break/campaign-v1.48.0.txt), 59 probes, exit codes identical to v1.47.1.
+**Status: stable at v1.65.0 (2026-10-13), the tag cut from `1a91b80`.** Break campaign for it: [docs/break/campaign-v1.65.0.txt](docs/break/campaign-v1.65.0.txt), 59 probes, exit codes identical to v1.64.0.
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
@@ -36,7 +36,7 @@ exactly the name of a subcommand of the command it was given to.
 
 ### From source
 
-Go 1.26.6 or newer (`go.mod`). One dependency, no cgo:
+Go 1.26.9 or newer (`go.mod`). One dependency, no cgo:
 
 ```sh
 go build -o bin/mrw ./cmd/mrw          # Linux, macOS
@@ -64,8 +64,14 @@ paths the walk starts at `--root`. `--exclude GLOB` is repeatable and matches
 both the root-relative path and the basename — that is what makes `'*_test.go'`
 work at any depth. Inside a git checkout it skips what `.gitignore` and
 `.git/info/exclude` ignore, and any walk skips a binary file; a `-- skipped:`
-line counts them, and `--no-ignore` walks every file. A `.git/` the walk meets
+line counts them, and `--no-ignore` walks every file. It does not enter a
+nested repository — a directory below the checkout holding its own `.git` — as
+git does not (ADR-130); a path you name inside one is walked. A `.git/` the walk meets
 is skipped; one you name is walked.
+On Windows, a file whose name Windows will not keep (`aux.txt`, `nul`, `trail.`) is not served by a walk and is
+counted on the `-- skipped:` line; name it to be told why (ADR-135).
+A link to a directory met inside the root is not followed and is counted on the `-- skipped:` line; name the directory
+it leads to (ADR-138).
 A link to a directory is not followed: one the walk meets is skipped, one you name is refused with
 the directory to name instead — unless you spell it as an absolute path, which names the directory
 it leads to — and one that leads to the root is walked as the root.
@@ -81,12 +87,25 @@ rg -l 'func Handle' . | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 | `--stat` | length, bytes and sha only — no content, so it licenses nothing |
 | `-C N` | context around a single-pattern match |
 | `--max-lines N` | cap per spec, where zero means zero: `0` serves nothing. Omit the flag for no cap |
+| `--max-cols N` | cut a line longer than N characters to a window of N round the first match of a pattern (the start otherwise), marked `[cols A-B of L]`; a line served cut is not recorded as read, so a plan that replaces it is refused until it is read whole (ADR-137). CLI only |
 | `--grep PATTERN` | serve every regexp match under the given paths (measured 2026-09-03: the walk took 0.76× the time of a `grep -rl … \| mrw read --files-from -` pipeline over this repository, ADR-007) |
 | `--ast-grep PATTERN` | serve every `ast-grep` hit (binary on PATH; missing is exit 2; a hang is, on unix, sent SIGTERM at 2 s and killed by 3 s if it ignores it; on Windows it is killed at 2 s). A hit in a file whose lines end in `\r` alone is reported, not served — read that file directly |
 | `--exclude GLOB` | skip matching paths (needs `--grep` or `--ast-grep`) |
 | `--files-from FILE\|-` | one spec per line |
 
 A pattern that matches no file is reported by name and exits 1.
+
+A read whose standard output is the null device (`>/dev/null`, cmd.exe's `>NUL`) is still
+served and exits as usual, but records nothing in the ledger and says so on stderr (ADR-133).
+That read adds no licence; it does not remove one. When every line it served in full of a file is
+still licensed by an earlier read or write of the same version, under any spelling of that file,
+a second stderr line names the file, and a write to those lines is judged on that licence with the
+usual checks. A file it leaves unnamed may still be licensed in part; a line no read or write has
+licensed is refused as unread, as after `--stat` (ADR-148). mrw cannot see past a pipe or a file,
+so those record as before, and so does PowerShell's `> $null` or `| Out-Null`, which hand mrw a
+pipe, as does PowerShell 7's `> NUL`. In Windows PowerShell 5.1 `> NUL` fails before mrw starts
+(Out-File cannot open a device), so nothing is read. A licence means you saw the lines: an answer
+sent to a file you never open licenses all the same, and mrw cannot tell.
 
 **A shell glob and an address suffix do not mix.** `mrw read 'dir/*.go:1-3'`
 takes the star literally and reports the path UNREADABLE; unquoted, zsh refuses
@@ -117,7 +136,7 @@ mrw write -
 
 Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`,
 `unlink`, `rename`. `@@ path - unlink` removes the path. `@@ old - rename`
-with a one-line dest body moves it, edited first when the plan also edits it. Only `delete` may carry no body among
+with a one-line dest body moves it, edited first when the plan also edits it; on a filesystem that folds case it may change only the case of the name (`a.txt` → `A.txt`, ADR-129). Only `delete` may carry no body among
 the line-range ops: a lost body reads like one never written, so an
 empty file is `@@ new.txt 0 create body=0`. A bare `create` with nothing under
 it is refused and leaves no file behind.
@@ -127,6 +146,12 @@ native plan. `--format=search_replace` compiles Aider SEARCH/REPLACE. Both still
 refuse an unread sibling and write nothing. A git patch is not an apply_patch;
 `--format=git` is usage. The flag is required — there is no auto-detect.
 Sequential apply_patch — one hunk, then another — is the leak, not the feature.
+
+`mrw write --create PATH` makes one new file from standard input without a plan or a hand-counted `body=`:
+the lines of the content become the file exactly as the `create` plan of the same lines would (each line ends
+in a newline, so a missing final newline is added and CRLF becomes LF, which stderr names; empty input makes an empty file), through
+the same lock, check and receipt. It is refused if PATH exists and takes no PLAN argument and no `--format`
+(ADR-139). CLI only.
 
 `anchor=` is required on a `replace` that addresses more than one line. Take it
 from the `NNN| content` a read printed; one typed from memory can be wrong in
@@ -250,7 +275,7 @@ behind: <path>` on the human receipt), on success and on failure.
 | Stage | On disk | Receipt | Exit | Recovery |
 |-------|---------|---------|------|----------|
 | validation | nothing changed | the failing hunks with reasons, the rest `skip`, NOTHING WRITTEN; a file mrw cannot open names why — permission denied, held exclusively by another process, a name the system refuses (ADR-125) | 1 | fix the plan, or the file, and send it again |
-| staging | nothing changed; the temp files and directories staging made are removed, and any that could not be are in `left_behind` (a temp another process moved away with its directory is at a path mrw never made, and is not named) | the unstageable file's hunks fail with the filesystem error, the rest `skip`; on Windows a target held without delete sharing fails here, before any rename, naming that it is held (ADR-125) | 2 | fix the cause (space, permissions) and send again; delete what `left_behind` names |
+| staging | nothing changed; the temp files and directories staging made are removed, and any that could not be are in `left_behind` (a temp another process moved away with its directory is at a path mrw never made, and is not named) | the unstageable file's hunks fail with the filesystem error, the rest `skip`; on Windows a target held without delete sharing fails here, before any rename, naming that it is held (ADR-125) | 1 when the cause is the target's — held, a permission, a name refused, changed or removed since mrw read it; 2 for the environment — disk full, an I/O error, an error mrw cannot name (ADR-132) | fix the plan or the file, or the cause (space, permissions), and send again; delete what `left_behind` names |
 | commit | the files renamed before the failure stay written (PARTIALLY APPLIED), or the undo put every one back (NOTHING WRITTEN) | `files[].written` says what landed; `error` names the step that stopped | 2 | read the written files; send only what did not land, never the whole plan again |
 | undo | an unlinked file whose path a rename still holds stays in a `.mrw-aside-*` recovery file | `UNDO INCOMPLETE` names the aside and the path it belongs at, and `left_behind` names the aside | 2 | settle what now holds that path first, then move the aside there; never move it over a file |
 | ledger | the write landed; mrw could not record it | `applied: true` with `error` naming the ledger (CLI and `mrw_write`) | 2 | read the files again before the next edit |
@@ -378,7 +403,10 @@ starts with `/` is rewritten too, into a false "no match".
 | 3 | the write applied and the check failed, timed out or was interrupted (before it started, too); the tree is changed and unverified. Not a rollback |
 
 Exit 1 on `read` means incomplete: `UNREADABLE`, `REFUSED`, `no match`, or
-`WITHHELD`. The output always names which.
+`WITHHELD`. The output always names which, and the last stderr line begins with the kind
+(ADR-146): `mrw: no match: …` when a search found no file and nothing it was asked for was
+refused, `mrw: incomplete: …` when a requested range or path was not served, a search that
+matched no file beside a refused path included.
 
 ## opencode
 

@@ -158,8 +158,23 @@ func rootCommand() *cli.Command {
 		// from. That read the wrong ledger under `-C`, which is precisely how
 		// a contract row here first passed for the wrong reason.
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			// version and instructions touch no state at all (ADR-145); the legacy
+			// migration runs for every other command, stats included.
+			verb := cmd.Args().First()
+			if verb != "version" && verb != "instructions" {
+				migrateLegacyState()
+			}
+			// version, instructions and stats never read the ledger (ADR-136).
+			switch verb {
+			case "version", "instructions", "stats":
+				return ctx, nil
+			}
 			if stale, err := seen.IsStale(cmd.String("root")); err == nil && stale {
 				fmt.Fprintln(os.Stderr, seen.StaleNotice)
+			} else if tellsLedgerDamage(cmd.Args().First()) {
+				if notice, err := seen.DamageNotice(cmd.String("root")); err == nil && notice != "" {
+					fmt.Fprintln(os.Stderr, notice)
+				}
 			}
 			return ctx, nil
 		},
@@ -199,7 +214,11 @@ func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
 		return cli.Exit(fmt.Sprintf("--%s is not a flag; the subcommand is `%s %s` (see: %s --help)",
 			flag, cmd.FullName(), sub, cmd.FullName()), exitUsage)
 	}
-	return cli.Exit(fmt.Sprintf("%v (see: %s --help)", err, cmd.FullName()), exitUsage)
+	msg := fmt.Sprintf("%v (see: %s --help)", err, cmd.FullName())
+	if h := foreignFlagHint(cmd.FullName(), refusedFlag(err)); h != "" {
+		msg += "; " + h
+	}
+	return cli.Exit(msg, exitUsage)
 }
 
 // subcommandForFlag returns the flag name the parser refused, as the caller
@@ -272,16 +291,6 @@ func posixQuote(s string) string {
 }
 
 func main() {
-	// One-time, additive migration of any pre-ADR-004 in-tree state. Announced
-	// on stderr because a tool that quietly moves your files is the sibling of
-	// the tool that quietly created them.
-	if moved, err := state.Migrate("."); err == nil && len(moved) > 0 {
-		if dir, err := state.Dir("."); err == nil {
-			fmt.Fprintf(os.Stderr, "mrw: moved %s from ./%s/ to %s — the copy in your working tree is "+
-				"untouched and can now be deleted\n", strings.Join(moved, " and "), state.LegacyDir, dir)
-		}
-	}
-
 	root := rootCommand()
 	// A padded ATTACHED flag value (--root='dir ') is trimmed by the parser
 	// before any Action runs, and a root flag never reaches a subcommand's raw
@@ -439,7 +448,10 @@ func versionCmd() *cli.Command {
 func instructionsCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "instructions",
-		Usage: "print the contract a caller with only this binary is entitled to",
+		Usage: "print the contract a caller with only this binary is entitled to; --core prints the eight rules that matter most",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{Name: "core", Usage: "print the eight rules that matter most instead of the whole contract (ADR-141)"},
+		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.Args().Len() != 0 {
 				return cli.Exit("instructions takes no arguments", exitUsage)
@@ -447,6 +459,10 @@ func instructionsCmd() *cli.Command {
 			out := cmd.Root().Writer
 			if out == nil {
 				out = os.Stdout
+			}
+			if cmd.Bool("core") {
+				_, err := fmt.Fprint(out, guide.Core())
+				return err
 			}
 			_, err := fmt.Fprint(out, guide.CLI())
 			return err
@@ -678,6 +694,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "max-lines",
 				Usage: "stop after `N` lines per SPEC, where zero means zero: omit the flag to ask for no cap. Two specs naming one file get two budgets. Whatever is withheld is always reported",
 			},
+			&cli.IntFlag{
+				Name:  "max-cols",
+				Usage: "cut a line longer than `N` characters to a window of N round the first match of a pattern (the start otherwise), marked `[cols A-B of L]`. A line served cut is NOT recorded as read: a plan that replaces it is refused until it is read whole (ADR-137). Zero or omitted serves lines whole",
+			},
 			&cli.StringFlag{
 				Name:  "grep",
 				Usage: "serve every range matching `PATTERN` in the files under the given paths (a directory is walked)",
@@ -696,7 +716,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.BoolFlag{
 				Name:  "no-ignore",
-				Usage: "under --grep or --ast-grep, walk every regular file: no .gitignore, no binary skip (ADR-116, ADR-122)",
+				Usage: "under --grep or --ast-grep, walk every regular file: no .gitignore, no binary skip, nested repositories entered (ADR-116, ADR-122, ADR-130)",
 			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
@@ -722,6 +742,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 			if n := cmd.Int("max-lines"); n < 0 {
 				return cli.Exit(fmt.Sprintf("--max-lines %d: a cap cannot be negative", n), exitUsage)
+			}
+			if n := cmd.Int("max-cols"); n < 0 {
+				return cli.Exit(fmt.Sprintf("--max-cols %d: a width cannot be negative", n), exitUsage)
 			}
 			// ADR-007: --grep and --files-from are two further ways of arriving
 			// at the same []Spec read.Run has always served. Their domains are
@@ -857,7 +880,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			default:
 				args := posArgs
 				if filesFromSet {
-					list, err := specList(filesFrom)
+					list, err := specList(root, filesFrom)
 					if err != nil {
 						return cli.Exit(err, exitUsage)
 					}
@@ -922,12 +945,16 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if grepSet && len(specs) == 0 {
 				skipNote()
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
-				return cli.Exit(fmt.Sprintf("no file matched /%s/", pattern), 1)
+				hint := ""
+				if h := patternFlagHint(pattern); h != "" {
+					hint = " — " + h + " (mrw took the value after --grep as the pattern)"
+				}
+				return cli.Exit(noMatchLine(pattern, len(refusals), hint), 1)
 			}
 			if astSet && len(specs) == 0 {
 				skipNote()
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
-				return cli.Exit(fmt.Sprintf("no file matched /%s/", astPattern), 1)
+				return cli.Exit(noMatchLine(astPattern, len(refusals), ""), 1)
 			}
 
 			observed, problems := read.Run(out, root, specs, read.Options{
@@ -935,6 +962,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Stat:     cmd.Bool("stat"),
 				Context:  cmd.Int("context"),
 				MaxLines: maxLines(cmd),
+				MaxCols:  cmd.Int("max-cols"),
 			})
 			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).
@@ -946,12 +974,28 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 			// Reading a file is how mrw learns what it holds; recording that is
 			// what lets a later write know whether its picture is still current.
-			if err := seen.Record(root, observed); err != nil {
+			// ADR-133: an answer sent to the null device reached nobody, so it
+			// licenses nothing — the one discard on the CLI that mrw can see.
+			if toNullDevice(os.Stdout) {
+				// Only a read that served lines has lines to name: a --stat or
+				// --max-lines 0 serves none (the stress runs of 25f4f04). Nil
+				// Spans is a whole-file read, every line served (seen.Observation).
+				served := false
+				for _, o := range observed {
+					served = served || o.Spans == nil || len(o.Spans) > 0
+				}
+				if served {
+					fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see; on unix a stdout closed when mrw starts is the null device too (ADR-133)")
+					if line := stillLicensed(root, observed); line != "" {
+						fmt.Fprintln(os.Stderr, line)
+					}
+				}
+			} else if err := seen.Record(root, observed); err != nil {
 				return cli.Exit(err, exitUsage)
 			}
 			problems += len(refusals)
 			if problems > 0 {
-				return cli.Exit(fmt.Sprintf("%d range(s) could not be served", problems), 1)
+				return cli.Exit(fmt.Sprintf("incomplete: %d range(s) could not be served", problems), 1)
 			}
 			return nil
 		},
@@ -1070,6 +1114,10 @@ held or went unchecked.`,
 				Value: "plan",
 				Usage: "plan (default), apply_patch (Codex *** Begin Patch; a git patch is not one), or search_replace (Aider SEARCH/REPLACE)",
 			},
+			&cli.StringFlag{
+				Name:  "create",
+				Usage: "create `PATH` (relative to the root) from standard input, as the create plan of its lines would: each line ends in a newline, so a missing final newline is added and CRLF becomes LF; refused if PATH exists. Takes no PLAN argument and no --format (ADR-139)",
+			},
 			&cli.IntFlag{
 				Name:  "echo-pad",
 				Value: 0,
@@ -1110,6 +1158,17 @@ held or went unchecked.`,
 			if len(args) > 1 {
 				return cli.Exit("write takes at most one plan file", exitUsage)
 			}
+			if cmd.IsSet("create") {
+				if err := ingest.CheckCreatePath(cmd.String("create")); err != nil {
+					return cli.Exit(err.Error(), exitUsage)
+				}
+				if len(args) > 0 {
+					return cli.Exit("--create takes the content on standard input: it takes no PLAN argument", exitUsage)
+				}
+				if cmd.IsSet("format") {
+					return cli.Exit("--create and --format contradict each other: drop one", exitUsage)
+				}
+			}
 			// ADR-072: under --json every refusal after the plan is named is
 			// one JSON document — the receipt's shape with an error field — so
 			// a consumer that parses stdout never meets text. A refusal after
@@ -1120,6 +1179,13 @@ held or went unchecked.`,
 			// parsed says the plan parsed: a refusal after that and before anything
 			// landed is one refused_apply, as mrw_write counts it (ADR-083).
 			printed, tallied, parsed := false, false, false
+			var createNotes []string // what --create did to its content, told once the create has landed
+			emitNotes := func() {
+				for _, n := range createNotes {
+					fmt.Fprintf(os.Stderr, "mrw: --create %s: %s\n", cmd.String("create"), n)
+				}
+				createNotes = nil
+			}
 			// stepsNotRun is the --then list a refusal after the landing carries,
 			// every step not_run: the check could not run, or the ledger could not
 			// record the landing, so none followed it (ADR-092 T4; the 2026-09-29 gap survey, C3).
@@ -1131,6 +1197,9 @@ held or went unchecked.`,
 				// ledger failure printed nothing, and the landing went
 				// uncounted (review of #229, advisory 1).
 				landed := res.Applied && !res.DryRun
+				if landed {
+					emitNotes()
+				}
 				if landed && !tallied {
 					_ = authoring.Record(cmd.Root().String("root"), authoring.Applied)
 					tallied = true
@@ -1174,8 +1243,8 @@ held or went unchecked.`,
 				// ADR-077: the plan is a shell argument and never passed the
 				// boundary; a plan naming mrw's ack store had its JSON quoted
 				// back as "text before the first @@ header" (Codex review of #238).
-				if abs, err := filepath.Abs(args[0]); err == nil && rooted.InState(abs) {
-					return refuse(fmt.Sprintf("%s is inside mrw's own state directory; mrw does not read its own files as a plan", args[0]))
+				if abs, err := filepath.Abs(args[0]); err == nil && rooted.InStateOrLinked(cmd.String("root"), abs) {
+					return refuse(fmt.Sprintf("%s is inside mrw's own state directory, or is a hard link to a file in it; mrw does not read its own files as a plan", args[0]))
 				}
 				f, err := os.Open(args[0])
 				if err != nil {
@@ -1192,7 +1261,11 @@ held or went unchecked.`,
 
 			var hunks []plan.Hunk
 			var err error
-			switch cmd.String("format") {
+			format := cmd.String("format")
+			if cmd.IsSet("create") {
+				format = "create" // ADR-139: standard input is a file's content, compiled to one create hunk
+			}
+			switch format {
 			case "plan", "":
 				hunks, err = plan.Parse(src)
 			case "apply_patch":
@@ -1218,6 +1291,26 @@ held or went unchecked.`,
 					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 					return refuse(fmt.Sprintf("%s: %v", name, cerr))
 				}
+				hunks, err = plan.Parse(bytes.NewReader(compiled))
+			case "create":
+				if !cmd.IsSet("create") {
+					return refuse(fmt.Sprintf("unknown --format %q (plan, apply_patch, or search_replace)", cmd.String("format")))
+				}
+				raw, rerr := io.ReadAll(src)
+				if rerr != nil {
+					return refuse(fmt.Sprintf("%s: %v", name, rerr))
+				}
+				raw, notes := ingest.CreateContent(raw)
+				createNotes = notes
+				compiled, cerr := ingest.CompileCreate(cmd.String("create"), raw)
+				if cerr != nil {
+					return refuse(fmt.Sprintf("%s: %v", name, cerr)) // a content refusal, not a plan that failed to parse: not counted by ADR-009
+				}
+				if n := ingest.EndingNote(raw); n != "" {
+					createNotes = append(createNotes, n) // told once the create lands, like the others
+				}
+				// The notes say what was done to content that went into a file, so
+				// they are told once it landed (emitNotes): a refused create is told nothing.
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
 			case "git":
 				return refuse("a git patch is not an apply_patch; --format=apply_patch is for *** Begin Patch documents")
@@ -1330,7 +1423,12 @@ held or went unchecked.`,
 			}
 			// Land counted the landing, whatever it was.
 			tallied = true
-			res := land.Res
+			if land.Res.Applied && !land.Res.DryRun {
+				emitNotes()
+			}
+			// ADR-132: what the caller is shown spells paths with "/", as
+			// mrw_write's receipt does (ADR-091); the engine kept its own.
+			res := shown(land.Res)
 			if land.Err != nil {
 				// ADR-001 rule 3: every hunk carries its own verdict, and a
 				// filesystem failure is not an exception. Apply fills the
@@ -1349,7 +1447,7 @@ held or went unchecked.`,
 				if len(res.Hunks) > 0 {
 					report(os.Stdout, res, cmd.Bool("quiet"))
 				}
-				return cli.Exit(land.Err, exitUsage)
+				return cli.Exit(exitTwoLine(land.Res, land.Err), exitUsage)
 			}
 			// The landing (writer's applyCounted) recorded what the files now hold before it released
 			// the write lock. This is why a chain of edits needs no re-read
@@ -1400,7 +1498,7 @@ held or went unchecked.`,
 				stepsNotRun = v.Then
 				return refuseWith(res, v.CheckErr.Error())
 			}
-			receipt.Check, receipt.Drift, receipt.DriftWriters, receipt.Then = v.Check, v.Drift, v.DriftWriters, v.Then
+			receipt.Check, receipt.Drift, receipt.DriftWriters, receipt.Then = v.Check, shownPaths(v.Drift), v.DriftWriters, v.Then
 
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
@@ -1974,6 +2072,10 @@ func reportCheck(w *os.File, r *check.Result) {
 		if r.OutputFile != "" {
 			named = " — full output: " + r.OutputFile
 		}
+		if w := writer.StopWord(r.Skipped); w != "" {
+			fmt.Fprintf(out, "check %s: %s%s\n", w, r.Skipped, named)
+			return
+		}
 		fmt.Fprintf(out, "check SKIPPED: %s%s\n", r.Skipped, named)
 		return
 	}
@@ -1999,6 +2101,9 @@ func reportCheck(w *os.File, r *check.Result) {
 	verdict := "PASS"
 	if !r.OK() {
 		verdict = "FAIL"
+	}
+	if w := writer.StopWord(r.Skipped); w != "" {
+		verdict = w
 	}
 	if r.Skipped != "" {
 		// ADR-080: a timed-out or interrupted check keeps its log, and the
@@ -2085,7 +2190,7 @@ func report(w *os.File, res apply.Result, quiet bool) {
 		// ADR-076: the directories this plan made, parents first, spelled
 		// with the separator that names a directory.
 		for _, d := range res.DirsCreated {
-			fmt.Fprintf(out, "created %s%c\n", d, filepath.Separator)
+			fmt.Fprintf(out, "created %s/\n", d)
 		}
 		for _, f := range res.Files {
 			if !f.Written {
@@ -2326,6 +2431,11 @@ func refusePaddedArgs(cmd *cli.Command) error {
 			positionals++
 		} else if !noteText {
 			if t := strings.TrimSpace(tok); t != tok && t != "" && got[t] {
+				if cmd.Name == "write" && cmd.String("create") != "" {
+					// --create took the "--" as its value; the path is --create's own
+					// argument, and a "--" before it drops the flag.
+					return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; give it to --create as its own argument, without a --: mrw write --create %s%s", tok, posixQuote(tok), cmdExeForm("mrw write --create ", tok)), exitUsage)
+				}
 				head := fmt.Sprintf("mrw %s -- ", prefix)
 				fix := head + posixQuote(tok)
 				return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
@@ -2546,7 +2656,7 @@ func subcommand(cmds []*cli.Command, name string) *cli.Command {
 // Blank lines are skipped and a leading '#' is a comment, so a generated list
 // can carry provenance without the reader stripping it. Nothing else is
 // interpreted: each remaining line is a spec, parsed exactly as an argv one is.
-func specList(name string) ([]string, error) {
+func specList(root, name string) ([]string, error) {
 	var r io.Reader
 	if name == "-" {
 		r = os.Stdin
@@ -2555,8 +2665,8 @@ func specList(name string) ([]string, error) {
 		// directory, and never passed the boundary; a list naming mrw's own
 		// ack store had its JSON quoted back in the parse error, checkpoint
 		// ids and all (Codex review of #238).
-		if abs, err := filepath.Abs(name); err == nil && rooted.InState(abs) {
-			return nil, fmt.Errorf("--files-from %s is inside mrw's own state directory; mrw does not read its own files as input", name)
+		if abs, err := filepath.Abs(name); err == nil && rooted.InStateOrLinked(root, abs) {
+			return nil, fmt.Errorf("--files-from %s is inside mrw's own state directory, or is a hard link to a file in it; mrw does not read its own files as input", name)
 		}
 		f, err := os.Open(name)
 		if err != nil {
@@ -2579,4 +2689,44 @@ func maxLines(cmd *cli.Command) *int {
 	}
 	n := cmd.Int("max-lines")
 	return &n
+}
+
+// receiptSep is the separator a receipt's paths are converted from (ADR-132);
+// a variable so a test can drive `\` on any platform.
+var receiptSep = filepath.Separator
+
+// shown is res as a receipt shows it: every root-relative path with "/".
+func shown(res apply.Result) apply.Result { return apply.Slashed(res, receiptSep) }
+
+// shownPaths is paths as a receipt shows them, with "/".
+func shownPaths(paths []string) []string {
+	out := make([]string, len(paths))
+	for i, p := range paths {
+		out[i] = apply.Slash(p, receiptSep)
+	}
+	if len(out) == 0 {
+		return paths
+	}
+	return out
+}
+
+// exitTwoLine is the line an exit-2 write ends on (ADR-132): the error, with
+// the reason a FAIL row already printed replaced by a pointer to that row, so
+// a long system error is not printed twice and every other cause it carries —
+// the files already written, a ledger failure — stays.
+func exitTwoLine(res apply.Result, err error) string {
+	msg := err.Error()
+	for _, h := range res.Hunks {
+		if h.Status == apply.StatusFailed && h.Reason != "" && strings.Contains(msg, h.Reason) {
+			line := strings.Replace(msg, h.Reason, "see its FAIL line", 1)
+			// A commit's reason can be the whole error, path included: keep
+			// the path, so the line still says which file stopped it.
+			if !strings.Contains(line, h.Path) {
+				line = h.Path + ": " + line
+			}
+			// Spelled as the receipt above spells it (the Codex review of #347).
+			return apply.SlashIn(line, h.Path, receiptSep)
+		}
+	}
+	return msg
 }

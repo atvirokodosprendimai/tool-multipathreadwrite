@@ -451,15 +451,20 @@ func TestANestedCheckoutHasItsOwnRules(t *testing.T) {
 		"inner/d/y.log":    "needle\n",
 	})
 	needle := regexp.MustCompile("needle")
-	for paths, want := range map[string]string{"": "inner/vendor.txt", "inner": "inner/vendor.txt", "inner/d": ""} {
+	// ADR-130: walked from the root, inner/ is a repository inside this
+	// checkout and is not entered; named, it is walked by its own rules.
+	for paths, want := range map[string]struct {
+		served       string
+		ignored, nst bool
+	}{"": {"", true, true}, "inner": {"inner/vendor.txt", true, false}, "inner/d": {"", true, false}} {
 		var named []string
 		if paths != "" {
 			named = []string{paths}
 		}
 		var sk WalkSkipped
 		specs, _, _ := Walk(root, named, WalkOptions{Pattern: needle, Skipped: &sk})
-		if got := strings.Join(specPaths(specs), ","); got != want || sk.Ignored == 0 {
-			t.Errorf("%q: served %q skipped %+v, want %q and the inner logs skipped", paths, got, sk, want)
+		if got := strings.Join(specPaths(specs), ","); got != want.served || (sk.Ignored > 0) != want.ignored || (sk.Nested > 0) != want.nst {
+			t.Errorf("%q: served %q skipped %+v, want %q, ignored %v, nested %v", paths, got, sk, want.served, want.ignored, want.nst)
 		}
 	}
 	plain := t.TempDir()

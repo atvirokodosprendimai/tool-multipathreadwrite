@@ -384,18 +384,18 @@ func hold(root, path, sha string, spans map[string][2]int) error {
 // An ack matching nothing is ignored rather than refused: it is a stale caller
 // from an earlier session, and failing the whole call would punish the spans
 // that were acknowledged honestly.
-func promote(root string, acks []string) error {
+func promote(root string, acks []string) ([]string, error) {
 	if len(acks) == 0 {
-		return nil
+		return nil, nil
 	}
 	release, err := state.Hold(root, pendingLock)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer release()
 	store, err := loadPending(root)
-	if err != nil || len(store) == 0 {
-		return err
+	if err != nil {
+		return nil, err
 	}
 	// ⚠ KEYED BY PATH **AND SHA**, not by path alone. An earlier cut appended
 	// every acknowledged span to one observation per path and let the last
@@ -406,18 +406,27 @@ func promote(root string, acks []string) error {
 	type key struct{ path, sha string }
 	byVersion := map[key][][2]int{}
 	changed := false
+	var unknown []string
+	matched := map[string]bool{}
 	for _, ck := range acks {
 		p, ok := store[ck]
 		if !ok {
+			// An id this call already used, or already named, is not named
+			// again: the caller sent it twice (the reviews of #343).
+			if !matched[ck] {
+				unknown = append(unknown, ck)
+				matched[ck] = true
+			}
 			continue
 		}
+		matched[ck] = true
 		k := key{p.Path, p.SHA}
 		byVersion[k] = append(byVersion[k], [2]int{p.Start, p.End})
 		delete(store, ck)
 		changed = true
 	}
 	if !changed {
-		return nil
+		return unknown, nil
 	}
 	// ⚠ ONLY THE VERSION ON DISK IS RECORDED, and the rest are dropped.
 	//
@@ -437,10 +446,10 @@ func promote(root string, acks []string) error {
 		}
 		o := seen.Observation{SHA: k.sha, Spans: spans}
 		if err := seen.Record(root, map[string]seen.Observation{k.path: o}); err != nil {
-			return err
+			return unknown, err
 		}
 	}
-	return savePending(root, store)
+	return unknown, savePending(root, store)
 }
 
 // evict drops the oldest entries once the store passes maxPending.

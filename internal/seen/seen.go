@@ -30,6 +30,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -247,12 +248,75 @@ func IsStale(root string) (bool, error) {
 	return sc.Text() != header, nil
 }
 
-// StaleNotice is what the CLI prints when IsStale reports true.
-const StaleNotice = "mrw: the read ledger was written by an older mrw, or its line endings were " +
-	"changed, and has been discarded — up to v0.0.11 a read that served nothing recorded the whole " +
-	"file, up to v1.37.1 an MCP checkpoint could license the lines between those a read served, up to " +
-	"v1.41.0 a file mrw wrote read as one the caller had been shown, and " +
-	"a ledger mrw did not write cannot be trusted either. Read the files you mean to edit again."
+// StaleNotice is what the CLI prints when IsStale reports true: one sentence,
+// the two causes and the remedy. The history of the fixes that made an old
+// ledger untrustworthy is in the ADRs, not in a message read on every upgrade
+// (ADR-136).
+const StaleNotice = "mrw: the read ledger was written by an older mrw, or its line endings were changed; " +
+	"it has been discarded. Read the files you mean to edit again."
+
+// DamageNotice is what the CLI prints when the ledger holds lines this mrw
+// ignored (ADR-144): the sentence, or "" when there is nothing to say. A stale
+// ledger (IsStale tells that one), a missing, empty or non-regular one and a
+// clean one say nothing. Load keeps handing back what it could parse; the next
+// save rewrites the ledger without the bad lines, so the sentence is told once.
+func DamageNotice(root string) (string, error) {
+	path, err := ReadPath(root)
+	if err != nil {
+		return "", err
+	}
+	f, _, err := regular.Open(path)
+	if os.IsNotExist(err) || errors.Is(err, regular.ErrNotRegular) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	// Read whole and closed before it is parsed: a Windows writer's rename
+	// retries for 100 ms (state.write) and an open handle without delete
+	// sharing blocks it, so the scan must not hold the file for the parse.
+	data, over, err := readBounded(f, maxScanBytes)
+	_ = f.Close()
+	if err != nil {
+		return "", err
+	}
+	if over {
+		return "", nil // past the bound: not scanned (ADR-144 T3)
+	}
+	sc := bufio.NewScanner(bytes.NewReader(data))
+	sc.Split(scanLF)
+	sc.Buffer(make([]byte, min(64<<10, maxRecordBytes)), int(maxRecordBytes))
+	if !sc.Scan() || sc.Text() != header {
+		return "", sc.Err()
+	}
+	ignored := 0
+	for sc.Scan() {
+		if _, _, ok := parseLine(sc.Text()); !ok {
+			ignored++
+		}
+	}
+	if errors.Is(sc.Err(), bufio.ErrTooLong) {
+		return "mrw: the read ledger holds a line longer than mrw writes, so it has been discarded; " +
+			"read the files you mean to edit again.", nil
+	}
+	if sc.Err() != nil || ignored == 0 {
+		return "", sc.Err()
+	}
+	return fmt.Sprintf("mrw: %d line(s) of the read ledger could not be understood and were ignored; "+
+		"a file they described counts as unread, so read the files you mean to edit again.", ignored), nil
+}
+
+// maxScanBytes bounds what DamageNotice reads. It reads the ledger whole so it
+// can close the file before parsing, and Load streams, so without a bound a
+// hostile ledger could exhaust memory only here (ADR-144 T3).
+var maxScanBytes int64 = 64 << 20
+
+// readBounded reads r whole unless it holds more than max bytes, which it
+// reports as over without reading past max+1 (ADR-144 T3).
+func readBounded(r io.Reader, max int64) (data []byte, over bool, err error) {
+	data, err = io.ReadAll(io.LimitReader(r, max+1))
+	return data, int64(len(data)) > max, err
+}
 
 // scanLF splits the ledger on "\n" alone. bufio.ScanLines also drops a "\r"
 // before it, which loaded the observation of a file named "x\r" under "x"
@@ -388,7 +452,7 @@ func Drop(root string, paths []string) error {
 	return withLock(root, func() error {
 		l, err := Load(root)
 		if err != nil {
-			return err
+			return ledgerNotRead(err)
 		}
 		for _, p := range paths {
 			delete(l, p)
@@ -407,7 +471,7 @@ func Record(root string, obs map[string]Observation) error {
 	return withLock(root, func() error {
 		l, err := Load(root)
 		if err != nil {
-			return err
+			return ledgerNotRead(err)
 		}
 		for path, o := range obs {
 			l[path] = merge(l[path], o)
@@ -477,10 +541,23 @@ func Snapshot(root string) (Ledger, error) {
 	err := withLock(root, func() error {
 		var err error
 		l, err = Load(root)
-		return err
+		if err != nil {
+			return &UnreadableError{Err: err}
+		}
+		return nil
 	})
 	return l, err
 }
+
+// UnreadableError is Snapshot's refusal: the ledger could not be read. What that
+// means is the caller's to say — a write wrote nothing, `mrw seen` has nothing to show.
+type UnreadableError struct{ Err error }
+
+func (e *UnreadableError) Error() string {
+	return "the read ledger could not be read: " + e.Err.Error()
+}
+
+func (e *UnreadableError) Unwrap() error { return e.Err }
 
 // merge combines a new observation with what was already recorded for the same
 // path. Anything about a different version of the file is discarded.
@@ -561,7 +638,27 @@ func save(root string, l Ledger) error {
 		}
 		b.WriteString(line)
 	}
-	return state.WriteSynced(path, []byte(b.String()), 0o600)
+	if err := state.WriteSynced(path, []byte(b.String()), 0o600); err != nil {
+		return ledgerNotUpdated(err)
+	}
+	return nil
+}
+
+// ledgerNotUpdated is what a call says when the ledger could not be read or
+// replaced after the call had already acted. What it did (lines a read served,
+// a plan applied) stands; only the licence is missing. A bare "rename … Access
+// is denied" after a full serve read as a failed read to four Windows sessions
+// (v1.59.0), and an "open … used by another process" said nothing about what
+// stood (the v1.60.0 retest).
+func ledgerNotUpdated(err error) error {
+	return fmt.Errorf("the read ledger could not be updated; whatever this call already did (lines served, changes applied) stands, but is not recorded there, so read the files again before editing them: %w", err)
+}
+
+// ledgerNotRead is ledgerNotUpdated for a ledger that could not be read when the
+// call came to record into it (a holder, or a directory where the file is): the
+// failure is the read, and the call's own effect stands all the same.
+func ledgerNotRead(err error) error {
+	return fmt.Errorf("the read ledger could not be read to record this call; whatever this call already did (lines served, changes applied) stands, but is not recorded there, so read the files again before editing them: %w", err)
 }
 
 // maxRecordBytes bounds one ledger line, on save and on load alike (ADR-108);

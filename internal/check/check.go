@@ -525,6 +525,9 @@ func confine(root string, paths []string) error {
 		}
 		full, err := rooted.Resolve(root, p)
 		if err != nil {
+			if rooted.RefusedByName(err) {
+				return err
+			}
 			return fmt.Errorf("%w: check it with --root pointed where you mean", err)
 		}
 		// A path that is not there is refused (ADR-042). The fallback used to

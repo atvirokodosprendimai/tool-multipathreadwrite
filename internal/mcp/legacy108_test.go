@@ -52,7 +52,7 @@ func TestPermissionsIssuedUnderTheOldCheckpointRulesAreDiscarded(t *testing.T) {
 	if err := os.WriteFile(old, store, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := promote(root, []string{"ck1"}); err != nil {
+	if _, err := promote(root, []string{"ck1"}); err != nil {
 		t.Fatal(err)
 	}
 	if l, err := seen.Load(root); err != nil || licenses50(l) {

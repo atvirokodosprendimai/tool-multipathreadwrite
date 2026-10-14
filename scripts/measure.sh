@@ -222,11 +222,11 @@ measure_find() {
 
   local search_out search_cmd search_bytes=0
   if command -v rg >/dev/null 2>&1; then
-    search_cmd=rg
+    search_cmd="rg"
     # rg exits 1 on no matches; that is a result, not a script failure.
     search_out=$(rg -n --color never --no-heading -- "$pattern" "${GOFILES[@]}") || true
   else
-    search_cmd=grep
+    search_cmd="grep"
     search_out=$(grep -nH -- "$pattern" "${GOFILES[@]}") || true
   fi
   if [ -n "$search_out" ]; then
@@ -427,7 +427,7 @@ verify() {
   local s1='go vet ./...' s2='grep -c ^func *.go'
   printf '{"check":"%s","steps":{"vet":"%s","funcs":"%s"}}\n' "$check" "$s1" "$s2" > "$dir/.quality-harness.json"
 
-  "$MRW" -C "$dir" read "${specs[@]}" > /dev/null
+  "$MRW" -C "$dir" read "${specs[@]}" >"$SCRATCH/served.out"
   local receipt
   # The check runner writes its logs to the OS temp directory and prunes old
   # mrw-check-*.log files there, which would reach outside $SCRATCH: give it one

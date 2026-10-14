@@ -48,10 +48,23 @@ func TestACommitRefusesATargetThatChangedAfterValidation(t *testing.T) {
 		{Path: "y.txt", Start: 1, End: 1, Op: "replace", Body: []string{"Y"}, Lines: -1, Index: 0},
 		{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 1},
 	}
-	refused := func(t *testing.T, res Result, err error) {
+	// ADR-132: found while staging, the change is the target's and refuses its
+	// hunk with no error (exit 1); found just before the file's own rename, it
+	// stops the commit with one (exit 2, ADR-066). Either way the refusal names
+	// the file.
+	refused := func(t *testing.T, res Result, err error, wantErr bool) {
 		t.Helper()
-		if err == nil || res.Applied || !strings.Contains(err.Error(), "a.txt") {
-			t.Errorf("a target changed after validation was not refused by name: %v %+v", err, res)
+		why := ""
+		if err != nil {
+			why = err.Error()
+		}
+		for _, h := range res.Hunks {
+			if h.Status == StatusFailed {
+				why += " " + h.Reason
+			}
+		}
+		if res.Applied || !strings.Contains(why, "a.txt") || (err != nil) != wantErr {
+			t.Errorf("a target changed after validation was not refused by name, or with the wrong kind (want an error %v): %v %+v", wantErr, err, res)
 		}
 	}
 
@@ -61,7 +74,7 @@ func TestACommitRefusesATargetThatChangedAfterValidation(t *testing.T) {
 		write(t, root, "a.txt", abcde)
 		duringStage(t, "a.txt", func() { replaceWith(t, root, "a.txt", "newcomer, a longer body\n") })
 		res, err := Apply(root, plan, Options{Force: true})
-		refused(t, res, err)
+		refused(t, res, err, false)
 		if got := read(t, root, "a.txt"); got != "newcomer, a longer body\n" {
 			t.Errorf("the newcomer was overwritten: a.txt holds %q", got)
 		}
@@ -84,7 +97,7 @@ func TestACommitRefusesATargetThatChangedAfterValidation(t *testing.T) {
 			return err
 		}
 		res, err := Apply(root, plan, Options{Force: true})
-		refused(t, res, err)
+		refused(t, res, err, true)
 		if got := read(t, root, "a.txt"); got != "newcomer, a longer body\n" {
 			t.Errorf("the newcomer was overwritten: a.txt holds %q", got)
 		}
@@ -135,7 +148,7 @@ func TestACommitRefusesATargetThatChangedAfterValidation(t *testing.T) {
 			}
 			duringStage(t, "a.txt", func() { c.change(t, root, fi.ModTime()) })
 			res, err := Apply(root, one, Options{Force: true})
-			refused(t, res, err)
+			refused(t, res, err, false)
 			if got := read(t, root, "a.txt"); strings.HasPrefix(got, "A\n") {
 				t.Errorf("the changed a.txt was overwritten: %q", got)
 			}

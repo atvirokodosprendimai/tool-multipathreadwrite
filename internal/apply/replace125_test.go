@@ -108,13 +108,28 @@ func TestEveryTargetIsAskedBeforeTheFirstRename(t *testing.T) {
 			t.Errorf("%s was not asked whether it can be replaced", n)
 		}
 	}
-	if err == nil || res.Applied {
-		t.Fatalf("a target that cannot be replaced did not stop the plan: err %v, applied %v", err, res.Applied)
+	// ADR-132: a permission is the target's — a refused hunk, no error.
+	if err != nil || res.Applied {
+		t.Fatalf("a target that cannot be replaced did not refuse the plan: err %v, applied %v", err, res.Applied)
 	}
 	if r := hunkFor(t, res, "r.txt"); r.Status != StatusFailed || !strings.Contains(r.Reason, "permission denied") {
 		t.Errorf("the refused target's hunk does not name the cause: %+v", r)
 	}
 	if read(t, root, "a.txt") != "a\n" || read(t, root, "u.txt") != "u\n" || read(t, root, "r.txt") != "r\n" {
 		t.Error("something was written before the refused target")
+	}
+}
+
+// The Codex review of #343. The force clause was cut from the formatted
+// refusal, so a path holding the phrase lost it while the real advice stayed.
+// It is cut from the format now, before the path is put in.
+func TestTheForceClauseIsCutFromTheWordsNotTheCallersPath(t *testing.T) {
+	root := t.TempDir()
+	name := "a, or pass --force.txt"
+	write(t, root, name, "a\n")
+	res, _ := Apply(root, []Input{{Path: name, Start: 1, End: 1, Op: "replace", Body: []string{"b"}, Lines: -1}}, Options{Seen: map[string]Seen{}, NoForce: true})
+	h := hunkFor(t, res, name)
+	if h.Status != StatusFailed || !strings.Contains(h.Reason, name) || strings.Count(h.Reason, ", or pass --force") != strings.Count(h.Reason, name) {
+		t.Errorf("the path lost the phrase, or the advice stayed: %q", h.Reason)
 	}
 }

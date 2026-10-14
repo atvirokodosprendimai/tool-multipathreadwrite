@@ -150,6 +150,10 @@ func (p *Prepared) Land() (*Landed, error) {
 	root, strict := p.req.Root, p.req.Opts.StrictBalance
 	ledger, err := seen.Snapshot(root)
 	if err != nil {
+		var unreadable *seen.UnreadableError
+		if errors.As(err, &unreadable) {
+			err = fmt.Errorf("the read ledger could not be read, so this call wrote and changed nothing: %w", unreadable.Err)
+		}
 		return nil, p.refuse(StageLedger, err)
 	}
 	opts := p.req.Opts

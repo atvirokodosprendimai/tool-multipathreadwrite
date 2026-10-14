@@ -53,7 +53,7 @@ func TestConcurrentPromotesNeitherDropNorResurrect(t *testing.T) {
 		wg.Add(2)
 		go func(i int) {
 			defer wg.Done()
-			if err := promote(root, []string{fmt.Sprintf("old%d", i)}); err != nil {
+			if _, err := promote(root, []string{fmt.Sprintf("old%d", i)}); err != nil {
 				t.Error(err)
 			}
 		}(i)
