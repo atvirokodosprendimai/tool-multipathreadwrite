@@ -125,6 +125,9 @@ decision to leave `--check` opt-in.
 - **Telemetry to a server.** Rejected on the same premise as ADR-004's refusal of `.git/mrw/`: this
   tool acquires no dependencies it can avoid, and a tool that phones home is a different product.
   The tally is local, and `mrw stats` is the only way to read it.
+  **Amended by ADR-149** (2026-10-14): `mrw version --check-latest` asks GitHub for the latest
+  release when, and only when, a caller passes that flag; the request carries nothing but its URL and
+  headers, and no other path makes a network call. Telemetry stays rejected.
 - **Record failing plans verbatim for later study.** The most useful data and the easiest to justify
   in the moment. Rejected because a plan body contains the caller's source code, and a file that
   accumulates their code under a name they did not choose is a liability the counts do not carry.

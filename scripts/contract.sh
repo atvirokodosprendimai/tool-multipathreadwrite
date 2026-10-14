@@ -9024,6 +9024,53 @@ out=$(printf 'a\nb\n' | m write --no-check --create l252.txt 2>&1); want 0 $? "t
 grep -q 'written with LF' <<<"$out" && bad "an ending note for LF content: $out" || ok "with no ending note"
 rm -f "$R/c252.txt" "$R/l252.txt"
 
+# 253. ADR-149: `mrw version --check-latest` asks the releases API, and only
+# then. A binary stamped v1.65.0 and pointed with -X at a local server: the same
+# tag is current (0), a newer tag makes it older (1), a body that is not JSON
+# and a server that is gone could not ask (2); an unstamped dev build names the
+# latest with no verdict (0). The pair: plain `mrw version` asks nothing.
+D253=$(mktemp -d "$WORK/rel253-XXXXXX")
+mkdir -p "$D253/repos/atvirokodosprendimai/tool-multipathreadwrite/releases"
+L253="$D253/repos/atvirokodosprendimai/tool-multipathreadwrite/releases/latest"
+printf '{"tag_name":"v1.65.0"}' > "$L253"
+cat > "$WORK/srv253.py" <<'PY'
+import functools, http.server, os, sys
+d, portfile, logfile = sys.argv[1:4]
+class H(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        with open(logfile, "a") as f:
+            f.write(self.path + "\n")
+srv = http.server.HTTPServer(("127.0.0.1", 0), functools.partial(H, directory=d))
+with open(portfile + ".tmp", "w") as f:
+    f.write(str(srv.server_address[1]))
+os.rename(portfile + ".tmp", portfile)
+srv.serve_forever()
+PY
+python3 "$WORK/srv253.py" "$D253" "$WORK/port253" "$WORK/log253" < /dev/null > /dev/null 2>&1 & P253=$!
+for ((i = 0; i < 100; i++)); do [ -s "$WORK/port253" ] && break; sleep 0.1; done
+API253="http://127.0.0.1:$(cat "$WORK/port253")"
+go build -o "$WORK/mrw253" -ldflags "-X main.version=v1.65.0 -X main.releasesAPI=$API253" ./cmd/mrw
+go build -o "$WORK/mrw253dev" -ldflags "-X main.releasesAPI=$API253" ./cmd/mrw
+out=$("$WORK/mrw253" version --check-latest 2>&1); want 0 $? "--check-latest at the latest tag exits 0"
+grep -q 'latest release: v1.65.0 — this mrw is current' <<<"$out" && ok "and says current" || bad "current: $out"
+[ -s "$WORK/log253" ] && ok "the server saw the request" || bad "no request reached the local server: $out"
+: > "$WORK/log253"
+"$WORK/mrw253" version > "$WORK/out253" 2>&1; want 0 $? "the pair: plain mrw version exits 0"
+[ ! -s "$WORK/log253" ] && ok "and asks nothing" || bad "plain mrw version made a request: $(cat "$WORK/log253")"
+printf '{"tag_name":"v1.66.0"}' > "$L253"
+out=$("$WORK/mrw253" version --check-latest 2>&1); want 1 $? "--check-latest behind the latest tag exits 1"
+{ grep -q 'this mrw (v1.65.0) is older; download' <<<"$out" && grep -q 'mrw: a newer release exists: v1.66.0' <<<"$out"; } \
+  && ok "naming the newer release and where to get it" || bad "older: $out"
+out=$("$WORK/mrw253dev" version --check-latest 2>&1); want 0 $? "a dev build exits 0"
+grep -q 'latest release: v1.66.0 — this build (dev) cannot be compared' <<<"$out" && ok "naming the latest with no verdict" || bad "dev: $out"
+printf '<html>' > "$L253"
+out=$("$WORK/mrw253" version --check-latest 2>&1); want 2 $? "an answer that is not JSON exits 2"
+grep -q 'mrw: could not ask for the latest release: ' <<<"$out" && ok "saying it could not ask" || bad "not JSON: $out"
+kill "$P253" 2>/dev/null; wait "$P253" 2>/dev/null
+out=$("$WORK/mrw253" version --check-latest 2>&1); want 2 $? "a server that is gone exits 2"
+grep -q 'mrw: could not ask for the latest release: ' <<<"$out" && ok "saying it could not ask" || bad "gone: $out"
+rm -rf "$D253" "$WORK/srv253.py" "$WORK/port253" "$WORK/log253" "$WORK/out253" "$WORK/mrw253" "$WORK/mrw253dev"
+
 # 233. ADR-130: a walk does not enter a nested repository. Inside a checkout, a
 # directory holding its own .git is another project's, and git does not descend
 # into it; mrw walked it with its own rules. --grep serves the outer match only

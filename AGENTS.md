@@ -95,6 +95,7 @@ would read as another name: `b.txt.`, `b.txt ` and `b.txt::$DATA` all open
 `0` fine · `1` a hunk failed and nothing was written · `2` usage or filesystem
 failure · `3` the write applied but the check failed, timed out or was interrupted,
 so the tree is changed and unverified. Tests assert these; changing one is a breaking change.
+`mrw version --check-latest` gives two of them a meaning of its own (ADR-149): `1` a newer release exists, `2` it could not ask.
 A `2` after a write that printed `applied` means the files changed and something after the landing failed: the check could not
 start, or the read ledger could not be updated (a holder on Windows). The message says which; for the ledger, the next edit needs a
 read first. Check the tree before retrying the plan.
@@ -545,7 +546,9 @@ and #73, one release apart.
 
 - **`mrw version`** prints the same string `-v` / `--version` already print.
   Extra arguments are usage (exit 2). A PATH binary that predates the
-  subcommand still answers `-v`.
+  subcommand still answers `-v`. `mrw version --check-latest` asks GitHub for
+  the latest release and exits 1 when this mrw is older, 2 when it could not
+  ask: the only network call mrw makes, and only when asked (ADR-149).
 - **`mrw instructions`** prints the contract from the binary: use mrw always
   and plan the activity, the two rules that produce most refusals, the traps
   that make a red run look green, the plan ops, and the read side — address

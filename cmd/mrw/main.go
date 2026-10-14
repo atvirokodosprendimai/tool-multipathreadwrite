@@ -430,7 +430,14 @@ func versionCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "version",
 		Usage: "print the version string (-v / --version already do this)",
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name: "check-latest",
+				Usage: "also ask GitHub for the latest release and say whether this mrw is older: exit 1 if a newer " +
+					"release exists, 2 if it could not ask; the only network call mrw makes, and only when asked (ADR-149)",
+			},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.Args().Len() != 0 {
 				return cli.Exit("version takes no arguments", exitUsage)
 			}
@@ -438,8 +445,13 @@ func versionCmd() *cli.Command {
 			if out == nil {
 				out = os.Stdout
 			}
-			_, err := fmt.Fprintln(out, versionString())
-			return err
+			if _, err := fmt.Fprintln(out, versionString()); err != nil {
+				return err
+			}
+			if !cmd.Bool("check-latest") {
+				return nil
+			}
+			return checkLatest(ctx, out)
 		},
 	}
 }
