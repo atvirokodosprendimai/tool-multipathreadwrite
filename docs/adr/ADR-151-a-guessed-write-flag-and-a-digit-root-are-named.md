@@ -26,7 +26,7 @@ The 14-session survey (2026-10-09, `docs/adr/BACKLOG.md` "Flag friction") named 
 ## Decision
 
 1. **A per-command table.** `mrw write` given `--plan`, `--file`, `--input` or `--stdin` appends `; ` and one sentence to the existing message: `the plan is an argument, not a flag: mrw write PLAN, or mrw write - to read it from standard input`. `mrw read`'s table is ADR-140's, unchanged; every other command and flag is worded as before; a flag spelled like a subcommand (ADR-097) is answered first, as before.
-2. **An all-digit short root is named.** Before the parser runs, `main` walks the tokens before the subcommand. A short `-C` (one dash or two) whose value — attached after `=` or the next token — is one or more ASCII digits prints one line on stderr: `mrw: -C before the subcommand is --root, so "3" is taken as the root directory; for lines of context, put -C after read: mrw read -C 3 …`. The line is printed whether or not a directory of that name exists, because the silent case is the one that exists.
+2. **An all-digit short root is named, once the parser has taken it.** `main` walks the tokens before the subcommand as the parser does — an empty token passed over, the last root option winning — and, when that last option is a short `-C` whose value (attached after `=` or the next token) is one or more ASCII digits, wraps the root command's `Before` to print one line on stderr: `mrw: -C before the subcommand is --root, so "3" is taken as the root directory; for lines of context, put -C after read: mrw read -C 3 …`. `Before` runs only once the root's options have parsed, so a call the parser or the padding guard (ADR-069) refuses first — an unknown flag, `---C=3`, a padded value — says nothing about a root it never used (the Codex review of #401). The line is printed whether or not a directory of that name exists, because the silent case is the one that exists.
 3. **Nothing else changes**: exit codes, stdout, the root mrw uses, and every message already printed. `--root 3` (spelled long), a `-C` whose value has any other character, and `-C` after the subcommand print no line.
 
 ## Alternatives Considered
@@ -75,7 +75,7 @@ See `tasks/README.md`: T1.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| the argv walk disagrees with the parser about where the subcommand starts | Low | a missed or spurious note | it uses ADR-069's `flagRole` and `flagKinds`, the classifier `refusePaddedFlagValues` already relies on; `TestAnAllDigitShortRootBeforeTheVerbIsNamed` drives every accepted spelling and the after-the-verb case through the built binary |
+| the argv walk disagrees with the parser about where the subcommand starts | Low | a missed or spurious note | it uses ADR-069's `flagRole` and `flagKinds`, and the note waits for `Before`, which runs only after the root's options parsed; `TestAnAllDigitShortRootBeforeTheVerbIsNamed` drives every accepted spelling, an override, an empty token, an unknown flag first, `---C`, a padded value and the after-the-verb case through the built binary |
 | urfave/cli rewords its unknown-flag message | Low | the write hint silently disappears | the lookup falls through to the old message; `TestAPlanFlagOnWriteIsAnsweredWithTheArgument` fails on the reword |
 
 ## Rollback

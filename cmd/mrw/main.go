@@ -301,10 +301,10 @@ func main() {
 	// A padded ATTACHED flag value (--root='dir ') is trimmed by the parser
 	// before any Action runs, and a root flag never reaches a subcommand's raw
 	// tail, so the whole argv is checked here (ADR-069 T5).
-	if note := shortRootNote(root, os.Args[1:]); note != "" {
-		fmt.Fprintln(os.Stderr, note)
-	}
 	err := refusePaddedFlagValues(root, os.Args[1:])
+	if v, ok := shortRoot(root, os.Args[1:]); ok {
+		noteShortRoot(root, v)
+	}
 	if err == nil {
 		err = root.Run(context.Background(), os.Args)
 	}

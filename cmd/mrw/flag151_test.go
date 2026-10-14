@@ -70,21 +70,35 @@ func TestAnAllDigitShortRootBeforeTheVerbIsNamed(t *testing.T) {
 	if wantCode != 0 || !strings.Contains(wantOut, "in 3") {
 		t.Fatalf("--root 3 read f.txt: exit %d, want 0 serving 3/f.txt:\n%s", wantCode, wantOut)
 	}
-	for _, pre := range [][]string{{"-C", "3"}, {"-C=3"}, {"--C", "3"}, {"--C=3"}} {
+	for _, pre := range [][]string{{"-C", "3"}, {"-C=3"}, {"--C", "3"}, {"--C=3"}, {"-C", "sub", "-C", "3"}} {
 		out, errOut, code := run(cwd, append(pre, "read", "f.txt")...)
-		if code != wantCode || out != wantOut || !strings.Contains(errOut, note) || !strings.Contains(errOut, "mrw read -C 3") {
-			t.Errorf("mrw %s read f.txt: exit %d, stdout same as --root 3: %v, want the note on stderr:\n%s", strings.Join(pre, " "), code, out == wantOut, errOut)
+		if code != wantCode || out != wantOut || strings.Count(errOut, note) != 1 || !strings.Contains(errOut, "mrw read -C 3") {
+			t.Errorf("mrw %q read f.txt: exit %d, stdout same as --root 3: %v, want the note once on stderr:\n%s", pre, code, out == wantOut, errOut)
 		}
 	}
+	// The parser passes over an empty token and still takes the root after it
+	// (it then prints the help, the empty token standing where the subcommand
+	// goes), so the walk passes over it too and the note is given once.
+	if _, errOut, _ := run(cwd, "", "-C", "3", "read", "f.txt"); strings.Count(errOut, note) != 1 {
+		t.Errorf(`mrw "" -C 3 read f.txt: want the note once on stderr:\n%s`, errOut)
+	}
+	// No note where the parser did not take an all-digit short root: the long
+	// spelling, a non-digit value, a later option that overrides it, and a call
+	// the parser or the padding guard refuses before it reaches the root.
 	for _, args := range [][]string{
 		{"--root", "3", "read", "f.txt"},
 		{"--root=3", "read", "f.txt"},
 		{"-C", "sub", "read", "f.txt"},
 		{"-C", "3a", "read", "f.txt"},
+		{"-C", "3", "--root", "sub", "read", "f.txt"},
+		{"-C", "3", "-C", "sub", "read", "f.txt"},
+		{"--bogus", "-C", "3", "read", "f.txt"},
+		{"---C=3", "read", "f.txt"},
+		{"--C=3 ", "read", "f.txt"},
 	} {
 		_, errOut, _ := run(cwd, args...)
 		if strings.Contains(errOut, "-C before the subcommand") {
-			t.Errorf("mrw %s: a note where none is due:\n%s", strings.Join(args, " "), errOut)
+			t.Errorf("mrw %q: a note where none is due:\n%s", args, errOut)
 		}
 	}
 	if _, errOut, code := run(cwd, "-C", "sub", "read", "-C", "3", "f.txt:/needle/"); code != 0 || strings.Contains(errOut, "-C before the subcommand") {
