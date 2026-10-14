@@ -9095,6 +9095,27 @@ out=$(m write --no-check "$WORK/p254" 2>&1); want 1 $? "a write the newer ledger
 printf '#mrw-seen v4\n%s  -  a.go\n' "$sha254" > "$sd254/seen"
 out=$(m write --no-check "$WORK/p254" 2>&1); want 0 $? "the pair: the same entry under a v4 header licenses the write"
 
+# 255. ADR-151: a guessed write flag and a digit root are named. `mrw write
+# --plan x` is still a usage error, exit 2, and now ends with the argument's
+# spelling; an all-digit short -C before the subcommand is --root, and stderr
+# says so while the call is unchanged. The pairs: -f on write gets no plan
+# sentence, and --root 255 spelled long and -C 1 after read print no note.
+fixture
+out=$(m write --plan x255.plan 2>&1); want 2 $? "write --plan exits 2"
+{ grep -q 'flag provided but not defined: -plan' <<<"$out" && grep -q 'the plan is an argument, not a flag: mrw write PLAN' <<<"$out"; } \
+  && ok "keeping the old message and naming the argument" || bad "write --plan: $out"
+out=$(m write -f x255.plan 2>&1); want 2 $? "the pair: write -f exits 2"
+grep -q 'the plan is an argument' <<<"$out" && bad "-f got the plan sentence: $out" || ok "and gets no plan sentence"
+mkdir -p "$R/255"; printf 'in255\n' > "$R/255/f.txt"
+out=$(cd "$R" && "$MRW" -C 255 read f.txt 2>"$WORK/e255"); want 0 $? "-C 255 before read reads under the directory 255"
+{ grep -q 'in255' <<<"$out" && grep -q -- '-C before the subcommand is --root, so "255" is taken as the root directory' "$WORK/e255"; } \
+  && ok "and stderr names that -C as --root" || bad "short root: $out $(cat "$WORK/e255")"
+out=$(cd "$R" && "$MRW" --root 255 read f.txt 2>"$WORK/e255"); want 0 $? "the pair: --root 255 before read exits 0"
+grep -q -- '-C before the subcommand' "$WORK/e255" && bad "--root got the note" || ok "with no note"
+out=$(m read -C 1 --grep in255 2>"$WORK/e255"); want 0 $? "the pair: -C 1 after read is context, exit 0"
+grep -q -- '-C before the subcommand' "$WORK/e255" && bad "context -C got the note" || ok "with no note"
+rm -rf "$R/255" "$WORK/e255"
+
 # 233. ADR-130: a walk does not enter a nested repository. Inside a checkout, a
 # directory holding its own .git is another project's, and git does not descend
 # into it; mrw walked it with its own rules. --grep serves the outer match only

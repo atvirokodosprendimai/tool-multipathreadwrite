@@ -27,13 +27,30 @@ var foreignFlags = map[string]string{
 	"m":       "--max-lines N caps the lines served per spec; what is withheld is reported",
 }
 
-// foreignFlagHint is the sentence for flag on the command named full, or "". Only
-// `mrw read` has a table; any other command is worded as before.
+// planFlags maps a flag a caller types on `mrw write` to name the plan — the
+// argument other tools take as --file or --input — to the argument's spelling
+// (ADR-151). -f and -p are left out: they read as --force and patch -p, so the
+// plan sentence would be a guess.
+var planFlags = map[string]string{
+	"plan":  planArgument,
+	"file":  planArgument,
+	"input": planArgument,
+	"stdin": planArgument,
+}
+
+const planArgument = "the plan is an argument, not a flag: mrw write PLAN, or mrw write - to read it from standard input"
+
+// flagTables is each command's table of flags it lacks and what it spells
+// instead, by the command's full name.
+var flagTables = map[string]map[string]string{
+	"mrw read":  foreignFlags,
+	"mrw write": planFlags,
+}
+
+// foreignFlagHint is the sentence for flag on the command named full, or "". A
+// command with no table is worded as before.
 func foreignFlagHint(full, flag string) string {
-	if full != "mrw read" {
-		return ""
-	}
-	return foreignFlags[flag]
+	return flagTables[full][flag]
 }
 
 // refusedFlag is the flag name urfave/cli refused, as typed without its dash, or
