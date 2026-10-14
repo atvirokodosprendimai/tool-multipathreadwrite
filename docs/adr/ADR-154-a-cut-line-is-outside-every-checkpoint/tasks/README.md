@@ -10,7 +10,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | max_cols on mrw_read, and checkpoints that bracket only recorded lines | pending | none | `docs/adr/ADR-154-a-cut-line-is-outside-every-checkpoint/tasks/T1-cut-lines-outside-checkpoints.md` fence |
+| T1 | max_cols on mrw_read, and checkpoints that bracket only recorded lines | done | none | `docs/adr/ADR-154-a-cut-line-is-outside-every-checkpoint/tasks/T1-cut-lines-outside-checkpoints.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
