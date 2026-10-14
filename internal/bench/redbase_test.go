@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -40,6 +41,11 @@ func TestTheTasksWhoseCheckIsRedAtBaseSayWhy(t *testing.T) {
 // node, npm, npx and python3 beside git, go and gofmt, each to the host's own
 // file, and never an mrw that sits in the same directory.
 func TestTheAttemptPathLinksTheToolchainATaskCheckNeeds(t *testing.T) {
+	// exec.LookPath on Windows finds only names with a PATHEXT extension, and
+	// toolPath links by the bare name, so these stubs are not found there.
+	if runtime.GOOS == "windows" {
+		t.Skip("bench runs on the operator's macOS or Linux machine; Windows is out of ADR-156's scope")
+	}
 	host := t.TempDir()
 	for _, n := range []string{"git", "go", "gofmt", "node", "npm", "npx", "python3", "mrw"} {
 		if err := os.WriteFile(filepath.Join(host, n), []byte("#!/bin/sh\n"), 0o755); err != nil {
