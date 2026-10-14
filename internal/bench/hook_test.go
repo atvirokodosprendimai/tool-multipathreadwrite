@@ -203,6 +203,18 @@ func TestASlippedWriteIsFoundFromTheLedger(t *testing.T) {
 	if strings.Join(got, ",") != "b.txt,e.txt,f.txt,g.go" {
 		t.Errorf("slipped writes: %v, want [b.txt e.txt f.txt g.go]: a.txt, d.txt and sub/f.go are what mrw last saw, c.txt is unchanged", got)
 	}
+	// Two ledgers holding different content for one file cannot say which mrw
+	// saw last: a stale one could vouch for a later change by other means
+	// (the narrow review of #411), so the check cannot run.
+	if err := os.WriteFile(ledger, []byte(body+one+"  -  sub/f.go\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SlippedWrites(tree, state); err == nil {
+		t.Error("two ledgers that disagree on sub/f.go were read as if either were the last word")
+	}
+	if err := os.WriteFile(ledger, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	// A ledger whose root is not named cannot be read against the tree.
 	if err := os.Remove(filepath.Join(filepath.Dir(subLedger), "root")); err != nil {
 		t.Fatal(err)

@@ -471,8 +471,14 @@ func SlippedWrites(tree, state string) ([]string, error) {
 	var slipped []string
 	for _, c := range changed {
 		b, err := os.ReadFile(filepath.Join(tree, c.file))
-		if err != nil || !recorded[c.file][seen.SHA(b)] {
+		shas := recorded[c.file]
+		if err != nil || !shas[seen.SHA(b)] {
 			slipped = append(slipped, c.file)
+		} else if len(shas) > 1 {
+			// Ledgers of two roots that disagree cannot say which mrw saw
+			// last, and a stale one would vouch for a later change by other
+			// means (the narrow review of #411).
+			return nil, fmt.Errorf("the ledgers disagree on %s: which content mrw saw last cannot be told", c.file)
 		}
 	}
 	return slipped, nil
