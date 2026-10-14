@@ -719,6 +719,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "max-cols",
 				Usage: "cut a line longer than `N` characters to a window of N round the first match of a pattern (the start otherwise), marked `[cols A-B of L]`. A line served cut is NOT recorded as read: a plan that replaces it is refused until it is read whole (ADR-137). Zero or omitted serves lines whole",
 			},
+			&cli.BoolFlag{
+				Name:  "count",
+				Usage: "with --grep, print each matching file's header and how many of its lines match, then a total — no line is served, so it licenses no write (ADR-153)",
+			},
 			&cli.StringFlag{
 				Name:  "grep",
 				Usage: "serve every range matching `PATTERN` in the files under the given paths (a directory is walked)",
@@ -821,6 +825,28 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// /pattern/ (the review of #239).
 			if astSet && cmd.IsSet("context") {
 				return cli.Exit("-C widens a /pattern/ or --grep match, and an --ast-grep hit is served as the lines it spans: drop -C, or use --grep", exitUsage)
+			}
+			// ADR-153: --count answers a --grep with counts and serves no line,
+			// so it needs a --grep, and a flag that acts on served lines has
+			// nothing to act on beside it.
+			if cmd.Bool("count") {
+				if astSet {
+					return cli.Exit("--count counts the lines a --grep pattern matches, and an --ast-grep hit is a span of lines: use --grep", exitUsage)
+				}
+				if !grepSet {
+					return cli.Exit("--count counts the lines a --grep pattern matches: give --grep PATTERN", exitUsage)
+				}
+				for _, f := range []struct{ flag, refusal string }{
+					{"stat", "--count's header already carries what --stat prints: drop --stat"},
+					{"context", "--count serves no line, so -C has nothing to widen: drop -C"},
+					{"max-lines", "--count serves no line, so --max-lines has nothing to cap: drop --max-lines"},
+					{"max-cols", "--count serves no line, so --max-cols has nothing to cut: drop --max-cols"},
+					{"no-numbers", "--count serves no line, so -N has no line numbers to drop: drop -N"},
+				} {
+					if cmd.IsSet(f.flag) {
+						return cli.Exit(f.refusal, exitUsage)
+					}
+				}
 			}
 			// A glob that can never match is refused at parse time rather than
 			// silently matching nothing: one path.Match rejects, or one spelled
@@ -984,6 +1010,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Context:  cmd.Int("context"),
 				MaxLines: maxLines(cmd),
 				MaxCols:  cmd.Int("max-cols"),
+				Count:    cmd.Bool("count"),
 			})
 			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).

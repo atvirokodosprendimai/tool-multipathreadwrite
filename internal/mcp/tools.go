@@ -288,6 +288,9 @@ type readArgs struct {
 	MaxLines  *int    `json:"max_lines"`
 	Stat      bool    `json:"stat"`
 	FilesFrom *string `json:"files_from"`
+	// Count is `--count` (ADR-153): with Grep, each file's count of matching
+	// lines instead of the lines, in the receipt's `counts`.
+	Count bool `json:"count"`
 }
 
 // readTool serves ranges and records what it observed, exactly as `mrw read`
@@ -328,6 +331,20 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	}
 	if a.MaxLines != nil && *a.MaxLines < 0 {
 		return errorResult(fmt.Sprintf("max_lines %d: a cap cannot be negative", *a.MaxLines)), nil
+	}
+	// ADR-153: count answers a grep and serves no line, so it needs a grep, and
+	// what acts on served lines has nothing to act on beside it.
+	if a.Count {
+		switch {
+		case a.AstGrep != "":
+			return errorResult("count counts the lines a grep pattern matches, and an ast_grep hit is a span of lines: use grep"), nil
+		case a.Grep == "":
+			return errorResult("count without grep: it counts the lines grep matches"), nil
+		case a.Stat:
+			return errorResult("count and stat: a count's header already carries what stat prints; drop stat"), nil
+		case a.MaxLines != nil:
+			return errorResult("count serves no line, so max_lines has nothing to cap; drop max_lines"), nil
+		}
 	}
 	if len(a.Specs) == 0 && a.Grep == "" && a.AstGrep == "" {
 		return errorResult("mrw_read needs at least one spec"), nil
@@ -448,7 +465,11 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		}
 		return cw.stopped
 	}
-	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, Stop: stop})
+	var counts map[string]int
+	if a.Count {
+		counts = map[string]int{}
+	}
+	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, Count: a.Count, Counts: counts, Stop: stop})
 	_ = w.Flush()
 
 	// A result over the declared limit is REFUSED, not truncated.
@@ -490,6 +511,11 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// an oversized grep would fall to the flat refusal below, which is the
 		// dead end ADR-014 removed reappearing through a new door, firing on
 		// this population's ordinary case rather than an exotic one.
+		// ADR-153: an index names files and no counts, so a count too large
+		// for one answer is refused as a capped read is.
+		if a.Count {
+			return errorResult(cappedOverflow(a, cw, cw.written, cw.stopped)), nil
+		}
 		if walked {
 			return matchIndex(finder, specs, walkProblems, problems, skipped, cw), nil
 		}
@@ -557,10 +583,10 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-024 removed the flag from answers that DELIVERED something; this restores
 	// it for the one case its enumeration missed, so :202 and this return agree
 	// rather than disagreeing on whether `grep` was passed.
-	served, rpcErr := readResult(withSkipped(map[string]any{
+	served, rpcErr := readResult(withCounts(withSkipped(map[string]any{
 		"observed": slashKeys(observed, filepath.Separator),
 		"problems": problems,
-	}, skipped), report, len(observed) == 0)
+	}, skipped), counts), report, len(observed) == 0)
 	if rpcErr != nil {
 		return callToolResult{}, rpcErr
 	}
@@ -574,6 +600,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// degrades to a first page when one spec can carry it, and otherwise
 		// says why — with its own sentence, because "your read was too large"
 		// is not what happened here.
+		if a.Count {
+			return errorResult(cappedOverflow(a, cw, encodedSize(served), false)), nil
+		}
 		if walked {
 			return matchIndex(finder, specs, walkProblems, problems-len(walkProblems), skipped, cw), nil
 		}
@@ -592,14 +621,17 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if len(observed) > 0 {
 		marked, byPath := markServed(report)
 		if marked != report {
-			markedServed, markErr := readResult(withSkipped(map[string]any{
+			markedServed, markErr := readResult(withCounts(withSkipped(map[string]any{
 				"observed": slashKeys(observed, filepath.Separator),
 				"problems": problems,
-			}, skipped), marked, false)
+			}, skipped), counts), marked, false)
 			if markErr != nil {
 				return callToolResult{}, markErr
 			}
 			if encodedSize(markedServed) > cw.limit {
+				if a.Count {
+					return errorResult(cappedOverflow(a, cw, encodedSize(markedServed), false)), nil
+				}
 				if walked {
 					return matchIndex(finder, specs, walkProblems, problems-len(walkProblems), skipped, cw), nil
 				}
@@ -655,6 +687,9 @@ func capWords(report string) string {
 // encoded — and atLeast says the read stopped before it was all rendered.
 func cappedOverflow(a readArgs, cw *capped, size int, atLeast bool) string {
 	what := "as a stat"
+	if a.Count {
+		what = "as counts"
+	}
 	if a.MaxLines != nil {
 		what = fmt.Sprintf("with max_lines %d", *a.MaxLines)
 	}
@@ -663,6 +698,9 @@ func cappedOverflow(a readArgs, cw *capped, size int, atLeast bool) string {
 		about = "at least"
 	}
 	advice := "send fewer specs"
+	if a.Count {
+		advice = "name fewer paths to search, or exclude some"
+	}
 	if a.MaxLines != nil {
 		advice = fmt.Sprintf("about %d line(s) fit in one answer: send a smaller max_lines, or fewer specs", cw.linesThatFit())
 	}
@@ -2004,6 +2042,15 @@ func grepSpecs(root string, paths []string, pattern string, exclude []string, af
 func withSkipped(m map[string]any, sk read.WalkSkipped) map[string]any {
 	if sk != (read.WalkSkipped{}) {
 		m["skipped"] = sk
+	}
+	return m
+}
+
+// withCounts adds the counts a count read made (ADR-153); a read that was not
+// a count carries none.
+func withCounts(m map[string]any, counts map[string]int) map[string]any {
+	if counts != nil {
+		m["counts"] = counts
 	}
 	return m
 }

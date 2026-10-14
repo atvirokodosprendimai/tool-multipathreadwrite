@@ -216,3 +216,4 @@ write drift_writers
 mcp_read skipped.nested
 mcp_read skipped.unkeepable
 mcp_read skipped.linked_dirs
+mcp_read counts
