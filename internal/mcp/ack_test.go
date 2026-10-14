@@ -27,7 +27,7 @@ func served(from, to int) string {
 }
 
 func TestACheckpointCoversTheSpanItBrackets(t *testing.T) {
-	text, spans := interleave(served(1, 500))
+	text, spans := interleave(served(1, 500), nil)
 	if len(spans) != 3 {
 		t.Fatalf("got %d checkpoints for 500 lines at ckEvery=%d, want 3", len(spans), ckEvery)
 	}
@@ -69,7 +69,7 @@ func TestACheckpointCoversTheSpanItBrackets(t *testing.T) {
 
 	// The marker must be UNGUESSABLE. A content hash or a counter would be
 	// derivable by a caller that received nothing, which is the whole point.
-	_, again := interleave(served(1, 500))
+	_, again := interleave(served(1, 500), nil)
 	for ck := range spans {
 		if _, collides := again[ck]; collides {
 			t.Fatalf("checkpoint %s repeated across two reads — it is derived, not random", ck)
@@ -78,7 +78,7 @@ func TestACheckpointCoversTheSpanItBrackets(t *testing.T) {
 
 	// A page that served only part of a file yields checkpoints inside what it
 	// served and none beyond: the span is what was SERVED, not what was asked.
-	_, part := interleave(served(1, 90))
+	_, part := interleave(served(1, 90), nil)
 	for ck, sp := range part {
 		if sp[0] < 1 || sp[1] > 90 {
 			t.Errorf("checkpoint %s covers %v, outside the served range 1-90", ck, sp)
@@ -92,7 +92,7 @@ func TestAPendingRecordReachesNoLedger(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte(strings.Repeat("x\n", 500)), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, spans := interleave(served(1, 500))
+	_, spans := interleave(served(1, 500), nil)
 	if err := hold(root, "f.txt", "deadbeef", spans); err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestOnlyAckedSegmentsAreRecorded(t *testing.T) {
 	// span acknowledged against a version that is gone cannot license anything
 	// and the ledger's SHA check would refuse it anyway.
 	sum0 := sha256.Sum256([]byte(body))
-	_, spans := interleave(served(1, 500))
+	_, spans := interleave(served(1, 500), nil)
 	if err := hold(root, "f.txt", hex.EncodeToString(sum0[:]), spans); err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestOnlyAckedSegmentsAreRecorded(t *testing.T) {
 	}
 	sum := sha256.Sum256([]byte(body))
 	sha := hex.EncodeToString(sum[:])
-	_, spans2 := interleave(served(1, 500))
+	_, spans2 := interleave(served(1, 500), nil)
 	var f2, l2 string
 	for ck, sp := range spans2 {
 		if sp[0] == 1 {
@@ -287,8 +287,8 @@ func TestAStaleAcknowledgementDoesNotLicenseTheCurrentFile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte(strings.Repeat("x\n", 500)), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, oldSpans := interleave(served(1, 200))
-	_, newSpans := interleave(served(301, 400))
+	_, oldSpans := interleave(served(1, 200), nil)
+	_, newSpans := interleave(served(301, 400), nil)
 	var oldCk, newCk string
 	for ck := range oldSpans {
 		oldCk = ck
@@ -331,8 +331,8 @@ func TestAStaleAcknowledgementDoesNotRevokeTheCurrentOne(t *testing.T) {
 	sum := sha256.Sum256([]byte(body))
 	live := hex.EncodeToString(sum[:])
 
-	_, stale := interleave(served(1, 200))
-	_, current := interleave(served(201, 400))
+	_, stale := interleave(served(1, 200), nil)
+	_, current := interleave(served(201, 400), nil)
 	var staleCk, curCk string
 	for ck := range stale {
 		staleCk = ck
@@ -442,7 +442,7 @@ func TestEverySurfaceCarriesTheOneRule(t *testing.T) {
 // is the crypto/rand dependency in checkpoint(); this test rules out a dense
 // counter and the non-collision case, and the name says so.
 func TestCheckpointsAreNotADenseSequence(t *testing.T) {
-	_, spans := interleave(served(1, 4000))
+	_, spans := interleave(served(1, 4000), nil)
 	if len(spans) < 8 {
 		t.Fatalf("need several checkpoints to judge a sequence, got %d", len(spans))
 	}

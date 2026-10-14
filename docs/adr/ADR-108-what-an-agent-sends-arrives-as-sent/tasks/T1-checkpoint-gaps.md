@@ -102,3 +102,5 @@ Stop and ask if a locked test must change to pass.
   ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.248s
   ```
 - 2026-10-01 · 918bc7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:395aeb38656fa2a24f2eb01cd6dc226de66ed3a9e9cbd4e098a308222bd336a7 · ms:861
+- 2026-10-14 · e5e2e911* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:395aeb38656fa2a24f2eb01cd6dc226de66ed3a9e9cbd4e098a308222bd336a7 · ms:0 · test-lock-sha256:79ad33cd6b774481c19f14cfc2804b1003c96857f5a3b9d1c44115d762b38a1f · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvbWNwL2dhcDEwOF90ZXN0LmdvCVRlc3RBQ2hlY2twb2ludENvdmVyc09ubHlDb25zZWN1dGl2ZVNlcnZlZExpbmVzCTJkMGNkMGY2ZmM2NDQ4NGYzYmIwZDJiNWMzOTlmMWU3N2Q3ZGIyYzJkYWEzZWExMjBmNWVlODJjYTQ5NzI4YjU · test-lock-kind:replace
+- 2026-10-14 · human-observed · relock 2026-10-14 (ADR-154): interleave and markServed gained a second argument, which locked tests in internal/mcp/ack_test.go, gap108_test.go and heldspans117_test.go now pass as nil (every line recorded, the grouping they asserted before); no assertion changed

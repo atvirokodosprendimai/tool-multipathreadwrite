@@ -9154,6 +9154,41 @@ out=$(m read --count a257.txt 2>&1); want 2 $? "--count without --grep exits 2"
 grep -q -- '--count counts the lines a --grep pattern matches' <<<"$out" && ok "naming --grep" || bad "no grep: $out"
 rm -f "$R/a257.txt" "$R/b257.txt" "$WORK/p257"
 
+# 258. ADR-154: mrw_read takes max_cols, and a line it served cut is in no
+# checkpoint. Through the built binary's `mrw mcp`: a read with max_cols 20 cuts
+# line 2; after every checkpoint id is acknowledged, a write to line 2 is
+# refused as not read and a write to line 3 applies. The pair: the same read
+# without max_cols brackets line 2, and its write applies after the acks.
+fixture
+long258=$(printf 'x%.0s' $(seq 1 150))
+printf 'one\n%s needle\nthree\nfour\n' "$long258" > "$R/m258.txt"
+mcp258() {
+  python3 - "$MRW" "$R" "$1" "$2" <<'PY'
+import json, re, subprocess, sys
+mrw, root, cols, line = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
+def call(name, args):
+    req = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": args}})
+    out = subprocess.run([mrw, "-C", root, "mcp"], input=req + "\n", capture_output=True, text=True, timeout=60).stdout
+    return json.loads(out)["result"]
+args = {"specs": ["m258.txt"]}
+if cols:
+    args["max_cols"] = cols
+t = call("mrw_read", args)["content"][0]["text"]
+spans = [(int(a), int(b)) for a, b in re.findall(r"^-- ck \S+ open lines (\d+)-(\d+) ", t, re.M)]
+acks = re.findall(r"^-- ck (\S+) open ", t, re.M)
+inside = any(a <= line <= b for a, b in spans)
+w = call("mrw_write", {"plan": "@@ m258.txt %d replace\nEDITED\n" % line, "ack": acks})
+refused = w.get("isError") is True and "has not been read" in w["content"][0]["text"]
+print("cut" if "[cols " in t else "whole", "inside" if inside else "outside", "refused" if refused else "applied")
+PY
+}
+out=$(mcp258 20 2); [ "$out" = "cut outside refused" ] && ok "max_cols 20: line 2 is cut, in no checkpoint, and its write is refused after every ack" || bad "cut line: $out"
+printf 'one\n%s needle\nthree\nfour\n' "$long258" > "$R/m258.txt"
+out=$(mcp258 20 3); [ "$out" = "cut inside applied" ] && grep -q '^EDITED$' "$R/m258.txt" && ok "and a line served whole beside it is bracketed and written" || bad "whole line: $out"
+printf 'one\n%s needle\nthree\nfour\n' "$long258" > "$R/m258.txt"
+out=$(mcp258 0 2); [ "$out" = "whole inside applied" ] && ok "the pair: without max_cols line 2 is bracketed and its write applies" || bad "uncut line: $out"
+rm -f "$R/m258.txt"
+
 # 233. ADR-130: a walk does not enter a nested repository. Inside a checkout, a
 # directory holding its own .git is another project's, and git does not descend
 # into it; mrw walked it with its own rules. --grep serves the outer match only

@@ -607,6 +607,12 @@ func tools() []tool {
 						"type":        "boolean",
 						"description": "With `grep`: serve each matching file's header and how many of its lines match, then a total, as `mrw read --grep P --count`, and put each file's count in the receipt's `counts`. No line is served, so it licenses no write. Refused without `grep`, and beside `ast_grep`, `stat` or `max_lines`.",
 					},
+					"max_cols": map[string]any{
+						"type":        "integer",
+						"minimum":     0,
+						"description": "Cut a line longer than this many characters to a window of that width round the first match of the read's pattern (the start otherwise), marked `[cols A-B of L]`, as `mrw read --max-cols`; 0 cuts nothing. A line served cut is in no checkpoint and licenses no write: read it without max_cols to edit it. A page and its continuation are cut only if each call sends it. Refused beside `count`, which serves no line.",
+						"examples":    []any{200},
+					},
 					"files_from": map[string]any{
 						"type":        "string",
 						"description": "A file inside the root holding one spec a line, as `mrw read --files-from FILE`: blank lines and # comments are skipped. Not together with specs, grep or ast_grep. `-` is refused: stdin carries the protocol.",

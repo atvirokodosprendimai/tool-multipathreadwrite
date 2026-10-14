@@ -291,6 +291,8 @@ type readArgs struct {
 	// Count is `--count` (ADR-153): with Grep, each file's count of matching
 	// lines instead of the lines, in the receipt's `counts`.
 	Count bool `json:"count"`
+	// MaxCols is `--max-cols` (ADR-154): 0 cuts nothing, as the CLI's 0 does.
+	MaxCols int `json:"max_cols"`
 }
 
 // readTool serves ranges and records what it observed, exactly as `mrw read`
@@ -332,6 +334,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if a.MaxLines != nil && *a.MaxLines < 0 {
 		return errorResult(fmt.Sprintf("max_lines %d: a cap cannot be negative", *a.MaxLines)), nil
 	}
+	if a.MaxCols < 0 {
+		return errorResult(fmt.Sprintf("max_cols %d: a width cannot be negative", a.MaxCols)), nil
+	}
 	// ADR-153: count answers a grep and serves no line, so it needs a grep, and
 	// what acts on served lines has nothing to act on beside it.
 	if a.Count {
@@ -344,6 +349,8 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			return errorResult("count and stat: a count's header already carries what stat prints; drop stat"), nil
 		case a.MaxLines != nil:
 			return errorResult("count serves no line, so max_lines has nothing to cap; drop max_lines"), nil
+		case a.MaxCols > 0:
+			return errorResult("count serves no line, so max_cols has nothing to cut; drop max_cols"), nil
 		}
 	}
 	if len(a.Specs) == 0 && a.Grep == "" && a.AstGrep == "" {
@@ -469,7 +476,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if a.Count {
 		counts = map[string]int{}
 	}
-	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, Count: a.Count, Counts: counts, Stop: stop})
+	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, MaxCols: a.MaxCols, Count: a.Count, Counts: counts, Stop: stop})
 	_ = w.Flush()
 
 	// A result over the declared limit is REFUSED, not truncated.
@@ -522,7 +529,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		if a.MaxLines != nil || a.Stat {
 			return errorResult(cappedOverflow(a, cw, cw.written, cw.stopped)), nil
 		}
-		if page, ok := firstPage(root, a.Specs, cw); ok {
+		if page, ok := firstPage(root, a.Specs, cw, a.MaxCols); ok {
 			return page, nil
 		}
 		return errorResult(overflowMessage(a.Specs, cw)), nil
@@ -609,7 +616,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		if a.MaxLines != nil || a.Stat {
 			return errorResult(cappedOverflow(a, cw, encodedSize(served), false)), nil
 		}
-		if page, ok := firstPage(root, a.Specs, cw); ok {
+		if page, ok := firstPage(root, a.Specs, cw, a.MaxCols); ok {
 			return page, nil
 		}
 		return errorResult(renderedFitMessage(encodedSize(served), cw)), nil
@@ -619,7 +626,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// Markers and the footer are composed before hold; an encode that now
 	// exceeds the ceiling takes the overflow path above and holds nothing.
 	if len(observed) > 0 {
-		marked, byPath := markServed(report)
+		marked, byPath := markServed(report, observed)
 		if marked != report {
 			markedServed, markErr := readResult(withCounts(withSkipped(map[string]any{
 				"observed": slashKeys(observed, filepath.Separator),
@@ -638,7 +645,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				if a.MaxLines != nil || a.Stat {
 					return errorResult(cappedOverflow(a, cw, encodedSize(markedServed), false)), nil
 				}
-				if page, ok := firstPage(root, a.Specs, cw); ok {
+				if page, ok := firstPage(root, a.Specs, cw, a.MaxCols); ok {
 					return page, nil
 				}
 				return errorResult(renderedFitMessage(encodedSize(markedServed), cw)), nil
@@ -1619,8 +1626,9 @@ func encodedTextLen(b []byte) int {
 // range. With several specs the one that crossed the limit may not be the
 // first, and a page of the wrong file would be worse than a refusal; with a
 // CLOSED range the caller has already said what it wants and mrw narrowing it
-// further would be answering a question nobody asked.
-func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
+// further would be answering a question nobody asked. maxCols cuts the page as
+// the read it pages was cut (ADR-154).
+func firstPage(root string, specs []string, cw *capped, maxCols int) (callToolResult, bool) {
 	if len(specs) != 1 {
 		return callToolResult{}, false
 	}
@@ -1658,7 +1666,7 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 		}
 		var b bytes.Buffer
 		w := bufio.NewWriter(&b)
-		observed, problems := read.Run(w, root, []read.Spec{sp}, read.Options{Numbers: true})
+		observed, problems := read.Run(w, root, []read.Spec{sp}, read.Options{Numbers: true, MaxCols: maxCols})
 		_ = w.Flush()
 
 		// ⚠ AND IF THAT SECOND READ SERVED NOTHING, THIS IS NOT A PAGE (ADR-025).
@@ -1690,7 +1698,11 @@ func firstPage(root string, specs []string, cw *capped) (callToolResult, bool) {
 		// 1-3619; a write to line 1500 then applied at exit 0. So the span is held
 		// PENDING against checkpoints woven through the text, and reaches the
 		// ledger only when the caller echoes them back (ADR-031).
-		text, spans := interleave(b.String())
+		var recorded func(int) bool
+		if o, ok := observationOf(observed, path); ok {
+			recorded = func(line int) bool { return o.Covers(line, line) }
+		}
+		text, spans := interleave(b.String(), recorded)
 		next := fmt.Sprintf("%s:%d-", path, end+1)
 		report := fmt.Sprintf("%s\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
 			"-- Send specs [%q] to continue, or a narrower range of your own.\n"+

@@ -124,7 +124,13 @@ func checkpoint() string {
 // It reads the line numbers out of the served text's own `NNN|` prefixes rather
 // than taking the requested range, so a span is what was SERVED. A page that
 // served 1-2727 of 3619 yields checkpoints inside 1-2727 and none beyond.
-func interleave(text string) (string, map[string][2]int) {
+//
+// recorded says which served lines the read recorded as read; nil means every
+// one. A line it did not record — served cut by max_cols (ADR-154) — ends the
+// checkpoint as a gap does and starts none, so no ack can license it. It is
+// asked of the read's observation, never of the `[cols A-B of L]` marker,
+// which is text a file can hold itself.
+func interleave(text string, recorded func(line int) bool) (string, map[string][2]int) {
 	// ADR-108: JSON replaces bytes that are not valid UTF-8, so the host is
 	// shown text that is not the file, while a checkpoint would license the
 	// file. Such a slice is served as it is, with no checkpoint, and says why.
@@ -146,9 +152,18 @@ func interleave(text string) (string, map[string][2]int) {
 	}
 	var groups []group
 	cur := group{from: -1}
+	var cut []int
 	for i, line := range lines {
 		ln, ok := servedLineNumber(line)
 		if !ok {
+			continue
+		}
+		if recorded != nil && !recorded(ln) {
+			if cur.from >= 0 {
+				groups = append(groups, cur)
+				cur = group{from: -1}
+			}
+			cut = append(cut, ln)
 			continue
 		}
 		// ADR-108: a gap ends the checkpoint. Its span is start..end, so a run
@@ -196,7 +211,24 @@ func interleave(text string) (string, map[string][2]int) {
 			g++
 		}
 	}
+	if len(cut) > 0 {
+		out.WriteString(cutNote(cut))
+	}
 	return out.String(), spans
+}
+
+// cutNote names the lines a read served cut and left out of every checkpoint
+// (ADR-154): at most ten numbers, then how many more.
+func cutNote(cut []int) string {
+	names := make([]string, 0, min(len(cut), 10))
+	for _, ln := range cut[:min(len(cut), 10)] {
+		names = append(names, strconv.Itoa(ln))
+	}
+	list := strings.Join(names, ", ")
+	if len(cut) > 10 {
+		list += fmt.Sprintf(" and %d more", len(cut)-10)
+	}
+	return "-- not licensed: line(s) " + list + " were served cut by max_cols and are in no checkpoint; read them without max_cols to edit them\n"
 }
 
 // servedSlice is one ==> header and the lines that belong to it, so a
@@ -257,8 +289,11 @@ func splitServed(report string) []servedSlice {
 
 // markServed interleaves checkpoints through each file of a fitting report
 // and returns the marked text plus per-path spans. A report with no numbered
-// lines is returned unchanged and holds nothing.
-func markServed(report string) (string, map[string]map[string]map[string][2]int) {
+// lines is returned unchanged and holds nothing. observed is what the read
+// recorded: a slice of the version it names is bracketed only where it
+// recorded a line (ADR-154); a slice of another version is held by nobody
+// (heldSpans), so its grouping licenses nothing either way.
+func markServed(report string, observed map[string]seen.Observation) (string, map[string]map[string]map[string][2]int) {
 	slices := splitServed(report)
 	if len(slices) == 0 {
 		return report, nil
@@ -266,7 +301,7 @@ func markServed(report string) (string, map[string]map[string]map[string][2]int)
 	var out strings.Builder
 	byPath := map[string]map[string]map[string][2]int{}
 	for _, sl := range slices {
-		marked, spans := interleave(sl.text)
+		marked, spans := interleave(sl.text, recordedIn(observed, sl))
 		out.WriteString(marked)
 		// Kept per file AND per version: two specs naming one file — a list
 		// split into ranges, each with its own max_lines budget — are two
@@ -310,6 +345,16 @@ func heldSpans(bySHA map[string]map[string][2]int, sha string) map[string][2]int
 		}
 	}
 	return held
+}
+
+// recordedIn is which lines of sl the read recorded, or nil — every line —
+// when the observation is of another version or there is none.
+func recordedIn(observed map[string]seen.Observation, sl servedSlice) func(int) bool {
+	o, ok := observationOf(observed, sl.path)
+	if !ok || sl.sha == "" || !strings.HasPrefix(o.SHA, sl.sha) {
+		return nil
+	}
+	return func(line int) bool { return o.Covers(line, line) }
 }
 
 // servedLineNumber reads the line number off a served content line, which
