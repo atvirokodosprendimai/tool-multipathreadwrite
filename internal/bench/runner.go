@@ -255,9 +255,9 @@ func onPath(name, path string) string {
 func gates(o RunOptions) (string, error) {
 	switch {
 	case o.Containment == "":
-		return "", errors.New("no --containment: Zy chooses between a dedicated macOS user and bypassPermissions under his own account (ADR-156 Decision 2)")
+		return "", errors.New("no --containment: Zy chose bypass, bypassPermissions under his own account, on 2026-10-14 (ADR-156 Decision 2); name it")
 	case strings.HasPrefix(o.Containment, "user:"):
-		return "", errors.New("--containment user:<name> is not built yet: it is built when Zy chooses it (ADR-156 Decision 2)")
+		return "", errors.New("--containment user:<name> is not built: Zy chose bypass on 2026-10-14 (ADR-156 Decision 2)")
 	case o.Containment != "bypass":
 		return "", fmt.Errorf("--containment %q: want bypass or user:<name>", o.Containment)
 	case o.ConfigDir == "":
@@ -581,7 +581,10 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 	args := []string{"-p", a.Task.Instruction, "--output-format", "stream-json", "--verbose", "--model", a.Model,
 		"--tools", strings.Join(a.Config.Tools, ","), "--strict-mcp-config", "--mcp-config", empty,
 		"--disable-slash-commands", "--no-session-persistence", "--no-chrome", "--permission-mode", "bypassPermissions"}
-	env := []string{"CLAUDE_CONFIG_DIR=" + o.ConfigDir, "HOME=" + os.Getenv("HOME"), "TMPDIR=" + scratch, "LANG=C.UTF-8"}
+	// USER is how the CLI finds the subscription's credentials in the macOS
+	// keychain: without it a logged-in config directory answers "Not logged
+	// in" (the first real canary, 2026-10-14).
+	env := []string{"CLAUDE_CONFIG_DIR=" + o.ConfigDir, "HOME=" + os.Getenv("HOME"), "USER=" + os.Getenv("USER"), "TMPDIR=" + scratch, "LANG=C.UTF-8"}
 	if a.Config.Mrw {
 		bin := filepath.Join(scratch, "bin")
 		if err := os.Mkdir(bin, 0o755); err != nil {

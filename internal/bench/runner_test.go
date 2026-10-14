@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -404,8 +405,13 @@ func TestVerifyRefusesAReceiptThatIsNotItsAttempt(t *testing.T) {
 	}
 	scratch := t.TempDir()
 	opts.Bench = "/opt/with space/bench"
-	if _, _, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs["B"], Repeat: 1}, scratch); err != nil {
+	t.Setenv("USER", "bench-user")
+	_, env, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs["B"], Repeat: 1}, scratch)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !slices.Contains(env, "USER=bench-user") {
+		t.Errorf("USER is not passed through, and the CLI cannot find the subscription without it: %v", env)
 	}
 	b, err := os.ReadFile(filepath.Join(scratch, "settings.json"))
 	if err != nil {

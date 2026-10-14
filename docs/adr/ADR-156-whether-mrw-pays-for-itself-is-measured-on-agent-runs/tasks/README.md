@@ -33,5 +33,5 @@ Status: `pending` | `partial` | `blocked` | `done`.
 
 - T3, T4 and T5 each start only on Zy's word, recorded in their Verification Log as a human-observed line.
 - No contract row: nothing on mrw's served path changes.
-- T2 is partial until S5, the one real canary run, which waits for Zy's two choices: how an attempt is contained, and the subscription login in the dedicated config directory. `bench run` and `bench canary` refuse until both are given.
+- T2 is partial until S5, a real canary run that passes. Zy's two choices are made (2026-10-14: his own account with `bypassPermissions`, and the one-time login in the dedicated config directory); the first real canary failed on two runner defects, fixed in #411, and is to be run again.
 - T5's selection (S1) and T6's analysis (S1, S2) were built with T2, before any run, so the analysis is fixed before there is data to fit it to; both stay partial until their stages run.

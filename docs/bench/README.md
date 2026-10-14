@@ -5,10 +5,11 @@ two configurations, and grades what each run leaves behind. It calls no model
 itself: it starts `claude -p` as a subprocess, reads the stream-json it prints,
 and judges the tree with an oracle that knows the answer by construction.
 
-**Nothing here runs an agent until Zy has chosen how an attempt is contained and
-logged in once in the dedicated config directory** (ADR-156 Decision 2). `bench
-run` and `bench canary` refuse without `--containment` and `--config-dir`, and
-`bench run` refuses without a passing canary for the same CLI version.
+**Zy chose, on 2026-10-14, to run attempts under his own account with
+`bypassPermissions`** — over a dedicated macOS user and over Docker — and logged
+in once in the dedicated config directory (ADR-156 Decision 2). `bench run` and
+`bench canary` still refuse without `--containment bypass` and `--config-dir`,
+and `bench run` refuses without a passing canary for the same CLI version.
 
 ## Configurations
 
@@ -26,7 +27,11 @@ instruction files (`CLAUDE.md`, `AGENTS.md`, `.claude/`, `.mcp.json`, `.cursor/`
 is `~/.claude` by any spelling or link). The CLI runs in a process group of its
 own, stopped when it returns. Its `PATH` holds links to the host's `git`, `go`
 and `gofmt` and the system directories, not the directories those tools live
-in, and configuration A's is refused if `mrw` is anywhere on it.
+in, and configuration A's is refused if `mrw` is anywhere on it. `USER` is passed
+through, since the CLI finds the subscription's credentials in the macOS
+keychain by it. The canary takes the config directory's own path out of a
+transcript before it looks for `mrw`: the CLI prints that path in its init line,
+and it is bench's name for a directory, not context the model was given.
 
 ## The corpus: `bench/tasks/<id>/`
 

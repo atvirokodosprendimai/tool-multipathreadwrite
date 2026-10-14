@@ -1,7 +1,7 @@
 # ADR-156: Whether mrw pays for itself is measured on agent runs, against a bar written first
 
 **Status:** Accepted
-**Accepted:** 2026-10-14 by Zy — "cut v1.66.0 when 155 lands, then do 156", after choosing both models, both task sources, mrw forced and the subscription only. Two choices stay open and gate the real runs, not this record: how an attempt is contained (a dedicated macOS user, or `bypassPermissions` under his own account) and the one-time subscription login in a dedicated config directory (Decision 2).
+**Accepted:** 2026-10-14 by Zy — "cut v1.66.0 when 155 lands, then do 156", after choosing both models, both task sources, mrw forced and the subscription only. The two choices the real runs waited on were made the same day: Zy chose "Your account, bypassPermissions" over a dedicated macOS user and over Docker, and did the one-time subscription login in the dedicated config directory (Decision 2).
 **Date:** 2026-10-14
 **Owner:** Zy
 **Spec:** None — no spec stage
@@ -44,7 +44,7 @@ On 2026-10-14 Zy compared mrw with sgrep, a semantic search tool. sgrep publishe
    - **`--bare` is rejected.** It skips hooks, plugins, auto-memory and CLAUDE.md discovery, but its help text says its auth is "strictly ANTHROPIC_API_KEY or apiKeyHelper … (OAuth and keychain are never read)", and Zy chose the subscription only.
    - **The candidate:** a dedicated, empty `CLAUDE_CONFIG_DIR` under `bench`'s state directory, with no CLAUDE.md, settings, hooks, plugins, MCP servers or memory. Zy logs in once with the subscription, then every attempt runs:
      `claude -p --output-format stream-json --verbose --model <id> --tools <configuration's list> --strict-mcp-config --mcp-config <empty> --settings <configuration's settings> --disable-slash-commands --no-session-persistence --no-chrome --permission-mode bypassPermissions`
-     The CLI is started by absolute path, in a process group of its own that is stopped when it returns, so nothing it started outlives the attempt. Its `PATH` is bench's: links to the host's `git`, `go` and `gofmt` and the system directories, never the directories those tools sit in, and an attempt of configuration A is refused if `mrw` is anywhere on it. The config directory is resolved before use and refused if it is the user's own `~/.claude` by any spelling or link. `bypassPermissions` leaves the agent's Bash free outside the tree: how an attempt is contained is the choice Zy holds.
+     The CLI is started by absolute path, in a process group of its own that is stopped when it returns, so nothing it started outlives the attempt. Its environment carries `USER`, by which the CLI finds the subscription's credentials in the macOS keychain (the first real canary answered "Not logged in" without it). Its `PATH` is bench's: links to the host's `git`, `go` and `gofmt` and the system directories, never the directories those tools sit in, and an attempt of configuration A is refused if `mrw` is anywhere on it. The config directory is resolved before use and refused if it is the user's own `~/.claude` by any spelling or link. `bypassPermissions` leaves the agent's Bash free outside the tree: Zy chose that, under his own account, on 2026-10-14, over a dedicated macOS user and over Docker; the canary's sentinel outside the tree is the check that nothing reached past it.
    - **The task tree is stripped of instructions.** `CLAUDE.md`, `AGENTS.md`, `.claude/`, `.mcp.json`, `.cursor/` and `.codex/` are removed and committed as the attempt's base. The oracle diffs against that commit.
    - **A canary proves it** (T2): one canary attempt per configuration. It passes only if:
      - configuration A's transcript (stream-json, `system/init` included) never contains `mrw`;
@@ -148,7 +148,7 @@ See `tasks/`.
 | Too few tasks to see a difference | High | Medium | INCONCLUSIVE is a registered, publishable outcome; the bar is non-inferiority, not equality |
 | Subscription rate limits truncate a stage | High | Low | resumable runner; the exclusion rule re-queues a rate-limited start |
 | SWE-bench x86 images are impractical on this Mac | Medium | Medium | T5 starts with a feasibility probe (one gold patch graded) and stops if it fails |
-| An agent under `bypassPermissions` with Bash touches files outside its worktree, on Zy's own machine | Low | High | Zy decides at acceptance: run attempts as a dedicated macOS user with no access to his home (recommended), or accept the risk; either way the canary checks a sentinel file outside the worktree is untouched |
+| An agent under `bypassPermissions` with Bash touches files outside its worktree, on Zy's own machine | Low | High | Zy chose, 2026-10-14, to run attempts under his own account with `bypassPermissions` rather than as a dedicated macOS user or in Docker; the canary checks a sentinel file outside the worktree is untouched, and every attempt runs in a scratch copy |
 
 ## Rollback
 

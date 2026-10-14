@@ -20,8 +20,11 @@ var hookMarkers = []string{"<<<memoryd data", "memoryd ·", "agentsmemory", "qua
 // CheckCanary returns what a canary transcript shows leaking into an attempt
 // (ADR-156 Decision 2), empty when it is clean: no init line; tools other than
 // the configuration's; any MCP server; mrw named in configuration A; a
-// sentence of the user's CLAUDE.md; a user hook's output.
-func CheckCanary(transcript []byte, c Config, claudeMD string) []string {
+// sentence of the user's CLAUDE.md; a user hook's output. configDir is the
+// attempt's CLAUDE_CONFIG_DIR: the CLI prints it in the init line's paths, and
+// it is bench's own name for a directory, not context the model was given, so
+// it is taken out of the text before mrw is looked for.
+func CheckCanary(transcript []byte, c Config, claudeMD, configDir string) []string {
 	var problems []string
 	t := parseTranscript(transcript)
 	if !t.InitSeen {
@@ -38,6 +41,9 @@ func CheckCanary(transcript []byte, c Config, claudeMD string) []string {
 	// quote in it, or a marker sent as \u escapes, is in the transcript only
 	// escaped (the review of #411).
 	text := string(transcript) + "\n" + decodedStrings(transcript)
+	if configDir != "" {
+		text = strings.ReplaceAll(text, configDir, "<config-dir>")
+	}
 	if !c.Mrw && regexp.MustCompile(`(?i)\bmrw\b`).MatchString(text) {
 		problems = append(problems, "configuration A's transcript names mrw")
 	}
@@ -113,7 +119,7 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		if err != nil {
 			return c, err
 		}
-		problems = append(problems, CheckCanary(b, Configs[name], claudeMD)...)
+		problems = append(problems, CheckCanary(b, Configs[name], claudeMD, o.ConfigDir)...)
 		if len(problems) > 0 {
 			c.Pass = false
 			c.Problems[name] = problems
