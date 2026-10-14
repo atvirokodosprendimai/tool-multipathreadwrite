@@ -595,10 +595,11 @@ and #73, one release apart.
   directories the base holds, and the read-before-modify ledger — the record of
   which lines you have actually been served, which is what licenses a write.
   When a write is refused for a line you believe you read, `mrw seen` is the
-  file that settles it. The ledger's first line names the mrw that wrote it; a ledger
-  written by a newer mrw is left untouched, nothing an older mrw reads licenses a write
-  from it, and each command says it was written by a newer mrw, naming that one
-  (ADR-150). An mrw up to v1.65.0 still calls such a ledger older and replaces it.
+  file that settles it. The ledger's first line names its format and the mrw that wrote
+  it; a ledger in a newer format is left untouched, nothing an older mrw reads licenses a
+  write from it, and every command that consults the ledger says it was
+  written by a newer mrw, naming that one (ADR-150). An mrw up to v1.65.0 still calls
+  such a ledger older and replaces it.
 - **`mrw seen --prune`** removes the state directories whose `root` marker names
   a checkout that is no longer there, and says which. `--prune --dry-run` shows
   the same list and removes nothing. It keeps anything it cannot identify — a

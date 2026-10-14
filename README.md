@@ -112,11 +112,12 @@ pipe, as does PowerShell 7's `> NUL`. In Windows PowerShell 5.1 `> NUL` fails be
 sent to a file you never open licenses all the same, and mrw cannot tell.
 
 The ledger's first line names its format and the mrw that wrote it (`#mrw-seen v5 v1.66.0 (abc1234)`). A
-ledger in a format older than v4 is discarded, once, with a notice; v4 and v5 are read. A ledger written by a
-newer mrw is left untouched: nothing an older mrw reads licenses a write from it, its reads record nothing,
-and each command says the ledger was written by a newer mrw and names it, as does a write it refuses
-(ADR-150). An mrw up to v1.65.0 compares that line byte for byte, so it still calls a v5 ledger older and
-replaces it.
+ledger in a format older than v4 is discarded, once, with a notice; v4 and v5 are read. A ledger in a newer
+format, which only a newer mrw writes, is left untouched: nothing this mrw reads licenses a write from it, its
+reads record nothing, every command that consults the ledger says it was written by a newer mrw and names
+that one, and so does a write refused for an unread line (ADR-150). The writer name is information: a v5
+ledger is read whoever wrote it. An mrw up to v1.65.0 compares that line byte for byte, so it still calls a
+v5 ledger older and replaces it.
 
 **A shell glob and an address suffix do not mix.** `mrw read 'dir/*.go:1-3'`
 takes the star literally and reports the path UNREADABLE; unquoted, zsh refuses

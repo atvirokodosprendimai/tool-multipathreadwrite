@@ -208,10 +208,14 @@ func readHeader(line string) (format, string) {
 		return formatOlder, ""
 	}
 	num, writer, _ := strings.Cut(rest, " ")
-	n, err := strconv.Atoi(num)
-	if err != nil || strconv.Itoa(n) != num {
+	// A canonical decimal: digits only, no sign, no leading zero. Its range error
+	// is ignored on purpose: past int's range Atoi returns the largest int, which
+	// is newer, so such a ledger is kept rather than read as older and written
+	// over (the Codex review of #403).
+	if num == "" || strings.Trim(num, "0123456789") != "" || (len(num) > 1 && num[0] == '0') {
 		return formatOlder, ""
 	}
+	n, _ := strconv.Atoi(num)
 	switch {
 	case n > formatVersion:
 		return formatNewer, printable(writer)
@@ -322,6 +326,7 @@ func IsStale(root string) (bool, error) {
 	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	sc.Split(scanLF)
+	sc.Buffer(make([]byte, min(64<<10, maxRecordBytes)), int(maxRecordBytes))
 	if !sc.Scan() {
 		return false, sc.Err() // an empty file is not a stale one
 	}

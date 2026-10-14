@@ -74,6 +74,8 @@ func TestALedgerNamesItsWriter(t *testing.T) {
 		"#mrw-seen v3\n" + sha + "  -  k.go\n",
 		"#mrw-seen v04\n" + sha + "  -  k.go\n",
 		"#mrw-seen v4x\n" + sha + "  -  k.go\n",
+		"#mrw-seen v+5\n" + sha + "  -  k.go\n",
+		"#mrw-seen v-6\n" + sha + "  -  k.go\n",
 		"#mrw-seen v5 v1.66.0\r\n" + sha + "  -  k.go\r\n",
 		"#not-a-ledger\n" + sha + "  -  k.go\n",
 	} {
@@ -130,5 +132,18 @@ func TestANewerLedgerIsNeitherUsedNorOverwritten(t *testing.T) {
 	plant(t, root, "#mrw-seen v7 evil\x1b[31m red\n")
 	if writer, newer, _ := Newer(root); !newer || strings.ContainsRune(writer, 0x1b) {
 		t.Errorf("Newer = %q, %v; want it newer with the escape dropped", writer, newer)
+	}
+
+	// A format number past int's range is still newer, and still kept (the
+	// Codex review of #403).
+	huge := "#mrw-seen v9223372036854775808 future\n" + sha + "  -  a.go\n"
+	plant(t, root, huge)
+	if _, newer, _ := Newer(root); !newer {
+		t.Error("a format number past int's range was not reported newer")
+	}
+	_ = Record(root, map[string]Observation{"b.go": {SHA: sha}})
+	_ = Drop(root, []string{"a.go"})
+	if got, _ := os.ReadFile(p); string(got) != huge {
+		t.Errorf("a ledger whose format number is past int's range was written over: %q", got)
 	}
 }
