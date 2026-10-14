@@ -51,7 +51,7 @@ func TestTheCLINamesANewerLedgersWriter(t *testing.T) {
 
 	var out string
 	errOut = stderrOf(t, func() { out, code = runIn(t, root, "write", "--no-check", plan) })
-	if code != 1 || !strings.Contains(out+errOut, "has not been read") || !strings.Contains(out, "written by a newer mrw (v9.9.9 (fffffff))") {
+	if code != 1 || !strings.Contains(out, "f.txt cannot be edited by this mrw") || !strings.Contains(out, "written by a newer mrw (v9.9.9 (fffffff))") {
 		t.Errorf("a write the newer ledger would license exited %d, receipt %q stderr %q; want it refused naming the newer ledger", code, out, errOut)
 	}
 	if got, _ := os.ReadFile(filepath.Join(root, "f.txt")); string(got) != string(content) {

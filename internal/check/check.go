@@ -534,7 +534,7 @@ func confine(root string, paths []string) error {
 		}
 		full, err := rooted.Resolve(root, p)
 		if err != nil {
-			if rooted.RefusedByName(err) {
+			if rooted.RefusedByName(err) || errors.Is(err, rooted.ErrOwnState) {
 				return err
 			}
 			return fmt.Errorf("%w: check it with --root pointed where you mean", err)

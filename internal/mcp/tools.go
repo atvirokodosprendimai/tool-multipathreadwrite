@@ -627,6 +627,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// exceeds the ceiling takes the overflow path above and holds nothing.
 	if len(observed) > 0 {
 		marked, byPath := markServed(report, observed)
+		if len(byPath) > 0 {
+			marked += newerLine(root)
+		}
 		if marked != report {
 			markedServed, markErr := readResult(withCounts(withSkipped(map[string]any{
 				"observed": slashKeys(observed, filepath.Separator),
@@ -1710,6 +1713,9 @@ func firstPage(root string, specs []string, cw *capped, maxCols int) (callToolRe
 			"-- This page licenses NOTHING until you acknowledge it.\n-- "+AckRule+"\n"+
 			"-- An id you omit leaves its lines unwritable, which is the point.",
 			text, start, end, total, total-end, next)
+		if nl := newerLine(root); nl != "" {
+			report += "\n" + strings.TrimSuffix(nl, "\n")
+		}
 
 		// ⚠ THE ENCODED RESULT IS WHAT MUST FIT, measured with encodedSize — the
 		// function this file already uses for the grep paths, twenty lines up.
@@ -2282,6 +2288,10 @@ func encodedSize(res callToolResult) int {
 // still needs.
 func nameTheAck(root string, res *apply.Result) {
 	if res == nil || res.Failed == 0 {
+		return
+	}
+	// ADR-157: under a newer ledger an ack licenses nothing either.
+	if _, newer, err := seen.Newer(root); err == nil && newer {
 		return
 	}
 	store, err := readPending(root)
