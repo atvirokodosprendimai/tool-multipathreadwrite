@@ -184,7 +184,8 @@ func TestOnlyTheCheckLatestFileImportsTheNetwork(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			rel := filepath.ToSlash(strings.TrimPrefix(p, "../../"))
+			// ToSlash before the trim: on Windows the walk spells p with "\" (CI shard 2 of #402).
+			rel := strings.TrimPrefix(filepath.ToSlash(p), "../../")
 			for _, imp := range f.Imports {
 				path, _ := strconv.Unquote(imp.Path.Value)
 				if path != "net" && !strings.HasPrefix(path, "net/") {
