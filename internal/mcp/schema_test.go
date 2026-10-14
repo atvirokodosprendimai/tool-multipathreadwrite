@@ -183,6 +183,8 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	answers["skipped"] = call(t, skipRoot, "mrw_read", map[string]any{"grep": "NEEDLE"})
+	// ADR-153: a count carries `counts`, the matching lines of each file.
+	answers["counted"] = call(t, grepRoot, "mrw_read", map[string]any{"grep": "NEEDLE", "count": true})
 	old := MaxResultChars
 	MaxResultChars = 4000
 	t.Cleanup(func() { MaxResultChars = old })
@@ -254,6 +256,11 @@ func readSchema() map[string]any {
 			"matches":    map[string]any{"type": "integer"},
 			"index":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 			"next_index": map[string]any{"type": "string"},
+			// Present only on a count (ADR-153).
+			"counts": map[string]any{
+				"type":                 "object",
+				"additionalProperties": map[string]any{"type": "integer"},
+			},
 			// Present only on a grep walk that skipped something (ADR-116).
 			"skipped": map[string]any{
 				"type": "object",
@@ -282,6 +289,7 @@ var readDescriptions = map[string]string{
 	"matches":              "How many files matched a `grep`, counting the whole match set and not just this page. Present on an INDEX answer and on a grep that matched nothing (0); a grep whose matches fit is served instead, and its `observed` names the files.",
 	"index":                "The matching FILE PATHS, served instead of content when the matches are too large to return. No content came with them and nothing was recorded, so this licenses no write. Send one back as a spec WITH the same grep to read its matches.",
 	"next_index":           "The last path on this page of an INDEX. Send the same grep again with `after` set to this for the next page, and repeat until it is empty — an empty value is how you know you have the whole match set.",
+	"counts":               "How many lines match `grep` in each file the walk found, keyed as `observed` is, when the call sent `count: true` (ADR-153). A line matching twice counts once. No line was served, so these license no write.",
 	"skipped":              "What a grep walk left out without serving it, present only when it left something out. Inside a git checkout the walk skips what .gitignore and .git/info/exclude ignore, and does not enter a nested repository; any walk skips a binary file. Send `no_ignore: true` to walk them all. A path named in `specs` is walked either way.",
 	"skipped.ignored":      "Files the ignore rules skipped.",
 	"skipped.ignored_dirs": "Directories the ignore rules pruned; the files under them are not counted.",

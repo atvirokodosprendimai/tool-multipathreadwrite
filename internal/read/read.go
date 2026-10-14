@@ -146,6 +146,15 @@ type Options struct {
 	// has none), and records the line as NOT read: what was cut was not shown
 	// (ADR-137). Zero is no cut, so an Options that omits it serves whole lines.
 	MaxCols int
+	// Count answers a --grep with how many lines match in each file instead of
+	// the lines (ADR-153): each file's header carries its count, a total line
+	// ends the answer, and the file is recorded as Stat records it — hashed,
+	// none of it shown — so a count licenses no line.
+	Count bool
+	// Counts, when Count is set and this is not nil, receives each counted
+	// file's count, keyed as the MCP receipt keys `observed`: cleaned and
+	// spelled with "/".
+	Counts map[string]int
 	// Stop, when set, is asked before each spec; true ends the read there. A
 	// caller that has already decided to refuse the answer stops paying for the
 	// rest of it (ADR-078). Nil reads every spec.
@@ -431,6 +440,8 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 	}
 	englishUnreadables := 0
 	neighbourNoted := false // the note is printed once per call, at the first range that needs it (ADR-136)
+	// ADR-153's total line.
+	countedLines, countedFiles := 0, 0
 	for _, sp := range specs {
 		if opt.Stop != nil && opt.Stop() {
 			break
@@ -525,11 +536,21 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		// the read did its job, and a write to it is refused.
 		foreign := lines.Unsplittable(b)
 		lines, sha := split(b)
-		fmt.Fprintf(w, "==> %s  %dL  %dB  sha %s\n", sp.Path, len(lines), len(b), sha[:8])
+		header := fmt.Sprintf("==> %s  %dL  %dB  sha %s", sp.Path, len(lines), len(b), sha[:8])
+		if opt.Count {
+			n := matchingLines(sp.Ranges, lines)
+			header += fmt.Sprintf("  %d matching line(s)", n)
+			countedLines += n
+			countedFiles++
+			if opt.Counts != nil {
+				opt.Counts[filepath.ToSlash(filepath.Clean(sp.Path))] = n
+			}
+		}
+		fmt.Fprintln(w, header)
 		if foreign != "" {
 			fmt.Fprintf(w, "-- note: %s %s: served as bytes; a write to it is refused\n", sp.Path, foreign)
 		}
-		if opt.Stat {
+		if opt.Stat || opt.Count {
 			// The fact, not the artifact — and a fact the caller cannot count
 			// lines in. Recording an empty span set says exactly that: mrw has
 			// hashed this file and shown you none of it.
@@ -626,10 +647,28 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			note(sp.Path, sha, served)
 		}
 	}
+	if opt.Count {
+		fmt.Fprintf(w, "-- %d matching line(s) in %d file(s)\n", countedLines, countedFiles)
+	}
 	if englishUnreadables >= 2 {
 		fmt.Fprint(w, hintSplitRegexAddress())
 	}
 	return observed, problems
+}
+
+// matchingLines counts the lines a spec's single-pattern ranges match, each
+// line once however many of them match it (ADR-153). A --grep spec carries one.
+func matchingLines(ranges []Range, lines []string) int {
+	n := 0
+	for _, l := range lines {
+		for _, r := range ranges {
+			if r.Re != nil && r.ReEnd == nil && r.Re.MatchString(l) {
+				n++
+				break
+			}
+		}
+	}
+	return n
 }
 
 type span struct{ start, end int }

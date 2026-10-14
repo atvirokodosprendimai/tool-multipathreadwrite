@@ -603,6 +603,10 @@ func tools() []tool {
 						"type":        "boolean",
 						"description": "Serve each file's header — lines, bytes and sha — and no content, as `mrw read --stat`. It licenses no write.",
 					},
+					"count": map[string]any{
+						"type":        "boolean",
+						"description": "With `grep`: serve each matching file's header and how many of its lines match, then a total, as `mrw read --grep P --count`, and put each file's count in the receipt's `counts`. No line is served, so it licenses no write. Refused without `grep`, and beside `ast_grep`, `stat` or `max_lines`.",
+					},
 					"files_from": map[string]any{
 						"type":        "string",
 						"description": "A file inside the root holding one spec a line, as `mrw read --files-from FILE`: blank lines and # comments are skipped. Not together with specs, grep or ast_grep. `-` is refused: stdin carries the protocol.",

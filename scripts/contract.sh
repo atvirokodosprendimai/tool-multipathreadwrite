@@ -9135,6 +9135,25 @@ out=$(m check --full 2>&1); want 0 $? "mrw check --full exits 0"
 grep -q '^hint: ' <<<"$out" && bad "a --full check hinted: $out" || ok "and prints no hint"
 rm -f "$R/.quality-harness.json" "$WORK/p256" "$WORK/q256"
 
+# 257. ADR-153: `mrw read --grep P --count` says how many lines match in each
+# file and in all, serves no line and licenses none: a write to a line only
+# counted is refused as unread. The pair: a count that matched nothing exits 1
+# with ADR-146's `no match:`, and --count without --grep is a usage error.
+fixture
+printf 'x N257\ny\nN257 N257\n' > "$R/a257.txt"; printf 'N257\n' > "$R/b257.txt"
+out=$(m read --grep N257 --count 2>&1); want 0 $? "a --count that matched exits 0"
+{ grep -q '^==> a257.txt  3L  .*  2 matching line(s)$' <<<"$out" && grep -q '^==> b257.txt  1L  .*  1 matching line(s)$' <<<"$out" \
+  && grep -qx -- '-- 3 matching line(s) in 2 file(s)' <<<"$out" && ! grep -qE '^ *[0-9]+\| ' <<<"$out"; } \
+  && ok "each file's count and the total, and no line served" || bad "count: $out"
+printf '@@ a257.txt 1 replace\nchanged\n' > "$WORK/p257"
+out=$(m write --no-check "$WORK/p257" 2>&1); want 1 $? "a write to a line only counted is refused"
+[ "$(head -1 "$R/a257.txt")" = 'x N257' ] && ok "and the file is unchanged" || bad "a counted line was written: $out"
+out=$(m read --grep ABSENT257 --count 2>&1); want 1 $? "the pair: a --count that matched nothing exits 1"
+grep -q 'mrw: no match: no file matched /ABSENT257/' <<<"$out" && ok "with ADR-146's no match:" || bad "no match: $out"
+out=$(m read --count a257.txt 2>&1); want 2 $? "--count without --grep exits 2"
+grep -q -- '--count counts the lines a --grep pattern matches' <<<"$out" && ok "naming --grep" || bad "no grep: $out"
+rm -f "$R/a257.txt" "$R/b257.txt" "$WORK/p257"
+
 # 233. ADR-130: a walk does not enter a nested repository. Inside a checkout, a
 # directory holding its own .git is another project's, and git does not descend
 # into it; mrw walked it with its own rules. --grep serves the outer match only
