@@ -296,7 +296,7 @@ var importRef = regexp.MustCompile(`(?:^|\s)@([^\s` + "`" + `]+)`)
 // removed. Every other instruction file or directory is removed, except a
 // .mcp.json below the root.
 func PrepareInstructions(root string) error {
-	var doomed, redact []string
+	var doomed, keep []string
 	err := filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -312,8 +312,8 @@ func PrepareInstructions(root string) error {
 			return nil
 		}
 		if redactedNames[info.Name()] {
-			if target, ok := inTreeFile(root, p); ok {
-				redact = append(redact, target)
+			if _, ok := inTreeFile(root, p); ok {
+				keep = append(keep, p)
 				return nil
 			}
 		}
@@ -330,6 +330,20 @@ func PrepareInstructions(root string) error {
 		if err := os.RemoveAll(p); err != nil {
 			return err
 		}
+	}
+	// An instruction file is resolved again once configuration is gone: one that
+	// led into a removed directory leads nowhere now and goes too (the re-review
+	// of #413).
+	var redact []string
+	for _, p := range keep {
+		target, ok := inTreeFile(root, p)
+		if !ok {
+			if err := os.Remove(p); err != nil {
+				return err
+			}
+			continue
+		}
+		redact = append(redact, target)
 	}
 	done := map[string]bool{}
 	for depth := 0; depth <= 5 && len(redact) > 0; depth++ {
@@ -380,7 +394,8 @@ func inTreeFile(root, p string) (string, bool) {
 }
 
 // redactMrw rewrites p without the lines that name mrw, keeping every other
-// byte, and returns the @path imports the kept lines name.
+// byte, and returns the @path imports the kept lines name outside a code block
+// or a code span, which Claude Code reads as examples rather than imports.
 func redactMrw(p string) ([]string, error) {
 	b, err := os.ReadFile(p)
 	if err != nil {
@@ -388,12 +403,30 @@ func redactMrw(p string) ([]string, error) {
 	}
 	var kept strings.Builder
 	var imports []string
+	fence := ""
 	for _, line := range strings.SplitAfter(string(b), "\n") {
 		if namesMrw.MatchString(line) {
 			continue
 		}
 		kept.WriteString(line)
-		for _, m := range importRef.FindAllStringSubmatch(line, -1) {
+		trimmed := strings.TrimSpace(line)
+		if fence != "" {
+			if strings.HasPrefix(trimmed, fence) {
+				fence = ""
+			}
+			continue
+		}
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			fence = trimmed[:3]
+			continue
+		}
+		var prose []string
+		for i, part := range strings.Split(line, "`") {
+			if i%2 == 0 {
+				prose = append(prose, part)
+			}
+		}
+		for _, m := range importRef.FindAllStringSubmatch(strings.Join(prose, " "), -1) {
 			imports = append(imports, m[1])
 		}
 	}

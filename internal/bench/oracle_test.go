@@ -202,7 +202,10 @@ func TestThePreparedTreeRedactsInstructionsAndStripsConfiguration(t *testing.T) 
 	files := map[string]string{
 		"CLAUDE.md": md, "AGENTS.md": md, "CLAUDE.local.md": md, ".cursorrules": md, "sub/AGENTS.md": md, "shared.md": md,
 		"docs/rules.md": "Imported.\nmrw is the tool.\n", "keep.go": "// mrw\n", "sub/keep.md": "mrw\n", "sub/.mcp.json": "{}\n",
-		".mcp.json": "x\n", ".claude/settings.json": "x\n", ".cursor/rules/a.mdc": "x\n", ".codex/config.toml": "x\n", "sub/.claude/x": "x\n",
+		".mcp.json": "x\n", ".claude/settings.json": "x\n", ".claude/CLAUDE.md": md, ".cursor/rules/a.mdc": "x\n", ".codex/config.toml": "x\n", "sub/.claude/x": "x\n",
+		// An @path in a code block or a code span is an example, not an import: its
+		// target is no instruction (the re-review of #413).
+		"code/CLAUDE.md": "Example:\n```\n@ex/a.md\n```\nInline `@ex/b.md` too.\n", "code/ex/a.md": "mrw\n", "code/ex/b.md": "mrw\n",
 	}
 	for p, s := range files {
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, p)), 0o755); err != nil {
@@ -215,7 +218,9 @@ func TestThePreparedTreeRedactsInstructionsAndStripsConfiguration(t *testing.T) 
 	if err := os.WriteFile(filepath.Join(outside, "x.md"), []byte("mrw\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for link, to := range map[string]string{"linked/CLAUDE.md": filepath.Join("..", "shared.md"), "away/AGENTS.md": filepath.Join(outside, "x.md")} {
+	// A link into a directory that preparation removes leads out of the tree once
+	// it is gone, so it goes too (the re-review of #413).
+	for link, to := range map[string]string{"linked/CLAUDE.md": filepath.Join("..", "shared.md"), "away/AGENTS.md": filepath.Join(outside, "x.md"), "cfg/CLAUDE.md": filepath.Join("..", ".claude", "CLAUDE.md")} {
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, link)), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -230,6 +235,7 @@ func TestThePreparedTreeRedactsInstructionsAndStripsConfiguration(t *testing.T) 
 		"CLAUDE.md": redacted, "AGENTS.md": redacted, "CLAUDE.local.md": redacted, ".cursorrules": redacted, "sub/AGENTS.md": redacted,
 		"shared.md": redacted, "linked/CLAUDE.md": redacted, "docs/rules.md": "Imported.\n",
 		"keep.go": "// mrw\n", "sub/keep.md": "mrw\n", "sub/.mcp.json": "{}\n",
+		"code/CLAUDE.md": "Example:\n```\n@ex/a.md\n```\nInline `@ex/b.md` too.\n", "code/ex/a.md": "mrw\n", "code/ex/b.md": "mrw\n",
 	}
 	got := map[string]string{}
 	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
