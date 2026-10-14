@@ -14,7 +14,7 @@ func TestASpanFromAReplacedVersionIsNotHeld(t *testing.T) {
 	report := "==> a.txt  4L  12B  sha aaaaaaaa\n@@ 1-1\n    1| A1\n" +
 		"==> a.txt  4L  12B  sha bbbbbbbb\n@@ 3-3\n    3| B3\n" +
 		"==> a.txt  4L  12B  sha bbbbbbbb\n@@ 4-4\n    4| B4\n"
-	_, byPath := markServed(report)
+	_, byPath := markServed(report, nil)
 	bySHA := byPath["a.txt"]
 	if len(bySHA["aaaaaaaa"]) != 1 || len(bySHA["bbbbbbbb"]) != 2 {
 		t.Fatalf("slices not kept per version: %v", bySHA)

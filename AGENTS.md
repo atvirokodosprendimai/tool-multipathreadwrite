@@ -178,8 +178,9 @@ the ones you want. Like a grep index, an ast_grep index pages with `after`: send
 the same finder again with `after` set to `next_index`, until it is empty.
 `--files-from FILE` maps onto `files_from`, a file inside the root (`-` is refused: stdin carries the
 protocol); `--max-lines` onto `max_lines` and `--stat` onto `stat`, each licensing only what it served (ADR-117).
-`--max-cols N` (CLI only, ADR-137) cuts a line longer than N characters to a window round the first match and records
-that line as NOT read: a plan that replaces it is refused until it is read whole. `--stat` lists the files with their
+`--max-cols N` (ADR-137) cuts a line longer than N characters to a window round the first match and records
+that line as NOT read: a plan that replaces it is refused until it is read whole; `mrw_read` takes it as `max_cols`,
+and a line it served cut is in no checkpoint, named on a `-- not licensed:` line (ADR-154). `--stat` lists the files with their
 length and sha and `-N` drops the line numbers. `--grep P --count` prints each matching file's header with how many of
 its lines match, then a total, and serves no line, so it licenses none (ADR-153; `count` on `mrw_read`, with `grep`).
 Cap a read with `--max-lines N` instead of `| head`: `| head` loses mrw's exit code, while `--max-lines` names what it

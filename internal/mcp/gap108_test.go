@@ -36,11 +36,11 @@ func licensedLines(spans map[string][2]int) map[int]bool {
 // random served sets, the lines the checkpoints cover are exactly the lines
 // served.
 func TestACheckpointCoversOnlyConsecutiveServedLines(t *testing.T) {
-	_, spans := interleave(servedText([]int{1, 100}))
+	_, spans := interleave(servedText([]int{1, 100}), nil)
 	if got := licensedLines(spans); len(got) != 2 || !got[1] || !got[100] {
 		t.Fatalf("lines 1 and 100 served together license %d line(s): %v", len(got), spans)
 	}
-	if _, spans := interleave(servedText([]int{7, 8, 9})); len(spans) != 1 {
+	if _, spans := interleave(servedText([]int{7, 8, 9}), nil); len(spans) != 1 {
 		t.Errorf("a run of three consecutive lines gave %d checkpoints, want 1: %v", len(spans), spans)
 	}
 	rng := rand.New(rand.NewSource(108))
@@ -54,7 +54,7 @@ func TestACheckpointCoversOnlyConsecutiveServedLines(t *testing.T) {
 			nums = append(nums, n)
 		}
 		sort.Ints(nums)
-		_, spans := interleave(servedText(nums))
+		_, spans := interleave(servedText(nums), nil)
 		got := licensedLines(spans)
 		if len(got) != len(set) {
 			t.Fatalf("round %d: %d lines served, %d licensed", round, len(set), len(got))
