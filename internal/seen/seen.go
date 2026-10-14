@@ -337,9 +337,11 @@ func IsStale(root string) (bool, error) {
 // StaleNotice is what the CLI prints when IsStale reports true: one sentence,
 // the two causes and the remedy. The history of the fixes that made an old
 // ledger untrustworthy is in the ADRs, not in a message read on every upgrade
-// (ADR-136).
+// (ADR-136). It claims no discard: Load sets the ledger aside, and only a call
+// that records replaces the file (Record), which help, check, iter, seen and a
+// refused write never do (ADR-157 Decision 5).
 const StaleNotice = "mrw: the read ledger was written by an older mrw, or its line endings were changed; " +
-	"it has been discarded. Read the files you mean to edit again."
+	"it is not used, and the next recorded read or write replaces it. Read the files you mean to edit again."
 
 // Newer reports whether the ledger was written in a format newer than this
 // mrw's, and the writer it names (ADR-150). A missing, empty or non-regular
@@ -365,6 +367,51 @@ func Newer(root string) (writer string, newer bool, err error) {
 	}
 	got, w := readHeader(sc.Text())
 	return w, got == formatNewer, nil
+}
+
+// LedgerHeader is what a ledger's first line says (ADR-157 Decision 4).
+type LedgerHeader struct {
+	// Exists is false when there is no ledger, or it is empty or not a
+	// regular file.
+	Exists bool
+	// Older and Newer say the format is one this mrw no longer trusts or does
+	// not know; neither is set for a current one.
+	Older, Newer bool
+	// Format is the format number as the line spells it, empty for an older
+	// ledger; Writer is the mrw the line names, "unknown" when it names none.
+	Format, Writer string
+}
+
+// Header reads the ledger's first line, for mrw seen to say which mrw wrote the
+// ledger and whether this one uses it (ADR-157 Decision 4).
+func Header(root string) (LedgerHeader, error) {
+	path, err := ReadPath(root)
+	if err != nil {
+		return LedgerHeader{}, err
+	}
+	f, _, err := regular.Open(path)
+	if os.IsNotExist(err) || errors.Is(err, regular.ErrNotRegular) {
+		return LedgerHeader{}, nil
+	}
+	if err != nil {
+		return LedgerHeader{}, err
+	}
+	defer func() { _ = f.Close() }()
+	sc := bufio.NewScanner(f)
+	sc.Split(scanLF)
+	sc.Buffer(make([]byte, min(64<<10, maxRecordBytes)), int(maxRecordBytes))
+	if !sc.Scan() {
+		return LedgerHeader{}, sc.Err()
+	}
+	got, w := readHeader(sc.Text())
+	h := LedgerHeader{Exists: true, Older: got == formatOlder, Newer: got == formatNewer, Writer: printable(w)}
+	if h.Writer == "" {
+		h.Writer = "unknown"
+	}
+	if !h.Older {
+		h.Format, _, _ = strings.Cut(strings.TrimPrefix(sc.Text(), headerTag), " ")
+	}
+	return h, nil
 }
 
 // NewerNotice is what the CLI prints, instead of StaleNotice, when Newer reports

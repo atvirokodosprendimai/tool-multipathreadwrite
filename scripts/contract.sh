@@ -9089,7 +9089,7 @@ out=$(m read a.go 2>&1 >"$WORK/served.out"); want 0 $? "a read against a newer l
   && cmp -s "$sd254/seen" "$WORK/l254"; } && ok "names the newer writer once and leaves its ledger untouched" || bad "newer read: $out"
 printf '@@ a.go 3 replace\nfunc A() int { return 254 }\n' > "$WORK/p254"
 out=$(m write --no-check "$WORK/p254" 2>&1); want 1 $? "a write the newer ledger's entry would license is refused"
-{ grep -q 'has not been read' <<<"$out" && grep -q 'written by a newer mrw (v9.9.9 (fffffff))' <<<"$out" \
+{ grep -q 'a.go cannot be edited by this mrw' <<<"$out" && grep -q 'written by a newer mrw (v9.9.9 (fffffff))' <<<"$out" \
   && cmp -s "$sd254/seen" "$WORK/l254" && ! grep -q 'return 254' "$R/a.go"; } \
   && ok "naming the newer ledger, writing nothing" || bad "newer write: $out"
 printf '#mrw-seen v4\n%s  -  a.go\n' "$sha254" > "$sd254/seen"
@@ -9325,6 +9325,63 @@ log=$(grep -o 'timed out after [^—]*— full output: [^ ]*' <<<"$out" | head -
 [ ! -e "$TMPDIR/mrw-check-old163.log" ] && ok "a check log older than a week is pruned" || bad "the old log is still there"
 [ -e "$TMPDIR/mrw-check-young163.log" ] && ok "a young one is kept" || bad "the young log was removed"
 grep -q 'removed 1 check log(s) older than 7 days' <<<"$out" && ok "and the receipt says what it removed" || bad "the prune was silent: $out"
+
+# 260. ADR-157: under a ledger a newer mrw wrote, a write refused for an unread
+# line is led by that cause, names no read and no --force, and says the
+# sentence once; a create that lands says it once on stderr. The pair: a v5
+# ledger whose entry covers the line licenses the write.
+fixture
+m read a.go >"$WORK/served.out"
+sd260=$(m seen | head -1)
+sha260=$(awk '$3 == "a.go" { print $1 }' "$sd260/seen")
+printf '#mrw-seen v6 v9.9.9 (fffffff)\n%s  -  a.go\n' "$sha260" > "$sd260/seen"
+printf '@@ a.go 3 replace\nfunc A() int { return 260 }\n' > "$WORK/p260"
+out=$(m write --no-check "$WORK/p260" 2>&1); want 1 $? "a write under a newer ledger is refused"
+{ grep -q 'a.go cannot be edited by this mrw: the read ledger was written by a newer mrw (v9.9.9 (fffffff))' <<<"$out" \
+  && [ "$(grep -c 'written by a newer mrw' <<<"$out")" = 1 ] && ! grep -q -- '--force' <<<"$out" && ! grep -q 'mrw read a.go' <<<"$out"; } \
+  && ok "led by the cause, said once, with no advice that cannot help" || bad "newer refusal: $out"
+printf '@@ n260.txt 0 create\nx\n' > "$WORK/q260"
+err=$(m write --no-check "$WORK/q260" 2>&1 >/dev/null); want 0 $? "a create under a newer ledger lands"
+[ "$(grep -c 'written by a newer mrw' <<<"$err")" = 1 ] && ok "and says the sentence once, on stderr" || bad "create under a newer ledger: $err"
+printf '#mrw-seen v5 x\n%s  -  a.go\n' "$sha260" > "$sd260/seen"
+out=$(m write --no-check "$WORK/p260" 2>&1); want 0 $? "the pair: a v5 ledger's entry licenses the write"
+
+# 261. ADR-157: help leaves a stale ledger alone and says nothing of it; mrw
+# seen names the ledger's format and writer; the pair, a read, tells the stale
+# notice in words that claim no discard, and replaces the ledger.
+fixture
+m read a.go >"$WORK/served.out"
+sd261=$(m seen | head -1)
+out=$(m seen 2>&1)
+grep -qF "# ledger format v5, written by $("$MRW" version)" <<<"$out" && ok "mrw seen names the ledger's format and writer" || bad "seen: $out"
+printf '#mrw-seen v3\n' > "$sd261/seen"
+err=$(m help 2>&1 >/dev/null); want 0 $? "mrw help exits 0 under a stale ledger"
+{ [ -z "$err" ] && [ "$(cat "$sd261/seen")" = "#mrw-seen v3" ]; } && ok "and says nothing of it, leaving it as it was" || bad "help under a stale ledger: $err"
+err=$(m read a.go 2>&1 >"$WORK/served.out"); want 0 $? "the pair: a read under the stale ledger exits 0"
+{ grep -q 'it is not used, and the next recorded read or write replaces it' <<<"$err" && ! grep -q 'has been discarded' <<<"$err" \
+  && head -1 "$sd261/seen" | grep -q '^#mrw-seen v5 '; } && ok "tells the notice, claiming no discard, and replaces the ledger" || bad "stale read: $err"
+
+# 262. ADR-157: a read and a plan that name mrw's own state are refused with no
+# --root advice, which no --root could satisfy; the pair, a path that leaves the
+# root, keeps it. A create fed two byte order marks names both; one is named as one.
+fixture
+XDG_STATE_HOME="$R/st262" m read a.go >"$WORK/served.out"
+led262=$(XDG_STATE_HOME="$R/st262" m seen | head -1)
+rel262="st262/mrw/$(basename "$led262")/seen"
+out=$(XDG_STATE_HOME="$R/st262" m read "$rel262" 2>&1); want 1 $? "a read of mrw's own ledger is refused"
+{ grep -q 'own state directory' <<<"$out" && ! grep -q 'pointed where you mean' <<<"$out"; } && ok "with no --root advice" || bad "own-state read: $out"
+printf '@@ %s 1 replace\nx\n' "$rel262" > "$WORK/p262"
+out=$(XDG_STATE_HOME="$R/st262" m write --no-check "$WORK/p262" 2>&1); want 1 $? "a plan naming it is refused"
+{ grep -q 'own state directory' <<<"$out" && ! grep -q 'may only change files under' <<<"$out"; } && ok "with no --root advice either" || bad "own-state plan: $out"
+mkdir -p "$WORK/out262" && echo x > "$WORK/out262/x.txt" && ln -s "$WORK/out262" "$R/out262"
+out=$(m read out262/x.txt 2>&1); want 1 $? "the pair: a path that leaves the root through a link is refused"
+grep -q 'pointed where you mean' <<<"$out" && ok "and keeps its --root advice" || bad "outside the root: $out"
+printf '\357\273\277\357\273\277one\n' > "$WORK/bom262"
+err=$(m write --create b262.txt < "$WORK/bom262" 2>&1 >/dev/null); want 0 $? "a create fed two byte order marks lands"
+grep -q 'begins with 2 UTF-8 byte order marks' <<<"$err" && ok "and names both" || bad "two marks: $err"
+printf '\357\273\277one\n' > "$WORK/bom262b"
+err=$(m write --create b262b.txt < "$WORK/bom262b" 2>&1 >/dev/null); want 0 $? "the pair: a create fed one mark lands"
+grep -q 'begins with a UTF-8 byte order mark' <<<"$err" && ok "and names it as one" || bad "one mark: $err"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

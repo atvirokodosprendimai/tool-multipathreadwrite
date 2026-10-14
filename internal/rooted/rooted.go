@@ -182,7 +182,7 @@ func resolveIn(absRoot, path string) (string, error) {
 		q = RealAsFarAsItExists(target)
 	}
 	if inState(q) {
-		return "", fmt.Errorf("%s is inside mrw's own state directory; mrw does not serve or edit its own ledger", path)
+		return "", fmt.Errorf("%s is inside mrw's own state directory; %w", path, ErrOwnState)
 	}
 	// ADR-134: a second name of a state file is the state file.
 	if err := hardLinkRefusal(absRoot, q, path); err != nil {
@@ -252,6 +252,11 @@ func UnkeepableName(err error) bool {
 func RefusedByName(err error) bool {
 	return errors.Is(err, ErrDeviceName) || errors.Is(err, ErrWin32Alias)
 }
+
+// ErrOwnState is the refusal of a path in mrw's own state directory, or of a
+// second name of a file there (ADR-077, ADR-134). No --root lifts it, so a
+// caller adds no --root advice to it, as for RefusedByName (ADR-157 Decision 6).
+var ErrOwnState = errors.New("mrw does not serve or edit its own ledger")
 
 // errViaLink marks a device-name refusal reached through a link.
 var errViaLink = errors.New("through a link")
@@ -525,7 +530,7 @@ func (r *Resolver) Resolve(path string) (string, error) {
 		return resolveIn(r.absRoot, path)
 	}
 	if d.in || (!r.none && Contains(r.b, check)) {
-		return "", fmt.Errorf("%s is inside mrw's own state directory; mrw does not serve or edit its own ledger", path)
+		return "", fmt.Errorf("%s is inside mrw's own state directory; %w", path, ErrOwnState)
 	}
 	// ADR-134: the same file as one under the state base, by another name.
 	if !r.none {

@@ -206,9 +206,11 @@ func (p *Prepared) Land() (*Landed, error) {
 	return l, nil
 }
 
-// newerLedger appends ADR-150's sentence to each not-read refusal when the
-// ledger was written by a newer mrw: mrw_write has no stderr, and "has not been
-// read" after a read would otherwise look like a bug.
+// newerLedger replaces each not-read refusal's reason with ADR-150's sentence
+// when the ledger was written by a newer mrw (ADR-157 Decision 1): "has not been
+// read" after a read looks like a bug, and its advice, to read the file or pass
+// --force, cannot license the write. mrw_write has no stderr, so the refusal
+// carries the cause; its kind stays NotRead, so stats still counts it.
 func newerLedger(root string, res *apply.Result) {
 	if res.Failed == 0 {
 		return
@@ -219,9 +221,25 @@ func newerLedger(root string, res *apply.Result) {
 	}
 	for i, h := range res.Hunks {
 		if h.Kind == refusal.NotRead {
-			res.Hunks[i].Reason += "; " + strings.TrimPrefix(seen.NewerNotice(writer), "mrw: ")
+			res.Hunks[i].Reason = h.Path + " cannot be edited by this mrw: " + strings.TrimPrefix(seen.NewerNotice(writer), "mrw: ")
 		}
 	}
+}
+
+// NewerUntold is ADR-150's sentence when the ledger was written by a newer mrw
+// and no refusal in res carries it, and "" otherwise (ADR-157 Decision 2): the
+// CLI says it once for a write, in a refusal or after the landing, never both.
+func NewerUntold(root string, res apply.Result) string {
+	writer, newer, err := seen.Newer(root)
+	if err != nil || !newer {
+		return ""
+	}
+	for _, h := range res.Hunks {
+		if h.Kind == refusal.NotRead {
+			return ""
+		}
+	}
+	return seen.NewerNotice(writer)
 }
 
 // CheckDue says whether this write's check runs: only on a real landing and
