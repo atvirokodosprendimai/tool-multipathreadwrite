@@ -90,6 +90,7 @@ out=$(mktemp) \
 - 2026-10-14 · 85bfc8b5* · mutant killed · exit 1 · `internal/apply/apply.go` · a plan naming the own state is told it may only change files under the root again · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05
 - 2026-10-14 · 85bfc8b5* · mutant killed · exit 1 · `internal/check/check.go` · a check naming the own state is told --root pointed where you mean again · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05
 - 2026-10-14 · 85bfc8b5* · mutant killed · exit 1 · `internal/ingest/create.go` · two byte order marks are named as one again · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05
+- 2026-10-14 · 064c80ff* · mutant killed · exit 1 · `README.md` · README gives the POSIX shells a form that does not hold, the gap the re-review of #412 found · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05
 
 ## Verification Log
 (empty until execute)
@@ -122,6 +123,8 @@ out=$(mktemp) \
 - 2026-10-14 · 85bfc8b5* · exit 0 · `set -o pipefail …` · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05 · ms:1344
 - 2026-10-14 · 85bfc8b5* · exit 0 · `set -o pipefail …` · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05 · ms:1339
 - 2026-10-14 · 85bfc8b5* · exit 0 · `set -o pipefail …` · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05 · ms:1316
+- 2026-10-14 · 064c80ff* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05 · ms:0 · test-lock-sha256:da40c53e088b20f36ada7bcdd0aa85ac4efd49e8978b4d51eb9082c379a62241 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9kb2NzMTU3X3Rlc3QuZ28JVGVzdFRoZURvY3NRdW90ZUFKU09OUGF0aFBlclNoZWxsCWNjNDFjZjU0MWQzN2UyYjA5MjBkODU5YzI0ZTM2Mjk3OTQ0NzBiNzA0MDU2MTEwOTE2ODJlZmRjY2I2NjJkYzEKYm9keQljbWQvbXJ3L293bnN0YXRlMTU3X3Rlc3QuZ28JVGVzdFRoZU93blN0YXRlUmVmdXNhbE9mZmVyc05vUm9vdEFkdmljZQkxNDkwOWM0ZDhjNThiYzc0ZDYzZDY3ZWIzYzJlZjM2NDZkNzRiMWY5MWY5ZjNjYjgwNmRkMzcxMDQ4MGRlYmFlCmJvZHkJaW50ZXJuYWwvaW5nZXN0L2JvbTE1N190ZXN0LmdvCVRlc3RBQ3JlYXRlTmFtZXNFdmVyeUxlYWRpbmdCeXRlT3JkZXJNYXJrCWYxMDc4MDkzYTc2ZTdlNjFiNDY1M2U3NzFkNzdiNTAxZTFiYTcxYmFhNTc2MmUxZTg2N2RjMTU1OGI2NGMzYzQ · test-lock-kind:replace
+- 2026-10-14 · 064c80ff* · exit 0 · `set -o pipefail …` · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05 · ms:1535
 
 ## Invariants
 

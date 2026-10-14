@@ -14,7 +14,7 @@ func TestTheDocsQuoteAJSONPathPerShell(t *testing.T) {
 		"pwsh 7 takes `'t.json:$[\"k\"]'`",
 		"Windows PowerShell 5.1 needs `'t.json:$[\\\"k\\\"]'`",
 		"cmd needs `\"t.json:$[\\\"k\\\"]\"`",
-		"Git Bash",
+		"Git Bash and other POSIX shells take single quotes",
 	}
 	for _, doc := range []string{"../../AGENTS.md", "../../README.md"} {
 		b, err := os.ReadFile(doc)
