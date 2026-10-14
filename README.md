@@ -65,6 +65,8 @@ plus the `N` lines after it, so `12,+2` is 12–14), `/pattern/`, or
 there, or a file that is not one JSON document, is a range not served (exit 1), and a plan
 refuses the form, so read it and address the lines (ADR-155). Output ranges print as `@@ 3-6`, which is
 the address a write plan takes.
+Quote a JSON path for the shell: pwsh 7 takes `'t.json:$["k"]'`, Windows PowerShell 5.1 needs `'t.json:$[\"k\"]'`,
+cmd needs `"t.json:$[\"k\"]"`, and Git Bash and other POSIX shells take single quotes; an unquoted `[0]` is a glob (ADR-157).
 
 `--grep` walks and serves in one call. A named directory is walked; with no
 paths the walk starts at `--root`. `--exclude GLOB` is repeatable and matches

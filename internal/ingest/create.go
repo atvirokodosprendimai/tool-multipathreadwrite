@@ -42,8 +42,19 @@ func CheckCreatePath(path string) error {
 // it is kept and named. Each note is one line, without the "mrw:" prefix.
 func CreateContent(raw []byte) ([]byte, []string) {
 	var notes []string
-	if bytes.HasPrefix(raw, []byte("\xef\xbb\xbf")) {
+	// Windows PowerShell 5.1 under code page 65001 with a $OutputEncoding that
+	// has a preamble pipes two marks; each is kept, and the note counts them
+	// (ADR-157 Decision 7).
+	bom := []byte("\xef\xbb\xbf")
+	marks := 0
+	for bytes.HasPrefix(raw[3*marks:], bom) {
+		marks++
+	}
+	switch {
+	case marks == 1:
 		notes = append(notes, "the content begins with a UTF-8 byte order mark, kept as content (PowerShell adds one when $OutputEncoding is UTF-8 with a preamble, and Windows PowerShell 5.1 also when [Console]::InputEncoding is, as in a shell started under code page 65001)")
+	case marks > 1:
+		notes = append(notes, fmt.Sprintf("the content begins with %d UTF-8 byte order marks, kept as content (PowerShell adds one when $OutputEncoding is UTF-8 with a preamble, and Windows PowerShell 5.1 adds both when [Console]::InputEncoding has one too, as in a shell started under code page 65001)", marks))
 	}
 	body, cut := bytes.CutSuffix(raw, []byte("\r\n"))
 	switch {

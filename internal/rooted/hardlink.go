@@ -20,14 +20,14 @@ type fileKey struct{ vol, idx uint64 }
 
 // errHardLinked is the refusal for a second name of a state file.
 func errHardLinked(path string) error {
-	return fmt.Errorf("%s is a hard link to a file in mrw's own state directory; mrw does not serve or edit its own ledger", path)
+	return fmt.Errorf("%s is a hard link to a file in mrw's own state directory; %w", path, ErrOwnState)
 }
 
 // errNotComparable is the refusal when a file has a second name and the state
 // base cannot be examined to the end: refused, since "nothing was found" from a
 // comparison that did not finish would serve the ledger by an alias.
 func errNotComparable(path string) error {
-	return fmt.Errorf("%s has more than one name, and mrw cannot tell whether one is a file in its own state directory; mrw does not serve or edit its own ledger", path)
+	return fmt.Errorf("%s has more than one name, and mrw cannot tell whether one is a file in its own state directory; %w", path, ErrOwnState)
 }
 
 // stateLinks answers whether a file is a second name of a file in THIS

@@ -2498,7 +2498,7 @@ func resolve(root, path string) (string, error) {
 	// ADR-081: a name refused for its spelling (a device name, a name Windows
 	// does not keep as written) is not an escape from the root, and the advice
 	// below fits only an escape (the review of #243).
-	if rooted.RefusedByName(err) {
+	if rooted.RefusedByName(err) || errors.Is(err, rooted.ErrOwnState) {
 		return "", err
 	}
 	if err != nil {

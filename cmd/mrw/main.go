@@ -166,15 +166,19 @@ func rootCommand() *cli.Command {
 			if verb != "version" && verb != "instructions" {
 				migrateLegacyState()
 			}
-			// version, instructions and stats never read the ledger (ADR-136).
+			// version, instructions and stats never read the ledger (ADR-136), and
+			// help — asked for by name, or a bare mrw — uses none (ADR-157).
 			switch verb {
-			case "version", "instructions", "stats":
+			case "version", "instructions", "stats", "help", "h", "":
 				return ctx, nil
 			}
 			// A newer mrw's ledger is not stale: it is left alone, and the caller
 			// is told which binary wrote it (ADR-150).
 			if writer, newer, err := seen.Newer(cmd.String("root")); err == nil && newer {
-				fmt.Fprintln(os.Stderr, seen.NewerNotice(writer))
+				// A write says it once, in a refusal or after its landing (ADR-157).
+				if verb != "write" {
+					fmt.Fprintln(os.Stderr, seen.NewerNotice(writer))
+				}
 			} else if stale, err := seen.IsStale(cmd.String("root")); err == nil && stale {
 				fmt.Fprintln(os.Stderr, seen.StaleNotice)
 			} else if tellsLedgerDamage(cmd.Args().First()) {
@@ -649,6 +653,17 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 					n, plural(n, "y", "ies"), filepath.Dir(dir))
 				if n > 1 {
 					fmt.Println("# `mrw seen --prune` removes the ones whose checkout is gone")
+				}
+			}
+			// ADR-157: which mrw wrote the ledger, and whether this one uses it.
+			if h, err := seen.Header(root); err == nil && h.Exists {
+				switch {
+				case h.Newer:
+					fmt.Printf("# ledger written by a newer mrw (%s), format v%s: left untouched, licenses nothing\n", h.Writer, h.Format)
+				case h.Older:
+					fmt.Println("# ledger in an older format: not used; mrw replaces it the next time it records a read or a write")
+				default:
+					fmt.Printf("# ledger format v%s, written by %s\n", h.Format, h.Writer)
 				}
 			}
 
@@ -1180,6 +1195,18 @@ held or went unchecked.`,
 			thenShFlag(&asked),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			// ADR-157: a write under a newer ledger says ADR-150's sentence once,
+			// in a refusal that carries it or on stderr, whichever way it returns:
+			// a plan that does not parse returns long before the landing (the
+			// review of #412).
+			newerTold := false
+			defer func() {
+				if !newerTold {
+					if notice := writer.NewerUntold(cmd.Root().String("root"), apply.Result{}); notice != "" {
+						fmt.Fprintln(os.Stderr, notice)
+					}
+				}
+			}()
 			if err := refusePaddedArgs(cmd); err != nil {
 				return err
 			}
@@ -1471,6 +1498,12 @@ held or went unchecked.`,
 			}
 			// Land counted the landing, whatever it was.
 			tallied = true
+			// Past the landing the receipt decides (ADR-157): a refusal in it
+			// carries ADR-150's sentence, or it is said here.
+			newerTold = true
+			if notice := writer.NewerUntold(root, land.Res); notice != "" {
+				fmt.Fprintln(os.Stderr, notice)
+			}
 			if land.Res.Applied && !land.Res.DryRun {
 				emitNotes()
 			}

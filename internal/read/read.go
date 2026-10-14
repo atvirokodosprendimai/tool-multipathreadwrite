@@ -519,6 +519,12 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			problems++
 			continue
 		}
+		if errors.Is(err, rooted.ErrOwnState) {
+			// ADR-157: no --root lifts this refusal, so none is advised.
+			fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, err)
+			problems++
+			continue
+		}
 		if err != nil {
 			// The same boundary the write path enforces. Serving a file the
 			// caller did not scope is a smaller harm than writing one, and it
