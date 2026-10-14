@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -440,5 +441,65 @@ func TestAnAttemptLeavesNothingRunning(t *testing.T) {
 	if err := exec.Command("kill", "-0", pid).Run(); err == nil {
 		_ = exec.Command("kill", "-9", pid).Run()
 		t.Fatalf("the attempt's background process %s outlived it", pid)
+	}
+}
+
+// TestAFailingExitIsAnErrorAndAnInterruptStopsTheStage: a CLI that prints a
+// success result and exits 1 is an error; a signal to bench during an attempt
+// stops the stage, writes no receipt for that attempt and starts no other; and
+// an excluded attempt's missing replacement fails Verify (the re-review of #411).
+func TestAFailingExitIsAnErrorAndAnInterruptStopsTheStage(t *testing.T) {
+	opts, _ := runOptions(t)
+	work := filepath.Dir(opts.Out)
+	result := `printf '%s\n' '{"type":"system","subtype":"init","model":"m","tools":[],"mcp_servers":[]}' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash"}]}}' '{"type":"result","subtype":"success","is_error":false,"num_turns":1,"total_cost_usd":0.1,"usage":{}}'`
+	stub := func(name, body string) string {
+		p := filepath.Join(work, name)
+		script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = \"--version\" ] && { echo \"9.9.9 (Claude Code)\"; exit 0; }; done\n" + body + "\n"
+		if err := os.WriteFile(p, []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	o := opts
+	o.Claude, o.Configs, o.Out = stub("claude-exit1", result+"\nexit 1"), []string{"A"}, filepath.Join(work, "exit1")
+	if err := Run(o); err != nil {
+		t.Fatal(err)
+	}
+	var r Receipt
+	b, _ := os.ReadFile(filepath.Join(o.Out, "fix-one.A.stub-model.1.receipt.json"))
+	if err := json.Unmarshal(b, &r); err != nil || !r.IsError || r.ExitCode != 1 {
+		t.Errorf("a success result with exit 1: %+v %v, want is_error", r, err)
+	}
+
+	o = opts
+	o.Out = filepath.Join(work, "interrupted")
+	o.Claude = stub("claude-int", "kill -INT "+strconv.Itoa(os.Getpid())+"\nsleep 30\n"+result)
+	err := Run(o)
+	if err == nil || !strings.Contains(err.Error(), "interrupted") {
+		t.Fatalf("an interrupt did not stop the stage: %v", err)
+	}
+	if got := receipts(t, o.Out); len(got) != 0 {
+		t.Errorf("an interrupted stage wrote receipts: %v", got)
+	}
+	starts, _ := filepath.Glob(filepath.Join(o.Out, "*.started"))
+	if len(starts) != 1 {
+		t.Errorf("started markers: %v, want only the interrupted attempt's", starts)
+	}
+
+	o = opts
+	o.Out = filepath.Join(work, "chain")
+	o.Configs = []string{"A"}
+	o.Claude = stub("claude-limit", "echo 'rate limit' >&2\nexit 1")
+	if err := Run(o); err != nil {
+		t.Fatal(err)
+	}
+	if err := Verify(o.Out, "test", 1, 1); err != nil {
+		t.Fatalf("a complete chain did not verify: %v", err)
+	}
+	if err := os.Remove(filepath.Join(o.Out, "fix-one.A.stub-model.1.r2.receipt.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := Verify(o.Out, "test", 1, 1); err == nil || !strings.Contains(err.Error(), ".r2") {
+		t.Errorf("a missing replacement verified: %v", err)
 	}
 }

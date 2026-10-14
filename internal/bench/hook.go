@@ -56,8 +56,6 @@ func oneLine(s string) string {
 
 var (
 	heredoc  = regexp.MustCompile(`<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)['"]?`)
-	single   = regexp.MustCompile(`'[^']*'`)
-	double   = regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
 	subst    = regexp.MustCompile("\\$\\(([^()]*)\\)|`([^`]*)`")
 	arith    = regexp.MustCompile(`\$\(\([^()]*\)\)`)
 	redirect = regexp.MustCompile(`(?:^|[^0-9&<>=\-|])(?:[0-9]?>>?|&>>?)\s*(&?[^\s;&|<>()]+)`)
@@ -127,7 +125,8 @@ func ClassifyBash(cmd string) (string, []string) {
 
 func classify(cmd string, depth int) (string, []string) {
 	rest, expanded := splitHeredocs(cmd)
-	live := arith.ReplaceAllString(single.ReplaceAllString(rest, "''")+"\n"+strings.Join(expanded, "\n"), "0")
+	quotedLive, bare := scanQuotes(rest)
+	live := arith.ReplaceAllString(quotedLive+"\n"+strings.Join(expanded, "\n"), "0")
 	var reads []string
 	for _, m := range subst.FindAllStringSubmatch(live, -1) {
 		inner := m[1] + m[2]
@@ -143,7 +142,6 @@ func classify(cmd string, depth int) (string, []string) {
 	if strings.Contains(subst.ReplaceAllString(live, ""), "$(") {
 		return "a command substitution the hook cannot inspect", reads
 	}
-	bare := double.ReplaceAllString(single.ReplaceAllString(rest, "''"), `""`)
 	reads = append(reads, readsOf(bare)...)
 	for _, m := range redirect.FindAllStringSubmatch(bare, -1) {
 		if target := m[1]; target != "/dev/null" && !dupFD.MatchString(target) {
@@ -152,6 +150,10 @@ func classify(cmd string, depth int) (string, []string) {
 	}
 	for _, seg := range pipelineParts(bare) {
 		w := strings.Fields(seg)
+		if len(w) == 0 {
+			continue
+		}
+		w = commandWords(w)
 		if len(w) == 0 {
 			continue
 		}
@@ -175,6 +177,82 @@ func classify(cmd string, depth int) (string, []string) {
 		}
 	}
 	return "", reads
+}
+
+// scanQuotes reads a command once, tracking quotes as the shell does. live is
+// the text the shell expands — unquoted text and the inside of double quotes —
+// and bare is the unquoted text alone; single-quoted text is in neither. Doing
+// it in one pass is what keeps `echo "'"; touch f; echo "'"` from losing the
+// command between the apostrophes (the re-review of #411).
+func scanQuotes(s string) (live, bare string) {
+	var l, b strings.Builder
+	const none, inSingle, inDouble = 0, 1, 2
+	state := none
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch state {
+		case none:
+			switch {
+			case c == '\\' && i+1 < len(s):
+				l.WriteString(s[i : i+2])
+				b.WriteString(s[i : i+2])
+				i++
+			case c == '\'':
+				state = inSingle
+				l.WriteString("''")
+				b.WriteString("''")
+			case c == '"':
+				state = inDouble
+				b.WriteString(`""`)
+			default:
+				l.WriteByte(c)
+				b.WriteByte(c)
+			}
+		case inSingle:
+			if c == '\'' {
+				state = none
+			}
+		case inDouble:
+			switch {
+			case c == '\\' && i+1 < len(s):
+				l.WriteString(s[i : i+2])
+				i++
+			case c == '"':
+				state = none
+				l.WriteByte(' ')
+			default:
+				l.WriteByte(c)
+			}
+		}
+	}
+	return l.String(), b.String()
+}
+
+// wrappers run the command that follows them; the hook judges that command.
+var wrappers = map[string]bool{"env": true, "command": true, "builtin": true, "exec": true, "nohup": true, "time": true, "nice": true, "stdbuf": true, "xargs": true, "sudo": true, "timeout": true}
+
+// commandWords drops what stands before the command a simple command runs:
+// variable assignments, and wrappers such as env, with their options and, for
+// timeout, its duration — so `env cp a b` is judged as cp.
+func commandWords(w []string) []string {
+	for len(w) > 0 {
+		switch {
+		case regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`).MatchString(w[0]):
+			w = w[1:]
+		case wrappers[filepath.Base(w[0])]:
+			timeout := filepath.Base(w[0]) == "timeout"
+			w = w[1:]
+			for len(w) > 0 && strings.HasPrefix(w[0], "-") {
+				w = w[1:]
+			}
+			if timeout && len(w) > 0 {
+				w = w[1:]
+			}
+		default:
+			return w
+		}
+	}
+	return w
 }
 
 // pipelineParts splits a command into its simple commands: segments, and the
@@ -202,6 +280,9 @@ func readsOf(cmd string) []string {
 		for _, part := range strings.Split(seg, "|") {
 			w := strings.Fields(part)
 			if len(w) == 0 || !readers[filepath.Base(w[0])] {
+				continue
+			}
+			if w = commandWords(w); len(w) == 0 {
 				continue
 			}
 			head := filepath.Base(w[0])

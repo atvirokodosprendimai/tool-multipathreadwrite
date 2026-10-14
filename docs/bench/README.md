@@ -37,7 +37,7 @@ in, and configuration A's is refused if `mrw` is anywhere on it.
   - `commit` — the full sha the base tree is taken from;
   - `instruction` — what the agent is told; it names no tool;
   - `slack` — how many lines either side of the fix's own insertion point new lines may also go (default 0); it never licenses changing a line the fix leaves alone;
-  - `exact` — the finished file must hold every line the fix adds, so a call site commented out fails though its tokens survive (the renames);
+  - `exact` — each touched file must equal the reference result, so a call site commented out or kept in a block comment fails though its tokens survive (the renames);
   - `require`, `forbid` — `{file, match}` regular expressions over the finished file.
 - `reference.patch` — the fix, as `git diff` writes it. Its changed lines, not its context lines, are the allowed regions.
 - `base/` — a fixture's whole base tree.
@@ -63,7 +63,9 @@ deleted.
   same directory is refused.
 - `<task>.<config>.<model>.<repeat>.started` — written before the attempt starts.
   An attempt with this file and no receipt crashed or was stopped, and is not run
-  again on resume. An excluded attempt's replacement is `<attempt>.r1` (`.r2`).
+  again on resume; an interrupt to `bench` leaves the attempt in flight just so,
+  and stops the stage. An excluded attempt's replacement is `<attempt>.r1`
+  (`.r2`), and `bench verify` wants each one a stage is owed.
 - `….receipt.json` — written once, never replaced:
   `attempt`, `stage`, `task`, `shape`, `source`, `model`, `config`, `repeat`,
   `order`, `started`, `wall_ms`, `cli_version`, `mrw_version` (B only),

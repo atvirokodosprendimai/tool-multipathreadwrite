@@ -49,16 +49,19 @@ type Task struct {
 	Require     []Match `json:"require"`
 	Forbid      []Match `json:"forbid,omitempty"`
 
-	Dir     string              `json:"-"`
-	regions map[string][]hunk   // base-numbered hunks of the reference fix, by file
-	created map[string]bool     // files the reference fix creates
-	added   map[string][]string // the lines the reference fix adds, by file; an Exact task requires each
+	Dir     string            `json:"-"`
+	regions map[string][]hunk // base-numbered hunks of the reference fix, by file
+	created map[string]bool   // files the reference fix creates
 }
 
 // hunk is one change in base numbering: Count lines from Start are replaced,
 // or, when Count is 0, lines are inserted after line Start. Added is how many
-// lines the change leaves in their place.
-type hunk struct{ Start, Count, Added int }
+// lines the change leaves in their place, and Lines, for the reference fix, are
+// those lines.
+type hunk struct {
+	Start, Count, Added int
+	Lines               []string
+}
 
 // LoadTask reads DIR/task.json and DIR/reference.patch.
 func LoadTask(dir string) (Task, error) {
@@ -94,7 +97,7 @@ func LoadTask(dir string) (Task, error) {
 	if err != nil {
 		return t, err
 	}
-	t.regions, t.created, t.added, err = parsePatch(patch)
+	t.regions, t.created, err = parsePatch(patch)
 	if err != nil {
 		return t, fmt.Errorf("%s: reference.patch: %w", dir, err)
 	}
@@ -164,26 +167,26 @@ func (t Task) coversInsertion(file string, n int) bool {
 var hunkHeader = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@`)
 
 // parsePatch reads a unified diff as git writes it and returns each file's
-// hunks in base numbering, the files it creates, and the lines it adds. A
-// hunk's body is consumed by its counts, so a changed line that itself begins
+// hunks in base numbering, with the lines each adds, and the files it creates.
+// A hunk's body is consumed by its counts, so a changed line that itself begins
 // "--- " is not taken for a file header.
-func parsePatch(b []byte) (map[string][]hunk, map[string]bool, map[string][]string, error) {
+func parsePatch(b []byte) (map[string][]hunk, map[string]bool, error) {
 	regions := map[string][]hunk{}
 	created := map[string]bool{}
-	addedLines := map[string][]string{}
 	file, fromNull := "", false
 	remOld, remNew := 0, 0
 	// A run is a stretch of - and + lines between context lines; it is one
 	// region, in base numbering, so a fix's context lines widen nothing.
 	oldLine, runStart, runDel, runAdd := 0, 0, 0, 0
+	var runLines []string
 	flush := func() {
 		switch {
 		case runDel > 0:
-			regions[file] = append(regions[file], hunk{Start: runStart, Count: runDel, Added: runAdd})
+			regions[file] = append(regions[file], hunk{Start: runStart, Count: runDel, Added: runAdd, Lines: runLines})
 		case runAdd > 0:
-			regions[file] = append(regions[file], hunk{Start: runStart - 1, Count: 0, Added: runAdd})
+			regions[file] = append(regions[file], hunk{Start: runStart - 1, Count: 0, Added: runAdd, Lines: runLines})
 		}
-		runDel, runAdd = 0, 0
+		runDel, runAdd, runLines = 0, 0, nil
 	}
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	sc.Buffer(make([]byte, 1<<20), 1<<24)
@@ -209,10 +212,10 @@ func parsePatch(b []byte) (map[string][]hunk, map[string]bool, map[string][]stri
 				}
 				runAdd++
 				remNew--
-				addedLines[file] = append(addedLines[file], l[1:])
+				runLines = append(runLines, l[1:])
 			case strings.HasPrefix(l, `\`):
 			default:
-				return nil, nil, nil, fmt.Errorf("hunk body line %q", l)
+				return nil, nil, fmt.Errorf("hunk body line %q", l)
 			}
 			if remOld == 0 && remNew == 0 {
 				flush()
@@ -226,7 +229,7 @@ func parsePatch(b []byte) (map[string][]hunk, map[string]bool, map[string][]stri
 			fromNull = l == "--- /dev/null"
 		case strings.HasPrefix(l, "+++ "):
 			if l == "+++ /dev/null" {
-				return nil, nil, nil, fmt.Errorf("a reference fix may not delete a file")
+				return nil, nil, fmt.Errorf("a reference fix may not delete a file")
 			}
 			file = strings.TrimPrefix(strings.TrimPrefix(l, "+++ "), "b/")
 			created[file] = fromNull
@@ -236,7 +239,7 @@ func parsePatch(b []byte) (map[string][]hunk, map[string]bool, map[string][]stri
 		case strings.HasPrefix(l, "@@ "):
 			m := hunkHeader.FindStringSubmatch(l)
 			if m == nil || file == "" {
-				return nil, nil, nil, fmt.Errorf("unreadable hunk header %q", l)
+				return nil, nil, fmt.Errorf("unreadable hunk header %q", l)
 			}
 			start, _ := strconv.Atoi(m[1])
 			count, added := 1, 1
@@ -255,9 +258,9 @@ func parsePatch(b []byte) (map[string][]hunk, map[string]bool, map[string][]stri
 		}
 	}
 	if remOld > 0 || remNew > 0 {
-		return nil, nil, nil, fmt.Errorf("the last hunk is cut short")
+		return nil, nil, fmt.Errorf("the last hunk is cut short")
 	}
-	return regions, created, addedLines, sc.Err()
+	return regions, created, sc.Err()
 }
 
 // instructionNames are the files and directories an agent host reads as

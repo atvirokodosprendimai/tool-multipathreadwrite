@@ -38,7 +38,7 @@ Decisions 1, 2, 4 and 6: the runner that starts the CLI, grades with the oracle 
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/bench/ ./cmd/bench/ -count=1 -timeout 600s -run 'TestTheRunnerRecordsAReceiptPerAttemptFromAStubClaude|TestTheRunnerRefusesToOverwriteAnEarlierRunsReceipts|TestTheRunnerResumesWithoutRepeatingAStartedAttempt|TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads|TestASlippedWriteIsFoundFromTheLedger|TestTheCanaryFailsWhenTheTranscriptNamesMrwOrUserInstructions|TestTheCanaryRunsBothConfigurationsAndRecordsItsVerdict|TestVerifyNamesAnAttemptWithNoReceipt|TestTheRunnerRefusesWithoutTheGatesZyHolds|TestAnExcludedAttemptIsReplacedAndKept|TestConfigurationAHasNoMrwOnItsPath|TestTheConfigDirectoryIsJudgedByIdentity|TestVerifyRefusesAReceiptThatIsNotItsAttempt|TestAnAttemptLeavesNothingRunning' -v 2>&1 | tee "$out" \
+  && go test ./internal/bench/ ./cmd/bench/ -count=1 -timeout 600s -run 'TestTheRunnerRecordsAReceiptPerAttemptFromAStubClaude|TestTheRunnerRefusesToOverwriteAnEarlierRunsReceipts|TestTheRunnerResumesWithoutRepeatingAStartedAttempt|TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads|TestASlippedWriteIsFoundFromTheLedger|TestTheCanaryFailsWhenTheTranscriptNamesMrwOrUserInstructions|TestTheCanaryRunsBothConfigurationsAndRecordsItsVerdict|TestVerifyNamesAnAttemptWithNoReceipt|TestTheRunnerRefusesWithoutTheGatesZyHolds|TestAnExcludedAttemptIsReplacedAndKept|TestConfigurationAHasNoMrwOnItsPath|TestTheConfigDirectoryIsJudgedByIdentity|TestVerifyRefusesAReceiptThatIsNotItsAttempt|TestAnAttemptLeavesNothingRunning|TestAFailingExitIsAnErrorAndAnInterruptStopsTheStage' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestTheRunnerRecordsAReceiptPerAttemptFromAStubClaude \(' "$out" \
   && grep -qE '^--- PASS: TestTheRunnerRefusesToOverwriteAnEarlierRunsReceipts \(' "$out" \
   && grep -qE '^--- PASS: TestTheRunnerResumesWithoutRepeatingAStartedAttempt \(' "$out" \
@@ -53,6 +53,7 @@ out=$(mktemp) \
   && grep -qE '^--- PASS: TestTheConfigDirectoryIsJudgedByIdentity \(' "$out" \
   && grep -qE '^--- PASS: TestVerifyRefusesAReceiptThatIsNotItsAttempt \(' "$out" \
   && grep -qE '^--- PASS: TestAnAttemptLeavesNothingRunning \(' "$out" \
+  && grep -qE '^--- PASS: TestAFailingExitIsAnErrorAndAnInterruptStopsTheStage \(' "$out" \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -74,6 +75,7 @@ out=$(mktemp) \
 | `TestTheConfigDirectoryIsJudgedByIdentity` | `internal/bench/runner_test.go` | a link to the user's own `~/.claude` is refused | none | — |
 | `TestVerifyRefusesAReceiptThatIsNotItsAttempt` | `internal/bench/runner_test.go` | a corrupted receipt does not verify; the hook's paths are shell-quoted | none | — |
 | `TestAnAttemptLeavesNothingRunning` | `internal/bench/runner_test.go` | a background process the agent started does not outlive the attempt | none | — |
+| `TestAFailingExitIsAnErrorAndAnInterruptStopsTheStage` | `internal/bench/runner_test.go` | a success result with exit 1 is an error; an interrupt stops the stage with no receipt; a missing replacement fails Verify | none | — |
 
 ## Reachability
 
@@ -112,6 +114,18 @@ out=$(mktemp) \
   ```
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/runner.go` · the receipt drops the cost the CLI reported · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · covers:a receipt per attempt
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/runner.go` · a run with another plan reuses an earlier run's directory · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · covers:no overwrite of an earlier run
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/runner.go` · a started attempt with no receipt is run again · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · covers:resume repeats no started attempt
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/hook.go` · the hook never refuses · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · covers:configuration B's hook refuses other writes and counts reads
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/hook.go` · a file changed after mrw recorded it is not a slip · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · covers:a slipped write is found from the ledger
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/hook.go` · a write inside a command substitution passes · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · covers:configuration B's hook refuses other writes and counts reads
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/hook.go` · a redirection to &file passes as a descriptor · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · covers:configuration B's hook refuses other writes and counts reads
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/canary.go` · configuration A may name mrw · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · covers:the canary fails on a leak
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/runner.go` · the CLI is not reaped and its background process outlives the attempt · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · covers:a receipt per attempt
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/hook.go` · a write behind env passes · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · covers:configuration B's hook refuses other writes and counts reads
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/runner.go` · an interrupt lets the stage go on · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · covers:resume repeats no started attempt
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/runner.go` · Verify ignores a missing replacement · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · covers:a receipt per attempt
 
 ## Verification Log
 (empty until execute)
@@ -178,6 +192,32 @@ out=$(mktemp) \
 - 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:6573
 - 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:6506
 - 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:6345
+- 2026-10-14 · b16cc705* · exit 1 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:158
+  ```
+  --- last 10 line(s) of stdout (of 17 after folding 17 raw)
+  internal/bench/helpers_test.go:23:9: undefined: Task
+  internal/bench/helpers_test.go:42:9: undefined: Task
+  internal/bench/helpers_test.go:76:9: undefined: Task
+  internal/bench/oracle_test.go:122:35: undefined: Task
+  internal/bench/oracle_test.go:211:81: undefined: Task
+  internal/bench/runner_test.go:55:45: undefined: Task
+  internal/bench/runner_test.go:78:32: undefined: RunOptions
+  internal/bench/analyze_test.go:12:11: too many errors
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/bench [build failed]
+  FAIL
+  ```
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:11700
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:10253
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:9319
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:8811
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:9484
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:9553
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:9819
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:13186
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:12995
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:12118
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:13165
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:0550cba021dfc722e44e9ebdd561b13fd0cc2dbbbdec8bf98f7269015769d1da · ms:13570
 
 ## Invariants
 

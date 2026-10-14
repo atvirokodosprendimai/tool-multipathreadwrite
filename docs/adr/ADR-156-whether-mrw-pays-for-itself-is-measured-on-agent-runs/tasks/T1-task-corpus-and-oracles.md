@@ -104,6 +104,11 @@ out=$(mktemp) \
   ```
 - 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/oracle.go` · an exact task accepts a fix line commented out · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle refuses a stray edit
 - 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/oracle.go` · a binary, mode-only or deleting change passes · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle refuses a stray edit
+- 2026-10-14 · b16cc705* · mutant inconclusive · exit 1 · `internal/bench/oracle.go` · an exact task accepts a file that is not the reference result · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle refuses a stray edit
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
+- 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/oracle.go` · an exact task accepts a file that is not the reference result · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle refuses a stray edit
 
 ## Verification Log
 (empty until execute)
@@ -192,6 +197,9 @@ out=$(mktemp) \
   ```
 - 2026-10-14 · c430d730* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:0 · test-lock-sha256:2ed71a201fd26aa12d825f27e83386184ed9bb32fd0a1cf5d49050f41ca77180 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdEV2ZXJ5T3JhY2xlRmFpbHNPbkJhc2VQYXNzZXNPbkZpeEFuZFJlZnVzZXNBU3RyYXlFZGl0CTA5MDQ4MmM0MDM3MDdjYjJlYzQyMWNiOTBmZjQ5MDRlZjFjNDNiOTk1N2ViZWY5MjdkZjRmN2E3ODcxYjAzYzQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0U3RyaXBwaW5nUmVtb3Zlc0V2ZXJ5SW5zdHJ1Y3Rpb25GaWxlCTNmYTA0ZjE3ZDAyOWZkYWFkZjA3ODUzZWViZDlhNzJmMjA3Mzc5YmYzMTNkNjA0OTU0N2YzOTEwOTYwMGNmOGQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlQ29ycHVzSGFzVGhlUmVnaXN0ZXJlZFNoYXBlQ291bnRzCWU1ZDdjNDY0YzM4YzY1YTIxMzBjYmUzYjE2YjAxZDkwZTRhYTE3OTJmNWQ4ZDUzMTY2N2Y5MmM3Y2Y5MTkyYjMKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlT3JhY2xlUmVmdXNlc1doYXRUaGVSZXZpZXdGb3VuZAkxZjUxYWRmMjYzOTAzYThlYmJiN2JjZmRmYzE2M2VlMzlkMGIzNzkwYTQ4NGRkNTQzMzViODI4NDcyNTdmNWY2 · test-lock-kind:replace
 - 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:7997
+- 2026-10-14 · b16cc705* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:0 · test-lock-sha256:d8b4e577db98779e7b89829ddfbb2e6693c50d34571da25ac54ed02099904644 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdEV2ZXJ5T3JhY2xlRmFpbHNPbkJhc2VQYXNzZXNPbkZpeEFuZFJlZnVzZXNBU3RyYXlFZGl0CTA5MDQ4MmM0MDM3MDdjYjJlYzQyMWNiOTBmZjQ5MDRlZjFjNDNiOTk1N2ViZWY5MjdkZjRmN2E3ODcxYjAzYzQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0U3RyaXBwaW5nUmVtb3Zlc0V2ZXJ5SW5zdHJ1Y3Rpb25GaWxlCTNmYTA0ZjE3ZDAyOWZkYWFkZjA3ODUzZWViZDlhNzJmMjA3Mzc5YmYzMTNkNjA0OTU0N2YzOTEwOTYwMGNmOGQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlQ29ycHVzSGFzVGhlUmVnaXN0ZXJlZFNoYXBlQ291bnRzCWU1ZDdjNDY0YzM4YzY1YTIxMzBjYmUzYjE2YjAxZDkwZTRhYTE3OTJmNWQ4ZDUzMTY2N2Y5MmM3Y2Y5MTkyYjMKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlT3JhY2xlUmVmdXNlc1doYXRUaGVSZXZpZXdGb3VuZAk0OTlkMWRiNmY0NzlkMTY2Mzk1OGVjYWY3MTIxYzIwMDk3NmU5OGU2ZTYxYjQ5MGEyZjZiZjhmNTBkMzYwY2Rh · test-lock-kind:replace
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:16713
+- 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:13934
 
 ## Invariants
 

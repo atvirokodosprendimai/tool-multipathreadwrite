@@ -78,6 +78,8 @@ type Receipt struct {
 	SlippedWrites []string `json:"slipped_writes,omitempty"`
 	Exclusion     string   `json:"exclusion,omitempty"`
 	Note          string   `json:"note,omitempty"`
+
+	interrupted bool // stopped by a signal to bench: no receipt is written for it
 }
 
 // DiffStat is what the attempt changed, counted against its base.
@@ -201,6 +203,9 @@ func Run(o RunOptions) error {
 					return err
 				}
 				r = runAttempt(o, at, i, cli, mrwVersion)
+				if r.interrupted {
+					return fmt.Errorf("interrupted during %s: no receipt is written, the attempt stays started and is not repeated, and the stage stops here", at.ID)
+				}
 				b, err := json.MarshalIndent(r, "", "  ")
 				if err != nil {
 					return err
@@ -316,6 +321,18 @@ func Verify(dir, stage string, tasks, repeats int) error {
 					var r Receipt
 					if err := json.Unmarshal(b, &r); err != nil || r.Attempt != id || r.Task != t || r.Config != c || r.Model != m || r.Repeat != rep {
 						missing = append(missing, id+" (its receipt does not read back as this attempt)")
+						continue
+					}
+					// An excluded attempt is complete only with the replacement
+					// the registration owes it (the re-review of #411).
+					for try := 0; replaced(r.Exclusion, try); try++ {
+						next := fmt.Sprintf("%s.r%d", id, try+1)
+						b, err := os.ReadFile(filepath.Join(dir, next+".receipt.json"))
+						r = Receipt{}
+						if err != nil || json.Unmarshal(b, &r) != nil || r.Attempt != next {
+							missing = append(missing, next+" (the replacement an excluded attempt is owed)")
+							break
+						}
 					}
 				}
 			}
@@ -456,6 +473,7 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 	runErr := subproc.Run(cmd)
 	r.WallMS = time.Since(start).Milliseconds()
 	r.TimedOut = ctx.Err() == context.DeadlineExceeded
+	r.interrupted = ictx.Err() != nil && ctx.Err() == nil // a signal, not the budget
 	stopSignals()
 	cancel()
 	_ = stdout.Close()
@@ -471,7 +489,9 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 		return r
 	}
 	t := parseTranscript(b)
-	r.IsError, r.NumTurns, r.ToolCalls, r.CostUSD, r.Usage = t.IsError || !t.Result, t.NumTurns, t.ToolCalls, t.CostUSD, t.Usage
+	// A result that says success from a CLI that then exited non-zero is an
+	// error all the same (the re-review of #411).
+	r.IsError, r.NumTurns, r.ToolCalls, r.CostUSD, r.Usage = t.IsError || !t.Result || r.ExitCode != 0, t.NumTurns, t.ToolCalls, t.CostUSD, t.Usage
 	r.InitTools, r.InitMCP = t.Tools, t.MCPServers
 	r.OverBudget = r.TimedOut || t.NumTurns > MaxTurns
 	if errText, _ := os.ReadFile(base + ".stderr"); startFailed(t, r, string(errText)) {

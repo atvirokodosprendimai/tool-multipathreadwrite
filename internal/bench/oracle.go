@@ -54,21 +54,18 @@ func Oracle(t Task, dir string) (Verdict, error) {
 			}
 		}
 	}
+	// An exact task's touched files must be the reference result itself: a
+	// line it adds kept inside a block comment, or beside a deleted call site,
+	// still has every token and is not the fix (the reviews of #411).
 	if t.Exact {
-		for _, f := range sortedKeys(t.added) {
-			b, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(f)))
+		for _, f := range sortedKeys(t.regions) {
+			base, err := gitOut(dir, "show", "HEAD:"+f)
 			if err != nil {
-				v.Missing = append(v.Missing, f+": cannot be read")
-				continue
+				return v, err
 			}
-			have := map[string]bool{}
-			for _, l := range strings.Split(string(b), "\n") {
-				have[l] = true
-			}
-			for _, l := range t.added[f] {
-				if !have[l] {
-					v.Missing = append(v.Missing, fmt.Sprintf("%s: the line %q the fix adds is not there", f, l))
-				}
+			got, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(f)))
+			if err != nil || string(got) != reference(base, t.regions[f]) {
+				v.Missing = append(v.Missing, f+": is not the reference result")
 			}
 		}
 	}
@@ -173,7 +170,32 @@ func changes(dir string) ([]change, error) {
 	return cs, nil
 }
 
-func sortedKeys(m map[string][]string) []string {
+// reference is base with the reference fix's hunks applied: each replaces its
+// lines, or is inserted after its line, in base numbering.
+func reference(base string, hs []hunk) string {
+	lines := strings.SplitAfter(base, "\n")
+	var out []string
+	next := 1 // the next base line to copy
+	for _, h := range hs {
+		end := h.Start // copy through this line, then the change
+		if h.Count > 0 {
+			end = h.Start - 1
+		}
+		for ; next <= end && next <= len(lines); next++ {
+			out = append(out, lines[next-1])
+		}
+		for _, l := range h.Lines {
+			out = append(out, l+"\n")
+		}
+		next += h.Count
+	}
+	for ; next <= len(lines); next++ {
+		out = append(out, lines[next-1])
+	}
+	return strings.Join(out, "")
+}
+
+func sortedKeys(m map[string][]hunk) []string {
 	ks := make([]string, 0, len(m))
 	for k := range m {
 		ks = append(ks, k)

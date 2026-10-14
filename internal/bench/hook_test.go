@@ -58,6 +58,13 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 		"echo \"<<EOF\"; rm f",
 		"printf x >&out.txt",
 		"echo `touch f`",
+		// And what its re-review found:
+		"echo \"'$(touch f)'\"",
+		"echo \"'\"; touch f; echo \"'\"",
+		"env cp a.go b.go",
+		"FOO=1 rm f.go",
+		"timeout 5 mv a b",
+		"command touch f",
 	}
 	pass := []string{
 		"mrw read f.go:1-3",

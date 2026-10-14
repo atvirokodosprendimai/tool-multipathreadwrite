@@ -268,6 +268,9 @@ func TestTheOracleRefusesWhatTheReviewFound(t *testing.T) {
 		{"slack deleting the neighbour", insert, func(tree string) error {
 			return os.WriteFile(filepath.Join(tree, "s.yml"), []byte("a:\n  b: 1\n  x: 1\n  d: 1\n"), 0o644)
 		}, "outside"},
+		{"a fix line kept inside a block comment", exact, func(tree string) error {
+			return os.WriteFile(filepath.Join(tree, "r.go"), []byte("package r\n\nfunc init() {\n/*\n\tregister(sendMessage)\n*/\n}\n"), 0o644)
+		}, "missing"},
 		{"a fix line commented out", exact, func(tree string) error {
 			return os.WriteFile(filepath.Join(tree, "r.go"), []byte("package r\n\nfunc init() {\n\t// sendMessage\n}\n"), 0o644)
 		}, "missing"},
