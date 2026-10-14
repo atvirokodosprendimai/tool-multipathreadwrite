@@ -28,7 +28,7 @@ The same survey asked for `--limit N` "that keeps mrw's exit code (`| head` lose
 ## Decision
 
 1. **`mrw read --grep P --count`** prints, for each file the walk found, the header `--stat` prints with `  N matching line(s)` after it, then one total line `-- T matching line(s) in F file(s)`. A line counts once however many times it matches. No line is served; each file is recorded as `--stat` records it (its sha, no spans), so it licenses no write.
-2. **Exit codes are a grep's**: 0 when something matched; 1 with ADR-146's `mrw: no match:` when no file did; 1 `incomplete:` when a path was refused.
+2. **Exit codes are a grep's**: 0 when something matched; 1 with ADR-146's `mrw: no match:` when no file did; 1 `incomplete:` when a path was refused, or when a file the walk found no longer matches when it is read — that file says `!! no match for /P/` under its header, as a plain grep says it (the Codex review of #406).
 3. **`--count` needs `--grep`.** Without it — a named range, `--files-from`, the working set — it is a usage error, exit 2, naming `--grep`. With `--ast-grep` it is refused too: an ast-grep hit is a span of lines, not a line, and a count of hits beside a count of lines in one flag would mean two things.
 4. **Flags that act on served lines are refused beside it**, by name, exit 2: `--stat` (the count's header already carries it), `-C`, `--max-lines`, `--max-cols`, `-N`.
 5. **`mrw_read` takes `count`** with `grep`, under the same refusals (`max_lines`, `stat`, `ast_grep`, no `grep`). Its receipt gains `counts`, the count per file keyed as `observed` is; an answer too large for one result is refused as a capped read is (`cappedOverflow`), never turned into an index, because an index carries no counts.

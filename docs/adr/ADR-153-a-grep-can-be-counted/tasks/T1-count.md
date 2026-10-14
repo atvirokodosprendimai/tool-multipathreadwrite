@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `a line is counted once`, `a counted file licenses nothing`, `the CLI selects the count`, `a count needs a grep`, `flags on served lines are refused`, `mrw_read counts`, `the docs teach --count and --max-lines`
+**Rests-on:** `a line is counted once`, `a counted file licenses nothing`, `the CLI selects the count`, `a count needs a grep`, `flags on served lines are refused`, `mrw_read counts`, `the docs teach --count and --max-lines`, `a file that no longer matches is a miss`
 
 ## Goal
 
@@ -43,7 +43,7 @@ Decisions 1–6 of the record, with tests that fail before them.
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./cmd/mrw/ ./internal/mcp/ -count=1 -timeout 300s -run 'TestAGrepCountSaysHowManyLinesMatchAndLicensesNothing|TestACountWithoutAGrepOrBesideAServedLineFlagIsRefused|TestACountThatMatchesNothingExitsAsAGrep|TestMCPReadCountsWhatGrepMatches|TestTheReadReceiptMatchesItsSchema|TestNoShippedMCPReceiptFieldDisappears|TestEveryReadFlagIsTaughtByInstructions' -v 2>&1 | tee "$out" \
+  && go test ./cmd/mrw/ ./internal/mcp/ ./internal/read/ -count=1 -timeout 300s -run 'TestAGrepCountSaysHowManyLinesMatchAndLicensesNothing|TestACountWithoutAGrepOrBesideAServedLineFlagIsRefused|TestACountThatMatchesNothingExitsAsAGrep|TestMCPReadCountsWhatGrepMatches|TestTheReadReceiptMatchesItsSchema|TestNoShippedMCPReceiptFieldDisappears|TestEveryReadFlagIsTaughtByInstructions|TestACountOfAFileThatNoLongerMatchesIsAProblem' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestAGrepCountSaysHowManyLinesMatchAndLicensesNothing \(' "$out" \
   && grep -qE '^--- PASS: TestACountWithoutAGrepOrBesideAServedLineFlagIsRefused \(' "$out" \
   && grep -qE '^--- PASS: TestACountThatMatchesNothingExitsAsAGrep \(' "$out" \
@@ -51,6 +51,7 @@ out=$(mktemp) \
   && grep -qE '^--- PASS: TestTheReadReceiptMatchesItsSchema \(' "$out" \
   && grep -qE '^--- PASS: TestNoShippedMCPReceiptFieldDisappears \(' "$out" \
   && grep -qE '^--- PASS: TestEveryReadFlagIsTaughtByInstructions \(' "$out" \
+  && grep -qE '^--- PASS: TestACountOfAFileThatNoLongerMatchesIsAProblem \(' "$out" \
   && grep -q '^# 257\. ' scripts/contract.sh \
   && grep -q 'instead of `| head`' AGENTS.md \
   && [ -z "$(gofmt -l internal cmd)" ] \
@@ -68,6 +69,7 @@ out=$(mktemp) \
 | `TestTheReadReceiptMatchesItsSchema` | `internal/mcp/schema_test.go` | a counted answer's receipt matches the declared schema | none | S4 |
 | `TestNoShippedMCPReceiptFieldDisappears` | `internal/mcp/receipts111_test.go` | `mcp_read counts` is listed in `docs/receipts.txt` | none | S5 |
 | `TestEveryReadFlagIsTaughtByInstructions` | `cmd/mrw/instructions_test.go` | `mrw instructions` teaches `--count` | none | S5 |
+| `TestACountOfAFileThatNoLongerMatchesIsAProblem` | `internal/read/count153_test.go` | a file the walk found that no longer matches is a missed range and a problem, not a count of 0 at exit 0 (the Codex review of #406) | none | S2 |
 
 ## Reachability
 
@@ -99,6 +101,14 @@ out=$(mktemp) \
 - 2026-10-14 · 29f39646* · mutant killed · exit 1 · `cmd/mrw/main.go` · a flag that acts on served lines is taken beside --count · acceptance-sha256:9c075a5ef9d7f431034cf168251cfa501d6a68cff0af139d7b71f59c850a5225 · covers:flags on served lines are refused
 - 2026-10-14 · 29f39646* · mutant killed · exit 1 · `internal/mcp/tools.go` · mrw_read never carries counts · acceptance-sha256:9c075a5ef9d7f431034cf168251cfa501d6a68cff0af139d7b71f59c850a5225 · covers:mrw_read counts
 - 2026-10-14 · 29f39646* · mutant killed · exit 1 · `AGENTS.md` · AGENTS.md stops teaching --max-lines in place of head · acceptance-sha256:9c075a5ef9d7f431034cf168251cfa501d6a68cff0af139d7b71f59c850a5225 · covers:the docs teach --count and --max-lines
+- 2026-10-14 · fc7bb31c* · mutant killed · exit 1 · `internal/read/read.go` · every line of a counted file is counted, matching or not · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · covers:a line is counted once
+- 2026-10-14 · fc7bb31c* · mutant killed · exit 1 · `internal/read/read.go` · a counted file is served and licensed like a grep · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · covers:a counted file licenses nothing
+- 2026-10-14 · fc7bb31c* · mutant killed · exit 1 · `cmd/mrw/main.go` · the CLI never selects the count · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · covers:the CLI selects the count
+- 2026-10-14 · fc7bb31c* · mutant killed · exit 1 · `cmd/mrw/main.go` · --count without --grep is not refused · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · covers:a count needs a grep
+- 2026-10-14 · fc7bb31c* · mutant killed · exit 1 · `cmd/mrw/main.go` · a flag that acts on served lines is taken beside --count · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · covers:flags on served lines are refused
+- 2026-10-14 · fc7bb31c* · mutant killed · exit 1 · `internal/mcp/tools.go` · mrw_read never carries counts · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · covers:mrw_read counts
+- 2026-10-14 · fc7bb31c* · mutant killed · exit 1 · `AGENTS.md` · AGENTS.md stops teaching --max-lines in place of head · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · covers:the docs teach --count and --max-lines
+- 2026-10-14 · fc7bb31c* · mutant killed · exit 1 · `internal/read/read.go` · a counted file that no longer matches is a count of 0 at exit 0 · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · covers:a file that no longer matches is a miss
 
 ## Verification Log
 (empty until execute)
@@ -134,6 +144,29 @@ out=$(mktemp) \
 - 2026-10-14 · 29f39646* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c075a5ef9d7f431034cf168251cfa501d6a68cff0af139d7b71f59c850a5225 · ms:1637
 - 2026-10-14 · 29f39646* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c075a5ef9d7f431034cf168251cfa501d6a68cff0af139d7b71f59c850a5225 · ms:2145
 - 2026-10-14 · 29f39646* · exit 0 · `set -o pipefail …` · acceptance-sha256:9c075a5ef9d7f431034cf168251cfa501d6a68cff0af139d7b71f59c850a5225 · ms:1569
+- 2026-10-14 · fc7bb31c* · exit 1 · `set -o pipefail …` · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · ms:699
+  ```
+  --- last 10 line(s) of stdout (of 31 after folding 31 raw)
+          ==> b.txt  1L  23B  sha a919af56  0 matching line(s)
+          -- 1 matching line(s) in 2 file(s)
+      count153_test.go:36: the miss is not reported as a plain grep reports it:
+          ==> a.txt  1L  7B  sha 821f4025  1 matching line(s)
+          ==> b.txt  1L  23B  sha a919af56  0 matching line(s)
+          -- 1 matching line(s) in 2 file(s)
+  --- FAIL: TestACountOfAFileThatNoLongerMatchesIsAProblem (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	0.132s
+  FAIL
+  ```
+- 2026-10-14 · fc7bb31c* · exit 0 · `set -o pipefail …` · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · ms:1666
+- 2026-10-14 · fc7bb31c* · exit 0 · `set -o pipefail …` · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · ms:1655
+- 2026-10-14 · fc7bb31c* · exit 0 · `set -o pipefail …` · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · ms:1512
+- 2026-10-14 · fc7bb31c* · exit 0 · `set -o pipefail …` · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · ms:1547
+- 2026-10-14 · fc7bb31c* · exit 0 · `set -o pipefail …` · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · ms:1575
+- 2026-10-14 · fc7bb31c* · exit 0 · `set -o pipefail …` · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · ms:1572
+- 2026-10-14 · fc7bb31c* · exit 0 · `set -o pipefail …` · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · ms:1764
+- 2026-10-14 · fc7bb31c* · exit 0 · `set -o pipefail …` · acceptance-sha256:3cf588c88ae7775188b4e0915d900125af459d6971470b3d95758d6c51a82ab5 · ms:1545
+- 2026-10-14 · human-observed · observed by the executor 2026-10-14 after the Codex review fix: S6 ./scripts/contract.sh exit 0 ('contract holds'); all eight §257 rows PASS — the counts and the total through the built binary with no line served, the counted line's write refused and the file unchanged, and the pair: no match exits 1 with ADR-146's no match:, --count without --grep exits 2 naming --grep
 
 ## Invariants
 

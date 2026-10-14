@@ -537,6 +537,11 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		foreign := lines.Unsplittable(b)
 		lines, sha := split(b)
 		header := fmt.Sprintf("==> %s  %dL  %dB  sha %s", sp.Path, len(lines), len(b), sha[:8])
+		// countMissed is the pattern a counted file no longer matches: the walk
+		// found it, and another writer changed it before this read. A plain
+		// grep reports that as a missed range, and so does a count (the Codex
+		// review of #406), rather than a count of 0 at exit 0.
+		countMissed := ""
 		if opt.Count {
 			n := matchingLines(sp.Ranges, lines)
 			header += fmt.Sprintf("  %d matching line(s)", n)
@@ -544,6 +549,12 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			countedFiles++
 			if opt.Counts != nil {
 				opt.Counts[filepath.ToSlash(filepath.Clean(sp.Path))] = n
+			}
+			for _, r := range sp.Ranges {
+				if n == 0 && r.Re != nil {
+					countMissed = r.Text
+					break
+				}
 			}
 		}
 		fmt.Fprintln(w, header)
@@ -555,6 +566,10 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			// lines in. Recording an empty span set says exactly that: mrw has
 			// hashed this file and shown you none of it.
 			note(sp.Path, sha, [][2]int{})
+			if countMissed != "" {
+				fmt.Fprintf(w, "!! no match for %s\n", countMissed)
+				problems++
+			}
 			continue
 		}
 		spans, missed := resolve(sp.Ranges, lines, opt.Context)
