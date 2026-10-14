@@ -54,7 +54,7 @@ func (t Task) FixedLine(file string, n int) int {
 }
 
 // IsInstructionPath says whether any component of a slash-separated path is
-// one the runner strips.
+// one the runner strips or redacts.
 func IsInstructionPath(p string) bool {
 	for _, part := range strings.Split(p, "/") {
 		if instructionNames[part] {

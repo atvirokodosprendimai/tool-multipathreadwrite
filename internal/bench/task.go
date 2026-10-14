@@ -264,25 +264,62 @@ func parsePatch(b []byte) (map[string][]hunk, map[string]bool, error) {
 }
 
 // instructionNames are the files and directories an agent host reads as
-// instructions; the runner strips them from every attempt's tree.
+// instructions or loads as configuration (ADR-156 Decision 2).
 var instructionNames = map[string]bool{
 	"CLAUDE.md": true, "CLAUDE.local.md": true, "AGENTS.md": true, ".mcp.json": true,
 	".claude": true, ".cursor": true, ".codex": true, ".cursorrules": true,
 }
 
-// StripInstructions removes every instruction file and directory under root,
-// at any depth.
-func StripInstructions(root string) error {
-	var doomed []string
+// redactedNames are the instruction files that are plain text the tests of a
+// repository may read: they are kept, without the lines that name mrw (Zy,
+// 2026-10-14, after the pilot: the agentsmemory tests read its AGENTS.md, so a
+// stripped tree failed the check of configuration B for a reason the harness
+// made). The rest of instructionNames is configuration a host would load and
+// run, such as settings, hooks, skills and MCP servers, and is removed; a
+// .mcp.json only at the root, where a host reads one.
+var redactedNames = map[string]bool{"CLAUDE.md": true, "CLAUDE.local.md": true, "AGENTS.md": true, ".cursorrules": true}
+
+// namesMrw matches a line that names mrw: the three letters in any case with no
+// letter or digit of any script on either side, so mrw_read and mrw-bench count
+// and smrw or émrw do not. It is wider than the canary check, whose \bmrw\b an
+// underscore would not end.
+var namesMrw = regexp.MustCompile(`(?i)(^|[^\p{L}\p{N}])mrw([^\p{L}\p{N}]|\z)`)
+
+// importRef is an @path import in an instruction file, which Claude Code loads
+// beside the file that names it, up to five imports deep.
+var importRef = regexp.MustCompile(`(?:^|\s)@([^\s` + "`" + `]+)`)
+
+// PrepareInstructions readies the tree at root for an attempt: at any depth, an
+// instruction file named in redactedNames loses every line that names mrw, and
+// so does each file in the tree it imports; one that is a link into the tree
+// stays a link and its target is redacted, one that leads elsewhere is
+// removed. Every other instruction file or directory is removed, except a
+// .mcp.json below the root.
+func PrepareInstructions(root string) error {
+	var doomed, keep []string
 	err := filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if p != root && instructionNames[info.Name()] {
-			doomed = append(doomed, p)
-			if info.IsDir() {
-				return filepath.SkipDir
+		if p == root || !instructionNames[info.Name()] {
+			return nil
+		}
+		// A host reads project MCP configuration from the root of the tree only, and
+		// --strict-mcp-config ignores even that: a .mcp.json deeper down is a file
+		// of the project, such as a plugin manifest its tests read (agentsmemory's
+		// clients/claude-code, measured 2026-10-14).
+		if info.Name() == ".mcp.json" && filepath.Dir(p) != root {
+			return nil
+		}
+		if redactedNames[info.Name()] {
+			if _, ok := inTreeFile(root, p); ok {
+				keep = append(keep, p)
+				return nil
 			}
+		}
+		doomed = append(doomed, p)
+		if info.IsDir() {
+			return filepath.SkipDir
 		}
 		return nil
 	})
@@ -294,5 +331,104 @@ func StripInstructions(root string) error {
 			return err
 		}
 	}
+	// An instruction file is resolved again once configuration is gone: one that
+	// led into a removed directory leads nowhere now and goes too (the re-review
+	// of #413).
+	var redact []string
+	for _, p := range keep {
+		target, ok := inTreeFile(root, p)
+		if !ok {
+			if err := os.Remove(p); err != nil {
+				return err
+			}
+			continue
+		}
+		redact = append(redact, target)
+	}
+	done := map[string]bool{}
+	for depth := 0; depth <= 5 && len(redact) > 0; depth++ {
+		var next []string
+		for _, p := range redact {
+			if done[p] {
+				continue
+			}
+			done[p] = true
+			imports, err := redactMrw(p)
+			if err != nil {
+				return err
+			}
+			for _, ref := range imports {
+				if !filepath.IsAbs(ref) {
+					ref = filepath.Join(filepath.Dir(p), ref)
+				}
+				if target, ok := inTreeFile(root, ref); ok {
+					next = append(next, target)
+				}
+			}
+		}
+		redact = next
+	}
 	return nil
+}
+
+// inTreeFile returns the regular file p leads to, through any links, when that
+// file is inside root.
+func inTreeFile(root, p string) (string, bool) {
+	target, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return "", false
+	}
+	info, err := os.Stat(target)
+	if err != nil || !info.Mode().IsRegular() {
+		return "", false
+	}
+	top, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", false
+	}
+	rel, err := filepath.Rel(top, target)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return target, true
+}
+
+// redactMrw rewrites p without the lines that name mrw, keeping every other
+// byte, and returns the @path imports the kept lines name outside a code block
+// or a code span, which Claude Code reads as examples rather than imports.
+func redactMrw(p string) ([]string, error) {
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return nil, err
+	}
+	var kept strings.Builder
+	var imports []string
+	fence := ""
+	for _, line := range strings.SplitAfter(string(b), "\n") {
+		if namesMrw.MatchString(line) {
+			continue
+		}
+		kept.WriteString(line)
+		trimmed := strings.TrimSpace(line)
+		if fence != "" {
+			if strings.HasPrefix(trimmed, fence) {
+				fence = ""
+			}
+			continue
+		}
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			fence = trimmed[:3]
+			continue
+		}
+		var prose []string
+		for i, part := range strings.Split(line, "`") {
+			if i%2 == 0 {
+				prose = append(prose, part)
+			}
+		}
+		for _, m := range importRef.FindAllStringSubmatch(strings.Join(prose, " "), -1) {
+			imports = append(imports, m[1])
+		}
+	}
+	return imports, os.WriteFile(p, []byte(kept.String()), 0o644)
 }

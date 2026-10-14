@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** pinned commits of four public repositories on this machine (`bench/repos.json`); a task whose repository or commit is not here is skipped by name, never silently. The three fixture tasks carry their own base trees and run anywhere: they are what CI runs.
 **Proof map:** v1
-**Rests-on:** `an oracle fails on the base`, `an oracle passes on the reference fix`, `an oracle refuses a stray edit`, `the corpus has the registered shapes`, `no task carries instruction files`
+**Rests-on:** `an oracle fails on the base`, `an oracle passes on the reference fix`, `an oracle refuses a stray edit`, `the corpus has the registered shapes`, `no task carries host configuration`, `an instruction file keeps every line but those naming mrw`
 
 ## Goal
 
@@ -18,7 +18,7 @@ About 30 tasks in the shapes Decision 3 registers, each with an oracle whose thr
 
 | File | Change | Why |
 |------|--------|-----|
-| `internal/bench/task.go` | add | `LoadTask`, `LoadTasks`: instruction, repository, base commit, require and forbid, and the allowed regions read from the reference fix; `StripInstructions` |
+| `internal/bench/task.go` | add | `LoadTask`, `LoadTasks`: instruction, repository, base commit, require and forbid, and the allowed regions read from the reference fix; `PrepareInstructions` (S5 renamed it from `StripInstructions`) |
 | `internal/bench/materialize.go` | add | `Materialize`: the base tree from `git archive` at the pinned commit, or a fixture's `base/`, stripped and committed |
 | `internal/bench/oracle.go` | add | `Oracle`: required change present, nothing outside the allowed regions changed, structural check of touched files |
 | `internal/bench/oracle_test.go`, `helpers_test.go` | add | the three properties for every task; the registered shape counts; stripping |
@@ -32,16 +32,17 @@ About 30 tasks in the shapes Decision 3 registers, each with an oracle whose thr
 2. [S2] `LoadTask` and `Oracle`, standard library only. [proof: mutation]
 3. [S3] The corpus, with the instruction text naming no tool. [proof: acceptance]
 4. [S4] `docs/bench/README.md` with the formats. [proof: acceptance]
+5. [S5] After the uncounted pilot, Zy, 2026-10-14 ("Redact, don't strip"): the prepared tree keeps `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and `.cursorrules`, at any depth, without the lines that name mrw, and the files in the tree they import with `@path`, the same way; an instruction file that is a link into the tree stays a link with its target redacted, and one leading out of the tree is removed (the review of #413). It still removes `.claude/`, `.cursor/` and `.codex/` at any depth and `.mcp.json` at the root; a `.mcp.json` below the root is kept (agentsmemory's tests read its plugin's). agentsmemory's tests read its `AGENTS.md`, so a stripped tree failed configuration B's automatic check for a reason the harness made. `TestThePreparedTreeRedactsInstructionsAndStripsConfiguration` replaces `TestStrippingRemovesEveryInstructionFile`. [proof: mutation]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/bench/ -count=1 -timeout 600s -run 'TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit|TestTheCorpusHasTheRegisteredShapeCounts|TestStrippingRemovesEveryInstructionFile|TestTheOracleRefusesWhatTheReviewFound' -v 2>&1 | tee "$out" \
+  && go test ./internal/bench/ -count=1 -timeout 600s -run 'TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit|TestTheCorpusHasTheRegisteredShapeCounts|TestThePreparedTreeRedactsInstructionsAndStripsConfiguration|TestTheOracleRefusesWhatTheReviewFound' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit \(' "$out" \
   && grep -qE '^--- PASS: TestTheCorpusHasTheRegisteredShapeCounts \(' "$out" \
-  && grep -qE '^--- PASS: TestStrippingRemovesEveryInstructionFile \(' "$out" \
+  && grep -qE '^--- PASS: TestThePreparedTreeRedactsInstructionsAndStripsConfiguration \(' "$out" \
   && grep -qE '^--- PASS: TestTheOracleRefusesWhatTheReviewFound \(' "$out" \
   && [ -f docs/bench/README.md ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
@@ -53,7 +54,7 @@ out=$(mktemp) \
 |-----------|------|----------|--------|-------|
 | `TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit` | `internal/bench/oracle_test.go` | each oracle's three properties, every task | none | S1, S2 |
 | `TestTheCorpusHasTheRegisteredShapeCounts` | `internal/bench/oracle_test.go` | the registered shapes and stripped instruction files | none | S1, S3 |
-| `TestStrippingRemovesEveryInstructionFile` | `internal/bench/oracle_test.go` | every instruction file and directory is gone after Strip, at any depth | none | S1, S2 |
+| `TestThePreparedTreeRedactsInstructionsAndStripsConfiguration` | `internal/bench/oracle_test.go` | at any depth, an instruction file keeps every line but those naming mrw, byte for byte; configuration a host loads is gone; other files are untouched | none | S5 |
 | `TestTheOracleRefusesWhatTheReviewFound` | `internal/bench/oracle_test.go` | a binary, a mode-only and a deleting change are outside; slack does not license deleting a neighbour; an exact task fails with its fix line commented out | none | — |
 
 ## Reachability
@@ -109,6 +110,16 @@ out=$(mktemp) \
   the fence failed on a build/parse error, not an assertion
   ```
 - 2026-10-14 · b16cc705* · mutant killed · exit 1 · `internal/bench/oracle.go` · an exact task accepts a file that is not the reference result · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle refuses a stray edit
+- 2026-10-14 · be76e27f* · mutant killed · exit 1 · `internal/bench/task.go` · an instruction file keeps the lines that name mrw · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f
+- 2026-10-14 · be76e27f* · mutant killed · exit 1 · `internal/bench/task.go` · a host configuration directory is kept in the tree · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f
+- 2026-10-14 · be76e27f* · mutant killed · exit 1 · `internal/bench/task.go` · a .mcp.json below the root, a plugin manifest its tests read, is removed · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · covers:no task carries instruction files
+- 2026-10-14 · be76e27f* · mutant killed · exit 1 · `internal/bench/task.go` · an instruction file keeps the lines that name mrw · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · covers:an instruction file keeps every line but those naming mrw
+- 2026-10-14 · ef6fbe5f* · mutant killed · exit 1 · `internal/bench/task.go` · a file an instruction file imports keeps its lines naming mrw · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · covers:an instruction file keeps every line but those naming mrw
+- 2026-10-14 · ef6fbe5f* · mutant killed · exit 1 · `internal/bench/task.go` · a letter of another script beside mrw no longer makes another word · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · covers:an instruction file keeps every line but those naming mrw
+- 2026-10-14 · ef6fbe5f* · mutant killed · exit 1 · `internal/bench/task.go` · an instruction file that is a link into the tree is removed · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · covers:no task carries host configuration
+- 2026-10-14 · f4b0aaaa* · mutant killed · exit 1 · `internal/bench/task.go` · an @path inside a code block is taken for an import and its target redacted · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · covers:an instruction file keeps every line but those naming mrw
+- 2026-10-14 · f4b0aaaa* · mutant killed · exit 1 · `internal/bench/task.go` · an @path inside a code span is taken for an import and its target redacted · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · covers:an instruction file keeps every line but those naming mrw
+- 2026-10-14 · f4b0aaaa* · mutant killed · exit 1 · `internal/bench/task.go` · an instruction link into a removed directory is redacted, not removed, and preparation fails · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · covers:no task carries host configuration
 
 ## Verification Log
 (empty until execute)
@@ -200,6 +211,20 @@ out=$(mktemp) \
 - 2026-10-14 · b16cc705* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:0 · test-lock-sha256:d8b4e577db98779e7b89829ddfbb2e6693c50d34571da25ac54ed02099904644 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdEV2ZXJ5T3JhY2xlRmFpbHNPbkJhc2VQYXNzZXNPbkZpeEFuZFJlZnVzZXNBU3RyYXlFZGl0CTA5MDQ4MmM0MDM3MDdjYjJlYzQyMWNiOTBmZjQ5MDRlZjFjNDNiOTk1N2ViZWY5MjdkZjRmN2E3ODcxYjAzYzQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0U3RyaXBwaW5nUmVtb3Zlc0V2ZXJ5SW5zdHJ1Y3Rpb25GaWxlCTNmYTA0ZjE3ZDAyOWZkYWFkZjA3ODUzZWViZDlhNzJmMjA3Mzc5YmYzMTNkNjA0OTU0N2YzOTEwOTYwMGNmOGQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlQ29ycHVzSGFzVGhlUmVnaXN0ZXJlZFNoYXBlQ291bnRzCWU1ZDdjNDY0YzM4YzY1YTIxMzBjYmUzYjE2YjAxZDkwZTRhYTE3OTJmNWQ4ZDUzMTY2N2Y5MmM3Y2Y5MTkyYjMKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlT3JhY2xlUmVmdXNlc1doYXRUaGVSZXZpZXdGb3VuZAk0OTlkMWRiNmY0NzlkMTY2Mzk1OGVjYWY3MTIxYzIwMDk3NmU5OGU2ZTYxYjQ5MGEyZjZiZjhmNTBkMzYwY2Rh · test-lock-kind:replace
 - 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:16713
 - 2026-10-14 · b16cc705* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:13934
+- 2026-10-14 · be76e27f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:12356
+- 2026-10-14 · be76e27f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:9434
+- 2026-10-14 · be76e27f* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:0 · test-lock-sha256:2285fb29832a64ed12d8ecf730d67d5a4bca44540a53dfd635c9d5f047dfc19f · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdEV2ZXJ5T3JhY2xlRmFpbHNPbkJhc2VQYXNzZXNPbkZpeEFuZFJlZnVzZXNBU3RyYXlFZGl0CTA5MDQ4MmM0MDM3MDdjYjJlYzQyMWNiOTBmZjQ5MDRlZjFjNDNiOTk1N2ViZWY5MjdkZjRmN2E3ODcxYjAzYzQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlQ29ycHVzSGFzVGhlUmVnaXN0ZXJlZFNoYXBlQ291bnRzCWU1ZDdjNDY0YzM4YzY1YTIxMzBjYmUzYjE2YjAxZDkwZTRhYTE3OTJmNWQ4ZDUzMTY2N2Y5MmM3Y2Y5MTkyYjMKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlT3JhY2xlUmVmdXNlc1doYXRUaGVSZXZpZXdGb3VuZAk0OTlkMWRiNmY0NzlkMTY2Mzk1OGVjYWY3MTIxYzIwMDk3NmU5OGU2ZTYxYjQ5MGEyZjZiZjhmNTBkMzYwY2RhCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdFRoZVByZXBhcmVkVHJlZVJlZGFjdHNJbnN0cnVjdGlvbnNBbmRTdHJpcHNDb25maWd1cmF0aW9uCWQwYTFhMGI1NWQ0ZDFlMjdmZjNkMTkwOWU3ZjU2ZThlMzYzZGI0M2VjNzlmOWU2YjQ4N2NkZDlkMzEwYmYwYjI · test-lock-kind:replace
+- 2026-10-14 · be76e27f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:9110
+- 2026-10-14 · be76e27f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:9119
+- 2026-10-14 · be76e27f* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:0 · test-lock-sha256:ca147e95efa49eb8f635659c94b1b293c4f87526ca74b66e2fbf56506cd2b98c · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdEV2ZXJ5T3JhY2xlRmFpbHNPbkJhc2VQYXNzZXNPbkZpeEFuZFJlZnVzZXNBU3RyYXlFZGl0CTA5MDQ4MmM0MDM3MDdjYjJlYzQyMWNiOTBmZjQ5MDRlZjFjNDNiOTk1N2ViZWY5MjdkZjRmN2E3ODcxYjAzYzQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlQ29ycHVzSGFzVGhlUmVnaXN0ZXJlZFNoYXBlQ291bnRzCWU1ZDdjNDY0YzM4YzY1YTIxMzBjYmUzYjE2YjAxZDkwZTRhYTE3OTJmNWQ4ZDUzMTY2N2Y5MmM3Y2Y5MTkyYjMKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlT3JhY2xlUmVmdXNlc1doYXRUaGVSZXZpZXdGb3VuZAk0OTlkMWRiNmY0NzlkMTY2Mzk1OGVjYWY3MTIxYzIwMDk3NmU5OGU2ZTYxYjQ5MGEyZjZiZjhmNTBkMzYwY2RhCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdFRoZVByZXBhcmVkVHJlZVJlZGFjdHNJbnN0cnVjdGlvbnNBbmRTdHJpcHNDb25maWd1cmF0aW9uCWIzNjRmOGM4MzIyMjQxMDQxNGE3MzRiZTVlMDEzYjJkNDliM2EzOWZkOGZmMDI2NjJjNWM1MThlOTZhODVmZmU · test-lock-kind:replace
+- 2026-10-14 · ef6fbe5f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:13370
+- 2026-10-14 · ef6fbe5f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:32719
+- 2026-10-14 · ef6fbe5f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:9952
+- 2026-10-14 · ef6fbe5f* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:0 · test-lock-sha256:d7729c617e3557eea75441919f47472b666e5394a199f622de02d5df6f75d5cd · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdEV2ZXJ5T3JhY2xlRmFpbHNPbkJhc2VQYXNzZXNPbkZpeEFuZFJlZnVzZXNBU3RyYXlFZGl0CTA5MDQ4MmM0MDM3MDdjYjJlYzQyMWNiOTBmZjQ5MDRlZjFjNDNiOTk1N2ViZWY5MjdkZjRmN2E3ODcxYjAzYzQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlQ29ycHVzSGFzVGhlUmVnaXN0ZXJlZFNoYXBlQ291bnRzCWU1ZDdjNDY0YzM4YzY1YTIxMzBjYmUzYjE2YjAxZDkwZTRhYTE3OTJmNWQ4ZDUzMTY2N2Y5MmM3Y2Y5MTkyYjMKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlT3JhY2xlUmVmdXNlc1doYXRUaGVSZXZpZXdGb3VuZAk0OTlkMWRiNmY0NzlkMTY2Mzk1OGVjYWY3MTIxYzIwMDk3NmU5OGU2ZTYxYjQ5MGEyZjZiZjhmNTBkMzYwY2RhCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdFRoZVByZXBhcmVkVHJlZVJlZGFjdHNJbnN0cnVjdGlvbnNBbmRTdHJpcHNDb25maWd1cmF0aW9uCTIxNzUyMzgwMDgzNWIxNjYzMjM5YjFkZDJhNzJiZmQ4YWM3M2M5YTc1MWQwZWY1MzUxNjI4Y2JhMzkwMmEyN2U · test-lock-kind:replace
+- 2026-10-14 · f4b0aaaa* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:8783
+- 2026-10-14 · f4b0aaaa* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:8937
+- 2026-10-14 · f4b0aaaa* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:9027
+- 2026-10-14 · f4b0aaaa* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:0 · test-lock-sha256:2aa18aac1c7bc6a3e9424a285022885f6289ea22bca8adebed7522890aaa0dc9 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdEV2ZXJ5T3JhY2xlRmFpbHNPbkJhc2VQYXNzZXNPbkZpeEFuZFJlZnVzZXNBU3RyYXlFZGl0CTA5MDQ4MmM0MDM3MDdjYjJlYzQyMWNiOTBmZjQ5MDRlZjFjNDNiOTk1N2ViZWY5MjdkZjRmN2E3ODcxYjAzYzQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlQ29ycHVzSGFzVGhlUmVnaXN0ZXJlZFNoYXBlQ291bnRzCWU1ZDdjNDY0YzM4YzY1YTIxMzBjYmUzYjE2YjAxZDkwZTRhYTE3OTJmNWQ4ZDUzMTY2N2Y5MmM3Y2Y5MTkyYjMKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlT3JhY2xlUmVmdXNlc1doYXRUaGVSZXZpZXdGb3VuZAk0OTlkMWRiNmY0NzlkMTY2Mzk1OGVjYWY3MTIxYzIwMDk3NmU5OGU2ZTYxYjQ5MGEyZjZiZjhmNTBkMzYwY2RhCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdFRoZVByZXBhcmVkVHJlZVJlZGFjdHNJbnN0cnVjdGlvbnNBbmRTdHJpcHNDb25maWd1cmF0aW9uCWIwNjBkMTZlYmRjNTVmZmVlYTkwZjFmMDRjNDI5ZjY0YmQ1ODFmYzU2MTI2ZmM0NmZlZDRmZTFjM2EyZGZkZmY · test-lock-kind:replace
 
 ## Invariants
 

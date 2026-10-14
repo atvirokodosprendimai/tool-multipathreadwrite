@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -102,7 +103,7 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 	run := func(cmd string) (int, string, string) {
 		log := filepath.Join(t.TempDir(), "hook.log")
 		var stderr bytes.Buffer
-		code := Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), &stderr, log)
+		code := Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), &stderr, log, "")
 		b, _ := os.ReadFile(log)
 		return code, stderr.String(), string(b)
 	}
@@ -128,8 +129,103 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 			t.Errorf("%q: exit %d, counted %v, want %v", c, code, got, want)
 		}
 	}
-	if code := Hook(bytes.NewReader(hookInput(t, "Glob", "")), new(bytes.Buffer), filepath.Join(t.TempDir(), "l")); code != 0 {
+	if code := Hook(bytes.NewReader(hookInput(t, "Glob", "")), new(bytes.Buffer), filepath.Join(t.TempDir(), "l"), ""); code != 0 {
 		t.Errorf("a tool other than Bash was refused: exit %d", code)
+	}
+}
+
+// TestAWriteOutsideTheTaskTreePassesTheHook: Zy, 2026-10-14, after the pilot's
+// hook refused "cat > /tmp/plan.txt" with a heredoc, a plan file for
+// "mrw write PLAN" that never touched the tree. A redirection or a tee whose
+// target is an absolute path landing outside the tree passes; one into the
+// tree, through a link or a dangling link included, is refused, and so is any
+// target the hook cannot resolve: a relative path (the Bash tool keeps its own
+// working directory across calls), a quoted path, an expansion. With no tree
+// known, every target is inside.
+func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bench runs on the operator's macOS or Linux machine; Windows is out of ADR-156's scope")
+	}
+	scratch := t.TempDir()
+	tree := filepath.Join(scratch, "tree")
+	if err := os.Mkdir(tree, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	plan := filepath.Join(scratch, "plan.txt")
+	into := filepath.Join(scratch, "into")
+	dangling := filepath.Join(scratch, "dangling")
+	flink := filepath.Join(scratch, "flink")
+	deep := filepath.Join(scratch, "deep")
+	if err := os.Mkdir(filepath.Join(tree, "a"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tree, "f.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for link, to := range map[string]string{into: tree, dangling: filepath.Join(tree, "new.txt"), flink: filepath.Join(tree, "f.txt"), deep: filepath.Join(tree, "a")} {
+		if err := os.Symlink(to, link); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A hard link outside the tree is another name for a file in it (the review
+	// of #413); a file outside that is no such name passes.
+	alias := filepath.Join(scratch, "alias")
+	if err := os.Link(filepath.Join(tree, "f.txt"), alias); err != nil {
+		t.Fatal(err)
+	}
+	existing := filepath.Join(scratch, "existing.txt")
+	if err := os.WriteFile(existing, []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hardlink := "echo x > " + alias
+	// A dot-dot after a link is resolved by the shell where the link leads:
+	// deep/../f.txt is the tree's f.txt, though its spelling says otherwise.
+	dotdot := deep + string(filepath.Separator) + ".." + string(filepath.Separator) + "f.txt"
+	// On a filesystem that folds case, TREE is the tree.
+	folded := filepath.Join(scratch, "TREE", "f.txt")
+	_, foldErr := os.Stat(filepath.Join(scratch, "TREE"))
+	heredoc := " <" + "<'EOF'\n@@ a.go 1 replace\nx\nEOF"
+	pass := []string{
+		"cat > " + plan + heredoc,
+		"printf x >> " + plan,
+		"printf x | tee " + plan,
+		"printf x | tee -a " + plan + " " + filepath.Join(scratch, "other.txt"),
+		"echo x > " + filepath.Join(tree, "..", "plan.txt"),
+		"printf x >> " + existing,
+	}
+	refuse := []string{
+		"echo x > " + filepath.Join(tree, "f.txt"),
+		"echo x > " + tree,
+		"echo x > f.txt",
+		"echo x > ../plan.txt",
+		"echo x > " + filepath.Join(into, "f.txt"),
+		"echo x > " + dangling,
+		"echo x > \"" + plan + "\"",
+		"echo x > $" + "TMPDIR/plan.txt",
+		"printf x | tee " + plan + " " + filepath.Join(tree, "f.txt"),
+		"printf x | tee f.txt",
+		"echo x > " + flink,
+		"echo x > " + dotdot,
+		hardlink,
+	}
+	if foldErr == nil {
+		refuse = append(refuse, "echo x > "+folded)
+	}
+	run := func(cmd, tree string) int {
+		return Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), new(bytes.Buffer), filepath.Join(t.TempDir(), "hook.log"), tree)
+	}
+	for _, c := range pass {
+		if code := run(c, tree); code != 0 {
+			t.Errorf("a write outside the tree was refused: %q (exit %d)", c, code)
+		}
+		if code := run(c, ""); code != 2 {
+			t.Errorf("with no tree known, a write passed: %q (exit %d)", c, code)
+		}
+	}
+	for _, c := range refuse {
+		if code := run(c, tree); code != 2 {
+			t.Errorf("a write into the tree, or to a target the hook cannot resolve, passed: %q (exit %d)", c, code)
+		}
 	}
 }
 

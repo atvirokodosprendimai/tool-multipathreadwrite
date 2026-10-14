@@ -435,7 +435,7 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 		}
 	}
 	defer func() { _ = os.RemoveAll(scratch) }()
-	tree := filepath.Join(scratch, "tree")
+	tree := attemptTree(scratch)
 	if err := os.Mkdir(tree, 0o755); err != nil {
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
 		return r
@@ -607,7 +607,7 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 		args = append(args, "--append-system-prompt-file", prompt)
 		settings["hooks"] = map[string]any{"PreToolUse": []any{map[string]any{
 			"matcher": "Bash",
-			"hooks":   []any{map[string]any{"type": "command", "command": shellQuote(o.Bench) + " hook --log " + shellQuote(filepath.Join(scratch, "hook.log"))}},
+			"hooks":   []any{map[string]any{"type": "command", "command": shellQuote(o.Bench) + " hook --log " + shellQuote(filepath.Join(scratch, "hook.log")) + " --tree " + shellQuote(attemptTree(scratch))}},
 		}}}
 		env = append(env, "XDG_STATE_HOME="+filepath.Join(scratch, "state"))
 	}
@@ -628,6 +628,10 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 	env = append(env, "PATH="+path)
 	return args, env, nil
 }
+
+// attemptTree is where an attempt's task tree lives in its scratch directory;
+// the hook is told it, so a write outside it passes.
+func attemptTree(scratch string) string { return filepath.Join(scratch, "tree") }
 
 func diffStat(tree string) (DiffStat, error) {
 	var d DiffStat

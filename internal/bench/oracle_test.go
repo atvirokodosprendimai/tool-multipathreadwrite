@@ -178,32 +178,87 @@ func TestTheCorpusHasTheRegisteredShapeCounts(t *testing.T) {
 	}
 }
 
-// TestStrippingRemovesEveryInstructionFile is the half of the shape test that
-// needs a tree: whatever depth they sit at, the files a Claude Code, Codex or
-// Cursor session would read as instructions are gone after Strip.
-func TestStrippingRemovesEveryInstructionFile(t *testing.T) {
+// TestThePreparedTreeRedactsInstructionsAndStripsConfiguration is the half of
+// the shape test that needs a tree (ADR-156 Decision 2, as Zy amended it on
+// 2026-10-14 after the pilot): at any depth, a CLAUDE.md, CLAUDE.local.md,
+// AGENTS.md or .cursorrules keeps every line but those naming mrw, byte for
+// byte, so a repository's tests that read its own AGENTS.md still find it, and so
+// does every file one of them imports with @path, as Claude Code loads those
+// too; one that is a link into the tree stays a link, its target redacted, and
+// one that leads out of the tree is removed. The configuration a host would
+// load and run (.claude/, .cursor/, .codex/, and .mcp.json at the root) is
+// gone; a .mcp.json below the root, which no host reads as configuration and a
+// plugin may ship and test (agentsmemory's clients/claude-code), is kept; every
+// other file is untouched, mrw in it or not. A letter beside mrw in any script
+// makes it another word (the review of #413).
+func TestThePreparedTreeRedactsInstructionsAndStripsConfiguration(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bench runs on the operator's macOS or Linux machine; Windows is out of ADR-156's scope")
+	}
 	root := t.TempDir()
-	for _, p := range []string{"CLAUDE.md", "AGENTS.md", "CLAUDE.local.md", ".mcp.json", ".claude/settings.json", ".cursor/rules/a.mdc", ".codex/config.toml", "sub/CLAUDE.md", "sub/AGENTS.md", "sub/.claude/x", "keep.go", "sub/keep.md"} {
+	outside := t.TempDir()
+	md := "# Rules\nUse mrw for every edit.\r\nKeep tests green.\r\nmrw_read is the MCP tool.\nRun MRW first.\nsmrw, mrwx and émrw are other words.\n@docs/rules.md\nlast line, no newline"
+	redacted := "# Rules\nKeep tests green.\r\nsmrw, mrwx and émrw are other words.\n@docs/rules.md\nlast line, no newline"
+	files := map[string]string{
+		"CLAUDE.md": md, "AGENTS.md": md, "CLAUDE.local.md": md, ".cursorrules": md, "sub/AGENTS.md": md, "shared.md": md,
+		"docs/rules.md": "Imported.\nmrw is the tool.\n", "keep.go": "// mrw\n", "sub/keep.md": "mrw\n", "sub/.mcp.json": "{}\n",
+		".mcp.json": "x\n", ".claude/settings.json": "x\n", ".claude/CLAUDE.md": md, ".cursor/rules/a.mdc": "x\n", ".codex/config.toml": "x\n", "sub/.claude/x": "x\n",
+		// An @path in a code block or a code span is an example, not an import: its
+		// target is no instruction (the re-review of #413).
+		"code/CLAUDE.md": "Example:\n```\n@ex/a.md\n```\nInline `@ex/b.md` too.\n", "code/ex/a.md": "mrw\n", "code/ex/b.md": "mrw\n",
+	}
+	for p, s := range files {
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, p)), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(root, p), []byte("x\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(root, p), []byte(s), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := StripInstructions(root); err != nil {
+	if err := os.WriteFile(filepath.Join(outside, "x.md"), []byte("mrw\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	var left []string
+	// A link into a directory that preparation removes leads out of the tree once
+	// it is gone, so it goes too (the re-review of #413).
+	for link, to := range map[string]string{"linked/CLAUDE.md": filepath.Join("..", "shared.md"), "away/AGENTS.md": filepath.Join(outside, "x.md"), "cfg/CLAUDE.md": filepath.Join("..", ".claude", "CLAUDE.md")} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, link)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(to, filepath.Join(root, link)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := PrepareInstructions(root); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"CLAUDE.md": redacted, "AGENTS.md": redacted, "CLAUDE.local.md": redacted, ".cursorrules": redacted, "sub/AGENTS.md": redacted,
+		"shared.md": redacted, "linked/CLAUDE.md": redacted, "docs/rules.md": "Imported.\n",
+		"keep.go": "// mrw\n", "sub/keep.md": "mrw\n", "sub/.mcp.json": "{}\n",
+		"code/CLAUDE.md": "Example:\n```\n@ex/a.md\n```\nInline `@ex/b.md` too.\n", "code/ex/a.md": "mrw\n", "code/ex/b.md": "mrw\n",
+	}
+	got := map[string]string{}
 	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
 		if err == nil && !info.IsDir() {
 			rel, _ := filepath.Rel(root, p)
-			left = append(left, filepath.ToSlash(rel))
+			b, _ := os.ReadFile(p)
+			got[filepath.ToSlash(rel)] = string(b)
 		}
 		return nil
 	})
-	if strings.Join(left, ",") != "keep.go,sub/keep.md" {
-		t.Errorf("left after stripping: %v", left)
+	if len(got) != len(want) {
+		t.Errorf("files after preparing: %v, want %v", got, want)
+	}
+	for p, s := range want {
+		if got[p] != s {
+			t.Errorf("%s after preparing: %q, want %q", p, got[p], s)
+		}
+	}
+	if info, err := os.Lstat(filepath.Join(root, "linked", "CLAUDE.md")); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("an instruction file that is a link into the tree is no longer a link: %v", err)
+	}
+	if b, err := os.ReadFile(filepath.Join(outside, "x.md")); err != nil || string(b) != "mrw\n" {
+		t.Errorf("a file outside the tree was changed through a link: %q %v", b, err)
 	}
 }
 

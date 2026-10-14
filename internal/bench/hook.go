@@ -3,8 +3,10 @@ package bench
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -19,7 +21,10 @@ import (
 // hands back to the model. A command that reads a file's contents through cat,
 // grep, head, sed -n and their kin passes and is counted, not refused — the
 // default Zy may overrule. Every refusal and count is appended to log.
-func Hook(stdin io.Reader, stderr io.Writer, log string) int {
+// tree is the attempt's task tree: a redirection or a tee whose target lands
+// outside it passes (outsideTree; Zy, 2026-10-14, after the pilot). With tree
+// empty, every target is inside.
+func Hook(stdin io.Reader, stderr io.Writer, log, tree string) int {
 	var ev struct {
 		Tool  string `json:"tool_name"`
 		Input struct {
@@ -29,7 +34,7 @@ func Hook(stdin io.Reader, stderr io.Writer, log string) int {
 	if err := json.NewDecoder(stdin).Decode(&ev); err != nil || ev.Tool != "Bash" {
 		return 0
 	}
-	refusal, reads := ClassifyBash(ev.Input.Command)
+	refusal, reads := ClassifyBash(ev.Input.Command, tree)
 	var lines []string
 	if refusal != "" {
 		lines = append(lines, "refused\t"+oneLine(ev.Input.Command))
@@ -116,12 +121,13 @@ func realHeredoc(line string) []string {
 // it would not), and the read tools it applies to file contents. A command
 // substitution, in double quotes or an unquoted heredoc as much as bare, is
 // classified as a command of its own; one nested too deep to read is refused,
-// since what the hook cannot see it cannot pass (the review of #411).
-func ClassifyBash(cmd string) (string, []string) {
-	return classify(cmd, 0)
+// since what the hook cannot see it cannot pass (the review of #411). A write
+// whose target lands outside tree is not one (outsideTree).
+func ClassifyBash(cmd, tree string) (string, []string) {
+	return classify(cmd, tree, 0)
 }
 
-func classify(cmd string, depth int) (string, []string) {
+func classify(cmd, tree string, depth int) (string, []string) {
 	rest, expanded := splitHeredocs(cmd)
 	bare, subs, ok := scanShell(rest, false)
 	for _, body := range expanded {
@@ -136,7 +142,7 @@ func classify(cmd string, depth int) (string, []string) {
 		if depth >= 4 {
 			return "a command substitution nested too deep to inspect", reads
 		}
-		why, r := classify(inner, depth+1)
+		why, r := classify(inner, tree, depth+1)
 		reads = append(reads, r...)
 		if why != "" {
 			return "a command substitution: " + why, reads
@@ -144,8 +150,9 @@ func classify(cmd string, depth int) (string, []string) {
 	}
 	reads = append(reads, readsOf(bare)...)
 	for _, m := range redirect.FindAllStringSubmatch(bare, -1) {
-		if target := m[1]; target != "/dev/null" && !dupFD.MatchString(target) {
-			return "a redirection writes " + strings.TrimPrefix(target, "&"), reads
+		target := strings.TrimPrefix(m[1], "&")
+		if m[1] != "/dev/null" && !dupFD.MatchString(m[1]) && !outsideTree(target, tree) {
+			return "a redirection writes " + target, reads
 		}
 	}
 	for _, seg := range pipelineParts(bare) {
@@ -159,6 +166,9 @@ func classify(cmd string, depth int) (string, []string) {
 		}
 		head := filepath.Base(w[0])
 		if why, ok := writers[head]; ok {
+			if head == "tee" && operandsOutside(w[1:], tree) {
+				continue
+			}
 			return why, reads
 		}
 		switch {
@@ -177,6 +187,93 @@ func classify(cmd string, depth int) (string, []string) {
 		}
 	}
 	return "", reads
+}
+
+// outsideTree says whether a write's target is a path that lands outside the
+// task tree, which the hook then passes (Zy, 2026-10-14: the pilot refused a
+// plan file in /tmp, the input of mrw write PLAN, not a way around it). Only an
+// absolute path the hook can resolve is judged: a relative one would be judged
+// against a working directory the Bash tool keeps across calls, which the
+// hook cannot see; a path holding a quote, an expansion or a glob is not
+// resolved at all; and a dot-dot is refused, since the shell resolves it where
+// a link before it leads while Clean resolves it on the spelling. Each of those
+// is inside. Links on the deepest part that exists are followed, a dangling one
+// judged inside, and the tree is recognised by identity, not by spelling, so a
+// case-folded spelling of it is the tree. SlippedWrites is the backstop for what
+// this misjudges.
+func outsideTree(target, tree string) bool {
+	if tree == "" || !filepath.IsAbs(target) || strings.ContainsAny(target, "$`~*?[{\"'\\") {
+		return false
+	}
+	for _, part := range strings.Split(filepath.ToSlash(target), "/") {
+		if part == ".." {
+			return false
+		}
+	}
+	root, err := os.Stat(tree)
+	if err != nil {
+		return false
+	}
+	p := filepath.Clean(target)
+	for q := p; ; q = filepath.Dir(q) {
+		if _, err := os.Lstat(q); err == nil {
+			r, err := filepath.EvalSymlinks(q)
+			if err != nil {
+				return false
+			}
+			rest, err := filepath.Rel(q, p)
+			if err != nil {
+				return false
+			}
+			p = filepath.Join(r, rest)
+			break
+		}
+		if filepath.Dir(q) == q {
+			break
+		}
+	}
+	for q := p; ; q = filepath.Dir(q) {
+		if info, err := os.Stat(q); err == nil && os.SameFile(info, root) {
+			return false
+		}
+		if filepath.Dir(q) == q {
+			break
+		}
+	}
+	// A file that already exists outside the tree may be another name for one in
+	// it, a hard link: it is inside when it is the same file as one in the tree
+	// (the review of #413). A path that does not exist yet is a new file.
+	info, err := os.Stat(p)
+	if errors.Is(err, fs.ErrNotExist) {
+		return true
+	}
+	if err != nil {
+		return false
+	}
+	alias := false
+	walkErr := filepath.WalkDir(tree, func(q string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.Type().IsRegular() {
+			if qi, err := os.Stat(q); err == nil && os.SameFile(qi, info) {
+				alias = true
+				return filepath.SkipAll
+			}
+		}
+		return nil
+	})
+	return walkErr == nil && !alias
+}
+
+// operandsOutside says whether every file operand of a tee lands outside tree.
+func operandsOutside(args []string, tree string) bool {
+	for _, a := range args {
+		if !strings.HasPrefix(a, "-") && !outsideTree(a, tree) {
+			return false
+		}
+	}
+	return true
 }
 
 // scanShell reads a command once, tracking quotes as the shell does. It
