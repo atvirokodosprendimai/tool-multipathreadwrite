@@ -37,7 +37,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
@@ -147,16 +149,94 @@ type Ledger map[string]Observation
 
 // Load reads the ledger. A missing file is an empty ledger, not an error: no
 // observations yet is the normal starting state.
-// header is the ledger's first line. Its VERSION is bumped whenever an older
-// file's contents can no longer be trusted — not merely when the format
+// The ledger's first line is `#mrw-seen v<N> <writer>`. N is bumped whenever an
+// older file's contents can no longer be trusted — not merely when the format
 // changes — because the whole point is to discard a ledger whose entries mean
 // something different from what they say. v2 exists because of the
 // served-nothing bug described in Load; v3 because an MCP checkpoint up to
 // v1.37.1 spanned the gaps of a sparse read, so a v2 span may cover lines no
 // read served (ADR-108 T10); v4 because a v3 whole-file record does not say
 // whether the caller read the file or mrw wrote it, and occurrence=N needs to
-// know (ADR-118).
-const header = "#mrw-seen v4"
+// know (ADR-118). v5 only adds the writer to the line (ADR-150), so a v4 file
+// is still trusted.
+const (
+	headerTag     = "#mrw-seen v"
+	formatVersion = 5
+	oldestCurrent = 4
+)
+
+// writer is the mrw that writes the ledger, as `mrw version` prints it (ADR-150).
+// Atomic because in-process tests run commands concurrently, and every command
+// names it before it starts.
+var writer atomic.Pointer[string]
+
+// SetWriter names the mrw that writes the ledger. cmd/mrw calls it before any
+// command runs; a binary that never does writes "unknown" (ADR-150).
+func SetWriter(v string) { writer.Store(&v) }
+
+// writerName is the name save writes and the notice prints: printable, and
+// "unknown" when nobody named one.
+func writerName() string {
+	if p := writer.Load(); p != nil {
+		if name := printable(*p); name != "" {
+			return name
+		}
+	}
+	return "unknown"
+}
+
+// format is what a ledger's first line says about the entries below it.
+type format int
+
+const (
+	// formatOlder is a format this mrw no longer trusts, or no header at all.
+	formatOlder format = iota
+	// formatCurrent is parsed.
+	formatCurrent
+	// formatNewer was written by a newer mrw: its entries may mean something
+	// this mrw cannot know, so it licenses nothing and is never written over.
+	formatNewer
+)
+
+// readHeader judges a ledger's first line by its format number (ADR-150), and
+// returns the writer it names. Before v5 the line was compared byte for byte,
+// so every other line, a newer format included, read as stale. A CR anywhere
+// means the file was not written by mrw (ADR-068) and is older.
+func readHeader(line string) (format, string) {
+	rest, ok := strings.CutPrefix(line, headerTag)
+	if !ok || strings.ContainsRune(line, '\r') {
+		return formatOlder, ""
+	}
+	num, writer, _ := strings.Cut(rest, " ")
+	n, err := strconv.Atoi(num)
+	if err != nil || strconv.Itoa(n) != num {
+		return formatOlder, ""
+	}
+	switch {
+	case n > formatVersion:
+		return formatNewer, printable(writer)
+	case n >= oldestCurrent:
+		return formatCurrent, writer
+	}
+	return formatOlder, ""
+}
+
+// printable keeps what a terminal shows as written, at most 80 runes: a writer
+// named by a newer ledger is printed on stderr, and the file is not mrw's to vouch for.
+func printable(s string) string {
+	var b strings.Builder
+	n := 0
+	for _, r := range s {
+		if n == 80 {
+			break
+		}
+		if unicode.IsPrint(r) {
+			b.WriteRune(r)
+			n++
+		}
+	}
+	return b.String()
+}
 
 func Load(root string) (Ledger, error) {
 	l := Ledger{}
@@ -197,7 +277,7 @@ func Load(root string) (Ledger, error) {
 	// Dropping it is cheap and cannot lose data: the ledger is a cache of
 	// observations, so the worst it costs is one re-read, and the failure
 	// direction is a refusal rather than a wrong write.
-	if sc.Text() != header {
+	if f, _ := readHeader(sc.Text()); f != formatCurrent {
 		// EMPTY and nil, not an error. A stale ledger is a recoverable
 		// condition: Record calls Load first, so returning an error here would
 		// stop save from ever running, the v2 header would never be written,
@@ -245,7 +325,8 @@ func IsStale(root string) (bool, error) {
 	if !sc.Scan() {
 		return false, sc.Err() // an empty file is not a stale one
 	}
-	return sc.Text() != header, nil
+	got, _ := readHeader(sc.Text())
+	return got == formatOlder, nil
 }
 
 // StaleNotice is what the CLI prints when IsStale reports true: one sentence,
@@ -254,6 +335,40 @@ func IsStale(root string) (bool, error) {
 // (ADR-136).
 const StaleNotice = "mrw: the read ledger was written by an older mrw, or its line endings were changed; " +
 	"it has been discarded. Read the files you mean to edit again."
+
+// Newer reports whether the ledger was written in a format newer than this
+// mrw's, and the writer it names (ADR-150). A missing, empty or non-regular
+// ledger is not newer.
+func Newer(root string) (writer string, newer bool, err error) {
+	path, err := ReadPath(root)
+	if err != nil {
+		return "", false, err
+	}
+	f, _, err := regular.Open(path)
+	if os.IsNotExist(err) || errors.Is(err, regular.ErrNotRegular) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	defer func() { _ = f.Close() }()
+	sc := bufio.NewScanner(f)
+	sc.Split(scanLF)
+	sc.Buffer(make([]byte, min(64<<10, maxRecordBytes)), int(maxRecordBytes))
+	if !sc.Scan() {
+		return "", false, sc.Err()
+	}
+	got, w := readHeader(sc.Text())
+	return w, got == formatNewer, nil
+}
+
+// NewerNotice is what the CLI prints, instead of StaleNotice, when Newer reports
+// true, and what a write refused for an unread line carries then (ADR-150).
+func NewerNotice(writer string) string {
+	return "mrw: the read ledger was written by a newer mrw (" + writer + "); this one is " + writerName() +
+		" and leaves it untouched, so nothing it reads licenses a write. Use the newer mrw; " +
+		"mrw version --check-latest names the latest."
+}
 
 // DamageNotice is what the CLI prints when the ledger holds lines this mrw
 // ignored (ADR-144): the sentence, or "" when there is nothing to say. A stale
@@ -286,8 +401,11 @@ func DamageNotice(root string) (string, error) {
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Split(scanLF)
 	sc.Buffer(make([]byte, min(64<<10, maxRecordBytes)), int(maxRecordBytes))
-	if !sc.Scan() || sc.Text() != header {
+	if !sc.Scan() {
 		return "", sc.Err()
+	}
+	if f, _ := readHeader(sc.Text()); f != formatCurrent {
+		return "", nil
 	}
 	ignored := 0
 	for sc.Scan() {
@@ -450,6 +568,10 @@ func Drop(root string, paths []string) error {
 		beforeLock()
 	}
 	return withLock(root, func() error {
+		// ADR-150: a newer mrw's ledger is never written over.
+		if _, newer, err := Newer(root); err == nil && newer {
+			return nil
+		}
 		l, err := Load(root)
 		if err != nil {
 			return ledgerNotRead(err)
@@ -469,6 +591,11 @@ func Record(root string, obs map[string]Observation) error {
 		beforeLock()
 	}
 	return withLock(root, func() error {
+		// ADR-150: a newer mrw's ledger is never written over, so this read
+		// records nothing.
+		if _, newer, err := Newer(root); err == nil && newer {
+			return nil
+		}
 		l, err := Load(root)
 		if err != nil {
 			return ledgerNotRead(err)
@@ -628,7 +755,7 @@ func save(root string, l Ledger) error {
 	sort.Strings(paths)
 
 	var b strings.Builder
-	b.WriteString(header + "\n")
+	fmt.Fprintf(&b, "%s%d %s\n", headerTag, formatVersion, writerName())
 	for _, p := range paths {
 		line := fmt.Sprintf("%s  %s  %s\n", l[p].SHA, formatSpans(l[p]), p)
 		// ADR-108: a record the loader could not read back is left out, so

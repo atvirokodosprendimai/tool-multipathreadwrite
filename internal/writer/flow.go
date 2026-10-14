@@ -12,6 +12,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
@@ -159,6 +160,7 @@ func (p *Prepared) Land() (*Landed, error) {
 	opts := p.req.Opts
 	opts.Seen = ledger
 	res, gen, err := applyCounted(root, p.req.In, opts)
+	newerLedger(root, &res)
 	l := &Landed{p: p, Res: res, gen: gen}
 	var lerr *LedgerError
 	switch {
@@ -202,6 +204,24 @@ func (p *Prepared) Land() (*Landed, error) {
 		}
 	}
 	return l, nil
+}
+
+// newerLedger appends ADR-150's sentence to each not-read refusal when the
+// ledger was written by a newer mrw: mrw_write has no stderr, and "has not been
+// read" after a read would otherwise look like a bug.
+func newerLedger(root string, res *apply.Result) {
+	if res.Failed == 0 {
+		return
+	}
+	writer, newer, err := seen.Newer(root)
+	if err != nil || !newer {
+		return
+	}
+	for i, h := range res.Hunks {
+		if h.Kind == refusal.NotRead {
+			res.Hunks[i].Reason += "; " + strings.TrimPrefix(seen.NewerNotice(writer), "mrw: ")
+		}
+	}
 }
 
 // CheckDue says whether this write's check runs: only on a real landing and
