@@ -26,7 +26,9 @@ but those naming mrw (the letters in any case, with no letter or digit on either
 side), the same in both configurations, and whose `.claude/`, `.cursor/` and
 `.codex/`, and `.mcp.json` at the root, are removed, since a project's settings,
 hooks and skills would load inside an attempt (a `.mcp.json` below the root is
-kept: a plugin may ship one, and its tests read it). Until the pilot of 2026-10-14 the
+kept: a plugin may ship one, and its tests read it). A file in the tree that a kept
+instruction file imports with `@path` is redacted too, and an instruction file that
+is a link into the tree stays a link with its target redacted. Until the pilot of 2026-10-14 the
 instruction files were stripped whole; a repository whose tests read its
 `AGENTS.md` then failed configuration B's automatic check for that reason alone.
 Every attempt runs with `CLAUDE_CONFIG_DIR` set to the dedicated directory

@@ -182,20 +182,27 @@ func TestTheCorpusHasTheRegisteredShapeCounts(t *testing.T) {
 // the shape test that needs a tree (ADR-156 Decision 2, as Zy amended it on
 // 2026-10-14 after the pilot): at any depth, a CLAUDE.md, CLAUDE.local.md,
 // AGENTS.md or .cursorrules keeps every line but those naming mrw, byte for
-// byte, so a repository's tests that read its own AGENTS.md still find it; the
-// configuration a host would load and run (.claude/, .cursor/, .codex/, and
-// .mcp.json at the root) is gone; a .mcp.json below the root, which no host
-// reads as configuration and a plugin may ship and test (agentsmemory's
-// clients/claude-code), is kept; every other file is untouched, mrw in it or
-// not.
+// byte, so a repository's tests that read its own AGENTS.md still find it, and so
+// does every file one of them imports with @path, as Claude Code loads those
+// too; one that is a link into the tree stays a link, its target redacted, and
+// one that leads out of the tree is removed. The configuration a host would
+// load and run (.claude/, .cursor/, .codex/, and .mcp.json at the root) is
+// gone; a .mcp.json below the root, which no host reads as configuration and a
+// plugin may ship and test (agentsmemory's clients/claude-code), is kept; every
+// other file is untouched, mrw in it or not. A letter beside mrw in any script
+// makes it another word (the review of #413).
 func TestThePreparedTreeRedactsInstructionsAndStripsConfiguration(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bench runs on the operator's macOS or Linux machine; Windows is out of ADR-156's scope")
+	}
 	root := t.TempDir()
-	md := "# Rules\nUse mrw for every edit.\r\nKeep tests green.\nmrw_read is the MCP tool.\nRun MRW first.\nsmrw and mrwx are other words.\nlast line, no newline"
-	redacted := "# Rules\nKeep tests green.\nsmrw and mrwx are other words.\nlast line, no newline"
+	outside := t.TempDir()
+	md := "# Rules\nUse mrw for every edit.\r\nKeep tests green.\r\nmrw_read is the MCP tool.\nRun MRW first.\nsmrw, mrwx and émrw are other words.\n@docs/rules.md\nlast line, no newline"
+	redacted := "# Rules\nKeep tests green.\r\nsmrw, mrwx and émrw are other words.\n@docs/rules.md\nlast line, no newline"
 	files := map[string]string{
-		"CLAUDE.md": md, "AGENTS.md": md, "CLAUDE.local.md": md, ".cursorrules": md, "sub/AGENTS.md": md,
+		"CLAUDE.md": md, "AGENTS.md": md, "CLAUDE.local.md": md, ".cursorrules": md, "sub/AGENTS.md": md, "shared.md": md,
+		"docs/rules.md": "Imported.\nmrw is the tool.\n", "keep.go": "// mrw\n", "sub/keep.md": "mrw\n", "sub/.mcp.json": "{}\n",
 		".mcp.json": "x\n", ".claude/settings.json": "x\n", ".cursor/rules/a.mdc": "x\n", ".codex/config.toml": "x\n", "sub/.claude/x": "x\n",
-		"keep.go": "// mrw\n", "sub/keep.md": "mrw\n", "sub/.mcp.json": "{}\n",
 	}
 	for p, s := range files {
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, p)), 0o755); err != nil {
@@ -205,11 +212,23 @@ func TestThePreparedTreeRedactsInstructionsAndStripsConfiguration(t *testing.T) 
 			t.Fatal(err)
 		}
 	}
+	if err := os.WriteFile(filepath.Join(outside, "x.md"), []byte("mrw\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for link, to := range map[string]string{"linked/CLAUDE.md": filepath.Join("..", "shared.md"), "away/AGENTS.md": filepath.Join(outside, "x.md")} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, link)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(to, filepath.Join(root, link)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := PrepareInstructions(root); err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]string{
 		"CLAUDE.md": redacted, "AGENTS.md": redacted, "CLAUDE.local.md": redacted, ".cursorrules": redacted, "sub/AGENTS.md": redacted,
+		"shared.md": redacted, "linked/CLAUDE.md": redacted, "docs/rules.md": "Imported.\n",
 		"keep.go": "// mrw\n", "sub/keep.md": "mrw\n", "sub/.mcp.json": "{}\n",
 	}
 	got := map[string]string{}
@@ -228,6 +247,12 @@ func TestThePreparedTreeRedactsInstructionsAndStripsConfiguration(t *testing.T) 
 		if got[p] != s {
 			t.Errorf("%s after preparing: %q, want %q", p, got[p], s)
 		}
+	}
+	if info, err := os.Lstat(filepath.Join(root, "linked", "CLAUDE.md")); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("an instruction file that is a link into the tree is no longer a link: %v", err)
+	}
+	if b, err := os.ReadFile(filepath.Join(outside, "x.md")); err != nil || string(b) != "mrw\n" {
+		t.Errorf("a file outside the tree was changed through a link: %q %v", b, err)
 	}
 }
 

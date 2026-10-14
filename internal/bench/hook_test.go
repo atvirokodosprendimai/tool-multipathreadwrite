@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -142,6 +143,9 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 // working directory across calls), a quoted path, an expansion. With no tree
 // known, every target is inside.
 func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bench runs on the operator's macOS or Linux machine; Windows is out of ADR-156's scope")
+	}
 	scratch := t.TempDir()
 	tree := filepath.Join(scratch, "tree")
 	if err := os.Mkdir(tree, 0o755); err != nil {
@@ -163,6 +167,17 @@ func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// A hard link outside the tree is another name for a file in it (the review
+	// of #413); a file outside that is no such name passes.
+	alias := filepath.Join(scratch, "alias")
+	if err := os.Link(filepath.Join(tree, "f.txt"), alias); err != nil {
+		t.Fatal(err)
+	}
+	existing := filepath.Join(scratch, "existing.txt")
+	if err := os.WriteFile(existing, []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hardlink := "echo x > " + alias
 	// A dot-dot after a link is resolved by the shell where the link leads:
 	// deep/../f.txt is the tree's f.txt, though its spelling says otherwise.
 	dotdot := deep + string(filepath.Separator) + ".." + string(filepath.Separator) + "f.txt"
@@ -176,6 +191,7 @@ func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
 		"printf x | tee " + plan,
 		"printf x | tee -a " + plan + " " + filepath.Join(scratch, "other.txt"),
 		"echo x > " + filepath.Join(tree, "..", "plan.txt"),
+		"printf x >> " + existing,
 	}
 	refuse := []string{
 		"echo x > " + filepath.Join(tree, "f.txt"),
@@ -190,6 +206,7 @@ func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
 		"printf x | tee f.txt",
 		"echo x > " + flink,
 		"echo x > " + dotdot,
+		hardlink,
 	}
 	if foldErr == nil {
 		refuse = append(refuse, "echo x > "+folded)

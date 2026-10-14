@@ -3,8 +3,10 @@ package bench
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -235,9 +237,33 @@ func outsideTree(target, tree string) bool {
 			return false
 		}
 		if filepath.Dir(q) == q {
-			return true
+			break
 		}
 	}
+	// A file that already exists outside the tree may be another name for one in
+	// it, a hard link: it is inside when it is the same file as one in the tree
+	// (the review of #413). A path that does not exist yet is a new file.
+	info, err := os.Stat(p)
+	if errors.Is(err, fs.ErrNotExist) {
+		return true
+	}
+	if err != nil {
+		return false
+	}
+	alias := false
+	walkErr := filepath.WalkDir(tree, func(q string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.Type().IsRegular() {
+			if qi, err := os.Stat(q); err == nil && os.SameFile(qi, info) {
+				alias = true
+				return filepath.SkipAll
+			}
+		}
+		return nil
+	})
+	return walkErr == nil && !alias
 }
 
 // operandsOutside says whether every file operand of a tee lands outside tree.

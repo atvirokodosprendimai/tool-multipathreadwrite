@@ -280,14 +280,21 @@ var instructionNames = map[string]bool{
 var redactedNames = map[string]bool{"CLAUDE.md": true, "CLAUDE.local.md": true, "AGENTS.md": true, ".cursorrules": true}
 
 // namesMrw matches a line that names mrw: the three letters in any case with no
-// letter or digit on either side, so mrw_read and mrw-bench count and smrw does
-// not. It is wider than the canary check, whose \bmrw\b an underscore would not end.
-var namesMrw = regexp.MustCompile(`(?i)(^|[^a-z0-9])mrw([^a-z0-9]|\z)`)
+// letter or digit of any script on either side, so mrw_read and mrw-bench count
+// and smrw or émrw do not. It is wider than the canary check, whose \bmrw\b an
+// underscore would not end.
+var namesMrw = regexp.MustCompile(`(?i)(^|[^\p{L}\p{N}])mrw([^\p{L}\p{N}]|\z)`)
 
-// PrepareInstructions readies the tree at root for an attempt: at any depth, a
-// regular file named in redactedNames loses every line that names mrw, and
-// every other instruction file or directory is removed, except a .mcp.json
-// below the root.
+// importRef is an @path import in an instruction file, which Claude Code loads
+// beside the file that names it, up to five imports deep.
+var importRef = regexp.MustCompile(`(?:^|\s)@([^\s` + "`" + `]+)`)
+
+// PrepareInstructions readies the tree at root for an attempt: at any depth, an
+// instruction file named in redactedNames loses every line that names mrw, and
+// so does each file in the tree it imports; one that is a link into the tree
+// stays a link and its target is redacted, one that leads elsewhere is
+// removed. Every other instruction file or directory is removed, except a
+// .mcp.json below the root.
 func PrepareInstructions(root string) error {
 	var doomed, redact []string
 	err := filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
@@ -304,9 +311,11 @@ func PrepareInstructions(root string) error {
 		if info.Name() == ".mcp.json" && filepath.Dir(p) != root {
 			return nil
 		}
-		if redactedNames[info.Name()] && info.Mode().IsRegular() {
-			redact = append(redact, p)
-			return nil
+		if redactedNames[info.Name()] {
+			if target, ok := inTreeFile(root, p); ok {
+				redact = append(redact, target)
+				return nil
+			}
 		}
 		doomed = append(doomed, p)
 		if info.IsDir() {
@@ -322,20 +331,71 @@ func PrepareInstructions(root string) error {
 			return err
 		}
 	}
-	for _, p := range redact {
-		b, err := os.ReadFile(p)
-		if err != nil {
-			return err
-		}
-		var kept strings.Builder
-		for _, line := range strings.SplitAfter(string(b), "\n") {
-			if !namesMrw.MatchString(line) {
-				kept.WriteString(line)
+	done := map[string]bool{}
+	for depth := 0; depth <= 5 && len(redact) > 0; depth++ {
+		var next []string
+		for _, p := range redact {
+			if done[p] {
+				continue
+			}
+			done[p] = true
+			imports, err := redactMrw(p)
+			if err != nil {
+				return err
+			}
+			for _, ref := range imports {
+				if !filepath.IsAbs(ref) {
+					ref = filepath.Join(filepath.Dir(p), ref)
+				}
+				if target, ok := inTreeFile(root, ref); ok {
+					next = append(next, target)
+				}
 			}
 		}
-		if err := os.WriteFile(p, []byte(kept.String()), 0o644); err != nil {
-			return err
-		}
+		redact = next
 	}
 	return nil
+}
+
+// inTreeFile returns the regular file p leads to, through any links, when that
+// file is inside root.
+func inTreeFile(root, p string) (string, bool) {
+	target, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return "", false
+	}
+	info, err := os.Stat(target)
+	if err != nil || !info.Mode().IsRegular() {
+		return "", false
+	}
+	top, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", false
+	}
+	rel, err := filepath.Rel(top, target)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return target, true
+}
+
+// redactMrw rewrites p without the lines that name mrw, keeping every other
+// byte, and returns the @path imports the kept lines name.
+func redactMrw(p string) ([]string, error) {
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return nil, err
+	}
+	var kept strings.Builder
+	var imports []string
+	for _, line := range strings.SplitAfter(string(b), "\n") {
+		if namesMrw.MatchString(line) {
+			continue
+		}
+		kept.WriteString(line)
+		for _, m := range importRef.FindAllStringSubmatch(line, -1) {
+			imports = append(imports, m[1])
+		}
+	}
+	return imports, os.WriteFile(p, []byte(kept.String()), 0o644)
 }

@@ -64,7 +64,7 @@ func repoPath(t Task) (string, error) {
 
 // Materialize builds a task's base tree in dst, an empty directory: the files
 // named (or, with none named, the whole tree) at the pinned commit, or the
-// fixture's base/ directory, with every instruction file stripped and the
+// fixture's base/ directory, with its instructions prepared (PrepareInstructions) and the
 // result committed, so the oracle can diff against HEAD. It returns HEAD.
 func Materialize(t Task, dst string, files []string) (string, error) {
 	if t.Repo == "fixture" {
