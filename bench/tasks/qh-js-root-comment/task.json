@@ -1,0 +1,8 @@
+{
+  "id": "qh-js-root-comment",
+  "shape": "repeated-anchor",
+  "repo": "quality-harness",
+  "commit": "bbf82ff3c32c95c4251ac2eee8d0e6cfd8bad999",
+  "instruction": "In plugin/scripts/git-directory.mjs, findGitDir returns null in several places. Just above the one that returns null because the walk reached the filesystem root, add this comment on its own line, indented like that line: // Reached the filesystem root: there is no Git metadata anywhere above start. Change nothing else.",
+  "require": [{"file": "plugin/scripts/git-directory.mjs", "match": "(?m)^    // Reached the filesystem root: there is no Git metadata anywhere above start\\.\\n    if \\(parent === here\\) return null\\n"}]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "fixture-md-repeated",
+  "shape": "fixture",
+  "repo": "fixture",
+  "instruction": "In guide.md, the Usage section and the Testing section each end with the line \"See the reference.\" Change the one in the Testing section to \"See the test reference.\" Change nothing else.",
+  "require": [{"file": "guide.md", "match": "(?m)^## Testing\\n(?:.*\\n)*?See the test reference\\.$"}, {"file": "guide.md", "match": "(?m)^## Usage\\n(?:.*\\n)*?See the reference\\.\\n"}]
+}

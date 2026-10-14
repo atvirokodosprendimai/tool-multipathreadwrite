@@ -1,0 +1,11 @@
+{
+  "id": "am-go-probe-k",
+  "shape": "large-file",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In internal/palace/service.go, raise duplicateProbeK from 10 to 20, and update the comment just above it, which names the number in words. Change nothing else.",
+  "require": [
+    {"file": "internal/palace/service.go", "match": "(?m)^const duplicateProbeK = 20$"},
+    {"file": "internal/palace/service.go", "match": "(?m)^// depth\\. Twenty covers a memory superseded"}
+  ]
+}

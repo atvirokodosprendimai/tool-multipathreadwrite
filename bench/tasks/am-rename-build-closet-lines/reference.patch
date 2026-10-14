@@ -1,0 +1,54 @@
+diff --git a/internal/palace/closet.go b/internal/palace/closet.go
+index 8eff290..a6dbede 100644
+--- a/internal/palace/closet.go
++++ b/internal/palace/closet.go
+@@ -46,12 +46,12 @@ var (
+ 	closetQuoteRE = regexp.MustCompile(`"([^"]{15,150})"`)
+ )
+ 
+-// buildClosetLines produces a source's closet pointer lines from its content and
++// closetLinesFor produces a source's closet pointer lines from its content and
+ // the ids of the drawers it produced. Each line is one complete topic or quote
+ // pointer; dateLineSeg (when non-empty) inserts the Tier-6a "YYYY-MM-DD:Lstart-Lend"
+ // locator. When no topic or quote is found, a single fallback line keyed on the
+ // source location is emitted so the source is still discoverable via closets.
+-func buildClosetLines(source string, drawerIDs []string, content, wing, room, dateLineSeg string) []string {
++func closetLinesFor(source string, drawerIDs []string, content, wing, room, dateLineSeg string) []string {
+ 	runes := []rune(content)
+ 	if len(runes) > closetExtractWindow {
+ 		runes = runes[:closetExtractWindow]
+diff --git a/internal/palace/closet_test.go b/internal/palace/closet_test.go
+index 6e393f7..33becdd 100644
+--- a/internal/palace/closet_test.go
++++ b/internal/palace/closet_test.go
+@@ -9,7 +9,7 @@ func TestBuildClosetLinesTopicsQuotesAndRefs(t *testing.T) {
+ 	content := "# Cache Design\n\nWe built the cache layer today. " +
+ 		`"This is a long enough quote about caching to be captured."`
+ 	ids := []string{"d1", "d2", "d3", "d4", "d5"}
+-	lines := buildClosetLines("notes.md", ids, content, "proj", "backend", "2024-11-08:L1-L3")
++	lines := closetLinesFor("notes.md", ids, content, "proj", "backend", "2024-11-08:L1-L3")
+ 
+ 	if len(lines) < 2 {
+ 		t.Fatalf("expected header/action topics and a quote line, got %v", lines)
+@@ -33,7 +33,7 @@ func TestBuildClosetLinesTopicsQuotesAndRefs(t *testing.T) {
+ func TestBuildClosetLinesFallbackAndThreeSegment(t *testing.T) {
+ 	// No headers/actions/quotes and no date segment -> a single 3-segment fallback
+ 	// line keyed on the source location.
+-	lines := buildClosetLines("path/to/raw.txt", []string{"d1"}, "just some plain prose without structure", "proj", "notes", "")
++	lines := closetLinesFor("path/to/raw.txt", []string{"d1"}, "just some plain prose without structure", "proj", "notes", "")
+ 	if len(lines) != 1 {
+ 		t.Fatalf("expected one fallback line, got %v", lines)
+ 	}
+diff --git a/internal/palace/mine.go b/internal/palace/mine.go
+index 131374f..df2ede8 100644
+--- a/internal/palace/mine.go
++++ b/internal/palace/mine.go
+@@ -280,7 +280,7 @@ func (s *Service) buildAndStoreClosets(ctx context.Context, teamID, wing, room,
+ 		drawerIDs[i] = d.ID
+ 	}
+ 	dateLineSeg := closetDateLineSegment(chunks[0], contentDate, filedAtDate)
+-	lines := buildClosetLines(source, drawerIDs, content, wing, room, dateLineSeg)
++	lines := closetLinesFor(source, drawerIDs, content, wing, room, dateLineSeg)
+ 	docs := packClosets(lines, closetCharLimit)
+ 	if len(docs) == 0 {
+ 		// Nothing replaces the prior set, so all of it is stale.

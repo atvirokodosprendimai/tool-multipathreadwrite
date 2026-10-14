@@ -1,0 +1,40 @@
+package bench
+
+import (
+	"strings"
+	"testing"
+)
+
+const cleanInit = `{"type":"system","subtype":"init","model":"m","tools":["Bash","Read","Edit","Write","Glob","Grep"],"mcp_servers":[]}`
+
+// TestTheCanaryFailsWhenTheTranscriptNamesMrwOrUserInstructions holds the
+// isolation checks of ADR-156 Decision 2 to a stub transcript: configuration A
+// naming mrw, any configuration quoting the user's CLAUDE.md or carrying a
+// user hook's output, an MCP server in init, or a tool list other than the
+// configuration's, each fails; a clean transcript passes.
+func TestTheCanaryFailsWhenTheTranscriptNamesMrwOrUserInstructions(t *testing.T) {
+	claudeMD := "# Global Rules\n\nRule out application-code causes before inspecting framework or library internals.\nshort\n"
+	result := `{"type":"result","subtype":"success","is_error":false,"total_cost_usd":0.1,"usage":{}}`
+	clean := cleanInit + "\n" + `{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}` + "\n" + result + "\n"
+	if p := CheckCanary([]byte(clean), Configs["A"], claudeMD); len(p) != 0 {
+		t.Fatalf("a clean transcript failed: %v", p)
+	}
+	leaks := map[string]string{
+		"A names mrw":          strings.Replace(clean, `"done"`, `"I would use mrw here"`, 1),
+		"quotes CLAUDE.md":     strings.Replace(clean, `"done"`, `"Rule out application-code causes before inspecting framework or library internals."`, 1),
+		"a user hook's output": strings.Replace(clean, `"done"`, `"<<<memoryd data: recalled"`, 1),
+		"an MCP server":        strings.Replace(clean, `"mcp_servers":[]`, `"mcp_servers":[{"name":"mrw","status":"connected"}]`, 1),
+		"another tool list":    strings.Replace(clean, `"Grep"]`, `"Grep","WebFetch"]`, 1),
+		"no init at all":       `{"type":"assistant","message":{"content":[]}}` + "\n" + result + "\n",
+	}
+	for name, transcript := range leaks {
+		if p := CheckCanary([]byte(transcript), Configs["A"], claudeMD); len(p) == 0 {
+			t.Errorf("%s: the canary passed", name)
+		}
+	}
+	b := strings.Replace(clean, `["Bash","Read","Edit","Write","Glob","Grep"]`, `["Bash","Glob"]`, 1)
+	b = strings.Replace(b, `"done"`, `"used mrw read"`, 1)
+	if p := CheckCanary([]byte(b), Configs["B"], claudeMD); len(p) != 0 {
+		t.Errorf("configuration B may name mrw, and failed: %v", p)
+	}
+}

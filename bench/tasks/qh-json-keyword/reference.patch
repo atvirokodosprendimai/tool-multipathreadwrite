@@ -1,0 +1,13 @@
+diff --git a/plugin/.claude-plugin/plugin.json b/plugin/.claude-plugin/plugin.json
+index e3cee9a..c069ce7 100644
+--- a/plugin/.claude-plugin/plugin.json
++++ b/plugin/.claude-plugin/plugin.json
+@@ -11,7 +11,7 @@
+     "architecture",
+     "verification",
+     "review",
+-    "quality"
++    "quality-gates"
+   ],
+   "experimental": {
+     "evals": "evals"

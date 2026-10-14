@@ -1,0 +1,15 @@
+diff --git a/docker-compose.yml b/docker-compose.yml
+index df31e28..16ac968 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -42,6 +42,10 @@ services:
+         VERSION: ${AGENTSMEMORY_VERSION:-dev}
+     image: agentsmemory:local
+     restart: unless-stopped
++    healthcheck:
++      test: ["CMD", "agentsmemory", "version"]
++      interval: 30s
++      retries: 3
+     env_file: .env.docker
+     # --addr :8080 binds every interface INSIDE the container, which is required
+     # for a published port to reach it — the loopback default local mode uses on

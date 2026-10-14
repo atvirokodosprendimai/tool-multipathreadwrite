@@ -1,0 +1,13 @@
+diff --git a/internal/httpapi/httpapi.go b/internal/httpapi/httpapi.go
+index a9ea06d..101757c 100644
+--- a/internal/httpapi/httpapi.go
++++ b/internal/httpapi/httpapi.go
+@@ -18,7 +18,7 @@ import (
+ 
+ // heartbeatEvery is how often an idle stream emits a comment frame. A var rather
+ // than a const so tests can shorten it; nothing in production changes it.
+-var heartbeatEvery = 20 * time.Second
++var heartbeatEvery = 15 * time.Second
+ 
+ // maxMessageBytes caps one posted message. Generous for chat between agents, and
+ // small enough that an unbounded body cannot be used to exhaust memory.

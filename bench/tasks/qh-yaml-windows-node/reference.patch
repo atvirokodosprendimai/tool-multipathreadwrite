@@ -1,0 +1,13 @@
+diff --git a/.github/workflows/selftest.yml b/.github/workflows/selftest.yml
+index c68f2ab..1e490a0 100644
+--- a/.github/workflows/selftest.yml
++++ b/.github/workflows/selftest.yml
+@@ -125,7 +125,7 @@ jobs:
+           fetch-depth: 0
+       - uses: actions/setup-node@v7
+         with:
+-          node-version: '24'
++          node-version: '22'
+       - uses: actions/setup-python@v7
+         with:
+           python-version: '3.12'

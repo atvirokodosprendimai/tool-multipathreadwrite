@@ -1,0 +1,8 @@
+{
+  "id": "site-jsonc-compat-date",
+  "shape": "single-line",
+  "repo": "site",
+  "commit": "37625a32bc08b77e0ba0fc7e04cfc0f40ac183e5",
+  "instruction": "In wrangler.jsonc, set compatibility_date to 2026-10-01. Change nothing else.",
+  "require": [{"file": "wrangler.jsonc", "match": "(?m)^  \"compatibility_date\": \"2026-10-01\",$"}]
+}

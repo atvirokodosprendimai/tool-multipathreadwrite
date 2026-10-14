@@ -1,0 +1,9 @@
+{
+  "id": "am-yaml-funding",
+  "shape": "single-line",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In .github/FUNDING.yml, replace the opencollective entry with a GitHub Sponsors entry for the atvirokodosprendimai account, written as github: [atvirokodosprendimai]. Keep the two comment lines. Change nothing else.",
+  "require": [{"file": ".github/FUNDING.yml", "match": "(?m)^github: \\[atvirokodosprendimai\\]$"}],
+  "forbid": [{"file": ".github/FUNDING.yml", "match": "opencollective"}]
+}

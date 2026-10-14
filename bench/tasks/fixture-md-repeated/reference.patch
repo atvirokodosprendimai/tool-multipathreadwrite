@@ -1,0 +1,9 @@
+diff --git a/guide.md b/guide.md
+--- a/guide.md
++++ b/guide.md
+@@ -10,4 +10,4 @@
+ 
+ Run the suite before you commit.
+ 
+-See the reference.
++See the test reference.

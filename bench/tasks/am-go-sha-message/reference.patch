@@ -1,0 +1,13 @@
+diff --git a/clients/claude-code/installer.go b/clients/claude-code/installer.go
+index 9f78300..88919e2 100644
+--- a/clients/claude-code/installer.go
++++ b/clients/claude-code/installer.go
+@@ -2513,7 +2513,7 @@ func verifyReleaseChecksum(ctx context.Context, tag, asset, path string) error {
+ 		return err
+ 	}
+ 	if got := hex.EncodeToString(h.Sum(nil)); got != want {
+-		return fmt.Errorf("sha256 mismatch for %s: release lists %s, download is %s — the file is not the one the release published", asset, want[:12], got[:12])
++		return fmt.Errorf("SHA-256 mismatch for %s: release lists %s, download is %s — the file is not the one the release published", asset, want[:12], got[:12])
+ 	}
+ 	return nil
+ }

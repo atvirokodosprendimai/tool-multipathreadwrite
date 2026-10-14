@@ -1,0 +1,9 @@
+diff --git a/service.yml b/service.yml
+--- a/service.yml
++++ b/service.yml
+@@ -9,4 +9,5 @@
+     resources:
+       limits:
+         cpus: "0.5"
++        memory: 512M
+     restart: on-failure

@@ -1,0 +1,12 @@
+diff --git a/README.md b/README.md
+index 6ec129a..10cb5d2 100644
+--- a/README.md
++++ b/README.md
+@@ -53,6 +53,7 @@ The "memory palace" metaphor *is* the data model:
+ | **Hallway** | a within-wing link between entities that co-occur in drawers |
+ | **Tunnel** | a cross-wing link (author-made, or auto-generated from a shared topic) |
+ | **Knowledge Graph** | a separate temporal store of `subject → predicate → object` facts with validity windows |
++| **Skill** | a centralised, versioned procedure a session loads by name |
+ 
+ Agents recall context with hybrid search (vector similarity + BM25 + closet
+ boost, fused), and file new memories that are embedded and indexed. The original

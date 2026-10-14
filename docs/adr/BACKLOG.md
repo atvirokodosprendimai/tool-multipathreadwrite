@@ -2691,3 +2691,24 @@ Five Windows sessions (wcag-web, wcag, quality-blueprints, quality-harness, tool
 ## From ADR-155 (a read can address a JSON value by its path)
 
 - **A JSON path as a plan address** (2026-10-14): `plan.ParseAddr` refuses `$.a.b` by name ("a JSON path is a read address: read it, then address the lines it served"). A write address resolves against the original file and must name one site; a value's span is known only after decoding, and a second hunk in the same plan could move it. Arm: a caller shows the read-then-address step costing a round trip that matters, with a design that resolves the path against the original file once, before any hunk applies.
+
+## Pre-registered for ADR-156 (does mrw pay for itself on agent runs) — the bar, written before any run
+
+Zy, 2026-10-14: both Sonnet 5.5 and Opus 5.5; our own oracle-graded tasks and a SWE-bench Verified slice; configuration B with mrw forced; the subscription only. Registered here, in the record's first commit, before `bench`, any task or any run exists, so a result cannot move it:
+
+- **Unit and pairing.** An attempt is one `claude -p` run of one task, in one configuration, on one model, in a fresh worktree. Attempts are paired by task within one model and one task source, and never pooled across models or sources.
+- **Primary outcomes.** *Solved*: the oracle exits 0 (SWE-bench: the official harness says resolved). *Silent mis-edit* (own tasks only): the run's stream-json result is a success, and the tree differs from the attempt's base outside the task's allowed regions, or a touched file fails its structural check.
+- **Cost.** The `total_cost_usd` of the CLI's stream-json result; the raw input, output, cache-read and cache-write tokens are recorded beside it.
+- **Verdict**, per model and task source, on the admitted attempts, with a paired bootstrap over tasks (10,000 resamples, seed 156) and 95% intervals:
+  - **PAYS** — the mean per-task relative cost (B − A) / A is −10% or lower, its interval lies wholly below 0, and the interval of the solved-rate difference B − A has its lower bound at −5 percentage points or above.
+  - **LOSES** — the cost interval lies wholly above 0, or the solved-rate interval lies wholly below 0.
+  - **INCONCLUSIVE** — neither.
+- **Silent mis-edits** are counted per configuration and printed beside every verdict; if B has more than A, the headline says so whatever the verdict.
+- **Admission.** The only exclusions:
+  - an attempt that ended before its first tool call with an authentication, rate-limit or CLI start error, re-queued at most twice;
+  - an attempt `bench` could not set up or grade (worktree, oracle start), re-queued once.
+  Every excluded attempt stays in the receipts. An agent that gives up, errs or runs past the budget (20 minutes, 60 turns) is unsolved, with its cost counted.
+- **Sample.** Stage 1: a pilot of 5 tasks × 2 × 1, not counted, then 30 tasks × 2 configurations × 2 repeats on Sonnet 5.5. Stage 2: the same on Opus 5.5. Stage 3: 20 SWE-bench Verified instances (the lowest `sha256("adr-156:" + instance_id)`) × 2 × 1 on each model, labelled small.
+- **Power, said first.** Thirty paired tasks cannot show a small difference in solved rate. The bar asks for non-inferiority within 5 points, not equality, and INCONCLUSIVE is a result.
+- **Publication.** PAYS, LOSES and INCONCLUSIVE are published alike, in `docs/bench/RESULTS.md` and one README sentence each.
+- **Not measured now, recorded so it is not forgotten:** other hosts (Codex, Cursor, Claude Desktop); mrw over MCP rather than the CLI; an API-key run with `--bare`, which returns only on Zy's word if the subscription canary fails.

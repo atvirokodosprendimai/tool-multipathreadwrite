@@ -1,0 +1,60 @@
+diff --git a/clients/claude-code/copy.go b/clients/claude-code/copy.go
+index c0c0ba2..658e530 100644
+--- a/clients/claude-code/copy.go
++++ b/clients/claude-code/copy.go
+@@ -82,7 +82,7 @@ func skipCopy(rel string, isDir bool) bool {
+ 	return false
+ }
+ 
+-// copyConfigTree copies the agent configuration under src into dst, skipping the
++// copyConfigDir copies the agent configuration under src into dst, skipping the
+ // runtime state skipCopy excludes and never overwriting a file the target
+ // already has. Not overwriting is the important half: the copy seeds a new
+ // sandbox, and re-running an install must not undo whatever the user changed
+@@ -92,7 +92,7 @@ func skipCopy(rel string, isDir bool) bool {
+ // agentsmemory.env are 0600, and a credential copied world-readable would be a
+ // quiet downgrade. Symlinks are recreated as symlinks rather than followed, so a
+ // linked plugin directory stays a link instead of being duplicated.
+-func copyConfigTree(src, dst string) (copyStats, error) {
++func copyConfigDir(src, dst string) (copyStats, error) {
+ 	var stats copyStats
+ 	err := filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+ 		if err != nil {
+diff --git a/clients/claude-code/copy_test.go b/clients/claude-code/copy_test.go
+index a418965..e20d69c 100644
+--- a/clients/claude-code/copy_test.go
++++ b/clients/claude-code/copy_test.go
+@@ -78,9 +78,9 @@ func TestCopyConfigTree(t *testing.T) {
+ 	// A file the sandbox already has must survive untouched.
+ 	write(dst, "settings.json", 0o644, `{"from":"sandbox"}`)
+ 
+-	stats, err := copyConfigTree(src, dst)
++	stats, err := copyConfigDir(src, dst)
+ 	if err != nil {
+-		t.Fatalf("copyConfigTree: %v", err)
++		t.Fatalf("copyConfigDir: %v", err)
+ 	}
+ 
+ 	// Credentials arrive, and arrive private.
+@@ -126,7 +126,7 @@ func TestCopyConfigTreeSymlink(t *testing.T) {
+ 	if err := os.Symlink("/opt/some/plugin", filepath.Join(src, "linked-plugin")); err != nil {
+ 		t.Skipf("symlinks unavailable: %v", err)
+ 	}
+-	if _, err := copyConfigTree(src, dst); err != nil {
++	if _, err := copyConfigDir(src, dst); err != nil {
+ 		t.Fatal(err)
+ 	}
+ 	got, err := os.Readlink(filepath.Join(dst, "linked-plugin"))
+diff --git a/clients/claude-code/installer.go b/clients/claude-code/installer.go
+index 9f78300..9ffbf31 100644
+--- a/clients/claude-code/installer.go
++++ b/clients/claude-code/installer.go
+@@ -682,7 +682,7 @@ func (i *Installer) seedFromGlobal() error {
+ 		fmt.Fprintf(i.out, "  would copy %s → %s (config, credentials, plugins and skills; no history, logs or caches)\n", src, i.targetDir)
+ 		return nil
+ 	}
+-	stats, err := copyConfigTree(src, i.targetDir)
++	stats, err := copyConfigDir(src, i.targetDir)
+ 	if err != nil {
+ 		// A partial copy is still useful, and the install that follows is what the
+ 		// user actually asked for — report and carry on rather than abort.

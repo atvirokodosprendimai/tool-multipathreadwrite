@@ -1,0 +1,28 @@
+diff --git a/internal/httpapi/send.go b/internal/httpapi/send.go
+index 74ae45c..ef4a793 100644
+--- a/internal/httpapi/send.go
++++ b/internal/httpapi/send.go
+@@ -33,7 +33,7 @@ func (h *handler) postSend(w http.ResponseWriter, r *http.Request) {
+ 	}
+ 	text := string(body)
+ 	if strings.TrimSpace(text) == "" {
+-		http.Error(w, "message body must not be empty", http.StatusBadRequest)
++		http.Error(w, "message body must not be empty", http.StatusUnprocessableEntity)
+ 		return
+ 	}
+ 
+diff --git a/internal/httpapi/send_test.go b/internal/httpapi/send_test.go
+index ce7369a..3954b2a 100644
+--- a/internal/httpapi/send_test.go
++++ b/internal/httpapi/send_test.go
+@@ -73,8 +73,8 @@ func TestSendRejectsEmptyBody(t *testing.T) {
+ 	defer cancel()
+ 
+ 	for _, body := range []string{"", "   ", "\n\t "} {
+-		if status, _ := postSend(t, srv.URL+"/send?channel=c&name=alice", body); status != http.StatusBadRequest {
+-			t.Errorf("status for %q = %d, want 400", body, status)
++		if status, _ := postSend(t, srv.URL+"/send?channel=c&name=alice", body); status != http.StatusUnprocessableEntity {
++			t.Errorf("status for %q = %d, want 422", body, status)
+ 		}
+ 	}
+ 	// Nothing was published, so the stream stays silent and the next real

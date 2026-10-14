@@ -1,0 +1,12 @@
+services:
+  web:
+    image: example/web:1
+    resources:
+      limits:
+        cpus: "1.0"
+  worker:
+    image: example/worker:1
+    resources:
+      limits:
+        cpus: "0.5"
+    restart: on-failure

@@ -1,0 +1,51 @@
+{
+  "id": "qh-rename-find-git-dir",
+  "shape": "multi-site",
+  "repo": "quality-harness",
+  "commit": "bbf82ff3c32c95c4251ac2eee8d0e6cfd8bad999",
+  "instruction": "Rename the JavaScript function findGitDir to locateGitDir everywhere it is defined, imported, called or mentioned in plugin/scripts/ and in the tests/*.test.mjs files. Leave docs/, tests/mutations/ and tests/fixtures/ as they are. Change nothing else.",
+  "require": [
+    {
+      "file": "plugin/scripts/branch-state.mjs",
+      "match": "\\blocateGitDir\\b"
+    },
+    {
+      "file": "plugin/scripts/event-log.mjs",
+      "match": "\\blocateGitDir\\b"
+    },
+    {
+      "file": "plugin/scripts/git-directory.mjs",
+      "match": "\\blocateGitDir\\b"
+    },
+    {
+      "file": "plugin/scripts/statusline.mjs",
+      "match": "\\blocateGitDir\\b"
+    },
+    {
+      "file": "tests/statusline.test.mjs",
+      "match": "\\blocateGitDir\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "plugin/scripts/branch-state.mjs",
+      "match": "\\bfindGitDir\\b"
+    },
+    {
+      "file": "plugin/scripts/event-log.mjs",
+      "match": "\\bfindGitDir\\b"
+    },
+    {
+      "file": "plugin/scripts/git-directory.mjs",
+      "match": "\\bfindGitDir\\b"
+    },
+    {
+      "file": "plugin/scripts/statusline.mjs",
+      "match": "\\bfindGitDir\\b"
+    },
+    {
+      "file": "tests/statusline.test.mjs",
+      "match": "\\bfindGitDir\\b"
+    }
+  ]
+}

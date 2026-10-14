@@ -1,0 +1,13 @@
+diff --git a/plugin/scripts/decision-corpus.mjs b/plugin/scripts/decision-corpus.mjs
+index ede6f41..762abde 100644
+--- a/plugin/scripts/decision-corpus.mjs
++++ b/plugin/scripts/decision-corpus.mjs
+@@ -332,7 +332,7 @@ export function undecidedReason(entry) {
+ // `1-intro.md` is not a record (a Windows chaos round of 916b515, C-2).
+ const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?\d{1,4}|\d{3,4})[-._]/i
+ 
+-const RECORD_BUDGET = 200
++const RECORD_BUDGET = 250
+ 
+ // ADR-092 Decision 5: the content screen streams at most this much in one `adrCorpus` call, then stops
+ // and names the first path it did not screen, so a huge tree is PARTIAL rather than a long SessionStart.

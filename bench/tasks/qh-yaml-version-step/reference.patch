@@ -1,0 +1,13 @@
+diff --git a/.github/workflows/selftest.yml b/.github/workflows/selftest.yml
+index c68f2ab..4d181a1 100644
+--- a/.github/workflows/selftest.yml
++++ b/.github/workflows/selftest.yml
+@@ -88,6 +88,8 @@ jobs:
+       - uses: actions/setup-python@v7
+         with:
+           python-version: '3.12'
++      - name: Show the toolchain versions
++        run: node --version && python3 --version
+       - name: Install coverage.py
+         run: python3 -m pip install --upgrade coverage ruff==0.15.6
+       # STRICT=1 turns "the gates could not be measured" into a failure. A

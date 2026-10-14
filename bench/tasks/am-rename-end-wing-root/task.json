@@ -1,0 +1,51 @@
+{
+  "id": "am-rename-end-wing-root",
+  "shape": "multi-site",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In the Go package internal/palace, rename the function endWingRootIfEntryRoomIsEmpty to endEmptyWingRoot, and update every reference to it in that package, tests and comments included. Change nothing else.",
+  "require": [
+    {
+      "file": "internal/palace/kg.go",
+      "match": "\\bendEmptyWingRoot\\b"
+    },
+    {
+      "file": "internal/palace/service.go",
+      "match": "\\bendEmptyWingRoot\\b"
+    },
+    {
+      "file": "internal/palace/supersede.go",
+      "match": "\\bendEmptyWingRoot\\b"
+    },
+    {
+      "file": "internal/palace/validity.go",
+      "match": "\\bendEmptyWingRoot\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_correct_test.go",
+      "match": "\\bendEmptyWingRoot\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "internal/palace/kg.go",
+      "match": "\\bendWingRootIfEntryRoomIsEmpty\\b"
+    },
+    {
+      "file": "internal/palace/service.go",
+      "match": "\\bendWingRootIfEntryRoomIsEmpty\\b"
+    },
+    {
+      "file": "internal/palace/supersede.go",
+      "match": "\\bendWingRootIfEntryRoomIsEmpty\\b"
+    },
+    {
+      "file": "internal/palace/validity.go",
+      "match": "\\bendWingRootIfEntryRoomIsEmpty\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_correct_test.go",
+      "match": "\\bendWingRootIfEntryRoomIsEmpty\\b"
+    }
+  ]
+}

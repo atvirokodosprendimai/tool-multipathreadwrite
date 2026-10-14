@@ -1,0 +1,8 @@
+{
+  "id": "fixture-yaml-nested",
+  "shape": "fixture",
+  "repo": "fixture",
+  "instruction": "In service.yml, give the worker service a memory limit of 512M under resources.limits, next to its existing cpu limit. Change nothing else.",
+  "slack": 1,
+  "require": [{"file": "service.yml", "match": "(?m)^  worker:\\n(?:    .*\\n)*?    resources:\\n      limits:\\n(?:        .*\\n)*?        memory: 512M\\n"}]
+}

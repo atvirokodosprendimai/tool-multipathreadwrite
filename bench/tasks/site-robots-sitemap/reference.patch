@@ -1,0 +1,10 @@
+diff --git a/robots.txt b/robots.txt
+index 58d872a..3e46373 100644
+--- a/robots.txt
++++ b/robots.txt
+@@ -1,4 +1,4 @@
+ User-agent: *
+ Allow: /
+ 
+-Sitemap: https://atvirokodosprendimai.github.io/sitemap.xml
++Sitemap: https://atvirokodosprendimai.github.io/sitemap-index.xml

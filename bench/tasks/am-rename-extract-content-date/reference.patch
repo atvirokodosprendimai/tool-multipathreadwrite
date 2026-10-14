@@ -1,0 +1,46 @@
+diff --git a/internal/palace/contentdate.go b/internal/palace/contentdate.go
+index 5fc8b23..18db5d5 100644
+--- a/internal/palace/contentdate.go
++++ b/internal/palace/contentdate.go
+@@ -42,11 +42,11 @@ var (
+ 	frontmatterKeyRE = regexp.MustCompile(`(?mi)^\s*(?:date|created|published)\s*:\s*(.+?)\s*$`)
+ )
+ 
+-// extractContentDate returns the content's date as YYYY-MM-DD, or "" when none is
++// parseContentDate returns the content's date as YYYY-MM-DD, or "" when none is
+ // found. Precedence matches the frozen tool (minus the unavailable file mtime):
+ // the source's filename first (a source is often a path/name like
+ // "2024-11-08-notes.md"), then YAML frontmatter, then the body's first lines.
+-func extractContentDate(source, content string) string {
++func parseContentDate(source, content string) string {
+ 	if d := filenameDate(source); d != "" {
+ 		return d
+ 	}
+diff --git a/internal/palace/contentdate_test.go b/internal/palace/contentdate_test.go
+index 285f21f..2bac42e 100644
+--- a/internal/palace/contentdate_test.go
++++ b/internal/palace/contentdate_test.go
+@@ -26,8 +26,8 @@ func TestExtractContentDate(t *testing.T) {
+ 	}
+ 	for _, tc := range cases {
+ 		t.Run(tc.name, func(t *testing.T) {
+-			if got := extractContentDate(tc.source, tc.in); got != tc.want {
+-				t.Fatalf("extractContentDate(%q, %q) = %q, want %q", tc.source, tc.in, got, tc.want)
++			if got := parseContentDate(tc.source, tc.in); got != tc.want {
++				t.Fatalf("parseContentDate(%q, %q) = %q, want %q", tc.source, tc.in, got, tc.want)
+ 			}
+ 		})
+ 	}
+diff --git a/internal/palace/mine.go b/internal/palace/mine.go
+index 131374f..78facdd 100644
+--- a/internal/palace/mine.go
++++ b/internal/palace/mine.go
+@@ -122,7 +122,7 @@ func (s *Service) Mine(ctx context.Context, teamID string, in MineInput) (result
+ 	unlock := s.mineLocks.lock(teamID + "\x00" + source)
+ 	defer unlock()
+ 
+-	contentDate := extractContentDate(source, content)
++	contentDate := parseContentDate(source, content)
+ 	now := time.Now().UTC()
+ 	filedAt := now.Format(time.RFC3339)
+ 	filedAtDate := now.Format("2006-01-02")

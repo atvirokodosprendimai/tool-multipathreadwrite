@@ -1,0 +1,14 @@
+diff --git a/internal/web/views/layout.templ b/internal/web/views/layout.templ
+index 3dc886b..9e2dad8 100644
+--- a/internal/web/views/layout.templ
++++ b/internal/web/views/layout.templ
+@@ -20,6 +20,9 @@ templ Layout(title string, userEmail string) {
+ 			// pkAuthenticate for the data-effect triggers, calls navigator.credentials,
+ 			// and reports back via custom events. Deferred so it is ready before use.
+ 			<script src={ templ.SafeURL(staticURL("/static/passkey.js")) } defer></script>
++			<noscript>
++				<link rel="stylesheet" href={ templ.SafeURL(staticURL("/static/noscript.css")) }/>
++			</noscript>
+ 			@analytics()
+ 		</head>
+ 		<body>

@@ -1,0 +1,13 @@
+diff --git a/index.html b/index.html
+index 4cf7346..30b6560 100644
+--- a/index.html
++++ b/index.html
+@@ -22,6 +22,7 @@
+     <ul>
+         <li><a href="https://qamstack.dev/">QAM Stack: three tools for when Claude says done, forgets, or reads one file at a time</a></li>
+         <li><a href="https://qamstack.dev/quality-harness/">Quality Harness: "done" is a recorded run, or the check refuses it</a></li>
++        <li><a href="https://github.com/atvirokodosprendimai/agentsmemory">AI Agent Memory: what your agents decided, kept between sessions</a></li>
+     </ul>
+ </body>
+ </html>
+\ No newline at end of file

@@ -1,0 +1,70 @@
+diff --git a/internal/httpapi/events.go b/internal/httpapi/events.go
+index bd95732..6ad648e 100644
+--- a/internal/httpapi/events.go
++++ b/internal/httpapi/events.go
+@@ -41,7 +41,7 @@ func (h *handler) getEvents(w http.ResponseWriter, r *http.Request) {
+ 	messages, unsubscribe := h.hub.Subscribe(channel, name)
+ 	defer unsubscribe()
+ 
+-	if err := writeEvent(w, "ready", readyPayload{Channel: channel, Name: name}); err != nil {
++	if err := writeSSEEvent(w, "ready", readyPayload{Channel: channel, Name: name}); err != nil {
+ 		return
+ 	}
+ 
+@@ -61,7 +61,7 @@ func (h *handler) getEvents(w http.ResponseWriter, r *http.Request) {
+ 				return
+ 			}
+ 			ev := messagePayload{From: m.From, Text: m.Text, TS: m.TS.Format(time.RFC3339)}
+-			if err := writeEvent(w, "message", ev); err != nil {
++			if err := writeSSEEvent(w, "message", ev); err != nil {
+ 				return
+ 			}
+ 		case <-heartbeat.C:
+diff --git a/internal/httpapi/sse.go b/internal/httpapi/sse.go
+index 72280de..eb9f28b 100644
+--- a/internal/httpapi/sse.go
++++ b/internal/httpapi/sse.go
+@@ -25,7 +25,7 @@ type messagePayload struct {
+ 	TS   string `json:"ts"` // RFC3339, UTC
+ }
+ 
+-// writeEvent writes one SSE frame and flushes it.
++// writeSSEEvent writes one SSE frame and flushes it.
+ //
+ // The payload is JSON on a single line, and that is a mechanical requirement
+ // rather than a style choice: an SSE `data:` field cannot carry a literal
+@@ -36,7 +36,7 @@ type messagePayload struct {
+ // Flushing is not optional. Without it the frame sits in Go's buffer until
+ // something else fills it, which on a quiet channel looks exactly like "no
+ // messages".
+-func writeEvent(w http.ResponseWriter, event string, payload any) error {
++func writeSSEEvent(w http.ResponseWriter, event string, payload any) error {
+ 	body, err := json.Marshal(payload)
+ 	if err != nil {
+ 		return fmt.Errorf("marshal %s payload: %w", event, err)
+diff --git a/internal/httpapi/sse_test.go b/internal/httpapi/sse_test.go
+index dd80df9..f5f9945 100644
+--- a/internal/httpapi/sse_test.go
++++ b/internal/httpapi/sse_test.go
+@@ -8,8 +8,8 @@ import (
+ 
+ func TestWriteEventExactBytes(t *testing.T) {
+ 	rec := httptest.NewRecorder()
+-	if err := writeEvent(rec, "message", messagePayload{From: "alice", Text: "hello", TS: "2026-08-29T09:14:02Z"}); err != nil {
+-		t.Fatalf("writeEvent: %v", err)
++	if err := writeSSEEvent(rec, "message", messagePayload{From: "alice", Text: "hello", TS: "2026-08-29T09:14:02Z"}); err != nil {
++		t.Fatalf("writeSSEEvent: %v", err)
+ 	}
+ 
+ 	want := "event: message\n" +
+@@ -23,8 +23,8 @@ func TestWriteEventExactBytes(t *testing.T) {
+ 		// multi-line body would have to be split across several data lines and
+ 		// rejoined by the client. JSON escaping is what makes one line correct.
+ 		rec := httptest.NewRecorder()
+-		if err := writeEvent(rec, "message", messagePayload{From: "a", Text: "line one\nline two", TS: "t"}); err != nil {
+-			t.Fatalf("writeEvent: %v", err)
++		if err := writeSSEEvent(rec, "message", messagePayload{From: "a", Text: "line one\nline two", TS: "t"}); err != nil {
++			t.Fatalf("writeSSEEvent: %v", err)
+ 		}
+ 		body := rec.Body.String()
+ 		if n := strings.Count(body, "data:"); n != 1 {
