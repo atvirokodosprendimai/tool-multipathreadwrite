@@ -16,14 +16,21 @@ and `bench run` refuses without a passing canary for the same CLI version.
 | | Tools | mrw | Hook |
 |---|---|---|---|
 | A | Bash, Read, Edit, Write, Glob, Grep | not on PATH | none |
-| B | Bash, Glob | a pinned build on PATH, `mrw instructions` appended | `bench hook`: refuses writes by other means, command substitutions included; counts reads, not refuses them (Zy, 2026-10-14), and `bench analyze` reports the count beside each verdict |
+| B | Bash, Glob | a pinned build on PATH, `mrw instructions` appended | `bench hook --tree`: refuses writes by other means, command substitutions included, except a redirection or `tee` to an absolute path outside the attempt's tree (Zy, 2026-10-14, after the pilot); counts reads, not refuses them (Zy, 2026-10-14), and `bench analyze` reports the count beside each verdict |
 
 Both run with `--strict-mcp-config` and an empty MCP config, a settings file
 written per attempt, `--disable-slash-commands`, `--no-session-persistence`,
 `--no-chrome` and `--permission-mode bypassPermissions`, in a fresh tree whose
-instruction files (`CLAUDE.md`, `AGENTS.md`, `.claude/`, `.mcp.json`, `.cursor/`,
-`.codex/`, `.cursorrules`, `CLAUDE.local.md`) are stripped, with
-`CLAUDE_CONFIG_DIR` set to the dedicated directory (resolved, and refused if it
+`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and `.cursorrules` keep every line
+but those naming mrw (the letters in any case, with no letter or digit on either
+side), the same in both configurations, and whose `.claude/`, `.cursor/` and
+`.codex/`, and `.mcp.json` at the root, are removed, since a project's settings,
+hooks and skills would load inside an attempt (a `.mcp.json` below the root is
+kept: a plugin may ship one, and its tests read it). Until the pilot of 2026-10-14 the
+instruction files were stripped whole; a repository whose tests read its
+`AGENTS.md` then failed configuration B's automatic check for that reason alone.
+Every attempt runs with `CLAUDE_CONFIG_DIR` set to the dedicated directory
+(resolved, and refused if it
 is `~/.claude` by any spelling or link). The CLI runs in a process group of its
 own, stopped when it returns. Its `PATH` holds links to the host's `git`, `go`
 and `gofmt` and the system directories, not the directories those tools live
@@ -100,7 +107,7 @@ The init line also lists the CLI's own built-in plugins (`cc-plugin-agents-md`,
 configurations. They ship with the CLI, not from the user's setup, so they are
 not a leak; the canary does not check them. What they could carry in is what
 the canary does check — no CLAUDE.md text, no hook output, no MCP server, and the
-task tree's own instruction files stripped, `AGENTS.md` included.
+task tree's own instruction files without a line that names mrw, `AGENTS.md` included.
 
 ## Commands
 

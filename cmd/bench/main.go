@@ -8,7 +8,7 @@
 //	bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
 //	bench verify  --stage S --tasks N --repeats R DIR
 //	bench analyze DIR
-//	bench hook    --log FILE            (configuration B's PreToolUse hook)
+//	bench hook    --log FILE --tree DIR (configuration B's PreToolUse hook)
 //	bench swebench-select [--n 20]      (instance ids on stdin)
 //
 // Nothing runs an agent until Zy has chosen how an attempt is contained and
@@ -33,7 +33,7 @@ const usageText = `usage:
   bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
   bench verify  --stage S --tasks N --repeats R DIR
   bench analyze DIR
-  bench hook    --log FILE
+  bench hook    --log FILE --tree DIR
   bench swebench-select [--n 20] < ids
 `
 
@@ -55,8 +55,9 @@ func main() {
 	case "hook":
 		fs := flag.NewFlagSet("hook", flag.ExitOnError)
 		log := fs.String("log", "", "where refusals and counted reads are appended")
+		tree := fs.String("tree", "", "the attempt's task tree: a write whose target lands outside it passes")
 		_ = fs.Parse(os.Args[2:])
-		os.Exit(bench.Hook(os.Stdin, os.Stderr, *log))
+		os.Exit(bench.Hook(os.Stdin, os.Stderr, *log, *tree))
 	case "swebench-select":
 		err = swebenchSelect(os.Args[2:], os.Stdin, os.Stdout)
 	case "-h", "--help", "help":

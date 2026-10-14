@@ -35,3 +35,4 @@ Status: `pending` | `partial` | `blocked` | `done`.
 - No contract row: nothing on mrw's served path changes.
 - T2's S5 passed on 2026-10-14 at 968ae417, Zy's own account with `bypassPermissions` and the one-time login in the dedicated config directory: the receipt is `docs/bench/canary-2026-10-14/canary.json`. Stage 1 (T3) now waits only for Zy's word.
 - T5's selection (S1) and T6's analysis (S1, S2) were built with T2, before any run, so the analysis is fixed before there is data to fit it to; both stay partial until their stages run.
+- The uncounted Stage 1 pilot (2026-10-14, 5 tasks × 2 configurations on Sonnet) found two harness defects, both fixed before any counted run on Zy's word: instruction files are redacted of mrw instead of stripped (T1 S5), and the hook passes a write outside the tree (T2 S6). The canary and the pilot run again after this change; the registered bar is untouched.

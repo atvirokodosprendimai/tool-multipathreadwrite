@@ -420,6 +420,9 @@ func TestVerifyRefusesAReceiptThatIsNotItsAttempt(t *testing.T) {
 	if !strings.Contains(string(b), `'/opt/with space/bench' hook --log '`) {
 		t.Errorf("the hook command is not quoted: %s", b)
 	}
+	if !strings.Contains(string(b), " --tree "+shellQuote(attemptTree(scratch))) {
+		t.Errorf("the hook is not told the attempt's tree, so a write outside it is refused: %s", b)
+	}
 }
 
 // TestAnAttemptLeavesNothingRunning: a background process the agent started is

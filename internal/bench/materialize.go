@@ -87,7 +87,7 @@ func Materialize(t Task, dst string, files []string) (string, error) {
 			return "", err
 		}
 	}
-	if err := StripInstructions(dst); err != nil {
+	if err := PrepareInstructions(dst); err != nil {
 		return "", err
 	}
 	for _, args := range [][]string{

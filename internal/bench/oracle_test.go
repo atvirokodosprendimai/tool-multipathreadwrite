@@ -178,32 +178,56 @@ func TestTheCorpusHasTheRegisteredShapeCounts(t *testing.T) {
 	}
 }
 
-// TestStrippingRemovesEveryInstructionFile is the half of the shape test that
-// needs a tree: whatever depth they sit at, the files a Claude Code, Codex or
-// Cursor session would read as instructions are gone after Strip.
-func TestStrippingRemovesEveryInstructionFile(t *testing.T) {
+// TestThePreparedTreeRedactsInstructionsAndStripsConfiguration is the half of
+// the shape test that needs a tree (ADR-156 Decision 2, as Zy amended it on
+// 2026-10-14 after the pilot): at any depth, a CLAUDE.md, CLAUDE.local.md,
+// AGENTS.md or .cursorrules keeps every line but those naming mrw, byte for
+// byte, so a repository's tests that read its own AGENTS.md still find it; the
+// configuration a host would load and run (.claude/, .cursor/, .codex/, and
+// .mcp.json at the root) is gone; a .mcp.json below the root, which no host
+// reads as configuration and a plugin may ship and test (agentsmemory's
+// clients/claude-code), is kept; every other file is untouched, mrw in it or
+// not.
+func TestThePreparedTreeRedactsInstructionsAndStripsConfiguration(t *testing.T) {
 	root := t.TempDir()
-	for _, p := range []string{"CLAUDE.md", "AGENTS.md", "CLAUDE.local.md", ".mcp.json", ".claude/settings.json", ".cursor/rules/a.mdc", ".codex/config.toml", "sub/CLAUDE.md", "sub/AGENTS.md", "sub/.claude/x", "keep.go", "sub/keep.md"} {
+	md := "# Rules\nUse mrw for every edit.\r\nKeep tests green.\nmrw_read is the MCP tool.\nRun MRW first.\nsmrw and mrwx are other words.\nlast line, no newline"
+	redacted := "# Rules\nKeep tests green.\nsmrw and mrwx are other words.\nlast line, no newline"
+	files := map[string]string{
+		"CLAUDE.md": md, "AGENTS.md": md, "CLAUDE.local.md": md, ".cursorrules": md, "sub/AGENTS.md": md,
+		".mcp.json": "x\n", ".claude/settings.json": "x\n", ".cursor/rules/a.mdc": "x\n", ".codex/config.toml": "x\n", "sub/.claude/x": "x\n",
+		"keep.go": "// mrw\n", "sub/keep.md": "mrw\n", "sub/.mcp.json": "{}\n",
+	}
+	for p, s := range files {
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, p)), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(root, p), []byte("x\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(root, p), []byte(s), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := StripInstructions(root); err != nil {
+	if err := PrepareInstructions(root); err != nil {
 		t.Fatal(err)
 	}
-	var left []string
+	want := map[string]string{
+		"CLAUDE.md": redacted, "AGENTS.md": redacted, "CLAUDE.local.md": redacted, ".cursorrules": redacted, "sub/AGENTS.md": redacted,
+		"keep.go": "// mrw\n", "sub/keep.md": "mrw\n", "sub/.mcp.json": "{}\n",
+	}
+	got := map[string]string{}
 	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
 		if err == nil && !info.IsDir() {
 			rel, _ := filepath.Rel(root, p)
-			left = append(left, filepath.ToSlash(rel))
+			b, _ := os.ReadFile(p)
+			got[filepath.ToSlash(rel)] = string(b)
 		}
 		return nil
 	})
-	if strings.Join(left, ",") != "keep.go,sub/keep.md" {
-		t.Errorf("left after stripping: %v", left)
+	if len(got) != len(want) {
+		t.Errorf("files after preparing: %v, want %v", got, want)
+	}
+	for p, s := range want {
+		if got[p] != s {
+			t.Errorf("%s after preparing: %q, want %q", p, got[p], s)
+		}
 	}
 }
 
