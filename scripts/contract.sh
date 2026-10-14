@@ -9116,6 +9116,25 @@ out=$(m read -C 1 --grep in255 2>"$WORK/e255"); want 0 $? "the pair: -C 1 after 
 grep -q -- '-C before the subcommand' "$WORK/e255" && bad "context -C got the note" || ok "with no note"
 rm -rf "$R/255" "$WORK/e255"
 
+# 256. ADR-152: a whole-project check that took 60 s or more for the files a
+# write touched adds a `hint:` line naming scoped_check. The binary takes no
+# seam for the threshold, so the slow half is proved in-process
+# (TestTheCLIPrintsTheSlowCheckHint drives rootCommand's write); here the built
+# binary's fast whole-project check — the same unscoped config — prints no hint
+# line and its JSON carries no check.hint, and `mrw check --full` none either.
+fixture
+printf '{"check":"true"}\n' > "$R/.quality-harness.json"
+m read a.go >"$WORK/served.out"
+printf '@@ a.go 3 replace\nfunc A() int { return 256 }\n' > "$WORK/p256"
+out=$(m write --check "$WORK/p256" 2>&1); want 0 $? "a write whose fast whole-project check passes exits 0"
+{ grep -q '^check PASS' <<<"$out" && ! grep -q '^hint: ' <<<"$out"; } && ok "with no hint line" || bad "fast check hint: $out"
+printf '@@ a.go 3 replace\nfunc A() int { return 257 }\n' > "$WORK/q256"
+out=$(m write --check --json "$WORK/q256" 2>&1); want 0 $? "the same write with --json exits 0"
+{ grep -q '"exit_code": *0' <<<"$out" && ! grep -q '"hint"' <<<"$out"; } && ok "and its check carries no hint key" || bad "fast check JSON: $out"
+out=$(m check --full 2>&1); want 0 $? "mrw check --full exits 0"
+grep -q '^hint: ' <<<"$out" && bad "a --full check hinted: $out" || ok "and prints no hint"
+rm -f "$R/.quality-harness.json" "$WORK/p256" "$WORK/q256"
+
 # 233. ADR-130: a walk does not enter a nested repository. Inside a checkout, a
 # directory holding its own .git is another project's, and git does not descend
 # into it; mrw walked it with its own rules. --grep serves the outer match only

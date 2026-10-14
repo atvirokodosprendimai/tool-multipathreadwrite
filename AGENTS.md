@@ -460,7 +460,9 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   `scoped_check` whose template contains `{files}` or `{dirs}` and not `{packages}` still
   runs on a `.rs` write when `packages()` cannot map (ADR-061); `{packages}`-only
   still falls back. `{packages}` is Go's alone; `{files}` (the edited paths) and `{dirs}` (their directories,
-  `./dir`, each once — ADR-124) are the portable forms, e.g. `"scoped_check": "pytest {dirs}"`. A
+  `./dir`, each once — ADR-124) are the portable forms, e.g. `"scoped_check": "pytest {dirs}"`. A whole-project
+  check that took 60 s or more for the files a write touched adds a `hint:` line saying to declare `"scoped_check"`
+  (ADR-152). A
   non-prose hunk whose `{}` `()` `[]` nets moved prints a `balance` row under
   `ok` and stays `ok` — a balanced insert in the wrong place is invisible to it.
   The summary line counts those rows (`0 failed, 1 advisory — applied`, zero

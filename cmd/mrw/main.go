@@ -2079,6 +2079,13 @@ func reportCheck(w *os.File, r *check.Result) {
 	}
 	out := bufio.NewWriter(w)
 	defer func() { _ = out.Flush() }()
+	// ADR-152: a slow whole-project check says how to scope it, last, under
+	// its verdict; this runs before the flush above.
+	defer func() {
+		if r.Hint != "" {
+			fmt.Fprintf(out, "hint: %s\n", r.Hint)
+		}
+	}()
 
 	// ADR-008: a delete says what it removed — here the old check logs this
 	// run pruned from the temp directory (ADR-080).

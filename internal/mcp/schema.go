@@ -233,6 +233,7 @@ var writeDescriptions = map[string]string{
 	"check.command":              "The command that ran, as the shell received it.",
 	"check.exit_code":            "The check's exit status; -1 when no process exited with one (never started, timed out, interrupted). 0 only when the check exited 0.",
 	"check.duration_ms":          "How long the check ran, in milliseconds.",
+	"check.hint":                 "How to scope a check that ran the whole project's command for the files this write touched and took 60 s or more (ADR-152): declare `scoped_check`, or why the declared one could not name those paths. Absent otherwise.",
 	"check.output_file":          "The file holding the check's whole output. The tail here is its last lines.",
 	"check.tail":                 "The last lines of the check's output, each capped. The first thing cut when the receipt exceeds the ceiling (see `elided`).",
 	"check.truncated_lines":      "How many lines of output came before the tail and are only in output_file.",
