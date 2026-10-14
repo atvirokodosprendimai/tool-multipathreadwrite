@@ -26,7 +26,7 @@ The 14-session survey (2026-10-09, `docs/adr/BACKLOG.md` "Flag friction") named 
 ## Decision
 
 1. **A per-command table.** `mrw write` given `--plan`, `--file`, `--input` or `--stdin` appends `; ` and one sentence to the existing message: `the plan is an argument, not a flag: mrw write PLAN, or mrw write - to read it from standard input`. `mrw read`'s table is ADR-140's, unchanged; every other command and flag is worded as before; a flag spelled like a subcommand (ADR-097) is answered first, as before.
-2. **An all-digit short root is named, once the parser has taken it.** `main` walks the tokens before the subcommand as the parser does — an empty token passed over, the last root option winning — and, when that last option is a short `-C` whose value (attached after `=` or the next token) is one or more ASCII digits, wraps the root command's `Before` to print one line on stderr: `mrw: -C before the subcommand is --root, so "3" is taken as the root directory; for lines of context, put -C after read: mrw read -C 3 …`. `Before` runs only once the root's options have parsed, so a call the parser or the padding guard (ADR-069) refuses first — an unknown flag, `---C=3`, a padded value — says nothing about a root it never used (the Codex review of #401). The line is printed whether or not a directory of that name exists, because the silent case is the one that exists.
+2. **An all-digit short root is named, once the parser has taken it.** `main` walks the tokens before the subcommand as the parser does — an empty token passed over, the last root option winning — and, when that last option is a short `-C` whose value (attached after `=` or the next token) is one or more ASCII digits, wraps the root command's `Before` to print one line on stderr when the root the whole chain parsed is still that value: `mrw: -C before the subcommand is --root, so "3" is taken as the root directory; for lines of context, put -C after read: mrw read -C 3 …`. `Before` runs only once the options have parsed, so a call the parser or the padding guard (ADR-069) refuses first — an unknown flag, `---C=3`, a padded value — says nothing about a root it never used; and every subcommand but `read` inherits the root flag, so `mrw -C 3 write --root sub plan` replaces `3` and prints nothing (both found by the Codex reviews of #401). The line is printed whether or not a directory of that name exists, because the silent case is the one that exists.
 3. **Nothing else changes**: exit codes, stdout, the root mrw uses, and every message already printed. `--root 3` (spelled long), a `-C` whose value has any other character, and `-C` after the subcommand print no line.
 
 ## Alternatives Considered
@@ -68,7 +68,7 @@ See `tasks/README.md`: T1.
 ## Out of Scope
 
 - A hint for `-f` and `-p` on `write` (permanent: boundary: each reads as another tool's flag — `--force`, `patch -p` — so the plan sentence would be a guess)
-- `-C` misuse after the subcommand on a command other than `read` (permanent: boundary: no other command has `-C`, and its unknown-flag error already names the help)
+- `-C` after the subcommand (permanent: boundary: every command but `read` inherits the root flag with both its names (ADR-069), so `mrw write -C 3 plan` names the root as `--help` says; the confusion this record names is `-C` before the subcommand, and a later `--root` or `-C` that replaces the digit root silences the note)
 - Hints for `check`, `iter`, `seen` and `stats` (deferred: docs/adr/BACKLOG.md — no evidence yet)
 
 ## Risks

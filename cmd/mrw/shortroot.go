@@ -46,13 +46,18 @@ func shortRoot(root *cli.Command, argv []string) (string, bool) {
 }
 
 // noteShortRoot has the root command name an all-digit short root v on stderr
-// once its own options have parsed. A call the parser refuses first never
-// reaches Before, so it says nothing about a root it never used.
+// once the options have parsed and v is still the root. A call the parser
+// refuses first never reaches Before, so it says nothing about a root it never
+// used; and the root flag is inherited by the subcommands (ADR-069), so a later
+// --root or -C after the subcommand (mrw -C 3 write --root sub) can replace v,
+// which the root's Before, run after the whole chain has parsed, can see.
 func noteShortRoot(root *cli.Command, v string) {
 	before := root.Before
 	root.Before = func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-		fmt.Fprintf(os.Stderr, "mrw: -C before the subcommand is --root, so %q is taken as the root directory; "+
-			"for lines of context, put -C after read: mrw read -C %s …\n", v, v)
+		if cmd.String("root") == v {
+			fmt.Fprintf(os.Stderr, "mrw: -C before the subcommand is --root, so %q is taken as the root directory; "+
+				"for lines of context, put -C after read: mrw read -C %s …\n", v, v)
+		}
 		return before(ctx, cmd)
 	}
 }

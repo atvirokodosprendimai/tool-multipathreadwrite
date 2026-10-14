@@ -95,6 +95,8 @@ func TestAnAllDigitShortRootBeforeTheVerbIsNamed(t *testing.T) {
 		{"--bogus", "-C", "3", "read", "f.txt"},
 		{"---C=3", "read", "f.txt"},
 		{"--C=3 ", "read", "f.txt"},
+		{"-C", "3", "seen", "--root", "sub"}, // the root flag is inherited: a later one replaces 3
+		{"-C", "3", "seen", "-C", "sub"},
 	} {
 		_, errOut, _ := run(cwd, args...)
 		if strings.Contains(errOut, "-C before the subcommand") {
