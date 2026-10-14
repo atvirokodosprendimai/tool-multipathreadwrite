@@ -402,7 +402,7 @@ starts with `/` is rewritten too, into a false "no match".
 | code | meaning |
 |---|---|
 | 0 | everything asked for succeeded |
-| 1 | a hunk failed, or the answer is incomplete; **nothing written** |
+| 1 | a hunk failed, or the answer is incomplete; **nothing written**. For `mrw version --check-latest`: a newer release exists |
 | 2 | usage, parse or I/O error — including a check miss |
 | 3 | the write applied and the check failed, timed out or was interrupted (before it started, too); the tree is changed and unverified. Not a rollback |
 

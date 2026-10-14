@@ -74,6 +74,11 @@ func TestCheckLatestSaysWhetherANewerReleaseExists(t *testing.T) {
 			"", "could not ask for the latest release: "},
 		{"a tag that is not strict could not ask", "v1.65.0", "200", `{"tag_name":"v1.66.0-rc1"}`, 2,
 			"", "could not ask for the latest release: "},
+		{"a release followed by more is not a release", "v1.65.0", "200", `{"tag_name":"v1.65.0"}garbage`, 2,
+			"", "could not ask for the latest release: "},
+		{"an answer over 1 MiB could not ask", "v1.65.0", "200",
+			`{"tag_name":"v1.65.0","pad":"` + strings.Repeat("a", 1<<20) + `"}`, 2,
+			"", "the answer is larger than"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			n, _ := strconv.Atoi(tc.status)
@@ -114,6 +119,24 @@ func TestCheckLatestSaysWhetherANewerReleaseExists(t *testing.T) {
 		}
 		if strings.Contains(stdout, "latest release:") {
 			t.Errorf("stdout claims an answer it never got: %q", stdout)
+		}
+	})
+
+	// A renamed repository answers 301 to its new place: the redirect is
+	// followed, and the answer it ends at decides.
+	t.Run("a redirect is followed to the answer it ends at", func(t *testing.T) {
+		moved := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == latestPath {
+				http.Redirect(w, r, "/repositories/1/releases/latest", http.StatusMovedPermanently)
+				return
+			}
+			_, _ = w.Write([]byte(`{"tag_name":"v1.65.0"}`))
+		}))
+		defer moved.Close()
+		pointAt(t, "v1.65.0", moved.URL)
+		stdout, msg, code := runVersion(t, "version", "--check-latest")
+		if code != 0 || !strings.Contains(stdout, "this mrw is current") {
+			t.Fatalf("exit %d, error %q, stdout %q; want 0 and current", code, msg, stdout)
 		}
 	})
 }

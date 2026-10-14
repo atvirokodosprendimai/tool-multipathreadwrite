@@ -23,6 +23,7 @@ const (
 	latestReleasePath = "/repos/atvirokodosprendimai/tool-multipathreadwrite/releases/latest"
 	latestReleasePage = "https://github.com/atvirokodosprendimai/tool-multipathreadwrite/releases/latest"
 	latestTimeout     = 5 * time.Second
+	maxAnswer         = 1 << 20
 )
 
 // strictTag is the shape every release tag has: the build job publishes only
@@ -70,6 +71,8 @@ func latestTag(ctx context.Context) (string, error) {
 	}
 	req.Header.Set("User-Agent", "mrw/"+version)
 	req.Header.Set("Accept", "application/vnd.github+json")
+	// Redirects are followed, as Go's client follows them (at most ten): GitHub
+	// answers 301 for a renamed repository. The answer they end at must be 200.
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", err
@@ -78,10 +81,19 @@ func latestTag(ctx context.Context) (string, error) {
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%s answered %s", req.URL.Host, resp.Status)
 	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAnswer+1))
+	if err != nil {
+		return "", fmt.Errorf("reading the answer: %w", err)
+	}
+	if len(body) > maxAnswer {
+		return "", fmt.Errorf("the answer is larger than %d bytes", maxAnswer)
+	}
 	var answer struct {
 		TagName string `json:"tag_name"`
 	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&answer); err != nil {
+	// Unmarshal, not one Decode: the body is one JSON value, and a body with
+	// anything after it is not a release (the Codex review of #402).
+	if err := json.Unmarshal(body, &answer); err != nil {
 		return "", fmt.Errorf("the answer is not a release: %w", err)
 	}
 	if _, ok := semver(answer.TagName); !ok {

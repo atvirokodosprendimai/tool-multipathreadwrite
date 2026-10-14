@@ -33,7 +33,7 @@ The binary makes no network call today (`go.mod` names one requirement; `net` is
    - `latest release: vB — this mrw (vA) is newer` when the running version is above it, exit 0;
    - `latest release: vB — this mrw (vA) is older; download https://github.com/atvirokodosprendimai/tool-multipathreadwrite/releases/latest`, then on stderr `mrw: a newer release exists: vB`, exit 1;
    - `latest release: vB — this build (dev) cannot be compared` when `version` is not a strict `vX.Y.Z` (a local build says `dev`), exit 0: there is no verdict to give, and a script that checks a dev build has not been told a release is newer.
-2. **It could not ask** — a connection error, a timeout, a status other than 200, a body that is not JSON, or a `tag_name` that is not strict `vX.Y.Z` — prints `mrw: could not ask for the latest release: <reason>` on stderr, exit 2. The version line was already printed.
+2. **It could not ask** — a connection error, a timeout, a status other than 200, a body over 1 MiB, a body that is not one JSON value, or a `tag_name` that is not strict `vX.Y.Z` — prints `mrw: could not ask for the latest release: <reason>` on stderr, exit 2. The version line was already printed. A redirect is followed, as Go's client follows one (at most ten), and the status that counts is the one it ends at: GitHub answers 301 for a renamed repository (the Codex review of #402 asked whether redirects should fail; they are followed on purpose).
 3. **It does not count releases.** "N releases behind" needs a second request for the release list; the line names both versions instead.
 4. **Nothing else makes a network call.** Without the flag, `mrw version` is unchanged; no other command, the MCP server included, opens a connection. A test holds `net/http` to the one file. ADR-009's telemetry rejection stands for everything automatic and gains a pointer to this record.
 5. **The API base is a package-level string variable** (`releasesAPI`, default `https://api.github.com`), so a test and the contract row point the built binary at a local server with `-ldflags -X`, as `version` is stamped. No environment variable or flag changes where it asks.
@@ -81,7 +81,7 @@ See `tasks/`.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | A later change adds a network call elsewhere | Low | High | `TestOnlyTheCheckLatestFileImportsTheNetwork` fails on any other non-test file importing `net` or `net/http` |
-| The repository moves and the URL answers 404 | Low | Low | exit 2 names the status; the URL is one constant |
+| The repository moves and the URL answers 404 | Low | Low | a rename answers 301, which is followed; a 404 is exit 2, naming the status; the URL is one constant |
 
 ## Rollback
 

@@ -84,6 +84,7 @@ out=$(mktemp) \
 - 2026-10-14 · 6b565cb* · mutant killed · exit 1 · `cmd/mrw/main.go` · plain mrw version asks the network · acceptance-sha256:b36d890843739af3d24a2d869ea9ef5e3d50c9bfb90aab507ab21be3d64a32e8 · covers:the flag is what asks
 - 2026-10-14 · 6b565cb* · mutant killed · exit 1 · `cmd/mrw/main.go` · a second shipped file imports the network · acceptance-sha256:b36d890843739af3d24a2d869ea9ef5e3d50c9bfb90aab507ab21be3d64a32e8 · covers:only one file imports the network
 - 2026-10-14 · 6b565cb* · mutant killed · exit 1 · `README.md` · the README stops teaching the flag · acceptance-sha256:b36d890843739af3d24a2d869ea9ef5e3d50c9bfb90aab507ab21be3d64a32e8 · covers:the docs teach the flag
+- 2026-10-14 · f4b7283* · mutant killed · exit 1 · `cmd/mrw/latest149.go` · an answer over 1 MiB is parsed as if whole · acceptance-sha256:b36d890843739af3d24a2d869ea9ef5e3d50c9bfb90aab507ab21be3d64a32e8 · covers:could not ask exits 2
 
 ## Verification Log
 (empty until execute)
@@ -115,6 +116,7 @@ out=$(mktemp) \
 - 2026-10-14 · 6b565cb* · exit 0 · `set -o pipefail …` · acceptance-sha256:b36d890843739af3d24a2d869ea9ef5e3d50c9bfb90aab507ab21be3d64a32e8 · ms:1477
 - 2026-10-14 · human-observed · observed by the executor 2026-10-14: S4 ./scripts/contract.sh exit 0 ('contract holds'); all thirteen §253 rows PASS — current exits 0, the server saw the request and plain mrw version asks nothing, behind exits 1 naming the newer release, a dev build exits 0 with no verdict, not-JSON and a gone server exit 2 saying it could not ask
 - 2026-10-14 · 6b565cb* · exit 0 · `set -o pipefail …` · acceptance-sha256:b36d890843739af3d24a2d869ea9ef5e3d50c9bfb90aab507ab21be3d64a32e8 · ms:679
+- 2026-10-14 · f4b7283* · exit 0 · `set -o pipefail …` · acceptance-sha256:b36d890843739af3d24a2d869ea9ef5e3d50c9bfb90aab507ab21be3d64a32e8 · ms:3092
 
 ## Invariants
 
