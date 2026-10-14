@@ -183,7 +183,7 @@ func analyze(args []string, w io.Writer) error {
 	}
 	var rs []bench.Receipt
 	err := filepath.Walk(args[0], func(p string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(p, ".receipt.json") || strings.Contains(p, string(filepath.Separator)+"pilot"+string(filepath.Separator)) {
+		if err != nil || info.IsDir() || !strings.HasSuffix(p, ".receipt.json") {
 			return err
 		}
 		b, err := os.ReadFile(p)

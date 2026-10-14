@@ -1,0 +1,46 @@
+{
+  "attempt": "am-compose-healthcheck.A.claude-sonnet-5-5.2",
+  "stage": "stage1",
+  "task": "am-compose-healthcheck",
+  "shape": "structural",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 10,
+  "started": "2026-10-14T19:54:20Z",
+  "wall_ms": 8293,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 1,
+  "tool_calls": 0,
+  "total_cost_usd": 0.1185176,
+  "usage": {
+    "input_tokens": 2,
+    "output_tokens": 883,
+    "cache_read_input_tokens": 5676,
+    "cache_creation_input_tokens": 27279
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "docker-compose.yml: no match for (?m)^    restart: unless-stopped\\n    healthcheck:\\n      test: \\[\"CMD\", \"agentsmemory\", \"version\"\\]\\n      interval: 30s\\n      retries: 3\\n"
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 0,
+    "insertions": 0,
+    "deletions": 0
+  }
+}

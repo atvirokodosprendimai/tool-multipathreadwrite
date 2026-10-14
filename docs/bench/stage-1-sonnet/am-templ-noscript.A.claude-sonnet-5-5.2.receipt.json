@@ -1,0 +1,46 @@
+{
+  "attempt": "am-templ-noscript.A.claude-sonnet-5-5.2",
+  "stage": "stage1",
+  "task": "am-templ-noscript",
+  "shape": "structural",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 43,
+  "started": "2026-10-14T20:04:59Z",
+  "wall_ms": 7411,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 3,
+  "tool_calls": 2,
+  "total_cost_usd": 0.1297584,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 497,
+    "cache_read_input_tokens": 73364,
+    "cache_creation_input_tokens": 29360
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "internal/web/views/layout.templ: no match for (?m)^\\t\\t\\t\u003cnoscript\u003e\\n\\t\\t\\t\\t\u003clink rel=\"stylesheet\" href=\\{ templ\\.SafeURL\\(staticURL\\(\"/static/noscript\\.css\"\\)\\) \\}/\u003e\\n\\t\\t\\t\u003c/noscript\u003e\\n"
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 3,
+    "deletions": 0
+  }
+}

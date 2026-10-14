@@ -1,0 +1,22 @@
+{
+  "stage": "pilot",
+  "tasks": [
+    "am-go-probe-k",
+    "am-yaml-funding",
+    "cac-go-heartbeat",
+    "qh-rename-git-lines",
+    "site-html-list-item"
+  ],
+  "models": [
+    "claude-sonnet-5-5"
+  ],
+  "configs": [
+    "A",
+    "B"
+  ],
+  "repeats": 1,
+  "seed": 156,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "containment": "bypass"
+}

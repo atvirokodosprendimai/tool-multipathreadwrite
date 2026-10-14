@@ -1,0 +1,44 @@
+{
+  "attempt": "qh-yaml-windows-node.A.claude-sonnet-5-5.2",
+  "stage": "stage1",
+  "task": "qh-yaml-windows-node",
+  "shape": "repeated-anchor",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 113,
+  "started": "2026-10-14T20:28:08Z",
+  "wall_ms": 35963,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 15,
+  "tool_calls": 14,
+  "total_cost_usd": 0.1298803,
+  "usage": {
+    "input_tokens": 24,
+    "output_tokens": 3792,
+    "cache_read_input_tokens": 217603,
+    "cache_creation_input_tokens": 17538
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 1
+  },
+  "check_red_at_base": true
+}

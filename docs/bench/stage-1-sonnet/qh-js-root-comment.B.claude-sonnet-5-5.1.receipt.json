@@ -1,0 +1,41 @@
+{
+  "attempt": "qh-js-root-comment.B.claude-sonnet-5-5.1",
+  "stage": "stage1",
+  "task": "qh-js-root-comment",
+  "shape": "repeated-anchor",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 42,
+  "started": "2026-10-14T20:04:48Z",
+  "wall_ms": 8871,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.0572793,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 447,
+    "cache_read_input_tokens": 57093,
+    "cache_creation_input_tokens": 11771
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 0
+  },
+  "check_red_at_base": true
+}

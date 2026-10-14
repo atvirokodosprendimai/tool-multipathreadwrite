@@ -1,0 +1,60 @@
+{
+  "attempt": "am-rename-end-wing-root.A.claude-sonnet-5-5.1",
+  "stage": "stage1",
+  "task": "am-rename-end-wing-root",
+  "shape": "multi-site",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 15,
+  "started": "2026-10-14T19:55:31Z",
+  "wall_ms": 8506,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 1,
+  "tool_calls": 0,
+  "total_cost_usd": 0.1172016,
+  "usage": {
+    "input_tokens": 2,
+    "output_tokens": 757,
+    "cache_read_input_tokens": 5676,
+    "cache_creation_input_tokens": 27265
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "internal/palace/kg.go: is not the reference result",
+      "internal/palace/service.go: is not the reference result",
+      "internal/palace/supersede.go: is not the reference result",
+      "internal/palace/validity.go: is not the reference result",
+      "internal/palace/wingroot_correct_test.go: is not the reference result",
+      "internal/palace/kg.go: no match for \\bendEmptyWingRoot\\b",
+      "internal/palace/service.go: no match for \\bendEmptyWingRoot\\b",
+      "internal/palace/supersede.go: no match for \\bendEmptyWingRoot\\b",
+      "internal/palace/validity.go: no match for \\bendEmptyWingRoot\\b",
+      "internal/palace/wingroot_correct_test.go: no match for \\bendEmptyWingRoot\\b",
+      "internal/palace/kg.go: still matches \\bendWingRootIfEntryRoomIsEmpty\\b",
+      "internal/palace/service.go: still matches \\bendWingRootIfEntryRoomIsEmpty\\b",
+      "internal/palace/supersede.go: still matches \\bendWingRootIfEntryRoomIsEmpty\\b",
+      "internal/palace/validity.go: still matches \\bendWingRootIfEntryRoomIsEmpty\\b",
+      "internal/palace/wingroot_correct_test.go: still matches \\bendWingRootIfEntryRoomIsEmpty\\b"
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 0,
+    "insertions": 0,
+    "deletions": 0
+  }
+}

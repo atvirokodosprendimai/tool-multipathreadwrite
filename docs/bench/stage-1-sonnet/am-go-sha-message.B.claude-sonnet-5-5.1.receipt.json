@@ -1,0 +1,44 @@
+{
+  "attempt": "am-go-sha-message.B.claude-sonnet-5-5.1",
+  "stage": "stage1",
+  "task": "am-go-sha-message",
+  "shape": "large-file",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 102,
+  "started": "2026-10-14T20:23:02Z",
+  "wall_ms": 88585,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 7,
+  "tool_calls": 6,
+  "total_cost_usd": 0.16481869999999996,
+  "usage": {
+    "input_tokens": 14,
+    "output_tokens": 1375,
+    "cache_read_input_tokens": 214807,
+    "cache_creation_input_tokens": 32390
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "outside": [
+      "clients/claude-code/desktopbridge_download_test.go: a file the task does not touch"
+    ]
+  },
+  "silent_mis_edit": true,
+  "diff": {
+    "files": 2,
+    "insertions": 2,
+    "deletions": 2
+  },
+  "hook_reads": 4
+}

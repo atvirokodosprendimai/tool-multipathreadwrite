@@ -59,6 +59,26 @@ func TestTheAnalysisPairsByTaskAndKeepsEveryAttempt(t *testing.T) {
 	}
 }
 
+// TestAPilotIsNeverCounted: a pilot's receipts sit beside the stage's (T3 keeps
+// pilot/ and its rerun pilot-2/ under the stage's directory), and the
+// registration counts no pilot. The rerun was counted once because only a
+// directory named exactly pilot was skipped (the review of #416).
+func TestAPilotIsNeverCounted(t *testing.T) {
+	rs := receiptsFor("sonnet", "own", repeat(1.0, 10), repeat(1.0, 10), repeat(true, 10), repeat(true, 10))
+	counted := len(rs)
+	for _, p := range receiptsFor("sonnet", "own", repeat(1.0, 3), repeat(9.0, 3), repeat(true, 3), repeat(false, 3)) {
+		p.Stage = "pilot"
+		rs = append(rs, p)
+	}
+	got, err := Analyze(rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Attempts != counted {
+		t.Errorf("a pilot's attempts were counted: %+v, want %d attempts", got, counted)
+	}
+}
+
 // TestOnlyTheRegisteredExclusionsAreAdmitted: a start error and a setup failure
 // are left out of the pairing and counted; an unsolved attempt that ran past
 // its budget is not excluded; any other exclusion is refused outright.

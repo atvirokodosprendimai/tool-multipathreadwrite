@@ -1,0 +1,43 @@
+{
+  "attempt": "cac-rename-post-send.A.claude-sonnet-5-5.1",
+  "stage": "stage1",
+  "task": "cac-rename-post-send",
+  "shape": "multi-site",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 17,
+  "started": "2026-10-14T19:56:22Z",
+  "wall_ms": 15616,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.0257321,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 704,
+    "cache_read_input_tokens": 38201,
+    "cache_creation_input_tokens": 3713
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 3,
+    "insertions": 11,
+    "deletions": 11
+  }
+}

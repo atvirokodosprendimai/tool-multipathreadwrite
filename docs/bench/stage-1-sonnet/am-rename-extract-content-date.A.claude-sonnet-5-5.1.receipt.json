@@ -1,0 +1,54 @@
+{
+  "attempt": "am-rename-extract-content-date.A.claude-sonnet-5-5.1",
+  "stage": "stage1",
+  "task": "am-rename-extract-content-date",
+  "shape": "multi-site",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 8,
+  "started": "2026-10-14T19:53:54Z",
+  "wall_ms": 10400,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 1,
+  "tool_calls": 0,
+  "total_cost_usd": 0.1179616,
+  "usage": {
+    "input_tokens": 2,
+    "output_tokens": 841,
+    "cache_read_input_tokens": 5676,
+    "cache_creation_input_tokens": 27245
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "internal/palace/contentdate.go: is not the reference result",
+      "internal/palace/contentdate_test.go: is not the reference result",
+      "internal/palace/mine.go: is not the reference result",
+      "internal/palace/contentdate.go: no match for \\bparseContentDate\\b",
+      "internal/palace/contentdate_test.go: no match for \\bparseContentDate\\b",
+      "internal/palace/mine.go: no match for \\bparseContentDate\\b",
+      "internal/palace/contentdate.go: still matches \\bextractContentDate\\b",
+      "internal/palace/contentdate_test.go: still matches \\bextractContentDate\\b",
+      "internal/palace/mine.go: still matches \\bextractContentDate\\b"
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 0,
+    "insertions": 0,
+    "deletions": 0
+  }
+}
