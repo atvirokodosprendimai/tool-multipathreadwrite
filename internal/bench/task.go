@@ -48,6 +48,11 @@ type Task struct {
 	Exact       bool    `json:"exact,omitempty"`
 	Require     []Match `json:"require"`
 	Forbid      []Match `json:"forbid,omitempty"`
+	// CheckRedAtBase says why the repository's own declared check fails at
+	// the pinned commit in the tree bench builds, so configuration B's
+	// automatic check (ADR-054) is red there whatever the agent does: a
+	// measured fact, empty for every other task (ADR-156 T1 S6).
+	CheckRedAtBase string `json:"check_red_at_base,omitempty"`
 
 	Dir     string            `json:"-"`
 	regions map[string][]hunk // base-numbered hunks of the reference fix, by file
