@@ -591,7 +591,12 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 	path := tools + ":" + systemPath
 	args := []string{"-p", a.Task.Instruction, "--output-format", "stream-json", "--verbose", "--model", a.Model,
 		"--tools", strings.Join(a.Config.Tools, ","), "--strict-mcp-config", "--mcp-config", empty,
-		"--disable-slash-commands", "--no-session-persistence", "--no-chrome", "--permission-mode", "bypassPermissions"}
+		"--disable-slash-commands", "--no-session-persistence", "--no-chrome", "--permission-mode", "bypassPermissions",
+		// The attempt's own directory would otherwise sit in the system prompt
+		// ahead of B's appended instructions, so B wrote them to the cache in
+		// every attempt; with the flag they are read from it, as a user's own
+		// checkout reads them (ADR-156 Decision 2, measured 2026-10-14).
+		"--exclude-dynamic-system-prompt-sections"}
 	// USER is how the CLI finds the subscription's credentials in the macOS
 	// keychain: without it a logged-in config directory answers "Not logged
 	// in" (the first real canary, 2026-10-14).
