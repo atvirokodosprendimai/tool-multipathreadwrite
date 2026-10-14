@@ -1,0 +1,47 @@
+{
+  "stage": "stage1",
+  "tasks": [
+    "am-compose-healthcheck",
+    "am-compose-reranker-restart",
+    "am-go-probe-k",
+    "am-go-sha-message",
+    "am-md-table-row",
+    "am-md-tool-status",
+    "am-rename-build-closet-lines",
+    "am-rename-copy-config-tree",
+    "am-rename-end-wing-root",
+    "am-rename-extract-content-date",
+    "am-templ-noscript",
+    "am-yaml-funding",
+    "am-yaml-race-timeout",
+    "cac-go-empty-body-422",
+    "cac-go-heartbeat",
+    "cac-go-subscriber-buffer",
+    "cac-rename-post-send",
+    "cac-rename-write-event",
+    "qh-js-record-budget",
+    "qh-js-root-comment",
+    "qh-json-keyword",
+    "qh-rename-find-git-dir",
+    "qh-rename-git-lines",
+    "qh-yaml-version-step",
+    "qh-yaml-windows-node",
+    "site-html-cost-faq",
+    "site-html-list-item",
+    "site-html-strength-item",
+    "site-jsonc-compat-date",
+    "site-robots-sitemap"
+  ],
+  "models": [
+    "claude-sonnet-5-5"
+  ],
+  "configs": [
+    "A",
+    "B"
+  ],
+  "repeats": 2,
+  "seed": 156,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "containment": "bypass"
+}

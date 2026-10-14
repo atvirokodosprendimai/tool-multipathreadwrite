@@ -1,0 +1,54 @@
+{
+  "attempt": "am-rename-copy-config-tree.A.claude-sonnet-5-5.1",
+  "stage": "stage1",
+  "task": "am-rename-copy-config-tree",
+  "shape": "multi-site",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 100,
+  "started": "2026-10-14T20:22:42Z",
+  "wall_ms": 7412,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 1,
+  "tool_calls": 0,
+  "total_cost_usd": 0.1173636,
+  "usage": {
+    "input_tokens": 2,
+    "output_tokens": 778,
+    "cache_read_input_tokens": 5676,
+    "cache_creation_input_tokens": 27253
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "clients/claude-code/copy.go: is not the reference result",
+      "clients/claude-code/copy_test.go: is not the reference result",
+      "clients/claude-code/installer.go: is not the reference result",
+      "clients/claude-code/copy.go: no match for \\bcopyConfigDir\\b",
+      "clients/claude-code/copy_test.go: no match for \\bcopyConfigDir\\b",
+      "clients/claude-code/installer.go: no match for \\bcopyConfigDir\\b",
+      "clients/claude-code/copy.go: still matches \\bcopyConfigTree\\b",
+      "clients/claude-code/copy_test.go: still matches \\bcopyConfigTree\\b",
+      "clients/claude-code/installer.go: still matches \\bcopyConfigTree\\b"
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 0,
+    "insertions": 0,
+    "deletions": 0
+  }
+}

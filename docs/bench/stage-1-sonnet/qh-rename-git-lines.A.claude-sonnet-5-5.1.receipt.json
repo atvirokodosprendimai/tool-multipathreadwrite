@@ -1,0 +1,48 @@
+{
+  "attempt": "qh-rename-git-lines.A.claude-sonnet-5-5.1",
+  "stage": "stage1",
+  "task": "qh-rename-git-lines",
+  "shape": "multi-site",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 85,
+  "started": "2026-10-14T20:17:19Z",
+  "wall_ms": 19517,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 14,
+  "tool_calls": 13,
+  "total_cost_usd": 0.0943036,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 2751,
+    "cache_read_input_tokens": 60336,
+    "cache_creation_input_tokens": 15186
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "plugin/scripts/artifact-pass.mjs: is not the reference result",
+      "plugin/scripts/publish-verdict.mjs: is not the reference result"
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 5,
+    "insertions": 11,
+    "deletions": 11
+  },
+  "check_red_at_base": true
+}

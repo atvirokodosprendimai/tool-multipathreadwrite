@@ -1,0 +1,46 @@
+{
+  "attempt": "site-html-cost-faq.A.claude-sonnet-5-5.1",
+  "stage": "stage1",
+  "task": "site-html-cost-faq",
+  "shape": "large-file",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 55,
+  "started": "2026-10-14T20:11:34Z",
+  "wall_ms": 8251,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.020203400000000003,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 719,
+    "cache_read_input_tokens": 20894,
+    "cache_creation_input_tokens": 2728
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "outside": [
+      "qamstack/index.html: base lines 1125-1125"
+    ]
+  },
+  "silent_mis_edit": true,
+  "diff": {
+    "files": 1,
+    "insertions": 2,
+    "deletions": 2
+  }
+}

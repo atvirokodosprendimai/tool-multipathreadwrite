@@ -1,0 +1,46 @@
+{
+  "attempt": "am-compose-reranker-restart.A.claude-sonnet-5-5.2",
+  "stage": "stage1",
+  "task": "am-compose-reranker-restart",
+  "shape": "repeated-anchor",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 119,
+  "started": "2026-10-14T20:30:31Z",
+  "wall_ms": 8329,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 1,
+  "tool_calls": 0,
+  "total_cost_usd": 0.1160556,
+  "usage": {
+    "input_tokens": 2,
+    "output_tokens": 650,
+    "cache_read_input_tokens": 5676,
+    "cache_creation_input_tokens": 27246
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "docker-compose.full.yml: no match for (?m)^  reranker:\\n(?:(?:    |\\n).*\\n)*?    restart: on-failure\\n"
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 0,
+    "insertions": 0,
+    "deletions": 0
+  }
+}

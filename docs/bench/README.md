@@ -5,7 +5,7 @@ two configurations, and grades what each run leaves behind. It calls no model
 itself: it starts `claude -p` as a subprocess, reads the stream-json it prints,
 and judges the tree with an oracle that knows the answer by construction.
 
-**Zy chose, on 2026-10-14, to run attempts under his own account with
+**Zy chose, on 2026-10-14, to run attempts under their own account with
 `bypassPermissions`** — over a dedicated macOS user and over Docker — and logged
 in once in the dedicated config directory (ADR-156 Decision 2). `bench run` and
 `bench canary` still refuse without `--containment bypass` and `--config-dir`,
