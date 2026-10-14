@@ -83,14 +83,14 @@ func TestANewerLedgersRefusalLeadsWithItsCause(t *testing.T) {
 	}
 
 	out, errOut, code = writeUnderNewer(t, root, "@@ f.txt 1 replace\nONE\n@@ g.txt 1 replace\nONE\n")
-	carried := 0
-	for _, f := range failLines(out) {
-		if strings.Contains(f, newerKey) {
-			carried++
-		}
+	fails = failLines(out)
+	if code != 1 || len(fails) != 2 || strings.Count(out+errOut, newerKey) != 2 || strings.Contains(errOut, newerKey) {
+		t.Errorf("two refused files: want two FAIL lines and the sentence in each, nowhere else; exit %d stdout %q stderr %q", code, out, errOut)
 	}
-	if code != 1 || carried == 0 || carried != strings.Count(out+errOut, newerKey) || strings.Contains(errOut, newerKey) {
-		t.Errorf("two refused files: the sentence must ride each FAIL line that carries it and nowhere else; exit %d stdout %q stderr %q", code, out, errOut)
+	for _, f := range fails {
+		if !strings.Contains(f, newerKey) {
+			t.Errorf("a refused hunk's FAIL line does not carry the sentence: %q", f)
+		}
 	}
 
 	for _, c := range []struct {
@@ -101,6 +101,8 @@ func TestANewerLedgersRefusalLeadsWithItsCause(t *testing.T) {
 		{"a create of a new file", "@@ new.txt 0 create\nx\n", nil, 0},
 		{"a dry run", "@@ other.txt 0 create\nx\n", []string{"--dry-run"}, 0},
 		{"a create over a file that exists", "@@ f.txt 0 create\nx\n", nil, 1},
+		{"a plan that does not parse", "@@ f.txt 1 frobnicate\nx\n", nil, 2},
+		{"a plan that does not parse, under --json", "@@ f.txt 1 frobnicate\nx\n", []string{"--json"}, 2},
 	} {
 		out, errOut, code := writeUnderNewer(t, root, c.plan, c.args...)
 		if code != c.exit || strings.Count(errOut, newerKey) != 1 || strings.Contains(out, newerKey) {

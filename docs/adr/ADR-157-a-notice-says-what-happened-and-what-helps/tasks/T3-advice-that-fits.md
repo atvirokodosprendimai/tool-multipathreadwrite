@@ -43,14 +43,12 @@ Decisions 6–8 of the record, with tests that fail before them.
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./cmd/mrw/ ./internal/ingest/ -count=1 -timeout 600s -run 'TestTheOwnStateRefusalOffersNoRootAdvice|TestACreateNamesEveryLeadingByteOrderMark' -v 2>&1 | tee "$out" \
+  && go test ./cmd/mrw/ ./internal/ingest/ -count=1 -timeout 600s -run 'TestTheOwnStateRefusalOffersNoRootAdvice|TestACreateNamesEveryLeadingByteOrderMark|TestTheDocsQuoteAJSONPathPerShell' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestTheOwnStateRefusalOffersNoRootAdvice \(' "$out" \
   && grep -qE '^--- PASS: TestACreateNamesEveryLeadingByteOrderMark \(' "$out" \
+  && grep -qE '^--- PASS: TestTheDocsQuoteAJSONPathPerShell \(' "$out" \
   && grep -q 'Quote a JSON path for the shell' AGENTS.md \
   && grep -q 'Quote a JSON path for the shell' README.md \
-  && grep -qF '$[\"k\"]' AGENTS.md \
-  && grep -qF '$[\"k\"]' README.md \
-  && grep -q 'PowerShell 5.1' AGENTS.md \
   && grep -q '^# 262\. ' scripts/contract.sh \
   && fmtout=$(gofmt -l internal cmd) && [ -z "$fmtout" ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
@@ -62,6 +60,7 @@ out=$(mktemp) \
 |-----------|------|----------|--------|-------|
 | `TestTheOwnStateRefusalOffersNoRootAdvice` | `cmd/mrw/ownstate157_test.go` | read, plan and check of mrw's own state are refused without `--root` advice; an outside-root path keeps it | none | S1, S2 |
 | `TestACreateNamesEveryLeadingByteOrderMark` | `internal/ingest/bom157_test.go` | one, two and three marks named by count, all kept | none | S1, S3 |
+| `TestTheDocsQuoteAJSONPathPerShell` | `cmd/mrw/docs157_test.go` | AGENTS.md and README each pair every shell with its form for a JSON path (added on the review of #412) | none | S4 |
 
 ## Reachability
 
@@ -84,6 +83,13 @@ out=$(mktemp) \
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
 - 2026-10-14 · be76e27f* · mutant killed · exit 1 · `README.md` · README stops teaching how to quote a JSON path · acceptance-sha256:61c9f6794b4e80be63e45a840da408adc892e3e1ec290fab79d8cd665cf22546
+- 2026-10-14 · 85bfc8b5* · mutant killed · exit 1 · `README.md` · README stops pairing PowerShell 5.1 with its form · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05
+- 2026-10-14 · 85bfc8b5* · mutant killed · exit 1 · `README.md` · README stops pairing cmd with its form, the mutant that survived the first fence · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05
+- 2026-10-14 · 85bfc8b5* · mutant killed · exit 1 · `AGENTS.md` · AGENTS.md stops pairing PowerShell 5.1 with its form · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05
+- 2026-10-14 · 85bfc8b5* · mutant killed · exit 1 · `internal/read/read.go` · a read of the own state is told --root pointed where you mean again · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05
+- 2026-10-14 · 85bfc8b5* · mutant killed · exit 1 · `internal/apply/apply.go` · a plan naming the own state is told it may only change files under the root again · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05
+- 2026-10-14 · 85bfc8b5* · mutant killed · exit 1 · `internal/check/check.go` · a check naming the own state is told --root pointed where you mean again · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05
+- 2026-10-14 · 85bfc8b5* · mutant killed · exit 1 · `internal/ingest/create.go` · two byte order marks are named as one again · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05
 
 ## Verification Log
 (empty until execute)
@@ -109,6 +115,13 @@ out=$(mktemp) \
 - 2026-10-14 · be76e27f* · exit 0 · `set -o pipefail …` · acceptance-sha256:61c9f6794b4e80be63e45a840da408adc892e3e1ec290fab79d8cd665cf22546 · ms:2043
 - 2026-10-14 · be76e27f* · exit 0 · `set -o pipefail …` · acceptance-sha256:61c9f6794b4e80be63e45a840da408adc892e3e1ec290fab79d8cd665cf22546 · ms:2149
 - 2026-10-14 · human-observed · observed 2026-10-14: ./scripts/contract.sh exit 0, last line contract holds; the 262 rows PASS, the own-state read and plan with no root advice, the outside-root read with it, two byte order marks named as 2 and one as one
+- 2026-10-14 · 85bfc8b5* · exit 0 · `set -o pipefail …` · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05 · ms:1283
+- 2026-10-14 · 85bfc8b5* · exit 0 · `set -o pipefail …` · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05 · ms:1425
+- 2026-10-14 · 85bfc8b5* · exit 0 · `set -o pipefail …` · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05 · ms:1290
+- 2026-10-14 · 85bfc8b5* · exit 0 · `set -o pipefail …` · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05 · ms:1428
+- 2026-10-14 · 85bfc8b5* · exit 0 · `set -o pipefail …` · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05 · ms:1344
+- 2026-10-14 · 85bfc8b5* · exit 0 · `set -o pipefail …` · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05 · ms:1339
+- 2026-10-14 · 85bfc8b5* · exit 0 · `set -o pipefail …` · acceptance-sha256:157b1d7c0fde41c9ab943ff293d6cd28eb3700c3fc3f79d545779c2b50f28b05 · ms:1316
 
 ## Invariants
 

@@ -68,4 +68,14 @@ func TestAnMCPReadUnderANewerLedgerSaysNoAckLicenses(t *testing.T) {
 	if !strings.Contains(txt, "-- PARTIAL:") || !strings.Contains(txt, line) {
 		t.Errorf("a page under a newer ledger does not say %q:\n%s", line, txt)
 	}
+
+	// The review of #412: a read holding bytes that are not valid UTF-8 has no
+	// checkpoint and advises the CLI, whose read licenses nothing either here.
+	MaxResultChars = restore
+	root, path = checkout(t, "bad.txt", "one\n\xff two\nthree\n")
+	plantLedger157(t, root, "#mrw-seen v6 v9.9.9")
+	txt = served0(t, call(t, root, "mrw_read", map[string]any{"specs": []any{path}}))
+	if !strings.Contains(txt, "-- not licensed:") || !strings.Contains(txt, line) {
+		t.Errorf("a read of bytes that are not valid UTF-8, under a newer ledger, does not say %q:\n%s", line, txt)
+	}
 }

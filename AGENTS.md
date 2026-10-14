@@ -207,8 +207,8 @@ mrw read 'internal/apply/apply.go:/^func Apply/,/^}/' \
 ```
 
 Quote a JSON path for the shell, since `$`, `"` and `[` mean something to most of them. Measured on Windows 11 for
-ADR-157 (2026-10-14): pwsh 7 takes `'t.json:$["k"]'`; Windows PowerShell 5.1 strips the inner quotes from that and
-needs `'t.json:$[\"k\"]'` (`--%` does not help); cmd needs `"t.json:$[\"k\"]"`; Git Bash and other POSIX shells take
+ADR-157 (2026-10-14): pwsh 7 takes `'t.json:$["k"]'`; Windows PowerShell 5.1 needs `'t.json:$[\"k\"]'`, since it strips
+the inner quotes from the first form (`--%` does not help); cmd needs `"t.json:$[\"k\"]"`; Git Bash and other POSIX shells take
 single quotes. In pwsh 7 a double-quoted `\"` reaches mrw with its backslashes. An unquoted `[0]` is a glob, which
 works only while no file matches it.
 

@@ -627,7 +627,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// exceeds the ceiling takes the overflow path above and holds nothing.
 	if len(observed) > 0 {
 		marked, byPath := markServed(report, observed)
-		if len(byPath) > 0 {
+		if marked != report {
 			marked += newerLine(root)
 		}
 		if marked != report {

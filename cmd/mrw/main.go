@@ -1195,6 +1195,18 @@ held or went unchecked.`,
 			thenShFlag(&asked),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			// ADR-157: a write under a newer ledger says ADR-150's sentence once,
+			// in a refusal that carries it or on stderr, whichever way it returns:
+			// a plan that does not parse returns long before the landing (the
+			// review of #412).
+			newerTold := false
+			defer func() {
+				if !newerTold {
+					if notice := writer.NewerUntold(cmd.Root().String("root"), apply.Result{}); notice != "" {
+						fmt.Fprintln(os.Stderr, notice)
+					}
+				}
+			}()
 			if err := refusePaddedArgs(cmd); err != nil {
 				return err
 			}
@@ -1486,8 +1498,9 @@ held or went unchecked.`,
 			}
 			// Land counted the landing, whatever it was.
 			tallied = true
-			// ADR-157: under a newer ledger a write says ADR-150's sentence once,
-			// here when no refusal in its receipt carries it.
+			// Past the landing the receipt decides (ADR-157): a refusal in it
+			// carries ADR-150's sentence, or it is said here.
+			newerTold = true
 			if notice := writer.NewerUntold(root, land.Res); notice != "" {
 				fmt.Fprintln(os.Stderr, notice)
 			}
