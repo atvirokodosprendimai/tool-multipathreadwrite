@@ -9189,6 +9189,30 @@ printf 'one\n%s needle\nthree\nfour\n' "$long258" > "$R/m258.txt"
 out=$(mcp258 0 2); [ "$out" = "whole inside applied" ] && ok "the pair: without max_cols line 2 is bracketed and its write applies" || bad "uncut line: $out"
 rm -f "$R/m258.txt"
 
+# 259. ADR-155: a JSON path address serves the lines of one value and licenses
+# exactly them: a write to a line inside the span applies, one to the line after
+# it is refused as unread. The pairs: a path that is not there exits 1 naming
+# it, a bare `$` still serves the last line, and a plan address in the form is
+# refused by name.
+fixture
+printf '{\n  "name": "demo",\n  "scripts": {\n    "build": "go build",\n    "test": "go test"\n  },\n  "list": [1]\n}\n' > "$R/f259.json"
+out=$(m read 'f259.json:$.scripts' 2>&1); want 0 $? "a JSON path read exits 0"
+{ grep -q '^@@ 3-6$' <<<"$out" && grep -q '"test": "go test"' <<<"$out" && ! grep -q demo <<<"$out" && ! grep -q list <<<"$out"; } \
+  && ok "serving the value's lines and no other" || bad "path read: $out"
+printf '@@ f259.json 7 replace\n  "list": [2]\n' > "$WORK/p259"
+out=$(m write --no-check "$WORK/p259" 2>&1); want 1 $? "a write to the line after the span is refused"
+grep -q 'has not been read' <<<"$out" && ok "as unread" || bad "outside the span: $out"
+printf '@@ f259.json 4 replace\n    "build": "go vet",\n' > "$WORK/p259"
+out=$(m write --no-check "$WORK/p259" 2>&1); want 0 $? "a write inside the span applies"
+out=$(m read 'f259.json:$.nope' 2>&1); want 1 $? "the pair: a path that is not there exits 1"
+grep -q 'no name "nope"' <<<"$out" && ok "naming it" || bad "missing path: $out"
+out=$(m read 'f259.json:$' 2>&1); want 0 $? "the pair: a bare \$ exits 0"
+grep -q '^@@ 8-8$' <<<"$out" && ok "and still serves the last line" || bad "bare \$: $out"
+printf '@@ f259.json $.name replace\n  "name": "x",\n' > "$WORK/p259"
+out=$(m write --no-check "$WORK/p259" 2>&1); want 2 $? "the pair: a plan address in the form is refused, as a plan that does not parse"
+grep -q 'a JSON path is a read address' <<<"$out" && ok "by name" || bad "plan: $out"
+rm -f "$R/f259.json" "$WORK/p259"
+
 # 233. ADR-130: a walk does not enter a nested repository. Inside a checkout, a
 # directory holding its own .git is another project's, and git does not descend
 # into it; mrw walked it with its own rules. --grep serves the outer match only

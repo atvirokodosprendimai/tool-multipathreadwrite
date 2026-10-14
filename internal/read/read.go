@@ -111,6 +111,9 @@ type Range struct {
 	// start. 0 means absent, which is unambiguous because `,+0` is refused —
 	// no caller can mean it.
 	RelEnd int
+	// JSON is a JSON path address (ADR-155): the steps from the document's
+	// root to one value, whose lines the range serves. Nil for every other form.
+	JSON []jsonStep
 }
 
 // Options control how much of the answer is rendered. They exist so a caller
@@ -244,6 +247,13 @@ func splitRanges(s string) []string {
 	for i := 0; i < len(s); {
 		switch s[i] {
 		case '/':
+			// Inside a JSON path a slash is part of a quoted name, never a
+			// pattern delimiter: `$["x/y"]` is one range (ADR-155).
+			if strings.HasPrefix(cur.String(), "$") {
+				cur.WriteByte('/')
+				i++
+				continue
+			}
 			// One scanner for every pattern delimiter in this repository, so
 			// splitRanges and the two parsers cannot disagree about where a
 			// pattern ends (ADR-026, third review of #125).
@@ -313,6 +323,16 @@ func parseRange(s string) (Range, error) {
 		return Range{}, err
 	}
 	s = base
+	if isJSONPath(s) {
+		if rel > 0 {
+			return Range{}, fmt.Errorf("%q: a JSON path names its own span, so it takes no relative end", raw)
+		}
+		steps, err := parseJSONPath(s)
+		if err != nil {
+			return Range{}, err
+		}
+		return Range{JSON: steps, Text: raw}, nil
+	}
 	if strings.HasPrefix(s, "/") {
 		// SCANNED, NOT SPLIT. TrimSuffix+Split accepted `/` as an empty regexp
 		// matching every line at exit 0, compiled `/a/garbage` as the pattern
@@ -572,7 +592,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			}
 			continue
 		}
-		spans, missed := resolve(sp.Ranges, lines, opt.Context)
+		spans, missed := resolve(sp.Ranges, lines, opt.Context, b)
 		// served accumulates only what is actually PRINTED below, so a withheld
 		// span never counts as seen. whole starts as a fact about the REQUEST
 		// and is demoted the moment anything is withheld: --max-lines is the
@@ -691,7 +711,7 @@ type span struct{ start, end int }
 // resolve turns ranges into concrete, merged, ascending spans and reports which
 // patterns matched nothing. Merging matters: overlapping context windows would
 // otherwise print the same lines twice and pay for them twice.
-func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
+func resolve(ranges []Range, lines []string, ctx int, b []byte) ([]span, []string) {
 	var missed []string
 	total := len(lines)
 	if total == 0 {
@@ -713,6 +733,15 @@ func resolve(ranges []Range, lines []string, ctx int) ([]span, []string) {
 	)
 	for _, r := range ranges {
 		switch {
+		case r.JSON != nil:
+			// ADR-155: resolved against the file's bytes, not its lines, since a
+			// value's span is where its first and last bytes fall.
+			start, end, err := jsonSpan(b, r.JSON)
+			if err != nil {
+				missed = append(missed, fmt.Sprintf("%s (%v)", r.Text, err))
+				continue
+			}
+			spans = append(spans, span{start, end})
 		case r.Re != nil && r.ReEnd != nil:
 			found := false
 			// Tracked separately from `found` so the report can say WHICH half
