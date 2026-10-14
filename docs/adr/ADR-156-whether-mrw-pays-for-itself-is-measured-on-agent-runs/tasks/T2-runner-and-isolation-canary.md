@@ -38,13 +38,21 @@ Decisions 1, 2, 4 and 6: the runner that starts the CLI, grades with the oracle 
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/bench/ ./cmd/bench/ -count=1 -timeout 600s -run 'TestTheRunnerRecordsAReceiptPerAttemptFromAStubClaude|TestTheRunnerRefusesToOverwriteAnEarlierRunsReceipts|TestTheRunnerResumesWithoutRepeatingAStartedAttempt|TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads|TestASlippedWriteIsFoundFromTheLedger|TestTheCanaryFailsWhenTheTranscriptNamesMrwOrUserInstructions' -v 2>&1 | tee "$out" \
+  && go test ./internal/bench/ ./cmd/bench/ -count=1 -timeout 600s -run 'TestTheRunnerRecordsAReceiptPerAttemptFromAStubClaude|TestTheRunnerRefusesToOverwriteAnEarlierRunsReceipts|TestTheRunnerResumesWithoutRepeatingAStartedAttempt|TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads|TestASlippedWriteIsFoundFromTheLedger|TestTheCanaryFailsWhenTheTranscriptNamesMrwOrUserInstructions|TestTheCanaryRunsBothConfigurationsAndRecordsItsVerdict|TestVerifyNamesAnAttemptWithNoReceipt|TestTheRunnerRefusesWithoutTheGatesZyHolds|TestAnExcludedAttemptIsReplacedAndKept|TestConfigurationAHasNoMrwOnItsPath|TestTheConfigDirectoryIsJudgedByIdentity|TestVerifyRefusesAReceiptThatIsNotItsAttempt|TestAnAttemptLeavesNothingRunning' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestTheRunnerRecordsAReceiptPerAttemptFromAStubClaude \(' "$out" \
   && grep -qE '^--- PASS: TestTheRunnerRefusesToOverwriteAnEarlierRunsReceipts \(' "$out" \
   && grep -qE '^--- PASS: TestTheRunnerResumesWithoutRepeatingAStartedAttempt \(' "$out" \
   && grep -qE '^--- PASS: TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads \(' "$out" \
   && grep -qE '^--- PASS: TestASlippedWriteIsFoundFromTheLedger \(' "$out" \
   && grep -qE '^--- PASS: TestTheCanaryFailsWhenTheTranscriptNamesMrwOrUserInstructions \(' "$out" \
+  && grep -qE '^--- PASS: TestTheCanaryRunsBothConfigurationsAndRecordsItsVerdict \(' "$out" \
+  && grep -qE '^--- PASS: TestVerifyNamesAnAttemptWithNoReceipt \(' "$out" \
+  && grep -qE '^--- PASS: TestTheRunnerRefusesWithoutTheGatesZyHolds \(' "$out" \
+  && grep -qE '^--- PASS: TestAnExcludedAttemptIsReplacedAndKept \(' "$out" \
+  && grep -qE '^--- PASS: TestConfigurationAHasNoMrwOnItsPath \(' "$out" \
+  && grep -qE '^--- PASS: TestTheConfigDirectoryIsJudgedByIdentity \(' "$out" \
+  && grep -qE '^--- PASS: TestVerifyRefusesAReceiptThatIsNotItsAttempt \(' "$out" \
+  && grep -qE '^--- PASS: TestAnAttemptLeavesNothingRunning \(' "$out" \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
 
@@ -61,6 +69,11 @@ out=$(mktemp) \
 | `TestTheCanaryRunsBothConfigurationsAndRecordsItsVerdict` | `internal/bench/runner_test.go` | `RunCanary` with a stub: a clean stub passes, one naming mrw in A fails, and a stage refuses to start on it | none | — |
 | `TestVerifyNamesAnAttemptWithNoReceipt` | `internal/bench/runner_test.go` | a stage verifies only with every planned receipt, and against its own counts | none | — |
 | `TestTheRunnerRefusesWithoutTheGatesZyHolds` | `internal/bench/runner_test.go` | no containment, a dedicated user (not built until Zy chooses it), no canary, a failing canary, no config directory, or the user's own `~/.claude`: nothing starts | none | — |
+| `TestAnExcludedAttemptIsReplacedAndKept` | `internal/bench/runner_test.go` | a start error is replaced twice under ids of its own, every receipt kept | none | — |
+| `TestConfigurationAHasNoMrwOnItsPath` | `internal/bench/runner_test.go` | an mrw beside the host's git does not reach A; B gets the pinned build | none | — |
+| `TestTheConfigDirectoryIsJudgedByIdentity` | `internal/bench/runner_test.go` | a link to the user's own `~/.claude` is refused | none | — |
+| `TestVerifyRefusesAReceiptThatIsNotItsAttempt` | `internal/bench/runner_test.go` | a corrupted receipt does not verify; the hook's paths are shell-quoted | none | — |
+| `TestAnAttemptLeavesNothingRunning` | `internal/bench/runner_test.go` | a background process the agent started does not outlive the attempt | none | — |
 
 ## Reachability
 
@@ -83,6 +96,22 @@ out=$(mktemp) \
 - 2026-10-14 · 05ec3f84* · mutant killed · exit 1 · `internal/bench/hook.go` · every changed file counts as written by mrw · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · covers:a slipped write is found from the ledger
 - 2026-10-14 · 05ec3f84* · mutant killed · exit 1 · `internal/bench/canary.go` · configuration A may name mrw · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · covers:the canary fails on a leak
 - 2026-10-14 · 05ec3f84* · mutant killed · exit 1 · `internal/bench/runner.go` · a run with another plan reuses an earlier run's directory · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · covers:no overwrite of an earlier run
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/hook.go` · a file changed after mrw recorded it is not a slip · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · covers:a slipped write is found from the ledger
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/hook.go` · a write inside a command substitution passes · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · covers:configuration B's hook refuses other writes and counts reads
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/hook.go` · a redirection to &file passes as a descriptor · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · covers:configuration B's hook refuses other writes and counts reads
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/runner.go` · the receipt drops the cost the CLI reported · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · covers:a receipt per attempt
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/runner.go` · a run with another plan reuses an earlier run's directory · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · covers:no overwrite of an earlier run
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/runner.go` · a started attempt with no receipt is run again · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · covers:resume repeats no started attempt
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/hook.go` · the hook never refuses · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · covers:configuration B's hook refuses other writes and counts reads
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/hook.go` · a file changed after mrw recorded it is not a slip · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · covers:a slipped write is found from the ledger
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/hook.go` · a write inside a command substitution passes · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · covers:configuration B's hook refuses other writes and counts reads
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/hook.go` · a redirection to &file passes as a descriptor · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · covers:configuration B's hook refuses other writes and counts reads
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/canary.go` · configuration A may name mrw · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · covers:the canary fails on a leak
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/runner.go` · the CLI is not reaped and its background process outlives the attempt · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · covers:a receipt per attempt
+- 2026-10-14 · c430d730* · mutant survived · exit 0 · `internal/bench/runner.go` · configuration A may find mrw on its PATH · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · covers:the isolation holds on a real run
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
 
 ## Verification Log
 (empty until execute)
@@ -121,6 +150,34 @@ out=$(mktemp) \
 - 2026-10-14 · 05ec3f84* · exit 0 · `set -o pipefail …` · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · ms:3778
 - 2026-10-14 · 05ec3f84* · exit 0 · `set -o pipefail …` · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · ms:4087
 - 2026-10-14 · 05ec3f84* · exit 0 · `set -o pipefail …` · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · ms:5764
+- 2026-10-14 · c430d730* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · ms:0 · test-lock-sha256:491202f5608943541f364a3581aab8b47b760dc1bf4899fd4f5b40748ae01434 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvY2FuYXJ5X3Rlc3QuZ28JVGVzdFRoZUNhbmFyeUZhaWxzV2hlblRoZVRyYW5zY3JpcHROYW1lc01yd09yVXNlckluc3RydWN0aW9ucwkwNDJhNmU3NTg5NDE5YjFlMTFiODI0MWQ4N2FlMzQ0ZGNlMmI4YmFiYjkyYjFkMGNjNjhlMGY4ZWRhNTUwNjg2CmJvZHkJaW50ZXJuYWwvYmVuY2gvaG9va190ZXN0LmdvCVRlc3RBU2xpcHBlZFdyaXRlSXNGb3VuZEZyb21UaGVMZWRnZXIJZjZhNjk3ODJiYWEyMTg3MjM1MWQxZmI5ZGY0YWYyZDY0ZmE1M2E4NjliNzdkNGIzYWQ3ZGJjNzM3NjQ4NTAzZApib2R5CWludGVybmFsL2JlbmNoL2hvb2tfdGVzdC5nbwlUZXN0VGhlQXJtQkhvb2tSZWZ1c2VzQVdyaXRlQnlBbnlNZWFuc0J1dE1yd0FuZENvdW50c1JlYWRzCWExMmQwNWFmNjQyZWQ5NGU1MmRmYmI2NTA1MzMyN2NiNjJkNTdkNWE5MTNhZGM4YjUyZGVkNzAzZWU2NGJkZTMKYm9keQlpbnRlcm5hbC9iZW5jaC9ydW5uZXJfdGVzdC5nbwlUZXN0QW5BdHRlbXB0TGVhdmVzTm90aGluZ1J1bm5pbmcJMzhkOGU1ZTJlOTY1MTljZTIxMDRkOTNkNGYwYzU5MTEyZmQ0ODRkZDVmNDc2NmQ1ZGJiMzc5N2FjOWQ4Njk2ZQpib2R5CWludGVybmFsL2JlbmNoL3J1bm5lcl90ZXN0LmdvCVRlc3RBbkV4Y2x1ZGVkQXR0ZW1wdElzUmVwbGFjZWRBbmRLZXB0CTdmMTkyNjliMmU0ODdmNjJjNjUyZmM1OTgxYzY4MzkzYzVmYmRhMzdmZjFkOTNhZjE1ZGE5Zjk5MTlkMmU2MjYKYm9keQlpbnRlcm5hbC9iZW5jaC9ydW5uZXJfdGVzdC5nbwlUZXN0Q29uZmlndXJhdGlvbkFIYXNOb01yd09uSXRzUGF0aAlmMDc0Yjk1MTQ2YTc5YjhiODcwYTQwYzc2NDQ0YzI0ZDI0ODA3N2RkODYyYmZkYzEzZTU1OGE2YWVhYTBhYThmCmJvZHkJaW50ZXJuYWwvYmVuY2gvcnVubmVyX3Rlc3QuZ28JVGVzdFRoZUNhbmFyeVJ1bnNCb3RoQ29uZmlndXJhdGlvbnNBbmRSZWNvcmRzSXRzVmVyZGljdAk1ZjYwYTk5MDVhNjkzZTRlM2ViMzRhZmRlZTg5MmU4OTQ0MWRlODZlMTRjMDFkZTlhODVkNDg2NmRiMzgzYjg1CmJvZHkJaW50ZXJuYWwvYmVuY2gvcnVubmVyX3Rlc3QuZ28JVGVzdFRoZUNvbmZpZ0RpcmVjdG9yeUlzSnVkZ2VkQnlJZGVudGl0eQkxZTllZmM3ZDYxYTFiNmNkMDI2MmRiMWM4YTAxODYzZWM1NTAyZTUwOWMzYWQ3NDI5MTk2NjJhNzQ3YzZiYjBkCmJvZHkJaW50ZXJuYWwvYmVuY2gvcnVubmVyX3Rlc3QuZ28JVGVzdFRoZVJ1bm5lclJlY29yZHNBUmVjZWlwdFBlckF0dGVtcHRGcm9tQVN0dWJDbGF1ZGUJMDUwOGIzMzc2Yzc2YjgwZGNkMjc0YjViNTM5YjdlYWM0YzQ0YzQ2NDI2YjYwZGM5MWZkNDllYmVjNTNlZjkwOQpib2R5CWludGVybmFsL2JlbmNoL3J1bm5lcl90ZXN0LmdvCVRlc3RUaGVSdW5uZXJSZWZ1c2VzVG9PdmVyd3JpdGVBbkVhcmxpZXJSdW5zUmVjZWlwdHMJOGRjNDlhNzZlYzBkNDUyNjM0OWIwMTQ4ZDFlNjM1NDRhNjM3NTU1MjBlYjc1ODNlOWM3MTFmMjM5YzM3NDQ4Nwpib2R5CWludGVybmFsL2JlbmNoL3J1bm5lcl90ZXN0LmdvCVRlc3RUaGVSdW5uZXJSZWZ1c2VzV2l0aG91dFRoZUdhdGVzWnlIb2xkcwk1YWExNGQyNmVlOWEzYWJjMzM4NjljNDRjZjkwZGIwNzhhNmU2NTliNzAzYTY3YzQxMjA4NDA5MjFkNTY5M2Y4CmJvZHkJaW50ZXJuYWwvYmVuY2gvcnVubmVyX3Rlc3QuZ28JVGVzdFRoZVJ1bm5lclJlc3VtZXNXaXRob3V0UmVwZWF0aW5nQVN0YXJ0ZWRBdHRlbXB0CWIyMDBkYzRlOTg5Mzk4YWU1ZjdmZWRjMGJmYmE2NDE2YWM0Yzg0OWI5YTNkNjgyZDg0OWZkYjA0MGEzMjdhMjQKYm9keQlpbnRlcm5hbC9iZW5jaC9ydW5uZXJfdGVzdC5nbwlUZXN0VmVyaWZ5TmFtZXNBbkF0dGVtcHRXaXRoTm9SZWNlaXB0CTM0MjA2ZGRiNDY2MDNjMzYwYjBhOTAzNWMwODgyYjE5MDM2ZmU3Yzk5OWJjNmE0ZmUxYWVmYjAyY2FiZGJkZDIKYm9keQlpbnRlcm5hbC9iZW5jaC9ydW5uZXJfdGVzdC5nbwlUZXN0VmVyaWZ5UmVmdXNlc0FSZWNlaXB0VGhhdElzTm90SXRzQXR0ZW1wdAllYmJhZmJkYzAxYjU0MzFjZDJhODRkNGFlM2ZkMjM2MTE5ZmY3OTI3ZWU4ZThjZTA3ZWNkZjkxYzQ4MGY4ZGJm · test-lock-kind:replace
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · ms:3074
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · ms:2911
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:c16246fb5a76d8875fcd829a52be70b4d04cd2c35fc5cc65771b1b34428687a2 · ms:2730
+- 2026-10-14 · c430d730* · exit 1 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:111
+  ```
+  --- last 10 line(s) of stdout (of 17 after folding 17 raw)
+  internal/bench/helpers_test.go:23:9: undefined: Task
+  internal/bench/helpers_test.go:42:9: undefined: Task
+  internal/bench/helpers_test.go:76:9: undefined: Task
+  internal/bench/oracle_test.go:122:35: undefined: Task
+  internal/bench/oracle_test.go:211:81: undefined: Task
+  internal/bench/runner_test.go:54:45: undefined: Task
+  internal/bench/runner_test.go:77:32: undefined: RunOptions
+  internal/bench/analyze_test.go:12:11: too many errors
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/bench [build failed]
+  FAIL
+  ```
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:6662
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:6500
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:6611
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:6461
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:6862
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:7113
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:6528
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:6573
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:6506
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:285ec0e0a6368448b48a7c90ce54ed0f2eb404f00dd1cd1f2f18c60bf547a934 · ms:6345
 
 ## Invariants
 

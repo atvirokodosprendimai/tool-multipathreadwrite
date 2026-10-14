@@ -10,9 +10,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
 )
 
 // Config is one of the two configurations ADR-156 Decision 1 compares.
@@ -130,11 +133,15 @@ type attempt struct {
 // Run carries out a stage: every attempt of the plan in a seeded random order,
 // one at a time, each in a fresh tree, each recorded in its own receipt. An
 // attempt with a receipt, or one that was started and never finished, is not
-// run again (ADR-156 Decision 6).
+// run again (ADR-156 Decision 6). An attempt the registration excludes is
+// replaced by a new one under its own id — a start error at most twice, a
+// setup failure once — and every excluded receipt is kept.
 func Run(o RunOptions) error {
-	if err := gates(o); err != nil {
+	cd, err := gates(o)
+	if err != nil {
 		return err
 	}
+	o.ConfigDir = cd
 	if o.Budget == 0 {
 		o.Budget = DefaultBudget
 	}
@@ -150,6 +157,9 @@ func Run(o RunOptions) error {
 		if mrwVersion, err = firstLine(o.Mrw, "version"); err != nil {
 			return fmt.Errorf("%s version: %w", o.Mrw, err)
 		}
+	}
+	if p := onPath("mrw", systemPath); p != "" {
+		return fmt.Errorf("configuration A's PATH would hold %s: an attempt runs with %s, and mrw must not be on it", p, systemPath)
 	}
 	// A stage whose repository is not on this machine stops here, by name,
 	// rather than recording every attempt as a setup exclusion.
@@ -167,59 +177,119 @@ func Run(o RunOptions) error {
 	if err := claimOut(o.Out, p); err != nil {
 		return err
 	}
-	attempts := planAttempts(o)
-	for i, a := range attempts {
-		base := filepath.Join(o.Out, a.ID)
-		if exists(base+".receipt.json") || exists(base+".started") {
-			continue
-		}
-		if err := writeOnce(base+".started", []byte(time.Now().UTC().Format(time.RFC3339)+"\n")); err != nil {
-			return err
-		}
-		r := runAttempt(o, a, i, cli, mrwVersion)
-		b, err := json.MarshalIndent(r, "", "  ")
-		if err != nil {
-			return err
-		}
-		if err := writeOnce(base+".receipt.json", append(b, '\n')); err != nil {
-			return err
+	for i, a := range planAttempts(o) {
+		for try := 0; ; try++ {
+			at := a
+			if try > 0 {
+				at.ID = fmt.Sprintf("%s.r%d", a.ID, try)
+			}
+			base := filepath.Join(o.Out, at.ID)
+			var r Receipt
+			switch {
+			case exists(base + ".receipt.json"):
+				b, err := os.ReadFile(base + ".receipt.json")
+				if err != nil {
+					return err
+				}
+				if err := json.Unmarshal(b, &r); err != nil {
+					return fmt.Errorf("%s.receipt.json cannot be read back: %w", at.ID, err)
+				}
+			case exists(base + ".started"):
+				r.Exclusion = "" // started and never finished: neither it nor a replacement runs
+			default:
+				if err := writeOnce(base+".started", []byte(time.Now().UTC().Format(time.RFC3339)+"\n")); err != nil {
+					return err
+				}
+				r = runAttempt(o, at, i, cli, mrwVersion)
+				b, err := json.MarshalIndent(r, "", "  ")
+				if err != nil {
+					return err
+				}
+				if err := writeOnce(base+".receipt.json", append(b, '\n')); err != nil {
+					return err
+				}
+			}
+			if !replaced(r.Exclusion, try) {
+				break
+			}
 		}
 	}
 	return nil
 }
 
-func gates(o RunOptions) error {
+// replaced says whether an attempt excluded for this reason, on this try, gets
+// a replacement: the registration re-queues a start error at most twice and a
+// setup failure once.
+func replaced(exclusion string, try int) bool {
+	switch exclusion {
+	case ExclusionStart:
+		return try < 2
+	case ExclusionSetup:
+		return try < 1
+	}
+	return false
+}
+
+// systemPath is the part of an attempt's PATH bench does not build itself.
+const systemPath = "/usr/bin:/bin:/usr/sbin:/sbin"
+
+// onPath returns where name would be found on path, or "".
+func onPath(name, path string) string {
+	for _, dir := range filepath.SplitList(path) {
+		p := filepath.Join(dir, name)
+		if info, err := os.Stat(p); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return p
+		}
+	}
+	return ""
+}
+
+// gates refuses a stage whose choices Zy has not made, and returns the config
+// directory resolved: an attempt is started with that path, never a spelling
+// that could lead somewhere else.
+func gates(o RunOptions) (string, error) {
 	switch {
 	case o.Containment == "":
-		return errors.New("no --containment: Zy chooses between a dedicated macOS user and bypassPermissions under his own account (ADR-156 Decision 2)")
+		return "", errors.New("no --containment: Zy chooses between a dedicated macOS user and bypassPermissions under his own account (ADR-156 Decision 2)")
 	case strings.HasPrefix(o.Containment, "user:"):
-		return errors.New("--containment user:<name> is not built yet: it is built when Zy chooses it (ADR-156 Decision 2)")
+		return "", errors.New("--containment user:<name> is not built yet: it is built when Zy chooses it (ADR-156 Decision 2)")
 	case o.Containment != "bypass":
-		return fmt.Errorf("--containment %q: want bypass or user:<name>", o.Containment)
+		return "", fmt.Errorf("--containment %q: want bypass or user:<name>", o.Containment)
 	case o.ConfigDir == "":
-		return errors.New("no --config-dir: the dedicated CLAUDE_CONFIG_DIR Zy logs in to once (ADR-156 Decision 2)")
+		return "", errors.New("no --config-dir: the dedicated CLAUDE_CONFIG_DIR Zy logs in to once (ADR-156 Decision 2)")
 	case o.Canary == "":
-		return errors.New("no --canary: a stage starts only after a passing canary for this CLI version (ADR-156 T2)")
+		return "", errors.New("no --canary: a stage starts only after a passing canary for this CLI version (ADR-156 T2)")
 	case o.Repeats < 1 || len(o.Models) == 0 || len(o.Configs) == 0 || len(o.Tasks) == 0:
-		return errors.New("a stage needs tasks, models, configurations and at least one repeat")
-	}
-	home, err := os.UserHomeDir()
-	if err == nil {
-		if abs, err := filepath.Abs(o.ConfigDir); err == nil && abs == filepath.Join(home, ".claude") {
-			return errors.New("--config-dir is the user's own ~/.claude: an attempt would load his instructions, hooks and MCP servers")
-		}
+		return "", errors.New("a stage needs tasks, models, configurations and at least one repeat")
 	}
 	for _, c := range o.Configs {
 		if _, ok := Configs[c]; !ok {
-			return fmt.Errorf("unknown configuration %q", c)
+			return "", fmt.Errorf("unknown configuration %q", c)
 		}
 	}
-	return nil
+	cd, err := filepath.Abs(o.ConfigDir)
+	if err != nil {
+		return "", err
+	}
+	if real, err := filepath.EvalSymlinks(cd); err == nil {
+		cd = real
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	own := filepath.Join(home, ".claude")
+	mine, err1 := os.Stat(cd)
+	theirs, err2 := os.Stat(own)
+	if strings.EqualFold(cd, own) || (err1 == nil && err2 == nil && os.SameFile(mine, theirs)) {
+		return "", fmt.Errorf("--config-dir %s is the user's own ~/.claude: an attempt would load his instructions, hooks and MCP servers", o.ConfigDir)
+	}
+	return cd, nil
 }
 
 // Verify checks a stage directory against its plan: the stage and the counts
-// the caller expects, and a receipt for every planned attempt. It names what is
-// missing.
+// the caller expects, and for every planned attempt a receipt that reads back
+// as that attempt. It names what is missing or wrong.
 func Verify(dir, stage string, tasks, repeats int) error {
 	b, err := os.ReadFile(filepath.Join(dir, "run.json"))
 	if err != nil {
@@ -236,17 +306,23 @@ func Verify(dir, stage string, tasks, repeats int) error {
 	for _, t := range p.Tasks {
 		for _, m := range p.Models {
 			for _, c := range p.Configs {
-				for r := 1; r <= p.Repeats; r++ {
-					id := fmt.Sprintf("%s.%s.%s.%d", t, c, safe(m), r)
-					if !exists(filepath.Join(dir, id+".receipt.json")) {
+				for rep := 1; rep <= p.Repeats; rep++ {
+					id := fmt.Sprintf("%s.%s.%s.%d", t, c, safe(m), rep)
+					b, err := os.ReadFile(filepath.Join(dir, id+".receipt.json"))
+					if err != nil {
 						missing = append(missing, id)
+						continue
+					}
+					var r Receipt
+					if err := json.Unmarshal(b, &r); err != nil || r.Attempt != id || r.Task != t || r.Config != c || r.Model != m || r.Repeat != rep {
+						missing = append(missing, id+" (its receipt does not read back as this attempt)")
 					}
 				}
 			}
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("%d attempt(s) have no receipt: %s", len(missing), strings.Join(missing, ", "))
+		return fmt.Errorf("%d attempt(s) have no receipt that verifies: %s", len(missing), strings.Join(missing, ", "))
 	}
 	return nil
 }
@@ -368,13 +444,19 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
 		return r
 	}
+	// subproc starts the CLI in a group of its own and stops what is left of
+	// that group when it returns, on a deadline, a cancel or a clean exit: a
+	// shell the agent left running does not outlive the attempt, or run on
+	// while its tree is graded and removed (the review of #411).
 	ctx, cancel := context.WithTimeout(context.Background(), o.Budget)
-	cmd := exec.CommandContext(ctx, o.Claude, args...)
+	ictx, stopSignals := subproc.Interruptible(ctx)
+	cmd := subproc.Command(ictx, o.Claude, args...)
 	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = tree, env, stdout, stderr
 	start := time.Now()
-	runErr := cmd.Run()
+	runErr := subproc.Run(cmd)
 	r.WallMS = time.Since(start).Milliseconds()
 	r.TimedOut = ctx.Err() == context.DeadlineExceeded
+	stopSignals()
 	cancel()
 	_ = stdout.Close()
 	_ = stderr.Close()
@@ -392,7 +474,7 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 	r.IsError, r.NumTurns, r.ToolCalls, r.CostUSD, r.Usage = t.IsError || !t.Result, t.NumTurns, t.ToolCalls, t.CostUSD, t.Usage
 	r.InitTools, r.InitMCP = t.Tools, t.MCPServers
 	r.OverBudget = r.TimedOut || t.NumTurns > MaxTurns
-	if r.ToolCalls == 0 && (r.IsError || r.ExitCode != 0) && !r.TimedOut {
+	if errText, _ := os.ReadFile(base + ".stderr"); startFailed(t, r, string(errText)) {
 		r.Exclusion = ExclusionStart
 	}
 	v, err := Oracle(a.Task, tree)
@@ -417,6 +499,52 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 	return r
 }
 
+// startFailure is what an authentication, rate-limit or start error says.
+var startFailure = regexp.MustCompile(`(?i)rate.?limit|\b429\b|overloaded|usage limit|quota|auth|log ?in|credential|unauthori[sz]ed|forbidden|\b401\b|\b403\b`)
+
+// startFailed says whether an attempt ended before its first tool call with one
+// of the start errors the registration excludes: the CLI never opened a session
+// (no init line), or it erred before any tool call naming authentication, a
+// rate limit or a quota. Any other error is an attempt that failed, unsolved,
+// with its cost counted (BACKLOG, "Pre-registered for ADR-156").
+func startFailed(t transcript, r Receipt, stderr string) bool {
+	if r.ToolCalls > 0 || r.TimedOut {
+		return false
+	}
+	if !t.InitSeen {
+		return true
+	}
+	return (r.IsError || r.ExitCode != 0) && startFailure.MatchString(stderr+"\n"+t.ResultText)
+}
+
+// shellQuote quotes s for a POSIX shell.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// toolPath builds the directory of the few host tools an attempt may call by
+// name — git and go — as links to each, so nothing else in their directories
+// (an installed mrw beside git, say) reaches the agent's PATH.
+func toolPath(scratch string) (string, error) {
+	dir := filepath.Join(scratch, "tools")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		return "", err
+	}
+	for _, name := range []string{"git", "go", "gofmt"} {
+		p, err := exec.LookPath(name)
+		if err != nil {
+			continue
+		}
+		if real, err := filepath.EvalSymlinks(p); err == nil {
+			p = real
+		}
+		if err := os.Symlink(p, filepath.Join(dir, name)); err != nil {
+			return "", err
+		}
+	}
+	return dir, nil
+}
+
 // invocation is the CLI's arguments and environment for one attempt (ADR-156
 // Decision 2). PATH is bench's own: configuration A's holds no mrw.
 func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, error) {
@@ -425,13 +553,11 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 		return nil, nil, err
 	}
 	settings := map[string]any{}
-	path := "/usr/bin:/bin:/usr/sbin:/sbin"
-	if goroot, err := exec.LookPath("go"); err == nil {
-		path = filepath.Dir(goroot) + ":" + path
+	tools, err := toolPath(scratch)
+	if err != nil {
+		return nil, nil, err
 	}
-	if gitBin, err := exec.LookPath("git"); err == nil {
-		path = filepath.Dir(gitBin) + ":" + path
-	}
+	path := tools + ":" + systemPath
 	args := []string{"-p", a.Task.Instruction, "--output-format", "stream-json", "--verbose", "--model", a.Model,
 		"--tools", strings.Join(a.Config.Tools, ","), "--strict-mcp-config", "--mcp-config", empty,
 		"--disable-slash-commands", "--no-session-persistence", "--no-chrome", "--permission-mode", "bypassPermissions"}
@@ -456,7 +582,7 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 		args = append(args, "--append-system-prompt-file", prompt)
 		settings["hooks"] = map[string]any{"PreToolUse": []any{map[string]any{
 			"matcher": "Bash",
-			"hooks":   []any{map[string]any{"type": "command", "command": o.Bench + " hook --log " + filepath.Join(scratch, "hook.log")}},
+			"hooks":   []any{map[string]any{"type": "command", "command": shellQuote(o.Bench) + " hook --log " + shellQuote(filepath.Join(scratch, "hook.log"))}},
 		}}}
 		env = append(env, "XDG_STATE_HOME="+filepath.Join(scratch, "state"))
 	}
@@ -469,6 +595,11 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 		return nil, nil, err
 	}
 	args = append(args, "--settings", sf)
+	if !a.Config.Mrw {
+		if p := onPath("mrw", path); p != "" {
+			return nil, nil, fmt.Errorf("configuration A's PATH holds %s", p)
+		}
+	}
 	env = append(env, "PATH="+path)
 	return args, env, nil
 }
@@ -510,15 +641,30 @@ func exists(p string) bool {
 	return err == nil
 }
 
-// writeOnce creates path with b, and refuses if anything is there already.
+// writeOnce creates path with b, and refuses if anything is there already. It
+// writes a temporary file first and links it into place, so an interrupted
+// write leaves no half a receipt under the name a resume would trust (the
+// review of #411).
 func writeOnce(path string, b []byte) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	f, err := os.CreateTemp(filepath.Dir(path), ".partial-")
 	if err != nil {
 		return err
 	}
+	tmp := f.Name()
+	defer func() { _ = os.Remove(tmp) }()
 	if _, err := f.Write(b); err != nil {
 		_ = f.Close()
 		return err
 	}
-	return f.Close()
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp, 0o644); err != nil {
+		return err
+	}
+	return os.Link(tmp, path)
 }

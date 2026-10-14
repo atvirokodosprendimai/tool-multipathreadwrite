@@ -37,7 +37,8 @@ const (
 
 // Analyze computes each verdict from the receipts. Only the registered
 // exclusions leave an attempt out of the pairing; any other is refused. An
-// attempt over its budget is counted, unsolved, with its cost.
+// attempt over its budget, or one that ended in an error the registration does
+// not exclude, is counted unsolved, with its cost.
 //
 // The registration's PAYS and LOSES overlap when the solved interval lies
 // wholly below 0 but no lower than -5 points; LOSES is checked first, the
@@ -87,7 +88,7 @@ func Analyze(rs []Receipt) ([]Result, error) {
 			}
 			s.cost += *r.CostUSD
 			s.runs++
-			if r.Oracle.Solved && !r.OverBudget {
+			if r.Oracle.Solved && !r.OverBudget && !r.IsError {
 				s.solved++
 			}
 		}

@@ -45,12 +45,14 @@ type Task struct {
 	Commit      string  `json:"commit,omitempty"`
 	Instruction string  `json:"instruction"`
 	Slack       int     `json:"slack,omitempty"`
+	Exact       bool    `json:"exact,omitempty"`
 	Require     []Match `json:"require"`
 	Forbid      []Match `json:"forbid,omitempty"`
 
-	Dir     string            `json:"-"`
-	regions map[string][]hunk // base-numbered hunks of the reference fix, by file
-	created map[string]bool   // files the reference fix creates
+	Dir     string              `json:"-"`
+	regions map[string][]hunk   // base-numbered hunks of the reference fix, by file
+	created map[string]bool     // files the reference fix creates
+	added   map[string][]string // the lines the reference fix adds, by file; an Exact task requires each
 }
 
 // hunk is one change in base numbering: Count lines from Start are replaced,
@@ -92,7 +94,7 @@ func LoadTask(dir string) (Task, error) {
 	if err != nil {
 		return t, err
 	}
-	t.regions, t.created, err = parsePatch(patch)
+	t.regions, t.created, t.added, err = parsePatch(patch)
 	if err != nil {
 		return t, fmt.Errorf("%s: reference.patch: %w", dir, err)
 	}
@@ -124,19 +126,15 @@ func LoadTasks(root string) ([]Task, error) {
 }
 
 // CoversBaseLine says whether replacing or deleting base line n of file is
-// inside an allowed region: a line the reference fix replaced, widened by
-// Slack lines on each side. A region the reference fix only inserted into
-// covers no line unless Slack widens it.
+// inside an allowed region: a line the reference fix itself replaced. Slack
+// never widens this: a line the fix left alone is one the task says to keep,
+// so changing it is outside however close it sits (the review of #411).
 func (t Task) CoversBaseLine(file string, n int) bool {
 	if t.created[file] {
 		return true
 	}
 	for _, h := range t.regions[file] {
-		lo, hi := h.Start-t.Slack, h.Start+h.Count-1+t.Slack
-		if h.Count == 0 {
-			lo, hi = h.Start+1-t.Slack, h.Start+t.Slack
-		}
-		if n >= lo && n <= hi {
+		if h.Count > 0 && n >= h.Start && n <= h.Start+h.Count-1 {
 			return true
 		}
 	}
@@ -145,7 +143,8 @@ func (t Task) CoversBaseLine(file string, n int) bool {
 
 // coversInsertion says whether lines inserted after base line n are inside an
 // allowed region: at the reference fix's own insertion point, or anywhere
-// from just before to the end of a stretch it replaced, widened by Slack.
+// from just before to the end of a stretch it replaced, widened by Slack. Slack
+// moves where new lines may go; it never licenses changing an existing one.
 func (t Task) coversInsertion(file string, n int) bool {
 	if t.created[file] {
 		return true
@@ -165,12 +164,13 @@ func (t Task) coversInsertion(file string, n int) bool {
 var hunkHeader = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@`)
 
 // parsePatch reads a unified diff as git writes it and returns each file's
-// hunks in base numbering, and the files it creates. A hunk's body is consumed
-// by its counts, so a changed line that itself begins "--- " is not taken for a
-// file header.
-func parsePatch(b []byte) (map[string][]hunk, map[string]bool, error) {
+// hunks in base numbering, the files it creates, and the lines it adds. A
+// hunk's body is consumed by its counts, so a changed line that itself begins
+// "--- " is not taken for a file header.
+func parsePatch(b []byte) (map[string][]hunk, map[string]bool, map[string][]string, error) {
 	regions := map[string][]hunk{}
 	created := map[string]bool{}
+	addedLines := map[string][]string{}
 	file, fromNull := "", false
 	remOld, remNew := 0, 0
 	// A run is a stretch of - and + lines between context lines; it is one
@@ -209,9 +209,10 @@ func parsePatch(b []byte) (map[string][]hunk, map[string]bool, error) {
 				}
 				runAdd++
 				remNew--
+				addedLines[file] = append(addedLines[file], l[1:])
 			case strings.HasPrefix(l, `\`):
 			default:
-				return nil, nil, fmt.Errorf("hunk body line %q", l)
+				return nil, nil, nil, fmt.Errorf("hunk body line %q", l)
 			}
 			if remOld == 0 && remNew == 0 {
 				flush()
@@ -225,7 +226,7 @@ func parsePatch(b []byte) (map[string][]hunk, map[string]bool, error) {
 			fromNull = l == "--- /dev/null"
 		case strings.HasPrefix(l, "+++ "):
 			if l == "+++ /dev/null" {
-				return nil, nil, fmt.Errorf("a reference fix may not delete a file")
+				return nil, nil, nil, fmt.Errorf("a reference fix may not delete a file")
 			}
 			file = strings.TrimPrefix(strings.TrimPrefix(l, "+++ "), "b/")
 			created[file] = fromNull
@@ -235,7 +236,7 @@ func parsePatch(b []byte) (map[string][]hunk, map[string]bool, error) {
 		case strings.HasPrefix(l, "@@ "):
 			m := hunkHeader.FindStringSubmatch(l)
 			if m == nil || file == "" {
-				return nil, nil, fmt.Errorf("unreadable hunk header %q", l)
+				return nil, nil, nil, fmt.Errorf("unreadable hunk header %q", l)
 			}
 			start, _ := strconv.Atoi(m[1])
 			count, added := 1, 1
@@ -254,9 +255,9 @@ func parsePatch(b []byte) (map[string][]hunk, map[string]bool, error) {
 		}
 	}
 	if remOld > 0 || remNew > 0 {
-		return nil, nil, fmt.Errorf("the last hunk is cut short")
+		return nil, nil, nil, fmt.Errorf("the last hunk is cut short")
 	}
-	return regions, created, sc.Err()
+	return regions, created, addedLines, sc.Err()
 }
 
 // instructionNames are the files and directories an agent host reads as

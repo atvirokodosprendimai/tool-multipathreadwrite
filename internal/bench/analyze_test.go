@@ -68,12 +68,15 @@ func TestOnlyTheRegisteredExclusionsAreAdmitted(t *testing.T) {
 	rs = append(rs,
 		Receipt{Task: taskName(0), Source: "own", Model: "sonnet", Config: "B", Repeat: 2, CostUSD: &c, Exclusion: ExclusionStart},
 		Receipt{Task: taskName(1), Source: "own", Model: "sonnet", Config: "B", Repeat: 2, CostUSD: &c, Exclusion: ExclusionSetup},
-		Receipt{Task: taskName(2), Source: "own", Model: "sonnet", Config: "B", Repeat: 2, CostUSD: &c, OverBudget: true})
+		Receipt{Task: taskName(2), Source: "own", Model: "sonnet", Config: "B", Repeat: 2, CostUSD: &c, OverBudget: true},
+		// An agent that erred after its first tool call is unsolved, its
+		// cost kept, though the oracle found the tree right (the review of #411).
+		Receipt{Task: taskName(3), Source: "own", Model: "sonnet", Config: "B", Repeat: 2, CostUSD: &c, IsError: true, Oracle: Verdict{Solved: true}})
 	got, err := Analyze(rs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Excluded != 2 || got[0].Attempts != len(rs) {
+	if len(got) != 1 || got[0].Excluded != 2 || got[0].Attempts != len(rs) || got[0].SolvedDiff > -0.19 {
 		t.Fatalf("%+v", got)
 	}
 	// The over-budget attempt counts, unsolved, with its cost: B is dearer and

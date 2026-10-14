@@ -32,6 +32,12 @@ func TestTheCanaryFailsWhenTheTranscriptNamesMrwOrUserInstructions(t *testing.T)
 			t.Errorf("%s: the canary passed", name)
 		}
 	}
+	// A sentence with a quote in it sits in the transcript escaped.
+	quoting := "Read what you mean to edit: \"the licence stands for lines you saw\", always.\n"
+	escaped := strings.Replace(clean, `"done"`, `"Read what you mean to edit: \"the licence stands for lines you saw\", always."`, 1)
+	if p := CheckCanary([]byte(escaped), Configs["A"], quoting); len(p) == 0 {
+		t.Error("a CLAUDE.md sentence with quotes in it passed because the transcript escapes them")
+	}
 	b := strings.Replace(clean, `["Bash","Read","Edit","Write","Glob","Grep"]`, `["Bash","Glob"]`, 1)
 	b = strings.Replace(b, `"done"`, `"used mrw read"`, 1)
 	if p := CheckCanary([]byte(b), Configs["B"], claudeMD); len(p) != 0 {

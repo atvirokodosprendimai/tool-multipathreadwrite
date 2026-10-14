@@ -69,6 +69,28 @@ func TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit(t *testing.T) {
 			if !v.Solved {
 				t.Fatalf("the oracle does not pass the reference fix: %+v", v)
 			}
+			// Deleting the line just before the fix's first change: the line
+			// the task says to keep, which slack must not license (the
+			// review of #411).
+			if f, base, ok := task.neighbour(); ok {
+				nb := filepath.Join(tree, f)
+				keep, err := os.ReadFile(nb)
+				if err != nil {
+					t.Fatal(err)
+				}
+				lines := strings.SplitAfter(string(keep), "\n")
+				fixed := task.FixedLine(f, base)
+				cut := append(append([]string(nil), lines[:fixed-1]...), lines[fixed:]...)
+				if err := os.WriteFile(nb, []byte(strings.Join(cut, "")), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				if v, err := Oracle(task, tree); err != nil || v.Solved || len(v.Outside) == 0 {
+					t.Fatalf("the oracle accepts the reference fix with %s:%d deleted: %+v %v", f, base, v, err)
+				}
+				if err := os.WriteFile(nb, keep, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
 			file, line := strayLine(t, task, tree)
 			b, err := os.ReadFile(filepath.Join(tree, file))
 			if err != nil {
@@ -182,5 +204,94 @@ func TestStrippingRemovesEveryInstructionFile(t *testing.T) {
 	})
 	if strings.Join(left, ",") != "keep.go,sub/keep.md" {
 		t.Errorf("left after stripping: %v", left)
+	}
+}
+
+// taskFrom writes a fixture task from its parts and loads it.
+func taskFrom(t *testing.T, id, taskJSON, patch string, base map[string]string) Task {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), id)
+	for p, s := range base {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, "base", p)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "base", p), []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "task.json"), []byte(taskJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "reference.patch"), []byte(patch), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	task, err := LoadTask(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return task
+}
+
+// TestTheOracleRefusesWhatTheReviewFound holds the oracle to the holes the
+// Codex review of #411 traced: a change git calls binary, a mode-only change
+// and a deletion are outside the regions, not a setup failure; slack moves an
+// insertion but never licenses deleting the line beside it; and an exact task
+// fails when a line its fix adds is commented out though every token survives.
+func TestTheOracleRefusesWhatTheReviewFound(t *testing.T) {
+	needGit(t)
+	notes := taskFrom(t, "notes", `{"id":"notes","shape":"fixture","repo":"fixture","instruction":"x","require":[{"file":"notes.txt","match":"(?m)^gamma$"}]}`,
+		"diff --git a/notes.txt b/notes.txt\n--- a/notes.txt\n+++ b/notes.txt\n@@ -2 +2 @@\n-beta\n+gamma\n",
+		map[string]string{"notes.txt": "alpha\nbeta\ndelta\nepsilon\n", "other.txt": "keep\n"})
+	insert := taskFrom(t, "insert", `{"id":"insert","shape":"fixture","repo":"fixture","instruction":"x","slack":1,"require":[{"file":"s.yml","match":"(?m)^  x: 1$"}]}`,
+		"diff --git a/s.yml b/s.yml\n--- a/s.yml\n+++ b/s.yml\n@@ -2,0 +3 @@\n+  x: 1\n",
+		map[string]string{"s.yml": "a:\n  b: 1\n  c: 1\n  d: 1\n"})
+	exact := taskFrom(t, "exact", `{"id":"exact","shape":"fixture","repo":"fixture","instruction":"x","exact":true,"require":[{"file":"r.go","match":"\\bsendMessage\\b"}],"forbid":[{"file":"r.go","match":"\\bpostSend\\b"}]}`,
+		"diff --git a/r.go b/r.go\n--- a/r.go\n+++ b/r.go\n@@ -4 +4 @@\n-\tregister(postSend)\n+\tregister(sendMessage)\n",
+		map[string]string{"r.go": "package r\n\nfunc init() {\n\tregister(postSend)\n}\n"})
+	cases := []struct {
+		name   string
+		task   Task
+		mangle func(tree string) error
+		want   string // "outside" or "missing"
+	}{
+		// Each on the file the fix touches, so the whole-file rule — not the
+		// untouched-file rule — is what must catch it.
+		{"a binary change", notes, func(tree string) error {
+			return os.WriteFile(filepath.Join(tree, "notes.txt"), []byte("alpha\ngamma\ndelta\nepsilon\x00\n"), 0o644)
+		}, "outside"},
+		{"a mode-only change", notes, func(tree string) error {
+			return os.Chmod(filepath.Join(tree, "notes.txt"), 0o755)
+		}, "outside"},
+		{"a deleted file", notes, func(tree string) error {
+			return os.Remove(filepath.Join(tree, "notes.txt"))
+		}, "outside"},
+		{"slack deleting the neighbour", insert, func(tree string) error {
+			return os.WriteFile(filepath.Join(tree, "s.yml"), []byte("a:\n  b: 1\n  x: 1\n  d: 1\n"), 0o644)
+		}, "outside"},
+		{"a fix line commented out", exact, func(tree string) error {
+			return os.WriteFile(filepath.Join(tree, "r.go"), []byte("package r\n\nfunc init() {\n\t// sendMessage\n}\n"), 0o644)
+		}, "missing"},
+	}
+	for _, c := range cases {
+		tree := t.TempDir()
+		if _, err := Materialize(c.task, tree, nil); err != nil {
+			t.Fatal(err)
+		}
+		if err := ApplyPatch(tree, filepath.Join(c.task.Dir, "reference.patch")); err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if v, err := Oracle(c.task, tree); err != nil || !v.Solved {
+			t.Fatalf("%s: the reference fix alone is not solved: %+v %v", c.name, v, err)
+		}
+		if err := c.mangle(tree); err != nil {
+			t.Fatal(err)
+		}
+		v, err := Oracle(c.task, tree)
+		if err != nil {
+			t.Fatalf("%s: the oracle failed instead of grading: %v", c.name, err)
+		}
+		if v.Solved || (c.want == "outside" && len(v.Outside) == 0) || (c.want == "missing" && len(v.Missing) == 0) {
+			t.Errorf("%s: %+v, want it %s", c.name, v, c.want)
+		}
 	}
 }

@@ -3,6 +3,7 @@
   "shape": "multi-site",
   "repo": "agentsmemory",
   "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
   "instruction": "In the Go package clients/claude-code, rename the function copyConfigTree to copyConfigDir, and update every reference to it in that package, tests and comments included. Change nothing else.",
   "require": [
     {

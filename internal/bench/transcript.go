@@ -32,6 +32,7 @@ type transcript struct {
 	IsError    bool
 	Subtype    string
 	NumTurns   int
+	ResultText string
 	CostUSD    *float64
 	Usage      Usage
 }
@@ -56,6 +57,7 @@ func parseTranscript(b []byte) transcript {
 			} `json:"message"`
 			IsError  bool     `json:"is_error"`
 			NumTurns int      `json:"num_turns"`
+			Text     string   `json:"result"`
 			Cost     *float64 `json:"total_cost_usd"`
 			Usage    Usage    `json:"usage"`
 		}
@@ -77,7 +79,7 @@ func parseTranscript(b []byte) transcript {
 				}
 			}
 		case "result":
-			t.Result, t.IsError, t.Subtype, t.NumTurns, t.CostUSD, t.Usage = true, m.IsError, m.Subtype, m.NumTurns, m.Cost, m.Usage
+			t.Result, t.IsError, t.Subtype, t.NumTurns, t.CostUSD, t.Usage, t.ResultText = true, m.IsError, m.Subtype, m.NumTurns, m.Cost, m.Usage, m.Text
 		}
 	}
 	return t

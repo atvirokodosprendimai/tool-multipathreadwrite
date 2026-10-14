@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
 func hookInput(t *testing.T, tool, command string) []byte {
@@ -50,6 +52,12 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 		"gofmt -w f.go",
 		"cat <<'EOF' > f.go\npackage x\nEOF",
 		"ls && echo hi > out.txt",
+		// What the review of #411 found passing:
+		"echo \"$(touch f)\"",
+		"cat <<EOF\n$(rm f)\nEOF",
+		"echo \"<<EOF\"; rm f",
+		"printf x >&out.txt",
+		"echo `touch f`",
 	}
 	pass := []string{
 		"mrw read f.go:1-3",
@@ -61,6 +69,10 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 		"ls -la > /dev/null",
 		"mrw read f.go 2>/dev/null",
 		"go build ./... 2>&1 >/dev/null",
+		"echo hi >&2",
+		"ls 2>&1",
+		"echo $((1 + 2))",
+		"mrw write - <<'PLAN'\n@@ f.go 1 replace\nv := \"$(touch f)\"\nPLAN",
 	}
 	reads := map[string][]string{
 		"cat f.go":               {"cat"},
@@ -110,7 +122,7 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 func TestASlippedWriteIsFoundFromTheLedger(t *testing.T) {
 	needGit(t)
 	tree := t.TempDir()
-	for _, f := range []string{"a.txt", "b.txt", "c.txt"} {
+	for _, f := range []string{"a.txt", "b.txt", "c.txt", "d.txt", "e.txt", "f.txt"} {
 		if err := os.WriteFile(filepath.Join(tree, f), []byte("one\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -120,24 +132,32 @@ func TestASlippedWriteIsFoundFromTheLedger(t *testing.T) {
 			t.Fatalf("git %v: %v %s", args, err, out)
 		}
 	}
-	for _, f := range []string{"a.txt", "b.txt"} {
-		if err := os.WriteFile(filepath.Join(tree, f), []byte("two\n"), 0o644); err != nil {
+	for f, s := range map[string]string{"a.txt": "two\n", "b.txt": "two\n", "d.txt": "two\n", "e.txt": "three\n"} {
+		if err := os.WriteFile(filepath.Join(tree, f), []byte(s), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
+	if err := os.Remove(filepath.Join(tree, "f.txt")); err != nil {
+		t.Fatal(err)
+	}
+	two, one := seen.SHA([]byte("two\n")), seen.SHA([]byte("one\n"))
 	state := t.TempDir()
 	ledger := filepath.Join(state, "mrw", "0123", "seen")
 	if err := os.MkdirAll(filepath.Dir(ledger), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(ledger, []byte("#mrw-seen v5 mrw stub\nabc  w1-1  a.txt\ndef  1-1  c.txt\n"), 0o600); err != nil {
+	// a.txt mrw wrote; d.txt mrw wrote and then read whole, which clears the
+	// written mark; e.txt mrw wrote as "two" and something else then changed;
+	// f.txt mrw read and something else deleted; b.txt mrw never saw.
+	body := "#mrw-seen v5 mrw stub\n" + two + "  w1-1  a.txt\n" + one + "  1-1  c.txt\n" + two + "  -  d.txt\n" + two + "  w  e.txt\n" + one + "  -  f.txt\n"
+	if err := os.WriteFile(ledger, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	got, err := SlippedWrites(tree, state)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(got, ",") != "b.txt" {
-		t.Errorf("slipped writes: %v, want [b.txt] (a.txt was written by mrw; c.txt was only read and is unchanged)", got)
+	if strings.Join(got, ",") != "b.txt,e.txt,f.txt" {
+		t.Errorf("slipped writes: %v, want [b.txt e.txt f.txt]: a.txt and d.txt are what mrw last saw, c.txt is unchanged", got)
 	}
 }

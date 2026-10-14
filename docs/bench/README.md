@@ -15,14 +15,18 @@ run` and `bench canary` refuse without `--containment` and `--config-dir`, and
 | | Tools | mrw | Hook |
 |---|---|---|---|
 | A | Bash, Read, Edit, Write, Glob, Grep | not on PATH | none |
-| B | Bash, Glob | a pinned build on PATH, `mrw instructions` appended | `bench hook`: refuses writes by other means, counts reads |
+| B | Bash, Glob | a pinned build on PATH, `mrw instructions` appended | `bench hook`: refuses writes by other means, command substitutions included; counts reads |
 
 Both run with `--strict-mcp-config` and an empty MCP config, a settings file
 written per attempt, `--disable-slash-commands`, `--no-session-persistence`,
 `--no-chrome` and `--permission-mode bypassPermissions`, in a fresh tree whose
 instruction files (`CLAUDE.md`, `AGENTS.md`, `.claude/`, `.mcp.json`, `.cursor/`,
 `.codex/`, `.cursorrules`, `CLAUDE.local.md`) are stripped, with
-`CLAUDE_CONFIG_DIR` set to the dedicated directory.
+`CLAUDE_CONFIG_DIR` set to the dedicated directory (resolved, and refused if it
+is `~/.claude` by any spelling or link). The CLI runs in a process group of its
+own, stopped when it returns. Its `PATH` holds links to the host's `git`, `go`
+and `gofmt` and the system directories, not the directories those tools live
+in, and configuration A's is refused if `mrw` is anywhere on it.
 
 ## The corpus: `bench/tasks/<id>/`
 
@@ -32,7 +36,8 @@ instruction files (`CLAUDE.md`, `AGENTS.md`, `.claude/`, `.mcp.json`, `.cursor/`
   - `repo` — a name in `bench/repos.json`, or `fixture`;
   - `commit` — the full sha the base tree is taken from;
   - `instruction` — what the agent is told; it names no tool;
-  - `slack` — how many lines either side of the reference fix a change may also touch (default 0);
+  - `slack` — how many lines either side of the fix's own insertion point new lines may also go (default 0); it never licenses changing a line the fix leaves alone;
+  - `exact` — the finished file must hold every line the fix adds, so a call site commented out fails though its tokens survive (the renames);
   - `require`, `forbid` — `{file, match}` regular expressions over the finished file.
 - `reference.patch` — the fix, as `git diff` writes it. Its changed lines, not its context lines, are the allowed regions.
 - `base/` — a fixture's whole base tree.
@@ -40,13 +45,16 @@ instruction files (`CLAUDE.md`, `AGENTS.md`, `.claude/`, `.mcp.json`, `.cursor/`
 `bench/repos.json` maps each repository to its public URL and the local path
 its clone is expected at (`~/` is the home directory).
 
-The oracle passes a tree when every `require` matches, no `forbid` does,
-nothing outside the allowed regions changed (no other file, no line outside
-the regions widened by `slack`), and every changed file passes the check for
-its kind (Go parses, JSON is valid, YAML has no tab indentation, markdown
-closes its fences). `TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit`
-proves, for every task, that the oracle fails the base, passes the reference
-fix, and fails the fix plus one stray line.
+The oracle passes a tree when every `require` matches, no `forbid` does, an
+exact task's added lines are all there, nothing outside the allowed regions
+changed (no other file, no line the fix leaves alone; a change git calls
+binary, a mode change or a deleted file is outside), and every changed file
+passes the check for its kind (Go parses, JSON is valid, YAML has no tab
+indentation, markdown closes its fences).
+`TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit` proves, for every
+task, that the oracle fails the base, passes the reference fix, and fails the
+fix plus one stray line, and the fix with the line before its first change
+deleted.
 
 ## Receipts: `docs/bench/<date>-<stage>/`
 
@@ -55,7 +63,7 @@ fix, and fails the fix plus one stray line.
   same directory is refused.
 - `<task>.<config>.<model>.<repeat>.started` — written before the attempt starts.
   An attempt with this file and no receipt crashed or was stopped, and is not run
-  again on resume.
+  again on resume. An excluded attempt's replacement is `<attempt>.r1` (`.r2`).
 - `….receipt.json` — written once, never replaced:
   `attempt`, `stage`, `task`, `shape`, `source`, `model`, `config`, `repeat`,
   `order`, `started`, `wall_ms`, `cli_version`, `mrw_version` (B only),

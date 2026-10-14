@@ -68,3 +68,30 @@ func IsInstructionPath(p string) bool {
 func ApplyPatch(dir, patch string) error {
 	return git(dir, "apply", "--unidiff-zero", "--whitespace=nowarn", patch)
 }
+
+// neighbour is the base line just before the reference fix's first change in
+// its first touched file, when the fix itself leaves that line alone. It reads
+// the fix's hunks directly, never CoversBaseLine: a test that asked the rule
+// under test which line to try would skip the very line a broken rule licenses.
+func (t Task) neighbour() (string, int, bool) {
+	for _, f := range t.Files() {
+		hs := t.regions[f]
+		if len(hs) == 0 || t.created[f] {
+			continue
+		}
+		n := hs[0].Start - 1
+		if hs[0].Count == 0 {
+			n = hs[0].Start
+		}
+		changed := false
+		for _, h := range hs {
+			if h.Count > 0 && n >= h.Start && n < h.Start+h.Count {
+				changed = true
+			}
+		}
+		if n >= 1 && !changed {
+			return f, n, true
+		}
+	}
+	return "", 0, false
+}

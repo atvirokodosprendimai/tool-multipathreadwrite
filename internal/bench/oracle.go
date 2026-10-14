@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -43,9 +44,31 @@ func Oracle(t Task, dir string) (Verdict, error) {
 			v.Outside = append(v.Outside, c.file+": a file the task does not touch")
 			continue
 		}
+		if c.whole {
+			v.Outside = append(v.Outside, c.file+": deleted, made binary or changed in mode, which no task asks for")
+			continue
+		}
 		for _, h := range c.hunks {
 			if !t.allows(c.file, h) {
 				v.Outside = append(v.Outside, fmt.Sprintf("%s: base lines %d-%d", c.file, h.Start, h.Start+max(h.Count, 1)-1))
+			}
+		}
+	}
+	if t.Exact {
+		for _, f := range sortedKeys(t.added) {
+			b, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(f)))
+			if err != nil {
+				v.Missing = append(v.Missing, f+": cannot be read")
+				continue
+			}
+			have := map[string]bool{}
+			for _, l := range strings.Split(string(b), "\n") {
+				have[l] = true
+			}
+			for _, l := range t.added[f] {
+				if !have[l] {
+					v.Missing = append(v.Missing, fmt.Sprintf("%s: the line %q the fix adds is not there", f, l))
+				}
 			}
 		}
 	}
@@ -92,57 +115,71 @@ func (t Task) allows(file string, h hunk) bool {
 type change struct {
 	file      string
 	untracked bool
+	whole     bool // deleted, binary or a mode change: no line of it lies in a region
 	hunks     []hunk
 }
 
-// changes lists what differs from HEAD in the tree: tracked files with their
-// hunks in base numbering, and untracked files git does not ignore.
+// changes lists what differs from HEAD in the tree: each tracked file git
+// names as changed, with its hunks in base numbering, and the untracked files
+// git does not ignore. A file deleted, made binary or changed only in mode has
+// no hunks to judge and is marked whole.
 func changes(dir string) ([]change, error) {
-	out, err := gitOut(dir, "diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", "HEAD")
+	names, err := gitOut(dir, "diff", "--name-status", "-z", "--no-renames", "HEAD")
 	if err != nil {
 		return nil, err
 	}
 	var cs []change
-	for _, block := range strings.Split(out, "\ndiff --git ")[0:] {
-		if strings.TrimSpace(block) == "" {
-			continue
-		}
-		block = strings.TrimPrefix(block, "diff --git ")
-		var c change
-		for _, l := range strings.Split(block, "\n") {
-			switch {
-			case strings.HasPrefix(l, "+++ ") && l != "+++ /dev/null" && c.file == "":
-				c.file = strings.TrimPrefix(strings.TrimPrefix(l, "+++ "), "b/")
-			case strings.HasPrefix(l, "--- a/") && c.file == "":
-				c.file = strings.TrimPrefix(l, "--- a/")
-			case strings.HasPrefix(l, "@@ "):
-				m := hunkHeader.FindStringSubmatch(l)
-				if m == nil {
-					return nil, fmt.Errorf("unreadable hunk header %q", l)
-				}
-				start, _ := strconv.Atoi(m[1])
-				count := 1
-				if m[2] != "" {
-					count, _ = strconv.Atoi(m[2])
-				}
-				c.hunks = append(c.hunks, hunk{Start: start, Count: count})
+	fields := strings.Split(strings.TrimSuffix(names, "\x00"), "\x00")
+	for i := 0; i+1 < len(fields); i += 2 {
+		status, file := fields[i], fields[i+1]
+		c := change{file: file, whole: status == "D" || status == "T"}
+		if !c.whole {
+			out, err := gitOut(dir, "diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", "HEAD", "--", file)
+			if err != nil {
+				return nil, err
 			}
-		}
-		if c.file == "" {
-			return nil, fmt.Errorf("a diff block names no file: %.80q", block)
+			for _, l := range strings.Split(out, "\n") {
+				if strings.HasPrefix(l, "Binary files ") || strings.HasPrefix(l, "old mode ") || strings.HasPrefix(l, "new mode ") {
+					c.whole = true
+				}
+				if strings.HasPrefix(l, "@@ ") {
+					m := hunkHeader.FindStringSubmatch(l)
+					if m == nil {
+						return nil, fmt.Errorf("unreadable hunk header %q", l)
+					}
+					start, _ := strconv.Atoi(m[1])
+					count := 1
+					if m[2] != "" {
+						count, _ = strconv.Atoi(m[2])
+					}
+					c.hunks = append(c.hunks, hunk{Start: start, Count: count})
+				}
+			}
+			if len(c.hunks) == 0 {
+				c.whole = true
+			}
 		}
 		cs = append(cs, c)
 	}
-	others, err := gitOut(dir, "ls-files", "--others", "--exclude-standard")
+	others, err := gitOut(dir, "ls-files", "-z", "--others", "--exclude-standard")
 	if err != nil {
 		return nil, err
 	}
-	for _, f := range strings.Split(strings.TrimSpace(others), "\n") {
+	for _, f := range strings.Split(strings.TrimSuffix(others, "\x00"), "\x00") {
 		if f != "" {
 			cs = append(cs, change{file: f, untracked: true})
 		}
 	}
 	return cs, nil
+}
+
+func sortedKeys(m map[string][]string) []string {
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	sort.Strings(ks)
+	return ks
 }
 
 func gitOut(dir string, args ...string) (string, error) {

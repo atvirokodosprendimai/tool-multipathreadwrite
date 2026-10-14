@@ -2,8 +2,6 @@ package bench
 
 import (
 	"bufio"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
 // Hook is configuration B's PreToolUse hook (ADR-156 Decision 1). It reads the
@@ -56,8 +56,12 @@ func oneLine(s string) string {
 
 var (
 	heredoc  = regexp.MustCompile(`<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)['"]?`)
-	quoted   = regexp.MustCompile(`'[^']*'|"(?:[^"\\]|\\.)*"`)
-	redirect = regexp.MustCompile(`(?:^|[^0-9&<>=\-|])(?:[0-9]?>>?|&>>?)\s*([^\s;&|<>()]+)`)
+	single   = regexp.MustCompile(`'[^']*'`)
+	double   = regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
+	subst    = regexp.MustCompile("\\$\\(([^()]*)\\)|`([^`]*)`")
+	arith    = regexp.MustCompile(`\$\(\([^()]*\)\)`)
+	redirect = regexp.MustCompile(`(?:^|[^0-9&<>=\-|])(?:[0-9]?>>?|&>>?)\s*(&?[^\s;&|<>()]+)`)
+	dupFD    = regexp.MustCompile(`^&([0-9]+|-)$`)
 	// The first word of a segment that changes files by itself.
 	writers = map[string]string{
 		"cp": "cp copies onto a file", "mv": "mv moves a file", "rm": "rm removes a file", "touch": "touch creates a file",
@@ -69,30 +73,81 @@ var (
 	writeCall    = regexp.MustCompile(`open\([^)]*,\s*['"][wa]|write_text|writeFile|\.write\(|File\.write|>>?\s*[A-Za-z]`)
 )
 
-// stripBodies removes heredoc bodies and quoted strings, so a plan's body or
-// a quoted ">" is never read as a redirection.
-func stripBodies(cmd string) string {
+// splitHeredocs separates a command from its heredoc bodies. A heredoc
+// operator counts only outside quotes, so a quoted "<<EOF" opens nothing. The
+// body of a heredoc whose delimiter is quoted is literal and dropped (a plan's
+// body); the body of one whose delimiter is not quoted is expanded by the
+// shell, so it is returned for its command substitutions.
+func splitHeredocs(cmd string) (rest string, expanded []string) {
 	var out []string
 	lines := strings.Split(cmd, "\n")
 	for i := 0; i < len(lines); i++ {
 		out = append(out, lines[i])
-		if m := heredoc.FindStringSubmatch(lines[i]); m != nil {
-			for i+1 < len(lines) && strings.TrimSpace(lines[i+1]) != m[2] {
-				i++
+		m := realHeredoc(lines[i])
+		if m == nil {
+			continue
+		}
+		for i+1 < len(lines) && strings.TrimSpace(lines[i+1]) != m[2] {
+			i++
+			if m[1] == "" {
+				expanded = append(expanded, lines[i])
 			}
-			i++ // the terminator
+		}
+		i++ // the terminator
+	}
+	return strings.Join(out, "\n"), expanded
+}
+
+// realHeredoc finds a heredoc operator on a line that is not inside a quoted
+// string: `<<'PLAN'` opens a heredoc, `echo "<<EOF"` does not.
+func realHeredoc(line string) []string {
+	quotedSpans := regexp.MustCompile(`'[^']*'|"(?:[^"\\]|\\.)*"`).FindAllStringIndex(line, -1)
+	for _, loc := range heredoc.FindAllStringSubmatchIndex(line, -1) {
+		inside := false
+		for _, q := range quotedSpans {
+			if loc[0] > q[0] && loc[0] < q[1] {
+				inside = true
+			}
+		}
+		if !inside {
+			return []string{line[loc[0]:loc[1]], line[loc[2]:loc[3]], line[loc[4]:loc[5]]}
 		}
 	}
-	return quoted.ReplaceAllString(strings.Join(out, "\n"), "''")
+	return nil
 }
 
 // ClassifyBash returns why cmd would write a file other than through mrw ("" if
-// it would not), and the read tools it applies to file contents.
+// it would not), and the read tools it applies to file contents. A command
+// substitution, in double quotes or an unquoted heredoc as much as bare, is
+// classified as a command of its own; one nested too deep to read is refused,
+// since what the hook cannot see it cannot pass (the review of #411).
 func ClassifyBash(cmd string) (string, []string) {
-	bare := stripBodies(cmd)
+	return classify(cmd, 0)
+}
+
+func classify(cmd string, depth int) (string, []string) {
+	rest, expanded := splitHeredocs(cmd)
+	live := arith.ReplaceAllString(single.ReplaceAllString(rest, "''")+"\n"+strings.Join(expanded, "\n"), "0")
+	var reads []string
+	for _, m := range subst.FindAllStringSubmatch(live, -1) {
+		inner := m[1] + m[2]
+		if depth >= 4 {
+			return "a command substitution nested too deep to inspect", reads
+		}
+		why, r := classify(inner, depth+1)
+		reads = append(reads, r...)
+		if why != "" {
+			return "a command substitution: " + why, reads
+		}
+	}
+	if strings.Contains(subst.ReplaceAllString(live, ""), "$(") {
+		return "a command substitution the hook cannot inspect", reads
+	}
+	bare := double.ReplaceAllString(single.ReplaceAllString(rest, "''"), `""`)
+	reads = append(reads, readsOf(bare)...)
 	for _, m := range redirect.FindAllStringSubmatch(bare, -1) {
-		if target := m[1]; target != "/dev/null" && !strings.HasPrefix(target, "&") {
-			return "a redirection writes " + target, readsOf(bare)
+		if target := m[1]; target != "/dev/null" && !dupFD.MatchString(target) {
+			return "a redirection writes " + strings.TrimPrefix(target, "&"), reads
 		}
 	}
 	for _, seg := range pipelineParts(bare) {
@@ -102,24 +157,24 @@ func ClassifyBash(cmd string) (string, []string) {
 		}
 		head := filepath.Base(w[0])
 		if why, ok := writers[head]; ok {
-			return why, readsOf(bare)
+			return why, reads
 		}
 		switch {
 		case head == "sed" && hasFlag(w[1:], "i"):
-			return "sed -i edits a file", readsOf(bare)
+			return "sed -i edits a file", reads
 		case head == "perl" && hasFlag(w[1:], "i"):
-			return "perl -i edits a file", readsOf(bare)
+			return "perl -i edits a file", reads
 		case head == "git" && len(w) > 1 && (w[1] == "apply" || w[1] == "checkout" || w[1] == "restore" || w[1] == "stash" || w[1] == "reset" || w[1] == "am"):
-			return "git " + w[1] + " changes files", readsOf(bare)
+			return "git " + w[1] + " changes files", reads
 		case head == "go" && len(w) > 1 && (w[1] == "fmt" || w[1] == "fix" || w[1] == "generate"):
-			return "go " + w[1] + " rewrites files", readsOf(bare)
+			return "go " + w[1] + " rewrites files", reads
 		case interpreters[head]:
 			if writeCall.MatchString(cmd) {
-				return head + " writes a file", readsOf(bare)
+				return head + " writes a file", reads
 			}
 		}
 	}
-	return "", readsOf(bare)
+	return "", reads
 }
 
 // pipelineParts splits a command into its simple commands: segments, and the
@@ -202,12 +257,16 @@ func hookCounts(log string) (refused, reads int) {
 	return refused, reads
 }
 
-// SlippedWrites names the files the tree shows changed that the attempt's own
-// mrw ledger (under the XDG_STATE_HOME state) does not record as written by mrw
-// (ADR-118's `w`), or records with another content than the file now has: a
-// write that went past configuration B's hook.
+// SlippedWrites names the files the tree shows changed whose content the
+// attempt's own mrw ledger (under the XDG_STATE_HOME state) has not recorded:
+// no entry for the file, an entry with another sha than the file now has, or a
+// file gone from the tree. mrw records the sha of every file it writes or
+// reads, so a file it changed, or read after a change, matches; a change made
+// by other means and never read back does not. A change made by other means
+// and then read back with mrw is not caught — a heuristic, as the hook is
+// (the review of #411: the ledger's `w` mark does not survive a whole read).
 func SlippedWrites(tree, state string) ([]string, error) {
-	written := map[string]string{}
+	recorded := map[string]string{}
 	err := filepath.Walk(state, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -226,9 +285,8 @@ func SlippedWrites(tree, state string) ([]string, error) {
 		sc := bufio.NewScanner(f)
 		sc.Buffer(make([]byte, 1<<20), 1<<24)
 		for sc.Scan() {
-			parts := strings.SplitN(sc.Text(), "  ", 3)
-			if len(parts) == 3 && strings.HasPrefix(parts[1], "w") {
-				written[parts[2]] = parts[0]
+			if parts := strings.SplitN(sc.Text(), "  ", 3); len(parts) == 3 {
+				recorded[parts[2]] = parts[0]
 			}
 		}
 		return sc.Err()
@@ -242,16 +300,9 @@ func SlippedWrites(tree, state string) ([]string, error) {
 	}
 	var slipped []string
 	for _, c := range changed {
-		sha, ok := written[c.file]
-		if !ok {
+		b, err := os.ReadFile(filepath.Join(tree, c.file))
+		if sha, ok := recorded[c.file]; err != nil || !ok || seen.SHA(b) != sha {
 			slipped = append(slipped, c.file)
-			continue
-		}
-		if b, err := os.ReadFile(filepath.Join(tree, c.file)); err == nil {
-			sum := sha256.Sum256(b)
-			if got := hex.EncodeToString(sum[:]); len(sha) >= 8 && !strings.HasPrefix(got, sha) && !strings.HasPrefix(sha, got) {
-				slipped = append(slipped, c.file)
-			}
 		}
 	}
 	return slipped, nil

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -26,6 +27,7 @@ for a in "$@"; do
 	prev="$a"
 done
 echo "$PWD" >> "` + log + `"
+echo "mrw=$(command -v mrw || true)" >> "` + filepath.Join(dir, "path.log") + `"
 git apply "` + patch + `" >/dev/null 2>&1
 printf '{"type":"system","subtype":"init","model":"stub-model","tools":["%s"],"mcp_servers":[]}\n' "$(printf '%s' "$tools" | sed 's/,/","/g')"
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls"}},{"type":"text","text":"` + say + `"}]}}'
@@ -286,5 +288,157 @@ func TestTheRunnerRefusesWithoutTheGatesZyHolds(t *testing.T) {
 	o.Canary = failing
 	if err := Run(o); err == nil {
 		t.Error("a failing canary let the run start")
+	}
+}
+
+// TestAnExcludedAttemptIsReplacedAndKept: a CLI that fails before its first
+// tool call with a rate limit is a start error, replaced twice under ids of
+// its own, every receipt kept; a stage then verifies on the planned ids.
+func TestAnExcludedAttemptIsReplacedAndKept(t *testing.T) {
+	opts, _ := runOptions(t)
+	work := filepath.Dir(opts.Out)
+	failing := filepath.Join(work, "claude-limited")
+	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = \"--version\" ] && { echo \"9.9.9 (Claude Code)\"; exit 0; }; done\necho 'API Error: 429 rate limit reached' >&2\nexit 1\n"
+	if err := os.WriteFile(failing, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	opts.Claude, opts.Configs = failing, []string{"A"}
+	if err := Run(opts); err != nil {
+		t.Fatal(err)
+	}
+	got := receipts(t, opts.Out)
+	for _, id := range []string{"fix-one.A.stub-model.1", "fix-one.A.stub-model.1.r1", "fix-one.A.stub-model.1.r2"} {
+		var r Receipt
+		if err := json.Unmarshal(got[id+".receipt.json"], &r); err != nil || r.Exclusion != ExclusionStart {
+			t.Errorf("%s: %+v %v, want a start-error receipt", id, r, err)
+		}
+	}
+	if len(got) != 3 {
+		t.Errorf("receipts: %d, want the attempt and two replacements, no more", len(got))
+	}
+}
+
+// TestConfigurationAHasNoMrwOnItsPath: an mrw installed beside the host's git
+// does not reach configuration A, and configuration B gets the pinned build.
+func TestConfigurationAHasNoMrwOnItsPath(t *testing.T) {
+	opts, _ := runOptions(t)
+	work := filepath.Dir(opts.Out)
+	host := filepath.Join(work, "hostbin")
+	if err := os.Mkdir(host, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git is not on PATH")
+	}
+	if err := os.Symlink(git, filepath.Join(host, "git")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(host, "mrw"), []byte("#!/bin/sh\necho host mrw\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", host+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := Run(opts); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(work, "path.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Fields(string(b))
+	if len(lines) != 2 {
+		t.Fatalf("path log: %q", b)
+	}
+	sawEmpty, sawPinned := false, false
+	for _, l := range lines {
+		switch {
+		case l == "mrw=":
+			sawEmpty = true
+		case strings.HasSuffix(l, "/bin/mrw") && !strings.Contains(l, host):
+			sawPinned = true
+		default:
+			t.Errorf("an attempt found %s", l)
+		}
+	}
+	if !sawEmpty || !sawPinned {
+		t.Errorf("want one attempt with no mrw (A) and one with the pinned build (B): %q", b)
+	}
+}
+
+// TestTheConfigDirectoryIsJudgedByIdentity: a link to the user's own
+// ~/.claude is refused like the directory itself.
+func TestTheConfigDirectoryIsJudgedByIdentity(t *testing.T) {
+	opts, log := runOptions(t)
+	home := t.TempDir()
+	if err := os.Mkdir(filepath.Join(home, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	alias := filepath.Join(t.TempDir(), "looks-dedicated")
+	if err := os.Symlink(filepath.Join(home, ".claude"), alias); err != nil {
+		t.Fatal(err)
+	}
+	opts.ConfigDir = alias
+	if err := Run(opts); err == nil || !strings.Contains(err.Error(), "own ~/.claude") {
+		t.Fatalf("a link to ~/.claude was accepted: %v", err)
+	}
+	if b, _ := os.ReadFile(log); len(b) != 0 {
+		t.Errorf("the CLI ran: %q", b)
+	}
+}
+
+// TestVerifyRefusesAReceiptThatIsNotItsAttempt and the hook's command: a
+// corrupted receipt does not verify, and a hook path with a space in it is
+// quoted in the settings an attempt runs with.
+func TestVerifyRefusesAReceiptThatIsNotItsAttempt(t *testing.T) {
+	opts, _ := runOptions(t)
+	if err := Run(opts); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(opts.Out, "fix-one.A.stub-model.1.receipt.json"), []byte("{\"attempt\":\"somethi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Verify(opts.Out, "test", 1, 1); err == nil || !strings.Contains(err.Error(), "fix-one.A.stub-model.1") {
+		t.Errorf("a corrupted receipt verified: %v", err)
+	}
+	scratch := t.TempDir()
+	opts.Bench = "/opt/with space/bench"
+	if _, _, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs["B"], Repeat: 1}, scratch); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(scratch, "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `'/opt/with space/bench' hook --log '`) {
+		t.Errorf("the hook command is not quoted: %s", b)
+	}
+}
+
+// TestAnAttemptLeavesNothingRunning: a background process the agent started is
+// stopped with the attempt, before its tree is graded and removed (the review
+// of #411, P1).
+func TestAnAttemptLeavesNothingRunning(t *testing.T) {
+	opts, _ := runOptions(t)
+	work := filepath.Dir(opts.Out)
+	pidfile := filepath.Join(work, "bg.pid")
+	stub := filepath.Join(work, "claude-bg")
+	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = \"--version\" ] && { echo \"9.9.9 (Claude Code)\"; exit 0; }; done\nsleep 300 &\necho $! > '" + pidfile + "'\n" +
+		"printf '%s\\n' '{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\",\"tools\":[],\"mcp_servers\":[]}' '{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":1,\"total_cost_usd\":0.1,\"usage\":{}}'\n"
+	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	opts.Claude, opts.Configs = stub, []string{"A"}
+	if err := Run(opts); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(pidfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid := strings.TrimSpace(string(b))
+	if err := exec.Command("kill", "-0", pid).Run(); err == nil {
+		_ = exec.Command("kill", "-9", pid).Run()
+		t.Fatalf("the attempt's background process %s outlived it", pid)
 	}
 }

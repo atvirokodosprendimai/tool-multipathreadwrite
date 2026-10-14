@@ -34,7 +34,10 @@ func CheckCanary(transcript []byte, c Config, claudeMD string) []string {
 			problems = append(problems, fmt.Sprintf("MCP servers %v, want none", t.MCPServers))
 		}
 	}
-	text := string(transcript)
+	// The raw lines and every JSON string in them, decoded: a sentence with a
+	// quote in it, or a marker sent as \u escapes, is in the transcript only
+	// escaped (the review of #411).
+	text := string(transcript) + "\n" + decodedStrings(transcript)
 	if !c.Mrw && regexp.MustCompile(`(?i)\bmrw\b`).MatchString(text) {
 		problems = append(problems, "configuration A's transcript names mrw")
 	}
@@ -69,9 +72,11 @@ type CanaryReceipt struct {
 func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) {
 	var c CanaryReceipt
 	o.Canary = "-"
-	if err := gates(o); err != nil {
+	cd, err := gates(o)
+	if err != nil {
 		return c, err
 	}
+	o.ConfigDir = cd
 	if o.Budget == 0 {
 		o.Budget = DefaultBudget
 	}
@@ -123,6 +128,33 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		return c, err
 	}
 	return c, writeOnce(filepath.Join(o.Out, "canary.json"), append(b, '\n'))
+}
+
+// decodedStrings joins every string value of every JSON line of a transcript.
+func decodedStrings(transcript []byte) string {
+	var out []string
+	var walk func(v any)
+	walk = func(v any) {
+		switch x := v.(type) {
+		case string:
+			out = append(out, x)
+		case []any:
+			for _, e := range x {
+				walk(e)
+			}
+		case map[string]any:
+			for _, e := range x {
+				walk(e)
+			}
+		}
+	}
+	for _, line := range bytes.Split(transcript, []byte("\n")) {
+		var v any
+		if json.Unmarshal(line, &v) == nil {
+			walk(v)
+		}
+	}
+	return strings.Join(out, "\n")
 }
 
 // distinctive are the lines of a CLAUDE.md long enough that finding one in a

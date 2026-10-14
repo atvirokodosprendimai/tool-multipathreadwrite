@@ -38,10 +38,11 @@ About 30 tasks in the shapes Decision 3 registers, each with an oracle whose thr
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/bench/ -count=1 -timeout 600s -run 'TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit|TestTheCorpusHasTheRegisteredShapeCounts|TestStrippingRemovesEveryInstructionFile' -v 2>&1 | tee "$out" \
+  && go test ./internal/bench/ -count=1 -timeout 600s -run 'TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit|TestTheCorpusHasTheRegisteredShapeCounts|TestStrippingRemovesEveryInstructionFile|TestTheOracleRefusesWhatTheReviewFound' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit \(' "$out" \
   && grep -qE '^--- PASS: TestTheCorpusHasTheRegisteredShapeCounts \(' "$out" \
   && grep -qE '^--- PASS: TestStrippingRemovesEveryInstructionFile \(' "$out" \
+  && grep -qE '^--- PASS: TestTheOracleRefusesWhatTheReviewFound \(' "$out" \
   && [ -f docs/bench/README.md ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
@@ -53,6 +54,7 @@ out=$(mktemp) \
 | `TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit` | `internal/bench/oracle_test.go` | each oracle's three properties, every task | none | S1, S2 |
 | `TestTheCorpusHasTheRegisteredShapeCounts` | `internal/bench/oracle_test.go` | the registered shapes and stripped instruction files | none | S1, S3 |
 | `TestStrippingRemovesEveryInstructionFile` | `internal/bench/oracle_test.go` | every instruction file and directory is gone after Strip, at any depth | none | S1, S2 |
+| `TestTheOracleRefusesWhatTheReviewFound` | `internal/bench/oracle_test.go` | a binary, a mode-only and a deleting change are outside; slack does not license deleting a neighbour; an exact task fails with its fix line commented out | none | — |
 
 ## Reachability
 
@@ -84,6 +86,24 @@ out=$(mktemp) \
 - 2026-10-14 · 05ec3f84* · mutant killed · exit 1 · `internal/bench/task.go` · a replaced line is placed three lines off · acceptance-sha256:b26ca682576563c93de14c1e691c67615d531bc81018296298e0ee4b9e7fcdd4 · covers:an oracle passes on the reference fix
 - 2026-10-14 · 05ec3f84* · mutant killed · exit 1 · `internal/bench/task.go` · the registered multi-site shape no longer names the corpus shape · acceptance-sha256:b26ca682576563c93de14c1e691c67615d531bc81018296298e0ee4b9e7fcdd4 · covers:the corpus has the registered shapes
 - 2026-10-14 · 05ec3f84* · mutant killed · exit 1 · `internal/bench/task.go` · a .claude directory is no longer stripped · acceptance-sha256:b26ca682576563c93de14c1e691c67615d531bc81018296298e0ee4b9e7fcdd4 · covers:no task carries instruction files
+- 2026-10-14 · c430d730* · mutant survived · exit 0 · `internal/bench/task.go` · slack licenses changing the lines beside the fix again · acceptance-sha256:b26ca682576563c93de14c1e691c67615d531bc81018296298e0ee4b9e7fcdd4 · covers:an oracle refuses a stray edit
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/task.go` · slack licenses changing the lines beside the fix again · acceptance-sha256:b26ca682576563c93de14c1e691c67615d531bc81018296298e0ee4b9e7fcdd4 · covers:an oracle refuses a stray edit
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/oracle.go` · a change outside the regions is never named · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle refuses a stray edit
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/oracle.go` · an unmet require is never named · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle fails on the base
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/oracle.go` · a clean tree is never solved · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle passes on the reference fix
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/task.go` · a replaced line is placed three lines off · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle passes on the reference fix
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/task.go` · the registered multi-site shape no longer names the corpus shape · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:the corpus has the registered shapes
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/task.go` · a .claude directory is no longer stripped · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:no task carries instruction files
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/task.go` · slack licenses changing the lines beside the fix again · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle refuses a stray edit
+- 2026-10-14 · c430d730* · mutant survived · exit 0 · `internal/bench/oracle.go` · a binary, mode-only or deleting change passes · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle refuses a stray edit
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/oracle.go` · an exact task accepts a fix line commented out · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle refuses a stray edit
+- 2026-10-14 · c430d730* · mutant killed · exit 1 · `internal/bench/oracle.go` · a binary, mode-only or deleting change passes · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · covers:an oracle refuses a stray edit
 
 ## Verification Log
 (empty until execute)
@@ -129,6 +149,49 @@ out=$(mktemp) \
 - 2026-10-14 · 05ec3f84* · exit 0 · `set -o pipefail …` · acceptance-sha256:b26ca682576563c93de14c1e691c67615d531bc81018296298e0ee4b9e7fcdd4 · ms:6778
 - 2026-10-14 · 05ec3f84* · exit 0 · `set -o pipefail …` · acceptance-sha256:b26ca682576563c93de14c1e691c67615d531bc81018296298e0ee4b9e7fcdd4 · ms:6558
 - 2026-10-14 · 05ec3f84* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b26ca682576563c93de14c1e691c67615d531bc81018296298e0ee4b9e7fcdd4 · ms:0 · test-lock-sha256:d20fdfd7b2d55711a4a77c1825717892a41e9bff7a87fd5c0ca8554c13b46416 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdEV2ZXJ5T3JhY2xlRmFpbHNPbkJhc2VQYXNzZXNPbkZpeEFuZFJlZnVzZXNBU3RyYXlFZGl0CTI0MGM4MThhYWQ4ZTAwZDMxNDY3ZDk0MDQ5YzZkYWUxOGUxZDBmMmVhYWNmZDViNzA4ODQzYjFhMmMxODE1ZWQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0U3RyaXBwaW5nUmVtb3Zlc0V2ZXJ5SW5zdHJ1Y3Rpb25GaWxlCTNmYTA0ZjE3ZDAyOWZkYWFkZjA3ODUzZWViZDlhNzJmMjA3Mzc5YmYzMTNkNjA0OTU0N2YzOTEwOTYwMGNmOGQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlQ29ycHVzSGFzVGhlUmVnaXN0ZXJlZFNoYXBlQ291bnRzCWU1ZDdjNDY0YzM4YzY1YTIxMzBjYmUzYjE2YjAxZDkwZTRhYTE3OTJmNWQ4ZDUzMTY2N2Y5MmM3Y2Y5MTkyYjM · test-lock-kind:replace
+- 2026-10-14 · c430d730* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b26ca682576563c93de14c1e691c67615d531bc81018296298e0ee4b9e7fcdd4 · ms:0 · test-lock-sha256:5e2cfc4f866f02563e25e55a9ebc2f004c9363ee65bb7a2e17da6a092bbf9770 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdEV2ZXJ5T3JhY2xlRmFpbHNPbkJhc2VQYXNzZXNPbkZpeEFuZFJlZnVzZXNBU3RyYXlFZGl0CTA5MDQ4MmM0MDM3MDdjYjJlYzQyMWNiOTBmZjQ5MDRlZjFjNDNiOTk1N2ViZWY5MjdkZjRmN2E3ODcxYjAzYzQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0U3RyaXBwaW5nUmVtb3Zlc0V2ZXJ5SW5zdHJ1Y3Rpb25GaWxlCTNmYTA0ZjE3ZDAyOWZkYWFkZjA3ODUzZWViZDlhNzJmMjA3Mzc5YmYzMTNkNjA0OTU0N2YzOTEwOTYwMGNmOGQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlQ29ycHVzSGFzVGhlUmVnaXN0ZXJlZFNoYXBlQ291bnRzCWU1ZDdjNDY0YzM4YzY1YTIxMzBjYmUzYjE2YjAxZDkwZTRhYTE3OTJmNWQ4ZDUzMTY2N2Y5MmM3Y2Y5MTkyYjMKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlT3JhY2xlUmVmdXNlc1doYXRUaGVSZXZpZXdGb3VuZAkxYWRjZmYzNTJkYTY4ZGZjMWIwNWJiMDk5MjY4Mzg4M2RkOThiNjk5NWZmNDVhNTkzNGM3MGFkMzMwMzlkZDU1 · test-lock-kind:replace
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:b26ca682576563c93de14c1e691c67615d531bc81018296298e0ee4b9e7fcdd4 · ms:11863
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:b26ca682576563c93de14c1e691c67615d531bc81018296298e0ee4b9e7fcdd4 · ms:27933
+- 2026-10-14 · c430d730* · exit 1 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:120
+  ```
+  --- last 10 line(s) of stdout (of 14 after folding 14 raw)
+  internal/bench/helpers_test.go:23:9: undefined: Task
+  internal/bench/helpers_test.go:42:9: undefined: Task
+  internal/bench/helpers_test.go:76:9: undefined: Task
+  internal/bench/oracle_test.go:122:35: undefined: Task
+  internal/bench/oracle_test.go:211:81: undefined: Task
+  internal/bench/runner_test.go:54:45: undefined: Task
+  internal/bench/runner_test.go:77:32: undefined: RunOptions
+  internal/bench/analyze_test.go:12:11: too many errors
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/bench [build failed]
+  FAIL
+  ```
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:8003
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:8004
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:8003
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:7972
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:8069
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:7991
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:7956
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:7983
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:7987
+- 2026-10-14 · c430d730* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:0 · test-lock-sha256:2ed71a201fd26aa12d825f27e83386184ed9bb32fd0a1cf5d49050f41ca77180 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdEV2ZXJ5T3JhY2xlRmFpbHNPbkJhc2VQYXNzZXNPbkZpeEFuZFJlZnVzZXNBU3RyYXlFZGl0CTA5MDQ4MmM0MDM3MDdjYjJlYzQyMWNiOTBmZjQ5MDRlZjFjNDNiOTk1N2ViZWY5MjdkZjRmN2E3ODcxYjAzYzQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0U3RyaXBwaW5nUmVtb3Zlc0V2ZXJ5SW5zdHJ1Y3Rpb25GaWxlCTNmYTA0ZjE3ZDAyOWZkYWFkZjA3ODUzZWViZDlhNzJmMjA3Mzc5YmYzMTNkNjA0OTU0N2YzOTEwOTYwMGNmOGQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlQ29ycHVzSGFzVGhlUmVnaXN0ZXJlZFNoYXBlQ291bnRzCWU1ZDdjNDY0YzM4YzY1YTIxMzBjYmUzYjE2YjAxZDkwZTRhYTE3OTJmNWQ4ZDUzMTY2N2Y5MmM3Y2Y5MTkyYjMKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlT3JhY2xlUmVmdXNlc1doYXRUaGVSZXZpZXdGb3VuZAkxZjUxYWRmMjYzOTAzYThlYmJiN2JjZmRmYzE2M2VlMzlkMGIzNzkwYTQ4NGRkNTQzMzViODI4NDcyNTdmNWY2 · test-lock-kind:replace
+- 2026-10-14 · c430d730* · exit 1 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:8663
+  ```
+  --- last 10 line(s) of stdout (of 78 after folding 78 raw)
+  === RUN   TestTheCorpusHasTheRegisteredShapeCounts
+  --- PASS: TestTheCorpusHasTheRegisteredShapeCounts (0.00s)
+  === RUN   TestStrippingRemovesEveryInstructionFile
+  --- PASS: TestStrippingRemovesEveryInstructionFile (0.00s)
+  === RUN   TestTheOracleRefusesWhatTheReviewFound
+      oracle_test.go:294: a mode-only change: {Solved:true Missing:[] Outside:[] Structure:[]}, want it outside
+  --- FAIL: TestTheOracleRefusesWhatTheReviewFound (0.73s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/bench	7.917s
+  FAIL
+  ```
+- 2026-10-14 · c430d730* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:0 · test-lock-sha256:2ed71a201fd26aa12d825f27e83386184ed9bb32fd0a1cf5d49050f41ca77180 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdEV2ZXJ5T3JhY2xlRmFpbHNPbkJhc2VQYXNzZXNPbkZpeEFuZFJlZnVzZXNBU3RyYXlFZGl0CTA5MDQ4MmM0MDM3MDdjYjJlYzQyMWNiOTBmZjQ5MDRlZjFjNDNiOTk1N2ViZWY5MjdkZjRmN2E3ODcxYjAzYzQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0U3RyaXBwaW5nUmVtb3Zlc0V2ZXJ5SW5zdHJ1Y3Rpb25GaWxlCTNmYTA0ZjE3ZDAyOWZkYWFkZjA3ODUzZWViZDlhNzJmMjA3Mzc5YmYzMTNkNjA0OTU0N2YzOTEwOTYwMGNmOGQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlQ29ycHVzSGFzVGhlUmVnaXN0ZXJlZFNoYXBlQ291bnRzCWU1ZDdjNDY0YzM4YzY1YTIxMzBjYmUzYjE2YjAxZDkwZTRhYTE3OTJmNWQ4ZDUzMTY2N2Y5MmM3Y2Y5MTkyYjMKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlT3JhY2xlUmVmdXNlc1doYXRUaGVSZXZpZXdGb3VuZAkxZjUxYWRmMjYzOTAzYThlYmJiN2JjZmRmYzE2M2VlMzlkMGIzNzkwYTQ4NGRkNTQzMzViODI4NDcyNTdmNWY2 · test-lock-kind:replace
+- 2026-10-14 · c430d730* · exit 0 · `set -o pipefail …` · acceptance-sha256:bb008abbb4d498b8eb0f35f0c592bb22501454608c3adb7ad1d1a116977d290d · ms:7997
 
 ## Invariants
 

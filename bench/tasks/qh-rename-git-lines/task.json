@@ -3,6 +3,7 @@
   "shape": "multi-site",
   "repo": "quality-harness",
   "commit": "bbf82ff3c32c95c4251ac2eee8d0e6cfd8bad999",
+  "exact": true,
   "instruction": "Rename the JavaScript function gitLines to gitOutputLines everywhere it is defined, imported, called or mentioned in plugin/scripts/ and in the tests/*.test.mjs files. Leave docs/, tests/mutations/ and tests/fixtures/ as they are. Change nothing else.",
   "require": [
     {
