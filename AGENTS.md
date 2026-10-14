@@ -194,7 +194,9 @@ and an all-digit `-C` before the subcommand (`mrw -C 3 read f`) is `--root`, whi
 ### 1. Read many ranges in one call, and let the read do the finding
 
 Addresses are line numbers, `N-M` ranges, `$` for the last line, `A,+N` for the
-line `A` plus the `N` lines after it, or a **regex** — so you do not need a
+line `A` plus the `N` lines after it, a **regex**, or for a JSON file a path such as
+`file.json:$.a.b`, `$.a[0]` or `$["k"]` — the lines of that one value, read only (a plan
+refuses it; ADR-155) — so you do not need a
 separate search call to locate the site:
 
 ```sh

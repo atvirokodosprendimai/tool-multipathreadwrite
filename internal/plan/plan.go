@@ -696,6 +696,11 @@ func ParseAddr(s string) (Addr, error) {
 	case "$":
 		return Addr{Start: EOF, End: EOF, RelEnd: rel}, nil
 	}
+	// A JSON path is a read address (ADR-155): a value's span moves with every
+	// hunk above it, and a write resolves against the original file.
+	if strings.HasPrefix(s, "$.") || strings.HasPrefix(s, "$[") {
+		return Addr{}, fmt.Errorf("%q: a JSON path is a read address: read it, then address the lines it served", s)
+	}
 	// A pattern is scanned before anything splits on "-" or ",": those are
 	// ordinary characters inside a regex, and cutting first is how `/a-b/`
 	// becomes a bad line number.

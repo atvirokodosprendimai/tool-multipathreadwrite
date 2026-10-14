@@ -60,7 +60,10 @@ mrw read --grep 'func Handle' -C 3 --exclude vendor --exclude '*_test.go' intern
 
 A range is `3-6`, `5`, `3-` (to EOF), `-20` (from the start), `A,+N` (line `A`
 plus the `N` lines after it, so `12,+2` is 12–14), `/pattern/`, or
-`/start/,/end/`. `$` is the last line. Output ranges print as `@@ 3-6`, which is
+`/start/,/end/`. `$` is the last line. In a JSON file a path — `file.json:$.a.b`,
+`$.a[0]`, `$["k"]` — serves and licenses the lines of that one value; a path that is not
+there, or a file that is not one JSON document, is a range not served (exit 1), and a plan
+refuses the form, so read it and address the lines (ADR-155). Output ranges print as `@@ 3-6`, which is
 the address a write plan takes.
 
 `--grep` walks and serves in one call. A named directory is walked; with no
