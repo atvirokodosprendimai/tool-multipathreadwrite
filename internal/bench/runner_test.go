@@ -425,6 +425,26 @@ func TestVerifyRefusesAReceiptThatIsNotItsAttempt(t *testing.T) {
 	}
 }
 
+// TestBothConfigurationsKeepTheSystemPromptStable: every attempt runs in a
+// directory of its own, and the CLI writes that directory's sections (cwd,
+// memory paths, git status) into the system prompt ahead of the appended mrw
+// instructions, so configuration B paid to write those instructions to the
+// cache in every attempt while configuration A's tool definitions were read
+// from it. Measured 2026-10-14 on CLI 2.1.300: with the flag, a second
+// directory read 5,892 tokens from the cache where it read 2,431 without it.
+func TestBothConfigurationsKeepTheSystemPromptStable(t *testing.T) {
+	opts, _ := runOptions(t)
+	for _, name := range []string{"A", "B"} {
+		args, _, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs[name], Repeat: 1}, t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Contains(args, "--exclude-dynamic-system-prompt-sections") {
+			t.Errorf("configuration %s keeps the per-directory sections in the system prompt: %v", name, args)
+		}
+	}
+}
+
 // TestAnAttemptLeavesNothingRunning: a background process the agent started is
 // stopped with the attempt, before its tree is graded and removed (the review
 // of #411, P1).
