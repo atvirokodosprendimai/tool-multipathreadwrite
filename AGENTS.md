@@ -545,7 +545,9 @@ and #73, one release apart.
 
 - **`mrw version`** prints the same string `-v` / `--version` already print.
   Extra arguments are usage (exit 2). A PATH binary that predates the
-  subcommand still answers `-v`.
+  subcommand still answers `-v`. `mrw version --check-latest` asks GitHub for
+  the latest release and exits 1 when this mrw is older, 2 when it could not
+  ask: the only network call mrw makes, and only when asked (ADR-149).
 - **`mrw instructions`** prints the contract from the binary: use mrw always
   and plan the activity, the two rules that produce most refusals, the traps
   that make a red run look green, the plan ops, and the read side — address

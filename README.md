@@ -26,7 +26,11 @@ Windows: `mrw-windows-amd64.exe`. Every release also carries archives
 (`mrw_<os>_<arch>.tar.gz` / `.zip`) and a `SHA256SUMS.txt`.
 
 `mrw version` prints the same string `-v` / `--version` already print. Extra
-arguments are usage (exit 2).
+arguments are usage (exit 2). `mrw version --check-latest` also asks GitHub for
+the latest release and says whether this mrw is current, newer or older: exit 1
+when a newer release exists, 2 when it could not ask, and 0 for a local build,
+which it names without a verdict. It is the only network call mrw makes, and
+only that flag makes it (ADR-149).
 
 `mrw instructions` prints the contract from the binary: use mrw always and plan
 the activity, the two rules that produce most refusals, and the traps that make
