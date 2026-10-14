@@ -54,7 +54,7 @@ body= is a line count, not a character count. Python str splits characters; do n
 body= goes ON the header, never on a line of its own: @@ a.go 12-14 replace anchor="func A" body=3, then exactly 3 body lines.
 body=@path loads the body from a root-relative file.
 lines= is a guard on how many lines the ADDRESS covers, and is not body=.
-The checkout is named by global -C DIR or --root DIR before the subcommand (mrw -C repo write plan). After read, -C is context lines, not a checkout.
+The checkout is named by global -C DIR or --root DIR before the subcommand (mrw -C repo write plan). After read, -C is context lines, not a checkout. An all-digit -C before the subcommand is still a checkout, and mrw says so on stderr.
 A path with a leading or trailing space goes after --: the argument parser trims a positional before -- (mrw read 'x ' would reach x), so mrw refuses it, exit 2, and names the fix: mrw read -- 'x '. In cmd.exe, which keeps single quotes as characters, the refusal also names the double-quoted form. An attached flag value that ends in whitespace (--files-from='list ') is refused too: pass it as its own argument, --files-from 'list ', which the parser keeps as given.
 Ops: replace, insert-after, insert-before, delete, create, unlink, rename.
 @@ path 0 create makes a new file; empty is body=0. A new file is not a reason to skip mrw.

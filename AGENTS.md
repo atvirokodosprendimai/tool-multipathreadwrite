@@ -184,6 +184,8 @@ length and sha and `-N` drops the line numbers.
 A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`) is a usage error, exit 2, that ends with mrw's spelling (ADR-140).
 `--grep -i PATTERN` is not an unknown flag: `-i` is taken as the pattern, and a read that matches nothing ends `no file matched /-i/` (exit 1) with the same
 hint; write `--grep '(?i)PATTERN'`.
+A flag `write` lacks that names the plan (`--plan`, `--file`, `--input`, `--stdin`) ends the same way with the argument's spelling, `mrw write PLAN` or `-`;
+and an all-digit `-C` before the subcommand (`mrw -C 3 read f`) is `--root`, which stderr says while the call is unchanged (ADR-151).
 
 ### 1. Read many ranges in one call, and let the read do the finding
 

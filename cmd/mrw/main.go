@@ -302,6 +302,9 @@ func main() {
 	// before any Action runs, and a root flag never reaches a subcommand's raw
 	// tail, so the whole argv is checked here (ADR-069 T5).
 	err := refusePaddedFlagValues(root, os.Args[1:])
+	if v, ok := shortRoot(root, os.Args[1:]); ok {
+		noteShortRoot(root, v)
+	}
 	if err == nil {
 		err = root.Run(context.Background(), os.Args)
 	}
