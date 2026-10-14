@@ -1,0 +1,9 @@
+{
+  "id": "am-compose-healthcheck",
+  "shape": "structural",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In docker-compose.yml, give the agentsmemory service a healthcheck whose test is [\"CMD\", \"agentsmemory\", \"version\"], with interval 30s and retries 3. Put the healthcheck block right after the service's restart line. Change nothing else.",
+  "slack": 1,
+  "require": [{"file": "docker-compose.yml", "match": "(?m)^    restart: unless-stopped\\n    healthcheck:\\n      test: \\[\"CMD\", \"agentsmemory\", \"version\"\\]\\n      interval: 30s\\n      retries: 3\\n"}]
+}

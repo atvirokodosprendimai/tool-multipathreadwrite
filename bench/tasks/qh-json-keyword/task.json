@@ -1,0 +1,9 @@
+{
+  "id": "qh-json-keyword",
+  "shape": "single-line",
+  "repo": "quality-harness",
+  "commit": "bbf82ff3c32c95c4251ac2eee8d0e6cfd8bad999",
+  "instruction": "In plugin/.claude-plugin/plugin.json, change the keyword \"quality\" to \"quality-gates\". Change nothing else.",
+  "require": [{"file": "plugin/.claude-plugin/plugin.json", "match": "(?m)^    \"quality-gates\"$"}],
+  "forbid": [{"file": "plugin/.claude-plugin/plugin.json", "match": "\"quality\"\\n"}]
+}

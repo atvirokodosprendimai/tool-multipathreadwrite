@@ -1,0 +1,101 @@
+diff --git a/internal/palace/kg.go b/internal/palace/kg.go
+index e95a721..48abf51 100644
+--- a/internal/palace/kg.go
++++ b/internal/palace/kg.go
+@@ -1550,7 +1550,7 @@ func (r *Repo) EnsureWingRoot(ctx context.Context, teamID, wing string) error {
+ 	})
+ }
+ 
+-// endWingRootIfEntryRoomIsEmpty ends a wing's by-name root once its entry room
++// endEmptyWingRoot ends a wing's by-name root once its entry room
+ // holds nothing live, and is the move-OUT half EnsureWingRoot shipped without.
+ //
+ // ⚠ THE ASYMMETRY WAS INVISIBLE TO THE OBVIOUS GUARD. endDerivedEdgesFor filters
+@@ -1572,7 +1572,7 @@ func (r *Repo) EnsureWingRoot(ctx context.Context, teamID, wing string) error {
+ // the transaction that did the relabelling: a collision that rolls the move back must
+ // roll the root's ending back with it, or a wing loses its front door to a move that
+ // never happened.
+-func endWingRootIfEntryRoomIsEmpty(db *gorm.DB, teamID, wing, endedAt, reason string) error {
++func endEmptyWingRoot(db *gorm.DB, teamID, wing, endedAt, reason string) error {
+ 	roomID := normalizeEntityID(DerivedEdgeSubject(wing, EntryRoom))
+ 	p := normalizePredicate(DerivedEdgePredicate)
+ 
+diff --git a/internal/palace/service.go b/internal/palace/service.go
+index 568db83..386406f 100644
+--- a/internal/palace/service.go
++++ b/internal/palace/service.go
+@@ -1543,7 +1543,7 @@ func (s *Service) moveMemory(ctx context.Context, teamID string, chunks []Drawer
+ 		// The condition covers a move to another ROOM and a move to another WING:
+ 		// the latter keeps the record in an entry room, just not in THIS wing's.
+ 		if from := chunks[0]; from.Room == EntryRoom && (room != EntryRoom || wing != from.Wing) {
+-			if err := endWingRootIfEntryRoomIsEmpty(tx, teamID, from.Wing, now,
++			if err := endEmptyWingRoot(tx, teamID, from.Wing, now,
+ 				"the last live record left this wing's entry room"); err != nil {
+ 				return fmt.Errorf("release the wing root the move emptied: %w", err)
+ 			}
+diff --git a/internal/palace/supersede.go b/internal/palace/supersede.go
+index 92d520c..d71eb61 100644
+--- a/internal/palace/supersede.go
++++ b/internal/palace/supersede.go
+@@ -229,7 +229,7 @@ func (s *Service) supersedeInto(ctx context.Context, teamID, id, content, reason
+ 		}
+ 
+ 		// ⚠ THE THIRD DOOR OUT OF THE ENTRY ROOM, and it was open (issue #155).
+-		// endWingRootIfEntryRoomIsEmpty was called from moveMemory only, and a
++		// endEmptyWingRoot was called from moveMemory only, and a
+ 		// patch carrying Content leaves Update at the supersede branch BEFORE
+ 		// moveMemory is reached — while still able to carry a new wing or room. So
+ 		// correcting the last entry record and relocating it in one call ended the
+@@ -255,7 +255,7 @@ func (s *Service) supersedeInto(ctx context.Context, teamID, id, content, reason
+ 		// and a move to another WING both count, the second because the record
+ 		// stays in an entry room, just not in this wing's.
+ 		if head.Room == EntryRoom && (room != EntryRoom || wing != head.Wing) {
+-			if err := endWingRootIfEntryRoomIsEmpty(tx, teamID, head.Wing, endedAt,
++			if err := endEmptyWingRoot(tx, teamID, head.Wing, endedAt,
+ 				"the last live record left this wing's entry room"); err != nil {
+ 				return fmt.Errorf("release the wing root the correction emptied: %w", err)
+ 			}
+diff --git a/internal/palace/validity.go b/internal/palace/validity.go
+index cbd5b58..e4c4b14 100644
+--- a/internal/palace/validity.go
++++ b/internal/palace/validity.go
+@@ -124,7 +124,7 @@ func (s *Service) EndDrawer(ctx context.Context, teamID, id, reason string) erro
+ 		// left the wing's by-name root current over a room that now holds nothing —
+ 		// the same confident empty answer, reached through a tool on the agent
+ 		// surface. The strongest evidence that this was always meant to be here is
+-		// endWingRootIfEntryRoomIsEmpty's own comment, which already claims this
++		// endEmptyWingRoot's own comment, which already claims this
+ 		// population: "no live edge" covers a room whose records are all retracted
+ 		// as well as one whose records have left. The condition was written for the
+ 		// retract case and nothing invoked it there.
+@@ -135,7 +135,7 @@ func (s *Service) EndDrawer(ctx context.Context, teamID, id, reason string) erro
+ 		if current.Room != EntryRoom {
+ 			return nil
+ 		}
+-		return endWingRootIfEntryRoomIsEmpty(tx, teamID, current.Wing, now,
++		return endEmptyWingRoot(tx, teamID, current.Wing, now,
+ 			"the last live record in this wing's entry room was retracted")
+ 	})
+ }
+diff --git a/internal/palace/wingroot_correct_test.go b/internal/palace/wingroot_correct_test.go
+index 25cdd70..3173bd3 100644
+--- a/internal/palace/wingroot_correct_test.go
++++ b/internal/palace/wingroot_correct_test.go
+@@ -6,7 +6,7 @@ import (
+ 	"testing"
+ )
+ 
+-// Issue #155 item 1. `endWingRootIfEntryRoomIsEmpty` had exactly one caller,
++// Issue #155 item 1. `endEmptyWingRoot` had exactly one caller,
+ // `moveMemory` — and a patch carrying Content never reaches it: Update leaves at
+ // the supersede branch first, while still able to carry a new wing or room.
+ //
+@@ -135,7 +135,7 @@ func TestACorrectionOutOfTheEntryRoomKeepsARootTheRoomStillEarns(t *testing.T) {
+ // review of PR #325 after that PR closed the third and called it the last.
+ //
+ // InvalidateDrawer → EndDrawer ended the row and its derived holds edge and
+-// called endWingRootIfEntryRoomIsEmpty zero times, so retracting the last live
++// called endEmptyWingRoot zero times, so retracting the last live
+ // entry record left <wing>.root current over a room holding nothing — through a
+ // tool on the agent surface, not an internal path.
+ //

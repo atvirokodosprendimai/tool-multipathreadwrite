@@ -1,0 +1,9 @@
+{
+  "id": "am-yaml-race-timeout",
+  "shape": "structural",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In .github/workflows/build.yml, give the job named race a job-level timeout of 20 minutes (timeout-minutes: 20). Change nothing else.",
+  "slack": 1,
+  "require": [{"file": ".github/workflows/build.yml", "match": "(?m)^  race:\\n(?:    .*\\n)*?    timeout-minutes: 20\\n"}]
+}

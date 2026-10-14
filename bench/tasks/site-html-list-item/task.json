@@ -1,0 +1,9 @@
+{
+  "id": "site-html-list-item",
+  "shape": "structural",
+  "repo": "site",
+  "commit": "37625a32bc08b77e0ba0fc7e04cfc0f40ac183e5",
+  "instruction": "In index.html, add a third item to the list of links: a link to https://github.com/atvirokodosprendimai/agentsmemory with the text \"AI Agent Memory: what your agents decided, kept between sessions\". Put it last in the list and indent it like the other items. Change nothing else.",
+  "slack": 1,
+  "require": [{"file": "index.html", "match": "(?m)^        <li><a href=\"https://qamstack\\.dev/quality-harness/\">.*</a></li>\\n        <li><a href=\"https://github\\.com/atvirokodosprendimai/agentsmemory\">AI Agent Memory: what your agents decided, kept between sessions</a></li>\\n    </ul>\\n"}]
+}

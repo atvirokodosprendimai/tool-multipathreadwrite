@@ -1,0 +1,8 @@
+{
+  "id": "canary",
+  "shape": "fixture",
+  "repo": "fixture",
+  "instruction": "In notes.txt, the second line reads beta. Make it read gamma. Change nothing else.",
+  "require": [{"file": "notes.txt", "match": "(?m)^gamma$"}],
+  "forbid": [{"file": "notes.txt", "match": "(?m)^beta$"}]
+}

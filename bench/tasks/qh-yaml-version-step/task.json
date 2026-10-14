@@ -1,0 +1,9 @@
+{
+  "id": "qh-yaml-version-step",
+  "shape": "structural",
+  "repo": "quality-harness",
+  "commit": "bbf82ff3c32c95c4251ac2eee8d0e6cfd8bad999",
+  "instruction": "In .github/workflows/selftest.yml, in the coverage job, add a step named \"Show the toolchain versions\" that runs `node --version && python3 --version`. Put it right after the setup-python step and before \"Install coverage.py\". Change nothing else.",
+  "slack": 1,
+  "require": [{"file": ".github/workflows/selftest.yml", "match": "(?m)^          python-version: '3\\.12'\\n      - name: Show the toolchain versions\\n        run: node --version && python3 --version\\n      - name: Install coverage\\.py\\n"}]
+}

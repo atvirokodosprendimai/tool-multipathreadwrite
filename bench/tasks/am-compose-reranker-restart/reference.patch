@@ -1,0 +1,13 @@
+diff --git a/docker-compose.full.yml b/docker-compose.full.yml
+index b8d68d0..557c2be 100644
+--- a/docker-compose.full.yml
++++ b/docker-compose.full.yml
+@@ -162,7 +162,7 @@ services:
+     # server, or a local Metal build — and keep this service for the case it
+     # exists to serve, which is "one machine, no GPU, nothing installed".
+     image: ghcr.io/ggml-org/llama.cpp:server
+-    restart: unless-stopped
++    restart: on-failure
+     command:
+       # Q4_K_M keeps a 568M-parameter cross-encoder around 360MB of RAM and
+       # answers a 50-candidate rerank in well under a second on CPU. The model is

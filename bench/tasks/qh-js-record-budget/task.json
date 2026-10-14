@@ -1,0 +1,8 @@
+{
+  "id": "qh-js-record-budget",
+  "shape": "large-file",
+  "repo": "quality-harness",
+  "commit": "bbf82ff3c32c95c4251ac2eee8d0e6cfd8bad999",
+  "instruction": "In plugin/scripts/decision-corpus.mjs, raise RECORD_BUDGET from 200 to 250. Change nothing else.",
+  "require": [{"file": "plugin/scripts/decision-corpus.mjs", "match": "(?m)^const RECORD_BUDGET = 250$"}]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "site-robots-sitemap",
+  "shape": "single-line",
+  "repo": "site",
+  "commit": "37625a32bc08b77e0ba0fc7e04cfc0f40ac183e5",
+  "instruction": "In robots.txt, point the Sitemap line at https://atvirokodosprendimai.github.io/sitemap-index.xml instead of sitemap.xml. Change nothing else.",
+  "require": [{"file": "robots.txt", "match": "(?m)^Sitemap: https://atvirokodosprendimai\\.github\\.io/sitemap-index\\.xml$"}]
+}

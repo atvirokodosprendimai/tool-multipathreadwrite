@@ -1,0 +1,12 @@
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index 2c2b79a..8be2998 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -147,6 +147,7 @@ jobs:
+   # next person can read it instead of in a comment that goes stale.
+   race:
+     runs-on: ubuntu-latest
++    timeout-minutes: 20
+     steps:
+       - uses: actions/checkout@v4
+       - uses: actions/setup-go@v5

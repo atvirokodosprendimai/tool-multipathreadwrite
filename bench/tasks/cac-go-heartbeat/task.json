@@ -1,0 +1,8 @@
+{
+  "id": "cac-go-heartbeat",
+  "shape": "single-line",
+  "repo": "crossagentschat",
+  "commit": "ae4f7a9ca6c009863466dd92818f78bc9bcc8225",
+  "instruction": "In internal/httpapi/httpapi.go, send the SSE heartbeat every 15 seconds instead of every 20 (heartbeatEvery). Change nothing else.",
+  "require": [{"file": "internal/httpapi/httpapi.go", "match": "(?m)^var heartbeatEvery = 15 \\* time\\.Second$"}]
+}

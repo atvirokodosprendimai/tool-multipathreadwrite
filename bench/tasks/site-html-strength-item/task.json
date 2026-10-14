@@ -1,0 +1,9 @@
+{
+  "id": "site-html-strength-item",
+  "shape": "repeated-anchor",
+  "repo": "site",
+  "commit": "37625a32bc08b77e0ba0fc7e04cfc0f40ac183e5",
+  "instruction": "In qamstack/index.html, in the list of MultiPath Read/Write's strengths, the item \"All or nothing: one failed edit and nothing is written.\" should read \"All or nothing: one failed edit and nothing is written, in any file.\" Change nothing else.",
+  "require": [{"file": "qamstack/index.html", "match": "(?m)^          <li><span>All or nothing: one failed edit and nothing is written, in any file\\.</span></li>$"}],
+  "forbid": [{"file": "qamstack/index.html", "match": "nothing is written\\.</span>"}]
+}

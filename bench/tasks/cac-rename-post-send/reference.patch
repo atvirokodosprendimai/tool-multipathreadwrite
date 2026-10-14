@@ -1,0 +1,98 @@
+diff --git a/internal/httpapi/httpapi.go b/internal/httpapi/httpapi.go
+index a9ea06d..afdc05a 100644
+--- a/internal/httpapi/httpapi.go
++++ b/internal/httpapi/httpapi.go
+@@ -46,7 +46,7 @@ type route struct {
+ var routes = []route{
+ 	{http.MethodGet, "/llm.txt", func(h *handler) http.HandlerFunc { return h.getLLMTxt }},
+ 	{http.MethodGet, "/events", func(h *handler) http.HandlerFunc { return h.getEvents }},
+-	{http.MethodPost, "/send", func(h *handler) http.HandlerFunc { return h.postSend }},
++	{http.MethodPost, "/send", func(h *handler) http.HandlerFunc { return h.sendMessage }},
+ }
+ 
+ // NewMux builds the router. It is the composition point that makes every route
+diff --git a/internal/httpapi/send.go b/internal/httpapi/send.go
+index 74ae45c..850da68 100644
+--- a/internal/httpapi/send.go
++++ b/internal/httpapi/send.go
+@@ -15,9 +15,9 @@ type sendResponse struct {
+ 	Delivered int `json:"delivered"`
+ }
+ 
+-// postSend serves POST /send?channel=<c>&name=<me>, publishing the request body
++// sendMessage serves POST /send?channel=<c>&name=<me>, publishing the request body
+ // as a message from name.
+-func (h *handler) postSend(w http.ResponseWriter, r *http.Request) {
++func (h *handler) sendMessage(w http.ResponseWriter, r *http.Request) {
+ 	channel, name, ok := credentials(r)
+ 	if !ok {
+ 		badCredentials(w)
+diff --git a/internal/httpapi/send_test.go b/internal/httpapi/send_test.go
+index ce7369a..50403a8 100644
+--- a/internal/httpapi/send_test.go
++++ b/internal/httpapi/send_test.go
+@@ -7,8 +7,8 @@ import (
+ 	"testing"
+ )
+ 
+-// postSend posts a body and returns the status and decoded delivered count.
+-func postSend(t *testing.T, url, body string) (int, int) {
++// sendMessage posts a body and returns the status and decoded delivered count.
++func sendMessage(t *testing.T, url, body string) (int, int) {
+ 	t.Helper()
+ 	resp, err := http.Post(url, "text/plain", strings.NewReader(body))
+ 	if err != nil {
+@@ -31,7 +31,7 @@ func TestSendReturnsDeliveredCount(t *testing.T) {
+ 
+ 	// Nobody listening. Under zero retention this is the only signal the sender
+ 	// gets that the message reached no one and is gone.
+-	status, delivered := postSend(t, srv.URL+"/send?channel=c&name=alice", "into the void")
++	status, delivered := sendMessage(t, srv.URL+"/send?channel=c&name=alice", "into the void")
+ 	if status != http.StatusOK {
+ 		t.Fatalf("status = %d, want 200", status)
+ 	}
+@@ -42,7 +42,7 @@ func TestSendReturnsDeliveredCount(t *testing.T) {
+ 	r, cancel := openStream(t, srv, "c", "bob")
+ 	defer cancel()
+ 
+-	_, delivered = postSend(t, srv.URL+"/send?channel=c&name=alice", "one peer")
++	_, delivered = sendMessage(t, srv.URL+"/send?channel=c&name=alice", "one peer")
+ 	if delivered != 1 {
+ 		t.Errorf("delivered = %d with one eligible peer, want 1", delivered)
+ 	}
+@@ -51,7 +51,7 @@ func TestSendReturnsDeliveredCount(t *testing.T) {
+ 	}
+ 
+ 	// The sender is excluded from its own channel even over HTTP.
+-	_, delivered = postSend(t, srv.URL+"/send?channel=c&name=bob", "bob talking to himself")
++	_, delivered = sendMessage(t, srv.URL+"/send?channel=c&name=bob", "bob talking to himself")
+ 	if delivered != 0 {
+ 		t.Errorf("delivered = %d when the only subscriber is the sender, want 0", delivered)
+ 	}
+@@ -60,7 +60,7 @@ func TestSendReturnsDeliveredCount(t *testing.T) {
+ func TestSendRequiresChannelAndName(t *testing.T) {
+ 	srv, _ := startServer(t)
+ 	for _, q := range []string{"", "?channel=sekrit", "?name=sekrit"} {
+-		status, _ := postSend(t, srv.URL+"/send"+q, "hi")
++		status, _ := sendMessage(t, srv.URL+"/send"+q, "hi")
+ 		if status != http.StatusBadRequest {
+ 			t.Errorf("status for %q = %d, want 400", q, status)
+ 		}
+@@ -73,7 +73,7 @@ func TestSendRejectsEmptyBody(t *testing.T) {
+ 	defer cancel()
+ 
+ 	for _, body := range []string{"", "   ", "\n\t "} {
+-		if status, _ := postSend(t, srv.URL+"/send?channel=c&name=alice", body); status != http.StatusBadRequest {
++		if status, _ := sendMessage(t, srv.URL+"/send?channel=c&name=alice", body); status != http.StatusBadRequest {
+ 			t.Errorf("status for %q = %d, want 400", body, status)
+ 		}
+ 	}
+@@ -88,7 +88,7 @@ func TestSendRejectsEmptyBody(t *testing.T) {
+ func TestSendCapsBodySize(t *testing.T) {
+ 	srv, _ := startServer(t)
+ 	huge := strings.Repeat("x", maxMessageBytes+1)
+-	if status, _ := postSend(t, srv.URL+"/send?channel=c&name=alice", huge); status != http.StatusBadRequest {
++	if status, _ := sendMessage(t, srv.URL+"/send?channel=c&name=alice", huge); status != http.StatusBadRequest {
+ 		t.Errorf("status for an oversized body = %d, want 400 — it must be refused, not buffered", status)
+ 	}
+ }

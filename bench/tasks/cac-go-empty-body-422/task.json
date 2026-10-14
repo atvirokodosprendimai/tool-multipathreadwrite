@@ -1,0 +1,12 @@
+{
+  "id": "cac-go-empty-body-422",
+  "shape": "repeated-anchor",
+  "repo": "crossagentschat",
+  "commit": "ae4f7a9ca6c009863466dd92818f78bc9bcc8225",
+  "instruction": "In internal/httpapi, POST /send with an empty or blank message body must be answered 422 Unprocessable Entity (http.StatusUnprocessableEntity) instead of 400. Update the handler and the test that checks the empty body, including its error message. A missing channel or name, and an unreadable or oversized body, keep 400. Change nothing else.",
+  "require": [
+    {"file": "internal/httpapi/send.go", "match": "\"message body must not be empty\", http\\.StatusUnprocessableEntity\\)"},
+    {"file": "internal/httpapi/send.go", "match": "larger than 64 KiB\", http\\.StatusBadRequest\\)"},
+    {"file": "internal/httpapi/send_test.go", "match": "body\\); status != http\\.StatusUnprocessableEntity \\{\\n\\t\\t\\tt\\.Errorf\\(\"status for %q = %d, want 422\""}
+  ]
+}

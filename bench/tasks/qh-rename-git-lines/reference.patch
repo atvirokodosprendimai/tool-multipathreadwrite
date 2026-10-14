@@ -1,0 +1,102 @@
+diff --git a/plugin/scripts/artifact-pass.mjs b/plugin/scripts/artifact-pass.mjs
+index 96d6058..cae2476 100644
+--- a/plugin/scripts/artifact-pass.mjs
++++ b/plugin/scripts/artifact-pass.mjs
+@@ -12,7 +12,7 @@ import { createHash, randomUUID } from 'node:crypto'
+ import { fileURLToPath } from 'node:url'
+ import * as leaseModule from './lease.mjs'
+ import { PLUGIN_ROOT } from './plugin-root.mjs'
+-import { gitLines, gitRepositoryRoot, sessionBaseline, statusPaths, underTempRoot } from './tree-facts.mjs'
++import { gitOutputLines, gitRepositoryRoot, sessionBaseline, statusPaths, underTempRoot } from './tree-facts.mjs'
+ import { queueAction } from './hook-queue.mjs'
+ import { channelOf, reachedChannel } from './check-ledger.mjs'
+ 
+@@ -238,11 +238,11 @@ export async function artifactRule(input, recorded) {
+   const root = directory ? gitRepositoryRoot(directory) : null
+   const paths = new Set()
+   if (root && typeof first === 'string') {
+-    for (const relative of gitLines(root, ['diff', '--name-only', '-z', first], { nul: true })) paths.add(path.join(root, relative))
++    for (const relative of gitOutputLines(root, ['diff', '--name-only', '-z', first], { nul: true })) paths.add(path.join(root, relative))
+   } else if (root && baseline?.ok === true && first === null) {
+     // The session began with an unborn HEAD, so every tracked path at HEAD arrived
+     // during it and every one of them is a candidate. `diff` has no base to take.
+-    for (const relative of gitLines(root, ['ls-tree', '-r', '--name-only', '-z', 'HEAD'], { nul: true })) {
++    for (const relative of gitOutputLines(root, ['ls-tree', '-r', '--name-only', '-z', 'HEAD'], { nul: true })) {
+       paths.add(path.join(root, relative))
+     }
+   }
+diff --git a/plugin/scripts/decision-corpus.mjs b/plugin/scripts/decision-corpus.mjs
+index ede6f41..917cb4c 100644
+--- a/plugin/scripts/decision-corpus.mjs
++++ b/plugin/scripts/decision-corpus.mjs
+@@ -1374,7 +1374,7 @@ function recordFilesFromListing(root, tracked, { screenBudget = SCREEN_BUDGET, p
+ // Room for a whole listing. Node's default 1 MiB cut `git ls-files -z` on a 27,289-file repository
+ // (2.3 MB) with ENOBUFS, and every reader said "git could not list the tree" over a listing git produced
+ // (a Windows corpus-chaos run of v3.8.9, php-dated-adr). Every git call whose output grows with the tree
+-// takes it: the listing, the deleted-file diff, `gitLines` and the harness status read.
++// takes it: the listing, the deleted-file diff, `gitOutputLines` and the harness status read.
+ export const GIT_LISTING_BUFFER = 256 * 1024 * 1024
+ 
+ /**
+diff --git a/plugin/scripts/publish-verdict.mjs b/plugin/scripts/publish-verdict.mjs
+index a8781c8..1d69c4b 100644
+--- a/plugin/scripts/publish-verdict.mjs
++++ b/plugin/scripts/publish-verdict.mjs
+@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process'
+ import { appendEvent, nearestExistingDirectory, readEvents } from './event-log.mjs'
+ import { appendFileSync, readFileSync } from 'node:fs'
+ import path from 'node:path'
+-import { gitLines, gitRepositoryLookup, sameObservation, sessionBaseline } from './tree-facts.mjs'
++import { gitOutputLines, gitRepositoryLookup, sameObservation, sessionBaseline } from './tree-facts.mjs'
+ import { checkCommandOrigin, inferredCheckCaveat, publishSetting, publishSettingNote } from './check-command.mjs'
+ import { checkRevision, checkStanding, lateBaselineAllowed, latestFastPass, ledgerBoundLog, logIncomplete, tornRecord } from './check-ledger.mjs'
+ import { queueAction } from './hook-queue.mjs'
+@@ -414,10 +414,10 @@ export function reviewChangedState(input, ended) {
+   }
+   const root = found.root
+   if (!root) return
+-  const status = gitLines(root, ['-c', 'core.quotePath=false', 'status', '--porcelain'])
+-  const staged = gitLines(root, ['-c', 'core.quotePath=false', 'diff', '--cached', '--name-only'])
++  const status = gitOutputLines(root, ['-c', 'core.quotePath=false', 'status', '--porcelain'])
++  const staged = gitOutputLines(root, ['-c', 'core.quotePath=false', 'diff', '--cached', '--name-only'])
+   const commits = before.head && after.head && before.head !== after.head
+-    ? gitLines(root, ['rev-list', '--oneline', `${before.head}..${after.head}`]) : []
++    ? gitOutputLines(root, ['rev-list', '--oneline', `${before.head}..${after.head}`]) : []
+   const lines = [`quality-harness: the repository's state changed during the ${role} run (agent ${key}). `
+     + 'This says what changed during that run, not who changed it.']
+   if (status.length) lines.push(`Working tree now:\n${status.map(line => `  ${line}`).join('\n')}`)
+diff --git a/plugin/scripts/tree-facts.mjs b/plugin/scripts/tree-facts.mjs
+index 040a947..31028cb 100644
+--- a/plugin/scripts/tree-facts.mjs
++++ b/plugin/scripts/tree-facts.mjs
+@@ -228,7 +228,7 @@ export function mark(lines, ok, why = '') {
+ // enumerated by command on 2026-09-19 and four of seven sites were still quoted
+ // after the first was fixed (CLAUDE.md §5). `nul` splits on NUL and trims nothing —
+ // a name may end in a space.
+-export function gitLines(root, args, { nul = false } = {}) {
++export function gitOutputLines(root, args, { nul = false } = {}) {
+   const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
+   if (run.error || run.status !== 0) {
+     const verb = args.find(arg => /^[a-z][a-z-]*$/.test(arg)) ?? args[0]
+@@ -316,7 +316,7 @@ export function sessionCommits(log, root, head) {
+   if (!unborn && (typeof first !== 'string' || first === head)) return mark([], true)
+   // Everything reachable from HEAD is new when the session began with nothing.
+   const range = unborn ? [head] : [`${first}..${head}`]
+-  const lines = gitLines(root, ['log', '--format=%H%x09%T%x09%s', ...range])
++  const lines = gitOutputLines(root, ['log', '--format=%H%x09%T%x09%s', ...range])
+   return mark(lines.map(line => {
+     const [sha, tree, ...subject] = line.split('\t')
+     return { sha, tree, subject: subject.join('\t') }
+diff --git a/tests/observed-events.test.mjs b/tests/observed-events.test.mjs
+index b27dd4d..74bc679 100644
+--- a/tests/observed-events.test.mjs
++++ b/tests/observed-events.test.mjs
+@@ -1241,7 +1241,7 @@ test('the key a per-edit gate persists is the one rule A looks up, on either pla
+ })
+ 
+ test('a git query that FAILED is not a git query that found nothing', () => {
+-  // ⚠ `gitLines` returned `[]` for a nonzero exit, a timeout and a spawn error
++  // ⚠ `gitOutputLines` returned `[]` for a nonzero exit, a timeout and a spawn error
+   // alike, and its callers read that as "no commits" and "no paths". So a history
+   // query that could not run suppressed R2 entirely and left the ledger saying
+   // `verified` — a clean answer assembled from a question nobody managed to ask.

@@ -1,0 +1,8 @@
+{
+  "id": "qh-yaml-windows-node",
+  "shape": "repeated-anchor",
+  "repo": "quality-harness",
+  "commit": "bbf82ff3c32c95c4251ac2eee8d0e6cfd8bad999",
+  "instruction": "In .github/workflows/selftest.yml, the windows job must set up Node 22 instead of Node 24. Every other job keeps Node 24. Change nothing else.",
+  "require": [{"file": ".github/workflows/selftest.yml", "match": "(?m)^  windows:\\n(?:(?:    |\\n).*\\n)*?          node-version: '22'\\n"}]
+}

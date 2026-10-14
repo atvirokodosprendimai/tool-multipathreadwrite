@@ -1,0 +1,13 @@
+diff --git a/qamstack/index.html b/qamstack/index.html
+index d325149..8307857 100644
+--- a/qamstack/index.html
++++ b/qamstack/index.html
+@@ -673,7 +673,7 @@ tool-multipathreadwrite/cmd/mrw@latest
+         </div>
+         <ul class="slist">
+           <li><span>Two calls however many files, as long as one answer holds what you read.</span></li>
+-          <li><span>All or nothing: one failed edit and nothing is written.</span></li>
++          <li><span>All or nothing: one failed edit and nothing is written, in any file.</span></li>
+           <li><span>A file changed behind Claude's back is refused.</span></li>
+         </ul>
+       </div>

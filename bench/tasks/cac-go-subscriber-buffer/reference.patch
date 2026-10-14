@@ -1,0 +1,13 @@
+diff --git a/internal/relay/relay.go b/internal/relay/relay.go
+index 69fdd89..dfa833b 100644
+--- a/internal/relay/relay.go
++++ b/internal/relay/relay.go
+@@ -19,7 +19,7 @@ import (
+ // subscriberBuffer is how many messages may queue for one subscriber before the
+ // hub gives up on it. Exported to the tests so the overflow case is driven by
+ // this constant rather than by a number copied beside it.
+-const subscriberBuffer = 32
++const subscriberBuffer = 64
+ 
+ // Message is one chat message as it crosses the hub.
+ type Message struct {

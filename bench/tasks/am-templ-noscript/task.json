@@ -1,0 +1,9 @@
+{
+  "id": "am-templ-noscript",
+  "shape": "structural",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In internal/web/views/layout.templ, inside <head>, right after the passkey.js script tag, add a <noscript> element that contains one stylesheet link to staticURL(\"/static/noscript.css\"), written the way the file's other stylesheet link is (href={ templ.SafeURL(staticURL(...)) }). Keep the file's tab indentation. Change nothing else.",
+  "slack": 1,
+  "require": [{"file": "internal/web/views/layout.templ", "match": "(?m)^\\t\\t\\t<noscript>\\n\\t\\t\\t\\t<link rel=\"stylesheet\" href=\\{ templ\\.SafeURL\\(staticURL\\(\"/static/noscript\\.css\"\\)\\) \\}/>\\n\\t\\t\\t</noscript>\\n"}]
+}

@@ -1,0 +1,152 @@
+diff --git a/plugin/scripts/branch-state.mjs b/plugin/scripts/branch-state.mjs
+index d2d15a8..f5e6662 100644
+--- a/plugin/scripts/branch-state.mjs
++++ b/plugin/scripts/branch-state.mjs
+@@ -24,7 +24,7 @@ import { basename, dirname, join, resolve } from 'node:path'
+ import process from 'node:process'
+ import { fileURLToPath } from 'node:url'
+ import { isMainModule } from './main-module.mjs'
+-import { findGitDir } from './git-directory.mjs'
++import { locateGitDir } from './git-directory.mjs'
+ import { startPerformanceTrace } from './performance-trace.mjs'
+ import { stateDir } from './event-log.mjs'
+ import { REVIEW_COVERING, REVIEWS_FILE } from './host-review.mjs'
+@@ -893,7 +893,7 @@ function main(argv = process.argv.slice(2)) {
+     // Found the way the prompt found it, from files: the refresher must still write
+     // what it saw when git itself cannot run, or a failed refresh leaves the stale
+     // answer standing with nothing to replace it.
+-    const home = findGitDir(process.cwd())
++    const home = locateGitDir(process.cwd())
+     try {
+       if (home) {
+         const store = join(home, 'qh-branch-state.json')
+@@ -917,7 +917,7 @@ function main(argv = process.argv.slice(2)) {
+   // must still be interpreted by Git, and only Git chooses a cache WRITE path.
+   const overridden = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR',
+     'GIT_CEILING_DIRECTORIES', 'GIT_DISCOVERY_ACROSS_FILESYSTEM'].some(key => process.env[key] !== undefined)
+-  const hint = overridden ? null : findGitDir(process.cwd())
++  const hint = overridden ? null : locateGitDir(process.cwd())
+   const previous = read(hint && join(hint, 'qh-branch-state.json'))
+   const now = Date.now()
+   // A brief never shows an answer past the cap, however long --cached allows: a fresh
+diff --git a/plugin/scripts/event-log.mjs b/plugin/scripts/event-log.mjs
+index ff9ce21..abe265b 100644
+--- a/plugin/scripts/event-log.mjs
++++ b/plugin/scripts/event-log.mjs
+@@ -14,7 +14,7 @@ import { spawnSync } from 'node:child_process'
+ import { createHash } from 'node:crypto'
+ import os from 'node:os'
+ import path from 'node:path'
+-import { findGitDir } from './git-directory.mjs'
++import { locateGitDir } from './git-directory.mjs'
+ 
+ /**
+  * The nearest existing DIRECTORY at or above a path, or null when none exists.
+@@ -94,12 +94,12 @@ function repositoryStateDir(cwd, { spawn = true } = {}) {
+   if (stateDirectories.has(key)) return stateDirectories.get(key)
+   let resolved = null
+   if (directory) {
+-    // findGitDir walks the checkout without starting a process, and answers a
++    // locateGitDir walks the checkout without starting a process, and answers a
+     // linked worktree with its OWN git directory, which is what makes one
+     // worktree's check unable to clear another's findings. The spawn is the
+     // second rung for the cases it cannot see (a GIT_DIR in the environment);
+     // a reader that must not start a process asks for it to be skipped.
+-    resolved = findGitDir(directory)
++    resolved = locateGitDir(directory)
+     if (resolved) resolved = path.join(canonical(resolved), 'quality-harness')
+     if (!resolved && spawn) {
+       const run = spawnSync('git', ['-C', directory, 'rev-parse', '--absolute-git-dir'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
+diff --git a/plugin/scripts/git-directory.mjs b/plugin/scripts/git-directory.mjs
+index a1d126e..84c1a99 100644
+--- a/plugin/scripts/git-directory.mjs
++++ b/plugin/scripts/git-directory.mjs
+@@ -18,8 +18,8 @@ function isGitDirectory(directory) {
+   } catch { return false }
+ }
+ 
+-/** findGitDir locates Git metadata for a checkout, worktree or bare repository without spawning Git. */
+-export function findGitDir(start) {
++/** locateGitDir locates Git metadata for a checkout, worktree or bare repository without spawning Git. */
++export function locateGitDir(start) {
+   // Resolve symlinks before walking parents or resolving relative worktree pointers.
+   let here = path.resolve(start)
+   try { here = realpathSync(here) } catch {}
+diff --git a/plugin/scripts/statusline.mjs b/plugin/scripts/statusline.mjs
+index 0fef16d..cad5eb1 100644
+--- a/plugin/scripts/statusline.mjs
++++ b/plugin/scripts/statusline.mjs
+@@ -42,7 +42,7 @@ import { latestCheckFor, logIncomplete } from './check-ledger.mjs'
+ import { projectCheckCommand } from './check-command.mjs'
+ import { sessionBaseline } from './tree-facts.mjs'
+ import { snapshotKey, usableCache } from './branch-state.mjs'
+-import { findGitDir } from './git-directory.mjs'
++import { locateGitDir } from './git-directory.mjs'
+ import { alive, leaseDir } from './lease.mjs'
+ import { sampleLoad } from './load.mjs'
+ 
+@@ -152,7 +152,7 @@ export const CI_STALE_MS = 15 * 60_000
+ // The branch-state cache and the Git directory it was found in, or null when there is none this reader may trust (the
+ // hook's own guard).
+ function branchCache(cwd, now) {
+-  const gitDir = findGitDir(cwd ?? process.cwd())
++  const gitDir = locateGitDir(cwd ?? process.cwd())
+   if (!gitDir) return null
+   let cache
+   try { cache = JSON.parse(readFileSync(path.join(gitDir, 'qh-branch-state.json'), 'utf8')) } catch { return null }
+@@ -212,7 +212,7 @@ export function flightReading(cwd, { dir = leaseDir(), now = Date.now(), alive:
+   const here = canonicalPath(cwd ?? process.cwd())
+   // A checkout is its Git directory, not a path prefix: a linked worktree nested inside another checkout is a subdirectory
+   // of it on disk and still a different checkout, so containment alone showed the parent's run there.
+-  const home = findGitDir(here)
++  const home = locateGitDir(here)
+   let names
+   try { names = readdirSync(dir).filter(name => name.endsWith('.json')).sort() } catch { return null }
+   for (const name of names) {
+@@ -223,7 +223,7 @@ export function flightReading(cwd, { dir = leaseDir(), now = Date.now(), alive:
+     const root = canonicalPath(lease.root)
+     const relative = path.relative(root, here)
+     if (relative.startsWith('..') || path.isAbsolute(relative)) continue
+-    if (findGitDir(root) !== home) continue
++    if (locateGitDir(root) !== home) continue
+     const started = Date.parse(lease.start ?? '')
+     const what = lease.state === 'waiting' ? 'waiting'
+       : SPOKEN.find(([pattern]) => pattern.test(String(lease.command ?? '')))?.[1] ?? 'run'
+diff --git a/tests/statusline.test.mjs b/tests/statusline.test.mjs
+index f4d2de2..d1ee7d2 100644
+--- a/tests/statusline.test.mjs
++++ b/tests/statusline.test.mjs
+@@ -13,7 +13,7 @@ import test from 'node:test'
+ import { fileURLToPath } from 'node:url'
+ import { sessionLogFile } from '../plugin/scripts/lifecycle.mjs'
+ import { CI_STALE_MS, STALE_MS, ciReading, flightReading, gitReading, loadReading, reading, render, renderCi, renderFlight, renderGit, renderLoad } from '../plugin/scripts/statusline.mjs'
+-import { findGitDir } from '../plugin/scripts/git-directory.mjs'
++import { locateGitDir } from '../plugin/scripts/git-directory.mjs'
+ import { snapshotKey } from '../plugin/scripts/branch-state.mjs'
+ 
+ const testDir = dirname(fileURLToPath(import.meta.url))
+@@ -233,12 +233,12 @@ test('the CI piece reads the hook\'s cache: green, red with a count, running, st
+     const bare = mkdtempSync(join(tmpdir(), 'qh-statusline-bare-'))
+     writeFileSync(join(bare, 'HEAD'), 'ref: refs/heads/main\n')
+     mkdirSync(join(bare, 'objects'))
+-    assert.equal(findGitDir(bare), null, 'HEAD and objects alone are not Git metadata')
++    assert.equal(locateGitDir(bare), null, 'HEAD and objects alone are not Git metadata')
+     mkdirSync(join(bare, 'refs'))
+-    assert.equal(findGitDir(bare), realpathSync(bare))
++    assert.equal(locateGitDir(bare), realpathSync(bare))
+     rmSync(bare, { recursive: true, force: true })
+     // No .git anywhere above: nothing.
+-    assert.equal(findGitDir(tmpdir()) === null || typeof findGitDir(tmpdir()) === 'string', true)
++    assert.equal(locateGitDir(tmpdir()) === null || typeof locateGitDir(tmpdir()) === 'string', true)
+   } finally {
+     rmSync(dir, { recursive: true, force: true })
+   }
+@@ -434,7 +434,7 @@ test('a linked worktree nested inside a checkout is its own checkout, not a subd
+     mkdirSync(join(other, 'sub'), { recursive: true })
+     writeFileSync(join(other, '.git'), `gitdir: ${linked}\n`)
+     mkdirSync(join(root, 'sub'))
+-    assert.notEqual(findGitDir(other), findGitDir(root), 'the fixture is two checkouts')
++    assert.notEqual(locateGitDir(other), locateGitDir(root), 'the fixture is two checkouts')
+     const now = Date.now()
+     const lease = at => writeFileSync(join(leases, 'a.json'),
+       JSON.stringify({ pid: 1, command: 'qh-check: x', root: at, start: new Date(now).toISOString(), state: 'running' }))

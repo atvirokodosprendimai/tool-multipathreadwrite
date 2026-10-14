@@ -1,0 +1,8 @@
+{
+  "id": "am-md-tool-status",
+  "shape": "repeated-anchor",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In README.md's table of MCP tools, mark am_get_aaak_spec as deprecated: its status becomes ⚠️ instead of ✅, and its description becomes \"The AAAK compressed-memory dialect reference. Deprecated: new memories no longer use it\". Every other row keeps its status. Change nothing else.",
+  "require": [{"file": "README.md", "match": "(?m)^\\| `am_get_aaak_spec` \\| ⚠️ \\| The AAAK compressed-memory dialect reference\\. Deprecated: new memories no longer use it \\|$"}]
+}

@@ -1,0 +1,13 @@
+diff --git a/README.md b/README.md
+index 6ec129a..802cccd 100644
+--- a/README.md
++++ b/README.md
+@@ -171,7 +171,7 @@ exposes same-named tools — without the client seeing two tools of the same nam
+ | `am_search` | ✅ | Hybrid recall — vector candidates re-ranked by vector + BM25 + closet boost, then optionally by a TEI cross-encoder (`RERANK_URL`). `ids_only: true` returns a thin page (ids, wing/room, identity, scores, stale marker, content length — no text) at about a tenth of the bytes, to page and then fetch the few you keep with `am_get_drawer` (ADR-060) |
+ | `am_check_duplicate` | ✅ | Is content near-identical to an existing drawer? |
+ | `am_list_wings` / `am_list_rooms` / `am_get_taxonomy` | ✅ | Indexed wing/room aggregations of a team's memory |
+-| `am_get_aaak_spec` | ✅ | The AAAK compressed-memory dialect reference |
++| `am_get_aaak_spec` | ⚠️ | The AAAK compressed-memory dialect reference. Deprecated: new memories no longer use it |
+ | `am_reconnect` | ✅ | Ensure the workspace's vector namespace exists; write-gated because this may create backend state |
+ | `am_diary_write` / `am_diary_read` | ✅ | Append to / read an agent's append-only journal (timestamped, newest-first) |
+ | `am_mine` | ✅ | Mine a text payload into chunked drawers (entities + content date) + the closet index; idempotent by source |

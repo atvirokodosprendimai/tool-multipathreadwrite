@@ -1,0 +1,9 @@
+{
+  "id": "am-md-table-row",
+  "shape": "structural",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In README.md, the table of concepts (Wing, Room, Drawer and so on) ends with Knowledge Graph. Add a last row for **Skill**, meaning \"a centralised, versioned procedure a session loads by name\", in the same format as the other rows. Change nothing else.",
+  "slack": 1,
+  "require": [{"file": "README.md", "match": "(?m)^\\| \\*\\*Knowledge Graph\\*\\* \\|.*\\|\\n\\| \\*\\*Skill\\*\\* \\| a centralised, versioned procedure a session loads by name \\|\\n"}]
+}

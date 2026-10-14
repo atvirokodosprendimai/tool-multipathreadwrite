@@ -1,0 +1,13 @@
+diff --git a/wrangler.jsonc b/wrangler.jsonc
+index 5ea7194..b764484 100644
+--- a/wrangler.jsonc
++++ b/wrangler.jsonc
+@@ -1,7 +1,7 @@
+ {
+   "name": "qamstack",
+   "account_id": "71d1358d19f295003de9518c8b2019b8",
+-  "compatibility_date": "2026-01-05",
++  "compatibility_date": "2026-10-01",
+   "assets": {
+     "directory": "./qamstack"
+   },

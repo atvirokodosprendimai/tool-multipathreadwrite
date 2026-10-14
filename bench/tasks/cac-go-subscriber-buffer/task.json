@@ -1,0 +1,8 @@
+{
+  "id": "cac-go-subscriber-buffer",
+  "shape": "single-line",
+  "repo": "crossagentschat",
+  "commit": "ae4f7a9ca6c009863466dd92818f78bc9bcc8225",
+  "instruction": "In internal/relay/relay.go, raise subscriberBuffer from 32 to 64. Change nothing else.",
+  "require": [{"file": "internal/relay/relay.go", "match": "(?m)^const subscriberBuffer = 64$"}]
+}

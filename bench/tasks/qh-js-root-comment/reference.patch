@@ -1,0 +1,12 @@
+diff --git a/plugin/scripts/git-directory.mjs b/plugin/scripts/git-directory.mjs
+index a1d126e..d21b531 100644
+--- a/plugin/scripts/git-directory.mjs
++++ b/plugin/scripts/git-directory.mjs
+@@ -41,6 +41,7 @@ export function findGitDir(start) {
+       } catch { return null }
+     }
+     const parent = path.dirname(here)
++    // Reached the filesystem root: there is no Git metadata anywhere above start.
+     if (parent === here) return null
+     here = parent
+   }

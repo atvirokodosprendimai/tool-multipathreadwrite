@@ -1,0 +1,16 @@
+diff --git a/internal/palace/service.go b/internal/palace/service.go
+index 568db83..776f08d 100644
+--- a/internal/palace/service.go
++++ b/internal/palace/service.go
+@@ -2463,9 +2463,9 @@ func (s *Service) CheckDuplicate(ctx context.Context, teamID, content string, th
+ // duplicateProbeK is how deep check_duplicate looks for the nearest CURRENT
+ // neighbour. Small on purpose: it answers "is this already filed", and a
+ // retracted record ahead of a current one is the only case that needs the extra
+-// depth. Ten covers a memory superseded several times over without turning a
++// depth. Twenty covers a memory superseded several times over without turning a
+ // cheap probe into a recall.
+-const duplicateProbeK = 10
++const duplicateProbeK = 20
+ 
+ // Taxonomy is the get_taxonomy view: every wing with its rooms and counts.
+ type Taxonomy struct {
