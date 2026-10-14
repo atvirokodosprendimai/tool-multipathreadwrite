@@ -151,9 +151,14 @@ func jsonSpan(b []byte, steps []jsonStep) (int, int, error) {
 		if _, err := dec.Token(); err != nil {
 			return 0, 0, err
 		}
-		var found [][2]int
+		// found holds, per match, the value's first byte, the byte after its
+		// last, and where its name starts: a duplicate is reported by the lines
+		// of its names, which is where a reader of the file looks.
+		var found [][3]int
 		count := 0
 		for dec.More() {
+			at0 := int(dec.InputOffset())
+			nameAt := at0 + len(sub[at0:]) - len(bytes.TrimLeft(sub[at0:], jsonSpace+","))
 			if !st.isIndex {
 				tok, err := dec.Token()
 				if err != nil {
@@ -175,7 +180,7 @@ func jsonSpan(b []byte, steps []jsonStep) (int, int, error) {
 				return 0, 0, err
 			}
 			if !st.isIndex || count == st.index {
-				found = append(found, [2]int{s + vs, s + int(dec.InputOffset())})
+				found = append(found, [3]int{s + vs, s + int(dec.InputOffset()), s + nameAt})
 			}
 			count++
 		}
@@ -187,7 +192,7 @@ func jsonSpan(b []byte, steps []jsonStep) (int, int, error) {
 		case len(found) > 1:
 			ls := make([]string, len(found))
 			for i, f := range found {
-				ls[i] = strconv.Itoa(line(f[0]))
+				ls[i] = strconv.Itoa(line(f[2]))
 			}
 			times := "twice"
 			if len(found) > 2 {

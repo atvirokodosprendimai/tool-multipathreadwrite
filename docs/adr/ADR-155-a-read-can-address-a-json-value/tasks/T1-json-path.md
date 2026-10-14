@@ -92,6 +92,7 @@ out=$(mktemp) \
 - 2026-10-14 · 100f502b* · mutant killed · exit 1 · `internal/plan/plan.go` · a plan address takes a JSON path as a line number · acceptance-sha256:1e17957bdc033d3d5ef03e86c53329d544fd9f6843e27a9e3f398b557b627dbc · covers:a plan refuses the form
 - 2026-10-14 · 100f502b* · mutant killed · exit 1 · `AGENTS.md` · AGENTS.md stops teaching the form · acceptance-sha256:1e17957bdc033d3d5ef03e86c53329d544fd9f6843e27a9e3f398b557b627dbc · covers:the docs teach it
 - 2026-10-14 · 100f502b* · mutant killed · exit 1 · `internal/read/read.go` · a slash inside a quoted JSON name swallows the pattern after it · acceptance-sha256:1e17957bdc033d3d5ef03e86c53329d544fd9f6843e27a9e3f398b557b627dbc · covers:the grammar refuses what it does not have
+- 2026-10-14 · 3a67e3b2* · mutant killed · exit 1 · `internal/read/jsonpath.go` · a duplicate is reported by its values' lines, not its names' · acceptance-sha256:1e17957bdc033d3d5ef03e86c53329d544fd9f6843e27a9e3f398b557b627dbc · covers:a duplicated name on the path is refused
 
 ## Verification Log
 (empty until execute)
@@ -124,6 +125,9 @@ out=$(mktemp) \
 - 2026-10-14 · human-observed · observed and approved by the executor 2026-10-14: S7 ./scripts/contract.sh exit 0 ('contract holds'); all §259 rows PASS (the path read, the line after the span, the write inside, a missing path, a bare $, the plan form)
 - 2026-10-14 · 100f502b* · exit 0 · `set -o pipefail …` · acceptance-sha256:1e17957bdc033d3d5ef03e86c53329d544fd9f6843e27a9e3f398b557b627dbc · ms:983
 - 2026-10-14 · b5bbe01d · exit 0 · `set -o pipefail …` · acceptance-sha256:1e17957bdc033d3d5ef03e86c53329d544fd9f6843e27a9e3f398b557b627dbc · ms:1151
+- 2026-10-14 · 3a67e3b2* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:1e17957bdc033d3d5ef03e86c53329d544fd9f6843e27a9e3f398b557b627dbc · ms:0 · test-lock-sha256:2d3f7110ca35db6346017be5c4901d8e602f55f375a1d29ce7c28247adfa04a2 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9qc29ucGF0aDE1NV90ZXN0LmdvCVRlc3RBSlNPTlBhdGhSZWFkTGljZW5zZXNFeGFjdGx5SXRzTGluZXMJZmNhNWQ0YmJjODU3ZGM4ODc4MzlkZTgwMTIyZmI5YjNmNWIyNDVjZTY1ZWY0NDE5ZGFkOTFiOTFiZGQzMWJmNgpib2R5CWludGVybmFsL21jcC9qc29ucGF0aDE1NV90ZXN0LmdvCVRlc3RBbk1DUFJlYWRUYWtlc0FKU09OUGF0aAk1MWM5NTBhMWQ1YWZkNDczNTQ1NzhhZTQxNDk4ZDQ3MmFkMDE3YzZlN2Y3ZjQ4ZjNjM2M3MDhjOWExYjQ0MDgzCmJvZHkJaW50ZXJuYWwvcGxhbi9qc29ucGF0aDE1NV90ZXN0LmdvCVRlc3RBUGxhbkFkZHJlc3NSZWZ1c2VzQUpTT05QYXRoCTBmOWQ3YWM3NDA5Y2I4ZDFiMjQ3NDkzZjAzZWFmZjgzNzEwYzMzZWE1Nzg4MWZjMDM2MzdiNjNkODNlZjgyMTIKYm9keQlpbnRlcm5hbC9yZWFkL2pzb25wYXRoMTU1X3Rlc3QuZ28JVGVzdEFKU09OUGF0aEFkZHJlc3Nlc1RoZUxpbmVzT2ZJdHNWYWx1ZQljNmI4MWUzZWVkZDliNTk3YzNkODQxOTQ5ZjI2MzdhNTk3MjE5YjE2MWQ3YjFkNDNlZGQ0NmM5ZWFkMjQyOGM2CmJvZHkJaW50ZXJuYWwvcmVhZC9qc29ucGF0aDE1NV90ZXN0LmdvCVRlc3RBSlNPTlBhdGhJc1BhcnNlZE9ubHlJblRoZUZvcm1zSXRIYXMJNDUzYWQyNzJjZTQxYWU3NGRjNGU2Y2ZjMzQzZjVhNTMwMGRjYjAwM2M1MDQ5ZWRiMmVkNDU1Mzg0NjQ2ZGRmNw · test-lock-kind:replace
+- 2026-10-14 · 3a67e3b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:1e17957bdc033d3d5ef03e86c53329d544fd9f6843e27a9e3f398b557b627dbc · ms:2464
+- 2026-10-14 · 3a67e3b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:1e17957bdc033d3d5ef03e86c53329d544fd9f6843e27a9e3f398b557b627dbc · ms:753
 
 ## Invariants
 

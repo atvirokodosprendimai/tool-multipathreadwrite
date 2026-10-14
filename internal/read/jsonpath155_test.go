@@ -93,6 +93,8 @@ func TestAJSONPathAddressesTheLinesOfItsValue(t *testing.T) {
 		{"{\n\"a\": 1,,\n}\n", "$.a", "line 2"},
 		{"{\n  \"a\": 1,\n  \"a\": 2,\n  \"c\": 3\n}\n", "$.a", "twice"},
 		{"{\n  \"b\": {\"d\": 1,\n   \"d\": 2}\n}\n", "$.b.d", "lines 2 and 3"},
+		// The lines named are the names', not the values' (the Codex review of #409).
+		{"{\n\"a\":\n1,\n\"a\":\n2\n}\n", "$.a", "at lines 2 and 4:"},
 	}
 	for _, m := range misses {
 		out, problems, spans := serveJSON(t, m.body, m.addr)
@@ -108,6 +110,10 @@ func TestAJSONPathAddressesTheLinesOfItsValue(t *testing.T) {
 	dup := "{\n  \"a\": 1,\n  \"a\": 2,\n  \"c\": 3\n}\n"
 	if out, problems, spans := serveJSON(t, dup, "$.c"); problems != 0 || !reflect.DeepEqual(spans, [][2]int{{4, 4}}) {
 		t.Errorf("$.c beside a duplicated a: %d problem(s), recorded %v:\n%s", problems, spans, out)
+	}
+	// `[""]` is the one spelling of the empty name JSON allows, and reaches it.
+	if out, problems, spans := serveJSON(t, "{\n  \"\": 1\n}\n", `$[""]`); problems != 0 || !reflect.DeepEqual(spans, [][2]int{{2, 2}}) {
+		t.Errorf(`$[""] on an empty name: %d problem(s), recorded %v:\n%s`, problems, spans, out)
 	}
 }
 
