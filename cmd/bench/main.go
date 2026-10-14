@@ -207,8 +207,12 @@ func analyze(args []string, w io.Writer) error {
 	fmt.Fprintln(w, "| model | source | verdict | tasks | attempts | excluded | cost (B−A)/A [95%] | solved B−A [95%] | silent mis-edits A / B | B shell reads | B slipped writes |")
 	fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|---|")
 	for _, r := range results {
+		source, verdict := r.Source, r.Verdict
+		if r.Descriptive != "" {
+			source, verdict = r.Source+" ("+r.Descriptive+")", "("+r.Verdict+")"
+		}
 		fmt.Fprintf(w, "| %s | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d / %d | %d | %d |\n",
-			r.Model, r.Source, r.Verdict, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.SilentA, r.SilentB, r.ReadsB, r.SlippedB)
+			r.Model, source, verdict, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.SilentA, r.SilentB, r.ReadsB, r.SlippedB)
 	}
 	return nil
 }

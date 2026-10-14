@@ -78,6 +78,9 @@ type Receipt struct {
 	SlippedWrites []string `json:"slipped_writes,omitempty"`
 	Exclusion     string   `json:"exclusion,omitempty"`
 	Note          string   `json:"note,omitempty"`
+	// CheckRedAtBase is the task's flag (Task.CheckRedAtBase), copied so the
+	// receipt alone says the attempt ran against a check that was red at base.
+	CheckRedAtBase bool `json:"check_red_at_base,omitempty"`
 
 	interrupted bool // stopped by a signal to bench: no receipt is written for it
 }
@@ -422,7 +425,8 @@ func safe(s string) string {
 // bench's own (tree, oracle) is recorded as the registered setup exclusion.
 func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Receipt {
 	r := Receipt{Attempt: a.ID, Stage: o.Stage, Task: a.Task.ID, Shape: a.Task.Shape, Source: "own", Model: a.Model,
-		Config: a.Config.Name, Repeat: a.Repeat, Order: order, CLIVersion: cli, Started: time.Now().UTC().Format(time.RFC3339)}
+		Config: a.Config.Name, Repeat: a.Repeat, Order: order, CLIVersion: cli, Started: time.Now().UTC().Format(time.RFC3339),
+		CheckRedAtBase: a.Task.CheckRedAtBase != ""}
 	if a.Config.Mrw {
 		r.MrwVersion = mrwVersion
 	}
@@ -545,14 +549,19 @@ func shellQuote(s string) string {
 }
 
 // toolPath builds the directory of the few host tools an attempt may call by
-// name — git and go — as links to each, so nothing else in their directories
-// (an installed mrw beside git, say) reaches the agent's PATH.
+// name, as links to each, so nothing else in their directories (an installed
+// mrw beside git, say) reaches the agent's PATH: git, which bench and every
+// repository's check use; go and gofmt, for the Go repositories' checks; node,
+// npm and npx, which quality-harness's declared check runs (without them it
+// stops at once with `node: command not found`, a failure the harness made);
+// and python3, so a script finds the host's own rather than an older system
+// one (Zy, 2026-10-14: "Keep, add node, declare it").
 func toolPath(scratch string) (string, error) {
 	dir := filepath.Join(scratch, "tools")
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return "", err
 	}
-	for _, name := range []string{"git", "go", "gofmt"} {
+	for _, name := range []string{"git", "go", "gofmt", "node", "npm", "npx", "python3"} {
 		p, err := exec.LookPath(name)
 		if err != nil {
 			continue

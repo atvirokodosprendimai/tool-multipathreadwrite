@@ -34,9 +34,10 @@ instruction files were stripped whole; a repository whose tests read its
 Every attempt runs with `CLAUDE_CONFIG_DIR` set to the dedicated directory
 (resolved, and refused if it
 is `~/.claude` by any spelling or link). The CLI runs in a process group of its
-own, stopped when it returns. Its `PATH` holds links to the host's `git`, `go`
-and `gofmt` and the system directories, not the directories those tools live
-in, and configuration A's is refused if `mrw` is anywhere on it. `USER` is passed
+own, stopped when it returns. Its `PATH` holds links to the host's `git`, `go`,
+`gofmt`, `node`, `npm`, `npx` and `python3` (quality-harness's check runs node)
+and the system directories, not the directories those tools live in, and
+configuration A's is refused if `mrw` is anywhere on it. `USER` is passed
 through, since the CLI finds the subscription's credentials in the macOS
 keychain by it. The canary takes the config directory's own path out of a
 transcript before it looks for `mrw`: the CLI prints that path in its init line,
@@ -52,6 +53,7 @@ and it is bench's name for a directory, not context the model was given.
   - `instruction` — what the agent is told; it names no tool;
   - `slack` — how many lines either side of the fix's own insertion point new lines may also go (default 0); it never licenses changing a line the fix leaves alone;
   - `exact` — each touched file must equal the reference result, so a call site commented out or kept in a block comment fails though its tokens survive (the renames);
+  - `check_red_at_base` — why the repository's own declared check fails at the pinned commit in the tree bench builds, so configuration B's automatic check is red whatever the agent does: a measured fact, carried by the seven quality-harness tasks (2026-10-14) and absent elsewhere;
   - `require`, `forbid` — `{file, match}` regular expressions over the finished file.
 - `reference.patch` — the fix, as `git diff` writes it. Its changed lines, not its context lines, are the allowed regions.
 - `base/` — a fixture's whole base tree.
@@ -89,7 +91,8 @@ deleted.
   `init_tools`, `init_mcp_servers`, `oracle` (`solved`, `missing`, `outside`,
   `structure`), `silent_mis_edit`, `diff` (`files`, `insertions`, `deletions`),
   `hook_refused`, `hook_reads`, `slipped_writes` (B only), `exclusion`
-  (`start-error` or `setup`, the registered two), `note`.
+  (`start-error` or `setup`, the registered two), `note`, `check_red_at_base`
+  (the task's flag, when it carries one).
 - `….transcript.jsonl`, `….stderr` — what the CLI printed.
 - `canary.json` — `pass`, `cli_version`, `model`, `started`, `problems` by
   configuration (and `sentinel`), `total_cost_usd` by configuration.
@@ -129,3 +132,8 @@ configuration, and configuration B's counted shell reads and slipped writes —
 the files B changed by a means its hook missed. The hook is a heuristic, not a
 security boundary (the record's Out of Scope); the slipped writes are what
 catches a write that got past it. A pilot directory is left out.
+
+Where a model's and source's attempts include tasks flagged `check_red_at_base`,
+a second row follows the verdict, computed without them and marked descriptive.
+It is not a verdict of the registered bar: the verdict is the first row, over
+every task (Zy, 2026-10-14).

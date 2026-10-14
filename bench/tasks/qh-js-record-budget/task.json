@@ -3,6 +3,7 @@
   "shape": "large-file",
   "repo": "quality-harness",
   "commit": "bbf82ff3c32c95c4251ac2eee8d0e6cfd8bad999",
+  "check_red_at_base": "quality-harness's declared check (bash scripts/selftest.sh) fails at this commit in the tree bench builds (measured 2026-10-14): lifecycle.test.mjs 'reported: a scratch corpus does not pull the record gates' fails even in a full-history clone, and two orphan-sweep.test.mjs cases that read git history fail in the single-commit tree",
   "instruction": "In plugin/scripts/decision-corpus.mjs, raise RECORD_BUDGET from 200 to 250. Change nothing else.",
   "require": [{"file": "plugin/scripts/decision-corpus.mjs", "match": "(?m)^const RECORD_BUDGET = 250$"}]
 }

@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** pinned commits of four public repositories on this machine (`bench/repos.json`); a task whose repository or commit is not here is skipped by name, never silently. The three fixture tasks carry their own base trees and run anywhere: they are what CI runs.
 **Proof map:** v1
-**Rests-on:** `an oracle fails on the base`, `an oracle passes on the reference fix`, `an oracle refuses a stray edit`, `the corpus has the registered shapes`, `no task carries host configuration`, `an instruction file keeps every line but those naming mrw`
+**Rests-on:** `an oracle fails on the base`, `an oracle passes on the reference fix`, `an oracle refuses a stray edit`, `the corpus has the registered shapes`, `no task carries host configuration`, `an instruction file keeps every line but those naming mrw`, `a task whose check is red at base says so`
 
 ## Goal
 
@@ -33,17 +33,19 @@ About 30 tasks in the shapes Decision 3 registers, each with an oracle whose thr
 3. [S3] The corpus, with the instruction text naming no tool. [proof: acceptance]
 4. [S4] `docs/bench/README.md` with the formats. [proof: acceptance]
 5. [S5] After the uncounted pilot, Zy, 2026-10-14 ("Redact, don't strip"): the prepared tree keeps `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and `.cursorrules`, at any depth, without the lines that name mrw, and the files in the tree they import with `@path`, the same way; an instruction file that is a link into the tree stays a link with its target redacted, and one leading out of the tree is removed (the review of #413). It still removes `.claude/`, `.cursor/` and `.codex/` at any depth and `.mcp.json` at the root; a `.mcp.json` below the root is kept (agentsmemory's tests read its plugin's). agentsmemory's tests read its `AGENTS.md`, so a stripped tree failed configuration B's automatic check for a reason the harness made. `TestThePreparedTreeRedactsInstructionsAndStripsConfiguration` replaces `TestStrippingRemovesEveryInstructionFile`. [proof: mutation]
+6. [S6] Zy, 2026-10-14 ("Keep, add node, declare it"): a task whose repository's own declared check fails at its pinned commit in the tree bench builds carries `check_red_at_base`, a one-line reason, and `LoadTask` reads it. The seven quality-harness tasks, pinned to `bbf82ff3`, carry it, measured that day (the record, Decision 2); no other task does. [proof: mutation]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/bench/ -count=1 -timeout 600s -run 'TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit|TestTheCorpusHasTheRegisteredShapeCounts|TestThePreparedTreeRedactsInstructionsAndStripsConfiguration|TestTheOracleRefusesWhatTheReviewFound' -v 2>&1 | tee "$out" \
+  && go test ./internal/bench/ -count=1 -timeout 600s -run 'TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit|TestTheCorpusHasTheRegisteredShapeCounts|TestThePreparedTreeRedactsInstructionsAndStripsConfiguration|TestTheOracleRefusesWhatTheReviewFound|TestTheTasksWhoseCheckIsRedAtBaseSayWhy' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit \(' "$out" \
   && grep -qE '^--- PASS: TestTheCorpusHasTheRegisteredShapeCounts \(' "$out" \
   && grep -qE '^--- PASS: TestThePreparedTreeRedactsInstructionsAndStripsConfiguration \(' "$out" \
   && grep -qE '^--- PASS: TestTheOracleRefusesWhatTheReviewFound \(' "$out" \
+  && grep -qE '^--- PASS: TestTheTasksWhoseCheckIsRedAtBaseSayWhy \(' "$out" \
   && [ -f docs/bench/README.md ] \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
@@ -56,6 +58,7 @@ out=$(mktemp) \
 | `TestTheCorpusHasTheRegisteredShapeCounts` | `internal/bench/oracle_test.go` | the registered shapes and stripped instruction files | none | S1, S3 |
 | `TestThePreparedTreeRedactsInstructionsAndStripsConfiguration` | `internal/bench/oracle_test.go` | at any depth, an instruction file keeps every line but those naming mrw, byte for byte; configuration a host loads is gone; other files are untouched | none | S5 |
 | `TestTheOracleRefusesWhatTheReviewFound` | `internal/bench/oracle_test.go` | a binary, a mode-only and a deleting change are outside; slack does not license deleting a neighbour; an exact task fails with its fix line commented out | none | — |
+| `TestTheTasksWhoseCheckIsRedAtBaseSayWhy` | `internal/bench/redbase_test.go` | exactly the tasks pinned to the measured quality-harness commit carry a reason, and there are seven | none | S6 |
 
 ## Reachability
 
@@ -120,6 +123,7 @@ out=$(mktemp) \
 - 2026-10-14 · f4b0aaaa* · mutant killed · exit 1 · `internal/bench/task.go` · an @path inside a code block is taken for an import and its target redacted · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · covers:an instruction file keeps every line but those naming mrw
 - 2026-10-14 · f4b0aaaa* · mutant killed · exit 1 · `internal/bench/task.go` · an @path inside a code span is taken for an import and its target redacted · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · covers:an instruction file keeps every line but those naming mrw
 - 2026-10-14 · f4b0aaaa* · mutant killed · exit 1 · `internal/bench/task.go` · an instruction link into a removed directory is redacted, not removed, and preparation fails · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · covers:no task carries host configuration
+- 2026-10-14 · 31987835* · mutant killed · exit 1 · `internal/bench/task.go` · LoadTask no longer reads check_red_at_base · acceptance-sha256:57bfc4218315306f6a1dd0a58b634d8085a80d644aea82a2f60b84f4dad5a156 · covers:a task whose check is red at base says so
 
 ## Verification Log
 (empty until execute)
@@ -225,6 +229,7 @@ out=$(mktemp) \
 - 2026-10-14 · f4b0aaaa* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:8937
 - 2026-10-14 · f4b0aaaa* · exit 0 · `set -o pipefail …` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:9027
 - 2026-10-14 · f4b0aaaa* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:cd14e821fd3ff6291b010edb18924ae75b0dcc0ef961e209d9a16b0784246d0f · ms:0 · test-lock-sha256:2aa18aac1c7bc6a3e9424a285022885f6289ea22bca8adebed7522890aaa0dc9 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdEV2ZXJ5T3JhY2xlRmFpbHNPbkJhc2VQYXNzZXNPbkZpeEFuZFJlZnVzZXNBU3RyYXlFZGl0CTA5MDQ4MmM0MDM3MDdjYjJlYzQyMWNiOTBmZjQ5MDRlZjFjNDNiOTk1N2ViZWY5MjdkZjRmN2E3ODcxYjAzYzQKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlQ29ycHVzSGFzVGhlUmVnaXN0ZXJlZFNoYXBlQ291bnRzCWU1ZDdjNDY0YzM4YzY1YTIxMzBjYmUzYjE2YjAxZDkwZTRhYTE3OTJmNWQ4ZDUzMTY2N2Y5MmM3Y2Y5MTkyYjMKYm9keQlpbnRlcm5hbC9iZW5jaC9vcmFjbGVfdGVzdC5nbwlUZXN0VGhlT3JhY2xlUmVmdXNlc1doYXRUaGVSZXZpZXdGb3VuZAk0OTlkMWRiNmY0NzlkMTY2Mzk1OGVjYWY3MTIxYzIwMDk3NmU5OGU2ZTYxYjQ5MGEyZjZiZjhmNTBkMzYwY2RhCmJvZHkJaW50ZXJuYWwvYmVuY2gvb3JhY2xlX3Rlc3QuZ28JVGVzdFRoZVByZXBhcmVkVHJlZVJlZGFjdHNJbnN0cnVjdGlvbnNBbmRTdHJpcHNDb25maWd1cmF0aW9uCWIwNjBkMTZlYmRjNTVmZmVlYTkwZjFmMDRjNDI5ZjY0YmQ1ODFmYzU2MTI2ZmM0NmZlZDRmZTFjM2EyZGZkZmY · test-lock-kind:replace
+- 2026-10-14 · 31987835* · exit 0 · `set -o pipefail …` · acceptance-sha256:57bfc4218315306f6a1dd0a58b634d8085a80d644aea82a2f60b84f4dad5a156 · ms:10398
 
 ## Invariants
 

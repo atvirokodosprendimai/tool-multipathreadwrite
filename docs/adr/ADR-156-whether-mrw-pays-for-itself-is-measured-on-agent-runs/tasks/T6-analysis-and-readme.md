@@ -8,7 +8,7 @@
 **Consumes:** the receipts of T3, T4 and T5
 **Data dependency:** the stage receipts
 **Proof map:** v1
-**Rests-on:** `pairs by task and keeps every attempt`, `admits only by the registered rules`, `the verdict follows the bar`, `README states no more than the verdict`
+**Rests-on:** `pairs by task and keeps every attempt`, `admits only by the registered rules`, `the verdict follows the bar`, `README states no more than the verdict`, `a descriptive row leaves out the tasks red at base and is never the verdict`
 
 ## Goal
 
@@ -30,16 +30,18 @@ One verdict per model and task source, computed exactly as BACKLOG registered it
 2. [S2] `bench analyze`. [proof: mutation]
 3. [S3] `docs/bench/RESULTS.md` from `bench analyze` output, not by hand. [proof: acceptance]
 4. [S4] README, one sentence per verdict, a LOSES or INCONCLUSIVE as plainly as a PAYS. [proof: human: Zy reads the README sentence against RESULTS.md]
+5. [S5] Zy, 2026-10-14 ("Keep, add node, declare it"): where a model's and source's attempts include tasks flagged `check_red_at_base`, `bench analyze` adds one row computed without them, marked descriptive and printed with its verdict in parentheses; the verdict row still counts every task, and a group with no flagged attempt gets no second row. The registered bar is not changed. [proof: mutation]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/bench/ -count=1 -run 'TestTheAnalysisPairsByTaskAndKeepsEveryAttempt|TestOnlyTheRegisteredExclusionsAreAdmitted|TestTheVerdictFollowsTheRegisteredBar' -v 2>&1 | tee "$out" \
+  && go test ./internal/bench/ -count=1 -run 'TestTheAnalysisPairsByTaskAndKeepsEveryAttempt|TestOnlyTheRegisteredExclusionsAreAdmitted|TestTheVerdictFollowsTheRegisteredBar|TestADescriptiveRowLeavesOutTasksWhoseCheckIsRedAtBase' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestTheAnalysisPairsByTaskAndKeepsEveryAttempt \(' "$out" \
   && grep -qE '^--- PASS: TestOnlyTheRegisteredExclusionsAreAdmitted \(' "$out" \
   && grep -qE '^--- PASS: TestTheVerdictFollowsTheRegisteredBar \(' "$out" \
+  && grep -qE '^--- PASS: TestADescriptiveRowLeavesOutTasksWhoseCheckIsRedAtBase \(' "$out" \
   && go run ./cmd/bench analyze docs/bench > "$out.results" \
   && cmp -s "$out.results" docs/bench/RESULTS.md
 ```
@@ -51,6 +53,7 @@ out=$(mktemp) \
 | `TestTheAnalysisPairsByTaskAndKeepsEveryAttempt` | `internal/bench/analyze_test.go` | pairing within model and source; nothing dropped | none | S1, S2 |
 | `TestOnlyTheRegisteredExclusionsAreAdmitted` | `internal/bench/analyze_test.go` | only the registered exclusions | none | S1, S2 |
 | `TestTheVerdictFollowsTheRegisteredBar` | `internal/bench/analyze_test.go` | PAYS, LOSES, INCONCLUSIVE and their boundaries | none | S1, S2 |
+| `TestADescriptiveRowLeavesOutTasksWhoseCheckIsRedAtBase` | `internal/bench/redbase_test.go` | a group with flagged attempts gets one descriptive row without them; the verdict counts every task; a group without gets none | none | S5 |
 
 ## Reachability
 
@@ -63,6 +66,7 @@ out=$(mktemp) \
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-14 · human-observed · mutant killed · test exit 1 · `internal/bench/analyze.go` · line 87 · from `d.Descriptive = withoutRedAtBase` · to `d.Descriptive = ""` · test `TestADescriptiveRowLeavesOutTasksWhoseCheckIsRedAtBase` · T6 fence cannot run to completion until docs/bench/RESULTS.md exists (S3, after Stage 1)
 
 ## Verification Log
 (empty until execute)
