@@ -84,13 +84,20 @@ func SelectMultiHunk(dataset, salt string, minHunks int, exclude []string, n int
 		named := false
 		for _, header := range patchedFile.FindAllString(r.Patch, -1) {
 			path, same := diffPath(header)
-			if !same { // a rename: judge it by its old path, quoted or not
+			if !same { // a rename: judge it by its old path, quoted or not, whatever the new one's quoting
 				h := strings.TrimPrefix(header, "diff --git ")
 				if q, err := strconv.QuotedPrefix(h); err == nil {
 					u, _ := strconv.Unquote(q)
 					path = strings.TrimPrefix(u, "a/")
 				} else {
-					path, _, _ = strings.Cut(strings.TrimPrefix(h, "a/"), " b/")
+					old := strings.TrimPrefix(h, "a/")
+					end := len(old)
+					for _, sep := range []string{` "b/`, " b/"} {
+						if i := strings.Index(old, sep); i >= 0 && i < end {
+							end = i
+						}
+					}
+					path = old[:end]
 				}
 			}
 			base := filepath.Base(path)

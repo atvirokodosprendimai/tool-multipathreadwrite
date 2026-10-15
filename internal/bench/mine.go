@@ -152,13 +152,17 @@ func MineWideRenames(root string, minOcc, minFiles int) ([]RenameCandidate, erro
 	return out, nil
 }
 
-// countDecls counts the identifiers one package's files declare, by type
-// checking them with go/types and reading Info.Defs: every scope rule — a :=
-// that redeclares, a type switch's implicit variable, an embedded field, a
-// generic receiver's type parameters, a field that shares a local's name — is
-// the compiler's, not an approximation of it (the reviews of #426). Imports
-// are not resolved: the importer refuses each one and checking goes on, which
-// leaves the declarations in place. A package clause's name declares nothing.
+// countDecls counts the identifiers one package's files declare. It type
+// checks them with go/types and reads Info.Defs, so every scope rule — a :=
+// that redeclares, a type switch's implicit variable, a field that shares a
+// local's name — is the compiler's, not an approximation of it (the reviews of
+// #426). Imports are not resolved: the importer refuses each one and checking
+// goes on. A package with errors can leave declarations out of Info.Defs — a
+// second declaration of one name in two build-tagged files, a field inside a
+// type argument of an unresolved generic — so every declaration that is not a
+// := or a range variable is also counted from the syntax, and a name counts
+// the larger of the two (the third review of #426). A package clause's name
+// declares nothing.
 func countDecls(fset *token.FileSet, files []*ast.File, decls map[string]int) {
 	clause := map[*ast.Ident]bool{}
 	for _, f := range files {
@@ -167,9 +171,93 @@ func countDecls(fset *token.FileSet, files []*ast.File, decls map[string]int) {
 	info := &types.Info{Defs: map[*ast.Ident]types.Object{}}
 	conf := types.Config{Importer: refuseImports{}, Error: func(error) {}}
 	_, _ = conf.Check(files[0].Name.Name, fset, files, info) // errors are expected: no import resolves
+	defs := map[string]int{}
 	for id := range info.Defs {
 		if !clause[id] && id.Name != "_" {
-			decls[id.Name]++
+			defs[id.Name]++
+		}
+	}
+	syn := map[string]int{}
+	add := func(ids ...*ast.Ident) {
+		for _, id := range ids {
+			if id != nil && id.Name != "_" {
+				syn[id.Name]++
+			}
+		}
+	}
+	for _, f := range files {
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.FuncDecl:
+				add(n.Name)
+				if n.Recv != nil {
+					for _, r := range n.Recv.List {
+						t := r.Type
+						if s, ok := t.(*ast.StarExpr); ok {
+							t = s.X
+						}
+						switch t := t.(type) {
+						case *ast.IndexExpr:
+							add(identOf(t.Index))
+						case *ast.IndexListExpr:
+							for _, e := range t.Indices {
+								add(identOf(e))
+							}
+						}
+					}
+				}
+			case *ast.TypeSpec:
+				add(n.Name)
+			case *ast.ValueSpec:
+				add(n.Names...)
+			case *ast.Field:
+				add(n.Names...)
+			case *ast.StructType:
+				for _, fl := range n.Fields.List {
+					if len(fl.Names) == 0 {
+						add(embeddedName(fl.Type))
+					}
+				}
+			case *ast.ImportSpec:
+				add(n.Name)
+			case *ast.LabeledStmt:
+				add(n.Label)
+			}
+			return true
+		})
+	}
+	for name, n := range defs {
+		decls[name] += max(n, syn[name])
+	}
+	for name, n := range syn {
+		if _, ok := defs[name]; !ok {
+			decls[name] += n
+		}
+	}
+}
+
+func identOf(e ast.Expr) *ast.Ident {
+	id, _ := e.(*ast.Ident)
+	return id
+}
+
+// embeddedName is the field name an embedded type declares: T for T, *T,
+// pkg.T and T[X].
+func embeddedName(t ast.Expr) *ast.Ident {
+	for {
+		switch e := t.(type) {
+		case *ast.StarExpr:
+			t = e.X
+		case *ast.IndexExpr:
+			t = e.X
+		case *ast.IndexListExpr:
+			t = e.X
+		case *ast.SelectorExpr:
+			return e.Sel
+		case *ast.Ident:
+			return e
+		default:
+			return nil
 		}
 	}
 }
@@ -289,49 +377,39 @@ func diffPath(line string) (string, bool) {
 }
 
 // coupled screens one commit's -U0 diff before its files are read whole: at
-// most maxFiles files, every one a .go file changed in place — a mode change,
-// a new, deleted, renamed, copied or binary file, or a change to a final
-// newline disqualifies it — each hunk removing as many lines as it adds, and
-// among the files a non-test .go file and a _test.go file in one directory.
+// most maxFiles files, each changed in place — a mode change, or a new,
+// deleted, renamed, copied or binary file disqualifies it — and among them a
+// non-test .go file and a _test.go file in one directory. A file that is not
+// Go is kept for the whole-file judgment beside them, and neither the number
+// of lines a hunk changes nor a missing final newline is judged here: the
+// whole-file judgment decides whether anything but literals changed (the third
+// review of #426).
 func (c *CoupledCandidate) coupled(diff string, maxFiles int) bool {
-	minus, plus := 0, 0
-	ok := true
-	flush := func() {
-		if minus != plus {
-			ok = false
-		}
-		minus, plus = 0, 0
-	}
 	sc := bufio.NewScanner(strings.NewReader(diff))
 	sc.Buffer(make([]byte, 0, 1<<16), 1<<24)
-	for sc.Scan() && ok {
+	for sc.Scan() {
 		line := sc.Text()
 		switch {
 		case strings.HasPrefix(line, "diff --git "):
-			flush()
 			p, same := diffPath(line)
-			if !same || !strings.HasSuffix(p, ".go") {
+			if !same {
 				return false
 			}
 			c.Files = append(c.Files, p)
-		case strings.HasPrefix(line, "@@"):
-			flush()
-		case strings.HasPrefix(line, "--- "), strings.HasPrefix(line, "+++ "), strings.HasPrefix(line, "index "):
-		case strings.HasPrefix(line, "-"):
-			minus++
-		case strings.HasPrefix(line, "+"):
-			plus++
-		case line == "":
-		default: // a mode change, a new, deleted, renamed or copied file, binary, "\ No newline at end of file"
+		case strings.HasPrefix(line, "@@"), strings.HasPrefix(line, "--- "), strings.HasPrefix(line, "+++ "), strings.HasPrefix(line, "index "),
+			strings.HasPrefix(line, "-"), strings.HasPrefix(line, "+"), strings.HasPrefix(line, `\ `), line == "":
+		default: // a mode change, a new, deleted, renamed or copied file, binary
 			return false
 		}
 	}
-	flush()
-	if !ok || len(c.Files) < 2 || len(c.Files) > maxFiles {
+	if len(c.Files) < 2 || len(c.Files) > maxFiles {
 		return false
 	}
 	dirs := map[string][2]bool{}
 	for _, f := range c.Files {
+		if !strings.HasSuffix(f, ".go") {
+			continue
+		}
 		d := dirs[filepath.Dir(f)]
 		if strings.HasSuffix(f, "_test.go") {
 			d[1] = true

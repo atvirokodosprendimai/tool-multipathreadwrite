@@ -121,6 +121,19 @@ func TestTheStage4SWESliceIsTheLowestSaltedHashesWithFiveHunks(t *testing.T) {
 	if slices.Equal(SelectSWEBenchSalted(eligible, 8, "adr-156:"), got.Selected) {
 		t.Error("the salt does not change the order")
 	}
+	// A rename whose new path git quotes and whose old path it does not: the
+	// old path is read alone (the third review of #426).
+	mixed := filepath.Join(t.TempDir(), "mixed.json")
+	mb, err := json.Marshal([]row{{"org__repo-9", strings.Replace(patch("pkg/old.py", 5), "diff --git a/pkg/old.py b/pkg/old.py", `diff --git a/pkg/old.py "b/pkg/new\"name.py"`, 1), "fails in old.py"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(mixed, mb, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if m, err := SelectMultiHunk(mixed, "adr-160:", 5, nil, 1); err != nil || len(m.Selected) != 1 || len(m.Unnamed) != 0 {
+		t.Errorf("a problem naming the renamed file's old path: %+v, %v; want it selected and named", m, err)
+	}
 }
 
 // sweFixture lays out what a SWE-bench stage reads: a local repository at one

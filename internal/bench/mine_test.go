@@ -83,6 +83,12 @@ func TestAWideRenameCandidateIsDeclaredOnceAndNeverInAString(t *testing.T) {
 	for name, src := range map[string]string{
 		"d.go": "package d\n\ntype Inner struct{}\n\ntype Outer struct {\n\tInner\n\t*Other\n}\n\ntype Box[Elem any] struct{ v Elem }\n\nfunc (b Box[Elem]) Get() Elem { return b.v }\n\nfunc (b *Box[Elem]) Set(v Elem) { b.v = v }\n\nfunc r(p int) int {\n\tRedecl := 1\n\tRedecl, other := 2, 3\n\tp, fresh := 4, 5\n\tif true {\n\t\tRedecl := 6\n\t\t_ = Redecl\n\t}\n\treturn Redecl + other + p + fresh\n}\n",
 		"e.go": "package d\n\nfunc s() {\n\ttype S struct{ Clash int }\n\tClash := 1\n\t_ = Clash\n}\n\nfunc ts(x any) {\n\tswitch Choice := x.(type) {\n\tcase int:\n\t\tChoice, fresh2 := Choice, 1\n\t\t_, _ = Choice, fresh2\n\t}\n}\n",
+		// One name in two build-tagged files, and a field inside a type
+		// argument of an unresolved generic: Info.Defs misses one of each,
+		// the syntax does not (the third review of #426).
+		"x_linux.go":   "package d\n\nfunc Shared() {}\n",
+		"x_windows.go": "package d\n\nfunc Shared() {}\n",
+		"g.go":         "package d\n\nimport ext \"example.com/ext\"\n\ntype A ext.Box[struct{ Clash2 int }]\n\ntype B struct{ Clash2 int }\n",
 	} {
 		f, err := parser.ParseFile(fset, name, src, 0)
 		if err != nil {
@@ -92,7 +98,7 @@ func TestAWideRenameCandidateIsDeclaredOnceAndNeverInAString(t *testing.T) {
 	}
 	decls := map[string]int{}
 	countDecls(fset, fs, decls)
-	for name, want := range map[string]int{"Inner": 2, "Other": 1, "Elem": 3, "Redecl": 2, "other": 1, "p": 1, "fresh": 1, "b": 2, "v": 2, "Clash": 2, "Choice": 1, "fresh2": 1, "d": 0} {
+	for name, want := range map[string]int{"Inner": 2, "Other": 1, "Elem": 3, "Redecl": 2, "other": 1, "p": 1, "fresh": 1, "b": 2, "v": 2, "Clash": 2, "Choice": 1, "fresh2": 1, "d": 0, "Shared": 2, "Clash2": 2} {
 		if decls[name] != want {
 			t.Errorf("%s declared %d times, want %d", name, decls[name], want)
 		}
@@ -139,7 +145,10 @@ func TestACheckCoupledCandidateIsALiteralSubstitutionWithItsTest(t *testing.T) {
 		"x/x.go": src(`say \"hi\"`), "x/x_test.go": test(`say \"hi\"`),
 		"b/b.go": "package b\n\n/*\nwant \"old\"\n*/\nfunc F() {}\n", "b/b_test.go": "package b\n\n/*\nwant \"old\"\n*/\nfunc G() {}\n",
 		"w/w.go": "package w\n\nfunc Msg() string {\n\treturn `line one\nold body\nline three`\n}\n", "w/w_test.go": "package w\n\nconst want = `line one\nold body\nline three`\n",
-		`qp/a"b.go`: src("q1"), `qp/a"b_test.go`: test("q1")})
+		`qp/a"b.go`: src("q1"), `qp/a"b_test.go`: test("q1"),
+		"w2/w.go": "package w2\n\nfunc Msg() string { return `old` }\n", "w2/w_test.go": "package w2\n\nconst want = `old`\n",
+		"j/j.go": src("jold"), "j/j_test.go": test("jold"), "j/fixture.json": "{\"msg\": \"jold\"}\n",
+		"n/n.go": strings.TrimSuffix(src("nold"), "\n"), "n/n_test.go": strings.TrimSuffix(test("nold"), "\n")})
 	good := commit("rename the message", map[string]string{"p/p.go": src("new text"), "p/p_test.go": test("new text")})
 	commit("message and code", map[string]string{"p/p.go": src("newer text") + "\nfunc Extra() {}\n", "p/p_test.go": test("newer text")})
 	commit("no test", map[string]string{"q/q.go": src("right")})
@@ -157,17 +166,23 @@ func TestACheckCoupledCandidateIsALiteralSubstitutionWithItsTest(t *testing.T) {
 	commit("inside a block comment", map[string]string{"b/b.go": "package b\n\n/*\nwant \"new\"\n*/\nfunc F() {}\n", "b/b_test.go": "package b\n\n/*\nwant \"new\"\n*/\nfunc G() {}\n"})
 	raw := commit("inside a multi-line raw string", map[string]string{"w/w.go": "package w\n\nfunc Msg() string {\n\treturn `line one\nnew body\nline three`\n}\n", "w/w_test.go": "package w\n\nconst want = `line one\nnew body\nline three`\n"})
 	quoted := commit("a path git quotes", map[string]string{`qp/a"b.go`: src("q2"), `qp/a"b_test.go`: test("q2")})
+	grows := commit("a literal that gains a line", map[string]string{"w2/w.go": "package w2\n\nfunc Msg() string { return `new\nline` }\n", "w2/w_test.go": "package w2\n\nconst want = `new\nline`\n"})
+	companion := commit("a fixture beside the pair", map[string]string{"j/j.go": src("jnew"), "j/j_test.go": test("jnew"), "j/fixture.json": "{\"msg\": \"jnew\"}\n"})
+	noEOL := commit("files without a final newline", map[string]string{"n/n.go": strings.TrimSuffix(src("nnew"), "\n"), "n/n_test.go": strings.TrimSuffix(test("nnew"), "\n")})
 	got, err := MineCheckCoupled(repo, "HEAD", 4)
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]CoupledCandidate{
-		good:    {Old: "old text", New: "new text", Files: []string{"p/p.go", "p/p_test.go"}},
-		empty:   {Old: "", New: "message", Files: []string{"e/e.go", "e/e_test.go"}},
-		spaced:  {Old: "before", New: "after", Files: []string{"sp/source code.go", "sp/source code_test.go"}},
-		escaped: {Old: `say "hi"`, New: `say "bye"`, Files: []string{"x/x.go", "x/x_test.go"}},
-		raw:     {Old: "line one\nold body\nline three", New: "line one\nnew body\nline three", Files: []string{"w/w.go", "w/w_test.go"}},
-		quoted:  {Old: "q1", New: "q2", Files: []string{`qp/a"b.go`, `qp/a"b_test.go`}},
+		good:      {Old: "old text", New: "new text", Files: []string{"p/p.go", "p/p_test.go"}},
+		empty:     {Old: "", New: "message", Files: []string{"e/e.go", "e/e_test.go"}},
+		spaced:    {Old: "before", New: "after", Files: []string{"sp/source code.go", "sp/source code_test.go"}},
+		escaped:   {Old: `say "hi"`, New: `say "bye"`, Files: []string{"x/x.go", "x/x_test.go"}},
+		raw:       {Old: "line one\nold body\nline three", New: "line one\nnew body\nline three", Files: []string{"w/w.go", "w/w_test.go"}},
+		quoted:    {Old: "q1", New: "q2", Files: []string{`qp/a"b.go`, `qp/a"b_test.go`}},
+		grows:     {Old: "old", New: "new\nline", Files: []string{"w2/w.go", "w2/w_test.go"}},
+		companion: {Old: "jold", New: "jnew", Files: []string{"j/fixture.json", "j/j.go", "j/j_test.go"}},
+		noEOL:     {Old: "nold", New: "nnew", Files: []string{"n/n.go", "n/n_test.go"}},
 	}
 	if len(got) != len(want) {
 		t.Errorf("%d candidates, want %d: %+v", len(got), len(want), got)
