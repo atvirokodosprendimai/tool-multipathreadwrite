@@ -1,0 +1,12 @@
+{
+  "id": "cac-vms-test-waits",
+  "shape": "varied-multi-site",
+  "repo": "crossagentschat",
+  "commit": "ae4f7a9ca6c009863466dd92818f78bc9bcc8225",
+  "instruction": "Under -race on a loaded machine, two of the tests' bounded waits for something that must happen are too short and flake. Raise them from 2 seconds to 5: the wait in the recv helper in internal/relay/relay_test.go, and the deadline in TestEventsClosesOnContextCancel in internal/httpapi/events_test.go, together with that test's failure message, which names the 2s and must say 5s. Every other wait stays as it is, including the two 2-second waits inside TestHubSlowSubscriberIsDisconnectedNotDropped and the 150ms window in expectNothing. Change nothing else.",
+  "require": [
+    {"file": "internal/relay/relay_test.go", "match": "case <-time\\.After\\(5 ?\\* ?time\\.Second\\):\\n\\s*t\\.Fatal\\(\"timed out waiting for a message\"\\)"},
+    {"file": "internal/httpapi/events_test.go", "match": "deadline := time\\.Now\\(\\)\\.Add\\(5 ?\\* ?time\\.Second\\)"},
+    {"file": "internal/httpapi/events_test.go", "match": "t\\.Fatal\\(\"subscription still live 5s after the request was cancelled — the handler leaked it\"\\)"}
+  ]
+}

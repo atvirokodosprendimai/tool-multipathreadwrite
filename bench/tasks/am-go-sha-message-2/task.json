@@ -1,0 +1,9 @@
+{
+  "id": "am-go-sha-message-2",
+  "shape": "large-file",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In clients/claude-code/installer.go, the error for a downloaded release asset whose checksum does not match begins \"sha256 mismatch for\". Make it begin \"SHA-256 mismatch for\" instead, keeping the rest of the message. Change nothing else.",
+  "require": [{"file": "clients/claude-code/installer.go", "match": "fmt\\.Errorf\\(\"SHA-256 mismatch for %s: release lists %s, download is %s — the file is not the one the release published\", asset, want\\[:12\\], got\\[:12\\]\\)"}],
+  "forbid": [{"file": "clients/claude-code/installer.go", "match": "sha256 mismatch for"}]
+}

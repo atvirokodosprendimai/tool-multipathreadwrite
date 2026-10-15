@@ -170,7 +170,11 @@ func Run(o RunOptions) error {
 	// rather than recording every attempt as a setup exclusion.
 	for _, t := range o.Tasks {
 		if t.Repo != "fixture" {
-			if _, err := repoPath(t); err != nil {
+			src, err := repoPath(t)
+			if err != nil {
+				return err
+			}
+			if err := checkSections(t, src); err != nil {
 				return err
 			}
 		}
@@ -601,6 +605,18 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 	// keychain: without it a logged-in config directory answers "Not logged
 	// in" (the first real canary, 2026-10-14).
 	env := []string{"CLAUDE_CONFIG_DIR=" + o.ConfigDir, "HOME=" + os.Getenv("HOME"), "USER=" + os.Getenv("USER"), "TMPDIR=" + scratch, "LANG=C.UTF-8"}
+	// HOME stays for the credentials, so what it would bring in is shut out
+	// one by one (ADR-158 Decision 1): the user's zsh and its aliases, the CLI
+	// task directory every Claude session here shares, git's global
+	// configuration and ignore, and Python's user site.
+	own := map[string]string{"CLAUDE_CODE_TMPDIR": filepath.Join(scratch, "cctmp"), "XDG_CONFIG_HOME": filepath.Join(scratch, "config")}
+	for _, k := range []string{"CLAUDE_CODE_TMPDIR", "XDG_CONFIG_HOME"} {
+		if err := os.Mkdir(own[k], 0o755); err != nil {
+			return nil, nil, err
+		}
+		env = append(env, k+"="+own[k])
+	}
+	env = append(env, "CLAUDE_CODE_SHELL=/bin/bash", "GIT_CONFIG_GLOBAL=/dev/null", "PYTHONNOUSERSITE=1")
 	if a.Config.Mrw {
 		bin := filepath.Join(scratch, "bin")
 		if err := os.Mkdir(bin, 0o755); err != nil {

@@ -112,16 +112,8 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	for _, t := range all {
-		if t.Shape == bench.ShapeFixture {
-			continue
-		}
-		if len(only) == 0 || contains(only, t.ID) {
-			o.Tasks = append(o.Tasks, t)
-		}
-	}
-	if len(only) > 0 && len(o.Tasks) != len(only) {
-		return fmt.Errorf("--task names %d task(s), %d found", len(only), len(o.Tasks))
+	if o.Tasks, err = bench.SelectTasks(all, only); err != nil {
+		return err
 	}
 	if o.Bench, err = os.Executable(); err != nil {
 		return err
@@ -204,15 +196,15 @@ func analyze(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(w, "| model | source | verdict | tasks | attempts | excluded | cost (B−A)/A [95%] | solved B−A [95%] | silent mis-edits A / B | B shell reads | B slipped writes |")
-	fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|---|")
+	fmt.Fprintln(w, "| stage | model | source | verdict | tasks | attempts | excluded | cost (B−A)/A [95%] | solved B−A [95%] | silent mis-edits A / B | B shell reads | B slipped writes |")
+	fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|---|---|")
 	for _, r := range results {
 		source, verdict := r.Source, r.Verdict
 		if r.Descriptive != "" {
 			source, verdict = r.Source+" ("+r.Descriptive+")", "("+r.Verdict+")"
 		}
-		fmt.Fprintf(w, "| %s | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d / %d | %d | %d |\n",
-			r.Model, source, verdict, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.SilentA, r.SilentB, r.ReadsB, r.SlippedB)
+		fmt.Fprintf(w, "| %s | %s | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d / %d | %d | %d |\n",
+			r.Stage, r.Model, source, verdict, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.SilentA, r.SilentB, r.ReadsB, r.SlippedB)
 	}
 	return nil
 }
@@ -237,13 +229,4 @@ func swebenchSelect(args []string, r io.Reader, w io.Writer) error {
 		fmt.Fprintln(w, id)
 	}
 	return nil
-}
-
-func contains(s []string, v string) bool {
-	for _, x := range s {
-		if x == v {
-			return true
-		}
-	}
-	return false
 }

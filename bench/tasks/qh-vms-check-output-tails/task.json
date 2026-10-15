@@ -1,0 +1,13 @@
+{
+  "id": "qh-vms-check-output-tails",
+  "shape": "varied-multi-site",
+  "repo": "quality-harness",
+  "commit": "bbf82ff3c32c95c4251ac2eee8d0e6cfd8bad999",
+  "check_red_at_base": "quality-harness's declared check (bash scripts/selftest.sh) fails at this commit in the tree bench builds (measured 2026-10-14): lifecycle.test.mjs 'reported: a scratch corpus does not pull the record gates' fails even in a full-history clone, and two orphan-sweep.test.mjs cases that read git history fail in the single-commit tree",
+  "instruction": "In plugin/scripts/post-edit-check.sh, two of the per-file checks cut their output too short. The shell check (`bash -n`) should show the last 50 lines instead of 30, and the Python syntax fallback (the `python3 -B -c 'import ast, ...'` command that runs when there is no Python project or no ruff) should show the last 40 lines instead of 30, the same as the ruff path. The JSON (jq) and PHP checks keep `tail -30`, ruff keeps `tail -40`, and the workflow-parse diagnostics keep their tails. The mutation catalogue entry in tests/mutations/plugin/scripts/post-edit-check.sh.json whose `from` is the `bash -n` line must keep matching the script, so update that `from` to the new line. Change nothing else.",
+  "require": [
+    {"file": "plugin/scripts/post-edit-check.sh", "match": "(?m)^    bash -n \"\\$file_path\" 2>&1 \\| tail -50 \\|\\| true$"},
+    {"file": "plugin/scripts/post-edit-check.sh", "match": "filename=sys\\.argv\\[1\\]\\)' \\\\\\n\\s*\"\\$file_path\" 2>&1 \\| tail -40 \\|\\| true\\n"},
+    {"file": "tests/mutations/plugin/scripts/post-edit-check.sh.json", "match": "\"from\": \"    bash -n \\\\\"\\$file_path\\\\\" 2>&1 \\| tail -50 \\|\\| true\","}
+  ]
+}

@@ -1,0 +1,30 @@
+diff --git a/docker-compose.full.yml b/docker-compose.full.yml
+index b8d68d0..2e88b9c 100644
+--- a/docker-compose.full.yml
++++ b/docker-compose.full.yml
+@@ -249,10 +249,10 @@ services:
+     healthcheck:
+       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health || exit 1"]
+       interval: 10s
+-      timeout: 5s
++      timeout: 10s
+       # Generous: the first start downloads the model. Later starts hit the cache
+       # and pass on the first probe.
+-      retries: 60
++      retries: 120
+       start_period: 30s
+ 
+ volumes:
+diff --git a/docker-compose.ollama.yml b/docker-compose.ollama.yml
+index 92d12aa..fd5d0d3 100644
+--- a/docker-compose.ollama.yml
++++ b/docker-compose.ollama.yml
+@@ -140,7 +140,7 @@ services:
+       interval: 10s
+       timeout: 5s
+       # A cold first boot downloads ~1.2GB before this can pass.
+-      retries: 90
++      retries: 180
+       start_period: 20s
+ 
+ volumes:

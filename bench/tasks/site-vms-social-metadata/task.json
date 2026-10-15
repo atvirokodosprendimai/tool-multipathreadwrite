@@ -1,0 +1,16 @@
+{
+  "id": "site-vms-social-metadata",
+  "shape": "varied-multi-site",
+  "repo": "site",
+  "commit": "37625a32bc08b77e0ba0fc7e04cfc0f40ac183e5",
+  "instruction": "Two metadata fixes for the qamstack pages. First, neither qamstack/index.html nor qamstack/quality-harness/index.html declares an og:image or twitter:image, so their twitter:card should be \"summary\", not \"summary_large_image\": change it on both pages. Second, AI Agent Memory is also a hosted service reached from the browser, so in the JSON-LD of qamstack/index.html, the AI Agent Memory SoftwareApplication's operatingSystem becomes \"macOS, Linux, Windows, Web\". The other two tools in that JSON-LD (Quality Harness and MultiPath Read/Write) and the Quality Harness page's own JSON-LD keep \"macOS, Linux, Windows\". Change nothing else.",
+  "require": [
+    {"file": "qamstack/index.html", "match": "<meta name=\"twitter:card\" content=\"summary\">"},
+    {"file": "qamstack/quality-harness/index.html", "match": "<meta name=\"twitter:card\" content=\"summary\">"},
+    {"file": "qamstack/index.html", "match": "\"name\": \"AI Agent Memory\",\\n\\s*\"applicationCategory\": \"DeveloperApplication\",\\n\\s*\"operatingSystem\": \"macOS, Linux, Windows, Web\","}
+  ],
+  "forbid": [
+    {"file": "qamstack/index.html", "match": "summary_large_image"},
+    {"file": "qamstack/quality-harness/index.html", "match": "summary_large_image"}
+  ]
+}

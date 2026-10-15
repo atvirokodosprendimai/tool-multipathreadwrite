@@ -1,0 +1,22 @@
+diff --git a/qamstack/index.html b/qamstack/index.html
+index d325149..7412dc4 100644
+--- a/qamstack/index.html
++++ b/qamstack/index.html
+@@ -861,7 +861,7 @@ cd tool-multipathreadwrite &amp;&amp; ./scripts/measure.sh</code></pre>
+       </details>
+ 
+       <details class="rv"><summary>What does it cost?</summary>
+-        <p>The tools are free and open source. Self-hosting the memory server costs whatever the machine costs. There is a hosted service if you would rather not run one.</p>
++        <p>The tools are free and open source, under the MIT licence. Self-hosting the memory server costs whatever the machine costs. There is a hosted service if you would rather not run one.</p>
+       </details>
+ 
+     </div>
+@@ -1122,7 +1122,7 @@ cd tool-multipathreadwrite &amp;&amp; ./scripts/measure.sh</code></pre>
+           "name": "What does it cost?",
+           "acceptedAnswer": {
+             "@type": "Answer",
+-            "text": "The tools are free and open source. Self-hosting the memory server costs whatever the machine costs. There is a hosted service if you would rather not run one."
++            "text": "The tools are free and open source, under the MIT licence. Self-hosting the memory server costs whatever the machine costs. There is a hosted service if you would rather not run one."
+           }
+         }
+       ]

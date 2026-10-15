@@ -43,23 +43,39 @@ keychain by it. The canary takes the config directory's own path out of a
 transcript before it looks for `mrw`: the CLI prints that path in its init line,
 and it is bench's name for a directory, not context the model was given.
 
+Since ADR-158 an attempt reads none of the host's zsh, git or Python setup and
+shares no directory with the host's own Claude sessions: `CLAUDE_CODE_SHELL` is
+`/bin/bash` (the CLI otherwise takes the user's login shell, and Stage 1 met a
+zsh alias of the host's in 19 attempts), `CLAUDE_CODE_TMPDIR` and
+`XDG_CONFIG_HOME` are directories of the attempt's own scratch (`cctmp/`,
+`config/`), `GIT_CONFIG_GLOBAL` is `/dev/null`, and `PYTHONNOUSERSITE` is `1`.
+`HOME` stays, since the CLI finds the login through it, so bash still reads its
+startup files: measured on this Mac (2026-10-15) they leave the attempt's
+`PATH` bench's own and define no alias or function (ADR-158 Out of Scope).
+
 ## The corpus: `bench/tasks/<id>/`
 
 - `task.json`:
   - `id` — the directory's name;
-  - `shape` — `multi-site`, `structural`, `repeated-anchor`, `large-file`, `single-line`, or `fixture` (never measured);
+  - `shape` — `multi-site`, `structural`, `repeated-anchor`, `large-file`, `single-line`, `varied-multi-site`, or `fixture` (never measured). A `varied-multi-site` task changes three or more places in two or more files, and at least one text it removes also occurs, unchanged by the fix, in a file the fix touches, so one global substitution gets it wrong (ADR-158);
   - `repo` — a name in `bench/repos.json`, or `fixture`;
   - `commit` — the full sha the base tree is taken from;
   - `instruction` — what the agent is told; it names no tool;
   - `slack` — how many lines either side of the fix's own insertion point new lines may also go (default 0); it never licenses changing a line the fix leaves alone;
   - `exact` — each touched file must equal the reference result, so a call site commented out or kept in a block comment fails though its tokens survive (the renames);
-  - `check_red_at_base` — why the repository's own declared check fails at the pinned commit in the tree bench builds, so configuration B's automatic check is red whatever the agent does: a measured fact, carried by the seven quality-harness tasks (2026-10-14) and absent elsewhere;
+  - `check_red_at_base` — why the repository's own declared check fails at the pinned commit in the tree bench builds, so configuration B's automatic check is red whatever the agent does: a measured fact, carried by the quality-harness tasks (the seven of Stage 1, measured 2026-10-14, and the three ADR-158 added at the same commit) and absent elsewhere;
+  - `superseded_by` — the task that replaced this one after a run found its grading wrong. A superseded task keeps its instruction, oracle and fix, is not run unless `--task` names it, and is not counted in the shape counts (`site-html-cost-faq` and `am-go-sha-message`, ADR-158);
   - `require`, `forbid` — `{file, match}` regular expressions over the finished file.
 - `reference.patch` — the fix, as `git diff` writes it. Its changed lines, not its context lines, are the allowed regions.
 - `base/` — a fixture's whole base tree.
 
 `bench/repos.json` maps each repository to its public URL and the local path
-its clone is expected at (`~/` is the home directory).
+its clone is expected at (`~/` is the home directory). `drop_sections` lists
+markdown sections, by file and exact heading line, that bench removes from the
+tree in both configurations; a stage whose pinned commit lacks one, or has it
+other than exactly once, does not start. agentsmemory declares its `AGENTS.md`
+gate on the `am_*` tools and the section on their absence, which made 11 Stage 1
+attempts end in one turn (ADR-158).
 
 The oracle passes a tree when every `require` matches, no `forbid` does, an
 exact task's added lines are all there, nothing outside the allowed regions
@@ -125,7 +141,8 @@ bench analyze DIR
 bench swebench-select [--n 20] < instance-ids
 ```
 
-`bench analyze` prints one row per model and task source with the verdict of
+`bench analyze` prints one row per stage, model and task source, sorted by stage,
+so two stages are never pooled, with the verdict of
 the bar registered in `docs/adr/BACKLOG.md` ("Pre-registered for ADR-156"),
 the bootstrap intervals, the exclusions, the silent mis-edits of each
 configuration, and configuration B's counted shell reads and slipped writes —
@@ -139,3 +156,7 @@ Where a model's and source's attempts include tasks flagged `check_red_at_base`,
 a second row follows the verdict, computed without them and marked descriptive.
 It is not a verdict of the registered bar: the verdict is the first row, over
 every task (Zy, 2026-10-14).
+
+Where a group's attempts include `varied-multi-site` tasks, the verdict row is
+followed by one more descriptive row, computed over those tasks alone (ADR-158).
+`bench run` without `--task` runs every task that is not superseded.

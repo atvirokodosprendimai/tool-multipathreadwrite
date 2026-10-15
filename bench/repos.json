@@ -1,5 +1,9 @@
 {
-  "agentsmemory": {"url": "https://github.com/atvirokodosprendimai/agentsmemory", "path": "~/Downloads/agentsmemory-main"},
+  "agentsmemory": {"url": "https://github.com/atvirokodosprendimai/agentsmemory", "path": "~/Downloads/agentsmemory-main",
+    "drop_sections": [
+      {"file": "AGENTS.md", "heading": "## Gate — verify the `am_*` tools before you do anything else"},
+      {"file": "AGENTS.md", "heading": "## When the tools are absent"}
+    ]},
   "crossagentschat": {"url": "https://github.com/atvirokodosprendimai/crossagentschat", "path": "~/GolandProjects/crossagentschat"},
   "quality-harness": {"url": "https://github.com/D3-lt/quality-harness", "path": "~/CursorProjects/quality-harness"},
   "site": {"url": "https://github.com/atvirokodosprendimai/atvirokodosprendimai.github.io", "path": "~/WebstormProjects/atvirokodosprendimai.github.io"}

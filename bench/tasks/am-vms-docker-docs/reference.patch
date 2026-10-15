@@ -1,0 +1,32 @@
+diff --git a/.env.docker.example b/.env.docker.example
+index 6d27f0a..97bbdd0 100644
+--- a/.env.docker.example
++++ b/.env.docker.example
+@@ -249,4 +249,4 @@ RERANK_NORM=sigmoid
+ # TEI is also what already serves the cross-encoder, so choosing it removes a
+ # service rather than adding one.
+ # EMBED_BACKEND=tei
+-# EMBED_URL=http://localhost:8081
++# EMBED_URL=http://host.docker.internal:8081
+diff --git a/README.md b/README.md
+index 6ec129a..f3723ef 100644
+--- a/README.md
++++ b/README.md
+@@ -568,7 +568,7 @@ ollama pull bge-m3
+ 
+ # 1. the stack
+ cp .env.docker.example .env.docker      # point OLLAMA_URL at your Ollama
+-docker compose -f docker-compose.yml -f docker-compose.full.yml up -d
++docker compose -f docker-compose.yml -f docker-compose.full.yml up -d --wait
+ 
+ # 2. your agents — all four, or name one
+ aiagentmemory install --local --agent all
+@@ -609,7 +609,7 @@ When recall quality matters more than dependency count, a second overlay swaps
+ the in-process index for Qdrant and adds a cross-encoder in front of the results:
+ 
+ ```bash
+-docker compose -f docker-compose.yml -f docker-compose.full.yml up -d
++docker compose -f docker-compose.yml -f docker-compose.full.yml up -d --wait
+ 
+ # switching an existing install: replay the stored vectors into Qdrant once.
+ # Nothing is re-embedded — SQLite is the source of truth.

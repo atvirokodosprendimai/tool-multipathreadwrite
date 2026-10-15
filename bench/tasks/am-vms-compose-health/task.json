@@ -1,0 +1,11 @@
+{
+  "id": "am-vms-compose-health",
+  "shape": "varied-multi-site",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "On a slow network, the model services are marked unhealthy before their first-boot model download finishes. Double their healthcheck retries: the reranker service in docker-compose.full.yml goes from 60 to 120, and the ollama service in docker-compose.ollama.yml from 90 to 180. Separately, the reranker's health probe times out while a rerank is running on its capped CPUs: raise the reranker healthcheck's timeout from 5s to 10s. The ollama healthcheck keeps its 5s timeout, the qdrant healthcheck is unchanged, and every interval and start_period stays as it is. Change nothing else.",
+  "require": [
+    {"file": "docker-compose.full.yml", "match": "curl -fsS http://127\\.0\\.0\\.1:8080/health \\|\\| exit 1\"\\]\\n      interval: 10s\\n      timeout: (?:10s|\"10s\"|'10s')\\n(?:      #.*\\n)*      retries: 120\\n      start_period: 30s\\n"},
+    {"file": "docker-compose.ollama.yml", "match": "\\n      interval: 10s\\n      timeout: (?:5s|\"5s\"|'5s')\\n(?:      #.*\\n)*      retries: 180\\n      start_period: 20s\\n"}
+  ]
+}

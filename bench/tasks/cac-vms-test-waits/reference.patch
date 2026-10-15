@@ -1,0 +1,32 @@
+diff --git a/internal/httpapi/events_test.go b/internal/httpapi/events_test.go
+index ad733d9..4ea248c 100644
+--- a/internal/httpapi/events_test.go
++++ b/internal/httpapi/events_test.go
+@@ -175,12 +175,12 @@ func TestEventsClosesOnContextCancel(t *testing.T) {
+ 
+ 	// Once the handler returns it must have retired its subscription, so a
+ 	// publish reaches nobody. Bounded wait: cancellation is asynchronous.
+-	deadline := time.Now().Add(2 * time.Second)
++	deadline := time.Now().Add(5 * time.Second)
+ 	for time.Now().Before(deadline) {
+ 		if hub.Publish("c", "alice", "after cancel") == 0 {
+ 			return
+ 		}
+ 		time.Sleep(10 * time.Millisecond)
+ 	}
+-	t.Fatal("subscription still live 2s after the request was cancelled — the handler leaked it")
++	t.Fatal("subscription still live 5s after the request was cancelled — the handler leaked it")
+ }
+diff --git a/internal/relay/relay_test.go b/internal/relay/relay_test.go
+index e856c3b..dfe791a 100644
+--- a/internal/relay/relay_test.go
++++ b/internal/relay/relay_test.go
+@@ -20,7 +20,7 @@ func recv(t *testing.T, ch <-chan Message) Message {
+ 			t.Fatal("channel closed, want a message")
+ 		}
+ 		return m
+-	case <-time.After(2 * time.Second):
++	case <-time.After(5 * time.Second):
+ 		t.Fatal("timed out waiting for a message")
+ 	}
+ 	return Message{}

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,6 +27,10 @@ const (
 	ShapeLargeFile      = "large-file"
 	ShapeSingleLine     = "single-line"
 	ShapeFixture        = "fixture"
+	// ShapeVariedMultiSite is a change at three or more places in two or more
+	// files, one of whose old texts also occurs where it must stay, so a
+	// global substitution gets it wrong (ADR-158 Decision 4).
+	ShapeVariedMultiSite = "varied-multi-site"
 )
 
 // Match is one regular expression the oracle checks against one file of the
@@ -53,6 +58,10 @@ type Task struct {
 	// automatic check (ADR-054) is red there whatever the agent does: a
 	// measured fact, empty for every other task (ADR-156 T1 S6).
 	CheckRedAtBase string `json:"check_red_at_base,omitempty"`
+	// SupersededBy names the task that replaced this one after it was found
+	// graded wrongly; the task itself is never edited, since receipts name it
+	// (ADR-158 Decision 3).
+	SupersededBy string `json:"superseded_by,omitempty"`
 
 	Dir     string            `json:"-"`
 	regions map[string][]hunk // base-numbered hunks of the reference fix, by file
@@ -130,7 +139,35 @@ func LoadTasks(root string) ([]Task, error) {
 		ts = append(ts, t)
 	}
 	sort.Slice(ts, func(i, j int) bool { return ts[i].ID < ts[j].ID })
+	ids := map[string]bool{}
+	for _, t := range ts {
+		ids[t.ID] = true
+	}
+	for _, t := range ts {
+		if t.SupersededBy != "" && !ids[t.SupersededBy] {
+			return nil, fmt.Errorf("%s: superseded_by names %q, which is not a task", t.Dir, t.SupersededBy)
+		}
+	}
 	return ts, nil
+}
+
+// SelectTasks is the stage's corpus: the tasks named, or with none named every
+// measured task — never a fixture, and never a superseded task (ADR-158
+// Decision 3). Every task named must exist.
+func SelectTasks(all []Task, only []string) ([]Task, error) {
+	var out []Task
+	for _, t := range all {
+		if t.Shape == ShapeFixture {
+			continue
+		}
+		if len(only) == 0 && t.SupersededBy == "" || slices.Contains(only, t.ID) {
+			out = append(out, t)
+		}
+	}
+	if len(only) > 0 && len(out) != len(only) {
+		return nil, fmt.Errorf("--task names %d task(s), %d found", len(only), len(out))
+	}
+	return out, nil
 }
 
 // CoversBaseLine says whether replacing or deleting base line n of file is

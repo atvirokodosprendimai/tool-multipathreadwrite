@@ -1,0 +1,26 @@
+diff --git a/clients/claude-code/desktopbridge_download_test.go b/clients/claude-code/desktopbridge_download_test.go
+index a782efa..04a6e32 100644
+--- a/clients/claude-code/desktopbridge_download_test.go
++++ b/clients/claude-code/desktopbridge_download_test.go
+@@ -141,7 +141,7 @@ func TestClaudeDesktopInstallDownloadsTheBridgeWhenNoHostBinaryExists(t *testing
+ 		inst, _, dir := newTestInstallerFor(t, claudeDesktopKit, false)
+ 		inst.serverBin = ""
+ 		err := inst.run()
+-		if err == nil || !strings.Contains(err.Error(), "sha256 mismatch") {
++		if err == nil || !strings.Contains(err.Error(), "SHA-256 mismatch") {
+ 			t.Fatalf("a tampered bridge was accepted (err=%v)", err)
+ 		}
+ 		if _, statErr := os.Stat(filepath.Join(dir, "bin", installedServerBinFile())); statErr == nil {
+diff --git a/clients/claude-code/installer.go b/clients/claude-code/installer.go
+index 9f78300..88919e2 100644
+--- a/clients/claude-code/installer.go
++++ b/clients/claude-code/installer.go
+@@ -2513,7 +2513,7 @@ func verifyReleaseChecksum(ctx context.Context, tag, asset, path string) error {
+ 		return err
+ 	}
+ 	if got := hex.EncodeToString(h.Sum(nil)); got != want {
+-		return fmt.Errorf("sha256 mismatch for %s: release lists %s, download is %s — the file is not the one the release published", asset, want[:12], got[:12])
++		return fmt.Errorf("SHA-256 mismatch for %s: release lists %s, download is %s — the file is not the one the release published", asset, want[:12], got[:12])
+ 	}
+ 	return nil
+ }

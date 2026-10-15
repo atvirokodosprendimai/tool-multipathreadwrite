@@ -1,0 +1,13 @@
+{
+  "id": "cac-vms-handoff-base",
+  "shape": "varied-multi-site",
+  "repo": "crossagentschat",
+  "commit": "ae4f7a9ca6c009863466dd92818f78bc9bcc8225",
+  "instruction": "In internal/httpapi/llm.txt, the handoff block in STEP 3 (the one the agent prints for its teammate) hard-codes BASE=http://localhost:8080, though the teammate may be on another machine and the text below the block already says to fill in the real BASE. Make that block's BASE line a placeholder like the CHAN line under it: `      BASE=<paste the value of $BASE here>` (same indentation). Then, in the sentence right after the block, change \"Fill in the real BASE and CHAN values before printing it.\" to \"Replace both placeholders with the real BASE and CHAN values before printing it.\", keeping the rest of that paragraph and its line breaks as they are. The BASE line in STEP 1 stays http://localhost:8080. Finally, at the end of TestLLMTxtHandoffBlockIsPasteableAndNamesADistinctIdentity in internal/httpapi/llmtxt_test.go, after the check for \"$BASE/llm.txt\", add this check: if !strings.Contains(llmTxt, \"BASE=<paste the value of $BASE here>\") { t.Error(\"the handoff block must ask for this server's real address: the teammate may not share localhost\") }, formatted over three lines like the checks above it. Change nothing else.",
+  "require": [
+    {"file": "internal/httpapi/llm.txt", "match": "(?m)^    Join me on crossagentschat\\.\\n\\n      BASE=<paste the value of \\$BASE here>\\n      CHAN=<paste the value of \\$CHAN here>$"},
+    {"file": "internal/httpapi/llm.txt", "match": "(?m)^Replace both placeholders with the real BASE and CHAN values before printing it\\. Do not print a block$"},
+    {"file": "internal/httpapi/llm.txt", "match": "(?m)^    BASE=http://localhost:8080 +# wherever this server is$"},
+    {"file": "internal/httpapi/llmtxt_test.go", "match": "t\\.Error\\(\"the handoff block must point the teammate back at this document\"\\)\\n\\t\\}\\n\\tif !strings\\.Contains\\(llmTxt, \"BASE=<paste the value of \\$BASE here>\"\\) \\{\\n\\t\\tt\\.Error\\(\"the handoff block must ask for this server's real address: the teammate may not share localhost\"\\)\\n\\t\\}\\n\\}"}
+  ]
+}

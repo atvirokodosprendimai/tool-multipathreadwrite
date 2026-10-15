@@ -1,0 +1,39 @@
+diff --git a/plugin/scripts/artifact-pass.mjs b/plugin/scripts/artifact-pass.mjs
+index 96d6058..975dfc2 100644
+--- a/plugin/scripts/artifact-pass.mjs
++++ b/plugin/scripts/artifact-pass.mjs
+@@ -44,7 +44,7 @@ function deletedTrackedPaths(cwd) {
+   const root = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+   if (root.status !== 0) return null
+   const deleted = spawnSync('git', ['-C', cwd, '-c', 'core.quotePath=false', 'diff', '--no-renames', '--name-only', '--diff-filter=D', 'HEAD'],
+-    { encoding: 'utf8', timeout: 10_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
++    { encoding: 'utf8', timeout: 30_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
+   if (deleted.status !== 0) return null
+   const top = root.stdout.trim()
+   return deleted.stdout.split('\n')
+diff --git a/plugin/scripts/decision-corpus.mjs b/plugin/scripts/decision-corpus.mjs
+index ede6f41..7107431 100644
+--- a/plugin/scripts/decision-corpus.mjs
++++ b/plugin/scripts/decision-corpus.mjs
+@@ -1400,7 +1400,7 @@ export function trackedPaths(root) {
+   // tracked_paths already used `-z`; this copy did not.
+   for (const args of [['ls-files', '-z'], ['ls-files', '--others', '--exclude-standard', '-z']]) {
+     const run = spawnSync('git', ['-C', root, '-c', 'core.quotePath=false', ...args],
+-      { encoding: 'utf8', timeout: 30000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
++      { encoding: 'utf8', timeout: 30_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
+     if (run.error || run.status !== 0 || typeof run.stdout !== 'string') return null
+     for (const value of run.stdout.split('\0')) {
+       if (value) found.add(value)
+diff --git a/plugin/scripts/tree-facts.mjs b/plugin/scripts/tree-facts.mjs
+index 040a947..eb1e2cc 100644
+--- a/plugin/scripts/tree-facts.mjs
++++ b/plugin/scripts/tree-facts.mjs
+@@ -280,7 +280,7 @@ export function statusPaths(root) {
+   // `-z` quotes nothing: NUL-terminated, and a rename's ORIGINAL path follows as
+   // its own field, which is skipped — the new name is the path that exists.
+   const run = spawnSync('git', ['-C', root, 'status', '--porcelain', '-z', '-uall', ...harnessPathspecs(root)],
+-    { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
++    { encoding: 'utf8', timeout: 30_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
+   if (run.error || run.status !== 0) {
+     return mark([], false, run.error ? run.error.message : `git status exited ${run.status}`)
+   }

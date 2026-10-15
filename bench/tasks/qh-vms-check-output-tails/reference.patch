@@ -1,0 +1,35 @@
+diff --git a/plugin/scripts/post-edit-check.sh b/plugin/scripts/post-edit-check.sh
+index 4c1c384..e256458 100644
+--- a/plugin/scripts/post-edit-check.sh
++++ b/plugin/scripts/post-edit-check.sh
+@@ -107,7 +107,7 @@ PARSE_OUT
+     fi
+     ;;
+   *.sh|*.bash)
+-    bash -n "$file_path" 2>&1 | tail -30 || true
++    bash -n "$file_path" 2>&1 | tail -50 || true
+     ;;
+   *.json)
+     command -v jq >/dev/null 2>&1 || exit 0
+@@ -126,7 +126,7 @@ PARSE_OUT
+       debounce "py:$file_path" || exit 0
+       command -v python3 >/dev/null 2>&1 || exit 0
+       python3 -B -c 'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(), filename=sys.argv[1])' \
+-        "$file_path" 2>&1 | tail -30 || true
++        "$file_path" 2>&1 | tail -40 || true
+     fi
+     ;;
+   *.php)
+diff --git a/tests/mutations/plugin/scripts/post-edit-check.sh.json b/tests/mutations/plugin/scripts/post-edit-check.sh.json
+index ffa19ac..73b170f 100644
+--- a/tests/mutations/plugin/scripts/post-edit-check.sh.json
++++ b/tests/mutations/plugin/scripts/post-edit-check.sh.json
+@@ -16,7 +16,7 @@
+       "tests": [
+         "tests/post-edit-check.test.mjs"
+       ],
+-      "from": "    bash -n \"$file_path\" 2>&1 | tail -30 || true",
++      "from": "    bash -n \"$file_path\" 2>&1 | tail -50 || true",
+       "to": "    true",
+       "only": "^(?:the hook only acts on the tools it is for, and on files that exist)$"
+     },

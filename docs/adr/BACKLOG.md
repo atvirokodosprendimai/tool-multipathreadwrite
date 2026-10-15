@@ -2714,3 +2714,14 @@ Zy, 2026-10-14: both Sonnet 5.5 and Opus 5.5; our own oracle-graded tasks and a 
 - **Power, said first.** Thirty paired tasks cannot show a small difference in solved rate. The bar asks for non-inferiority within 5 points, not equality, and INCONCLUSIVE is a result.
 - **Publication.** PAYS, LOSES and INCONCLUSIVE are published alike, in `docs/bench/RESULTS.md` and one README sentence each.
 - **Not measured now, recorded so it is not forgotten:** other hosts (Codex, Cursor, Claude Desktop); mrw over MCP rather than the CLI; an API-key run with `--bare`, which returns only on Zy's word if the subscription canary fails.
+
+## Pre-registered for ADR-158 (Stage 1b) — written before any Stage 1b run
+
+Zy, 2026-10-15, after Stage 1 came out INCONCLUSIVE: fix what Stage 1 showed was the harness's or the corpus's, add tasks a global substitution gets wrong, and run Stage 1b. Registered in ADR-158's first commit, before any of its tasks or runs exist:
+
+- **The bar is ADR-156's**, unchanged: unit and pairing, outcomes, cost, the PAYS / LOSES / INCONCLUSIVE rule with LOSES winning an overlap, admission and exclusions, the budget, B's counted shell reads and slipped writes, the silent mis-edit headline.
+- **Sample.** A pilot of 5 tasks × 2 × 1 — three `varied-multi-site`, at least one agentsmemory — stage `pilot`, not counted; then every measured task not superseded — Stage 1's 28 kept tasks, `site-html-cost-faq-2`, `am-go-sha-message-2` and ten `varied-multi-site` tasks, 40 in all — × 2 configurations × 2 repeats on Sonnet 5.5, stage `stage1b`, every attempt on this Mac, Stage 1's host.
+- **After the pilot**, a task is superseded only for an oracle defect shown on its base or its reference fix, never for what an attempt did; a superseded task is replaced one for one, so the stage stays at 40.
+- **Never pooled.** Stage 1b's verdict is its own; it is not combined with Stage 1's, whose verdict stands as computed.
+- **Descriptive rows, registered now:** the `check_red_at_base` row, as in Stage 1; and one more over the ten `varied-multi-site` tasks alone, those red at base included, printed beside the verdict in parentheses and never in its place.
+- **What changed from Stage 1, all in both configurations:** the attempt's shell is bash, so no zsh startup file is read; the CLI's task directory, git's global configuration and Python's user site are not the user's; and agentsmemory's "## Gate" and "## When the tools are absent" sections are dropped from its `AGENTS.md`.

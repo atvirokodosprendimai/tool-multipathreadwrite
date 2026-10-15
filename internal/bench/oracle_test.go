@@ -137,11 +137,12 @@ func strayLine(t *testing.T, task Task, tree string) (string, int) {
 	return "", 0
 }
 
-// TestTheCorpusHasTheRegisteredShapeCounts holds the corpus to Decision 3:
-// 8 multi-site, 6 structural, 6 repeated-anchor, 4 large-file and 6
-// single-line tasks, at least one CI-runnable fixture, instructions that name
-// no tool, and no reference fix that touches an instruction file the runner
-// strips.
+// TestTheCorpusHasTheRegisteredShapeCounts holds the corpus to ADR-156's
+// Decision 3 and ADR-158's Decision 3: among the tasks not superseded, 8
+// multi-site, 6 structural, 6 repeated-anchor, 4 large-file, 6 single-line and
+// 10 varied-multi-site tasks, at least one CI-runnable fixture; and for every
+// task, superseded or not, instructions that name no tool and no reference fix
+// that touches an instruction file the runner strips.
 func TestTheCorpusHasTheRegisteredShapeCounts(t *testing.T) {
 	tasks, err := LoadTasks(tasksDir(t))
 	if err != nil {
@@ -149,7 +150,9 @@ func TestTheCorpusHasTheRegisteredShapeCounts(t *testing.T) {
 	}
 	got := map[string]int{}
 	for _, task := range tasks {
-		got[task.Shape]++
+		if task.SupersededBy == "" {
+			got[task.Shape]++
+		}
 		low := strings.ToLower(task.Instruction)
 		for _, tool := range []string{"mrw", "sed ", "the edit tool", "the read tool", "awk", "perl"} {
 			if strings.Contains(low, tool) {
@@ -162,7 +165,7 @@ func TestTheCorpusHasTheRegisteredShapeCounts(t *testing.T) {
 			}
 		}
 	}
-	want := map[string]int{ShapeMultiSite: 8, ShapeStructural: 6, ShapeRepeatedAnchor: 6, ShapeLargeFile: 4, ShapeSingleLine: 6}
+	want := map[string]int{ShapeMultiSite: 8, ShapeStructural: 6, ShapeRepeatedAnchor: 6, ShapeLargeFile: 4, ShapeSingleLine: 6, ShapeVariedMultiSite: 10}
 	for shape, n := range want {
 		if got[shape] != n {
 			t.Errorf("shape %s: %d tasks, want %d", shape, got[shape], n)
@@ -351,5 +354,243 @@ func TestTheOracleRefusesWhatTheReviewFound(t *testing.T) {
 		if v.Solved || (c.want == "outside" && len(v.Outside) == 0) || (c.want == "missing" && len(v.Missing) == 0) {
 			t.Errorf("%s: %+v, want it %s", c.name, v, c.want)
 		}
+	}
+}
+
+// TestADeclaredSectionIsDroppedAndAMissingOneRefuses: a section a repository
+// declares (ADR-158 Decision 2) goes from its heading to the next heading of
+// the same or a higher level, a "#" line inside a code fence not being a
+// heading; a declared file absent from the tree is skipped, since the oracle
+// test materializes only the graded files; a heading found zero or two times
+// is an error naming the file and the heading, never a silent no-op.
+func TestADeclaredSectionIsDroppedAndAMissingOneRefuses(t *testing.T) {
+	root := t.TempDir()
+	// The ```` block holds a ``` example and a heading: neither closes the
+	// fence, nor ends the section (the review of #417).
+	in := "# Protocol\n\nintro\n\n## Gate\n\nstop here\n#not-a-heading, no space after the marks\n\n```sh\n# a comment, not a heading\n## nor this\n```\n\n````md\n```sh\n## an example heading\n```\n````\n\n### Inside the gate\n\nstill gate\n\n## Kept\n\nkept text\n\n## Absent\n\nask six times\n\n# Next top\n\ntail\n"
+	want := "# Protocol\n\nintro\n\n## Kept\n\nkept text\n\n# Next top\n\ntail\n"
+	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(in), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	drops := []Section{{File: "AGENTS.md", Heading: "## Gate"}, {File: "AGENTS.md", Heading: "## Absent"}, {File: "CLAUDE.md", Heading: "## Gate"}}
+	if err := dropSections(root, drops); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != want {
+		t.Errorf("after the drop:\n%s\nwant:\n%s", b, want)
+	}
+	for _, c := range []struct{ name, text string }{
+		{"missing", "# Protocol\n\n## Kept\n"},
+		{"twice", "# Protocol\n\n## Gate\n\na\n\n## Gate\n\nb\n"},
+	} {
+		if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(c.text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		err := dropSections(root, drops[:1])
+		if err == nil || !strings.Contains(err.Error(), "AGENTS.md") || !strings.Contains(err.Error(), "## Gate") {
+			t.Errorf("%s: a heading not found exactly once was not refused by name: %v", c.name, err)
+		}
+	}
+}
+
+// TestAgentsmemorysTreeLosesBothDeclaredSections: through Materialize, at the
+// commit every agentsmemory task pins, AGENTS.md loses the "Gate" section and
+// the "When the tools are absent" section it sends a session to, and keeps the
+// rest in order (ADR-158 Decision 2). In Stage 1, 11 attempts obeyed them and
+// stopped after one turn, because the bench withholds the tools they ask for.
+func TestAgentsmemorysTreeLosesBothDeclaredSections(t *testing.T) {
+	needGit(t)
+	tasks, err := LoadTasks(tasksDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var task Task
+	for _, tk := range tasks {
+		if tk.Repo == "agentsmemory" {
+			task = tk
+			break
+		}
+	}
+	if task.ID == "" {
+		t.Fatal("no agentsmemory task in the corpus")
+	}
+	src, err := repoPath(task)
+	if err != nil {
+		if errors.Is(err, errUnreachable) {
+			t.Skipf("task %s: %v", task.ID, err)
+		}
+		t.Fatal(err)
+	}
+	orig, err := exec.Command("git", "-C", src, "show", task.Commit+":AGENTS.md").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree := t.TempDir()
+	if _, err := Materialize(task, tree, nil); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(tree, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(b)
+	for _, gone := range []string{"\n## Gate — verify the `am_*` tools before you do anything else\n", "\n## When the tools are absent\n", "ask six times"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("AGENTS.md still holds %q", strings.TrimSpace(gone))
+		}
+	}
+	for _, kept := range []string{"\n## The working loop — what a session does WITHOUT being told\n", "\n## Reachability — the defect this repo keeps shipping\n"} {
+		if !strings.Contains(got, kept) {
+			t.Errorf("AGENTS.md lost %q, which no declaration names", strings.TrimSpace(kept))
+		}
+	}
+	// What is left is the original's lines in their order: nothing added.
+	rest := strings.Split(string(orig), "\n")
+	i := 0
+	for _, line := range strings.Split(got, "\n") {
+		for i < len(rest) && rest[i] != line {
+			i++
+		}
+		if i == len(rest) {
+			t.Fatalf("AGENTS.md holds a line the original does not, or out of order: %q", line)
+		}
+		i++
+	}
+}
+
+// TestEveryVariedMultiSiteTaskHasARepeatedAnchorAcrossTwoFiles holds every
+// varied-multi-site task to its definition (ADR-158 Decision 4): its reference
+// fix changes at least three places in at least two files, and at least one
+// line it removes has text that also occurs, left unchanged by the fix, in a
+// file the fix touches, so substituting that text everywhere is a mis-edit.
+func TestEveryVariedMultiSiteTaskHasARepeatedAnchorAcrossTwoFiles(t *testing.T) {
+	needGit(t)
+	tasks, err := LoadTasks(tasksDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, task := range tasks {
+		if task.Shape != ShapeVariedMultiSite {
+			continue
+		}
+		n++
+		t.Run(task.ID, func(t *testing.T) {
+			hunks := 0
+			for _, hs := range task.regions {
+				hunks += len(hs)
+			}
+			if len(task.regions) < 2 || hunks < 3 {
+				t.Fatalf("%d hunk(s) in %d file(s), want at least 3 in at least 2", hunks, len(task.regions))
+			}
+			src, err := repoPath(task)
+			if err != nil {
+				if errors.Is(err, errUnreachable) {
+					t.Skipf("task %s: %v", task.ID, err)
+				}
+				t.Fatal(err)
+			}
+			patch, err := os.ReadFile(filepath.Join(task.Dir, "reference.patch"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			removed := map[string]int{}
+			for _, line := range strings.Split(string(patch), "\n") {
+				if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+					if s := strings.TrimSpace(line[1:]); s != "" {
+						removed[s]++
+					}
+				}
+			}
+			for text, times := range removed {
+				seen := 0
+				for file := range task.regions {
+					b, err := exec.Command("git", "-C", src, "show", task.Commit+":"+file).Output()
+					if err != nil {
+						continue
+					}
+					for _, l := range strings.Split(string(b), "\n") {
+						if strings.Contains(l, text) {
+							seen++
+						}
+					}
+				}
+				if seen > times {
+					return
+				}
+			}
+			t.Errorf("no removed line's text occurs elsewhere, unchanged, in the files the fix touches: one substitution everywhere makes this change")
+		})
+	}
+	if n == 0 {
+		t.Fatal("no varied-multi-site task in the corpus")
+	}
+}
+
+// TestTheVariedOraclesGradeWhatTheReviewOf417Found: on the reference fix of
+// two ADR-158 tasks, edits the first oracles graded wrongly (Codex, the
+// review of #417). A reranker timeout moved out of its healthcheck is valid
+// to the structure check and must fail; a quoted duration means the same and
+// must pass; a 3.13 line inserted above the 3.12 it was to replace leaves
+// 3.12 in force and must fail; and a 3.13 is bare or quoted on both sides,
+// never on one (the re-review).
+func TestTheVariedOraclesGradeWhatTheReviewOf417Found(t *testing.T) {
+	needGit(t)
+	tasks, err := LoadTasks(tasksDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]Task{}
+	for _, task := range tasks {
+		byID[task.ID] = task
+	}
+	for _, c := range []struct {
+		name, task, file, from, to string
+		solved                     bool
+	}{
+		{"the reranker timeout indented out of its healthcheck", "am-vms-compose-health", "docker-compose.full.yml", "\n      timeout: 10s\n", "\n    timeout: 10s\n", false},
+		{"the reranker timeout quoted", "am-vms-compose-health", "docker-compose.full.yml", "\n      timeout: 10s\n", "\n      timeout: \"10s\"\n", true},
+		{"3.13 inserted above the 3.12 it replaces", "qh-vms-python-313", ".github/workflows/selftest.yml", "          python-version: '3.13'\n", "          python-version: '3.13'\n          python-version: '3.12'\n", false},
+		{"3.13 with a closing quote and no opening one", "qh-vms-python-313", ".github/workflows/selftest.yml", "          python-version: '3.13'\n", "          python-version: 3.13'\n", false},
+		{"3.13 bare", "qh-vms-python-313", ".github/workflows/selftest.yml", "          python-version: '3.13'\n", "          python-version: 3.13\n", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			task, ok := byID[c.task]
+			if !ok {
+				t.Fatalf("no task %s", c.task)
+			}
+			tree := t.TempDir()
+			if _, err := Materialize(task, tree, task.GradedFiles()); err != nil {
+				if errors.Is(err, errUnreachable) {
+					t.Skipf("task %s: %v", task.ID, err)
+				}
+				t.Fatal(err)
+			}
+			if err := ApplyPatch(tree, filepath.Join(task.Dir, "reference.patch")); err != nil {
+				t.Fatal(err)
+			}
+			p := filepath.Join(tree, c.file)
+			b, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(b), c.from) {
+				t.Fatalf("%s does not hold %q after the reference fix", c.file, c.from)
+			}
+			if err := os.WriteFile(p, []byte(strings.Replace(string(b), c.from, c.to, 1)), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			v, err := Oracle(task, tree)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v.Solved != c.solved {
+				t.Errorf("solved %v, want %v: %+v", v.Solved, c.solved, v)
+			}
+		})
 	}
 }
