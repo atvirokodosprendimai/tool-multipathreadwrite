@@ -60,9 +60,9 @@ eight that hold (candidates 1, 3, 4, 8, 13, 15, 22, 23) are the sample; the next
 calibration candidates, in [calibration/check-coupled/](calibration/check-coupled/).
 
 After T3's pilot the category is graded by its tests (Zy, "Grade by the tests"): each task names its package as
-`test_package`, is not `exact`, and holds `require` and `forbid` on the source file only. The `forbid` is written only
-where the reference source no longer quotes the old literal: in `doctor.go` and `querypolicy.go` a comment quotes the
-value, so those two tasks rest on the `require` and the package's tests.
+`test_package` and the tests that assert the literal as `asserting_tests`, is not `exact`, and holds `require` and
+`forbid` on the source file. Both match the file's code with its comments blanked, so the comments in `doctor.go` and
+`querypolicy.go` that quote the old value do not count, and a comment quoting the new one is not the change.
 
 ## `swe-multi-hunk`
 

@@ -794,4 +794,31 @@ func TestACheckCoupledTaskIsGradedByItsPackageTests(t *testing.T) {
 	if v := grade("another test broken, under GOFLAGS=-run=^TestStatus$", broken); v.Solved {
 		t.Errorf("a host GOFLAGS that skips a broken test lets it through: %+v", v)
 	}
+	// The go env file reaches it too, and an empty GOFLAGS falls back to it;
+	// its module settings must survive (the re-review of #434).
+	t.Setenv("GOFLAGS", "")
+	envFile := filepath.Join(t.TempDir(), "go.env")
+	if err := os.WriteFile(envFile, []byte("GOFLAGS=-mod=mod -run=^TestStatus$\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOENV", envFile)
+	if v := grade("another test broken, under a go env file's -run", broken); v.Solved {
+		t.Errorf("a go env file that skips a broken test lets it through: %+v", v)
+	}
+	last := func(env []string, key string) string {
+		val := ""
+		for _, kv := range env {
+			if k, v, ok := strings.Cut(kv, "="); ok && k == key {
+				val = v
+			}
+		}
+		return val
+	}
+	env := gradingEnv(repo)
+	if got := last(env, "GOFLAGS"); got != "-modcacherw -mod=mod" {
+		t.Errorf("the grading GOFLAGS is %q, want the module flag kept and -run dropped", got)
+	}
+	if got := last(env, "GOENV"); got != envFile {
+		t.Errorf("the grading GOENV is %q, want the host's go env file kept for its module settings", got)
+	}
 }

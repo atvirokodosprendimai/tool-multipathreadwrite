@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -129,8 +130,8 @@ const testBudget = 10 * time.Minute
 // passes and every asserting test ran and passed, or what the oracle reports
 // missing: the package and a test that did not, or the last line the run
 // printed. Deleting or skipping the test that asserts the literal is not a
-// fix (the review of #434). The run's Go settings are the oracle's, never the
-// host's: GOFLAGS=-run=^$ would run no test. A signal to bench stops it and
+// fix (the review of #434). The run's test flags are the oracle's, never the
+// host's (gradingEnv): GOFLAGS=-run=^$ would run no test. A signal to bench stops it and
 // grading reports errGradingInterrupted, as the SWE-bench harness's does
 // (#425); the signal context is the deadline's parent, so the two are told
 // apart.
@@ -142,7 +143,7 @@ func packageTests(dir, pkg string, asserting []string) (string, error) {
 	sink := &testSink{passed: map[string]bool{}}
 	cmd := subproc.Command(ctx, "go", "test", "-json", "-count=1", "./"+pkg)
 	cmd.Dir, cmd.Stdout, cmd.Stderr = dir, sink, sink
-	cmd.Env = append(os.Environ(), "GOFLAGS=", "GOENV=off", "GOWORK=off")
+	cmd.Env = gradingEnv(dir)
 	err := subproc.Run(cmd)
 	switch {
 	case sigCtx.Err() != nil:
@@ -164,6 +165,26 @@ func packageTests(dir, pkg string, asserting []string) (string, error) {
 		}
 	}
 	return "", nil
+}
+
+// gradingEnv is the host's environment for grading at dir, with what would
+// change which tests run taken out: GOWORK off, and GOFLAGS cut to the module
+// flags of its effective value, from the environment or the go env file. The
+// go env file stays, for its proxy and private-module settings, so GOFLAGS is
+// never left empty — an empty value falls back to that file — and starts with
+// -modcacherw, which changes nothing graded (the re-review of #434).
+func gradingEnv(dir string) []string {
+	keep := []string{"-modcacherw"}
+	cmd := exec.Command("go", "env", "GOFLAGS")
+	cmd.Dir = dir
+	if out, err := cmd.Output(); err == nil {
+		for _, f := range strings.Fields(string(out)) {
+			if (strings.HasPrefix(f, "-mod=") || strings.HasPrefix(f, "-modfile=")) && !slices.Contains(keep, f) {
+				keep = append(keep, f)
+			}
+		}
+	}
+	return append(os.Environ(), "GOWORK=off", "GOFLAGS="+strings.Join(keep, " "))
 }
 
 // maxTestLine bounds what the oracle keeps of one line go test prints.
