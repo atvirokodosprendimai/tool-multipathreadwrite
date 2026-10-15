@@ -840,4 +840,12 @@ func TestACheckCoupledTaskIsGradedByItsPackageTests(t *testing.T) {
 	if _, err := gradingEnv(context.Background(), repo); err == nil {
 		t.Error("an unterminated quote in GOFLAGS is not a grading error")
 	}
+	t.Setenv("GOFLAGS", `'-mod=mod -run=^TestStatus$' -mod=readonly`)
+	env, err = gradingEnv(context.Background(), repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := last(env, "GOFLAGS"); got != "-modcacherw -mod=readonly" {
+		t.Errorf("the grading GOFLAGS is %q: a quoted field holding -run came apart (the fourth review of #434)", got)
+	}
 }

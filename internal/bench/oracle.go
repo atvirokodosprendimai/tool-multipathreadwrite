@@ -200,7 +200,10 @@ func gradingEnv(ctx context.Context, dir string) ([]string, error) {
 		if strings.HasPrefix(f, "--") {
 			f = f[1:]
 		}
-		if strings.HasPrefix(f, "-mod=") {
+		// Only go's three module modes: a quoted field such as
+		// '-mod=mod -run=x' would come apart again when joined (the fourth
+		// review of #434).
+		if f == "-mod=mod" || f == "-mod=readonly" || f == "-mod=vendor" {
 			keep = append(keep, f)
 		}
 	}
