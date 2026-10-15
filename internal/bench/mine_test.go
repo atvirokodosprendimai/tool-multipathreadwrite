@@ -3,6 +3,8 @@ package bench
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"slices"
@@ -70,6 +72,21 @@ func TestAWideRenameCandidateIsDeclaredOnceAndNeverInAString(t *testing.T) {
 	if !slices.IsSortedFunc(got, func(x, y RenameCandidate) int { return strings.Compare(salted(x.Name), salted(y.Name)) }) {
 		t.Errorf("candidates are not in sha256(\"adr-160:\" + name) order: %v", names)
 	}
+	// Declarations as go/types records them (the review of #426): an embedded
+	// field declares its type's name again, each generic method's receiver
+	// declares its type parameter again, and a := that redeclares a name in its
+	// own scope declares nothing.
+	f, err := parser.ParseFile(token.NewFileSet(), "d.go", "package d\n\ntype Inner struct{}\n\ntype Outer struct {\n\tInner\n\t*Other\n}\n\ntype Box[Elem any] struct{ v Elem }\n\nfunc (b Box[Elem]) Get() Elem { return b.v }\n\nfunc (b *Box[Elem]) Set(v Elem) { b.v = v }\n\nfunc r(p int) int {\n\tRedecl := 1\n\tRedecl, other := 2, 3\n\tp, fresh := 4, 5\n\tif true {\n\t\tRedecl := 6\n\t\t_ = Redecl\n\t}\n\treturn Redecl + other + p + fresh\n}\n", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decls := map[string]int{}
+	countDecls(f, decls)
+	for name, want := range map[string]int{"Inner": 2, "Other": 1, "Elem": 3, "Redecl": 2, "other": 1, "p": 1, "fresh": 1, "b": 2, "v": 2} {
+		if decls[name] != want {
+			t.Errorf("%s declared %d times, want %d", name, decls[name], want)
+		}
+	}
 }
 
 // TestACheckCoupledCandidateIsALiteralSubstitutionWithItsTest holds ADR-160's
@@ -103,18 +120,44 @@ func TestACheckCoupledCandidateIsALiteralSubstitutionWithItsTest(t *testing.T) {
 		return "package p\n\nimport \"testing\"\n\nfunc TestMsg(t *testing.T) {\n\tif Msg() != \"" + msg + "\" {\n\t\tt.Fatal(\"x\")\n\t}\n}\n"
 	}
 	commit("base", map[string]string{"p/p.go": src("old text"), "p/p_test.go": test("old text"), "q/q.go": src("left"), "r/r.go": src("other"), "s/s_test.go": "package s\n\nconst want = \"other\"\n",
-		"f/1.go": src("five"), "f/2.go": src("five"), "f/3.go": src("five"), "f/4.go": src("five"), "f/4_test.go": test("five")})
+		"f/1.go": src("five"), "f/2.go": src("five"), "f/3.go": src("five"), "f/4.go": src("five"), "f/4_test.go": test("five"),
+		"c/c.go": "package c\n\n// want \"old\"\nfunc F() {}\n", "c/c_test.go": "package c\n\n// want \"old\"\nfunc G() {}\n",
+		"k/k.go": "package k\n\nconst Old, New = \"a\", \"b\"\n\nfunc Msg() string { return \"x\" + Old + \"y\" }\n", "k/k_test.go": "package k\n\nfunc want() string { return \"x\" + Old + \"y\" }\n",
+		"m/m.go": src("m1"), "m/m_test.go": test("m0"),
+		"e/e.go": src(""), "e/e_test.go": test(""),
+		"sp/source code.go": src("before"), "sp/source code_test.go": test("before"),
+		"x/x.go": src(`say \"hi\"`), "x/x_test.go": test(`say \"hi\"`)})
 	good := commit("rename the message", map[string]string{"p/p.go": src("new text"), "p/p_test.go": test("new text")})
 	commit("message and code", map[string]string{"p/p.go": src("newer text") + "\nfunc Extra() {}\n", "p/p_test.go": test("newer text")})
 	commit("no test", map[string]string{"q/q.go": src("right")})
 	commit("test elsewhere", map[string]string{"r/r.go": src("another"), "s/s_test.go": "package s\n\nconst want = \"another\"\n"})
 	commit("five files", map[string]string{"f/1.go": src("six"), "f/2.go": src("six"), "f/3.go": src("six"), "f/4.go": src("six"), "f/4_test.go": test("six")})
+	commit("a comment, not a literal", map[string]string{"c/c.go": "package c\n\n// want \"new\"\nfunc F() {}\n", "c/c_test.go": "package c\n\n// want \"new\"\nfunc G() {}\n"})
+	commit("an identifier between literals", map[string]string{"k/k.go": "package k\n\nconst Old, New = \"a\", \"b\"\n\nfunc Msg() string { return \"x\" + New + \"y\" }\n", "k/k_test.go": "package k\n\nfunc want() string { return \"x\" + New + \"y\" }\n"})
+	if err := os.Chmod(filepath.Join(repo, "m/m_test.go"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	commit("a test whose mode alone changed", map[string]string{"m/m.go": src("m2")})
+	empty := commit("an empty literal", map[string]string{"e/e.go": src("message"), "e/e_test.go": test("message")})
+	spaced := commit("a path with a space", map[string]string{"sp/source code.go": src("after"), "sp/source code_test.go": test("after")})
+	escaped := commit("escaped quotes", map[string]string{"x/x.go": src(`say \"bye\"`), "x/x_test.go": test(`say \"bye\"`)})
 	got, err := MineCheckCoupled(repo, "HEAD", 4)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Commit != good || got[0].Old != "old text" || got[0].New != "new text" ||
-		!slices.Equal(got[0].Files, []string{"p/p.go", "p/p_test.go"}) {
-		t.Fatalf("candidates %+v, want only %s replacing \"old text\" with \"new text\" in p/p.go and p/p_test.go", got, good)
+	want := map[string]CoupledCandidate{
+		good:    {Old: "old text", New: "new text", Files: []string{"p/p.go", "p/p_test.go"}},
+		empty:   {Old: "", New: "message", Files: []string{"e/e.go", "e/e_test.go"}},
+		spaced:  {Old: "before", New: "after", Files: []string{"sp/source code.go", "sp/source code_test.go"}},
+		escaped: {Old: `say "hi"`, New: `say "bye"`, Files: []string{"x/x.go", "x/x_test.go"}},
+	}
+	if len(got) != len(want) {
+		t.Errorf("%d candidates, want %d: %+v", len(got), len(want), got)
+	}
+	for _, c := range got {
+		w, ok := want[c.Commit]
+		if !ok || c.Old != w.Old || c.New != w.New || !slices.Equal(c.Files, w.Files) {
+			t.Errorf("candidate %+v, want %+v (listed: %v)", c, w, ok)
+		}
 	}
 }

@@ -53,7 +53,7 @@ type MultiHunk struct {
 }
 
 var patchHunk = regexp.MustCompile(`(?m)^@@ -`)
-var patchedFile = regexp.MustCompile(`(?m)^diff --git a/(\S+) b/`)
+var patchedFile = regexp.MustCompile(`(?m)^diff --git .*$`)
 
 // SelectMultiHunk draws ADR-160's slice from the dataset file: the instances
 // whose gold patch has at least minHunks hunk headers, less exclude, ordered by
@@ -81,9 +81,13 @@ func SelectMultiHunk(dataset, salt string, minHunks int, exclude []string, n int
 		}
 		ids = append(ids, r.ID)
 		named := false
-		for _, m := range patchedFile.FindAllStringSubmatch(r.Patch, -1) {
-			base := filepath.Base(m[1])
-			if strings.Contains(r.Problem, m[1]) || base != "__init__.py" && strings.Contains(r.Problem, base) {
+		for _, header := range patchedFile.FindAllString(r.Patch, -1) {
+			path, same := diffPath(header)
+			if !same { // a rename: judge it by its old path
+				path, _, _ = strings.Cut(strings.TrimPrefix(header, "diff --git a/"), " b/")
+			}
+			base := filepath.Base(path)
+			if strings.Contains(r.Problem, path) || base != "__init__.py" && strings.Contains(r.Problem, base) {
 				named = true
 			}
 		}

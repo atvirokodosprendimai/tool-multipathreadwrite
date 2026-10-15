@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -145,50 +146,160 @@ func MineWideRenames(root string, minOcc, minFiles int) ([]RenameCandidate, erro
 	return out, nil
 }
 
-// countDecls counts every identifier f declares: functions and methods, types
-// and type parameters, constants and variables, fields, parameters and results,
-// short variable declarations, range variables, labels and import names.
+// countDecls counts every identifier f declares, as go/types records them in
+// Info.Defs: functions and methods; types and type parameters, a generic
+// method's receiver type parameters included; constants and variables; fields,
+// an embedded field by its type's name; interface methods; parameters and
+// results; range variables, labels and import names; and a short variable
+// declaration's names that are new in its scope — a redeclared name is not a
+// declaration (the review of #426).
 func countDecls(f *ast.File, decls map[string]int) {
-	add := func(ids ...*ast.Ident) {
-		for _, id := range ids {
-			if id != nil {
-				decls[id.Name]++
+	ast.Walk(declVisitor{decls, map[string]bool{}}, f)
+}
+
+type declVisitor struct {
+	decls map[string]int
+	scope map[string]bool // the names declared in the innermost scope
+}
+
+func (v declVisitor) add(ids ...*ast.Ident) {
+	for _, id := range ids {
+		if id != nil && id.Name != "_" {
+			v.decls[id.Name]++
+			v.scope[id.Name] = true
+		}
+	}
+}
+
+func (v declVisitor) fields(fl *ast.FieldList) {
+	if fl == nil {
+		return
+	}
+	for _, f := range fl.List {
+		v.add(f.Names...)
+		ast.Walk(v, f.Type)
+	}
+}
+
+// function declares a function's receiver, type parameters, parameters and
+// results in one scope and walks its body's statements in that same scope, as
+// Go does: a body's := of a parameter's name declares nothing.
+func (v declVisitor) function(recv *ast.FieldList, typ *ast.FuncType, body *ast.BlockStmt) {
+	in := declVisitor{v.decls, map[string]bool{}}
+	if recv != nil {
+		for _, f := range recv.List {
+			in.add(f.Names...)
+			t := f.Type
+			if s, ok := t.(*ast.StarExpr); ok {
+				t = s.X
+			}
+			switch t := t.(type) {
+			case *ast.IndexExpr:
+				if id, ok := t.Index.(*ast.Ident); ok {
+					in.add(id)
+				}
+			case *ast.IndexListExpr:
+				for _, e := range t.Indices {
+					if id, ok := e.(*ast.Ident); ok {
+						in.add(id)
+					}
+				}
 			}
 		}
 	}
-	ast.Inspect(f, func(n ast.Node) bool {
-		switch n := n.(type) {
-		case *ast.FuncDecl:
-			add(n.Name)
-		case *ast.TypeSpec:
-			add(n.Name)
-		case *ast.ValueSpec:
-			add(n.Names...)
-		case *ast.Field:
-			add(n.Names...)
-		case *ast.ImportSpec:
-			add(n.Name)
-		case *ast.LabeledStmt:
-			add(n.Label)
-		case *ast.AssignStmt:
-			if n.Tok == token.DEFINE {
-				for _, e := range n.Lhs {
-					if id, ok := e.(*ast.Ident); ok {
-						add(id)
-					}
-				}
-			}
-		case *ast.RangeStmt:
-			if n.Tok == token.DEFINE {
-				for _, e := range []ast.Expr{n.Key, n.Value} {
-					if id, ok := e.(*ast.Ident); ok {
-						add(id)
-					}
+	in.fields(typ.TypeParams)
+	in.fields(typ.Params)
+	in.fields(typ.Results)
+	if body != nil {
+		for _, s := range body.List {
+			ast.Walk(in, s)
+		}
+	}
+}
+
+func (v declVisitor) Visit(n ast.Node) ast.Visitor {
+	switch n := n.(type) {
+	case *ast.FuncDecl:
+		v.add(n.Name)
+		v.function(n.Recv, n.Type, n.Body)
+		return nil
+	case *ast.FuncLit:
+		v.function(nil, n.Type, n.Body)
+		return nil
+	case *ast.FuncType:
+		v.fields(n.TypeParams)
+		v.fields(n.Params)
+		v.fields(n.Results)
+		return nil
+	case *ast.BlockStmt, *ast.IfStmt, *ast.ForStmt, *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.SelectStmt, *ast.CaseClause, *ast.CommClause:
+		return declVisitor{v.decls, map[string]bool{}}
+	case *ast.RangeStmt:
+		in := declVisitor{v.decls, map[string]bool{}}
+		if n.Tok == token.DEFINE {
+			for _, e := range []ast.Expr{n.Key, n.Value} {
+				if id, ok := e.(*ast.Ident); ok {
+					in.add(id)
 				}
 			}
 		}
-		return true
-	})
+		return in
+	case *ast.AssignStmt:
+		if n.Tok == token.DEFINE {
+			for _, e := range n.Lhs {
+				if id, ok := e.(*ast.Ident); ok && !v.scope[id.Name] {
+					v.add(id)
+				}
+			}
+		}
+	case *ast.TypeSpec:
+		v.add(n.Name)
+		v.fields(n.TypeParams)
+		ast.Walk(v, n.Type)
+		return nil
+	case *ast.ValueSpec:
+		v.add(n.Names...)
+	case *ast.ImportSpec:
+		v.add(n.Name)
+	case *ast.LabeledStmt:
+		v.add(n.Label)
+	case *ast.StructType:
+		for _, f := range n.Fields.List {
+			if len(f.Names) == 0 {
+				v.add(embeddedName(f.Type))
+			}
+			v.add(f.Names...)
+			ast.Walk(v, f.Type)
+		}
+		return nil
+	case *ast.InterfaceType:
+		for _, f := range n.Methods.List {
+			v.add(f.Names...)
+			ast.Walk(v, f.Type)
+		}
+		return nil
+	}
+	return v
+}
+
+// embeddedName is the field name an embedded type declares: T for T, *T,
+// pkg.T and T[X].
+func embeddedName(t ast.Expr) *ast.Ident {
+	for {
+		switch e := t.(type) {
+		case *ast.StarExpr:
+			t = e.X
+		case *ast.IndexExpr:
+			t = e.X
+		case *ast.IndexListExpr:
+			t = e.X
+		case *ast.SelectorExpr:
+			return e.Sel
+		case *ast.Ident:
+			return e
+		default:
+			return nil
+		}
+	}
 }
 
 // words returns the whole-word Go identifiers in s: maximal runs of letters,
@@ -221,7 +332,8 @@ func words(s string) []string {
 type CoupledCandidate struct {
 	Commit, Parent string
 	Files          []string
-	Old, New       string // the literal's text before and after
+	Old, New       string // the literal's value before and after, unquoted
+	paired         bool   // Old and New are fixed; Old may be empty
 }
 
 // MineCheckCoupled lists the commits reachable from commit in repo, merges
@@ -242,7 +354,8 @@ func MineCheckCoupled(repo, commit string, maxFiles int) ([]CoupledCandidate, er
 		if len(ids) != 2 { // a root commit has no parent
 			continue
 		}
-		if c, ok := coupled(body, maxFiles); ok {
+		var c CoupledCandidate
+		if c.coupled(body, maxFiles) {
 			c.Commit, c.Parent = ids[0], ids[1]
 			cs = append(cs, c)
 		}
@@ -251,50 +364,73 @@ func MineCheckCoupled(repo, commit string, maxFiles int) ([]CoupledCandidate, er
 	return cs, nil
 }
 
-var diffFile = regexp.MustCompile(`^diff --git a/(\S+) b/(\S+)$`)
+// diffPath reads the path of a `diff --git a/P b/P` header whose two sides
+// are one path, spaces included (git quotes a path only for characters such
+// as a tab or a quote, and such a header is not read: the commit is skipped).
+func diffPath(line string) (string, bool) {
+	rest, ok := strings.CutPrefix(line, "diff --git a/")
+	if !ok || (len(rest)-3)%2 != 0 || len(rest) < 5 {
+		return "", false
+	}
+	p := rest[:(len(rest)-3)/2]
+	return p, rest == p+" b/"+p
+}
 
-// coupled judges one commit's -U0 diff.
-func coupled(diff string, maxFiles int) (CoupledCandidate, bool) {
-	var c CoupledCandidate
+// coupled judges one commit's -U0 diff: every file it touches is changed only
+// by replacing string literals' text, one pair throughout, with at least one
+// replacement in each file; a mode change, a new, deleted, renamed, copied or
+// binary file, or a change to a final newline disqualifies it (the review of
+// #426).
+func (c *CoupledCandidate) coupled(diff string, maxFiles int) bool {
 	var minus, plus []string
-	pairOK := true
+	subs := 0
+	ok := true
 	flush := func() {
 		if len(minus) != len(plus) {
-			pairOK = false
+			ok = false
 		}
 		for i := range minus {
 			if i >= len(plus) || !c.replaces(minus[i], plus[i]) {
-				pairOK = false
+				ok = false
 			}
 		}
+		subs += len(minus)
 		minus, plus = nil, nil
+	}
+	endFile := func() {
+		flush()
+		if len(c.Files) > 0 && subs == 0 {
+			ok = false
+		}
+		subs = 0
 	}
 	sc := bufio.NewScanner(strings.NewReader(diff))
 	sc.Buffer(make([]byte, 0, 1<<16), 1<<24)
-	for sc.Scan() {
+	for sc.Scan() && ok {
 		line := sc.Text()
 		switch {
 		case strings.HasPrefix(line, "diff --git "):
-			flush()
-			m := diffFile.FindStringSubmatch(line)
-			if m == nil || m[1] != m[2] {
-				return c, false
+			endFile()
+			p, same := diffPath(line)
+			if !same {
+				return false
 			}
-			c.Files = append(c.Files, m[1])
+			c.Files = append(c.Files, p)
 		case strings.HasPrefix(line, "@@"):
 			flush()
-		case strings.HasPrefix(line, "--- "), strings.HasPrefix(line, "+++ "):
+		case strings.HasPrefix(line, "--- "), strings.HasPrefix(line, "+++ "), strings.HasPrefix(line, "index "):
 		case strings.HasPrefix(line, "-"):
 			minus = append(minus, line[1:])
 		case strings.HasPrefix(line, "+"):
 			plus = append(plus, line[1:])
-		case strings.HasPrefix(line, "new file"), strings.HasPrefix(line, "deleted file"), strings.HasPrefix(line, "Binary"):
-			return c, false
+		case line == "":
+		default: // a mode change, a new, deleted, renamed or copied file, binary, "\ No newline at end of file"
+			return false
 		}
 	}
-	flush()
-	if !pairOK || c.Old == "" || len(c.Files) < 2 || len(c.Files) > maxFiles {
-		return c, false
+	endFile()
+	if !ok || !c.paired || len(c.Files) < 2 || len(c.Files) > maxFiles {
+		return false
 	}
 	dirs := map[string][2]bool{}
 	for _, f := range c.Files {
@@ -312,47 +448,69 @@ func coupled(diff string, maxFiles int) (CoupledCandidate, bool) {
 	for _, d := range dirs {
 		if d[0] && d[1] {
 			sort.Strings(c.Files)
-			return c, true
+			return true
 		}
 	}
-	return c, false
+	return false
 }
 
-// replaces says whether after is before with one string literal's text
-// replaced, and that the replacement is the commit's one pair: the first
-// replacement found fixes Old and New, and every later one must repeat it.
+type lineToken struct {
+	off int
+	tok token.Token
+	lit string
+}
+
+// lineTokens scans one line as Go, comments included; a line that does not
+// scan — inside a raw string that spans lines, say — is not a substitution.
+func lineTokens(s string) ([]lineToken, bool) {
+	var sc scanner.Scanner
+	bad := false
+	src := []byte(s)
+	sc.Init(token.NewFileSet().AddFile("", -1, len(src)), src, func(token.Position, string) { bad = true }, scanner.ScanComments)
+	var out []lineToken
+	for {
+		pos, tok, lit := sc.Scan()
+		if tok == token.EOF {
+			return out, !bad
+		}
+		if tok == token.SEMICOLON && lit == "\n" {
+			continue // inserted at the line's end
+		}
+		out = append(out, lineToken{int(pos) - 1, tok, lit})
+	}
+}
+
+// replaces says whether after is before with string literal tokens replaced,
+// and nothing else: every other token, comments included, and the text between
+// tokens stay as they were. Every replacement in the commit must be the same
+// pair of literal values; the first one found fixes it.
 func (c *CoupledCandidate) replaces(before, after string) bool {
-	p := 0
-	for p < len(before) && p < len(after) && before[p] == after[p] {
-		p++
-	}
-	s := 0
-	for s < len(before)-p && s < len(after)-p && before[len(before)-1-s] == after[len(after)-1-s] {
-		s++
-	}
-	// Widen the difference to the whole literal it sits in.
-	open := strings.LastIndexAny(before[:p], "\"`")
-	end := len(before) - s
-	closeB := strings.IndexAny(before[end:], "\"`")
-	if open < 0 || closeB < 0 || before[open] != before[end+closeB] {
+	bt, ok1 := lineTokens(before)
+	at, ok2 := lineTokens(after)
+	if !ok1 || !ok2 || len(bt) != len(at) {
 		return false
 	}
-	old := before[open+1 : end+closeB]
-	endA := len(after) - s
-	closeA := strings.IndexAny(after[endA:], "\"`")
-	if closeA < 0 || strings.ContainsAny(old, "\"`") {
-		return false
+	rebuilt, last, n := "", 0, 0
+	for i := range bt {
+		if bt[i].tok == at[i].tok && bt[i].lit == at[i].lit {
+			continue
+		}
+		if bt[i].tok != token.STRING || at[i].tok != token.STRING {
+			return false
+		}
+		old, err1 := strconv.Unquote(bt[i].lit)
+		nw, err2 := strconv.Unquote(at[i].lit)
+		if err1 != nil || err2 != nil || old == nw {
+			return false
+		}
+		if !c.paired {
+			c.Old, c.New, c.paired = old, nw, true
+		} else if c.Old != old || c.New != nw {
+			return false
+		}
+		rebuilt += before[last:bt[i].off] + at[i].lit
+		last = bt[i].off + len(bt[i].lit)
+		n++
 	}
-	nw := after[open+1 : endA+closeA]
-	if strings.ContainsAny(nw, "\"`") || old == nw || strings.TrimSpace(old) == "" {
-		return false
-	}
-	if before[:open+1]+nw+before[end+closeB:] != after {
-		return false
-	}
-	if c.Old == "" {
-		c.Old, c.New = old, nw
-		return true
-	}
-	return c.Old == old && c.New == nw
+	return n > 0 && rebuilt+before[last:] == after
 }
