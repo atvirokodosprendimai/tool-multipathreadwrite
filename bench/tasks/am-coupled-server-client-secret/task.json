@@ -3,23 +3,15 @@
   "shape": "check-coupled",
   "repo": "agentsmemory",
   "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
-  "exact": true,
   "instruction": "In internal/oauth/server.go, change the string \"client_secret\" to \"Client_secret\", and keep the tests passing.",
+  "test_package": "internal/oauth",
   "require": [
-    {
-      "file": "internal/oauth/oauth_test.go",
-      "match": "\"Client_secret\""
-    },
     {
       "file": "internal/oauth/server.go",
       "match": "\"Client_secret\""
     }
   ],
   "forbid": [
-    {
-      "file": "internal/oauth/oauth_test.go",
-      "match": "\"client_secret\""
-    },
     {
       "file": "internal/oauth/server.go",
       "match": "\"client_secret\""

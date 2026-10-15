@@ -12,7 +12,7 @@
 //	bench hook    --log FILE --tree DIR (configuration B's PreToolUse hook)
 //	bench swebench-select [--n 20]                         (instance ids on stdin; Stage 3's rule)
 //	bench swebench-select --dataset FILE --min-hunks N [--exclude FILE] [--salt S] [--n 20]
-//	bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N]
+//	bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N] [--min-occurrences 15 --min-files 8]
 //
 // Nothing runs an agent until Zy has chosen how an attempt is contained and
 // logged in once in the dedicated config directory (ADR-156 Decision 2).
@@ -39,7 +39,7 @@ const usageText = `usage:
   bench hook    --log FILE --tree DIR
   bench swebench-select [--n 20] < ids
   bench swebench-select --dataset FILE --min-hunks N [--exclude FILE] [--salt S] [--n 20]
-  bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N]
+  bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N] [--min-occurrences 15 --min-files 8]
 `
 
 func main() {
@@ -343,6 +343,8 @@ func mine(args []string, w io.Writer) error {
 	repo := fs.String("repo", "", "the repository")
 	commit := fs.String("commit", "", "the pinned commit")
 	n := fs.Int("n", 0, "how many candidates to print; 0 prints every one")
+	minOcc := fs.Int("min-occurrences", 15, "wide-rename: the fewest occurrences, comments included (25 when Decision 2 raises the floor)")
+	minFiles := fs.Int("min-files", 8, "wide-rename: the fewest files they span (12 when Decision 2 raises the floor)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -363,7 +365,7 @@ func mine(args []string, w io.Writer) error {
 	}
 	switch *kind {
 	case "wide-rename":
-		cs, err := bench.MineWideRenames(dir, 15, 8)
+		cs, err := bench.MineWideRenames(dir, *minOcc, *minFiles)
 		if err != nil {
 			return err
 		}

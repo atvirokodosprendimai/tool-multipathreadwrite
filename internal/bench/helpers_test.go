@@ -19,8 +19,12 @@ func (t Task) Files() []string {
 }
 
 // GradedFiles are the files the oracle reads: the touched ones and every file
-// a require or forbid names.
+// a require or forbid names; a task graded by its package's tests needs the
+// whole tree, so it names none (Materialize then exports every file).
 func (t Task) GradedFiles() []string {
+	if t.TestPackage != "" {
+		return nil
+	}
 	seen := map[string]bool{}
 	var fs []string
 	for _, f := range t.Files() {

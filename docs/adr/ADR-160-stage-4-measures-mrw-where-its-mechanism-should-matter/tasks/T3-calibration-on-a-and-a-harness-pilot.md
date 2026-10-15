@@ -1,11 +1,11 @@
 # Task ADR-160-T3: difficulty calibrated on configuration A outside the sample, and harness pilots that choose nothing
 
-**Depends-on:** T2
+**Depends-on:** T2, T6
 **Covers:** none — no spec
 **Estimated scope:** M (machine time: about 30 attempts and a few image pulls)
 **Owner:** Zy
 **Produces:** `docs/bench/stage-4-pilot/` receipts, the calibrated corpus (a raised floor, if any, recorded)
-**Consumes:** `bench/tasks/<stage-4 ids>/`, `bench/stage-4-tasks.txt`, `bench/swe-bench/selection-adr-160.json` (T2)
+**Consumes:** `bench/tasks/<stage-4 ids>/`, `bench/stage-4-tasks.txt`, `bench/swe-bench/selection-adr-160.json` (T2); `test_package`, `bench mine --min-occurrences --min-files` (T6)
 **Data dependency:** real agent runs on the subscription and SWE-bench images, on this Mac; starts only on Zy's word
 **Proof map:** v1
 **Rests-on:** `the calibration ran on A alone`, `the calibration tasks are outside the sample`, `the harness pilot ran on B`, `every pilot receipt is stage pilot`

@@ -72,7 +72,7 @@ func TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit(t *testing.T) {
 			// Deleting the line just before the fix's first change: the line
 			// the task says to keep, which slack must not license (the
 			// review of #411).
-			if f, base, ok := task.neighbour(); ok {
+			if f, base, ok := task.neighbour(); ok && task.TestPackage == "" {
 				nb := filepath.Join(tree, f)
 				keep, err := os.ReadFile(nb)
 				if err != nil {
@@ -92,6 +92,9 @@ func TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit(t *testing.T) {
 				}
 			}
 			file, line := strayLine(t, task, tree)
+			if task.TestPackage != "" { // inside the package its tests judge; leaving it is the stray edit
+				file, line = "go.mod", 1
+			}
 			b, err := os.ReadFile(filepath.Join(tree, file))
 			if err != nil {
 				t.Fatal(err)
@@ -641,5 +644,117 @@ func TestThePostSendRenameLeavesTheTestHelper(t *testing.T) {
 		if v.Solved != c.solved {
 			t.Errorf("%s: solved %v, want %v: %+v", c.patch, v.Solved, c.solved, v)
 		}
+	}
+}
+
+// TestACheckCoupledTaskIsGradedByItsPackageTests holds the grading Zy chose
+// after T3's pilot ("Grade by the tests", ADR-160 Decision 1): a check-coupled
+// attempt is solved when the source holds the new literal and not the old,
+// its package's tests pass, and nothing outside the package changed — so the
+// answers exact refused in the pilot are solved, and a source-only change that
+// breaks the test is not.
+func TestACheckCoupledTaskIsGradedByItsPackageTests(t *testing.T) {
+	needGit(t)
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go is not on PATH")
+	}
+	repo := t.TempDir()
+	files := map[string]string{
+		"go.mod":      "module example.com/m\n\ngo 1.21\n",
+		"p/p.go":      "package p\n\n// Status is the state a new subscription takes.\nfunc Status() string { return \"active\" }\n",
+		"p/p_test.go": "package p\n\nimport \"testing\"\n\nfunc TestStatus(t *testing.T) {\n\tif Status() != \"active\" {\n\t\tt.Fatalf(\"Status() = %q, want \\\"active\\\"\", Status())\n\t}\n}\n",
+		"q/q.go":      "package q\n\n// X is unrelated.\nconst X = 1\n",
+	}
+	write := func(root string, fs map[string]string) {
+		t.Helper()
+		for name, body := range fs {
+			p := filepath.Join(root, filepath.FromSlash(name))
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=b", "-c", "user.email=b@b"}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	write(repo, files)
+	git(repo, "init", "-q")
+	git(repo, "add", "-A")
+	git(repo, "commit", "-qm", "base")
+	sha := git(repo, "rev-parse", "HEAD")
+	fixed := map[string]string{
+		"p/p.go":      strings.Replace(files["p/p.go"], `"active"`, `"Active"`, 1),
+		"p/p_test.go": strings.Replace(files["p/p_test.go"], `Status() != "active"`, `Status() != "Active"`, 1),
+	}
+	write(repo, fixed)
+	patch := git(repo, "diff") + "\n"
+	git(repo, "checkout", "-q", "--", ".")
+
+	taskDir := filepath.Join(t.TempDir(), "am-coupled-p-active")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "reference.patch"), []byte(patch), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	taskJSON := func(extra string) {
+		t.Helper()
+		body := `{"id": "am-coupled-p-active", "shape": "check-coupled", "repo": "m", "commit": "` + sha + `",
+  "instruction": "In p/p.go, change the string \"active\" to \"Active\", and keep the tests passing.",
+  "require": [{"file": "p/p.go", "match": "\"Active\""}], "forbid": [{"file": "p/p.go", "match": "\"active\""}]` + extra + `}`
+		if err := os.WriteFile(filepath.Join(taskDir, "task.json"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, bad := range []string{`, "test_package": "p", "exact": true`, `, "test_package": "../p"`, `, "test_package": "/p"`} {
+		taskJSON(bad)
+		if _, err := LoadTask(taskDir); err == nil {
+			t.Errorf("the loader accepted %s", bad)
+		}
+	}
+	taskJSON(`, "test_package": "p"`)
+	task, err := LoadTask(taskDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grade := func(name string, change map[string]string) Verdict {
+		t.Helper()
+		tree := t.TempDir()
+		git(tree, "clone", "-q", repo, ".")
+		write(tree, change)
+		v, err := Oracle(task, tree)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		return v
+	}
+	if v := grade("base", nil); v.Solved {
+		t.Errorf("the base is solved: %+v", v)
+	}
+	if v := grade("the reference", fixed); !v.Solved {
+		t.Errorf("the reference is unsolved: %+v", v)
+	}
+	if v := grade("the source alone", map[string]string{"p/p.go": fixed["p/p.go"]}); v.Solved || !strings.Contains(strings.Join(v.Missing, " "), "go test") {
+		t.Errorf("a source-only change that breaks the package's test is not unsolved by go test: %+v", v)
+	}
+	both := "package p\n\nimport \"strings\"\n\n// Status is the state a new subscription takes.\nfunc Status() string { return strings.ToLower(\"Active\") }\n"
+	if v := grade("the code accepting both", map[string]string{"p/p.go": both}); !v.Solved {
+		t.Errorf("an answer that keeps the tests passing another way is unsolved: %+v", v)
+	}
+	message := map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": strings.ReplaceAll(fixed["p/p_test.go"], `want \"active\"`, `want \"Active\"`)}
+	if v := grade("the test message too", message); !v.Solved {
+		t.Errorf("updating the test's message as well is unsolved: %+v", v)
+	}
+	outside := map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": fixed["p/p_test.go"], "q/q.go": files["q/q.go"] + "\n// stray\n"}
+	if v := grade("a change outside the package", outside); v.Solved || len(v.Outside) == 0 {
+		t.Errorf("a change outside the package is not outside: %+v", v)
 	}
 }

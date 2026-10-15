@@ -3,15 +3,11 @@
   "shape": "check-coupled",
   "repo": "agentsmemory",
   "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
-  "exact": true,
   "instruction": "In internal/longmemeval/querypolicy.go, change the string \"trying\" to \"Trying\", and keep the tests passing.",
+  "test_package": "internal/longmemeval",
   "require": [
     {
       "file": "internal/longmemeval/querypolicy.go",
-      "match": "\"Trying\""
-    },
-    {
-      "file": "internal/longmemeval/querypolicy_test.go",
       "match": "\"Trying\""
     }
   ],

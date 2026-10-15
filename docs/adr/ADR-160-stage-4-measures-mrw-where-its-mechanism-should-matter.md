@@ -32,6 +32,7 @@ Measured 2026-10-15, to size the categories:
 ## Existing Primitives Audit
 
 - **Reused unchanged:** the runner, both configurations and their isolation (ADR-156 Decisions 1–2, ADR-158), the canary, receipts and resume (ADR-156 Decision 6), `bench run --task` and `--configs` (`cmd/bench/main.go:6-7`), the oracle with `exact` (byte equality of each touched file to the reference result), `bench verify` (it reads the configurations and models from `run.json`, `runner.go:352-356`), `bench analyze`, the SWE-bench path (ADR-156 T5, `internal/bench/swebench.go`) and its grading-interrupt handling (#425).
+- **Changed after T3's pilot (T6):** configuration B's hook refused an interpreter whenever the command's text matched a write pattern, the heredoc bodies of other commands included, so an `mrw write` plan holding `-> str` beside a `python -c` check, or a heredoc fed to python comparing `a > b`, was refused as "python writes a file"; it judges the interpreter's own segment and the heredoc it reads. The oracle gains a branch for `check-coupled`: graded by its package's tests (Decision 1 as amended). `bench mine` takes its `wide-rename` floor as flags.
 - **Reshaped:** `SelectSWEBench` (`internal/bench/swebench.go:23`) hard-codes the `adr-156:` salt and selects over every id it is given; it gains a salt and a hunk floor, so Stage 4's slice is drawn by the same function and `bench swebench-select` keeps its output for Stage 3's arguments. `bench analyze` prints one descriptive row per registered subset (`analyze.go:106`, ADR-158); it gains Stage 4's, and reads the slice's unnamed-files subset from the selection file, since it reads no gold patch (`swebench.go:49-58`).
 - **New:** `bench mine`, which lists candidate tasks by the registered predicates. It uses only Go's standard library (`go/parser`, `go/scanner`, `go/types` with imports unresolved), since this module's `go.mod` declares exactly one requirement and a rename tool such as gopls would add one.
 
@@ -80,6 +81,9 @@ None — internal to `bench` (`internal/bench`, `cmd/bench`): one subcommand (`b
 | `task.json` `shape` | adds `wide-rename`, `check-coupled` | T1 | T2, `bench analyze` |
 | `bench/stage-4-tasks.txt` | new: the 24 own-task ids | T2 | T3, T4 |
 | `bench/repos.json` | the repositories the slice draws that Stage 3 did not use | T2 | the runner |
+| `task.json` `test_package` | new: the package a `check-coupled` attempt is graded by (`go test`), not exact | T6 | T3, T4, the oracle |
+| `bench mine --min-occurrences N --min-files N` | new flags for `wide-rename`; defaults 15 and 8 | T6 | T3 |
+| B's hook, interpreter rule | judges the interpreter's own segment and the heredoc it reads | T6 | T3, T4 |
 
 ## Inter-task Contracts
 
@@ -88,11 +92,12 @@ None — internal to `bench` (`internal/bench`, `cmd/bench`): one subcommand (`b
 | `bench mine`, `swebench-select --salt/--min-hunks`, `analyze --selection`, the two shapes | T1 | T2, T5 | No — additive |
 | `bench/tasks/<stage-4 ids>/`, `bench/stage-4-tasks.txt`, `bench/swe-bench/selection-adr-160.json` | T2 | T3, T4 | No — new files |
 | the calibrated corpus and the pilots' sign-off | T3 | T4 | No |
+| the hook's interpreter rule, `test_package` and its oracle, the mine floor flags | T6 | T3, T4 | No — the hook refuses less, the oracle grades a new field, the flags default to today |
 | `docs/bench/stage-4-*/` receipts | T4 | T5 | No |
 
 ## Implementation
 
-See `tasks/README.md`: T1 selection code, T2 the corpus, T3 the A-only calibration and the harness pilots, T4 the stages on Sonnet and Opus, T5 analysis and the README sentences.
+See `tasks/README.md`: T1 selection code, T2 the corpus, T6 the pilot's fixes, T3 the A-only calibration and the harness pilots, T4 the stages on Sonnet and Opus, T5 analysis and the README sentences.
 
 ## Consequences
 

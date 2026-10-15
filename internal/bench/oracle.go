@@ -2,17 +2,23 @@ package bench
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/parser"
 	"go/token"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
 )
 
 // Verdict is what the oracle found. Solved holds only when every list is empty.
@@ -34,6 +40,12 @@ func Oracle(t Task, dir string) (Verdict, error) {
 		return v, err
 	}
 	for _, c := range changed {
+		if t.TestPackage != "" { // its tests judge the package; only leaving it is outside
+			if path.Dir(c.file) != t.TestPackage {
+				v.Outside = append(v.Outside, c.file+": a file outside the package whose tests grade the task")
+			}
+			continue
+		}
 		if c.untracked {
 			if !t.created[c.file] {
 				v.Outside = append(v.Outside, c.file+": a file the task does not create")
@@ -92,8 +104,56 @@ func Oracle(t Task, dir string) (Verdict, error) {
 			v.Structure = append(v.Structure, c.file+": "+msg)
 		}
 	}
+	if t.TestPackage != "" && len(v.Missing)+len(v.Outside)+len(v.Structure) == 0 {
+		msg, err := packageTests(dir, t.TestPackage)
+		if err != nil {
+			return v, err
+		}
+		if msg != "" {
+			v.Missing = append(v.Missing, msg)
+		}
+	}
 	v.Solved = len(v.Missing)+len(v.Outside)+len(v.Structure) == 0
 	return v, nil
+}
+
+// testBudget bounds a check-coupled attempt's go test: a hung test is
+// unsolved, never a stage held.
+const testBudget = 10 * time.Minute
+
+// packageTests runs go test of pkg in the tree at dir and returns "" when it
+// passes, or what the oracle reports missing: the package and the last line
+// the run printed. A signal to bench stops it and grading reports
+// errGradingInterrupted, as the SWE-bench harness's does (#425); the signal
+// context is the deadline's parent, so the two are told apart.
+func packageTests(dir, pkg string) (string, error) {
+	sigCtx, stopSignals := subproc.Interruptible(context.Background())
+	defer stopSignals()
+	ctx, cancel := context.WithTimeout(sigCtx, testBudget)
+	defer cancel()
+	var out bytes.Buffer
+	cmd := subproc.Command(ctx, "go", "test", "-count=1", "./"+pkg)
+	cmd.Dir, cmd.Stdout, cmd.Stderr = dir, &out, &out
+	err := subproc.Run(cmd)
+	switch {
+	case sigCtx.Err() != nil:
+		return "", errGradingInterrupted
+	case ctx.Err() == context.DeadlineExceeded:
+		return fmt.Sprintf("go test ./%s: ran past %s", pkg, testBudget), nil
+	case err == nil:
+		return "", nil
+	}
+	var ee *exec.ExitError
+	if !errors.As(err, &ee) {
+		return "", fmt.Errorf("go test ./%s: %w", pkg, err)
+	}
+	last := ""
+	for _, l := range strings.Split(strings.TrimSpace(out.String()), "\n") {
+		if strings.TrimSpace(l) != "" {
+			last = strings.TrimSpace(l)
+		}
+	}
+	return fmt.Sprintf("go test ./%s fails: %s", pkg, last), nil
 }
 
 // allows says whether a change the agent made lies inside the task's regions.

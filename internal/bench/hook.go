@@ -71,16 +71,20 @@ var (
 	}
 	readers      = map[string]bool{"cat": true, "head": true, "tail": true, "grep": true, "egrep": true, "rg": true, "awk": true, "sed": true, "less": true, "more": true, "nl": true}
 	interpreters = map[string]bool{"python": true, "python3": true, "node": true, "perl": true, "ruby": true}
-	writeCall    = regexp.MustCompile(`open\([^)]*,\s*['"][wa]|write_text|writeFile|\.write\(|File\.write|>>?\s*[A-Za-z]`)
+	// A redirect inside an interpreter's text counts only as a quoted mode
+	// string (perl's ">out"): a comparison (a > b) and an annotation (-> str)
+	// are not writes (T3's pilot, ADR-160 T6).
+	writeCall = regexp.MustCompile(`open\([^)]*,\s*['"][wa]|write_text|writeFile|\.write\(|File\.write|['"]>>?\s*[A-Za-z]`)
 )
 
 // splitHeredocs separates a command from its heredoc bodies. A heredoc
 // operator counts only outside quotes, so a quoted "<<EOF" opens nothing. The
 // body of a heredoc whose delimiter is quoted is literal and dropped (a plan's
 // body); the body of one whose delimiter is not quoted is expanded by the
-// shell, so it is returned for its command substitutions.
-func splitHeredocs(cmd string) (rest string, expanded []string) {
-	var out []string
+// shell, so it is returned for its command substitutions. bodies is every
+// body, quoted or not, for an interpreter that reads one.
+func splitHeredocs(cmd string) (rest string, expanded []string, bodies string) {
+	var out, all []string
 	lines := strings.Split(cmd, "\n")
 	for i := 0; i < len(lines); i++ {
 		out = append(out, lines[i])
@@ -90,13 +94,14 @@ func splitHeredocs(cmd string) (rest string, expanded []string) {
 		}
 		for i+1 < len(lines) && strings.TrimSpace(lines[i+1]) != m[2] {
 			i++
+			all = append(all, lines[i])
 			if m[1] == "" {
 				expanded = append(expanded, lines[i])
 			}
 		}
 		i++ // the terminator
 	}
-	return strings.Join(out, "\n"), expanded
+	return strings.Join(out, "\n"), expanded, strings.Join(all, "\n")
 }
 
 // realHeredoc finds a heredoc operator on a line that is not inside a quoted
@@ -128,7 +133,7 @@ func ClassifyBash(cmd, tree string) (string, []string) {
 }
 
 func classify(cmd, tree string, depth int) (string, []string) {
-	rest, expanded := splitHeredocs(cmd)
+	rest, expanded, bodies := splitHeredocs(cmd)
 	bare, subs, ok := scanShell(rest, false)
 	for _, body := range expanded {
 		_, s, bodyOK := scanShell(body, true)
@@ -181,7 +186,15 @@ func classify(cmd, tree string, depth int) (string, []string) {
 		case head == "go" && len(w) > 1 && (w[1] == "fmt" || w[1] == "fix" || w[1] == "generate"):
 			return "go " + w[1] + " rewrites files", reads
 		case interpreters[head]:
-			if writeCall.MatchString(cmd) {
+			// The interpreter's text is the command without its heredoc
+			// bodies, and those bodies only when it reads one: an mrw plan
+			// fed to another command is not python's (T3's pilot found B
+			// refused for a plan holding `-> str`, ADR-160 T6).
+			text := rest
+			if strings.Contains(seg, "<<") {
+				text += "\n" + bodies
+			}
+			if writeCall.MatchString(text) {
 				return head + " writes a file", reads
 			}
 		}

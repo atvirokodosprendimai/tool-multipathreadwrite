@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -67,6 +68,11 @@ type Task struct {
 	// graded wrongly; the task itself is never edited, since receipts name it
 	// (ADR-158 Decision 3).
 	SupersededBy string `json:"superseded_by,omitempty"`
+	// TestPackage is the directory, relative to the tree, whose go test grades
+	// a check-coupled attempt in place of exact and the reference's regions:
+	// solved when the require and forbid hold, nothing outside the directory
+	// changed and its tests pass (Zy, "Grade by the tests", ADR-160 Decision 1).
+	TestPackage string `json:"test_package,omitempty"`
 
 	Dir     string            `json:"-"`
 	regions map[string][]hunk // base-numbered hunks of the reference fix, by file
@@ -107,6 +113,10 @@ func LoadTask(dir string) (Task, error) {
 	}
 	if t.Repo != "fixture" && !regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(t.Commit) {
 		return t, fmt.Errorf("%s: commit must be a full sha", dir)
+	}
+	if t.TestPackage != "" && (t.Shape != ShapeCheckCoupled || t.Exact || path.IsAbs(t.TestPackage) ||
+		path.Clean(t.TestPackage) != t.TestPackage || t.TestPackage == ".." || strings.HasPrefix(t.TestPackage, "../")) {
+		return t, fmt.Errorf("%s: test_package is a clean relative directory, on a check-coupled task only, never with exact", dir)
 	}
 	for _, m := range append(append([]Match(nil), t.Require...), t.Forbid...) {
 		if _, err := regexp.Compile(m.Match); err != nil {

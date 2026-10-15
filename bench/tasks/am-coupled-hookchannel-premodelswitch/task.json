@@ -3,25 +3,17 @@
   "shape": "check-coupled",
   "repo": "agentsmemory",
   "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
-  "exact": true,
   "instruction": "In clients/claude-code/hookchannel.go, change the string \"PreModelSwitch\" to \"preModelSwitch\", and keep the tests passing.",
+  "test_package": "clients/claude-code",
   "require": [
     {
       "file": "clients/claude-code/hookchannel.go",
-      "match": "\"preModelSwitch\""
-    },
-    {
-      "file": "clients/claude-code/hookchannelknown_test.go",
       "match": "\"preModelSwitch\""
     }
   ],
   "forbid": [
     {
       "file": "clients/claude-code/hookchannel.go",
-      "match": "\"PreModelSwitch\""
-    },
-    {
-      "file": "clients/claude-code/hookchannelknown_test.go",
       "match": "\"PreModelSwitch\""
     }
   ]
