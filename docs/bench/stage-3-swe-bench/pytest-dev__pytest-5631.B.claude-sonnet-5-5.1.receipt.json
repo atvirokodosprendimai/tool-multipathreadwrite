@@ -1,0 +1,42 @@
+{
+  "attempt": "pytest-dev__pytest-5631.B.claude-sonnet-5-5.1",
+  "stage": "stage-3-swe-bench",
+  "task": "pytest-dev__pytest-5631",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 11,
+  "started": "2026-10-15T15:04:28Z",
+  "wall_ms": 11491,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 6,
+  "tool_calls": 5,
+  "total_cost_usd": 0.030288100000000002,
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 764,
+    "cache_read_input_tokens": 52241,
+    "cache_creation_input_tokens": 4350
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 6,
+    "deletions": 1
+  },
+  "hook_refused": 1,
+  "hook_reads": 3
+}
