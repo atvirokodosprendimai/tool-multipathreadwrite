@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -284,6 +285,46 @@ func TestAnInterruptedSWEBenchAttemptIsNotGraded(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(work, "harness.log")); err == nil {
 		t.Error("the harness graded an interrupted attempt")
+	}
+}
+
+// TestAnInterruptWhileGradingStopsTheHarnessAndItsContainer: a signal to bench
+// while the harness grades an attempt reaches the harness, removes the
+// containers it started, writes no receipt and stops the stage. Before this,
+// grading ran under no signal handler, so the interrupt ended bench and left
+// the harness and its container running (the Stage 3 pilot, 2026-10-15).
+func TestAnInterruptWhileGradingStopsTheHarnessAndItsContainer(t *testing.T) {
+	// The test binary must outlive the signal whatever bench does with it.
+	held := make(chan os.Signal, 4)
+	signal.Notify(held, os.Interrupt)
+	defer signal.Stop(held)
+	for name, tail := range map[string]string{
+		"a harness the signal stops":   "exec sleep 5\n",
+		"a harness that exits 0 on it": "trap 'exit 0' INT\nsleep 5 &\nwait\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			o, work := sweStage(t)
+			slow := filepath.Join(work, "interrupting-python")
+			script := "#!/bin/sh\necho started >> \"" + filepath.Join(work, "harness.log") + "\"\nkill -INT " + strconv.Itoa(os.Getpid()) + "\n" + tail
+			if err := os.WriteFile(slow, []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			o.SWE.Python = slow
+			err := Run(o)
+			if err == nil || !strings.Contains(err.Error(), "interrupted") {
+				t.Fatalf("an interrupt while grading: %v, want the stage stopped as interrupted", err)
+			}
+			if b, _ := os.ReadFile(filepath.Join(work, "harness.log")); strings.Count(string(b), "started") != 1 {
+				t.Errorf("the harness started %d times, want once: the stage goes no further", strings.Count(string(b), "started"))
+			}
+			receipts, _ := filepath.Glob(filepath.Join(o.Out, "*.receipt.json"))
+			if len(receipts) != 0 {
+				t.Errorf("an attempt whose grading was interrupted has a receipt: %v", receipts)
+			}
+			if got := dockerActions(t, work); !strings.Contains(got, "ps -a --filter name=sweb.eval.") {
+				t.Errorf("docker did:\n%s\nwant the interrupted run's containers looked up and removed by name", got)
+			}
+		})
 	}
 }
 

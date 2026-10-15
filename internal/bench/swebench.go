@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
 )
 
 // SelectSWEBench is Stage 3's registered selection (BACKLOG, "Pre-registered
@@ -99,6 +102,11 @@ func LoadSWEBench(selection, dataset string) ([]Task, error) {
 	return ts, nil
 }
 
+// errGradingInterrupted is a grading run stopped by a signal to bench: the
+// attempt is not graded, and Run stops the stage on it as on an interrupted
+// attempt.
+var errGradingInterrupted = errors.New("interrupted while the harness graded it")
+
 // SWEGrader grades a SWE-bench attempt with the official harness, in the
 // instance's own image, one container at a time (ADR-156 Decision 4).
 type SWEGrader struct {
@@ -178,7 +186,12 @@ func (g SWEGrader) grade(t Task, tree, scratch, run string) (Verdict, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, g.Python, "-m", "swebench.harness.run_evaluation", "-d", g.Dataset, "-i", t.ID,
+	// A signal to bench reaches the harness as the deadline does: without
+	// this, bench ended on the signal and left the harness and its container
+	// running (the Stage 3 pilot, 2026-10-15).
+	ictx, stopSignals := subproc.Interruptible(ctx)
+	defer stopSignals()
+	cmd := exec.CommandContext(ictx, g.Python, "-m", "swebench.harness.run_evaluation", "-d", g.Dataset, "-i", t.ID,
 		"-p", preds, "--max_workers", "1", "-t", "1800", "-id", run, "--report_dir", scratch)
 	cmd.Dir = scratch
 	// At the deadline the harness is interrupted, not killed, so its own
@@ -186,9 +199,19 @@ func (g SWEGrader) grade(t Task, tree, scratch, run string) (Verdict, error) {
 	// (the review of #422). Whatever is left is removed below by name.
 	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
 	cmd.WaitDelay = time.Minute
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	// A signal ends grading even when the harness exits 0 on it: the attempt
+	// is not graded, and its containers go as after a deadline.
+	interrupted := ictx.Err() != nil && ctx.Err() == nil
+	if err != nil || interrupted {
 		if cerr := g.removeContainers(t.ID, run); cerr != nil {
-			err = fmt.Errorf("%w; and %w", err, cerr)
+			err = errors.Join(err, cerr)
+		}
+		if interrupted && err == nil {
+			return Verdict{}, errGradingInterrupted
+		}
+		if interrupted {
+			return Verdict{}, fmt.Errorf("%w: %w", errGradingInterrupted, err)
 		}
 		return Verdict{}, fmt.Errorf("the harness: %w: %s", err, out)
 	}

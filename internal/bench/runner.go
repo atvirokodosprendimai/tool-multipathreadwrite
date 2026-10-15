@@ -565,6 +565,10 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 	} else {
 		v, err = Oracle(a.Task, tree)
 	}
+	if errors.Is(err, errGradingInterrupted) { // not graded, no receipt
+		r.interrupted = true
+		return r
+	}
 	if err != nil {
 		r.Exclusion, r.Note = ExclusionSetup, "oracle: "+err.Error()
 		return r
