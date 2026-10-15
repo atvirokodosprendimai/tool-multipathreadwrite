@@ -3,6 +3,7 @@
   "shape": "multi-site",
   "repo": "crossagentschat",
   "commit": "ae4f7a9ca6c009863466dd92818f78bc9bcc8225",
+  "superseded_by": "cac-rename-post-send-2",
   "exact": true,
   "instruction": "In the Go package internal/httpapi, rename the function postSend to sendMessage, and update every reference to it in that package, tests and comments included. Change nothing else.",
   "require": [

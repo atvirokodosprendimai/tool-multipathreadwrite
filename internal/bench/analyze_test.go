@@ -264,3 +264,93 @@ func TestStageOnesPublishedVerdictIsUnchanged(t *testing.T) {
 		t.Errorf("Stage 1's descriptive row: %+v", got[1])
 	}
 }
+
+// TestARowWithoutTheTasksSupersededSinceIsDescriptive: given the ids of the
+// tasks superseded since, a group that ran one gets a row without it, labelled
+// as registered after the stage ran; the verdict still counts every task, and
+// a group that ran none of them gets no such row (ADR-159 Decision 2).
+func TestARowWithoutTheTasksSupersededSinceIsDescriptive(t *testing.T) {
+	rs := receiptsFor("sonnet", "own", repeat(1.0, 10), repeat(1.0, 10), repeat(true, 10), repeat(true, 10))
+	got, err := Analyze(rs, taskName(3), "never-ran")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Descriptive != "" || got[0].Tasks != 10 || got[1].Descriptive != withoutSupersededSince || got[1].Tasks != 9 {
+		t.Errorf("rows: %+v, want the verdict over 10 tasks and a descriptive row over 9", got)
+	}
+	for _, ids := range [][]string{nil, {"never-ran"}} {
+		if got, err := Analyze(rs, ids...); err != nil || len(got) != 1 {
+			t.Errorf("superseded %v: %+v %v, want the verdict alone", ids, got, err)
+		}
+	}
+}
+
+// TestThePublishedStagesWithoutTheTasksSupersededSince: over the published
+// receipts and the corpus's superseded tasks, each verdict is as published and
+// the row leaves out the tasks superseded after its stage ran (ADR-159).
+func TestThePublishedStagesWithoutTheTasksSupersededSince(t *testing.T) {
+	tasks, err := LoadTasks(tasksDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var superseded []string
+	for _, task := range tasks {
+		if task.SupersededBy != "" {
+			superseded = append(superseded, task.ID)
+		}
+	}
+	for _, c := range []struct {
+		dir, verdict string
+		tasks        int
+	}{
+		{"stage-1-sonnet", "stage1 INCONCLUSIVE 30 120 +0.026 [-0.039, +0.090] +0.050 [-0.083, +0.167]", 27},
+		{"stage-1b-sonnet", "stage1b INCONCLUSIVE 40 160 -0.004 [-0.050, +0.042] -0.013 [-0.037, +0.000]", 39},
+	} {
+		got, err := Analyze(publishedReceipts(t, c.dir), superseded...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		v := got[0]
+		if line := fmt.Sprintf("%s %s %d %d %+.3f [%+.3f, %+.3f] %+.3f [%+.3f, %+.3f]",
+			v.Stage, v.Verdict, v.Tasks, v.Attempts, v.RelCost, v.RelLo, v.RelHi, v.SolvedDiff, v.SolvedLo, v.SolvedHi); line != c.verdict {
+			t.Errorf("%s: the verdict\n got %s\nwant %s", c.dir, line, c.verdict)
+		}
+		found := false
+		for _, r := range got {
+			if r.Descriptive == withoutSupersededSince {
+				found = true
+				if r.Tasks != c.tasks {
+					t.Errorf("%s: the row counts %d tasks, want %d", c.dir, r.Tasks, c.tasks)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s: no row without the tasks superseded since: %+v", c.dir, got)
+		}
+	}
+}
+
+// publishedReceipts reads every receipt under docs/bench/<dir>.
+func publishedReceipts(t *testing.T, dir string) []Receipt {
+	t.Helper()
+	var rs []Receipt
+	err := filepath.Walk(filepath.Join("..", "..", "docs", "bench", dir), func(p string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(p, ".receipt.json") {
+			return err
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		var r Receipt
+		if err := json.Unmarshal(b, &r); err != nil {
+			return fmt.Errorf("%s: %w", p, err)
+		}
+		rs = append(rs, r)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rs
+}

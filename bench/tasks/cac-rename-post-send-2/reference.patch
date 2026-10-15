@@ -1,0 +1,29 @@
+diff --git a/internal/httpapi/httpapi.go b/internal/httpapi/httpapi.go
+index a9ea06d..afdc05a 100644
+--- a/internal/httpapi/httpapi.go
++++ b/internal/httpapi/httpapi.go
+@@ -46,7 +46,7 @@ type route struct {
+ var routes = []route{
+ 	{http.MethodGet, "/llm.txt", func(h *handler) http.HandlerFunc { return h.getLLMTxt }},
+ 	{http.MethodGet, "/events", func(h *handler) http.HandlerFunc { return h.getEvents }},
+-	{http.MethodPost, "/send", func(h *handler) http.HandlerFunc { return h.postSend }},
++	{http.MethodPost, "/send", func(h *handler) http.HandlerFunc { return h.sendMessage }},
+ }
+ 
+ // NewMux builds the router. It is the composition point that makes every route
+diff --git a/internal/httpapi/send.go b/internal/httpapi/send.go
+index 74ae45c..850da68 100644
+--- a/internal/httpapi/send.go
++++ b/internal/httpapi/send.go
+@@ -15,9 +15,9 @@ type sendResponse struct {
+ 	Delivered int `json:"delivered"`
+ }
+ 
+-// postSend serves POST /send?channel=<c>&name=<me>, publishing the request body
++// sendMessage serves POST /send?channel=<c>&name=<me>, publishing the request body
+ // as a message from name.
+-func (h *handler) postSend(w http.ResponseWriter, r *http.Request) {
++func (h *handler) sendMessage(w http.ResponseWriter, r *http.Request) {
+ 	channel, name, ok := credentials(r)
+ 	if !ok {
+ 		badCredentials(w)

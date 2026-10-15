@@ -594,3 +594,49 @@ func TestTheVariedOraclesGradeWhatTheReviewOf417Found(t *testing.T) {
 		})
 	}
 }
+
+// TestThePostSendRenameLeavesTheTestHelper: cac-rename-post-send-2 asks for
+// the handler method only, so its oracle passes the fix that renames the
+// method and its references, and refuses the old task's fix, which renamed the
+// unrelated test helper of the same name too (ADR-159).
+func TestThePostSendRenameLeavesTheTestHelper(t *testing.T) {
+	needGit(t)
+	tasks, err := LoadTasks(tasksDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var task Task
+	for _, x := range tasks {
+		if x.ID == "cac-rename-post-send-2" {
+			task = x
+		}
+	}
+	if task.ID == "" {
+		t.Fatal("no task cac-rename-post-send-2")
+	}
+	for _, c := range []struct {
+		patch  string
+		solved bool
+	}{
+		{filepath.Join(task.Dir, "reference.patch"), true},
+		{filepath.Join(filepath.Dir(task.Dir), "cac-rename-post-send", "reference.patch"), false},
+	} {
+		tree := t.TempDir()
+		if _, err := Materialize(task, tree, task.GradedFiles()); err != nil {
+			if errors.Is(err, errUnreachable) {
+				t.Skipf("task %s: %v", task.ID, err)
+			}
+			t.Fatal(err)
+		}
+		if err := ApplyPatch(tree, c.patch); err != nil {
+			t.Fatal(err)
+		}
+		v, err := Oracle(task, tree)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v.Solved != c.solved {
+			t.Errorf("%s: solved %v, want %v: %+v", c.patch, v.Solved, c.solved, v)
+		}
+	}
+}

@@ -34,8 +34,11 @@ The registered Stage 1b: a pilot, then 40 tasks × 2 configurations × 2 repeats
 set -o pipefail
 go run ./cmd/bench verify --stage stage1b --tasks 40 --repeats 2 docs/bench/stage-1b-sonnet \
   && diff <(jq -r '.tasks[]' docs/bench/stage-1b-sonnet/run.json | sort) \
-          <(for f in bench/tasks/*/task.json; do jq -r 'select(.shape != "fixture" and (has("superseded_by") | not)) | .id' "$f"; done | sort)
+          <(git ls-tree --name-only edb65629 bench/tasks/ | while read -r d; do git show "edb65629:$d/task.json" | jq -r 'select(.shape != "fixture" and (has("superseded_by") | not)) | .id'; done | sort) \
+  && go test ./internal/bench/ -count=1 -run '^TestTheRunnerResumesWithoutRepeatingAStartedAttempt$' -v 2>&1 | grep '^--- PASS: TestTheRunnerResumesWithoutRepeatingAStartedAttempt ' > /dev/null
 ```
+
+The corpus compared is the one at `edb65629`, the commit the stage ran from (ADR-159 Decision 3): a task superseded after the stage ran must not make its receipts look wrong.
 
 ## Tests
 
@@ -55,6 +58,10 @@ go run ./cmd/bench verify --stage stage1b --tasks 40 --repeats 2 docs/bench/stag
 ## Mutation Log
 (empty until execute)
 - 2026-10-15 · edb65629* · mutant killed · exit 1 · `docs/bench/stage-1b-sonnet/run.json` · the fence binds the receipts to the stage they were run as · acceptance-sha256:1fe9795510492bd2d7bb5fcc04b0b6c844d2d53d9b7bf67c9ce14b639c43e3ed
+- 2026-10-15 · ffbcfd04* · mutant killed · exit 1 · `docs/bench/stage-1b-sonnet/run.json` · the fence binds the receipts to the stage they were run as · acceptance-sha256:fc867387263f0676ee41371639d1179cd5e8f933b01a0a29453f4a5fba7e469d
+- 2026-10-15 · ffbcfd04* · mutant killed · exit 1 · `docs/bench/stage-1b-sonnet/run.json` · the fence binds run.json to the corpus at the commit the stage ran from (ADR-159 Decision 3) · acceptance-sha256:fc867387263f0676ee41371639d1179cd5e8f933b01a0a29453f4a5fba7e469d
+- 2026-10-15 · ffbcfd04* · mutant killed · exit 1 · `docs/bench/stage-1b-sonnet/run.json` · the fence binds the receipts to the stage they were run as · acceptance-sha256:a1f193663efe0afe7355e57c83919d35782d2352ffdeb08e93b04f3c252af795
+- 2026-10-15 · ffbcfd04* · mutant killed · exit 1 · `docs/bench/stage-1b-sonnet/run.json` · the fence binds run.json to the corpus at the commit the stage ran from (ADR-159 Decision 3) · acceptance-sha256:a1f193663efe0afe7355e57c83919d35782d2352ffdeb08e93b04f3c252af795
 
 ## Verification Log
 (empty until execute)
@@ -68,6 +75,16 @@ go run ./cmd/bench verify --stage stage1b --tasks 40 --repeats 2 docs/bench/stag
 - 2026-10-15 · human-observed · S3 observed 2026-10-15 on this Mac, CLI 2.1.300, mrw v1.66.0 (05ec3f8), bench at edb65629: canary passed; pilot of 5 tasks x A/B x 1 (am-vms-stamp-builds, qh-vms-listing-timeout, site-vms-social-metadata, am-go-sha-message-2, site-html-cost-faq-2) read receipt by receipt and every transcript's tool calls and results: 10/10 solved, no silent mis-edit, no exclusion, no slipped write, empty stderr, no one-turn attempt; both agentsmemory attempts worked past the dropped AGENTS.md sections; B's two hook refusals were git stash in the tree and sed -i on /tmp/plan.txt, both the registered rule (only a redirection or tee may write outside the tree); in am-go-sha-message-2, B left the asserting test unchanged and A changed it, both graded solved, as the replacement intends. No harness or oracle defect: the full stage proceeds
 - 2026-10-15 · edb65629* · exit 0 · `set -o pipefail …` · acceptance-sha256:1fe9795510492bd2d7bb5fcc04b0b6c844d2d53d9b7bf67c9ce14b639c43e3ed · ms:808
 - 2026-10-15 · edb65629* · exit 0 · `set -o pipefail …` · acceptance-sha256:1fe9795510492bd2d7bb5fcc04b0b6c844d2d53d9b7bf67c9ce14b639c43e3ed · ms:2098
+- 2026-10-15 · ffbcfd04* · exit 0 · `set -o pipefail …` · acceptance-sha256:fc867387263f0676ee41371639d1179cd5e8f933b01a0a29453f4a5fba7e469d · ms:792
+- 2026-10-15 · ffbcfd04* · exit 0 · `set -o pipefail …` · acceptance-sha256:fc867387263f0676ee41371639d1179cd5e8f933b01a0a29453f4a5fba7e469d · ms:791
+- 2026-10-15 · ffbcfd04* · exit 141 · `set -o pipefail …` · acceptance-sha256:cd36389883f3ca7e9033fab4f346d2e5027c10bc456cab6d7d456bee89d57a5b · ms:3152
+  ```
+  ```
+- 2026-10-15 · ffbcfd04* · exit 141 · `set -o pipefail …` · acceptance-sha256:cd36389883f3ca7e9033fab4f346d2e5027c10bc456cab6d7d456bee89d57a5b · ms:2827
+  ```
+  ```
+- 2026-10-15 · ffbcfd04* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1f193663efe0afe7355e57c83919d35782d2352ffdeb08e93b04f3c252af795 · ms:3775
+- 2026-10-15 · ffbcfd04* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1f193663efe0afe7355e57c83919d35782d2352ffdeb08e93b04f3c252af795 · ms:6363
 
 ## Invariants
 
