@@ -25,7 +25,7 @@ README must be regenerated.
 | T3 | Stage 1: our own tasks on Sonnet 5.5 | done | T2 | `T3-stage-1-sonnet.md` fence |
 | T4 | Stage 2: our own tasks on Opus 5.5 | done | T3 | `T4-stage-2-opus.md` fence |
 | T5 | Stage 3: the SWE-bench Verified slice | done | T2 | `T5-stage-3-swe-bench-slice.md` fence |
-| T6 | analysis against the registered bar, and README | partial | T3, T4, T5 | `T6-analysis-and-readme.md` fence |
+| T6 | analysis against the registered bar, and README | done | T3, T4, T5 | `T6-analysis-and-readme.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

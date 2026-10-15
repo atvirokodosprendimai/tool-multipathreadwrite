@@ -6,6 +6,15 @@ writes nothing, because a write that changed nothing is invisible.
 
 The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). The six-guarantee comparison lives in [docs/comparison.md](docs/comparison.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
 
+Whether mrw pays for itself on agent runs is measured against a bar registered before any run ([ADR-156](docs/adr/ADR-156-whether-mrw-pays-for-itself-is-measured-on-agent-runs.md); every verdict and row in [docs/bench/RESULTS.md](docs/bench/RESULTS.md)). Every verdict so far is **INCONCLUSIVE**:
+
+- **Stage 1**, Sonnet 5.5, 30 own tasks: INCONCLUSIVE, cost (B−A)/A +2.6% [−3.9%, +9.0%]. Configuration B made more silent mis-edits than A, 4 against 2, all on three tasks later superseded as misgraded (ADR-158, ADR-159).
+- **Stage 1b**, Sonnet 5.5, 40 own tasks: INCONCLUSIVE, cost −0.4% [−5.0%, +4.2%].
+- **Stage 2**, Opus 5.5, 40 own tasks: INCONCLUSIVE, cost −2.7% [−7.8%, +2.1%]. B made more silent mis-edits than A, 2 against 0: both renamed a test function beside the asked rename, and said so.
+- **Stage 3**, 20 SWE-bench Verified instances: Sonnet 5.5 INCONCLUSIVE, cost −6.1% [−17.0%, +4.6%]; Opus 5.5 INCONCLUSIVE, cost −5.3% [−22.9%, +14.8%].
+
+Stage 2's attempts solved 156 of 160 and Stage 3's 70 of 80, so the solved difference had little room to move; [ADR-160](docs/adr/ADR-160-stage-4-measures-mrw-where-its-mechanism-should-matter.md) registers a harder Stage 4.
+
 **Status: stable at v1.67.0 (2026-10-15), the tag cut from `2586b4f`.** Break campaign for it: [docs/break/campaign-v1.67.0.txt](docs/break/campaign-v1.67.0.txt), 59 probes, exit codes identical to v1.66.0.
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
