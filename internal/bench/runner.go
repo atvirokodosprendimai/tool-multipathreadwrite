@@ -109,7 +109,8 @@ type RunOptions struct {
 	Containment string // "bypass"; "user:<name>" is Zy's other choice, not built yet
 	Canary      string // a passing canary receipt for this CLI version
 	Budget      time.Duration
-	Scratch     string // where attempt trees are built; os.TempDir() when empty
+	Scratch     string     // where attempt trees are built; os.TempDir() when empty
+	SWE         *SWEGrader // grades the SWE-bench slice's attempts; nil for the corpus's own tasks
 }
 
 // plan is what run.json records; a second Run into the same directory must
@@ -169,6 +170,9 @@ func Run(o RunOptions) error {
 	// A stage whose repository is not on this machine stops here, by name,
 	// rather than recording every attempt as a setup exclusion.
 	for _, t := range o.Tasks {
+		if t.swe != nil && o.SWE == nil {
+			return fmt.Errorf("task %s is from the SWE-bench slice and the stage has no grader for it", t.ID)
+		}
 		if t.Repo != "fixture" {
 			src, err := repoPath(t)
 			if err != nil {
@@ -186,6 +190,7 @@ func Run(o RunOptions) error {
 	if err := claimOut(o.Out, p); err != nil {
 		return err
 	}
+	image := "" // the SWE-bench image the attempts now running are graded in
 	for i, a := range planAttempts(o) {
 		for try := 0; ; try++ {
 			at := a
@@ -206,6 +211,17 @@ func Run(o RunOptions) error {
 			case exists(base + ".started"):
 				r.Exclusion = "" // started and never finished: neither it nor a replacement runs
 			default:
+				if a.Task.swe != nil && a.Task.swe.image != image {
+					if image != "" {
+						if err := o.SWE.remove(image); err != nil {
+							return err
+						}
+					}
+					if err := o.SWE.ensure(a.Task.swe.image); err != nil {
+						return err
+					}
+					image = a.Task.swe.image
+				}
 				if err := writeOnce(base+".started", []byte(time.Now().UTC().Format(time.RFC3339)+"\n")); err != nil {
 					return err
 				}
@@ -225,6 +241,9 @@ func Run(o RunOptions) error {
 				break
 			}
 		}
+	}
+	if image != "" {
+		return o.SWE.remove(image)
 	}
 	return nil
 }
@@ -413,6 +432,16 @@ func planAttempts(o RunOptions) []attempt {
 		}
 	}
 	rand.New(rand.NewSource(o.Seed)).Shuffle(len(as), func(i, j int) { as[i], as[j] = as[j], as[i] })
+	// A SWE-bench instance's attempts run one after another, in the seeded
+	// order among themselves, so its image is pulled once and removed once
+	// they are graded (T5 S2: twenty images do not fit on this disk).
+	if len(o.Tasks) > 0 && o.Tasks[0].swe != nil {
+		at := map[string]int{}
+		for i, t := range o.Tasks {
+			at[t.ID] = i
+		}
+		slices.SortStableFunc(as, func(x, y attempt) int { return at[x.Task.ID] - at[y.Task.ID] })
+	}
 	return as
 }
 
@@ -428,7 +457,11 @@ func safe(s string) string {
 // runAttempt builds the tree, starts the CLI, grades the result. A failure of
 // bench's own (tree, oracle) is recorded as the registered setup exclusion.
 func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Receipt {
-	r := Receipt{Attempt: a.ID, Stage: o.Stage, Task: a.Task.ID, Shape: a.Task.Shape, Source: "own", Model: a.Model,
+	source := "own"
+	if a.Task.swe != nil {
+		source = "swe-bench"
+	}
+	r := Receipt{Attempt: a.ID, Stage: o.Stage, Task: a.Task.ID, Shape: a.Task.Shape, Source: source, Model: a.Model,
 		Config: a.Config.Name, Repeat: a.Repeat, Order: order, CLIVersion: cli, Started: time.Now().UTC().Format(time.RFC3339),
 		CheckRedAtBase: a.Task.CheckRedAtBase != ""}
 	if a.Config.Mrw {
@@ -505,7 +538,12 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 	if errText, _ := os.ReadFile(base + ".stderr"); startFailed(t, r, string(errText)) {
 		r.Exclusion = ExclusionStart
 	}
-	v, err := Oracle(a.Task, tree)
+	var v Verdict
+	if a.Task.swe != nil {
+		v, err = o.SWE.grade(a.Task, tree, scratch, a.ID)
+	} else {
+		v, err = Oracle(a.Task, tree)
+	}
 	if err != nil {
 		r.Exclusion, r.Note = ExclusionSetup, "oracle: "+err.Error()
 		return r

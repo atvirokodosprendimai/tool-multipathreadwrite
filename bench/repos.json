@@ -6,5 +6,12 @@
     ]},
   "crossagentschat": {"url": "https://github.com/atvirokodosprendimai/crossagentschat", "path": "~/GolandProjects/crossagentschat"},
   "quality-harness": {"url": "https://github.com/D3-lt/quality-harness", "path": "~/CursorProjects/quality-harness"},
-  "site": {"url": "https://github.com/atvirokodosprendimai/atvirokodosprendimai.github.io", "path": "~/WebstormProjects/atvirokodosprendimai.github.io"}
+  "site": {"url": "https://github.com/atvirokodosprendimai/atvirokodosprendimai.github.io", "path": "~/WebstormProjects/atvirokodosprendimai.github.io"},
+  "astropy/astropy": {"url": "https://github.com/astropy/astropy", "path": "~/.local/share/mrw-bench/swe-repos/astropy__astropy"},
+  "django/django": {"url": "https://github.com/django/django", "path": "~/.local/share/mrw-bench/swe-repos/django__django"},
+  "matplotlib/matplotlib": {"url": "https://github.com/matplotlib/matplotlib", "path": "~/.local/share/mrw-bench/swe-repos/matplotlib__matplotlib"},
+  "pytest-dev/pytest": {"url": "https://github.com/pytest-dev/pytest", "path": "~/.local/share/mrw-bench/swe-repos/pytest-dev__pytest"},
+  "scikit-learn/scikit-learn": {"url": "https://github.com/scikit-learn/scikit-learn", "path": "~/.local/share/mrw-bench/swe-repos/scikit-learn__scikit-learn"},
+  "sphinx-doc/sphinx": {"url": "https://github.com/sphinx-doc/sphinx", "path": "~/.local/share/mrw-bench/swe-repos/sphinx-doc__sphinx"},
+  "sympy/sympy": {"url": "https://github.com/sympy/sympy", "path": "~/.local/share/mrw-bench/swe-repos/sympy__sympy"}
 }

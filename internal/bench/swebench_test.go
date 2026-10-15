@@ -3,9 +3,14 @@ package bench
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 )
 
 // TestTheSWEBenchSliceIsTheLowestTwentyHashes holds the selection rule BACKLOG
@@ -40,5 +45,184 @@ func TestTheSWEBenchSliceIsTheLowestTwentyHashes(t *testing.T) {
 	}
 	if n := len(SelectSWEBench(ids[:5], 20)); n != 5 {
 		t.Errorf("fewer instances than the slice: selected %d, want all 5", n)
+	}
+}
+
+// sweFixture lays out what a SWE-bench stage reads: a local repository at one
+// commit, bench/repos.json naming it, a dataset whose rows carry everything the
+// harness's rows carry — hints, the test patch, the gold patch, the tests that
+// grade it, each a sentinel — and a selection of two instances on that commit.
+func sweFixture(t *testing.T, work string) (selection, dataset string) {
+	t.Helper()
+	repo := filepath.Join(work, "repo")
+	if err := os.MkdirAll(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "calc.py"), []byte("def add(a, b):\n    return a - b\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}, {"-c", "user.name=t", "-c", "user.email=t@localhost", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "base"}} {
+		if err := git(repo, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	commit, err := gitOut(repo, "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit = strings.TrimSpace(commit)
+	if err := os.MkdirAll(filepath.Join(work, "bench", "swe-bench"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	repos, _ := json.Marshal(map[string]Repo{"org/calc": {URL: "https://example.invalid/org/calc", Path: repo}})
+	if err := os.WriteFile(filepath.Join(work, "bench", "repos.json"), repos, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var rows []map[string]string
+	for _, id := range []string{"org__calc-1", "org__calc-2", "org__calc-3"} {
+		rows = append(rows, map[string]string{
+			"instance_id": id, "repo": "org/calc", "base_commit": commit,
+			"problem_statement": "add() subtracts; make it add. (" + id + ")",
+			"hints_text":        "SENTINEL hint", "test_patch": "SENTINEL test patch", "patch": "SENTINEL gold patch",
+			"FAIL_TO_PASS": `["SENTINEL fail to pass"]`, "PASS_TO_PASS": `["SENTINEL pass to pass"]`,
+			"image": "img/" + id,
+		})
+	}
+	b, _ := json.Marshal(rows)
+	dataset = filepath.Join(work, "dataset.json")
+	if err := os.WriteFile(dataset, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	selection = filepath.Join(work, "bench", "swe-bench", "selection.json")
+	if err := os.WriteFile(selection, []byte(`{"selected":["org__calc-2","org__calc-1"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return selection, dataset
+}
+
+// TestTheSWEBenchTaskIsTheProblemStatementAlone holds T5's invariant: no gold
+// patch, hint or grading test reaches the agent. A task is built from the
+// problem statement and the base commit, in the selection's order, and nothing
+// else of its row is kept in it.
+func TestTheSWEBenchTaskIsTheProblemStatementAlone(t *testing.T) {
+	needGit(t)
+	sel, ds := sweFixture(t, t.TempDir())
+	ts, err := LoadSWEBench(sel, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ts) != 2 || ts[0].ID != "org__calc-2" || ts[1].ID != "org__calc-1" {
+		t.Fatalf("tasks %v, want the selection's two, in its order", ts)
+	}
+	for _, tk := range ts {
+		if tk.Instruction != "add() subtracts; make it add. ("+tk.ID+")" || tk.Shape != ShapeSWEBench || tk.Repo != "org/calc" || len(tk.Commit) != 40 {
+			t.Errorf("%s: %+v", tk.ID, tk)
+		}
+		if tk.swe == nil || tk.swe.image != "img/"+tk.ID {
+			t.Errorf("%s: the task does not carry its image", tk.ID)
+			continue
+		}
+		if dump := fmt.Sprintf("%#v %#v", tk, *tk.swe); strings.Contains(dump, "SENTINEL") {
+			t.Errorf("%s carries more of its row than the problem statement: %s", tk.ID, dump)
+		}
+	}
+	if err := os.WriteFile(sel, []byte(`{"selected":["org__calc-9"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadSWEBench(sel, ds); err == nil || !strings.Contains(err.Error(), "org__calc-9") {
+		t.Errorf("a selected id the dataset lacks: %v, want an error naming it", err)
+	}
+}
+
+// TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime drives Run over the
+// slice with a stub CLI, a stub harness and a stub docker: every attempt is
+// graded by the harness's report, its receipt says so, and each instance's
+// attempts run together, its image pulled once before them and removed after.
+func TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime(t *testing.T) {
+	needGit(t)
+	work := t.TempDir()
+	sel, ds := sweFixture(t, work)
+	tasks, err := LoadSWEBench(sel, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	patch := filepath.Join(work, "fix.patch")
+	if err := os.WriteFile(patch, []byte("diff --git a/calc.py b/calc.py\n--- a/calc.py\n+++ b/calc.py\n@@ -1,2 +1,2 @@\n def add(a, b):\n-    return a - b\n+    return a + b  # FIXED\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	claude, _ := stubClaude(t, work, patch, "done")
+	harness := filepath.Join(work, "python")
+	if err := os.WriteFile(harness, []byte(`#!/bin/sh
+preds=""; id=""; run=""; prev=""
+for a in "$@"; do
+	case "$prev" in -p) preds="$a";; -i) id="$a";; -id) run="$a";; esac
+	prev="$a"
+done
+echo "$id" >> "`+filepath.Join(work, "harness.log")+`"
+d="logs/run_evaluation/$run/$run/$id"; mkdir -p "$d"
+if grep -q FIXED "$preds"; then r=true; else r=false; fi
+printf '{"%s": {"resolved": %s}}\n' "$id" "$r" > "$d/report.json"
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	docker := filepath.Join(work, "docker")
+	if err := os.WriteFile(docker, []byte("#!/bin/sh\necho \"$*\" >> \""+filepath.Join(work, "docker.log")+"\"\n[ \"$1 $2\" = \"image inspect\" ] && exit 1\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	canary := filepath.Join(work, "canary.json")
+	if err := os.WriteFile(canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	o := RunOptions{Tasks: tasks, Stage: "s3", Out: filepath.Join(work, "out"), Models: []string{"stub-model"}, Configs: []string{"A", "B"},
+		Repeats: 1, Seed: 156, Claude: claude, Mrw: stubMrw(t, work), Bench: "/bin/true", ConfigDir: filepath.Join(work, "config"),
+		Containment: "bypass", Canary: canary, Budget: time.Minute, Scratch: filepath.Join(work, "scratch"),
+		SWE: &SWEGrader{Python: harness, Dataset: ds, Docker: docker}}
+	if err := Run(o); err != nil {
+		t.Fatal(err)
+	}
+	got := receipts(t, o.Out)
+	if len(got) != 4 {
+		t.Fatalf("receipts: %d, want 4", len(got))
+	}
+	for name, b := range got {
+		var r Receipt
+		if err := json.Unmarshal(b, &r); err != nil {
+			t.Fatal(err)
+		}
+		if r.Source != "swe-bench" || r.Shape != ShapeSWEBench || !r.Oracle.Solved || r.SilentMisEdit || r.Exclusion != "" {
+			t.Errorf("%s: %+v", name, r)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(work, "harness.log")); strings.Count(string(b), "\n") != 4 {
+		t.Errorf("the harness graded %q, want each of the 4 attempts", b)
+	}
+	want := "image inspect img/org__calc-2\npull --platform linux/amd64 img/org__calc-2\nimage rm img/org__calc-2\n" +
+		"image inspect img/org__calc-1\npull --platform linux/amd64 img/org__calc-1\nimage rm img/org__calc-1\n"
+	if b, _ := os.ReadFile(filepath.Join(work, "docker.log")); string(b) != want {
+		t.Errorf("docker ran:\n%s\nwant each image pulled once before its instance's attempts and removed after:\n%s", b, want)
+	}
+}
+
+// TestAnEmptySWEBenchDiffIsUnsolvedWithoutTheHarness: an attempt that changed
+// nothing is unsolved, and the harness is not started for it.
+func TestAnEmptySWEBenchDiffIsUnsolvedWithoutTheHarness(t *testing.T) {
+	needGit(t)
+	work := t.TempDir()
+	sel, ds := sweFixture(t, work)
+	tasks, err := LoadSWEBench(sel, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree := filepath.Join(work, "tree")
+	if err := os.Mkdir(tree, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Materialize(tasks[0], tree, nil); err != nil {
+		t.Fatal(err)
+	}
+	g := SWEGrader{Python: filepath.Join(work, "no-such-python"), Dataset: ds, Docker: "/bin/false"}
+	v, err := g.grade(tasks[0], tree, t.TempDir(), "run")
+	if err != nil || v.Solved {
+		t.Errorf("an empty diff: %+v, %v; want unsolved, and no harness started", v, err)
 	}
 }

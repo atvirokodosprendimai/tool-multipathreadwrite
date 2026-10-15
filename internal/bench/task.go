@@ -66,6 +66,7 @@ type Task struct {
 	Dir     string            `json:"-"`
 	regions map[string][]hunk // base-numbered hunks of the reference fix, by file
 	created map[string]bool   // files the reference fix creates
+	swe     *sweInstance      // set for a task of the SWE-bench slice (LoadSWEBench)
 }
 
 // hunk is one change in base numbering: Count lines from Start are replaced,
