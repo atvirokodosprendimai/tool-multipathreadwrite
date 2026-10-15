@@ -1,0 +1,47 @@
+{
+  "attempt": "qh-rename-git-lines.B.claude-opus-5-5.2",
+  "stage": "stage2",
+  "task": "qh-rename-git-lines",
+  "shape": "multi-site",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 2,
+  "order": 101,
+  "started": "2026-10-15T11:27:45Z",
+  "wall_ms": 282620,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 11,
+  "tool_calls": 10,
+  "total_cost_usd": 0.34439620000000004,
+  "usage": {
+    "input_tokens": 22,
+    "output_tokens": 4633,
+    "cache_read_input_tokens": 240721,
+    "cache_creation_input_tokens": 25438
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "tests/observed-events.test.mjs: is not the reference result",
+      "tests/observed-events.test.mjs: no match for \\bgitOutputLines\\b",
+      "tests/observed-events.test.mjs: still matches \\bgitLines\\b"
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 4,
+    "insertions": 10,
+    "deletions": 10
+  },
+  "hook_reads": 6,
+  "check_red_at_base": true
+}

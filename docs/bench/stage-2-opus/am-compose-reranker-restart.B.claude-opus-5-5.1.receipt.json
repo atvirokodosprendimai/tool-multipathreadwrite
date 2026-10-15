@@ -1,0 +1,40 @@
+{
+  "attempt": "am-compose-reranker-restart.B.claude-opus-5-5.1",
+  "stage": "stage2",
+  "task": "am-compose-reranker-restart",
+  "shape": "repeated-anchor",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 15,
+  "started": "2026-10-15T10:20:33Z",
+  "wall_ms": 40759,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 3,
+  "tool_calls": 2,
+  "total_cost_usd": 0.24551119999999998,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 539,
+    "cache_read_input_tokens": 66976,
+    "cache_creation_input_tokens": 27664
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 1
+  }
+}

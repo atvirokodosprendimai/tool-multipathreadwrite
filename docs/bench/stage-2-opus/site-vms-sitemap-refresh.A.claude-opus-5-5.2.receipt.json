@@ -1,0 +1,43 @@
+{
+  "attempt": "site-vms-sitemap-refresh.A.claude-opus-5-5.2",
+  "stage": "stage2",
+  "task": "site-vms-sitemap-refresh",
+  "shape": "varied-multi-site",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 102,
+  "started": "2026-10-15T11:32:31Z",
+  "wall_ms": 16304,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 7,
+  "tool_calls": 6,
+  "total_cost_usd": 0.07048760000000001,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 1259,
+    "cache_read_input_tokens": 39138,
+    "cache_creation_input_tokens": 4680
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 5,
+    "deletions": 5
+  }
+}

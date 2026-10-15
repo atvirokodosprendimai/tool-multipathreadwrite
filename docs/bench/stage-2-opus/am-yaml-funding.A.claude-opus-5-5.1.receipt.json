@@ -1,0 +1,43 @@
+{
+  "attempt": "am-yaml-funding.A.claude-opus-5-5.1",
+  "stage": "stage2",
+  "task": "am-yaml-funding",
+  "shape": "single-line",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 116,
+  "started": "2026-10-15T12:00:11Z",
+  "wall_ms": 11420,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 6,
+  "tool_calls": 5,
+  "total_cost_usd": 0.23670840000000004,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 707,
+    "cache_read_input_tokens": 95562,
+    "cache_creation_input_tokens": 25428
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 1
+  }
+}

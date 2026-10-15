@@ -1,0 +1,22 @@
+{
+  "stage": "pilot",
+  "tasks": [
+    "am-go-sha-message-2",
+    "am-vms-stamp-builds",
+    "qh-vms-listing-timeout",
+    "site-html-cost-faq-2",
+    "site-vms-social-metadata"
+  ],
+  "models": [
+    "claude-opus-5-5"
+  ],
+  "configs": [
+    "A",
+    "B"
+  ],
+  "repeats": 1,
+  "seed": 156,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "containment": "bypass"
+}

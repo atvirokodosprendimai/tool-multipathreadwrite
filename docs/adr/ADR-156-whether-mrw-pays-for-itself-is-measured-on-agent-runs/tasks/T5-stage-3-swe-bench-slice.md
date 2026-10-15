@@ -110,6 +110,7 @@ out=$(mktemp) \
   bench: open docs/bench/stage-3-swe-bench/run.json: no such file or directory
   exit status 1
   ```
+- 2026-10-15 · human-observed · S3 approved: Zy said go for Stage 3 on 2026-10-15, choosing 'Go after Stage 2' when given the price: the seven clones, the two-attempt pilot with its transcripts read, then 80 attempts one image at a time, every transcript scanned for a read of the dataset, about 6-10 hours of machine time, twenty pulls of about 10 GB each, peak disk about 15 GB
 
 ## Invariants
 

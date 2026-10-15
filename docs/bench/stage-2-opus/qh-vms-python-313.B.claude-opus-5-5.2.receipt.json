@@ -1,0 +1,42 @@
+{
+  "attempt": "qh-vms-python-313.B.claude-opus-5-5.2",
+  "stage": "stage2",
+  "task": "qh-vms-python-313",
+  "shape": "varied-multi-site",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 2,
+  "order": 61,
+  "started": "2026-10-15T10:58:55Z",
+  "wall_ms": 238696,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 7,
+  "tool_calls": 6,
+  "total_cost_usd": 0.23351,
+  "usage": {
+    "input_tokens": 14,
+    "output_tokens": 2150,
+    "cache_read_input_tokens": 136470,
+    "cache_creation_input_tokens": 20395
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 3,
+    "insertions": 5,
+    "deletions": 5
+  },
+  "hook_reads": 4,
+  "check_red_at_base": true
+}

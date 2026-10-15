@@ -14,7 +14,7 @@ import (
 
 // hookMarkers are strings the user's own hooks on this machine print into a
 // session (memoryd, agentsmemory, quality-harness); any of them in a
-// transcript means an attempt ran under his setup.
+// transcript means an attempt ran under their setup.
 var hookMarkers = []string{"<<<memoryd data", "memoryd ·", "agentsmemory", "quality-harness:", "SessionStart hook", "UserPromptSubmit hook"}
 
 // CheckCanary returns what a canary transcript shows leaking into an attempt

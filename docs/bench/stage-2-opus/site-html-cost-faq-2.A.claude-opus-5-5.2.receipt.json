@@ -1,0 +1,43 @@
+{
+  "attempt": "site-html-cost-faq-2.A.claude-opus-5-5.2",
+  "stage": "stage2",
+  "task": "site-html-cost-faq-2",
+  "shape": "large-file",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 82,
+  "started": "2026-10-15T11:17:02Z",
+  "wall_ms": 10412,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.0370872,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 392,
+    "cache_read_input_tokens": 28916,
+    "cache_creation_input_tokens": 2929
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 2,
+    "deletions": 2
+  }
+}
