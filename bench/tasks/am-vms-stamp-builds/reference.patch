@@ -1,0 +1,66 @@
+diff --git a/INSTALL.md b/INSTALL.md
+index fe11374..a4e63f9 100644
+--- a/INSTALL.md
++++ b/INSTALL.md
+@@ -151,7 +151,7 @@ it below loopback, use `--socket`. Both are documented in the
+ ### 2b. Build from source
+ 
+ ```bash
+-go build -o agentsmemory ./cmd/server
++go build -trimpath -ldflags "-s -w -X main.version=$(git describe --tags)" -o agentsmemory ./cmd/server
+ ./agentsmemory --local --db agentsmemory.db
+ ```
+ 
+@@ -204,7 +204,7 @@ the install's `bin/`. Offline, or on a platform the release does not build, it
+ refuses with the hand remedy, which still works:
+ 
+ ```bash
+-go build -o ~/.local/bin/aiagentmemory-server ./cmd/server   # or: --server-bin <path>
++go build -trimpath -ldflags "-s -w -X main.version=$(git describe --tags)" -o ~/.local/bin/aiagentmemory-server ./cmd/server   # or: --server-bin <path>
+ ```
+ 
+ ⚠ **Capping the inference containers can turn reranking off silently.** At a
+@@ -287,7 +287,7 @@ before you start rather than after.
+ ```bash
+ # 1. Desktop spawns a LOCAL PROCESS, so it needs a server binary on this machine.
+ #    A Docker-only install produces none (issue #199).
+-go build -o ~/.local/bin/aiagentmemory-server ./cmd/server
++go build -trimpath -ldflags "-s -w -X main.version=$(git describe --tags)" -o ~/.local/bin/aiagentmemory-server ./cmd/server
+ 
+ # 2. QUIT CLAUDE DESKTOP FIRST. It holds its config file open while running.
+ # 3. Then install.
+diff --git a/README.md b/README.md
+index 6ec129a..3c58ac6 100644
+--- a/README.md
++++ b/README.md
+@@ -215,7 +215,7 @@ prerequisite: searches are indexed in-process unless you ask for Qdrant.
+ 
+ ```bash
+ # build
+-go build -o agentsmemory ./cmd/server
++go build -trimpath -ldflags "-s -w -X main.version=$(git describe --tags)" -o agentsmemory ./cmd/server
+ 
+ # run — migrates an embedded schema, seeds a demo workspace on first boot,
+ # and prints a one-time bearer token to the log
+@@ -911,7 +911,7 @@ a `mcp-stdio` bridge, and a Docker-only install produces no host binary. The
+ install refuses rather than writing a command that is not there:
+ 
+ ```bash
+-go build -o ~/.local/bin/aiagentmemory-server ./cmd/server
++go build -trimpath -ldflags "-s -w -X main.version=$(git describe --tags)" -o ~/.local/bin/aiagentmemory-server ./cmd/server
+ ```
+ 
+ ### What each agent actually gets
+diff --git a/TROUBLESHOOTING.md b/TROUBLESHOOTING.md
+index 7865445..1ed4ef0 100644
+--- a/TROUBLESHOOTING.md
++++ b/TROUBLESHOOTING.md
+@@ -195,7 +195,7 @@ Two separate causes:
+   (issue #199). Offline, or on a platform the release does not build, build it:
+ 
+   ```bash
+-  go build -o ~/.local/bin/aiagentmemory-server ./cmd/server   # or: --server-bin <path>
++  go build -trimpath -ldflags "-s -w -X main.version=$(git describe --tags)" -o ~/.local/bin/aiagentmemory-server ./cmd/server   # or: --server-bin <path>
+   ```
+ 
+ Either way, `aiagentmemory doctor --agent claude-desktop` judges the binary the

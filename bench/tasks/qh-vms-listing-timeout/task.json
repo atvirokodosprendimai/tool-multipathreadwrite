@@ -1,0 +1,16 @@
+{
+  "id": "qh-vms-listing-timeout",
+  "shape": "varied-multi-site",
+  "repo": "quality-harness",
+  "commit": "bbf82ff3c32c95c4251ac2eee8d0e6cfd8bad999",
+  "check_red_at_base": "quality-harness's declared check (bash scripts/selftest.sh) fails at this commit in the tree bench builds (measured 2026-10-14): lifecycle.test.mjs 'reported: a scratch corpus does not pull the record gates' fails even in a full-history clone, and two orphan-sweep.test.mjs cases that read git history fail in the single-commit tree",
+  "instruction": "On a large repository, the git calls that list the working tree's changed paths outrun their timeouts. Give the two that list changed paths the 30-second timeout that the ls-files listing in trackedPaths (plugin/scripts/decision-corpus.mjs) already has: the `git status --porcelain -z -uall` call in statusPaths (plugin/scripts/tree-facts.mjs, now 5_000) and the `git diff --name-only --diff-filter=D` call in deletedTrackedPaths (plugin/scripts/artifact-pass.mjs, now 10_000) both become `timeout: 30_000`. In trackedPaths, write the existing `timeout: 30000` as `timeout: 30_000`, so the three read alike. Every other timeout stays as it is, including the git call in gitLines in tree-facts.mjs, whose options are otherwise the same as statusPaths', and the rev-parse call just above the diff in artifact-pass.mjs. Change nothing else.",
+  "require": [
+    {"file": "plugin/scripts/tree-facts.mjs", "match": "'status', '--porcelain', '-z', '-uall', \\.\\.\\.harnessPathspecs\\(root\\)\\],\\n\\s*\\{ encoding: 'utf8', timeout: 30_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true \\}\\)"},
+    {"file": "plugin/scripts/artifact-pass.mjs", "match": "'--diff-filter=D', 'HEAD'\\],\\n\\s*\\{ encoding: 'utf8', timeout: 30_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true \\}\\)"},
+    {"file": "plugin/scripts/decision-corpus.mjs", "match": "'core\\.quotePath=false', \\.\\.\\.args\\],\\n\\s*\\{ encoding: 'utf8', timeout: 30_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true \\}\\)"}
+  ],
+  "forbid": [
+    {"file": "plugin/scripts/decision-corpus.mjs", "match": "timeout: 30000,"}
+  ]
+}

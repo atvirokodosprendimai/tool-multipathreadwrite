@@ -1,7 +1,11 @@
 package bench
 
 import (
+	"encoding/json"
+	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -171,5 +175,92 @@ func TestTheVerdictFollowsTheRegisteredBar(t *testing.T) {
 	}
 	if got[0].SlippedB != 3 {
 		t.Errorf("B's slipped writes: %d, want 3", got[0].SlippedB)
+	}
+}
+
+// TestTwoStagesAreNeverPooled: a verdict is per stage as well as per model and
+// task source (ADR-158 Decision 6). ADR-156 T6 analyses every stage's receipts
+// under docs/bench in one run, so Stage 1's and Stage 1b's would otherwise be
+// one verdict.
+func TestTwoStagesAreNeverPooled(t *testing.T) {
+	var rs []Receipt
+	for _, stage := range []string{"s1b", "s1"} {
+		for _, r := range receiptsFor("sonnet", "own", repeat(1.0, 10), repeat(1.0, 10), repeat(true, 10), repeat(true, 10)) {
+			r.Stage = stage
+			rs = append(rs, r)
+		}
+	}
+	got, err := Analyze(rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Stage != "s1" || got[1].Stage != "s1b" || got[0].Attempts != 20 || got[1].Attempts != 20 {
+		t.Errorf("two stages: %+v, want one verdict each, s1 first, 20 attempts each", got)
+	}
+}
+
+// TestTheVariedMultiSiteRowIsDescriptive: where a stage's attempts include
+// varied-multi-site tasks, one more row is computed over those tasks alone and
+// marked descriptive; the verdict row still counts every task, and a stage with
+// none of them gets no such row (ADR-158 Decision 6).
+func TestTheVariedMultiSiteRowIsDescriptive(t *testing.T) {
+	rs := receiptsFor("sonnet", "own", repeat(1.0, 10), repeat(1.0, 10), repeat(true, 10), repeat(true, 10))
+	for i := range rs {
+		rs[i].Stage = "s"
+		if strings.HasSuffix(rs[i].Task, "xxxxxxx") {
+			rs[i].Shape = ShapeVariedMultiSite
+		}
+	}
+	got, err := Analyze(rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Descriptive != "" || got[0].Tasks != 10 || got[1].Descriptive != onlyVariedMultiSite || got[1].Tasks != 3 {
+		t.Errorf("rows: %+v, want the verdict over 10 tasks and a descriptive row over the 3 varied ones", got)
+	}
+	plain := receiptsFor("sonnet", "own", repeat(1.0, 10), repeat(1.0, 10), repeat(true, 10), repeat(true, 10))
+	if got, err := Analyze(plain); err != nil || len(got) != 1 {
+		t.Errorf("a stage with no varied-multi-site task: %+v %v, want the verdict alone", got, err)
+	}
+}
+
+// TestStageOnesPublishedVerdictIsUnchanged: grouping by stage moves nothing in
+// the verdict Stage 1 published (docs/bench/stage-1-sonnet, ADR-156 T3).
+func TestStageOnesPublishedVerdictIsUnchanged(t *testing.T) {
+	dir := filepath.Join("..", "..", "docs", "bench", "stage-1-sonnet")
+	var rs []Receipt
+	err := filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(p, ".receipt.json") {
+			return err
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		var r Receipt
+		if err := json.Unmarshal(b, &r); err != nil {
+			return err
+		}
+		rs = append(rs, r)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Analyze(rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("rows: %+v, want the verdict and its check_red_at_base row", got)
+	}
+	v := got[0]
+	line := fmt.Sprintf("%s %s %d %d %+.3f [%+.3f, %+.3f] %+.3f [%+.3f, %+.3f] %d/%d %d %d",
+		v.Stage, v.Verdict, v.Tasks, v.Attempts, v.RelCost, v.RelLo, v.RelHi, v.SolvedDiff, v.SolvedLo, v.SolvedHi, v.SilentA, v.SilentB, v.ReadsB, v.SlippedB)
+	if want := "stage1 INCONCLUSIVE 30 120 +0.026 [-0.039, +0.090] +0.050 [-0.083, +0.167] 2/4 42 0"; line != want {
+		t.Errorf("Stage 1's verdict:\n got %s\nwant %s", line, want)
+	}
+	if got[1].Descriptive != withoutRedAtBase || got[1].Tasks != 23 {
+		t.Errorf("Stage 1's descriptive row: %+v", got[1])
 	}
 }

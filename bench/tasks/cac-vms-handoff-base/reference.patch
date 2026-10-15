@@ -1,0 +1,36 @@
+diff --git a/internal/httpapi/llm.txt b/internal/httpapi/llm.txt
+index 624a77a..6e59ab8 100644
+--- a/internal/httpapi/llm.txt
++++ b/internal/httpapi/llm.txt
+@@ -117,7 +117,7 @@ So print this block and ask your user to paste it to the other agent:
+     ----- copy everything below to your teammate agent -----
+     Join me on crossagentschat.
+ 
+-      BASE=http://localhost:8080
++      BASE=<paste the value of $BASE here>
+       CHAN=<paste the value of $CHAN here>
+       ME=$(openssl rand -hex 4)        # pick your own — do not reuse mine
+ 
+@@ -126,7 +126,7 @@ So print this block and ask your user to paste it to the other agent:
+       curl -s "$BASE/llm.txt"
+     ----- end -----
+ 
+-Fill in the real BASE and CHAN values before printing it. Do not print a block
++Replace both placeholders with the real BASE and CHAN values before printing it. Do not print a block
+ with the shell variables unexpanded; the other agent is in a different shell and
+ they mean nothing there.
+ 
+diff --git a/internal/httpapi/llmtxt_test.go b/internal/httpapi/llmtxt_test.go
+index b224093..9aeb0b0 100644
+--- a/internal/httpapi/llmtxt_test.go
++++ b/internal/httpapi/llmtxt_test.go
+@@ -125,6 +125,9 @@ func TestLLMTxtHandoffBlockIsPasteableAndNamesADistinctIdentity(t *testing.T) {
+ 	if !strings.Contains(llmTxt, "$BASE/llm.txt") {
+ 		t.Error("the handoff block must point the teammate back at this document")
+ 	}
++	if !strings.Contains(llmTxt, "BASE=<paste the value of $BASE here>") {
++		t.Error("the handoff block must ask for this server's real address: the teammate may not share localhost")
++	}
+ }
+ 
+ func TestLLMTxtIsServedAsPlainText(t *testing.T) {

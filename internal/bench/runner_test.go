@@ -569,3 +569,106 @@ func TestAFailingExitIsAnErrorAndAnInterruptStopsTheStage(t *testing.T) {
 		t.Errorf("an interrupted canary started configuration B: %v", b)
 	}
 }
+
+// TestAnAttemptReadsNoneOfTheHostsShellOrGitSetup: an attempt keeps the
+// user's HOME, which the CLI needs for the subscription's credentials, so what
+// HOME would bring in is shut out one by one (ADR-158 Decision 1). In Stage 1
+// the Bash tool ran the user's zsh, whose startup file aliases grep to grc
+// (19 attempts met "command not found: grc"), and a backgrounded command's
+// output went to the CLI task directory every Claude session here shares.
+func TestAnAttemptReadsNoneOfTheHostsShellOrGitSetup(t *testing.T) {
+	opts, _ := runOptions(t)
+	for _, name := range []string{"A", "B"} {
+		scratch := t.TempDir()
+		_, env, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs[name], Repeat: 1}, scratch)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"CLAUDE_CODE_SHELL=/bin/bash", "GIT_CONFIG_GLOBAL=/dev/null", "PYTHONNOUSERSITE=1",
+			"CLAUDE_CODE_TMPDIR=" + filepath.Join(scratch, "cctmp"), "XDG_CONFIG_HOME=" + filepath.Join(scratch, "config")} {
+			if !slices.Contains(env, want) {
+				t.Errorf("configuration %s: %s is not in the attempt's environment: %v", name, want, env)
+			}
+		}
+		for _, dir := range []string{"cctmp", "config"} {
+			if info, err := os.Stat(filepath.Join(scratch, dir)); err != nil || !info.IsDir() {
+				t.Errorf("configuration %s: %s is not made in the attempt's scratch: %v", name, dir, err)
+			}
+		}
+	}
+}
+
+// TestAStageWithAMissingDeclaredSectionDoesNotStart: a declared section that is
+// not at a task's commit exactly once would otherwise fail every attempt of
+// that repository as a setup exclusion; the stage stops before the first one
+// instead, as it does for a repository that is not on the machine (ADR-158
+// Decision 2; the adr-challenger's review of its draft).
+func TestAStageWithAMissingDeclaredSectionDoesNotStart(t *testing.T) {
+	opts, _ := runOptions(t)
+	work := t.TempDir()
+	repo := filepath.Join(work, "repo")
+	if err := os.MkdirAll(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "AGENTS.md"), []byte("# Protocol\n\n## Other\n\nwords\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "notes.txt"), []byte("alpha\nbeta\ndelta\nepsilon\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}, {"-c", "user.name=t", "-c", "user.email=t@localhost", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "base"}} {
+		if err := git(repo, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	head, err := exec.Command("git", "-C", repo, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tasks := filepath.Join(work, "tasks")
+	dir := filepath.Join(tasks, "one-site")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		filepath.Join(work, "repos.json"):     `{"r":{"url":"https://example.invalid/r","path":"` + repo + `","drop_sections":[{"file":"AGENTS.md","heading":"## Gate"}]}}`,
+		filepath.Join(dir, "task.json"):       `{"id":"one-site","shape":"single-line","repo":"r","commit":"` + strings.TrimSpace(string(head)) + `","instruction":"Change beta to gamma in notes.txt.","require":[{"file":"notes.txt","match":"(?m)^gamma$"}]}`,
+		filepath.Join(dir, "reference.patch"): "diff --git a/notes.txt b/notes.txt\n--- a/notes.txt\n+++ b/notes.txt\n@@ -1,4 +1,4 @@\n alpha\n-beta\n+gamma\n delta\n epsilon\n",
+	}
+	for p, s := range files {
+		if err := os.WriteFile(p, []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	task, err := LoadTask(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.Tasks = []Task{task}
+	err = Run(opts)
+	if err == nil || !strings.Contains(err.Error(), "## Gate") || !strings.Contains(err.Error(), "AGENTS.md") {
+		t.Fatalf("a stage whose declared section is missing started, or did not name it: %v", err)
+	}
+	if receipts, _ := filepath.Glob(filepath.Join(opts.Out, "*.receipt.json")); len(receipts) != 0 {
+		t.Errorf("attempts ran before the stage was refused: %v", receipts)
+	}
+}
+
+// TestASupersededTaskIsNotRunByDefault: a task graded wrongly is superseded,
+// never edited, and stays in the corpus for the receipts that name it; a stage
+// run without --task skips it, and one that names it still runs it (ADR-158
+// Decision 3). Fixtures are never measured.
+func TestASupersededTaskIsNotRunByDefault(t *testing.T) {
+	all := []Task{{ID: "a"}, {ID: "b", SupersededBy: "a"}, {ID: "f", Shape: ShapeFixture}}
+	got, err := SelectTasks(all, nil)
+	if err != nil || len(got) != 1 || got[0].ID != "a" {
+		t.Errorf("the default plan: %+v %v, want only a", got, err)
+	}
+	got, err = SelectTasks(all, []string{"b"})
+	if err != nil || len(got) != 1 || got[0].ID != "b" {
+		t.Errorf("--task b: %+v %v, want b", got, err)
+	}
+	if _, err := SelectTasks(all, []string{"zz"}); err == nil {
+		t.Error("--task naming no task was accepted")
+	}
+}

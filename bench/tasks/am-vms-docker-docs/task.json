@@ -1,0 +1,15 @@
+{
+  "id": "am-vms-docker-docs",
+  "shape": "varied-multi-site",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "Two fixes to the Docker setup docs. First, in README.md, the two commands that start the full-quality stack, `docker compose -f docker-compose.yml -f docker-compose.full.yml up -d` (once in the setup the maintainers run, once in the section \"Docker Compose (the full-quality stack)\"), become `docker compose -f docker-compose.yml -f docker-compose.full.yml up -d --wait`, so the install and the sync that follow them do not race containers that are still starting. Every other compose command in README.md stays as it is, and so do the commented compose examples in .env.docker.example. Second, in .env.docker.example, the commented EMBED_URL example points at localhost, which inside the container is the container itself: make that line `# EMBED_URL=http://host.docker.internal:8081`, the way OLLAMA_URL reaches the host. Change nothing else.",
+  "require": [
+    {"file": "README.md", "match": "(?m)^docker compose -f docker-compose\\.yml -f docker-compose\\.full\\.yml up -d --wait\\n\\n# 2\\. your agents"},
+    {"file": "README.md", "match": "(?m)^docker compose -f docker-compose\\.yml -f docker-compose\\.full\\.yml up -d --wait\\n\\n# switching an existing install"},
+    {"file": ".env.docker.example", "match": "(?m)^# EMBED_URL=http://host\\.docker\\.internal:8081$"}
+  ],
+  "forbid": [
+    {"file": "README.md", "match": "(?m)^docker compose -f docker-compose\\.yml -f docker-compose\\.full\\.yml up -d$"}
+  ]
+}

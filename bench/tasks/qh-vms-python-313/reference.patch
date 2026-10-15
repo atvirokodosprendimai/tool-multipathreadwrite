@@ -1,0 +1,57 @@
+diff --git a/.github/workflows/selftest.yml b/.github/workflows/selftest.yml
+index c68f2ab..0ee08ef 100644
+--- a/.github/workflows/selftest.yml
++++ b/.github/workflows/selftest.yml
+@@ -45,7 +45,7 @@ jobs:
+           node-version: '24'
+       - uses: actions/setup-python@v7
+         with:
+-          python-version: '3.12'
++          python-version: '3.13'
+       # The gates are `#!/usr/bin/env python3` scripts invoked by name through
+       # PATH, so the interpreter has to answer to that exact name.
+       - name: Confirm the toolchain the gates assume
+@@ -87,7 +87,7 @@ jobs:
+           node-version: '24'
+       - uses: actions/setup-python@v7
+         with:
+-          python-version: '3.12'
++          python-version: '3.13'
+       - name: Install coverage.py
+         run: python3 -m pip install --upgrade coverage ruff==0.15.6
+       # STRICT=1 turns "the gates could not be measured" into a failure. A
+@@ -258,7 +258,7 @@ jobs:
+           node-version: '24'
+       - uses: actions/setup-python@v7
+         with:
+-          python-version: '3.12'
++          python-version: '3.13'
+       - name: Install the ruff scripts/unused-names.sh pins
+         run: python3 -m pip install ruff==0.15.6
+       - name: Take the shard plan from ONE snapshot, not twelve prefix restores
+diff --git a/README.md b/README.md
+index e02da0f..de5a83e 100644
+--- a/README.md
++++ b/README.md
+@@ -149,7 +149,7 @@ from the plugin; `sync-standalone.mjs --link` replaces them with forwarders.
+ ## Requirements
+ 
+ - Claude Code 2.1.154 or newer. On Pro, enable dynamic workflows in `/config`.
+-- Python 3.9 or newer; CI tests 3.12.
++- Python 3.9 or newer; CI tests 3.13, and 3.12 on Windows.
+ - Node.js; CI runs 24.
+ - Bash (Git Bash on Windows) and Git.
+ - Codex CLI, only for `codex-review` and `codex-advise`.
+diff --git a/docs/INSTALL.md b/docs/INSTALL.md
+index 30ec4a1..6051890 100644
+--- a/docs/INSTALL.md
++++ b/docs/INSTALL.md
+@@ -15,7 +15,7 @@ run here, it says so.
+ | | Required | What is actually tested |
+ |---|---|---|
+ | Claude Code | 2.1.154 or newer — the build dynamic workflows shipped in. On Pro, enable them in `/config`. | Developed against 2.1.260. Older builds are not re-tested. |
+-| Python | 3.9 or newer, by syntax: the gates use `list[str]`-style annotations under `from __future__ import annotations` and no `match` statement. | **3.12** — the only version CI runs, on all three operating systems. |
++| Python | 3.9 or newer, by syntax: the gates use `list[str]`-style annotations under `from __future__ import annotations` and no `match` statement. | **3.13** on Linux and macOS, **3.12** on Windows — the only versions CI runs. |
+ | Node.js | Any current release. | **24**, in CI. |
+ | Bash | Any. On Windows: Git for Windows (Git Bash). The hook runner finds it from `CLAUDE_CODE_GIT_BASH_PATH`, then `PATH` (skipping the System32 WSL stub), then the per-user and system Git for Windows installs. | Windows CI runs the whole suite through it. |
+ | Git | Any. | — |

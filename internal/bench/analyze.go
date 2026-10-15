@@ -8,8 +8,10 @@ import (
 )
 
 // Result is one verdict of the registered bar (BACKLOG, "Pre-registered for
-// ADR-156"): one model, one task source, never pooled.
+// ADR-156"): one stage, one model, one task source, never pooled (ADR-158
+// Decision 6).
 type Result struct {
+	Stage      string   `json:"stage"`
 	Model      string   `json:"model"`
 	Source     string   `json:"source"`
 	Verdict    string   `json:"verdict"` // PAYS, LOSES or INCONCLUSIVE
@@ -51,7 +53,7 @@ const (
 // 2026-10-14, before any stage ran. B's counted shell reads are summed beside
 // each verdict (Zy, the same day).
 func Analyze(rs []Receipt) ([]Result, error) {
-	type key struct{ model, source string }
+	type key struct{ stage, model, source string }
 	groups := map[key][]Receipt{}
 	for _, r := range rs {
 		// A pilot is never counted (the registration), wherever its receipts
@@ -64,12 +66,12 @@ func Analyze(rs []Receipt) ([]Result, error) {
 		default:
 			return nil, fmt.Errorf("attempt %s: exclusion %q is not one the registration admits", r.Attempt, r.Exclusion)
 		}
-		k := key{r.Model, r.Source}
+		k := key{r.Stage, r.Model, r.Source}
 		groups[k] = append(groups[k], r)
 	}
 	var out []Result
 	for k, g := range groups {
-		res, err := judge(k.model, k.source, g)
+		res, err := judge(k.stage, k.model, k.source, g)
 		if err != nil {
 			return nil, err
 		}
@@ -77,23 +79,38 @@ func Analyze(rs []Receipt) ([]Result, error) {
 		// One descriptive row beside the verdict, without the tasks whose own
 		// check was measured red at base (Zy, 2026-10-14): it shows how much of
 		// the verdict those tasks carry, and is never the verdict itself.
-		var kept []Receipt
+		var kept, varied []Receipt
 		for _, r := range g {
 			if !r.CheckRedAtBase {
 				kept = append(kept, r)
 			}
+			if r.Shape == ShapeVariedMultiSite {
+				varied = append(varied, r)
+			}
 		}
-		if len(kept) == len(g) {
-			continue
+		if len(kept) != len(g) {
+			d, err := judge(k.stage, k.model, k.source, kept)
+			if err != nil {
+				return nil, err
+			}
+			d.Descriptive = withoutRedAtBase
+			out = append(out, d)
 		}
-		d, err := judge(k.model, k.source, kept)
-		if err != nil {
-			return nil, err
+		// A second descriptive row over the varied-multi-site tasks alone,
+		// registered before any of them ran (ADR-158 Decision 6).
+		if len(varied) > 0 {
+			d, err := judge(k.stage, k.model, k.source, varied)
+			if err != nil {
+				return nil, err
+			}
+			d.Descriptive = onlyVariedMultiSite
+			out = append(out, d)
 		}
-		d.Descriptive = withoutRedAtBase
-		out = append(out, d)
 	}
 	sort.Slice(out, func(i, j int) bool {
+		if out[i].Stage != out[j].Stage {
+			return out[i].Stage < out[j].Stage
+		}
 		if out[i].Model != out[j].Model {
 			return out[i].Model < out[j].Model
 		}
@@ -109,10 +126,14 @@ func Analyze(rs []Receipt) ([]Result, error) {
 // check_red_at_base.
 const withoutRedAtBase = "without the tasks whose own check is red at base; descriptive, not the verdict"
 
+// onlyVariedMultiSite labels the row computed over the varied-multi-site tasks
+// alone.
+const onlyVariedMultiSite = "only the varied-multi-site tasks; descriptive, not the verdict"
+
 // judge computes one row of the registered bar from one model's and one task
 // source's receipts.
-func judge(model, source string, g []Receipt) (Result, error) {
-	res := Result{Model: model, Source: source, Attempts: len(g)}
+func judge(stage, model, source string, g []Receipt) (Result, error) {
+	res := Result{Stage: stage, Model: model, Source: source, Attempts: len(g)}
 	type side struct {
 		cost         float64
 		solved, runs int

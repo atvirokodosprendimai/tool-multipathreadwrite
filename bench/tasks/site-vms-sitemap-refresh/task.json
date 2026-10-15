@@ -1,0 +1,13 @@
+{
+  "id": "site-vms-sitemap-refresh",
+  "shape": "varied-multi-site",
+  "repo": "site",
+  "commit": "37625a32bc08b77e0ba0fc7e04cfc0f40ac183e5",
+  "instruction": "The QAM Stack landing page and the Quality Harness page were both updated on 2026-10-15, and the landing page now changes weekly. Update the two sitemaps to say so. In sitemap.xml, the entry for https://atvirokodosprendimai.github.io/qamstack/ gets lastmod 2026-10-15 and changefreq weekly. In qamstack/sitemap.xml, the entry for https://qamstack.dev/ gets lastmod 2026-10-15 and changefreq weekly, and the entry for https://qamstack.dev/quality-harness/ gets lastmod 2026-10-15 and keeps changefreq monthly. The entry for the site root, https://atvirokodosprendimai.github.io/, keeps its lastmod and changefreq, and every priority stays as it is. Change nothing else.",
+  "require": [
+    {"file": "sitemap.xml", "match": "<loc>https://atvirokodosprendimai\\.github\\.io/qamstack/</loc>\\s*<lastmod>2026-10-15</lastmod>\\s*<changefreq>weekly</changefreq>\\s*<priority>1\\.0</priority>"},
+    {"file": "sitemap.xml", "match": "<loc>https://atvirokodosprendimai\\.github\\.io/</loc>\\s*<lastmod>2026-09-07</lastmod>\\s*<changefreq>monthly</changefreq>"},
+    {"file": "qamstack/sitemap.xml", "match": "<loc>https://qamstack\\.dev/</loc>\\s*<lastmod>2026-10-15</lastmod>\\s*<changefreq>weekly</changefreq>\\s*<priority>1\\.0</priority>"},
+    {"file": "qamstack/sitemap.xml", "match": "<loc>https://qamstack\\.dev/quality-harness/</loc>\\s*<lastmod>2026-10-15</lastmod>\\s*<changefreq>monthly</changefreq>\\s*<priority>0\\.8</priority>"}
+  ]
+}

@@ -1,0 +1,36 @@
+diff --git a/qamstack/sitemap.xml b/qamstack/sitemap.xml
+index c2bef65..624367d 100644
+--- a/qamstack/sitemap.xml
++++ b/qamstack/sitemap.xml
+@@ -2,13 +2,13 @@
+ <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+   <url>
+     <loc>https://qamstack.dev/</loc>
+-    <lastmod>2026-09-08</lastmod>
+-    <changefreq>monthly</changefreq>
++    <lastmod>2026-10-15</lastmod>
++    <changefreq>weekly</changefreq>
+     <priority>1.0</priority>
+   </url>
+   <url>
+     <loc>https://qamstack.dev/quality-harness/</loc>
+-    <lastmod>2026-09-24</lastmod>
++    <lastmod>2026-10-15</lastmod>
+     <changefreq>monthly</changefreq>
+     <priority>0.8</priority>
+   </url>
+diff --git a/sitemap.xml b/sitemap.xml
+index 155107a..4bf1cb1 100644
+--- a/sitemap.xml
++++ b/sitemap.xml
+@@ -8,8 +8,8 @@
+   </url>
+   <url>
+     <loc>https://atvirokodosprendimai.github.io/qamstack/</loc>
+-    <lastmod>2026-09-07</lastmod>
+-    <changefreq>monthly</changefreq>
++    <lastmod>2026-10-15</lastmod>
++    <changefreq>weekly</changefreq>
+     <priority>1.0</priority>
+   </url>
+ </urlset>

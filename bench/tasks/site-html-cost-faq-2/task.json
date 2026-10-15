@@ -1,0 +1,12 @@
+{
+  "id": "site-html-cost-faq-2",
+  "shape": "large-file",
+  "repo": "site",
+  "commit": "37625a32bc08b77e0ba0fc7e04cfc0f40ac183e5",
+  "instruction": "In qamstack/index.html, the answer to the FAQ question \"What does it cost?\" begins \"The tools are free and open source.\" The answer appears twice: in the visible FAQ section, and in the page's JSON-LD structured data near the end of the file. In both places, make that first sentence \"The tools are free and open source, under the MIT licence.\" and keep the rest of the answer. Change nothing else.",
+  "require": [
+    {"file": "qamstack/index.html", "match": "<p>The tools are free and open source, under the MIT licence\\. Self-hosting the memory server costs whatever the machine costs\\. There is a hosted service if you would rather not run one\\.</p>"},
+    {"file": "qamstack/index.html", "match": "\"text\": \"The tools are free and open source, under the MIT licence\\. Self-hosting the memory server costs whatever the machine costs\\. There is a hosted service if you would rather not run one\\.\""}
+  ],
+  "forbid": [{"file": "qamstack/index.html", "match": "The tools are free and open source\\. Self-hosting"}]
+}

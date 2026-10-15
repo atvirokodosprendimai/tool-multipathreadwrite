@@ -19,6 +19,95 @@ import (
 type Repo struct {
 	URL  string `json:"url"`
 	Path string `json:"path"` // "~/" is the home directory
+	// DropSections are sections of the repository's instruction files the
+	// bench removes in both configurations (ADR-158 Decision 2).
+	DropSections []Section `json:"drop_sections,omitempty"`
+}
+
+// Section names one markdown section: its file, relative to the tree, and its
+// heading line exactly as written.
+type Section struct {
+	File    string `json:"file"`
+	Heading string `json:"heading"`
+}
+
+// sectionSpan finds heading in lines, outside code fences, and returns the
+// span from it to the next heading of the same or a higher level, and how many
+// times the heading occurs.
+func sectionSpan(lines []string, heading string) (start, end, n int) {
+	level := len(heading) - len(strings.TrimLeft(heading, "#"))
+	start, end = -1, len(lines)
+	fence := ""
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if fence != "" {
+			if strings.HasPrefix(trimmed, fence) {
+				fence = ""
+			}
+			continue
+		}
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			fence = trimmed[:3]
+			continue
+		}
+		if strings.TrimRight(line, "\r\n") == heading {
+			n++
+			if start < 0 {
+				start = i
+			}
+			continue
+		}
+		if start >= 0 && end == len(lines) && strings.HasPrefix(line, "#") {
+			if l := len(line) - len(strings.TrimLeft(line, "#")); l <= level && strings.HasPrefix(line[l:], " ") {
+				end = i
+			}
+		}
+	}
+	return start, end, n
+}
+
+// dropSections removes each declared section from its file under root. A file
+// that is not in the tree is skipped, since a tree may hold only some files; a
+// heading found other than exactly once is an error naming both.
+func dropSections(root string, ss []Section) error {
+	for _, s := range ss {
+		p := filepath.Join(root, s.File)
+		b, err := os.ReadFile(p)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		lines := strings.SplitAfter(string(b), "\n")
+		start, end, n := sectionSpan(lines, strings.TrimRight(s.Heading, "\n"))
+		if n != 1 {
+			return fmt.Errorf("%s: the declared section %q is there %d times; drop_sections needs it exactly once", s.File, s.Heading, n)
+		}
+		if err := os.WriteFile(p, []byte(strings.Join(append(lines[:start:start], lines[end:]...), "")), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkSections reads each section the task's repository declares at the
+// task's commit, so a stage refuses before its first attempt (ADR-158).
+func checkSections(t Task, src string) error {
+	repos, err := loadRepos(filepath.Dir(t.Dir))
+	if err != nil {
+		return err
+	}
+	for _, s := range repos[t.Repo].DropSections {
+		out, err := exec.Command("git", "-C", src, "show", t.Commit+":"+s.File).Output()
+		if err != nil {
+			return fmt.Errorf("task %s: %s has no %s at %s, which drop_sections declares", t.ID, t.Repo, s.File, t.Commit)
+		}
+		if _, _, n := sectionSpan(strings.SplitAfter(string(out), "\n"), s.Heading); n != 1 {
+			return fmt.Errorf("task %s: %s at %s: the declared section %q is there %d times; drop_sections needs it exactly once", t.ID, s.File, t.Commit, s.Heading, n)
+		}
+	}
+	return nil
 }
 
 // errUnreachable marks a task whose repository or pinned commit is not on this
@@ -89,6 +178,15 @@ func Materialize(t Task, dst string, files []string) (string, error) {
 	}
 	if err := PrepareInstructions(dst); err != nil {
 		return "", err
+	}
+	if t.Repo != "fixture" {
+		repos, err := loadRepos(filepath.Dir(t.Dir))
+		if err != nil {
+			return "", err
+		}
+		if err := dropSections(dst, repos[t.Repo].DropSections); err != nil {
+			return "", err
+		}
 	}
 	for _, args := range [][]string{
 		{"init", "-q"},

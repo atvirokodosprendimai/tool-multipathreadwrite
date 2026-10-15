@@ -9,8 +9,9 @@ import (
 	"testing"
 )
 
-// qhRedCommit is the quality-harness commit the seven qh tasks are pinned to,
-// at which its declared check was measured red (ADR-156 T1 S6, 2026-10-14).
+// qhRedCommit is the quality-harness commit every qh task is pinned to — the
+// seven of Stage 1 and the three ADR-158 added — at which its declared check
+// was measured red (ADR-156 T1 S6, 2026-10-14).
 const qhRedCommit = "bbf82ff3c32c95c4251ac2eee8d0e6cfd8bad999"
 
 // TestTheTasksWhoseCheckIsRedAtBaseSayWhy: every task pinned to the measured
@@ -32,8 +33,8 @@ func TestTheTasksWhoseCheckIsRedAtBaseSayWhy(t *testing.T) {
 			red++
 		}
 	}
-	if red != 7 {
-		t.Errorf("tasks flagged red at base: %d, want the 7 quality-harness tasks", red)
+	if red != 10 {
+		t.Errorf("tasks flagged red at base: %d, want the 10 quality-harness tasks", red)
 	}
 }
 

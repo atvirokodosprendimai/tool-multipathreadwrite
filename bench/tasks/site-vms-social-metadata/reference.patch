@@ -1,0 +1,35 @@
+diff --git a/qamstack/index.html b/qamstack/index.html
+index d325149..dc20ea1 100644
+--- a/qamstack/index.html
++++ b/qamstack/index.html
+@@ -17,7 +17,7 @@
+ <meta property="og:type" content="website">
+ <meta property="og:url" content="https://qamstack.dev/">
+ <meta property="og:locale" content="en_US">
+-<meta name="twitter:card" content="summary_large_image">
++<meta name="twitter:card" content="summary">
+ <meta name="twitter:title" content="QAM Stack: three tools for when Claude says done, forgets, or reads one file at a time">
+ <meta name="twitter:description" content="Claude says it is done. Claude forgets. Claude opens one file at a time. Three small open-source tools, one for each.">
+ <link rel="preconnect" href="https://fonts.googleapis.com">
+@@ -1008,7 +1008,7 @@ cd tool-multipathreadwrite &amp;&amp; ./scripts/measure.sh</code></pre>
+             "@type": "SoftwareApplication",
+             "name": "AI Agent Memory",
+             "applicationCategory": "DeveloperApplication",
+-            "operatingSystem": "macOS, Linux, Windows",
++            "operatingSystem": "macOS, Linux, Windows, Web",
+             "url": "https://aiagentmemory.dev",
+             "description": "An MCP server. What you decided, and what you rejected, outlive the session. One command wires Claude Code, Codex, Cursor and Claude Desktop to the same memory, and after a compaction Claude Code re-reads it on its own. Hosted or self-hosted.",
+             "offers": {
+diff --git a/qamstack/quality-harness/index.html b/qamstack/quality-harness/index.html
+index 26f5eb3..288b497 100644
+--- a/qamstack/quality-harness/index.html
++++ b/qamstack/quality-harness/index.html
+@@ -16,7 +16,7 @@
+ <meta property="og:type" content="website">
+ <meta property="og:url" content="https://qamstack.dev/quality-harness/">
+ <meta property="og:locale" content="en_US">
+-<meta name="twitter:card" content="summary_large_image">
++<meta name="twitter:card" content="summary">
+ <meta name="twitter:title" content="Quality Harness: know when your AI agent is really done">
+ <meta name="twitter:description" content="Know when your AI agent's “done” is really done. A free Claude Code plugin that checks the work and keeps the proof in your project.">
+ <link rel="preconnect" href="https://fonts.googleapis.com">
