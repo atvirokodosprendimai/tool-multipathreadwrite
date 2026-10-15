@@ -1,0 +1,28 @@
+{
+  "id": "am-coupled-doctor-no-comparison",
+  "shape": "check-coupled",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "In clients/claude-code/doctor.go, change the string \"no-comparison\" to \"No-comparison\", and keep the tests passing.",
+  "require": [
+    {
+      "file": "clients/claude-code/doctor.go",
+      "match": "\"No\\-comparison\""
+    },
+    {
+      "file": "clients/claude-code/doctor_bridgebuild_test.go",
+      "match": "\"No\\-comparison\""
+    }
+  ],
+  "forbid": [
+    {
+      "file": "clients/claude-code/doctor.go",
+      "match": "\"no\\-comparison\""
+    },
+    {
+      "file": "clients/claude-code/doctor_bridgebuild_test.go",
+      "match": "\"no\\-comparison\""
+    }
+  ]
+}

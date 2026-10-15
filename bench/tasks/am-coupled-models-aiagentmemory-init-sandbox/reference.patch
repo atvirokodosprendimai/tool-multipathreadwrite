@@ -1,0 +1,26 @@
+diff --git a/internal/web/views/landing_test.go b/internal/web/views/landing_test.go
+index 739bf90..62f2882 100644
+--- a/internal/web/views/landing_test.go
++++ b/internal/web/views/landing_test.go
+@@ -114,7 +114,7 @@ func TestLandingPageDocumentsProjectLaunch(t *testing.T) {
+ 	html := buf.String()
+ 
+ 	for _, want := range []string{
+-		"aiagentmemory init --sandbox acme -- --model opus", // the install-breakdown card
++		"Aiagentmemory init --sandbox acme -- --model opus", // the install-breakdown card
+ 		".aiagentmemory", // the file that is committed
+ 		"Your sandbox name stays on your machine", // …and what is not
+ 		"Everyone then runs load",                 // why the split pays off
+diff --git a/internal/web/views/models.go b/internal/web/views/models.go
+index b4aeda1..e763f78 100644
+--- a/internal/web/views/models.go
++++ b/internal/web/views/models.go
+@@ -1067,7 +1067,7 @@ func landingInstallGroups() []installGroup {
+ 		// name is not, so the card leads with what lands in the repository.
+ 		{
+ 			Title: "Per project — commit it",
+-			Cmd:   "aiagentmemory init --sandbox acme -- --model opus",
++			Cmd:   "Aiagentmemory init --sandbox acme -- --model opus",
+ 			Items: []string{
+ 				"Records the agent and its flags in .aiagentmemory — commit that file",
+ 				"Your sandbox name stays on your machine, never in the repository",

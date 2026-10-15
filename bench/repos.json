@@ -13,5 +13,7 @@
   "pytest-dev/pytest": {"url": "https://github.com/pytest-dev/pytest", "path": "~/.local/share/mrw-bench/swe-repos/pytest-dev__pytest"},
   "scikit-learn/scikit-learn": {"url": "https://github.com/scikit-learn/scikit-learn", "path": "~/.local/share/mrw-bench/swe-repos/scikit-learn__scikit-learn"},
   "sphinx-doc/sphinx": {"url": "https://github.com/sphinx-doc/sphinx", "path": "~/.local/share/mrw-bench/swe-repos/sphinx-doc__sphinx"},
-  "sympy/sympy": {"url": "https://github.com/sympy/sympy", "path": "~/.local/share/mrw-bench/swe-repos/sympy__sympy"}
+  "sympy/sympy": {"url": "https://github.com/sympy/sympy", "path": "~/.local/share/mrw-bench/swe-repos/sympy__sympy"},
+  "pylint-dev/pylint": {"url": "https://github.com/pylint-dev/pylint", "path": "~/.local/share/mrw-bench/swe-repos/pylint-dev__pylint"},
+  "pydata/xarray": {"url": "https://github.com/pydata/xarray", "path": "~/.local/share/mrw-bench/swe-repos/pydata__xarray"}
 }

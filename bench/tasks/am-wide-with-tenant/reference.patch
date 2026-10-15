@@ -1,0 +1,368 @@
+diff --git a/cmd/server/mcp.go b/cmd/server/mcp.go
+index afe98aa..9b17117 100644
+--- a/cmd/server/mcp.go
++++ b/cmd/server/mcp.go
+@@ -86,7 +86,7 @@ func runMCP(ctx context.Context, c *cli.Command, def config.Config) error {
+ 			if err != nil {
+ 				return nil, err
+ 			}
+-			callCtx = auth.WithTenant(callCtx, resolved)
++			callCtx = auth.ForTenancy(callCtx, resolved)
+ 			if wing := c.String("wing"); wing != "" {
+ 				callCtx = auth.WithDefaultWing(callCtx, wing)
+ 			}
+diff --git a/internal/auth/auth.go b/internal/auth/auth.go
+index f8094c3..88671b7 100644
+--- a/internal/auth/auth.go
++++ b/internal/auth/auth.go
+@@ -71,9 +71,9 @@ func TenantFrom(ctx context.Context) (tenant.Tenant, bool) {
+ 	return t, ok
+ }
+ 
+-// WithTenant returns a context carrying the given tenant. Exists for tests and
++// ForTenancy returns a context carrying the given tenant. Exists for tests and
+ // for any in-process caller that has already authenticated out of band.
+-func WithTenant(ctx context.Context, t tenant.Tenant) context.Context {
++func ForTenancy(ctx context.Context, t tenant.Tenant) context.Context {
+ 	return context.WithValue(ctx, tenantKey, t)
+ }
+ 
+@@ -126,7 +126,7 @@ func LocalTenant(t tenant.Tenant, token string, machineBounded bool) func(http.H
+ 				http.Error(w, "unauthorized", http.StatusUnauthorized)
+ 				return
+ 			}
+-			next.ServeHTTP(w, r.WithContext(WithTenant(r.Context(), t)))
++			next.ServeHTTP(w, r.WithContext(ForTenancy(r.Context(), t)))
+ 		})
+ 	}
+ }
+@@ -155,7 +155,7 @@ func tokenMatches(want, got string) bool {
+ // headers.
+ func Bridge(ctx context.Context, r *http.Request) context.Context {
+ 	if t, ok := TenantFrom(r.Context()); ok {
+-		ctx = WithTenant(ctx, t)
++		ctx = ForTenancy(ctx, t)
+ 	}
+ 	if wing := requestWing(r); wing != "" {
+ 		ctx = WithDefaultWing(ctx, wing)
+diff --git a/internal/importer/importer_test.go b/internal/importer/importer_test.go
+index fbf076f..5c183fc 100644
+--- a/internal/importer/importer_test.go
++++ b/internal/importer/importer_test.go
+@@ -92,7 +92,7 @@ const bundle = `{"kind":"manifest","total":4}
+ // same flag the batched client sends on its final finalize call).
+ func authedRequest(body string) *http.Request {
+ 	r := httptest.NewRequest(http.MethodPost, "/import?recompute=1", strings.NewReader(body))
+-	ctx := auth.WithTenant(r.Context(), tenant.Tenant{TeamID: "team-1"})
++	ctx := auth.ForTenancy(r.Context(), tenant.Tenant{TeamID: "team-1"})
+ 	return r.WithContext(ctx)
+ }
+ 
+@@ -178,7 +178,7 @@ const winglessBundle = `{"kind":"manifest","format":"agentsmemory-wing/1","total
+ // gate would have resolved already on the context.
+ func asRequest(body, as string) *http.Request {
+ 	r := httptest.NewRequest(http.MethodPost, "/import?recompute=1&as="+as, strings.NewReader(body))
+-	return r.WithContext(auth.WithTenant(r.Context(), tenant.Tenant{TeamID: "team-1"}))
++	return r.WithContext(auth.ForTenancy(r.Context(), tenant.Tenant{TeamID: "team-1"}))
+ }
+ 
+ // TestImportAsRelabelsEveryRecord is the core of the "name the destination at
+@@ -280,7 +280,7 @@ func TestImportRejectsInvalidTargetWing(t *testing.T) {
+ 			q := r.URL.Query()
+ 			q.Set("as", as)
+ 			r.URL.RawQuery = q.Encode()
+-			r = r.WithContext(auth.WithTenant(r.Context(), tenant.Tenant{TeamID: "team-1"}))
++			r = r.WithContext(auth.ForTenancy(r.Context(), tenant.Tenant{TeamID: "team-1"}))
+ 
+ 			Handler(fd, allowAll{}).ServeHTTP(rec, r)
+ 
+@@ -312,7 +312,7 @@ func TestImportWireWithPythonPusher(t *testing.T) {
+ 	fd := &fakeDrawers{}
+ 	// Wrap the handler with the tenant the auth gate would otherwise inject.
+ 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+-		ctx := auth.WithTenant(r.Context(), tenant.Tenant{TeamID: "team-1"})
++		ctx := auth.ForTenancy(r.Context(), tenant.Tenant{TeamID: "team-1"})
+ 		Handler(fd, allowAll{}).ServeHTTP(w, r.WithContext(ctx))
+ 	}))
+ 	defer srv.Close()
+diff --git a/internal/mcpserver/admin_test.go b/internal/mcpserver/admin_test.go
+index a52d1c2..b5312d1 100644
+--- a/internal/mcpserver/admin_test.go
++++ b/internal/mcpserver/admin_test.go
+@@ -100,7 +100,7 @@ func mergeWingCall(t *testing.T, merger *recordingMerger) *mcp.CallToolResult {
+ 		t.Fatalf("%s is not registered, so nothing here tests the shipped tool", name)
+ 	}
+ 
+-	ctx := WithUnmeteredLocalOperator(auth.WithTenant(context.Background(),
++	ctx := WithUnmeteredLocalOperator(auth.ForTenancy(context.Background(),
+ 		tenant.Tenant{TeamID: "team-1", Role: tenant.RoleAdmin}))
+ 	res, err := registered.Handler(ctx, mcp.CallToolRequest{
+ 		Params: mcp.CallToolParams{
+diff --git a/internal/mcpserver/emptygraph_test.go b/internal/mcpserver/emptygraph_test.go
+index d841b6a..1bbb590 100644
+--- a/internal/mcpserver/emptygraph_test.go
++++ b/internal/mcpserver/emptygraph_test.go
+@@ -174,7 +174,7 @@ func TestGraphNoteFailsOpen(t *testing.T) {
+ // finished and unreachable in one week, every one of them tested.
+ func TestEveryGraphToolCarriesTheNote(t *testing.T) {
+ 	srv := graphToolServer(t)
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{
+ 		TeamID: graphTestTeam, UserID: "u1", Role: tenant.RoleAdmin,
+ 	})
+ 
+diff --git a/internal/mcpserver/kgquery_test.go b/internal/mcpserver/kgquery_test.go
+index 61a7133..a09d452 100644
+--- a/internal/mcpserver/kgquery_test.go
++++ b/internal/mcpserver/kgquery_test.go
+@@ -57,7 +57,7 @@ func callKGQuery(t *testing.T, srv *server.MCPServer, args map[string]any) map[s
+ 	if st == nil {
+ 		t.Fatalf("%s is not registered — this check has stopped checking anything", name)
+ 	}
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{
+ 		TeamID: kgQueryTestTeam, UserID: "u1", Role: tenant.RoleAdmin,
+ 	})
+ 	res, err := st.Handler(ctx, mcp.CallToolRequest{
+@@ -186,7 +186,7 @@ func TestPredicateEntryPointIsReachableFromTheTool(t *testing.T) {
+ 	// And a call naming neither entry point must be refused rather than dumping
+ 	// every fact the tenant owns.
+ 	const name = mcpprotocol.ToolPrefix + "kg_query"
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{
+ 		TeamID: kgQueryTestTeam, UserID: "u1", Role: tenant.RoleAdmin,
+ 	})
+ 	res, err := tool.Handler(ctx, mcp.CallToolRequest{
+diff --git a/internal/mcpserver/prompts_test.go b/internal/mcpserver/prompts_test.go
+index b91ac7a..0e44f50 100644
+--- a/internal/mcpserver/prompts_test.go
++++ b/internal/mcpserver/prompts_test.go
+@@ -182,7 +182,7 @@ func TestWingCompletionAnswersWithWingsThatExist(t *testing.T) {
+ 		}
+ 	}
+ 	c := newWingCompleter(svc)
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: teamID, Role: tenant.RoleAdmin})
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: teamID, Role: tenant.RoleAdmin})
+ 
+ 	all, err := c.CompletePromptArgument(ctx, "am_hand_over", mcp.CompleteArgument{Name: "wing"}, mcp.CompleteContext{})
+ 	if err != nil {
+@@ -273,7 +273,7 @@ func TestTheCompletionCapabilityIsBackedByAProvider(t *testing.T) {
+ 
+ 	// The in-process transport carries no HTTP auth, so the tenant is put on the
+ 	// context the way auth.Bridge would.
+-	ctx := auth.WithTenant(t.Context(), tenant.Tenant{TeamID: teamID, Role: tenant.RoleAdmin})
++	ctx := auth.ForTenancy(t.Context(), tenant.Tenant{TeamID: teamID, Role: tenant.RoleAdmin})
+ 	res, err := cli.Complete(ctx, mcp.CompleteRequest{
+ 		Params: mcp.CompleteParams{
+ 			Ref:      mcp.PromptReference{Type: "ref/prompt", Name: "am_hand_over"},
+diff --git a/internal/mcpserver/readcost_spec_test.go b/internal/mcpserver/readcost_spec_test.go
+index 65438af..3c99dc9 100644
+--- a/internal/mcpserver/readcost_spec_test.go
++++ b/internal/mcpserver/readcost_spec_test.go
+@@ -284,7 +284,7 @@ func f4Memory() string {
+ func TestF4ChunkingCreatesNoReassemblyObligation(t *testing.T) {
+ 	gdb := graphTestDB(t)
+ 	drawers := palace.NewService(palace.NewRepo(gdb, gdb), graphTestEmbedder{}, sqlitevec.New(gdb), budgetDim)
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{
+ 		TeamID: f4Team, UserID: "u1", Role: tenant.RoleAdmin,
+ 	})
+ 
+diff --git a/internal/mcpserver/resources_test.go b/internal/mcpserver/resources_test.go
+index 55a84e2..66607d6 100644
+--- a/internal/mcpserver/resources_test.go
++++ b/internal/mcpserver/resources_test.go
+@@ -55,7 +55,7 @@ func TestTheResourceTemplateIsAdvertisedAndReadable(t *testing.T) {
+ 	}
+ 
+ 	// A real memory, fetched by the address the tool layer hands out.
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
+ 	added, err := svc.Add(ctx, team, palace.AddInput{
+ 		Wing: "wing_acme", Room: "decisions", Content: "the retry budget is five attempts",
+ 	})
+@@ -91,7 +91,7 @@ func TestAResourceReturnsTheWholeMemory(t *testing.T) {
+ 	if _, err := cli.Initialize(t.Context(), mcp.InitializeRequest{}); err != nil {
+ 		t.Fatalf("initialize: %v", err)
+ 	}
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
+ 
+ 	// ⚠ EVERY SENTENCE IS DISTINCT, AND THAT IS THE POINT OF THE FIXTURE. The first
+ 	// version repeated ONE sentence, which made the last chunk a literal substring of
+@@ -179,7 +179,7 @@ func TestAnAddressThatNoLongerDescribesItsTargetIsRefused(t *testing.T) {
+ 	if _, err := cli.Initialize(t.Context(), mcp.InitializeRequest{}); err != nil {
+ 		t.Fatalf("initialize: %v", err)
+ 	}
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
+ 
+ 	added, err := svc.Add(ctx, team, palace.AddInput{Wing: "wing_acme", Room: "decisions", Content: "a real memory"})
+ 	if err != nil {
+@@ -242,7 +242,7 @@ func TestACaseVariantAddressDoesNotResolve(t *testing.T) {
+ 	if _, err := cli.Initialize(t.Context(), mcp.InitializeRequest{}); err != nil {
+ 		t.Fatalf("initialize: %v", err)
+ 	}
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
+ 
+ 	lower, err := svc.Add(ctx, team, palace.AddInput{Wing: "wing_acme", Room: "decisions", Content: "the lower-case wing memory"})
+ 	if err != nil {
+@@ -299,7 +299,7 @@ func TestAnAddressForAnEndedRecordIsRefused(t *testing.T) {
+ 	if _, err := cli.Initialize(t.Context(), mcp.InitializeRequest{}); err != nil {
+ 		t.Fatalf("initialize: %v", err)
+ 	}
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
+ 
+ 	added, err := svc.Add(ctx, team, palace.AddInput{
+ 		Wing: "wing_acme", Room: "decisions", Content: "the claim that was later withdrawn",
+@@ -396,7 +396,7 @@ func TestTheResourceListingIsBounded(t *testing.T) {
+ 	if _, err := cli.Initialize(t.Context(), mcp.InitializeRequest{}); err != nil {
+ 		t.Fatalf("initialize: %v", err)
+ 	}
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
+ 
+ 	for i := range listedResourceLimit + 7 {
+ 		if _, err := svc.Add(ctx, team, palace.AddInput{
+@@ -431,7 +431,7 @@ func TestAListedResourceUriReadsBack(t *testing.T) {
+ 	if _, err := cli.Initialize(t.Context(), mcp.InitializeRequest{}); err != nil {
+ 		t.Fatalf("initialize: %v", err)
+ 	}
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
+ 	if _, err := svc.Add(ctx, team, palace.AddInput{
+ 		Wing: "wing_acme", Room: "decisions", Content: "a memory the listing must be able to hand out",
+ 	}); err != nil {
+@@ -469,7 +469,7 @@ func TestTheListingAndTheTemplateBothResolve(t *testing.T) {
+ 	if _, err := cli.Initialize(t.Context(), mcp.InitializeRequest{}); err != nil {
+ 		t.Fatalf("initialize: %v", err)
+ 	}
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
+ 	if _, err := svc.Add(ctx, team, palace.AddInput{Wing: "wing_acme", Room: "decisions", Content: "x marks a memory"}); err != nil {
+ 		t.Fatalf("seed: %v", err)
+ 	}
+@@ -518,7 +518,7 @@ func TestTheListingNarrowsToADefaultWingWhenThereIsOne(t *testing.T) {
+ 	}
+ 
+ 	const team = "team-scoped"
+-	base := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
++	base := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
+ 	for _, w := range []string{"wing_acme", "wing_beta"} {
+ 		if _, err := svc.Add(base, team, palace.AddInput{Wing: w, Room: "decisions", Content: "a memory in " + w}); err != nil {
+ 			t.Fatalf("seed %s: %v", w, err)
+diff --git a/internal/mcpserver/responsebudget_test.go b/internal/mcpserver/responsebudget_test.go
+index a05e131..d5d431c 100644
+--- a/internal/mcpserver/responsebudget_test.go
++++ b/internal/mcpserver/responsebudget_test.go
+@@ -153,7 +153,7 @@ func budgetTestServer(t *testing.T) (*server.MCPServer, context.Context) {
+ 	registerDrawers(&registrar{srv: srv}, drawers,
+ 		usage.NewService(usage.NewRepo(gdb), graphTestCaps{}), false)
+ 
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{
+ 		TeamID: budgetTeam, UserID: "u1", Role: tenant.RoleAdmin,
+ 	})
+ 	return srv, ctx
+diff --git a/internal/mcpserver/status_coverage_test.go b/internal/mcpserver/status_coverage_test.go
+index c6ea1c4..56640ce 100644
+--- a/internal/mcpserver/status_coverage_test.go
++++ b/internal/mcpserver/status_coverage_test.go
+@@ -44,7 +44,7 @@ func TestAmStatusReportsCoverage(t *testing.T) {
+ 	if st == nil {
+ 		t.Fatal("am_status is not registered — this check has stopped checking anything")
+ 	}
+-	callCtx := auth.WithTenant(context.Background(), tenant.Tenant{
++	callCtx := auth.ForTenancy(context.Background(), tenant.Tenant{
+ 		TeamID: team, UserID: "u1", Role: tenant.RoleAdmin,
+ 	})
+ 	res, err := st.Handler(callCtx, mcp.CallToolRequest{
+@@ -140,7 +140,7 @@ func TestAmStatusServesTheEntryProtocolPointer(t *testing.T) {
+ 	})
+ 	const team = "team-entryskill"
+ 	ctx := context.Background()
+-	callCtx := auth.WithTenant(ctx, tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
++	callCtx := auth.ForTenancy(ctx, tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
+ 
+ 	// ⚠ THE KEY'S PRESENCE IS READ FROM THE SERVED JSON, not from the helper. The
+ 	// first version asserted on entryProtocolBlock() and therefore could not see
+diff --git a/internal/mcpserver/statususage_test.go b/internal/mcpserver/statususage_test.go
+index 0fcf991..9a051de 100644
+--- a/internal/mcpserver/statususage_test.go
++++ b/internal/mcpserver/statususage_test.go
+@@ -37,7 +37,7 @@ func servedRemaining(t *testing.T, caps usage.CapLookup, team string) string {
+ 	if st == nil {
+ 		t.Fatal("am_status is not registered — this check has stopped checking anything")
+ 	}
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: team, UserID: "u1", Role: tenant.RoleAdmin})
+ 	res, err := st.Handler(ctx, mcp.CallToolRequest{
+ 		Params: mcp.CallToolParams{Name: mcpprotocol.ToolPrefix + "status"},
+ 	})
+diff --git a/internal/mcpserver/structured_test.go b/internal/mcpserver/structured_test.go
+index 9f3f5a9..bd5d506 100644
+--- a/internal/mcpserver/structured_test.go
++++ b/internal/mcpserver/structured_test.go
+@@ -115,7 +115,7 @@ func TestEveryDeclaredOutputSchemaIsSatisfiedByTheTool(t *testing.T) {
+ 		t.Fatalf("list tools: %v", err)
+ 	}
+ 
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: "team-structured", UserID: "u1", Role: tenant.RoleAdmin})
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: "team-structured", UserID: "u1", Role: tenant.RoleAdmin})
+ 
+ 	// ⚠ SEEDED, BECAUSE AN EMPTY PALACE VALIDATES TOO EASILY. Review pointed out
+ 	// that a handler returning a schema-invalid value only when Count > 0 would
+diff --git a/internal/mcpserver/wirestale_test.go b/internal/mcpserver/wirestale_test.go
+index d468556..3228f5c 100644
+--- a/internal/mcpserver/wirestale_test.go
++++ b/internal/mcpserver/wirestale_test.go
+@@ -95,7 +95,7 @@ func TestSearchResponseCarriesStaleIndexOnTheWire(t *testing.T) {
+ 	cfg.CountTTL = 0
+ 	h := store.NewHybridWithConfig(sqlitevec.New(gdb), idx, cfg)
+ 	drawers := palace.NewService(palace.NewRepo(gdb, gdb), graphTestEmbedder{}, h, budgetDim)
+-	ctx := auth.WithTenant(context.Background(), tenant.Tenant{
++	ctx := auth.ForTenancy(context.Background(), tenant.Tenant{
+ 		TeamID: budgetTeam, UserID: "u1", Role: tenant.RoleAdmin,
+ 	})
+ 
+diff --git a/internal/mcpserver/writeauth_test.go b/internal/mcpserver/writeauth_test.go
+index 0e21aec..546b31d 100644
+--- a/internal/mcpserver/writeauth_test.go
++++ b/internal/mcpserver/writeauth_test.go
+@@ -211,7 +211,7 @@ func TestAReadOnlyRoleIsRefusedByEveryWriteTool(t *testing.T) {
+ 			reached = true
+ 			return jsonResult(map[string]any{"ok": true}), nil
+ 		})
+-		ctx := auth.WithTenant(context.Background(), tenant.Tenant{TeamID: "t1", UserID: "u1", Role: tc.role})
++		ctx := auth.ForTenancy(context.Background(), tenant.Tenant{TeamID: "t1", UserID: "u1", Role: tc.role})
+ 		res, err := handler(ctx, mcp.CallToolRequest{})
+ 		if err != nil {
+ 			t.Fatalf("role %q: %v", tc.role, err)
+diff --git a/internal/mcptest/harness.go b/internal/mcptest/harness.go
+index 64beca9..2efcf7f 100644
+--- a/internal/mcptest/harness.go
++++ b/internal/mcptest/harness.go
+@@ -504,7 +504,7 @@ func newServer(t *testing.T, gdb *gorm.DB) (*httptest.Server, *palace.Service) {
+ 		if role == "" {
+ 			role = tenant.RoleAdmin
+ 		}
+-		ctx := auth.WithTenant(r.Context(), tenant.Tenant{
++		ctx := auth.ForTenancy(r.Context(), tenant.Tenant{
+ 			TeamID: team, UserID: "user-mcptest", Role: role,
+ 		})
+ 		stream.ServeHTTP(w, r.WithContext(ctx))
+diff --git a/internal/oauth/server.go b/internal/oauth/server.go
+index 253bfc5..840cabc 100644
+--- a/internal/oauth/server.go
++++ b/internal/oauth/server.go
+@@ -334,7 +334,7 @@ func (a *AuthServer) resolve(ctx context.Context, token string) (tenant.Tenant,
+ func (a *AuthServer) Gate(next http.Handler) http.Handler {
+ 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+ 		if t, ok := a.resolve(r.Context(), bearerToken(r)); ok {
+-			next.ServeHTTP(w, r.WithContext(auth.WithTenant(r.Context(), t)))
++			next.ServeHTTP(w, r.WithContext(auth.ForTenancy(r.Context(), t)))
+ 			return
+ 		}
+ 		a.Challenge(w)

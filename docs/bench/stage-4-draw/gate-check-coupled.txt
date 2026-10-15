@@ -1,0 +1,33 @@
+1 OK clients/claude-code/doctor.go 'no-comparison' -> 'No-comparison' {'clients/claude-code/doctor_bridgebuild_test.go': '2'}
+2 SKIP internal/mcpserver/server.go 'hosted' : no test fails with only the source changed
+3 OK internal/billing/billing.go 'active' -> 'Active' {'internal/billing/opencollective_test.go': '1', 'internal/billing/reconcile_idempotence_test.go': '1', 'internal/billing/reconcile_test.go': '1', 'internal/billing/service_test.go': '1'}
+4 OK internal/longmemeval/querypolicy.go 'trying' -> 'Trying' {'internal/longmemeval/querypolicy_test.go': '1'}
+5 SKIP internal/billing/reconcile.go 'IN_REVIEW' : no test fails with only the source changed
+6 SKIP internal/mcpserver/drawers.go 'list_drawers' : tests red on the reference: --- FAIL: TestEveryCatalogToolIsNamedInTheReadme (0.08s)
+7 SKIP internal/palace/entity.go 'always' : no test fails with only the source changed
+8 OK clients/claude-code/doctor.go 'mcp bridge build' -> 'Mcp bridge build' {'clients/claude-code/doctor_bridgebuild_test.go': '1'}
+9 SKIP internal/mcpserver/graph.go 'graph_stats' : tests red on the reference: --- FAIL: TestEveryCatalogToolIsNamedInTheReadme (0.08s)
+10 SKIP internal/palace/entity.go 'dead' : tests red on the reference: --- FAIL: TestEmphasisIsNotAnEntity (0.00s)
+11 SKIP internal/palace/trace.go 'am.rrf_k' : no test fails with only the source changed
+12 SKIP clients/claude-code/hookchannel.go 'not-a-hook' : tests red on the reference: --- FAIL: TestEveryHookScriptDeclaresItsOutputChannel (0.00s)
+13 OK internal/web/views/models.go 'aiagentmemory init --sandbox acme -- --model opus' -> 'Aiagentmemory init --sandbox acme -- --model opus' {'internal/web/views/landing_test.go': '1'}
+14 SKIP internal/mcpcli/schema.go 'optional' : no test fails with only the source changed
+15 OK clients/claude-code/doctor.go 'STALE' -> 'sTALE' {'clients/claude-code/doctor_stale_test.go': '1', 'clients/claude-code/doctor_stalereport_test.go': '2'}
+16 SKIP clients/claude-code/doctor.go 'RETIRED' : tests red on the reference: --- FAIL: TestDoctorReportsTheCodebaseMemoryPeer (0.02s)
+17 SKIP internal/palace/entity.go 'everything' : no test fails with only the source changed
+18 SKIP internal/palace/entity.go 'took' : tests red on the reference: --- FAIL: TestEmphasisIsNotAnEntity (0.00s)
+19 SKIP internal/palace/entity.go 'sent' : no test fails with only the source changed
+20 SKIP internal/palace/entity.go 'actual' : tests red on the reference: --- FAIL: TestEmphasisIsNotAnEntity (0.00s)
+21 SKIP cmd/server/realip.go 'CF-Connecting-IP' : no test fails with only the source changed
+22 OK cmd/server/doctor.go 'TOTAL' -> 'tOTAL' {'cmd/server/doctor_graph_test.go': '1'}
+23 OK internal/oauth/server.go 'client_secret' -> 'Client_secret' {'internal/oauth/oauth_test.go': '6'}
+24 SKIP clients/claude-code/recallrate.go 'v3' : tests red on the reference: --- FAIL: TestTheRecordedBaselineNamesTheVersionTheCodeStamps (0.00s)
+25 SKIP clients/claude-code/installer.go 'agentsmemory-stop-hook.sh' : tests red on the reference: --- FAIL: TestEveryWrittenFileIsCheckedOrJustified (0.01s)
+26 SKIP cmd/server/eval.go 'dist_gap' : tests red on the reference: --- FAIL: TestContrastiveSeparationReadsTheDistanceSignals (0.00s)
+27 SKIP internal/billing/ocorders.go 'Personal-Token' : no test fails with only the source changed
+28 OK internal/palace/service.go 'am.candidate_k' -> 'Am.candidate_k' {'internal/palace/scopedrops_test.go': '1'}
+29 SKIP cmd/server/sync.go 'sync' : no test fails with only the source changed
+30 OK clients/claude-code/hookchannel.go 'PreModelSwitch' -> 'preModelSwitch' {'clients/claude-code/hookchannelknown_test.go': '1'}
+31 OK cmd/server/playbook.go 'playbook' -> 'Playbook' {'cmd/server/playbook_test.go': '1'}
+32 OK internal/billing/reconcile.go 'MONTHLY' -> 'mONTHLY' {'internal/billing/e2e_opencollective_test.go': '1', 'internal/billing/reconcile_idempotence_test.go': '3', 'internal/billing/reconcile_test.go': '6'}
+OK 12

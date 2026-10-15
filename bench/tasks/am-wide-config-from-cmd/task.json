@@ -1,0 +1,148 @@
+{
+  "id": "am-wide-config-from-cmd",
+  "shape": "wide-rename",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "Rename the Go identifier configFromCmd to cfgFromCmdArg, its mentions in comments included.",
+  "require": [
+    {
+      "file": "cmd/server/config_test.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/doctor.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/drawer.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/eval.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/flagbinding_test.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/inspect.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/kgextract.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/longmemeval.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/main.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/mcp.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/plan.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/playbook.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/share.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/sync.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/telemetry.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/telemetryflushran_test.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    },
+    {
+      "file": "cmd/server/wing.go",
+      "match": "\\bcfgFromCmdArg\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "cmd/server/config_test.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/doctor.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/drawer.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/eval.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/flagbinding_test.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/inspect.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/kgextract.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/longmemeval.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/main.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/mcp.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/plan.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/playbook.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/share.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/sync.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/telemetry.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/telemetryflushran_test.go",
+      "match": "\\bconfigFromCmd\\b"
+    },
+    {
+      "file": "cmd/server/wing.go",
+      "match": "\\bconfigFromCmd\\b"
+    }
+  ]
+}

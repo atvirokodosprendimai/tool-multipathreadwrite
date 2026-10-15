@@ -1,0 +1,32 @@
+diff --git a/clients/claude-code/doctor.go b/clients/claude-code/doctor.go
+index 38077b5..761f4d4 100644
+--- a/clients/claude-code/doctor.go
++++ b/clients/claude-code/doctor.go
+@@ -931,7 +931,7 @@ func judgeBridgeAgainstServer(bridge string, readErr error, srv serverVerdict) (
+ 			"so nothing can tell it from a stale one — rebuild it with " +
+ 			"-ldflags \"-X main.version=$(git describe --tags)\" (issue #210 for the server half)", true
+ 	case srv.version == "" || srv.label == "UNREACHABLE" || srv.label == "UNSTAMPED":
+-		return "no-comparison", "the bridge is " + bridge + "; the server row above says why there is " +
++		return "No-comparison", "the bridge is " + bridge + "; the server row above says why there is " +
+ 			"nothing to compare it with. This is NOT a clean bill of health for the bridge", false
+ 	case bridge != srv.version:
+ 		return "STALE-BRIDGE", "the bridge is " + bridge + " and the server it points at is " + srv.version +
+diff --git a/clients/claude-code/doctor_bridgebuild_test.go b/clients/claude-code/doctor_bridgebuild_test.go
+index edf56b6..d90c925 100644
+--- a/clients/claude-code/doctor_bridgebuild_test.go
++++ b/clients/claude-code/doctor_bridgebuild_test.go
+@@ -65,12 +65,12 @@ func TestABridgeBehindItsServerIsReported(t *testing.T) {
+ 			// reported as two problems.
+ 			name: "an unreachable server leaves nothing to compare", bridge: "v0.0.121",
+ 			srv:       serverVerdict{label: "UNREACHABLE", version: ""},
+-			wantLabel: "no-comparison",
++			wantLabel: "No-comparison",
+ 		},
+ 		{
+ 			name: "an unstamped server leaves nothing to compare", bridge: "v0.0.121",
+ 			srv:       serverVerdict{label: "UNSTAMPED", version: "dev"},
+-			wantLabel: "no-comparison",
++			wantLabel: "No-comparison",
+ 		},
+ 	} {
+ 		t.Run(tc.name, func(t *testing.T) {

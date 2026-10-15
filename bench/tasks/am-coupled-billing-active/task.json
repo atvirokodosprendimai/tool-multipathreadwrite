@@ -1,0 +1,52 @@
+{
+  "id": "am-coupled-billing-active",
+  "shape": "check-coupled",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "In internal/billing/billing.go, change the string \"active\" to \"Active\", and keep the tests passing.",
+  "require": [
+    {
+      "file": "internal/billing/billing.go",
+      "match": "\"Active\""
+    },
+    {
+      "file": "internal/billing/opencollective_test.go",
+      "match": "\"Active\""
+    },
+    {
+      "file": "internal/billing/reconcile_idempotence_test.go",
+      "match": "\"Active\""
+    },
+    {
+      "file": "internal/billing/reconcile_test.go",
+      "match": "\"Active\""
+    },
+    {
+      "file": "internal/billing/service_test.go",
+      "match": "\"Active\""
+    }
+  ],
+  "forbid": [
+    {
+      "file": "internal/billing/billing.go",
+      "match": "\"active\""
+    },
+    {
+      "file": "internal/billing/opencollective_test.go",
+      "match": "\"active\""
+    },
+    {
+      "file": "internal/billing/reconcile_idempotence_test.go",
+      "match": "\"active\""
+    },
+    {
+      "file": "internal/billing/reconcile_test.go",
+      "match": "\"active\""
+    },
+    {
+      "file": "internal/billing/service_test.go",
+      "match": "\"active\""
+    }
+  ]
+}

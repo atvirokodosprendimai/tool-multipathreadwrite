@@ -1,0 +1,14 @@
+OK WithTenant -> ForTenancy 17 files
+OK configFromCmd -> cfgFromCmdArg 17 files
+OK VectorBackend -> EmbedderStore 9 files
+OK EvalOptions -> EvalSetting 9 files
+OK defaultMCPURL -> defaultMCPLoc 8 files
+OK memoryOf -> memoryAt 8 files
+OK liveSurface -> activeScope 10 files
+OK GetAnyVersion -> FetchVersions 9 files
+OK KGStatusAll -> KGStatusSum 9 files
+OK DerivedEdgeSubject -> DerivedLinkSubject 10 files
+OK hookPlans -> hookSteps 10 files
+OK homeDir -> userDir 10 files
+OK Harness -> Testbed 12 files
+OK jsonResult -> jsonOutput 11 files

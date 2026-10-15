@@ -1,0 +1,193 @@
+diff --git a/clients/claude-code/copy_test.go b/clients/claude-code/copy_test.go
+index a418965..ebbb559 100644
+--- a/clients/claude-code/copy_test.go
++++ b/clients/claude-code/copy_test.go
+@@ -159,7 +159,7 @@ func TestSeedFromGlobalRejectsSelfCopy(t *testing.T) {
+ // fire the checkpoint twice. Ours is kept, theirs retired, a user's own hook
+ // never matched.
+ func TestForeignHookPredicate(t *testing.T) {
+-	mine := hookCommand(defaultMCPURL, "/Users/x/.sandboxes/acme/"+hookFile)
++	mine := hookCommand(defaultMCPLoc, "/Users/x/.sandboxes/acme/"+hookFile)
+ 	obsolete := foreignHookPredicate(mine)
+ 
+ 	if obsolete(mine) {
+diff --git a/clients/claude-code/doctor.go b/clients/claude-code/doctor.go
+index 38077b5..7362558 100644
+--- a/clients/claude-code/doctor.go
++++ b/clients/claude-code/doctor.go
+@@ -74,7 +74,7 @@ func doctorCommand() *cli.Command {
+ 			&cli.StringFlag{Name: "agent", Value: "claude", Usage: "which agent's install to check: claude | codex | pi | cursor | claude-desktop (one at a time)"},
+ 			&cli.StringFlag{Name: "target-dir", Usage: "the agent's config directory (default: the installed one)"},
+ 			&cli.StringFlag{Name: "project-dir", Usage: "the repository a hook should look at (default: the working directory)"},
+-			&cli.StringFlag{Name: "mcp-url", Sources: cli.EnvVars(mcpURLEnvVar), Value: defaultMCPURL, Usage: "agentsmemory MCP endpoint"},
++			&cli.StringFlag{Name: "mcp-url", Sources: cli.EnvVars(mcpURLEnvVar), Value: defaultMCPLoc, Usage: "agentsmemory MCP endpoint"},
+ 			&cli.StringFlag{Name: "token", Sources: cli.EnvVars(tokenEnvVar), Usage: "workspace token (a --local server needs none)"},
+ 			&cli.DurationFlag{Name: "timeout", Value: 45 * time.Second, Usage: "how long to wait for one hook"},
+ 		},
+diff --git a/clients/claude-code/doctor_test.go b/clients/claude-code/doctor_test.go
+index 0c992f8..db58696 100644
+--- a/clients/claude-code/doctor_test.go
++++ b/clients/claude-code/doctor_test.go
+@@ -333,9 +333,9 @@ func TestDoctorRunsTheHookWithTheRegisteredEndpoint(t *testing.T) {
+ 		t.Errorf("the hook did not see the endpoint its registration carries.\nwant saw=%s\n%s",
+ 			registered, out)
+ 	}
+-	if strings.Contains(out, defaultMCPURL) {
++	if strings.Contains(out, defaultMCPLoc) {
+ 		t.Errorf("the hook saw doctor's flag default (%s) instead of the registered endpoint — "+
+-			"this is the false negative every --local install got:\n%s", defaultMCPURL, out)
++			"this is the false negative every --local install got:\n%s", defaultMCPLoc, out)
+ 	}
+ }
+ 
+diff --git a/clients/claude-code/installer_test.go b/clients/claude-code/installer_test.go
+index e977a3d..60dd3d6 100644
+--- a/clients/claude-code/installer_test.go
++++ b/clients/claude-code/installer_test.go
+@@ -69,7 +69,7 @@ func newTestInstallerFor(t *testing.T, kit agentKit, recommended bool) (*Install
+ 		targetDir:   dir,
+ 		kit:         kit,
+ 		agentBin:    kit.bin,
+-		mcpURL:      defaultMCPURL,
++		mcpURL:      defaultMCPLoc,
+ 		scope:       "user",
+ 		token:       "TESTTOK",
+ 		recommended: recommended,
+@@ -132,7 +132,7 @@ func TestInstallCoreWritesAssetsAndRegistersMCP(t *testing.T) {
+ 	// Only the two agentsmemory MCP calls should have run (no extensions).
+ 	want := []string{
+ 		"mcp remove --scope user agentsmemory",
+-		"mcp add --transport http --scope user agentsmemory " + defaultMCPURL + " --header Authorization: Bearer TESTTOK",
++		"mcp add --transport http --scope user agentsmemory " + defaultMCPLoc + " --header Authorization: Bearer TESTTOK",
+ 	}
+ 	got := renderAll(rr.calls)
+ 	if !equalStrings(got, want) {
+@@ -256,7 +256,7 @@ func TestInstallRecommendedSequence(t *testing.T) {
+ 	want := []string{
+ 		// core: our MCP first
+ 		"mcp remove --scope user agentsmemory",
+-		"mcp add --transport http --scope user agentsmemory " + defaultMCPURL + " --header Authorization: Bearer TESTTOK",
++		"mcp add --transport http --scope user agentsmemory " + defaultMCPLoc + " --header Authorization: Bearer TESTTOK",
+ 		// recommended: codebase-memory installer + registration
+ 		"SHELL: " + codebaseMemoryInstall,
+ 		"mcp remove --scope user " + retiredCodebaseMemoryName,
+@@ -381,12 +381,12 @@ func TestResolveInstallTargetMakesConfigDirAbsolute(t *testing.T) {
+ 
+ func TestHookCommandCarriesTheInstallMCPURL(t *testing.T) {
+ 	path := "/cfg/agentsmemory-stop-hook.sh"
+-	hosted := hookCommand(defaultMCPURL, path)
++	hosted := hookCommand(defaultMCPLoc, path)
+ 	local := hookCommand(localMCPURL, path)
+ 	if hosted == local {
+ 		t.Fatal("hosted and --local hook commands are identical, so the install's palace never reaches /stats")
+ 	}
+-	if !strings.Contains(hosted, defaultMCPURL) || !strings.Contains(local, localMCPURL) {
++	if !strings.Contains(hosted, defaultMCPLoc) || !strings.Contains(local, localMCPURL) {
+ 		t.Errorf("hookCommand did not embed the install URL\n hosted: %s\n local: %s", hosted, local)
+ 	}
+ 	if strings.Contains(hosted, localMCPURL) {
+@@ -398,10 +398,10 @@ func TestHookPlansShellQuoteLiteralConfigPath(t *testing.T) {
+ 	inst := &Installer{
+ 		kit:       claudeKit,
+ 		targetDir: "/tmp/a b/it's;literal",
+-		mcpURL:    defaultMCPURL,
++		mcpURL:    defaultMCPLoc,
+ 	}
+ 	got := inst.hookPlans()[0].cmd
+-	want := hookCommand(defaultMCPURL, "/tmp/a b/it's;literal/agentsmemory-stop-hook.sh")
++	want := hookCommand(defaultMCPLoc, "/tmp/a b/it's;literal/agentsmemory-stop-hook.sh")
+ 	if got != want {
+ 		t.Fatalf("Stop hook command = %q, want %q", got, want)
+ 	}
+@@ -622,7 +622,7 @@ func TestInstallCodexCore(t *testing.T) {
+ 
+ 	want := []string{
+ 		"mcp remove agentsmemory",
+-		"mcp add agentsmemory --url " + defaultMCPURL + " --bearer-token-env-var " + tokenEnvVar,
++		"mcp add agentsmemory --url " + defaultMCPLoc + " --bearer-token-env-var " + tokenEnvVar,
+ 	}
+ 	if got := renderAll(rr.calls); !equalStrings(got, want) {
+ 		t.Errorf("command sequence mismatch\n got: %v\nwant: %v", got, want)
+@@ -661,7 +661,7 @@ func TestInstallCodexRecommended(t *testing.T) {
+ 
+ 	want := []string{
+ 		"mcp remove agentsmemory",
+-		"mcp add agentsmemory --url " + defaultMCPURL + " --bearer-token-env-var " + tokenEnvVar,
++		"mcp add agentsmemory --url " + defaultMCPLoc + " --bearer-token-env-var " + tokenEnvVar,
+ 		"SHELL: " + codebaseMemoryInstall,
+ 		"mcp remove " + retiredCodebaseMemoryName,
+ 		"mcp remove " + codebaseMemoryMCPName,
+@@ -747,7 +747,7 @@ func TestInstallPiCore(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	want := tokenEnvVar + "=TESTTOK\n" + mcpURLEnvVar + "=" + defaultMCPURL + "\n"
++	want := tokenEnvVar + "=TESTTOK\n" + mcpURLEnvVar + "=" + defaultMCPLoc + "\n"
+ 	if string(raw) != want {
+ 		t.Errorf("token file = %q, want %q", raw, want)
+ 	}
+diff --git a/clients/claude-code/main.go b/clients/claude-code/main.go
+index 1ad8876..70d7c8c 100644
+--- a/clients/claude-code/main.go
++++ b/clients/claude-code/main.go
+@@ -17,10 +17,10 @@ import (
+ var version = "dev"
+ 
+ const (
+-	// defaultMCPURL is the agentsmemory remote MCP endpoint the installer wires
++	// defaultMCPLoc is the agentsmemory remote MCP endpoint the installer wires
+ 	// up. It is a stateless Streamable-HTTP MCP server authed by a per-workspace
+ 	// bearer token (see the README "Connect the MCP" section).
+-	defaultMCPURL = mcpprotocol.HostedMCPURL
++	defaultMCPLoc = mcpprotocol.HostedMCPURL
+ 
+ 	// localMCPURL is the endpoint --local wires up instead: a self-hosted server
+ 	// running `agentsmemory --local`, which serves one workspace over an
+@@ -164,7 +164,7 @@ func installCommand() *cli.Command {
+ 			},
+ 			&cli.StringFlag{
+ 				Name:  "mcp-url",
+-				Value: defaultMCPURL,
++				Value: defaultMCPLoc,
+ 				Usage: "agentsmemory remote MCP endpoint",
+ 			},
+ 			&cli.StringFlag{
+diff --git a/clients/claude-code/mcpcall.go b/clients/claude-code/mcpcall.go
+index dbf8e7e..7c37473 100644
+--- a/clients/claude-code/mcpcall.go
++++ b/clients/claude-code/mcpcall.go
+@@ -80,7 +80,7 @@ func mcpCommand() *cli.Command {
+ 			&cli.StringFlag{
+ 				Name:    "mcp-url",
+ 				Sources: cli.EnvVars(mcpURLEnvVar),
+-				Value:   defaultMCPURL,
++				Value:   defaultMCPLoc,
+ 				Usage:   "agentsmemory remote MCP endpoint",
+ 			},
+ 			&cli.StringFlag{
+diff --git a/clients/claude-code/mcpcall_test.go b/clients/claude-code/mcpcall_test.go
+index 2b3e8b9..75f9ed1 100644
+--- a/clients/claude-code/mcpcall_test.go
++++ b/clients/claude-code/mcpcall_test.go
+@@ -151,7 +151,7 @@ func TestTokenFromClaudeJSON(t *testing.T) {
+ 	dir := t.TempDir()
+ 	path := filepath.Join(dir, ".claude.json")
+ 	// The shape `claude mcp add --header "Authorization: Bearer <token>"` leaves.
+-	body := `{"mcpServers":{"other":{"command":"x"},"agentsmemory":{"type":"http","url":"` + defaultMCPURL + `","headers":{"Authorization":"Bearer sk_live_json"}}}}`
++	body := `{"mcpServers":{"other":{"command":"x"},"agentsmemory":{"type":"http","url":"` + defaultMCPLoc + `","headers":{"Authorization":"Bearer sk_live_json"}}}}`
+ 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+ 		t.Fatal(err)
+ 	}
+diff --git a/clients/claude-code/verify.go b/clients/claude-code/verify.go
+index 3e5d1e5..e7c85b8 100644
+--- a/clients/claude-code/verify.go
++++ b/clients/claude-code/verify.go
+@@ -68,7 +68,7 @@ func verifyCommand() *cli.Command {
+ 			&cli.StringFlag{Name: "wing", Usage: "verify anchors on drawers in this wing (default: the project's wing)"},
+ 			&cli.StringFlag{Name: "repo", Usage: "verify anchors carrying this repo label"},
+ 			&cli.StringFlag{Name: "root", Usage: "repository root the paths are relative to (default: the working directory)"},
+-			&cli.StringFlag{Name: "mcp-url", Sources: cli.EnvVars(mcpURLEnvVar), Value: defaultMCPURL, Usage: "agentsmemory MCP endpoint"},
++			&cli.StringFlag{Name: "mcp-url", Sources: cli.EnvVars(mcpURLEnvVar), Value: defaultMCPLoc, Usage: "agentsmemory MCP endpoint"},
+ 			&cli.StringFlag{Name: "token", Sources: cli.EnvVars(tokenEnvVar), Usage: "workspace token (a --local server needs none)"},
+ 			&cli.BoolFlag{Name: "dry-run", Usage: "report what changed without recording any verdict"},
+ 		},

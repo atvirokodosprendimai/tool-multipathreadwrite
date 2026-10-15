@@ -1,0 +1,166 @@
+diff --git a/internal/palace/collapse_test.go b/internal/palace/collapse_test.go
+index 887ed92..eadc01d 100644
+--- a/internal/palace/collapse_test.go
++++ b/internal/palace/collapse_test.go
+@@ -100,7 +100,7 @@ func TestSearchReturnsOneHitPerMemory(t *testing.T) {
+ 
+ 	seen := map[string]int{}
+ 	for _, h := range hits {
+-		seen[memoryOf(h.Drawer)]++
++		seen[memoryAt(h.Drawer)]++
+ 	}
+ 	for id, n := range seen {
+ 		if n > 1 {
+diff --git a/internal/palace/currentonly.go b/internal/palace/currentonly.go
+index 67584f6..86cb0aa 100644
+--- a/internal/palace/currentonly.go
++++ b/internal/palace/currentonly.go
+@@ -116,7 +116,7 @@ func (s *Service) attachSupersedes(ctx context.Context, teamID string, ds []Draw
+ 	ids := make([]string, 0, len(ds))
+ 	seen := make(map[string]bool, len(ds))
+ 	for _, d := range ds {
+-		root := memoryOf(d)
++		root := memoryAt(d)
+ 		if !seen[root] {
+ 			seen[root] = true
+ 			ids = append(ids, root)
+@@ -130,7 +130,7 @@ func (s *Service) attachSupersedes(ctx context.Context, teamID string, ds []Draw
+ 		return nil
+ 	}
+ 	for i := range ds {
+-		p, ok := prev[memoryOf(ds[i])]
++		p, ok := prev[memoryAt(ds[i])]
+ 		if !ok {
+ 			continue
+ 		}
+diff --git a/internal/palace/currentonly_test.go b/internal/palace/currentonly_test.go
+index e1daa8c..332e2a6 100644
+--- a/internal/palace/currentonly_test.go
++++ b/internal/palace/currentonly_test.go
+@@ -601,7 +601,7 @@ func TestAChildChunkOfACorrectionCarriesTheReason(t *testing.T) {
+ 	}
+ 	var checked bool
+ 	for _, h := range hits {
+-		if memoryOf(h.Drawer) != res.ID {
++		if memoryAt(h.Drawer) != res.ID {
+ 			continue
+ 		}
+ 		checked = true
+diff --git a/internal/palace/eval.go b/internal/palace/eval.go
+index 89601c5..d0c4527 100644
+--- a/internal/palace/eval.go
++++ b/internal/palace/eval.go
+@@ -1184,14 +1184,14 @@ func (s *Service) evalCaseResult(ctx context.Context, teamID string, c EvalCase,
+ 	// one) is penalised precisely for doing its job. In this corpus every sampled
+ 	// gold was a chunk of a multi-chunk memory, so the bias applied to every
+ 	// number measured before this.
+-	// memoryOf resolves a drawer id to the id the POOL is keyed by. The pool
++	// memoryAt resolves a drawer id to the id the POOL is keyed by. The pool
+ 	// stores p.memory, which is the parent for a chunk of a multi-chunk memory,
+ 	// so an unresolved drawer id matches nothing and scores as never-retrieved.
+ 	// The gold has always gone through this; the distractor must too, or every
+ 	// multi-chunk distractor looks unreachable, Vacuous inflates, and every
+ 	// stale-above rate comes out better than it is — with nothing failing.
+ 	// Resolves an id to the memory it belongs to. The FOLDING itself lives in
+-	// memoryOf (palace.go) — it was written out by hand in four places in this
++	// memoryAt (palace.go) — it was written out by hand in four places in this
+ 	// file and nowhere in the pipeline, which is how the eval came to score
+ 	// memories while Search returned chunks.
+ 	memoryOfID := func(id string) (string, bool) {
+@@ -1200,7 +1200,7 @@ func (s *Service) evalCaseResult(ctx context.Context, teamID string, c EvalCase,
+ 		}
+ 		switch d, err := s.repo.Get(ctx, teamID, id); {
+ 		case err == nil:
+-			return memoryOf(d), true
++			return memoryAt(d), true
+ 		default:
+ 			return "", false
+ 		}
+@@ -1218,7 +1218,7 @@ func (s *Service) evalCaseResult(ctx context.Context, teamID string, c EvalCase,
+ 		}
+ 		switch gold, err := s.repo.Get(ctx, teamID, id); {
+ 		case err == nil:
+-			goldSet[memoryOf(gold)] = true
++			goldSet[memoryAt(gold)] = true
+ 		case errors.Is(err, gorm.ErrRecordNotFound):
+ 			// A saved case can outlive its drawer: re-mining a source purges the
+ 			// old ids and mints new ones. Swallowing that scored the dead case as
+@@ -1247,7 +1247,7 @@ func (s *Service) evalCaseResult(ctx context.Context, teamID string, c EvalCase,
+ 		if !ok {
+ 			continue
+ 		}
+-		pool = append(pool, candidate{memory: memoryOf(d), distance: distanceFromScore(h.Score)})
++		pool = append(pool, candidate{memory: memoryAt(d), distance: distanceFromScore(h.Score)})
+ 	}
+ 
+ 	// The nearest candidate's distance, whatever the arm: it is what a
+@@ -1285,7 +1285,7 @@ func (s *Service) evalCaseResult(ctx context.Context, teamID string, c EvalCase,
+ 		ids := make([]string, len(page))
+ 		order := make([]int, len(page))
+ 		for i, h := range page {
+-			ids[i] = memoryOf(h.Drawer)
++			ids[i] = memoryAt(h.Drawer)
+ 			order[i] = i
+ 		}
+ 		goldRank := rankOf(ids, order, expect)
+diff --git a/internal/palace/memory_search.go b/internal/palace/memory_search.go
+index b4a0aa2..e0f20b9 100644
+--- a/internal/palace/memory_search.go
++++ b/internal/palace/memory_search.go
+@@ -93,7 +93,7 @@ func survivorsFrom(hits []store.Hit, rows map[string]Drawer, q SearchQuery, stal
+ 			drops.OverDistance++
+ 			continue
+ 		}
+-		memoryID := memoryOf(d)
++		memoryID := memoryAt(d)
+ 		survivors = append(survivors, SearchHit{Drawer: d, MemoryID: memoryID, Distance: distance, StaleIndex: stale})
+ 		distinct[memoryID] = struct{}{}
+ 	}
+diff --git a/internal/palace/palace.go b/internal/palace/palace.go
+index a96e69b..96be598 100644
+--- a/internal/palace/palace.go
++++ b/internal/palace/palace.go
+@@ -253,7 +253,7 @@ type SearchHit struct {
+ 	Blended float64
+ }
+ 
+-// memoryOf returns the id of the MEMORY a drawer belongs to: its parent when it
++// memoryAt returns the id of the MEMORY a drawer belongs to: its parent when it
+ // is a chunk of a larger one, otherwise itself.
+ //
+ // One definition, because there were two. The eval folded hits onto ParentID in
+@@ -262,7 +262,7 @@ type SearchHit struct {
+ // eval reported the gold at rank 1. An eval cannot report a regression it does
+ // not measure the unit of, and the unit was written down twice in the harness and
+ // nowhere in the pipeline.
+-func memoryOf(d Drawer) string {
++func memoryAt(d Drawer) string {
+ 	if d.ParentID != "" {
+ 		return d.ParentID
+ 	}
+diff --git a/internal/palace/repo.go b/internal/palace/repo.go
+index 6e42d63..7b36ae7 100644
+--- a/internal/palace/repo.go
++++ b/internal/palace/repo.go
+@@ -360,7 +360,7 @@ func (r *Repo) MemoryChunksByRoots(ctx context.Context, teamID string, roots []s
+ 	}
+ 	for _, row := range rows {
+ 		d := fromRow(row)
+-		root := memoryOf(d)
++		root := memoryAt(d)
+ 		out[root] = append(out[root], d)
+ 	}
+ 	return out, nil
+diff --git a/internal/palace/service.go b/internal/palace/service.go
+index 568db83..60af9cd 100644
+--- a/internal/palace/service.go
++++ b/internal/palace/service.go
+@@ -1997,7 +1997,7 @@ func (s *Service) rankRetrieved(ctx context.Context, teamID, query string, q Sea
+ 		hit := survivors[r.Index]
+ 		mem := hit.MemoryID
+ 		if mem == "" {
+-			mem = memoryOf(hit.Drawer)
++			mem = memoryAt(hit.Drawer)
+ 		}
+ 		if i, seen := slotOf[mem]; seen {
+ 			results[i].ChunksMatched++

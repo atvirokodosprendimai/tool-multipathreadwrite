@@ -1,0 +1,28 @@
+{
+  "id": "am-coupled-doctor-total",
+  "shape": "check-coupled",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "In cmd/server/doctor.go, change the string \"TOTAL\" to \"tOTAL\", and keep the tests passing.",
+  "require": [
+    {
+      "file": "cmd/server/doctor.go",
+      "match": "\"tOTAL\""
+    },
+    {
+      "file": "cmd/server/doctor_graph_test.go",
+      "match": "\"tOTAL\""
+    }
+  ],
+  "forbid": [
+    {
+      "file": "cmd/server/doctor.go",
+      "match": "\"TOTAL\""
+    },
+    {
+      "file": "cmd/server/doctor_graph_test.go",
+      "match": "\"TOTAL\""
+    }
+  ]
+}

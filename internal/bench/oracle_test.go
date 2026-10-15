@@ -165,7 +165,7 @@ func TestTheCorpusHasTheRegisteredShapeCounts(t *testing.T) {
 			}
 		}
 	}
-	want := map[string]int{ShapeMultiSite: 8, ShapeStructural: 6, ShapeRepeatedAnchor: 6, ShapeLargeFile: 4, ShapeSingleLine: 6, ShapeVariedMultiSite: 10}
+	want := map[string]int{ShapeMultiSite: 8, ShapeStructural: 6, ShapeRepeatedAnchor: 6, ShapeLargeFile: 4, ShapeSingleLine: 6, ShapeVariedMultiSite: 10, ShapeWideRename: 10, ShapeCheckCoupled: 8}
 	for shape, n := range want {
 		if got[shape] != n {
 			t.Errorf("shape %s: %d tasks, want %d", shape, got[shape], n)

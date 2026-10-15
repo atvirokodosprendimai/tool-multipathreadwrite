@@ -1,0 +1,47 @@
+diff --git a/clients/claude-code/doctor.go b/clients/claude-code/doctor.go
+index 38077b5..0ca0fac 100644
+--- a/clients/claude-code/doctor.go
++++ b/clients/claude-code/doctor.go
+@@ -531,7 +531,7 @@ func runHookDoctor(ctx context.Context, c *cli.Command, out io.Writer) error {
+ 	// may be running a hand-edited hook deliberately, and a check that fails a
+ 	// legitimate choice is one that gets switched off.
+ 	for _, name := range staleAssetsIn(dir, kit) {
+-		fmt.Fprintf(out, "  %-38s %-14s %-12s %s\n", name, "—", "STALE",
++		fmt.Fprintf(out, "  %-38s %-14s %-12s %s\n", name, "—", "sTALE",
+ 			"differs from this binary's embedded copy — `aiagentmemory install` rewrites it")
+ 	}
+ 	// The server the install points at, judged by its handshake. Asked here,
+diff --git a/clients/claude-code/doctor_stale_test.go b/clients/claude-code/doctor_stale_test.go
+index 628b656..ce769a2 100644
+--- a/clients/claude-code/doctor_stale_test.go
++++ b/clients/claude-code/doctor_stale_test.go
+@@ -93,7 +93,7 @@ func TestDoctorStaysQuietWhenTheHooksAreCurrent(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatalf("a current install failed: %v\n%s", err, report)
+ 	}
+-	if strings.Contains(report, "STALE") {
++	if strings.Contains(report, "sTALE") {
+ 		t.Errorf("a byte-identical hook was reported as drifted:\n%s", report)
+ 	}
+ }
+diff --git a/clients/claude-code/doctor_stalereport_test.go b/clients/claude-code/doctor_stalereport_test.go
+index 1c2c655..5006b21 100644
+--- a/clients/claude-code/doctor_stalereport_test.go
++++ b/clients/claude-code/doctor_stalereport_test.go
+@@ -58,14 +58,14 @@ func TestDoctorReportsDriftWhenTheHooksStillDeclareTheirChannel(t *testing.T) {
+ 		t.Errorf("the report does not name the drifted hook, so an operator cannot act "+
+ 			"on it:\n%s", report)
+ 	}
+-	if !strings.Contains(report, "STALE") {
++	if !strings.Contains(report, "sTALE") {
+ 		t.Errorf("the report does not mark the drifted hook STALE:\n%s", report)
+ 	}
+ 	// The negative half, in the same fixture rather than a separate one: a
+ 	// byte-identical hook reported as drifted is the false alarm that costs this
+ 	// check its credibility, and only a fixture holding BOTH can catch it.
+ 	for _, line := range strings.Split(report, "\n") {
+-		if strings.Contains(line, verifyHookFile) && strings.Contains(line, "STALE") {
++		if strings.Contains(line, verifyHookFile) && strings.Contains(line, "sTALE") {
+ 			t.Errorf("a byte-identical hook was reported STALE:\n%s", line)
+ 		}
+ 	}

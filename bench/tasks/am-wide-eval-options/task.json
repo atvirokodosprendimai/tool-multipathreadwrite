@@ -1,0 +1,84 @@
+{
+  "id": "am-wide-eval-options",
+  "shape": "wide-rename",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "Rename the Go identifier EvalOptions to EvalSetting, its mentions in comments included.",
+  "require": [
+    {
+      "file": "cmd/server/eval.go",
+      "match": "\\bEvalSetting\\b"
+    },
+    {
+      "file": "internal/palace/armdistinct_test.go",
+      "match": "\\bEvalSetting\\b"
+    },
+    {
+      "file": "internal/palace/eval.go",
+      "match": "\\bEvalSetting\\b"
+    },
+    {
+      "file": "internal/palace/eval_ssot_test.go",
+      "match": "\\bEvalSetting\\b"
+    },
+    {
+      "file": "internal/palace/eval_test.go",
+      "match": "\\bEvalSetting\\b"
+    },
+    {
+      "file": "internal/palace/gatedarm_test.go",
+      "match": "\\bEvalSetting\\b"
+    },
+    {
+      "file": "internal/palace/orphanpaths_test.go",
+      "match": "\\bEvalSetting\\b"
+    },
+    {
+      "file": "internal/palace/recallanswers_spec_test.go",
+      "match": "\\bEvalSetting\\b"
+    },
+    {
+      "file": "internal/palace/supersessionreaches_test.go",
+      "match": "\\bEvalSetting\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "cmd/server/eval.go",
+      "match": "\\bEvalOptions\\b"
+    },
+    {
+      "file": "internal/palace/armdistinct_test.go",
+      "match": "\\bEvalOptions\\b"
+    },
+    {
+      "file": "internal/palace/eval.go",
+      "match": "\\bEvalOptions\\b"
+    },
+    {
+      "file": "internal/palace/eval_ssot_test.go",
+      "match": "\\bEvalOptions\\b"
+    },
+    {
+      "file": "internal/palace/eval_test.go",
+      "match": "\\bEvalOptions\\b"
+    },
+    {
+      "file": "internal/palace/gatedarm_test.go",
+      "match": "\\bEvalOptions\\b"
+    },
+    {
+      "file": "internal/palace/orphanpaths_test.go",
+      "match": "\\bEvalOptions\\b"
+    },
+    {
+      "file": "internal/palace/recallanswers_spec_test.go",
+      "match": "\\bEvalOptions\\b"
+    },
+    {
+      "file": "internal/palace/supersessionreaches_test.go",
+      "match": "\\bEvalOptions\\b"
+    }
+  ]
+}
