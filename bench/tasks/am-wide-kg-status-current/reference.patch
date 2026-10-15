@@ -1,0 +1,429 @@
+diff --git a/cmd/server/wingrootbackfill_test.go b/cmd/server/wingrootbackfill_test.go
+index c12ba72..691bf3e 100644
+--- a/cmd/server/wingrootbackfill_test.go
++++ b/cmd/server/wingrootbackfill_test.go
+@@ -102,7 +102,7 @@ func TestTheReadOnlyPathMintsNothing(t *testing.T) {
+ func resolves(ctx context.Context, t *testing.T, svc *services, teamID, entity string) bool {
+ 	t.Helper()
+ 	q, err := svc.drawers.KGQuery(ctx, teamID, palace.KGQueryInput{
+-		Entity: entity, Direction: "outgoing", Status: palace.KGStatusCurrent,
++		Entity: entity, Direction: "outgoing", Status: palace.KGStatusPresent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("query %s: %v", entity, err)
+diff --git a/internal/mcpserver/kg.go b/internal/mcpserver/kg.go
+index a1c7e9c..e06b1dc 100644
+--- a/internal/mcpserver/kg.go
++++ b/internal/mcpserver/kg.go
+@@ -17,14 +17,14 @@ import (
+ // "current" as a separate, revertible commit, and reverting must be this line and
+ // nothing else. Anything that needs to branch on the default is a sign the filter
+ // logic leaked out of palace.KGQuery, where it belongs.
+-const kgQueryDefaultStatus = palace.KGStatusCurrent
++const kgQueryDefaultStatus = palace.KGStatusPresent
+ 
+ // kgStatusParamDescription is BUILT from the palace constants rather than
+ // restating them, so a status the service accepts can never drift from the list
+ // the agent is told about.
+ var kgStatusParamDescription = fmt.Sprintf(
+ 	"Which half of a fact's life to return: %q (open-ended, not retracted), %q (retracted — the audit direction), or %q. Default %q. This is filtered SERVER-SIDE, so what it removes never reaches your context; it selects on whether a fact was ever ended, which is a different question from as_of's \"was it in effect at that moment\", and the two compose.",
+-	palace.KGStatusCurrent, palace.KGStatusEnded, palace.KGStatusAll, kgQueryDefaultStatus)
++	palace.KGStatusPresent, palace.KGStatusEnded, palace.KGStatusAll, kgQueryDefaultStatus)
+ 
+ // registerKG wires the temporal knowledge-graph tools: kg_add / kg_invalidate /
+ // kg_supersede (write facts, retract them, and replace them atomically),
+@@ -256,7 +256,7 @@ func registerKGQuery(reg *registrar, drawers *palace.Service, usageSvc *usage.Se
+ 		if len(withheld) > 0 {
+ 			out["withheld"] = withheld
+ 			var hints []string
+-			for _, st := range []string{palace.KGStatusEnded, palace.KGStatusCurrent} {
++			for _, st := range []string{palace.KGStatusEnded, palace.KGStatusPresent} {
+ 				if n := withheld[st]; n > 0 {
+ 					hints = append(hints, fmt.Sprintf(
+ 						"%d %s fact(s) not shown — pass status:%q to see them, or status:%q for both.",
+diff --git a/internal/mcpserver/kgquery_test.go b/internal/mcpserver/kgquery_test.go
+index 61a7133..dea727f 100644
+--- a/internal/mcpserver/kgquery_test.go
++++ b/internal/mcpserver/kgquery_test.go
+@@ -98,8 +98,8 @@ func TestDefaultQueryIsCurrentOnly(t *testing.T) {
+ 	if err := json.Unmarshal(fields["status"], &status); err != nil {
+ 		t.Fatalf("status: %v", err)
+ 	}
+-	if status != palace.KGStatusCurrent {
+-		t.Fatalf("the shipped default is %q, want %q", status, palace.KGStatusCurrent)
++	if status != palace.KGStatusPresent {
++		t.Fatalf("the shipped default is %q, want %q", status, palace.KGStatusPresent)
+ 	}
+ 
+ 	var facts []palace.KGFact
+@@ -220,7 +220,7 @@ func TestFilteredResponseReportsWhatItWithheld(t *testing.T) {
+ 	}{
+ 		{
+ 			name:         "current hides the one retracted fact and says so",
+-			status:       palace.KGStatusCurrent,
++			status:       palace.KGStatusPresent,
+ 			wantCount:    1,
+ 			wantWithheld: map[string]int64{palace.KGStatusEnded: 1},
+ 		},
+@@ -228,7 +228,7 @@ func TestFilteredResponseReportsWhatItWithheld(t *testing.T) {
+ 			name:         "ended hides the one live fact and says so",
+ 			status:       palace.KGStatusEnded,
+ 			wantCount:    1,
+-			wantWithheld: map[string]int64{palace.KGStatusCurrent: 1},
++			wantWithheld: map[string]int64{palace.KGStatusPresent: 1},
+ 		},
+ 		{
+ 			// Nothing was removed, so the keys must be ABSENT rather than zero.
+diff --git a/internal/palace/bootstrap.go b/internal/palace/bootstrap.go
+index 8f75f0d..92c6df4 100644
+--- a/internal/palace/bootstrap.go
++++ b/internal/palace/bootstrap.go
+@@ -446,7 +446,7 @@ func (r BootstrapResult) OutputTokens() int {
+ func (s *Service) tierPointers(ctx context.Context, teamID, wing string, policy WingPolicy) ([]BootstrapPointer, int, error) {
+ 	root := WingRootSubject(wing)
+ 	prefix := root + "."
+-	rootQ, err := s.KGQuery(ctx, teamID, KGQueryInput{Entity: root, Direction: "outgoing", Status: KGStatusCurrent})
++	rootQ, err := s.KGQuery(ctx, teamID, KGQueryInput{Entity: root, Direction: "outgoing", Status: KGStatusPresent})
+ 	if err != nil {
+ 		return nil, 0, err
+ 	}
+@@ -468,7 +468,7 @@ func (s *Service) tierPointers(ctx context.Context, teamID, wing string, policy
+ 			for len(queue) > 0 {
+ 				cur := queue[0]
+ 				queue = queue[1:]
+-				q, err := s.KGQuery(ctx, teamID, KGQueryInput{Entity: cur.name, Direction: "outgoing", Status: KGStatusCurrent})
++				q, err := s.KGQuery(ctx, teamID, KGQueryInput{Entity: cur.name, Direction: "outgoing", Status: KGStatusPresent})
+ 				if err != nil {
+ 					return nil, 0, err
+ 				}
+diff --git a/internal/palace/derivededgebatch_test.go b/internal/palace/derivededgebatch_test.go
+index 56c8587..2a2e61d 100644
+--- a/internal/palace/derivededgebatch_test.go
++++ b/internal/palace/derivededgebatch_test.go
+@@ -37,7 +37,7 @@ func TestTwoRootsSharingASourceFileEachGetAnEdge(t *testing.T) {
+ 			t.Errorf("root %s reports no edge; a second root sharing (wing, room, source_file) "+
+ 				"in one batch was skipped, so the memory is filed and unreachable by traversal", d.ID)
+ 		}
+-		rows, err := svc.writer.KGTriplesByObject(ctx, team, normalizeEntityID(d.ID), KGStatusCurrent, "", kgPage{})
++		rows, err := svc.writer.KGTriplesByObject(ctx, team, normalizeEntityID(d.ID), KGStatusPresent, "", kgPage{})
+ 		if err != nil {
+ 			t.Fatalf("read edges for %s: %v", d.ID, err)
+ 		}
+diff --git a/internal/palace/entryroom_test.go b/internal/palace/entryroom_test.go
+index 0c40040..45af152 100644
+--- a/internal/palace/entryroom_test.go
++++ b/internal/palace/entryroom_test.go
+@@ -80,7 +80,7 @@ func TestAWingRootIsMintedFromAChunkedEntryRecord(t *testing.T) {
+ 	}
+ 
+ 	q, err := svc.KGQuery(ctx, team, KGQueryInput{
+-		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusPresent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("resolve %s: %v", WingRootSubject(wing), err)
+diff --git a/internal/palace/factsfor.go b/internal/palace/factsfor.go
+index 643a2bc..9f840a9 100644
+--- a/internal/palace/factsfor.go
++++ b/internal/palace/factsfor.go
+@@ -105,7 +105,7 @@ func (s *Service) factsFor(ctx context.Context, teamID, wing string, vec []float
+ 	// am_kg_query already defaults the same way (kgQueryDefaultStatus), so this
+ 	// extends an existing default rather than inventing one. 14 facts on the live
+ 	// palace are already ended.
+-	rows, err := s.repo.KGTriplesForEntities(ctx, teamID, entityIDs, KGStatusCurrent)
++	rows, err := s.repo.KGTriplesForEntities(ctx, teamID, entityIDs, KGStatusPresent)
+ 	if err != nil {
+ 		return block, err
+ 	}
+diff --git a/internal/palace/graphquery.go b/internal/palace/graphquery.go
+index ac9b859..e68d5a2 100644
+--- a/internal/palace/graphquery.go
++++ b/internal/palace/graphquery.go
+@@ -518,7 +518,7 @@ func (s *Service) EntryPoint(ctx context.Context, teamID, wing string) (EntryPoi
+ 	node := DerivedEdgeSubject(wing, EntryRoom)
+ 
+ 	q, err := s.KGQuery(ctx, teamID, KGQueryInput{
+-		Entity: node, Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: node, Direction: "outgoing", Status: KGStatusPresent,
+ 	})
+ 	if err != nil {
+ 		return EntryPointResult{}, err
+diff --git a/internal/palace/kg.go b/internal/palace/kg.go
+index e95a721..2c1aa08 100644
+--- a/internal/palace/kg.go
++++ b/internal/palace/kg.go
+@@ -276,7 +276,7 @@ func (r *Repo) InvalidateKGTriples(ctx context.Context, teamID, subject, predica
+ // TheEntryPointRatherThanReplacingIt, which is what stops this regressing.
+ func kgStatusScope(db *gorm.DB, status string) *gorm.DB {
+ 	switch status {
+-	case KGStatusCurrent:
++	case KGStatusPresent:
+ 		return db.Where("+valid_to = ''")
+ 	case KGStatusEnded:
+ 		return db.Where("valid_to <> ''")
+@@ -472,11 +472,11 @@ func (r *Repo) KGPredicates(ctx context.Context, teamID string) ([]string, error
+ // fact has been retracted — which is a different question from as_of's "was this
+ // in effect at that moment", and the two compose rather than overlap.
+ //
+-// KGStatusCurrent is named for the wire field it filters on (KGFact.Current), but
++// KGStatusPresent is named for the wire field it filters on (KGFact.Current), but
+ // both mean OPEN-ENDED: a fact whose valid_to is future-dated is still current by
+ // this test. KGAdd can write such a fact and nothing does today.
+ const (
+-	KGStatusCurrent = "current"
++	KGStatusPresent = "current"
+ 	KGStatusEnded   = "ended"
+ 	KGStatusAll     = "all"
+ )
+@@ -723,7 +723,7 @@ func (s *Service) KGAdd(ctx context.Context, teamID, subject, predicate, object,
+ 	// count on one subject, and the write is already serialised behind a single
+ 	// connection (ADR-052), so it costs a query rather than a round trip that
+ 	// competes with anything.
+-	n, err := s.writer.KGTriplesBySubjectCount(ctx, teamID, normalizeEntityID(subj), KGStatusCurrent, "")
++	n, err := s.writer.KGTriplesBySubjectCount(ctx, teamID, normalizeEntityID(subj), KGStatusPresent, "")
+ 	if err != nil {
+ 		// A failed count must not fail a landed write. The fact is in; losing the
+ 		// advisory is the right trade and the opposite one would be a refusal
+@@ -926,10 +926,10 @@ func (s *Service) KGInvalidate(ctx context.Context, teamID, subject, predicate,
+ // the pre-ADR-026 default path costs exactly what it did before.
+ func kgComplementStatus(status string) string {
+ 	switch status {
+-	case KGStatusCurrent:
++	case KGStatusPresent:
+ 		return KGStatusEnded
+ 	case KGStatusEnded:
+-		return KGStatusCurrent
++		return KGStatusPresent
+ 	}
+ 	return ""
+ }
+@@ -983,7 +983,7 @@ func (s *Service) KGQuery(ctx context.Context, teamID string, in KGQueryInput) (
+ 	if status == "" {
+ 		status = KGStatusAll
+ 	}
+-	if status != KGStatusCurrent && status != KGStatusEnded && status != KGStatusAll {
++	if status != KGStatusPresent && status != KGStatusEnded && status != KGStatusAll {
+ 		return KGQueryResult{}, fmt.Errorf("%w: status must be 'current', 'ended', or 'all'", ErrInvalidInput)
+ 	}
+ 	asOfKey := temporalStartKey(ao)
+@@ -1810,7 +1810,7 @@ func (s *Service) CorrectionsFor(ctx context.Context, teamID string, recordIDs [
+ 	}
+ 
+ 	for _, pred := range CorrectionPredicates {
+-		rows, err := s.repo.KGTriplesByPredicate(ctx, teamID, normalizePredicate(pred), KGStatusCurrent, kgPage{})
++		rows, err := s.repo.KGTriplesByPredicate(ctx, teamID, normalizePredicate(pred), KGStatusPresent, kgPage{})
+ 		if err != nil {
+ 			return nil, err
+ 		}
+@@ -1855,7 +1855,7 @@ func (r *Repo) KGTriplesForEntities(ctx context.Context, teamID string, ids []st
+ 	var rows []kgTripleRow
+ 	q := r.reader.WithContext(ctx).Where("team_id = ? AND (subject IN ? OR object IN ?)", teamID, ids, ids)
+ 	switch status {
+-	case KGStatusCurrent:
++	case KGStatusPresent:
+ 		q = q.Where("valid_to = ''")
+ 	case KGStatusEnded:
+ 		q = q.Where("valid_to <> ''")
+diff --git a/internal/palace/kg_test.go b/internal/palace/kg_test.go
+index b28bae5..eaf993e 100644
+--- a/internal/palace/kg_test.go
++++ b/internal/palace/kg_test.go
+@@ -132,7 +132,7 @@ func TestEndedFactIsAbsentFromCurrentQuery(t *testing.T) {
+ 		t.Fatalf("invalidate: %v", err)
+ 	}
+ 
+-	current, err := svc.KGQuery(ctx, team, KGQueryInput{Entity: "Alice", Status: KGStatusCurrent})
++	current, err := svc.KGQuery(ctx, team, KGQueryInput{Entity: "Alice", Status: KGStatusPresent})
+ 	if err != nil {
+ 		t.Fatalf("current: %v", err)
+ 	}
+diff --git a/internal/palace/kginvalidateinstant_test.go b/internal/palace/kginvalidateinstant_test.go
+index 6d5dd55..d5e1bfe 100644
+--- a/internal/palace/kginvalidateinstant_test.go
++++ b/internal/palace/kginvalidateinstant_test.go
+@@ -49,7 +49,7 @@ func TestARetractionStampsAnInstantNotADate(t *testing.T) {
+ 		t.Fatalf("KGInvalidate defaulted ended to %q, a bare date.\n"+
+ 			"  temporalEndKey promotes a bare date to T23:59:59Z, so this fact stays visible to\n"+
+ 			"  as_of for the rest of the day while status:%q excludes it immediately — issue #47.\n"+
+-			"  Default to time.RFC3339, as KGSupersede already does.", ended, KGStatusCurrent)
++			"  Default to time.RFC3339, as KGSupersede already does.", ended, KGStatusPresent)
+ 	}
+ 	if _, err := time.Parse(time.RFC3339, ended); err != nil {
+ 		t.Fatalf("ended = %q, which is neither a date nor an RFC3339 instant: %v", ended, err)
+@@ -79,7 +79,7 @@ func TestARetractionStampsAnInstantNotADate(t *testing.T) {
+ 		if fact.Object == "Acme" {
+ 			t.Errorf("as_of %s still returns the fact retracted at %s, while status:%q excludes it.\n"+
+ 				"  That is the day-scale disagreement issue #47 reports: the two filters answer\n"+
+-				"  the same question about the same instant two different ways.", endOfDay, ended, KGStatusCurrent)
++				"  the same question about the same instant two different ways.", endOfDay, ended, KGStatusPresent)
+ 		}
+ 	}
+ }
+diff --git a/internal/palace/kgplan_test.go b/internal/palace/kgplan_test.go
+index d474e21..4977d6a 100644
+--- a/internal/palace/kgplan_test.go
++++ b/internal/palace/kgplan_test.go
+@@ -131,7 +131,7 @@ func TestPredicateOnlyQueryIsIndexed(t *testing.T) {
+ 	const team = "team-plan"
+ 	seedKGCorpus(t, svc, ctx, team, 300)
+ 
+-	for _, status := range []string{KGStatusCurrent, KGStatusEnded, KGStatusAll} {
++	for _, status := range []string{KGStatusPresent, KGStatusEnded, KGStatusAll} {
+ 		plan := explainPlan(t, svc, ctx, func(r *Repo) *gorm.DB {
+ 			return r.kgTripleQuery(ctx, team, kgTripleFilter{column: "predicate", value: "relates_to_5", status: status})
+ 		})
+@@ -168,7 +168,7 @@ func TestStatusFilterRefinesTheEntryPointRatherThanReplacingIt(t *testing.T) {
+ 		{"object", "org-3"},
+ 		{"predicate", "relates_to_5"},
+ 	} {
+-		for _, status := range []string{KGStatusCurrent, KGStatusEnded, KGStatusAll} {
++		for _, status := range []string{KGStatusPresent, KGStatusEnded, KGStatusAll} {
+ 			plan := explainPlan(t, svc, ctx, func(r *Repo) *gorm.DB {
+ 				return r.kgTripleQuery(ctx, team, kgTripleFilter{column: c.column, value: c.value, status: status})
+ 			})
+diff --git a/internal/palace/kgsupersede_test.go b/internal/palace/kgsupersede_test.go
+index 1c2a852..ebf8547 100644
+--- a/internal/palace/kgsupersede_test.go
++++ b/internal/palace/kgsupersede_test.go
+@@ -52,7 +52,7 @@ func TestKgSupersedeLeavesNoBoundaryOverlap(t *testing.T) {
+ 	// already-ended fact. This assertion therefore passes under inclusive AND
+ 	// half-open semantics alike — it CANNOT fail on what #74 will decide, and says
+ 	// so here so the next reader does not mistake it for boundary coverage.
+-	res, err := svc.KGQuery(ctx, team, KGQueryInput{Entity: "svc", Status: KGStatusCurrent})
++	res, err := svc.KGQuery(ctx, team, KGQueryInput{Entity: "svc", Status: KGStatusPresent})
+ 	if err != nil {
+ 		t.Fatalf("query: %v", err)
+ 	}
+@@ -134,7 +134,7 @@ func TestKgSupersedeIsAtomic(t *testing.T) {
+ 	}
+ 
+ 	// The graph is exactly as it was: one current fact, the OLD one, unended.
+-	res, qerr := svc.KGQuery(ctx, team, KGQueryInput{Entity: "svc", Status: KGStatusCurrent})
++	res, qerr := svc.KGQuery(ctx, team, KGQueryInput{Entity: "svc", Status: KGStatusPresent})
+ 	if qerr != nil {
+ 		t.Fatalf("query: %v", qerr)
+ 	}
+diff --git a/internal/palace/move_test.go b/internal/palace/move_test.go
+index ccc879e..21637e7 100644
+--- a/internal/palace/move_test.go
++++ b/internal/palace/move_test.go
+@@ -179,7 +179,7 @@ func TestAMoveThatCollidesOnAnyChunkRelocatesNone(t *testing.T) {
+ func reachableFrom(t *testing.T, ctx context.Context, svc *Service, team, wing, room, id string) bool {
+ 	t.Helper()
+ 	q, err := svc.KGQuery(ctx, team, KGQueryInput{
+-		Entity: DerivedEdgeSubject(wing, room), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: DerivedEdgeSubject(wing, room), Direction: "outgoing", Status: KGStatusPresent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("traverse from %s/%s: %v", wing, room, err)
+diff --git a/internal/palace/wingroot_move_test.go b/internal/palace/wingroot_move_test.go
+index a9e7828..b594c96 100644
+--- a/internal/palace/wingroot_move_test.go
++++ b/internal/palace/wingroot_move_test.go
+@@ -14,7 +14,7 @@ import (
+ func liveWingRoot(t *testing.T, svc *Service, teamID, wing string) bool {
+ 	t.Helper()
+ 	got, err := svc.KGQuery(context.Background(), teamID, KGQueryInput{
+-		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusPresent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("query the wing root: %v", err)
+@@ -173,7 +173,7 @@ func TestTheWingRootIsMintedOnceHoweverOftenItIsEnsured(t *testing.T) {
+ 	}
+ 
+ 	got, err := svc.KGQuery(ctx, team, KGQueryInput{
+-		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusPresent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("query the wing root: %v", err)
+diff --git a/internal/palace/wingroot_test.go b/internal/palace/wingroot_test.go
+index a3ee943..b108dce 100644
+--- a/internal/palace/wingroot_test.go
++++ b/internal/palace/wingroot_test.go
+@@ -25,7 +25,7 @@ func TestFilingIntoTheEntryRoomMintsTheWingRoot(t *testing.T) {
+ 		t.Fatalf("seed ordinary drawer: %v", err)
+ 	}
+ 	if q, err := svc.KGQuery(ctx, team, KGQueryInput{
+-		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusPresent,
+ 	}); err != nil {
+ 		t.Fatalf("query root: %v", err)
+ 	} else if q.Resolution != KGResolutionUnknownTerm {
+@@ -38,7 +38,7 @@ func TestFilingIntoTheEntryRoomMintsTheWingRoot(t *testing.T) {
+ 		t.Fatalf("seed entry drawer: %v", err)
+ 	}
+ 	q, err := svc.KGQuery(ctx, team, KGQueryInput{
+-		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusPresent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("query root: %v", err)
+@@ -66,7 +66,7 @@ func TestFilingIntoTheEntryRoomMintsTheWingRoot(t *testing.T) {
+ 		t.Fatalf("seed second entry drawer: %v", err)
+ 	}
+ 	q2, err := svc.KGQuery(ctx, team, KGQueryInput{
+-		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusPresent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("re-query root: %v", err)
+@@ -192,7 +192,7 @@ func TestCorrectingAnEntryRecordEndsItsDerivedEdge(t *testing.T) {
+ 	}
+ 
+ 	q, err := svc.KGQuery(ctx, team, KGQueryInput{
+-		Entity: DerivedEdgeSubject(wing, EntryRoom), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: DerivedEdgeSubject(wing, EntryRoom), Direction: "outgoing", Status: KGStatusPresent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("read the entry room's edges: %v", err)
+@@ -249,7 +249,7 @@ func TestCorrectingADrawerLeavesAuthoredEdgesAlone(t *testing.T) {
+ 		t.Fatalf("correct: %v", err)
+ 	}
+ 
+-	q, err := svc.KGQuery(ctx, team, KGQueryInput{Entity: id, Direction: "incoming", Status: KGStatusCurrent, IncludeContainment: true})
++	q, err := svc.KGQuery(ctx, team, KGQueryInput{Entity: id, Direction: "incoming", Status: KGStatusPresent, IncludeContainment: true})
+ 	if err != nil {
+ 		t.Fatalf("read incoming edges: %v", err)
+ 	}
+@@ -279,7 +279,7 @@ func TestEveryDoorThatEndsARowEndsItsDerivedEdge(t *testing.T) {
+ 
+ 	edgesFor := func(t *testing.T, svc *Service, team, id string) bool {
+ 		t.Helper()
+-		q, err := svc.KGQuery(ctx, team, KGQueryInput{Entity: id, Direction: "incoming", Status: KGStatusCurrent, IncludeContainment: true})
++		q, err := svc.KGQuery(ctx, team, KGQueryInput{Entity: id, Direction: "incoming", Status: KGStatusPresent, IncludeContainment: true})
+ 		if err != nil {
+ 			t.Fatalf("read incoming: %v", err)
+ 		}
+@@ -364,7 +364,7 @@ func TestBackfillMintsARootForAnEntryRoomThatPredatesTheMint(t *testing.T) {
+ 		t.Errorf("backfill minted %d root(s), want 1", minted)
+ 	}
+ 	q, err := svc.KGQuery(ctx, team, KGQueryInput{
+-		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusPresent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("query root: %v", err)
+@@ -466,7 +466,7 @@ func unroot(t *testing.T, svc *Service, teamID, wing string) {
+ 		t.Fatalf("delete the root edge: %v", err)
+ 	}
+ 	q, err := svc.KGQuery(context.Background(), teamID, KGQueryInput{
+-		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: WingRootSubject(wing), Direction: "outgoing", Status: KGStatusPresent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("confirm the fixture: %v", err)
+diff --git a/internal/web/guide_test.go b/internal/web/guide_test.go
+index 2bdc78c..eef38ec 100644
+--- a/internal/web/guide_test.go
++++ b/internal/web/guide_test.go
+@@ -188,7 +188,7 @@ func TestBootstrapMemoryTeachesTheCurrentKGQueryContract(t *testing.T) {
+ 	body := rec.Body.String()
+ 
+ 	// Every status the service accepts, spelled the way a caller passes it.
+-	for _, status := range []string{palace.KGStatusCurrent, palace.KGStatusEnded, palace.KGStatusAll} {
++	for _, status := range []string{palace.KGStatusPresent, palace.KGStatusEnded, palace.KGStatusAll} {
+ 		if want := `status:"` + status + `"`; !strings.Contains(body, want) {
+ 			t.Errorf("bootstrap-memory never teaches %s", want)
+ 		}

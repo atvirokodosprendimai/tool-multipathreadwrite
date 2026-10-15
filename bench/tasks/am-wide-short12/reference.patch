@@ -1,0 +1,311 @@
+diff --git a/internal/palace/contentkey.go b/internal/palace/contentkey.go
+index a90e2c1..ecab187 100644
+--- a/internal/palace/contentkey.go
++++ b/internal/palace/contentkey.go
+@@ -99,7 +99,7 @@ func (r *Repo) namedCollision(ctx context.Context, teamID, key, movingID string,
+ 		Limit(2).Pluck("id", &other).Error
+ 	return fmt.Errorf("%w: drawer %s would share content with %s, which is already current in this team. "+
+ 		"Nothing was changed — resolve the duplicate first (end one of them, or edit its content)",
+-		ErrContentKeyCollision, short12(movingID), strings.Join(shortAll(other), ", "))
++		ErrContentKeyCollision, brief12(movingID), strings.Join(shortAll(other), ", "))
+ }
+ 
+ // isUniqueViolation recognises the driver's constraint error by message rather
+@@ -117,7 +117,7 @@ func shortAll(ids []string) []string {
+ 	}
+ 	out := make([]string, 0, len(ids))
+ 	for _, id := range ids {
+-		out = append(out, short12(id))
++		out = append(out, brief12(id))
+ 	}
+ 	return out
+ }
+@@ -201,14 +201,14 @@ func (r *Repo) BackfillContentKeys(ctx context.Context) error {
+ 				if isUniqueViolation(err) {
+ 					continue
+ 				}
+-				return fmt.Errorf("stamp content key on %s: %w", short12(row.ID), err)
++				return fmt.Errorf("stamp content key on %s: %w", brief12(row.ID), err)
+ 			}
+ 			stamped++
+ 		}
+ 		if stamped == 0 {
+ 			return fmt.Errorf("%d row(s) still have no content key and none could be stamped — "+
+ 				"the backfill would loop forever rather than finish. First is %s in %s/%s",
+-				len(rows), short12(rows[0].ID), rows[0].Wing, rows[0].Room)
++				len(rows), brief12(rows[0].ID), rows[0].Wing, rows[0].Room)
+ 		}
+ 	}
+ }
+diff --git a/internal/palace/currentonly_test.go b/internal/palace/currentonly_test.go
+index e1daa8c..bd6bfe7 100644
+--- a/internal/palace/currentonly_test.go
++++ b/internal/palace/currentonly_test.go
+@@ -282,7 +282,7 @@ func TestNoMemoryEndsHalfway(t *testing.T) {
+ 	}
+ 	for _, h := range hits {
+ 		if strings.Contains(h.Drawer.Content, "HALFWAYMARKER") {
+-			t.Errorf("a chunk of the superseded memory is still searchable: %s", short12(h.Drawer.ID))
++			t.Errorf("a chunk of the superseded memory is still searchable: %s", brief12(h.Drawer.ID))
+ 		}
+ 	}
+ }
+@@ -541,7 +541,7 @@ func TestTransferPathsCarryOnlyWhatIsStillAsserted(t *testing.T) {
+ 		}
+ 	}
+ 	if len(ids) != 1 || ids[0] != kept.Drawers[0].ID {
+-		t.Errorf("ListCurrent returned %v; want exactly the current row %s", shortAll(ids), short12(kept.Drawers[0].ID))
++		t.Errorf("ListCurrent returned %v; want exactly the current row %s", shortAll(ids), brief12(kept.Drawers[0].ID))
+ 	}
+ }
+ 
+diff --git a/internal/palace/endedrefusal_test.go b/internal/palace/endedrefusal_test.go
+index 3ec7605..2c82b29 100644
+--- a/internal/palace/endedrefusal_test.go
++++ b/internal/palace/endedrefusal_test.go
+@@ -61,7 +61,7 @@ func TestBothReadPathsRefuseAnEndedDrawerTheSameWay(t *testing.T) {
+ 	}{
+ 		{"the ending is dated", "was ended on"},
+ 		{"the reason is quoted", "the first reading was wrong"},
+-		{"the successor is named", short12(res.ID)},
++		{"the successor is named", brief12(res.ID)},
+ 		{"history is offered", "include_history"},
+ 	} {
+ 		if !strings.Contains(errWhole.Error(), c.want) {
+diff --git a/internal/palace/import_test.go b/internal/palace/import_test.go
+index 5f4f1b6..3d3d7cf 100644
+--- a/internal/palace/import_test.go
++++ b/internal/palace/import_test.go
+@@ -257,7 +257,7 @@ func mustIDByContentKey(t *testing.T, svc *Service, team, key string) string {
+ 	}
+ 	id, ok := got[key]
+ 	if !ok {
+-		t.Fatalf("no current row holds content key %s", short12(key))
++		t.Fatalf("no current row holds content key %s", brief12(key))
+ 	}
+ 	return id
+ }
+diff --git a/internal/palace/kg.go b/internal/palace/kg.go
+index e95a721..ea70388 100644
+--- a/internal/palace/kg.go
++++ b/internal/palace/kg.go
+@@ -773,7 +773,7 @@ func kgAddOn(ctx context.Context, r *Repo, teamID, subj, pred, obj, vf, vt, sour
+ 					"carry provenance that resolves to nothing. Copy the id whole: a shortened or "+
+ 					"retyped one lands here, which is the point of the check. Omit "+
+ 					"source_drawer_id if this fact does not come from a drawer",
+-				ErrSourceDrawerNotFound, short12(sourceDrawerID))
++				ErrSourceDrawerNotFound, brief12(sourceDrawerID))
+ 		}
+ 	}
+ 
+diff --git a/internal/palace/move_test.go b/internal/palace/move_test.go
+index ccc879e..f4631bf 100644
+--- a/internal/palace/move_test.go
++++ b/internal/palace/move_test.go
+@@ -73,7 +73,7 @@ func TestAMoveRelocatesEveryChunkOfAMemory(t *testing.T) {
+ 		if after[i].ID != before[i].ID {
+ 			t.Errorf("chunk %d was re-minted (%s -> %s); ADR-045 rests on ids being stable across a "+
+ 				"move, because nothing repoints a knowledge-graph fact or an anchor",
+-				i, short12(before[i].ID), short12(after[i].ID))
++				i, brief12(before[i].ID), brief12(after[i].ID))
+ 		}
+ 		if after[i].Content != before[i].Content {
+ 			t.Errorf("chunk %d's content changed during a move", i)
+diff --git a/internal/palace/refile_test.go b/internal/palace/refile_test.go
+index 3169ad2..ff9e5e2 100644
+--- a/internal/palace/refile_test.go
++++ b/internal/palace/refile_test.go
+@@ -43,7 +43,7 @@ func TestRefilingAnUnchangedSourceKeepsItsIdsAndAnchors(t *testing.T) {
+ 		t.Errorf("re-filing UNCHANGED content changed the id: %s -> %s.\n"+
+ 			"Every code_anchor, tunnel, kg_triples.source_drawer_id and parent_id pointing at the old "+
+ 			"one is now dangling — the exact resolvability this decision exists to protect",
+-			short12(id), short12(second.Drawers[0].ID))
++			brief12(id), brief12(second.Drawers[0].ID))
+ 	}
+ 	anchors, err := svc.AnchorsForDrawers(ctx, team, []string{id})
+ 	if err != nil {
+@@ -102,7 +102,7 @@ func TestRefilingTheEditedTextDoesNotDuplicate(t *testing.T) {
+ 	}
+ 	if len(rows) == 1 && rows[0].ID != id {
+ 		t.Errorf("the surviving row is %s, not the original %s — dedup matched but replaced the "+
+-			"identity, which is the thing that must not move", short12(rows[0].ID), short12(id))
++			"identity, which is the thing that must not move", brief12(rows[0].ID), brief12(id))
+ 	}
+ }
+ 
+diff --git a/internal/palace/service.go b/internal/palace/service.go
+index 568db83..a30941e 100644
+--- a/internal/palace/service.go
++++ b/internal/palace/service.go
+@@ -1111,7 +1111,7 @@ func (s *Service) purgeSourceOn(ctx context.Context, r *Repo, teamID, wing, room
+ 			Where("team_id = ? AND id = ? AND valid_to = ''", teamID, id).
+ 			Updates(map[string]any{"valid_to": now, "ended_at": now, "ended_reason": reason}).Error
+ 		if err != nil {
+-			return fmt.Errorf("end drawer %s dropped from the source: %w", short12(id), err)
++			return fmt.Errorf("end drawer %s dropped from the source: %w", brief12(id), err)
+ 		}
+ 	}
+ 	// The server's own derived edges go with them. A re-file that drops a chunk
+@@ -1196,10 +1196,10 @@ func endedRefusal(id string, d Drawer) error {
+ 	// id rather than as an absence that is meant.
+ 	successor := ""
+ 	if d.SupersededBy != "" {
+-		successor = fmt.Sprintf(", or read %s, which replaced it", short12(d.SupersededBy))
++		successor = fmt.Sprintf(", or read %s, which replaced it", brief12(d.SupersededBy))
+ 	}
+ 	return fmt.Errorf("%w: drawer %s was ended on %s (%q). Pass include_history to read it%s",
+-		ErrNotFound, short12(id), d.ValidTo, truncateReason(d.EndedReason), successor)
++		ErrNotFound, brief12(id), d.ValidTo, truncateReason(d.EndedReason), successor)
+ }
+ 
+ // GetMemory returns every chunk of the memory the given drawer belongs to, in
+@@ -1326,7 +1326,7 @@ func (s *Service) Update(ctx context.Context, teamID, id string, patch DrawerPat
+ 		return UpdateResult{}, fmt.Errorf(
+ 			"%w: drawer %s was ended on %s (%q) and cannot be moved. Correct the record that "+
+ 				"replaced it, not the one it replaced",
+-			ErrInvalidInput, short12(id), current.ValidTo, truncateReason(current.EndedReason))
++			ErrInvalidInput, brief12(id), current.ValidTo, truncateReason(current.EndedReason))
+ 	}
+ 
+ 	// Nothing to change.
+@@ -1446,7 +1446,7 @@ func (s *Service) Update(ctx context.Context, teamID, id string, patch DrawerPat
+ 			"will not find it at its new address; on Qdrant run `agentsmemory doctor --index` "+
+ 			"then `agentsmemory sync --repair-payload` — but --index compares the WING only, so "+
+ 			"a room-only move has to be checked against the row by hand",
+-			"error", err, "drawer", short12(id), "wing", finalWing, "room", finalRoom)
++			"error", err, "drawer", brief12(id), "wing", finalWing, "room", finalRoom)
+ 	}
+ 
+ 	// Re-attach at the NEW address, after the commit and non-fatally, because
+@@ -2782,8 +2782,8 @@ func distanceFromScore(score float32) float64 {
+ 	return d
+ }
+ 
+-// short12 trims an id for an error message.
+-func short12(id string) string {
++// brief12 trims an id for an error message.
++func brief12(id string) string {
+ 	if len(id) > 12 {
+ 		return id[:12]
+ 	}
+diff --git a/internal/palace/siblinganchor_test.go b/internal/palace/siblinganchor_test.go
+index 9270daa..ce3f9f4 100644
+--- a/internal/palace/siblinganchor_test.go
++++ b/internal/palace/siblinganchor_test.go
+@@ -55,10 +55,10 @@ func TestAnchorsResolveFromAnySiblingChunk(t *testing.T) {
+ 	if len(byMemory[root]) == 0 {
+ 		t.Fatalf("an anchor on chunk %s is invisible when the memory %s is asked about — "+
+ 			"staleness detection would report this memory as unanchored and check nothing",
+-			short12(sibling), short12(root))
++			brief12(sibling), brief12(root))
+ 	}
+ 	if got := byMemory[root][0].DrawerID; got != sibling {
+-		t.Errorf("anchor resolved to drawer %s, want the sibling %s", short12(got), short12(sibling))
++		t.Errorf("anchor resolved to drawer %s, want the sibling %s", brief12(got), brief12(sibling))
+ 	}
+ 
+ 	// ⚠The argument is a MEMORY ROOT, not any chunk id, and that is worth pinning
+diff --git a/internal/palace/supersede.go b/internal/palace/supersede.go
+index 92d520c..934c7ac 100644
+--- a/internal/palace/supersede.go
++++ b/internal/palace/supersede.go
+@@ -82,7 +82,7 @@ func (s *Service) supersedeInto(ctx context.Context, teamID, id, content, reason
+ 	head := chunks[0]
+ 	if head.ValidTo != "" {
+ 		return SupersedeResult{}, fmt.Errorf("%w: drawer %s was already ended on %s (%q); correct the "+
+-			"record that replaced it, not the one it replaced", ErrInvalidInput, short12(id), head.ValidTo, head.EndedReason)
++			"record that replaced it, not the one it replaced", ErrInvalidInput, brief12(id), head.ValidTo, head.EndedReason)
+ 	}
+ 
+ 	// ⚠ THE ORDER HERE WAS DELIBERATE AND IS NOW REJECTED. This path used to write
+@@ -180,7 +180,7 @@ func (s *Service) supersedeInto(ctx context.Context, teamID, id, content, reason
+ 	}
+ 	if len(open) == 0 {
+ 		return SupersedeResult{}, fmt.Errorf("%w: every chunk of drawer %s is already ended",
+-			ErrInvalidInput, short12(id))
++			ErrInvalidInput, brief12(id))
+ 	}
+ 
+ 	endedAt := time.Now().UTC().Format(time.RFC3339)
+@@ -222,7 +222,7 @@ func (s *Service) supersedeInto(ctx context.Context, teamID, id, content, reason
+ 			return fmt.Errorf("%w: %d of %d chunks of drawer %s were still current when this "+
+ 				"correction was written; another correction of the same record is in flight. "+
+ 				"Nothing was changed — re-read the memory and correct the record that replaced it",
+-				ErrConcurrentCorrection, res.RowsAffected, len(open), short12(id))
++				ErrConcurrentCorrection, res.RowsAffected, len(open), brief12(id))
+ 		}
+ 		if err := s.persistRows(ctx, repoOn(tx), teamID, prepared); err != nil {
+ 			return err
+@@ -282,7 +282,7 @@ func (s *Service) supersedeInto(ctx context.Context, teamID, id, content, reason
+ 	if err := s.carryAnchors(ctx, teamID, head.ID, newID); err != nil {
+ 		telemetry.Annotate(ctx, attribute.Bool("am.anchors_not_carried", true))
+ 		slog.Warn("correction committed but its anchors were not carried forward",
+-			"error", err, "superseded", short12(head.ID), "successor", short12(newID))
++			"error", err, "superseded", brief12(head.ID), "successor", brief12(newID))
+ 	}
+ 	s.attachDerivedEdgeTo(ctx, teamID, prepared.drawers)
+ 
+diff --git a/internal/palace/supersedeid_test.go b/internal/palace/supersedeid_test.go
+index 558f646..39a333f 100644
+--- a/internal/palace/supersedeid_test.go
++++ b/internal/palace/supersedeid_test.go
+@@ -136,7 +136,7 @@ func TestACorrectionMintsWhicheverEndStaysTheSame(t *testing.T) {
+ 				if res.ID == oldRoot {
+ 					t.Errorf("the successor reuses the predecessor's id %s — a correction that keeps "+
+ 						"the id has overwritten the record it was supposed to end, which is what "+
+-						"ADR-038 forbids", short12(oldRoot))
++						"ADR-038 forbids", brief12(oldRoot))
+ 				}
+ 
+ 				// The predecessor must still be readable, ended, and linked.
+@@ -190,13 +190,13 @@ func TestACorrectionMintsWhicheverEndStaysTheSame(t *testing.T) {
+ 					if oldChunk, reused := oldIDs[c.ID]; reused {
+ 						t.Errorf("the successor's chunk %d reuses id %s, which belongs to the "+
+ 							"predecessor's chunk %d — that row was just ended, so this insert "+
+-							"collides with it", c.ChunkIndex, short12(c.ID), oldChunk)
++							"collides with it", c.ChunkIndex, brief12(c.ID), oldChunk)
+ 					}
+ 					if c.ChunkIndex > 0 && c.ParentID != res.ID {
+ 						t.Errorf("the successor's chunk %d has parent %s, not the successor's root "+
+ 							"%s — a reminted root must be followed through its children or they "+
+ 							"point at the record being ended",
+-							c.ChunkIndex, short12(c.ParentID), short12(res.ID))
++							c.ChunkIndex, brief12(c.ParentID), brief12(res.ID))
+ 					}
+ 					body.WriteString(c.Content)
+ 				}
+diff --git a/internal/palace/validity.go b/internal/palace/validity.go
+index cbd5b58..eeecc96 100644
+--- a/internal/palace/validity.go
++++ b/internal/palace/validity.go
+@@ -94,7 +94,7 @@ func (s *Service) EndDrawer(ctx context.Context, teamID, id, reason string) erro
+ 	if current.ValidTo != "" {
+ 		return fmt.Errorf("%w: drawer %s was already ended on %s (%q). The first ending is the one that "+
+ 			"is true; re-ending would overwrite the reason that explained the change",
+-			ErrInvalidInput, short12(id), current.ValidTo, current.EndedReason)
++			ErrInvalidInput, brief12(id), current.ValidTo, current.EndedReason)
+ 	}
+ 	now := time.Now().UTC().Format(time.RFC3339)
+ 	// Both writes in ONE transaction: a retraction that ended the row and then
+diff --git a/internal/palace/wingroot_test.go b/internal/palace/wingroot_test.go
+index a3ee943..28bb7b9 100644
+--- a/internal/palace/wingroot_test.go
++++ b/internal/palace/wingroot_test.go
+@@ -201,7 +201,7 @@ func TestCorrectingAnEntryRecordEndsItsDerivedEdge(t *testing.T) {
+ 		if f.Object == first.Drawers[0].ID {
+ 			t.Errorf("the entry room still points at the SUPERSEDED record %s — a session "+
+ 				"fetching that edge gets an error at the front door, and the author has no "+
+-				"call that would end a derived edge:\n%+v", short12(f.Object), q.Facts)
++				"call that would end a derived edge:\n%+v", brief12(f.Object), q.Facts)
+ 		}
+ 	}
+ 	var pointsAtSuccessor bool
+@@ -212,7 +212,7 @@ func TestCorrectingAnEntryRecordEndsItsDerivedEdge(t *testing.T) {
+ 	}
+ 	if !pointsAtSuccessor {
+ 		t.Errorf("the entry room does not point at the correction %s; ending the old edge must "+
+-			"not leave the door pointing at nothing:\n%+v", short12(res.ID), q.Facts)
++			"not leave the door pointing at nothing:\n%+v", brief12(res.ID), q.Facts)
+ 	}
+ }
+ 

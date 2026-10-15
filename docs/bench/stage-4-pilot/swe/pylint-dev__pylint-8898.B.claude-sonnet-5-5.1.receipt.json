@@ -1,0 +1,41 @@
+{
+  "attempt": "pylint-dev__pylint-8898.B.claude-sonnet-5-5.1",
+  "stage": "pilot",
+  "task": "pylint-dev__pylint-8898",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 3,
+  "started": "2026-10-15T19:58:31Z",
+  "wall_ms": 22661,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 7,
+  "tool_calls": 6,
+  "total_cost_usd": 0.0636777,
+  "usage": {
+    "input_tokens": 14,
+    "output_tokens": 2220,
+    "cache_read_input_tokens": 74777,
+    "cache_creation_input_tokens": 8493
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 31,
+    "deletions": 1
+  },
+  "hook_refused": 1
+}

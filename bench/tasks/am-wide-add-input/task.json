@@ -1,0 +1,628 @@
+{
+  "id": "am-wide-add-input",
+  "shape": "wide-rename",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "Rename the Go identifier AddInput to AddParam in the Go files, its mentions in comments included.",
+  "require": [
+    {
+      "file": "clients/claude-code/production_path_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "cmd/server/corpusedges_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "cmd/server/doctorcorpus_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "cmd/server/drawer_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "cmd/server/modescope_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "cmd/server/wingrootbackfill_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/longmemeval/grid.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/longmemeval/grid_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/mcpserver/drawers.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/mcpserver/emptygraph_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/mcpserver/prompts_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/mcpserver/readcost_spec_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/mcpserver/resources_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/mcpserver/responsebudget_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/mcpserver/structured_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/mcpserver/wirestale_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/admin_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/anchors_ended_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/anchors_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/bootstrap_tier_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/bootstrap_whole_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/collapse_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/contentkey_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/copywing_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/currentonly_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/embedbound_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/endedrefusal_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/entryroom_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/eval_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/evalstats_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/evidence_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/factcost_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/fetchlog_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/filedaway_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/graph_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/handles_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/indexdrift_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/kg_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/kgprovenance_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/lexnorm_select_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/memoryplan_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/move_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/orphanpaths_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/otel_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/proddepth_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/rank_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/readcost_spec_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/recallanswers_spec_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/recallstats_origin_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/recallstats_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/refile_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/repo_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/rerank_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/rerankbudget_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/rerankskip_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/retrieve_k_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/roomlife_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/roomname_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/roomscope_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/samplesize_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/scopedrops_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/service.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/service_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/siblinganchor_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/supersede.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/supersede_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/supersedeid_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/supersessionreaches_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/targetauth_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/telemetry_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/tenantscope_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/validity_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/wakeupcounts_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/widening_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_correct_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_move_test.go",
+      "match": "\\bAddParam\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_test.go",
+      "match": "\\bAddParam\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "clients/claude-code/production_path_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "cmd/server/corpusedges_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "cmd/server/doctorcorpus_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "cmd/server/drawer_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "cmd/server/modescope_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "cmd/server/wingrootbackfill_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/longmemeval/grid.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/longmemeval/grid_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/mcpserver/drawers.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/mcpserver/emptygraph_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/mcpserver/prompts_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/mcpserver/readcost_spec_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/mcpserver/resources_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/mcpserver/responsebudget_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/mcpserver/structured_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/mcpserver/wirestale_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/admin_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/anchors_ended_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/anchors_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/bootstrap_tier_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/bootstrap_whole_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/collapse_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/contentkey_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/copywing_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/currentonly_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/embedbound_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/endedrefusal_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/entryroom_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/eval_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/evalstats_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/evidence_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/factcost_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/fetchlog_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/filedaway_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/graph_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/handles_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/indexdrift_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/kg_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/kgprovenance_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/lexnorm_select_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/memoryplan_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/move_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/orphanpaths_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/otel_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/proddepth_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/rank_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/readcost_spec_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/recallanswers_spec_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/recallstats_origin_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/recallstats_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/refile_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/repo_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/rerank_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/rerankbudget_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/rerankskip_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/retrieve_k_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/roomlife_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/roomname_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/roomscope_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/samplesize_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/scopedrops_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/service.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/service_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/siblinganchor_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/supersede.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/supersede_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/supersedeid_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/supersessionreaches_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/targetauth_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/telemetry_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/tenantscope_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/validity_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/wakeupcounts_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/widening_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_correct_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_move_test.go",
+      "match": "\\bAddInput\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_test.go",
+      "match": "\\bAddInput\\b"
+    }
+  ]
+}

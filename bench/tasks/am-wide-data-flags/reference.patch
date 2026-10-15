@@ -1,0 +1,289 @@
+diff --git a/cmd/server/capflagplacement_test.go b/cmd/server/capflagplacement_test.go
+index c0a2840..fd5c98d 100644
+--- a/cmd/server/capflagplacement_test.go
++++ b/cmd/server/capflagplacement_test.go
+@@ -27,7 +27,7 @@ var meteringCommands = map[string]string{
+ // and fails when a command declares the cap override in its own flag set without
+ // metering anything.
+ //
+-// It was added because --monthly-request-cap lived in dataFlags, which every
++// It was added because --monthly-request-cap lived in dbFlagSet, which every
+ // command that opens the database reuses — doctor, wing export, set-plan and
+ // eight more. Those construct a usage service and never meter a request through
+ // it, so the accepted option changed no result they produce: this repo's
+diff --git a/cmd/server/doctor.go b/cmd/server/doctor.go
+index 755faaa..fd08293 100644
+--- a/cmd/server/doctor.go
++++ b/cmd/server/doctor.go
+@@ -46,7 +46,7 @@ func doctorCommand(def config.Config) *cli.Command {
+ 			"    --graph    what graph would current entity extraction derive from this corpus?\n" +
+ 			"    --windows  which snippet windows compete for QUERY against --drawer?\n\n" +
+ 			"A bare `doctor` refuses to run so that zero checks can never look like a healthy palace.",
+-		Flags: append(dataFlags(def),
++		Flags: append(dbFlagSet(def),
+ 			// --local mirrors serve's, because without it doctor checks a backend
+ 			// nobody runs: `--local` is what switches the search index to chromem,
+ 			// and a self-hosted operator who started the server with it and then
+diff --git a/cmd/server/drawer.go b/cmd/server/drawer.go
+index cbb1c01..a0f1ec5 100644
+--- a/cmd/server/drawer.go
++++ b/cmd/server/drawer.go
+@@ -47,7 +47,7 @@ func drawerEraseCommand(def config.Config) *cli.Command {
+ 			"name filed by mistake. It cannot be undone and nothing records that it happened.\n\n" +
+ 			"--confirm must repeat the id exactly. Take it from what you were asked to erase,\n" +
+ 			"not from the --id argument you just typed.",
+-		Flags: append(dataFlags(def),
++		Flags: append(dbFlagSet(def),
+ 			projectFlag(),
+ 			&cli.StringFlag{Name: "id", Required: true, Usage: "any chunk's id of the memory to erase"},
+ 			&cli.StringFlag{Name: "confirm", Required: true, Usage: "repeat the id to confirm the erase"},
+diff --git a/cmd/server/inspect.go b/cmd/server/inspect.go
+index 5f3b634..c448258 100644
+--- a/cmd/server/inspect.go
++++ b/cmd/server/inspect.go
+@@ -80,7 +80,7 @@ func projectsCommand(def config.Config) *cli.Command {
+ 	return &cli.Command{
+ 		Name:  "projects",
+ 		Usage: "List every workspace in the database (slug, name, drawer count)",
+-		Flags: dataFlags(def),
++		Flags: dbFlagSet(def),
+ 		Action: func(ctx context.Context, c *cli.Command) error {
+ 			return listProjects(ctx, configFromCmd(c, def))
+ 		},
+@@ -147,7 +147,7 @@ func inspectCommand(def config.Config) *cli.Command {
+ 	return &cli.Command{
+ 		Name:  "inspect",
+ 		Usage: "Report what a workspace holds in the database, by slug (read-only)",
+-		Flags: append(dataFlags(def),
++		Flags: append(dbFlagSet(def),
+ 			&cli.StringFlag{Name: "slug", Required: true, Usage: "workspace slug to inspect"},
+ 		),
+ 		Action: func(ctx context.Context, c *cli.Command) error {
+diff --git a/cmd/server/kgextract.go b/cmd/server/kgextract.go
+index ce844f7..c3c35cf 100644
+--- a/cmd/server/kgextract.go
++++ b/cmd/server/kgextract.go
+@@ -71,7 +71,7 @@ func kgExtractCommand(def config.Config) *cli.Command {
+ 			"  agentsmemory kg-extract --wing wing_acme\n" +
+ 			"  agentsmemory kg-extract --wing wing_acme --limit 50 --gen-url https://ollama.com --gen-api-key …\n" +
+ 			"  agentsmemory kg-extract --project acme --wing wing_acme  # a multi-tenant database",
+-		Flags: append(dataFlags(def),
++		Flags: append(dbFlagSet(def),
+ 			projectFlag(),
+ 			&cli.StringFlag{Name: "wing", Required: true, Usage: "extract from this wing's sources"},
+ 			&cli.IntFlag{Name: "limit", Value: 10, Usage: "sources per run (0 = every source; a full palace is hours of LLM time, so run it in slices)"},
+diff --git a/cmd/server/main.go b/cmd/server/main.go
+index 7e2f64f..5ae173a 100644
+--- a/cmd/server/main.go
++++ b/cmd/server/main.go
+@@ -228,10 +228,10 @@ func configFromCmd(c *cli.Command, def config.Config) config.Config {
+ 	return cfg
+ }
+ 
+-// dataFlags are the storage + embedding flags shared by every entry point that
++// dbFlagSet are the storage + embedding flags shared by every entry point that
+ // opens the database (serve and the read-only mcp CLI). It returns a fresh slice
+ // per call so each command owns its own flag instances.
+-func dataFlags(def config.Config) []cli.Flag {
++func dbFlagSet(def config.Config) []cli.Flag {
+ 	return []cli.Flag{
+ 		&cli.StringFlag{Name: "db", Sources: cli.EnvVars("AGENTSMEMORY_DB"), Value: def.DBPath, Usage: "SQLite database path"},
+ 		&cli.StringFlag{Name: "vector-backend", Sources: cli.EnvVars("VECTOR_BACKEND"), Value: def.VectorBackend, Usage: "search index: sqlite|chromem|qdrant (SQLite is always the source of truth; --local defaults to chromem)"},
+@@ -264,7 +264,7 @@ func dataFlags(def config.Config) []cli.Flag {
+ }
+ 
+ // meteringFlags are the flags that change how requests are METERED. They are
+-// separate from dataFlags because dataFlags is shared by every command that
++// separate from dbFlagSet because dbFlagSet is shared by every command that
+ // opens the database, and most of those never meter anything: doctor, wing
+ // export and set-plan among them accepted --monthly-request-cap and it changed
+ // no result they produce. `set-plan --monthly-request-cap=...` was the worst of
+@@ -334,7 +334,7 @@ func serveFlags(def config.Config) []cli.Flag {
+ 		&cli.BoolFlag{Name: "local", Sources: cli.EnvVars(mcpprotocol.LocalEnvVar), Value: def.Local, Usage: "self-hosted single-workspace mode: one \"local\" workspace, unauthenticated /mcp, no dashboard (defaults to " + config.LocalAddr + ")"},
+ 		&cli.StringFlag{Name: "token", Sources: cli.EnvVars(mcpprotocol.LocalTokenEnvVar), Usage: "require this bearer token on --local's /mcp and /import, so the server can safely bind a LAN address (e.g. --addr 0.0.0.0:8080); omit for a credential-free loopback or --socket install"},
+ 		&cli.StringFlag{Name: "superadmin-emails", Sources: cli.EnvVars("SUPERADMIN_EMAILS"), Usage: "comma-separated emails allowed to edit the global am_skillset playbook"},
+-	}, dataFlags(def)...)
++	}, dbFlagSet(def)...)
+ }
+ 
+ // meteredServeFlags are serveFlags plus the metering policy: what the two serving
+@@ -344,7 +344,7 @@ func serveFlags(def config.Config) []cli.Flag {
+ // — it opens the database and runs offline comparisons, so an accepted cap
+ // override would change no number it prints. The gate that caught exactly that is
+ // TestTheCapOverrideIsOnlyDeclaredWhereItIsEnforced, on the commit that moved the
+-// flag out of dataFlags.
++// flag out of dbFlagSet.
+ func meteredServeFlags(def config.Config) []cli.Flag {
+ 	return append(serveFlags(def), meteringFlags(def)...)
+ }
+diff --git a/cmd/server/mcp.go b/cmd/server/mcp.go
+index afe98aa..3d9a176 100644
+--- a/cmd/server/mcp.go
++++ b/cmd/server/mcp.go
+@@ -30,11 +30,11 @@ import (
+ 	"github.com/urfave/cli/v3"
+ )
+ 
+-// mcpCommand builds the `mcp` subcommand. It reuses dataFlags (the storage/embed
++// mcpCommand builds the `mcp` subcommand. It reuses dbFlagSet (the storage/embed
+ // flags) so it opens the same database as serve, and adds the auth selectors
+ // (--token / --team) and the repeatable -a/--arg tool-argument flag.
+ //
+-// It also takes meteringFlags, and unlike every other dataFlags command it earns
++// It also takes meteringFlags, and unlike every other dbFlagSet command it earns
+ // them: --token here resolves a tenant and METERS the call for HTTP parity, so
+ // the cap override changes what this command does. That is the test for offering
+ // the flag at all — parsing it into a Config field is not having an effect.
+@@ -43,7 +43,7 @@ func mcpCommand(def config.Config) *cli.Command {
+ 		Name:      "mcp",
+ 		Usage:     "Invoke a memory tool from the CLI (run with no tool to list them; writes need --write)",
+ 		ArgsUsage: "[tool] [primary-arg|file.md]",
+-		Flags: append(append(dataFlags(def), meteringFlags(def)...),
++		Flags: append(append(dbFlagSet(def), meteringFlags(def)...),
+ 			&cli.StringFlag{Name: "token", Usage: "API key: resolves the tenant and meters the call (HTTP parity). AGENTSMEMORY_TOKEN is used only when neither --token nor --team is set"},
+ 			&cli.StringFlag{Name: "team", Usage: "team id: trusted local admin read, no metering (alternative to --token)"},
+ 			&cli.StringSliceFlag{Name: "arg", Aliases: []string{"a"}, Usage: "tool argument as key=value (repeatable)"},
+diff --git a/cmd/server/plan.go b/cmd/server/plan.go
+index 1bfdad8..63f7b86 100644
+--- a/cmd/server/plan.go
++++ b/cmd/server/plan.go
+@@ -24,7 +24,7 @@ func setPlanCommand(def config.Config) *cli.Command {
+ 	return &cli.Command{
+ 		Name:  "set-plan",
+ 		Usage: "Attach a plan to a workspace by slug (default: unlimited = uncapped requests)",
+-		Flags: append(dataFlags(def),
++		Flags: append(dbFlagSet(def),
+ 			&cli.StringFlag{Name: "slug", Required: true, Usage: "workspace slug to change"},
+ 			&cli.StringFlag{Name: "plan", Value: "unlimited", Usage: "plan code to attach (e.g. unlimited, personal, pro_monthly)"},
+ 		),
+diff --git a/cmd/server/playbook.go b/cmd/server/playbook.go
+index 4cf7ba3..3642a10 100644
+--- a/cmd/server/playbook.go
++++ b/cmd/server/playbook.go
+@@ -63,7 +63,7 @@ func playbookCommand(def config.Config) *cli.Command {
+ 			"is what the dashboard editor writes — because overwriting a superadmin's text\n" +
+ 			"is the accident this guard exists to prevent. Pass --force to override that\n" +
+ 			"refusal deliberately; --force does nothing else and is required for nothing else.",
+-		Flags: append(dataFlags(def),
++		Flags: append(dbFlagSet(def),
+ 			&cli.BoolFlag{Name: "reseed", Usage: "replace the stored playbook with the one compiled into this binary"},
+ 			&cli.BoolFlag{Name: "force", Usage: "with --reseed, overwrite even a human-authored playbook (a non-empty updated_by)"},
+ 		),
+diff --git a/cmd/server/share.go b/cmd/server/share.go
+index 23aa21f..3c81f0b 100644
+--- a/cmd/server/share.go
++++ b/cmd/server/share.go
+@@ -19,7 +19,7 @@ func shareCommand(def config.Config) *cli.Command {
+ 	return &cli.Command{
+ 		Name:  "share",
+ 		Usage: "Copy a wing's memory (drawers + closets) from one workspace into another, reusing stored vectors (no re-embedding)",
+-		Flags: append(dataFlags(def),
++		Flags: append(dbFlagSet(def),
+ 			&cli.StringFlag{Name: "from", Required: true, Usage: "source workspace slug"},
+ 			&cli.StringFlag{Name: "to", Required: true, Usage: "destination workspace slug"},
+ 			&cli.StringSliceFlag{Name: "wing", Required: true, Usage: "wing to copy (repeat --wing for several)"},
+diff --git a/cmd/server/sync.go b/cmd/server/sync.go
+index 032eff2..eaaefbf 100644
+--- a/cmd/server/sync.go
++++ b/cmd/server/sync.go
+@@ -27,7 +27,7 @@ func syncCommand(def config.Config) *cli.Command {
+ 	return &cli.Command{
+ 		Name:  "sync",
+ 		Usage: "Replay every tenant's vectors from the SQLite source of truth into Qdrant (creating collections as needed)",
+-		Flags: append(dataFlags(def),
++		Flags: append(dbFlagSet(def),
+ 			&cli.BoolFlag{
+ 				Name:  "recreate",
+ 				Usage: "drop each tenant's Qdrant collection and rebuild it from scratch (prunes points no longer in the source of truth); without it, sync is additive (upsert only)",
+diff --git a/cmd/server/telemetry.go b/cmd/server/telemetry.go
+index 30d4bb9..18c98eb 100644
+--- a/cmd/server/telemetry.go
++++ b/cmd/server/telemetry.go
+@@ -1,7 +1,7 @@
+ // telemetry.go wires OpenTelemetry to the CLI at exactly one place, and routes
+ // every command through it.
+ //
+-// Issue #53: --otel-endpoint is declared in dataFlags, so it appears in the help
++// Issue #53: --otel-endpoint is declared in dbFlagSet, so it appears in the help
+ // of every command carrying those flags, while telemetry.Setup was called from
+ // run() and runEval() only. (No count is written here on purpose — an earlier
+ // draft of this comment and of AGENTS.md both froze one, and review of PR #138
+diff --git a/cmd/server/telemetryflush_test.go b/cmd/server/telemetryflush_test.go
+index 617f4b6..3408a6d 100644
+--- a/cmd/server/telemetryflush_test.go
++++ b/cmd/server/telemetryflush_test.go
+@@ -63,7 +63,7 @@ func TestAStalledCollectorCannotHoldACommandOpen(t *testing.T) {
+ 	})
+ 	cmd := &cli.Command{
+ 		Name:   "probe",
+-		Flags:  dataFlags(config.Default()),
++		Flags:  dbFlagSet(config.Default()),
+ 		Action: action,
+ 	}
+ 
+diff --git a/cmd/server/telemetryflushran_test.go b/cmd/server/telemetryflushran_test.go
+index 706b4b3..f2f4f5d 100644
+--- a/cmd/server/telemetryflushran_test.go
++++ b/cmd/server/telemetryflushran_test.go
+@@ -121,7 +121,7 @@ func runWithTelemetryCancellable(t *testing.T, action func(context.Context, *cli
+ 	def.OTELEndpoint = "http://127.0.0.1:1/v1/traces"
+ 	cmd := &cli.Command{
+ 		Name:  "probe",
+-		Flags: dataFlags(def),
++		Flags: dbFlagSet(def),
+ 		Action: withTelemetry(def, func(inner context.Context, c *cli.Command) error {
+ 			return action(inner, c, cancel)
+ 		}),
+@@ -138,7 +138,7 @@ func runWithTelemetry(t *testing.T, action cli.ActionFunc) error {
+ 	def.OTELEndpoint = "http://127.0.0.1:1/v1/traces"
+ 	cmd := &cli.Command{
+ 		Name:   "probe",
+-		Flags:  dataFlags(def),
++		Flags:  dbFlagSet(def),
+ 		Action: withTelemetry(def, action),
+ 	}
+ 	return cmd.Run(context.Background(), []string{"probe"})
+diff --git a/cmd/server/telemetryreach_test.go b/cmd/server/telemetryreach_test.go
+index 13ad56f..2226e34 100644
+--- a/cmd/server/telemetryreach_test.go
++++ b/cmd/server/telemetryreach_test.go
+@@ -162,7 +162,7 @@ func TestWithTelemetryRunsTheActionWhenSetupFails(t *testing.T) {
+ 	})
+ 	cmd := &cli.Command{
+ 		Name:   "probe",
+-		Flags:  dataFlags(config.Default()),
++		Flags:  dbFlagSet(config.Default()),
+ 		Action: action,
+ 	}
+ 	// A URL no exporter can construct an endpoint from: Setup returns an error
+diff --git a/cmd/server/wing.go b/cmd/server/wing.go
+index 2c3b20e..3f3bd79 100644
+--- a/cmd/server/wing.go
++++ b/cmd/server/wing.go
+@@ -88,7 +88,7 @@ func wingExportCommand(def config.Config) *cli.Command {
+ 		Usage: "Write one wing's drawers, closets and intra-wing tunnels to a portable bundle",
+ 		Description: "The bundle records no wing name — `wing import --as <name>` decides where it lands.\n" +
+ 			"It is text only: the destination re-embeds, so a bundle stays portable across embedding models.",
+-		Flags: append(dataFlags(def),
++		Flags: append(dbFlagSet(def),
+ 			projectFlag(),
+ 			&cli.StringFlag{Name: "wing", Required: true, Usage: "wing to export"},
+ 			&cli.StringFlag{Name: "out", Usage: "file to write (default: stdout, so the bundle can be piped)"},
+@@ -107,7 +107,7 @@ func wingImportCommand(def config.Config) *cli.Command {
+ 		Description: "--as is required. A bundle carries no wing of its own, so importing without naming a\n" +
+ 			"destination would file every memory into an unnamed wing — an import that appears to\n" +
+ 			"succeed and leaves the memories somewhere nobody looks.",
+-		Flags: append(dataFlags(def),
++		Flags: append(dbFlagSet(def),
+ 			projectFlag(),
+ 			&cli.StringFlag{Name: "file", Required: true, Usage: "bundle file to import (- for stdin)"},
+ 			&cli.StringFlag{Name: "as", Required: true, Usage: "wing to file every record into (created if absent)"},
+@@ -127,7 +127,7 @@ func wingDeleteCommand(def config.Config) *cli.Command {
+ 			"size is unbounded, so a delete that is one typo away from emptying the wrong wing\n" +
+ 			"has to be spelled out twice. Run `agentsmemory wing export` first if the memories\n" +
+ 			"might be wanted back — a bundle is the only way to restore them.",
+-		Flags: append(dataFlags(def),
++		Flags: append(dbFlagSet(def),
+ 			projectFlag(),
+ 			&cli.StringFlag{Name: "wing", Required: true, Usage: "wing to delete"},
+ 			&cli.StringFlag{Name: "confirm", Required: true, Usage: "repeat the wing name to confirm the delete"},

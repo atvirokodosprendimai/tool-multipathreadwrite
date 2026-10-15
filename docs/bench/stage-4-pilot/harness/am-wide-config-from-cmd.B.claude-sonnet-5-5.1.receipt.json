@@ -1,0 +1,46 @@
+{
+  "attempt": "am-wide-config-from-cmd.B.claude-sonnet-5-5.1",
+  "stage": "pilot",
+  "task": "am-wide-config-from-cmd",
+  "shape": "wide-rename",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 1,
+  "started": "2026-10-15T19:50:11Z",
+  "wall_ms": 51649,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 3,
+  "tool_calls": 2,
+  "total_cost_usd": 0.1570442,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 2528,
+    "cache_read_input_tokens": 67762,
+    "cache_creation_input_tokens": 31244
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "outside": [
+      "docs/adr/ADR-006-knobs-that-do-nothing.md: a file the task does not touch",
+      "docs/adr/ADR-025-executable-contract-axes.md: a file the task does not touch",
+      "docs/architecture.md: a file the task does not touch"
+    ]
+  },
+  "silent_mis_edit": true,
+  "diff": {
+    "files": 20,
+    "insertions": 29,
+    "deletions": 29
+  },
+  "hook_reads": 1
+}

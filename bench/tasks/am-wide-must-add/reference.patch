@@ -1,0 +1,451 @@
+diff --git a/internal/palace/admin_test.go b/internal/palace/admin_test.go
+index 3dde771..6d1253f 100644
+--- a/internal/palace/admin_test.go
++++ b/internal/palace/admin_test.go
+@@ -14,8 +14,8 @@ func TestMergeWing(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-1"
+ 
+-	mustAdd(t, svc, team, AddInput{Wing: "old-a", Room: "r", Content: "a memory about cats that clears the floor easily"})
+-	mustAdd(t, svc, team, AddInput{Wing: "old-b", Room: "s", Content: "another memory about dogs that clears the floor too"})
++	needAdd(t, svc, team, AddInput{Wing: "old-a", Room: "r", Content: "a memory about cats that clears the floor easily"})
++	needAdd(t, svc, team, AddInput{Wing: "old-b", Room: "s", Content: "another memory about dogs that clears the floor too"})
+ 
+ 	res, err := svc.MergeWing(ctx, team, []string{"old-a", "old-b"}, "merged")
+ 	if err != nil {
+@@ -199,8 +199,8 @@ func TestMemoriesFiledAway(t *testing.T) {
+ 		t.Fatalf("empty palace summary wrong: %+v", empty)
+ 	}
+ 
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a filed memory long enough to be a drawer"})
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "s", Content: "a second filed memory long enough as well"})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a filed memory long enough to be a drawer"})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "s", Content: "a second filed memory long enough as well"})
+ 
+ 	res, err := svc.MemoriesFiledAway(ctx, team)
+ 	if err != nil {
+diff --git a/internal/palace/anchors_test.go b/internal/palace/anchors_test.go
+index ca4dde0..755987a 100644
+--- a/internal/palace/anchors_test.go
++++ b/internal/palace/anchors_test.go
+@@ -13,7 +13,7 @@ func TestAnchorsDieWithTheirDrawer(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-anchors"
+ 
+-	drawers := mustAdd(t, svc, team, AddInput{Wing: "wing_x", Room: "decisions", Content: "why the installer pins the config dir"})
++	drawers := needAdd(t, svc, team, AddInput{Wing: "wing_x", Room: "decisions", Content: "why the installer pins the config dir"})
+ 	id := drawers[0].ID
+ 	if _, err := svc.AddAnchors(ctx, team, id, []AnchorInput{{Path: "installer.go", Snippet: "func pinConfigDir() bool {"}}); err != nil {
+ 		t.Fatalf("add anchors: %v", err)
+@@ -42,7 +42,7 @@ func TestAddAnchorsKeepsExistingVerdicts(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-verdicts"
+ 
+-	drawers := mustAdd(t, svc, team, AddInput{Wing: "wing_x", Room: "decisions", Content: "pinned memory"})
++	drawers := needAdd(t, svc, team, AddInput{Wing: "wing_x", Room: "decisions", Content: "pinned memory"})
+ 	in := []AnchorInput{{Path: "x.go", Snippet: "func target() {}"}}
+ 	if _, err := svc.AddAnchors(ctx, team, drawers[0].ID, in); err != nil {
+ 		t.Fatalf("add anchors: %v", err)
+@@ -146,7 +146,7 @@ func TestAnchorFilterSelectsByPath(t *testing.T) {
+ 	const team = "team-anchor-path"
+ 
+ 	seed := func(content, path string) {
+-		drawers := mustAdd(t, svc, team, AddInput{Wing: "wing_acme", Room: "decisions", Content: content})
++		drawers := needAdd(t, svc, team, AddInput{Wing: "wing_acme", Room: "decisions", Content: content})
+ 		if _, err := svc.AddAnchors(ctx, team, drawers[0].ID,
+ 			[]AnchorInput{{Repo: "agentsmemory", Path: path, Snippet: "func Example() {"}}); err != nil {
+ 			t.Fatalf("anchor %s: %v", path, err)
+diff --git a/internal/palace/eval_test.go b/internal/palace/eval_test.go
+index 0eafe81..0cbd5fe 100644
+--- a/internal/palace/eval_test.go
++++ b/internal/palace/eval_test.go
+@@ -11,10 +11,10 @@ import (
+ 
+ // mustAddOne files a memory expected to fit one chunk and returns that drawer.
+ // The temporal tests reason about individual drawers, so a silent multi-chunk
+-// split would invalidate them — hence the count assertion on top of mustAdd.
++// split would invalidate them — hence the count assertion on top of needAdd.
+ func mustAddOne(t *testing.T, svc *Service, team string, in AddInput) Drawer {
+ 	t.Helper()
+-	drawers := mustAdd(t, svc, team, in)
++	drawers := needAdd(t, svc, team, in)
+ 	if len(drawers) != 1 {
+ 		t.Fatalf("add %q: expected 1 drawer, got %d", in.Content, len(drawers))
+ 	}
+diff --git a/internal/palace/evalstats_test.go b/internal/palace/evalstats_test.go
+index 570814c..b44c6fc 100644
+--- a/internal/palace/evalstats_test.go
++++ b/internal/palace/evalstats_test.go
+@@ -48,7 +48,7 @@ func TestBootstrapIsReproducible(t *testing.T) {
+ func TestEvaluateFailsLoudOnStaleGold(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-stale"
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a real memory so the corpus is not empty"})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a real memory so the corpus is not empty"})
+ 
+ 	_, err := svc.Evaluate(t.Context(), team,
+ 		[]EvalCase{{Query: "anything", Expect: "purged-drawer-id-that-no-longer-exists"}}, 10, nil)
+diff --git a/internal/palace/otel_test.go b/internal/palace/otel_test.go
+index b7ae56c..4ddc79f 100644
+--- a/internal/palace/otel_test.go
++++ b/internal/palace/otel_test.go
+@@ -25,7 +25,7 @@ func TestSearchEmitsSemanticStageSpans(t *testing.T) {
+ 
+ 	svc := newTestService(t)
+ 	const team = "team-otel"
+-	mustAdd(t, svc, team, AddInput{
++	needAdd(t, svc, team, AddInput{
+ 		Wing: "w", Room: "r", Content: "the otel wiring needle is unique here",
+ 	})
+ 	hits, err := svc.Search(ctx, team, SearchQuery{Query: "otel wiring needle", Limit: 3})
+@@ -118,7 +118,7 @@ func TestSearchRecordsVectorFailureClosed(t *testing.T) {
+ 	svc := newTestService(t)
+ 	svc.vectors = &failVectors{VectorStore: svc.vectors, err: errors.New("vector backend down")}
+ 	const team = "team-otel-fail"
+-	mustAdd(t, svc, team, AddInput{
++	needAdd(t, svc, team, AddInput{
+ 		Wing: "w", Room: "r", Content: "the failed-closed needle is unique here",
+ 	})
+ 
+@@ -170,7 +170,7 @@ func TestSearchDumpJoinsCodeAndKnobs(t *testing.T) {
+ 
+ 	svc := newTestService(t).WithClosetBoost(0)
+ 	const team = "team-otel-debug"
+-	mustAdd(t, svc, team, AddInput{
++	needAdd(t, svc, team, AddInput{
+ 		Wing: "w", Room: "r", Content: "the otel debug needle is unique here",
+ 	})
+ 	if _, err := svc.Search(ctx, team, SearchQuery{
+@@ -227,7 +227,7 @@ func TestEvalCaseNestsArms(t *testing.T) {
+ 
+ 	svc := newTestService(t)
+ 	const team = "team-otel-eval"
+-	gold := mustAdd(t, svc, team, AddInput{
++	gold := needAdd(t, svc, team, AddInput{
+ 		Wing: "w", Room: "r", Content: "the eval nesting needle is unique here",
+ 	})
+ 	if _, err := svc.evalCaseResult(ctx, team, EvalCase{
+diff --git a/internal/palace/rank_test.go b/internal/palace/rank_test.go
+index 04a6c99..52ef8f2 100644
+--- a/internal/palace/rank_test.go
++++ b/internal/palace/rank_test.go
+@@ -135,8 +135,8 @@ func TestSearchSurfacesBM25(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-1"
+ 
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "the cache uses an lru eviction policy"})
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "the button turns blue on hover"})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "the cache uses an lru eviction policy"})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "the button turns blue on hover"})
+ 
+ 	hits, err := svc.Search(ctx, team, SearchQuery{Query: "the cache uses an lru eviction policy"})
+ 	if err != nil {
+diff --git a/internal/palace/recallstats_test.go b/internal/palace/recallstats_test.go
+index 80a8ad5..797d70e 100644
+--- a/internal/palace/recallstats_test.go
++++ b/internal/palace/recallstats_test.go
+@@ -14,8 +14,8 @@ func TestRecallStatsSeparatesAnsweredFromAsked(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-stats"
+ 
+-	mustAdd(t, svc, team, AddInput{Wing: "wing_acme", Room: "decisions", Content: "the scheduler plans in two tiers so a long job cannot starve a short one"})
+-	mustAdd(t, svc, team, AddInput{Wing: "wing_beta", Room: "decisions", Content: "scan results are stored per audit run, not per page"})
++	needAdd(t, svc, team, AddInput{Wing: "wing_acme", Room: "decisions", Content: "the scheduler plans in two tiers so a long job cannot starve a short one"})
++	needAdd(t, svc, team, AddInput{Wing: "wing_beta", Room: "decisions", Content: "scan results are stored per audit run, not per page"})
+ 
+ 	// One answered search per wing, plus one that finds nothing.
+ 	if _, err := svc.Search(ctx, team, SearchQuery{Query: "two-tier planning", Wing: "wing_acme"}); err != nil {
+@@ -74,8 +74,8 @@ func TestRecallStatsFiltersEverySectionByWing(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-scoped-stats"
+ 
+-	mustAdd(t, svc, team, AddInput{Wing: "wing_alpha", Room: "private", Content: "alpha private release ritual"})
+-	mustAdd(t, svc, team, AddInput{Wing: "wing_beta", Room: "private", Content: "beta private release ritual"})
++	needAdd(t, svc, team, AddInput{Wing: "wing_alpha", Room: "private", Content: "alpha private release ritual"})
++	needAdd(t, svc, team, AddInput{Wing: "wing_beta", Room: "private", Content: "beta private release ritual"})
+ 	recordUnanswered(svc, team, "wing_alpha", "ALPHA-UNANSWERED-MARKER", time.Now().Add(-time.Minute))
+ 	recordUnanswered(svc, team, "wing_beta", "BETA-UNANSWERED-MARKER", time.Now())
+ 
+@@ -104,7 +104,7 @@ func TestRecallStatsShowsWriteOnlyWings(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-writeonly"
+ 
+-	mustAdd(t, svc, team, AddInput{Wing: "wing_unused", Room: "decisions", Content: "nobody ever asks about this"})
++	needAdd(t, svc, team, AddInput{Wing: "wing_unused", Room: "decisions", Content: "nobody ever asks about this"})
+ 
+ 	stats, err := svc.RecallStats(ctx, team, "", time.Hour, 10)
+ 	if err != nil {
+diff --git a/internal/palace/rerankbudget_test.go b/internal/palace/rerankbudget_test.go
+index 84fda64..9aeb6ec 100644
+--- a/internal/palace/rerankbudget_test.go
++++ b/internal/palace/rerankbudget_test.go
+@@ -67,7 +67,7 @@ func TestABlownBudgetIsNotReportedAsAnEndpointError(t *testing.T) {
+ 		t.Cleanup(slow.Close)
+ 
+ 		svc := newTestService(t).WithReranker(tei.New(slow.URL, 50*time.Millisecond), 5).WithRerankWeight(0.5)
+-		mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
++		needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+ 		status, reason := rerankSpanReason(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+ 		if status != string(telemetry.FailedOpen) {
+@@ -91,7 +91,7 @@ func TestABlownBudgetIsNotReportedAsAnEndpointError(t *testing.T) {
+ 		// immediately, the verdict must be the same: no connection was ever
+ 		// obtained, so this is an outage and not a budget problem.
+ 		svc := newTestService(t).WithReranker(tei.New("http://192.0.2.1:9", 300*time.Millisecond), 5).WithRerankWeight(0.5)
+-		mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
++		needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+ 		status, reason := rerankSpanReason(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+ 		if status != string(telemetry.FailedOpen) {
+@@ -111,7 +111,7 @@ func TestABlownBudgetIsNotReportedAsAnEndpointError(t *testing.T) {
+ 		t.Cleanup(sick.Close)
+ 
+ 		svc := newTestService(t).WithReranker(tei.New(sick.URL, 30*time.Second), 5).WithRerankWeight(0.5)
+-		mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
++		needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+ 		status, reason := rerankSpanReason(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+ 		if status != string(telemetry.FailedOpen) {
+@@ -130,7 +130,7 @@ func TestABlownBudgetIsNotReportedAsAnEndpointError(t *testing.T) {
+ func TestTheBudgetInForceIsOnTheSearchSpan(t *testing.T) {
+ 	const team = "team-budget-attr"
+ 	svc := newTestService(t).WithReranker(tei.New("http://127.0.0.1:1", 7*time.Second), 5).WithRerankWeight(0.5)
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+ 	got := searchSpanAttrs(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+ 	if got["am.rerank_timeout_ms"] != "7000" {
+diff --git a/internal/palace/rerankskip_test.go b/internal/palace/rerankskip_test.go
+index f2d84a8..6745d2f 100644
+--- a/internal/palace/rerankskip_test.go
++++ b/internal/palace/rerankskip_test.go
+@@ -18,7 +18,7 @@ import (
+ // whether anything writes it.
+ func searchInto(t *testing.T, svc *Service, team, wing string) {
+ 	t.Helper()
+-	mustAdd(t, svc, team, AddInput{Wing: wing, Room: "r", Content: "a memory about skip reasons"})
++	needAdd(t, svc, team, AddInput{Wing: wing, Room: "r", Content: "a memory about skip reasons"})
+ 	if _, err := svc.Search(context.Background(), team, SearchQuery{
+ 		Query: "skip reasons", Wing: wing, Limit: 3, MaxDistance: 1.5,
+ 	}); err != nil {
+diff --git a/internal/palace/samplesize_test.go b/internal/palace/samplesize_test.go
+index 1eaeae5..561e81d 100644
+--- a/internal/palace/samplesize_test.go
++++ b/internal/palace/samplesize_test.go
+@@ -33,7 +33,7 @@ func TestSampleDrawersCountsSourcesNotDrawers(t *testing.T) {
+ 		svc := newTestService(t)
+ 		const team = "team-sample-shared"
+ 		for i := 0; i < 40; i++ {
+-			mustAdd(t, svc, team, AddInput{
++			needAdd(t, svc, team, AddInput{
+ 				Wing: "wing_acme", Room: "sessions",
+ 				SourceFile: "one-mined-session.jsonl",
+ 				Content:    fmt.Sprintf("part %d of a single mined session, long enough to be its own chunk", i),
+@@ -54,7 +54,7 @@ func TestSampleDrawersCountsSourcesNotDrawers(t *testing.T) {
+ 		svc := newTestService(t)
+ 		const team = "team-sample-handfiled"
+ 		for i := 0; i < 12; i++ {
+-			mustAdd(t, svc, team, AddInput{
++			needAdd(t, svc, team, AddInput{
+ 				Wing: "wing_acme", Room: "decisions",
+ 				Content: fmt.Sprintf("a hand-filed decision number %d, with no source file at all", i),
+ 			})
+@@ -77,7 +77,7 @@ func TestSampleDrawersCountsSourcesNotDrawers(t *testing.T) {
+ 		// spread across 4 sources. This is the shape a mined wing actually has.
+ 		for src := 0; src < 4; src++ {
+ 			for i := 0; i < 25; i++ {
+-				mustAdd(t, svc, team, AddInput{
++				needAdd(t, svc, team, AddInput{
+ 					Wing: "wing_acme", Room: "sessions",
+ 					SourceFile: fmt.Sprintf("mined-session-%d.jsonl", src),
+ 					Content:    fmt.Sprintf("session %d part %d, one chunk of a longer mined document", src, i),
+@@ -99,7 +99,7 @@ func TestSampleDrawersCountsSourcesNotDrawers(t *testing.T) {
+ 		svc := newTestService(t)
+ 		const team = "team-sample-ceiling"
+ 		for i := 0; i < 30; i++ {
+-			mustAdd(t, svc, team, AddInput{
++			needAdd(t, svc, team, AddInput{
+ 				Wing: "wing_acme", Room: "sessions",
+ 				SourceFile: fmt.Sprintf("distinct-source-%d.jsonl", i),
+ 				Content:    fmt.Sprintf("one part of mined session %d, its own source entirely", i),
+diff --git a/internal/palace/scopedrops_test.go b/internal/palace/scopedrops_test.go
+index fad6922..98310fc 100644
+--- a/internal/palace/scopedrops_test.go
++++ b/internal/palace/scopedrops_test.go
+@@ -52,7 +52,7 @@ func searchSpanAttrs(t *testing.T, svc *Service, team string, q SearchQuery) map
+ func TestRequestAndServedValuesAreBothOnTheSpan(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-request"
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about request shaping"})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about request shaping"})
+ 
+ 	long := make([]rune, 400)
+ 	for i := range long {
+@@ -175,7 +175,7 @@ func TestScopeDropsCountEachCauseSeparately(t *testing.T) {
+ func TestKnobsThatDecideThePageAreAllOnTheParentSpan(t *testing.T) {
+ 	svc := newTestService(t).WithReranker(&fakeReranker{budget: 10 * time.Second}, 50).WithRerankWeight(0.5)
+ 	const team = "team-knobs"
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about knob coverage"})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about knob coverage"})
+ 
+ 	got := searchSpanAttrs(t, svc, team, SearchQuery{Query: "knob coverage", Limit: 3, MaxDistance: 1.5})
+ 
+diff --git a/internal/palace/service_test.go b/internal/palace/service_test.go
+index 49f645a..78df2d7 100644
+--- a/internal/palace/service_test.go
++++ b/internal/palace/service_test.go
+@@ -201,8 +201,8 @@ func TestServiceSearchWingFilter(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-1"
+ 
+-	mustAdd(t, svc, team, AddInput{Wing: "alpha", Room: "r", Content: "shared phrase here alpha"})
+-	mustAdd(t, svc, team, AddInput{Wing: "beta", Room: "r", Content: "shared phrase here beta"})
++	needAdd(t, svc, team, AddInput{Wing: "alpha", Room: "r", Content: "shared phrase here alpha"})
++	needAdd(t, svc, team, AddInput{Wing: "beta", Room: "r", Content: "shared phrase here beta"})
+ 
+ 	hits, err := svc.Search(ctx, team, SearchQuery{Query: "shared phrase here", Wing: "beta"})
+ 	if err != nil {
+@@ -220,7 +220,7 @@ func TestServiceGetUpdateDelete(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-1"
+ 
+-	created := mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "original text"})
++	created := needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "original text"})
+ 	id := created[0].ID
+ 
+ 	got, err := svc.Get(ctx, team, id)
+@@ -262,9 +262,9 @@ func TestServiceAggregations(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-1"
+ 
+-	mustAdd(t, svc, team, AddInput{Wing: "proj", Room: "backend", Content: "alpha"})
+-	mustAdd(t, svc, team, AddInput{Wing: "proj", Room: "frontend", Content: "beta"})
+-	mustAdd(t, svc, team, AddInput{Wing: "notes", Room: "ideas", Content: "gamma"})
++	needAdd(t, svc, team, AddInput{Wing: "proj", Room: "backend", Content: "alpha"})
++	needAdd(t, svc, team, AddInput{Wing: "proj", Room: "frontend", Content: "beta"})
++	needAdd(t, svc, team, AddInput{Wing: "notes", Room: "ideas", Content: "gamma"})
+ 
+ 	wings, err := svc.Wings(ctx, team)
+ 	if err != nil {
+@@ -295,7 +295,7 @@ func TestServiceCheckDuplicate(t *testing.T) {
+ 	svc := newTestService(t)
+ 	const team = "team-1"
+ 
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a uniquely worded memory about otters"})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a uniquely worded memory about otters"})
+ 
+ 	dup, err := svc.CheckDuplicate(ctx, team, "a uniquely worded memory about otters", DefaultDupThreshold)
+ 	if err != nil {
+@@ -321,8 +321,8 @@ func TestServiceAddNoSourceKeepsDistinctMemories(t *testing.T) {
+ 
+ 	// Two different memories, same wing/room, no source_file: both must survive
+ 	// (the content-hashed id prevents the second from overwriting the first).
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "first memory about cats"})
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "second memory about dogs"})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "first memory about cats"})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "second memory about dogs"})
+ 
+ 	list, err := svc.List(ctx, team, "w", "r", 50, 0)
+ 	if err != nil {
+@@ -341,11 +341,11 @@ func TestServiceReAddNamedSourcePurgesStaleChunks(t *testing.T) {
+ 	long := strings.Repeat("alpha ", 400)    // ~2400 chars -> several chunks
+ 	short := "now just a single short chunk" // 1 chunk
+ 
+-	first := mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", SourceFile: "notes.md", Content: long})
++	first := needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", SourceFile: "notes.md", Content: long})
+ 	if len(first) < 2 {
+ 		t.Fatalf("expected the long content to chunk into >1 drawer, got %d", len(first))
+ 	}
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", SourceFile: "notes.md", Content: short})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", SourceFile: "notes.md", Content: short})
+ 
+ 	// CURRENT rows: a re-file now ENDS the chunks it dropped rather than deleting
+ 	// them (ADR-038 T3), and List does not filter by validity until T5.
+@@ -362,7 +362,7 @@ func TestServiceUpdateRejectsEmptyField(t *testing.T) {
+ 	ctx := context.Background()
+ 	svc := newTestService(t)
+ 	const team = "team-1"
+-	created := mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "keep me addressable"})
++	created := needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "keep me addressable"})
+ 
+ 	empty := ""
+ 	if _, err := svc.Update(ctx, team, created[0].ID, DrawerPatch{Wing: &empty}); err == nil {
+@@ -374,7 +374,7 @@ func TestServiceCheckDuplicateClampsThreshold(t *testing.T) {
+ 	ctx := context.Background()
+ 	svc := newTestService(t)
+ 	const team = "team-1"
+-	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "an exact phrase to match"})
++	needAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "an exact phrase to match"})
+ 
+ 	// threshold > 1 is nonsense; clamped to 1, an exact match (sim 1.0) still counts.
+ 	dup, err := svc.CheckDuplicate(ctx, team, "an exact phrase to match", 2.0)
+@@ -473,7 +473,7 @@ func TestFilingSurvivesAnEmbedderOutage(t *testing.T) {
+ 	}
+ }
+ 
+-func mustAdd(t *testing.T, svc *Service, team string, in AddInput) []Drawer {
++func needAdd(t *testing.T, svc *Service, team string, in AddInput) []Drawer {
+ 	t.Helper()
+ 	res, err := svc.Add(context.Background(), team, in)
+ 	if err != nil {
+@@ -553,9 +553,9 @@ func TestWithFusionRRFChangesOrder(t *testing.T) {
+ 	// The closest vector match shares no vocabulary with the query; the lexical
+ 	// winner is a farther, wordier note. Linear fusion lets the lexical score
+ 	// pull the second one up; RRF caps that to one rank position.
+-	mustAdd(t, svc, team, AddInput{Wing: "wing_acme", Room: "decisions", SourceFile: "a.md",
++	needAdd(t, svc, team, AddInput{Wing: "wing_acme", Room: "decisions", SourceFile: "a.md",
+ 		Content: "cache eviction policy"})
+-	mustAdd(t, svc, team, AddInput{Wing: "wing_acme", Room: "decisions", SourceFile: "b.md",
++	needAdd(t, svc, team, AddInput{Wing: "wing_acme", Room: "decisions", SourceFile: "b.md",
+ 		Content: "cache eviction policy cache eviction policy cache eviction unrelated tail"})
+ 
+ 	order := func(s *Service) []string {
+@@ -606,7 +606,7 @@ func TestLexicalIDFChangesWhatSearchReturns(t *testing.T) {
+ 		"deploy checklist for the batching gateway and alarms",
+ 		"deploy runbook covering the batching queue drain",
+ 	} {
+-		mustAdd(t, svc, team, AddInput{
++		needAdd(t, svc, team, AddInput{
+ 			Wing: "wing_acme", Room: "decisions",
+ 			SourceFile: fmt.Sprintf("note-%d.md", i),
+ 			Content:    content,
+@@ -661,7 +661,7 @@ func TestRerankPresenceSurvivesAZeroScore(t *testing.T) {
+ 	ctx := context.Background()
+ 	svc := newTestService(t)
+ 	const team = "team-zero"
+-	mustAdd(t, svc, team, AddInput{Wing: "wing_acme", Room: "decisions", SourceFile: "a.md",
++	needAdd(t, svc, team, AddInput{Wing: "wing_acme", Room: "decisions", SourceFile: "a.md",
+ 		Content: "the queue drains every five minutes"})
+ 
+ 	// A reranker that scores everything exactly 0.0 — legal for a logit backend.
+diff --git a/internal/palace/telemetry_test.go b/internal/palace/telemetry_test.go
+index fa7d28f..776fb15 100644
+--- a/internal/palace/telemetry_test.go
++++ b/internal/palace/telemetry_test.go
+@@ -21,7 +21,7 @@ import (
+ func TestRerankedRecordsWhatHappened(t *testing.T) {
+ 	ctx := context.Background()
+ 	svc := newTestService(t)
+-	mustAdd(t, svc, "team-tel", AddInput{Wing: "w", Room: "r", Content: "the retry budget is three attempts"})
++	needAdd(t, svc, "team-tel", AddInput{Wing: "w", Room: "r", Content: "the retry budget is three attempts"})
+ 
+ 	// A reranker IS configured, and the weight hands it none of the decision.
+ 	rr := &fakeReranker{}
+@@ -46,7 +46,7 @@ func TestRerankedRecordsWhatHappened(t *testing.T) {
+ func TestRerankedIsTrueWhenItActuallyRan(t *testing.T) {
+ 	ctx := context.Background()
+ 	svc := newTestService(t)
+-	mustAdd(t, svc, "team-tel2", AddInput{Wing: "w", Room: "r", Content: "the retry budget is three attempts"})
++	needAdd(t, svc, "team-tel2", AddInput{Wing: "w", Room: "r", Content: "the retry budget is three attempts"})
+ 
+ 	rr := &fakeReranker{}
+ 	svc = svc.WithReranker(rr, 50).WithRerankWeight(0.5)
+@@ -100,7 +100,7 @@ func lastSearchEvent(t *testing.T, svc *Service, teamID string) searchEventRow {
+ func TestDegradedRerankIsNotRecordedAsAPass(t *testing.T) {
+ 	ctx := context.Background()
+ 	svc := newTestService(t)
+-	mustAdd(t, svc, "team-deg", AddInput{Wing: "w", Room: "r", Content: "the retry budget is three attempts"})
++	needAdd(t, svc, "team-deg", AddInput{Wing: "w", Room: "r", Content: "the retry budget is three attempts"})
+ 
+ 	svc = svc.WithReranker(&fakeReranker{err: errRerankProbe}, 50).WithRerankWeight(0.5)
+ 	if _, err := svc.Search(ctx, "team-deg", SearchQuery{Query: "retry budget", Limit: 5}); err != nil {

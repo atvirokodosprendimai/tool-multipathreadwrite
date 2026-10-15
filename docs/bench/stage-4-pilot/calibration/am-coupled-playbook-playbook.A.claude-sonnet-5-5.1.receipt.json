@@ -1,0 +1,49 @@
+{
+  "attempt": "am-coupled-playbook-playbook.A.claude-sonnet-5-5.1",
+  "stage": "pilot",
+  "task": "am-coupled-playbook-playbook",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 3,
+  "started": "2026-10-15T19:42:02Z",
+  "wall_ms": 30908,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 8,
+  "tool_calls": 7,
+  "total_cost_usd": 0.14176860000000002,
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 1526,
+    "cache_read_input_tokens": 161886,
+    "cache_creation_input_tokens": 27574
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "cmd/server/playbook_test.go: is not the reference result"
+    ],
+    "outside": [
+      "cmd/server/playbook_test.go: base lines 37-37"
+    ]
+  },
+  "silent_mis_edit": true,
+  "diff": {
+    "files": 2,
+    "insertions": 3,
+    "deletions": 3
+  }
+}

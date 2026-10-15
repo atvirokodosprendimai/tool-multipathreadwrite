@@ -1,0 +1,140 @@
+{
+  "id": "am-wide-data-flags",
+  "shape": "wide-rename",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "Rename the Go identifier dataFlags to dbFlagSet in the Go files, its mentions in comments included.",
+  "require": [
+    {
+      "file": "cmd/server/capflagplacement_test.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/doctor.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/drawer.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/inspect.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/kgextract.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/main.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/mcp.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/plan.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/playbook.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/share.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/sync.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/telemetry.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/telemetryflush_test.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/telemetryflushran_test.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/telemetryreach_test.go",
+      "match": "\\bdbFlagSet\\b"
+    },
+    {
+      "file": "cmd/server/wing.go",
+      "match": "\\bdbFlagSet\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "cmd/server/capflagplacement_test.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/doctor.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/drawer.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/inspect.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/kgextract.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/main.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/mcp.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/plan.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/playbook.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/share.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/sync.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/telemetry.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/telemetryflush_test.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/telemetryflushran_test.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/telemetryreach_test.go",
+      "match": "\\bdataFlags\\b"
+    },
+    {
+      "file": "cmd/server/wing.go",
+      "match": "\\bdataFlags\\b"
+    }
+  ]
+}

@@ -192,6 +192,10 @@ func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
 		"printf x | tee -a " + plan + " " + filepath.Join(scratch, "other.txt"),
 		"echo x > " + filepath.Join(tree, "..", "plan.txt"),
 		"printf x >> " + existing,
+		// B fixing its own plan outside the tree (ADR-160 T6)
+		"sed -i 's/body=6/body=8/' " + plan,
+		"sed -i '' -e 's/a/b/' -e 's/c/d/' " + plan,
+		"perl -pi -e 's/a/b/' " + plan,
 	}
 	refuse := []string{
 		"echo x > " + filepath.Join(tree, "f.txt"),
@@ -207,6 +211,10 @@ func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
 		"echo x > " + flink,
 		"echo x > " + dotdot,
 		hardlink,
+		"sed -i 's/a/b/' " + filepath.Join(tree, "f.txt"),
+		"sed -i 's/a/b/' " + plan + " f.txt",
+		"sed -i s/a/b/ " + plan,
+		"perl -pi -e 's/a/b/' " + plan + " " + filepath.Join(tree, "f.txt"),
 	}
 	if foldErr == nil {
 		refuse = append(refuse, "echo x > "+folded)
@@ -317,5 +325,42 @@ func TestASlippedWriteIsFoundFromTheLedger(t *testing.T) {
 	}
 	if _, err := SlippedWrites(tree, state); err == nil {
 		t.Error("a ledger with no root marker was read as if its root were the tree")
+	}
+}
+
+// TestAnInterpreterIsJudgedOnItsOwnSegmentAndTheHeredocItReads: T3's pilot and
+// Stage 3 saw B refused "python writes a file" for text that was not python's —
+// an mrw plan holding a return annotation beside a python check, a heredoc fed
+// to python that compares `a > b` (ADR-160 T6). An interpreter that writes,
+// inline or through the heredoc it reads, is still refused.
+func TestAnInterpreterIsJudgedOnItsOwnSegmentAndTheHeredocItReads(t *testing.T) {
+	tree := t.TempDir()
+	pass := []string{
+		"mrw write - <<'EOF'\n@@ a.py 1 replace\ndef f(x) -> str:\n    return x\nEOF\npython3 -c \"import a; print(a.f(1))\"",
+		"python3 - <<'EOF'\nfor s in ['a > b', '1 < 2']:\n    print(s, '->', s)\nEOF",
+		"python3 -c \"print(1 > 0)\"",
+		// a plan editing python that itself writes files, beside a python check
+		"mrw write - <<'EOF'\n@@ w.py 1 replace\nopen(p, 'w').write(s)\nEOF\npython3 -c \"import w\"",
+	}
+	refuse := []string{
+		"python3 - <<'EOF'\nopen('f','w').write('x')\nEOF",
+		"python3 -c \"open('f','w').write('x')\"",
+		"mrw write - <<'EOF'\n@@ a.py 1 replace\nx = 1\nEOF\npython3 -c \"open('f','w')\"",
+		"perl -e 'open(F, \">out\"); print F 1'",
+		// a heredoc fed to python through a pipe (the review of #434)
+		"cat <<'PY' | python3\nopen('f','w').write('x')\nPY",
+	}
+	run := func(cmd string) int {
+		return Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), new(bytes.Buffer), filepath.Join(t.TempDir(), "hook.log"), tree)
+	}
+	for _, c := range pass {
+		if code := run(c); code != 0 {
+			t.Errorf("an interpreter that writes nothing was refused: %q (exit %d)", c, code)
+		}
+	}
+	for _, c := range refuse {
+		if code := run(c); code != 2 {
+			t.Errorf("an interpreter that writes a file passed: %q (exit %d)", c, code)
+		}
 	}
 }

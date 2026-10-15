@@ -1,0 +1,19 @@
+{
+  "stage": "pilot",
+  "tasks": [
+    "pydata__xarray-3993",
+    "pylint-dev__pylint-8898"
+  ],
+  "models": [
+    "claude-sonnet-5-5"
+  ],
+  "configs": [
+    "A",
+    "B"
+  ],
+  "repeats": 1,
+  "seed": 156,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "containment": "bypass"
+}

@@ -1,6 +1,7 @@
 package bench
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -72,7 +73,7 @@ func TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit(t *testing.T) {
 			// Deleting the line just before the fix's first change: the line
 			// the task says to keep, which slack must not license (the
 			// review of #411).
-			if f, base, ok := task.neighbour(); ok {
+			if f, base, ok := task.neighbour(); ok && task.TestPackage == "" {
 				nb := filepath.Join(tree, f)
 				keep, err := os.ReadFile(nb)
 				if err != nil {
@@ -92,6 +93,9 @@ func TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit(t *testing.T) {
 				}
 			}
 			file, line := strayLine(t, task, tree)
+			if task.TestPackage != "" { // inside the package its tests judge; leaving it is the stray edit
+				file, line = "go.mod", 1
+			}
 			b, err := os.ReadFile(filepath.Join(tree, file))
 			if err != nil {
 				t.Fatal(err)
@@ -165,7 +169,10 @@ func TestTheCorpusHasTheRegisteredShapeCounts(t *testing.T) {
 			}
 		}
 	}
-	want := map[string]int{ShapeMultiSite: 8, ShapeStructural: 6, ShapeRepeatedAnchor: 6, ShapeLargeFile: 4, ShapeSingleLine: 6, ShapeVariedMultiSite: 10, ShapeWideRename: 10, ShapeCheckCoupled: 8}
+	// wide-rename and check-coupled hold Stage 4's sample (10 and 8) and the
+	// four calibration tasks of each that ADR-160 T3 runs on A alone and
+	// bench/stage-4-tasks.txt never lists.
+	want := map[string]int{ShapeMultiSite: 8, ShapeStructural: 6, ShapeRepeatedAnchor: 6, ShapeLargeFile: 4, ShapeSingleLine: 6, ShapeVariedMultiSite: 10, ShapeWideRename: 14, ShapeCheckCoupled: 12}
 	for shape, n := range want {
 		if got[shape] != n {
 			t.Errorf("shape %s: %d tasks, want %d", shape, got[shape], n)
@@ -638,5 +645,207 @@ func TestThePostSendRenameLeavesTheTestHelper(t *testing.T) {
 		if v.Solved != c.solved {
 			t.Errorf("%s: solved %v, want %v: %+v", c.patch, v.Solved, c.solved, v)
 		}
+	}
+}
+
+// TestACheckCoupledTaskIsGradedByItsPackageTests holds the grading Zy chose
+// after T3's pilot ("Grade by the tests", ADR-160 Decision 1): a check-coupled
+// attempt is solved when the source holds the new literal and not the old,
+// its package's tests pass, and nothing outside the package changed — so the
+// answers exact refused in the pilot are solved, and a source-only change that
+// breaks the test is not.
+func TestACheckCoupledTaskIsGradedByItsPackageTests(t *testing.T) {
+	needGit(t)
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go is not on PATH")
+	}
+	repo := t.TempDir()
+	files := map[string]string{
+		"go.mod":          "module example.com/m\n\ngo 1.21\n",
+		"p/p.go":          "package p\n\n// Status is the state a new subscription takes.\nfunc Status() string { return \"active\" }\n",
+		"p/p_test.go":     "package p\n\nimport \"testing\"\n\nfunc TestStatus(t *testing.T) {\n\tif Status() != \"active\" {\n\t\tt.Fatalf(\"Status() = %q, want \\\"active\\\"\", Status())\n\t}\n}\n",
+		"q/q.go":          "package q\n\n// X is unrelated.\nconst X = 1\n",
+		"p/other.go":      "package p\n\n// Other is unrelated to the task.\nfunc Other() string { return \"x\" }\n",
+		"p/other_test.go": "package p\n\nimport \"testing\"\n\nfunc TestOther(t *testing.T) {\n\tif Other() != \"x\" {\n\t\tt.Fatal(Other())\n\t}\n}\n",
+	}
+	write := func(root string, fs map[string]string) {
+		t.Helper()
+		for name, body := range fs {
+			if body == "" { // an empty body deletes the file
+				if err := os.Remove(filepath.Join(root, filepath.FromSlash(name))); err != nil {
+					t.Fatal(err)
+				}
+				continue
+			}
+			p := filepath.Join(root, filepath.FromSlash(name))
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=b", "-c", "user.email=b@b"}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	write(repo, files)
+	git(repo, "init", "-q")
+	git(repo, "add", "-A")
+	git(repo, "commit", "-qm", "base")
+	sha := git(repo, "rev-parse", "HEAD")
+	fixed := map[string]string{
+		"p/p.go":      strings.Replace(files["p/p.go"], `"active"`, `"Active"`, 1),
+		"p/p_test.go": strings.Replace(files["p/p_test.go"], `Status() != "active"`, `Status() != "Active"`, 1),
+	}
+	write(repo, fixed)
+	patch := git(repo, "diff") + "\n"
+	git(repo, "checkout", "-q", "--", ".")
+
+	taskDir := filepath.Join(t.TempDir(), "am-coupled-p-active")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "reference.patch"), []byte(patch), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	taskJSON := func(extra string) {
+		t.Helper()
+		body := `{"id": "am-coupled-p-active", "shape": "check-coupled", "repo": "m", "commit": "` + sha + `",
+  "instruction": "In p/p.go, change the string \"active\" to \"Active\", and keep the tests passing.",
+  "require": [{"file": "p/p.go", "match": "\"Active\""}], "forbid": [{"file": "p/p.go", "match": "\"active\""}]` + extra + `}`
+		if err := os.WriteFile(filepath.Join(taskDir, "task.json"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, bad := range []string{`, "test_package": "p", "exact": true, "asserting_tests": ["TestStatus"]`, `, "test_package": "../p", "asserting_tests": ["TestStatus"]`,
+		`, "test_package": "/p", "asserting_tests": ["TestStatus"]`, `, "test_package": "p"`, `, "asserting_tests": ["TestStatus"]`} {
+		taskJSON(bad)
+		if _, err := LoadTask(taskDir); err == nil {
+			t.Errorf("the loader accepted %s", bad)
+		}
+	}
+	taskJSON(`, "test_package": "p", "asserting_tests": ["TestStatus"]`)
+	task, err := LoadTask(taskDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grade := func(name string, change map[string]string) Verdict {
+		t.Helper()
+		tree := t.TempDir()
+		git(tree, "clone", "-q", repo, ".")
+		write(tree, change)
+		v, err := Oracle(task, tree)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		return v
+	}
+	if v := grade("base", nil); v.Solved {
+		t.Errorf("the base is solved: %+v", v)
+	}
+	if v := grade("the reference", fixed); !v.Solved {
+		t.Errorf("the reference is unsolved: %+v", v)
+	}
+	if v := grade("the source alone", map[string]string{"p/p.go": fixed["p/p.go"]}); v.Solved || !strings.Contains(strings.Join(v.Missing, " "), "go test") {
+		t.Errorf("a source-only change that breaks the package's test is not unsolved by go test: %+v", v)
+	}
+	both := "package p\n\nimport \"strings\"\n\n// Status is the state a new subscription takes.\nfunc Status() string { return strings.ToLower(\"Active\") }\n"
+	if v := grade("the code accepting both", map[string]string{"p/p.go": both}); !v.Solved {
+		t.Errorf("an answer that keeps the tests passing another way is unsolved: %+v", v)
+	}
+	message := map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": strings.ReplaceAll(fixed["p/p_test.go"], `want \"active\"`, `want \"Active\"`)}
+	if v := grade("the test message too", message); !v.Solved {
+		t.Errorf("updating the test's message as well is unsolved: %+v", v)
+	}
+	outside := map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": fixed["p/p_test.go"], "q/q.go": files["q/q.go"] + "\n// stray\n"}
+	if v := grade("a change outside the package", outside); v.Solved || len(v.Outside) == 0 {
+		t.Errorf("a change outside the package is not outside: %+v", v)
+	}
+	// What the review of #434 found solved: a comment holding the new value,
+	// the asserting test deleted or skipped, and host Go flags that run no test.
+	// The old value gone from the code, the new one only in a comment, the
+	// test following the code: every test passes and forbid holds.
+	elsewhere := map[string]string{
+		"p/p.go":      "package p\n\n// Status is the state a new subscription takes: \"Active\".\nfunc Status() string { return \"ACTIVE\" }\n",
+		"p/p_test.go": strings.Replace(files["p/p_test.go"], `Status() != "active"`, `Status() != "ACTIVE"`, 1),
+	}
+	if v := grade("the new value only in a comment", elsewhere); v.Solved {
+		t.Errorf("a comment that quotes the new value solves the task: %+v", v)
+	}
+	if v := grade("the asserting test deleted", map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": ""}); v.Solved {
+		t.Errorf("deleting the asserting test solves the task: %+v", v)
+	}
+	skipped := strings.Replace(fixed["p/p_test.go"], "func TestStatus(t *testing.T) {\n", "func TestStatus(t *testing.T) {\n\tt.Skip(\"later\")\n", 1)
+	if v := grade("the asserting test skipped", map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": skipped}); v.Solved {
+		t.Errorf("skipping the asserting test solves the task: %+v", v)
+	}
+	t.Setenv("GOFLAGS", "-run=^$")
+	if v := grade("the source alone, under GOFLAGS=-run=^$", map[string]string{"p/p.go": fixed["p/p.go"]}); v.Solved {
+		t.Errorf("a host GOFLAGS that runs no test lets a source-only change through: %+v", v)
+	}
+	// A host flag that skips a broken test the asserting one does not cover.
+	t.Setenv("GOFLAGS", "-run=^TestStatus$")
+	broken := map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": fixed["p/p_test.go"], "p/other.go": strings.Replace(files["p/other.go"], `"x"`, `"y"`, 1)}
+	if v := grade("another test broken, under GOFLAGS=-run=^TestStatus$", broken); v.Solved {
+		t.Errorf("a host GOFLAGS that skips a broken test lets it through: %+v", v)
+	}
+	// The go env file reaches it too, and an empty GOFLAGS falls back to it;
+	// its module settings must survive (the re-review of #434).
+	t.Setenv("GOFLAGS", "")
+	envFile := filepath.Join(t.TempDir(), "go.env")
+	if err := os.WriteFile(envFile, []byte("GOFLAGS=-mod=mod -run=^TestStatus$\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOENV", envFile)
+	if v := grade("another test broken, under a go env file's -run", broken); v.Solved {
+		t.Errorf("a go env file that skips a broken test lets it through: %+v", v)
+	}
+	last := func(env []string, key string) string {
+		val := ""
+		for _, kv := range env {
+			if k, v, ok := strings.Cut(kv, "="); ok && k == key {
+				val = v
+			}
+		}
+		return val
+	}
+	env, err := gradingEnv(context.Background(), repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := last(env, "GOFLAGS"); got != "-modcacherw -mod=mod" {
+		t.Errorf("the grading GOFLAGS is %q, want the module flag kept and -run dropped", got)
+	}
+	if got := last(env, "GOENV"); got != envFile {
+		t.Errorf("the grading GOENV is %q, want the host's go env file kept for its module settings", got)
+	}
+	// go's quoting, its last-wins order and the --flag spelling are kept;
+	// -modfile and text inside another flag's quoted value are not module
+	// flags of the grading run (the third review of #434).
+	t.Setenv("GOFLAGS", `'-tags=custom -mod=vendor extra' --mod=mod -mod=readonly -modfile=x.mod -run=^TestStatus$`)
+	env, err = gradingEnv(context.Background(), repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := last(env, "GOFLAGS"); got != "-modcacherw -mod=mod -mod=readonly" {
+		t.Errorf("the grading GOFLAGS is %q, want -modcacherw -mod=mod -mod=readonly", got)
+	}
+	t.Setenv("GOFLAGS", `'-mod=mod`)
+	if _, err := gradingEnv(context.Background(), repo); err == nil {
+		t.Error("an unterminated quote in GOFLAGS is not a grading error")
+	}
+	t.Setenv("GOFLAGS", `'-mod=mod -run=^TestStatus$' -mod=readonly`)
+	env, err = gradingEnv(context.Background(), repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := last(env, "GOFLAGS"); got != "-modcacherw -mod=readonly" {
+		t.Errorf("the grading GOFLAGS is %q: a quoted field holding -run came apart (the fourth review of #434)", got)
 	}
 }

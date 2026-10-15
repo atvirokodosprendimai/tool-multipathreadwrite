@@ -1,0 +1,26 @@
+diff --git a/internal/palace/scopedrops_test.go b/internal/palace/scopedrops_test.go
+index fad6922..f209a55 100644
+--- a/internal/palace/scopedrops_test.go
++++ b/internal/palace/scopedrops_test.go
+@@ -182,7 +182,7 @@ func TestKnobsThatDecideThePageAreAllOnTheParentSpan(t *testing.T) {
+ 	// Each entry is a knob whose value CHANGES WHICH MEMORIES REACH THE PAGE.
+ 	// Adding one here without emitting it is meant to fail.
+ 	for _, want := range []struct{ key, why string }{
+-		{"am.candidate_k", "the fetch width actually asked of the index — limit*3, floored by rerank_pool, raised by retrieve-k; not derivable from the others"},
++		{"Am.candidate_k", "the fetch width actually asked of the index — limit*3, floored by rerank_pool, raised by retrieve-k; not derivable from the others"},
+ 		{"am.limit", "the page size served"},
+ 		{"am.limit_requested", "what the caller asked for before clamping"},
+ 		{"am.max_distance", "the boundary that drops candidates before ranking"},
+diff --git a/internal/palace/service.go b/internal/palace/service.go
+index 568db83..3be9de2 100644
+--- a/internal/palace/service.go
++++ b/internal/palace/service.go
+@@ -1773,7 +1773,7 @@ func (s *Service) SearchPage(ctx context.Context, teamID string, q SearchQuery)
+ 	// Measured 2026-08-26 and the reason this exists: at the shipped limit=5 it is
+ 	// 15, while an eval arm ranking the same query saw 100 — a gap of 0.027 MRR
+ 	// and 8 golds no ranking change could reach, invisible on every span.
+-	telemetry.Annotate(searchCtx, attribute.Int("am.candidate_k", candidateK))
++	telemetry.Annotate(searchCtx, attribute.Int("Am.candidate_k", candidateK))
+ 	hits, rows, stale, err := s.searchCandidates(searchCtx, teamID, q, vec, candidateK)
+ 	if err != nil {
+ 		parent.End(telemetry.FailedClosed)

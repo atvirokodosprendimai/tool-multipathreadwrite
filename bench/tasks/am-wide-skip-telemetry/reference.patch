@@ -1,0 +1,343 @@
+diff --git a/cmd/server/eval.go b/cmd/server/eval.go
+index 7879606..7130cf1 100644
+--- a/cmd/server/eval.go
++++ b/cmd/server/eval.go
+@@ -578,7 +578,7 @@ func verifyAbsent(ctx context.Context, svc *services, teamID, wing, question str
+ 	// No distance gate: absence must be checked broadly. A hit the production
+ 	// gate would drop can still prove the knowledge exists in the palace.
+ 	hits, err := svc.drawers.Search(ctx, teamID, palace.SearchQuery{
+-		Query: question, Wing: wing, Limit: absentVerifyDepth, SkipTelemetry: true,
++		Query: question, Wing: wing, Limit: absentVerifyDepth, OmitTelemetry: true,
+ 	})
+ 	if err != nil {
+ 		return "", err
+diff --git a/cmd/server/modescope_test.go b/cmd/server/modescope_test.go
+index d8781b5..7a3c2c2 100644
+--- a/cmd/server/modescope_test.go
++++ b/cmd/server/modescope_test.go
+@@ -247,7 +247,7 @@ func orderingFor(t *testing.T, svc *palace.Service, queries []string) []string {
+ 	var out []string
+ 	for _, q := range queries {
+ 		hits, err := svc.Search(context.Background(), "team-sweep", palace.SearchQuery{
+-			Query: q, Limit: 8, SkipTelemetry: true,
++			Query: q, Limit: 8, OmitTelemetry: true,
+ 		})
+ 		if err != nil {
+ 			t.Fatalf("search %q: %v", q, err)
+diff --git a/internal/longmemeval/grid.go b/internal/longmemeval/grid.go
+index 5f0c1dd..5e3110c 100644
+--- a/internal/longmemeval/grid.go
++++ b/internal/longmemeval/grid.go
+@@ -209,7 +209,7 @@ func runCell(ctx context.Context, store Store, sel Selection, wp WritePolicy, qp
+ 		pages := make([][]palace.SearchHit, 0, len(queries))
+ 		for _, query := range queries {
+ 			got, err := store.Search(ctx, opts.TeamID, palace.SearchQuery{
+-				Query: query, Wing: wing, Limit: perQuery, SkipTelemetry: true,
++				Query: query, Wing: wing, Limit: perQuery, OmitTelemetry: true,
+ 			})
+ 			if err != nil {
+ 				return Cell{}, fmt.Errorf("search %s: %w", wing, err)
+diff --git a/internal/palace/collapse_test.go b/internal/palace/collapse_test.go
+index 887ed92..369a39d 100644
+--- a/internal/palace/collapse_test.go
++++ b/internal/palace/collapse_test.go
+@@ -180,7 +180,7 @@ func TestMemoryLevelSearchFillsThePoolWithDistinctMemories(t *testing.T) {
+ 	vectors := &orderedVectors{VectorStore: base.vectors, hits: ordered}
+ 	svc := base.Clone()
+ 	svc.vectors = vectors
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "NEEDLE", Limit: 2, SkipTelemetry: true})
++	hits, err := svc.Search(ctx, team, SearchQuery{Query: "NEEDLE", Limit: 2, OmitTelemetry: true})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -212,7 +212,7 @@ func TestMemoryLevelRerankingCombinesCrossChunkEvidence(t *testing.T) {
+ 
+ 	reranker := &recordingDocuments{}
+ 	svc := base.Clone().WithReranker(reranker, 10).WithRerankWeight(0.5)
+-	if _, err := svc.Search(ctx, team, SearchQuery{Query: "ALPHA OMEGA", Limit: 5, SkipTelemetry: true}); err != nil {
++	if _, err := svc.Search(ctx, team, SearchQuery{Query: "ALPHA OMEGA", Limit: 5, OmitTelemetry: true}); err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+ 	if len(reranker.docs) != 1 {
+@@ -281,7 +281,7 @@ func TestMemoryLevelRerankingKeepsEnoughContextToJudgeTheAnswer(t *testing.T) {
+ 
+ 	svc := base.Clone().WithReranker(reranker, 10).WithRerankWeight(1)
+ 	svc.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "constraint", Limit: 2, SkipTelemetry: true})
++	hits, err := svc.Search(ctx, team, SearchQuery{Query: "constraint", Limit: 2, OmitTelemetry: true})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+diff --git a/internal/palace/eval.go b/internal/palace/eval.go
+index 89601c5..a445fc0 100644
+--- a/internal/palace/eval.go
++++ b/internal/palace/eval.go
+@@ -1319,7 +1319,7 @@ func (s *Service) evalCaseResult(ctx context.Context, teamID string, c EvalCase,
+ 		}
+ 	}
+ 	poolQuery := SearchQuery{
+-		Query: c.Query, Wing: c.Wing, Limit: len(hits), SkipTelemetry: true,
++		Query: c.Query, Wing: c.Wing, Limit: len(hits), OmitTelemetry: true,
+ 	}
+ 	for _, arm := range arms {
+ 		armCtx, armSpan := telemetry.Start(caseCtx, telemetry.StageEvalArm, attribute.String("am.arm", string(arm)))
+@@ -1328,7 +1328,7 @@ func (s *Service) evalCaseResult(ctx context.Context, teamID string, c EvalCase,
+ 			page, err := s.Search(armCtx, teamID, SearchQuery{
+ 				Query: c.Query, Wing: c.Wing, Limit: productionLimit(arm),
+ 				RetrieveK:   productionRetrieveFloor(arm),
+-				MaxDistance: DefaultMaxDistance, SkipTelemetry: true,
++				MaxDistance: DefaultMaxDistance, OmitTelemetry: true,
+ 			})
+ 			if err != nil {
+ 				armSpan.End(telemetry.FailedOpen, telemetry.AttrReason(telemetry.ReasonError))
+@@ -1397,7 +1397,7 @@ func (s *Service) evalCaseResult(ctx context.Context, teamID string, c EvalCase,
+ 			}
+ 			hybrid := s.serviceForArm(ArmHybrid)
+ 			page, _, _, err := hybrid.rankRetrieved(armCtx, teamID, c.Query, SearchQuery{
+-				Query: c.Query, Wing: c.Wing, Limit: len(ctxHits), SkipTelemetry: true,
++				Query: c.Query, Wing: c.Wing, Limit: len(ctxHits), OmitTelemetry: true,
+ 			}, vec, ctxHits, ctxRows, ctxRes.StaleIndex)
+ 			if err != nil {
+ 				armSpan.End(telemetry.FailedClosed, telemetry.AttrReason(telemetry.ReasonError))
+@@ -1532,7 +1532,7 @@ func (s *Service) CandidateUnion(ctx context.Context, teamID, query, wing string
+ 			return
+ 		}
+ 		page, _, _, err := svc.rankRetrieved(ctx, teamID, query, SearchQuery{
+-			Query: query, Wing: wing, Limit: perArm, SkipTelemetry: true,
++			Query: query, Wing: wing, Limit: perArm, OmitTelemetry: true,
+ 		}, vec, hits, rows, stale)
+ 		if err != nil {
+ 			return
+diff --git a/internal/palace/evidence_test.go b/internal/palace/evidence_test.go
+index aa39763..9d5f0a0 100644
+--- a/internal/palace/evidence_test.go
++++ b/internal/palace/evidence_test.go
+@@ -91,7 +91,7 @@ func TestSemanticEvidenceSelectorFindsParaphrasedDistantPassages(t *testing.T) {
+ 		WithReranker(controlDocs, 10).WithRerankWeight(0.5)
+ 	control.embed = controlEmbed
+ 	control.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+-	if _, err := control.Search(ctx, team, SearchQuery{Query: "unfinished reasoning", Limit: 1, SkipTelemetry: true}); err != nil {
++	if _, err := control.Search(ctx, team, SearchQuery{Query: "unfinished reasoning", Limit: 1, OmitTelemetry: true}); err != nil {
+ 		t.Fatalf("lexical control search: %v", err)
+ 	}
+ 	if len(controlDocs.docs) != 1 || len(controlDocs.docs[0]) != 1 {
+@@ -110,7 +110,7 @@ func TestSemanticEvidenceSelectorFindsParaphrasedDistantPassages(t *testing.T) {
+ 	semantic.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+ 	if _, err := semantic.Search(ctx, team, SearchQuery{
+ 		Query: "unfinished reasoning", Context: "caller context must reach only the cross-encoder",
+-		Limit: 1, SkipTelemetry: true,
++		Limit: 1, OmitTelemetry: true,
+ 	}); err != nil {
+ 		t.Fatalf("semantic search: %v", err)
+ 	}
+@@ -145,7 +145,7 @@ func TestSemanticEvidenceSelectorRequiresTheCrossEncoder(t *testing.T) {
+ 	svc.embed = embed
+ 	svc.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+ 	if _, err := svc.Search(context.Background(), team, SearchQuery{
+-		Query: "unfinished reasoning", Limit: 1, SkipTelemetry: true,
++		Query: "unfinished reasoning", Limit: 1, OmitTelemetry: true,
+ 	}); err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -178,7 +178,7 @@ func TestSemanticEvidenceSelectorFailsOpenForTheWholeShortlist(t *testing.T) {
+ 		WithReranker(lexicalDocs, 10).WithRerankWeight(0.5)
+ 	lexical.embed = &selectiveEvidenceEmbedder{}
+ 	lexical.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+-	if _, err := lexical.Search(ctx, team, SearchQuery{Query: "unfinished reasoning", Limit: 2, SkipTelemetry: true}); err != nil {
++	if _, err := lexical.Search(ctx, team, SearchQuery{Query: "unfinished reasoning", Limit: 2, OmitTelemetry: true}); err != nil {
+ 		t.Fatalf("lexical search: %v", err)
+ 	}
+ 
+@@ -189,7 +189,7 @@ func TestSemanticEvidenceSelectorFailsOpenForTheWholeShortlist(t *testing.T) {
+ 		WithReranker(failedDocs, 10).WithRerankWeight(0.5)
+ 	semantic.embed = failedEmbed
+ 	semantic.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+-	if _, err := semantic.Search(ctx, team, SearchQuery{Query: "unfinished reasoning", Limit: 2, SkipTelemetry: true}); err != nil {
++	if _, err := semantic.Search(ctx, team, SearchQuery{Query: "unfinished reasoning", Limit: 2, OmitTelemetry: true}); err != nil {
+ 		t.Fatalf("semantic search should fail open: %v", err)
+ 	}
+ 	if len(failedEmbed.batches) == 0 {
+diff --git a/internal/palace/fetchlog.go b/internal/palace/fetchlog.go
+index a3ebff7..95e0b52 100644
+--- a/internal/palace/fetchlog.go
++++ b/internal/palace/fetchlog.go
+@@ -108,7 +108,7 @@ type FetchRate struct {
+ 	// ProfileID is the ranking that produced these recalls.
+ 	ProfileID string
+ 	// RecallsLogged is the denominator: recalls this palace RECORDED in the window
+-	// under this profile. Not recalls that HAPPENED — SkipTelemetry means the
++	// under this profile. Not recalls that HAPPENED — OmitTelemetry means the
+ 	// eval's thousands of synthetic queries write no row at all, and counting them
+ 	// would move the rate with sweeps nobody was measuring.
+ 	RecallsLogged int
+diff --git a/internal/palace/fetchlog_test.go b/internal/palace/fetchlog_test.go
+index fc6d6b6..d0345b4 100644
+--- a/internal/palace/fetchlog_test.go
++++ b/internal/palace/fetchlog_test.go
+@@ -204,7 +204,7 @@ func TestTheFetchRatioNamesItsPopulation(t *testing.T) {
+ 	})
+ 
+ 	t.Run("theDenominatorIsRecallsThatWereLogged", func(t *testing.T) {
+-		// SkipTelemetry writes no search_events row at all, which is what makes the
++		// OmitTelemetry writes no search_events row at all, which is what makes the
+ 		// denominator quotable: the population is recalls this palace RECORDED,
+ 		// never recalls that happened. The eval runs thousands of these, so a
+ 		// denominator counting them would move with sweeps nobody was measuring.
+@@ -213,7 +213,7 @@ func TestTheFetchRatioNamesItsPopulation(t *testing.T) {
+ 			t.Fatalf("rates: %v", err)
+ 		}
+ 		if _, err := svc.Search(ctx, team, SearchQuery{
+-			Query: "a memory worth fetching twice", Wing: "wing_acme", SkipTelemetry: true,
++			Query: "a memory worth fetching twice", Wing: "wing_acme", OmitTelemetry: true,
+ 		}); err != nil {
+ 			t.Fatalf("search: %v", err)
+ 		}
+diff --git a/internal/palace/move_test.go b/internal/palace/move_test.go
+index ccc879e..99b2ebd 100644
+--- a/internal/palace/move_test.go
++++ b/internal/palace/move_test.go
+@@ -90,7 +90,7 @@ func TestAMoveRelocatesEveryChunkOfAMemory(t *testing.T) {
+ 	// The index has to agree, or the memory is unreachable at its new address and
+ 	// still answers at the old one. This is the assertion that covers the vector
+ 	// payload without reaching into the store.
+-	found, err := svc.Search(ctx, team, SearchQuery{Query: "zephyrine retention window", Wing: dest, Limit: 5, SkipTelemetry: true})
++	found, err := svc.Search(ctx, team, SearchQuery{Query: "zephyrine retention window", Wing: dest, Limit: 5, OmitTelemetry: true})
+ 	if err != nil {
+ 		t.Fatalf("search the destination wing: %v", err)
+ 	}
+@@ -98,7 +98,7 @@ func TestAMoveRelocatesEveryChunkOfAMemory(t *testing.T) {
+ 		t.Error("the destination wing returns nothing; the rows moved and the index did not, so the " +
+ 			"memory is unreachable where it now lives")
+ 	}
+-	stale, err := svc.Search(ctx, team, SearchQuery{Query: "zephyrine retention window", Wing: "wing_alpha", Limit: 5, SkipTelemetry: true})
++	stale, err := svc.Search(ctx, team, SearchQuery{Query: "zephyrine retention window", Wing: "wing_alpha", Limit: 5, OmitTelemetry: true})
+ 	if err != nil {
+ 		t.Fatalf("search the origin wing: %v", err)
+ 	}
+diff --git a/internal/palace/otel_test.go b/internal/palace/otel_test.go
+index b7ae56c..7771603 100644
+--- a/internal/palace/otel_test.go
++++ b/internal/palace/otel_test.go
+@@ -174,7 +174,7 @@ func TestSearchDumpJoinsCodeAndKnobs(t *testing.T) {
+ 		Wing: "w", Room: "r", Content: "the otel debug needle is unique here",
+ 	})
+ 	if _, err := svc.Search(ctx, team, SearchQuery{
+-		Query: "otel debug needle", Limit: 3, SkipTelemetry: true,
++		Query: "otel debug needle", Limit: 3, OmitTelemetry: true,
+ 	}); err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+diff --git a/internal/palace/recallstats.go b/internal/palace/recallstats.go
+index 6134baf..18b11d0 100644
+--- a/internal/palace/recallstats.go
++++ b/internal/palace/recallstats.go
+@@ -76,7 +76,7 @@ func (searchEventRow) TableName() string { return "search_events" }
+ // ranking arm's feature, which is what makes this the arm that breaks the
+ // generator's circularity. Trivial fragments are excluded — a two-word probe
+ // tells the judge nothing — and the eval's own searches never appear here
+-// because they run with SkipTelemetry.
++// because they run with OmitTelemetry.
+ func (r *Repo) SampleSearchQueries(ctx context.Context, teamID, wing string, limit int) ([]string, error) {
+ 	if limit <= 0 {
+ 		limit = 20
+diff --git a/internal/palace/retrieve_k_test.go b/internal/palace/retrieve_k_test.go
+index a28c168..4663f02 100644
+--- a/internal/palace/retrieve_k_test.go
++++ b/internal/palace/retrieve_k_test.go
+@@ -29,7 +29,7 @@ func TestSearchRetrieveKWidensTheFetch(t *testing.T) {
+ 	rec := &recordingVectors{VectorStore: svc.vectors}
+ 	svc.vectors = rec
+ 	ctx := t.Context()
+-	q := SearchQuery{Query: "retrieve width and paging", Wing: "w", Limit: DefaultSearchLimit, SkipTelemetry: true}
++	q := SearchQuery{Query: "retrieve width and paging", Wing: "w", Limit: DefaultSearchLimit, OmitTelemetry: true}
+ 
+ 	formula := candidateKFor(DefaultSearchLimit, false, 0, 0)
+ 	if formula != DefaultSearchLimit*hybridCandidateMultiplier {
+diff --git a/internal/palace/service.go b/internal/palace/service.go
+index 568db83..8dc27fa 100644
+--- a/internal/palace/service.go
++++ b/internal/palace/service.go
+@@ -1614,10 +1614,10 @@ type SearchQuery struct {
+ 	Room        string  // optional filter
+ 	Limit       int     // 1..100, defaults to DefaultSearchLimit
+ 	MaxDistance float64 // drop hits farther than this; <=0 disables the filter
+-	// SkipTelemetry keeps this search out of the recall statistics. Set by the
++	// OmitTelemetry keeps this search out of the recall statistics. Set by the
+ 	// eval, whose thousands of synthetic queries would otherwise drown the real
+ 	// usage signal the statistics exist to show.
+-	SkipTelemetry bool
++	OmitTelemetry bool
+ 	// Context is optional background the caller can supply to sharpen reranking —
+ 	// what it is working on, so an ambiguous query lands in the right sense. It
+ 	// feeds the cross-encoder ONLY (see rerankQuery); it deliberately does not
+@@ -1677,7 +1677,7 @@ func searchFilter(q SearchQuery) store.Filter {
+ // ran|bypassed|failed_open|failed_closed. SQLite search_events stay the product
+ // log; the two share one search_id so a sampled span can join a durable row.
+ // Telemetry never changes ranking: a collector that is down drops observability,
+-// not results. SkipTelemetry skips only the SQLite write (eval); OTEL spans
++// not results. OmitTelemetry skips only the SQLite write (eval); OTEL spans
+ // still run and hit the noop provider when Setup was not called.
+ func (s *Service) SearchPage(ctx context.Context, teamID string, q SearchQuery) (SearchResult, error) {
+ 	query := strings.TrimSpace(q.Query)
+@@ -1704,7 +1704,7 @@ func (s *Service) SearchPage(ctx context.Context, teamID string, q SearchQuery)
+ 
+ 	// One id for the SQLite product log and the OpenTelemetry trace. Generated
+ 	// first so a sampled span can join a durable row without a migration; the
+-	// record stage writes it even when SkipTelemetry skips SQLite (eval).
++	// record stage writes it even when OmitTelemetry skips SQLite (eval).
+ 	searchID := randomID()
+ 	ctx = telemetry.WithSearchID(ctx, searchID)
+ 	// searchCtx is the parent every stage (and outbound HTTP) must Start from.
+@@ -1827,7 +1827,7 @@ func (s *Service) SearchPage(ctx context.Context, teamID string, q SearchQuery)
+ 	}
+ 
+ 	_, rec := telemetry.Start(searchCtx, telemetry.StageRecord)
+-	if q.SkipTelemetry {
++	if q.OmitTelemetry {
+ 		rec.End(telemetry.Bypassed, telemetry.AttrReason(telemetry.ReasonSkipSQLite))
+ 		parent.Set(attribute.Int("am.count", len(results)))
+ 		return SearchResult{SearchID: searchID, Hits: results, Facts: facts}, nil
+diff --git a/internal/palace/service_test.go b/internal/palace/service_test.go
+index 49f645a..c72a110 100644
+--- a/internal/palace/service_test.go
++++ b/internal/palace/service_test.go
+@@ -559,7 +559,7 @@ func TestWithFusionRRFChangesOrder(t *testing.T) {
+ 		Content: "cache eviction policy cache eviction policy cache eviction unrelated tail"})
+ 
+ 	order := func(s *Service) []string {
+-		hits, err := s.Search(ctx, team, SearchQuery{Query: "cache eviction policy", Wing: "wing_acme", Limit: 5, SkipTelemetry: true})
++		hits, err := s.Search(ctx, team, SearchQuery{Query: "cache eviction policy", Wing: "wing_acme", Limit: 5, OmitTelemetry: true})
+ 		if err != nil {
+ 			t.Fatalf("search: %v", err)
+ 		}
+@@ -615,7 +615,7 @@ func TestLexicalIDFChangesWhatSearchReturns(t *testing.T) {
+ 
+ 	scores := func(idf bool) []float64 {
+ 		hits, err := svc.WithLexicalIDF(idf).Search(ctx, team, SearchQuery{
+-			Query: "deploy batching", Wing: "wing_acme", Limit: 10, SkipTelemetry: true,
++			Query: "deploy batching", Wing: "wing_acme", Limit: 10, OmitTelemetry: true,
+ 		})
+ 		if err != nil {
+ 			t.Fatalf("search (idf=%v): %v", idf, err)
+@@ -666,7 +666,7 @@ func TestRerankPresenceSurvivesAZeroScore(t *testing.T) {
+ 
+ 	// A reranker that scores everything exactly 0.0 — legal for a logit backend.
+ 	svc = svc.WithReranker(&staticReranker{scores: []float64{0}}, 10).WithRerankWeight(0.5)
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "queue drain", Wing: "wing_acme", Limit: 5, SkipTelemetry: true})
++	hits, err := svc.Search(ctx, team, SearchQuery{Query: "queue drain", Wing: "wing_acme", Limit: 5, OmitTelemetry: true})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+diff --git a/internal/telemetry/telemetry.go b/internal/telemetry/telemetry.go
+index 050b678..16a2986 100644
+--- a/internal/telemetry/telemetry.go
++++ b/internal/telemetry/telemetry.go
+@@ -75,7 +75,7 @@ const (
+ 	ReasonBandZero = "band_zero"
+ 	// ReasonNoReranker means no cross-encoder client is configured.
+ 	ReasonNoReranker = "no_reranker"
+-	// ReasonSkipSQLite is SkipTelemetry: OTEL still runs, search_events does not.
++	// ReasonSkipSQLite is OmitTelemetry: OTEL still runs, search_events does not.
+ 	ReasonSkipSQLite = "skip_sqlite"
+ 	// ReasonEmpty is nothing to score or hydrate.
+ 	ReasonEmpty = "empty"

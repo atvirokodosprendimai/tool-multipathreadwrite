@@ -1,0 +1,43 @@
+{
+  "attempt": "am-wide-hook-plans.A.claude-sonnet-5-5.2",
+  "stage": "pilot",
+  "task": "am-wide-hook-plans",
+  "shape": "wide-rename",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 4,
+  "started": "2026-10-15T19:42:34Z",
+  "wall_ms": 15659,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 3,
+  "tool_calls": 2,
+  "total_cost_usd": 0.12423379999999999,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 903,
+    "cache_read_input_tokens": 67438,
+    "cache_creation_input_tokens": 27112
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 10,
+    "insertions": 23,
+    "deletions": 23
+  }
+}

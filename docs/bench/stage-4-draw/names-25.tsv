@@ -1,0 +1,14 @@
+WithTenant	ForTenancy
+configFromCmd	cfgFromCmdArg
+dataFlags	dbFlagSet
+short12	brief12
+HybridScore	MixedRating
+KGStatusCurrent	KGStatusPresent
+SkipTelemetry	OmitTelemetry
+claudeKit	anthroKit
+mustAdd	needAdd
+SearchQuery	LookupQuery
+AddInput	AddParam
+Migrations	SchemaRuns
+EntryRoom	EntryHall
+WithReranker	UseReranking

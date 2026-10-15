@@ -22,6 +22,27 @@ reference rebuilt with them ([gate-wide-rename.txt](gate-wide-rename.txt)). The 
 four (`hookPlans`, `homeDir`, `Harness`, `jsonResult`) are T3's calibration candidates, their references in
 [calibration/wide-rename/](calibration/wide-rename/).
 
+### The raised floor (Decision 2, after T3's pilot)
+
+A solved 7 of its 8 calibration attempts in the first pilot (`docs/bench/stage-4-pilot/calibration/`; the one miss
+was BSD `sed` given `\b`, which changed nothing), so the floor was raised once, as registered, and the sample redrawn
+by the same code:
+
+```
+bench mine --kind wide-rename --repo ~/Downloads/agentsmemory-main --commit d038def25a7fadd2586674b954ea07896a330b4a \
+  --min-occurrences 25 --min-files 12
+```
+
+36 candidates, [mine-wide-rename-25.txt](mine-wide-rename-25.txt), in the same registered order. The build gate passed
+over `Clean`, `Contains` and `Handler` (`go build`) and `Node` (`go vet`) again, and `Harness` because it was a
+calibration task the first pilot ran on A, and no measured task is a calibration task
+([gate-wide-rename-25-placeholder-names.txt](gate-wide-rename-25-placeholder-names.txt)). The first ten that hold are
+the sample (`WithTenant` and `configFromCmd` drawn again, with the instruction as amended, "in the Go files"); the next
+four (`AddInput`, `Migrations`, `EntryRoom`, `WithReranker`) are calibration-2's candidates. Names:
+[names-25.tsv](names-25.tsv); every reference rebuilt with them passes
+([gate-wide-rename-25.txt](gate-wide-rename-25.txt)). The earlier draws, none of which ran in a counted stage, were
+removed from `bench/tasks`; the first pilot's receipts keep their ids.
+
 ## `check-coupled`
 
 ```
@@ -38,9 +59,10 @@ so it was run again at load 4 ([gate-check-coupled.txt](gate-check-coupled.txt))
 eight that hold (candidates 1, 3, 4, 8, 13, 15, 22, 23) are the sample; the next four (28, 30, 31, 32) are T3's
 calibration candidates, in [calibration/check-coupled/](calibration/check-coupled/).
 
-A `forbid` is written only for a file whose reference result no longer holds the old literal in quotes: in
-`doctor.go` and `querypolicy.go` a comment quotes the value, and the task is `exact`, which pins those files to the
-reference anyway.
+After T3's pilot the category is graded by its tests (Zy, "Grade by the tests"): each task names its package as
+`test_package` and the tests that assert the literal as `asserting_tests`, is not `exact`, and holds `require` and
+`forbid` on the source file. Both match the file's code with its comments blanked, so the comments in `doctor.go` and
+`querypolicy.go` that quote the old value do not count, and a comment quoting the new one is not the change.
 
 ## `swe-multi-hunk`
 

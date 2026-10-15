@@ -65,6 +65,7 @@ startup files: measured on this Mac (2026-10-15) they leave the attempt's
   - `instruction` — what the agent is told; it names no tool;
   - `slack` — how many lines either side of the fix's own insertion point new lines may also go (default 0); it never licenses changing a line the fix leaves alone;
   - `exact` — each touched file must equal the reference result, so a call site commented out or kept in a block comment fails though its tokens survive (the renames);
+  - `test_package`, `asserting_tests` — on a `check-coupled` task only, together, never with `exact`: the directory whose `go test` grades the attempt, and the top-level tests in it that fail when only the source literal is changed. The attempt is solved when the `require` and `forbid` hold on the source file's code (its comments blanked, so a comment quoting the value is not the change), nothing outside that directory changed and no file in it was deleted, and `go test -json -count=1 ./<dir>` passes within 10 minutes with every asserting test run and passed, not skipped — with `GOWORK=off` and `GOFLAGS` cut to the `-mod` flags of its effective value (split by go's quoting, in order), so no host setting chooses which tests run while the go env file's proxy and private-module settings still apply; a `GOFLAGS` the oracle cannot read is a grading error (Zy, "Grade by the tests", after T3's pilot found answers `exact` refused that the instruction allows; ADR-160 T6 and the reviews of #434);
   - `check_red_at_base` — why the repository's own declared check fails at the pinned commit in the tree bench builds, so configuration B's automatic check is red whatever the agent does: a measured fact, carried by the quality-harness tasks (the seven of Stage 1, measured 2026-10-14, and the three ADR-158 added at the same commit) and absent elsewhere;
   - `superseded_by` — the task that replaced this one after a run found its grading wrong. A superseded task keeps its instruction, oracle and fix, is not run unless `--task` names it, and is not counted in the shape counts (`site-html-cost-faq` and `am-go-sha-message`, ADR-158; `cac-rename-post-send`, whose reference fix also renamed an unrelated test helper of the same name, ADR-159);
   - `require`, `forbid` — `{file, match}` regular expressions over the finished file.
@@ -143,7 +144,7 @@ bench verify  --stage S --tasks N --repeats R DIR
 bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
 bench swebench-select [--n 20] < instance-ids
 bench swebench-select --dataset FILE --min-hunks N [--exclude FILE] [--salt S] [--n 20]
-bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N]
+bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N] [--min-occurrences 15 --min-files 8] [--min-test-files 1]
 ```
 
 `bench analyze` prints one row per stage, model and task source, sorted by stage,
@@ -191,3 +192,16 @@ installed, reading `--dataset` at the revision T5 recorded) in the instance's
 `linux/amd64` image. An instance's attempts run one after another, so its image
 is pulled once and removed after they are graded. A SWE-bench row prints
 "not measured" for silent mis-edits, since the slice has no allowed regions.
+
+**Found after Stage 3 ran (T3's pilot, ADR-160 T6).** Configuration B's hook
+refused an interpreter whenever the command's text matched a write pattern, the
+body of another command's heredoc included, and read `> b` in a comparison as a
+redirect. In Stage 3 it refused 8 commands in 6 B attempts:
+`sympy__sympy-24661` (Opus, 3), `sphinx-doc__sphinx-8265` (Opus and Sonnet),
+`scikit-learn__scikit-learn-25747`, `django__django-16642` and
+`matplotlib__matplotlib-25775` (Opus). All six were solved, as were their A
+pairs, so no outcome moved; the refusals cost B a turn each. Replayed through
+the fixed hook, the five in sympy and sphinx pass; the three where python wrote
+a plan or a temporary file outside the tree are still refused, since the hook
+cannot tell where an interpreter writes. Stage 3's receipts and verdict are
+unchanged.

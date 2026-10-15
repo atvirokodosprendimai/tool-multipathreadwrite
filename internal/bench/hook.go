@@ -71,16 +71,20 @@ var (
 	}
 	readers      = map[string]bool{"cat": true, "head": true, "tail": true, "grep": true, "egrep": true, "rg": true, "awk": true, "sed": true, "less": true, "more": true, "nl": true}
 	interpreters = map[string]bool{"python": true, "python3": true, "node": true, "perl": true, "ruby": true}
-	writeCall    = regexp.MustCompile(`open\([^)]*,\s*['"][wa]|write_text|writeFile|\.write\(|File\.write|>>?\s*[A-Za-z]`)
+	// A redirect inside an interpreter's text counts only as a quoted mode
+	// string (perl's ">out"): a comparison (a > b) and an annotation (-> str)
+	// are not writes (T3's pilot, ADR-160 T6).
+	writeCall = regexp.MustCompile(`open\([^)]*,\s*['"][wa]|write_text|writeFile|\.write\(|File\.write|['"]>>?\s*[A-Za-z]`)
 )
 
 // splitHeredocs separates a command from its heredoc bodies. A heredoc
 // operator counts only outside quotes, so a quoted "<<EOF" opens nothing. The
 // body of a heredoc whose delimiter is quoted is literal and dropped (a plan's
 // body); the body of one whose delimiter is not quoted is expanded by the
-// shell, so it is returned for its command substitutions.
-func splitHeredocs(cmd string) (rest string, expanded []string) {
-	var out []string
+// shell, so it is returned for its command substitutions. bodies is every
+// body, quoted or not, for an interpreter that reads one.
+func splitHeredocs(cmd string) (rest string, expanded []string, bodies string) {
+	var out, all []string
 	lines := strings.Split(cmd, "\n")
 	for i := 0; i < len(lines); i++ {
 		out = append(out, lines[i])
@@ -90,13 +94,14 @@ func splitHeredocs(cmd string) (rest string, expanded []string) {
 		}
 		for i+1 < len(lines) && strings.TrimSpace(lines[i+1]) != m[2] {
 			i++
+			all = append(all, lines[i])
 			if m[1] == "" {
 				expanded = append(expanded, lines[i])
 			}
 		}
 		i++ // the terminator
 	}
-	return strings.Join(out, "\n"), expanded
+	return strings.Join(out, "\n"), expanded, strings.Join(all, "\n")
 }
 
 // realHeredoc finds a heredoc operator on a line that is not inside a quoted
@@ -128,7 +133,7 @@ func ClassifyBash(cmd, tree string) (string, []string) {
 }
 
 func classify(cmd, tree string, depth int) (string, []string) {
-	rest, expanded := splitHeredocs(cmd)
+	rest, expanded, bodies := splitHeredocs(cmd)
 	bare, subs, ok := scanShell(rest, false)
 	for _, body := range expanded {
 		_, s, bodyOK := scanShell(body, true)
@@ -155,34 +160,48 @@ func classify(cmd, tree string, depth int) (string, []string) {
 			return "a redirection writes " + target, reads
 		}
 	}
-	for _, seg := range pipelineParts(bare) {
-		w := strings.Fields(seg)
-		if len(w) == 0 {
-			continue
-		}
-		w = commandWords(w)
-		if len(w) == 0 {
-			continue
-		}
-		head := filepath.Base(w[0])
-		if why, ok := writers[head]; ok {
-			if head == "tee" && operandsOutside(w[1:], tree) {
+	for _, line := range segments(bare) {
+		for _, seg := range strings.Split(line, "|") {
+			w := strings.Fields(seg)
+			if len(w) == 0 {
 				continue
 			}
-			return why, reads
-		}
-		switch {
-		case head == "sed" && hasFlag(w[1:], "i"):
-			return "sed -i edits a file", reads
-		case head == "perl" && hasFlag(w[1:], "i"):
-			return "perl -i edits a file", reads
-		case head == "git" && len(w) > 1 && (w[1] == "apply" || w[1] == "checkout" || w[1] == "restore" || w[1] == "stash" || w[1] == "reset" || w[1] == "am"):
-			return "git " + w[1] + " changes files", reads
-		case head == "go" && len(w) > 1 && (w[1] == "fmt" || w[1] == "fix" || w[1] == "generate"):
-			return "go " + w[1] + " rewrites files", reads
-		case interpreters[head]:
-			if writeCall.MatchString(cmd) {
-				return head + " writes a file", reads
+			w = commandWords(w)
+			if len(w) == 0 {
+				continue
+			}
+			head := filepath.Base(w[0])
+			if why, ok := writers[head]; ok {
+				if head == "tee" && operandsOutside(w[1:], tree) {
+					continue
+				}
+				return why, reads
+			}
+			switch {
+			// sed -i and perl -i on files outside the tree pass, as a redirect
+			// or tee there does: B fixing its own plan in /tmp is not a write
+			// to the task (seven Stage 3 attempts, T3's pilot; ADR-160 T6).
+			case head == "sed" && hasFlag(w[1:], "i") && !inPlaceOutside(w[1:], tree):
+				return "sed -i edits a file", reads
+			case head == "perl" && hasFlag(w[1:], "i") && !inPlaceOutside(w[1:], tree):
+				return "perl -i edits a file", reads
+			case head == "git" && len(w) > 1 && (w[1] == "apply" || w[1] == "checkout" || w[1] == "restore" || w[1] == "stash" || w[1] == "reset" || w[1] == "am"):
+				return "git " + w[1] + " changes files", reads
+			case head == "go" && len(w) > 1 && (w[1] == "fmt" || w[1] == "fix" || w[1] == "generate"):
+				return "go " + w[1] + " rewrites files", reads
+			case interpreters[head]:
+				// The interpreter's text is the command without its heredoc
+				// bodies, and those bodies only when its pipeline reads one: an
+				// mrw plan fed to another command is not python's (T3's pilot
+				// found B refused for a plan holding `-> str`, ADR-160 T6), and
+				// `cat <<PY | python3` is (the review of #434).
+				text := rest
+				if strings.Contains(line, "<<") {
+					text += "\n" + bodies
+				}
+				if writeCall.MatchString(text) {
+					return head + " writes a file", reads
+				}
 			}
 		}
 	}
@@ -270,6 +289,24 @@ func outsideTree(target, tree string) bool {
 func operandsOutside(args []string, tree string) bool {
 	for _, a := range args {
 		if !strings.HasPrefix(a, "-") && !outsideTree(a, tree) {
+			return false
+		}
+	}
+	return true
+}
+
+// inPlaceOutside says whether a sed -i or perl -i edits files outside tree
+// only: its last word is a path outside tree, and so is every other unquoted
+// operand. A quoted word — the script, or BSD sed's empty -i suffix — reaches here as
+// the placeholder scanShell leaves, and is not judged; an unquoted script is
+// judged as a path, which only refuses more. A quoted file operand set before
+// an outside one passes: a way past recorded in ADR-156 (ADR-160 T6).
+func inPlaceOutside(args []string, tree string) bool {
+	if len(args) == 0 || strings.HasPrefix(args[len(args)-1], "-") || !outsideTree(args[len(args)-1], tree) {
+		return false
+	}
+	for _, a := range args {
+		if !strings.HasPrefix(a, "-") && a != "''" && a != `""` && !outsideTree(a, tree) {
 			return false
 		}
 	}
@@ -420,16 +457,6 @@ func commandWords(w []string) []string {
 		}
 	}
 	return w
-}
-
-// pipelineParts splits a command into its simple commands: segments, and the
-// stages of each pipeline.
-func pipelineParts(cmd string) []string {
-	var parts []string
-	for _, seg := range segments(cmd) {
-		parts = append(parts, strings.Split(seg, "|")...)
-	}
-	return parts
 }
 
 // segments splits a command at ;, &&, || and newlines, keeping pipelines whole.

@@ -3,25 +3,21 @@
   "shape": "check-coupled",
   "repo": "agentsmemory",
   "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
-  "exact": true,
   "instruction": "In clients/claude-code/doctor.go, change the string \"mcp bridge build\" to \"Mcp bridge build\", and keep the tests passing.",
+  "test_package": "clients/claude-code",
+  "asserting_tests": [
+    "TestDoctorPrintsTheBridgeBuildRow",
+    "TestEveryRegisteredPluginHookIsExecutable"
+  ],
   "require": [
     {
       "file": "clients/claude-code/doctor.go",
-      "match": "\"Mcp\\ bridge\\ build\""
-    },
-    {
-      "file": "clients/claude-code/doctor_bridgebuild_test.go",
       "match": "\"Mcp\\ bridge\\ build\""
     }
   ],
   "forbid": [
     {
       "file": "clients/claude-code/doctor.go",
-      "match": "\"mcp\\ bridge\\ build\""
-    },
-    {
-      "file": "clients/claude-code/doctor_bridgebuild_test.go",
       "match": "\"mcp\\ bridge\\ build\""
     }
   ]

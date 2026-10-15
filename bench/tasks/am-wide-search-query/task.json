@@ -1,0 +1,276 @@
+{
+  "id": "am-wide-search-query",
+  "shape": "wide-rename",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "Rename the Go identifier SearchQuery to LookupQuery in the Go files, its mentions in comments included.",
+  "require": [
+    {
+      "file": "cmd/server/eval.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "cmd/server/modescope_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/longmemeval/grid.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/longmemeval/grid_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/mcpserver/drawers.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/admin_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/collapse_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/copywing_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/currentonly_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/eval.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/evidence_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/fetchlog_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/import_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/lexnorm_select_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/memory_search.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/memory_search_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/move_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/otel_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/rank_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/recallanswers_spec_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/recallstats_origin_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/recallstats_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/rerank_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/rerankbudget_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/rerankskip_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/retrieve_k_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/roomscope_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/scopedrops_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/service.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/service_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/telemetry_test.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/trace.go",
+      "match": "\\bLookupQuery\\b"
+    },
+    {
+      "file": "internal/palace/widening_test.go",
+      "match": "\\bLookupQuery\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "cmd/server/eval.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "cmd/server/modescope_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/longmemeval/grid.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/longmemeval/grid_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/mcpserver/drawers.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/admin_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/collapse_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/copywing_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/currentonly_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/eval.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/evidence_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/fetchlog_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/import_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/lexnorm_select_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/memory_search.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/memory_search_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/move_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/otel_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/rank_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/recallanswers_spec_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/recallstats_origin_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/recallstats_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/rerank_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/rerankbudget_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/rerankskip_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/retrieve_k_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/roomscope_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/scopedrops_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/service.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/service_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/telemetry_test.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/trace.go",
+      "match": "\\bSearchQuery\\b"
+    },
+    {
+      "file": "internal/palace/widening_test.go",
+      "match": "\\bSearchQuery\\b"
+    }
+  ]
+}

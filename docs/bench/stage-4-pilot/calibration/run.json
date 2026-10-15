@@ -1,0 +1,24 @@
+{
+  "stage": "pilot",
+  "tasks": [
+    "am-coupled-hookchannel-premodelswitch",
+    "am-coupled-playbook-playbook",
+    "am-coupled-reconcile-monthly",
+    "am-coupled-service-am-candidate-k",
+    "am-wide-harness",
+    "am-wide-home-dir",
+    "am-wide-hook-plans",
+    "am-wide-json-result"
+  ],
+  "models": [
+    "claude-sonnet-5-5"
+  ],
+  "configs": [
+    "A"
+  ],
+  "repeats": 2,
+  "seed": 156,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "",
+  "containment": "bypass"
+}

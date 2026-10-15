@@ -3,29 +3,21 @@
   "shape": "check-coupled",
   "repo": "agentsmemory",
   "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
-  "exact": true,
   "instruction": "In clients/claude-code/doctor.go, change the string \"STALE\" to \"sTALE\", and keep the tests passing.",
+  "test_package": "clients/claude-code",
+  "asserting_tests": [
+    "TestDoctorReportsDriftWhenTheHooksStillDeclareTheirChannel",
+    "TestEveryRegisteredPluginHookIsExecutable"
+  ],
   "require": [
     {
       "file": "clients/claude-code/doctor.go",
-      "match": "\"sTALE\""
-    },
-    {
-      "file": "clients/claude-code/doctor_stale_test.go",
-      "match": "\"sTALE\""
-    },
-    {
-      "file": "clients/claude-code/doctor_stalereport_test.go",
       "match": "\"sTALE\""
     }
   ],
   "forbid": [
     {
-      "file": "clients/claude-code/doctor_stale_test.go",
-      "match": "\"STALE\""
-    },
-    {
-      "file": "clients/claude-code/doctor_stalereport_test.go",
+      "file": "clients/claude-code/doctor.go",
       "match": "\"STALE\""
     }
   ]

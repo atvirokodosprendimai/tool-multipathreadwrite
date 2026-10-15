@@ -1,0 +1,1109 @@
+diff --git a/cmd/server/eval.go b/cmd/server/eval.go
+index 7879606..dcea6d2 100644
+--- a/cmd/server/eval.go
++++ b/cmd/server/eval.go
+@@ -577,7 +577,7 @@ const absentVerifyDepth = 20
+ func verifyAbsent(ctx context.Context, svc *services, teamID, wing, question string, gen *questionGen) (string, error) {
+ 	// No distance gate: absence must be checked broadly. A hit the production
+ 	// gate would drop can still prove the knowledge exists in the palace.
+-	hits, err := svc.drawers.Search(ctx, teamID, palace.SearchQuery{
++	hits, err := svc.drawers.Search(ctx, teamID, palace.LookupQuery{
+ 		Query: question, Wing: wing, Limit: absentVerifyDepth, SkipTelemetry: true,
+ 	})
+ 	if err != nil {
+diff --git a/cmd/server/modescope_test.go b/cmd/server/modescope_test.go
+index d8781b5..85c358c 100644
+--- a/cmd/server/modescope_test.go
++++ b/cmd/server/modescope_test.go
+@@ -246,7 +246,7 @@ func orderingFor(t *testing.T, svc *palace.Service, queries []string) []string {
+ 	t.Helper()
+ 	var out []string
+ 	for _, q := range queries {
+-		hits, err := svc.Search(context.Background(), "team-sweep", palace.SearchQuery{
++		hits, err := svc.Search(context.Background(), "team-sweep", palace.LookupQuery{
+ 			Query: q, Limit: 8, SkipTelemetry: true,
+ 		})
+ 		if err != nil {
+diff --git a/internal/longmemeval/grid.go b/internal/longmemeval/grid.go
+index 5f0c1dd..754149c 100644
+--- a/internal/longmemeval/grid.go
++++ b/internal/longmemeval/grid.go
+@@ -22,7 +22,7 @@ import (
+ // bypassed it would measure a store no agent can actually write to.
+ type Store interface {
+ 	Add(ctx context.Context, teamID string, in palace.AddInput) (palace.AddResult, error)
+-	Search(ctx context.Context, teamID string, q palace.SearchQuery) ([]palace.SearchHit, error)
++	Search(ctx context.Context, teamID string, q palace.LookupQuery) ([]palace.SearchHit, error)
+ 	List(ctx context.Context, teamID, wing, room string, limit, offset int) ([]palace.Drawer, error)
+ 	// DeleteWing releases a scratch scope once its question is scored.
+ 	//
+@@ -208,7 +208,7 @@ func runCell(ctx context.Context, store Store, sel Selection, wp WritePolicy, qp
+ 		}
+ 		pages := make([][]palace.SearchHit, 0, len(queries))
+ 		for _, query := range queries {
+-			got, err := store.Search(ctx, opts.TeamID, palace.SearchQuery{
++			got, err := store.Search(ctx, opts.TeamID, palace.LookupQuery{
+ 				Query: query, Wing: wing, Limit: perQuery, SkipTelemetry: true,
+ 			})
+ 			if err != nil {
+diff --git a/internal/longmemeval/grid_test.go b/internal/longmemeval/grid_test.go
+index ea6c6e2..b2e21c4 100644
+--- a/internal/longmemeval/grid_test.go
++++ b/internal/longmemeval/grid_test.go
+@@ -42,7 +42,7 @@ func (f *fakeStore) Add(_ context.Context, _ string, in palace.AddInput) (palace
+ 	return palace.AddResult{Drawers: []palace.Drawer{d}}, nil
+ }
+ 
+-func (f *fakeStore) Search(_ context.Context, _ string, q palace.SearchQuery) ([]palace.SearchHit, error) {
++func (f *fakeStore) Search(_ context.Context, _ string, q palace.LookupQuery) ([]palace.SearchHit, error) {
+ 	f.queries = append(f.queries, q.Query)
+ 	all := append(append([]palace.Drawer{}, f.seeded[q.Wing]...), f.byWing[q.Wing]...)
+ 	var out []palace.SearchHit
+diff --git a/internal/mcpserver/drawers.go b/internal/mcpserver/drawers.go
+index fc21e5e..42e7cb6 100644
+--- a/internal/mcpserver/drawers.go
++++ b/internal/mcpserver/drawers.go
+@@ -1052,7 +1052,7 @@ func registerSearch(reg *registrar, drawers *palace.Service, usageSvc *usage.Ser
+ 		if err != nil {
+ 			return mcp.NewToolResultError(err.Error()), nil
+ 		}
+-		page, err := drawers.SearchPage(ctx, t.TeamID, palace.SearchQuery{
++		page, err := drawers.SearchPage(ctx, t.TeamID, palace.LookupQuery{
+ 			Query:       query,
+ 			Wing:        wing,
+ 			Room:        req.GetString("room", ""),
+diff --git a/internal/palace/admin_test.go b/internal/palace/admin_test.go
+index 3dde771..a5d535d 100644
+--- a/internal/palace/admin_test.go
++++ b/internal/palace/admin_test.go
+@@ -237,7 +237,7 @@ func TestMergedMemoryIsFoundInTheTargetWing(t *testing.T) {
+ 		t.Fatalf("MergeWing: %v", err)
+ 	}
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "rerank pool size", Wing: "wing_acme", Limit: 10})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "rerank pool size", Wing: "wing_acme", Limit: 10})
+ 	if err != nil {
+ 		t.Fatalf("Search: %v", err)
+ 	}
+@@ -408,7 +408,7 @@ func TestMergeCollectsAndRelabelsInOneTransaction(t *testing.T) {
+ 	}
+ 
+ 	// And it is reachable from the wing it now lives in, which is the point.
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "filed during the merge", Wing: "wing_acme", Limit: 10})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "filed during the merge", Wing: "wing_acme", Limit: 10})
+ 	if err != nil {
+ 		t.Fatalf("Search: %v", err)
+ 	}
+diff --git a/internal/palace/collapse_test.go b/internal/palace/collapse_test.go
+index 887ed92..6639d85 100644
+--- a/internal/palace/collapse_test.go
++++ b/internal/palace/collapse_test.go
+@@ -90,7 +90,7 @@ func TestSearchReturnsOneHitPerMemory(t *testing.T) {
+ 		}
+ 	}
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "zephyrine", Limit: 5})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "zephyrine", Limit: 5})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -128,7 +128,7 @@ func TestSearchReportsHowManyChunksMatched(t *testing.T) {
+ 		t.Fatalf("add: %v", err)
+ 	}
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "quintessa", Limit: 5})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "quintessa", Limit: 5})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -180,7 +180,7 @@ func TestMemoryLevelSearchFillsThePoolWithDistinctMemories(t *testing.T) {
+ 	vectors := &orderedVectors{VectorStore: base.vectors, hits: ordered}
+ 	svc := base.Clone()
+ 	svc.vectors = vectors
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "NEEDLE", Limit: 2, SkipTelemetry: true})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "NEEDLE", Limit: 2, SkipTelemetry: true})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -212,7 +212,7 @@ func TestMemoryLevelRerankingCombinesCrossChunkEvidence(t *testing.T) {
+ 
+ 	reranker := &recordingDocuments{}
+ 	svc := base.Clone().WithReranker(reranker, 10).WithRerankWeight(0.5)
+-	if _, err := svc.Search(ctx, team, SearchQuery{Query: "ALPHA OMEGA", Limit: 5, SkipTelemetry: true}); err != nil {
++	if _, err := svc.Search(ctx, team, LookupQuery{Query: "ALPHA OMEGA", Limit: 5, SkipTelemetry: true}); err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+ 	if len(reranker.docs) != 1 {
+@@ -281,7 +281,7 @@ func TestMemoryLevelRerankingKeepsEnoughContextToJudgeTheAnswer(t *testing.T) {
+ 
+ 	svc := base.Clone().WithReranker(reranker, 10).WithRerankWeight(1)
+ 	svc.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "constraint", Limit: 2, SkipTelemetry: true})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "constraint", Limit: 2, SkipTelemetry: true})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -359,7 +359,7 @@ func TestSearchKeepsTheBestChunkNotTheFirst(t *testing.T) {
+ 		t.Fatalf("add: %v", err)
+ 	}
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "nimbostratus", Limit: 3})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "nimbostratus", Limit: 3})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+diff --git a/internal/palace/copywing_test.go b/internal/palace/copywing_test.go
+index 7ab7817..12521e3 100644
+--- a/internal/palace/copywing_test.go
++++ b/internal/palace/copywing_test.go
+@@ -69,7 +69,7 @@ func TestCopyWing(t *testing.T) {
+ 	if p, _ := svc.PendingCount(ctx, to); p != 0 {
+ 		t.Errorf("dest pending = %d, want 0 (vectors copied, not re-embedded)", p)
+ 	}
+-	if hits, err := svc.Search(ctx, to, SearchQuery{Query: "alpha widgets"}); err != nil || len(hits) == 0 {
++	if hits, err := svc.Search(ctx, to, LookupQuery{Query: "alpha widgets"}); err != nil || len(hits) == 0 {
+ 		t.Errorf("search dest = %d hits (err %v), want the copied wing searchable", len(hits), err)
+ 	}
+ 
+diff --git a/internal/palace/currentonly_test.go b/internal/palace/currentonly_test.go
+index e1daa8c..e3eb62e 100644
+--- a/internal/palace/currentonly_test.go
++++ b/internal/palace/currentonly_test.go
+@@ -49,7 +49,7 @@ func TestAnEndedRecordIsReturnedByNoDefaultRoute(t *testing.T) {
+ 	oldID, newID, _ := supersededFixture(t, svc, team, wing)
+ 
+ 	t.Run("search", func(t *testing.T) {
+-		hits, err := svc.Search(ctx, team, SearchQuery{Query: "ZOETROPEMARKER drum", Wing: wing, Limit: 50})
++		hits, err := svc.Search(ctx, team, LookupQuery{Query: "ZOETROPEMARKER drum", Wing: wing, Limit: 50})
+ 		if err != nil {
+ 			t.Fatalf("search: %v", err)
+ 		}
+@@ -114,7 +114,7 @@ func TestIncludeHistoryReturnsItWithItsReason(t *testing.T) {
+ 			"truncation is a recall-payload concern and this route is not recall", got.EndedReason)
+ 	}
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{
++	hits, err := svc.Search(ctx, team, LookupQuery{
+ 		Query: "ZOETROPEMARKER drum", Wing: wing, Limit: 50, IncludeHistory: true,
+ 	})
+ 	if err != nil {
+@@ -168,7 +168,7 @@ func TestTheLiveRecordCarriesWhatItReplaced(t *testing.T) {
+ 		t.Errorf("SupersededReason = %q; want %q", live.SupersededReason, reason)
+ 	}
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "fixed lens twelve frames", Wing: wing, Limit: 50})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "fixed lens twelve frames", Wing: wing, Limit: 50})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -276,7 +276,7 @@ func TestNoMemoryEndsHalfway(t *testing.T) {
+ 				"retracted half and nothing would mark it", c.ChunkIndex)
+ 		}
+ 	}
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "HALFWAYMARKER retention window", Wing: wing, Limit: 50})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "HALFWAYMARKER retention window", Wing: wing, Limit: 50})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -344,7 +344,7 @@ func TestNoDefaultRouteReturnsEndedText(t *testing.T) {
+ 				"or it passes with the filter deleted", current, ended)
+ 		}
+ 
+-		hits, err := svc.Search(ctx, team, SearchQuery{Query: "appendix retry budget", Wing: wing, Limit: 20})
++		hits, err := svc.Search(ctx, team, LookupQuery{Query: "appendix retry budget", Wing: wing, Limit: 20})
+ 		if err != nil {
+ 			t.Fatalf("search: %v", err)
+ 		}
+@@ -595,7 +595,7 @@ func TestAChildChunkOfACorrectionCarriesTheReason(t *testing.T) {
+ 	}
+ 
+ 	// And through recall, where a page's representative is whichever chunk matched.
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "CHILDMARKER retention ninety", Wing: wing, Limit: 20})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "CHILDMARKER retention ninety", Wing: wing, Limit: 20})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+diff --git a/internal/palace/eval.go b/internal/palace/eval.go
+index 89601c5..bb171f0 100644
+--- a/internal/palace/eval.go
++++ b/internal/palace/eval.go
+@@ -1169,7 +1169,7 @@ func (s *Service) evalCaseResult(ctx context.Context, teamID string, c EvalCase,
+ 		return caseOutcome{TopDistance: -1}, fmt.Errorf("embed eval query: %w", err)
+ 	}
+ 	embedSpan.End(telemetry.Ran, attribute.Int("am.dim", len(vec)))
+-	hits, rows, stale, err := s.searchCandidates(caseCtx, teamID, SearchQuery{Wing: c.Wing}, vec, poolSize)
++	hits, rows, stale, err := s.searchCandidates(caseCtx, teamID, LookupQuery{Wing: c.Wing}, vec, poolSize)
+ 	if err != nil {
+ 		caseOut = telemetry.FailedClosed
+ 		return caseOutcome{TopDistance: -1}, fmt.Errorf("eval candidate pool: %w", err)
+@@ -1318,14 +1318,14 @@ func (s *Service) evalCaseResult(ctx context.Context, teamID string, c EvalCase,
+ 			distractorPoolRank = rankOf(poolIDs, byDistance, distractorSet)
+ 		}
+ 	}
+-	poolQuery := SearchQuery{
++	poolQuery := LookupQuery{
+ 		Query: c.Query, Wing: c.Wing, Limit: len(hits), SkipTelemetry: true,
+ 	}
+ 	for _, arm := range arms {
+ 		armCtx, armSpan := telemetry.Start(caseCtx, telemetry.StageEvalArm, attribute.String("am.arm", string(arm)))
+ 		switch {
+ 		case isProductionSearchArm(arm):
+-			page, err := s.Search(armCtx, teamID, SearchQuery{
++			page, err := s.Search(armCtx, teamID, LookupQuery{
+ 				Query: c.Query, Wing: c.Wing, Limit: productionLimit(arm),
+ 				RetrieveK:   productionRetrieveFloor(arm),
+ 				MaxDistance: DefaultMaxDistance, SkipTelemetry: true,
+@@ -1374,7 +1374,7 @@ func (s *Service) evalCaseResult(ctx context.Context, teamID string, c EvalCase,
+ 			out[arm] = rankOfFact(block.Facts, c.ExpectTriple)
+ 			armSpan.End(telemetry.Ran, attribute.Int("am.count", len(block.Facts)))
+ 		case arm == ArmContextual:
+-			ctxRes, err := s.vectors.Search(armCtx, contextualNamespace(teamID), vec, poolSize, searchFilter(SearchQuery{Wing: c.Wing}))
++			ctxRes, err := s.vectors.Search(armCtx, contextualNamespace(teamID), vec, poolSize, searchFilter(LookupQuery{Wing: c.Wing}))
+ 			if err != nil {
+ 				armSpan.End(telemetry.FailedClosed, telemetry.AttrReason(telemetry.ReasonError))
+ 				caseOut = telemetry.FailedClosed
+@@ -1396,7 +1396,7 @@ func (s *Service) evalCaseResult(ctx context.Context, teamID string, c EvalCase,
+ 				return caseOutcome{TopDistance: -1}, fmt.Errorf("load contextual candidates: %w", err)
+ 			}
+ 			hybrid := s.serviceForArm(ArmHybrid)
+-			page, _, _, err := hybrid.rankRetrieved(armCtx, teamID, c.Query, SearchQuery{
++			page, _, _, err := hybrid.rankRetrieved(armCtx, teamID, c.Query, LookupQuery{
+ 				Query: c.Query, Wing: c.Wing, Limit: len(ctxHits), SkipTelemetry: true,
+ 			}, vec, ctxHits, ctxRows, ctxRes.StaleIndex)
+ 			if err != nil {
+@@ -1516,7 +1516,7 @@ func (s *Service) CandidateUnion(ctx context.Context, teamID, query, wing string
+ 	if err != nil {
+ 		return nil, fmt.Errorf("embed query for pooling: %w", err)
+ 	}
+-	hits, rows, stale, err := s.searchCandidates(ctx, teamID, SearchQuery{Wing: wing}, vec, poolSize)
++	hits, rows, stale, err := s.searchCandidates(ctx, teamID, LookupQuery{Wing: wing}, vec, poolSize)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("pool candidate search: %w", err)
+ 	}
+@@ -1531,7 +1531,7 @@ func (s *Service) CandidateUnion(ctx context.Context, teamID, query, wing string
+ 		if svc == nil {
+ 			return
+ 		}
+-		page, _, _, err := svc.rankRetrieved(ctx, teamID, query, SearchQuery{
++		page, _, _, err := svc.rankRetrieved(ctx, teamID, query, LookupQuery{
+ 			Query: query, Wing: wing, Limit: perArm, SkipTelemetry: true,
+ 		}, vec, hits, rows, stale)
+ 		if err != nil {
+@@ -1612,7 +1612,7 @@ func (s *Service) OlderNeighbor(ctx context.Context, teamID string, d Drawer, po
+ 	// The same retrieval seam evalCase uses, scoped to the drawer's own wing: a
+ 	// superseded fact and its correction belong to one project, and a cross-wing
+ 	// "pair" would be two projects coincidentally near in embedding space.
+-	res, err := s.vectors.Search(ctx, teamID, vec, poolSize, searchFilter(SearchQuery{Wing: d.Wing}))
++	res, err := s.vectors.Search(ctx, teamID, vec, poolSize, searchFilter(LookupQuery{Wing: d.Wing}))
+ 	if err != nil {
+ 		return Drawer{}, false, fmt.Errorf("temporal pair search: %w", err)
+ 	}
+diff --git a/internal/palace/evidence_test.go b/internal/palace/evidence_test.go
+index aa39763..81e3f96 100644
+--- a/internal/palace/evidence_test.go
++++ b/internal/palace/evidence_test.go
+@@ -91,7 +91,7 @@ func TestSemanticEvidenceSelectorFindsParaphrasedDistantPassages(t *testing.T) {
+ 		WithReranker(controlDocs, 10).WithRerankWeight(0.5)
+ 	control.embed = controlEmbed
+ 	control.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+-	if _, err := control.Search(ctx, team, SearchQuery{Query: "unfinished reasoning", Limit: 1, SkipTelemetry: true}); err != nil {
++	if _, err := control.Search(ctx, team, LookupQuery{Query: "unfinished reasoning", Limit: 1, SkipTelemetry: true}); err != nil {
+ 		t.Fatalf("lexical control search: %v", err)
+ 	}
+ 	if len(controlDocs.docs) != 1 || len(controlDocs.docs[0]) != 1 {
+@@ -108,7 +108,7 @@ func TestSemanticEvidenceSelectorFindsParaphrasedDistantPassages(t *testing.T) {
+ 		WithReranker(semanticDocs, 10).WithRerankWeight(0.5)
+ 	semantic.embed = semanticEmbed
+ 	semantic.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+-	if _, err := semantic.Search(ctx, team, SearchQuery{
++	if _, err := semantic.Search(ctx, team, LookupQuery{
+ 		Query: "unfinished reasoning", Context: "caller context must reach only the cross-encoder",
+ 		Limit: 1, SkipTelemetry: true,
+ 	}); err != nil {
+@@ -144,7 +144,7 @@ func TestSemanticEvidenceSelectorRequiresTheCrossEncoder(t *testing.T) {
+ 	svc := base.Clone().WithMemoryEvidenceSelector("semantic")
+ 	svc.embed = embed
+ 	svc.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+-	if _, err := svc.Search(context.Background(), team, SearchQuery{
++	if _, err := svc.Search(context.Background(), team, LookupQuery{
+ 		Query: "unfinished reasoning", Limit: 1, SkipTelemetry: true,
+ 	}); err != nil {
+ 		t.Fatalf("search: %v", err)
+@@ -178,7 +178,7 @@ func TestSemanticEvidenceSelectorFailsOpenForTheWholeShortlist(t *testing.T) {
+ 		WithReranker(lexicalDocs, 10).WithRerankWeight(0.5)
+ 	lexical.embed = &selectiveEvidenceEmbedder{}
+ 	lexical.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+-	if _, err := lexical.Search(ctx, team, SearchQuery{Query: "unfinished reasoning", Limit: 2, SkipTelemetry: true}); err != nil {
++	if _, err := lexical.Search(ctx, team, LookupQuery{Query: "unfinished reasoning", Limit: 2, SkipTelemetry: true}); err != nil {
+ 		t.Fatalf("lexical search: %v", err)
+ 	}
+ 
+@@ -189,7 +189,7 @@ func TestSemanticEvidenceSelectorFailsOpenForTheWholeShortlist(t *testing.T) {
+ 		WithReranker(failedDocs, 10).WithRerankWeight(0.5)
+ 	semantic.embed = failedEmbed
+ 	semantic.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+-	if _, err := semantic.Search(ctx, team, SearchQuery{Query: "unfinished reasoning", Limit: 2, SkipTelemetry: true}); err != nil {
++	if _, err := semantic.Search(ctx, team, LookupQuery{Query: "unfinished reasoning", Limit: 2, SkipTelemetry: true}); err != nil {
+ 		t.Fatalf("semantic search should fail open: %v", err)
+ 	}
+ 	if len(failedEmbed.batches) == 0 {
+diff --git a/internal/palace/fetchlog_test.go b/internal/palace/fetchlog_test.go
+index fc6d6b6..792094c 100644
+--- a/internal/palace/fetchlog_test.go
++++ b/internal/palace/fetchlog_test.go
+@@ -212,7 +212,7 @@ func TestTheFetchRatioNamesItsPopulation(t *testing.T) {
+ 		if err != nil {
+ 			t.Fatalf("rates: %v", err)
+ 		}
+-		if _, err := svc.Search(ctx, team, SearchQuery{
++		if _, err := svc.Search(ctx, team, LookupQuery{
+ 			Query: "a memory worth fetching twice", Wing: "wing_acme", SkipTelemetry: true,
+ 		}); err != nil {
+ 			t.Fatalf("search: %v", err)
+@@ -255,7 +255,7 @@ func TestTheFetchRatioNamesItsPopulation(t *testing.T) {
+ 		// reported the wrong profile with total confidence. A team holding exactly
+ 		// one event has nothing to tie-break.
+ 		const fresh = "t-fetchratio-livepath"
+-		if _, err := svc.Search(ctx, fresh, SearchQuery{
++		if _, err := svc.Search(ctx, fresh, LookupQuery{
+ 			Query: "a query nothing in this team answers", Wing: "wing_acme",
+ 		}); err != nil {
+ 			t.Fatalf("search: %v", err)
+diff --git a/internal/palace/import_test.go b/internal/palace/import_test.go
+index 5f4f1b6..9cc56d2 100644
+--- a/internal/palace/import_test.go
++++ b/internal/palace/import_test.go
+@@ -86,7 +86,7 @@ func TestImportDrawersVerbatim(t *testing.T) {
+ 	if pend, err := svc.PendingCount(ctx, team); err != nil || pend != 0 {
+ 		t.Fatalf("pending after embed = %d (err %v), want 0", pend, err)
+ 	}
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "websocket hub fan out messages"})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "websocket hub fan out messages"})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+diff --git a/internal/palace/lexnorm_select_test.go b/internal/palace/lexnorm_select_test.go
+index e782882..f0f6287 100644
+--- a/internal/palace/lexnorm_select_test.go
++++ b/internal/palace/lexnorm_select_test.go
+@@ -49,7 +49,7 @@ func TestSearchHonoursTheSelectedLexicalNormaliser(t *testing.T) {
+ 				t.Fatalf("add: %v", err)
+ 			}
+ 		}
+-		hits, err := svc.Search(ctx, team, SearchQuery{Query: "alpha beta gamma", Limit: 5})
++		hits, err := svc.Search(ctx, team, LookupQuery{Query: "alpha beta gamma", Limit: 5})
+ 		if err != nil {
+ 			t.Fatalf("search(%s): %v", norm, err)
+ 		}
+diff --git a/internal/palace/memory_search.go b/internal/palace/memory_search.go
+index b4a0aa2..322b329 100644
+--- a/internal/palace/memory_search.go
++++ b/internal/palace/memory_search.go
+@@ -67,7 +67,7 @@ func (d scopeDrops) Any() bool {
+ // rule surfaces another wing's memory.
+ //
+ // The index filter is an optimization; the durable row remains the authority.
+-func survivorsFrom(hits []store.Hit, rows map[string]Drawer, q SearchQuery, stale bool) ([]SearchHit, int, scopeDrops) {
++func survivorsFrom(hits []store.Hit, rows map[string]Drawer, q LookupQuery, stale bool) ([]SearchHit, int, scopeDrops) {
+ 	survivors := make([]SearchHit, 0, len(hits))
+ 	distinct := make(map[string]struct{}, len(hits))
+ 	var drops scopeDrops
+@@ -113,7 +113,7 @@ func survivorsFrom(hits []store.Hit, rows map[string]Drawer, q SearchQuery, stal
+ // make. Filtering here is for the widening decision only; rankRetrieved rebuilds
+ // the survivors from survivorsFrom, the same predicate, over an in-memory slice
+ // bounded by candidateK.
+-func (s *Service) searchCandidates(ctx context.Context, teamID string, q SearchQuery, vec []float32, candidateK int) ([]store.Hit, map[string]Drawer, bool, error) {
++func (s *Service) searchCandidates(ctx context.Context, teamID string, q LookupQuery, vec []float32, candidateK int) ([]store.Hit, map[string]Drawer, bool, error) {
+ 	retrieveCtx, retrieve := telemetry.Start(ctx, telemetry.StageRetrieve, attribute.Int("am.k", candidateK))
+ 	hydrateCtx, hydrate := telemetry.Start(retrieveCtx, telemetry.StageHydrate)
+ 	k := candidateK
+@@ -220,7 +220,7 @@ func (s *Service) searchCandidates(ctx context.Context, teamID string, q SearchQ
+ // the caller's distance boundary, every later member is too (max_distance).
+ // The doubling ceiling is a safety stop for when the index filter and the
+ // durable row disagree and distinct never grows — not a tuning knob.
+-func retrieveStop(distinct, candidateK, nHits, k int, q SearchQuery, hits []store.Hit) string {
++func retrieveStop(distinct, candidateK, nHits, k int, q LookupQuery, hits []store.Hit) string {
+ 	if distinct >= candidateK {
+ 		return telemetry.ReasonEnough
+ 	}
+@@ -236,7 +236,7 @@ func retrieveStop(distinct, candidateK, nHits, k int, q SearchQuery, hits []stor
+ 	return ""
+ }
+ 
+-func drawerMatchesSearch(d Drawer, q SearchQuery) bool {
++func drawerMatchesSearch(d Drawer, q LookupQuery) bool {
+ 	return (q.Wing == "" || d.Wing == q.Wing) && (q.Room == "" || d.Room == q.Room)
+ }
+ 
+@@ -244,7 +244,7 @@ func drawerMatchesSearch(d Drawer, q SearchQuery) bool {
+ // per logical memory. The best vector distance and the number of retrieved
+ // matching chunks remain explicit signals; lexical and rerank text comes from
+ // the whole reassembled memory.
+-func (s *Service) collapseCandidatesToMemories(ctx context.Context, teamID string, q SearchQuery, chunks []SearchHit) ([]SearchHit, error) {
++func (s *Service) collapseCandidatesToMemories(ctx context.Context, teamID string, q LookupQuery, chunks []SearchHit) ([]SearchHit, error) {
+ 	// One pass, not one pass per root. Rescanning every chunk for each root is
+ 	// quadratic in the candidate pool, and the pool is exactly what the memory
+ 	// arm widens.
+diff --git a/internal/palace/memory_search_test.go b/internal/palace/memory_search_test.go
+index 4e69cdb..c26db98 100644
+--- a/internal/palace/memory_search_test.go
++++ b/internal/palace/memory_search_test.go
+@@ -21,7 +21,7 @@ func TestSurvivorsFromCarriesStaleIndex(t *testing.T) {
+ 		{ID: "id-2", Score: 0.7},
+ 	}
+ 
+-	stale, _, _ := survivorsFrom(hits, rows, SearchQuery{Wing: "w"}, true)
++	stale, _, _ := survivorsFrom(hits, rows, LookupQuery{Wing: "w"}, true)
+ 	if len(stale) != 2 {
+ 		t.Fatalf("survivors = %d; want 2", len(stale))
+ 	}
+@@ -31,7 +31,7 @@ func TestSurvivorsFromCarriesStaleIndex(t *testing.T) {
+ 		}
+ 	}
+ 
+-	fresh, _, _ := survivorsFrom(hits, rows, SearchQuery{Wing: "w"}, false)
++	fresh, _, _ := survivorsFrom(hits, rows, LookupQuery{Wing: "w"}, false)
+ 	for _, h := range fresh {
+ 		if h.StaleIndex {
+ 			t.Errorf("hit %s is flagged stale on a healthy read", h.MemoryID)
+diff --git a/internal/palace/move_test.go b/internal/palace/move_test.go
+index ccc879e..95b15de 100644
+--- a/internal/palace/move_test.go
++++ b/internal/palace/move_test.go
+@@ -90,7 +90,7 @@ func TestAMoveRelocatesEveryChunkOfAMemory(t *testing.T) {
+ 	// The index has to agree, or the memory is unreachable at its new address and
+ 	// still answers at the old one. This is the assertion that covers the vector
+ 	// payload without reaching into the store.
+-	found, err := svc.Search(ctx, team, SearchQuery{Query: "zephyrine retention window", Wing: dest, Limit: 5, SkipTelemetry: true})
++	found, err := svc.Search(ctx, team, LookupQuery{Query: "zephyrine retention window", Wing: dest, Limit: 5, SkipTelemetry: true})
+ 	if err != nil {
+ 		t.Fatalf("search the destination wing: %v", err)
+ 	}
+@@ -98,7 +98,7 @@ func TestAMoveRelocatesEveryChunkOfAMemory(t *testing.T) {
+ 		t.Error("the destination wing returns nothing; the rows moved and the index did not, so the " +
+ 			"memory is unreachable where it now lives")
+ 	}
+-	stale, err := svc.Search(ctx, team, SearchQuery{Query: "zephyrine retention window", Wing: "wing_alpha", Limit: 5, SkipTelemetry: true})
++	stale, err := svc.Search(ctx, team, LookupQuery{Query: "zephyrine retention window", Wing: "wing_alpha", Limit: 5, SkipTelemetry: true})
+ 	if err != nil {
+ 		t.Fatalf("search the origin wing: %v", err)
+ 	}
+diff --git a/internal/palace/otel_test.go b/internal/palace/otel_test.go
+index b7ae56c..5d1a7af 100644
+--- a/internal/palace/otel_test.go
++++ b/internal/palace/otel_test.go
+@@ -28,7 +28,7 @@ func TestSearchEmitsSemanticStageSpans(t *testing.T) {
+ 	mustAdd(t, svc, team, AddInput{
+ 		Wing: "w", Room: "r", Content: "the otel wiring needle is unique here",
+ 	})
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "otel wiring needle", Limit: 3})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "otel wiring needle", Limit: 3})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -122,7 +122,7 @@ func TestSearchRecordsVectorFailureClosed(t *testing.T) {
+ 		Wing: "w", Room: "r", Content: "the failed-closed needle is unique here",
+ 	})
+ 
+-	if _, err := svc.Search(ctx, team, SearchQuery{Query: "failed-closed needle", Limit: 3}); err == nil {
++	if _, err := svc.Search(ctx, team, LookupQuery{Query: "failed-closed needle", Limit: 3}); err == nil {
+ 		t.Fatal("search succeeded despite the vector backend erroring")
+ 	}
+ 
+@@ -173,7 +173,7 @@ func TestSearchDumpJoinsCodeAndKnobs(t *testing.T) {
+ 	mustAdd(t, svc, team, AddInput{
+ 		Wing: "w", Room: "r", Content: "the otel debug needle is unique here",
+ 	})
+-	if _, err := svc.Search(ctx, team, SearchQuery{
++	if _, err := svc.Search(ctx, team, LookupQuery{
+ 		Query: "otel debug needle", Limit: 3, SkipTelemetry: true,
+ 	}); err != nil {
+ 		t.Fatalf("search: %v", err)
+diff --git a/internal/palace/rank_test.go b/internal/palace/rank_test.go
+index 04a6c99..0df7dbb 100644
+--- a/internal/palace/rank_test.go
++++ b/internal/palace/rank_test.go
+@@ -110,7 +110,7 @@ func TestSearchAppliesClosetBoost(t *testing.T) {
+ 		t.Fatalf("mine: %v", err)
+ 	}
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "Kubernetes deployment pipeline", Limit: 5})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "Kubernetes deployment pipeline", Limit: 5})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -138,7 +138,7 @@ func TestSearchSurfacesBM25(t *testing.T) {
+ 	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "the cache uses an lru eviction policy"})
+ 	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "the button turns blue on hover"})
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "the cache uses an lru eviction policy"})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "the cache uses an lru eviction policy"})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+diff --git a/internal/palace/recallanswers_spec_test.go b/internal/palace/recallanswers_spec_test.go
+index 53ed2fb..e5fadca 100644
+--- a/internal/palace/recallanswers_spec_test.go
++++ b/internal/palace/recallanswers_spec_test.go
+@@ -23,7 +23,7 @@ import (
+ func TestAWingScopedRecallNeverReturnsAnotherWingsFact(t *testing.T) {
+ 	svc, team, ctx := factWorld(t)
+ 
+-	page, err := svc.SearchPage(ctx, team, SearchQuery{Wing: "wing_acme", Query: "tell me about the ledger service", Limit: 5})
++	page, err := svc.SearchPage(ctx, team, LookupQuery{Wing: "wing_acme", Query: "tell me about the ledger service", Limit: 5})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -40,7 +40,7 @@ func TestAWingScopedRecallNeverReturnsAnotherWingsFact(t *testing.T) {
+ func TestARecallNamesTheWingsThatHoldTheAnswer(t *testing.T) {
+ 	svc, team, ctx := factWorld(t)
+ 
+-	page, err := svc.SearchPage(ctx, team, SearchQuery{Wing: "wing_acme", Query: "tell me about the ledger service", Limit: 5})
++	page, err := svc.SearchPage(ctx, team, LookupQuery{Wing: "wing_acme", Query: "tell me about the ledger service", Limit: 5})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -87,7 +87,7 @@ func TestACorrectedRecordArrivesCarryingItsCorrection(t *testing.T) {
+ 				t.Fatalf("kgadd %s: %v", pred, err)
+ 			}
+ 
+-			page, err := svc.SearchPage(ctx, team, SearchQuery{Wing: "wing_acme", Query: "how often does the scheduler run", Limit: 10})
++			page, err := svc.SearchPage(ctx, team, LookupQuery{Wing: "wing_acme", Query: "how often does the scheduler run", Limit: 10})
+ 			if err != nil {
+ 				t.Fatalf("search: %v", err)
+ 			}
+@@ -132,7 +132,7 @@ func TestACorrectedRecordArrivesCarryingItsCorrection(t *testing.T) {
+ 
+ 			// Marked, never hidden and never demoted. A retraction can itself be
+ 			// wrong, so this is a signal for the reader rather than a gate.
+-			uncorrected, err := svc.SearchPage(ctx, team, SearchQuery{Wing: "wing_acme", Query: "how often does the scheduler run", Limit: 10})
++			uncorrected, err := svc.SearchPage(ctx, team, LookupQuery{Wing: "wing_acme", Query: "how often does the scheduler run", Limit: 10})
+ 			if err != nil {
+ 				t.Fatalf("search again: %v", err)
+ 			}
+@@ -170,7 +170,7 @@ func TestFactLookupMatchesBothEntityVocabularies(t *testing.T) {
+ 
+ 	bare := *svc
+ 	bare.vectors = noEntityIndex{svc.vectors}
+-	page, err := bare.SearchPage(ctx, team, SearchQuery{Wing: "wing_acme", Room: "decisions", Query: "Ledger", Limit: 5})
++	page, err := bare.SearchPage(ctx, team, LookupQuery{Wing: "wing_acme", Room: "decisions", Query: "Ledger", Limit: 5})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -321,7 +321,7 @@ func TestAnEndedFactIsNeverPresentedAsCurrent(t *testing.T) {
+ 		t.Fatalf("backfill: %v", err)
+ 	}
+ 
+-	page, err := svc.SearchPage(ctx, team, SearchQuery{Wing: "wing_acme", Query: "what does Ledger run on", Limit: 5})
++	page, err := svc.SearchPage(ctx, team, LookupQuery{Wing: "wing_acme", Query: "what does Ledger run on", Limit: 5})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -396,7 +396,7 @@ func TestAFactsWingComesFromItsProvenance(t *testing.T) {
+ 
+ func TestReturningFactsDoesNotChangeDrawerRanking(t *testing.T) {
+ 	svc, team, ctx := factWorld(t)
+-	q := SearchQuery{Wing: "wing_acme", Query: "tell me about the ledger service", Limit: 5}
++	q := LookupQuery{Wing: "wing_acme", Query: "tell me about the ledger service", Limit: 5}
+ 
+ 	withFacts, err := svc.SearchPage(ctx, team, q)
+ 	if err != nil {
+@@ -949,7 +949,7 @@ func TestAQuestionReachesTheFactThatAnswersIt(t *testing.T) {
+ 	// The POSITIVE assertion. UC1-S1 was originally bound to a test asserting
+ 	// that no FOREIGN fact appears — which returning nothing satisfies
+ 	// completely. This one requires the fact to actually arrive.
+-	page, err := svc.SearchPage(ctx, team, SearchQuery{Wing: "wing_acme", Query: "who owns invoice numbering", Limit: 5})
++	page, err := svc.SearchPage(ctx, team, LookupQuery{Wing: "wing_acme", Query: "who owns invoice numbering", Limit: 5})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -984,7 +984,7 @@ func TestAQuestionReachesTheFactThatAnswersIt(t *testing.T) {
+ func TestAnUnlocatableFactIsCountedNotDropped(t *testing.T) {
+ 	svc, team, ctx := factWorld(t)
+ 
+-	page, err := svc.SearchPage(ctx, team, SearchQuery{Wing: "wing_acme", Query: "tell me about the ledger service", Limit: 5})
++	page, err := svc.SearchPage(ctx, team, LookupQuery{Wing: "wing_acme", Query: "tell me about the ledger service", Limit: 5})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+diff --git a/internal/palace/recallstats_origin_test.go b/internal/palace/recallstats_origin_test.go
+index 933eb26..31d4c94 100644
+--- a/internal/palace/recallstats_origin_test.go
++++ b/internal/palace/recallstats_origin_test.go
+@@ -33,7 +33,7 @@ func TestASearchRecordsTheOriginItsContextCarries(t *testing.T) {
+ 	}
+ 
+ 	with, err := svc.SearchPage(auth.WithOrigin(ctx, "hook:agentsmemory-recall-hook.sh"), team,
+-		SearchQuery{Wing: "wing_acme", Query: "who owns invoice numbering", Limit: 5})
++		LookupQuery{Wing: "wing_acme", Query: "who owns invoice numbering", Limit: 5})
+ 	if err != nil {
+ 		t.Fatalf("search with origin: %v", err)
+ 	}
+@@ -41,7 +41,7 @@ func TestASearchRecordsTheOriginItsContextCarries(t *testing.T) {
+ 		t.Fatalf("search_events.origin = %q, want the context's origin", got)
+ 	}
+ 
+-	without, err := svc.SearchPage(ctx, team, SearchQuery{Wing: "wing_acme", Query: "who owns invoice numbering", Limit: 5})
++	without, err := svc.SearchPage(ctx, team, LookupQuery{Wing: "wing_acme", Query: "who owns invoice numbering", Limit: 5})
+ 	if err != nil {
+ 		t.Fatalf("search without origin: %v", err)
+ 	}
+diff --git a/internal/palace/recallstats_test.go b/internal/palace/recallstats_test.go
+index 80a8ad5..7d02b5d 100644
+--- a/internal/palace/recallstats_test.go
++++ b/internal/palace/recallstats_test.go
+@@ -18,13 +18,13 @@ func TestRecallStatsSeparatesAnsweredFromAsked(t *testing.T) {
+ 	mustAdd(t, svc, team, AddInput{Wing: "wing_beta", Room: "decisions", Content: "scan results are stored per audit run, not per page"})
+ 
+ 	// One answered search per wing, plus one that finds nothing.
+-	if _, err := svc.Search(ctx, team, SearchQuery{Query: "two-tier planning", Wing: "wing_acme"}); err != nil {
++	if _, err := svc.Search(ctx, team, LookupQuery{Query: "two-tier planning", Wing: "wing_acme"}); err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+-	if _, err := svc.Search(ctx, team, SearchQuery{Query: "scan results per audit run", Wing: "wing_beta"}); err != nil {
++	if _, err := svc.Search(ctx, team, LookupQuery{Query: "scan results per audit run", Wing: "wing_beta"}); err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+-	if _, err := svc.Search(ctx, team, SearchQuery{Query: "kubernetes ingress annotations", Wing: "wing_acme", MaxDistance: 0.01}); err != nil {
++	if _, err := svc.Search(ctx, team, LookupQuery{Query: "kubernetes ingress annotations", Wing: "wing_acme", MaxDistance: 0.01}); err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+ 
+diff --git a/internal/palace/rerank_test.go b/internal/palace/rerank_test.go
+index 5d0f7a8..9bba573 100644
+--- a/internal/palace/rerank_test.go
++++ b/internal/palace/rerank_test.go
+@@ -94,7 +94,7 @@ func TestSearchRerankDecidesTheOrder(t *testing.T) {
+ 	rr := &keywordReranker{keyword: "closet"}
+ 	svc.WithReranker(rr, 10)
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "goose migrations at boot", Limit: 3})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "goose migrations at boot", Limit: 3})
+ 	if err != nil {
+ 		t.Fatalf("Search: %v", err)
+ 	}
+@@ -127,14 +127,14 @@ func TestSearchRerankFailsOpen(t *testing.T) {
+ 	seedRerankCorpus(t, svc, ctx, team)
+ 
+ 	// Baseline: the same search with no reranker at all.
+-	want, err := svc.Search(ctx, team, SearchQuery{Query: "goose migrations at boot", Limit: 4})
++	want, err := svc.Search(ctx, team, LookupQuery{Query: "goose migrations at boot", Limit: 4})
+ 	if err != nil {
+ 		t.Fatalf("baseline Search: %v", err)
+ 	}
+ 
+ 	rr := &brokenReranker{}
+ 	svc.WithReranker(rr, 10)
+-	got, err := svc.Search(ctx, team, SearchQuery{Query: "goose migrations at boot", Limit: 4})
++	got, err := svc.Search(ctx, team, LookupQuery{Query: "goose migrations at boot", Limit: 4})
+ 	if err != nil {
+ 		t.Fatalf("Search with a broken reranker returned an error, want fail-open: %v", err)
+ 	}
+@@ -169,7 +169,7 @@ func TestSearchRerankPoolBoundsTheCall(t *testing.T) {
+ 		return make([]float64, len(docs)), nil
+ 	}), 2)
+ 
+-	if _, err := svc.Search(ctx, team, SearchQuery{Query: "boot", Limit: 4}); err != nil {
++	if _, err := svc.Search(ctx, team, LookupQuery{Query: "boot", Limit: 4}); err != nil {
+ 		t.Fatalf("Search: %v", err)
+ 	}
+ 	if gotDocs != 2 {
+@@ -177,7 +177,7 @@ func TestSearchRerankPoolBoundsTheCall(t *testing.T) {
+ 	}
+ }
+ 
+-// TestSearchRerankContextFeedsOnlyTheCrossEncoder pins the SearchQuery.Context
++// TestSearchRerankContextFeedsOnlyTheCrossEncoder pins the LookupQuery.Context
+ // contract: it sharpens re-ranking and must never silently widen the query that
+ // retrieval already embedded.
+ func TestSearchRerankContextFeedsOnlyTheCrossEncoder(t *testing.T) {
+@@ -196,12 +196,12 @@ func TestSearchRerankContextFeedsOnlyTheCrossEncoder(t *testing.T) {
+ 
+ 	rr := &keywordReranker{keyword: "closet"}
+ 	svc.WithReranker(rr, 10)
+-	if _, err := svc.Search(ctx, team, SearchQuery{Query: "migrations", Limit: 2}); err != nil {
++	if _, err := svc.Search(ctx, team, LookupQuery{Query: "migrations", Limit: 2}); err != nil {
+ 		t.Fatalf("Search without context: %v", err)
+ 	}
+ 	withoutContext := documentContaining(t, rr.gotDocs, "migrations evidence must stay selected")
+ 
+-	if _, err := svc.Search(ctx, team, SearchQuery{
++	if _, err := svc.Search(ctx, team, LookupQuery{
+ 		Query:   "migrations",
+ 		Context: "AUDIT_CONTEXT_MARKER",
+ 		Limit:   2,
+diff --git a/internal/palace/rerankbudget_test.go b/internal/palace/rerankbudget_test.go
+index 84fda64..6dacd0d 100644
+--- a/internal/palace/rerankbudget_test.go
++++ b/internal/palace/rerankbudget_test.go
+@@ -23,7 +23,7 @@ var _ RerankDescriber = (*tei.Client)(nil)
+ // rerankSpanReason runs one Search against svc and returns the am.search.rerank
+ // span's status and reason. It reads the CHILD span deliberately: searchSpanAttrs
+ // reads the parent, where a failed-open rerank leaves no trace at all.
+-func rerankSpanReason(t *testing.T, svc *Service, team string, q SearchQuery) (status, reason string) {
++func rerankSpanReason(t *testing.T, svc *Service, team string, q LookupQuery) (status, reason string) {
+ 	t.Helper()
+ 	sr := tracetest.NewSpanRecorder()
+ 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+@@ -69,7 +69,7 @@ func TestABlownBudgetIsNotReportedAsAnEndpointError(t *testing.T) {
+ 		svc := newTestService(t).WithReranker(tei.New(slow.URL, 50*time.Millisecond), 5).WithRerankWeight(0.5)
+ 		mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+-		status, reason := rerankSpanReason(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
++		status, reason := rerankSpanReason(t, svc, team, LookupQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+ 		if status != string(telemetry.FailedOpen) {
+ 			t.Errorf("status = %q, want %q — an overrun must still serve the fused order", status, string(telemetry.FailedOpen))
+ 		}
+@@ -93,7 +93,7 @@ func TestABlownBudgetIsNotReportedAsAnEndpointError(t *testing.T) {
+ 		svc := newTestService(t).WithReranker(tei.New("http://192.0.2.1:9", 300*time.Millisecond), 5).WithRerankWeight(0.5)
+ 		mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+-		status, reason := rerankSpanReason(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
++		status, reason := rerankSpanReason(t, svc, team, LookupQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+ 		if status != string(telemetry.FailedOpen) {
+ 			t.Errorf("status = %q, want %q", status, string(telemetry.FailedOpen))
+ 		}
+@@ -113,7 +113,7 @@ func TestABlownBudgetIsNotReportedAsAnEndpointError(t *testing.T) {
+ 		svc := newTestService(t).WithReranker(tei.New(sick.URL, 30*time.Second), 5).WithRerankWeight(0.5)
+ 		mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+-		status, reason := rerankSpanReason(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
++		status, reason := rerankSpanReason(t, svc, team, LookupQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+ 		if status != string(telemetry.FailedOpen) {
+ 			t.Errorf("status = %q, want %q", status, string(telemetry.FailedOpen))
+ 		}
+@@ -132,7 +132,7 @@ func TestTheBudgetInForceIsOnTheSearchSpan(t *testing.T) {
+ 	svc := newTestService(t).WithReranker(tei.New("http://127.0.0.1:1", 7*time.Second), 5).WithRerankWeight(0.5)
+ 	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+-	got := searchSpanAttrs(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
++	got := searchSpanAttrs(t, svc, team, LookupQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+ 	if got["am.rerank_timeout_ms"] != "7000" {
+ 		t.Errorf("am.rerank_timeout_ms = %q, want %q", got["am.rerank_timeout_ms"], "7000")
+ 	}
+diff --git a/internal/palace/rerankskip_test.go b/internal/palace/rerankskip_test.go
+index f2d84a8..6c6aff6 100644
+--- a/internal/palace/rerankskip_test.go
++++ b/internal/palace/rerankskip_test.go
+@@ -19,7 +19,7 @@ import (
+ func searchInto(t *testing.T, svc *Service, team, wing string) {
+ 	t.Helper()
+ 	mustAdd(t, svc, team, AddInput{Wing: wing, Room: "r", Content: "a memory about skip reasons"})
+-	if _, err := svc.Search(context.Background(), team, SearchQuery{
++	if _, err := svc.Search(context.Background(), team, LookupQuery{
+ 		Query: "skip reasons", Wing: wing, Limit: 3, MaxDistance: 1.5,
+ 	}); err != nil {
+ 		t.Fatalf("search %s: %v", wing, err)
+diff --git a/internal/palace/retrieve_k_test.go b/internal/palace/retrieve_k_test.go
+index a28c168..3ec7aa3 100644
+--- a/internal/palace/retrieve_k_test.go
++++ b/internal/palace/retrieve_k_test.go
+@@ -29,7 +29,7 @@ func TestSearchRetrieveKWidensTheFetch(t *testing.T) {
+ 	rec := &recordingVectors{VectorStore: svc.vectors}
+ 	svc.vectors = rec
+ 	ctx := t.Context()
+-	q := SearchQuery{Query: "retrieve width and paging", Wing: "w", Limit: DefaultSearchLimit, SkipTelemetry: true}
++	q := LookupQuery{Query: "retrieve width and paging", Wing: "w", Limit: DefaultSearchLimit, SkipTelemetry: true}
+ 
+ 	formula := candidateKFor(DefaultSearchLimit, false, 0, 0)
+ 	if formula != DefaultSearchLimit*hybridCandidateMultiplier {
+diff --git a/internal/palace/roomscope_test.go b/internal/palace/roomscope_test.go
+index 47d65bb..22de312 100644
+--- a/internal/palace/roomscope_test.go
++++ b/internal/palace/roomscope_test.go
+@@ -40,7 +40,7 @@ func TestASearchScopedToARoomStaysInThatRoom(t *testing.T) {
+ 		t.Fatalf("add diary: %v", err)
+ 	}
+ 
+-	page, err := svc.SearchPage(ctx, team, SearchQuery{
++	page, err := svc.SearchPage(ctx, team, LookupQuery{
+ 		Wing: wing, Room: "decisions", Query: "ledger reconciliation", Limit: 10,
+ 	})
+ 	if err != nil {
+@@ -77,17 +77,17 @@ func TestDrawerMatchesSearchFiltersOnBothHalves(t *testing.T) {
+ 	d := Drawer{Wing: "wing_alpha", Room: "decisions"}
+ 	for _, tc := range []struct {
+ 		name string
+-		q    SearchQuery
++		q    LookupQuery
+ 		want bool
+ 	}{
+-		{"unscoped matches anything", SearchQuery{}, true},
+-		{"its own wing and room", SearchQuery{Wing: "wing_alpha", Room: "decisions"}, true},
+-		{"wing only", SearchQuery{Wing: "wing_alpha"}, true},
+-		{"room only", SearchQuery{Room: "decisions"}, true},
+-		{"another wing is excluded", SearchQuery{Wing: "wing_beta"}, false},
+-		{"ANOTHER ROOM IS EXCLUDED", SearchQuery{Room: "diary"}, false},
+-		{"right wing, wrong room", SearchQuery{Wing: "wing_alpha", Room: "diary"}, false},
+-		{"wrong wing, right room", SearchQuery{Wing: "wing_beta", Room: "decisions"}, false},
++		{"unscoped matches anything", LookupQuery{}, true},
++		{"its own wing and room", LookupQuery{Wing: "wing_alpha", Room: "decisions"}, true},
++		{"wing only", LookupQuery{Wing: "wing_alpha"}, true},
++		{"room only", LookupQuery{Room: "decisions"}, true},
++		{"another wing is excluded", LookupQuery{Wing: "wing_beta"}, false},
++		{"ANOTHER ROOM IS EXCLUDED", LookupQuery{Room: "diary"}, false},
++		{"right wing, wrong room", LookupQuery{Wing: "wing_alpha", Room: "diary"}, false},
++		{"wrong wing, right room", LookupQuery{Wing: "wing_beta", Room: "decisions"}, false},
+ 	} {
+ 		if got := drawerMatchesSearch(d, tc.q); got != tc.want {
+ 			t.Errorf("%s: drawerMatchesSearch(%+v) = %v, want %v", tc.name, tc.q, got, tc.want)
+diff --git a/internal/palace/scopedrops_test.go b/internal/palace/scopedrops_test.go
+index fad6922..bdbf224 100644
+--- a/internal/palace/scopedrops_test.go
++++ b/internal/palace/scopedrops_test.go
+@@ -13,7 +13,7 @@ import (
+ )
+ 
+ // searchSpanAttrs runs one Search and returns the am.search parent's attributes.
+-func searchSpanAttrs(t *testing.T, svc *Service, team string, q SearchQuery) map[string]string {
++func searchSpanAttrs(t *testing.T, svc *Service, team string, q LookupQuery) map[string]string {
+ 	t.Helper()
+ 	sr := tracetest.NewSpanRecorder()
+ 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+@@ -60,7 +60,7 @@ func TestRequestAndServedValuesAreBothOnTheSpan(t *testing.T) {
+ 	}
+ 	copy(long, []rune("request shaping "))
+ 
+-	over := searchSpanAttrs(t, svc, team, SearchQuery{Query: string(long), Limit: 5000, MaxDistance: 1.25})
++	over := searchSpanAttrs(t, svc, team, LookupQuery{Query: string(long), Limit: 5000, MaxDistance: 1.25})
+ 	if over["am.limit"] == over["am.limit_requested"] {
+ 		t.Errorf("am.limit and am.limit_requested are both %q for a 5000-limit request; the clamp is "+
+ 			"invisible and an operator cannot tell 100-asked from 5000-asked", over["am.limit"])
+@@ -83,7 +83,7 @@ func TestRequestAndServedValuesAreBothOnTheSpan(t *testing.T) {
+ 	}
+ 
+ 	// Control: a normal request must NOT claim it was altered.
+-	normal := searchSpanAttrs(t, svc, team, SearchQuery{Query: "request shaping", Limit: 3})
++	normal := searchSpanAttrs(t, svc, team, LookupQuery{Query: "request shaping", Limit: 3})
+ 	if normal["am.query_truncated"] != "false" {
+ 		t.Errorf("a short query recorded am.query_truncated=%q — the flag is not reporting, it is "+
+ 			"just on", normal["am.query_truncated"])
+@@ -122,7 +122,7 @@ func TestScopeDropsCountEachCauseSeparately(t *testing.T) {
+ 		{ID: "far", Score: 0.10},
+ 	}
+ 
+-	survivors, distinct, drops := survivorsFrom(hits, rows, SearchQuery{Wing: "wing_beta", MaxDistance: 0.5}, false)
++	survivors, distinct, drops := survivorsFrom(hits, rows, LookupQuery{Wing: "wing_beta", MaxDistance: 0.5}, false)
+ 
+ 	if drops.Orphan != 1 {
+ 		t.Errorf("Orphan = %d, want 1 — an index row with no durable row is a divergence and must "+
+@@ -148,7 +148,7 @@ func TestScopeDropsCountEachCauseSeparately(t *testing.T) {
+ 	// The healthy case: nothing dropped, so nothing is annotated and the alarm is
+ 	// silent. A test that only ever saw non-zero counts could not tell an alarm
+ 	// from a number that is always on.
+-	_, _, clean := survivorsFrom([]store.Hit{{ID: "in", Score: 0.95}}, rows, SearchQuery{Wing: "wing_beta"}, false)
++	_, _, clean := survivorsFrom([]store.Hit{{ID: "in", Score: 0.95}}, rows, LookupQuery{Wing: "wing_beta"}, false)
+ 	if clean.Any() {
+ 		t.Errorf("a healthy prefix reported drops %+v; the alarm must be silent when the index and "+
+ 			"the rows agree", clean)
+@@ -177,7 +177,7 @@ func TestKnobsThatDecideThePageAreAllOnTheParentSpan(t *testing.T) {
+ 	const team = "team-knobs"
+ 	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about knob coverage"})
+ 
+-	got := searchSpanAttrs(t, svc, team, SearchQuery{Query: "knob coverage", Limit: 3, MaxDistance: 1.5})
++	got := searchSpanAttrs(t, svc, team, LookupQuery{Query: "knob coverage", Limit: 3, MaxDistance: 1.5})
+ 
+ 	// Each entry is a knob whose value CHANGES WHICH MEMORIES REACH THE PAGE.
+ 	// Adding one here without emitting it is meant to fail.
+diff --git a/internal/palace/service.go b/internal/palace/service.go
+index 568db83..f8d47e0 100644
+--- a/internal/palace/service.go
++++ b/internal/palace/service.go
+@@ -1607,8 +1607,8 @@ func (s *Service) List(ctx context.Context, teamID, wing, room string, limit, of
+ 	return out, nil
+ }
+ 
+-// SearchQuery is the mempalace_search input.
+-type SearchQuery struct {
++// LookupQuery is the mempalace_search input.
++type LookupQuery struct {
+ 	Query       string
+ 	Wing        string  // optional filter
+ 	Room        string  // optional filter
+@@ -1643,7 +1643,7 @@ type SearchQuery struct {
+ // rerankQuery returns the text the cross-encoder scores against: the (already
+ // capped) query, with Context appended when the caller supplied any. A blank
+ // Context leaves the query exactly as the vector pass saw it.
+-func (q SearchQuery) rerankQuery(query string) string {
++func (q LookupQuery) rerankQuery(query string) string {
+ 	if c := strings.TrimSpace(q.Context); c != "" {
+ 		return query + "\n\n" + c
+ 	}
+@@ -1653,7 +1653,7 @@ func (q SearchQuery) rerankQuery(query string) string {
+ // searchFilter renders a query's wing/room scope as the backend filter, matching
+ // the payload keys written at upsert time. An unscoped query yields nil, which
+ // every driver reads as "search everything".
+-func searchFilter(q SearchQuery) store.Filter {
++func searchFilter(q LookupQuery) store.Filter {
+ 	if q.Wing == "" && q.Room == "" {
+ 		return nil
+ 	}
+@@ -1679,7 +1679,7 @@ func searchFilter(q SearchQuery) store.Filter {
+ // Telemetry never changes ranking: a collector that is down drops observability,
+ // not results. SkipTelemetry skips only the SQLite write (eval); OTEL spans
+ // still run and hit the noop provider when Setup was not called.
+-func (s *Service) SearchPage(ctx context.Context, teamID string, q SearchQuery) (SearchResult, error) {
++func (s *Service) SearchPage(ctx context.Context, teamID string, q LookupQuery) (SearchResult, error) {
+ 	query := strings.TrimSpace(q.Query)
+ 	if query == "" {
+ 		return SearchResult{}, fmt.Errorf("%w: query is required", ErrInvalidInput)
+@@ -1880,7 +1880,7 @@ func (s *Service) SearchPage(ctx context.Context, teamID string, q SearchQuery)
+ // ranking path, no flag selects between them, and this function cannot diverge
+ // because it does nothing but drop a field. Reach for SearchPage when the caller
+ // needs to name the recall it just ran.
+-func (s *Service) Search(ctx context.Context, teamID string, q SearchQuery) ([]SearchHit, error) {
++func (s *Service) Search(ctx context.Context, teamID string, q LookupQuery) ([]SearchHit, error) {
+ 	page, err := s.SearchPage(ctx, teamID, q)
+ 	return page.Hits, err
+ }
+@@ -1894,7 +1894,7 @@ func (s *Service) Search(ctx context.Context, teamID string, q SearchQuery) ([]S
+ //
+ // stale marks a page served while the search index was behind its source of
+ // truth (ADR-033), and rides onto every hit.
+-func (s *Service) rankRetrieved(ctx context.Context, teamID, query string, q SearchQuery, vec []float32, hits []store.Hit, rows map[string]Drawer, stale bool) ([]SearchHit, bool, string, error) {
++func (s *Service) rankRetrieved(ctx context.Context, teamID, query string, q LookupQuery, vec []float32, hits []store.Hit, rows map[string]Drawer, stale bool) ([]SearchHit, bool, string, error) {
+ 	limit := q.Limit
+ 	if limit <= 0 {
+ 		limit = DefaultSearchLimit
+diff --git a/internal/palace/service_test.go b/internal/palace/service_test.go
+index 49f645a..f310b02 100644
+--- a/internal/palace/service_test.go
++++ b/internal/palace/service_test.go
+@@ -119,7 +119,7 @@ func TestSearchRerankerPromotesFromOutsideThePage(t *testing.T) {
+ 		}
+ 	}
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "installer pins claude_config_dir", Limit: 1})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "installer pins claude_config_dir", Limit: 1})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -149,7 +149,7 @@ func TestSearchSurvivesRerankerFailure(t *testing.T) {
+ 		}
+ 	}
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "beta memory", Limit: 3})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "beta memory", Limit: 3})
+ 	if err != nil {
+ 		t.Fatalf("search must not fail when the reranker is down: %v", err)
+ 	}
+@@ -181,7 +181,7 @@ func TestServiceAddAndSearch(t *testing.T) {
+ 		t.Fatalf("add: %v", err)
+ 	}
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "the cache uses an LRU eviction policy"})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "the cache uses an LRU eviction policy"})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -204,7 +204,7 @@ func TestServiceSearchWingFilter(t *testing.T) {
+ 	mustAdd(t, svc, team, AddInput{Wing: "alpha", Room: "r", Content: "shared phrase here alpha"})
+ 	mustAdd(t, svc, team, AddInput{Wing: "beta", Room: "r", Content: "shared phrase here beta"})
+ 
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "shared phrase here", Wing: "beta"})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "shared phrase here", Wing: "beta"})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -464,7 +464,7 @@ func TestFilingSurvivesAnEmbedderOutage(t *testing.T) {
+ 	if pending, err = svc.PendingCount(ctx, team); err != nil || pending != 0 {
+ 		t.Fatalf("queue not drained: %d (err %v)", pending, err)
+ 	}
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "journal written during the outage", Limit: 5})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "journal written during the outage", Limit: 5})
+ 	if err != nil {
+ 		t.Fatalf("search after recovery: %v", err)
+ 	}
+@@ -559,7 +559,7 @@ func TestWithFusionRRFChangesOrder(t *testing.T) {
+ 		Content: "cache eviction policy cache eviction policy cache eviction unrelated tail"})
+ 
+ 	order := func(s *Service) []string {
+-		hits, err := s.Search(ctx, team, SearchQuery{Query: "cache eviction policy", Wing: "wing_acme", Limit: 5, SkipTelemetry: true})
++		hits, err := s.Search(ctx, team, LookupQuery{Query: "cache eviction policy", Wing: "wing_acme", Limit: 5, SkipTelemetry: true})
+ 		if err != nil {
+ 			t.Fatalf("search: %v", err)
+ 		}
+@@ -614,7 +614,7 @@ func TestLexicalIDFChangesWhatSearchReturns(t *testing.T) {
+ 	}
+ 
+ 	scores := func(idf bool) []float64 {
+-		hits, err := svc.WithLexicalIDF(idf).Search(ctx, team, SearchQuery{
++		hits, err := svc.WithLexicalIDF(idf).Search(ctx, team, LookupQuery{
+ 			Query: "deploy batching", Wing: "wing_acme", Limit: 10, SkipTelemetry: true,
+ 		})
+ 		if err != nil {
+@@ -666,7 +666,7 @@ func TestRerankPresenceSurvivesAZeroScore(t *testing.T) {
+ 
+ 	// A reranker that scores everything exactly 0.0 — legal for a logit backend.
+ 	svc = svc.WithReranker(&staticReranker{scores: []float64{0}}, 10).WithRerankWeight(0.5)
+-	hits, err := svc.Search(ctx, team, SearchQuery{Query: "queue drain", Wing: "wing_acme", Limit: 5, SkipTelemetry: true})
++	hits, err := svc.Search(ctx, team, LookupQuery{Query: "queue drain", Wing: "wing_acme", Limit: 5, SkipTelemetry: true})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+diff --git a/internal/palace/telemetry_test.go b/internal/palace/telemetry_test.go
+index fa7d28f..f5b4bbc 100644
+--- a/internal/palace/telemetry_test.go
++++ b/internal/palace/telemetry_test.go
+@@ -27,7 +27,7 @@ func TestRerankedRecordsWhatHappened(t *testing.T) {
+ 	rr := &fakeReranker{}
+ 	svc = svc.WithReranker(rr, 50).WithRerankWeight(0)
+ 
+-	if _, err := svc.Search(ctx, "team-tel", SearchQuery{Query: "retry budget", Limit: 5}); err != nil {
++	if _, err := svc.Search(ctx, "team-tel", LookupQuery{Query: "retry budget", Limit: 5}); err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+ 	if rr.called != 0 {
+@@ -51,7 +51,7 @@ func TestRerankedIsTrueWhenItActuallyRan(t *testing.T) {
+ 	rr := &fakeReranker{}
+ 	svc = svc.WithReranker(rr, 50).WithRerankWeight(0.5)
+ 
+-	if _, err := svc.Search(ctx, "team-tel2", SearchQuery{Query: "retry budget", Limit: 5}); err != nil {
++	if _, err := svc.Search(ctx, "team-tel2", LookupQuery{Query: "retry budget", Limit: 5}); err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+ 	if rr.called == 0 {
+@@ -103,7 +103,7 @@ func TestDegradedRerankIsNotRecordedAsAPass(t *testing.T) {
+ 	mustAdd(t, svc, "team-deg", AddInput{Wing: "w", Room: "r", Content: "the retry budget is three attempts"})
+ 
+ 	svc = svc.WithReranker(&fakeReranker{err: errRerankProbe}, 50).WithRerankWeight(0.5)
+-	if _, err := svc.Search(ctx, "team-deg", SearchQuery{Query: "retry budget", Limit: 5}); err != nil {
++	if _, err := svc.Search(ctx, "team-deg", LookupQuery{Query: "retry budget", Limit: 5}); err != nil {
+ 		t.Fatalf("search must fail open, not error: %v", err)
+ 	}
+ 	if ev := lastSearchEvent(t, svc, "team-deg"); ev.Reranked != 0 {
+diff --git a/internal/palace/trace.go b/internal/palace/trace.go
+index 916044b..8fbbf9b 100644
+--- a/internal/palace/trace.go
++++ b/internal/palace/trace.go
+@@ -24,7 +24,7 @@ func (s *Service) fusionModeName() string {
+ // a bypassed closet with closet_scale=1 is a bug. Wing and room are booleans,
+ // never names: a tenant or project identifier as a metric label is the
+ // cardinality ADR-025 forbids.
+-func searchAttrs(s *Service, q SearchQuery, limit int) []attribute.KeyValue {
++func searchAttrs(s *Service, q LookupQuery, limit int) []attribute.KeyValue {
+ 	attrs := []attribute.KeyValue{
+ 		attribute.String("am.profile_id", s.RankingProfile()),
+ 		attribute.Bool("am.has_wing", strings.TrimSpace(q.Wing) != ""),
+diff --git a/internal/palace/widening_test.go b/internal/palace/widening_test.go
+index 1a7c727..6e1f013 100644
+--- a/internal/palace/widening_test.go
++++ b/internal/palace/widening_test.go
+@@ -46,7 +46,7 @@ func TestCandidateWideningIsBounded(t *testing.T) {
+ 	vectors := &endlessVectors{VectorStore: svc.vectors}
+ 	svc.vectors = vectors
+ 
+-	if _, err := svc.Search(context.Background(), "team-widen", SearchQuery{
++	if _, err := svc.Search(context.Background(), "team-widen", LookupQuery{
+ 		Query: "anything", Wing: "wing_alpha", Limit: 5,
+ 	}); err != nil {
+ 		t.Fatalf("search: %v", err)
+@@ -107,7 +107,7 @@ func TestCandidateWideningDoesNotRefetchRows(t *testing.T) {
+ 	svc.repo.db = svc.repo.db.Session(&gorm.Session{Logger: rec})
+ 	svc.repo.reader = svc.repo.reader.Session(&gorm.Session{Logger: rec}) // reads run on the reader since ADR-052 T5
+ 
+-	if _, err := svc.Search(ctx, "team-widen", SearchQuery{Query: "NEEDLE", Limit: 5}); err != nil {
++	if _, err := svc.Search(ctx, "team-widen", LookupQuery{Query: "NEEDLE", Limit: 5}); err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+ 	if len(vectors.ks) < 2 {

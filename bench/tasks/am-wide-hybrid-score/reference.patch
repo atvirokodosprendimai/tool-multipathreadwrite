@@ -1,0 +1,404 @@
+diff --git a/internal/palace/blenddegeneracy_test.go b/internal/palace/blenddegeneracy_test.go
+index bb2fb6d..a75a84b 100644
+--- a/internal/palace/blenddegeneracy_test.go
++++ b/internal/palace/blenddegeneracy_test.go
+@@ -11,8 +11,8 @@ import (
+ //
+ // ranked is fused-descending by contract, so candidate 0 has the better fused
+ // score. The scores say the opposite, at the extremes of the logit range.
+-func twoCandidateDisagreement() ([]HybridScore, []float64) {
+-	return []HybridScore{{Index: 0, Fused: 0.9}, {Index: 1, Fused: 0.1}}, []float64{-5.0, +5.0}
++func twoCandidateDisagreement() ([]MixedRating, []float64) {
++	return []MixedRating{{Index: 0, Fused: 0.9}, {Index: 1, Fused: 0.1}}, []float64{-5.0, +5.0}
+ }
+ 
+ // TestServedBlendTiesOnATwoCandidatePool pins TODAY's behaviour, and it is meant
+@@ -199,7 +199,7 @@ func TestLowSpreadDoesNotBecomeSignal(t *testing.T) {
+ 	//
+ 	// Candidate 0 is clearly best on the fused axis. The cross-encoder mildly
+ 	// prefers candidate 1, by 0.001 — an amount that means nothing.
+-	ranked := []HybridScore{{Index: 0, Fused: 0.9}, {Index: 1, Fused: 0.5}, {Index: 2, Fused: 0.1}}
++	ranked := []MixedRating{{Index: 0, Fused: 0.9}, {Index: 1, Fused: 0.5}, {Index: 2, Fused: 0.1}}
+ 	scores := []float64{0.4990, 0.5000, 0.4995}
+ 
+ 	served := (&Service{}).RerankNormName()
+diff --git a/internal/palace/eval.go b/internal/palace/eval.go
+index 89601c5..d427b3e 100644
+--- a/internal/palace/eval.go
++++ b/internal/palace/eval.go
+@@ -933,7 +933,7 @@ func (s *Service) servedRerankWeight() float64 {
+ //
+ // It is a test seam over serviceForArm, not a second mapping: an arm's ranking
+ // is whatever fusionRanker the reconstructed service runs.
+-func fusionRankerFor(arm EvalArm, base float64) func(query string, docs []string, dists, boosts []float64) []HybridScore {
++func fusionRankerFor(arm EvalArm, base float64) func(query string, docs []string, dists, boosts []float64) []MixedRating {
+ 	if !armIsScoreFusion(arm) {
+ 		return nil
+ 	}
+diff --git a/internal/palace/eval_test.go b/internal/palace/eval_test.go
+index 0eafe81..e3bebbb 100644
+--- a/internal/palace/eval_test.go
++++ b/internal/palace/eval_test.go
+@@ -340,7 +340,7 @@ func TestAnchoredArmsRankDifferentlyFromPageMax(t *testing.T) {
+ 
+ // checkAnchoredDiffers asserts each anchored counterpart of base scores the
+ // fixture differently from base itself.
+-func checkAnchoredDiffers(t *testing.T, base EvalArm, plain func(string, []string, []float64, []float64) []HybridScore) {
++func checkAnchoredDiffers(t *testing.T, base EvalArm, plain func(string, []string, []float64, []float64) []MixedRating) {
+ 	t.Helper()
+ 	query, docs, dists := anchorFixture()
+ 	for _, norm := range anchoredNorms {
+@@ -833,7 +833,7 @@ func TestRecencyArmPrefersNewerWithinBand(t *testing.T) {
+ 		t.Fatalf("recency reorder returned %d scores, want %d", len(got), len(base))
+ 	}
+ 	// The newer of the two near-tied candidates must come first.
+-	posOf := func(page []HybridScore, idx int) int {
++	posOf := func(page []MixedRating, idx int) int {
+ 		for i, h := range page {
+ 			if h.Index == idx {
+ 				return i
+diff --git a/internal/palace/evidence.go b/internal/palace/evidence.go
+index 80ce105..14dcc25 100644
+--- a/internal/palace/evidence.go
++++ b/internal/palace/evidence.go
+@@ -66,7 +66,7 @@ func (s *Service) semanticRerankDocuments(
+ 	evidenceQuery string,
+ 	queryVector []float32,
+ 	survivors []SearchHit,
+-	ranked []HybridScore,
++	ranked []MixedRating,
+ 	lexical []string,
+ ) ([]string, error) {
+ 	docs := append([]string(nil), lexical...)
+diff --git a/internal/palace/evidence_test.go b/internal/palace/evidence_test.go
+index aa39763..1a83ffa 100644
+--- a/internal/palace/evidence_test.go
++++ b/internal/palace/evidence_test.go
+@@ -288,7 +288,7 @@ func TestSemanticEvidenceBatchesOverlap(t *testing.T) {
+ 		{Drawer: Drawer{ID: "m1", Content: long}, MemoryID: "m1", MemoryContent: long},
+ 		{Drawer: Drawer{ID: "m2", Content: long}, MemoryID: "m2", MemoryContent: long},
+ 	}
+-	ranked := []HybridScore{{Index: 0}, {Index: 1}}
++	ranked := []MixedRating{{Index: 0}, {Index: 1}}
+ 	lexical := []string{"one", "two"}
+ 
+ 	// Batching is over the FLATTENED window list across documents, not per
+diff --git a/internal/palace/gatedarm_test.go b/internal/palace/gatedarm_test.go
+index 6e42093..a1fb8de 100644
+--- a/internal/palace/gatedarm_test.go
++++ b/internal/palace/gatedarm_test.go
+@@ -256,7 +256,7 @@ func TestGatedArmReconstructsTheServedRanking(t *testing.T) {
+ 		},
+ 	}
+ 
+-	orderOf := func(hs []HybridScore) []int {
++	orderOf := func(hs []MixedRating) []int {
+ 		out := make([]int, 0, len(hs))
+ 		for _, h := range hs {
+ 			out = append(out, h.Index)
+diff --git a/internal/palace/rank.go b/internal/palace/rank.go
+index 2645095..9b26ed4 100644
+--- a/internal/palace/rank.go
++++ b/internal/palace/rank.go
+@@ -238,9 +238,9 @@ const rrfK = 60.0
+ //
+ // Whether that holds HERE is exactly what the eval's rrf arm is for; this
+ // function is the candidate, not the decision.
+-func rankRRF(query string, docs []string, distances, boosts []float64) []HybridScore {
++func rankRRF(query string, docs []string, distances, boosts []float64) []MixedRating {
+ 	n := len(docs)
+-	out := make([]HybridScore, n)
++	out := make([]MixedRating, n)
+ 
+ 	// Position of each candidate in the vector ordering (closest first).
+ 	byVector := make([]int, n)
+@@ -273,16 +273,16 @@ func rankRRF(query string, docs []string, distances, boosts []float64) []HybridS
+ 			// rank position here, not the whole ordering.
+ 			boost = boosts[i] / rrfK
+ 		}
+-		out[i] = HybridScore{Index: i, Fused: fused[i] + boost, BM25: bm25[i], Boost: boost}
++		out[i] = MixedRating{Index: i, Fused: fused[i] + boost, BM25: bm25[i], Boost: boost}
+ 	}
+ 	sort.SliceStable(out, func(a, b int) bool { return out[a].Fused > out[b].Fused })
+ 	return out
+ }
+ 
+-// HybridScore is one candidate's fused ranking: its position in the input slice
++// MixedRating is one candidate's fused ranking: its position in the input slice
+ // plus the component and combined scores, exposed so the search tool can report
+ // the lexical and closet contributions alongside the final order.
+-type HybridScore struct {
++type MixedRating struct {
+ 	Index int     // position in the docs/distances input
+ 	Fused float64 // 0.6*vecSim + 0.4*bm25Norm + closetBoost, higher is better
+ 	BM25  float64 // raw Okapi-BM25 score (pre-normalization)
+@@ -324,7 +324,7 @@ type HybridScore struct {
+ // is a signal, not a competing term. A stable sort keeps the vector order as the
+ // tie-breaker when two candidates fuse equal. docs, distances and (when non-nil)
+ // boosts must be the same length.
+-func rankHybrid(query string, docs []string, distances, boosts []float64) []HybridScore {
++func rankHybrid(query string, docs []string, distances, boosts []float64) []MixedRating {
+ 	return rankHybridWeighted(query, docs, distances, boosts, hybridBM25Weight)
+ }
+ 
+@@ -338,7 +338,7 @@ func rankHybrid(query string, docs []string, distances, boosts []float64) []Hybr
+ // query's words without answering it. A weight that is right for one palace can
+ // be actively wrong for another, which is an argument for a knob and an eval, not
+ // for a better constant.
+-func rankHybridWeighted(query string, docs []string, distances, boosts []float64, bm25Weight float64) []HybridScore {
++func rankHybridWeighted(query string, docs []string, distances, boosts []float64, bm25Weight float64) []MixedRating {
+ 	return rankHybridWeightedNorm(query, docs, distances, boosts, bm25Weight, lexNormPageMax)
+ }
+ 
+@@ -351,7 +351,7 @@ func rankHybridWeighted(query string, docs []string, distances, boosts []float64
+ // w·a/(1 − w + w·a), so comparing them at the SAME w compares two points on one
+ // curve. What separates them is everything that breaks the convex blend — an
+ // additive boost, or a weight that moves per query.
+-func rankHybridWeightedNorm(query string, docs []string, distances, boosts []float64, bm25Weight float64, norm lexNorm) []HybridScore {
++func rankHybridWeightedNorm(query string, docs []string, distances, boosts []float64, bm25Weight float64, norm lexNorm) []MixedRating {
+ 	if bm25Weight < 0 {
+ 		bm25Weight = 0
+ 	}
+@@ -464,7 +464,7 @@ func adaptiveBM25Weight(query string, docs []string, base float64) float64 {
+ }
+ 
+ // rankHybridAdaptive fuses with the lexical weight chosen per query.
+-func rankHybridAdaptive(query string, docs []string, distances, boosts []float64, base float64) []HybridScore {
++func rankHybridAdaptive(query string, docs []string, distances, boosts []float64, base float64) []MixedRating {
+ 	return rankHybridAdaptiveNorm(query, docs, distances, boosts, base, lexNormPageMax)
+ }
+ 
+@@ -474,19 +474,19 @@ func rankHybridAdaptive(query string, docs []string, distances, boosts []float64
+ // a boost in play: the identity that makes anchoring a rescaling of the weight
+ // holds at a FIXED weight, and here the weight moves per query, so the rescaling
+ // would have to move with it.
+-func rankHybridAdaptiveNorm(query string, docs []string, distances, boosts []float64, base float64, norm lexNorm) []HybridScore {
++func rankHybridAdaptiveNorm(query string, docs []string, distances, boosts []float64, base float64, norm lexNorm) []MixedRating {
+ 	return rankHybridWeightedNorm(query, docs, distances, boosts, adaptiveBM25Weight(query, docs, base), norm)
+ }
+ 
+ // rankHybridAdaptiveIDF is rankHybridAdaptive with the IDF-weighted coverage.
+ // It exists as a separate eval arm rather than a replacement: the binary
+ // coverage is the shipping default until the IDF variant beats it on a table.
+-func rankHybridAdaptiveIDF(query string, docs []string, distances, boosts []float64, base float64) []HybridScore {
++func rankHybridAdaptiveIDF(query string, docs []string, distances, boosts []float64, base float64) []MixedRating {
+ 	return rankHybridAdaptiveIDFNorm(query, docs, distances, boosts, base, lexNormPageMax)
+ }
+ 
+ // rankHybridAdaptiveIDFNorm is rankHybridAdaptiveIDF with the normaliser named.
+-func rankHybridAdaptiveIDFNorm(query string, docs []string, distances, boosts []float64, base float64, norm lexNorm) []HybridScore {
++func rankHybridAdaptiveIDFNorm(query string, docs []string, distances, boosts []float64, base float64, norm lexNorm) []MixedRating {
+ 	return rankHybridWeightedNorm(query, docs, distances, boosts, base*LexicalCoverageIDF(query, docs), norm)
+ }
+ 
+@@ -580,18 +580,18 @@ func lexNormSaturating(raw []float64, ceiling float64) []float64 {
+ 
+ // rankFused is the shared implementation. norm decides how raw BM25 becomes the
+ // lexical term; pass lexNormPageMax for the shipping behaviour.
+-func rankFused(query string, docs []string, distances, boosts []float64, vectorWeight, bm25Weight float64, norm lexNorm) []HybridScore {
++func rankFused(query string, docs []string, distances, boosts []float64, vectorWeight, bm25Weight float64, norm lexNorm) []MixedRating {
+ 	raw, ceiling := bm25ScoresAndCeiling(query, docs)
+ 	lexical := norm(raw, ceiling)
+ 
+-	out := make([]HybridScore, len(docs))
++	out := make([]MixedRating, len(docs))
+ 	for i := range docs {
+ 		boost := 0.0
+ 		if boosts != nil {
+ 			boost = boosts[i]
+ 		}
+ 		fused := vectorWeight*vecSimFromDistance(distances[i]) + bm25Weight*lexical[i] + boost
+-		out[i] = HybridScore{Index: i, Fused: fused, BM25: raw[i], Boost: boost}
++		out[i] = MixedRating{Index: i, Fused: fused, BM25: raw[i], Boost: boost}
+ 	}
+ 	// Stable so equal-fused candidates keep their incoming (vector) order.
+ 	sort.SliceStable(out, func(a, b int) bool { return out[a].Fused > out[b].Fused })
+@@ -994,14 +994,14 @@ func snippetWindow(runes, lower []rune, terms []string, maxChars int) (int, int)
+ // elsewhere in this file. It lives here rather than in Search on purpose: ADR-004
+ // puts a production recency prior explicitly out of scope, and a helper in the
+ // ranking file is one import away from being inherited by accident.
+-func reorderByRecency(page []HybridScore, dates []string, band float64) []HybridScore {
++func reorderByRecency(page []MixedRating, dates []string, band float64) []MixedRating {
+ 	if band <= 0 || len(page) < 2 {
+ 		return page
+ 	}
+-	out := make([]HybridScore, len(page))
++	out := make([]MixedRating, len(page))
+ 	copy(out, page)
+ 
+-	dateOf := func(h HybridScore) string {
++	dateOf := func(h MixedRating) string {
+ 		if h.Index < 0 || h.Index >= len(dates) {
+ 			return ""
+ 		}
+diff --git a/internal/palace/rank_blend_test.go b/internal/palace/rank_blend_test.go
+index eb37a67..e9a6a54 100644
+--- a/internal/palace/rank_blend_test.go
++++ b/internal/palace/rank_blend_test.go
+@@ -30,7 +30,7 @@ func TestHitCarriesTheScoreItWasOrderedBy(t *testing.T) {
+ 	// rerankNorm = [0.6, 1.0, 0.0]
+ 	// blended@.5 = [0.8, 0.5, 0.25]  -> candidate 0 leads
+ 	// rerank alone                   -> candidate 1 leads
+-	ranked := []HybridScore{
++	ranked := []MixedRating{
+ 		{Index: 0, Fused: 1.00},
+ 		{Index: 1, Fused: 0.00},
+ 		{Index: 2, Fused: 0.50},
+diff --git a/internal/palace/rank_test.go b/internal/palace/rank_test.go
+index 04a6c99..bc06700 100644
+--- a/internal/palace/rank_test.go
++++ b/internal/palace/rank_test.go
+@@ -348,7 +348,7 @@ func TestLexicalCoverageIDFCrossLanguageStaysZero(t *testing.T) {
+ // orderOf returns just the candidate indices from a ranked page, which is what
+ // the identity tests compare: two fusions agree when they order the page the
+ // same way, not when they produce the same numbers.
+-func orderOf(page []HybridScore) []int {
++func orderOf(page []MixedRating) []int {
+ 	out := make([]int, len(page))
+ 	for i, h := range page {
+ 		out[i] = h.Index
+@@ -625,13 +625,13 @@ func TestLexNormPageMaxIsTodaysArithmetic(t *testing.T) {
+ 			maxBM25 = s
+ 		}
+ 	}
+-	want := make([]HybridScore, len(docs))
++	want := make([]MixedRating, len(docs))
+ 	for i := range docs {
+ 		norm := 0.0
+ 		if maxBM25 > 0 {
+ 			norm = raw[i] / maxBM25
+ 		}
+-		want[i] = HybridScore{Index: i, Fused: (1-w)*vecSimFromDistance(distances[i]) + w*norm + boosts[i]}
++		want[i] = MixedRating{Index: i, Fused: (1-w)*vecSimFromDistance(distances[i]) + w*norm + boosts[i]}
+ 	}
+ 	sort.SliceStable(want, func(a, b int) bool { return want[a].Fused > want[b].Fused })
+ 
+diff --git a/internal/palace/rerankreason_test.go b/internal/palace/rerankreason_test.go
+index 3eabfef..1357be3 100644
+--- a/internal/palace/rerankreason_test.go
++++ b/internal/palace/rerankreason_test.go
+@@ -113,7 +113,7 @@ func reasonAndSpan(t *testing.T, svc *Service, weight float64) (returned, onSpan
+ 		{Drawer: Drawer{ID: "A", Content: "exact identifier match"}},
+ 		{Drawer: Drawer{ID: "B", Content: "topically similar"}},
+ 	}
+-	ranked := []HybridScore{{Index: 0, Fused: 1.0}, {Index: 1, Fused: 0.2}}
++	ranked := []MixedRating{{Index: 0, Fused: 1.0}, {Index: 1, Fused: 0.2}}
+ 
+ 	ctx := telemetry.WithProvider(context.Background(), tp)
+ 	_, _, returned = svc.applyRerankWith(ctx, "q", "q", nil, survivors, ranked, weight)
+diff --git a/internal/palace/service.go b/internal/palace/service.go
+index 568db83..c746bc8 100644
+--- a/internal/palace/service.go
++++ b/internal/palace/service.go
+@@ -558,22 +558,22 @@ func (s *Service) WithRecencyBand(band float64) *Service {
+ // a served configuration, and the only honest way to check that mapping is to
+ // run BOTH rankers on the same input and compare the order — a check on the arm
+ // NAME passes happily while the two functions differ.
+-func (s *Service) fusionRanker() func(query string, docs []string, dists, boosts []float64) []HybridScore {
++func (s *Service) fusionRanker() func(query string, docs []string, dists, boosts []float64) []MixedRating {
+ 	switch {
+ 	case s.fusionRRF:
+ 		// Rank fusion ignores bm25Base entirely — the weight question does not
+ 		// arise when neither signal contributes a magnitude, only a position.
+ 		return rankRRF
+ 	case s.bm25Auto && s.bm25IDF:
+-		return func(query string, docs []string, dists, boosts []float64) []HybridScore {
++		return func(query string, docs []string, dists, boosts []float64) []MixedRating {
+ 			return rankHybridAdaptiveIDFNorm(query, docs, dists, boosts, s.bm25Base, s.lexNorm)
+ 		}
+ 	case s.bm25Auto:
+-		return func(query string, docs []string, dists, boosts []float64) []HybridScore {
++		return func(query string, docs []string, dists, boosts []float64) []MixedRating {
+ 			return rankHybridAdaptiveNorm(query, docs, dists, boosts, s.bm25Base, s.lexNorm)
+ 		}
+ 	default:
+-		return func(query string, docs []string, dists, boosts []float64) []HybridScore {
++		return func(query string, docs []string, dists, boosts []float64) []MixedRating {
+ 			return rankHybridWeightedNorm(query, docs, dists, boosts, s.bm25Base, s.lexNorm)
+ 		}
+ 	}
+@@ -2069,7 +2069,7 @@ func boolToInt(b bool) int {
+ // hybrid order. That mirrors the closet boost's rule that a ranking input is a
+ // signal, never a gate — a reranker that is down or slow must degrade recall,
+ // never break it.
+-func (s *Service) applyRerank(ctx context.Context, rerankQuery, evidenceQuery string, queryVector []float32, survivors []SearchHit, ranked []HybridScore) ([]HybridScore, bool, string) {
++func (s *Service) applyRerank(ctx context.Context, rerankQuery, evidenceQuery string, queryVector []float32, survivors []SearchHit, ranked []MixedRating) ([]MixedRating, bool, string) {
+ 	return s.applyRerankWith(ctx, rerankQuery, evidenceQuery, queryVector, survivors, ranked, s.rerankWeight)
+ }
+ 
+@@ -2084,7 +2084,7 @@ func (s *Service) applyRerank(ctx context.Context, rerankQuery, evidenceQuery st
+ // telemetry's reason constants, or "" when it did. It is the same value the span
+ // carries, computed once and handed to both, because a trace and a durable row
+ // disagreeing about one recall is the defect ADR-034 exists to prevent.
+-func (s *Service) applyRerankWith(ctx context.Context, rerankQuery, evidenceQuery string, queryVector []float32, survivors []SearchHit, ranked []HybridScore, weight float64) ([]HybridScore, bool, string) {
++func (s *Service) applyRerankWith(ctx context.Context, rerankQuery, evidenceQuery string, queryVector []float32, survivors []SearchHit, ranked []MixedRating, weight float64) ([]MixedRating, bool, string) {
+ 	rerankCtx, sp := telemetry.Start(ctx, telemetry.StageRerank, attribute.Float64("am.weight", weight))
+ 	switch {
+ 	case s.rerank == nil:
+@@ -2169,7 +2169,7 @@ func (s *Service) RerankBudget() time.Duration {
+ // or nil when there is no reranker or the call fails. The caller blends them with
+ // BlendRerank, possibly several times at different weights, without paying for
+ // the inference again.
+-func (s *Service) RerankScoresFor(ctx context.Context, query string, survivors []SearchHit, ranked []HybridScore) []float64 {
++func (s *Service) RerankScoresFor(ctx context.Context, query string, survivors []SearchHit, ranked []MixedRating) []float64 {
+ 	if s.rerank == nil || len(ranked) == 0 {
+ 		return nil
+ 	}
+@@ -2325,7 +2325,7 @@ func normalizeByMax(in []float64) []float64 {
+ // 0.4967 and STILL ordered the page against a cross-encoder that had asked for
+ // the opposite by the widest margin it can express, because the fused axis was
+ // still being min-max stretched to {1, 0}. Both axes are scale-free or neither is.
+-func BlendRerankWith(ranked []HybridScore, scores []float64, weight float64, norm string) []HybridScore {
++func BlendRerankWith(ranked []MixedRating, scores []float64, weight float64, norm string) []MixedRating {
+ 	pool := len(scores)
+ 	if pool == 0 || pool > len(ranked) {
+ 		return ranked
+@@ -2336,7 +2336,7 @@ func BlendRerankWith(ranked []HybridScore, scores []float64, weight float64, nor
+ 	}
+ 	rerankNorm, fusedNorm := normalizeBlendAxes(scores, fusedRaw, norm)
+ 
+-	head := make([]HybridScore, pool)
++	head := make([]MixedRating, pool)
+ 	for i := range head {
+ 		head[i] = ranked[i]
+ 		head[i].Rerank, head[i].Reranked = scores[i], true
+@@ -2346,7 +2346,7 @@ func BlendRerankWith(ranked []HybridScore, scores []float64, weight float64, nor
+ 	return append(head, ranked[pool:]...)
+ }
+ 
+-func BlendRerank(ranked []HybridScore, scores []float64, weight float64) []HybridScore {
++func BlendRerank(ranked []MixedRating, scores []float64, weight float64) []MixedRating {
+ 	pool := len(scores)
+ 	if pool == 0 || pool > len(ranked) {
+ 		return ranked
+@@ -2362,7 +2362,7 @@ func BlendRerank(ranked []HybridScore, scores []float64, weight float64) []Hybri
+ 	}
+ 	fusedNorm := normalizeScores(fusedRaw)
+ 
+-	head := make([]HybridScore, pool)
++	head := make([]MixedRating, pool)
+ 	for i := range head {
+ 		head[i] = ranked[i]
+ 		head[i].Rerank, head[i].Reranked = scores[i], true
+diff --git a/internal/palace/service_test.go b/internal/palace/service_test.go
+index 49f645a..d53dd21 100644
+--- a/internal/palace/service_test.go
++++ b/internal/palace/service_test.go
+@@ -498,7 +498,7 @@ func TestRerankBlendsRatherThanOverwrites(t *testing.T) {
+ 		{Drawer: Drawer{ID: "A", Content: "exact identifier match"}},
+ 		{Drawer: Drawer{ID: "B", Content: "topically similar"}},
+ 	}
+-	ranked := []HybridScore{{Index: 0, Fused: 1.0}, {Index: 1, Fused: 0.2}}
++	ranked := []MixedRating{{Index: 0, Fused: 1.0}, {Index: 1, Fused: 0.2}}
+ 	svc.rerank = &staticReranker{scores: []float64{1, 2}} // B scored higher
+ 	svc.rerankPool = 2
+ 
+@@ -524,7 +524,7 @@ func TestRerankKeepsTheWholePage(t *testing.T) {
+ 	survivors := []SearchHit{
+ 		{Drawer: Drawer{ID: "A"}}, {Drawer: Drawer{ID: "B"}}, {Drawer: Drawer{ID: "C"}},
+ 	}
+-	ranked := []HybridScore{{Index: 0, Fused: 0.9}, {Index: 1, Fused: 0.5}, {Index: 2, Fused: 0.1}}
++	ranked := []MixedRating{{Index: 0, Fused: 0.9}, {Index: 1, Fused: 0.5}, {Index: 2, Fused: 0.1}}
+ 
+ 	// Wrong count: upstream's guard rejects it and the hybrid order stands.
+ 	svc.rerank = &staticReranker{scores: []float64{5}}
