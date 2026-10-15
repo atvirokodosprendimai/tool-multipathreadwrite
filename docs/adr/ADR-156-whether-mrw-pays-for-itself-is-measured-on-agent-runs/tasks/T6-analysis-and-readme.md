@@ -87,6 +87,7 @@ out=$(mktemp) \
   ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/bench	0.191s
   ```
 - 2026-10-15 · f98fc6d9* · exit 0 · `set -o pipefail …` · acceptance-sha256:42bb7bf03a0c61b136a4a5d60140f9dd9ecfdeb60bb604ce93b857ee985d5463 · ms:386
+- 2026-10-15 · human-observed · S4 approved: Zy read the README sentences against docs/bench/RESULTS.md on 2026-10-15 and picked 'Approve as written' — five INCONCLUSIVE verdicts, each with its cost interval, and the two stages where B made more silent mis-edits than A said plainly
 
 ## Invariants
 
